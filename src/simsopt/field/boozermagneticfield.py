@@ -593,55 +593,42 @@ class BoozerAnalytic(BoozerMagneticField):
         BoozerMagneticField.__init__(self, psi0)
 
     def set_etabar(self, etabar):
-        self.invalidate_cache()
         self.etabar = etabar
 
     def set_B0(self, B0):
-        self.invalidate_cache()
         self.B0 = B0
 
     def set_B0z(self, B0z):
-        self.invalidate_cache()
         self.B0z = B0z
 
     def set_Bbar(self, Bbar):
-        self.invalidate_cache()
         self.Bbar = Bbar
 
     def set_N(self, N):
-        self.invalidate_cache()
         self.N = N
 
     def set_G0(self, G0):
-        self.invalidate_cache()
         self.G0 = G0
 
     def set_I0(self, I0):
-        self.invalidate_cache()
         self.I0 = I0
 
     def set_G1(self, G1):
-        self.invalidate_cache()
         self.G1 = G1
 
     def set_I1(self, I1):
-        self.invalidate_cache()
         self.I1 = I1
 
     def set_K1(self, K1):
-        self.invalidate_cache()
         self.K1 = K1
 
     def set_iota0(self, iota0):
-        self.invalidate_cache()
         self.iota0 = iota0
 
     def set_iota1(self, iota1):
-        self.invalidate_cache()
         self.iota1 = iota1
 
     def set_psi0(self, psi0):
-        self.invalidate_cache()
         self.psi0 = psi0
 
     def _psip_impl(self, psip):
@@ -744,29 +731,26 @@ class BoozerAnalytic(BoozerMagneticField):
 
 class BoozerRadialInterpolant(BoozerMagneticField):
     r"""
-    Given a :class:`Vmec` instance, performs a Boozer coordinate transformation using
-    ``BOOZXFORM``.
-    The magnetic field can be computed at any point in Boozer
-    coordinates using radial spline interpolation (``scipy.interpolate.InterpolatedUnivariateSpline``)
-    and an inverse Fourier transform in the two angles.
-    Throughout stellarator symmetry is assumed.
-
+    Given a :class:`Vmec` instance, performs a Boozer coordinate transformation using ``BOOZXFORM``. The magnetic field can be computed at any point in Boozer coordinates using radial spline interpolation (``scipy.interpolate.InterpolatedUnivariateSpline``) and an inverse Fourier transform in the two angles.
+     
     Args:
-        equil: instance of :class:`simsopt.mhd.vmec.Vmec`, :class:`simsopt.mhd.boozer.Boozer`,
-            or :class:`Booz_xform`. If it is an instance of :class:`simsopt.mhd.boozer.Boozer`, the
-            `compute_surfs` needs to include all of the grid points in the
-            half-radius grid of the corresponding Vmec equilibrium.
-        order: (int) order for radial interpolation. Must satisfy 1 <= order <= 5.
-        mpol: (int) number of poloidal mode numbers for BOOZXFORM (defaults to 32)
-        ntor: (int) number of toroidal mode numbers for BOOZXFORM (defaults to 32)
-        N: Helicity of quasisymmetry to enforce. If specified, then the non-symmetric Fourier
-            harmonics of :math:`B` and :math:`K` are filtered out. Otherwise, all harmonics are kept.
+        equil: instance of :class:`Booz_xform` or string containing the         
+            filename of a boozmn_*.nc file (produced with booz_xform) or 
+            wout_*.nc file (produced with VMEC). If a :class:`Booz_xform` 
+            instance or boozmn_*.nc file is passed, the `compute_surfs` needs to include all of the grid points in the half-radius grid of the corresponding Vmec equilibrium. Otherwise, a ValueError is raised.
+        order: (int) order for radial interpolation. Must satisfy 1 <= order <= 
+            5.
+        mpol: (int) number of poloidal mode numbers for BOOZXFORM (defaults to 
+            32). Only used if a wout_*.nc file is passed. 
+        ntor: (int) number of toroidal mode numbers for BOOZXFORM (defaults to 
+            32). Only used if a wout_*.nc file is passed. 
+        N: Helicity of quasisymmetry to enforce. If specified, then the 
+            non-symmetric Fourier harmonics of :math:`B` and :math:`K` are filtered out. Otherwise, all harmonics are kept.
             (defaults to ``None``)
         enforce_vacuum: If True, a vacuum field is assumed, :math:`G` is
             set to its mean value, :math:`I = 0`, and :math:`K = 0`.
-        rescale: If True, use the interpolation method in the DELTA5D code. Here, a few
-            of the first radial grid points or (``bmnc``, ``rmnc``, ``zmns``, ``numns``, ``kmns``)
-            are deleted (determined by ``ns_delete``). The Fourier harmonics are then rescaled as:
+        rescale: If True, use the interpolation method in the DELTA5D code. 
+            Here, a few of the first radial grid points or (``bmnc``, ``rmnc``, ``zmns``, ``numns``, ``kmns``) are deleted (determined by ``ns_delete``). The Fourier harmonics are then rescaled as:
                 bmnc(s)/s^(1/2) for m = 1
 
                 bmnc(s)/s for m even and >= 2
@@ -774,27 +758,24 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                 bmnc(s)/s^(3/2) for m odd and >=3
 
             before performing interpolation and spline differentiation to
-            obtain ``dbmncds``. If ``False``, interpolation of the unscaled Fourier
-            harmonics and its finite-difference derivative wrt ``s`` is performed
-            instead (defaults to ``False``)
+            obtain ``dbmncds``. If ``False``, interpolation of the unscaled Fourier harmonics and its finite-difference derivative wrt ``s`` is performed instead (defaults to ``False``)
         ns_delete: (see ``rescale``) (defaults to 0)
         no_K: (bool) If ``True``, the Boozer :math:`K` will not be computed or
             interpolated.
         write_boozmn: (bool) If ``True``, save the booz_xform transformation in
             a filename specified by ``boozmn_name``. (defaults to ``True``)
+        comm: A MPI communicator to parallelize over, from which
+          the worker groups will be used for spline calculations. If ``comm`` is
+          ``None``, each MPI process will compute splines independently.
         boozmn_name: (string) Filename to save booz_xform transformation if
             ``write_boozmn`` is ``True``.
-        comm: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which
-          the worker groups will be used for spline calculations. If ``None``,
-          defaults to ``equil.mpi``. If ``equil`` is a ``Booz_xform`` instance,
-          and ``mpi`` is ``None``, each MPI process will compute splines
-          independently.
-         verbose: If True, additional output is written.
+        verbose: If True, additional output is written by booz_xform. (defaults 
+            to False). 
+        no_shear: If True, the shear in the rotational transform will be 
+            eliminated, and iota will be taken to be the mean value. (defaults to False).
     """
-
-    def __init__(self, equil, order, mpol=32, ntor=32, N=None, enforce_vacuum=False,
-                 rescale=False, ns_delete=0, no_K=False, write_boozmn=True, comm=None,
-                 boozmn_name="boozmn.nc", verbose=0, no_shear=False):
+    def __init__(self, equil, order, mpol=32, ntor=32, N=None, 
+                 enforce_vacuum=False, rescale=False, ns_delete=0, no_K=False, write_boozmn=True, comm=None, boozmn_name="boozmn.nc", verbose=0, no_shear=False):
 
         self.comm = comm
 
@@ -823,10 +804,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                     booz.read_boozmn(equil)
                     self.bx = booz
                     # Check if grid does not have correct size
-                    if (len(self.bx.s_in) != len(self.bx.s_b)):
+                    if (self.bx.ns_in != len(self.bx.s_b)):
                         raise ValueError('booz filename has incorrect s grid!')
                     # Check if grid does not match Vmec half grid
-                    if (np.any(self.bx.s_in != self.bx.s_b)):
+                    s_in_full = np.linspace(0,1,self.bx.ns_in+1)
+                    s_in = 0.5*(s_in_full[1::]+s_in_full[0:-1])
+                    if (not np.allclose(s_in, self.bx.s_b)):
                         raise ValueError('booz filename has incorrect s grid!')
                 else:
                     raise ValueError('Invalid filename')
@@ -1701,7 +1684,8 @@ class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField)
     def __init__(self, field, degree, srange, thetarange, zetarange, extrapolate=True, nfp=1, stellsym=True, initialize=[]):
         r"""
         Args:
-            field: the underlying :class:`simsopt.field.boozermagneticfield.BoozerMagneticField` to be interpolated.
+            field: the underlying :class:`simsopt.field.boozermagneticfield.
+                BoozerMagneticField` to be interpolated.
             degree: the degree of the piecewise polynomial interpolant.
             srange: a 3-tuple of the form ``(smin, smax, ns)``. This mean that
                 the interval ``[smin, smax]`` is split into ``ns`` many subintervals.
@@ -1718,6 +1702,8 @@ class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField)
             stellsym: Whether to exploit stellarator symmetry. In this case
                       ``theta`` is always mapped to the interval :math:`[0, \pi]`,
                       hence it makes sense to use ``thetamin=0`` and ``thetamax=np.pi``.
+            initialize: A list of strings, each of which is the name of a 
+                field quantitty, e.g., `modB`, to be initialized when the interpolant is created.
         """
         BoozerMagneticField.__init__(self, field.psi0)
         if (np.any(np.asarray(thetarange[0:2]) < 0) or np.any(np.asarray(thetarange[0:2]) > 2*np.pi)):

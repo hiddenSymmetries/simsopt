@@ -520,28 +520,67 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         y = dense.current_state();
         zeta_current = y[2];
         vpar_current = y[3];
-        double t_last = std::get<0>(step);
-        double t_current = std::get<1>(step);
+        t_last = std::get<0>(step);
+        t_current = std::get<1>(step);
         dt = t_current - t_last;
-        stop = check_stopping_criteria<RHS,dense_stepper_type>(rhs, y, iter, res, res_hits, dense,      
-                                t_last, t_current, zeta_last, zeta_current, vpar_last, vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path, dt_save);
+
+        // Save path if forget_exact_path = False
+        if (forget_exact_path == 0) {
+            // This will give the first save point after t_last
+            double t_save_last = dt_save * std::ceil(t_last/dt_save);
+            for (double t_save = t_save_last; t_save <= t_current; t_save += dt_save) {
+                if (t_save != 0) {
+                    vpar_last = res.back()[4];
+                    zeta_last = res.back()[3];
+                    dense.calc_state(t_save, temp);
+                    vpar_current = temp[3];
+                    zeta_current = temp[2];
+                    // Only save if we have not hit any stopping criteria
+                    stop = check_stopping_criteria<RHS,dense_stepper_type>(rhs, 
+                        temp, iter, res, res_hits, dense,      
+                        t_save - dt_save, t_save, dt, zeta_last, zeta_current, vpar_last, vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop);
+                    if (stop) {
+                        break;
+                    } else {
+                        ykeep = temp;
+                        if (rhs.axis==1) {
+                            ykeep[0] = pow(temp[0],2) + pow(temp[1],2);
+                            ykeep[1] = atan2(temp[1],temp[0]);
+                        } else if (rhs.axis==2) {
+                            ykeep[0] = sqrt(pow(temp[0],2) + pow(temp[1],2));
+                            ykeep[1] = atan2(temp[1],temp[0]);        
+                        }
+                        res.push_back(join<1, RHS::Size>({t_save}, ykeep));
+                    }
+                }
+            }
+        } else {
+            stop = check_stopping_criteria<RHS,dense_stepper_type>(rhs, y, 
+                iter, res, res_hits, dense,      
+                t_last, t_current, dt, zeta_last, zeta_current, vpar_last, vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop);
+        }
+        
         zeta_last = zeta_current;
         vpar_last = vpar_current;
     } while(t < tmax && !stop);
-    // Now save time = t 
-    ykeep = y;
-    if (rhs.axis==1) {
-        ykeep[0] = pow(y[0],2) + pow(y[1],2);
-        ykeep[1] = atan2(y[1],y[0]);
-    } else if (rhs.axis==2) {
-        ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
-        ykeep[1] = atan2(y[1],y[0]);        
-    }
-    res.push_back(join<1, RHS::Size>({t}, {ykeep}));
-
+    // Save t = tmax
+    if(!stop){
+        dense.calc_state(tmax, y);
+        t = tmax; 
+        ykeep = y;
+        if (rhs.axis==1) {
+            ykeep[0] = pow(y[0],2) + pow(y[1],2);
+            ykeep[1] = atan2(y[1],y[0]);
+        } else if (rhs.axis==2) {
+            ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
+            ykeep[1] = atan2(y[1],y[0]);        
+        }
+        res.push_back(join<1, RHS::Size>({t}, {ykeep})); 
+    
+    } 
+   
     return std::make_tuple(res, res_hits);
 }
-
 
 tuple<vector<array<double, 6>>, vector<array<double, 7>>>
 particle_guiding_center_boozer_perturbed_tracing(
@@ -622,7 +661,7 @@ particle_guiding_center_boozer_perturbed_tracing(
  * @param zetas_stop Boolean flag indicating if zeta stopping criteria should be used.
  * @param vpars_stop Boolean flag indicating if velocity parameter stopping criteria should be used.
  * @param forget_exact_path Boolean flag indicating if the exact path should be forgotten.
- * @param axis Axis of symmetry (1, 2, or other).
+ * @param axis Defines handling of coordinate singularity. If 0, tracing is performed in Boozer coordinates (s,theta,zeta). If 1, tracing is performed in coordinates (sqrt(s)*cos(theta), sqrt(s)*sin(theta), zeta). If 2, tracing is performed in coordinates (s*cos(theta),s*sin(theta),zeta). Option 2 is recommended. 
  * @param predictor_step Boolean flag indicating if predictor step should be used.
  * @return A tuple containing two vectors: the first vector contains arrays of size 5, and the second vector contains arrays of size 6.
  * 

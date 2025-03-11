@@ -262,7 +262,7 @@ class BoozerMagneticField {
         }
 
         Array2& Z_derivs_ref() {
-            data_dZdtheta.resize({npoints, 3});
+            data_Z_derivs.resize({npoints, 3});
             _Z_derivs_impl(data_Z_derivs);
             return data_Z_derivs;
         }

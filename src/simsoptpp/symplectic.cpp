@@ -191,7 +191,8 @@ tuple<vector<array<double, SymplField::Size+1>>, vector<array<double, SymplField
     double t = 0.0;
     bool stop = false;
 
-    State  z = {}; // s, theta, zeta, pzeta
+    State z = {}; // s, theta, zeta, pzeta
+    State temp = {};
     // y = [s, theta, zeta, vpar]
         
     // Translate y to z
@@ -318,17 +319,44 @@ tuple<vector<array<double, SymplField::Size+1>>, vector<array<double, SymplField
         double zeta_current = y[2];
         double vpar_current = y[3];
 
-        stop = check_stopping_criteria<SymplField,sympl_dense>(f, y, iter, res, 
-                              res_hits, dense, t_last, t_current, zeta_last, zeta_current, vpar_last, vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path, dt_save);
+        // Save path if forget_exact_path = False
+        if (forget_exact_path == 0) {
+            // This will give the first save point after t_last
+            double t_save_last = dt_save * std::ceil(t_last/dt_save);
+            for (double t_save = t_save_last; t_save <= t_current; t_save += dt_save) {
+                if (t_save != 0) {
+                    vpar_last = res.back()[4];
+                    zeta_last = res.back()[3];
+                    dense.calc_state(t_save, temp);
+                    vpar_current = temp[3];
+                    zeta_current = temp[2];
+                    // Only save if we have not hit any stopping criteria
+                    stop = check_stopping_criteria<SymplField,sympl_dense>(f, 
+                        temp, iter, res, res_hits, dense,      
+                        t_save - dt_save, t_save, dt, zeta_last, zeta_current, vpar_last, vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop);
+                    if (stop) {
+                        break;
+                    } else {
+                        res.push_back(join<1,SymplField::Size>({t_save}, {temp}));
+                    }
+                }
+            }
+        } else {
+            stop = check_stopping_criteria<SymplField,sympl_dense>(f, y, iter, 
+                res, res_hits, dense, t_last, t_current, dt, zeta_last, zeta_current, vpar_last, vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop);
+        }
 
         t_last = t_current;
         zeta_last = zeta_current;
         vpar_last = vpar_current;
     } while(t < tmax && !stop);
+    // Save t = tmax
     if(!stop){
         dense.calc_state(tmax, y);
-        res.push_back(join<1,SymplField::Size>({tmax}, y));
-    }
+        t = tmax;   
+        res.push_back(join<1,SymplField::Size>({t}, {y}));
+    } 
+
     gsl_multiroot_fsolver_free(s_euler);
     gsl_vector_free(xvec_quasi);
 
