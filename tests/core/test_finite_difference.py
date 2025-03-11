@@ -23,7 +23,7 @@ class TestFunction1(Optimizable):
         super().__init__(x0=x, fixed=fixed)
 
     def J(self):
-        return np.exp(self.full_x[0] ** 2 - np.exp(self.full_x[1]) \
+        return np.exp(self.full_x[0] ** 2 - np.exp(self.full_x[1])
                       + np.sin(self.full_x[2]))
 
     def dJ(self):

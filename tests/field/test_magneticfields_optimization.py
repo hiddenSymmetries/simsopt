@@ -11,6 +11,7 @@ from simsopt import make_optimizable
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
+
 class Testing(unittest.TestCase):
 
     def test_circularcoil_current_optimization(self):

@@ -28,14 +28,8 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         MagneticField.__init__(self, depends_on=coils)
 
     def dB_by_dcoilcurrents(self, compute_derivatives=0):
-        points = self.get_points_cart_ref()
-        npoints = len(points)
-        ncoils = len(self._coils)
-        if any([not self.fieldcache_get_status(f'B_{i}') for i in range(ncoils)]):
-            assert compute_derivatives >= 0
-            self.compute(compute_derivatives)
-        self._dB_by_dcoilcurrents = [self.fieldcache_get_or_create(f'B_{i}', [npoints, 3]) for i in range(ncoils)]
-        return self._dB_by_dcoilcurrents
+        npoints = len(self.get_points_cart_ref())
+        return [self.fieldcache_get_or_create(f'B_{i}', [npoints, 3]) for i in range(len(self._coils))] 
 
     def d2B_by_dXdcoilcurrents(self, compute_derivatives=1):
         points = self.get_points_cart_ref()
@@ -103,7 +97,6 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
             \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k.
 
         """
-
         coils = self._coils
         gammas = [coil.curve.gamma() for coil in coils]
         gammadashs = [coil.curve.gammadash() for coil in coils]

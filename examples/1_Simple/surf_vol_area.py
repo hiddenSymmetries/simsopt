@@ -24,7 +24,7 @@ surf = SurfaceRZFourier()
 # property to True.
 surf.fix('rc(0,0)')
 
-# LeastSquaresProble can be initialized in couple of ways. 
+# LeastSquaresProble can be initialized in couple of ways.
 prob1 = LeastSquaresProblem(funcs_in=[surf.area, surf.volume],
                             goals=[desired_area, desired_volume],
                             weights=[1, 1])

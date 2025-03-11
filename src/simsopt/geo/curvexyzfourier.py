@@ -1,4 +1,3 @@
-from math import pi
 from itertools import chain
 
 import numpy as np
@@ -72,6 +71,12 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         self.local_x = dofs
         sopp.CurveXYZFourier.set_dofs(self, dofs)
 
+    def center(self, gamma, gammadash):
+        # Compute the centroid of the curve
+        arclength = jnp.linalg.norm(gammadash, axis=-1)
+        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / gamma.shape[0] / np.pi
+        return barycenter
+
     @staticmethod
     def load_curves_from_file(filename, order=None, ppp=20, delimiter=','):
         """
@@ -105,7 +110,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         return coils
 
     @staticmethod
-    def load_curves_from_makegrid_file(filename: str, order: int, ppp=20, group_names = None):
+    def load_curves_from_makegrid_file(filename: str, order: int, ppp=20, group_names=None):
         """
         This function loads a Makegrid input file containing the Cartesian
         coordinates for several coils and finds the corresponding Fourier
@@ -123,7 +128,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         """
 
         with open(filename, 'r') as f:
-            file_lines = f.read().splitlines()[3:] 
+            file_lines = f.read().splitlines()[3:]
 
         curve_data = []
         single_curve_data = []
@@ -196,16 +201,20 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 
 
 def jaxfouriercurve_pure(dofs, quadpoints, order):
-    k = len(dofs)//3
+    k = jnp.shape(dofs)[0]//3
     coeffs = [dofs[:k], dofs[k:(2*k)], dofs[(2*k):]]
-    points = quadpoints
-    gamma = jnp.zeros((len(points), 3))
-    for i in range(3):
-        gamma = gamma.at[:, i].add(coeffs[i][0])
-        for j in range(1, order+1):
-            gamma = gamma.at[:, i].add(coeffs[i][2 * j - 1] * jnp.sin(2 * pi * j * points))
-            gamma = gamma.at[:, i].add(coeffs[i][2 * j] * jnp.cos(2 * pi * j * points))
-    return gamma
+    points = 2 * np.pi * quadpoints
+    jrange = jnp.arange(1, order + 1)
+    jp = jrange[:, None] * points[None, :]
+    sjp = jnp.sin(jp)
+    cjp = jnp.cos(jp)
+    gamma_x = coeffs[0][0] + jnp.sum(coeffs[0][2 * jrange - 1, None] * sjp
+                                     + coeffs[0][2 * jrange, None] * cjp, axis=0)
+    gamma_y = coeffs[1][0] + jnp.sum(coeffs[1][2 * jrange - 1, None] * sjp
+                                     + coeffs[1][2 * jrange, None] * cjp, axis=0)
+    gamma_z = coeffs[2][0] + jnp.sum(coeffs[2][2 * jrange - 1, None] * sjp
+                                     + coeffs[2][2 * jrange, None] * cjp, axis=0)
+    return jnp.transpose(jnp.vstack((jnp.vstack((gamma_x, gamma_y)), gamma_z)))
 
 
 class JaxCurveXYZFourier(JaxCurve):
@@ -221,7 +230,8 @@ class JaxCurveXYZFourier(JaxCurve):
     def __init__(self, quadpoints, order, dofs=None):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
-        pure = lambda dofs, points: jaxfouriercurve_pure(dofs, points, order)
+
+        def pure(dofs, points): return jaxfouriercurve_pure(dofs, points, order)
         self.order = order
         self.coefficients = [np.zeros((2*order+1,)), np.zeros((2*order+1,)), np.zeros((2*order+1,))]
         if dofs is None:

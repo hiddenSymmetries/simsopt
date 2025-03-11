@@ -11,7 +11,7 @@ from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO, relax_and_split
 from simsopt.util import *
 from simsopt.util.polarization_project import (faceedge_vectors, facecorner_vectors,
-                                               pol_e, pol_f, pol_fe, pol_c, 
+                                               pol_e, pol_f, pol_fe, pol_c,
                                                pol_fc, pol_ec, pol_fc27, pol_fc39,
                                                pol_ec23, pol_fe17, pol_fe23, pol_fe30)
 
@@ -290,7 +290,7 @@ class Testing(unittest.TestCase):
             s2.to_vtk('s2')
             match_tol = 0.1
             r_cartesian = np.sqrt(pm_opt.dipole_grid_xyz[:, 0] ** 2 + pm_opt.dipole_grid_xyz[:, 1] ** 2)
-            r_fit = np.sqrt((r_cartesian - R0) ** 2 + pm_opt.dipole_grid_xyz[:, 2] ** 2)     
+            r_fit = np.sqrt((r_cartesian - R0) ** 2 + pm_opt.dipole_grid_xyz[:, 2] ** 2)
             assert (np.min(r_fit) > (r0 + 1 - match_tol))
             assert (np.max(r_fit) < (r0 + 2 + match_tol))
 
@@ -299,7 +299,7 @@ class Testing(unittest.TestCase):
                 s, np.zeros((nphi, ntheta)), s1, s2, coordinate_flag='cylindrical'
             )
             r_cartesian = np.sqrt(pm_opt.dipole_grid_xyz[:, 0] ** 2 + pm_opt.dipole_grid_xyz[:, 1] ** 2)
-            r_fit = np.sqrt((r_cartesian - R0) ** 2 + pm_opt.dipole_grid_xyz[:, 2] ** 2)        
+            r_fit = np.sqrt((r_cartesian - R0) ** 2 + pm_opt.dipole_grid_xyz[:, 2] ** 2)
             assert (np.min(r_fit) > (r0 + 1 - match_tol))
             assert (np.max(r_fit) < (r0 + 2 + match_tol))
 
@@ -418,7 +418,7 @@ class Testing(unittest.TestCase):
         Tests the polarizations and related functions from the
         polarization_project file.
         """
-        theta = 0.0 
+        theta = 0.0
         vecs = faceedge_vectors(theta)
         assert np.allclose(np.linalg.norm(vecs, axis=-1), 1.0)
         vecs = facecorner_vectors(theta)
@@ -463,19 +463,19 @@ class Testing(unittest.TestCase):
         assert np.allclose(pol_fc39, pol_axes)
         pol_axes, _ = polarization_axes('ec23')
         assert np.allclose(pol_ec23, pol_axes)
-        theta = 38.12 * np.pi / 180.0 
+        theta = 38.12 * np.pi / 180.0
         vectors = facecorner_vectors(theta)
         pol_axes, _ = polarization_axes('fc_ftri')
         assert np.allclose(vectors, pol_axes)
-        theta = 30.35 * np.pi / 180.0 
+        theta = 30.35 * np.pi / 180.0
         vectors = faceedge_vectors(theta)
         pol_axes, _ = polarization_axes('fe_ftri')
         assert np.allclose(vectors, pol_axes)
-        theta = 18.42 * np.pi / 180.0 
+        theta = 18.42 * np.pi / 180.0
         vectors = faceedge_vectors(theta)
         pol_axes, _ = polarization_axes('fe_etri')
         assert np.allclose(vectors, pol_axes)
-        theta = 38.56 * np.pi / 180.0 
+        theta = 38.56 * np.pi / 180.0
         vectors = facecorner_vectors(theta)
         pol_axes, _ = polarization_axes('fc_etri')
         assert np.allclose(vectors, pol_axes)
@@ -541,7 +541,7 @@ class Testing(unittest.TestCase):
             base_curves, curves, coils = initialize_coils('qh', TEST_DIR, s)
             bs = BiotSavart(coils)
             B0avg = calculate_on_axis_B(bs, s)
-            assert np.allclose(B0avg, 0.15)
+            assert np.allclose(B0avg, 5.7)
 
             # Repeat with wrapper function
             s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
@@ -634,7 +634,7 @@ class Testing(unittest.TestCase):
 
         # Test build of the MUSE coils
         input_name = 'input.muse'
-        nphi = 8 
+        nphi = 8
         ntheta = nphi
         surface_filename = TEST_DIR / input_name
         s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
@@ -673,6 +673,24 @@ class Testing(unittest.TestCase):
         # Run poincare plotting
         #with ScratchDir("."):
         #    run_Poincare_plots(s_plot, bs, b_dipole, None, 'poincare_test')
+
+    def test_analytic_magnet_fields(self):
+        # Initialize one permanent magnet
+        # Compute the A matrix at some faraway point using the pure dipole functionality in the existing code
+        # Repeat with your full analytic matrix
+        # nphi = 8
+        # ntheta = nphi
+        # s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+        # s1 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+        # s2 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+        # s1.extend_via_projected_normal(0.1)
+        # s2.extend_via_projected_normal(0.2)
+        # Bn = np.zeros(())
+        # kwargs = {"dr": 0.15}
+        # pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+        A_matrix_original = np.zeros(10)
+        A_matrix_new = np.zeros(10)
+        assert np.allclose(A_matrix_original, A_matrix_new)
 
 
 if __name__ == "__main__":

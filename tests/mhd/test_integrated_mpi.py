@@ -103,7 +103,7 @@ class IntegratedTests(unittest.TestCase):
                 assert np.abs(equil.volume() - 0.15) < 1.0e-6
                 assert np.abs(surf.volume() - 0.15) < 1.0e-6
                 assert prob.objective() < 1.0e-15
-    
+
     @unittest.skipIf((vmec is None), "VMEC not found")
     def test_Quasisymmetry_paralellization(self):
         """
@@ -118,7 +118,7 @@ class IntegratedTests(unittest.TestCase):
                 # processes is split into.
                 mpi = MpiPartition(ngroups=ngroups)
                 mpi.write()
-                
+
                 # Start with a default surface, which is axisymmetric with major
                 # radius 1 and minor radius 0.1.
                 equil = Vmec(mpi=mpi)
@@ -188,10 +188,10 @@ class IntegratedTests(unittest.TestCase):
                 # Objective function is \sum_j residue_j ** 2
                 prob = LeastSquaresProblem.from_tuples([(residue1.J, 0, 1),
                                                         (residue2.J, 0, 1)])
-               
+
                 # Solve for two nfevs to test if runs
                 least_squares_mpi_solve(prob, mpi=mpi, grad=grad, save_residuals=True, max_nfev=2)
-                
+
                 # No assertions, run is too short to complete, just testing if it does run
 
 

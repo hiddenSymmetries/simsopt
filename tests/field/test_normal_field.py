@@ -386,15 +386,15 @@ class CoilNormalFieldTests(unittest.TestCase):
         with self.assertRaises(AttributeError):
             coil_normal_field.set_vns_asarray(coil_normal_field.vns)
         with self.assertRaises(AttributeError):
-            coil_normal_field.set_vns(0,1, .1)
+            coil_normal_field.set_vns(0, 1, .1)
 
         with self.assertRaises(AttributeError):
             coil_normal_field.vnc = coil_normal_field.vnc
         with self.assertRaises(AttributeError):
             coil_normal_field.set_vnc_asarray(coil_normal_field.vnc)
         with self.assertRaises(AttributeError):
-            coil_normal_field.set_vnc(0,1, .1) 
-        
+            coil_normal_field.set_vnc(0, 1, .1)
+
         with self.assertRaises(AttributeError):
             coil_normal_field.set_vns_vnc_asarray(coil_normal_field.vns, coil_normal_field.vnc)
 
@@ -411,7 +411,7 @@ class CoilNormalFieldTests(unittest.TestCase):
             )
             base_coils = [Coil(curve, Current(1e5)) for curve in base_curves]
             for coil in base_coils:
-                coil.current.fix_all() # fix the currents
+                coil.current.fix_all()  # fix the currents
             coilset = CoilSet(
                 surface=spec.computational_boundary, base_coils=base_coils
             )
@@ -468,8 +468,7 @@ class CoilNormalFieldTests(unittest.TestCase):
             cnf.fixed_range()
         with self.assertRaises(ValueError):
             cnf.change_resolution()
-        
-            
+
     def test_real_space_field(self):
         surface = SurfaceRZFourier(nfp=3, stellsym=False, mpol=12, ntor=12)
         base_curves = CoilSet._circlecurves_around_surface(
@@ -478,9 +477,9 @@ class CoilNormalFieldTests(unittest.TestCase):
         base_coils = [Coil(curve, Current(1e5)) for curve in base_curves]
         coilset = CoilSet(base_coils=base_coils, surface=surface)
         cnf = CoilNormalField(coilset)
-        real_space_field = cnf.get_real_space_field() #fourier-transform vns and vnc to real space
+        real_space_field = cnf.get_real_space_field()  # fourier-transform vns and vnc to real space
         thetasize, phisize = cnf.surface.quadpoints_theta.size, cnf.surface.quadpoints_phi.size
-        directly_evaluated = np.copy(np.sum(cnf.coilset.bs.B().reshape(phisize, thetasize, 3) * cnf.surface.unitnormal(), axis=2))  #evaluate the field on the surface
+        directly_evaluated = np.copy(np.sum(cnf.coilset.bs.B().reshape(phisize, thetasize, 3) * cnf.surface.unitnormal(), axis=2))  # evaluate the field on the surface
         np.testing.assert_allclose(real_space_field, directly_evaluated, atol=1e-3)
 
     def test_cache_vns(self):
@@ -489,7 +488,7 @@ class CoilNormalFieldTests(unittest.TestCase):
         tmp = cnf.vns
         np.testing.assert_equal(cnf._vns, tmp)
         self.assertIsNotNone(cnf._vnc)
-    
+
     def test_cache_vnc(self):
         cnf = CoilNormalField()
         self.assertIsNone(cnf._vnc)
@@ -511,12 +510,14 @@ class CoilNormalFieldTests(unittest.TestCase):
         coilset = CoilSet(base_coils=base_coils, surface=surface)
         cnf = CoilNormalField(coilset)
         cnf.reduce_coilset()
-            
+
         initial_vns = np.copy(cnf.vns)
         initial_vnc = np.copy(cnf.vnc)
 
         epsilon = 1e-5
-        dofs = np.zeros(cnf.dof_size); dofs[0] = epsilon; cnf.x = dofs
+        dofs = np.zeros(cnf.dof_size)
+        dofs[0] = epsilon
+        cnf.x = dofs
 
         vnsdiff = initial_vns - cnf.vns
         vncdiff = initial_vnc - cnf.vnc
@@ -524,18 +525,18 @@ class CoilNormalFieldTests(unittest.TestCase):
         diff_unraveled = np.concatenate(
             (vnsdiff.ravel()[
                 cnf.coilset.surface.ntor + 1:
-            ], 
-            vncdiff.ravel()[
+            ],
+                vncdiff.ravel()[
                 cnf.coilset.surface.ntor:
-                ]
+            ]
             )
-            )
+        )
         np.testing.assert_allclose(
             cnf.coilset.lsv[0],
             -1*diff_unraveled / (epsilon * cnf.coilset.singular_values[0]),
             atol=1e-4,
         )
-    
+
     def test_vns_vnc_asarray(self):
         cnf = CoilNormalField()
         vns = cnf.get_vns_asarray()
@@ -564,7 +565,7 @@ class CoilNormalFieldTests(unittest.TestCase):
             cnf.get_index_in_array(m=3, n=-3)
         with self.assertRaises(ValueError):
             cnf.get_index_in_array(m=4, n=-3)
-    
+
     def test_double_reduction(self):
         """
         test if reducing a coilset twice works
@@ -577,14 +578,10 @@ class CoilNormalFieldTests(unittest.TestCase):
         coilset = CoilSet(base_coils=base_coils, surface=surface)
         cnf = CoilNormalField(coilset)
         cnf.reduce_coilset()
-        num1 = int(re.search(r'\d+', cnf.dof_names[0]).group()) # grab 'ReducedCoilSet*N* from first dof name
+        num1 = int(re.search(r'\d+', cnf.dof_names[0]).group())  # grab 'ReducedCoilSet*N* from first dof name
         cnf.reduce_coilset()
-        num2 = int(re.search(r'\d+', cnf.dof_names[0]).group()) # grab 'ReducedCoilSet*N* from first dof name
-        self.assertEqual(num2-num1, 1) # Coilset sucessfully replaced
-    
-        
-
-
+        num2 = int(re.search(r'\d+', cnf.dof_names[0]).group())  # grab 'ReducedCoilSet*N* from first dof name
+        self.assertEqual(num2-num1, 1)  # Coilset sucessfully replaced
 
 
 if __name__ == "__main__":

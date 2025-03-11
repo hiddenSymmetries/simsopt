@@ -80,7 +80,7 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exac
     """
 
     assert label in ["Volume", "ToroidalFlux", "Area", "AspectRatio"]
-    
+
     if boozer_type == 'exact':
         assert weight_inv_modB == False
 
@@ -99,7 +99,7 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exac
     mpol = 6 if boozer_type == 'exact' else 3
     ntor = 6 if boozer_type == 'exact' else 3
     nfp = 3
-    
+
     if boozer_type == 'exact':
         phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
         thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
@@ -131,7 +131,7 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exac
     if weight_inv_modB:
         boozer_surface = BoozerSurface(bs, s, lab, lab_target, constraint_weight=cw)
     else:
-        boozer_surface = BoozerSurface(bs, s, lab, lab_target, constraint_weight=cw, options={'weight_inv_modB':False})
+        boozer_surface = BoozerSurface(bs, s, lab, lab_target, constraint_weight=cw, options={'weight_inv_modB': False})
 
     if converge:
         boozer_surface.run_code(iota, G=G0)

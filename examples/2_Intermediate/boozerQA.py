@@ -46,8 +46,8 @@ G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
 ## COMPUTE THE INITIAL SURFACE ON WHICH WE WANT TO OPTIMIZE FOR QA##
 # Resolution details of surface on which we optimize for qa
-mpol = 6  
-ntor = 6  
+mpol = 6
+ntor = 6
 stellsym = True
 nfp = 3
 
@@ -78,7 +78,7 @@ ls = [CurveLength(c) for c in base_curves]
 J_major_radius = QuadraticPenalty(mr, mr.J(), 'identity')  # target major radius is that computed on the initial surface
 J_iotas = QuadraticPenalty(Iotas(boozer_surface), res['iota'], 'identity')  # target rotational transform is that computed on the initial surface
 J_nonQSRatio = NonQuasiSymmetricRatio(boozer_surface, bs_nonQS)
-Jls = QuadraticPenalty(sum(ls), float(sum(ls).J()), 'max') 
+Jls = QuadraticPenalty(sum(ls), float(sum(ls).J()), 'max')
 
 # sum the objectives together
 JF = J_nonQSRatio + J_iotas + J_major_radius + Jls

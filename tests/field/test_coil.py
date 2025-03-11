@@ -153,7 +153,7 @@ class CoilFormatConvertTesting(unittest.TestCase):
         with ScratchDir("."):
             coils_to_makegrid('coils.test', curves, currents, nfp=3, stellsym=True)
 
-    def test_load_coils_from_makegrid_file(self):     
+    def test_load_coils_from_makegrid_file(self):
         order = 25
         ppp = 10
 
@@ -195,26 +195,24 @@ class CoilFormatConvertTesting(unittest.TestCase):
         ppp = 10
 
         # Coil group_names is a list of strings
-        filecoils = os.path.join(TEST_DIR, "coils.M16N08")   
-        coils = load_coils_from_makegrid_file(filecoils, order, ppp, group_names = ["245th-coil","100th-coil"])
+        filecoils = os.path.join(TEST_DIR, "coils.M16N08")
+        coils = load_coils_from_makegrid_file(filecoils, order, ppp, group_names=["245th-coil", "100th-coil"])
         all_coils = load_coils_from_makegrid_file(filecoils, order, ppp)
         #     NOTE: coils will be returned in order they appear in the file, not in order of listed groups.
         #     So group_names = ["245th-coil","100th-coil"] gives the array [<coil nr 100>, <coil nr 245>]
-        compare_coils = [all_coils[99],all_coils[244]]
+        compare_coils = [all_coils[99], all_coils[244]]
         gamma = [coil.curve.gamma() for coil in coils]
         compare_gamma = [coil.curve.gamma() for coil in compare_coils]
         np.testing.assert_allclose(gamma, compare_gamma)
 
         # Coil group_names is a single string
-        coils = load_coils_from_makegrid_file(filecoils, order, ppp, group_names = "256th-coil")
+        coils = load_coils_from_makegrid_file(filecoils, order, ppp, group_names="256th-coil")
         all_coils = load_coils_from_makegrid_file(filecoils, order, ppp)
         compare_coils = [all_coils[255]]
         gamma = [coil.curve.gamma() for coil in coils]
         compare_gamma = [coil.curve.gamma() for coil in compare_coils]
         np.testing.assert_allclose(gamma, compare_gamma)
 
-        
-        
     def test_equally_spaced_planar_curves(self):
         ncoils = 4
         nfp = 4
@@ -243,7 +241,6 @@ class CoilFormatConvertTesting(unittest.TestCase):
         bs_planar.set_points(points)
 
         np.testing.assert_allclose(bs.B(), bs_planar.B(), atol=1e-16)
-
 
 
 if __name__ == "__main__":

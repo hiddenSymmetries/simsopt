@@ -52,8 +52,8 @@ s_guess = 0.9
 residue1 = Residue(s, p, q, s_guess=s_guess)
 residue2 = Residue(s, p, q, s_guess=s_guess, theta=np.pi)
 
-initial_r1 = residue1.J()                                                                    
-initial_r2 = residue2.J()                                                                    
+initial_r1 = residue1.J()
+initial_r2 = residue2.J()
 logging.info(f"Initial residues: {initial_r1}, {initial_r2}")
 #exit(0)
 
@@ -74,8 +74,8 @@ prob = LeastSquaresProblem.from_tuples([(residue1.J, 0, 1),
 # Solve the optimization problem:
 least_squares_mpi_solve(prob, mpi=mpi, grad=True)
 
-final_r1 = residue1.J()                                                                    
-final_r2 = residue2.J()                                                                    
+final_r1 = residue1.J()
+final_r2 = residue2.J()
 expected_solution = np.array([1.1076171888771095e-03, 4.5277618989828059e-04])
 if mpi.proc0_world:
     logging.info(f"Final state vector: zs(6,1)={prob.x[0]}, zs(6,2)={prob.x[1]}")

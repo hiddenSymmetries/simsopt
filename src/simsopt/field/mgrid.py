@@ -4,7 +4,7 @@ from scipy.io import netcdf_file
 __all__ = ["MGrid"]
 
 
-def _pad_string(string): 
+def _pad_string(string):
     '''
     Pads a string with 30 underscores (for writing coil group names).
     '''
@@ -42,13 +42,13 @@ class MGrid():
     '''
 
     def __init__(self,  # fname='temp', #binary=False,
-                 nr: int = 51, 
-                 nz: int = 51, 
-                 nphi: int = 24, 
+                 nr: int = 51,
+                 nz: int = 51,
+                 nphi: int = 24,
                  nfp: int = 2,
-                 rmin: float = 0.20, 
-                 rmax: float = 0.40, 
-                 zmin: float = -0.10, 
+                 rmin: float = 0.20,
+                 rmax: float = 0.40,
+                 zmin: float = -0.10,
                  zmax: float = 0.10,
                  ):
 
@@ -65,9 +65,9 @@ class MGrid():
         self.n_ext_cur = 0
         self.coil_names = []
 
-        self.br_arr = [] 
-        self.bz_arr = [] 
-        self.bp_arr = [] 
+        self.br_arr = []
+        self.bz_arr = []
+        self.bp_arr = []
 
         self.ar_arr = []
         self.az_arr = []
@@ -102,7 +102,7 @@ class MGrid():
         self.br_arr.append(br)
         self.bz_arr.append(bz)
         self.bp_arr.append(bp)
-        
+
         # add potential
         if ar is not None:
             self.ar_arr.append(ar)
@@ -119,10 +119,9 @@ class MGrid():
         self.coil_names.append(label)
         self.n_ext_cur = self.n_ext_cur + 1
 
-
         # TO-DO: this function could check for size consistency, between different fields, and for the (nr,nphi,nz) settings of a given instance
 
-    def write(self, filename): 
+    def write(self, filename):
         '''
         Export class data as a netCDF binary.
 
@@ -192,19 +191,19 @@ class MGrid():
                 var_br_001[:, :, :] = self.br_arr[j]
                 var_bz_001[:, :, :] = self.bz_arr[j]
                 var_bp_001[:, :, :] = self.bp_arr[j]
-    
+
                 #If the potential value is not an empty cell, then include it
-                if len(self.ar_arr) > 0 :
+                if len(self.ar_arr) > 0:
                     var_ar_001 = ds.createVariable('ar'+tag, 'f8', ('phi', 'zee', 'rad'))
                     var_ar_001[:, :, :] = self.ar_arr[j]
-                if len(self.ap_arr) > 0 :
+                if len(self.ap_arr) > 0:
                     var_ap_001 = ds.createVariable('ap'+tag, 'f8', ('phi', 'zee', 'rad'))
                     var_ap_001[:, :, :] = self.ap_arr[j]
-                if len(self.az_arr) > 0 :
+                if len(self.az_arr) > 0:
                     var_az_001 = ds.createVariable('az'+tag, 'f8', ('phi', 'zee', 'rad'))
                     var_az_001[:, :, :] = self.az_arr[j]
 
-    @classmethod 
+    @classmethod
     def from_file(cls, filename):
         '''
         This method reads MGrid data from file.
@@ -223,7 +222,7 @@ class MGrid():
             rmax = f.variables['rmax'].getValue()
             zmin = f.variables['zmin'].getValue()
             zmax = f.variables['zmax'].getValue()
-            kwargs = {"nr": nr, "nphi": nphi, "nz": nz, 
+            kwargs = {"nr": nr, "nphi": nphi, "nz": nz,
                       "rmin": rmin, "rmax": rmax, "zmin": zmin, "zmax": zmax}
 
             mgrid = cls(**kwargs)
@@ -231,7 +230,7 @@ class MGrid():
             mgrid.n_ext_cur = int(f.variables['nextcur'].getValue())
             coil_data = f.variables['coil_group'][:]
             if len(f.variables['coil_group'].dimensions) == 2:
-                mgrid.coil_names = [_unpack(coil_data[j]) for j in range(mgrid.n_ext_cur)] 
+                mgrid.coil_names = [_unpack(coil_data[j]) for j in range(mgrid.n_ext_cur)]
             else:
                 mgrid.coil_names = [_unpack(coil_data)]
 
@@ -273,14 +272,14 @@ class MGrid():
                         ar_arr.append(ar * mgrid.raw_coil_current[j])
                     else:
                         ar_arr.append(ar)
-                        
+
                 if 'ap_'+idx in f.variables:
                     ap = f.variables['ap_'+idx][:]
                     if mgrid.mode == 'S':
                         ap_arr.append(ap * mgrid.raw_coil_current[j])
                     else:
                         ap_arr.append(ap)
-                
+
                 if 'az_'+idx in f.variables:
                     az = f.variables['az_'+idx][:]
                     if mgrid.mode == 'S':
@@ -295,13 +294,13 @@ class MGrid():
             mgrid.ar_arr = np.array(ar_arr)
             mgrid.ap_arr = np.array(ap_arr)
             mgrid.az_arr = np.array(az_arr)
-            
+
             # sum over coil groups
             if nextcur > 1:
                 br = np.sum(br_arr, axis=0)
                 bp = np.sum(bp_arr, axis=0)
                 bz = np.sum(bz_arr, axis=0)
-                
+
                 if len(mgrid.ar_arr) > 0:
                     ar = np.sum(ar_arr, axis=0)
                 if len(mgrid.ap_arr) > 0:
@@ -370,6 +369,7 @@ class MGrid():
         axs[1].set_title(f"nextcur = {self.n_ext_cur}, mode {self.mode}", fontsize=10)
         axs[2].set_title(f"nr,np,nz = ({self.nr},{self.nphi},{self.nz})", fontsize=10)
 
-        if (show): plt.show()
+        if (show):
+            plt.show()
 
         return fig, axs

@@ -190,7 +190,7 @@ class QuasisymmetryRatioResidualTests(unittest.TestCase):
             results2 = qs2.compute()
             residuals2 = qs2.residuals()
 
-            logger.info('Max difference in residuals after scaling vmec:' \
+            logger.info('Max difference in residuals after scaling vmec:'
                         + str(np.max(np.abs(residuals1 - residuals2))))
             np.testing.assert_allclose(residuals1, residuals2, rtol=1e-10, atol=1e-10)
             np.testing.assert_allclose(results1.total, results2.total, rtol=1e-10, atol=1e-10)
@@ -271,7 +271,7 @@ class IotaTargetMetricTests(unittest.TestCase):
         with ScratchDir("."):
             vmec = Vmec(filename, ntheta=50, nphi=50)
 
-            target_function = lambda s: np.cos(s)
+            def target_function(s): return np.cos(s)
             iota_target_metric = IotaTargetMetric(vmec, target_function)
 
             metric1 = iota_target_metric.J()
@@ -291,7 +291,7 @@ class IotaTargetMetricTests(unittest.TestCase):
         with ScratchDir("."):
             vmec = Vmec(filename, ntheta=100, nphi=100)
 
-            target_function = lambda s: 0.68
+            def target_function(s): return 0.68
             epsilon = 1.e-4  # FD step size
             adjoint_epsilon = 1.e-2  # perturbation amplitude for adjoint solve
 
@@ -333,7 +333,7 @@ class IotaWeightedTests(unittest.TestCase):
             vmec.run()
             iota_center = vmec.wout.iotas[50]
             s_center = vmec.s_half_grid[50]
-            weight_function = lambda s: np.exp(-(s-s_center)**2/0.01**2)
+            def weight_function(s): return np.exp(-(s-s_center)**2/0.01**2)
             iota_weighted = IotaWeighted(vmec, weight_function)
 
             self.assertAlmostEqual(iota_weighted.J(), iota_center, places=2)
@@ -345,7 +345,7 @@ class IotaWeightedTests(unittest.TestCase):
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
 
-        weight_function = lambda s: s**2
+        def weight_function(s): return s**2
         epsilon = 1.e-4  # FD step size
         adjoint_epsilon = 5.e-2  # perturbation amplitude for adjoint solve
 
@@ -390,8 +390,8 @@ class WellWeightedTests(unittest.TestCase):
             vp_l = 1.5*vmec.wout.vp[1]-0.5*vmec.wout.vp[2]
             vp_r = 1.5*vmec.wout.vp[-1]-0.5*vmec.wout.vp[-2]
             well1 = (vp_l-vp_r)/(vp_l+vp_r)
-            weight1 = lambda s: np.exp(-s**2/0.01**2)
-            weight2 = lambda s: np.exp(-(1-s)**2/0.01**2)
+            def weight1(s): return np.exp(-s**2/0.01**2)
+            def weight2(s): return np.exp(-(1-s)**2/0.01**2)
 
             well_weighted = WellWeighted(vmec, weight1, weight2)
             well2 = well_weighted.J()
@@ -405,8 +405,8 @@ class WellWeightedTests(unittest.TestCase):
         epsilon = 1.e-2  # FD step size
         adjoint_epsilon = 1.e0  # perturbation amplitude for adjoint solve
 
-        weight1 = lambda s: np.exp(-s**2/0.5**2)
-        weight2 = lambda s: np.exp(-(1-s)**2/0.5**2)
+        def weight1(s): return np.exp(-s**2/0.5**2)
+        def weight2(s): return np.exp(-(1-s)**2/0.5**2)
 
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
         with ScratchDir("."):
@@ -590,15 +590,15 @@ class VmecComputeGeometryTests(unittest.TestCase):
         data = vmec_compute_geometry(vmec, s, theta, phi)
 
         matlab_data = np.array([
-            [0.777048118791033,   0.850059335051267,   1.058251880937882,   1.238755906102585,   1.058251880937882,   0.850059335051267,   0.777048118791033],
-            [0.732357468770512,   0.887635027604753,   1.100038034467113,   1.149372447382607,   0.914652536061020,   0.732423846297739,   0.732357468770512],
-            [0.642772279126891,   0.810075234122540,   1.009506601358511,   1.036192879128092,   0.822941521630497,   0.638233465781766,   0.642772279126891],
-            [0.561114055795734,   0.718502389029629,   0.920071594222606,   0.997769685332234,   0.817986738735225,   0.595098001722719,   0.561114055795734],
-            [0.520891960189527,   0.633214068787356,   0.866980355399107,   0.967856711826989,   0.866980355399108,   0.633214068787355,   0.520891960189527],
-            [0.561114055795734,   0.595098001722719,   0.817986738735225,   0.997769685332234,   0.920071594222606,   0.718502389029630,   0.561114055795734],
-            [0.642772279126891,   0.638233465781766,   0.822941521630497,   1.036192879128092,   1.009506601358511,   0.810075234122540,   0.642772279126891],
-            [0.732357468770512,   0.732423846297739,   0.914652536061019,   1.149372447382608,   1.100038034467113,   0.887635027604753,   0.732357468770512],
-            [0.777048118791033,   0.850059335051268,   1.058251880937882,   1.238755906102585,   1.058251880937882,   0.850059335051267,   0.777048118791033],
+            [0.777048118791033, 0.850059335051267, 1.058251880937882, 1.238755906102585, 1.058251880937882, 0.850059335051267, 0.777048118791033],
+            [0.732357468770512, 0.887635027604753, 1.100038034467113, 1.149372447382607, 0.914652536061020, 0.732423846297739, 0.732357468770512],
+            [0.642772279126891, 0.810075234122540, 1.009506601358511, 1.036192879128092, 0.822941521630497, 0.638233465781766, 0.642772279126891],
+            [0.561114055795734, 0.718502389029629, 0.920071594222606, 0.997769685332234, 0.817986738735225, 0.595098001722719, 0.561114055795734],
+            [0.520891960189527, 0.633214068787356, 0.866980355399107, 0.967856711826989, 0.866980355399108, 0.633214068787355, 0.520891960189527],
+            [0.561114055795734, 0.595098001722719, 0.817986738735225, 0.997769685332234, 0.920071594222606, 0.718502389029630, 0.561114055795734],
+            [0.642772279126891, 0.638233465781766, 0.822941521630497, 1.036192879128092, 1.009506601358511, 0.810075234122540, 0.642772279126891],
+            [0.732357468770512, 0.732423846297739, 0.914652536061019, 1.149372447382608, 1.100038034467113, 0.887635027604753, 0.732357468770512],
+            [0.777048118791033, 0.850059335051268, 1.058251880937882, 1.238755906102585, 1.058251880937882, 0.850059335051267, 0.777048118791033],
         ])
 
         np.testing.assert_allclose(np.squeeze(data.L_grad_B), matlab_data, rtol=7e-3)

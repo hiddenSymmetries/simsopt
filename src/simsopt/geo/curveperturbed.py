@@ -207,4 +207,3 @@ class CurvePerturbed(sopp.Curve, Curve):
 
     def dgammadashdashdash_by_dcoeff_vjp(self, v):
         return self.curve.dgammadashdashdash_by_dcoeff_vjp(v)
-

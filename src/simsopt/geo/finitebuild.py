@@ -30,11 +30,11 @@ class CurveFilament(FramedCurve):
             db: how far to move in binormal direction
             rotation: angle along the curve to rotate the frame.
         """
-        self.curve = framedcurve.curve 
+        self.curve = framedcurve.curve
         self.dn = dn
         self.db = db
-        self.rotation = framedcurve.rotation 
-        self.framedcurve = framedcurve 
+        self.rotation = framedcurve.rotation
+        self.framedcurve = framedcurve
         FramedCurve.__init__(self, self.curve, self.rotation)
 
     def recompute_bell(self, parent=None):
@@ -57,10 +57,10 @@ class CurveFilament(FramedCurve):
         va = self.framedcurve.rotated_frame_dcoeff_vjp(v, self.dn, self.db, 3)
         out = self.curve.dgamma_by_dcoeff_vjp(v + vg) \
             + self.curve.dgammadash_by_dcoeff_vjp(vgd) \
-            + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, va) 
+            + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, va)
         if vgdd is not None:
             out += self.curve.dgammadashdash_by_dcoeff_vjp(vgdd)
-        return out 
+        return out
 
     def dgammadash_by_dcoeff_vjp(self, v):
 
@@ -77,10 +77,10 @@ class CurveFilament(FramedCurve):
             + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, vad)
         if vgddd is not None:
             out += self.curve.dgammadashdashdash_by_dcoeff_vjp(vgddd)
-        return out 
+        return out
 
 
-def create_multifilament_grid(curve, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b, 
+def create_multifilament_grid(curve, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b,
                               rotation_order=None, rotation_scaling=None, frame='centroid'):
     """
     Create a regular grid of ``numfilaments_n * numfilaments_b`` many
@@ -132,4 +132,3 @@ def create_multifilament_grid(curve, numfilaments_n, numfilaments_b, gapsize_n, 
         for j in range(numfilaments_b):
             filaments.append(CurveFilament(framedcurve, shifts_n[i], shifts_b[j]))
     return filaments
-
