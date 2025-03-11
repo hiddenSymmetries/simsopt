@@ -427,7 +427,11 @@ class PermanentMagnetGrid:
             elif pol_vectors.shape[0] != pm_grid.ndipoles:
                 raise ValueError('First dimension of `pol_vectors` array '
                                  'must equal the number of dipoles')
-
+        else:
+            pol_vectors = np.zeros((pm_grid.ndipoles, 3, 3))  # global xyz coords
+            pol_vectors[:, 0, :] = np.outer(np.ones(pm_grid.ndipoles), np.array([1, 0, 0]))
+            pol_vectors[:, :, 1] = np.outer(np.ones(pm_grid.ndipoles), np.array([0, 1, 0]))
+            pol_vectors[:, :, 2] = np.outer(np.ones(pm_grid.ndipoles), np.array([0, 0, 1]))
         pm_grid.pol_vectors = pol_vectors
         pm_grid._optimization_setup()
         return pm_grid
@@ -979,7 +983,11 @@ class ExactMagnetGrid:
             elif pol_vectors.shape[0] != pm_grid.ndipoles:
                 raise ValueError('First dimension of `pol_vectors` array '
                                  'must equal the number of dipoles')
-
+        else:
+            pol_vectors = np.zeros((pm_grid.ndipoles, 3, 3))  # global xyz coords
+            pol_vectors[:, 0, :] = np.outer(np.ones(pm_grid.ndipoles), np.array([1, 0, 0]))
+            pol_vectors[:, :, 1] = np.outer(np.ones(pm_grid.ndipoles), np.array([0, 1, 0]))
+            pol_vectors[:, :, 2] = np.outer(np.ones(pm_grid.ndipoles), np.array([0, 0, 1]))
         pm_grid.pol_vectors = pol_vectors
         pm_grid._optimization_setup()
         return pm_grid

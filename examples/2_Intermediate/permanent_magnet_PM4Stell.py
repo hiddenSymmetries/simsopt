@@ -40,15 +40,9 @@ if in_github_actions:
     downsample = 100  # drastically downsample the grid if running CI
 else:
     N = 16  # >= 64 for high-resolution runs
-<<<<<<< HEAD
-    nIter_max = 40000
-    max_nMagnets = 10000
-    downsample = 4
-=======
     nIter_max = 100000
     max_nMagnets = 10000
     downsample = 10
->>>>>>> master
 
 nphi = N
 ntheta = N
@@ -58,13 +52,8 @@ algorithm = 'baseline'
 # nAdjacent = 10
 # thresh_angle = np.pi  # / np.sqrt(2)
 nHistory = 10
-<<<<<<< HEAD
 # angle = int(thresh_angle * 180 / np.pi)
 out_dir = Path("PM4Stell") 
-=======
-angle = int(thresh_angle * 180 / np.pi)
-out_dir = Path("PM4Stell_angle{angle}_nb{nBacktracking}_na{nAdjacent}") 
->>>>>>> master
 out_dir.mkdir(parents=True, exist_ok=True)
 print('out directory = ', out_dir)
 

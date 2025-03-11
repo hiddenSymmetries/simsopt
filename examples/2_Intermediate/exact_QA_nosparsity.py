@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from simsopt.field import BiotSavart, ExactField, DipoleField
 from simsopt.geo import ExactMagnetGrid, SurfaceRZFourier, PermanentMagnetGrid
 from simsopt.objectives import SquaredFlux
-from simsopt.solve import GPMO
+from simsopt.solve import GPMO, relax_and_split
 from simsopt.util import in_github_actions
 from simsopt.util.permanent_magnet_helper_functions import *
 
@@ -23,13 +23,11 @@ if in_github_actions:
 else:
     nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 64 # bricks with radial extent ??? cm
+    Nx = 32 # bricks with radial extent ??? cm
 
-coff = 0.2  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
+coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
+poff = 0.025  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
-
-max_nMagnets = 10000
 
 # Read in the plas/ma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -43,7 +41,7 @@ s_inner.extend_via_projected_normal(poff)
 s_outer.extend_via_projected_normal(poff + coff)
 
 # Make the output directory
-out_str = f"exact_QA_nphi{nphi}_maxIter{max_nMagnets}"
+out_str = f"exact_QA_noSparsity"
 out_dir = Path(out_str)
 out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -82,7 +80,7 @@ bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the permanent magnet class
-kwargs_geo = {"Nx": Nx}  
+kwargs_geo = {"Nx": Nx} #, "Ny": Nx * 2, "Nz": Nx * 3}  
 pm_opt = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
     s, Bnormal, s_inner, s_outer, **kwargs_geo
 )
@@ -94,30 +92,16 @@ pm_comp = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
 
 print(pm_opt.phiThetas)
 
-# Optimize the permanent magnets. This actually solves
-kwargs = initialize_default_kwargs('GPMO')
-nIter_max = 30000
-# algorithm = 'baseline'
-algorithm = 'ArbVec_backtracking'
-nBacktracking = 200 
-nAdjacent = 10
-thresh_angle = np.pi  # / np.sqrt(2)
-angle = int(thresh_angle * 180 / np.pi)
-kwargs['K'] = max_nMagnets
-if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
-    kwargs['backtracking'] = nBacktracking
-    kwargs['Nadjacent'] = nAdjacent
-    kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.pm_grid_xyz)
-    if algorithm == 'ArbVec_backtracking':
-        kwargs['thresh_angle'] = thresh_angle
-        kwargs['max_nMagnets'] = max_nMagnets
-    # Below line required for the backtracking to be backwards 
-    # compatible with the PermanentMagnetGrid class
-    pm_opt.coordinate_flag = 'cartesian'  
-nHistory = 100
-kwargs['nhistory'] = nHistory
-t1 = time.time()
-R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
+m0 = np.zeros(pm_opt.ndipoles * 3) 
+reg_l0 = 0.0  # No sparsity
+nu = 1e100
+kwargs = initialize_default_kwargs()
+kwargs['nu'] = nu  # Strength of the "relaxation" part of relax-and-split
+kwargs['max_iter'] = 10000  # Number of iterations to take in a convex step
+kwargs['max_iter_RS'] = 1  # Number of total iterations of the relax-and-split algorithm
+kwargs['reg_l0'] = reg_l0
+RS_history, m_history, m_proxy_history = relax_and_split(pm_opt, m0=m0, **kwargs)
+m0 = pm_opt.m
 
 # Print effective permanent magnet volume
 B_max = 1.465
@@ -190,22 +174,11 @@ b_dipole = DipoleField(
     m_maxima=pm_opt.m_maxima
 )
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-b_dipole._toVTK(out_dir / "magnet_fields", pm_opt.dx, pm_opt.dy, pm_opt.dz)
+b_dipole._toVTK(out_dir / "dipole_magnet_fields", pm_opt.dx, pm_opt.dy, pm_opt.dz)
 
 # Print optimized metrics
 fBc = 0.5 * np.sum((pm_comp.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2)
 print("Total fBc = ", fBc)
-
-bs.set_points(s_plot.gamma().reshape((-1, 3)))
-Bcnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
-Bcnormal_magnets = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
-Bcnormal_total = Bcnormal + Bcnormal_magnets
-
-# For plotting Bn on the full torus surface at the end with just the magnet fields
-make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized")
-pointData = {"B_N": Bcnormal_total[:, :, None]}
-s_plot.to_vtk(out_dir / "m_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
 b_dipole.set_points(s.gamma().reshape((-1, 3)))

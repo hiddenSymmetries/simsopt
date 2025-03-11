@@ -22,8 +22,9 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 
-from simsopt.field import BiotSavart, Coil, ExactField
+from simsopt.field import BiotSavart, Coil, ExactField, DipoleField
 from simsopt.geo import SurfaceRZFourier, ExactMagnetGrid
+from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO
 from simsopt.util.permanent_magnet_helper_functions \
     import initialize_default_kwargs, make_Bnormal_plots
@@ -40,20 +41,20 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # drastically downsample the grid if running CI
 else:
-    N = 32  # >= 64 for high-resolution runs
+    N = 16  # >= 64 for high-resolution runs
     nIter_max = 40000
-    # max_nMagnets = 2000
-    downsample = 1
+    max_nMagnets = 10000
+    downsample = 5
     # dims = np.array([1,1,1]) #currently can only have all magnets be same shape
 
 nphi = N
 ntheta = N
-algorithm = 'baseline'
-# nBacktracking = 200 
-# nAdjacent = 10
-# thresh_angle = np.pi  # / np.sqrt(2)
+algorithm = 'ArbVec_backtracking'
+nBacktracking = 200 
+nAdjacent = 10
+thresh_angle = np.pi  # / np.sqrt(2)
 nHistory = 10
-# angle = int(thresh_angle * 180 / np.pi)
+angle = int(thresh_angle * 180 / np.pi)
 out_dir = Path("exactPM4Stell") 
 out_dir.mkdir(parents=True, exist_ok=True)
 print('out directory = ', out_dir)
@@ -176,10 +177,10 @@ if True:
         pm_ncsx.pm_grid_xyz,
         pm_ncsx.m,
         pm_ncsx.dims,
-        pm_ncsx.get_phiThetas,
+        pm_ncsx.phiThetas,
+        stellsym=s_plot.stellsym,
         nfp=s_plot.nfp,
-        coordinate_flag=pm_ncsx.coordinate_flag,
-        m_maxima=pm_ncsx.m_maxima
+        m_maxima=pm_ncsx.m_maxima,
     )
     b_exact.set_points(s_plot.gamma().reshape((-1, 3)))
     b_exact._toVTK(out_dir / "Exact_Fields")
@@ -203,6 +204,33 @@ if True:
     nhist = m_history.shape[2]
     m_history_2d = m_history.reshape((nmags*m_history.shape[1], nhist))
     np.savetxt(out_dir / 'm_history_nmags=%d_nhist=%d.txt' % (nmags, nhist), m_history_2d)
+    # Print optimized f_B and other metrics
+    b_exact.set_points(lcfs_ncsx.gamma().reshape((-1, 3)))
+    bs_tfcoils.set_points(lcfs_ncsx.gamma().reshape((-1, 3)))
+    Bcnormal = np.sum(bs_tfcoils.B().reshape((nphi, ntheta, 3)) * lcfs_ncsx.unitnormal(), axis=2)
+    f_Bc_sf = SquaredFlux(lcfs_ncsx, b_exact, -Bcnormal).J()
+
+    b_dipole = DipoleField(
+        pm_ncsx.dipole_grid_xyz,
+        pm_ncsx.m,
+        nfp=s_plot.nfp,
+        coordinate_flag=pm_ncsx.coordinate_flag, #check this one, which flag to use
+        m_maxima=pm_ncsx.m_maxima
+    )
+    b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
+    b_dipole._toVTK(out_dir / "dipole_magnet_fields", pm_ncsx.dx, pm_ncsx.dy, pm_ncsx.dz)
+
+    # Print optimized metrics
+    fBc = 0.5 * np.sum((pm_ncsx.A_obj @ pm_ncsx.m - pm_ncsx.b_obj) ** 2)
+    print("Total fBc = ", fBc)
+
+    # Print optimized f_B and other metrics
+    b_dipole.set_points(lcfs_ncsx.gamma().reshape((-1, 3)))
+    bs_tfcoils.set_points(lcfs_ncsx.gamma().reshape((-1, 3)))
+    Bcnormal = np.sum(bs_tfcoils.B().reshape((nphi, ntheta, 3)) * lcfs_ncsx.unitnormal(), axis=2)
+    f_Bc_sf = SquaredFlux(lcfs_ncsx, b_dipole, -Bcnormal).J()
+
+    print('f_Bc = ', f_Bc_sf)
 t_end = time.time()  
 print('Script took in total t = ', t_end - t_start, ' s')
 
