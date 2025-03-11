@@ -62,11 +62,11 @@ The constraints that may be applied to the wireframe are as follows:
   wireframe to reserve space for other components, or for preventing current
   from flowing across certain user-imposed boundaries.
 
-The RCLS examples solutions with the following characteristics:
+This section describes two examples of RCLS solutions:
 
 - A basic use case that can be made arbitrarily accurate by increasing
   the wireframe resolution 
-- Certain segments of the wireframe are blocked off to 
+- A solution in which segments of the wireframe are blocked off to 
   leave room for ports modeled by :obj:`~simsopt.geo.Port` subclasses
 
 Basic RCLS
