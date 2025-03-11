@@ -842,12 +842,9 @@ def _qr_factorization_wrapper(M):
             matrices returned by scipy.linalg.qr
     """
 
-    try:
+    Q, R = scipy.linalg.qr(M)
 
-        Q, R = scipy.linalg.qr(M)
-        assert np.all(np.isfinite(R))
-
-    except:
+    if not np.all(np.isfinite(R)):
 
         Q, R = scipy.linalg.qr(M)
 
