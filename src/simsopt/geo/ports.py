@@ -39,7 +39,7 @@ class PortSet(object):
                 and the corresponding Python type instances.
         """
 
-        self.nPorts = 0
+        self.n_ports = 0
         self.ports = []
 
         if ports is not None:
@@ -93,7 +93,7 @@ class PortSet(object):
 
         for port in ports:
             self.ports.append(port)
-            self.nPorts = self.nPorts + 1
+            self.n_ports = self.n_ports + 1
 
     def __add__(self, p):
         """
@@ -154,7 +154,7 @@ class PortSet(object):
                              ir = portdata[i,6], thick = portdata[i,7], \
                              l0 = portdata[i,8], l1 = portdata[i,9]))
 
-            self.nPorts = self.nPorts + 1
+            self.n_ports = self.n_ports + 1
 
     def load_rectangular_ports_from_file(self, file):
         """
@@ -191,7 +191,7 @@ class PortSet(object):
                                 ih = portdata[i,10], thick = portdata[i,11], \
                                 l0 = portdata[i,12], l1 = portdata[i,13]))
 
-            self.nPorts = self.nPorts + 1
+            self.n_ports = self.n_ports + 1
 
     def save_ports_to_file(self, fname):
         """
@@ -254,17 +254,17 @@ class PortSet(object):
         """
 
         if np.isscalar(gap):
-            gaparr = gap * np.ones(self.nPorts)
+            gaparr = gap * np.ones(self.n_ports)
         elif np.size(gap) == 1:
-            gaparr = np.squeeze(gap)[0] * np.ones(self.nPorts)
+            gaparr = np.squeeze(gap)[0] * np.ones(self.n_ports)
         else:
             gaparr = np.array(gap).reshape((-1))
-            if len(gaparr) != self.nPorts:
+            if len(gaparr) != self.n_ports:
                 raise ValueError('Input gap must be scalar or have one ' \
                                  'element per port in the set')
 
         colliding = np.full(x.shape, False)
-        for i in range(self.nPorts):
+        for i in range(self.n_ports):
             colliding_i = self.ports[i].collides(x, y, z, gap=gaparr[i])
             colliding = np.logical_or(colliding, colliding_i)
 
@@ -298,14 +298,14 @@ class PortSet(object):
 
         return ports_out
 
-    def plot(self, nEdges=100, **kwargs):
+    def plot(self, n_edges=100, **kwargs):
         """
         Places representations of the ports on a 3D plot. Currently only
         works with the mayavi plotting package.
 
         Parameters
         ----------
-            nEdges: integer (optional)
+            n_edges: integer (optional)
                 Number of edges for the polygons used to approximate the 
                 cross-section for any ports that are circular. Default is 100.
             **kwargs
@@ -321,7 +321,7 @@ class PortSet(object):
         surfs = []
         for port in self.ports:
             if isinstance(port, CircularPort):
-                surfs.append(port.plot(nEdges=nEdges, **kwargs))
+                surfs.append(port.plot(n_edges=n_edges, **kwargs))
             elif isinstance(port, RectangularPort):
                 surfs.append(port.plot(**kwargs))
             else:
@@ -331,7 +331,7 @@ class PortSet(object):
 
     @SimsoptRequires(unstructuredGridToVTK is not None, \
                      "to_vtk method requires pyevtk module")
-    def to_vtk(self, filename, nEdges=100):
+    def to_vtk(self, filename, n_edges=100):
         """
         Export a mesh representation of the port set to a VTK file, which can 
         be read with ParaView.
@@ -347,40 +347,40 @@ class PortSet(object):
         ----------
             filename: string
                 Name of the VTK file, without extension, to create.
-            nEdges: integer (optional)
+            n_edges: integer (optional)
                 Number of edges for the polygon used to approximate the 
                 circular cross-section of any circular ports. Default is 100.
         """
 
-        xList = [[]]*self.nPorts
-        yList = [[]]*self.nPorts
-        zList = [[]]*self.nPorts
-        trianglesList = [[]]*self.nPorts
-        indexList = [[]]*self.nPorts
+        x_list = [[]]*self.n_ports
+        y_list = [[]]*self.n_ports
+        z_list = [[]]*self.n_ports
+        triangles_list = [[]]*self.n_ports
+        index_list = [[]]*self.n_ports
         nPoints = 0
 
-        for i in range(self.nPorts):
+        for i in range(self.n_ports):
 
             if isinstance(self.ports[i], CircularPort):
-                xList[i], yList[i], zList[i], trianglesList[i] \
-                    = self.ports[i].mesh_representation(nEdges=nEdges)
+                x_list[i], y_list[i], z_list[i], triangles_list[i] \
+                    = self.ports[i].mesh_representation(n_edges=n_edges)
             else:
-                xList[i], yList[i], zList[i], trianglesList[i] \
+                x_list[i], y_list[i], z_list[i], triangles_list[i] \
                     = self.ports[i].mesh_representation()
 
             # Offset vertex indices by # of vertices in previous ports
-            trianglesList[i] += nPoints
-            nPoints += xList[i].shape[0]
+            triangles_list[i] += nPoints
+            nPoints += x_list[i].shape[0]
 
-            indexList[i] = np.full(xList[i].size, i)
+            index_list[i] = np.full(x_list[i].size, i)
 
-        x = contig(np.concatenate(xList, axis=0))
-        y = contig(np.concatenate(yList, axis=0))
-        z = contig(np.concatenate(zList, axis=0))
-        triangles = np.concatenate(trianglesList, axis=0)
+        x = contig(np.concatenate(x_list, axis=0))
+        y = contig(np.concatenate(y_list, axis=0))
+        z = contig(np.concatenate(z_list, axis=0))
+        triangles = np.concatenate(triangles_list, axis=0)
         connectivity = contig(triangles.reshape((-1)))
         offsets = contig(3*np.arange(triangles.shape[0])+3)
-        index = contig(np.concatenate(indexList))
+        index = contig(np.concatenate(index_list))
 
         unstructuredGridToVTK(filename, x, y, z, connectivity, offsets, \
             contig(np.full(offsets.shape, VtkTriangle.tid)), \
@@ -536,10 +536,10 @@ class CircularPort(Port):
         out_r = self.ir + self.thick + gap
         out_r2 = out_r * out_r
 
-        lStart = np.min([self.l0, self.l1])
-        lStop  = np.max([self.l0, self.l1])
-        in_axial_bounds = np.logical_and(l_proj >= lStart - gap, \
-                                         l_proj <= lStop  + gap)
+        l_start = np.min([self.l0, self.l1])
+        l_stop  = np.max([self.l0, self.l1])
+        in_axial_bounds = np.logical_and(l_proj >= l_start - gap, \
+                                         l_proj <= l_stop  + gap)
         in_radial_bounds = r2 <= out_r2
 
         return np.logical_and(in_axial_bounds, in_radial_bounds)
@@ -596,7 +596,7 @@ class CircularPort(Port):
 
         return PortSet(ports=ports)
 
-    def mesh_representation(self, nEdges=100):
+    def mesh_representation(self, n_edges=100):
         """
         Constructs a triangular mesh representation of the port for plotting
         and visualization.
@@ -604,7 +604,7 @@ class CircularPort(Port):
        
         Parameters
         ----------
-            nEdges: integer (optional)
+            n_edges: integer (optional)
                 Number of edges for the polygon used to approximate the 
                 circular cross-section. Default is 100.
 
@@ -639,23 +639,23 @@ class CircularPort(Port):
         z1 = self.oz + self.l1*self.az
 
         # Radial unit vector extending from the axis at different angles
-        phi = np.linspace(0, 2.*np.pi, nEdges, endpoint=False).reshape((1,-1))
-        Rx = bx*np.cos(phi) + cx*np.sin(phi)
-        Ry = by*np.cos(phi) + cy*np.sin(phi)
-        Rz = bz*np.cos(phi) + cz*np.sin(phi)
+        phi = np.linspace(0, 2.*np.pi, n_edges, endpoint=False).reshape((1,-1))
+        rx = bx*np.cos(phi) + cx*np.sin(phi)
+        ry = by*np.cos(phi) + cy*np.sin(phi)
+        rz = bz*np.cos(phi) + cz*np.sin(phi)
 
         # Coordinates of points on the inner and outer edges of the cylinder
         ri = self.ir
         ro = self.ir + self.thick
-        x = np.concatenate((x0 + ro*Rx, x0 + ri*Rx, x1 + ri*Rx, x1 + ro*Rx), \
+        x = np.concatenate((x0 + ro*rx, x0 + ri*rx, x1 + ri*rx, x1 + ro*rx), \
                            axis=0).reshape((-1,1))
-        y = np.concatenate((y0 + ro*Ry, y0 + ri*Ry, y1 + ri*Ry, y1 + ro*Ry), \
+        y = np.concatenate((y0 + ro*ry, y0 + ri*ry, y1 + ri*ry, y1 + ro*ry), \
                            axis=0).reshape((-1,1))
-        z = np.concatenate((z0 + ro*Rz, z0 + ri*Rz, z1 + ri*Rz, z1 + ro*Rz), \
+        z = np.concatenate((z0 + ro*rz, z0 + ri*rz, z1 + ri*rz, z1 + ro*rz), \
                            axis=0).reshape((-1,1))
 
         # Index arrays
-        upper_left = np.arange(4*nEdges).reshape((4,nEdges))
+        upper_left = np.arange(4*n_edges).reshape((4,n_edges))
         lower_left = np.roll(upper_left, 1, axis=1)
         upper_right = np.roll(upper_left, 1, axis=0)
         lower_right = np.roll(upper_right, 1, axis=1)
@@ -669,14 +669,14 @@ class CircularPort(Port):
 
         return x, y, z, triangles
 
-    def plot(self, nEdges=100, **kwargs):
+    def plot(self, n_edges=100, **kwargs):
         """
         Places a representation of the port on a 3D plot. Currently only
         works with the mayavi plotting package.
 
         Parameters
         ----------
-            nEdges: integer (optional)
+            n_edges: integer (optional)
                 Number of edges for the polygon used to approximate the 
                 circular cross-section. Default is 100.
             **kwargs
@@ -692,7 +692,7 @@ class CircularPort(Port):
         from mayavi import mlab
 
         # Obtain data for the mesh representation of the port
-        x, y, z, triangles = self.mesh_representation(nEdges=nEdges)
+        x, y, z, triangles = self.mesh_representation(n_edges=n_edges)
 
         # Generate a mayavi surface instance
         if 'color' not in kwargs.keys():
@@ -701,7 +701,7 @@ class CircularPort(Port):
 
     @SimsoptRequires(unstructuredGridToVTK is not None, \
                      "to_vtk method requires pyevtk module")
-    def to_vtk(self, filename, nEdges=100):
+    def to_vtk(self, filename, n_edges=100):
         """
         Export a mesh representation of the port to a VTK file, which can be 
         read with ParaView.
@@ -713,13 +713,13 @@ class CircularPort(Port):
         ----------
             filename: string
                 Name of the VTK file, without extension, to create.
-            nEdges: integer (optional)
+            n_edges: integer (optional)
                 Number of edges for the polygon used to approximate the 
                 circular cross-section. Default is 100.
         """
 
         # Obtain data for the mesh representation of the port
-        x, y, z, triangles = self.mesh_representation(nEdges=nEdges)
+        x, y, z, triangles = self.mesh_representation(n_edges=n_edges)
         x = contig(x)
         y = contig(y)
         z = contig(z)
@@ -844,10 +844,10 @@ class RectangularPort(Port):
                                             + (zarr - self.oz) * self.hz
         
 
-        lStart = np.min([self.l0, self.l1])
-        lStop  = np.max([self.l0, self.l1])
-        in_axial_bounds = np.logical_and(l_proj >= lStart - gap, \
-                                         l_proj <= lStop  + gap)
+        l_start = np.min([self.l0, self.l1])
+        l_stop  = np.max([self.l0, self.l1])
+        in_axial_bounds = np.logical_and(l_proj >= l_start - gap, \
+                                         l_proj <= l_stop  + gap)
         in_cross_section = \
             np.logical_and(np.abs(w_proj) < 0.5*self.iw + self.thick + gap, \
                            np.abs(h_proj) < 0.5*self.ih + self.thick + gap)
@@ -936,26 +936,26 @@ class RectangularPort(Port):
         z1 = self.oz + self.l1*self.az
 
         # Unit vectors in the cross-sectional dimensions
-        Wx = self.wx * np.array([[ 1,  1, -1, -1]])
-        Wy = self.wy * np.array([[ 1,  1, -1, -1]])
-        Wz = self.wz * np.array([[ 1,  1, -1, -1]])
-        Hx = self.hx * np.array([[-1,  1,  1, -1]])
-        Hy = self.hy * np.array([[-1,  1,  1, -1]])
-        Hz = self.hz * np.array([[-1,  1,  1, -1]])
+        wxxs = self.wx * np.array([[ 1,  1, -1, -1]])
+        wyxs = self.wy * np.array([[ 1,  1, -1, -1]])
+        wzxs = self.wz * np.array([[ 1,  1, -1, -1]])
+        hxxs = self.hx * np.array([[-1,  1,  1, -1]])
+        hyxs = self.hy * np.array([[-1,  1,  1, -1]])
+        hzxs = self.hz * np.array([[-1,  1,  1, -1]])
 
         # Coordinates of points on the inner and outer edges of the cylinder
         ihw = 0.5*self.iw
         ohw = 0.5*self.iw + self.thick
         ihh = 0.5*self.ih
         ohh = 0.5*self.ih + self.thick
-        x = np.concatenate((x0 + ihw*Wx + ihh*Hx, x0 + ohw*Wx + ohh*Hx, \
-                            x1 + ohw*Wx + ohh*Hx, x1 + ihw*Wx + ihh*Hx), \
+        x = np.concatenate((x0 + ihw*wxxs + ihh*hxxs, x0 + ohw*wxxs + ohh*hxxs,
+                            x1 + ohw*wxxs + ohh*hxxs, x1 + ihw*wxxs + ihh*hxxs),
                            axis=0).reshape((-1,1))
-        y = np.concatenate((y0 + ihw*Wy + ihh*Hy, y0 + ohw*Wy + ohh*Hy, \
-                            y1 + ohw*Wy + ohh*Hy, y1 + ihw*Wy + ihh*Hy), \
+        y = np.concatenate((y0 + ihw*wyxs + ihh*hyxs, y0 + ohw*wyxs + ohh*hyxs,
+                            y1 + ohw*wyxs + ohh*hyxs, y1 + ihw*wyxs + ihh*hyxs),
                            axis=0).reshape((-1,1))
-        z = np.concatenate((z0 + ihw*Wz + ihh*Hz, z0 + ohw*Wz + ohh*Hz, \
-                            z1 + ohw*Wz + ohh*Hz, z1 + ihw*Wz + ihh*Hz), \
+        z = np.concatenate((z0 + ihw*wzxs + ihh*hzxs, z0 + ohw*wzxs + ohh*hzxs,
+                            z1 + ohw*wzxs + ohh*hzxs, z1 + ihw*wzxs + ihh*hzxs),
                            axis=0).reshape((-1,1))
 
         # Index arrays
