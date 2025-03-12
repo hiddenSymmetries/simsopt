@@ -1,6 +1,7 @@
 import abc
 
 import numpy as np
+from scipy import interpolate
 
 try:
     from pyevtk.hl import gridToVTK
@@ -790,7 +791,7 @@ class Surface(Optimizable):
 
     def arclength_poloidal_angle(self):
         """
-        Computes poloidal angle based on arclenth along magnetic surface at
+        Computes poloidal angle based on arclenth along a surface at
         constant phi. The resulting angle is in the range [0,1]. This is required
         for evaluating the adjoint shape gradient for free-boundary calculations.
 
@@ -799,24 +800,17 @@ class Surface(Optimizable):
             containing the arclength poloidal angle
         """
         gamma = self.gamma()
-        X = gamma[:, :, 0]
-        Y = gamma[:, :, 1]
-        Z = gamma[:, :, 2]
-        R = np.sqrt(X ** 2 + Y ** 2)
+        nphi = gamma.shape[0]
+        dr = np.linalg.norm(gamma[:, 1:, :] - gamma[:, :-1, :], axis=2)
+        dr_boundary = np.linalg.norm(gamma[:, 0, :] - gamma[:, -1, :], axis=1).reshape((-1, 1))
 
-        theta_arclength = np.zeros_like(gamma[:, :, 0])
-        nphi = len(theta_arclength[:, 0])
-        ntheta = len(theta_arclength[0, :])
-        for iphi in range(nphi):
-            for itheta in range(1, ntheta):
-                dr = np.sqrt((R[iphi, itheta] - R[iphi, itheta - 1]) ** 2
-                             + (Z[iphi, itheta] - Z[iphi, itheta - 1]) ** 2)
-                theta_arclength[iphi, itheta] = \
-                    theta_arclength[iphi, itheta - 1] + dr
-            dr = np.sqrt((R[iphi, 0] - R[iphi, -1]) ** 2
-                         + (Z[iphi, 0] - Z[iphi, -1]) ** 2)
-            L = theta_arclength[iphi, -1] + dr
-            theta_arclength[iphi, :] = theta_arclength[iphi, :] / L
+        dr = np.concatenate((dr, dr_boundary), axis=1)
+        L = np.sum(dr, axis=1)
+        almost_theta_arclength = np.cumsum(dr, axis=1) / L[:, None]
+        # Add row with theta=0, and remove the row with theta=1:
+        theta_arclength = np.concatenate(
+            (np.zeros((nphi, 1)), almost_theta_arclength[:, :-1]), axis=1
+        )
         return theta_arclength
 
     def interpolate_on_arclength_grid(self, function, theta_evaluate):
@@ -825,22 +819,63 @@ class Surface(Optimizable):
         poloidal angle. This is required for evaluating the adjoint shape gradient
         for free-boundary calculations.
 
+        The ``theta_evaluate`` grid may have a different number of poloidal grid
+        points compared to the surface's ``numquadpoints_theta``, but it must have the same number of
+        toroidal grid points as the surface's ``numquadpoints_phi``.
+        This is because we interpolate in theta but not phi.
+
         Returns:
             function_interpolated: 2d array (numquadpoints_phi,numquadpoints_theta)
                 defining interpolated function on arclength angle along curve
                 at constant phi
         """
-        from scipy import interpolate
 
         theta_arclength = self.arclength_poloidal_angle()
-        function_interpolated = np.zeros_like(function)
-        nphi = len(theta_arclength[:, 0])
+        # Add a repeated point at the end to ensure periodicity
+        theta_arclength_big = np.concatenate(
+            (
+                theta_arclength,
+                theta_arclength[:, 0:1] + 1
+            ),
+            axis=1,
+        )
+        function_big = np.concatenate(
+            (
+                function,
+                function[:, 0:1]
+            ),
+            axis=1,
+        )
+        function_interpolated = np.zeros_like(theta_evaluate)
+        nphi = theta_arclength.shape[0]
         for iphi in range(nphi):
-            f = interpolate.InterpolatedUnivariateSpline(
-                theta_arclength[iphi, :], function[iphi, :])
-            function_interpolated[iphi, :] = f(theta_evaluate[iphi, :])
+            interpolant = interpolate.make_interp_spline(
+                theta_arclength_big[iphi, :],
+                function_big[iphi, :],
+                bc_type="periodic",
+            )
+            function_interpolated[iphi, :] = interpolant(theta_evaluate[iphi, :])
 
         return function_interpolated
+    
+    def make_theta_uniform_arclength(self):
+        """
+        Reparameterize the surface in terms of a uniform-arclength poloidal
+        angle.
+
+        To do the conversion accurately, make sure the surface has both a
+        sufficient number of quadrature points and a sufficiently large number
+        of basis functions. More basis functions may be needed to represent the
+        shape than for the original theta coordinate.        
+        """
+        gamma = self.gamma()
+        nphi = gamma.shape[0]
+        gamma_new = np.empty_like(gamma)
+        theta_evaluate = self.quadpoints_theta[None, :] * np.ones((nphi, 1))
+        for j_xyz in range(3):
+            gamma_new[:, :, j_xyz] = self.interpolate_on_arclength_grid(gamma[:, :, j_xyz], theta_evaluate)
+
+        self.least_squares_fit(gamma_new)
     
     @property
     def deduced_range(self):
