@@ -231,9 +231,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         filename = TEST_DIR / 'nescin.LandremanPaul2021_QA'
         s_plas = SurfaceRZFourier.from_nescoil_input(filename, 'plasma')
-        s_curr = SurfaceRZFourier.from_nescoil_input(filename, 'current')
+        SurfaceRZFourier.from_nescoil_input(filename, 'current')
         with self.assertRaises(ValueError):
-            s_err = SurfaceRZFourier.from_nescoil_input(filename, 'other')
+            SurfaceRZFourier.from_nescoil_input(filename, 'other')
 
         # The plasma surface in the nescoil file should be approximately the 
         # same as the LandremanPaul2021_QA surface, although Fourier resolution
@@ -243,7 +243,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s_plas.volume(), s_ref.volume(), places=1)
 
         with self.assertRaises(AssertionError):
-            s_err = SurfaceRZFourier.from_nescoil_input(filename_ref, 'plasma')
+            SurfaceRZFourier.from_nescoil_input(filename_ref, 'plasma')
 
     def test_from_vmec_2_ways(self):
         """
