@@ -81,7 +81,8 @@ class WireframeOptimizationTests(unittest.TestCase):
         amploop_tor.set('zs(1)', 2*surf_wf.get_zs(1,0))
 
         # Trivial optimization: no constraint requiring non-zero current
-        opt_params = {'reg_W': 1e-10}
+        reg_W = 1e-10
+        opt_params = {'reg_W': reg_W}
         res = optimize_wireframe(wf, 'rcls', opt_params, surf_plas, 
                                  verbose=False)
 
@@ -119,7 +120,7 @@ class WireframeOptimizationTests(unittest.TestCase):
         wf.set_segments_constrained(constr_segs)
 
         res = optimize_wireframe(wf, 'rcls', opt_params, surf_plas,
-                                 verbose=False)
+                                 verbose=True)
 
         self.assertTrue(np.allclose(wf.currents[zero_segs], 0))
         self.assertTrue(np.isclose(cur_pol, 
@@ -172,6 +173,32 @@ class WireframeOptimizationTests(unittest.TestCase):
         self.assertTrue(np.isclose(res['f'], res['f_B'] + res['f_R']))
         self.assertTrue(np.isclose(res['f_R'], 
             0.5 * opt_params['reg_W']**2 * np.sum(res['x']**2)))
+
+        # Verify that same solution is obtained when the bnormal and objective
+        # matrices are supplied by the user
+        res2 = optimize_wireframe(wf, 'rcls', opt_params, Amat=res['Amat'],
+                                  bvec=res['bvec'], verbose=True)
+        self.assertTrue(np.allclose(res2['x'], res['x']))
+
+        # Tests with non-scalar regularization parameter 
+        opt_params_vectorW = {'reg_W': reg_W * np.ones((2*nPhi*nTheta))}
+        res3 = optimize_wireframe(wf, 'rcls', opt_params_vectorW, 
+                   Amat=res['Amat'], bvec=res['bvec'], verbose=False)
+        self.assertTrue(np.allclose(res3['x'], res['x']))
+
+        opt_params_matrixW = {'reg_W': reg_W * np.eye((2*nPhi*nTheta))}
+        res4 = optimize_wireframe(wf, 'rcls', opt_params_matrixW, 
+                   Amat=res['Amat'], bvec=res['bvec'], verbose=False)
+        self.assertTrue(np.allclose(res4['x'], res['x']))
+
+        opt_params_errorVecW = {'reg_W': reg_W * np.ones((2*nPhi*nTheta+1))}
+        opt_params_errorMatW = {'reg_W': reg_W * np.eye((2*nPhi*nTheta+1))}
+        with self.assertRaises(ValueError):
+            optimize_wireframe(wf, 'rcls', opt_params_errorVecW, 
+                   Amat=res['Amat'], bvec=res['bvec'], verbose=False)
+        with self.assertRaises(ValueError):
+            optimize_wireframe(wf, 'rcls', opt_params_errorMatW, 
+                   Amat=res['Amat'], bvec=res['bvec'], verbose=False)
 
     def test_toroidal_wireframe_gsco(self):
         """

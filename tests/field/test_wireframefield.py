@@ -136,7 +136,7 @@ class WireframeFieldTests(unittest.TestCase):
         field_wf.set_points(test_pts)
         dBdX = field_wf.dB_by_dX()
         for i in range(n_test_pts):
-            assert np.allclose(dBdX[i,:,:], dBdX[i,:,:].T)
+            self.assertTrue(np.allclose(dBdX[i,:,:], dBdX[i,:,:].T))
 
         # Replace currents with values that do NOT satisfy the constraints
         test_wf.currents[:] = 0
@@ -149,7 +149,7 @@ class WireframeFieldTests(unittest.TestCase):
         field_wf.set_points(test_pts)
         dBdX = field_wf.dB_by_dX()
         for i in range(n_test_pts):
-            assert not np.allclose(dBdX[i,:,:], dBdX[i,:,:].T)
+            self.assertFalse(np.allclose(dBdX[i,:,:], dBdX[i,:,:].T))
 
     def test_toroidal_wireframe_amperian_loops(self):
         '''
@@ -268,6 +268,21 @@ class WireframeFieldTests(unittest.TestCase):
         SqFlux_ref = SquaredFlux(surf_plas, field_wf).J()
 
         assert np.allclose(SqFlux_mat, SqFlux_ref)
+
+    def test_wireframefield_initialization(self):
+        '''
+        Tests of the initialization of a wireframe field
+        '''
+
+        # Initialization for a ToroidalWireframe
+        surf = surf_torus(2,2,1)
+        nPhi = 4
+        nTheta = 6
+        test_wf_tor = ToroidalWireframe(surf, nPhi, nTheta)
+        field_wf_tor = WireframeField(test_wf_tor)
+
+        with self.assertRaises(ValueError):
+            field_wf_tor.dBnormal_by_dsegmentcurrents_matrix(None)
 
 if __name__ == "__main__":
     unittest.main()

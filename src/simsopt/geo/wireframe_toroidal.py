@@ -1436,9 +1436,10 @@ class ToroidalWireframe(object):
                 cmap = colormap
 
             surf.module_manager.scalar_lut_manager.lut.table = cmap
-            curr_lim = np.max(np.abs(pl_currents[inds]))
-            surf.module_manager.scalar_lut_manager.data_range = \
-                (-curr_lim, curr_lim)
+            if len(inds) > 0:
+                curr_lim = np.max(np.abs(pl_currents[inds]))
+                surf.module_manager.scalar_lut_manager.data_range = \
+                    (-curr_lim, curr_lim)
 
             return surf
 
@@ -1464,7 +1465,7 @@ class ToroidalWireframe(object):
                 ax.set_xlabel('x')
                 ax.set_ylabel('y')
                 ax.set_zlabel('z')
-                cb = pl.colorbar(lc)
+                cb = pl.colorbar(lc, ax=ax)
                 cb.set_label('Current [MA]')
     
             ax.add_collection(lc)
@@ -1726,7 +1727,7 @@ class ToroidalWireframe(object):
 
         ax.set_xlabel('Toroidal index')
         ax.set_ylabel('Poloidal index')
-        cb = pl.colorbar(pc)
+        cb = pl.colorbar(pc, ax=ax)
  
         if value_label:
             cb.set_label(value_label)

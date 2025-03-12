@@ -508,6 +508,59 @@ class ToroidalWireframeTests(unittest.TestCase):
         self.assertEqual(len(wf.unconstrained_segments()), 0)
         wf.free_all_segments()
 
+    def test_toroidal_wireframe_plotting(self):
+        """
+        Tests wireframe plotting functions. 
+        """
+
+        import matplotlib.pyplot as pl
+
+        nfp = 3
+        rmaj = 2
+        rmin = 1
+        surf_wf = surf_torus(nfp, rmaj, rmin)
+
+        n_phi = 4
+        n_theta = 4
+
+        wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
+
+        # Testing the make_plot_2d method
+        ax, lc, cb = wf.make_plot_2d()
+        ax, lc, cb = wf.make_plot_2d(quantity='currents', extent='half period')
+        ax, lc, cb = wf.make_plot_2d(quantity='nonzero currents',
+                                     extent='field period')
+        ax, lc, cb = wf.make_plot_2d(quantity='constrained segments',
+                                     extent='full torus')
+        ax, lc, cb = wf.make_plot_2d(coordinates='degrees')
+        ax, lc, cb = wf.make_plot_2d(coordinates='radians')
+        pl.close('all')
+
+        # Testing plot_cells_2d
+        cell_values = np.zeros(wf.get_cell_key().shape[0])
+        wf.plot_cells_2d(cell_values)
+        pl.close('all')
+
+        # Testing the make_plot_3d method using matplotlib
+        wf.make_plot_3d(engine='matplotlib')
+        wf.make_plot_3d(engine='matplotlib', to_show='active')
+        wf.make_plot_3d(engine='matplotlib', extent='half period')
+        wf.make_plot_3d(engine='matplotlib', extent='field period')
+        pl.close('all')
+
+        # Testing the make_plot_3d method using mayavi (if available)
+        try:
+            from mayavi import mlab
+        except ImportError:
+            mlab = None
+
+        if mlab is not None:
+            wf.make_plot_3d()
+            wf.make_plot_3d(to_show='active')
+            wf.make_plot_3d(extent='half period')
+            wf.make_plot_3d(extent='field period', tube_radius=0.1)
+            mlab.close(all=True)
+
     def test_toroidal_wireframe_windowpane(self):
         """
         Tests the construction of a wireframe with windowpane constraints
