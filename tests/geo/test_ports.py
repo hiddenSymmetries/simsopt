@@ -1,7 +1,8 @@
+import os
 import unittest
 import numpy as np
 from monty.tempfile import ScratchDir
-from simsopt.geo import CircularPort, RectangularPort
+from simsopt.geo import PortSet, CircularPort, RectangularPort
 
 try:
     import pyevtk
@@ -283,14 +284,128 @@ class PortTests(unittest.TestCase):
         coll_both_sym = pBothSym.collides(X_test, Y_test, Z_test, gap=gap)
         self.assertTrue(np.all(coll_comb_sym == coll_both_sym))
         self.assertTrue(np.all(coll_cr_sym == coll_both_sym))
+
+    def test_port_file_io(self):
+        """
+        Tests methods for creating files with port parameters and loading 
+        ports from files
+        """
+        # General parameters
+        nfp = 3
+        Rmaj = 10 
+        [ax, ay, az] = [0, 0, 1]
+        [l0, l1] = [0, 1]
+        thk = 0.1
+
+        # Circular port parameters
+        phiPort_c = 20*np.pi/180.
+        [oxc, oyc, ozc] = [Rmaj*np.cos(phiPort_c), Rmaj*np.sin(phiPort_c), 0]
+        ir = 1
+
+        # Baseline circular port
+        pCirc = CircularPort(ox=oxc, oy=oyc, oz=ozc, ax=ax, ay=ay, az=az, \
+                             ir=ir, thick=thk, l0=l0, l1=l1)
+
+        # Rectangular port parameters
+        phiPort_r = 40*np.pi/180.
+        [oxr, oyr, ozr] = [Rmaj*np.cos(phiPort_r), Rmaj*np.sin(phiPort_r), 0]
+        [wx, wy, wz] = [1, 0, 0]
+        iw = ir
+        ih = 2*ir
+
+        # Baseline rectangular port
+        pRect = RectangularPort(ox=oxr, oy=oyr, oz=ozr, ax=ax, ay=ay, az=az, \
+                                wx=wx, wy=wy, wz=wz, iw=iw, ih=ih, \
+                                thick=thk, l0=l0, l1=l1)
+
+        # PortSets with circular, rectangular, and all ports with repetitions
+        ports_circ = pCirc.repeat_via_symmetries(nfp, True)
+        ports_rect = pRect.repeat_via_symmetries(nfp, True)
+        ports_all = pCirc + pRect
+        ports_all = ports_all.repeat_via_symmetries(nfp, True)
+
+        # Save the circular ports to files and try reloading them
+        with ScratchDir("."):
+
+            ports_circ.save_ports_to_file("test")
+            self.assertTrue(os.path.exists("test_circ.csv"))
+            self.assertFalse(os.path.exists("test_rect.csv"))
+            
+            with self.assertRaises(ValueError):
+                PortSet(file="test_circ.csv")
+
+            ports_reloaded = PortSet(file="test_circ.csv", port_type='circular')
+            self.assertEqual(ports_circ.nPorts, ports_reloaded.nPorts)
+
+            # Ensure consistency in the parameters
+            all_ax_orig = [p.ax for p in ports_circ]
+            all_ax_reloaded = [p.ax for p in ports_reloaded]
+            self.assertTrue(np.allclose(np.sort(all_ax_orig), 
+                                        np.sort(all_ax_reloaded)))
  
+        # Save the rectangular ports to files and try reloading them
+        with ScratchDir("."):
+
+            ports_rect.save_ports_to_file("test")
+            self.assertFalse(os.path.exists("test_circ.csv"))
+            self.assertTrue(os.path.exists("test_rect.csv"))
+            
+            with self.assertRaises(ValueError):
+                PortSet(file="test_rect.csv")
+
+            ports_reloaded = PortSet(file="test_rect.csv", 
+                                     port_type='rectangular')
+            self.assertEqual(ports_rect.nPorts, ports_reloaded.nPorts)
+
+            # Ensure consistency in the parameters
+            all_ax_orig = [p.ax for p in ports_rect]
+            all_ax_reloaded = [p.ax for p in ports_reloaded]
+            self.assertTrue(np.allclose(np.sort(all_ax_orig), 
+                                        np.sort(all_ax_reloaded)))
+ 
+        # Save the combined set of circular and rectangular ports; reload
+        with ScratchDir("."):
+
+            ports_all.save_ports_to_file("test")
+            self.assertTrue(os.path.exists("test_circ.csv"))
+            self.assertTrue(os.path.exists("test_rect.csv"))
+            
+            ports_reloaded = PortSet()
+            with self.assertRaises(ValueError):
+                ports_reloaded.load_circular_ports_from_file("test_rect.csv")
+            with self.assertRaises(ValueError):
+                ports_reloaded.load_rectangular_ports_from_file("test_circ.csv")
+            ports_reloaded.load_rectangular_ports_from_file("test_rect.csv")
+            ports_reloaded.load_circular_ports_from_file("test_circ.csv")
+            self.assertEqual(ports_all.nPorts, ports_reloaded.nPorts)
+
+            # Ensure consistency in the parameters
+            all_ax_orig = [p.ax for p in ports_all]
+            all_ax_reloaded = [p.ax for p in ports_reloaded]
+            self.assertTrue(np.allclose(np.sort(all_ax_orig), 
+                                        np.sort(all_ax_reloaded)))
+
+            # Check parameter exclusive to circular ports
+            all_ir_orig = [p.ir for p in ports_all 
+                           if isinstance(p, CircularPort)]
+            all_ir_reloaded = [p.ir for p in ports_reloaded
+                               if isinstance(p, CircularPort)]
+            self.assertTrue(np.allclose(np.sort(all_ir_orig), 
+                                        np.sort(all_ir_reloaded)))
+
+            # Check parameter exclusive to rectangular ports
+            all_ih_orig = [p.ih for p in ports_all 
+                           if isinstance(p, RectangularPort)]
+            all_ih_reloaded = [p.ih for p in ports_reloaded
+                               if isinstance(p, RectangularPort)]
+            self.assertTrue(np.allclose(np.sort(all_ih_orig), 
+                                        np.sort(all_ih_reloaded)))
+
     @unittest.skipIf(pyevtk is None, "pyevtk not found")
     def test_port_to_vtk(self):
         """
         Tests functions that generate VTK files from ports and port sets
         """
-
-        import os
 
         # General parameters
         Rmaj = 10 

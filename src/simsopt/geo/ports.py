@@ -193,6 +193,44 @@ class PortSet(object):
 
             self.nPorts = self.nPorts + 1
 
+    def save_ports_to_file(self, fname):
+        """
+        Save data on ports to csv-formatted files. Separate files will be 
+        created for each port type. Circular ports will be saved to a file
+        ending in "_circ.csv"; rectangular ports will be saved to a file 
+        ending in "_rect.csv".
+
+        Parameters
+        ----------
+            fname: string
+                Name of the file to save, not including the suffix
+        """
+
+        # Group the ports by type
+        circ_ports = [p for p in self.ports if isinstance(p, CircularPort)]
+        rect_ports = [p for p in self.ports if isinstance(p, RectangularPort)]
+
+        # Save the circular ports if any exist
+        if len(circ_ports) > 0:
+            lines = [('%.16e,'*9 + '%.16e') % (p.ox, p.oy, p.oz, p.ax, p.ay, 
+                         p.az, p.ir, p.thick, p.l0, p.l1) for p in circ_ports]
+            all_lines = '\n'.join(lines)
+            print('Saving circular ports to ' + fname + '_circ.csv')
+            with open(fname + '_circ.csv', 'w') as f:
+                f.write('ox,oy,oz,ax,ay,az,ir,thick,l0,l1\n')
+                f.write(all_lines)
+
+        # Save the rectangular ports if any exist
+        if len(rect_ports) > 0:
+            lines = [('%.16e,'*13 + '%.16e') % (p.ox, p.oy, p.oz, p.ax, p.ay, 
+                         p.az, p.wx, p.wy, p.wz, p.iw, p.ih, p.thick, 
+                         p.l0, p.l1) for p in rect_ports]
+            all_lines = '\n'.join(lines)
+            print('Saving rectangular ports to ' + fname + '_rect.csv')
+            with open(fname + '_rect.csv', 'w') as f:
+                f.write('ox,oy,oz,ax,ay,az,wx,wy,wz,iw,ih,thick,l0,l1\n')
+                f.write(all_lines)
+
     def collides(self, x, y, z, gap=0.0):
         """
         Determines if the user input point(s) collide with any port in the set.
