@@ -327,9 +327,11 @@ tuple<vector<array<double, SymplField::Size+1>>, vector<array<double, SymplField
                 if (t_save != 0) {
                     vpar_last = res.back()[4];
                     zeta_last = res.back()[3];
+                    std::cout << "zeta_last: " << zeta_last << std::endl;
                     dense.calc_state(t_save, temp);
                     vpar_current = temp[3];
                     zeta_current = temp[2];
+                    std::cout << "zeta_current: " << zeta_current << std::endl;
                     // Only save if we have not hit any stopping criteria
                     stop = check_stopping_criteria<SymplField,sympl_dense>(f, 
                         temp, iter, res, res_hits, dense,      

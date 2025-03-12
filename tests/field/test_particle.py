@@ -339,6 +339,8 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                           tol=1e-5, solver_options=solver_options, forget_exact_path=False)
 
             for i in range(Nparticles):
+                print(gc_tys[i][:, 1])
+                print(gc_tys[i][:, 0])
                 assert np.all(gc_tys[i][:, 1] > 0.4)
                 assert np.all(gc_tys[i][:, 1] < 0.6)
 

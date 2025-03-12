@@ -1,85 +1,65 @@
-# simsopt
+# firm3d
 
-![GitHub](https://img.shields.io/github/license/hiddensymmetries/simsopt)
-[![codecov](https://codecov.io/gh/hiddenSymmetries/simsopt/branch/master/graph/badge.svg?token=ltN6qonZ5p)](https://codecov.io/gh/hiddenSymmetries/simsopt)
-[![DOI](https://zenodo.org/badge/247710081.svg)](https://zenodo.org/badge/latestdoi/247710081)
+FIRM3D (Fast Ion Reduced Models in 3D) is a software suite for modeling of energetic particle dynamics in 3D magnetic fields. The guiding center equations of motion are integrated in magnetic fields represented in Boozer coordinates, including VMEC equilibria and Alfvén eigenmodes from AE3D or FAR3D. The core routines are based on [SIMSOPT](https://simsopt.readthedocs.io), but have been extended to include additional physics and diagnostics that are not typically required in the optimization context. This standalone framework enables more modular development of FIRM3D with minimal dependencies. 
 
-![SIMSOPT](docs/source/logo.png)
-![SIMSOPT](docs/source/coils_and_surfaces.png)
+- [Installation](#installation)
+  - [macOS](#macos)
+  - [Perlmutter](#perlmutter)
+  - [Ginsburg](#ginsburg)
+- [Magnetic field classes](#magnetic-field-classes)
 
-`simsopt` is a framework for optimizing
-[stellarators](https://en.wikipedia.org/wiki/Stellarator).
-The high-level routines of `simsopt` are in python, with calls to C++
-or fortran where needed for performance. Several types of components
-are included:
+## Installation
 
-- Interfaces to physics codes, e.g. for MHD equilibrium.
-- Tools for defining objective functions and parameter spaces for
-  optimization.
-- Geometric objects that are important for stellarators - surfaces and
-  curves - with several available parameterizations.
-- Efficient implementations of the Biot-Savart law and other magnetic
-  field representations, including derivatives.
-- Tools for parallelized finite-difference gradient calculations.
+# macOS
 
-The design of `simsopt` is guided by several principles:
+All dependencies can be installed inside a conda environment using the provided install bash script located at `install/macOS/install_macos.sh`. 
 
-- Thorough unit testing, regression testing, and continuous
-  integration.
-- Extensibility: It should be possible to add new codes and terms to
-  the objective function without editing modules that already work,
-  i.e. the [open-closed principle](https://en.wikipedia.org/wiki/Open%E2%80%93closed_principle).
-  This is because any edits to working code can potentially introduce bugs.
-- Modularity: Physics modules that are not needed for your
-  optimization problem do not need to be installed. For instance, to
-  optimize SPEC equilibria, the VMEC module need not be installed.
-- Flexibility: The components used to define an objective function can
-  be re-used for applications other than standard optimization. For
-  instance, a `simsopt` objective function is a standard python
-  function that can be plotted, passed to optimization packages
-  outside of `simsopt`, etc.
+# Perlmutter (NERSC)
 
-`simsopt` is fully open-source, and anyone is welcome to use it, make
-suggestions, and contribute.
+module load conda cray-hdf5-parallel cray-netcdf-hdf5parallel openmpi
+conda create --name simsopt
+conda activate simsopt
+conda install pip
+export CI=True
+env CC=$(which mpicc) CXX=$(which mpicxx) pip install -e . 
 
-Several methods are available for installing `simsopt`. One
-recommended approach is to use pip:
+# Ginsburg
 
-    pip install simsopt
+## Equilibrium magnetic field classes
 
-For detailed installation instructions on some specific systems, see
-[the wiki](https://github.com/hiddenSymmetries/simsopt/wiki).
-Also, a Docker container is available with `simsopt` and its components pre-installed, which
-can be started using
+The equilibrium magnetic field in Boozer coordinates can be represented using a simple [analytic model](#boozeranalytic), a [radial interpolant](#boozerradialinterpolant) of a `booz\_xform` equilibrium , or a [3D interpolant](#interpolatedboozerfield). 
 
-    docker run -it --rm hiddensymmetries/simsopt
+# BoozerAnalytic
 
-More [installation
-options](https://simsopt.readthedocs.io/en/latest/installation.html),
-[instructions for the Docker
-container](https://simsopt.readthedocs.io/en/latest/containers.html), and
-other information can be found in the [main simsopt documentation
-here.](https://simsopt.readthedocs.io)
+Computes a `BoozerMagneticField` based on a first-order expansion in
+distance from the magnetic axis (Landreman & Sengupta, Journal of Plasma
+Physics 2018). A possibility to include a QS-breaking perturbation is added, so the magnetic field strength is expressed as,
 
-Some of the physics modules with compiled code reside in separate
-repositories. These separate modules include
+```math
+B(s,\theta,\zeta) = B_0 \left(1 + \overline{\eta} \sqrt{2s\psi_0/\overline{B}}\cos(\theta - N \zeta)\right) + B_{0z}\cos(m\theta-n\zeta),
+```
 
-- [VMEC](https://github.com/hiddenSymmetries/VMEC2000), for MHD
-  equilibrium.
-- [SPEC](https://github.com/PrincetonUniversity/SPEC), for MHD
-  equilibrium.
-- [booz_xform](https://hiddensymmetries.github.io/booz_xform), for
-  Boozer coordinates.
-  
-If you use `simsopt` in your research, kindly cite the code using
-[this reference](https://doi.org/10.21105/joss.03525):
+the covariant components of equilibrium field are,
 
-[1] M Landreman, B Medasani, F Wechsung, A Giuliani, R Jorge, and C Zhu,
-    "SIMSOPT: A flexible framework for stellarator optimization",
-    *J. Open Source Software* **6**, 3525 (2021).
+```math
+G(s) = G_0 + \sqrt{2s\psi_0/\overline{B}} G_1 \\
 
-See also [the simsopt publications page](https://simsopt.readthedocs.io/en/latest/publications.html).
+I(s) = I_0 + \sqrt{2s\psi_0/\overline{B}} I_1 \\
 
-We gratefully acknowledge funding from the [Simons Foundation's Hidden
-symmetries and fusion energy
-project](https://hiddensymmetries.princeton.edu). 
+K(s,\theta,\zeta) = \sqrt{2s\psi_0/\overline{B}} K_1 \sin(\theta - N \zeta),
+```
+
+and the rotational transform is,
+
+```math
+\iota(s) = \iota_0.
+```
+
+While formally $I_0 = I_1 = G_1 = K_1 = 0$, these terms have been included
+in order to test the guiding center equations at finite beta.
+
+# BoozerRadialInterpolant
+
+Given a :class:`Vmec` instance, performs a Boozer coordinate transformation using ``BOOZXFORM``. The magnetic field can be computed at any point in Boozer coordinates using radial spline interpolation (``scipy.interpolate.InterpolatedUnivariateSpline``) and an inverse Fourier transform in the two angles. 
+
+# InterpolatedBoozerField
