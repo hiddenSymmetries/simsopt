@@ -28,10 +28,10 @@ make_mayavi_plots = False
 if not in_github_actions:
 
     # Number of wireframe segments per half period, toroidal dimension
-    wf_nPhi = 48      # 96 to match reference
+    wf_n_phi = 48      # 96 to match reference
 
     # Number of wireframe segments per half period, poloidal dimension
-    wf_nTheta = 50    # 100 to match reference
+    wf_n_theta = 50    # 100 to match reference
 
     # Maximum number of GSCO iterations
     max_iter = 2000   # 20000 to match reference
@@ -45,8 +45,8 @@ if not in_github_actions:
 else:
 
     # For GitHub CI tests, run at very low resolution 
-    wf_nPhi = 18
-    wf_nTheta = 8
+    wf_n_phi = 18
+    wf_n_theta = 8
     max_iter = 100
     print_interval = 10
     plas_n = 4
@@ -84,14 +84,14 @@ os.makedirs(OUT_DIR, exist_ok=True)
 #######################################################
 
 # Load the geometry of the target plasma boundary
-plas_nPhi = plas_n
-plas_nTheta = plas_n
+plas_n_phi = plas_n
+plas_n_theta = plas_n
 surf_plas = SurfaceRZFourier.from_vmec_input(filename_equil, 
-                nphi=plas_nPhi, ntheta=plas_nTheta, range='half period')
+                nphi=plas_n_phi, ntheta=plas_n_theta, range='half period')
 
 # Construct the wireframe on a toroidal surface
 surf_wf = SurfaceRZFourier.from_nescoil_input(filename_wf_surf, 'current')
-wf = ToroidalWireframe(surf_wf, wf_nPhi, wf_nTheta)
+wf = ToroidalWireframe(surf_wf, wf_n_phi, wf_n_theta)
 
 # Calculate the required net poloidal current
 mu0 = 4.0 * np.pi * 1e-7
@@ -124,7 +124,7 @@ if make_mayavi_plots:
     mlab.figure(size=(1050,800), bgcolor=(1,1,1))
     wf.make_plot_3d(to_show='all')
     surf_plas_plot = SurfaceRZFourier.from_vmec_input(filename_equil, 
-        nphi=plas_nPhi, ntheta=plas_nTheta, range='full torus')
+        nphi=plas_n_phi, ntheta=plas_n_theta, range='full torus')
     surf_plas_plot.plot(engine='mayavi', show=False, close=True, 
         wireframe=False, color=(1, 0.75, 1))
     mlab.view(distance=5.5, focalpoint=(0, 0, -0.15))
@@ -156,19 +156,19 @@ assert wf.check_constraints()
 
 # Post-processing
 res['wframe_field'].set_points(surf_plas.gamma().reshape((-1,3)))
-Bfield = res['wframe_field'].B().reshape((plas_nPhi, plas_nTheta, 3))
+Bfield = res['wframe_field'].B().reshape((plas_n_phi, plas_n_theta, 3))
 Bnormal = np.sum(Bfield * surf_plas.unitnormal(), axis=2)
 modB = np.sqrt(np.sum(Bfield**2, axis=2))
-relBnorm = Bnormal/modB
+rel_Bnorm = Bnormal/modB
 area = np.sqrt(np.sum(surf_plas.normal()**2, axis=2))/float(modB.size)
-meanRelBn = np.sum(np.abs(relBnorm)*area)/np.sum(area)
-maxCur = np.max(np.abs(res['x']))
+mean_rel_Bn = np.sum(np.abs(rel_Bnorm)*area)/np.sum(area)
+max_cur = np.max(np.abs(res['x']))
 
 # Print post-processing results
 print('  f_B [T^2m^2]   %12.4e' % (res['f_B']))
 print('  f_S            %12.4e' % (res['f_S']))
-print('  <|Bn|/|B|>     %12.4e' % (meanRelBn))
-print('  I_max [MA]     %12.4e' % (maxCur))
+print('  <|Bn|/|B|>     %12.4e' % (mean_rel_Bn))
+print('  I_max [MA]     %12.4e' % (max_cur))
 
 # Save plots and visualization data to files
 wf.make_plot_2d(coordinates='degrees', quantity='nonzero currents')
@@ -185,7 +185,7 @@ if make_mayavi_plots:
     mlab.figure(size=(1050,800), bgcolor=(1,1,1))
     wf.make_plot_3d(to_show='active')
     surf_wf_plot = SurfaceRZFourier.from_nescoil_input(filename_wf_surf, 
-        'current', range='full torus', nphi=2*plas_nPhi, ntheta=2*plas_nTheta)
+        'current', range='full torus', nphi=2*plas_n_phi, ntheta=2*plas_n_theta)
     surf_wf_plot.plot(engine='mayavi', show=False, close=True, 
         wireframe=False, color=(0.75, 0.75, 0.75))
     mlab.view(distance=5.5, azimuth=0, elevation=0, focalpoint=(0,0,0))

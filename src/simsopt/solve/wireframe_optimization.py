@@ -86,14 +86,14 @@ def optimize_wireframe(wframe, algorithm, params, \
             Inductance matrix relating normal field at test points on the
             plasma boundary to currents in each segment. This can be supplied
             along with ``bvec`` to skip the field calculation as describe in 
-            mode (2) above. Must have dimensions (nTestPoints, 
-            wFrame.nSegments), where nTestPoints is the number of test points 
+            mode (2) above. Must have dimensions (n_test_points, 
+            wFrame.n_segments), where n_test_points is the number of test points
             on the plasma boundary. 
         bvec: double array (optional)
             Vector giving the target values of the normal field at each test
             point on the plasma boundary. This can be supplied along with 
             ``Amat`` to skip the field calculation. Must have dimensions
-            (nTestPoints, 1).
+            (n_test_points, 1).
         verbose: boolean (optional)
             If true, will print progress to screen with durations of certain
             steps
@@ -107,8 +107,8 @@ def optimize_wireframe(wframe, algorithm, params, \
 
     *   ``reg_W``: (*scalar, 1d array, or 2d array*) -
         Scalar, array, or matrix for regularization. If a 1d array, must
-        have the same number of elements as wframe.nSegments. If a 2d 
-        array, both dimensions must be equal to wframe.nSegments.
+        have the same number of elements as wframe.n_segments. If a 2d 
+        array, both dimensions must be equal to wframe.n_segments.
     *   ``assume_no_crossings``: (*boolean (optional)*) -
         If true, will assume that the wireframe is constrained such that
         its free segments form single-track loops with no forks or 
@@ -235,9 +235,9 @@ def optimize_wireframe(wframe, algorithm, params, \
 
         # Check Amat and bvec inputs
         b = np.array(bvec).reshape((-1,1))
-        nTestPoints = len(b)
+        n_test_points = len(b)
         A = np.array(Amat)
-        if np.shape(A) != (nTestPoints, wframe.nSegments):
+        if np.shape(A) != (n_test_points, wframe.n_segments):
             raise ValueError('Input `Amat` has inconsistent dimensions with ' \
                              'input `bvec` and/or `wframe`')
 
@@ -469,8 +469,8 @@ def rcls_wireframe(wframe, Amat, bvec, reg_W, assume_no_crossings, verbose):
             point on the plasma boundary.
         reg_W: scalar, 1d array, or 2d array
             Scalar, array, or matrix for regularization. If a 1d array, must
-            have the same number of elements as wframe.nSegments. If a 2d 
-            array, both dimensions must be equal to wframe.nSegments.
+            have the same number of elements as wframe.n_segments. If a 2d 
+            array, both dimensions must be equal to wframe.n_segments.
         assume_no_crossings: boolean (optional)
             If true, will assume that the wireframe is constrained such that
             its free segments form single-track loops with no forks or 
@@ -527,7 +527,7 @@ def rcls_wireframe(wframe, Amat, bvec, reg_W, assume_no_crossings, verbose):
         print('        Solver took %.2f seconds' % (t1 - t0))
 
     # Construct the solution column vector
-    x = np.zeros((wframe.nSegments,1))
+    x = np.zeros((wframe.n_segments,1))
     x[free_segs] = xfree[:]
 
     # Set wireframe currents to the solution vector
@@ -638,7 +638,7 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
 
     # Initialize x with wframe currents or user-provided values
     if x_init is None:
-        x_init = np.ascontiguousarray(np.zeros((wframe.nSegments,1)))
+        x_init = np.ascontiguousarray(np.zeros((wframe.n_segments,1)))
         x_init[:,0] = wframe.currents[:]
     else:
         x_init = np.ascontiguousarray(np.reshape(x_init,(-1,1)))
@@ -693,7 +693,7 @@ def get_gsco_iteration(iteration, res, wframe):
         raise ValueError('`res` does not appear to contain data from a ' +
                          ' GSCO procedure')
 
-    if wframe.nSegments != res['x_init'].size:
+    if wframe.n_segments != res['x_init'].size:
         raise ValueError('Input `wframe` is not consistent with the solution ' +
                          'in `res`')
 

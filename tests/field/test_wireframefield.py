@@ -83,9 +83,10 @@ class WireframeFieldTests(unittest.TestCase):
         for i in range(10,15): 
 
             # Set up a wireframe on an ideal torus
-            nPhi = 2*i
-            test_wf = ToroidalWireframe(surf_torus(2,2,1), nPhi, 4)
-            test_wf.currents[-test_wf.nPolSegments:] = curr/(2*nPhi*test_wf.nfp)
+            n_phi = 2*i
+            test_wf = ToroidalWireframe(surf_torus(2,2,1), n_phi, 4)
+            test_wf.currents[-test_wf.n_pol_segments:] = \
+                curr/(2*n_phi*test_wf.nfp)
             self.assertTrue(test_wf.check_constraints())
 
             field_wf = WireframeField(test_wf)
@@ -122,13 +123,14 @@ class WireframeFieldTests(unittest.TestCase):
         test_pts[:,2] = ztest[:]
 
         # Set up the wireframe
-        nPhi = 4
-        nTheta = 6
-        test_wf = ToroidalWireframe(surf_torus(2,2,1), nPhi, nTheta)
+        n_phi = 4
+        n_theta = 6
+        test_wf = ToroidalWireframe(surf_torus(2,2,1), n_phi, n_theta)
 
         # Currents satisfying the constraints
-        test_wf.currents[-test_wf.nPolSegments:] = -cur_pol/(2*nPhi*test_wf.nfp)
-        test_wf.currents[:test_wf.nTorSegments] = -cur_tor/nTheta
+        test_wf.currents[-test_wf.n_pol_segments:] = \
+            -cur_pol/(2*n_phi*test_wf.nfp)
+        test_wf.currents[:test_wf.n_tor_segments] = -cur_tor/n_theta
         self.assertTrue(test_wf.check_constraints())
 
         # Check that curlB is zero at each test point
@@ -140,8 +142,8 @@ class WireframeFieldTests(unittest.TestCase):
 
         # Replace currents with values that do NOT satisfy the constraints
         test_wf.currents[:] = 0
-        test_wf.currents[-int(0.5*test_wf.nPolSegments):] = -cur_pol
-        test_wf.currents[:int(0.5*test_wf.nTorSegments)] = -cur_tor
+        test_wf.currents[-int(0.5*test_wf.n_pol_segments):] = -cur_pol
+        test_wf.currents[:int(0.5*test_wf.n_tor_segments)] = -cur_tor
         self.assertFalse(test_wf.check_constraints())
 
         # Check that curlB is not zero at each test point
@@ -164,11 +166,12 @@ class WireframeFieldTests(unittest.TestCase):
         surf = surf_torus(2,2,1)
 
         # Set up the wireframe
-        nPhi = 4
-        nTheta = 6
-        test_wf = ToroidalWireframe(surf, nPhi, nTheta)
-        test_wf.currents[-test_wf.nPolSegments:] = -cur_pol/(2*nPhi*test_wf.nfp)
-        test_wf.currents[:test_wf.nTorSegments] = -cur_tor/nTheta
+        n_phi = 4
+        n_theta = 6
+        test_wf = ToroidalWireframe(surf, n_phi, n_theta)
+        test_wf.currents[-test_wf.n_pol_segments:] = \
+            -cur_pol/(2*n_phi*test_wf.nfp)
+        test_wf.currents[:test_wf.n_tor_segments] = -cur_tor/n_theta
         self.assertTrue(test_wf.check_constraints())
 
         # Wireframe field class instance
@@ -205,9 +208,9 @@ class WireframeFieldTests(unittest.TestCase):
         surf = surf_torus(2,2,1)
 
         # Set up the wireframe
-        nPhi = 12
-        nTheta = 4
-        test_wf = ToroidalWireframe(surf, nPhi, nTheta)
+        n_phi = 12
+        n_theta = 4
+        test_wf = ToroidalWireframe(surf, n_phi, n_theta)
 
         test_wf.set_poloidal_current(-cur_pol)
 
@@ -247,13 +250,14 @@ class WireframeFieldTests(unittest.TestCase):
         surf_plas = SurfaceRZFourier.from_vmec_input(plas_fname)
 
         # Set up the wireframe
-        nPhi = 2
-        nTheta = 4
+        n_phi = 2
+        n_theta = 4
         surf_wf = SurfaceRZFourier.from_vmec_input(plas_fname)
         surf_wf.extend_via_normal(1.0)
-        test_wf = ToroidalWireframe(surf_wf, nPhi, nTheta)
-        test_wf.currents[-test_wf.nPolSegments:] = -cur_pol/(2*nPhi*test_wf.nfp)
-        test_wf.currents[:test_wf.nTorSegments] = -cur_tor/nTheta
+        test_wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
+        test_wf.currents[-test_wf.n_pol_segments:] = \
+             -cur_pol/(2*n_phi*test_wf.nfp)
+        test_wf.currents[:test_wf.n_tor_segments] = -cur_tor/n_theta
         self.assertTrue(test_wf.check_constraints())
 
         # Get the inductance matrix
@@ -263,11 +267,11 @@ class WireframeFieldTests(unittest.TestCase):
                    surf_plas, area_weighted=True)
 
         # Squared flux integral calculated in two ways
-        SqFlux_mat = 0.5*np.sum(\
+        sq_flux_mat = 0.5*np.sum(\
                          np.matmul(Amat, test_wf.currents.reshape((-1,1)))**2)
-        SqFlux_ref = SquaredFlux(surf_plas, field_wf).J()
+        sq_flux_ref = SquaredFlux(surf_plas, field_wf).J()
 
-        assert np.allclose(SqFlux_mat, SqFlux_ref)
+        assert np.allclose(sq_flux_mat, sq_flux_ref)
 
     def test_wireframefield_initialization(self):
         '''
@@ -276,9 +280,9 @@ class WireframeFieldTests(unittest.TestCase):
 
         # Initialization for a ToroidalWireframe
         surf = surf_torus(2,2,1)
-        nPhi = 4
-        nTheta = 6
-        test_wf_tor = ToroidalWireframe(surf, nPhi, nTheta)
+        n_phi = 4
+        n_theta = 6
+        test_wf_tor = ToroidalWireframe(surf, n_phi, n_theta)
         field_wf_tor = WireframeField(test_wf_tor)
 
         with self.assertRaises(ValueError):

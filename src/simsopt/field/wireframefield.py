@@ -48,15 +48,15 @@ class WireframeField(sopp.WireframeField, MagneticField):
         """
 
         points = self.get_points_cart_ref()
-        nPoints = len(points)
+        n_points = len(points)
         if any([not self.fieldcache_get_status(f'B_{i}') \
-                for i in range(self.wireframe.nSegments)]):
+                for i in range(self.wireframe.n_segments)]):
             assert compute_derivatives >= 0
             self.compute(compute_derivatives)
 
         self._dB_by_dcoilcurrents = \
-            [self.fieldcache_get_or_create(f'B_{i}', [nPoints, 3]) \
-             for i in range(self.wireframe.nSegments)]
+            [self.fieldcache_get_or_create(f'B_{i}', [n_points, 3]) \
+             for i in range(self.wireframe.n_segments)]
         return self._dB_by_dcoilcurrents
 
     def dBnormal_by_dsegmentcurrents_matrix(self, surface, area_weighted=False):
@@ -82,7 +82,7 @@ class WireframeField(sopp.WireframeField, MagneticField):
         """
 
         points = self.get_points_cart_ref()
-        nPoints = len(points)
+        n_points = len(points)
 
         if not isinstance(surface, SurfaceRZFourier):
             raise ValueError('Surface must be a SurfaceRZFourier object')
@@ -97,9 +97,9 @@ class WireframeField(sopp.WireframeField, MagneticField):
             fac = np.ones(absn.shape)
 
         matrix = np.ascontiguousarray( \
-                     np.zeros((nPoints, self.wireframe.nSegments)))
+                     np.zeros((n_points, self.wireframe.n_segments)))
         dB_dsc = self.dB_by_dsegmentcurrents(0)
-        for i in range(self.wireframe.nSegments):
+        for i in range(self.wireframe.n_segments):
             dB_dsc_i = dB_dsc[i].reshape(n.shape)
             matrix[:,i] = (fac*np.sum(dB_dsc_i * unitn, axis=2)).reshape((-1))
 

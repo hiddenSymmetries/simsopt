@@ -22,11 +22,11 @@ class WireframeOptimizationTests(unittest.TestCase):
         surf_plas = SurfaceRZFourier.from_vmec_input(plas_fname)
 
         # Set up the wireframe
-        nPhi = 4
-        nTheta = 8
+        n_phi = 4
+        n_theta = 8
         surf_wf = SurfaceRZFourier.from_vmec_input(plas_fname)
         surf_wf.extend_via_normal(1.0)
-        wf = ToroidalWireframe(surf_wf, nPhi, nTheta)
+        wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
 
         # Incorporate currents to create a toroidal field
         cur_pol = 1e6
@@ -37,10 +37,10 @@ class WireframeOptimizationTests(unittest.TestCase):
 
         # Verify that matrices produce same bnormal as the SquaredFlux metric
         Amat, cvec = bnorm_obj_matrices(wf, surf_plas, verbose=False)
-        SqFlux_mat = \
+        sq_flux_mat = \
             0.5 * np.sum((Amat @ wf.currents.reshape((-1,1)) - cvec)**2)
-        SqFlux_ref = SquaredFlux(surf_plas, mf_wf).J()
-        self.assertAlmostEqual(SqFlux_mat, SqFlux_ref)
+        sq_flux_ref = SquaredFlux(surf_plas, mf_wf).J()
+        self.assertAlmostEqual(sq_flux_mat, sq_flux_ref)
 
         # Redo comparison with an external field added in
         mf_tor = ToroidalField(1.0, 2e-7*cur_pol)
@@ -48,10 +48,10 @@ class WireframeOptimizationTests(unittest.TestCase):
                                           verbose=False)
         self.assertTrue(np.allclose(Amat, Amat2))
         self.assertFalse(np.allclose(cvec, cvec2))
-        SqFlux_mat2 = \
+        sq_flux_mat2 = \
             0.5 * np.sum((Amat2 @ wf.currents.reshape((-1,1)) - cvec2)**2)
-        SqFlux_ref2 = SquaredFlux(surf_plas, mf_wf+mf_tor).J()
-        self.assertAlmostEqual(SqFlux_mat2, SqFlux_ref2)
+        sq_flux_ref2 = SquaredFlux(surf_plas, mf_wf+mf_tor).J()
+        self.assertAlmostEqual(sq_flux_mat2, sq_flux_ref2)
 
     def test_toroidal_wireframe_rcls(self):
         """
@@ -64,18 +64,18 @@ class WireframeOptimizationTests(unittest.TestCase):
         surf_plas = SurfaceRZFourier.from_vmec_input(plas_fname)
 
         # Set up the wireframe
-        nPhi = 4
-        nTheta = 8
+        n_phi = 4
+        n_theta = 8
         surf_wf = SurfaceRZFourier.from_vmec_input(plas_fname)
         surf_wf.extend_via_normal(1.0)
-        wf = ToroidalWireframe(surf_wf, nPhi, nTheta)
+        wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
 
         # Define Amperian loops for checking current constraints
-        nPtsAmpLoop = 200 # number of quadrature points in the loop
-        amploop_pol = CurveXYZFourier(nPtsAmpLoop, 1)
+        n_pts_amploop = 200 # number of quadrature points in the loop
+        amploop_pol = CurveXYZFourier(n_pts_amploop, 1)
         amploop_pol.set('xc(1)', surf_wf.get_rc(0,0))
         amploop_pol.set('ys(1)', surf_wf.get_rc(0,0))
-        amploop_tor = CurveXYZFourier(nPtsAmpLoop, 1)
+        amploop_tor = CurveXYZFourier(n_pts_amploop, 1)
         amploop_tor.set('xc(0)', surf_wf.get_rc(0,0))
         amploop_tor.set('xc(1)', 2*surf_wf.get_rc(1,0))
         amploop_tor.set('zs(1)', 2*surf_wf.get_zs(1,0))
@@ -99,7 +99,7 @@ class WireframeOptimizationTests(unittest.TestCase):
         self.assertTrue(np.allclose(wf.currents, res['x'].reshape((-1))))
         self.assertTrue(wf.check_constraints())
         self.assertTrue(np.isclose(cur_pol, 
-            -enclosed_current(amploop_pol, res['wframe_field'], nPtsAmpLoop)))
+            -enclosed_current(amploop_pol, res['wframe_field'], n_pts_amploop)))
 
         # Case with a poloidal and a toroidal current constraint
         cur_tor = 1e6
@@ -110,9 +110,9 @@ class WireframeOptimizationTests(unittest.TestCase):
 
         self.assertTrue(wf.check_constraints())
         self.assertTrue(np.isclose(cur_pol, 
-            -enclosed_current(amploop_pol, res['wframe_field'], nPtsAmpLoop)))
+            -enclosed_current(amploop_pol, res['wframe_field'], n_pts_amploop)))
         self.assertTrue(np.isclose(cur_tor, 
-            -enclosed_current(amploop_tor, res['wframe_field'], nPtsAmpLoop)))
+            -enclosed_current(amploop_tor, res['wframe_field'], n_pts_amploop)))
 
         # Constrain some segments to have zero current
         constr_segs = [9, 17, 44]
@@ -124,20 +124,20 @@ class WireframeOptimizationTests(unittest.TestCase):
 
         self.assertTrue(np.allclose(wf.currents[zero_segs], 0))
         self.assertTrue(np.isclose(cur_pol, 
-            -enclosed_current(amploop_pol, res['wframe_field'], nPtsAmpLoop)))
+            -enclosed_current(amploop_pol, res['wframe_field'], n_pts_amploop)))
         self.assertTrue(np.isclose(cur_tor, 
-            -enclosed_current(amploop_tor, res['wframe_field'], nPtsAmpLoop)))
+            -enclosed_current(amploop_tor, res['wframe_field'], n_pts_amploop)))
         self.assertTrue(wf.check_constraints())
 
         wf.free_all_segments()
 
         # Field error should decrease as wireframe resolution increases
-        nPhi_arr = [4, 6, 8, 10]
-        nTheta_arr = [8, 10, 12, 14]
+        n_phi_arr = [4, 6, 8, 10]
+        n_theta_arr = [8, 10, 12, 14]
         bnormal_prev = 0
-        for i in range(len(nPhi_arr)):
+        for i in range(len(n_phi_arr)):
 
-            wf = ToroidalWireframe(surf_wf, nPhi_arr[i], nTheta_arr[i])
+            wf = ToroidalWireframe(surf_wf, n_phi_arr[i], n_theta_arr[i])
             wf.set_poloidal_current(cur_pol)
             res = optimize_wireframe(wf, 'rcls', opt_params, surf_plas,
                                      verbose=False)
@@ -149,7 +149,7 @@ class WireframeOptimizationTests(unittest.TestCase):
             bnormal_prev = bnormal
 
         # RCLS optimizations in the presence of an external field
-        wf = ToroidalWireframe(surf_wf, nPhi, nTheta)
+        wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
         wf.set_toroidal_current(0)
         wf.set_poloidal_current(0)
         mf_tor = ToroidalField(1.0, -2e-7*cur_pol)
@@ -158,11 +158,11 @@ class WireframeOptimizationTests(unittest.TestCase):
         self.assertFalse(np.allclose(0, wf.currents))
         self.assertTrue(wf.check_constraints())
         self.assertTrue(np.isclose(0, 
-            enclosed_current(amploop_pol, res['wframe_field'], nPtsAmpLoop), 
+            enclosed_current(amploop_pol, res['wframe_field'], n_pts_amploop), 
             atol=cur_pol*1e-6))
         self.assertTrue(np.isclose(cur_pol, 
             -enclosed_current(amploop_pol, res['wframe_field'] + mf_tor, 
-                              nPtsAmpLoop)))
+                              n_pts_amploop)))
         self.assertTrue(SquaredFlux(surf_plas, res['wframe_field'] + mf_tor).J()
                         < 0.01*SquaredFlux(surf_plas, res['wframe_field']).J())
 
@@ -181,18 +181,18 @@ class WireframeOptimizationTests(unittest.TestCase):
         self.assertTrue(np.allclose(res2['x'], res['x']))
 
         # Tests with non-scalar regularization parameter 
-        opt_params_vectorW = {'reg_W': reg_W * np.ones((2*nPhi*nTheta))}
+        opt_params_vectorW = {'reg_W': reg_W * np.ones((2*n_phi*n_theta))}
         res3 = optimize_wireframe(wf, 'rcls', opt_params_vectorW, 
                    Amat=res['Amat'], bvec=res['bvec'], verbose=False)
         self.assertTrue(np.allclose(res3['x'], res['x']))
 
-        opt_params_matrixW = {'reg_W': reg_W * np.eye((2*nPhi*nTheta))}
+        opt_params_matrixW = {'reg_W': reg_W * np.eye((2*n_phi*n_theta))}
         res4 = optimize_wireframe(wf, 'rcls', opt_params_matrixW, 
                    Amat=res['Amat'], bvec=res['bvec'], verbose=False)
         self.assertTrue(np.allclose(res4['x'], res['x']))
 
-        opt_params_errorVecW = {'reg_W': reg_W * np.ones((2*nPhi*nTheta+1))}
-        opt_params_errorMatW = {'reg_W': reg_W * np.eye((2*nPhi*nTheta+1))}
+        opt_params_errorVecW = {'reg_W': reg_W * np.ones((2*n_phi*n_theta+1))}
+        opt_params_errorMatW = {'reg_W': reg_W * np.eye((2*n_phi*n_theta+1))}
         with self.assertRaises(ValueError):
             optimize_wireframe(wf, 'rcls', opt_params_errorVecW, 
                    Amat=res['Amat'], bvec=res['bvec'], verbose=False)
@@ -211,11 +211,11 @@ class WireframeOptimizationTests(unittest.TestCase):
         surf_plas = SurfaceRZFourier.from_vmec_input(plas_fname)
 
         # Set up the wireframe
-        nPhi = 4
-        nTheta = 8
+        n_phi = 4
+        n_theta = 8
         surf_wf = SurfaceRZFourier.from_vmec_input(plas_fname)
         surf_wf.extend_via_normal(1.0)
-        wf = ToroidalWireframe(surf_wf, nPhi, nTheta)
+        wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
         wf.set_poloidal_current(0)
         wf.set_toroidal_current(0)
 
@@ -259,17 +259,17 @@ class WireframeOptimizationTests(unittest.TestCase):
 
         # Check correctness of 'loop_count' array by using it to reconstruct
         # the current distribution of the solution
-        cellKey = wf.get_cell_key()
-        testCurrents = np.zeros(wf.nSegments)
+        cell_key = wf.get_cell_key()
+        test_currents = np.zeros(wf.n_segments)
         curr_added = res0['loop_count'] * std_params['default_current']
-        for i in range(wf.nTheta*wf.nPhi):
-            # Note: cannot be (easily) vectorized because slices of cellKey 
-            # contain repeated indices for testCurrents
-            testCurrents[cellKey[i,0]] += curr_added[i]
-            testCurrents[cellKey[i,1]] += curr_added[i]
-            testCurrents[cellKey[i,2]] -= curr_added[i]
-            testCurrents[cellKey[i,3]] -= curr_added[i]
-        self.assertTrue(np.allclose(testCurrents, wf.currents))
+        for i in range(wf.n_theta*wf.n_phi):
+            # Note: cannot be (easily) vectorized because slices of cell_key 
+            # contain repeated indices for test_currents
+            test_currents[cell_key[i,0]] += curr_added[i]
+            test_currents[cell_key[i,1]] += curr_added[i]
+            test_currents[cell_key[i,2]] -= curr_added[i]
+            test_currents[cell_key[i,3]] -= curr_added[i]
+        self.assertTrue(np.allclose(test_currents, wf.currents))
 
         # Verify consistency of the history data
         currents_soln = np.array(wf.currents)
@@ -305,7 +305,7 @@ class WireframeOptimizationTests(unittest.TestCase):
 
         # Verify that no iterations take place if no loops can be added
         wf.currents[:] = 0
-        wf.set_segments_constrained(np.arange(wf.nSegments))
+        wf.set_segments_constrained(np.arange(wf.n_segments))
         res2 = optimize_wireframe(wf, 'gsco', std_params, surf_plas=surf_plas,
                                   ext_field=mf_tor, verbose=False)
         self.assertEqual(len(res2['iter_hist']), 1)
@@ -337,15 +337,15 @@ class WireframeOptimizationTests(unittest.TestCase):
         self.assertTrue(np.allclose(res3['x'], get_gsco_iteration(0, res4, wf)))
         self.assertTrue(np.isclose(res3['f_B_hist'][-1], res4['f_B_hist'][0]))
         self.assertTrue(np.isclose(res3['f_S_hist'][-1], res4['f_S_hist'][0]))
-        cellKey = wf.get_cell_key()
-        testCurrents = np.zeros(wf.nSegments)
+        cell_key = wf.get_cell_key()
+        test_currents = np.zeros(wf.n_segments)
         curr_added = res4['loop_count'] * params_no_xing['default_current']
-        for i in range(wf.nTheta*wf.nPhi):
-            testCurrents[cellKey[i,0]] += curr_added[i]
-            testCurrents[cellKey[i,1]] += curr_added[i]
-            testCurrents[cellKey[i,2]] -= curr_added[i]
-            testCurrents[cellKey[i,3]] -= curr_added[i]
-        self.assertTrue(np.allclose(testCurrents, wf.currents))
+        for i in range(wf.n_theta*wf.n_phi):
+            test_currents[cell_key[i,0]] += curr_added[i]
+            test_currents[cell_key[i,1]] += curr_added[i]
+            test_currents[cell_key[i,2]] -= curr_added[i]
+            test_currents[cell_key[i,3]] -= curr_added[i]
+        self.assertTrue(np.allclose(test_currents, wf.currents))
 
         # Repeat the previous optimization, this time using the x_init argument
         wf.currents[:] = 0
@@ -358,9 +358,9 @@ class WireframeOptimizationTests(unittest.TestCase):
                                         get_gsco_iteration(i, res5, wf)))
 
         # Higher-resolution wireframe for additional testing
-        nPhi2 = 8
-        nTheta2 = 16
-        wf2 = ToroidalWireframe(surf_wf, nPhi2, nTheta2)
+        n_phi2 = 8
+        n_theta2 = 16
+        wf2 = ToroidalWireframe(surf_wf, n_phi2, n_theta2)
 
         # No-crossing optimization with a single allowable current magnitude
         params_no_xing_1_curr = dict(params_no_xing)

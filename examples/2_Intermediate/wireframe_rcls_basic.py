@@ -18,10 +18,10 @@ from simsopt.geo import SurfaceRZFourier, ToroidalWireframe
 from simsopt.solve import optimize_wireframe
 
 # Number of wireframe segments per half period in the toroidal dimension
-wf_nPhi = 8
+wf_n_phi = 8
 
 # Number of wireframe segments in the poloidal dimension
-wf_nTheta = 12
+wf_n_theta = 12
 
 # Distance between the plasma boundary and the wireframe
 wf_surf_dist = 0.3
@@ -47,15 +47,15 @@ os.makedirs(OUT_DIR, exist_ok=True)
 #######################################################
 
 # Load the geometry of the target plasma boundary
-plas_nPhi = 32
-plas_nTheta = 32
+plas_n_phi = 32
+plas_n_theta = 32
 surf_plas = SurfaceRZFourier.from_vmec_input(filename_equil, 
-                nphi=plas_nPhi, ntheta=plas_nTheta, range='half period')
+                nphi=plas_n_phi, ntheta=plas_n_theta, range='half period')
 
 # Construct the wireframe on a toroidal surface
 surf_wf = SurfaceRZFourier.from_vmec_input(filename_equil)
 surf_wf.extend_via_projected_normal(wf_surf_dist)
-wf = ToroidalWireframe(surf_wf, wf_nPhi, wf_nTheta)
+wf = ToroidalWireframe(surf_wf, wf_n_phi, wf_n_theta)
 
 # Calculate the required net poloidal current and set it as a constraint
 mu0 = 4.0 * np.pi * 1e-7
@@ -70,32 +70,32 @@ t0 = time.time()
 res = optimize_wireframe(wf, 'rcls', opt_params, surf_plas=surf_plas, 
                          verbose=False)
 t1 = time.time()
-deltaT = t1 - t0
+delta_t = t1 - t0
 
 # Verify that the solution satisfies all constraints
 assert wf.check_constraints()
 
 # Post-processing
 res['wframe_field'].set_points(surf_plas.gamma().reshape((-1,3)))
-Bfield = res['wframe_field'].B().reshape((plas_nPhi, plas_nTheta, 3))
+Bfield = res['wframe_field'].B().reshape((plas_n_phi, plas_n_theta, 3))
 Bnormal = np.sum(Bfield * surf_plas.unitnormal(), axis=2)
 modB = np.sqrt(np.sum(Bfield**2, axis=2))
-relBnorm = Bnormal/modB
+rel_Bnorm = Bnormal/modB
 area = np.sqrt(np.sum(surf_plas.normal()**2, axis=2))/float(modB.size)
-meanRelBn = np.sum(np.abs(relBnorm)*area)/np.sum(area)
-maxCur = np.max(np.abs(res['x']))
-ndof = wf.nSegments - wf.constraint_matrices()[0].shape[0]
+mean_rel_Bn = np.sum(np.abs(rel_Bnorm)*area)/np.sum(area)
+max_cur = np.max(np.abs(res['x']))
+ndof = wf.n_segments - wf.constraint_matrices()[0].shape[0]
 
 # Print post-processing results
 print('')
 print('Post-processing')
 print('---------------')
 print('  # dof          %12d'   % (ndof))
-print('  opt time [s]   %12.3f' % (deltaT))
+print('  opt time [s]   %12.3f' % (delta_t))
 print('  f_B [T^2m^2]   %12.4e' % (res['f_B']))
 print('  f_R [T^2m^2]   %12.4e' % (res['f_R']))
-print('  <|Bn|/|B|>     %12.4e' % (meanRelBn))
-print('  I_max [MA]     %12.4e' % (maxCur))
+print('  <|Bn|/|B|>     %12.4e' % (mean_rel_Bn))
+print('  I_max [MA]     %12.4e' % (max_cur))
 
 # Save plots and visualization data to files
 wf.make_plot_2d(coordinates='degrees')
