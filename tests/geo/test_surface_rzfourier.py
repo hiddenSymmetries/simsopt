@@ -381,7 +381,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         wout_filename = TEST_DIR / 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
         plasma_surf = SurfaceRZFourier.from_wout(wout_filename, range="full torus", ntheta=100, nphi=400)
 
-        coil_surf = SurfaceRZFourier.from_wout(wout_filename, range="half period", ntheta=101, nphi=100)
+        coil_surf = SurfaceRZFourier.from_wout(wout_filename, range="half period", ntheta=71, nphi=70)
         # Increase Fourier resolution so we can represent the surface accurately
         coil_surf.change_resolution(24, 24)
         separation = 3.0
