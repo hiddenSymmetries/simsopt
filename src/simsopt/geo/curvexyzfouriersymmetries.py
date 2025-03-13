@@ -1,9 +1,12 @@
 import jax.numpy as jnp
+from jax import grad, jvp, jacfwd
 import numpy as np
-from .curve import JaxCurve
+from .curve import JaxCurve, Curve
+from .jit import jit
+import simsoptpp as sopp
 from math import gcd
 
-__all__ = ['CurveXYZFourierSymmetries']
+__all__ = ['CurveXYZFourierSymmetries', 'CurveXYZFourierSymmetriesPartner']
 
 
 def jaxXYZFourierSymmetriescurve_pure(dofs, quadpoints, order, nfp, stellsym, ntor):
@@ -139,4 +142,101 @@ class CurveXYZFourierSymmetries(JaxCurve):
 
     def set_dofs_impl(self, dofs):
         self.coefficients[:] = dofs[:]
+
+
+class CurveXYZFourierSymmetriesPartner(sopp.Curve, Curve):
+    """
+    A class that represents a stellarator-symmetric flipped copy of another XYZFourierSymmetries object.
+
+    DO NOT USE THIS FOR FANCY COIL OPTIMIZATION, I have not implemented all the vjps and jvps for this class.
+    """
+    def __init__(self, curve: CurveXYZFourierSymmetries):
+        self.order = curve.order
+        self.nfp = curve.nfp
+        if not curve.stellsym:
+            raise Exception('The CurveXYZFourierSymmetriesPartner can only be applied to stellarator-symmetric CurveXYZFourierSymmetries objects')
+        self.stellsym = curve.stellsym
+        self.ntor = curve.ntor
+        self.curve = curve
+        sopp.Curve.__init__(self, curve.quadpoints)
+        Curve.__init__(self, depends_on=[curve])
+        points = np.asarray(self.quadpoints)
+        ones = jnp.ones_like(points)
+        self.gamma_pure = lambda dofs, points: jaxXYZFourierSymmetriescurve_pure(
+            dofs, points, self.order, self.nfp, self.stellsym, self.ntor)
+        
+        self.gamma_jax = jit(lambda dofs: self.gamma_pure(dofs, points))
+        self.gamma_impl_jax = jit(lambda dofs, p: self.gamma_pure(dofs, p))
+
+        self.gammadash_pure = lambda x, q: jvp(lambda p: self.gamma_pure(x, p), (q,), (ones,))[1]
+        self.gammadash_jax = jit(lambda x: self.gammadash_pure(x, points))
+
+        self.gammadashdash_pure = lambda x, q: jvp(lambda p: self.gammadash_pure(x, p), (q,), (ones,))[1]
+        self.gammadashdash_jax = jit(lambda x: self.gammadashdash_pure(x, points))
+
+        self.gammadashdashdash_pure = lambda x, q: jvp(lambda p: self.gammadashdash_pure(x, p), (q,), (ones,))[1]
+        self.gammadashdashdash_jax = jit(lambda x: self.gammadashdashdash_pure(x, points))
+
+    
+    @property
+    def coefficients(self):
+        coefficients = np.copy(self.curve.coefficients)
+        # flip the sign of odd coefficients
+        coefficients[1:self.order+1:2] = -coefficients[1:self.order+1:2]
+        coefficients[self.order+1:self.order*2+1:2] = -coefficients[self.order+1:self.order*2+1:2]
+        coefficients[self.order*2+1::2] = -coefficients[self.order*2+1::2]
+        return coefficients
+
+
+    def get_dofs(self):
+        """
+        RotatedCurve does not have any dofs of its own.
+        This function returns null array
+        """
+        return np.array([])
+
+    def set_dofs_impl(self, d):
+        """
+        RotatedCurve does not have any dofs of its own.
+        This function does nothing.
+        """
+        pass
+
+    def num_dofs(self):
+        """
+        This function returns the number of dofs associated to the curve.
+        """
+        return self.curve.num_dofs()
+    
+    def gamma(self):
+        """
+        This function returns the gamma values of the curve at the given quadpoints.
+        """
+        return self.gamma_impl_jax(self.coefficients, self.quadpoints)
+    
+    def gamma_impl(self, gamma, quadpoints):
+        """
+        This function returns the gamma values of the curve at the given quadpoints.
+        """
+        gamma[:,:] = self.gamma_impl_jax(self.coefficients, self.quadpoints)
+    
+    def gammadash_impl(self, gammadash):
+        r"""
+        This function returns :math:`\Gamma'(\varphi)`, where :math:`\Gamma` are the x, y, z coordinates
+        of the curve.
+        """
+
+        gammadash[:, :] = self.gammadash_jax(self.coefficients)
+        
+    def gammadashdash_impl(self, gammadashdash):
+        r"""
+        This function returns :math:`\Gamma''(\varphi)`, and :math:`\Gamma` are the x, y, z coordinates
+        of the curve.
+        """
+
+        gammadashdash[:, :] = self.gammadashdash_jax(self.coefficients)
+    
+
+    
+
 
