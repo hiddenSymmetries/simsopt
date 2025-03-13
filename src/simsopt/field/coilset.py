@@ -1,15 +1,15 @@
 import numpy as np
 import re
 
-from simsopt._core.optimizable import DOFs, Optimizable
+from .._core.optimizable import DOFs, Optimizable
 from .biotsavart import BiotSavart
-from simsopt.geo import (SurfaceRZFourier, Surface, CurveXYZFourier, CurveCurveDistance, CurveSurfaceDistance, LpCurveCurvature,
+from ..geo import (SurfaceRZFourier, Surface, CurveXYZFourier, CurveCurveDistance, CurveSurfaceDistance, LpCurveCurvature,
                          MeanSquaredCurvature, ArclengthVariation, 
                          CurveLength)
-from simsopt.geo import plot, curves_to_vtk, create_equally_spaced_curves
-from simsopt._core.finite_difference import FiniteDifference
-from simsopt._core import make_optimizable
-from simsopt.objectives import SquaredFlux, QuadraticPenalty 
+from ..geo import plot, curves_to_vtk, create_equally_spaced_curves
+from .._core.finite_difference import FiniteDifference
+from .._core import make_optimizable
+from ..objectives import SquaredFlux, QuadraticPenalty 
 from .coil import Coil, coils_via_symmetries, Current, load_coils_from_makegrid_file, coils_to_makegrid
        
 __all__ = ['CoilSet', 'ReducedCoilSet']
