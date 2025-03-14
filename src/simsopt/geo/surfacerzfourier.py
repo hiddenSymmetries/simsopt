@@ -836,8 +836,17 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             print("extend_via_normal: R has non-finite values. isnan: ", np.any(np.isnan(R)), " isinf: ", np.any(np.isinf(R)))
         if not np.all(np.isfinite(R_basis_funcs)):
             print("extend_via_normal: R_basis_funcs has non-finite values. isnan: ", np.any(np.isnan(R_basis_funcs)), " isinf: ", np.any(np.isinf(R_basis_funcs)))
-        R_dofs = np.linalg.lstsq(R_basis_funcs, R, rcond=None)[0]
-        Z_dofs = np.linalg.lstsq(Z_basis_funcs, Z, rcond=None)[0]
+        try:
+            R_dofs = np.linalg.lstsq(R_basis_funcs, R, rcond=None)[0]
+        except np.linalg.LinAlgError:
+            # Try a second time
+            R_dofs = np.linalg.lstsq(R_basis_funcs, R, rcond=None)[0]
+
+        try:
+            Z_dofs = np.linalg.lstsq(Z_basis_funcs, Z, rcond=None)[0]
+        except np.linalg.LinAlgError:
+            # Try a second time
+            Z_dofs = np.linalg.lstsq(Z_basis_funcs, Z, rcond=None)[0]
 
         self.x = np.concatenate((R_dofs, Z_dofs))
 
