@@ -388,7 +388,7 @@ class Testing(unittest.TestCase):
         # num range used to be (20, 60) but this fails for num <= 20-30 for certain
         # random coil initializations since don't have enough quadrature points
         # to integrate to numerical precision.
-        for num in range(40, 100): 
+        for num in range(40, 100):
             npoints = num
             angles = np.linspace(0, 2*np.pi, npoints, endpoint=False).reshape((-1, 1))
             t = np.concatenate((-np.sin(angles), np.cos(angles), np.zeros((angles.size, 1))), axis=1) @ rot.T

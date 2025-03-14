@@ -125,7 +125,7 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
         CS_WEIGHT = 10.0 ** rand(-1, 4)
         CC_WEIGHT = 10.0 ** rand(2, 5)
 
-        if with_force:  
+        if with_force:
             # (1e-20, 1e-8) for Squared forces
             # (1e-14, 1e-5) for Lpforces or TVE
             FORCE_WEIGHT = 10.0 ** rand(-13, -8)
@@ -365,7 +365,7 @@ def optimization(
             arc_val = sum(Jals).J()
             BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
             BdotN_over_B = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
-                                ) / np.mean(bs.AbsB())
+                                   ) / np.mean(bs.AbsB())
             outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
             valuestr = f"J={J:.2e}, Jf={jf:.2e}"
             cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
@@ -465,7 +465,7 @@ def optimization(
         "max_max_κ": max(np.max(c.kappa()) for c in base_curves),
         "MSCs": [float(J.J()) for J in Jmscs],
         "max_MSC": max(float(J.J()) for J in Jmscs),
-        "tve": float(tve), 
+        "tve": float(tve),
         "max_forces": [float(f) for f in max_forces],
         "net_forces": [float(np.linalg.norm(f, axis=-1)) for f in net_forces],
         "max_max_force": max(float(f) for f in max_forces),

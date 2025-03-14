@@ -249,7 +249,7 @@ class Testing(unittest.TestCase):
         # check Bn
         Nnorms = np.ravel(np.sqrt(np.sum(s.normal() ** 2, axis=-1)))
         Ngrid = nphi * ntheta
-        Bn_Am = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms) 
+        Bn_Am = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms)
         np.testing.assert_allclose(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2), atol=1e-15)
 
         # check <Bn>

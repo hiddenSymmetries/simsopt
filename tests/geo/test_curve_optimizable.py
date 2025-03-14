@@ -15,6 +15,8 @@ parameters['jit'] = False
 # MJL 2025-01-24: Eventually we should get this test working,
 # but for some reason the objective is giving NaNs in
 # the CI. I can't reproduce this problem on my local machine.
+
+
 @unittest.skip
 class Testing(unittest.TestCase):
 
@@ -27,7 +29,7 @@ class Testing(unittest.TestCase):
 
         # Initialize the Fourier amplitudes to some random values
         # Random seed used here because this can give self-intersecting stuff
-        x0 = np.random.rand(curve.dof_size) - 0.5  
+        x0 = np.random.rand(curve.dof_size) - 0.5
         x0[0] = 3.0
         curve.x = x0
         print('Initial curve dofs: ', curve.x)

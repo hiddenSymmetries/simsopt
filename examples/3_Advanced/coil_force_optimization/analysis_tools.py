@@ -526,7 +526,7 @@ def run_SIMPLE(UUID, trace_time=1e-1, s=0.3, n_test_part=1024, vmec_name="eq_sca
 
 
 # def surf_to_desc(simsopt_surf, LMN=8):
-#     """Returns a DESC equilibrium from a simsopt surface, adapted from code 
+#     """Returns a DESC equilibrium from a simsopt surface, adapted from code
 #     written by Matt Landreman. Note that LMN is a DESC resolution parameter. """
 #     nfp = simsopt_surf.nfp
 #     ndofs = len(simsopt_surf.x)

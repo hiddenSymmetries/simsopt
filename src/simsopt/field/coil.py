@@ -104,6 +104,7 @@ class Current(sopp.Current, CurrentBase):
     def current(self):
         return self.get_value()
 
+
 class PSCArray():
     """
     A class that represents an array of passive superconducting 
@@ -111,6 +112,7 @@ class PSCArray():
     derivative terms are needed, that depend on all the coils
     and currents in the PSCs and the TFs.
     """
+
     def __init__(self, base_psc_curves, coils_TF, eval_points, a_list, b_list, nfp=1, stellsym=False, downsample=1, cross_section='circular', dofs=None, **kwargs):
         from .biotsavart import BiotSavart
         self.base_psc_curves = base_psc_curves  # not the symmetrized ones
@@ -119,7 +121,7 @@ class PSCArray():
         # Get the symmetrized curves
         psc_curves = apply_symmetries_to_curves(base_psc_curves, nfp, stellsym)
 
-        self.coils_TF = coils_TF 
+        self.coils_TF = coils_TF
         ncoils = len(psc_curves)
         self.biot_savart_TF = BiotSavart(coils_TF)
 
@@ -140,27 +142,27 @@ class PSCArray():
             **args
         )
         self.dI_dgammas_vjp = jit(
-            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v: 
+            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v:
             vjp(self.I_jax, gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)[1](v)[0],
             **args
         )
         self.dI_dgammadashs_vjp = jit(
-            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v: 
+            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v:
             vjp(self.I_jax, gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)[1](v)[1],
             **args
         )
         self.dI_dgammasTF_vjp = jit(
-            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v: 
+            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v:
             vjp(self.I_jax, gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)[1](v)[2],
             **args
         )
         self.dI_dgammadashsTF_vjp = jit(
-            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v: 
+            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v:
             vjp(self.I_jax, gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)[1](v)[3],
             **args
         )
         self.dI_dcurrentsTF_vjp = jit(
-            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v: 
+            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v:
             vjp(self.I_jax, gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)[1](v)[4],
             **args
         )
@@ -171,8 +173,8 @@ class PSCArray():
         gammadashs_TF = np.array([c.curve.gammadash() for c in self.coils_TF])
         currents_TF = np.array([c.current.get_value() for c in self.coils_TF])
         args = [
-            gammas, 
-            gammadashs, 
+            gammas,
+            gammadashs,
             gammas_TF,
             gammadashs_TF,
             currents_TF,
@@ -185,7 +187,7 @@ class PSCArray():
         [c.fix_all() for c in self.base_psc_currents]  # Fix all the current dofs which are fake anyways
         self.coils = coils_via_symmetries(self.base_psc_curves, self.base_psc_currents, nfp, stellsym)
         self.psc_curves = [c.curve for c in self.coils]
-        self.biot_savart = BiotSavart(self.coils, self) 
+        self.biot_savart = BiotSavart(self.coils, self)
         self.biot_savart_total = self.biot_savart + self.biot_savart_TF
         self.biot_savart_total.set_points(self.eval_points)
         # Optimizable.__init__(self, depends_on=[self.coils, self.coils_TF])
@@ -197,8 +199,8 @@ class PSCArray():
         gammadashs_TF = np.array([c.curve.gammadash() for c in self.coils_TF])
         currents_TF = np.array([c.current.get_value() for c in self.coils_TF])
         args = [
-            gammas, 
-            gammadashs, 
+            gammas,
+            gammadashs,
             gammas_TF,
             gammadashs_TF,
             currents_TF,
@@ -227,8 +229,8 @@ class PSCArray():
         gammadashs_TF = np.array([c.curve.gammadash() for c in self.coils_TF])
         currents_TF = np.array([c.current.get_value() for c in self.coils_TF])
         args = [
-            gammas, 
-            gammadashs, 
+            gammas,
+            gammadashs,
             gammas_TF,
             gammadashs_TF,
             currents_TF,
@@ -244,6 +246,7 @@ class PSCArray():
             c._children = set()
             c.curve._children = set()
             c.current._children = set()
+
 
 class ScaledCurrent(sopp.CurrentBase, CurrentBase):
     """
@@ -265,6 +268,7 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
 
     def set_dofs(self, dofs):
         self.current_to_scale.set_dofs(dofs / self.scale)
+
 
 def current_pure(dofs):
     return dofs

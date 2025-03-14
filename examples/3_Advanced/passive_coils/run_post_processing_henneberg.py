@@ -75,6 +75,8 @@ qs = QuasisymmetryRatioResidual(equil,
 proc0_print("Quasisymmetry objective before optimization:", qs.total())
 
 from simsopt.field.magneticfieldclasses import InterpolatedField
+
+
 def skip(rs, phis, zs):
     # The RegularGrindInterpolant3D class allows us to specify a function that
     # is used in order to figure out which cells to be skipped.  Internally,

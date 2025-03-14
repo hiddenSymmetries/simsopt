@@ -179,6 +179,7 @@ def fun(dofs):
     print(outstr)
     return J, grad
 
+
 print("""
 ###############################################################################
 # Perform a Taylor test

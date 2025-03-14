@@ -87,8 +87,8 @@ ax = plt.figure().add_subplot(projection='3d')
 s.plot(ax=ax, show=False, close=True)
 for c in bsurf.biotsavart.coils:
     c.curve.plot(ax=ax, show=False)
-ax.set_xlim(-1,1)
-ax.set_ylim(-1,1)
+ax.set_xlim(-1, 1)
+ax.set_ylim(-1, 1)
 ax.set_xlabel('x [m]')
 ax.set_ylabel('y [m]')
 ax.set_zlabel('z [m]')
@@ -233,6 +233,8 @@ b_list = np.ones(len(base_curves)) * aa
 print('Num dipole coils = ', ncoils)
 
 # Define function to compute the pointwise forces and torques
+
+
 def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
     contig = np.ascontiguousarray
     forces = np.zeros((len(coils), len(coils[0].curve.gamma()) + 1, 3))
@@ -250,6 +252,7 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
     point_data = {"Pointwise_Forces": (contig(forces[:, 0]), contig(forces[:, 1]), contig(forces[:, 2])),
                   "Pointwise_Torques": (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))}
     return point_data
+
 
 # Initialize the PSCArray object
 eval_points = s.gamma().reshape(-1, 3)
@@ -309,16 +312,16 @@ for c in (coils + coils_TF):
 
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-    "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                    ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+             "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_full_init", extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
 bpsc = btot.Bfields[0]
 bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-    "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                    ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+             "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_init_PSC", extra_data=pointData)
 bpsc.set_points(s.gamma().reshape((-1, 3)))
 
@@ -366,7 +369,7 @@ JF = Jf \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + LINK_WEIGHT * linkNum  \
     + LENGTH_WEIGHT * Jlength  \
-    + LENGTH_WEIGHT * Jlength2 
+    + LENGTH_WEIGHT * Jlength2
 
 # if FORCE_WEIGHT.value > 0.0:
 #     JF += FORCE_WEIGHT.value * Jforce  # \
@@ -386,15 +389,16 @@ JF = Jf \
 # print(opt_bounds, np.shape(opt_bounds), np.shape(JF.dof_names))
 # exit()
 
+
 def fun(dofs):
     JF.x = dofs
     # absolutely essential line that updates the PSC currents even though they are not
-    # being directly optimized. 
+    # being directly optimized.
     psc_array.recompute_currents()
     # absolutely essential line if the PSCs do not have any dofs
     btot.Bfields[0].invalidate_cache()
     J = JF.J()
-    grad = JF.dJ() 
+    grad = JF.dJ()
     jf = Jf.J()
     length_val = LENGTH_WEIGHT.value * Jlength.J()
     length_val2 = LENGTH_WEIGHT.value * Jlength2.J()
@@ -488,12 +492,12 @@ for i in range(1, n_saves + 1):
     all_coils = coils + coils_TF
     all_base_coils = base_coils + base_coils_TF
     Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=4, threshold=4e5 * 100, downsample=1
-                            ) for i, c in enumerate(all_base_coils)])
+                               ) for i, c in enumerate(all_base_coils)])
     Jforce2 = sum([SquaredMeanForce(c, all_coils, downsample=1) for c in all_base_coils])
 
     # Errors creep in when downsample = 2
     Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100, downsample=1
-                                ) for i, c in enumerate(all_base_coils)])
+                                 ) for i, c in enumerate(all_base_coils)])
     Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
 
     CURVATURE_THRESHOLD = 5
@@ -510,7 +514,7 @@ for i in range(1, n_saves + 1):
         + CURVATURE_WEIGHT * sum(Jcs) \
         + LINK_WEIGHT * linkNum  \
         + LENGTH_WEIGHT * Jlength  \
-        + LENGTH_WEIGHT * Jlength2 
+        + LENGTH_WEIGHT * Jlength2
     dofs = JF.x
     print(JF.dof_names)
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
@@ -544,20 +548,20 @@ for i in range(1, n_saves + 1):
 
     btot.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-        "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                 "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                     ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "surf_full_final", extra_data=pointData)
 
     btf = btot.Bfields[1]
     btf.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-        "B_N / B": (np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                 "B_N / B": (np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                     ) / np.linalg.norm(btf.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "surf_full_TF", extra_data=pointData)
 
     bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-        "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                 "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                     ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "surf_full_PSC", extra_data=pointData)
 

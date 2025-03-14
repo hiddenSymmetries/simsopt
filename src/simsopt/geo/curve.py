@@ -1084,19 +1084,19 @@ def create_planar_curves_between_two_toroidal_surfaces(
     if len(inds) > 0:
         print('bad indices = ', inds)
     remove_inds = inds
-        # raise ValueError('The PSC coils are initialized such that they may intersect with '
-        #                  'a discrete symmetry plane, preventing the proper symmetrization '
-        #                  'of the coils under stellarator and field-period symmetries. '
-        #                  'Please reinitialize the coils.')
+    # raise ValueError('The PSC coils are initialized such that they may intersect with '
+    #                  'a discrete symmetry plane, preventing the proper symmetrization '
+    #                  'of the coils under stellarator and field-period symmetries. '
+    #                  'Please reinitialize the coils.')
     if coil_coil_flag:
         for i in range(grid_xyz.shape[0]):
             for j in range(i + 1, grid_xyz.shape[0]):
                 dij = np.sqrt(np.sum((grid_xyz[i, :] - grid_xyz[j, :]) ** 2))
-                conflict_bool = (dij < eps) # (2.0 + eps) * R)
+                conflict_bool = (dij < eps)  # (2.0 + eps) * R)
                 if conflict_bool:
                     print('bad indices = ', i, j, dij)
                     raise ValueError('There is a PSC coil initialized such that it is within a diameter'
-                                        'of another PSC coil. Please reinitialize the coils.')
+                                     'of another PSC coil. Please reinitialize the coils.')
 
     # eps = 0.1 # 10 cm
     # for i in range(grid_xyz.shape[0]):
@@ -1121,7 +1121,7 @@ def create_planar_curves_between_two_toroidal_surfaces(
     else:
         curves = [CurvePlanarFourier(nquad, order, nfp=1, stellsym=False) for i in range(ncoils)]
 
-    # Initialize a bunch of circular coils with same normal vector 
+    # Initialize a bunch of circular coils with same normal vector
     for ic in range(ncoils):
         alpha2 = np.random.rand(1) * np.pi - np.pi / 2.0
         delta2 = np.random.rand(1) * np.pi

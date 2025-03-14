@@ -87,6 +87,32 @@ def self_force_rect(coil, a, b):
     return self_force(coil, regularization_rect(a, b))
 
 
+def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
+    """
+    Create an array of pointwise forces and torques for plotting in vtk files,
+    usually using curves_to_vtk.
+
+    Args:
+
+    """
+    contig = np.ascontiguousarray
+    forces = np.zeros((len(coils), len(coils[0].curve.gamma()) + 1, 3))
+    torques = np.zeros((len(coils), len(coils[0].curve.gamma()) + 1, 3))
+    for i, c in enumerate(coils):
+        aprime = aprimes[i]
+        bprime = bprimes[i]
+        forces[i, :-1, :] = coil_force(c, allcoils, regularization_rect(aprime, bprime), nturns_list[i])
+        torques[i, :-1, :] = coil_torque(c, allcoils, regularization_rect(aprime, bprime), nturns_list[i])
+
+    forces[:, -1, :] = forces[:, 0, :]
+    torques[:, -1, :] = torques[:, 0, :]
+    forces = forces.reshape(-1, 3)
+    torques = torques.reshape(-1, 3)
+    point_data = {"Pointwise_Forces": (contig(forces[:, 0]), contig(forces[:, 1]), contig(forces[:, 2])),
+                  "Pointwise_Torques": (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))}
+    return point_data
+
+
 # @jit
 def lp_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual, p, threshold, downsample):
     r"""Pure function for minimizing the Lorentz force on a coil.
@@ -177,7 +203,7 @@ class LpCurveForce(Optimizable):
         #### ESSENTIAL LINES BELOW as ncoils >> 1
         # Otherwise optimizable references multiply
         # like crazy as number of coils increases
-        # However this will make the derivative calculations less accurate! 
+        # However this will make the derivative calculations less accurate!
         self.biotsavart._children = set()
         self.coil._children = set()
         self.coil.curve._children = set()
@@ -231,7 +257,7 @@ class LpCurveForce(Optimizable):
         #### ESSENTIAL LINES BELOW as ncoils >> 1
         # Otherwise optimizable references multiply
         # like crazy as number of coils increases
-        # However this will make the derivative calculations less accurate! 
+        # However this will make the derivative calculations less accurate!
         self.biotsavart._children = set()
         self.coil._children = set()
         self.coil.curve._children = set()
@@ -1750,6 +1776,7 @@ class LpCurveTorque(Optimizable):
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
+
 def coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, a, b, downsample, cross_section):
     r"""  Optimizable class to minimize the Lorentz force on a coil.
 
@@ -1778,7 +1805,7 @@ def coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, quadpoint
 
     # Double sum over each of the closed curves
     Lij = Lij.at[1:].add(jnp.sum(jnp.sum(gammadash_prod / rij_norm, axis=-1), axis=-1
-                    ) / (jnp.shape(gamma)[0] * jnp.shape(gammas2)[1]))
+                                 ) / (jnp.shape(gamma)[0] * jnp.shape(gammas2)[1]))
 
     # Diagonal elements are determined below
     if cross_section == 'circular':
@@ -1789,8 +1816,8 @@ def coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, quadpoint
         rij_norm = jnp.linalg.norm(r_ij, axis=-1)
         gammadash_prod = jnp.sum(gammadash[:, None, :] * gammadash[None, :, :], axis=-1)
         Lij = Lij.at[0].add(jnp.sum(jnp.sum(gammadash_prod
-             / jnp.sqrt(rij_norm ** 2 + a ** 2 / jnp.sqrt(jnp.exp(1.0))), axis=-1), axis=-1) / jnp.shape(gamma)[0] ** 2
-             )
+                                            / jnp.sqrt(rij_norm ** 2 + a ** 2 / jnp.sqrt(jnp.exp(1.0))), axis=-1), axis=-1) / jnp.shape(gamma)[0] ** 2
+                            )
     else:
         # Eq 11 regularization from Hurwitz/Landreman 2023
         # and also used in Guinchard/Hudson/Paul 2024
@@ -1804,8 +1831,8 @@ def coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, quadpoint
         rij_norm = jnp.linalg.norm(r_ij, axis=-1)
         gammadash_prod = jnp.sum(gammadash[:, None, :] * gammadash[None, :, :], axis=-1)
         Lij = Lij.at[0].add(jnp.sum(jnp.sum(gammadash_prod
-             / jnp.sqrt(rij_norm ** 2 + delta * a * b), axis=-1), axis=-1) / jnp.shape(gamma)[0] ** 2
-             )
+                                            / jnp.sqrt(rij_norm ** 2 + delta * a * b), axis=-1), axis=-1) / jnp.shape(gamma)[0] ** 2
+                            )
 
         # Equation 22 in Hurwitz/Landreman 2023 is even better and implemented below
         # gd_norm = jnp.linalg.norm(gammadash, axis=-1)
@@ -1819,7 +1846,7 @@ def coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, quadpoint
         # L3 = jnp.sum(jnp.sum(integrand2, axis=-1), axis=-1) / jnp.shape(gamma)[0] ** 2
         # Lij = Lij.at[0].add(L1 + L2 + L3
         #      )
-    return 1e-7 * Lij  
+    return 1e-7 * Lij
 
 
 def coil_coil_inductances_full_pure(gammas, gammadashs, a_list, b_list, downsample, cross_section):
@@ -1847,7 +1874,7 @@ def coil_coil_inductances_full_pure(gammas, gammadashs, a_list, b_list, downsamp
 
     # Double sum over each of the closed curves
     Lij = jnp.sum(jnp.sum(gammadash_prod / rij_norm, axis=-1), axis=-1
-                    ) / jnp.shape(gammas)[1] ** 2
+                  ) / jnp.shape(gammas)[1] ** 2
 
     # Diagonal elements are determined below
     if cross_section == 'circular':
@@ -1856,8 +1883,7 @@ def coil_coil_inductances_full_pure(gammas, gammadashs, a_list, b_list, downsamp
         # rij_norm = jnp.linalg.norm(r_ij, axis=-1)
         # Overwrites the diagonal elements
         Lij = jnp.fill_diagonal(Lij, jnp.diagonal(jnp.sum(jnp.sum(gammadash_prod
-             / jnp.sqrt(rij_norm ** 2 + a_list[None, :, None, None] ** 2 / jnp.sqrt(jnp.exp(1.0))), axis=-1), axis=-1) / jnp.shape(gammas)[1] ** 2)
-             , inplace=False)
+                                                                  / jnp.sqrt(rij_norm ** 2 + a_list[None, :, None, None] ** 2 / jnp.sqrt(jnp.exp(1.0))), axis=-1), axis=-1) / jnp.shape(gammas)[1] ** 2), inplace=False)
     else:
         # Eq 11 regularization from Hurwitz/Landreman 2023
         # and also used in Guinchard/Hudson/Paul 2024
@@ -1867,9 +1893,9 @@ def coil_coil_inductances_full_pure(gammas, gammadashs, a_list, b_list, downsamp
         delta_ab = jnp.exp(-25.0 / 6.0 + k) * a_list * b_list
         # Overwrites the diagonal elements
         Lij = jnp.fill_diagonal(Lij, jnp.diagonal(jnp.sum(jnp.sum(gammadash_prod
-             / jnp.sqrt(rij_norm ** 2 + delta_ab[None, :, None, None]), axis=-1), axis=-1) / jnp.shape(gammas)[1] ** 2)
-             , inplace=False)
-    return 1e-7 * Lij  
+                                                                  / jnp.sqrt(rij_norm ** 2 + delta_ab[None, :, None, None]), axis=-1), axis=-1) / jnp.shape(gammas)[1] ** 2), inplace=False)
+    return 1e-7 * Lij
+
 
 def coil_coil_inductances_inv_pure(gammas, gammadashs, a_list, b_list, downsample, cross_section):
     # Lij is symmetric positive definite so has a cholesky decomposition
@@ -1878,10 +1904,12 @@ def coil_coil_inductances_inv_pure(gammas, gammadashs, a_list, b_list, downsampl
     inv_L = jscp.linalg.solve_triangular(C.T, inv_C, lower=False)
     return inv_L  # jnp.linalg.inv(coil_coil_inductances_full_pure(gammas, gammadashs, quadpoints, a_list, b_list, downsample, cross_section)) #
 
+
 def coil_currents_barebones(gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, a_list, b_list, downsample, cross_section):
     return -coil_coil_inductances_inv_pure(gammas, gammadashs, a_list, b_list, downsample, cross_section) @ net_fluxes_pure(gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)
 
-def tve_pure(gamma, gammadash, gammas2, gammadashs2, current, currents2, 
+
+def tve_pure(gamma, gammadash, gammas2, gammadashs2, current, currents2,
              quadpoints, quadpoints2, a, b, downsample, cross_section):
     r"""Pure function for minimizing the total vacuum energy on a coil.
 
@@ -1895,11 +1923,12 @@ def tve_pure(gamma, gammadash, gammas2, gammadashs2, current, currents2,
     """
     Ii_Ij = (current * currents2)
     Lij = coil_coil_inductances_pure(
-        gamma, gammadash, gammas2, gammadashs2, 
+        gamma, gammadash, gammas2, gammadashs2,
         quadpoints, quadpoints2, a, b, downsample, cross_section
     )
     U = 0.5 * (jnp.sum(Ii_Ij * Lij[1:]) + Lij[0] * current ** 2)
     return U
+
 
 class TVE(Optimizable):
     r"""Optimizable class for minimizing the total vacuum energy on a coil.
@@ -2010,11 +2039,12 @@ class TVE(Optimizable):
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
+
 def net_fluxes_pure(gammas, gammadashs, gammas2, gammadashs2, currents2, downsample):
     """
-    
+
     """
-     # Downsample if desired
+    # Downsample if desired
     gammas = gammas[:, ::downsample, :]
     gammadashs = gammadashs[:, ::downsample, :]
     gammas2 = gammas2[:, ::downsample, :]
@@ -2022,7 +2052,7 @@ def net_fluxes_pure(gammas, gammadashs, gammas2, gammadashs2, currents2, downsam
     rij_norm = jnp.linalg.norm(gammas[:, :, None, None, :] - gammas2[None, None, :, :, :], axis=-1)
     # sum over the currents, and sum over the biot savart integral
     A_ext = jnp.sum(currents2[None, None, :, None] * jnp.sum(gammadashs2[None, None, :, :, :] / rij_norm[:, :, :, :, None], axis=-2), axis=-2) / jnp.shape(gammadashs2)[1]
-    # Now sum over the PSC coil loops 
+    # Now sum over the PSC coil loops
     return 1e-7 * jnp.sum(jnp.sum(A_ext * gammadashs, axis=-1), axis=-1) / jnp.shape(gammadashs)[1]
 
 
@@ -2122,7 +2152,7 @@ class NetFluxes(Optimizable):
         A_vjp = self.biotsavart.A_vjp(dJ_dA)
 
         dJ = (
-            self.coil.curve.dgamma_by_dcoeff_vjp(dJ_dX) + 
+            self.coil.curve.dgamma_by_dcoeff_vjp(dJ_dX) +
             self.coil.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadash(*args))
             + A_vjp
         )

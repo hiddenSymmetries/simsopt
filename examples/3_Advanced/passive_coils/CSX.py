@@ -87,8 +87,8 @@ ax = plt.figure().add_subplot(projection='3d')
 s.plot(ax=ax, show=False, close=True)
 for c in bsurf.biotsavart.coils:
     c.curve.plot(ax=ax, show=False)
-ax.set_xlim(-1,1)
-ax.set_ylim(-1,1)
+ax.set_xlim(-1, 1)
+ax.set_ylim(-1, 1)
 ax.set_xlabel('x [m]')
 ax.set_ylabel('y [m]')
 ax.set_zlabel('z [m]')
@@ -155,6 +155,8 @@ b = 0.2
 nturns_TF = 200
 
 # Define function to compute the pointwise forces and torques
+
+
 def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
     contig = np.ascontiguousarray
     forces = np.zeros((len(coils), len(coils[0].curve.gamma()) + 1, 3))
@@ -172,6 +174,7 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
     point_data = {"Pointwise_Forces": (contig(forces[:, 0]), contig(forces[:, 1]), contig(forces[:, 2])),
                   "Pointwise_Torques": (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))}
     return point_data
+
 
 biot_savart_TF = BiotSavart(coils_TF)
 biot_savart_TF.set_points(s.gamma().reshape((-1, 3)))
@@ -204,8 +207,8 @@ for c in (coils_TF):
 
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-    "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                    ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+             "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_full_init", extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
@@ -242,7 +245,7 @@ JF = Jf \
     + CC_WEIGHT * Jccdist2 \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + LINK_WEIGHT * linkNum  \
-    + LENGTH_WEIGHT * Jlength 
+    + LENGTH_WEIGHT * Jlength
 
 print(JF.dof_names)
 # for i in range(len(JF.dof_names) - len(opt_bounds)):
@@ -251,10 +254,11 @@ print(JF.dof_names)
 # print(opt_bounds, np.shape(opt_bounds), np.shape(JF.dof_names))
 # exit()
 
+
 def fun(dofs):
     JF.x = dofs
     J = JF.J()
-    grad = JF.dJ() 
+    grad = JF.dJ()
     jf = Jf.J()
     length_val = LENGTH_WEIGHT.value * Jlength.J()
     cc_val = CC_WEIGHT * (Jccdist.J() + Jccdist2.J())
@@ -325,7 +329,7 @@ for i in range(1, n_saves + 1):
 
     btot.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-        "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                 "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                     ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "surf_full_final", extra_data=pointData)
 

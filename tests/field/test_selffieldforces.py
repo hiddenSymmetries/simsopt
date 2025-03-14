@@ -175,7 +175,7 @@ class CoilForcesTest(unittest.TestCase):
             curve3.set_dofs(dofs)
 
             Lij = coil_coil_inductances_pure(
-                curve.gamma(), 
+                curve.gamma(),
                 curve.gammadash(),
                 np.array([curve2.gamma()]),
                 np.array([curve2.gammadash()]),
@@ -185,7 +185,7 @@ class CoilForcesTest(unittest.TestCase):
                 b=a,
                 downsample=1,
                 cross_section='circular',
-                )
+            )
             Lij_full = coil_coil_inductances_full_pure(
                 np.array([c.gamma() for c in [curve, curve2]]),
                 np.array([c.gammadash() for c in [curve, curve2]]),
@@ -193,13 +193,13 @@ class CoilForcesTest(unittest.TestCase):
                 b_list=np.array([a, a]),
                 downsample=1,
                 cross_section='circular',
-                )
-            
+            )
+
             assert np.allclose(Lij, Lij_full[0, :])
 
             # Test rectangular cross section for a << R
             Lij_rect = coil_coil_inductances_pure(
-                curve.gamma(), 
+                curve.gamma(),
                 curve.gammadash(),
                 np.array([curve2.gamma()]),
                 np.array([curve2.gammadash()]),
@@ -209,7 +209,7 @@ class CoilForcesTest(unittest.TestCase):
                 b=a,
                 downsample=1,
                 cross_section='rectangular',
-                )
+            )
             Lij_rect_full = coil_coil_inductances_full_pure(
                 np.array([c.gamma() for c in [curve, curve2]]),
                 np.array([c.gammadash() for c in [curve, curve2]]),
@@ -217,7 +217,7 @@ class CoilForcesTest(unittest.TestCase):
                 b_list=np.array([a, a]),
                 downsample=1,
                 cross_section='rectangular',
-                )
+            )
             print(Lij, Lij_rect, Lij_analytic)
             # np.testing.assert_allclose(Lij[0], Lii_analytic)
             np.testing.assert_allclose(Lij[1], Lij_analytic, rtol=1e-2)
@@ -225,7 +225,7 @@ class CoilForcesTest(unittest.TestCase):
 
             # retry but swap the coils
             Lij = coil_coil_inductances_pure(
-                curve2.gamma(), 
+                curve2.gamma(),
                 curve2.gammadash(),
                 np.array([curve.gamma()]),
                 np.array([curve.gammadash()]),
@@ -235,13 +235,13 @@ class CoilForcesTest(unittest.TestCase):
                 b=a,
                 downsample=1,
                 cross_section='circular',
-                )
+            )
             assert np.allclose(np.flip(Lij), Lij_full[1, :])
             np.testing.assert_allclose(Lij[1], Lij_analytic, rtol=1e-2)
 
             # now test coils with shared axis
             Lij = coil_coil_inductances_pure(
-                curve.gamma(), 
+                curve.gamma(),
                 curve.gammadash(),
                 np.array([curve3.gamma()]),
                 np.array([curve3.gammadash()]),
@@ -251,7 +251,7 @@ class CoilForcesTest(unittest.TestCase):
                 b=a,
                 downsample=1,
                 cross_section='circular',
-                )
+            )
             print(Lij, Lii_analytic, Lij_analytic2)
             np.testing.assert_allclose(Lij[1], Lij_analytic2, rtol=1e-2)
 
@@ -262,7 +262,7 @@ class CoilForcesTest(unittest.TestCase):
                 b_list=np.array([a, a]),
                 downsample=1,
                 cross_section='circular',
-                )
+            )
             assert np.allclose(Lij, Lij_full[0, :])
 
             # Test cholesky computation of the inverse works on simple case
@@ -273,7 +273,7 @@ class CoilForcesTest(unittest.TestCase):
                 b_list=np.array([a, a]),
                 downsample=1,
                 cross_section='circular',
-                )
+            )
             assert np.allclose(np.linalg.inv(Lij_full), Lij_inv)
 
             # Check the case of rectangular cross-section:
@@ -528,7 +528,7 @@ class CoilForcesTest(unittest.TestCase):
             MixedSquaredMeanTorque(coils[0:2], coils[2:]),
             LpCurveForce(coils[0], coils, regularization, p=p, threshold=threshold),
             MixedLpCurveForce(coils[0:1], coils[1:], regularization_list[0:1],
-                                                  regularization_list[1:], p=p, threshold=threshold),
+                              regularization_list[1:], p=p, threshold=threshold),
             SquaredMeanForce(coils[0], coils),
             MixedSquaredMeanForce([coils[0]], coils[1:]),
         ]
@@ -539,7 +539,7 @@ class CoilForcesTest(unittest.TestCase):
             h = np.ones_like(dofs)
             err = 1e3
             print('Objective = ', J)
-            for i in range(10, 21):  
+            for i in range(10, 21):
                 eps = 0.5**i
                 J.x = dofs + eps * h
                 Jp = J.J()
@@ -547,11 +547,10 @@ class CoilForcesTest(unittest.TestCase):
                 Jm = J.J()
                 deriv_est = (Jp - Jm) / (2 * eps)
                 err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
-                print("taylor_test i: ", i, "deriv_FD: ", deriv_est, "deriv: ", deriv, "rel_err: ", err_new)  #, "err:", err, "ratio:", err_new / err)
+                print("taylor_test i: ", i, "deriv_FD: ", deriv_est, "deriv: ", deriv, "rel_err: ", err_new)  # , "err:", err, "ratio:", err_new / err)
                 np.testing.assert_array_less(err_new, 0.5 * err)
-                if i % 10 == 0: # Torques dJ converges weakly, not monotonic
+                if i % 10 == 0:  # Torques dJ converges weakly, not monotonic
                     err = err_new
-
 
     def objectives_time_test(self):
         import time
@@ -715,7 +714,7 @@ class CoilForcesTest(unittest.TestCase):
             assert abs(objective.J() - old_objective_value) > 1e-6
             biotsavart = BiotSavart(objective.othercoils)
 
-            # Don't understand the commented out test below -- 
+            # Don't understand the commented out test below --
             # the biot savart evaluation points actually
             # do not change here -- only the coil points are changing
             # new_biot_savart_points = biotsavart.get_points_cart()

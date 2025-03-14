@@ -97,7 +97,7 @@ def initialize_coils_QH(TEST_DIR, s):
     total_current.fix_all()
     base_currents += [total_current - sum(base_currents)]
     coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-    
+
     # Initialize the coil curves and save the data to vtk
     curves = [c.curve for c in coils]
     return base_curves, curves, coils, base_currents

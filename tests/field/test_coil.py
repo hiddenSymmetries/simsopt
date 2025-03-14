@@ -213,6 +213,7 @@ class CoilFormatConvertTesting(unittest.TestCase):
         compare_gamma = [coil.curve.gamma() for coil in compare_coils]
         np.testing.assert_allclose(gamma, compare_gamma)
 
+
 class PSCs(unittest.TestCase):
     def test_equally_spaced_planar_curves(self):
         ncoils = 4
@@ -296,8 +297,8 @@ class PSCs(unittest.TestCase):
         A_ext = psc_array.biot_savart_TF.A()
         rij_norm = np.linalg.norm(gammas1[:, :, None, None, :] - gammas2[None, None, :, :, :], axis=-1)
         # sum over the currents, and sum over the biot savart integral
-        A_ext2 = 1e-7 * np.sum(currents2[None, None, :, None] * np.sum(gammadashs2[None, None, :, :, :] / rij_norm[:, :, :, :, None], 
-            axis=-2), axis=-2) / np.shape(gammadashs2)[1]
+        A_ext2 = 1e-7 * np.sum(currents2[None, None, :, None] * np.sum(gammadashs2[None, None, :, :, :] / rij_norm[:, :, :, :, None],
+                                                                       axis=-2), axis=-2) / np.shape(gammadashs2)[1]
         assert np.allclose(A_ext, A_ext2.reshape(-1, 3))
 
 

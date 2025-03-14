@@ -554,8 +554,6 @@ class Vmec(Optimizable):
             else:
                 vi.curtor = self.current_profile(1.0)
 
-                
-
         return boundary_RZFourier
 
     def get_input(self):

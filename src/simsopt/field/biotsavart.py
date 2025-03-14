@@ -30,7 +30,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
 
     def dB_by_dcoilcurrents(self, compute_derivatives=0):
         npoints = len(self.get_points_cart_ref())
-        return [self.fieldcache_get_or_create(f'B_{i}', [npoints, 3]) for i in range(len(self._coils))] 
+        return [self.fieldcache_get_or_create(f'B_{i}', [npoints, 3]) for i in range(len(self._coils))]
 
     def d2B_by_dXdcoilcurrents(self, compute_derivatives=1):
         points = self.get_points_cart_ref()
@@ -111,7 +111,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
         res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
         if self.psc_array is not None:
-            # Current part can be zeroed out in line immediately below this comment 
+            # Current part can be zeroed out in line immediately below this comment
             vjp = sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([0.0])) for i in range(len(coils))])
             vjp += self.psc_array.vjp_setup(np.array(res_current))
         else:
