@@ -12,7 +12,6 @@ __all__ = ['orientation_phi', 'polarization_axes', 'discretize_polarizations',
            ]
 
 import numpy as np
-import numpy.matlib as ml
 
 
 # Designated column indices from MAGPIE corners files
@@ -476,9 +475,9 @@ def discretize_polarizations(mag_data, orientation_phi, pol_axes, pol_type):
     phat_y = np.cos(orientation_phi).reshape((nMagnets, 1))
 
     # Allowable axes for each magnet in the magnet frame
-    pol_r = ml.repmat(np.reshape(pol_axes[:, 0], (1, nPol)), mag_data.nMagnets, 1)
-    pol_p = ml.repmat(np.reshape(pol_axes[:, 1], (1, nPol)), mag_data.nMagnets, 1)
-    pol_z = ml.repmat(np.reshape(pol_axes[:, 2], (1, nPol)), mag_data.nMagnets, 1)
+    pol_r = np.repeat(np.reshape(pol_axes[:, 0], (1, nPol)), mag_data.nMagnets, axis=0)
+    pol_p = np.repeat(np.reshape(pol_axes[:, 1], (1, nPol)), mag_data.nMagnets, axis=0)
+    pol_z = np.repeat(np.reshape(pol_axes[:, 2], (1, nPol)), mag_data.nMagnets, axis=0)
 
     # Populate allowable axes for each magnet in the lab frame
     mag_data.pol_x[:, :] = pol_r*rhat_x + pol_p*phat_x
@@ -501,9 +500,9 @@ def discretize_polarizations(mag_data, orientation_phi, pol_axes, pol_type):
 
     # Scale orig axes by magnet density and copy for each allowable polarization
     rho = mag_data.pho**mag_data.momentq
-    rmx_orig = ml.repmat(np.reshape(rho*nx_orig, (nMagnets, 1)), 1, nPol+1)
-    rmy_orig = ml.repmat(np.reshape(rho*ny_orig, (nMagnets, 1)), 1, nPol+1)
-    rmz_orig = ml.repmat(np.reshape(rho*nz_orig, (nMagnets, 1)), 1, nPol+1)
+    rmx_orig = np.repeat(np.reshape(rho*nx_orig, (nMagnets, 1)), nPol+1, axis=1)
+    rmy_orig = np.repeat(np.reshape(rho*ny_orig, (nMagnets, 1)), nPol+1, axis=1)
+    rmz_orig = np.repeat(np.reshape(rho*nz_orig, (nMagnets, 1)), nPol+1, axis=1)
 
     # 2-norm of differences between allowable vectors and scaled orig vectors
     resid2 = (pol_x-rmx_orig)**2 + (pol_y-rmy_orig)**2 + (pol_z-rmz_orig)**2

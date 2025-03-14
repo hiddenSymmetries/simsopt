@@ -540,6 +540,25 @@ class VmecTests(unittest.TestCase):
                                        factor * (1 + 2 * s_test - 2.2 * s_test ** 2), rtol=1e-3)
             self.assertEqual(netcdf_to_str(vmec.wout.pcurr_type[:15]), 'cubic_spline_ip')
 
+            # Now we try a current profile setting the total current instead
+            # of its derivative. We do this by using "cubic_spline_i" instead
+            # of 'cubic_spline_ip'
+            vmec.indata.pcurr_type = 'cubic_spline_i'
+            current2.local_unfix_all()
+            current2.x = factor * (1.0 * s_spline - 0.4 * s_spline ** 2)
+            vmec.current_profile = current2
+            #vmec.recompute_bell()
+            vmec.run()
+            np.testing.assert_allclose(vmec.wout.ctor, factor * 0.6, rtol=1e-2)
+            output_jcurv = np.array([795774.715459479, 755985.979686504, 716197.243913528, 
+                                     676408.508140556, 636619.772367582, 596831.036594607, 557042.300821634, 
+                                     517253.565048661, 477464.829275686, 437676.09350271, 397887.357729738, 
+                                     358098.621956765, 318309.886183791, 278521.150410821, 238732.414637841, 
+                                     198943.678864868, 159154.943091895])
+            np.testing.assert_allclose(vmec.wout.jcurv, output_jcurv, rtol=1e-3)
+            self.assertEqual(netcdf_to_str(vmec.wout.pcurr_type[:15]), 'cubic_spline_i ')
+
+
     def test_iota_profile(self):
         """
         Set a prescribed iota profile, run vmec, and check that we got

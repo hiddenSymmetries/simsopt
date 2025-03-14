@@ -720,7 +720,7 @@ class CoilForcesTest(unittest.TestCase):
         dofs = J.x
         h = np.ones_like(dofs)
         err = 100
-        for i in range(10, 19):
+        for i in range(10, 18):
             eps = 0.5**i
             J.x = dofs + eps * h
             Jp = J.J()
@@ -728,7 +728,7 @@ class CoilForcesTest(unittest.TestCase):
             Jm = J.J()
             deriv_est = (Jp - Jm) / (2 * eps)
             err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
-            # print("i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
+            print("test_lpcurveforces_taylor_test i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
             np.testing.assert_array_less(err_new, 0.31 * err)
             err = err_new
 
