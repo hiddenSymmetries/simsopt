@@ -18,8 +18,6 @@ from simsopt.field import BiotSavart
 from simsopt.field.force import coil_force, coil_torque, coil_net_forces, \
     coil_net_torques, LpCurveForce, TVE
 from simsopt.field.selffield import regularization_circ
-import deephyper
-from deephyper.hpo import HpProblem
 from simsopt.util import in_github_actions, calculate_on_axis_B
 
 
@@ -45,13 +43,6 @@ order = 5
 # without having to rebuild the objective.
 LENGTH_WEIGHT = Weight(1e-03)
 LENGTH_TARGET = 17.4
-problem = HpProblem()
-
-# Define the variable you want to optimize
-problem.add_hyperparameter((1e-3, 1e-2), "LW")
-from deephyper.evaluator import Evaluator
-from deephyper.evaluator.callback import TqdmCallback
-print(problem)
 
 # Threshold and weight for the coil-to-coil distance penalty in the objective function:
 CC_THRESHOLD = 0.1
@@ -188,50 +179,22 @@ def fun(dofs):
     print(outstr)
     return J, grad
 
-
-# define the evaluator to distribute the computation
-evaluator = Evaluator.create(
-    fun,
-    method="thread",
-    method_kwargs={
-        "num_workers": 4,
-        "callbacks": [TqdmCallback()]
-    },
-)
-
-print(f"Evaluator has {evaluator.num_workers} available worker{'' if evaluator.num_workers == 1 else 's'}")
-
-from deephyper.hpo import CBO
-
-# define your search
-search = CBO(
-    problem,
-    evaluator,
-    acq_func="UCB",  # Acquisition function to Upper Confidence Bound
-    multi_point_strategy="qUCB",  # Fast Multi-point strategy with q-Upper Confidence Bound
-    n_jobs=2,  # Number of threads to fit surrogate models in parallel
-)
-
-results = search.search(max_evals=100)
-print(results, results.x)
-exit()
-
-# print("""
-# ###############################################################################
-# # Perform a Taylor test
-# ###############################################################################
-# """)
-# print("(It make take jax several minutes to compile the objective for the first evaluation.)")
-# f = fun
-# dofs = JF.x
-# np.random.seed(1)
-# h = np.random.uniform(size=dofs.shape)
-# J0, dJ0 = f(dofs)
-# dJh = sum(dJ0 * h)
-# for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
-#     J1, _ = f(dofs + eps*h)
-#     J2, _ = f(dofs - eps*h)
-#     print("err", (J1-J2)/(2*eps) - dJh)
+print("""
+###############################################################################
+# Perform a Taylor test
+###############################################################################
+""")
+print("(It make take jax several minutes to compile the objective for the first evaluation.)")
+f = fun
+dofs = JF.x
+np.random.seed(1)
+h = np.random.uniform(size=dofs.shape)
+J0, dJ0 = f(dofs)
+dJh = sum(dJ0 * h)
+for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
+    J1, _ = f(dofs + eps*h)
+    J2, _ = f(dofs - eps*h)
+    print("err", (J1-J2)/(2*eps) - dJh)
 
 ###############################################################################
 # RUN THE OPTIMIZATION
