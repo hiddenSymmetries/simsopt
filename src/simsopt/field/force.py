@@ -174,17 +174,18 @@ class LpCurveForce(Optimizable):
         self.biotsavart.set_points(np.array(gamma[::self.downsample, :]))
         J = self.J_jax(gamma, self.coil.curve.gammadash(), self.coil.curve.gammadashdash(),
                        self.coil.current.get_value(), self.biotsavart.B(), self.downsample)
-        #### ABSOLUTELY ESSENTIAL LINES BELOW
+        #### ESSENTIAL LINES BELOW as ncoils >> 1
         # Otherwise optimizable references multiply
         # like crazy as number of coils increases
+        # However this will make the derivative calculations less accurate! 
         self.biotsavart._children = set()
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
         return J
 
     @derivative_dec
@@ -227,17 +228,18 @@ class LpCurveForce(Optimizable):
             + B_vjp
         )
 
-        #### ABSOLUTELY ESSENTIAL LINES BELOW
+        #### ESSENTIAL LINES BELOW as ncoils >> 1
         # Otherwise optimizable references multiply
         # like crazy as number of coils increases
+        # However this will make the derivative calculations less accurate! 
         self.biotsavart._children = set()
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return dJ
 
@@ -348,10 +350,10 @@ class MeanSquaredForce(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return J
 
@@ -386,10 +388,10 @@ class MeanSquaredForce(Optimizable):
             + self.coil.current.vjp(jnp.asarray([self.dJ_dcurrent(*args)]))
             + self.biotsavart.B_vjp(dJ_dB)
         )
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return dJ
 
@@ -1227,10 +1229,10 @@ class SquaredMeanForce(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return self.J_jax(*args)
 
@@ -1275,10 +1277,10 @@ class SquaredMeanForce(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return dJ
 
@@ -1363,10 +1365,10 @@ class SquaredMeanTorque(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
         return J
 
     @derivative_dec
@@ -1412,10 +1414,10 @@ class SquaredMeanTorque(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return dJ
 
@@ -1517,10 +1519,10 @@ class MeanSquaredTorque(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return J
 
@@ -1571,10 +1573,10 @@ class MeanSquaredTorque(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return dJ
 
@@ -1685,10 +1687,10 @@ class LpCurveTorque(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return J
 
@@ -1739,10 +1741,10 @@ class LpCurveTorque(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return dJ
 
@@ -1818,97 +1820,6 @@ def coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, quadpoint
         # Lij = Lij.at[0].add(L1 + L2 + L3
         #      )
     return 1e-7 * Lij  
-
-
-class CoilInductances(Optimizable):
-    r"""  Optimizable class to minimize the Lorentz force on a coil.
-
-    The objective function is
-
-    .. math::
-        J = \frac{1}{p}\left(\int \frac{d\ell_i\cdot d\ell_j}{|r_i - r_j} \right)
-
-    where :math:`\vec{r}_i` is the position vector of a point on the ith coil,
-    L is the total length of the coil, and :math:`\ell` is arclength along the coil.
-    """
-
-    def __init__(self, coil, allcoils, a, b=None, downsample=1, cross_section='circular'):
-        self.coil = coil
-        self.othercoils = [c for c in allcoils if c is not coil]
-        self.biotsavart = BiotSavart(self.othercoils)
-        quadpoints = self.coil.curve.quadpoints
-        quadpoints2 = jnp.array([c.curve.quadpoints for c in self.othercoils])
-        self.downsample = downsample
-        if b is None:
-            b = a
-
-        args = {"static_argnums": (4,)}
-        self.J_jax = jit(
-            lambda gamma, gammadash, gammas2, gammadashs2, downsample:
-            coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, a, b, downsample, cross_section),
-            **args
-        )
-
-        self.dJ_dgamma = jit(
-            lambda gamma, gammadash, gammas2, gammadashs2, downsample:
-            grad(self.J_jax, argnums=0)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, a, b, downsample, cross_section),
-            **args
-        )
-
-        self.dJ_dgammadash = jit(
-            lambda gamma, gammadash, gammas2, gammadashs2, downsample:
-            grad(self.J_jax, argnums=1)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, a, b, downsample, cross_section),
-            **args
-        )
-
-        self.dJ_dgammas2 = jit(
-            lambda gamma, gammadash, gammas2, gammadashs2, downsample:
-            grad(self.J_jax, argnums=2)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, a, b, downsample, cross_section),
-            **args
-        )
-
-        self.dJ_dgammadashs2 = jit(
-            lambda gamma, gammadash, gammas2, gammadashs2, downsample:
-            grad(self.J_jax, argnums=3)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, a, b, downsample, cross_section),
-            **args
-        )
-
-        super().__init__(depends_on=allcoils)
-
-    def J(self):
-
-        args = [
-            self.coil.curve.gamma(),
-            self.coil.curve.gammadash(),
-            jnp.array([c.curve.gamma() for c in self.othercoils]),
-            jnp.array([c.curve.gammadash() for c in self.othercoils]),
-            self.downsample
-        ]
-        J = self.J_jax(*args)
-
-        return J
-
-    @derivative_dec
-    def dJ(self):
-
-        args = [
-            self.coil.curve.gamma(),
-            self.coil.curve.gammadash(),
-            jnp.array([c.curve.gamma() for c in self.othercoils]),
-            jnp.array([c.curve.gammadash() for c in self.othercoils]),
-            self.downsample
-        ]
-        
-        dJ = (
-            self.coil.curve.dgamma_by_dcoeff_vjp(self.dJ_dgamma(*args))
-            + self.coil.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadash(*args))
-            + sum([c.curve.dgamma_by_dcoeff_vjp(self.dJ_dgammas2[i]) for i, c in enumerate(self.othercoils)])
-            + sum([c.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadashs2[i]) for i, c in enumerate(self.othercoils)])
-        )
-
-        return dJ
-
-    return_fn_map = {'J': J, 'dJ': dJ}
 
 
 def coil_coil_inductances_full_pure(gammas, gammadashs, a_list, b_list, downsample, cross_section):
@@ -2011,12 +1922,6 @@ class TVE(Optimizable):
         if b is None:
             b = a
 
-        # args = {"static_argnums": (4,)}
-        # self.coil_coil_inductances_pure = jit(
-        #     lambda gamma, gammadash, gammas2, gammadashs2, downsample:
-        #     coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, a, b, downsample, cross_section),
-        #     **args
-        # )
         args = {"static_argnums": (6,)}
         self.J_jax = jit(
             lambda gamma, gammadash, gammas2, gammadashs2, current, currents2, downsample:
@@ -2121,7 +2026,7 @@ def net_fluxes_pure(gammas, gammadashs, gammas2, gammadashs2, currents2, downsam
     return 1e-7 * jnp.sum(jnp.sum(A_ext * gammadashs, axis=-1), axis=-1) / jnp.shape(gammadashs)[1]
 
 
-def net_ext_fluxes_pure(gammadashs, A_ext, downsample):
+def net_ext_fluxes_pure(gammadash, A_ext, downsample):
     r"""  Pure function to compute the net fluxes through a set of closed loop,
 
     .. math::
@@ -2132,10 +2037,9 @@ def net_ext_fluxes_pure(gammadashs, A_ext, downsample):
     L is the total length of the coil, and :math:`\ell_i` is arclength along the coil.
     """
     # Downsample if desired
-    gammadashs = gammadashs[:, ::downsample, :]
+    gammadash = gammadash[::downsample, :]
     # Dot the vectors (sum over last axis), then sum over the quadpoints
-    return jnp.sum(jnp.sum(A_ext.reshape(jnp.shape(gammadashs)) * gammadashs, axis=-1), axis=-1) / jnp.shape(gammadashs)[1]
-
+    return jnp.sum(jnp.sum(A_ext * gammadash, axis=-1), axis=-1) / jnp.shape(gammadash)[0]
 
 
 class NetFluxes(Optimizable):
@@ -2194,10 +2098,10 @@ class NetFluxes(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return J
 
@@ -2205,6 +2109,7 @@ class NetFluxes(Optimizable):
     def dJ(self):
 
         gamma = self.coil.curve.gamma()
+        self.biotsavart.set_points(gamma)
         args = [
             self.coil.curve.gammadash(),
             self.biotsavart.A(),
@@ -2212,23 +2117,24 @@ class NetFluxes(Optimizable):
         ]
 
         dJ_dA = self.dJ_dA(*args)
-        dB_dX = self.biotsavart.dB_by_dX()
-        dJ_dX = np.einsum('ij,ikj->ik', dJ_dA, dB_dX)
-        B_vjp = self.biotsavart.B_vjp(dJ_dA)
+        dA_dX = self.biotsavart.dA_by_dX()
+        dJ_dX = np.einsum('ij,ikj->ik', dJ_dA, dA_dX)
+        A_vjp = self.biotsavart.A_vjp(dJ_dA)
 
         dJ = (
+            self.coil.curve.dgamma_by_dcoeff_vjp(dJ_dX) + 
             self.coil.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadash(*args))
-            + B_vjp
+            + A_vjp
         )
 
         self.biotsavart._children = set()
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return dJ
 

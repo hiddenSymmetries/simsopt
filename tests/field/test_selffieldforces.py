@@ -25,6 +25,7 @@ from simsopt.field.force import (
     coil_coil_inductances_pure,
     coil_coil_inductances_full_pure,
     coil_coil_inductances_inv_pure,
+    NetFluxes,
     TVE,
     MeanSquaredForce,
     LpCurveTorque,
@@ -188,7 +189,6 @@ class CoilForcesTest(unittest.TestCase):
             Lij_full = coil_coil_inductances_full_pure(
                 np.array([c.gamma() for c in [curve, curve2]]),
                 np.array([c.gammadash() for c in [curve, curve2]]),
-                np.array([c.quadpoints for c in [curve, curve2]]),
                 a_list=np.array([a, a]),
                 b_list=np.array([a, a]),
                 downsample=1,
@@ -213,7 +213,6 @@ class CoilForcesTest(unittest.TestCase):
             Lij_rect_full = coil_coil_inductances_full_pure(
                 np.array([c.gamma() for c in [curve, curve2]]),
                 np.array([c.gammadash() for c in [curve, curve2]]),
-                np.array([c.quadpoints for c in [curve, curve2]]),
                 a_list=np.array([a, a]),
                 b_list=np.array([a, a]),
                 downsample=1,
@@ -259,7 +258,6 @@ class CoilForcesTest(unittest.TestCase):
             Lij_full = coil_coil_inductances_full_pure(
                 np.array([c.gamma() for c in [curve, curve3]]),
                 np.array([c.gammadash() for c in [curve, curve3]]),
-                np.array([c.quadpoints for c in [curve, curve3]]),
                 a_list=np.array([a, a]),
                 b_list=np.array([a, a]),
                 downsample=1,
@@ -271,7 +269,6 @@ class CoilForcesTest(unittest.TestCase):
             Lij_inv = coil_coil_inductances_inv_pure(
                 np.array([c.gamma() for c in [curve, curve3]]),
                 np.array([c.gammadash() for c in [curve, curve3]]),
-                np.array([c.quadpoints for c in [curve, curve3]]),
                 a_list=np.array([a, a]),
                 b_list=np.array([a, a]),
                 downsample=1,
@@ -508,6 +505,53 @@ class CoilForcesTest(unittest.TestCase):
 
         print("objective:", objective, "objective_mixed:", objective_mixed, "diff:", objective - objective_mixed)
         np.testing.assert_allclose(objective, objective_mixed)
+
+    def test_Taylor(self):
+        nfp = 3
+        ncoils = 4
+        I = 1.7e4
+        regularization = regularization_circ(0.05)
+
+        base_curves = create_equally_spaced_curves(ncoils, nfp, True)
+        base_currents = [Current(I) for j in range(ncoils)]
+        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+        regularization_list = np.ones(len(coils)) * regularization
+        p = 2.5
+        threshold = 0.0
+        objectives = [
+            NetFluxes(coils[0], coils),
+            TVE(coils[0], coils, a=0.05),
+            MeanSquaredForce(coils[0], coils, regularization),
+            LpCurveTorque(coils[0], coils, regularization, p=p, threshold=threshold),
+            MixedLpCurveTorque(coils[0:1], coils[1:], regularization_list[0:1], regularization_list[1:], p=p, threshold=threshold),
+            SquaredMeanTorque(coils[0], coils),
+            MixedSquaredMeanTorque(coils[0:2], coils[2:]),
+            LpCurveForce(coils[0], coils, regularization, p=p, threshold=threshold),
+            MixedLpCurveForce(coils[0:1], coils[1:], regularization_list[0:1],
+                                                  regularization_list[1:], p=p, threshold=threshold),
+            SquaredMeanForce(coils[0], coils),
+            MixedSquaredMeanForce([coils[0]], coils[1:]),
+        ]
+        for J in objectives:
+            dJ = J.dJ()
+            deriv = np.sum(dJ * np.ones_like(J.x))
+            dofs = J.x
+            h = np.ones_like(dofs)
+            err = 1e3
+            print('Objective = ', J)
+            for i in range(10, 21):  
+                eps = 0.5**i
+                J.x = dofs + eps * h
+                Jp = J.J()
+                J.x = dofs - eps * h
+                Jm = J.J()
+                deriv_est = (Jp - Jm) / (2 * eps)
+                err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
+                print("taylor_test i: ", i, "deriv_FD: ", deriv_est, "deriv: ", deriv, "rel_err: ", err_new)  #, "err:", err, "ratio:", err_new / err)
+                np.testing.assert_array_less(err_new, 0.5 * err)
+                if i % 10 == 0: # Torques dJ converges weakly, not monotonic
+                    err = err_new
+
 
     def objectives_time_test(self):
         import time
