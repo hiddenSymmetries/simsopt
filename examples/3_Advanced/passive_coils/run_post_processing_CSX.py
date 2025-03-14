@@ -1,10 +1,7 @@
-from simsopt.mhd.vmec import Vmec
 from simsopt.util.mpi import MpiPartition
-from simsopt.mhd import QuasisymmetryRatioResidual
 from simsopt.field import PSCArray
 from simsopt.util import proc0_print
 from simsopt.util import comm_world
-from simsopt._core import Optimizable
 import time
 import numpy as np
 from pathlib import Path
@@ -110,7 +107,6 @@ from simsopt.field.tracing import compute_fieldlines, \
     plot_poincare_data, \
     SurfaceClassifier, \
     LevelsetStoppingCriterion
-from simsopt.util import proc0_print
 
 
 # set fieldline tracer parameters

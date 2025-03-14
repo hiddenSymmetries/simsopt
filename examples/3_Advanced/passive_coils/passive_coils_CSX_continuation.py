@@ -8,16 +8,14 @@ from pathlib import Path
 import time
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.field import regularization_rect, PSCArray
 from simsopt.field.force import coil_force, coil_torque, coil_net_torques, coil_net_forces, LpCurveForce, \
     SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque
-from simsopt.util import calculate_on_axis_B, make_Bnormal_plots
+from simsopt.util import calculate_on_axis_B
 from simsopt.geo import (
-    CurveLength, CurveCurveDistance, create_equally_spaced_curves,
-    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
-    SurfaceRZFourier, curves_to_vtk, create_planar_curves_between_two_toroidal_surfaces
+    CurveLength, CurveCurveDistance, MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
+    SurfaceRZFourier, curves_to_vtk
 )
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 from simsopt import load
@@ -76,7 +74,6 @@ aa = 0.03
 bb = 0.03
 
 
-from simsopt import load
 input_dir = "CSX_passive_coils/"
 coils = load(input_dir + "psc_coils.json")
 coils_TF = load(input_dir + "TF_coils.json")

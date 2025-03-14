@@ -8,7 +8,7 @@ from pathlib import Path
 import time
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field import BiotSavart, Current, coils_via_symmetries
+from simsopt.field import Current, coils_via_symmetries
 from simsopt.field import regularization_rect, PSCArray
 from simsopt.field.force import coil_force, coil_torque, coil_net_torques, coil_net_forces, LpCurveForce, \
     SquaredMeanForce, \
@@ -110,7 +110,6 @@ Nz = Nx
 base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
     s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=False, jax_flag=False,
 )
-import warnings
 
 # Remove if within a radius of a TF coil
 # keep_inds = []
@@ -356,7 +355,6 @@ if TORQUE_WEIGHT2.value > 0.0:
 print(JF.dof_names)
 
 import cProfile
-import re
 import pstats, io
 from pstats import SortKey
 

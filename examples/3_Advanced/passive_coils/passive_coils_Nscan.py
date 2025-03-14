@@ -8,7 +8,7 @@ from pathlib import Path
 import time
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field import BiotSavart, Current, coils_via_symmetries
+from simsopt.field import Current, coils_via_symmetries
 from simsopt.field import regularization_rect, PSCArray
 from simsopt.field.force import coil_force, coil_torque, coil_net_torques, coil_net_forces, LpCurveForce, \
     SquaredMeanForce, \
@@ -75,7 +75,6 @@ def initialize_coils_QA(TEST_DIR, s):
         coils: List of Coil class objects.
     """
     from simsopt.geo import create_equally_spaced_curves
-    from simsopt.field import Current, coils_via_symmetries
 
     # generate planar TF coils
     ncoils = 3

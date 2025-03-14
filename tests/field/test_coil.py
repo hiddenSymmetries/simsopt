@@ -245,8 +245,7 @@ class PSCs(unittest.TestCase):
 
     def test_psc_array_A(self):
         from simsopt.geo import SurfaceRZFourier, create_planar_curves_between_two_toroidal_surfaces
-        from simsopt.field import PSCArray, BiotSavart
-        from simsopt.objectives import SquaredFlux
+        from simsopt.field import PSCArray
         ncoils = 4
         R0 = 2.3
         R1 = 0.9
@@ -287,11 +286,9 @@ class PSCs(unittest.TestCase):
         a_list = np.ones(len(base_curves)) * 0.05
         b_list = a_list
         psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
-        biot_savart = psc_array.biot_savart
         psc_array.recompute_currents()
 
         gammas1 = np.array([c.gamma() for c in psc_array.psc_curves])
-        gammadashs1 = np.array([c.gammadash() for c in psc_array.psc_curves])
         currents2 = np.array([c.current.get_value() for c in psc_array.coils_TF])
         gammas2 = np.array([c.curve.gamma() for c in psc_array.coils_TF])
         gammadashs2 = np.array([c.curve.gammadash() for c in psc_array.coils_TF])

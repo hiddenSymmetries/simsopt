@@ -1,8 +1,6 @@
 from math import pi
 import numpy as np
-from jax import vjp, jvp, jacrev, jacfwd
-import jax.numpy as jnp
-from jax import grad
+from jax import vjp, jacrev
 
 from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
