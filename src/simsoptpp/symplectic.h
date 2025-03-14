@@ -85,8 +85,10 @@ public:
     array<double, 2> bracket_dvpardt = {}; 
     typedef typename SymplField::State State;
 
-    double tlast = 0.0;
+    // bounds of interval for interpolation between time steps
+    double tlast = 0.0; 
     double tcurrent = 0.0;
+    
     void update(double t, double dt, array<double, 4>  y, SymplField f);
     void calc_state(double eval_t, State &temp);
 };

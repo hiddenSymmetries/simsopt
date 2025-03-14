@@ -167,7 +167,9 @@ void sympl_dense::update(double t, double dt, array<double, 4>  y, SymplField f)
     bracket_dvpardt[1] = f.get_dvpardt();
 }
 
+// Perform hermite interpolation between timesteps for computing stopping criteria
 void sympl_dense::calc_state(double eval_t, State &temp) {
+    assert (tlast <= eval_t && eval_t <= tcurrent);
     temp[0] = cubic_hermite_interp(tlast, tcurrent, bracket_s[0], bracket_s[1], bracket_dsdt[0], bracket_dsdt[1], eval_t);
     temp[1] = cubic_hermite_interp(tlast, tcurrent, bracket_theta[0], bracket_theta[1], bracket_dthdt[0], bracket_dthdt[1], eval_t);
     temp[2] = cubic_hermite_interp(tlast, tcurrent, bracket_zeta[0], bracket_zeta[1], bracket_dzedt[0], bracket_dzedt[1], eval_t);
@@ -230,7 +232,8 @@ tuple<vector<array<double, SymplField::Size+1>>, vector<array<double, SymplField
     double pzeta_guess = z[3];
 
     do {
-        if (!forget_exact_path || t==0){
+        // Save initial point
+        if (t==0){
             res.push_back(join<1,SymplField::Size>({t}, y));
         }
 
@@ -327,11 +330,9 @@ tuple<vector<array<double, SymplField::Size+1>>, vector<array<double, SymplField
                 if (t_save != 0) {
                     vpar_last = res.back()[4];
                     zeta_last = res.back()[3];
-                    std::cout << "zeta_last: " << zeta_last << std::endl;
                     dense.calc_state(t_save, temp);
                     vpar_current = temp[3];
                     zeta_current = temp[2];
-                    std::cout << "zeta_current: " << zeta_current << std::endl;
                     // Only save if we have not hit any stopping criteria
                     stop = check_stopping_criteria<SymplField,sympl_dense>(f, 
                         temp, iter, res, res_hits, dense,      
@@ -355,7 +356,7 @@ tuple<vector<array<double, SymplField::Size+1>>, vector<array<double, SymplField
     // Save t = tmax
     if(!stop){
         dense.calc_state(tmax, y);
-        t = tmax;   
+        t = tmax;
         res.push_back(join<1,SymplField::Size>({t}, {y}));
     } 
 
