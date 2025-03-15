@@ -104,11 +104,6 @@ jobs:
     - name: Install simsopt package
       run: env CMAKE_BUILD_TYPE=Debug pip install -v .[MPI]
 
-    - name: Run SurfaceRZFourier tests
-      run: | 
-        cd tests
-        python -m unittest geo.test_surface_rzfourier
-
     - name: Verify that importing simsopt does not automatically initialize MPI
       run: ./tests/verify_MPI_not_initialized.py
 

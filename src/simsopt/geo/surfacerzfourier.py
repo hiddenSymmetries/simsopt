@@ -831,11 +831,12 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             R_basis_funcs = np.concatenate((cos_terms, sin_terms), axis=1)
             Z_basis_funcs = R_basis_funcs
 
-        # Fit the mode amplitudes to the new points:
-        if not np.all(np.isfinite(R)):
-            print("extend_via_normal: R has non-finite values. isnan: ", np.any(np.isnan(R)), " isinf: ", np.any(np.isinf(R)))
-        if not np.all(np.isfinite(R_basis_funcs)):
-            print("extend_via_normal: R_basis_funcs has non-finite values. isnan: ", np.any(np.isnan(R_basis_funcs)), " isinf: ", np.any(np.isinf(R_basis_funcs)))
+        # Fit the mode amplitudes to the new points.
+        # For some os + python + numpy versions there are errors with numpy linear algebra.
+        # This causes a test to fail in the Github Actions CI, as of 3/15/2025.
+        # A solution suggested by Ken Hammond is to call the function a 2nd time
+        # if it fails the first time. Ref:
+        # https://github.com/hiddenSymmetries/simsopt/pull/467#issuecomment-2691164408
         try:
             R_dofs = np.linalg.lstsq(R_basis_funcs, R, rcond=None)[0]
         except np.linalg.LinAlgError:
