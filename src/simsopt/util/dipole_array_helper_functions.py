@@ -3,12 +3,13 @@ This module contains the a number of useful functions for
 optimizing dipole arrays in the SIMSOPT code.
 """
 __all__ = ['remove_inboard_dipoles',
-           'remove_interlinking_dipoles_and_TFs']
+           'remove_interlinking_dipoles_and_TFs',
+           'align_dipoles_with_plasma']
 
 import numpy as np
 
 
-def remove_inboard_dipoles(plasma_surf, base_curves):
+def remove_inboard_dipoles(plasma_surf, base_curves, eps=-0.4):
     """
     Remove all the dipole coils on the inboard side. Useful if the desired plasma
     configuration is fairly compact, so no room for dipoles on inboard side.
@@ -26,7 +27,6 @@ def remove_inboard_dipoles(plasma_surf, base_curves):
     for ii in range(len(base_curves)):
         counter = 0
         for i in range(base_curves[0].gamma().shape[0]):
-            eps = -0.4
             dij = np.sqrt(np.sum((base_curves[ii].gamma()[i, :]) ** 2))
             conflict_bool = (dij < (1.0 + eps) * plasma_surf.get_rc(0, 0))
             if conflict_bool:
@@ -76,3 +76,20 @@ def remove_interlinking_dipoles_and_TFs(base_curves, base_curves_TF):
         if counter == 0:
             keep_inds.append(ii)
     return np.array(base_curves)[keep_inds]
+
+def align_dipoles_with_plasma(plasma_surf, base_curves):
+    ncoils = len(base_curves)
+    coil_normals = np.zeros((ncoils, 3))
+    plasma_points = plasma_surf.gamma().reshape(-1, 3)
+    plasma_unitnormals = plasma_surf.unitnormal().reshape(-1, 3)
+    for i in range(ncoils):
+        point = (base_curves[i].get_dofs()[-3:])
+        dists = np.sum((point - plasma_points) ** 2, axis=-1)
+        min_ind = np.argmin(dists)
+        coil_normals[i, :] = plasma_unitnormals[min_ind, :]
+    coil_normals = coil_normals / np.linalg.norm(coil_normals, axis=-1)[:, None]
+    alphas = np.arcsin(
+        -coil_normals[:, 1],
+    )
+    deltas = np.arctan2(coil_normals[:, 0], coil_normals[:, 2])
+    return alphas, deltas
