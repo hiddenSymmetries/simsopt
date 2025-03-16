@@ -23,7 +23,7 @@ import time
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import regularization_rect, PSCArray
-from simsopt.field.force import coil_force, coil_torque, coil_net_torques, coil_net_forces, LpCurveForce, \
+from simsopt.field.force import coil_net_torques, coil_net_forces, LpCurveForce, \
     SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque, pointData_forces_torques
 from simsopt.util import calculate_on_axis_B, make_Bnormal_plots
@@ -158,7 +158,7 @@ aa = 0.03
 bb = 0.03
 
 # Whether to restart from a previous run
-continuation_run = True
+continuation_run = False
 
 if continuation_run:
     input_dir = "CSX_passive_coils/"
@@ -304,7 +304,7 @@ else:
     CS_WEIGHT = 1
 
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(0.0)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(1e-30)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons

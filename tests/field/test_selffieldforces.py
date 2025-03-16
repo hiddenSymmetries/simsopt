@@ -552,6 +552,57 @@ class CoilForcesTest(unittest.TestCase):
                 if i % 10 == 0:  # Torques dJ converges weakly, not monotonic
                     err = err_new
 
+    def test_Taylor_PSC(self):
+        from simsopt.field import PSCArray
+        nfp = 3
+        ncoils = 4
+        I = 1.7e4
+        a = 0.05
+        regularization = regularization_circ(a)
+        eval_points = np.random.rand(100, 3)
+        base_curves_TF = create_equally_spaced_curves(ncoils, nfp, True)
+        base_currents_TF = [Current(I) for j in range(ncoils)]
+        coils_TF = coils_via_symmetries(base_curves_TF, base_currents_TF, nfp, True)
+        base_curves = create_equally_spaced_curves(ncoils, nfp, True, R0=0.5, R1=0.1)
+        a_list = np.ones(len(base_curves)) * a
+        b_list = a_list
+        psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=nfp, stellsym=True)
+        coils = psc_array.coils
+        coils_TF = psc_array.coils_TF
+        base_coils = coils[:len(base_curves)]
+        base_coils_TF = coils_TF[:len(base_curves_TF)]
+        all_coils = coils + coils_TF
+        all_base_coils = base_coils + base_coils_TF
+        p = 2.5
+        threshold = 0.0
+        objectives = [
+            sum([NetFluxes(all_base_coils[i], all_base_coils) for i in range(len(all_base_coils))]),
+            sum([TVE(all_base_coils[i], all_base_coils, a=0.05) for i in range(len(all_base_coils))]),
+            sum([LpCurveForce(all_base_coils[i], all_base_coils, regularization, p=p, threshold=threshold) for i in range(len(all_base_coils))]),
+            sum([LpCurveTorque(all_base_coils[i], all_base_coils, regularization, p=p, threshold=threshold) for i in range(len(all_base_coils))]),
+            sum([SquaredMeanForce(all_base_coils[i], all_base_coils) for i in range(len(all_base_coils))]),
+            sum([SquaredMeanTorque(all_base_coils[i], all_base_coils) for i in range(len(all_base_coils))]),
+        ]
+        for J in objectives:
+            dJ = J.dJ()
+            deriv = np.sum(dJ * np.ones_like(J.x))
+            dofs = J.x
+            h = np.ones_like(dofs)
+            err = 1e3
+            print('Objective = ', J)
+            for i in range(10, 21):
+                eps = 0.5**i
+                J.x = dofs + eps * h
+                Jp = J.J()
+                J.x = dofs - eps * h
+                Jm = J.J()
+                deriv_est = (Jp - Jm) / (2 * eps)
+                err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
+                print("taylor_test i: ", i, "deriv_FD: ", deriv_est, "deriv: ", deriv, "rel_err: ", err_new)  # , "err:", err, "ratio:", err_new / err)
+                # np.testing.assert_array_less(err_new, 0.5 * err)
+                if i % 10 == 0:  # Torques dJ converges weakly, not monotonic
+                    err = err_new
+
     def objectives_time_test(self):
         import time
         nfp = 3
