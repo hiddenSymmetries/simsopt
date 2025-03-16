@@ -9,15 +9,14 @@ import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.field import regularization_rect
-from simsopt.field.force import coil_net_torques, coil_net_forces, LpCurveForce, \
+from simsopt.field.force import LpCurveForce, \
     SquaredMeanForce, \
-    SquaredMeanTorque, LpCurveTorque, pointData_forces_torques
+    SquaredMeanTorque, LpCurveTorque
 from simsopt.util import calculate_on_axis_B, remove_interlinking_dipoles_and_TFs, \
-    align_dipoles_with_plasma
+    align_dipoles_with_plasma, initialize_coils, save_coil_sets
 from simsopt.geo import (
-    CurveLength, CurveCurveDistance, create_equally_spaced_curves,
-    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
-    SurfaceRZFourier, curves_to_vtk, create_planar_curves_between_two_toroidal_surfaces
+    CurveLength, CurveCurveDistance, MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
+    SurfaceRZFourier, create_planar_curves_between_two_toroidal_surfaces
 )
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 
@@ -64,39 +63,8 @@ s_plot = SurfaceRZFourier.from_vmec_input(
     quadpoints_theta=quadpoints_theta
 )
 
-
-def initialize_coils_QH(TEST_DIR, s):
-    # generate planar TF coils
-    ncoils = 2
-    R0 = s.get_rc(0, 0) * 1
-    R1 = s.get_rc(1, 0) * 4
-    order = 4
-
-    from simsopt.mhd.vmec import Vmec
-    vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
-    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.4
-    print('Total current = ', total_current)
-
-    # Only need Jax flag for CurvePlanarFourier class
-    base_curves = create_equally_spaced_curves(
-        ncoils, s.nfp, stellsym=True,
-        R0=R0, R1=R1, order=order, numquadpoints=256,
-        jax_flag=False,
-    )
-
-    base_currents = [(Current(total_current / ncoils * 1e-7) * 1e7) for _ in range(ncoils - 1)]
-    total_current = Current(total_current)
-    total_current.fix_all()
-    base_currents += [total_current - sum(base_currents)]
-    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-
-    # Initialize the coil curves and save the data to vtk
-    curves = [c.curve for c in coils]
-    return base_curves, curves, coils, base_currents
-
-
 # initialize the coils
-base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils_QH(TEST_DIR, s)
+base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, "LandremanPaulQH")
 num_TF_unique_coils = len(base_curves_TF)
 print('Ncoils = ', num_TF_unique_coils)
 base_coils_TF = coils_TF[:num_TF_unique_coils]
@@ -124,11 +92,12 @@ Ny = Nx
 Nz = Nx
 # Create the initial coils:
 base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-    s, s_inner, s_outer, Nx, Ny, Nz, order=order, 
+    s, s_inner, s_outer, Nx, Ny, Nz, order=order,
     numquadpoints=40  # Defaults is (order + 1) * 40 so this halves it
 )
 base_curves = remove_interlinking_dipoles_and_TFs(base_curves, base_curves_TF)
 ncoils = len(base_curves)
+print('Number of dipole coils = ', ncoils)
 alphas, deltas = align_dipoles_with_plasma(s, base_curves)
 for i in range(len(base_curves)):
     alpha2 = alphas[i] / 2.0
@@ -171,7 +140,6 @@ base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_T
 
 
 LENGTH_WEIGHT = Weight(0.01)
-LENGTH_TARGET = 80
 LINK_WEIGHT = 1e4
 CC_THRESHOLD = 0.8
 CS_THRESHOLD = 1.5
@@ -180,6 +148,7 @@ if continuation_run:
     CC_WEIGHT = 1e0
     CS_WEIGHT = 1e1
 else:
+    LENGTH_TARGET = 80
     CC_WEIGHT = 1e1
     CS_WEIGHT = 1e2
 # Weight for the Coil Coil forces term
@@ -188,29 +157,11 @@ TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10
 FORCE_WEIGHT = Weight(1e-36)  # 1e-36 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(1e-24)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = ("./QH_dipole_arrays/")
+OUT_DIR = ("./QH_dipole_array/")
 # if os.path.exists(OUT_DIR):
 #     shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
-
-curves_to_vtk(
-    curves_TF,
-    OUT_DIR + "curves_TF_initial" + file_suffix,
-    close=True,
-    extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
-    I=currents_TF,
-    NetForces=coil_net_forces(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-    NetTorques=coil_net_torques(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF)
-)
-curves_to_vtk(
-    curves,
-    OUT_DIR + "curves_dipoles_initial" + file_suffix,
-    close=True,
-    extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
-    I=currents,
-    NetForces=coil_net_forces(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
-    NetTorques=coil_net_torques(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns)
-)
+save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 # Force and Torque calculations spawn a bunch of spurious BiotSavart child objects -- erase them!
 for c in (coils + coils_TF):
     c._children = set()
@@ -348,27 +299,8 @@ print("""
 """)
 
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
-                options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-15)
-
-dipole_currents = [c.current.get_value() for c in bs.coils]
-curves_to_vtk(
-    [c.curve for c in bs.coils],
-    OUT_DIR + "curves_dipoles_optimized" + file_suffix,
-    close=True,
-    extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
-    I=dipole_currents,
-    NetForces=coil_net_forces(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
-    NetTorques=coil_net_torques(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
-)
-curves_to_vtk(
-    [c.curve for c in bs_TF.coils],
-    OUT_DIR + "curves_TF_optimized" + file_suffix,
-    close=True,
-    extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
-    I=[c.current.get_value() for c in bs_TF.coils],
-    NetForces=coil_net_forces(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-    NetTorques=coil_net_torques(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-)
+               options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-15)
+save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 for c in (coils + coils_TF):
     c._children = set()
 
@@ -379,8 +311,6 @@ pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnorm
 s_plot.to_vtk(OUT_DIR + "surf_optimized" + file_suffix, extra_data=pointData)
 
 btot.set_points(s.gamma().reshape((-1, 3)))
-print('Max I = ', np.max(np.abs(dipole_currents)))
-print('Min I = ', np.min(np.abs(dipole_currents)))
 calculate_on_axis_B(btot, s)
 
 t2 = time.time()

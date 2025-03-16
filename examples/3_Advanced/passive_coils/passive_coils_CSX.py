@@ -44,7 +44,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 
-# Get the plasma surface corresponding to the CSX plasma obtained using the 
+# Get the plasma surface corresponding to the CSX plasma obtained using the
 # window panes (with best quasisymmetry reported in the paper)
 input_name = 'wout_csx_wps_5.0.nc'
 filename = TEST_DIR / input_name
@@ -222,7 +222,7 @@ else:
     order = 0
     # Create the initial coils:
     base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-        s, s_inner, s_outer, Nx, Ny, Nz, order=order, 
+        s, s_inner, s_outer, Nx, Ny, Nz, order=order,
     )
 
     # Remove all the coils on the inboard side!
@@ -404,6 +404,7 @@ if TORQUE_WEIGHT.value > 0.0:
 if TORQUE_WEIGHT2.value > 0.0:
     JF += TORQUE_WEIGHT2 * Jtorque2
 
+
 def fun(dofs):
     JF.x = dofs
     # absolutely essential line that updates the PSC currents even though they are not
@@ -485,7 +486,7 @@ if continuation_run:
 else:
     MAXITER = 200
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',   # bounds=opt_bounds,
-                options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-15)
+               options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-15)
 
 bpsc = btot.Bfields[0]
 bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
@@ -512,20 +513,20 @@ curves_to_vtk(
 
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-                "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+             "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_full_final", extra_data=pointData)
 
 btf = btot.Bfields[1]
 btf.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-                "B_N / B": (np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+             "B_N / B": (np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btf.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_full_TF", extra_data=pointData)
 
 bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-                "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+             "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_full_PSC", extra_data=pointData)
 

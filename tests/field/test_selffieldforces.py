@@ -571,7 +571,6 @@ class CoilForcesTest(unittest.TestCase):
         coils_TF = psc_array.coils_TF
         base_coils = coils[:len(base_curves)]
         base_coils_TF = coils_TF[:len(base_curves_TF)]
-        all_coils = coils + coils_TF
         all_base_coils = base_coils + base_coils_TF
         p = 2.5
         threshold = 0.0
@@ -599,8 +598,8 @@ class CoilForcesTest(unittest.TestCase):
                 deriv_est = (Jp - Jm) / (2 * eps)
                 err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
                 print("taylor_test i: ", i, "deriv_FD: ", deriv_est, "deriv: ", deriv, "rel_err: ", err_new)  # , "err:", err, "ratio:", err_new / err)
-                # np.testing.assert_array_less(err_new, 0.5 * err)
                 if i % 10 == 0:  # Torques dJ converges weakly, not monotonic
+                    np.testing.assert_array_less(err_new, 1e-3 * err)
                     err = err_new
 
     def objectives_time_test(self):
