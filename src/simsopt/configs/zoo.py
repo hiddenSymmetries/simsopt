@@ -2,22 +2,36 @@ import numpy as np
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.coil import Current
+from simsopt._core.dev import SimsoptRequires
+from simsopt._core.json import GSONDecoder
+import json
+
+try:
+    import requests
+
+    try:
+        import joblib 
+        memory = joblib.Memory('./quasr_request_cache', verbose=0)
+    except ImportError:
+        memory = None
+except ImportError:
+    requests = None
+    memory = None
 
 from pathlib import Path
+
 THIS_DIR = (Path(__file__).parent).resolve()
 
-__all__ = ['get_ncsx_data', 'get_hsx_data', 'get_giuliani_data', "get_w7x_data"]
+__all__ = ['get_ncsx_data', 'get_hsx_data', 'get_giuliani_data', "get_w7x_data", 'get_QUASR_data']
 
 
 def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
     """
     Get a configuration that corresponds to the modular coils of the NCSX experiment (circular coils are not included).
-
     Args:
         Nt_coils: order of the curves representing the coils.
         Nt_ma: order of the curve representing the magnetic axis.
         ppp: point-per-period: number of quadrature points per period
-
     Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
     """
     filename = THIS_DIR / 'NCSX.dat'
@@ -40,7 +54,6 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
         2.484591855376312e-10, -3.803223187770488e-11, -2.909708414424068e-11, -2.009192074867161e-12,
         1.775324360447656e-12, -7.152058893039603e-13, -1.311461207101523e-12, -6.141224681566193e-13,
         -6.897549209312209e-14]
-
     numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
     ma = CurveRZFourier(numpoints, Nt_ma, nfp, True)
     ma.rc[:] = cR[0:(Nt_ma+1)]
@@ -52,12 +65,10 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
 def get_hsx_data(Nt_coils=16, Nt_ma=10, ppp=10):
     """
     Get a configuration that corresponds to the modular coils of the HSX experiment.
-
     Args:
         Nt_coils: order of the curves representing the coils.
         Nt_ma: order of the curve representing the magnetic axis.
         ppp: point-per-period: number of quadrature points per period
-
     Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
     """
     filename = THIS_DIR / 'HSX.dat'
@@ -78,7 +89,6 @@ def get_hsx_data(Nt_coils=16, Nt_ma=10, ppp=10):
           -1.056254779440627595e-07, -1.112799365280694501e-07, -5.381768314066269919e-08, -1.484193645281248712e-08, 
           1.160936870766209295e-08, 1.466392841646290274e-08, 1.531935984912975004e-09, -6.857347022910395347e-09, 
           -4.082678667917087128e-09]
-
     numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
     ma = CurveRZFourier(numpoints, Nt_ma, nfp, True)
     ma.rc[:] = cR[0:(Nt_ma+1)]
@@ -89,21 +99,16 @@ def get_hsx_data(Nt_coils=16, Nt_ma=10, ppp=10):
 
 def get_giuliani_data(Nt_coils=16, Nt_ma=10, ppp=10, length=18, nsurfaces=5):
     """
-
     This example simply loads the coils after the nine stage optimization runs discussed in
-
        A. Giuliani, F. Wechsung, M. Landreman, G. Stadler, A. Cerfon, Direct computation of magnetic surfaces in Boozer coordinates and coil optimization for quasi-symmetry. Journal of Plasma Physics.
-
     Args:
         Nt_coils: order of the curves representing the coils.
         Nt_ma: order of the curve representing the magnetic axis.
         ppp: point-per-period: number of quadrature points per period
-
     Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
     """
     assert length in [18, 20, 22, 24]
     assert nsurfaces in [5, 9]
-
     filename = THIS_DIR / f'GIULIANI_length{length}_nsurfaces{nsurfaces}'
     curves = CurveXYZFourier.load_curves_from_file(filename.with_suffix('.curves'), order=Nt_coils, ppp=ppp)
     currents = [Current(c) for c in np.loadtxt(filename.with_suffix('.currents'))]
@@ -111,7 +116,6 @@ def get_giuliani_data(Nt_coils=16, Nt_ma=10, ppp=10, length=18, nsurfaces=5):
     cR = ma_dofs[:26]
     sZ = ma_dofs[26:]
     nfp = 2
-
     numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
     ma = CurveRZFourier(numpoints, Nt_ma, nfp, True)
     ma.rc[:] = cR[:(Nt_ma+1)]
@@ -123,19 +127,16 @@ def get_giuliani_data(Nt_coils=16, Nt_ma=10, ppp=10, length=18, nsurfaces=5):
 def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
     """
     Get the W7-X coils and magnetic axis.
-
     Note that this function returns 7 coils: the 5 unique nonplanar
     modular coils, and the 2 planar (A and B) coils. The coil currents
     returned by this function correspond to the "Standard
     configuration", in which the planar A and B coils carry no current.
-
     The coils shapes here came from Fourier-transforming the xgrid
     input file coils.w7x_v001, obtained from Joachim Geiger in an
     email to Florian Wechsung and others on Sept 27, 2022.  With 96
     quadrature points, the Fourier modes here reproduce the Cartesian
     coordinate data from coils.w7x_v001 to ~ 1e-13 meters. Some
     description from Joachim:
-
     "I have attached two coils-files which contain the filaments
     suitable for generating the mgrid-file for VMEC with xgrid. They
     contain the non-planar and the planar coils in a one-filament
@@ -149,12 +150,10 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
     CAD-coils, i.e. w7x_v001, although the other coil-set had been
     used in the PPCF-paper for citation.  If there are any further
     questions, do not hesitate to contact me."
-
     Args:
         Nt_coils: order of the curves representing the coils.
         Nt_ma: order of the curve representing the magnetic axis.
         ppp: point-per-period: number of quadrature points per period.
-
     Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
     """
     filename = THIS_DIR / "W7-X.dat"
@@ -180,10 +179,63 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
         6.19785500011441e-05, 1.36521157246782e-05, -1.46281683516623e-05, 
         -1.5142136543872e-06
     ]
-
     numpoints = Nt_ma * ppp+1 if ((Nt_ma * ppp) % 2 == 0) else Nt_ma * ppp
     ma = CurveRZFourier(numpoints, Nt_ma, nfp, True)
     ma.rc[:] = cR[0:(Nt_ma+1)]
     ma.zs[:] = sZ[0:Nt_ma]
     ma.x = ma.get_dofs()
     return (curves, currents, ma)
+
+
+@SimsoptRequires(requests is not None, "You need to install the requests library to use this function. Run 'pip install requests'")
+def get_QUASR_data(ID, return_style='quasr-style'): 
+    """
+    Download a configuration from the QUASR database.
+    Args:
+        ID: the ID of the configuration to download.  The database is navigatable at https://quasr.flatironinstitute.org/
+            Alternatively, you can download the latest full set of devices from https://zenodo.org/doi/10.5281/zenodo.10050655
+        
+        return_style: 'simsopt-style' or 'quasr-style'. '. 
+                      simsopt-style: [coils_1fp, surface], similar to get_ncsx_data(), gives the curves and currenst for one field period,
+                      which you can copy and rotate using simsopt methods (allows finer control over degrees-of-freedom). 
+                      NOTE: this does not return the magnetic axis. 
+                      quasr-style: [coils_all, surfaces], returns all coils and all surfaces in the object. 
+        returns: depending on return_style: 
+           simsopt-style: [list of simsopt.geo.Coil objects, list of simsopt.field.Current objects]
+           quasr-style: [list of simsopt.geo.SurfaceXYZTensorFourier objects, list of simsopt.field.COIL objects]
+    """
+    
+    if return_style not in ['simsopt-style', 'quasr-style']:
+        raise ValueError(f"invalid return_style: {return_style}, must be either simsopt-style or quasr-style")
+    
+    id_str = f"{ID:07d}"
+    # string to 7 digits
+    url = f'https://quasr.flatironinstitute.org/simsopt_serials/{id_str[0:4]}/serial{id_str}.json'
+
+    if memory:
+        requests_get = memory.cache(requests.get)
+    else:
+        requests_get = requests.get
+        if not hasattr(get_QUASR_data, "cache_warning_issued"):
+            print("Warning: Caching of requests to the QUASR database is available if joblib is installed.")
+            get_QUASR_data.cache_warning_issued = True
+
+    with requests_get(url) as r:
+        if r.status_code == 200:
+            print(f"Configuration with ID {ID:07} downloaded successfully")
+            surfaces, coils = json.loads(r.content, cls=GSONDecoder)
+        else:
+            raise ValueError(f"Download of ID {ID:07d} failed. Status code: {r.status_code}\n Check if the confituration exists")
+    
+    if return_style == 'simsopt-style':
+        nfp = surfaces[0].nfp
+        nc_per_hp = len(coils) // nfp // (1 + surfaces[0].stellsym)
+        coils = coils[:nc_per_hp]
+        curves = [coil.curve for coil in coils]
+        currents = [coil.current for coil in coils]
+        return curves, currents
+    elif return_style == 'quasr-style':
+        return surfaces, coils
+    else: 
+        raise ValueError  #should not be reached as we check before download to avoid clobbering the database
+
