@@ -3,6 +3,7 @@
 # and using their properties (Residue, location, etc) in optimizations. 
 # Also provides methods for calculating turnstile areas (measure for stochastic transport)
 # Chris Smiet Feb 2025  christopher.smiet@epfl.ch
+# 
 
 import numpy as np
 from scipy.integrate import solve_ivp
@@ -395,6 +396,19 @@ class SimpleIntegrator(Optimizable):
         phi_end = phi_start + phi_total
         rphiz = self.integrate_fieldlinepoints_RZ(RZ_start, phi_start, phi_end, n_points)
         return _rphiz_to_xyz(rphiz)
+    
+    def integration_function3d(self, t, xyz):
+        self.field.set_points(xyz[None,:])
+        B = self.field.B().flatten()
+        return B/np.linalg.norm(B)
+    
+    def integrate_3d_fieldlinepoints_xyz(self, xyz_start, l_total, n_points):
+        """
+        integrate a fieldline for a given toroidal distance, return the points in xyz
+        """
+        sol = solve_ivp(self.integration_function3d, [0, l_total], xyz_start, t_eval=np.linspace(0, l_total, n_points),  method='RK45', rtol=self.TOL, atol=self.TOL)
+        return sol.y.T
+        
     
     def _return_fieldline_iterator(self, RZ_start, phi_start, phi_distance):
         """
