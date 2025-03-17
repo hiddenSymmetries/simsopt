@@ -86,7 +86,7 @@ class PyOculusFixedPoint(Optimizable):
                  phi_0: float = 0.,
                  fp_order: int = 1,
                  axis: Union[bool, NDArray[np.float64]] = False,
-                 integration_tol: float = 1e-9,
+                 integration_tol: float = 1e-12,
                  finder_tol: float = 1e-9,
                  integration_args: dict = dict(),
                  finder_args: dict = dict()):
@@ -233,7 +233,9 @@ class ClinicConnection(Optimizable):
                  stable_epsilons: Iterable = None,
                  unstable_epsilons: Iterable = None,
                  nretry_clinicfinding: int = 1,
-                 nextratries_clinicfinding: int = 0
+                 nextratries_clinicfinding: int = 0,
+                 clinicfinding_argument_dict = dict(),
+                 ERR = 1e-3
                  ):
         """
         Initialize a ClinicConnection
@@ -267,6 +269,8 @@ class ClinicConnection(Optimizable):
         self._unstable_epsilons = unstable_epsilons
         self._nretry_clinicfinding = nretry_clinicfinding
         self._nextratries_clinicfinding = nextratries_clinicfinding
+        self._clinicfinding_argument_dict = clinicfinding_argument_dict
+        self._ERR = ERR
         self._manifold = Manifold(fp1._map, fp1._fixed_point, fp2._fixed_point, dir1, dir2, first_stable)
         self.set_true_directions()
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[fp1, fp2])
@@ -305,26 +309,26 @@ class ClinicConnection(Optimizable):
         self.set_true_directions()
         try:
             # find the first fundamental clinic:
-            self._manifold.find_clinic_single(self._stable_epsilons[0], self._unstable_epsilons[0], n_s=self._ns, n_u=self._nu, nretry=self._nretry_clinicfinding)
+            self._manifold.find_clinic_single(self._stable_epsilons[0], self._unstable_epsilons[0], n_s=self._ns, n_u=self._nu, nretry=self._nretry_clinicfinding, reset_clinics=True, root_args = self._clinicfinding_argument_dict, ERR=self._ERR)
         except Exception as e:
             raise ObjectiveFailure("Failed to find fundamental clinic") from e
         # find the others with one less nu:
         for eps_s_guess, eps_u_guess in zip(self._stable_epsilons[1:], self._unstable_epsilons[1:]):
             try:
-                self._manifold.find_clinic_single(eps_s_guess, eps_u_guess, n_s=self._ns-1, n_u=self._nu, nretry=self._nretry_clinicfinding)
+                self._manifold.find_clinic_single(eps_s_guess, eps_u_guess, n_s=self._ns-1, n_u=self._nu, nretry=self._nretry_clinicfinding, ERR=self._ERR, root_args=self._clinicfinding_argument_dict)
             except Exception as e:
                 print(f"one of the clinic finders failed due to {e}, will only fail if total found clinics becomes less than order")
         for shift in np.linspace(0, 1, self._nextratries_clinicfinding +1, endpoint=False)[1:]:
             try:
-                self._manifold.find_other_clinic(shift_in_stable=shift, nretry=self._nretry_clinicfinding)
-            except:
+                self._manifold.find_other_clinic(shift_in_stable=shift, nretry=self._nretry_clinicfinding, root_args=self._clinicfinding_argument_dict, ERR=self._ERR)
+            except Exception as e:
                 print(f"extra finding attempt did not succeed because {e}, will only fail if total found clinics becomes less than order")
-        if self._manifold.clinics.size <= self._order:
+        if self._manifold.clinics.size < self._order:
             raise ObjectiveFailure("Failed to find all clinics")
         if np.abs(np.sum(self._manifold.turnstile_areas)) > np.max(np.abs(self._manifold.turnstile_areas))/1e3:
             raise ObjectiveFailure("Escaping Chickens! extra clinics required")
-        self._stable_epsilons = self._manifold.clinics.stable_epsilons
-        self._unstable_epsilons = self._manifold.unstable_epsilons
+        self._stable_epsilons = self._manifold.clinics.stable_epsilons[:-1]
+        self._unstable_epsilons = self._manifold.clinics.unstable_epsilons[:-1]
         self._need_to_reset = False
 
     def J(self):
@@ -351,6 +355,8 @@ class SimpleIntegrator(Optimizable):
         dR/dphi = R*B_R/B_phi,
         dZ/dphi = R*B_Z/B_phi
         """
+        if np.any(np.isnan(rz)):
+            return np.ones_like(rz)*np.nan
         R, Z = rz
         rphiz = np.array([R, t, Z])
         B = self.field.set_points_cyl(rphiz[None, :])
@@ -380,7 +386,7 @@ class SimpleIntegrator(Optimizable):
         """
         sol = solve_ivp(self.integration_fn, [phi_start, phi_end], RZ_start, events=self.event_function, method='RK45', rtol=self.TOL, atol=self.TOL)
         if not sol.success:
-            raise ObjectiveFailure("Failed to integrate field line")
+            return np.array(np.nan, np.nan)
         return sol.y[:, -1]
 
     def integrate_fieldlinepoints_RZ(self, RZ_start, phi_start, phi_end, n_points, return_cartesian=False):
