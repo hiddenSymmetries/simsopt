@@ -310,10 +310,10 @@ print("""
 ################################################################################
 """)
 
-MAXITER = 2000
+MAXITER = 500
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
-               options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-20)
-save_coil_sets(btot, OUT_DIR, "_optimized", a, b, nturns_TF, aa, bb, nturns)
+               options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-10)
+save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2

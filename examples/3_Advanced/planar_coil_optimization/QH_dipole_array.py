@@ -24,7 +24,7 @@ from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 t1 = time.time()
 
 continuation_run = True
-MAXITER = 5000
+MAXITER = 2000
 if continuation_run:
     file_suffix = "_continuation"
 else:
@@ -165,7 +165,7 @@ LINK_WEIGHT = 1e4
 CC_THRESHOLD = 0.8
 CS_THRESHOLD = 1.5
 if continuation_run:
-    LENGTH_TARGET = 90
+    LENGTH_TARGET = 95
     CC_WEIGHT = 1e0
     CS_WEIGHT = 1e1
 else:
@@ -175,8 +175,8 @@ else:
 # Weight for the Coil Coil forces term
 FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-FORCE_WEIGHT = Weight(1e-36)  # 1e-36 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(1e-24)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(1e-35)  # 1e-36 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT2 = Weight(1e-22)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 
 save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 # Force and Torque calculations spawn a bunch of spurious BiotSavart child objects -- erase them!
@@ -316,7 +316,7 @@ print("""
 """)
 
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
-               options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-15)
+               options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-10)
 save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 for c in (coils + coils_TF):
     c._children = set()

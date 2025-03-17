@@ -20,9 +20,10 @@ ntheta = 64
 quadpoints_phi = np.linspace(0, 1, nphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
-input_name = 'wout_hybrid.nfp2.newProfiles.T0.14.n0.3e20.BandVscaled_000_001670_000_000000.nc'
-filename = input_name
-s = SurfaceRZFourier.from_wout(filename, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+input_name = 'input.schuetthenneberg_nfp2'  # 'wout_hybrid.nfp2.newProfiles.T0.14.n0.3e20.BandVscaled_000_001670_000_000000.nc'
+filename = TEST_DIR / input_name
+s = SurfaceRZFourier.from_vmec_input(filename, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+# s = SurfaceRZFourier.from_wout(filename, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
 Bfield = Optimizable.from_file(str(sys.argv[1]))
 Bfield.set_points(s.gamma().reshape((-1, 3)))
 BdotN = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
@@ -41,7 +42,8 @@ qfm_surf = qfm_surf.surface
 # qfm_surf.to_vtk('qfm_surf', extra_data=pointData)
 # qfm_surf.plot()
 
-vmec_input = "input.hybrid.nfp2.newProfiles.T0.14.n0.3e20.BandVscaled_000_001670_000_000000"
+vmec_input = str(filename)
+#vmec_input = "input.hybrid.nfp2.newProfiles.T0.14.n0.3e20.BandVscaled_000_001670_000_000000"
 equil2 = Vmec(vmec_input, mpi)
 # equil2.boundary = s
 equil2.run()

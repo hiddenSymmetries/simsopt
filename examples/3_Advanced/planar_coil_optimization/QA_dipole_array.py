@@ -320,7 +320,7 @@ print("""
 """)
 
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
-               options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+               options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-10)
 save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
