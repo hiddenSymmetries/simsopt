@@ -24,7 +24,7 @@ from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 
 t1 = time.time()
 
-continuation_run = False
+continuation_run = True
 if continuation_run:
     file_suffix = "_continuation"
 else:
@@ -40,7 +40,7 @@ order = 0
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 # input_name = 'wout_henneberg.nc'
-input_name = 'input.henneberg_nfp2'
+input_name = 'input.schuetthenneberg_nfp2'
 filename = TEST_DIR / input_name
 
 # Initialize the boundary magnetic surface:
@@ -98,7 +98,7 @@ if continuation_run:
     bs_TF.set_points(s.gamma().reshape((-1, 3)))
 else:
     # initialize the coils
-    base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, s, TEST_DIR, 'SchuettHennebergQAnfp2')
+    base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, 'SchuettHennebergQAnfp2')
     num_TF_unique_coils = len(base_curves_TF)
     base_coils_TF = coils_TF[:num_TF_unique_coils]
     currents_TF = np.array([coil.current.get_value() for coil in coils_TF])

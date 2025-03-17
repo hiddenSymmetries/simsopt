@@ -24,13 +24,17 @@ from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 
 t1 = time.time()
 
-continuation_run = False
+continuation_run = True
 if continuation_run:
     file_suffix = "_continuation"
     MAXITER = 2000
 else:
     file_suffix = ""
     MAXITER = 600
+
+# Directory for output
+OUT_DIR = ("./QA_dipole_array/")
+os.makedirs(OUT_DIR, exist_ok=True)
 
 # Number of Fourier modes describing each Cartesian component of each coil:
 order = 0
@@ -121,7 +125,7 @@ if not continuation_run:
     bs = BiotSavart(coils)
     btot = bs + bs_TF
 else:
-    btot = Optimizable.from_file("QA_dipole_array/biot_savart_optimized_QA.json")
+    btot = Optimizable.from_file("QA_dipole_array/biot_savart_optimized.json")
     bs = btot.Bfields[0]
     bs_TF = btot.Bfields[1]
     coils = bs.coils
@@ -175,11 +179,7 @@ FORCE_WEIGHT = Weight(1e-34)  # 1e-34 Forces are in Newtons, and typical values 
 FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(1e-22)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-# Directory for output
-OUT_DIR = ("./QA_dipole_array/")
-# if os.path.exists(OUT_DIR):
-#     shutil.rmtree(OUT_DIR)
-os.makedirs(OUT_DIR, exist_ok=True)
+
 save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 # Force and Torque calculations spawn a bunch of spurious BiotSavart child objects -- erase them!
 for c in (coils + coils_TF):

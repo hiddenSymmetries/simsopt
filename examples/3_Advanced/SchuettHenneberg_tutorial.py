@@ -1,5 +1,24 @@
 #!/usr/bin/env python
 r"""
+This example script runs joint optimization between a set of modular
+toroidal field (TF) coils and a set of dipole coils (a dipole array). 
+This procedure and various results are described in the following paper(s):
+    A. A. Kaptanoglu et al. 
+    Reactor-scale stellarators with force and torque minimized dipole coils
+    https://arxiv.org/abs/2412.13937
+    A. A. Kaptanoglu et al. 
+    Optimization of passive superconductors for shaping stellarator magnetic fields
+    https://arxiv.org/abs/2501.12468
+
+This script is substantially simplified to provide a simple
+illustration of performing dipole array optimization in SIMSOPT. Note that
+for a reactor-scale stellarator such as the one here, the optimization
+should include terms to reduce the forces and torques. You will find the solution
+has intolerably large forces and torques without adding this into optimization.
+
+More advanced examples of dipole array optimization
+can be found in examples/3_Advanced/planar_coil_optimization/ 
+and examples/3_Advanced/passive_coil_optimization/
 """
 
 import os
@@ -9,10 +28,6 @@ import time
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
-from simsopt.field import regularization_rect
-from simsopt.field.force import LpCurveForce, \
-    SquaredMeanForce, \
-    SquaredMeanTorque, LpCurveTorque
 from simsopt.util import calculate_on_axis_B, remove_inboard_dipoles, \
     remove_interlinking_dipoles_and_TFs, initialize_coils, \
     dipole_array_optimization_function, save_coil_sets
@@ -27,13 +42,15 @@ t1 = time.time()
 
 # Number of Fourier modes describing each Cartesian component of each coil:
 order = 0
+
+# Whether to fix the shapes, spatial locations/orientations, and currents of the dipole coils
 shape_fixed = True
 spatially_fixed = False
 currents_fixed = False
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
-input_name = 'input.henneberg_nfp2'
+input_name = 'input.schuetthenneberg_nfp2'
 filename = TEST_DIR / input_name
 
 # Initialize the boundary magnetic surface:
@@ -50,12 +67,11 @@ s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nph
 s_inner.extend_via_normal(poff)
 s_outer.extend_via_normal(poff + coff)
 
+# Make high resolution, full torus version of the plasma boundary for plotting
 qphi = nphi * 2
 qtheta = ntheta * 2
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
-
-# Make high resolution, full torus version of the plasma boundary for plotting
 s_plot = SurfaceRZFourier.from_vmec_input(
     filename,
     quadpoints_phi=quadpoints_phi,
@@ -92,7 +108,7 @@ Nx = 4
 Ny = Nx
 Nz = Nx
 base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-    s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=True, jax_flag=False,
+    s, s_inner, s_outer, Nx, Ny, Nz, order=order,
 )
 
 # Remove dipoles that are on the inboard side, since this plasma is very compact.
@@ -101,8 +117,10 @@ base_curves = remove_inboard_dipoles(s, base_curves)
 # Remove dipoles that are initialized interlinked with the TF coils.
 base_curves = remove_interlinking_dipoles_and_TFs(base_curves, base_curves_TF)
 
+# print out total number of dipole coils remaining
 ncoils = len(base_curves)
 print('Ncoils = ', ncoils)
+
 # Fix the dipole coil locations, shapes, and orientations, so that
 # only degree of freedom for each dipole is how much current it has
 for i in range(len(base_curves)):
@@ -137,24 +155,16 @@ btot.set_points(s.gamma().reshape((-1, 3)))
 bs.set_points(s.gamma().reshape((-1, 3)))
 curves = [c.curve for c in coils]
 currents = [c.current.get_value() for c in coils]
-a_list = np.hstack((np.ones(len(coils)) * aa, np.ones(len(coils_TF)) * a))
-b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
-base_a_list = np.hstack((np.ones(len(base_coils)) * aa, np.ones(len(base_coils_TF)) * a))
-base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_TF)) * b))
 
-LENGTH_WEIGHT = Weight(0.001)
-# LENGTH_WEIGHT2 = Weight(0.01)
+# Define the objective function weights
+LENGTH_WEIGHT2 = Weight(0.01)
 LENGTH_TARGET = 85
 LINK_WEIGHT = 1e4
 CC_THRESHOLD = 1.0
 CC_WEIGHT = 1e2
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e1
-# Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+
 # Directory for output
 OUT_DIR = ("./SchuettHenneberg_tutorial/")
 if os.path.exists(OUT_DIR):
@@ -185,15 +195,6 @@ Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 
 # While the coil array is not moving around, they cannot interlink.
 linkNum = LinkingNumber(curves + curves_TF, downsample=2)
-all_base_coils = base_coils + base_coils_TF
-Jforce = sum([LpCurveForce(c, allcoils, regularization_rect(a, b), p=4, threshold=8e5 * 100, downsample=1
-                           ) for i, c in enumerate(all_base_coils)])
-Jforce2 = sum([SquaredMeanForce(c, allcoils, downsample=1) for c in all_base_coils])
-
-# Errors creep in when downsample = 2
-Jtorque = sum([LpCurveTorque(c, allcoils, regularization_rect(a, b), p=2, threshold=4e5 * 100, downsample=1
-                             ) for i, c in enumerate(all_base_coils)])
-Jtorque2 = sum([SquaredMeanTorque(c, allcoils, downsample=1) for c in all_base_coils])
 
 CURVATURE_THRESHOLD = 0.5
 MSC_THRESHOLD = 0.05
@@ -215,18 +216,6 @@ JF = Jf \
 if not shape_fixed:
     JF += LENGTH_WEIGHT * Jlength2
 
-if FORCE_WEIGHT.value > 0.0:
-    JF += FORCE_WEIGHT.value * Jforce  # \
-
-if FORCE_WEIGHT2.value > 0.0:
-    JF += FORCE_WEIGHT2.value * Jforce2  # \
-
-if TORQUE_WEIGHT.value > 0.0:
-    JF += TORQUE_WEIGHT * Jtorque
-
-if TORQUE_WEIGHT2.value > 0.0:
-    JF += TORQUE_WEIGHT2 * Jtorque2
-
 # Define dictionary of objectives and weights to pass to dipole array
 # optimization function wrapper
 obj_dict = {
@@ -241,10 +230,6 @@ obj_dict = {
     "Jccdist2": Jccdist2,
     "Jcsdist": Jcsdist,
     "linkNum": linkNum,
-    "Jforce": Jforce,
-    "Jforce2": Jforce2,
-    "Jtorque": Jtorque,
-    "Jtorque2": Jtorque2,
     "btot": btot,
     "s": s,
     "base_curves_TF": base_curves_TF,
@@ -254,10 +239,6 @@ weight_dict = {
     "cc_weight": CC_WEIGHT,
     "cs_weight": CS_WEIGHT,
     "link_weight": LINK_WEIGHT,
-    "force_weight": FORCE_WEIGHT.value,
-    "net_force_weight": FORCE_WEIGHT2.value,
-    "torque_weight": TORQUE_WEIGHT.value,
-    "net_torque_weight": TORQUE_WEIGHT2.value,
 }
 
 # Run the optimization

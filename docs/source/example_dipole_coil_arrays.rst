@@ -48,17 +48,9 @@ addition to the dipole coils, we still need a set of toroidal field (TF) coils t
 flux in the stellarator. The goal of the dipole coils is primarily to reduce the 
 geometrical complexity of the TF coils. 
 
-In this first section we consider vacuum fields only, so the magnetic field
-due to current in the plasma does not need to be subtracted in the
-quadratic flux term. The configuration considered is the
-`C09R00 NCSX configuration <https://iopscience.iop.org/article/10.1088/1741-4326/aa57d4/meta?casa_token=wyeRjdz8ZeIAAAAA:qhfHYapwBezuGNINVqA7x1M2BSlOZLSGqpGyyQ6l-gxucBKmWjgAFN4-ZFVejB0kR1qEFP2R>`_,
-which is three-field-period and stellarator symmetric, and is scaled to 0.5 Tesla
-on-axis.
-
-The stage-2 optimization problem is automatically parallelized in
-simsopt using OpenMP and vectorization, but MPI is not used, so the
-``mpi4py`` python package is not needed. This example can be run in a
-few minutes on a laptop.
+We will optimize the `Schuett and Henneberg two-field-period quasi-axisymmetric stellarator  
+ <https://journals.aps.org/prresearch/pdf/10.1103/PhysRevResearch.6.L042052>`_,
+which is also stellarator symmetric and scaled to roughly 5.7 Tesla on-axis.
 
 To solve this optimization problem in simsopt, we first import the necessary classes::
   
@@ -68,15 +60,15 @@ To solve this optimization problem in simsopt, we first import the necessary cla
   from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
   from simsopt.solve import GPMO
 
-The target plasma surface is given in the wout input file ``tests/test_files/wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc``.
+The target plasma surface is given in the wout input file ``tests/test_files/input.schuetthenneberg_nfp2``.
 We load the surface with low-resolution using:
 
 .. code-block::
 
   nphi = 16
   ntheta = 16
-  filename = "tests/test_files/wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc"
-  s = SurfaceRZFourier.from_wout(filename, range="half period", nphi=nphi, ntheta=ntheta)
+  filename = "tests/test_files/input.schuetthenneberg_nfp2"
+  s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 You can adjust the directory in ``"filename"`` as appropriate for your
 system. As surface objects carry a grid of "quadrature points" at
@@ -88,8 +80,9 @@ surface. For this reason, the ``range`` parameter of the surface is
 set to ``"half period"`` here. Possible options in general are ``"full
 torus"``, ``"field period"`` and ``"half period"``, but ``"half
 period"`` is significantly more efficient than the other options for
-this problem. The nphi and ntheta parameters should be ~ 64 or so for a high-resolution
-and fully converged permanent magnet optimization run. 
+this problem. The nphi and ntheta parameters should be ~ 64 or so for a high-resolution run.
+We will now omit more of these normal details regarding stage-2 coil optimization 
+and focus on the dipole-array relevant parts. 
 
 We next set the initial condition for the coils. Usually, we would initialize
 some coil class objects, but for this example we have simplified by imagining

@@ -18,8 +18,12 @@ def remove_inboard_dipoles(plasma_surf, base_curves, eps=-0.4):
     configuration is fairly compact, so no room for dipoles on inboard side.
 
     Args:
+        plasma_surf: Surface object
+            The plasma boundary surface.
         base_curves:
             The curve objects for the dipoles in the array.
+        eps: float
+            Controls how inboard a dipole can be without being removed.
 
     Returns:
         base_curves:
@@ -55,7 +59,7 @@ def remove_interlinking_dipoles_and_TFs(base_curves, base_curves_TF, eps=0.05):
         base_curves_TF:
             The curve objects for the TF (modular) coils in the array.
         eps: float
-            controls how close a TF-dipole coil distance can be before being removed
+            controls how close a TF-dipole coil distance can be before being removed.
 
     Returns:
         base_curves:
@@ -83,6 +87,22 @@ def remove_interlinking_dipoles_and_TFs(base_curves, base_curves_TF, eps=0.05):
 
 
 def align_dipoles_with_plasma(plasma_surf, base_curves):
+    """
+    Initialize a set of dipole coils in base_curves
+    to point in the same direction as the nearest plasma surface normal.
+
+    Args:
+        plasma_surf: Surface object
+            The plasma boundary surface.
+        base_curves: list of Curve objects
+            The dipole coils to align with the plasma normals.
+
+    Returns:
+        alphas: np.ndarray
+            One of the unique angles of the planar dipole coils.
+        deltas: np.ndarray
+            The other unique Euler angle of the planar dipole coils.
+    """
     ncoils = len(base_curves)
     coil_normals = np.zeros((ncoils, 3))
     plasma_points = plasma_surf.gamma().reshape(-1, 3)
@@ -114,6 +134,7 @@ def initialize_coils(s, TEST_DIR, configuration):
         base_curves: List of CurveXYZ class objects.
         curves: List of Curve class objects.
         coils: List of Coil class objects.
+        base_currents: List of Current class objects.
     """
     from simsopt.geo import create_equally_spaced_curves
     from simsopt.field import Current, coils_via_symmetries
@@ -158,8 +179,21 @@ def initialize_coils(s, TEST_DIR, configuration):
 
 def dipole_array_optimization_function(dofs, obj_dict, weight_dict):
     """
-        Wrapper function for performing dipole array optimization.
+    Wrapper function for performing dipole array optimization.
 
+    Args:
+        dofs: np.ndarray
+            The degrees of freedom for the optimization.
+        obj_dict: dict
+            Dictionary of objective functions.
+        weight_dict: dict
+            Dictionary of weights for the objective functions.
+
+    Returns:
+        J: float
+            The objective function value.
+        grad: np.ndarray
+            The gradient of the objective function.
     """
     # unpack all the dictionary objects
     btot = obj_dict["btot"]
@@ -242,14 +276,35 @@ def dipole_array_optimization_function(dofs, obj_dict, weight_dict):
     return J, grad
 
 
-def save_coil_sets(btot, OUT_DIR, file_suffix, a, b, nturns_TF, aa, bb, nturns):
+def save_coil_sets(btot, OUT_DIR, file_suffix, a, b, nturns_TF, aa, bb, nturns, regularization=None):
     """
     Save separate TF and dipole array coil sets for a dipole array solution.
 
+    Args:
+        btot: BiotSavart object
+            The BiotSavart object containing (both) the coil sets.
+        OUT_DIR: str
+            The output directory.
+        file_suffix: str
+            The suffix for the output files.
+        a: float
+            The width (radius) of a rectangular (circular) cross section TF coil
+        b: float
+            The length (radius) of a rectangular (circular) cross section TF coil
+        nturns_TF: int
+            The number of turns in the TF coils.
+        a: float
+            The width (radius) of a rectangular (circular) cross section dipole coil
+        b: float
+            The length (radius) of a rectangular (circular) cross section dipole coil
+        nturns_TF: int
+            The number of turns in the dipole coils.
     """
     from simsopt.field.force import pointData_forces_torques, coil_net_torques, coil_net_forces
-    from simsopt.field import regularization_rect
     from simsopt.geo import curves_to_vtk
+    from simsopt.field import regularization_rect
+    if regularization is None:
+        regularization = regularization_rect
     bs = btot.Bfields[0]
     bs_TF = btot.Bfields[1]
     coils = bs.coils

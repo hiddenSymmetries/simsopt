@@ -18,16 +18,21 @@ from simsopt.geo import (
     CurveLength, CurveCurveDistance, MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
     SurfaceRZFourier, create_planar_curves_between_two_toroidal_surfaces
 )
+from simsopt._core import Optimizable
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 
 t1 = time.time()
 
-continuation_run = False
+continuation_run = True
 MAXITER = 5000
 if continuation_run:
     file_suffix = "_continuation"
 else:
     file_suffix = ""
+
+# Directory for output
+OUT_DIR = ("./QH_dipole_array/")
+os.makedirs(OUT_DIR, exist_ok=True)
 
 # Number of Fourier modes describing each Cartesian component of each coil:
 order = 0
@@ -63,19 +68,6 @@ s_plot = SurfaceRZFourier.from_vmec_input(
     quadpoints_theta=quadpoints_theta
 )
 
-# initialize the coils
-base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, "LandremanPaulQH")
-num_TF_unique_coils = len(base_curves_TF)
-print('Ncoils = ', num_TF_unique_coils)
-base_coils_TF = coils_TF[:num_TF_unique_coils]
-currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
-
-# # Set up BiotSavart fields
-bs_TF = BiotSavart(coils_TF)
-
-# # Calculate average, approximate on-axis B field strength
-calculate_on_axis_B(bs_TF, s)
-
 # wire cross section for the TF coils is a square 20 cm x 20 cm
 # Only need this if make self forces and TVE nonzero in the objective!
 a = 0.2
@@ -87,50 +79,79 @@ nturns_TF = 200
 aa = 0.05
 bb = 0.05
 
-Nx = 6
-Ny = Nx
-Nz = Nx
-# Create the initial coils:
-base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-    s, s_inner, s_outer, Nx, Ny, Nz, order=order,
-    numquadpoints=40  # Defaults is (order + 1) * 40 so this halves it
-)
-base_curves = remove_interlinking_dipoles_and_TFs(base_curves, base_curves_TF)
-ncoils = len(base_curves)
-print('Number of dipole coils = ', ncoils)
-alphas, deltas = align_dipoles_with_plasma(s, base_curves)
-for i in range(len(base_curves)):
-    alpha2 = alphas[i] / 2.0
-    delta2 = deltas[i] / 2.0
-    calpha2 = np.cos(alpha2)
-    salpha2 = np.sin(alpha2)
-    cdelta2 = np.cos(delta2)
-    sdelta2 = np.sin(delta2)
-    # base_curves[i].set('x' + str(2 * order + 1), calpha2 * cdelta2)
-    # base_curves[i].set('x' + str(2 * order + 2), salpha2 * cdelta2)
-    # base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
-    # base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
-    # Fix orientations of each coil
-    # base_curves[i].fix('x' + str(2 * order + 1))
-    # base_curves[i].fix('x' + str(2 * order + 2))
-    # base_curves[i].fix('x' + str(2 * order + 3))
-    # base_curves[i].fix('x' + str(2 * order + 4))
+if not continuation_run:
+    # initialize the TF coils
+    base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, "LandremanPaulQH")
+    num_TF_unique_coils = len(base_curves_TF)
+    print('Ncoils = ', num_TF_unique_coils)
+    base_coils_TF = coils_TF[:num_TF_unique_coils]
+    currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
+    bs_TF = BiotSavart(coils_TF)
 
-    # Fix shape of each coil
-    for j in range(2 * order + 1):
-        base_curves[i].fix('x' + str(j))
-    # Fix center points of each coil
-    # base_curves[i].fix('x' + str(2 * order + 5))
-    # base_curves[i].fix('x' + str(2 * order + 6))
-    # base_curves[i].fix('x' + str(2 * order + 7))
-base_currents = [Current(1.0) * 2e7 for i in range(ncoils)]
-coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-base_coils = coils[:ncoils]
-bs = BiotSavart(coils)
-btot = bs + bs_TF
-calculate_on_axis_B(btot, s)
+    # Calculate average, approximate on-axis B field strength
+    calculate_on_axis_B(bs_TF, s)
+
+    # Initialize the dipole coils
+    Nx = 6
+    Ny = Nx
+    Nz = Nx
+    base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
+        s, s_inner, s_outer, Nx, Ny, Nz, order=order,
+        numquadpoints=40  # Defaults is (order + 1) * 40 so this halves it
+    )
+    base_curves = remove_interlinking_dipoles_and_TFs(base_curves, base_curves_TF)
+    ncoils = len(base_curves)
+    print('Number of dipole coils = ', ncoils)
+    alphas, deltas = align_dipoles_with_plasma(s, base_curves)
+    for i in range(len(base_curves)):
+        alpha2 = alphas[i] / 2.0
+        delta2 = deltas[i] / 2.0
+        calpha2 = np.cos(alpha2)
+        salpha2 = np.sin(alpha2)
+        cdelta2 = np.cos(delta2)
+        sdelta2 = np.sin(delta2)
+        # base_curves[i].set('x' + str(2 * order + 1), calpha2 * cdelta2)
+        # base_curves[i].set('x' + str(2 * order + 2), salpha2 * cdelta2)
+        # base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
+        # base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
+        # Fix orientations of each coil
+        # base_curves[i].fix('x' + str(2 * order + 1))
+        # base_curves[i].fix('x' + str(2 * order + 2))
+        # base_curves[i].fix('x' + str(2 * order + 3))
+        # base_curves[i].fix('x' + str(2 * order + 4))
+
+        # Fix shape of each coil
+        for j in range(2 * order + 1):
+            base_curves[i].fix('x' + str(j))
+        # Fix center points of each coil
+        # base_curves[i].fix('x' + str(2 * order + 5))
+        # base_curves[i].fix('x' + str(2 * order + 6))
+        # base_curves[i].fix('x' + str(2 * order + 7))
+    base_currents = [Current(1.0) * 2e7 for i in range(ncoils)]
+    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+    base_coils = coils[:ncoils]
+    bs = BiotSavart(coils)
+    btot = bs + bs_TF
+    calculate_on_axis_B(btot, s)
+else:
+    btot = Optimizable.from_file(OUT_DIR + "biot_savart_optimized.json")
+    bs = btot.Bfields[0]
+    bs_TF = btot.Bfields[1]
+    coils = bs.coils
+    currents = [c.current.get_value() for c in coils]
+    base_coils = coils[:len(coils) // 8]
+    coils_TF = bs_TF.coils
+    base_coils_TF = coils_TF[:len(coils_TF) // 8]
+    curves = [c.curve for c in coils]
+    base_curves = curves[:len(curves) // 8]
+    curves_TF = [c.curve for c in coils_TF]
+    currents_TF = [c.current.get_value() for c in coils_TF]
+    base_curves_TF = curves_TF[:len(curves_TF) // 8]
+    ncoils = len(curves)
+
 btot.set_points(s.gamma().reshape((-1, 3)))
 bs.set_points(s.gamma().reshape((-1, 3)))
+bs_TF.set_points(s.gamma().reshape((-1, 3)))
 curves = [c.curve for c in coils]
 currents = [c.current.get_value() for c in coils]
 a_list = np.hstack((np.ones(len(coils)) * aa, np.ones(len(coils_TF)) * a))
@@ -156,11 +177,7 @@ FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT = Weight(1e-36)  # 1e-36 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(1e-24)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-# Directory for output
-OUT_DIR = ("./QH_dipole_array/")
-# if os.path.exists(OUT_DIR):
-#     shutil.rmtree(OUT_DIR)
-os.makedirs(OUT_DIR, exist_ok=True)
+
 save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 # Force and Torque calculations spawn a bunch of spurious BiotSavart child objects -- erase them!
 for c in (coils + coils_TF):
