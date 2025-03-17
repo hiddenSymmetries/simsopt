@@ -37,8 +37,8 @@ mpi = MpiPartition()
 mpi.write()
 
 # Create the GVEC optimizable
-equil = Gvec(
-    base_parameter_file=Path(__file__).parent / "inputs/gvec-circular.ini",
+equil = Gvec.from_parameter_file(
+    base_parameter_file=Path(__file__).parent / "inputs/circular.gvec.toml",
     delete_intermediates=True,
 )
 surf = equil.boundary
