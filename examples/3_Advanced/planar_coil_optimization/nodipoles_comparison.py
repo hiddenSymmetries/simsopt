@@ -12,8 +12,8 @@ from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.field import regularization_rect
 from simsopt.field.force import coil_force, coil_torque, coil_net_torques, coil_net_forces, LpCurveForce, \
     SquaredMeanForce, \
-    SquaredMeanTorque, LpCurveTorque
-from simsopt.util import calculate_on_axis_B
+    SquaredMeanTorque, LpCurveTorque, pointData_forces_torques
+from simsopt.util import calculate_on_axis_B, initialize_coils
 from simsopt.geo import (
     CurveLength, CurveCurveDistance,
     MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
@@ -23,89 +23,40 @@ from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 
 t1 = time.time()
 
+# LandremanPaulQA
+# LandremanPaulQH
+config_flag = "SchuettHennebergQAnfp2"
+
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
-input_name = 'wout_henneberg.nc'
+
+if config_flag[-2:] == 'QA':
+    input_name = 'input.LandremanPaul2021_QA_reactorScale_lowres'
+elif config_flag[-2:] == 'QH':
+    input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
+elif config_flag == 'SchuettHennebergQAnfp2':
+    input_name = 'input.schuetthenneberg_nfp2'
 filename = TEST_DIR / input_name
 
 # Initialize the boundary magnetic surface:
 range_param = "half period"
 nphi = 32
 ntheta = 32
-poff = 1.5
-coff = 2.0
-s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=ntheta)
-s_inner = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
-s_outer = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
-
-# Make the inner and outer surfaces by extending the plasma surface
-s_inner.extend_via_normal(poff)
-s_outer.extend_via_normal(poff + coff)
-
+s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 qphi = nphi * 2
 qtheta = ntheta * 2
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
 
 # Make high resolution, full torus version of the plasma boundary for plotting
-s_plot = SurfaceRZFourier.from_wout(
+s_plot = SurfaceRZFourier.from_vmec_input(
     filename,
     quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta
 )
 
-### Initialize some TF coils
-
-
-def initialize_coils_QA(TEST_DIR, s):
-    """
-    Initializes coils for each of the target configurations that are
-    used for permanent magnet optimization.
-
-    Args:
-        config_flag: String denoting the stellarator configuration 
-          being initialized.
-        TEST_DIR: String denoting where to find the input files.
-        out_dir: Path or string for the output directory for saved files.
-        s: plasma boundary surface.
-    Returns:
-        base_curves: List of CurveXYZ class objects.
-        curves: List of Curve class objects.
-        coils: List of Coil class objects.
-    """
-    from simsopt.geo import create_equally_spaced_curves
-
-    # generate planar TF coils
-    ncoils = 2
-    R0 = s.get_rc(0, 0) * 1.4
-    R1 = s.get_rc(1, 0) * 4
-    order = 16
-
-    from simsopt.mhd.vmec import Vmec
-    vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
-    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 2.3
-    print('Total current = ', total_current)
-
-    # Only need Jax flag for CurvePlanarFourier class
-    base_curves = create_equally_spaced_curves(
-        ncoils, s.nfp, stellsym=True,
-        R0=R0, R1=R1, order=order, numquadpoints=256,
-        jax_flag=False,
-    )
-
-    base_currents = [(Current(total_current / ncoils * 1e-7) * 1e7) for _ in range(ncoils - 1)]
-    total_current = Current(total_current)
-    total_current.fix_all()
-    base_currents += [total_current - sum(base_currents)]
-    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-
-    # Initialize the coil curves and save the data to vtk
-    curves = [c.curve for c in coils]
-    return base_curves, curves, coils, base_currents
-
-
 # initialize the coils
-base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils_QA(TEST_DIR, s)
+base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, config_flag)
 num_TF_unique_coils = len(base_curves_TF)
 base_coils_TF = coils_TF[:num_TF_unique_coils]
 currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
@@ -114,7 +65,6 @@ currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
 bs_TF = BiotSavart(coils_TF)
 
 # # Calculate average, approximate on-axis B field strength
-print(s, bs_TF, base_curves_TF)
 calculate_on_axis_B(bs_TF, s)
 
 # wire cross section for the TF coils is a square 20 cm x 20 cm
@@ -122,66 +72,58 @@ calculate_on_axis_B(bs_TF, s)
 a = 0.2
 b = 0.2
 nturns_TF = 200
-
-
-def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
-    contig = np.ascontiguousarray
-    forces = np.zeros((len(coils), len(coils[0].curve.gamma()) + 1, 3))
-    torques = np.zeros((len(coils), len(coils[0].curve.gamma()) + 1, 3))
-    for i, c in enumerate(coils):
-        aprime = aprimes[i]
-        bprime = bprimes[i]
-        forces[i, :-1, :] = coil_force(c, allcoils, regularization_rect(aprime, bprime), nturns_list[i])
-        torques[i, :-1, :] = coil_torque(c, allcoils, regularization_rect(aprime, bprime), nturns_list[i])
-
-    forces[:, -1, :] = forces[:, 0, :]
-    torques[:, -1, :] = torques[:, 0, :]
-    forces = forces.reshape(-1, 3)
-    torques = torques.reshape(-1, 3)
-    point_data = {"Pointwise_Forces": (contig(forces[:, 0]), contig(forces[:, 1]), contig(forces[:, 2])),
-                  "Pointwise_Torques": (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))}
-    return point_data
-
-
 btot = bs_TF
 calculate_on_axis_B(btot, s)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
-LENGTH_WEIGHT = Weight(0.01)
-LENGTH_TARGET = 95
-LINK_WEIGHT = 1e4
-CC_THRESHOLD = 0.8
-CC_WEIGHT = 1e2
-CS_THRESHOLD = 1.5
-CS_WEIGHT = 1e1
+if config_flag[-2:] == 'QA':
+    LENGTH_WEIGHT = Weight(0.001)
+    LENGTH_TARGET = 125
+    LINK_WEIGHT = 1e3
+    CC_THRESHOLD = 0.8
+    CC_WEIGHT = 1e1
+    CS_THRESHOLD = 1.5
+    CS_WEIGHT = 1e2
+    CURVATURE_THRESHOLD = 0.5
+    MSC_THRESHOLD = 0.05
+    CURVATURE_WEIGHT = 1e-2
+    MSC_WEIGHT = 1e-3
+elif config_flag[-2:] == 'QH':
+    LENGTH_WEIGHT = Weight(0.001)
+    LENGTH_TARGET = 110
+    LINK_WEIGHT = 1e3
+    CC_THRESHOLD = 0.8
+    CC_WEIGHT = 1e1
+    CS_THRESHOLD = 1.5
+    CS_WEIGHT = 1e2
+    CURVATURE_THRESHOLD = 0.5
+    MSC_THRESHOLD = 0.05
+    CURVATURE_WEIGHT = 1e-2
+    MSC_WEIGHT = 1e-3
+elif config_flag == 'SchuettHennebergQAnfp2':
+    LENGTH_WEIGHT = Weight(0.01)
+    LENGTH_TARGET = 95
+    LINK_WEIGHT = 1e4
+    CC_THRESHOLD = 0.8
+    CC_WEIGHT = 1e2
+    CS_THRESHOLD = 1.5
+    CS_WEIGHT = 1e1
+    CURVATURE_THRESHOLD = 0.5
+    MSC_THRESHOLD = 0.05
+    CURVATURE_WEIGHT = 1e-2
+    MSC_WEIGHT = 1e-3
 # Weight for the Coil Coil forces term
 FORCE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-
-CURVATURE_THRESHOLD = 0.5
-MSC_THRESHOLD = 0.05
-CURVATURE_WEIGHT = 1e-2
-MSC_WEIGHT = 1e-3
-Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
-Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
-
+TORQUE_WEIGHT2 = Weight(1e-22)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = ("./QA_henneberg_nodipoles_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" +
-           "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
-    base_curves_TF[0].order, len(base_curves_TF), poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT,
-    CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value,
-    FORCE_WEIGHT2.value,
-    TORQUE_WEIGHT.value,
-    TORQUE_WEIGHT2.value)
-if os.path.exists(OUT_DIR):
-    shutil.rmtree(OUT_DIR)
+OUT_DIR = ("./nodipoles_comparison/")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 curves_to_vtk(
     curves_TF,
-    OUT_DIR + "curves_TF_0",
+    OUT_DIR + "curves_TF_initial_" + config_flag,
     close=True,
     extra_point_data=pointData_forces_torques(coils_TF, coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
     I=currents_TF,
@@ -192,9 +134,12 @@ curves_to_vtk(
 for c in (coils_TF):
     c._children = set()
 
+# Repeat for whole B field
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
-pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_full_init", extra_data=pointData)
+pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
+            "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                            ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_initial_" + config_flag, extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
 # Define the individual terms objective function:
@@ -210,9 +155,10 @@ Jcsdist = CurveSurfaceDistance(curves_TF, s, CS_THRESHOLD)
 # interlink.
 linkNum = LinkingNumber(curves_TF, downsample=2)
 
+# Currently, all force terms involve all the coils
 all_coils = coils_TF
 all_base_coils = base_coils_TF
-Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a, b), p=4, threshold=8e5 * 100, downsample=1
+Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a, b), p=4, threshold=4e5 * 100, downsample=1
                            ) for i, c in enumerate(all_base_coils)])
 Jforce2 = sum([SquaredMeanForce(c, all_coils, downsample=1) for c in all_base_coils])
 
@@ -220,6 +166,9 @@ Jforce2 = sum([SquaredMeanForce(c, all_coils, downsample=1) for c in all_base_co
 Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a, b), p=2, threshold=4e5 * 100, downsample=1
                              ) for i, c in enumerate(all_base_coils)])
 Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
+
+Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
+Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 
 JF = Jf \
     + CC_WEIGHT * Jccdist \
@@ -309,44 +258,29 @@ print("""
 ################################################################################
 """)
 
-n_saves = 1
-MAXITER = 1000
-for i in range(1, n_saves + 1):
-    print('Iteration ' + str(i) + ' / ' + str(n_saves))
-    res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
-                   options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-20)
-    # dofs = res.x
+MAXITER = 600
+res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
+                options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+curves_to_vtk(
+    [c.curve for c in bs_TF.coils],
+    OUT_DIR + "curves_TF_optimized_" + config_flag,
+    close=True,
+    extra_point_data=pointData_forces_torques(coils_TF, coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
+    I=[c.current.get_value() for c in bs_TF.coils],
+    NetForces=coil_net_forces(coils_TF, coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
+    NetTorques=coil_net_torques(coils_TF, coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
+)
 
-    curves_to_vtk(
-        [c.curve for c in bs_TF.coils],
-        OUT_DIR + "curves_TF_{0:d}".format(i),
-        close=True,
-        extra_point_data=pointData_forces_torques(coils_TF, coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
-        I=[c.current.get_value() for c in bs_TF.coils],
-        NetForces=coil_net_forces(coils_TF, coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-        NetTorques=coil_net_torques(coils_TF, coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-    )
+btot.set_points(s_plot.gamma().reshape((-1, 3)))
+pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
+                "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_optimized_" + config_flag, extra_data=pointData)
 
-    btot.set_points(s_plot.gamma().reshape((-1, 3)))
-    pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "surf_full_{0:d}".format(i), extra_data=pointData)
-
-    pointData = {"B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                    ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "surf_full_normalizedBn_{0:d}".format(i), extra_data=pointData)
-
-    btot.set_points(s.gamma().reshape((-1, 3)))
-    calculate_on_axis_B(btot, s)
-    # LENGTH_WEIGHT *= 0.01
-    # JF = Jf \
-    #     + CC_WEIGHT * Jccdist \
-    #     + CS_WEIGHT * Jcsdist \
-    #     + LINK_WEIGHT * linkNum \
-    #     + LINK_WEIGHT2 * linkNum2 \
-    #     + LENGTH_WEIGHT * sum(Jls_TF)
-
+btot.set_points(s.gamma().reshape((-1, 3)))
+calculate_on_axis_B(btot, s)
 
 t2 = time.time()
 print('Total time = ', t2 - t1)
-btot.save(OUT_DIR + "biot_savart_optimized_QA.json")
+btot.save(OUT_DIR + "biot_savart_optimized_" + config_flag + ".json")
 print(OUT_DIR)

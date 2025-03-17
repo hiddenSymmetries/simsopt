@@ -175,7 +175,7 @@ else:
     LINK_WEIGHT = 1e3
 
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(1e-35)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(1e-34)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(1e-23)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons

@@ -145,13 +145,13 @@ def initialize_coils(s, TEST_DIR, configuration):
         ncoils = 3
         R0 = s.get_rc(0, 0) * 1
         R1 = s.get_rc(1, 0) * 3
-        order = 4
+        order = 8
         total_current = 66237606
     elif configuration == 'LandremanPaulQH':
         ncoils = 2
         R0 = s.get_rc(0, 0) * 1
         R1 = s.get_rc(1, 0) * 4
-        order = 4
+        order = 8
         total_current = 45642162
     elif configuration == 'SchuettHennebergQAnfp2':
         ncoils = 2
