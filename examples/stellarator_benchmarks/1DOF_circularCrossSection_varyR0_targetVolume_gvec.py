@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 import numpy as np
-from pathlib import Path
 
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.mhd import Gvec
+from simsopt.geo import SurfaceRZFourier
 from simsopt.util import MpiPartition, log, proc0_print
 from simsopt.solve import least_squares_mpi_solve
 
@@ -26,8 +26,8 @@ https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSe
 """
 
 # Print detailed logging info. This could be commented out if desired.
-proc0_print("Running 1DOF_circularCrossSection_varyR0_targetVolume.py")
-proc0_print("========================================================")
+proc0_print("Running 1DOF_circularCrossSection_varyR0_targetVolume_gvec.py")
+proc0_print("=============================================================")
 log()
 
 # GVEC is parallelized with OpenMP, so we want a worker group for each
@@ -36,16 +36,8 @@ log()
 mpi = MpiPartition()
 mpi.write()
 
-# Create the GVEC optimizable
-equil = Gvec.from_parameter_file(
-    base_parameter_file=Path(__file__).parent / "inputs/circular.gvec.toml",
-    delete_intermediates=True,
-)
-surf = equil.boundary
-
-# The initial surface is read from the given base parameter file,
-# but we can modify it here if desired.
-# Set the initial boundary shape. Here is one syntax:
+# Create the boundary object & set the initial boundary shape. Here is one syntax:
+surf = SurfaceRZFourier(mpol=2, ntor=2)
 surf.set('rc(0,0)', 1.0)
 # Here is another syntax:
 surf.set_rc(0, 1, 0.1)
@@ -54,7 +46,16 @@ surf.set_zs(0, 1, 0.1)
 surf.set_rc(1, 0, 0.1)
 surf.set_zs(1, 0, 0.1)
 
-# VMEC parameters are all fixed by default, while surface parameters
+# Create the GVEC optimizable
+equil = Gvec(
+    boundary=surf,
+    mpi=mpi,
+    delete_intermediates=True,
+)
+# alternatively a GVEC optimizable can also be created with
+# Gvec.from_parameters() or Gvec.from_parameter_file()
+
+# GVEC parameters (phiedge) are all fixed by default, while surface parameters
 # are all non-fixed by default.  You can choose which parameters are
 # optimized by setting their 'fixed' attributes.
 surf.fix_all()
@@ -74,7 +75,7 @@ least_squares_mpi_solve(prob, mpi, grad=True)
 objective = prob.objective()
 proc0_print("At the optimum,")
 proc0_print(" rc(m=0,n=0) = ", surf.get_rc(0, 0))
-proc0_print(" volume, according to VMEC    = ", equil.volume())
+proc0_print(" volume, according to GVEC    = ", equil.volume())
 proc0_print(" volume, according to Surface = ", surf.volume())
 proc0_print(" objective function = ", objective)
 
@@ -82,5 +83,5 @@ assert np.abs(surf.get_rc(0, 0) - 0.7599088773175) < 1.0e-5
 assert np.abs(equil.volume() - 0.15) < 1.0e-6
 assert np.abs(surf.volume() - 0.15) < 1.0e-6
 assert prob.objective() < 1.0e-15
-proc0_print("End of 1DOF_circularCrossSection_varyR0_targetVolume.py")
-proc0_print("======================================================")
+proc0_print("End of 1DOF_circularCrossSection_varyR0_targetVolume_gvec.py")
+proc0_print("============================================================")

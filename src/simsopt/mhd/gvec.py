@@ -11,7 +11,7 @@ The Gvec optimizable class is designed to be similar to the Vmec optimizable, bu
 import copy
 import logging
 from pathlib import Path
-from typing import Optional, Mapping
+from typing import Optional, Mapping, Literal
 import shutil
 
 import numpy as np
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from mpi4py import MPI
-    from ..util.mpi import MpiPartition
+    from simsopt.util.mpi import MpiPartition
 except ImportError as e:
     MPI = None
     MpiPartition = None
@@ -29,19 +29,36 @@ except ImportError as e:
 try:
     import gvec
     from gvec import State
-    from gvec.scripts.run import run_stages
 except ImportError as e:
     gvec = None
     State = None
     logger.debug(str(e))
 
-from .._core.optimizable import Optimizable
-from .._core.util import ObjectiveFailure
-from ..geo import Surface, SurfaceRZFourier
+from simsopt._core.optimizable import Optimizable
+from simsopt._core.util import ObjectiveFailure
+from simsopt.geo import Surface, SurfaceRZFourier
 from simsopt.mhd.profiles import Profile, ProfilePolynomial, ProfileScaled
 
 __all__ = ["Gvec"]
 
+default_parameters = dict(
+    ProjectName = "SIMSOPT-GVEC",
+    whichInitEquilibrium = 0,
+
+    X1X2_deg = 5,
+    LA_deg = 5,
+
+    MaxIter = 100,
+    start_dt = 0.5,
+    logIter = 10,
+    MinimizerType = 10,
+    minimize_tol = 1e-6,
+
+    sgrid = dict(
+        grid_type = 4,
+        nElems = 3,
+    )
+)
 
 class Gvec(Optimizable):
     """
@@ -58,12 +75,17 @@ class Gvec(Optimizable):
 
     def __init__(
         self,
-        base_parameters: Mapping,
+        phiedge: float = 1.0,
+        boundary: Surface | None = None,
+        pressure: Profile | None = None,
+        iota: Profile | None = None,
+        current: Profile | None | Literal[0] = None,
+        parameters: Mapping = {},
         restart_file: str | Path | None = None,
         delete_intermediates: bool = False,
         mpi: Optional[MpiPartition] = None,
     ):
-        self.base_parameters = base_parameters # nested parameters
+        self.base_parameters = gvec.util.CaseInsensitiveDict(parameters) # nested parameters
         self.restart_file = Path(restart_file) if restart_file else None
         self.delete_intermediates = delete_intermediates
         self.mpi = mpi
@@ -80,57 +102,51 @@ class Gvec(Optimizable):
                 logger.warning("MPI not available, ignoring MpiPartition")
             self._mpi_id = ""
 
-        self.run_count: int = 0  # number of times GVEC has been run
+        self.run_count: int = 0  # number of times GVEC has been run (this MPI-process only)
         self.run_required: bool = True  # flag for caching e.g. set after changing parameters
         self.run_successful: bool = False  # flag for whether the last run was successful
         self._state: State = None  # state object representing the GVEC equilibrium
 
-        # set boundary object from the parameters
-        if "nfp" not in self.base_parameters:
-            raise ValueError("nfp not found in base parameter file")
-        if self.base_parameters["X1_sin_cos"] != "_cos_" or self.base_parameters["X2_sin_cos"] != "_sin_":
-            raise NotImplementedError("Not stellarator symmetric configurations not supported.")
-        if self.base_parameters["X1_mn_max"] != self.base_parameters["X2_mn_max"]:
-            raise ValueError("X1_mn_max and X2_mn_max must be equal")
-        
-        M, N = self.base_parameters["X1_mn_max"]
-        self._boundary = SurfaceRZFourier(
-            nfp=self.base_parameters["nfp"],
-            stellsym=True,
-            mpol=M,
-            ntor=N,
-        )
+        # read default parameters
+        for key, value in default_parameters.items():
+            if key not in self.base_parameters:
+                self.base_parameters[key] = value
+            elif isinstance(value, Mapping):
+                for subkey, subvalue in value.items():
+                    if subkey not in self.base_parameters[key]:
+                        self.base_parameters[key][subkey] = subvalue
 
-        for (m, n), value in self.base_parameters.get("X1_b_cos", {}).items():
-            self._boundary.set_rc(m, n, value)
-        for (m, n), value in self.base_parameters.get("X2_b_sin", {}).items():
-            if m == 0:
-                self._boundary.set_zs(m, n, -value)
-            else:
-                self._boundary.set_zs(m, -n, value)
-
-        self._boundary.local_full_x = self._boundary.get_dofs()
-
-        # set profiles
-        if self.base_parameters["pres"].get("type", "polynomial") == "polynomial":
-            self._pressure = ProfileScaled(
-                ProfilePolynomial(self.base_parameters["pres"]["coefs"]), self.base_parameters["pres"]["scale"]
-            )
+        # init DoFs
+        self._phiedge = phiedge
+        if boundary is None:
+            self._boundary = SurfaceRZFourier()
         else:
-            raise NotImplementedError(f"Pressure profile {self.base_parameters['pres']['type']} not supported.")
-        if self.base_parameters["iota"].get("type", "polynomial") == "polynomial":
-            self._iota = ProfilePolynomial(self.base_parameters["iota"]["coefs"])
+            self._boundary = boundary
+        if pressure is None:
+            self._pressure = ProfilePolynomial([0.0])
         else:
-            raise NotImplementedError(f"Rotational transform profile {self.base_parameters['iota']['type']} not supported.")
-        self._current = None  # ToDo: implement current profile
-
-        self._phiedge = self.base_parameters["phiedge"]
+            self._pressure = pressure
+        if iota is None and current is None:
+            self._iota = ProfilePolynomial([1.0])
+            self._current = None
+        elif current == 0:  # Zero-Current
+            self._iota = iota
+            self._current = ProfilePolynomial([0.0])
+        else:
+            # if both iota & current are specified, iota is only used for the initial iota profile
+            # of the current constraint with pciard iterations
+            self._iota = iota
+            self._current = current
 
         # init Optimizable
         x0 = self.get_dofs()
         fixed = np.full(len(x0), True)
         names = ['phiedge']
-        depends = [self._boundary]
+        depends = [self._boundary, self._pressure]
+        if iota is not None:
+            depends += [self._iota]
+        if current is not None:
+            depends += [self._current]
         super().__init__(
             x0=x0, 
             fixed=fixed, 
@@ -140,16 +156,66 @@ class Gvec(Optimizable):
         )
     
     @classmethod
+    def from_parameters(
+        cls,
+        parameters: Mapping,
+        *args,
+        **kwargs,
+    ):
+        parameters = gvec.util.CaseInsensitiveDict(parameters)
+
+        # set boundary object from the parameters
+        if "nfp" not in parameters:
+            raise ValueError("nfp not found in base parameter file")
+        if parameters["X1_sin_cos"] != "_cos_" or parameters["X2_sin_cos"] != "_sin_":
+            raise NotImplementedError("Not stellarator symmetric configurations not supported.")
+        if parameters["X1_mn_max"] != parameters["X2_mn_max"]:
+            raise ValueError("X1_mn_max and X2_mn_max must be equal")
+        
+        M, N = parameters["X1_mn_max"]
+        boundary = SurfaceRZFourier(
+            nfp=parameters["nfp"],
+            stellsym=True,
+            mpol=M,
+            ntor=N,
+        )
+
+        for (m, n), value in parameters.get("X1_b_cos", {}).items():
+            boundary.set_rc(m, n, value)
+        for (m, n), value in parameters.get("X2_b_sin", {}).items():
+            if m == 0:
+                boundary.set_zs(m, n, -value)
+            else:
+                boundary.set_zs(m, -n, value)
+
+        boundary.local_full_x = boundary.get_dofs()
+
+        # set profiles
+        pressure = cls.profile_from_params(parameters["pres"])
+
+        if "iota" not in parameters:
+            iota = None
+        else:
+            iota = cls.profile_from_params(parameters["iota"])
+
+        if "Itor" not in parameters:
+            current = None
+        else:
+            current = cls.profile_from_params(parameters["Itor"])
+
+        phiedge = parameters["phiedge"]
+        return cls(phiedge, boundary, pressure, iota, current, *args, **kwargs)
+    
+    @classmethod
     def from_parameter_file(
         cls, 
         base_parameter_file: str | Path,
-        restart_file: str | Path | None = None,
-        delete_intermediates: bool = False,
-        mpi: Optional[MpiPartition] = None,
+        *args,
+        **kwargs,
     ):
         parameters = gvec.util.read_parameters(base_parameter_file)
-        return cls(parameters, restart_file, delete_intermediates, mpi)
-
+        return cls.from_parameters(parameters, *args, **kwargs)
+    
     def recompute_bell(self, parent=None):
         """Set the recomputation flag"""
         logger.debug(f"recompute_bell called by {parent}: run_required = {self.run_required}")
@@ -157,15 +223,15 @@ class Gvec(Optimizable):
 
     def get_dofs(self):
         """Return the DOFs owned by the GVEC optimizable.
-        
-        This does not include any DoFs owned by the boundary or profile objects.
+       o
+        This does not include any DoFs owned by dependent objects (boundary or profiles).
         """
         return np.array([self._phiedge])
 
     def set_dofs(self, x):
         """Set the DoFs owned by the GVEC optimizable.
         
-        This does not include any DoFs owned by the boundary or profile objects.
+        This does not include any DoFs owned by dependent objects (boundary or profiles).
         """
         if len(x) != 1:
             raise ValueError(f"Expected 1 DOF, got {len(x)}")
@@ -218,7 +284,8 @@ class Gvec(Optimizable):
         self.run_successful = False
         try:
             with gvec.util.chdir(self.rundir):
-                stagedir, statefile, diagnostics = run_stages(params, restart_file)
+                gvec.util.write_parameters(self.serialize_parameters(params), "parameter.toml")
+                stagedir, statefile, diagnostics = gvec.scripts.run.run_stages(params, restart_file)
         except RuntimeError as e:
             logger.error(f"GVEC failed with: {e}")
             raise ObjectiveFailure("Run GVEC failed.") from e
@@ -230,30 +297,52 @@ class Gvec(Optimizable):
 
         logger.debug("GVEC finished")
         self.run_required = False
+    
+    @staticmethod
+    def serialize_parameters(params: dict) -> dict:  # ToDo: deprecate with GVEC v1.1
+        for key, value in params.items():
+            if isinstance(value, Mapping):
+                params[key] = Gvec.serialize_parameters(value)
+            elif isinstance(value, np.ndarray):
+                params[key] = value.tolist()
+            else:
+                params[key] = value
+        return params
 
     def prepare_parameters(self) -> Mapping:
         """
         Prepare DOFs as parameters for the GVEC input file as keyword arguments which can be passed to `run_stages`.
         """
-        params = copy.deepcopy(self.base_parameters)
+        if isinstance(self.boundary, SurfaceRZFourier):
+            boundary = self.boundary
+        else:
+            logger.debug(f"Converting boundary from {self.boundary.__class__} to SurfaceRZFourier")
+            boundary = self.boundary.to_RZFourier()
 
-        if not isinstance(self._boundary, SurfaceRZFourier):
-            raise NotImplementedError(f"Boundary object {self._boundary} not supported.")
+        if not boundary.stellsym:
+            raise NotImplementedError("Non-stellarator symmetric configurations not supported with simsopt yet.")
+
+        params = copy.deepcopy(self.base_parameters)
+        params["nfp"] = boundary.nfp
+        for key in ["X1", "X2", "LA"]:
+            if f"{key}_mn_max" not in params:
+                params[f"{key}_mn_max"] = (boundary.mpol, boundary.ntor)
+
+        if not isinstance(boundary, SurfaceRZFourier):
+            raise NotImplementedError(f"Boundary object {boundary} not supported.")
+
         # boundary object -> parameters
+        params["init_average_axis"] = True
         params["X1_b_cos"] = {}
         params["X2_b_sin"] = {}
         params["X1_a_cos"] = {}
         params["X2_a_sin"] = {}
-        for m in range(self._boundary.mpol + 1):
-            for n in range(-self._boundary.ntor, self._boundary.ntor + 1):
-                if X1c := self._boundary.get_rc(m, n):
+        for m in range(boundary.mpol + 1):
+            for n in range(-boundary.ntor, boundary.ntor + 1):
+                if X1c := boundary.get_rc(m, n):
                     params["X1_b_cos"][m, n] = X1c
-                    if m == 0:
-                        params["X1_a_cos"][0, n] = X1c
-                if X2s := self._boundary.get_zs(m, n):
+                if X2s := boundary.get_zs(m, n):
                     params["X2_b_sin"][m, n] = X2s
-                    if m == 0:
-                        params["X2_a_sin"][0, n] = X2s
         # flip signs (GVEC default torus coordinates have clockwise zeta)
         params = gvec.util.flip_parameters_zeta(params)
         # perturb boundary when restarting
@@ -277,16 +366,13 @@ class Gvec(Optimizable):
             params["iota"] = self.profile_to_params(self._iota)
         # toroidal current profile
         if self._current is None:  # iota constraint
-            if "I_tor" in params:
-                del params["I_tor"]
+            if "Itor" in params:
+                del params["Itor"]
         else:
-            params["I_tor"] = self.profile_to_params(self._current)
+            params["Itor"] = self.profile_to_params(self._current)
 
         # local DOFs
         params["phiedge"] = self._phiedge
-        # default values
-        params["init_average_axis"] = True
-        params["outputIter"] = self.base_parameters["maxIter"]
         return params
 
     @staticmethod
@@ -310,6 +396,20 @@ class Gvec(Optimizable):
                 vals=profile(s),
                 rho2=s
             )
+    
+    @staticmethod
+    def profile_from_params(params: Mapping) -> Profile:
+        """Convert a dictionary of parameters to a simsopt.Profile object."""
+        if params["type"] == "polynomial":
+            profile = ProfilePolynomial(params["coefs"])
+        elif params["type"] in ["bspline", "interpolation"]:
+            raise NotImplementedError(f"Profile of type {params['type']} is not supported for converting a GVEC parameter file to a simsopt.Profile object. Use 'polynomial' instead.")
+        else:
+            raise ValueError(f"Unknonw profile type {params['type']}")
+        
+        if "scale" in params:
+            profile = ProfileScaled(profile, params["scale"])
+        return profile
 
 
     # === INPUT VARIABLES === #
@@ -332,18 +432,13 @@ class Gvec(Optimizable):
         return self._boundary
 
     @boundary.setter
-    def boundary(self, boundary):
+    def boundary(self, boundary: SurfaceRZFourier):
         """Set the plasma boundary."""
-        if not isinstance(boundary, SurfaceRZFourier):
-            raise TypeError(f"Boundary object {boundary} not supported.")
-        if not boundary.stellsym:
-            raise ValueError("Non-stellarator symmetric configurations not supported.")
-
         if boundary is not self._boundary:
             logging.debug("Replacing surface in boundary setter")
             self.remove_parent(self._boundary)
             self._boundary = boundary
-            self.append_parent(boundary)
+            self.append_parent(self._boundary)
             self.run_required = True
 
     @property
@@ -364,6 +459,16 @@ class Gvec(Optimizable):
         """
         return self._iota
     
+    @iota_profile.setter
+    def iota_profile(self, profile: Profile | None):
+        logging.debug("Replacing iota profile")
+        if self._iota is not None:
+            self.remove_parent(self._iota)
+        self._iota = profile
+        if profile is not None:
+            self.append_parent(self._iota)
+        self.run_required = True
+    
     @property
     def current_profile(self) -> Profile | None:
         """
@@ -372,6 +477,16 @@ class Gvec(Optimizable):
         To evaluate the toroidal current from the equilibrium, use `I_tor`.
         """
         return self._current
+    
+    @current_profile.setter
+    def current_profile(self, profile: Profile | None):
+        logging.debug("Replacing toroidal current profile")
+        if self._current is not None:
+            self.remove_parent(self._current)
+        self._current = profile
+        if profile is not None:
+            self.append_parent(self._current)
+        self.run_required = True
 
     # === RETURN FUNCTIONS === #
 
