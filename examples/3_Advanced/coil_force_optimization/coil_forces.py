@@ -16,7 +16,7 @@ from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance,
                          MeanSquaredCurvature, LpCurveCurvature)
 from simsopt.field import BiotSavart
 from simsopt.field.force import coil_force, coil_torque, coil_net_forces, \
-    coil_net_torques, LpCurveForce, TVE
+    coil_net_torques, LpCurveForce, TVE, pointData_forces_torques
 from simsopt.field.selffield import regularization_circ
 from simsopt.util import in_github_actions, calculate_on_axis_B
 
@@ -105,25 +105,6 @@ calculate_on_axis_B(bs, s)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
 a = 0.05
-
-
-def pointData_forces_torques(coils):
-    contig = np.ascontiguousarray
-    forces = np.zeros((len(coils), len(coils[0].curve.gamma()) + 1, 3))
-    torques = np.zeros((len(coils), len(coils[0].curve.gamma()) + 1, 3))
-    for i, c in enumerate(coils):
-        forces[i, :-1, :] = coil_force(c, coils, regularization_circ(a))
-        torques[i, :-1, :] = coil_torque(c, coils, regularization_circ(a))
-
-    forces[:, -1, :] = forces[:, 0, :]
-    torques[:, -1, :] = torques[:, 0, :]
-    forces = forces.reshape(-1, 3)
-    torques = torques.reshape(-1, 3)
-    point_data = {"Pointwise_Forces": (contig(forces[:, 0]), contig(forces[:, 1]), contig(forces[:, 2])),
-                  "Pointwise_Torques": (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))}
-    return point_data
-
-
 curves = [c.curve for c in coils]
 a_list = regularization_circ(a) * np.ones(len(coils))
 curves_to_vtk(
