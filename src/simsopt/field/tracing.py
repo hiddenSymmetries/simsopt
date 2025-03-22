@@ -64,9 +64,9 @@ def trace_particles_boozer_perturbed(
 
     .. math::
 
-        \dot s = -|B|_{,\theta} m(v_{||}^2/|B| + \mu)/(q \psi_0)
+        \dot s = (\alpha_{,\theta} B v_{||} - Phi_{,\theta})/\psi_0 -|B|_{,\theta} m(v_{||}^2/|B| + \mu)/(q \psi_0)
 
-        \dot \theta = |B|_{,s} m(v_{||}^2/|B| + \mu)/(q \psi_0) + \iota v_{||} |B|/G
+        \dot \theta = \Phi_{,\psi}/\psi_0 + |B|_{,s} m(v_{||}^2/|B| + \mu)/(q \psi_0) + \iota v_{||} |B|/G
 
         \dot \zeta = v_{||}|B|/G
 
@@ -129,7 +129,7 @@ def trace_particles_boozer_perturbed(
             :math:`I = 0`, and :math:`K = 0`.
             `gc_noK`: simplified guiding center equations for the case :math:`K = 0`.
         forget_exact_path: return only the first and last position of each
-            particle for the ``res_tys``. To be used when only res_zeta_hits is 
+            particle for the ``res_tys``. To be used when only res_hits is 
             of interest or one wants to reduce memory usage.
         zetas_stop: whether to stop if hit provided zeta planes
         vpars_stop: whether to stop if hit provided vpar planes 
@@ -138,19 +138,13 @@ def trace_particles_boozer_perturbed(
     Returns: 2 element tuple containing
         - ``res_tys``:
             A list of numpy arrays (one for each particle) describing the
-            solution over time. The numpy array is of shape (ntimesteps, M)
-            with M depending on the ``mode``.  Each row contains the time and
-            the state.  So for `mode='gc'` and `mode='gc_vac'` the state
-            consists of the :math:`(s,\theta,\zeta)` position and the parallel speed, hence
-            each row contains `[t, s, t, z, v_par]`.
+            solution over time. The numpy array is of shape (ntimesteps, 5).
+            Each row contains the time and the state, `[t, s, theta, zeta, v_par]`.
 
-        - ``res_zeta_hits``:
+        - ``res_hits``:
             A list of numpy arrays (one for each particle) containing
-            information on each time the particle hits one of the zeta planes or
-            one of the stopping criteria. Each row of the array contains
-            `[time] + [idx] + state`, where `idx` tells us which of the `zetas`
-            or `stopping_criteria` was hit.  If `idx>=0`, then `zetas[int(idx)]`
-            was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
+            information on each time the particle hits one of the hit planes or
+            one of the stopping criteria. Each row or the array contains `[time] + [idx] + state`, where `idx` tells us which of the hit planes or stopping criteria was hit. If `idx>=0` and `idx<len(zetas)`, then the `zetas[idx]` plane was hit. If `idx>=len(zetas)`, then the `vpars[idx-len(zetas)]` plane was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit. The state vector is `[t, s, theta, zeta, v_par]`.
     """
     if reltol is None:
         reltol = tol
@@ -166,11 +160,11 @@ def trace_particles_boozer_perturbed(
     assert mode in ['gc', 'gc_vac', 'gc_nok']
 
     res_tys = []
-    res_zeta_hits = []
+    res_hits = []
     loss_ctr = 0
     first, last = parallel_loop_bounds(comm, nparticles)
     for i in range(first, last):
-        res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_perturbed_tracing(
+        res_ty, res_hit = sopp.particle_guiding_center_boozer_perturbed_tracing(
             perturbed_field,
             stz_inits[i, :],
             m,
@@ -197,7 +191,7 @@ def trace_particles_boozer_perturbed(
             res_tys.append(np.asarray(res_ty))
         else:
             res_tys.append(np.asarray([res_ty[0], res_ty[-1]]))
-        res_zeta_hits.append(np.asarray(res_zeta_hit))
+        res_hits.append(np.asarray(res_hit))
         dtavg = res_ty[-1][0]/len(res_ty)
         logger.debug(
             f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}, average timestep {1000*dtavg:.10f}ms")
@@ -207,11 +201,11 @@ def trace_particles_boozer_perturbed(
         loss_ctr = comm.allreduce(loss_ctr)
     if comm is not None:
         res_tys = [i for o in comm.allgather(res_tys) for i in o]
-        res_zeta_hits = [i for o in comm.allgather(res_zeta_hits) for i in o]
+        res_hits = [i for o in comm.allgather(res_hits) for i in o]
 
     logger.debug(
         f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:d}%')
-    return res_tys, res_zeta_hits
+    return res_tys, res_hits
 
 
 def trace_particles_boozer(field: BoozerMagneticField,
@@ -230,8 +224,7 @@ def trace_particles_boozer(field: BoozerMagneticField,
                            forget_exact_path=False,
                            solver_options=None):
     r"""
-    Follow particles in a :class:`BoozerMagneticField`. This is modeled after
-    :func:`trace_particles`.
+    Follow particles in a :class:`BoozerMagneticField`. 
 
 
     In the case of ``mod='gc_vac'`` we solve the guiding center equations under
@@ -302,7 +295,7 @@ def trace_particles_boozer(field: BoozerMagneticField,
                 :math:`G` = const., :math:`I = 0`, and :math:`K = 0`.
             `gc_noK`: simplified guiding center equations for the case :math:`K = 0`.
         forget_exact_path: return only the first and last position of each
-                           particle for the ``res_tys``. To be used when only res_zeta_hits is of
+                           particle for the ``res_tys``. To be used when only res_hits is of
                            interest or one wants to reduce memory usage.
         solver_options: dictionary containing solver options
             shared options are
@@ -325,19 +318,13 @@ def trace_particles_boozer(field: BoozerMagneticField,
     Returns: 2 element tuple containing
         - ``res_tys``:
             A list of numpy arrays (one for each particle) describing the
-            solution over time. The numpy array is of shape (ntimesteps, M)
-            with M depending on the ``mode``.  Each row contains the time and
-            the state.  So for `mode='gc'` and `mode='gc_vac'` the state
-            consists of the :math:`(s,\theta,\zeta)` position and the parallel speed, hence
-            each row contains `[t, s, t, z, v_par]`.
+            solution over time. The numpy array is of shape (ntimesteps, 5).
+            Each row contains the time and the state, `[t, s, theta, zeta, v_par]`.
 
-        - ``res_zeta_hits``:
+        - ``res_hits``:
             A list of numpy arrays (one for each particle) containing
             information on each time the particle hits one of the zeta planes or
-            one of the stopping criteria. Each row of the array contains
-            `[time] + [idx] + state`, where `idx` tells us which of the `zetas`
-            or `stopping_criteria` was hit.  If `idx>=0`, then `zetas[int(idx)]`
-            was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
+            one of the stopping criteria. Each row or the array contains `[time] + [idx] + state`, where `idx` tells us which of the hit planes or stopping criteria was hit. If `idx>=0` and `idx<len(zetas)`, then the `zetas[idx]` plane was hit. If `idx>=len(zetas)`, then the `vpars[idx-len(zetas)]` plane was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit. The state vector is `[t, s, theta, zeta, v_par]`.
     """
     if solver_options:
         options = dict(solver_options)
@@ -380,17 +367,17 @@ def trace_particles_boozer(field: BoozerMagneticField,
     assert mode in ['gc', 'gc_vac', 'gc_nok']
 
     res_tys = []
-    res_zeta_hits = []
+    res_hits = []
     loss_ctr = 0
     first, last = parallel_loop_bounds(comm, nparticles)
     for i in range(first, last):
-        res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_tracing(
+        res_ty, res_hit = sopp.particle_guiding_center_boozer_tracing(
             field, stz_inits[i, :], m, charge, speed_total[i], speed_par[i], tmax, vacuum=(mode == 'gc_vac'), noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, stopping_criteria=stopping_criteria, dt_save=dt_save, vpars=vpars, **options)
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
         else:
             res_tys.append(np.asarray([res_ty[0], res_ty[-1]]))
-        res_zeta_hits.append(np.asarray(res_zeta_hit))
+        res_hits.append(np.asarray(res_hit))
         dtavg = res_ty[-1][0]/len(res_ty)
         logger.debug(
             f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}, average timestep {1000*dtavg:.10f}ms")
@@ -400,47 +387,29 @@ def trace_particles_boozer(field: BoozerMagneticField,
         loss_ctr = comm.allreduce(loss_ctr)
     if comm is not None:
         res_tys = [i for o in comm.allgather(res_tys) for i in o]
-        res_zeta_hits = [i for o in comm.allgather(res_zeta_hits) for i in o]
+        res_hits = [i for o in comm.allgather(res_hits) for i in o]
     logger.debug(
         f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:d}%')
-    return res_tys, res_zeta_hits
+    return res_tys, res_hits
 
 
-def compute_resonances(res_tys, res_hits, ma=None, delta=1e-2):
+def compute_resonances(res_tys, res_hits, delta=1e-2):
     r"""
-    Computes resonant particle orbits given the output of either
-    :func:`trace_particles` or :func:`trace_particles_boozer`, ``res_tys`` and
-    ``res_phi_hits``/``res_zeta_hits``, with ``forget_exact_path=False``.
-    Resonance indicates a trajectory which returns to the same position
+    Computes resonant particle orbits given the output of :func:`trace_particles_boozer`, ``res_tys`` and
+    ``res_hits``, with ``forget_exact_path=False``. Resonance indicates a trajectory which returns to the same position
     at the :math:`\zeta = 0` plane after ``mpol`` poloidal turns and
-    ``ntor`` toroidal turns. For the case of particles traced in a
-    :class:`MagneticField` (not a :class:`BoozerMagneticField`), the poloidal
-    angle is computed using the arctangent angle in the poloidal plane with
-    respect to the coordinate axis, ``ma``,
-
-    .. math::
-        \theta = \tan^{-1} \left( \frac{R(\phi)-R_{\mathrm{ma}}(\phi)}{Z(\phi)-Z_{\mathrm{ma}}(\phi)} \right),
-
-    where :math:`(R,\phi,Z)` are the cylindrical coordinates of the trajectory
-    and :math:`(R_{\mathrm{ma}}(\phi),Z_{\mathrm{ma}(\phi)})` is the position
-    of the coordinate axis.
+    ``ntor`` toroidal turns. 
 
     Args:
         res_tys: trajectory solution computed from :func:`trace_particles` or
                 :func:`trace_particles_boozer` with ``forget_exact_path=False``
-        res_phi_hits: output of :func:`trace_particles` or
-                :func:`trace_particles_boozer` with `phis/zetas = [0]`
-        ma: an instance of :class:`Curve` representing the coordinate axis with
-                respect to which the poloidal angle is computed. If the orbit is
-                computed in flux coordinates, ``ma`` should be ``None``. (defaults to None)
+        res_hits: output of :func:`trace_particles_boozer` with `zetas = [0]`
         delta: the distance tolerance in the poloidal plane used to compute
                 a resonant orbit. (defaults to 1e-2)
 
     Returns:
         resonances: list of 7d arrays containing resonant particle orbits. The
-                elements of each array is ``[s0, theta0, zeta0, vpar0, t, mpol, ntor]``
-                if ``ma=None``, and ``[R0, Z0, phi0, vpar0, t, mpol, ntor]`` otherwise.
-                Here ``(s0, theta0, zeta0, vpar0)/(R0, Z0, phi0, vpar0)`` indicates the
+                elements of each array is ``[s0, theta0, zeta0, vpar0, t, mpol, ntor]``. Here ``(s0, theta0, zeta0, vpar0)`` indicates the
                 initial position and parallel velocity of the particle, ``t``
                 indicates the time of the  resonance, ``mpol`` is the number of
                 poloidal turns of the orbit, and ``ntor`` is the number of toroidal turns.
@@ -481,15 +450,13 @@ def compute_resonances(res_tys, res_hits, ma=None, delta=1e-2):
     return resonances
 
 
-def compute_toroidal_transits(res_tys, flux=True):
+def compute_toroidal_transits(res_tys):
     r"""
     Computes the number of toroidal transits of an orbit.
 
     Args:
-        res_tys: trajectory solution computed from :func:`trace_particles` or
-                :func:`trace_particles_boozer` with ``forget_exact_path=False``.
-        flux: if ``True``, ``res_tys`` represents the position in flux coordinates
-                (should be ``True`` if computed from :func:`trace_particles_boozer`)
+        res_tys: trajectory solution computed from :func:`trace_particles_boozer` with ``forget_exact_path=False``.
+
     Returns:
         ntransits: array with length ``len(res_tys)``. Each element contains the
                 number of toroidal transits of the orbit.
@@ -498,18 +465,10 @@ def compute_toroidal_transits(res_tys, flux=True):
     ntransits = np.zeros((nparticles,))
     for ip in range(nparticles):
         ntraj = len(res_tys[ip][:, 0])
-        if flux:
-            phi_init = res_tys[ip][0, 3]
-        else:
-            phi_init = sopp.get_phi(
-                res_tys[ip][0, 1], res_tys[ip][0, 2], np.pi)
+        phi_init = res_tys[ip][0, 3]
         phi_prev = phi_init
         for it in range(1, ntraj):
-            if flux:
-                phi = res_tys[ip][it, 3]
-            else:
-                phi = sopp.get_phi(
-                    res_tys[ip][it, 1], res_tys[ip][it, 2], phi_prev)
+            phi = res_tys[ip][it, 3]
             phi_prev = phi
         if ntraj > 1:
             ntransits[ip] = np.round((phi - phi_init)/(2*np.pi))

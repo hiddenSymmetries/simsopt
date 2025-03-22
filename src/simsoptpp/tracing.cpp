@@ -26,7 +26,7 @@ using Array2 = BoozerMagneticField::Array2;
 
 class GuidingCenterVacuumBoozerRHS {
     /*
-     * The state consists of :math:`[s, t, z, v_par]` with
+     * The state consists of :math:`[s, theta, zeta, v_par]` with
      *
      *    \dot s = -|B|_{,\theta} m(v_{||}^2/|B| + \mu)/(q \psi_0)
      *    \dot \theta = |B|_{,s} m(v_{||}^2/|B| + \mu)/(q \psi_0) + \iota v_{||} |B|/G
@@ -99,12 +99,21 @@ class GuidingCenterVacuumBoozerRHS {
 
 class GuidingCenterVacuumBoozerPerturbedRHS {
     /*
-     * The state consists of :math:`[s, t, z, v_par]` with
+     * The state consists of :math:`[s, theta, zeta, v_par, t]` with
      *
-     *    \dot s = -|B|_{,\theta} m(v_{||}^2/|B| + \mu)/(q \psi_0)
-     *    \dot \theta = |B|_{,s} m(v_{||}^2/|B| + \mu)/(q \psi_0) + \iota v_{||} |B|/G
-     *    \dot \zeta = v_{||}|B|/G
-     *    \dot v_{||} = -(\iota |B|_{,\theta} + |B|_{,\zeta})\mu |B|/G,
+     *    \dot s      = (-|B|_{,\theta} m(v_{||}^2/|B| + \mu)/q 
+     *                  + \alpha_{,\theta}|B|v_{||} - \Phi_{\theta})/psi0;
+     *    \dot \theta = |B|_{,\psi} m (v_{||}^2/|B| + \mu)/q 
+     *                  + (\iota - \alpha_{,psi} G) v_{||}|B|/G + \Phi_{,\psi};
+     *    \dot \zeta  = v_{||}|B|/G
+     *    \dot v_{||} = -|B|/(Gm) (m\mu(|B|_{,\zeta} 
+     *                          + \alpha_{,\theta}|B|_{,\psi}G 
+     *                          + |B|_{,\theta}(\iota - \alpha_{,\psi}G))
+     *                  + q(\dot\alpha G + \alpha_{,\theta}G\Phi_{,\psi} 
+     *                  + (\iota - \alpha_{\psi}*G)*\Phi_{\theta}
+     *                  + \Phi_{,\zeta})) 
+     *                  + v_{||}/|B|(|B|_{,\theta}\Phi_{,\psi} 
+     *                             - |B|_{,\psi} \Phi_{,\theta})
      *
      *  where :math:`q` is the charge, :math:`m` is the mass, and :math:`v_\perp = 2\mu|B|`.
      *
@@ -198,13 +207,32 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
 
 class GuidingCenterNoKBoozerPerturbedRHS {
     /*
-     * The state consists of :math:`[s, t, z, v_par]` with
+     * The state consists of :math:`[s, theta, zeta, v_par, t]` with
      *
-     *    \dot s = -|B|_{,\theta} m(v_{||}^2/|B| + \mu)/(q \psi_0)
-     *    \dot \theta = |B|_{,s} m(v_{||}^2/|B| + \mu)/(q \psi_0) + \iota v_{||} |B|/G
-     *    \dot \zeta = v_{||}|B|/G
-     *    \dot v_{||} = -(\iota |B|_{,\theta} + |B|_{,\zeta})\mu |B|/G,
-     *
+     *    \dot s = (-G \Phi_{,\theta}q + I\Phi_{,\zeta}q
+     *               + |B|qv_{||}(\alpha_{\theta}G-\alpha_{,\zeta}I)
+     *               + (-|B|_{,\theta}G + |B|_{,\zeta}I)
+     *               * (mv_{||}}^2/|B| + m\mu))/(D psi0)
+     *    \dot theta = (G q \Phi_{,\psi}
+     *               + |B| q v_{||} (-\alpha_{,\psi} G - \alpha G_{,\psi} + \iota)
+     *               - G_{,\psi} m v_{||}^2 + |B|_{,\psi} G (mv_{||}}^2/|B| + m\mu))/D
+     *    \dot \zeta = (-I (|B|_{,\psi} m \mu + \Phi_{,\psi} q) 
+     *               + |B| q v_{||} (1 + \alpha_{,\psi}) I + \alpha I'(\psi))
+     *               + m v_{||}^2/|B| (|B| I'(\psi) - |B|_{,\psi} I))/D
+     *    \dot v_{||} = (|B|q/m ( -m mu (|B|_{,\zeta}(1 + \alpha_{,\psi} I + \alpha I'(\psi)) 
+     *                + |B|_{,\psi} (\alpha_{,\theta} G - \alpha_{,\zeta} I) 
+     *                + |B|_{,\theta} (\iota - \alpha G'(\psi) - \alpha_{,\psi} G)) 
+     *                - q (\dot \alpha (G + I (\iota - \alpha G'(\psi)) + \alpha G I'(\psi))
+     *                + (\alpha_{,\theta} G - \alpha_{,\zeta} I) \Phi_{,\psi} 
+     *                + (\iota - \alpha G_{,\psi} - \alpha_{,\psi} G) \Phi_{,\theta} 
+     *                + (1 + \alpha I'(\psi) + \alpha_{,\psi} I) Phi_{,\zeta})) 
+     *                + q v_{||}/|B| ((|B|_{,\theta} G - |B|_{,\zeta} I) \Phi_{,\psi} 
+     *                + |B|_{,\psi} (I \Phi_{,\zeta} - G \Phi_{,\theta})) 
+     *                + v_{||} (m \mu (|B|_{,\theta} G'(\psi) - |B|_{,\zeta} I'(\psi)) 
+     *                + q (\dot \alpha (G'(\psi) I - G I'(\psi))
+     *                + G'(\psi) \Phi_{,\theta} - I'(\psi)\Phi_{,\zeta})))/D
+     *    D = (q(G + I(-\alpha G_{,\psi} + \iota) + \alpha G I'(\psi) 
+     *          + mv_{||}/|B| (-G'(\psi) I + G I'(\psi)))
      *  where :math:`q` is the charge, :math:`m` is the mass, and :math:`v_\perp = 2\mu|B|`.
      *
      */

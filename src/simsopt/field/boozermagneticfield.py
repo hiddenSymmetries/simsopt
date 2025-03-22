@@ -731,7 +731,9 @@ class BoozerAnalytic(BoozerMagneticField):
 
 class BoozerRadialInterpolant(BoozerMagneticField):
     r"""
-    Given a `VMEC` output file, performs a Boozer coordinate transformation using ``BOOZXFORM``. The magnetic field can be computed at any point in Boozer coordinates using radial spline interpolation (``scipy.interpolate.InterpolatedUnivariateSpline``) and an inverse Fourier transform in the two angles.
+     The magnetic field can be computed at any point in Boozer coordinates using radial spline interpolation (``scipy.interpolate.InterpolatedUnivariateSpline``) and an inverse Fourier transform in the two angles. If given a `VMEC` output file, performs a Boozer coordinate transformation using ``BOOZXFORM``. If given a ``BOOZXFORM`` output file, 
+     the Boozer transformation must be performed with all surfaces on the VMEC
+     half grid, and with `phip`, `chi`, `pres`, and `phi` saved in the file.
      
     Args:
         equil: instance of :class:`Booz_xform` or string containing the         
