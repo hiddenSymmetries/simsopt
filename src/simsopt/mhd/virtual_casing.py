@@ -199,6 +199,10 @@ class VirtualCasing:
         trgt_surf = SurfaceRZFourier.from_nphi_ntheta(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
                                                       nphi=trgt_nphi, ntheta=trgt_ntheta, range=ran)
         trgt_surf.x = surf.x
+        # Drop the factor of two if not stellarator symmetric
+        trgt_surf_full = SurfaceRZFourier.from_nphi_ntheta(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
+                                                      nphi=trgt_nphi * nfp * 2, ntheta=trgt_ntheta, range='full torus')
+        trgt_surf_full.x = surf.x
 
         unit_normal = trgt_surf.unitnormal()
         logger.debug(f'unit_normal.shape: {unit_normal.shape}')
@@ -280,6 +284,9 @@ class VirtualCasing:
                 filename = os.path.join(directory, 'vcasing' + basefile[4:])
                 logger.debug(f'New filename: {filename}')
             vc.save(filename)
+
+        vc.trgt_surf = trgt_surf
+        vc.trgt_surf_full = trgt_surf_full
 
         return vc
 

@@ -9,6 +9,7 @@ import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.field import regularization_rect
+from simsopt.mhd import VirtualCasing, Vmec
 from simsopt.field.force import LpCurveForce, \
     SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque
@@ -39,33 +40,50 @@ order = 0
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
-# input_name = 'wout_henneberg.nc'
-input_name = 'input.schuetthenneberg_nfp2'
+input_name = 'wout_henneberg.nc'
 filename = TEST_DIR / input_name
+# input_name = 'wout_hybrid.nfp2.newProfiles.T0.14.n0.3e20.BandVscaled_000_001670_000_000000.nc'
+vmec_file = 'wout_hybrid.nfp2.newProfiles.T0.14.n0.3e20.BandVscaled_000_001670_000_000000.nc'
+vmec_file = TEST_DIR / vmec_file
+
+# Virtual casing must not have been run yet.
+print('Running the virtual casing calculation')
+# Resolution for the virtual casing calculation:
+vc_src_nphi = 160
+nphi = 64
+ntheta = 64
+vc = VirtualCasing.from_vmec(
+    vmec_file, 
+    src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi, 
+    trgt_nphi=nphi, trgt_ntheta=ntheta,
+)
 
 # Initialize the boundary magnetic surface:
 range_param = "half period"
-nphi = 32
-ntheta = 32
 poff = 1.5
 coff = 1.5
-s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
-s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
-s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
+s = vc.trgt_surf
+# s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=ntheta)
+s_inner = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
+s_outer = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 
 # Make the inner and outer surfaces by extending the plasma surface
 s_inner.extend_via_normal(poff)
 s_outer.extend_via_normal(poff + coff)
 
-qphi = nphi * 2
-qtheta = ntheta * 2
+qphi = nphi * 4
+qtheta = ntheta * 4
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
-s_plot = SurfaceRZFourier.from_vmec_input(
-    filename,
-    quadpoints_phi=quadpoints_phi,
-    quadpoints_theta=quadpoints_theta
-)
+# s_plot = SurfaceRZFourier.from_wout(
+#     filename,
+#     quadpoints_phi=quadpoints_phi,
+#     quadpoints_theta=quadpoints_theta
+# )
+vc2 = VirtualCasing.from_vmec(
+    vmec_file, src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi, 
+    trgt_nphi=qphi // 4, trgt_ntheta=qtheta)
+s_plot = vc2.trgt_surf_full
 
 # wire cross section for the TF coils is a square 20 cm x 20 cm
 # Only need this if make self forces and TVE nonzero in the objective!
@@ -174,14 +192,28 @@ for c in (coils + coils_TF):
     c._children = set()
 
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
-pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-             "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+print(np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2))
+print(vc2.B_external_normal_extended)
+pointData = {
+    "B_N1": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2))[:, :, None],
+    "B_N2": (vc2.B_external_normal_extended)[:, :, None],
+    "B_N": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)  - vc2.B_external_normal_extended)[:, :, None],
+             "B_N / B": ((np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                )  - vc2.B_external_normal_extended) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_initial" + file_suffix, extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
+pointData = {
+    "B_N1": (np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))[:, :, None],
+    "B_N2": (vc.B_external_normal)[:, :, None],
+    "B_N": (np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)  - vc.B_external_normal)[:, :, None],
+             "B_N / B": ((np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
+                                )  - vc.B_external_normal) / np.linalg.norm(btot.B().reshape(nphi, ntheta, 3), axis=-1))[:, :, None]}
+s.to_vtk(OUT_DIR + "surf_initial_unique", extra_data=pointData)
+# btot.set_points(s.gamma().reshape((-1, 3)))
+
 # Define the individual terms objective function:
-Jf = SquaredFlux(s, btot)
+Jf = SquaredFlux(s, btot, target=vc.B_external_normal)
 Jls = [CurveLength(c) for c in base_curves]
 Jls_TF = [CurveLength(c) for c in base_curves_TF]
 Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
@@ -252,9 +284,9 @@ def fun(dofs):
     forces_val2 = Jforce2.J()
     torques_val = Jtorque.J()
     torques_val2 = Jtorque2.J()
-    BdotN = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-    BdotN_over_B = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
-                           ) / np.mean(btot.AbsB())
+    absBn = np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2) - vc.B_external_normal)
+    BdotN = np.mean(absBn)
+    BdotN_over_B = np.mean(absBn) / np.mean(btot.AbsB())
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
     valuestr = f"J={J:.2e}, Jf={jf:.2e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
@@ -315,12 +347,23 @@ res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-10)
 save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
-pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-             "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+pointData = {
+    "B_N1": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2))[:, :, None],
+    "B_N2": (vc2.B_external_normal_extended)[:, :, None],
+    "B_N": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)  - vc2.B_external_normal_extended)[:, :, None],
+             "B_N / B": ((np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                )  - vc2.B_external_normal_extended) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_optimized" + file_suffix, extra_data=pointData)
-
 btot.set_points(s.gamma().reshape((-1, 3)))
+
+pointData = {
+    "B_N1": (np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))[:, :, None],
+    "B_N2": (vc.B_external_normal)[:, :, None],
+    "B_N": (np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)  - vc.B_external_normal)[:, :, None],
+             "B_N / B": ((np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
+                                )  - vc.B_external_normal) / np.linalg.norm(btot.B().reshape(nphi, ntheta, 3), axis=-1))[:, :, None]}
+s.to_vtk(OUT_DIR + "surf_optimized_unique", extra_data=pointData)
+
 calculate_on_axis_B(btot, s)
 
 t2 = time.time()
