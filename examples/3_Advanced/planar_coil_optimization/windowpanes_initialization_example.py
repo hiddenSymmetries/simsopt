@@ -13,13 +13,11 @@ from scipy.interpolate import RegularGridInterpolator
 from scipy.optimize import minimize
 from simsopt.geo import CurvePlanarFourier, create_equally_spaced_curves
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
-from simsopt.field.force import LpCurveForce, \
-    MixedLpCurveForce, \
+from simsopt.field.force import MixedLpCurveForce, \
     MixedSquaredMeanForce, \
     MixedLpCurveTorque, \
     MixedSquaredMeanTorque, \
-    SquaredMeanForce, \
-    SquaredMeanTorque, LpCurveTorque, regularization_rect
+    regularization_rect
 from simsopt.util import calculate_on_axis_B, save_coil_sets
 from simsopt.geo import (
     CurveLength, CurveCurveDistance,
@@ -42,12 +40,15 @@ qphi = 2 * nphi
 qtheta = 2 * ntheta
 
 # These four functions are used to compute the rotation quaternion for the coil
+
+
 def quaternion_from_axis_angle(axis, theta):
     """Compute a quaternion from a rotation axis and angle."""
     axis = axis / np.linalg.norm(axis)
     q0 = np.cos(theta / 2)
     q_vec = axis * np.sin(theta / 2)
     return np.array([q0, *q_vec])
+
 
 def quaternion_multiply(q1, q2):
     """Multiply two quaternions: q = q1 * q2."""
@@ -60,6 +61,7 @@ def quaternion_multiply(q1, q2):
         w1*z2 + x1*y2 - y1*x2 + z1*w2
     ])
 
+
 def rotate_vector(v, q):
     """Rotate a vector v using quaternion q."""
     q_conjugate = np.array([q[0], -q[1], -q[2], -q[3]])  # q* (conjugate)
@@ -67,15 +69,16 @@ def rotate_vector(v, q):
     v_rotated = quaternion_multiply(quaternion_multiply(q, v_quat), q_conjugate)
     return v_rotated[1:]  # Return the vector part
 
+
 def compute_quaternion(normal, tangent):
     """
     Compute the quaternion to rotate the upward direction [0, 0, 1] to the given unit normal vector.
     Then, compute the change needed to align the x direction [1, 0, 0] to the desired tangent after the first rotation.
-    
+
     Parameters:
         normal (array-like): A 3-element array representing the unit normal vector [n_x, n_y, n_z].
         tangent (array-like): A 3-element array representing the unit tangent vector [t_x, t_y, t_z].
-    
+
     Returns:
         np.array: Quaternion as [q0, qi, qj, qk].
     """
@@ -118,21 +121,28 @@ def compute_quaternion(normal, tangent):
     return q_final
 
 # These functions compute the Fourier series coefficients for the superellipse
+
+
 def rho(theta, a, b, n):
-    return ( 1/(abs(np.cos(theta)/a)**(n) + abs(np.sin(theta)/b)**(n) ) ** (1/(n)))
+    return (1/(abs(np.cos(theta)/a)**(n) + abs(np.sin(theta)/b)**(n)) ** (1/(n)))
 # Define Fourier coefficient integrals
+
+
 def a_m(m, a, b, n):
-    integrand = lambda theta: rho(theta, a, b, n) * np.cos(m * theta)
-    if m==0:
+    def integrand(theta): return rho(theta, a, b, n) * np.cos(m * theta)
+    if m == 0:
         return (1 / (2 * np.pi)) * spi.quad(integrand, 0, 2 * np.pi)[0]
     else:
         return (1 / np.pi) * spi.quad(integrand, 0, 2 * np.pi)[0]
 
+
 def b_m(m, a, b, n):
-    integrand = lambda theta: rho(theta, a, b, n) * np.sin(m * theta)
+    def integrand(theta): return rho(theta, a, b, n) * np.sin(m * theta)
     return (1 / np.pi) * spi.quad(integrand, 0, 2 * np.pi)[0]
 
 # Compute Fourier coefficients up to a given order
+
+
 def compute_fourier_coeffs(max_order, a, b, n):
     coeffs = {'a_m': [], 'b_m': []}
     for m in range(max_order + 1):
@@ -141,6 +151,8 @@ def compute_fourier_coeffs(max_order, a, b, n):
     return coeffs
 
 # Reconstruct the Fourier series approximation
+
+
 def rho_fourier(theta, coeffs, max_order):
     rho_approx = coeffs['a_m'][0]
     for m in range(1, max_order + 1):
@@ -150,12 +162,15 @@ def rho_fourier(theta, coeffs, max_order):
 # use this to evenly space coils on elliptical grid
 # since evenly spaced in poloidal angle won't work
 # must use quadrature for elliptic integral
+
+
 def generate_even_arc_angles(a, b, ntheta):
     def arc_length_diff(theta):
         return np.sqrt((a * np.sin(theta))**2 + (b * np.cos(theta))**2)
     # Total arc length of the ellipse
     total_arc_length, _ = quad(arc_length_diff, 0, 2 * np.pi)
     arc_lengths = np.linspace(0, total_arc_length, ntheta, endpoint=False)
+
     def arc_length_to_theta(theta, s_target):
         s, _ = quad(arc_length_diff, 0, theta)
         return s - s_target
@@ -166,6 +181,7 @@ def generate_even_arc_angles(a, b, ntheta):
             result = root_scalar(arc_length_to_theta, args=(s,), bracket=[thetas[i-1], 2*np.pi])
             thetas[i] = result.root
     return thetas
+
 
 def generate_windowpane_array(winding_surface, inboard_radius, wp_fil_spacing, half_per_spacing, wp_n, numquadpoints=32, order=12, verbose=False):
     """
@@ -183,22 +199,22 @@ def generate_windowpane_array(winding_surface, inboard_radius, wp_fil_spacing, h
                (see CurvePlanarFourier documentation), more for ellipse approximation
     Returns:
         base_wp_curves: list of initialized curves (half field period)
-    """    
+    """
     # Identify locations of windowpanes
-    VV_a = winding_surface.get_rc(1,0)
-    VV_b = winding_surface.get_zs(1,0)
-    VV_R0 = winding_surface.get_rc(0,0)
+    VV_a = winding_surface.get_rc(1, 0)
+    VV_b = winding_surface.get_zs(1, 0)
+    VV_R0 = winding_surface.get_rc(0, 0)
     arc_length = 4 * VV_a * ellipe(1-(VV_b/VV_a)**2)
-    nwps_poloidal = int(arc_length / (2 * inboard_radius + wp_fil_spacing)) # figure out how many poloidal dipoles can fit for target radius
-    Rpol = arc_length / 2 / nwps_poloidal - wp_fil_spacing / 2 # adjust the poloidal length based off npol to fix filament distance
+    nwps_poloidal = int(arc_length / (2 * inboard_radius + wp_fil_spacing))  # figure out how many poloidal dipoles can fit for target radius
+    Rpol = arc_length / 2 / nwps_poloidal - wp_fil_spacing / 2  # adjust the poloidal length based off npol to fix filament distance
     theta_locs = generate_even_arc_angles(VV_a, VV_b, nwps_poloidal)
     nwps_toroidal = int((np.pi/winding_surface.nfp*(VV_R0 - VV_a) - half_per_spacing + wp_fil_spacing) / (2 * inboard_radius + wp_fil_spacing))
     if verbose:
         print(f'     Number of Toroidal Dipoles: {nwps_toroidal}')
         print(f'     Number of Poroidal Dipoles: {nwps_poloidal}')
     # Interpolate unit normal and gamma vectors of winding surface at location of windowpane centers
-    unitn_interpolators =        [RegularGridInterpolator((winding_surface.quadpoints_phi, winding_surface.quadpoints_theta), winding_surface.unitnormal()[..., i], method='linear') for i in range(3)]
-    gamma_interpolators =        [RegularGridInterpolator((winding_surface.quadpoints_phi, winding_surface.quadpoints_theta), winding_surface.gamma()[..., i], method='linear') for i in range(3)]
+    unitn_interpolators = [RegularGridInterpolator((winding_surface.quadpoints_phi, winding_surface.quadpoints_theta), winding_surface.unitnormal()[..., i], method='linear') for i in range(3)]
+    gamma_interpolators = [RegularGridInterpolator((winding_surface.quadpoints_phi, winding_surface.quadpoints_theta), winding_surface.gamma()[..., i], method='linear') for i in range(3)]
     dgammadtheta_interpolators = [RegularGridInterpolator((winding_surface.quadpoints_phi, winding_surface.quadpoints_theta), winding_surface.gammadash2()[..., i], method='linear') for i in range(3)]
     # Initialize curves
     base_wp_curves = []
@@ -208,11 +224,11 @@ def generate_windowpane_array(winding_surface, inboard_radius, wp_fil_spacing, h
             r = VV_a*VV_b / np.sqrt((VV_b*np.cos(theta_coil))**2 + (VV_a*np.sin(theta_coil))**2)
             Rtor = (np.pi/winding_surface.nfp*(VV_R0 + r * np.cos(theta_coil)) - half_per_spacing - (nwps_toroidal-1) * wp_fil_spacing) / (2 * nwps_toroidal)
             # Calculate toroidal angle of center of coil
-            dphi = (half_per_spacing/2 + Rtor) / (VV_R0 + r * np.cos(theta_coil)) # need to add buffer in phi for gaps in panels
+            dphi = (half_per_spacing/2 + Rtor) / (VV_R0 + r * np.cos(theta_coil))  # need to add buffer in phi for gaps in panels
             phi_coil = dphi + jj * (2 * Rtor + wp_fil_spacing) / (VV_R0 + r * np.cos(theta_coil))
             # Interpolate coil center and rotation vectors
-            unitn_interp =        np.stack([interp((phi_coil/(2*np.pi), theta_coil/(2*np.pi))) for interp in unitn_interpolators], axis=-1)
-            gamma_interp =        np.stack([interp((phi_coil/(2*np.pi), theta_coil/(2*np.pi))) for interp in gamma_interpolators], axis=-1)
+            unitn_interp = np.stack([interp((phi_coil/(2*np.pi), theta_coil/(2*np.pi))) for interp in unitn_interpolators], axis=-1)
+            gamma_interp = np.stack([interp((phi_coil/(2*np.pi), theta_coil/(2*np.pi))) for interp in gamma_interpolators], axis=-1)
             dgammadtheta_interp = np.stack([interp((phi_coil/(2*np.pi), theta_coil/(2*np.pi))) for interp in dgammadtheta_interpolators], axis=-1)
             curve = CurvePlanarFourier(numquadpoints, order, winding_surface.nfp, stellsym=True)
             # dofs stored as: [r0, higher order curve terms, q_0, q_i, q_j, q_k, x0, y0, z0]
@@ -220,7 +236,7 @@ def generate_windowpane_array(winding_surface, inboard_radius, wp_fil_spacing, h
             coeffs = compute_fourier_coeffs(order, Rpol, Rtor, wp_n)
             for m in range(order+1):
                 curve.set(f'x{m}', coeffs['a_m'][m])
-                if m!=0:
+                if m != 0:
                     curve.set(f'x{m+order+1}', coeffs['b_m'][m])
             # Align the coil normal with the surface normal and Rpol axis with dgamma/dtheta
             # Renormalize the vector because interpolation can slightly modify its norm
@@ -236,6 +252,7 @@ def generate_windowpane_array(winding_surface, inboard_radius, wp_fil_spacing, h
             base_wp_curves.append(curve)
     return base_wp_curves
 
+
 def generate_tf_array(winding_surface, ntf, TF_R0, TF_a, TF_b, fixed_geo_tfs=False, numquadpoints=32):
     """
     Initialize an array of planar toroidal field coils over a half field period
@@ -249,7 +266,7 @@ def generate_tf_array(winding_surface, ntf, TF_R0, TF_a, TF_b, fixed_geo_tfs=Fal
         numquadpoints: number of quadrature points representing each coil
     Returns:
         base_tf_curves: list of initialized curves (half field period)
-    """  
+    """
     if not fixed_geo_tfs:
         try:
             from simsopt.geo import create_equally_spaced_cylindrical_curves
@@ -261,9 +278,10 @@ def generate_tf_array(winding_surface, ntf, TF_R0, TF_a, TF_b, fixed_geo_tfs=Fal
         base_tf_curves = create_equally_spaced_curves(ncurves=ntf, nfp=winding_surface.nfp, stellsym=winding_surface.stellsym, R0=TF_R0, R1=TF_a, order=1, numquadpoints=numquadpoints)
         # add this for elliptical TF coils - keep same ellipticity as VV
         for c in base_tf_curves:
-            c.set("zs(1)", -TF_b) # see create_equally_spaced_curves doc for minus sign info
+            c.set("zs(1)", -TF_b)  # see create_equally_spaced_curves doc for minus sign info
 
     return base_tf_curves
+
 
 def generate_curves():
     from simsopt.geo import curves_to_vtk
@@ -288,20 +306,20 @@ def generate_curves():
                                                inboard_radius=0.05,
                                                wp_fil_spacing=0.05,
                                                half_per_spacing=0.05,
-                                               wp_n=2, # elliptical coils
+                                               wp_n=2,  # elliptical coils
                                                numquadpoints=32,
-                                               order=12, # want high order to approximate ellipse
+                                               order=12,  # want high order to approximate ellipse
                                                verbose=True,
-                                            )
+                                               )
     # generate TFs of the class CurvePlanarEllipticalCylindrical (fixed_geo_TFs=False)
-    base_tf_curves = generate_tf_array(winding_surface=VV, 
+    base_tf_curves = generate_tf_array(winding_surface=VV,
                                        ntf=5,
                                        TF_R0=1.0,
                                        TF_a=0.4,
                                        TF_b=0.46,
                                        fixed_geo_tfs=False,
                                        numquadpoints=32,
-    )
+                                       )
     # unfix the relevant TF dofs
     for c in base_tf_curves:
         c.fix_all()
@@ -314,7 +332,8 @@ def generate_curves():
     VV.to_vtk(outdir + 'test_vessel')
     return base_wp_curves, base_tf_curves, surf_plas, surf_full
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     base_wp_curves, base_tf_curves, s, s_plot = generate_curves()
 
     # wire cross section for the TF coils is a square 20 cm x 20 cm
@@ -387,7 +406,7 @@ if __name__=='__main__':
 
     btot.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-                "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                 "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                     ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
     s_plot.to_vtk(outdir + "surf_initial", extra_data=pointData)
     btot.set_points(s.gamma().reshape((-1, 3)))
@@ -414,7 +433,7 @@ if __name__=='__main__':
     all_base_coils = base_coils + base_coils_TF
     regularization_list = np.ones(len(coils)) * regularization_rect(a, b)
     Jforce = MixedLpCurveForce(coils[0:1], coils[1:], regularization_list[0:1],
-                                regularization_list[1:], p=4, threshold=1e3, downsample=2)
+                               regularization_list[1:], p=4, threshold=1e3, downsample=2)
     # Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=4, threshold=4e5 * 100, downsample=1
     #                         ) for i, c in enumerate(all_base_coils)])
     # Jforce2 = sum([SquaredMeanForce(c, all_coils, downsample=1) for c in all_base_coils])
@@ -422,7 +441,7 @@ if __name__=='__main__':
 
     # Errors creep in when downsample = 2
     Jtorque = MixedLpCurveTorque(coils[0:1], coils[1:], regularization_list[0:1],
-                                                regularization_list[1:], p=2, threshold=1e3, downsample=2)
+                                 regularization_list[1:], p=2, threshold=1e3, downsample=2)
     # Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100, downsample=1
     #                             ) for i, c in enumerate(all_base_coils)])
     # Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
@@ -440,7 +459,7 @@ if __name__=='__main__':
         + CC_WEIGHT * Jccdist2 \
         + CURVATURE_WEIGHT * sum(Jcs) \
         + LENGTH_WEIGHT * Jlength
-        # + LINK_WEIGHT * linkNum \
+    # + LINK_WEIGHT * linkNum \
 
     if FORCE_WEIGHT.value > 0.0:
         JF += FORCE_WEIGHT.value * Jforce  # \
@@ -455,9 +474,9 @@ if __name__=='__main__':
         JF += TORQUE_WEIGHT2 * Jtorque2
 
     import cProfile, io
-    import re
     import pstats
     from pstats import SortKey
+
     def fun(dofs):
         pr = cProfile.Profile()
         pr.enable()
@@ -475,7 +494,7 @@ if __name__=='__main__':
         torques_val2 = TORQUE_WEIGHT2.value * Jtorque2.J()
         BdotN = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
         BdotN_over_B = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
-                            ) / np.mean(btot.AbsB())
+                               ) / np.mean(btot.AbsB())
         outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
         valuestr = f"J={J:.2e}, Jf={jf:.2e}"
         cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
@@ -536,12 +555,12 @@ if __name__=='__main__':
 
     MAXITER = 500
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
-                options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-10)
+                   options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-10)
     save_coil_sets(btot, outdir, "_optimized", a, b, nturns_TF, aa, bb, nturns)
 
     btot.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-                "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                 "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                     ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
     s_plot.to_vtk(outdir + "surf_optimized", extra_data=pointData)
 
@@ -552,4 +571,3 @@ if __name__=='__main__':
     print('Total time = ', t2 - t1)
     btot.save(outdir + "biot_savart_optimized" + ".json")
     print(outdir)
-

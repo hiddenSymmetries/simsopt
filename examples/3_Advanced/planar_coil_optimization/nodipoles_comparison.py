@@ -136,8 +136,8 @@ for c in (coils_TF):
 # Repeat for whole B field
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-            "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                            ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+             "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_initial_" + config_flag, extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
@@ -259,7 +259,7 @@ print("""
 
 MAXITER = 600
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
-                options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+               options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 curves_to_vtk(
     [c.curve for c in bs_TF.coils],
     OUT_DIR + "curves_TF_optimized_" + config_flag,
@@ -272,7 +272,7 @@ curves_to_vtk(
 
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-                "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+             "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_optimized_" + config_flag, extra_data=pointData)
 

@@ -53,8 +53,8 @@ vc_src_nphi = 160
 nphi = 64
 ntheta = 64
 vc = VirtualCasing.from_vmec(
-    vmec_file, 
-    src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi, 
+    vmec_file,
+    src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi,
     trgt_nphi=nphi, trgt_ntheta=ntheta,
 )
 
@@ -81,7 +81,7 @@ quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
 #     quadpoints_theta=quadpoints_theta
 # )
 vc2 = VirtualCasing.from_vmec(
-    vmec_file, src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi, 
+    vmec_file, src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi,
     trgt_nphi=qphi // 4, trgt_ntheta=qtheta)
 s_plot = vc2.trgt_surf_full
 
@@ -197,18 +197,18 @@ print(vc2.B_external_normal_extended)
 pointData = {
     "B_N1": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2))[:, :, None],
     "B_N2": (vc2.B_external_normal_extended)[:, :, None],
-    "B_N": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)  - vc2.B_external_normal_extended)[:, :, None],
-             "B_N / B": ((np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                )  - vc2.B_external_normal_extended) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+    "B_N": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2) - vc2.B_external_normal_extended)[:, :, None],
+    "B_N / B": ((np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                        ) - vc2.B_external_normal_extended) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_initial" + file_suffix, extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
 pointData = {
     "B_N1": (np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))[:, :, None],
     "B_N2": (vc.B_external_normal)[:, :, None],
-    "B_N": (np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)  - vc.B_external_normal)[:, :, None],
-             "B_N / B": ((np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
-                                )  - vc.B_external_normal) / np.linalg.norm(btot.B().reshape(nphi, ntheta, 3), axis=-1))[:, :, None]}
+    "B_N": (np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2) - vc.B_external_normal)[:, :, None],
+    "B_N / B": ((np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
+                        ) - vc.B_external_normal) / np.linalg.norm(btot.B().reshape(nphi, ntheta, 3), axis=-1))[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_initial_unique", extra_data=pointData)
 # btot.set_points(s.gamma().reshape((-1, 3)))
 
@@ -350,18 +350,18 @@ btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {
     "B_N1": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2))[:, :, None],
     "B_N2": (vc2.B_external_normal_extended)[:, :, None],
-    "B_N": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)  - vc2.B_external_normal_extended)[:, :, None],
-             "B_N / B": ((np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                )  - vc2.B_external_normal_extended) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+    "B_N": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2) - vc2.B_external_normal_extended)[:, :, None],
+    "B_N / B": ((np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                        ) - vc2.B_external_normal_extended) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_optimized" + file_suffix, extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
 pointData = {
     "B_N1": (np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))[:, :, None],
     "B_N2": (vc.B_external_normal)[:, :, None],
-    "B_N": (np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)  - vc.B_external_normal)[:, :, None],
-             "B_N / B": ((np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
-                                )  - vc.B_external_normal) / np.linalg.norm(btot.B().reshape(nphi, ntheta, 3), axis=-1))[:, :, None]}
+    "B_N": (np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2) - vc.B_external_normal)[:, :, None],
+    "B_N / B": ((np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
+                        ) - vc.B_external_normal) / np.linalg.norm(btot.B().reshape(nphi, ntheta, 3), axis=-1))[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_optimized_unique", extra_data=pointData)
 
 calculate_on_axis_B(btot, s)

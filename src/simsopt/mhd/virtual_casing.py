@@ -201,7 +201,7 @@ class VirtualCasing:
         trgt_surf.x = surf.x
         # Drop the factor of two if not stellarator symmetric
         trgt_surf_full = SurfaceRZFourier.from_nphi_ntheta(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
-                                                      nphi=trgt_nphi * nfp * 2, ntheta=trgt_ntheta, range='full torus')
+                                                           nphi=trgt_nphi * nfp * 2, ntheta=trgt_ntheta, range='full torus')
         trgt_surf_full.x = surf.x
 
         unit_normal = trgt_surf.unitnormal()
