@@ -1,8 +1,6 @@
 import jax.numpy as jnp
-from math import pi, sin, cos
 import numpy as np
 from .curve import JaxCurve
-from simsopt._core.optimizable import Optimizable
 
 __all__ = ['CurvePlanarEllipticalCylindrical','create_equally_spaced_cylindrical_curves']
 

@@ -3,14 +3,13 @@ r"""
 """
 
 import os
-import shutil
 from pathlib import Path
 import time
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field import BiotSavart, Current, coils_via_symmetries
+from simsopt.field import BiotSavart
 from simsopt.field import regularization_rect
-from simsopt.field.force import coil_force, coil_torque, coil_net_torques, coil_net_forces, LpCurveForce, \
+from simsopt.field.force import coil_net_torques, coil_net_forces, LpCurveForce, \
     SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque, pointData_forces_torques
 from simsopt.util import calculate_on_axis_B, initialize_coils

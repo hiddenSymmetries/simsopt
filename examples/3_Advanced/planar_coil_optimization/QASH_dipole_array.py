@@ -9,7 +9,7 @@ import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.field import regularization_rect
-from simsopt.mhd import VirtualCasing, Vmec
+from simsopt.mhd import VirtualCasing
 from simsopt.field.force import LpCurveForce, \
     SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque

@@ -15,7 +15,7 @@ from simsopt.objectives import SquaredFlux, Weight, QuadraticPenalty
 from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance,
                          MeanSquaredCurvature, LpCurveCurvature)
 from simsopt.field import BiotSavart
-from simsopt.field.force import coil_force, coil_torque, coil_net_forces, \
+from simsopt.field.force import coil_force, coil_net_forces, \
     coil_net_torques, LpCurveForce, TVE, pointData_forces_torques
 from simsopt.field.selffield import regularization_circ
 from simsopt.util import in_github_actions, calculate_on_axis_B
