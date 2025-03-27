@@ -476,7 +476,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         surf.local_full_x = surf.get_dofs()
         return surf
-        
+
     @classmethod
     @SimsoptRequires(Qsc is not None, "from_pyQSC method requires pyQSC module")
     def from_pyQSC(cls, stel: Qsc, r: float = 0.1, ntheta=20, mpol=10, ntor=20, **kwargs):
