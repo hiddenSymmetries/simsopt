@@ -163,7 +163,7 @@ class Spec(Optimizable):
         # The initial guess is a collection of SurfaceRZFourier instances,
         # stored in a list of size Mvol-1 (the number of inner interfaces)
         read_initial_guess = self.inputlist.linitialize == 0 and self.nvol > 1 
-        if read_initial_guess:
+        if read_initial_guess and self.mpi.proc0_groups:
             self.initial_guess = self._read_initial_guess()
             # In general, initial guess is NOT a degree of freedom for the
             # optimization - we thus fix them.
@@ -309,6 +309,9 @@ class Spec(Optimizable):
     def _set_spec_initial_guess(self):
         """
         Set initial guesses in SPEC from a list of surfaceRZFourier objects.
+
+        populates the allrzrz array in SPEC with the initial guesses.
+        These are propagated to the other cores (are they?)
         """
         # Set all modes to zero
         spec.allglobal.mmrzrz[:] = 0
@@ -339,6 +342,7 @@ class Spec(Optimizable):
                         spec.allglobal.allrzrz[2, lvol, imn] = initial_guess[lvol].get_rs(mm, nn)
                         spec.allglobal.allrzrz[3, lvol, imn] = initial_guess[lvol].get_zc(mm, nn)
         spec.allglobal.num_modes = imn + 1
+        return
     # possibly cleaner way to do this (tested to work Chris Smiet 11/9/2023):
 #            n_indices, m_values = np.indices([2*si.ntor+1, si.mpol+1]) #get indices for array
 #            n_values = n_indices - si.ntor # offset indices to correspond with mode numbers
@@ -974,17 +978,18 @@ class Spec(Optimizable):
             si.zac[0:mn] = self.axis['zac']
 
         # Set initial guess
-        if self.initial_guess is not None:  # note: self.initial_guess is None for workers!! only leaders read and do_stuff with initial_guess
-            self._set_spec_initial_guess()  # workers get the info through a broadcast. this line fails if workers get a guess set
+        if self.mpi.proc0_groups:
+            if self.initial_guess is not None:  # note: self.initial_guess is None for workers!! only leaders read and do_stuff with initial_guess
+                self._set_spec_initial_guess()  # workers get the info through a broadcast. this line fails if workers get a guess set
 
-            # write the boundary which is a guess in freeboundary
-            if self.freebound:
-                boundaryguess = self.initial_guess[-1].to_RZFourier()
-                si.rbc[:] = self.array_translator(boundaryguess.rc, style='simsopt').as_spec
-                si.zbs[:] = self.array_translator(boundaryguess.zs, style='simsopt').as_spec
-                if not self.stellsym:
-                    si.rbs[:] = self.array_translator(boundaryguess.rs, style='simsopt').as_spec
-                    si.zbc[:] = self.array_translator(boundaryguess.zc, style='simsopt').as_spec
+                # write the boundary which is a guess in freeboundary
+                if self.freebound:
+                    boundaryguess = self.initial_guess[-1].to_RZFourier()
+                    si.rbc[:] = self.array_translator(boundaryguess.rc, style='simsopt').as_spec
+                    si.zbs[:] = self.array_translator(boundaryguess.zs, style='simsopt').as_spec
+                    if not self.stellsym:
+                        si.rbs[:] = self.array_translator(boundaryguess.rs, style='simsopt').as_spec
+                        si.zbc[:] = self.array_translator(boundaryguess.zc, style='simsopt').as_spec
 
         # Set profiles from dofs
         if self.pressure_profile is not None:
