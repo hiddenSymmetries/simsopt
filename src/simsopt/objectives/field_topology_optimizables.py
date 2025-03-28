@@ -200,8 +200,8 @@ class PyOculusFixedPoint(Optimizable):
         if self._refind_fp:
             self.refind()
         return self._fixed_point.Jacobian
-
-    def Trace(self):
+    
+    def trace(self):
         return np.trace(self.jacobian)
 
     @property

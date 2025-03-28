@@ -35,11 +35,6 @@ except ImportError as e:
     py_spec = None
     logger.debug(str(e))
 
-try:
-    import pyoculus
-except ImportError as e:
-    pyoculus = None
-    logger.debug(str(e))
 
 from .._core.optimizable import Optimizable
 from .._core.util import ObjectiveFailure
@@ -1328,7 +1323,7 @@ class Residue(Optimizable):
     Greene's residue, evaluated from a Spec equilibrum
 
     Args:
-        spec: a Spec object
+        spec: a simsopt.mhd.Spec object
         pp, qq: Numerator and denominator for the resonant iota = pp / qq
         vol: Index of the Spec volume to consider
         theta: Spec's theta coordinate at the periodic field line
@@ -1338,38 +1333,33 @@ class Residue(Optimizable):
         rtol: the relative tolerance of the integrator
     """
 
-    def __init__(self, spec, pp, qq, vol=1, theta=0., s_guess=None, s_min=-1.0,
-                 s_max=1.0, rtol=1e-9):
-        # if not spec_found:
-        if spec is None:
-            raise RuntimeError(
-                "Residue requires spec package to be installed.")
-        # if not pyoculus_found:
-        if pyoculus is None:
-            raise RuntimeError(
-                "Residue requires pyoculus package to be installed.")
+    def __init__(self, spec_equil, m, n, vol=1, theta=0., s_guess=None, s_min=-1.0,
+                 s_max=1.0, finder_tol=1e-9, integrator_tol=1e-11):
 
-        self.spec = spec
-        self.pp = pp
-        self.qq = qq
+        import pyoculus # import here to avoid circular imports
+        self.spec = spec_equil
+        self.m = m 
+        self.n = n
         self.vol = vol
         self.theta = theta
-        self.rtol = rtol
+        self.finder_tol = finder_tol
+        self.integrator_tol = integrator_tol
         if s_guess is None:
             self.s_guess = 0.0
         else:
             self.s_guess = s_guess
         self.s_min = s_min
         self.s_max = s_max
-        self.depends_on = ['spec']
         self.need_to_run_code = True
         self.fixed_point = None
+        self._current_guess = np.array([self.s_guess, 0.])
         # We may at some point want to allow Residue to use a
         # different MpiPartition than the Spec object it is attached
         # to, but for now we'll use the same MpiPartition for
         # simplicity.
-        self.mpi = spec.mpi
-        super().__init__(depends_on=[spec])
+        self.mpi = spec_equil.mpi
+
+        super().__init__(depends_on=[spec_equil])
 
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
@@ -1378,30 +1368,32 @@ class Residue(Optimizable):
         """
         Run Spec if needed, find the periodic field line, and return the residue
         """
+        import pyoculus
         if self.need_to_run_code:
             self.spec.run()
+            if self.mpi.proc0_groups:
+                self._specfield = pyoculus.fields.SpecBfield(self.spec.results, self.vol)
+                self._map = pyoculus.maps.ToroidalBfieldSection(self._specfield, tol=self.integrator_tol)
+            self.need_to_run_code = False
         
         if not self.mpi.proc0_groups:
             logger.debug(
                 "This proc is skipping Residue.J() since it is not a group leader.")
             return 0.0
         else:
-            specb = pyoculus.problems.SPECBfield(self.spec.results, self.vol)
-            # Set nrestart=0 because otherwise the random guesses in
-            # pyoculus can cause examples/tests to be
-            # non-reproducible.
-            fp = pyoculus.solvers.FixedPoint(
-                specb, {
-                    'theta': self.theta, 'nrestart': 0}, integrator_params={
-                    'rtol': self.rtol})
-            self.fixed_point = fp.compute(self.s_guess,
-                                          sbegin=self.s_min,
-                                          send=self.s_max,
-                                          pp=self.pp, qq=self.qq)
-            self.need_to_run_code = False
+            try:
+                # Set nrestart=0 because otherwise the random guesses in
+                # pyoculus can cause examples/tests to be
+                # non-reproducible.
+                self.fixed_point = pyoculus.solvers.FixedPoint(
+                    self._map)
+                self.rdata = self.fixed_point.find_with_iota(self.n, self.m, guess=self._current_guess, method='1D', tol=self.finder_tol)
+            except Exception as e:
+                raise ObjectiveFailure("fixed point finding failed") from e
 
         if self.fixed_point is None:
             raise ObjectiveFailure("Residue calculation failed")
-        logger.info(f"group {self.mpi.group} found residue {self.fixed_point.GreenesResidue} for {self.pp}/{self.qq} in {self.spec.allglobal.ext}")
+        logger.info(f"group {self.mpi.group} found residue {self.fixed_point.GreenesResidue} for {self.m}/{self.n} in {self.spec.allglobal.ext}")
+        self._current_guess = self.fixed_point.coords[0]
 
         return self.fixed_point.GreenesResidue
