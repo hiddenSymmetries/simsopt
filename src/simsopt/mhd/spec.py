@@ -1337,7 +1337,7 @@ class Residue(Optimizable):
                  s_max=1.0, finder_tol=1e-9, integrator_tol=1e-11):
 
         import pyoculus # import here to avoid circular imports
-        self.spec = spec_equil
+        self.spec_equil = spec_equil
         self.m = m 
         self.n = n
         self.vol = vol
@@ -1370,9 +1370,9 @@ class Residue(Optimizable):
         """
         import pyoculus
         if self.need_to_run_code:
-            self.spec.run()
+            self.spec_equil.run()
             if self.mpi.proc0_groups:
-                self._specfield = pyoculus.fields.SpecBfield(self.spec.results, self.vol)
+                self._specfield = pyoculus.fields.SpecBfield(self.spec_equil.results, self.vol)
                 self._map = pyoculus.maps.ToroidalBfieldSection(self._specfield, tol=self.integrator_tol)
             self.need_to_run_code = False
         
@@ -1393,7 +1393,7 @@ class Residue(Optimizable):
 
         if self.fixed_point is None:
             raise ObjectiveFailure("Residue calculation failed")
-        logger.info(f"group {self.mpi.group} found residue {self.fixed_point.GreenesResidue} for {self.m}/{self.n} in {self.spec.allglobal.ext}")
+        logger.info(f"group {self.mpi.group} found residue {self.fixed_point.GreenesResidue} for {self.m}/{self.n} in {self.spec_equil.allglobal.ext}")
         self._current_guess = self.fixed_point.coords[0]
 
         return self.fixed_point.GreenesResidue
