@@ -38,7 +38,7 @@ def _rphiz_to_xyz(array: NDArray[np.float64]) -> NDArray[np.float64]:
     if array.ndim == 1:
         array2 = array[None, :]
     else:
-        array2 = array[:,:]
+        array2 = array[:, :]
     return np.array([array2[:, 0]*np.cos(array2[:, 1]), array2[:, 0]*np.sin(array[:, 1]), array[:, 2]]).T
 
 def _xyz_to_rphiz(array: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -47,7 +47,9 @@ def _xyz_to_rphiz(array: NDArray[np.float64]) -> NDArray[np.float64]:
     """
     if array.ndim == 1:
         array2 = array[None, :]
-    return np.array([np.sqrt(array[:, 0]**2 + array[:, 1]**2), np.arctan2(array[:, 1], array[:, 0]), array[:, 2]]).T
+    else:
+        array2 = array[:, :]
+    return np.array([np.sqrt(array2[:, 0]**2 + array2[:, 1]**2), np.arctan2(array2[:, 1], array2[:, 0]), array2[:, 2]]).T
 
 class IndexableGenerator(object):
 
@@ -452,7 +454,7 @@ class SimpleIntegrator(Optimizable):
                 print(f"Integrating field line: {RZ_start}")
                 poincare_points.append(np.array(self._return_fieldline_iterator(RZ_start, phi_plane, phi_distance)[:n_points]))
             except Exception as e:
-                print(f"Failed to integrate field line: {RZ_start}")
+                print(f"Failed to integrate field line: {RZ_start} because: {e}")
         return poincare_points
 
 

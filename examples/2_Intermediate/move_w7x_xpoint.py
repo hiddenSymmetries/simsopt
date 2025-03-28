@@ -33,7 +33,7 @@ fullmap = simpleintegrator.integrate_in_phi(ma_startpoint_RZ, phi, 2*np.pi) # in
 
 dist = np.linalg.norm(ma_startpoint_RZ - fullmap)
 print(f"The magnetic axis maps to a distance of: {dist}")
-print(f"This is not unexpected, the magnetic axis was fourier-decomposed with limited resolution." )
+print("This is not unexpected, the magnetic axis was fourier-decomposed with limited resolution." )
 
 axis_target = SimpleFixedPoint_RZ(field, ma_startpoint_RZ, NFP_W7X, 1, phi_0=0)
 

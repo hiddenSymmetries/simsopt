@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from jax import grad, jvp, jacfwd
+from jax import jvp
 import numpy as np
 from .curve import JaxCurve, Curve
 from .jit import jit
