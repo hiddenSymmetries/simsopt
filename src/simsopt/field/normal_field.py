@@ -411,7 +411,7 @@ class NormalField(Optimizable):
 
         vns = self.vns
 
-        return vns[0:mpol, self.ntor-ntor:self.ntor+ntor+1]
+        return vns[0:mpol+1, self.ntor-ntor:self.ntor+ntor+1]
     
     def get_vnc_asarray(self, mpol=None, ntor=None):
         """
@@ -431,7 +431,7 @@ class NormalField(Optimizable):
         if vnc is None:
             vnc = np.zeros((mpol, 2*ntor+1))
 
-        return vnc[0:mpol, self.ntor-ntor:self.ntor+ntor+1]
+        return vnc[0:mpol+1, self.ntor-ntor:self.ntor+ntor+1]
     
     def get_vns_vnc_asarray(self, mpol=None, ntor=None):
         """
