@@ -11,8 +11,10 @@ try :
     from pyoculus.solvers import FixedPoint, Manifold
     from pyoculus.fields import SimsoptBfield
     from pyoculus.maps import CylindricalBfieldSection
+    from pyoculus import __version__ as pyoc_version
 except ImportError:
-    newpyoculus = False
+    pyoc_version = -1
+    pyoculus = None
 from .._core import Optimizable
 from .._core.dev import SimsoptRequires
 from .._core.util import ObjectiveFailure
@@ -21,7 +23,6 @@ from numpy.typing import NDArray
 from typing import Union, Iterable
 import itertools
 
-from pyoculus import __version__ as pyoc_version
 
 if pyoc_version >= '1.0.0':
     newpyoculus = True
