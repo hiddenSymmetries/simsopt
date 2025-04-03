@@ -823,16 +823,12 @@ Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
                 }
             }
         }
-#pragma omp for ordered
-    for( int t=0; t<omp_get_num_threads(); ++t )
-            {
-                #pragma omp ordered
-                {
-                    for(int i=0; i<num_dofs(); ++i) {
-                        resptr[i] += resptr_private[i];
-                    }
-                }
+#pragma omp critical
+        {
+            for(int i=0; i<num_dofs(); ++i) {
+                resptr[i] += resptr_private[i];
             }
+        }
     }
     return res;
 }
@@ -901,17 +897,12 @@ Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
                 }
             }
         }
-#pragma omp for ordered
-    for( int t=0; t<omp_get_num_threads(); ++t )
-            {
-                #pragma omp ordered
-                {
-                    for(int i=0; i<num_dofs(); ++i) {
-                        resptr[i] += resptr_private[i];
-                    }
-                }
+#pragma omp critical
+        {
+            for(int i=0; i<num_dofs(); ++i) {
+                resptr[i] += resptr_private[i];
             }
-    }
+        }
     return res;
 }
 
@@ -1040,16 +1031,12 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
                 }
             }
         }
-#pragma omp for ordered
-    for( int t=0; t<omp_get_num_threads(); ++t )
-            {
-                #pragma omp ordered
-                {
-                    for(int i=0; i<num_dofs(); ++i) {
-                        resptr[i] += resptr_private[i];
-                    }
-                }
+#pragma omp critical
+        {
+            for(int i=0; i<num_dofs(); ++i) {
+                resptr[i] += resptr_private[i];
             }
+        }
     }
     res *= 2*M_PI;
     return res;
@@ -1122,16 +1109,12 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
                 }
             }
         }
-#pragma omp for ordered
-    for( int t=0; t<omp_get_num_threads(); ++t )
-            {
-                #pragma omp ordered
-                {
-                    for(int i=0; i<num_dofs(); ++i) {
-                        resptr[i] += resptr_private[i];
-                    }
-                }
+#pragma omp critical
+        {
+            for(int i=0; i<num_dofs(); ++i) {
+                resptr[i] += resptr_private[i];
             }
+        }
     }
     res *= 2*M_PI;
     return res;
@@ -1372,16 +1355,12 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
                 }
             }
         }
-#pragma omp for ordered
-    for( int t=0; t<omp_get_num_threads(); ++t )
-            {
-                #pragma omp ordered
-                {
-                    for(int i=0; i<num_dofs(); ++i) {
-                        resptr[i] += resptr_private[i];
-                    }
-                }
+#pragma omp critical
+        {
+            for(int i=0; i<num_dofs(); ++i) {
+                resptr[i] += resptr_private[i];
             }
+        }
     }
     res *= 2*M_PI;
     return res;
@@ -1454,16 +1433,12 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
                 }
             }
         }
-#pragma omp for ordered
-    for( int t=0; t<omp_get_num_threads(); ++t )
-            {
-                #pragma omp ordered
-                {
-                    for(int i=0; i<num_dofs(); ++i) {
-                        resptr[i] += resptr_private[i];
-                    }
-                }
+#pragma omp critical
+        {
+            for(int i=0; i<num_dofs(); ++i) {
+                resptr[i] += resptr_private[i];
             }
+        }
     }
     res *= 2*M_PI;
     return res;
