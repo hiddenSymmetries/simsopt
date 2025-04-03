@@ -50,15 +50,17 @@ Stage: devel
 
     git clone --depth 1 https://github.com/mpi4py/mpi4py.git && \
     cd mpi4py && \
-    /venv/bin/python setup.py build --mpicc=mpicc --mpicxx=mpicxx --mpifort=mpifort --mpif90=mpif90 --mpif77=mpif77 --mpild=mpicc  && \
-    /venv/bin/python setup.py install  && \
+    # /venv/bin/python setup.py build --mpicc=mpicc --mpicxx=mpicxx --mpifort=mpifort --mpif90=mpif90 --mpif77=mpif77 --mpild=mpicc  && \
+    # /venv/bin/python setup.py install  && \
+    /venv/bin/pip install . && \
     cd .. && \
     rm -rf mpi4py
 
     git clone --depth 1 https://github.com/PrincetonUniversity/SPEC.git && \
     cd SPEC   &&  \
-    /venv/bin/python setup.py bdist_wheel && \
-    /venv/bin/pip install -v dist/*.whl &&  \
+    # /venv/bin/python setup.py bdist_wheel && \
+    # /venv/bin/pip install -v dist/*.whl &&  \
+    /venv/bin/pip install -v . 
     cd Utilities/pythontools && \
     /venv/bin/pip install -r requirements.txt && \
     /venv/bin/pip install . && \
@@ -72,7 +74,7 @@ Stage: devel
     cd .. && \
     rm -rf VMEC2000
 
-    /venv/bin/pip install pyoculus
+    /venv/bin/pip install git+https://github.com/zhisong/pyoculus
     /venv/bin/pip install vtk==9.2.6 pyqt5 matplotlib pyevtk plotly
     /venv/bin/pip install mayavi
     /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform

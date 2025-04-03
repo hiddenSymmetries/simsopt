@@ -109,10 +109,10 @@ We now combine the four residues into a least-squares objective
 function, by summing the squares of the residues::
 
   # Objective function is \sum_j residue_j ** 2
-  prob = LeastSquaresProblem.from_tuples([(residue1, 0, 1),
-                                          (residue2, 0, 1),
-                                          (residue3, 0, 1),
-                                          (residue4, 0, 1)])
+  prob = LeastSquaresProblem.from_tuples([(residue1.J, 0, 1),
+                                          (residue2.J, 0, 1),
+                                          (residue3.J, 0, 1),
+                                          (residue4.J, 0, 1)])
 
 If you wanted an island to be present instead of absent, which might
 be the case when designing an island divertor, a value other than zero

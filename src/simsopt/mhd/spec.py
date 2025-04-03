@@ -199,7 +199,7 @@ class Spec(Optimizable):
                                           mpol=self.mpol, ntor=self.ntor)
         self._boundary.rc[:] = self.array_translator(si.rbc, style='spec').as_simsopt
         self._boundary.zs[:] = self.array_translator(si.zbs, style='spec').as_simsopt 
-        if not self.freebound:
+        if not self.stellsym:
             self._boundary.rs[:] = self.array_translator(si.rbs, style='spec').as_simsopt
             self._boundary.zc[:] = self.array_translator(si.zbc, style='spec').as_simsopt
         self._boundary.local_full_x = self._boundary.get_dofs()

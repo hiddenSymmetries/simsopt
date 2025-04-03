@@ -40,7 +40,10 @@ RUN python3 -m pip install wheel
 RUN python3 -m venv /venv/
 
 RUN /venv/bin/pip install -U pip
-RUN /venv/bin/python -m pip install numpy scipy jax jaxlib f90nml mpi4py jupyter notebook ipython qsc sympy scikit-build ninja "pybind11[global]" cmake f90wrap h5py
+# 2024-11-12 MJL: mpi4py < 4.0 in the next line is due to
+# https://github.com/hiddenSymmetries/simsopt/issues/455
+# Once NERSC gets Shifter working with mpi4py >= 4 we can remove this inequality
+RUN /venv/bin/python -m pip install numpy scipy jax jaxlib f90nml "mpi4py<4.0" jupyter notebook ipython qsc sympy scikit-build ninja "pybind11[global]" cmake f90wrap h5py
 ENV PATH="/venv/bin:${PATH}"
 
 RUN git clone --depth 1 https://github.com/PrincetonUniversity/SPEC.git /src/SPEC && \
@@ -55,7 +58,7 @@ RUN git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git /src/VM
     cp cmake/machines/ubuntu.json cmake_config_file.json && \
     /venv/bin/pip install -v . 2>&1 | tee vmec_build.log
 
-RUN /venv/bin/pip install pyoculus
+RUN /venv/bin/pip install git+https://github.com/zhisong/pyoculus
 RUN /venv/bin/pip install vtk==9.2.6 pyqt5 matplotlib pyevtk plotly
 RUN /venv/bin/pip install mayavi
 RUN /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
