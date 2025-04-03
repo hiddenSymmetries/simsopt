@@ -21,7 +21,7 @@ if in_github_actions:
     ntheta = nphi
     dx = 0.05  # bricks with radial extent 5 cm
 else:
-    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     Nx = 64 # bricks with radial extent ??? cm
 
@@ -29,7 +29,7 @@ coff = 0.2  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
-max_nMagnets = 10000
+max_nMagnets = 1000
 
 # Read in the plas/ma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -96,7 +96,7 @@ print(pm_opt.phiThetas)
 
 # Optimize the permanent magnets. This actually solves
 kwargs = initialize_default_kwargs('GPMO')
-nIter_max = 30000
+nIter_max = 10000
 # algorithm = 'baseline'
 algorithm = 'ArbVec_backtracking'
 nBacktracking = 200 

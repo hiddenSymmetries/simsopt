@@ -21,17 +21,17 @@ if in_github_actions:
     ntheta = nphi
     dr = 0.05  # cylindrical bricks with radial extent 5 cm
 else:
-    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # dr = 0.02  # cylindrical bricks with radial extent 2 cm
-    Nx = 16
+    Nx = 64
 
-coff = 0.5  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.1
+coff = 0.2  # PM grid starts offset ~ 10 cm from the plasma surface
+poff = 0.05
   # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
-nIter_max = 100
+max_nMagnets = 1000
 
 # Read in the plas/ma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -107,13 +107,26 @@ pm_comp = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
 
 # Optimize the permanent magnets. This actually solves
 kwargs = initialize_default_kwargs('GPMO')
+nIter_max = 10000
 # algorithm = 'baseline'
-algorithm = 'baseline'
-nHistory = 5
-
-kwargs['K'] = nIter_max
+algorithm = 'ArbVec_backtracking'
+nBacktracking = 200 
+nAdjacent = 10
+thresh_angle = np.pi  # / np.sqrt(2)
+angle = int(thresh_angle * 180 / np.pi)
+kwargs['K'] = max_nMagnets
+if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
+    kwargs['backtracking'] = nBacktracking
+    kwargs['Nadjacent'] = nAdjacent
+    kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.pm_grid_xyz)
+    if algorithm == 'ArbVec_backtracking':
+        kwargs['thresh_angle'] = thresh_angle
+        kwargs['max_nMagnets'] = max_nMagnets
+    # Below line required for the backtracking to be backwards 
+    # compatible with the PermanentMagnetGrid class
+    pm_opt.coordinate_flag = 'cartesian'  
+nHistory = 100
 kwargs['nhistory'] = nHistory
-print('kwargs = ',kwargs)
 t1 = time.time()
 R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 
