@@ -118,7 +118,7 @@ kwargs['K'] = max_nMagnets
 if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
     kwargs['backtracking'] = nBacktracking
     kwargs['Nadjacent'] = nAdjacent
-    kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.pm_grid_xyz)
+    kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)
     if algorithm == 'ArbVec_backtracking':
         kwargs['thresh_angle'] = thresh_angle
         kwargs['max_nMagnets'] = max_nMagnets
