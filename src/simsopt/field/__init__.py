@@ -6,6 +6,7 @@ from .magneticfield import *
 from .magneticfieldclasses import *
 from .mgrid import *
 from .normal_field import *
+from .periodic_field_lines import *
 from .tracing import *
 from .wireframefield import *
 from .selffield import *
@@ -20,6 +21,7 @@ __all__ = (
     + magneticfieldclasses.__all__
     + mgrid.__all__
     + normal_field.__all__
+    + periodic_field_lines.__all__
     + tracing.__all__
     + wireframefield.__all__
     + selffield.__all__
