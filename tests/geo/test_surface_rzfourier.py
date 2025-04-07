@@ -224,6 +224,27 @@ class SurfaceRZFourierTests(unittest.TestCase):
                                              ntheta=69)
         self.assertAlmostEqual(s.volume(), true_volume, places=8)
 
+    def test_from_nescoil_input(self):
+        """
+        Test reading in surfaces from a NESCOIL input file.
+        """
+
+        filename = TEST_DIR / 'nescin.LandremanPaul2021_QA'
+        s_plas = SurfaceRZFourier.from_nescoil_input(filename, 'plasma')
+        SurfaceRZFourier.from_nescoil_input(filename, 'current')
+        with self.assertRaises(ValueError):
+            SurfaceRZFourier.from_nescoil_input(filename, 'other')
+
+        # The plasma surface in the nescoil file should be approximately the 
+        # same as the LandremanPaul2021_QA surface, although Fourier resolution
+        # is different
+        filename_ref = TEST_DIR / 'input.LandremanPaul2021_QA'
+        s_ref = SurfaceRZFourier.from_vmec_input(filename_ref)
+        self.assertAlmostEqual(s_plas.volume(), s_ref.volume(), places=1)
+
+        with self.assertRaises(AssertionError):
+            SurfaceRZFourier.from_nescoil_input(filename_ref, 'plasma')
+
     def test_from_vmec_2_ways(self):
         """
         Verify that from_wout() and from_vmec_input() give consistent
@@ -364,7 +385,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         """
         Try reading in a near-axis pyQSC equilibrium.
         """
-        stel = Qsc.from_paper(1)
+        stel = Qsc.from_paper("r1 section 5.1")
         filename = TEST_DIR / 'input.near_axis_test'
 
         ntheta = 20
