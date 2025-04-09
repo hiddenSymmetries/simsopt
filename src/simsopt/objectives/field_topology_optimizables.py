@@ -123,6 +123,9 @@ class PyOculusFixedPoint(Optimizable):
         self.integration_tol = integration_tol
         self.finder_tol = finder_tol
         self.integration_args = integration_args
+        #update integration_tol if it is not in integration_args dict:
+        if 'tol' not in self.integration_args:
+            self.integration_args['tol'] = integration_tol
         self.finder_args = finder_args
 
         self._oculus_field_representation = SimsoptBfield(nfp, field)  # pyoculus' interfacing class
@@ -133,7 +136,7 @@ class PyOculusFixedPoint(Optimizable):
         else:
             self._map = CylindricalBfieldSection(self._oculus_field_representation, R0=0, Z0=0, phi0=phi_0, **integration_args)  # create the map with 'axis' at the origin (methods calculating rotational transform will fail)
         self._fixed_point = FixedPoint(self._map)  # create the fixed point
-        self._fixed_point.find(self.fp_order, start_guess, tol=finder_tol, **self.finder_args)  # find it
+        self._fixed_point.find(self.fp_order, start_guess, tol=self.finder_tol, **self.finder_args)  # find it
         self._current_location = np.copy(self._fixed_point.coords[0])
         self._refind_fp = False
 
@@ -392,7 +395,7 @@ class SimpleIntegrator(Optimizable):
             return np.array(np.nan, np.nan)
         return sol.y[:, -1]
 
-    def integrate_fieldlinepoints_RZ(self, RZ_start, phi_start, phi_end, n_points, return_cartesian=False):
+    def integrate_fieldlinepoints_RZ(self, RZ_start, phi_start, phi_end, n_points, endpoint=False, return_cartesian=False):
         """
         Integrate the field line using scipy's odeint method,
         to get a string of RZ points equally spaced in phi.
@@ -400,7 +403,7 @@ class SimpleIntegrator(Optimizable):
         Default returns cylindrical coordinates, can also
         return cartesian coordinates.
         """
-        sol = solve_ivp(self.integration_fn, [phi_start, phi_end], RZ_start, t_eval=np.linspace(phi_start, phi_end, n_points), events=self.event_function, method='RK45', rtol=self.TOL, atol=self.TOL)
+        sol = solve_ivp(self.integration_fn, [phi_start, phi_end], RZ_start, t_eval=np.linspace(phi_start, phi_end, n_points, endpoint=endpoint), events=self.event_function, method='RK45', rtol=self.TOL, atol=self.TOL)
         if not sol.success:
             raise ObjectiveFailure("Failed to integrate field line")
         rphiz = np.array([sol.y[0, :], sol.t, sol.y[1, :]]).T
@@ -409,16 +412,16 @@ class SimpleIntegrator(Optimizable):
         else:
             return rphiz
 
-    def integrate_fieldlinepoints_xyz(self, xyz_start, phi_total, n_points):
+    def integrate_fieldlinepoints_xyz(self, xyz_start, phi_total, n_points, endpoint=False, return_cartesian=True):
         """
-        integrate a fieldline for a given toroidal distance, return the points in xyz
+        integrate a fieldline for a given toroidal distance, giving the start point in xyz. 
         """
         rphiz_start = _xyz_to_rphiz(xyz_start)
         RZ_start = rphiz_start[::2]
         phi_start = rphiz_start[1]
         phi_end = phi_start + phi_total
-        rphiz = self.integrate_fieldlinepoints_RZ(RZ_start, phi_start, phi_end, n_points)
-        return _rphiz_to_xyz(rphiz)
+        points = self.integrate_fieldlinepoints_RZ(RZ_start, phi_start, phi_end, n_points, endpoint=endpoint, return_cartesian=return_cartesian)
+        return points
 
     def integration_function3d(self, t, xyz):
         self.field.set_points(xyz[None,:])
