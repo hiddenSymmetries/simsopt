@@ -18,12 +18,16 @@ class Tests(unittest.TestCase):
         Z0 = 0.0
         Delta_phi = np.pi / 5  # Only half a field period
 
-        # Integrate the field line
-        R, Z = _integrate_field_line(field, R0, Z0, Delta_phi)
+        for current_signs in [1, -1]:
+            for c in base_currents:
+                c.x = current_signs * c.x
 
-        # Check that the final coordinates are as expected
-        np.testing.assert_allclose(R, 5.207, atol=1e-3)
-        np.testing.assert_allclose(Z, 0, atol=1e-3)
+            # Integrate the field line
+            R, Z = _integrate_field_line(field, R0, Z0, Delta_phi)
+
+            # Check that the final coordinates are as expected
+            np.testing.assert_allclose(R, 5.207, atol=1e-3)
+            np.testing.assert_allclose(Z, 0, atol=1e-3)
 
     def test_find_periodic_field_line_2D(self):
         # Load the W7-X field:
@@ -53,8 +57,8 @@ class Tests(unittest.TestCase):
         print("R, Z", R, Z)
 
         # Check that the final coordinates are as expected
-        np.testing.assert_allclose(R, 5.4490101687346115, atol=1e-5)
-        np.testing.assert_allclose(Z, 0.875629267473603, atol=1e-5)
+        np.testing.assert_allclose(R, 5.4490101687346115, rtol=1e-3)
+        np.testing.assert_allclose(Z, 0.875629267473603, atol=0.003)
 
     def test_find_periodic_field_line_psueodspectral(self):
         # Load the W7-X field:

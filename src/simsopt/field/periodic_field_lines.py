@@ -7,12 +7,18 @@ from .magneticfield import MagneticField
 
 __all__ = ["find_periodic_field_line"]
 
-def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0):
+def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
     """Integrate a single field line in the toroidal direction.
 
-    Integration is done in cylindrical coordinates.
+    Integration is done in cylindrical coordinates. Integration is always done
+    in the +phi direction, regardless of the direction of B.
 
     For this function, phi0 and Delta_phi range over [0, 2pi], not [0, 1].
+
+    if nphi == 1, then the function returns the final R and Z coordinates, i.e.
+    a pair of floats. If nphi > 1, then the function returns a pair of arrays
+    of the final R and Z coordinates, i.e. a pair of arrays, corresponding to
+    equally spaced points in the phi direction including both phi0 and phi0 + Delta_phi.
 
     Args:
         field: The magnetic field object.
@@ -21,23 +27,45 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0):
         Delta_phi: Distance in radians to integrate in the toroidal direction.
         tol: Tolerance for the integration (default: 1e-10).
         phi0: Initial toroidal angle (default: 0).
+        nphi: Number of points in the toroidal direction to record the field line location (default: 1).
 
     Returns:
-        R: Final R coordinate.
-        Z: Final Z coordinate.
+        R: Final R coordinate(s).
+        Z: Final Z coordinate(s).
     """
 
-    xyz_inits = np.zeros(3)
-    xyz_inits[0] = R0 * np.cos(phi0)
-    xyz_inits[1] = R0 * np.sin(phi0)
-    xyz_inits[2] = Z0
+    xyz_inits = np.zeros((1, 3))
+    xyz_inits[0, 0] = R0 * np.cos(phi0)
+    xyz_inits[0, 1] = R0 * np.sin(phi0)
+    xyz_inits[0, 2] = Z0
+
+    # Determine if B points towards positive or negative phi. If it points
+    # towards negative phi, we need to trace antiparallel to B.
+    field.set_points(xyz_inits)
+    B = field.B_cyl()
+    Bphi = B[0, 1]
+    if Bphi < 0:
+        print("Bphi < 0, tracing antiparallel to B")
+        field_for_tracing = (-1.0) * field
+    else:
+        print("Bphi > 0, tracing parallel to B")
+        field_for_tracing = field
+
+    # Set up phi values at which to record the field line
+    if nphi == 1:
+        phi_targets = [phi0 + Delta_phi]
+    elif nphi > 1:
+        phi_targets = np.linspace(phi0, phi0 + Delta_phi, nphi)
+    else:
+        raise ValueError("nphi must be >= 1")
+
     tmax = 10000.0
     res_ty, res_phi_hit = sopp.fieldline_tracing(
-        field,
-        xyz_inits,
+        field_for_tracing,
+        xyz_inits[0, :],
         tmax,
         tol,
-        phis=[phi0 - Delta_phi, phi0 + Delta_phi],  # Try both positive and negative, since we don't know which way B points.
+        phis=phi_targets,
         stopping_criteria=[
             ToroidalTransitStoppingCriterion(Delta_phi / (2 * np.pi), False),
             IterationStoppingCriterion(1000),
@@ -75,29 +103,29 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0):
         plt.show()
 
     print("Last point in tracing:", res_ty[-1])
+    print("res_phi_hit", res_phi_hit)
 
-    if len(res_phi_hit) < 1:
-        print("res_ty", res_ty)
-        print("res_phi_hit", res_phi_hit)
-        raise RuntimeError("When tracing field line, no hits to the expected phi value were found.")
-    
-    found_hit = False
+    xyz_hits = np.zeros((nphi, 3))
+    n_phi_hits = 0
     for j in range(len(res_phi_hit)):
         t, idx, x, y, z = res_phi_hit[j]
-        if t > 0 and idx >= 0:
-            chosen_res_phi_hit = res_phi_hit[j]
-            found_hit = True
-
-    if not found_hit:
+        if idx >= 0:
+            xyz_hits[n_phi_hits, :] = [x, y, z]
+            n_phi_hits += 1
+            if n_phi_hits > nphi:
+                print("res_ty", res_ty)
+                print("res_phi_hit", res_phi_hit)
+                raise RuntimeError("Should not have more than nphi hits!")
+            
+    if n_phi_hits < nphi:
+        print("res_ty", res_ty)
         print("res_phi_hit", res_phi_hit)
-        raise RuntimeError("When tracing field line, no hits to the expected phi value were found.")
-
-    if len(res_phi_hit) > 2:
-        print("Warning!!! More than 2 hits were found.")
-        print("res_phi_hit", res_phi_hit)
-
-    R = np.sqrt(chosen_res_phi_hit[2] ** 2 + chosen_res_phi_hit[3] ** 2)
-    Z = chosen_res_phi_hit[4]
+        raise RuntimeError(f"When tracing field line, {n_phi_hits} to the expected phi value were found; expected at least {nphi}.")
+    
+    R = np.sqrt(xyz_hits[:, 0] ** 2 + xyz_hits[:, 1] ** 2)
+    Z = xyz_hits[:, 2]
+    if nphi == 1:
+        return R[0], Z[0]
 
     return R, Z
 
