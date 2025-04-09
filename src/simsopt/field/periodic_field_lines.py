@@ -45,10 +45,10 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
     B = field.B_cyl()
     Bphi = B[0, 1]
     if Bphi < 0:
-        print("Bphi < 0, tracing antiparallel to B")
+        # print("Bphi < 0, tracing antiparallel to B")
         field_for_tracing = (-1.0) * field
     else:
-        print("Bphi > 0, tracing parallel to B")
+        # print("Bphi > 0, tracing parallel to B")
         field_for_tracing = field
 
     # Set up phi values at which to record the field line
@@ -56,10 +56,14 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
         phi_targets = [phi0 + Delta_phi]
     elif nphi > 1:
         phi_targets = np.linspace(phi0, phi0 + Delta_phi, nphi)
+        phi_targets = phi_targets[1:]  # A point at phi=phi0 can cause problems, so we'll add this point manually later
     else:
         raise ValueError("nphi must be >= 1")
+    
+    n_phi_hits_expected = len(phi_targets)
 
     tmax = 10000.0
+    print("phi_targets:", phi_targets)
     res_ty, res_phi_hit = sopp.fieldline_tracing(
         field_for_tracing,
         xyz_inits[0, :],
@@ -102,25 +106,31 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
         plt.tight_layout()
         plt.show()
 
-    print("Last point in tracing:", res_ty[-1])
-    print("res_phi_hit", res_phi_hit)
+    # print("Last point in tracing:", res_ty[-1])
+    # print("res_phi_hits")
+    # for r in res_phi_hit:
+    #     print(r)
 
-    xyz_hits = np.zeros((nphi, 3))
+    xyz_hits = np.zeros((n_phi_hits_expected, 3))
     n_phi_hits = 0
     for j in range(len(res_phi_hit)):
         t, idx, x, y, z = res_phi_hit[j]
         if idx >= 0:
             xyz_hits[n_phi_hits, :] = [x, y, z]
             n_phi_hits += 1
-            if n_phi_hits > nphi:
+            if n_phi_hits > n_phi_hits_expected:
                 print("res_ty", res_ty)
                 print("res_phi_hit", res_phi_hit)
-                raise RuntimeError("Should not have more than nphi hits!")
+                raise RuntimeError(f"Should not have more than {n_phi_hits_expected} hits!")
             
-    if n_phi_hits < nphi:
+    if n_phi_hits < n_phi_hits_expected:
         print("res_ty", res_ty)
         print("res_phi_hit", res_phi_hit)
-        raise RuntimeError(f"When tracing field line, {n_phi_hits} to the expected phi value were found; expected at least {nphi}.")
+        raise RuntimeError(f"When tracing field line, {n_phi_hits} hits to the expected phi value were found; expected at least {n_phi_hits_expected}.")
+    
+    if nphi > 1:
+        # Add the point at phi0:
+        xyz_hits = np.concatenate((xyz_inits, xyz_hits), axis=0)
     
     R = np.sqrt(xyz_hits[:, 0] ** 2 + xyz_hits[:, 1] ** 2)
     Z = xyz_hits[:, 2]
@@ -223,7 +233,6 @@ def _find_periodic_field_line_pseudospectral(
     if nphi % 2 == 0:
         nphi += 1
 
-    x0 = [R0, Z0]
     phimax = m * 2 * np.pi / nfp
     dphi = phimax / nphi
     phi = np.linspace(0, phimax, nphi, endpoint=False)
@@ -231,13 +240,25 @@ def _find_periodic_field_line_pseudospectral(
 
     D = spectral_diff_matrix(nphi, xmin=0, xmax=phimax)
         
-    # Initial condition is a circle:
-    state = np.concatenate(
-        [
-            np.full(nphi, R0), 
-            np.full(nphi, Z0)
-        ]
-    )
+    # # Initial condition is a circle:
+    # state = np.concatenate(
+    #     [
+    #         np.full(nphi, R0), 
+    #         np.full(nphi, Z0)
+    #     ]
+    # )
+
+    # Establish initial condition:
+    R0, Z0 = _integrate_field_line(field, R0, Z0, phimax, 1e-10, phi0=0, nphi=nphi + 1)
+    # Subtract off a linear function to make the initial condition periodic
+    Delta_R = R0[-1] - R0[0]
+    Delta_Z = Z0[-1] - Z0[0]
+    R0 -= np.linspace(0, Delta_R, nphi + 1)
+    Z0 -= np.linspace(0, Delta_Z, nphi + 1)
+    print("Initial condition R0:", R0)
+    print("Initial condition Z0:", Z0)
+    state = np.concatenate((R0[:-1], Z0[:-1]))
+
     sol = root(
         pseudospectral_residual, 
         state,

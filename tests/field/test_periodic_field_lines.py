@@ -79,3 +79,14 @@ class Tests(unittest.TestCase):
         # Check that the final coordinates are as expected
         np.testing.assert_allclose(R, 5.949141380504241, rtol=3e-5)
         np.testing.assert_allclose(Z, 0, atol=1e-8)
+
+        # # Now find one of the island chains:
+        # m = 5
+        # R0 = 5.5
+        # Z0 = 0.87
+        # R, Z = find_periodic_field_line(field, R0, Z0, nfp, m, method="pseudospectral")
+        # print("R, Z", R, Z)
+
+        # # Check that the final coordinates are as expected
+        # np.testing.assert_allclose(R, 5.4490101687346115, rtol=1e-3)
+        # np.testing.assert_allclose(Z, 0.875629267473603, atol=0.003)
