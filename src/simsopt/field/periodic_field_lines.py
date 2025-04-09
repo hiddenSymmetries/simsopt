@@ -177,7 +177,7 @@ def _find_periodic_field_line_2D(
     return sol.x[0], sol.x[1]
 
 
-def pseudospectral_residual(x, n, D, phi, field):
+def _pseudospectral_residual(x, n, D, phi, field):
     """
     This is the vector-valued function that returns the residual for the
     pseudospectral method of finding a periodic field line.
@@ -189,7 +189,7 @@ def pseudospectral_residual(x, n, D, phi, field):
         phi: The grid points of toroidal angle.
         field: The MagneticField object.
     """
-    # print("pseudospectral_residual x =", x)
+    # print("_pseudospectral_residual x =", x)
     R = x[0:n]
     Z = x[n:2 * n]
     eval_points = np.stack([R, phi, Z], axis=-1)
@@ -203,6 +203,83 @@ def pseudospectral_residual(x, n, D, phi, field):
     R_residual = R * BR / Bphi - (D @ R)
     Z_residual = R * BZ / Bphi - (D @ Z)
     return np.concatenate((R_residual, Z_residual))
+
+
+def _pseudospectral_jacobian(x, n, D, phi, field):
+    """
+    This is the matrix-valued function that returns the Jacobian for the
+    pseudospectral method of finding a periodic field line.
+
+    Args:
+        x: The state vector (R, Z).
+        n: Number of points in the toroidal direction.
+        D: The spectral differentiation matrix.
+        phi: The grid points of toroidal angle.
+        field: The MagneticField object.
+    """
+    R = x[0:n]
+    Z = x[n:2 * n]
+    print('jacobian eval ')
+    eval_points = np.stack([R, phi, Z], axis=-1)
+    # In the next line, for some reason there is an error if we try field.set_points_cyl(eval_points)
+    MagneticField.set_points_cyl(field, eval_points)
+    B_cyl = field.B_cyl()
+    BR = B_cyl[:, 0]
+    Bphi = B_cyl[:, 1]
+    BZ = B_cyl[:, 2]
+
+    # - ``m.dB_by_dX()`` returns an array of size ``(n, 3, 3)`` with the Cartesian coordinates of :math:`\nabla B`. Denoting the indices
+    #   by :math:`(i,j,l)`, the result contains  :math:`\partial_j B_l(x_i)`.
+    grad_B = field.dB_by_dX()
+    d_Bx_d_x = grad_B[:, 0, 0]
+    d_By_d_x = grad_B[:, 0, 1]
+    d_Bz_d_x = grad_B[:, 0, 2]
+    d_Bx_d_y = grad_B[:, 1, 0]
+    d_By_d_y = grad_B[:, 1, 1]
+    d_Bz_d_y = grad_B[:, 1, 2]
+    d_Bx_d_z = grad_B[:, 2, 0]
+    d_By_d_z = grad_B[:, 2, 1]
+    d_Bz_d_z = grad_B[:, 2, 2]
+    cosphi = np.cos(phi)
+    sinphi = np.sin(phi)
+
+    # For the following formulas, see 20250409-01 Converting between Cartesian vs cylindrical for grad B tensor.lyx
+    d_Bz_d_R = d_Bz_d_x * cosphi + d_Bz_d_y * sinphi
+    d_BR_d_z = d_Bx_d_z * cosphi + d_By_d_z * sinphi
+    d_Bphi_d_z = -d_Bx_d_z * sinphi + d_By_d_z * cosphi
+    d_BR_d_R = d_Bx_d_x * cosphi**2 + (d_Bx_d_y + d_By_d_x) * sinphi * cosphi + d_By_d_y * sinphi**2
+    d_Bphi_d_R = (-d_Bx_d_x + d_By_d_y) * sinphi * cosphi - d_Bx_d_y * sinphi**2 + d_By_d_x * cosphi**2
+
+    jac = np.zeros((2 * n, 2 * n))
+
+    # For reference:
+    # R_residual = R * BR / Bphi - (D @ R)
+    # Z_residual = R * BZ / Bphi - (D @ Z)
+
+    # Top left quadrant: d (R residual) / d R
+    jac[0 : n, 0 : n] = -D + np.diag(
+        BR / Bphi 
+        + R * d_BR_d_R / Bphi 
+        - R * BR / (Bphi**2) * d_Bphi_d_R
+    )
+    # Top right quadrant: d (R residual) / d Z
+    jac[0 : n, n : 2 * n] = np.diag(
+        R * d_BR_d_z / Bphi
+        - R * BR / (Bphi**2) * d_Bphi_d_z
+    )
+    # Bottom left quadrant: d (Z residual) / d R
+    jac[n : 2 * n, 0 : n] = np.diag(
+        BZ / Bphi 
+        + R * d_Bz_d_R / Bphi 
+        - R * BZ / (Bphi**2) * d_Bphi_d_R
+    )
+    # Bottom right quadrant: d (Z residual) / d Z
+    jac[n:, n:] = -D + np.diag(
+        R * d_Bz_d_z / Bphi 
+        - R * BZ / (Bphi**2) * d_Bphi_d_z
+    )
+
+    return jac
 
 
 def _find_periodic_field_line_pseudospectral(
@@ -260,11 +337,11 @@ def _find_periodic_field_line_pseudospectral(
     state = np.concatenate((R0[:-1], Z0[:-1]))
 
     sol = root(
-        pseudospectral_residual, 
+        _pseudospectral_residual, 
         state,
         tol=solve_tol,
         args=(nphi, D, phi, field),
-        # jac=jacobian,
+        jac=_pseudospectral_jacobian,
         method='lm',
         options={'maxiter':1000},
     )
