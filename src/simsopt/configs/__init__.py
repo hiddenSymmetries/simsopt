@@ -1,3 +1,7 @@
+from .Cary_Hanson import *
 from .zoo import *
 
-__all__ = (zoo.__all__)
+__all__ = (
+    Cary_Hanson.__all__
+    + zoo.__all__
+)

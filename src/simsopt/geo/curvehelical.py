@@ -9,11 +9,11 @@ __all__ = ['CurveHelical']
 def jaxHelicalfouriercurve_pure(dofs, quadpoints, order, n0, l0, R0, r0):
     A = dofs[:order]
     B = dofs[order:]
-    phi = quadpoints*2*pi*l0
+    phi = quadpoints * 2 * pi * l0
     m, phiV = jnp.meshgrid(jnp.arange(order), phi)
-    AcosArray = jnp.sum(A*jnp.cos(m*phiV*n0/l0), axis=1)
-    BsinArray = jnp.sum(B*jnp.sin(m*phiV*n0/l0), axis=1)
-    eta = n0*phi/l0+AcosArray+BsinArray
+    AcosArray = jnp.sum(A *jnp.cos(m * phiV * n0 / l0), axis=1)
+    BsinArray = jnp.sum(B *jnp.sin(m * phiV * n0 / l0), axis=1)
+    eta = n0 * phi / l0 + AcosArray + BsinArray
     gamma = jnp.zeros((len(quadpoints), 3))
     gamma = gamma.at[:, 0].add((R0 + r0 * jnp.cos(eta)) * jnp.cos(phi))
     gamma = gamma.at[:, 1].add((R0 + r0 * jnp.cos(eta)) * jnp.sin(phi))
@@ -28,6 +28,13 @@ class CurveHelical(JaxCurve):
 
     .. math:: 
         \eta = m_0 \phi/l_0 + \sum_k A_k \cos(n_0 \phi k/l_0) + B_k \sin(n_0 \phi k/l_0)
+
+    Presently the maximum mode number is ``order - 1``, which is different from
+    CurveXYZFourier where the maximum mode number is ``order``.
+    Therefore the number of dofs is ``2 * order``, not ``2 * (order + 1)``!
+    The first half of the dofs are the Fourier coefficients :math:`A_k` and the
+    second half are the Fourier coefficients :math:`B_k`.
+    Note that the first B coefficient has no effect because it multiplies sin(0).
 
     Args:
         quadpoints: number of grid points/resolution along the curve;

@@ -1,9 +1,8 @@
 import unittest
 import numpy as np
 
-from simsopt.configs import get_w7x_data
+from simsopt.configs import get_w7x_data, get_Cary_Hanson_field
 from simsopt.field import BiotSavart, coils_via_symmetries, find_periodic_field_line
-
 from simsopt.field.periodic_field_lines import _integrate_field_line, _pseudospectral_residual, _pseudospectral_jacobian
 from simsopt.util.spectral_diff_matrix import spectral_diff_matrix
 
@@ -123,3 +122,34 @@ class Tests(unittest.TestCase):
         # # Check that the final coordinates are as expected
         # np.testing.assert_allclose(R, 5.4490101687346115, rtol=1e-3)
         # np.testing.assert_allclose(Z, 0.875629267473603, atol=0.003)
+
+    def test_Hanson_Cary_1984(self):
+        # First try the non-optimized coils:
+        coils, field = get_Cary_Hanson_field("1984", optimized=False)
+
+        # Find the magnetic axis:
+        R0 = 1.0
+        Z0 = 0
+        nfp = 5
+        m = 1
+        R, Z = find_periodic_field_line(field, R0, Z0, nfp, m, method="pseudospectral")
+        print("R, Z", R, Z)
+
+        # Check that the final coordinates are as expected
+        np.testing.assert_allclose(R, 0.9834328716279733, rtol=1e-7)
+        np.testing.assert_allclose(Z, 0, atol=1e-8)
+
+        # Repeat with the optimized coils:
+        coils, field = get_Cary_Hanson_field("1984", optimized=True)
+
+        # Find the magnetic axis:
+        R0 = 1.0
+        Z0 = 0
+        nfp = 5
+        m = 1
+        R, Z = find_periodic_field_line(field, R0, Z0, nfp, m, method="pseudospectral")
+        print("R, Z", R, Z)
+
+        # Check that the final coordinates are as expected
+        np.testing.assert_allclose(R, 0.955022421271663, rtol=1e-7)
+        np.testing.assert_allclose(Z, 0, atol=1e-8)

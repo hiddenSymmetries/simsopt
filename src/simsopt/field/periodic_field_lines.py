@@ -44,6 +44,7 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
     field.set_points(xyz_inits)
     B = field.B_cyl()
     Bphi = B[0, 1]
+    # print("B at initial point:", B)
     if Bphi < 0:
         # print("Bphi < 0, tracing antiparallel to B")
         field_for_tracing = (-1.0) * field
