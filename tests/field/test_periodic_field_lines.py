@@ -3,7 +3,12 @@ import numpy as np
 
 from simsopt.configs import get_w7x_data, get_Cary_Hanson_field
 from simsopt.field import BiotSavart, coils_via_symmetries, find_periodic_field_line
-from simsopt.field.periodic_field_lines import _integrate_field_line, _pseudospectral_residual, _pseudospectral_jacobian
+from simsopt.field.periodic_field_lines import (
+    _integrate_field_line,
+    _integrate_field_line_cyl,
+    _pseudospectral_residual,
+    _pseudospectral_jacobian,
+)
 from simsopt.util.spectral_diff_matrix import spectral_diff_matrix
 
 def _get_w7x_field():
@@ -32,6 +37,22 @@ class Tests(unittest.TestCase):
             # Check that the final coordinates are as expected
             np.testing.assert_allclose(R, 5.207, atol=1e-3)
             np.testing.assert_allclose(Z, 0, atol=1e-3)
+
+    def test_integrate_field_line_cyl(self):
+        field = _get_w7x_field()
+
+        # The initial condition is not too far from the magnetic axis:
+        R0 = 5.95
+        Z0 = 0.1
+        Delta_phi = np.pi
+
+        for phi0 in [0, 0.9]:
+            for nphi in [1, 2, 3]:
+                R1, Z1 = _integrate_field_line(field, R0, Z0, Delta_phi, phi0=phi0, nphi=nphi)
+                R2, Z2 = _integrate_field_line_cyl(field, R0, Z0, Delta_phi, phi0=phi0, nphi=nphi)
+                print("diffs:", R1 - R2, Z1 - Z2)
+                np.testing.assert_allclose(R1, R2, atol=1e-8)
+                np.testing.assert_allclose(Z1, Z2, atol=1e-8)
 
     def test_find_periodic_field_line_2D(self):
         field = _get_w7x_field()

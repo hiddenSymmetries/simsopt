@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.optimize import root, root_scalar
+from scipy.integrate import solve_ivp
 import simsoptpp as sopp
 from .tracing import ToroidalTransitStoppingCriterion, IterationStoppingCriterion
 from ..util.spectral_diff_matrix import spectral_diff_matrix
@@ -19,6 +20,8 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
     a pair of floats. If nphi > 1, then the function returns a pair of arrays
     of the final R and Z coordinates, i.e. a pair of arrays, corresponding to
     equally spaced points in the phi direction including both phi0 and phi0 + Delta_phi.
+
+    Warning!!! This function does not work correctly when Delta_phi is > 2pi and nphi > 1.
 
     Args:
         field: The magnetic field object.
@@ -64,6 +67,7 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
     n_phi_hits_expected = len(phi_targets)
 
     tmax = 10000.0
+    # print("phi_targets:", phi_targets)
     res_ty, res_phi_hit = sopp.fieldline_tracing(
         field_for_tracing,
         xyz_inits[0, :],
@@ -116,12 +120,13 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
     for j in range(len(res_phi_hit)):
         t, idx, x, y, z = res_phi_hit[j]
         if idx >= 0:
-            xyz_hits[n_phi_hits, :] = [x, y, z]
+            # xyz_hits[n_phi_hits, :] = [x, y, z]
+            xyz_hits[int(idx), :] = [x, y, z]
             n_phi_hits += 1
-            if n_phi_hits > n_phi_hits_expected:
-                print("res_ty", res_ty)
-                print("res_phi_hit", res_phi_hit)
-                raise RuntimeError(f"Should not have more than {n_phi_hits_expected} hits!")
+            # if n_phi_hits > n_phi_hits_expected:
+            #     print("res_ty", res_ty)
+            #     print("res_phi_hit", res_phi_hit)
+            #     raise RuntimeError(f"Should not have more than {n_phi_hits_expected} hits!")
             
     if n_phi_hits < n_phi_hits_expected:
         print("res_ty", res_ty)
@@ -138,6 +143,73 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
         return R[0], Z[0]
 
     return R, Z
+
+
+def _field_line_tracing_func(t, y, field):
+    """Function for the derivatives that define a field line in cylindrical coordinates."""
+    phi = t
+    R, Z = y
+    eval_points = np.array([[R, phi, Z]])
+    MagneticField.set_points_cyl(field, eval_points)
+    BR, Bphi, Bz = field.B_cyl()[0]
+
+    d_R_d_phi = R * BR / Bphi
+    d_Z_d_phi = R * Bz / Bphi
+    return np.array([d_R_d_phi, d_Z_d_phi])
+
+
+def _integrate_field_line_cyl(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
+    """Integrate a single field line in the toroidal direction.
+
+    In contrast to _integrate_field_line, this function integrates in cylindrical coordinates
+    rather than Cartesian coordinates, and uses scipy for the integration instead of boost.
+
+    Integration is done in cylindrical coordinates. Integration is always done
+    in the +phi direction, regardless of the direction of B.
+
+    For this function, phi0 and Delta_phi range over [0, 2pi], not [0, 1].
+
+    if nphi == 1, then the function returns the final R and Z coordinates, i.e.
+    a pair of floats. If nphi > 1, then the function returns a pair of arrays
+    of the final R and Z coordinates, i.e. a pair of arrays, corresponding to
+    equally spaced points in the phi direction including both phi0 and phi0 + Delta_phi.
+
+    In contrast to _integrate_field_line(), this function DOES work correctly when Delta_phi is > 2pi and nphi > 1.
+
+    Args:
+        field: The magnetic field object.
+        R0: Initial R coordinate.
+        Z0: Initial Z coordinate.
+        Delta_phi: Distance in radians to integrate in the toroidal direction.
+        tol: Tolerance for the integration (default: 1e-10).
+        phi0: Initial toroidal angle (default: 0).
+        nphi: Number of points in the toroidal direction to record the field line location (default: 1).
+
+    Returns:
+        R: Final R coordinate(s).
+        Z: Final Z coordinate(s).
+    """
+    if nphi == 1:
+        t_eval = [phi0 + Delta_phi]
+    elif nphi > 1:
+        t_eval = np.linspace(phi0, phi0 + Delta_phi, nphi)
+    else:
+        raise ValueError("nphi must be >= 1")
+
+    result = solve_ivp(
+        _field_line_tracing_func,
+        (phi0, phi0 + Delta_phi),
+        (R0, Z0),
+        args=(field,),
+        t_eval=t_eval,
+        rtol=tol,
+        atol=tol,
+    )
+
+    if nphi == 1:
+        return result.y[0, -1], result.y[1, -1]
+    elif nphi > 1:
+        return result.y[0, :], result.y[1, :]
 
 
 def _find_periodic_field_line_2D(
@@ -246,8 +318,16 @@ def _find_periodic_field_line_1D(
     else:
         raise ValueError(f"Unknown residual: {residual}")
 
-    sol = root_scalar(func, x0=R0, xtol=solve_tol, rtol=solve_tol)
+    sol = root_scalar(func, x0=R0, x1=R0 * 1.01, xtol=solve_tol, rtol=solve_tol)
     print(sol)
+    R0 = sol.root
+
+    # Check difference in final vs starting location:
+    R, Z = _integrate_field_line(field, R0, 0, Delta_phi, follow_tol, phi0=phi0)
+    print(f"Final - initial R: {R - R0}, Z: {Z}")
+    np.testing.assert_allclose(R0, R, atol=1e-6, rtol=1e-6)
+    np.testing.assert_allclose(0.0, Z, atol=1e-6, rtol=1e-6)
+
     return sol.root
 
 
