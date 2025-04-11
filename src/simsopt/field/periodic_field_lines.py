@@ -224,7 +224,6 @@ def _find_periodic_field_line_1D(
         return residual
 
     def func_Z(x):
-        print("  Z residual, evaluating x =", x)
         R, Z = _integrate_field_line(field, x, 0, Delta_phi, follow_tol, phi0=phi0)
         residual = Z
         if verbose > 0:
@@ -232,7 +231,6 @@ def _find_periodic_field_line_1D(
         return residual
 
     def func_theta(x):
-        print("  theta residual, evaluating x =", x)
         R, Z = _integrate_field_line(field, x, 0, Delta_phi, follow_tol, phi0=phi0)
         residual = R - x
         if verbose > 0:
@@ -482,7 +480,7 @@ def find_periodic_field_line(
         )
     elif method in ["1D R", "1D Z", "1D theta"]:
         return _find_periodic_field_line_1D(
-            field, nfp, m, R0, half_period, method[3:], solve_tol, follow_tol
+            field, nfp, m, R0, method[3:], half_period, solve_tol, follow_tol
         ), 0.0
     else:
         raise ValueError(f"Unknown method: {method}")
