@@ -39,7 +39,7 @@ logger = logging.getLogger("simsopt.field.tracing")
 logger.setLevel(1)
 
 # If we're in the CI, make the run a bit cheaper:
-nfieldlines = 3 if in_github_actions else 30
+nfieldlines = 3 if in_github_actions else 31
 tmax_fl = 1000 if in_github_actions else 5000
 
 # Directory for output
@@ -52,6 +52,7 @@ surf = SurfaceRZFourier(mpol=1, ntor=0, nfp=5, stellsym=True)
 surf.x = [1.0, 0.3, 0.3]
 surf_classifier = SurfaceClassifier(surf, h=0.03, p=2)
 
+# for optimized in [True]:
 for optimized in [False, True]:
     proc0_print(f"Beginning calculations with optimized = {optimized}")
     if optimized:
@@ -60,6 +61,7 @@ for optimized in [False, True]:
         optimized_str = "nonoptimized"
 
     coils, field = get_Cary_Hanson_field("1984", optimized=optimized)
+    # coils, field = get_Cary_Hanson_field("Geraldini", optimized=optimized)
     nfp = 5
     curves_to_vtk([c.curve for c in coils], OUT_DIR + "Hanson_Cary_coils_" + optimized_str)
 

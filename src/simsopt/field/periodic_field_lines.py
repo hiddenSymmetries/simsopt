@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.optimize import root
+from scipy.optimize import root, root_scalar
 import simsoptpp as sopp
 from .tracing import ToroidalTransitStoppingCriterion, IterationStoppingCriterion
 from ..util.spectral_diff_matrix import spectral_diff_matrix
@@ -64,7 +64,6 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
     n_phi_hits_expected = len(phi_targets)
 
     tmax = 10000.0
-    print("phi_targets:", phi_targets)
     res_ty, res_phi_hit = sopp.fieldline_tracing(
         field_for_tracing,
         xyz_inits[0, :],
@@ -143,39 +142,115 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
 
 def _find_periodic_field_line_2D(
     field,
-    R0,
-    Z0,
     nfp,
     m,
+    R0,
+    Z0,
+    half_period=False,
     solve_tol=1e-6,
     follow_tol=1e-10,
 ):
-    """Find a periodic field line.
+    """Find a periodic field line using a 2D search in (R, Z).
     
     The argument ``m`` is typically the number of times the field line appears
     in a cross-section.
 
     Args:
         field: The magnetic field object.
-        R0: Initial R coordinate.
-        Z0: Initial Z coordinate.
         nfp: Number of field periods.
         m: Number of field periods over which the field line is periodic.
+        R0: Initial R coordinate.
+        Z0: Initial Z coordinate.
+        half_period: If True, look for periodic field lines in the half-period plane instead of the phi=0 plane (default: False).
         solve_tol: Tolerance for the root finding (default: 1e-6).
         follow_tol: Tolerance for the field line integration (default: 1e-10).
     """
 
     x0 = [R0, Z0]
     Delta_phi = m * 2 * np.pi / nfp
+    if half_period:
+        phi0 = np.pi / nfp
+    else:
+        phi0 = 0.0
 
     def func(x):
         print("  Evaluating x =", x)
-        R, Z = _integrate_field_line(field, x[0], x[1], Delta_phi, follow_tol)
+        R, Z = _integrate_field_line(field, x[0], x[1], Delta_phi, follow_tol, phi0=phi0)
         return np.array([R - x[0], Z - x[1]])
 
     sol = root(func, x0, tol=solve_tol)
     print(sol)
     return sol.x[0], sol.x[1]
+
+
+def _find_periodic_field_line_1D(
+    field,
+    nfp,
+    m,
+    R0,
+    residual,
+    half_period=False,
+    solve_tol=1e-6,
+    follow_tol=1e-10,
+    verbose=1,
+):
+    """Find a periodic field line using a 1D search along the line Z=0.
+    
+    The argument ``m`` is typically the number of times the field line appears
+    in a cross-section.
+
+    Args:
+        field: The magnetic field object.
+        nfp: Number of field periods.
+        m: Number of field periods over which the field line is periodic.
+        R0: Initial R coordinate.
+        residual: Which residual to use (default: "R", "Z", or "theta").
+        half_period: If True, look for periodic field lines in the half-period plane instead of the phi=0 plane (default: False).
+        solve_tol: Tolerance for the root finding (default: 1e-6).
+        follow_tol: Tolerance for the field line integration (default: 1e-10).
+    """
+
+    Delta_phi = m * 2 * np.pi / nfp
+    if half_period:
+        phi0 = np.pi / nfp
+    else:
+        phi0 = 0.0
+
+    def func_R(x):
+        R, Z = _integrate_field_line(field, x, 0, Delta_phi, follow_tol, phi0=phi0)
+        residual = R - x
+        if verbose > 0:
+            print(f"  R residual, evaluating x = {x:17}, residual = {residual:15}")
+        return residual
+
+    def func_Z(x):
+        print("  Z residual, evaluating x =", x)
+        R, Z = _integrate_field_line(field, x, 0, Delta_phi, follow_tol, phi0=phi0)
+        residual = Z
+        if verbose > 0:
+            print(f"  Z residual, evaluating x = {x:17}, residual = {residual:15}")
+        return residual
+
+    def func_theta(x):
+        print("  theta residual, evaluating x =", x)
+        R, Z = _integrate_field_line(field, x, 0, Delta_phi, follow_tol, phi0=phi0)
+        residual = R - x
+        if verbose > 0:
+            print(f"  theta residual, evaluating x = {x:17}, residual = {residual:15}")
+        return residual
+    
+    if residual == "R":
+        func = func_R
+    elif residual == "Z":
+        func = func_Z
+    elif residual == "theta":
+        func = func_theta
+    else:
+        raise ValueError(f"Unknown residual: {residual}")
+
+    sol = root_scalar(func, x0=R0, xtol=solve_tol, rtol=solve_tol)
+    print(sol)
+    return sol.root
 
 
 def _pseudospectral_residual(x, n, D, phi, field):
@@ -285,10 +360,11 @@ def _pseudospectral_jacobian(x, n, D, phi, field):
 
 def _find_periodic_field_line_pseudospectral(
     field,
-    R0,
-    Z0,
     nfp,
     m,
+    R0,
+    Z0,
+    half_period=False,
     solve_tol=1e-6,
     nphi=21,
 ):
@@ -299,10 +375,11 @@ def _find_periodic_field_line_pseudospectral(
 
     Args:
         field: The magnetic field object.
-        R0: Initial R coordinate.
-        Z0: Initial Z coordinate.
         nfp: Number of field periods.
         m: Number of field periods over which the field line is periodic.
+        R0: Initial R coordinate.
+        Z0: Initial Z coordinate.
+        half_period: If True, look for periodic field lines in the half-period plane instead of the phi=0 plane (default: False).
         solve_tol: Tolerance for the root finding (default: 1e-6).
         nphi: Number of points in the toroidal direction (default: 21).
     """
@@ -316,6 +393,13 @@ def _find_periodic_field_line_pseudospectral(
     phi = np.linspace(0, phimax, nphi, endpoint=False)
     assert np.abs(phi[1] - phi[0] - dphi) < 1.0e-13
 
+    if half_period:
+        phi0 = np.pi / nfp
+        phi += phi0
+    else:
+        phi0 = 0.0
+
+
     D = spectral_diff_matrix(nphi, xmin=0, xmax=phimax)
         
     # # Initial condition is a circle:
@@ -327,7 +411,7 @@ def _find_periodic_field_line_pseudospectral(
     # )
 
     # Establish initial condition:
-    R0, Z0 = _integrate_field_line(field, R0, Z0, phimax, 1e-10, phi0=0, nphi=nphi + 1)
+    R0, Z0 = _integrate_field_line(field, R0, Z0, phimax, 1e-10, phi0=phi0, nphi=nphi + 1)
     # Subtract off a linear function to make the initial condition periodic
     Delta_R = R0[-1] - R0[0]
     Delta_Z = Z0[-1] - Z0[0]
@@ -358,10 +442,11 @@ def _find_periodic_field_line_pseudospectral(
 
 def find_periodic_field_line(
     field,
-    R0,
-    Z0,
     nfp,
     m,
+    R0,
+    Z0=0.0,
+    half_period=False,
     method="2D",
     solve_tol=1e-6,
     follow_tol=1e-10,
@@ -372,12 +457,15 @@ def find_periodic_field_line(
     The argument ``m`` is typically the number of times the field line appears
     in a cross-section.
 
+    The argument ``Z0`` is ignored if method = "1D".
+
     Args:
         field: The magnetic field object.
-        R0: Initial R coordinate.
-        Z0: Initial Z coordinate.
         nfp: Number of field periods.
         m: Number of field periods over which the field line is periodic.
+        R0: Initial R coordinate.
+        Z0: Initial Z coordinate.
+        half_period: If True, look for periodic field lines in the half-period plane instead of the phi=0 plane (default: False).
         method: Method for finding the periodic field line (default: "2D").
         solve_tol: Tolerance for the root finding (default: 1e-6).
         follow_tol: Tolerance for the field line integration (default: 1e-10). Matters only for method="2D".
@@ -386,11 +474,15 @@ def find_periodic_field_line(
 
     if method == "2D":
         return _find_periodic_field_line_2D(
-            field, R0, Z0, nfp, m, solve_tol, follow_tol
+            field, nfp, m, R0, Z0, half_period, solve_tol, follow_tol
         )
     elif method == "pseudospectral":
         return _find_periodic_field_line_pseudospectral(
-            field, R0, Z0, nfp, m, solve_tol, nphi
+            field, nfp, m, R0, Z0, half_period, solve_tol, nphi
         )
+    elif method in ["1D R", "1D Z", "1D theta"]:
+        return _find_periodic_field_line_1D(
+            field, nfp, m, R0, half_period, method[3:], solve_tol, follow_tol
+        ), 0.0
     else:
         raise ValueError(f"Unknown method: {method}")

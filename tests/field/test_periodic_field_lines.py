@@ -6,9 +6,13 @@ from simsopt.field import BiotSavart, coils_via_symmetries, find_periodic_field_
 from simsopt.field.periodic_field_lines import _integrate_field_line, _pseudospectral_residual, _pseudospectral_jacobian
 from simsopt.util.spectral_diff_matrix import spectral_diff_matrix
 
+def _get_w7x_field():
+    base_curves, base_currents, ma = get_w7x_data()
+    coils = coils_via_symmetries(base_curves, base_currents, 5, True)
+    return BiotSavart(coils)
+
 class Tests(unittest.TestCase):
     def test_integrate_field_line(self):
-        # Load the W7-X field:
         base_curves, base_currents, ma = get_w7x_data()
         coils = coils_via_symmetries(base_curves, base_currents, 5, True)
         field = BiotSavart(coils)
@@ -30,11 +34,8 @@ class Tests(unittest.TestCase):
             np.testing.assert_allclose(Z, 0, atol=1e-3)
 
     def test_find_periodic_field_line_2D(self):
-        # Load the W7-X field:
-        base_curves, base_currents, ma = get_w7x_data()
+        field = _get_w7x_field()
         nfp = 5
-        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
-        field = BiotSavart(coils)
 
         # Initial guess:
         R0 = 5.9
@@ -42,31 +43,65 @@ class Tests(unittest.TestCase):
 
         # Find the magnetic axis:
         m = 1
-        R, Z = find_periodic_field_line(field, R0, Z0, nfp, m)
+        R, Z = find_periodic_field_line(field, nfp, m, R0, Z0)
         print("R, Z", R, Z)
 
         # Check that the final coordinates are as expected
         np.testing.assert_allclose(R, 5.949141380504241, atol=1e-8)
-        np.testing.assert_allclose(Z, 0, atol=1e-3)
+        np.testing.assert_allclose(Z, 0, atol=1e-7)
+
+        # Find the magnetic axis at the half-period plane:
+        R0 = 5.3
+        Z0 = 0.1
+        R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, half_period=True)
+        print("R, Z", R, Z)
+        np.testing.assert_allclose(R, 5.20481580547662, atol=1e-8)
+        np.testing.assert_allclose(Z, 0, atol=1e-8)
 
         # Now find one of the island chains:
         m = 5
         R0 = 5.5
         Z0 = 0.87
-        R, Z = find_periodic_field_line(field, R0, Z0, nfp, m)
+        R, Z = find_periodic_field_line(field, nfp, m, R0, Z0)
         print("R, Z", R, Z)
 
         # Check that the final coordinates are as expected
         np.testing.assert_allclose(R, 5.4490101687346115, rtol=1e-3)
         np.testing.assert_allclose(Z, 0.875629267473603, atol=0.003)
 
+    @unittest.skip
+    def test_find_periodic_field_line_1D(self):
+        field = _get_w7x_field()
+        nfp = 5
+
+        # Initial guess:
+        R0 = 5.9
+
+        # Find the magnetic axis:
+        m = 1
+        R, Z = find_periodic_field_line(field, nfp, m, R0, method="1D R")
+        print("R, Z", R, Z)
+
+        # Check that the final coordinates are as expected
+        np.testing.assert_allclose(R, 5.949141380504241, atol=1e-8)
+        np.testing.assert_allclose(Z, 0, atol=1e-3)
+
+        # # Now find one of the island chains:
+        # m = 5
+        # R0 = 5.5
+        # Z0 = 0.87
+        # R, Z = find_periodic_field_line(field, nfp, m, R0, Z0)
+        # print("R, Z", R, Z)
+
+        # # Check that the final coordinates are as expected
+        # np.testing.assert_allclose(R, 5.4490101687346115, rtol=1e-3)
+        # np.testing.assert_allclose(Z, 0.875629267473603, atol=0.003)
+
     def test_pseudospectral_jacobian(self):
         """Compare the analytic Jacobian to finite differences."""
         # Load the W7-X field:
-        base_curves, base_currents, ma = get_w7x_data()
+        field = _get_w7x_field()
         nfp = 5
-        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
-        field = BiotSavart(coils)
 
         nphi = 21
         phimax = 2 * np.pi / nfp
@@ -75,7 +110,6 @@ class Tests(unittest.TestCase):
         R0 = 5.9 + 0.1 * np.cos(nfp * phi)
         Z0 = 0.2 + 0.1 * np.sin(nfp * phi)
         x = np.concatenate((R0, Z0))
-        base_residuals = _pseudospectral_residual(x, nphi, D, phi, field)
         analytic_jacobian = _pseudospectral_jacobian(x, nphi, D, phi, field)
         finite_diff_jacobian = np.zeros((2 * nphi, 2 * nphi))
         delta = 1e-6
@@ -92,12 +126,9 @@ class Tests(unittest.TestCase):
 
         np.testing.assert_allclose(analytic_jacobian, finite_diff_jacobian, rtol=1e-7, atol=0)
 
-    def test_find_periodic_field_line_psueodspectral(self):
-        # Load the W7-X field:
-        base_curves, base_currents, ma = get_w7x_data()
+    def test_find_periodic_field_line_pseudospectral(self):
+        field = _get_w7x_field()
         nfp = 5
-        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
-        field = BiotSavart(coils)
 
         # Initial guess:
         R0 = 5.9
@@ -105,18 +136,26 @@ class Tests(unittest.TestCase):
 
         # Find the magnetic axis:
         m = 1
-        R, Z = find_periodic_field_line(field, R0, Z0, nfp, m, method="pseudospectral")
+        R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, method="pseudospectral")
         print("R, Z", R, Z)
 
         # Check that the final coordinates are as expected
         np.testing.assert_allclose(R, 5.949141380504241, rtol=3e-5)
         np.testing.assert_allclose(Z, 0, atol=1e-8)
 
+        # Find the magnetic axis at the half-period plane:
+        R0 = 5.3
+        Z0 = 0.1
+        R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, half_period=True, method="pseudospectral")
+        print("R, Z", R, Z)
+        np.testing.assert_allclose(R, 5.20481580547662, rtol=3e-5)
+        np.testing.assert_allclose(Z, 0, atol=1e-8)
+
         # # Now find one of the island chains:
         # m = 5
         # R0 = 5.5
         # Z0 = 0.87
-        # R, Z = find_periodic_field_line(field, R0, Z0, nfp, m, method="pseudospectral")
+        # R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, method="pseudospectral")
         # print("R, Z", R, Z)
 
         # # Check that the final coordinates are as expected
@@ -132,7 +171,7 @@ class Tests(unittest.TestCase):
         Z0 = 0
         nfp = 5
         m = 1
-        R, Z = find_periodic_field_line(field, R0, Z0, nfp, m, method="pseudospectral")
+        R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, method="pseudospectral")
         print("R, Z", R, Z)
 
         # Check that the final coordinates are as expected
@@ -147,7 +186,7 @@ class Tests(unittest.TestCase):
         Z0 = 0
         nfp = 5
         m = 1
-        R, Z = find_periodic_field_line(field, R0, Z0, nfp, m, method="pseudospectral")
+        R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, method="pseudospectral")
         print("R, Z", R, Z)
 
         # Check that the final coordinates are as expected
