@@ -252,3 +252,51 @@ class Tests(unittest.TestCase):
         
         pyevtk.__path__  # To prevent ruff from complaining that pyevtk is not used
         pfl.to_vtk("/tmp/periodic_field_line")
+
+    def test_d_r_d_phi_for_integral_A_dl(self):
+        """Check the calculation of d_r_d_phi for the integral of A dl."""
+        field = _get_w7x_field()
+        nfp = 5
+
+        # Initial guess:
+        R0 = 6.0
+
+        # Find the magnetic axis:
+        m = 1
+        R1, Z1 = find_periodic_field_line(field, nfp, m, R0, method="1D Z")
+
+        pfl = PeriodicFieldLine(field, nfp, m, R0, method="1D Z", nphi=500)
+        integral, d_r_d_phi = pfl._integral_A_dl()
+        dphi = pfl.phi[1] - pfl.phi[0]
+
+        d_x_d_phi_alt = (pfl.x[2:] - pfl.x[:-2]) / (2 * dphi)
+        d_y_d_phi_alt = (pfl.y[2:] - pfl.y[:-2]) / (2 * dphi)
+        d_z_d_phi_alt = (pfl.z[2:] - pfl.z[:-2]) / (2 * dphi)
+
+        if False:
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=(14, 8))
+            n_rows = 3
+            n_cols = 1
+
+            plt.subplot(n_rows, n_cols, 1)
+            plt.plot(d_r_d_phi[1:-1, 0])
+            plt.plot(d_x_d_phi_alt, ':')
+
+            plt.subplot(n_rows, n_cols, 2)
+            plt.plot(d_r_d_phi[1:-1, 1])
+            plt.plot(d_y_d_phi_alt, ':')
+
+            plt.subplot(n_rows, n_cols, 3)
+            plt.plot(d_r_d_phi[1:-1, 2])
+            plt.plot(d_z_d_phi_alt, ':')
+
+            plt.tight_layout()
+            plt.show()
+
+        atol = 0.003
+        rtol = 1e-10
+        np.testing.assert_allclose(d_r_d_phi[1:-1, 0], d_x_d_phi_alt, atol=atol, rtol=rtol)
+        np.testing.assert_allclose(d_r_d_phi[1:-1, 1], d_y_d_phi_alt, atol=atol, rtol=rtol)
+        np.testing.assert_allclose(d_r_d_phi[1:-1, 2], d_z_d_phi_alt, atol=atol, rtol=rtol)
+        

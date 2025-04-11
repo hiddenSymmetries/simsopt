@@ -604,7 +604,7 @@ class PeriodicFieldLine():
         solve_tol=1e-6,
         follow_tol=1e-10,
         nphi_solve=21,
-        nphi=200,
+        nphi=400,
     ):
         self.field = field
         self.nfp = nfp
@@ -654,3 +654,27 @@ class PeriodicFieldLine():
 
         pointsPerLine = np.array([self.nphi])
         polyLinesToVTK(filename, self.x, self.y, self.z, pointsPerLine=pointsPerLine)
+
+    def _integral_A_dl(self):
+        """Compute the flux integral ∫A⋅dℓ associated with the periodic field line.
+        
+        This function also returns the intermediate quantity d_r_d_phi for testing.
+        """
+        dphi = self.phi[1] - self.phi[0]
+        points = np.stack([self.x, self.y, self.z], axis=-1)
+        self.field.set_points(points)
+        A = self.field.A()
+        B_cart = self.field.B()
+        B_cyl = self.field.B_cyl()
+        B_phi = B_cyl[:, 1]
+
+        d_r_d_phi = (self.R / B_phi)[:, None] * B_cart
+
+        integral = dphi * np.sum(A * d_r_d_phi)  # A dot dℓ
+        return integral, d_r_d_phi
+    
+    def integral_A_dl(self):
+        """Return the flux integral ∫A⋅dℓ associated with the periodic field line."""
+        integral, _ = self._integral_A_dl()
+        return integral
+
