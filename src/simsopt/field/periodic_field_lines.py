@@ -1,3 +1,4 @@
+from math import lcm
 import numpy as np
 from scipy.optimize import root, root_scalar
 from scipy.integrate import solve_ivp
@@ -6,7 +7,12 @@ from .tracing import ToroidalTransitStoppingCriterion, IterationStoppingCriterio
 from ..util.spectral_diff_matrix import spectral_diff_matrix
 from .magneticfield import MagneticField
 
-__all__ = ["find_periodic_field_line"]
+try:
+    from pyevtk.hl import polyLinesToVTK
+except ImportError:
+    polyLinesToVTK = None
+
+__all__ = ["find_periodic_field_line", "PeriodicFieldLine"]
 
 def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
     """Integrate a single field line in the toroidal direction.
@@ -564,3 +570,87 @@ def find_periodic_field_line(
         ), 0.0
     else:
         raise ValueError(f"Unknown method: {method}")
+
+class PeriodicFieldLine():
+    """Class representing a periodic field line.
+    
+    The argument ``m`` is typically the number of times the field line appears
+    in a cross-section.
+
+    The argument ``Z0`` is ignored if method = "1D".
+
+    Args:
+        field: The magnetic field object.
+        nfp: Number of field periods.
+        m: Number of field periods over which the field line is periodic.
+        R0: Initial R coordinate.
+        Z0: Initial Z coordinate.
+        half_period: If True, look for periodic field lines in the half-period plane instead of the phi=0 plane (default: False).
+        method: Method for finding the periodic field line (default: "2D").
+        solve_tol: Tolerance for the root finding (default: 1e-6).
+        follow_tol: Tolerance for the field line integration (default: 1e-10). Irrelevant for method="pseudospectral".
+        nphi_solve: Number of points in the toroidal direction for the pseudospectral solve (default: 21). Matters only for method="pseudospectral".
+        nphi: Number of points in the toroidal direction for plotting etc (default: 200).
+    """
+    def __init__(
+        self,
+        field,
+        nfp,
+        m,
+        R0,
+        Z0=0.0,
+        half_period=False,
+        method="1D Z",
+        solve_tol=1e-6,
+        follow_tol=1e-10,
+        nphi_solve=21,
+        nphi=200,
+    ):
+        self.field = field
+        self.nfp = nfp
+        self.m = m
+        self.half_period = half_period
+        self.nphi = nphi
+
+        R0, Z0 = find_periodic_field_line(
+            field,
+            nfp,
+            m,
+            R0,
+            Z0,
+            half_period=half_period,
+            method=method,
+            solve_tol=solve_tol,
+            follow_tol=follow_tol,
+            nphi=nphi_solve,
+        )
+        self.R0 = R0
+        self.Z0 = Z0
+
+        # Now get R and Z along equally spaced phi points:
+        if half_period:
+            phi0 = np.pi / nfp
+        else:
+            phi0 = 0
+
+        Delta_phi_to_close = lcm(nfp, m) * 2 * np.pi / nfp
+        self.phi0 = phi0
+        self.Delta_phi_to_close = Delta_phi_to_close
+        self.phi = np.linspace(0, Delta_phi_to_close, nphi) + phi0
+        self.R, self.z = _integrate_field_line_cyl(field, R0, Z0, Delta_phi_to_close, tol=follow_tol, phi0=phi0, nphi=nphi)
+        self.x = self.R * np.cos(self.phi)
+        self.y = self.R * np.sin(self.phi)
+        np.testing.assert_allclose(self.R[0], self.R[-1], atol=1e-7, rtol=1e-7)
+        np.testing.assert_allclose(self.z[0], self.z[-1], atol=1e-7, rtol=1e-7)
+        np.testing.assert_allclose(self.x[0], self.x[-1], atol=1e-7, rtol=1e-7)
+        np.testing.assert_allclose(self.y[0], self.y[-1], atol=1e-7, rtol=1e-7)
+        np.testing.assert_allclose(self.R[0], R0, atol=1e-14, rtol=1e-14)
+        np.testing.assert_allclose(self.z[0], Z0, atol=1e-14, rtol=1e-14)
+
+    def to_vtk(self, filename):
+        """Write the field line to a VTK file."""
+        if polyLinesToVTK is None:
+            raise ImportError("pyevtk is not installed. Cannot write VTK file.")
+
+        pointsPerLine = np.array([self.nphi])
+        polyLinesToVTK(filename, self.x, self.y, self.z, pointsPerLine=pointsPerLine)

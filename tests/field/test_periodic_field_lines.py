@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 
 from simsopt.configs import get_w7x_data, get_Cary_Hanson_field
-from simsopt.field import BiotSavart, coils_via_symmetries, find_periodic_field_line
+from simsopt.field import BiotSavart, coils_via_symmetries, find_periodic_field_line, PeriodicFieldLine
 from simsopt.field.periodic_field_lines import (
     _integrate_field_line,
     _integrate_field_line_cyl,
@@ -228,3 +228,27 @@ class Tests(unittest.TestCase):
         # Check that the final coordinates are as expected
         np.testing.assert_allclose(R, 0.955022421271663, rtol=1e-7)
         np.testing.assert_allclose(Z, 0, atol=1e-8)
+
+    def test_find_periodic_field_line_class(self):
+        field = _get_w7x_field()
+        nfp = 5
+
+        # Initial guess:
+        R0 = 6.0
+
+        # Find the magnetic axis:
+        m = 1
+        R1, Z1 = find_periodic_field_line(field, nfp, m, R0, method="1D Z")
+
+        pfl = PeriodicFieldLine(field, nfp, m, R0, method="1D Z")
+        np.testing.assert_allclose(pfl.R0, R1, atol=1e-8)
+        np.testing.assert_allclose(pfl.Z0, Z1, atol=1e-8)
+
+        try:
+            import pyevtk
+        except ImportError:
+            # pyevtk not installed so skipping vtk export test
+            return
+        
+        pyevtk.__path__  # To prevent ruff from complaining that pyevtk is not used
+        pfl.to_vtk("/tmp/periodic_field_line")
