@@ -74,7 +74,6 @@ class IndexableGenerator(object):
         return self.already_computed[index]
 
 
-@SimsoptRequires(newpyoculus, "This PyOculusFixedPoint class requres the additions by L. Rais in 1.0.0")
 class PyOculusFixedPoint(Optimizable):
     """
     A FixedPoint is a point in the Poincar\'e section of a magnetic field
@@ -83,67 +82,110 @@ class PyOculusFixedPoint(Optimizable):
     their properties (residue, location, etc). This class provides an interface
     """
 
-    def __init__(self, field: "MagneticField",
-                 start_guess: NDArray[np.float64],
-                 nfp: int,
-                 phi_0: float = 0.,
+    @SimsoptRequires(newpyoculus, "This PyOculusFixedPoint class requres the additions by L. Rais in 1.0.0")
+    def __init__(self,
+                 pyocmap: "pyoculus.maps.CylindricalBfieldSection",
+                 start_guess: Iterable[np.float64],
                  fp_order: int = 1,
-                 axis: Union[bool, NDArray[np.float64]] = False,
-                 integration_tol: float = 1e-12,
-                 finder_tol: float = 1e-9,
-                 integration_args: dict = dict(),
-                 finder_args: dict = dict()):
+                 finder_args: dict = dict(), 
+                 parent_field: "simsopt.field.MagneticField" = None,
+                 with_axis: bool = False,
+                 ):
         """
         Initialize a FixedPoint object
         Args:
             field: MagneticField object
             start_guess: initial guess for the fixed point location (R, Z).
             nfp: Number of field period
-            phi_0: Toroidal angle of the fixed point
+            phi0: Toroidal angle of the fixed point
             fp_order: Order of the fixed point
             axis: Location of the axis, len 2 array. The axis is also a fixed point, necessary if the poloidal mode number (winding with the axis) is required.
                    if False a nonsense axis will be given to pyoculus.
             integration_tol: Tolerance for integration
-            finder_tol: Tolerance for fixed point finder
             integration_args: Additional arguments for constructing the Poincar\'e section.
                     See pyoculus.maps.CylindricalBfieldSection and pyoculus.maps.IntegratedMap for details.
             finder_args: Additional arguments for fixed point finder.
                     See pyoculus.solvers.FixedPoint for details.
         """
-        self.field = field
+        self._pyocmap = pyocmap
+        if parent_field is None: 
+            parent_field = pyocmap._mf._mf
+        self._parent_field = parent_field
+        self._with_axis = with_axis
         self.start_guess = start_guess
-        self.nfp = nfp
-        self.phi_0 = phi_0
         self.fp_order = fp_order
-        self.axis = axis
-        if self.axis is True or type(self.axis) is np.ndarray:
-            self._with_axis = True
-        else:
-            self._with_axis = False
-        self.integration_tol = integration_tol
-        self.finder_tol = finder_tol
-        self.integration_args = integration_args
-        #update integration_tol if it is not in integration_args dict:
-        if 'tol' not in self.integration_args:
-            self.integration_args['tol'] = integration_tol
         self.finder_args = finder_args
 
-        self._oculus_field_representation = SimsoptBfield(nfp, field)  # pyoculus' interfacing class
-        if self._with_axis:  # create the map with an axis so that rotational transform and such can be calculated.
-            if not isinstance(axis, np.ndarray):  # if axis evaluates true, start with a random point (bound to fail)
-                self.axis = np.array([1., 0.])
-            self._map = CylindricalBfieldSection.without_axis(self._oculus_field_representation, phi0=phi_0, guess=self.axis, **integration_args)
-        else:
-            self._map = CylindricalBfieldSection(self._oculus_field_representation, R0=0, Z0=0, phi0=phi_0, **integration_args)  # create the map with 'axis' at the origin (methods calculating rotational transform will fail)
-        self._fixed_point = FixedPoint(self._map)  # create the fixed point
-        self._fixed_point.find(self.fp_order, start_guess, tol=self.finder_tol, **self.finder_args)  # find it
+        self._fixed_point = FixedPoint(self._pyocmap)  # create the fixed point
+        self._fixed_point.find(self.fp_order, start_guess, **self.finder_args)  # find it
+        if not self._fixed_point.successful:
+            raise ValueError("Fixed point finder failed")
         self._current_location = np.copy(self._fixed_point.coords[0])
         self._refind_fp = False
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[self._parent_field])
 
-        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[field])
+    @classmethod
+    def from_field(cls,  
+                   field: "simsopt.field.MagneticField",
+                   nfp: int, 
+                   start_guess: NDArray[np.float64], 
+                   finder_args: dict = dict(),
+                   fp_order: int = 1, 
+                   phi0: float = 0., 
+                   axis: Union[bool, NDArray[np.float64]] = False, 
+                   integration_tol: float = 1e-12, 
+                   integration_args: dict = dict()
+                   ):
+        """
+        Create a PyOculusFixedPoint object from a MagneticField
+        """
+        if 'tol' not in integration_args:
+            integration_args['rtol'] = integration_tol
+        oculus_field_representation = SimsoptBfield(nfp, field)  # pyoculus' interfacing class
+        if axis is True or isinstance(axis, Iterable):
+            with_axis = True
+        else:
+           with_axis = False
+
+        if with_axis:  # create the map with an axis so that rotational transform and such can be calculated.
+            if not isinstance(axis, Iterable):  # if axis evaluates true, start with a random point (bound to fail)
+                axis = np.array([1., 0.])
+            pyocmap = CylindricalBfieldSection.without_axis(oculus_field_representation, phi0=phi0, guess=axis, **integration_args)
+        else:
+            pyocmap = CylindricalBfieldSection(oculus_field_representation, R0=0, Z0=0, phi0=phi0, **integration_args)  # create the map with 'axis' at the origin (methods calculating rotational transform will fail)
+        return cls(pyocmap=pyocmap,
+                   start_guess=start_guess,
+                   fp_order=fp_order,
+                   finder_args=finder_args,
+                   parent_field=field,
+                   with_axis=with_axis,
+                   )
+    
+    @property
+    def map(self):
+        """
+        The fixed point map object
+        """
+        return self._pyocmap
+
+    @map.setter
+    def map(self, value):
+        raise ValueError("Cannot set map")
+                         
+    @property
+    def fixed_point(self):
+        """
+        Return the fixed point object
+        """
+        return self._fixed_point
+
+    @fixed_point.setter
+    def fixed_point(self, value):
+        raise ValueError("Cannot set fixed point")
+
 
     def recompute_bell(self, parent=None):
-        self._map.clear_cache()  #remove cached maps as field changed
+        self._pyocmap.clear_cache()  #remove cached maps as field changed
         self._refind_fp = True
 
     def refind(self):
@@ -155,18 +197,20 @@ class PyOculusFixedPoint(Optimizable):
 
         """
         try:
-            self._fixed_point.find(self.fp_order, self._current_location, tol=self.finder_tol, **self.finder_args)
+            self._fixed_point.find(self.fp_order, self._current_location, **self.finder_args)
             if self.fp_order > 1 and np.linalg.norm(self._fixed_point.coords[0] - self._fixed_point.coords[1]) < 1e-3:  # if accidentally jumped to the axis, raise hell
                 raise ObjectiveFailure("Fixed point finder jumped to the axis")
             if not self._fixed_point.successful:
                 raise ObjectiveFailure("Fixed point finder failed")
-            closest_orbit = np.argmin(np.linalg.norm(self._fixed_point.coords - self._current_location, axis=1))
+            closest_orbit = np.argmin(np.linalg.norm(self._fixed_point.coords[:-1] - self._current_location, axis=1))  # not the last!
+            if closest_orbit !=0: 
+                print(f'Fixed point had to jump back to other orbit, {closest_orbit} -> 0')
             self._current_location = np.copy(self._fixed_point.coords[closest_orbit])
         except Exception as e:
             raise ObjectiveFailure("Failed to find fixed point") from e
         if self._with_axis:
             try:
-                self._map.find_axis()  # re-find the axis
+                self._pyocmap.find_axis()  # re-find the axis
             except Exception as e:
                 raise ObjectiveFailure("Failed to find axis") from e
         self._refind_fp = False
@@ -180,7 +224,7 @@ class PyOculusFixedPoint(Optimizable):
         if self._refind_fp:
             self.refind()
         RZ = self.loc_RZ()
-        return np.array(RZ[0]*np.cos(self.phi_0), RZ[0]*np.sin(self.phi_0), RZ[1])
+        return np.array(RZ[0]*np.cos(self.phi0), RZ[0]*np.sin(self.phi0), RZ[1])
 
     def R(self):
         return self.loc_RZ()[0]
@@ -259,10 +303,12 @@ class ClinicConnection(Optimizable):
             nretry_clinicfinding: number of times to re-try the finding of each clinic if it field_topology_optimizables
             nextratries_clinicfinding: number of extra attempts to find more clinics
         """
-#        if fp1._map != fp2._map:
-#            raise ValueError("Fixed points must be of the same map")
-        if fp1.nfp != fp2.nfp:
-            raise ValueError("Fixed points must have the same nfp")  # could be allowed in future pyoculus
+        if fp1.map != fp2.map:
+            raise ValueError("Fixed points must be of the same map. \n "
+                             "Hint: use x1 = PyOculusFixedPoint.from_field() and give x2\n"
+                             "the map using x2=PyOculusFixedPoint(x1.map, ...)")
+        if fp1.fp_order != fp2.fp_order:
+            raise ValueError("Fixed points must have the same order (for now)")  # could be allowed in future pyoculus
         self.fp1 = fp1
         self.fp2 = fp2
         self._dir1 = dir1
@@ -277,7 +323,7 @@ class ClinicConnection(Optimizable):
         self._nextratries_clinicfinding = nextratries_clinicfinding
         self._clinicfinding_argument_dict = clinicfinding_argument_dict
         self._ERR = ERR
-        self._manifold = Manifold(fp1._map, fp1._fixed_point, fp2._fixed_point, dir1, dir2, first_stable)
+        self._manifold = Manifold(fp1._pyocmap, fp1._fixed_point, fp2._fixed_point, dir1, dir2, first_stable)
         self.set_true_directions()
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[fp1, fp2])
         self._need_to_reset = True
@@ -315,7 +361,7 @@ class ClinicConnection(Optimizable):
         self.set_true_directions()
         try:
             # find the first fundamental clinic:
-            self._manifold.find_clinic_single(self._stable_epsilons[0], self._unstable_epsilons[0], n_s=self._ns, n_u=self._nu, nretry=self._nretry_clinicfinding, reset_clinics=True, root_args = self._clinicfinding_argument_dict, ERR=self._ERR)
+            self._manifold.find_clinic_single(self._stable_epsilons[0], self._unstable_epsilons[0], n_s=self._ns, n_u=self._nu, nretry=self._nretry_clinicfinding, reset_clinics=True, root_args=self._clinicfinding_argument_dict, ERR=self._ERR)
         except Exception as e:
             raise ObjectiveFailure("Failed to find fundamental clinic") from e
         # find the others with one less nu:
@@ -487,20 +533,20 @@ class SimpleFixedPoint_RZ(SimpleIntegrator, Optimizable):
     ```
 
     """
-    def __init__(self, field: "MagneticField", RZ: NDArray[np.float64], field_nfp: int, integration_nfp: int, phi_0: float = 0., tol=1e-9, max_step=1e5):
+    def __init__(self, field: "MagneticField", RZ: NDArray[np.float64], field_nfp: int, integration_nfp: int, phi0: float = 0., tol=1e-9, max_step=1e5):
         """
         Initialize a SimpleFixedPoint
         Args:
             field: MagneticField object
             RZ: the R and Z-coordinate where a fixed point is required
             nfp: Number of field period
-            phi_0: Toroidal angle of the fixed point
+            phi0: Toroidal angle of the fixed point
         """
         self.field = field
         self.RZ = RZ
         self.field_nfp = field_nfp
         self.integration_nfp = integration_nfp
-        self.phi_0 = phi_0
+        self.phi0 = phi0
         self.TOL = tol
         self.integrator = SimpleIntegrator(field, self.TOL)
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[field])
@@ -509,9 +555,9 @@ class SimpleFixedPoint_RZ(SimpleIntegrator, Optimizable):
         """
         Calculate the distance from the target fixed point
         """
-        phi_end = self.phi_0 + 2*np.pi*self.integration_nfp/self.field_nfp
+        phi_end = self.phi0 + 2*np.pi*self.integration_nfp/self.field_nfp
         try:
-            dist_mapped = np.linalg.norm(self.integrator.integrate_in_phi(self.RZ, self.phi_0, phi_end) - self.RZ)
+            dist_mapped = np.linalg.norm(self.integrator.integrate_in_phi(self.RZ, self.phi0, phi_end) - self.RZ)
         except Exception as e:
             raise ObjectiveFailure("Failed to integrate field line") from e
         return dist_mapped
