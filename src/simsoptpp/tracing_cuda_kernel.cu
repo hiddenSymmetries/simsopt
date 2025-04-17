@@ -71,7 +71,7 @@ __host__  __device__ __forceinline__ void interpolate(particle_t& p, const doubl
                     int row_idx = (p.i+ii)*nt*nz + wrap_j*nz + wrap_k;
                     
                     double shape_val = p.s_shape[ii]*p.t_shape[jj]*p.z_shape[kk];
-                    for(int zz=0; zz<6; ++zz){
+                    for(int zz=0; zz<n; ++zz){
                         out[zz] += data[n*row_idx + zz]*shape_val;
                     }
                 }
