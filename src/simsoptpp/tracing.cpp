@@ -24,6 +24,10 @@ using boost::math::tools::toms748_solve;
 using namespace boost::numeric::odeint;
 using Array2 = BoozerMagneticField::Array2;
 
+#include "xtensor-python/pyarray.hpp"     // Numpy bindings
+#include "xtensor-python/pytensor.hpp"     // Numpy bindings
+typedef xt::pyarray<double> Array;
+
 class GuidingCenterVacuumBoozerRHS {
     /*
      * The state consists of :math:`[s, theta, zeta, v_par]` with
@@ -662,6 +666,62 @@ particle_guiding_center_boozer_perturbed_tracing(
       );
       return solve<GuidingCenterNoKBoozerPerturbedRHS>(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, dt_save, vpars, zetas_stop, vpars_stop, forget_exact_path);
   }
+}
+
+// compute derivative for a single point
+void particle_guiding_center_boozer_derivs(
+        shared_ptr<BoozerMagneticField> field, array<double, 3> stz_init, array<double, 4>&  out,
+        double m, double q, double vtotal, double vtang)
+{
+    typename BoozerMagneticField::Array2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
+    field->set_points(stz);
+    double modB = field->modB()(0);
+    double vperp2 = vtotal*vtotal - vtang*vtang;
+    double mu = vperp2/(2*modB);
+
+    double s = stz_init[0];
+    double t = stz_init[1];
+
+    array<double, 4> y = {s*cos(t), s*sin(t), stz_init[2], vtang};
+    auto rhs_class = GuidingCenterVacuumBoozerRHS(field, m, q, mu,2);
+
+    rhs_class(y, out, 0.0);
+
+}
+
+py::array_t<double> simsopt_derivs(shared_ptr<BoozerMagneticField> field, py::array_t<double> loc, double m, double q, double vtotal, double vtang){
+
+
+    py::buffer_info loc_buf = loc.request();
+    double* loc_arr = static_cast<double*>(loc_buf.ptr);
+
+    double out[4];
+    array<double, 3> stz = {loc_arr[0], loc_arr[1], loc_arr[2]};
+
+    array<double, 4> derivs;
+    particle_guiding_center_boozer_derivs(field, stz, derivs, m, q, vtotal, vtang);
+
+    for(int i=0; i<4; ++i){
+        out[i] = derivs[i];
+    }
+
+    double s = loc_arr[0];
+    double theta = loc_arr[1];
+    
+    // map to "pseudo-Cartesian coordinates"
+    // double dy1dt = out[0]*cos(theta) - s * sin(theta) * out[1];
+    // double dy2dt = out[0]*sin(theta) + s * cos(theta) * out[1];
+
+    // out[0] = dy1dt;
+    // out[1] = dy2dt;
+
+
+    auto result = py::array_t<double>(4, out);
+
+
+
+    return result;
+
 }
 
 /**
