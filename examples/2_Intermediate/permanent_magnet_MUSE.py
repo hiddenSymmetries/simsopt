@@ -281,7 +281,7 @@ from simsopt.util import in_github_actions, proc0_print, comm_world
 from simsopt.field import (InterpolatedField, SurfaceClassifier, particles_to_vtk,
                            compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data)
 sc_fieldline = SurfaceClassifier(s, h=0.03, p=2)
-sc_fieldline.to_vtk(out_dir + 'levelset', h=0.02)
+sc_fieldline.to_vtk(out_dir / 'levelset', h=0.02)
 
 def trace_fieldlines(bfield, label):
     t1 = time.time()
@@ -299,8 +299,8 @@ def trace_fieldlines(bfield, label):
     t2 = time.time()
     proc0_print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
     if comm_world is None or comm_world.rank == 0:
-        particles_to_vtk(fieldlines_tys, out_dir + f'fieldlines_{label}')
-        plot_poincare_data(fieldlines_phi_hits, phis, out_dir + f'poincare_fieldline_{label}.png', dpi=150)
+        particles_to_vtk(fieldlines_tys, out_dir / f'fieldlines_{label}')
+        plot_poincare_data(fieldlines_phi_hits, phis, out_dir / f'poincare_fieldline_{label}.png', dpi=150)
 
 
 # uncomment this to run tracing using the biot savart field (very slow!)
