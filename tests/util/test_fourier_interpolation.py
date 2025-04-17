@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-
 import unittest
 import numpy as np
 from simsopt.util.fourier_interpolation import fourier_interpolation
-
 
 class FourierInterpolationTests(unittest.TestCase):
 

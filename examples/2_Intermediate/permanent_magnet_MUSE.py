@@ -45,11 +45,11 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
-    nphi = 16  # >= 64 for high-resolution runs
+    nphi = 32  # >= 64 for high-resolution runs
     nIter_max = 10000
     nBacktracking = 200
     max_nMagnets = 1000
-    downsample = 1
+    downsample = 2
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks

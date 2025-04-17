@@ -266,12 +266,7 @@ class PermanentMagnetGrid:
 
 
     def net_force_matrix(self, MagnetMatrix):
-        # M = self.m.reshape(self.ndipoles, 3)
         PositionMatrix = self.dipole_grid_xyz
-        # PositionMatrix = PositionMatrix[~np.isclose(np.linalg.norm(M, axis=-1), 0.0), :]
-        # Need to convert PositionMatrix and MagnetMatrix to sparse matrices, 
-        # then perform the dipole_force calculation for just the nonzero elements,
-        # Then return the full dense matrix of forces. 
 
         # each of the arguments is shape (nmagnets, 3)
         def dipole_force(dipoleMoment1, dipolePosition1, dipoleMoment2, dipolePosition2):
