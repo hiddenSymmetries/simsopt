@@ -200,11 +200,21 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
 
     # set the nonconvex step in the algorithm
     reg_rs = 0.0
-    nu = kwargs.pop("nu", 1e100)
-    reg_l0 = kwargs.pop("reg_l0", 0.0)
-    reg_l1 = kwargs.pop("reg_l1", 0.0)
-    max_iter_RS = kwargs.pop('max_iter_RS', 1)
-    epsilon_RS = kwargs.pop('epsilon_RS', 1e-3)
+    if "nu" not in kwargs.keys():
+        nu = 1e100
+    else:
+        nu = kwargs['nu']
+    if "reg_l0" not in kwargs.keys():
+        reg_l0 = 0.0
+    else:
+        reg_l0 = kwargs['reg_l0']
+    if "reg_l1" not in kwargs.keys():
+        reg_l1 = 0.0
+    else:
+        reg_l1 = kwargs['reg_l1']
+    max_iter_RS = kwargs.pop("max_iter_RS", 1)
+    epsilon_RS = kwargs.pop("epsilon_RS", 1)
+    # Some of the above parameters need to remain in kwargs, so can't use kwargs.pop
 
     if (not np.isclose(reg_l0, 0.0, atol=1e-16)) and (not np.isclose(reg_l1, 0.0, atol=1e-16)):
         raise ValueError(' L0 and L1 loss terms cannot be used concurrently.')
