@@ -32,6 +32,7 @@ from simsopt.field import BiotSavart, DipoleField
 from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO
+import simsoptpp as sopp
 from simsopt.util import FocusData, discretize_polarizations, polarization_axes, in_github_actions
 from simsopt.util.permanent_magnet_helper_functions import *
 # from pyevtk.hl import polyLinesToVTK, pointsToVTK
@@ -47,7 +48,7 @@ if in_github_actions:
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
     nphi = 32  # >= 64 for high-resolution runs
-    nIter_max = 10000
+    nIter_max = 2000
     downsample = 2
 
 ntheta = nphi  # same as above
@@ -178,7 +179,11 @@ if save_plots:
             nfp=s.nfp,
             coordinate_flag=pm_opt.coordinate_flag,
             m_maxima=pm_opt.m_maxima,
-            net_forces=pm_opt.net_force_matrix(mk),
+            net_forces=sopp.net_force_matrix(
+                np.ascontiguousarray(mk), 
+                np.ascontiguousarray(pm_opt.dipole_grid_xyz)
+            )
+            #pm_opt.net_force_matrix(mk),
         )
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
         K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
