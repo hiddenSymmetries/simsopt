@@ -1,88 +1,90 @@
 #include "NetForce.h"
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
+#include <cmath>
+#include <vector>
+#include <omp.h>
 
-// Computes the pairwise dipole-dipole force matrix (N x N x 3).
-// magnetMoments[i]   = magnetic moment of dipole i
-// magnetPositions[i] = position (x,y,z) of dipole i
-Array dipole_force_matrix(Array& magnetMoments, Array& magnetPositions)
-{
+// Computes net force on each dipole by summing pairwise dipole-dipole interactions
+// On-the-fly accumulation eliminates the large N×N×3 buffer.
+Array net_force_matrix(Array& magnetMoments, Array& magnetPositions) {
     int N = magnetMoments.shape(0);
-    // Initialize ForceMatrix as (N x N x 3), each entry is a 3D array initialized to 0
-    Array forceMatrix = xt::zeros<double>({N, N, 3});
+    // Allocate output
+    Array netForces = xt::zeros<double>({N, 3});
+    double* moments  = magnetMoments.data();     // length N*3
+    double* positions= magnetPositions.data();   // length N*3
+    double* netforce = netForces.data();         // length N*3
 
-    const double eps = 1e-10;
-    const double mu  = 4.0 * M_PI * 1e-7; // permeability of free space
+    const double mu0 = 4.0 * M_PI * 1e-7;
+    int numThreads = omp_get_max_threads();
+    // Thread-local buffer: numThreads × N × 3
+    std::vector<double> localBuf(numThreads * N * 3, 0.0);
 
-    #pragma omp parallel for schedule(static)
-    for (int i = 0; i < N; ++i) {
-        for (int j = 0; j < N; ++j) {
-            // Compute R = r_j - r_i
-            std::array<double, 3> R;
-            for (int k = 0; k < 3; ++k) {
-                R[k] = magnetPositions(j, k) - magnetPositions(i, k);
-            }
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+        double* local = &localBuf[tid * N * 3];
 
-            // Compute magnitude of R (plus eps to avoid singularities)
-            double magR = std::sqrt(R[0]*R[0] + R[1]*R[1] + R[2]*R[2] + eps);
-            double magR5 = std::pow(magR, 5);
-
-            // Dot products:
-            // m1·R, m2·R, m1·m2  (where m1 = magnetMoments[i], m2 = magnetMoments[j])
-            double m1dotR = 0.0;
-            double m2dotR = 0.0;
-            double m1dotm2 = 0.0;
-            for (int k = 0; k < 3; ++k) {
-                m1dotR   += magnetMoments(i, k) * R[k];
-                m2dotR   += magnetMoments(j, k) * R[k];
-                m1dotm2  += magnetMoments(i, k) * magnetMoments(j, k);
-            }
-
-            // Compute coefficient = 3*mu / (4*pi * magR^5)
-            // (Note that 4*pi factor is basically 4 * M_PI, but we'll keep it explicit.)
-            double coefficient = (3.0 * mu) / (4.0 * M_PI * magR5);
-
-            // Now compute each term of F_{ij}
-            // first_term  = (m1 dot R) * m2
-            // second_term = (m2 dot R) * m1
-            // third_term  = (m1 dot m2) * R
-            // fourth_term = 5 * (m1 dot R) (m2 dot R) / (magR^2) * R
-            // Then F = coeff * (first + second + third - fourth)
-
-            double factor_4th = 5.0 * m1dotR * m2dotR / (magR*magR);
-
-            for (int k = 0; k < 3; ++k) {
-                double first  = m1dotR       * magnetMoments(j, k);
-                double second = m2dotR       * magnetMoments(i, k);
-                double third  = m1dotm2      * R[k];
-                double fourth = factor_4th   * R[k];
-                
-                forceMatrix(i, j, k) = coefficient * (first + second + third - fourth);
+        #pragma omp for schedule(dynamic,1)
+        for (int i = 0; i < N; ++i) {
+            for (int j = 0; j < i; ++j) {
+                // Displacement
+                double r_x = positions[3*j + 0] - positions[3*i + 0];
+                double r_y = positions[3*j + 1] - positions[3*i + 1];
+                double r_z = positions[3*j + 2] - positions[3*i + 2];
+                // Distance metrics
+                double r2 = r_x*r_x + r_y*r_y + r_z*r_z;
+                double r  = std::sqrt(r2);
+                double r5 = r2 * r2 * r;
+                // Dot products
+                double m1dotR  = moments[3*i + 0]*r_x
+                               + moments[3*i + 1]*r_y
+                               + moments[3*i + 2]*r_z;
+                double m2dotR  = moments[3*j + 0]*r_x
+                               + moments[3*j + 1]*r_y
+                               + moments[3*j + 2]*r_z;
+                double m1dotm2 = moments[3*i + 0]*moments[3*j + 0]
+                               + moments[3*i + 1]*moments[3*j + 1]
+                               + moments[3*i + 2]*moments[3*j + 2];
+                // Coefficient and term4
+                double coeff = (3.0 * mu0) / (4.0 * M_PI * r5);
+                double term4 = 5.0 * m1dotR * m2dotR / r2;
+                // Compute force components
+                double fx = coeff * (
+                      m1dotR * moments[3*j + 0]
+                    + m2dotR * moments[3*i + 0]
+                    + m1dotm2 * r_x
+                    - term4   * r_x);
+                double fy = coeff * (
+                      m1dotR * moments[3*j + 1]
+                    + m2dotR * moments[3*i + 1]
+                    + m1dotm2 * r_y
+                    - term4   * r_y);
+                double fz = coeff * (
+                      m1dotR * moments[3*j + 2]
+                    + m2dotR * moments[3*i + 2]
+                    + m1dotm2 * r_z
+                    - term4   * r_z);
+                // Accumulate into thread-local buffers
+                local[3*i + 0] += fx;
+                local[3*i + 1] += fy;
+                local[3*i + 2] += fz;
+                local[3*j + 0] += fx;
+                local[3*j + 1] += fy;
+                local[3*j + 2] += fz;
             }
         }
     }
 
-    return forceMatrix;
-}
+    // Reduce thread-local buffers into netforce
+    for (int t = 0; t < numThreads; ++t) {
+        double* local = &localBuf[t * N * 3];
+        for (int i = 0; i < N; ++i) {
+            netforce[3*i + 0] += local[3*i + 0];
+            netforce[3*i + 1] += local[3*i + 1];
+            netforce[3*i + 2] += local[3*i + 2];
+        }
+    }
 
-// net_force_matrix: sums the (N x N x 3) pairwise forces over j to get net force on each i
-Array net_force_matrix(Array& magnetMoments, Array& magnetPositions)
-{
-    // 1) Get the full ForceMatrix for all pairs (i,j).
-    Array ForceMatrix = dipole_force_matrix(magnetMoments, magnetPositions);
-
-    // 2) Sum over j to get net force on dipole i.
-    int N = magnetMoments.shape(0);
-    Array netForce = xt::zeros<double>({N, 3});
-
-    #pragma omp parallel for schedule(static)
-    for (int i = 0; i < N; ++i) {
-        // Sum over j
-       for (int j = 0; j < N; ++j) {
-           for (int k = 0; k < 3; ++k) {
-               netForce(i, k) += ForceMatrix(i, j, k);
-           }
-       }
-   }
-    return netForce; // shape: N x 3
+    return netForces;
 }
