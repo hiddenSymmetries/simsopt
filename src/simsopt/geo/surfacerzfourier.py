@@ -462,7 +462,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         if ntheta is not None or nphi is not None:
             kwargs["quadpoints_phi"], kwargs["quadpoints_theta"] \
-                = Surface.get_quadpoints(ntheta=ntheta, nphi=nphi, nfp=nfp, \
+                = Surface.get_quadpoints(ntheta=ntheta, nphi=nphi, nfp=nfp,
                                          range=grid_range)
 
         surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, **kwargs)

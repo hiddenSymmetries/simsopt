@@ -10,12 +10,13 @@ from simsopt.geo import Surface, ToroidalWireframe
 from simsopt.field.magneticfield import MagneticField
 from simsopt.field.wireframefield import WireframeField
 
-__all__ = ['optimize_wireframe', 'bnorm_obj_matrices', \
-           'rcls_wireframe', 'gsco_wireframe', 'get_gsco_iteration', \
+__all__ = ['optimize_wireframe', 'bnorm_obj_matrices',
+           'rcls_wireframe', 'gsco_wireframe', 'get_gsco_iteration',
            'regularized_constrained_least_squares']
 
-def optimize_wireframe(wframe, algorithm, params, \
-                       surf_plas=None, ext_field=None, area_weighted=True, \
+
+def optimize_wireframe(wframe, algorithm, params,
+                       surf_plas=None, ext_field=None, area_weighted=True,
                        bnorm_target=None, Amat=None, bvec=None, verbose=True):
     """
     Optimizes the segment currents in a wireframe class instance.
@@ -201,44 +202,44 @@ def optimize_wireframe(wframe, algorithm, params, \
     """
 
     if not isinstance(wframe, ToroidalWireframe):
-        raise ValueError('Input `wframe` must be a ToroidalWireframe class ' \
+        raise ValueError('Input `wframe` must be a ToroidalWireframe class '
                          + 'instance')
 
     if verbose:
-        print('  Optimization of the segment currents in a ' \
+        print('  Optimization of the segment currents in a '
               + 'ToroidalWireframe')
 
     # Mode 1: plasma boundary supplied; field calculation necessary
     if surf_plas is not None:
 
         if Amat is not None or bvec is not None:
-            raise ValueError('Inputs `Amat` and `bvec` must not be supplied ' \
+            raise ValueError('Inputs `Amat` and `bvec` must not be supplied '
                              + 'if `surf_plas` is given')
 
         # Calculate the normal field matrix (A) and target field vector (c)
-        A, b = bnorm_obj_matrices(wframe, surf_plas, ext_field=ext_field, \
-                   area_weighted=area_weighted, bnorm_target=bnorm_target, \
-                   verbose=verbose)
+        A, b = bnorm_obj_matrices(wframe, surf_plas, ext_field=ext_field,
+                                  area_weighted=area_weighted, bnorm_target=bnorm_target,
+                                  verbose=verbose)
 
     # Mode 2: Inductance matrix and target bnormal vector supplied
     elif Amat is not None and bvec is not None:
 
         if surf_plas is not None or ext_field is not None or \
            bnorm_target is not None:
-            raise ValueError('If `Amat` and `bvec` are provided, the ' \
-                + 'following parameters must not be provided: \n' \
-                + '    `surf_plas`, `ext_field`, `bnorm_target`')
+            raise ValueError('If `Amat` and `bvec` are provided, the '
+                             + 'following parameters must not be provided: \n'
+                             + '    `surf_plas`, `ext_field`, `bnorm_target`')
 
         if verbose:
             print('    Using pre-calculated normal field matrix '
                   + 'and target field')
 
         # Check Amat and bvec inputs
-        b = np.array(bvec).reshape((-1,1))
+        b = np.array(bvec).reshape((-1, 1))
         n_test_points = len(b)
         A = np.array(Amat)
         if np.shape(A) != (n_test_points, wframe.n_segments):
-            raise ValueError('Input `Amat` has inconsistent dimensions with ' \
+            raise ValueError('Input `Amat` has inconsistent dimensions with '
                              'input `bvec` and/or `wframe`')
 
     else:
@@ -252,8 +253,8 @@ def optimize_wireframe(wframe, algorithm, params, \
 
         # Check supplied parameters
         if 'reg_W' not in params:
-            raise ValueError('params dictionary must contain ''reg_W'' ' 
-                             + 'for the RCLS algorithm') 
+            raise ValueError('params dictionary must contain ''reg_W'' '
+                             + 'for the RCLS algorithm')
         else:
             reg_W = params['reg_W']
 
@@ -270,7 +271,7 @@ def optimize_wireframe(wframe, algorithm, params, \
         # Check supplied parameters
         for v in ['lambda_S', 'max_iter', 'print_interval']:
             if v not in params:
-                raise ValueError(('params dictionary must contain ''%s'' for ' \
+                raise ValueError(('params dictionary must contain ''%s'' for '
                                   + 'the GSCO algorithm') % (v))
 
         # Set default values if necessary
@@ -292,12 +293,12 @@ def optimize_wireframe(wframe, algorithm, params, \
             else params['loop_count_init']
 
         x, loop_count, iter_hist, curr_hist, loop_hist, f_B_hist, f_S_hist, \
-        f_hist, x_init_out \
-            = gsco_wireframe(wframe, A, b, params['lambda_S'], no_crossing, 
-                             match_current, default_current, max_current, 
-                             params['max_iter'], params['print_interval'], 
+            f_hist, x_init_out \
+            = gsco_wireframe(wframe, A, b, params['lambda_S'], no_crossing,
+                             match_current, default_current, max_current,
+                             params['max_iter'], params['print_interval'],
                              no_new_coils=no_new_coils,
-                             max_loop_count=max_loop_count, x_init=x_init, 
+                             max_loop_count=max_loop_count, x_init=x_init,
                              loop_count_init=loop_count_init, verbose=verbose)
 
         f_B = f_B_hist[-1]
@@ -328,8 +329,9 @@ def optimize_wireframe(wframe, algorithm, params, \
     results['f'] = f
 
     return results
-   
-def bnorm_obj_matrices(wframe, surf_plas, ext_field=None, \
+
+
+def bnorm_obj_matrices(wframe, surf_plas, ext_field=None,
                        area_weighted=True, bnorm_target=None, verbose=True):
     """
     Computes the normal field matrix and target field vector used for 
@@ -375,14 +377,14 @@ def bnorm_obj_matrices(wframe, surf_plas, ext_field=None, \
     """
 
     if not isinstance(surf_plas, Surface):
-        raise ValueError('Input `surf_plas` must be a Surface class ' \
+        raise ValueError('Input `surf_plas` must be a Surface class '
                          + 'instance')
 
     # Calculate the normal vectors for the surface
     n = surf_plas.normal()
-    absn = np.linalg.norm(n, axis=2)[:,:,None]
+    absn = np.linalg.norm(n, axis=2)[:, :, None]
     unitn = n * (1./absn)
-    sqrt_area = np.sqrt(absn.reshape((-1,1))/float(absn.size))
+    sqrt_area = np.sqrt(absn.reshape((-1, 1))/float(absn.size))
 
     if area_weighted:
         area_weight = sqrt_area
@@ -394,19 +396,19 @@ def bnorm_obj_matrices(wframe, surf_plas, ext_field=None, \
         print('    Calculating the wireframe field and normal field matrix')
     t0 = time.time()
     mf_wf = WireframeField(wframe)
-    mf_wf.set_points(surf_plas.gamma().reshape((-1,3)))
-    A = mf_wf.dBnormal_by_dsegmentcurrents_matrix(surf_plas, \
-            area_weighted=area_weighted)
+    mf_wf.set_points(surf_plas.gamma().reshape((-1, 3)))
+    A = mf_wf.dBnormal_by_dsegmentcurrents_matrix(surf_plas,
+                                                  area_weighted=area_weighted)
     t1 = time.time()
     if verbose:
-        print('        Field and normal field matrix calc took %.2f seconds' \
+        print('        Field and normal field matrix calc took %.2f seconds'
               % (t1 - t0))
 
     # Calculate the target normal field to cancel contributions from the
     # external field
     if ext_field is not None:
         if not isinstance(ext_field, MagneticField):
-            raise ValueError('Input `ext_field` must be a MagneticField ' \
+            raise ValueError('Input `ext_field` must be a MagneticField '
                              + 'class instance')
 
         if verbose:
@@ -415,11 +417,11 @@ def bnorm_obj_matrices(wframe, surf_plas, ext_field=None, \
         # Save the test points from the external field as input
         orig_points = ext_field.get_points_cart_ref()
 
-        ext_field.set_points(surf_plas.gamma().reshape((-1,3)))
+        ext_field.set_points(surf_plas.gamma().reshape((-1, 3)))
         B_ext = ext_field.B().reshape(n.shape)
-        bnorm_ext = np.sum(B_ext * unitn, axis=2)[:,:,None]
-        bnorm_ext_weighted = bnorm_ext.reshape((-1,1))*area_weight
-        
+        bnorm_ext = np.sum(B_ext * unitn, axis=2)[:, :, None]
+        bnorm_ext_weighted = bnorm_ext.reshape((-1, 1))*area_weight
+
         # Restore the original test points
         ext_field.set_points(orig_points)
 
@@ -427,19 +429,19 @@ def bnorm_obj_matrices(wframe, surf_plas, ext_field=None, \
 
         bnorm_ext_weighted = 0*area_weight
 
-    # Calculate the target normal field to cancel contributions from 
+    # Calculate the target normal field to cancel contributions from
     # plasma currents
     if bnorm_target is not None:
 
         if bnorm_target.size != area_weight.size:
-            raise ValueError('Input `bnorm_target` must have the same' 
-                + 'number of elements as the number of quadrature points'
-                + 'of `surf_plas`')
-              
+            raise ValueError('Input `bnorm_target` must have the same'
+                             + 'number of elements as the number of quadrature points'
+                             + 'of `surf_plas`')
+
         if verbose:
             print('    Adding contribution from plasma current')
 
-        bnorm_target_weighted = bnorm_target.reshape((-1,1))*area_weight
+        bnorm_target_weighted = bnorm_target.reshape((-1, 1))*area_weight
 
     else:
 
@@ -449,6 +451,7 @@ def bnorm_obj_matrices(wframe, surf_plas, ext_field=None, \
     b = np.ascontiguousarray(bnorm_target_weighted - bnorm_ext_weighted)
 
     return A, b
+
 
 def rcls_wireframe(wframe, Amat, bvec, reg_W, assume_no_crossings, verbose):
     """
@@ -492,18 +495,18 @@ def rcls_wireframe(wframe, Amat, bvec, reg_W, assume_no_crossings, verbose):
     # Obtain the constraint matrices
     if verbose:
         print('    Obtaining constraint matrices')
-    C, d = wframe.constraint_matrices(assume_no_crossings=assume_no_crossings, \
+    C, d = wframe.constraint_matrices(assume_no_crossings=assume_no_crossings,
                                       remove_constrained_segments=True)
     free_segs = wframe.unconstrained_segments()
 
     if np.shape(C)[0] >= len(free_segs):
-        raise ValueError('Least-squares problem has as many or more ' \
-            + 'constraints than degrees\nof freedom. ' \
-            + 'Wireframe may have redundant constraints or the problem is\n' \
-            + 'over-constrained.')
+        raise ValueError('Least-squares problem has as many or more '
+                         + 'constraints than degrees\nof freedom. '
+                         + 'Wireframe may have redundant constraints or the problem is\n'
+                         + 'over-constrained.')
 
     # Trim constrained segments out of the A and W matrices
-    Afree = Amat[:,free_segs]
+    Afree = Amat[:, free_segs]
     if np.isscalar(reg_W):
         Wfree = reg_W
         W = reg_W
@@ -512,9 +515,9 @@ def rcls_wireframe(wframe, Amat, bvec, reg_W, assume_no_crossings, verbose):
         if W.ndim == 1:
             Wfree = W[free_segs]
         elif W.ndim == 2:
-            Wfree = W[free_segs,free_segs]
+            Wfree = W[free_segs, free_segs]
         else:
-            raise ValueError('Input reg_W must be a scalar, 1d array, ' \
+            raise ValueError('Input reg_W must be a scalar, 1d array, '
                              + 'or 2d array')
 
     # Solve the least-squares problem
@@ -527,7 +530,7 @@ def rcls_wireframe(wframe, Amat, bvec, reg_W, assume_no_crossings, verbose):
         print('        Solver took %.2f seconds' % (t1 - t0))
 
     # Construct the solution column vector
-    x = np.zeros((wframe.n_segments,1))
+    x = np.zeros((wframe.n_segments, 1))
     x[free_segs] = xfree[:]
 
     # Set wireframe currents to the solution vector
@@ -546,9 +549,10 @@ def rcls_wireframe(wframe, Amat, bvec, reg_W, assume_no_crossings, verbose):
 
     return x, f_B, f_R, f
 
-def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
-                   default_current, max_current, max_iter, print_interval, \
-                   no_new_coils=False, max_loop_count=0, x_init=None, \
+
+def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current,
+                   default_current, max_current, max_iter, print_interval,
+                   no_new_coils=False, max_loop_count=0, x_init=None,
                    loop_count_init=None, verbose=True):
     """
     Runs the Greedy Stellarator Coil Optimization algorithm to optimize the
@@ -638,10 +642,10 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
 
     # Initialize x with wframe currents or user-provided values
     if x_init is None:
-        x_init = np.ascontiguousarray(np.zeros((wframe.n_segments,1)))
-        x_init[:,0] = wframe.currents[:]
+        x_init = np.ascontiguousarray(np.zeros((wframe.n_segments, 1)))
+        x_init[:, 0] = wframe.currents[:]
     else:
-        x_init = np.ascontiguousarray(np.reshape(x_init,(-1,1)))
+        x_init = np.ascontiguousarray(np.reshape(x_init, (-1, 1)))
 
     if loop_count_init is None:
         loop_count_init = np.ascontiguousarray(np.zeros(len(free_loops)).astype(np.int64))
@@ -653,10 +657,10 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
         print('    Running GSCO')
     t0 = time.time()
     x, loop_count, iter_hist, curr_hist, loop_hist, f_B_hist, f_S_hist, f_hist \
-        = sopp.GSCO(no_crossing, no_new_coils, match_current, A, c, 
-                    np.abs(default_current), np.abs(max_current), 
-                    np.abs(max_loop_count), loops, free_loops, segments, 
-                    connections, lambda_S, max_iter, x_init, loop_count_init, 
+        = sopp.GSCO(no_crossing, no_new_coils, match_current, A, c,
+                    np.abs(default_current), np.abs(max_current),
+                    np.abs(max_loop_count), loops, free_loops, segments,
+                    connections, lambda_S, max_iter, x_init, loop_count_init,
                     print_interval)
     t1 = time.time()
     if verbose:
@@ -667,7 +671,8 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
     wframe.currents[:] = x.reshape((-1))[:]
 
     return x, loop_count, iter_hist, curr_hist, loop_hist, \
-           f_B_hist, f_S_hist, f_hist, x_init
+        f_B_hist, f_S_hist, f_hist, x_init
+
 
 def get_gsco_iteration(iteration, res, wframe):
     """
@@ -705,12 +710,12 @@ def get_gsco_iteration(iteration, res, wframe):
 
     x_iter = np.array(res['x_init'])
     for i in range(iteration+1):
-        
+
         curr_i = res['curr_hist'][i]
         cell_i = res['loop_hist'][i]
 
-        x_iter[cells[cell_i,:2]] += curr_i
-        x_iter[cells[cell_i,2:]] -= curr_i
+        x_iter[cells[cell_i, :2]] += curr_i
+        x_iter[cells[cell_i, 2:]] -= curr_i
 
     return x_iter
 
@@ -755,9 +760,9 @@ def regularized_constrained_least_squares(A, b, W, C, d):
 
     # Recast inputs as Numpy arrays
     Amat = np.array(A)
-    bvec = np.array(b).reshape((-1,1))
-    Ctra = np.array(C).T # Transpose will be used for the calculations
-    dvec = np.array(d).reshape((-1,1))
+    bvec = np.array(b).reshape((-1, 1))
+    Ctra = np.array(C).T  # Transpose will be used for the calculations
+    dvec = np.array(d).reshape((-1, 1))
 
     # Check the inputs
     m, n = Amat.shape
@@ -775,21 +780,21 @@ def regularized_constrained_least_squares(A, b, W, C, d):
         Wmat = np.squeeze(W)
         if len(Wmat.shape) == 1:
             if Wmat.shape[0] != n:
-                raise ValueError('Number of elements in vector-form W ' \
+                raise ValueError('Number of elements in vector-form W '
                                  'must match columns in A')
             Wmat = np.diag(Wmat)
         elif len(Wmat.shape) == 2:
             if Wmat.shape[0] != n or Wmat.shape[1] != n:
-                raise ValueError('Number of rows and columns in matrix-form W '\
+                raise ValueError('Number of rows and columns in matrix-form W '
                                  'must both equal number of columns in A')
         else:
             raise ValueError('W must be a scalar, 1d array, or 2d array')
-            
+
     # Compute the QR factorization of the transpose of the constraint matrix
     Qfull, Rtall = _qr_factorization_wrapper(Ctra)
-    Q1mat = Qfull[:,:p]  # Orthonormal vectors in the constrained subspace
-    Q2mat = Qfull[:,p:]  # Orthonormal vectors in the free subspace
-    Rmat = Rtall[:p,:]
+    Q1mat = Qfull[:, :p]  # Orthonormal vectors in the constrained subspace
+    Q2mat = Qfull[:, p:]  # Orthonormal vectors in the free subspace
+    Rmat = Rtall[:p, :]
 
     # SOLVE: Rmat.T * uvec = dvec
     # uvec = coefficients for basis vectors from constrained subspace
@@ -852,4 +857,3 @@ def _qr_factorization_wrapper(M):
             raise RuntimeError('Error in calculating QR factorization.')
 
     return Q, R
-

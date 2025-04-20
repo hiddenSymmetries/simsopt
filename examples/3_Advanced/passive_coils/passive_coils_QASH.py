@@ -88,7 +88,7 @@ vc2 = VirtualCasing.from_vmec(
     trgt_nphi=qphi // 4, trgt_ntheta=qtheta)
 s_plot = vc2.trgt_surf_full
 
- # initialize the coils
+# initialize the coils
 base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, 'SchuettHennebergQAnfp2')
 num_TF_unique_coils = len(base_curves_TF)
 base_coils_TF = coils_TF[:num_TF_unique_coils]
@@ -275,6 +275,7 @@ if TORQUE_WEIGHT2.value > 0.0:
     JF += TORQUE_WEIGHT2 * Jtorque2
 
 # print(JF.dof_names)
+
 
 def fun(dofs):
     JF.x = dofs

@@ -248,6 +248,7 @@ if TORQUE_WEIGHT2.value > 0.0:
 
 # print(JF.dof_names)
 
+
 def fun(dofs):
     JF.x = dofs
     # absolutely essential line that updates the PSC currents even though they are not

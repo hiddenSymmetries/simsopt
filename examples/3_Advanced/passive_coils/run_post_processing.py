@@ -75,10 +75,10 @@ qfm_surf = make_qfm(s, Bfield)
 qfm_surf = qfm_surf.surface
 
 # VMEC does NOT like the CSX plasma because it's very compact
-# Also probably should be including the plasma current contributions 
-# Although Antoine Baillod has had the same issues. 
+# Also probably should be including the plasma current contributions
+# Although Antoine Baillod has had the same issues.
 if str(sys.argv[1]) != 'CSX':
-    vmec_input = str(filename) 
+    vmec_input = str(filename)
     equil = Vmec(vmec_input, mpi)
     equil.boundary = qfm_surf
     equil.run()

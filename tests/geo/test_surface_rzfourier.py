@@ -234,7 +234,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             SurfaceRZFourier.from_nescoil_input(filename, 'other')
 
-        # The plasma surface in the nescoil file should be approximately the 
+        # The plasma surface in the nescoil file should be approximately the
         # same as the LandremanPaul2021_QA surface, although Fourier resolution
         # is different
         filename_ref = TEST_DIR / 'input.LandremanPaul2021_QA'
