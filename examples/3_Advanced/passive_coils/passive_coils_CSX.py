@@ -31,14 +31,20 @@ from simsopt.geo import (
     CurveLength, CurveCurveDistance, MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
     SurfaceRZFourier, curves_to_vtk, create_planar_curves_between_two_toroidal_surfaces
 )
-from simsopt.util import remove_inboard_dipoles, align_dipoles_with_plasma
+from simsopt.util import remove_inboard_dipoles, align_dipoles_with_plasma, save_coil_sets
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 from simsopt import load
 
 t1 = time.time()
 
+continuation_run = True
+if continuation_run:
+    file_suffix = "_continuation"
+else:
+    file_suffix = ""
+
 # Directory for output
-OUT_DIR = ("./CSX_passive_coils/")
+OUT_DIR = ("./passive_coils_CSX/")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # File for the desired boundary magnetic surface:
@@ -157,13 +163,9 @@ nturns_TF = 200
 aa = 0.03
 bb = 0.03
 
-# Whether to restart from a previous run
-continuation_run = False
-
 if continuation_run:
-    input_dir = "CSX_passive_coils/"
-    coils = load(input_dir + "psc_coils.json")
-    coils_TF = load(input_dir + "TF_coils.json")
+    coils = load(OUT_DIR + "psc_coils.json")
+    coils_TF = load(OUT_DIR + "TF_coils.json")
     curves = [c.curve for c in coils]
     base_curves = curves[:len(curves) // 4]
     base_coils = coils[:len(coils) // 4]
@@ -308,25 +310,7 @@ FORCE_WEIGHT = Weight(1e-30)  # 1e-34 Forces are in Newtons, and typical values 
 FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-
-curves_to_vtk(
-    [c.curve for c in btot.Bfields[1].coils],
-    OUT_DIR + "curves_TF_0",
-    close=True,
-    extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
-    I=[c.current.get_value() for c in btot.Bfields[1].coils],
-    NetForces=coil_net_forces(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-    NetTorques=coil_net_torques(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF)
-)
-curves_to_vtk(
-    [c.curve for c in btot.Bfields[0].coils],
-    OUT_DIR + "curves_0",
-    close=True,
-    extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
-    I=[c.current.get_value() for c in btot.Bfields[0].coils],
-    NetForces=coil_net_forces(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
-    NetTorques=coil_net_torques(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns)
-)
+save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 # Force and Torque calculations spawn a bunch of spurious BiotSavart child objects -- erase them!
 for c in (coils + coils_TF):
     c._children = set()
@@ -335,7 +319,7 @@ btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_full_init", extra_data=pointData)
+s_plot.to_vtk(OUT_DIR + "surf_init" + file_suffix, extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
 bpsc = btot.Bfields[0]
@@ -343,7 +327,7 @@ bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_init_PSC", extra_data=pointData)
+s_plot.to_vtk(OUT_DIR + "surf_PSC" + file_suffix, extra_data=pointData)
 bpsc.set_points(s.gamma().reshape((-1, 3)))
 
 # Define the individual terms objective function:
@@ -436,7 +420,7 @@ def fun(dofs):
     outstr += f", Len=sum([{cl_string2}])={sum(J.J() for J in Jls):.2f}"
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls_TF):.2f}"
     valuestr += f", LenObj={length_val:.2e}"
-    valuestr += f", LenObj={length_val2:.2e}"
+    valuestr += f", LenObj2={length_val2:.2e}"
     valuestr += f", ccObj={cc_val:.2e}"
     valuestr += f", csObj={cs_val:.2e}"
     valuestr += f", Lk1Obj={link_val:.2e}"
@@ -492,43 +476,26 @@ bpsc = btot.Bfields[0]
 bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
 dipole_currents = [c.current.get_value() for c in bpsc.coils]
 psc_array.recompute_currents()
-curves_to_vtk(
-    [c.curve for c in bpsc.coils],
-    OUT_DIR + "curves_final",
-    close=True,
-    extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
-    I=dipole_currents,
-    NetForces=coil_net_forces(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
-    NetTorques=coil_net_torques(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
-)
-curves_to_vtk(
-    [c.curve for c in btot.Bfields[1].coils],
-    OUT_DIR + "curves_TF_final",
-    close=True,
-    extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
-    I=[c.current.get_value() for c in btot.Bfields[1].coils],
-    NetForces=coil_net_forces(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-    NetTorques=coil_net_torques(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-)
+save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_full_final", extra_data=pointData)
+s_plot.to_vtk(OUT_DIR + "surf_final" + file_suffix, extra_data=pointData)
 
 btf = btot.Bfields[1]
 btf.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btf.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_full_TF", extra_data=pointData)
+s_plot.to_vtk(OUT_DIR + "surf_TF" + file_suffix, extra_data=pointData)
 
 bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_full_PSC", extra_data=pointData)
+s_plot.to_vtk(OUT_DIR + "surf_PSC" + file_suffix, extra_data=pointData)
 
 btot.set_points(s.gamma().reshape((-1, 3)))
 print('Max I = ', np.max(dipole_currents))
@@ -538,10 +505,6 @@ calculate_on_axis_B(btot, s)
 t2 = time.time()
 print('Total time = ', t2 - t1)
 from simsopt import save
-if continuation_run:
-    save(btot.Bfields[0].coils, OUT_DIR + 'psc_coils_continuation.json')
-    save(btot.Bfields[1].coils, OUT_DIR + 'TF_coils_continuation.json')
-else:
-    save(btot.Bfields[0].coils, OUT_DIR + 'psc_coils.json')
-    save(btot.Bfields[1].coils, OUT_DIR + 'TF_coils.json')
+save(btot.Bfields[0].coils, OUT_DIR + 'psc_coils' + file_suffix + '.json')
+save(btot.Bfields[1].coils, OUT_DIR + 'TF_coils' + file_suffix + '.json')
 print(OUT_DIR)

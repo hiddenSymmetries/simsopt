@@ -13,31 +13,60 @@ from simsopt.field import regularization_rect, PSCArray
 from simsopt.field.force import coil_force, coil_torque, coil_net_torques, coil_net_forces, LpCurveForce, \
     SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque
-from simsopt.util import calculate_on_axis_B
+from simsopt.util import calculate_on_axis_B, initialize_coils, remove_inboard_dipoles, \
+    align_dipoles_with_plasma, save_coil_sets
 from simsopt.geo import (
     CurveLength, CurveCurveDistance,
     MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
-    SurfaceRZFourier, curves_to_vtk, create_planar_curves_between_two_toroidal_surfaces
+    SurfaceRZFourier, create_planar_curves_between_two_toroidal_surfaces
 )
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
+from simsopt import load
+from simsopt.mhd import VirtualCasing
 
 t1 = time.time()
 
 # Number of Fourier modes describing each Cartesian component of each coil:
-order = 0
+order = 2
+
+continuation_run = True
+if continuation_run:
+    file_suffix = "_continuation"
+else:
+    file_suffix = ""
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 input_name = 'wout_henneberg.nc'
 filename = TEST_DIR / input_name
 
+# Directory for output
+OUT_DIR = ("./passive_coils_QASH/")
+os.makedirs(OUT_DIR, exist_ok=True)
+
 # Initialize the boundary magnetic surface:
 range_param = "half period"
-nphi = 32
-ntheta = 32
+vmec_file = 'wout_hybrid.nfp2.newProfiles.T0.14.n0.3e20.BandVscaled_000_001670_000_000000.nc'
+vmec_file = TEST_DIR / vmec_file
+
+# Virtual casing must not have been run yet.
+print('Running the virtual casing calculation')
+# Resolution for the virtual casing calculation:
+vc_src_nphi = 256
+nphi = 64
+ntheta = 64
+vc = VirtualCasing.from_vmec(
+    vmec_file,
+    src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi,
+    trgt_nphi=nphi, trgt_ntheta=ntheta,
+)
+
+# Initialize the boundary magnetic surface:
+range_param = "half period"
 poff = 1.5
-coff = 2.0
-s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=ntheta)
+coff = 3.0
+s = vc.trgt_surf
+# s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 
@@ -45,70 +74,22 @@ s_outer = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4,
 s_inner.extend_via_normal(poff)
 s_outer.extend_via_normal(poff + coff)
 
-qphi = nphi * 2
-qtheta = ntheta * 2
+qphi = nphi * 4
+qtheta = ntheta * 4
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
+# s_plot = SurfaceRZFourier.from_wout(
+#     filename,
+#     quadpoints_phi=quadpoints_phi,
+#     quadpoints_theta=quadpoints_theta
+# )
+vc2 = VirtualCasing.from_vmec(
+    vmec_file, src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi,
+    trgt_nphi=qphi // 4, trgt_ntheta=qtheta)
+s_plot = vc2.trgt_surf_full
 
-# Make high resolution, full torus version of the plasma boundary for plotting
-s_plot = SurfaceRZFourier.from_wout(
-    filename,
-    quadpoints_phi=quadpoints_phi,
-    quadpoints_theta=quadpoints_theta
-)
-
-### Initialize some TF coils
-
-
-def initialize_coils_QA(TEST_DIR, s):
-    """
-    Initializes coils for each of the target configurations that are
-    used for permanent magnet optimization.
-
-    Args:
-        config_flag: String denoting the stellarator configuration 
-          being initialized.
-        TEST_DIR: String denoting where to find the input files.
-        out_dir: Path or string for the output directory for saved files.
-        s: plasma boundary surface.
-    Returns:
-        base_curves: List of CurveXYZ class objects.
-        curves: List of Curve class objects.
-        coils: List of Coil class objects.
-    """
-    from simsopt.geo import create_equally_spaced_curves
-
-    # generate planar TF coils
-    ncoils = 2
-    R0 = s.get_rc(0, 0) * 1.4
-    R1 = s.get_rc(1, 0) * 5
-    order = 8
-
-    from simsopt.mhd.vmec import Vmec
-    vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
-    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 2.3
-    print('Total current = ', total_current)
-
-    # Only need Jax flag for CurvePlanarFourier class
-    base_curves = create_equally_spaced_curves(
-        ncoils, s.nfp, stellsym=True,
-        R0=R0, R1=R1, order=order, numquadpoints=256,
-        jax_flag=False,
-    )
-
-    base_currents = [(Current(total_current / ncoils * 1e-7) * 1e7) for _ in range(ncoils - 1)]
-    total_current = Current(total_current)
-    total_current.fix_all()
-    base_currents += [total_current - sum(base_currents)]
-    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-
-    # Initialize the coil curves and save the data to vtk
-    curves = [c.curve for c in coils]
-    return base_curves, curves, coils, base_currents
-
-
-# initialize the TF coils
-base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils_QA(TEST_DIR, s)
+ # initialize the coils
+base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, 'SchuettHennebergQAnfp2')
 num_TF_unique_coils = len(base_curves_TF)
 base_coils_TF = coils_TF[:num_TF_unique_coils]
 currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
@@ -124,122 +105,55 @@ nturns_TF = 200
 aa = 0.05
 bb = 0.05
 
-Nx = 5
-Ny = Nx
-Nz = Nx
-# Create the initial coils:
-base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-    s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=False, jax_flag=False,
-)
-import warnings
+if continuation_run:
+    coils = load(OUT_DIR + "psc_coils.json")
+    coils_TF = load(OUT_DIR + "TF_coils.json")
+    curves = [c.curve for c in coils]
+    base_curves = curves[:len(curves) // 4]
+    base_coils = coils[:len(coils) // 4]
+    curves_TF = [c.curve for c in coils_TF]
+    base_curves_TF = curves_TF[:len(curves_TF) // 4]
+    base_coils_TF = coils_TF[:len(coils_TF) // 4]
+else:
+    Nx = 4
+    Ny = Nx
+    Nz = Nx
+    # Create the initial coils:
+    base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
+        s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=False, jax_flag=False,
+    )
+    base_curves = remove_inboard_dipoles(s, base_curves, eps=0.2)
+    alphas, deltas = align_dipoles_with_plasma(s, base_curves)
 
-# Remove if within a radius of a TF coil
-# keep_inds = []
-# for ii in range(len(base_curves)):
-#     counter = 0
-#     for i in range(base_curves[0].gamma().shape[0]):
-#         eps = 0.05
-#         for j in range(len(base_curves_TF)):
-#             for k in range(base_curves_TF[j].gamma().shape[0]):
-#                 dij = np.sqrt(np.sum((base_curves[ii].gamma()[i, :] - base_curves_TF[j].gamma()[k, :]) ** 2))
-#                 conflict_bool = (dij < (1.0 + eps) * base_curves[0].x[0])
-#                 if conflict_bool:
-#                     print('bad indices = ', i, j, dij, base_curves[0].x[0])
-#                     warnings.warn(
-#                         'There is a PSC coil initialized such that it is within a radius'
-#                         'of a TF coil. Deleting these PSCs now.')
-#                     counter += 1
-#                     break
-#     if counter == 0:
-#         keep_inds.append(ii)
-# base_curves = np.array(base_curves)[keep_inds]
+    for i in range(len(base_curves)):
+        alpha2 = alphas[i] / 2.0
+        delta2 = deltas[i] / 2.0
+        calpha2 = np.cos(alpha2)
+        salpha2 = np.sin(alpha2)
+        cdelta2 = np.cos(delta2)
+        sdelta2 = np.sin(delta2)
+        base_curves[i].set('x' + str(2 * order + 1), calpha2 * cdelta2)
+        base_curves[i].set('x' + str(2 * order + 2), salpha2 * cdelta2)
+        base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
+        base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
+        # Fix orientations of each coil
+        # base_curves[i].fix('x' + str(2 * order + 1))
+        # base_curves[i].fix('x' + str(2 * order + 2))
+        # base_curves[i].fix('x' + str(2 * order + 3))
+        # base_curves[i].fix('x' + str(2 * order + 4))
 
-
-# Remove all the coils on the inboard side!
-keep_inds = []
-for ii in range(len(base_curves)):
-    counter = 0
-    for i in range(base_curves[0].gamma().shape[0]):
-        eps = 0.2
-        dij = np.sqrt(np.sum((base_curves[ii].gamma()[i, :]) ** 2))
-        conflict_bool = (dij < (1.0 + eps) * s.get_rc(0, 0))
-        if conflict_bool:
-            print('bad index = ', i, dij, s.get_rc(0, 0))
-            warnings.warn(
-                'There is a PSC coil initialized such that it is within a radius'
-                'of a TF coil. Deleting these PSCs now.')
-            counter += 1
-            break
-    if counter == 0:
-        keep_inds.append(ii)
-
-base_curves = np.array(base_curves)[keep_inds]
-ncoils = len(base_curves)
-coil_normals = np.zeros((ncoils, 3))
-plasma_points = s.gamma().reshape(-1, 3)
-plasma_unitnormals = s.unitnormal().reshape(-1, 3)
-for i in range(ncoils):
-    point = (base_curves[i].get_dofs()[-3:])
-    dists = np.sum((point - plasma_points) ** 2, axis=-1)
-    min_ind = np.argmin(dists)
-    coil_normals[i, :] = plasma_unitnormals[min_ind, :]
-    # coil_normals[i, :] = (plasma_points[min_ind, :] - point)
-coil_normals = coil_normals / np.linalg.norm(coil_normals, axis=-1)[:, None]
-alphas = np.arcsin(
-    -coil_normals[:, 1],
-)
-deltas = np.arctan2(coil_normals[:, 0], coil_normals[:, 2])
-for i in range(len(base_curves)):
-    alpha2 = alphas[i] / 2.0
-    delta2 = deltas[i] / 2.0
-    calpha2 = np.cos(alpha2)
-    salpha2 = np.sin(alpha2)
-    cdelta2 = np.cos(delta2)
-    sdelta2 = np.sin(delta2)
-    base_curves[i].set('x' + str(2 * order + 1), calpha2 * cdelta2)
-    base_curves[i].set('x' + str(2 * order + 2), salpha2 * cdelta2)
-    base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
-    base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
-    # Fix orientations of each coil
-    base_curves[i].fix('x' + str(2 * order + 1))
-    base_curves[i].fix('x' + str(2 * order + 2))
-    base_curves[i].fix('x' + str(2 * order + 3))
-    base_curves[i].fix('x' + str(2 * order + 4))
-
-    # Fix shape of each coil
-    for j in range(2 * order + 1):
-        base_curves[i].fix('x' + str(j))
-    # Fix center points of each coil
-    # base_curves[i].fix('x' + str(2 * order + 5))
-    # base_curves[i].fix('x' + str(2 * order + 6))
-    # base_curves[i].fix('x' + str(2 * order + 7))
+        # Fix shape of each coil
+        # for j in range(2 * order + 1):
+        #     base_curves[i].fix('x' + str(j))
+        # Fix center points of each coil
+        # base_curves[i].fix('x' + str(2 * order + 5))
+        # base_curves[i].fix('x' + str(2 * order + 6))
+        # base_curves[i].fix('x' + str(2 * order + 7))
 
 ncoils = len(base_curves)
 a_list = np.ones(len(base_curves)) * aa
 b_list = np.ones(len(base_curves)) * aa
 print('Num dipole coils = ', ncoils)
-
-# Define function to compute the pointwise forces and torques
-
-
-def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
-    contig = np.ascontiguousarray
-    forces = np.zeros((len(coils), len(coils[0].curve.gamma()) + 1, 3))
-    torques = np.zeros((len(coils), len(coils[0].curve.gamma()) + 1, 3))
-    for i, c in enumerate(coils):
-        aprime = aprimes[i]
-        bprime = bprimes[i]
-        forces[i, :-1, :] = coil_force(c, allcoils, regularization_rect(aprime, bprime), nturns_list[i])
-        torques[i, :-1, :] = coil_torque(c, allcoils, regularization_rect(aprime, bprime), nturns_list[i])
-
-    forces[:, -1, :] = forces[:, 0, :]
-    torques[:, -1, :] = torques[:, 0, :]
-    forces = forces.reshape(-1, 3)
-    torques = torques.reshape(-1, 3)
-    point_data = {"Pointwise_Forces": (contig(forces[:, 0]), contig(forces[:, 1]), contig(forces[:, 2])),
-                  "Pointwise_Torques": (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))}
-    return point_data
-
 
 # Initialize the PSCArray object
 eval_points = s.gamma().reshape(-1, 3)
@@ -260,8 +174,13 @@ currents = [c.current.get_value() for c in coils]
 a_list = np.hstack((np.ones(len(coils)) * aa, np.ones(len(coils_TF)) * a))
 b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 
+
+if continuation_run:
+    LENGTH_TARGET = 80
+else:
+    LENGTH_TARGET = 90
+LENGTH_TARGET2 = 80
 LENGTH_WEIGHT = Weight(0.01)
-LENGTH_TARGET = 90
 LINK_WEIGHT = 1e4
 CC_THRESHOLD = 0.8
 CC_WEIGHT = 1e2
@@ -272,36 +191,8 @@ FORCE_WEIGHT = Weight(0.0)  # 1e-34 Forces are in Newtons, and typical values ar
 FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-# Directory for output
-OUT_DIR = ("./passive_coils_henneberg_ndofs{:d}_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" +
-           "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
-    len(base_curves[0].x), base_curves_TF[0].order, ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT,
-    CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value,
-    FORCE_WEIGHT2.value,
-    TORQUE_WEIGHT.value,
-    TORQUE_WEIGHT2.value)
-if os.path.exists(OUT_DIR):
-    shutil.rmtree(OUT_DIR)
-os.makedirs(OUT_DIR, exist_ok=True)
 
-curves_to_vtk(
-    [c.curve for c in btot.Bfields[1].coils],
-    OUT_DIR + "curves_TF_0",
-    close=True,
-    extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
-    I=[c.current.get_value() for c in btot.Bfields[1].coils],
-    NetForces=coil_net_forces(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-    NetTorques=coil_net_torques(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF)
-)
-curves_to_vtk(
-    [c.curve for c in btot.Bfields[0].coils],
-    OUT_DIR + "curves_0",
-    close=True,
-    extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
-    I=[c.current.get_value() for c in btot.Bfields[0].coils],
-    NetForces=coil_net_forces(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
-    NetTorques=coil_net_torques(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns)
-)
+save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 # Force and Torque calculations spawn a bunch of spurious BiotSavart child objects -- erase them!
 for c in (coils + coils_TF):
     c._children = set()
@@ -310,7 +201,7 @@ btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_full_init", extra_data=pointData)
+s_plot.to_vtk(OUT_DIR + "surf_init" + file_suffix, extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
 bpsc = btot.Bfields[0]
@@ -318,16 +209,17 @@ bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_init_PSC", extra_data=pointData)
+s_plot.to_vtk(OUT_DIR + "surf_PSC" + file_suffix, extra_data=pointData)
 bpsc.set_points(s.gamma().reshape((-1, 3)))
 
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, btot)
 # Separate length penalties on the dipole coils and the TF coils
 # since they have very different sizes
-# Jls = [CurveLength(c) for c in base_curves]
+Jls = [CurveLength(c) for c in base_curves]
 Jls_TF = [CurveLength(c) for c in base_curves_TF]
 Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
+Jlength2 = QuadraticPenalty(sum(Jls), LENGTH_TARGET2, "max")
 
 # coil-coil and coil-plasma distances should be between all coils
 Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD / 2.0, num_basecurves=len(coils + coils_TF))
@@ -350,10 +242,14 @@ Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list
                              ) for i, c in enumerate(all_base_coils)])
 Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
 
+if continuation_run:
+    CURVATURE_WEIGHT = 1e-3
+    MSC_WEIGHT = 1e-5
+else:
+    CURVATURE_WEIGHT = 1e-2
+    MSC_WEIGHT = 1e-4
 CURVATURE_THRESHOLD = 0.5
 MSC_THRESHOLD = 0.05
-CURVATURE_WEIGHT = 1e-2
-MSC_WEIGHT = 1e-4
 Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
 Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 
@@ -363,7 +259,8 @@ JF = Jf \
     + CC_WEIGHT * Jccdist2 \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + LINK_WEIGHT * linkNum \
-    + LENGTH_WEIGHT * Jlength
+    + LENGTH_WEIGHT * Jlength \
+    + LENGTH_WEIGHT * Jlength2
 
 if FORCE_WEIGHT.value > 0.0:
     JF += FORCE_WEIGHT.value * Jforce  # \
@@ -377,13 +274,7 @@ if TORQUE_WEIGHT.value > 0.0:
 if TORQUE_WEIGHT2.value > 0.0:
     JF += TORQUE_WEIGHT2 * Jtorque2
 
-print(JF.dof_names)
-# for i in range(len(JF.dof_names) - len(opt_bounds)):
-#     opt_bounds.append((None, None))
-# print(opt_bounds)
-# print(opt_bounds, np.shape(opt_bounds), np.shape(JF.dof_names))
-# exit()
-
+# print(JF.dof_names)
 
 def fun(dofs):
     JF.x = dofs
@@ -396,6 +287,7 @@ def fun(dofs):
     grad = JF.dJ()
     jf = Jf.J()
     length_val = LENGTH_WEIGHT.value * Jlength.J()
+    length_val2 = LENGTH_WEIGHT.value * Jlength2.J()
     cc_val = CC_WEIGHT * (Jccdist.J() + Jccdist2.J())
     cs_val = CS_WEIGHT * Jcsdist.J()
     link_val = LINK_WEIGHT * linkNum.J()
@@ -408,11 +300,14 @@ def fun(dofs):
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
     valuestr = f"J={J:.2e}, Jf={jf:.2e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
+    cl_string2 = ", ".join([f"{J.J():.2f}" for J in Jls])
     kap_string = ", ".join(f"{np.max(c.kappa()):.2f}" for c in base_curves_TF)
     msc_string = ", ".join(f"{J.J():.2f}" for J in Jmscs)
     outstr += f", ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls_TF):.2f}"
+    outstr += f", Len=sum([{cl_string2}])={sum(J.J() for J in Jls):.2f}"
     valuestr += f", LenObj={length_val:.2e}"
+    valuestr += f", LenObj2={length_val2:.2e}"
     valuestr += f", ccObj={cc_val:.2e}"
     valuestr += f", csObj={cs_val:.2e}"
     valuestr += f", Lk1Obj={link_val:.2e}"
@@ -470,43 +365,26 @@ for i in range(1, n_saves + 1):
     dipole_currents = [c.current.get_value() for c in bpsc.coils]
     psc_array.recompute_currents()
     print(dipole_currents)
-    curves_to_vtk(
-        [c.curve for c in bpsc.coils],
-        OUT_DIR + "curves_{0:d}".format(i),
-        close=True,
-        extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
-        I=dipole_currents,
-        NetForces=coil_net_forces(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
-        NetTorques=coil_net_torques(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
-    )
-    curves_to_vtk(
-        [c.curve for c in btot.Bfields[1].coils],
-        OUT_DIR + "curves_TF_{0:d}".format(i),
-        close=True,
-        extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
-        I=[c.current.get_value() for c in btot.Bfields[1].coils],
-        NetForces=coil_net_forces(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-        NetTorques=coil_net_torques(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-    )
+    save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 
     btot.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
                  "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                     ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "surf_full_final", extra_data=pointData)
+    s_plot.to_vtk(OUT_DIR + "surf_final" + file_suffix, extra_data=pointData)
 
     btf = btot.Bfields[1]
     btf.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
                  "B_N / B": (np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                     ) / np.linalg.norm(btf.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "surf_full_TF", extra_data=pointData)
+    s_plot.to_vtk(OUT_DIR + "surf_TF" + file_suffix, extra_data=pointData)
 
     bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
                  "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                     ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "surf_full_PSC", extra_data=pointData)
+    s_plot.to_vtk(OUT_DIR + "surf_PSC" + file_suffix, extra_data=pointData)
 
     btot.set_points(s.gamma().reshape((-1, 3)))
     print('Max I = ', np.max(dipole_currents))
@@ -516,6 +394,6 @@ for i in range(1, n_saves + 1):
 t2 = time.time()
 print('Total time = ', t2 - t1)
 from simsopt import save
-save(btot.Bfields[0].coils, OUT_DIR + 'psc_coils.json')
-save(btot.Bfields[1].coils, OUT_DIR + 'TF_coils.json')
+save(btot.Bfields[0].coils, OUT_DIR + 'psc_coils' + file_suffix + '.json')
+save(btot.Bfields[1].coils, OUT_DIR + 'TF_coils' + file_suffix + '.json')
 print(OUT_DIR)
