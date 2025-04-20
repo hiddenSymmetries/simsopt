@@ -7,3 +7,4 @@
 typedef xt::pyarray<double> Array;
 
 Array net_force_matrix(Array& magnetMoments, Array& magnetPositions);
+
