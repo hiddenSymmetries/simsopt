@@ -7,11 +7,10 @@ from pathlib import Path
 import time
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field import Current, coils_via_symmetries
 from simsopt.field import regularization_rect, PSCArray
-from simsopt.field.force import coil_net_torques, coil_net_forces, LpCurveForce, \
+from simsopt.field.force import LpCurveForce, \
     SquaredMeanForce, \
-    SquaredMeanTorque, LpCurveTorque, pointData_forces_torques
+    SquaredMeanTorque, LpCurveTorque
 from simsopt.util import calculate_on_axis_B, align_dipoles_with_plasma, \
     remove_interlinking_dipoles_and_TFs, initialize_coils, save_coil_sets
 from simsopt.geo import (
@@ -255,10 +254,10 @@ JF = Jf \
     + LENGTH_WEIGHT * Jlength
 
 if FORCE_WEIGHT.value > 0.0:
-    JF += FORCE_WEIGHT.value * Jforce  # \
+    JF += FORCE_WEIGHT * Jforce  # \
 
 if FORCE_WEIGHT2.value > 0.0:
-    JF += FORCE_WEIGHT2.value * Jforce2  # \
+    JF += FORCE_WEIGHT2 * Jforce2  # \
 
 if TORQUE_WEIGHT.value > 0.0:
     JF += TORQUE_WEIGHT * Jtorque

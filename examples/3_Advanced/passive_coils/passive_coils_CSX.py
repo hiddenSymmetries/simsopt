@@ -23,9 +23,9 @@ import time
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import regularization_rect, PSCArray
-from simsopt.field.force import coil_net_torques, coil_net_forces, LpCurveForce, \
+from simsopt.field.force import LpCurveForce, \
     SquaredMeanForce, \
-    SquaredMeanTorque, LpCurveTorque, pointData_forces_torques
+    SquaredMeanTorque, LpCurveTorque
 from simsopt.util import calculate_on_axis_B, make_Bnormal_plots
 from simsopt.geo import (
     CurveLength, CurveCurveDistance, MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,

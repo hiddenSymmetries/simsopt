@@ -14,7 +14,7 @@ This script is substantially simplified to provide a simple
 illustration of performing dipole array optimization in SIMSOPT. Note that
 for a reactor-scale stellarator such as the one here, the optimization
 should include terms to reduce the forces and torques. You will find the solution
-has intolerably large forces and torques without adding this into optimization.
+can have intolerably large forces and torques without adding this into optimization.
 
 More advanced examples of dipole array optimization
 can be found in examples/3_Advanced/planar_coil_optimization/ 
@@ -27,7 +27,7 @@ from pathlib import Path
 import time
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field import BiotSavart, Current, coils_via_symmetries
+from simsopt.field import BiotSavart, Current, coils_via_symmetries, regularization_rect
 from simsopt.util import calculate_on_axis_B, remove_inboard_dipoles, \
     remove_interlinking_dipoles_and_TFs, initialize_coils, \
     dipole_array_optimization_function, save_coil_sets
@@ -37,6 +37,8 @@ from simsopt.geo import (
     SurfaceRZFourier, create_planar_curves_between_two_toroidal_surfaces
 )
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
+from simsopt.field.force import LpCurveForce, SquaredMeanForce, \
+    SquaredMeanTorque, LpCurveTorque
 
 t1 = time.time()
 
@@ -157,6 +159,7 @@ curves = [c.curve for c in coils]
 currents = [c.current.get_value() for c in coils]
 
 # Define the objective function weights
+LENGTH_WEIGHT = Weight(0.01)
 LENGTH_WEIGHT2 = Weight(0.01)
 LENGTH_TARGET = 85
 LINK_WEIGHT = 1e4
@@ -203,6 +206,22 @@ MSC_WEIGHT = 1e-1
 Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
 Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 
+# Force and torque terms
+all_coils = coils + coils_TF
+all_base_coils = base_coils + base_coils_TF
+a = 0.2  # 20 cm cross section coils for the TF coils
+aa = 0.05  # 5 cm cross section coils for the dipole coils
+FORCE_WEIGHT = 0.0
+FORCE_WEIGHT2 = 0.0
+TORQUE_WEIGHT = 0.0
+TORQUE_WEIGHT2 = 0.0
+a_list = np.hstack((np.ones(len(coils)) * aa, np.ones(len(coils_TF)) * a))
+b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
+Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a_list[i], b_list[i])) for i, c in enumerate(all_base_coils)])
+Jforce2 = sum([SquaredMeanForce(c, all_coils) for c in all_base_coils])
+Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list[i])) for i, c in enumerate(all_base_coils)])
+Jtorque2 = sum([SquaredMeanTorque(c, all_coils) for c in all_base_coils])
+
 JF = Jf \
     + CC_WEIGHT * Jccdist \
     + CC_WEIGHT * Jccdist2 \
@@ -214,7 +233,19 @@ JF = Jf \
 
 # If dipole shapes can change, penalize the total length of the dipole coils
 if not shape_fixed:
-    JF += LENGTH_WEIGHT * Jlength2
+    JF += LENGTH_WEIGHT2 * Jlength2
+
+if FORCE_WEIGHT > 0.0:
+    JF += FORCE_WEIGHT * Jforce  # \
+
+if FORCE_WEIGHT2 > 0.0:
+    JF += FORCE_WEIGHT2 * Jforce2  # \
+
+if TORQUE_WEIGHT > 0.0:
+    JF += TORQUE_WEIGHT * Jtorque
+
+if TORQUE_WEIGHT2 > 0.0:
+    JF += TORQUE_WEIGHT2 * Jtorque2
 
 # Define dictionary of objectives and weights to pass to dipole array
 # optimization function wrapper
@@ -230,6 +261,10 @@ obj_dict = {
     "Jccdist2": Jccdist2,
     "Jcsdist": Jcsdist,
     "linkNum": linkNum,
+    "Jforce": Jforce,
+    "Jforce2": Jforce2,
+    "Jtorque": Jtorque,
+    "Jtorque2": Jtorque2,
     "btot": btot,
     "s": s,
     "base_curves_TF": base_curves_TF,
@@ -239,6 +274,10 @@ weight_dict = {
     "cc_weight": CC_WEIGHT,
     "cs_weight": CS_WEIGHT,
     "link_weight": LINK_WEIGHT,
+    "force_weight": FORCE_WEIGHT,
+    "torque_weight": TORQUE_WEIGHT,
+    "net_force_weight": FORCE_WEIGHT2,
+    "net_torque_weight": TORQUE_WEIGHT2,
 }
 
 # Run the optimization
