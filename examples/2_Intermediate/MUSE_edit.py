@@ -48,7 +48,7 @@ if in_github_actions:
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
     nphi = 32  # >= 64 for high-resolution runs
-    nIter_max = 2000
+    nIter_max = 10000
     downsample = 2
 
 ntheta = nphi  # same as above
@@ -173,6 +173,7 @@ if save_plots:
         #mk = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
         mk = m_history[:, :, k]
         print(mk.shape)
+        t_force_calc_start = time.time()
         b_dipole = DipoleField(
             pm_opt.dipole_grid_xyz,
             mk,
@@ -185,6 +186,9 @@ if save_plots:
             )
             #pm_opt.net_force_matrix(mk),
         )
+        t_force_calc_end = time.time()
+        print('Time to calc force = ', t_force_calc_end - t_force_calc_start)
+        
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
         K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
         b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}")
@@ -196,7 +200,7 @@ if save_plots:
         make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}")
         pointData = {"B_N": Bnormal_total[:, :, None]}
         s_plot.to_vtk(out_dir / "m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}", extra_data=pointData)
-
+        
     # write solution to FAMUS-type file
     pm_opt.write_to_famus(out_dir)
 
