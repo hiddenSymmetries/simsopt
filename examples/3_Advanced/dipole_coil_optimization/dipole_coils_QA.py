@@ -33,7 +33,7 @@ else:
     MAXITER = 600
 
 # Directory for output
-OUT_DIR = ("./QA_dipole_array/")
+OUT_DIR = ("./dipole_coils_QA/")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # Number of Fourier modes describing each Cartesian component of each coil:

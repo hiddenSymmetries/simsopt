@@ -31,7 +31,7 @@ else:
     file_suffix = ""
 
 # Directory for output
-OUT_DIR = ("./QH_dipole_array/")
+OUT_DIR = ("./dipole_coils_QH/")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # Number of Fourier modes describing each Cartesian component of each coil:
