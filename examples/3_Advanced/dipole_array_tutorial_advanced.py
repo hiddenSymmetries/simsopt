@@ -27,10 +27,10 @@ from pathlib import Path
 import time
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field import BiotSavart, Current, coils_via_symmetries, regularization_rect
+from simsopt.field import BiotSavart, Current, coils_via_symmetries, regularization_rect, PSCArray
 from simsopt.util import calculate_on_axis_B, remove_inboard_dipoles, \
     remove_interlinking_dipoles_and_TFs, initialize_coils, \
-    dipole_array_optimization_function, save_coil_sets
+    dipole_array_optimization_function, save_coil_sets, align_dipoles_with_plasma
 from simsopt.geo import (
     CurveLength, CurveCurveDistance,
     MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
@@ -42,25 +42,26 @@ from simsopt.field.force import LpCurveForce, SquaredMeanForce, \
 
 t1 = time.time()
 
-# Number of Fourier modes describing each Cartesian component of each coil:
-order = 0
-
-# Whether to fix the shapes, spatial locations/orientations, and currents of the dipole coils
-shape_fixed = True
-spatially_fixed = False
-currents_fixed = False
+# Directory for output
+OUT_DIR = ("./dipole_array_tutorial_advanced/")
+if os.path.exists(OUT_DIR):
+    shutil.rmtree(OUT_DIR)
+os.makedirs(OUT_DIR, exist_ok=True)
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 input_name = 'input.schuetthenneberg_nfp2'
 filename = TEST_DIR / input_name
 
+# Whether to use active or passive coils
+passive_coil_array = True
+
 # Initialize the boundary magnetic surface:
 range_param = "half period"
-nphi = 32
-ntheta = 32
+nphi = 64
+ntheta = 64
 poff = 1.5
-coff = 1.5
+coff = 3.0
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
@@ -105,6 +106,14 @@ nturns_TF = 200
 aa = 0.1
 bb = 0.1
 
+# Number of Fourier modes describing each Cartesian component of each coil:
+order = 2
+
+# Whether to fix the shapes, spatial locations/orientations, and currents of the dipole coils
+shape_fixed = False
+spatially_fixed = False
+currents_fixed = False
+
 # Create the initial dipole coils:
 Nx = 4
 Ny = Nx
@@ -119,6 +128,10 @@ base_curves = remove_inboard_dipoles(s, base_curves)
 # Remove dipoles that are initialized interlinked with the TF coils.
 base_curves = remove_interlinking_dipoles_and_TFs(base_curves, base_curves_TF)
 
+# Get the angles of the dipole coils corresponding to their normal vectors
+# being aligned to point towards the nearest point on the plasma surface
+alphas, deltas = align_dipoles_with_plasma(s, base_curves)
+
 # print out total number of dipole coils remaining
 ncoils = len(base_curves)
 print('Ncoils = ', ncoils)
@@ -126,6 +139,18 @@ print('Ncoils = ', ncoils)
 # Fix the dipole coil locations, shapes, and orientations, so that
 # only degree of freedom for each dipole is how much current it has
 for i in range(len(base_curves)):
+
+    # Set curve orientations to be aligned with the plasma surface
+    alpha2 = alphas[i] / 2.0
+    delta2 = deltas[i] / 2.0
+    calpha2 = np.cos(alpha2)
+    salpha2 = np.sin(alpha2)
+    cdelta2 = np.cos(delta2)
+    sdelta2 = np.sin(delta2)
+    base_curves[i].set('x' + str(2 * order + 1), calpha2 * cdelta2)
+    base_curves[i].set('x' + str(2 * order + 2), salpha2 * cdelta2)
+    base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
+    base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
 
     if shape_fixed:
         # Fix shape of each coil
@@ -141,38 +166,39 @@ for i in range(len(base_curves)):
         base_curves[i].fix('x' + str(2 * order + 5))
         base_curves[i].fix('x' + str(2 * order + 6))
         base_curves[i].fix('x' + str(2 * order + 7))
+    
+eval_points = s.gamma().reshape(-1, 3)
+if passive_coil_array:
+    # Initialize the PSCArray object
+    ncoils = len(base_curves)
+    a_list = np.ones(len(base_curves)) * aa
+    b_list = np.ones(len(base_curves)) * aa
+    psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
 
-base_currents = [Current(1.0) * 1e7 for i in range(ncoils)]
-if currents_fixed:
-    [c.fix_all() for c in base_currents]
-coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-base_coils = coils[:ncoils]
-bs = BiotSavart(coils)
+    # Calculate average, approximate on-axis B field strength
+    calculate_on_axis_B(psc_array.biot_savart_TF, s)
+    psc_array.biot_savart_TF.set_points(eval_points)
+    btot = psc_array.biot_savart_total
+    calculate_on_axis_B(btot, s)
+    coils = psc_array.coils
+    base_coils = coils[:ncoils]
+else:
+    psc_array = None
+    base_currents = [Current(1.0) * 1e7 for i in range(ncoils)]
+    if currents_fixed:
+        [c.fix_all() for c in base_currents]
+    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+    base_coils = coils[:ncoils]
+    bs = BiotSavart(coils)
+
+    # Create the total Bfield object from both the TF and dipole coils
+    btot = bs + bs_TF
+    calculate_on_axis_B(btot, s)
+
 allcoils = coils + coils_TF
-
-# Create the total Bfield object from both the TF and dipole coils
-btot = bs + bs_TF
-calculate_on_axis_B(btot, s)
-btot.set_points(s.gamma().reshape((-1, 3)))
-bs.set_points(s.gamma().reshape((-1, 3)))
+btot.set_points(eval_points)
 curves = [c.curve for c in coils]
 currents = [c.current.get_value() for c in coils]
-
-# Define the objective function weights
-LENGTH_WEIGHT = Weight(0.01)
-LENGTH_WEIGHT2 = Weight(0.01)
-LENGTH_TARGET = 85
-LINK_WEIGHT = 1e4
-CC_THRESHOLD = 1.0
-CC_WEIGHT = 1e2
-CS_THRESHOLD = 1.5
-CS_WEIGHT = 1e1
-
-# Directory for output
-OUT_DIR = ("./SchuettHenneberg_tutorial/")
-if os.path.exists(OUT_DIR):
-    shutil.rmtree(OUT_DIR)
-os.makedirs(OUT_DIR, exist_ok=True)
 
 # Save the TF and dipole coils separately, along with pointwise and net
 # forces and torques on the coils.def
@@ -180,16 +206,27 @@ save_coil_sets(btot, OUT_DIR, "_initial", a, b, nturns_TF, aa, bb, nturns)
 
 # Save the total Bfield errors on the plasma surface
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
-pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
+pointData = {"B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_initial", extra_data=pointData)
-btot.set_points(s.gamma().reshape((-1, 3)))
+btot.set_points(eval_points)
+
+# Define the objective function weights
+LENGTH_WEIGHT = Weight(0.01)
+LENGTH_WEIGHT2 = Weight(0.01)
+LENGTH_TARGET = 85
+LINK_WEIGHT = 1e4
+CC_THRESHOLD = 0.8
+CC_WEIGHT = 1e2
+CS_THRESHOLD = 1.3
+CS_WEIGHT = 1e1
 
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, btot)
 Jls = [CurveLength(c) for c in base_curves]
 Jls_TF = [CurveLength(c) for c in base_curves_TF]
 Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
-Jlength2 = QuadraticPenalty(sum(Jls), LENGTH_TARGET // 10, "max")
+Jlength2 = QuadraticPenalty(sum(Jls), LENGTH_TARGET, "max")
 
 # coil-coil and coil-plasma distances should be between all coils
 Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD / 2.0, num_basecurves=len(allcoils))
@@ -209,9 +246,7 @@ Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 # Force and torque terms
 all_coils = coils + coils_TF
 all_base_coils = base_coils + base_coils_TF
-a = 0.2  # 20 cm cross section coils for the TF coils
-aa = 0.05  # 5 cm cross section coils for the dipole coils
-FORCE_WEIGHT = 0.0
+FORCE_WEIGHT = 1e-18
 FORCE_WEIGHT2 = 0.0
 TORQUE_WEIGHT = 0.0
 TORQUE_WEIGHT2 = 0.0
@@ -236,10 +271,10 @@ if not shape_fixed:
     JF += LENGTH_WEIGHT2 * Jlength2
 
 if FORCE_WEIGHT > 0.0:
-    JF += FORCE_WEIGHT * Jforce  # \
+    JF += FORCE_WEIGHT * Jforce
 
 if FORCE_WEIGHT2 > 0.0:
-    JF += FORCE_WEIGHT2 * Jforce2  # \
+    JF += FORCE_WEIGHT2 * Jforce2
 
 if TORQUE_WEIGHT > 0.0:
     JF += TORQUE_WEIGHT * Jtorque
@@ -256,6 +291,7 @@ obj_dict = {
     "Jlength2": Jlength2,
     "Jls": Jls,
     "Jls_TF": Jls_TF,
+    "Jcs": Jcs,
     "Jmscs": Jmscs,
     "Jccdist": Jccdist,
     "Jccdist2": Jccdist2,
@@ -271,6 +307,9 @@ obj_dict = {
 }
 weight_dict = {
     "length_weight": LENGTH_WEIGHT.value,
+    "curvature_weight": CURVATURE_WEIGHT,
+    "msc_weight": MSC_WEIGHT,
+    "msc_threshold": MSC_THRESHOLD,
     "cc_weight": CC_WEIGHT,
     "cs_weight": CS_WEIGHT,
     "link_weight": LINK_WEIGHT,
@@ -283,19 +322,21 @@ weight_dict = {
 # Run the optimization
 dofs = JF.x
 MAXITER = 500
-res = minimize(dipole_array_optimization_function, dofs, args=(obj_dict, weight_dict), jac=True, method='L-BFGS-B',
+res = minimize(dipole_array_optimization_function, dofs, args=(obj_dict, weight_dict, psc_array), jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-20)
+
+if passive_coil_array:
+    psc_array.recompute_currents()
 
 # Save the optimized dipole and TF coils
 save_coil_sets(btot, OUT_DIR, "_optimized", a, b, nturns_TF, aa, bb, nturns)
 
 # Save optimized Bnormal errors on plasma surface
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
-pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-             "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+pointData = {"B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_optimized", extra_data=pointData)
-btot.set_points(s.gamma().reshape((-1, 3)))
+btot.set_points(eval_points)
 calculate_on_axis_B(btot, s)
 t2 = time.time()
 print('Total time = ', t2 - t1)
