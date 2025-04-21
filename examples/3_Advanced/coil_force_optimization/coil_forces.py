@@ -110,7 +110,7 @@ curves = [c.curve for c in coils]
 a_list = regularization_circ(a) * np.ones(len(coils))
 curves_to_vtk(
     curves, OUT_DIR + "curves_init", close=True,
-    extra_point_data=pointData_forces_torques(coils, coils, 
+    extra_point_data=pointData_forces_torques(coils, coils,
                                               a_list, a_list, np.ones(len(coils)) * nturns),
     NetForces=coil_net_forces(coils, coils, a_list),
     NetTorques=coil_net_torques(coils, coils, a_list)
@@ -191,9 +191,9 @@ print(f"Optimization with FORCE_WEIGHT={FORCE_WEIGHT.value} and LENGTH_WEIGHT={L
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 curves_to_vtk(curves, OUT_DIR + "curves_opt_short", close=True, extra_point_data=pointData_forces_torques(
     coils, coils, a_list, a_list, np.ones(len(coils)) * nturns),
-              NetForces=coil_net_forces(coils, coils, a_list),
-              NetTorques=coil_net_torques(coils, coils, a_list)
-              )
+    NetForces=coil_net_forces(coils, coils, a_list),
+    NetTorques=coil_net_torques(coils, coils, a_list)
+)
 
 pointData_surf = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData_surf)
@@ -206,7 +206,8 @@ LENGTH_WEIGHT *= 0.1
 # print("OPTIMIZATION WITH REDUCED LENGTH PENALTY\n")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 curves_to_vtk(curves, OUT_DIR + f"curves_opt_force_FWEIGHT={FORCE_WEIGHT.value:e}_LWEIGHT={LENGTH_WEIGHT.value*10:e}", close=True,
-              extra_point_data=pointData_forces_torques(coils),
+              extra_point_data=pointData_forces_torques(coils, coils,
+                                                        a_list, a_list, np.ones(len(coils)) * nturns),
               NetForces=coil_net_forces(coils, coils, a_list),
               NetTorques=coil_net_torques(coils, coils, a_list),
               )
