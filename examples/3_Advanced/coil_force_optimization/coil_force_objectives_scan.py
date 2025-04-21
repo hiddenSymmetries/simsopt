@@ -110,9 +110,13 @@ bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
 a = 0.02
+a_list = np.ones(len(coils)) * a
+nturns = 100
 curves = [c.curve for c in coils]
 curves_to_vtk(
-    curves, OUT_DIR + "curves_init", close=True, extra_point_data=pointData_forces_torques(coils),
+    curves, OUT_DIR + "curves_init", close=True,
+    extra_point_data=pointData_forces_torques(coils, coils,
+                                              a_list, a_list, np.ones(len(coils)) * nturns),
     NetForces=coil_net_forces(coils, coils, regularization_circ(np.ones(len(coils)) * a)),
     NetTorques=coil_net_torques(coils, coils, regularization_circ(np.ones(len(coils)) * a))
 )
@@ -227,9 +231,11 @@ dofs = JF.x
 print(f"Optimization with FORCE_WEIGHT={FORCE_WEIGHT.value} and LENGTH_WEIGHT={LENGTH_WEIGHT.value}")
 # print("INITIAL OPTIMIZATION")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': MAXITER}, tol=1e-12)
-curves_to_vtk(curves, OUT_DIR + "curves_opt", close=True, extra_point_data=pointData_forces_torques(coils),
-              NetForces=coil_net_forces(coils, coils, regularization_circ(np.ones(len(coils)) * a)),
-              NetTorques=coil_net_torques(coils, coils, regularization_circ(np.ones(len(coils)) * a))
+curves_to_vtk(curves, OUT_DIR + "curves_opt", close=True,
+              extra_point_data=pointData_forces_torques(coils, coils,
+                                                        a_list, a_list, np.ones(len(coils)) * nturns),
+              NetForces=coil_net_forces(coils, coils, regularization_circ(a_list)),
+              NetTorques=coil_net_torques(coils, coils, regularization_circ(a_list))
               )
 
 pointData_surf = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
