@@ -19,6 +19,7 @@ import os
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
+
 def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     np.random.seed(2)
     rand_scale = 0.01

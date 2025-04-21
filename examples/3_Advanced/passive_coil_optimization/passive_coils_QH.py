@@ -327,7 +327,7 @@ print("""
 """)
 
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',   # bounds=opt_bounds,
-                options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+               options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 
 bpsc = btot.Bfields[0]
 bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
@@ -337,20 +337,20 @@ save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix, a, b, nturns_TF, aa, b
 
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-                "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+             "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_final" + file_suffix, extra_data=pointData)
 
 btf = btot.Bfields[1]
 btf.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-                "B_N / B": (np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+             "B_N / B": (np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btf.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_TF" + file_suffix, extra_data=pointData)
 
 bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-                "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+             "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_PSC" + file_suffix, extra_data=pointData)
 
