@@ -10,6 +10,10 @@ The approach employed here follows the work in two recent papers: `Reactor-scale
 <https://arxiv.org/abs/2412.13937>`__ and `Optimization of passive superconductors for shaping stellarator magnetic fields
 <https://arxiv.org/abs/2501.12468>`__.
 
+Both of these papers have corresponding Zenodo datasets:
+https://zenodo.org/records/14934093
+https://zenodo.org/records/15236238
+
 We first describe the basic principles of "stage 2" optimization and how they are used in SIMSOPT, 
 namely, how to set up the optimization problem in the minimal example 
 ``examples/3_Advanced/dipole_array_tutorial.py``. A more advanced tutorial 

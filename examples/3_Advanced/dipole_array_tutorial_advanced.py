@@ -11,6 +11,10 @@ This procedure and various results are described in the following paper(s):
     Optimization of passive superconductors for shaping stellarator magnetic fields
     https://arxiv.org/abs/2501.12468
 
+Both of these papers have corresponding Zenodo datasets:
+https://zenodo.org/records/14934093
+https://zenodo.org/records/15236238
+
 More advanced examples of dipole array optimization
 can be found in examples/3_Advanced/dipole_coil_optimization/ 
 and examples/3_Advanced/passive_coil_optimization/
