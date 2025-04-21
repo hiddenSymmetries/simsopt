@@ -10,12 +10,11 @@ Description: This script shows how to set up planar non-encircling coils tangent
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.geo import CurvePlanarFourier, create_equally_spaced_curves
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.util import calculate_on_axis_B, save_coil_sets, generate_curves
 from simsopt.geo import (
     CurveLength, CurveCurveDistance,
-    CurveSurfaceDistance, SurfaceRZFourier
+    SurfaceRZFourier
 )
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 import os
@@ -89,7 +88,7 @@ save_coil_sets(btot, outdir, "_initial", a, b, nturns_TF, aa, bb, nturns)
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {
     "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * n_plot, axis=2
-                        ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+                       ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(outdir + "surf_initial", extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
@@ -102,13 +101,14 @@ Jf = SquaredFlux(s, btot)
 Jls_TF = [CurveLength(c) for c in base_tf_curves]
 Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
 Jccdist = CurveCurveDistance(
-    curves_TF, CC_THRESHOLD, 
+    curves_TF, CC_THRESHOLD,
     num_basecurves=len(coils_TF)
 )
 
 JF = Jf \
     + CC_WEIGHT * Jccdist \
     + LENGTH_WEIGHT * Jlength
+
 
 def fun(dofs):
     JF.x = dofs
@@ -118,7 +118,7 @@ def fun(dofs):
     length_val = LENGTH_WEIGHT.value * Jlength.J()
     cc_val = CC_WEIGHT * Jccdist.J()
     BdotN_over_B = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
-                            ) / np.mean(btot.AbsB())
+                           ) / np.mean(btot.AbsB())
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
     valuestr = f"J={J:.2e}, Jf={jf:.2e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
@@ -130,6 +130,7 @@ def fun(dofs):
     print(outstr)
     print(valuestr)
     return J, grad
+
 
 print("""
 ################################################################################
@@ -155,11 +156,11 @@ print("""
 
 MAXITER = 1000
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
-                options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-10)
+               options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-10)
 save_coil_sets(btot, outdir, "_optimized", a, b, nturns_TF, aa, bb, nturns)
 
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {
     "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * n_plot, axis=2
-                        ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+                       ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(outdir + "surf_optimized", extra_data=pointData)

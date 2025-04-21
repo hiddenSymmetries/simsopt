@@ -166,7 +166,7 @@ for i in range(len(base_curves)):
         base_curves[i].fix('x' + str(2 * order + 5))
         base_curves[i].fix('x' + str(2 * order + 6))
         base_curves[i].fix('x' + str(2 * order + 7))
-    
+
 eval_points = s.gamma().reshape(-1, 3)
 if passive_coil_array:
     # Initialize the PSCArray object

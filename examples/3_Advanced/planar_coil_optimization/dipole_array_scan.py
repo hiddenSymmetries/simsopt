@@ -9,9 +9,7 @@ Description: This script shows how to set up planar non-encircling coils tangent
 """
 from pathlib import Path
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator
 from scipy.optimize import minimize
-from simsopt.geo import CurvePlanarFourier, create_equally_spaced_curves
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.field.force import MixedLpCurveForce, \
     MixedSquaredMeanForce, \
@@ -26,10 +24,6 @@ from simsopt.geo import (
     SurfaceRZFourier
 )
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
-import scipy.integrate as spi
-from scipy.special import ellipe
-from scipy.integrate import quad
-from scipy.optimize import root_scalar
 import os
 import time
 
@@ -133,7 +127,7 @@ pointData = {
     "B_N_TF": np.sum(bs_TF.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
     "B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
     "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                        ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+                       ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(outdir + "surf_initial", extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
@@ -159,7 +153,7 @@ all_coils = coils + coils_TF
 all_base_coils = base_coils + base_coils_TF
 regularization_list = np.ones(len(coils)) * regularization_rect(a, b)
 Jforce = MixedLpCurveForce(coils[0:1], coils[1:], regularization_list[0:1],
-                            regularization_list[1:], p=4, threshold=1e3, downsample=2)
+                           regularization_list[1:], p=4, threshold=1e3, downsample=2)
 # Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=4, threshold=4e5 * 100, downsample=1
 #                         ) for i, c in enumerate(all_base_coils)])
 # Jforce2 = sum([SquaredMeanForce(c, all_coils, downsample=1) for c in all_base_coils])
@@ -167,7 +161,7 @@ Jforce2 = MixedSquaredMeanForce(coils[0:1], coils[1:], downsample=2)
 
 # Errors creep in when downsample = 2
 Jtorque = MixedLpCurveTorque(coils[0:1], coils[1:], regularization_list[0:1],
-                                regularization_list[1:], p=2, threshold=1e3, downsample=2)
+                             regularization_list[1:], p=2, threshold=1e3, downsample=2)
 # Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100, downsample=1
 #                             ) for i, c in enumerate(all_base_coils)])
 # Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
@@ -203,6 +197,8 @@ if TORQUE_WEIGHT2.value > 0.0:
 # import re
 # import pstats
 # from pstats import SortKey
+
+
 def fun(dofs):
     # pr = cProfile.Profile()
     # pr.enable()
@@ -220,7 +216,7 @@ def fun(dofs):
     torques_val2 = TORQUE_WEIGHT2.value * Jtorque2.J()
     BdotN = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     BdotN_over_B = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
-                            ) / np.mean(btot.AbsB())
+                           ) / np.mean(btot.AbsB())
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
     valuestr = f"J={J:.2e}, Jf={jf:.2e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
@@ -253,6 +249,7 @@ def fun(dofs):
     # print(ss.getvalue())
     return J, grad
 
+
 print(JF.dof_names)
 
 print("""
@@ -281,7 +278,7 @@ print("""
 
 MAXITER = 1000
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
-                options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-10)
+               options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-10)
 save_coil_sets(btot, outdir, "_optimized", a, b, nturns_TF, aa, bb, nturns)
 
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
@@ -290,7 +287,7 @@ pointData = {
     "B_N_TF": np.sum(bs_TF.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
     "B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
     "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                        ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+                       ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(outdir + "surf_optimized", extra_data=pointData)
 
 btot.set_points(s.gamma().reshape((-1, 3)))

@@ -21,9 +21,10 @@ __all__ = ['remove_inboard_dipoles',
            'rho',
            'a_m',
            'b_m'
-]
+           ]
 
 import numpy as np
+
 
 def remove_inboard_dipoles(plasma_surf, base_curves, eps=-0.4):
     """
@@ -360,6 +361,8 @@ def save_coil_sets(btot, OUT_DIR, file_suffix, a, b, nturns_TF, aa, bb, nturns, 
     print('Min I = ', np.min(np.abs(dipole_currents)))
 
 # These four functions are used to compute the rotation quaternion for the coil
+
+
 def quaternion_from_axis_angle(axis, theta):
     """
     Compute a quaternion from a rotation axis and angle.
@@ -373,6 +376,7 @@ def quaternion_from_axis_angle(axis, theta):
     q0 = np.cos(theta / 2)
     q_vec = axis * np.sin(theta / 2)
     return np.array([q0, *q_vec])
+
 
 def quaternion_multiply(q1, q2):
     """
@@ -391,6 +395,7 @@ def quaternion_multiply(q1, q2):
         w1*y2 - x1*z2 + y1*w2 + z1*x2,
         w1*z2 + x1*y2 - y1*x2 + z1*w2
     ])
+
 
 def rotate_vector(v, q):
     """
@@ -458,6 +463,8 @@ def compute_quaternion(normal, tangent):
     return q_final
 
 # These functions compute the Fourier series coefficients for the superellipse
+
+
 def rho(theta, a, b, n):
     """
     Compute the radius of a superellipse at angle theta.
@@ -472,6 +479,8 @@ def rho(theta, a, b, n):
     return (1/(abs(np.cos(theta)/a)**(n) + abs(np.sin(theta)/b)**(n)) ** (1/(n)))
 
 # Define Fourier coefficient integrals
+
+
 def a_m(m, a, b, n):
     """
     Compute the Fourier coefficient a_m for a superellipse.
@@ -490,6 +499,7 @@ def a_m(m, a, b, n):
     else:
         return (1 / np.pi) * spi.quad(integrand, 0, 2 * np.pi)[0]
 
+
 def b_m(m, a, b, n):
     """
     Compute the Fourier coefficient b_m for a superellipse.
@@ -506,10 +516,12 @@ def b_m(m, a, b, n):
     return (1 / np.pi) * spi.quad(integrand, 0, 2 * np.pi)[0]
 
 # Compute Fourier coefficients up to a given order
+
+
 def compute_fourier_coeffs(max_order, a, b, n):
     """
     Compute Fourier coefficients for a superellipse.
-    
+
     Parameters: 
         max_order: maximum order of the Fourier series
         a: semi-major axis of the superellipse
@@ -525,10 +537,12 @@ def compute_fourier_coeffs(max_order, a, b, n):
     return coeffs
 
 # Reconstruct the Fourier series approximation
+
+
 def rho_fourier(theta, coeffs, max_order):
     """
     Reconstruct the Fourier series approximation of the superellipse.
-    
+
     Parameters:
         theta: angle in radians
         coeffs: dictionary of Fourier coefficients
@@ -544,6 +558,8 @@ def rho_fourier(theta, coeffs, max_order):
 # use this to evenly space coils on elliptical grid
 # since evenly spaced in poloidal angle won't work
 # must use quadrature for elliptic integral
+
+
 def generate_even_arc_angles(a, b, ntheta):
     """
     Generate ntheta evenly spaced angles along the arc length of an ellipse.
@@ -556,6 +572,7 @@ def generate_even_arc_angles(a, b, ntheta):
     """
     from scipy.integrate import quad
     from scipy.optimize import root_scalar
+
     def arc_length_diff(theta):
         return np.sqrt((a * np.sin(theta))**2 + (b * np.cos(theta))**2)
     # Total arc length of the ellipse
@@ -695,8 +712,7 @@ def generate_curves(surf, VV, planar_tfs=False, outdir=''):
         outdir: str
             The output directory for the generated curves.
     """
-    from simsopt.geo import curves_to_vtk, SurfaceRZFourier
-    from pathlib import Path
+    from simsopt.geo import curves_to_vtk
 
     # choose some reasonable parameters for array initialization
     base_wp_curves = generate_windowpane_array(winding_surface=VV,
