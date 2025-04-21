@@ -321,7 +321,7 @@ weight_dict = {
 
 # Run the optimization
 dofs = JF.x
-MAXITER = 500
+MAXITER = 200
 res = minimize(dipole_array_optimization_function, dofs, args=(obj_dict, weight_dict, psc_array), jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-20)
 

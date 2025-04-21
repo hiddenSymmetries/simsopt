@@ -154,7 +154,7 @@ print("""
 ################################################################################
 """)
 
-MAXITER = 1000
+MAXITER = 500
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-10)
 save_coil_sets(btot, outdir, "_optimized", a, b, nturns_TF, aa, bb, nturns)

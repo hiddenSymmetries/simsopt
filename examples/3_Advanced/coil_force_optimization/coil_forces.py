@@ -105,11 +105,13 @@ calculate_on_axis_B(bs, s)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
 a = 0.05
+nturns = 100
 curves = [c.curve for c in coils]
 a_list = regularization_circ(a) * np.ones(len(coils))
 curves_to_vtk(
     curves, OUT_DIR + "curves_init", close=True,
-    extra_point_data=pointData_forces_torques(coils),
+    extra_point_data=pointData_forces_torques(coils, coils, 
+                                              a_list, a_list, np.ones(len(coils)) * nturns),
     NetForces=coil_net_forces(coils, coils, a_list),
     NetTorques=coil_net_torques(coils, coils, a_list)
 )
@@ -187,7 +189,8 @@ dofs = JF.x
 print(f"Optimization with FORCE_WEIGHT={FORCE_WEIGHT.value} and LENGTH_WEIGHT={LENGTH_WEIGHT.value}")
 # print("INITIAL OPTIMIZATION")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + "curves_opt_short", close=True, extra_point_data=pointData_forces_torques(coils),
+curves_to_vtk(curves, OUT_DIR + "curves_opt_short", close=True, extra_point_data=pointData_forces_torques(
+    coils, coils, a_list, a_list, np.ones(len(coils)) * nturns),
               NetForces=coil_net_forces(coils, coils, a_list),
               NetTorques=coil_net_torques(coils, coils, a_list)
               )
