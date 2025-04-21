@@ -69,9 +69,9 @@ Array net_force_matrix(Array& magnetMoments, Array& magnetPositions) {
                 local[3*i + 0] += fx;
                 local[3*i + 1] += fy;
                 local[3*i + 2] += fz;
-                local[3*j + 0] += fx;
-                local[3*j + 1] += fy;
-                local[3*j + 2] += fz;
+                local[3*j + 0] -= fx;
+                local[3*j + 1] -= fy;
+                local[3*j + 2] -= fz;
             }
         }
     }
