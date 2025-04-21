@@ -3,6 +3,7 @@ import json
 
 import numpy as np
 from monty.tempfile import ScratchDir
+from pathlib import Path
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
@@ -16,6 +17,7 @@ from simsopt.configs import get_ncsx_data
 
 import os
 
+TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     np.random.seed(2)
@@ -190,7 +192,6 @@ class CoilFormatConvertTesting(unittest.TestCase):
         np.testing.assert_allclose(gamma, loaded_gamma)
 
     def test_load_coils_from_makegrid_file_group(self):
-        from . import TEST_DIR
         order = 25
         ppp = 10
 
@@ -253,7 +254,7 @@ class PSCs(unittest.TestCase):
         range_param = "half period"
         nphi = 32
         ntheta = 32
-        filename = '../test_files/input.LandremanPaul2021_QA'
+        filename = TEST_DIR / 'input.LandremanPaul2021_QA'
         s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
         stellsym = s.stellsym
         nfp = s.nfp

@@ -11,7 +11,8 @@ from simsopt.field import regularization_rect, PSCArray
 from simsopt.field.force import LpCurveForce, \
     SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque
-from simsopt.util import calculate_on_axis_B, save_coil_sets, initialize_coils, align_dipoles_with_plasma
+from simsopt.util import calculate_on_axis_B, save_coil_sets, initialize_coils, \
+    align_dipoles_with_plasma, in_github_actions
 from simsopt.geo import (
     CurveLength, CurveCurveDistance, MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
     SurfaceRZFourier, create_planar_curves_between_two_toroidal_surfaces
@@ -25,10 +26,19 @@ t1 = time.time()
 order = 0
 
 continuation_run = False
+MAXITER = 1000
+nphi = 32
+ntheta = 32
 if continuation_run:
     file_suffix = "_continuation"
 else:
     file_suffix = ""
+
+# Set some parameters -- if doing CI, lower the resolution
+if in_github_actions:
+    MAXITER = 10
+    nphi = 4
+    ntheta = 4
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
@@ -37,8 +47,6 @@ filename = TEST_DIR / input_name
 
 # Initialize the boundary magnetic surface:
 range_param = "half period"
-nphi = 32
-ntheta = 32
 poff = 1.5
 coff = 2.5
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
@@ -318,43 +326,38 @@ print("""
 ################################################################################
 """)
 
-n_saves = 1
-MAXITER = 1000
-for i in range(1, n_saves + 1):
-    print('Iteration ' + str(i) + ' / ' + str(n_saves))
-    res = minimize(fun, dofs, jac=True, method='L-BFGS-B',   # bounds=opt_bounds,
-                   options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-    # dofs = res.x
+res = minimize(fun, dofs, jac=True, method='L-BFGS-B',   # bounds=opt_bounds,
+                options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 
-    bpsc = btot.Bfields[0]
-    bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
-    dipole_currents = [c.current.get_value() for c in bpsc.coils]
-    psc_array.recompute_currents()
-    save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
+bpsc = btot.Bfields[0]
+bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
+dipole_currents = [c.current.get_value() for c in bpsc.coils]
+psc_array.recompute_currents()
+save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 
-    btot.set_points(s_plot.gamma().reshape((-1, 3)))
-    pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-                 "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                    ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "surf_final" + file_suffix, extra_data=pointData)
+btot.set_points(s_plot.gamma().reshape((-1, 3)))
+pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
+                "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_final" + file_suffix, extra_data=pointData)
 
-    btf = btot.Bfields[1]
-    btf.set_points(s_plot.gamma().reshape((-1, 3)))
-    pointData = {"B_N": np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-                 "B_N / B": (np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                    ) / np.linalg.norm(btf.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "surf_TF" + file_suffix, extra_data=pointData)
+btf = btot.Bfields[1]
+btf.set_points(s_plot.gamma().reshape((-1, 3)))
+pointData = {"B_N": np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
+                "B_N / B": (np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                ) / np.linalg.norm(btf.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_TF" + file_suffix, extra_data=pointData)
 
-    bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
-    pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-                 "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                    ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "surf_PSC" + file_suffix, extra_data=pointData)
+bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
+pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
+                "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_PSC" + file_suffix, extra_data=pointData)
 
-    btot.set_points(s.gamma().reshape((-1, 3)))
-    print('Max I = ', np.max(dipole_currents))
-    print('Min I = ', np.min(dipole_currents))
-    calculate_on_axis_B(btot, s)
+btot.set_points(s.gamma().reshape((-1, 3)))
+print('Max I = ', np.max(dipole_currents))
+print('Min I = ', np.min(dipole_currents))
+calculate_on_axis_B(btot, s)
 
 t2 = time.time()
 print('Total time = ', t2 - t1)

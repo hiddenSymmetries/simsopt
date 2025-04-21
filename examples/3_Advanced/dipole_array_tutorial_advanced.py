@@ -28,7 +28,7 @@ import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import BiotSavart, Current, coils_via_symmetries, regularization_rect, PSCArray
 from simsopt.util import calculate_on_axis_B, remove_inboard_dipoles, \
-    remove_interlinking_dipoles_and_TFs, initialize_coils, \
+    remove_interlinking_dipoles_and_TFs, initialize_coils, in_github_actions, \
     dipole_array_optimization_function, save_coil_sets, align_dipoles_with_plasma
 from simsopt.geo import (
     CurveLength, CurveCurveDistance,
@@ -47,18 +47,26 @@ if os.path.exists(OUT_DIR):
     shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
 
+nphi = 64
+ntheta = 64
+MAXITER = 400
+
+# Set some parameters -- if doing CI, lower the resolution
+if in_github_actions:
+    MAXITER = 10
+    nphi = 4
+    ntheta = 4
+
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 input_name = 'input.schuetthenneberg_nfp2'
 filename = TEST_DIR / input_name
 
 # Whether to use active or passive coils
-passive_coil_array = True
+passive_coil_array = False
 
 # Initialize the boundary magnetic surface:
 range_param = "half period"
-nphi = 64
-ntheta = 64
 poff = 1.5
 coff = 3.0
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
@@ -320,7 +328,6 @@ weight_dict = {
 
 # Run the optimization
 dofs = JF.x
-MAXITER = 200
 res = minimize(dipole_array_optimization_function, dofs, args=(obj_dict, weight_dict, psc_array), jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-20)
 

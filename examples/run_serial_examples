@@ -31,7 +31,6 @@ set -ex
 ./3_Advanced/dipole_array_tutorial.py
 ./3_Advanced/dipole_array_tutorial_advanced.py
 ./3_Advanced/passive_coil_optimization/passive_coils_QA.py
-./3_Advanced/passive_coil_optimization/passive_coils_QASH.py
 ./3_Advanced/passive_coil_optimization/passive_coils_QH.py
 ./3_Advanced/passive_coil_optimization/passive_coils_CSX.py
 ./3_Advanced/dipole_coil_optimization/dipole_coils_QA.py

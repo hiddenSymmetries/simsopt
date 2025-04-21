@@ -24,7 +24,7 @@ from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
-from simsopt.util import calculate_on_axis_B, save_coil_sets, generate_curves
+from simsopt.util import calculate_on_axis_B, save_coil_sets, generate_curves, in_github_actions
 from simsopt.geo import (
     CurveLength, CurveCurveDistance,
     SurfaceRZFourier
@@ -36,6 +36,14 @@ outdir = './dipole_array_tutorial/'
 os.makedirs(outdir, exist_ok=True)
 nphi = 32
 ntheta = 32
+MAXITER = 500
+
+# Set some parameters -- if doing CI, lower the resolution
+if in_github_actions:
+    MAXITER = 10
+    nphi = 4
+    ntheta = 4
+
 qphi = 2 * nphi
 qtheta = 2 * ntheta
 # load in a sample hybrid torus equilibria
@@ -167,7 +175,6 @@ print("""
 ################################################################################
 """)
 
-MAXITER = 500
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-10)
 save_coil_sets(btot, outdir, "_optimized", a, b, nturns_TF, aa, bb, nturns)

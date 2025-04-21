@@ -26,7 +26,7 @@ from simsopt.field import regularization_rect, PSCArray
 from simsopt.field.force import LpCurveForce, \
     SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque
-from simsopt.util import calculate_on_axis_B, make_Bnormal_plots
+from simsopt.util import calculate_on_axis_B, make_Bnormal_plots, in_github_actions
 from simsopt.geo import (
     CurveLength, CurveCurveDistance, MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
     SurfaceRZFourier, curves_to_vtk, create_planar_curves_between_two_toroidal_surfaces
@@ -38,10 +38,20 @@ from simsopt import load
 t1 = time.time()
 
 continuation_run = False
+nphi = 32
+ntheta = 32
 if continuation_run:
     file_suffix = "_continuation"
+    MAXITER = 2000
 else:
     file_suffix = ""
+    MAXITER = 200
+
+# Set some parameters -- if doing CI, lower the resolution
+if in_github_actions:
+    MAXITER = 10
+    nphi = 4
+    ntheta = 4
 
 # Directory for output
 OUT_DIR = ("./passive_coils_CSX/")
@@ -57,8 +67,6 @@ filename = TEST_DIR / input_name
 
 # Initialize the boundary magnetic surface:
 range_param = "half period"
-nphi = 32
-ntheta = 32
 poff = 0.1
 coff = 0.05
 s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=ntheta)
@@ -465,10 +473,6 @@ print("""
 ################################################################################
 """)
 
-if continuation_run:
-    MAXITER = 2000
-else:
-    MAXITER = 200
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',   # bounds=opt_bounds,
                options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-15)
 

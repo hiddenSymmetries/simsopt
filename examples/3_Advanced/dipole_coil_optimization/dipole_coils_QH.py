@@ -13,7 +13,7 @@ from simsopt.field.force import LpCurveForce, \
     SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque
 from simsopt.util import calculate_on_axis_B, remove_interlinking_dipoles_and_TFs, \
-    align_dipoles_with_plasma, initialize_coils, save_coil_sets
+    align_dipoles_with_plasma, initialize_coils, save_coil_sets, in_github_actions
 from simsopt.geo import (
     CurveLength, CurveCurveDistance, MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
     SurfaceRZFourier, create_planar_curves_between_two_toroidal_surfaces
@@ -25,6 +25,15 @@ t1 = time.time()
 
 continuation_run = False
 MAXITER = 2000
+nphi = 32
+ntheta = 32
+
+# Set some parameters -- if doing CI, lower the resolution
+if in_github_actions:
+    MAXITER = 10
+    nphi = 4
+    ntheta = 4
+
 if continuation_run:
     file_suffix = "_continuation"
 else:
@@ -44,8 +53,6 @@ filename = TEST_DIR / input_name
 
 # Initialize the boundary magnetic surface:
 range_param = "half period"
-nphi = 32
-ntheta = 32
 poff = 1.5
 coff = 2.5
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
