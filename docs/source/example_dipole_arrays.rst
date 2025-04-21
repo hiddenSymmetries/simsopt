@@ -18,7 +18,7 @@ can be found in the script
 Advanced scripts for dipole array optimization can be found in the following folders:
 
 - Many more examples on dipole array optimization can be found in
-  ``examples/3_Advanced/planar_coil_optimization/``.
+  ``examples/3_Advanced/dipole_coil_optimization/``.
 - Many more examples on passive dipole array optimization can be found in
   ``examples/3_Advanced/passive_coil_optimization/``.
 - Files for performing a large-scale scan of coil optimization (to run 1000's of coil optimizations)

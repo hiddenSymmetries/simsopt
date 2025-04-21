@@ -22,7 +22,7 @@ from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 
 t1 = time.time()
 
-continuation_run = True
+continuation_run = False
 if continuation_run:
     MAXITER = 2000
     file_suffix = '_continuation'

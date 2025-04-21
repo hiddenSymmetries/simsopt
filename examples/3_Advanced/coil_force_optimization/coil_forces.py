@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 """
 Example script for the force metric in a stage-two coil optimization
 """

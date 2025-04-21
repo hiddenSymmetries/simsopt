@@ -1,12 +1,25 @@
-"""
-File: windowpane_initialization_example.py
-Author: Jake Halpern
-Last Edit Date: 03/2025
+#!/usr/bin/env python
+
+r"""
+This example script runs joint optimization between a set of modular
+toroidal field (TF) coils and a set of dipole coils (a dipole array). 
+It corresponds to a SIMSOPT tutorial on the wiki page. 
+
+This script is substantially simplified to provide a simple
+illustration of performing dipole array optimization in SIMSOPT. Note that
+for a reactor-scale stellarator such as the one here, the optimization
+should include terms to reduce the forces and torques. You will find the solution
+can have intolerably large forces and torques without adding this into optimization.
+
+File: dipole_array_tutorial.py
+Author: Jake Halpern, Alan Kaptanoglu
+Last Edit Date: 04/2025
 Description: This script shows how to set up planar non-encircling coils tangent to an 
              axisymmetric winding surface and planar toroidal field coils that can be 
              shifted and tilted radially 
              
 """
+
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize

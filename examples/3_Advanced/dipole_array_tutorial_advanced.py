@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 r"""
 This example script runs joint optimization between a set of modular
 toroidal field (TF) coils and a set of dipole coils (a dipole array). 
@@ -10,14 +11,8 @@ This procedure and various results are described in the following paper(s):
     Optimization of passive superconductors for shaping stellarator magnetic fields
     https://arxiv.org/abs/2501.12468
 
-This script is substantially simplified to provide a simple
-illustration of performing dipole array optimization in SIMSOPT. Note that
-for a reactor-scale stellarator such as the one here, the optimization
-should include terms to reduce the forces and torques. You will find the solution
-can have intolerably large forces and torques without adding this into optimization.
-
 More advanced examples of dipole array optimization
-can be found in examples/3_Advanced/planar_coil_optimization/ 
+can be found in examples/3_Advanced/dipole_coil_optimization/ 
 and examples/3_Advanced/passive_coil_optimization/
 """
 

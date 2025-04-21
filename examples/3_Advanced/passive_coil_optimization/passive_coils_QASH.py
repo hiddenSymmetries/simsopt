@@ -27,7 +27,7 @@ t1 = time.time()
 # Number of Fourier modes describing each Cartesian component of each coil:
 order = 2
 
-continuation_run = True
+continuation_run = False
 if continuation_run:
     file_suffix = "_continuation"
 else:
