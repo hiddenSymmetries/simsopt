@@ -25,15 +25,14 @@ from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 t1 = time.time()
 
 continuation_run = False
+nphi = 32
+ntheta = 32
 if continuation_run:
     file_suffix = "_continuation"
     MAXITER = 2000
 else:
     file_suffix = ""
     MAXITER = 600
-
-nphi = 32
-ntheta = 32
 
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:
@@ -102,7 +101,7 @@ if not continuation_run:
     calculate_on_axis_B(bs_TF, s)
 
     # Create the initial dipole coils:
-    Nx = 7
+    Nx = 6
     Ny = Nx
     Nz = Nx
     base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(

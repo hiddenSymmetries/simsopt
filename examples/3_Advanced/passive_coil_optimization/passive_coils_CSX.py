@@ -48,10 +48,11 @@ else:
     MAXITER = 200
 
 # Set some parameters -- if doing CI, lower the resolution
+# but resolution must be large enough so that at least one dipole coil is initialized
 if in_github_actions:
     MAXITER = 10
-    nphi = 4
-    ntheta = 4
+    nphi = 8
+    ntheta = 8
 
 # Directory for output
 OUT_DIR = ("./passive_coils_CSX/")

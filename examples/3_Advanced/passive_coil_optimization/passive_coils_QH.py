@@ -35,6 +35,7 @@ else:
     file_suffix = ""
 
 # Set some parameters -- if doing CI, lower the resolution
+# but resolution must be large enough so that at least one dipole coil is initialized
 if in_github_actions:
     MAXITER = 10
     nphi = 4
