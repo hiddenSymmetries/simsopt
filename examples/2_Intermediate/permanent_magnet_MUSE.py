@@ -71,7 +71,7 @@ if os.path.exists(out_dir):
 os.makedirs(out_dir, exist_ok=True)
 
 # initialize the coils
-base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s, out_dir)
+base_curves, curves, coils = initialize_coils_pms('muse_famus', TEST_DIR, s, out_dir)
 
 # Set up BiotSavart fields
 bs = BiotSavart(coils)
