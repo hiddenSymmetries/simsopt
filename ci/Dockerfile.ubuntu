@@ -3,9 +3,20 @@
 FROM --platform=linux/amd64 ubuntu:22.04 as intermediate
 
 RUN apt update && \
-    DEBIAN_FRONTEND=noninteractive  apt-get install -y  build-essential gfortran git m4 wget cmake ninja-build \
+    DEBIAN_FRONTEND=noninteractive  apt-get install -y  build-essential gfortran git m4 wget \
     libopenblas-dev libfftw3-dev libhdf5-dev libhdf5-serial-dev libnetcdf-dev libnetcdff-dev libgl1-mesa-dev \
     python3-dev python3-pip python3-venv libxrender1
+
+
+RUN python3 -m pip install wheel
+RUN python3 -m venv /venv/
+
+RUN /venv/bin/pip install -U pip
+# 2024-11-12 MJL: mpi4py < 4.0 in the next line is due to
+# https://github.com/hiddenSymmetries/simsopt/issues/455
+# Once NERSC gets Shifter working with mpi4py >= 4 we can remove this inequality
+RUN /venv/bin/python -m pip install numpy scipy jax jaxlib f90nml "mpi4py<4.0" jupyter notebook ipython qsc sympy scikit-build ninja "pybind11[global]" cmake f90wrap h5py
+ENV PATH="/venv/bin:${PATH}"
 
 # Install mpich manually
 WORKDIR /src
@@ -36,15 +47,6 @@ RUN \
      
 RUN /sbin/ldconfig
 
-RUN python3 -m pip install wheel
-RUN python3 -m venv /venv/
-
-RUN /venv/bin/pip install -U pip
-# 2024-11-12 MJL: mpi4py < 4.0 in the next line is due to
-# https://github.com/hiddenSymmetries/simsopt/issues/455
-# Once NERSC gets Shifter working with mpi4py >= 4 we can remove this inequality
-RUN /venv/bin/python -m pip install numpy scipy jax jaxlib f90nml "mpi4py<4.0" jupyter notebook ipython qsc sympy scikit-build ninja "pybind11[global]" cmake f90wrap h5py
-ENV PATH="/venv/bin:${PATH}"
 
 RUN git clone --depth 1 https://github.com/PrincetonUniversity/SPEC.git /src/SPEC && \
     cd /src/SPEC   &&  \
