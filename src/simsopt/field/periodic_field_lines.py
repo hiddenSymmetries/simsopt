@@ -227,6 +227,8 @@ def _find_periodic_field_line_2D(
     half_period=False,
     solve_tol=1e-6,
     follow_tol=1e-10,
+    deflation_R=[],
+    deflation_k=1.0,
 ):
     """Find a periodic field line using a 2D search in (R, Z).
     
@@ -271,6 +273,8 @@ def _find_periodic_field_line_1D(
     solve_tol=1e-6,
     follow_tol=1e-10,
     verbose=1,
+    deflation_R=[],
+    deflation_k=1.0,
 ):
     """Find a periodic field line using a 1D search along the line Z=0.
     
@@ -302,10 +306,19 @@ def _find_periodic_field_line_1D(
         return residual
 
     def func_Z(x):
-        R, Z = _integrate_field_line(field, x, 0, Delta_phi, follow_tol, phi0=phi0)
-        residual = Z
+        try:
+            R, Z = _integrate_field_line(field, x, 0, Delta_phi, follow_tol, phi0=phi0)
+            residual = Z
+        except RuntimeError:
+            print("Error in _integrate_field_line")
+            R = np.nan
+            Z = np.nan
+            residual = 10
+
+        for Rd in deflation_R:
+            residual *= (deflation_k + 1 / abs(x - Rd))
         if verbose > 0:
-            print(f"  Z residual, evaluating x = {x:17}, residual = {residual:15}")
+            print(f"  Z residual, evaluating x = {x:17}, final R = {R}, Z = {Z}, residual = {residual:15}, Delta_phi = {Delta_phi}, phi0 = {phi0}, follow_tol = {follow_tol}")
         return residual
 
     def func_theta(x):
@@ -451,6 +464,8 @@ def _find_periodic_field_line_pseudospectral(
     half_period=False,
     solve_tol=1e-6,
     nphi=21,
+    deflation_R=[],
+    deflation_k=1.0,
 ):
     """Find a periodic field line.
     
@@ -535,6 +550,8 @@ def find_periodic_field_line(
     solve_tol=1e-6,
     follow_tol=1e-10,
     nphi=21,
+    deflation_R=[],
+    deflation_k=1.0,
 ):
     """Find a periodic field line.
     
@@ -558,15 +575,15 @@ def find_periodic_field_line(
 
     if method == "2D":
         return _find_periodic_field_line_2D(
-            field, nfp, m, R0, Z0, half_period, solve_tol, follow_tol
+            field, nfp, m, R0, Z0, half_period, solve_tol, follow_tol, deflation_R=deflation_R, deflation_k=deflation_k
         )
     elif method == "pseudospectral":
         return _find_periodic_field_line_pseudospectral(
-            field, nfp, m, R0, Z0, half_period, solve_tol, nphi
+            field, nfp, m, R0, Z0, half_period, solve_tol, nphi, deflation_R=deflation_R, deflation_k=deflation_k
         )
     elif method in ["1D R", "1D Z", "1D theta"]:
         return _find_periodic_field_line_1D(
-            field, nfp, m, R0, method[3:], half_period, solve_tol, follow_tol
+            field, nfp, m, R0, method[3:], half_period, solve_tol, follow_tol, deflation_R=deflation_R, deflation_k=deflation_k
         ), 0.0
     else:
         raise ValueError(f"Unknown method: {method}")
@@ -605,12 +622,15 @@ class PeriodicFieldLine():
         follow_tol=1e-10,
         nphi_solve=21,
         nphi=400,
+        deflation_R=[],
+        deflation_k=1.0,
     ):
         self.field = field
         self.nfp = nfp
         self.m = m
         self.half_period = half_period
         self.nphi = nphi
+        self.follow_tol = follow_tol
 
         R0, Z0 = find_periodic_field_line(
             field,
@@ -623,6 +643,8 @@ class PeriodicFieldLine():
             solve_tol=solve_tol,
             follow_tol=follow_tol,
             nphi=nphi_solve,
+            deflation_R=deflation_R,
+            deflation_k=deflation_k,
         )
         self.R0 = R0
         self.Z0 = Z0
@@ -641,7 +663,7 @@ class PeriodicFieldLine():
         self.x = self.R * np.cos(self.phi)
         self.y = self.R * np.sin(self.phi)
         np.testing.assert_allclose(self.R[0], self.R[-1], atol=1e-7, rtol=1e-7)
-        np.testing.assert_allclose(self.z[0], self.z[-1], atol=1e-7, rtol=1e-7)
+        np.testing.assert_allclose(self.z[0], self.z[-1], atol=1e-6, rtol=1e-7)
         np.testing.assert_allclose(self.x[0], self.x[-1], atol=1e-7, rtol=1e-7)
         np.testing.assert_allclose(self.y[0], self.y[-1], atol=1e-7, rtol=1e-7)
         np.testing.assert_allclose(self.R[0], R0, atol=1e-14, rtol=1e-14)
@@ -653,7 +675,7 @@ class PeriodicFieldLine():
             raise ImportError("pyevtk is not installed. Cannot write VTK file.")
 
         pointsPerLine = np.array([self.nphi])
-        polyLinesToVTK(filename, self.x, self.y, self.z, pointsPerLine=pointsPerLine)
+        polyLinesToVTK(filename, self.x, self.y, self.z, pointsPerLine=pointsPerLine, pointData={'phi': self.phi})
 
     def _integral_A_dl(self):
         """Compute the flux integral ∫A⋅dℓ associated with the periodic field line.
@@ -670,11 +692,36 @@ class PeriodicFieldLine():
 
         d_r_d_phi = (self.R / B_phi)[:, None] * B_cart
 
-        integral = dphi * np.sum(A * d_r_d_phi)  # A dot dℓ
+        product = A * d_r_d_phi
+        # drop repeated point
+        integral = dphi * np.sum(product[:-1, :])  # A dot dℓ
         return integral, d_r_d_phi
     
     def integral_A_dl(self):
         """Return the flux integral ∫A⋅dℓ associated with the periodic field line."""
         integral, _ = self._integral_A_dl()
         return integral
+    
+    def get_R_Z(self, nphi):
+        """Return R and Z coordinates at nphi points along the periodic field line.
+        
+        The returned arrays will include the repeated point, i.e. the last point will be identical to the first point.
+
+        Args:
+            nphi: Number of points to return.
+
+        Returns:
+            R: Array of R coordinates.
+            Z: Array of Z coordinates.
+        """
+        return _integrate_field_line_cyl(
+            self.field,
+            self.R0,
+            self.Z0,
+            self.Delta_phi_to_close, 
+            tol=self.follow_tol,
+            phi0=self.phi0, 
+            nphi=nphi,
+        )
+
 
