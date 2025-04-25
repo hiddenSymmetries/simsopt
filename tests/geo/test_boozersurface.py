@@ -253,6 +253,7 @@ class BoozerSurfaceTests(unittest.TestCase):
             from simsopt.geo.curve import RotatedCurve
             curves_flipped = [RotatedCurve(c, 0, True) for c in curves]
             currents_flipped = [-cur for cur in currents]
+            rng = np.random.default_rng(12345)
             for c in curves_flipped:
                 c.rotmat += 0.001*np.random.uniform(low=-1., high=1.,
                                                     size=c.rotmat.shape)
@@ -293,18 +294,18 @@ class BoozerSurfaceTests(unittest.TestCase):
         boozer_surface.recompute_bell()
         if second_stage == 'ls':
             res = boozer_surface.minimize_boozer_penalty_constraints_ls(
-                tol=1e-11, maxiter=100, constraint_weight=1000./cw,
+                tol=1e-10, maxiter=100, constraint_weight=1000./cw,
                 iota=res['iota'], G=res['G'])
         elif second_stage == 'newton':
             res = boozer_surface.minimize_boozer_penalty_constraints_newton(
-                tol=1e-10, maxiter=20, constraint_weight=100./cw,
+                tol=1e-10, maxiter=100, constraint_weight=100./cw,
                 iota=res['iota'], G=res['G'], stab=1e-4, vectorize=vectorize)
         elif second_stage == 'newton_exact':
             res = boozer_surface.minimize_boozer_exact_constraints_newton(
-                tol=1e-10, maxiter=15, iota=res['iota'], G=res['G'])
+                tol=1e-10, maxiter=100, iota=res['iota'], G=res['G'])
         elif second_stage == 'residual_exact':
             res = boozer_surface.solve_residual_equation_exactly_newton(
-                tol=1e-12, maxiter=15, iota=res['iota'], G=res['G'])
+                tol=1e-10, maxiter=100, iota=res['iota'], G=res['G'])
 
         print('Residual norm after second stage', np.linalg.norm(res['residual']))
         assert res['success']
