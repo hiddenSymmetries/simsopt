@@ -20,6 +20,7 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "integral_BdotN.h"
 #include "permanent_magnet_optimization.h"
 #include "NetForce.h"
+#include "NetTorque.h"
 #include "reiman.h"
 #include "simdhelpers.h"
 #include "boozerresidual_py.h"
@@ -68,6 +69,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("dipole_field_Bn" , &dipole_field_Bn, py::arg("points"), py::arg("m_points"), py::arg("unitnormal"), py::arg("nfp"), py::arg("stellsym"), py::arg("b"), py::arg("coordinate_flag") = "cartesian", py::arg("R0") = 0.0);
     m.def("define_a_uniform_cartesian_grid_between_two_toroidal_surfaces" , &define_a_uniform_cartesian_grid_between_two_toroidal_surfaces);
     m.def("net_force_matrix", &net_force_matrix);
+    m.def("net_torque_matrix", &net_torque_matrix);
 
     // Permanent magnet optimization algorithms have many default arguments
     m.def("MwPGP_algorithm", &MwPGP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("alpha"), py::arg("nu") = 1.0e100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("max_iter") = 500, py::arg("min_fb") = 1.0e-20, py::arg("verbose") = false);
