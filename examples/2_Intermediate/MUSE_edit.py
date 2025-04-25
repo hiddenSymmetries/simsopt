@@ -173,9 +173,11 @@ if save_plots:
         #mk = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
         mk = m_history[:, :, k]
         print(mk.shape)
-        t_force_calc_start = time.time()
+        #Find indices where there are and aren't dipole moments
         mk_nonzero_indices = np.where(np.sum(mk ** 2, axis=-1) > 1e-10)[0]
         mk_zero_indices = np.where(np.sum(mk ** 2, axis=-1) <= 1e-10)[0]
+        #Do net force calcs where there are nonzero dipole moments and make a list
+        t_force_calc_start = time.time()
         net_forces_nonzero = sopp.net_force_matrix(
                 np.ascontiguousarray(mk[mk_nonzero_indices, :]), 
                 np.ascontiguousarray(pm_opt.dipole_grid_xyz[mk_nonzero_indices, :])
@@ -183,17 +185,28 @@ if save_plots:
         net_forces = np.zeros((pm_opt.ndipoles, 3))
         net_forces[mk_nonzero_indices, :] = net_forces_nonzero
         net_forces[mk_zero_indices, :] = 0.0
+        t_force_calc_end = time.time()
+        print('Time to calc force = ', t_force_calc_end - t_force_calc_start)
+        #Do net torque calcs where there are nonzero dipole moments and make a list
+        t_torque_calc_start = time.time()
+        net_torques_nonzero = sopp.net_torque_matrix(
+                np.ascontiguousarray(mk[mk_nonzero_indices, :]), 
+                np.ascontiguousarray(pm_opt.dipole_grid_xyz[mk_nonzero_indices, :])
+            )
+        net_torques = np.zeros((pm_opt.ndipoles, 3))
+        net_torques[mk_nonzero_indices, :] = net_forces_nonzero
+        net_torques[mk_zero_indices, :] = 0.0
+        t_torque_calc_end = time.time()
+        print('Time to calc torque = ', t_torque_calc_end - t_torque_calc_start)
         b_dipole = DipoleField(
             pm_opt.dipole_grid_xyz,
             mk,
             nfp=s.nfp,
             coordinate_flag=pm_opt.coordinate_flag,
             m_maxima=pm_opt.m_maxima,
-            net_forces=net_forces
-            #pm_opt.net_force_matrix(mk),
+            net_forces=net_forces,
+            net_torques = net_torques
         )
-        t_force_calc_end = time.time()
-        print('Time to calc force = ', t_force_calc_end - t_force_calc_start)
         
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
         K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
