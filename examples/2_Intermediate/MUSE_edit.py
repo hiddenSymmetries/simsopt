@@ -174,16 +174,22 @@ if save_plots:
         mk = m_history[:, :, k]
         print(mk.shape)
         t_force_calc_start = time.time()
+        mk_nonzero_indices = np.where(np.sum(mk ** 2, axis=-1) > 1e-10)[0]
+        mk_zero_indices = np.where(np.sum(mk ** 2, axis=-1) <= 1e-10)[0]
+        net_forces_nonzero = sopp.net_force_matrix(
+                np.ascontiguousarray(mk[mk_nonzero_indices, :]), 
+                np.ascontiguousarray(pm_opt.dipole_grid_xyz[mk_nonzero_indices, :])
+            )
+        net_forces = np.zeros((pm_opt.ndipoles, 3))
+        net_forces[mk_nonzero_indices, :] = net_forces_nonzero
+        net_forces[mk_zero_indices, :] = 0.0
         b_dipole = DipoleField(
             pm_opt.dipole_grid_xyz,
             mk,
             nfp=s.nfp,
             coordinate_flag=pm_opt.coordinate_flag,
             m_maxima=pm_opt.m_maxima,
-            net_forces=sopp.net_force_matrix(
-                np.ascontiguousarray(mk), 
-                np.ascontiguousarray(pm_opt.dipole_grid_xyz)
-            )
+            net_forces=net_forces
             #pm_opt.net_force_matrix(mk),
         )
         t_force_calc_end = time.time()
