@@ -726,9 +726,9 @@ class DipoleField(MagneticField):
                 net_forces_full[index:index + n, 2] = fz
                 
                 # get new dipole torques by flipping the x component, then rotating by phi0
-                net_torques_full[index:index + n, 0] = fx * np.cos(phi0) * stell - fy * np.sin(phi0)
-                net_torques_full[index:index + n, 1] = fx * np.sin(phi0) * stell + fy * np.cos(phi0)
-                net_torques_full[index:index + n, 2] = fz
+                net_torques_full[index:index + n, 0] = tx * np.cos(phi0) * stell - ty * np.sin(phi0)
+                net_torques_full[index:index + n, 1] = tx * np.sin(phi0) * stell + ty * np.cos(phi0)
+                net_torques_full[index:index + n, 2] = tz
 
                 m_max[index:index + n] = m_maxima
                 index += n
@@ -784,7 +784,8 @@ class DipoleField(MagneticField):
                 "m_rphiz_normalized": (mr_normalized, mphi_normalized, mz_normalized), 
                 "m_rphitheta": (mrminor, mphi, mtheta), 
                 "m_rphitheta_normalized": (mrminor_normalized, mphi_normalized, mtheta_normalized),
-                "NetForce": (fx, fy, fz)}
+                "Net Forces": (fx, fy, fz),
+                "Net Torques": (tx, ty, tz)}
         from pyevtk.hl import pointsToVTK
         pointsToVTK(str(vtkname), ox, oy, oz, data=data)
 

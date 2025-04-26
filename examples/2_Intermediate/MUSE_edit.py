@@ -194,7 +194,7 @@ if save_plots:
                 np.ascontiguousarray(pm_opt.dipole_grid_xyz[mk_nonzero_indices, :])
             )
         net_torques = np.zeros((pm_opt.ndipoles, 3))
-        net_torques[mk_nonzero_indices, :] = net_forces_nonzero
+        net_torques[mk_nonzero_indices, :] = net_torques_nonzero
         net_torques[mk_zero_indices, :] = 0.0
         t_torque_calc_end = time.time()
         print('Time to calc torque = ', t_torque_calc_end - t_torque_calc_start)
