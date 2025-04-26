@@ -554,12 +554,21 @@ class CoilForcesTest(unittest.TestCase):
 
     def test_Taylor_PSC(self):
         from simsopt.field import PSCArray
+        from simsopt.objectives import SquaredFlux
+        from simsopt.geo import SurfaceRZFourier
+        from pathlib import Path
+        from monty.tempfile import ScratchDir
+        TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
+        filename = TEST_DIR / 'input.LandremanPaul2021_QA'
+        nphi, ntheta = 8, 8
+        with ScratchDir("."):
+            s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         nfp = 3
         ncoils = 4
         I = 1.7e4
         a = 0.05
         regularization = regularization_circ(a)
-        eval_points = np.random.rand(100, 3)
+        eval_points = s.gamma().reshape(-1, 3)
         base_curves_TF = create_equally_spaced_curves(ncoils, nfp, True)
         base_currents_TF = [Current(I) for j in range(ncoils)]
         coils_TF = coils_via_symmetries(base_curves_TF, base_currents_TF, nfp, True)
@@ -572,16 +581,19 @@ class CoilForcesTest(unittest.TestCase):
         base_coils = coils[:len(base_curves)]
         base_coils_TF = coils_TF[:len(base_curves_TF)]
         all_base_coils = base_coils + base_coils_TF
+        btot = psc_array.biot_savart_total
+        btot.set_points(eval_points)
         p = 2.5
         threshold = 0.0
         objectives = [
-            sum([NetFluxes(all_base_coils[i], all_base_coils) for i in range(len(all_base_coils))]),
+            SquaredFlux(s, btot),
             sum([TVE(all_base_coils[i], all_base_coils, a=0.05) for i in range(len(all_base_coils))]),
             sum([LpCurveForce(all_base_coils[i], all_base_coils, regularization, p=p, threshold=threshold) for i in range(len(all_base_coils))]),
             sum([LpCurveTorque(all_base_coils[i], all_base_coils, regularization, p=p, threshold=threshold) for i in range(len(all_base_coils))]),
             sum([SquaredMeanForce(all_base_coils[i], all_base_coils) for i in range(len(all_base_coils))]),
             sum([SquaredMeanTorque(all_base_coils[i], all_base_coils) for i in range(len(all_base_coils))]),
         ]
+        print('PSCArray Taylor test: ')
         for J in objectives:
             dJ = J.dJ()
             deriv = np.sum(dJ * np.ones_like(J.x))
@@ -592,8 +604,10 @@ class CoilForcesTest(unittest.TestCase):
             for i in range(11, 21):
                 eps = 0.5**i
                 J.x = dofs + eps * h
+                psc_array.recompute_currents()
                 Jp = J.J()
                 J.x = dofs - eps * h
+                psc_array.recompute_currents()
                 Jm = J.J()
                 deriv_est = (Jp - Jm) / (2 * eps)
                 err_new = np.abs(deriv_est - deriv) / np.abs(deriv)

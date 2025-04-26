@@ -698,7 +698,12 @@ def generate_tf_array(winding_surface, ntf, TF_R0, TF_a, TF_b, fixed_geo_tfs=Fal
     return base_tf_curves
 
 
-def generate_curves(surf, VV, planar_tfs=False, outdir=''):
+def generate_curves(surf, VV, planar_tfs=False, outdir='',
+                    inboard_radius=0.8, wp_fil_spacing=0.75, half_per_spacing=0.75, wp_n=2,
+                    numquadpoints=32, order=12, verbose=True,
+                    fixed_geo_tfs=False, tf_init_fac=2,
+                    ntf=3,
+                    ):
     """
     Generate the curves for the winding surface and TF coils.
 
@@ -716,24 +721,24 @@ def generate_curves(surf, VV, planar_tfs=False, outdir=''):
 
     # choose some reasonable parameters for array initialization
     base_wp_curves = generate_windowpane_array(winding_surface=VV,
-                                               inboard_radius=0.8,
-                                               wp_fil_spacing=0.75,
-                                               half_per_spacing=0.75,
-                                               wp_n=2,  # elliptical coils
-                                               numquadpoints=32,
-                                               order=12,  # want high order to approximate ellipse
-                                               verbose=True,
+                                               inboard_radius=inboard_radius,
+                                               wp_fil_spacing=wp_fil_spacing,
+                                               half_per_spacing=half_per_spacing,
+                                               wp_n=wp_n,  # elliptical coils
+                                               numquadpoints=numquadpoints,
+                                               order=order,  # want high order to approximate ellipse
+                                               verbose=verbose,
                                                )
     # generate TFs of the class CurvePlanarEllipticalCylindrical (fixed_geo_TFs=False)
     base_tf_curves = generate_tf_array(winding_surface=VV,
-                                       ntf=3,  # 3 TF coils
+                                       ntf=ntf,  # 3 TF coils
                                        TF_R0=surf.get_rc(0, 0),
-                                       TF_a=surf.get_rc(1, 0) * 5,
-                                       TF_b=surf.get_rc(1, 0) * 5,
-                                       fixed_geo_tfs=False,
+                                       TF_a=surf.get_rc(1, 0) * tf_init_fac,
+                                       TF_b=surf.get_rc(1, 0) * tf_init_fac,
+                                       fixed_geo_tfs=fixed_geo_tfs,
                                        planar_tfs=planar_tfs,
-                                       order=3,
-                                       numquadpoints=128,
+                                       order=order,
+                                       numquadpoints=numquadpoints,
                                        )
     if planar_tfs:
         # unfix the relevant TF dofs

@@ -2,7 +2,9 @@ import jax.numpy as jnp
 import numpy as np
 from .curve import JaxCurve
 
-__all__ = ['CurvePlanarEllipticalCylindrical', 'create_equally_spaced_cylindrical_curves']
+__all__ = ['CurvePlanarEllipticalCylindrical', 'create_equally_spaced_cylindrical_curves',
+           'xyz_cyl', 'rotations', 'convert_to_cyl', 'cylindrical_shift', 'cyl_to_cart',
+           'gamma_pure']
 
 
 def r_ellipse(a, b, l):

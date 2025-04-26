@@ -22,7 +22,7 @@ TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 
-class Testing(unittest.TestCase):
+class PermanentMagnetGridTesting(unittest.TestCase):
 
     def test_bad_params(self):
         """

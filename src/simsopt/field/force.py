@@ -2128,10 +2128,10 @@ class NetFluxes(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        # for c in self.othercoils:
-        #     c._children = set()
-        #     c.curve._children = set()
-        #     c.current._children = set()
+        for c in self.othercoils:
+            c._children = set()
+            c.curve._children = set()
+            c.current._children = set()
 
         return J
 
@@ -2161,10 +2161,10 @@ class NetFluxes(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        # for c in self.othercoils:
-        #     c._children = set()
-        #     c.curve._children = set()
-        #     c.current._children = set()
+        for c in self.othercoils:
+            c._children = set()
+            c.curve._children = set()
+            c.current._children = set()
 
         return dJ
 
