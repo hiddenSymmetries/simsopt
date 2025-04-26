@@ -285,6 +285,10 @@ class NormalFieldTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             normal_field.get_vns_vnc_asarray(mpol=3, ntor=4)
         with self.assertRaises(ValueError):
+            normal_field.vns[0,1] = 1
+        with self.assertRaises(ValueError):
+            normal_field.vnc[0,1] = 1
+        with self.assertRaises(ValueError):
             normal_field.set_vns_asarray(np.zeros((3, 7)), mpol=2, ntor=3)
         with self.assertRaises(ValueError):
             normal_field.set_vnc_asarray(np.zeros((4, 7)), mpol=2, ntor=3)

@@ -54,12 +54,6 @@ class NormalField(Optimizable):
         self.stellsym = stellsym
         self.mpol = mpol
         self.ntor = ntor
-
-        if vns is None:
-            vns = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
-
-        if not self.stellsym and vnc is None:
-            vnc = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
         
         if surface is None:
             surface = SurfaceRZFourier(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor)
@@ -71,10 +65,33 @@ class NormalField(Optimizable):
         else:
             self.ndof = 2 * (self.ntor + self.mpol * (2 * self.ntor + 1)) + 1
         
-        self._vns = vns
-        self._vnc = vnc
-        
-        dofs = self.get_dofs()
+        if vns is None:
+            vns = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
+        if vnc is None:
+            vnc = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
+
+        dofs = np.zeros((self.ndof,))
+
+        # Populate dofs array
+        vns_shape = vns.shape
+        input_mpol = int(vns_shape[0]-1)
+        input_ntor = (vns_shape[1]-1)//2
+
+        if not self.stellsym:
+            assert vns.shape == vnc.shape
+        for mm in range(0, self.mpol+1):
+            for nn in range(-self.ntor, self.ntor+1):
+                if mm == 0 and nn < 0: continue
+                if mm > input_mpol: continue
+                if nn > input_ntor: continue
+
+                if not (mm == 0 and nn == 0):
+                    ii = self.get_index_in_dofs(mm, nn, even=False)
+                    dofs[ii] = vns[mm, input_ntor+nn]
+
+                if not self.stellsym:
+                    ii = self.get_index_in_dofs(mm, nn, even=True)
+                    dofs[ii] = vnc[mm, input_ntor+nn]
 
         Optimizable.__init__(
             self,
@@ -83,7 +100,23 @@ class NormalField(Optimizable):
     
     @property
     def vns(self):
-        return self._vns
+        vns_local = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
+        
+        input_mpol = int(vns_local.shape[0]-1)
+        input_ntor = (vns_local.shape[1]-1)//2
+        for mm in range(0, self.mpol+1):
+            for nn in range(-self.ntor, self.ntor+1):
+                if mm == 0 and nn < 0: continue
+                if mm > input_mpol: continue
+                if nn > input_ntor: continue
+
+                if not (mm == 0 and nn == 0):
+                    ii = self.get_index_in_dofs(mm, nn, even=False)
+                    vns_local[mm, input_ntor+nn] = self.local_full_x[ii]
+                    
+        # Don';'t allow changes to vns. Use set_vns() instead
+        vns_local.flags.writeable = False
+        return vns_local
     
     @vns.setter
     def vns(self, value):
@@ -91,7 +124,24 @@ class NormalField(Optimizable):
     
     @property
     def vnc(self):
-        return self._vnc
+        if self.stellsym:
+            raise AttributeError('Vnc is not available for stellarator symmetric fields')
+        vnc_local = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
+        
+        input_mpol = int(vnc_local.shape[0]-1)
+        input_ntor = (vnc_local.shape[1]-1)//2
+        for mm in range(0, self.mpol+1):
+            for nn in range(-self.ntor, self.ntor+1):
+                if mm == 0 and nn < 0: continue
+                if mm > input_mpol: continue
+                if nn > input_ntor: continue
+
+                ii = self.get_index_in_dofs(mm, nn, even=True)
+                vnc_local[mm, input_ntor+nn] = self.local_full_x[ii]
+
+        # Don';'t allow changes to vnc. Use set_vnc() instead
+        vnc_local.flags.writeable = False
+        return vnc_local    
     
     @vnc.setter
     def vnc(self, value):
@@ -163,32 +213,6 @@ class NormalField(Optimizable):
         normal_field = cls(**input_dict)
 
         return normal_field
-    
-    def get_dofs(self):
-        """
-        get DOFs from vns and vnc
-        """
-        # Pack in a single array
-        dofs = np.zeros((self.ndof,))
-
-        # Populate dofs array
-        vns_shape = self.vns.shape
-        input_mpol = int(vns_shape[0]-1)
-        input_ntor = int((vns_shape[1]-1)/2)
-        for mm in range(0, self.mpol+1):
-            for nn in range(-self.ntor, self.ntor+1):
-                if mm == 0 and nn < 0: continue
-                if mm > input_mpol: continue
-                if nn > input_ntor: continue
-
-                if not (mm == 0 and nn == 0):
-                    ii = self.get_index_in_dofs(mm, nn, even=False)
-                    dofs[ii] = self.vns[mm, input_ntor+nn]
-
-                if not self.stellsym:
-                    ii = self.get_index_in_dofs(mm, nn, even=True)
-                    dofs[ii] = self.vnc[mm, input_ntor+nn]
-        return dofs
 
     def get_index_in_array(self, m, n, mpol=None, ntor=None):
         """
@@ -264,10 +288,9 @@ class NormalField(Optimizable):
 
     def set_vns(self, m, n, value):
         self.check_mn(m, n)
-        i,j = self.get_index_in_array(m, n)
-        self._vns[i,j] = value
-        dofs = self.get_dofs()
-        self.local_full_x = dofs
+        ii = self.get_index_in_dofs(m, n)
+        self.local_full_x[ii] = value
+        self.recompute_bell()
 
     def get_vnc(self, m, n):
         self.check_mn(m, n)
@@ -279,13 +302,13 @@ class NormalField(Optimizable):
 
     def set_vnc(self, m, n, value):
         self.check_mn(m, n)
-        i,j = self.get_index_in_array(m, n)
         if self.stellsym:
             raise ValueError('Stellarator symmetric has no vnc')
         else:
-            self._vnc[i,j] = value
-            dofs = self.get_dofs()
-            self.local_full_x = dofs
+            ii = self.get_index_in_dofs(m, n, even=True)
+            self.local_full_x[ii] = value
+        self.recompute_bell()
+        
 
     def check_mn(self, m, n):
         if m < 0 or m > self.mpol:
@@ -409,7 +432,8 @@ class NormalField(Optimizable):
         elif ntor > self.ntor:
             raise ValueError('ntor out of bound')
 
-        vns = self.vns
+        vns = self.vns.copy()
+        vns.flags.writeable = True
 
         return vns[0:mpol, self.ntor-ntor:self.ntor+ntor+1]
     
@@ -427,9 +451,8 @@ class NormalField(Optimizable):
         elif ntor > self.ntor:
             raise ValueError('ntor out of bound')
 
-        vnc = self.vnc
-        if vnc is None:
-            vnc = np.zeros((mpol, 2*ntor+1))
+        vnc = self.vnc.copy()
+        vnc.flags.writeable = True
 
         return vnc[0:mpol, self.ntor-ntor:self.ntor+ntor+1]
     
@@ -465,9 +488,10 @@ class NormalField(Optimizable):
         elif ntor > self.ntor:
             raise ValueError('ntor out of bound')
         
-        self._vns = vns[0:mpol, self.ntor-ntor:self.ntor+ntor+1]
-        dofs = self.get_dofs()
-        self.local_full_x = dofs
+        for i in range(mpol):
+            for j in range(-ntor, ntor+1):
+                if i == 0 and j <= 0: continue
+                self.set_vns(i, j, vns[i, self.ntor+j])
 
     def set_vnc_asarray(self, vnc, mpol=None, ntor=None):
         """
@@ -482,10 +506,11 @@ class NormalField(Optimizable):
             ntor = self.ntor
         elif ntor > self.ntor:
             raise ValueError('ntor out of bound')
-        
-        self._vnc = vnc[0:mpol, self.ntor-ntor:self.ntor+ntor+1]
-        dofs = self.get_dofs()
-        self.local_full_x = dofs
+
+        for i in range(mpol):
+            for j in range(-ntor, ntor+1):
+                if i == 0 and j < 0: continue
+                self.set_vnc(i, j, vnc[i, self.ntor+j])
 
     def set_vns_vnc_asarray(self, vns, vnc, mpol=None, ntor=None):
         """
@@ -503,7 +528,7 @@ class NormalField(Optimizable):
 
         self.set_vns_asarray(vns, mpol, ntor)
         self.set_vnc_asarray(vnc, mpol, ntor)
- 
+
     def get_real_space_field(self):
         """
         Fourier transform the field and get the real-space values of the normal component of the externally
