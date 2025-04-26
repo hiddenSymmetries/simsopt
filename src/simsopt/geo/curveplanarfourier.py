@@ -78,14 +78,17 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
     def center(self, gamma, gammadash):
         # Compute the centroid of the curve
         arclength = jnp.linalg.norm(gammadash, axis=-1)
-        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / gamma.shape[0] / np.pi
+        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / gamma.shape[0] / (2 * np.pi)
         return barycenter
 
 
 def jaxplanarcurve_pure(dofs, quadpoints, order):
     coeffs = dofs[:2 * order + 1]
     q = dofs[2 * order + 1: 2 * order + 5]
-    q_norm = q / jnp.linalg.norm(q)
+    norm_q = jnp.linalg.norm(q)
+    q_norm = jnp.where(norm_q < 1e-8,
+                       q / (norm_q + 1e-8),  # safe division when norm is small
+                       q / norm_q)  # this shouldn't happen if the quaternion dofs are properly initialized
     center = dofs[2 * order + 5:]
     phi = 2 * np.pi * quadpoints  # points is an angle in [0, 1]
     jrange = jnp.arange(1, order + 1)[:, None]
@@ -152,63 +155,3 @@ class JaxCurvePlanarFourier(JaxCurve):
 
     def set_quadpoints(self, quadpoints):
         self.quadpoints = quadpoints
-
-# class JaxCurvePlanarFourier(JaxCurve):
-
-#     """
-#     A Python+Jax implementation of the CurvePlanarFourier class.  There is
-#     actually no reason why one should use this over the C++ implementation in
-#     :mod:`simsoptpp`, but the point of this class is to illustrate how jax can be used
-#     to define a geometric object class and calculate all the derivatives (both
-#     with respect to dofs and with respect to the angle :math:`\theta`) automatically.
-
-#     [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}},
-#     q_0, q_i, q_j, q_k,
-#     x_{\text{center}}, y_{\text{center}}, z_{\text{center}}]
-#     """
-
-#     def __init__(self, quadpoints, order, dofs=None):
-#         if isinstance(quadpoints, int):
-#             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
-#         pure = lambda dofs, points: jaxplanarcurve_pure(dofs, points, order)
-#         self.order = order
-#         self.coefficients = [np.zeros((2 * order + 1,)), np.zeros((4,)), np.zeros((3,))]
-#         if dofs is None:
-#             super().__init__(quadpoints, pure, x0=np.concatenate(self.coefficients),
-#                              external_dof_setter=JaxCurvePlanarFourier.set_dofs_impl)
-#         else:
-#             super().__init__(quadpoints, pure, dofs=dofs,
-#                              external_dof_setter=JaxCurvePlanarFourier.set_dofs_impl)
-#         # self.passive_current_jax = jit(lambda dofs: self.passive_current_pure(dofs, points))
-#         # self.passive_current_impl_jax = jit(lambda dofs, p: self.passive_current_pure(dofs, p))
-#         # self.dpassive_current_by_dcoeff_jax = jit(jacfwd(self.passive_current_jax))
-#         # self.dpassive_current_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.passive_current_jax, x)[1](v)[0])
-
-#     # def passive_current_pure(self, dofs, points):
-#     #     # To get the I_i passive current, need to compute (L^{-1} * psi)_i = Linv_{ij}psi_j
-#     #     # so just need the jth column of Linv here.
-#     #     normal = self.normal
-#     #     psi =
-
-
-#     def num_dofs(self):
-#         """
-#         This function returns the number of dofs associated to this object.
-#         """
-#         return (2 * self.order + 1 + 4 + 3)
-
-#     def get_dofs(self):
-#         """
-#         This function returns the dofs associated to this object.
-#         """
-#         return np.concatenate(self.coefficients)
-
-#     def set_dofs_impl(self, dofs):
-#         """
-#         This function sets the dofs associated to this object.
-#         """
-#         # self.coefficients = dofs
-#         for j in range(2 * self.order + 1):
-#             self.coefficients[0][j] = dofs[j]
-#         self.coefficients[1][:] = dofs[2 * self.order + 1:2 * self.order + 5]
-#         self.coefficients[2][:] = dofs[2 * self.order + 5:]

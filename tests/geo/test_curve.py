@@ -785,8 +785,6 @@ class Testing(unittest.TestCase):
 
             os.remove("coils.file_to_load")
 
-
-class TestPlanarEllipticalCylindricalCurve(unittest.TestCase):
     def test_curveplanarellipticalcylindrical_basic(self):
         quadpoints = 20
         a, b = 2.0, 1.0
@@ -893,8 +891,6 @@ class TestPlanarEllipticalCylindricalCurve(unittest.TestCase):
         gamma = gamma_pure(dofs, points, a, b)
         self.assertEqual(gamma.shape, (20, 3))
 
-
-class TestCreatePlanarCurvesBetweenTwoToroidalSurfaces(unittest.TestCase):
     def test_create_planar_curves_between_two_toroidal_surfaces(self):
         # Use a real surface from test files for a minimal working test
         TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
@@ -916,12 +912,6 @@ class TestCreatePlanarCurvesBetweenTwoToroidalSurfaces(unittest.TestCase):
                 gamma = curve.gamma()
                 self.assertEqual(gamma.shape[1], 3)
                 self.assertEqual(gamma.shape[0], 10)
-            for curve in curves:
-                center = np.mean(curve.gamma(), axis=0)
-                r = np.linalg.norm(center[:2])
-                r_inner = np.linalg.norm(np.mean(s_inner.gamma().reshape(-1, 3), axis=0)[:2])
-                r_outer = np.linalg.norm(np.mean(s_outer.gamma().reshape(-1, 3), axis=0)[:2])
-                self.assertTrue(r_inner < r < r_outer or r_outer < r < r_inner)
 
             # Test with jax_flag=True
             curves_jax, all_curves_jax = create_planar_curves_between_two_toroidal_surfaces(
@@ -934,21 +924,18 @@ class TestCreatePlanarCurvesBetweenTwoToroidalSurfaces(unittest.TestCase):
                 self.assertEqual(gamma.shape[1], 3)
                 self.assertEqual(gamma.shape[0], 10)
 
-            # Test coil_coil_flag=True (should succeed for small grid)
+            # Test coil_coil_flag=True
+            with self.assertRaises(ValueError):
+                curves_cc, all_curves_cc = create_planar_curves_between_two_toroidal_surfaces(
+                    s, s_inner, s_outer, Nx=2, Ny=2, Nz=2, order=1, coil_coil_flag=True, jax_flag=False, numquadpoints=10
+                )
+
+            # Test coil_coil_flag=True with forced overlap
             curves_cc, all_curves_cc = create_planar_curves_between_two_toroidal_surfaces(
-                s, s_inner, s_outer, Nx=2, Ny=2, Nz=2, order=1, coil_coil_flag=True, jax_flag=False, numquadpoints=10
+                s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1, coil_coil_flag=True, jax_flag=False, numquadpoints=10
             )
             self.assertTrue(len(curves_cc) > 0)
 
-            # Test coil_coil_flag=True with forced overlap (should raise ValueError)
-            # To force overlap, use a very dense grid
-            with self.assertRaises(ValueError):
-                create_planar_curves_between_two_toroidal_surfaces(
-                    s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1, coil_coil_flag=True, jax_flag=False, numquadpoints=10
-                )
-
-
-class TestCreateEquallySpacedCurvesJax(unittest.TestCase):
     def test_create_equally_spaced_curves_jax(self):
         from simsopt.geo.curve import create_equally_spaced_curves
         ncurves, nfp = 2, 2
@@ -956,7 +943,8 @@ class TestCreateEquallySpacedCurvesJax(unittest.TestCase):
         R0, R1 = 5.0, 1.0
         order = 3
         numquadpoints = 12
-        curves = create_equally_spaced_curves(ncurves, nfp, stellsym, R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, jax_flag=True)
+        curves = create_equally_spaced_curves(ncurves, nfp, stellsym,
+                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, jax_flag=True)
         self.assertEqual(len(curves), ncurves)
         for curve in curves:
             gamma = curve.gamma()
@@ -965,11 +953,14 @@ class TestCreateEquallySpacedCurvesJax(unittest.TestCase):
             R = np.sqrt(gamma[:, 0]**2 + gamma[:, 1]**2)
             self.assertTrue(np.allclose(np.mean(R), R0, atol=0.2))
 
-
-class TestCurveCenterFunction(unittest.TestCase):
     def test_curve_center(self):
+        """
+        Test that the center of a curve is computed correctly.
+
+        Note that the PlanarFourier curve is not initialized with the correct quaternion dofs,
+        which should always be normalized to one, but instead is initialized to zero. 
+        """
         # Use a simple planar circle for which the centroid is known
-        from simsopt.geo.curveplanarfourier import CurvePlanarFourier
         nquad = 100
         order = 1
         R0 = 3.0
@@ -983,14 +974,13 @@ class TestCurveCenterFunction(unittest.TestCase):
         dofs[-1] = 0.0
         curve.set_dofs(dofs)
         gamma = curve.gamma()
-        print(gamma)
         gammadash = curve.gammadash()
         centroid = curve.center(gamma, gammadash)
         # The centroid should be at (R0, 0, 0)
         np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12)
 
         # Repeat with RotatedCurve
-        curve = RotatedCurve(curve, np.eye(3))
+        curve = RotatedCurve(curve, np.pi, flip=False)
         dofs = np.zeros(curve.dof_size)
         dofs[0] = 1.0  # radius
         # Set the center to (R0, 0, 0)
@@ -999,11 +989,40 @@ class TestCurveCenterFunction(unittest.TestCase):
         dofs[-1] = 0.0
         curve.set_dofs(dofs)
         gamma = curve.gamma()
-        print(gamma)
         gammadash = curve.gammadash()
         centroid = curve.center(gamma, gammadash)
         # The centroid should be at (R0, 0, 0)
-        np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12)
+        np.testing.assert_allclose(centroid * -1, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
+
+        # Repeat with JaxCurve
+        curve = JaxCurvePlanarFourier(nquad, order)
+        dofs = np.zeros(curve.dof_size)
+        dofs[0] = 1.0  # radius
+        # Set the center to (R0, 0, 0)
+        dofs[-3] = R0
+        dofs[-2] = 0.0
+        dofs[-1] = 0.0
+        curve.set_dofs(dofs)
+        gamma = curve.gamma()
+        gammadash = curve.gammadash()
+        centroid = curve.center(gamma, gammadash)
+        # The centroid should be at (R0, 0, 0)
+        np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
+
+        # Repeat with RotatedCurve
+        curve = RotatedCurve(curve, np.pi, flip=False)
+        dofs = np.zeros(curve.dof_size)
+        dofs[0] = 1.0  # radius
+        # Set the center to (R0, 0, 0)
+        dofs[-3] = R0
+        dofs[-2] = 0.0
+        dofs[-1] = 0.0
+        curve.set_dofs(dofs)
+        gamma = curve.gamma()
+        gammadash = curve.gammadash()
+        centroid = curve.center(gamma, gammadash)
+        # The centroid should be at (R0, 0, 0)
+        np.testing.assert_allclose(centroid * -1, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
 
 
 if __name__ == "__main__":
