@@ -608,7 +608,7 @@ class DipoleField(MagneticField):
 
     def __init__(self, dipole_grid, dipole_vectors, stellsym=True, nfp=1, 
                  coordinate_flag='cartesian', m_maxima=None, R0=1,
-                 net_forces=None):
+                 net_forces=None, net_torques=None):
         super().__init__()        
         if coordinate_flag == 'toroidal':
             warnings.warn('Note that if using simple toroidal coordinates, '
@@ -616,7 +616,7 @@ class DipoleField(MagneticField):
         self.R0 = R0
         self._dipole_fields_from_symmetries(dipole_grid, dipole_vectors, stellsym, 
                                             nfp, coordinate_flag, m_maxima, R0,
-                                            net_forces=net_forces)
+                                            net_forces=net_forces, net_torques=net_torques)
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
@@ -638,7 +638,7 @@ class DipoleField(MagneticField):
         self, dipole_grid, dipole_vectors, 
         stellsym=True, nfp=1, coordinate_flag='cartesian', 
         m_maxima=None, R0=1,
-        net_forces=None):
+        net_forces=None, net_torques=None):
         """
         Takes the dipoles and grid initialized in a PermanentMagnetOptimizer (for a half-period surface)
         and generates the full dipole manifold so that the call to B() (the magnetic field from
@@ -666,6 +666,7 @@ class DipoleField(MagneticField):
         m_vec = np.zeros((ndipoles * nsym, 3))
         m_max = np.zeros(ndipoles * nsym)
         net_forces_full = np.zeros((ndipoles * nsym, 3))
+        net_torques_full = np.zeros((ndipoles * nsym, 3))
 
         # Load in the dipole locations for a half-period surface
         ox = dipole_grid[:, 0]
@@ -699,6 +700,10 @@ class DipoleField(MagneticField):
         fx = net_forces[:, 0]
         fy = net_forces[:, 1]
         fz = net_forces[:, 2]
+        
+        tx = net_torques[:, 0]
+        ty = net_torques[:, 1]
+        tz = net_torques[:, 2]
 
         # Loop over stellarator and field-period symmetry contributions
         for stell in stell_list:
@@ -719,6 +724,11 @@ class DipoleField(MagneticField):
                 net_forces_full[index:index + n, 0] = fx * np.cos(phi0) * stell - fy * np.sin(phi0)
                 net_forces_full[index:index + n, 1] = fx * np.sin(phi0) * stell + fy * np.cos(phi0)
                 net_forces_full[index:index + n, 2] = fz
+                
+                # get new dipole torques by flipping the x component, then rotating by phi0
+                net_torques_full[index:index + n, 0] = fx * np.cos(phi0) * stell - fy * np.sin(phi0)
+                net_torques_full[index:index + n, 1] = fx * np.sin(phi0) * stell + fy * np.cos(phi0)
+                net_torques_full[index:index + n, 2] = fz
 
                 m_max[index:index + n] = m_maxima
                 index += n
@@ -728,6 +738,7 @@ class DipoleField(MagneticField):
         self.m_vec = contig(m_vec)
         self.m_maxima = contig(m_max)
         self.net_forces_full = contig(net_forces_full)
+        self.net_torques_full = contig(net_torques_full)
 
     def _toVTK(self, vtkname):
         """
@@ -752,6 +763,9 @@ class DipoleField(MagneticField):
         fx = np.ascontiguousarray(self.net_forces_full[:, 0])
         fy = np.ascontiguousarray(self.net_forces_full[:, 1])
         fz = np.ascontiguousarray(self.net_forces_full[:, 2])
+        tx = np.ascontiguousarray(self.net_torques_full[:, 0])
+        ty = np.ascontiguousarray(self.net_torques_full[:, 1])
+        tz = np.ascontiguousarray(self.net_torques_full[:, 2])
         mx_normalized = np.ascontiguousarray(mx / self.m_maxima)
         my_normalized = np.ascontiguousarray(my / self.m_maxima)
         mz_normalized = np.ascontiguousarray(mz / self.m_maxima)
