@@ -14,6 +14,7 @@ on:
     tags-ignore: [v*]
   pull_request:
     branches-ignore: [master]
+    types: [opened, synchronize, reopened] 
 
 jobs:
   test:

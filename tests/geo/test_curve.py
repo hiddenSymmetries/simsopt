@@ -927,7 +927,8 @@ class Testing(unittest.TestCase):
             # Test coil_coil_flag=True
             with self.assertRaises(ValueError):
                 curves_cc, all_curves_cc = create_planar_curves_between_two_toroidal_surfaces(
-                    s, s_inner, s_outer, Nx=2, Ny=2, Nz=2, order=1, coil_coil_flag=True, jax_flag=False, numquadpoints=10
+                    s, s_inner, s_outer, Nx=6, Ny=6, Nz=6, order=1, coil_coil_flag=True, jax_flag=False, numquadpoints=10,
+                    eps=1, Nmin_factor=1.0
                 )
 
             # Test coil_coil_flag=True with forced overlap

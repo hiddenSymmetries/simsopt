@@ -965,7 +965,7 @@ def curves_to_vtk(curves, filename, close=False, I=None, extra_point_data=None,
     polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData=pointData)
 
 
-def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag):
+def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_factor=2.5):
     # Get (X, Y, Z) coordinates of the two boundaries
     nfp = s.nfp
     xyz_inner = s_inner.gamma().reshape(-1, 3)
@@ -989,10 +989,7 @@ def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag):
 
     # This is not a guarantee that coils will not touch but inductance
     # matrix blows up if they do so it is easy to tell when they do
-    if coil_coil_flag:
-        R = Nmin / 3.1
-    else:
-        R = Nmin / 2.5
+    R = Nmin / Nmin_factor
 
     print('Major radius of the coils is R = ', R)
     print('Coils are spaced so that every coil of radius R '
@@ -1047,7 +1044,8 @@ def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag):
 
 def create_planar_curves_between_two_toroidal_surfaces(
     s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1,
-    coil_coil_flag=False, jax_flag=False, numquadpoints=None
+    coil_coil_flag=False, jax_flag=False, numquadpoints=None,
+    Nmin_factor=2.5, eps=0.01,
 ):
     from simsopt.geo import CurvePlanarFourier, JaxCurvePlanarFourier
     from simsopt.field import apply_symmetries_to_curves
@@ -1056,8 +1054,7 @@ def create_planar_curves_between_two_toroidal_surfaces(
     stellsym = s.stellsym
     normal_inner = s_inner.unitnormal().reshape(-1, 3)
     normal_outer = s_outer.unitnormal().reshape(-1, 3)
-    xyz_uniform, xyz_inner, xyz_outer, R = setup_uniform_grid(
-        s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag=coil_coil_flag)
+    xyz_uniform, xyz_inner, xyz_outer, R = setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_factor=Nmin_factor)
     # Have the uniform grid, now need to loop through and eliminate cells.
     contig = np.ascontiguousarray
     grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
@@ -1070,13 +1067,14 @@ def create_planar_curves_between_two_toroidal_surfaces(
     inds = np.ravel(np.logical_not(np.all(grid_xyz == 0.0, axis=-1)))
     grid_xyz = np.array(grid_xyz[inds, :], dtype=float)
 
-    # Check if the grid intersects a symmetry plane -- oops!
+    # Check if the grid intersects a symmetry plane
     phi0 = 2 * np.pi / nfp * np.arange(nfp)
     phi_grid = np.arctan2(grid_xyz[:, 1], grid_xyz[:, 0])
     phi_dev = np.arctan2(R, np.sqrt(grid_xyz[:, 0] ** 2 + grid_xyz[:, 1] ** 2))
     inds = []
-    eps = 1e-3
     remove_inds = []
+
+    # Remove any coils intersecting with the symmetry plane.
     for i in range(nfp):
         conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
         if len(conflicts) > 0:
@@ -1084,30 +1082,18 @@ def create_planar_curves_between_two_toroidal_surfaces(
     if len(inds) > 0:
         print('bad indices = ', inds)
     remove_inds = inds
-    # raise ValueError('The PSC coils are initialized such that they may intersect with '
-    #                  'a discrete symmetry plane, preventing the proper symmetrization '
-    #                  'of the coils under stellarator and field-period symmetries. '
-    #                  'Please reinitialize the coils.')
+
+    # Remove any coils within a distance eps of another coil.
     if coil_coil_flag:
         for i in range(grid_xyz.shape[0]):
             for j in range(i + 1, grid_xyz.shape[0]):
                 dij = np.sqrt(np.sum((grid_xyz[i, :] - grid_xyz[j, :]) ** 2))
-                conflict_bool = (dij < eps)  # (2.0 + eps) * R)
+                conflict_bool = (dij < eps)
                 if conflict_bool:
                     print('bad indices = ', i, j, dij)
                     raise ValueError('There is a PSC coil initialized such that it is within a diameter'
-                                     'of another PSC coil. Please reinitialize the coils.')
-
-    # eps = 0.1 # 10 cm
-    # for i in range(grid_xyz.shape[0]):
-    #     for j in range(i + 1, grid_xyz.shape[0]):
-    #         dij = np.sqrt(np.sum((grid_xyz[i, :] - grid_xyz[j, :]) ** 2))
-    #         conflict_bool = (dij < eps) # (2.0 + eps) * R)
-    #         remove_inds = np.append(remove_inds, j) if conflict_bool else remove_inds
-    #         if conflict_bool:
-    #             print('bad indices = ', i, j, dij)
-    #             raise ValueError('There is a PSC coil initialized such that it is within a diameter'
-    #                                 'of another PSC coil. Please reinitialize the coils.')
+                                     'of another PSC coil. Please reinitialize the coils with a smaller Nmin_factor,'
+                                     'larger epsilon, or a larger number of points.')
 
     final_inds = np.setdiff1d(np.arange(grid_xyz.shape[0]), remove_inds)
     grid_xyz = grid_xyz[final_inds, :]
