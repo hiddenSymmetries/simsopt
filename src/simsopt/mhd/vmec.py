@@ -346,9 +346,13 @@ class Vmec(Optimizable):
             # object, but the mpol/ntor values of either the vmec object
             # or the boundary surface object can be changed independently
             # by the user.
+            # `vi.mpol` comes from VMEC, but VMEC only uses `m=0, 1, ..., (mpol-1)`,
+            # but `SurfaceRZFourier` includes `m=mpol`, so we have to
+            # initialize `SurfaceRZFourier` with the highest poloidal mode
+            # that VMEC uses, which is `vi.mpol-1`.
             self._boundary = SurfaceRZFourier.from_nphi_ntheta(nfp=vi.nfp,
                                                                stellsym=not vi.lasym,
-                                                               mpol=vi.mpol,
+                                                               mpol=vi.mpol - 1,
                                                                ntor=vi.ntor,
                                                                ntheta=ntheta,
                                                                nphi=nphi,
@@ -356,7 +360,8 @@ class Vmec(Optimizable):
             self.free_boundary = bool(vi.lfreeb)
 
             # Transfer boundary shape data from fortran to the ParameterArray:
-            for m in range(vi.mpol + 1):
+            # The highest mode number relevant to VMEC in its input is `vi.mpol-1`.
+            for m in range(vi.mpol):
                 for n in range(-vi.ntor, vi.ntor + 1):
                     self._boundary.rc[m, n + vi.ntor] = vi.rbc[101 + n, m]
                     self._boundary.zs[m, n + vi.ntor] = vi.zbs[101 + n, m]
@@ -525,7 +530,9 @@ class Vmec(Optimizable):
         mpol_capped = np.min([boundary_RZFourier.mpol, 101])
         ntor_capped = np.min([boundary_RZFourier.ntor, 101])
         # Transfer boundary shape data from the surface object to VMEC:
-        for m in range(mpol_capped + 1):
+        # The highest mode number that VMEC can use is `m=100`
+        # if the max resolution is `mpol=101`.
+        for m in range(mpol_capped):
             for n in range(-ntor_capped, ntor_capped + 1):
                 vi.rbc[101 + n, m] = boundary_RZFourier.get_rc(m, n)
                 vi.zbs[101 + n, m] = boundary_RZFourier.get_zs(m, n)
@@ -763,7 +770,7 @@ class Vmec(Optimizable):
                     os.remove(filename)
                 except FileNotFoundError:
                     logger.debug(f"Tried to delete the file {filename} but it was not found")
-                    
+
             self.files_to_delete = []
 
             # Record the latest output file to delete if we run again:

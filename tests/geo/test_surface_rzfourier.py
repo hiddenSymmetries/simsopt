@@ -255,11 +255,13 @@ class SurfaceRZFourierTests(unittest.TestCase):
         filename2 = TEST_DIR / 'wout_li383_low_res_reference.nc'
         s1 = SurfaceRZFourier.from_vmec_input(filename1)
         s2 = SurfaceRZFourier.from_wout(filename2)
-        mpol = min(s1.mpol, s2.mpol)
-        ntor = min(s1.ntor, s2.ntor)
-        places = 13
+        self.assertEqual(s1.mpol, s2.mpol)
+        self.assertEqual(s1.ntor, s2.ntor)
         self.assertEqual(s1.nfp, s2.nfp)
         self.assertEqual(s1.stellsym, s2.stellsym)
+        mpol = s1.mpol
+        ntor = s1.ntor
+        places = 13
         for m in range(mpol + 1):
             nmin = 0 if m == 0 else -ntor
             for n in range(nmin, ntor + 1):
@@ -287,8 +289,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # coordinate-independent properties like the volume and area.
         self.assertAlmostEqual(np.abs(s1.volume()), np.abs(s2.volume()), places=13)
         self.assertAlmostEqual(s1.area(), s2.area(), places=7)
-        mpol = min(s1.mpol, s2.mpol)
-        ntor = min(s1.ntor, s2.ntor)
+        self.assertEqual(s1.mpol, s2.mpol)
+        self.assertEqual(s1.ntor, s2.ntor)
+        mpol = s1.mpol
+        ntor = s1.ntor
         places = 13
         for m in range(mpol + 1):
             nmin = 0 if m == 0 else -ntor
@@ -311,11 +315,13 @@ class SurfaceRZFourierTests(unittest.TestCase):
         with ScratchDir("."):
             s1.write_nml(new_filename)
             s2 = SurfaceRZFourier.from_vmec_input(new_filename)
-        mpol = min(s1.mpol, s2.mpol)
-        ntor = min(s1.ntor, s2.ntor)
-        places = 13
         self.assertEqual(s1.nfp, s2.nfp)
         self.assertEqual(s1.stellsym, s2.stellsym)
+        self.assertEqual(s1.mpol, s2.mpol)
+        self.assertEqual(s1.ntor, s2.ntor)
+        mpol = s1.mpol
+        ntor = s1.ntor
+        places = 13
         for m in range(mpol + 1):
             nmin = 0 if m == 0 else -ntor
             for n in range(nmin, ntor + 1):
@@ -331,11 +337,13 @@ class SurfaceRZFourierTests(unittest.TestCase):
             with open(new_filename, 'w') as f:
                 f.write(nml_str)
             s2 = SurfaceRZFourier.from_vmec_input(new_filename)
-        mpol = min(s1.mpol, s2.mpol)
-        ntor = min(s1.ntor, s2.ntor)
-        places = 13
         self.assertEqual(s1.nfp, s2.nfp)
         self.assertEqual(s1.stellsym, s2.stellsym)
+        self.assertEqual(s1.mpol, s2.mpol)
+        self.assertEqual(s1.ntor, s2.ntor)
+        mpol = s1.mpol
+        ntor = s1.ntor
+        places = 13
         for m in range(mpol + 1):
             nmin = 0 if m == 0 else -ntor
             for n in range(nmin, ntor + 1):
@@ -764,10 +772,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         # Create the grid of quadpoints:
         phi2d, theta2d = np.meshgrid(2 * np.pi * s.quadpoints_phi,
-                                     2 * np.pi * s.quadpoints_theta, 
+                                     2 * np.pi * s.quadpoints_theta,
                                      indexing='ij')
 
-        # create a test field where only Fourier elements [m=2, n=3] 
+        # create a test field where only Fourier elements [m=2, n=3]
         # and [m=4,n=5] are nonzero:
         field = 0.8 * np.sin(2*theta2d - 3*s.nfp*phi2d) + 0.2*np.sin(4*theta2d - 5*s.nfp*phi2d)+ 0.7*np.cos(3*theta2d - 3*s.nfp*phi2d)
 
