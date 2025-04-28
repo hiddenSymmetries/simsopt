@@ -583,15 +583,20 @@ class CoilForcesTest(unittest.TestCase):
         all_base_coils = base_coils + base_coils_TF
         btot = psc_array.biot_savart_total
         btot.set_points(eval_points)
+        regularization_list = np.ones(len(coils)) * regularization
         p = 2.5
         threshold = 0.0
+        # Note that passive coils must use the "mixed" objective classes
         objectives = [
             SquaredFlux(s, btot),
+            TVE(coils[0], coils, a=0.05, psc_array=psc_array),
+            MixedLpCurveTorque(coils[0:1], coils[1:], regularization_list[0:1], regularization_list[1:],
+                               p=p, threshold=threshold, psc_array=psc_array),
+            MixedSquaredMeanTorque(coils[0:2], coils[2:], psc_array=psc_array),
+            MixedLpCurveForce(coils[0:1], coils[1:], regularization_list[0:1],
+                              regularization_list[1:], p=p, threshold=threshold, psc_array=psc_array),
+            MixedSquaredMeanForce([coils[0]], coils[1:], psc_array=psc_array),
             sum([TVE(all_base_coils[i], all_base_coils, a=0.05) for i in range(len(all_base_coils))]),
-            sum([LpCurveForce(all_base_coils[i], all_base_coils, regularization, p=p, threshold=threshold) for i in range(len(all_base_coils))]),
-            sum([LpCurveTorque(all_base_coils[i], all_base_coils, regularization, p=p, threshold=threshold) for i in range(len(all_base_coils))]),
-            sum([SquaredMeanForce(all_base_coils[i], all_base_coils) for i in range(len(all_base_coils))]),
-            sum([SquaredMeanTorque(all_base_coils[i], all_base_coils) for i in range(len(all_base_coils))]),
         ]
         print('PSCArray Taylor test: ')
         for J in objectives:
@@ -618,6 +623,9 @@ class CoilForcesTest(unittest.TestCase):
 
     def objectives_time_test(self):
         import time
+        import matplotlib.pyplot as plt
+        import numpy as np
+
         nfp = 3
         I = 1.7e4
 
@@ -625,121 +633,96 @@ class CoilForcesTest(unittest.TestCase):
         threshold = 1.0e3
         regularization = regularization_circ(0.05)
 
-        for ncoils in [4]:
-            base_curves = create_equally_spaced_curves(ncoils, nfp, True)
-            base_currents = [Current(I) for j in range(ncoils)]
-            coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
-            objective1 = sum([LpCurveForce(coils[i], coils, regularization, p=p, threshold=threshold) for i in range(len(coils))])
-            regularization_list = np.ones(len(coils)) * regularization
-            objective2 = MixedLpCurveForce(coils[0:1], coils[1:], regularization_list[0:1], regularization_list[1:], p=p, threshold=threshold)
-            objective1.J()
-            objective1.dJ()
-            objective2.J()
-            objective2.dJ()
-            print('Timing after Jax has initialized, ncoils = ', ncoils)
-            t1 = time.time()
-            objective1.J()
-            t2 = time.time()
-            print('Took t = ', t2 - t1, ' seconds for J LpCurveForce')
-            t1 = time.time()
-            objective1.dJ()
-            t2 = time.time()
-            print('Took t = ', t2 - t1, ' seconds for dJ LpCurveForce')
-            t1 = time.time()
-            objective2.J()
-            t2 = time.time()
-            print('Took t = ', t2 - t1, ' seconds for J MixedLpCurveForce')
-            t1 = time.time()
-            objective2.dJ()
-            t2 = time.time()
-            print('Took t = ', t2 - t1, ' seconds for dJ MixedLpCurveForce')
+        # List of objective classes to test
+        objective_classes = [
+            "LpCurveForce (sum all)",
+            "MixedLpCurveForce",
+            "LpCurveTorque (sum all)",
+            "MixedLpCurveTorque",
+            "SquaredMeanForce (sum all)",
+            "MixedSquaredMeanForce",
+            "SquaredMeanTorque (sum all)",
+            "MixedSquaredMeanTorque",
+        ]
 
-        for ncoils in [4, 8, 16]:
-            base_curves = create_equally_spaced_curves(ncoils, nfp, True)
-            base_currents = [Current(I) for j in range(ncoils)]
-            coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
-            objective1 = sum([LpCurveTorque(coils[i], coils, regularization, p=p, threshold=threshold) for i in range(len(coils))])
-            regularization_list = np.ones(len(coils)) * regularization
-            objective2 = MixedLpCurveTorque(coils[0:1], coils[1:], regularization_list[0:1], regularization_list[1:], p=p, threshold=threshold)
-            objective1.J()
-            objective1.dJ()
-            objective2.J()
-            objective2.dJ()
-            print('Timing after Jax has initialized, ncoils = ', ncoils)
-            t1 = time.time()
-            objective1.J()
-            t2 = time.time()
-            print('Took t = ', t2 - t1, ' seconds for J LpCurveTorque')
-            t1 = time.time()
-            objective1.dJ()
-            t2 = time.time()
-            print('Took t = ', t2 - t1, ' seconds for dJ LpCurveTorque')
-            t1 = time.time()
-            objective2.J()
-            t2 = time.time()
-            print('Took t = ', t2 - t1, ' seconds for J MixedLpCurveTorque')
-            t1 = time.time()
-            objective2.dJ()
-            t2 = time.time()
-            print('Took t = ', t2 - t1, ' seconds for dJ MixedLpCurveTorque')
+        ncoils_list = [4, 8, 16]
+        runtimes_J = np.zeros((len(objective_classes), len(ncoils_list)))
+        runtimes_dJ = np.zeros((len(objective_classes), len(ncoils_list)))
 
-        for ncoils in [4, 8, 16]:
+        for idx_n, ncoils in enumerate(ncoils_list):
+            print(f"\n--- Timing tests for ncoils = {ncoils} ---")
             base_curves = create_equally_spaced_curves(ncoils, nfp, True)
             base_currents = [Current(I) for j in range(ncoils)]
             coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
-            objective1 = sum([SquaredMeanForce(coils[i], coils, regularization, p=p, threshold=threshold) for i in range(len(coils))])
             regularization_list = np.ones(len(coils)) * regularization
-            objective2 = MixedSquaredMeanForce(coils[0:1], coils[1:], regularization_list[0:1], regularization_list[1:], p=p, threshold=threshold)
-            objective1.J()
-            objective1.dJ()
-            objective2.J()
-            objective2.dJ()
-            print('Timing after Jax has initialized, ncoils = ', ncoils)
-            t1 = time.time()
-            objective1.J()
-            t2 = time.time()
-            print('Took t = ', t2 - t1, ' seconds for J SquaredMeanForce')
-            t1 = time.time()
-            objective1.dJ()
-            t2 = time.time()
-            print('Took t = ', t2 - t1, ' seconds for dJ SquaredMeanForce')
-            t1 = time.time()
-            objective2.J()
-            t2 = time.time()
-            print('Took t = ', t2 - t1, ' seconds for J MixedSquaredMeanForce')
-            t1 = time.time()
-            objective2.dJ()
-            t2 = time.time()
-            print('Took t = ', t2 - t1, ' seconds for dJ MixedSquaredMeanForce')
 
-        for ncoils in [4, 8, 16]:
-            base_curves = create_equally_spaced_curves(ncoils, nfp, True)
-            base_currents = [Current(I) for j in range(ncoils)]
-            coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
-            objective1 = sum([SquaredMeanTorque(coils[i], coils, regularization, p=p, threshold=threshold) for i in range(len(coils))])
-            regularization_list = np.ones(len(coils)) * regularization
-            objective2 = MixedSquaredMeanTorque(coils[0:1], coils[1:], regularization_list[0:1], regularization_list[1:], p=p, threshold=threshold)
-            objective1.J()
-            objective1.dJ()
-            objective2.J()
-            objective2.dJ()
-            print('Timing after Jax has initialized, ncoils = ', ncoils)
-            t1 = time.time()
-            objective1.J()
-            t2 = time.time()
-            print('Took t = ', t2 - t1, ' seconds for J SquaredMeanTorque')
-            t1 = time.time()
-            objective1.dJ()
-            t2 = time.time()
-            print('Took t = ', t2 - t1, ' seconds for dJ SquaredMeanTorque')
-            t1 = time.time()
-            objective2.J()
-            t2 = time.time()
-            print('Took t = ', t2 - t1, ' seconds for J MixedSquaredMeanTorque')
-            t1 = time.time()
-            objective2.dJ()
-            t2 = time.time()
-            print('Took t = ', t2 - t1, ' seconds for dJ MixedSquaredMeanTorque')
+            # Prepare objectives for each class
+            # LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque: sum over all coils
+            objectives = [
+                [LpCurveForce(c, coils, regularization, p=p, threshold=threshold) for c in coils],
+                MixedLpCurveForce(coils[0:1], coils[1:], regularization_list[0:1], regularization_list[1:], p=p, threshold=threshold),
+                [LpCurveTorque(c, coils, regularization, p=p, threshold=threshold) for c in coils],
+                MixedLpCurveTorque(coils[0:1], coils[1:], regularization_list[0:1], regularization_list[1:], p=p, threshold=threshold),
+                [SquaredMeanForce(c, coils) for c in coils],
+                MixedSquaredMeanForce([coils[0]], coils[1:]),
+                [SquaredMeanTorque(c, coils) for c in coils],
+                MixedSquaredMeanTorque(coils[0:2], coils[2:]),
+            ]
+
+            # Timing with pre-compilation (warm-up)
+            print("Timing with pre-compilation (warm-up):")
+            for i, (obj, obj_label) in enumerate(zip(objectives, objective_classes)):
+                # Warm-up
+                if isinstance(obj, list):
+                    for o in obj:
+                        o.J()
+                        o.dJ()
+                else:
+                    obj.J()
+                    obj.dJ()
+                # Timing J
+                t1 = time.time()
+                if isinstance(obj, list):
+                    sum(o.J() for o in obj)
+                else:
+                    obj.J()
+                t2 = time.time()
+                runtimes_J[i, idx_n] = t2 - t1
+                print(f'{obj_label}: Took {t2 - t1:.6f} seconds for J')
+                # Timing dJ
+                t1 = time.time()
+                if isinstance(obj, list):
+                    sum(o.dJ() for o in obj)
+                else:
+                    obj.dJ()
+                t2 = time.time()
+                runtimes_dJ[i, idx_n] = t2 - t1
+                print(f'{obj_label}: Took {t2 - t1:.6f} seconds for dJ')
+
+        # Plotting the results
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharey=True)
+        x = np.arange(len(ncoils_list))
+        width = 0.10
+
+        for i, label in enumerate(objective_classes):
+            axes[0].bar(x + i * width - width*len(objective_classes)/2, runtimes_J[i], width, label=label)
+            axes[1].bar(x + i * width - width*len(objective_classes)/2, runtimes_dJ[i], width, label=label)
+
+        axes[0].set_xticks(x)
+        axes[0].set_xticklabels([str(n) for n in ncoils_list])
+        axes[0].set_xlabel("Number of coils")
+        axes[0].set_ylabel("Runtime (s)")
+        axes[0].set_title("Objective J() runtimes")
+        axes[0].legend(fontsize=8)
+
+        axes[1].set_xticks(x)
+        axes[1].set_xticklabels([str(n) for n in ncoils_list])
+        axes[1].set_xlabel("Number of coils")
+        axes[1].set_title("Objective dJ() runtimes")
+        axes[1].legend(fontsize=8)
+
+        plt.tight_layout()
+        plt.show()
 
     def test_update_points(self):
         """Confirm that Biot-Savart evaluation points are updated when the

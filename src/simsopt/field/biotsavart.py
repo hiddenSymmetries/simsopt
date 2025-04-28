@@ -110,8 +110,8 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
                                    res_gamma, res_gammadash, [], [], [])
         dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
         res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
+        # Passive coils require extra contribution to the objective gradients from the current dependence
         if self.psc_array is not None:
-            # Current part can be zeroed out in line immediately below this comment
             vjp = sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([0.0])) for i in range(len(coils))])
             vjp += self.psc_array.vjp_setup(np.array(res_current))
         else:

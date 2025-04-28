@@ -216,10 +216,10 @@ class PSCArray():
 
         # Appears essential to reset the children of the coils, curves and currents
         # to avoid the optimizable graph growing extremely large when # of coils > 10 or so
-        for c in (self.coils + self.coils_TF):
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in (self.coils + self.coils_TF):
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
         return sum(vjp_psc + vjp_TF)
 
     def recompute_currents(self):
@@ -242,10 +242,10 @@ class PSCArray():
 
         # Appears essential to reset the children of the coils, curves and currents
         # to avoid the optimizable graph growing extremely large when # of coils > 10 or so
-        for c in (self.coils + self.coils_TF):
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in (self.coils + self.coils_TF):
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
 
 class ScaledCurrent(sopp.CurrentBase, CurrentBase):

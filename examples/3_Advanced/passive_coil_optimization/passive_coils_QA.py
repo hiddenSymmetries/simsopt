@@ -187,7 +187,7 @@ CC_WEIGHT = 1
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(0.0)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(1e-30)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
@@ -331,7 +331,7 @@ np.random.seed(1)
 h = np.random.uniform(size=dofs.shape)
 J0, dJ0 = f(dofs)
 dJh = sum(dJ0 * h)
-for eps in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]:
+for eps in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
     t1 = time.time()
     J1, _ = f(dofs + eps*h)
     J2, _ = f(dofs - eps*h)
