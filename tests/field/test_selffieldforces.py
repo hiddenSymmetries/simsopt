@@ -722,7 +722,7 @@ class CoilForcesTest(unittest.TestCase):
         axes[1].legend(fontsize=8)
 
         plt.tight_layout()
-        plt.show()
+        plt.savefig("objective_runtimes.png")
 
     def test_update_points(self):
         """Confirm that Biot-Savart evaluation points are updated when the
