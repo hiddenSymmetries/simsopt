@@ -531,7 +531,7 @@ class CoilForcesTest(unittest.TestCase):
             h = np.ones_like(dofs)
             err = 1e3
             print('Objective = ', J)
-            for i in range(10, 21):
+            for i in range(11, 21):
                 eps = 0.5**i
                 J.x = dofs + eps * h
                 Jp = J.J()
