@@ -510,15 +510,22 @@ def _find_periodic_field_line_pseudospectral(
     # )
 
     # Establish initial condition:
-    R0, Z0 = _integrate_field_line(field, R0, Z0, phimax, 1e-10, phi0=phi0, nphi=nphi + 1)
-    # Subtract off a linear function to make the initial condition periodic
-    Delta_R = R0[-1] - R0[0]
-    Delta_Z = Z0[-1] - Z0[0]
-    R0 -= np.linspace(0, Delta_R, nphi + 1)
-    Z0 -= np.linspace(0, Delta_Z, nphi + 1)
-    print("Initial condition R0:", R0)
-    print("Initial condition Z0:", Z0)
-    state = np.concatenate((R0[:-1], Z0[:-1]))
+    if isinstance(R0, (list, np.ndarray)) and isinstance(Z0, (list, np.ndarray)):
+        if len(R0) != nphi or len(Z0) != nphi:
+            raise ValueError("Length of R0 and Z0 must match nphi")
+    else:
+        R0, Z0 = _integrate_field_line(field, R0, Z0, phimax, 1e-10, phi0=phi0, nphi=nphi + 1)
+        # Subtract off a linear function to make the initial condition periodic
+        Delta_R = R0[-1] - R0[0]
+        Delta_Z = Z0[-1] - Z0[0]
+        R0 -= np.linspace(0, Delta_R, nphi + 1)
+        Z0 -= np.linspace(0, Delta_Z, nphi + 1)
+        R0 = R0[:-1]
+        Z0 = Z0[:-1]
+        print("Initial condition R0:", R0)
+        print("Initial condition Z0:", Z0)
+    
+    state = np.concatenate((R0, Z0))
 
     sol = root(
         _pseudospectral_residual, 
