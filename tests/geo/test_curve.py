@@ -937,6 +937,41 @@ class Testing(unittest.TestCase):
             )
             self.assertTrue(len(curves_cc) > 0)
 
+            # Additional tests for different nfp values and files
+            nfp_file_map = {
+                1: 'input.circular_tokamak',
+                3: 'c09r00_B_axis_half_tesla_PM4Stell.plasma',
+                4: 'input.LandremanPaul2021_QH_reactorScale_lowres'
+            }
+            for nfp, fname in nfp_file_map.items():
+                print(f"Testing {fname} with nfp={nfp}")
+                with self.subTest(nfp=nfp):
+                    file_nfp = TEST_DIR / fname
+                    print(file_nfp)
+                    if nfp == 3:
+                        load_func = SurfaceRZFourier.from_focus
+                    else:
+                        load_func = SurfaceRZFourier.from_vmec_input
+                    s_nfp = load_func(file_nfp, range="half period", nphi=nphi, ntheta=ntheta)
+                    s_inner_nfp = load_func(file_nfp, range="half period", nphi=nphi, ntheta=ntheta)
+                    s_outer_nfp = load_func(file_nfp, range="half period", nphi=nphi, ntheta=ntheta)
+                    # Use different extension distances for QH reactor scale (nfp=4)
+                    if nfp == 4:
+                        s_inner_nfp.extend_via_projected_normal(1.0)
+                        s_outer_nfp.extend_via_projected_normal(2.0)
+                    else:
+                        s_inner_nfp.extend_via_projected_normal(0.1)
+                        s_outer_nfp.extend_via_projected_normal(0.2)
+                    curves_nfp, all_curves_nfp = create_planar_curves_between_two_toroidal_surfaces(
+                        s_nfp, s_inner_nfp, s_outer_nfp, Nx=10, Ny=10, Nz=10, order=1, coil_coil_flag=False, jax_flag=False, numquadpoints=10
+                    )
+                    self.assertTrue(len(curves_nfp) > 0)
+                    self.assertTrue(len(all_curves_nfp) >= len(curves_nfp))
+                    for curve in curves_nfp:
+                        gamma = curve.gamma()
+                        self.assertEqual(gamma.shape[1], 3)
+                        self.assertEqual(gamma.shape[0], 10)
+
     def test_create_equally_spaced_curves_jax(self):
         from simsopt.geo.curve import create_equally_spaced_curves
         ncurves, nfp = 2, 2

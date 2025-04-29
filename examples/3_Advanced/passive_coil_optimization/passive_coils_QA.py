@@ -8,9 +8,10 @@ import time
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import regularization_rect, PSCArray
-from simsopt.field.force import LpCurveForce, \
-    SquaredMeanForce, \
-    SquaredMeanTorque, LpCurveTorque
+from simsopt.field.force import MixedLpCurveForce, \
+    MixedSquaredMeanForce, \
+    MixedLpCurveTorque, \
+    MixedSquaredMeanTorque
 from simsopt.util import calculate_on_axis_B, align_dipoles_with_plasma, \
     remove_interlinking_dipoles_and_TFs, initialize_coils, save_coil_sets, in_github_actions
 from simsopt.geo import (
@@ -187,10 +188,10 @@ CC_WEIGHT = 1
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(1e-30)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(0)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT2 = Weight(0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT = Weight(0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT2 = Weight(1e-14)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 
 # Force and Torque calculations spawn a bunch of spurious BiotSavart child objects -- erase them!
@@ -229,17 +230,30 @@ Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 # interlink.
 linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 
-# Currently, all force terms involve all the coils
-all_coils = coils + coils_TF
+# Passive coils are ONLY compatible with the "Mixed" force/torque objectives
+# and MUST be passed in the psc_array argument for the Jacobian to be correct!
 all_base_coils = base_coils + base_coils_TF
-Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=4, threshold=4e5 * 100, downsample=1
-                           ) for i, c in enumerate(all_base_coils)])
-Jforce2 = sum([SquaredMeanForce(c, all_coils, downsample=1) for c in all_base_coils])
+regularization_list_TF = np.ones(len(coils_TF)) * regularization_rect(a, b)
+regularization_list = np.ones(len(coils)) * regularization_rect(aa, bb)
+
+Jforce = MixedLpCurveForce(coils, coils_TF, 
+                           regularization_list, regularization_list_TF, 
+                           p=4, downsample=1,
+                           psc_array=psc_array
+                           )
+Jforce2 = MixedSquaredMeanForce(coils, coils_TF,
+                                psc_array=psc_array
+                                )
 
 # Errors creep in when downsample = 2
-Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100, downsample=1
-                             ) for i, c in enumerate(all_base_coils)])
-Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
+Jtorque = MixedLpCurveTorque(coils, coils_TF, 
+                           regularization_list, regularization_list_TF, 
+                           p=2, downsample=1,
+                           psc_array=psc_array
+                           )
+Jtorque2 = MixedSquaredMeanTorque(coils, coils_TF,
+                                psc_array=psc_array
+                                )
 
 CURVATURE_THRESHOLD = 0.5
 MSC_THRESHOLD = 0.05
@@ -252,6 +266,8 @@ else:
 Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
 Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 
+# Note that only Jf and the forces/torques depend on the PSC currents, 
+# which is the tricky part of the Jacobian
 JF = Jf \
     + CS_WEIGHT * Jcsdist \
     + CC_WEIGHT * Jccdist \
@@ -279,7 +295,7 @@ def fun(dofs):
     # being directly optimized.
     psc_array.recompute_currents()
     # absolutely essential line if the PSCs do not have any dofs
-    btot.Bfields[0].invalidate_cache()
+    # btot.Bfields[0].invalidate_cache()
     J = JF.J()
     grad = JF.dJ()
     jf = Jf.J()
@@ -331,7 +347,7 @@ np.random.seed(1)
 h = np.random.uniform(size=dofs.shape)
 J0, dJ0 = f(dofs)
 dJh = sum(dJ0 * h)
-for eps in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
+for eps in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8]:
     t1 = time.time()
     J1, _ = f(dofs + eps*h)
     J2, _ = f(dofs - eps*h)

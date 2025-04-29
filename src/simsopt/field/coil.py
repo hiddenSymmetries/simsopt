@@ -113,11 +113,13 @@ class PSCArray():
     and currents in the PSCs and the TFs.
     """
 
-    def __init__(self, base_psc_curves, coils_TF, eval_points, a_list, b_list, nfp=1, stellsym=False, downsample=1, cross_section='circular', dofs=None, **kwargs):
+    def __init__(self, base_psc_curves, coils_TF, eval_points, a_list, b_list, nfp=1, 
+                 stellsym=False, downsample=1, cross_section='circular'):
         from .biotsavart import BiotSavart
         self.base_psc_curves = base_psc_curves  # not the symmetrized ones
         self.nfp = nfp
         self.stellsym = stellsym
+        
         # Get the symmetrized curves
         psc_curves = apply_symmetries_to_curves(base_psc_curves, nfp, stellsym)
 
@@ -284,10 +286,6 @@ class JaxCurrent(sopp.Current, CurrentBase):
             CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
                                  dofs=dofs, **kwargs)
 
-        @property
-        def current(self):
-            return self.get_value()
-
         self.current_pure = current_pure
         self.current_jax = jit(lambda dofs: self.current_pure(dofs))
         self.dcurrent_by_dcurrent_jax = jit(jacrev(self.current_jax))
@@ -304,6 +302,10 @@ class JaxCurrent(sopp.Current, CurrentBase):
     def set_dofs(self, dofs):
         self.local_x = dofs
         sopp.Current.set_dofs(self, dofs)
+
+    @property
+    def current(self):
+        return self.get_value()
 
 
 class CurrentSum(sopp.CurrentBase, CurrentBase):

@@ -9,7 +9,7 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curve import RotatedCurve, create_equally_spaced_curves, create_equally_spaced_planar_curves
-from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum, coils_via_symmetries
+from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum, coils_via_symmetries, JaxCurrent
 from simsopt.field.coil import coils_to_makegrid, coils_to_focus, load_coils_from_makegrid_file
 from simsopt.field.biotsavart import BiotSavart
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
@@ -64,7 +64,7 @@ class TestCoil(unittest.TestCase):
         x = np.asarray([0.6] + [0.6 + eps for eps in epss])
         curve = get_curve(curvetype, rotated, x)
 
-        for current in (Current(1e4), ScaledCurrent(Current(1e4), 4)):
+        for current in (Current(1e4), JaxCurrent(1e4), ScaledCurrent(Current(1e4), 4)):
             coil = Coil(curve, current)
             coil_str = json.dumps(SIMSON(coil), cls=GSONEncoder)
             coil_regen = json.loads(coil_str, cls=GSONDecoder)
@@ -83,65 +83,69 @@ class TestCoil(unittest.TestCase):
 
 class TestCurrentSerialization(unittest.TestCase):
     def test_current_serialization(self):
-        current = Current(1e4)
-        current_str = json.dumps(SIMSON(current), cls=GSONEncoder)
-        current_regen = json.loads(current_str, cls=GSONDecoder)
-        self.assertAlmostEqual(current.get_value(), current_regen.get_value())
+        for CurrentCls in [Current, JaxCurrent]:
+            current = CurrentCls(1e4)
+            current_str = json.dumps(SIMSON(current), cls=GSONEncoder)
+            current_regen = json.loads(current_str, cls=GSONDecoder)
+            self.assertAlmostEqual(current.get_value(), current_regen.get_value())
 
     def test_scaled_current_serialization(self):
-        current = Current(1e4)
-        scaled_current = ScaledCurrent(current, 3)
-        current_str = json.dumps(SIMSON(scaled_current), cls=GSONEncoder)
-        current_regen = json.loads(current_str, cls=GSONDecoder)
-        self.assertAlmostEqual(scaled_current.get_value(),
-                               current_regen.get_value())
+        for CurrentCls in [Current, JaxCurrent]:
+            current = CurrentCls(1e4)
+            scaled_current = ScaledCurrent(current, 3)
+            current_str = json.dumps(SIMSON(scaled_current), cls=GSONEncoder)
+            current_regen = json.loads(current_str, cls=GSONDecoder)
+            self.assertAlmostEqual(scaled_current.get_value(),
+                                   current_regen.get_value())
 
     def test_current_sum_serialization(self):
-        current_a = Current(1e4)
-        current_b = Current(1.5e4)
-        current = CurrentSum(current_a, current_b)
-        current_str = json.dumps(SIMSON(current), cls=GSONEncoder)
-        current_regen = json.loads(current_str, cls=GSONDecoder)
-        self.assertAlmostEqual(current.get_value(),
-                               current_regen.get_value())
+        for CurrentCls in [Current, JaxCurrent]:
+            current_a = CurrentCls(1e4)
+            current_b = CurrentCls(1.5e4)
+            current = CurrentSum(current_a, current_b)
+            current_str = json.dumps(SIMSON(current), cls=GSONEncoder)
+            current_regen = json.loads(current_str, cls=GSONDecoder)
+            self.assertAlmostEqual(current.get_value(),
+                                   current_regen.get_value())
 
 
 class ScaledCurrentTesting(unittest.TestCase):
 
     def test_scaled_current(self):
         one = np.asarray([1.])
-        c0 = Current(5.)
-        fak = 3.
-        c1 = fak * c0
-        assert abs(c1.get_value()-fak * c0.get_value()) < 1e-15
-        assert np.linalg.norm((c1.vjp(one)-fak * c0.vjp(one))(c0)) < 1e-15
+        for CurrentCls in [Current, JaxCurrent]:
+            c0 = CurrentCls(5.)
+            fak = 3.
+            c1 = fak * c0
+            assert abs(c1.get_value()-fak * c0.get_value()) < 1e-15
+            assert np.linalg.norm((c1.vjp(one)-fak * c0.vjp(one))(c0)) < 1e-15
 
-        c2 = c0 * fak
-        assert abs(c2.get_value()-fak * c0.get_value()) < 1e-15
-        assert np.linalg.norm((c2.vjp(one)-fak * c0.vjp(one))(c0)) < 1e-15
+            c2 = c0 * fak
+            assert abs(c2.get_value()-fak * c0.get_value()) < 1e-15
+            assert np.linalg.norm((c2.vjp(one)-fak * c0.vjp(one))(c0)) < 1e-15
 
-        c3 = ScaledCurrent(c0, fak)
-        assert abs(c3.get_value()-fak * c0.get_value()) < 1e-15
-        assert np.linalg.norm((c3.vjp(one)-fak * c0.vjp(one))(c0)) < 1e-15
+            c3 = ScaledCurrent(c0, fak)
+            assert abs(c3.get_value()-fak * c0.get_value()) < 1e-15
+            assert np.linalg.norm((c3.vjp(one)-fak * c0.vjp(one))(c0)) < 1e-15
 
-        c4 = -c0
-        assert abs(c4.get_value() - (-1.) * c0.get_value()) < 1e-15
-        assert np.linalg.norm((c4.vjp(one) - (-1.) * c0.vjp(one))(c0)) < 1e-15
+            c4 = -c0
+            assert abs(c4.get_value() - (-1.) * c0.get_value()) < 1e-15
+            assert np.linalg.norm((c4.vjp(one) - (-1.) * c0.vjp(one))(c0)) < 1e-15
 
-        c00 = Current(6.)
+            c00 = CurrentCls(6.)
 
-        c5 = c0 + c00
-        assert abs(c5.get_value() - (5. + 6.)) < 1e-15
-        assert np.linalg.norm((c5.vjp(one)-c0.vjp(one))(c0)) < 1e-15
-        assert np.linalg.norm((c5.vjp(one)-c00.vjp(one))(c00)) < 1e-15
-        c6 = sum([c0, c00])
-        assert abs(c6.get_value() - (5. + 6.)) < 1e-15
-        assert np.linalg.norm((c6.vjp(one)-c0.vjp(one))(c0)) < 1e-15
-        assert np.linalg.norm((c6.vjp(one)-c00.vjp(one))(c00)) < 1e-15
-        c7 = c0 - c00
-        assert abs(c7.get_value() - (5. - 6.)) < 1e-15
-        assert np.linalg.norm((c7.vjp(one)-c0.vjp(one))(c0)) < 1e-15
-        assert np.linalg.norm((c7.vjp(one)+c00.vjp(one))(c00)) < 1e-15
+            c5 = c0 + c00
+            assert abs(c5.get_value() - (5. + 6.)) < 1e-15
+            assert np.linalg.norm((c5.vjp(one)-c0.vjp(one))(c0)) < 1e-15
+            assert np.linalg.norm((c5.vjp(one)-c00.vjp(one))(c00)) < 1e-15
+            c6 = sum([c0, c00])
+            assert abs(c6.get_value() - (5. + 6.)) < 1e-15
+            assert np.linalg.norm((c6.vjp(one)-c0.vjp(one))(c0)) < 1e-15
+            assert np.linalg.norm((c6.vjp(one)-c00.vjp(one))(c00)) < 1e-15
+            c7 = c0 - c00
+            assert abs(c7.get_value() - (5. - 6.)) < 1e-15
+            assert np.linalg.norm((c7.vjp(one)-c0.vjp(one))(c0)) < 1e-15
+            assert np.linalg.norm((c7.vjp(one)+c00.vjp(one))(c00)) < 1e-15
 
 
 class CoilFormatConvertTesting(unittest.TestCase):
@@ -226,9 +230,11 @@ class PSCs(unittest.TestCase):
 
         curves = create_equally_spaced_curves(ncoils, nfp, stellsym, R0=R0, R1=R1)
         currents = [Current(1e5) for i in range(ncoils)]
+        currents_jax = [JaxCurrent(1e5) for i in range(ncoils)]
 
         curves_planar = create_equally_spaced_planar_curves(ncoils, nfp, stellsym, R0=R0, R1=R1)
         currents_planar = [Current(1e5) for i in range(ncoils)]
+        currents_planar_jax = [JaxCurrent(1e5) for i in range(ncoils)]
 
         coils = coils_via_symmetries(curves, currents, nfp, stellsym)
         coils_planar = coils_via_symmetries(curves_planar, currents_planar, nfp, stellsym)
@@ -278,10 +284,12 @@ class PSCs(unittest.TestCase):
 
         curves = create_equally_spaced_curves(ncoils, nfp, stellsym, R0=R0, R1=R1)
         currents = [Current(1e5) for i in range(ncoils)]
+        currents_jax = [JaxCurrent(1e5) for i in range(ncoils)]
         # Fix the TF dofs
         [currents[i].fix_all() for i in range(len(currents))]
         [curves[i].fix_all() for i in range(len(curves))]
         coils_TF = coils_via_symmetries(curves, currents, nfp, stellsym)
+        coils_TF_jax = coils_via_symmetries(curves, currents_jax, nfp, stellsym)
 
         # coils_planar = coils_via_symmetries(curves_planar, currents_planar, nfp, stellsym)
         # bs = BiotSavart(coils_TF)
@@ -289,7 +297,9 @@ class PSCs(unittest.TestCase):
         a_list = np.ones(len(base_curves)) * 0.05
         b_list = a_list
         psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
+        psc_array_jax = PSCArray(base_curves, coils_TF_jax, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
         psc_array.recompute_currents()
+        psc_array_jax.recompute_currents()
 
         gammas1 = np.array([c.gamma() for c in psc_array.psc_curves])
         currents2 = np.array([c.current.get_value() for c in psc_array.coils_TF])
@@ -302,6 +312,18 @@ class PSCs(unittest.TestCase):
         A_ext2 = 1e-7 * np.sum(currents2[None, None, :, None] * np.sum(gammadashs2[None, None, :, :, :] / rij_norm[:, :, :, :, None],
                                                                        axis=-2), axis=-2) / np.shape(gammadashs2)[1]
         assert np.allclose(A_ext, A_ext2.reshape(-1, 3))
+
+        gammas1_jax = np.array([c.gamma() for c in psc_array_jax.psc_curves])
+        currents2_jax = np.array([c.current.get_value() for c in psc_array_jax.coils_TF])
+        gammas2_jax = np.array([c.curve.gamma() for c in psc_array_jax.coils_TF])
+        gammadashs2_jax = np.array([c.curve.gammadash() for c in psc_array_jax.coils_TF])
+        psc_array_jax.biot_savart_TF.set_points(gammas1_jax.reshape(-1, 3))
+        A_ext_jax = psc_array_jax.biot_savart_TF.A()
+        rij_norm_jax = np.linalg.norm(gammas1_jax[:, :, None, None, :] - gammas2_jax[None, None, :, :, :], axis=-1)
+        # sum over the currents, and sum over the biot savart integral
+        A_ext2_jax = 1e-7 * np.sum(currents2_jax[None, None, :, None] * np.sum(gammadashs2_jax[None, None, :, :, :] / rij_norm_jax[:, :, :, :, None],
+                                                                       axis=-2), axis=-2) / np.shape(gammadashs2_jax)[1]
+        assert np.allclose(A_ext_jax, A_ext2_jax.reshape(-1, 3))
 
 
 if __name__ == "__main__":

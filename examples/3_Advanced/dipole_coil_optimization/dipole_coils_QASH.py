@@ -62,8 +62,8 @@ vc = VirtualCasing.from_vmec(
 range_param = "half period"
 poff = 1.5
 coff = 1.5
-s = vc.trgt_surf
-# s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=ntheta)
+# s = vc.trgt_surf
+s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 
@@ -75,15 +75,15 @@ qphi = nphi * 4
 qtheta = ntheta * 4
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
-# s_plot = SurfaceRZFourier.from_wout(
-#     filename,
-#     quadpoints_phi=quadpoints_phi,
-#     quadpoints_theta=quadpoints_theta
-# )
+s_plot = SurfaceRZFourier.from_wout(
+    filename,
+    quadpoints_phi=quadpoints_phi,
+    quadpoints_theta=quadpoints_theta
+)
 vc2 = VirtualCasing.from_vmec(
     vmec_file, src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi,
     trgt_nphi=qphi // 4, trgt_ntheta=qtheta)
-s_plot = vc2.trgt_surf_full
+# s_plot = vc2.trgt_surf_full
 
 # wire cross section for the TF coils is a square 20 cm x 20 cm
 # Only need this if make self forces and TVE nonzero in the objective!

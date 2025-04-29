@@ -4,6 +4,9 @@ from monty.tempfile import ScratchDir
 import numpy as np
 from simsopt.geo import SurfaceRZFourier, ToroidalWireframe, CircularPort, \
     windowpane_wireframe
+from simsopt.field.wireframefield import WireframeField, enclosed_current
+from simsopt.field.magneticfield import MagneticField
+from simsopt.geo.curvexyzfourier import CurveXYZFourier
 
 try:
     import pyevtk
@@ -614,6 +617,31 @@ class ToroidalWireframeTests(unittest.TestCase):
         with ScratchDir("."):
             wf.to_vtk("test_wf", extent='half period')
             self.assertTrue(os.path.exists("test_wf.vtu"))
+
+    def test_wireframefield_valueerrors(self):
+        # For dBnormal_by_dsegmentcurrents_matrix: surface must be SurfaceRZFourier
+        nfp, rmaj, rmin = 3, 2, 1
+        surf_wf = surf_torus(nfp, rmaj, rmin)
+        n_phi, n_theta = 4, 4
+        wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
+        wf_field = WireframeField(wf)
+        # Pass an invalid surface type
+        with self.assertRaises(ValueError):
+            wf_field.dBnormal_by_dsegmentcurrents_matrix(object())
+
+        # For enclosed_current: curve must be CurveXYZFourier
+        class DummyCurve:
+            pass
+        dummy_curve = DummyCurve()
+        field = wf_field  # WireframeField is a MagneticField
+        with self.assertRaises(ValueError):
+            enclosed_current(dummy_curve, field, 10)
+
+        # For enclosed_current: field must be MagneticField
+        curve = CurveXYZFourier(np.linspace(0, 1, 10), 1)
+        not_a_field = object()
+        with self.assertRaises(ValueError):
+            enclosed_current(curve, not_a_field, 10)
 
 
 if __name__ == "__main__":

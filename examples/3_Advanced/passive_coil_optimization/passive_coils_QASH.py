@@ -8,9 +8,10 @@ import time
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import regularization_rect, PSCArray
-from simsopt.field.force import LpCurveForce, \
-    SquaredMeanForce, \
-    SquaredMeanTorque, LpCurveTorque
+from simsopt.field.force import MixedLpCurveForce, \
+    MixedSquaredMeanForce, \
+    MixedLpCurveTorque, \
+    MixedSquaredMeanTorque
 from simsopt.util import calculate_on_axis_B, initialize_coils, remove_inboard_dipoles, \
     align_dipoles_with_plasma, save_coil_sets
 from simsopt.geo import (
@@ -63,8 +64,8 @@ vc = VirtualCasing.from_vmec(
 range_param = "half period"
 poff = 1.5
 coff = 3.0
-s = vc.trgt_surf
-# s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=ntheta)
+# s = vc.trgt_surf
+s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 
@@ -76,15 +77,15 @@ qphi = nphi * 4
 qtheta = ntheta * 4
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
-# s_plot = SurfaceRZFourier.from_wout(
-#     filename,
-#     quadpoints_phi=quadpoints_phi,
-#     quadpoints_theta=quadpoints_theta
-# )
-vc2 = VirtualCasing.from_vmec(
-    vmec_file, src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi,
-    trgt_nphi=qphi // 4, trgt_ntheta=qtheta)
-s_plot = vc2.trgt_surf_full
+s_plot = SurfaceRZFourier.from_wout(
+    filename,
+    quadpoints_phi=quadpoints_phi,
+    quadpoints_theta=quadpoints_theta
+)
+# vc2 = VirtualCasing.from_vmec(
+#     vmec_file, src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi,
+#     trgt_nphi=qphi // 4, trgt_ntheta=qtheta)
+# s_plot = vc2.trgt_surf_full
 
 # initialize the coils
 base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, 'SchuettHennebergQAnfp2')
@@ -211,7 +212,7 @@ s_plot.to_vtk(OUT_DIR + "surf_PSC" + file_suffix, extra_data=pointData)
 bpsc.set_points(s.gamma().reshape((-1, 3)))
 
 # Define the individual terms objective function:
-Jf = SquaredFlux(s, btot)
+Jf = SquaredFlux(s, btot, target=vc.B_external_normal)
 # Separate length penalties on the dipole coils and the TF coils
 # since they have very different sizes
 Jls = [CurveLength(c) for c in base_curves]
@@ -228,17 +229,30 @@ Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 # interlink.
 linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 
-# Currently, all force terms involve all the coils
-all_coils = coils + coils_TF
+# Passive coils are ONLY compatible with the "Mixed" force/torque objectives
+# and MUST be passed in the psc_array argument for the Jacobian to be correct!
 all_base_coils = base_coils + base_coils_TF
-Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=4, threshold=4e5 * 100, downsample=1
-                           ) for i, c in enumerate(all_base_coils)])
-Jforce2 = sum([SquaredMeanForce(c, all_coils, downsample=1) for c in all_base_coils])
+regularization_list_TF = np.ones(len(coils_TF)) * regularization_rect(a, b)
+regularization_list = np.ones(len(coils)) * regularization_rect(aa, bb)
+
+Jforce = MixedLpCurveForce(coils, coils_TF, 
+                           regularization_list, regularization_list_TF, 
+                           p=4, downsample=1,
+                           psc_array=psc_array
+                           )
+Jforce2 = MixedSquaredMeanForce(coils, coils_TF,
+                                psc_array=psc_array
+                                )
 
 # Errors creep in when downsample = 2
-Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100, downsample=1
-                             ) for i, c in enumerate(all_base_coils)])
-Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
+Jtorque = MixedLpCurveTorque(coils, coils_TF, 
+                           regularization_list, regularization_list_TF, 
+                           p=2, downsample=1,
+                           psc_array=psc_array
+                           )
+Jtorque2 = MixedSquaredMeanTorque(coils, coils_TF,
+                                psc_array=psc_array
+                                )
 
 if continuation_run:
     CURVATURE_WEIGHT = 1e-3
@@ -251,6 +265,8 @@ MSC_THRESHOLD = 0.05
 Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
 Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 
+# Note that only Jf and the forces/torques depend on the PSC currents, 
+# which is the tricky part of the Jacobian
 JF = Jf \
     + CS_WEIGHT * Jcsdist \
     + CC_WEIGHT * Jccdist \

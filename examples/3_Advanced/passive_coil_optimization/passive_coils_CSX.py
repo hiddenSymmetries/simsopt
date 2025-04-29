@@ -23,9 +23,8 @@ import time
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import regularization_rect, PSCArray
-from simsopt.field.force import LpCurveForce, \
-    SquaredMeanForce, \
-    SquaredMeanTorque, LpCurveTorque
+from simsopt.field.force import MixedLpCurveForce, MixedSquaredMeanForce, \
+    MixedSquaredMeanTorque, MixedLpCurveTorque
 from simsopt.util import calculate_on_axis_B, make_Bnormal_plots, in_github_actions
 from simsopt.geo import (
     CurveLength, CurveCurveDistance, MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
@@ -168,9 +167,9 @@ b = 0.2
 nturns = 100
 nturns_TF = 200
 
-# wire cross section for the dipole coils should be more like 5 cm x 5 cm
-aa = 0.03
-bb = 0.03
+# wire cross section for the dipole coils should be more like 6 cm x 6 cm
+aa = 0.06
+bb = 0.06
 
 if continuation_run:
     coils = load(OUT_DIR + "psc_coils.json")
@@ -315,7 +314,7 @@ else:
     CS_WEIGHT = 1
 
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(1e-30)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(0.0)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
@@ -357,17 +356,30 @@ Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 # interlink.
 linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 
-# Currently, all force terms involve all the coils
-all_coils = coils + coils_TF
+# Passive coils are ONLY compatible with the "Mixed" force/torque objectives
+# and MUST be passed in the psc_array argument for the Jacobian to be correct!
 all_base_coils = base_coils + base_coils_TF
-Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=4, threshold=4e5 * 100, downsample=1
-                           ) for i, c in enumerate(all_base_coils)])
-Jforce2 = sum([SquaredMeanForce(c, all_coils, downsample=1) for c in all_base_coils])
+regularization_list_TF = np.ones(len(coils_TF)) * regularization_rect(a, b)
+regularization_list = np.ones(len(coils)) * regularization_rect(aa, bb)
+
+Jforce = MixedLpCurveForce(coils, coils_TF, 
+                           regularization_list, regularization_list_TF, 
+                           p=4, downsample=1,
+                           psc_array=psc_array
+                           )
+Jforce2 = MixedSquaredMeanForce(coils, coils_TF,
+                                psc_array=psc_array
+                                )
 
 # Errors creep in when downsample = 2
-Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100, downsample=1
-                             ) for i, c in enumerate(all_base_coils)])
-Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
+Jtorque = MixedLpCurveTorque(coils, coils_TF, 
+                           regularization_list, regularization_list_TF, 
+                           p=2, downsample=1,
+                           psc_array=psc_array
+                           )
+Jtorque2 = MixedSquaredMeanTorque(coils, coils_TF,
+                                psc_array=psc_array
+                                )
 
 if continuation_run:
     Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in all_base_coils]
@@ -376,6 +388,8 @@ else:
     Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
     Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 
+# Note that only Jf and the forces/torques depend on the PSC currents, 
+# which is the tricky part of the Jacobian
 JF = Jf \
     + CS_WEIGHT * Jcsdist \
     + CC_WEIGHT * Jccdist \

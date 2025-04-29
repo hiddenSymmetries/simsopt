@@ -865,8 +865,7 @@ class RotatedCurve(sopp.Curve, Curve):
 
 
 def curves_to_vtk(curves, filename, close=False, I=None, extra_point_data=None,
-                  NetForces=None, NetTorques=None, NetSelfForces=None,
-                  MixedCoilForces=None, MixedCoilTorques=None):
+                  NetForces=None, NetTorques=None):
     """
     Export a list of Curve objects in VTK format, so they can be
     viewed using Paraview. This function requires the python package ``pyevtk``,
@@ -894,7 +893,6 @@ def curves_to_vtk(curves, filename, close=False, I=None, extra_point_data=None,
         ppl = np.asarray([c.gamma().shape[0] for c in curves])
     data = np.concatenate([i*np.ones((ppl[i], )) for i in range(len(curves))])
     pointData = {'idx': data}
-    # cellData={}
     contig = np.ascontiguousarray
     if I is not None:
         coil_data = np.zeros(data.shape)
@@ -919,46 +917,6 @@ def curves_to_vtk(curves, filename, close=False, I=None, extra_point_data=None,
         pointData['NetTorques'] = (contig(coil_data[:, 0]),
                                    contig(coil_data[:, 1]),
                                    contig(coil_data[:, 2]))
-    if NetSelfForces is not None:
-        coil_data = np.zeros((data.shape[0], 3))
-        for i in range(len(NetSelfForces)):
-            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = NetSelfForces[i, :]
-        coil_data = np.ascontiguousarray(coil_data)
-        pointData['NetSelfForces'] = (contig(coil_data[:, 0]),
-                                      contig(coil_data[:, 1]),
-                                      contig(coil_data[:, 2]))
-    if MixedCoilForces is not None:
-        coil_data = np.zeros((data.shape[0], 3))
-        for i in range(len(MixedCoilForces)):
-            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = MixedCoilForces[i, :]
-        coil_data = np.ascontiguousarray(coil_data)
-        pointData['MixedCoilForces'] = (contig(coil_data[:, 0]),
-                                        contig(coil_data[:, 1]),
-                                        contig(coil_data[:, 2]))
-    if (MixedCoilForces is not None) and (NetForces is not None):
-        coil_data = np.zeros((data.shape[0], 3))
-        for i in range(len(MixedCoilForces)):
-            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = MixedCoilForces[i, :] + NetForces[i, :]
-        coil_data = np.ascontiguousarray(coil_data)
-        pointData['TotalCoilForces'] = (contig(coil_data[:, 0]),
-                                        contig(coil_data[:, 1]),
-                                        contig(coil_data[:, 2]))
-    if MixedCoilTorques is not None:
-        coil_data = np.zeros((data.shape[0], 3))
-        for i in range(len(MixedCoilTorques)):
-            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = MixedCoilTorques[i, :]
-        coil_data = np.ascontiguousarray(coil_data)
-        pointData['MixedCoilTorques'] = (contig(coil_data[:, 0]),
-                                         contig(coil_data[:, 1]),
-                                         contig(coil_data[:, 2]))
-    if (MixedCoilTorques is not None) and (NetTorques is not None):
-        coil_data = np.zeros((data.shape[0], 3))
-        for i in range(len(MixedCoilTorques)):
-            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = MixedCoilTorques[i, :] + NetTorques[i, :]
-        coil_data = np.ascontiguousarray(coil_data)
-        pointData['TotalCoilTorques'] = (contig(coil_data[:, 0]),
-                                         contig(coil_data[:, 1]),
-                                         contig(coil_data[:, 2]))
     if extra_point_data is not None:
         pointData = {**pointData, **extra_point_data}
 
@@ -1109,8 +1067,8 @@ def create_planar_curves_between_two_toroidal_surfaces(
 
     # Initialize a bunch of circular coils with same normal vector
     for ic in range(ncoils):
-        alpha2 = np.random.rand(1) * np.pi - np.pi / 2.0
-        delta2 = np.random.rand(1) * np.pi
+        alpha2 = (np.random.rand(1) * np.pi - np.pi / 2.0)[0]
+        delta2 = (np.random.rand(1) * np.pi)[0]
         calpha2 = np.cos(alpha2)
         salpha2 = np.sin(alpha2)
         cdelta2 = np.cos(delta2)

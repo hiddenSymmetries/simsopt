@@ -113,16 +113,30 @@ class TestDipoleArrayHelperFunctions(unittest.TestCase):
 
     def test_initialize_coils(self):
         nphi, ntheta = 8, 8
+        config_file_map = {
+            'LandremanPaulQA': 'input.LandremanPaul2021_QA_reactorScale_lowres',
+            'LandremanPaulQH': 'input.LandremanPaul2021_QH_reactorScale_lowres',
+            'SchuettHennebergQAnfp2': 'input.schuetthenneberg_nfp2'
+        }
         with ScratchDir("."):
-            s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-            # Test for a known configuration
-            base_curves, curves, coils, base_currents = initialize_coils(s, TEST_DIR, 'LandremanPaulQA')
-            self.assertTrue(len(base_curves) > 0)
-            self.assertTrue(len(curves) > 0)
-            self.assertTrue(len(coils) > 0)
-            self.assertTrue(len(base_currents) > 0)
-            # Check that all base_curves are unique objects
-            self.assertEqual(len(set(map(id, base_curves))), len(base_curves))
+            for config, surf_file in config_file_map.items():
+                surf_path = (Path(__file__).parent / ".." / "test_files" / surf_file).resolve()
+                s = SurfaceRZFourier.from_vmec_input(surf_path, range="half period", nphi=nphi, ntheta=ntheta)
+                base_curves, curves, coils, base_currents = initialize_coils(s, TEST_DIR, config)
+                self.assertTrue(len(base_curves) > 0)
+                self.assertTrue(len(curves) > 0)
+                self.assertTrue(len(coils) > 0)
+                self.assertTrue(len(base_currents) > 0)
+                # Check that all base_curves are unique objects
+                self.assertEqual(len(set(map(id, base_curves))), len(base_curves))
+                # Check magnetic field at major radius
+                bs = BiotSavart(coils)
+                R_major = s.get_rc(0, 0)
+                # Evaluate at (R_major, 0, 0)
+                B = bs.set_points(np.array([[R_major, 0, 0]])).B().flatten()
+                B_magnitude = np.linalg.norm(B)
+                print(f"B at major radius for {config} is {B_magnitude}, should be 5-6 T")
+                self.assertTrue(np.isclose(B_magnitude, 5.7, atol=1), f"B at major radius for {config} is {B_magnitude}, expected ~5.7 T")
             # Test for error on unknown configuration
             with self.assertRaises(ValueError):
                 initialize_coils(s, TEST_DIR, 'not_a_real_config')
@@ -150,7 +164,7 @@ class TestDipoleArrayHelperFunctions(unittest.TestCase):
             self.assertTrue(len(wp_curves) > 0)
             self.assertIsInstance(wp_curves[0], CurvePlanarFourier)
 
-            # TF array
+            # TF array (original test)
             tf_curves = generate_tf_array(
                 s, ntf=2, TF_R0=VV.get_rc(0, 0), TF_a=VV.get_rc(1, 0), TF_b=VV.get_rc(1, 0),
                 fixed_geo_tfs=True, planar_tfs=True, order=2, numquadpoints=32
@@ -161,6 +175,43 @@ class TestDipoleArrayHelperFunctions(unittest.TestCase):
             self.assertTrue(len(tf_curves) > 0)
             # Check that all TF curves are unique objects
             self.assertEqual(len(set(map(id, tf_curves))), len(tf_curves))
+
+            # --- New test: Planarity and free dofs for planar TFs ---
+            tf_curves_planar = generate_tf_array(
+                s, ntf=2, TF_R0=VV.get_rc(0, 0), TF_a=VV.get_rc(1, 0), TF_b=VV.get_rc(1, 0),
+                fixed_geo_tfs=True, planar_tfs=True, order=2, numquadpoints=32
+            )
+            for curve in tf_curves_planar:
+                # Check planarity: all points should have the same normal vector (z direction)
+                gamma = curve.gamma()
+                v1 = gamma[1] - gamma[0]
+                v2 = gamma[2] - gamma[0]
+                normal = np.cross(v1, v2)
+                normal /= np.linalg.norm(normal)
+                diffs = gamma - gamma[0]
+                dots = np.dot(diffs, normal)
+                self.assertTrue(np.allclose(dots, 0, atol=1e-12), "TF coil is not planar")
+                # Check for free dofs R0 and r_rotation
+                dof_names = getattr(curve, "local_dof_names", None)
+                self.assertIsNotNone(dof_names, "Curve does not have free_names attribute")
+                self.assertIn("xc(0)", dof_names, "Curve does not have free dof xc(0)")
+                self.assertIn("xc(1)", dof_names, "Curve does not have free dof xc(1)")
+
+            # --- Additional test: Unfix fixed_geo_tfs and check for more dofs ---
+            # This flag makes it so the TF coils are initialized using 
+            # create_equally_spaced_cylindrical_curve
+            tf_curves_unfixed = generate_tf_array(
+                s, ntf=2, TF_R0=VV.get_rc(0, 0), TF_a=VV.get_rc(1, 0), TF_b=VV.get_rc(1, 0),
+                fixed_geo_tfs=False, planar_tfs=True, order=2, numquadpoints=32
+            )
+            dof_names_unfixed = getattr(tf_curves_unfixed[0], "local_dof_names", [])
+            self.assertIn("R0", dof_names_unfixed, "Curve does not have free dof R0")
+            self.assertIn("phi", dof_names_unfixed, "Curve does not have free dof phi")
+            self.assertIn("Z0", dof_names_unfixed, "Curve does not have free dof Z0")
+            self.assertIn("r_rotation", dof_names_unfixed, "Curve does not have free dof r_rotation")
+            self.assertIn("phi_rotation", dof_names_unfixed, "Curve does not have free dof phi_rotation")
+            self.assertIn("z_rotation", dof_names_unfixed, "Curve does not have free dof z_rotation")
+            # --- End new test ---
 
             base_currents = [Current(1.0) for _ in wp_curves]
             base_currents_tf = [Current(1.0) for _ in tf_curves]
