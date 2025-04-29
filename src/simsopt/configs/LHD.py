@@ -1,5 +1,4 @@
 import numpy as np
-from ..field.coil import Current, Coil
 from ..geo.curve import RotatedCurve
 from ..geo.curvexyzfourier import CurveXYZFourier
 from ..geo.curvexyzfouriersymmetries import CurveXYZFourierSymmetries
