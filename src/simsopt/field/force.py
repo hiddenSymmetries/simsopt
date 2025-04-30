@@ -2093,9 +2093,9 @@ def coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, a, b, dow
     """
     Calculate the mutual inductance between a single coil and a list of other coils.
 
-    This function computes the mutual inductance between a single coil and a list of other coils 
-    using the Neumann formula, taking into account the finite build of the coils through their 
-    cross-sectional dimensions. The calculation can handle both circular and rectangular cross-sections.
+    This function computes both:
+    1. The self-inductance of the input coil (first element of output)
+    2. The mutual inductances between the input coil and each coil in gammas2 (remaining elements)
 
     Args:
         gamma (array): Position vectors for the single coil, shape (nquadpoints, 3).
@@ -2108,8 +2108,10 @@ def coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, a, b, dow
         cross_section (str): Shape of the coil cross-section ('circular' or 'rectangular').
 
     Returns:
-        array: Array of mutual inductances between the single coil and each coil in the list, plus
-              the self-inductance of the single coil as the first element. Shape (1 + ncoils,).
+        array: Array of inductances, where:
+              - First element [0] is the self-inductance of the input coil
+              - Remaining elements [1:] are mutual inductances with each coil in gammas2
+              Shape is (1 + ncoils,).
     """
     # Downsample if desired
     gamma = gamma[::downsample, :]
@@ -2126,8 +2128,8 @@ def coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, a, b, dow
     gammadash_prod = jnp.sum(gammadash[:, None, :] * gammadashs2[:, None, :, :], axis=-1)
 
     # Double sum over each of the closed curves for off-diagonal elements
-    Lij = Lij.at[1:].add(jnp.sum(jnp.sum(gammadash_prod / rij_norm, axis=-1), axis=-1
-                                 ) / (jnp.shape(gamma)[0] * jnp.shape(gammas2)[1]))
+    Lij = Lij.at[1:].add(jnp.sum(jnp.sum(gammadash_prod / rij_norm, axis=-1), axis=-1) /
+                         (jnp.shape(gamma)[0] * jnp.shape(gammas2)[1]))
 
     # Compute self-inductance (diagonal element)
     eps = 1e-10  # Small number to avoid blowup during dJ() calculation
@@ -2135,19 +2137,27 @@ def coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, a, b, dow
     rij_norm_self = jnp.linalg.norm(r_ij_self, axis=-1)
     gammadash_prod_self = jnp.sum(gammadash[:, None, :] * gammadash[None, :, :], axis=-1)
 
-    # Calculate regularization factor based on cross-section type
-    k = jnp.where(cross_section == 'circular',
-                  a / jnp.sqrt(jnp.exp(1.0)),  # Circular cross-section
-                  jnp.exp(-25.0/6.0 + (4*b)/(3*a) * jnp.arctan2(a, b) +
-                          (4*a)/(3*b) * jnp.arctan2(b, a) +
-                          (b**2)/(6*a**2) * jnp.log(b/a) +
-                          (a**2)/(6*b**2) * jnp.log(a/b) -
-                          (a**4 - 6*a**2*b**2 + b**4)/(6*a**2*b**2) * jnp.log(a/b + b/a)) *
-                  jnp.sqrt(a * b))  # Rectangular cross-section
+    # Compute regularization based on cross-section type
+    is_circular = cross_section == 'circular'
+
+    # For circular cross-section: a/sqrt(e)
+    circ_reg = a ** 2 / jnp.sqrt(jnp.exp(1.0))
+
+    # For rectangular cross-section: exp(-25/6 + k) * sqrt(a*b)
+    k = (4 * b) / (3 * a) * jnp.arctan2(a, b) + \
+        (4 * a) / (3 * b) * jnp.arctan2(b, a) + \
+        (b ** 2) / (6 * a ** 2) * jnp.log(b / a) + \
+        (a ** 2) / (6 * b ** 2) * jnp.log(a / b) - \
+        (a ** 4 - 6 * a ** 2 * b ** 2 + b ** 4) / \
+        (6 * a ** 2 * b ** 2) * jnp.log(a / b + b / a)
+    rect_reg = jnp.exp(-25.0/6.0 + k) * a * b
+
+    # Select regularization based on cross-section type
+    reg = jnp.where(is_circular, circ_reg, rect_reg)
 
     # Add self-inductance term
     Lij = Lij.at[0].add(jnp.sum(jnp.sum(gammadash_prod_self /
-                                        jnp.sqrt(rij_norm_self**2 + k**2), axis=-1), axis=-1) /
+                                        jnp.sqrt(rij_norm_self**2 + reg), axis=-1), axis=-1) /
                         jnp.shape(gamma)[0]**2)
 
     return 1e-7 * Lij

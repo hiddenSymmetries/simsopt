@@ -30,8 +30,10 @@ order = 2
 
 continuation_run = False
 if continuation_run:
+    MAXITER = 1000
     file_suffix = "_continuation"
 else:
+    MAXITER = 500
     file_suffix = ""
 
 # File for the desired boundary magnetic surface:
@@ -315,8 +317,9 @@ def fun(dofs):
     forces_val2 = FORCE_WEIGHT2.value * Jforce2.J()
     torques_val = TORQUE_WEIGHT.value * Jtorque.J()
     torques_val2 = TORQUE_WEIGHT2.value * Jtorque2.J()
-    BdotN = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-    BdotN_over_B = BdotN / np.mean(btot.AbsB())
+    absBn = np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2) - vc.B_external_normal)
+    BdotN = np.mean(absBn)
+    BdotN_over_B = np.mean(absBn) / np.mean(btot.AbsB())
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
     valuestr = f"J={J:.2e}, Jf={jf:.2e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
@@ -359,10 +362,8 @@ h = np.random.uniform(size=dofs.shape)
 J0, dJ0 = f(dofs)
 dJh = sum(dJ0 * h)
 for eps in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]:
-    t1 = time.time()
     J1, _ = f(dofs + eps*h)
     J2, _ = f(dofs - eps*h)
-    t2 = time.time()
     print("err", (J1-J2)/(2*eps) - dJh)
     print((J1-J2)/(2*eps), dJh)
 
@@ -372,47 +373,41 @@ print("""
 ################################################################################
 """)
 
-n_saves = 1
-MAXITER = 1000
-for i in range(1, n_saves + 1):
-    print('Iteration ' + str(i) + ' / ' + str(n_saves))
-    res = minimize(fun, dofs, jac=True, method='L-BFGS-B',   # bounds=opt_bounds,
-                   options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-    # dofs = res.x
+res = minimize(fun, dofs, jac=True, method='L-BFGS-B',   # bounds=opt_bounds,
+               options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+bpsc = btot.Bfields[0]
+bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
+dipole_currents = [c.current.get_value() for c in bpsc.coils]
+psc_array.recompute_currents()
+print(dipole_currents)
+save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 
-    bpsc = btot.Bfields[0]
-    bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
-    dipole_currents = [c.current.get_value() for c in bpsc.coils]
-    psc_array.recompute_currents()
-    print(dipole_currents)
-    save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
+btot.set_points(s_plot.gamma().reshape((-1, 3)))
+pointData = {
+    "B_N1": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2))[:, :, None],
+    "B_N2": (vc2.B_external_normal_extended)[:, :, None],
+    "B_N": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2) - vc2.B_external_normal_extended)[:, :, None],
+    "B_N / B": ((np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                        ) - vc2.B_external_normal_extended) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_final" + file_suffix, extra_data=pointData)
 
-    btot.set_points(s_plot.gamma().reshape((-1, 3)))
-    pointData = {
-        "B_N1": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2))[:, :, None],
-        "B_N2": (vc2.B_external_normal_extended)[:, :, None],
-        "B_N": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2) - vc2.B_external_normal_extended)[:, :, None],
-        "B_N / B": ((np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                            ) - vc2.B_external_normal_extended) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "surf_final" + file_suffix, extra_data=pointData)
+btf = btot.Bfields[1]
+btf.set_points(s_plot.gamma().reshape((-1, 3)))
+pointData = {"B_N": np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
+             "B_N / B": (np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                ) / np.linalg.norm(btf.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_TF" + file_suffix, extra_data=pointData)
 
-    btf = btot.Bfields[1]
-    btf.set_points(s_plot.gamma().reshape((-1, 3)))
-    pointData = {"B_N": np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-                 "B_N / B": (np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                    ) / np.linalg.norm(btf.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "surf_TF" + file_suffix, extra_data=pointData)
+bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
+pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
+             "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_PSC" + file_suffix, extra_data=pointData)
 
-    bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
-    pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-                 "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                    ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "surf_PSC" + file_suffix, extra_data=pointData)
-
-    btot.set_points(s.gamma().reshape((-1, 3)))
-    print('Max I = ', np.max(dipole_currents))
-    print('Min I = ', np.min(dipole_currents))
-    calculate_on_axis_B(btot, s)
+btot.set_points(s.gamma().reshape((-1, 3)))
+print('Max I = ', np.max(dipole_currents))
+print('Min I = ', np.min(dipole_currents))
+calculate_on_axis_B(btot, s)
 
 t2 = time.time()
 print('Total time = ', t2 - t1)

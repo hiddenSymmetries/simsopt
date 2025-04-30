@@ -214,7 +214,7 @@ class CoilForcesTest(unittest.TestCase):
                 downsample=1,
                 cross_section='rectangular',
             )
-            print(Lij, Lij_rect, Lij_analytic)
+
             # np.testing.assert_allclose(Lij[0], Lii_analytic)
             np.testing.assert_allclose(Lij[1], Lij_analytic, rtol=1e-2)
             assert np.allclose(Lij_rect, Lij_rect_full[0, :])
@@ -244,7 +244,6 @@ class CoilForcesTest(unittest.TestCase):
                 downsample=1,
                 cross_section='circular',
             )
-            print(Lij, Lii_analytic, Lij_analytic2)
             np.testing.assert_allclose(Lij[1], Lij_analytic2, rtol=1e-2)
 
             Lij_full = coil_coil_inductances_full_pure(
@@ -290,16 +289,11 @@ class CoilForcesTest(unittest.TestCase):
             coil = Coil(curve, Current(I))
             force = self_force_circ(coil, a)
             max_force = np.max(np.abs(force))
-            #print("ppp:", ppp, " max force:", max_force)
             if j == 0:
                 interpolant = interp1d(curve.quadpoints, force, axis=0)
                 max_force_ref = max_force
             else:
                 np.testing.assert_allclose(force, interpolant(curve.quadpoints), atol=max_force_ref / 60)
-            #print(np.max(np.abs(force - interpolant(curve.quadpoints))))
-            #plt.plot(curve.quadpoints, force[:, 0], '+-')
-            #plt.plot(curve.quadpoints, interpolant(curve.quadpoints)[:, 0], 'x-')
-            #plt.show()
 
     def test_hsx_coil(self):
         """Compare self-force for HSX coil 1 to result from CoilForces.jl"""
@@ -355,7 +349,6 @@ class CoilForcesTest(unittest.TestCase):
         gammadash_norm = np.linalg.norm(coils[0].curve.gammadash(), axis=1)
         force_norm = np.linalg.norm(coil_force(coils[0], coils, regularization), axis=1)
         print("force_norm mean:", np.mean(force_norm), "max:", np.max(force_norm))
-        # print(force_norm, np.maximum(force_norm - threshold, 0)**p * gammadash_norm)
         objective_alt = (1 / p) * np.sum(np.maximum(force_norm - threshold, 0)**p * gammadash_norm) / np.shape(gammadash_norm)[0]
 
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
