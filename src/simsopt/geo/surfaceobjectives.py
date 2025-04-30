@@ -563,10 +563,11 @@ class QfmResidual(Optimizable):
     surface dofs.
     """
 
-    def __init__(self, surface, biotsavart):
+    def __init__(self, surface, biotsavart, Bn_plasma=None):
         self.surface = surface
         self.biotsavart = biotsavart
         self.biotsavart.append_parent(self.surface)
+        self.Bn_plasma = Bn_plasma  # Only sensible if the surface does not change much!
         super().__init__(depends_on=[surface, biotsavart])
 
     def recompute_bell(self, parent=None):
@@ -585,18 +586,23 @@ class QfmResidual(Optimizable):
         nphi = x.shape[0]
         ntheta = x.shape[1]
         B = self.biotsavart.B().reshape((nphi, ntheta, 3))
-        B_n = np.sum(B * n, axis=2)
+        if self.Bn_plasma is not None:
+            B_n = np.sum(B * n, axis=2) - self.Bn_plasma
+        else:
+            B_n = np.sum(B * n, axis=2)
         norm_B = np.linalg.norm(B, axis=2)
         return np.sum(B_n**2 * norm_N)/np.sum(norm_B**2 * norm_N)
 
     def dJ_by_dsurfacecoefficients(self):
         """
         Calculate the derivatives with respect to the surface coefficients
-        """
 
-        # we write the objective as J = J1/J2, then we compute the partial derivatives
-        # dJ1_by_dgamma, dJ1_by_dN, dJ2_by_dgamma, dJ2_by_dN and then use the vjp functions
-        # to get the derivatives wrt to the surface dofs
+        We write the objective as J = J1/J2, then we compute the partial derivatives
+        dJ1_by_dgamma, dJ1_by_dN, dJ2_by_dgamma, dJ2_by_dN and then use the vjp functions
+        to get the derivatives wrt to the surface dofs.
+
+        Notice if Bn_plasma is being used, it should contribute only to the dJ1 term. 
+        """
         x = self.surface.gamma()
         nphi = x.shape[0]
         ntheta = x.shape[1]
@@ -605,7 +611,10 @@ class QfmResidual(Optimizable):
         N = self.surface.normal()
         norm_N = np.linalg.norm(N, axis=2)
 
-        B_N = np.sum(B * N, axis=2)
+        if self.Bn_plasma is not None:
+            B_N = np.sum(B * N, axis=2) - self.Bn_plasma
+        else:
+            B_N = np.sum(B * N, axis=2)
         dJ1dx = (2*B_N/norm_N)[:, :, None] * (np.sum(dB_by_dX*N[:, :, None, :], axis=3))
         dJ1dN = (2*B_N/norm_N)[:, :, None] * B - (B_N**2/norm_N**3)[:, :, None] * N
 

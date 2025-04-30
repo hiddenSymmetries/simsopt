@@ -17,11 +17,11 @@ mpi = MpiPartition(ngroups=8)
 comm = comm_world
 print(
     'Script requires specifying two command line arguments -- '
-    'the configuration name (QA, QH, QASH, CSX) and a link to the biotsavart.json '
-    'file containing the coil solution.'
+    'the configuration name (QA, QH, QASH, CSX) and assumes that the biotsavart.json '
+    'file containing the coil solution is in the passive_coils_<config_name> directory.'
 )
-nphi = 128
-ntheta = 64
+nphi = 256
+ntheta = 256
 quadpoints_phi = np.linspace(0, 1, nphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
@@ -29,21 +29,18 @@ nfieldlines = 40
 tmax_fl = 40000
 Z0 = np.zeros(nfieldlines)
 aa = 0.05
+input_dir = "passive_coils_" + str(sys.argv[1]) + "/"
 if str(sys.argv[1]) == 'QA':
     input_name = 'input.LandremanPaul2021_QA_reactorScale_lowres'
-    input_dir = "passive_coils_QA/"
     R0 = np.linspace(12.25, 13.2, nfieldlines)
 elif str(sys.argv[1]) == 'QH':
     input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
-    input_dir = "passive_coils_QH/"
     R0 = np.linspace(16.9, 17.8, nfieldlines)
 elif str(sys.argv[1]) == 'QASH':
     input_name = 'input.schuetthenneberg_nfp2'
-    input_dir = "passive_coils_QASH/"
     R0 = np.linspace(4.5, 6.75, nfieldlines)
 elif str(sys.argv[1]) == 'CSX':
     input_name = 'wout_csx_wps_5.0.nc'
-    input_dir = "passive_coils_CSX/"
     R0 = np.linspace(0.32, 0.415, nfieldlines)
     aa = 0.03
 filename = TEST_DIR / input_name
@@ -64,13 +61,21 @@ eval_points = s.gamma().reshape(-1, 3)
 psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
 Bfield = psc_array.biot_savart_total
 Bfield.set_points(s.gamma().reshape((-1, 3)))
-BdotN = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-BdotN_over_B = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
-                       ) / np.mean(Bfield.AbsB())
+if str(sys.argv[1]) != 'QASH':
+    BdotN = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+    BdotN_over_B = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
+                           ) / np.mean(Bfield.AbsB())
+    Bn_plasma = None
+else:
+    Bn_plasma = np.array(load('passive_coils_QASH/B_external_normal_extended.json')['B_external_normal_extended'])
+    print(np.shape(Bn_plasma), np.shape(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+    BdotN = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2) - Bn_plasma))
+    BdotN_over_B = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2) - Bn_plasma)
+                           ) / np.mean(Bfield.AbsB())
 print(BdotN, BdotN_over_B)
 
 # # Make the QFM surfaces
-qfm_surf = make_qfm(s, Bfield)
+qfm_surf = make_qfm(s, Bfield, Bn_plasma=Bn_plasma)
 qfm_surf = qfm_surf.surface
 
 # VMEC does NOT like the CSX plasma because it's very compact

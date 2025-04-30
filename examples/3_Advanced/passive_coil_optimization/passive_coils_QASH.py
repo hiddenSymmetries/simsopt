@@ -22,6 +22,7 @@ from simsopt.geo import (
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 from simsopt import load
 from simsopt.mhd import VirtualCasing
+import json
 
 t1 = time.time()
 
@@ -62,6 +63,19 @@ vc = VirtualCasing.from_vmec(
     trgt_nphi=nphi, trgt_ntheta=ntheta,
 )
 
+# Add these lines to save B_external_normal to JSON
+
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
+
+
+with open(os.path.join(OUT_DIR, 'B_external_normal.json'), 'w') as f:
+    json.dump({'B_external_normal': vc.B_external_normal}, f, cls=NumpyEncoder)
+
 # Initialize the boundary magnetic surface:
 range_param = "half period"
 poff = 1.5
@@ -87,6 +101,10 @@ s_plot = SurfaceRZFourier.from_wout(
 vc2 = VirtualCasing.from_vmec(
     vmec_file, src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi,
     trgt_nphi=qphi // 4, trgt_ntheta=qtheta)
+
+with open(os.path.join(OUT_DIR, 'B_external_normal_extended.json'), 'w') as f:
+    json.dump({'B_external_normal_extended': vc2.B_external_normal_extended}, f, cls=NumpyEncoder)
+
 s_plot = vc2.trgt_surf_full
 
 # initialize the coils

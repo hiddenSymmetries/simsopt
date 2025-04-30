@@ -22,10 +22,11 @@ from simsopt.geo import (
 )
 from simsopt._core import Optimizable
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
+import json
 
 t1 = time.time()
 
-continuation_run = False
+continuation_run = True
 if continuation_run:
     file_suffix = "_continuation"
 else:
@@ -58,6 +59,19 @@ vc = VirtualCasing.from_vmec(
     trgt_nphi=nphi, trgt_ntheta=ntheta,
 )
 
+# Add these lines to save B_external_normal to JSON
+
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
+
+
+with open(os.path.join(OUT_DIR, 'B_external_normal.json'), 'w') as f:
+    json.dump({'B_external_normal': vc.B_external_normal}, f, cls=NumpyEncoder)
+
 # Initialize the boundary magnetic surface:
 range_param = "half period"
 poff = 1.5
@@ -83,7 +97,9 @@ s_plot = SurfaceRZFourier.from_wout(
 vc2 = VirtualCasing.from_vmec(
     vmec_file, src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi,
     trgt_nphi=qphi // 4, trgt_ntheta=qtheta)
-# s_plot = vc2.trgt_surf_full
+
+with open(os.path.join(OUT_DIR, 'B_external_normal_extended.json'), 'w') as f:
+    json.dump({'B_external_normal_extended': vc2.B_external_normal_extended}, f, cls=NumpyEncoder)
 
 # wire cross section for the TF coils is a square 20 cm x 20 cm
 # Only need this if make self forces and TVE nonzero in the objective!

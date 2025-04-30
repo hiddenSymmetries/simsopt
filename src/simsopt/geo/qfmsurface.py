@@ -28,12 +28,12 @@ class QfmSurface(GSONable):
     solved with the SLSQP algorithm by :func:`minimize_qfm_exact_constraints_SLSQP()`.
     """
 
-    def __init__(self, biotsavart, surface, label, targetlabel):
+    def __init__(self, biotsavart, surface, label, targetlabel, Bn_plasma=None):
         self.biotsavart = biotsavart
         self.surface = surface
         self.label = label
         self.targetlabel = targetlabel
-        self.qfm = QfmResidual(surface, biotsavart)
+        self.qfm = QfmResidual(surface, biotsavart, Bn_plasma)
         self.name = str(id(self))
 
     def qfm_label_constraint(self, x, derivatives=0):

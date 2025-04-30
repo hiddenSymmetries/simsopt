@@ -106,7 +106,7 @@ class CoilForcesTest(unittest.TestCase):
 
         # Analytic field has only a z component
         B_reg_analytic_circ = constants.mu_0 * I / (4 * np.pi * R0) * (np.log(8 * R0 / a) - 3 / 4)
-        Lii_analytic = constants.mu_0 * R0 * (np.log(8.0 * R0 / a) - 7.0 / 4.0)
+        # Lii_analytic = constants.mu_0 * R0 * (np.log(8.0 * R0 / a) - 7.0 / 4.0)
 
         # For two concentric circular coils, only "analytic" for R1 >> R0
         Lij_analytic = constants.mu_0 * np.pi * R0 ** 2 / (2 * R1)
@@ -192,7 +192,7 @@ class CoilForcesTest(unittest.TestCase):
                 downsample=1,
                 cross_section='circular',
             )
-
+            # np.testing.assert_allclose(Lij[0], Lii_analytic)
             assert np.allclose(Lij, Lij_full[0, :])
 
             # Test rectangular cross section for a << R
@@ -215,7 +215,6 @@ class CoilForcesTest(unittest.TestCase):
                 cross_section='rectangular',
             )
 
-            # np.testing.assert_allclose(Lij[0], Lii_analytic)
             np.testing.assert_allclose(Lij[1], Lij_analytic, rtol=1e-2)
             assert np.allclose(Lij_rect, Lij_rect_full[0, :])
 

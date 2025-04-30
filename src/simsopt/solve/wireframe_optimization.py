@@ -391,6 +391,8 @@ def bnorm_obj_matrices(wframe, surf_plas, ext_field=None,
     else:
         area_weight = np.ones(sqrt_area.shape)
 
+    wframe.area_weight = area_weight
+
     # Calculate the normal field matrix for the wireframe
     if verbose:
         print('    Calculating the wireframe field and normal field matrix')
