@@ -259,10 +259,9 @@ def make_qfm(s, Bfield, Bn_plasma=None, n_iters=200):
     vol_target = vol.J()
     qfm_surface = QfmSurface(Bfield, s, vol, vol_target, Bn_plasma=Bn_plasma)
 
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-15, maxiter=n_iters,
-                                                             constraint_weight=constraint_weight)
+    qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-15, maxiter=n_iters,
+                                                       constraint_weight=constraint_weight)
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
-    print(res['fun'], res['info'])
 
     constraint_weight = 1e-4
     # repeat the optimization for further convergence

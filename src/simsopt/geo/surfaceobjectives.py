@@ -595,41 +595,68 @@ class QfmResidual(Optimizable):
 
     def dJ_by_dsurfacecoefficients(self):
         """
-        Calculate the derivatives with respect to the surface coefficients
+        Calculate the derivatives with respect to the surface coefficients.
 
-        We write the objective as J = J1/J2, then we compute the partial derivatives
-        dJ1_by_dgamma, dJ1_by_dN, dJ2_by_dgamma, dJ2_by_dN and then use the vjp functions
-        to get the derivatives wrt to the surface dofs.
+        For J = J1/J2 where:
+        J1 = ∫(B·n - Bn_plasma)²dS 
+        J2 = ∫B²dS
 
-        Notice if Bn_plasma is being used, it should contribute only to the dJ1 term. 
+        where dS = |N|dθdφ and n = N/|N|
         """
         x = self.surface.gamma()
         nphi = x.shape[0]
         ntheta = x.shape[1]
-        dB_by_dX = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
+
+        # Get magnetic field and its derivatives
         B = self.biotsavart.B().reshape((nphi, ntheta, 3))
+        dB_by_dX = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
+
+        # Get surface normal and its properties
         N = self.surface.normal()
         norm_N = np.linalg.norm(N, axis=2)
+        n = N / norm_N[..., None]  # Unit normal
 
+        # Calculate B·n and (B·n - Bn_plasma)
+        B_dot_n = np.sum(B * n, axis=2)
         if self.Bn_plasma is not None:
-            B_N = np.sum(B * N, axis=2) - self.Bn_plasma
+            B_N = B_dot_n - self.Bn_plasma
         else:
-            B_N = np.sum(B * N, axis=2)
-        dJ1dx = (2*B_N/norm_N)[:, :, None] * (np.sum(dB_by_dX*N[:, :, None, :], axis=3))
-        dJ1dN = (2*B_N/norm_N)[:, :, None] * B - (B_N**2/norm_N**3)[:, :, None] * N
+            B_N = B_dot_n
 
-        dJ2dx = 2 * np.sum(dB_by_dX*B[:, :, None, :], axis=3) * norm_N[:, :, None]
-        dJ2dN = (np.sum(B*B, axis=2)/norm_N)[:, :, None] * N
+        # Calculate B²
+        B_squared = np.sum(B * B, axis=2)
 
-        J1 = np.sum(B_N**2 / norm_N)  # same as np.sum(B_n**2 * norm_N)
-        J2 = np.sum(B**2 * norm_N[:, :, None])
+        # Get derivatives of surface quantities
+        dN_by_dc = self.surface.dnormal_by_dcoeff()  # Shape: (nphi, ntheta, 3, ndofs)
 
-        # d_J1 = self.surface.dnormal_by_dcoeff_vjp(dJ1dN) + self.surface.dgamma_by_dcoeff_vjp(dJ1dx)
-        # d_J2 = self.surface.dnormal_by_dcoeff_vjp(dJ2dN) + self.surface.dgamma_by_dcoeff_vjp(dJ2dx)
-        # deriv = d_J1/J2 - d_J2*J1/(J2*J2)
+        # Derivative of norm_N with respect to coefficients
+        dnorm_N_by_dc = np.sum(N[..., None] * dN_by_dc, axis=2) / norm_N[..., None]  # Shape: (nphi, ntheta, ndofs)
 
-        deriv = self.surface.dnormal_by_dcoeff_vjp(dJ1dN/J2 - dJ2dN*J1/(J2*J2)) \
-            + self.surface.dgamma_by_dcoeff_vjp(dJ1dx/J2 - dJ2dx*J1/(J2*J2))
+        # Derivative of unit normal with respect to coefficients
+        dn_by_dc = (dN_by_dc * norm_N[..., None, None] -
+                    N[..., :, None] * dnorm_N_by_dc[..., None, :]) / (norm_N[..., None, None])**2
+
+        # Total integrals
+        J1 = np.sum(B_N**2 * norm_N)
+        J2 = np.sum(B_squared * norm_N)
+
+        # Direct contribution from surface parametrization
+        deriv = self.surface.dgamma_by_dcoeff_vjp(
+            2 * B_N[..., None] * np.einsum('ijkl,ijl->ijk', dB_by_dX, n) * norm_N[..., None] / J2 -
+            2 * J1 * np.einsum('ijkl,ijl->ijk', dB_by_dX, B) * norm_N[..., None] / (J2**2)
+        )
+
+        # Contribution from normal vector changes
+        dB_dot_n_by_dc_n = np.einsum('ijk,ijkm->ijm', B, dn_by_dc)  # From B·dn/dc
+        dJ1_by_dc_n = 2 * B_N[..., None] * dB_dot_n_by_dc_n * norm_N[..., None]
+
+        # Contribution from surface element changes
+        dJ1_by_dc_dS = B_N[..., None]**2 * dnorm_N_by_dc
+        dJ2_by_dc_dS = B_squared[..., None] * dnorm_N_by_dc
+
+        # Apply quotient rule d(J1/J2) = (dJ1*J2 - J1*dJ2)/J2²
+        deriv += np.sum(((dJ1_by_dc_n + dJ1_by_dc_dS) * J2 - J1 * dJ2_by_dc_dS) / (J2**2), axis=(0, 1))
+
         return deriv
 
 
