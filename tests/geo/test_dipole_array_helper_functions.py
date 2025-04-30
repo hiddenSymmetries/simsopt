@@ -198,7 +198,7 @@ class TestDipoleArrayHelperFunctions(unittest.TestCase):
                 self.assertIn("xc(1)", dof_names, "Curve does not have free dof xc(1)")
 
             # --- Additional test: Unfix fixed_geo_tfs and check for more dofs ---
-            # This flag makes it so the TF coils are initialized using 
+            # This flag makes it so the TF coils are initialized using
             # create_equally_spaced_cylindrical_curve
             tf_curves_unfixed = generate_tf_array(
                 s, ntf=2, TF_R0=VV.get_rc(0, 0), TF_a=VV.get_rc(1, 0), TF_b=VV.get_rc(1, 0),

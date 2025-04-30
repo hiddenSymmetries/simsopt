@@ -113,13 +113,13 @@ class PSCArray():
     and currents in the PSCs and the TFs.
     """
 
-    def __init__(self, base_psc_curves, coils_TF, eval_points, a_list, b_list, nfp=1, 
+    def __init__(self, base_psc_curves, coils_TF, eval_points, a_list, b_list, nfp=1,
                  stellsym=False, downsample=1, cross_section='circular'):
         from .biotsavart import BiotSavart
         self.base_psc_curves = base_psc_curves  # not the symmetrized ones
         self.nfp = nfp
         self.stellsym = stellsym
-        
+
         # Get the symmetrized curves
         psc_curves = apply_symmetries_to_curves(base_psc_curves, nfp, stellsym)
 

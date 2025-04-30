@@ -5,7 +5,6 @@ import numpy as np
 from simsopt.geo import SurfaceRZFourier, ToroidalWireframe, CircularPort, \
     windowpane_wireframe
 from simsopt.field.wireframefield import WireframeField, enclosed_current
-from simsopt.field.magneticfield import MagneticField
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 
 try:

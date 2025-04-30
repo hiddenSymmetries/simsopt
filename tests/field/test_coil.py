@@ -230,14 +230,31 @@ class PSCs(unittest.TestCase):
 
         curves = create_equally_spaced_curves(ncoils, nfp, stellsym, R0=R0, R1=R1)
         currents = [Current(1e5) for i in range(ncoils)]
-        currents_jax = [JaxCurrent(1e5) for i in range(ncoils)]
 
         curves_planar = create_equally_spaced_planar_curves(ncoils, nfp, stellsym, R0=R0, R1=R1)
         currents_planar = [Current(1e5) for i in range(ncoils)]
-        currents_planar_jax = [JaxCurrent(1e5) for i in range(ncoils)]
 
         coils = coils_via_symmetries(curves, currents, nfp, stellsym)
         coils_planar = coils_via_symmetries(curves_planar, currents_planar, nfp, stellsym)
+        bs = BiotSavart(coils)
+        bs_planar = BiotSavart(coils_planar)
+
+        x1d = np.linspace(R0, R0 + 0.3, 4)
+        y1d = np.linspace(0, 0.2, 3)
+        z1d = np.linspace(-0.2, 0.4, 5)
+        x, y, z = np.meshgrid(x1d, y1d, z1d)
+        points = np.ascontiguousarray(np.array([x.ravel(), y.ravel(), z.ravel()]).T)
+
+        bs.set_points(points)
+        bs_planar.set_points(points)
+
+        np.testing.assert_allclose(bs.B(), bs_planar.B(), atol=1e-16)
+
+        # JaxCurrent version
+        currents_jax = [JaxCurrent(1e5) for i in range(ncoils)]
+        currents_planar_jax = [JaxCurrent(1e5) for i in range(ncoils)]
+        coils = coils_via_symmetries(curves, currents_jax, nfp, stellsym)
+        coils_planar = coils_via_symmetries(curves_planar, currents_planar_jax, nfp, stellsym)
         bs = BiotSavart(coils)
         bs_planar = BiotSavart(coils_planar)
 
@@ -322,7 +339,7 @@ class PSCs(unittest.TestCase):
         rij_norm_jax = np.linalg.norm(gammas1_jax[:, :, None, None, :] - gammas2_jax[None, None, :, :, :], axis=-1)
         # sum over the currents, and sum over the biot savart integral
         A_ext2_jax = 1e-7 * np.sum(currents2_jax[None, None, :, None] * np.sum(gammadashs2_jax[None, None, :, :, :] / rij_norm_jax[:, :, :, :, None],
-                                                                       axis=-2), axis=-2) / np.shape(gammadashs2_jax)[1]
+                                                                               axis=-2), axis=-2) / np.shape(gammadashs2_jax)[1]
         assert np.allclose(A_ext_jax, A_ext2_jax.reshape(-1, 3))
 
 

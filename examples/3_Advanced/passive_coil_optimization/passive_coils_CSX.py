@@ -362,8 +362,8 @@ all_base_coils = base_coils + base_coils_TF
 regularization_list_TF = np.ones(len(coils_TF)) * regularization_rect(a, b)
 regularization_list = np.ones(len(coils)) * regularization_rect(aa, bb)
 
-Jforce = MixedLpCurveForce(coils, coils_TF, 
-                           regularization_list, regularization_list_TF, 
+Jforce = MixedLpCurveForce(coils, coils_TF,
+                           regularization_list, regularization_list_TF,
                            p=4, downsample=1,
                            psc_array=psc_array
                            )
@@ -372,14 +372,14 @@ Jforce2 = MixedSquaredMeanForce(coils, coils_TF,
                                 )
 
 # Errors creep in when downsample = 2
-Jtorque = MixedLpCurveTorque(coils, coils_TF, 
-                           regularization_list, regularization_list_TF, 
-                           p=2, downsample=1,
-                           psc_array=psc_array
-                           )
+Jtorque = MixedLpCurveTorque(coils, coils_TF,
+                             regularization_list, regularization_list_TF,
+                             p=2, downsample=1,
+                             psc_array=psc_array
+                             )
 Jtorque2 = MixedSquaredMeanTorque(coils, coils_TF,
-                                psc_array=psc_array
-                                )
+                                  psc_array=psc_array
+                                  )
 
 if continuation_run:
     Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in all_base_coils]
@@ -388,7 +388,7 @@ else:
     Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
     Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 
-# Note that only Jf and the forces/torques depend on the PSC currents, 
+# Note that only Jf and the forces/torques depend on the PSC currents,
 # which is the tricky part of the Jacobian
 JF = Jf \
     + CS_WEIGHT * Jcsdist \

@@ -124,6 +124,7 @@ def coil_force_pure(B, I, t):
     """
     return jnp.cross(I * t, B)
 
+
 def self_force(coil, regularization):
     """
     Compute the self-force of a coil.
@@ -155,6 +156,7 @@ def self_force_circ(coil, a):
     """
     return self_force(coil, regularization_circ(a))
 
+
 def self_force_rect(coil, a, b):
     """
     Compute the Lorentz self-force of a coil with rectangular cross-section
@@ -168,6 +170,7 @@ def self_force_rect(coil, a, b):
         array: Array of self-force.
     """
     return self_force(coil, regularization_rect(a, b))
+
 
 def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
     """
@@ -258,7 +261,6 @@ class LpCurveForce(Optimizable):
     """
 
     def __init__(self, coil, allcoils, regularization, p=2.0, threshold=0.0, downsample=1):
-        from simsopt.field import PSCArray
         self.coil = coil
         self.othercoils = [c for c in allcoils if c is not coil]
         self.biotsavart = BiotSavart(self.othercoils)
@@ -748,6 +750,7 @@ class MixedSquaredMeanForce(Optimizable):
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
+
 def mixed_lp_force_pure(
     gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2,
     quadpoints, quadpoints2,
@@ -756,7 +759,7 @@ def mixed_lp_force_pure(
 ):
     """
     Args: 
-        
+
     """
     downsample = int(downsample)
     quadpoints = quadpoints[::downsample]
@@ -876,6 +879,7 @@ class MixedLpCurveForce(Optimizable):
         threshold (float): Threshold for the objective function.
         downsample (int): Downsample factor for the objective function.
     """
+
     def __init__(self, allcoils, allcoils2, regularizations, regularizations2, p=2.0, threshold=0.0, downsample=1, psc_array=None):
         self.allcoils = allcoils
         self.allcoils2 = allcoils2
@@ -1026,6 +1030,7 @@ class MixedLpCurveTorque(Optimizable):
         psc_array (PSCArray): PSC coil array to use for the objective function.
     """
     # @jit
+
     def mixed_lp_torque_pure(self, gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2,
                              quadpoints, quadpoints2,
                              currents, currents2, regularizations, regularizations2, p, threshold, downsample):
@@ -1597,6 +1602,7 @@ class SquaredMeanTorque(Optimizable):
     Returns:
         float: Value of the objective function.
     """
+
     def squared_mean_torque_pure(self, current, gamma, gammadash, B_mutual, downsample):
         r"""
         """
@@ -2110,7 +2116,7 @@ def coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, a, b, dow
     gammadash = gammadash[::downsample, :]
     gammas2 = gammas2[:, ::downsample, :]
     gammadashs2 = gammadashs2[:, ::downsample, :]
-    
+
     # Initialize output array for inductances
     Lij = jnp.zeros(1 + gammas2.shape[0])
 
@@ -2118,7 +2124,7 @@ def coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, a, b, dow
     r_ij = gamma[:, None, :] - gammas2[:, None, :, :]
     rij_norm = jnp.linalg.norm(r_ij, axis=-1)
     gammadash_prod = jnp.sum(gammadash[:, None, :] * gammadashs2[:, None, :, :], axis=-1)
-    
+
     # Double sum over each of the closed curves for off-diagonal elements
     Lij = Lij.at[1:].add(jnp.sum(jnp.sum(gammadash_prod / rij_norm, axis=-1), axis=-1
                                  ) / (jnp.shape(gamma)[0] * jnp.shape(gammas2)[1]))
@@ -2128,22 +2134,22 @@ def coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, a, b, dow
     r_ij_self = gamma[:, None, :] - gamma[None, :, :] + eps
     rij_norm_self = jnp.linalg.norm(r_ij_self, axis=-1)
     gammadash_prod_self = jnp.sum(gammadash[:, None, :] * gammadash[None, :, :], axis=-1)
-    
+
     # Calculate regularization factor based on cross-section type
     k = jnp.where(cross_section == 'circular',
                   a / jnp.sqrt(jnp.exp(1.0)),  # Circular cross-section
-                  jnp.exp(-25.0/6.0 + (4*b)/(3*a) * jnp.arctan2(a, b) + 
-                         (4*a)/(3*b) * jnp.arctan2(b, a) + 
-                         (b**2)/(6*a**2) * jnp.log(b/a) + 
-                         (a**2)/(6*b**2) * jnp.log(a/b) - 
-                         (a**4 - 6*a**2*b**2 + b**4)/(6*a**2*b**2) * jnp.log(a/b + b/a)) * 
+                  jnp.exp(-25.0/6.0 + (4*b)/(3*a) * jnp.arctan2(a, b) +
+                          (4*a)/(3*b) * jnp.arctan2(b, a) +
+                          (b**2)/(6*a**2) * jnp.log(b/a) +
+                          (a**2)/(6*b**2) * jnp.log(a/b) -
+                          (a**4 - 6*a**2*b**2 + b**4)/(6*a**2*b**2) * jnp.log(a/b + b/a)) *
                   jnp.sqrt(a * b))  # Rectangular cross-section
-    
+
     # Add self-inductance term
-    Lij = Lij.at[0].add(jnp.sum(jnp.sum(gammadash_prod_self / 
-                                        jnp.sqrt(rij_norm_self**2 + k**2), axis=-1), axis=-1) / 
+    Lij = Lij.at[0].add(jnp.sum(jnp.sum(gammadash_prod_self /
+                                        jnp.sqrt(rij_norm_self**2 + k**2), axis=-1), axis=-1) /
                         jnp.shape(gamma)[0]**2)
-    
+
     return 1e-7 * Lij
 
 
@@ -2169,7 +2175,7 @@ def coil_coil_inductances_full_pure(gammas, gammadashs, a_list, b_list, downsamp
     gammas = gammas[:, ::downsample, :]
     gammadashs = gammadashs[:, ::downsample, :]
     N = gammas.shape[0]
-    
+
     # Compute Lij, i != j
     eps = 1e-10
     r_ij = gammas[None, :, None, :, :] - gammas[:, None, :, None, :] + eps
@@ -2181,7 +2187,7 @@ def coil_coil_inductances_full_pure(gammas, gammadashs, a_list, b_list, downsamp
 
     # Compute diagonal elements based on cross-section type
     # For circular cross-section
-    diag_circ = jnp.sum(jnp.sum(gammadash_prod / jnp.sqrt(rij_norm ** 2 + a_list[None, :, None, None] ** 2 / jnp.sqrt(jnp.exp(1.0))), 
+    diag_circ = jnp.sum(jnp.sum(gammadash_prod / jnp.sqrt(rij_norm ** 2 + a_list[None, :, None, None] ** 2 / jnp.sqrt(jnp.exp(1.0))),
                                 axis=-1), axis=-1) / jnp.shape(gammas)[1] ** 2
 
     # For rectangular cross-section
@@ -2192,13 +2198,13 @@ def coil_coil_inductances_full_pure(gammas, gammadashs, a_list, b_list, downsamp
         (a_list ** 4 - 6 * a_list ** 2 * b_list ** 2 + b_list ** 4) / \
         (6 * a_list ** 2 * b_list ** 2) * jnp.log(a_list / b_list + b_list / a_list)
     delta_ab = jnp.exp(-25.0 / 6.0 + k) * a_list * b_list
-    diag_rect = jnp.sum(jnp.sum(gammadash_prod / jnp.sqrt(rij_norm ** 2 + delta_ab[None, :, None, None]), 
-                               axis=-1), axis=-1) / jnp.shape(gammas)[1] ** 2
+    diag_rect = jnp.sum(jnp.sum(gammadash_prod / jnp.sqrt(rij_norm ** 2 + delta_ab[None, :, None, None]),
+                                axis=-1), axis=-1) / jnp.shape(gammas)[1] ** 2
 
     # Use where to select diagonal elements based on cross-section type
     diag_mask = jnp.eye(N, dtype=bool)
     diag_values = jnp.where(cross_section == 'circular', diag_circ, diag_rect)
-    
+
     # Update diagonal elements
     Lij = jnp.where(diag_mask, diag_values, Lij)
     return 1e-7 * Lij
@@ -2311,7 +2317,7 @@ class TVE(Optimizable):
         self.psc_array = psc_array
         if psc_array is not None:
             warnings.warn("PSCArray does NOT work in TVE objective unless all the coils are "
-                         "in the passive coil array.")
+                          "in the passive coil array.")
         if b is None:
             b = a
 

@@ -545,8 +545,6 @@ class CoilForcesTest(unittest.TestCase):
                 err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
                 print("taylor_test i: ", i, "deriv_FD: ", deriv_est, "deriv: ", deriv, "rel_err: ", err_new)  # , "err:", err, "ratio:", err_new / err)
                 np.testing.assert_array_less(err_new, 0.5 * err)
-                if i % 10 == 0:  # Torques dJ converges weakly, not monotonic
-                    err = err_new
 
     def test_Taylor_PSC(self):
         from simsopt.field import PSCArray
@@ -574,9 +572,6 @@ class CoilForcesTest(unittest.TestCase):
         psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=nfp, stellsym=True)
         coils = psc_array.coils
         coils_TF = psc_array.coils_TF
-        base_coils = coils[:len(base_curves)]
-        base_coils_TF = coils_TF[:len(base_curves_TF)]
-        all_base_coils = base_coils + base_coils_TF
         btot = psc_array.biot_savart_total
         btot.set_points(eval_points)
         regularization_list = np.ones(len(coils)) * regularization
@@ -600,7 +595,7 @@ class CoilForcesTest(unittest.TestCase):
             deriv = np.sum(dJ * np.ones_like(J.x))
             dofs = J.x
             h = np.ones_like(dofs)
-            err = 1e3
+            err = 1e10
             print('Objective = ', J)
             for i in range(11, 25):
                 eps = 0.5**i
@@ -613,9 +608,7 @@ class CoilForcesTest(unittest.TestCase):
                 deriv_est = (Jp - Jm) / (2 * eps)
                 err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
                 print("taylor_test i: ", i, "deriv_FD: ", deriv_est, "deriv: ", deriv, "rel_err: ", err_new)  # , "err:", err, "ratio:", err_new / err)
-                if i % 10 == 0:  # Torques dJ converges weakly, not monotonic
-                    # np.testing.assert_array_less(err_new, 1e-3 * err)
-                    err = err_new
+                np.testing.assert_array_less(err_new, 0.5 * err)
 
     def objectives_time_test(self):
         import time
@@ -657,11 +650,11 @@ class CoilForcesTest(unittest.TestCase):
             # Mixed objectives are faster if coils are split evenly into two groups
             objectives = [
                 sum([LpCurveForce(c, coils, regularization, p=p, threshold=threshold) for c in coils]),
-                MixedLpCurveForce(coils[:len(coils) // 2], coils[len(coils) // 2:], 
+                MixedLpCurveForce(coils[:len(coils) // 2], coils[len(coils) // 2:],
                                   regularization_list[:len(coils) // 2], regularization_list[len(coils) // 2:], p=p, threshold=threshold),
                 sum([LpCurveTorque(c, coils, regularization, p=p, threshold=threshold) for c in coils]),
-                MixedLpCurveTorque(coils[:len(coils) // 2], coils[len(coils) // 2:], 
-                                  regularization_list[:len(coils) // 2], regularization_list[len(coils) // 2:], p=p, threshold=threshold),
+                MixedLpCurveTorque(coils[:len(coils) // 2], coils[len(coils) // 2:],
+                                   regularization_list[:len(coils) // 2], regularization_list[len(coils) // 2:], p=p, threshold=threshold),
                 sum([SquaredMeanForce(c, coils) for c in coils]),
                 MixedSquaredMeanForce(coils[:len(coils) // 2], coils[len(coils) // 2:]),
                 sum([SquaredMeanTorque(c, coils) for c in coils]),

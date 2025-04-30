@@ -82,10 +82,10 @@ s_plot = SurfaceRZFourier.from_wout(
     quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta
 )
-# vc2 = VirtualCasing.from_vmec(
-#     vmec_file, src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi,
-#     trgt_nphi=qphi // 4, trgt_ntheta=qtheta)
-# s_plot = vc2.trgt_surf_full
+vc2 = VirtualCasing.from_vmec(
+    vmec_file, src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi,
+    trgt_nphi=qphi // 4, trgt_ntheta=qtheta)
+s_plot = vc2.trgt_surf_full
 
 # initialize the coils
 base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, 'SchuettHennebergQAnfp2')
@@ -197,10 +197,15 @@ for c in (coils + coils_TF):
     c._children = set()
 
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
-pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-             "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_init" + file_suffix, extra_data=pointData)
+btot.Bfields[0].set_points(s_plot.gamma().reshape((-1, 3)))
+btot.Bfields[1].set_points(s_plot.gamma().reshape((-1, 3)))
+pointData = {
+    "B_N1": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2))[:, :, None],
+    "B_N2": (vc2.B_external_normal_extended)[:, :, None],
+    "B_N": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2) - vc2.B_external_normal_extended)[:, :, None],
+    "B_N / B": ((np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                        ) - vc2.B_external_normal_extended) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_initial" + file_suffix, extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
 bpsc = btot.Bfields[0]
@@ -235,8 +240,8 @@ all_base_coils = base_coils + base_coils_TF
 regularization_list_TF = np.ones(len(coils_TF)) * regularization_rect(a, b)
 regularization_list = np.ones(len(coils)) * regularization_rect(aa, bb)
 
-Jforce = MixedLpCurveForce(coils, coils_TF, 
-                           regularization_list, regularization_list_TF, 
+Jforce = MixedLpCurveForce(coils, coils_TF,
+                           regularization_list, regularization_list_TF,
                            p=4, downsample=1,
                            psc_array=psc_array
                            )
@@ -245,14 +250,14 @@ Jforce2 = MixedSquaredMeanForce(coils, coils_TF,
                                 )
 
 # Errors creep in when downsample = 2
-Jtorque = MixedLpCurveTorque(coils, coils_TF, 
-                           regularization_list, regularization_list_TF, 
-                           p=2, downsample=1,
-                           psc_array=psc_array
-                           )
+Jtorque = MixedLpCurveTorque(coils, coils_TF,
+                             regularization_list, regularization_list_TF,
+                             p=2, downsample=1,
+                             psc_array=psc_array
+                             )
 Jtorque2 = MixedSquaredMeanTorque(coils, coils_TF,
-                                psc_array=psc_array
-                                )
+                                  psc_array=psc_array
+                                  )
 
 if continuation_run:
     CURVATURE_WEIGHT = 1e-3
@@ -265,7 +270,7 @@ MSC_THRESHOLD = 0.05
 Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
 Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 
-# Note that only Jf and the forces/torques depend on the PSC currents, 
+# Note that only Jf and the forces/torques depend on the PSC currents,
 # which is the tricky part of the Jacobian
 JF = Jf \
     + CS_WEIGHT * Jcsdist \
@@ -383,9 +388,12 @@ for i in range(1, n_saves + 1):
     save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 
     btot.set_points(s_plot.gamma().reshape((-1, 3)))
-    pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-                 "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                    ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+    pointData = {
+        "B_N1": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2))[:, :, None],
+        "B_N2": (vc2.B_external_normal_extended)[:, :, None],
+        "B_N": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2) - vc2.B_external_normal_extended)[:, :, None],
+        "B_N / B": ((np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                            ) - vc2.B_external_normal_extended) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "surf_final" + file_suffix, extra_data=pointData)
 
     btf = btot.Bfields[1]
