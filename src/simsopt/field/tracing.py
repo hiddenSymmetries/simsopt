@@ -654,13 +654,16 @@ def compute_poloidal_transits(res_tys, ma=None, flux=True):
     return ntransits
 
 
-def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None):
+def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None, gather_ty=True):
     r"""
     Compute magnetic field lines by solving
 
     .. math::
 
         [\dot x, \dot y, \dot z] = B(x, y, z)
+
+    For long simulations, you may get an MPI error due to the res_tys array
+    being too large. In this case, set ``gather_ty=False``.
 
     Args:
         field: the magnetic field :math:`B`
@@ -672,7 +675,9 @@ def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_crit
               corresponding to that phi should be computed
         stopping_criteria: list of stopping criteria, mostly used in
                            combination with the ``LevelsetStoppingCriterion``
-                           accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
+                           accessed via
+                           :obj:`simsopt.field.tracing.SurfaceClassifier`.
+        gather_ty: whether to gather the res_tys array from all processes.
 
     Returns: 2 element tuple containing
         - ``res_tys``:
@@ -705,7 +710,9 @@ def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_crit
         dtavg = res_ty[-1][0]/len(res_ty)
         logger.debug(f"{i+1:3d}/{nlines}, t_final={res_ty[-1][0]}, average timestep {dtavg:.10f}s")
     if comm is not None:
-        res_tys = [i for o in comm.allgather(res_tys) for i in o]
+        if gather_ty:
+            res_tys = [i for o in comm.allgather(res_tys) for i in o]
+            
         res_phi_hits = [i for o in comm.allgather(res_phi_hits) for i in o]
     return res_tys, res_phi_hits
 

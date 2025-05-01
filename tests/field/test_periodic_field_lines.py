@@ -198,6 +198,29 @@ class Tests(unittest.TestCase):
         # np.testing.assert_allclose(R, 5.4490101687346115, rtol=1e-3)
         # np.testing.assert_allclose(Z, 0.875629267473603, atol=0.003)
 
+    def test_find_periodic_field_line_1D_optimization(self):
+        field = _get_w7x_field()
+        nfp = 5
+
+        # Initial guess:
+        R0 = 5.9
+
+        # Find the magnetic axis:
+        m = 1
+        R, Z = find_periodic_field_line(field, nfp, m, R0, method="1D optimization")
+        print("R, Z", R, Z)
+
+        # Check that the final coordinates are as expected
+        np.testing.assert_allclose(R, 5.949141380504241, rtol=3e-5)
+        np.testing.assert_allclose(Z, 0, atol=1e-8)
+
+        # Find the magnetic axis at the half-period plane:
+        R0 = 5.3
+        R, Z = find_periodic_field_line(field, nfp, m, R0, half_period=True, method="1D optimization")
+        print("R, Z", R, Z)
+        np.testing.assert_allclose(R, 5.20481580547662, rtol=3e-5)
+        np.testing.assert_allclose(Z, 0, atol=1e-8)
+
     def test_Hanson_Cary_1984(self):
         # First try the non-optimized coils:
         coils, field = get_Cary_Hanson_field("1984", optimized=False)
@@ -300,3 +323,22 @@ class Tests(unittest.TestCase):
         np.testing.assert_allclose(d_r_d_phi[1:-1, 1], d_y_d_phi_alt, atol=atol, rtol=rtol)
         np.testing.assert_allclose(d_r_d_phi[1:-1, 2], d_z_d_phi_alt, atol=atol, rtol=rtol)
         
+    def test_get_R_Z_at_phi(self):
+        field = _get_w7x_field()
+        nfp = 5
+
+        m = 1
+        R0 = 6.0
+        pfl = PeriodicFieldLine(field, nfp, m, R0, method="1D Z")
+        for j, phi in enumerate(pfl.phi):
+            R, z = pfl.get_R_Z_at_phi(phi)
+            np.testing.assert_allclose(R, pfl.R[j])
+            np.testing.assert_allclose(z, pfl.z[j], atol=1e-8)
+
+            R, z = pfl.get_R_Z_at_phi(phi + 2 * np.pi / nfp)
+            np.testing.assert_allclose(R, pfl.R[j])
+            np.testing.assert_allclose(z, pfl.z[j], atol=1e-7)
+
+            R, z = pfl.get_R_Z_at_phi(phi - 2 * np.pi / nfp)
+            np.testing.assert_allclose(R, pfl.R[j])
+            np.testing.assert_allclose(z, pfl.z[j], atol=1e-7)

@@ -1,7 +1,8 @@
 from math import lcm
 import numpy as np
-from scipy.optimize import root, root_scalar
+from scipy.optimize import root, root_scalar, least_squares
 from scipy.integrate import solve_ivp
+from scipy.interpolate import CubicSpline
 import simsoptpp as sopp
 from .tracing import ToroidalTransitStoppingCriterion, IterationStoppingCriterion
 from ..util.spectral_diff_matrix import spectral_diff_matrix
@@ -82,7 +83,7 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
         phis=phi_targets,
         stopping_criteria=[
             ToroidalTransitStoppingCriterion(Delta_phi / (2 * np.pi), False),
-            IterationStoppingCriterion(1000),
+            IterationStoppingCriterion(10000),
         ],
     )
 
@@ -275,6 +276,7 @@ def _find_periodic_field_line_1D(
     verbose=1,
     deflation_R=[],
     deflation_k=1.0,
+    R_axis=1.0,
 ):
     """Find a periodic field line using a 1D search along the line Z=0.
     
@@ -290,6 +292,7 @@ def _find_periodic_field_line_1D(
         half_period: If True, look for periodic field lines in the half-period plane instead of the phi=0 plane (default: False).
         solve_tol: Tolerance for the root finding (default: 1e-6).
         follow_tol: Tolerance for the field line integration (default: 1e-10).
+        R_axis: Major radius of the magnetic axis, used only if residual="theta"
     """
 
     Delta_phi = m * 2 * np.pi / nfp
@@ -337,7 +340,7 @@ def _find_periodic_field_line_1D(
     else:
         raise ValueError(f"Unknown residual: {residual}")
 
-    sol = root_scalar(func, x0=R0, x1=R0 * 1.01, xtol=solve_tol, rtol=solve_tol)
+    sol = root_scalar(func, x0=R0, x1=R0 * 1.0001, xtol=solve_tol, rtol=solve_tol)
     print(sol)
     R0 = sol.root
 
@@ -349,6 +352,74 @@ def _find_periodic_field_line_1D(
 
     return sol.root
 
+
+def _find_periodic_field_line_1D_optimization(
+    field,
+    nfp,
+    m,
+    R0,
+    half_period=False,
+    solve_tol=1e-6,
+    follow_tol=1e-10,
+    verbose=1,
+    deflation_R=[],
+    deflation_k=1.0,
+    R_axis=1.0,
+):
+    """Find a periodic field line using a 1D search along the line Z=0.
+
+    This routine works by minimizing the objective f = (R - R0)^2 + (Z - 0)^2
+    where R and Z are the final coordinates of the field line after integrating.
+    
+    The argument ``m`` is typically the number of times the field line appears
+    in a cross-section.
+
+    Args:
+        field: The magnetic field object.
+        nfp: Number of field periods.
+        m: Number of field periods over which the field line is periodic.
+        R0: Initial R coordinate.
+        half_period: If True, look for periodic field lines in the half-period plane instead of the phi=0 plane (default: False).
+        solve_tol: Tolerance for the root finding (default: 1e-6).
+        follow_tol: Tolerance for the field line integration (default: 1e-10).
+    """
+
+    Delta_phi = m * 2 * np.pi / nfp
+    if half_period:
+        phi0 = np.pi / nfp
+    else:
+        phi0 = 0.0
+
+    def compute_residual(xarray):
+        x = xarray[0]
+        try:
+            R, Z = _integrate_field_line(field, x, 0, Delta_phi, follow_tol, phi0=phi0)
+            residual = np.array([R - x, Z])
+        except RuntimeError:
+            print("Error in _integrate_field_line")
+            R = np.nan
+            Z = np.nan
+            residual = 10
+
+        for Rd in deflation_R:
+            residual *= (deflation_k + 1 / abs(x - Rd))
+        if verbose > 0:
+            cost = 0.5 * np.dot(residual, residual)
+            print(f"  optimizing, evaluating x = {x:17}, final R = {R}, Z = {Z}, cost = {cost:15}, Delta_phi = {Delta_phi}, phi0 = {phi0}, follow_tol = {follow_tol}")
+
+        return residual
+
+    sol = least_squares(compute_residual, x0=R0, xtol=solve_tol, ftol=solve_tol, verbose=2)
+    print(sol)
+    R0 = sol.x[0]
+
+    # Check difference in final vs starting location:
+    R, Z = _integrate_field_line(field, R0, 0, Delta_phi, follow_tol, phi0=phi0)
+    print(f"Final - initial R: {R - R0}, Z: {Z}")
+    np.testing.assert_allclose(R0, R, atol=1e-6, rtol=1e-6)
+    np.testing.assert_allclose(0.0, Z, atol=1e-6, rtol=1e-6)
+
+    return R0
 
 def _pseudospectral_residual(x, n, D, phi, field):
     """
@@ -588,6 +659,10 @@ def find_periodic_field_line(
         return _find_periodic_field_line_pseudospectral(
             field, nfp, m, R0, Z0, half_period, solve_tol, nphi, deflation_R=deflation_R, deflation_k=deflation_k
         )
+    elif method == "1D optimization":
+        return _find_periodic_field_line_1D_optimization(
+            field, nfp, m, R0, half_period, solve_tol, follow_tol, deflation_R=deflation_R, deflation_k=deflation_k
+        ), 0.0
     elif method in ["1D R", "1D Z", "1D theta"]:
         return _find_periodic_field_line_1D(
             field, nfp, m, R0, method[3:], half_period, solve_tol, follow_tol, deflation_R=deflation_R, deflation_k=deflation_k
@@ -631,6 +706,7 @@ class PeriodicFieldLine():
         nphi=400,
         deflation_R=[],
         deflation_k=1.0,
+        asserts=True,
     ):
         self.field = field
         self.nfp = nfp
@@ -669,12 +745,13 @@ class PeriodicFieldLine():
         self.R, self.z = _integrate_field_line_cyl(field, R0, Z0, Delta_phi_to_close, tol=follow_tol, phi0=phi0, nphi=nphi)
         self.x = self.R * np.cos(self.phi)
         self.y = self.R * np.sin(self.phi)
-        np.testing.assert_allclose(self.R[0], self.R[-1], atol=1e-7, rtol=1e-7)
-        np.testing.assert_allclose(self.z[0], self.z[-1], atol=1e-6, rtol=1e-7)
-        np.testing.assert_allclose(self.x[0], self.x[-1], atol=1e-7, rtol=1e-7)
-        np.testing.assert_allclose(self.y[0], self.y[-1], atol=1e-7, rtol=1e-7)
-        np.testing.assert_allclose(self.R[0], R0, atol=1e-14, rtol=1e-14)
-        np.testing.assert_allclose(self.z[0], Z0, atol=1e-14, rtol=1e-14)
+        if asserts:
+            np.testing.assert_allclose(self.R[0], self.R[-1], atol=1e-7, rtol=1e-7)
+            np.testing.assert_allclose(self.z[0], self.z[-1], atol=1e-6, rtol=1e-7)
+            np.testing.assert_allclose(self.x[0], self.x[-1], atol=1e-7, rtol=1e-7)
+            np.testing.assert_allclose(self.y[0], self.y[-1], atol=1e-7, rtol=1e-7)
+            np.testing.assert_allclose(self.R[0], R0, atol=1e-14, rtol=1e-14)
+            np.testing.assert_allclose(self.z[0], Z0, atol=1e-14, rtol=1e-14)
 
     def to_vtk(self, filename):
         """Write the field line to a VTK file."""
@@ -731,4 +808,15 @@ class PeriodicFieldLine():
             nphi=nphi,
         )
 
+    def get_R_Z_at_phi(self, phi):
+        """Get R and Z at a specified phi value."""
+
+        # scipy requires that the last point _exactly_ matches the first point.
+        R_for_spline = np.concatenate((self.R[:-1], [self.R[0]]))
+        z_for_spline = np.concatenate((self.z[:-1], [self.z[0]]))
+        R_spline = CubicSpline(self.phi, R_for_spline, bc_type='periodic')
+        R = R_spline(phi)
+        z_spline = CubicSpline(self.phi, z_for_spline, bc_type='periodic')
+        z = z_spline(phi)
+        return R, z
 
