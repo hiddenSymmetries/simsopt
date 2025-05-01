@@ -187,17 +187,30 @@ if save_plots:
         net_forces[mk_zero_indices, :] = 0.0
         t_force_calc_end = time.time()
         print('Time to calc force = ', t_force_calc_end - t_force_calc_start)
+        
+        
         #Do net torque calcs where there are nonzero dipole moments and make a list
+        # Do net torque calcs where there are nonzero dipole moments and make a list
         t_torque_calc_start = time.time()
+        # This calls the C++ function
         net_torques_nonzero = sopp.net_torque_matrix(
-                np.ascontiguousarray(mk[mk_nonzero_indices, :]), 
+                np.ascontiguousarray(mk[mk_nonzero_indices, :]),
                 np.ascontiguousarray(pm_opt.dipole_grid_xyz[mk_nonzero_indices, :])
             )
+       
+
+        # Sanity check to make sure torques aren't zero
+        #print(f"Shape of net_torques_nonzero from C++: {net_torques_nonzero.shape}")
+        #print(f"Norms of net_torques_nonzero (first 5): {np.linalg.norm(net_torques_nonzero, axis=1)[:5]}")
+        #print(f"Max norm in net_torques_nonzero: {np.max(np.linalg.norm(net_torques_nonzero, axis=1))}")
+        #print(f"Sum of norms in net_torques_nonzero: {np.sum(np.linalg.norm(net_torques_nonzero, axis=1))}")
+        # Fill in the full net_torques array for the base set
         net_torques = np.zeros((pm_opt.ndipoles, 3))
         net_torques[mk_nonzero_indices, :] = net_torques_nonzero
-        net_torques[mk_zero_indices, :] = 0.0
+        net_torques[mk_zero_indices, :] = 0.0 # Ensure these are explicitly zero
         t_torque_calc_end = time.time()
-        print('Time to calc torque = ', t_torque_calc_end - t_torque_calc_start)
+        print('Time to calc torque for non-zero dipoles = ', t_torque_calc_end - t_torque_calc_start)
+
         b_dipole = DipoleField(
             pm_opt.dipole_grid_xyz,
             mk,
@@ -207,7 +220,12 @@ if save_plots:
             net_forces=net_forces,
             net_torques = net_torques
         )
-        
+        #Sanity Check to make sure torques aren't zero
+        #print(f"Shape of b_dipole.net_torques_full after symmetry expansion: {b_dipole.net_torques_full.shape}")
+        #print(f"Norms of b_dipole.net_torques_full (first 5): {np.linalg.norm(b_dipole.net_torques_full, axis=1)[:5]}")
+        #print(f"Max norm in b_dipole.net_torques_full: {np.max(np.linalg.norm(b_dipole.net_torques_full, axis=1))}")
+        #print(f"Sum of norms in b_dipole.net_torques_full: {np.sum(np.linalg.norm(b_dipole.net_torques_full, axis=1))}")
+
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
         K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
         b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}")

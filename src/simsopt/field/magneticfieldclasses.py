@@ -705,40 +705,75 @@ class DipoleField(MagneticField):
         ty = net_torques[:, 1]
         tz = net_torques[:, 2]
 
-        # Loop over stellarator and field-period symmetry contributions
+# Loop over stellarator and field-period symmetry contributions
+        index = 0 # Make sure index is initialized before these loops
+        n = ndipoles # Number of dipoles in the base set
         for stell in stell_list:
             for fp in range(nfp):
                 phi0 = (2 * np.pi / nfp) * fp
+                cos_phi0 = np.cos(phi0)
+                sin_phi0 = np.sin(phi0)
+                # Iterate through the dipoles in the base set
+                for k in range(n):
+                    # --- Apply Stellarator Symmetry (y -> -y, z -> -z) based on 'stell' ---
+                    # These are the components after potential reflection
+                    current_pos_x = ox[k]
+                    current_pos_y = oy[k] * stell
+                    current_pos_z = oz[k] * stell
 
-                # get new dipoles locations by flipping the y and z components, then rotating by phi0
-                dipole_grid_x[index:index + n] = ox * np.cos(phi0) - oy * np.sin(phi0) * stell
-                dipole_grid_y[index:index + n] = ox * np.sin(phi0) + oy * np.cos(phi0) * stell
-                dipole_grid_z[index:index + n] = oz * stell
+                    current_m_x = mmx[k]
+                    current_m_y = mmy[k] * stell
+                    current_m_z = mmz[k] * stell
 
-                # get new dipole vectors by flipping the x component, then rotating by phi0
-                m_vec[index:index + n, 0] = mmx * np.cos(phi0) * stell - mmy * np.sin(phi0)
-                m_vec[index:index + n, 1] = mmx * np.sin(phi0) * stell + mmy * np.cos(phi0)
-                m_vec[index:index + n, 2] = mmz
+                    current_f_x = fx[k]
+                    current_f_y = fy[k] * stell
+                    current_f_z = fz[k] * stell
 
-                # get new dipole forces by flipping the x component, then rotating by phi0
-                net_forces_full[index:index + n, 0] = fx * np.cos(phi0) * stell - fy * np.sin(phi0)
-                net_forces_full[index:index + n, 1] = fx * np.sin(phi0) * stell + fy * np.cos(phi0)
-                net_forces_full[index:index + n, 2] = fz
-                
-                # get new dipole torques by flipping the x component, then rotating by phi0
-                net_torques_full[index:index + n, 0] = tx * np.cos(phi0) * stell - ty * np.sin(phi0)
-                net_torques_full[index:index + n, 1] = tx * np.sin(phi0) * stell + ty * np.cos(phi0)
-                net_torques_full[index:index + n, 2] = tz
+                    current_t_x = tx[k]
+                    current_t_y = ty[k] * stell
+                    current_t_z = tz[k] * stell
 
-                m_max[index:index + n] = m_maxima
-                index += n
+                    # --- Apply Field-Period Rotation (around z-axis by phi0) ---
+                    # Rotate the components obtained after reflection
 
+                    # Positions
+                    dipole_grid_x[index] = current_pos_x * cos_phi0 - current_pos_y * sin_phi0
+                    dipole_grid_y[index] = current_pos_x * sin_phi0 + current_pos_y * cos_phi0
+                    dipole_grid_z[index] = current_pos_z # Z is invariant under z-rotation
+
+                    # Moments
+                    m_vec[index, 0] = current_m_x * cos_phi0 - current_m_y * sin_phi0
+                    m_vec[index, 1] = current_m_x * sin_phi0 + current_m_y * cos_phi0
+                    m_vec[index, 2] = current_m_z # Z is invariant under z-rotation
+
+                    # Forces
+                    net_forces_full[index, 0] = current_f_x * cos_phi0 - current_f_y * sin_phi0
+                    net_forces_full[index, 1] = current_f_x * sin_phi0 + current_f_y * cos_phi0
+                    net_forces_full[index, 2] = current_f_z # Z is invariant under z-rotation
+
+                    # Torques
+                    net_torques_full[index, 0] = current_t_x * cos_phi0 - current_t_y * sin_phi0
+                    net_torques_full[index, 1] = current_t_x * sin_phi0 + current_t_y * cos_phi0
+                    net_torques_full[index, 2] = current_t_z # Z is invariant under z-rotation
+
+                    # Maximum moment magnitude (scalar, unaffected by rotation/reflection)
+                    m_max[index] = m_maxima[k]
+
+                    # Move to the next index in the full arrays
+                    index += 1
+
+        # Ensure the total number of dipoles matches the expected size
+        if index != ndipoles * nsym:
+            raise ValueError("Symmetry expansion resulted in an incorrect number of dipoles.")
+
+        # The rest of the method (converting to contiguous arrays) follows here
         contig = np.ascontiguousarray
         self.dipole_grid = contig(np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T)
         self.m_vec = contig(m_vec)
         self.m_maxima = contig(m_max)
         self.net_forces_full = contig(net_forces_full)
         self.net_torques_full = contig(net_torques_full)
+
 
     def _toVTK(self, vtkname):
         """
