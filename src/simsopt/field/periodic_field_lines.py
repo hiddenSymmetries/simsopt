@@ -1,5 +1,6 @@
 from math import lcm
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.optimize import root, root_scalar, least_squares
 from scipy.integrate import solve_ivp
 from scipy.interpolate import CubicSpline
@@ -13,7 +14,7 @@ try:
 except ImportError:
     polyLinesToVTK = None
 
-__all__ = ["find_periodic_field_line", "PeriodicFieldLine"]
+__all__ = ["find_periodic_field_line", "PeriodicFieldLine", "periodic_field_line_grid_search"]
 
 def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
     """Integrate a single field line in the toroidal direction.
@@ -83,7 +84,7 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
         phis=phi_targets,
         stopping_criteria=[
             ToroidalTransitStoppingCriterion(Delta_phi / (2 * np.pi), False),
-            IterationStoppingCriterion(10000),
+            IterationStoppingCriterion(100000),
         ],
     )
 
@@ -91,7 +92,7 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
         res = np.array(res_ty)
         import matplotlib.pyplot as plt
         n_rows = 2
-        n_cols = 2
+        n_cols = 3
         plt.figure(figsize=(14, 8))
 
         plt.subplot(n_rows, n_cols, 1)
@@ -110,6 +111,11 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
         plt.ylabel("Z")
 
         plt.subplot(n_rows, n_cols, 4)
+        plt.plot(res[:, 0], np.sqrt(res[:, 1]**2 + res[:, 2]**2))
+        plt.xlabel("t")
+        plt.ylabel("R")
+
+        plt.subplot(n_rows, n_cols, 5)
         plt.plot(res[:, 1], res[:, 2])
         plt.xlabel("X")
         plt.ylabel("Y")
@@ -212,6 +218,10 @@ def _integrate_field_line_cyl(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=
         rtol=tol,
         atol=tol,
     )
+    if result.status != 0:
+        print("Warning!! Integration failed in _find_periodic_field_line_cyl")
+        print("result:", result)
+        return np.nan, np.nan
 
     if nphi == 1:
         return result.y[0, -1], result.y[1, -1]
@@ -743,13 +753,27 @@ class PeriodicFieldLine():
         self.Delta_phi_to_close = Delta_phi_to_close
         self.phi = np.linspace(0, Delta_phi_to_close, nphi) + phi0
         self.R, self.z = _integrate_field_line_cyl(field, R0, Z0, Delta_phi_to_close, tol=follow_tol, phi0=phi0, nphi=nphi)
+        closed_curve_succeeded = True
+        if self.R is np.nan:
+            print("!!!! Warning!! integration failed for closing the full field line in 3D, so shortening the integration.")
+            print("!!!! Vtk will not show the full curve, and A integrals will be wrong!!!")
+            closed_curve_succeeded = False
+            Delta_phi_to_close = m * 2 * np.pi / nfp
+            self.Delta_phi_to_close = Delta_phi_to_close
+            self.phi = np.linspace(0, Delta_phi_to_close, nphi) + phi0
+            self.R, self.z = _integrate_field_line_cyl(field, R0, Z0, Delta_phi_to_close, tol=follow_tol, phi0=phi0, nphi=nphi)
+
         self.x = self.R * np.cos(self.phi)
         self.y = self.R * np.sin(self.phi)
         if asserts:
+            # These asserts can sometimes fail because the field line has been
+            # followed nfp times longer than when the initial location was
+            # located, so exponentially growing errors can become large.
             np.testing.assert_allclose(self.R[0], self.R[-1], atol=1e-7, rtol=1e-7)
             np.testing.assert_allclose(self.z[0], self.z[-1], atol=1e-6, rtol=1e-7)
-            np.testing.assert_allclose(self.x[0], self.x[-1], atol=1e-7, rtol=1e-7)
-            np.testing.assert_allclose(self.y[0], self.y[-1], atol=1e-7, rtol=1e-7)
+            if closed_curve_succeeded:
+                np.testing.assert_allclose(self.x[0], self.x[-1], atol=1e-7, rtol=1e-7)
+                np.testing.assert_allclose(self.y[0], self.y[-1], atol=1e-7, rtol=1e-7)
             np.testing.assert_allclose(self.R[0], R0, atol=1e-14, rtol=1e-14)
             np.testing.assert_allclose(self.z[0], Z0, atol=1e-14, rtol=1e-14)
 
@@ -820,3 +844,65 @@ class PeriodicFieldLine():
         z = z_spline(phi)
         return R, z
 
+def periodic_field_line_grid_search(
+    field,
+    nfp,
+    m,
+    Rmin,
+    Rmax,
+    n_R,
+    half_period=False,
+    follow_tol=1e-10,
+    plot=False,
+):
+    """Do an exhaustive grid search to approximately find periodic field lines.
+
+    A 1D search is performed along the line Z = 0.
+    
+    """
+    R_initial = np.linspace(Rmin, Rmax, n_R)
+    R_final = np.zeros(n_R)
+    z_final = np.zeros(n_R)
+
+    if half_period:
+        phi0 = np.pi / nfp
+    else:
+        phi0 = 0
+
+    Delta_phi = m * 2 * np.pi / nfp
+    for j in range(n_R):
+        print("R_initial[j]:", R_initial[j])
+        R_final[j], z_final[j] = _integrate_field_line_cyl(field, R_initial[j], 0.0, Delta_phi, tol=follow_tol, phi0=phi0)
+
+    cost = np.sqrt((R_initial - R_final)**2 + (z_final)**2)
+
+    if plot:
+        plt.figure(figsize=(8, 8))
+        n_rows = 3
+        n_cols = 1
+        linespec = ".-"
+
+        plt.subplot(n_rows, n_cols, 1)
+        plt.plot(R_initial, np.zeros_like(R_initial), ":k")
+        plt.plot(R_initial, R_final - R_initial, linespec)
+        plt.xlabel("R_initial")
+        plt.ylabel("R_final - R_initial")
+
+        plt.subplot(n_rows, n_cols, 2)
+        plt.plot(R_initial, np.zeros_like(R_initial), ":k")
+        plt.plot(R_initial, z_final, linespec)
+        plt.xlabel("R_initial")
+        plt.ylabel("z_final")
+
+        plt.subplot(n_rows, n_cols, 3)
+        plt.plot(R_initial, np.zeros_like(R_initial), ":k")
+        plt.plot(R_initial, cost, linespec)
+        plt.xlabel("R_initial")
+        plt.ylabel("cost")
+
+        plt.suptitle(f"m = {m},  half_period = {half_period}")
+
+        plt.tight_layout()
+        plt.show()
+
+    return R_initial[np.argmin(cost)]
