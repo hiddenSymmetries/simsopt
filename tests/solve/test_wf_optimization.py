@@ -456,16 +456,17 @@ class WireframeOptimizationTests(unittest.TestCase):
                                verbose=False)
 
         # Test bnorm_target functionality
-        # Get the number of quadrature points from the surface
-        nphi = surf_plas.quadpoints_phi.size
-        ntheta = surf_plas.quadpoints_theta.size
 
         # Poloidal current constraint
         cur_pol = 1e6
         wf.set_poloidal_current(cur_pol)
 
-        # Create a non-zero target normal field with correct dimensions
-        bnorm_target = np.ones(nphi * ntheta) * 0.1  # 0.1 Tesla target field
+        # Create a non-zero target normal field that would arise from a
+        # uniform vertical external field with strength 0.1 T
+        n = surf_plas.normal()
+        absn = np.linalg.norm(n, axis=2)[:, :, None]
+        unitn = n * (1./absn)
+        bnorm_target = 0.1 * unitn[:, :, 2]
 
         # Run optimization with bnorm_target
         reg_W = 0.0
@@ -481,16 +482,16 @@ class WireframeOptimizationTests(unittest.TestCase):
         amploop_tor.set('zs(1)', 2*surf_wf.get_zs(1, 0))
         res_baseline = optimize_wireframe(wf, 'rcls', opt_params,
                                           surf_plas=surf_plas,
-                                          verbose=False)
+                                          area_weighted=False, verbose=False)
         self.assertTrue(wf.check_constraints())
         self.assertTrue(np.isclose(cur_pol,
                                    -enclosed_current(amploop_pol, res_baseline['wframe_field'], n_pts_amploop)))
 
-        # Now run with a constant target field
+        # Now run with a nonzero target field
         res_with_target = optimize_wireframe(wf, 'rcls', opt_params,
                                              surf_plas=surf_plas,
                                              bnorm_target=bnorm_target,
-                                             verbose=False)
+                                             area_weighted=False, verbose=False)
 
         self.assertTrue(wf.check_constraints())
         self.assertTrue(np.isclose(cur_pol,
@@ -501,29 +502,29 @@ class WireframeOptimizationTests(unittest.TestCase):
                          "Target field should change the optimization target vector")
 
         bvec_diff = res_with_target['bvec'] - res_baseline['bvec']
-        assert np.allclose(bvec_diff, wf.area_weight * 0.1)
+        assert np.allclose(bvec_diff, bnorm_target.reshape((-1,1)))
 
         # Run with a different target field
-        bnorm_target2 = np.ones(nphi * ntheta) * 0.2  # 0.1 Tesla target field
+        bnorm_target2 = 3 * bnorm_target
         res_with_target2 = optimize_wireframe(wf, 'rcls', opt_params,
                                               surf_plas=surf_plas,
                                               bnorm_target=bnorm_target2,
-                                              verbose=False)
+                                              area_weighted=False, verbose=False)
         self.assertTrue(wf.check_constraints())
         self.assertTrue(np.isclose(cur_pol,
                                    -enclosed_current(amploop_pol, res_with_target2['wframe_field'], n_pts_amploop)))
 
         # The solutions should be different but they are not -- wireframe passing bnorm_target is not working
-        # print('x', res_with_target['x'] - res_with_target2['x'])
-        # print('bvec', res_with_target['bvec'] - res_with_target2['bvec'])
-        # print('Amat @ x - bvec', res_with_target['Amat'] @ res_with_target['x'] - res_with_target['bvec'],
-        #       res_with_target2['Amat'] @ res_with_target2['x'] - res_with_target2['bvec'])
-        # self.assertFalse(np.allclose(res_with_target['x'], res_with_target2['x']),
-        #                 "Different target fields should produce different solutions")
+        print('x', res_with_target['x'] - res_with_target2['x'])
+        print('bvec', res_with_target['bvec'] - res_with_target2['bvec'])
+        print('Amat @ x - bvec', res_with_target['Amat'] @ res_with_target['x'] - res_with_target['bvec'],
+              res_with_target2['Amat'] @ res_with_target2['x'] - res_with_target2['bvec'])
+        self.assertFalse(np.allclose(res_with_target['x'], res_with_target2['x']),
+                         "Different target fields should produce different solutions")
 
         # The difference in bvec should match the difference in target values
-        # bvec_diff2 = res_with_target2['bvec'] - res_with_target['bvec']
-        # assert np.allclose(bvec_diff2, wf.area_weight * (0.2 - 0.1))
+        bvec_diff2 = res_with_target2['bvec'] - res_with_target['bvec']
+        assert np.allclose(bvec_diff2, 2*bnorm_target.reshape((-1,1)))
 
 
 if __name__ == "__main__":
