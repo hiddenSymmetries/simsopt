@@ -502,7 +502,7 @@ class WireframeOptimizationTests(unittest.TestCase):
                          "Target field should change the optimization target vector")
 
         bvec_diff = res_with_target['bvec'] - res_baseline['bvec']
-        assert np.allclose(bvec_diff, bnorm_target.reshape((-1,1)))
+        assert np.allclose(bvec_diff, bnorm_target.reshape((-1, 1)))
 
         # Run with a different target field
         bnorm_target2 = 3 * bnorm_target
@@ -524,7 +524,7 @@ class WireframeOptimizationTests(unittest.TestCase):
 
         # The difference in bvec should match the difference in target values
         bvec_diff2 = res_with_target2['bvec'] - res_with_target['bvec']
-        assert np.allclose(bvec_diff2, 2*bnorm_target.reshape((-1,1)))
+        assert np.allclose(bvec_diff2, 2*bnorm_target.reshape((-1, 1)))
 
 
 if __name__ == "__main__":
