@@ -24,7 +24,7 @@ from simsopt import load
 t1 = time.time()
 
 # Number of Fourier modes describing each Cartesian component of each coil:
-order = 0
+order = 2
 
 continuation_run = False
 MAXITER = 1000
@@ -79,8 +79,8 @@ nturns = 100
 nturns_TF = 200
 
 # wire cross section for the dipole coils should be more like 5 cm x 5 cm
-aa = 0.05
-bb = 0.05
+aa = 0.06
+bb = 0.06
 
 if not continuation_run:
     base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, 'LandremanPaulQH')
@@ -88,13 +88,14 @@ if not continuation_run:
     base_coils_TF = coils_TF[:num_TF_unique_coils]
     currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
 
-    Nx = 5
+    Nx = 4
     Ny = Nx
     Nz = Nx
     # Create the initial coils:
     base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-        s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=False, jax_flag=True,
+        s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=False, jax_flag=False,
     )
+    # base_curves = remove_interlinking_dipoles_and_TFs(base_curves, base_curves_TF, eps=0.06)
     alphas, deltas = align_dipoles_with_plasma(s, base_curves)
     for i in range(len(base_curves)):
         alpha2 = alphas[i] / 2.0
@@ -132,6 +133,13 @@ else:
     base_curves_TF = curves_TF[:len(curves_TF) // 8]
     base_coils_TF = coils_TF[:len(coils_TF) // 8]
 
+    # Give coils more dofs now that we have a good initial guess
+    for i in range(len(base_curves)):
+
+        # unfix shape of each coil
+        for j in range(2 * order + 1):
+            base_curves[i].unfix('x' + str(j))
+
 ncoils = len(base_curves)
 a_list = np.ones(len(base_curves)) * aa
 b_list = np.ones(len(base_curves)) * aa
@@ -157,11 +165,14 @@ a_list = np.hstack((np.ones(len(coils)) * aa, np.ones(len(coils_TF)) * a))
 b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 
 LENGTH_WEIGHT = Weight(0.01)
-LENGTH_TARGET = 100
+LENGTH_TARGET = 120
+if continuation_run:
+    LENGTH_TARGET = 100
+LENGTH_TARGET2 = 150
 LINK_WEIGHT = 1e4
-CC_THRESHOLD = 0.8
+CC_THRESHOLD = 1.0
 CC_WEIGHT = 1e1
-CS_THRESHOLD = 1.3
+CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e-1
 # Weight for the Coil Coil forces term
 FORCE_WEIGHT = Weight(0.0)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
@@ -197,9 +208,10 @@ bpsc.set_points(s.gamma().reshape((-1, 3)))
 Jf = SquaredFlux(s, btot)
 # Separate length penalties on the dipole coils and the TF coils
 # since they have very different sizes
-# Jls = [CurveLength(c) for c in base_curves]
+Jls = [CurveLength(c) for c in base_curves]
 Jls_TF = [CurveLength(c) for c in base_curves_TF]
 Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
+Jlength2 = QuadraticPenalty(sum(Jls), LENGTH_TARGET2, "max")
 
 # coil-coil and coil-plasma distances should be between all coils
 Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD / 2.0, num_basecurves=len(coils + coils_TF))
@@ -237,13 +249,13 @@ Jtorque2 = MixedSquaredMeanTorque(coils, coils_TF,
 CURVATURE_THRESHOLD = 0.5
 MSC_THRESHOLD = 0.05
 if continuation_run:
-    CURVATURE_WEIGHT = 1e-5
-    MSC_WEIGHT = 1e-6
+    CURVATURE_WEIGHT = 1e-2
+    MSC_WEIGHT = 1e-5
 else:
     CURVATURE_WEIGHT = 1e-4
     MSC_WEIGHT = 1e-5
-Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
-Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
+Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF + base_coils]
+Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF + base_coils]
 
 # Note that only Jf and the forces/torques depend on the PSC currents,
 # which is the tricky part of the Jacobian
@@ -253,7 +265,8 @@ JF = Jf \
     + CC_WEIGHT * Jccdist2 \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + LINK_WEIGHT * linkNum \
-    + LENGTH_WEIGHT * Jlength
+    + LENGTH_WEIGHT * Jlength \
+    + LENGTH_WEIGHT * Jlength2
 
 if FORCE_WEIGHT.value > 0.0:
     JF += FORCE_WEIGHT.value * Jforce
@@ -279,6 +292,7 @@ def fun(dofs):
     grad = JF.dJ()
     jf = Jf.J()
     length_val = LENGTH_WEIGHT.value * Jlength.J()
+    length_val2 = LENGTH_WEIGHT.value * Jlength2.J()
     cc_val = CC_WEIGHT * (Jccdist.J() + Jccdist2.J())
     cs_val = CS_WEIGHT * Jcsdist.J()
     link_val = LINK_WEIGHT * linkNum.J()
@@ -294,8 +308,11 @@ def fun(dofs):
     kap_string = ", ".join(f"{np.max(c.kappa()):.2f}" for c in base_curves_TF)
     msc_string = ", ".join(f"{J.J():.2f}" for J in Jmscs)
     outstr += f", ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
+    cl_string2 = ", ".join([f"{J.J():.1f}" for J in Jls])
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls_TF):.2f}"
+    outstr += f", Len2=sum([{cl_string2}])={sum(J.J() for J in Jls):.2f}"
     valuestr += f", LenObj={length_val:.2e}"
+    valuestr += f", LenObj2={length_val2:.2e}"
     valuestr += f", ccObj={cc_val:.2e}"
     valuestr += f", csObj={cs_val:.2e}"
     valuestr += f", Lk1Obj={link_val:.2e}"

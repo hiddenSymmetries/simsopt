@@ -54,7 +54,7 @@ vmec_file = TEST_DIR / vmec_file
 # Virtual casing must not have been run yet.
 print('Running the virtual casing calculation')
 # Resolution for the virtual casing calculation:
-vc_src_nphi = 256
+vc_src_nphi = 128
 nphi = 64
 ntheta = 64
 vc = VirtualCasing.from_vmec(
@@ -121,8 +121,8 @@ nturns = 100
 nturns_TF = 200
 
 # wire cross section for the dipole coils should be more like 5 cm x 5 cm
-aa = 0.05
-bb = 0.05
+aa = 0.06
+bb = 0.06
 
 if continuation_run:
     coils = load(OUT_DIR + "psc_coils.json")
@@ -173,6 +173,7 @@ ncoils = len(base_curves)
 a_list = np.ones(len(base_curves)) * aa
 b_list = np.ones(len(base_curves)) * aa
 print('Num dipole coils = ', ncoils)
+print('R0 = ', base_curves[0].x[0])
 
 # Initialize the PSCArray object
 eval_points = s.gamma().reshape(-1, 3)
@@ -280,7 +281,7 @@ Jtorque2 = MixedSquaredMeanTorque(coils, coils_TF,
                                   )
 
 if continuation_run:
-    CURVATURE_WEIGHT = 1e-3
+    CURVATURE_WEIGHT = 1e-1
     MSC_WEIGHT = 1e-5
 else:
     CURVATURE_WEIGHT = 1e-2

@@ -158,7 +158,7 @@ def initialize_coils(s, TEST_DIR, configuration):
     if configuration == 'LandremanPaulQA':
         ncoils = 3
         R0 = s.get_rc(0, 0) * 1
-        R1 = s.get_rc(1, 0) * 3
+        R1 = s.get_rc(1, 0) * 3.5
         order = 8
         total_current = 66237606
     elif configuration == 'LandremanPaulQH':

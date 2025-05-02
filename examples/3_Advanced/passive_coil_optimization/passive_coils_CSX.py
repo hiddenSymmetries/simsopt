@@ -41,7 +41,7 @@ nphi = 32
 ntheta = 32
 if continuation_run:
     file_suffix = "_continuation"
-    MAXITER = 2000
+    MAXITER = 4000
 else:
     file_suffix = ""
     MAXITER = 200
@@ -73,6 +73,13 @@ s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=nt
 s_inner = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 
+print(s.aspect_ratio())
+print(s.get_rc(0, 0))
+print(s.get_rc(0, 1))
+print(s.get_rc(1, 0))
+print(s.get_zs(1, 0))
+print(s.minor_radius())
+print(s.major_radius())
 # Make the inner and outer surfaces by extending the plasma surface
 s_inner.extend_via_projected_normal(poff)
 s_outer.extend_via_projected_normal(poff + coff)
@@ -191,7 +198,6 @@ if continuation_run:
     coils = psc_array.coils
     coils_TF = psc_array.coils_TF
     print([c.current.get_value() for c in coils])
-    print([c.curve.x[0] for c in coils])
 
     # Remove the coils that are not contributing much
     coils = [c for c in coils if np.abs(c.curve.x[0]) > 0.065 * 3]

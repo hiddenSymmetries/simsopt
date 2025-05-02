@@ -318,10 +318,10 @@ class LpCurveForce(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        # for c in self.othercoils:
-        #     c._children = set()
-        #     c.curve._children = set()
-        #     c.current._children = set()
+        for c in self.othercoils:
+            c._children = set()
+            c.curve._children = set()
+            c.current._children = set()
         return J
 
     @derivative_dec
@@ -373,10 +373,10 @@ class LpCurveForce(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        # for c in self.othercoils:
-        #     c._children = set()
-        #     c.curve._children = set()
-        #     c.current._children = set()
+        for c in self.othercoils:
+            c._children = set()
+            c.curve._children = set()
+            c.current._children = set()
 
         return dJ
 
@@ -506,10 +506,10 @@ class MeanSquaredForce(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        # for c in self.othercoils:
-        #     c._children = set()
-        #     c.curve._children = set()
-        #     c.current._children = set()
+        for c in self.othercoils:
+            c._children = set()
+            c.curve._children = set()
+            c.current._children = set()
 
         return J
 
@@ -544,10 +544,10 @@ class MeanSquaredForce(Optimizable):
             + self.coil.current.vjp(jnp.asarray([self.dJ_dcurrent(*args)]))
             + self.biotsavart.B_vjp(dJ_dB)
         )
-        # for c in self.othercoils:
-        #     c._children = set()
-        #     c.curve._children = set()
-        #     c.current._children = set()
+        for c in self.othercoils:
+            c._children = set()
+            c.curve._children = set()
+            c.current._children = set()
 
         return dJ
 
@@ -1524,10 +1524,10 @@ class SquaredMeanForce(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        # for c in self.othercoils:
-        #     c._children = set()
-        #     c.curve._children = set()
-        #     c.current._children = set()
+        for c in self.othercoils:
+            c._children = set()
+            c.curve._children = set()
+            c.current._children = set()
 
         return self.J_jax(*args)
 
@@ -1572,10 +1572,10 @@ class SquaredMeanForce(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        # for c in self.othercoils:
-        #     c._children = set()
-        #     c.curve._children = set()
-        #     c.current._children = set()
+        for c in self.othercoils:
+            c._children = set()
+            c.curve._children = set()
+            c.current._children = set()
 
         return dJ
 
@@ -1669,10 +1669,10 @@ class SquaredMeanTorque(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        # for c in self.othercoils:
-        #     c._children = set()
-        #     c.curve._children = set()
-        #     c.current._children = set()
+        for c in self.othercoils:
+            c._children = set()
+            c.curve._children = set()
+            c.current._children = set()
         return J
 
     @derivative_dec
@@ -1718,10 +1718,10 @@ class SquaredMeanTorque(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        # for c in self.othercoils:
-        #     c._children = set()
-        #     c.curve._children = set()
-        #     c.current._children = set()
+        for c in self.othercoils:
+            c._children = set()
+            c.curve._children = set()
+            c.current._children = set()
 
         return dJ
 
@@ -1832,10 +1832,10 @@ class MeanSquaredTorque(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        # for c in self.othercoils:
-        #     c._children = set()
-        #     c.curve._children = set()
-        #     c.current._children = set()
+        for c in self.othercoils:
+            c._children = set()
+            c.curve._children = set()
+            c.current._children = set()
 
         return J
 
@@ -1886,10 +1886,10 @@ class MeanSquaredTorque(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        # for c in self.othercoils:
-        #     c._children = set()
-        #     c.curve._children = set()
-        #     c.current._children = set()
+        for c in self.othercoils:
+            c._children = set()
+            c.curve._children = set()
+            c.current._children = set()
 
         return dJ
 
@@ -2025,10 +2025,10 @@ class LpCurveTorque(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        # for c in self.othercoils:
-        #     c._children = set()
-        #     c.curve._children = set()
-        #     c.current._children = set()
+        for c in self.othercoils:
+            c._children = set()
+            c.curve._children = set()
+            c.current._children = set()
 
         return J
 
@@ -2079,10 +2079,10 @@ class LpCurveTorque(Optimizable):
         self.coil._children = set()
         self.coil.curve._children = set()
         self.coil.current._children = set()
-        # for c in self.othercoils:
-        #     c._children = set()
-        #     c.curve._children = set()
-        #     c.current._children = set()
+        for c in self.othercoils:
+            c._children = set()
+            c.curve._children = set()
+            c.current._children = set()
 
         return dJ
 

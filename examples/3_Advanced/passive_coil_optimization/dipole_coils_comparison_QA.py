@@ -23,16 +23,16 @@ from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 
 t1 = time.time()
 
-continuation_run = True
+continuation_run = False
 if continuation_run:
-    MAXITER = 2000
+    MAXITER = 1000
     file_suffix = '_continuation'
 else:
     MAXITER = 600
     file_suffix = ''
 
 # Number of Fourier modes describing each Cartesian component of each coil:
-order = 0
+order = 2
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
@@ -73,8 +73,8 @@ nturns = 100
 nturns_TF = 200
 
 # wire cross section for the dipole coils should be more like 5 cm x 5 cm
-aa = 0.05
-bb = 0.05
+aa = 0.06
+bb = 0.06
 
 # Directory for output
 OUT_DIR = ("./dipole_coils_QA/")
@@ -122,14 +122,25 @@ if not continuation_run:
         # base_curves[i].fix('x' + str(2 * order + 5))
         # base_curves[i].fix('x' + str(2 * order + 6))
         # base_curves[i].fix('x' + str(2 * order + 7))
+    # psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
+    ncoils = len(base_curves)
+    base_currents = [Current(1.0) * 2e7 for i in range(ncoils)]
+    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+    base_coils = coils[:ncoils]
+    bs = BiotSavart(coils)
 else:
     from simsopt import load
-    coils = load(OUT_DIR + "psc_coils.json")
+    coils = load(OUT_DIR + "psc_coils_continuation.json")
+    # coils = load(OUT_DIR + "psc_coils.json")
     print('R = ', coils[0].curve.x[0])
-    coils_TF = load(OUT_DIR + "TF_coils.json")
+    # coils_TF = load(OUT_DIR + "TF_coils.json")
+    coils_TF = load(OUT_DIR + "TF_coils_continuation.json")
+    inds = np.array([1, 2, 3, 5, 6], dtype=int)
+    # inds = np.array([1, 2, 3, 4, 7, 8, 9], dtype=int)
     curves = [c.curve for c in coils]
     base_curves = curves[:len(curves) // 4]
     base_coils = coils[:len(coils) // 4]
+    base_curves = [base_curves[i] for i in inds]
     curves_TF = [c.curve for c in coils_TF]
     base_curves_TF = curves_TF[:len(curves_TF) // 4]
     base_coils_TF = coils_TF[:len(coils_TF) // 4]
@@ -145,6 +156,9 @@ else:
         for j in range(2 * order + 1):
             base_curves[i].unfix('x' + str(j))
 
+    base_coils = [coils[i] for i in inds]
+    base_currents = [c.current for c in base_coils]
+    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
     bs = BiotSavart(coils)
     bs_TF = BiotSavart(coils_TF)
 
@@ -152,15 +166,8 @@ ncoils = len(base_curves)
 a_list = np.ones(len(base_curves)) * aa
 b_list = np.ones(len(base_curves)) * aa
 print('Num dipole coils = ', ncoils)
-
-# Initialize the PSCArray object
 eval_points = s.gamma().reshape(-1, 3)
-# psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
-base_currents = [Current(1.0) * 2e7 for i in range(ncoils)]
-coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-base_coils = coils[:ncoils]
 
-bs = BiotSavart(coils)
 # Calculate average, approximate on-axis B field strength
 # calculate_on_axis_B(psc_array.biot_savart_TF, s)
 # psc_array.biot_savart_TF.set_points(eval_points)
@@ -176,6 +183,7 @@ currents = [c.current.get_value() for c in coils]
 a_list = np.hstack((np.ones(len(coils)) * aa, np.ones(len(coils_TF)) * a))
 b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 
+LENGTH_TARGET2 = 100
 if continuation_run:
     LENGTH_TARGET = 135
     CC_THRESHOLD = 1.0
@@ -188,7 +196,7 @@ CC_WEIGHT = 1
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(0.0)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(1e-34)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
@@ -217,9 +225,10 @@ bpsc.set_points(s.gamma().reshape((-1, 3)))
 Jf = SquaredFlux(s, btot)
 # Separate length penalties on the dipole coils and the TF coils
 # since they have very different sizes
-# Jls = [CurveLength(c) for c in base_curves]
+Jls = [CurveLength(c) for c in base_curves]
 Jls_TF = [CurveLength(c) for c in base_curves_TF]
 Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
+Jlength2 = QuadraticPenalty(sum(Jls), LENGTH_TARGET2, "max")
 
 # coil-coil and coil-plasma distances should be between all coils
 Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD / 2.0, num_basecurves=len(coils + coils_TF))
@@ -243,12 +252,12 @@ Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list
 Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
 
 CURVATURE_THRESHOLD = 0.5
-MSC_THRESHOLD = 0.05
+MSC_THRESHOLD = 0.06
 if continuation_run:
-    CURVATURE_WEIGHT = 1e-5
+    CURVATURE_WEIGHT = 1e-3
     MSC_WEIGHT = 1e-8
 else:
-    CURVATURE_WEIGHT = 1e-2
+    CURVATURE_WEIGHT = 1e-4
     MSC_WEIGHT = 1e-6
 Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
 Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
@@ -259,7 +268,8 @@ JF = Jf \
     + CC_WEIGHT * Jccdist2 \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + LINK_WEIGHT * linkNum \
-    + LENGTH_WEIGHT * Jlength
+    + LENGTH_WEIGHT * Jlength \
+    + LENGTH_WEIGHT * Jlength2
 
 if FORCE_WEIGHT.value > 0.0:
     JF += FORCE_WEIGHT.value * Jforce  # \
@@ -285,6 +295,7 @@ def fun(dofs):
     grad = JF.dJ()
     jf = Jf.J()
     length_val = LENGTH_WEIGHT.value * Jlength.J()
+    length_val2 = LENGTH_WEIGHT.value * Jlength2.J()
     cc_val = CC_WEIGHT * (Jccdist.J() + Jccdist2.J())
     cs_val = CS_WEIGHT * Jcsdist.J()
     link_val = LINK_WEIGHT * linkNum.J()
@@ -297,11 +308,13 @@ def fun(dofs):
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
     valuestr = f"J={J:.2e}, Jf={jf:.2e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
+    cl_string2 = ", ".join([f"{J.J():.1f}" for J in Jls])
     kap_string = ", ".join(f"{np.max(c.kappa()):.2f}" for c in base_curves_TF)
     msc_string = ", ".join(f"{J.J():.2f}" for J in Jmscs)
     outstr += f", ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls_TF):.2f}"
-    valuestr += f", LenObj={length_val:.2e}"
+    outstr += f", Len2=sum([{cl_string2}])={sum(J.J() for J in Jls):.2f}"
+    valuestr += f", LenObj={length_val:.2e}, LenObj2={length_val2:.2e}"
     valuestr += f", ccObj={cc_val:.2e}"
     valuestr += f", csObj={cs_val:.2e}"
     valuestr += f", Lk1Obj={link_val:.2e}"

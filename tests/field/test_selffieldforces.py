@@ -491,7 +491,7 @@ class CoilForcesTest(unittest.TestCase):
         np.testing.assert_allclose(objective, objective_mixed)
 
     def test_Taylor(self):
-        nfp = 2
+        nfp = 3
         ncoils = 4
         I = 1.7e4
         regularization = regularization_circ(0.05)
@@ -520,23 +520,29 @@ class CoilForcesTest(unittest.TestCase):
             sum([SquaredMeanForce(c, coils) for c in coils]),
             MixedSquaredMeanForce([coils[0]], coils[1:]),
         ]
+        dofs = SquaredMeanForce(coils[0], coils).x
+        h = np.ones_like(dofs)
         for J in objectives:
+            J.x = dofs  # Need to reset Jf.x for each objective
             dJ = J.dJ()
-            deriv = np.sum(dJ * np.ones_like(J.x))
-            dofs = J.x
-            h = np.ones_like(dofs)
-            err = 1e3
+            deriv = np.sum(dJ * h)
+            err = 1e20
             print('Objective = ', J)
-            for i in range(11, 21):
+            for i in range(11, 18):
                 eps = 0.5**i
                 J.x = dofs + eps * h
                 Jp = J.J()
                 J.x = dofs - eps * h
                 Jm = J.J()
                 deriv_est = (Jp - Jm) / (2 * eps)
-                err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
-                print("taylor_test i: ", i, "deriv_FD: ", deriv_est, "deriv: ", deriv, "rel_err: ", err_new)  # , "err:", err, "ratio:", err_new / err)
+                # Careful -- LpCurveTorque will return 0 derivative if coils are parallel
+                if np.abs(deriv) < 1e-8:
+                    err_new = np.abs(deriv_est - deriv)  # compute absolute error instead
+                else:
+                    err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
+                print("taylor_test i: ", i, "rel_err: ", err_new, "err:", err, "ratio:", err_new / err)
                 np.testing.assert_array_less(err_new, 0.5 * err)
+                err = err_new
 
     def test_Taylor_PSC(self):
         from simsopt.field import PSCArray
@@ -557,6 +563,8 @@ class CoilForcesTest(unittest.TestCase):
         eval_points = s.gamma().reshape(-1, 3)
         base_curves_TF = create_equally_spaced_curves(ncoils, nfp, True)
         base_currents_TF = [Current(I) for j in range(ncoils)]
+        for i in range(ncoils):
+            base_currents_TF[i].fix_all()
         coils_TF = coils_via_symmetries(base_curves_TF, base_currents_TF, nfp, True)
         base_curves = create_equally_spaced_curves(ncoils, nfp, True, R0=0.5, R1=0.1)
         a_list = np.ones(len(base_curves)) * a
@@ -570,10 +578,10 @@ class CoilForcesTest(unittest.TestCase):
         regularization_list_TF = np.ones(len(coils_TF)) * regularization
         p = 2.5
         threshold = 0.0
+
         # Note that passive coils must use the "mixed" objective classes
         objectives = [
             SquaredFlux(s, btot),
-            TVE(coils[0], coils[1:], a=0.05, psc_array=psc_array),
             MixedLpCurveTorque(coils, coils_TF, regularization_list, regularization_list_TF,
                                p=p, threshold=threshold, psc_array=psc_array),
             MixedSquaredMeanTorque(coils, coils_TF, psc_array=psc_array),
@@ -582,14 +590,15 @@ class CoilForcesTest(unittest.TestCase):
             MixedSquaredMeanForce(coils, coils_TF, psc_array=psc_array),
         ]
         print('PSCArray Taylor test: ')
+        dofs = objectives[0].x
+        h = np.ones_like(dofs)
         for J in objectives:
+            J.x = dofs  # Need to reset Jf.x for each objective
             dJ = J.dJ()
-            deriv = np.sum(dJ * np.ones_like(J.x))
-            dofs = J.x
-            h = np.ones_like(dofs)
+            deriv = np.sum(dJ * h)
             err = 1e10
             print('Objective = ', J)
-            for i in range(11, 25):
+            for i in range(11, 18):
                 eps = 0.5**i
                 J.x = dofs + eps * h
                 psc_array.recompute_currents()
@@ -598,9 +607,56 @@ class CoilForcesTest(unittest.TestCase):
                 psc_array.recompute_currents()
                 Jm = J.J()
                 deriv_est = (Jp - Jm) / (2 * eps)
-                err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
-                print("taylor_test i: ", i, "deriv_FD: ", deriv_est, "deriv: ", deriv, "rel_err: ", err_new)  # , "err:", err, "ratio:", err_new / err)
+                # Careful -- LpCurveTorque will return 0 derivative if coils are parallel
+                if np.abs(deriv) < 1e-8:
+                    err_new = np.abs(deriv_est - deriv)  # compute absolute error instead
+                else:
+                    err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
+                print("taylor_test i: ", i, "rel_err: ", err_new, "err:", err, "ratio:", err_new / err)
                 np.testing.assert_array_less(err_new, 0.5 * err)
+                err = err_new
+
+        # Reinitialize for the TVE which has different number of dofs
+        base_curves_TF = create_equally_spaced_curves(ncoils, nfp, True)
+        base_currents_TF = [Current(I) for j in range(ncoils)]
+        for i in range(ncoils):
+            base_currents_TF[i].fix_all()
+        coils_TF = coils_via_symmetries(base_curves_TF, base_currents_TF, nfp, True)
+        base_curves = create_equally_spaced_curves(ncoils, nfp, True, R0=0.5, R1=0.1)
+        a_list = np.ones(len(base_curves)) * a
+        b_list = a_list
+        psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=nfp, stellsym=True)
+        coils = psc_array.coils
+        coils_TF = psc_array.coils_TF
+        objectives = [
+            TVE(coils[0], coils[1:], a=0.05, psc_array=psc_array),
+        ]
+        print('PSCArray Taylor test: ')
+        dofs = objectives[0].x
+        h = np.ones_like(dofs)
+        for k, J in enumerate(objectives):
+            J.x = dofs  # Need to reset Jf.x for each objective
+            dJ = J.dJ()
+            deriv = np.sum(dJ * h)
+            err = 1e10
+            print('Objective = ', J)
+            for i in range(11, 18):
+                eps = 0.5**i
+                J.x = dofs + eps * h
+                psc_array.recompute_currents()
+                Jp = J.J()
+                J.x = dofs - eps * h
+                psc_array.recompute_currents()
+                Jm = J.J()
+                deriv_est = (Jp - Jm) / (2 * eps)
+                # Careful -- LpCurveTorque will return 0 derivative if coils are parallel
+                if np.abs(deriv) < 1e-8:
+                    err_new = np.abs(deriv_est - deriv)  # compute absolute error instead
+                else:
+                    err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
+                print("taylor_test i: ", i, "rel_err: ", err_new, "err:", err, "ratio:", err_new / err)
+                np.testing.assert_array_less(err_new, 0.5 * err)
+                err = err_new
 
     def objectives_time_test(self):
         import time

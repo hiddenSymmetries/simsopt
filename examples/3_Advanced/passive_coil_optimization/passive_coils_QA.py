@@ -27,7 +27,7 @@ continuation_run = False
 nphi = 32
 ntheta = 32
 if continuation_run:
-    MAXITER = 2000
+    MAXITER = 1000
     file_suffix = '_continuation'
 else:
     MAXITER = 600
@@ -41,7 +41,7 @@ if in_github_actions:
     ntheta = 4
 
 # Number of Fourier modes describing each Cartesian component of each coil:
-order = 0
+order = 2
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
@@ -80,8 +80,8 @@ nturns = 100
 nturns_TF = 200
 
 # wire cross section for the dipole coils should be more like 5 cm x 5 cm
-aa = 0.05
-bb = 0.05
+aa = 0.06
+bb = 0.06
 
 # Directory for output
 OUT_DIR = ("./passive_coils_QA/")
@@ -101,8 +101,8 @@ if not continuation_run:
     base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
         s, s_inner, s_outer, Nx, Ny, Nz, order=order,
     )
-    # base_curves = remove_inboard_dipoles(s, base_curves, eps=0.05)
-    base_curves = remove_interlinking_dipoles_and_TFs(base_curves, base_curves_TF, eps=0.05)
+    # base_curves = remove_inboard_dipoles(s, base_curves, eps=0.06)
+    base_curves = remove_interlinking_dipoles_and_TFs(base_curves, base_curves_TF, eps=0.06)
     alphas, deltas = align_dipoles_with_plasma(s, base_curves)
     for i in range(len(base_curves)):
         alpha2 = alphas[i] / 2.0
@@ -131,12 +131,16 @@ if not continuation_run:
 else:
     from simsopt import load
     input_dir = "passive_coils_QA/"
-    coils = load(input_dir + "psc_coils.json")
+    # coils = load(input_dir + "psc_coils.json")
+    coils = load(input_dir + "psc_coils_continuation.json")
+    # inds = np.array([0, 1, 2, 5, 6, 7], dtype=int)
+    inds = np.array([0, 1, 2, 4, 5], dtype=int)
     print('R = ', coils[0].curve.x[0])
-    coils_TF = load(input_dir + "TF_coils.json")
+    # coils_TF = load(input_dir + "TF_coils.json")
+    coils_TF = load(input_dir + "TF_coils_continuation.json")
     curves = [c.curve for c in coils]
     base_curves = curves[:len(curves) // 4]
-    base_coils = coils[:len(coils) // 4]
+    base_curves = [base_curves[i] for i in inds]
     curves_TF = [c.curve for c in coils_TF]
     base_curves_TF = curves_TF[:len(curves_TF) // 4]
     base_coils_TF = coils_TF[:len(coils_TF) // 4]
@@ -176,6 +180,7 @@ currents = [c.current.get_value() for c in coils]
 a_list = np.hstack((np.ones(len(coils)) * aa, np.ones(len(coils_TF)) * a))
 b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 
+LENGTH_TARGET2 = 100
 if continuation_run:
     LENGTH_TARGET = 135
     CC_THRESHOLD = 1.0
@@ -191,7 +196,7 @@ CS_WEIGHT = 1
 FORCE_WEIGHT = Weight(0)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(1e-14)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
 
 # Force and Torque calculations spawn a bunch of spurious BiotSavart child objects -- erase them!
@@ -217,9 +222,10 @@ bpsc.set_points(s.gamma().reshape((-1, 3)))
 Jf = SquaredFlux(s, btot)
 # Separate length penalties on the dipole coils and the TF coils
 # since they have very different sizes
-# Jls = [CurveLength(c) for c in base_curves]
+Jls = [CurveLength(c) for c in base_curves]
 Jls_TF = [CurveLength(c) for c in base_curves_TF]
 Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
+Jlength2 = QuadraticPenalty(sum(Jls), LENGTH_TARGET2, "max")
 
 # coil-coil and coil-plasma distances should be between all coils
 Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD / 2.0, num_basecurves=len(coils + coils_TF))
@@ -256,12 +262,12 @@ Jtorque2 = MixedSquaredMeanTorque(coils, coils_TF,
                                   )
 
 CURVATURE_THRESHOLD = 0.5
-MSC_THRESHOLD = 0.05
+MSC_THRESHOLD = 0.06
 if continuation_run:
-    CURVATURE_WEIGHT = 1e-5
+    CURVATURE_WEIGHT = 1e-3
     MSC_WEIGHT = 1e-8
 else:
-    CURVATURE_WEIGHT = 1e-2
+    CURVATURE_WEIGHT = 1e-4
     MSC_WEIGHT = 1e-6
 Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
 Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
@@ -274,7 +280,8 @@ JF = Jf \
     + CC_WEIGHT * Jccdist2 \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + LINK_WEIGHT * linkNum \
-    + LENGTH_WEIGHT * Jlength
+    + LENGTH_WEIGHT * Jlength \
+    + LENGTH_WEIGHT * Jlength2
 
 if FORCE_WEIGHT.value > 0.0:
     JF += FORCE_WEIGHT * Jforce  # \
@@ -295,11 +302,12 @@ def fun(dofs):
     # being directly optimized.
     psc_array.recompute_currents()
     # absolutely essential line if the PSCs do not have any dofs
-    # btot.Bfields[0].invalidate_cache()
+    btot.Bfields[0].invalidate_cache()
     J = JF.J()
     grad = JF.dJ()
     jf = Jf.J()
     length_val = LENGTH_WEIGHT.value * Jlength.J()
+    length_val2 = LENGTH_WEIGHT.value * Jlength2.J()
     cc_val = CC_WEIGHT * (Jccdist.J() + Jccdist2.J())
     cs_val = CS_WEIGHT * Jcsdist.J()
     link_val = LINK_WEIGHT * linkNum.J()
@@ -312,11 +320,14 @@ def fun(dofs):
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
     valuestr = f"J={J:.2e}, Jf={jf:.2e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
+    cl_string2 = ", ".join([f"{J.J():.1f}" for J in Jls])
     kap_string = ", ".join(f"{np.max(c.kappa()):.2f}" for c in base_curves_TF)
     msc_string = ", ".join(f"{J.J():.2f}" for J in Jmscs)
     outstr += f", ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls_TF):.2f}"
+    outstr += f", Len2=sum([{cl_string2}])={sum(J.J() for J in Jls):.2f}"
     valuestr += f", LenObj={length_val:.2e}"
+    valuestr += f", LenObj2={length_val2:.2e}"
     valuestr += f", ccObj={cc_val:.2e}"
     valuestr += f", csObj={cs_val:.2e}"
     valuestr += f", Lk1Obj={link_val:.2e}"
