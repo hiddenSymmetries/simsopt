@@ -292,8 +292,10 @@ class Tests(unittest.TestCase):
         integral, d_r_d_phi = pfl._integral_A_dl()
         dphi = pfl.phi[1] - pfl.phi[0]
 
-        d_x_d_phi_alt = (pfl.x[2:] - pfl.x[:-2]) / (2 * dphi)
-        d_y_d_phi_alt = (pfl.y[2:] - pfl.y[:-2]) / (2 * dphi)
+        x = pfl.R * np.cos(pfl.phi)
+        y = pfl.R * np.sin(pfl.phi)
+        d_x_d_phi_alt = (x[2:] - x[:-2]) / (2 * dphi)
+        d_y_d_phi_alt = (y[2:] - y[:-2]) / (2 * dphi)
         d_z_d_phi_alt = (pfl.z[2:] - pfl.z[:-2]) / (2 * dphi)
 
         if False:

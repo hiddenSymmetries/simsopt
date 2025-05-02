@@ -748,32 +748,20 @@ class PeriodicFieldLine():
         else:
             phi0 = 0
 
-        Delta_phi_to_close = lcm(nfp, m) * 2 * np.pi / nfp
+        Delta_phi = m * 2 * np.pi / nfp
         self.phi0 = phi0
-        self.Delta_phi_to_close = Delta_phi_to_close
-        self.phi = np.linspace(0, Delta_phi_to_close, nphi) + phi0
-        self.R, self.z = _integrate_field_line_cyl(field, R0, Z0, Delta_phi_to_close, tol=follow_tol, phi0=phi0, nphi=nphi)
-        closed_curve_succeeded = True
-        if self.R is np.nan:
-            print("!!!! Warning!! integration failed for closing the full field line in 3D, so shortening the integration.")
-            print("!!!! Vtk will not show the full curve, and A integrals will be wrong!!!")
-            closed_curve_succeeded = False
-            Delta_phi_to_close = m * 2 * np.pi / nfp
-            self.Delta_phi_to_close = Delta_phi_to_close
-            self.phi = np.linspace(0, Delta_phi_to_close, nphi) + phi0
-            self.R, self.z = _integrate_field_line_cyl(field, R0, Z0, Delta_phi_to_close, tol=follow_tol, phi0=phi0, nphi=nphi)
-
+        self.Delta_phi = Delta_phi
+        self.phi = np.linspace(0, Delta_phi, nphi) + phi0
+        self.R, self.z = _integrate_field_line_cyl(field, R0, Z0, Delta_phi, tol=follow_tol, phi0=phi0, nphi=nphi)
         self.x = self.R * np.cos(self.phi)
         self.y = self.R * np.sin(self.phi)
+
         if asserts:
             # These asserts can sometimes fail because the field line has been
             # followed nfp times longer than when the initial location was
             # located, so exponentially growing errors can become large.
             np.testing.assert_allclose(self.R[0], self.R[-1], atol=1e-7, rtol=1e-7)
             np.testing.assert_allclose(self.z[0], self.z[-1], atol=1e-6, rtol=1e-7)
-            if closed_curve_succeeded:
-                np.testing.assert_allclose(self.x[0], self.x[-1], atol=1e-7, rtol=1e-7)
-                np.testing.assert_allclose(self.y[0], self.y[-1], atol=1e-7, rtol=1e-7)
             np.testing.assert_allclose(self.R[0], R0, atol=1e-14, rtol=1e-14)
             np.testing.assert_allclose(self.z[0], Z0, atol=1e-14, rtol=1e-14)
 
@@ -782,8 +770,28 @@ class PeriodicFieldLine():
         if polyLinesToVTK is None:
             raise ImportError("pyevtk is not installed. Cannot write VTK file.")
 
-        pointsPerLine = np.array([self.nphi])
-        polyLinesToVTK(filename, self.x, self.y, self.z, pointsPerLine=pointsPerLine, pointData={'phi': self.phi})
+        field_periods_to_integrate = lcm(self.nfp, self.m)
+
+        if field_periods_to_integrate == self.m:
+            # The field line we already calculated closes in real space, not
+            # merely in the Rz plane.
+            x = self.x
+            y = self.y
+            z = self.z
+            phi = self.phi
+
+        else:
+            # Need longer integration for the field line to close in real space
+            Delta_phi_to_close = field_periods_to_integrate * 2 * np.pi / self.nfp
+            nphi_to_close = self.nphi * (field_periods_to_integrate // self.m)
+            phi_to_close = np.linspace(0, Delta_phi_to_close, nphi_to_close) + self.phi0
+            R, z = _integrate_field_line_cyl(self.field, self.R0, self.Z0, Delta_phi_to_close, tol=self.follow_tol, phi0=self.phi0, nphi=nphi_to_close)
+            x = R * np.cos(phi_to_close)
+            y = R * np.sin(phi_to_close)
+            phi = phi_to_close
+
+        pointsPerLine = np.array([len(phi)])
+        polyLinesToVTK(filename, x, y, z, pointsPerLine=pointsPerLine, pointData={'phi': phi})
 
     def _integral_A_dl(self):
         """Compute the flux integral ∫A⋅dℓ associated with the periodic field line.
@@ -843,6 +851,7 @@ class PeriodicFieldLine():
         z_spline = CubicSpline(self.phi, z_for_spline, bc_type='periodic')
         z = z_spline(phi)
         return R, z
+
 
 def periodic_field_line_grid_search(
     field,
