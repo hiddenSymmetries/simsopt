@@ -267,6 +267,27 @@ class Tests(unittest.TestCase):
         np.testing.assert_allclose(pfl.R0, R1, atol=1e-8)
         np.testing.assert_allclose(pfl.Z0, Z1, atol=1e-8)
 
+        # Check that the integral is insensitive to the number of points:
+        integral1 = pfl.integral_A_dl()
+        pfl2 = PeriodicFieldLine(field, nfp, m, R0, method="1D Z", nphi=1234)
+        integral2 = pfl2.integral_A_dl()
+        np.testing.assert_allclose(integral1, integral2, rtol=1e-12)
+
+        # Repeat with one of the islands.
+        R0 = 6.2
+        m = 5
+        R1, Z1 = find_periodic_field_line(field, nfp, m, R0, method="1D optimization")
+        np.testing.assert_array_less(6.2, R1)  # Make sure we get the island and not the axis
+        pfl = PeriodicFieldLine(field, nfp, m, R0, method="1D optimization")
+        np.testing.assert_allclose(pfl.R0, R1, atol=1e-8)
+        np.testing.assert_allclose(pfl.Z0, Z1, atol=1e-8)
+
+        # Check that the integral is insensitive to the number of points:
+        integral1 = pfl.integral_A_dl()
+        pfl2 = PeriodicFieldLine(field, nfp, m, R0, method="1D optimization", nphi=1234)
+        integral2 = pfl2.integral_A_dl()
+        np.testing.assert_allclose(integral1, integral2, rtol=1e-10)
+
         try:
             import pyevtk
         except ImportError:
