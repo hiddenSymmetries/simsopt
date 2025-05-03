@@ -38,9 +38,9 @@ def coil_force(coil, allcoils, regularization, nturns=1):
     B_mutual = mutual_field.B()
     mutualforce = np.cross(coil.current.get_value() * tangent, B_mutual)
     selfforce = self_force(coil, regularization)
-    mutual_field._children = set()
-    for c in mutual_coils:
-        c._children = set()
+    # mutual_field._children = set()
+    # for c in mutual_coils:
+    #     c._children = set()
     return (selfforce + mutualforce) / nturns
 
 
@@ -314,14 +314,14 @@ class LpCurveForce(Optimizable):
         # Otherwise optimizable references multiply
         # like crazy as number of coils increases
         # However this will make the derivative calculations less accurate!
-        self.biotsavart._children = set()
-        self.coil._children = set()
-        self.coil.curve._children = set()
-        self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # self.biotsavart._children = set()
+        # self.coil._children = set()
+        # self.coil.curve._children = set()
+        # self.coil.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
         return J
 
     @derivative_dec
@@ -369,14 +369,14 @@ class LpCurveForce(Optimizable):
         # Otherwise optimizable references multiply
         # like crazy as number of coils increases
         # However this will make the derivative calculations less accurate!
-        self.biotsavart._children = set()
-        self.coil._children = set()
-        self.coil.curve._children = set()
-        self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # self.biotsavart._children = set()
+        # self.coil._children = set()
+        # self.coil.curve._children = set()
+        # self.coil.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return dJ
 
@@ -502,14 +502,14 @@ class MeanSquaredForce(Optimizable):
         #### ABSOLUTELY ESSENTIAL LINES BELOW
         # Otherwise optimizable references multiply
         # like crazy as number of coils increases
-        self.biotsavart._children = set()
-        self.coil._children = set()
-        self.coil.curve._children = set()
-        self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # self.biotsavart._children = set()
+        # self.coil._children = set()
+        # self.coil.curve._children = set()
+        # self.coil.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return J
 
@@ -533,10 +533,10 @@ class MeanSquaredForce(Optimizable):
         #### ABSOLUTELY ESSENTIAL LINES BELOW
         # Otherwise optimizable references multiply
         # like crazy as number of coils increases
-        self.biotsavart._children = set()
-        self.coil._children = set()
-        self.coil.curve._children = set()
-        self.coil.current._children = set()
+        # self.biotsavart._children = set()
+        # self.coil._children = set()
+        # self.coil.curve._children = set()
+        # self.coil.current._children = set()
         dJ = (
             self.coil.curve.dgamma_by_dcoeff_vjp(self.dJ_dgamma(*args) + dJ_dX)
             + self.coil.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadash(*args))
@@ -544,10 +544,10 @@ class MeanSquaredForce(Optimizable):
             + self.coil.current.vjp(jnp.asarray([self.dJ_dcurrent(*args)]))
             + self.biotsavart.B_vjp(dJ_dB)
         )
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return dJ
 
@@ -1520,14 +1520,14 @@ class SquaredMeanForce(Optimizable):
         #### ABSOLUTELY ESSENTIAL LINES BELOW
         # Otherwise optimizable references multiply
         # like crazy as number of coils increases
-        self.biotsavart._children = set()
-        self.coil._children = set()
-        self.coil.curve._children = set()
-        self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # self.biotsavart._children = set()
+        # self.coil._children = set()
+        # self.coil.curve._children = set()
+        # self.coil.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return self.J_jax(*args)
 
@@ -1568,14 +1568,14 @@ class SquaredMeanForce(Optimizable):
         #### ABSOLUTELY ESSENTIAL LINES BELOW
         # Otherwise optimizable references multiply
         # like crazy as number of coils increases
-        self.biotsavart._children = set()
-        self.coil._children = set()
-        self.coil.curve._children = set()
-        self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # self.biotsavart._children = set()
+        # self.coil._children = set()
+        # self.coil.curve._children = set()
+        # self.coil.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return dJ
 
@@ -1665,14 +1665,14 @@ class SquaredMeanTorque(Optimizable):
         #### ABSOLUTELY ESSENTIAL LINES BELOW
         # Otherwise optimizable references multiply
         # like crazy as number of coils increases
-        self.biotsavart._children = set()
-        self.coil._children = set()
-        self.coil.curve._children = set()
-        self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # self.biotsavart._children = set()
+        # self.coil._children = set()
+        # self.coil.curve._children = set()
+        # self.coil.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
         return J
 
     @derivative_dec
@@ -1714,14 +1714,14 @@ class SquaredMeanTorque(Optimizable):
         #### ABSOLUTELY ESSENTIAL LINES BELOW
         # Otherwise optimizable references multiply
         # like crazy as number of coils increases
-        self.biotsavart._children = set()
-        self.coil._children = set()
-        self.coil.curve._children = set()
-        self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # self.biotsavart._children = set()
+        # self.coil._children = set()
+        # self.coil.curve._children = set()
+        # self.coil.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return dJ
 
@@ -1828,14 +1828,14 @@ class MeanSquaredTorque(Optimizable):
         #### ABSOLUTELY ESSENTIAL LINES BELOW
         # Otherwise optimizable references multiply
         # like crazy as number of coils increases
-        self.biotsavart._children = set()
-        self.coil._children = set()
-        self.coil.curve._children = set()
-        self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # self.biotsavart._children = set()
+        # self.coil._children = set()
+        # self.coil.curve._children = set()
+        # self.coil.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return J
 
@@ -1882,14 +1882,14 @@ class MeanSquaredTorque(Optimizable):
         #### ABSOLUTELY ESSENTIAL LINES BELOW
         # Otherwise optimizable references multiply
         # like crazy as number of coils increases
-        self.biotsavart._children = set()
-        self.coil._children = set()
-        self.coil.curve._children = set()
-        self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # self.biotsavart._children = set()
+        # self.coil._children = set()
+        # self.coil.curve._children = set()
+        # self.coil.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return dJ
 
@@ -2021,14 +2021,14 @@ class LpCurveTorque(Optimizable):
         #### ABSOLUTELY ESSENTIAL LINES BELOW
         # Otherwise optimizable references multiply
         # like crazy as number of coils increases
-        self.biotsavart._children = set()
-        self.coil._children = set()
-        self.coil.curve._children = set()
-        self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # self.biotsavart._children = set()
+        # self.coil._children = set()
+        # self.coil.curve._children = set()
+        # self.coil.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return J
 
@@ -2075,14 +2075,14 @@ class LpCurveTorque(Optimizable):
         #### ABSOLUTELY ESSENTIAL LINES BELOW
         # Otherwise optimizable references multiply
         # like crazy as number of coils increases
-        self.biotsavart._children = set()
-        self.coil._children = set()
-        self.coil.curve._children = set()
-        self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # self.biotsavart._children = set()
+        # self.coil._children = set()
+        # self.coil.curve._children = set()
+        # self.coil.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return dJ
 
@@ -2531,14 +2531,14 @@ class NetFluxes(Optimizable):
             self.downsample
         ]
         J = self.J_jax(*args)
-        self.biotsavart._children = set()
-        self.coil._children = set()
-        self.coil.curve._children = set()
-        self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # self.biotsavart._children = set()
+        # self.coil._children = set()
+        # self.coil.curve._children = set()
+        # self.coil.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return J
 
@@ -2564,14 +2564,14 @@ class NetFluxes(Optimizable):
             + A_vjp
         )
 
-        self.biotsavart._children = set()
-        self.coil._children = set()
-        self.coil.curve._children = set()
-        self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
+        # self.biotsavart._children = set()
+        # self.coil._children = set()
+        # self.coil.curve._children = set()
+        # self.coil.current._children = set()
+        # for c in self.othercoils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return dJ
 
