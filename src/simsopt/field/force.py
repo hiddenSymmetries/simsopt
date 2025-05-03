@@ -310,10 +310,12 @@ class LpCurveForce(Optimizable):
         self.biotsavart.set_points(np.array(gamma[::self.downsample, :]))
         J = self.J_jax(gamma, self.coil.curve.gammadash(), self.coil.curve.gammadashdash(),
                        self.coil.current.get_value(), self.biotsavart.B(), self.downsample)
-        #### ESSENTIAL LINES BELOW as ncoils >> 1
-        # Otherwise optimizable references multiply
-        # like crazy as number of coils increases
-        # However this will make the derivative calculations less accurate!
+
+        #### LINES BELOW ARE RELATED TO OPEN SIMSOPT bug
+        # Without these lines, the number of optimizable references multiply
+        # like crazy as number of coils increases, slowing the optimization to a halt.
+        # With these lines, the Jacobian calculations of these terms will be incorrect
+        # with python 3.10 onwards (python 3.9 works regardless!)
         # self.biotsavart._children = set()
         # self.coil._children = set()
         # self.coil.curve._children = set()
@@ -365,10 +367,11 @@ class LpCurveForce(Optimizable):
             + self.coil.current.vjp(jnp.asarray([self.dJ_dcurrent(*args2)]))
         )
 
-        #### ESSENTIAL LINES BELOW as ncoils >> 1
-        # Otherwise optimizable references multiply
-        # like crazy as number of coils increases
-        # However this will make the derivative calculations less accurate!
+        #### LINES BELOW ARE RELATED TO OPEN SIMSOPT bug
+        # Without these lines, the number of optimizable references multiply
+        # like crazy as number of coils increases, slowing the optimization to a halt.
+        # With these lines, the Jacobian calculations of these terms will be incorrect
+        # with python 3.10 onwards (python 3.9 works regardless!)
         # self.biotsavart._children = set()
         # self.coil._children = set()
         # self.coil.curve._children = set()
@@ -499,9 +502,11 @@ class MeanSquaredForce(Optimizable):
         ]
         J = self.J_jax(*args)
 
-        #### ABSOLUTELY ESSENTIAL LINES BELOW
-        # Otherwise optimizable references multiply
-        # like crazy as number of coils increases
+        #### LINES BELOW ARE RELATED TO OPEN SIMSOPT bug
+        # Without these lines, the number of optimizable references multiply
+        # like crazy as number of coils increases, slowing the optimization to a halt.
+        # With these lines, the Jacobian calculations of these terms will be incorrect
+        # with python 3.10 onwards (python 3.9 works regardless!)
         # self.biotsavart._children = set()
         # self.coil._children = set()
         # self.coil.curve._children = set()
@@ -530,9 +535,11 @@ class MeanSquaredForce(Optimizable):
         dB_dX = self.biotsavart.dB_by_dX()
         dJ_dX = np.einsum('ij,ikj->ik', dJ_dB, dB_dX)
 
-        #### ABSOLUTELY ESSENTIAL LINES BELOW
-        # Otherwise optimizable references multiply
-        # like crazy as number of coils increases
+        #### LINES BELOW ARE RELATED TO OPEN SIMSOPT bug
+        # Without these lines, the number of optimizable references multiply
+        # like crazy as number of coils increases, slowing the optimization to a halt.
+        # With these lines, the Jacobian calculations of these terms will be incorrect
+        # with python 3.10 onwards (python 3.9 works regardless!)
         # self.biotsavart._children = set()
         # self.coil._children = set()
         # self.coil.curve._children = set()
@@ -1517,9 +1524,12 @@ class SquaredMeanForce(Optimizable):
             self.biotsavart.B(),
             self.downsample,
         ]
-        #### ABSOLUTELY ESSENTIAL LINES BELOW
-        # Otherwise optimizable references multiply
-        # like crazy as number of coils increases
+
+        #### LINES BELOW ARE RELATED TO OPEN SIMSOPT bug
+        # Without these lines, the number of optimizable references multiply
+        # like crazy as number of coils increases, slowing the optimization to a halt.
+        # With these lines, the Jacobian calculations of these terms will be incorrect
+        # with python 3.10 onwards (python 3.9 works regardless!)
         # self.biotsavart._children = set()
         # self.coil._children = set()
         # self.coil.curve._children = set()
@@ -1565,9 +1575,11 @@ class SquaredMeanForce(Optimizable):
             + B_vjp
         )
 
-        #### ABSOLUTELY ESSENTIAL LINES BELOW
-        # Otherwise optimizable references multiply
-        # like crazy as number of coils increases
+        #### LINES BELOW ARE RELATED TO OPEN SIMSOPT bug
+        # Without these lines, the number of optimizable references multiply
+        # like crazy as number of coils increases, slowing the optimization to a halt.
+        # With these lines, the Jacobian calculations of these terms will be incorrect
+        # with python 3.10 onwards (python 3.9 works regardless!)
         # self.biotsavart._children = set()
         # self.coil._children = set()
         # self.coil.curve._children = set()
@@ -1662,9 +1674,11 @@ class SquaredMeanTorque(Optimizable):
         ]
         J = self.J_jax(*args)
 
-        #### ABSOLUTELY ESSENTIAL LINES BELOW
-        # Otherwise optimizable references multiply
-        # like crazy as number of coils increases
+        #### LINES BELOW ARE RELATED TO OPEN SIMSOPT bug
+        # Without these lines, the number of optimizable references multiply
+        # like crazy as number of coils increases, slowing the optimization to a halt.
+        # With these lines, the Jacobian calculations of these terms will be incorrect
+        # with python 3.10 onwards (python 3.9 works regardless!)
         # self.biotsavart._children = set()
         # self.coil._children = set()
         # self.coil.curve._children = set()
@@ -1711,9 +1725,11 @@ class SquaredMeanTorque(Optimizable):
             + B_vjp
         )
 
-        #### ABSOLUTELY ESSENTIAL LINES BELOW
-        # Otherwise optimizable references multiply
-        # like crazy as number of coils increases
+        #### LINES BELOW ARE RELATED TO OPEN SIMSOPT bug
+        # Without these lines, the number of optimizable references multiply
+        # like crazy as number of coils increases, slowing the optimization to a halt.
+        # With these lines, the Jacobian calculations of these terms will be incorrect
+        # with python 3.10 onwards (python 3.9 works regardless!)
         # self.biotsavart._children = set()
         # self.coil._children = set()
         # self.coil.curve._children = set()
@@ -1825,9 +1841,11 @@ class MeanSquaredTorque(Optimizable):
         ]
         J = self.J_jax(*args)
 
-        #### ABSOLUTELY ESSENTIAL LINES BELOW
-        # Otherwise optimizable references multiply
-        # like crazy as number of coils increases
+        #### LINES BELOW ARE RELATED TO OPEN SIMSOPT bug
+        # Without these lines, the number of optimizable references multiply
+        # like crazy as number of coils increases, slowing the optimization to a halt.
+        # With these lines, the Jacobian calculations of these terms will be incorrect
+        # with python 3.10 onwards (python 3.9 works regardless!)
         # self.biotsavart._children = set()
         # self.coil._children = set()
         # self.coil.curve._children = set()
@@ -1879,9 +1897,11 @@ class MeanSquaredTorque(Optimizable):
             + B_vjp
         )
 
-        #### ABSOLUTELY ESSENTIAL LINES BELOW
-        # Otherwise optimizable references multiply
-        # like crazy as number of coils increases
+        #### LINES BELOW ARE RELATED TO OPEN SIMSOPT bug
+        # Without these lines, the number of optimizable references multiply
+        # like crazy as number of coils increases, slowing the optimization to a halt.
+        # With these lines, the Jacobian calculations of these terms will be incorrect
+        # with python 3.10 onwards (python 3.9 works regardless!)
         # self.biotsavart._children = set()
         # self.coil._children = set()
         # self.coil.curve._children = set()
@@ -2018,9 +2038,11 @@ class LpCurveTorque(Optimizable):
         ]
         J = self.J_jax(*args)
 
-        #### ABSOLUTELY ESSENTIAL LINES BELOW
-        # Otherwise optimizable references multiply
-        # like crazy as number of coils increases
+        #### LINES BELOW ARE RELATED TO OPEN SIMSOPT bug
+        # Without these lines, the number of optimizable references multiply
+        # like crazy as number of coils increases, slowing the optimization to a halt.
+        # With these lines, the Jacobian calculations of these terms will be incorrect
+        # with python 3.10 onwards (python 3.9 works regardless!)
         # self.biotsavart._children = set()
         # self.coil._children = set()
         # self.coil.curve._children = set()
@@ -2072,9 +2094,11 @@ class LpCurveTorque(Optimizable):
             + B_vjp
         )
 
-        #### ABSOLUTELY ESSENTIAL LINES BELOW
-        # Otherwise optimizable references multiply
-        # like crazy as number of coils increases
+        #### LINES BELOW ARE RELATED TO OPEN SIMSOPT bug
+        # Without these lines, the number of optimizable references multiply
+        # like crazy as number of coils increases, slowing the optimization to a halt.
+        # With these lines, the Jacobian calculations of these terms will be incorrect
+        # with python 3.10 onwards (python 3.9 works regardless!)
         # self.biotsavart._children = set()
         # self.coil._children = set()
         # self.coil.curve._children = set()
@@ -2531,6 +2555,11 @@ class NetFluxes(Optimizable):
             self.downsample
         ]
         J = self.J_jax(*args)
+        #### LINES BELOW ARE RELATED TO OPEN SIMSOPT bug
+        # Without these lines, the number of optimizable references multiply
+        # like crazy as number of coils increases, slowing the optimization to a halt.
+        # With these lines, the Jacobian calculations of these terms will be incorrect
+        # with python 3.10 onwards (python 3.9 works regardless!)
         # self.biotsavart._children = set()
         # self.coil._children = set()
         # self.coil.curve._children = set()
@@ -2564,6 +2593,11 @@ class NetFluxes(Optimizable):
             + A_vjp
         )
 
+        #### LINES BELOW ARE RELATED TO OPEN SIMSOPT bug
+        # Without these lines, the number of optimizable references multiply
+        # like crazy as number of coils increases, slowing the optimization to a halt.
+        # With these lines, the Jacobian calculations of these terms will be incorrect
+        # with python 3.10 onwards (python 3.9 works regardless!)
         # self.biotsavart._children = set()
         # self.coil._children = set()
         # self.coil.curve._children = set()
