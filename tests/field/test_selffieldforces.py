@@ -8,7 +8,7 @@ from scipy.special import ellipk, ellipe
 
 from simsopt.field import Coil, Current, coils_via_symmetries
 from simsopt.geo.curve import create_equally_spaced_curves
-from simsopt.configs import get_hsx_data, get_ncsx_data
+from simsopt.configs import get_hsx_data
 from simsopt.geo import CurveXYZFourier, CurvePlanarFourier
 from simsopt.field.selffield import (
     B_regularized_circ,
@@ -16,6 +16,7 @@ from simsopt.field.selffield import (
     rectangular_xsection_k,
     rectangular_xsection_delta,
     regularization_circ,
+    regularization_rect,
 )
 from simsopt.field.force import (
     coil_force,
@@ -491,174 +492,254 @@ class CoilForcesTest(unittest.TestCase):
         np.testing.assert_allclose(objective, objective_mixed)
 
     def test_Taylor(self):
-        nfp = 3
-        ncoils = 4
-        I = 1.7e4
-        regularization = regularization_circ(0.05)
-        base_curves = create_equally_spaced_curves(ncoils, nfp, True)
-        base_currents = [Current(I) for j in range(ncoils)]
-        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
-        regularization_list = np.ones(len(coils)) * regularization
-        p = 2.5
-        threshold = 0.0
-        objectives = [
-            NetFluxes(coils[0], coils),
-            TVE(coils[0], coils, a=0.05),
-            MeanSquaredForce(coils[0], coils, regularization),
-            sum([MeanSquaredForce(c, coils, regularization) for c in coils]),
-            LpCurveTorque(coils[0], coils, regularization, p=p, threshold=threshold),
-            sum([LpCurveTorque(c, coils, regularization, p=p, threshold=threshold) for c in coils]),
-            MixedLpCurveTorque(coils[0:1], coils[1:], regularization_list[0:1], regularization_list[1:], p=p, threshold=threshold),
-            SquaredMeanTorque(coils[0], coils),
-            sum([SquaredMeanTorque(c, coils) for c in coils]),
-            MixedSquaredMeanTorque(coils[0:2], coils[2:]),
-            LpCurveForce(coils[0], coils, regularization, p=p, threshold=threshold),
-            sum([LpCurveForce(c, coils, regularization, p=p, threshold=threshold) for c in coils]),
-            MixedLpCurveForce(coils[0:1], coils[1:], regularization_list[0:1],
-                              regularization_list[1:], p=p, threshold=threshold),
-            SquaredMeanForce(coils[0], coils),
-            sum([SquaredMeanForce(c, coils) for c in coils]),
-            MixedSquaredMeanForce([coils[0]], coils[1:]),
+        import matplotlib.pyplot as plt
+        ncoils_list = [2, 4, 6]
+        nfp_list = [1, 2, 3]
+        stellsym_list = [False, True]
+        p_list = [2.0, 2.5]  # , 3.0
+        threshold_list = [0.0]  # 1e1
+        downsample_list = [1, 2]
+        numquadpoints_list = [50]
+        I = 1.7e5
+        a = 0.05
+        b = 0.05
+        np.random.seed(1234)
+        regularization_types = [
+            ("circular", lambda: regularization_circ(a)),
+            ("rectangular", lambda: regularization_rect(a, b)),
         ]
-        dofs = np.copy(MeanSquaredForce(coils[0], coils, regularization).x)
-        h = np.ones_like(dofs)
-        for J in objectives:
-            J.x = dofs  # Need to reset Jf.x for each objective
-            dJ = J.dJ()
-            deriv = np.sum(dJ * h)
-            err = 1e20
-            print('Objective = ', J)
-            print(J.x.shape)
-            for i in range(11, 18):
-                eps = 0.5**i
-                J.x = dofs + eps * h
-                Jp = J.J()
-                J.x = dofs - eps * h
-                Jm = J.J()
-                deriv_est = (Jp - Jm) / (2 * eps)
-                # Careful -- LpCurveTorque will return 0 derivative if coils are parallel
-                # print(Jm, Jp, np.abs(deriv_est))
-                if np.abs(deriv) < 1e-8:
-                    err_new = np.abs(deriv_est - deriv)  # compute absolute error instead
-                else:
-                    err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
-                print("taylor_test i: ", i, "rel_err: ", err_new, "ratio:", err_new / err)
-                # np.testing.assert_array_less(err_new, 0.5 * err)
-                err = err_new
+        all_errors = []
+        all_labels = []
+        all_eps = []
+        for ncoils in ncoils_list:
+            for nfp in nfp_list:
+                for stellsym in stellsym_list:
+                    for p in p_list:
+                        for threshold in threshold_list:
+                            for reg_name, reg_func in regularization_types:
+                                regularization = reg_func()
+                                for downsample in downsample_list:
+                                    for numquadpoints in numquadpoints_list:
+                                        base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym, numquadpoints=numquadpoints)
+                                        base_currents = [Current(I) for j in range(ncoils)]
+                                        coils = coils_via_symmetries(base_curves, base_currents, nfp, stellsym)
+                                        regularization_list = np.ones(len(coils)) * regularization
+                                        objectives = [
+                                            NetFluxes(coils[0], coils),
+                                            TVE(coils[0], coils, a=a),
+                                            MeanSquaredForce(coils[0], coils, regularization, downsample=downsample),
+                                            sum([MeanSquaredForce(c, coils, regularization, downsample=downsample) for c in coils]),
+                                            LpCurveTorque(coils[0], coils, regularization, p=p, threshold=threshold, downsample=downsample),
+                                            sum([LpCurveTorque(c, coils, regularization, p=p, threshold=threshold, downsample=downsample) for c in coils]),
+                                            MixedLpCurveTorque(coils[0:1], coils[1:], regularization_list[0:1], regularization_list[1:], p=p, threshold=threshold, downsample=downsample),
+                                            SquaredMeanTorque(coils[0], coils, downsample=downsample),
+                                            sum([SquaredMeanTorque(c, coils, downsample=downsample) for c in coils]),
+                                            MixedSquaredMeanTorque(coils[0:1], coils[1:], downsample=downsample),
+                                            LpCurveForce(coils[0], coils, regularization, p=p, threshold=threshold, downsample=downsample),
+                                            sum([LpCurveForce(c, coils, regularization, p=p, threshold=threshold, downsample=downsample) for c in coils]),
+                                            MixedLpCurveForce(coils[0:1], coils[1:], regularization_list[0:1],
+                                                              regularization_list[1:], p=p, threshold=threshold, downsample=downsample),
+                                            SquaredMeanForce(coils[0], coils, downsample=downsample),
+                                            sum([SquaredMeanForce(c, coils, downsample=downsample) for c in coils]),
+                                            MixedSquaredMeanForce([coils[0]], coils[1:], downsample=downsample),
+                                        ]
+                                        dofs = np.copy(MeanSquaredForce(coils[0], coils, regularization).x)
+                                        h = np.ones_like(dofs)
+                                        for J in objectives:
+                                            print(f"ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}, p={p}, threshold={threshold}, reg={reg_name}, downsample={downsample}, objective={type(J).__name__}")
+                                            J.x = dofs  # Need to reset Jf.x for each objective
+                                            dJ = J.dJ()
+                                            deriv = np.sum(dJ * h)
+                                            errors = []
+                                            epsilons = []
+                                            label = f"{type(J).__name__}, ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}, p={getattr(J, 'p', p)}, threshold={getattr(J, 'threshold', threshold)}, reg={reg_name}, downsample={downsample}"
+                                            for i in range(11, 18):
+                                                eps = 0.5**i
+                                                J.x = dofs + eps * h
+                                                Jp = J.J()
+                                                J.x = dofs - eps * h
+                                                Jm = J.J()
+                                                deriv_est = (Jp - Jm) / (2 * eps)
+                                                if np.abs(deriv) < 1e-8:
+                                                    err_new = np.abs(deriv_est - deriv)  # compute absolute error instead
+                                                else:
+                                                    err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
+                                                # Check error decrease by at least a factor of 0.3
+                                                if len(errors) > 0:
+                                                    print(f"err: {err_new}, eps: {eps}, ratio: {(err_new + 1e-12) / (errors[-1] + 1e-12)}")
+                                                    assert err_new < 0.5 * errors[-1], f"Error did not decrease by factor 0.5: prev={errors[-1]}, curr={err_new}"
+                                                errors.append(err_new)
+                                                epsilons.append(eps)
+                                            all_errors.append(errors)
+                                            all_labels.append(label)
+                                            all_eps.append(epsilons)
+        # Plot all errors
+        plt.figure(figsize=(14, 8))
+        for errors, label, epsilons in zip(all_errors, all_labels, all_eps):
+            plt.loglog(epsilons, errors, marker='o', label=label)
+        plt.xlabel('eps')
+        plt.ylabel('Relative Taylor error')
+        plt.title('Taylor test errors for all objectives and parameter sweeps')
+        plt.legend(fontsize=6, loc='upper left', bbox_to_anchor=(1, 1))
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig('taylor_errors.png')
 
     def test_Taylor_PSC(self):
+        import matplotlib.pyplot as plt
         from simsopt.field import PSCArray
         from simsopt.objectives import SquaredFlux
         from simsopt.geo import SurfaceRZFourier
         from pathlib import Path
         from monty.tempfile import ScratchDir
+        from simsopt.field.selffield import regularization_circ, regularization_rect
         TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
         filename = TEST_DIR / 'input.LandremanPaul2021_QA'
         nphi, ntheta = 8, 8
+        ncoils_list = [2, 4]
+        nfp_list = [1, 2, 3]
+        stellsym_list = [False, True]
+        p_list = [2.0, 2.5]
+        threshold_list = [0.0, 1e1]
+        downsample_list = [1, 2]
+        I = 1.7e5
+        a = 0.05
+        b = 0.05
+        regularization_types = [
+            ("circular", lambda: regularization_circ(a)),
+            ("rectangular", lambda: regularization_rect(a, b)),
+        ]
+        all_errors = []
+        all_labels = []
+        all_eps = []
         with ScratchDir("."):
             s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        nfp = 2
-        ncoils = 4
-        I = 1.7e4
-        a = 0.05
-        regularization = regularization_circ(a)
-        eval_points = s.gamma().reshape(-1, 3)
-        base_curves_TF = create_equally_spaced_curves(ncoils, nfp, True)
-        base_currents_TF = [Current(I) for j in range(ncoils)]
-        for i in range(ncoils):
-            base_currents_TF[i].fix_all()
-        coils_TF = coils_via_symmetries(base_curves_TF, base_currents_TF, nfp, True)
-        base_curves = create_equally_spaced_curves(ncoils, nfp, True, R0=0.5, R1=0.1)
-        a_list = np.ones(len(base_curves)) * a
-        b_list = a_list
-        psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=nfp, stellsym=True)
-        coils = psc_array.coils
-        coils_TF = psc_array.coils_TF
-        btot = psc_array.biot_savart_total
-        btot.set_points(eval_points)
-        regularization_list = np.ones(len(coils)) * regularization
-        regularization_list_TF = np.ones(len(coils_TF)) * regularization
-        p = 2.5
-        threshold = 0.0
-
-        # Note that passive coils must use the "mixed" objective classes
-        objectives = [
-            SquaredFlux(s, btot),
-            MixedLpCurveTorque(coils, coils_TF, regularization_list, regularization_list_TF,
-                               p=p, threshold=threshold, psc_array=psc_array),
-            MixedSquaredMeanTorque(coils, coils_TF, psc_array=psc_array),
-            MixedLpCurveForce(coils, coils_TF, regularization_list,
-                              regularization_list_TF, p=p, threshold=threshold, psc_array=psc_array),
-            MixedSquaredMeanForce(coils, coils_TF, psc_array=psc_array),
-        ]
-        print('PSCArray Taylor test: ')
-        dofs = objectives[0].x
-        h = np.ones_like(dofs)
-        for J in objectives:
-            J.x = dofs  # Need to reset Jf.x for each objective
-            dJ = J.dJ()
-            deriv = np.sum(dJ * h)
-            err = 1e10
-            print('Objective = ', J)
-            for i in range(11, 18):
-                eps = 0.5**i
-                J.x = dofs + eps * h
-                psc_array.recompute_currents()
-                Jp = J.J()
-                J.x = dofs - eps * h
-                psc_array.recompute_currents()
-                Jm = J.J()
-                deriv_est = (Jp - Jm) / (2 * eps)
-                # Careful -- LpCurveTorque will return 0 derivative if coils are parallel
-                if np.abs(deriv) < 1e-8:
-                    err_new = np.abs(deriv_est - deriv)  # compute absolute error instead
-                else:
-                    err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
-                print("taylor_test i: ", i, "rel_err: ", err_new, "err:", err, "ratio:", err_new / err)
-                np.testing.assert_array_less(err_new, 0.5 * err)
-                err = err_new
-
-        # Reinitialize for the TVE which has different number of dofs
-        base_curves_TF = create_equally_spaced_curves(ncoils, nfp, True)
-        base_currents_TF = [Current(I) for j in range(ncoils)]
-        for i in range(ncoils):
-            base_currents_TF[i].fix_all()
-        coils_TF = coils_via_symmetries(base_curves_TF, base_currents_TF, nfp, True)
-        base_curves = create_equally_spaced_curves(ncoils, nfp, True, R0=0.5, R1=0.1)
-        a_list = np.ones(len(base_curves)) * a
-        b_list = a_list
-        psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=nfp, stellsym=True)
-        coils = psc_array.coils
-        coils_TF = psc_array.coils_TF
-        objectives = [
-            TVE(coils[0], coils[1:], a=0.05, psc_array=psc_array),
-        ]
-        print('PSCArray Taylor test: ')
-        dofs = objectives[0].x
-        h = np.ones_like(dofs)
-        for k, J in enumerate(objectives):
-            J.x = dofs  # Need to reset Jf.x for each objective
-            dJ = J.dJ()
-            deriv = np.sum(dJ * h)
-            err = 1e10
-            print('Objective = ', J)
-            for i in range(11, 18):
-                eps = 0.5**i
-                J.x = dofs + eps * h
-                psc_array.recompute_currents()
-                Jp = J.J()
-                J.x = dofs - eps * h
-                psc_array.recompute_currents()
-                Jm = J.J()
-                deriv_est = (Jp - Jm) / (2 * eps)
-                # Careful -- LpCurveTorque will return 0 derivative if coils are parallel
-                if np.abs(deriv) < 1e-8:
-                    err_new = np.abs(deriv_est - deriv)  # compute absolute error instead
-                else:
-                    err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
-                print("taylor_test i: ", i, "rel_err: ", err_new, "err:", err, "ratio:", err_new / err)
-                np.testing.assert_array_less(err_new, 0.5 * err)
-                err = err_new
+            eval_points = s.gamma().reshape(-1, 3)
+            for ncoils in ncoils_list:
+                for nfp in nfp_list:
+                    for stellsym in stellsym_list:
+                        for p in p_list:
+                            for threshold in threshold_list:
+                                for reg_name, reg_func in regularization_types:
+                                    regularization = reg_func()
+                                    for downsample in downsample_list:
+                                        base_curves_TF = create_equally_spaced_curves(ncoils, nfp, stellsym)
+                                        base_currents_TF = [Current(I) for j in range(ncoils)]
+                                        for i in range(ncoils):
+                                            base_currents_TF[i].fix_all()
+                                        coils_TF = coils_via_symmetries(base_curves_TF, base_currents_TF, nfp, stellsym)
+                                        base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym, R0=0.5, R1=0.1)
+                                        a_list = np.ones(len(base_curves)) * a
+                                        b_list = a_list
+                                        psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=nfp, stellsym=stellsym)
+                                        coils = psc_array.coils
+                                        coils_TF = psc_array.coils_TF
+                                        btot = psc_array.biot_savart_total
+                                        btot.set_points(eval_points)
+                                        regularization_list = np.ones(len(coils)) * regularization
+                                        regularization_list_TF = np.ones(len(coils_TF)) * regularization
+                                        objectives = [
+                                            SquaredFlux(s, btot),
+                                            MixedLpCurveTorque(coils, coils_TF, regularization_list, regularization_list_TF,
+                                                               p=p, threshold=threshold, psc_array=psc_array, downsample=downsample),
+                                            MixedSquaredMeanTorque(coils, coils_TF, psc_array=psc_array, downsample=downsample),
+                                            MixedLpCurveForce(coils, coils_TF, regularization_list,
+                                                              regularization_list_TF, p=p, threshold=threshold, psc_array=psc_array, downsample=downsample),
+                                            MixedSquaredMeanForce(coils, coils_TF, psc_array=psc_array, downsample=downsample),
+                                        ]
+                                        dofs = np.copy(SquaredFlux(s, btot).x)
+                                        h = np.ones_like(dofs)
+                                        for J in objectives:
+                                            print(f"ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}, p={p}, threshold={threshold}, reg={reg_name}, downsample={downsample}, objective={type(J).__name__}")
+                                            J.x = dofs  # Need to reset Jf.x for each objective
+                                            psc_array.recompute_currents()
+                                            dJ = J.dJ()
+                                            deriv = np.sum(dJ * np.ones_like(J.x))
+                                            errors = []
+                                            epsilons = []
+                                            label = f"{type(J).__name__}, ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}, p={getattr(J, 'p', p)}, threshold={getattr(J, 'threshold', threshold)}, reg={reg_name}, downsample={downsample}"
+                                            for i in range(11, 18):
+                                                eps = 0.5**i
+                                                J.x = dofs + eps * h
+                                                psc_array.recompute_currents()
+                                                Jp = J.J()
+                                                J.x = dofs - eps * h
+                                                psc_array.recompute_currents()
+                                                Jm = J.J()
+                                                deriv_est = (Jp - Jm) / (2 * eps)
+                                                if np.abs(deriv) < 1e-8:
+                                                    err_new = np.abs(deriv_est - deriv)
+                                                else:
+                                                    err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
+                                                if len(errors) > 0:
+                                                    print(f"err: {err_new}, eps: {eps}, ratio: {err_new / errors[-1]}")
+                                                    assert err_new < 0.5 * errors[-1], f"Error did not decrease by factor 0.5: prev={errors[-1]}, curr={err_new}"
+                                                errors.append(err_new)
+                                                epsilons.append(eps)
+                                            all_errors.append(errors)
+                                            all_labels.append(label)
+                                            all_eps.append(epsilons)
+            # TVE objectives
+            for ncoils in ncoils_list:
+                for nfp in nfp_list:
+                    for stellsym in stellsym_list:
+                        base_curves_TF = create_equally_spaced_curves(ncoils, nfp, stellsym)
+                        base_currents_TF = [Current(I) for j in range(ncoils)]
+                        for i in range(ncoils):
+                            base_currents_TF[i].fix_all()
+                        coils_TF = coils_via_symmetries(base_curves_TF, base_currents_TF, nfp, stellsym)
+                        base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym, R0=0.5, R1=0.1)
+                        a_list = np.ones(len(base_curves)) * a
+                        b_list = a_list
+                        psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=nfp, stellsym=stellsym)
+                        coils = psc_array.coils
+                        coils_TF = psc_array.coils_TF
+                        objectives = [
+                            TVE(coils[0], coils[1:], a=a, psc_array=psc_array),
+                        ]
+                        dofs = np.copy(TVE(coils[0], coils[1:], a=a, psc_array=psc_array).x)
+                        h = np.ones_like(dofs)
+                        for J in objectives:
+                            print(f"ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}, objective={type(J).__name__}")
+                            J.x = dofs
+                            psc_array.recompute_currents()
+                            dJ = J.dJ()
+                            deriv = np.sum(dJ * np.ones_like(J.x))
+                            errors = []
+                            epsilons = []
+                            label = f"{type(J).__name__}, ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}"
+                            for i in range(11, 18):
+                                eps = 0.5**i
+                                J.x = J.x + eps * h
+                                psc_array.recompute_currents()
+                                Jp = J.J()
+                                J.x = J.x - eps * h
+                                psc_array.recompute_currents()
+                                Jm = J.J()
+                                deriv_est = (Jp - Jm) / (2 * eps)
+                                if np.abs(deriv) < 1e-8:
+                                    err_new = np.abs(deriv_est - deriv)
+                                else:
+                                    err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
+                                if errors[-1] > 0:
+                                    print(f"err: {err_new}, eps: {eps}, ratio: {err_new / errors[-1]}")
+                                    assert err_new < 0.5 * errors[-1], f"Error did not decrease by factor 0.5: prev={errors[-1]}, curr={err_new}"
+                                errors.append(err_new)
+                                epsilons.append(eps)
+                            all_errors.append(errors)
+                            all_labels.append(label)
+                            all_eps.append(epsilons)
+        # Plot all errors
+        plt.figure(figsize=(14, 8))
+        for errors, label, epsilons in zip(all_errors, all_labels, all_eps):
+            plt.loglog(epsilons, errors, marker='o', label=label)
+        plt.xlabel('eps')
+        plt.ylabel('Relative Taylor error')
+        plt.title('Taylor test errors for all PSC objectives and parameter sweeps')
+        plt.legend(fontsize=6, loc='upper left', bbox_to_anchor=(1, 1))
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig('taylor_errors_psc.png')
 
     def objectives_time_test(self):
         import time
@@ -799,58 +880,6 @@ class CoilForcesTest(unittest.TestCase):
             objective2 = objective_class(coils[0], coils, regularization)
             print("objective 1:", objective.J(), "objective 2:", objective2.J())
             np.testing.assert_allclose(objective.J(), objective2.J())
-
-    def test_meansquaredforces_taylor_test(self):
-        """Verify that dJ matches finite differences of J"""
-        # The Fourier spectrum of the NCSX coils is truncated - we don't need the
-        # actual coil shapes from the experiment, just a few nonzero dofs.
-
-        curves, currents, axis = get_ncsx_data(Nt_coils=2)
-        coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
-
-        J = MeanSquaredForce(coils[0], coils, regularization_circ(0.05))
-        dJ = J.dJ()
-        deriv = np.sum(dJ * np.ones_like(J.x))
-        dofs = J.x
-        h = np.ones_like(dofs)
-        err = 100
-        for i in range(10, 18):
-            eps = 0.5**i
-            J.x = dofs + eps * h
-            Jp = J.J()
-            J.x = dofs - eps * h
-            Jm = J.J()
-            deriv_est = (Jp - Jm) / (2 * eps)
-            err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
-            # print("i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
-            np.testing.assert_array_less(err_new, 0.3 * err)
-            err = err_new
-
-    def test_lpcurveforces_taylor_test(self):
-        """Verify that dJ matches finite differences of J"""
-        # The Fourier spectrum of the NCSX coils is truncated - we don't need the
-        # actual coil shapes from the experiment, just a few nonzero dofs.
-
-        curves, currents, axis = get_ncsx_data(Nt_coils=2)
-        coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
-
-        J = LpCurveForce(coils[0], coils, regularization_circ(0.05), 2.5)
-        dJ = J.dJ()
-        deriv = np.sum(dJ * np.ones_like(J.x))
-        dofs = J.x
-        h = np.ones_like(dofs)
-        err = 100
-        for i in range(10, 18):
-            eps = 0.5**i
-            J.x = dofs + eps * h
-            Jp = J.J()
-            J.x = dofs - eps * h
-            Jm = J.J()
-            deriv_est = (Jp - Jm) / (2 * eps)
-            err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
-            print("test_lpcurveforces_taylor_test i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
-            np.testing.assert_array_less(err_new, 0.31 * err)
-            err = err_new
 
 
 if __name__ == '__main__':

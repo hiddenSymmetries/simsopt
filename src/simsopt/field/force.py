@@ -387,6 +387,8 @@ class LpCurveForce(Optimizable):
 
 
 # @jit
+
+
 def mean_squared_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual, downsample):
     r"""Pure function for minimizing the Lorentz force on a coil.
 
@@ -415,6 +417,7 @@ def mean_squared_force_pure(gamma, gammadash, gammadashdash, quadpoints, current
     gamma = gamma[::downsample, :]
     gammadash = gammadash[::downsample, :]
     gammadashdash = gammadashdash[::downsample, :]
+    # jax.debug.print("gamma: {gamma}", gamma=jnp.shape(gamma))
     B_self = B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization)
     gammadash_norm = jnp.linalg.norm(gammadash, axis=1)[:, None]
     tangent = gammadash / gammadash_norm
@@ -520,20 +523,35 @@ class MeanSquaredForce(Optimizable):
 
     @derivative_dec
     def dJ(self):
+        # First part related to dB terms cannot be downsampled!
         gamma = self.coil.curve.gamma()
-        self.biotsavart.set_points(np.array(gamma[::self.downsample, :]))
-
+        gammadash = self.coil.curve.gammadash()
+        gammadashdash = self.coil.curve.gammadashdash()
+        current = self.coil.current.get_value()
+        self.biotsavart.set_points(gamma)
         args = [
-            self.coil.curve.gamma(),
-            self.coil.curve.gammadash(),
-            self.coil.curve.gammadashdash(),
-            self.coil.current.get_value(),
+            gamma,
+            gammadash,
+            gammadashdash,
+            current,
             self.biotsavart.B(),
-            self.downsample
+            1
         ]
         dJ_dB = self.dJ_dB_mutual(*args)
         dB_dX = self.biotsavart.dB_by_dX()
         dJ_dX = np.einsum('ij,ikj->ik', dJ_dB, dB_dX)
+        B_vjp = self.biotsavart.B_vjp(dJ_dB)
+
+        # Second part related to coil dJ can be downsampled!
+        self.biotsavart.set_points(np.array(gamma[::self.downsample, :]))
+        args2 = [
+            gamma,
+            gammadash,
+            gammadashdash,
+            current,
+            self.biotsavart.B(),
+            self.downsample
+        ]
 
         #### LINES BELOW ARE RELATED TO OPEN SIMSOPT bug
         # Without these lines, the number of optimizable references multiply
@@ -545,11 +563,11 @@ class MeanSquaredForce(Optimizable):
         # self.coil.curve._children = set()
         # self.coil.current._children = set()
         dJ = (
-            self.coil.curve.dgamma_by_dcoeff_vjp(self.dJ_dgamma(*args) + dJ_dX)
-            + self.coil.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadash(*args))
-            + self.coil.curve.dgammadashdash_by_dcoeff_vjp(self.dJ_dgammadashdash(*args))
-            + self.coil.current.vjp(jnp.asarray([self.dJ_dcurrent(*args)]))
-            + self.biotsavart.B_vjp(dJ_dB)
+            self.coil.curve.dgamma_by_dcoeff_vjp(self.dJ_dgamma(*args2) + dJ_dX)
+            + self.coil.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadash(*args2))
+            + self.coil.curve.dgammadashdash_by_dcoeff_vjp(self.dJ_dgammadashdash(*args2))
+            + self.coil.current.vjp(jnp.asarray([self.dJ_dcurrent(*args2)]))
+            + B_vjp
         )
         # for c in self.othercoils:
         #     c._children = set()

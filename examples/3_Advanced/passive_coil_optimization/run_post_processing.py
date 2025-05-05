@@ -40,16 +40,15 @@ elif str(sys.argv[1]) == 'QASH':
     input_name = 'input.schuetthenneberg_nfp2'
     R0 = np.linspace(4.5, 6.75, nfieldlines)
 elif str(sys.argv[1]) == 'CSX':
-    # input_name = 'wout_csx_wps_5.0.nc'
-    input_name = 'input.schuetthenneberg_nfp2'
+    input_name = 'wout_csx_wps_5.0.nc'
     R0 = np.linspace(0.32, 0.415, nfieldlines)
 filename = TEST_DIR / input_name
 coils = load(input_dir + "psc_coils_continuation.json")
 coils_TF = load(input_dir + "TF_coils_continuation.json")
-# if str(sys.argv[1]) != 'CSX':
-s = SurfaceRZFourier.from_vmec_input(filename, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
-# else:
-# s = SurfaceRZFourier.from_wout(filename, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+if str(sys.argv[1]) != 'CSX':
+    s = SurfaceRZFourier.from_vmec_input(filename, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+else:
+    s = SurfaceRZFourier.from_wout(filename, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
 curves = [c.curve for c in coils]
 base_curves = curves[:len(curves) // (s.nfp * 2)]
 base_coils = coils[:len(coils) // (s.nfp * 2)]
@@ -81,31 +80,31 @@ qfm_surf = qfm_surf.surface
 # VMEC does NOT like the CSX plasma because it's very compact
 # Also probably should be including the plasma current contributions
 # Although Antoine Baillod has had the same issues.
-# if str(sys.argv[1]) != 'CSX':
-vmec_input = str(filename)
-equil = Vmec(vmec_input, mpi)
-equil.boundary = qfm_surf
-equil.run()
+if str(sys.argv[1]) != 'CSX':
+    vmec_input = str(filename)
+    equil = Vmec(vmec_input, mpi)
+    equil.boundary = qfm_surf
+    equil.run()
 
-# Configure quasisymmetry objective:
-if str(sys.argv[1]) == 'QH':
-    helicity_n = -1
-else:
-    helicity_n = 0
+    # Configure quasisymmetry objective:
+    if str(sys.argv[1]) == 'QH':
+        helicity_n = -1
+    else:
+        helicity_n = 0
 
-qs = QuasisymmetryRatioResidual(equil,
-                                np.arange(0, 1.01, 0.1),  # Radii to target
-                                helicity_m=1, helicity_n=helicity_n)  # (M, N) you want in |B|
-proc0_print("Quasisymmetry objective before optimization:", qs.total())
+    qs = QuasisymmetryRatioResidual(equil,
+                                    np.arange(0, 1.01, 0.1),  # Radii to target
+                                    helicity_m=1, helicity_n=helicity_n)  # (M, N) you want in |B|
+    proc0_print("Quasisymmetry objective before optimization:", qs.total())
 
-# Need to load a wout file to get the proper iota profile!
-from matplotlib import pyplot as plt
-plt.figure()
-plt.grid()
-psi_s = np.linspace(0, len(equil.wout.iotas[1::]) * equil.ds, len(equil.wout.iotas[1::]))
-plt.plot(psi_s, equil.wout.iotas[1::], 'rx')
-plt.ylabel(r'rotational transform $\iota$')
-plt.xlabel('Normalized toroidal flux s')
+    # Need to load a wout file to get the proper iota profile!
+    from matplotlib import pyplot as plt
+    plt.figure()
+    plt.grid()
+    psi_s = np.linspace(0, len(equil.wout.iotas[1::]) * equil.ds, len(equil.wout.iotas[1::]))
+    plt.plot(psi_s, equil.wout.iotas[1::], 'rx')
+    plt.ylabel(r'rotational transform $\iota$')
+    plt.xlabel('Normalized toroidal flux s')
 
 from simsopt.field.magneticfieldclasses import InterpolatedField
 
