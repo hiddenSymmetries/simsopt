@@ -1,5 +1,4 @@
 import numpy as np
-from itertools import chain
 
 import simsoptpp as sopp
 from .curve import Curve
