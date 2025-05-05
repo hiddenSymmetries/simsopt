@@ -16,7 +16,7 @@ except ImportError:
 
 __all__ = ["find_periodic_field_line", "PeriodicFieldLine", "periodic_field_line_grid_search"]
 
-def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
+def _integrate_field_line(field, R0, z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
     """Integrate a single field line in the toroidal direction.
 
     Integration is done in cylindrical coordinates. Integration is always done
@@ -24,9 +24,9 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
 
     For this function, phi0 and Delta_phi range over [0, 2pi], not [0, 1].
 
-    if nphi == 1, then the function returns the final R and Z coordinates, i.e.
+    if nphi == 1, then the function returns the final R and z coordinates, i.e.
     a pair of floats. If nphi > 1, then the function returns a pair of arrays
-    of the final R and Z coordinates, i.e. a pair of arrays, corresponding to
+    of the final R and z coordinates, i.e. a pair of arrays, corresponding to
     equally spaced points in the phi direction including both phi0 and phi0 + Delta_phi.
 
     Warning!!! This function does not work correctly when Delta_phi is > 2pi and nphi > 1.
@@ -34,7 +34,7 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
     Args:
         field: The magnetic field object.
         R0: Initial R coordinate.
-        Z0: Initial Z coordinate.
+        z0: Initial z coordinate.
         Delta_phi: Distance in radians to integrate in the toroidal direction.
         tol: Tolerance for the integration (default: 1e-10).
         phi0: Initial toroidal angle (default: 0).
@@ -42,13 +42,13 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
 
     Returns:
         R: Final R coordinate(s).
-        Z: Final Z coordinate(s).
+        z: Final z coordinate(s).
     """
 
     xyz_inits = np.zeros((1, 3))
     xyz_inits[0, 0] = R0 * np.cos(phi0)
     xyz_inits[0, 1] = R0 * np.sin(phi0)
-    xyz_inits[0, 2] = Z0
+    xyz_inits[0, 2] = z0
 
     # Determine if B points towards positive or negative phi. If it points
     # towards negative phi, we need to trace antiparallel to B.
@@ -108,7 +108,7 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
         plt.subplot(n_rows, n_cols, 3)
         plt.plot(res[:, 0], res[:, 3])
         plt.xlabel("t")
-        plt.ylabel("Z")
+        plt.ylabel("z")
 
         plt.subplot(n_rows, n_cols, 4)
         plt.plot(res[:, 0], np.sqrt(res[:, 1]**2 + res[:, 2]**2))
@@ -151,27 +151,27 @@ def _integrate_field_line(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
         xyz_hits = np.concatenate((xyz_inits, xyz_hits), axis=0)
     
     R = np.sqrt(xyz_hits[:, 0] ** 2 + xyz_hits[:, 1] ** 2)
-    Z = xyz_hits[:, 2]
+    z = xyz_hits[:, 2]
     if nphi == 1:
-        return R[0], Z[0]
+        return R[0], z[0]
 
-    return R, Z
+    return R, z
 
 
 def _field_line_tracing_func(t, y, field):
     """Function for the derivatives that define a field line in cylindrical coordinates."""
     phi = t
-    R, Z = y
-    eval_points = np.array([[R, phi, Z]])
+    R, z = y
+    eval_points = np.array([[R, phi, z]])
     MagneticField.set_points_cyl(field, eval_points)
     BR, Bphi, Bz = field.B_cyl()[0]
 
     d_R_d_phi = R * BR / Bphi
-    d_Z_d_phi = R * Bz / Bphi
-    return np.array([d_R_d_phi, d_Z_d_phi])
+    d_z_d_phi = R * Bz / Bphi
+    return np.array([d_R_d_phi, d_z_d_phi])
 
 
-def _integrate_field_line_cyl(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
+def _integrate_field_line_cyl(field, R0, z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
     """Integrate a single field line in the toroidal direction.
 
     In contrast to _integrate_field_line, this function integrates in cylindrical coordinates
@@ -182,9 +182,9 @@ def _integrate_field_line_cyl(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=
 
     For this function, phi0 and Delta_phi range over [0, 2pi], not [0, 1].
 
-    if nphi == 1, then the function returns the final R and Z coordinates, i.e.
+    if nphi == 1, then the function returns the final R and z coordinates, i.e.
     a pair of floats. If nphi > 1, then the function returns a pair of arrays
-    of the final R and Z coordinates, i.e. a pair of arrays, corresponding to
+    of the final R and z coordinates, i.e. a pair of arrays, corresponding to
     equally spaced points in the phi direction including both phi0 and phi0 + Delta_phi.
 
     In contrast to _integrate_field_line(), this function DOES work correctly when Delta_phi is > 2pi and nphi > 1.
@@ -192,7 +192,7 @@ def _integrate_field_line_cyl(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=
     Args:
         field: The magnetic field object.
         R0: Initial R coordinate.
-        Z0: Initial Z coordinate.
+        z0: Initial z coordinate.
         Delta_phi: Distance in radians to integrate in the toroidal direction.
         tol: Tolerance for the integration (default: 1e-10).
         phi0: Initial toroidal angle (default: 0).
@@ -200,7 +200,7 @@ def _integrate_field_line_cyl(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=
 
     Returns:
         R: Final R coordinate(s).
-        Z: Final Z coordinate(s).
+        z: Final z coordinate(s).
     """
     if nphi == 1:
         t_eval = [phi0 + Delta_phi]
@@ -212,7 +212,7 @@ def _integrate_field_line_cyl(field, R0, Z0, Delta_phi, tol=1e-10, phi0=0, nphi=
     result = solve_ivp(
         _field_line_tracing_func,
         (phi0, phi0 + Delta_phi),
-        (R0, Z0),
+        (R0, z0),
         args=(field,),
         t_eval=t_eval,
         rtol=tol,
@@ -234,14 +234,14 @@ def _find_periodic_field_line_2D(
     nfp,
     m,
     R0,
-    Z0,
+    z0,
     half_period=False,
     solve_tol=1e-6,
     follow_tol=1e-10,
     deflation_R=[],
     deflation_k=1.0,
 ):
-    """Find a periodic field line using a 2D search in (R, Z).
+    """Find a periodic field line using a 2D search in (R, z).
     
     The argument ``m`` is typically the number of times the field line appears
     in a cross-section.
@@ -251,13 +251,13 @@ def _find_periodic_field_line_2D(
         nfp: Number of field periods.
         m: Number of field periods over which the field line is periodic.
         R0: Initial R coordinate.
-        Z0: Initial Z coordinate.
+        z0: Initial z coordinate.
         half_period: If True, look for periodic field lines in the half-period plane instead of the phi=0 plane (default: False).
         solve_tol: Tolerance for the root finding (default: 1e-6).
         follow_tol: Tolerance for the field line integration (default: 1e-10).
     """
 
-    x0 = [R0, Z0]
+    x0 = [R0, z0]
     Delta_phi = m * 2 * np.pi / nfp
     if half_period:
         phi0 = np.pi / nfp
@@ -266,8 +266,8 @@ def _find_periodic_field_line_2D(
 
     def func(x):
         print("  Evaluating x =", x)
-        R, Z = _integrate_field_line(field, x[0], x[1], Delta_phi, follow_tol, phi0=phi0)
-        return np.array([R - x[0], Z - x[1]])
+        R, z = _integrate_field_line(field, x[0], x[1], Delta_phi, follow_tol, phi0=phi0)
+        return np.array([R - x[0], z - x[1]])
 
     sol = root(func, x0, tol=solve_tol)
     print(sol)
@@ -288,7 +288,7 @@ def _find_periodic_field_line_1D(
     deflation_k=1.0,
     R_axis=1.0,
 ):
-    """Find a periodic field line using a 1D search along the line Z=0.
+    """Find a periodic field line using a 1D search along the line z=0.
     
     The argument ``m`` is typically the number of times the field line appears
     in a cross-section.
@@ -298,7 +298,7 @@ def _find_periodic_field_line_1D(
         nfp: Number of field periods.
         m: Number of field periods over which the field line is periodic.
         R0: Initial R coordinate.
-        residual: Which residual to use (default: "R", "Z", or "theta").
+        residual: Which residual to use (default: "R", "z", or "theta").
         half_period: If True, look for periodic field lines in the half-period plane instead of the phi=0 plane (default: False).
         solve_tol: Tolerance for the root finding (default: 1e-6).
         follow_tol: Tolerance for the field line integration (default: 1e-10).
@@ -312,30 +312,30 @@ def _find_periodic_field_line_1D(
         phi0 = 0.0
 
     def func_R(x):
-        R, Z = _integrate_field_line(field, x, 0, Delta_phi, follow_tol, phi0=phi0)
+        R, z = _integrate_field_line(field, x, 0, Delta_phi, follow_tol, phi0=phi0)
         residual = R - x
         if verbose > 0:
             print(f"  R residual, evaluating x = {x:17}, residual = {residual:15}")
         return residual
 
-    def func_Z(x):
+    def func_z(x):
         try:
-            R, Z = _integrate_field_line(field, x, 0, Delta_phi, follow_tol, phi0=phi0)
-            residual = Z
+            R, z = _integrate_field_line(field, x, 0, Delta_phi, follow_tol, phi0=phi0)
+            residual = z
         except RuntimeError:
             print("Error in _integrate_field_line")
             R = np.nan
-            Z = np.nan
+            z = np.nan
             residual = 10
 
         for Rd in deflation_R:
             residual *= (deflation_k + 1 / abs(x - Rd))
         if verbose > 0:
-            print(f"  Z residual, evaluating x = {x:17}, final R = {R}, Z = {Z}, residual = {residual:15}, Delta_phi = {Delta_phi}, phi0 = {phi0}, follow_tol = {follow_tol}")
+            print(f"  z residual, evaluating x = {x:17}, final R = {R}, z = {z}, residual = {residual:15}, Delta_phi = {Delta_phi}, phi0 = {phi0}, follow_tol = {follow_tol}")
         return residual
 
     def func_theta(x):
-        R, Z = _integrate_field_line(field, x, 0, Delta_phi, follow_tol, phi0=phi0)
+        R, z = _integrate_field_line(field, x, 0, Delta_phi, follow_tol, phi0=phi0)
         residual = R - x
         if verbose > 0:
             print(f"  theta residual, evaluating x = {x:17}, residual = {residual:15}")
@@ -343,8 +343,8 @@ def _find_periodic_field_line_1D(
     
     if residual == "R":
         func = func_R
-    elif residual == "Z":
-        func = func_Z
+    elif residual == "z":
+        func = func_z
     elif residual == "theta":
         func = func_theta
     else:
@@ -355,10 +355,10 @@ def _find_periodic_field_line_1D(
     R0 = sol.root
 
     # Check difference in final vs starting location:
-    R, Z = _integrate_field_line(field, R0, 0, Delta_phi, follow_tol, phi0=phi0)
-    print(f"Final - initial R: {R - R0}, Z: {Z}")
+    R, z = _integrate_field_line(field, R0, 0, Delta_phi, follow_tol, phi0=phi0)
+    print(f"Final - initial R: {R - R0}, z: {z}")
     np.testing.assert_allclose(R0, R, atol=1e-6, rtol=1e-6)
-    np.testing.assert_allclose(0.0, Z, atol=1e-6, rtol=1e-6)
+    np.testing.assert_allclose(0.0, z, atol=1e-6, rtol=1e-6)
 
     return sol.root
 
@@ -376,10 +376,10 @@ def _find_periodic_field_line_1D_optimization(
     deflation_k=1.0,
     R_axis=1.0,
 ):
-    """Find a periodic field line using a 1D search along the line Z=0.
+    """Find a periodic field line using a 1D search along the line z=0.
 
-    This routine works by minimizing the objective f = (R - R0)^2 + (Z - 0)^2
-    where R and Z are the final coordinates of the field line after integrating.
+    This routine works by minimizing the objective f = (R - R0)^2 + (z - 0)^2
+    where R and z are the final coordinates of the field line after integrating.
     
     The argument ``m`` is typically the number of times the field line appears
     in a cross-section.
@@ -403,19 +403,19 @@ def _find_periodic_field_line_1D_optimization(
     def compute_residual(xarray):
         x = xarray[0]
         try:
-            R, Z = _integrate_field_line(field, x, 0, Delta_phi, follow_tol, phi0=phi0)
-            residual = np.array([R - x, Z])
+            R, z = _integrate_field_line(field, x, 0, Delta_phi, follow_tol, phi0=phi0)
+            residual = np.array([R - x, z])
         except RuntimeError:
             print("Error in _integrate_field_line")
             R = np.nan
-            Z = np.nan
+            z = np.nan
             residual = 10
 
         for Rd in deflation_R:
             residual *= (deflation_k + 1 / abs(x - Rd))
         if verbose > 0:
             cost = 0.5 * np.dot(residual, residual)
-            print(f"  optimizing, evaluating x = {x:17}, final R = {R}, Z = {Z}, cost = {cost:15}, Delta_phi = {Delta_phi}, phi0 = {phi0}, follow_tol = {follow_tol}")
+            print(f"  optimizing, evaluating x = {x:17}, final R = {R}, z = {z}, cost = {cost:15}, Delta_phi = {Delta_phi}, phi0 = {phi0}, follow_tol = {follow_tol}")
 
         return residual
 
@@ -424,10 +424,10 @@ def _find_periodic_field_line_1D_optimization(
     R0 = sol.x[0]
 
     # Check difference in final vs starting location:
-    R, Z = _integrate_field_line(field, R0, 0, Delta_phi, follow_tol, phi0=phi0)
-    print(f"Final - initial R: {R - R0}, Z: {Z}")
+    R, z = _integrate_field_line(field, R0, 0, Delta_phi, follow_tol, phi0=phi0)
+    print(f"Final - initial R: {R - R0}, z: {z}")
     np.testing.assert_allclose(R0, R, atol=1e-6, rtol=1e-6)
-    np.testing.assert_allclose(0.0, Z, atol=1e-6, rtol=1e-6)
+    np.testing.assert_allclose(0.0, z, atol=1e-6, rtol=1e-6)
 
     return R0
 
@@ -437,7 +437,7 @@ def _pseudospectral_residual(x, n, D, phi, field, force_z0=False):
     pseudospectral method of finding a periodic field line.
 
     Args:
-        x: The state vector (R, Z).
+        x: The state vector (R, z).
         n: Number of points in the toroidal direction.
         D: The spectral differentiation matrix.
         phi: The grid points of toroidal angle.
@@ -446,21 +446,21 @@ def _pseudospectral_residual(x, n, D, phi, field, force_z0=False):
     """
     # print("_pseudospectral_residual x =", x)
     R = x[0:n]
-    Z = x[n:2 * n]
-    eval_points = np.stack([R, phi, Z], axis=-1)
+    z = x[n:2 * n]
+    eval_points = np.stack([R, phi, z], axis=-1)
     # In the next line, for some reason there is an error if we try field.set_points_cyl(eval_points)
     MagneticField.set_points_cyl(field, eval_points)
     B_cyl = field.B_cyl()
     BR = B_cyl[:, 0]
     Bphi = B_cyl[:, 1]
-    BZ = B_cyl[:, 2]
+    Bz = B_cyl[:, 2]
 
     R_residual = R * BR / Bphi - (D @ R)
-    Z_residual = R * BZ / Bphi - (D @ Z)
+    z_residual = R * Bz / Bphi - (D @ z)
     if force_z0:
-        R_residual[0] = Z[0]
+        R_residual[0] = z[0]
 
-    return np.concatenate((R_residual, Z_residual))
+    return np.concatenate((R_residual, z_residual))
 
 
 def _pseudospectral_jacobian(x, n, D, phi, field, force_z0=False):
@@ -469,7 +469,7 @@ def _pseudospectral_jacobian(x, n, D, phi, field, force_z0=False):
     pseudospectral method of finding a periodic field line.
 
     Args:
-        x: The state vector (R, Z).
+        x: The state vector (R, z).
         n: Number of points in the toroidal direction.
         D: The spectral differentiation matrix.
         phi: The grid points of toroidal angle.
@@ -477,15 +477,15 @@ def _pseudospectral_jacobian(x, n, D, phi, field, force_z0=False):
         force_z0: If True, force z at the first point to be 0.
     """
     R = x[0:n]
-    Z = x[n:2 * n]
+    z = x[n:2 * n]
     print('jacobian eval ')
-    eval_points = np.stack([R, phi, Z], axis=-1)
+    eval_points = np.stack([R, phi, z], axis=-1)
     # In the next line, for some reason there is an error if we try field.set_points_cyl(eval_points)
     MagneticField.set_points_cyl(field, eval_points)
     B_cyl = field.B_cyl()
     BR = B_cyl[:, 0]
     Bphi = B_cyl[:, 1]
-    BZ = B_cyl[:, 2]
+    Bz = B_cyl[:, 2]
 
     # - ``m.dB_by_dX()`` returns an array of size ``(n, 3, 3)`` with the Cartesian coordinates of :math:`\nabla B`. Denoting the indices
     #   by :math:`(i,j,l)`, the result contains  :math:`\partial_j B_l(x_i)`.
@@ -513,7 +513,7 @@ def _pseudospectral_jacobian(x, n, D, phi, field, force_z0=False):
 
     # For reference:
     # R_residual = R * BR / Bphi - (D @ R)
-    # Z_residual = R * BZ / Bphi - (D @ Z)
+    # z_residual = R * Bz / Bphi - (D @ z)
 
     # Top left quadrant: d (R residual) / d R
     jac[0 : n, 0 : n] = -D + np.diag(
@@ -521,21 +521,21 @@ def _pseudospectral_jacobian(x, n, D, phi, field, force_z0=False):
         + R * d_BR_d_R / Bphi 
         - R * BR / (Bphi**2) * d_Bphi_d_R
     )
-    # Top right quadrant: d (R residual) / d Z
+    # Top right quadrant: d (R residual) / d z
     jac[0 : n, n : 2 * n] = np.diag(
         R * d_BR_d_z / Bphi
         - R * BR / (Bphi**2) * d_Bphi_d_z
     )
-    # Bottom left quadrant: d (Z residual) / d R
+    # Bottom left quadrant: d (z residual) / d R
     jac[n : 2 * n, 0 : n] = np.diag(
-        BZ / Bphi 
+        Bz / Bphi 
         + R * d_Bz_d_R / Bphi 
-        - R * BZ / (Bphi**2) * d_Bphi_d_R
+        - R * Bz / (Bphi**2) * d_Bphi_d_R
     )
-    # Bottom right quadrant: d (Z residual) / d Z
+    # Bottom right quadrant: d (z residual) / d z
     jac[n:, n:] = -D + np.diag(
         R * d_Bz_d_z / Bphi 
-        - R * BZ / (Bphi**2) * d_Bphi_d_z
+        - R * Bz / (Bphi**2) * d_Bphi_d_z
     )
     if force_z0:
         jac[0, :] = 0.0
@@ -549,7 +549,7 @@ def _find_periodic_field_line_pseudospectral(
     nfp,
     m,
     R0,
-    Z0,
+    z0,
     half_period=False,
     solve_tol=1e-6,
     nphi=21,
@@ -567,7 +567,7 @@ def _find_periodic_field_line_pseudospectral(
         nfp: Number of field periods.
         m: Number of field periods over which the field line is periodic.
         R0: Initial R coordinate.
-        Z0: Initial Z coordinate.
+        z0: Initial z coordinate.
         half_period: If True, look for periodic field lines in the half-period plane instead of the phi=0 plane (default: False).
         solve_tol: Tolerance for the root finding (default: 1e-6).
         nphi: Number of points in the toroidal direction (default: 21).
@@ -595,30 +595,30 @@ def _find_periodic_field_line_pseudospectral(
     # state = np.concatenate(
     #     [
     #         np.full(nphi, R0), 
-    #         np.full(nphi, Z0)
+    #         np.full(nphi, z0)
     #     ]
     # )
 
     # Establish initial condition:
-    print("type(R0), type(Z0)", type(R0), type(Z0))
-    if isinstance(R0, (list, np.ndarray)) and isinstance(Z0, (list, np.ndarray)):
-        if len(R0) != nphi or len(Z0) != nphi:
-            raise ValueError(f"Length of R0 and Z0 must match nphi = {nphi}. Got {len(R0)} and {len(Z0)} instead.")
+    print("type(R0), type(z0)", type(R0), type(z0))
+    if isinstance(R0, (list, np.ndarray)) and isinstance(z0, (list, np.ndarray)):
+        if len(R0) != nphi or len(z0) != nphi:
+            raise ValueError(f"Length of R0 and z0 must match nphi = {nphi}. Got {len(R0)} and {len(z0)} instead.")
     else:
-        R0, Z0 = _integrate_field_line(field, R0, Z0, phimax, 1e-10, phi0=phi0, nphi=nphi + 1)
+        R0, z0 = _integrate_field_line(field, R0, z0, phimax, 1e-10, phi0=phi0, nphi=nphi + 1)
         # Subtract off a linear function to make the initial condition periodic
         Delta_R = R0[-1] - R0[0]
-        Delta_Z = Z0[-1] - Z0[0]
+        Delta_z = z0[-1] - z0[0]
         R0 -= np.linspace(0, Delta_R, nphi + 1)
-        Z0 -= np.linspace(0, Delta_Z, nphi + 1)
+        z0 -= np.linspace(0, Delta_z, nphi + 1)
         R0 = R0[:-1]
-        Z0 = Z0[:-1]
+        z0 = z0[:-1]
         print("Initial condition R0:", R0)
-        print("Initial condition Z0:", Z0)
+        print("Initial condition z0:", z0)
     
     if force_z0:
-        Z0[0] = 0.0
-    state = np.concatenate((R0, Z0))
+        z0[0] = 0.0
+    state = np.concatenate((R0, z0))
 
     sol = root(
         _pseudospectral_residual, 
@@ -630,13 +630,13 @@ def _find_periodic_field_line_pseudospectral(
         options={'maxiter':1000},
     )
     R = sol.x[0:nphi]
-    Z = sol.x[nphi:2 * nphi]
+    z = sol.x[nphi:2 * nphi]
 
     residual = sol.fun
     print('Residual: ', np.max(np.abs(residual)))
 
     print(sol)
-    return R, Z
+    return R, z
 
 
 def find_periodic_field_line(
@@ -644,7 +644,7 @@ def find_periodic_field_line(
     nfp,
     m,
     R0,
-    Z0=0.0,
+    z0=0.0,
     half_period=False,
     method="2D",
     solve_tol=1e-6,
@@ -658,9 +658,9 @@ def find_periodic_field_line(
     The argument ``m`` is typically the number of times the field line appears
     in a cross-section.
 
-    The argument ``Z0`` is ignored if method = "1D".
+    The argument ``z0`` is ignored if method = "1D".
 
-    The return values ``(R, Z)`` are both floats for all methods except for
+    The return values ``(R, z)`` are both floats for all methods except for
     ``pseudospectral`` and ``pseudospectral z0``, in which case they are arrays of length ``nphi``.
 
     Args:
@@ -668,7 +668,7 @@ def find_periodic_field_line(
         nfp: Number of field periods.
         m: Number of field periods over which the field line is periodic.
         R0: Initial R coordinate.
-        Z0: Initial Z coordinate.
+        z0: Initial z coordinate.
         half_period: If True, look for periodic field lines in the half-period plane instead of the phi=0 plane (default: False).
         method: Method for finding the periodic field line (default: "2D").
         solve_tol: Tolerance for the root finding (default: 1e-6).
@@ -677,23 +677,23 @@ def find_periodic_field_line(
 
     Returns:
         R: Final R coordinate.
-        Z: Final Z coordinate.
+        z: Final z coordinate.
     """
 
     if method == "2D":
         return _find_periodic_field_line_2D(
-            field, nfp, m, R0, Z0, half_period, solve_tol, follow_tol, deflation_R=deflation_R, deflation_k=deflation_k
+            field, nfp, m, R0, z0, half_period, solve_tol, follow_tol, deflation_R=deflation_R, deflation_k=deflation_k
         )
     elif method in ["pseudospectral", "pseudospectral z0"]:
         return _find_periodic_field_line_pseudospectral(
-            field, nfp, m, R0, Z0, half_period, solve_tol, nphi, deflation_R=deflation_R, deflation_k=deflation_k,
+            field, nfp, m, R0, z0, half_period, solve_tol, nphi, deflation_R=deflation_R, deflation_k=deflation_k,
             force_z0 = (method == "pseudospectral z0")
         )
     elif method == "1D optimization":
         return _find_periodic_field_line_1D_optimization(
             field, nfp, m, R0, half_period, solve_tol, follow_tol, deflation_R=deflation_R, deflation_k=deflation_k
         ), 0.0
-    elif method in ["1D R", "1D Z", "1D theta"]:
+    elif method in ["1D R", "1D z", "1D theta"]:
         return _find_periodic_field_line_1D(
             field, nfp, m, R0, method[3:], half_period, solve_tol, follow_tol, deflation_R=deflation_R, deflation_k=deflation_k
         ), 0.0
@@ -706,7 +706,7 @@ class PeriodicFieldLine():
     The argument ``m`` is typically the number of times the field line appears
     in a cross-section.
 
-    The argument ``Z0`` is ignored if method = "1D".
+    The argument ``z0`` is ignored if method = "1D".
 
     The argument ``nphi`` does include a point at the end of the field line, to record any slight imperfection
     in periodicity.
@@ -717,7 +717,7 @@ class PeriodicFieldLine():
         nfp: Number of field periods.
         m: Number of field periods over which the field line is periodic.
         R0: Initial R coordinate.
-        Z0: Initial Z coordinate.
+        z0: Initial z coordinate.
         half_period: If True, look for periodic field lines in the half-period plane instead of the phi=0 plane (default: False).
         method: Method for finding the periodic field line (default: "2D").
         solve_tol: Tolerance for the root finding (default: 1e-6).
@@ -733,9 +733,9 @@ class PeriodicFieldLine():
         nfp,
         m,
         R0,
-        Z0=0.0,
+        z0=0.0,
         half_period=False,
-        method="1D Z",
+        method="1D z",
         solve_tol=1e-6,
         follow_tol=1e-10,
         nphi=50,
@@ -756,12 +756,12 @@ class PeriodicFieldLine():
 
         self.nphi = nphi
 
-        R0, Z0 = find_periodic_field_line(
+        R0, z0 = find_periodic_field_line(
             field,
             nfp,
             m,
             R0,
-            Z0,
+            z0,
             half_period=half_period,
             method=method,
             solve_tol=solve_tol,
@@ -772,15 +772,15 @@ class PeriodicFieldLine():
         )
         if method in ["pseudospectral", "pseudospectral z0"]:
             self.R0 = R0[0]
-            self.Z0 = Z0[0]
+            self.z0 = z0[0]
             self.solution_on_grid_is_available = True
             self.R = np.concatenate((R0, [R0[0]]))
-            self.z = np.concatenate((Z0, [Z0[0]]))
+            self.z = np.concatenate((z0, [z0[0]]))
         else:
             self.R0 = R0
-            self.Z0 = Z0
+            self.z0 = z0
 
-        # Now get R and Z along equally spaced phi points:
+        # Now get R and z along equally spaced phi points:
         if half_period:
             phi0 = np.pi / nfp
         else:
@@ -812,7 +812,7 @@ class PeriodicFieldLine():
             Delta_phi_to_close = field_periods_to_integrate * 2 * np.pi / self.nfp
             nphi_to_close = self.nphi * (field_periods_to_integrate // self.m)
             phi_to_close = np.linspace(0, Delta_phi_to_close, nphi_to_close) + self.phi0
-            R, z = _integrate_field_line_cyl(self.field, self.R0, self.Z0, Delta_phi_to_close, tol=self.follow_tol, phi0=self.phi0, nphi=nphi_to_close)
+            R, z = _integrate_field_line_cyl(self.field, self.R0, self.z0, Delta_phi_to_close, tol=self.follow_tol, phi0=self.phi0, nphi=nphi_to_close)
             x = R * np.cos(phi_to_close)
             y = R * np.sin(phi_to_close)
             phi = phi_to_close
@@ -862,7 +862,7 @@ class PeriodicFieldLine():
         return _integrate_field_line_cyl(
             self.field,
             self.R0,
-            self.Z0,
+            self.z0,
             self.Delta_phi, 
             tol=self.follow_tol,
             phi0=self.phi0, 
@@ -885,10 +885,10 @@ class PeriodicFieldLine():
             np.testing.assert_allclose(self.R[0], self.R[-1], atol=1e-7, rtol=1e-7)
             np.testing.assert_allclose(self.z[0], self.z[-1], atol=1e-6, rtol=1e-7)
             np.testing.assert_allclose(self.R[0], self.R0, atol=1e-14, rtol=1e-14)
-            np.testing.assert_allclose(self.z[0], self.Z0, atol=1e-14, rtol=1e-14)
+            np.testing.assert_allclose(self.z[0], self.z0, atol=1e-14, rtol=1e-14)
 
     def get_R_z_at_phi(self, phi):
-        """Get R and Z at a specified phi value."""
+        """Get R and z at a specified phi value."""
         self.compute_R_z()
 
         # scipy requires that the last point _exactly_ matches the first point.
@@ -914,7 +914,7 @@ def periodic_field_line_grid_search(
 ):
     """Do an exhaustive grid search to approximately find periodic field lines.
 
-    A 1D search is performed along the line Z = 0.
+    A 1D search is performed along the line z = 0.
     
     """
     R_initial = np.linspace(Rmin, Rmax, n_R)

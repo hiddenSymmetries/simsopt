@@ -24,7 +24,7 @@ class Tests(unittest.TestCase):
 
         # The initial condition is (approximately) on the magnetic axis:
         R0 = 5.95
-        Z0 = 0.0
+        z0 = 0.0
         Delta_phi = np.pi / 5  # Only half a field period
 
         for current_signs in [1, -1]:
@@ -32,27 +32,27 @@ class Tests(unittest.TestCase):
                 c.x = current_signs * c.x
 
             # Integrate the field line
-            R, Z = _integrate_field_line(field, R0, Z0, Delta_phi)
+            R, z = _integrate_field_line(field, R0, z0, Delta_phi)
 
             # Check that the final coordinates are as expected
             np.testing.assert_allclose(R, 5.207, atol=1e-3)
-            np.testing.assert_allclose(Z, 0, atol=1e-3)
+            np.testing.assert_allclose(z, 0, atol=1e-3)
 
     def test_integrate_field_line_cyl(self):
         field = _get_w7x_field()
 
         # The initial condition is not too far from the magnetic axis:
         R0 = 5.95
-        Z0 = 0.1
+        z0 = 0.1
         Delta_phi = np.pi
 
         for phi0 in [0, 0.9]:
             for nphi in [1, 2, 3]:
-                R1, Z1 = _integrate_field_line(field, R0, Z0, Delta_phi, phi0=phi0, nphi=nphi)
-                R2, Z2 = _integrate_field_line_cyl(field, R0, Z0, Delta_phi, phi0=phi0, nphi=nphi)
-                print("diffs:", R1 - R2, Z1 - Z2)
+                R1, z1 = _integrate_field_line(field, R0, z0, Delta_phi, phi0=phi0, nphi=nphi)
+                R2, z2 = _integrate_field_line_cyl(field, R0, z0, Delta_phi, phi0=phi0, nphi=nphi)
+                print("diffs:", R1 - R2, z1 - z2)
                 np.testing.assert_allclose(R1, R2, atol=1e-8)
-                np.testing.assert_allclose(Z1, Z2, atol=1e-8)
+                np.testing.assert_allclose(z1, z2, atol=1e-8)
 
     def test_find_periodic_field_line_2D(self):
         field = _get_w7x_field()
@@ -60,35 +60,35 @@ class Tests(unittest.TestCase):
 
         # Initial guess:
         R0 = 5.9
-        Z0 = 0.1
+        z0 = 0.1
 
         # Find the magnetic axis:
         m = 1
-        R, Z = find_periodic_field_line(field, nfp, m, R0, Z0)
-        print("R, Z", R, Z)
+        R, z = find_periodic_field_line(field, nfp, m, R0, z0)
+        print("R, z", R, z)
 
         # Check that the final coordinates are as expected
         np.testing.assert_allclose(R, 5.949141380504241, atol=1e-8)
-        np.testing.assert_allclose(Z, 0, atol=1e-7)
+        np.testing.assert_allclose(z, 0, atol=1e-7)
 
         # Find the magnetic axis at the half-period plane:
         R0 = 5.3
-        Z0 = 0.1
-        R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, half_period=True)
-        print("R, Z", R, Z)
+        z0 = 0.1
+        R, z = find_periodic_field_line(field, nfp, m, R0, z0, half_period=True)
+        print("R, z", R, z)
         np.testing.assert_allclose(R, 5.20481580547662, atol=1e-8)
-        np.testing.assert_allclose(Z, 0, atol=1e-8)
+        np.testing.assert_allclose(z, 0, atol=1e-8)
 
         # Now find one of the island chains:
         m = 5
         R0 = 5.5
-        Z0 = 0.87
-        R, Z = find_periodic_field_line(field, nfp, m, R0, Z0)
-        print("R, Z", R, Z)
+        z0 = 0.87
+        R, z = find_periodic_field_line(field, nfp, m, R0, z0)
+        print("R, z", R, z)
 
         # Check that the final coordinates are as expected
         np.testing.assert_allclose(R, 5.4490101687346115, rtol=1e-3)
-        np.testing.assert_allclose(Z, 0.875629267473603, atol=0.003)
+        np.testing.assert_allclose(z, 0.875629267473603, atol=0.003)
 
     def test_find_periodic_field_line_1D(self):
         field = _get_w7x_field()
@@ -99,39 +99,39 @@ class Tests(unittest.TestCase):
 
         # Find the magnetic axis:
         m = 1
-        R, Z = find_periodic_field_line(field, nfp, m, R0, method="1D R")
-        print("R, Z", R, Z)
+        R, z = find_periodic_field_line(field, nfp, m, R0, method="1D R")
+        print("R, z", R, z)
         np.testing.assert_allclose(R, 5.949141380504241, atol=1e-8)
-        np.testing.assert_allclose(Z, 0, atol=1e-7)
+        np.testing.assert_allclose(z, 0, atol=1e-7)
 
-        R, Z = find_periodic_field_line(field, nfp, m, R0, method="1D Z")
-        print("R, Z", R, Z)
+        R, z = find_periodic_field_line(field, nfp, m, R0, method="1D z")
+        print("R, z", R, z)
         np.testing.assert_allclose(R, 5.949141380504241, atol=1e-8)
-        np.testing.assert_allclose(Z, 0, atol=1e-7)
+        np.testing.assert_allclose(z, 0, atol=1e-7)
 
         # Find the magnetic axis at the half-period plane:
         R0 = 5.3
-        R, Z = find_periodic_field_line(field, nfp, m, R0, method="1D R", half_period=True)
-        print("R, Z", R, Z)
+        R, z = find_periodic_field_line(field, nfp, m, R0, method="1D R", half_period=True)
+        print("R, z", R, z)
         np.testing.assert_allclose(R, 5.20481580547662, atol=1e-8)
-        np.testing.assert_allclose(Z, 0, atol=1e-7)
+        np.testing.assert_allclose(z, 0, atol=1e-7)
 
-        R, Z = find_periodic_field_line(field, nfp, m, R0, method="1D Z", half_period=True)
-        print("R, Z", R, Z)
+        R, z = find_periodic_field_line(field, nfp, m, R0, method="1D z", half_period=True)
+        print("R, z", R, z)
         np.testing.assert_allclose(R, 5.20481580547662, atol=1e-8)
-        np.testing.assert_allclose(Z, 0, atol=1e-7)
+        np.testing.assert_allclose(z, 0, atol=1e-7)
 
 
         # # Now find one of the island chains:
         # m = 5
         # R0 = 5.5
-        # Z0 = 0.87
-        # R, Z = find_periodic_field_line(field, nfp, m, R0, Z0)
-        # print("R, Z", R, Z)
+        # z0 = 0.87
+        # R, z = find_periodic_field_line(field, nfp, m, R0, z0)
+        # print("R, z", R, z)
 
         # # Check that the final coordinates are as expected
         # np.testing.assert_allclose(R, 5.4490101687346115, rtol=1e-3)
-        # np.testing.assert_allclose(Z, 0.875629267473603, atol=0.003)
+        # np.testing.assert_allclose(z, 0.875629267473603, atol=0.003)
 
     def test_pseudospectral_jacobian(self):
         """Compare the analytic Jacobian to finite differences."""
@@ -145,8 +145,8 @@ class Tests(unittest.TestCase):
         D = spectral_diff_matrix(nphi, xmin=0, xmax=phimax)
         for force_z0 in [False, True]:
             R0 = 5.9 + 0.1 * np.cos(nfp * phi)
-            Z0 = 0.2 + 0.1 * np.sin(nfp * phi)
-            x = np.concatenate((R0, Z0))
+            z0 = 0.2 + 0.1 * np.sin(nfp * phi)
+            x = np.concatenate((R0, z0))
             analytic_jacobian = _pseudospectral_jacobian(x, nphi, D, phi, field, force_z0=force_z0)
             finite_diff_jacobian = np.zeros((2 * nphi, 2 * nphi))
             delta = 1e-6
@@ -170,35 +170,35 @@ class Tests(unittest.TestCase):
         for method in ["pseudospectral", "pseudospectral z0"]:
             # Initial guess:
             R0 = 5.9
-            Z0 = 0.1
+            z0 = 0.1
 
             # Find the magnetic axis:
             m = 1
-            R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, method=method)
-            print("R, Z", R[0], Z[0])
+            R, z = find_periodic_field_line(field, nfp, m, R0, z0, method=method)
+            print("R, z", R[0], z[0])
 
             # Check that the final coordinates are as expected
             np.testing.assert_allclose(R[0], 5.949141380504241, rtol=3e-5)
-            np.testing.assert_allclose(Z[0], 0, atol=1e-8)
+            np.testing.assert_allclose(z[0], 0, atol=1e-8)
 
             # Find the magnetic axis at the half-period plane:
             R0 = 5.3
-            Z0 = 0.1
-            R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, half_period=True, method=method)
-            print("R, Z", R[0], Z[0])
+            z0 = 0.1
+            R, z = find_periodic_field_line(field, nfp, m, R0, z0, half_period=True, method=method)
+            print("R, z", R[0], z[0])
             np.testing.assert_allclose(R[0], 5.20481580547662, rtol=3e-5)
-            np.testing.assert_allclose(Z[0], 0, atol=1e-8)
+            np.testing.assert_allclose(z[0], 0, atol=1e-8)
 
         # # Now find one of the island chains:
         # m = 5
         # R0 = 5.5
-        # Z0 = 0.87
-        # R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, method="pseudospectral")
-        # print("R, Z", R, Z)
+        # z0 = 0.87
+        # R, z = find_periodic_field_line(field, nfp, m, R0, z0, method="pseudospectral")
+        # print("R, z", R, z)
 
         # # Check that the final coordinates are as expected
         # np.testing.assert_allclose(R, 5.4490101687346115, rtol=1e-3)
-        # np.testing.assert_allclose(Z, 0.875629267473603, atol=0.003)
+        # np.testing.assert_allclose(z, 0.875629267473603, atol=0.003)
 
     def test_find_periodic_field_line_1D_optimization(self):
         field = _get_w7x_field()
@@ -209,19 +209,19 @@ class Tests(unittest.TestCase):
 
         # Find the magnetic axis:
         m = 1
-        R, Z = find_periodic_field_line(field, nfp, m, R0, method="1D optimization")
-        print("R, Z", R, Z)
+        R, z = find_periodic_field_line(field, nfp, m, R0, method="1D optimization")
+        print("R, z", R, z)
 
         # Check that the final coordinates are as expected
         np.testing.assert_allclose(R, 5.949141380504241, rtol=3e-5)
-        np.testing.assert_allclose(Z, 0, atol=1e-8)
+        np.testing.assert_allclose(z, 0, atol=1e-8)
 
         # Find the magnetic axis at the half-period plane:
         R0 = 5.3
-        R, Z = find_periodic_field_line(field, nfp, m, R0, half_period=True, method="1D optimization")
-        print("R, Z", R, Z)
+        R, z = find_periodic_field_line(field, nfp, m, R0, half_period=True, method="1D optimization")
+        print("R, z", R, z)
         np.testing.assert_allclose(R, 5.20481580547662, rtol=3e-5)
-        np.testing.assert_allclose(Z, 0, atol=1e-8)
+        np.testing.assert_allclose(z, 0, atol=1e-8)
 
     def test_Hanson_Cary_1984(self):
         # First try the non-optimized coils:
@@ -229,30 +229,30 @@ class Tests(unittest.TestCase):
 
         # Find the magnetic axis:
         R0 = 1.0
-        Z0 = 0
+        z0 = 0
         nfp = 5
         m = 1
-        R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, method="pseudospectral")
-        print("R, Z", R[0], Z[0])
+        R, z = find_periodic_field_line(field, nfp, m, R0, z0, method="pseudospectral")
+        print("R, z", R[0], z[0])
 
         # Check that the final coordinates are as expected
         np.testing.assert_allclose(R[0], 0.9834328716279733, rtol=1e-7)
-        np.testing.assert_allclose(Z[0], 0, atol=1e-8)
+        np.testing.assert_allclose(z[0], 0, atol=1e-8)
 
         # Repeat with the optimized coils:
         coils, field = get_Cary_Hanson_field("1984", optimized=True)
 
         # Find the magnetic axis:
         R0 = 1.0
-        Z0 = 0
+        z0 = 0
         nfp = 5
         m = 1
-        R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, method="pseudospectral")
-        print("R, Z", R[0], Z[0])
+        R, z = find_periodic_field_line(field, nfp, m, R0, z0, method="pseudospectral")
+        print("R, z", R[0], z[0])
 
         # Check that the final coordinates are as expected
         np.testing.assert_allclose(R[0], 0.955022421271663, rtol=1e-7)
-        np.testing.assert_allclose(Z[0], 0, atol=1e-8)
+        np.testing.assert_allclose(z[0], 0, atol=1e-8)
 
     def test_find_periodic_field_line_class(self):
         field = _get_w7x_field()
@@ -263,26 +263,26 @@ class Tests(unittest.TestCase):
 
         # Find the magnetic axis:
         m = 1
-        R1, Z1 = find_periodic_field_line(field, nfp, m, R0, method="1D Z")
+        R1, z1 = find_periodic_field_line(field, nfp, m, R0, method="1D z")
 
-        pfl = PeriodicFieldLine(field, nfp, m, R0, method="1D Z")
+        pfl = PeriodicFieldLine(field, nfp, m, R0, method="1D z")
         np.testing.assert_allclose(pfl.R0, R1, atol=1e-8)
-        np.testing.assert_allclose(pfl.Z0, Z1, atol=1e-8)
+        np.testing.assert_allclose(pfl.z0, z1, atol=1e-8)
 
         # Check that the integral is insensitive to the number of points:
         integral1 = pfl.integral_A_dl()
-        pfl2 = PeriodicFieldLine(field, nfp, m, R0, method="1D Z", nphi=1234)
+        pfl2 = PeriodicFieldLine(field, nfp, m, R0, method="1D z", nphi=1234)
         integral2 = pfl2.integral_A_dl()
         np.testing.assert_allclose(integral1, integral2, rtol=2e-11)
 
         # Repeat with one of the islands.
         R0 = 6.2
         m = 5
-        R1, Z1 = find_periodic_field_line(field, nfp, m, R0, method="1D optimization")
+        R1, z1 = find_periodic_field_line(field, nfp, m, R0, method="1D optimization")
         np.testing.assert_array_less(6.2, R1)  # Make sure we get the island and not the axis
         pfl = PeriodicFieldLine(field, nfp, m, R0, method="1D optimization", nphi=501)
         np.testing.assert_allclose(pfl.R0, R1, atol=1e-8)
-        np.testing.assert_allclose(pfl.Z0, Z1, atol=1e-8)
+        np.testing.assert_allclose(pfl.z0, z1, atol=1e-8)
 
         # Check that the integral is insensitive to the number of points:
         integral1 = pfl.integral_A_dl()
@@ -309,9 +309,9 @@ class Tests(unittest.TestCase):
 
         # Find the magnetic axis:
         m = 1
-        R1, Z1 = find_periodic_field_line(field, nfp, m, R0, method="1D Z")
+        R1, z1 = find_periodic_field_line(field, nfp, m, R0, method="1D z")
 
-        pfl = PeriodicFieldLine(field, nfp, m, R0, method="1D Z", nphi=500)
+        pfl = PeriodicFieldLine(field, nfp, m, R0, method="1D z", nphi=500)
         integral, d_r_d_phi = pfl._integral_A_dl()
         dphi = pfl.phi[1] - pfl.phi[0]
 
@@ -348,13 +348,13 @@ class Tests(unittest.TestCase):
         np.testing.assert_allclose(d_r_d_phi[1:-1, 1], d_y_d_phi_alt, atol=atol, rtol=rtol)
         np.testing.assert_allclose(d_r_d_phi[1:-1, 2], d_z_d_phi_alt, atol=atol, rtol=rtol)
         
-    def test_get_R_Z_at_phi(self):
+    def test_get_R_z_at_phi(self):
         field = _get_w7x_field()
         nfp = 5
 
         m = 1
         R0 = 6.0
-        pfl = PeriodicFieldLine(field, nfp, m, R0, method="1D Z")
+        pfl = PeriodicFieldLine(field, nfp, m, R0, method="1D z")
         for j, phi in enumerate(pfl.phi):
             R, z = pfl.get_R_z_at_phi(phi)
             np.testing.assert_allclose(R, pfl.R[j])
