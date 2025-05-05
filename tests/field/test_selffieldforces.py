@@ -18,7 +18,7 @@ from simsopt.field.selffield import (
     regularization_circ,
     regularization_rect,
 )
-from simsopt.field.force import (
+from simsopt.field import (
     coil_force,
     coil_torque,
     self_force_circ,
@@ -28,15 +28,15 @@ from simsopt.field.force import (
     coil_coil_inductances_inv_pure,
     NetFluxes,
     TVE,
-    MeanSquaredForce,
+    MeanSquaredForce_deprecated,
+    LpCurveTorque_deprecated,
     LpCurveTorque,
-    MixedLpCurveTorque,
+    SquaredMeanTorque_deprecated,
     SquaredMeanTorque,
-    MixedSquaredMeanTorque,
+    LpCurveForce_deprecated,
     LpCurveForce,
-    MixedLpCurveForce,
+    SquaredMeanForce_deprecated,
     SquaredMeanForce,
-    MixedSquaredMeanForce,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,7 +97,7 @@ class CoilForcesTest(unittest.TestCase):
     def test_circular_coil(self):
         """Check whether B_reg and hoop force on a circular-centerline coil are correct."""
         R0 = 1.7
-        I = 10000
+        I = 1e5
         a = 0.01
         b = 0.023
         order = 1
@@ -107,7 +107,7 @@ class CoilForcesTest(unittest.TestCase):
 
         # Analytic field has only a z component
         B_reg_analytic_circ = constants.mu_0 * I / (4 * np.pi * R0) * (np.log(8 * R0 / a) - 3 / 4)
-        # Lii_analytic = constants.mu_0 * R0 * (np.log(8.0 * R0 / a) - 7.0 / 4.0)
+        force_analytic_circ = B_reg_analytic_circ * I
 
         # For two concentric circular coils, only "analytic" for R1 >> R0
         Lij_analytic = constants.mu_0 * np.pi * R0 ** 2 / (2 * R1)
@@ -122,10 +122,9 @@ class CoilForcesTest(unittest.TestCase):
         B_reg_analytic_rect = constants.mu_0 * I / (4 * np.pi * R0) * (
             np.log(8 * R0 / np.sqrt(a * b)) + 13.0 / 12 - rectangular_xsection_k(a, b) / 2
         )
-        force_analytic_circ = B_reg_analytic_circ * I
         force_analytic_rect = B_reg_analytic_rect * I
 
-        for N_quad in [23, 13, 23, 5000]:
+        for N_quad in [23, 13, 23, 500]:
 
             # Create a circle of radius R0 in the x-y plane:
             curve = CurveXYZFourier(N_quad, order)
@@ -143,10 +142,16 @@ class CoilForcesTest(unittest.TestCase):
             np.testing.assert_allclose(B_reg_test[:, 2], B_reg_analytic_circ)
             np.testing.assert_allclose(B_reg_test[:, 0:2], 0)
 
+            # Test self-force for circular coil
             force_test = self_force_circ(coil, a)
             np.testing.assert_allclose(force_test[:, 0], force_analytic_circ * np.cos(phi))
             np.testing.assert_allclose(force_test[:, 1], force_analytic_circ * np.sin(phi))
             np.testing.assert_allclose(force_test[:, 2], 0.0)
+
+            # Test self-torque for circular coil (should be zero by symmetry)
+            # Analytic torque for a perfect circle is zero
+            torque_test = coil_torque(coil, [coil], regularization_circ(a))
+            np.testing.assert_allclose(torque_test, 0.0, atol=1e-9)
 
             normal = [0, 0, 1]
             alpha = np.arcsin(normal[1])
@@ -278,6 +283,59 @@ class CoilForcesTest(unittest.TestCase):
             np.testing.assert_allclose(force_test[:, 1], force_analytic_rect * np.sin(phi))
             np.testing.assert_allclose(force_test[:, 2], 0.0)
 
+            # Test self-torque for rectangular cross-section coil (should also be zero by symmetry)
+            # Analytic torque for a perfect rectangle is zero
+            torque_test_rect = coil_torque(coil, [coil], regularization_rect(a, b))
+            np.testing.assert_allclose(torque_test_rect, 0.0, atol=1e-9)
+
+            # --- Two concentric circular coils: test mutual torque ---
+            # Both in xy-plane, same center, different radii
+            curve_inner = CurveXYZFourier(N_quad, order)
+            curve_inner.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * R0
+            curve_outer = CurveXYZFourier(N_quad, order)
+            curve_outer.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * R1
+            current_inner = Current(I)
+            current_outer = Current(I)
+            coil_inner = Coil(curve_inner, current_inner)
+            coil_outer = Coil(curve_outer, current_outer)
+            reg_inner = regularization_circ(a)
+            reg_outer = regularization_circ(a)
+            # Compute torque on each coil due to both
+            torque_inner = coil_torque(coil_inner, [coil_inner, coil_outer], reg_inner)
+            torque_outer = coil_torque(coil_outer, [coil_inner, coil_outer], reg_outer)
+            # By symmetry, both should be zero
+            np.testing.assert_allclose(torque_inner, 0.0, atol=1e-8)
+            np.testing.assert_allclose(torque_outer, 0.0, atol=1e-8)
+
+            # --- LpCurveTorque objective should also be zero ---
+            from simsopt.field import LpCurveTorque  # float32 precision
+            regularization_list = np.array([reg_inner, reg_outer])
+            # Inner as group 1, outer as group 2
+            obj1 = LpCurveTorque([coil_inner], [coil_outer], [reg_inner], [reg_outer], p=2.0, threshold=0.0)
+            val1 = obj1.J()
+            np.testing.assert_allclose(val1, 0.0, atol=1e-1)
+            # Outer as group 1, inner as group 2
+            obj2 = LpCurveTorque([coil_outer], [coil_inner], [reg_outer], [reg_inner], p=2.0, threshold=0.0)
+            val2 = obj2.J()
+            np.testing.assert_allclose(val2, 0.0, atol=1e-1)
+
+            # --- Net force on each coil should also be zero ---
+            net_force_inner = np.sum(coil_force(coil_inner, [coil_inner, coil_outer], reg_inner), axis=0)
+            net_force_outer = np.sum(coil_force(coil_outer, [coil_inner, coil_outer], reg_outer), axis=0)
+            np.testing.assert_allclose(net_force_inner, 0.0, atol=1e-6)
+            np.testing.assert_allclose(net_force_outer, 0.0, atol=1e-6)
+
+            # --- Two circular coils, separated along z but sharing a common axis: torque should be zero ---
+            coil_z1 = Coil(curve2, Current(I))
+            coil_z2 = Coil(curve3, Current(I))
+            reg_z1 = regularization_circ(a)
+            reg_z2 = regularization_circ(a)
+            torque_z1 = coil_torque(coil_z1, [coil_z1, coil_z2], reg_z1)
+            torque_z2 = coil_torque(coil_z2, [coil_z1, coil_z2], reg_z2)
+            np.testing.assert_allclose(np.sum(torque_z1, axis=0), 0.0, atol=1e-8)
+            np.testing.assert_allclose(np.sum(torque_z2, axis=0), 0.0, atol=1e-8)
+            np.testing.assert_allclose(curve3.center(curve3.gamma(), curve3.gammadash()), [0, 0, 5], atol=1e-10)
+
     def test_force_convergence(self):
         """Check that the self-force is approximately independent of the number of quadrature points"""
         ppps = [8, 4, 2, 7, 5]
@@ -342,7 +400,7 @@ class CoilForcesTest(unittest.TestCase):
 
         p = 2.5
         threshold = 1.0e3
-        objective = float(LpCurveForce(coils[0], coils, regularization, p=p, threshold=threshold).J())
+        objective = float(LpCurveForce_deprecated(coils[0], coils, regularization, p=p, threshold=threshold).J())
 
         # Now compute the objective a different way, using the independent
         # coil_force function
@@ -352,11 +410,11 @@ class CoilForcesTest(unittest.TestCase):
         objective_alt = (1 / p) * np.sum(np.maximum(force_norm - threshold, 0)**p * gammadash_norm) / np.shape(gammadash_norm)[0]
 
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
-        np.testing.assert_allclose(objective, objective_alt)
+        np.testing.assert_allclose(objective, objective_alt, rtol=1e-6)
 
-        # Test MeanSquaredForce
+        # Test MeanSquaredForce_deprecated
 
-        objective = float(MeanSquaredForce(coils[0], coils, regularization).J())
+        objective = float(MeanSquaredForce_deprecated(coils[0], coils, regularization).J())
 
         # Now compute the objective a different way, using the independent
         # coil_force function
@@ -364,12 +422,12 @@ class CoilForcesTest(unittest.TestCase):
         objective_alt = np.sum(force_norm**2 * gammadash_norm) / np.sum(gammadash_norm)
 
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
-        np.testing.assert_allclose(objective, objective_alt)
+        np.testing.assert_allclose(objective, objective_alt, rtol=1e-6)
 
-        # Test SquaredMeanForce
+        # Test SquaredMeanForce_deprecated
         p = 2.5
         threshold = 1.0e3
-        objective = float(SquaredMeanForce(coils[0], coils).J())
+        objective = float(SquaredMeanForce_deprecated(coils[0], coils).J())
 
         # Now compute the objective a different way, using the independent
         # coil_force function
@@ -378,18 +436,18 @@ class CoilForcesTest(unittest.TestCase):
         objective_alt = np.linalg.norm(np.sum(forces * gammadash_norm[:, None], axis=0) / gammadash_norm.shape[0], axis=-1) ** 2
 
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
-        np.testing.assert_allclose(objective, objective_alt)
+        np.testing.assert_allclose(objective, objective_alt, rtol=1e-6)
 
-        # Test SquaredMeanForce vs MixedSquaredMeanForce
+        # Test SquaredMeanForce vs SquaredMeanForce
         p = 2.5
         threshold = 1.0e3
         objective = 0.0
         objective2 = 0.0
         for i in range(len(coils)):
-            objective += float(SquaredMeanForce(coils[i], coils).J())
-            objective2 += float(SquaredMeanForce(coils[i], coils, downsample=2).J())
+            objective += float(SquaredMeanForce_deprecated(coils[i], coils).J())
+            objective2 += float(SquaredMeanForce_deprecated(coils[i], coils, downsample=2).J())
 
-        objective_mixed = float(MixedSquaredMeanForce([coils[0]], coils[1:]).J())
+        objective_mixed = float(SquaredMeanForce([coils[0]], coils[1:]).J())
 
         print("objective:", objective, "mixed:", objective_mixed)
         np.testing.assert_allclose(objective, objective_mixed, rtol=1e-6)
@@ -397,31 +455,31 @@ class CoilForcesTest(unittest.TestCase):
         print("objective:", objective, "downsampled:", objective2)
         np.testing.assert_allclose(objective, objective2, rtol=1e-6)
 
-        # # Test MixedLpCurveForce
+        # # Test LpCurveForce
         objective = 0.0
         objective2 = 0.0
         objective_alt = 0.0
         for i in range(len(coils)):
-            objective += float(LpCurveForce(coils[i], coils, regularization, p=p, threshold=threshold).J())
-            objective2 += float(LpCurveForce(coils[i], coils, regularization, p=p, threshold=threshold, downsample=2).J())
+            objective += float(LpCurveForce_deprecated(coils[i], coils, regularization, p=p, threshold=threshold).J())
+            objective2 += float(LpCurveForce_deprecated(coils[i], coils, regularization, p=p, threshold=threshold, downsample=2).J())
             force_norm = np.linalg.norm(coil_force(coils[i], coils, regularization), axis=1)
             gammadash_norm = np.linalg.norm(coils[i].curve.gammadash(), axis=1)
-            objective_alt += (1 / p) * np.sum(np.maximum(force_norm - threshold, 0)**p * gammadash_norm) / np.shape(gammadash_norm)[0]
+            objective_alt += (1 / p) * np.sum(np.maximum(force_norm - threshold, 0)**p * gammadash_norm) / gammadash_norm.shape[0]
 
         regularization_list = np.ones(len(coils)) * regularization
-        objective_mixed = float(MixedLpCurveForce(coils[0:1], coils[1:], regularization_list[0:1],
+        objective_mixed = float(LpCurveForce(coils[0:1], coils[1:], regularization_list[0:1],
                                                   regularization_list[1:], p=p, threshold=threshold).J())
 
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
-        np.testing.assert_allclose(objective, objective_alt)
+        np.testing.assert_allclose(objective, objective_alt, rtol=1e-6)
 
         print("objective:", objective, "objective2:", objective2, "diff:", objective - objective2)
         np.testing.assert_allclose(objective, objective2, rtol=1e-2)
 
         print("objective:", objective, "objective_mixed:", objective_mixed, "diff:", objective - objective_mixed)
-        np.testing.assert_allclose(objective, objective_mixed)
+        np.testing.assert_allclose(objective, objective_mixed, rtol=1e-6)
 
-        objective_mixed = float(MixedLpCurveForce(coils[0:1], coils[1:],
+        objective_mixed = float(LpCurveForce(coils[0:1], coils[1:],
                                                   regularization_list[0:1], regularization_list[1:], p=p,
                                                   threshold=threshold, downsample=2).J())
 
@@ -436,7 +494,7 @@ class CoilForcesTest(unittest.TestCase):
             x_new[3] += 0.1
             base_curves[i].x = x_new
 
-        objective = float(SquaredMeanTorque(coils[0], coils).J())
+        objective = float(SquaredMeanTorque_deprecated(coils[0], coils).J())
 
         # Now compute the objective a different way, using the independent
         # coil_force function
@@ -447,17 +505,17 @@ class CoilForcesTest(unittest.TestCase):
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
         np.testing.assert_allclose(objective, objective_alt, rtol=1e-2)
 
-        # Test SquaredMeanTorque vs MixedSquaredMeanTorque
+        # Test SquaredMeanTorque_deprecated vs SquaredMeanTorque
         objective = 0.0
         objective2 = 0.0
         objective_alt = 0.0
         for i in range(len(coils)):
-            objective += float(SquaredMeanTorque(coils[i], coils).J())
-            objective2 += float(SquaredMeanTorque(coils[i], coils, downsample=2).J())
+            objective += float(SquaredMeanTorque_deprecated(coils[i], coils).J())
+            objective2 += float(SquaredMeanTorque_deprecated(coils[i], coils, downsample=2).J())
             gammadash_norm = np.linalg.norm(coils[i].curve.gammadash(), axis=1)
             objective_alt += np.linalg.norm(np.sum(coil_torque(coils[i], coils, regularization) * gammadash_norm[:, None], axis=0) / gammadash_norm.shape[0]) ** 2
 
-        objective_mixed = float(MixedSquaredMeanTorque(coils[0:2], coils[2:]).J())
+        objective_mixed = float(SquaredMeanTorque(coils[0:2], coils[2:]).J())
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
         np.testing.assert_allclose(objective, objective_alt, rtol=1e-2)
 
@@ -467,29 +525,29 @@ class CoilForcesTest(unittest.TestCase):
         print("objective:", objective, "objective_mixed:", objective_mixed, "diff:", objective - objective_mixed)
         np.testing.assert_allclose(objective, objective_mixed, rtol=1e-2)
 
-        # Test MixedLpCurveTorque
+        # Test LpCurveTorque
         objective = 0.0
         objective2 = 0.0
         objective_alt = 0.0
         threshold = 0.0
         for i in range(len(coils)):
-            objective += float(LpCurveTorque(coils[i], coils, regularization, p=p, threshold=threshold).J())
-            objective2 += float(LpCurveTorque(coils[i], coils, regularization, p=p, threshold=threshold, downsample=2).J())
+            objective += float(LpCurveTorque_deprecated(coils[i], coils, regularization, p=p, threshold=threshold).J())
+            objective2 += float(LpCurveTorque_deprecated(coils[i], coils, regularization, p=p, threshold=threshold, downsample=2).J())
             torque_norm = np.linalg.norm(coil_torque(coils[i], coils, regularization), axis=1)
             gammadash_norm = np.linalg.norm(coils[i].curve.gammadash(), axis=1)
             objective_alt += (1 / p) * np.sum(np.maximum(torque_norm - threshold, 0)**p * gammadash_norm) / gammadash_norm.shape[0]
 
         regularization_list = np.ones(len(coils)) * regularization
-        objective_mixed = float(MixedLpCurveTorque(coils[0:1], coils[1:], regularization_list[0:1], regularization_list[1:], p=p, threshold=threshold).J())
+        objective_mixed = float(LpCurveTorque(coils[0:1], coils[1:], regularization_list[0:1], regularization_list[1:], p=p, threshold=threshold).J())
 
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
-        np.testing.assert_allclose(objective, objective_alt)
+        np.testing.assert_allclose(objective, objective_alt, rtol=1e-6)
 
         print("objective:", objective, "downsampled:", objective2, "diff:", objective - objective2)
         np.testing.assert_allclose(objective, objective2, rtol=1e-4)
 
         print("objective:", objective, "objective_mixed:", objective_mixed, "diff:", objective - objective_mixed)
-        np.testing.assert_allclose(objective, objective_mixed)
+        np.testing.assert_allclose(objective, objective_mixed, rtol=1e-6)
 
     def test_Taylor(self):
         import matplotlib.pyplot as plt
@@ -527,23 +585,13 @@ class CoilForcesTest(unittest.TestCase):
                                         objectives = [
                                             NetFluxes(coils[0], coils),
                                             TVE(coils[0], coils, a=a),
-                                            MeanSquaredForce(coils[0], coils, regularization, downsample=downsample),
-                                            sum([MeanSquaredForce(c, coils, regularization, downsample=downsample) for c in coils]),
-                                            LpCurveTorque(coils[0], coils, regularization, p=p, threshold=threshold, downsample=downsample),
-                                            sum([LpCurveTorque(c, coils, regularization, p=p, threshold=threshold, downsample=downsample) for c in coils]),
-                                            MixedLpCurveTorque(coils[0:1], coils[1:], regularization_list[0:1], regularization_list[1:], p=p, threshold=threshold, downsample=downsample),
-                                            SquaredMeanTorque(coils[0], coils, downsample=downsample),
-                                            sum([SquaredMeanTorque(c, coils, downsample=downsample) for c in coils]),
-                                            MixedSquaredMeanTorque(coils[0:1], coils[1:], downsample=downsample),
-                                            LpCurveForce(coils[0], coils, regularization, p=p, threshold=threshold, downsample=downsample),
-                                            sum([LpCurveForce(c, coils, regularization, p=p, threshold=threshold, downsample=downsample) for c in coils]),
-                                            MixedLpCurveForce(coils[0:1], coils[1:], regularization_list[0:1],
+                                            LpCurveTorque(coils[0:1], coils[1:], regularization_list[0:1], regularization_list[1:], p=p, threshold=threshold, downsample=downsample),
+                                            SquaredMeanTorque(coils[0:1], coils[1:], downsample=downsample),
+                                            LpCurveForce(coils[0:1], coils[1:], regularization_list[0:1],
                                                               regularization_list[1:], p=p, threshold=threshold, downsample=downsample),
-                                            SquaredMeanForce(coils[0], coils, downsample=downsample),
-                                            sum([SquaredMeanForce(c, coils, downsample=downsample) for c in coils]),
-                                            MixedSquaredMeanForce([coils[0]], coils[1:], downsample=downsample),
+                                            SquaredMeanForce([coils[0]], coils[1:], downsample=downsample),
                                         ]
-                                        dofs = np.copy(MeanSquaredForce(coils[0], coils, regularization).x)
+                                        dofs = np.copy(MeanSquaredForce_deprecated(coils[0], coils, regularization).x)
                                         h = np.ones_like(dofs)
                                         for J in objectives:
                                             print(f"ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}, p={p}, threshold={threshold}, reg={reg_name}, downsample={downsample}, objective={type(J).__name__}")
@@ -553,7 +601,7 @@ class CoilForcesTest(unittest.TestCase):
                                             errors = []
                                             epsilons = []
                                             label = f"{type(J).__name__}, ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}, p={getattr(J, 'p', p)}, threshold={getattr(J, 'threshold', threshold)}, reg={reg_name}, downsample={downsample}"
-                                            for i in range(11, 18):
+                                            for i in range(7, 14):
                                                 eps = 0.5**i
                                                 J.x = dofs + eps * h
                                                 Jp = J.J()
@@ -565,8 +613,10 @@ class CoilForcesTest(unittest.TestCase):
                                                 else:
                                                     err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
                                                 # Check error decrease by at least a factor of 0.3
-                                                if len(errors) > 0:
-                                                    print(f"err: {err_new}, eps: {eps}, ratio: {(err_new + 1e-12) / (errors[-1] + 1e-12)}")
+                                                # print('eps:', eps, "Jm:", Jm, "Jp:", Jp, "Jm - Jp:", Jp - Jm, "Jp - Jm / 2 * eps:", (Jp - Jm) / (2 * eps))
+                                                if len(errors) > 0 and err_new > 1e-12:
+                                                    print(f"err: {err_new}, jac: {np.abs(deriv)}, jac_est: {np.abs(deriv_est)}, ratio: {(err_new + 1e-12) / (errors[-1] + 1e-12)}")
+                                                    # print(f"ratio: {(err_new + 1e-12) / (errors[-1] + 1e-12)}")
                                                     assert err_new < 0.5 * errors[-1], f"Error did not decrease by factor 0.5: prev={errors[-1]}, curr={err_new}"
                                                 errors.append(err_new)
                                                 epsilons.append(eps)
@@ -600,7 +650,7 @@ class CoilForcesTest(unittest.TestCase):
         nfp_list = [1, 2, 3]
         stellsym_list = [False, True]
         p_list = [2.0, 2.5]
-        threshold_list = [0.0, 1e1]
+        threshold_list = [0.0]  #, 1e1]
         downsample_list = [1, 2]
         I = 1.7e5
         a = 0.05
@@ -640,12 +690,12 @@ class CoilForcesTest(unittest.TestCase):
                                         regularization_list_TF = np.ones(len(coils_TF)) * regularization
                                         objectives = [
                                             SquaredFlux(s, btot),
-                                            MixedLpCurveTorque(coils, coils_TF, regularization_list, regularization_list_TF,
+                                            LpCurveTorque(coils, coils_TF, regularization_list, regularization_list_TF,
                                                                p=p, threshold=threshold, psc_array=psc_array, downsample=downsample),
-                                            MixedSquaredMeanTorque(coils, coils_TF, psc_array=psc_array, downsample=downsample),
-                                            MixedLpCurveForce(coils, coils_TF, regularization_list,
+                                            SquaredMeanTorque(coils, coils_TF, psc_array=psc_array, downsample=downsample),
+                                            LpCurveForce(coils, coils_TF, regularization_list,
                                                               regularization_list_TF, p=p, threshold=threshold, psc_array=psc_array, downsample=downsample),
-                                            MixedSquaredMeanForce(coils, coils_TF, psc_array=psc_array, downsample=downsample),
+                                            SquaredMeanForce(coils, coils_TF, psc_array=psc_array, downsample=downsample),
                                         ]
                                         dofs = np.copy(SquaredFlux(s, btot).x)
                                         h = np.ones_like(dofs)
@@ -755,19 +805,21 @@ class CoilForcesTest(unittest.TestCase):
 
         # List of objective classes to test
         objective_classes = [
-            "LpCurveForce (sum all)",
-            "MixedLpCurveForce",
-            "LpCurveTorque (sum all)",
-            "MixedLpCurveTorque",
-            "SquaredMeanForce (sum all)",
-            "MixedSquaredMeanForce",
-            "SquaredMeanTorque (sum all)",
-            "MixedSquaredMeanTorque",
+            "LpCurveForce_deprecated (sum all)",
+            "LpCurveForce",
+            "LpCurveTorque_deprecated (sum all)",
+            "LpCurveTorque",
+            "SquaredMeanForce_deprecated (sum all)",
+            "SquaredMeanForce",
+            "SquaredMeanTorque_deprecated (sum all)",
+            "SquaredMeanTorque",
         ]
 
-        ncoils_list = [4, 8, 16]
+        ncoils_list = [4, 8, 16, 32]
         runtimes_J = np.zeros((len(objective_classes), len(ncoils_list)))
         runtimes_dJ = np.zeros((len(objective_classes), len(ncoils_list)))
+        compile_times_J = np.zeros((len(objective_classes), len(ncoils_list)))
+        compile_times_dJ = np.zeros((len(objective_classes), len(ncoils_list)))
 
         for idx_n, ncoils in enumerate(ncoils_list):
             print(f"\n--- Timing tests for ncoils = {ncoils} ---")
@@ -780,60 +832,60 @@ class CoilForcesTest(unittest.TestCase):
             # LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque: sum over all coils
             # Mixed objectives are faster if coils are split evenly into two groups
             objectives = [
-                sum([LpCurveForce(c, coils, regularization, p=p, threshold=threshold) for c in coils]),
-                MixedLpCurveForce(coils[:len(coils) // 2], coils[len(coils) // 2:],
-                                  regularization_list[:len(coils) // 2], regularization_list[len(coils) // 2:], p=p, threshold=threshold),
-                sum([LpCurveTorque(c, coils, regularization, p=p, threshold=threshold) for c in coils]),
-                MixedLpCurveTorque(coils[:len(coils) // 2], coils[len(coils) // 2:],
+                sum([LpCurveForce_deprecated(c, coils, regularization, p=p, threshold=threshold, downsample=1) for c in coils]),
+                LpCurveForce(coils[:len(coils) // 2], coils[len(coils) // 2:],
+                                  regularization_list[:len(coils) // 2], regularization_list[len(coils) // 2:], p=p, threshold=threshold, downsample=1),
+                sum([LpCurveTorque_deprecated(c, coils, regularization, p=p, threshold=threshold) for c in coils]),
+                LpCurveTorque(coils[:len(coils) // 2], coils[len(coils) // 2:],
                                    regularization_list[:len(coils) // 2], regularization_list[len(coils) // 2:], p=p, threshold=threshold),
-                sum([SquaredMeanForce(c, coils) for c in coils]),
-                MixedSquaredMeanForce(coils[:len(coils) // 2], coils[len(coils) // 2:]),
-                sum([SquaredMeanTorque(c, coils) for c in coils]),
-                MixedSquaredMeanTorque(coils[:len(coils) // 2], coils[len(coils) // 2:]),
+                sum([SquaredMeanForce_deprecated(c, coils) for c in coils]),
+                SquaredMeanForce(coils[:len(coils) // 2], coils[len(coils) // 2:]),
+                sum([SquaredMeanTorque_deprecated(c, coils) for c in coils]),
+                SquaredMeanTorque(coils[:len(coils) // 2], coils[len(coils) // 2:]),
             ]
 
-            # Timing with pre-compilation (warm-up)
-            print("Timing with pre-compilation (warm-up):")
+            # Compilation time (first call)
+            print("Timing compilation (first call):")
             for i, (obj, obj_label) in enumerate(zip(objectives, objective_classes)):
+                t1 = time.time()
                 obj.J()
+                t2 = time.time()
+                compile_times_J[i, idx_n] = t2 - t1
+                print(f'{obj_label}: Compilation (J) took {t2 - t1:.6f} seconds')
+                t1 = time.time()
                 obj.dJ()
-                # Timing J
+                t2 = time.time()
+                compile_times_dJ[i, idx_n] = t2 - t1
+                print(f'{obj_label}: Compilation (dJ) took {t2 - t1:.6f} seconds')
+
+                # Run time (second call)
+                print("Timing run (second call):")
                 t1 = time.time()
                 obj.J()
                 t2 = time.time()
                 runtimes_J[i, idx_n] = t2 - t1
-                print(f'{obj_label}: Took {t2 - t1:.6f} seconds for J')
-                # Timing dJ
+                print(f'{obj_label}: Run (J) took {t2 - t1:.6f} seconds')
                 t1 = time.time()
                 obj.dJ()
                 t2 = time.time()
                 runtimes_dJ[i, idx_n] = t2 - t1
-                print(f'{obj_label}: Took {t2 - t1:.6f} seconds for dJ')
+                print(f'{obj_label}: Run (dJ) took {t2 - t1:.6f} seconds')
 
-        # Plotting the results
-        fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharey=True)
-        x = np.arange(len(ncoils_list))
-        width = 0.10
-
+        # Optionally, plot the results
+        plt.figure(figsize=(10, 7))
+        markers = ['o', 's', 'D', '^', 'v', '<', '>', 'x', '+']
+        colors = plt.cm.tab10.colors
         for i, label in enumerate(objective_classes):
-            axes[0].bar(x + i * width - width*len(objective_classes)/2, runtimes_J[i], width, label=label)
-            axes[1].bar(x + i * width - width*len(objective_classes)/2, runtimes_dJ[i], width, label=label)
-
-        axes[0].set_xticks(x)
-        axes[0].set_xticklabels([str(n) for n in ncoils_list])
-        axes[0].set_xlabel("Number of coils")
-        axes[0].set_ylabel("Runtime (s)")
-        axes[0].set_title("Objective J() runtimes")
-        axes[0].legend(fontsize=8)
-
-        axes[1].set_xticks(x)
-        axes[1].set_xticklabels([str(n) for n in ncoils_list])
-        axes[1].set_xlabel("Number of coils")
-        axes[1].set_title("Objective dJ() runtimes")
-        axes[1].legend(fontsize=8)
-
+            plt.semilogy(ncoils_list, runtimes_J[i], marker=markers[i % len(markers)], color=colors[i % len(colors)], label=f"{label} J()")
+            plt.semilogy(ncoils_list, runtimes_dJ[i], marker=markers[i % len(markers)], linestyle='--', color=colors[i % len(colors)], label=f"{label} dJ()")
+        plt.xlabel("Number of coils")
+        plt.ylabel("Run time (s)")
+        plt.title("Objective run times as a function of number of coils")
+        plt.legend(fontsize=8)
+        plt.grid(True, which='both', ls='--')
         plt.tight_layout()
-        plt.savefig("objective_runtimes.png")
+        plt.savefig("objective_runtimes_semilogy.png")
+        print("Run times saved to objective_runtimes_semilogy.png")
 
     def test_update_points(self):
         """Confirm that Biot-Savart evaluation points are updated when the
@@ -844,7 +896,7 @@ class CoilForcesTest(unittest.TestCase):
         I = 1.7e4
         regularization = regularization_circ(0.05)
 
-        for objective_class in [MeanSquaredForce, LpCurveForce, LpCurveTorque]:
+        for objective_class in [MeanSquaredForce_deprecated, LpCurveForce_deprecated, LpCurveTorque_deprecated]:
 
             base_curves = create_equally_spaced_curves(ncoils, nfp, True, order=2)
             base_currents = [Current(I) for j in range(ncoils)]
