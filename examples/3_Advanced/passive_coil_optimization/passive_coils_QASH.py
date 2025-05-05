@@ -8,10 +8,10 @@ import time
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import regularization_rect, PSCArray
-from simsopt.field.force import MixedLpCurveForce, \
-    MixedSquaredMeanForce, \
-    MixedLpCurveTorque, \
-    MixedSquaredMeanTorque
+from simsopt.field.force import LpCurveForce, \
+    SquaredMeanForce, \
+    LpCurveTorque, \
+    SquaredMeanTorque
 from simsopt.util import calculate_on_axis_B, initialize_coils, remove_inboard_dipoles, \
     align_dipoles_with_plasma, save_coil_sets
 from simsopt.geo import (
@@ -255,30 +255,30 @@ Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 # interlink.
 linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 
-# Passive coils are ONLY compatible with the "Mixed" force/torque objectives
+# Passive coils are ONLY compatible with the "" force/torque objectives
 # and MUST be passed in the psc_array argument for the Jacobian to be correct!
 all_base_coils = base_coils + base_coils_TF
 regularization_list_TF = np.ones(len(coils_TF)) * regularization_rect(a, b)
 regularization_list = np.ones(len(coils)) * regularization_rect(aa, bb)
 
-Jforce = MixedLpCurveForce(coils, coils_TF,
-                           regularization_list, regularization_list_TF,
-                           p=4, downsample=1,
+Jforce = LpCurveForce(coils, coils_TF,
+                      regularization_list, regularization_list_TF,
+                      p=4, downsample=1,
+                      psc_array=psc_array
+                      )
+Jforce2 = SquaredMeanForce(coils, coils_TF,
                            psc_array=psc_array
                            )
-Jforce2 = MixedSquaredMeanForce(coils, coils_TF,
-                                psc_array=psc_array
-                                )
 
 # Errors creep in when downsample = 2
-Jtorque = MixedLpCurveTorque(coils, coils_TF,
-                             regularization_list, regularization_list_TF,
-                             p=2, downsample=1,
+Jtorque = LpCurveTorque(coils, coils_TF,
+                        regularization_list, regularization_list_TF,
+                        p=2, downsample=1,
+                        psc_array=psc_array
+                        )
+Jtorque2 = SquaredMeanTorque(coils, coils_TF,
                              psc_array=psc_array
                              )
-Jtorque2 = MixedSquaredMeanTorque(coils, coils_TF,
-                                  psc_array=psc_array
-                                  )
 
 if continuation_run:
     CURVATURE_WEIGHT = 1e-1

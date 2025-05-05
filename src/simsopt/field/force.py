@@ -35,6 +35,7 @@ __all__ = [
     "LpCurveTorque",
 ]
 
+
 def coil_force(coil, allcoils, regularization, nturns=1):
     """
     Compute the force on a coil.
@@ -592,6 +593,7 @@ class MeanSquaredForce_deprecated(Optimizable):
         return dJ
 
     return_fn_map = {'J': J, 'dJ': dJ}
+
 
 def squared_mean_force_pure_deprecated(current, gammadash, B_mutual, downsample):
     r"""
@@ -1760,7 +1762,6 @@ class NetFluxes(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
-
 def squared_mean_force_pure(gammas, gammas2, gammadashs, gammadashs2, currents, currents2, downsample):
     """
     Computes the sum of squared mean Lorentz forces for each coil loop.
@@ -1784,8 +1785,6 @@ def squared_mean_force_pure(gammas, gammas2, gammadashs, gammadashs2, currents, 
     # Precompute tangents and norms
     gammadash_norms = jnp.linalg.norm(gammadashs, axis=-1)[:, :, None]
     tangents = gammadashs / gammadash_norms
-    gammadash_norms2 = jnp.linalg.norm(gammadashs2, axis=-1)[:, :, None]
-    tangents2 = gammadashs2 / gammadash_norms2
 
     def mutual_B_field_group1(i, pt):
         def biot_savart_from_j(j):
@@ -1793,12 +1792,13 @@ def squared_mean_force_pure(gammas, gammas2, gammadashs, gammadashs2, currents, 
                 j == i,
                 lambda _: jnp.zeros(3, dtype=jnp.float32),
                 lambda _: jnp.asarray(jnp.sum(
-                        jnp.cross(gammadashs[j], pt - gammas[j]) /
-                        (jnp.linalg.norm(pt - gammas[j] + eps, axis=1) ** 3)[:, None],
-                        axis=0
-                    ) * currents[j], dtype=jnp.float32),
+                    jnp.cross(gammadashs[j], pt - gammas[j]) /
+                    (jnp.linalg.norm(pt - gammas[j] + eps, axis=1) ** 3)[:, None],
+                    axis=0
+                ) * currents[j], dtype=jnp.float32),
                 operand=None
             )
+
         def biot_savart_from_j2(j2):
             return jnp.sum(jnp.cross(gammadashs2[j2], pt - gammas2[j2]) / (jnp.linalg.norm(pt - gammas2[j2] + eps, axis=1) ** 3)[:, None], axis=0) * currents2[j2]
         B_mutual1 = jnp.sum(vmap(biot_savart_from_j)(jnp.arange(n1)), axis=0)
@@ -1811,39 +1811,9 @@ def squared_mean_force_pure(gammas, gammas2, gammadashs, gammadashs2, currents, 
             return current_i * jnp.cross(tangent_i[idx], mutual_B_field_group1(i, gamma_i[idx])) * gammadash_norm_i[idx, 0]
         return jnp.sum(vmap(force_at_point)(jnp.arange(npts1)), axis=0) / gammadash_norm_i.shape[0]
 
-    mean_forces1 = vmap(mean_force_group1, in_axes=(0, 0, 0, 0, 0))(
+    mean_forces = vmap(mean_force_group1, in_axes=(0, 0, 0, 0, 0))(
         jnp.arange(n1), gammas, tangents, gammadash_norms, currents
     )
-
-    def mutual_B_field_group2(i, pt):
-        def biot_savart_from_j(j):
-            return jnp.sum(jnp.cross(gammadashs[j], pt - gammas[j]) / (jnp.linalg.norm(pt - gammas[j] + eps, axis=1) ** 3)[:, None], axis=0) * currents[j]
-        def biot_savart_from_j2(j2):
-            return cond(
-                j2 == i,
-                lambda _: jnp.zeros(3, dtype=jnp.float32),
-                lambda _: jnp.asarray(jnp.sum(
-                        jnp.cross(gammadashs2[j2], pt - gammas2[j2]) /
-                        (jnp.linalg.norm(pt - gammas2[j2] + eps, axis=1) ** 3)[:, None],
-                        axis=0
-                    ) * currents2[j2], dtype=jnp.float32),
-                operand=None,
-            )
-        B_mutual1 = jnp.sum(vmap(biot_savart_from_j)(jnp.arange(n1)), axis=0)
-        B_mutual2 = jnp.sum(vmap(biot_savart_from_j2)(jnp.arange(n2)), axis=0)
-        return (B_mutual1 / npts1) + (B_mutual2 / npts2)
-
-    def mean_force_group2(i, gamma_i, tangent_i, gammadash_norm_i, current_i):
-        def force_at_point(idx):
-            return current_i * jnp.cross(tangent_i[idx], mutual_B_field_group2(i, gamma_i[idx])) * gammadash_norm_i[idx, 0]
-        return jnp.sum(vmap(force_at_point)(jnp.arange(npts2)), axis=0) / gammadash_norm_i.shape[0]
-
-    mean_forces2 = vmap(mean_force_group2, in_axes=(0, 0, 0, 0, 0))(
-        jnp.arange(n2), gammas2, tangents2, gammadash_norms2, currents2
-    )
-
-    # Sum of squared norms of mean forces for all coils
-    mean_forces = jnp.concatenate([mean_forces1, mean_forces2], axis=0)
     summ = jnp.sum(jnp.linalg.norm(mean_forces, axis=-1) ** 2)
     return summ * jnp.float32(1e-14)
 
@@ -1874,8 +1844,12 @@ class SquaredMeanForce(Optimizable):
     def __init__(self, allcoils, allcoils2, downsample=1, psc_array=None):
         if not isinstance(downsample, int):
             raise ValueError("downsample must be an integer")
+        if not isinstance(allcoils, list):
+            allcoils = [allcoils]
+        if not isinstance(allcoils2, list):
+            allcoils2 = [allcoils2]
         self.allcoils = allcoils
-        self.allcoils2 = allcoils2
+        self.allcoils2 = [c for c in allcoils2 if c not in allcoils]
         self.downsample = downsample
         self.psc_array = psc_array
         args = {"static_argnums": (6,)}
@@ -1973,30 +1947,24 @@ class SquaredMeanForce(Optimizable):
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
+
 def lp_force_pure(
-    gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2,
-    quadpoints, quadpoints2,
-    currents, currents2, regularizations, regularizations2, p, threshold,
-    downsample=1,
+    gammas, gammas2, gammadashs, gammadashs2, gammadashdashs,
+    quadpoints, currents, currents2, regularizations, p, threshold, downsample=1
 ):
     """
-    Computes the mixed Lp force objective by summing over all coils in both sets, where each coil receives force from all coils (including itself).
+    Computes the mixed Lp force objective by summing over all coils in the first set, where each coil receives force from all coils (including itself and the second set).
     This version allows each coil to have its own quadrature points array.
     """
-    quadpoints = jnp.array(quadpoints[::downsample], dtype=jnp.float32) 
+    quadpoints = jnp.array(quadpoints[::downsample], dtype=jnp.float32)
     gammas = jnp.array(gammas[:, ::downsample, :], dtype=jnp.float32)
     gammadashs = jnp.array(gammadashs[:, ::downsample, :], dtype=jnp.float32)
     gammadashdashs = jnp.array(gammadashdashs[:, ::downsample, :], dtype=jnp.float32)
-
-    quadpoints2 = jnp.array(quadpoints2[::downsample], dtype=jnp.float32)
     gammas2 = jnp.array(gammas2[:, ::downsample, :], dtype=jnp.float32)
     gammadashs2 = jnp.array(gammadashs2[:, ::downsample, :], dtype=jnp.float32)
-    gammadashdashs2 = jnp.array(gammadashdashs2[:, ::downsample, :], dtype=jnp.float32)
-
     currents = jnp.array(currents, dtype=jnp.float32)
     currents2 = jnp.array(currents2, dtype=jnp.float32)
     regularizations = jnp.array(regularizations, dtype=jnp.float32)
-    regularizations2 = jnp.array(regularizations2, dtype=jnp.float32)
 
     n1 = gammas.shape[0]
     n2 = gammas2.shape[0]
@@ -2007,15 +1975,10 @@ def lp_force_pure(
     # Precompute tangents and norms
     gammadash_norms = jnp.linalg.norm(gammadashs, axis=-1)[:, :, None]
     tangents = gammadashs / gammadash_norms
-    gammadash_norms2 = jnp.linalg.norm(gammadashs2, axis=-1)[:, :, None]
-    tangents2 = gammadashs2 / gammadash_norms2
 
     # Precompute B_self for each coil
     B_self = vmap(B_regularized_pure, in_axes=(0, 0, 0, None, 0, 0))(
         gammas, gammadashs, gammadashdashs, quadpoints, currents, regularizations
-    )
-    B_self2 = vmap(B_regularized_pure, in_axes=(0, 0, 0, None, 0, 0))(
-        gammas2, gammadashs2, gammadashdashs2, quadpoints2, currents2, regularizations2
     )
 
     # Helper to compute mutual field at each point for a coil
@@ -2025,10 +1988,10 @@ def lp_force_pure(
                 j == i,
                 lambda _: jnp.zeros(3, dtype=jnp.float32),
                 lambda _: jnp.asarray(jnp.sum(
-                        jnp.cross(gammadashs[j], pt - gammas[j]) /
-                        (jnp.linalg.norm(pt - gammas[j] + eps, axis=1) ** 3)[:, None],
-                        axis=0
-                    ) * currents[j], dtype=jnp.float32),
+                    jnp.cross(gammadashs[j], pt - gammas[j]) /
+                    (jnp.linalg.norm(pt - gammas[j] + eps, axis=1) ** 3)[:, None],
+                    axis=0
+                ) * currents[j], dtype=jnp.float32),
                 operand=None
             )
             return B
@@ -2046,37 +2009,10 @@ def lp_force_pure(
 
     obj1 = vmap(per_coil_obj_group1, in_axes=(0, 0, 0, 0, 0))(
         jnp.arange(n1), gammas, tangents, B_self, currents
-    ) 
+    )
 
-    def mutual_B_field_group2(i, pt):
-        def biot_savart_from_j(j):
-            return jnp.sum(jnp.cross(gammadashs[j], pt - gammas[j]) / (jnp.linalg.norm(pt - gammas[j] + eps, axis=1) ** 3)[:, None], axis=0) * currents[j]
-        def biot_savart_from_j2(j2):
-            return cond(
-                j2 == i,
-                lambda _: jnp.zeros(3, dtype=jnp.float32),
-                lambda _: jnp.asarray(jnp.sum(
-                        jnp.cross(gammadashs2[j2], pt - gammas2[j2]) /
-                        (jnp.linalg.norm(pt - gammas2[j2] + eps, axis=1) ** 3)[:, None],
-                        axis=0
-                    ) * currents2[j2], dtype=jnp.float32),
-                operand=None,
-            )
-        B_mutual1 = jnp.sum(vmap(biot_savart_from_j)(jnp.arange(n1)), axis=0)
-        B_mutual2 = jnp.sum(vmap(biot_savart_from_j2)(jnp.arange(n2)), axis=0)
-        return (B_mutual1 / npts1) + (B_mutual2 / npts2)
-
-    def per_coil_obj_group2(i, gamma_i, tangent_i, B_self_i, current_i):
-        def force_at_point(idx):
-            F = current_i * (mutual_B_field_group2(i, gamma_i[idx]) * 1e-7 + B_self_i[idx])
-            return jnp.linalg.norm(jnp.cross(tangent_i[idx], F))
-        return vmap(force_at_point)(jnp.arange(npts2))
-
-    obj2 = vmap(per_coil_obj_group2, in_axes=(0, 0, 0, 0, 0))(
-        jnp.arange(n2), gammas2, tangents2, B_self2, currents2
-    ) 
-    return (jnp.sum(jnp.sum(jnp.maximum(obj1 - threshold, 0) ** p * gammadash_norms[:, :, 0])) / npts1 + \
-            jnp.sum(jnp.sum(jnp.maximum(obj2 - threshold, 0) ** p * gammadash_norms2[:, :, 0])) / npts2) * (1. / p)
+    # Only sum over the first group
+    return (jnp.sum(jnp.sum(jnp.maximum(obj1 - threshold, 0) ** p * gammadash_norms[:, :, 0])) / npts1) * (1. / p)
 
 
 class LpCurveForce(Optimizable):
@@ -2104,65 +2040,64 @@ class LpCurveForce(Optimizable):
         downsample (int): Downsample factor for the objective function.
     """
 
-    def __init__(self, allcoils, allcoils2, regularizations, regularizations2, p=2.0, threshold=0.0, downsample=1, psc_array=None):
+    def __init__(self, allcoils, allcoils2, regularizations, p=2.0, threshold=0.0, downsample=1, psc_array=None):
+        if not isinstance(allcoils, list):
+            allcoils = [allcoils]
+        if not isinstance(allcoils2, list):
+            allcoils2 = [allcoils2]
+        if not isinstance(regularizations, list):
+            regularizations = [regularizations]
         self.allcoils = allcoils
-        self.allcoils2 = allcoils2
+        self.allcoils2 = [c for c in allcoils2 if c not in allcoils]
         quadpoints = self.allcoils[0].curve.quadpoints
-        quadpoints2 = self.allcoils2[0].curve.quadpoints
         self.downsample = downsample
         self.psc_array = psc_array
-        args = {"static_argnums": (8,)}
+        args = {"static_argnums": (7,)}
         self.J_jax = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            lp_force_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, quadpoints, quadpoints2,
-                                currents, currents2, regularizations, regularizations2, p, threshold, downsample),
+            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
+            lp_force_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, quadpoints,
+                          currents, currents2, regularizations, p, threshold, downsample),
             **args
         )
 
         self.dJ_dgamma = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            grad(self.J_jax, argnums=0)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample),
+            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
+            grad(self.J_jax, argnums=0)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dgamma2 = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            grad(self.J_jax, argnums=1)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample),
+            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
+            grad(self.J_jax, argnums=1)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dgammadash = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            grad(self.J_jax, argnums=2)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample),
+            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
+            grad(self.J_jax, argnums=2)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dgammadash2 = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            grad(self.J_jax, argnums=3)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample),
+            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
+            grad(self.J_jax, argnums=3)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dgammadashdash = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            grad(self.J_jax, argnums=4)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample),
-            **args
-        )
-
-        self.dJ_dgammadashdash2 = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            grad(self.J_jax, argnums=5)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample),
+            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
+            grad(self.J_jax, argnums=4)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dcurrent = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            grad(self.J_jax, argnums=6)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample),
+            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
+            grad(self.J_jax, argnums=5)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
         self.dJ_dcurrent2 = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            grad(self.J_jax, argnums=7)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample),
+            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
+            grad(self.J_jax, argnums=6)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
@@ -2176,7 +2111,6 @@ class LpCurveForce(Optimizable):
             jnp.array([c.curve.gammadash() for c in self.allcoils]),
             jnp.array([c.curve.gammadash() for c in self.allcoils2]),
             jnp.array([c.curve.gammadashdash() for c in self.allcoils]),
-            jnp.array([c.curve.gammadashdash() for c in self.allcoils2]),
             jnp.array([c.current.get_value() for c in self.allcoils]),
             jnp.array([c.current.get_value() for c in self.allcoils2]),
             self.downsample
@@ -2193,7 +2127,6 @@ class LpCurveForce(Optimizable):
             jnp.array([c.curve.gammadash() for c in self.allcoils]),
             jnp.array([c.curve.gammadash() for c in self.allcoils2]),
             jnp.array([c.curve.gammadashdash() for c in self.allcoils]),
-            jnp.array([c.curve.gammadashdash() for c in self.allcoils2]),
             jnp.array([c.current.get_value() for c in self.allcoils]),
             jnp.array([c.current.get_value() for c in self.allcoils2]),
             self.downsample
@@ -2204,7 +2137,6 @@ class LpCurveForce(Optimizable):
         dJ_dcurrent = self.dJ_dcurrent(*args)
         dJ_dgamma2 = self.dJ_dgamma2(*args)
         dJ_dgammadash2 = self.dJ_dgammadash2(*args)
-        dJ_dgammadashdash2 = self.dJ_dgammadashdash2(*args)
         dJ_dcurrent2 = self.dJ_dcurrent2(*args)
 
         if self.psc_array is not None:
@@ -2219,7 +2151,6 @@ class LpCurveForce(Optimizable):
             + vjp
             + sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma2[i]) for i, c in enumerate(self.allcoils2)])
             + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash2[i]) for i, c in enumerate(self.allcoils2)])
-            + sum([c.curve.dgammadashdash_by_dcoeff_vjp(dJ_dgammadashdash2[i]) for i, c in enumerate(self.allcoils2)])
             + sum([c.current.vjp(jnp.asarray([dJ_dcurrent2[i]])) for i, c in enumerate(self.allcoils2)])
         )
 
@@ -2227,6 +2158,95 @@ class LpCurveForce(Optimizable):
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
+
+def lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs,
+                quadpoints, currents, currents2, regularizations, p, threshold, downsample):
+    r"""
+    Pure function for computing the mixed lp torque on a coil.
+
+    Args:
+        gammas (array): Array of coil positions.
+        gammas2 (array): Array of coil positions.
+        gammadashs (array): Array of coil tangent vectors.
+        gammadashs2 (array): Array of coil tangent vectors.
+        quadpoints (array): Array of quadrature points.
+        quadpoints2 (array): Array of quadrature points.
+        currents (array): Array of coil currents.
+        currents2 (array): Array of coil currents.
+        regularizations (array): Array of coil regularizations.
+        regularizations2 (array): Array of coil regularizations.
+        p (float): Power of the objective function.
+        threshold (float): Threshold for the objective function.
+        downsample (int): Downsample factor for the objective function.
+
+    Returns:
+        float: Value of the objective function.
+    """
+    # Downsample everything if necessary
+    quadpoints = jnp.array(quadpoints[::downsample], dtype=jnp.float32)
+    gammas = jnp.array(gammas[:, ::downsample, :], dtype=jnp.float32)
+    gammadashs = jnp.array(gammadashs[:, ::downsample, :], dtype=jnp.float32)
+    gammadashdashs = jnp.array(gammadashdashs[:, ::downsample, :], dtype=jnp.float32)
+    gammas2 = jnp.array(gammas2[:, ::downsample, :], dtype=jnp.float32)
+    gammadashs2 = jnp.array(gammadashs2[:, ::downsample, :], dtype=jnp.float32)
+    currents = jnp.array(currents, dtype=jnp.float32)
+    currents2 = jnp.array(currents2, dtype=jnp.float32)
+    regularizations = jnp.array(regularizations, dtype=jnp.float32)
+
+    def center(gamma, gammadash):
+        # Compute the centroid of the curve
+        arclength = jnp.linalg.norm(gammadash, axis=-1)
+        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / jnp.sum(arclength)
+        return barycenter
+
+    centers = jnp.array(vmap(center)(gammas, gammadashs), dtype=jnp.float32)
+
+    # Precompute B_self for each coil
+    B_self = vmap(B_regularized_pure, in_axes=(0, 0, 0, None, 0, 0))(
+        gammas, gammadashs, gammadashdashs, quadpoints, currents, regularizations
+    )
+    gammadash_norms = jnp.linalg.norm(gammadashs, axis=-1)[:, :, None]
+    tangents = gammadashs / gammadash_norms
+
+    n1 = gammas.shape[0]
+    n2 = gammas2.shape[0]
+    npts1 = gammas.shape[1]
+    npts2 = gammas2.shape[1]
+    eps = jnp.float32(1e-10)
+
+    # Helper to compute mutual field at each point for a coil
+    def mutual_B_field_group1(i, pt):
+        def biot_savart_from_j(j):
+            return cond(
+                j == i,
+                lambda _: jnp.zeros(3, dtype=jnp.float32),
+                lambda _: jnp.asarray(jnp.sum(
+                    jnp.cross(gammadashs[j], pt - gammas[j]) /
+                    (jnp.linalg.norm(pt - gammas[j] + eps, axis=1) ** 3)[:, None],
+                    axis=0
+                ) * currents[j], dtype=jnp.float32),
+                operand=None
+            )
+
+        def biot_savart_from_j2(j2):
+            return jnp.sum(jnp.cross(gammadashs2[j2], pt - gammas2[j2]) / (jnp.linalg.norm(pt - gammas2[j2] + eps, axis=1) ** 3)[:, None], axis=0) * currents2[j2]
+        B_mutual1 = jnp.sum(vmap(biot_savart_from_j)(jnp.arange(n1)), axis=0)
+        B_mutual2 = jnp.sum(vmap(biot_savart_from_j2)(jnp.arange(n2)), axis=0)
+        return ((B_mutual1 / npts1) + (B_mutual2 / npts2)) * 1e-7
+
+    def per_coil_obj_group1(i, gamma_i, center_i, tangent_i, B_self_i, current_i):
+        def torque_at_point(idx):
+            B_mutual = mutual_B_field_group1(i, gamma_i[idx])
+            F = current_i * jnp.cross(tangent_i[idx], B_mutual + B_self_i[idx])
+            tau = jnp.cross(gamma_i[idx] - center_i, F)
+            return jnp.linalg.norm(tau)
+        return vmap(torque_at_point)(jnp.arange(npts1))
+
+    obj1 = vmap(per_coil_obj_group1, in_axes=(0, 0, 0, 0, 0, 0))(
+        jnp.arange(n1), gammas, centers, tangents, B_self, currents
+    )
+
+    return jnp.sum(jnp.sum(jnp.maximum(obj1 - threshold, 0) ** p * gammadash_norms[:, :, 0])) / npts1 * (1. / p)
 
 class LpCurveTorque(Optimizable):
     r"""Optimizable class to minimize the net Lorentz force on a coil.
@@ -2253,198 +2273,66 @@ class LpCurveTorque(Optimizable):
         downsample (int): Downsample factor for the objective function.
         psc_array (PSCArray): PSC coil array to use for the objective function.
     """
-    # @jit
-
-    def lp_torque_pure(self, gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2,
-                             quadpoints, quadpoints2,
-                             currents, currents2, regularizations, regularizations2, p, threshold, downsample):
-        r"""
-        Pure function for computing the mixed lp torque on a coil.
-
-        Args:
-            gammas (array): Array of coil positions.
-            gammas2 (array): Array of coil positions.
-            gammadashs (array): Array of coil tangent vectors.
-            gammadashs2 (array): Array of coil tangent vectors.
-            quadpoints (array): Array of quadrature points.
-            quadpoints2 (array): Array of quadrature points.
-            currents (array): Array of coil currents.
-            currents2 (array): Array of coil currents.
-            regularizations (array): Array of coil regularizations.
-            regularizations2 (array): Array of coil regularizations.
-            p (float): Power of the objective function.
-            threshold (float): Threshold for the objective function.
-            downsample (int): Downsample factor for the objective function.
-
-        Returns:
-            float: Value of the objective function.
-        """
-        # Downsample everything if necessary
-        quadpoints = jnp.array(quadpoints[::downsample], dtype=jnp.float32)
-        gammas = jnp.array(gammas[:, ::downsample, :], dtype=jnp.float32)
-        gammadashs = jnp.array(gammadashs[:, ::downsample, :], dtype=jnp.float32)
-        gammadashdashs = jnp.array(gammadashdashs[:, ::downsample, :], dtype=jnp.float32)
-        quadpoints2 = jnp.array(quadpoints2[::downsample], dtype=jnp.float32)
-        gammas2 = jnp.array(gammas2[:, ::downsample, :], dtype=jnp.float32)
-        gammadashs2 = jnp.array(gammadashs2[:, ::downsample, :], dtype=jnp.float32)
-        gammadashdashs2 = jnp.array(gammadashdashs2[:, ::downsample, :], dtype=jnp.float32)
-        currents = jnp.array(currents, dtype=jnp.float32)
-        currents2 = jnp.array(currents2, dtype=jnp.float32)
-        regularizations = jnp.array(regularizations, dtype=jnp.float32)
-        regularizations2 = jnp.array(regularizations2, dtype=jnp.float32)
-
-        def center(gamma, gammadash):
-            # Compute the centroid of the curve
-            arclength = jnp.linalg.norm(gammadash, axis=-1)
-            barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / jnp.sum(arclength)
-            return barycenter
-        
-        centers = jnp.array(vmap(center)(gammas, gammadashs), dtype=jnp.float32)
-        centers2 = jnp.array(vmap(center)(gammas2, gammadashs2), dtype=jnp.float32)
-
-        # Precompute B_self for each coil
-        B_self = vmap(B_regularized_pure, in_axes=(0, 0, 0, None, 0, 0))(
-            gammas, gammadashs, gammadashdashs, quadpoints, currents, regularizations
-        )
-        B_self2 = vmap(B_regularized_pure, in_axes=(0, 0, 0, None, 0, 0))(
-            gammas2, gammadashs2, gammadashdashs2, quadpoints2, currents2, regularizations2
-        )
-        gammadash_norms = jnp.linalg.norm(gammadashs, axis=-1)[:, :, None]
-        tangents = gammadashs / gammadash_norms
-        gammadash_norms2 = jnp.linalg.norm(gammadashs2, axis=-1)[:, :, None]
-        tangents2 = gammadashs2 / gammadash_norms2
-
-        n1 = gammas.shape[0]
-        n2 = gammas2.shape[0]
-        npts1 = gammas.shape[1]
-        npts2 = gammas2.shape[1]
-        eps = jnp.float32(1e-10)
-
-        # Helper to compute mutual field at each point for a coil
-        def mutual_B_field_group1(i, pt):
-            def biot_savart_from_j(j):
-                return cond(
-                    j == i,
-                    lambda _: jnp.zeros(3, dtype=jnp.float32),
-                    lambda _: jnp.asarray(jnp.sum(
-                            jnp.cross(gammadashs[j], pt - gammas[j]) /
-                            (jnp.linalg.norm(pt - gammas[j] + eps, axis=1) ** 3)[:, None],
-                            axis=0
-                        ) * currents[j], dtype=jnp.float32),
-                    operand=None
-                )
-            def biot_savart_from_j2(j2):
-                return jnp.sum(jnp.cross(gammadashs2[j2], pt - gammas2[j2]) / (jnp.linalg.norm(pt - gammas2[j2] + eps, axis=1) ** 3)[:, None], axis=0) * currents2[j2]
-            B_mutual1 = jnp.sum(vmap(biot_savart_from_j)(jnp.arange(n1)), axis=0)
-            B_mutual2 = jnp.sum(vmap(biot_savart_from_j2)(jnp.arange(n2)), axis=0)
-            return ((B_mutual1 / npts1) + (B_mutual2 / npts2)) * 1e-7
-
-        def per_coil_obj_group1(i, gamma_i, center_i, tangent_i, B_self_i, current_i):
-            def torque_at_point(idx):
-                B_mutual = mutual_B_field_group1(i, gamma_i[idx])
-                F = current_i * jnp.cross(tangent_i[idx], B_mutual + B_self_i[idx])
-                tau = jnp.cross(gamma_i[idx] - center_i, F)
-                return jnp.linalg.norm(tau)
-            return vmap(torque_at_point)(jnp.arange(npts1))
-
-        obj1 = vmap(per_coil_obj_group1, in_axes=(0, 0, 0, 0, 0, 0))(
-            jnp.arange(n1), gammas, centers, tangents, B_self, currents
-        )
-
-        def mutual_B_field_group2(i, pt):
-            def biot_savart_from_j(j):
-                return jnp.sum(jnp.cross(gammadashs[j], pt - gammas[j]) / (jnp.linalg.norm(pt - gammas[j] + eps, axis=1) ** 3)[:, None], axis=0) * currents[j]
-            def biot_savart_from_j2(j2):
-                return cond(
-                    j2 == i,
-                    lambda _: jnp.zeros(3, dtype=jnp.float32),
-                    lambda _: jnp.asarray(jnp.sum(
-                            jnp.cross(gammadashs2[j2], pt - gammas2[j2]) /
-                            (jnp.linalg.norm(pt - gammas2[j2] + eps, axis=1) ** 3)[:, None],
-                            axis=0
-                        ) * currents2[j2], dtype=jnp.float32),
-                    operand=None,
-                )
-            B_mutual1 = jnp.sum(vmap(biot_savart_from_j)(jnp.arange(n1)), axis=0)
-            B_mutual2 = jnp.sum(vmap(biot_savart_from_j2)(jnp.arange(n2)), axis=0)
-            return ((B_mutual1 / npts1) + (B_mutual2 / npts2)) * 1e-7
-
-        def per_coil_obj_group2(i, gamma_i, center_i, tangent_i, B_self_i, current_i):
-            def torque_at_point(idx):
-                B_mutual = mutual_B_field_group2(i, gamma_i[idx])
-                F = current_i * jnp.cross(tangent_i[idx], B_mutual + B_self_i[idx])
-                tau = jnp.cross(gamma_i[idx] - center_i, F)
-                return jnp.linalg.norm(tau)
-            return vmap(torque_at_point)(jnp.arange(npts2))
-
-        obj2 = vmap(per_coil_obj_group2, in_axes=(0, 0, 0, 0, 0, 0))(
-            jnp.arange(n2), gammas2, centers2, tangents2, B_self2, currents2
-        )
-
-        return (jnp.sum(jnp.sum(jnp.maximum(obj1 - threshold, 0) ** p * gammadash_norms[:, :, 0])) / npts1 + \
-                jnp.sum(jnp.sum(jnp.maximum(obj2 - threshold, 0) ** p * gammadash_norms2[:, :, 0])) / npts2) * (1. / p)
-
-    def __init__(self, allcoils, allcoils2, regularizations, regularizations2, p=2.0, threshold=0.0, downsample=1, psc_array=None):
+    def __init__(self, allcoils, allcoils2, regularizations, p=2.0, threshold=0.0, downsample=1, psc_array=None):
+        if not isinstance(allcoils, list):
+            allcoils = [allcoils]
+        if not isinstance(allcoils2, list):
+            allcoils2 = [allcoils2]
+        if not isinstance(regularizations, list):
+            regularizations = [regularizations]
         self.allcoils = allcoils
-        self.allcoils2 = allcoils2
+        self.allcoils2 = [c for c in allcoils2 if c not in allcoils]
         quadpoints = self.allcoils[0].curve.quadpoints
-        quadpoints2 = self.allcoils2[0].curve.quadpoints
         self.downsample = downsample
         self.psc_array = psc_array
-        args = {"static_argnums": (8,)}
+        args = {"static_argnums": (7,)}
 
         self.J_jax = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            self.lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, quadpoints, quadpoints2,
-                                      currents, currents2, regularizations, regularizations2, p, threshold, downsample),
+            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
+            lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, quadpoints,
+                           currents, currents2, regularizations, p, threshold, downsample),
             **args
         )
 
         self.dJ_dgamma = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            grad(self.J_jax, argnums=0)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample),
+            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
+            grad(self.J_jax, argnums=0)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dgamma2 = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            grad(self.J_jax, argnums=1)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample),
+            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
+            grad(self.J_jax, argnums=1)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dgammadash = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            grad(self.J_jax, argnums=2)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample),
+            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
+            grad(self.J_jax, argnums=2)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dgammadash2 = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            grad(self.J_jax, argnums=3)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample),
+            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
+            grad(self.J_jax, argnums=3)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dgammadashdash = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            grad(self.J_jax, argnums=4)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample),
-            **args
-        )
-
-        self.dJ_dgammadashdash2 = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            grad(self.J_jax, argnums=5)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample),
+            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
+            grad(self.J_jax, argnums=4)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dcurrent = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            grad(self.J_jax, argnums=6)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample),
+            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
+            grad(self.J_jax, argnums=5)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dcurrent2 = jit(
-            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample:
-            grad(self.J_jax, argnums=7)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2, downsample),
+            lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
+            grad(self.J_jax, argnums=6)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
@@ -2458,7 +2346,6 @@ class LpCurveTorque(Optimizable):
             jnp.array([c.curve.gammadash() for c in self.allcoils]),
             jnp.array([c.curve.gammadash() for c in self.allcoils2]),
             jnp.array([c.curve.gammadashdash() for c in self.allcoils]),
-            jnp.array([c.curve.gammadashdash() for c in self.allcoils2]),
             jnp.array([c.current.get_value() for c in self.allcoils]),
             jnp.array([c.current.get_value() for c in self.allcoils2]),
             self.downsample
@@ -2475,7 +2362,6 @@ class LpCurveTorque(Optimizable):
             jnp.array([c.curve.gammadash() for c in self.allcoils]),
             jnp.array([c.curve.gammadash() for c in self.allcoils2]),
             jnp.array([c.curve.gammadashdash() for c in self.allcoils]),
-            jnp.array([c.curve.gammadashdash() for c in self.allcoils2]),
             jnp.array([c.current.get_value() for c in self.allcoils]),
             jnp.array([c.current.get_value() for c in self.allcoils2]),
             self.downsample
@@ -2486,7 +2372,6 @@ class LpCurveTorque(Optimizable):
         dJ_dcurrent = self.dJ_dcurrent(*args)
         dJ_dgamma2 = self.dJ_dgamma2(*args)
         dJ_dgammadash2 = self.dJ_dgammadash2(*args)
-        dJ_dgammadashdash2 = self.dJ_dgammadashdash2(*args)
         dJ_dcurrent2 = self.dJ_dcurrent2(*args)
 
         if self.psc_array is not None:
@@ -2501,13 +2386,13 @@ class LpCurveTorque(Optimizable):
             + vjp
             + sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma2[i]) for i, c in enumerate(self.allcoils2)])
             + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash2[i]) for i, c in enumerate(self.allcoils2)])
-            + sum([c.curve.dgammadashdash_by_dcoeff_vjp(dJ_dgammadashdash2[i]) for i, c in enumerate(self.allcoils2)])
             + sum([c.current.vjp(jnp.asarray([dJ_dcurrent2[i]])) for i, c in enumerate(self.allcoils2)])
         )
 
         return dJ
 
     return_fn_map = {'J': J, 'dJ': dJ}
+
 
 def mixed_squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents, currents2, downsample):
     """
@@ -2535,7 +2420,6 @@ def mixed_squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents
         return barycenter
 
     centers = jnp.array(vmap(center)(gammas, gammadashs), dtype=jnp.float32)
-    centers2 = jnp.array(vmap(center)(gammas2, gammadashs2), dtype=jnp.float32)
 
     # Helper to compute mutual field at each point for a coil
     def mutual_B_field_group1(i, pt):
@@ -2544,12 +2428,13 @@ def mixed_squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents
                 j == i,
                 lambda _: jnp.zeros(3, dtype=jnp.float32),
                 lambda _: jnp.asarray(jnp.sum(
-                        jnp.cross(gammadashs[j], pt - gammas[j]) /
-                        (jnp.linalg.norm(pt - gammas[j] + eps, axis=1) ** 3)[:, None],
-                        axis=0
-                    ) * currents[j], dtype=jnp.float32),
+                    jnp.cross(gammadashs[j], pt - gammas[j]) /
+                    (jnp.linalg.norm(pt - gammas[j] + eps, axis=1) ** 3)[:, None],
+                    axis=0
+                ) * currents[j], dtype=jnp.float32),
                 operand=None
             )
+
         def biot_savart_from_j2(j2):
             return jnp.sum(jnp.cross(gammadashs2[j2], pt - gammas2[j2]) / (jnp.linalg.norm(pt - gammas2[j2] + eps, axis=1) ** 3)[:, None], axis=0) * currents2[j2]
         B_mutual1 = jnp.sum(vmap(biot_savart_from_j)(jnp.arange(n1)), axis=0)
@@ -2559,6 +2444,7 @@ def mixed_squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents
     def mean_torque_group1(i, gamma_i, gammadash_i, center_i, current_i):
         arclength = jnp.linalg.norm(gammadash_i, axis=-1)
         tangent = gammadash_i / arclength[:, None]
+
         def torque_at_point(idx):
             B_mutual = mutual_B_field_group1(i, gamma_i[idx])
             F = current_i * jnp.cross(tangent[idx], B_mutual)
@@ -2568,48 +2454,12 @@ def mixed_squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents
         mean_torque = jnp.sum(torques, axis=0) / npts1
         return mean_torque
 
-    mean_torques1 = vmap(mean_torque_group1, in_axes=(0, 0, 0, 0, 0))(
+    mean_torques = vmap(mean_torque_group1, in_axes=(0, 0, 0, 0, 0))(
         jnp.arange(n1), gammas, gammadashs, centers, currents
     )
-
-    def mutual_B_field_group2(i, pt):
-        def biot_savart_from_j(j):
-            return jnp.sum(jnp.cross(gammadashs[j], pt - gammas[j]) / (jnp.linalg.norm(pt - gammas[j] + eps, axis=1) ** 3)[:, None], axis=0) * currents[j]
-        def biot_savart_from_j2(j2):
-            return cond(
-                j2 == i,
-                lambda _: jnp.zeros(3, dtype=jnp.float32),
-                lambda _: jnp.asarray(jnp.sum(
-                        jnp.cross(gammadashs2[j2], pt - gammas2[j2]) /
-                        (jnp.linalg.norm(pt - gammas2[j2] + eps, axis=1) ** 3)[:, None],
-                        axis=0
-                    ) * currents2[j2], dtype=jnp.float32),
-                operand=None,
-            )
-        B_mutual1 = jnp.sum(vmap(biot_savart_from_j)(jnp.arange(n1)), axis=0)
-        B_mutual2 = jnp.sum(vmap(biot_savart_from_j2)(jnp.arange(n2)), axis=0)
-        return (B_mutual1 / npts1) + (B_mutual2 / npts2)
-
-    def mean_torque_group2(i, gamma_i, gammadash_i, center_i, current_i):
-        arclength = jnp.linalg.norm(gammadash_i, axis=-1)
-        tangent = gammadash_i / arclength[:, None]
-        def torque_at_point(idx):
-            B_mutual = mutual_B_field_group2(i, gamma_i[idx])
-            F = current_i * jnp.cross(tangent[idx], B_mutual)
-            tau = jnp.cross(gamma_i[idx] - center_i, F)
-            return tau * arclength[idx]
-        torques = vmap(torque_at_point)(jnp.arange(npts2))
-        mean_torque = jnp.sum(torques, axis=0) / npts2
-        return mean_torque
-
-    mean_torques2 = vmap(mean_torque_group2, in_axes=(0, 0, 0, 0, 0))(
-        jnp.arange(n2), gammas2, gammadashs2, centers2, currents2
-    )
-
-    # Sum of squared norms of mean torques for all coils
-    mean_torques = jnp.concatenate([mean_torques1, mean_torques2], axis=0)
     summ = jnp.sum(jnp.linalg.norm(mean_torques, axis=-1) ** 2)
     return summ * jnp.float32(1e-14)
+
 
 class SquaredMeanTorque(Optimizable):
     r"""Optimizable class to minimize the net Lorentz force on a coil.
@@ -2635,9 +2485,14 @@ class SquaredMeanTorque(Optimizable):
     Returns:
         float: Value of the objective function.
     """
+
     def __init__(self, allcoils, allcoils2, downsample=1, psc_array=None):
+        if not isinstance(allcoils, list):
+            allcoils = [allcoils]
+        if not isinstance(allcoils2, list):
+            allcoils2 = [allcoils2]
         self.allcoils = allcoils
-        self.allcoils2 = allcoils2
+        self.allcoils2 = [c for c in allcoils2 if c not in allcoils]
         self.downsample = downsample
         self.psc_array = psc_array
         args = {"static_argnums": (6,)}
@@ -2736,4 +2591,3 @@ class SquaredMeanTorque(Optimizable):
         return dJ
 
     return_fn_map = {'J': J, 'dJ': dJ}
-
