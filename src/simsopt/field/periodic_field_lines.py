@@ -431,7 +431,7 @@ def _find_periodic_field_line_1D_optimization(
 
     return R0
 
-def _pseudospectral_residual(x, n, D, phi, field):
+def _pseudospectral_residual(x, n, D, phi, field, force_z0=False):
     """
     This is the vector-valued function that returns the residual for the
     pseudospectral method of finding a periodic field line.
@@ -442,6 +442,7 @@ def _pseudospectral_residual(x, n, D, phi, field):
         D: The spectral differentiation matrix.
         phi: The grid points of toroidal angle.
         field: The MagneticField object.
+        force_z0: If True, force z at the first point to be 0.
     """
     # print("_pseudospectral_residual x =", x)
     R = x[0:n]
@@ -456,10 +457,13 @@ def _pseudospectral_residual(x, n, D, phi, field):
 
     R_residual = R * BR / Bphi - (D @ R)
     Z_residual = R * BZ / Bphi - (D @ Z)
+    if force_z0:
+        R_residual[0] = Z[0]
+
     return np.concatenate((R_residual, Z_residual))
 
 
-def _pseudospectral_jacobian(x, n, D, phi, field):
+def _pseudospectral_jacobian(x, n, D, phi, field, force_z0=False):
     """
     This is the matrix-valued function that returns the Jacobian for the
     pseudospectral method of finding a periodic field line.
@@ -470,6 +474,7 @@ def _pseudospectral_jacobian(x, n, D, phi, field):
         D: The spectral differentiation matrix.
         phi: The grid points of toroidal angle.
         field: The MagneticField object.
+        force_z0: If True, force z at the first point to be 0.
     """
     R = x[0:n]
     Z = x[n:2 * n]
@@ -532,6 +537,9 @@ def _pseudospectral_jacobian(x, n, D, phi, field):
         R * d_Bz_d_z / Bphi 
         - R * BZ / (Bphi**2) * d_Bphi_d_z
     )
+    if force_z0:
+        jac[0, :] = 0.0
+        jac[0, n] = 1.0
 
     return jac
 
@@ -547,6 +555,7 @@ def _find_periodic_field_line_pseudospectral(
     nphi=21,
     deflation_R=[],
     deflation_k=1.0,
+    force_z0=False,
 ):
     """Find a periodic field line.
     
@@ -562,6 +571,7 @@ def _find_periodic_field_line_pseudospectral(
         half_period: If True, look for periodic field lines in the half-period plane instead of the phi=0 plane (default: False).
         solve_tol: Tolerance for the root finding (default: 1e-6).
         nphi: Number of points in the toroidal direction (default: 21).
+        force_z0: If True, force z at the first point to be 0.
     """
 
     # Make sure nphi is odd
@@ -578,7 +588,6 @@ def _find_periodic_field_line_pseudospectral(
         phi += phi0
     else:
         phi0 = 0.0
-
 
     D = spectral_diff_matrix(nphi, xmin=0, xmax=phimax)
         
@@ -606,13 +615,15 @@ def _find_periodic_field_line_pseudospectral(
         print("Initial condition R0:", R0)
         print("Initial condition Z0:", Z0)
     
+    if force_z0:
+        Z0[0] = 0.0
     state = np.concatenate((R0, Z0))
 
     sol = root(
         _pseudospectral_residual, 
         state,
         tol=solve_tol,
-        args=(nphi, D, phi, field),
+        args=(nphi, D, phi, field, force_z0),
         jac=_pseudospectral_jacobian,
         method='lm',
         options={'maxiter':1000},
@@ -665,9 +676,10 @@ def find_periodic_field_line(
         return _find_periodic_field_line_2D(
             field, nfp, m, R0, Z0, half_period, solve_tol, follow_tol, deflation_R=deflation_R, deflation_k=deflation_k
         )
-    elif method == "pseudospectral":
+    elif method in ["pseudospectral", "pseudospectral z0"]:
         return _find_periodic_field_line_pseudospectral(
-            field, nfp, m, R0, Z0, half_period, solve_tol, nphi, deflation_R=deflation_R, deflation_k=deflation_k
+            field, nfp, m, R0, Z0, half_period, solve_tol, nphi, deflation_R=deflation_R, deflation_k=deflation_k,
+            force_z0 = (method == "pseudospectral z0")
         )
     elif method == "1D optimization":
         return _find_periodic_field_line_1D_optimization(

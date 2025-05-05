@@ -143,49 +143,51 @@ class Tests(unittest.TestCase):
         phimax = 2 * np.pi / nfp
         phi = np.linspace(0, phimax, nphi, endpoint=False)
         D = spectral_diff_matrix(nphi, xmin=0, xmax=phimax)
-        R0 = 5.9 + 0.1 * np.cos(nfp * phi)
-        Z0 = 0.2 + 0.1 * np.sin(nfp * phi)
-        x = np.concatenate((R0, Z0))
-        analytic_jacobian = _pseudospectral_jacobian(x, nphi, D, phi, field)
-        finite_diff_jacobian = np.zeros((2 * nphi, 2 * nphi))
-        delta = 1e-6
-        for j in range(2 * nphi):
-            x1 = np.copy(x)
-            x1[j] += delta
-            r1 = _pseudospectral_residual(x1, nphi, D, phi, field)
+        for force_z0 in [False, True]:
+            R0 = 5.9 + 0.1 * np.cos(nfp * phi)
+            Z0 = 0.2 + 0.1 * np.sin(nfp * phi)
+            x = np.concatenate((R0, Z0))
+            analytic_jacobian = _pseudospectral_jacobian(x, nphi, D, phi, field, force_z0=force_z0)
+            finite_diff_jacobian = np.zeros((2 * nphi, 2 * nphi))
+            delta = 1e-6
+            for j in range(2 * nphi):
+                x1 = np.copy(x)
+                x1[j] += delta
+                r1 = _pseudospectral_residual(x1, nphi, D, phi, field, force_z0=force_z0)
 
-            x2 = np.copy(x)
-            x2[j] -= delta
-            r2 = _pseudospectral_residual(x2, nphi, D, phi, field)
+                x2 = np.copy(x)
+                x2[j] -= delta
+                r2 = _pseudospectral_residual(x2, nphi, D, phi, field, force_z0=force_z0)
 
-            finite_diff_jacobian[:, j] = (r1 - r2) / (2 * delta)
+                finite_diff_jacobian[:, j] = (r1 - r2) / (2 * delta)
 
-        np.testing.assert_allclose(analytic_jacobian, finite_diff_jacobian, rtol=1e-7, atol=0)
+            np.testing.assert_allclose(analytic_jacobian, finite_diff_jacobian, rtol=1e-7, atol=0)
 
     def test_find_periodic_field_line_pseudospectral(self):
         field = _get_w7x_field()
         nfp = 5
 
-        # Initial guess:
-        R0 = 5.9
-        Z0 = 0.1
+        for method in ["pseudospectral", "pseudospectral z0"]:
+            # Initial guess:
+            R0 = 5.9
+            Z0 = 0.1
 
-        # Find the magnetic axis:
-        m = 1
-        R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, method="pseudospectral")
-        print("R, Z", R, Z)
+            # Find the magnetic axis:
+            m = 1
+            R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, method=method)
+            print("R, Z", R, Z)
 
-        # Check that the final coordinates are as expected
-        np.testing.assert_allclose(R, 5.949141380504241, rtol=3e-5)
-        np.testing.assert_allclose(Z, 0, atol=1e-8)
+            # Check that the final coordinates are as expected
+            np.testing.assert_allclose(R, 5.949141380504241, rtol=3e-5)
+            np.testing.assert_allclose(Z, 0, atol=1e-8)
 
-        # Find the magnetic axis at the half-period plane:
-        R0 = 5.3
-        Z0 = 0.1
-        R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, half_period=True, method="pseudospectral")
-        print("R, Z", R, Z)
-        np.testing.assert_allclose(R, 5.20481580547662, rtol=3e-5)
-        np.testing.assert_allclose(Z, 0, atol=1e-8)
+            # Find the magnetic axis at the half-period plane:
+            R0 = 5.3
+            Z0 = 0.1
+            R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, half_period=True, method=method)
+            print("R, Z", R, Z)
+            np.testing.assert_allclose(R, 5.20481580547662, rtol=3e-5)
+            np.testing.assert_allclose(Z, 0, atol=1e-8)
 
         # # Now find one of the island chains:
         # m = 5
