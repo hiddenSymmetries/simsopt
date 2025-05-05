@@ -72,11 +72,44 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         self.xcs[1, 0] = 0.1
         self.zcs[mpol+1, 0] = 0.1
         if dofs is None:
-            Surface.__init__(self, x0=self.get_dofs(),
+            Surface.__init__(self, x0=self.get_dofs(), names=self._make_names(mpol, ntor, stellsym),
                              external_dof_setter=SurfaceXYZTensorFourier.set_dofs_impl)
         else:
             Surface.__init__(self, dofs=dofs,
                              external_dof_setter=SurfaceXYZTensorFourier.set_dofs_impl)
+
+    def _make_names(self, mpol, ntor, stellsym):
+        dof_names = []
+        for m in range(2 * mpol + 1):
+            for n in range(2 * ntor + 1):
+                if self.skip(0, m, n, stellsym, mpol, ntor):
+                    continue
+                dof_names += [f'x({m},{n})']
+
+        for m in range(2 * mpol + 1):
+            for n in range(2 * ntor + 1):
+                if self.skip(1, m, n, stellsym, mpol, ntor):
+                    continue
+                dof_names += [f'y({m},{n})']
+
+        for m in range(2 * mpol + 1):
+            for n in range(2 * ntor + 1):
+                if self.skip(2, m, n, stellsym, mpol, ntor):
+                    continue
+                dof_names += [f'z({m},{n})']
+
+        return dof_names
+
+    @staticmethod
+    def skip(dim, m, n, stellsym, mpol, ntor):
+        if not stellsym:
+            return False
+        if dim == 0:
+            return (n <= ntor and m > mpol) or (n > ntor and m <= mpol)
+        elif dim == 1:
+            return (n <= ntor and m <= mpol) or (n > ntor and m > mpol)
+        else:
+            return (n <= ntor and m <= mpol) or (n > ntor and m > mpol)
 
     def get_dofs(self):
         """
