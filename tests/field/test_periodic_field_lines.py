@@ -175,19 +175,19 @@ class Tests(unittest.TestCase):
             # Find the magnetic axis:
             m = 1
             R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, method=method)
-            print("R, Z", R, Z)
+            print("R, Z", R[0], Z[0])
 
             # Check that the final coordinates are as expected
-            np.testing.assert_allclose(R, 5.949141380504241, rtol=3e-5)
-            np.testing.assert_allclose(Z, 0, atol=1e-8)
+            np.testing.assert_allclose(R[0], 5.949141380504241, rtol=3e-5)
+            np.testing.assert_allclose(Z[0], 0, atol=1e-8)
 
             # Find the magnetic axis at the half-period plane:
             R0 = 5.3
             Z0 = 0.1
             R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, half_period=True, method=method)
-            print("R, Z", R, Z)
-            np.testing.assert_allclose(R, 5.20481580547662, rtol=3e-5)
-            np.testing.assert_allclose(Z, 0, atol=1e-8)
+            print("R, Z", R[0], Z[0])
+            np.testing.assert_allclose(R[0], 5.20481580547662, rtol=3e-5)
+            np.testing.assert_allclose(Z[0], 0, atol=1e-8)
 
         # # Now find one of the island chains:
         # m = 5
@@ -233,11 +233,11 @@ class Tests(unittest.TestCase):
         nfp = 5
         m = 1
         R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, method="pseudospectral")
-        print("R, Z", R, Z)
+        print("R, Z", R[0], Z[0])
 
         # Check that the final coordinates are as expected
-        np.testing.assert_allclose(R, 0.9834328716279733, rtol=1e-7)
-        np.testing.assert_allclose(Z, 0, atol=1e-8)
+        np.testing.assert_allclose(R[0], 0.9834328716279733, rtol=1e-7)
+        np.testing.assert_allclose(Z[0], 0, atol=1e-8)
 
         # Repeat with the optimized coils:
         coils, field = get_Cary_Hanson_field("1984", optimized=True)
@@ -248,11 +248,11 @@ class Tests(unittest.TestCase):
         nfp = 5
         m = 1
         R, Z = find_periodic_field_line(field, nfp, m, R0, Z0, method="pseudospectral")
-        print("R, Z", R, Z)
+        print("R, Z", R[0], Z[0])
 
         # Check that the final coordinates are as expected
-        np.testing.assert_allclose(R, 0.955022421271663, rtol=1e-7)
-        np.testing.assert_allclose(Z, 0, atol=1e-8)
+        np.testing.assert_allclose(R[0], 0.955022421271663, rtol=1e-7)
+        np.testing.assert_allclose(Z[0], 0, atol=1e-8)
 
     def test_find_periodic_field_line_class(self):
         field = _get_w7x_field()
@@ -273,14 +273,14 @@ class Tests(unittest.TestCase):
         integral1 = pfl.integral_A_dl()
         pfl2 = PeriodicFieldLine(field, nfp, m, R0, method="1D Z", nphi=1234)
         integral2 = pfl2.integral_A_dl()
-        np.testing.assert_allclose(integral1, integral2, rtol=1e-12)
+        np.testing.assert_allclose(integral1, integral2, rtol=2e-11)
 
         # Repeat with one of the islands.
         R0 = 6.2
         m = 5
         R1, Z1 = find_periodic_field_line(field, nfp, m, R0, method="1D optimization")
         np.testing.assert_array_less(6.2, R1)  # Make sure we get the island and not the axis
-        pfl = PeriodicFieldLine(field, nfp, m, R0, method="1D optimization")
+        pfl = PeriodicFieldLine(field, nfp, m, R0, method="1D optimization", nphi=501)
         np.testing.assert_allclose(pfl.R0, R1, atol=1e-8)
         np.testing.assert_allclose(pfl.Z0, Z1, atol=1e-8)
 
@@ -356,14 +356,14 @@ class Tests(unittest.TestCase):
         R0 = 6.0
         pfl = PeriodicFieldLine(field, nfp, m, R0, method="1D Z")
         for j, phi in enumerate(pfl.phi):
-            R, z = pfl.get_R_Z_at_phi(phi)
+            R, z = pfl.get_R_z_at_phi(phi)
             np.testing.assert_allclose(R, pfl.R[j])
             np.testing.assert_allclose(z, pfl.z[j], atol=1e-8)
 
-            R, z = pfl.get_R_Z_at_phi(phi + 2 * np.pi / nfp)
+            R, z = pfl.get_R_z_at_phi(phi + 2 * np.pi / nfp)
             np.testing.assert_allclose(R, pfl.R[j])
             np.testing.assert_allclose(z, pfl.z[j], atol=1e-7)
 
-            R, z = pfl.get_R_Z_at_phi(phi - 2 * np.pi / nfp)
+            R, z = pfl.get_R_z_at_phi(phi - 2 * np.pi / nfp)
             np.testing.assert_allclose(R, pfl.R[j])
             np.testing.assert_allclose(z, pfl.z[j], atol=1e-7)

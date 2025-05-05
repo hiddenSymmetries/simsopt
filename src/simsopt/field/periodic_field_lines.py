@@ -600,9 +600,10 @@ def _find_periodic_field_line_pseudospectral(
     # )
 
     # Establish initial condition:
+    print("type(R0), type(Z0)", type(R0), type(Z0))
     if isinstance(R0, (list, np.ndarray)) and isinstance(Z0, (list, np.ndarray)):
         if len(R0) != nphi or len(Z0) != nphi:
-            raise ValueError("Length of R0 and Z0 must match nphi")
+            raise ValueError(f"Length of R0 and Z0 must match nphi = {nphi}. Got {len(R0)} and {len(Z0)} instead.")
     else:
         R0, Z0 = _integrate_field_line(field, R0, Z0, phimax, 1e-10, phi0=phi0, nphi=nphi + 1)
         # Subtract off a linear function to make the initial condition periodic
@@ -635,7 +636,7 @@ def _find_periodic_field_line_pseudospectral(
     print('Residual: ', np.max(np.abs(residual)))
 
     print(sol)
-    return R[0], Z[0]
+    return R, Z
 
 
 def find_periodic_field_line(
@@ -659,6 +660,9 @@ def find_periodic_field_line(
 
     The argument ``Z0`` is ignored if method = "1D".
 
+    The return values ``(R, Z)`` are both floats for all methods except for
+    ``pseudospectral`` and ``pseudospectral z0``, in which case they are arrays of length ``nphi``.
+
     Args:
         field: The magnetic field object.
         nfp: Number of field periods.
@@ -669,7 +673,11 @@ def find_periodic_field_line(
         method: Method for finding the periodic field line (default: "2D").
         solve_tol: Tolerance for the root finding (default: 1e-6).
         follow_tol: Tolerance for the field line integration (default: 1e-10). Matters only for method="2D".
-        nphi: Number of points in the toroidal direction (default: 21). Matters only for method="pseudospectral".
+        nphi: Number of points in the toroidal direction (default: 21). Matters only for method="pseudospectral" and "pseudospectral z0".
+
+    Returns:
+        R: Final R coordinate.
+        Z: Final Z coordinate.
     """
 
     if method == "2D":
@@ -700,6 +708,10 @@ class PeriodicFieldLine():
 
     The argument ``Z0`` is ignored if method = "1D".
 
+    The argument ``nphi`` does include a point at the end of the field line, to record any slight imperfection
+    in periodicity.
+    If you use the method "pseudospectral" or "pseudospectral z0", then ``nphi - 1`` will be used for computing the field line.
+
     Args:
         field: The magnetic field object.
         nfp: Number of field periods.
@@ -710,8 +722,10 @@ class PeriodicFieldLine():
         method: Method for finding the periodic field line (default: "2D").
         solve_tol: Tolerance for the root finding (default: 1e-6).
         follow_tol: Tolerance for the field line integration (default: 1e-10). Irrelevant for method="pseudospectral".
-        nphi_solve: Number of points in the toroidal direction for the pseudospectral solve (default: 21). Matters only for method="pseudospectral".
-        nphi: Number of points in the toroidal direction for plotting etc (default: 200).
+        nphi: Number of points in the toroidal direction for plotting etc (default: 50).
+        deflation_R: List of R coordinates to use for deflation (default: []).
+        deflation_k: Deflation factor (default: 1.0).
+        asserts: If True, assert that the field line is periodic (default: True).
     """
     def __init__(
         self,
@@ -724,8 +738,7 @@ class PeriodicFieldLine():
         method="1D Z",
         solve_tol=1e-6,
         follow_tol=1e-10,
-        nphi_solve=21,
-        nphi=400,
+        nphi=50,
         deflation_R=[],
         deflation_k=1.0,
         asserts=True,
@@ -734,8 +747,14 @@ class PeriodicFieldLine():
         self.nfp = nfp
         self.m = m
         self.half_period = half_period
-        self.nphi = nphi
         self.follow_tol = follow_tol
+        self.asserts = asserts
+        self.solution_on_grid_is_available = False
+
+        if method in ["pseudospectral", "pseudospectral z0"] and nphi % 2 == 1:
+            nphi += 1
+
+        self.nphi = nphi
 
         R0, Z0 = find_periodic_field_line(
             field,
@@ -747,12 +766,19 @@ class PeriodicFieldLine():
             method=method,
             solve_tol=solve_tol,
             follow_tol=follow_tol,
-            nphi=nphi_solve,
+            nphi=nphi - 1,
             deflation_R=deflation_R,
             deflation_k=deflation_k,
         )
-        self.R0 = R0
-        self.Z0 = Z0
+        if method in ["pseudospectral", "pseudospectral z0"]:
+            self.R0 = R0[0]
+            self.Z0 = Z0[0]
+            self.solution_on_grid_is_available = True
+            self.R = np.concatenate((R0, [R0[0]]))
+            self.z = np.concatenate((Z0, [Z0[0]]))
+        else:
+            self.R0 = R0
+            self.Z0 = Z0
 
         # Now get R and Z along equally spaced phi points:
         if half_period:
@@ -760,22 +786,10 @@ class PeriodicFieldLine():
         else:
             phi0 = 0
 
-        Delta_phi = m * 2 * np.pi / nfp
         self.phi0 = phi0
+        Delta_phi = m * 2 * np.pi / nfp
         self.Delta_phi = Delta_phi
         self.phi = np.linspace(0, Delta_phi, nphi) + phi0
-        self.R, self.z = _integrate_field_line_cyl(field, R0, Z0, Delta_phi, tol=follow_tol, phi0=phi0, nphi=nphi)
-        self.x = self.R * np.cos(self.phi)
-        self.y = self.R * np.sin(self.phi)
-
-        if asserts:
-            # These asserts can sometimes fail because the field line has been
-            # followed nfp times longer than when the initial location was
-            # located, so exponentially growing errors can become large.
-            np.testing.assert_allclose(self.R[0], self.R[-1], atol=1e-7, rtol=1e-7)
-            np.testing.assert_allclose(self.z[0], self.z[-1], atol=1e-6, rtol=1e-7)
-            np.testing.assert_allclose(self.R[0], R0, atol=1e-14, rtol=1e-14)
-            np.testing.assert_allclose(self.z[0], Z0, atol=1e-14, rtol=1e-14)
 
     def to_vtk(self, filename):
         """Write the field line to a VTK file."""
@@ -785,8 +799,9 @@ class PeriodicFieldLine():
         field_periods_to_integrate = lcm(self.nfp, self.m)
 
         if field_periods_to_integrate == self.m:
-            # The field line we already calculated closes in real space, not
+            # The field line on the default grid closes in real space, not
             # merely in the Rz plane.
+            self.compute_R_z()
             x = self.x
             y = self.y
             z = self.z
@@ -810,6 +825,7 @@ class PeriodicFieldLine():
         
         This function also returns the intermediate quantity d_r_d_phi for testing.
         """
+        self.compute_R_z()
         dphi = self.phi[1] - self.phi[0]
         points = np.stack([self.x, self.y, self.z], axis=-1)
         self.field.set_points(points)
@@ -830,30 +846,50 @@ class PeriodicFieldLine():
         integral, _ = self._integral_A_dl()
         return integral
     
-    def get_R_Z(self, nphi):
-        """Return R and Z coordinates at nphi points along the periodic field line.
+    def get_R_z_on_new_grid(self, nphi):
+        """Return R and z coordinates at nphi uniformly-spaced points along the periodic field line.
         
-        The returned arrays will include the repeated point, i.e. the last point will be identical to the first point.
+        The returned arrays will include the repeated point, i.e. the last point will
+        be (almost) identical to the first point.
 
         Args:
             nphi: Number of points to return.
 
         Returns:
             R: Array of R coordinates.
-            Z: Array of Z coordinates.
+            z: Array of z coordinates.
         """
         return _integrate_field_line_cyl(
             self.field,
             self.R0,
             self.Z0,
-            self.Delta_phi_to_close, 
+            self.Delta_phi, 
             tol=self.follow_tol,
             phi0=self.phi0, 
             nphi=nphi,
         )
+    
+    def compute_R_z(self):
+        if self.solution_on_grid_is_available == True:
+            return
+        
+        self.R, self.z = self.get_R_z_on_new_grid(self.nphi)
+        self.x = self.R * np.cos(self.phi)
+        self.y = self.R * np.sin(self.phi)
+        self.solution_on_grid_is_available = True
 
-    def get_R_Z_at_phi(self, phi):
+        if self.asserts:
+            # These asserts can sometimes fail because the field line has been
+            # followed nfp times longer than when the initial location was
+            # located, so exponentially growing errors can become large.
+            np.testing.assert_allclose(self.R[0], self.R[-1], atol=1e-7, rtol=1e-7)
+            np.testing.assert_allclose(self.z[0], self.z[-1], atol=1e-6, rtol=1e-7)
+            np.testing.assert_allclose(self.R[0], self.R0, atol=1e-14, rtol=1e-14)
+            np.testing.assert_allclose(self.z[0], self.Z0, atol=1e-14, rtol=1e-14)
+
+    def get_R_z_at_phi(self, phi):
         """Get R and Z at a specified phi value."""
+        self.compute_R_z()
 
         # scipy requires that the last point _exactly_ matches the first point.
         R_for_spline = np.concatenate((self.R[:-1], [self.R[0]]))
