@@ -1,4 +1,5 @@
 import numpy as np
+from itertools import chain
 
 import simsoptpp as sopp
 from .curve import Curve
@@ -35,11 +36,23 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
             quadpoints = list(quadpoints)
         sopp.CurveRZFourier.__init__(self, quadpoints, order, nfp, stellsym)
         if dofs is None:
-            Curve.__init__(self, external_dof_setter=CurveRZFourier.set_dofs_impl,
-                           x0=self.get_dofs())
+            Curve.__init__(self, x0=self.get_dofs(), names=self._make_names(order, stellsym),
+                           external_dof_setter=CurveRZFourier.set_dofs_impl)
         else:
-            Curve.__init__(self, external_dof_setter=CurveRZFourier.set_dofs_impl,
-                           dofs=dofs)
+            Curve.__init__(self, dofs=dofs, 
+                           external_dof_setter=CurveRZFourier.set_dofs_impl)
+
+    def _make_names(self, order, stellsym):
+        r_names = ['rc(0)']
+        r_names += [f'rc({i})' for i in range(1, order + 1)]
+        if not stellsym:
+            r_names += [f'rs({i})' for i in range(1, order + 1)]
+        z_names = []
+        if not stellsym:
+            z_names += ['zc(0)']
+            z_names += [f'zc({i})' for i in range(1, order + 1)]
+        z_names += [f'zs({i})' for i in range(1, order + 1)]
+        return r_names + z_names
 
     def get_dofs(self):
         """
