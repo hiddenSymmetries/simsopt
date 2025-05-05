@@ -38,19 +38,15 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
             Curve.__init__(self, x0=self.get_dofs(), names=self._make_names(order, stellsym),
                            external_dof_setter=CurveRZFourier.set_dofs_impl)
         else:
-            Curve.__init__(self, dofs=dofs, 
+            Curve.__init__(self, dofs=dofs,
                            external_dof_setter=CurveRZFourier.set_dofs_impl)
 
     def _make_names(self, order, stellsym):
-        r_names = ['rc(0)']
-        r_names += [f'rc({i})' for i in range(1, order + 1)]
+        r_names = [f'rc({i})' for i in range(0, order + 1)]
+        z_names = [f'zs({i})' for i in range(1, order + 1)]
         if not stellsym:
             r_names += [f'rs({i})' for i in range(1, order + 1)]
-        z_names = []
-        if not stellsym:
-            z_names += ['zc(0)']
-            z_names += [f'zc({i})' for i in range(1, order + 1)]
-        z_names += [f'zs({i})' for i in range(1, order + 1)]
+            z_names = [f'zc({i})' for i in range(0, order + 1)] + z_names
         return r_names + z_names
 
     def get_dofs(self):
