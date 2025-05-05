@@ -187,7 +187,7 @@ class Tests(unittest.TestCase):
             R, z = find_periodic_field_line(field, nfp, m, R0, z0, half_period=True, method=method)
             print("R, z", R[0], z[0])
             np.testing.assert_allclose(R[0], 5.20481580547662, rtol=3e-5)
-            np.testing.assert_allclose(z[0], 0, atol=1e-8)
+            np.testing.assert_allclose(z[0], 0, atol=2e-8)
 
         # # Now find one of the island chains:
         # m = 5

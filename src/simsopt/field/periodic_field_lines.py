@@ -478,7 +478,7 @@ def _pseudospectral_jacobian(x, n, D, phi, field, force_z0=False):
     """
     R = x[0:n]
     z = x[n:2 * n]
-    print('jacobian eval ')
+    # print(' pseudospectral Jacobian eval ')
     eval_points = np.stack([R, phi, z], axis=-1)
     # In the next line, for some reason there is an error if we try field.set_points_cyl(eval_points)
     MagneticField.set_points_cyl(field, eval_points)
@@ -600,7 +600,6 @@ def _find_periodic_field_line_pseudospectral(
     # )
 
     # Establish initial condition:
-    print("type(R0), type(z0)", type(R0), type(z0))
     if isinstance(R0, (list, np.ndarray)) and isinstance(z0, (list, np.ndarray)):
         if len(R0) != nphi or len(z0) != nphi:
             raise ValueError(f"Length of R0 and z0 must match nphi = {nphi}. Got {len(R0)} and {len(z0)} instead.")
@@ -626,16 +625,15 @@ def _find_periodic_field_line_pseudospectral(
         tol=solve_tol,
         args=(nphi, D, phi, field, force_z0),
         jac=_pseudospectral_jacobian,
-        method='lm',
-        options={'maxiter':1000},
+        # method='lm',
+        # options={'maxiter':1000},
     )
     R = sol.x[0:nphi]
     z = sol.x[nphi:2 * nphi]
 
-    residual = sol.fun
-    print('Residual: ', np.max(np.abs(residual)))
+    # print('  Pseudospectral field line solve residual: ', np.max(np.abs(sol.fun)))
 
-    print(sol)
+    # print(sol)
     return R, z
 
 
@@ -756,6 +754,16 @@ class PeriodicFieldLine():
 
         self.nphi = nphi
 
+        if half_period:
+            phi0 = np.pi / nfp
+        else:
+            phi0 = 0
+
+        self.phi0 = phi0
+        Delta_phi = m * 2 * np.pi / nfp
+        self.Delta_phi = Delta_phi
+        self.phi = np.linspace(0, Delta_phi, nphi) + phi0
+
         R0, z0 = find_periodic_field_line(
             field,
             nfp,
@@ -776,20 +784,11 @@ class PeriodicFieldLine():
             self.solution_on_grid_is_available = True
             self.R = np.concatenate((R0, [R0[0]]))
             self.z = np.concatenate((z0, [z0[0]]))
+            self.x = self.R * np.cos(self.phi)
+            self.y = self.R * np.sin(self.phi)
         else:
             self.R0 = R0
             self.z0 = z0
-
-        # Now get R and z along equally spaced phi points:
-        if half_period:
-            phi0 = np.pi / nfp
-        else:
-            phi0 = 0
-
-        self.phi0 = phi0
-        Delta_phi = m * 2 * np.pi / nfp
-        self.Delta_phi = Delta_phi
-        self.phi = np.linspace(0, Delta_phi, nphi) + phi0
 
     def to_vtk(self, filename):
         """Write the field line to a VTK file."""
