@@ -631,16 +631,10 @@ class CoilForcesTest(unittest.TestCase):
                                             sum([TVE(coils[i], coils+coils2, a=a) for i in range(len(coils))]),
                                             LpCurveTorque(coils, coils2, regularization_list,
                                                           p=p, threshold=threshold, downsample=downsample),
-                                            sum([LpCurveTorque(coils[i], coils+coils2, regularization_list[i],
-                                                               p=p, threshold=threshold, downsample=downsample) for i in range(len(coils))]),
                                             SquaredMeanTorque(coils, coils2, downsample=downsample),
-                                            sum([SquaredMeanTorque(coils[i], coils+coils2, downsample=downsample) for i in range(len(coils))]),
                                             LpCurveForce(coils, coils2, regularization_list,
                                                          p=p, threshold=threshold, downsample=downsample),
-                                            sum([LpCurveForce(coils[i], coils+coils2, regularization_list[i],
-                                                              p=p, threshold=threshold, downsample=downsample) for i in range(len(coils))]),
                                             SquaredMeanForce(coils, coils2, downsample=downsample),
-                                            sum([SquaredMeanForce(coils[i], coils+coils2, downsample=downsample) for i in range(len(coils))]),
                                         ]
                                         dofs = np.copy(LpCurveTorque(coils, coils2, regularization_list,
                                                                      p=p, threshold=threshold, downsample=downsample).x)

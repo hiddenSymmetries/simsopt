@@ -228,7 +228,7 @@ outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
 cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
 kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
 msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
-jforce_string = ", ".join(f"{J.J():.2e}" for J in Jforce)
+jforce_string = f"{Jforce.J():.2e}"
 force_string = ", ".join(f"{f:.2e}" for f in force)
 outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}], Jforce=[{jforce_string}], force=[{force_string}]"
 outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"

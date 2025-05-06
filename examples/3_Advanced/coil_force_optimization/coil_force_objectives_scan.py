@@ -135,6 +135,7 @@ Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 Jlength = QuadraticPenalty(sum(Jls), LENGTH_TARGET)
+regularization_list = [regularization_circ(a) for i in range(ncoils)]
 
 if sys.argv[1] == 'SquaredMeanForce':
     Jforce = SquaredMeanForce(base_coils, coils)
@@ -143,19 +144,19 @@ elif sys.argv[1] == 'SquaredMeanTorque':
 elif sys.argv[1] == 'LpCurveForce':
     print('If user did not specify the threshold as the third command line argument, it will be set to zero ')
     try:
-        Jforce = LpCurveForce(base_coils, coils, regularization_circ(a), p=2, threshold=float(sys.argv[3]))
+        Jforce = LpCurveForce(base_coils, coils, regularization_list, p=2, threshold=float(sys.argv[3]))
     except:
-        Jforce = LpCurveForce(base_coils, coils, regularization_circ(a), p=2, threshold=0.0)
+        Jforce = LpCurveForce(base_coils, coils, regularization_list, p=2, threshold=0.0)
 elif sys.argv[1] == 'LpCurveTorque':
     print('If user did not specify the threshold as the third command line argument, it will be set to zero ')
     try:
-        Jforce = LpCurveTorque(base_coils, coils, regularization_circ(a), p=2, threshold=float(sys.argv[3]))
+        Jforce = LpCurveTorque(base_coils, coils, regularization_list, p=2, threshold=float(sys.argv[3]))
     except:
-        Jforce = LpCurveTorque(base_coils, coils, regularization_circ(a), p=2, threshold=0.0)
+        Jforce = LpCurveTorque(base_coils, coils, regularization_list, p=2, threshold=0.0)
 elif sys.argv[1] == 'TVE':
-    Jforce = [TVE(c, coils, a=a) for c in base_coils]
+    Jforce = sum([TVE(c, coils, a=a) for c in base_coils])
 elif sys.argv[1] == 'NetFluxes':
-    Jforce = [NetFluxes(c, coils) for c in base_coils]
+    Jforce = sum([NetFluxes(c, coils) for c in base_coils])
 else:
     print('User did not input a valid Force/Torque objective. Defaulting to no force term')
     FORCE_WEIGHT = 1e-100
@@ -172,7 +173,7 @@ JF = Jf \
     + CS_WEIGHT * Jcsdist \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
-    + FORCE_WEIGHT * sum(Jforce)
+    + FORCE_WEIGHT * Jforce
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -193,13 +194,13 @@ def fun(dofs):
     length_val = LENGTH_WEIGHT.value * Jlength.J()
     cc_val = CC_WEIGHT * Jccdist.J()
     cs_val = CS_WEIGHT * Jcsdist.J()
-    forces_val = FORCE_WEIGHT.value * sum(J.J() for J in Jforce)
+    forces_val = FORCE_WEIGHT.value * Jforce.J()
     valuestr = f"J={J:.2e}, Jf={Jf.J():.2e}"
     valuestr += f", LenObj={length_val:.2e}"
     valuestr += f", ccObj={cc_val:.2e}"
     valuestr += f", csObj={cs_val:.2e}"
     valuestr += f", forceObj={forces_val:.2e}"
-    outstr += f", F={sum(J.J() for J in Jforce):.2e}"
+    outstr += f", F={Jforce.J():.2e}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
     print(valuestr)
