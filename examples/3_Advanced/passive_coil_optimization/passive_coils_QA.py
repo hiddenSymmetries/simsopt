@@ -239,27 +239,38 @@ linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 # Passive coils are ONLY compatible with the "" force/torque objectives
 # and MUST be passed in the psc_array argument for the Jacobian to be correct!
 all_base_coils = base_coils + base_coils_TF
-other_coils = [c for c in coils + coils_TF if c not in all_base_coils]
-regularization_list = [regularization_rect(aa, bb) for _ in base_coils] + \
-    [regularization_rect(a, b) for _ in base_coils_TF]
-regularization_list2 = [regularization_rect(aa, bb) for _ in coils if c not in base_coils] + \
-    [regularization_rect(a, b) for _ in coils_TF if c not in base_coils_TF]
-Jforce = LpCurveForce(all_base_coils, other_coils,
-                      regularization_list, regularization_list2,
+other_coils = [c for c in coils if c not in base_coils]
+other_TF_coils = [c for c in coils_TF if c not in base_coils_TF]
+regularization_list = [regularization_rect(aa, bb) for _ in base_coils] 
+regularization_list_TF = [regularization_rect(a, b) for _ in base_coils_TF]
+Jforce = LpCurveForce(base_coils, other_coils,
+                      regularization_list,
                       p=4, downsample=1,
                       psc_array=psc_array
-                      )
-Jforce2 = SquaredMeanForce(all_base_coils, other_coils,
+                      ) + LpCurveForce(base_coils_TF, other_coils,
+                    regularization_list_TF,
+                    p=4, downsample=1,
+                    psc_array=psc_array
+                    )
+Jforce2 = SquaredMeanForce(base_coils, other_coils,
+                           psc_array=psc_array
+                           ) + SquaredMeanForce(base_coils_TF, other_coils,
                            psc_array=psc_array
                            )
 
 # Errors creep in when downsample = 2
-Jtorque = LpCurveTorque(all_base_coils, other_coils,
-                        regularization_list, regularization_list2,
+Jtorque = LpCurveTorque(base_coils, other_coils,
+                        regularization_list,
+                        p=2, downsample=1,
+                        psc_array=psc_array
+                        ) + LpCurveTorque(base_coils_TF, other_coils,
+                        regularization_list_TF,
                         p=2, downsample=1,
                         psc_array=psc_array
                         )
-Jtorque2 = SquaredMeanTorque(all_base_coils, other_coils,
+Jtorque2 = SquaredMeanTorque(base_coils, other_coils,
+                             psc_array=psc_array
+                             ) + SquaredMeanTorque(base_coils_TF, other_coils,
                              psc_array=psc_array
                              )
 
