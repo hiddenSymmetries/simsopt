@@ -227,16 +227,17 @@ class QuasisymmetryTests(unittest.TestCase):
     def test_boozer_lasymSimple(self):
         """Check that we are close to precalculated results.
         For a stellarator assymmetric config with less-used normalization flags to increase code coverage."""
-        v = Vmec(os.path.join(TEST_DIR, "input.lasymSimple"))
-        b = Boozer(v, mpol=32, ntor=16)
-        b.register(0.5) # for code coverage
-        J = Quasisymmetry(b, 0.5, 1, 0, "symmetric", "stellopt").J()
-        print(J[0])
-        np.testing.assert_allclose(J[0], -3.270370101328578)
-        J = Quasisymmetry(b, 0.5, 1, 0, "B00", "stellopt_ornl").J()
-        np.testing.assert_allclose(J, np.array([0.80891045]))
-        surfs = b.bx.compute_surfs
-        self.assertEqual(surfs[0], 49)
-        
+        with ScratchDir("."):
+            v = Vmec(os.path.join(TEST_DIR, "input.lasymSimple"))
+            b = Boozer(v, mpol=32, ntor=16)
+            b.register(0.5) # for code coverage
+            J = Quasisymmetry(b, 0.5, 1, 0, "symmetric", "stellopt").J()
+            print(J[0])
+            np.testing.assert_allclose(J[0], -3.270370101328578)
+            J = Quasisymmetry(b, 0.5, 1, 0, "B00", "stellopt_ornl").J()
+            np.testing.assert_allclose(J, np.array([0.80891045]))
+            surfs = b.bx.compute_surfs
+            self.assertEqual(surfs[0], 49)
+
 if __name__ == "__main__":
     unittest.main()
