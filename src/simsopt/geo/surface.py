@@ -791,13 +791,15 @@ class Surface(Optimizable):
 
     def arclength_poloidal_angle(self):
         """
-        Computes poloidal angle based on arclenth along a surface at
-        constant phi. The resulting angle is in the range [0,1]. This is required
-        for evaluating the adjoint shape gradient for free-boundary calculations.
+        Computes a poloidal (angle) coordinate θ on a surface for which 
+        the arclength ∂|r|/∂θ is independent of θ in each φ plane.
+        In other words, this function computes the uniform-arclength
+        poloidal coordinate. The returned poloidal coordinate is in the
+        range [0,1), and is used in methods evaluating the adjoint shape gradient.
 
         Returns:
             2d array of shape ``(numquadpoints_phi, numquadpoints_theta)``
-            containing the arclength poloidal angle
+            containing the new poloidal angle
         """
         gamma = self.gamma()
         nphi = gamma.shape[0]

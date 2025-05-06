@@ -83,8 +83,8 @@ class Surface {
         void least_squares_fit(Array& target_values);
         void fit_to_curve(Curve<Array>& curve, double radius, bool flip_theta);
         void scale(double scale);
-        void extend_via_normal(double scale);
-        void extend_via_projected_normal(double scale);
+        void _extend_via_normal_for_nonuniform_phi(double distance);
+        void extend_via_projected_normal(double distance);
 
         void invalidate_cache() {
 
