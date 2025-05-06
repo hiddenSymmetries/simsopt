@@ -453,7 +453,6 @@ class CoilForcesTest(unittest.TestCase):
         np.testing.assert_allclose(objective, objective2, rtol=1e-6)
 
         # # Test LpCurveForce
-        regularization_list = [regularization for _ in coils]
         objective = 0.0
         objective2 = 0.0
         objective_alt = 0.0
@@ -544,7 +543,6 @@ class CoilForcesTest(unittest.TestCase):
 
     def test_force_and_torque_objectives_with_different_quadpoints(self):
         """Check that force and torque objectives work with coils having different numbers of quadrature points."""
-        nfp = 2
         I = 1.7e4
         regularization = regularization_circ(0.05)
         # Create two coils with different numbers of quadrature points
@@ -632,20 +630,20 @@ class CoilForcesTest(unittest.TestCase):
                                             sum([NetFluxes(coils[i], coils+coils2) for i in range(len(coils))]),
                                             sum([TVE(coils[i], coils+coils2, a=a) for i in range(len(coils))]),
                                             LpCurveTorque(coils, coils2, regularization_list,
-                                                         p=p, threshold=threshold, downsample=downsample),
+                                                          p=p, threshold=threshold, downsample=downsample),
                                             sum([LpCurveTorque(coils[i], coils+coils2, regularization_list[i],
-                                                         p=p, threshold=threshold, downsample=downsample) for i in range(len(coils))]),
+                                                               p=p, threshold=threshold, downsample=downsample) for i in range(len(coils))]),
                                             SquaredMeanTorque(coils, coils2, downsample=downsample),
                                             sum([SquaredMeanTorque(coils[i], coils+coils2, downsample=downsample) for i in range(len(coils))]),
                                             LpCurveForce(coils, coils2, regularization_list,
                                                          p=p, threshold=threshold, downsample=downsample),
-                                            sum([LpCurveForce(coils[i], coils+coils2, regularization_list[i], 
+                                            sum([LpCurveForce(coils[i], coils+coils2, regularization_list[i],
                                                               p=p, threshold=threshold, downsample=downsample) for i in range(len(coils))]),
                                             SquaredMeanForce(coils, coils2, downsample=downsample),
                                             sum([SquaredMeanForce(coils[i], coils+coils2, downsample=downsample) for i in range(len(coils))]),
                                         ]
                                         dofs = np.copy(LpCurveTorque(coils, coils2, regularization_list,
-                                                         p=p, threshold=threshold, downsample=downsample).x)
+                                                                     p=p, threshold=threshold, downsample=downsample).x)
                                         h = np.ones_like(dofs)
                                         for J in objectives:
                                             print(f"ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}, p={p}, threshold={threshold}, reg={reg_name}, downsample={downsample}, objective={type(J).__name__}")

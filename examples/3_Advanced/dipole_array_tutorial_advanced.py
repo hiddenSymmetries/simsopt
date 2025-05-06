@@ -258,7 +258,7 @@ FORCE_WEIGHT2 = 0.0
 TORQUE_WEIGHT = 0.0
 TORQUE_WEIGHT2 = 0.0
 regularization_list = [regularization_rect(aa, bb) for i in range(len(base_coils))] + \
-      [regularization_rect(a, b) for i in range(len(base_coils_TF))]
+    [regularization_rect(a, b) for i in range(len(base_coils_TF))]
 # Only compute the force and torque on the unique set of coils, otherwise
 # you are doing too much work. Also downsample the coil quadrature points
 # by a factor of 2 to save compute.

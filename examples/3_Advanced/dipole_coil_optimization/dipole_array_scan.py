@@ -180,6 +180,7 @@ if TORQUE_WEIGHT.value > 0.0:
 if TORQUE_WEIGHT2.value > 0.0:
     JF += TORQUE_WEIGHT2 * Jtorque2
 
+
 def fun(dofs):
     JF.x = dofs
     J = JF.J()

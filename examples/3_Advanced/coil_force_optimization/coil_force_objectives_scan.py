@@ -137,9 +137,9 @@ Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 Jlength = QuadraticPenalty(sum(Jls), LENGTH_TARGET)
 
 if sys.argv[1] == 'SquaredMeanForce':
-    Jforce = [SquaredMeanForce(c, coils) for c in base_coils]
+    Jforce = SquaredMeanForce(base_coils, coils)
 elif sys.argv[1] == 'SquaredMeanTorque':
-    Jforce = [SquaredMeanTorque(c, coils) for c in base_coils]
+    Jforce = SquaredMeanTorque(base_coils, coils)
 elif sys.argv[1] == 'LpCurveForce':
     print('If user did not specify the threshold as the third command line argument, it will be set to zero ')
     try:

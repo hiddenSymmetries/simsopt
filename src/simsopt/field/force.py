@@ -1765,6 +1765,7 @@ class NetFluxes(Optimizable):
 def squared_mean_force_pure(gammas, gammas2, gammadashs, gammadashs2, currents, currents2, downsample):
     all_lengths = [g.shape[0] for g in gammas] + [g2.shape[0] for g2 in gammas2]
     min_npts = min(all_lengths)
+
     def subsample(arr, target_n):
         arr = jnp.asarray(arr)
         n = arr.shape[0]
@@ -1963,6 +1964,7 @@ def lp_force_pure(
     """
     all_lengths = [g.shape[0] for g in gammas] + [g2.shape[0] for g2 in gammas2]
     min_npts = min(all_lengths)
+
     def subsample(arr, target_n):
         arr = jnp.asarray(arr)
         n = arr.shape[0]
@@ -2012,6 +2014,7 @@ def lp_force_pure(
                 operand=None
             )
             return B
+
         def biot_savart_from_j2(j2):
             return jnp.sum(jnp.cross(gammadashs2[j2], pt - gammas2[j2]) / (jnp.linalg.norm(pt - gammas2[j2] + eps, axis=1) ** 3)[:, None], axis=0) * currents2[j2]
         B_mutual1 = jnp.sum(vmap(biot_savart_from_j)(jnp.arange(n1)), axis=0)
@@ -2177,7 +2180,7 @@ class LpCurveForce(Optimizable):
 
 
 def lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs,
-                quadpoints, currents, currents2, regularizations, p, threshold, downsample):
+                   quadpoints, currents, currents2, regularizations, p, threshold, downsample):
     r"""
     Pure function for computing the mixed lp torque on a coil.
 
@@ -2201,6 +2204,7 @@ def lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs,
     """
     all_lengths = [g.shape[0] for g in gammas] + [g2.shape[0] for g2 in gammas2]
     min_npts = min(all_lengths)
+
     def subsample(arr, target_n):
         arr = jnp.asarray(arr)
         n = arr.shape[0]
@@ -2276,6 +2280,7 @@ def lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs,
 
     return jnp.sum(jnp.sum(jnp.maximum(obj1 - threshold, 0) ** p * gammadash_norms[:, :, 0])) / npts1 * (1. / p)
 
+
 class LpCurveTorque(Optimizable):
     r"""Optimizable class to minimize the net Lorentz force on a coil.
 
@@ -2301,6 +2306,7 @@ class LpCurveTorque(Optimizable):
         downsample (int): Downsample factor for the objective function.
         psc_array (PSCArray): PSC coil array to use for the objective function.
     """
+
     def __init__(self, allcoils, allcoils2, regularizations, p=2.0, threshold=0.0, downsample=1, psc_array=None):
         if not isinstance(allcoils, list):
             allcoils = [allcoils]
@@ -2426,6 +2432,7 @@ class LpCurveTorque(Optimizable):
 def squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents, currents2, downsample):
     all_lengths = [g.shape[0] for g in gammas] + [g2.shape[0] for g2 in gammas2]
     min_npts = min(all_lengths)
+
     def subsample(arr, target_n):
         arr = jnp.asarray(arr)
         n = arr.shape[0]

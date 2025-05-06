@@ -357,7 +357,7 @@ linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 
 # Passive MUST be passed in the psc_array argument for the Jacobian to be correct!
 all_base_coils = base_coils + base_coils_TF
-other_coils = [c for c in coils + coils_TF if c not in all_base_coils] # all other coils
+other_coils = [c for c in coils + coils_TF if c not in all_base_coils]  # all other coils
 regularization_list = [regularization_rect(aa, bb) for _ in base_coils] + [regularization_rect(a, b) for _ in base_coils_TF]
 Jforce = LpCurveForce(all_base_coils, other_coils,
                       regularization_list,
