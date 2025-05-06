@@ -142,7 +142,7 @@ class InitializedFromWout(unittest.TestCase):
         bs = BiotSavart(coils)
         bs.set_points(np.array([[vmec.wout.Rmajor_p, 0, 0]]))
         B = bs.B()
-        print("B:", B)
+        #print("B:", B)
         self.assertGreater(B[0, 1], 0)
 
     def test_error_on_rerun(self):
@@ -367,7 +367,7 @@ class VmecTests(unittest.TestCase):
                 # The first evaluation should succeed.
                 # f = prob.f()
                 f = prob.residuals()
-                print(f[0], f[1])
+                #print(f[0], f[1])
                 correct_f = [-0.004577338528148067, 2.8313872701632925]
                 # Don't worry too much about accuracy here.
                 np.testing.assert_allclose(f, correct_f, rtol=0.1)
@@ -378,14 +378,14 @@ class VmecTests(unittest.TestCase):
                 vmec.boundary.set_rc(0, 0, 0.2)
                 vmec.need_to_run_code = True
                 f = prob.residuals()
-                print(f)
+                #print(f)
                 np.testing.assert_allclose(f, np.full(2, fail_val))
 
                 # Restore a reasonable boundary shape. VMEC should work again.
                 vmec.boundary.set_rc(0, 0, r00)
                 vmec.need_to_run_code = True
                 f = prob.residuals()
-                print(f)
+                #print(f)
                 np.testing.assert_allclose(f, correct_f, rtol=0.1)
 
                 # Now set a self-intersecting boundary shape. This causes VMEC
@@ -395,14 +395,14 @@ class VmecTests(unittest.TestCase):
                 vmec.boundary.set_rc(1, 3, 0.5)
                 vmec.need_to_run_code = True
                 f = prob.residuals()
-                print(f)
+                #print(f)
                 np.testing.assert_allclose(f, np.full(2, fail_val))
 
                 # Restore a reasonable boundary shape. VMEC should work again.
                 vmec.boundary.set_rc(1, 3, orig_mode)
                 vmec.need_to_run_code = True
                 f = prob.residuals()
-                print(f)
+                #print(f)
                 np.testing.assert_allclose(f, correct_f, rtol=0.1)
 
     def test_pressure_profile(self):
@@ -689,21 +689,26 @@ class VmecTests(unittest.TestCase):
 
 
     def test_update_boundary(self):
+        """Test that the VMEC is able to update the boundary correctly.
+        Runs with very few iterations for quick CI.
+        Previously, get_max_mn() would not updated immediately upon
+        """
         with ScratchDir("."):
             v = Vmec(os.path.join(TEST_DIR,'input.li383_low_res'))
+            v.indata.niter_array[:2] = [100, 0]
+            v.indata.ftol_array[0] = 1e-4
             mn1 = v.get_max_mn()
             A1 = v.aspect()
-            new_boundary = SurfaceRZFourier.from_vmec_input(os.path.join(TEST_DIR,'input.LandremanSenguptaPlunk_section5p3'))
-            v.boundary = new_boundary
-            mn2 = v.get_max_mn()
-            A2 = v.aspect()
-            self.assertAlmostEqual(A1, 4.3549675967508055, places=7)
-            self.assertAlmostEqual(A2, 9.716584854150696, places=7)
-            self.assertEqual(mn1, (6,4))
-            self.assertEqual(mn2, (4,3))
             nfp5_boundary = SurfaceRZFourier.from_vmec_input(os.path.join(TEST_DIR,'input.W7-X_standard_configuration'))
             v.boundary = nfp5_boundary
-            print(v.nfp)
+            mn2 = v.get_max_mn()
+            A2 = v.aspect()
+            self.assertAlmostEqual(A1, 4.3549675967508055, places=7, err_msg='Aspect ratio calculation does not match precalculated result.')
+            self.assertAlmostEqual(A2, 10.758596041584697, places=7, err_msg='Aspect ratio calculation does not match precalculated result.')
+            self.assertEqual(mn1, (4,3), err_msg='max_mn does not match precalculated results')
+            self.assertEqual(mn2, (11,12), err_msg='max_mn not recalculated correctly after boundary updated')
+            self.assertEqual(v.indata.nfp, 5, err_msg='nfp not updated correctly when boundary updated.')
+            
             
 
     @unittest.skip("Free-boundary VMEC segfaults on my laptop")
@@ -754,6 +759,7 @@ class VmecTests(unittest.TestCase):
             vmec.indata.mpol = 4
             vmec.indata.ntor = 4
             vmec.indata.ns_array[2] = 0
+            vmec.indata.niter_array[:2] = [100, 0]
             ftol = 1e-10
             vmec.indata.ftol_array[1] = ftol
             vmec.run()

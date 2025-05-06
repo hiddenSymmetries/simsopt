@@ -515,7 +515,6 @@ class Vmec(Optimizable):
         vi = vmec.vmec_input  # Shorthand
         # Convert boundary to RZFourier if needed:
         boundary_RZFourier = self.boundary.to_RZFourier()
-        print(boundary_RZFourier.nfp)
         vi.nfp = boundary_RZFourier.nfp
         # VMEC does not allow mpol or ntor above 101:
         if vi.mpol > 101:
@@ -873,25 +872,28 @@ class Vmec(Optimizable):
         Look through the rbc and zbs data in fortran to determine the
         largest m and n for which rbc or zbs is nonzero.
         """
+        
+        self.set_indata() # needed in case the boundary has changed
+        vi = vmec.vmec_input # from the singleton
         max_m = 0
         max_n = 0
         for m in range(1, 101):
             for n in range(1, 101):
-                if np.abs(vmec.vmec_input.rbc[101 + n, m]) > 0 \
-                        or np.abs(vmec.vmec_input.zbs[101 + n, m]) > 0 \
-                        or np.abs(vmec.vmec_input.rbs[101 + n, m]) > 0 \
-                        or np.abs(vmec.vmec_input.zbc[101 + n, m]) > 0 \
-                        or np.abs(vmec.vmec_input.rbc[101 - n, m]) > 0 \
-                        or np.abs(vmec.vmec_input.zbs[101 - n, m]) > 0 \
-                        or np.abs(vmec.vmec_input.rbs[101 - n, m]) > 0 \
-                        or np.abs(vmec.vmec_input.zbc[101 - n, m]) > 0:
+                if np.abs(vi.rbc[101 + n, m]) > 0 \
+                        or np.abs(vi.zbs[101 + n, m]) > 0 \
+                        or np.abs(vi.rbs[101 + n, m]) > 0 \
+                        or np.abs(vi.zbc[101 + n, m]) > 0 \
+                        or np.abs(vi.rbc[101 - n, m]) > 0 \
+                        or np.abs(vi.zbs[101 - n, m]) > 0 \
+                        or np.abs(vi.rbs[101 - n, m]) > 0 \
+                        or np.abs(vi.zbc[101 - n, m]) > 0:
                     max_m = np.max((max_m, m))
                     max_n = np.max((max_n, n))
         # It may happen that mpol or ntor exceed the max_m or max_n
         # according to rbc/zbs. In this case, go with the larger
         # value.
-        max_m = np.max((max_m, vmec.vmec_input.mpol))
-        max_n = np.max((max_n, vmec.vmec_input.ntor))
+        max_m = np.max((max_m, vi.mpol))
+        max_n = np.max((max_n, vi.ntor))
         return (max_m, max_n)
 
     def __repr__(self):
