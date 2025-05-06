@@ -24,6 +24,7 @@ from simsopt.solve.serial import least_squares_serial_solve
 from simsopt.util.constants import ELEMENTARY_CHARGE
 
 from simsopt.mhd.vmec import Vmec
+from simsopt.configs import get_w7x_data
 
 from . import TEST_DIR
 
@@ -686,6 +687,89 @@ class VmecTests(unittest.TestCase):
                 vmec3 = Vmec(outfilename)
                 np.testing.assert_allclose(rmnc, vmec3.wout.rmnc, atol=1e-10)
 
+
+    def test_update_boundary(self):
+        with ScratchDir("."):
+            v = Vmec(os.path.join(TEST_DIR,'input.li383_low_res'))
+            mn1 = v.get_max_mn()
+            A1 = v.aspect()
+            new_boundary = SurfaceRZFourier.from_vmec_input(os.path.join(TEST_DIR,'input.LandremanSenguptaPlunk_section5p3'))
+            v.boundary = new_boundary
+            mn2 = v.get_max_mn()
+            A2 = v.aspect()
+            self.assertAlmostEqual(A1, 4.3549675967508055, places=7)
+            self.assertAlmostEqual(A2, 9.716584854150696, places=7)
+            self.assertEqual(mn1, (6,4))
+            self.assertEqual(mn2, (4,3))
+            nfp5_boundary = SurfaceRZFourier.from_vmec_input(os.path.join(TEST_DIR,'input.W7-X_standard_configuration'))
+            v.boundary = nfp5_boundary
+            print(v.nfp)
+            
+
+    @unittest.skip("Free-boundary VMEC segfaults on my laptop")
+    def test_write_input_free_boundary(self):
+        """ We do not have any free boundary input examples,
+        so we create a free boundary example from a fixed boundary case.
+
+        This is based on examples/2_Intermediate/free_boundary_vmec.py
+        """
+        with ScratchDir("."):
+            # Load in some coils
+            curves, currents, magnetic_axis = get_w7x_data()
+            nfp = 5
+            coils = coils_via_symmetries(curves, currents, nfp, True)
+            bs = BiotSavart(coils)
+
+            # Number of grid points in the toroidal angle:
+            nphi = 24
+
+            mgrid_file = "mgrid.w7x.nc"
+            bs.to_mgrid(
+                mgrid_file,
+                nr=64,
+                nz=65,
+                nphi=nphi,
+                rmin=4.5,
+                rmax=6.3,
+                zmin=-1.0,
+                zmax=1.0,
+                nfp=nfp,
+            )
+
+            # Create a VMEC object from an input file:
+            input_file = str(TEST_DIR / "input.W7-X_standard_configuration")
+
+            vmec = Vmec(input_file)
+
+            # That input file was for fixed-boundary. We need to change some of 
+            # the vmec input parameters for a free-boundary calculation:
+            vmec.indata.lfreeb = True
+            vmec.indata.mgrid_file = mgrid_file
+            vmec.indata.nzeta = nphi
+            # All the coils are written into a single "current group", so we only need to
+            # set a single entry in vmec's "extcur" array:
+            vmec.indata.extcur[0] = 1.0
+
+            # Lower the resolution, so the example runs faster:
+            vmec.indata.mpol = 4
+            vmec.indata.ntor = 4
+            vmec.indata.ns_array[2] = 0
+            ftol = 1e-10
+            vmec.indata.ftol_array[1] = ftol
+            vmec.run()
+            newfile = 'input.test'
+            vmec.write_input(newfile)
+            rmnc = np.copy(vmec.wout.rmnc)
+
+            vmec = Vmec(newfile)
+            vmec.run()
+            np.testing.assert_allclose(rmnc, vmec.wout.rmnc, atol=1e-10)
+            self.assertEqual(vmec.indata.lfreeb, True)
+            self.assertAlmostEqual(vmec.indata.extcur[0], 1.0,places=13)
+            
+            
+
+            
     #def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):
         """
         This script implements the "1DOF_circularCrossSection_varyR0_targetVolume"
@@ -758,6 +842,9 @@ class VmecTests(unittest.TestCase):
 
         equil.finalize()
 """
+
+    
+
 
 if __name__ == "__main__":
     unittest.main()

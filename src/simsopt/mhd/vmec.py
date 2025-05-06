@@ -504,9 +504,9 @@ class Vmec(Optimizable):
     def set_indata(self):
         """
         Transfer data from simsopt objects to Vmec's fortran module data.
-        Presently, this function sets the boundary shape and magnetic
-        axis shape.  In the future, the input profiles will be set
-        here as well. This data transfer is performed before writing a
+        Presently, this function sets the boundary shape, magnetic
+        axis shape, and input profiles.  
+        This data transfer is performed before writing a
         Vmec input file or running Vmec. The boundary surface object
         converted to ``SurfaceRZFourier`` is returned.
         """
@@ -515,6 +515,8 @@ class Vmec(Optimizable):
         vi = vmec.vmec_input  # Shorthand
         # Convert boundary to RZFourier if needed:
         boundary_RZFourier = self.boundary.to_RZFourier()
+        print(boundary_RZFourier.nfp)
+        vi.nfp = boundary_RZFourier.nfp
         # VMEC does not allow mpol or ntor above 101:
         if vi.mpol > 101:
             raise ValueError("VMEC does not allow mpol > 101")
