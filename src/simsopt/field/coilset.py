@@ -81,16 +81,18 @@ class CoilSet(Optimizable):
     def for_surface(cls, surf, coil_current=1e5, coils_per_period=5, nfp=None, current_constraint="fix_all", **kwargs): 
         """
         Create a CoilSet for a given surface. The coils are created using
-        :obj:`create_equally_spaced_curves` with the given parameters.
+        :py:func:`simsopt.geo.create_equally_spaced_curves` with the given parameters.
+
+        The keyword arguments ``coils_per_period``, ``order``, ``R0``, ``R1``,
+        ``factor``, and ``use_stellsym`` are passed to the
+        :py:func:`~simsopt.geo.create_equally_spaced_curves` function.
 
         Args:
             surf: The surface for which to create the coils
             total_current: the total current in the CoilSet
             coils_per_period: the number of coils per field period
             nfp: The number of field periods.
-            current_constraint: "fix_one" or "fix_all" or "free_all" 
-
-        Keyword Args (passed to the create_equally_spaced_curves function)
+            current_constraint: ``"fix_one"`` or ``"fix_all"`` or ``"free_all"``
             coils_per_period: The number of coils per field period
             order: The order of the Fourier expansion
             R0: major radius of a torus on which the initial coils are placed
@@ -136,13 +138,14 @@ class CoilSet(Optimizable):
     def reduce(self, target_function, nsv='nonzero'):
         """
         Return a ReducedCoilSet based on this CoilSet using the SVD of the mapping
-        given by target_function. 
+        given by target_function.
+
         Args:
-            nsv: The number of singular vectors to keep, integer or 'nonzero' (for all nonzero singular values)
             target_function: a function that takes a CoilSet and maps to a different space that is relevant for the optimization problem. 
-                The SVD will be calculated on the Jacobian of f: coilDOFs -> target
+                The SVD will be calculated on the Jacobian of f: coilDOFs -> target.
                 For example a function that calculates the fourier coefficients of the
                 normal field on the surface. 
+            nsv: The number of singular vectors to keep, integer or ``"nonzero"`` (for all nonzero singular values)
         """
         return ReducedCoilSet.from_function(self, target_function, nsv)
 
@@ -439,16 +442,17 @@ class ReducedCoilSet(CoilSet):
     def from_function(cls, coilset, target_function, nsv='nonzero'):
         """
         Reduce an existing CoilSet to a ReducedCoilSet using the SVD of the mapping
-        given by target_function. 
+        given by target_function.
+
         Args:
             coilset: The CoilSet to reduce
             target_function: a function that takes a CoilSet and maps to a different space that is relevant for the optimization problem. 
                 The SVD will be calculated on the Jacobian of f: coilDOFs -> target
                 For example a function that calculates the fourier coefficients of the
                 normal field on the surface. 
-            nsv: The number of singular values to keep, either an integer or 'nonzero'. defaults to 'nonzero'. 
+            nsv: The number of singular values to keep, either an integer or ``"nonzero"``. defaults to ``"nonzero"``.
                 If an integer is given, this number of largest singular values will be kept.
-                If 'nonzero', all nonzero singular values are kept.
+                If ``"nonzero"``, all nonzero singular values are kept.
         """
         optfunction = make_optimizable(target_function, coilset)
         fd = FiniteDifference(optfunction.J)
