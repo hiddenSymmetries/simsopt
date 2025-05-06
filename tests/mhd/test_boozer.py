@@ -54,8 +54,8 @@ class MockBoozXform():
         arr2 = arr1 + 1
         arr2[0] = 100
         self.bmnc_b = np.stack((arr1, arr2)).transpose()
-        print('bmnc_b:')
-        print(self.bmnc_b)
+        #print('bmnc_b:')
+        #print(self.bmnc_b)
         # print('booz_xform_found:', booz_xform_found)
 
 
@@ -231,20 +231,24 @@ class QuasisymmetryTests(unittest.TestCase):
         np.testing.assert_allclose(bmnc[:, 1], bmnc_ref[:, -1],
                                    atol=atol, rtol=rtol)
 
-    def test_boozer_lasymSimple(self):
-        """Check that we are close to precalculated results.
-        For a stellarator assymmetric config with less-used normalization flags to increase code coverage."""
+    def test_boozer_basic_non_stellsym(self):
+        """Check that we are close to precalculated quasisymmetry errors.
+        For a stellarator assymmetric configuration with less-used normalization flags to increase code coverage.
+        Also registers surfaces with a float instead of an iterable for code-coverage.
+        In practical code, this is redundant since the Quasisymmetry objective would register the needed surface automatically.
+        This is run for an unrealistically low number of iterations for the sake of speed."""
         with ScratchDir("."):
-            v = Vmec(os.path.join(TEST_DIR, "input.lasymSimple"))
+            v = Vmec(os.path.join(TEST_DIR, "input.basic_non_stellsym"))
+            v.indata.niter_array[:2] = [100, 0] # Low number of iterations
             b = Boozer(v, mpol=32, ntor=16)
-            b.register(0.5)  # for code coverage
-            J = Quasisymmetry(b, 0.5, 1, 0, "symmetric", "stellopt").J()
-            print(J[0])
-            np.testing.assert_allclose(J[0], -3.270370101328578)
-            J = Quasisymmetry(b, 0.5, 1, 0, "B00", "stellopt_ornl").J()
-            np.testing.assert_allclose(J, np.array([0.80891045]))
+            b.register(0.5)  # code coverage for the case where we register a float and not something iterable.
+            J = Quasisymmetry(b, s=0.5, helicity_m=1, helicity_n=0, normalization="symmetric", weight="stellopt").J()
+
+            np.testing.assert_allclose(J[0], -3.2704931879062826, err_msg='Weight "stellopt" for normalization "symmetric" does not match precalculated value for a non-stellarator symmetric configuration.')
+            J = Quasisymmetry(b, s=0.5, helicity_m=1, helicity_n=0, normalization="B00", weight="stellopt_ornl").J()
+            np.testing.assert_allclose(J[0], 0.8089189591823078, err_msg='Weight "stellopt_ornl" does not match precalculated value.')
             surfs = b.bx.compute_surfs
-            self.assertEqual(surfs[0], 49)
+            self.assertEqual(surfs[0], 49 err_msg='Surface index is not the expected value. Wrong surface is being used in the calculation.')
 
 
 if __name__ == "__main__":
