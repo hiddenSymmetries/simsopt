@@ -54,8 +54,8 @@ class MockBoozXform():
         arr2 = arr1 + 1
         arr2[0] = 100
         self.bmnc_b = np.stack((arr1, arr2)).transpose()
-        #print('bmnc_b:')
-        #print(self.bmnc_b)
+        # print('bmnc_b:')
+        # print(self.bmnc_b)
         # print('booz_xform_found:', booz_xform_found)
 
 
@@ -239,14 +239,19 @@ class QuasisymmetryTests(unittest.TestCase):
         This is run for an unrealistically low number of iterations for the sake of speed."""
         with ScratchDir("."):
             v = Vmec(os.path.join(TEST_DIR, "input.basic_non_stellsym"))
-            v.indata.niter_array[:2] = [100, 0] # Low number of iterations
+            v.indata.niter_array[:2] = [100, 0]  # Low number of iterations
             b = Boozer(v, mpol=32, ntor=16)
-            b.register(0.5)  # code coverage for the case where we register a float and not something iterable.
-            J = Quasisymmetry(b, s=0.5, helicity_m=1, helicity_n=0, normalization="symmetric", weight="stellopt").J()
+            # code coverage for the case where we register a float and not something iterable.
+            b.register(0.5)
+            J = Quasisymmetry(b, s=0.5, helicity_m=1, helicity_n=0,
+                              normalization="symmetric", weight="stellopt").J()
 
-            np.testing.assert_allclose(J[0], -3.2704931879062826, err_msg='Weight "stellopt" for normalization "symmetric" does not match precalculated value for a non-stellarator symmetric configuration.')
-            J = Quasisymmetry(b, s=0.5, helicity_m=1, helicity_n=0, normalization="B00", weight="stellopt_ornl").J()
-            np.testing.assert_allclose(J[0], 0.8089189591823078, err_msg='Weight "stellopt_ornl" does not match precalculated value.')
+            np.testing.assert_allclose(
+                J[0], -3.2704931879062826, err_msg='Weight "stellopt" for normalization "symmetric" does not match precalculated value for a non-stellarator symmetric configuration.')
+            J = Quasisymmetry(b, s=0.5, helicity_m=1, helicity_n=0,
+                              normalization="B00", weight="stellopt_ornl").J()
+            np.testing.assert_allclose(
+                J[0], 0.8089189591823078, err_msg='Weight "stellopt_ornl" does not match precalculated value.')
             surfs = b.bx.compute_surfs
             self.assertEqual(surfs[0], 49 err_msg='Surface index is not the expected value. Wrong surface is being used in the calculation.')
 
