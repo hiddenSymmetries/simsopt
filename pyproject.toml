@@ -53,8 +53,8 @@ keywords = [
 ]
 dependencies = [
     "numpy>=1.21",
-    "jax>=0.2.5",
-    "jaxlib>=0.1.56",
+    # "jax>=0.2.5",
+    # "jaxlib>=0.1.56",
     "scipy>=1.5.4",
     "Deprecated>=1.2.10",
     "monty>=2021.6.10",
@@ -71,7 +71,7 @@ dynamic = ["version"]
 SPEC = ["py_spec>=3.0.1", "pyoculus>=0.1.1", "h5py>=3.1.0"]
 MPI = ["mpi4py>=3.0.3"]
 VIS = ["vtk >= 8.1.2", "PyQt5", "plotly", "networkx"]
-DOCS = ["sphinx", "sphinx-rtd-theme"]
+DOCS = ["sphinx", "sphinx-rtd-theme", "sphinxcontrib-napoleon", "sphinx-autodoc-napoleon-typehints", "breathe"]
 
 [project.urls]
 Homepage = "https://github.com/hiddenSymmetries/simsopt"

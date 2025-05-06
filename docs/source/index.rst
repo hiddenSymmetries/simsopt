@@ -75,7 +75,6 @@ optimization.  Others include `STELLOPT
    source
    publications
    contributing
-   cpp
 
 .. toctree::
    :maxdepth: 3
@@ -94,7 +93,15 @@ optimization.  Others include `STELLOPT
    :caption: API reference
 
    Public functions and classes <simsopt_user>
-   Full listing (for developers) <simsopt>
+
+.. toctree::
+   :maxdepth: 3
+   :caption: For Developers
+
+   cpp
+   Full API listing <simsopt>
+   Simsopt++ C++ API <simsoptpp_cpp_api>
+   Simsopt++ Internals <simsoptpp_cpp_internal>
 
 Indices and tables
 ==================
