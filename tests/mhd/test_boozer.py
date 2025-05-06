@@ -8,12 +8,12 @@ from scipy.io import netcdf_file
 try:
     import booz_xform
 except ImportError:
-    booz_xform = None 
+    booz_xform = None
 
 try:
     import vmec
 except ImportError:
-    vmec = None 
+    vmec = None
 
 try:
     from mpi4py import MPI
@@ -27,7 +27,7 @@ if MPI is not None:
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
-#logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 
 class MockBoozXform():
@@ -92,26 +92,34 @@ class QuasisymmetryTests(unittest.TestCase):
         # bmnc:  [100 21 31 41 51 61 71 81 91 101 111 121 131 141 151 161 171 181]]
 
         # QA
-        s = 0; q = Quasisymmetry(b, s, 1, 0, "B00", "even")
-        np.testing.assert_allclose(q.J(), [2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18])
-        s = 1; q = Quasisymmetry(b, s, 1, 0, "B00", "even")
-        np.testing.assert_allclose(q.J(), [.21, .31, .41, .51, .71, .81, .91, 1.01, 1.21, 1.31, 1.41, 1.51, 1.71, 1.81])
-        s = (0, 1); q = Quasisymmetry(b, s, 1, 0, "B00", "even")
+        s = 0
+        q = Quasisymmetry(b, s, 1, 0, "B00", "even")
+        np.testing.assert_allclose(
+            q.J(), [2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18])
+        s = 1
+        q = Quasisymmetry(b, s, 1, 0, "B00", "even")
+        np.testing.assert_allclose(
+            q.J(), [.21, .31, .41, .51, .71, .81, .91, 1.01, 1.21, 1.31, 1.41, 1.51, 1.71, 1.81])
+        s = (0, 1)
+        q = Quasisymmetry(b, s, 1, 0, "B00", "even")
         np.testing.assert_allclose(q.J(), [2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18,
                                            .21, .31, .41, .51, .71, .81, .91, 1.01, 1.21, 1.31, 1.41, 1.51, 1.71, 1.81])
 
         # QP
         s = 0
         q = Quasisymmetry(b, s, 0, 1, "B00", "even")
-        np.testing.assert_allclose(q.J(), [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18])
+        np.testing.assert_allclose(
+            q.J(), [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18])
 
         # QH
         q = Quasisymmetry(b, s, 1, 1, "B00", "even")
-        np.testing.assert_allclose(q.J(), [2, 3, 4, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18])
+        np.testing.assert_allclose(
+            q.J(), [2, 3, 4, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18])
 
         # QH, opposite "chirality"
         q = Quasisymmetry(b, s, 1, -1, "B00", "even")
-        np.testing.assert_allclose(q.J(), [2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18])
+        np.testing.assert_allclose(
+            q.J(), [2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18])
 
     @unittest.skipIf(booz_xform is None, "booz_xform python package not found")
     def test_boozer_register(self):
@@ -223,14 +231,13 @@ class QuasisymmetryTests(unittest.TestCase):
         np.testing.assert_allclose(bmnc[:, 1], bmnc_ref[:, -1],
                                    atol=atol, rtol=rtol)
 
-
     def test_boozer_lasymSimple(self):
         """Check that we are close to precalculated results.
         For a stellarator assymmetric config with less-used normalization flags to increase code coverage."""
         with ScratchDir("."):
             v = Vmec(os.path.join(TEST_DIR, "input.lasymSimple"))
             b = Boozer(v, mpol=32, ntor=16)
-            b.register(0.5) # for code coverage
+            b.register(0.5)  # for code coverage
             J = Quasisymmetry(b, 0.5, 1, 0, "symmetric", "stellopt").J()
             print(J[0])
             np.testing.assert_allclose(J[0], -3.270370101328578)
@@ -238,6 +245,7 @@ class QuasisymmetryTests(unittest.TestCase):
             np.testing.assert_allclose(J, np.array([0.80891045]))
             surfs = b.bx.compute_surfs
             self.assertEqual(surfs[0], 49)
+
 
 if __name__ == "__main__":
     unittest.main()
