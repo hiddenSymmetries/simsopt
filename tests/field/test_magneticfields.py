@@ -406,12 +406,11 @@ class Testing(unittest.TestCase):
         field.set_points(points)
         np.testing.assert_allclose(field.B(), [[0.01016974, 0.00629875, -0.00220838]], rtol=1e-6)
         # test coil location
-        np.testing.assert_allclose(field.gamma(points=4), [[1.3575,1.456,2.789],[0.123,center[1]+radius*np.cos(-angle),center[2]-radius*np.sin(-angle)],
-                                                  [-1.1115,1.456,2.789],[0.123,center[1]-radius*np.cos(-angle),center[2]+radius*np.sin(-angle)]])
+        np.testing.assert_allclose(field.gamma(points=4), [[1.3575, 1.456, 2.789], [0.123, center[1]+radius*np.cos(-angle), center[2]-radius*np.sin(-angle)],
+                                                           [-1.1115, 1.456, 2.789], [0.123, center[1]-radius*np.cos(-angle), center[2]+radius*np.sin(-angle)]])
         with ScratchDir("."):
             for close in [True, False]:
                 field.to_vtk('test', close=close)
-
 
     def test_circularcoil_Bfield_toroidal_arrangement(self):
         # This makes N_coils with centered at major radius R_m
@@ -521,13 +520,13 @@ class Testing(unittest.TestCase):
         Bfield.set_points(point)
         gradB = np.array(Bfield.dB_by_dX())
         transpGradB = np.array([dBdx.T for dBdx in gradB])
-        B = Bfield.B()     
+        B = Bfield.B()
         assert np.allclose(B, [[-0.7094243, 0.65632967, -0.125321]])
         assert np.allclose(gradB, transpGradB)
         assert np.allclose(gradB, np.array([[0.90663628, 0.5078183, -0.55436901],
                                             [0.5078183, 0.27261978, -0.66073972],
                                             [-0.55436901, -0.66073972, -1.17925605]]))
-        #Test field 
+        #Test field
         mn = [[3, 2], [6, 4], [2, 11]]
         coeffs = [[1.4, 1.4], [19.25, 0], [5.10e10, 5.10e10]]
         Bfield = Dommaschk(mn=mn, coeffs=coeffs)
@@ -535,10 +534,10 @@ class Testing(unittest.TestCase):
         Bfield.set_points(point)
         gradB = np.array(Bfield.dB_by_dX())
         transpGradB = np.array([dBdx.T for dBdx in gradB])
-        B = Bfield.B()      
+        B = Bfield.B()
         assert np.allclose(B, [[0.55674279, 0.83401312, -0.121491]])
         assert np.allclose(gradB, transpGradB)
-        assert np.allclose(gradB, np.array([[0.11538721234011184, -0.7518405857812525, -0.6107605261251816], 
+        assert np.allclose(gradB, np.array([[0.11538721234011184, -0.7518405857812525, -0.6107605261251816],
                                             [-0.7518410735861303, 1.0695191900989125, 0.14110885184619465],
                                             [-0.6107606676662055, 0.1411086735566982, -1.18491]]))
         #Test field 2
@@ -549,12 +548,12 @@ class Testing(unittest.TestCase):
         Bfield.set_points(point)
         gradB = np.array(Bfield.dB_by_dX())
         transpGradB = np.array([dBdx.T for dBdx in gradB])
-        B = Bfield.B()       
+        B = Bfield.B()
         assert np.allclose(B, [[3.90161959, -1.87151853, 0.0119783]])
         assert np.allclose(gradB, transpGradB)
         assert np.allclose(gradB, np.array([[39.394312086253024, 14.061725133810995, 0.1684479703125076],
                                             [14.061729381899355, -40.23304445668633, -0.40810476986895994],
-                                            [0.16844815337021118, -0.4081047568874514, 0.838733]]))                
+                                            [0.16844815337021118, -0.4081047568874514, 0.838733]]))
         # Verify serialization works
         field_json_str = json.dumps(SIMSON(Bfield), cls=GSONEncoder)
         Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
@@ -599,7 +598,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(gradA, 1e-7 * np.array([[0.76151796, -0.151597, -0.0176294], [-0.92722, -0.444219, 0.3349286], [0.1657024, 0.5958156, -0.31730]]))
 
     def test_DipoleField_multiple_dipoles(self):
-        Ndipoles = 100 
+        Ndipoles = 100
         m = np.ravel(np.outer(np.ones(Ndipoles), np.array([0.5, 0.5, 0.5])))
         m_loc = np.outer(np.ones(Ndipoles), np.array([0.1, -0.1, 1]))
         field_loc = np.outer(np.ones(1001), np.array([1, 0.2, 0.5]))
@@ -616,7 +615,7 @@ class Testing(unittest.TestCase):
         transpGradB = np.array([dBdx.T for dBdx in gradB])
         # Verify gradB is symmetric and its value
         assert np.allclose(gradB, transpGradB)
-        assert np.allclose(gradB, gradB_simsopt, atol=1e-4) 
+        assert np.allclose(gradB, gradB_simsopt, atol=1e-4)
         # Verify A
         assert np.allclose(Bfield.A(), Ndipoles * 1e-7 * np.array([[-0.324349, 0.567611, -0.243262]]), atol=1e-4)
         # Verify gradA
@@ -652,7 +651,7 @@ class Testing(unittest.TestCase):
         transpGradB = np.array([dBdx.T for dBdx in gradB])
         # Verify gradB is symmetric and its value
         assert np.allclose(gradB, transpGradB)
-        assert np.allclose(gradB, gradB_simsopt, atol=1e-4) 
+        assert np.allclose(gradB, gradB_simsopt, atol=1e-4)
 
         # Repeat in cylindrical coords
         Bfield = DipoleField(m_loc, m, coordinate_flag='cylindrical')
@@ -675,7 +674,7 @@ class Testing(unittest.TestCase):
         transpGradB = np.array([dBdx.T for dBdx in gradB])
         # Verify gradB is symmetric and its value
         assert np.allclose(gradB, transpGradB)
-        assert np.allclose(gradB, gradB_simsopt, atol=1e-4) 
+        assert np.allclose(gradB, gradB_simsopt, atol=1e-4)
 
         # Repeat with toroidal orientation
         Bfield = DipoleField(m_loc, m, coordinate_flag='toroidal')
@@ -698,7 +697,7 @@ class Testing(unittest.TestCase):
         transpGradB = np.array([dBdx.T for dBdx in gradB])
         # Verify gradB is symmetric and its value
         assert np.allclose(gradB, transpGradB)
-        assert np.allclose(gradB, gradB_simsopt, atol=1e-4) 
+        assert np.allclose(gradB, gradB_simsopt, atol=1e-4)
 
     def test_pmopt_dipoles(self):
         """
@@ -713,7 +712,7 @@ class Testing(unittest.TestCase):
                       "input.LandremanPaul2021_QH_reactorScale_lowres",
                       "input.circular_tokamak", "input.rotating_ellipse"]
 
-        for filename in file_tests: 
+        for filename in file_tests:
             sfilename = TEST_DIR / filename
             if filename[:4] == 'wout':
                 s = SurfaceRZFourier.from_wout(sfilename, range="half period", nphi=nphi, ntheta=ntheta)
@@ -748,7 +747,7 @@ class Testing(unittest.TestCase):
             # check Bn
             Nnorms = np.ravel(np.sqrt(np.sum(s.normal() ** 2, axis=-1)))
             Ngrid = nphi * ntheta
-            Bn_Am = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms) 
+            Bn_Am = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms)
             assert np.allclose(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
             # check <Bn>
             B_opt = np.mean(np.abs(pm_opt.A_obj.dot(dipoles) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms))

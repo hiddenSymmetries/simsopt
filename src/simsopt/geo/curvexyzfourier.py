@@ -105,7 +105,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         return coils
 
     @staticmethod
-    def load_curves_from_makegrid_file(filename: str, order: int, ppp=20, group_names = None):
+    def load_curves_from_makegrid_file(filename: str, order: int, ppp=20, group_names=None):
         """
         This function loads a Makegrid input file containing the Cartesian
         coordinates for several coils and finds the corresponding Fourier
@@ -123,7 +123,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         """
 
         with open(filename, 'r') as f:
-            file_lines = f.read().splitlines()[3:] 
+            file_lines = f.read().splitlines()[3:]
 
         curve_data = []
         single_curve_data = []
@@ -221,7 +221,8 @@ class JaxCurveXYZFourier(JaxCurve):
     def __init__(self, quadpoints, order, dofs=None):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
-        pure = lambda dofs, points: jaxfouriercurve_pure(dofs, points, order)
+
+        def pure(dofs, points): return jaxfouriercurve_pure(dofs, points, order)
         self.order = order
         self.coefficients = [np.zeros((2*order+1,)), np.zeros((2*order+1,)), np.zeros((2*order+1,))]
         if dofs is None:

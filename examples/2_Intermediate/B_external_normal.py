@@ -49,4 +49,3 @@ vc2 = VirtualCasing.load(vcasing_file)
 
 print('B_external_normal, loaded from file:')
 print(vc2.B_external_normal[:4, :4])
-
