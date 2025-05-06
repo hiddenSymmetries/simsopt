@@ -1,11 +1,9 @@
-from typing import Any
-
 import numpy as np
-from nptyping import NDArray, Float
 
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
+from .._core.types import RealArray
 from .surface import Surface
 from .surfacexyztensorfourier import SurfaceXYZTensorFourier
 from ..objectives.utilities import forward_backward
@@ -517,8 +515,8 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0, weight_
 
 
 def parameter_derivatives(surface: Surface,
-                          shape_gradient: NDArray[Any, Float]
-                          ) -> NDArray[Any, Float]:
+                          shape_gradient: RealArray
+                          ) -> RealArray:
     r"""
     Converts the shape gradient of a given figure of merit, :math:`f`,
     to derivatives with respect to parameters defining a surface.  For

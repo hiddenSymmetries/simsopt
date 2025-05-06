@@ -224,6 +224,27 @@ class SurfaceRZFourierTests(unittest.TestCase):
                                              ntheta=69)
         self.assertAlmostEqual(s.volume(), true_volume, places=8)
 
+    def test_from_nescoil_input(self):
+        """
+        Test reading in surfaces from a NESCOIL input file.
+        """
+
+        filename = TEST_DIR / 'nescin.LandremanPaul2021_QA'
+        s_plas = SurfaceRZFourier.from_nescoil_input(filename, 'plasma')
+        SurfaceRZFourier.from_nescoil_input(filename, 'current')
+        with self.assertRaises(ValueError):
+            SurfaceRZFourier.from_nescoil_input(filename, 'other')
+
+        # The plasma surface in the nescoil file should be approximately the 
+        # same as the LandremanPaul2021_QA surface, although Fourier resolution
+        # is different
+        filename_ref = TEST_DIR / 'input.LandremanPaul2021_QA'
+        s_ref = SurfaceRZFourier.from_vmec_input(filename_ref)
+        self.assertAlmostEqual(s_plas.volume(), s_ref.volume(), places=1)
+
+        with self.assertRaises(AssertionError):
+            SurfaceRZFourier.from_nescoil_input(filename_ref, 'plasma')
+
     def test_from_vmec_2_ways(self):
         """
         Verify that from_wout() and from_vmec_input() give consistent
@@ -364,7 +385,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         """
         Try reading in a near-axis pyQSC equilibrium.
         """
-        stel = Qsc.from_paper(1)
+        stel = Qsc.from_paper("r1 section 5.1")
         filename = TEST_DIR / 'input.near_axis_test'
 
         ntheta = 20
@@ -732,6 +753,64 @@ class SurfaceRZFourierTests(unittest.TestCase):
             np.testing.assert_array_less(0, eq.wout.iotaf)
             np.testing.assert_allclose(eq.mean_iota(), 0.4291137962772453, rtol=1e-6)
 
+    def test_fourier_transform_scalar(self):
+        """
+        Test the Fourier transform of a field on a surface.
+        """
+        s = SurfaceRZFourier(mpol=4, ntor=5)
+        s.rc[0, 0] = 1.3
+        s.rc[1, 0] = 0.4
+        s.zs[1, 0] = 0.2
+
+        # Create the grid of quadpoints:
+        phi2d, theta2d = np.meshgrid(2 * np.pi * s.quadpoints_phi,
+                                     2 * np.pi * s.quadpoints_theta, 
+                                     indexing='ij')
+
+        # create a test field where only Fourier elements [m=2, n=3] 
+        # and [m=4,n=5] are nonzero:
+        field = 0.8 * np.sin(2*theta2d - 3*s.nfp*phi2d) + 0.2*np.sin(4*theta2d - 5*s.nfp*phi2d)+ 0.7*np.cos(3*theta2d - 3*s.nfp*phi2d)
+
+        # Transform the field to Fourier space:
+        ft_sines, ft_cosines = s.fourier_transform_scalar(field, stellsym=False)
+        self.assertAlmostEqual(ft_sines[2, 3+s.ntor], 0.8)
+        self.assertAlmostEqual(ft_sines[4, 5+s.ntor], 0.2)
+        self.assertAlmostEqual(ft_cosines[3, 3+s.ntor], 0.7)
+
+        # Test that all other elements are close to zero
+        sines_mask = np.ones_like(ft_sines, dtype=bool)
+        cosines_mask = np.copy(sines_mask)
+        sines_mask[2, 3 + s.ntor] = False
+        sines_mask[4, 5 + s.ntor] = False
+        cosines_mask[3, 3 + s.ntor] = False
+        self.assertEqual(np.all(np.abs(ft_sines[sines_mask]) < 1e-10), True)
+        self.assertEqual(np.all(np.abs(ft_cosines[cosines_mask]) < 1e-10), True)
+
+        # Transform back to real space:
+        field2 = s.inverse_fourier_transform_scalar(ft_sines, ft_cosines, stellsym=False, normalization=1/2*np.pi**2)
+
+        # Check that the result is the same as the original field:
+        np.testing.assert_allclose(field/2*np.pi**2, field2)
+
+    def test_copy_method(self):
+        s = SurfaceRZFourier(mpol=4, ntor=5, nfp=3)
+        s2 = s.copy(quadpoints_phi=Surface.get_phi_quadpoints(nphi=100,range='field period'))
+        self.assertEqual(len(s2.quadpoints_phi), 100)
+        s3 = s.copy(quadpoints_theta=Surface.get_theta_quadpoints(ntheta=50))
+        self.assertEqual(len(s3.quadpoints_theta), 50)
+        s4 = s.copy(ntheta = 42)
+        self.assertEqual(len(s4.quadpoints_theta), 42)
+        s5 = s.copy(nphi = 17)
+        self.assertEqual(len(s5.quadpoints_phi), 17)
+        s6 = s.copy(range='field period')
+        self.assertEqual(s6.deduced_range, Surface.RANGE_FIELD_PERIOD)
+        s7 = s.copy(nfp=10)
+        self.assertEqual(s7.nfp, 10)
+        s8 = s.copy(mpol=5, ntor=6)
+        self.assertEqual(s8.mpol, 5)
+        self.assertEqual(s8.ntor, 6)
+        s.copy()
+        s.copy(quadpoints_phi=Surface.get_phi_quadpoints(nphi=100,range='field period'), ntheta=82)
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):

@@ -18,7 +18,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     env:
       OMPI_ALLOW_RUN_AS_ROOT: 1
@@ -29,7 +29,7 @@ jobs:
       matrix:
         test-type: [unit, integrated]
         packages: [all, vmec, spec, none]
-        python-version: [3.8, 3.9, "3.10"]
+        python-version: [3.9, "3.10", "3.11"]
         include:
             - python-version: 3.9
               test-type: unit
@@ -98,7 +98,7 @@ jobs:
     - name: Install python dependencies
       run: |
            sudo apt-get install graphviz graphviz-dev
-           pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann
+           pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap
 
     - name: Install booz_xform
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
@@ -124,9 +124,6 @@ jobs:
         pip install -r SPEC/Utilities/pythontools/requirements.txt
         pip install -e SPEC/Utilities/pythontools
         python -c "import py_spec; print('success')"
-
-    - name: Install f90wrap
-      run: pip install -U git+https://github.com/zhucaoxiang/f90wrap
 
     - name: Build SPEC python wrapper.
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
@@ -166,8 +163,9 @@ jobs:
     - name: Install simsopt package
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       run: |
+        pip install -v git+https://github.com/zhisong/pyoculus
         pip install -v .
-        pip install mpi4py py_spec pyoculus h5py
+        pip install mpi4py py_spec h5py
 
     - name: Install simsopt package
       if: contains(matrix.packages, 'none')
@@ -235,13 +233,18 @@ jobs:
         mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests -v
         mpiexec -n 3 --oversubscribe coverage run -m unittest discover -k "mpi" -s tests -v
 
+    - name: ls to see coverage files that were produced
+      if: contains(matrix.test-type, 'unit')
+      run: ls -al
+
     - name: Upload uncombined coverage to github
       if: contains(matrix.test-type, 'unit')
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: gh-actions-parallel-coverage
+        name: gh-actions-parallel-coverage-${{ matrix.packages }}-${{ matrix.python-version }}
         path: .coverage.*
         if-no-files-found: error
+        include-hidden-files: true
 
   coverage:
     runs-on: ubuntu-latest
@@ -263,10 +266,10 @@ jobs:
       run: pip install .
 
     - name: Download artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
-        name: gh-actions-parallel-coverage
         path: ./
+        merge-multiple: true
 
     - name: Display coverage files before combine 
       run: ls -a
@@ -278,7 +281,7 @@ jobs:
         coverage xml
 
     - name: Upload coverage to github
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: tox-gh-actions-coverage
         path: coverage.xml
@@ -287,7 +290,7 @@ jobs:
     - name: Upload coverage to Codecov
       # The next line prevents github from trying to upload to Codecov on forks of the repository, avoiding a permissions error
       if: github.repository_owner == 'hiddenSymmetries'
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.xml

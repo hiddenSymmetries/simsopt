@@ -75,7 +75,8 @@ class Surface(Optimizable):
             nphi, ntheta, nfp=nfp, range=range)
         return cls(quadpoints_phi=quadpoints_phi,
                    quadpoints_theta=quadpoints_theta, nfp=nfp, **kwargs)
-
+    
+    @staticmethod
     def get_quadpoints(nphi=None,
                        ntheta=None,
                        range=None,
@@ -109,7 +110,8 @@ class Surface(Optimizable):
         """
         return (Surface.get_phi_quadpoints(nphi=nphi, range=range, nfp=nfp),
                 Surface.get_theta_quadpoints(ntheta=ntheta))
-
+    
+    @staticmethod
     def get_theta_quadpoints(ntheta=None):
         r"""
         Sets the theta grid points for Surface subclasses.
@@ -124,7 +126,8 @@ class Surface(Optimizable):
         if ntheta is None:
             ntheta = 62
         return list(np.linspace(0.0, 1.0, ntheta, endpoint=False))
-
+    
+    @staticmethod
     def get_phi_quadpoints(nphi=None, range=None, nfp=1):
         r"""
         Sets the phi grid points for Surface subclasses.
@@ -818,6 +821,23 @@ class Surface(Optimizable):
             function_interpolated[iphi, :] = f(theta_evaluate[iphi, :])
 
         return function_interpolated
+    
+    @property
+    def deduced_range(self):
+        """
+        The quadpoints of a surface can be anything, but are often set to 
+        'full torus', 'field period' or 'half period'. 
+        Since this is not stored in the object, but often useful to know
+        this function deduces the range from the quadpoints
+        """
+        if np.isclose(self.quadpoints_phi[-1], 1-1/len(self.quadpoints_phi), atol=1e-10):
+            return Surface.RANGE_FULL_TORUS
+        elif self.quadpoints_phi[0] == 0:
+            return Surface.RANGE_FIELD_PERIOD
+        else:
+            return Surface.RANGE_HALF_PERIOD
+
+
 
 
 def signed_distance_from_surface(xyz, surface):
