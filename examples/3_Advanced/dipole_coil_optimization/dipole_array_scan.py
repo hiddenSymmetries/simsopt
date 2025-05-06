@@ -1,20 +1,16 @@
 """
-File: windowpane_initialization_example.py
-Author: Jake Halpern
-Last Edit Date: 03/2025
-Description: This script shows how to set up planar non-encircling coils tangent to an 
-             axisymmetric winding surface and planar toroidal field coils that can be 
-             shifted and tilted radially 
-             
+This script illustrates Jake Halpbern's method to initialize a dipole array
+conformal to a winding surface. It allows one to specify lots of geometrical
+parameters. 
 """
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
-from simsopt.field.force import MixedLpCurveForce, \
-    MixedSquaredMeanForce, \
-    MixedLpCurveTorque, \
-    MixedSquaredMeanTorque, \
+from simsopt.field.force import LpCurveForce, \
+    SquaredMeanForce, \
+    LpCurveTorque, \
+    SquaredMeanTorque, \
     regularization_rect
 from simsopt.util import calculate_on_axis_B, save_coil_sets, \
     generate_curves
@@ -35,7 +31,7 @@ qphi = 2 * nphi
 qtheta = 2 * ntheta
 # load in a sample hybrid torus equilibria
 filename = 'input.LandremanPaul2021_QA_reactorScale_lowres'
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 s = SurfaceRZFourier.from_vmec_input(TEST_DIR / filename, range='half period', nphi=nphi, ntheta=ntheta)
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
@@ -151,21 +147,12 @@ linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 # Currently, all force terms involve all the coils
 all_coils = coils + coils_TF
 all_base_coils = base_coils + base_coils_TF
-regularization_list = np.ones(len(coils)) * regularization_rect(a, b)
-Jforce = MixedLpCurveForce(coils[0:1], coils[1:], regularization_list[0:1],
-                           regularization_list[1:], p=4, threshold=1e3, downsample=2)
-# Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=4, threshold=4e5 * 100, downsample=1
-#                         ) for i, c in enumerate(all_base_coils)])
-# Jforce2 = sum([SquaredMeanForce(c, all_coils, downsample=1) for c in all_base_coils])
-Jforce2 = MixedSquaredMeanForce(coils[0:1], coils[1:], downsample=2)
-
-# Errors creep in when downsample = 2
-Jtorque = MixedLpCurveTorque(coils[0:1], coils[1:], regularization_list[0:1],
-                             regularization_list[1:], p=2, threshold=1e3, downsample=2)
-# Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100, downsample=1
-#                             ) for i, c in enumerate(all_base_coils)])
-# Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
-Jtorque2 = MixedSquaredMeanTorque(coils[0:1], coils[1:], downsample=2)
+regularization_list = [regularization_rect(aa, bb) for i in range(len(base_coils))] + \
+    [regularization_rect(a, b) for i in range(len(base_coils_TF))]
+Jforce = LpCurveForce(all_base_coils, all_coils, regularization_list, p=4, threshold=1e3, downsample=2)
+Jforce2 = SquaredMeanForce(all_base_coils, all_coils, downsample=2)
+Jtorque = LpCurveTorque(all_base_coils, all_coils, regularization_list, p=2, threshold=1e3, downsample=2)
+Jtorque2 = SquaredMeanTorque(all_base_coils, all_coils, downsample=2)
 
 CURVATURE_THRESHOLD = 0.5
 MSC_THRESHOLD = 0.05
@@ -193,15 +180,7 @@ if TORQUE_WEIGHT.value > 0.0:
 if TORQUE_WEIGHT2.value > 0.0:
     JF += TORQUE_WEIGHT2 * Jtorque2
 
-# import cProfile, io
-# import re
-# import pstats
-# from pstats import SortKey
-
-
 def fun(dofs):
-    # pr = cProfile.Profile()
-    # pr.enable()
     JF.x = dofs
     J = JF.J()
     grad = JF.dJ()
@@ -241,12 +220,6 @@ def fun(dofs):
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
     print(valuestr)
-    # pr.disable()
-    # ss = io.StringIO()
-    # sortby = SortKey.CUMULATIVE
-    # ps = pstats.Stats(pr, stream=ss).sort_stats(sortby)
-    # ps.print_stats(20)
-    # print(ss.getvalue())
     return J, grad
 
 

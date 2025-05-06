@@ -222,29 +222,27 @@ Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 # interlink.
 linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 
-# Passive coils are ONLY compatible with the "" force/torque objectives
-# and MUST be passed in the psc_array argument for the Jacobian to be correct!
+# Passive MUST be passed in the psc_array argument for the Jacobian to be correct!
 all_base_coils = base_coils + base_coils_TF
-regularization_list_TF = np.ones(len(coils_TF)) * regularization_rect(a, b)
-regularization_list = np.ones(len(coils)) * regularization_rect(aa, bb)
-
-Jforce = LpCurveForce(coils, coils_TF,
-                      regularization_list, regularization_list_TF,
-                      p=4, downsample=1,
+other_coils = [c for c in coils + coils_TF if c not in all_base_coils] # all other coils
+regularization_list = [regularization_rect(aa, bb) for _ in base_coils] + [regularization_rect(a, b) for _ in base_coils_TF]
+Jforce = LpCurveForce(all_base_coils, other_coils,
+                      regularization_list,
+                      p=4, downsample=2,
                       psc_array=psc_array
                       )
-Jforce2 = SquaredMeanForce(coils, coils_TF,
-                           psc_array=psc_array
+Jforce2 = SquaredMeanForce(all_base_coils, other_coils,
+                           psc_array=psc_array,
+                           downsample=2
                            )
-
-# Errors creep in when downsample = 2
-Jtorque = LpCurveTorque(coils, coils_TF,
-                        regularization_list, regularization_list_TF,
-                        p=2, downsample=1,
+Jtorque = LpCurveTorque(all_base_coils, other_coils,
+                        regularization_list,
+                        p=2, downsample=2,
                         psc_array=psc_array
                         )
-Jtorque2 = SquaredMeanTorque(coils, coils_TF,
-                             psc_array=psc_array
+Jtorque2 = SquaredMeanTorque(all_base_coils, other_coils,
+                             psc_array=psc_array,
+                             downsample=2
                              )
 CURVATURE_THRESHOLD = 0.5
 MSC_THRESHOLD = 0.05

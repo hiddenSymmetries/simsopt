@@ -143,15 +143,15 @@ elif sys.argv[1] == 'SquaredMeanTorque':
 elif sys.argv[1] == 'LpCurveForce':
     print('If user did not specify the threshold as the third command line argument, it will be set to zero ')
     try:
-        Jforce = [LpCurveForce(c, coils, regularization_circ(a), p=2, threshold=float(sys.argv[3])) for c in base_coils]
+        Jforce = LpCurveForce(base_coils, coils, regularization_circ(a), p=2, threshold=float(sys.argv[3]))
     except:
-        Jforce = [LpCurveForce(c, coils, regularization_circ(a), p=2, threshold=0.0) for c in base_coils]
+        Jforce = LpCurveForce(base_coils, coils, regularization_circ(a), p=2, threshold=0.0)
 elif sys.argv[1] == 'LpCurveTorque':
     print('If user did not specify the threshold as the third command line argument, it will be set to zero ')
     try:
-        Jforce = [LpCurveTorque(c, coils, regularization_circ(a), p=2, threshold=float(sys.argv[3])) for c in base_coils]
+        Jforce = LpCurveTorque(base_coils, coils, regularization_circ(a), p=2, threshold=float(sys.argv[3]))
     except:
-        Jforce = [LpCurveTorque(c, coils, regularization_circ(a), p=2, threshold=0.0) for c in base_coils]
+        Jforce = LpCurveTorque(base_coils, coils, regularization_circ(a), p=2, threshold=0.0)
 elif sys.argv[1] == 'TVE':
     Jforce = [TVE(c, coils, a=a) for c in base_coils]
 elif sys.argv[1] == 'NetFluxes':

@@ -1071,7 +1071,7 @@ class LpCurveTorque_deprecated(Optimizable):
     The objective function is
 
     .. math::
-        J = \frac{1}{p}\left(\int \text{max}(|\vec{T}| - T_0, 0)^p d\ell\right)
+        J = \frac{1}{pL}\left(\int \text{max}(|\vec{T}| - T_0, 0)^p d\ell\right)
 
     where :math:`\vec{T}` is the Lorentz torque, :math:`T_0` is a threshold torque,  
     L is the total length of the coil,
@@ -1763,10 +1763,10 @@ class NetFluxes(Optimizable):
 
 
 def squared_mean_force_pure(gammas, gammas2, gammadashs, gammadashs2, currents, currents2, downsample):
-    # Subsample all arrays to the minimum number of quadrature points AND THEN downsample
     all_lengths = [g.shape[0] for g in gammas] + [g2.shape[0] for g2 in gammas2]
     min_npts = min(all_lengths)
-    def subsample(arr, target_n, downsample):
+    def subsample(arr, target_n):
+        arr = jnp.asarray(arr)
         n = arr.shape[0]
         if n == target_n:
             idxs = jnp.arange(0, n, downsample)
@@ -1774,10 +1774,10 @@ def squared_mean_force_pure(gammas, gammas2, gammadashs, gammadashs2, currents, 
             idxs = jnp.linspace(0, n-1, target_n).round().astype(int)
             idxs = idxs[::downsample]
         return arr[idxs, ...]
-    gammas = vmap(lambda g: subsample(g, min_npts, downsample))(gammas)
-    gammadashs = vmap(lambda g: subsample(g, min_npts, downsample))(gammadashs)
-    gammas2 = vmap(lambda g: subsample(g, min_npts, downsample))(gammas2)
-    gammadashs2 = vmap(lambda g: subsample(g, min_npts, downsample))(gammadashs2)
+    gammas = jnp.stack([subsample(g, min_npts) for g in gammas])
+    gammadashs = jnp.stack([subsample(g, min_npts) for g in gammadashs])
+    gammas2 = jnp.stack([subsample(g, min_npts) for g in gammas2])
+    gammadashs2 = jnp.stack([subsample(g, min_npts) for g in gammadashs2])
     currents = jnp.array(currents)
     currents2 = jnp.array(currents2)
 
@@ -1906,13 +1906,13 @@ class SquaredMeanForce(Optimizable):
     def J(self):
 
         args = [
-            jnp.array([c.curve.gamma() for c in self.allcoils]),
-            jnp.array([c.curve.gamma() for c in self.allcoils2]),
-            jnp.array([c.curve.gammadash() for c in self.allcoils]),
-            jnp.array([c.curve.gammadash() for c in self.allcoils2]),
-            jnp.array([c.current.get_value() for c in self.allcoils]),
-            jnp.array([c.current.get_value() for c in self.allcoils2]),
-            self.downsample
+            [c.curve.gamma() for c in self.allcoils],
+            [c.curve.gamma() for c in self.allcoils2],
+            [c.curve.gammadash() for c in self.allcoils],
+            [c.curve.gammadash() for c in self.allcoils2],
+            [c.current.get_value() for c in self.allcoils],
+            [c.current.get_value() for c in self.allcoils2],
+            self.downsample,
         ]
 
         return self.J_jax(*args)
@@ -1921,13 +1921,13 @@ class SquaredMeanForce(Optimizable):
     def dJ(self):
 
         args = [
-            jnp.array([c.curve.gamma() for c in self.allcoils]),
-            jnp.array([c.curve.gamma() for c in self.allcoils2]),
-            jnp.array([c.curve.gammadash() for c in self.allcoils]),
-            jnp.array([c.curve.gammadash() for c in self.allcoils2]),
-            jnp.array([c.current.get_value() for c in self.allcoils]),
-            jnp.array([c.current.get_value() for c in self.allcoils2]),
-            self.downsample
+            [c.curve.gamma() for c in self.allcoils],
+            [c.curve.gamma() for c in self.allcoils2],
+            [c.curve.gammadash() for c in self.allcoils],
+            [c.curve.gammadash() for c in self.allcoils2],
+            [c.current.get_value() for c in self.allcoils],
+            [c.current.get_value() for c in self.allcoils2],
+            self.downsample,
         ]
         dJ_dgamma = self.dJ_dgamma(*args)
         dJ_dgammadash = self.dJ_dgammadash(*args)
@@ -1961,10 +1961,10 @@ def lp_force_pure(
     Computes the mixed Lp force objective by summing over all coils in the first set, where each coil receives force from all coils (including itself and the second set).
     This version allows each coil to have its own quadrature points array.
     """
-    # Subsample all arrays to the minimum number of quadrature points AND THEN downsample
     all_lengths = [g.shape[0] for g in gammas] + [g2.shape[0] for g2 in gammas2]
     min_npts = min(all_lengths)
-    def subsample(arr, target_n, downsample):
+    def subsample(arr, target_n):
+        arr = jnp.asarray(arr)
         n = arr.shape[0]
         if n == target_n:
             idxs = jnp.arange(0, n, downsample)
@@ -1972,15 +1972,13 @@ def lp_force_pure(
             idxs = jnp.linspace(0, n-1, target_n).round().astype(int)
             idxs = idxs[::downsample]
         return arr[idxs, ...]
-
-    # Use vmap for subsampling
-    gammas = vmap(lambda g: subsample(g, min_npts, downsample))(gammas)
-    gammadashs = vmap(lambda g: subsample(g, min_npts, downsample))(gammadashs)
-    gammadashdashs = vmap(lambda g: subsample(g, min_npts, downsample))(gammadashdashs)
-    quadpoints = vmap(lambda q: subsample(q, min_npts, downsample))(quadpoints)
+    gammas = jnp.stack([subsample(g, min_npts) for g in gammas])
+    gammadashs = jnp.stack([subsample(g, min_npts) for g in gammadashs])
+    gammadashdashs = jnp.stack([subsample(g, min_npts) for g in gammadashdashs])
+    quadpoints = jnp.stack([subsample(q, min_npts) for q in quadpoints])
     quadpoints = quadpoints[0]
-    gammas2 = vmap(lambda g: subsample(g, min_npts, downsample))(gammas2)
-    gammadashs2 = vmap(lambda g: subsample(g, min_npts, downsample))(gammadashs2)
+    gammas2 = jnp.stack([subsample(g, min_npts) for g in gammas2])
+    gammadashs2 = jnp.stack([subsample(g, min_npts) for g in gammadashs2])
     currents = jnp.array(currents)
     currents2 = jnp.array(currents2)
     regularizations = jnp.array(regularizations)
@@ -2069,7 +2067,7 @@ class LpCurveForce(Optimizable):
         regularizations = jnp.array(regularizations)
         self.allcoils = allcoils
         self.allcoils2 = [c for c in allcoils2 if c not in allcoils]
-        quadpoints = jnp.array([c.curve.quadpoints for c in allcoils])
+        quadpoints = [c.curve.quadpoints for c in allcoils]
         self.downsample = downsample
         self.psc_array = psc_array
         args = {"static_argnums": (7,)}
@@ -2082,42 +2080,42 @@ class LpCurveForce(Optimizable):
 
         self.dJ_dgamma = jit(
             lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
-            grad(self.J_jax, argnums=0)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
+                grad(self.J_jax, argnums=0)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dgamma2 = jit(
             lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
-            grad(self.J_jax, argnums=1)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
+                grad(self.J_jax, argnums=1)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dgammadash = jit(
             lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
-            grad(self.J_jax, argnums=2)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
+                grad(self.J_jax, argnums=2)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dgammadash2 = jit(
             lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
-            grad(self.J_jax, argnums=3)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
+                grad(self.J_jax, argnums=3)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dgammadashdash = jit(
             lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
-            grad(self.J_jax, argnums=4)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
+                grad(self.J_jax, argnums=4)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dcurrent = jit(
             lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
-            grad(self.J_jax, argnums=5)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
+                grad(self.J_jax, argnums=5)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
         self.dJ_dcurrent2 = jit(
             lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample:
-            grad(self.J_jax, argnums=6)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
+                grad(self.J_jax, argnums=6)(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, currents, currents2, downsample),
             **args
         )
 
@@ -2126,14 +2124,14 @@ class LpCurveForce(Optimizable):
     def J(self):
 
         args = [
-            jnp.array([c.curve.gamma() for c in self.allcoils]),
-            jnp.array([c.curve.gamma() for c in self.allcoils2]),
-            jnp.array([c.curve.gammadash() for c in self.allcoils]),
-            jnp.array([c.curve.gammadash() for c in self.allcoils2]),
-            jnp.array([c.curve.gammadashdash() for c in self.allcoils]),
-            jnp.array([c.current.get_value() for c in self.allcoils]),
-            jnp.array([c.current.get_value() for c in self.allcoils2]),
-            self.downsample
+            [c.curve.gamma() for c in self.allcoils],
+            [c.curve.gamma() for c in self.allcoils2],
+            [c.curve.gammadash() for c in self.allcoils],
+            [c.curve.gammadash() for c in self.allcoils2],
+            [c.curve.gammadashdash() for c in self.allcoils],
+            [c.current.get_value() for c in self.allcoils],
+            [c.current.get_value() for c in self.allcoils2],
+            self.downsample,
         ]
 
         return self.J_jax(*args)
@@ -2142,14 +2140,14 @@ class LpCurveForce(Optimizable):
     def dJ(self):
 
         args = [
-            jnp.array([c.curve.gamma() for c in self.allcoils]),
-            jnp.array([c.curve.gamma() for c in self.allcoils2]),
-            jnp.array([c.curve.gammadash() for c in self.allcoils]),
-            jnp.array([c.curve.gammadash() for c in self.allcoils2]),
-            jnp.array([c.curve.gammadashdash() for c in self.allcoils]),
-            jnp.array([c.current.get_value() for c in self.allcoils]),
-            jnp.array([c.current.get_value() for c in self.allcoils2]),
-            self.downsample
+            [c.curve.gamma() for c in self.allcoils],
+            [c.curve.gamma() for c in self.allcoils2],
+            [c.curve.gammadash() for c in self.allcoils],
+            [c.curve.gammadash() for c in self.allcoils2],
+            [c.curve.gammadashdash() for c in self.allcoils],
+            [c.current.get_value() for c in self.allcoils],
+            [c.current.get_value() for c in self.allcoils2],
+            self.downsample,
         ]
         dJ_dgamma = self.dJ_dgamma(*args)
         dJ_dgammadash = self.dJ_dgammadash(*args)
@@ -2163,7 +2161,6 @@ class LpCurveForce(Optimizable):
             vjp = self.psc_array.vjp_setup(np.array(dJ_dcurrent))
         else:
             vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent[i]])) for i, c in enumerate(self.allcoils)])
-
         dJ = (
             sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma[i]) for i, c in enumerate(self.allcoils)])
             + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash[i]) for i, c in enumerate(self.allcoils)])
@@ -2202,10 +2199,10 @@ def lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs,
     Returns:
         float: Value of the objective function.
     """
-    # Subsample all arrays to the minimum number of quadrature points AND THEN downsample
     all_lengths = [g.shape[0] for g in gammas] + [g2.shape[0] for g2 in gammas2]
     min_npts = min(all_lengths)
-    def subsample(arr, target_n, downsample):
+    def subsample(arr, target_n):
+        arr = jnp.asarray(arr)
         n = arr.shape[0]
         if n == target_n:
             idxs = jnp.arange(0, n, downsample)
@@ -2213,13 +2210,13 @@ def lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs,
             idxs = jnp.linspace(0, n-1, target_n).round().astype(int)
             idxs = idxs[::downsample]
         return arr[idxs, ...]
-    gammas = vmap(lambda g: subsample(g, min_npts, downsample))(gammas)
-    gammadashs = vmap(lambda g: subsample(g, min_npts, downsample))(gammadashs)
-    gammadashdashs = vmap(lambda g: subsample(g, min_npts, downsample))(gammadashdashs)
-    quadpoints = vmap(lambda q: subsample(q, min_npts, downsample))(quadpoints)
+    gammas = jnp.stack([subsample(g, min_npts) for g in gammas])
+    gammadashs = jnp.stack([subsample(g, min_npts) for g in gammadashs])
+    gammadashdashs = jnp.stack([subsample(g, min_npts) for g in gammadashdashs])
+    quadpoints = jnp.stack([subsample(q, min_npts) for q in quadpoints])
     quadpoints = quadpoints[0]
-    gammas2 = vmap(lambda g: subsample(g, min_npts, downsample))(gammas2)
-    gammadashs2 = vmap(lambda g: subsample(g, min_npts, downsample))(gammadashs2)
+    gammas2 = jnp.stack([subsample(g, min_npts) for g in gammas2])
+    gammadashs2 = jnp.stack([subsample(g, min_npts) for g in gammadashs2])
     currents = jnp.array(currents)
     currents2 = jnp.array(currents2)
     regularizations = jnp.array(regularizations)
@@ -2230,7 +2227,7 @@ def lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs,
         barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / jnp.sum(arclength)
         return barycenter
 
-    centers = jnp.array(vmap(center)(gammas, gammadashs))
+    centers = vmap(center, in_axes=(0, 0))(gammas, gammadashs)
 
     # Precompute B_self for each coil
     B_self = vmap(B_regularized_pure, in_axes=(0, 0, 0, None, 0, 0))(
@@ -2314,7 +2311,7 @@ class LpCurveTorque(Optimizable):
         regularizations = jnp.array(regularizations)
         self.allcoils = allcoils
         self.allcoils2 = [c for c in allcoils2 if c not in allcoils]
-        quadpoints = jnp.array([c.curve.quadpoints for c in allcoils])
+        quadpoints = [c.curve.quadpoints for c in allcoils]
         self.downsample = downsample
         self.psc_array = psc_array
         args = {"static_argnums": (7,)}
@@ -2373,14 +2370,14 @@ class LpCurveTorque(Optimizable):
     def J(self):
 
         args = [
-            jnp.array([c.curve.gamma() for c in self.allcoils]),
-            jnp.array([c.curve.gamma() for c in self.allcoils2]),
-            jnp.array([c.curve.gammadash() for c in self.allcoils]),
-            jnp.array([c.curve.gammadash() for c in self.allcoils2]),
-            jnp.array([c.curve.gammadashdash() for c in self.allcoils]),
-            jnp.array([c.current.get_value() for c in self.allcoils]),
-            jnp.array([c.current.get_value() for c in self.allcoils2]),
-            self.downsample
+            [c.curve.gamma() for c in self.allcoils],
+            [c.curve.gamma() for c in self.allcoils2],
+            [c.curve.gammadash() for c in self.allcoils],
+            [c.curve.gammadash() for c in self.allcoils2],
+            [c.curve.gammadashdash() for c in self.allcoils],
+            [c.current.get_value() for c in self.allcoils],
+            [c.current.get_value() for c in self.allcoils2],
+            self.downsample,
         ]
 
         return self.J_jax(*args)
@@ -2389,14 +2386,14 @@ class LpCurveTorque(Optimizable):
     def dJ(self):
 
         args = [
-            jnp.array([c.curve.gamma() for c in self.allcoils]),
-            jnp.array([c.curve.gamma() for c in self.allcoils2]),
-            jnp.array([c.curve.gammadash() for c in self.allcoils]),
-            jnp.array([c.curve.gammadash() for c in self.allcoils2]),
-            jnp.array([c.curve.gammadashdash() for c in self.allcoils]),
-            jnp.array([c.current.get_value() for c in self.allcoils]),
-            jnp.array([c.current.get_value() for c in self.allcoils2]),
-            self.downsample
+            [c.curve.gamma() for c in self.allcoils],
+            [c.curve.gamma() for c in self.allcoils2],
+            [c.curve.gammadash() for c in self.allcoils],
+            [c.curve.gammadash() for c in self.allcoils2],
+            [c.curve.gammadashdash() for c in self.allcoils],
+            [c.current.get_value() for c in self.allcoils],
+            [c.current.get_value() for c in self.allcoils2],
+            self.downsample,
         ]
         dJ_dgamma = self.dJ_dgamma(*args)
         dJ_dgammadash = self.dJ_dgammadash(*args)
@@ -2427,10 +2424,10 @@ class LpCurveTorque(Optimizable):
 
 
 def squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents, currents2, downsample):
-    # Subsample all arrays to the minimum number of quadrature points AND THEN downsample
     all_lengths = [g.shape[0] for g in gammas] + [g2.shape[0] for g2 in gammas2]
     min_npts = min(all_lengths)
-    def subsample(arr, target_n, downsample):
+    def subsample(arr, target_n):
+        arr = jnp.asarray(arr)
         n = arr.shape[0]
         if n == target_n:
             idxs = jnp.arange(0, n, downsample)
@@ -2438,10 +2435,10 @@ def squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents, curr
             idxs = jnp.linspace(0, n-1, target_n).round().astype(int)
             idxs = idxs[::downsample]
         return arr[idxs, ...]
-    gammas = vmap(lambda g: subsample(g, min_npts, downsample))(gammas)
-    gammadashs = vmap(lambda g: subsample(g, min_npts, downsample))(gammadashs)
-    gammas2 = vmap(lambda g: subsample(g, min_npts, downsample))(gammas2)
-    gammadashs2 = vmap(lambda g: subsample(g, min_npts, downsample))(gammadashs2)
+    gammas = jnp.stack([subsample(g, min_npts) for g in gammas])
+    gammadashs = jnp.stack([subsample(g, min_npts) for g in gammadashs])
+    gammas2 = jnp.stack([subsample(g, min_npts) for g in gammas2])
+    gammadashs2 = jnp.stack([subsample(g, min_npts) for g in gammadashs2])
     currents = jnp.array(currents)
     currents2 = jnp.array(currents2)
 
@@ -2456,7 +2453,7 @@ def squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents, curr
         barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / jnp.sum(arclength)
         return barycenter
 
-    centers = vmap(center)(gammas, gammadashs)
+    centers = jnp.stack([center(g, gd) for g, gd in zip(gammas, gammadashs)])
 
     # Helper to compute mutual field at each point for a coil
     def mutual_B_field_group1(i, pt):
@@ -2581,13 +2578,13 @@ class SquaredMeanTorque(Optimizable):
     def J(self):
 
         args = [
-            jnp.array([c.curve.gamma() for c in self.allcoils]),
-            jnp.array([c.curve.gamma() for c in self.allcoils2]),
-            jnp.array([c.curve.gammadash() for c in self.allcoils]),
-            jnp.array([c.curve.gammadash() for c in self.allcoils2]),
-            jnp.array([c.current.get_value() for c in self.allcoils]),
-            jnp.array([c.current.get_value() for c in self.allcoils2]),
-            self.downsample
+            [c.curve.gamma() for c in self.allcoils],
+            [c.curve.gamma() for c in self.allcoils2],
+            [c.curve.gammadash() for c in self.allcoils],
+            [c.curve.gammadash() for c in self.allcoils2],
+            [c.current.get_value() for c in self.allcoils],
+            [c.current.get_value() for c in self.allcoils2],
+            self.downsample,
         ]
 
         return self.J_jax(*args)
@@ -2596,13 +2593,13 @@ class SquaredMeanTorque(Optimizable):
     def dJ(self):
 
         args = [
-            jnp.array([c.curve.gamma() for c in self.allcoils]),
-            jnp.array([c.curve.gamma() for c in self.allcoils2]),
-            jnp.array([c.curve.gammadash() for c in self.allcoils]),
-            jnp.array([c.curve.gammadash() for c in self.allcoils2]),
-            jnp.array([c.current.get_value() for c in self.allcoils]),
-            jnp.array([c.current.get_value() for c in self.allcoils2]),
-            self.downsample
+            [c.curve.gamma() for c in self.allcoils],
+            [c.curve.gamma() for c in self.allcoils2],
+            [c.curve.gammadash() for c in self.allcoils],
+            [c.curve.gammadash() for c in self.allcoils2],
+            [c.current.get_value() for c in self.allcoils],
+            [c.current.get_value() for c in self.allcoils2],
+            self.downsample,
         ]
         dJ_dgamma = self.dJ_dgamma(*args)
         dJ_dgammadash = self.dJ_dgammadash(*args)

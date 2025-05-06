@@ -124,7 +124,8 @@ Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
-Jforce = [LpCurveForce(c, coils, regularization_circ(a), p=4) for c in base_coils]
+regularization_list = [regularization_circ(a) for i in range(ncoils)]
+Jforce = LpCurveForce(base_coils, coils, regularization_list, p=4)
 Jtve = [TVE(c, coils, a=a) for c in base_coils]
 
 # Form the total objective function. To do this, we can exploit the
@@ -136,7 +137,7 @@ JF = Jf \
     + CS_WEIGHT * Jcsdist \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
-    + FORCE_WEIGHT * sum(Jforce) \
+    + FORCE_WEIGHT * Jforce \
     + TVE_WEIGHT * sum(Jtve)
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
@@ -155,7 +156,7 @@ def fun(dofs):
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.2f}"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
-    outstr += f", F={sum(J.J() for J in Jforce):.2e}"
+    outstr += f", F={Jforce.J():.2e}"
     outstr += f", TVE={sum(J.J() for J in Jtve):.2e}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)

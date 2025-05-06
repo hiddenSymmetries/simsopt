@@ -257,12 +257,15 @@ FORCE_WEIGHT = 1e-18
 FORCE_WEIGHT2 = 0.0
 TORQUE_WEIGHT = 0.0
 TORQUE_WEIGHT2 = 0.0
-a_list = np.hstack((np.ones(len(coils)) * aa, np.ones(len(coils_TF)) * a))
-b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
-Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a_list[i], b_list[i])) for i, c in enumerate(all_base_coils)])
-Jforce2 = sum([SquaredMeanForce(c, all_coils) for c in all_base_coils])
-Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list[i])) for i, c in enumerate(all_base_coils)])
-Jtorque2 = sum([SquaredMeanTorque(c, all_coils) for c in all_base_coils])
+regularization_list = [regularization_rect(aa, bb) for i in range(len(base_coils))] + \
+      [regularization_rect(a, b) for i in range(len(base_coils_TF))]
+# Only compute the force and torque on the unique set of coils, otherwise
+# you are doing too much work. Also downsample the coil quadrature points
+# by a factor of 2 to save compute.
+Jforce = LpCurveForce(all_base_coils, all_coils, regularization_list, downsample=2)
+Jforce2 = SquaredMeanForce(all_base_coils, all_coils, downsample=2)
+Jtorque = LpCurveTorque(all_base_coils, all_coils, regularization_list, downsample=2)
+Jtorque2 = SquaredMeanTorque(all_base_coils, all_coils, downsample=2)
 
 JF = Jf \
     + CC_WEIGHT * Jccdist \
@@ -311,6 +314,7 @@ obj_dict = {
     "btot": btot,
     "s": s,
     "base_curves_TF": base_curves_TF,
+    "psc_array": psc_array,
 }
 weight_dict = {
     "length_weight": LENGTH_WEIGHT.value,

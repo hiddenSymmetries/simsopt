@@ -330,9 +330,9 @@ def optimization(
     Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 
     try:
-        Jforce = [FORCE_OBJ(c, coils, regularization_circ(0.05), p=2, threshold=FORCE_THRESHOLD) for c in base_coils]
+        Jforce = FORCE_OBJ(base_coils, coils, regularization_circ(0.05), p=2, threshold=FORCE_THRESHOLD)
     except:
-        Jforce = [FORCE_OBJ(c, coils, downsample=2) for c in base_coils]
+        Jforce = FORCE_OBJ(base_coils, coils, downsample=2)
 
     Jals = [ArclengthVariation(c) for c in base_curves]
     Jlength = sum(QuadraticPenalty(Jl, LENGTH_TARGET, "max") for Jl in Jls)

@@ -157,14 +157,11 @@ linkNum = LinkingNumber(curves_TF, downsample=2)
 # Currently, all force terms involve all the coils
 all_coils = coils_TF
 all_base_coils = base_coils_TF
-Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a, b), p=4, threshold=4e5 * 100, downsample=1
-                           ) for i, c in enumerate(all_base_coils)])
-Jforce2 = sum([SquaredMeanForce(c, all_coils, downsample=1) for c in all_base_coils])
-
-# Errors creep in when downsample = 2
-Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a, b), p=2, threshold=4e5 * 100, downsample=1
-                             ) for i, c in enumerate(all_base_coils)])
-Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
+regularization_list = [regularization_rect(a, b) for i in range(len(base_coils_TF))]
+Jforce = LpCurveForce(all_base_coils, all_coils, regularization_list, p=4, threshold=4e5 * 100, downsample=2)
+Jforce2 = SquaredMeanForce(all_base_coils, all_coils, downsample=2)
+Jtorque = LpCurveTorque(all_base_coils, all_coils, regularization_list, p=2, threshold=4e5 * 100, downsample=2)
+Jtorque2 = SquaredMeanTorque(all_base_coils, all_coils, downsample=2)
 
 Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
 Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
