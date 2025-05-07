@@ -118,7 +118,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
         If [cm] precision is required then the number of grid points chosen should provide at least this resolution.
         Remember that the more datapoints, the slower VMEC will run.
         
-        The field data is represented as a single "current group". For
+        The magnetic field data is represented as a single "current group". For
         free-boundary vmec, the ``vmec.indata.extcur`` array should have a single nonzero
         element, set to ``1.0``.
 
