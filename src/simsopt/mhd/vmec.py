@@ -6,6 +6,9 @@
 This module provides a class that handles the VMEC equilibrium code.
 """
 
+from ..geo.surfacerzfourier import SurfaceRZFourier
+from .._core.util import Struct, ObjectiveFailure
+from .._core.optimizable import Optimizable
 import logging
 import os.path
 from typing import Optional
@@ -29,9 +32,6 @@ except ImportError as e:
     vmec = None
     logger.debug(str(e))
 
-from .._core.optimizable import Optimizable
-from .._core.util import Struct, ObjectiveFailure
-from ..geo.surfacerzfourier import SurfaceRZFourier
 
 if MPI is not None:
     from ..util.mpi import MpiPartition
@@ -79,8 +79,8 @@ def array_to_namelist(arr, aux_s=False):
 
 # Documentation of flags for runvmec() from the VMEC source code:
 #
-#value flag-name         calls routines to...
-#----- ---------         ---------------------
+# value flag-name         calls routines to...
+# ----- ---------         ---------------------
 #  1   restart_flag      reset internal run-control parameters
 #                        (for example, if jacobian was bad, to try a smaller
 #                        time-step)
@@ -274,15 +274,18 @@ class Vmec(Optimizable):
             # Read default input file, which should be in the same
             # directory as this file:
             filename = os.path.join(os.path.dirname(__file__), 'input.default')
-            logger.info(f"Initializing a VMEC object from defaults in {filename}")
+            logger.info(
+                f"Initializing a VMEC object from defaults in {filename}")
 
         basename = os.path.basename(filename)
         if basename[:5] == 'input':
-            logger.info(f"Initializing a VMEC object from input file: {filename}")
+            logger.info(
+                f"Initializing a VMEC object from input file: {filename}")
             self.input_file = filename
             self.runnable = True
         elif basename[:4] == 'wout':
-            logger.info(f"Initializing a VMEC object from wout file: {filename}")
+            logger.info(
+                f"Initializing a VMEC object from wout file: {filename}")
             self.runnable = False
         else:
             raise ValueError('Invalid filename')
@@ -305,7 +308,8 @@ class Vmec(Optimizable):
 
         if self.runnable:
             if MPI is None:
-                raise RuntimeError("mpi4py needs to be installed for running VMEC")
+                raise RuntimeError(
+                    "mpi4py needs to be installed for running VMEC")
             if vmec is None:
                 raise RuntimeError(
                     "Running VMEC from simsopt requires VMEC python extension. "
@@ -330,13 +334,16 @@ class Vmec(Optimizable):
             self.ictrl[4] = 0  # iseq
             reset_file = ''
             logger.info('About to call runvmec to readin')
-            vmec.runvmec(self.ictrl, filename, self.verbose, self.fcomm, reset_file)
+            vmec.runvmec(self.ictrl, filename, self.verbose,
+                         self.fcomm, reset_file)
             ierr = self.ictrl[1]
-            logger.info(f'Done with runvmec. ierr={ierr}. Calling cleanup next.')
+            logger.info(
+                f'Done with runvmec. ierr={ierr}. Calling cleanup next.')
             # Deallocate arrays allocated by VMEC's fixaray():
             vmec.cleanup(False)
             if ierr != 0:
-                raise RuntimeError(f"Failed to initialize VMEC from input file {filename}. Error code: {ierr}.")
+                raise RuntimeError(
+                    f"Failed to initialize VMEC from input file {filename}. Error code: {ierr}.")
 
             # objstr = " for Vmec " + str(hex(id(self)))
 
@@ -368,7 +375,8 @@ class Vmec(Optimizable):
             self.need_to_run_code = True
         else:
             # Initialized from a wout file, so not runnable.
-            self._boundary = SurfaceRZFourier.from_wout(filename, nphi=nphi, ntheta=ntheta, range=range_surface)
+            self._boundary = SurfaceRZFourier.from_wout(
+                filename, nphi=nphi, ntheta=ntheta, range=range_surface)
             self.output_file = filename
             self.load_wout()
 
@@ -471,15 +479,18 @@ class Vmec(Optimizable):
             return
 
         n = self.__getattribute__("n_" + longname)
-        vmec_profile_type = self.indata.__getattribute__("p" + shortname + "_type").lower()
+        vmec_profile_type = self.indata.__getattribute__(
+            "p" + shortname + "_type").lower()
         if vmec_profile_type[:12] == b'power_series':
             # Evaluate the new Profile on a Gauss-Legendre grid in s,
             # so the polynomial fit is well conditioned.
             nodes, weights = np.polynomial.legendre.leggauss(n)
             x = nodes * 0.5 + 0.5  # So x is in (0, 1)
             y = profile(x)
-            poly = np.polynomial.polynomial.Polynomial.fit(x, y, n - 1, domain=[0, 1]).convert().coef
-            logger.debug('Setting vmec ' + longname + f' profile using power series.  x: {x}  y: {y}  poly: {poly}')
+            poly = np.polynomial.polynomial.Polynomial.fit(
+                x, y, n - 1, domain=[0, 1]).convert().coef
+            logger.debug('Setting vmec ' + longname +
+                         f' profile using power series.  x: {x}  y: {y}  poly: {poly}')
             ax = self.indata.__getattribute__("a" + letter)
             ax[:] = 0.0
             ax[:n] = poly
@@ -489,7 +500,8 @@ class Vmec(Optimizable):
                 or vmec_profile_type[:12] == b'line_segment':
             x = np.linspace(0, 1, n)
             y = profile(x)
-            logger.debug('Setting vmec ' + longname + f' profile using splines. x: {x}  y: {y}')
+            logger.debug('Setting vmec ' + longname +
+                         f' profile using splines. x: {x}  y: {y}')
             aux_s = self.indata.__getattribute__("a" + letter + "_aux_s")
             aux_f = self.indata.__getattribute__("a" + letter + "_aux_f")
             aux_s[:] = 0.0
@@ -511,7 +523,8 @@ class Vmec(Optimizable):
         converted to ``SurfaceRZFourier`` is returned.
         """
         if not self.runnable:
-            raise RuntimeError('Cannot access indata for a Vmec object that was initialized from a wout file.')
+            raise RuntimeError(
+                'Cannot access indata for a Vmec object that was initialized from a wout file.')
         vi = vmec.vmec_input  # Shorthand
         # Convert boundary to RZFourier if needed:
         boundary_RZFourier = self.boundary.to_RZFourier()
@@ -555,8 +568,6 @@ class Vmec(Optimizable):
             else:
                 vi.curtor = self.current_profile(1.0)
 
-                
-
         return boundary_RZFourier
 
     def get_input(self):
@@ -564,10 +575,12 @@ class Vmec(Optimizable):
         Generate a VMEC input file. The result will be returned as a
         string. To save a file, see the ``write_input()`` function.
         """
-        boundary_RZFourier = self.set_indata()  # Transfer the boundary from simsopt to fortran.
+        boundary_RZFourier = self.set_indata(
+        )  # Transfer the boundary from simsopt to fortran.
         vi = vmec.vmec_input  # Shorthand
         nml = '&INDATA\n'
-        nml += '! This file created by simsopt on ' + datetime.now().strftime("%B %d %Y, %H:%M:%S") + '\n\n'
+        nml += '! This file created by simsopt on ' + \
+            datetime.now().strftime("%B %d %Y, %H:%M:%S") + '\n\n'
         nml += '! ---- Geometric parameters ----\n'
         nml += f'NFP = {vi.nfp}\n'
         nml += f'LASYM = {to_namelist_bool(vi.lasym)}\n'
@@ -670,7 +683,8 @@ class Vmec(Optimizable):
             return
 
         if not self.runnable:
-            raise RuntimeError('Cannot run a Vmec object that was initialized from a wout file.')
+            raise RuntimeError(
+                'Cannot run a Vmec object that was initialized from a wout file.')
 
         logger.info("Preparing to run VMEC.")
 
@@ -690,7 +704,8 @@ class Vmec(Optimizable):
             os.getcwd(),
             os.path.basename(base_filename).replace('input.', 'jxbout_') + '.nc')
 
-        file_to_write = input_file if (self.mpi.proc0_world or self.keep_all_files) else None
+        file_to_write = input_file if (
+            self.mpi.proc0_world or self.keep_all_files) else None
         # This next line also calls set_indata():
         self.write_input(file_to_write)
 
@@ -705,7 +720,8 @@ class Vmec(Optimizable):
         self.ictrl[3] = 0  # ns_index
         self.ictrl[4] = 0  # iseq
         reset_file = ''
-        vmec.runvmec(self.ictrl, input_file, self.verbose, self.fcomm, reset_file)
+        vmec.runvmec(self.ictrl, input_file,
+                     self.verbose, self.fcomm, reset_file)
         ierr = self.ictrl[1]
 
         # Deallocate arrays, even if vmec did not converge:
@@ -721,7 +737,8 @@ class Vmec(Optimizable):
         # should logically never occur, so these codes raise a
         # different exception.
         if ierr in [0, 5]:
-            raise RuntimeError(f"runvmec returned an error code that should never occur: ierr={ierr}")
+            raise RuntimeError(
+                f"runvmec returned an error code that should never occur: ierr={ierr}")
         if ierr != 11:
             raise ObjectiveFailure(f"VMEC did not converge. ierr={ierr}")
 
@@ -739,19 +756,22 @@ class Vmec(Optimizable):
             try:
                 os.remove(mercier_file)
             except FileNotFoundError:
-                logger.debug(f'Tried to delete the file {mercier_file} but it was not found')
+                logger.debug(
+                    f'Tried to delete the file {mercier_file} but it was not found')
                 raise
 
             try:
                 os.remove(jxbout_file)
             except FileNotFoundError:
-                logger.debug(f'Tried to delete the file {jxbout_file} but it was not found')
+                logger.debug(
+                    f'Tried to delete the file {jxbout_file} but it was not found')
                 raise
 
             try:
                 os.remove("fort.9")
             except FileNotFoundError:
-                logger.debug('Tried to delete the file fort.9 but it was not found')
+                logger.debug(
+                    'Tried to delete the file fort.9 but it was not found')
 
             # If the worker group is not 0, delete all wout files, unless
             # keep_all_files is True:
@@ -763,8 +783,9 @@ class Vmec(Optimizable):
                 try:
                     os.remove(filename)
                 except FileNotFoundError:
-                    logger.debug(f"Tried to delete the file {filename} but it was not found")
-                    
+                    logger.debug(
+                        f"Tried to delete the file {filename} but it was not found")
+
             self.files_to_delete = []
 
             # Record the latest output file to delete if we run again:
@@ -872,9 +893,9 @@ class Vmec(Optimizable):
         Look through the rbc and zbs data in fortran to determine the
         largest m and n for which rbc or zbs is nonzero.
         """
-        
-        self.set_indata() # needed in case the boundary has changed
-        vi = vmec.vmec_input # from the singleton
+
+        self.set_indata()  # needed in case the boundary has changed
+        vi = vmec.vmec_input  # from the singleton
         max_m = 0
         max_n = 0
         for m in range(1, 101):
