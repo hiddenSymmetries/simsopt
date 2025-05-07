@@ -427,7 +427,7 @@ class BoozerSurface(Optimizable):
             l - l_0 &= 0 \\
             z(\varphi=0,\theta=0) - 0 &= 0
 
-        The function can additionaly return the first derivatives of these optimality conditions.
+        The function can additionally return the first derivatives of these optimality conditions.
 
         Args:
             xl (ndarray): The degrees of freedom of the BoozerSurface object, e.g. ``bsurf.x``.
