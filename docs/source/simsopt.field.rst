@@ -76,3 +76,11 @@ simsopt.field.tracing module
    :undoc-members:
    :show-inheritance:
 
+simsopt.field.wireframefield module
+-----------------------------------
+
+.. automodule:: simsopt.field.wireframefield
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
