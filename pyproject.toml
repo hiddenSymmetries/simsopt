@@ -53,8 +53,8 @@ keywords = [
 ]
 dependencies = [
     "numpy>=1.21",
-    # "jax>=0.2.5",
-    # "jaxlib>=0.1.56",
+    "jax>=0.2.5",
+    "jaxlib>=0.1.56",
     "scipy>=1.5.4",
     "Deprecated>=1.2.10",
     "monty>=2021.6.10",
