@@ -245,7 +245,7 @@ class QuasisymmetryTests(unittest.TestCase):
             np.testing.assert_allclose(
                 J[0], 0.8089189591823078, err_msg='Weight "stellopt_ornl" does not match precalculated value.')
             surfs = b.bx.compute_surfs
-            self.assertEqual(surfs[0], 49 err_msg='Surface index is not the expected value. Wrong surface is being used in the calculation.')
+            self.assertEqual(surfs[0], 49, msg='Surface index is not the expected value. Wrong surface is being used in the calculation.')
 
 
 if __name__ == "__main__":
