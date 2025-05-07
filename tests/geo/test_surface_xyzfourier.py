@@ -132,7 +132,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         an = np.arctan2(scs[:, 1], scs[:, 0])
         max_angle_err1 = np.max(np.abs(an - phi))
         assert max_angle_err1 < 1e-12
-
+        
         an = np.arctan2(sRZcs[:, 1], sRZcs[:, 0])
         max_angle_err2 = np.max(np.abs(an - phi))
         assert max_angle_err2 < 1e-12

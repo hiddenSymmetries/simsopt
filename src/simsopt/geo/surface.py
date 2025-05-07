@@ -345,19 +345,6 @@ class Surface(Optimizable):
             cross_section: float
                 The cross-section evaluated at :math:`\phi` given support points `thetas`
         """
-
-        #from simsopt.geo import SurfaceRZFourier
-        #if isinstance(self, SurfaceRZFourier):
-        #    varphigrid, thetagrid = np.meshgrid(self.quadpoints_phi, theta, indexing='ij')
-        #    gamma = np.zeros((varphigrid.shape[0], varphigrid.shape[1], 3))
-        #    self.gamma_lin(gamma, varphigrid.flatten(), thetagrid.flatten())
-
-
-
-        # varphi is the search intervals on which we look for the cross section in
-        # at constant cylindrical phi
-        # The cross section is sampled at a number of points (theta_resolution) poloidally.
-        varphi = np.asarray([0., 1.])
         
         if thetas is None:
             theta = np.asarray(self.quadpoints_theta)
@@ -368,6 +355,18 @@ class Surface(Optimizable):
         else:
             raise NotImplementedError('Need to pass int or 1d np.array to thetas')
         
+        # no need to do bisection for SurfaceRZFourier
+        from simsopt.geo import SurfaceRZFourier
+        if isinstance(self, SurfaceRZFourier):
+            xs = np.zeros((theta.size, 3))
+            varphigrid = phi0*np.ones(theta.size)
+            self.gamma_lin(xs, varphigrid, theta)
+            return xs
+
+        # varphi is the search intervals on which we look for the cross section in
+        # at constant cylindrical phi
+        # The cross section is sampled at a number of points (theta_resolution) poloidally.
+        varphi = np.asarray([0., 1.])        
         varphigrid, thetagrid = np.meshgrid(varphi, theta, indexing='ij')
 
         # sample the surface at the varphi and theta points
