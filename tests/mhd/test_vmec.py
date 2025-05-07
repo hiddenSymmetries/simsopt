@@ -692,7 +692,8 @@ class VmecTests(unittest.TestCase):
         Runs with very few iterations for quick CI.
         Previously, get_max_mn() would not updated immediately upon
         """
-        with ScratchDir("."):
+        #with ScratchDir("."):
+        if True:
             v = Vmec(os.path.join(TEST_DIR, 'input.li383_low_res'))
             v.indata.niter_array[:2] = [100, 0]
             v.indata.ftol_array[0] = 1e-4
@@ -703,17 +704,22 @@ class VmecTests(unittest.TestCase):
             v.boundary = nfp5_boundary
             mn2 = v.get_max_mn()
             A2 = v.aspect()
+            iota_edge = v.iota_edge()
+            
             self.assertAlmostEqual(A1, 4.3549675967508055, places=7,
                                    msg='Aspect ratio calculation does not match precalculated result.')
             self.assertAlmostEqual(A2, 10.758596041584697, places=7,
                                    msg='Aspect ratio calculation does not match precalculated result.')
+            self.assertAlmostEqual(iota_edge, 1.62182836599054, places=7,
+                                   msg='iota_edge calculation does not match precalculated result.')
+            
             self.assertEqual(
                 mn1, (4, 3), msg='max_mn does not match precalculated results')
             self.assertEqual(
                 mn2, (11, 12), msg='max_mn not recalculated correctly after boundary updated')
             self.assertEqual(
                 v.indata.nfp, 5, msg='nfp not updated correctly when boundary updated.')
-
+            
 
 if __name__ == "__main__":
     unittest.main()
