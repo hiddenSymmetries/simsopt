@@ -2,7 +2,7 @@ Installation
 ============
 
 This page provides general information on installation.  Detailed
-installation instructions for some specific systems can also be found
+installation instructions for some specific systems – such as `Mac <https://github.com/hiddenSymmetries/simsopt/wiki/Mac-Conda-script-installation>`_ or `NERSC Perlmutter <https://github.com/hiddenSymmetries/simsopt/wiki/NERSC-Perlmutter>`_ – can also be found
 on `the wiki <https://github.com/hiddenSymmetries/simsopt/wiki>`_.
 
 Requirements
