@@ -95,7 +95,7 @@ class SpecTests(unittest.TestCase):
             self.assertAlmostEqual(s.normal_field.get_vns(3, -1), -1.269776831212886e-04, places)
             self.assertAlmostEqual(s.normal_field.get_vnc(1, 0), 1.924871538367248e-04, places)
             self.assertAlmostEqual(s.normal_field.get_vnc(1, -2), 4.070523669489626e-04, places)
-    
+
     def test_normal_field_setter(self):
         """
         Try creating a Spec instance from a freeboundary file that is also
@@ -111,11 +111,9 @@ class SpecTests(unittest.TestCase):
             old_normal = s.normal_field
             new_normal = NormalField(s.nfp, stellsym=s.stellsym, mpol=s.mpol, ntor=s.ntor, surface=surface)
             s.normal_field = new_normal
-            self.assertAlmostEqual(s.normal_field.get_vns(0,1), 0) # set to zeros
-            self.assertIs(s.normal_field.surface, s._computational_boundary) # normal field surface is set to spec computational boundary. 
+            self.assertAlmostEqual(s.normal_field.get_vns(0, 1), 0)  # set to zeros
+            self.assertIs(s.normal_field.surface, s._computational_boundary)  # normal field surface is set to spec computational boundary.
             self.assertIsNot(old_normal, new_normal)
-
-
 
     def test_init_freeboundary(self):
         """
@@ -252,9 +250,8 @@ class SpecTests(unittest.TestCase):
                 elif profile in ['interface_current']:
                     # test that the surface current profile has not been increased
                     self.assertEqual(len(s.x), startdofs)
-                else: 
+                else:
                     raise ValueError(f"Profile {profile} not recognized")
-
 
     def test_freeboundary_default(self):
         """
@@ -263,7 +260,7 @@ class SpecTests(unittest.TestCase):
         """
         with ScratchDir("."):
             s = Spec.default_freeboundary(copy_to_pwd=True)
-            startingboundary = np.copy(s.inputlist.bns) 
+            startingboundary = np.copy(s.inputlist.bns)
             # run sucessfully as default should be converged
             s.run()
             # ask to generate guess, not enough freeboundary iterations
@@ -271,13 +268,13 @@ class SpecTests(unittest.TestCase):
             s.inputlist.lautoinitbn = 1
             s.inputlist.mfreeits = 2
             s.recompute_bell()
-            try: 
+            try:
                 s.run()
             except ObjectiveFailure:
                 self.assertTrue(np.all(s.inputlist.bns == startingboundary))
-            else: 
+            else:
                 raise ValueError("ObjectiveFailure not raised")
-            # give enough freeboundary iterations, let ir run successfully 
+            # give enough freeboundary iterations, let ir run successfully
             s.inputlist.mfreeits = 10
             s.recompute_bell()
             s.run()
@@ -300,7 +297,7 @@ class SpecTests(unittest.TestCase):
         # test that the shape of the array is correct:
         self.assertEqual(translator2.as_simsopt.shape, (spec.inputlist.ntor+1, (2*spec.inputlist.mpol)+1))
 
-    def test_poloidal_current_amperes(self): 
+    def test_poloidal_current_amperes(self):
         """
         Test the poloidal current in amperes
         """

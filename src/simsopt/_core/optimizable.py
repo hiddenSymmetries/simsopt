@@ -115,7 +115,7 @@ class DOFs(GSONable, Hashable):
         else:
             upper_bounds = np.asarray(upper_bounds, np.double)
 
-        assert (len(x) == len(free) == len(lower_bounds) == len(upper_bounds) \
+        assert (len(x) == len(free) == len(lower_bounds) == len(upper_bounds)
                 == len(names))
         self._x = x
         self._free = free
@@ -1543,7 +1543,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         """
 
         G = nx.DiGraph()
-        G.add_node(self.name) 
+        G.add_node(self.name)
 
         def traversal(root):
             for p in root.parents:
@@ -1826,4 +1826,3 @@ class OptimizableSum(Optimizable):
     def dJ(self):
         # Next line uses __add__ function for the Derivative class
         return sum(opt.dJ(partials=True) for opt in self.opts)
-

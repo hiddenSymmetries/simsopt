@@ -97,12 +97,12 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
         surface.
         """
         ntor = self.ntor
-        mpol = self.mpol 
-        surf = SurfaceRZFourier(nfp=self.nfp, 
-                                stellsym=self.stellsym, 
-                                mpol=mpol, 
-                                ntor=ntor, 
-                                quadpoints_phi=self.quadpoints_phi, 
+        mpol = self.mpol
+        surf = SurfaceRZFourier(nfp=self.nfp,
+                                stellsym=self.stellsym,
+                                mpol=mpol,
+                                ntor=ntor,
+                                quadpoints_phi=self.quadpoints_phi,
                                 quadpoints_theta=self.quadpoints_theta)
 
         gamma = np.zeros((surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3))
