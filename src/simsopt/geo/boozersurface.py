@@ -13,7 +13,7 @@ __all__ = ['BoozerSurface']
 class BoozerSurface(Optimizable):
     r"""
     The BoozerSurface class computes a flux surface of a BiotSavart magnetic field where the angles
-    of the surface are Boozer angles [1]. The class takes as input a Surface representation 
+    of the surface are Boozer angles [1,2]. The class takes as input a Surface representation 
     (:obj:`~simsopt.geo.SurfaceXYZFourier` or :obj:`~simsopt.geo.SurfaceXYZTensorFourier`), 
     a BiotSavart magnetic field, a flux surface label evaluator, and a target value of the label.
 
@@ -41,7 +41,7 @@ class BoozerSurface(Optimizable):
         
         :obj:`~simsopt.geo.BoozerSurface.run_code(iota_guess, G=G_guess)`.
     
-    Depending on how the class is initialized, :mod:`run_code`, will use either the BoozerLS or BoozerExact approach
+    Depending on how the class is initialized, :mod:`run_code`, will use either the BoozerLS [2] or BoozerExact [1] approach
     to finding the flux surface. The BoozerLS approach finds the flux surface by solving the constrained least squares
     problem mentioned above. The methods
 
@@ -80,6 +80,8 @@ class BoozerSurface(Optimizable):
     for more information.
 
     *[1]: Giuliani A, Wechsung F, Stadler G, Cerfon A, Landreman M. Direct computation of magnetic surfaces in Boozer coordinates and coil optimization for quasisymmetry. Journal of Plasma Physics. 2022;88(4):905880401. doi:10.1017/S0022377822000563*
+    
+    *[2]: Giuliani, A., Wechsung, F., Cerfon, A., Landreman, M., & Stadler, G. (2023). Direct stellarator coil optimization for nested magnetic surfaces with precise quasi-symmetry. Physics of Plasmas, 30(4).*
     """
     
     def __init__(self, biotsavart, surface, label, targetlabel, constraint_weight=None, options=None):
