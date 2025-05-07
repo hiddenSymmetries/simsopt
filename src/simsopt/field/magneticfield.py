@@ -94,18 +94,19 @@ class MagneticField(sopp.MagneticField, Optimizable):
 
     def to_mgrid(self, filename, nr=10, nphi=4, nz=12, rmin=1.0, rmax=2.0, zmin=-0.5, zmax=0.5, nfp=1,
                  include_potential=False):
-        """Export the field to the mgrid format for free boundary calculations.
+        """Export the field to the mgrid file format for free boundary calculations.
 
         An mgrid file contains a grid in cylindric coordinates upon which the
         magnetic field is evaluated. For free boundary calculations, the
         grid should be large enough to contain the entire plasma. 
         The grid is defined by the number of
-        points in the major radius (nr), the number of planes per field period 
-        in the toroidal angle (nphi), and the number of points in the z coordinate (nz). 
+        points in the major radius (``nr``), the number of planes per field period 
+        in the toroidal angle (``nphi``), and the number of points in the z coordinate (``nz``). 
         A good rule here is to choose at least 4 times as many toroidal planes as the maximum toroidal 
-        mode number (ex. if ntor=6 then you should have at least 24 toroidal planes). 
+        mode number (ex. if ``ntor=6`` then you should have at least 24 toroidal planes). 
+        
         The grid boundary is defined by the minimum and maximum values of the major radius
-        (rmin, rmax), the minimum and maximum values of the z coordinate (zmin, zmax).
+        (``rmin``, ``rmax``), the minimum and maximum values of the z-coordinate (``zmin``, ``zmax``).
         The choice of the number or radial and vertical gridpoints is not as straightforward.
         The VMEC code uses these grids to 'deform' the plasma boundary in a iterative sense.
         The complication revolves around the spectral condensation VMEC preforms in the poloidal direction.
