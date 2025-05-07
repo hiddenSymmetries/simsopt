@@ -339,6 +339,8 @@ class Surface(Optimizable):
                 smaller than 0.
             thetas: float array
                 collocation points to compute cross-section with
+            tol: float
+                the tolerance for the bisection root-finding
 
         Returns
         -------
