@@ -11,6 +11,7 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curveplanarfourier import CurvePlanarFourier
 from simsopt.geo.curvehelical import CurveHelical
+from simsopt.geo.curvealongz import CurveAlongZ
 from simsopt.geo.curvexyzfouriersymmetries import CurveXYZFourierSymmetries
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.geo import parameters
@@ -83,6 +84,8 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = CurveXYZFourierSymmetries(x, order, 2, False)
     elif curvetype == "CurveXYZFourierSymmetries3":
         curve = CurveXYZFourierSymmetries(x, order, 2, False, ntor=3)
+    elif curvetype == "CurveAlongZ":
+        curve = CurveAlongZ(x, 0., 0., 10, False)
     else:
         assert False
     
@@ -124,6 +127,9 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve.set('zc(0)', 1)
         curve.set('zs(1)', r)
         dofs = curve.get_dofs()
+    elif curvetype == "CurveAlongZ":
+        curve.set_dofs(np.array([0.5, 0]))
+        curve.set('xpos', 0.0)
     else:
         assert False
 
@@ -136,7 +142,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
 
 class Testing(unittest.TestCase):
 
-    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurvePlanarFourier", "CurveHelical", "CurveXYZFourierSymmetries1","CurveXYZFourierSymmetries2", "CurveXYZFourierSymmetries3", "CurveHelicalInitx0"]
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurvePlanarFourier", "CurveHelical", "CurveXYZFourierSymmetries1","CurveXYZFourierSymmetries2", "CurveXYZFourierSymmetries3", "CurveHelicalInitx0", "CurveAlongZ"]
     
     def get_curvexyzfouriersymmetries(self, stellsym=True, x=None, nfp=None, ntor=1):
         # returns a CurveXYZFourierSymmetries that is randomly perturbed
