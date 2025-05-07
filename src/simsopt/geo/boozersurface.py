@@ -13,7 +13,8 @@ __all__ = ['BoozerSurface']
 class BoozerSurface(Optimizable):
     r"""
     The BoozerSurface class computes a flux surface of a BiotSavart magnetic field where the angles
-    of the surface are Boozer angles [1]. The class takes as input a Surface representation, 
+    of the surface are Boozer angles [1]. The class takes as input a Surface representation 
+    (:obj:`~simsopt.geo.SurfaceXYZFourier` or :obj:`~simsopt.geo.SurfaceXYZTensorFourier`), 
     a BiotSavart magnetic field, a flux surface label evaluator, and a target value of the label.
 
     The Boozer angles are computed by solving a constrained least squares problem,
@@ -86,7 +87,7 @@ class BoozerSurface(Optimizable):
         Args:
             biotsavart (:obj:`~simsopt.field.BiotSavart`): BiotSavart object.
             surface (:obj:`~simsopt.geo.SurfaceXYZFourier`, :obj:`~simsopt.geo.SurfaceXYZTensorFourier`): Surface object.
-            label (Callable): A method that computes a flux surface label for the surface, such as  
+            label (:obj:`~simsopt._core.optimizable.Optimizable`): A method that computes a flux surface label for the surface, such as  
                 :obj:`~simsopt.geo.Volume`, :obj:`~simsopt.geo.Area`, or :obj:`~simsopt.geo.ToroidalFlux`.
             targetlabel (float): The target value of the label on the surface.
             constraint_weight (float, Optional): The weight of the label constraint used when solving Boozer least squares. 
@@ -94,12 +95,12 @@ class BoozerSurface(Optimizable):
             options (dict, Optional): A dictionary of solver options. If a keyword is not specified, then a default
                 value is used. Possible keywords are:
 
-                - `verbose` (bool): display convergence information
-                - `newton_tol` (float): tolerance for newton solver
-                - `bfgs_tol` (float): tolerance for bfgs solver
-                - `newton_maxiter` (int): maximum number of iterations for Newton solver
-                - `bfgs_maxiter` (int): maximum number of iterations for BFGS solver
-                - `limited_memory` (bool): True if L-BFGS solver is desired, False if the BFGS solver otherwise.
+                - `verbose` (bool): display convergence information. Defaults to True.
+                - `newton_tol` (float): tolerance for newton solver. Defaults to 1e-13 for BoozerExact and 1e-11 for BoozerLS.
+                - `bfgs_tol` (float): tolerance for bfgs solver. Defaults to 1e-10.
+                - `newton_maxiter` (int): maximum number of iterations for Newton solver. Defaults to 40.
+                - `bfgs_maxiter` (int): maximum number of iterations for BFGS solver. Defaults to 1500.
+                - `limited_memory` (bool): True if L-BFGS solver is desired, False if the BFGS solver otherwise. Defaults to False.
                 - `weight_inv_modB` (float): for BoozerLS surfaces, weight the residual by modB so that it does not scale with coil currents.  Defaults to True.
         """
         super().__init__(depends_on=[biotsavart])
@@ -225,7 +226,8 @@ class BoozerSurface(Optimizable):
         this to True is useful to prevent the least squares residual from scaling with the coil currents.
 
         Args:
-            x (ndarray): The degrees of freedom of the BoozerSurface object, e.g. ``bsurf.x``.
+            x (ndarray): The degrees of freedom of the Surface object, followed by the value of iota and G.
+                e.g. ``[surface.x, iota, G]`` or ``[surface.x, iota]`` if ``optimize_G=False``.
             derivatives (int, Optional): 0 if no derivatives are requested, 1 if first derivatives are requested.
             constraint_weight (float, Optional): The weight of the label constraint used when solving Boozer least squares.
             scalarize (bool, Optional): If True, return the least squares residual, otherwise return the residual vector.
@@ -314,7 +316,8 @@ class BoozerSurface(Optimizable):
         especially true when `derivatives=2`, i.e., when the Hessian is requested.
 
         Args:
-            dofs (ndarray): The degrees of freedom of the BoozerSurface object, e.g. ``bsurf.x``.
+            dofs (ndarray): The degrees of freedom of the Surface object, followed by the value of iota and G.
+                e.g. ``[surface.x, iota, G]`` or ``[surface.x, iota]`` if ``optimize_G=False``.
             derivatives (int, Optional): 0 if no derivatives are requested, 1 if first derivatives are requested.
             constraint_weight (float, Optional): The weight of the label constraint used when solving Boozer least squares.
             optimize_G (bool, Optional): True if G is a variable in the optimization problem, False otherwise.
@@ -430,7 +433,8 @@ class BoozerSurface(Optimizable):
         The function can additionally return the first derivatives of these optimality conditions.
 
         Args:
-            xl (ndarray): The degrees of freedom of the BoozerSurface object, e.g. ``bsurf.x``.
+            xl (ndarray): The degrees of freedom of the Surface object, followed by the value of iota and G.
+                e.g. ``[surface.x, iota, G]`` or ``[surface.x, iota]`` if ``optimize_G=False``.
             derivatives (int, Optional): 0 if no derivatives are requested, 1 if first derivatives are requested.
             optimize_G (bool, Optional): True if G is a variable in the optimization problem, False otherwise.
 
@@ -597,7 +601,7 @@ class BoozerSurface(Optimizable):
                 - 'G': the value of G on the surface
                 - 'iota': the value of iota on the surface
                 - 'PLU': the LU decomposition of the hessian
-                - 'type': the type of optimization used
+                - 'type': 'ls'.
                 - 'weight_inv_modB': the value of weight_inv_modB used in the optimization
         """
         if not self.need_to_run_code:
@@ -922,7 +926,7 @@ class BoozerSurface(Optimizable):
                 - 'iota': the value of iota on the surface
                 - 'PLU': the LU decomposition of the jacobian
                 - 'mask': a mask for the residuals that are not used in the optimization
-                - 'type': the type of optimization used
+                - 'type': 'exact'.
                 - 'vjp': the vector-Jacobian product for the optimization
         """
         if not self.need_to_run_code:
