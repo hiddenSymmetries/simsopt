@@ -88,12 +88,10 @@ class QuasisymmetryTests(unittest.TestCase):
         # QA
         s = 0
         q = Quasisymmetry(b, s, 1, 0, "B00", "even")
-        np.testing.assert_allclose(
-            q.J(), [2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18])
+        np.testing.assert_allclose(q.J(), [2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18])
         s = 1
         q = Quasisymmetry(b, s, 1, 0, "B00", "even")
-        np.testing.assert_allclose(
-            q.J(), [.21, .31, .41, .51, .71, .81, .91, 1.01, 1.21, 1.31, 1.41, 1.51, 1.71, 1.81])
+        np.testing.assert_allclose(q.J(), [.21, .31, .41, .51, .71, .81, .91, 1.01, 1.21, 1.31, 1.41, 1.51, 1.71, 1.81])
         s = (0, 1)
         q = Quasisymmetry(b, s, 1, 0, "B00", "even")
         np.testing.assert_allclose(q.J(), [2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18,

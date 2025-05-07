@@ -41,7 +41,7 @@ class CurveHelical(JaxCurve):
     def __init__(self, quadpoints, order, n0, l0, R0, r0, **kwargs):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
-        pure = lambda dofs, points: jaxHelicalfouriercurve_pure(
+        def pure(dofs, points): return jaxHelicalfouriercurve_pure(
             dofs, points, order, n0, l0, R0, r0)
         self.order = order
         self.n0 = n0
@@ -67,4 +67,3 @@ class CurveHelical(JaxCurve):
         order = int(len(dofs)/2)
         for i in range(2):
             self.coefficients[i] = dofs[i*order:(i+1)*order]
-
