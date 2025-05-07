@@ -284,21 +284,21 @@ class ArclengthTests(unittest.TestCase):
         theta_arclength = surf.arclength_poloidal_angle()
         theta_arclength_big = np.concatenate(
             (
-                theta_arclength[:, -n_ghost:] - 1, 
-                theta_arclength, 
+                theta_arclength[:, -n_ghost:] - 1,
+                theta_arclength,
                 theta_arclength[:, :n_ghost] + 1,
             ),
             axis=1,
         )
         function_big = np.concatenate(
             (
-                function[:, -n_ghost:], 
-                function, 
-                function[:, :n_ghost],  
+                function[:, -n_ghost:],
+                function,
+                function[:, :n_ghost],
             ),
             axis=1,
         )
-        function_interpolated2 = np.zeros((nphi, ntheta_eval))  
+        function_interpolated2 = np.zeros((nphi, ntheta_eval))
         nphi = len(theta_arclength[:, 0])
         for iphi in range(nphi):
             interpolator = interpolate.InterpolatedUnivariateSpline(
@@ -333,7 +333,6 @@ class ArclengthTests(unittest.TestCase):
             quadpoints_theta=plasma_surf.quadpoints_theta,
         )
         np.testing.assert_allclose(plasma_surf.gamma(), regcoil_surf.gamma(), atol=1e-3)
-
 
 
 class SurfaceDistanceTests(unittest.TestCase):

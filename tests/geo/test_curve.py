@@ -1070,7 +1070,7 @@ class Testing(unittest.TestCase):
         curve.set('rs(1)', 2)
         curve.set('zc(2)', 3)
         curve.set('zs(3)', 4)
-        
+
         # test rc, rs, zc, and zs, note sine arrays start from mode number 1
         assert curve.rc[0] == curve.get('rc(0)')
         assert curve.zc[2] == curve.get('zc(2)')
@@ -1081,10 +1081,11 @@ class Testing(unittest.TestCase):
         curve = CurveRZFourier(32, order, 1, True)
         curve.set('rc(1)', 1)
         curve.set('zs(2)', 2)
-        
+
         # test rc and zs
         assert curve.rc[1] == curve.get('rc(1)')
         assert curve.zs[1] == curve.get('zs(2)')
+
 
 if __name__ == "__main__":
     unittest.main()
