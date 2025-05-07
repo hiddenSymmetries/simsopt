@@ -168,3 +168,12 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         else:
             raise Exception('Stellarator symmetric BoozerExact surfaces require a specific set of quadrature points on the surface.  See the SurfaceXYZTensorFourier.get_stellsym_mask() docstring for more information.')
         return mask
+
+    def extend_via_normal(self, distance):
+        """
+        Extend the surface in the normal direction by a uniform distance.
+
+        Args:
+            distance: The distance to extend the surface.
+        """
+        self._extend_via_normal_for_nonuniform_phi(distance)

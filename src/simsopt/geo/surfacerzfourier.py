@@ -412,39 +412,39 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         with open(filename, 'r') as f:
             lines = f.readlines()
 
-        nLine = 0
+        j_line = 0
         nfp = 0
         errmsg = "This does not appear to be a nescin-format file."
 
         # Scan through file until nfp is found and desired surface is reached
         while True:
-            if 'Plasma information from VMEC' in lines[nLine]:
-                nLine += 2
-                nfp = int(lines[nLine].split()[0])
+            if 'Plasma information from VMEC' in lines[j_line]:
+                j_line += 2
+                nfp = int(lines[j_line].split()[0])
                 continue
-            elif which_surf == 'plasma' and 'Plasma Surface' in lines[nLine]:
+            elif which_surf == 'plasma' and 'Plasma Surface' in lines[j_line]:
                 assert nfp != 0, errmsg
                 break
-            elif which_surf == 'current' and 'Current Surface' in lines[nLine]:
+            elif which_surf == 'current' and 'Current Surface' in lines[j_line]:
                 assert nfp != 0, errmsg
                 break
-            nLine += 1
-            assert nLine < len(lines), errmsg
+            j_line += 1
+            assert j_line < len(lines), errmsg
 
         # Retrieve the number of Fourier harmonics
-        nLine += 2
-        Nfou = int(lines[nLine].split()[0])
-        nLine += 3
+        j_line += 2
+        n_Fourier = int(lines[j_line].split()[0])
+        j_line += 3
 
         # Now read the Fourier amplitudes:
-        n = np.full(Nfou, 0)
-        m = np.full(Nfou, 0)
-        rc = np.zeros(Nfou)
-        rs = np.zeros(Nfou)
-        zc = np.zeros(Nfou)
-        zs = np.zeros(Nfou)
-        for j in range(Nfou):
-            splitline = lines[j + nLine].split()
+        n = np.full(n_Fourier, 0)
+        m = np.full(n_Fourier, 0)
+        rc = np.zeros(n_Fourier)
+        rs = np.zeros(n_Fourier)
+        zc = np.zeros(n_Fourier)
+        zs = np.zeros(n_Fourier)
+        for j in range(n_Fourier):
+            splitline = lines[j + j_line].split()
             m[j] = int(splitline[0])
             n[j] = -int(splitline[1])    # Note the different sign convention
             rc[j] = float(splitline[2])
@@ -467,7 +467,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, **kwargs)
 
-        for j in range(Nfou):
+        for j in range(n_Fourier):
             surf.rc[m[j], n[j] + ntor] = rc[j]
             surf.zs[m[j], n[j] + ntor] = zs[j]
             if not stellsym:
@@ -790,6 +790,62 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         with open(filename, 'w') as f:
             f.write(self.get_nml())
+
+    def extend_via_normal(self, distance):
+        """
+        Extend the surface in the normal direction by a uniform distance.
+
+        Args:
+            distance: The distance to extend the surface.
+        """
+        if len(self.quadpoints_phi) < 2 * self.ntor + 1:
+            raise RuntimeError("Number of phi quadrature points should be at least 2 * ntor + 1")
+        if len(self.quadpoints_theta) < 2 * self.mpol + 1:
+            raise RuntimeError("Number of theta quadrature points should be at least 2 * mpol + 1")
+
+        # Generate points that are a uniform distance from the surface, though
+        # at irregular phi values:
+        points = (self.gamma() + self.unitnormal() * distance).reshape((-1, 3))
+
+        R = np.sqrt(points[:, 0]**2 + points[:, 1]**2)
+        phi = np.arctan2(points[:, 1], points[:, 0])
+        Z = points[:, 2]
+        n_phi = len(self.quadpoints_phi)
+        n_theta = len(self.quadpoints_theta)
+        theta_1d = np.linspace(0, 2 * np.pi, len(self.quadpoints_theta), endpoint=False)
+        theta = (theta_1d[None, :] * np.ones((n_phi, n_theta))).flatten()
+
+        # Evaluate the basis functions at the new (phi, theta) points:
+        n_cos_dofs = (2 * self.ntor + 1) * self.mpol + self.ntor + 1
+        cos_terms = np.cos(self.m[None, :n_cos_dofs] * theta[:, None] - self.nfp * self.n[None, :n_cos_dofs] * phi[:, None])
+        sin_terms = np.sin(self.m[None, 1:n_cos_dofs] * theta[:, None] - self.nfp * self.n[None, 1:n_cos_dofs] * phi[:, None])
+
+        if self.stellsym:
+            R_basis_funcs = cos_terms
+            Z_basis_funcs = sin_terms
+        else:
+            R_basis_funcs = np.concatenate((cos_terms, sin_terms), axis=1)
+            Z_basis_funcs = R_basis_funcs
+
+        # Fit the mode amplitudes to the new points.
+        # For some os + python + numpy versions there are errors with numpy linear algebra.
+        # This causes a test to fail in the Github Actions CI, as of 3/15/2025.
+        # A solution suggested by Ken Hammond is to call the function a 2nd time
+        # if it fails the first time. Ref:
+        # https://github.com/hiddenSymmetries/simsopt/pull/467#issuecomment-2691164408
+        try:
+            R_dofs = np.linalg.lstsq(R_basis_funcs, R, rcond=None)[0]
+        except np.linalg.LinAlgError:
+            # Try a second time
+            R_dofs = np.linalg.lstsq(R_basis_funcs, R, rcond=None)[0]
+
+        try:
+            Z_dofs = np.linalg.lstsq(Z_basis_funcs, Z, rcond=None)[0]
+        except np.linalg.LinAlgError:
+            # Try a second time
+            Z_dofs = np.linalg.lstsq(Z_basis_funcs, Z, rcond=None)[0]
+
+        self.x = np.concatenate((R_dofs, Z_dofs))
 
     def fourier_transform_scalar(self, scalar, mpol=None, ntor=None, normalization=None, **kwargs):
         r"""
