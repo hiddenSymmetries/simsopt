@@ -80,12 +80,12 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
         x_names = []
         y_names = []
         z_names = []
-        
+
         for m in range(mpol + 1):
             if m == 0:
                 for n in range(ntor + 1):
                     x_names += [f'xc({m},{n})']
-            else: 
+            else:
                 for n in range(-ntor, ntor + 1):
                     x_names += [f'xc({m},{n})']
 
@@ -93,7 +93,7 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
             if m == 0:
                 for n in range(1, ntor + 1):
                     y_names += [f'ys({m},{n})']
-            else: 
+            else:
                 for n in range(-ntor, ntor + 1):
                     y_names += [f'ys({m},{n})']
 
@@ -101,7 +101,7 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
             if m == 0:
                 for n in range(1, ntor + 1):
                     z_names += [f'zs({m},{n})']
-            else: 
+            else:
                 for n in range(-ntor, ntor + 1):
                     z_names += [f'zs({m},{n})']
 
@@ -113,7 +113,7 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
                 else:
                     for n in range(-ntor, ntor + 1):
                         x_names += [f'xs({m},{n})']
-            
+
             for m in range(mpol + 1):
                 if m == 0:
                     for n in range(ntor + 1):
