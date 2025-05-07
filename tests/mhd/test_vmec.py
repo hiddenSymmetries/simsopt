@@ -599,10 +599,15 @@ class VmecTests(unittest.TestCase):
                                      517253.565048661, 477464.829275686, 437676.09350271, 397887.357729738,
                                      358098.621956765, 318309.886183791, 278521.150410821, 238732.414637841,
                                      198943.678864868, 159154.943091895])
+<<<<<<< HEAD
             np.testing.assert_allclose(
                 vmec.wout.jcurv, output_jcurv, rtol=1e-3)
             self.assertEqual(netcdf_to_str(
                 vmec.wout.pcurr_type[:15]), 'cubic_spline_i ')
+=======
+            np.testing.assert_allclose(vmec.wout.jcurv, output_jcurv, rtol=1e-3)
+            self.assertEqual(netcdf_to_str(vmec.wout.pcurr_type[:15]), 'cubic_spline_i ')
+>>>>>>> f0f0ec45fe518e46567f28c9912a505dcdc5ec0f
 
     def test_iota_profile(self):
         """

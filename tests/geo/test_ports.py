@@ -14,6 +14,7 @@ try:
 except ImportError:
     mlab = None
 
+
 class PortTests(unittest.TestCase):
 
     def test_circular_ports(self):
@@ -22,7 +23,7 @@ class PortTests(unittest.TestCase):
         """
 
         # Location and symmetry properties
-        rmaj = 10 
+        rmaj = 10
         phi_port = 20*np.pi/180.
         nfp = 3
 
@@ -56,23 +57,23 @@ class PortTests(unittest.TestCase):
 
         # Make sure error is raised for zero-length axis
         with self.assertRaises(ValueError):
-            p = CircularPort(ox=ox, oy=oy, oz=oz, ax=0, ay=0, az=0, ir=ir, \
+            p = CircularPort(ox=ox, oy=oy, oz=oz, ax=0, ay=0, az=0, ir=ir,
                              thick=thk, l0=l0, l1=l1)
 
         # Construct the port
-        p = CircularPort(ox=ox, oy=oy, oz=oz, ax=ax, ay=ay, az=az, ir=ir, \
+        p = CircularPort(ox=ox, oy=oy, oz=oz, ax=ax, ay=ay, az=az, ir=ir,
                          thick=thk, l0=l0, l1=l1)
 
         # Check the points for a single port
-        self.check_points(p, gap, x_in, y_in, x_thk, y_thk, x_gap, y_gap, \
+        self.check_points(p, gap, x_in, y_in, x_thk, y_thk, x_gap, y_gap,
                           x_out, y_out, z_mid, z_gap, z_out)
 
         # Re-initialize port with input axis vector of non-unit length
-        p = CircularPort(ox=ox, oy=oy, oz=oz, ax=5*ax, ay=5*ay, az=5*az, \
+        p = CircularPort(ox=ox, oy=oy, oz=oz, ax=5*ax, ay=5*ay, az=5*az,
                          ir=ir, thick=thk, l0=l0, l1=l1)
 
         # Results should be the same irrespective of axis length
-        self.check_points(p, gap, x_in, y_in, x_thk, y_thk, x_gap, y_gap, \
+        self.check_points(p, gap, x_in, y_in, x_thk, y_thk, x_gap, y_gap,
                           x_out, y_out, z_mid, z_gap, z_out)
 
         # Verify that the above properties are upheld under toroidal and
@@ -93,18 +94,18 @@ class PortTests(unittest.TestCase):
             y_out_i = x_out*np.sin(i*2*np.pi/nfp) + y_out*np.cos(i*2*np.pi/nfp)
 
             # Verify that points collide as expected for toroidal symmetries
-            self.check_points(p_tor, gap, x_in_i, y_in_i, x_thk_i, y_thk_i, \
-                              x_gap_i, y_gap_i, x_out_i, y_out_i, \
+            self.check_points(p_tor, gap, x_in_i, y_in_i, x_thk_i, y_thk_i,
+                              x_gap_i, y_gap_i, x_out_i, y_out_i,
                               z_mid, z_gap, z_out)
 
             # Verify that points collide as expected for stellarator symmetries
-            self.check_points(p_stl, gap, x_in_i, y_in_i, x_thk_i, y_thk_i, \
-                              x_gap_i, y_gap_i, x_out_i, y_out_i, \
+            self.check_points(p_stl, gap, x_in_i, y_in_i, x_thk_i, y_thk_i,
+                              x_gap_i, y_gap_i, x_out_i, y_out_i,
                               z_mid, z_gap, z_out)
-            self.check_points(p_stl, gap, x_in_i, -y_in_i, x_thk_i, -y_thk_i, \
-                              x_gap_i, -y_gap_i, x_out_i, -y_out_i, \
+            self.check_points(p_stl, gap, x_in_i, -y_in_i, x_thk_i, -y_thk_i,
+                              x_gap_i, -y_gap_i, x_out_i, -y_out_i,
                               -z_mid, -z_gap, -z_out)
- 
+
     def test_rectangular_ports(self):
         """
         Tests for the RectangularPort class and for PortSets with 
@@ -112,7 +113,7 @@ class PortTests(unittest.TestCase):
         """
 
         # Location and symmetry properties
-        rmaj = 10 
+        rmaj = 10
         phi_port = 20*np.pi/180.
         nfp = 3
 
@@ -132,52 +133,52 @@ class PortTests(unittest.TestCase):
         rrel = np.linspace(0.001, 0.999, nr)
         wdim = [1, 1, 0, -1, -1, -1, 0, 1]
         hdim = [0, 1, 1, 1, 0, -1, -1, -1]
-        x_in, x_thk, x_gap, x_out = np.zeros((nr,8)), np.zeros((nr,8)), \
-            np.zeros((nr,8)), np.zeros((nr,8))
-        y_in, y_thk, y_gap, y_out = np.zeros((nr,8)), np.zeros((nr,8)), \
-            np.zeros((nr,8)), np.zeros((nr,8))
+        x_in, x_thk, x_gap, x_out = np.zeros((nr, 8)), np.zeros((nr, 8)), \
+            np.zeros((nr, 8)), np.zeros((nr, 8))
+        y_in, y_thk, y_gap, y_out = np.zeros((nr, 8)), np.zeros((nr, 8)), \
+            np.zeros((nr, 8)), np.zeros((nr, 8))
         for i in range(8):
-            x_in[:,i] = ox + 0.5*iw*rrel*wx*wdim[i] + 0.5*ih*rrel*hx*hdim[i]
-            y_in[:,i] = oy + 0.5*iw*rrel*wy*wdim[i] + 0.5*ih*rrel*hy*hdim[i]
-            x_thk[:,i] = ox + (0.5*iw + thk*rrel)*wx*wdim[i] \
-                            + (0.5*ih + thk*rrel)*hx*hdim[i]
-            y_thk[:,i] = oy + (0.5*iw + thk*rrel)*wy*wdim[i] \
-                            + (0.5*ih + thk*rrel)*hy*hdim[i]
-            x_gap[:,i] = ox + (0.5*iw + thk + gap*rrel)*wx*wdim[i] \
-                            + (0.5*ih + thk + gap*rrel)*hx*hdim[i]
-            y_gap[:,i] = oy + (0.5*iw + thk + gap*rrel)*wy*wdim[i] \
-                            + (0.5*ih + thk + gap*rrel)*hy*hdim[i]
-            x_out[:,i] = ox + (0.5*iw + thk + gap + rrel)*wx*wdim[i] \
-                            + (0.5*ih + thk + gap + rrel)*hx*hdim[i]
-            y_out[:,i] = oy + (0.5*iw + thk + gap + rrel)*wy*wdim[i] \
-                            + (0.5*ih + thk + gap + rrel)*hy*hdim[i]
-        z_mid = (0.5*l1)*np.ones((nr,8))
-        z_gap = (l1+0.5*gap)*np.ones((nr,8))
-        z_out = (l1+gap+1)*np.ones((nr,8))
+            x_in[:, i] = ox + 0.5*iw*rrel*wx*wdim[i] + 0.5*ih*rrel*hx*hdim[i]
+            y_in[:, i] = oy + 0.5*iw*rrel*wy*wdim[i] + 0.5*ih*rrel*hy*hdim[i]
+            x_thk[:, i] = ox + (0.5*iw + thk*rrel)*wx*wdim[i] \
+                + (0.5*ih + thk*rrel)*hx*hdim[i]
+            y_thk[:, i] = oy + (0.5*iw + thk*rrel)*wy*wdim[i] \
+                + (0.5*ih + thk*rrel)*hy*hdim[i]
+            x_gap[:, i] = ox + (0.5*iw + thk + gap*rrel)*wx*wdim[i] \
+                + (0.5*ih + thk + gap*rrel)*hx*hdim[i]
+            y_gap[:, i] = oy + (0.5*iw + thk + gap*rrel)*wy*wdim[i] \
+                + (0.5*ih + thk + gap*rrel)*hy*hdim[i]
+            x_out[:, i] = ox + (0.5*iw + thk + gap + rrel)*wx*wdim[i] \
+                + (0.5*ih + thk + gap + rrel)*hx*hdim[i]
+            y_out[:, i] = oy + (0.5*iw + thk + gap + rrel)*wy*wdim[i] \
+                + (0.5*ih + thk + gap + rrel)*hy*hdim[i]
+        z_mid = (0.5*l1)*np.ones((nr, 8))
+        z_gap = (l1+0.5*gap)*np.ones((nr, 8))
+        z_out = (l1+gap+1)*np.ones((nr, 8))
 
         # Make sure error is raised for zero or non-perpendicular axis vectors
         with self.assertRaises(ValueError):
-            p = RectangularPort(ox=ox, oy=oy, oz=oz, ax=ax, ay=ay, az=az, \
-                                wx=1, wy=0, wz=0.2, iw=iw, ih=ih, thick=thk, \
+            p = RectangularPort(ox=ox, oy=oy, oz=oz, ax=ax, ay=ay, az=az,
+                                wx=1, wy=0, wz=0.2, iw=iw, ih=ih, thick=thk,
                                 l0=l0, l1=l1)
 
         # Initialize the port
-        p = RectangularPort(ox=ox, oy=oy, oz=oz, ax=ax, ay=ay, az=az, \
-                            wx=wx, wy=wy, wz=wz, iw=iw, ih=ih, thick=thk, \
+        p = RectangularPort(ox=ox, oy=oy, oz=oz, ax=ax, ay=ay, az=az,
+                            wx=wx, wy=wy, wz=wz, iw=iw, ih=ih, thick=thk,
                             l0=l0, l1=l1)
 
         # Check the points for a single port
-        self.check_points(p, gap, x_in, y_in, x_thk, y_thk, x_gap, y_gap, \
+        self.check_points(p, gap, x_in, y_in, x_thk, y_thk, x_gap, y_gap,
                           x_out, y_out, z_mid, z_gap, z_out)
 
         # Re-initialize port with axis vectors of non-unit length
         # TODO: check this!
-        p = RectangularPort(ox=ox, oy=oy, oz=oz, ax=5*ax, ay=5*ay, az=5*az, \
-                            wx=6*wx, wy=6*wy, wz=6*wz, iw=iw, ih=ih, \
+        p = RectangularPort(ox=ox, oy=oy, oz=oz, ax=5*ax, ay=5*ay, az=5*az,
+                            wx=6*wx, wy=6*wy, wz=6*wz, iw=iw, ih=ih,
                             thick=thk, l0=l0, l1=l1)
 
         # Results should be the same irrespective of axis length
-        self.check_points(p, gap, x_in, y_in, x_thk, y_thk, x_gap, y_gap, \
+        self.check_points(p, gap, x_in, y_in, x_thk, y_thk, x_gap, y_gap,
                           x_out, y_out, z_mid, z_gap, z_out)
 
         # Verify that the above properties are upheld under toroidal and
@@ -217,7 +218,7 @@ class PortTests(unittest.TestCase):
 
         # General parameters
         nfp = 3
-        rmaj = 10 
+        rmaj = 10
         [ax, ay, az] = [0, 0, 1]
         [l0, l1] = [0, 1]
         gap = 0.1
@@ -229,8 +230,8 @@ class PortTests(unittest.TestCase):
         ir = 1
 
         # Baseline circular port
-        p_circ = CircularPort(ox=oxc, oy=oyc, oz=ozc, ax=ax, ay=ay, az=az, \
-                             ir=ir, thick=thk, l0=l0, l1=l1)
+        p_circ = CircularPort(ox=oxc, oy=oyc, oz=ozc, ax=ax, ay=ay, az=az,
+                              ir=ir, thick=thk, l0=l0, l1=l1)
 
         # Rectangular port parameters
         phi_port_r = 40*np.pi/180.
@@ -240,15 +241,15 @@ class PortTests(unittest.TestCase):
         ih = 2*ir
 
         # Baseline rectangular port
-        p_rect = RectangularPort(ox=oxr, oy=oyr, oz=ozr, ax=ax, ay=ay, az=az, \
-                                wx=wx, wy=wy, wz=wz, iw=iw, ih=ih, \
-                                thick=thk, l0=l0, l1=l1)
+        p_rect = RectangularPort(ox=oxr, oy=oyr, oz=ozr, ax=ax, ay=ay, az=az,
+                                 wx=wx, wy=wy, wz=wz, iw=iw, ih=ih,
+                                 thick=thk, l0=l0, l1=l1)
 
         # Test points in a torus that intersects the ports
         phi_ax = np.linspace(0, 2*np.pi, 72, endpoint=False)
         r_ax = np.linspace(rmaj-ir, rmaj+ir, 8)
         z_ax = np.linspace(-0.5*l1, 0.5*l1, 6)
-        [phi_test, r_test, z_test] =  np.meshgrid(phi_ax, r_ax, z_ax)
+        [phi_test, r_test, z_test] = np.meshgrid(phi_ax, r_ax, z_ax)
         x_test = r_test*np.cos(phi_test)
         y_test = r_test*np.sin(phi_test)
 
@@ -297,7 +298,7 @@ class PortTests(unittest.TestCase):
         """
         # General parameters
         nfp = 3
-        rmaj = 10 
+        rmaj = 10
         [ax, ay, az] = [0, 0, 1]
         [l0, l1] = [0, 1]
         thk = 0.1
@@ -308,8 +309,8 @@ class PortTests(unittest.TestCase):
         ir = 1
 
         # Baseline circular port
-        p_circ = CircularPort(ox=oxc, oy=oyc, oz=ozc, ax=ax, ay=ay, az=az, \
-                             ir=ir, thick=thk, l0=l0, l1=l1)
+        p_circ = CircularPort(ox=oxc, oy=oyc, oz=ozc, ax=ax, ay=ay, az=az,
+                              ir=ir, thick=thk, l0=l0, l1=l1)
 
         # Rectangular port parameters
         phi_port_r = 40*np.pi/180.
@@ -319,9 +320,9 @@ class PortTests(unittest.TestCase):
         ih = 2*ir
 
         # Baseline rectangular port
-        p_rect = RectangularPort(ox=oxr, oy=oyr, oz=ozr, ax=ax, ay=ay, az=az, \
-                                wx=wx, wy=wy, wz=wz, iw=iw, ih=ih, \
-                                thick=thk, l0=l0, l1=l1)
+        p_rect = RectangularPort(ox=oxr, oy=oyr, oz=ozr, ax=ax, ay=ay, az=az,
+                                 wx=wx, wy=wy, wz=wz, iw=iw, ih=ih,
+                                 thick=thk, l0=l0, l1=l1)
 
         # PortSets with circular, rectangular, and all ports with repetitions
         ports_circ = p_circ.repeat_via_symmetries(nfp, True)
@@ -335,7 +336,7 @@ class PortTests(unittest.TestCase):
             ports_circ.save_ports_to_file("test")
             self.assertTrue(os.path.exists("test_circ.csv"))
             self.assertFalse(os.path.exists("test_rect.csv"))
-            
+
             with self.assertRaises(ValueError):
                 PortSet(file="test_circ.csv")
 
@@ -345,36 +346,36 @@ class PortTests(unittest.TestCase):
             # Ensure consistency in the parameters
             all_ax_orig = [p.ax for p in ports_circ]
             all_ax_reloaded = [p.ax for p in ports_reloaded]
-            self.assertTrue(np.allclose(np.sort(all_ax_orig), 
+            self.assertTrue(np.allclose(np.sort(all_ax_orig),
                                         np.sort(all_ax_reloaded)))
- 
+
         # Save the rectangular ports to files and try reloading them
         with ScratchDir("."):
 
             ports_rect.save_ports_to_file("test")
             self.assertFalse(os.path.exists("test_circ.csv"))
             self.assertTrue(os.path.exists("test_rect.csv"))
-            
+
             with self.assertRaises(ValueError):
                 PortSet(file="test_rect.csv")
 
-            ports_reloaded = PortSet(file="test_rect.csv", 
+            ports_reloaded = PortSet(file="test_rect.csv",
                                      port_type='rectangular')
             self.assertEqual(ports_rect.n_ports, ports_reloaded.n_ports)
 
             # Ensure consistency in the parameters
             all_ax_orig = [p.ax for p in ports_rect]
             all_ax_reloaded = [p.ax for p in ports_reloaded]
-            self.assertTrue(np.allclose(np.sort(all_ax_orig), 
+            self.assertTrue(np.allclose(np.sort(all_ax_orig),
                                         np.sort(all_ax_reloaded)))
- 
+
         # Save the combined set of circular and rectangular ports; reload
         with ScratchDir("."):
 
             ports_all.save_ports_to_file("test")
             self.assertTrue(os.path.exists("test_circ.csv"))
             self.assertTrue(os.path.exists("test_rect.csv"))
-            
+
             ports_reloaded = PortSet()
             with self.assertRaises(ValueError):
                 ports_reloaded.load_circular_ports_from_file("test_rect.csv")
@@ -387,23 +388,23 @@ class PortTests(unittest.TestCase):
             # Ensure consistency in the parameters
             all_ax_orig = [p.ax for p in ports_all]
             all_ax_reloaded = [p.ax for p in ports_reloaded]
-            self.assertTrue(np.allclose(np.sort(all_ax_orig), 
+            self.assertTrue(np.allclose(np.sort(all_ax_orig),
                                         np.sort(all_ax_reloaded)))
 
             # Check parameter exclusive to circular ports
-            all_ir_orig = [p.ir for p in ports_all 
+            all_ir_orig = [p.ir for p in ports_all
                            if isinstance(p, CircularPort)]
             all_ir_reloaded = [p.ir for p in ports_reloaded
                                if isinstance(p, CircularPort)]
-            self.assertTrue(np.allclose(np.sort(all_ir_orig), 
+            self.assertTrue(np.allclose(np.sort(all_ir_orig),
                                         np.sort(all_ir_reloaded)))
 
             # Check parameter exclusive to rectangular ports
-            all_ih_orig = [p.ih for p in ports_all 
+            all_ih_orig = [p.ih for p in ports_all
                            if isinstance(p, RectangularPort)]
             all_ih_reloaded = [p.ih for p in ports_reloaded
                                if isinstance(p, RectangularPort)]
-            self.assertTrue(np.allclose(np.sort(all_ih_orig), 
+            self.assertTrue(np.allclose(np.sort(all_ih_orig),
                                         np.sort(all_ih_reloaded)))
 
     @unittest.skipIf(pyevtk is None, "pyevtk not found")
@@ -413,7 +414,7 @@ class PortTests(unittest.TestCase):
         """
 
         # General parameters
-        rmaj = 10 
+        rmaj = 10
         [ax, ay, az] = [0, 0, 1]
         [l0, l1] = [0, 1]
         thk = 0.1
@@ -424,8 +425,8 @@ class PortTests(unittest.TestCase):
         ir = 1
 
         # Baseline circular port
-        p_circ = CircularPort(ox=oxc, oy=oyc, oz=ozc, ax=ax, ay=ay, az=az, \
-                             ir=ir, thick=thk, l0=l0, l1=l1)
+        p_circ = CircularPort(ox=oxc, oy=oyc, oz=ozc, ax=ax, ay=ay, az=az,
+                              ir=ir, thick=thk, l0=l0, l1=l1)
 
         # Rectangular port parameters
         phi_port_r = 40*np.pi/180.
@@ -435,9 +436,9 @@ class PortTests(unittest.TestCase):
         ih = 2*ir
 
         # Baseline rectangular port
-        p_rect = RectangularPort(ox=oxr, oy=oyr, oz=ozr, ax=ax, ay=ay, az=az, \
-                                wx=wx, wy=wy, wz=wz, iw=iw, ih=ih, \
-                                thick=thk, l0=l0, l1=l1)
+        p_rect = RectangularPort(ox=oxr, oy=oyr, oz=ozr, ax=ax, ay=ay, az=az,
+                                 wx=wx, wy=wy, wz=wz, iw=iw, ih=ih,
+                                 thick=thk, l0=l0, l1=l1)
 
         both_ports = p_circ + p_rect
 
@@ -449,7 +450,6 @@ class PortTests(unittest.TestCase):
             self.assertTrue(os.path.exists("rectangular_ports.vtu"))
             self.assertTrue(os.path.exists("all_ports.vtu"))
 
-
     @unittest.skipIf(mlab is None, "mayavi.mlab not found")
     def test_port_plotting(self):
         """
@@ -457,7 +457,7 @@ class PortTests(unittest.TestCase):
         """
 
         # General parameters
-        rmaj = 10 
+        rmaj = 10
         [ax, ay, az] = [0, 0, 1]
         [l0, l1] = [0, 1]
         thk = 0.1
@@ -468,8 +468,8 @@ class PortTests(unittest.TestCase):
         ir = 1
 
         # Baseline circular port
-        p_circ = CircularPort(ox=oxc, oy=oyc, oz=ozc, ax=ax, ay=ay, az=az, \
-                             ir=ir, thick=thk, l0=l0, l1=l1)
+        p_circ = CircularPort(ox=oxc, oy=oyc, oz=ozc, ax=ax, ay=ay, az=az,
+                              ir=ir, thick=thk, l0=l0, l1=l1)
 
         # Rectangular port parameters
         phi_port_r = 40*np.pi/180.
@@ -479,9 +479,9 @@ class PortTests(unittest.TestCase):
         ih = 2*ir
 
         # Baseline rectangular port
-        p_rect = RectangularPort(ox=oxr, oy=oyr, oz=ozr, ax=ax, ay=ay, az=az, \
-                                wx=wx, wy=wy, wz=wz, iw=iw, ih=ih, \
-                                thick=thk, l0=l0, l1=l1)
+        p_rect = RectangularPort(ox=oxr, oy=oyr, oz=ozr, ax=ax, ay=ay, az=az,
+                                 wx=wx, wy=wy, wz=wz, iw=iw, ih=ih,
+                                 thick=thk, l0=l0, l1=l1)
 
         both_ports = p_circ + p_rect
 
@@ -491,7 +491,7 @@ class PortTests(unittest.TestCase):
         both_ports.plot()
         mlab.close(all=True)
 
-    def check_points(self, p, gap, x_in, y_in, x_thk, y_thk, x_gap, y_gap, \
+    def check_points(self, p, gap, x_in, y_in, x_thk, y_thk, x_gap, y_gap,
                      x_out, y_out, z_mid, z_gap, z_out):
         """
         Helper function that checks multiple sets of user-input points for 
@@ -531,7 +531,7 @@ class PortTests(unittest.TestCase):
                 would locate the test outside the nominal port length and the
                 gap spacing in the axial dimension
         """
-                     
+
         # Tests for points in the interior of the port
         self.assertTrue(np.all(p.collides(x_in, y_in, z_mid)))
         self.assertFalse(np.any(p.collides(x_in, y_in, z_gap)))
@@ -562,6 +562,6 @@ class PortTests(unittest.TestCase):
         self.assertFalse(np.any(p.collides(x_out, y_out, z_out)))
         self.assertFalse(np.any(p.collides(x_out, y_out, z_out, gap=gap)))
 
+
 if __name__ == "__main__":
     unittest.main()
-

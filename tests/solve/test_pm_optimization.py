@@ -39,8 +39,8 @@ class Testing(unittest.TestCase):
         m0 = np.zeros((ndipoles, 3))
         b = np.random.rand(nquad)
         A = np.random.rand(nquad, ndipoles, 3)
-        ATA = np.tensordot(A, A, axes=([1, 1])) 
-        alpha = 2.0 / np.linalg.norm(ATA.reshape(nquad * 3, nquad * 3), ord=2) 
+        ATA = np.tensordot(A, A, axes=([1, 1]))
+        alpha = 2.0 / np.linalg.norm(ATA.reshape(nquad * 3, nquad * 3), ord=2)
         ATb = np.tensordot(A, b, axes=([0, 0]))
         with ScratchDir("."):
             MwPGP_hist, RS_hist, m_hist, dipoles = sopp.MwPGP_algorithm(
