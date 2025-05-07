@@ -70,11 +70,67 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
         self.xc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1
         if dofs is None:
-            Surface.__init__(self, x0=self.get_dofs(),
+            Surface.__init__(self, x0=self.get_dofs(), names=self._make_names(mpol, ntor, stellsym),
                              external_dof_setter=SurfaceXYZFourier.set_dofs_impl)
         else:
             Surface.__init__(self, dofs=dofs,
                              external_dof_setter=SurfaceXYZFourier.set_dofs_impl)
+
+    def _make_names(self, mpol, ntor, stellsym):
+        x_names = []
+        y_names = []
+        z_names = []
+        
+        for m in range(mpol + 1):
+            if m == 0:
+                for n in range(ntor + 1):
+                    x_names += [f'xc({m},{n})']
+            else: 
+                for n in range(-ntor, ntor + 1):
+                    x_names += [f'xc({m},{n})']
+
+        for m in range(mpol + 1):
+            if m == 0:
+                for n in range(1, ntor + 1):
+                    y_names += [f'ys({m},{n})']
+            else: 
+                for n in range(-ntor, ntor + 1):
+                    y_names += [f'ys({m},{n})']
+
+        for m in range(mpol + 1):
+            if m == 0:
+                for n in range(1, ntor + 1):
+                    z_names += [f'zs({m},{n})']
+            else: 
+                for n in range(-ntor, ntor + 1):
+                    z_names += [f'zs({m},{n})']
+
+        if not stellsym:
+            for m in range(mpol + 1):
+                if m == 0:
+                    for n in range(1, ntor + 1):
+                        x_names += [f'xs({m},{n})']
+                else:
+                    for n in range(-ntor, ntor + 1):
+                        x_names += [f'xs({m},{n})']
+            
+            for m in range(mpol + 1):
+                if m == 0:
+                    for n in range(ntor + 1):
+                        y_names += [f'yc({m},{n})']
+                else:
+                    for n in range(-ntor, ntor + 1):
+                        y_names += [f'yc({m},{n})']
+
+            for m in range(mpol + 1):
+                if m == 0:
+                    for n in range(ntor + 1):
+                        z_names += [f'zc({m},{n})']
+                else:
+                    for n in range(-ntor, ntor + 1):
+                        z_names += [f'zc({m},{n})']
+
+        return x_names + y_names + z_names
 
     def get_dofs(self):
         """
