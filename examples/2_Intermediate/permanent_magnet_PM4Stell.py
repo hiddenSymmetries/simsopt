@@ -166,7 +166,7 @@ dt = time.time() - t1
 print('GPMO took t = ', dt, ' s')
 
 # Save files
-if True:
+if False:
     # Make BiotSavart object from the dipoles and plot solution
     b_dipole = DipoleField(
         pm_ncsx.dipole_grid_xyz,
@@ -196,7 +196,7 @@ if True:
     nmags = m_history.shape[0]
     nhist = m_history.shape[2]
     m_history_2d = m_history.reshape((nmags*m_history.shape[1], nhist))
-    np.savetxt(out_dir / 'm_history_nmags={nmags}_nhist={nhist}.txt', m_history_2d)
+    np.savetxt(out_dir / 'm_history_nmags=%d_nhist=%d.txt' % (nmags, nhist), m_history_2d)
 t_end = time.time()
 print('Script took in total t = ', t_end - t_start, ' s')
 
