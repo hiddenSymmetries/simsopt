@@ -251,15 +251,12 @@ class SurfaceRZFourierTests(unittest.TestCase):
         expected.
         """
         nescin_filename = TEST_DIR / 'nescin.LandremanPaul2021_QH_reactorScale_separation3'
-        coil_surf = SurfaceRZFourier.from_nescoil_input(
-            nescin_filename, "current", range="half period", ntheta=21, nphi=20)
+        coil_surf = SurfaceRZFourier.from_nescoil_input(nescin_filename, "current", range="half period", ntheta=21, nphi=20)
 
         wout_filename = TEST_DIR / 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
-        plasma_surf = SurfaceRZFourier.from_wout(
-            wout_filename, range="full torus", ntheta=100, nphi=400)
+        plasma_surf = SurfaceRZFourier.from_wout(wout_filename, range="full torus", ntheta=100, nphi=400)
 
-        separation_vectors = coil_surf.gamma(
-        )[:, :, None, None, :] - plasma_surf.gamma()[None, None, :, :, :]
+        separation_vectors = coil_surf.gamma()[:, :, None, None, :] - plasma_surf.gamma()[None, None, :, :, :]
         distances = np.linalg.norm(separation_vectors, axis=-1)
         min_distances = np.min(distances, axis=(2, 3))
         np.testing.assert_allclose(min_distances, 3, rtol=1e-2)
@@ -304,8 +301,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # be shifted by the hiddenSymmetries VMEC2000 module.  For any
         # input file and version of VMEC, we can compare
         # coordinate-independent properties like the volume and area.
-        self.assertAlmostEqual(np.abs(s1.volume()),
-                               np.abs(s2.volume()), places=13)
+        self.assertAlmostEqual(np.abs(s1.volume()), np.abs(s2.volume()), places=13)
         self.assertAlmostEqual(s1.area(), s2.area(), places=7)
         mpol = min(s1.mpol, s2.mpol)
         ntor = min(s1.ntor, s2.ntor)
@@ -313,14 +309,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         for m in range(mpol + 1):
             nmin = 0 if m == 0 else -ntor
             for n in range(nmin, ntor + 1):
-                self.assertAlmostEqual(
-                    s1.get_rc(m, n), s2.get_rc(m, n), places=places)
-                self.assertAlmostEqual(
-                    s1.get_zs(m, n), s2.get_zs(m, n), places=places)
-                self.assertAlmostEqual(
-                    s1.get_rs(m, n), s2.get_rs(m, n), places=places)
-                self.assertAlmostEqual(
-                    s1.get_zc(m, n), s2.get_zc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n), places=places)
 
     def test_get_and_write_nml(self):
         """
@@ -343,10 +335,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
         for m in range(mpol + 1):
             nmin = 0 if m == 0 else -ntor
             for n in range(nmin, ntor + 1):
-                self.assertAlmostEqual(
-                    s1.get_rc(m, n), s2.get_rc(m, n), places=places)
-                self.assertAlmostEqual(
-                    s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
 
         # Try a non-stellarator-symmetric case
         filename = TEST_DIR / 'input.LandremanSenguptaPlunk_section5p3'
@@ -365,14 +355,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         for m in range(mpol + 1):
             nmin = 0 if m == 0 else -ntor
             for n in range(nmin, ntor + 1):
-                self.assertAlmostEqual(
-                    s1.get_rc(m, n), s2.get_rc(m, n), places=places)
-                self.assertAlmostEqual(
-                    s1.get_zs(m, n), s2.get_zs(m, n), places=places)
-                self.assertAlmostEqual(
-                    s1.get_rs(m, n), s2.get_rs(m, n), places=places)
-                self.assertAlmostEqual(
-                    s1.get_zc(m, n), s2.get_zc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n), places=places)
 
     def test_from_focus(self):
         """
@@ -404,9 +390,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         true_area = 24.5871075268402
         true_volume = 2.96201898538042
-        # print("computed area: ", area, ", correct value: ", true_area, \
+        #print("computed area: ", area, ", correct value: ", true_area, \
         #    " , difference: ", area - true_area)
-        # print("computed volume: ", volume, ", correct value: ", \
+        #print("computed volume: ", volume, ", correct value: ", \
         #    true_volume, ", difference:", volume - true_volume)
         self.assertAlmostEqual(s.area(), true_area, places=4)
         self.assertAlmostEqual(s.volume(), true_volume, places=3)
@@ -419,11 +405,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         uniform-offset-surface feature in regcoil.
         """
         wout_filename = TEST_DIR / 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
-        plasma_surf = SurfaceRZFourier.from_wout(
-            wout_filename, range="full torus", ntheta=100, nphi=400)
+        plasma_surf = SurfaceRZFourier.from_wout(wout_filename, range="full torus", ntheta=100, nphi=400)
 
-        coil_surf = SurfaceRZFourier.from_wout(
-            wout_filename, range="half period", ntheta=71, nphi=70)
+        coil_surf = SurfaceRZFourier.from_wout(wout_filename, range="half period", ntheta=71, nphi=70)
         # Increase Fourier resolution so we can represent the surface accurately
         coil_surf.change_resolution(24, 24)
         separation = 3.0
@@ -441,8 +425,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         )
         coil_surf_test.x = coil_surf.x
 
-        separation_vectors = coil_surf_test.gamma(
-        )[:, :, None, None, :] - plasma_surf.gamma()[None, None, :, :, :]
+        separation_vectors = coil_surf_test.gamma()[:, :, None, None, :] - plasma_surf.gamma()[None, None, :, :, :]
         distances = np.linalg.norm(separation_vectors, axis=-1)
         min_distances = np.min(distances, axis=(2, 3))
 
@@ -450,19 +433,15 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         # Compare to a uniform-separation surface calculated by regcoil:
         nescin_filename = TEST_DIR / 'nescin.LandremanPaul2021_QH_reactorScale_separation3'
-        regcoil_surf = SurfaceRZFourier.from_nescoil_input(
-            nescin_filename, "current", range="half period", ntheta=21, nphi=20)
-        np.testing.assert_allclose(
-            coil_surf_test.gamma(), regcoil_surf.gamma(), rtol=0.03)
+        regcoil_surf = SurfaceRZFourier.from_nescoil_input(nescin_filename, "current", range="half period", ntheta=21, nphi=20)
+        np.testing.assert_allclose(coil_surf_test.gamma(), regcoil_surf.gamma(), rtol=0.03)
 
     def test_extend_via_normal_non_stellsym(self):
         """Same as test_extend_via_normal but for non-stellarator-symmetric surfaces."""
         wout_filename = TEST_DIR / 'wout_LandremanSenguptaPlunk_section5p3_reference.nc'
-        plasma_surf = SurfaceRZFourier.from_wout(
-            wout_filename, range="full torus", ntheta=100, nphi=400)
+        plasma_surf = SurfaceRZFourier.from_wout(wout_filename, range="full torus", ntheta=100, nphi=400)
 
-        coil_surf = SurfaceRZFourier.from_wout(
-            wout_filename, range="field period", ntheta=101, nphi=100)
+        coil_surf = SurfaceRZFourier.from_wout(wout_filename, range="field period", ntheta=101, nphi=100)
         # Increase Fourier resolution so we can represent the surface accurately
         coil_surf.change_resolution(24, 24)
         separation = 0.2
@@ -480,8 +459,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         )
         coil_surf_test.x = coil_surf.x
 
-        separation_vectors = coil_surf_test.gamma(
-        )[:, :, None, None, :] - plasma_surf.gamma()[None, None, :, :, :]
+        separation_vectors = coil_surf_test.gamma()[:, :, None, None, :] - plasma_surf.gamma()[None, None, :, :, :]
         distances = np.linalg.norm(separation_vectors, axis=-1)
         min_distances = np.min(distances, axis=(2, 3))
 
@@ -489,10 +467,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         # Compare to a uniform-separation surface calculated by regcoil:
         nescin_filename = TEST_DIR / 'nescin.LandremanSenguptaPlunk_section5p3_separation0p2'
-        regcoil_surf = SurfaceRZFourier.from_nescoil_input(
-            nescin_filename, "current", range="field period", ntheta=21, nphi=20)
-        np.testing.assert_allclose(
-            coil_surf_test.gamma(), regcoil_surf.gamma(), rtol=2e-4)
+        regcoil_surf = SurfaceRZFourier.from_nescoil_input(nescin_filename, "current", range="field period", ntheta=21, nphi=20)
+        np.testing.assert_allclose(coil_surf_test.gamma(), regcoil_surf.gamma(), rtol=2e-4)
 
     def test_from_pyQSC(self):
         """
@@ -506,11 +482,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         ntor = 10
         r = 0.1
 
-        stel.to_vmec(filename, r=r, ntheta=ntheta, ntorMax=ntor,
-                     params={'mpol': mpol, 'ntor': ntor})
+        stel.to_vmec(filename, r=r, ntheta=ntheta, ntorMax=ntor, params={'mpol': mpol, 'ntor': ntor})
 
-        s1 = SurfaceRZFourier.from_pyQSC(
-            stel, r=r, ntheta=ntheta, ntor=ntor, mpol=mpol)
+        s1 = SurfaceRZFourier.from_pyQSC(stel, r=r, ntheta=ntheta, ntor=ntor, mpol=mpol)
         s2 = SurfaceRZFourier.from_vmec_input(filename)
 
         np.testing.assert_allclose(s1.rc, s2.rc)
@@ -527,10 +501,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
         qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), nfp=3, etabar=-0.408)
         phis = np.linspace(0, 1/qsc.nfp, 2*ntor+1, endpoint=False)
         thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
-        full_torus = SurfaceRZFourier.from_pyQSC(
-            qsc, r=0.1, ntheta=100, mpol=6, ntor=6)
-        full_period = SurfaceRZFourier(mpol=full_torus.mpol, ntor=full_torus.ntor, stellsym=full_torus.stellsym,
-                                       nfp=full_torus.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        full_torus = SurfaceRZFourier.from_pyQSC(qsc, r=0.1, ntheta=100, mpol=6, ntor=6)
+        full_period = SurfaceRZFourier(mpol=full_torus.mpol, ntor=full_torus.ntor, stellsym=full_torus.stellsym, nfp=full_torus.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
         full_period.x = full_torus.x
 
         np.testing.assert_allclose(full_torus.rc, full_period.rc)
@@ -538,14 +510,11 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         np.random.seed(1)
         # non stell sym for code coverage
-        qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), rs=np.random.rand(
-            5)*1e-7, zc=np.random.rand(5)*1e-7, nfp=3, etabar=-0.408)
+        qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), rs=np.random.rand(5)*1e-7, zc=np.random.rand(5)*1e-7, nfp=3, etabar=-0.408)
         phis = np.linspace(0, 1/qsc.nfp, 2*ntor+1, endpoint=False)
         thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
-        full_torus = SurfaceRZFourier.from_pyQSC(
-            qsc, r=0.1, ntheta=100, mpol=6, ntor=6)
-        full_period = SurfaceRZFourier(mpol=full_torus.mpol, ntor=full_torus.ntor, stellsym=full_torus.stellsym,
-                                       nfp=full_torus.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        full_torus = SurfaceRZFourier.from_pyQSC(qsc, r=0.1, ntheta=100, mpol=6, ntor=6)
+        full_period = SurfaceRZFourier(mpol=full_torus.mpol, ntor=full_torus.ntor, stellsym=full_torus.stellsym, nfp=full_torus.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
         full_period.x = full_torus.x
 
         np.testing.assert_allclose(full_torus.rc, full_period.rc)
@@ -654,20 +623,15 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         via_vjp = s.dgamma_by_dcoeff_vjp(h)
         via_matvec = np.sum(s.dgamma_by_dcoeff()*h[..., None], axis=(0, 1, 2))
-        assert np.linalg.norm(via_vjp-via_matvec) / \
-            np.linalg.norm(via_vjp) < 1e-13
+        assert np.linalg.norm(via_vjp-via_matvec)/np.linalg.norm(via_vjp) < 1e-13
 
         via_vjp = s.dgammadash1_by_dcoeff_vjp(h)
-        via_matvec = np.sum(s.dgammadash1_by_dcoeff() *
-                            h[..., None], axis=(0, 1, 2))
-        assert np.linalg.norm(via_vjp-via_matvec) / \
-            np.linalg.norm(via_vjp) < 1e-13
+        via_matvec = np.sum(s.dgammadash1_by_dcoeff()*h[..., None], axis=(0, 1, 2))
+        assert np.linalg.norm(via_vjp-via_matvec)/np.linalg.norm(via_vjp) < 1e-13
 
         via_vjp = s.dgammadash2_by_dcoeff_vjp(h)
-        via_matvec = np.sum(s.dgammadash2_by_dcoeff() *
-                            h[..., None], axis=(0, 1, 2))
-        assert np.linalg.norm(via_vjp-via_matvec) / \
-            np.linalg.norm(via_vjp) < 1e-13
+        via_matvec = np.sum(s.dgammadash2_by_dcoeff()*h[..., None], axis=(0, 1, 2))
+        assert np.linalg.norm(via_vjp-via_matvec)/np.linalg.norm(via_vjp) < 1e-13
 
     def test_names_order(self):
         """
@@ -791,10 +755,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
         torsion = 0.6
         nfp = 3
         sqrt_elong = np.sqrt(elongation)
-        surf = SurfaceRZFourier.from_nphi_ntheta(
-            ntor=2, mpol=3, nphi=2, ntheta=4, range="field period", nfp=nfp)
-        surf.make_rotating_ellipse(
-            major_radius, minor_radius, elongation, torsion)
+        surf = SurfaceRZFourier.from_nphi_ntheta(ntor=2, mpol=3, nphi=2, ntheta=4, range="field period", nfp=nfp)
+        surf.make_rotating_ellipse(major_radius, minor_radius, elongation, torsion)
 
         xyz = surf.gamma()
         R = np.sqrt(xyz[:, :, 0]**2 + xyz[:, :, 1]**2)
@@ -835,14 +797,11 @@ class SurfaceRZFourierTests(unittest.TestCase):
         )
 
         # Now make the same surface shape with more quadpoints:
-        surf = SurfaceRZFourier.from_nphi_ntheta(
-            ntor=1, mpol=1, nphi=64, ntheta=65, range="field period", nfp=nfp)
-        surf.make_rotating_ellipse(
-            major_radius, minor_radius, elongation, torsion)
+        surf = SurfaceRZFourier.from_nphi_ntheta(ntor=1, mpol=1, nphi=64, ntheta=65, range="field period", nfp=nfp)
+        surf.make_rotating_ellipse(major_radius, minor_radius, elongation, torsion)
         np.testing.assert_allclose(surf.major_radius(), major_radius)
         np.testing.assert_allclose(surf.minor_radius(), minor_radius)
-        np.testing.assert_allclose(
-            surf.aspect_ratio(), major_radius / minor_radius)
+        np.testing.assert_allclose(surf.aspect_ratio(), major_radius / minor_radius)
 
         # Check that the cross-sectional area is correct at every phi:
         gamma = surf.gamma()
@@ -856,8 +815,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
     @unittest.skipIf(vmec is None, "vmec python extension is not installed")
     def test_make_rotating_ellipse_iota(self):
         """make_rotating_ellipse() should give positive iota."""
-        filename = str(
-            TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres')
+        filename = str(TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres')
         with ScratchDir("."):
             eq = Vmec(filename)
             eq.indata.mpol = 4  # Lower resolution to expedite test
@@ -869,24 +827,20 @@ class SurfaceRZFourierTests(unittest.TestCase):
             minor_radius = 1.3
             elongation = 1.0
             torsion = 0.9
-            eq.boundary.make_rotating_ellipse(
-                major_radius, minor_radius, elongation, torsion)
+            eq.boundary.make_rotating_ellipse(major_radius, minor_radius, elongation, torsion)
             eq.run()
             np.testing.assert_array_less(0, eq.wout.iotaf)
-            np.testing.assert_allclose(
-                eq.mean_iota(), 0.26990720954583547, rtol=1e-6)
+            np.testing.assert_allclose(eq.mean_iota(), 0.26990720954583547, rtol=1e-6)
 
             # Try the case of zero axis torsion with rotating elongation:
             major_radius = 8.4
             minor_radius = 1.3
             elongation = 2.1
             torsion = 0.0
-            eq.boundary.make_rotating_ellipse(
-                major_radius, minor_radius, elongation, torsion)
+            eq.boundary.make_rotating_ellipse(major_radius, minor_radius, elongation, torsion)
             eq.run()
             np.testing.assert_array_less(0, eq.wout.iotaf)
-            np.testing.assert_allclose(
-                eq.mean_iota(), 0.4291137962772453, rtol=1e-6)
+            np.testing.assert_allclose(eq.mean_iota(), 0.4291137962772453, rtol=1e-6)
 
     def test_fourier_transform_scalar(self):
         """
@@ -904,12 +858,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         # create a test field where only Fourier elements [m=2, n=3]
         # and [m=4,n=5] are nonzero:
-        field = 0.8 * np.sin(2*theta2d - 3*s.nfp*phi2d) + 0.2*np.sin(4 *
-                                                                     theta2d - 5*s.nfp*phi2d) + 0.7*np.cos(3*theta2d - 3*s.nfp*phi2d)
+        field = 0.8 * np.sin(2*theta2d - 3*s.nfp*phi2d) + 0.2*np.sin(4*theta2d - 5*s.nfp*phi2d) + 0.7*np.cos(3*theta2d - 3*s.nfp*phi2d)
 
         # Transform the field to Fourier space:
-        ft_sines, ft_cosines = s.fourier_transform_scalar(
-            field, stellsym=False)
+        ft_sines, ft_cosines = s.fourier_transform_scalar(field, stellsym=False)
         self.assertAlmostEqual(ft_sines[2, 3+s.ntor], 0.8)
         self.assertAlmostEqual(ft_sines[4, 5+s.ntor], 0.2)
         self.assertAlmostEqual(ft_cosines[3, 3+s.ntor], 0.7)
@@ -921,44 +873,43 @@ class SurfaceRZFourierTests(unittest.TestCase):
         sines_mask[4, 5 + s.ntor] = False
         cosines_mask[3, 3 + s.ntor] = False
         self.assertEqual(np.all(np.abs(ft_sines[sines_mask]) < 1e-10), True)
-        self.assertEqual(
-            np.all(np.abs(ft_cosines[cosines_mask]) < 1e-10), True)
+        self.assertEqual(np.all(np.abs(ft_cosines[cosines_mask]) < 1e-10), True)
 
         # Transform back to real space:
-        field2 = s.inverse_fourier_transform_scalar(
-            ft_sines, ft_cosines, stellsym=False, normalization=1/2*np.pi**2)
+        field2 = s.inverse_fourier_transform_scalar(ft_sines, ft_cosines, stellsym=False, normalization=1/2*np.pi**2)
 
         # Check that the result is the same as the original field:
         np.testing.assert_allclose(field/2*np.pi**2, field2)
 
-        # Do the same transform+inverse tests for a case with
+        # Do a similar transform+inverse tests for a case with
         # modes aliasing to 0 and for a diffrent normalization
+        # and for a stellarator non-symmetric surface.
         normalization = 1/(np.sqrt(2) * np.pi)
         nphi = 10
         ntheta = 12
-        quadpoints_phi = np.linspace(0, 1, nphi)
-        quadpoints_theta = np.linspace(0, 1, ntheta)
-        s = SurfaceRZFourier(mpol=int(ntheta//2), ntor=int(nphi//2),
+        quadpoints_phi = np.linspace(0, 1, nphi, endpoint=False)
+        quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=False)
+        mpol = int(ntheta//2)
+        ntor = int(nphi//2)
+        s = SurfaceRZFourier(mpol=mpol, ntor=ntor,
                              quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta, stellsym=False)
         s.rc[0, 0] = 1.0
-        s.rs[1, 0] = 0.4
-        s.zc[0, 1] = 0.2
+        s.rs[1, 0] = 0.3
+        s.zc[0, 1] = 0.1
         phi2d, theta2d = np.meshgrid(2 * np.pi * s.quadpoints_phi,
                                      2 * np.pi * s.quadpoints_theta,
                                      indexing='ij')
-        field = 0.8 * np.sin(2*theta2d - 3*s.nfp*phi2d) + 0.2*np.sin(4 *
-                                                                     theta2d - 5*s.nfp*phi2d) + 0.7*np.cos(3*theta2d - 3*s.nfp*phi2d)
-
-        # Transform the field to Fourier space:
+        field = 0.6 * np.sin(4*theta2d - 1*s.nfp*phi2d) + 0.4*np.sin(5 *
+                                                                     theta2d - 2*s.nfp*phi2d) + 0.5*np.cos(5*theta2d + 2*s.nfp*phi2d)
         ft_sines, ft_cosines = s.fourier_transform_scalar(
             field, stellsym=False, normalization=normalization)
         field2 = s.inverse_fourier_transform_scalar(
             ft_sines, ft_cosines, stellsym=False, normalization=normalization)
-
+        np.testing.assert_allclose(field, field2, err_msg = 'Fourier transform not inverting correctly.', atol=1e-13)
+        
     def test_copy_method(self):
         s = SurfaceRZFourier(mpol=4, ntor=5, nfp=3)
-        s2 = s.copy(quadpoints_phi=Surface.get_phi_quadpoints(
-            nphi=100, range='field period'))
+        s2 = s.copy(quadpoints_phi=Surface.get_phi_quadpoints(nphi=100, range='field period'))
         self.assertEqual(len(s2.quadpoints_phi), 100)
         s3 = s.copy(quadpoints_theta=Surface.get_theta_quadpoints(ntheta=50))
         self.assertEqual(len(s3.quadpoints_theta), 50)
@@ -974,17 +925,16 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertEqual(s8.mpol, 5)
         self.assertEqual(s8.ntor, 6)
         s.copy()
-        s.copy(quadpoints_phi=Surface.get_phi_quadpoints(
-            nphi=100, range='field period'), ntheta=82)
+        s.copy(quadpoints_phi=Surface.get_phi_quadpoints(nphi=100, range='field period'), ntheta=82)
 
         s9 = s.copy(stellsym=False)
-        np.testing.assert_allclose(s9.gamma(), s.gamma(
-        ), err_msg='Copied surface is not close to original surface when the copy has stellsym=False.')
+        np.testing.assert_allclose(s9.gamma(), s.gamma(),
+                                   err_msg='Copied surface is not close to original surface when the copy has stellsym=False.')
         s9.set('rs(1,0)', s9.get('rc(0,0)') * 0.01)
         s10 = s9.copy()
         np.testing.assert_allclose(
             s10.x, s9.x, err_msg='Copying surface is broken for stellarator symmetric surfaces!')
-
+        
     def test_fixed_range(self):
         expected_dof_names1 = ['SurfaceRZFourier27:rc(1,-5)', 'SurfaceRZFourier27:rc(2,-5)', 'SurfaceRZFourier27:rc(3,-5)', 'SurfaceRZFourier27:rc(4,-5)', 'SurfaceRZFourier27:rc(4,-4)', 'SurfaceRZFourier27:rc(4,-3)', 'SurfaceRZFourier27:rc(4,-2)', 'SurfaceRZFourier27:rc(4,-1)', 'SurfaceRZFourier27:rc(4,0)', 'SurfaceRZFourier27:rc(4,1)', 'SurfaceRZFourier27:rc(4,2)', 'SurfaceRZFourier27:rc(4,3)', 'SurfaceRZFourier27:rc(4,4)', 'SurfaceRZFourier27:rc(4,5)', 'SurfaceRZFourier27:rs(1,-5)', 'SurfaceRZFourier27:rs(2,-5)', 'SurfaceRZFourier27:rs(3,-5)', 'SurfaceRZFourier27:rs(4,-5)', 'SurfaceRZFourier27:rs(4,-4)', 'SurfaceRZFourier27:rs(4,-3)', 'SurfaceRZFourier27:rs(4,-2)', 'SurfaceRZFourier27:rs(4,-1)', 'SurfaceRZFourier27:rs(4,0)', 'SurfaceRZFourier27:rs(4,1)', 'SurfaceRZFourier27:rs(4,2)', 'SurfaceRZFourier27:rs(4,3)', 'SurfaceRZFourier27:rs(4,4)', 'SurfaceRZFourier27:rs(4,5)',
                                'SurfaceRZFourier27:zc(1,-5)', 'SurfaceRZFourier27:zc(2,-5)', 'SurfaceRZFourier27:zc(3,-5)', 'SurfaceRZFourier27:zc(4,-5)', 'SurfaceRZFourier27:zc(4,-4)', 'SurfaceRZFourier27:zc(4,-3)', 'SurfaceRZFourier27:zc(4,-2)', 'SurfaceRZFourier27:zc(4,-1)', 'SurfaceRZFourier27:zc(4,0)', 'SurfaceRZFourier27:zc(4,1)', 'SurfaceRZFourier27:zc(4,2)', 'SurfaceRZFourier27:zc(4,3)', 'SurfaceRZFourier27:zc(4,4)', 'SurfaceRZFourier27:zc(4,5)', 'SurfaceRZFourier27:zs(1,-5)', 'SurfaceRZFourier27:zs(2,-5)', 'SurfaceRZFourier27:zs(3,-5)', 'SurfaceRZFourier27:zs(4,-5)', 'SurfaceRZFourier27:zs(4,-4)', 'SurfaceRZFourier27:zs(4,-3)', 'SurfaceRZFourier27:zs(4,-2)', 'SurfaceRZFourier27:zs(4,-1)', 'SurfaceRZFourier27:zs(4,0)', 'SurfaceRZFourier27:zs(4,1)', 'SurfaceRZFourier27:zs(4,2)', 'SurfaceRZFourier27:zs(4,3)', 'SurfaceRZFourier27:zs(4,4)', 'SurfaceRZFourier27:zs(4,5)']
@@ -999,7 +949,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertEqual(s.dof_names, expected_dof_names2,
                          msg='dof_names not the expected ones after fixed_range(..., fixed=False)')
 
-
+        
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):
         """
@@ -1024,17 +974,14 @@ class SurfaceRZPseudospectralTests(unittest.TestCase):
         surf1.set('zs(1,0)', 20.0)
         surf1.set('rc(0,1)', 50.0)
         surf1.set('zs(0,1)', 40.0)
-        # The from_RZFourier function should work even if some dofs are fixed.
-        surf1.fix('zs(1,0)')
-        surf2 = SurfaceRZPseudospectral.from_RZFourier(
-            surf1, r_shift=2000.0, a_scale=100.0)
-        # for name, x in zip(surf2.local_dof_names, surf2.x):
+        surf1.fix('zs(1,0)')  # The from_RZFourier function should work even if some dofs are fixed.
+        surf2 = SurfaceRZPseudospectral.from_RZFourier(surf1, r_shift=2000.0, a_scale=100.0)
+        #for name, x in zip(surf2.local_dof_names, surf2.x):
         #    print(name, x)
         theta = np.linspace(0, 2 * np.pi, 3, endpoint=False)
         phi = np.linspace(0, 2 * np.pi, 5, endpoint=False)
         self.assertAlmostEqual(surf2.get('r(0,0)'), 0.3 + 0.5)
-        self.assertAlmostEqual(surf2.get('r(0,1)'),
-                               0.3 * np.cos(theta[1]) + 0.5)
+        self.assertAlmostEqual(surf2.get('r(0,1)'), 0.3 * np.cos(theta[1]) + 0.5)
         self.assertAlmostEqual(surf2.get('z(0,1)'), 0.2 * np.sin(theta[1]))
         nasserts = 3
         for jphi in range(1, 3):
@@ -1061,8 +1008,7 @@ class SurfaceRZPseudospectralTests(unittest.TestCase):
         r1 = np.sqrt(gamma[:, :, 0] ** 2 + gamma[:, :, 1] ** 2)
         z1 = gamma[:, :, 2]
 
-        s2 = SurfaceRZPseudospectral.from_RZFourier(
-            s1, r_shift=2.2, a_scale=0.4)
+        s2 = SurfaceRZPseudospectral.from_RZFourier(s1, r_shift=2.2, a_scale=0.4)
         r2, z2 = s2._complete_grid()
 
         np.testing.assert_allclose(r1, r2.T)
@@ -1077,11 +1023,10 @@ class SurfaceRZPseudospectralTests(unittest.TestCase):
         """
         filename = TEST_DIR / 'input.li383_low_res'
         s1 = SurfaceRZFourier.from_vmec_input(filename)
-        # print('Original SurfaceRZFourier dofs:', s1.x)
-        s2 = SurfaceRZPseudospectral.from_RZFourier(
-            s1, r_shift=2.2, a_scale=0.4)
+        #print('Original SurfaceRZFourier dofs:', s1.x)
+        s2 = SurfaceRZPseudospectral.from_RZFourier(s1, r_shift=2.2, a_scale=0.4)
         s3 = s2.to_RZFourier()
-        # for j, name in enumerate(s1.local_dof_names):
+        #for j, name in enumerate(s1.local_dof_names):
         #    print(name, x1[j], x3[j], x1[j] - x3[j])
         np.testing.assert_allclose(s1.full_x, s3.full_x)
 
@@ -1092,8 +1037,7 @@ class SurfaceRZPseudospectralTests(unittest.TestCase):
         """
         filename = TEST_DIR / 'input.li383_low_res'
         s1 = SurfaceRZFourier.from_vmec_input(filename)
-        s2 = SurfaceRZPseudospectral.from_RZFourier(
-            s1, r_shift=2.2, a_scale=0.4)
+        s2 = SurfaceRZPseudospectral.from_RZFourier(s1, r_shift=2.2, a_scale=0.4)
         # Increase the resolution:
         s3 = s2.change_resolution(mpol=s1.mpol + 3, ntor=s1.ntor + 4)
         # Decrease the resolution back to where it was originally:
