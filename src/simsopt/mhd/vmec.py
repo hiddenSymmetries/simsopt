@@ -203,7 +203,7 @@ class Vmec(Optimizable):
     ``indata.pmass_type`` is ``"power_series"`` or
     ``"cubic_spline"``. (The current profile is different in that
     either ``"cubic_spline_ip"`` or ``"cubic_spline_i"`` is specified
-    instead of ``"cubic_spline"``.) The number of terms in the power
+    instead of ``"cubic_spline"``, where ``cubic_spline_ip`` sets I'(s) while ``cubic_spline_i`` sets I(s).) The number of terms in the power
     series or number of spline nodes is determined by the attributes
     ``n_pressure``, ``n_current``, and ``n_iota``.  If a cubic spline
     is used, the spline nodes are uniformly spaced from :math:`s=0` to
@@ -226,6 +226,8 @@ class Vmec(Optimizable):
         vmec.pressure_profile = pressure_Pa
         vmec.indata.pmass_type = "cubic_spline"
         vmec.n_pressure = 8  # Use 8 spline nodes
+
+    When a current profile is used, the ``VMEC`` object automatically updates ``curtor`` so that the total toroidal current I(s=1) matches that of the specified profile.
 
     When VMEC is run multiple times, the default behavior is that all
     ``wout`` output files will be deleted except for the first and
@@ -548,8 +550,11 @@ class Vmec(Optimizable):
         if self.pressure_profile is not None:
             vi.pres_scale = 1.0
         if self.current_profile is not None:
-            integral, _ = quad(self.current_profile, 0, 1)
-            vi.curtor = integral
+            if vi.pcurr_type.decode().lower().strip() in ['power_series', 'gauss_trunc', 'two_power', 'cubic_spline_ip', 'akima_spline_ip']:
+                integral, _ = quad(self.current_profile, 0, 1)
+                vi.curtor = integral
+            else:
+                vi.curtor = self.current_profile(1.0)
 
         return boundary_RZFourier
 
@@ -758,7 +763,7 @@ class Vmec(Optimizable):
                     os.remove(filename)
                 except FileNotFoundError:
                     logger.debug(f"Tried to delete the file {filename} but it was not found")
-                    
+
             self.files_to_delete = []
 
             # Record the latest output file to delete if we run again:

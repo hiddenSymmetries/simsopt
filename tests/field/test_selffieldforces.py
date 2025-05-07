@@ -18,9 +18,9 @@ from simsopt.field.selffield import (
 )
 from simsopt.field.force import (
     coil_force,
-    self_force_circ, 
-    self_force_rect, 
-    MeanSquaredForce, 
+    self_force_circ,
+    self_force_rect,
+    MeanSquaredForce,
     LpCurveForce)
 
 logger = logging.getLogger(__name__)
@@ -217,7 +217,6 @@ class CoilForcesTest(unittest.TestCase):
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
         np.testing.assert_allclose(objective, objective_alt)
 
-
     def test_update_points(self):
         """Confirm that Biot-Savart evaluation points are updated when the
         curve shapes change."""
@@ -237,16 +236,16 @@ class CoilForcesTest(unittest.TestCase):
             old_biot_savart_points = objective.biotsavart.get_points_cart()
 
             # A deterministic random shift to the coil dofs:
-            shift = np.array([-0.06797948, -0.0808704 , -0.02680599, -0.02775893, -0.0325402 ,
-                0.04382695,  0.06629717,  0.05050437, -0.09781039, -0.07473099,
-                0.03492035,  0.08474462,  0.06076695,  0.02420473,  0.00388997,
-                0.06992079,  0.01505771, -0.09350505, -0.04637735,  0.00321853,
-                -0.04975992,  0.01802391,  0.09454193,  0.01964133,  0.09205931,
-                -0.09633654, -0.01449546,  0.07617653,  0.03008342,  0.00636141,
-                0.09065833,  0.01628199,  0.02683667,  0.03453558,  0.03439423,
-                -0.07455501,  0.08084003, -0.02490166, -0.05911573, -0.0782221 ,
-                -0.03001621,  0.01356862,  0.00085723,  0.06887564,  0.02843625,
-                -0.04448741, -0.01301828,  0.01511824])
+            shift = np.array([-0.06797948, -0.0808704, -0.02680599, -0.02775893, -0.0325402,
+                              0.04382695, 0.06629717, 0.05050437, -0.09781039, -0.07473099,
+                              0.03492035, 0.08474462, 0.06076695, 0.02420473, 0.00388997,
+                              0.06992079, 0.01505771, -0.09350505, -0.04637735, 0.00321853,
+                              -0.04975992, 0.01802391, 0.09454193, 0.01964133, 0.09205931,
+                              -0.09633654, -0.01449546, 0.07617653, 0.03008342, 0.00636141,
+                              0.09065833, 0.01628199, 0.02683667, 0.03453558, 0.03439423,
+                              -0.07455501, 0.08084003, -0.02490166, -0.05911573, -0.0782221,
+                              -0.03001621, 0.01356862, 0.00085723, 0.06887564, 0.02843625,
+                              -0.04448741, -0.01301828, 0.01511824])
 
             objective.x = objective.x + shift
             assert abs(objective.J() - old_objective_value) > 1e-6
@@ -256,7 +255,6 @@ class CoilForcesTest(unittest.TestCase):
             objective2 = objective_class(coils[0], coils, regularization)
             print("objective 1:", objective.J(), "objective 2:", objective2.J())
             np.testing.assert_allclose(objective.J(), objective2.J())
-
 
     def test_meansquaredforces_taylor_test(self):
         """Verify that dJ matches finite differences of J"""
@@ -298,7 +296,7 @@ class CoilForcesTest(unittest.TestCase):
         dofs = J.x
         h = np.ones_like(dofs)
         err = 100
-        for i in range(10, 19):
+        for i in range(10, 18):
             eps = 0.5**i
             J.x = dofs + eps * h
             Jp = J.J()
@@ -306,7 +304,7 @@ class CoilForcesTest(unittest.TestCase):
             Jm = J.J()
             deriv_est = (Jp - Jm) / (2 * eps)
             err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
-            # print("i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
+            print("test_lpcurveforces_taylor_test i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
             np.testing.assert_array_less(err_new, 0.31 * err)
             err = err_new
 

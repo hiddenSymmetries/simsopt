@@ -87,6 +87,13 @@ optimization.  Others include `STELLOPT
    example_coils
    example_single_stage
    example_permanent_magnets
+   example_wireframe
+
+.. toctree::
+   :maxdepth: 3
+   :caption: Developer Guides
+
+   example_derivative
 
 .. toctree::
    :maxdepth: 3
