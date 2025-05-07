@@ -219,8 +219,8 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
                     result.x = x0
 
     else:
-        leaders_action = lambda mpi, data: None
-        workers_action = lambda mpi, data: _mpi_workers_task(mpi, prob)
+        def leaders_action(mpi, data): return None
+        def workers_action(mpi, data): return _mpi_workers_task(mpi, prob)
         # Send group leaders and workers into their respective loops:
         mpi.apart(leaders_action, workers_action)
 
@@ -482,8 +482,8 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
 
     else:
 
-        leaders_action = lambda mpi, data: None
-        workers_action = lambda mpi, data: _constrained_mpi_workers_task(mpi, prob, data)
+        def leaders_action(mpi, data): return None
+        def workers_action(mpi, data): return _constrained_mpi_workers_task(mpi, prob, data)
         # Send group leaders and workers into their respective loops:
         mpi.apart(leaders_action, workers_action)
 

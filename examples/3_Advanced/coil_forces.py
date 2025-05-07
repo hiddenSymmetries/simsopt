@@ -11,7 +11,7 @@ from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
 from simsopt.geo import SurfaceRZFourier
 from simsopt.field import Current, coils_via_symmetries
 from simsopt.objectives import SquaredFlux, Weight, QuadraticPenalty
-from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance, 
+from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance,
                          MeanSquaredCurvature, LpCurveCurvature)
 from simsopt.field import BiotSavart
 from simsopt.field.force import coil_force, LpCurveForce

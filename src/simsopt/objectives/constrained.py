@@ -27,41 +27,46 @@ logger = logging.getLogger(__name__)
 class ConstrainedProblem(Optimizable):
     """
     Represents a nonlinear, constrained optimization problem implemented using the 
-    graph based optimization framework. A ConstrainedProblem instance has
-    4 basic attributes: an objective (`f`), nonlinear constraints (`c`), 
+    graph based optimization framework. A ``ConstrainedProblem`` instance has
+    4 basic attributes: an objective, nonlinear constraints, 
     linear constraints, and bound constraints. Problems take the general form:
 
-    .. math::
+        .. math::
 
-        \min_x f(x) 
-        s.t. 
-          l_{nlc} \le c(x) \le u_{nlc}
-          l_{lc} \le Ax \le u_{lc}
+            \min_x f(x) 
 
-    Bound constraints should be specified directly through the Optimizable objects. 
-    For instance, with an optimizable object `v` we can set the 
-    upper bounds of the free DOFs associated with the current Optimizable object 
-    and those of its ancestors via `v.upper_bounds = ub` where ub is a 1d-array. 
+            \\text{s.t.} 
+
+            l_{\\text{nlc}} \leq c(x) \leq u_{\\text{nlc}}
+
+            l_{\\text{lc}} \leq Ax \leq u_{\\text{lc}}
+
+    Constrained optimization problems can be solved with the ``constrained_mpi_solve`` or
+    ``constrained_serial_solve`` functions. Typically, this class is used for Stage-I optimization.
+
+    Whereas linear and nonlinear constraints are passed as arguments to this class, bound constraints
+    should be specified directly through the Optimizable objects. For instance, with an optimizable 
+    object ``v`` we can set the upper bounds of the free DOFs associated with the current Optimizable object 
+    and those of its ancestors via ``v.upper_bounds = ub`` where ``ub`` is a 1d-array. 
     To set the upper bounds on the free dofs of a single optimizable object (and not
-    it's ancestors) use `v.local_upper_bounds = ub`.
-    The upper bound of a single dof can be set with `v.set_upper_bound(dof_name,value)`.
+    it's ancestors) use ``v.local_upper_bounds = ub``.
+    The upper bound of a single dof can be set with ``v.set_upper_bound(dof_name,value)``.
 
     Args:
-        f_obj: objective function handle (generally one of the output functions of
-            the Optimizable instances)
-        tuples_nlc: Nonlinear constraints as a sequence of triples containing 
-                    the nonlinear constraint function c with lower and upper bounds
-                    i.e. `[(c,l_{nlc},u_{nlc}), ...]`.
-                    Constraint handle can (`c`) can be vector-valued or scalar-valued.
-                    Constraint bounds can also be array or scalar.
-                    Use +- np.inf to indicate unbounded components.
-                    Define equality constraints by using equal upper and lower bounds.
-        tuple_lc: Linear constraints as a triple containing the 2d-array A,
-                  lower bound `l_{lc}`, and upper bound `u_{lc}`, 
-                  i.e. `(A,l_{lc},u_{lc})`.
-                  Constraint bounds can be 1d arrays or scalars.
-                  Use +- np.inf in the bounds to indicate unbounded components.
-                  Define equality constraints by using equal upper and lower bounds.
+        f_obj (Callable): objective function handle (generally a method of an Optimizable instance)
+        tuples_nlc (list): Nonlinear constraints as a sequence of triples containing 
+            the nonlinear constraint function, :math:`c`, with lower and upper bounds
+            i.e. ``[(c,l_{nlc},u_{nlc}), ...]``.
+            Each constraint handle, :math:`c`, can be scalar-valued or be vector valued. Similarly, 
+            the constraint bounds :math:`l_{\\text{nlc}}`, :math:`u_{\\text{nlc}}` can be scalars or 1d-arrays.
+            Use ``+-np.inf`` to indicate unbounded components, and define equality constraints 
+            by using equal upper and lower bounds.
+        tuple_lc (tuple): A tuple containing the matrix :math:`A`, lower and upper bounds, for the linear
+            constraints i.e. :math:`(A, l_{\\text{lc}}, u_{\\text{lc}})`. Constraint bounds can be 1d-arrays or scalars.
+            Use ``+-np.inf`` in the bounds to indicate unbounded components, define equality constraints 
+            by using equal upper and lower bounds.
+        fail (float, optional): If an objective or nonlinear constraint evaluation fails, the value returned
+            is set to this value.
     """
 
     def __init__(self,
@@ -85,7 +90,7 @@ class ConstrainedProblem(Optimizable):
             self.lhs_nlc = lhs_nlc
             self.rhs_nlc = rhs_nlc
         else:
-            funcs_in = [f_obj]  
+            funcs_in = [f_obj]
             self.has_nlc = False
 
         # unpack the linear constraints
@@ -102,13 +107,16 @@ class ConstrainedProblem(Optimizable):
 
     def nonlinear_constraints(self, x=None, *args, **kwargs):
         """
-        Evaluates the Nonlinear constraints, l_c <= c(x) <= u_c.
-        Returns an array [l_c - c(x), c(x) - u_c,...].
+        Evaluates the nonlinear constraints, :math:`l_{\\text{nlc}} \leq c(x) \leq u_{\\text{nlc}}`.
 
         Args:
-            x: Degrees of freedom or state
-            args: Any additional arguments
-            kwargs: Keyword arguments
+            x (array, Optional): Degrees of freedom. If not provided, the current degrees of freedom are used.
+            args: Any additional arguments passed to the nonlinear constraint functions.
+            kwargs: Keyword arguments passed to the nonlinear constraint functions.
+
+        Returns:
+            Array containing the nonlinear constraints, ordered as
+            :math:`[l_{\\text{nlc}} - c(x), c(x) - u_{\\text{nlc}},...]`.
         """
         if x is not None:
             # only change x if different than last evaluated
@@ -150,7 +158,7 @@ class ConstrainedProblem(Optimizable):
 
                 # evaluate rhs as c(x) - rhs <= 0
                 if np.any(np.isfinite(self.rhs_nlc[i])):
-                    diff = out - np.array(self.rhs_nlc[i]) 
+                    diff = out - np.array(self.rhs_nlc[i])
                     output = np.array([diff]) if not np.ndim(diff) else np.asarray(diff)
                     outputs += [output]
                     if self.first_eval_con:
@@ -173,12 +181,15 @@ class ConstrainedProblem(Optimizable):
 
     def objective(self, x=None, *args, **kwargs):
         """
-        Return the objective function
+        Evaluate the objective function, :math:`f(x)`.
 
         Args:
-            x: Degrees of freedom or state
-            args: Any additional arguments
-            kwargs: Keyword arguments
+            x (array, Optional): Degrees of freedom. If not provided, the current degrees of freedom are used.
+            args: Any additional arguments passed to the objective function.
+            kwargs: Keyword arguments passed to the objective function.
+
+        Returns:
+            `(float)` Objective function value.
         """
         if x is not None:
             # only change x if different than last evaluated
@@ -215,9 +226,13 @@ class ConstrainedProblem(Optimizable):
         Evaluate the objective and nonlinear constraints.
 
         Args:
-            x: Degrees of freedom or state
-            args: Any additional arguments
-            kwargs: Keyword arguments
+            x (array, Optional): Degrees of freedom. If not provided, the current degrees of freedom are used.
+            args: Any additional arguments passed to the objective and nonlinear constraint functions.
+            kwargs: Keyword arguments passed to the objective and nonlinear constraint functions.
+
+        Returns:
+            Array containing the objective and nonlinear constraints, ordered as 
+            :math:`[f(x), l_{\\text{nlc}} - c(x), c(x) - u_{\\text{nlc}},...]`
         """
         f_obj = self.objective(x, *args, **kwargs)
         out = np.array([f_obj])
@@ -225,5 +240,3 @@ class ConstrainedProblem(Optimizable):
             f_nlc = self.nonlinear_constraints(x, *args, **kwargs)
             out = np.concatenate((out, f_nlc))
         return out
-
-

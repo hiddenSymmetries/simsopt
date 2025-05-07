@@ -248,10 +248,10 @@ free_coil_dofs = JF.dofs_free_status
 JF.fix_all()
 
 with MPIFiniteDifference(
-    opt.J, 
-    mpi, 
-    diff_method=diff_method, 
-    abs_step=finite_difference_abs_step, 
+    opt.J,
+    mpi,
+    diff_method=diff_method,
+    abs_step=finite_difference_abs_step,
     rel_step=finite_difference_rel_step,
 ) as prob_jacobian:
     if mpi.proc0_world:
