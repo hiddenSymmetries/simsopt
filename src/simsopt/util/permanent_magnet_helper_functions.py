@@ -2,8 +2,8 @@
 This module contains the a number of useful functions for using 
 the permanent magnets functionality in the SIMSOPT code.
 """
-__all__ = ['read_focus_coils', 'coil_optimization', 
-           'trace_fieldlines', 'make_qfm', 
+__all__ = ['read_focus_coils', 'coil_optimization',
+           'trace_fieldlines', 'make_qfm',
            'initialize_coils', 'calculate_on_axis_B',
            'make_optimization_plots', 'run_Poincare_plots',
            'make_Bnormal_plots', 'initialize_default_kwargs'
@@ -577,6 +577,6 @@ def initialize_default_kwargs(algorithm='RS'):
         kwargs['reg_l2'] = 0.0
     elif 'GPMO' in algorithm or 'ArbVec' in algorithm:
         kwargs['K'] = 1000
-        kwargs["reg_l2"] = 0.0 
+        kwargs["reg_l2"] = 0.0
         kwargs['nhistory'] = 500  # K > nhistory and nhistory must be divisor of K
     return kwargs
