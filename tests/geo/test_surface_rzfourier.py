@@ -905,7 +905,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
             field, stellsym=False, normalization=normalization)
         field2 = s.inverse_fourier_transform_scalar(
             ft_sines, ft_cosines, stellsym=False, normalization=normalization)
-        np.testing.assert_allclose(field, field2, err_msg = 'Fourier transform not inverting correctly.', atol=1e-13)
+        np.testing.assert_allclose(field, field2, err_msg = 'Fourier transform + inverse transform does not give the original field.', atol=1e-13)
         
     def test_copy_method(self):
         s = SurfaceRZFourier(mpol=4, ntor=5, nfp=3)
@@ -936,19 +936,87 @@ class SurfaceRZFourierTests(unittest.TestCase):
             s10.x, s9.x, err_msg='Copying surface is broken for stellarator symmetric surfaces!')
         
     def test_fixed_range(self):
-        expected_dof_names1 = ['SurfaceRZFourier27:rc(1,-5)', 'SurfaceRZFourier27:rc(2,-5)', 'SurfaceRZFourier27:rc(3,-5)', 'SurfaceRZFourier27:rc(4,-5)', 'SurfaceRZFourier27:rc(4,-4)', 'SurfaceRZFourier27:rc(4,-3)', 'SurfaceRZFourier27:rc(4,-2)', 'SurfaceRZFourier27:rc(4,-1)', 'SurfaceRZFourier27:rc(4,0)', 'SurfaceRZFourier27:rc(4,1)', 'SurfaceRZFourier27:rc(4,2)', 'SurfaceRZFourier27:rc(4,3)', 'SurfaceRZFourier27:rc(4,4)', 'SurfaceRZFourier27:rc(4,5)', 'SurfaceRZFourier27:rs(1,-5)', 'SurfaceRZFourier27:rs(2,-5)', 'SurfaceRZFourier27:rs(3,-5)', 'SurfaceRZFourier27:rs(4,-5)', 'SurfaceRZFourier27:rs(4,-4)', 'SurfaceRZFourier27:rs(4,-3)', 'SurfaceRZFourier27:rs(4,-2)', 'SurfaceRZFourier27:rs(4,-1)', 'SurfaceRZFourier27:rs(4,0)', 'SurfaceRZFourier27:rs(4,1)', 'SurfaceRZFourier27:rs(4,2)', 'SurfaceRZFourier27:rs(4,3)', 'SurfaceRZFourier27:rs(4,4)', 'SurfaceRZFourier27:rs(4,5)',
-                               'SurfaceRZFourier27:zc(1,-5)', 'SurfaceRZFourier27:zc(2,-5)', 'SurfaceRZFourier27:zc(3,-5)', 'SurfaceRZFourier27:zc(4,-5)', 'SurfaceRZFourier27:zc(4,-4)', 'SurfaceRZFourier27:zc(4,-3)', 'SurfaceRZFourier27:zc(4,-2)', 'SurfaceRZFourier27:zc(4,-1)', 'SurfaceRZFourier27:zc(4,0)', 'SurfaceRZFourier27:zc(4,1)', 'SurfaceRZFourier27:zc(4,2)', 'SurfaceRZFourier27:zc(4,3)', 'SurfaceRZFourier27:zc(4,4)', 'SurfaceRZFourier27:zc(4,5)', 'SurfaceRZFourier27:zs(1,-5)', 'SurfaceRZFourier27:zs(2,-5)', 'SurfaceRZFourier27:zs(3,-5)', 'SurfaceRZFourier27:zs(4,-5)', 'SurfaceRZFourier27:zs(4,-4)', 'SurfaceRZFourier27:zs(4,-3)', 'SurfaceRZFourier27:zs(4,-2)', 'SurfaceRZFourier27:zs(4,-1)', 'SurfaceRZFourier27:zs(4,0)', 'SurfaceRZFourier27:zs(4,1)', 'SurfaceRZFourier27:zs(4,2)', 'SurfaceRZFourier27:zs(4,3)', 'SurfaceRZFourier27:zs(4,4)', 'SurfaceRZFourier27:zs(4,5)']
-        expected_dof_names2 = ['SurfaceRZFourier27:rc(1,-5)', 'SurfaceRZFourier27:rc(2,-5)', 'SurfaceRZFourier27:rc(2,5)', 'SurfaceRZFourier27:rc(3,-5)', 'SurfaceRZFourier27:rc(3,5)', 'SurfaceRZFourier27:rc(4,-5)', 'SurfaceRZFourier27:rc(4,-4)', 'SurfaceRZFourier27:rc(4,-3)', 'SurfaceRZFourier27:rc(4,-2)', 'SurfaceRZFourier27:rc(4,-1)', 'SurfaceRZFourier27:rc(4,0)', 'SurfaceRZFourier27:rc(4,1)', 'SurfaceRZFourier27:rc(4,2)', 'SurfaceRZFourier27:rc(4,3)', 'SurfaceRZFourier27:rc(4,4)', 'SurfaceRZFourier27:rc(4,5)', 'SurfaceRZFourier27:rs(1,-5)', 'SurfaceRZFourier27:rs(2,-5)', 'SurfaceRZFourier27:rs(2,5)', 'SurfaceRZFourier27:rs(3,-5)', 'SurfaceRZFourier27:rs(3,5)', 'SurfaceRZFourier27:rs(4,-5)', 'SurfaceRZFourier27:rs(4,-4)', 'SurfaceRZFourier27:rs(4,-3)', 'SurfaceRZFourier27:rs(4,-2)', 'SurfaceRZFourier27:rs(4,-1)', 'SurfaceRZFourier27:rs(4,0)', 'SurfaceRZFourier27:rs(4,1)', 'SurfaceRZFourier27:rs(4,2)', 'SurfaceRZFourier27:rs(4,3)', 'SurfaceRZFourier27:rs(4,4)', 'SurfaceRZFourier27:rs(4,5)',
-                               'SurfaceRZFourier27:zc(1,-5)', 'SurfaceRZFourier27:zc(2,-5)', 'SurfaceRZFourier27:zc(2,5)', 'SurfaceRZFourier27:zc(3,-5)', 'SurfaceRZFourier27:zc(3,5)', 'SurfaceRZFourier27:zc(4,-5)', 'SurfaceRZFourier27:zc(4,-4)', 'SurfaceRZFourier27:zc(4,-3)', 'SurfaceRZFourier27:zc(4,-2)', 'SurfaceRZFourier27:zc(4,-1)', 'SurfaceRZFourier27:zc(4,0)', 'SurfaceRZFourier27:zc(4,1)', 'SurfaceRZFourier27:zc(4,2)', 'SurfaceRZFourier27:zc(4,3)', 'SurfaceRZFourier27:zc(4,4)', 'SurfaceRZFourier27:zc(4,5)', 'SurfaceRZFourier27:zs(1,-5)', 'SurfaceRZFourier27:zs(2,-5)', 'SurfaceRZFourier27:zs(2,5)', 'SurfaceRZFourier27:zs(3,-5)', 'SurfaceRZFourier27:zs(3,5)', 'SurfaceRZFourier27:zs(4,-5)', 'SurfaceRZFourier27:zs(4,-4)', 'SurfaceRZFourier27:zs(4,-3)', 'SurfaceRZFourier27:zs(4,-2)', 'SurfaceRZFourier27:zs(4,-1)', 'SurfaceRZFourier27:zs(4,0)', 'SurfaceRZFourier27:zs(4,1)', 'SurfaceRZFourier27:zs(4,2)', 'SurfaceRZFourier27:zs(4,3)', 'SurfaceRZFourier27:zs(4,4)', 'SurfaceRZFourier27:zs(4,5)']
+        """
+        Test that DOFs are fixed correctly by invoking fixed_range().
+        For stellarator non-symmetric surfaces. Fixed/unfixed invoked one after the other.
+        """
+
+        # These are the results we expect
+        expected_local_dof_names1 = ['rc(1,-5)', 'rc(2,-5)', 'rc(3,-5)', 'rc(4,-5)', 'rc(4,-4)', 'rc(4,-3)', 'rc(4,-2)', 'rc(4,-1)', 'rc(4,0)', 'rc(4,1)', 'rc(4,2)', 'rc(4,3)', 'rc(4,4)', 'rc(4,5)', 'rs(1,-5)', 'rs(2,-5)', 'rs(3,-5)', 'rs(4,-5)', 'rs(4,-4)', 'rs(4,-3)', 'rs(4,-2)', 'rs(4,-1)', 'rs(4,0)', 'rs(4,1)', 'rs(4,2)', 'rs(4,3)', 'rs(4,4)', 'rs(4,5)',
+                               'zc(1,-5)', 'zc(2,-5)', 'zc(3,-5)', 'zc(4,-5)', 'zc(4,-4)', 'zc(4,-3)', 'zc(4,-2)', 'zc(4,-1)', 'zc(4,0)', 'zc(4,1)', 'zc(4,2)', 'zc(4,3)', 'zc(4,4)', 'zc(4,5)', 'zs(1,-5)', 'zs(2,-5)', 'zs(3,-5)', 'zs(4,-5)', 'zs(4,-4)', 'zs(4,-3)', 'zs(4,-2)', 'zs(4,-1)', 'zs(4,0)', 'zs(4,1)', 'zs(4,2)', 'zs(4,3)', 'zs(4,4)', 'zs(4,5)']
+        expected_local_dof_names2 = ['rc(1,-5)', 'rc(2,-5)', 'rc(2,5)', 'rc(3,-5)', 'rc(3,5)', 'rc(4,-5)', 'rc(4,-4)', 'rc(4,-3)', 'rc(4,-2)', 'rc(4,-1)', 'rc(4,0)', 'rc(4,1)', 'rc(4,2)', 'rc(4,3)', 'rc(4,4)', 'rc(4,5)', 'rs(1,-5)', 'rs(2,-5)', 'rs(2,5)', 'rs(3,-5)', 'rs(3,5)', 'rs(4,-5)', 'rs(4,-4)', 'rs(4,-3)', 'rs(4,-2)', 'rs(4,-1)', 'rs(4,0)', 'rs(4,1)', 'rs(4,2)', 'rs(4,3)', 'rs(4,4)', 'rs(4,5)',
+                               'zc(1,-5)', 'zc(2,-5)', 'zc(2,5)', 'zc(3,-5)', 'zc(3,5)', 'zc(4,-5)', 'zc(4,-4)', 'zc(4,-3)', 'zc(4,-2)', 'zc(4,-1)', 'zc(4,0)', 'zc(4,1)', 'zc(4,2)', 'zc(4,3)', 'zc(4,4)', 'zc(4,5)', 'zs(1,-5)', 'zs(2,-5)', 'zs(2,5)', 'zs(3,-5)', 'zs(3,5)', 'zs(4,-5)', 'zs(4,-4)', 'zs(4,-3)', 'zs(4,-2)', 'zs(4,-1)', 'zs(4,0)', 'zs(4,1)', 'zs(4,2)', 'zs(4,3)', 'zs(4,4)', 'zs(4,5)']
 
         s = SurfaceRZFourier(mpol=4, ntor=5, stellsym=False)
         s.fixed_range(mmin=0, mmax=3, nmin=-4, nmax=5, fixed=True)
-        self.assertEqual(s.dof_names, expected_dof_names1,
+        self.assertEqual(s.local_dof_names, expected_local_dof_names1,
                          msg='dof_names not the expected ones after fixed_range(..., fixed=True)')
         s.fixed_range(mmin=2, mmax=3, nmin=5, nmax=5, fixed=False)
-        self.assertEqual(s.dof_names, expected_dof_names2,
+        self.assertEqual(s.local_dof_names, expected_local_dof_names2,
                          msg='dof_names not the expected ones after fixed_range(..., fixed=False)')
 
+    def test_area_derivative(self):
+        """
+        This is purely a regression test to check that the area calculation
+        against a precalculated result of d(area)/d(coef).
+        """
+        da_truth = np.array([9.02414352e+01, 2.50276774e+01, 4.98898579e+00, 1.10959697e+00,
+                             -8.63569330e-01, 1.26121052e-01, 2.77952703e+00, -1.05465885e+00,
+                             -1.61497613e+01, 1.11297192e+02, -4.71965838e+01, 3.09681218e+00,
+                             -1.71101865e+00, -1.00224411e+00, 1.34844600e+00, -1.52610705e+00,
+                             -5.52718153e+00, 2.58202898e+01, 1.35398524e+02, 1.06702325e+02,
+                             3.18041581e+01, -8.90876955e+00, -5.34029533e-01, -4.83479972e-01,
+                             -8.73020447e-01, 6.53690772e+00, 1.28624879e+01, -5.44077196e+01,
+                             -6.83727070e+01, -1.39857033e+01, -2.17980284e+01, 7.42718812e+00,
+                             2.61172931e-02, 5.04037512e-02, -2.56310851e+00, -1.18730770e+01,
+                             4.83621541e+00, -2.14978837e+01, 2.73169154e+01, -1.24407988e+01,
+                             1.46774570e+01, 4.73746270e-01, -5.11348115e-01, -3.22309157e+00,
+                             9.56832718e+00, 2.82703399e+00, 8.29792054e+01, 3.21948501e+01,
+                             -2.64810625e+01, 1.25719947e+01,  3.45331822e-01, -1.02198905e+00,
+                             4.33865224e+00, 1.95050439e+00, 9.77670854e+00, -4.17357485e+01,
+                             2.61524211e+01, -1.72745430e+01, 2.56731758e+01, 7.94305341e+00,
+                             -3.56069518e+00, 5.21691648e-02, 2.89563751e-01, -1.28621348e-01,
+                             3.66936658e+00, -5.98842663e-01, -5.02913209e+00, 1.54267154e+02,
+                             3.95922804e+01, -8.60225489e-02, -1.11027491e+00, 1.24241501e+00,
+                             9.92604671e-01, -5.96641870e-01, -5.02788624e+00, 2.43837837e+01,
+                             4.95036805e+01, -1.18847347e+01, -3.16279611e+01, 1.04794546e+01,
+                             2.65277404e+00, -1.40633022e-01, -1.79828675e+00, 4.99622353e+00,
+                             -2.59174379e-01, 1.18153604e+01, -5.48481430e+01, 3.60391998e+01,
+                             2.27041674e+01, -9.00280999e+00, -5.16219267e-01, 1.47111391e+00,
+                             -1.09374188e+00, -3.07314487e+00, -6.58441453e+00, 2.80439130e+01,
+                             -1.13012765e+00, -1.18300363e+01, -1.80101972e+01, 6.36464701e-01,
+                             -4.60409125e-02, -3.19459713e+00,  1.09220102e+01, -8.75154081e+00,
+                             8.69977766e+01, 2.43203543e+01, -2.04318690e+01, -2.73848167e+00,
+                             3.12269398e-01, -1.34844406e+00,  3.72001576e+00, -9.54737287e-01,
+                             7.81856143e+00, -5.64189729e+01, -9.48423585e+00, -2.85529217e+01,
+                             2.08250069e+01])
+
+        filename = TEST_DIR / 'input.n3are_R7.75B5.7_lowres'
+        s = SurfaceRZFourier.from_vmec_input(filename)
+        da = s.darea()
+        np.testing.assert_allclose(da, da_truth,
+                                   err_msg = 'Area derivative does not match precalculated results.')
+        
+
+    def test_volume_derivative(self):
+        """
+        This is purely a regression test to check the volume calculation
+        against a precalculated result of d(volume)/d(coef).
+        """
+
+        dv_truth = [ 1.72604774e+01,  9.19649738e-02, -1.11881835e-01,  1.28519817e+01,
+                     1.22407186e+02,  2.33393247e+02,  1.04371757e+01, -2.74799395e-01,
+                     -1.62786886e+01,  1.07452160e+02,  4.20531210e+01,  1.32844875e+00,
+                     -1.77554183e-02,  3.26981158e-15,  8.72919621e-16, -1.20583866e+01,
+                     -1.01535638e+02,  2.01312334e+02,  9.53758104e+00, -3.05710996e-01,
+                     2.08573955e+01,  9.95361447e+01,  4.07908776e+01,  1.33172546e+00,
+                     -1.43207960e-02]
+        filename = TEST_DIR / 'input.NuhrenbergZille_1988_QHS'
+        s = SurfaceRZFourier.from_vmec_input(filename)
+        dv = s.dvolume()
+        np.testing.assert_allclose(dv, dv_truth,
+                                   err_msg = 'Volume derivative does not match precalculated results.')
+        
         
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):
