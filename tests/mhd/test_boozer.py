@@ -27,8 +27,6 @@ if MPI is not None:
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
-# logging.basicConfig(level=logging.DEBUG)
-
 
 class MockBoozXform():
     """
@@ -54,11 +52,7 @@ class MockBoozXform():
         arr2 = arr1 + 1
         arr2[0] = 100
         self.bmnc_b = np.stack((arr1, arr2)).transpose()
-        # print('bmnc_b:')
-        # print(self.bmnc_b)
-        # print('booz_xform_found:', booz_xform_found)
-
-
+        
 class MockBoozer(Optimizable):
     """
     This class exists only for testing the Quasisymmetry class.  It
