@@ -335,6 +335,8 @@ class Surface(Optimizable):
         ----------
             phi: float
                 toroidal angle, the standard cylindrical angle normalized by :math:`2\pi`.
+                There is no restriction on :math:`\phi`, i.e. is can be larger than 1, or
+                smaller than 0.
             thetas: float array
                 collocation points to compute cross-section with
 
