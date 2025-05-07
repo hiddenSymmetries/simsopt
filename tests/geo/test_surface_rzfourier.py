@@ -75,7 +75,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s2.area(), true_area, places=4)
         self.assertAlmostEqual(s2.volume(), true_volume, places=3)
 
-
     def test_get_dofs(self):
         """
         Test that we can convert the degrees of freedom into a 1D vector
@@ -235,7 +234,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             SurfaceRZFourier.from_nescoil_input(filename, 'other')
 
-        # The plasma surface in the nescoil file should be approximately the 
+        # The plasma surface in the nescoil file should be approximately the
         # same as the LandremanPaul2021_QA surface, although Fourier resolution
         # is different
         filename_ref = TEST_DIR / 'input.LandremanPaul2021_QA'
@@ -764,12 +763,12 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         # Create the grid of quadpoints:
         phi2d, theta2d = np.meshgrid(2 * np.pi * s.quadpoints_phi,
-                                     2 * np.pi * s.quadpoints_theta, 
+                                     2 * np.pi * s.quadpoints_theta,
                                      indexing='ij')
 
-        # create a test field where only Fourier elements [m=2, n=3] 
+        # create a test field where only Fourier elements [m=2, n=3]
         # and [m=4,n=5] are nonzero:
-        field = 0.8 * np.sin(2*theta2d - 3*s.nfp*phi2d) + 0.2*np.sin(4*theta2d - 5*s.nfp*phi2d)+ 0.7*np.cos(3*theta2d - 3*s.nfp*phi2d)
+        field = 0.8 * np.sin(2*theta2d - 3*s.nfp*phi2d) + 0.2*np.sin(4*theta2d - 5*s.nfp*phi2d) + 0.7*np.cos(3*theta2d - 3*s.nfp*phi2d)
 
         # Transform the field to Fourier space:
         ft_sines, ft_cosines = s.fourier_transform_scalar(field, stellsym=False)
@@ -794,13 +793,13 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
     def test_copy_method(self):
         s = SurfaceRZFourier(mpol=4, ntor=5, nfp=3)
-        s2 = s.copy(quadpoints_phi=Surface.get_phi_quadpoints(nphi=100,range='field period'))
+        s2 = s.copy(quadpoints_phi=Surface.get_phi_quadpoints(nphi=100, range='field period'))
         self.assertEqual(len(s2.quadpoints_phi), 100)
         s3 = s.copy(quadpoints_theta=Surface.get_theta_quadpoints(ntheta=50))
         self.assertEqual(len(s3.quadpoints_theta), 50)
-        s4 = s.copy(ntheta = 42)
+        s4 = s.copy(ntheta=42)
         self.assertEqual(len(s4.quadpoints_theta), 42)
-        s5 = s.copy(nphi = 17)
+        s5 = s.copy(nphi=17)
         self.assertEqual(len(s5.quadpoints_phi), 17)
         s6 = s.copy(range='field period')
         self.assertEqual(s6.deduced_range, Surface.RANGE_FIELD_PERIOD)
@@ -810,7 +809,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertEqual(s8.mpol, 5)
         self.assertEqual(s8.ntor, 6)
         s.copy()
-        s.copy(quadpoints_phi=Surface.get_phi_quadpoints(nphi=100,range='field period'), ntheta=82)
+        s.copy(quadpoints_phi=Surface.get_phi_quadpoints(nphi=100, range='field period'), ntheta=82)
+
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):

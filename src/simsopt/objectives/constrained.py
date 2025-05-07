@@ -90,7 +90,7 @@ class ConstrainedProblem(Optimizable):
             self.lhs_nlc = lhs_nlc
             self.rhs_nlc = rhs_nlc
         else:
-            funcs_in = [f_obj]  
+            funcs_in = [f_obj]
             self.has_nlc = False
 
         # unpack the linear constraints
@@ -158,7 +158,7 @@ class ConstrainedProblem(Optimizable):
 
                 # evaluate rhs as c(x) - rhs <= 0
                 if np.any(np.isfinite(self.rhs_nlc[i])):
-                    diff = out - np.array(self.rhs_nlc[i]) 
+                    diff = out - np.array(self.rhs_nlc[i])
                     output = np.array([diff]) if not np.ndim(diff) else np.asarray(diff)
                     outputs += [output]
                     if self.first_eval_con:
@@ -240,5 +240,3 @@ class ConstrainedProblem(Optimizable):
             f_nlc = self.nonlinear_constraints(x, *args, **kwargs)
             out = np.concatenate((out, f_nlc))
         return out
-
-
