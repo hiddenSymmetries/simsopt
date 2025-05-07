@@ -495,8 +495,28 @@ class isSelfIntersecting(unittest.TestCase):
         angle = np.pi/10
         xs = surfaces[-1].cross_section(angle, thetas=256)
         Z = xs[:, 2]
-        assert np.all(Z<-0.08)   
+        assert np.all(Z<-0.08)
+        
+        # take this surface, and rotate it 30 degrees about the x-axis.  This should cause
+        # the surface to 'go back' on itself, and trigger the exception.
+        surface_orig = SurfaceXYZTensorFourier(mpol=surfaces[-1].mpol, ntor=surfaces[-1].ntor,\
+                stellsym=True, nfp=surfaces[-1].nfp, quadpoints_phi=np.linspace(0, 1, 100),\
+                quadpoints_theta=surfaces[-1].quadpoints_theta)
+        surface_orig.x = surfaces[-1].x
 
+        angle = 2*np.pi*(30/180)
+        R = np.array([[1, 0, 0], [0, np.cos(angle), -np.sin(angle)], [0, np.sin(angle), np.cos(angle)]])
+        gamma = surface_orig.gamma().copy()
+        Rgamma = gamma@R.T
+
+        surface_rotated = SurfaceXYZTensorFourier(mpol=surfaces[-1].mpol, ntor=surfaces[-1].ntor,\
+                stellsym=True, nfp=1, quadpoints_phi=np.linspace(0, 1, 100),\
+                quadpoints_theta=surfaces[-1].quadpoints_theta)
+        surface_rotated.least_squares_fit(Rgamma)
+        
+        with self.assertRaises(Exception):
+            xs = surface_rotated.cross_section(0., thetas=256)
+        
     def test_is_self_intersecting(self):
         # dofs results in a surface that is self-intersecting
         dofs = np.array([1., 0., 0., 0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1,
