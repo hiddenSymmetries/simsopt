@@ -24,6 +24,8 @@ from simsopt.solve.serial import least_squares_serial_solve
 from simsopt.util.constants import ELEMENTARY_CHARGE
 
 from simsopt.mhd.vmec import Vmec
+from simsopt.configs import get_w7x_data
+
 
 from . import TEST_DIR
 
@@ -685,78 +687,33 @@ class VmecTests(unittest.TestCase):
                 vmec3 = Vmec(outfilename)
                 np.testing.assert_allclose(rmnc, vmec3.wout.rmnc, atol=1e-10)
 
-    #def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):
+    def test_update_boundary(self):
+        """Test that the VMEC is able to update the boundary correctly.
+        Runs with very few iterations for quick CI.
+        Previously, get_max_mn() would not updated immediately upon
         """
-        This script implements the "1DOF_circularCrossSection_varyR0_targetVolume"
-        example from
-        https://github.com/landreman/stellopt_scenarios
+        with ScratchDir("."):
+            v = Vmec(os.path.join(TEST_DIR, 'input.li383_low_res'))
+            v.indata.niter_array[:2] = [100, 0]
+            v.indata.ftol_array[0] = 1e-4
+            mn1 = v.get_max_mn()
+            A1 = v.aspect()
+            nfp5_boundary = SurfaceRZFourier.from_vmec_input(
+                os.path.join(TEST_DIR, 'input.W7-X_standard_configuration'))
+            v.boundary = nfp5_boundary
+            mn2 = v.get_max_mn()
+            A2 = v.aspect()
+            self.assertAlmostEqual(A1, 4.3549675967508055, places=7,
+                                   msg='Aspect ratio calculation does not match precalculated result.')
+            self.assertAlmostEqual(A2, 10.758596041584697, places=7,
+                                   msg='Aspect ratio calculation does not match precalculated result.')
+            self.assertEqual(
+                mn1, (4, 3), msg='max_mn does not match precalculated results')
+            self.assertEqual(
+                mn2, (11, 12), msg='max_mn not recalculated correctly after boundary updated')
+            self.assertEqual(
+                v.indata.nfp, 5, msg='nfp not updated correctly when boundary updated.')
 
-        This optimization problem has one independent variable, representing
-        the mean major radius. The problem also has one objective: the plasma
-        volume. There is not actually any need to run an equilibrium code like
-        VMEC since the objective function can be computed directly from the
-        boundary shape. But this problem is a fast way to test the
-        optimization infrastructure with VMEC.
-
-        Details of the optimum and a plot of the objective function landscape
-        can be found here:
-        https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSection_varyR0_targetVolume
-        """
-
-
-"""
-        # Start with a default surface, which is axisymmetric with major
-        # radius 1 and minor radius 0.1.
-        equil = Vmec()
-        surf = equil.boundary
-
-        # Set the initial boundary shape. Here is one way to do it:
-        surf.set('rc(0,0)', 1.0)
-        # Here is another syntax that works:
-        surf.set_rc(0, 1, 0.1)
-        surf.set_zs(0, 1, 0.1)
-
-        surf.set_rc(1, 0, 0.1)
-        surf.set_zs(1, 0, 0.1)
-
-        # VMEC parameters are all fixed by default, while surface
-        # parameters are all non-fixed by default. You can choose
-        # which parameters are optimized by setting their 'fixed'
-        # attributes.
-        surf.all_fixed()
-        surf.set_fixed('rc(0,0)', False)
-
-        # Each Target is then equipped with a shift and weight, to become a
-        # term in a least-squares objective function
-        desired_volume = 0.15
-        term1 = LeastSquaresTerm(equil.volume, desired_volume, 1)
-
-        # A list of terms are combined to form a nonlinear-least-squares
-        # problem.
-        prob = LeastSquaresProblem([term1])
-
-        # Check that the problem was set up correctly:
-        self.assertEqual(prob.names, ['rc(0,0)'])
-        np.testing.assert_allclose(prob.x, [1.0])
-        self.assertEqual(prob.all_owners, [equil, surf])
-        self.assertEqual(prob.dof_owners, [surf])
-
-        # Solve the minimization problem:
-        prob.solve()
-
-        print("At the optimum,")
-        print(" rc(m=0,n=0) = ", surf.get_rc(0, 0))
-        print(" volume, according to VMEC    = ", equil.volume())
-        print(" volume, according to Surface = ", surf.volume())
-        print(" objective function = ", prob.objective)
-
-        self.assertAlmostEqual(surf.get_rc(0, 0), 0.7599088773175, places=5)
-        self.assertAlmostEqual(equil.volume(), 0.15, places=6)
-        self.assertAlmostEqual(surf.volume(), 0.15, places=6)
-        self.assertLess(np.abs(prob.objective), 1.0e-15)
-
-        equil.finalize()
-"""
 
 if __name__ == "__main__":
     unittest.main()

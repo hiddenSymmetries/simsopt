@@ -515,6 +515,7 @@ class Vmec(Optimizable):
         vi = vmec.vmec_input  # Shorthand
         # Convert boundary to RZFourier if needed:
         boundary_RZFourier = self.boundary.to_RZFourier()
+        vi.nfp = boundary_RZFourier.nfp
         # VMEC does not allow mpol or ntor above 101:
         if vi.mpol > 101:
             raise ValueError("VMEC does not allow mpol > 101")
@@ -869,6 +870,8 @@ class Vmec(Optimizable):
         Look through the rbc and zbs data in fortran to determine the
         largest m and n for which rbc or zbs is nonzero.
         """
+        self.set_indata()  # needed in case the boundary has changed
+
         max_m = 0
         max_n = 0
         for m in range(1, 101):
