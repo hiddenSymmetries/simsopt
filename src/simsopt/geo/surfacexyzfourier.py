@@ -106,6 +106,10 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
                     z_names += [f'zs({m},{n})']
 
         if not stellsym:
+            # need to account for cosine coming first if not stellsym
+            yc_names = []
+            zc_names = []
+
             for m in range(mpol + 1):
                 if m == 0:
                     for n in range(1, ntor + 1):
@@ -117,18 +121,20 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
             for m in range(mpol + 1):
                 if m == 0:
                     for n in range(ntor + 1):
-                        y_names += [f'yc({m},{n})']
+                        yc_names += [f'yc({m},{n})']
                 else:
                     for n in range(-ntor, ntor + 1):
-                        y_names += [f'yc({m},{n})']
+                        yc_names += [f'yc({m},{n})']
+            y_names = yc_names + y_names
 
             for m in range(mpol + 1):
                 if m == 0:
                     for n in range(ntor + 1):
-                        z_names += [f'zc({m},{n})']
+                        zc_names += [f'zc({m},{n})']
                 else:
                     for n in range(-ntor, ntor + 1):
-                        z_names += [f'zc({m},{n})']
+                        zc_names += [f'zc({m},{n})']
+            z_names = zc_names + z_names
 
         return x_names + y_names + z_names
 
