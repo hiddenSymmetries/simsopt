@@ -325,15 +325,21 @@ class Surface(Optimizable):
 
     def cross_section(self, phi, thetas=None):
         """
-        This function takes in a cylindrical angle :math:`\phi` and returns the cross
-        section of the surface in that plane evaluated at `thetas`. This is
-        done using the method of bisection.
-        This function takes in a cylindrical angle :math:`\phi` and returns
-        the cross section of the surface in that plane evaluated at `thetas`.
-        This is done using the method of bisection.
-
+        Computes the cross-section at a given cylindrical angle :math:`\phi` at `thetas` using bisection.
         This function assumes that the surface intersection with the plane is a
         single curve.
+
+        Parameters
+        ----------
+            phi: float
+                toroidal angle
+            thetas: float array
+                collocation points to compute cross-section with
+
+        Returns
+        -------
+            cross_section: float
+                The cross-section evaluated at :math:`\phi` given support points `thetas`
         """
 
         # phi is assumed to be between [-pi, pi], so if it does not lie on that interval
