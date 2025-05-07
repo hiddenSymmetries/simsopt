@@ -36,7 +36,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         tf_target = 0.41431152
         iota = -0.44856192
 
-        boozer_surface = BoozerSurface(bs, s, tf, tf_target)
+        boozer_surface = BoozerSurface(bs, s, tf, tf_target, boozer_type='exact')
         x = np.concatenate((s.get_dofs(), [iota]))
         r0 = boozer_surface.boozer_penalty_constraints(
             x, derivatives=0, constraint_weight=weight, optimize_G=False,
@@ -96,7 +96,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         tf = ToroidalFlux(s, bs_tf, nphi=51, ntheta=51)
 
         tf_target = 0.1
-        boozer_surface = BoozerSurface(bs, s, tf, tf_target)
+        boozer_surface = BoozerSurface(bs, s, tf, tf_target, boozer_type='exact')
         fun = boozer_surface.boozer_penalty_constraints_vectorized if vectorize else boozer_surface.boozer_penalty_constraints
 
         iota = -0.3
@@ -134,7 +134,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         tf = ToroidalFlux(s, bs_tf, nphi=51, ntheta=51)
 
         tf_target = 0.1
-        boozer_surface = BoozerSurface(bs, s, tf, tf_target)
+        boozer_surface = BoozerSurface(bs, s, tf, tf_target, boozer_type='exact')
         fun = boozer_surface.boozer_penalty_constraints_vectorized if vectorize else boozer_surface.boozer_penalty_constraints
 
         iota = -0.3
@@ -188,7 +188,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         tf = ToroidalFlux(s, bs_tf, nphi=51, ntheta=51)
 
         tf_target = 0.1
-        boozer_surface = BoozerSurface(bs, s, tf, tf_target)
+        boozer_surface = BoozerSurface(bs, s, tf, tf_target, boozer_type='exact')
 
         iota = -0.3
         lm = [0., 0.]
@@ -276,7 +276,7 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         ar = Area(s)
         ar_target = ar.J()
-        boozer_surface = BoozerSurface(bs, s, ar, ar_target)
+        boozer_surface = BoozerSurface(bs, s, ar, ar_target, boozer_type='exact')
 
         if optimize_G:
             G = 2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))
@@ -285,25 +285,25 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         cw = (s.quadpoints_phi.size * s.quadpoints_theta.size * 3)
         # compute surface first using LBFGS exact and an area constraint
-        res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
+        res = boozer_surface._minimize_boozer_penalty_constraints_LBFGS(
             tol=1e-12, maxiter=700, constraint_weight=100/cw, iota=iota, G=G,
             vectorize=vectorize)
         print('Residual norm after LBFGS', res['iter'], np.sqrt(2*res['fun']))
 
         boozer_surface.recompute_bell()
         if second_stage == 'ls':
-            res = boozer_surface.minimize_boozer_penalty_constraints_ls(
+            res = boozer_surface._minimize_boozer_penalty_constraints_ls(
                 tol=1e-11, maxiter=100, constraint_weight=1000./cw,
                 iota=res['iota'], G=res['G'])
         elif second_stage == 'newton':
-            res = boozer_surface.minimize_boozer_penalty_constraints_newton(
+            res = boozer_surface._minimize_boozer_penalty_constraints_newton(
                 tol=1e-10, maxiter=20, constraint_weight=100./cw,
                 iota=res['iota'], G=res['G'], stab=1e-4, vectorize=vectorize)
         elif second_stage == 'newton_exact':
-            res = boozer_surface.minimize_boozer_exact_constraints_newton(
+            res = boozer_surface._minimize_boozer_exact_constraints_newton(
                 tol=1e-10, maxiter=15, iota=res['iota'], G=res['G'])
         elif second_stage == 'residual_exact':
-            res = boozer_surface.solve_residual_equation_exactly_newton(
+            res = boozer_surface._solve_residual_equation_exactly_newton(
                 tol=1e-12, maxiter=15, iota=res['iota'], G=res['G'])
 
         print('Residual norm after second stage', np.linalg.norm(res['residual']))
@@ -380,7 +380,7 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         # run the BoozerExact algorithm without a guess for G
         boozer_surface.need_to_run_code = True
-        boozer_surface.solve_residual_equation_exactly_newton(iota=boozer_surface.res['iota'])
+        boozer_surface._solve_residual_equation_exactly_newton(iota=boozer_surface.res['iota'])
 
     def test_convergence_cpp_and_notcpp_same(self):
         """
@@ -406,19 +406,19 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         ar = Area(s)
         ar_target = ar.J()
-        boozer_surface = BoozerSurface(bs, s, ar, ar_target)
+        boozer_surface = BoozerSurface(bs, s, ar, ar_target, boozer_type='exact')
 
         G = 2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))
 
         cw = 3*s.quadpoints_phi.size * s.quadpoints_theta.size
         # vectorized solution first
-        res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
+        res = boozer_surface._minimize_boozer_penalty_constraints_LBFGS(
             tol=1e-10, maxiter=600, constraint_weight=100./cw, iota=iota, G=G,
             vectorize=vectorize)
         print('Residual norm after LBFGS', np.sqrt(2*res['fun']))
 
         boozer_surface.recompute_bell()
-        res = boozer_surface.minimize_boozer_penalty_constraints_newton(
+        res = boozer_surface._minimize_boozer_penalty_constraints_newton(
             tol=1e-10, maxiter=20, constraint_weight=100./cw,
             iota=res['iota'], G=res['G'], stab=0., vectorize=vectorize)
 
@@ -472,7 +472,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         tf = ToroidalFlux(s, bs_tf, nphi=51, ntheta=51)
 
         tf_target = 0.1
-        boozer_surface = BoozerSurface(bs, s, tf, tf_target)
+        boozer_surface = BoozerSurface(bs, s, tf, tf_target, boozer_type='exact')
 
         iota = -0.3
         x = np.concatenate((s.get_dofs(), [iota]))
@@ -591,7 +591,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         lab_target = 0.1
 
         with self.assertRaises(Exception):
-            _ = BoozerSurface(bs, s, lab, lab_target)
+            _ = BoozerSurface(bs, s, lab, lab_target, boozer_type='exact')
 
 
 if __name__ == "__main__":
