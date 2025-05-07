@@ -324,7 +324,7 @@ class Surface(Optimizable):
         """
         raise NotImplementedError
 
-    def cross_section(self, phi, thetas=None):
+    def cross_section(self, phi0, thetas=None, tol=1e-13):
         """
         Computes the cross-section at a given cylindrical angle :math:`\phi` at `thetas` using bisection.
         This function assumes that the surface intersection with the plane is a

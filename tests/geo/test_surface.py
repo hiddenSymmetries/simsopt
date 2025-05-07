@@ -17,6 +17,7 @@ from simsopt.geo.surface import signed_distance_from_surface, SurfaceScaled, \
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 from .surface_test_helpers import get_surface, get_boozer_surface
+from simsopt._core import load
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
@@ -486,7 +487,7 @@ class isSelfIntersecting(unittest.TestCase):
     @unittest.skipIf(ground is None or bentley_ottmann is None,
                      "Libraries to check whether self-intersecting or not are missing")
 
-     def test_cross_section(self):
+    def test_cross_section(self):
         # this cross section calculation fails on the previous implementation of the cross
         # section algorithm
         filename = os.path.join(TEST_DIR, 'serial2680021.json')
