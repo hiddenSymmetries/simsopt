@@ -2,6 +2,8 @@ import numpy as np
 from scipy.linalg import lu
 from scipy.optimize import minimize, least_squares
 import simsoptpp as sopp
+import json
+from simsopt._core.json import GSONable, SIMSON, GSONDecoder, GSONEncoder
 
 from .surfaceobjectives import boozer_surface_residual, boozer_surface_dexactresidual_dcoils_dcurrents_vjp, boozer_surface_dlsqgrad_dcoils_vjp
 from .._core.optimizable import Optimizable
@@ -123,6 +125,7 @@ class BoozerSurface(Optimizable):
         self.constraint_weight = constraint_weight
         self.boozer_type = boozer_type
         self.need_to_run_code = True
+        self.res = None # Placeholder
 
         if options is None:
             options = {}
@@ -161,7 +164,7 @@ class BoozerSurface(Optimizable):
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
 
-    def run_code(self, iota, G=None, solver:int=0):
+    def run_code(self, iota, G=None, solver:int=4):
         """
         Run the default solvers, i.e., run Newton's method directly if you are computing a BoozerExact surface,
         and run BFGS followed by Newton if you are computing a BoozerLS surface.
@@ -228,8 +231,10 @@ class BoozerSurface(Optimizable):
                     constraint_weight=self.constraint_weight, 
                     iota=iota, 
                     G=G, 
-                    method=self.options['ls_method']
+                    method=self.options['ls_method'],
+                    verbose=self.options['verbose']
                 )
+                iota, G = res['iota'], res['G']
 
             if solver in [2, 4, 6]:
                 print("Running boozer solver with Newton method")
@@ -245,14 +250,15 @@ class BoozerSurface(Optimizable):
                 )
 
             if solver in [3, 5, 7]:
-                print("Runnin boozer solver with Newton solver, using the exact constraint")
+                print("Running boozer solver with Newton solver, using the exact constraint")
                 self.need_to_run_code = True
                 res = self._minimize_boozer_exact_constraints_newton(
                     tol=self.options['newton_tol'], 
                     maxiter=self.options['newton_maxiter'], 
                     iota=iota, 
                     G=G, 
-                    lm=[0., 0.]
+                    lm=[0., 0.],
+                    verbose=self.options['verbose']
                 )
 
             return res
@@ -712,7 +718,7 @@ class BoozerSurface(Optimizable):
 
         return res
 
-    def _minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm'):
+    def _minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm', verbose=False):
         """
         This function does the same as :mod:`_minimize_boozer_penalty_constraints_LBFGS`, but instead of LBFGS it
         uses a nonlinear least squares algorithm when ``method='lm'``.  Options for the method 
@@ -803,9 +809,14 @@ class BoozerSurface(Optimizable):
 
         self.res = resdict
         self.need_to_run_code = False
+
+
+        if verbose:
+            print(f"LS solve - {resdict['success']}  nfev={res['nfev']}, iota={resdict['iota']:.16f}, ||grad||_inf = {np.linalg.norm(res['grad'], ord=np.inf):.3e}", flush=True)
+
         return resdict
 
-    def _minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.]):
+    def _minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.], verbose=False):
         r"""
         This function solves the constrained optimization problem
 
@@ -893,6 +904,11 @@ class BoozerSurface(Optimizable):
 
         self.res = res
         self.need_to_run_code = False
+
+
+        if verbose:
+            print(f"NEWTON solve - {res['success']}  iter={res['iter']}, iota={res['iota']:.16f}, ||grad||_inf = {np.linalg.norm(res['jacobian'], ord=np.inf):.3e}", flush=True)
+
         return res
 
     def _solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, iota=0., G=None, verbose=False):
@@ -1067,3 +1083,34 @@ class BoozerSurface(Optimizable):
         self.res = res
         self.need_to_run_code = False
         return res
+
+    def as_dict(self, serial_objs_dict=None) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
+        
+        # Modify res dict / pop elements that cannot be easily serialized
+        res = self.res
+        if 'gradient' in res.keys():
+            res['gradient'] = res['gradient'].tolist()
+        if 's' in res.keys():
+            res.pop('s')
+        if 'vjp' in res.keys():
+            res.pop('vjp')
+
+        d['res'] = res
+        return d
+    
+    @classmethod
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        decoder = GSONDecoder()
+        biotsavart = decoder.process_decoded(d["biotsavart"], serial_objs_dict, recon_objs)
+        surface = decoder.process_decoded(d["surface"], serial_objs_dict, recon_objs)
+        label = decoder.process_decoded(d["label"], serial_objs_dict, recon_objs)
+        out = cls(biotsavart, surface, label, d["targetlabel"], d["boozer_type"], d["constraint_weight"], d["options"])
+
+        res = d["res"]
+        if 'gradient' in res.keys():
+            res['gradient'] = np.array(res['gradient'])
+        res['s'] = surface
+
+        out.res = res
+        return out
