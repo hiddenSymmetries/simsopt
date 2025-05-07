@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         # macos-13 is an intel runner, macos-14 is apple silicon
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-13, macos-14]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-13, macos-14]
 
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +38,7 @@ jobs:
 
   build_sdist:
     name: Build source distribution
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -52,7 +52,7 @@ jobs:
 
   upload_pypi:
     needs: [build_wheels, build_sdist]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: pypi
     permissions:
       id-token: write
