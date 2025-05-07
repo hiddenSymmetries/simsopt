@@ -37,8 +37,8 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 
         np.random.seed(0)
         angle = np.random.random()*1000
-        scs = s.cross_section(angle, thetas=100)
-        sRZcs = sRZ.cross_section(angle, thetas=100)
+        scs = s.cross_section(angle/(2*np.pi), thetas=100)
+        sRZcs = sRZ.cross_section(angle/(2*np.pi), thetas=100)
 
         max_pointwise_err = np.max(np.abs(scs - sRZcs))
         print(max_pointwise_err)
@@ -74,12 +74,12 @@ class SurfaceXYZFourierTests(unittest.TestCase):
     def subtest_toRZFourier_lossless_at_quadraturepoints(self, surface_type):
         s = get_exact_surface(surface_type=surface_type)
         sRZ = s.to_RZFourier()
-
+        
         max_angle_error = -1
         max_pointwise_error = -1
         for angle in sRZ.quadpoints_phi:
-            scs = s.cross_section(angle * 2 * np.pi)
-            sRZcs = sRZ.cross_section(angle * 2 * np.pi)
+            scs = s.cross_section(angle)
+            sRZcs = sRZ.cross_section(angle)
 
             # compute the cylindrical angle error of the cross section
             phi = angle * 2. * np.pi
@@ -114,8 +114,8 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 
         np.random.seed(0)
         angle = np.random.random()*1000
-        scs = s.cross_section(angle)
-        sRZcs = sRZ.cross_section(angle)
+        scs = s.cross_section(angle/(2*np.pi))
+        sRZcs = sRZ.cross_section(angle/(2*np.pi))
 
         # compute the cylindrical angle error of the cross section
         phi = angle
@@ -194,7 +194,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         angle_atan[8] = 0.
         cs = np.zeros((num_cs, 100, 3))
         for idx in range(angle.size):
-            cs[idx, :, :] = s.cross_section(angle[idx], thetas=100)
+            cs[idx, :, :] = s.cross_section(angle[idx]/(2*np.pi), thetas=100)
 
         cs_area = np.zeros((num_cs,))
         max_angle_error = -1
@@ -268,7 +268,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         from scipy import fftpack
         angle = np.linspace(-np.pi, np.pi, vpr, endpoint=False)
         for idx in range(angle.size):
-            cs = s.cross_section(angle[idx], thetas=tr)
+            cs = s.cross_section(angle[idx]/(2*np.pi), thetas=tr)
             R = np.sqrt(cs[:, 0]**2 + cs[:, 1]**2)
             Z = cs[:, 2]
             Rp = fftpack.diff(R, period=1.)

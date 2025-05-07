@@ -326,14 +326,15 @@ class Surface(Optimizable):
 
     def cross_section(self, phi0, thetas=None, tol=1e-13):
         """
-        Computes the cross-section at a given cylindrical angle :math:`\phi` at `thetas` using bisection.
-        This function assumes that the surface intersection with the plane is a
-        single curve.
+        Computes the cross-section at an angle :math:`\phi` at `thetas` using bisection.
+        :math:`\phi` follows the same conventions as `Surfaces`, i.e. :math:`\phi=0, 1` 
+        corresponds to the standard cylindrical angle :math:`0, 2\pi`, respectively.  This 
+        function assumes that the surface intersection with the plane is a single curve.
 
         Parameters
         ----------
             phi: float
-                toroidal angle
+                toroidal angle, the standard cylindrical angle normalized by :math:`2\pi`.
             thetas: float array
                 collocation points to compute cross-section with
 
@@ -379,7 +380,7 @@ class Surface(Optimizable):
         cyl_phi_left  = cyl_phi[0, :]
         cyl_phi_right = cyl_phi[1, :]
         
-        phi = phi0*np.ones(varphi_left.size)
+        phi = 2*np.pi*phi0*np.ones(varphi_left.size)
 
         def put_angle_above_left_bound(angle, left_bound, right_bound):
             """
