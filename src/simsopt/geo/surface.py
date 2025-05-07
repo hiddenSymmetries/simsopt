@@ -323,7 +323,7 @@ class Surface(Optimizable):
         """
         raise NotImplementedError
     
-    def cross_section(self, phi, thetas=None):
+    def cross_section(self, phi0, thetas=None, tol=1e-13):
         """
         This function takes in a cylindrical angle :math:`\phi` and returns the cross
         section of the surface in that plane evaluated at `thetas`. This is
@@ -334,11 +334,14 @@ class Surface(Optimizable):
 
         This function assumes that the surface intersection with the plane is a
         single curve.
-        """
 
-        # phi is assumed to be between [0, 2*pi], so if it does not lie on that interval
-        # we shift it by multiples of 2pi until it does
-        phi = phi - np.sign(phi) * np.floor(np.abs(phi) / (2 * np.pi)) * (2. * np.pi)
+        For a given value of :math:`\theta`, this function solves the nonlinear
+        equation
+        
+        .. math::
+            \text{atan2}(y(\varphi, \theta), x(\varphi, theta)) = \phi_0
+        
+        """
         
         # varphi is the search intervals on which we look for the cross section in
         # at constant cylindrical phi
@@ -359,56 +362,96 @@ class Surface(Optimizable):
         # sample the surface at the varphi and theta points
         gamma = np.zeros((varphigrid.shape[0], varphigrid.shape[1], 3))
         self.gamma_lin(gamma, varphigrid.flatten(), thetagrid.flatten())
-
+        
         cyl_phi = np.arctan2(gamma[:, :, 1], gamma[:, :, 0])
-        cyl_phi = np.where(cyl_phi < 0, cyl_phi + 2*np.pi, cyl_phi)
-        cyl_phi[1, :] += 2*np.pi # second row is the same as the first row, but shifted by 2pi
-
-        varphi_left = varphigrid[0, :]
-        varphi_right = varphigrid[1, :]
-        cyl_phi_left = cyl_phi[0, :]
+        cyl_phi[1, :] = cyl_phi[0, :] + 2*np.pi # second row is the same as the first row, but shifted by 2pi
+        
+        varphi_left   = varphigrid[0, :]
+        varphi_right  = varphigrid[1, :]
+        cyl_phi_left  = cyl_phi[0, :]
         cyl_phi_right = cyl_phi[1, :]
         
-        phi = phi*np.ones(varphi_left.size)
-        def put_angle_between_left_and_right(angle, left_bound, right_bound):
-            # shift angle by 2pi so that it lies between left_bound and right_bound
+        phi = phi0*np.ones(varphi_left.size)
+
+        def put_angle_above_left_bound(angle, left_bound, right_bound):
+            """
+            Shift angle so that it satisfies:
+            
+            left_bound <= angle + 2*np.pi*k <= left_bound + 2*np.pi
+            
+            for some integer k. Then, check if shifted_angle is below right_bound.  If it is not,
+            then this means that the surface has 'gone back' on itself.
+            
+            Args:
+                angle: the angle that we are shifting
+                left_bound: we wish for the shifted angle to be within 2*pi of left_bound, and above it
+                right_bound: we wish for the shifted angle to be below right bound
+            """
+
             k = np.ceil((left_bound-angle)/(2*np.pi))
             shifted_angle = angle + 2*np.pi * k
             if not np.all((left_bound <= shifted_angle) & (shifted_angle <= right_bound)):
-                import ipdb;ipdb.set_trace()
                 raise Exception("An error occured during calculation of the cross section.  \
                         This happens when a surface 'goes back' on itself. \
                         The cylindrical angle is assumed to be monotonically increasing \
                         with varphi, which is not the case for this surface.")
             return shifted_angle
-
+        
         def varphi2phi(varphi_in, left_bound, right_bound):
-            # convert varphi to phi, where phi lies between left_bound and right_bound
+            """
+            Convert varphi to phi, where phi lies between left_bound and right_bound
+            
+            Args:
+                varphi_in: the value of varphi on the surface at which we want the cylindrical angle
+                left_bound, right_bound: we want the cylindrical angle to lie between these bounds
+
+            Returns:
+                shifted_angle: the shifted cylindrical angle between the left_bound and right_bound.
+                               Raises an exception if this cannot be found.
+            """
             gamma = np.zeros((varphi_in.size, 3))
             self.gamma_lin(gamma, varphi_in, theta)
             angle = np.arctan2(gamma[:, 1], gamma[:, 0])
-            angle = np.where(angle < 0, angle+2*np.pi, angle)
-            shifted_angle = put_angle_between_left_and_right(angle, left_bound, right_bound)
+
+            # you need to shift angle because arctan2 maps to -np.pi <= angle < np.pi, but
+            # the interval defined by left_bound and right bound may not satisfy this requirement,
+            # e.g. it may be [0.9*np.pi, 1.1*np.pi]
+            shifted_angle = put_angle_above_left_bound(angle, left_bound, right_bound)
             return shifted_angle
 
-        def bisection(phia, a, phic, c):
-            err = 1.
-            while err > 1e-10:
-                b = (a + c) / 2.
-                phib = varphi2phi(b, phia, phic)
+        def bisection(phia, varphia, phic, varphic, tol=tol):
+            """
+            Apply the method of bisection to find the root of the equation:
+            .. math::
+               \text{atan2}(y(\varphi, \theta), x(\varphi, theta)) = \phi_0
+
+            Args:
+                phia: left bound on root in cylindrical coordinates
+                varphia: left bound on root in varphi coordinates
+                phic: right bound on root in cylindrical coordinates
+                varphic: right bound on root in varphi coordinates
+                tol: solver tolerance
+            
+            Returns:
+                the root of the equation
+            """
+            err = np.inf
+            while err > tol:
+                varphib = (varphia + varphic) / 2.
+                phib = varphi2phi(varphib, phia, phic)
 
                 flag = (phib - phi) * (phic - phi) > 0
                 # if flag is true,  then root lies on interval [a,b)
                 # if flag is false, then root lies on interval [b,c]
                 phia = np.where(flag, phia, phib)
                 phic = np.where(flag, phib, phic)
-                a = np.where(flag, a, b)
-                c = np.where(flag, b, c)
-                err = np.max(np.abs(a - c))
-            b = (a + c) / 2.
-            return b
+                varphia = np.where(flag, varphia, varphib)
+                varphic = np.where(flag, varphib, varphic)
+                err = np.max(np.abs(varphia - varphic))
+            varphib = (varphia + varphic) / 2.
+            return varphib
         
-        phi = put_angle_between_left_and_right(phi, cyl_phi_left, cyl_phi_right)
+        phi = put_angle_above_left_bound(phi, cyl_phi_left, cyl_phi_right)
         # bisect cyl_phi to compute the cross section
         sol = bisection(cyl_phi_left, varphi_left, cyl_phi_right, varphi_right)
         cross_section = np.zeros((sol.size, 3))

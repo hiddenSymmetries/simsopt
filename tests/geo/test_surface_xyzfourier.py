@@ -181,6 +181,17 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         angle[6] = -np.pi
         angle[7] = -3. * np.pi / 2.
         angle[8] = -2. * np.pi
+
+        angle_atan = np.zeros((num_cs,))
+        angle_atan[0] = 0.
+        angle_atan[1] = np.pi/2.
+        angle_atan[2] = -np.pi
+        angle_atan[3] = - np.pi / 2.
+        angle_atan[4] = 0.
+        angle_atan[5] = -np.pi/2.
+        angle_atan[6] = -np.pi
+        angle_atan[7] = np.pi / 2.
+        angle_atan[8] = 0.
         cs = np.zeros((num_cs, 100, 3))
         for idx in range(angle.size):
             cs[idx, :, :] = s.cross_section(angle[idx], thetas=100)
@@ -191,20 +202,14 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         from scipy import fftpack
         for i in range(num_cs):
 
-            phi = angle[i]
-            phi = phi - np.sign(phi) * np.floor(np.abs(phi) / (2*np.pi)) * (2. * np.pi)
-            if phi > np.pi:
-                phi = phi - 2. * np.pi
-            if phi < -np.pi:
-                phi = phi + 2. * np.pi
-
+            phi = angle_atan[i]
             # check that the angle of the cross section is what we expect
             an = np.arctan2(cs[i, :, 1], cs[i, :, 0])
             curr_angle_err = np.max(np.abs(an - phi))
 
             if max_angle_error < curr_angle_err:
                 max_angle_error = curr_angle_err
-
+            
             R = np.sqrt(cs[i, :, 0]**2 + cs[i, :, 1]**2)
             Z = cs[i, :, 2]
             Rp = fftpack.diff(R, period=1.)

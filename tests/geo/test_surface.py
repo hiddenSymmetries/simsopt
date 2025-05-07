@@ -5,7 +5,7 @@ import os
 import logging
 import numpy as np
 
-
+from simsopt._core import load
 from simsopt.geo.surface import Surface
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
@@ -378,6 +378,17 @@ class isSelfIntersecting(unittest.TestCase):
     """
     @unittest.skipIf(ground is None or bentley_ottmann is None,
                      "Libraries to check whether self-intersecting or not are missing")
+    
+    def test_cross_section(self):
+        # this cross section calculation fails on the previous implementation of the cross
+        # section algorithm
+        filename = os.path.join(TEST_DIR, 'serial2680021.json')
+        [surfaces, coils] = load(filename)
+        angle = np.pi/10
+        xs = surfaces[-1].cross_section(angle, thetas=256)
+        Z = xs[:, 2]
+        assert np.all(Z<-0.08)
+
     def test_is_self_intersecting(self):
         # dofs results in a surface that is self-intersecting
         dofs = np.array([1., 0., 0., 0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1, \
