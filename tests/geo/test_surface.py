@@ -521,9 +521,9 @@ class isSelfIntersecting(unittest.TestCase):
 
         # unit test to check that the exceptions are properly raised
         with self.assertRaises(Exception):
-            xs = surface.cross_section(0., thetas=256)
+            _ = surface.cross_section(0., thetas=256)
         with self.assertRaises(Exception):
-            xs = surface.cross_section(0., thetas='wrong')
+            _ = surface.cross_section(0., thetas='wrong')
         
     def test_is_self_intersecting(self):
         # dofs results in a surface that is self-intersecting
