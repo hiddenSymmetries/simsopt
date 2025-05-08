@@ -86,7 +86,7 @@ class BoozerSurface(Optimizable):
     *[2]: Giuliani, A., Wechsung, F., Cerfon, A., Landreman, M., & Stadler, G. (2023). Direct stellarator coil optimization for nested magnetic surfaces with precise quasi-symmetry. Physics of Plasmas, 30(4).*
     """
 
-    def __init__(self, biotsavart, surface, label, targetlabel, constraint_weight=None, options=None):
+    def __init__(self, biotsavart, surface, label, targetlabel, boozer_type='ls', constraint_weight=None, options=None):
         """
         Args:
             biotsavart (:obj:`~simsopt.field.BiotSavart`): BiotSavart object.
@@ -106,6 +106,15 @@ class BoozerSurface(Optimizable):
                 - `bfgs_maxiter` (int): maximum number of iterations for BFGS solver. Defaults to 1500.
                 - `limited_memory` (bool): True if L-BFGS solver is desired, False if the BFGS solver otherwise. Defaults to False.
                 - `weight_inv_modB` (float): for BoozerLS surfaces, weight the residual by modB so that it does not scale with coil currents.  Defaults to True.
+                - solver (int): Flag to decide what algorithm to use when running BoozerSurface.run_code, defaults to 4. Only used if boozer_type is 'ls'
+                    0: LBFGS.
+                    1: scipy LS (specify in options what method -  can be 'manual' or anything specified in scipy LS documentation)
+                    2: regular Newton -  see _minimize_boozer_penalty_constraints_newton
+                    3: exact Newton -  see _minimize_boozer_exact_constraints_newton
+                    4: LBGFS + regular Newton
+                    5: LBFGS + exact Newton
+                    6: scipy LS + regular Newton
+                    7: scipy LS + exact Newton
         """
         super().__init__(depends_on=[biotsavart])
 
@@ -159,12 +168,14 @@ class BoozerSurface(Optimizable):
                 options['ls_tol'] = 1e-10
             if 'ls_method' not in options:
                 options['ls_method'] = 'lm'
+            if 'solver' not in options:
+                options['solver'] = 4
         self.options = options
 
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
 
-    def run_code(self, iota, G=None, solver:int=4):
+    def run_code(self, iota, G=None):
         """
         Run the default solvers, i.e., run Newton's method directly if you are computing a BoozerExact surface,
         and run BFGS followed by Newton if you are computing a BoozerLS surface.
@@ -211,6 +222,7 @@ class BoozerSurface(Optimizable):
             # 5: LBFGS + exact Newton
             # 6: scipy LS + regular Newton
             # 7: scipy LS + exact Newton
+            solver = self.options['solver']
             if solver in [0, 4, 5]:
                 print("Running boozer solver with LBFGS")
                 res = self._minimize_boozer_penalty_constraints_LBFGS(
@@ -1105,12 +1117,25 @@ class BoozerSurface(Optimizable):
         biotsavart = decoder.process_decoded(d["biotsavart"], serial_objs_dict, recon_objs)
         surface = decoder.process_decoded(d["surface"], serial_objs_dict, recon_objs)
         label = decoder.process_decoded(d["label"], serial_objs_dict, recon_objs)
-        out = cls(biotsavart, surface, label, d["targetlabel"], d["boozer_type"], d["constraint_weight"], d["options"])
 
-        res = d["res"]
-        if 'gradient' in res.keys():
-            res['gradient'] = np.array(res['gradient'])
-        res['s'] = surface
+        if "boozer_type" in d.keys():
+            btype = d["boozer_type"]
+        else:
+            btype = "ls"
+
+        if "options" in d.keys():
+            options = d["options"]
+        else:
+            options = {}
+        out = cls(biotsavart, surface, label, d["targetlabel"], btype, d["constraint_weight"], options)
+
+        if "res" in d.keys():
+            res = d["res"]
+            if 'gradient' in res.keys():
+                res['gradient'] = np.array(res['gradient'])
+            res['s'] = surface
+        else:
+            res = None
 
         out.res = res
         return out
