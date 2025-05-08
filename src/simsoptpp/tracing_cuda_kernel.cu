@@ -24,7 +24,7 @@ typedef struct particle_t {
     double t;
     double mu;
     double derivs[42] = {0.0};
-    double x_temp[4], x_err[4];
+    double x_temp[5], x_err[4];
     double s_shape[4], t_shape[4], z_shape[4];
     int i, j, k;
     double interpolation_loc[3];
@@ -32,6 +32,7 @@ typedef struct particle_t {
     int id;
     int step_attempt, step_accept;
 } particle_t;
+
 
 
 __host__ __device__ void shape(double x, double* shape){
@@ -71,6 +72,7 @@ __host__  __device__ __forceinline__ void interpolate(particle_t& p, const doubl
                     int row_idx = (p.i+ii)*nt*nz + wrap_j*nz + wrap_k;
                     
                     double shape_val = p.s_shape[ii]*p.t_shape[jj]*p.z_shape[kk];
+
                     for(int zz=0; zz<n; ++zz){
                         out[zz] += data[n*row_idx + zz]*shape_val;
                     }
@@ -82,8 +84,58 @@ __host__  __device__ __forceinline__ void interpolate(particle_t& p, const doubl
 
 }
 
+__host__ __device__ __forceinline__ void calc_phi_alpha(double* __restrict__ phi_info, double* __restrict__ alpha_info, int i, double s, double theta, double z, double time, double psi0, const double* interpolants, double* saw_srange_arr, int* saw_m_arr, int* saw_n_arr, double* saw_phihats_arr, double saw_omega, int saw_nharmonics){
+    // interpolants contains modB, dmodBdpsi, dmodBdtheta, dmodbdzeta, G, dGdpsi, I, dIdpsi, iota, diotadpsi
+    double s_grid_size = (saw_srange_arr[1] - saw_srange_arr[0]) / (saw_srange_arr[2] - 1);
+    int l_idx = (s - saw_srange_arr[0]) / s_grid_size;
+    l_idx = l_idx * (l_idx >=0);
+    int r_idx = min(l_idx+1, (int)saw_srange_arr[2]-1);
+    double s_diff = s - (l_idx*s_grid_size + saw_srange_arr[0]);
+
+    double iota_mn, slope, phi_i, phidot_i, sine, dphi_dpsi_i, dphi_dtheta_i, dphi_dzeta_i;
+
+    // G + iota*I
+    double G_iI = interpolants[4] + interpolants[8]*interpolants[6];
+    
+    // intermediate values
+    int m = saw_m_arr[i];
+    int n = saw_n_arr[i];
+    iota_mn = interpolants[8]*m - n;
+
+    int in_bounds = (s >= saw_srange_arr[0]) *(s <= saw_srange_arr[1]);
+    slope = in_bounds*(saw_phihats_arr[r_idx*saw_nharmonics + i] -  saw_phihats_arr[l_idx*saw_nharmonics + i]) / (s_grid_size);
+    phi_i = saw_phihats_arr[l_idx*saw_nharmonics + i] + in_bounds* slope * s_diff;
+    phidot_i = phi_i * saw_omega*cos(m*theta - n*z + saw_omega*time);
+    sine = sin(m*theta - n*z + saw_omega*time);
+    dphi_dpsi_i = slope*sine/psi0;
+    dphi_dtheta_i = phidot_i * m / saw_omega;
+    dphi_dzeta_i = -phidot_i * n / saw_omega;
+    
+    // phi values: phi, phi_dot, dphi_dpsi, dphi_dtheta, dphi_dzeta
+    phi_info[0] = phi_i * sine;
+    phi_info[1] = phidot_i;
+    phi_info[2] =  dphi_dpsi_i;
+    phi_info[3] = dphi_dtheta_i;
+    phi_info[4] = dphi_dzeta_i;
+
+    // alpha values: alpha, alpha_dot, dalpha_dpsi, dalpha_dtheta, dalpha_dzeta
+    double iota_mn_omega_G_iI = iota_mn / saw_omega * G_iI;
+    alpha_info[0] = -phi_i*iota_mn_omega_G_iI;
+    alpha_info[1] = -phidot_i * iota_mn_omega_G_iI;
+
+    // sum = (dGds + diotads*I + iota*dIds) 
+    // num = (diotads*m) / (G+ iota*I) - (iota*m -n)*sum
+    double sum = (interpolants[5] + interpolants[9] * interpolants[6] + interpolants[8]*interpolants[7]);
+    double num = interpolants[9]*m / G_iI - iota_mn*sum;
+    double denom = (G_iI*G_iI);
+    alpha_info[2] = -dphi_dpsi_i*iota_mn_omega_G_iI - (phi_i / saw_omega) * num / denom;
+    alpha_info[3] = -dphi_dtheta_i * iota_mn_omega_G_iI;
+    alpha_info[4] = -dphi_dzeta_i * iota_mn_omega_G_iI;
+}
+
 // out contains derivatives for x , y, z, v_par, and then norm of B and surface distance interpolation
-__host__  __device__ void calc_derivs(particle_t& p, double* out, double* srange_arr, double* trange_arr, double* zrange_arr, double* quadpts_arr, double m, double q, double mu, double psi0){
+__host__  __device__ void calc_derivs(particle_t& p, double* __restrict__ out, const double* __restrict__ srange_arr, const double* __restrict__ trange_arr, const double* __restrict__ zrange_arr, const double* __restrict__ quadpts_arr, double m, double q, double mu, double psi0,
+                                     double* saw_srange_arr, int* saw_m_arr, int* saw_n_arr, double* saw_phihats_arr, double saw_omega, int saw_nharmonics){
     /*
     * Returns     
     out[0] = ds/dtime
@@ -93,29 +145,134 @@ __host__  __device__ void calc_derivs(particle_t& p, double* out, double* srange
     out[3] = dvpar/dtime;
     out[4] = modB;
     */
-    
-    double interpolants[6] = {0.0};
-    interpolate(p, quadpts_arr, interpolants, srange_arr, trange_arr, zrange_arr, 6);
+    // printf("calc_derivs particle %d\n", p.id);
+
+        
+    double interpolants[10] = {0.0};
+    interpolate(p, quadpts_arr, interpolants, srange_arr, trange_arr, zrange_arr, 10);
+
+    // interpolants now contains
+    // modB, dmodBds, dmodBdtheta, dmodBdzeta, G, dGds, I, dIds, iota, diotads
 
     double s = sqrt(p.x_temp[0]*p.x_temp[0] + p.x_temp[1]*p.x_temp[1]);
     double theta = atan2(p.x_temp[1], p.x_temp[0]);
     double z = p.x_temp[2];
     double v_par = p.x_temp[3];
-    if(p.symmetry_exploited){
+    double time = p.x_temp[4];
+    if(p.symmetry_exploited){ // account for symmetry
         interpolants[2] *= -1.0;
         interpolants[3] *= -1.0;
     }
 
+    // change derivatives wrt s to derivs wrt psi
+    interpolants[1] /= psi0; // dmodBdpsi
+    interpolants[5] /= psi0; // dGdpsi
+    interpolants[7] /= psi0; // dIdpsi
+    interpolants[9] /= psi0; // diotadpsi
+
+    // double modB = interpolants[0];
+    // double dmodBdpsi = interpolants[1]/psi0;
+    // double dmodBdtheta = interpolants[2];
+    // double dmodBdzeta = interpolants[3];
+    // double G = interpolants[4];
+    // double dGdpsi = interpolants[5] / psi0;
+    // double I = interpolants[6];
+    // double dIdpsi = interpolants[7]/psi0;
+    // double iota = interpolants[8];
+    // double diotadpsi = interpolants[9]/psi0;
+
+    // contains phi, phidot, dphi_dpsi, dphi_dtheta, dphi_dzeta
+    double phi_info_contrib[5];
+    double phi = 0.0;
+    double phidot = 0.0;
+    double dphi_dpsi = 0.0;
+    double dphi_dtheta = 0.0;
+    double dphi_dzeta = 0.0;
+
+    double alpha_info_contrib[5];
+    double alpha = 0.0;
+    double alphadot = 0.0;
+    double dalpha_dpsi = 0.0;
+    double dalpha_dtheta = 0.0;
+    double dalpha_dzeta = 0.0;
+
+    // #pragma unroll
+    for(int i=0; i<saw_nharmonics; ++i){
+        calc_phi_alpha(phi_info_contrib, alpha_info_contrib, i, s, theta, z, time, psi0, interpolants,
+                        saw_srange_arr, saw_m_arr, saw_n_arr, saw_phihats_arr, saw_omega, saw_nharmonics);
+
+        phi += phi_info_contrib[0];
+        phidot += phi_info_contrib[1];
+        dphi_dpsi += phi_info_contrib[2];
+        dphi_dtheta += phi_info_contrib[3];
+        dphi_dzeta += phi_info_contrib[4];
+
+        alpha += alpha_info_contrib[0];
+        alphadot += alpha_info_contrib[1];
+        dalpha_dpsi += alpha_info_contrib[2];
+        dalpha_dtheta += alpha_info_contrib[3];
+        dalpha_dzeta += alpha_info_contrib[4];
+    }
+
+    // double phi = 0.0;
+    // double phidot = 0.0;
+    // double dphi_dpsi = 0.0;
+    // double dphi_dtheta = 0.0;
+    // double dphi_dzeta = 0.0;
+
+    // contains alpha, alpha_dot, dalpha_dpsi, dalpha_dtheta
+
+    // double alpha = 0.0;
+    // double alphadot = 0.0;
+    // double dalpha_dpsi = 0.0;
+    // double dalpha_dtheta = 0.0;
+    // double dalpha_dzeta = 0.0;
+
+
+    // for(int i=0; i<saw_nharmonics; ++i){
+    //     // intermediate values
+    //     int m = saw_m_arr[i];
+    //     int n = saw_n_arr[i];
+    //     iota_mn = interpolants[8]*m - n;
+
+    //     slope = (saw_phihats_arr[r_idx*saw_nharmonics + i] -  saw_phihats_arr[l_idx*saw_nharmonics + i]) / ((r_idx -l_idx)*s_grid_size);
+    //     phi_i = saw_phihats_arr[l_idx*saw_nharmonics + i] + slope * s_diff;
+    //     phidot_i = phi_i * cos(m*theta - n*z + saw_omega*time);
+    //     sine = sin(m*theta - n*z + saw_omega*time);
+    //     dphi_dpsi_i = slope*sine/psi0;
+    //     dphi_dtheta_i = phidot_i * saw_m_arr[i] / saw_omega;
+    //     dphi_dzeta_i = -phidot_i * saw_n_arr[i] / saw_omega;
+        
+    //     // phi values
+    //     phi_info[0] += phi_i * sine;
+    //     phi_info[1] += phidot_i;
+    //     phi_info[2] +=  dphi_dpsi_i;
+    //     phi_info[3] += dphi_dtheta_i;
+    //     phi_info[4] += dphi_dzeta_i;
+
+    //     // alpha values
+    //     alpha_info[0] += -phi_i*iota_mn / G_iI;
+    //     alpha_info[1] += -phidot_i * iota_mn / (saw_omega * G_iI);
+    //     alpha_info[2] += -dphi_dpsi_i*iota_mn / (saw_omega * G_iI)
+    //                 - (phi_i / saw_omega) * (interpolants[9]*m / G_iI - iota_mn*(interpolants[5] + interpolants[9] * interpolants[6] + interpolants[8]*interpolants[7])/(G_iI*G_iI));
+    //     alpha_info[3] += -dphi_dtheta_i * iota_mn / (saw_omega*G_iI);
+    //     alpha_info[4] += -dphi_dzeta_i * iota_mn / (saw_omega*G_iI);
+    // }
+
+
     double fak1 = m*v_par*v_par/interpolants[0] + m*mu;
-    double sdot = -interpolants[2]*fak1 / (q*psi0);
-    double tdot = interpolants[1]*fak1 / (q*psi0) + interpolants[5]*v_par*interpolants[0]/interpolants[4];
+    double sdot = (-interpolants[2]*fak1/q + dalpha_dtheta*interpolants[0]*v_par - dphi_dtheta)/psi0;
+    double tdot = interpolants[1]*fak1/q + (interpolants[8] - dalpha_dpsi*interpolants[4])*v_par*interpolants[0]/interpolants[4] + dphi_dpsi;
 
     out[0] = sdot*cos(theta) - s*sin(theta)*tdot;
     out[1] = sdot*sin(theta) + s*cos(theta)*tdot;
     out[2] = v_par*interpolants[0]/interpolants[4];
-    out[3] = -(interpolants[5]*interpolants[2] + interpolants[3])*mu*interpolants[0] / interpolants[4];
+    out[3] = -interpolants[0]/(interpolants[4]*m) * (m*mu*(interpolants[3] + dalpha_dtheta*interpolants[1]*interpolants[4] 
+                    + interpolants[2]*(interpolants[8] - dalpha_dpsi*interpolants[4])) + q*(alphadot*interpolants[4] 
+                    + dalpha_dtheta*interpolants[4]*dphi_dpsi + (interpolants[8] - dalpha_dpsi*interpolants[4])*dphi_dtheta + dphi_dzeta)) 
+                    + v_par/interpolants[0] * (interpolants[2]*dphi_dpsi - interpolants[1]*dphi_dtheta);
 
-    out[4] = interpolants[0]; // modB
+    out[4] = interpolants[0]; //modB
     out[5] = interpolants[4]; // G
 
 
@@ -124,7 +281,8 @@ __host__  __device__ void calc_derivs(particle_t& p, double* out, double* srange
 
 
 __host__ __device__ void build_state(particle_t& p, int deriv_id, double* srange_arr, double* trange_arr, double* zrange_arr){
-   
+    // printf("build_state particle %d\n", p.id);
+
 
     const double b1 = 35.0 / 384.0, b3 = 500.0 / 1113.0, b4 = 125.0 / 192.0, b5 = -2187.0 / 6784.0, b6 = 11.0 / 84.0;
     double wgts[6] = {0.0}; 
@@ -133,27 +291,33 @@ __host__ __device__ void build_state(particle_t& p, int deriv_id, double* srange
         p.x_temp[i] = p.state[i];
     }
 
+    double deriv_time = p.t;
+
     switch(deriv_id){
         case 0:
             // wgts = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
             break;
         case 1:
             // wgts = {1.0/5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            deriv_time += 0.2*p.dt;
             wgts[0] = 1.0/5.0;
             break;
         case 2:
             // wgts = {3.0 / 40.0, 9.0 / 40.0, 0.0, 0.0, 0.0, 0.0};
+            deriv_time += 0.3*p.dt;
             wgts[0] = 3.0 / 40.0;
             wgts[1] = 9.0 / 40.0;
             break;
         case 3:
             // wgts = {44.0 / 45.0, -56.0 / 15.0, 32.0 / 9.0, 0.0, 0.0, 0.0, 0.0};
+            deriv_time += 0.8*p.dt;
             wgts[0] = 44.0 / 45.0;
             wgts[1] = -56.0 / 15.0;
             wgts[2] = 32.0 / 9.0;
             break;
         case 4:
             // wgts = {19372.0 / 6561.0, -25360.0 / 2187.0, 64448.0 / 6561.0, -212.0 / 729.0, 0.0, 0.0, 0.0};
+            deriv_time += 8.0*p.dt/9.0;
             wgts[0] = 19372.0 / 6561.0;
             wgts[1] = -25360.0 / 2187.0;
             wgts[2] = 64448.0 / 6561.0;
@@ -161,6 +325,7 @@ __host__ __device__ void build_state(particle_t& p, int deriv_id, double* srange
             break;
         case 5:
             // wgts = {9017.0 / 3168.0, -355.0 / 33.0, 46732.0 / 5247.0, 49.0 / 176.0,-5103.0 / 18656.0, 0.0, 0.0};
+            deriv_time += p.dt;
             wgts[0] = 9017.0 / 3168.0;
             wgts[1] = -355.0 / 33.0;
             wgts[2] = 46732.0 / 5247.0;
@@ -169,6 +334,7 @@ __host__ __device__ void build_state(particle_t& p, int deriv_id, double* srange
             break;
         case 6:
             // wgts = {35.0 / 384.0, 0.0, 500.0 / 1113.0, 125.0 / 192.0, -2187.0 / 6784.0, 11.0 / 84.0, 0.0};
+            deriv_time += p.dt;
             wgts[0] = 35.0 / 384.0;
             wgts[2] = 500.0 / 1113.0;
             wgts[3] = 125.0 / 192.0; 
@@ -185,6 +351,7 @@ __host__ __device__ void build_state(particle_t& p, int deriv_id, double* srange
             p.x_temp[i] += p.dt * wgts[j] * p.derivs[6*j+i];
         }
     } 
+    p.x_temp[4] = deriv_time;
 
 
     // transform to Boozer coordinates for B-field info
@@ -245,14 +412,16 @@ __host__ __device__ void build_state(particle_t& p, int deriv_id, double* srange
 
 // set initial time step, calculate mu
 __host__ __device__ void setup_particle(particle_t& p, double* srange_arr, double* trange_arr, double* zrange_arr, double* quadpts_arr,
-                         double tmax, double m, double q, double psi0){
+                         double tmax, double m, double q, double psi0, double* saw_srange_arr, int* saw_m_arr, int* saw_n_arr, double* saw_phihats_arr, double saw_omega, int saw_nharmonics){
                              // double mu;
+    // printf("setup particle %d\n", p.id);
+
     p.t = 0.0;
     p.dt = 0.0;
     build_state(p, 0, srange_arr, trange_arr, zrange_arr);
 
     // dummy call to get norm B
-    calc_derivs(p, p.derivs, srange_arr, trange_arr, zrange_arr, quadpts_arr, m, q, -1, psi0);
+    calc_derivs(p, p.derivs, srange_arr, trange_arr, zrange_arr, quadpts_arr, m, q, -1, psi0, saw_srange_arr, saw_m_arr, saw_n_arr, saw_phihats_arr, saw_omega, saw_nharmonics);
 
     double v_perp2 = p.v_perp*p.v_perp;
     double denom = 1 / (2*p.derivs[4]);
@@ -264,6 +433,8 @@ __host__ __device__ void setup_particle(particle_t& p, double* srange_arr, doubl
 }
 
 __host__ __device__ void adjust_time(particle_t& p, double tmax){
+    // printf("adjust_time particle %d\n", p.id);
+
     if(p.has_left){
         return;
     }
@@ -317,21 +488,25 @@ __host__ __device__ void adjust_time(particle_t& p, double tmax){
 
 }
 __host__ __device__    void trace_particle(particle_t& p, double* srange_arr, double* trange_arr, double* zrange_arr, double* quadpts_arr,
-                         double tmax, double m, double q, double psi0){
+                         double tmax, double m, double q, double psi0, double* saw_srange_arr, int* saw_m_arr, int* saw_n_arr, double* saw_phihats_arr, double saw_omega, int saw_nharmonics){
 
-    setup_particle(p, srange_arr, trange_arr, zrange_arr, quadpts_arr, tmax, m, q, psi0);
+    setup_particle(p, srange_arr, trange_arr, zrange_arr, quadpts_arr, tmax, m, q, psi0, saw_srange_arr, saw_m_arr, saw_n_arr, saw_phihats_arr, saw_omega, saw_nharmonics);
 
     int counter = 0;
 
     while(p.t < tmax){
+        // if(counter % 1000){
+        //     printf("particle %d position %.15e, %.15e, %.15e, %.15e, %.15e, dt=%.15e\n", p.id, p.t, p.state[0], p.state[1], p.state[2], p.state[3], p.dt);
+        // }
         for(int k=0; k<7; ++k){
             build_state(p, k, srange_arr, trange_arr, zrange_arr);
-            calc_derivs(p, p.derivs + 6*k, srange_arr, trange_arr, zrange_arr, quadpts_arr, m, q, p.mu, psi0);
+            calc_derivs(p, p.derivs + 6*k, srange_arr, trange_arr, zrange_arr, quadpts_arr, m, q, p.mu, psi0, saw_srange_arr, saw_m_arr, saw_n_arr, saw_phihats_arr, saw_omega, saw_nharmonics);
         }
         adjust_time(p, tmax);
         
         double s = sqrt(p.state[0]*p.state[0] + p.state[1]*p.state[1]);
         if(s >= 1){
+            printf("particle %d done s=%.15e\n", p.id, s);
             p.has_left = true;
             return;
         }
@@ -339,63 +514,25 @@ __host__ __device__    void trace_particle(particle_t& p, double* srange_arr, do
         counter++;
 
     }
+    double s = sqrt(p.state[0]*p.state[0] + p.state[1]*p.state[1]);
+    printf("particle %d done s=%.15e\n", p.id, s);
     return;
 }
 
 __global__ void particle_trace_kernel(particle_t* particles, double* srange_arr, double* trange_arr, double* zrange_arr, double* quadpts_arr,
-                        double tmax, double m, double q, double psi0, int nparticles){
+                        double tmax, double m, double q, double psi0, int nparticles, double* saw_srange_arr, int* saw_m_arr, int* saw_n_arr, double* saw_phihats_arr, double saw_omega, int saw_nharmonics){
     int idx = threadIdx.x + blockIdx.x*blockDim.x;
     if(idx < nparticles){
-        trace_particle(particles[idx], srange_arr, trange_arr, zrange_arr, quadpts_arr, tmax, m, q, psi0);
+        printf("tracing particle %d\n", idx);
+        trace_particle(particles[idx], srange_arr, trange_arr, zrange_arr, quadpts_arr, tmax, m, q, psi0, saw_srange_arr, saw_m_arr, saw_n_arr, saw_phihats_arr, saw_omega, saw_nharmonics);
     }
 }
 
 
-// __global__ void setup_particle_kernel(particle_t* particles, double* srange_arr, double* trange_arr, double* zrange_arr, double* quadpts_arr,
-//                         double tmax, double m, double q, double psi0, int nparticles){
-//     int idx = threadIdx.x + blockIdx.x*blockDim.x;
-//     int particle_id = idx / 6;
-//     if(particle_id < nparticles){
-//         setup_particle(particles[particle_id], srange_arr, trange_arr, zrange_arr, quadpts_arr, tmax, m, q, psi0);
-//     }
-// }
-
-// __global__ void build_state_kernel(particle_t* particles, int deriv_id, double* srange_arr, double* trange_arr, double* zrange_arr, int nparticles){
-//     int idx = threadIdx.x + blockIdx.x*blockDim.x;
-//     if(idx < nparticles){
-//         build_state(particles[idx], deriv_id, srange_arr, trange_arr, zrange_arr);
-//     }
-// }
-
- 
-// __global__ void calc_derivs_kernel(particle_t* particles, int deriv_id, double* srange_arr, double* trange_arr, double* zrange_arr, double* quadpts_arr, double m, double q, double psi0, int nparticles){
-//     int idx = threadIdx.x + blockIdx.x*blockDim.x;
-//     int particle_id = idx / 6;
-//     if(particle_id < nparticles){
-//         calc_derivs(particles[particle_id], particles[particle_id].derivs + 6*deriv_id, srange_arr, trange_arr, zrange_arr, quadpts_arr, m, q, particles[particle_id].mu, psi0);
-//     }
-// }
-
-
-// __global__ void count_done_kernel(particle_t* particles, double tmax, int *total_done, int nparticles){
-//     int idx = threadIdx.x + blockIdx.x*blockDim.x;
-//     if(idx < nparticles){
-//         int is_done = (int) (particles[idx].has_left || (particles[idx].t >= tmax));
-//         atomicAdd(total_done, is_done);
-//     }
-// }
-
-// __global__ void adjust_time_kernel(particle_t* particles, double tmax, int nparticles){
-//     int idx = threadIdx.x + blockIdx.x*blockDim.x;
-//     if(idx < nparticles){
-//         adjust_time(particles[idx], tmax);
-//     }
-// }
-
-
-extern "C" vector<double> gpu_tracing(py::array_t<double> quad_pts, py::array_t<double> srange,
+// matches GuidingCenterVacuumBoozerPerturbedRHS
+extern "C" vector<double> gpu_tracing_saw(py::array_t<double> quad_pts, py::array_t<double> srange,
         py::array_t<double> trange, py::array_t<double> zrange, py::array_t<double> stz_init, double m, double q, double vtotal, py::array_t<double> vtang, 
-        double tmax, double tol, double psi0, int nparticles){
+        double tmax, double tol, double psi0, int nparticles, py::array_t<double> saw_srange, py::array_t<int> saw_m, py::array_t<int> saw_n, py::array_t<double> saw_phihats, double saw_omega, int saw_nharmonics){
 
     //  read data in from python
     auto ptr = stz_init.data();
@@ -419,6 +556,18 @@ extern "C" vector<double> gpu_tracing(py::array_t<double> quad_pts, py::array_t<
     py::buffer_info z_buf = zrange.request();
     double* zrange_arr = static_cast<double*>(z_buf.ptr);
 
+    py::buffer_info saw_s_buf = saw_srange.request();
+    double* saw_srange_arr = static_cast<double*>(saw_s_buf.ptr);
+
+    py::buffer_info saw_m_buf = saw_m.request();
+    int* saw_m_arr = static_cast<int*>(saw_m_buf.ptr);
+
+    py::buffer_info saw_n_buf = saw_n.request();
+    int* saw_n_arr = static_cast<int*>(saw_n_buf.ptr);
+
+    py::buffer_info saw_phihats_buf = saw_phihats.request();
+    double* saw_phihats_arr = static_cast<double*>(saw_phihats_buf.ptr);
+    
     particle_t* particles =  new particle_t[nparticles];
 
     /*
@@ -472,7 +621,24 @@ extern "C" vector<double> gpu_tracing(py::array_t<double> quad_pts, py::array_t<
     cudaMalloc((void**)&quadpts_d, quad_pts.size() * sizeof(double));
     cudaMemcpy(quadpts_d, quadpts_arr, quad_pts.size() * sizeof(double), cudaMemcpyHostToDevice);
 
-    int nthreads = 256;
+    double* saw_srange_d;
+    cudaMalloc((void**)&saw_srange_d, 3*sizeof(double));
+    cudaMemcpy(saw_srange_d, saw_srange_arr, 3*sizeof(double), cudaMemcpyHostToDevice);
+    
+    int* saw_m_d;
+    cudaMalloc((void**)&saw_m_d, saw_m.size()*sizeof(int));
+    cudaMemcpy(saw_m_d, saw_m_arr, saw_m.size()*sizeof(int), cudaMemcpyHostToDevice);
+    
+    int* saw_n_d;
+    cudaMalloc((void**)&saw_n_d, saw_n.size()*sizeof(int));
+    cudaMemcpy(saw_n_d, saw_n_arr, saw_n.size()*sizeof(int), cudaMemcpyHostToDevice);
+
+    double* saw_phihats_d;
+    cudaMalloc((void**)&saw_phihats_d, saw_phihats.size()*sizeof(double));
+    cudaMemcpy(saw_phihats_d, saw_phihats_arr, saw_phihats.size()*sizeof(double), cudaMemcpyHostToDevice);
+
+
+    int nthreads = 1;
     int nblks = nparticles / nthreads + 1;
     std::cout << "starting particle tracing kernel\n";
 
@@ -481,7 +647,7 @@ extern "C" vector<double> gpu_tracing(py::array_t<double> quad_pts, py::array_t<
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     cudaEventRecord(start);
-    particle_trace_kernel<<<nblks, nthreads>>>(particles_d, srange_d, trange_d, zrange_d, quadpts_d, tmax, m, q, psi0, nparticles);
+    particle_trace_kernel<<<nblks, nthreads>>>(particles_d, srange_d, trange_d, zrange_d, quadpts_d, tmax, m, q, psi0, nparticles, saw_srange_d, saw_m_d, saw_n_d, saw_phihats_d, saw_omega, saw_nharmonics);
 
     cudaMemcpy(particles, particles_d, nparticles * sizeof(particle_t), cudaMemcpyDeviceToHost);
 
@@ -642,6 +808,17 @@ extern "C" py::array_t<double> test_gpu_interpolation(py::array_t<double> quad_p
     cudaEventCreate(&stop);
     cudaEventRecord(start);
     test_gpu_interpolation_kernel<<<nblks, nthreads>>>(quadpts_d, srange_d, trange_d, zrange_d, loc_d, out_d, n, n_points);
+
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(err));
+    }
+
+    err = cudaDeviceSynchronize();  // <-- Required for runtime issues
+    if (err != cudaSuccess) {
+        printf("Kernel runtime error: %s\n", cudaGetErrorString(err));
+    }
+
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
     float milliseconds = 0;
@@ -675,9 +852,9 @@ __global__ void test_gpu_derivs_kernel(double* quad_pts, double* srange, double*
         p.v_total = vtotal;
         p.v_perp = sqrt(vtotal*vtotal -  vpar_val*vpar_val);
 
-        setup_particle(p, srange, trange, zrange, quad_pts, 1e-2, m, q, psi0);
+        // setup_particle(p, srange, trange, zrange, quad_pts, 1e-2, m, q, psi0);
 
-        calc_derivs(p, p.derivs, srange, trange, zrange, quad_pts, m, q, p.mu, psi0);
+        // calc_derivs(p, p.derivs, srange, trange, zrange, quad_pts, m, q, p.mu, psi0);
 
         out_arr[0] = p.derivs[0];
         out_arr[1] = p.derivs[1];
@@ -760,12 +937,12 @@ __global__ void test_gpu_timestep_kernel(particle_t* particles, double* srange_a
                         double m, double q, double psi0, int nparticles){
     int idx = threadIdx.x + blockIdx.x*blockDim.x;
     if(idx < nparticles){
-        setup_particle(particles[idx], srange_arr, trange_arr, zrange_arr, quadpts_arr, 1e-2, m, q, psi0);
+        // setup_particle(particles[idx], srange_arr, trange_arr, zrange_arr, quadpts_arr, 1e-2, m, q, psi0);
 
         while(particles[idx].t == 0.0){
             for(int k=0; k<7; ++k){
                 build_state(particles[idx], k, srange_arr, trange_arr, zrange_arr);
-                calc_derivs(particles[idx], particles[idx].derivs + 6*k, srange_arr, trange_arr, zrange_arr, quadpts_arr, m, q, particles[idx].mu, psi0);
+                // calc_derivs(particles[idx], particles[idx].derivs + 6*k, srange_arr, trange_arr, zrange_arr, quadpts_arr, m, q, particles[idx].mu, psi0);
             }
             adjust_time(particles[idx], 1e-2);
         }
