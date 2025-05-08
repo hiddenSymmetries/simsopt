@@ -21,6 +21,17 @@ TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 
 def get_curve(curvetype, rotated, x=np.asarray([0.5])):
+    """
+    Helper function to generate a test curve of the specified type and rotation.
+
+    Args:
+        curvetype (str): The type of curve to create (e.g., 'CurveXYZFourier').
+        rotated (bool): Whether to make this a RotatedCurve.
+        x (np.ndarray): Initial coefficients for the curve.
+
+    Returns:
+        Curve: The generated curve object.
+    """
     np.random.seed(2)
     rand_scale = 0.01
     order = 4
@@ -60,6 +71,14 @@ class TestCoil(unittest.TestCase):
     curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical"]
 
     def subtest_serialization(self, curvetype, rotated):
+        """
+        Test that a coil with the given curve type and rotation can be serialized and deserialized
+        without changing the Biot-Savart field.
+
+        Args:
+            curvetype (str): The type of curve to create.
+            rotated (bool): Whether to make this a RotatedCurve.
+        """
         epss = [0.5**i for i in range(10, 15)]
         x = np.asarray([0.6] + [0.6 + eps for eps in epss])
         curve = get_curve(curvetype, rotated, x)
@@ -72,9 +91,12 @@ class TestCoil(unittest.TestCase):
             points = np.asarray(10 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
             B1 = BiotSavart([coil]).set_points(points).B()
             B2 = BiotSavart([coil_regen]).set_points(points).B()
-            self.assertTrue(np.allclose(B1, B2))
+            self.assertTrue(np.allclose(B1, B2), msg="Biot-Savart field mismatch after coil serialization")
 
     def test_serialization(self):
+        """
+        Test serialization and deserialization for all curve types and rotation options.
+        """
         for curvetype in self.curvetypes:
             for rotated in [True, False]:
                 with self.subTest(curvetype=curvetype, rotated=rotated):
@@ -83,22 +105,32 @@ class TestCoil(unittest.TestCase):
 
 class TestCurrentSerialization(unittest.TestCase):
     def test_current_serialization(self):
+        """
+        Test that Current and JaxCurrent objects can be serialized and deserialized without changing their value.
+        """
         for CurrentCls in [Current, JaxCurrent]:
             current = CurrentCls(1e4)
             current_str = json.dumps(SIMSON(current), cls=GSONEncoder)
             current_regen = json.loads(current_str, cls=GSONDecoder)
-            self.assertAlmostEqual(current.get_value(), current_regen.get_value())
+            self.assertAlmostEqual(current.get_value(), current_regen.get_value(), msg=f"Current value mismatch after serialization for {CurrentCls.__name__}")
 
     def test_scaled_current_serialization(self):
+        """
+        Test that ScaledCurrent objects can be serialized and deserialized without changing their value.
+        """
         for CurrentCls in [Current, JaxCurrent]:
             current = CurrentCls(1e4)
             scaled_current = ScaledCurrent(current, 3)
             current_str = json.dumps(SIMSON(scaled_current), cls=GSONEncoder)
             current_regen = json.loads(current_str, cls=GSONDecoder)
             self.assertAlmostEqual(scaled_current.get_value(),
-                                   current_regen.get_value())
+                                   current_regen.get_value(),
+                                   msg=f"ScaledCurrent value mismatch after serialization for {CurrentCls.__name__}")
 
     def test_current_sum_serialization(self):
+        """
+        Test that CurrentSum objects can be serialized and deserialized without changing their value.
+        """
         for CurrentCls in [Current, JaxCurrent]:
             current_a = CurrentCls(1e4)
             current_b = CurrentCls(1.5e4)
@@ -106,12 +138,16 @@ class TestCurrentSerialization(unittest.TestCase):
             current_str = json.dumps(SIMSON(current), cls=GSONEncoder)
             current_regen = json.loads(current_str, cls=GSONDecoder)
             self.assertAlmostEqual(current.get_value(),
-                                   current_regen.get_value())
+                                   current_regen.get_value(),
+                                   msg=f"CurrentSum value mismatch after serialization for {CurrentCls.__name__}")
 
 
 class ScaledCurrentTesting(unittest.TestCase):
 
     def test_scaled_current(self):
+        """
+        Test arithmetic operations and vector-Jacobian products for ScaledCurrent and related current objects.
+        """
         one = np.asarray([1.])
         for CurrentCls in [Current, JaxCurrent]:
             c0 = CurrentCls(5.)
@@ -150,16 +186,25 @@ class ScaledCurrentTesting(unittest.TestCase):
 
 class CoilFormatConvertTesting(unittest.TestCase):
     def test_makegrid(self):
+        """
+        Test exporting coil data to FOCUS format using coils_to_focus.
+        """
         curves, currents, ma = get_ncsx_data()
         with ScratchDir("."):
             coils_to_focus('test.focus', curves, currents, nfp=3, stellsym=True)
 
     def test_focus(self):
+        """
+        Test exporting coil data to MAKEGRID format using coils_to_makegrid.
+        """
         curves, currents, ma = get_ncsx_data()
         with ScratchDir("."):
             coils_to_makegrid('coils.test', curves, currents, nfp=3, stellsym=True)
 
     def test_load_coils_from_makegrid_file(self):
+        """
+        Test loading coils from a MAKEGRID file and verify that geometry and Biot-Savart fields are preserved.
+        """
         order = 25
         ppp = 10
 
@@ -197,6 +242,9 @@ class CoilFormatConvertTesting(unittest.TestCase):
         np.testing.assert_allclose(gamma, loaded_gamma)
 
     def test_load_coils_from_makegrid_file_group(self):
+        """
+        Test loading specific coil groups from a MAKEGRID file and verify correct selection and geometry.
+        """
         order = 25
         ppp = 10
 
@@ -220,6 +268,9 @@ class CoilFormatConvertTesting(unittest.TestCase):
         np.testing.assert_allclose(gamma, compare_gamma)
 
     def test_equally_spaced_planar_curves(self):
+        """
+        Test that equally spaced planar and non-planar coils produce the same Biot-Savart field.
+        """
         ncoils = 4
         nfp = 4
         stellsym = False

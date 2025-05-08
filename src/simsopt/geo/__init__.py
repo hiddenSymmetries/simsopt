@@ -10,7 +10,7 @@ from .curvexyzfouriersymmetries import *
 from .curveperturbed import *
 from .curveobjectives import *
 from .curveplanarfourier import *
-from .curveplanarellipticalcylindrical import *
+from .curve_planar_elliptical_cylindrical import *
 from .framedcurve import *
 from .finitebuild import *
 from .plotting import *
@@ -35,7 +35,7 @@ __all__ = (curve.__all__ + curvehelical.__all__ +
            curvexyzfouriersymmetries.__all__ +
            curveperturbed.__all__ + curveobjectives.__all__ +
            curveplanarfourier.__all__ +
-           curveplanarellipticalcylindrical.__all__ +
+           curve_planar_elliptical_cylindrical.__all__ +
            finitebuild.__all__ + plotting.__all__ +
            boozersurface.__all__ + qfmsurface.__all__ +
            surface.__all__ +

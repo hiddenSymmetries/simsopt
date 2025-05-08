@@ -78,7 +78,7 @@ class Testing(unittest.TestCase):
 
         # optimize the currents in the TF coils
         with ScratchDir("."):
-            base_curves, curves, coils = initialize_coils_pms('qa', TEST_DIR, s)
+            base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s)
             bs = BiotSavart(coils)
             bs = coil_optimization(s, bs, base_curves, curves)
             bs.set_points(s.gamma().reshape((-1, 3)))

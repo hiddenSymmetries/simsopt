@@ -18,7 +18,13 @@ __all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
 @jit
 def curve_length_pure(l):
     """
-    This function is used in a Python+Jax implementation of the curve length formula.
+    Compute the mean of the incremental arclengths along a curve (the curve length).
+
+    Args:
+        l (array-like): Array of incremental arclengths along the curve.
+
+    Returns:
+        float: The mean arclength (i.e., the curve length).
     """
     return jnp.mean(l)
 
@@ -34,7 +40,7 @@ class CurveLength(Optimizable):
 
     def __init__(self, curve):
         self.curve = curve
-        self.thisgrad = jit(lambda l: grad(curve_length_pure)(l))
+        self.dJ_dl = jit(lambda l: grad(curve_length_pure)(l))
         super().__init__(depends_on=[curve])
 
     def J(self):
@@ -50,7 +56,7 @@ class CurveLength(Optimizable):
         """
 
         return self.curve.dincremental_arclength_by_dcoeff_vjp(
-            self.thisgrad(self.curve.incremental_arclength()))
+            self.dJ_dl(self.curve.incremental_arclength()))
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -58,7 +64,16 @@ class CurveLength(Optimizable):
 @jit
 def Lp_curvature_pure(kappa, gammadash, p, desired_kappa):
     """
-    This function is used in a Python+Jax implementation of the curvature penalty term.
+    Compute the Lp penalty for curvature exceeding a threshold along a curve.
+
+    Args:
+        kappa (array-like): Curvature values along the curve.
+        gammadash (array-like): Tangent vectors along the curve.
+        p (float): The Lp norm exponent.
+        desired_kappa (float): The threshold curvature value.
+
+    Returns:
+        float: The Lp penalty value.
     """
     arc_length = jnp.linalg.norm(gammadash, axis=1)
     return (1./p)*jnp.mean(jnp.maximum(kappa-desired_kappa, 0)**p * arc_length)
@@ -81,8 +96,8 @@ class LpCurveCurvature(Optimizable):
         self.threshold = threshold
         super().__init__(depends_on=[curve])
         self.J_jax = jit(lambda kappa, gammadash: Lp_curvature_pure(kappa, gammadash, p, threshold))
-        self.thisgrad0 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=0)(kappa, gammadash))
-        self.thisgrad1 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=1)(kappa, gammadash))
+        self.dJ_dkappa = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=0)(kappa, gammadash))
+        self.dJ_dgammadash = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=1)(kappa, gammadash))
 
     def J(self):
         """
@@ -95,8 +110,8 @@ class LpCurveCurvature(Optimizable):
         """
         This returns the derivative of the quantity with respect to the curve dofs.
         """
-        grad0 = self.thisgrad0(self.curve.kappa(), self.curve.gammadash())
-        grad1 = self.thisgrad1(self.curve.kappa(), self.curve.gammadash())
+        grad0 = self.dJ_dkappa(self.curve.kappa(), self.curve.gammadash())
+        grad1 = self.dJ_dgammadash(self.curve.kappa(), self.curve.gammadash())
         return self.curve.dkappa_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
 
     return_fn_map = {'J': J, 'dJ': dJ}
@@ -105,7 +120,16 @@ class LpCurveCurvature(Optimizable):
 @jit
 def Lp_torsion_pure(torsion, gammadash, p, threshold):
     """
-    This function is used in a Python+Jax implementation of the formula for the torsion penalty term.
+    Compute the Lp penalty for torsion exceeding a threshold along a curve.
+
+    Args:
+        torsion (array-like): Torsion values along the curve.
+        gammadash (array-like): Tangent vectors along the curve.
+        p (float): The Lp norm exponent.
+        threshold (float): The threshold torsion value.
+
+    Returns:
+        float: The Lp penalty value.
     """
     arc_length = jnp.linalg.norm(gammadash, axis=1)
     return (1./p)*jnp.mean(jnp.maximum(jnp.abs(torsion)-threshold, 0)**p * arc_length)
@@ -127,8 +151,8 @@ class LpCurveTorsion(Optimizable):
         self.threshold = threshold
         super().__init__(depends_on=[curve])
         self.J_jax = jit(lambda torsion, gammadash: Lp_torsion_pure(torsion, gammadash, p, threshold))
-        self.thisgrad0 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=0)(torsion, gammadash))
-        self.thisgrad1 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=1)(torsion, gammadash))
+        self.dJ_dtorsion = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=0)(torsion, gammadash))
+        self.dJ_dgammadash = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=1)(torsion, gammadash))
 
     def J(self):
         """
@@ -141,8 +165,8 @@ class LpCurveTorsion(Optimizable):
         """
         This returns the derivative of the quantity with respect to the curve dofs.
         """
-        grad0 = self.thisgrad0(self.curve.torsion(), self.curve.gammadash())
-        grad1 = self.thisgrad1(self.curve.torsion(), self.curve.gammadash())
+        grad0 = self.dJ_dtorsion(self.curve.torsion(), self.curve.gammadash())
+        grad1 = self.dJ_dgammadash(self.curve.torsion(), self.curve.gammadash())
         return self.curve.dtorsion_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
 
     return_fn_map = {'J': J, 'dJ': dJ}
@@ -150,7 +174,18 @@ class LpCurveTorsion(Optimizable):
 
 def cc_distance_pure(gamma1, l1, gamma2, l2, minimum_distance, downsample=1):
     """
-    This function is used in a Python+Jax implementation of the curve-curve distance formula.
+    Compute the curve-curve distance penalty between two curves.
+
+    Args:
+        gamma1 (array-like): Points along the first curve.
+        l1 (array-like): Tangent vectors along the first curve.
+        gamma2 (array-like): Points along the second curve.
+        l2 (array-like): Tangent vectors along the second curve.
+        minimum_distance (float): The minimum allowed distance between curves.
+        downsample (int, optional): Downsampling factor for quadrature points. Defaults to 1.
+
+    Returns:
+        float: The curve-curve distance penalty value.
     """
     gamma1 = gamma1[::downsample, :]
     gamma2 = gamma2[::downsample, :]
@@ -189,10 +224,10 @@ class CurveCurveDistance(Optimizable):
         self.downsample = downsample
         args = {"static_argnums": (4,)}
         self.J_jax = jit(lambda gamma1, l1, gamma2, l2, dsample: cc_distance_pure(gamma1, l1, gamma2, l2, minimum_distance, dsample), **args)
-        self.thisgrad0 = jit(lambda gamma1, l1, gamma2, l2, dsample: grad(self.J_jax, argnums=0)(gamma1, l1, gamma2, l2, dsample), **args)
-        self.thisgrad1 = jit(lambda gamma1, l1, gamma2, l2, dsample: grad(self.J_jax, argnums=1)(gamma1, l1, gamma2, l2, dsample), **args)
-        self.thisgrad2 = jit(lambda gamma1, l1, gamma2, l2, dsample: grad(self.J_jax, argnums=2)(gamma1, l1, gamma2, l2, dsample), **args)
-        self.thisgrad3 = jit(lambda gamma1, l1, gamma2, l2, dsample: grad(self.J_jax, argnums=3)(gamma1, l1, gamma2, l2, dsample), **args)
+        self.dJ_dgamma1 = jit(lambda gamma1, l1, gamma2, l2, dsample: grad(self.J_jax, argnums=0)(gamma1, l1, gamma2, l2, dsample), **args)
+        self.dJ_dl1 = jit(lambda gamma1, l1, gamma2, l2, dsample: grad(self.J_jax, argnums=1)(gamma1, l1, gamma2, l2, dsample), **args)
+        self.dJ_dgamma2 = jit(lambda gamma1, l1, gamma2, l2, dsample: grad(self.J_jax, argnums=2)(gamma1, l1, gamma2, l2, dsample), **args)
+        self.dJ_dl2 = jit(lambda gamma1, l1, gamma2, l2, dsample: grad(self.J_jax, argnums=3)(gamma1, l1, gamma2, l2, dsample), **args)
         self.candidates = None
         self.num_basecurves = num_basecurves or len(curves)
         super().__init__(depends_on=curves)
@@ -249,10 +284,10 @@ class CurveCurveDistance(Optimizable):
             l1 = self.curves[i].gammadash()
             gamma2 = self.curves[j].gamma()
             l2 = self.curves[j].gammadash()
-            dgamma_by_dcoeff_vjp_vecs[i] += self.thisgrad0(gamma1, l1, gamma2, l2, self.downsample)
-            dgammadash_by_dcoeff_vjp_vecs[i] += self.thisgrad1(gamma1, l1, gamma2, l2, self.downsample)
-            dgamma_by_dcoeff_vjp_vecs[j] += self.thisgrad2(gamma1, l1, gamma2, l2, self.downsample)
-            dgammadash_by_dcoeff_vjp_vecs[j] += self.thisgrad3(gamma1, l1, gamma2, l2, self.downsample)
+            dgamma_by_dcoeff_vjp_vecs[i] += self.dJ_dgamma1(gamma1, l1, gamma2, l2, self.downsample)
+            dgammadash_by_dcoeff_vjp_vecs[i] += self.dJ_dl1(gamma1, l1, gamma2, l2, self.downsample)
+            dgamma_by_dcoeff_vjp_vecs[j] += self.dJ_dgamma2(gamma1, l1, gamma2, l2, self.downsample)
+            dgammadash_by_dcoeff_vjp_vecs[j] += self.dJ_dl2(gamma1, l1, gamma2, l2, self.downsample)
 
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
         return sum(res)
@@ -262,8 +297,17 @@ class CurveCurveDistance(Optimizable):
 
 def cs_distance_pure(gammac, lc, gammas, ns, minimum_distance):
     """
-    This function is used in a Python+Jax implementation of the curve-surface distance
-    formula.
+    Compute the curve-surface distance penalty between a curve and a surface.
+
+    Args:
+        gammac (array-like): Points along the curve.
+        lc (array-like): Tangent vectors along the curve.
+        gammas (array-like): Points on the surface.
+        ns (array-like): Surface normal vectors.
+        minimum_distance (float): The minimum allowed distance between curve and surface.
+
+    Returns:
+        float: The curve-surface distance penalty value.
     """
     dists = jnp.sqrt(jnp.sum(
         (gammac[:, None, :] - gammas[None, :, :])**2, axis=2))
@@ -298,8 +342,8 @@ class CurveSurfaceDistance(Optimizable):
         self.minimum_distance = minimum_distance
 
         self.J_jax = jit(lambda gammac, lc, gammas, ns: cs_distance_pure(gammac, lc, gammas, ns, minimum_distance))
-        self.thisgrad0 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=0)(gammac, lc, gammas, ns))
-        self.thisgrad1 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=1)(gammac, lc, gammas, ns))
+        self.dJ_dgamma = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=0)(gammac, lc, gammas, ns))
+        self.dJ_dlc = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=1)(gammac, lc, gammas, ns))
         self.candidates = None
         super().__init__(depends_on=curves)  # Bharat's comment: Shouldn't we add surface here
 
@@ -355,8 +399,8 @@ class CurveSurfaceDistance(Optimizable):
         for i, _ in self.candidates:
             gammac = self.curves[i].gamma()
             lc = self.curves[i].gammadash()
-            dgamma_by_dcoeff_vjp_vecs[i] += self.thisgrad0(gammac, lc, gammas, ns)
-            dgammadash_by_dcoeff_vjp_vecs[i] += self.thisgrad1(gammac, lc, gammas, ns)
+            dgamma_by_dcoeff_vjp_vecs[i] += self.dJ_dgamma(gammac, lc, gammas, ns)
+            dgammadash_by_dcoeff_vjp_vecs[i] += self.dJ_dlc(gammac, lc, gammas, ns)
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
         return sum(res)
 
@@ -366,7 +410,14 @@ class CurveSurfaceDistance(Optimizable):
 @jit
 def curve_arclengthvariation_pure(l, mat):
     """
-    This function is used in a Python+Jax implementation of the curve arclength variation.
+    Compute the variance of the average incremental arclengths over intervals.
+
+    Args:
+        l (array-like): Incremental arclengths along the curve.
+        mat (array-like): Matrix mapping arclengths to intervals.
+
+    Returns:
+        float: The variance of the average arclengths over intervals.
     """
     return jnp.var(mat @ l)
 
@@ -425,7 +476,7 @@ class ArclengthVariation(Optimizable):
         for i in range(nintervals):
             mat[i, indices[i]:indices[i+1]] = 1/(indices[i+1]-indices[i])
         self.mat = mat
-        self.thisgrad = jit(lambda l: grad(lambda x: curve_arclengthvariation_pure(x, mat))(l))
+        self.dJ_dl = jit(lambda l: grad(lambda x: curve_arclengthvariation_pure(x, mat))(l))
 
     def J(self):
         return float(curve_arclengthvariation_pure(self.curve.incremental_arclength(), self.mat))
@@ -436,7 +487,7 @@ class ArclengthVariation(Optimizable):
         This returns the derivative of the quantity with respect to the curve dofs.
         """
         return self.curve.dincremental_arclength_by_dcoeff_vjp(
-            self.thisgrad(self.curve.incremental_arclength()))
+            self.dJ_dl(self.curve.incremental_arclength()))
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -444,7 +495,14 @@ class ArclengthVariation(Optimizable):
 @jit
 def curve_msc_pure(kappa, gammadash):
     """
-    This function is used in a Python+Jax implementation of the mean squared curvature objective.
+    Compute the mean squared curvature objective for a curve.
+
+    Args:
+        kappa (array-like): Curvature values along the curve.
+        gammadash (array-like): Tangent vectors along the curve.
+
+    Returns:
+        float: The mean squared curvature value.
     """
     arc_length = jnp.linalg.norm(gammadash, axis=1)
     return jnp.mean(kappa**2 * arc_length)/jnp.mean(arc_length)
@@ -467,16 +525,16 @@ class MeanSquaredCurvature(Optimizable):
         """
         super().__init__(depends_on=[curve])
         self.curve = curve
-        self.thisgrad0 = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=0)(kappa, gammadash))
-        self.thisgrad1 = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=1)(kappa, gammadash))
+        self.dJ_dkappa = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=0)(kappa, gammadash))
+        self.dJ_dgammadash = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=1)(kappa, gammadash))
 
     def J(self):
         return float(curve_msc_pure(self.curve.kappa(), self.curve.gammadash()))
 
     @derivative_dec
     def dJ(self):
-        grad0 = self.thisgrad0(self.curve.kappa(), self.curve.gammadash())
-        grad1 = self.thisgrad1(self.curve.kappa(), self.curve.gammadash())
+        grad0 = self.dJ_dkappa(self.curve.kappa(), self.curve.gammadash())
+        grad1 = self.dJ_dgammadash(self.curve.kappa(), self.curve.gammadash())
         return self.curve.dkappa_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
 
 
