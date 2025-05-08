@@ -94,7 +94,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
 
     def to_mgrid(self, filename, nr=10, nphi=4, nz=12, rmin=1.0, rmax=2.0, zmin=-0.5, zmax=0.5, nfp=1,
                  include_potential=False):
-        """Export the field to the mgrid file format for free boundary calculations.
+        """Export the field to the mgrid (NetCDF) file format for free boundary calculations.
 
         An mgrid file contains a grid in cylindrical coordinates ``(R, phi, z)`` upon which the
         magnetic field is evaluated. The grid is defined by the number of
@@ -105,6 +105,8 @@ class MagneticField(sopp.MagneticField, Optimizable):
         
         The grid boundary is defined by the minimum and maximum values of the radial coordinate
         (``rmin``, ``rmax``), the minimum and maximum values of the z-coordinate (``zmin``, ``zmax``).
+        Note the ``R`` and ``z`` grids include both end points while the ``phi`` dimension includes 
+        the start point and excludes the end point.
         For free boundary calculations, the grid should be large enough to contain the entire plasma. 
         For example, ``rmin`` should be smaller than ``min R(theta, phi)`` where ``R`` is the radial 
         coordinate of the plasma. The same applies for the z-coordinate.
@@ -118,7 +120,13 @@ class MagneticField(sopp.MagneticField, Optimizable):
         If [cm] precision is required then the number of grid points chosen should provide at least this resolution.
         Remember that the more datapoints, the slower VMEC will run.
         
-        The magnetic field data is represented as a single "current group". For
+        Currently, this function only supports one "current group": a set of coils that are electrically connected 
+        in series. Using multiple current groups emmulates groups of coils that are connected to distinct power supplies,
+        and allows for the current in each group can be controlled independently.
+        For example, W7-X has 7 current groups, one for each base coil (5 nonplanar coils + 2 planar coils), which
+        allows all planar coils to be turned on without changing the currents in the nonplanar coils.
+        In free-boundary vmec, the currents in each current group are scaled using the "extcur" array in the input file.
+        Since only one current group is supported by this function, for
         free-boundary vmec, the ``vmec.indata.extcur`` array should have a single nonzero
         element, set to ``1.0``.
 
