@@ -66,23 +66,15 @@ def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, reg
     rc_prime = gammadash / 2 / jnp.pi
     rc_prime_prime = gammadashdash / 4 / jnp.pi**2
     dphi = 2 * jnp.pi / phi.shape[0]
-
-    # analytic_term = B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization)
+    analytic_term = B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization)
     dr = rc[:, None] - rc[None, :]
     first_term = jnp.cross(rc_prime[None, :], dr) / ((jnp.sum(dr * dr, axis=2) + regularization) ** 1.5)[:, :, None]
     cos_fac = 2.0 - 2.0 * jnp.cos(phi[None, :] - phi[:, None])
     second_term = jnp.cross(rc_prime_prime, rc_prime)[:, None, :] * (
         0.5 * cos_fac / (cos_fac * jnp.sum(rc_prime * rc_prime, axis=1)[:, None] + regularization)**1.5)[:, :, None]
     first_term = jnp.cross(rc_prime[None, :], dr) / ((jnp.sum(dr * dr, axis=2) + regularization) ** 1.5)[:, :, None]
-    # cos_fac = 2.0 - 2.0 * jnp.cos(phi[None, :] - phi[:, None])
-    # integral_term = dphi * jnp.sum(jnp.cross(rc_prime, (dr / ((jnp.sum(dr * dr, axis=2) + regularization) ** 1.5)[:, :, None]) \
-    #     - rc_prime_prime * (
-    #     0.5 * cos_fac / (cos_fac * jnp.sum(rc_prime * rc_prime, axis=1)[:, None] + regularization)**1.5)[:, :, None]),
-    #     axis=1
-    # )
     integral_term = dphi * jnp.sum(first_term + second_term, 1)
-    return current * Biot_savart_prefactor * (
-        B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization) + integral_term)
+    return current * Biot_savart_prefactor * (analytic_term + integral_term)
 
 
 def B_regularized(coil, regularization):
