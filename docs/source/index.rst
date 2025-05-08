@@ -69,6 +69,7 @@ optimization.  Others include `STELLOPT
    optimizable
    geo
    fields
+   mhd
    tracing
    mpi
    testing
