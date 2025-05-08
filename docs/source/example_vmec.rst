@@ -6,65 +6,219 @@ In this tutorial, we describe how to run the VMEC equilibrium code. Other resour
 Input parameters
 ^^^^^^^^^^^^^^^^
 
-Typical input parameters are described below. A more comprehensive list can be found in the `VMEC++ documentation <https://arxiv.org/pdf/2502.04374>`_. These parameters can be directly modified in the ``input.*`` Fortran namelist, or by modifying the corresponding attribute of a :obj:`~simsopt.mhd.vmec.Vmec` object, e.g.::
-   
-    vmec.indata.nfp = 5
+You can initialize this class either from a VMEC ``input.<extension>`` file or from a ``wout_<extension>.nc`` output file. If neither is provided, a default input file is used. When this class is initialized from an input file, it is possible to modify the input parameters and run the VMEC code. When this class is initialized from a ``wout`` file, all the data from the
+``wout`` file is available in memory but the VMEC code cannot be
+re-run, since some of the input data (e.g. radial multigrid
+parameters) is not available in the wout file.
 
+Typical input parameters are described below. A more comprehensive list can be found in the `VMEC++ documentation <https://arxiv.org/pdf/2502.04374>`_. 
 All quantities are in SI units. 
+
+These parameters can be directly modified in the ``input.extension`` Fortran namelist.
+The input parameters to VMEC are also accessible as attributes of
+the ``indata`` attribute. For example, if ``vmec`` is an instance
+of ``Vmec``, then you can read or write the input resolution
+parameters using ``vmec.indata.mpol``, ``vmec.indata.ntor``,
+``vmec.indata.ns_array``, etc. 
 
 Geometry parameters 
 -------------------
 
-- ``LASYM``: a Boolean determining whether stellarator asymmetric modes should be included in the equilibrium calculation. If ``false``, stellarator symmetry is assumed.
-- ``RBC(n,m)`` and ``ZBS(n,m)``: the Fourier coefficients describing the boundary surface, :math:`R_{m,n}^c` and :math:`Z_{m,n}^s`. Here :math:`n` is a toroidal mode number and :math:`m` is a poloidal mode number. These correspond with the ``rc(m,n)`` and ``zs(m,n)`` coefficients in the :obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier` representation. If this is a fixed-boundary calculation, these describe the shape of the fixed outer boundary. In the case of a free-boundary calculation, these describe the shape of the initial guess for the boundary. 
-- ``NFP``: the number of field periods. This should be consistent with the representation in :obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier`.
-- ``MPOL`` and ``NTOR``: the number of poloidal and toroidal mode numbers used to compute the equilibrium solution with a Fourier discretization. These correspond with the attributes of the same name in :obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier`.
-- ``PHIEDGE``: the value of the toroidal flux in SI units through the boundary magnetic surface. This sets the overall scale of the equilibrium magnetic field.
-- ``RAXIS`` and ``ZAXIS``: Fourier modes describing the initial guess for the magnetic axis curve as a function of the cylindrical toroidal angle, :math:`R_a(\phi)`, :math:`Z_a(\phi)`, :math:`R_a(\phi) = \sum_n \mathrm{RAXIS}(n) \cos(-n \mathrm{NFP}\phi)` and :math:`Z_a(\phi) = \sum_n \mathrm{ZAXIS}(n) \sin(-n \mathrm{NFP}\phi)`.
+The parameters in ``indata`` defining the boundary surface,
+``rbc``, ``rbs``, ``zbc``, and ``zbs`` from the
+``indata`` attribute are always ignored, and these arrays are
+instead taken from the simsopt surface object associated to the
+``boundary`` attribute. If ``boundary`` is a surface based on some
+other representation than VMEC's Fourier representation, the
+surface will automatically be converted to VMEC's representation
+(:obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier`) before
+each run of VMEC. You can replace ``boundary`` with a new surface
+object, of any type that implements the conversion function
+``to_RZFourier()``. If this is a fixed-boundary calculation, ``boundary`` describes the shape of the fixed outer boundary. 
+In the case of a free-boundary calculation, it describes the shape of the initial guess for the boundary. 
+
+If one runs VMEC directly outside of the ``simsopt`` interface, the boundary surface parameters are interpreted as follows: 
+``rbc(n,m)``, ``zbs(n,m)``, ``rbs(n,m)``, ``zbc(n,m)`` are the Fourier coefficients describing the boundary surface, 
+where :math:`n` is a toroidal mode number and :math:`m` is a poloidal mode number. 
+These correspond with the ``rc(m,n)``, ``zs(m,n)``, ``rs(m,n)``, ``zc(m,n)`` coefficients in the :obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier` representation. 
+
+Other input parameters related to geometry are described below:
+
+- ``lasym``: a Boolean determining whether stellarator asymmetric modes should be included in the equilibrium calculation. If ``false``, stellarator symmetry is assumed.
+- ``nfp``: the number of field periods. 
+- ``mpol`` and ``ntor``: the number of poloidal and toroidal mode numbers used to compute the equilibrium solution with a Fourier representation. These are to be intepreted in the same way as the attributes of the same name in :obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier`. However, they need not have the same value as the corresponding attributes in :obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier`.
+- ``phiedge``: the value of the toroidal flux through the boundary magnetic surface. This sets the overall scale of the equilibrium magnetic field.
+- ``raxis`` and ``zaxis``: Fourier modes describing the initial guess for the magnetic axis curve as a function of the cylindrical toroidal angle, :math:`R_a(\phi)`, :math:`Z_a(\phi)`, with :math:`R_a(\phi) = \sum_n \mathrm{raxis}(n) \cos(-n \mathrm{nfp}\phi)` and :math:`Z_a(\phi) = \sum_n \mathrm{zaxis}(n) \sin(-n \mathrm{nfp}\phi)`.
 
 Profile parameters 
 ------------------
 
-- ``NCURR``: an integer determining whether the equilibrium calculation is performed at fixed rotational transform profile (``NCURR=0``) or at fixed toroidal current profile (``NCURR=1``). The rotational transform and current are specified using the ``AI_*`` and ``AC_*`` input parameters, respectively. 
-- ``PCURR_TYPE``: a string specifying the type of current profile. The most commonly used options are ``power_series``, ``power_series_i``, ``akima_spline_i``, ``akima_spline_ip``, ``cubic_spline_i``, ``cubic_spline_ip``, ``line_segment_i``, and ``line_segment_ip``. Other options are described in the `VMEC++ documentation <https://arxiv.org/pdf/2502.04374>`_. Options ending in ``_ip`` specify the derivative of the toroidal current profile with respect to the normalized toroidal flux, :math:`s`, the "I-prime" profile, while options ending in ``_i`` specify the toroidal current profile. Power series options are specified by the ``AC`` input parameters, while the others are described by the ``AC_AUX_S`` and ``AC_AUX_F`` input parameters. 
-- ``AC``: a polynomial description of the integrated toroidal current profile with respect to the normalized toroidal flux, :math:`s`, :math:`I_T(s) = \sum_{i=0}^{N} \mathrm{AC}(i) s^{i-1}` if ``PCURR_TYPE`` is ``power_series_i``, or :math:`I_T'(s) = \sum_{i=0}^{N} \mathrm{AC}(i) s^{i-1}` if ``PCURR_TYPE`` is ``power_series_ip``. If ``NCURR`` is 0 or if another ``PCURR_TYPE`` is specified, this input is ignored. 
-- ``AC_AUX_S`` and ``AC_AUX_F``: these inputs are used to specify the current profile as a spline or line segment. The ``AC_AUX_S``specifies values of the normalized toroidal flux, :math:`s`, while ``AC_AUX_F`` specifies the corresponding values of the current, :math:`I_T(s)`, or derivative of the current, :math:`I_T'(s)`, depending on ``PCURR_TYPE``. The length of these two input arrays should be the same. 
-- ``PIOTA_TYPE``: a string specifying the type of rotational transform profile. The most commonly used options are ``power_series``, ``akima_spline``, ``cubic_spline``, and ``line_segment``. Other options are described in the `VMEC++ documentation <https://arxiv.org/pdf/2502.04374>`_. With ``power_series``, the profile is specified by the ``AI`` input parameters, while the others are described by the ``AI_AUX_S`` and ``AI_AUX_F`` input arrays.
-- ``AI``: a polynomial description of the rotational transform profile with respect to the normalized toroidal flux, :math:`s`, :math:`\iota(s) = \sum_{i=0}^{N} \mathrm{AI}(i) s^{i-1}`. This input is only used if ``NCURR`` is 0 and ``PIOTA_TYPE`` is ``power_series``. 
-- ``AI_AUX_S`` and ``AI_AUX_F``: these inputs are used to specify the rotational transform profile as a spline or line segment. The ``AI_AUX_S``specifies values of the normalized toroidal flux, :math:`s`, while ``AI_AUX_F`` specifies the corresponding values of the rotational transform, :math:`\iota(s)`. The length of these two input arrays should be the same.
-- ``PMASS_TYPE``: a string specifying the type of pressure profile. The most commonly used options are ``power_series``, ``akima_spline``, ``cubic_spline``, and ``line_segment``. Other options are described in the `VMEC++ documentation <https://arxiv.org/pdf/2502.04374>`_. With ``power_series``, the profile is specified by the ``AM`` input parameters, while the others are described by the ``AM_AUX_S`` and ``AM_AUX_F`` input arrays.
-- ``AM``: a polynomial description of the pressure with respect to :math:`s`, :math:`p(s) = \sum_{i} \mathrm{AM}(i) s^{i-1}`. This input is only used if ``PMASS_TYPE`` is ``power_series``.
-- ``AM_AUX_S`` and ``AM_AUX_F``: these inputs are used to specify the pressure profile as a spline or line segment. The ``AM_AUX_S``specifies values of the normalized toroidal flux, :math:`s`, while ``AM_AUX_F`` specifies the corresponding values of the pressure, :math:`p(s)`. The length of these two input arrays should be the same.
-- ``PRES_SCALE``: A scale factor applied to the pressure profile :math:`p(s)` to modify the amplitude of the pressure profile. 
-- ``GAMMA``: the adiabatic index (ratio of specific heats). If 0 (default), the ``AM_`` input parameters specify the pressure profile. Otherwise, these specify the mass profile. We recommend using the default value of 0.
+To run VMEC, two input profiles must be specified: pressure and
+either iota or toroidal current.  Each of these profiles can be
+specified in several ways. One way is to specify the profile in
+the input file used to initialize the ``Vmec`` object. For
+instance, the pressure profile is determined by the variables
+``pmass_type``, ``am``, ``am_aux_s``, and ``am_aux_f``, described below. You can
+also modify these variables from python via the ``indata``
+attribute, e.g. ``vmec.indata.am = [1.0e5, -1.0e5]``. 
+
+Another option is to assign a :obj:`simsopt.mhd.profiles.Profile` object
+to the attributes ``pressure_profile``, ``current_profile``, or
+``iota_profile``. This approach allows for the profiles to be
+optimized, and it allows you to use profile shapes defined in
+python that are not available in the fortran VMEC code. To explain
+this approach we focus here on the pressure profile; the iota and
+current profiles are analogous. If the ``pressure_profile``
+attribute of a ``Vmec`` object is ``None`` (the default), then a
+simsopt :obj:`~simsopt.mhd.profiles.Profile` object is not used,
+and instead the settings from ``Vmec.indata`` (initialized from
+the input file) are used. If a
+:obj:`~simsopt.mhd.profiles.Profile` object is assigned to the
+``pressure_profile`` attribute, then an :ref:`edge in the
+dependency graph <dependecies>` is introduced, so the ``Vmec``
+object then depends on the dofs of the
+:obj:`~simsopt.mhd.profiles.Profile` object. Whenever VMEC is run,
+the simsopt :obj:`~simsopt.mhd.profiles.Profile` is converted to
+either a polynomial (power series) or cubic spline in the
+normalized toroidal flux :math:`s`, depending on whether
+``indata.pmass_type`` is ``"power_series"`` or
+``"cubic_spline"``. (The current profile is different in that
+either ``"cubic_spline_ip"`` or ``"cubic_spline_i"`` is specified
+instead of ``"cubic_spline"``, where ``cubic_spline_ip`` sets :math:`I'(s)` while ``cubic_spline_i`` sets :math:`I(s)`.) The number of terms in the power
+series or number of spline nodes is determined by the attributes
+``n_pressure``, ``n_current``, and ``n_iota``.  If a cubic spline
+is used, the spline nodes are uniformly spaced from :math:`s=0` to
+1. Note that the choice of whether a polynomial or spline is used
+for the VMEC calculation is independent of the subclass of
+:obj:`~simsopt.mhd.profiles.Profile` used. Also, whether the iota
+or current profile is used is always determined by the
+``indata.ncurr`` attribute: 0 for iota, 1 for current. Example::
+
+    from sismopt.mhd.profiles import ProfilePolynomial, ProfileSpline, ProfilePressure, ProfileScaled
+    from simsopt.util.constants import ELEMENTARY_CHARGE
+
+    ne = ProfilePolynomial(1.0e20 * np.array([1, 0, 0, 0, -0.9]))
+    Te = ProfilePolynomial(8.0e3 * np.array([1, -0.9]))
+    Ti = ProfileSpline([0, 0.5, 0.8, 1], 7.0e3 * np.array([1, 0.9, 0.8, 0.1]))
+    ni = ne
+    pressure = ProfilePressure(ne, Te, ni, Ti)  # p = ne * Te + ni * Ti
+    pressure_Pa = ProfileScaled(pressure, ELEMENTARY_CHARGE)  # Te and Ti profiles were in eV, so convert to SI here.
+    vmec = Vmec(filename)
+    vmec.pressure_profile = pressure_Pa
+    vmec.indata.pmass_type = "cubic_spline"
+    vmec.n_pressure = 8  # Use 8 spline nodes
+
+When a current profile is used, ``VMEC``  automatically updates ``curtor`` so that the total toroidal current :math:`I(s=1)` matches that of the specified profile.
+
+VMEC input parameters related to the pressure and current profiles are described below:
+
+- ``ncurr``: an integer determining whether the equilibrium calculation is performed at fixed rotational transform profile (``ncurr=0``) or at fixed toroidal current profile (``ncurr=1``). The rotational transform and current are specified using the ``ai_*`` and ``ac_*`` input parameters, respectively. 
+- ``pcurr_type``: a string specifying the type of current profile. The most commonly used options are ``power_series``, ``power_series_i``, ``akima_spline_i``, ``akima_spline_ip``, ``cubic_spline_i``, ``cubic_spline_ip``, ``line_segment_i``, and ``line_segment_ip``. Other options are described in the `VMEC++ documentation <https://arxiv.org/pdf/2502.04374>`_. Options ending in ``_ip`` specify the derivative of the toroidal current profile with respect to the normalized toroidal flux, :math:`s`, the "I-prime" profile, while options ending in ``_i`` specify the toroidal current profile. Power series options are specified by the ``ac`` input parameters, while the others are described by the ``ac_aux_s`` and ``ac_aux_f`` input parameters. 
+- ``ac``: a polynomial description of the integrated toroidal current profile with respect to the normalized toroidal flux, :math:`s`, :math:`I_T(s) = \sum_{i=0}^{N} \mathrm{ac}(i) s^{i-1}` if ``pcurr_type`` is ``power_series_i``, or :math:`I_T'(s) = \sum_{i=0}^{N} \mathrm{ac}(i) s^{i-1}` if ``pcurr_type`` is ``power_series_ip``. If ``ncurr`` is 0 or if another ``pcurr_type`` is specified, this input is ignored. 
+- ``ac_aux_s`` and ``ac_aux_f``: these inputs are used to specify the current profile as a spline or line segment. The ``ac_aux_s`` specifies values of the normalized toroidal flux, :math:`s`, while ``ac_aux_f`` specifies the corresponding values of the current, :math:`I_T(s)`, or derivative of the current, :math:`I_T'(s)`, depending on ``pcurr_type``. The length of these two input arrays should be the same. 
+- ``piota_type``: a string specifying the type of rotational transform profile. The most commonly used options are ``power_series``, ``akima_spline``, ``cubic_spline``, and ``line_segment``. Other options are described in the `VMEC++ documentation <https://arxiv.org/pdf/2502.04374>`_. With ``power_series``, the profile is specified by the ``ai`` input parameters, while the others are described by the ``ai_aux_s`` and ``ai_aux_f`` input arrays.
+- ``ai``: a polynomial description of the rotational transform profile with respect to the normalized toroidal flux, :math:`s`, :math:`\iota(s) = \sum_{i=0}^{N} \mathrm{ai}(i) s^{i-1}`. This input is only used if ``ncurr`` is 0 and ``piota_type`` is ``power_series``. 
+- ``ai_aux_s`` and ``ai_aux_f``: these inputs are used to specify the rotational transform profile as a spline or line segment. The ``ai_aux_s`` specifies values of the normalized toroidal flux, :math:`s`, while ``ai_aux_f`` specifies the corresponding values of the rotational transform, :math:`\iota(s)`. The length of these two input arrays should be the same.
+- ``gamma``: the adiabatic index (ratio of specific heats). If 0 (default), the ``am_*`` input parameters specify the pressure profile. Otherwise, these specify the mass profile. We recommend using the default value of 0.
+- ``pmass_type``: a string specifying the type of pressure profile. The most commonly used options are ``power_series``, ``akima_spline``, ``cubic_spline``, and ``line_segment``. Other options are described in the `VMEC++ documentation <https://arxiv.org/pdf/2502.04374>`_. With ``power_series``, the profile is specified by the ``am`` input parameters, while the others are described by the ``am_aux_s`` and ``am_aux_f`` input arrays.
+- ``am``: a polynomial description of the pressure with respect to :math:`s`, :math:`p(s) = \sum_{i} \mathrm{am}(i) s^{i-1}`. This input is only used if ``pmass_type`` is ``power_series``.
+- ``am_aux_s`` and ``am_aux_f``: these inputs are used to specify the pressure profile as a spline or line segment. The ``am_aux_s`` specifies values of the normalized toroidal flux, :math:`s`, while ``am_aux_f`` specifies the corresponding values of the pressure, :math:`p(s)`. The length of these two input arrays should be the same.
+- ``pres_scale``: A scale factor applied to the pressure profile :math:`p(s)` to modify the amplitude of the pressure profile. 
 
 Resolution parameters 
 ---------------------
 
-The VMEC solution is computed with a multistage method, beginning with a small number of surfaces and increasing until the desired resolution is achieved. The stages are described by ``NS_ARRAY``, ``FTOL_ARRAY``, and ``NITER_ARRAY``.
+The VMEC solution is computed with a multistage method, beginning with a small number of surfaces and increasing until the desired resolution is achieved. The stages are described by ``ns_array``, ``ftol_array``, and ``niter_array``.
 
-- ``NS_ARRAY``: an array of the number of radial gridpoints to use during each iteration of the calculation. Each element defines the number of magnetic surfaces to include in the calculation at each stage. In order to achieve convergence, it is typically necessary to begin with a small number of surfaces (10-20) and increase to your desired resolution (typically 75-150 is sufficient) in increments of 20-40.
-- ``FTOL_ARRAY``: an array defining the tolerances in the force residual used at each grid level. This should have the same number of elements as ``NS_ARRAY``. Typically the finest grid should have a value of :math:`10^{-11}-10^{-15}`. The coarse grids can have larger tolerances. The VMEC calculation is performed by minimizing an energy functional until this normalized tolerance in the force residual is achieved.
-- ``NITER_ARRAY``: The maximum number of iterations to use at each iteration of the calculation. This array should be of the same size as ``FTOL_ARRAY`` and ``NS_ARRAY``. If the number of iterations exceeds ``NITER`` during the finest grid evaluation, the code will exit with an error. If it exceeds ``NITER`` during the coarser grid evaluations, the calculation will proceed to the next grid size defined by the next element of ``NS_ARRAY``. Typical values at the finest grid are 3000-5000, while the coarser grids can sometimes have smaller values (e.g., 500-1000). 
-- ``NSTEP``: the number of iterations between output of the force residual as the energy is minimized.
-- ``DELT``: this parameter controls the step size in the minimization of the energy functional. Typical values are the range 0.2-0.9. This control parameter should not be changed unless one is having difficulty obtaining convergence. 
-- ``NTHETA``: the number of poloidal grid points for evaluation in real space. This defaults to :math:`2 \times \mathrm{mpol} + 6`. 
-- ``NZETA``: the number of toroidal grid points for evaluation in real space. This defaults to :math:`2 \times \mathrm{ntor} + 4`. In the context of a free-boundary calculation, the ``MGRID`` resolution parameter ``nphi`` should be an integer multiple of ``NZETA``. 
+- ``ns_array``: an array of the number of radial gridpoints to use during each iteration of the calculation. Each element defines the number of magnetic surfaces to include in the calculation at each stage. In order to achieve convergence, it is typically necessary to begin with a small number of surfaces (10-20) and increase to your desired resolution (typically 75-150 is sufficient) in increments of 20-40.
+- ``ftol_array``: an array defining the tolerances in the force residual used at each grid level. This should have the same number of elements as ``ns_array``. Typically the finest grid should have a value of :math:`10^{-11}-10^{-15}`. The coarse grids can have larger tolerances. The VMEC calculation is performed by minimizing an energy functional until this normalized tolerance in the force residual is achieved.
+- ``niter_array``: The maximum number of iterations to use at each iteration of the calculation. This array should be of the same size as ``ftol_array`` and ``ns_array``. If the number of iterations exceeds ``niter`` during the finest grid evaluation, the code will exit with an error. If it exceeds ``niter`` during the coarser grid evaluations, the calculation will proceed to the next grid size defined by the next element of ``ns_array``. Typical values at the finest grid are 3000-5000, while the coarser grids can sometimes have smaller values (e.g., 500-1000). 
+- ``nstep``: the number of iterations between output of the force residual as the energy is minimized.
+- ``delt``: this parameter controls the step size in the minimization of the energy functional. Typical values are the range 0.2-0.9. This control parameter should not be changed unless one is having difficulty obtaining convergence. 
+- ``ntheta``: the number of poloidal grid points for evaluation in real space. This defaults to :math:`2 \times \mathrm{mpol} + 6`. 
+- ``nzeta``: the number of toroidal grid points for evaluation in real space. This defaults to :math:`2 \times \mathrm{ntor} + 4`. In the context of a free-boundary calculation, the ``mgrid`` resolution parameter ``nphi`` should be an integer multiple of ``nzeta``. 
 
 Free-boundary parameters
 ------------------------
 
-- ``LFREEB``: a Boolean determining whether the calculation is performed in free-boundary mode. If ``true``, the VMEC calculation will be performed with a free boundary. If ``false``, the VMEC calculation will be performed with a fixed boundary.
-- ``MGRID_FILE``: the name of the MGRID netcdf file. This can be produced with :obj:`~simsopt.field.mgrid.MGrid` or the ``xgrid`` executable in `STELLOPT <https://github.com/PrincetonUniversity/STELLOPT/tree/develop/MAKEGRID>`_ executable. 
-- ``EXTCUR``: an array of coil currents used to specify the external magnetic field. This scales up the magnetic field described in the MGRID file. If the MGRID file is produced with simsopt, then this should be set to 1.0. If the MGRID file is produced with STELLOPT, typically this should be set to the entries in the ``extcur.*`` produced by ``xgrid``. 
-- ``NVACSKIP``: the number of iterations to skip without iteration with the vacuum field. Defaults to 1. Sometimes increasing this number can help with convergence. Typical values are between 1 and 10. 
+- ``lfreeb``: a Boolean determining whether the calculation is performed in free-boundary mode. If ``true``, the VMEC calculation will be performed with a free boundary. If ``false``, the VMEC calculation will be performed with a fixed boundary.
+- ``mgrid_file``: the name of the MGRID netcdf file. This can be produced with :obj:`~simsopt.field.mgrid.MGrid` or the ``xgrid`` executable in `STELLOPT <https://github.com/PrincetonUniversity/STELLOPT/tree/develop/MAKEGRID>`_ executable. 
+- ``extcur``: an array of coil currents used to specify the external magnetic field. This scales up the magnetic field described in the MGRID file. If the MGRID file is produced with simsopt, then this should be set to 1.0. If the MGRID file is produced with STELLOPT, typically this should be set to the entries in the ``extcur.<extension>`` produced by ``xgrid``. 
+- ``nvacskip``: the number of iterations to skip without iteration with the vacuum field. Defaults to 1. Sometimes increasing this number can help with convergence. Typical values are between 1 and 10. 
+
+Running VMEC 
+^^^^^^^^^^^^
+
+VMEC is run either when the :meth:`~simsopt.mhd.vmec.Vmec.run()` function is called, or when any of the output functions like :meth:`~simsopt.mhd.vmec.Vmec.aspect()` or :meth:`~simsopt.mhd.vmec.Vmec.iota_axis()` are called.
+
+When VMEC is run multiple times, the default behavior is that all
+``wout`` output files will be deleted except for the first and
+most recent iteration on worker group 0. If you wish to keep all
+the ``wout`` files, you can set ``keep_all_files = True``. If you
+want to save the ``wout`` file for a certain intermediate
+iteration, you can set the ``files_to_delete`` attribute to ``[]``
+after that run of VMEC.
+
+A caching mechanism is implemented, using the attribute
+``need_to_run_code``. Whenever VMEC is run, or if the class is
+initialized from a ``wout`` file, this attribute is set to
+``False``. Subsequent calls to :meth:`run()` or output functions
+like :meth:`aspect()` will not actually run VMEC again, until
+``need_to_run_code`` is changed to ``True``. The attribute
+``need_to_run_code`` is automatically set to ``True`` whenever the
+state vector ``.x`` is changed, and when dofs of the ``boundary``
+are changed. However, ``need_to_run_code`` is not automatically
+set to ``True`` when entries of ``indata`` are modified.
+
+Once VMEC has run at least once, or if the class is initialized
+from a ``wout`` file, all of the quantities in the ``wout`` output
+file are available as attributes of the ``wout`` attribute.  For
+example, if ``vmec`` is an instance of ``Vmec``, then the flux
+surface shapes can be obtained from ``vmec.wout.rmnc`` and
+``vmec.wout.zmns``.
+
+Since the underlying fortran implementation of VMEC uses global
+module variables, it is not possible to have more than one python
+Vmec object with different parameters; changing the parameters of
+one would change the parameters of the other.
+
+VMEC outputs are saved on the so-called half and full grids. The full grid is linearlly spaced from :math:`s=0` to 1 (including both endpoints), while the points on the half grid are located halfway between adjacent points on the full grid. Using the ``ncdump`` command, one can see which outputs are saved on the full and half grid::
+
+    ncdump -h wout_<extension>.nc
+
+     ...
+
+  double rmnc(radius, mn_mode) ;
+		rmnc:long_name = "cosmn component of cylindrical R, full mesh" ;
+		rmnc:units = "m" ;
+	double zmns(radius, mn_mode) ;
+		zmns:long_name = "sinmn component of cylindrical Z, full mesh" ;
+		zmns:units = "m" ;
+	double lmns(radius, mn_mode) ;
+		lmns:long_name = "sinmn component of lambda, half mesh" ;
+	double gmnc(radius, mn_mode_nyq) ;
+		gmnc:long_name = "cosmn component of jacobian, half mesh" ;
+	double bmnc(radius, mn_mode_nyq) ;
+		bmnc:long_name = "cosmn component of mod-B, half mesh" ;
+	double bsubumnc(radius, mn_mode_nyq) ;
+		bsubumnc:long_name = "cosmn covariant u-component of B, half mesh" ;
+	double bsubvmnc(radius, mn_mode_nyq) ;
+		bsubvmnc:long_name = "cosmn covariant v-component of B, half mesh" ;
+	double bsubsmns(radius, mn_mode_nyq) ;
+		bsubsmns:long_name = "sinmn covariant s-component of B, half mesh" ;
+	double currumnc(radius, mn_mode_nyq) ;
+		currumnc:long_name = "cosmn covariant u-component of J, full mesh" ;
+	double currvmnc(radius, mn_mode_nyq) ;
+		currvmnc:long_name = "cosmn covariant v-component of J, full mesh" ;
+	double bsupumnc(radius, mn_mode_nyq) ;
+	double bsupvmnc(radius, mn_mode_nyq) ;
 
 Interpreting VMEC errors 
-^^^^^^^^^^^^^^^^^^^^^^^^
+------------------------
 
 VMEC can produce a variety of errors. Sometimes they can be circumvented by modifying resolution parameters, and sometimes they are triggered from the input geometry. Here we discuss some interpretation of typical VMEC errors. 
 
-The standard output can give insight into how the convergence is progressing. You will see blocks of text for each value of ``NS`` in ``NS_ARRAY``. Here is an example the force residual is seen to be decreasing with the number of iterations::
+The standard output (visible if ``vmec.verbose=True``) can give insight into how the convergence is progressing. You will see blocks of text for each value of ``ns`` in ``ns_array``. Here is an example the force residual is seen to be decreasing with the number of iterations::
     
     NS =  100 NO. FOURIER MODES =   13 FTOLV =  1.000E-12 NITER =   4000
     PROCESSOR COUNT - RADIAL:    1  VACUUM:    1
@@ -79,7 +233,9 @@ The standard output can give insight into how the convergence is progressing. Yo
 
     EXECUTION TERMINATED NORMALLY
 
-Columns 2-4 provide the force residuals corresponding to :math:`R`, :math:`Z`, and :math:`\lambda`. When the residuals fall below ``FTOL``, the executation terminates successfully::
+Columns 2-4 provide the force residuals corresponding to :math:`R`, :math:`Z`, and :math:`\lambda`. When the residuals fall below ``ftol``, the executation terminates successfully.
+
+On the other hand, the following output indicates that the VMEC calculation has not converged::
   
   NS =   25 NO. FOURIER MODES =  116 FTOLV =  1.000E-10 NITER =   2000
   PROCESSOR COUNT - RADIAL:    1
@@ -127,18 +283,36 @@ Columns 2-4 provide the force residuals corresponding to :math:`R`, :math:`Z`, a
 
     simsopt._core.util.ObjectiveFailure: VMEC did not converge. ierr=2
 
-Here we can see the force minimization is not successful, as the maximum number of iterations, 4000, was exceeded before ``FTOL`` could be achieved. There are a few ways to proceed. ``NITER`` can be increased to allow the force minimization to converge. In this case, the iteration parameters are specified as follows::
+A ``RuntimeError`` is raised if VMEC fails, and the ``ierr`` code indicates the type of error. 
+The interpretation of the error code is listed below:
+
+- norm_term_flag=0: Normal termination
+- bad_jacobian_flag=1: Initial guess for the coordinate transformation is bad. 
+- more_iter_flag=2: More iterations are required
+- jac75_flag=4: More than 75 Jacobain iterations (decrease ``delt``)
+- input_error_flag=5: Input file is not properly formatted 
+- phiedge_error_flag=7: ``phiedge`` has the wrong sign in vacuum subroutine (only for free boundary)
+- ns_error_flag=8: ``ns_array`` must not all be zeros 
+- misc_error_flag=9: Error reading ``mgrid`` file 
+- successful_term_flag=11: Normal termination
+- bsub_bad_js1_flag=12: bsubu or bsubv js=1 component non-zero 
+- r01_bad_value_flag=13: rmnc(0,1) is zero 
+- arz_bad_value_flag=14: anorm or aznorm equal zero in bcovar 
+
+In the above example, we can see the force minimization is not successful, as the maximum number of iterations, 4000, was exceeded before ``ftol`` could be achieved. 
+There are a few ways to proceed. ``niter`` can be increased to allow the force minimization to converge. We can also adjust the staging parameters.
+In this case, the staging parameters are specified as follows::
 
     NS_ARRAY    = 5      12        25     100
     NITER_ARRAY = 2000     2000    2000   4000  
     FTOL_ARRAY  = 1e-8 1.00E-08  1.00E-10 1e-12 
 
-Since the force residual did not get very small in the ``NS=25`` stage, this error can be eliminated by adding an intermediate stage::
+Since the force residual did not get very small in the ``ns=25`` stage, in this case VMEC will converge by adding an intermediate stage with ``ns=50``::
 
     NS_ARRAY    = 5      12        25     50     100
     NITER_ARRAY = 2000     2000    2000   2000   4000  
     FTOL_ARRAY  = 1e-8 1.00E-08  1.00E-10 1e-10 1e-12
 
-Sometimes adjusting ``DELT`` (in either direction) can help convergence. 
+Sometimes adjusting ``delt`` (in either direction) can also help convergence. 
 
-Often if the mode number resolution gets too large, it becomes more challenging to converge. 
+Often if ``mpol`` and ``ntor`` get too large and in very strongly shaped geometries, it becomes challenging to converge. 
