@@ -88,7 +88,6 @@ optimization.  Others include `STELLOPT
    example_single_stage
    example_permanent_magnets
    example_wireframe
-   example_dipole_arrays
 
 .. toctree::
    :maxdepth: 3

@@ -75,7 +75,7 @@ out_dir = Path("permanent_magnet_QA_output")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 # initialize the coils
-base_curves, curves, coils = initialize_coils_pms('qa', TEST_DIR, s, out_dir)
+base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s, out_dir)
 
 # Set up BiotSavart fields
 bs = BiotSavart(coils)

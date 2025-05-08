@@ -27,26 +27,10 @@ from matplotlib import pyplot as plt
 from simsopt.field import DipoleField, ToroidalField
 from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
 from simsopt.solve import GPMO
-from simsopt.util import in_github_actions
 from simsopt.util.permanent_magnet_helper_functions import *
 
-# nphi = ntheta >= 64 needed for accurate full-resolution runs
-if in_github_actions:
-    nphi = 4
-    ntheta = nphi
-    # Set some hyperparameters for the optimization
-    kwargs = initialize_default_kwargs('GPMO')
-    kwargs['K'] = 1000
-    kwargs['nhistory'] = 10
-    downsample = 10
-else:
-    nphi = 16
-    ntheta = 16
-    kwargs = initialize_default_kwargs('GPMO')
-    kwargs['K'] = 10000
-    kwargs['nhistory'] = 100
-    downsample = 4  # Downsamples the permanent magnet grid -- set = 1 for full scale run
-
+nphi = 16  # change to 64 for a real run
+ntheta = 16
 input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
 famus_filename = 'init_orient_pm_nonorm_5E4_q4_dp.focus'
 
@@ -65,11 +49,16 @@ bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the permanent magnet class
-kwargs_geo = {"coordinate_flag": "cylindrical", "downsample": downsample}
+kwargs_geo = {"coordinate_flag": "cylindrical"}  # , "downsample": downsample}
 pm_opt = PermanentMagnetGrid.geo_setup_from_famus(
     s, Bnormal, famus_filename, **kwargs_geo
 )
 print('Number of available dipoles = ', pm_opt.ndipoles)
+
+# Set some hyperparameters for the optimization
+kwargs = initialize_default_kwargs('GPMO')
+kwargs['K'] = 40000
+kwargs['nhistory'] = 100
 
 # Optimize the permanent magnets greedily
 R2_history, Bn_history, m_history = GPMO(pm_opt, **kwargs)
