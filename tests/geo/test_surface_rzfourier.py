@@ -904,6 +904,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         np.testing.assert_allclose(field, field2, err_msg = 'Fourier transform + inverse transform does not give the original field.', atol=1e-13)
         
     def test_copy_method(self):
+        """
+        Tests the copy method under various conditions.
+        """
         s = SurfaceRZFourier(mpol=4, ntor=5, nfp=3)
         s2 = s.copy(quadpoints_phi=Surface.get_phi_quadpoints(nphi=100, range='field period'))
         self.assertEqual(len(s2.quadpoints_phi), 100)
@@ -923,10 +926,13 @@ class SurfaceRZFourierTests(unittest.TestCase):
         s.copy()
         s.copy(quadpoints_phi=Surface.get_phi_quadpoints(nphi=100, range='field period'), ntheta=82)
 
+        # Making a stellarator non-symmetric copy
+        # and setting a non-symmetric mode to something non-zero
         s9 = s.copy(stellsym=False)
         np.testing.assert_allclose(s9.gamma(), s.gamma(),
                                    err_msg='Copied surface is not close to original surface when the copy has stellsym=False.')
         s9.set('rs(1,0)', s9.get('rc(0,0)') * 0.01)
+        # Copy the newly-created stellarator non-symemtric surface
         s10 = s9.copy()
         np.testing.assert_allclose(
             s10.x, s9.x, err_msg='Copying surface is broken for stellarator symmetric surfaces!')
