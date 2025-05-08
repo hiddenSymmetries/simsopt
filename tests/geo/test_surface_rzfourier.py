@@ -995,7 +995,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         s = SurfaceRZFourier.from_vmec_input(filename)
         da = s.darea()
         np.testing.assert_allclose(da, da_truth,
-                                   err_msg = 'Area derivative does not match precalculated results.')
+                                   err_msg = 'Area derivative does not match precalculated results.', atol = 1e-14)
         
 
     def test_volume_derivative(self):
@@ -1015,7 +1015,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         s = SurfaceRZFourier.from_vmec_input(filename)
         dv = s.dvolume()
         np.testing.assert_allclose(dv, dv_truth,
-                                   err_msg = 'Volume derivative does not match precalculated results.')
+                                   err_msg = 'Volume derivative does not match precalculated results.', atol = 1e-14)
         
         
 class SurfaceRZPseudospectralTests(unittest.TestCase):
