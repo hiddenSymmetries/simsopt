@@ -333,18 +333,18 @@ class Surface(Optimizable):
 
         Parameters
         ----------
-            phi: float
+            phi (float):
                 toroidal angle, the standard cylindrical angle normalized by :math:`2\pi`.
                 There is no restriction on :math:`\phi`, i.e. is can be larger than 1, or
                 smaller than 0.
-            thetas: float array
+            thetas (float, array, optional):
                 collocation points to compute cross-section with
-            tol: float
+            tol (float): 
                 the tolerance for the bisection root-finding
 
         Returns
         -------
-            cross_section: float
+            cross_section (np.array): 
                 The cross-section evaluated at :math:`\phi` given support points `thetas`
         """
         
@@ -368,7 +368,7 @@ class Surface(Optimizable):
         # varphi is the search intervals on which we look for the cross section in
         # at constant cylindrical phi
         # The cross section is sampled at a number of points (theta_resolution) poloidally.
-        varphi = np.asarray([0., 1.])        
+        varphi = np.asarray([0., 1.])
         varphigrid, thetagrid = np.meshgrid(varphi, theta, indexing='ij')
 
         # sample the surface at the varphi and theta points
@@ -395,9 +395,12 @@ class Surface(Optimizable):
             then this means that the surface has 'gone back' on itself.
             
             Args:
-                angle: the angle that we are shifting
-                left_bound: we wish for the shifted angle to be within 2*pi of left_bound, and above it
-                right_bound: we wish for the shifted angle to be below right bound
+                angle (float): the angle that we are shifting
+                left_bound (float): we wish for the shifted angle to be within 2*pi of left_bound, and above it
+                right_bound (float): we wish for the shifted angle to be below right bound
+
+            Returns:
+                shifted_angle (float): the angle shifted to be in the proper interval
             """
 
             k = np.ceil((left_bound-angle)/(2*np.pi))
@@ -414,11 +417,11 @@ class Surface(Optimizable):
             Convert varphi to phi, where phi lies between left_bound and right_bound
             
             Args:
-                varphi_in: the value of varphi on the surface at which we want the cylindrical angle
-                left_bound, right_bound: we want the cylindrical angle to lie between these bounds
+                varphi_in (float): the value of varphi on the surface at which we want the cylindrical angle
+                left_bound, right_bound (float): we want the cylindrical angle to lie between these bounds
 
             Returns:
-                shifted_angle: the shifted cylindrical angle between the left_bound and right_bound.
+                shifted_angle (float): the shifted cylindrical angle between the left_bound and right_bound.
                                Raises an exception if this cannot be found.
             """
             gamma = np.zeros((varphi_in.size, 3))
@@ -438,14 +441,14 @@ class Surface(Optimizable):
                \text{atan2}(y(\varphi, \theta), x(\varphi, theta)) = \phi_0
 
             Args:
-                phia: left bound on root in cylindrical coordinates
-                varphia: left bound on root in varphi coordinates
-                phic: right bound on root in cylindrical coordinates
-                varphic: right bound on root in varphi coordinates
-                tol: solver tolerance
+                phia (array): left bound on root in cylindrical coordinates
+                varphia (array): left bound on root in varphi coordinates
+                phic (array): right bound on root in cylindrical coordinates
+                varphic (array): right bound on root in varphi coordinates
+                tol (float): solver tolerance
             
             Returns:
-                the root of the equation
+                root (array): the cross section of the surface at cylindrical angle phi0
             """
             err = np.inf
             while err > tol:
@@ -460,8 +463,8 @@ class Surface(Optimizable):
                 varphia = np.where(flag, varphia, varphib)
                 varphic = np.where(flag, varphib, varphic)
                 err = np.max(np.abs(varphia - varphic))
-            varphib = (varphia + varphic) / 2.
-            return varphib
+            root = (varphia + varphic) / 2.
+            return root
         
         phi = put_angle_above_left_bound(phi, cyl_phi_left, cyl_phi_right)
         # bisect cyl_phi to compute the cross section
