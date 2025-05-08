@@ -390,10 +390,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         true_area = 24.5871075268402
         true_volume = 2.96201898538042
-        #print("computed area: ", area, ", correct value: ", true_area, \
-        #    " , difference: ", area - true_area)
-        #print("computed volume: ", volume, ", correct value: ", \
-        #    true_volume, ", difference:", volume - true_volume)
         self.assertAlmostEqual(s.area(), true_area, places=4)
         self.assertAlmostEqual(s.volume(), true_volume, places=3)
 
@@ -1044,8 +1040,6 @@ class SurfaceRZPseudospectralTests(unittest.TestCase):
         surf1.set('zs(0,1)', 40.0)
         surf1.fix('zs(1,0)')  # The from_RZFourier function should work even if some dofs are fixed.
         surf2 = SurfaceRZPseudospectral.from_RZFourier(surf1, r_shift=2000.0, a_scale=100.0)
-        #for name, x in zip(surf2.local_dof_names, surf2.x):
-        #    print(name, x)
         theta = np.linspace(0, 2 * np.pi, 3, endpoint=False)
         phi = np.linspace(0, 2 * np.pi, 5, endpoint=False)
         self.assertAlmostEqual(surf2.get('r(0,0)'), 0.3 + 0.5)
@@ -1091,11 +1085,8 @@ class SurfaceRZPseudospectralTests(unittest.TestCase):
         """
         filename = TEST_DIR / 'input.li383_low_res'
         s1 = SurfaceRZFourier.from_vmec_input(filename)
-        #print('Original SurfaceRZFourier dofs:', s1.x)
         s2 = SurfaceRZPseudospectral.from_RZFourier(s1, r_shift=2.2, a_scale=0.4)
         s3 = s2.to_RZFourier()
-        #for j, name in enumerate(s1.local_dof_names):
-        #    print(name, x1[j], x3[j], x1[j] - x3[j])
         np.testing.assert_allclose(s1.full_x, s3.full_x)
 
     def test_change_resolution(self):
