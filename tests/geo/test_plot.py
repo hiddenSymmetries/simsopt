@@ -79,5 +79,27 @@ class PlotTests(unittest.TestCase):
                 plot(items_to_plot2, engine=engine, show=show, close=True)
 
 
+    def test_close_full_surface(self):
+        """
+        Regression test for Surface.plot() with closed=True for a "full torus" surface.
+        Actually asserts that the plot has not changed by accessing `_vec` in
+        matplotlib's `Poly3DCollection`.
+        """
+        show = False
+        nphi = 64
+        ntheta = 32
+        filename = TEST_DIR / "input.LandremanPaul2021_QA"
+        s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
+        ax = s.plot(close=True, show=show)
+        children = ax.get_children() # get the surface plot
+        p = None
+        for c in children:
+            if c.__class__.__name__ == 'Poly3DCollection':
+                p = c
+                break
+        vec = p._vec # might be dangerous, not part of public matplotlib API
+        self.assertAlmostEqual(vec[0][0], 1.30042725)
+        self.assertAlmostEqual(vec[2][-1], -0.0910074)
+        
 if __name__ == "__main__":
     unittest.main()
