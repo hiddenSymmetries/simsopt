@@ -38,7 +38,7 @@ from simsopt.geo import (
     SurfaceRZFourier)
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
 from simsopt.field.force import coil_force, coil_torque, coil_net_forces, coil_net_torques, \
-    LpCurveForce, TVE
+    LpCurveForce, B2_Energy
 from simsopt.field.selffield import regularization_circ
 
 
@@ -184,7 +184,7 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
 
         if with_force:
             # (1e-20, 1e-8) for Squared forces
-            # (1e-14, 1e-5) for Lpforces or TVE
+            # (1e-14, 1e-5) for Lpforces or B2_Energy
             FORCE_WEIGHT = 10.0 ** rand(-13, -8)
         else:
             FORCE_WEIGHT = 0
@@ -444,9 +444,12 @@ def optimization(
     Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 
     try:
-        Jforce = FORCE_OBJ(base_coils, coils, regularization_circ(0.05), p=2, threshold=FORCE_THRESHOLD)
+        Jforce = FORCE_OBJ(base_coils, coils, regularization_circ(0.05), p=2, threshold=FORCE_THRESHOLD, downsample=2)
     except:
-        Jforce = FORCE_OBJ(base_coils, coils, downsample=2)
+        try:
+            Jforce = FORCE_OBJ(base_coils, coils, downsample=2)
+        except:
+            Jforce = FORCE_OBJ(coils)  # For B2_Energy
 
     Jals = [ArclengthVariation(c) for c in base_curves]
     Jlength = sum(QuadraticPenalty(Jl, LENGTH_TARGET, "max") for Jl in Jls)
@@ -537,8 +540,7 @@ def optimization(
 
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     mean_AbsB = np.mean(bs.AbsB())
-    tve = sum([TVE(c, coils, 0.05) for c in base_coils]).J()
-    print('tve = ', tve, sum(Jforce).J())
+    b2energy = B2_Energy(coils).J()
     max_forces = [np.max(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
     min_forces = [np.min(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
     net_forces = coil_net_forces(coils, coils, regularization_circ(0.05) * np.ones(len(coils)))
@@ -579,7 +581,7 @@ def optimization(
         "max_max_κ": max(np.max(c.kappa()) for c in base_curves),
         "MSCs": [float(J.J()) for J in Jmscs],
         "max_MSC": max(float(J.J()) for J in Jmscs),
-        "tve": float(tve),
+        "b2energy": float(b2energy),
         "max_forces": [float(f) for f in max_forces],
         "net_forces": [float(np.linalg.norm(f, axis=-1)) for f in net_forces],
         "max_max_force": max(float(f) for f in max_forces),

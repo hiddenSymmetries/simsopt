@@ -19,15 +19,14 @@ import shutil
 from pathlib import Path
 from scipy.optimize import minimize
 import numpy as np
-from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
+from simsopt.geo import create_equally_spaced_curves
 from simsopt.geo import SurfaceRZFourier
-from simsopt.field import Current, coils_via_symmetries
+from simsopt.field import Current, coils_via_symmetries, coils_to_vtk
 from simsopt.objectives import SquaredFlux, Weight, QuadraticPenalty
 from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance,
                          MeanSquaredCurvature, LpCurveCurvature)
 from simsopt.field import BiotSavart
-from simsopt.field.force import coil_force, coil_net_forces, \
-    coil_net_torques, LpCurveForce, TVE, pointData_forces_torques
+from simsopt.field.force import LpCurveForce, B2_Energy
 from simsopt.field.selffield import regularization_circ
 from simsopt.util import in_github_actions, calculate_on_axis_B
 
@@ -73,7 +72,7 @@ MSC_WEIGHT = 1e-6
 
 # Weight for forces and total vacuum energy
 FORCE_WEIGHT = Weight(1e-26)
-TVE_WEIGHT = Weight(1e-10)
+B2_Energy_WEIGHT = Weight(1e-10)
 
 # Number of iterations to perform:
 MAXITER = 50 if in_github_actions else 400
@@ -119,13 +118,7 @@ a = 0.05
 nturns = 100
 curves = [c.curve for c in coils]
 a_list = regularization_circ(a) * np.ones(len(coils))
-curves_to_vtk(
-    curves, OUT_DIR + "curves_init", close=True,
-    extra_point_data=pointData_forces_torques(coils, coils,
-                                              a_list, a_list, np.ones(len(coils)) * nturns),
-    NetForces=coil_net_forces(coils, coils, a_list),
-    NetTorques=coil_net_torques(coils, coils, a_list)
-)
+coils_to_vtk(coils, OUT_DIR + "coils_init", close=True)
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
@@ -138,7 +131,7 @@ Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 regularization_list = [regularization_circ(a) for i in range(ncoils)]
 Jforce = LpCurveForce(base_coils, coils, regularization_list, p=4)
-Jtve = [TVE(c, coils, a=a) for c in base_coils]
+J_b2energy = B2_Energy(coils)
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
@@ -150,7 +143,7 @@ JF = Jf \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
     + FORCE_WEIGHT * Jforce \
-    + TVE_WEIGHT * sum(Jtve)
+    + B2_Energy_WEIGHT * J_b2energy
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -184,7 +177,7 @@ def fun(dofs):
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.2f}"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", F={Jforce.J():.2e}"
-    outstr += f", TVE={sum(J.J() for J in Jtve):.2e}"
+    outstr += f", B2_Energy={J_b2energy.J():.2e}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
     return J, grad
@@ -216,11 +209,7 @@ dofs = JF.x
 print(f"Optimization with FORCE_WEIGHT={FORCE_WEIGHT.value} and LENGTH_WEIGHT={LENGTH_WEIGHT.value}")
 # print("INITIAL OPTIMIZATION")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + "curves_opt_short", close=True, extra_point_data=pointData_forces_torques(
-    coils, coils, a_list, a_list, np.ones(len(coils)) * nturns),
-    NetForces=coil_net_forces(coils, coils, a_list),
-    NetTorques=coil_net_torques(coils, coils, a_list)
-)
+coils_to_vtk(coils, OUT_DIR + "coils_opt_short", close=True)
 
 pointData_surf = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData_surf)
@@ -232,12 +221,7 @@ dofs = res.x
 LENGTH_WEIGHT *= 0.1
 # print("OPTIMIZATION WITH REDUCED LENGTH PENALTY\n")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + f"curves_opt_force_FWEIGHT={FORCE_WEIGHT.value:e}_LWEIGHT={LENGTH_WEIGHT.value*10:e}", close=True,
-              extra_point_data=pointData_forces_torques(coils, coils,
-                                                        a_list, a_list, np.ones(len(coils)) * nturns),
-              NetForces=coil_net_forces(coils, coils, a_list),
-              NetTorques=coil_net_torques(coils, coils, a_list),
-              )
+coils_to_vtk(coils, OUT_DIR + "coils_opt_force", close=True)
 pointData_surf = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + f"surf_opt_force_WEIGHT={FORCE_WEIGHT.value:e}_LWEIGHT={LENGTH_WEIGHT.value*10:e}", extra_data=pointData_surf)
 
@@ -250,14 +234,12 @@ J = JF.J()
 grad = JF.dJ()
 jf = Jf.J()
 BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-force = [np.max(np.linalg.norm(coil_force(c, coils, regularization_circ(a)), axis=1)) for c in base_coils]
 outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
 cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
 kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
 msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
 jforce_string = f"{Jforce.J():.2e}"
-force_string = ", ".join(f"{f:.2e}" for f in force)
-outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}], Jforce=[{jforce_string}], force=[{force_string}]"
+outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}], Jforce=[{jforce_string}]"
 outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
 outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
 print(outstr)

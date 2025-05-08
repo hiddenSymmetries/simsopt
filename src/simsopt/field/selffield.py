@@ -7,6 +7,7 @@ Landreman, Hurwitz, & Antonsen, arXiv:2310.12087 (2023).
 from scipy import constants
 import numpy as np
 import jax.numpy as jnp
+from ..geo.jit import jit
 
 Biot_savart_prefactor = constants.mu_0 / (4 * np.pi)
 
@@ -33,10 +34,6 @@ def regularization_circ(a):
 def regularization_rect(a, b):
     """Regularization for a rectangular conductor"""
     return a * b * rectangular_xsection_delta(a, b)
-
-
-from ..geo.jit import jit
-
 
 @jit
 def B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization):

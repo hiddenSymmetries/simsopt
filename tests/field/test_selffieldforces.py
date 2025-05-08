@@ -24,18 +24,14 @@ from simsopt.field import (
     self_force_circ,
     self_force_rect,
     coil_coil_inductances_pure,
-    coil_coil_inductances_full_pure,
     coil_coil_inductances_inv_pure,
     NetFluxes,
-    TVE,
+    B2_Energy,
     MeanSquaredForce_deprecated,
-    LpCurveTorque_deprecated,
     LpCurveTorque,
-    SquaredMeanTorque_deprecated,
     SquaredMeanTorque,
     LpCurveForce_deprecated,
     LpCurveForce,
-    SquaredMeanForce_deprecated,
     SquaredMeanForce,
 )
 
@@ -190,7 +186,7 @@ class CoilForcesTest(unittest.TestCase):
                 downsample=1,
                 cross_section='circular',
             )
-            Lij_full = coil_coil_inductances_full_pure(
+            Lij_full = coil_coil_inductances_pure(
                 np.array([c.gamma() for c in [curve, curve2]]),
                 np.array([c.gammadash() for c in [curve, curve2]]),
                 a_list=np.array([a, a]),
@@ -212,7 +208,7 @@ class CoilForcesTest(unittest.TestCase):
                 downsample=1,
                 cross_section='rectangular',
             )
-            Lij_rect_full = coil_coil_inductances_full_pure(
+            Lij_rect_full = coil_coil_inductances_pure(
                 np.array([c.gamma() for c in [curve, curve2]]),
                 np.array([c.gammadash() for c in [curve, curve2]]),
                 a_list=np.array([a, a]),
@@ -251,7 +247,7 @@ class CoilForcesTest(unittest.TestCase):
             )
             np.testing.assert_allclose(Lij[1], Lij_analytic2, rtol=1e-2)
 
-            Lij_full = coil_coil_inductances_full_pure(
+            Lij_full = coil_coil_inductances_pure(
                 np.array([c.gamma() for c in [curve, curve3]]),
                 np.array([c.gammadash() for c in [curve, curve3]]),
                 a_list=np.array([a, a]),
@@ -390,8 +386,8 @@ class CoilForcesTest(unittest.TestCase):
         base_currents = [Current(I) for j in range(ncoils)]
         coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
 
-        # Test TVE
-        objective = float(TVE(coils[0], coils, a=0.05).J())
+        # Test B2_Energy
+        objective = B2_Energy(coils).J()
 
         # Test LpCurveForce
 
@@ -628,7 +624,7 @@ class CoilForcesTest(unittest.TestCase):
                                         regularization_list = [regularization for _ in coils]
                                         objectives = [
                                             sum([NetFluxes(coils[i], coils+coils2) for i in range(len(coils))]),
-                                            sum([TVE(coils[i], coils+coils2, a=a) for i in range(len(coils))]),
+                                            B2_Energy(coils, downsample=downsample),
                                             LpCurveTorque(coils, coils2, regularization_list,
                                                           p=p, threshold=threshold, downsample=downsample),
                                             SquaredMeanTorque(coils, coils2, downsample=downsample),
@@ -731,13 +727,10 @@ class CoilForcesTest(unittest.TestCase):
                 sum([LpCurveForce_deprecated(c, coils, regularization, p=p, threshold=threshold, downsample=2) for c in coils]),
                 sum([LpCurveForce(c, coils, regularization, p=p, threshold=threshold, downsample=2) for c in coils]),
                 LpCurveForce(coils, coils2, regularization_list, p=p, threshold=threshold, downsample=2),
-                sum([LpCurveTorque_deprecated(c, coils, regularization, p=p, threshold=threshold, downsample=2) for c in coils]),
                 sum([LpCurveTorque(c, coils, regularization, p=p, threshold=threshold, downsample=2) for c in coils]),
                 LpCurveTorque(coils, coils2, regularization_list, p=p, threshold=threshold, downsample=2),
-                sum([SquaredMeanForce_deprecated(c, coils, downsample=2) for c in coils]),
                 sum([SquaredMeanForce(c, coils, downsample=2) for c in coils]),
                 SquaredMeanForce(coils, coils2, downsample=2),
-                sum([SquaredMeanTorque_deprecated(c, coils, downsample=2) for c in coils]),
                 sum([SquaredMeanTorque(c, coils, downsample=2) for c in coils]),
                 SquaredMeanTorque(coils, coils2, downsample=2),
             ]

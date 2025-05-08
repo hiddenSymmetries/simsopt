@@ -8,13 +8,13 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.jit import jit
 import simsoptpp as sopp
-
+from simsopt.field.force import regularization_circ
 
 __all__ = ['Coil', 'JaxCurrent',
            'Current', 'coils_via_symmetries',
            'load_coils_from_makegrid_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
-           'coils_to_makegrid', 'coils_to_focus'
+           'coils_to_makegrid', 'coils_to_focus', 'coils_to_vtk'
            ]
 
 
@@ -31,11 +31,15 @@ class Coil(sopp.Coil, Optimizable):
         The geometric curve describing the coil shape.
     current : Current
         The current object describing the electric current in the coil.
+    regularization : Regularization
+        The regularization object for the coil corresponding to the coil cross section. 
+        Default is a circular cross section with radius 0.05.
     """
 
-    def __init__(self, curve, current):
+    def __init__(self, curve, current, regularization=regularization_circ(0.05)):
         self._curve = curve
         self._current = current
+        self.regularization = regularization
         sopp.Coil.__init__(self, curve, current)
         Optimizable.__init__(self, depends_on=[curve, current])
 
@@ -295,6 +299,69 @@ def apply_symmetries_to_currents(base_currents, nfp, stellsym):
                 currents.append(current)
     return currents
 
+def coils_to_vtk(coils, filename, close=False, extra_data=None):
+    """
+    Export a list of Coil objects in VTK format, so they can be
+    viewed using Paraview. This function requires the python package ``pyevtk``,
+    which can be installed using ``pip install pyevtk``.
+
+    Saves coil currents, net forces, net torques, and pointwise forces and torques.
+
+    Args:
+        coils: A python list of Coil objects.
+        filename: Name of the file to write.
+        close: Whether to draw the segment from the last quadrature point back to the first.
+    """
+    from simsopt.field.force import coil_net_force, coil_net_torque, coil_force, coil_torque
+    from simsopt.geo.curve import curves_to_vtk
+    curves = [coil.curve for coil in coils]
+    currents = [coil.current.get_value() for coil in coils]
+    if close:
+        ppl = np.asarray([c.gamma().shape[0]+1 for c in curves])
+    else:
+        ppl = np.asarray([c.gamma().shape[0] for c in curves])
+    contig = np.ascontiguousarray
+    pointData = {}
+    data = np.concatenate([i*np.ones((ppl[i], )) for i in range(len(curves))])
+    coil_data = np.zeros(data.shape)
+    for i in range(len(currents)):
+        coil_data[i * ppl[i]: (i + 1) * ppl[i]] = currents[i]
+    coil_data = np.ascontiguousarray(coil_data)
+    pointData['I'] = coil_data
+    pointData['I_mag'] = contig(np.abs(coil_data))
+
+    NetForces = np.array([coil_net_force(c, coils) for c in coils])
+    NetTorques = np.array([coil_net_torque(c, coils) for c in coils])
+    coil_data = np.zeros((data.shape[0], 3))
+    for i in range(len(coils)):
+        coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = NetForces[i, :]
+    coil_data = np.ascontiguousarray(coil_data)
+    pointData['NetForces'] = (contig(coil_data[:, 0]),
+                                contig(coil_data[:, 1]),
+                                contig(coil_data[:, 2]))
+    coil_data = np.zeros((data.shape[0], 3))
+    for i in range(len(coils)):
+        coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = NetTorques[i, :]
+    coil_data = np.ascontiguousarray(coil_data)
+    pointData['NetTorques'] = (contig(coil_data[:, 0]),
+                                contig(coil_data[:, 1]),
+                                contig(coil_data[:, 2]))
+    
+    ppl2 = np.asarray([c.gamma().shape[0] for c in curves])
+    data2 = np.concatenate([i*np.ones((ppl2[i], )) for i in range(len(curves))])
+    forces = np.zeros((data2.shape[0], 3))
+    torques = np.zeros((data2.shape[0], 3))
+    for i, c in enumerate(coils):
+        forces[i * ppl2[i]: (i + 1) * ppl2[i], :] = coil_force(c, coils)
+        torques[i * ppl2[i]: (i + 1) * ppl2[i], :] = coil_torque(c, coils)
+        if close:
+            forces[i + 1 * ppl2[i], :]  = forces[i * ppl2[i], :]
+            torques[i + 1 * ppl2[i], :] = torques[i * ppl2[i], :]
+    pointData["Pointwise_Forces"] = (contig(forces[:, 0]), contig(forces[:, 1]), contig(forces[:, 2]))
+    pointData["Pointwise_Torques"] = (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))
+    if extra_data is not None:
+        pointData = {**pointData, **extra_data}
+    curves_to_vtk(curves, filename, close=close, extra_data=pointData)
 
 def coils_via_symmetries(curves, currents, nfp, stellsym):
     """

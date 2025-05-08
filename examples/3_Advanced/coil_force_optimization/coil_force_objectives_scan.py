@@ -16,7 +16,7 @@ Main steps:
 
 Usage:
     python coil_force_objectives_scan.py <ObjectiveType> <ForceWeight> [<Threshold>]
-    where <ObjectiveType> is one of: SquaredMeanForce, SquaredMeanTorque, LpCurveForce, LpCurveTorque, TVE, NetFluxes
+    where <ObjectiveType> is one of: SquaredMeanForce, SquaredMeanTorque, LpCurveForce, LpCurveTorque, B2_Energy, NetFluxes
     and <ForceWeight> is the weight for the force/torque term.
     <Threshold> is optional for LpCurveForce/LpCurveTorque.
 
@@ -27,21 +27,21 @@ from pathlib import Path
 import shutil
 from scipy.optimize import minimize
 import numpy as np
-from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
+from simsopt.geo import create_equally_spaced_curves
 from simsopt.geo import SurfaceRZFourier
-from simsopt.field import Current, coils_via_symmetries
+from simsopt.field import Current, coils_via_symmetries, coils_to_vtk
 from simsopt.objectives import SquaredFlux, Weight, QuadraticPenalty
 from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance,
                          MeanSquaredCurvature, LpCurveCurvature)
 from simsopt.field import BiotSavart
-from simsopt.field.force import coil_net_torques, coil_net_forces, LpCurveForce, \
-    SquaredMeanForce, SquaredMeanTorque, LpCurveTorque, TVE, NetFluxes, pointData_forces_torques
+from simsopt.field.force import LpCurveForce, \
+    SquaredMeanForce, SquaredMeanTorque, LpCurveTorque, B2_Energy, NetFluxes
 from simsopt.field.selffield import regularization_circ
 
 # --- Argument check and usage warning ---
 if len(sys.argv) < 3:
     print("\nUsage: python coil_force_objectives_scan.py <ObjectiveType> <ForceWeight> [<Threshold>]")
-    print("  <ObjectiveType>: SquaredMeanForce, SquaredMeanTorque, LpCurveForce, LpCurveTorque, TVE, NetFluxes")
+    print("  <ObjectiveType>: SquaredMeanForce, SquaredMeanTorque, LpCurveForce, LpCurveTorque, B2_Energy, NetFluxes")
     print("  <ForceWeight>: weight for the force/torque term (float)")
     print("  <Threshold>: (optional) threshold for LpCurveForce/LpCurveTorque (float)")
     print("\nExample: python coil_force_objectives_scan.py LpCurveForce 1e-3 0.0\n")
@@ -120,8 +120,6 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 )
 
 # Create the initial coils:
-# base_curves = create_equally_spaced_curves(
-#     ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, jax_flag=True)
 base_curves = create_equally_spaced_curves(
     ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, jax_flag=False)
 base_currents = [Current(1e5) for i in range(ncoils)]
@@ -139,13 +137,7 @@ a = 0.02
 a_list = np.ones(len(coils)) * a
 nturns = 100
 curves = [c.curve for c in coils]
-curves_to_vtk(
-    curves, OUT_DIR + "curves_init", close=True,
-    extra_point_data=pointData_forces_torques(coils, coils,
-                                              a_list, a_list, np.ones(len(coils)) * nturns),
-    NetForces=coil_net_forces(coils, coils, regularization_circ(np.ones(len(coils)) * a)),
-    NetTorques=coil_net_torques(coils, coils, regularization_circ(np.ones(len(coils)) * a))
-)
+coils_to_vtk(coils, OUT_DIR + "coils_init", close=True)
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
@@ -179,8 +171,8 @@ elif sys.argv[1] == 'LpCurveTorque':
         Jforce = LpCurveTorque(base_coils, coils, regularization_list, p=2, threshold=float(sys.argv[3]))
     except:
         Jforce = LpCurveTorque(base_coils, coils, regularization_list, p=2, threshold=0.0)
-elif sys.argv[1] == 'TVE':
-    Jforce = sum([TVE(c, coils, a=a) for c in base_coils])
+elif sys.argv[1] == 'B2_Energy':
+    Jforce = B2_Energy(coils)
 elif sys.argv[1] == 'NetFluxes':
     Jforce = sum([NetFluxes(c, coils) for c in base_coils])
 else:
@@ -273,12 +265,7 @@ dofs = JF.x
 print(f"Optimization with FORCE_WEIGHT={FORCE_WEIGHT.value} and LENGTH_WEIGHT={LENGTH_WEIGHT.value}")
 # print("INITIAL OPTIMIZATION")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': MAXITER}, tol=1e-12)
-curves_to_vtk(curves, OUT_DIR + "curves_opt", close=True,
-              extra_point_data=pointData_forces_torques(coils, coils,
-                                                        a_list, a_list, np.ones(len(coils)) * nturns),
-              NetForces=coil_net_forces(coils, coils, regularization_circ(a_list)),
-              NetTorques=coil_net_torques(coils, coils, regularization_circ(a_list))
-              )
+coils_to_vtk(coils, OUT_DIR + "coils_opt", close=True)
 
 pointData_surf = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData_surf)

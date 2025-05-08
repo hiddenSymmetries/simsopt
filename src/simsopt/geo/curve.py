@@ -14,6 +14,12 @@ from .plotting import fix_matplotlib_3d
 __all__ = ['Curve', 'JaxCurve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves',
            'create_equally_spaced_planar_curves', 'create_planar_curves_between_two_toroidal_surfaces']
 
+@jit     
+def center_pure(gamma, gammadash):
+    # Compute the centroid of the curve
+    arclength = jnp.linalg.norm(gammadash, axis=-1)
+    barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / jnp.sum(arclength)
+    return barycenter
 
 @jit
 def incremental_arclength_pure(d1gamma):
@@ -408,12 +414,11 @@ class Curve(Optimizable):
             )
         return dkappadash_by_dcoeff
 
-    def center(self, gamma, gammadash):
+    def center(self):
         # Compute the centroid of the curve
-        arclength = jnp.linalg.norm(gammadash, axis=-1)
-        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / jnp.sum(arclength)
-        return barycenter
-
+        gamma = self.gamma()
+        gammadash = self.gammadash()
+        return center_pure(gamma, gammadash)
 
 class JaxCurve(sopp.Curve, Curve):
     def __init__(self, quadpoints, gamma_pure, **kwargs):
@@ -450,7 +455,7 @@ class JaxCurve(sopp.Curve, Curve):
         self.dgammadashdashdash_by_dcoeff_jax = jit(jacfwd(self.gammadashdashdash_jax))
         self.dgammadashdashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdashdash_jax, x)[1](v)[0])
 
-        self.center_jax = jit(lambda x, v: self.center(x, v))
+        self.center_jax = jit(lambda x, v: center_pure(x, v))
         self.dcenter_dgamma = jit(jacfwd(self.center_jax, argnums=0))
         self.dcenter_dgammadash = jit(jacfwd(self.center_jax, argnums=1))
         self.kappa_pure = kappa_pure
@@ -698,12 +703,12 @@ class RotatedCurve(sopp.Curve, Curve):
         This function returns the number of dofs associated to the curve.
         """
         return self.curve.num_dofs()
-
-    def center(self, gamma, gammadash):
+    
+    def center(self):
         # Compute the centroid of the curve
-        arclength = jnp.linalg.norm(gammadash, axis=-1)
-        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / jnp.sum(arclength)
-        return barycenter
+        gamma = self.gamma()
+        gammadash = self.gammadash()
+        return center_pure(gamma, gammadash)
 
     def gamma_impl(self, gamma, quadpoints):
         r"""
@@ -864,8 +869,7 @@ class RotatedCurve(sopp.Curve, Curve):
         return True if self.rotmat[2][2] == -1 else False
 
 
-def curves_to_vtk(curves, filename, close=False, I=None, extra_point_data=None,
-                  NetForces=None, NetTorques=None):
+def curves_to_vtk(curves, filename, close=False, extra_data=None):
     """
     Export a list of Curve objects in VTK format, so they can be
     viewed using Paraview. This function requires the python package ``pyevtk``,
@@ -893,37 +897,55 @@ def curves_to_vtk(curves, filename, close=False, I=None, extra_point_data=None,
         ppl = np.asarray([c.gamma().shape[0] for c in curves])
     data = np.concatenate([i*np.ones((ppl[i], )) for i in range(len(curves))])
     pointData = {'idx': data}
-    contig = np.ascontiguousarray
-    if I is not None:
-        coil_data = np.zeros(data.shape)
-        for i in range(len(I)):
-            coil_data[i * ppl[i]: (i + 1) * ppl[i]] = I[i]
-        coil_data = np.ascontiguousarray(coil_data)
-        pointData['I'] = coil_data
-        pointData['I_mag'] = contig(np.abs(coil_data))
-    if NetForces is not None:
-        coil_data = np.zeros((data.shape[0], 3))
-        for i in range(len(NetForces)):
-            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = NetForces[i, :]
-        coil_data = np.ascontiguousarray(coil_data)
-        pointData['NetForces'] = (contig(coil_data[:, 0]),
-                                  contig(coil_data[:, 1]),
-                                  contig(coil_data[:, 2]))
-    if NetTorques is not None:
-        coil_data = np.zeros((data.shape[0], 3))
-        for i in range(len(NetTorques)):
-            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = NetTorques[i, :]
-        coil_data = np.ascontiguousarray(coil_data)
-        pointData['NetTorques'] = (contig(coil_data[:, 0]),
-                                   contig(coil_data[:, 1]),
-                                   contig(coil_data[:, 2]))
-    if extra_point_data is not None:
-        pointData = {**pointData, **extra_point_data}
+    if extra_data is not None:
+        pointData = {**pointData, **extra_data}
 
     polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData=pointData)
 
 
 def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_factor=2.5):
+    """
+    Generate a uniform 3D grid of points between two toroidal surfaces, with spacing and filtering to avoid coil 
+    overlap and respect stellarator symmetry.
+
+    This function is typically used to initialize candidate coil center locations for planar coil optimization. 
+    It computes a uniform grid in the bounding box between two surfaces, then (for nfp > 1) removes points 
+    outside the fundamental sector and those too close to the symmetry plane, to avoid overlap after symmetry operations.
+
+    Parameters
+    ----------
+    s : Surface
+        The main surface object (used for nfp and geometry info).
+    s_inner : Surface
+        The inner toroidal surface (for grid bounding box).
+    s_outer : Surface
+        The outer toroidal surface (for grid bounding box).
+    Nx : int
+        Number of grid points in the x direction.
+    Ny : int
+        Number of grid points in the y direction.
+    Nz : int
+        Number of grid points in the z direction.
+    Nmin_factor : float, optional
+        Factor to set minimum coil spacing (default: 2.5). The coil radius is set to Nmin / Nmin_factor, where Nmin is the minimum grid spacing.
+
+    Returns
+    -------
+    xyz_uniform : ndarray, shape (N, 3)
+        Array of candidate coil center points in 3D, filtered for symmetry and spacing.
+    xyz_inner : ndarray, shape (M, 3)
+        Array of points on the inner surface.
+    xyz_outer : ndarray, shape (M, 3)
+        Array of points on the outer surface.
+    R : float
+        The coil radius used for spacing.
+
+    Notes
+    -----
+    - For nfp > 1, points outside the fundamental sector are removed, and points too close to the symmetry plane 
+      are also filtered out to avoid overlap after symmetry operations.
+    - The returned grid is suitable for initializing planar coil centers in optimization routines.
+    """
     # Get (X, Y, Z) coordinates of the two boundaries
     nfp = s.nfp
     xyz_inner = s_inner.gamma().reshape(-1, 3)
