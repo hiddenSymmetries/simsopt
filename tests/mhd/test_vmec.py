@@ -692,33 +692,40 @@ class VmecTests(unittest.TestCase):
         Runs with very few iterations for quick CI.
         Previously, get_max_mn() would not updated immediately upon
         """
-        with ScratchDir("."):
+        #with ScratchDir("."):
+        if True:
             v = Vmec(os.path.join(TEST_DIR, 'input.li383_low_res'))
             v.indata.niter_array[:2] = [100, 0]
             v.indata.ftol_array[0] = 1e-4
             mn1 = v.get_max_mn()
             A1 = v.aspect()
-            nfp5_boundary = SurfaceRZFourier.from_vmec_input(
-                os.path.join(TEST_DIR, 'input.W7-X_standard_configuration'))
-            v.boundary = nfp5_boundary
+
+            new_boundary = SurfaceRZFourier(mpol=6,ntor=4,nfp=3)
+            new_boundary.set('rc(6,4)', 0.01)
+            v.boundary = new_boundary
             mn2 = v.get_max_mn()
             A2 = v.aspect()
             iota_edge = v.iota_edge()
-            
             self.assertAlmostEqual(A1, 4.3549675967508055, places=7,
                                    msg='Aspect ratio calculation does not match precalculated result.')
-            self.assertAlmostEqual(A2, 10.758596041584697, places=7,
+            self.assertAlmostEqual(A2, 10.0, places=7,
                                    msg='Aspect ratio calculation does not match precalculated result.')
-            self.assertAlmostEqual(iota_edge, 1.62182836599054, places=7,
+            self.assertAlmostEqual(iota_edge, 0.21560537278926054, places=7,
                                    msg='iota_edge calculation does not match precalculated result.')
             
             self.assertEqual(
                 mn1, (4, 3), msg='max_mn does not match precalculated results')
             self.assertEqual(
-                mn2, (11, 12), msg='max_mn not recalculated correctly after boundary updated')
-            self.assertEqual(
-                v.indata.nfp, 5, msg='nfp not updated correctly when boundary updated.')
+                mn2, (6, 4), msg='max_mn not recalculated correctly after boundary updated')
             
-
+            # Assigning a surface with an nfp different from the one in the VMEC object
+            # raises an error.
+            nfp5_boundary = SurfaceRZFourier.from_vmec_input(
+                os.path.join(TEST_DIR, 'input.W7-X_standard_configuration'))
+            with self.assertRaises(ValueError):
+                v.boundary = nfp5_boundary
+            
+            
+            
 if __name__ == "__main__":
     unittest.main()

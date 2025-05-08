@@ -393,6 +393,9 @@ class Vmec(Optimizable):
     def boundary(self, boundary):
         if boundary is not self._boundary:
             logging.debug('Replacing surface in boundary setter')
+            #TODO: should mpol and ntor be updated to match the new boundary?
+            if boundary.nfp != self.boundary.nfp:
+                raise ValueError('Trying to assign a new boundary to VMEC object, but the new boundary has an nfp diffrent from the one in the VMEC object.')
             self.remove_parent(self._boundary)
             self._boundary = boundary
             self.append_parent(boundary)
@@ -515,7 +518,6 @@ class Vmec(Optimizable):
         vi = vmec.vmec_input  # Shorthand
         # Convert boundary to RZFourier if needed:
         boundary_RZFourier = self.boundary.to_RZFourier()
-        vi.nfp = boundary_RZFourier.nfp
         # VMEC does not allow mpol or ntor above 101:
         if vi.mpol > 101:
             raise ValueError("VMEC does not allow mpol > 101")
