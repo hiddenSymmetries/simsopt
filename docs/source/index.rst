@@ -88,26 +88,20 @@ optimization.  Others include `STELLOPT
    example_permanent_magnets
    example_wireframe
 
-.. toctree::
-   :maxdepth: 3
-   :caption: Developer Guides
-
-   example_derivative
 
 .. toctree::
    :maxdepth: 3
-   :caption: API reference
+   :caption: API Reference
 
-   Public functions and classes <simsopt_user>
+   simsopt
 
 .. toctree::
    :maxdepth: 3
    :caption: For Developers
 
+   example_derivative
    cpp
-   Full API listing <simsopt>
    Simsopt++ C++ API <simsoptpp_cpp_api>
-   Simsopt++ Internals <simsoptpp_cpp_internal>
 
 Indices and tables
 ==================

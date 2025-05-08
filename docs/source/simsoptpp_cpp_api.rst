@@ -1,7 +1,8 @@
 .. _api_simsoptpp_cpp:
 
-Simsopt++ C++ API Docs
+Simsopt C++ API Reference
 ======================
+
 
 Biot Savart
 -----------
@@ -9,10 +10,16 @@ Biot Savart
 .. doxygenfile:: biot_savart_py.h
    :project: simsoptpp
 
+.. doxygenfile:: biot_savart_impl.h
+   :project: simsoptpp
+
 .. doxygenfile:: biot_savart_vjp_c.h
    :project: simsoptpp
 
 .. doxygenfile:: biot_savart_vjp_py.h
+   :project: simsoptpp
+
+.. doxygenfile:: biot_savart_vjp_impl.h
    :project: simsoptpp
 
 Boozer classes
@@ -29,6 +36,10 @@ Boozer classes
 
 .. doxygenfile:: boozerresidual_py.h
    :project: simsoptpp
+
+.. doxygenfile:: boozerresidual_impl.h
+   :project: simsoptpp
+
 
 Simsopt++ Caching Mechanism
 ---------------------------
@@ -94,6 +105,9 @@ Fields
 .. doxygenfile:: integral_BdotN.h
    :project: simsoptpp
 
+.. doxygenfile:: wireframe_field_impl.h
+   :project: simsoptpp
+
 
 Surfaces
 --------
@@ -123,19 +137,14 @@ Optimization
 .. doxygenfile:: wireframe_optimization.h
    :project: simsoptpp
 
-biot_savart_impl.h			boozerresidual_impl.h			curveplanarfourier.h			magneticfield_interpolated.h		regular_grid_interpolant_3d.h		tracing.h
-biot_savart_py.h			boozerresidual_py.h			curverzfourier.h			magneticfield_wireframe.h		regular_grid_interpolant_3d_impl.h	vec3dsimd.h
-biot_savart_vjp_c.h			cache.h					curvexyzfourier.h			permanent_magnet_optimization.h		reiman.h				wireframe_field_impl.h
-biot_savart_vjp_impl.h			cachedarray.h				dipole_field.h				pyboozermagneticfield.h			simdhelpers.h				wireframe_optimization.h
-biot_savart_vjp_py.h			cachedtensor.h				dommaschk.h				pycurrent.h				surface.h
-boozermagneticfield.h			coil.h					integral_BdotN.h			pycurve.h				surfacerzfourier.h
-boozermagneticfield_interpolated.h	current.h				magneticfield.h				pymagneticfield.h			surfacexyzfourier.h
-boozerradialinterpolant.h		curve.h					magneticfield_biotsavart.h		pysurface.h				surfacexyztensorfourier.h
 
-Miscelleneous
--------------
+Utilities
+---------
 
 .. doxygenfile:: regular_grid_interpolant_3d.h
+   :project: simsoptpp
+
+.. doxygenfile:: regular_grid_interpolant_3d_impl.h
    :project: simsoptpp
 
 .. doxygenfile:: simdhelpers.h
