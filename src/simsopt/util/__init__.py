@@ -1,14 +1,19 @@
-# coding: utf-8
-# Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the MIT License
+import os
 
-from .vmec import *
-from .virtual_casing import *
-from .vmec_diagnostics import *
-from .profiles import *
-from .bootstrap import *
-from .boozer import *
-from .spec import *
+from .mpi import *
+from .logger import *
+from .famus_helpers import *
+from .polarization_project import *
+from .permanent_magnet_helper_functions import *
 
-__all__ = (vmec.__all__ + virtual_casing.__all__ + vmec_diagnostics.__all__ +
-           profiles.__all__ + bootstrap.__all__ + boozer.__all__ + spec.__all__)
+"""Boolean indicating if we are in the GitHub actions CI"""
+in_github_actions = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
+
+__all__ = (
+    mpi.__all__
+    + logger.__all__
+    + famus_helpers.__all__
+    + polarization_project.__all__
+    + permanent_magnet_helper_functions.__all__
+    + ['in_github_actions']
+)

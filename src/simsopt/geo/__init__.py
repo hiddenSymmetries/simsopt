@@ -1,27 +1,47 @@
-from .biotsavart import *
-from .boozermagneticfield import *
-from .coil import *
-from .coilset import *
-from .magneticfield import *
-from .magneticfieldclasses import *
-from .mgrid import *
-from .normal_field import *
-from .tracing import *
-from .wireframefield import *
-from .selffield import *
-from .magnetic_axis_helpers import *
+import jax
+jax.config.update("jax_enable_x64", True)
+from .config import *
 
-__all__ = (
-    biotsavart.__all__
-    + boozermagneticfield.__all__
-    + coil.__all__
-    + coilset.__all__
-    + magneticfield.__all__
-    + magneticfieldclasses.__all__
-    + mgrid.__all__
-    + normal_field.__all__
-    + tracing.__all__
-    + wireframefield.__all__
-    + selffield.__all__
-    + magnetic_axis_helpers.__all__
-)
+from .curve import *
+from .curvehelical import *
+from .curverzfourier import *
+from .curvexyzfourier import *
+from .curvexyzfouriersymmetries import *
+from .curveperturbed import *
+from .curveobjectives import *
+from .curveplanarfourier import *
+from .curveplanarellipticalcylindrical import *
+from .framedcurve import *
+from .finitebuild import *
+from .plotting import *
+
+from .boozersurface import *
+from .qfmsurface import *
+from .surface import *
+from .surfacegarabedian import *
+from .surfacehenneberg import *
+from .surfaceobjectives import *
+from .surfacerzfourier import *
+from .surfacexyzfourier import *
+from .surfacexyztensorfourier import *
+from .strain_optimization import *
+from .wireframe_toroidal import *
+from .ports import *
+
+from .permanent_magnet_grid import *
+
+__all__ = (curve.__all__ + curvehelical.__all__ +
+           curverzfourier.__all__ + curvexyzfourier.__all__ +
+           curvexyzfouriersymmetries.__all__ +
+           curveperturbed.__all__ + curveobjectives.__all__ +
+           curveplanarfourier.__all__ +
+           curveplanarellipticalcylindrical.__all__ +
+           finitebuild.__all__ + plotting.__all__ +
+           boozersurface.__all__ + qfmsurface.__all__ +
+           surface.__all__ +
+           surfacegarabedian.__all__ + surfacehenneberg.__all__ +
+           surfacerzfourier.__all__ + surfacexyzfourier.__all__ +
+           surfacexyztensorfourier.__all__ + surfaceobjectives.__all__ +
+           strain_optimization.__all__ + framedcurve.__all__ +
+           wireframe_toroidal.__all__ + ports.__all__ +
+           permanent_magnet_grid.__all__)
