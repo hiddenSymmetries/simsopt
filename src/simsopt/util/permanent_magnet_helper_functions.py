@@ -4,7 +4,7 @@ the permanent magnets functionality in the SIMSOPT code.
 """
 __all__ = ['read_focus_coils', 'coil_optimization',
            'trace_fieldlines', 'make_qfm',
-           'initialize_coils_pms', 'calculate_on_axis_B',
+           'initialize_coils', 'calculate_on_axis_B',
            'make_optimization_plots', 'run_Poincare_plots',
            'make_Bnormal_plots', 'initialize_default_kwargs'
            ]
@@ -271,7 +271,7 @@ def make_qfm(s, Bfield, n_iters=200):
     return qfm_surface
 
 
-def initialize_coils_pms(config_flag, TEST_DIR, s, out_dir=''):
+def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
     """
     Initializes coils for each of the target configurations that are
     used for permanent magnet optimization.
