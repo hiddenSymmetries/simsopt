@@ -1,6 +1,18 @@
 #!/usr/bin/env python
 """
-Example script for the force metric in a stage-two coil optimization
+coil_forces.py
+--------------
+
+This script demonstrates the use of force metrics in stage-two coil optimization for stellarator design using SIMSOPT. It sets up a multi-objective optimization problem for magnetic coils, including engineering constraints and force/energy penalties, and solves it using SciPy's L-BFGS-B optimizer. The script outputs VTK files for visualization and prints diagnostic information about the optimization process.
+
+Main steps:
+- Define input parameters for coil geometry, penalties, and weights.
+- Set up the magnetic surface and initial coil configuration.
+- Construct the objective function as a weighted sum of physics and engineering terms.
+- Perform a Taylor test to verify gradient correctness.
+- Run the optimization in two stages (with different length penalties).
+- Save results and print summary statistics.
+
 """
 import os
 import shutil
@@ -146,6 +158,21 @@ JF = Jf \
 
 
 def fun(dofs):
+    """
+    Wrapper for the total objective function and its gradient for use with SciPy's optimizer.
+
+    Parameters
+    ----------
+    dofs : np.ndarray
+        Array of degrees of freedom (optimization variables).
+
+    Returns
+    -------
+    J : float
+        Value of the total objective function.
+    grad : np.ndarray
+        Gradient of the objective function with respect to dofs.
+    """
     JF.x = dofs
     J = JF.J()
     grad = JF.dJ()

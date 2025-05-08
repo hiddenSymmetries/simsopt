@@ -1,3 +1,22 @@
+"""
+optimization_tools.py
+---------------------
+
+This module provides tools for large-scale parameter scans and optimization workflows for stellarator coil design using SIMSOPT. It includes routines for:
+- Continuation methods for parameter sweeps based on previous optimizations
+- Initial random parameter scans for coil optimization
+- Stage II force-based optimization with flexible objective construction
+- Utility functions for random sampling and data export
+
+Functions:
+- continuation: Perform continuation-based parameter sweeps from previous results
+- initial_optimizations: Run a batch of initial random parameter optimizations
+- initial_optimizations_QH: Like initial_optimizations, but for QH configurations
+- optimization: Main routine for stage II force-based coil optimization
+- rand: Wrapper function for uniform random sampling
+
+Intended for advanced users automating coil optimization studies and data generation for analysis or machine learning.
+"""
 import glob
 import json
 import numpy as np
@@ -28,7 +47,24 @@ def continuation(N=10000, dx=0.05,
                  OUTPUT_DIR="./output/QA/with-force-penalty/2/optimizations/",
                  INPUT_FILE="./inputs/input.LandremanPaul2021_QA",
                  MAXITER=14000):
-    """Performs a continuation method on a set of previous optimizations."""
+    """
+    Perform a continuation method on a set of previous optimizations, perturbing parameters and rerunning optimizations.
+
+    Parameters
+    ----------
+    N : int
+        Number of new optimizations to run.
+    dx : float
+        Relative perturbation size for parameters.
+    INPUT_DIR : str
+        Directory containing previous optimization results (with results.json).
+    OUTPUT_DIR : str
+        Directory to save new optimization results.
+    INPUT_FILE : str
+        Path to VMEC input file for the target surface.
+    MAXITER : int
+        Maximum number of optimizer iterations per job.
+    """
     # Read in input optimizations
     results = glob.glob(f"{INPUT_DIR}*/results.json")
     df = pd.DataFrame()
@@ -103,7 +139,28 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
                           INPUT_FILE="./inputs/input.LandremanPaul2021_QA",
                           debug=False,
                           ncoils=5):
-    """Performs a set of initial optimizations by scanning over parameters."""
+    """
+    Perform a batch of initial random parameter optimizations for coil design.
+
+    Parameters
+    ----------
+    N : int
+        Number of optimizations to run.
+    with_force : bool
+        Whether to include force terms in the objective.
+    MAXITER : int
+        Maximum number of optimizer iterations per job.
+    FORCE_OBJ : class
+        Force objective class to use (e.g., LpCurveForce).
+    OUTPUT_DIR : str
+        Directory to save optimization results.
+    INPUT_FILE : str
+        Path to VMEC input file for the target surface.
+    debug : bool
+        If True, print extra diagnostics.
+    ncoils : int
+        Number of unique coil shapes.
+    """
     for i in range(N):
         # FIXED PARAMETERS
         ARCLENGTH_WEIGHT = 0.01
@@ -174,7 +231,24 @@ def initial_optimizations_QH(N=10000, with_force=True, MAXITER=14000,
                              OUTPUT_DIR="./output/QA/with-force-penalty/1/optimizations/",
                              INPUT_FILE="./inputs/input.LandremanPaul2021_QH_magwell_R0=1",
                              ncoils=3):
-    """Performs a set of initial optimizations by scanning over parameters."""
+    """
+    Perform a batch of initial random parameter optimizations for QH configurations.
+
+    Parameters
+    ----------
+    N : int
+        Number of optimizations to run.
+    with_force : bool
+        Whether to include force terms in the objective.
+    MAXITER : int
+        Maximum number of optimizer iterations per job.
+    OUTPUT_DIR : str
+        Directory to save optimization results.
+    INPUT_FILE : str
+        Path to VMEC input file for the target surface.
+    ncoils : int
+        Number of unique coil shapes.
+    """
     for i in range(N):
         # FIXED PARAMETERS
         ARCLENGTH_WEIGHT = 0.01
@@ -252,7 +326,47 @@ def optimization(
         with_force=True,
         debug=False,
         MAXITER=14000):
-    """Performs a stage II force optimization based on specified criteria. """
+    """
+    Perform a stage II force-based coil optimization with specified parameters and objectives.
+
+    Parameters
+    ----------
+    OUTPUT_DIR : str
+        Directory to save optimization results.
+    INPUT_FILE : str
+        Path to VMEC input file for the target surface.
+    R1 : float
+        Minor radius for initial coil geometry.
+    order : int
+        Number of Fourier modes for coil parameterization.
+    ncoils : int
+        Number of unique coil shapes.
+    UUID_init_from : str or None
+        UUID of previous optimization to initialize from, or None for random.
+    LENGTH_TARGET, LENGTH_WEIGHT, ... : float
+        Parameters and weights for objective terms.
+    FORCE_OBJ : class
+        Force objective class to use (e.g., LpCurveForce).
+    ARCLENGTH_WEIGHT : float
+        Weight for arclength variation penalty.
+    dx : float or None
+        Optional perturbation for initialization.
+    with_force : bool
+        Whether to include force terms in the objective.
+    debug : bool
+        If True, print extra diagnostics.
+    MAXITER : int
+        Maximum number of optimizer iterations.
+
+    Returns
+    -------
+    res : OptimizeResult
+        Result object from scipy.optimize.minimize.
+    results : dict
+        Dictionary of exported optimization results and metrics.
+    coils : list
+        List of optimized coil objects.
+    """
     start_time = time.perf_counter()
 
     # Initialize the boundary magnetic surface:
@@ -513,5 +627,19 @@ def optimization(
 
 
 def rand(min, max):
-    """Generate a random float between min and max."""
+    """
+    Generate a random float between min and max (uniform distribution).
+
+    Parameters
+    ----------
+    min : float
+        Lower bound.
+    max : float
+        Upper bound.
+
+    Returns
+    -------
+    float
+        Random float in [min, max].
+    """
     return np.random.rand() * (max - min) + min

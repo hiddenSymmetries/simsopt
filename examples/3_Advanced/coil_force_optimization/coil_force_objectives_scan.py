@@ -1,7 +1,25 @@
 #!/usr/bin/env python
 
 """
-Example script for the force metric in a stage-two coil optimization
+coil_force_objectives_scan.py
+----------------------------
+
+This script scans and compares different force and torque objective terms in stage-two coil optimization for stellarator design using SIMSOPT. It sets up a multi-objective optimization problem for magnetic coils, with selectable force/torque objectives and engineering constraints, and solves it using SciPy's L-BFGS-B optimizer. The script outputs VTK files for visualization and prints diagnostic information about the optimization process.
+
+Main steps:
+- Parse command-line arguments to select the force/torque objective and its weight.
+- Define input parameters for coil geometry, penalties, and weights.
+- Set up the magnetic surface and initial coil configuration.
+- Construct the objective function as a weighted sum of physics and engineering terms, with the selected force/torque objective.
+- Perform a Taylor test to verify gradient correctness.
+- Run the optimization and save results.
+
+Usage:
+    python coil_force_objectives_scan.py <ObjectiveType> <ForceWeight> [<Threshold>]
+    where <ObjectiveType> is one of: SquaredMeanForce, SquaredMeanTorque, LpCurveForce, LpCurveTorque, TVE, NetFluxes
+    and <ForceWeight> is the weight for the force/torque term.
+    <Threshold> is optional for LpCurveForce/LpCurveTorque.
+
 """
 import os
 import sys
@@ -20,6 +38,14 @@ from simsopt.field.force import coil_net_torques, coil_net_forces, LpCurveForce,
     SquaredMeanForce, SquaredMeanTorque, LpCurveTorque, TVE, NetFluxes, pointData_forces_torques
 from simsopt.field.selffield import regularization_circ
 
+# --- Argument check and usage warning ---
+if len(sys.argv) < 3:
+    print("\nUsage: python coil_force_objectives_scan.py <ObjectiveType> <ForceWeight> [<Threshold>]")
+    print("  <ObjectiveType>: SquaredMeanForce, SquaredMeanTorque, LpCurveForce, LpCurveTorque, TVE, NetFluxes")
+    print("  <ForceWeight>: weight for the force/torque term (float)")
+    print("  <Threshold>: (optional) threshold for LpCurveForce/LpCurveTorque (float)")
+    print("\nExample: python coil_force_objectives_scan.py LpCurveForce 1e-3 0.0\n")
+    sys.exit(1)
 
 ###############################################################################
 # INPUT PARAMETERS
@@ -181,6 +207,21 @@ JF = Jf \
 
 
 def fun(dofs):
+    """
+    Wrapper for the total objective function and its gradient for use with SciPy's optimizer.
+
+    Parameters
+    ----------
+    dofs : np.ndarray
+        Array of degrees of freedom (optimization variables).
+
+    Returns
+    -------
+    J : float
+        Value of the total objective function.
+    grad : np.ndarray
+        Gradient of the objective function with respect to dofs.
+    """
     JF.x = dofs
     J = JF.J()
     grad = JF.dJ()

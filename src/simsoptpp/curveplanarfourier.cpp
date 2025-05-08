@@ -18,7 +18,6 @@ void CurvePlanarFourier<Array>::gamma_impl(Array& data, Array& quadpoints) {
     data *= 0;
     Array q_norm = q * inv_magnitude();
 
-// #pragma omp parallel for schedule(static) 
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         double cosphi = cos(phi);
@@ -32,7 +31,6 @@ void CurvePlanarFourier<Array>::gamma_impl(Array& data, Array& quadpoints) {
             data(k, 1) += (rc[i] * cosiphi + rs[i-1] * siniphi) * sinphi;
         }
     }
-// #pragma omp parallel for schedule(static) 
     for (int m = 0; m < numquadpoints; ++m) {
         double i = data(m, 0);
         double j = data(m, 1);
@@ -53,7 +51,6 @@ void CurvePlanarFourier<Array>::gammadash_impl(Array& data) {
     Array q_norm = q * inv_sqrt_s;
 
     double cosiphi, siniphi;
-// #pragma omp parallel for schedule(static) 
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         double cosphi = cos(phi);
@@ -71,7 +68,6 @@ void CurvePlanarFourier<Array>::gammadash_impl(Array& data) {
     }
         
     data *= (2*M_PI);
-// #pragma omp parallel for schedule(static) 
     for (int m = 0; m < numquadpoints; ++m) {
         double i = data(m, 0);
         double j = data(m, 1);
@@ -92,7 +88,6 @@ void CurvePlanarFourier<Array>::gammadashdash_impl(Array& data) {
     Array q_norm = q * inv_magnitude();
 
     double cosiphi, siniphi;
-// #pragma omp parallel for schedule(static) 
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         double cosphi = cos(phi);
@@ -109,7 +104,6 @@ void CurvePlanarFourier<Array>::gammadashdash_impl(Array& data) {
         }
     }
     data *= 2*M_PI*2*M_PI;
-// #pragma omp parallel for schedule(static) 
     for (int m = 0; m < numquadpoints; ++m) {
         double i = data(m, 0);
         double j = data(m, 1);
@@ -130,7 +124,6 @@ void CurvePlanarFourier<Array>::gammadashdashdash_impl(Array& data) {
     Array q_norm = q * inv_magnitude();
 
     double cosiphi, siniphi;
-// #pragma omp parallel for schedule(static) 
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         double cosphi = cos(phi);
@@ -158,7 +151,6 @@ void CurvePlanarFourier<Array>::gammadashdashdash_impl(Array& data) {
         }
     }
     data *= 2*M_PI*2*M_PI*2*M_PI;
-// #pragma omp parallel for schedule(static) 
     for (int m = 0; m < numquadpoints; ++m) {
         double i = data(m, 0);
         double j = data(m, 1);
@@ -179,7 +171,6 @@ void CurvePlanarFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
     Array q_norm = q * inv_magnitude();
 
     double cosnphi, sinnphi;
-// #pragma omp parallel for schedule(static) 
     for (int m = 0; m < numquadpoints; ++m) {
         double phi = 2 * M_PI * quadpoints[m];
         int counter = 0;
@@ -303,7 +294,6 @@ void CurvePlanarFourier<Array>::dgammadash_by_dcoeff_impl(Array& data) {
     Array q_norm = q * inv_magnitude();
 
     double cosnphi, sinnphi;
-// #pragma omp parallel for schedule(static) 
     for (int m = 0; m < numquadpoints; ++m) {
         double phi = 2 * M_PI * quadpoints[m];
         double cosphi = cos(phi);
@@ -435,7 +425,6 @@ void CurvePlanarFourier<Array>::dgammadashdash_by_dcoeff_impl(Array& data) {
     Array q_norm = q * inv_magnitude();
 
     double cosnphi, sinnphi;
-// #pragma omp parallel for schedule(static) 
     for (int m = 0; m < numquadpoints; ++m) {
         double phi = 2 * M_PI * quadpoints[m];
         double cosphi = cos(phi);
@@ -567,7 +556,6 @@ void CurvePlanarFourier<Array>::dgammadashdashdash_by_dcoeff_impl(Array& data) {
     Array q_norm = q * inv_magnitude();
 
     double cosnphi, sinnphi;
-// #pragma omp parallel for schedule(static) 
     for (int m = 0; m < numquadpoints; ++m) {
         double phi = 2 * M_PI * quadpoints[m];
         double cosphi = cos(phi);

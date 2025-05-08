@@ -72,7 +72,6 @@ def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, reg
     cos_fac = 2.0 - 2.0 * jnp.cos(phi[None, :] - phi[:, None])
     second_term = jnp.cross(rc_prime_prime, rc_prime)[:, None, :] * (
         0.5 * cos_fac / (cos_fac * jnp.sum(rc_prime * rc_prime, axis=1)[:, None] + regularization)**1.5)[:, :, None]
-    first_term = jnp.cross(rc_prime[None, :], dr) / ((jnp.sum(dr * dr, axis=2) + regularization) ** 1.5)[:, :, None]
     integral_term = dphi * jnp.sum(first_term + second_term, 1)
     return current * Biot_savart_prefactor * (analytic_term + integral_term)
 

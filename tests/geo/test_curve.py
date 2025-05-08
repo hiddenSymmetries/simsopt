@@ -19,7 +19,7 @@ from simsopt.field import BiotSavart, Current, coils_via_symmetries, Coil
 from simsopt.field.coil import coils_to_makegrid
 from simsopt.geo import CurveLength, CurveCurveDistance
 from math import gcd
-from simsopt.geo.curveplanarellipticalcylindrical import (
+from simsopt.geo.curve_planar_elliptical_cylindrical import (
     CurvePlanarEllipticalCylindrical, create_equally_spaced_cylindrical_curves,
     r_ellipse, xyz_cyl, rotations, convert_to_cyl, cylindrical_shift, cyl_to_cart, gamma_pure
 )
@@ -785,7 +785,7 @@ class Testing(unittest.TestCase):
 
             os.remove("coils.file_to_load")
 
-    def test_curveplanarellipticalcylindrical_basic(self):
+    def test_curve_planar_elliptical_cylindrical_basic(self):
         quadpoints = 20
         a, b = 2.0, 1.0
         curve = CurvePlanarEllipticalCylindrical(quadpoints, a, b)
@@ -795,7 +795,7 @@ class Testing(unittest.TestCase):
         gamma = curve.gamma()
         self.assertEqual(gamma.shape, (quadpoints, 3))
 
-    def test_curveplanarellipticalcylindrical_set_get_dofs(self):
+    def test_curve_planar_elliptical_cylindrical_set_get_dofs(self):
         quadpoints = 10
         a, b = 1.5, 0.5
         curve = CurvePlanarEllipticalCylindrical(quadpoints, a, b)
