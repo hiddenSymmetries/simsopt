@@ -563,11 +563,10 @@ class QfmResidual(Optimizable):
     surface dofs.
     """
 
-    def __init__(self, surface, biotsavart, Bn_plasma=None):
+    def __init__(self, surface, biotsavart):
         self.surface = surface
         self.biotsavart = biotsavart
         self.biotsavart.append_parent(self.surface)
-        self.Bn_plasma = Bn_plasma  # Only sensible if the surface does not change much!
         super().__init__(depends_on=[surface, biotsavart])
 
     def recompute_bell(self, parent=None):
@@ -586,10 +585,7 @@ class QfmResidual(Optimizable):
         nphi = x.shape[0]
         ntheta = x.shape[1]
         B = self.biotsavart.B().reshape((nphi, ntheta, 3))
-        if self.Bn_plasma is not None:
-            B_n = np.sum(B * n, axis=2) - self.Bn_plasma
-        else:
-            B_n = np.sum(B * n, axis=2)
+        B_n = np.sum(B * n, axis=2)
         norm_B = np.linalg.norm(B, axis=2)
         return np.sum(B_n**2 * norm_N)/np.sum(norm_B**2 * norm_N)
 
@@ -598,7 +594,7 @@ class QfmResidual(Optimizable):
         Calculate the derivatives with respect to the surface coefficients.
 
         For J = J1/J2 where:
-        J1 = ∫(B·n - Bn_plasma)²dS 
+        J1 = ∫(B·n)²dS 
         J2 = ∫B²dS
 
         where dS = |N|dθdφ and n = N/|N|
@@ -616,12 +612,8 @@ class QfmResidual(Optimizable):
         norm_N = np.linalg.norm(N, axis=2)
         n = N / norm_N[..., None]  # Unit normal
 
-        # Calculate B·n and (B·n - Bn_plasma)
-        B_dot_n = np.sum(B * n, axis=2)
-        if self.Bn_plasma is not None:
-            B_N = B_dot_n - self.Bn_plasma
-        else:
-            B_N = B_dot_n
+        # Calculate B·n
+        B_N = np.sum(B * n, axis=2)
 
         # Calculate B²
         B_squared = np.sum(B * B, axis=2)

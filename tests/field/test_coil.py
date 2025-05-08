@@ -219,8 +219,6 @@ class CoilFormatConvertTesting(unittest.TestCase):
         compare_gamma = [coil.curve.gamma() for coil in compare_coils]
         np.testing.assert_allclose(gamma, compare_gamma)
 
-
-class PSCs(unittest.TestCase):
     def test_equally_spaced_planar_curves(self):
         ncoils = 4
         nfp = 4
@@ -268,80 +266,6 @@ class PSCs(unittest.TestCase):
         bs_planar.set_points(points)
 
         np.testing.assert_allclose(bs.B(), bs_planar.B(), atol=1e-16)
-
-    def test_psc_array_A(self):
-        from simsopt.geo import SurfaceRZFourier, create_planar_curves_between_two_toroidal_surfaces
-        from simsopt.field import PSCArray
-        ncoils = 4
-        R0 = 2.3
-        R1 = 0.9
-        range_param = "half period"
-        nphi = 32
-        ntheta = 32
-        filename = TEST_DIR / 'input.LandremanPaul2021_QA'
-        s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
-        stellsym = s.stellsym
-        nfp = s.nfp
-        poff = 0.5
-        coff = 0.025
-        s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
-        s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
-        s_inner.extend_via_normal(poff)
-        s_outer.extend_via_normal(poff + coff)
-
-        Nx = 4
-        Ny = Nx
-        Nz = Nx
-        # Create the initial coils:
-        order = 0
-        base_curves, _ = create_planar_curves_between_two_toroidal_surfaces(
-            s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=True, jax_flag=False,
-        )
-        print(len(base_curves))
-
-        curves = create_equally_spaced_curves(ncoils, nfp, stellsym, R0=R0, R1=R1)
-        currents = [Current(1e5) for i in range(ncoils)]
-        currents_jax = [JaxCurrent(1e5) for i in range(ncoils)]
-        # Fix the TF dofs
-        [currents[i].fix_all() for i in range(len(currents))]
-        [curves[i].fix_all() for i in range(len(curves))]
-        coils_TF = coils_via_symmetries(curves, currents, nfp, stellsym)
-        coils_TF_jax = coils_via_symmetries(curves, currents_jax, nfp, stellsym)
-
-        # coils_planar = coils_via_symmetries(curves_planar, currents_planar, nfp, stellsym)
-        # bs = BiotSavart(coils_TF)
-        eval_points = s.gamma().reshape(-1, 3)
-        a_list = np.ones(len(base_curves)) * 0.05
-        b_list = a_list
-        psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
-        psc_array_jax = PSCArray(base_curves, coils_TF_jax, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
-        psc_array.recompute_currents()
-        psc_array_jax.recompute_currents()
-
-        gammas1 = np.array([c.gamma() for c in psc_array.psc_curves])
-        currents2 = np.array([c.current.get_value() for c in psc_array.coils_TF])
-        gammas2 = np.array([c.curve.gamma() for c in psc_array.coils_TF])
-        gammadashs2 = np.array([c.curve.gammadash() for c in psc_array.coils_TF])
-        psc_array.biot_savart_TF.set_points(gammas1.reshape(-1, 3))
-        A_ext = psc_array.biot_savart_TF.A()
-        rij_norm = np.linalg.norm(gammas1[:, :, None, None, :] - gammas2[None, None, :, :, :], axis=-1)
-        # sum over the currents, and sum over the biot savart integral
-        A_ext2 = 1e-7 * np.sum(currents2[None, None, :, None] * np.sum(gammadashs2[None, None, :, :, :] / rij_norm[:, :, :, :, None],
-                                                                       axis=-2), axis=-2) / np.shape(gammadashs2)[1]
-        assert np.allclose(A_ext, A_ext2.reshape(-1, 3))
-
-        gammas1_jax = np.array([c.gamma() for c in psc_array_jax.psc_curves])
-        currents2_jax = np.array([c.current.get_value() for c in psc_array_jax.coils_TF])
-        gammas2_jax = np.array([c.curve.gamma() for c in psc_array_jax.coils_TF])
-        gammadashs2_jax = np.array([c.curve.gammadash() for c in psc_array_jax.coils_TF])
-        psc_array_jax.biot_savart_TF.set_points(gammas1_jax.reshape(-1, 3))
-        A_ext_jax = psc_array_jax.biot_savart_TF.A()
-        rij_norm_jax = np.linalg.norm(gammas1_jax[:, :, None, None, :] - gammas2_jax[None, None, :, :, :], axis=-1)
-        # sum over the currents, and sum over the biot savart integral
-        A_ext2_jax = 1e-7 * np.sum(currents2_jax[None, None, :, None] * np.sum(gammadashs2_jax[None, None, :, :, :] / rij_norm_jax[:, :, :, :, None],
-                                                                               axis=-2), axis=-2) / np.shape(gammadashs2_jax)[1]
-        assert np.allclose(A_ext_jax, A_ext2_jax.reshape(-1, 3))
-
 
 if __name__ == "__main__":
     unittest.main()

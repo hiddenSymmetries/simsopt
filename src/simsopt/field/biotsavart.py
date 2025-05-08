@@ -22,15 +22,20 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         coils: A list of :obj:`simsopt.field.coil.Coil` objects.
     """
 
-    def __init__(self, coils, psc_array=None):
+    def __init__(self, coils):
         self._coils = coils
-        self.psc_array = psc_array
         sopp.BiotSavart.__init__(self, coils)
         MagneticField.__init__(self, depends_on=coils)
 
     def dB_by_dcoilcurrents(self, compute_derivatives=0):
-        npoints = len(self.get_points_cart_ref())
-        return [self.fieldcache_get_or_create(f'B_{i}', [npoints, 3]) for i in range(len(self._coils))]
+        points = self.get_points_cart_ref()
+        npoints = len(points)
+        ncoils = len(self._coils)
+        if any([not self.fieldcache_get_status(f'B_{i}') for i in range(ncoils)]):
+            assert compute_derivatives >= 0
+            self.compute(compute_derivatives)
+        self._dB_by_dcoilcurrents = [self.fieldcache_get_or_create(f'B_{i}', [npoints, 3]) for i in range(ncoils)]
+        return self._dB_by_dcoilcurrents
 
     def d2B_by_dXdcoilcurrents(self, compute_derivatives=1):
         points = self.get_points_cart_ref()
@@ -98,6 +103,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
             \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k.
 
         """
+
         coils = self._coils
         gammas = [coil.curve.gamma() for coil in coils]
         gammadashs = [coil.curve.gammadash() for coil in coils]
@@ -110,13 +116,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
                                    res_gamma, res_gammadash, [], [], [])
         dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
         res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
-        # Passive coils require extra contribution to the objective gradients from the current dependence
-        if self.psc_array is not None:
-            vjp = sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([0.0])) for i in range(len(coils))])
-            vjp += self.psc_array.vjp_setup(np.array(res_current))
-        else:
-            vjp = sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
-        return vjp
+        return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
 
     def dA_by_dcoilcurrents(self, compute_derivatives=0):
         points = self.get_points_cart_ref()

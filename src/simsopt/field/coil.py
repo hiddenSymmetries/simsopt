@@ -1,19 +1,14 @@
 from math import pi
 import numpy as np
-from jax import vjp, jacrev
 
 from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve
-from simsopt.geo.jit import jit
-from .force import coil_currents_barebones
 import simsoptpp as sopp
 
 
-__all__ = ['Coil', 'JaxCurrent', 'PSCArray',
-           'Current', 'coils_via_symmetries',
-           'load_coils_from_makegrid_file',
+__all__ = ['Coil', 'Current', 'coils_via_symmetries', 'load_coils_from_makegrid_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
            'coils_to_makegrid', 'coils_to_focus'
            ]
@@ -27,43 +22,22 @@ class Coil(sopp.Coil, Optimizable):
     """
 
     def __init__(self, curve, current):
-        """
-        Initialize a Coil object by combining a curve and a current.
-
-        Args:
-            curve (Curve): The geometric curve representing the coil shape.
-            current (Current): The current object representing the coil current.
-        """
         self._curve = curve
         self._current = current
         sopp.Coil.__init__(self, curve, current)
         Optimizable.__init__(self, depends_on=[curve, current])
 
     def vjp(self, v_gamma, v_gammadash, v_current):
-        """
-        Compute the vector-Jacobian product (VJP) for the coil with respect to its parameters.
-
-        Args:
-            v_gamma (array-like): Vector for the position derivative.
-            v_gammadash (array-like): Vector for the tangent derivative.
-            v_current (float): Vector for the current derivative.
-
-        Returns:
-            Derivative: The total derivative with respect to the coil's parameters.
-        """
         return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
             + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) \
             + self.current.vjp(v_current)
 
     def plot(self, **kwargs):
         """
-        Plot the coil's curve using the underlying Curve's plot method.
-
-        Args:
-            **kwargs: Additional keyword arguments passed to Curve.plot().
-
-        Returns:
-            The result of Curve.plot().
+        Plot the coil's curve. This method is just shorthand for calling
+        the :obj:`~simsopt.geo.curve.Curve.plot()` function on the
+        underlying Curve. All arguments are passed to
+        :obj:`simsopt.geo.curve.Curve.plot()`
         """
         return self.curve.plot(**kwargs)
 
@@ -71,97 +45,31 @@ class Coil(sopp.Coil, Optimizable):
 class CurrentBase(Optimizable):
 
     def __init__(self, **kwargs):
-        """
-        Initialize a CurrentBase object.
-
-        Args:
-            **kwargs: Additional keyword arguments for Optimizable.
-        """
         Optimizable.__init__(self, **kwargs)
 
     def __mul__(self, other):
-        """
-        Multiply the current by a scalar.
-
-        Args:
-            other (float or int): The scalar to multiply by.
-
-        Returns:
-            ScaledCurrent: The scaled current object.
-        """
         assert isinstance(other, float) or isinstance(other, int)
         return ScaledCurrent(self, other)
 
     def __rmul__(self, other):
-        """
-        Multiply the current by a scalar (right-hand side).
-
-        Args:
-            other (float or int): The scalar to multiply by.
-
-        Returns:
-            ScaledCurrent: The scaled current object.
-        """
         assert isinstance(other, float) or isinstance(other, int)
         return ScaledCurrent(self, other)
 
     def __truediv__(self, other):
-        """
-        Divide the current by a scalar.
-
-        Args:
-            other (float or int): The scalar to divide by.
-
-        Returns:
-            ScaledCurrent: The scaled current object.
-        """
         assert isinstance(other, float) or isinstance(other, int)
         return ScaledCurrent(self, 1.0/other)
 
     def __neg__(self):
-        """
-        Negate the current.
-
-        Returns:
-            ScaledCurrent: The negated current object.
-        """
         return ScaledCurrent(self, -1.)
 
     def __add__(self, other):
-        """
-        Add two current objects.
-
-        Args:
-            other (CurrentBase): The other current object to add.
-
-        Returns:
-            CurrentSum: The sum of the two current objects.
-        """
         return CurrentSum(self, other)
 
     def __sub__(self, other):
-        """
-        Subtract another current object from this one.
-
-        Args:
-            other (CurrentBase): The other current object to subtract.
-
-        Returns:
-            CurrentSum: The difference of the two current objects.
-        """
         return CurrentSum(self, -other)
 
     # https://stackoverflow.com/questions/11624955/avoiding-python-sum-default-start-arg-behavior
     def __radd__(self, other):
-        """
-        Add two current objects, supporting sum() with a default start value of zero.
-
-        Args:
-            other (CurrentBase or int): The other current object or zero.
-
-        Returns:
-            CurrentBase: The sum of the two current objects, or self if other is zero.
-        """
         # This allows sum() to work (the default start value is zero)
         if other == 0:
             return self
@@ -176,14 +84,6 @@ class Current(sopp.Current, CurrentBase):
     """
 
     def __init__(self, current, dofs=None, **kwargs):
-        """
-        Initialize a Current object.
-
-        Args:
-            current (float): The initial current value.
-            dofs (array-like, optional): Degrees of freedom for optimization.
-            **kwargs: Additional keyword arguments for Optimizable.
-        """
         sopp.Current.__init__(self, current)
         if dofs is None:
             CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
@@ -193,204 +93,11 @@ class Current(sopp.Current, CurrentBase):
                                  dofs=dofs, **kwargs)
 
     def vjp(self, v_current):
-        """
-        Compute the vector-Jacobian product (VJP) for the current.
-
-        Args:
-            v_current (float): Vector for the current derivative.
-
-        Returns:
-            Derivative: The derivative with respect to the current.
-        """
         return Derivative({self: v_current})
 
     @property
     def current(self):
-        """
-        Get the current value.
-
-        Returns:
-            float: The current value.
-        """
         return self.get_value()
-
-
-class PSCArray():
-    """
-    A class that represents an array of passive superconducting 
-    coils (PSCs). PSCs have quite a complicated structure, so custom
-    derivative terms are needed, that depend on all the coils
-    and currents in the PSCs and the TFs.
-    """
-
-    def __init__(self, base_psc_curves, coils_TF, eval_points, a_list, b_list, nfp=1,
-                 stellsym=False, downsample=1, cross_section='circular'):
-        """
-        Initialize a PSCArray object representing an array of passive superconducting coils (PSCs).
-
-        Args:
-            base_psc_curves (list): List of base PSC curve objects.
-            coils_TF (list): List of toroidal field coil objects.
-            eval_points (array-like): Points at which to evaluate the magnetic field.
-            a_list (array-like): List of cross-sectional 'a' parameters for each coil.
-            b_list (array-like): List of cross-sectional 'b' parameters for each coil.
-            nfp (int, optional): Number of field periods. Defaults to 1.
-            stellsym (bool, optional): Whether to use stellarator symmetry. Defaults to False.
-            downsample (int, optional): Downsampling factor for quadrature points. Defaults to 1.
-            cross_section (str, optional): Cross-section type. Defaults to 'circular'.
-        """
-        from .biotsavart import BiotSavart
-        self.base_psc_curves = base_psc_curves  # not the symmetrized ones
-        self.nfp = nfp
-        self.stellsym = stellsym
-
-        # Get the symmetrized curves
-        psc_curves = apply_symmetries_to_curves(base_psc_curves, nfp, stellsym)
-        self.coils_TF = coils_TF
-        ncoils = len(psc_curves)
-        self.biot_savart_TF = BiotSavart(coils_TF)
-
-        # eval_points is assumed to be where you want to evaluate the Bfield during optimization
-        # e.g. on the surface of the plasma. This needs to be saved since the TF Bfield
-        # gets evaluated on the PSC curves during the calculations.
-        self.eval_points = eval_points
-        self.a_list = a_list[0] * np.ones(ncoils)
-        self.b_list = b_list[0] * np.ones(ncoils)
-        self.downsample = downsample
-        self.cross_section = cross_section        
-
-        # Uses jacrev since # of inputs >> # of outputs
-        args = {"static_argnums": (5,)}
-        self.I_jax = jit(
-            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample:
-            coil_currents_barebones(gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, self.a_list, self.b_list, downsample, cross_section),
-            **args
-        )
-        self.dI_dgammas_vjp = jit(
-            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v:
-            vjp(self.I_jax, gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)[1](v)[0],
-            **args
-        )
-        self.dI_dgammadashs_vjp = jit(
-            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v:
-            vjp(self.I_jax, gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)[1](v)[1],
-            **args
-        )
-        self.dI_dgammasTF_vjp = jit(
-            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v:
-            vjp(self.I_jax, gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)[1](v)[2],
-            **args
-        )
-        self.dI_dgammadashsTF_vjp = jit(
-            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v:
-            vjp(self.I_jax, gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)[1](v)[3],
-            **args
-        )
-        self.dI_dcurrentsTF_vjp = jit(
-            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v:
-            vjp(self.I_jax, gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)[1](v)[4],
-            **args
-        )
-
-        gammas = np.array([c.gamma() for c in psc_curves])
-        gammadashs = np.array([c.gammadash() for c in psc_curves])
-        gammas_TF = np.array([c.curve.gamma() for c in self.coils_TF])
-        gammadashs_TF = np.array([c.curve.gammadash() for c in self.coils_TF])
-        currents_TF = np.array([c.current.get_value() for c in self.coils_TF])
-        args = [
-            gammas,
-            gammadashs,
-            gammas_TF,
-            gammadashs_TF,
-            currents_TF,
-            self.downsample
-        ]
-        # currents = self.compute_currents()
-        currents = self.I_jax(*self.args)
-
-        psc_currents = [Current(currents[i] * 1e-6) * 1e6 for i in range(ncoils)]
-        self.base_psc_currents = psc_currents[:ncoils // (int(stellsym) + 1) // nfp]
-        [c.fix_all() for c in self.base_psc_currents]  # Fix all the current dofs which are fake anyways
-        self.coils = coils_via_symmetries(self.base_psc_curves, self.base_psc_currents, nfp, stellsym)
-        self.psc_curves = [c.curve for c in self.coils]
-        self.biot_savart = BiotSavart(self.coils, self)
-        self.biot_savart_total = self.biot_savart + self.biot_savart_TF
-        self.biot_savart_total.set_points(self.eval_points)
-        # Optimizable.__init__(self, depends_on=[self.coils, self.coils_TF])
-
-    def vjp_setup(self, v_currents):
-        """
-        Compute the vector-Jacobian product (VJP) for the PSCArray with respect to its currents.
-
-        Args:
-            v_currents (array-like): Vector for the current derivatives.
-
-        Returns:
-            Derivative: The total derivative with respect to the PSCArray's parameters.
-        """
-        gammas = np.array([c.gamma() for c in self.psc_curves])
-        gammadashs = np.array([c.gammadash() for c in self.psc_curves])
-        gammas_TF = np.array([c.curve.gamma() for c in self.coils_TF])
-        gammadashs_TF = np.array([c.curve.gammadash() for c in self.coils_TF])
-        currents_TF = np.array([c.current.get_value() for c in self.coils_TF])
-        args = [
-            gammas,
-            gammadashs,
-            gammas_TF,
-            gammadashs_TF,
-            currents_TF,
-            self.downsample
-        ]
-        dJ_dgammas = self.dI_dgammas_vjp(*args, v_currents)
-        dJ_dgammadashs = self.dI_dgammadashs_vjp(*args, v_currents)
-        dJ_dgammas2 = self.dI_dgammasTF_vjp(*args, v_currents)
-        dJ_dgammadashs2 = self.dI_dgammadashsTF_vjp(*args, v_currents)
-        dJ_dcurrents2 = self.dI_dcurrentsTF_vjp(*args, v_currents)
-        vjp_psc = [c.dgamma_by_dcoeff_vjp(dJ_dgammas[i]) + c.dgammadash_by_dcoeff_vjp(dJ_dgammadashs[i]) for i, c in enumerate(self.psc_curves)]
-        vjp_TF = [c.vjp(dJ_dgammas2[i], dJ_dgammadashs2[i], dJ_dcurrents2[i]) for i, c in enumerate(self.coils_TF)]
-
-        # Appears essential to reset the children of the coils, curves and currents
-        # to avoid the optimizable graph growing extremely large when # of coils > 10 or so
-        # for c in (self.coils + self.coils_TF):
-        #     c._children = set()
-        #     c.curve._children = set()
-        #     c.current._children = set()
-        return sum(vjp_psc + vjp_TF)
-    
-    def compute_currents(self):
-        """
-        Compute the currents in the PSCArray based on the current geometry and TF coil values.
-        """
-        gammas = np.array([c.gamma() for c in self.psc_curves])
-        gammadashs = np.array([c.gammadash() for c in self.psc_curves])
-        gammas_TF = np.array([c.curve.gamma() for c in self.coils_TF])
-        gammadashs_TF = np.array([c.curve.gammadash() for c in self.coils_TF])
-        currents_TF = np.array([c.current.get_value() for c in self.coils_TF])
-        args = [
-            gammas,
-            gammadashs,
-            gammas_TF,
-            gammadashs_TF,
-            currents_TF,
-            self.downsample
-        ]
-        currents = self.I_jax(*args)
-        return currents
-
-    def recompute_currents(self):
-        """
-        Recompute the currents in the PSCArray based on the current geometry and TF coil values.
-        """
-        currents = self.compute_currents()
-        for i, c in enumerate(self.coils):
-            c.current.set_dofs(currents[i])
-
-        # Appears essential to reset the children of the coils, curves and currents
-        # to avoid the optimizable graph growing extremely large when # of coils > 10 or so
-        # for c in (self.coils + self.coils_TF):
-        #     c._children = set()
-        #     c.curve._children = set()
-        #     c.current._children = set()
 
 
 class ScaledCurrent(sopp.CurrentBase, CurrentBase):
@@ -400,183 +107,42 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
     """
 
     def __init__(self, current_to_scale, scale, **kwargs):
-        """
-        Initialize a ScaledCurrent object.
-
-        Args:
-            current_to_scale (CurrentBase): The current object to scale.
-            scale (float): The scaling factor.
-            **kwargs: Additional keyword arguments for Optimizable.
-        """
         self.current_to_scale = current_to_scale
         self.scale = scale
         sopp.CurrentBase.__init__(self)
         CurrentBase.__init__(self, depends_on=[current_to_scale], **kwargs)
 
     def vjp(self, v_current):
-        """
-        Compute the vector-Jacobian product (VJP) for the scaled current.
-
-        Args:
-            v_current (float): Vector for the current derivative.
-
-        Returns:
-            float: The scaled derivative.
-        """
         return self.scale * self.current_to_scale.vjp(v_current)
 
     def get_value(self):
-        """
-        Get the value of the scaled current.
-
-        Returns:
-            float: The scaled current value.
-        """
         return self.scale * self.current_to_scale.get_value()
-
-    def set_dofs(self, dofs):
-        """
-        Set the degrees of freedom for the scaled current.
-
-        Args:
-            dofs (array-like): The degrees of freedom to set.
-        """
-        self.current_to_scale.set_dofs(dofs / self.scale)
-
-
-def current_pure(dofs):
-    """
-    Return the input degrees of freedom as the current value (identity function).
-
-    Args:
-        dofs (array-like): The degrees of freedom.
-
-    Returns:
-        array-like: The input degrees of freedom.
-    """
-    return dofs
-
-
-class JaxCurrent(sopp.Current, CurrentBase):
-    def __init__(self, current, dofs=None, **kwargs):
-        """
-        Initialize a JaxCurrent object for JAX-compatible current optimization.
-
-        Args:
-            current (float): The initial current value.
-            dofs (array-like, optional): Degrees of freedom for optimization.
-            **kwargs: Additional keyword arguments for Optimizable.
-        """
-        sopp.Current.__init__(self, current)
-        if dofs is None:
-            CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
-                                 x0=self.get_dofs(), **kwargs)
-        else:
-            CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
-                                 dofs=dofs, **kwargs)
-
-        self.current_pure = current_pure
-        self.current_jax = jit(lambda dofs: self.current_pure(dofs))
-        self.dcurrent_by_dcurrent_jax = jit(jacrev(self.current_jax))
-        self.dcurrent_by_dcurrent_vjp_jax = jit(lambda x, v: vjp(self.current_jax, x)[1](v)[0])
-
-    def current_impl(self, dofs):
-        """
-        Compute the current value from the degrees of freedom using JAX.
-
-        Args:
-            dofs (array-like): The degrees of freedom.
-
-        Returns:
-            float: The current value.
-        """
-        return self.current_jax(dofs)
-
-    def vjp(self, v):
-        """
-        Compute the vector-Jacobian product (VJP) for the JaxCurrent.
-
-        Args:
-            v (float): Vector for the current derivative.
-
-        Returns:
-            Derivative: The derivative with respect to the current.
-        """
-        return Derivative({self: self.dcurrent_by_dcurrent_vjp_jax(self.get_dofs(), v)})
-
-    def set_dofs(self, dofs):
-        """
-        Set the degrees of freedom for the JaxCurrent.
-
-        Args:
-            dofs (array-like): The degrees of freedom to set.
-        """
-        self.local_x = dofs
-        sopp.Current.set_dofs(self, dofs)
-
-    @property
-    def current(self):
-        """
-        Get the current value.
-
-        Returns:
-            float: The current value.
-        """
-        return self.get_value()
 
 
 class CurrentSum(sopp.CurrentBase, CurrentBase):
     """
-    Take the sum of two Current objects.
+    Take the sum of two :mod:`Current` objects.
     """
 
     def __init__(self, current_a, current_b):
-        """
-        Initialize a CurrentSum object.
-
-        Args:
-            current_a (CurrentBase): The first current object.
-            current_b (CurrentBase): The second current object.
-        """
         self.current_a = current_a
         self.current_b = current_b
         sopp.CurrentBase.__init__(self)
         CurrentBase.__init__(self, depends_on=[current_a, current_b])
 
     def vjp(self, v_current):
-        """
-        Compute the vector-Jacobian product (VJP) for the sum of two currents.
-
-        Args:
-            v_current (float): Vector for the current derivative.
-
-        Returns:
-            Derivative: The derivative with respect to the sum of the currents.
-        """
         return self.current_a.vjp(v_current) + self.current_b.vjp(v_current)
 
     def get_value(self):
-        """
-        Get the value of the sum of two currents.
-
-        Returns:
-            float: The sum of the two current values.
-        """
         return self.current_a.get_value() + self.current_b.get_value()
 
 
 def apply_symmetries_to_curves(base_curves, nfp, stellsym):
     """
-    Take a list of n Curve objects and return n * nfp * (1+int(stellsym)) Curve objects obtained by
-    applying rotations and flipping corresponding to nfp-fold rotational symmetry and optionally stellarator symmetry.
-
-    Args:
-        base_curves (list): List of base Curve objects.
-        nfp (int): Number of field periods.
-        stellsym (bool): Whether to use stellarator symmetry.
-
-    Returns:
-        list: List of symmetrized Curve objects.
+    Take a list of ``n`` :mod:`simsopt.geo.curve.Curve`s and return ``n * nfp *
+    (1+int(stellsym))`` :mod:`simsopt.geo.curve.Curve` objects obtained by
+    applying rotations and flipping corresponding to ``nfp`` fold rotational
+    symmetry and optionally stellarator symmetry.
     """
     flip_list = [False, True] if stellsym else [False]
     curves = []
@@ -593,16 +159,9 @@ def apply_symmetries_to_curves(base_curves, nfp, stellsym):
 
 def apply_symmetries_to_currents(base_currents, nfp, stellsym):
     """
-    Take a list of n Current objects and return n * nfp * (1+int(stellsym)) Current objects obtained by
-    copying (for nfp rotations) and sign-flipping (optionally for stellarator symmetry).
-
-    Args:
-        base_currents (list): List of base Current objects.
-        nfp (int): Number of field periods.
-        stellsym (bool): Whether to use stellarator symmetry.
-
-    Returns:
-        list: List of symmetrized Current objects.
+    Take a list of ``n`` :mod:`Current`s and return ``n * nfp * (1+int(stellsym))``
+    :mod:`Current` objects obtained by copying (for ``nfp`` rotations) and
+    sign-flipping (optionally for stellarator symmetry).
     """
     flip_list = [False, True] if stellsym else [False]
     currents = []
@@ -616,17 +175,9 @@ def apply_symmetries_to_currents(base_currents, nfp, stellsym):
 
 def coils_via_symmetries(curves, currents, nfp, stellsym):
     """
-    Take a list of n curves and return n * nfp * (1+int(stellsym)) Coil objects obtained by applying
-    rotations and flipping corresponding to nfp-fold rotational symmetry and optionally stellarator symmetry.
-
-    Args:
-        curves (list): List of Curve objects.
-        currents (list): List of Current objects.
-        nfp (int): Number of field periods.
-        stellsym (bool): Whether to use stellarator symmetry.
-
-    Returns:
-        list: List of symmetrized Coil objects.
+    Take a list of ``n`` curves and return ``n * nfp * (1+int(stellsym))``
+    ``Coil`` objects obtained by applying rotations and flipping corresponding
+    to ``nfp`` fold rotational symmetry and optionally stellarator symmetry.
     """
 
     assert len(curves) == len(currents)
@@ -638,17 +189,19 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
 
 def load_coils_from_makegrid_file(filename, order, ppp=20, group_names=None):
     """
-    Load coils from a MAKEGRID input file containing Cartesian coordinates and currents for several coils.
-    The format is described at https://princetonuniversity.github.io/STELLOPT/MAKEGRID
+    This function loads a file in MAKEGRID input format containing the Cartesian coordinates 
+    and the currents for several coils and returns an array with the corresponding coils. 
+    The format is described at
+    https://princetonuniversity.github.io/STELLOPT/MAKEGRID
 
     Args:
-        filename (str): File to load.
-        order (int): Maximum mode number in the Fourier expansion.
-        ppp (int, optional): Points-per-period (number of quadrature points per period). Defaults to 20.
-        group_names (list of str, optional): Only get coils in coil groups that are in the list.
+        filename: file to load.
+        order: maximum mode number in the Fourier expansion.
+        ppp: points-per-period: number of quadrature points per period.
+        group_names: List of coil group names (str). Only get coils in coil groups that are in the list.
 
     Returns:
-        list: List of Coil objects with the Fourier coefficients and currents given by the file.
+        A list of ``Coil`` objects with the Fourier coefficients and currents given by the file.
     """
 
     if isinstance(group_names, str):
@@ -682,17 +235,18 @@ def load_coils_from_makegrid_file(filename, order, ppp=20, group_names=None):
 
 def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=False):
     """
-    Export a list of Curve objects together with currents in MAKEGRID input format, so they can be used by MAKEGRID and FOCUS.
-    The format is introduced at https://princetonuniversity.github.io/STELLOPT/MAKEGRID
-    Note that this function does not generate files with MAKEGRID's output format.
+    Export a list of Curve objects together with currents in MAKEGRID input format, so they can 
+    be used by MAKEGRID and FOCUS. The format is introduced at
+    https://princetonuniversity.github.io/STELLOPT/MAKEGRID
+    Note that this function does not generate files with MAKEGRID's *output* format.
 
     Args:
-        filename (str): Name of the file to write.
-        curves (list): List of Curve objects.
-        currents (list): Coil current of each curve.
-        groups (list, optional): Coil current group. Coils in the same group will be assembled together. Defaults to None.
-        nfp (int, optional): Number of field periodicity. Defaults to 1.
-        stellsym (bool, optional): Whether or not following stellarator symmetry. Defaults to False.
+        filename: Name of the file to write.
+        curves: A python list of Curve objects.
+        currents: Coil current of each curve.
+        groups: Coil current group. Coils in the same group will be assembled together. Defaults to None.
+        nfp: The number of field periodicity. Defaults to 1.
+        stellsym: Whether or not following stellarator symmetry. Defaults to False.
     """
 
     assert len(curves) == len(currents)
@@ -728,18 +282,20 @@ def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=F
 
 def coils_to_focus(filename, curves, currents, nfp=1, stellsym=False, Ifree=False, Lfree=False):
     """
-    Export a list of Curve objects together with currents in FOCUS format, so they can be used by FOCUS.
-    The format is introduced at https://princetonuniversity.github.io/FOCUS/rdcoils.pdf
-    This routine only works with curves of type CurveXYZFourier, not other curve types.
+    Export a list of Curve objects together with currents in FOCUS format, so they can 
+    be used by FOCUS. The format is introduced at
+    https://princetonuniversity.github.io/FOCUS/rdcoils.pdf
+    This routine only works with curves of type CurveXYZFourier,
+    not other curve types.
 
     Args:
-        filename (str): Name of the file to write.
-        curves (list): List of CurveXYZFourier objects.
-        currents (list): Coil current of each curve.
-        nfp (int, optional): Number of field periodicity. Defaults to 1.
-        stellsym (bool, optional): Whether or not following stellarator symmetry. Defaults to False.
-        Ifree (bool, optional): Flag specifying whether the coil current is free. Defaults to False.
-        Lfree (bool, optional): Flag specifying whether the coil geometry is free. Defaults to False.
+        filename: Name of the file to write.
+        curves: A python list of CurveXYZFourier objects.
+        currents: Coil current of each curve.
+        nfp: The number of field periodicity. Defaults to 1.      
+        stellsym: Whether or not following stellarator symmetry. Defaults to False.
+        Ifree: Flag specifying whether the coil current is free. Defaults to False.
+        Lfree: Flag specifying whether the coil geometry is free. Defaults to False.
     """
     from simsopt.geo import CurveLength
 

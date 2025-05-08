@@ -674,24 +674,5 @@ class PermanentMagnetGridTesting(unittest.TestCase):
         #with ScratchDir("."):
         #    run_Poincare_plots(s_plot, bs, b_dipole, None, 'poincare_test')
 
-    def test_analytic_magnet_fields(self):
-        # Initialize one permanent magnet
-        # Compute the A matrix at some faraway point using the pure dipole functionality in the existing code
-        # Repeat with your full analytic matrix
-        # nphi = 8
-        # ntheta = nphi
-        # s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        # s1 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        # s2 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        # s1.extend_via_projected_normal(0.1)
-        # s2.extend_via_projected_normal(0.2)
-        # Bn = np.zeros(())
-        # kwargs = {"dr": 0.15}
-        # pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
-        A_matrix_original = np.zeros(10)
-        A_matrix_new = np.zeros(10)
-        assert np.allclose(A_matrix_original, A_matrix_new)
-
-
 if __name__ == "__main__":
     unittest.main()

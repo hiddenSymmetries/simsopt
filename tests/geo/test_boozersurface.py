@@ -387,7 +387,6 @@ class BoozerSurfaceTests(unittest.TestCase):
         This unit test verifies that that the cpp and not cpp implementations converge to 
         the same solutions
         """
-        np.random.seed(1)  # Sometimes random choice gives rtol ~ 1e-5 for a few elements
         x_vec = self.subtest_convergence_cpp_and_notcpp_same(True)
         x_nonvec = self.subtest_convergence_cpp_and_notcpp_same(False)
         np.testing.assert_allclose(x_vec, x_nonvec, atol=1e-11)
