@@ -86,7 +86,7 @@ class BoozerSurface(Optimizable):
     *[2]: Giuliani, A., Wechsung, F., Cerfon, A., Landreman, M., & Stadler, G. (2023). Direct stellarator coil optimization for nested magnetic surfaces with precise quasi-symmetry. Physics of Plasmas, 30(4).*
     """
 
-    def __init__(self, biotsavart, surface, label, targetlabel, boozer_type='ls', constraint_weight=None, options=None):
+    def __init__(self, biotsavart, surface, label, targetlabel, boozer_type='ls', constraint_weight=1.0, options=None):
         """
         Args:
             biotsavart (:obj:`~simsopt.field.BiotSavart`): BiotSavart object.
@@ -94,8 +94,8 @@ class BoozerSurface(Optimizable):
             label (:obj:`~simsopt._core.optimizable.Optimizable`): A method that computes a flux surface label for the surface, such as  
                 :obj:`~simsopt.geo.Volume`, :obj:`~simsopt.geo.Area`, or :obj:`~simsopt.geo.ToroidalFlux`.
             targetlabel (float): The target value of the label on the surface.
-            constraint_weight (float, Optional): The weight of the label constraint used when solving Boozer least squares. 
-                If None, then Boozer Exact is used in the :mod:`run_code` method.
+            boozer_type: Either 'exact' or 'ls'
+            constraint_weight (float, Optional): The weight of the label constraint used when solving Boozer least squares. Defaults to 1.0.
             options (dict, Optional): A dictionary of solver options. If a keyword is not specified, then a default
                 value is used. Possible keywords are:
 
@@ -107,14 +107,14 @@ class BoozerSurface(Optimizable):
                 - `limited_memory` (bool): True if L-BFGS solver is desired, False if the BFGS solver otherwise. Defaults to False.
                 - `weight_inv_modB` (float): for BoozerLS surfaces, weight the residual by modB so that it does not scale with coil currents.  Defaults to True.
                 - solver (int): Flag to decide what algorithm to use when running BoozerSurface.run_code, defaults to 4. Only used if boozer_type is 'ls'
-                    0: LBFGS.
-                    1: scipy LS (specify in options what method -  can be 'manual' or anything specified in scipy LS documentation)
-                    2: regular Newton -  see _minimize_boozer_penalty_constraints_newton
-                    3: exact Newton -  see _minimize_boozer_exact_constraints_newton
-                    4: LBGFS + regular Newton
-                    5: LBFGS + exact Newton
-                    6: scipy LS + regular Newton
-                    7: scipy LS + exact Newton
+                    0: LBFGS applied to the penalty objective
+                    1: scipy.optimize.least_squares applied to the penalty objective. Specify in options what method -  can be 'manual' or anything specified in scipy LS documentation.
+                    2: Newton applied to the penalty objective -  see _minimize_boozer_penalty_constraints_newton
+                    3: Newton applied to the constrained optimization problem -  see _minimize_boozer_exact_constraints_newton
+                    4: Two stages approach: 0, then 2 (default)
+                    5: Two stages approach: 0, then 3
+                    6: Two stages approach: 1, then 2
+                    7: Two stages approach: 1, then 3
         """
         super().__init__(depends_on=[biotsavart])
 
@@ -122,8 +122,6 @@ class BoozerSurface(Optimizable):
         if not isinstance(surface, SurfaceXYZTensorFourier) and not isinstance(surface, SurfaceXYZFourier):
             raise Exception("The input surface must be a SurfaceXYZTensorFourier or SurfaceXYZFourier.")
 
-        if boozer_type=='exact' and not (constraint_weight is None):
-                print("Warning: constraint_weight ignored when using boozer exact")
         if boozer_type not in ['ls', 'exact']:
             raise ValueError("Invalid boozer_type - please choose between 'ls' and 'exact'")
 
@@ -224,7 +222,6 @@ class BoozerSurface(Optimizable):
             # 7: scipy LS + exact Newton
             solver = self.options['solver']
             if solver in [0, 4, 5]:
-                print("Running boozer solver with LBFGS")
                 res = self._minimize_boozer_penalty_constraints_LBFGS(
                     constraint_weight=self.constraint_weight, iota=iota, G=G,
                     tol=self.options['bfgs_tol'], 
@@ -236,7 +233,6 @@ class BoozerSurface(Optimizable):
                 iota, G = res['iota'], res['G']
 
             if solver in [1, 6, 7]:
-                print("Running boozer solver with scipy LS")
                 res = self._minimize_boozer_penalty_constraints_ls(
                     tol=self.options['ls_tol'], 
                     maxiter=self.options['ls_maxiter'], 
@@ -249,7 +245,6 @@ class BoozerSurface(Optimizable):
                 iota, G = res['iota'], res['G']
 
             if solver in [2, 4, 6]:
-                print("Running boozer solver with Newton method")
                 self.need_to_run_code = True
                 res = self._minimize_boozer_penalty_constraints_newton(
                     constraint_weight=self.constraint_weight, 
@@ -262,7 +257,6 @@ class BoozerSurface(Optimizable):
                 )
 
             if solver in [3, 5, 7]:
-                print("Running boozer solver with Newton solver, using the exact constraint")
                 self.need_to_run_code = True
                 res = self._minimize_boozer_exact_constraints_newton(
                     tol=self.options['newton_tol'], 
