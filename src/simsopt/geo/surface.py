@@ -359,8 +359,7 @@ class Surface(Optimizable):
             raise NotImplementedError('Need to pass int or 1d np.array to thetas')
         
         # shift phi_prime to lie on [0, 1)
-        k = np.ceil(-phi_prime)
-        phi_prime = phi_prime + k
+        phi_prime = phi_prime + np.ceil(-phi_prime)
 
         # no need to do bisection for SurfaceRZFourier
         from simsopt.geo import SurfaceRZFourier
