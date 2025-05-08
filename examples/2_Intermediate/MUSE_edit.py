@@ -100,25 +100,6 @@ kwargs = {"downsample": downsample, "dr": dr}
 
 # Finally, initialize the permanent magnet class
 pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs)
-# mt = mag_data.mt
-# mp = mag_data.mp
-# m0 = mag_data.M_0
-# mx = m0 * np.cos(mp)*np.sin(mt)
-# my = m0 * np.sin(mp)*np.sin(mt)
-# mz = m0 * np.cos(mt)
-# m = np.array([mx, my, mz]).T
-# force_matrix = pm_opt.net_force_matrix(m)
-# print(force_matrix)
-# positions = pm_opt.dipole_grid_xyz
-# Fx = np.ascontiguousarray(force_matrix[:,0])
-# Fy = np.ascontiguousarray(force_matrix[:,1])
-# Fz = np.ascontiguousarray(force_matrix[:,2])
-# x = np.ascontiguousarray(positions[:,0])
-# y = np.ascontiguousarray(positions[:,1])
-# z = np.ascontiguousarray(positions[:,2])
-# data = {'Forces':(Fx,Fy,Fz)}
-# pointsToVTK('MUSE_Force_visualization',x, y, z, data = data)
-# print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 algorithm = 'baseline'  # Algorithm to use
@@ -188,8 +169,6 @@ if save_plots:
         t_force_calc_end = time.time()
         print('Time to calc force = ', t_force_calc_end - t_force_calc_start)
         
-        
-        #Do net torque calcs where there are nonzero dipole moments and make a list
         # Do net torque calcs where there are nonzero dipole moments and make a list
         t_torque_calc_start = time.time()
         # This calls the C++ function
@@ -198,13 +177,6 @@ if save_plots:
                 np.ascontiguousarray(pm_opt.dipole_grid_xyz[mk_nonzero_indices, :])
             )
        
-
-        # Sanity check to make sure torques aren't zero
-        #print(f"Shape of net_torques_nonzero from C++: {net_torques_nonzero.shape}")
-        #print(f"Norms of net_torques_nonzero (first 5): {np.linalg.norm(net_torques_nonzero, axis=1)[:5]}")
-        #print(f"Max norm in net_torques_nonzero: {np.max(np.linalg.norm(net_torques_nonzero, axis=1))}")
-        #print(f"Sum of norms in net_torques_nonzero: {np.sum(np.linalg.norm(net_torques_nonzero, axis=1))}")
-        # Fill in the full net_torques array for the base set
         net_torques = np.zeros((pm_opt.ndipoles, 3))
         net_torques[mk_nonzero_indices, :] = net_torques_nonzero
         net_torques[mk_zero_indices, :] = 0.0 # Ensure these are explicitly zero
@@ -220,11 +192,6 @@ if save_plots:
             net_forces=net_forces,
             net_torques = net_torques
         )
-        #Sanity Check to make sure torques aren't zero
-        #print(f"Shape of b_dipole.net_torques_full after symmetry expansion: {b_dipole.net_torques_full.shape}")
-        #print(f"Norms of b_dipole.net_torques_full (first 5): {np.linalg.norm(b_dipole.net_torques_full, axis=1)[:5]}")
-        #print(f"Max norm in b_dipole.net_torques_full: {np.max(np.linalg.norm(b_dipole.net_torques_full, axis=1))}")
-        #print(f"Sum of norms in b_dipole.net_torques_full: {np.sum(np.linalg.norm(b_dipole.net_torques_full, axis=1))}")
 
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
         K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
@@ -247,24 +214,6 @@ num_nonzero = np.count_nonzero(np.sum(dipoles_m ** 2, axis=-1)) / pm_opt.ndipole
 print("Number of possible dipoles = ", pm_opt.ndipoles)
 print("% of dipoles that are nonzero = ", num_nonzero)
 
-# Print optimized f_B and other metrics
-### Note this will only agree with the optimization in the high-resolution
-### limit where nphi ~ ntheta >= 64!
-# b_dipole = DipoleField(
-#     pm_opt.dipole_grid_xyz,
-#     pm_opt.m,
-#     nfp=s.nfp,
-#     coordinate_flag=pm_opt.coordinate_flag,
-#     m_maxima=pm_opt.m_maxima,
-#     net_forces=pm_opt.net_force_matrix(pm_opt.m),
-# )
-# b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-# bs.set_points(s_plot.gamma().reshape((-1, 3)))
-# Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-# f_B_sf = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
-# print('f_B = ', f_B_sf)
-# total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
-# print('Total volume = ', total_volume)
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
