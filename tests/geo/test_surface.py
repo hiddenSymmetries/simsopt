@@ -514,14 +514,10 @@ class isSelfIntersecting(unittest.TestCase):
                 quadpoints_theta=surfaces[-1].quadpoints_theta)
         surface_rotated.least_squares_fit(Rgamma)
         
-    def test_cross_section_exceptions(self):
-        filename = os.path.join(TEST_DIR, 'serial2680021.json')
-        [surfaces, coils] = load(filename)
-        surface = surfaces[-1]
-
         # unit test to check that the exceptions are properly raised
         with self.assertRaises(Exception):
-            _ = surface.cross_section(0., thetas=256)
+            _ = surface_rotated.cross_section(0., thetas=256)
+
         with self.assertRaises(Exception):
             _ = surface.cross_section(0., thetas='wrong')
         
