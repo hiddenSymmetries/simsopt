@@ -40,7 +40,7 @@ if not in_github_actions:
 
 else:
 
-    # For GitHub CI tests, run at very low resolution 
+    # For GitHub CI tests, run at very low resolution
     wf_n_phi = 18
     wf_n_theta = 8
     max_iter = 100
@@ -76,8 +76,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # Load the geometry of the target plasma boundary
 plas_n_phi = plas_n
 plas_n_theta = plas_n
-surf_plas = SurfaceRZFourier.from_vmec_input(filename_equil, 
-                nphi=plas_n_phi, ntheta=plas_n_theta, range='half period')
+surf_plas = SurfaceRZFourier.from_vmec_input(filename_equil,
+                                             nphi=plas_n_phi, ntheta=plas_n_theta, range='half period')
 
 # Construct the wireframe on a toroidal surface
 surf_wf = SurfaceRZFourier.from_nescoil_input(filename_wf_surf, 'current')
@@ -85,16 +85,16 @@ wf = ToroidalWireframe(surf_wf, wf_n_phi, wf_n_theta)
 
 # Calculate the required net poloidal current
 mu0 = 4.0 * np.pi * 1e-7
-pol_cur = -2.0*np.pi*surf_plas.get_rc(0,0)*field_on_axis/mu0
+pol_cur = -2.0*np.pi*surf_plas.get_rc(0, 0)*field_on_axis/mu0
 
 # Initialize the wireframe with a set of planar TF coils
 coil_current = pol_cur/(2*wf.nfp*n_mod_coils_hp)
 wf.add_tfcoil_currents(n_mod_coils_hp, coil_current)
 
-# Set constraint for net poloidal current (note: the constraint is not strictly 
-# necessary for GSCO to work properly, but it can be used as a consistency 
+# Set constraint for net poloidal current (note: the constraint is not strictly
+# necessary for GSCO to work properly, but it can be used as a consistency
 # check for the solution)
-wf.set_poloidal_current(pol_cur)   
+wf.set_poloidal_current(pol_cur)
 
 # Generate a 3D plot of the initialized wireframe and plasma if desired
 if make_mayavi_plots:
@@ -102,27 +102,27 @@ if make_mayavi_plots:
     from mayavi import mlab
     mlab.options.offscreen = True
 
-    mlab.figure(size=(1050,800), bgcolor=(1,1,1))
+    mlab.figure(size=(1050, 800), bgcolor=(1, 1, 1))
     wf.make_plot_3d(to_show='all')
-    surf_plas_plot = SurfaceRZFourier.from_vmec_input(filename_equil, 
-        nphi=plas_n_phi, ntheta=plas_n_theta, range='full torus')
-    surf_plas_plot.plot(engine='mayavi', show=False, close=True, 
-        wireframe=False, color=(1, 0.75, 1))
+    surf_plas_plot = SurfaceRZFourier.from_vmec_input(filename_equil,
+                                                      nphi=plas_n_phi, ntheta=plas_n_theta, range='full torus')
+    surf_plas_plot.plot(engine='mayavi', show=False, close=True,
+                        wireframe=False, color=(1, 0.75, 1))
     mlab.view(distance=5.5, focalpoint=(0, 0, -0.15))
     mlab.savefig(OUT_DIR + 'gsco_modular_wireframe_init_plot3d.png')
 
 # Set the optimization parameters
-opt_params = {'lambda_S': lambda_S, 
+opt_params = {'lambda_S': lambda_S,
               'max_iter': max_iter,
               'print_interval': print_interval,
               'no_crossing': True,
               'default_current': np.abs(coil_current),
               'max_current': 1.1 * np.abs(coil_current)
-             }
+              }
 
 # Run the GSCO optimization
 t0 = time.time()
-res = optimize_wireframe(wf, 'gsco', opt_params, surf_plas=surf_plas, 
+res = optimize_wireframe(wf, 'gsco', opt_params, surf_plas=surf_plas,
                          verbose=False)
 t1 = time.time()
 deltaT = t1 - t0
@@ -136,7 +136,7 @@ print('  opt time [s]   %12.3f' % (deltaT))
 assert wf.check_constraints()
 
 # Post-processing
-res['wframe_field'].set_points(surf_plas.gamma().reshape((-1,3)))
+res['wframe_field'].set_points(surf_plas.gamma().reshape((-1, 3)))
 Bfield = res['wframe_field'].B().reshape((plas_n_phi, plas_n_theta, 3))
 Bnormal = np.sum(Bfield * surf_plas.unitnormal(), axis=2)
 modB = np.sqrt(np.sum(Bfield**2, axis=2))
@@ -162,13 +162,11 @@ if make_mayavi_plots:
     from mayavi import mlab
     mlab.options.offscreen = True
 
-    mlab.figure(size=(1050,800), bgcolor=(1,1,1))
+    mlab.figure(size=(1050, 800), bgcolor=(1, 1, 1))
     wf.make_plot_3d(to_show='active')
-    surf_plas_plot = SurfaceRZFourier.from_vmec_input(filename_equil, 
-        nphi=plas_n_phi, ntheta=plas_n_theta, range='full torus')
-    surf_plas_plot.plot(engine='mayavi', show=False, close=True, 
-        wireframe=False, color=(1, 0.75, 1))
+    surf_plas_plot = SurfaceRZFourier.from_vmec_input(filename_equil,
+                                                      nphi=plas_n_phi, ntheta=plas_n_theta, range='full torus')
+    surf_plas_plot.plot(engine='mayavi', show=False, close=True,
+                        wireframe=False, color=(1, 0.75, 1))
     mlab.view(distance=5.5, focalpoint=(0, 0, -0.15))
     mlab.savefig(OUT_DIR + 'gsco_modular_wireframe_plot3d.png')
-
-

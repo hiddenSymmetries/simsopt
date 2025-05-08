@@ -26,7 +26,7 @@ class TestFunction1(Optimizable):
         super().__init__(x0=x, fixed=fixed)
 
     def J(self):
-        return np.exp(self.full_x[0] ** 2 - np.exp(self.full_x[1]) \
+        return np.exp(self.full_x[0] ** 2 - np.exp(self.full_x[1])
                       + np.sin(self.full_x[2]))
 
     return_fn_map = {'J': J}
@@ -126,7 +126,7 @@ class MPISolveTests(unittest.TestCase):
 
                     for rel_step in rel_steps:
                         for diff_method in ["forward", "centered"]:
-                            logger.debug(f'ngroups={ngroups} abs_step={abs_step} ' \
+                            logger.debug(f'ngroups={ngroups} abs_step={abs_step} '
                                          f'rel_step={rel_step} diff_method={diff_method}')
                             mpi = MpiPartition(ngroups=ngroups)
                             o = TestFunction3(mpi.comm_groups)
