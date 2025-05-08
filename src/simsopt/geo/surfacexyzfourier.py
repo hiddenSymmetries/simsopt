@@ -77,6 +77,13 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
                              external_dof_setter=SurfaceXYZFourier.set_dofs_impl)
 
     def _make_names(self, mpol, ntor, stellsym):
+        """
+        Form a list of names of the ``xc``, ``ys``, ``zs``, ``xs``, 
+        ``yc``, or ``zc`` array elements. The order of these four arrays 
+        here must match the order in ``set_dofs_impl()`` and ``get_dofs()`` 
+        in ``src/simsoptpp/surfacexyzfourier.h``. All parameters are
+        equivalent to those defined in the class constructor.
+        """
         x_names = []
         y_names = []
         z_names = []
