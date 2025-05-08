@@ -107,6 +107,15 @@ class BoozerSurface(Optimizable):
                 - `bfgs_maxiter` (int): maximum number of iterations for BFGS solver. Defaults to 1500.
                 - `limited_memory` (bool): True if L-BFGS solver is desired, False if the BFGS solver otherwise. Defaults to False.
                 - `weight_inv_modB` (float): for BoozerLS surfaces, weight the residual by modB so that it does not scale with coil currents.  Defaults to True.
+                - solver (int): Flag to decide what algorithm to use when running BoozerSurface.run_code, defaults to 4. Only used if boozer_type is 'ls'
+                    0: LBFGS.
+                    1: scipy LS (specify in options what method -  can be 'manual' or anything specified in scipy LS documentation)
+                    2: regular Newton -  see _minimize_boozer_penalty_constraints_newton
+                    3: exact Newton -  see _minimize_boozer_exact_constraints_newton
+                    4: LBGFS + regular Newton
+                    5: LBFGS + exact Newton
+                    6: scipy LS + regular Newton
+                    7: scipy LS + exact Newton
         """
         super().__init__(depends_on=[biotsavart])
 
@@ -160,12 +169,14 @@ class BoozerSurface(Optimizable):
                 options['ls_tol'] = 1e-10
             if 'ls_method' not in options:
                 options['ls_method'] = 'lm'
+            if 'solver' not in options:
+                options['solver'] = 4
         self.options = options
 
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
 
-    def run_code(self, iota, G=None, solver:int=4):
+    def run_code(self, iota, G=None):
         """
         Run the default solvers, i.e., run Newton's method directly if you are computing a BoozerExact surface,
         and run BFGS followed by Newton if you are computing a BoozerLS surface.
@@ -174,15 +185,6 @@ class BoozerSurface(Optimizable):
             boozer_type: either 'exact' or 'ls', to indicate whether a BoozerExact or a BoozerLS surface is to be computed.
             iota (float): guess for value of rotational transform on the surface,
             G (float, Optional): guess for value of G on surface, defaults to None.  Note that if None is used, then the coil currents must be fixed.
-            solver (int): Flag to decide what algorithm to use, defaults to 4. Only used if boozer_type is 'ls'
-                0: LBFGS.
-                1: scipy LS (specify in options what method -  can be 'manual' or anything specified in scipy LS documentation)
-                2: regular Newton -  see _minimize_boozer_penalty_constraints_newton
-                3: exact Newton -  see _minimize_boozer_exact_constraints_newton
-                4: LBGFS + regular Newton
-                5: LBFGS + exact Newton
-                6: scipy LS + regular Newton
-                7: scipy LS + exact Newton
             options: dictionary of solver options. If keyword is not specified, then a default 
                     value is used.  Possible keywords are:
                     `verbose`: display convergence information
@@ -231,6 +233,7 @@ class BoozerSurface(Optimizable):
             # 5: LBFGS + exact Newton
             # 6: scipy LS + regular Newton
             # 7: scipy LS + exact Newton
+            solver = self.options['solver']
             if solver in [0, 4, 5]:
                 print("Running boozer solver with LBFGS")
                 res = self._minimize_boozer_penalty_constraints_LBFGS(
@@ -1125,12 +1128,25 @@ class BoozerSurface(Optimizable):
         biotsavart = decoder.process_decoded(d["biotsavart"], serial_objs_dict, recon_objs)
         surface = decoder.process_decoded(d["surface"], serial_objs_dict, recon_objs)
         label = decoder.process_decoded(d["label"], serial_objs_dict, recon_objs)
-        out = cls(biotsavart, surface, label, d["targetlabel"], d["boozer_type"], d["constraint_weight"], d["options"])
 
-        res = d["res"]
-        if 'gradient' in res.keys():
-            res['gradient'] = np.array(res['gradient'])
-        res['s'] = surface
+        if "boozer_type" in d.keys():
+            btype = d["boozer_type"]
+        else:
+            btype = "ls"
+
+        if "options" in d.keys():
+            options = d["options"]
+        else:
+            options = {}
+        out = cls(biotsavart, surface, label, d["targetlabel"], btype, d["constraint_weight"], options)
+
+        if "res" in d.keys():
+            res = d["res"]
+            if 'gradient' in res.keys():
+                res['gradient'] = np.array(res['gradient'])
+            res['s'] = surface
+        else:
+            res = None
 
         out.res = res
         return out

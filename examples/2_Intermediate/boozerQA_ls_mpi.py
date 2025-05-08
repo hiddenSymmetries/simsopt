@@ -77,6 +77,7 @@ surfaces = surfaces[:nsurfaces]
 boozer_surfaces = boozer_surfaces[:nsurfaces]
 ress = ress[:nsurfaces]
 for boozer_surface, res in zip(boozer_surfaces, ress):
+    boozer_surface.options['solver'] = 4
     boozer_surface.run_code(res['iota'], res['G'])
 
 mpi_surfaces = MPIOptimizable(surfaces, ["x"], comm)
