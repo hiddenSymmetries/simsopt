@@ -97,7 +97,7 @@ optimization.  Others include `STELLOPT
 
 .. toctree::
    :maxdepth: 3
-   :caption: For Developers
+   :caption: Developer Reference
 
    example_derivative
    cpp
