@@ -11,7 +11,7 @@ The Gvec optimizable class is designed to be similar to the Vmec optimizable, bu
 import copy
 import logging
 from pathlib import Path
-from typing import Optional, Mapping, Literal
+from typing import Optional, Mapping, Literal, Union, Optional
 import shutil
 
 import numpy as np
@@ -76,12 +76,12 @@ class Gvec(Optimizable):
     def __init__(
         self,
         phiedge: float = 1.0,
-        boundary: Surface | None = None,
-        pressure: Profile | None = None,
-        iota: Profile | None = None,
-        current: Profile | None | Literal[0] = None,
+        boundary: Optional[Surface] = None,
+        pressure: Optional[Profile] = None,
+        iota: Optional[Profile] = None,
+        current: Optional[Union[Profile, Literal[0]]] = None,
         parameters: Mapping = {},
-        restart_file: str | Path | None = None,
+        restart_file: Optional[Union[str, Path]] = None,
         delete_intermediates: bool = False,
         mpi: Optional[MpiPartition] = None,
     ):
@@ -209,7 +209,7 @@ class Gvec(Optimizable):
     @classmethod
     def from_parameter_file(
         cls, 
-        base_parameter_file: str | Path,
+        base_parameter_file: Union[str, Path],
         *args,
         **kwargs,
     ):
@@ -451,7 +451,7 @@ class Gvec(Optimizable):
         return self._pressure
 
     @property
-    def iota_profile(self) -> Profile | None:
+    def iota_profile(self) -> Union[Profile, None]:
         """
         The rotational transform profile in terms of the normalized toroidal flux $s$.
 
@@ -460,7 +460,7 @@ class Gvec(Optimizable):
         return self._iota
     
     @iota_profile.setter
-    def iota_profile(self, profile: Profile | None):
+    def iota_profile(self, profile: Union[Profile, None]):
         logging.debug("Replacing iota profile")
         if self._iota is not None:
             self.remove_parent(self._iota)
@@ -470,7 +470,7 @@ class Gvec(Optimizable):
         self.run_required = True
     
     @property
-    def current_profile(self) -> Profile | None:
+    def current_profile(self) -> Union[Profile, None]:
         """
         The toroidal current profile in terms of the normalized toridal flux $s$.
 
@@ -479,7 +479,7 @@ class Gvec(Optimizable):
         return self._current
     
     @current_profile.setter
-    def current_profile(self, profile: Profile | None):
+    def current_profile(self, profile: Union[Profile, None]):
         logging.debug("Replacing toroidal current profile")
         if self._current is not None:
             self.remove_parent(self._current)
