@@ -330,6 +330,7 @@ class Surface(Optimizable):
         :math:`\phi` follows the same conventions as `Surfaces`, i.e. :math:`\phi=0, 1` 
         corresponds to the standard cylindrical angle :math:`0, 2\pi`, respectively.  This 
         function assumes that the surface intersection with the plane is a single curve.
+        The surface should only go once around the z-axis and it should not go back on itself.
 
         Parameters
         ----------
@@ -337,9 +338,11 @@ class Surface(Optimizable):
                 toroidal angle, the standard cylindrical angle normalized by :math:`2\pi`.
                 There is no restriction on :math:`\phi`, i.e. is can be larger than 1, or
                 smaller than 0.
-
             thetas (float, array, optional):
-                collocation points to compute cross-section with
+                can be (1) an integer indicating that the cross section should be calculated at the poloidal angles in the array
+                np.linspace(0, 1, thetas, endpoint=False), or (2) an array containing the poloidal positions at which the cross section 
+                should be computed, between 0 and 1.  If thetas is not provided, then the cross section will be calculated at the positions given by
+                self.quadpoints_theta.
             tol (float): 
                 the tolerance for the bisection root-finding
 
@@ -368,35 +371,37 @@ class Surface(Optimizable):
             self.gamma_lin(xs, phi_prime*np.ones(theta.size), theta)
             return xs
 
-        # sample the surface at the varphi and theta points
+        # sample the surface when varphi=0, and theta=thetas)
         gamma = np.zeros((theta.size, 3))
         self.gamma_lin(gamma, np.zeros(theta.size), theta)
         
-        # shift phi_prime by varphi0
-        varphi0 = np.arctan2(gamma[:, 1], gamma[:, 0])/(2*np.pi)
-        phi_prime = phi_prime*np.ones(theta.size)-varphi0
+        # shift target phi_prime by phi0
+        phi0 = np.arctan2(gamma[:, 1], gamma[:, 0])/(2*np.pi)
+        phi_prime = phi_prime*np.ones(theta.size)-phi0
         phi_prime += np.ceil(-phi_prime)
         
-        def varphi2phi(varphi_in, varphi0):
+        def varphi2phi(varphi_in, phi0):
             """
-            Convert varphi to phi, where phi is a continuous function that satisfies:
+            Convert varphi to phi, where phi=varphi2phi(varphi, phi0) is a continuous function in varphi that satisfies:
             
-            varphi2phi(0) = 0
-            0 <= varphi2phi(phi) < 1.0
+            varphi2phi(0, phi0) = 0
+            0 <= varphi2phi(varphi, phi0) < 1.0
 
             Args:
                 varphi_in (float): the value of varphi on the surface at which we want the cylindrical angle
-                varphi0 (float): shift
+                phi0 (float): shift
 
             Returns:
-                phi (float): a shifted cylindrical coordinate that is continuous in varphi
+                phi (float): a shifted cylindrical coordinate that is continuous in varphi. The true cylindrical
+                             coordinate is phi+phi0
             """
             gamma = np.zeros((varphi_in.size, 3))
             self.gamma_lin(gamma, varphi_in, theta)
-            angle = np.arctan2(gamma[:, 1], gamma[:, 0])/(2*np.pi) - varphi0
+            angle = np.arctan2(gamma[:, 1], gamma[:, 0])/(2*np.pi) - phi0
             angle += np.ceil(-angle)
             return angle
         
+        # set the initial brackets for bisection
         varphia = np.zeros(theta.size)
         phia = np.zeros(theta.size)
         varphic = np.ones(theta.size)
@@ -405,7 +410,7 @@ class Surface(Optimizable):
         err = np.inf
         while err > tol:
             varphib = (varphia + varphic) / 2.
-            phib = varphi2phi(varphib, varphi0)
+            phib = varphi2phi(varphib, phi0)
             
             if not np.all((phia <= phib) & (phib <= phic)):
                 raise Exception("An error occured during calculation of the cross section.  \
