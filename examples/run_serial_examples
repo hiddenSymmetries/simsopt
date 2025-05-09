@@ -33,5 +33,5 @@ set -ex
 ./3_Advanced/coil_force_optimization/coil_force_objectives_scan.py LpCurveTorque 1e-10
 ./3_Advanced/coil_force_optimization/coil_force_objectives_scan.py SquaredMeanForce 1e-10
 ./3_Advanced/coil_force_optimization/coil_force_objectives_scan.py SquaredMeanTorque 1e-10
-./3_Advanced/coil_force_optimization/coil_force_objectives_scan.py TVE 1e-10
+./3_Advanced/coil_force_optimization/coil_force_objectives_scan.py B2_Energy 1e-10
 ./3_Advanced/wireframe_gsco_multistep.py

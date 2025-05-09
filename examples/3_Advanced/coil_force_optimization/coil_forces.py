@@ -129,8 +129,9 @@ Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
-regularization_list = [regularization_circ(a) for i in range(ncoils)]
-Jforce = LpCurveForce(base_coils, coils, regularization_list, p=4)
+for c in coils:
+    c.regularization = regularization_circ(a)
+Jforce = LpCurveForce(base_coils, coils, p=4)
 J_b2energy = B2_Energy(coils)
 
 # Form the total objective function. To do this, we can exploit the

@@ -363,7 +363,7 @@ def coils_to_vtk(coils, filename, close=False, extra_data=None):
         pointData = {**pointData, **extra_data}
     curves_to_vtk(curves, filename, close=close, extra_data=pointData)
 
-def coils_via_symmetries(curves, currents, nfp, stellsym):
+def coils_via_symmetries(curves, currents, nfp, stellsym, regularizations=None):
     """
     Generate a list of Coil objects by applying rotational and (optionally) stellarator symmetries.
 
@@ -381,6 +381,9 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
         Number of field periods (rotational symmetry).
     stellsym : bool
         Whether to apply stellarator symmetry.
+    regularization : Regularization
+        The regularization object for the coils representing the finite coil cross section.
+        Default is a circular cross section with radius 0.05.
 
     Returns
     -------
@@ -391,7 +394,9 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     assert len(curves) == len(currents)
     curves = apply_symmetries_to_curves(curves, nfp, stellsym)
     currents = apply_symmetries_to_currents(currents, nfp, stellsym)
-    coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
+    if regularizations is None:
+        regularizations = [regularization_circ(0.05) for _ in curves]
+    coils = [Coil(curv, curr, regularization) for (curv, curr, regularization) in zip(curves, currents, regularizations)]
     return coils
 
 

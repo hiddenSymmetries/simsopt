@@ -153,7 +153,8 @@ Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 Jlength = QuadraticPenalty(sum(Jls), LENGTH_TARGET)
-regularization_list = [regularization_circ(a) for i in range(ncoils)]
+for c in coils:
+    c.regularization = regularization_circ(0.05)
 
 if sys.argv[1] == 'SquaredMeanForce':
     Jforce = SquaredMeanForce(base_coils, coils)
@@ -162,15 +163,15 @@ elif sys.argv[1] == 'SquaredMeanTorque':
 elif sys.argv[1] == 'LpCurveForce':
     print('If user did not specify the threshold as the third command line argument, it will be set to zero ')
     try:
-        Jforce = LpCurveForce(base_coils, coils, regularization_list, p=2, threshold=float(sys.argv[3]))
+        Jforce = LpCurveForce(base_coils, coils, p=2, threshold=float(sys.argv[3]))
     except:
-        Jforce = LpCurveForce(base_coils, coils, regularization_list, p=2, threshold=0.0)
+        Jforce = LpCurveForce(base_coils, coils, p=2, threshold=0.0)
 elif sys.argv[1] == 'LpCurveTorque':
     print('If user did not specify the threshold as the third command line argument, it will be set to zero ')
     try:
-        Jforce = LpCurveTorque(base_coils, coils, regularization_list, p=2, threshold=float(sys.argv[3]))
+        Jforce = LpCurveTorque(base_coils, coils, p=2, threshold=float(sys.argv[3]))
     except:
-        Jforce = LpCurveTorque(base_coils, coils, regularization_list, p=2, threshold=0.0)
+        Jforce = LpCurveTorque(base_coils, coils, p=2, threshold=0.0)
 elif sys.argv[1] == 'B2_Energy':
     Jforce = B2_Energy(coils)
 elif sys.argv[1] == 'NetFluxes':

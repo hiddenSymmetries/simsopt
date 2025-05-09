@@ -14,12 +14,19 @@ from .plotting import fix_matplotlib_3d
 __all__ = ['Curve', 'JaxCurve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves',
            'create_equally_spaced_planar_curves', 'create_planar_curves_between_two_toroidal_surfaces']
 
-@jit     
-def center_pure(gamma, gammadash):
-    # Compute the centroid of the curve
+@jit
+def centroid_pure(gamma, gammadash):
+    """
+    This pure function is used in a Python+Jax implementation of formula for centroid.
+
+    .. math::
+        \mathbf{c} = \frac{1}{L} \int_0^L \mathbf{\gamma}(\phi) d\phi
+
+    where :math:`L` is the arclength of the curve.
+    """
     arclength = jnp.linalg.norm(gammadash, axis=-1)
-    barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / jnp.sum(arclength)
-    return barycenter
+    centroid = jnp.sum(gamma * arclength[:, None], axis=0) / jnp.sum(arclength)
+    return centroid
 
 @jit
 def incremental_arclength_pure(d1gamma):
@@ -414,11 +421,18 @@ class Curve(Optimizable):
             )
         return dkappadash_by_dcoeff
 
-    def center(self):
-        # Compute the centroid of the curve
-        gamma = self.gamma()
-        gammadash = self.gammadash()
-        return center_pure(gamma, gammadash)
+    def centroid(self):
+        """ 
+        Compute the centroid of the curve
+
+        .. math::
+            \mathbf{c} = \frac{1}{L} \int_0^L \mathbf{\gamma}(\phi) d\phi
+
+        where :math:`L` is the arclength of the curve. Note that this function was once called
+        `center` but this conflicts with the center property of the C++ CurvePlanarFourier
+        implementation.
+        """
+        return centroid_pure(self.gamma(), self.gammadash())
 
 class JaxCurve(sopp.Curve, Curve):
     def __init__(self, quadpoints, gamma_pure, **kwargs):
@@ -455,9 +469,9 @@ class JaxCurve(sopp.Curve, Curve):
         self.dgammadashdashdash_by_dcoeff_jax = jit(jacfwd(self.gammadashdashdash_jax))
         self.dgammadashdashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdashdash_jax, x)[1](v)[0])
 
-        self.center_jax = jit(lambda x, v: center_pure(x, v))
-        self.dcenter_dgamma = jit(jacfwd(self.center_jax, argnums=0))
-        self.dcenter_dgammadash = jit(jacfwd(self.center_jax, argnums=1))
+        self.centroid_jax = jit(lambda x, v: centroid_pure(x, v))
+        self.dcentroid_dgamma = jit(jacfwd(self.centroid_jax, argnums=0))
+        self.dcentroid_dgammadash = jit(jacfwd(self.centroid_jax, argnums=1))
         self.kappa_pure = kappa_pure
         self.kappa_jax = jit(lambda x, v: kappa_pure(x, v))
         self.kappa_impl_jax = jit(lambda x, v: kappa_pure(x, v))
@@ -704,11 +718,16 @@ class RotatedCurve(sopp.Curve, Curve):
         """
         return self.curve.num_dofs()
     
-    def center(self):
-        # Compute the centroid of the curve
-        gamma = self.gamma()
-        gammadash = self.gammadash()
-        return center_pure(gamma, gammadash)
+    def centroid(self):
+        """ 
+        Compute the centroid of the curve
+
+        .. math::
+            \mathbf{c} = \frac{1}{L} \int_0^L \mathbf{\gamma}(\phi) d\phi
+
+        where :math:`L` is the arclength of the curve.
+        """
+        return centroid_pure(self.gamma(), self.gammadash())
 
     def gamma_impl(self, gamma, quadpoints):
         r"""
