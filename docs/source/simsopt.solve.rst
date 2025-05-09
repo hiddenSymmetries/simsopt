@@ -28,8 +28,8 @@ simsopt.solve.serial module
    :undoc-members:
    :show-inheritance:
 
-simsopt.solve.wireframe_optimization module
--------------------------------------------
+simsopt.solve.wireframe\_optimization module
+--------------------------------------------
 
 .. automodule:: simsopt.solve.wireframe_optimization
    :members:
