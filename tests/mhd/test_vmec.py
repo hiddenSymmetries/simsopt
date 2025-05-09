@@ -24,7 +24,6 @@ from simsopt.solve.serial import least_squares_serial_solve
 from simsopt.util.constants import ELEMENTARY_CHARGE
 
 from simsopt.mhd.vmec import Vmec
-from simsopt.configs import get_w7x_data
 
 
 from . import TEST_DIR
@@ -692,8 +691,7 @@ class VmecTests(unittest.TestCase):
         Runs with very few iterations for quick CI.
         Previously, get_max_mn() would not updated immediately upon
         """
-        #with ScratchDir("."):
-        if True:
+        with ScratchDir("."):
             v = Vmec(os.path.join(TEST_DIR, 'input.li383_low_res'))
             v.indata.niter_array[:2] = [100, 0]
             v.indata.ftol_array[0] = 1e-4
