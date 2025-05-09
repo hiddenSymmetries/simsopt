@@ -33,13 +33,13 @@ __all__ = [
 ]
 
 
-def coil_force(coil, allcoils):
+def coil_force(coil, other_coils):
     """
     Compute the force on a coil.
 
     Args:
         coil (Coil): Coil to compute the pointwise forces on.
-        allcoils (list): List of coils contributing forces on the primary coil.
+        other_coils (list): List of coils contributing forces on the primary coil.
         regularization (Regularization): Regularization object.
 
     Returns:
@@ -48,7 +48,7 @@ def coil_force(coil, allcoils):
     gammadash = coil.curve.gammadash()
     gammadash_norm = np.linalg.norm(gammadash, axis=1)[:, None]
     tangent = gammadash / gammadash_norm
-    mutual_coils = [c for c in allcoils if c is not coil]
+    mutual_coils = [c for c in other_coils if c is not coil]
 
     ### Line below seems to be the issue -- all these BiotSavart objects seem to stick
     ### around and not to go out of scope after these calls!
@@ -59,32 +59,32 @@ def coil_force(coil, allcoils):
     return (selfforce + mutualforce)
 
 
-def coil_net_force(coil, allcoils):
+def coil_net_force(coil, other_coils):
     """
     Compute the net forces on a list of coils.
 
     Args:
         coils (list): Coil to compute the net forces on.
-        allcoils (list): List of coils contributing forces on the primary coil.
+        other_coils (list): List of coils contributing forces on the primary coil.
         regularization (Regularization): Regularization object.
 
     Returns:
         array: Array of net forces.
     """
-    Fi = coil_force(coil, allcoils)
+    Fi = coil_force(coil, other_coils)
     gammadash = coil.curve.gammadash()
     gammadash_norm = np.linalg.norm(gammadash, axis=1)[:, None]
     net_force = np.sum(gammadash_norm * Fi, axis=0) / gammadash.shape[0]
     return net_force
 
 
-def coil_torque(coil, allcoils):
+def coil_torque(coil, other_coils):
     """
     Compute the torques on a coil.
 
     Args:
         coil (Coil): Coil to compute the pointwise torques on.
-        allcoils (list): List of coils contributing torques on the primary coil.
+        other_coils (list): List of coils contributing torques on the primary coil.
         regularization (Regularization): Regularization object.
 
     Returns:
@@ -92,22 +92,22 @@ def coil_torque(coil, allcoils):
     """
     gamma = coil.curve.gamma()
     center = coil.curve.centroid()
-    return np.cross(gamma - center, coil_force(coil, allcoils))
+    return np.cross(gamma - center, coil_force(coil, other_coils))
 
 
-def coil_net_torque(coil, allcoils):
+def coil_net_torque(coil, other_coils):
     """
     Compute the net torques on a list of coils.
 
     Args:
         coils (list): Coil to compute the net torques on.
-        allcoils (list): List of coils contributing torques on the primary coil.
+        other_coils (list): List of coils contributing torques on the primary coil.
         regularization (Regularization): Regularization object.
 
     Returns:
         array: Array of net torques.
     """
-    Ti = coil_torque(coil, allcoils)
+    Ti = coil_torque(coil, other_coils)
     gammadash = coil.curve.gammadash()
     gammadash_norm = np.linalg.norm(gammadash, axis=1)[:, None]
     net_torque = np.sum(gammadash_norm * Ti, axis=0) / gammadash.shape[0]
@@ -224,17 +224,17 @@ class LpCurveForce_deprecated(Optimizable):
 
     Args:
         coil (Coil): Coil whose force is being computed.
-        allcoils (list): List of coils to use for computing LpCurveForce of the primary coil. 
+        other_coils (list): List of coils to use for computing LpCurveForce of the primary coil. 
         regularization (Regularization): Regularization object.
         p (float): Power of the objective function.
         threshold (float): Threshold for the objective function.
         downsample (int): Downsample factor for the objective function.
     """
 
-    def __init__(self, coil, allcoils, regularization, p=2.0, threshold=0.0, downsample=1):
+    def __init__(self, coil, other_coils, regularization, p=2.0, threshold=0.0, downsample=1):
         coil.regularization = regularization  # for backwards compatibility
         self.coil = coil
-        self.othercoils = [c for c in allcoils if c is not coil]
+        self.othercoils = [c for c in other_coils if c is not coil]
         self.biotsavart = BiotSavart(self.othercoils)
         quadpoints = self.coil.curve.quadpoints
         self.downsample = downsample
@@ -275,7 +275,7 @@ class LpCurveForce_deprecated(Optimizable):
             **args
         )
 
-        super().__init__(depends_on=allcoils)
+        super().__init__(depends_on=other_coils)
 
     def J(self):
         gamma = self.coil.curve.gamma()
@@ -408,16 +408,16 @@ class MeanSquaredForce_deprecated(Optimizable):
 
     Args:
         coil (Coil): Coil whose force is being computed.
-        allcoils (list): List of coils to use for computing MeanSquaredForce of the primary coil. 
+        other_coils (list): List of coils to use for computing MeanSquaredForce of the primary coil. 
         regularization (Regularization): Regularization object.
         downsample (int): Downsample factor for the objective function.
     """
 
-    def __init__(self, coil, allcoils, regularization, downsample=1):
+    def __init__(self, coil, other_coils, regularization, downsample=1):
         coil.regularization = regularization  # for backwards compatibility
         self.coil = coil
-        self.allcoils = allcoils
-        self.othercoils = [c for c in allcoils if c is not coil]
+        self.other_coils = other_coils
+        self.othercoils = [c for c in other_coils if c is not coil]
         self.biotsavart = BiotSavart(self.othercoils)
         quadpoints = self.coil.curve.quadpoints
         self.downsample = downsample
@@ -459,7 +459,7 @@ class MeanSquaredForce_deprecated(Optimizable):
             **args
         )
 
-        super().__init__(depends_on=allcoils)
+        super().__init__(depends_on=other_coils)
 
     def J(self):
         gamma = self.coil.curve.gamma()
@@ -700,15 +700,15 @@ class B2_Energy(Optimizable):
     and :math:`I_i` is the current in the ith coil.
 
     Args:
-        allcoils (Coil): List of coils contributing to the total energy.
+        coils_to_target (Coil): List of coils contributing to the total energy.
         downsample (int): Downsample factor for the objective function.
         cross_section (str): Cross-section type.
     """
 
-    def __init__(self, allcoils, downsample=1):
-        self.allcoils = allcoils
+    def __init__(self, coils_to_target, downsample=1):
+        self.coils_to_target = coils_to_target
         self.downsample = downsample
-        regularizations = jnp.asarray([c.regularization for c in self.allcoils])
+        regularizations = jnp.asarray([c.regularization for c in self.coils_to_target])
 
         args = {"static_argnums": (3,)}
         self.J_jax = jit(
@@ -735,14 +735,14 @@ class B2_Energy(Optimizable):
             **args
         )
 
-        super().__init__(depends_on=allcoils)
+        super().__init__(depends_on=coils_to_target)
 
     def J(self):
 
         args = [
-            jnp.asarray([c.curve.gamma() for c in self.allcoils]),
-            jnp.asarray([c.curve.gammadash() for c in self.allcoils]),
-            jnp.asarray([c.current.get_value() for c in self.allcoils]),
+            jnp.asarray([c.curve.gamma() for c in self.coils_to_target]),
+            jnp.asarray([c.curve.gammadash() for c in self.coils_to_target]),
+            jnp.asarray([c.current.get_value() for c in self.coils_to_target]),
             self.downsample
         ]
 
@@ -752,19 +752,19 @@ class B2_Energy(Optimizable):
     def dJ(self):
 
         args = [
-            jnp.asarray([c.curve.gamma() for c in self.allcoils]),
-            jnp.asarray([c.curve.gammadash() for c in self.allcoils]),
-            jnp.asarray([c.current.get_value() for c in self.allcoils]),
+            jnp.asarray([c.curve.gamma() for c in self.coils_to_target]),
+            jnp.asarray([c.curve.gammadash() for c in self.coils_to_target]),
+            jnp.asarray([c.current.get_value() for c in self.coils_to_target]),
             self.downsample
         ]
         dJ_dgammas = self.dJ_dgammas(*args)
         dJ_dgammadashs = self.dJ_dgammadashs(*args)
         dJ_dcurrents = self.dJ_dcurrents(*args)
-        vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrents[i]])) for i, c in enumerate(self.allcoils)])
+        vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrents[i]])) for i, c in enumerate(self.coils_to_target)])
 
         dJ = (
-            sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgammas[i]) for i, c in enumerate(self.allcoils)])
-            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadashs[i]) for i, c in enumerate(self.allcoils)])
+            sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgammas[i]) for i, c in enumerate(self.coils_to_target)])
+            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadashs[i]) for i, c in enumerate(self.coils_to_target)])
             + vjp
         )
 
@@ -1036,21 +1036,21 @@ class SquaredMeanForce(Optimizable):
     coils with all different number of quadrature points and different types of cross-sections.
 
     Args:
-        allcoils (list): List of coils to use for computing MeanSquaredForce. 
-        allcoils2 (list): List of coils that provide forces on the first set of coils but that
+        coils_to_target (list): List of coils to use for computing MeanSquaredForce. 
+        other_coils (list): List of coils that provide forces on the first set of coils but that
             we do not care about optimizing their forces. 
         downsample (int): Downsample factor for the objective function.
     """
 
-    def __init__(self, allcoils, allcoils2, downsample=1):
+    def __init__(self, coils_to_target, other_coils, downsample=1):
         if not isinstance(downsample, int):
             raise ValueError("downsample must be an integer")
-        if not isinstance(allcoils, list):
-            allcoils = [allcoils]
-        if not isinstance(allcoils2, list):
-            allcoils2 = [allcoils2]
-        self.allcoils = allcoils
-        self.allcoils2 = [c for c in allcoils2 if c not in allcoils]
+        if not isinstance(coils_to_target, list):
+            coils_to_target = [coils_to_target]
+        if not isinstance(other_coils, list):
+            other_coils = [other_coils]
+        self.coils_to_target = coils_to_target
+        self.other_coils = [c for c in other_coils if c not in coils_to_target]
         self.downsample = downsample
         args = {"static_argnums": (6,)}
 
@@ -1096,17 +1096,17 @@ class SquaredMeanForce(Optimizable):
             **args
         )
 
-        super().__init__(depends_on=(allcoils + allcoils2))
+        super().__init__(depends_on=(coils_to_target + other_coils))
 
     def J(self):
 
         args = [
-            [c.curve.gamma() for c in self.allcoils],
-            [c.curve.gamma() for c in self.allcoils2],
-            [c.curve.gammadash() for c in self.allcoils],
-            [c.curve.gammadash() for c in self.allcoils2],
-            [c.current.get_value() for c in self.allcoils],
-            [c.current.get_value() for c in self.allcoils2],
+            [c.curve.gamma() for c in self.coils_to_target],
+            [c.curve.gamma() for c in self.other_coils],
+            [c.curve.gammadash() for c in self.coils_to_target],
+            [c.curve.gammadash() for c in self.other_coils],
+            [c.current.get_value() for c in self.coils_to_target],
+            [c.current.get_value() for c in self.other_coils],
             self.downsample,
         ]
 
@@ -1116,12 +1116,12 @@ class SquaredMeanForce(Optimizable):
     def dJ(self):
 
         args = [
-            [c.curve.gamma() for c in self.allcoils],
-            [c.curve.gamma() for c in self.allcoils2],
-            [c.curve.gammadash() for c in self.allcoils],
-            [c.curve.gammadash() for c in self.allcoils2],
-            [c.current.get_value() for c in self.allcoils],
-            [c.current.get_value() for c in self.allcoils2],
+            [c.curve.gamma() for c in self.coils_to_target],
+            [c.curve.gamma() for c in self.other_coils],
+            [c.curve.gammadash() for c in self.coils_to_target],
+            [c.curve.gammadash() for c in self.other_coils],
+            [c.current.get_value() for c in self.coils_to_target],
+            [c.current.get_value() for c in self.other_coils],
             self.downsample,
         ]
         dJ_dgamma = self.dJ_dgamma(*args)
@@ -1131,14 +1131,14 @@ class SquaredMeanForce(Optimizable):
         dJ_dgammadash2 = self.dJ_dgammadash2(*args)
         dJ_dcurrent2 = self.dJ_dcurrent2(*args)
 
-        vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent[i]])) for i, c in enumerate(self.allcoils)])
+        vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent[i]])) for i, c in enumerate(self.coils_to_target)])
         dJ = (
-            sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma[i]) for i, c in enumerate(self.allcoils)])
-            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash[i]) for i, c in enumerate(self.allcoils)])
-            + sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma2[i]) for i, c in enumerate(self.allcoils2)])
-            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash2[i]) for i, c in enumerate(self.allcoils2)])
+            sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma[i]) for i, c in enumerate(self.coils_to_target)])
+            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash[i]) for i, c in enumerate(self.coils_to_target)])
+            + sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma2[i]) for i, c in enumerate(self.other_coils)])
+            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash2[i]) for i, c in enumerate(self.other_coils)])
             + vjp
-            + sum([c.current.vjp(jnp.asarray([dJ_dcurrent2[i]])) for i, c in enumerate(self.allcoils2)])
+            + sum([c.current.vjp(jnp.asarray([dJ_dcurrent2[i]])) for i, c in enumerate(self.other_coils)])
         )
         return dJ
 
@@ -1246,23 +1246,23 @@ class LpCurveForce(Optimizable):
     coils with all different number of quadrature points and different types ofcross-sections.
 
     Args:
-        allcoils (list): List of coils to use for computing LpCurveForce. 
-        allcoils2 (list): List of coils that provide forces on the first set of coils but that
+        coils_to_target (list): List of coils to use for computing LpCurveForce. 
+        other_coils (list): List of coils that provide forces on the first set of coils but that
             we do not care about optimizing their forces. 
         p (float): Power of the objective function.
         threshold (float): Threshold for the objective function.
         downsample (int): Downsample factor for the objective function.
     """
 
-    def __init__(self, allcoils, allcoils2, p=2.0, threshold=0.0, downsample=1):
-        if not isinstance(allcoils, list):
-            allcoils = [allcoils]
-        if not isinstance(allcoils2, list):
-            allcoils2 = [allcoils2]
-        regularizations = jnp.array([c.regularization for c in allcoils])
-        self.allcoils = allcoils
-        self.allcoils2 = [c for c in allcoils2 if c not in allcoils]
-        quadpoints = [c.curve.quadpoints for c in allcoils]
+    def __init__(self, coils_to_target, other_coils, p=2.0, threshold=0.0, downsample=1):
+        if not isinstance(coils_to_target, list):
+            coils_to_target = [coils_to_target]
+        if not isinstance(other_coils, list):
+            other_coils = [other_coils]
+        regularizations = jnp.array([c.regularization for c in coils_to_target])
+        self.coils_to_target = coils_to_target
+        self.other_coils = [c for c in other_coils if c not in coils_to_target]
+        quadpoints = [c.curve.quadpoints for c in coils_to_target]
         self.downsample = downsample
         args = {"static_argnums": (7,)}
         self.J_jax = jit(
@@ -1313,18 +1313,18 @@ class LpCurveForce(Optimizable):
             **args
         )
 
-        super().__init__(depends_on=(allcoils + allcoils2))
+        super().__init__(depends_on=(coils_to_target + other_coils))
 
     def J(self):
 
         args = [
-            [c.curve.gamma() for c in self.allcoils],
-            [c.curve.gamma() for c in self.allcoils2],
-            [c.curve.gammadash() for c in self.allcoils],
-            [c.curve.gammadash() for c in self.allcoils2],
-            [c.curve.gammadashdash() for c in self.allcoils],
-            [c.current.get_value() for c in self.allcoils],
-            [c.current.get_value() for c in self.allcoils2],
+            [c.curve.gamma() for c in self.coils_to_target],
+            [c.curve.gamma() for c in self.other_coils],
+            [c.curve.gammadash() for c in self.coils_to_target],
+            [c.curve.gammadash() for c in self.other_coils],
+            [c.curve.gammadashdash() for c in self.coils_to_target],
+            [c.current.get_value() for c in self.coils_to_target],
+            [c.current.get_value() for c in self.other_coils],
             self.downsample,
         ]
 
@@ -1334,13 +1334,13 @@ class LpCurveForce(Optimizable):
     def dJ(self):
 
         args = [
-            [c.curve.gamma() for c in self.allcoils],
-            [c.curve.gamma() for c in self.allcoils2],
-            [c.curve.gammadash() for c in self.allcoils],
-            [c.curve.gammadash() for c in self.allcoils2],
-            [c.curve.gammadashdash() for c in self.allcoils],
-            [c.current.get_value() for c in self.allcoils],
-            [c.current.get_value() for c in self.allcoils2],
+            [c.curve.gamma() for c in self.coils_to_target],
+            [c.curve.gamma() for c in self.other_coils],
+            [c.curve.gammadash() for c in self.coils_to_target],
+            [c.curve.gammadash() for c in self.other_coils],
+            [c.curve.gammadashdash() for c in self.coils_to_target],
+            [c.current.get_value() for c in self.coils_to_target],
+            [c.current.get_value() for c in self.other_coils],
             self.downsample,
         ]
         dJ_dgamma = self.dJ_dgamma(*args)
@@ -1351,15 +1351,15 @@ class LpCurveForce(Optimizable):
         dJ_dgammadash2 = self.dJ_dgammadash2(*args)
         dJ_dcurrent2 = self.dJ_dcurrent2(*args)
 
-        vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent[i]])) for i, c in enumerate(self.allcoils)])
+        vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent[i]])) for i, c in enumerate(self.coils_to_target)])
         dJ = (
-            sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma[i]) for i, c in enumerate(self.allcoils)])
-            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash[i]) for i, c in enumerate(self.allcoils)])
-            + sum([c.curve.dgammadashdash_by_dcoeff_vjp(dJ_dgammadashdash[i]) for i, c in enumerate(self.allcoils)])
+            sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma[i]) for i, c in enumerate(self.coils_to_target)])
+            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash[i]) for i, c in enumerate(self.coils_to_target)])
+            + sum([c.curve.dgammadashdash_by_dcoeff_vjp(dJ_dgammadashdash[i]) for i, c in enumerate(self.coils_to_target)])
             + vjp
-            + sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma2[i]) for i, c in enumerate(self.allcoils2)])
-            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash2[i]) for i, c in enumerate(self.allcoils2)])
-            + sum([c.current.vjp(jnp.asarray([dJ_dcurrent2[i]])) for i, c in enumerate(self.allcoils2)])
+            + sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma2[i]) for i, c in enumerate(self.other_coils)])
+            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash2[i]) for i, c in enumerate(self.other_coils)])
+            + sum([c.current.vjp(jnp.asarray([dJ_dcurrent2[i]])) for i, c in enumerate(self.other_coils)])
         )
 
         return dJ
@@ -1488,23 +1488,23 @@ class LpCurveTorque(Optimizable):
     coils with all different number of quadrature points and different types of cross-sections.
 
     Args:
-        allcoils (list): List of coils to use for computing LpCurveTorque. 
-        allcoils2 (list): List of coils that provide torques on the first set of coils but that
+        coils_to_target (list): List of coils to use for computing LpCurveTorque. 
+        other_coils (list): List of coils that provide torques on the first set of coils but that
             we do not care about optimizing their torques. 
         p (float): Power of the objective function.
         threshold (float): Threshold for the objective function.
         downsample (int): Downsample factor for the objective function.
     """
 
-    def __init__(self, allcoils, allcoils2, p=2.0, threshold=0.0, downsample=1):
-        if not isinstance(allcoils, list):
-            allcoils = [allcoils]
-        if not isinstance(allcoils2, list):
-            allcoils2 = [allcoils2]
-        regularizations = jnp.array([c.regularization for c in allcoils])
-        self.allcoils = allcoils
-        self.allcoils2 = [c for c in allcoils2 if c not in allcoils]
-        quadpoints = [c.curve.quadpoints for c in allcoils]
+    def __init__(self, coils_to_target, other_coils, p=2.0, threshold=0.0, downsample=1):
+        if not isinstance(coils_to_target, list):
+            coils_to_target = [coils_to_target]
+        if not isinstance(other_coils, list):
+            other_coils = [other_coils]
+        regularizations = jnp.array([c.regularization for c in coils_to_target])
+        self.coils_to_target = coils_to_target
+        self.other_coils = [c for c in other_coils if c not in coils_to_target]
+        quadpoints = [c.curve.quadpoints for c in coils_to_target]
         self.downsample = downsample
         args = {"static_argnums": (7,)}
 
@@ -1557,18 +1557,18 @@ class LpCurveTorque(Optimizable):
             **args
         )
 
-        super().__init__(depends_on=(allcoils + allcoils2))
+        super().__init__(depends_on=(coils_to_target + other_coils))
 
     def J(self):
 
         args = [
-            [c.curve.gamma() for c in self.allcoils],
-            [c.curve.gamma() for c in self.allcoils2],
-            [c.curve.gammadash() for c in self.allcoils],
-            [c.curve.gammadash() for c in self.allcoils2],
-            [c.curve.gammadashdash() for c in self.allcoils],
-            [c.current.get_value() for c in self.allcoils],
-            [c.current.get_value() for c in self.allcoils2],
+            [c.curve.gamma() for c in self.coils_to_target],
+            [c.curve.gamma() for c in self.other_coils],
+            [c.curve.gammadash() for c in self.coils_to_target],
+            [c.curve.gammadash() for c in self.other_coils],
+            [c.curve.gammadashdash() for c in self.coils_to_target],
+            [c.current.get_value() for c in self.coils_to_target],
+            [c.current.get_value() for c in self.other_coils],
             self.downsample,
         ]
 
@@ -1578,13 +1578,13 @@ class LpCurveTorque(Optimizable):
     def dJ(self):
 
         args = [
-            [c.curve.gamma() for c in self.allcoils],
-            [c.curve.gamma() for c in self.allcoils2],
-            [c.curve.gammadash() for c in self.allcoils],
-            [c.curve.gammadash() for c in self.allcoils2],
-            [c.curve.gammadashdash() for c in self.allcoils],
-            [c.current.get_value() for c in self.allcoils],
-            [c.current.get_value() for c in self.allcoils2],
+            [c.curve.gamma() for c in self.coils_to_target],
+            [c.curve.gamma() for c in self.other_coils],
+            [c.curve.gammadash() for c in self.coils_to_target],
+            [c.curve.gammadash() for c in self.other_coils],
+            [c.curve.gammadashdash() for c in self.coils_to_target],
+            [c.current.get_value() for c in self.coils_to_target],
+            [c.current.get_value() for c in self.other_coils],
             self.downsample,
         ]
         dJ_dgamma = self.dJ_dgamma(*args)
@@ -1595,16 +1595,16 @@ class LpCurveTorque(Optimizable):
         dJ_dgammadash2 = self.dJ_dgammadash2(*args)
         dJ_dcurrent2 = self.dJ_dcurrent2(*args)
 
-        vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent[i]])) for i, c in enumerate(self.allcoils)])
+        vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent[i]])) for i, c in enumerate(self.coils_to_target)])
 
         dJ = (
-            sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma[i]) for i, c in enumerate(self.allcoils)])
-            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash[i]) for i, c in enumerate(self.allcoils)])
-            + sum([c.curve.dgammadashdash_by_dcoeff_vjp(dJ_dgammadashdash[i]) for i, c in enumerate(self.allcoils)])
+            sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma[i]) for i, c in enumerate(self.coils_to_target)])
+            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash[i]) for i, c in enumerate(self.coils_to_target)])
+            + sum([c.curve.dgammadashdash_by_dcoeff_vjp(dJ_dgammadashdash[i]) for i, c in enumerate(self.coils_to_target)])
             + vjp
-            + sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma2[i]) for i, c in enumerate(self.allcoils2)])
-            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash2[i]) for i, c in enumerate(self.allcoils2)])
-            + sum([c.current.vjp(jnp.asarray([dJ_dcurrent2[i]])) for i, c in enumerate(self.allcoils2)])
+            + sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma2[i]) for i, c in enumerate(self.other_coils)])
+            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash2[i]) for i, c in enumerate(self.other_coils)])
+            + sum([c.current.vjp(jnp.asarray([dJ_dcurrent2[i]])) for i, c in enumerate(self.other_coils)])
         )
 
         return dJ
@@ -1720,8 +1720,8 @@ class SquaredMeanTorque(Optimizable):
     coils with all different number of quadrature points and different types of cross-sections.
 
     Args:
-        allcoils (list): List of coils to use for computing SquaredMeanTorque. 
-        allcoils2 (list): List of coils that provide torques on the first set of coils but that
+        coils_to_target (list): List of coils to use for computing SquaredMeanTorque. 
+        other_coils (list): List of coils that provide torques on the first set of coils but that
             we do not care about optimizing their torques. 
         downsample (int): Downsample factor for the objective function.
 
@@ -1729,13 +1729,13 @@ class SquaredMeanTorque(Optimizable):
         float: Value of the objective function.
     """
 
-    def __init__(self, allcoils, allcoils2, downsample=1):
-        if not isinstance(allcoils, list):
-            allcoils = [allcoils]
-        if not isinstance(allcoils2, list):
-            allcoils2 = [allcoils2]
-        self.allcoils = allcoils
-        self.allcoils2 = [c for c in allcoils2 if c not in allcoils]
+    def __init__(self, coils_to_target, other_coils, downsample=1):
+        if not isinstance(coils_to_target, list):
+            coils_to_target = [coils_to_target]
+        if not isinstance(other_coils, list):
+            other_coils = [other_coils]
+        self.coils_to_target = coils_to_target
+        self.other_coils = [c for c in other_coils if c not in coils_to_target]
         self.downsample = downsample
         args = {"static_argnums": (6,)}
 
@@ -1781,17 +1781,17 @@ class SquaredMeanTorque(Optimizable):
             **args
         )
 
-        super().__init__(depends_on=(allcoils + allcoils2))
+        super().__init__(depends_on=(coils_to_target + other_coils))
 
     def J(self):
 
         args = [
-            [c.curve.gamma() for c in self.allcoils],
-            [c.curve.gamma() for c in self.allcoils2],
-            [c.curve.gammadash() for c in self.allcoils],
-            [c.curve.gammadash() for c in self.allcoils2],
-            [c.current.get_value() for c in self.allcoils],
-            [c.current.get_value() for c in self.allcoils2],
+            [c.curve.gamma() for c in self.coils_to_target],
+            [c.curve.gamma() for c in self.other_coils],
+            [c.curve.gammadash() for c in self.coils_to_target],
+            [c.curve.gammadash() for c in self.other_coils],
+            [c.current.get_value() for c in self.coils_to_target],
+            [c.current.get_value() for c in self.other_coils],
             self.downsample,
         ]
 
@@ -1801,12 +1801,12 @@ class SquaredMeanTorque(Optimizable):
     def dJ(self):
 
         args = [
-            [c.curve.gamma() for c in self.allcoils],
-            [c.curve.gamma() for c in self.allcoils2],
-            [c.curve.gammadash() for c in self.allcoils],
-            [c.curve.gammadash() for c in self.allcoils2],
-            [c.current.get_value() for c in self.allcoils],
-            [c.current.get_value() for c in self.allcoils2],
+            [c.curve.gamma() for c in self.coils_to_target],
+            [c.curve.gamma() for c in self.other_coils],
+            [c.curve.gammadash() for c in self.coils_to_target],
+            [c.curve.gammadash() for c in self.other_coils],
+            [c.current.get_value() for c in self.coils_to_target],
+            [c.current.get_value() for c in self.other_coils],
             self.downsample,
         ]
         dJ_dgamma = self.dJ_dgamma(*args)
@@ -1816,15 +1816,15 @@ class SquaredMeanTorque(Optimizable):
         dJ_dgammadash2 = self.dJ_dgammadash2(*args)
         dJ_dcurrent2 = self.dJ_dcurrent2(*args)
 
-        vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent[i]])) for i, c in enumerate(self.allcoils)])
+        vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent[i]])) for i, c in enumerate(self.coils_to_target)])
 
         dJ = (
-            sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma[i]) for i, c in enumerate(self.allcoils)])
-            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash[i]) for i, c in enumerate(self.allcoils)])
-            + sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma2[i]) for i, c in enumerate(self.allcoils2)])
-            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash2[i]) for i, c in enumerate(self.allcoils2)])
+            sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma[i]) for i, c in enumerate(self.coils_to_target)])
+            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash[i]) for i, c in enumerate(self.coils_to_target)])
+            + sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma2[i]) for i, c in enumerate(self.other_coils)])
+            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash2[i]) for i, c in enumerate(self.other_coils)])
             + vjp
-            + sum([c.current.vjp(jnp.asarray([dJ_dcurrent2[i]])) for i, c in enumerate(self.allcoils2)])
+            + sum([c.current.vjp(jnp.asarray([dJ_dcurrent2[i]])) for i, c in enumerate(self.other_coils)])
         )
 
         return dJ
