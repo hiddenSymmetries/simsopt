@@ -324,7 +324,7 @@ class Surface(Optimizable):
         """
         raise NotImplementedError
 
-    def cross_section(self, phi_prime, thetas=None, tol=1e-13):
+    def cross_section(self, phi_prime, thetas=32, tol=1e-13):
         """
         Computes the cross-section at an angle :math:`\phi` at `thetas` using bisection.
         :math:`\phi` follows the same conventions as `Surfaces`, i.e. :math:`\phi=0, 1` 
@@ -334,11 +334,11 @@ class Surface(Optimizable):
 
         Parameters
         ----------
-            phi (float):
-                toroidal angle, the standard cylindrical angle normalized by :math:`2\pi`.
+            phi_prime (float):
+                the standard cylindrical angle (toroidal angle) normalized by :math:`2\pi`.
                 There is no restriction on :math:`\phi`, i.e. is can be larger than 1, or
                 smaller than 0.
-            thetas (float, array, optional):
+            thetas (int, array, optional):
                 can be (1) an integer indicating that the cross section should be calculated at the poloidal angles in the array
                 np.linspace(0, 1, thetas, endpoint=False), or (2) an array containing the poloidal positions at which the cross section 
                 should be computed, between 0 and 1.  If thetas is not provided, then the cross section will be calculated at the positions given by
@@ -353,11 +353,9 @@ class Surface(Optimizable):
         """
         
         if thetas is None:
-            theta = np.asarray(self.quadpoints_theta)
-        elif isinstance(thetas, np.ndarray):
-            theta = thetas
+            thetas = np.asarray(self.quadpoints_theta)
         elif isinstance(thetas, int):
-            theta = np.linspace(0, 1, thetas, endpoint=False)
+            thetas = np.linspace(0, 1, thetas, endpoint=False)
         else:
             raise NotImplementedError('Need to pass int or 1d np.array to thetas')
         
@@ -367,17 +365,17 @@ class Surface(Optimizable):
         # no need to do bisection for SurfaceRZFourier
         from simsopt.geo import SurfaceRZFourier
         if isinstance(self, SurfaceRZFourier):
-            xs = np.zeros((theta.size, 3))
-            self.gamma_lin(xs, phi_prime*np.ones(theta.size), theta)
+            xs = np.zeros((thetas.size, 3))
+            self.gamma_lin(xs, phi_prime*np.ones(thetas.size), thetas)
             return xs
 
         # sample the surface when varphi=0, and theta=thetas)
-        gamma = np.zeros((theta.size, 3))
-        self.gamma_lin(gamma, np.zeros(theta.size), theta)
+        gamma = np.zeros((thetas.size, 3))
+        self.gamma_lin(gamma, np.zeros(thetas.size), thetas)
         
         # shift target phi_prime by phi0
         phi0 = np.arctan2(gamma[:, 1], gamma[:, 0])/(2*np.pi)
-        phi_prime = phi_prime*np.ones(theta.size)-phi0
+        phi_prime = phi_prime*np.ones(thetas.size)-phi0
         phi_prime += np.ceil(-phi_prime)
         
         def varphi2phi(varphi_in, phi0):
@@ -385,7 +383,8 @@ class Surface(Optimizable):
             Convert varphi to phi, where phi=varphi2phi(varphi, phi0) is a continuous function in varphi that satisfies:
             
             varphi2phi(0, phi0) = 0
-            0 <= varphi2phi(varphi, phi0) < 1.0
+            varphi2phi(1, phi0) = 1.
+            0 <= varphi2phi(varphi, phi0) <= 1.0 when 0 <= varphi <= 1
 
             Args:
                 varphi_in (float): the value of varphi on the surface at which we want the cylindrical angle
@@ -396,17 +395,22 @@ class Surface(Optimizable):
                              coordinate is phi+phi0
             """
             gamma = np.zeros((varphi_in.size, 3))
-            self.gamma_lin(gamma, varphi_in, theta)
+            self.gamma_lin(gamma, varphi_in, thetas)
             angle = np.arctan2(gamma[:, 1], gamma[:, 0])/(2*np.pi) - phi0
             angle += np.ceil(-angle)
+            
+            # if varphi_in == 1.0, set the returned angle to 1.0
+            one_index = np.where(varphi_in == 1.0)
+            angle[one_index] = 1.0
             return angle
+                
         
         # set the initial brackets for bisection
-        varphia = np.zeros(theta.size)
-        phia = np.zeros(theta.size)
-        varphic = np.ones(theta.size)
-        phic = np.ones(theta.size)
-
+        varphia = np.zeros(thetas.size)
+        phia = np.zeros(thetas.size)
+        varphic = np.ones(thetas.size)
+        phic = np.ones(thetas.size)
+        
         err = np.inf
         while err > tol:
             varphib = (varphia + varphic) / 2.
@@ -426,9 +430,10 @@ class Surface(Optimizable):
             varphia = np.where(flag, varphia, varphib)
             varphic = np.where(flag, varphib, varphic)
             err = np.max(np.abs(varphia - varphic))
+        
         varphi_root = (varphia + varphic) / 2.
         cross_section = np.zeros((varphi_root.size, 3))
-        self.gamma_lin(cross_section, varphi_root, theta)
+        self.gamma_lin(cross_section, varphi_root, thetas)
         return cross_section
 
     @SimsoptRequires(get_context is not None, "is_self_intersecting requires ground package")
@@ -441,12 +446,15 @@ class Surface(Optimizable):
         the surface may still be self-intersecting away from angle.
 
         Args:
-            angle: the cylindrical angle at which we would like to check whether the surface is self-intersecting.  Note that a
+            angle (float): the cylindrical angle at which we would like to check whether the surface is self-intersecting.  Note that a
                    surface might not be self-intersecting at a given angle, but may be self-intersecting elsewhere.  To be certain
                    that the surface is not self-intersecting, it is recommended to run this check at multiple angles.  Also note
                    that angle is assumed to be in radians, and not divided by 2*pi.
-            thetas: the number of uniformly spaced points to compute poloidally in a cross section.  If None, then there will be
-                    surface.quadpoints_theta.size uniformly space points in the cross section.
+            thetas (int, array, optional):
+                can be (1) an integer indicating that the cross section should be calculated at the poloidal angles in the array
+                np.linspace(0, 1, thetas, endpoint=False), or (2) an array containing the poloidal positions at which the cross section 
+                should be computed, between 0 and 1.  If thetas is not provided, then the cross section will be calculated at the positions given by
+                self.quadpoints_theta.
         Returns:
             True if surface is self-intersecting at angle, else False.
         """
