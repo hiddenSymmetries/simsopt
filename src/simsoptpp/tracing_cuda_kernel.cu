@@ -89,10 +89,11 @@ __host__ __device__ __forceinline__ void calc_phi_alpha(double* __restrict__ phi
     double s_grid_size = (saw_srange_arr[1] - saw_srange_arr[0]) / (saw_srange_arr[2] - 1);
     int l_idx = (s - saw_srange_arr[0]) / s_grid_size;
     l_idx = l_idx * (l_idx >=0);
+    l_idx = min(l_idx, (int)saw_srange_arr[2]-1);
     int r_idx = min(l_idx+1, (int)saw_srange_arr[2]-1);
     double s_diff = s - (l_idx*s_grid_size + saw_srange_arr[0]);
 
-    double iota_mn, slope, phi_i, phidot_i, sine, dphi_dpsi_i, dphi_dtheta_i, dphi_dzeta_i;
+    double iota_mn, slope, phihat_i, phidot_i, sine, dphi_dpsi_i, dphi_dtheta_i, dphi_dzeta_i;
 
     // G + iota*I
     double G_iI = interpolants[4] + interpolants[8]*interpolants[6];
@@ -104,31 +105,32 @@ __host__ __device__ __forceinline__ void calc_phi_alpha(double* __restrict__ phi
 
     int in_bounds = (s >= saw_srange_arr[0]) *(s <= saw_srange_arr[1]);
     slope = in_bounds*(saw_phihats_arr[r_idx*saw_nharmonics + i] -  saw_phihats_arr[l_idx*saw_nharmonics + i]) / (s_grid_size);
-    phi_i = saw_phihats_arr[l_idx*saw_nharmonics + i] + in_bounds* slope * s_diff;
-    phidot_i = phi_i * saw_omega*cos(m*theta - n*z + saw_omega*time);
+    phihat_i = saw_phihats_arr[l_idx*saw_nharmonics + i] +  slope * s_diff;
+    phidot_i = phihat_i * saw_omega*cos(m*theta - n*z + saw_omega*time);
     sine = sin(m*theta - n*z + saw_omega*time);
     dphi_dpsi_i = slope*sine/psi0;
     dphi_dtheta_i = phidot_i * m / saw_omega;
     dphi_dzeta_i = -phidot_i * n / saw_omega;
     
     // phi values: phi, phi_dot, dphi_dpsi, dphi_dtheta, dphi_dzeta
-    phi_info[0] = phi_i * sine;
+    phi_info[0] = phihat_i * sine;
     phi_info[1] = phidot_i;
     phi_info[2] =  dphi_dpsi_i;
     phi_info[3] = dphi_dtheta_i;
     phi_info[4] = dphi_dzeta_i;
 
     // alpha values: alpha, alpha_dot, dalpha_dpsi, dalpha_dtheta, dalpha_dzeta
-    double iota_mn_omega_G_iI = iota_mn / saw_omega * G_iI;
-    alpha_info[0] = -phi_i*iota_mn_omega_G_iI;
+    double iota_mn_omega_G_iI = iota_mn / (saw_omega * G_iI);
+    alpha_info[0] = -phi_info[0]*iota_mn_omega_G_iI;
     alpha_info[1] = -phidot_i * iota_mn_omega_G_iI;
 
-    // sum = (dGds + diotads*I + iota*dIds) 
-    // num = (diotads*m) / (G+ iota*I) - (iota*m -n)*sum
-    double sum = (interpolants[5] + interpolants[9] * interpolants[6] + interpolants[8]*interpolants[7]);
-    double num = interpolants[9]*m / G_iI - iota_mn*sum;
-    double denom = (G_iI*G_iI);
-    alpha_info[2] = -dphi_dpsi_i*iota_mn_omega_G_iI - (phi_i / saw_omega) * num / denom;
+    // dG_iIdpsi = (dGdpsi + diotadpsi*I + iota*dIdpsi) 
+    // num = (diotadpsi*m) / (G+ iota*I) - (iota*m -n)*sum
+    double dG_iIdpsi = (interpolants[5] + interpolants[9] * interpolants[6] + interpolants[8]*interpolants[7]);
+    // double num = interpolants[9]*m / G_iI - iota_mn*sum;
+    // double denom = (G_iI*G_iI);
+    alpha_info[2] = iota_mn_omega_G_iI*(-dphi_dpsi_i + phi_info[0]*dG_iIdpsi/G_iI) - phi_info[0]*interpolants[9]*m/(saw_omega*G_iI);
+    // alpha_info[2] = -dphi_dpsi_i*iota_mn_omega_G_iI - (phihat_i / (saw_omega * G_iI)) * (interpolants[9]*m  + iota_mn*dG_iIdpsi/(G_iI));
     alpha_info[3] = -dphi_dtheta_i * iota_mn_omega_G_iI;
     alpha_info[4] = -dphi_dzeta_i * iota_mn_omega_G_iI;
 }
@@ -214,6 +216,11 @@ __host__  __device__ void calc_derivs(particle_t& p, double* __restrict__ out, c
         dalpha_dzeta += alpha_info_contrib[4];
     }
 
+    // printf("particle %d phi values %.15e, %.15e, %.15e, %.15e, %.15e\n", p.id, phi, phidot, dphi_dpsi, dphi_dtheta, dphi_dzeta);
+    // printf("particle %d alpha values %.15e, %.15e, %.15e, %.15e, %.15e\n", p.id, alpha, alphadot, dalpha_dpsi, dalpha_dtheta, dalpha_dzeta);
+
+
+
     // double phi = 0.0;
     // double phidot = 0.0;
     // double dphi_dpsi = 0.0;
@@ -267,6 +274,7 @@ __host__  __device__ void calc_derivs(particle_t& p, double* __restrict__ out, c
     out[0] = sdot*cos(theta) - s*sin(theta)*tdot;
     out[1] = sdot*sin(theta) + s*cos(theta)*tdot;
     out[2] = v_par*interpolants[0]/interpolants[4];
+
     out[3] = -interpolants[0]/(interpolants[4]*m) * (m*mu*(interpolants[3] + dalpha_dtheta*interpolants[1]*interpolants[4] 
                     + interpolants[2]*(interpolants[8] - dalpha_dpsi*interpolants[4])) + q*(alphadot*interpolants[4] 
                     + dalpha_dtheta*interpolants[4]*dphi_dpsi + (interpolants[8] - dalpha_dpsi*interpolants[4])*dphi_dtheta + dphi_dzeta)) 
@@ -275,13 +283,15 @@ __host__  __device__ void calc_derivs(particle_t& p, double* __restrict__ out, c
     out[4] = interpolants[0]; //modB
     out[5] = interpolants[4]; // G
 
+    //printf("particle %d interpolants modB=%.15e, dmodBdpsi=%.15e, dmodBdtheta=%.15e, dmodBdzeta=%.15e, G=%.15e, dGdpsi=%.15e, I=%.15e, dIdpsi=%.15e, iota=%.15e, diotadpsi=%.15e\n", p.id, interpolants[0], interpolants[1], interpolants[2], interpolants[3], interpolants[4], interpolants[5], interpolants[6], interpolants[7], interpolants[8], interpolants[9]);
+    //printf("particle %d rhs at position s=%.15e, theta=%.15e, zeta=%.15e, vpar=%.15e, time=%.15e: %.15e, %.15e, %.15e, %.15e, dt=%.15e\n", p.id, s, theta, z, v_par, time, out[0], out[1], out[2], out[3], p.dt);
 
 }
 
 
 
 __host__ __device__ void build_state(particle_t& p, int deriv_id, double* srange_arr, double* trange_arr, double* zrange_arr){
-    // printf("build_state particle %d\n", p.id);
+    //printf("build_state particle %d, dt=%.15e\n", p.id, p.dt);
 
 
     const double b1 = 35.0 / 384.0, b3 = 500.0 / 1113.0, b4 = 125.0 / 192.0, b5 = -2187.0 / 6784.0, b6 = 11.0 / 84.0;
@@ -299,18 +309,18 @@ __host__ __device__ void build_state(particle_t& p, int deriv_id, double* srange
             break;
         case 1:
             // wgts = {1.0/5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-            deriv_time += 0.2*p.dt;
+            deriv_time += p.dt/5.0;
             wgts[0] = 1.0/5.0;
             break;
         case 2:
             // wgts = {3.0 / 40.0, 9.0 / 40.0, 0.0, 0.0, 0.0, 0.0};
-            deriv_time += 0.3*p.dt;
+            deriv_time += 3.0*p.dt/10.0;
             wgts[0] = 3.0 / 40.0;
             wgts[1] = 9.0 / 40.0;
             break;
         case 3:
             // wgts = {44.0 / 45.0, -56.0 / 15.0, 32.0 / 9.0, 0.0, 0.0, 0.0, 0.0};
-            deriv_time += 0.8*p.dt;
+            deriv_time += 4.0*p.dt/5.0;
             wgts[0] = 44.0 / 45.0;
             wgts[1] = -56.0 / 15.0;
             wgts[2] = 32.0 / 9.0;
@@ -430,6 +440,9 @@ __host__ __device__ void setup_particle(particle_t& p, double* srange_arr, doubl
     p.dtmax = 0.5*M_PI*abs(p.derivs[5]) / (p.derivs[4]*p.v_total);
     p.dt = 1e-3*p.dtmax;
 
+    // printf("particle %d setup vals dt=%.15e, mu=%.15e\n", p.id, p.dt, p.mu);
+
+
 }
 
 __host__ __device__ void adjust_time(particle_t& p, double tmax){
@@ -444,23 +457,23 @@ __host__ __device__ void adjust_time(particle_t& p, double tmax){
     // Compute  error
     // https://live.boost.org/doc/libs/1_82_0/libs/numeric/odeint/doc/html/boost_numeric_odeint/odeint_in_detail/steppers.html
     // resolve typo in boost docs: https://numerical.recipes/book.html
-    double atol=1e-9;
+    double atol=1e-5;
     double rtol=1e-9;
     double err = 0.0;
     bool accept = true;
     for (int i = 0; i < 4; i++) {
         p.x_err[i] = p.dt*(bhat1 * p.derivs[i] + bhat3 * p.derivs[12+i] + bhat4 * p.derivs[18+i] + bhat5 * p.derivs[24+i] + bhat6 * p.derivs[30+i] + bhat7 * p.derivs[36+i]);
        
-        if(i==3){ // account for scale of v_par in absolute tolerance
-            atol *= 1e5;
-        }
+        // if(i==3){ // account for scale of v_par in absolute tolerance
+        //     atol *= 1e5;
+        // }
         p.x_err[i] = fabs(p.x_err[i]) / (atol + rtol*(fabs(p.state[i]) + p.dt*fabs(p.derivs[i])));      
         err = fmax(err, p.x_err[i]);
     }
     // Compute new step size
     double dt_new = p.dt*0.9*pow(err, -1.0/3.0);
     dt_new = fmax(dt_new, 0.2 * p.dt);  // Limit step size reduction
-    dt_new = fmin(dt_new, 5.0 * p.dt);  // Limit step size increase
+    dt_new = fmin(dt_new, 4.5 * p.dt);  // Limit step size increase
     dt_new = fmin(p.dtmax, dt_new);
     if ((0.5 < err) & (err < 1.0)){
         dt_new = p.dt;
@@ -506,7 +519,7 @@ __host__ __device__    void trace_particle(particle_t& p, double* srange_arr, do
         
         double s = sqrt(p.state[0]*p.state[0] + p.state[1]*p.state[1]);
         if(s >= 1){
-            printf("particle %d done s=%.15e\n", p.id, s);
+            // printf("particle %d done s=%.15e\n", p.id, s);
             p.has_left = true;
             return;
         }
@@ -515,7 +528,7 @@ __host__ __device__    void trace_particle(particle_t& p, double* srange_arr, do
 
     }
     double s = sqrt(p.state[0]*p.state[0] + p.state[1]*p.state[1]);
-    printf("particle %d done s=%.15e\n", p.id, s);
+    // printf("particle %d done s=%.15e\n", p.id, s);
     return;
 }
 
@@ -523,7 +536,7 @@ __global__ void particle_trace_kernel(particle_t* particles, double* srange_arr,
                         double tmax, double m, double q, double psi0, int nparticles, double* saw_srange_arr, int* saw_m_arr, int* saw_n_arr, double* saw_phihats_arr, double saw_omega, int saw_nharmonics){
     int idx = threadIdx.x + blockIdx.x*blockDim.x;
     if(idx < nparticles){
-        printf("tracing particle %d\n", idx);
+        // printf("tracing particle %d\n", idx);
         trace_particle(particles[idx], srange_arr, trange_arr, zrange_arr, quadpts_arr, tmax, m, q, psi0, saw_srange_arr, saw_m_arr, saw_n_arr, saw_phihats_arr, saw_omega, saw_nharmonics);
     }
 }
@@ -638,7 +651,7 @@ extern "C" vector<double> gpu_tracing_saw(py::array_t<double> quad_pts, py::arra
     cudaMemcpy(saw_phihats_d, saw_phihats_arr, saw_phihats.size()*sizeof(double), cudaMemcpyHostToDevice);
 
 
-    int nthreads = 1;
+    int nthreads = 128;
     int nblks = nparticles / nthreads + 1;
     std::cout << "starting particle tracing kernel\n";
 
@@ -814,7 +827,7 @@ extern "C" py::array_t<double> test_gpu_interpolation(py::array_t<double> quad_p
         printf("CUDA error: %s\n", cudaGetErrorString(err));
     }
 
-    err = cudaDeviceSynchronize();  // <-- Required for runtime issues
+    err = cudaDeviceSynchronize();  
     if (err != cudaSuccess) {
         printf("Kernel runtime error: %s\n", cudaGetErrorString(err));
     }
