@@ -1009,8 +1009,6 @@ class Testing(unittest.TestCase):
         dofs[-2] = 0.0
         dofs[-1] = 0.0
         curve.set_dofs(dofs)
-        gamma = curve.gamma()
-        gammadash = curve.gammadash()
         centroid = curve.centroid()
         # The centroid should be at (R0, 0, 0)
         np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12)
@@ -1024,8 +1022,6 @@ class Testing(unittest.TestCase):
         dofs[-2] = 0.0
         dofs[-1] = 0.0
         curve.set_dofs(dofs)
-        gamma = curve.gamma()
-        gammadash = curve.gammadash()
         centroid = curve.centroid()
         # The centroid should be at (R0, 0, 0)
         np.testing.assert_allclose(centroid * -1, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
@@ -1039,8 +1035,6 @@ class Testing(unittest.TestCase):
         dofs[-2] = 0.0
         dofs[-1] = 0.0
         curve.set_dofs(dofs)
-        gamma = curve.gamma()
-        gammadash = curve.gammadash()
         centroid = curve.centroid()
         # The centroid should be at (R0, 0, 0)
         np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
@@ -1054,8 +1048,6 @@ class Testing(unittest.TestCase):
         dofs[-2] = 0.0
         dofs[-1] = 0.0
         curve.set_dofs(dofs)
-        gamma = curve.gamma()
-        gammadash = curve.gammadash()
         centroid = curve.centroid()
         # The centroid should be at (R0, 0, 0)
         np.testing.assert_allclose(centroid * -1, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)

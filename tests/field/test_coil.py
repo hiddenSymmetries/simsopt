@@ -8,12 +8,18 @@ from pathlib import Path
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
+from simsopt.geo.curveplanarfourier import CurvePlanarFourier
 from simsopt.geo.curve import RotatedCurve, create_equally_spaced_curves, create_equally_spaced_planar_curves
 from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum, coils_via_symmetries, JaxCurrent
 from simsopt.field.coil import coils_to_makegrid, coils_to_focus, load_coils_from_makegrid_file
 from simsopt.field.biotsavart import BiotSavart
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.configs import get_ncsx_data
+
+try:
+    import pyevtk
+except ImportError:
+    pyevtk = None
 
 import os
 
@@ -44,6 +50,8 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = CurveRZFourier(x, order, 2, True)
     elif curvetype == "CurveHelical":
         curve = CurveHelical(x, order, 5, 2, 1.0, 0.3)
+    elif curvetype == "CurvePlanarFourier":
+        curve = CurvePlanarFourier(x, order, 2, True)
     else:
         assert False
     dofs = np.zeros((curve.dof_size, ))
@@ -57,6 +65,10 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         dofs[order+1] = 0.1
     elif curvetype in ["CurveHelical"]:
         dofs[0] = np.pi/2
+    elif curvetype in ["CurvePlanarFourier"]:
+        dofs[0] = 1.
+        dofs[1] = 0.1
+        dofs[order+1] = 0.1
     else:
         assert False
 
@@ -68,7 +80,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
 
 class TestCoil(unittest.TestCase):
 
-    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical"]
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical", "CurvePlanarFourier"]
 
     def subtest_serialization(self, curvetype, rotated):
         """
@@ -317,6 +329,23 @@ class CoilFormatConvertTesting(unittest.TestCase):
         bs_planar.set_points(points)
 
         np.testing.assert_allclose(bs.B(), bs_planar.B(), atol=1e-16)
+
+    @unittest.skipIf(pyevtk is None, "pyevtk not found")
+    def test_coils_to_vtk_creates_file(self):
+        """
+        Test that coils_to_vtk writes a VTK file for a simple coil setup.
+        """
+        from simsopt.field.coil import coils_to_vtk
+        curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical", "CurvePlanarFourier"]
+        for curvetype in curvetypes:
+            for rotated in [True, False]:
+                curve = get_curve(curvetype, rotated=rotated)
+                coil = Coil(curve, Current(1.0))
+                filename = "test_coil"
+                coils_to_vtk([coil], filename)
+                self.assertTrue(os.path.exists(filename + '.vtu'), "VTK file was not created.")
+                self.assertGreater(os.path.getsize(filename + '.vtu'), 0, "VTK file is empty.")
+
 
 if __name__ == "__main__":
     unittest.main()

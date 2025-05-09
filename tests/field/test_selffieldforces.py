@@ -21,10 +21,13 @@ from simsopt.field.selffield import (
 from simsopt.field import (
     coil_force,
     coil_torque,
+    coil_net_force,
+    coil_net_torque,
     self_force_circ,
     self_force_rect,
     coil_coil_inductances_pure,
     coil_coil_inductances_inv_pure,
+    induced_currents_pure,
     NetFluxes,
     B2_Energy,
     MeanSquaredForce_deprecated,
@@ -172,7 +175,7 @@ class CoilForcesTest(unittest.TestCase):
             curve2.set_dofs(dofs)
 
             # Make circular coil with shared axis
-            curve3 = CurvePlanarFourier(N_quad, 0, nfp=1, stellsym=False)
+            curve3 = CurvePlanarFourier(N_quad * 2, 0, nfp=1, stellsym=False)
             dofs[0] = R2
             dofs[7] = d
             curve3.set_dofs(dofs)
@@ -210,17 +213,30 @@ class CoilForcesTest(unittest.TestCase):
 
             # now test coils with shared axis
             Lij = coil_coil_inductances_pure(
-                np.array([curve.gamma(), curve3.gamma()]),
-                np.array([curve.gammadash(), curve3.gammadash()]),
+                [curve.gamma(), curve3.gamma()],
+                [curve.gammadash(), curve3.gammadash()],
                 downsample=1,
                 regularizations=np.array([regularization_circ(a), regularization_circ(a)]),
             )
             np.testing.assert_allclose(Lij[1, 0], Lij_analytic2, rtol=1e-2)
 
+            # This function is really for passive coils 
+            # but just checking we can compute the induced currents correctly
+            induced_currents_test = induced_currents_pure(
+                np.array([curve.gamma()]),
+                np.array([curve.gammadash()]),
+                np.array([curve2.gamma()]),
+                np.array([curve2.gammadash()]),
+                np.array([1e6]),
+                downsample=1,
+                regularizations=np.array([regularization_circ(a)]),
+            )
+            assert np.all(np.abs(induced_currents_test) > 1e3)
+
             # Test cholesky computation of the inverse works on simple case
             Lij_inv = coil_coil_inductances_inv_pure(
-                np.array([curve.gamma(), curve3.gamma()]),
-                np.array([curve.gammadash(), curve3.gammadash()]),
+                [curve.gamma(), curve3.gamma()],
+                [curve.gammadash(), curve3.gammadash()],
                 downsample=1,
                 regularizations=np.array([regularization_circ(a), regularization_circ(a)]),
             )
@@ -400,13 +416,18 @@ class CoilForcesTest(unittest.TestCase):
         objective = 0.0
         objective2 = 0.0
         objective_mixed = 0.0
+        objective_direct = 0.0
         for i in range(len(coils)):
             objective += float(SquaredMeanForce(coils[i], coils).J())
             objective2 += float(SquaredMeanForce(coils[i], coils, downsample=2).J())
             objective_mixed += np.linalg.norm(np.sum(coil_force(coils[i], coils) * gammadash_norm[:, None], axis=0) / gammadash_norm.shape[0]) ** 2
+            objective_direct += np.linalg.norm(coil_net_force(coils[i], coils)) ** 2
 
         print("objective:", objective, "mixed:", objective_mixed)
         np.testing.assert_allclose(objective, objective_mixed, rtol=1e-6)
+
+        print("objective:", objective, "direct:", objective_direct)
+        np.testing.assert_allclose(objective, objective_direct, rtol=1e-6)
 
         print("objective:", objective, "downsampled:", objective2)
         np.testing.assert_allclose(objective, objective2, rtol=1e-6)
@@ -458,13 +479,19 @@ class CoilForcesTest(unittest.TestCase):
         objective = 0.0
         objective2 = 0.0
         objective_alt = 0.0
+        objective_direct = 0.0
         for i in range(len(coils)):
             objective += float(SquaredMeanTorque(coils[i], coils).J())
             objective2 += float(SquaredMeanTorque(coils[i], coils, downsample=2).J())
             gammadash_norm = np.linalg.norm(coils[i].curve.gammadash(), axis=1)
             objective_alt += np.linalg.norm(np.sum(coil_torque(coils[i], coils) * gammadash_norm[:, None], axis=0) / gammadash_norm.shape[0]) ** 2
+            objective_direct += np.linalg.norm(coil_net_torque(coils[i], coils)) ** 2
+
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
         np.testing.assert_allclose(objective, objective_alt, rtol=1e-2)
+
+        print("objective:", objective, "objective_direct:", objective_direct, "diff:", objective - objective_direct)
+        np.testing.assert_allclose(objective, objective_direct, rtol=1e-2)
 
         print("objective:", objective, "downsampled:", objective2, "diff:", objective - objective2)
         np.testing.assert_allclose(objective, objective2, rtol=1e-2)
@@ -579,6 +606,8 @@ class CoilForcesTest(unittest.TestCase):
                                             SquaredMeanTorque(coils, coils2, downsample=downsample),
                                             LpCurveForce(coils, coils2, p=p, threshold=threshold, downsample=downsample),
                                             SquaredMeanForce(coils, coils2, downsample=downsample),
+                                            sum([MeanSquaredForce_deprecated(coils[i], coils2, regularization) for i in range(len(coils))]),
+                                            sum([LpCurveForce_deprecated(coils[i], coils2, regularization, p=p, threshold=threshold, downsample=downsample) for i in range(len(coils))]),                                        
                                         ]
                                         dofs = np.copy(LpCurveTorque(coils, coils2, p=p, threshold=threshold, downsample=downsample).x)
                                         h = np.ones_like(dofs)
