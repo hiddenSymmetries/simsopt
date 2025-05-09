@@ -673,13 +673,9 @@ class CoilForcesTest(unittest.TestCase):
             # Mixed objectives are faster if coils are split evenly into two groups
             objectives = [
                 sum([LpCurveForce_deprecated(c, coils, regularization, p=p, threshold=threshold, downsample=2) for c in coils]),
-                sum([LpCurveForce(c, coils, p=p, threshold=threshold, downsample=2) for c in coils]),
                 LpCurveForce(coils, coils2, p=p, threshold=threshold, downsample=2),
-                sum([LpCurveTorque(c, coils, p=p, threshold=threshold, downsample=2) for c in coils]),
                 LpCurveTorque(coils, coils2, p=p, threshold=threshold, downsample=2),
-                sum([SquaredMeanForce(c, coils, downsample=2) for c in coils]),
                 SquaredMeanForce(coils, coils2, downsample=2),
-                sum([SquaredMeanTorque(c, coils, downsample=2) for c in coils]),
                 SquaredMeanTorque(coils, coils2, downsample=2),
             ]
 

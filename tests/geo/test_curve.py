@@ -989,7 +989,7 @@ class Testing(unittest.TestCase):
             R = np.sqrt(gamma[:, 0]**2 + gamma[:, 1]**2)
             self.assertTrue(np.allclose(np.mean(R), R0, atol=0.2))
 
-    def test_curve_center(self):
+    def test_curve_centroid(self):
         """
         Test that the center of a curve is computed correctly.
 
@@ -1011,7 +1011,7 @@ class Testing(unittest.TestCase):
         curve.set_dofs(dofs)
         gamma = curve.gamma()
         gammadash = curve.gammadash()
-        centroid = curve.center(gamma, gammadash)
+        centroid = curve.centroid()
         # The centroid should be at (R0, 0, 0)
         np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12)
 
@@ -1026,7 +1026,7 @@ class Testing(unittest.TestCase):
         curve.set_dofs(dofs)
         gamma = curve.gamma()
         gammadash = curve.gammadash()
-        centroid = curve.center(gamma, gammadash)
+        centroid = curve.centroid()
         # The centroid should be at (R0, 0, 0)
         np.testing.assert_allclose(centroid * -1, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
 
@@ -1041,7 +1041,7 @@ class Testing(unittest.TestCase):
         curve.set_dofs(dofs)
         gamma = curve.gamma()
         gammadash = curve.gammadash()
-        centroid = curve.center(gamma, gammadash)
+        centroid = curve.centroid()
         # The centroid should be at (R0, 0, 0)
         np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
 
@@ -1056,7 +1056,7 @@ class Testing(unittest.TestCase):
         curve.set_dofs(dofs)
         gamma = curve.gamma()
         gammadash = curve.gammadash()
-        centroid = curve.center(gamma, gammadash)
+        centroid = curve.centroid()
         # The centroid should be at (R0, 0, 0)
         np.testing.assert_allclose(centroid * -1, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
 
