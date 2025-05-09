@@ -330,35 +330,37 @@ def coils_to_vtk(coils, filename, close=False, extra_data=None):
     pointData['I'] = coil_data
     pointData['I_mag'] = contig(np.abs(coil_data))
 
-    NetForces = np.array([coil_net_force(c, coils) for c in coils])
-    NetTorques = np.array([coil_net_torque(c, coils) for c in coils])
+    net_forces = np.zeros((len(coils), 3))
+    net_torques = np.zeros((len(coils), 3))
+    coil_forces = np.zeros((data.shape[0], 3))
+    coil_torques = np.zeros((data.shape[0], 3))
+    for i, c in enumerate(coils):
+        coil_force_temp = np.squeeze([coil_force(c, coils)])
+        coil_torque_temp = np.squeeze([coil_torque(c, coils)])
+        net_forces[i, :] = np.array([coil_net_force(c, coils)])
+        net_torques[i, :] = np.array([coil_net_torque(c, coils)])
+        if close:
+            coil_force_temp = np.vstack((coil_force_temp, coil_force_temp[0, :]))
+            coil_torque_temp = np.vstack((coil_torque_temp, coil_torque_temp[0, :]))
+        coil_forces[i * ppl[i]: (i + 1) * ppl[i], :] = coil_force_temp
+        coil_torques[i * ppl[i]: (i + 1) * ppl[i], :] = coil_torque_temp
+
     coil_data = np.zeros((data.shape[0], 3))
     for i in range(len(coils)):
-        coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = NetForces[i, :]
+        coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = net_forces[i, :]
     coil_data = np.ascontiguousarray(coil_data)
     pointData['NetForces'] = (contig(coil_data[:, 0]),
                                 contig(coil_data[:, 1]),
                                 contig(coil_data[:, 2]))
     coil_data = np.zeros((data.shape[0], 3))
     for i in range(len(coils)):
-        coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = NetTorques[i, :]
+        coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = net_torques[i, :]
     coil_data = np.ascontiguousarray(coil_data)
     pointData['NetTorques'] = (contig(coil_data[:, 0]),
                                 contig(coil_data[:, 1]),
                                 contig(coil_data[:, 2]))
-    
-    ppl2 = np.asarray([c.gamma().shape[0] for c in curves])
-    data2 = np.concatenate([i*np.ones((ppl2[i], )) for i in range(len(curves))])
-    forces = np.zeros((data2.shape[0], 3))
-    torques = np.zeros((data2.shape[0], 3))
-    for i, c in enumerate(coils):
-        forces[i * ppl2[i]: (i + 1) * ppl2[i], :] = coil_force(c, coils)
-        torques[i * ppl2[i]: (i + 1) * ppl2[i], :] = coil_torque(c, coils)
-        if close:
-            forces[i + 1 * ppl2[i], :]  = forces[i * ppl2[i], :]
-            torques[i + 1 * ppl2[i], :] = torques[i * ppl2[i], :]
-    pointData["Pointwise_Forces"] = (contig(forces[:, 0]), contig(forces[:, 1]), contig(forces[:, 2]))
-    pointData["Pointwise_Torques"] = (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))
+    pointData["Pointwise_Forces"] = (contig(coil_forces[:, 0]), contig(coil_forces[:, 1]), contig(coil_forces[:, 2]))
+    pointData["Pointwise_Torques"] = (contig(coil_torques[:, 0]), contig(coil_torques[:, 1]), contig(coil_torques[:, 2]))
     if extra_data is not None:
         pointData = {**pointData, **extra_data}
     curves_to_vtk(curves, filename, close=close, extra_data=pointData)
