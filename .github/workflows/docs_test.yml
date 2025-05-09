@@ -26,8 +26,11 @@ jobs:
       run: |
         pip install -r docs/requirements.txt
 
+    - name: Install doxygen
+      run: sudo apt install doxygen
+
     - name: Install simsopt package
-      run: pip install -v .
+      run: pip install -v .[docs]
 
     - name: Build docs
       run: |
