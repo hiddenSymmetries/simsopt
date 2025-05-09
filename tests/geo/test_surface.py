@@ -442,7 +442,8 @@ class UtilTests(unittest.TestCase):
 class DofNames(unittest.TestCase):
     """
     Check that the dof names correspond to the correct values within each
-    Surface class.
+    Surface class by using the set and get methods and checking against
+    the internal arrays.
     """
     def test_dof_names(self):
         surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier",
@@ -450,9 +451,9 @@ class DofNames(unittest.TestCase):
         for surfacetype in surfacetypes:
             for stellsym in [False, True]:
                 with self.subTest(surfacetype=surfacetype):
-                    self.subtest_surf_dofnames(surfacetype, stellsym)
+                    self.subtest_set_get_surf_dofs(surfacetype, stellsym)
 
-    def subtest_surf_dofnames(self, surfacetype, stellsym):
+    def subtest_set_get_surf_dofs(self, surfacetype, stellsym):
         s = get_surface(surfacetype, stellsym, full=True)
         # for each surface, set some random dofs and check for consistency
         if surfacetype == "SurfaceRZFourier":

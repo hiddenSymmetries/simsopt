@@ -70,80 +70,51 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
         self.xc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1
         if dofs is None:
-            Surface.__init__(self, x0=self.get_dofs(), names=self._make_names(mpol, ntor, stellsym),
+            Surface.__init__(self, x0=self.get_dofs(), names=self._make_names(),
                              external_dof_setter=SurfaceXYZFourier.set_dofs_impl)
         else:
             Surface.__init__(self, dofs=dofs,
                              external_dof_setter=SurfaceXYZFourier.set_dofs_impl)
 
-    def _make_names(self, mpol, ntor, stellsym):
+    def _make_names(self):
         """
-        Form a list of names of the ``xc``, ``ys``, ``zs``, ``xs``, 
-        ``yc``, or ``zc`` array elements. The order of these four arrays 
-        here must match the order in ``set_dofs_impl()`` and ``get_dofs()`` 
-        in ``src/simsoptpp/surfacexyzfourier.h``. All parameters are
-        equivalent to those defined in the class constructor.
+        Form a list of names of the ``xc``, ``ys``, ``zs``, ``xs``,
+        ``yc``, or ``zc`` array elements. The order of these four arrays
+        here must match the order in ``set_dofs_impl()`` and ``get_dofs()``
+        in ``src/simsoptpp/surfacexyzfourier.h``.
         """
-        x_names = []
-        y_names = []
-        z_names = []
+        if self.stellsym:
+            names = self._make_names_helper('xc', True) \
+                + self._make_names_helper('ys', False) \
+                + self._make_names_helper('zs', False)
+        else:
+            names = self._make_names_helper('xc', True) \
+                + self._make_names_helper('xs', False) \
+                + self._make_names_helper('yc', True) \
+                + self._make_names_helper('ys', False) \
+                + self._make_names_helper('zc', True) \
+                + self._make_names_helper('zs', False)
+        return names
 
-        for m in range(mpol + 1):
-            if m == 0:
-                for n in range(ntor + 1):
-                    x_names += [f'xc({m},{n})']
-            else:
-                for n in range(-ntor, ntor + 1):
-                    x_names += [f'xc({m},{n})']
+    def _make_names_helper(self, prefix, include0):
+        """
+        Helper function for `_make_names` method. Forms array of coefficients
+        for :math:'m = [0, m_{pol}]' and :math:'n = [-n_{tor}, n_{tor}]'. If :math:'m = 0', only
+        positive values of :math:'n' are used. If it is a cosine term, the :math:'(0,0)' term is included.
 
-        for m in range(mpol + 1):
-            if m == 0:
-                for n in range(1, ntor + 1):
-                    y_names += [f'ys({m},{n})']
-            else:
-                for n in range(-ntor, ntor + 1):
-                    y_names += [f'ys({m},{n})']
+        Args:
+            prefix: The prefix for the name of the coefficients.
+            include0: Whether to include the (0,0) term.
+        """
+        if include0:
+            names = [prefix + "(0,0)"]
+        else:
+            names = []
 
-        for m in range(mpol + 1):
-            if m == 0:
-                for n in range(1, ntor + 1):
-                    z_names += [f'zs({m},{n})']
-            else:
-                for n in range(-ntor, ntor + 1):
-                    z_names += [f'zs({m},{n})']
-
-        if not stellsym:
-            # need to account for cosine coming first if not stellsym
-            yc_names = []
-            zc_names = []
-
-            for m in range(mpol + 1):
-                if m == 0:
-                    for n in range(1, ntor + 1):
-                        x_names += [f'xs({m},{n})']
-                else:
-                    for n in range(-ntor, ntor + 1):
-                        x_names += [f'xs({m},{n})']
-
-            for m in range(mpol + 1):
-                if m == 0:
-                    for n in range(ntor + 1):
-                        yc_names += [f'yc({m},{n})']
-                else:
-                    for n in range(-ntor, ntor + 1):
-                        yc_names += [f'yc({m},{n})']
-            y_names = yc_names + y_names
-
-            for m in range(mpol + 1):
-                if m == 0:
-                    for n in range(ntor + 1):
-                        zc_names += [f'zc({m},{n})']
-                else:
-                    for n in range(-ntor, ntor + 1):
-                        zc_names += [f'zc({m},{n})']
-            z_names = zc_names + z_names
-
-        return x_names + y_names + z_names
+        names += [prefix + '(0,' + str(n) + ')' for n in range(1, self.ntor + 1)]
+        for m in range(1, self.mpol + 1):
+            names += [prefix + '(' + str(m) + ',' + str(n) + ')' for n in range(-self.ntor, self.ntor + 1)]
+        return names
 
     def get_dofs(self):
         """

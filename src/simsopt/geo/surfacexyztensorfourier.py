@@ -72,51 +72,59 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         self.xcs[1, 0] = 0.1
         self.zcs[mpol+1, 0] = 0.1
         if dofs is None:
-            Surface.__init__(self, x0=self.get_dofs(), names=self._make_names(mpol, ntor, stellsym),
+            Surface.__init__(self, x0=self.get_dofs(), names=self._make_names(),
                              external_dof_setter=SurfaceXYZTensorFourier.set_dofs_impl)
         else:
             Surface.__init__(self, dofs=dofs,
                              external_dof_setter=SurfaceXYZTensorFourier.set_dofs_impl)
 
-    def _make_names(self, mpol, ntor, stellsym):
+    def _make_names(self):
         """
-        Form a list of names of the ``x``, ``y``, and ``z``, array 
-        elements. The order of these four arrays here must match the 
-        order in ``set_dofs_impl()`` and ``get_dofs()`` in 
-        ``src/simsoptpp/surfacexyztensorfourier.h``. All parameters
-        are equivalent to those defined in the class constructor.
+        Form a list of names of the ``x``, ``y``, and ``z``, array
+        elements. The order of these four arrays here must match the
+        order in ``set_dofs_impl()`` and ``get_dofs()`` in
+        ``src/simsoptpp/surfacexyztensorfourier.h``.
         """
-        dof_names = []
-        for m in range(2 * mpol + 1):
-            for n in range(2 * ntor + 1):
-                if self.skip(0, m, n, stellsym, mpol, ntor):
+        names = self._make_names_helper('x') \
+            + self._make_names_helper('y') \
+            + self._make_names_helper('z')
+
+        return names
+
+    def _make_names_helper(self, coord):
+        """
+        Helper function for `_make_names` method. Forms array of coefficients
+        for :math:'i = [0, 2m_{pol}]' and :math:'j = [0, 2n_{tor}]'. If stellarator
+        symmetric, only some of the coefficients are used (see class docstring for more info)
+
+        Args:
+            coord: coordinate to make array for ('x', 'y', or z').
+        """
+        names = []
+        for i in range(2 * self.mpol + 1):
+            for j in range(2 * self.ntor + 1):
+                if self.skip(coord, i, j):
                     continue
-                dof_names += [f'x({m},{n})']
+                names += [coord + '(' + str(i) + ',' + str(j) + ')']
+        return names
 
-        for m in range(2 * mpol + 1):
-            for n in range(2 * ntor + 1):
-                if self.skip(1, m, n, stellsym, mpol, ntor):
-                    continue
-                dof_names += [f'y({m},{n})']
+    def skip(self, coord, i, j):
+        """
+        This function skips m,n values for SurfaceXYZTensorFourier
+        that are not included in a stellarator symmetric surface.
+        This is a Python version of `skip()` in `surfacexyztensorfourier.h`.
 
-        for m in range(2 * mpol + 1):
-            for n in range(2 * ntor + 1):
-                if self.skip(2, m, n, stellsym, mpol, ntor):
-                    continue
-                dof_names += [f'z({m},{n})']
-
-        return dof_names
-
-    @staticmethod
-    def skip(dim, m, n, stellsym, mpol, ntor):
-        if not stellsym:
+        Args:
+            coord: current coordinate ('x', 'y', or z').
+            i: poloidal mode index.
+            j: toroidal mode index.
+        """
+        if not self.stellsym:
             return False
-        if dim == 0:
-            return (n <= ntor and m > mpol) or (n > ntor and m <= mpol)
-        elif dim == 1:
-            return (n <= ntor and m <= mpol) or (n > ntor and m > mpol)
+        if coord == 'x':
+            return (j <= self.ntor and i > self.mpol) or (j > self.ntor and i <= self.mpol)
         else:
-            return (n <= ntor and m <= mpol) or (n > ntor and m > mpol)
+            return (j <= self.ntor and i <= self.mpol) or (j > self.ntor and i > self.mpol)
 
     def get_dofs(self):
         """
