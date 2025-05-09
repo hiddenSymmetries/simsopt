@@ -2,6 +2,7 @@ import abc
 
 import numpy as np
 from scipy import interpolate
+from scipy.optimize import fsolve
 
 try:
     from pyevtk.hl import gridToVTK
@@ -397,13 +398,8 @@ class Surface(Optimizable):
             gamma = np.zeros((varphi_in.size, 3))
             self.gamma_lin(gamma, varphi_in, thetas)
             angle = np.arctan2(gamma[:, 1], gamma[:, 0])/(2*np.pi) - phi0
-            angle += np.ceil(-angle)
-            
-            # if varphi_in == 1.0, set the returned angle to 1.0
-            one_index = np.where(varphi_in == 1.0)
-            angle[one_index] = 1.0
+            angle += np.ceil(-angle) + np.floor(varphi_in)
             return angle
-                
         
         # set the initial brackets for bisection
         varphia = np.zeros(thetas.size)
