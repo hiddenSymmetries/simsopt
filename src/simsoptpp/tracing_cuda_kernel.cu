@@ -457,16 +457,16 @@ __host__ __device__ void adjust_time(particle_t& p, double tmax){
     // Compute  error
     // https://live.boost.org/doc/libs/1_82_0/libs/numeric/odeint/doc/html/boost_numeric_odeint/odeint_in_detail/steppers.html
     // resolve typo in boost docs: https://numerical.recipes/book.html
-    double atol=1e-5;
+    double atol=1e-9;
     double rtol=1e-9;
     double err = 0.0;
     bool accept = true;
     for (int i = 0; i < 4; i++) {
         p.x_err[i] = p.dt*(bhat1 * p.derivs[i] + bhat3 * p.derivs[12+i] + bhat4 * p.derivs[18+i] + bhat5 * p.derivs[24+i] + bhat6 * p.derivs[30+i] + bhat7 * p.derivs[36+i]);
        
-        // if(i==3){ // account for scale of v_par in absolute tolerance
-        //     atol *= 1e5;
-        // }
+        if(i==3){ // account for scale of v_par in absolute tolerance
+            atol *= 1e5;
+        }
         p.x_err[i] = fabs(p.x_err[i]) / (atol + rtol*(fabs(p.state[i]) + p.dt*fabs(p.derivs[i])));      
         err = fmax(err, p.x_err[i]);
     }
