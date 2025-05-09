@@ -293,7 +293,7 @@ class Surface(Optimizable):
 
         Args:
             filename: Name of the file to write
-            extra_data: An optional data field on the surface, which can be associated with a colormap in Paraview.
+            extra_data: An optional data field (dictionary) on the surface, which can be associated with a colormap in Paraview.
         """
         g = self.gamma()
         ntor = g.shape[0]

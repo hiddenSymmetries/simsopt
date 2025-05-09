@@ -295,12 +295,34 @@ class Quasisymmetry(Optimizable):
 
     def J(self) -> RealArray:
         """
-        Carry out the calculation of the quasisymmetry error.
+        Compute the quasisymmetry error on one or more flux surfaces.
 
-        Returns:
-            1D numpy array listing all the normalized mode amplitudes of
-            symmetry-breaking Fourier modes of ``|B|``.
+        For each flux surface, :math:`s`, in ``self.s``, this method:
+
+        1. Extracts the Boozer-coordinate Fourier spectrum ``B_{m,n}(s)``.
+        2. Identifies which ``(m,n)`` modes break the specified quasi-symmetry.
+        3. Normalizes all mode amplitudes by either:
+
+            - :math:`A_{m,n}(s)=B_{m,n}(s)/N(s)` The ``(0,0)`` harmonic (mean field) if ``normalization="B00"``; or
+            - :math:`N(s)=\sqrt{\sum_{(m',n')\in\mathrm{sym}}|B_{m',n'}(s)|^2}` The root-sum-square of the symmetric modes if ``normalization="symmetric"``.
+
+        4. Applies one of the following three weighting options to the non-symmetric modes, where the error terms for the flux surface s are defined as:
+
+            - ``"even"`` :math:`j_{m,n}=A_{m,n}(s)` returns each normalized amplitude unchanged
+            - ``"stellopt"`` :math:`j_{m,n}=A_{m,n}(s)/s^2` divides each amplitude by ``s_used**2`` (i.e. flux surface number squared) to amplify core-surface errors
+            - ``"stellopt_ornl"`` :math:`j_{m,n}=\sqrt{\sum_{(m,n)\in\mathrm{non-sym}}|A_{m,n}(s)|^2}` compute a **single** Euclidean norm of the non-symmetric amplitudes
+
+    
+        Finishes by collecting the weighted, non-symmetric amplitudes from each surface into a flat 1D array.
+
+            
+        Returns
+        -------
+        symmetry_error : np.ndarray
+            A one-dimensional array containing all normalized, weighted amplitudes of
+            the symmetry-breaking Fourier modes of ``|B|`` for the requested flux surfaces.
         """
+
         # run on all mpi processes (will skip if recompute bell not rung)
         self.boozer.run()
 
