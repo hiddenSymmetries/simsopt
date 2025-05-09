@@ -39,6 +39,7 @@ import numpy as np
 from simsopt.field import BiotSavart, DipoleField
 from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
+import simsoptpp as sopp
 from simsopt.solve import relax_and_split
 from simsopt.util import in_github_actions
 from simsopt.util.permanent_magnet_helper_functions import *
@@ -51,8 +52,8 @@ if in_github_actions:
     ntheta = nphi
     dr = 0.05  # cylindrical bricks with radial extent 5 cm
 else:
-    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-    ntheta = 16
+    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    ntheta = 64
     dr = 0.02  # cylindrical bricks with radial extent 2 cm
 
 coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
@@ -71,7 +72,7 @@ s_inner.extend_via_projected_normal(poff)
 s_outer.extend_via_projected_normal(poff + coff)
 
 # Make the output directory
-out_dir = Path("permanent_magnet_QA_output")
+out_dir = Path("QA_Output")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 # initialize the coils
@@ -162,8 +163,68 @@ B_max = 1.465
 mu0 = 4 * np.pi * 1e-7
 M_max = B_max / mu0 
 dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
+dipoles_full = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
+
+#Calculate net forces and torques for sparse and less sparse solutions
+# Make BiotSavart object from the dipoles and plot solution 
+#Find indices where there are and aren't dipole moments
+m_proxy_nonzero_indices = np.where(np.sum(dipoles ** 2, axis=-1) > 1e-10)[0]
+m_proxy_zero_indices = np.where(np.sum(dipoles_full ** 2, axis=-1) <= 1e-10)[0]
+#Do net force calcs where there are nonzero dipole moments and make a list
+t_force_calc_start = time.time()
+sparse_net_forces_nonzero = sopp.net_force_matrix(
+        np.ascontiguousarray(dipoles_full[m_proxy_nonzero_indices, :]), 
+        np.ascontiguousarray(pm_opt.dipole_grid_xyz[m_proxy_nonzero_indices, :])
+    )
+sparse_net_forces = np.zeros((pm_opt.ndipoles, 3))
+sparse_net_forces[m_proxy_nonzero_indices, :] = sparse_net_forces_nonzero
+sparse_net_forces[m_proxy_zero_indices, :] = 0.0
+t_force_calc_end = time.time()
+print('Time to calc force = ', t_force_calc_end - t_force_calc_start)
+        
+# Do net torque calcs where there are nonzero dipole moments and make a list
+t_torque_calc_start = time.time()
+# This calls the C++ function
+sparse_net_torques_nonzero = sopp.net_torque_matrix(
+        np.ascontiguousarray(dipoles_full[m_proxy_nonzero_indices, :]),
+        np.ascontiguousarray(pm_opt.dipole_grid_xyz[m_proxy_nonzero_indices, :])
+    )     
+sparse_net_torques = np.zeros((pm_opt.ndipoles, 3))
+sparse_net_torques[m_proxy_nonzero_indices, :] = sparse_net_torques_nonzero
+sparse_net_torques[m_proxy_zero_indices, :] = 0.0 # Ensure these are explicitly zero
+t_torque_calc_end = time.time()
+print('Time to calc torque for non-zero dipoles = ', t_torque_calc_end - t_torque_calc_start)
+# Make BiotSavart object from the dipoles and plot solution 
+#Find indices where there are and aren't dipole moments
+m_nonzero_indices = np.where(np.sum(dipoles_full ** 2, axis=-1) > 1e-10)[0]
+m_zero_indices = np.where(np.sum(dipoles_full ** 2, axis=-1) <= 1e-10)[0]
+#Do net force calcs where there are nonzero dipole moments and make a list
+t_force_calc_start = time.time()
+net_forces_nonzero = sopp.net_force_matrix(
+        np.ascontiguousarray(dipoles_full[m_nonzero_indices, :]), 
+        np.ascontiguousarray(pm_opt.dipole_grid_xyz[m_nonzero_indices, :])
+    )
+net_forces = np.zeros((pm_opt.ndipoles, 3))
+net_forces[m_nonzero_indices, :] = net_forces_nonzero
+net_forces[m_zero_indices, :] = 0.0
+t_force_calc_end = time.time()
+print('Time to calc force = ', t_force_calc_end - t_force_calc_start)
+        
+# Do net torque calcs where there are nonzero dipole moments and make a list
+t_torque_calc_start = time.time()
+# This calls the C++ function
+net_torques_nonzero = sopp.net_torque_matrix(
+        np.ascontiguousarray(dipoles_full[m_nonzero_indices, :]),
+        np.ascontiguousarray(pm_opt.dipole_grid_xyz[m_nonzero_indices, :])
+    )     
+net_torques = np.zeros((pm_opt.ndipoles, 3))
+net_torques[m_nonzero_indices, :] = net_torques_nonzero
+net_torques[m_zero_indices, :] = 0.0 # Ensure these are explicitly zero
+t_torque_calc_end = time.time()
+print('Time to calc torque for non-zero dipoles = ', t_torque_calc_end - t_torque_calc_start)
+
 
 # Plot the sparse and less sparse solutions from SIMSOPT
 b_dipole_proxy = DipoleField(
@@ -172,6 +233,8 @@ b_dipole_proxy = DipoleField(
     nfp=s.nfp,
     coordinate_flag=pm_opt.coordinate_flag,
     m_maxima=pm_opt.m_maxima,
+    net_forces=sparse_net_forces,
+    net_torques = sparse_net_torques
 )
 b_dipole_proxy.set_points(s_plot.gamma().reshape((-1, 3)))
 b_dipole_proxy._toVTK(out_dir / "Dipole_Fields_Sparse")
@@ -180,8 +243,11 @@ b_dipole = DipoleField(
     pm_opt.m,
     nfp=s.nfp,
     coordinate_flag=pm_opt.coordinate_flag,
-    m_maxima=pm_opt.m_maxima
-)
+    m_maxima=pm_opt.m_maxima,
+    net_forces=net_forces,
+    net_torques = net_torques
+    )
+
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
 b_dipole._toVTK(out_dir / "Dipole_Fields")
 
@@ -224,7 +290,9 @@ b_dipole = DipoleField(
     pm_opt.m_proxy,
     nfp=s.nfp,
     coordinate_flag=pm_opt.coordinate_flag,
-    m_maxima=pm_opt.m_maxima
+    m_maxima=pm_opt.m_maxima,
+    net_forces=sparse_net_forces,
+    net_torques = sparse_net_torques
 )
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
 f_B_sp = SquaredFlux(s_plot, b_dipole, -Bnormal).J()

@@ -24,6 +24,7 @@ import numpy as np
 from simsopt.field import BiotSavart, DipoleField, Coil
 from simsopt.geo import SurfaceRZFourier, PermanentMagnetGrid
 from simsopt.solve import GPMO
+import simsoptpp as sopp
 from simsopt.util.permanent_magnet_helper_functions \
     import initialize_default_kwargs, make_Bnormal_plots
 from simsopt.util import FocusPlasmaBnormal, FocusData, read_focus_coils, in_github_actions
@@ -39,10 +40,10 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # drastically downsample the grid if running CI
 else:
-    N = 16  # >= 64 for high-resolution runs
+    N = 64 # >= 64 for high-resolution runs
     nIter_max = 100000
     max_nMagnets = 10000
-    downsample = 10
+    downsample = 2
 
 nphi = N
 ntheta = N
@@ -52,7 +53,7 @@ nAdjacent = 10
 thresh_angle = np.pi  # / np.sqrt(2)
 nHistory = 10
 angle = int(thresh_angle * 180 / np.pi)
-out_dir = Path("PM4Stell_angle{angle}_nb{nBacktracking}_na{nAdjacent}") 
+out_dir = Path("PM4Stell_Output") 
 out_dir.mkdir(parents=True, exist_ok=True)
 print('out directory = ', out_dir)
 
@@ -165,15 +166,59 @@ R2_history, Bn_history, m_history = GPMO(pm_ncsx, algorithm, **kwargs)
 dt = time.time() - t1
 print('GPMO took t = ', dt, ' s')
 
+# Set final m to the minimum achieved during the optimization
+min_ind = np.argmin(R2_history)
+pm_ncsx.m
+
+# Print effective permanent magnet volume
+B_max = 1.465
+mu0 = 4 * np.pi * 1e-7
+M_max = B_max / mu0 
+dipoles = pm_ncsx.m.reshape(pm_ncsx.ndipoles, 3)
+
+print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
+print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 # Save files
 if True:
     # Make BiotSavart object from the dipoles and plot solution 
+    #Find indices where there are and aren't dipole moments
+    m_nonzero_indices = np.where(np.sum(dipoles ** 2, axis=-1) > 1e-10)[0]
+    m_zero_indices = np.where(np.sum(dipoles ** 2, axis=-1) <= 1e-10)[0]
+    #Do net force calcs where there are nonzero dipole moments and make a list
+    t_force_calc_start = time.time()
+    net_forces_nonzero = sopp.net_force_matrix(
+            np.ascontiguousarray(dipoles[m_nonzero_indices, :]), 
+            np.ascontiguousarray(pm_ncsx.dipole_grid_xyz[m_nonzero_indices, :])
+        )
+    net_forces = np.zeros((pm_ncsx.ndipoles, 3))
+    net_forces[m_nonzero_indices, :] = net_forces_nonzero
+    net_forces[m_zero_indices, :] = 0.0
+    t_force_calc_end = time.time()
+    print('Time to calc force = ', t_force_calc_end - t_force_calc_start)
+        
+    # Do net torque calcs where there are nonzero dipole moments and make a list
+    t_torque_calc_start = time.time()
+    # This calls the C++ function
+    net_torques_nonzero = sopp.net_torque_matrix(
+            np.ascontiguousarray(dipoles[m_nonzero_indices, :]),
+            np.ascontiguousarray(pm_ncsx.dipole_grid_xyz[m_nonzero_indices, :])
+        )
+       
+
+    net_torques = np.zeros((pm_ncsx.ndipoles, 3))
+    net_torques[m_nonzero_indices, :] = net_torques_nonzero
+    net_torques[m_zero_indices, :] = 0.0 # Ensure these are explicitly zero
+    t_torque_calc_end = time.time()
+    print('Time to calc torque for non-zero dipoles = ', t_torque_calc_end - t_torque_calc_start)
+
     b_dipole = DipoleField(
         pm_ncsx.dipole_grid_xyz,
         pm_ncsx.m,
         nfp=s_plot.nfp,
         coordinate_flag=pm_ncsx.coordinate_flag,
         m_maxima=pm_ncsx.m_maxima,
+        net_forces=net_forces,
+        net_torques = net_torques
     )
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
     b_dipole._toVTK(out_dir / "Dipole_Fields")
