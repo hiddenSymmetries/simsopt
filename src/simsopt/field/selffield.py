@@ -73,7 +73,7 @@ def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, reg
     return current * Biot_savart_prefactor * (analytic_term + integral_term)
 
 
-def B_regularized(coil, regularization):
+def B_regularized(coil):
     """Calculate the regularized field on a coil following the Landreman and Hurwitz method"""
     return B_regularized_pure(
         coil.curve.gamma(),
@@ -81,13 +81,15 @@ def B_regularized(coil, regularization):
         coil.curve.gammadashdash(),
         coil.curve.quadpoints,
         coil._current.get_value(),
-        regularization,
+        coil.regularization,
     )
 
 
 def B_regularized_circ(coil, a):
-    return B_regularized(coil, regularization_circ(a))
+    coil.regularization = regularization_circ(a)
+    return B_regularized(coil)
 
 
 def B_regularized_rect(coil, a, b):
-    return B_regularized(coil, regularization_rect(a, b))
+    coil.regularization = regularization_rect(a, b)
+    return B_regularized(coil)

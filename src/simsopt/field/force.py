@@ -38,14 +38,13 @@ def coil_force(coil, allcoils):
     Compute the force on a coil.
 
     Args:
-        coil (Coil): Coil to optimize.
-        allcoils (list): List of coils to optimize.
+        coil (Coil): Coil to compute the pointwise forces on.
+        allcoils (list): List of coils contributing forces on the primary coil.
         regularization (Regularization): Regularization object.
 
     Returns:
         array: Array of force.
     """
-    regularization = coil.regularization
     gammadash = coil.curve.gammadash()
     gammadash_norm = np.linalg.norm(gammadash, axis=1)[:, None]
     tangent = gammadash / gammadash_norm
@@ -56,7 +55,7 @@ def coil_force(coil, allcoils):
     mutual_field = BiotSavart(mutual_coils).set_points(coil.curve.gamma())
     B_mutual = mutual_field.B()
     mutualforce = np.cross(coil.current.get_value() * tangent, B_mutual)
-    selfforce = self_force(coil, regularization)
+    selfforce = self_force(coil)
     return (selfforce + mutualforce)
 
 
@@ -65,8 +64,8 @@ def coil_net_force(coil, allcoils):
     Compute the net forces on a list of coils.
 
     Args:
-        coils (list): List of coils to optimize.
-        allcoils (list): List of coils to optimize.
+        coils (list): Coil to compute the net forces on.
+        allcoils (list): List of coils contributing forces on the primary coil.
         regularization (Regularization): Regularization object.
 
     Returns:
@@ -84,8 +83,8 @@ def coil_torque(coil, allcoils):
     Compute the torques on a coil.
 
     Args:
-        coil (Coil): Coil to optimize.
-        allcoils (list): List of coils to optimize.
+        coil (Coil): Coil to compute the pointwise torques on.
+        allcoils (list): List of coils contributing torques on the primary coil.
         regularization (Regularization): Regularization object.
 
     Returns:
@@ -101,8 +100,8 @@ def coil_net_torque(coil, allcoils):
     Compute the net torques on a list of coils.
 
     Args:
-        coils (list): List of coils to optimize.
-        allcoils (list): List of coils to optimize.
+        coils (list): Coil to compute the net torques on.
+        allcoils (list): List of coils contributing torques on the primary coil.
         regularization (Regularization): Regularization object.
 
     Returns:
@@ -130,13 +129,12 @@ def coil_force_pure(B, I, t):
     return jnp.cross(I * t, B)
 
 
-def self_force(coil, regularization):
+def self_force(coil):
     """
     Compute the self-force of a coil.
 
     Args:
-        coil (Coil): Coil to optimize.
-        regularization (Regularization): Regularization object.
+        coil (Coil): Coil to compute the self-force on.
 
     Returns:
         array: Array of self-force.
@@ -144,7 +142,7 @@ def self_force(coil, regularization):
     I = coil.current.get_value()
     tangent = coil.curve.gammadash() / np.linalg.norm(coil.curve.gammadash(),
                                                       axis=1)[:, None]
-    B = B_regularized(coil, regularization)
+    B = B_regularized(coil)
     return coil_force_pure(B, I, tangent)
 
 
@@ -153,13 +151,14 @@ def self_force_circ(coil, a):
     Compute the Lorentz self-force of a coil with circular cross-section
 
     Args:
-        coil (Coil): Coil to optimize.
+        coil (Coil): Coil to compute the self-force on.
         a (array): Array of coil positions.
 
     Returns:
         array: Array of self-force.
     """
-    return self_force(coil, regularization_circ(a))
+    coil.regularization = regularization_circ(a)
+    return self_force(coil)
 
 
 def self_force_rect(coil, a, b):
@@ -167,14 +166,15 @@ def self_force_rect(coil, a, b):
     Compute the Lorentz self-force of a coil with rectangular cross-section
 
     Args:
-        coil (Coil): Coil to optimize.
+        coil (Coil): Coil to compute the self-force on.
         a (array): Array of coil positions.
         b (array): Array of coil tangent vectors.
 
     Returns:
         array: Array of self-force.
     """
-    return self_force(coil, regularization_rect(a, b))
+    coil.regularization = regularization_rect(a, b)
+    return self_force(coil)
 
 # @jit
 def lp_force_pure_deprecated(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual, p, threshold, downsample):
@@ -223,8 +223,8 @@ class LpCurveForce_deprecated(Optimizable):
     L is the total length of the coil, and :math:`\ell` is arclength along the coil.
 
     Args:
-        coil (Coil): Coil to optimize.
-        allcoils (list): List of coils to optimize. 
+        coil (Coil): Coil whose force is being computed.
+        allcoils (list): List of coils to use for computing LpCurveForce of the primary coil. 
         regularization (Regularization): Regularization object.
         p (float): Power of the objective function.
         threshold (float): Threshold for the objective function.
@@ -232,6 +232,7 @@ class LpCurveForce_deprecated(Optimizable):
     """
 
     def __init__(self, coil, allcoils, regularization, p=2.0, threshold=0.0, downsample=1):
+        coil.regularization = regularization  # for backwards compatibility
         self.coil = coil
         self.othercoils = [c for c in allcoils if c is not coil]
         self.biotsavart = BiotSavart(self.othercoils)
@@ -406,13 +407,14 @@ class MeanSquaredForce_deprecated(Optimizable):
     and :math:`\ell` is arclength along the coil.
 
     Args:
-        coil (Coil): Coil to optimize.
-        allcoils (list): List of coils to optimize. 
+        coil (Coil): Coil whose force is being computed.
+        allcoils (list): List of coils to use for computing MeanSquaredForce of the primary coil. 
         regularization (Regularization): Regularization object.
         downsample (int): Downsample factor for the objective function.
     """
 
     def __init__(self, coil, allcoils, regularization, downsample=1):
+        coil.regularization = regularization  # for backwards compatibility
         self.coil = coil
         self.allcoils = allcoils
         self.othercoils = [c for c in allcoils if c is not coil]
@@ -841,6 +843,11 @@ class NetFluxes(Optimizable):
     where :math:`A_{ext}` is the vector potential of an external magnetic field,
     evaluated along the quadpoints along the curve,
     L is the total length of the coil, and :math:`\ell` is arclength along the coil.
+
+    Args:
+        coil (Coil): Coil whose net flux is being computed.
+        othercoils (list): List of coils to use for computing the net flux.
+        downsample (int): Factor by which to downsample the coil points for computation.
     """
 
     def __init__(self, coil, othercoils, downsample=1):
@@ -942,9 +949,8 @@ class NetFluxes(Optimizable):
 def squared_mean_force_pure(gammas, gammas2, gammadashs, gammadashs2, currents,
                             currents2, downsample):
     """
-    Compute the squared mean force on a set of coils due to another set of coils.
+    Compute the squared mean force on coil set 1 due to coil set 1 and another coil set 2.
 
-    This function computes the squared mean force on a set of coils due to another set of coils.
     The coils are allowed to have different numbers of quadrature points, but for the purposes of
     jax speed, the coils are downsampled here to have the same number of quadrature points.
     """
@@ -992,7 +998,10 @@ def squared_mean_force_pure(gammas, gammas2, gammadashs, gammadashs2, currents,
 
         def biot_savart_from_j2(j2):
             return jnp.sum(jnp.cross(gammadashs2[j2], pt - gammas2[j2]) / (jnp.linalg.norm(pt - gammas2[j2] + eps, axis=1) ** 3)[:, None], axis=0) * currents2[j2]
+       
+        # Compute the mutual field from coil set 1 to coil set 1, masking j == i
         B_mutual1 = jnp.sum(vmap(biot_savart_from_j)(jnp.arange(n1)), axis=0)
+        # Compute the mutual field from coil set 1 to coil set 2
         B_mutual2 = jnp.sum(vmap(biot_savart_from_j2)(jnp.arange(n2)), axis=0)
         return (B_mutual1 / npts1) + (B_mutual2 / npts2)
 
@@ -1027,8 +1036,9 @@ class SquaredMeanForce(Optimizable):
     coils with all different number of quadrature points and different types of cross-sections.
 
     Args:
-        allcoils (list): List of coils to optimize. If using passive coils, this should be the passive coils.
-        allcoils2 (list): List of coils to optimize. If using passive coils, this should be the TF coils. 
+        allcoils (list): List of coils to use for computing MeanSquaredForce. 
+        allcoils2 (list): List of coils that provide forces on the first set of coils but that
+            we do not care about optimizing their forces. 
         downsample (int): Downsample factor for the objective function.
     """
 
@@ -1140,7 +1150,8 @@ def lp_force_pure(
     quadpoints, currents, currents2, regularizations, p, threshold, downsample=1
 ):
     """
-    Computes the mixed Lp force objective by summing over all coils in the first set, where each coil receives force from all coils (including itself and the second set).
+    Computes the mixed Lp force objective by summing over all coils in the first set, 
+    where each coil receives force from all coils (including itself and the second set).
     This version allows each coil to have its own quadrature points array.
     """
     all_lengths = [g.shape[0] for g in gammas] + [g2.shape[0] for g2 in gammas2]
@@ -1198,7 +1209,10 @@ def lp_force_pure(
 
         def biot_savart_from_j2(j2):
             return jnp.sum(jnp.cross(gammadashs2[j2], pt - gammas2[j2]) / (jnp.linalg.norm(pt - gammas2[j2] + eps, axis=1) ** 3)[:, None], axis=0) * currents2[j2]
+        
+        # Compute the mutual field from coil set 1 to coil set 1, masking j == i
         B_mutual1 = jnp.sum(vmap(biot_savart_from_j)(jnp.arange(n1)), axis=0)
+        # Compute the mutual field from coil set 1 to coil set 2
         B_mutual2 = jnp.sum(vmap(biot_savart_from_j2)(jnp.arange(n2)), axis=0)
         return (B_mutual1 / npts1) + (B_mutual2 / npts2)
 
@@ -1212,7 +1226,6 @@ def lp_force_pure(
         jnp.arange(n1), gammas, tangents, B_self, currents
     )
 
-    # Only sum over the first group
     return (jnp.sum(jnp.sum(jnp.maximum(obj1 - threshold, 0) ** p * gammadash_norms[:, :, 0])) / npts1) * (1. / p)
 
 
@@ -1233,8 +1246,9 @@ class LpCurveForce(Optimizable):
     coils with all different number of quadrature points and different types ofcross-sections.
 
     Args:
-        allcoils (list): List of coils to optimize. If using passive coils, this should be the passive coils.
-        allcoils2 (list): List of coils to optimize. If using passive coils, this should be the TF coils. 
+        allcoils (list): List of coils to use for computing LpCurveForce. 
+        allcoils2 (list): List of coils that provide forces on the first set of coils but that
+            we do not care about optimizing their forces. 
         p (float): Power of the objective function.
         threshold (float): Threshold for the objective function.
         downsample (int): Downsample factor for the objective function.
@@ -1363,12 +1377,11 @@ def lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs,
         gammas2 (array): Array of coil positions.
         gammadashs (array): Array of coil tangent vectors.
         gammadashs2 (array): Array of coil tangent vectors.
+        gammadashdashs (array): Array of second derivatives of coil positions.
         quadpoints (array): Array of quadrature points.
-        quadpoints2 (array): Array of quadrature points.
         currents (array): Array of coil currents.
         currents2 (array): Array of coil currents.
         regularizations (array): Array of coil regularizations.
-        regularizations2 (array): Array of coil regularizations.
         p (float): Power of the objective function.
         threshold (float): Threshold for the objective function.
         downsample (int): Downsample factor for the objective function.
@@ -1436,7 +1449,10 @@ def lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs,
 
         def biot_savart_from_j2(j2):
             return jnp.sum(jnp.cross(gammadashs2[j2], pt - gammas2[j2]) / (jnp.linalg.norm(pt - gammas2[j2] + eps, axis=1) ** 3)[:, None], axis=0) * currents2[j2]
+        
+        # Compute the mutual field from coil set 1 to coil set 1, masking j == i
         B_mutual1 = jnp.sum(vmap(biot_savart_from_j)(jnp.arange(n1)), axis=0)
+        # Compute the mutual field from coil set 1 to coil set 2
         B_mutual2 = jnp.sum(vmap(biot_savart_from_j2)(jnp.arange(n2)), axis=0)
         return ((B_mutual1 / npts1) + (B_mutual2 / npts2)) * 1e-7
 
@@ -1472,10 +1488,9 @@ class LpCurveTorque(Optimizable):
     coils with all different number of quadrature points and different types of cross-sections.
 
     Args:
-        allcoils (list): List of coils to optimize.
-        allcoils2 (list): List of coils to optimize.
-        regularizations (list): List of regularizations for the coils.
-        regularizations2 (list): List of regularizations for the coils.
+        allcoils (list): List of coils to use for computing LpCurveTorque. 
+        allcoils2 (list): List of coils that provide torques on the first set of coils but that
+            we do not care about optimizing their torques. 
         p (float): Power of the objective function.
         threshold (float): Threshold for the objective function.
         downsample (int): Downsample factor for the objective function.
@@ -1598,6 +1613,21 @@ class LpCurveTorque(Optimizable):
 
 
 def squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents, currents2, downsample):
+    """
+    Compute the squared mean torque in coil set 1 due to themselves and coil set 2.
+
+    Args:
+        gammas (array): Array of coil positions in coil set 1.
+        gammas2 (array): Array of coil positions in coil set 2.
+        gammadashs (array): Array of coil tangent vectors in coil set 1.
+        gammadashs2 (array): Array of coil tangent vectors in coil set 2.
+        currents (array): Array of coil currents in coil set 1.
+        currents2 (array): Array of coil currents in coil set 2.
+        downsample (int): Downsample factor for the curve quadrature points.
+
+    Returns:
+        float: Value of the objective function.
+    """
     all_lengths = [g.shape[0] for g in gammas] + [g2.shape[0] for g2 in gammas2]
     min_npts = min(all_lengths)
 
@@ -1646,7 +1676,10 @@ def squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents, curr
 
         def biot_savart_from_j2(j2):
             return jnp.sum(jnp.cross(gammadashs2[j2], pt - gammas2[j2]) / (jnp.linalg.norm(pt - gammas2[j2] + eps, axis=1) ** 3)[:, None], axis=0) * currents2[j2]
+        
+        # Compute the mutual field from coil set 1 to coil set 1, masking j == i
         B_mutual1 = jnp.sum(vmap(biot_savart_from_j)(jnp.arange(n1)), axis=0)
+        # Compute the mutual field from coil set 1 to coil set 2
         B_mutual2 = jnp.sum(vmap(biot_savart_from_j2)(jnp.arange(n2)), axis=0)
         return (B_mutual1 / npts1) + (B_mutual2 / npts2)
 
@@ -1687,8 +1720,9 @@ class SquaredMeanTorque(Optimizable):
     coils with all different number of quadrature points and different types of cross-sections.
 
     Args:
-        allcoils (list): List of coils to optimize.
-        allcoils2 (list): List of coils to optimize.
+        allcoils (list): List of coils to use for computing SquaredMeanTorque. 
+        allcoils2 (list): List of coils that provide torques on the first set of coils but that
+            we do not care about optimizing their torques. 
         downsample (int): Downsample factor for the objective function.
 
     Returns:
