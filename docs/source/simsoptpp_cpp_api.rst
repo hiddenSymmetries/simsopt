@@ -1,7 +1,7 @@
 .. _api_simsoptpp_cpp:
 
-Simsopt C++ API Reference
-======================
+Simsopt C++ API
+===============
 
 
 Biot Savart

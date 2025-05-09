@@ -94,6 +94,7 @@ optimization.  Others include `STELLOPT
    :caption: API Reference
 
    simsopt
+   simsoptpp_cpp_api
 
 .. toctree::
    :maxdepth: 3
@@ -101,7 +102,6 @@ optimization.  Others include `STELLOPT
 
    example_derivative
    cpp
-   Simsopt++ C++ API <simsoptpp_cpp_api>
 
 Indices and tables
 ==================
