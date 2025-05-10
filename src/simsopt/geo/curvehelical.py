@@ -92,13 +92,11 @@ class CurveHelical(JaxCurve):
         self.R0 = R0
         self.r = r
         self.coefficients = np.zeros(self.num_dofs())
-        dof_names = [f"A_{i}" for i in range(order + 1)] + [
-            f"B_{i}" for i in range(1, order + 1)
-        ]
+        dof_names = [f"A_{i}" for i in range(order + 1)] + [f"B_{i}" for i in range(1, order + 1)]
 
         if "dofs" not in kwargs:
             if "x0" not in kwargs:
-                kwargs["x0"] = np.zeros(1 + 2 * order)
+                kwargs["x0"] = self.coefficients
             else:
                 self.set_dofs_impl(kwargs["x0"])
 
