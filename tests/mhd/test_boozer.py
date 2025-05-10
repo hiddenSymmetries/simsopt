@@ -223,6 +223,9 @@ class QuasisymmetryTests(unittest.TestCase):
         np.testing.assert_allclose(bmnc[:, 1], bmnc_ref[:, -1],
                                    atol=atol, rtol=rtol)
 
+    
+    @unittest.skipIf((booz_xform is None) or (vmec is None),
+                     "vmec or booz_xform python package not found")
     def test_boozer_basic_non_stellsym(self):
         """Check that we are close to precalculated quasisymmetry errors.
         For a stellarator assymmetric configuration with less-used normalization flags to increase code coverage.
