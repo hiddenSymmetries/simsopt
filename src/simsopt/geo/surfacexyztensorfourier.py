@@ -109,7 +109,7 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
 
         gamma = np.zeros((surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3))
         for idx in range(gamma.shape[0]):
-            gamma[idx, :, :] = self.cross_section(surf.quadpoints_phi[idx]*2*np.pi)
+            gamma[idx, :, :] = self.cross_section(surf.quadpoints_phi[idx])
 
         surf.least_squares_fit(gamma)
         return surf
