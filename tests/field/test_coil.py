@@ -30,7 +30,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     elif curvetype == "CurveRZFourier":
         curve = CurveRZFourier(x, order, 2, True)
     elif curvetype == "CurveHelical":
-        curve = CurveHelical(x, order, 5, 2, 1.0, 0.3)
+        curve = CurveHelical(x, order, 5, 1, 1.0, 0.3)
     else:
         assert False
     dofs = np.zeros((curve.dof_size, ))
