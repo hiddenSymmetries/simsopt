@@ -95,12 +95,8 @@ class MGrid():
         This function saves the magnetic field :math:`B`, and (optionally) the vector potential :math:`A`, to the ``Mgrid`` object.
         :math:`B` and :math:`A` are provided on a tensor product grid in cylindrical components :math:`(R, \phi, z)`.
 
-        The Mgrid array assumes :math:`B` is sampled linearly first in :math:`R`, then :math:`z`, and last :math:`\phi`.
-        Python arrays use the opposite convention such that ``B[0]`` gives a :math:`(R,z)` square at const :math:`\phi`
-        and ``B[0,0]`` gives a radial line and const :math:`\phi` and :math:`z`.
-
-        This function may be called once for each coil group, 
-        to save sets of fields that can be scaled using EXTCUR in VMEC.
+        This function may be called once for each current group, to save groups of fields that can be scaled using the
+        ``vmec.indata.extcur`` array.
 
         Args:
             br (ndarray): (nphi, nz, nr) array of the radial component of B-field. 
