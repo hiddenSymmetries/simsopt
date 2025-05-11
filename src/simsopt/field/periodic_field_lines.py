@@ -19,7 +19,7 @@ __all__ = ["find_periodic_field_line", "PeriodicFieldLine", "periodic_field_line
 def _integrate_field_line(field, R0, z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
     """Integrate a single field line in the toroidal direction.
 
-    Integration is done in cylindrical coordinates. Integration is always done
+    Integration is done in Cartesian coordinates. Integration is always done
     in the +phi direction, regardless of the direction of B.
 
     For this function, phi0 and Delta_phi range over [0, 2pi], not [0, 1].
@@ -808,6 +808,7 @@ class PeriodicFieldLine():
 
         else:
             # Need longer integration for the field line to close in real space
+            print("Integrating field line to close in real space for vtk")
             Delta_phi_to_close = field_periods_to_integrate * 2 * np.pi / self.nfp
             nphi_to_close = self.nphi * (field_periods_to_integrate // self.m)
             phi_to_close = np.linspace(0, Delta_phi_to_close, nphi_to_close) + self.phi0
