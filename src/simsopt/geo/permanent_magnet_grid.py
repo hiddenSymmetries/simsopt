@@ -265,34 +265,50 @@ class PermanentMagnetGrid:
         return pm_grid
 
 
-    def net_force_matrix(self, MagnetMatrix):
-        PositionMatrix = self.dipole_grid_xyz
-
-        # each of the arguments is shape (nmagnets, 3)
-        def dipole_force(dipoleMoment1, dipolePosition1, dipoleMoment2, dipolePosition2):
-            # Turn everything into shape (nmagnets, nmagnets, 3)
-            eps = 1e-10
-            m1 = dipoleMoment1[None, :, :]
-            m2 = dipoleMoment2[:, None, :]
-            # Takes two arrays of shape (nmagnets, 3)
-            # and makes an array R of shape (nmagnets, nmagnets, 3)
-            R = dipolePosition2[:, None, :] - dipolePosition1[None, :, :]
-            # print(R)
-            mag_R = np.sqrt(np.sum(R * R + eps, axis=-1)[:, :, None])  # avoid the singularity
-            mu = 4 * math.pi * pow(10, -7)
-            coefficient = (3 * mu) / (4 * math.pi * mag_R ** 5)
-            first_term = np.sum(m1 * R, axis=-1)[:, :, None] * m2
-            second_term = np.sum(m2 * R, axis=-1)[:, :, None] * m1
-            third_term = np.sum(m1 * m2, axis=-1)[:, :, None] * R
-            fourth_term = R * (5 * np.sum(m1 * R, axis=-1) * np.sum(m2 * R, axis=-1))[:, :, None] / (mag_R ** 2)
-            force = coefficient * (first_term + second_term + third_term - fourth_term)
-            # force_new = np.nan_to_num(force, nan=0)
-            return force
-
-        # returns (nmagnets, nmagnets, 3)
-        ForceMatrix = dipole_force(MagnetMatrix, PositionMatrix, MagnetMatrix, PositionMatrix)
-        NetForce = np.sum(ForceMatrix, axis=1)
-        return NetForce
+    def force_torque_calc(self, MagnetMatrix):
+        """
+        Calculate the net force and torque matrices for a given magnet matrix using C++ functions.
+        
+        Args:
+            MagnetMatrix: Array of shape (nmagnets, 3) containing the magnet moments
+            
+        Returns:
+            tuple: (net_forces, net_torques) where:
+                - net_forces: Array of shape (nmagnets, 3) containing the net forces
+                - net_torques: Array of shape (nmagnets, 3) containing the net torques
+        """
+        # Find indices where there are and aren't dipole moments
+        m_nonzero_indices = np.where(np.sum(MagnetMatrix ** 2, axis=-1) > 1e-10)[0]
+        m_zero_indices = np.where(np.sum(MagnetMatrix ** 2, axis=-1) <= 1e-10)[0]
+        
+        # Initialize output arrays
+        net_forces = np.zeros((self.ndipoles, 3))
+        net_torques = np.zeros((self.ndipoles, 3))
+        
+        # Skip calculation if no nonzero dipoles
+        if len(m_nonzero_indices) == 0:
+            return net_forces, net_torques
+            
+        # Calculate forces for nonzero dipoles using C++ function
+        net_forces_nonzero = sopp.net_force_matrix(
+            np.ascontiguousarray(MagnetMatrix[m_nonzero_indices, :]),
+            np.ascontiguousarray(self.dipole_grid_xyz[m_nonzero_indices, :])
+        )
+        
+        # Calculate torques for nonzero dipoles using C++ function
+        net_torques_nonzero = sopp.net_torque_matrix(
+            np.ascontiguousarray(MagnetMatrix[m_nonzero_indices, :]),
+            np.ascontiguousarray(self.dipole_grid_xyz[m_nonzero_indices, :])
+        )
+        
+        # Assign results to output arrays
+        net_forces[m_nonzero_indices, :] = net_forces_nonzero
+        net_forces[m_zero_indices, :] = 0.0  # Ensure zero dipoles have zero force
+        
+        net_torques[m_nonzero_indices, :] = net_torques_nonzero
+        net_torques[m_zero_indices, :] = 0.0  # Ensure zero dipoles have zero torque
+        
+        return net_forces, net_torques
     
     @classmethod
     def geo_setup_between_toroidal_surfaces(

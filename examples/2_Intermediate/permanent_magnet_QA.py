@@ -169,62 +169,11 @@ print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
 #Calculate net forces and torques for sparse and less sparse solutions
 # Make BiotSavart object from the dipoles and plot solution 
-#Find indices where there are and aren't dipole moments
-m_proxy_nonzero_indices = np.where(np.sum(dipoles ** 2, axis=-1) > 1e-10)[0]
-m_proxy_zero_indices = np.where(np.sum(dipoles_full ** 2, axis=-1) <= 1e-10)[0]
-#Do net force calcs where there are nonzero dipole moments and make a list
-t_force_calc_start = time.time()
-sparse_net_forces_nonzero = sopp.net_force_matrix(
-        np.ascontiguousarray(dipoles_full[m_proxy_nonzero_indices, :]), 
-        np.ascontiguousarray(pm_opt.dipole_grid_xyz[m_proxy_nonzero_indices, :])
-    )
-sparse_net_forces = np.zeros((pm_opt.ndipoles, 3))
-sparse_net_forces[m_proxy_nonzero_indices, :] = sparse_net_forces_nonzero
-sparse_net_forces[m_proxy_zero_indices, :] = 0.0
-t_force_calc_end = time.time()
-print('Time to calc force = ', t_force_calc_end - t_force_calc_start)
-        
-# Do net torque calcs where there are nonzero dipole moments and make a list
-t_torque_calc_start = time.time()
-# This calls the C++ function
-sparse_net_torques_nonzero = sopp.net_torque_matrix(
-        np.ascontiguousarray(dipoles_full[m_proxy_nonzero_indices, :]),
-        np.ascontiguousarray(pm_opt.dipole_grid_xyz[m_proxy_nonzero_indices, :])
-    )     
-sparse_net_torques = np.zeros((pm_opt.ndipoles, 3))
-sparse_net_torques[m_proxy_nonzero_indices, :] = sparse_net_torques_nonzero
-sparse_net_torques[m_proxy_zero_indices, :] = 0.0 # Ensure these are explicitly zero
-t_torque_calc_end = time.time()
-print('Time to calc torque for non-zero dipoles = ', t_torque_calc_end - t_torque_calc_start)
-# Make BiotSavart object from the dipoles and plot solution 
-#Find indices where there are and aren't dipole moments
-m_nonzero_indices = np.where(np.sum(dipoles_full ** 2, axis=-1) > 1e-10)[0]
-m_zero_indices = np.where(np.sum(dipoles_full ** 2, axis=-1) <= 1e-10)[0]
-#Do net force calcs where there are nonzero dipole moments and make a list
-t_force_calc_start = time.time()
-net_forces_nonzero = sopp.net_force_matrix(
-        np.ascontiguousarray(dipoles_full[m_nonzero_indices, :]), 
-        np.ascontiguousarray(pm_opt.dipole_grid_xyz[m_nonzero_indices, :])
-    )
-net_forces = np.zeros((pm_opt.ndipoles, 3))
-net_forces[m_nonzero_indices, :] = net_forces_nonzero
-net_forces[m_zero_indices, :] = 0.0
-t_force_calc_end = time.time()
-print('Time to calc force = ', t_force_calc_end - t_force_calc_start)
-        
-# Do net torque calcs where there are nonzero dipole moments and make a list
-t_torque_calc_start = time.time()
-# This calls the C++ function
-net_torques_nonzero = sopp.net_torque_matrix(
-        np.ascontiguousarray(dipoles_full[m_nonzero_indices, :]),
-        np.ascontiguousarray(pm_opt.dipole_grid_xyz[m_nonzero_indices, :])
-    )     
-net_torques = np.zeros((pm_opt.ndipoles, 3))
-net_torques[m_nonzero_indices, :] = net_torques_nonzero
-net_torques[m_zero_indices, :] = 0.0 # Ensure these are explicitly zero
-t_torque_calc_end = time.time()
-print('Time to calc torque for non-zero dipoles = ', t_torque_calc_end - t_torque_calc_start)
+# Calculate forces and torques for sparse solution
+sparse_net_forces, sparse_net_torques = pm_opt.force_torque_calc(dipoles_full)
 
+# Calculate forces and torques for full solution
+net_forces, net_torques = pm_opt.force_torque_calc(dipoles_full)
 
 # Plot the sparse and less sparse solutions from SIMSOPT
 b_dipole_proxy = DipoleField(

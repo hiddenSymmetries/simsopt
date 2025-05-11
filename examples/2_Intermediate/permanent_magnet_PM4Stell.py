@@ -181,35 +181,8 @@ print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 # Save files
 if True:
     # Make BiotSavart object from the dipoles and plot solution 
-    #Find indices where there are and aren't dipole moments
-    m_nonzero_indices = np.where(np.sum(dipoles ** 2, axis=-1) > 1e-10)[0]
-    m_zero_indices = np.where(np.sum(dipoles ** 2, axis=-1) <= 1e-10)[0]
-    #Do net force calcs where there are nonzero dipole moments and make a list
-    t_force_calc_start = time.time()
-    net_forces_nonzero = sopp.net_force_matrix(
-            np.ascontiguousarray(dipoles[m_nonzero_indices, :]), 
-            np.ascontiguousarray(pm_ncsx.dipole_grid_xyz[m_nonzero_indices, :])
-        )
-    net_forces = np.zeros((pm_ncsx.ndipoles, 3))
-    net_forces[m_nonzero_indices, :] = net_forces_nonzero
-    net_forces[m_zero_indices, :] = 0.0
-    t_force_calc_end = time.time()
-    print('Time to calc force = ', t_force_calc_end - t_force_calc_start)
-        
-    # Do net torque calcs where there are nonzero dipole moments and make a list
-    t_torque_calc_start = time.time()
-    # This calls the C++ function
-    net_torques_nonzero = sopp.net_torque_matrix(
-            np.ascontiguousarray(dipoles[m_nonzero_indices, :]),
-            np.ascontiguousarray(pm_ncsx.dipole_grid_xyz[m_nonzero_indices, :])
-        )
-       
-
-    net_torques = np.zeros((pm_ncsx.ndipoles, 3))
-    net_torques[m_nonzero_indices, :] = net_torques_nonzero
-    net_torques[m_zero_indices, :] = 0.0 # Ensure these are explicitly zero
-    t_torque_calc_end = time.time()
-    print('Time to calc torque for non-zero dipoles = ', t_torque_calc_end - t_torque_calc_start)
+    # Calculate net forces and torques using the new function
+    net_forces, net_torques = pm_ncsx.force_torque_calc(dipoles)
 
     b_dipole = DipoleField(
         pm_ncsx.dipole_grid_xyz,
