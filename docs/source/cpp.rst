@@ -1,5 +1,5 @@
-C++ backend
-***********
+Simsopt C++ backend
+*******************
 
 ``SIMSOPT`` uses C++ for performance critical functions such as the Biot Savart law, many of the geometric classes, and particle tracing.
 This section is aimed at advanced developers of ``SIMSOPT`` to give an overview over the interface between C++ and Python and to help avoid common pitfalls. For most users of ``SIMSOPT`` this is not relevant.

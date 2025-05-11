@@ -43,4 +43,3 @@ simsopt.objectives.utilities module
    :members:
    :undoc-members:
    :show-inheritance:
-

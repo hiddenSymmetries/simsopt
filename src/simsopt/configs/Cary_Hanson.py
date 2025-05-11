@@ -11,8 +11,12 @@ def get_Cary_Hanson_field(config, nquadpoints=400, optimized=False):
     """
     Return the coil configurations discussed in the following papers:
 
+    `Hanson & Cary (1984) <https://doi.org/10.1063/1.864692>`__
+    and
+    `Cary & Hanson (1986) <https://doi.org/10.1063/1.865539>`__
+
     These configurations have two helical coils, each of which lies on a
-    circular-cross-section axisymmetric torus.
+    circular-cross-section axisymmetric torus. A purely toroidal field is added.
 
     Options for the ``config`` argument are
     ``"1984"``, ``"0.015"``, ``"0.021"``, ``"0.029"``, ``"0.0307"``,
@@ -21,16 +25,16 @@ def get_Cary_Hanson_field(config, nquadpoints=400, optimized=False):
     
     """
     nfp = 5
-    l0 = 2
+    ell = 2
     R0 = 1
     a = 0.3
 
     if config == "1984":
-        order = 4
-    elif config in ["0.0307", "Geraldini"]:
-        order = 2
-    else:
         order = 3
+    elif config in ["0.0307", "Geraldini"]:
+        order = 1
+    else:
+        order = 2
 
     if config in ["1984", "0.021"]:
         current = 0.021
@@ -44,8 +48,8 @@ def get_Cary_Hanson_field(config, nquadpoints=400, optimized=False):
         raise ValueError(f"Unknown config: {config}")
 
     curves = [
-        CurveHelical(nquadpoints, order, nfp, l0, R0, a),
-        CurveHelical(nquadpoints, order, nfp, l0, R0, a),
+        CurveHelical(nquadpoints, order, nfp, ell, R0, a),
+        CurveHelical(nquadpoints, order, nfp, ell, R0, a),
     ]
     factor = 4 * np.pi / mu_0
     currents = [
@@ -53,35 +57,29 @@ def get_Cary_Hanson_field(config, nquadpoints=400, optimized=False):
         factor * Current(current),
     ]
     coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
-    x0 = curves[0].x
-    x1 = curves[1].x
-    x1[0] = np.pi / 2
+    curves[1].set("A_0", np.pi / 2)
 
     if optimized:
         if config == "1984":
-            x0[5] = 0.243960
-            x0[6] = 0.026240
-            x0[7] = 0.000856
+            # Values from Table 1
+            curves[0].set("B_1", 0.243960)
+            curves[0].set("B_2", 0.026240)
+            curves[0].set("B_3", 0.000856)
 
-            x1[1] = 0.224859
-            x1[3] = -0.000856
-            x1[6] = -0.026490
+            curves[1].set("A_1", 0.224859)
+            curves[1].set("A_3", -0.000856)
+            curves[1].set("B_2", -0.026490)
 
         elif config == "0.0307":
-            x0[3] = 0.298089  # B(coil 1, mode m=1)
-            x1[1] = 0.298089  # A(coil 2, mode m=1)
+            curves[0].set("B_1", 0.298089)  # B(coil 1, mode m=1)
+            curves[1].set("A_1", 0.298089)  # A(coil 2, mode m=1)
 
         elif config == "Geraldini":
+            # Values from page 33.
             # Did Alessandro have the two numbers swapped? I can only reproduce
             # the good Poincare plot if I swap his two values.
-            x0[3] = 0.3066  # p[1] = B_{-,1}
-            x1[1] = 0.3414  # p[0] = A_{+,1}
-
-            x0[3] = 0.3414  # p[1] = B_{-,1}
-            x1[1] = 0.3066  # p[0] = A_{+,1}
-
-    curves[0].x = x0
-    curves[1].x = x1
+            curves[0].set("B_1", 0.3414)  # p[1] = B_{-,1}
+            curves[1].set("A_1", 0.3066)  # p[0] = A_{+,1}
 
     field = BiotSavart(coils) + ToroidalField(1.0, 1.0)
 
