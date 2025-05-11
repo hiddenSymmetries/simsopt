@@ -46,8 +46,8 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
-    nphi = 32  # >= 64 for high-resolution runs
-    nIter_max = 40000
+    nphi = 64  # >= 64 for high-resolution runs
+    nIter_max = 15000
     nBacktracking = 200
     max_nMagnets = nIter_max
     downsample = 2
@@ -144,9 +144,9 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperp arameters for the optimization
 algorithm = 'ArbVec_backtracking'  # Algorithm to use
-nAdjacent = 1  # How many magnets to consider "adjacent" to one another
-nHistory = 20  # How often to save the algorithm progress
-thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
+nAdjacent = 10  # How many magnets to consider "adjacent" to one another
+nHistory = 500  # How often to save the algorithm progress
+thresh_angle = np.pi * 120 / 180  # The angle between two "adjacent" dipoles such that they should be removed
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
 kwargs['nhistory'] = nHistory
@@ -155,8 +155,8 @@ if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
     kwargs['Nadjacent'] = nAdjacent
     kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)
     kwargs['max_nMagnets'] = max_nMagnets
-    #if algorithm == 'ArbVec_backtracking':
-        #kwargs['thresh_angle'] = thresh_angle
+    if algorithm == 'ArbVec_backtracking':
+        kwargs['thresh_angle'] = thresh_angle
 
 # Optimize the permanent magnets greedily
 t1 = time.time()
@@ -274,7 +274,9 @@ b_dipole = DipoleField(
     nfp=s.nfp,
     coordinate_flag=pm_opt.coordinate_flag,
     m_maxima=pm_opt.m_maxima,
-)
+    net_forces=net_forces,
+    net_torques = net_torques )
+
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
