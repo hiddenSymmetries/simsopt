@@ -72,6 +72,18 @@ class SurfaceXYZFourierTests(unittest.TestCase):
                 self.subtest_toRZFourier_lossless_at_quadraturepoints(surface_type)
 
     def subtest_toRZFourier_lossless_at_quadraturepoints(self, surface_type):
+        """
+        When converting a SurfaceXYZTensorFourier to SurfaceRZFourier, we solve a linear
+        least squares problem, fitting the SurfaceRZFourier basis functions to the target
+        coordinates from the SurfaceXYZTensorFourier.  This conversion is lossless at the 
+        quadrature points if there aren't too many collocation points with respect to
+        the number of surface dofs, i.e., the SurfaceRZFourier will interpolate the 
+        SurfaceXYZTensorFourier at the surface collocation points.
+
+        This test checks that SurfaceRZFourier interpolates the SurfaceXYZTensorFourier as
+        expected and that the angles of the cylindrical cross sections used in the linear
+        least squares problem are as expected.
+        """
         s = get_exact_surface(surface_type=surface_type)
         sRZ = s.to_RZFourier()
         
