@@ -243,6 +243,7 @@ print("% of dipoles that are nonzero = ", num_nonzero)
 # Print optimized f_B and other metrics
 ### Note this will only agree with the optimization in the high-resolution
 ### limit where nphi ~ ntheta >= 64!
+net_forces, net_torques = pm_opt.force_torque_calc(pm_opt.m) 
 b_dipole = DipoleField(
     pm_opt.dipole_grid_xyz,
     pm_opt.m, 
