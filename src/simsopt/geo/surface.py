@@ -324,7 +324,7 @@ class Surface(Optimizable):
         """
         raise NotImplementedError
 
-    def cross_section(self, phi_prime, thetas=32, tol=1e-13):
+    def cross_section(self, phi_prime, thetas=None, tol=1e-13):
         """
         Computes the cross-section at an angle :math:`\phi` at `thetas` using bisection.
         :math:`\phi'` follows the same conventions as `Surfaces`, i.e. :math:`\phi=0, 1` 
