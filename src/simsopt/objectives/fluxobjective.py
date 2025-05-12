@@ -104,4 +104,3 @@ class SquaredFlux(Optimizable):
 
         dJdB = dJdB.reshape((-1, 3))
         return self.field.B_vjp(dJdB)
-

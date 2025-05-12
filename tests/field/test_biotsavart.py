@@ -203,7 +203,7 @@ class Testing(unittest.TestCase):
         bs = BiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         bs.set_points(points)
-        B, dA_by_dX = bs.B(), bs.dA_by_dX() 
+        B, dA_by_dX = bs.B(), bs.dA_by_dX()
         curlA1 = dA_by_dX[:, 1, 2] - dA_by_dX[:, 2, 1]
         curlA2 = dA_by_dX[:, 2, 0] - dA_by_dX[:, 0, 2]
         curlA3 = dA_by_dX[:, 0, 1] - dA_by_dX[:, 1, 0]
@@ -381,7 +381,7 @@ class Testing(unittest.TestCase):
         # int_r int_theta B int r dr dtheta
         from scipy import integrate
         r = 0.15
-        fluxB = integrate.dblquad(f, 0, r, 0, 2*np.pi, epsabs=1e-15, epsrel=1e-15) 
+        fluxB = integrate.dblquad(f, 0, r, 0, 2*np.pi, epsabs=1e-15, epsrel=1e-15)
 
         # num range used to be (20, 60) but this fails for num <= 20-30 for certain
         # random coil initializations since don't have enough quadrature points

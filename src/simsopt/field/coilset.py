@@ -4,15 +4,16 @@ import re
 from simsopt._core.optimizable import DOFs, Optimizable
 from .biotsavart import BiotSavart
 from simsopt.geo import (SurfaceRZFourier, Surface, CurveXYZFourier, CurveCurveDistance, CurveSurfaceDistance, LpCurveCurvature,
-                         MeanSquaredCurvature, ArclengthVariation, 
+                         MeanSquaredCurvature, ArclengthVariation,
                          CurveLength)
 from simsopt.geo import plot, curves_to_vtk, create_equally_spaced_curves
 from simsopt._core.finite_difference import FiniteDifference
 from simsopt._core import make_optimizable
-from simsopt.objectives import SquaredFlux, QuadraticPenalty 
+from simsopt.objectives import SquaredFlux, QuadraticPenalty
 from .coil import Coil, coils_via_symmetries, Current, load_coils_from_makegrid_file, coils_to_makegrid
-       
+
 __all__ = ['CoilSet', 'ReducedCoilSet']
+
 
 class CoilSet(Optimizable):
     """
@@ -34,7 +35,8 @@ class CoilSet(Optimizable):
     to scipy.minimize, or the CoilSet can be used as a parent for a SPEC NormalField
     object. 
     """
-    def __init__(self, base_coils=None, coils=None, surface=None):  
+
+    def __init__(self, base_coils=None, coils=None, surface=None):
 
         #set the surface, change its's range if necessary
         if surface is None:
@@ -50,7 +52,7 @@ class CoilSet(Optimizable):
             else:
                 if surface.deduced_range is surface.RANGE_FIELD_PERIOD:
                     self._surface = surface
-                else: 
+                else:
                     newsurf = surface.to_RZFourier().copy(range=surface.RANGE_FIELD_PERIOD)
                     self._surface = newsurf
 
@@ -59,7 +61,7 @@ class CoilSet(Optimizable):
             self._base_coils = base_coils
             if coils is None:
                 self.coils = coils_via_symmetries([coil.curve for coil in base_coils], [coil.current for coil in base_coils], nfp=self._surface.nfp, stellsym=self._surface.stellsym)
-            else: 
+            else:
                 self.coils = coils
         else:
             if coils is not None:
@@ -67,30 +69,32 @@ class CoilSet(Optimizable):
             base_curves = self._circlecurves_around_surface(self._surface, coils_per_period=10)
             base_currents = [Current(1e5) for _ in base_curves]
             # fix the currents on the default coilset
-            for current in base_currents: 
+            for current in base_currents:
                 current.fix_all()
             base_coils = [Coil(curv, curr) for (curv, curr) in zip(base_curves, base_currents)]
             self._base_coils = base_coils
             self.coils = coils_via_symmetries([coil.curve for coil in base_coils], [coil.current for coil in base_coils], nfp=self._surface.nfp, stellsym=self._surface.stellsym)
-        
+
         self.bs = BiotSavart(self.coils)
         self.bs.set_points(self._surface.gamma().reshape((-1, 3)))
         super().__init__(depends_on=base_coils)
 
     @classmethod
-    def for_surface(cls, surf, coil_current=1e5, coils_per_period=5, nfp=None, current_constraint="fix_all", **kwargs): 
+    def for_surface(cls, surf, coil_current=1e5, coils_per_period=5, nfp=None, current_constraint="fix_all", **kwargs):
         """
         Create a CoilSet for a given surface. The coils are created using
-        :obj:`create_equally_spaced_curves` with the given parameters.
+        :py:func:`simsopt.geo.create_equally_spaced_curves` with the given parameters.
+
+        The keyword arguments ``coils_per_period``, ``order``, ``R0``, ``R1``,
+        ``factor``, and ``use_stellsym`` are passed to the
+        :py:func:`~simsopt.geo.create_equally_spaced_curves` function.
 
         Args:
             surf: The surface for which to create the coils
             total_current: the total current in the CoilSet
             coils_per_period: the number of coils per field period
             nfp: The number of field periods.
-            current_constraint: "fix_one" or "fix_all" or "free_all" 
-
-        Keyword Args (passed to the create_equally_spaced_curves function)
+            current_constraint: ``"fix_one"`` or ``"fix_all"`` or ``"free_all"``
             coils_per_period: The number of coils per field period
             order: The order of the Fourier expansion
             R0: major radius of a torus on which the initial coils are placed
@@ -109,12 +113,12 @@ class CoilSet(Optimizable):
             [base_current.fix_all() for base_current in base_currents]
         elif current_constraint == "free_all":
             pass
-        else: 
+        else:
             raise ValueError("current_constraint must be 'fix_one', 'fix_all' or 'free_all'")
         base_coils = [Coil(curv, curr) for (curv, curr) in zip(base_curves, base_currents)]
         coils = coils_via_symmetries(base_curves, base_currents, nfp, stellsym=True)
         return cls(base_coils, coils, surf)
-    
+
     @classmethod
     def from_makegrid_file(cls, makegrid_file, surface, order=10, ppp=10):
         """
@@ -122,34 +126,34 @@ class CoilSet(Optimizable):
         """
         coils = load_coils_from_makegrid_file(makegrid_file, order=order, ppp=ppp)
         return cls(base_coils=coils, coils=coils, surface=surface)
-    
+
     def to_makegrid_file(self, filename):
         """
         Write the CoilSet to a MAKEGRID file
         """
-        coils_to_makegrid(filename, 
-                          [coil.curve for coil in self.coils], 
-                          [coil.current for coil in self.coils], 
+        coils_to_makegrid(filename,
+                          [coil.curve for coil in self.coils],
+                          [coil.current for coil in self.coils],
                           nfp=1)
 
-    
     def reduce(self, target_function, nsv='nonzero'):
         """
         Return a ReducedCoilSet based on this CoilSet using the SVD of the mapping
-        given by target_function. 
+        given by target_function.
+
         Args:
-            nsv: The number of singular vectors to keep, integer or 'nonzero' (for all nonzero singular values)
             target_function: a function that takes a CoilSet and maps to a different space that is relevant for the optimization problem. 
-                The SVD will be calculated on the Jacobian of f: coilDOFs -> target
+                The SVD will be calculated on the Jacobian of f: coilDOFs -> target.
                 For example a function that calculates the fourier coefficients of the
                 normal field on the surface. 
+            nsv: The number of singular vectors to keep, integer or ``"nonzero"`` (for all nonzero singular values)
         """
         return ReducedCoilSet.from_function(self, target_function, nsv)
 
     @property
     def surface(self):
         return self._surface
-    
+
     @surface.setter
     def surface(self, surface: 'Surface'):
         """
@@ -158,7 +162,7 @@ class CoilSet(Optimizable):
         # Changing surface requires changing the BiotSavart object. We also modify its range
         if surface.nfp != self.surface.nfp:
             raise ValueError("nfp must be equal to the current surface nfp")
-        if surface.stellsym: 
+        if surface.stellsym:
             if surface.deduced_range is not surface.RANGE_HALF_PERIOD:
                 newsurf = surface.to_RZFourier().copy(range=surface.RANGE_HALF_PERIOD)
                 surface = newsurf
@@ -168,11 +172,11 @@ class CoilSet(Optimizable):
                 surface = newsurf
         self.bs.set_points(surface.gamma().reshape((-1, 3)))
         self._surface = surface
-    
+
     @property
     def base_coils(self):
         return self._base_coils
-    
+
     @base_coils.setter
     def base_coils(self, base_coils):
         for coilparent in self._base_coils:
@@ -183,7 +187,7 @@ class CoilSet(Optimizable):
         self.bs.set_points(self._surface.gamma().reshape((-1, 3)))
         for coilparent in self._base_coils:
             self.append_parent(coilparent)
-    
+
     @staticmethod
     def _circlecurves_around_surface(surf, coils_per_period=4, order=6, R0=None, R1=None, use_stellsym=None, factor=2.):
         """
@@ -193,12 +197,12 @@ class CoilSet(Optimizable):
         if use_stellsym is None:
             use_stellsym = surf.stellsym
         if R0 is None:
-            R0 = surf.to_RZFourier().get_rc(0, 0) 
+            R0 = surf.to_RZFourier().get_rc(0, 0)
         if R1 is None:
             # take the magnitude of the first-order poloidal Fourier coefficient
             R1 = np.sqrt(surf.to_RZFourier().get_rc(1, 0)**2 + surf.to_RZFourier().get_zs(1, 0)**2) * factor
         return create_equally_spaced_curves(coils_per_period, nfp, stellsym=use_stellsym, R0=R0, R1=R1, order=order)
-     
+
     def get_dof_orders(self):
         """
         get the Fourier order of the degrees of freedom  corresponding to the Fourier
@@ -230,11 +234,11 @@ class CoilSet(Optimizable):
         """
         target = SquaredFlux(self.surface, self.bs, target=target)
         # make self parent as self's dofs will propagate to coils
-        for parent in target.parents: 
+        for parent in target.parents:
             target.remove_parent(parent)
         target.append_parent(self)
         return target
-    
+
     def length_penalty(self, TOTAL_LENGTH, f):
         """
         Return a QuadraticPenalty on the total length of the coils 
@@ -249,13 +253,13 @@ class CoilSet(Optimizable):
         lenth_optimizable = sum(CurveLength(coil.curve) for coil in self.base_coils)*coil_multiplication_factor
         target = QuadraticPenalty(lenth_optimizable, TOTAL_LENGTH, f)
         # make self parent as self's dofs will propagate to coils
-        for parent in target.parents: 
+        for parent in target.parents:
             target.remove_parent(parent)
         target.append_parent(self)
         # return the penalty function
         return target
-    
-    def cc_distance_penalty(self, DISTANCE_THRESHOLD): 
+
+    def cc_distance_penalty(self, DISTANCE_THRESHOLD):
         """
         Return a penalty function for the distance between coils
         Args: 
@@ -264,12 +268,12 @@ class CoilSet(Optimizable):
         curves = [coil.curve for coil in self.coils]
         target = CurveCurveDistance(curves, DISTANCE_THRESHOLD, num_basecurves=len(self.base_coils))
         # make self parent as self's dofs will propagate to coils
-        for parent in target.parents: 
+        for parent in target.parents:
             target.remove_parent(parent)
         target.append_parent(self)
         # return the penalty function
         return target
-    
+
     def cs_distance_penalty(self, DISTANCE_THRESHOLD):
         """
         Return a penalty function for the distance between coils and the surface
@@ -290,58 +294,58 @@ class CoilSet(Optimizable):
         base_curves = [coil.curve for coil in self.base_coils]
         target = sum(LpCurveCurvature(curve, p, CURVATURE_THRESHOLD) for curve in base_curves)
         # make self parent as self's dofs will propagate to coils
-        for parent in target.parents: 
+        for parent in target.parents:
             target.remove_parent(parent)
         target.append_parent(self)
         # return the penalty function
         return target
-    
+
     def meansquared_curvature_penalty(self):
         """
         Return a penalty function on the mean squared curvature of the coils
         """
         target = sum(MeanSquaredCurvature(coil.curve) for coil in self.base_coils)
-        for parent in target.parents: 
+        for parent in target.parents:
             target.remove_parent(parent)
         target.append_parent(self)
         # return the penalty function
         return target
-    
+
     def meansquared_curvature_threshold(self, CURVATURE_THRESHOLD):
         """
         Return a penalty function on the mean squared curvature of the coils
         """
         meansquaredcurvatures = [MeanSquaredCurvature(coil.curve) for coil in self.base_coils]
         target = sum(QuadraticPenalty(msc, CURVATURE_THRESHOLD, "max") for msc in meansquaredcurvatures)
-        for parent in target.parents: 
+        for parent in target.parents:
             target.remove_parent(parent)
         target.append_parent(self)
         # return the penalty function
         return target
-    
+
     def arc_length_variation_penalty(self):
         """
         Return a penalty function on the arc length variation of the coils
         """
         target = sum(ArclengthVariation(coil.curve) for coil in self.base_coils)
-        for parent in target.parents: 
+        for parent in target.parents:
             target.remove_parent(parent)
         target.append_parent(self)
         # return the penalty function
         return target
-    
+
     def total_length_penalty(self):
         """
         Return the total length of the coils
         """
         multiplicity = len(self.coils) / len(self.base_coils)
         target = sum(CurveLength(coil.curve) for coil in self.base_coils)*multiplicity
-        for parent in target.parents: 
+        for parent in target.parents:
             target.remove_parent(parent)
         target.append_parent(self)
         # return the penalty function
         return target
-    
+
     @property
     def total_length(self):
         """
@@ -350,7 +354,7 @@ class CoilSet(Optimizable):
         multiplicity = len(self.coils) / len(self.base_coils)
         lengthoptimizable = sum(CurveLength(coil.curve) for coil in self.base_coils)*multiplicity
         return lengthoptimizable.J()
-    
+
     def to_vtk(self, filename, add_biotsavart=True, close=False):
         """
         Write the CoilSet and its surface to a vtk file
@@ -359,7 +363,7 @@ class CoilSet(Optimizable):
         if self.surface is not None:
             if add_biotsavart:
                 pointData = {"B_N": np.sum(self.bs.B().reshape((len(self.surface.quadpoints_phi), len(self.surface.quadpoints_theta), 3)) * self.surface.unitnormal(), axis=2)[:, :, None]}
-            else: 
+            else:
                 pointData = None
             self.surface.to_vtk(filename+'_surface', extra_data=pointData)
 
@@ -398,22 +402,23 @@ class ReducedCoilSet(CoilSet):
     the Jacobian defined by a mapping from the coils' DOFs to a physically relevant, 
     fast-evaluating target.  
     """
+
     def __init__(self, coilset=None, nsv=None, s_diag=None, u_matrix=None, vh_matrix=None, function=None, **kwargs):
         """
         create a ReducedCoilSet from a CoilSet and the three elements of an SVD of the Jacobian of a mapping. 
         """
         # create standards if initialized with None
-        if coilset is None:  # need 'is' (idenity comparison), overloaded __eq__ fails here. 
+        if coilset is None:  # need 'is' (idenity comparison), overloaded __eq__ fails here.
             coilset = CoilSet()
         if nsv is None:
             nsv = coilset.dof_size
-        
+
         # raise error if any of [s_diag, u_matrix, vh_matrix] are None but not all of them are:
         if any([s_diag is None, u_matrix is None, vh_matrix is None]) \
-               and not all([s_diag is None, u_matrix is None, vh_matrix is None]):
+                and not all([s_diag is None, u_matrix is None, vh_matrix is None]):
             raise ValueError("If any of [s_diag, u_matrix, vh_matrix] are None, all must be None")
 
-        if s_diag is None: 
+        if s_diag is None:
             if nsv > coilset.dof_size:
                 raise ValueError("nsv must be equal to or smaller than the coilset's number of DOFs if initializing with None")
             s_diag = np.ones(nsv)
@@ -428,7 +433,7 @@ class ReducedCoilSet(CoilSet):
         # Add the SVD matrices
         self._u_matrix = u_matrix
         self._vh_matrix = vh_matrix
-        self._coil_x0 = np.copy(self.coilset.x)  ### DID NOT COPY BEFORE, CHECK CONVERGENCE
+        self._coil_x0 = np.copy(self.coilset.x)  # DID NOT COPY BEFORE, CHECK CONVERGENCE
         self._s_diag = s_diag
         if nsv > len(s_diag):
             raise ValueError("nsv must be equal to or smaller than the number of singular values")
@@ -439,16 +444,17 @@ class ReducedCoilSet(CoilSet):
     def from_function(cls, coilset, target_function, nsv='nonzero'):
         """
         Reduce an existing CoilSet to a ReducedCoilSet using the SVD of the mapping
-        given by target_function. 
+        given by target_function.
+
         Args:
             coilset: The CoilSet to reduce
             target_function: a function that takes a CoilSet and maps to a different space that is relevant for the optimization problem. 
                 The SVD will be calculated on the Jacobian of f: coilDOFs -> target
                 For example a function that calculates the fourier coefficients of the
                 normal field on the surface. 
-            nsv: The number of singular values to keep, either an integer or 'nonzero'. defaults to 'nonzero'. 
+            nsv: The number of singular values to keep, either an integer or ``"nonzero"``. defaults to ``"nonzero"``.
                 If an integer is given, this number of largest singular values will be kept.
-                If 'nonzero', all nonzero singular values are kept.
+                If ``"nonzero"``, all nonzero singular values are kept.
         """
         optfunction = make_optimizable(target_function, coilset)
         fd = FiniteDifference(optfunction.J)
@@ -457,7 +463,7 @@ class ReducedCoilSet(CoilSet):
         if nsv == 'nonzero':
             nsv = len(s_diag)
         return cls(coilset, nsv, s_diag, u_matrix, vh_matrix, target_function)
-    
+
     def recalculate_reduced_basis(self, target_function=None):
         """
         Recalculate the reduced basis using a new target function. 
@@ -481,15 +487,15 @@ class ReducedCoilSet(CoilSet):
     @property
     def coilset(self):
         return self._coilset
-    
+
     @coilset.setter
     def coilset(self, coilset):
         raise ValueError("You cannot change the CoilSet of a ReducedCoilSet.")
-    
+
     @property
     def base_coils(self):
         return self.coilset.base_coils
-    
+
     @base_coils.setter
     def base_coils(self, base_coils):
         self.coilset.base_coils = base_coils
@@ -498,7 +504,7 @@ class ReducedCoilSet(CoilSet):
     @property
     def coils(self):
         return self.coilset.coils
-    
+
     @coils.setter
     def coils(self, *args, **kwargs):
         raise ValueError("You cannot change the coils of a ReducedCoilSet. Change the base_coils instead.")
@@ -506,7 +512,7 @@ class ReducedCoilSet(CoilSet):
     @property
     def surface(self):
         return self._coilset.surface
-    
+
     @surface.setter
     def surface(self, surface: 'Surface'):
         """
@@ -515,14 +521,14 @@ class ReducedCoilSet(CoilSet):
         """
         self._coilset.surface = surface
         self.recalculate_reduced_basis()
-    
+
     @property
     def nsv(self):
         """
         number of singular values used by the ReducedCoilSet
         """
         return self._nsv
-    
+
     @nsv.setter
     def nsv(self, nsv: int):
         """
@@ -538,22 +544,21 @@ class ReducedCoilSet(CoilSet):
         x = np.zeros(nsv)
         x[:len(self.x)] = self.x[:len(x)]
         self.replace_dofs(DOFs(x, self._make_names()))
-    
-    
-    @property 
+
+    @property
     def rsv(self):
         """
         right-singular vectors of the svd
         """
         return [np.array(self._vh_matrix[i, :]) for i in range(self.nsv)]
-    
+
     @property
     def lsv(self):
         """
         left-singular vectors of the svd
         """
         return [np.array(self._u_matrix.T[i, :]) for i in range(self.nsv)]
-    
+
     @property
     def singular_values(self):
         """
@@ -561,7 +566,6 @@ class ReducedCoilSet(CoilSet):
         """
         return self._s_diag[:self.nsv]
 
-    
     def get_dof_orders(self):
         """
         Not available for a ReducedCoilSet
@@ -576,7 +580,7 @@ class ReducedCoilSet(CoilSet):
         #check if correct!
         if len(x) != self.nsv:
             raise ValueError("Wrong number of DOFs")
-        padx = np.pad(x, (0, len(self._coil_x0)-self.nsv), mode='constant', constant_values=0)  # create zero-padded vector of length of coil DOFs. 
+        padx = np.pad(x, (0, len(self._coil_x0)-self.nsv), mode='constant', constant_values=0)  # create zero-padded vector of length of coil DOFs.
         self.coilset.x = self._coil_x0 + (padx) @ self._vh_matrix  # translate reduced vectors amplitude to movement of coils.
 
     def plot_singular_vector(self, n, eps=1e-4, show_delta_B=True, engine='mayavi', show=False, **kwargs):
@@ -602,12 +606,12 @@ class ReducedCoilSet(CoilSet):
 
             current_x = np.copy(self.x)
             startpositions = [np.copy(coil.curve.gamma()) for coil in self.coilset.coils]
-            plot(self.coilset.coils, close=True, engine='mayavi',tube_radius=0.02, color=(0, 0, 0), show=False, **kwargs)
+            plot(self.coilset.coils, close=True, engine='mayavi', tube_radius=0.02, color=(0, 0, 0), show=False, **kwargs)
             if show_delta_B:
                 startB = np.copy(np.sum(bs.B().reshape((plotsurf.quadpoints_phi.size, plotsurf.quadpoints_theta.size, 3)) * plotsurf.unitnormal()*-1, axis=2))
                 startB = np.concatenate((startB, startB[:1, :]), axis=0)
                 startB = np.concatenate((startB, startB[:, :1]), axis=1)
-            
+
             # Perturb the coils by the singular vector
             self.coilset.x = self.coilset.x + singular_vector*eps
             newpositions = [np.copy(coil.curve.gamma()) for coil in self.coilset.coils]
@@ -627,7 +631,7 @@ class ReducedCoilSet(CoilSet):
                 dy = diffs[:, 1]
                 dz = diffs[:, 2]
                 mlab.quiver3d(x, y, z, dx, dy, dz, line_width=4, **kwargs)
-            
+
             if show_delta_B:
                 plot([plotsurf,], engine='mayavi', wireframe=False, close=True, scalars=changedB-startB, colormap='Reds', show=False, **kwargs)
             else:
