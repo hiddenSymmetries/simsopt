@@ -493,7 +493,7 @@ class isSelfIntersecting(unittest.TestCase):
         filename = os.path.join(TEST_DIR, 'serial2680021.json')
         [surfaces, coils] = load(filename)
         angle = np.pi/10
-        xs = surfaces[-1].cross_section(angle/(2*np.pi), thetas=256)
+        xs = surfaces[-1].cross_section(angle/(2*np.pi), theta=256)
         Z = xs[:, 2]
         assert np.all(Z<-0.08)
         
@@ -516,10 +516,10 @@ class isSelfIntersecting(unittest.TestCase):
         
         # unit test to check that the exceptions are properly raised
         with self.assertRaises(Exception):
-            _ = surface_rotated.cross_section(0., thetas=256)
+            _ = surface_rotated.cross_section(0., theta=256)
 
         with self.assertRaises(Exception):
-            _ = surface_rotated.cross_section(0., thetas='wrong')
+            _ = surface_rotated.cross_section(0., theta='wrong')
         
     def test_is_self_intersecting(self):
         # dofs results in a surface that is self-intersecting
@@ -536,16 +536,16 @@ class isSelfIntersecting(unittest.TestCase):
         bs, boozer_surf = get_boozer_surface()
         s = boozer_surf.surface
         assert not s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi))
-        assert not s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi), thetas=200)
-        assert not s.is_self_intersecting(thetas=231)
+        assert not s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi), theta=200)
+        assert not s.is_self_intersecting(theta=231)
 
         # make sure it works on a perturbed NCSX BoozerSurface
         dofs = s.x.copy()
         dofs[14] += 0.2
         s.x = dofs
         assert s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi))
-        assert s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi), thetas=200)
-        assert s.is_self_intersecting(thetas=202)
+        assert s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi), theta=200)
+        assert s.is_self_intersecting(theta=202)
 
 
 class UtilTests(unittest.TestCase):
