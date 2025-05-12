@@ -1,6 +1,7 @@
 import unittest
 import logging
 from pathlib import Path
+from unittest.mock import patch
 
 from monty.tempfile import ScratchDir
 
@@ -100,6 +101,28 @@ class PlotTests(unittest.TestCase):
         vec = p._vec # might be dangerous, not part of public matplotlib API
         self.assertAlmostEqual(vec[0][0], 1.30042725)
         self.assertAlmostEqual(vec[2][-1], -0.0910074)
+
+    def test_plot_without_3d_axis(self):
+        """
+        Make sure we log a warning if an axis that is not a 3d axis is passed.
+        """
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            return
+        fig, ax = plt.subplots(1)
+        show = False
+        nphi = 64
+        ntheta = 32
+        filename = TEST_DIR / "input.LandremanPaul2021_QA"
+        s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
+
+        # This replaces logging.Logger.warning
+        # with a mocked logger that doesn't log anything but instead  tracks if
+        # it has been called and lets us assert that it was called as expected.
+        with patch('logging.Logger.warning') as mocked_logger:
+            ax = s.plot(close=True, show=show, ax=ax)
+            mocked_logger.assert_called_with('A non-3D matplotlib axis was passed as an input. It cannot be used for plotting. Instead, a new axis was created.')
         
 if __name__ == "__main__":
     unittest.main()
