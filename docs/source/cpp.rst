@@ -52,13 +52,18 @@ First, install ``SIMSOPT`` in the usual way::
 
     git clone --recursive git@github.com:hiddenSymmetries/simsopt.git
     cd simsopt
-    pip3 install -e .
+    pip install -e .
+
+Install ``cmake`` and ``pybind11`` using ``pip`` if they are not already installed::
+
+    pip install cmake
+    pip install pybind11
 
 Then, recompile the C++ code in a new directory (``cmake_build``)::
 
     mkdir cmake-build
     cd cmake-build
-    cmake ..
+    cmake .. -Dpybind11_DIR=$(python -c "import pybind11; print(pybind11.__path__[0])")/share/cmake/pybind11/
     make -j
 
 If the compilation executed successfully, there should now be a shared object file (ending with ``.so``) for ``simsoptpp`` in the ``cmake-build`` directory. After verifying that this ``.so`` file exists, execute the following command::
