@@ -255,7 +255,7 @@ class BoozerSurfaceTests(unittest.TestCase):
             currents_flipped = [-cur for cur in currents]
             rng = np.random.default_rng(12345)
             for c in curves_flipped:
-                c.rotmat += 0.001*np.random.uniform(low=-1., high=1.,
+                c.rotmat += 0.001*rng.uniform(low=-1., high=1.,
                                                     size=c.rotmat.shape)
                 c.rotmatT = c.rotmat.T
             coils = coils_via_symmetries(curves + curves_flipped,
