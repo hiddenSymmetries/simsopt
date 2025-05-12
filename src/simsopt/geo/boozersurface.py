@@ -2,8 +2,7 @@ import numpy as np
 from scipy.linalg import lu
 from scipy.optimize import minimize, least_squares
 import simsoptpp as sopp
-import json
-from simsopt._core.json import GSONable, SIMSON, GSONDecoder, GSONEncoder
+from simsopt._core.json import GSONDecoder
 
 from .surfaceobjectives import boozer_surface_residual, boozer_surface_dexactresidual_dcoils_dcurrents_vjp, boozer_surface_dlsqgrad_dcoils_vjp
 from .._core.optimizable import Optimizable
