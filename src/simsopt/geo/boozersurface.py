@@ -106,15 +106,11 @@ class BoozerSurface(Optimizable):
                 - `bfgs_maxiter` (int): maximum number of iterations for BFGS solver. Defaults to 1500.
                 - `limited_memory` (bool): True if L-BFGS solver is desired, False if the BFGS solver otherwise. Defaults to False.
                 - `weight_inv_modB` (float): for BoozerLS surfaces, weight the residual by modB so that it does not scale with coil currents.  Defaults to True.
-                - solver (int): Flag to decide what algorithm to use when running BoozerSurface.run_code, defaults to 4. Only used if boozer_type is 'ls'
-                    0: LBFGS applied to the penalty objective
-                    1: scipy.optimize.least_squares applied to the penalty objective. Specify in options what method -  can be 'manual' or anything specified in scipy LS documentation.
-                    2: Newton applied to the penalty objective -  see _minimize_boozer_penalty_constraints_newton
-                    3: Newton applied to the constrained optimization problem -  see _minimize_boozer_exact_constraints_newton
-                    4: Two stages approach: 0, then 2 (default)
-                    5: Two stages approach: 0, then 3
-                    6: Two stages approach: 1, then 2
-                    7: Two stages approach: 1, then 3
+                - solver (int): list of flags to decide what algorithm(s) to use when running BoozerSurface.run_code. Only used if boozer_type is 'ls'. Default is ['ls', 'ls_newton']
+                    bfgs: LBFGS applied to the penalty objective
+                    ls: scipy.optimize.least_squares applied to the penalty objective. Specify in options what method -  can be 'manual' or anything specified in scipy LS documentation.
+                    ls_newton: Newton applied to the penalty objective -  see _minimize_boozer_penalty_constraints_newton
+                    exact_newton: Newton applied to the constrained optimization problem -  see _minimize_boozer_exact_constraints_newton
         """
         super().__init__(depends_on=[biotsavart])
 
@@ -167,7 +163,7 @@ class BoozerSurface(Optimizable):
             if 'ls_method' not in options:
                 options['ls_method'] = 'lm'
             if 'solver' not in options:
-                options['solver'] = 4
+                options['solver'] = ['ls', 'ls_newton']
         self.options = options
 
     def recompute_bell(self, parent=None):
@@ -212,60 +208,57 @@ class BoozerSurface(Optimizable):
             # you need a label constraint for a BoozerLS surface
             assert self.constraint_weight is not None
 
-            # 0: LBFGS
-            # 1: scipy LS (specify in options what method)
-            # 2: regular Newton 
-            # 3: exact Newton
-            # 4: LBGFS + regular Newton
-            # 5: LBFGS + exact Newton
-            # 6: scipy LS + regular Newton
-            # 7: scipy LS + exact Newton
-            solver = self.options['solver']
-            if solver in [0, 4, 5]:
-                res = self._minimize_boozer_penalty_constraints_LBFGS(
-                    constraint_weight=self.constraint_weight, iota=iota, G=G,
-                    tol=self.options['bfgs_tol'], 
-                    maxiter=self.options['bfgs_maxiter'], 
-                    verbose=self.options['verbose'], 
-                    limited_memory=self.options['limited_memory'],
-                    weight_inv_modB=self.options['weight_inv_modB']
-                )
-                iota, G = res['iota'], res['G']
+            for solver in self.options['solver']:
+                if solver=='bfgs':
+                    self.need_to_run_code = True
+                    res = self._minimize_boozer_penalty_constraints_LBFGS(
+                        constraint_weight=self.constraint_weight, iota=iota, G=G,
+                        tol=self.options['bfgs_tol'], 
+                        maxiter=self.options['bfgs_maxiter'], 
+                        verbose=self.options['verbose'], 
+                        limited_memory=self.options['limited_memory'],
+                        weight_inv_modB=self.options['weight_inv_modB']
+                    )
+                    iota, G = res['iota'], res['G']
 
-            if solver in [1, 6, 7]:
-                res = self._minimize_boozer_penalty_constraints_ls(
-                    tol=self.options['ls_tol'], 
-                    maxiter=self.options['ls_maxiter'], 
-                    constraint_weight=self.constraint_weight, 
-                    iota=iota, 
-                    G=G, 
-                    method=self.options['ls_method'],
-                    verbose=self.options['verbose']
-                )
-                iota, G = res['iota'], res['G']
+                elif solver=='ls':
+                    self.need_to_run_code = True
+                    res = self._minimize_boozer_penalty_constraints_ls(
+                        tol=self.options['ls_tol'], 
+                        maxiter=self.options['ls_maxiter'], 
+                        constraint_weight=self.constraint_weight, 
+                        iota=iota, 
+                        G=G, 
+                        method=self.options['ls_method'],
+                        verbose=self.options['verbose']
+                    )
+                    iota, G = res['iota'], res['G']
 
-            if solver in [2, 4, 6]:
-                self.need_to_run_code = True
-                res = self._minimize_boozer_penalty_constraints_newton(
-                    constraint_weight=self.constraint_weight, 
-                    iota=iota, 
-                    G=G,
-                    verbose=self.options['verbose'], 
-                    tol=self.options['newton_tol'], 
-                    maxiter=self.options['newton_maxiter'],
-                    weight_inv_modB=self.options['weight_inv_modB']
-                )
+                elif solver=='ls_newton':
+                    self.need_to_run_code = True
+                    res = self._minimize_boozer_penalty_constraints_newton(
+                        constraint_weight=self.constraint_weight, 
+                        iota=iota, 
+                        G=G,
+                        verbose=self.options['verbose'], 
+                        tol=self.options['newton_tol'], 
+                        maxiter=self.options['newton_maxiter'],
+                        weight_inv_modB=self.options['weight_inv_modB']
+                    )
 
-            if solver in [3, 5, 7]:
-                self.need_to_run_code = True
-                res = self._minimize_boozer_exact_constraints_newton(
-                    tol=self.options['newton_tol'], 
-                    maxiter=self.options['newton_maxiter'], 
-                    iota=iota, 
-                    G=G, 
-                    lm=[0., 0.],
-                    verbose=self.options['verbose']
-                )
+                elif solver=='exact_newton':
+                    self.need_to_run_code = True
+                    res = self._minimize_boozer_exact_constraints_newton(
+                        tol=self.options['newton_tol'], 
+                        maxiter=self.options['newton_maxiter'], 
+                        iota=iota, 
+                        G=G, 
+                        lm=[0., 0.],
+                        verbose=self.options['verbose']
+                    )
+
+                else:
+                    raise ValueError('Invalid solver')
 
             return res
 

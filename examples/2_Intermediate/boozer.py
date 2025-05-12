@@ -47,7 +47,7 @@ boozer_surface = BoozerSurface(bs, s, ar, ar_target)
 
 # compute surface first using LBFGS, this will just be a rough initial guess
 boozer_surface.constraint_weight = 100.
-boozer_surface.options['solver'] = 0
+boozer_surface.options['solver'] = ['bfgs']
 boozer_surface.options['bfgs_tol'] = 1e-10
 boozer_surface.options['bfgs_maxiter'] = 300
 boozer_surface.options['limited_memory'] = True
@@ -58,7 +58,7 @@ if "DISPLAY" in os.environ:
 
 boozer_surface.need_to_run_code = True
 # now drive the residual down using a specialised least squares algorithm
-boozer_surface.options['solver'] = 1
+boozer_surface.options['solver'] = ['ls']
 boozer_surface.options['ls_method'] = 'manual'
 boozer_surface.options['bfgs_maxiter'] = 100
 res = boozer_surface.run_code(res['iota'], res['G'])
@@ -72,7 +72,7 @@ print('Now aim for a larger surface')
 tf_target = 3 * tf.J()
 boozer_surface = BoozerSurface(bs, s, tf, tf_target)
 boozer_surface.constraint_weight = 100.
-boozer_surface.options['solver'] = 1
+boozer_surface.options['solver'] = ['ls']
 boozer_surface.options['bfgs_tol'] = 1e-10
 boozer_surface.options['bfgs_maxiter'] = 100
 boozer_surface.options['ls_method'] = 'manual'
