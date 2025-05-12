@@ -327,7 +327,7 @@ class Surface(Optimizable):
     def cross_section(self, phi_prime, theta=32, tol=1e-13):
         """
         Computes the cross-section at an angle :math:`\phi` at `theta` using bisection.
-        :math:`\phi` follows the same conventions as `Surfaces`, i.e. :math:`\phi=0, 1` 
+        :math:`\phi'` follows the same conventions as `Surfaces`, i.e. :math:`\phi=0, 1` 
         corresponds to the standard cylindrical angle :math:`0, 2\pi`, respectively.  This 
         function assumes that the surface intersection with the plane is a single curve.
         The surface should only go once around the z-axis and it should not go back on itself.
