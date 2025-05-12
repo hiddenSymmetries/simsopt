@@ -308,7 +308,7 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         print('Residual norm after second stage', np.linalg.norm(res['residual']))
         assert res['success']
-        assert not boozer_surface.surface.is_self_intersecting(theta=100)
+        assert not boozer_surface.surface.is_self_intersecting(thetas=100)
 
         # For the stellsym case we have z(0, 0) = y(0, 0) = 0. For the not
         # stellsym case, we enforce z(0, 0) = 0, but expect y(0, 0) \neq 0
