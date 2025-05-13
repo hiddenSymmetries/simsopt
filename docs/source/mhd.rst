@@ -1,7 +1,7 @@
 Magnetohydrodynamic codes
 -------------------------
 
-The :obj:`simsopt.mhd` module contains a collection of interfaces to Magnetohydrodynamic codes. 
+The :obj:`simsopt.mhd` module contains a collection of interfaces to magnetohydrodynamic codes. 
 Currently it contains an interface to the Variational Moments Equilibrium Code (VMEC) through the :obj:`simsopt.mhd.Vmec` module and an interface to the Stepped
 Pressure Equilibrium Code (SPEC) through the :obj:`simsopt.mhd.Spec` module.
 
@@ -12,7 +12,7 @@ The ``Vmec`` and ``Spec`` classes instantiate the MHD solvers as ``Optimizable``
 This allows for direct handling of profiles parameters, surface degrees of freedom, and solver options through the python class.
 
 MHD codes are often run in two different modes: fixed boundary and free boundary.
-In fixed boundary mode the equilibrium depends on the boundary (accessed through ``.boundary``), which is a :obj:`simsopt.geo.SurfaceRZFourier``. 
+In fixed boundary mode the equilibrium depends on the boundary (accessed through ``.boundary``), which is a :obj:`simsopt.geo.SurfaceRZFourier`. 
 In free-boundary mode however, the equilibrium on an external field (which can be provided by any :obj:`simsopt.field.MagneticField`) and its :obj:`boundary` is a child, whose properties (like aspect ratio, volume, etc) can be optimized for, by varying the degrees-of-freedom of the :obj:`MagneticField`.  
 One can even combine different solvers such that the equilibrium objects depend on the same :obj:`Surface`, or where one equilibrium solves for the boundary, and metrics related to it are computed using the fixed-boundary
 solutions provided by the other solver. 
@@ -76,12 +76,13 @@ Vmec diagnostics
 
 There are many useful diagnostics available that depend on a :obj:`Vmec` object which provide target functions for optimization. 
 These include:
-- :obj:`QuasisymmetryRatioResidual`: Deviation from quasisymmetry
-- :obj:`IotaTargetMetric`: Difference between the rotational transform and a provided target
-- :obj:`IotaWeighted`: Weighted average of the rotational transform
-- :obj:`WellWeighted`: Measure for the magnetic well. 
-- :obj:`Quasisymmetry`: Measure of the quasisymmetry using the boozer spectrum.
-- :obj:`VmecRedlBootstrapMismatch`: the mismatch between the VMEC bootstrap and that provided by a recent calculation by Redl (for obtaining self-consistent bootstrap current).
+
+* :obj:`QuasisymmetryRatioResidual`: Deviation from quasisymmetry
+* :obj:`IotaTargetMetric`: Difference between the rotational transform and a provided target
+* :obj:`IotaWeighted`: Weighted average of the rotational transform
+* :obj:`WellWeighted`: Measure for the magnetic well. 
+* :obj:`Quasisymmetry`: Measure of the quasisymmetry using the boozer spectrum.
+* :obj:`VmecRedlBootstrapMismatch`: the mismatch between the VMEC bootstrap and that provided by a recent calculation by Redl (for obtaining self-consistent bootstrap current).
 
 
 
@@ -98,12 +99,12 @@ making it possible to check for and optimize such features.
 All ideal interfaces in spec are available as :obj:`SurfaceRZFourier` objects. 
 
 
-Greenes residue
+Greene's residue
 ^^^^^^^^^^^^^^^
 
-Islands in a SPEC equilibrium can be optimized for using Cary and Hansons' method of minimizing Greenes residue. 
+Islands in a SPEC equilibrium can be optimized for using Cary and Hansons' method of minimizing Greene's residue. 
 The fixed points of the islands are found, and their residue is calculated using
 ``pyoculus`` through the :obj:`simsopt.mhd.GreenesResidue` that depends on the :obj:`simsopt.mhd.spec.Spec` object, and needs the poloidal and toroidal mode number of the island provided. 
 
-See :ref:`eliminating-islands` for a tutorial on eliminating islands using Greenes residue minimization.
+See :ref:`eliminating-islands` for a tutorial on eliminating islands using Greene's residue minimization.
 
