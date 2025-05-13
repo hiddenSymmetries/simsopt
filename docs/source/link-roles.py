@@ -4,8 +4,9 @@ from docutils import nodes
 from subprocess import run
 
 
-dev run_cmd_get_output(cmd)
+def run_cmd_get_output(cmd):
     return run(cmd).stdout.strip()
+
 
 def get_github_rev():
     path = run_cmd_get_output('git rev-parse --short HEAD')
@@ -29,6 +30,7 @@ def setup(app):
     app.add_role('example_file', autolink('{}/blob/{}/examples/%s'.format(baseurl, rev)))
     app.add_role('tests', autolink('{}/blob/{}/tests/%s'.format(baseurl, rev)))
     app.add_role('tests_file', autolink('{}/blob/{}/tests/%s'.format(baseurl, rev)))
+
 
 def autolink(pattern):
     def role(name, rawtext, text, lineno, inliner, options={}, content=[]):
