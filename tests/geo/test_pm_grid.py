@@ -525,7 +525,7 @@ class PermanentMagnetGridTesting(unittest.TestCase):
             bs = BiotSavart(coils)
 
             # Calculate average, approximate on-axis B field strength
-            B0avg = calculate_on_axis_B(bs, s)
+            B0avg = calculate_modB_on_major_radius(bs, s)
             assert np.allclose(B0avg, 0.15)
 
             # Check coil initialization for some common stellarators wout_LandremanPaul2021_QA_lowres
@@ -533,21 +533,21 @@ class PermanentMagnetGridTesting(unittest.TestCase):
                                            range="half period", nphi=nphi, ntheta=ntheta)
             base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s)
             bs = BiotSavart(coils)
-            B0avg = calculate_on_axis_B(bs, s)
+            B0avg = calculate_modB_on_major_radius(bs, s)
             assert np.allclose(B0avg, 0.15)
 
             s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc',
                                            range="half period", nphi=nphi, ntheta=ntheta)
             base_curves, curves, coils = initialize_coils('qh', TEST_DIR, s)
             bs = BiotSavart(coils)
-            B0avg = calculate_on_axis_B(bs, s)
+            B0avg = calculate_modB_on_major_radius(bs, s)
             assert np.allclose(B0avg, 5.7)
 
             # Repeat with wrapper function
             s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
             base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s)
             bs = BiotSavart(coils)
-            B0avg = calculate_on_axis_B(bs, s)
+            B0avg = calculate_modB_on_major_radius(bs, s)
             assert np.allclose(B0avg, 0.15)
 
         # Test rescaling
@@ -640,7 +640,7 @@ class PermanentMagnetGridTesting(unittest.TestCase):
         s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
         base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s)
         bs = BiotSavart(coils)
-        B0avg = calculate_on_axis_B(bs, s)
+        B0avg = calculate_modB_on_major_radius(bs, s)
         assert np.allclose(B0avg, 0.15)
 
         # drastically downsample the grid for speed here

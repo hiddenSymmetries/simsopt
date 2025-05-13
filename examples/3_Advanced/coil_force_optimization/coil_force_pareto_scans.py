@@ -4,7 +4,27 @@
 coil_force_pareto_scans.py
 --------------------------
 
-This script performs analysis and visualization for stage-two coil optimization results using force metrics. It processes optimization results stored in JSON files, applies engineering and quality filters, computes Pareto fronts for selected objectives, and generates summary plots. The script is intended for use in advanced coil design studies, particularly for quasi-axisymmetric (QA) stellarator configurations.
+This script performs analysis and visualization for stage-two coil optimization results using force metrics. 
+It processes optimization results stored in JSON files, applies engineering and quality filters, 
+computes Pareto fronts for selected objectives, and generates summary plots. 
+The script is intended for use in advanced coil design studies, although current functionality has been
+limited to the Landreman-Paul QA and QH configurations. There is no reason why it cannot be used for other
+configurations, but the parameters used for the scans defined in optimization_tools.py would need to be changed.
+
+The assumption is that a large number of optimizations
+have already been performed with "python initialization.py" (or sbatch cold_starts.sh to run batch jobs on 
+a supercomputer) and the results are stored in the ./output/QA/B2_Energy/ or a similar directory. This pareto
+scan script was used to generate the results in the papers:
+
+    Hurwitz, S., Landreman, M., Huslage, P. and Kaptanoglu, A., 2025. 
+    Electromagnetic coil optimization for reduced Lorentz forces.
+    Nuclear Fusion, 65(5), p.056044.
+    https://iopscience.iop.org/article/10.1088/1741-4326/adc9bf/meta
+
+    Kaptanoglu, A.A., Wiedman, A., Halpern, J., Hurwitz, S., Paul, E.J. and Landreman, M., 2025. 
+    Reactor-scale stellarators with force and torque minimized dipole coils. 
+    Nuclear Fusion, 65(4), p.046029.
+    https://iopscience.iop.org/article/10.1088/1741-4326/adc318/meta
 
 Main steps:
 - Load and concatenate optimization results from a specified directory.
@@ -106,7 +126,6 @@ def success_plt(df, df_filtered):
         ("cc_weight", True),
         ("cs_weight", True),
         ("force_weight", True),
-        # ("linking_number", False), # TODO: uncomment later
         ('ncoils', False)
     )
 
@@ -118,9 +137,26 @@ def success_plt(df, df_filtered):
     plt.tight_layout()
     return fig
 
-def get_dfs(INPUT_DIR='./output/QA/with-force-penalty/1/optimizations/', OUTPUT_DIR=None):
+def get_dfs(INPUT_DIR='./output/QA/B2_Energy/', OUTPUT_DIR=None):
     """
-    Load, filter, and compute Pareto front for coil optimization results.
+    Load, filter, and compute Pareto front for coil optimization results. Filtering is 
+    done based on the following engineering constraints. Max denotes the maximum over all coils,
+    max denotes the maximum over a single coil, mean denotes an average over the plasma surface. 
+    These numbers will need to be adjusted for other stellarator configurations and rescaled if 
+    the major radius is scaled from the 1 m baseline:
+
+    - Max(coil lengths) < 5 * margin_up
+    - Max(max(coil curvatures)) < 12.00 * margin_up
+    - Max(mean-squared-curvature) < 6.00 * margin_up
+    - Max(coil-coil distance) > 0.083 * margin_low
+    - Max(coil-surface distance) > 0.166 * margin_low
+    - mean(Abs(B)) > 0.22
+    - Max(arclength variance) < 1e-2
+    - Coil-surface distance < 0.375
+    - Coil-coil distance < 0.15
+    - Max(coil length) > 3.0
+    - Max(normalized BdotN) < 4e-2
+    - Max(max(force)) < 50000
 
     Parameters
     ----------
@@ -153,8 +189,8 @@ def get_dfs(INPUT_DIR='./output/QA/with-force-penalty/1/optimizations/', OUTPUT_
     df = pd.concat(dfs, ignore_index=True)
 
     ### STEP 2: Filter the data
-    margin_up = 1.5
-    margin_low = 0.5
+    margin_up = 1.5  # the upper bound margin to consider for tolerable engineering constraints
+    margin_low = 0.5  # the lower bound margin to consider for tolerable engineering constraints
 
     df_filtered = df.query(
         # ENGINEERING CONSTRAINTS:
@@ -192,13 +228,16 @@ def get_dfs(INPUT_DIR='./output/QA/with-force-penalty/1/optimizations/', OUTPUT_
     ### Return statement
     return df, df_filtered, df_pareto
 
-INPUT_DIR = "./output/QA/TVE/"
+INPUT_DIR = "./output/QA/B2_Energy/"
 
 df, df_filtered, df_pareto = get_dfs(INPUT_DIR=INPUT_DIR)
 
 success_plt(df, df_filtered).show()
 
 df, df_filtered, df_pareto = get_dfs(INPUT_DIR=INPUT_DIR)
+
+# If you do not have a lot of runs, you can just plot the unfiltered results
+df_filtered = df
 
 # ---
 # Main plotting loop: For each key parameter, generate a scatter plot of mean_RMS_force vs normalized_BdotN,
@@ -284,7 +323,7 @@ for color in keys:
         plt.xlabel(r'$\langle|\mathbf{B}\cdot\mathbf{n}|\rangle/\langle B \rangle$ [unitless]')
         plt.ylabel(label)
         plt.xlim(0.7 * min(df_filtered["normalized_BdotN"]), max(df_filtered["normalized_BdotN"]))
-        plt.ylim(y_lim)
+        # plt.ylim(y_lim)
         plt.xscale("log")
         plt.colorbar(label=color_label)
         plt.clim(3.0, 6.0)

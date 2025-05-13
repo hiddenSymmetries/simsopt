@@ -26,7 +26,7 @@ import time
 import uuid
 from scipy.optimize import minimize
 from simsopt._core.optimizable import load
-from simsopt.field import Current, coils_via_symmetries, BiotSavart
+from simsopt.field import Current, coils_via_symmetries, BiotSavart, coils_to_vtk
 from simsopt.geo import (
     CurveLength,
     CurveCurveDistance,
@@ -37,10 +37,8 @@ from simsopt.geo import (
     create_equally_spaced_curves,
     SurfaceRZFourier)
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
-from simsopt.field.force import coil_force, coil_torque, coil_net_forces, coil_net_torques, \
-    LpCurveForce, B2_Energy
-from simsopt.field.selffield import regularization_circ
-
+from simsopt.field.force import coil_force, coil_torque, coil_net_force, coil_net_torque, \
+    LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque, B2_Energy
 
 def continuation(N=10000, dx=0.05,
                  INPUT_DIR="./output/QA/with-force-penalty/1/pareto/",
@@ -79,7 +77,7 @@ def continuation(N=10000, dx=0.05,
 
     def perturb(init, parameter):
         "Perturbs a parameter from an initial optimization."
-        return rand(1-dx, 1+dx) * init[parameter].iloc[0]
+        return np.random.uniform(1-dx, 1+dx) * init[parameter].iloc[0]
 
     for i in range(N):
         init = df.sample()
@@ -168,31 +166,28 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
         order = 16  # 16 is very high!!!
 
         # RANDOM PARAMETERS
-        R1 = rand(0.35, 0.75)
-        CURVATURE_THRESHOLD = rand(5, 12)
-        MSC_THRESHOLD = rand(4, 6)
-        CS_THRESHOLD = rand(0.166, 0.300)
-        CC_THRESHOLD = rand(0.083, 0.120)
-        FORCE_THRESHOLD = rand(0, 5e+04)
-        LENGTH_TARGET = rand(4.9, 5.0)
+        R1 = np.random.uniform(0.35, 0.75)
+        CURVATURE_THRESHOLD = np.random.uniform(5, 12)
+        MSC_THRESHOLD = np.random.uniform(4, 6)
+        CS_THRESHOLD = np.random.uniform(0.166, 0.300)
+        CC_THRESHOLD = np.random.uniform(0.083, 0.120)
+        FORCE_THRESHOLD = np.random.uniform(0, 5e+04)
+        LENGTH_TARGET = np.random.uniform(4.9, 5.0)
 
-        LENGTH_WEIGHT = 10.0 ** rand(-4, -2)
-        CURVATURE_WEIGHT = 10.0 ** rand(-9, -5)
-        MSC_WEIGHT = 10.0 ** rand(-7, -3)
-        CS_WEIGHT = 10.0 ** rand(-1, 4)
-        CC_WEIGHT = 10.0 ** rand(2, 5)
+        LENGTH_WEIGHT = 10.0 ** np.random.uniform(-4, -2)
+        CURVATURE_WEIGHT = 10.0 ** np.random.uniform(-9, -5)
+        MSC_WEIGHT = 10.0 ** np.random.uniform(-7, -3)
+        CS_WEIGHT = 10.0 ** np.random.uniform(-1, 4)
+        CC_WEIGHT = 10.0 ** np.random.uniform(2, 5)
 
         if with_force:
             # (1e-20, 1e-8) for Squared forces
             # (1e-14, 1e-5) for Lpforces or B2_Energy
-            FORCE_WEIGHT = 10.0 ** rand(-13, -8)
+            FORCE_WEIGHT = 10.0 ** np.random.uniform(-13, -8)
         else:
             FORCE_WEIGHT = 0
 
         # RUNNING THE JOBS
-
-        # pr = cProfile.Profile()
-        # pr.enable()
         optimization(
             OUTPUT_DIR,
             INPUT_FILE,
@@ -217,12 +212,6 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
             with_force=with_force,
             debug=debug,
             MAXITER=MAXITER)
-        # pr.disable()
-        # sio = io.StringIO()
-        # sortby = SortKey.CUMULATIVE
-        # ps = pstats.Stats(pr, stream=sio).sort_stats(sortby)
-        # ps.print_stats(20)
-        # print(sio.getvalue())
 
         print(f"Job {i+1} completed")
 
@@ -256,22 +245,22 @@ def initial_optimizations_QH(N=10000, with_force=True, MAXITER=14000,
         order = 16
 
         # RANDOM PARAMETERS
-        R1 = rand(0.35, 0.75)
-        CURVATURE_THRESHOLD = rand(5, 12)
-        MSC_THRESHOLD = rand(4, 6)
-        CS_THRESHOLD = rand(0.166, 0.300)
-        CC_THRESHOLD = rand(0.083, 0.120)
-        FORCE_THRESHOLD = rand(0, 5e+04)
-        LENGTH_TARGET = rand(4.9, 5.0)
+        R1 = np.random.uniform(0.35, 0.75)
+        CURVATURE_THRESHOLD = np.random.uniform(5, 12)
+        MSC_THRESHOLD = np.random.uniform(4, 6)
+        CS_THRESHOLD = np.random.uniform(0.166, 0.300)
+        CC_THRESHOLD = np.random.uniform(0.083, 0.120)
+        FORCE_THRESHOLD = np.random.uniform(0, 5e+04)
+        LENGTH_TARGET = np.random.uniform(4.9, 5.0)
 
-        LENGTH_WEIGHT = 10.0 ** rand(-3, -1)
-        CURVATURE_WEIGHT = 10.0 ** rand(-9, -5)
-        MSC_WEIGHT = 10.0 ** rand(-5, -1)
-        CS_WEIGHT = 10.0 ** rand(-1, 4)
-        CC_WEIGHT = 10.0 ** rand(2, 5)
+        LENGTH_WEIGHT = 10.0 ** np.random.uniform(-3, -1)
+        CURVATURE_WEIGHT = 10.0 ** np.random.uniform(-9, -5)
+        MSC_WEIGHT = 10.0 ** np.random.uniform(-5, -1)
+        CS_WEIGHT = 10.0 ** np.random.uniform(-1, 4)
+        CC_WEIGHT = 10.0 ** np.random.uniform(2, 5)
 
         if with_force:
-            FORCE_WEIGHT = 10.0 ** rand(-14, -9)
+            FORCE_WEIGHT = 10.0 ** np.random.uniform(-14, -9)
         else:
             FORCE_WEIGHT = 0
 
@@ -342,6 +331,8 @@ def optimization(
     ncoils : int
         Number of unique coil shapes.
     UUID_init_from : str or None
+        Universally Unique Identifiers (UUIDs) are standardized 128-bit identifiers that 
+        provide a practical way to ensure uniqueness across systems and time.
         UUID of previous optimization to initialize from, or None for random.
     LENGTH_TARGET, LENGTH_WEIGHT, ... : float
         Parameters and weights for objective terms.
@@ -378,18 +369,18 @@ def optimization(
 
     # Create a copy of the surface that is closed in theta and phi, and covers the
     # full torus toroidally. This is nice for visualization.
-    # nphi_big = nphi * 2 * nfp + 1
-    # ntheta_big = ntheta + 1
-    # quadpoints_theta = np.linspace(0, 1, ntheta_big)
-    # quadpoints_phi = np.linspace(0, 1, nphi_big)
-    # surf_big = SurfaceRZFourier(
-    #     dofs=s.dofs,
-    #     nfp=nfp,
-    #     mpol=s.mpol,
-    #     ntor=s.ntor,
-    #     quadpoints_phi=quadpoints_phi,
-    #     quadpoints_theta=quadpoints_theta,
-    # )
+    nphi_big = nphi * 2 * nfp + 1
+    ntheta_big = ntheta + 1
+    quadpoints_theta = np.linspace(0, 1, ntheta_big)
+    quadpoints_phi = np.linspace(0, 1, nphi_big)
+    surf_big = SurfaceRZFourier(
+        dofs=s.dofs,
+        nfp=nfp,
+        mpol=s.mpol,
+        ntor=s.ntor,
+        quadpoints_phi=quadpoints_phi,
+        quadpoints_theta=quadpoints_theta,
+    )
 
     def initial_base_curves(R0, R1, order, ncoils):
         return create_equally_spaced_curves(
@@ -444,7 +435,7 @@ def optimization(
     Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 
     try:
-        Jforce = FORCE_OBJ(base_coils, coils, regularization_circ(0.05), p=2, threshold=FORCE_THRESHOLD, downsample=2)
+        Jforce = FORCE_OBJ(base_coils, coils, p=2, threshold=FORCE_THRESHOLD, downsample=2)
     except:
         try:
             Jforce = FORCE_OBJ(base_coils, coils, downsample=2)
@@ -464,7 +455,7 @@ def optimization(
         + ARCLENGTH_WEIGHT * sum(Jals)
 
     if with_force:
-        JF += FORCE_WEIGHT * sum(Jforce)
+        JF += FORCE_WEIGHT * Jforce
 
     ###########################################################################
     ## PERFORM OPTIMIZATION ###################################################
@@ -478,7 +469,7 @@ def optimization(
             length_val = LENGTH_WEIGHT * Jlength.J()
             cc_val = CC_WEIGHT * Jccdist.J()
             cs_val = CS_WEIGHT * Jcsdist.J()
-            forces_val = sum(Jforce).J()
+            forces_val = Jforce.J()
             arc_val = sum(Jals).J()
             BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
             BdotN_over_B = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
@@ -517,38 +508,34 @@ def optimization(
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     # EXPORT VTKS
+    coils_to_vtk(coils, OUTPUT_DIR + "coils_opt", close=True)
 
-    # forces = []
-    # for c in coils:
-    #     force = np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)
-    #     force = np.append(force, force[0])
-    #     forces = np.concatenate([forces, force])
-    # pointData_forces = {"F": forces}
-    # curves_to_vtk(curves, OUTPUT_DIR + "curves_opt", close=True, extra_point_data=pointData_forces)
-
-    # bs_big = BiotSavart(coils)
-    # bs_big.set_points(surf_big.gamma().reshape((-1, 3)))
-    # pointData = {
-    #     "B_N": np.sum(
-    #         bs_big.B().reshape((nphi_big, ntheta_big, 3)) * surf_big.unitnormal(),
-    #         axis=2,
-    #     )[:, :, None]
-    # }
-    # surf_big.to_vtk(OUTPUT_DIR + "surf_opt", extra_data=pointData)
+    bs_big = BiotSavart(coils)
+    bs_big.set_points(surf_big.gamma().reshape((-1, 3)))
+    pointData = {
+        "B_N": np.sum(
+            bs_big.B().reshape((nphi_big, ntheta_big, 3)) * surf_big.unitnormal(),
+            axis=2,
+        )[:, :, None]
+    }
+    surf_big.to_vtk(OUTPUT_DIR + "surf_opt", extra_data=pointData)
 
     # SAVE DATA TO JSON
-
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     mean_AbsB = np.mean(bs.AbsB())
     b2energy = B2_Energy(coils).J()
-    max_forces = [np.max(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
-    min_forces = [np.min(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
-    net_forces = coil_net_forces(coils, coils, regularization_circ(0.05) * np.ones(len(coils)))
-    max_torques = [np.max(np.linalg.norm(coil_torque(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
-    min_torques = [np.min(np.linalg.norm(coil_torque(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
-    net_torques = coil_net_torques(coils, coils, regularization_circ(0.05) * np.ones(len(coils)))
-    RMS_forces = [np.sqrt(np.mean(np.square(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)))) for c in base_coils]
-    RMS_torques = [np.sqrt(np.mean(np.square(np.linalg.norm(coil_torque(c, coils, regularization_circ(0.05)), axis=1)))) for c in base_coils]
+    lpcurveforce = LpCurveForce(base_coils, coils, p=2, threshold=FORCE_THRESHOLD, downsample=2).J()
+    lpcurvetorque = LpCurveTorque(base_coils, coils, p=2, threshold=FORCE_THRESHOLD, downsample=2).J()
+    squaredmeanforce = SquaredMeanForce(base_coils, coils).J()
+    squaredmeantorque = SquaredMeanTorque(base_coils, coils).J()
+    max_forces = [np.max(np.linalg.norm(coil_force(c, coils), axis=1)) for c in base_coils]
+    min_forces = [np.min(np.linalg.norm(coil_force(c, coils), axis=1)) for c in base_coils]
+    net_forces = [coil_net_force(c, coils) for c in base_coils]
+    max_torques = [np.max(np.linalg.norm(coil_torque(c, coils), axis=1)) for c in base_coils]
+    min_torques = [np.min(np.linalg.norm(coil_torque(c, coils), axis=1)) for c in base_coils]
+    net_torques = [coil_net_torque(c, coils) for c in base_coils]
+    RMS_forces = [np.sqrt(np.mean(np.square(np.linalg.norm(coil_force(c, coils), axis=1)))) for c in base_coils]
+    RMS_torques = [np.sqrt(np.mean(np.square(np.linalg.norm(coil_torque(c, coils), axis=1)))) for c in base_coils]
     results = {
         "nfp": nfp,
         "ncoils": int(ncoils),
@@ -571,6 +558,10 @@ def optimization(
         "force_threshold": FORCE_THRESHOLD,
         "force_weight": FORCE_WEIGHT,
         "arclength_weight": ARCLENGTH_WEIGHT,
+        "lpcurveforce": float(lpcurveforce),
+        "lpcurvetorque": float(lpcurvetorque),
+        "squaredmeanforce": float(squaredmeanforce),
+        "squaredmeantorque": float(squaredmeantorque),
         "JF": float(JF.J()),
         "Jf": float(Jf.J()),
         "gradient_norm": np.linalg.norm(JF.dJ()),
@@ -626,22 +617,3 @@ def optimization(
         c._children = set()
         c.curve._children = set()
         c.current._children = set()
-
-
-def rand(min, max):
-    """
-    Generate a random float between min and max (uniform distribution).
-
-    Parameters
-    ----------
-    min : float
-        Lower bound.
-    max : float
-        Upper bound.
-
-    Returns
-    -------
-    float
-        Random float in [min, max].
-    """
-    return np.random.rand() * (max - min) + min

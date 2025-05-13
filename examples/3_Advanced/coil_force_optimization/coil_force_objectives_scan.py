@@ -4,7 +4,17 @@
 coil_force_objectives_scan.py
 ----------------------------
 
-This script scans and compares different force and torque objective terms in stage-two coil optimization for stellarator design using SIMSOPT. It sets up a multi-objective optimization problem for magnetic coils, with selectable force/torque objectives and engineering constraints, and solves it using SciPy's L-BFGS-B optimizer. The script outputs VTK files for visualization and prints diagnostic information about the optimization process.
+This script scans and compares different force and torque objective terms in stage-two coil optimization 
+for stellarator design using SIMSOPT. It sets up an optimization problem for magnetic 
+coils, with selectable force/torque objectives and engineering constraints, and solves it using 
+SciPy's L-BFGS-B optimizer. The script outputs VTK files for visualization and prints diagnostic 
+information about the optimization process. The goal is to see how different force/torque/magnetic energy 
+terms affect the optimization and the various trade-offs. This scan we used to generate the results in the paper:
+    
+    Kaptanoglu, A.A., Wiedman, A., Halpern, J., Hurwitz, S., Paul, E.J. and Landreman, M., 2025. 
+    Reactor-scale stellarators with force and torque minimized dipole coils. 
+    Nuclear Fusion, 65(4), p.046029.
+    https://iopscience.iop.org/article/10.1088/1741-4326/adc318/meta
 
 Main steps:
 - Parse command-line arguments to select the force/torque objective and its weight.
@@ -220,8 +230,7 @@ def fun(dofs):
     J = JF.J()
     grad = JF.dJ()
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-    BdotN_over_B = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
-                           ) / np.mean(bs.AbsB())
+    BdotN_over_B = BdotN / np.mean(bs.AbsB())
     outstr = f"J={J:.1e}, Jf={Jf.J():.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.2f}"
@@ -265,7 +274,6 @@ for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
 
 dofs = JF.x
 print(f"Optimization with FORCE_WEIGHT={FORCE_WEIGHT.value} and LENGTH_WEIGHT={LENGTH_WEIGHT.value}")
-# print("INITIAL OPTIMIZATION")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': MAXITER}, tol=1e-12)
 coils_to_vtk(coils, OUT_DIR + "coils_opt", close=True)
 

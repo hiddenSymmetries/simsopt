@@ -4,7 +4,7 @@ the permanent magnets functionality in the SIMSOPT code.
 """
 __all__ = ['read_focus_coils', 'coil_optimization',
            'trace_fieldlines', 'make_qfm',
-           'initialize_coils', 'calculate_on_axis_B',
+           'initialize_coils', 'calculate_modB_on_major_radius',
            'make_optimization_plots', 'run_Poincare_plots',
            'make_Bnormal_plots', 'initialize_default_kwargs'
            ]
@@ -354,7 +354,7 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
     return base_curves, curves, coils
 
 
-def calculate_on_axis_B(bs, s, print_out=True):
+def calculate_modB_on_major_radius(bs, s, print_out=True):
     """
     Check the average, approximate, on-axis
     magnetic field strength to make sure the

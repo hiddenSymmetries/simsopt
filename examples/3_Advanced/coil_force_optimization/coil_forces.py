@@ -3,8 +3,17 @@
 coil_forces.py
 --------------
 
-This script demonstrates the use of force metrics in stage-two coil optimization for stellarator design using SIMSOPT. It sets up a multi-objective optimization problem for magnetic coils, including engineering constraints and force/energy penalties, and solves it using SciPy's L-BFGS-B optimizer. The script outputs VTK files for visualization and prints diagnostic information about the optimization process.
-
+This script demonstrates the use of force metrics in stage-two coil optimization for stellarator design 
+using SIMSOPT. It sets up a multi-objective optimization problem for magnetic coils, including 
+engineering constraints and force/energy penalties, and solves it using SciPy's L-BFGS-B optimizer. 
+The script outputs VTK files for visualization and prints diagnostic information about the optimization 
+process. This script was used to generate the results in the paper:
+    
+    Hurwitz, S., Landreman, M., Huslage, P. and Kaptanoglu, A., 2025. 
+    Electromagnetic coil optimization for reduced Lorentz forces.
+    Nuclear Fusion, 65(5), p.056044.
+    https://iopscience.iop.org/article/10.1088/1741-4326/adc9bf/meta
+    
 Main steps:
 - Define input parameters for coil geometry, penalties, and weights.
 - Set up the magnetic surface and initial coil configuration.
@@ -28,7 +37,7 @@ from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance,
 from simsopt.field import BiotSavart
 from simsopt.field.force import LpCurveForce, B2_Energy
 from simsopt.field.selffield import regularization_circ
-from simsopt.util import in_github_actions, calculate_on_axis_B
+from simsopt.util import in_github_actions, calculate_modB_on_major_radius
 
 
 ###############################################################################
@@ -111,7 +120,7 @@ coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 base_coils = coils[:ncoils]
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
-calculate_on_axis_B(bs, s)
+calculate_modB_on_major_radius(bs, s)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
 a = 0.05
@@ -245,5 +254,5 @@ outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shorte
 outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
 print(outstr)
 
-calculate_on_axis_B(bs, s)
+calculate_modB_on_major_radius(bs, s)
 print(sum([c.get_value() for c in base_currents]))

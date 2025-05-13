@@ -9,7 +9,7 @@ from scipy.special import ellipk, ellipe
 from simsopt.field import Coil, Current, coils_via_symmetries
 from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.configs import get_hsx_data
-from simsopt.geo import CurveXYZFourier, CurvePlanarFourier
+from simsopt.geo import CurveXYZFourier, JaxCurveXYZFourier, CurvePlanarFourier, JaxCurvePlanarFourier
 from simsopt.field.selffield import (
     B_regularized_circ,
     B_regularized_rect,
@@ -156,7 +156,7 @@ class CoilForcesTest(unittest.TestCase):
             normal = [0, 0, 1]
             alpha = np.arcsin(normal[1])
             delta = np.arccos(normal[2] / np.cos(alpha))
-            curve = CurvePlanarFourier(N_quad, 0, nfp=1, stellsym=False)
+            curve = CurvePlanarFourier(N_quad, 0)
             dofs = np.zeros(8)
             dofs[0] = R0
             dofs[1] = np.cos(alpha / 2.0) * np.cos(delta / 2.0)
@@ -170,15 +170,32 @@ class CoilForcesTest(unittest.TestCase):
             curve.set_dofs(dofs)
 
             # Make concentric coil with larger radius
-            curve2 = CurvePlanarFourier(N_quad, 0, nfp=1, stellsym=False)
-            dofs[0] = R1
-            curve2.set_dofs(dofs)
+            curve2 = CurvePlanarFourier(N_quad, 0)
+            dofs2 = np.zeros(8)
+            dofs2[0] = R1
+            dofs2[1] = np.cos(alpha / 2.0) * np.cos(delta / 2.0)
+            dofs2[2] = np.sin(alpha / 2.0) * np.cos(delta / 2.0)
+            dofs2[3] = np.cos(alpha / 2.0) * np.sin(delta / 2.0)
+            dofs2[4] = -np.sin(alpha / 2.0) * np.sin(delta / 2.0)
+            # Now specify the center
+            dofs2[5] = 0.0
+            dofs2[6] = 0.0
+            dofs2[7] = 0.0
+            curve2.set_dofs(dofs2)
 
             # Make circular coil with shared axis
-            curve3 = CurvePlanarFourier(N_quad * 2, 0, nfp=1, stellsym=False)
-            dofs[0] = R2
-            dofs[7] = d
-            curve3.set_dofs(dofs)
+            curve3 = CurvePlanarFourier(N_quad * 2, 0)
+            dofs3 = np.zeros(8)
+            dofs3[0] = R2
+            dofs3[1] = np.cos(alpha / 2.0) * np.cos(delta / 2.0)    
+            dofs3[2] = np.sin(alpha / 2.0) * np.cos(delta / 2.0)
+            dofs3[3] = np.cos(alpha / 2.0) * np.sin(delta / 2.0)
+            dofs3[4] = -np.sin(alpha / 2.0) * np.sin(delta / 2.0)
+            # Now specify the center
+            dofs3[5] = 0.0
+            dofs3[6] = 0.0
+            dofs3[7] = d
+            curve3.set_dofs(dofs3)
 
             Lij = coil_coil_inductances_pure(
                 np.array([curve.gamma(), curve2.gamma()]),
@@ -212,13 +229,13 @@ class CoilForcesTest(unittest.TestCase):
             np.testing.assert_allclose(Lji[1, 0], Lij_analytic, rtol=1e-2)
 
             # now test coils with shared axis
-            Lij = coil_coil_inductances_pure(
+            Lij3 = coil_coil_inductances_pure(
                 [curve.gamma(), curve3.gamma()],
                 [curve.gammadash(), curve3.gammadash()],
                 downsample=1,
                 regularizations=np.array([regularization_circ(a), regularization_circ(a)]),
             )
-            np.testing.assert_allclose(Lij[1, 0], Lij_analytic2, rtol=1e-2)
+            np.testing.assert_allclose(Lij3[1, 0], Lij_analytic2, rtol=1e-2)
 
             # This function is really for passive coils 
             # but just checking we can compute the induced currents correctly
@@ -240,7 +257,7 @@ class CoilForcesTest(unittest.TestCase):
                 downsample=1,
                 regularizations=np.array([regularization_circ(a), regularization_circ(a)]),
             )
-            assert np.allclose(np.linalg.inv(Lij), Lij_inv)
+            assert np.allclose(np.linalg.inv(Lij3), Lij_inv)
 
             # Check the case of rectangular cross-section:
             B_reg_test = B_regularized_rect(coil, a, b)
@@ -307,6 +324,61 @@ class CoilForcesTest(unittest.TestCase):
             torque_z2 = coil_torque(coil_z2, [coil_z1, coil_z2])
             np.testing.assert_allclose(np.sum(torque_z1, axis=0), 0.0, atol=1e-8)
             np.testing.assert_allclose(np.sum(torque_z2, axis=0), 0.0, atol=1e-8)
+
+            # --- JAX CurveXYZFourier: check equivalence ---
+            jax_curve = JaxCurveXYZFourier(N_quad, order)
+            jax_curve.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * R0
+            jax_coil = Coil(jax_curve, current)
+            # B_regularized_circ
+            B_reg_jax = B_regularized_circ(jax_coil, a)
+            np.testing.assert_allclose(B_reg_jax, B_reg_test, rtol=1e-2, atol=1e-12)
+            # self_force_circ
+            force_jax = self_force_circ(jax_coil, a)
+            np.testing.assert_allclose(force_jax, force_test, rtol=1e-2, atol=1e-12)
+            # self-torque
+            jax_coil.regularization = regularization_circ(a)
+            torque_jax = coil_torque(jax_coil, [jax_coil])
+            np.testing.assert_allclose(torque_jax, torque_test, rtol=1e-2, atol=1e-10)
+
+            # --- JAX CurvePlanarFourier: check equivalence ---
+            jax_curve_p = JaxCurvePlanarFourier(N_quad, 0)
+            jax_curve_p.set_dofs(dofs)
+            jax_curve2_p = JaxCurvePlanarFourier(N_quad, 0)
+            jax_curve2_p.set_dofs(dofs2)
+            jax_curve3_p = JaxCurvePlanarFourier(N_quad * 2, 0)
+            jax_curve3_p.set_dofs(dofs3)
+            # Check JAX and non-JAX curves are equivalent
+            np.testing.assert_allclose(jax_curve_p.gamma(), curve.gamma(), rtol=1e-12, atol=1e-12)
+            np.testing.assert_allclose(jax_curve_p.gammadash(), curve.gammadash(), rtol=1e-12, atol=1e-12)
+            np.testing.assert_allclose(jax_curve2_p.gamma(), curve2.gamma(), rtol=1e-12, atol=1e-12)
+            np.testing.assert_allclose(jax_curve2_p.gammadash(), curve2.gammadash(), rtol=1e-12, atol=1e-12)
+            # Inductance
+            Lij_jax = coil_coil_inductances_pure(
+                np.array([jax_curve_p.gamma(), jax_curve2_p.gamma()]),
+                np.array([jax_curve_p.gammadash(), jax_curve2_p.gammadash()]),
+                downsample=1,
+                regularizations=np.array([regularization_circ(a), regularization_circ(a)]),
+            )
+            np.testing.assert_allclose(Lij_jax, Lij, rtol=1e-2, atol=1e-12)
+            # Rectangular cross section
+            Lij_rect_jax = coil_coil_inductances_pure(
+                np.array([jax_curve_p.gamma(), jax_curve2_p.gamma()]),
+                np.array([jax_curve_p.gammadash(), jax_curve2_p.gammadash()]),
+                downsample=1,
+                regularizations=np.array([regularization_rect(a, b), regularization_rect(a, b)]),
+            )
+            np.testing.assert_allclose(Lij_rect_jax, Lij_rect, rtol=1e-2, atol=1e-12)
+            # B_regularized_rect
+            jax_coil_p = Coil(jax_curve_p, current)
+            B_reg_rect_jax = B_regularized_rect(jax_coil_p, a, b)
+            np.testing.assert_allclose(B_reg_rect_jax, B_reg_test, rtol=1e-2, atol=1e-12)
+            # self_force_rect
+            force_rect_jax = self_force_rect(jax_coil_p, a, b)
+            np.testing.assert_allclose(force_rect_jax, force_test, rtol=1e-2, atol=1e-12)
+            # self-torque rect
+            jax_coil_p.regularization = regularization_rect(a, b)
+            torque_rect_jax = coil_torque(jax_coil_p, [jax_coil_p])
+            np.testing.assert_allclose(torque_rect_jax, torque_test_rect, rtol=1e-2, atol=1e-10)
 
     def test_force_convergence(self):
         """Check that the self-force is approximately independent of the number of quadrature points"""
@@ -587,7 +659,8 @@ class CoilForcesTest(unittest.TestCase):
         p_list = [2.5]
         threshold_list = [0.0]
         downsample_list = [1, 2]
-        numquadpoints_list = [30]
+        jax_flag_list = [False, True]
+        numquadpoints_list = [20]
         I = 1.7e5
         a = 0.05
         b = 0.05
@@ -607,57 +680,58 @@ class CoilForcesTest(unittest.TestCase):
                             for reg_name, reg_func in regularization_types:
                                 regularization = reg_func()
                                 for downsample in downsample_list:
-                                    for numquadpoints in numquadpoints_list:
-                                        base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym, numquadpoints=numquadpoints)
-                                        base_curves2 = create_equally_spaced_curves(ncoils, nfp, stellsym, numquadpoints=numquadpoints)
-                                        base_currents = [Current(I) for j in range(ncoils)]
-                                        coils = coils_via_symmetries(base_curves, base_currents, nfp, stellsym)
-                                        for c in coils:
-                                            c.regularization = regularization
-                                        for ii in range(ncoils):
-                                            base_curves2[ii].x = base_curves2[ii].x + np.ones(len(base_curves2[ii].x)) * 0.1
-                                        coils2 = coils_via_symmetries(base_curves2, base_currents, nfp, stellsym)
-                                        objectives = [
-                                            sum([NetFluxes(coils[i], coils2) for i in range(len(coils))]),
-                                            B2_Energy(coils + coils2, downsample=downsample),
-                                            LpCurveTorque(coils, coils2, p=p, threshold=threshold, downsample=downsample),
-                                            SquaredMeanTorque(coils, coils2, downsample=downsample),
-                                            LpCurveForce(coils, coils2, p=p, threshold=threshold, downsample=downsample),
-                                            SquaredMeanForce(coils, coils2, downsample=downsample),
-                                            # Deprecated objectives do not always pass the Taylor tests!
-                                            # sum([MeanSquaredForce_deprecated(coils[i], coils2, regularization) for i in range(len(coils))]),
-                                            # sum([LpCurveForce_deprecated(coils[i], coils2, regularization, p=p, threshold=threshold, downsample=downsample) for i in range(len(coils))]),                                        
-                                        ]
-                                        dofs = np.copy(LpCurveTorque(coils, coils2, p=p, threshold=threshold, downsample=downsample).x)
-                                        h = np.ones_like(dofs)
-                                        for J in objectives:
-                                            print(f"ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}, p={p}, threshold={threshold}, reg={reg_name}, downsample={downsample}, objective={type(J).__name__}")
-                                            J.x = dofs  # Need to reset Jf.x for each objective
-                                            dJ = J.dJ()
-                                            deriv = np.sum(dJ * h)
-                                            errors = []
-                                            epsilons = []
-                                            label = f"{type(J).__name__}, ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}, p={getattr(J, 'p', p)}, threshold={getattr(J, 'threshold', threshold)}, reg={reg_name}, downsample={downsample}"
-                                            for i in range(10, 16):
-                                                eps = 0.5**i
-                                                J.x = dofs + eps * h
-                                                Jp = J.J()
-                                                J.x = dofs - eps * h
-                                                Jm = J.J()
-                                                deriv_est = (Jp - Jm) / (2 * eps)
-                                                if np.abs(deriv) < 1e-8:
-                                                    err_new = np.abs(deriv_est - deriv)  # compute absolute error instead
-                                                else:
-                                                    err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
-                                                # Check error decrease by at least a factor of 0.3
-                                                if len(errors) > 0 and err_new > 1e-10:
-                                                    print(f"err: {err_new}, jac: {np.abs(deriv)}, jac_est: {np.abs(deriv_est)}, ratio: {(err_new + 1e-12) / (errors[-1] + 1e-12)}")
-                                                    assert err_new < 0.5 * errors[-1], f"Error did not decrease by factor 0.5: prev={errors[-1]}, curr={err_new}"
-                                                errors.append(err_new)
-                                                epsilons.append(eps)
-                                            all_errors.append(errors)
-                                            all_labels.append(label)
-                                            all_eps.append(epsilons)
+                                    for jax_flag in jax_flag_list:
+                                        for numquadpoints in numquadpoints_list:
+                                            base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym, numquadpoints=numquadpoints, jax_flag=jax_flag)
+                                            base_curves2 = create_equally_spaced_curves(ncoils, nfp, stellsym, numquadpoints=numquadpoints, jax_flag=jax_flag)
+                                            base_currents = [Current(I) for j in range(ncoils)]
+                                            coils = coils_via_symmetries(base_curves, base_currents, nfp, stellsym)
+                                            for c in coils:
+                                                c.regularization = regularization
+                                            for ii in range(ncoils):
+                                                base_curves2[ii].x = base_curves2[ii].x + np.ones(len(base_curves2[ii].x)) * 0.1
+                                            coils2 = coils_via_symmetries(base_curves2, base_currents, nfp, stellsym)
+                                            objectives = [
+                                                sum([NetFluxes(coils[i], coils2) for i in range(len(coils))]),
+                                                B2_Energy(coils + coils2, downsample=downsample),
+                                                LpCurveTorque(coils, coils2, p=p, threshold=threshold, downsample=downsample),
+                                                SquaredMeanTorque(coils, coils2, downsample=downsample),
+                                                LpCurveForce(coils, coils2, p=p, threshold=threshold, downsample=downsample),
+                                                SquaredMeanForce(coils, coils2, downsample=downsample),
+                                                # Deprecated objectives do not always pass the Taylor tests!
+                                                # sum([MeanSquaredForce_deprecated(coils[i], coils2, regularization) for i in range(len(coils))]),
+                                                # sum([LpCurveForce_deprecated(coils[i], coils2, regularization, p=p, threshold=threshold, downsample=downsample) for i in range(len(coils))]),                                        
+                                            ]
+                                            dofs = np.copy(LpCurveTorque(coils, coils2, p=p, threshold=threshold, downsample=downsample).x)
+                                            h = np.ones_like(dofs)
+                                            for J in objectives:
+                                                print(f"ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}, p={p}, threshold={threshold}, reg={reg_name}, downsample={downsample}, objective={type(J).__name__}")
+                                                J.x = dofs  # Need to reset Jf.x for each objective
+                                                dJ = J.dJ()
+                                                deriv = np.sum(dJ * h)
+                                                errors = []
+                                                epsilons = []
+                                                label = f"{type(J).__name__}, ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}, p={getattr(J, 'p', p)}, threshold={getattr(J, 'threshold', threshold)}, reg={reg_name}, downsample={downsample}"
+                                                for i in range(10, 16):
+                                                    eps = 0.5**i
+                                                    J.x = dofs + eps * h
+                                                    Jp = J.J()
+                                                    J.x = dofs - eps * h
+                                                    Jm = J.J()
+                                                    deriv_est = (Jp - Jm) / (2 * eps)
+                                                    if np.abs(deriv) < 1e-8:
+                                                        err_new = np.abs(deriv_est - deriv)  # compute absolute error instead
+                                                    else:
+                                                        err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
+                                                    # Check error decrease by at least a factor of 0.3
+                                                    if len(errors) > 0 and err_new > 1e-10:
+                                                        print(f"err: {err_new}, jac: {np.abs(deriv)}, jac_est: {np.abs(deriv_est)}, ratio: {(err_new + 1e-12) / (errors[-1] + 1e-12)}")
+                                                        assert err_new < 0.5 * errors[-1], f"Error did not decrease by factor 0.5: prev={errors[-1]}, curr={err_new}"
+                                                    errors.append(err_new)
+                                                    epsilons.append(eps)
+                                                all_errors.append(errors)
+                                                all_labels.append(label)
+                                                all_eps.append(epsilons)
         # Plot all errors
         plt.figure(figsize=(14, 8))
         for errors, label, epsilons in zip(all_errors, all_labels, all_eps):

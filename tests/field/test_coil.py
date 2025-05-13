@@ -8,7 +8,7 @@ from pathlib import Path
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
-from simsopt.geo.curveplanarfourier import CurvePlanarFourier
+from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
 from simsopt.geo.curve import RotatedCurve, create_equally_spaced_curves, create_equally_spaced_planar_curves
 from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum, coils_via_symmetries, JaxCurrent
 from simsopt.field.coil import coils_to_makegrid, coils_to_focus, load_coils_from_makegrid_file
@@ -51,7 +51,9 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     elif curvetype == "CurveHelical":
         curve = CurveHelical(x, order, 5, 2, 1.0, 0.3)
     elif curvetype == "CurvePlanarFourier":
-        curve = CurvePlanarFourier(x, order, 2, True)
+        curve = CurvePlanarFourier(x, order)
+    elif curvetype == "JaxCurvePlanarFourier":
+        curve = JaxCurvePlanarFourier(x, order)
     else:
         assert False
     dofs = np.zeros((curve.dof_size, ))
@@ -65,7 +67,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         dofs[order+1] = 0.1
     elif curvetype in ["CurveHelical"]:
         dofs[0] = np.pi/2
-    elif curvetype in ["CurvePlanarFourier"]:
+    elif curvetype in ["CurvePlanarFourier", "JaxCurvePlanarFourier"]:
         dofs[0] = 1.
         dofs[1] = 0.1
         dofs[order+1] = 0.1
@@ -80,7 +82,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
 
 class TestCoil(unittest.TestCase):
 
-    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical", "CurvePlanarFourier"]
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical", "CurvePlanarFourier", "JaxCurvePlanarFourier"]
 
     def subtest_serialization(self, curvetype, rotated):
         """
@@ -336,7 +338,7 @@ class CoilFormatConvertTesting(unittest.TestCase):
         Test that coils_to_vtk writes a VTK file for a simple coil setup.
         """
         from simsopt.field.coil import coils_to_vtk
-        curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical", "CurvePlanarFourier"]
+        curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical", "CurvePlanarFourier", "JaxCurvePlanarFourier"]
         for curvetype in curvetypes:
             for rotated in [True, False]:
                 curve = get_curve(curvetype, rotated=rotated)
