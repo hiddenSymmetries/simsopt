@@ -324,7 +324,7 @@ class Surface(Optimizable):
         """
         raise NotImplementedError
 
-    def cross_section(self, phi_prime, thetas=None, tol=1e-13):
+    def cross_section(self, phi, thetas=None, tol=1e-13):
         """
         Computes the cross-section at an angle :math:`\phi` at `thetas` using bisection.
         :math:`\phi'` follows the same conventions as `Surfaces`, i.e. :math:`\phi=0, 1` 
@@ -334,7 +334,7 @@ class Surface(Optimizable):
 
         Parameters
         ----------
-            phi_prime (float):
+            phi (float):
                 the standard cylindrical angle (toroidal angle) normalized by :math:`2\pi`.
                 There is no restriction on :math:`\phi`, i.e. is can be larger than 1, or
                 smaller than 0.
@@ -362,7 +362,7 @@ class Surface(Optimizable):
             raise NotImplementedError('Need to pass int or 1d np.array to thetas')
         
         # shift phi_prime to lie on [0, 1)
-        phi_prime = phi_prime + np.ceil(-phi_prime)
+        phi_prime = phi + np.ceil(-phi)
 
         # no need to do bisection for SurfaceRZFourier
         from simsopt.geo import SurfaceRZFourier
