@@ -1,11 +1,11 @@
 # based on http://protips.readthedocs.io/link-roles.html
 
 from docutils import nodes
-from subprocess import run
+from subprocess import check_output
 
 
 def run_cmd_get_output(cmd):
-    return run(cmd).stdout.strip()
+    return check_output(cmd).strip()
 
 
 def get_github_rev():
