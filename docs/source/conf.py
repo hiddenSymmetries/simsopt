@@ -45,6 +45,7 @@ extensions = [
               'sphinx.ext.mathjax',
               'sphinx.ext.intersphinx',
               'breathe',
+              'link-roles',
 ]
 
 autodoc_mock_imports=['mpi4py', 'pyoculus', 'py_spec']
