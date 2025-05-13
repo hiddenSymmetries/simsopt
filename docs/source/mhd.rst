@@ -6,7 +6,7 @@ Currently it contains an interface to the Variational Moments Equilibrium Code (
 Pressure Equilibrium Code (SPEC) through the :obj:`simsopt.mhd.spec` module.
 
 The equilibrium codes must be installed separately with python bindings provided by f90wrap. 
-See the the instructions for [VMEC](https://github.com/hiddenSymmetries/vmec2000) and for [SPEC](https://github.com/PrincetonUniversity/SPEC/blob/master/compilation_instructions.md) page for instructions.
+See the instructions for [VMEC](https://github.com/hiddenSymmetries/vmec2000) and for [SPEC](https://github.com/PrincetonUniversity/SPEC/blob/master/compilation_instructions.md) page for instructions.
 
 The ``Vmec`` and ``Spec`` classes instantiate the MHD solvers as ``Optimizable`` objects that can depend on other :obj:`Optimizable` objects, such as a :obj:`simsopt.mhd.Profile` for the pressure, current and rotational transform profiles, as well as :obj:`simsopt.mhd.Surface` for boundary and internal surfaces
 This allows for direct handling of profiles parameters, surface degrees of freedom, and solver options through the python class.
@@ -15,7 +15,7 @@ MHD codes are often run in two different modes: fixed boundary and free boundary
 In fixed boundary mode the equilibrium depends on the boundary (accessed through ``.boundary``), which is a :obj:`simsopt.geo.SurfaceRZFourier``. 
 In free-boundary mode however, the equilibrium on an external field (which can be provided by any :obj:`simsopt.field.MagneticField`) and its :obj:`boundary` is a child, whose properties (like aspect ratio, volume, etc) can be optimized for, by varying the degrees-of-freedom of the :obj:`MagneticField`.  
 One can even combine different solvers such that the equilibrium objects depend on the same :obj:`Surface`, or where one equilibrium solves for the boundary, and metrics related to it are computed using the fixed-boundary
-soltions provided by the other solver. 
+solutions provided by the other solver. 
 
 .. warning::
     ``f90wrapped`` code creates singleton classes. You cannot create multiple 
@@ -49,7 +49,7 @@ Profiles
 ~~~~~~~~
 
 An equilibrium depends on a number of profiles, for example the pressure, current and rotational transform profiles. 
-These are sparate :obj:`Optimizable` objects, on which the equilibrium can depend. 
+These are separate :obj:`Optimizable` objects, on which the equilibrium can depend. 
 Because SPEC and VMEC have very different representations, specialized classes
 are provided for each code. 
 
@@ -62,9 +62,9 @@ The :ref:`running-vmec` tutorial contains more detailed information about profil
 VMEC
 ~~~~
 VMEC is one of the most widely used codes for calculating 3D MHD equilibria. 
-As such, it provices a very large number of diagnostics and outputs and has 
+As such, it provides a very large number of diagnostics and outputs and has 
 couplings to other codes providing further metrics that can be used in 
-optimisation. 
+optimization. 
 VMEC assumes nested flux surfaces. 
 The :obj:`simsopt.mhd.vmec` module provides the interface, and can be instantiated from the same input file as is usually used for running VMEC (an ``input.<name`` or ``wout_<name>.nc`` file): 
 
@@ -78,10 +78,10 @@ There are many useful diagnostics available that depend on a :obj:`Vmec` object 
 These include:
 - :obj:`QuasisymmetryRatioResidual`: Deviation from quasisymmetry
 - :obj:`IotaTargetMetric`: Difference between the rotational transform and a provided target
-- :obj:`IotaWeighted`: Weighted average of the rotational transorm
+- :obj:`IotaWeighted`: Weighted average of the rotational transform
 - :obj:`WellWeighted`: Measure for the magnetic well. 
 - :obj:`Quasisymmetry`: Measure of the quasisymmetry using the boozer spectrum.
-- :obj:`VmecRedlBootstrapMismatch`: the mismatch between the Vmec bootstrap and that provided by a recent calculation by Redl (for obtaining self-consistent bootstrap current).
+- :obj:`VmecRedlBootstrapMismatch`: the mismatch between the VMEC bootstrap and that provided by a recent calculation by Redl (for obtaining self-consistent bootstrap current).
 
 
 
@@ -101,7 +101,7 @@ All ideal interfaces in spec are available as :obj:`SurfaceRZFourier` objects.
 Greenes residue
 ^^^^^^^^^^^^^^^
 
-Islands in a SPEC equilibrium can be optimized for using Cary and Hansons' method of Greenes residue minimization. 
+Islands in a SPEC equilibrium can be optimized for using Cary and Hansons' method of minimizing Greenes residue. 
 The fixed points of the islands are found, and their residue is calculated using
 ``pyoculus`` through the :obj:`simsopt.mhd.GreenesResidue` that depends on the :obj:`simsopt.mhd.spec.Spec` object, and needs the poloidal and toroidal mode number of the island provided. 
 
