@@ -111,7 +111,7 @@ class Curve(Optimizable):
 
         if engine == "matplotlib":
             # plot in matplotlib.pyplot
-            import matplotlib.pyplot as plt 
+            import matplotlib.pyplot as plt
 
             if ax is None or ax.name != "3d":
                 fig = plt.figure()
@@ -205,7 +205,7 @@ class Curve(Optimizable):
         dgamma_by_dphidcoeff = self.dgammadash_by_dcoeff()
         dgamma_by_dphidphidcoeff = self.dgammadashdash_by_dcoeff()
 
-        norm = lambda a: np.linalg.norm(a, axis=1)
+        def norm(a): return np.linalg.norm(a, axis=1)
         numerator = np.cross(dgamma_by_dphi, dgamma_by_dphidphi)
         denominator = self.incremental_arclength()
         dkappa_by_dcoeff[:, :] = (1 / (denominator**3*norm(numerator)))[:, None] * np.sum(numerator[:, :, None] * (
@@ -277,8 +277,8 @@ class Curve(Optimizable):
         gammadash = self.gammadash()
         gammadashdash = self.gammadashdash()
         l = self.incremental_arclength()
-        norm = lambda a: np.linalg.norm(a, axis=1)
-        inner = lambda a, b: np.sum(a*b, axis=1)
+        def norm(a): return np.linalg.norm(a, axis=1)
+        def inner(a, b): return np.sum(a*b, axis=1)
         N = len(self.quadpoints)
         t, n, b = (np.zeros((N, 3)), np.zeros((N, 3)), np.zeros((N, 3)))
         t[:, :] = (1./l[:, None]) * gammadash
@@ -298,9 +298,9 @@ class Curve(Optimizable):
         dgamma = self.gammadash()
         d2gamma = self.gammadashdash()
         d3gamma = self.gammadashdashdash()
-        norm = lambda a: np.linalg.norm(a, axis=1)
-        inner = lambda a, b: np.sum(a*b, axis=1)
-        cross = lambda a, b: np.cross(a, b, axis=1)
+        def norm(a): return np.linalg.norm(a, axis=1)
+        def inner(a, b): return np.sum(a*b, axis=1)
+        def cross(a, b): return np.cross(a, b, axis=1)
         dkappa_by_dphi[:] = inner(cross(dgamma, d2gamma), cross(dgamma, d3gamma))/(norm(cross(dgamma, d2gamma)) * norm(dgamma)**3) \
             - 3 * inner(dgamma, d2gamma) * norm(cross(dgamma, d2gamma))/norm(dgamma)**5
         return dkappa_by_dphi
@@ -322,8 +322,8 @@ class Curve(Optimizable):
         l = self.incremental_arclength()
         dl_by_dcoeff = self.dincremental_arclength_by_dcoeff()
 
-        norm = lambda a: np.linalg.norm(a, axis=1)
-        inner = lambda a, b: np.sum(a*b, axis=1)
+        def norm(a): return np.linalg.norm(a, axis=1)
+        def inner(a, b): return np.sum(a*b, axis=1)
 
         N = len(self.quadpoints)
         dt_by_dcoeff, dn_by_dcoeff, db_by_dcoeff = (np.zeros((N, 3, self.num_dofs())), np.zeros((N, 3, self.num_dofs())), np.zeros((N, 3, self.num_dofs())))
@@ -366,9 +366,9 @@ class Curve(Optimizable):
         d2gamma = self.gammadashdash()
         d3gamma = self.gammadashdashdash()
 
-        norm = lambda a: np.linalg.norm(a, axis=1)
-        inner = lambda a, b: np.sum(a*b, axis=1)
-        cross = lambda a, b: np.cross(a, b, axis=1)
+        def norm(a): return np.linalg.norm(a, axis=1)
+        def inner(a, b): return np.sum(a*b, axis=1)
+        def cross(a, b): return np.cross(a, b, axis=1)
         d1_dot_d2 = inner(dgamma, d2gamma)
         d1_x_d2 = cross(dgamma, d2gamma)
         d1_x_d3 = cross(dgamma, d3gamma)
@@ -813,7 +813,7 @@ class RotatedCurve(sopp.Curve, Curve):
         return True if self.rotmat[2][2] == -1 else False
 
 
-def curves_to_vtk(curves, filename, close=False):
+def curves_to_vtk(curves, filename, close=False, extra_data=None):
     """
     Export a list of Curve objects in VTK format, so they can be
     viewed using Paraview. This function requires the python package ``pyevtk``,
@@ -840,7 +840,12 @@ def curves_to_vtk(curves, filename, close=False):
         z = np.concatenate([c.gamma()[:, 2] for c in curves])
         ppl = np.asarray([c.gamma().shape[0] for c in curves])
     data = np.concatenate([i*np.ones((ppl[i], )) for i in range(len(curves))])
-    polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData={'idx': data})
+    pointData = {'idx': data}
+
+    if extra_data is not None:
+        pointData = {**pointData, **extra_data}
+
+    polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData=pointData)
 
 
 def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):

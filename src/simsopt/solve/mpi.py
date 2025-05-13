@@ -23,6 +23,7 @@ except ImportError:
     MPI = None
 
 from .._core.optimizable import Optimizable
+from .._core.util import Struct
 from ..util.mpi import MpiPartition
 from .._core.finite_difference import MPIFiniteDifference
 from ..objectives.least_squares import LeastSquaresProblem
@@ -209,12 +210,17 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
                 x0 = np.copy(prob.x)
                 logger.info("Using finite difference method implemented in "
                             "SIMSOPT for evaluating gradient")
-                result = least_squares(_f_proc0, x0, jac=fd.jac, verbose=2,
-                                       **kwargs)
+                try:
+                    result = least_squares(_f_proc0, x0, jac=fd.jac, verbose=2,
+                                           **kwargs)
+                except:
+                    print("Failure on proc0_world")
+                    result = Struct()
+                    result.x = x0
 
     else:
-        leaders_action = lambda mpi, data: None
-        workers_action = lambda mpi, data: _mpi_workers_task(mpi, prob)
+        def leaders_action(mpi, data): return None
+        def workers_action(mpi, data): return _mpi_workers_task(mpi, prob)
         # Send group leaders and workers into their respective loops:
         mpi.apart(leaders_action, workers_action)
 
@@ -230,8 +236,9 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
     if mpi.proc0_world:
         x = result.x
 
-        objective_file.close()
-        if save_residuals:
+        if objective_file is not None:
+            objective_file.close()
+        if save_residuals and residuals_file is not None:
             residuals_file.close()
 
     datalog_started = False
@@ -475,8 +482,8 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
 
     else:
 
-        leaders_action = lambda mpi, data: None
-        workers_action = lambda mpi, data: _constrained_mpi_workers_task(mpi, prob, data)
+        def leaders_action(mpi, data): return None
+        def workers_action(mpi, data): return _constrained_mpi_workers_task(mpi, prob, data)
         # Send group leaders and workers into their respective loops:
         mpi.apart(leaders_action, workers_action)
 

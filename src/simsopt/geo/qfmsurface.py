@@ -1,4 +1,4 @@
-from scipy.optimize import minimize # , NonlinearConstraint
+from scipy.optimize import minimize  # , NonlinearConstraint
 
 from .._core.json import GSONable
 from .surfaceobjectives import QfmResidual
@@ -128,7 +128,7 @@ class QfmSurface(GSONable):
 
         s = self.surface
         x = s.x
-        fn = lambda x: self.qfm_penalty_constraints(
+        def fn(x): return self.qfm_penalty_constraints(
             x, derivatives=1, constraint_weight=constraint_weight)
         res = minimize(
             fn, x, jac=True, method='L-BFGS-B',
@@ -161,9 +161,9 @@ class QfmSurface(GSONable):
         s = self.surface
         x = s.x
 
-        fun = lambda x: self.qfm_objective(x, derivatives=1)
-        con = lambda x: self.qfm_label_constraint(x, derivatives=1)[0]
-        dcon = lambda x: self.qfm_label_constraint(x, derivatives=1)[1]
+        def fun(x): return self.qfm_objective(x, derivatives=1)
+        def con(x): return self.qfm_label_constraint(x, derivatives=1)[0]
+        def dcon(x): return self.qfm_label_constraint(x, derivatives=1)[1]
 
         # nlc = NonlinearConstraint(con, 0, 0)
         eq_constraints = [{'type': 'eq', 'fun': con, 'jac': dcon}]

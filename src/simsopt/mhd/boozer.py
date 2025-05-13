@@ -33,6 +33,7 @@ from .._core.descriptor import Integer
 
 __all__ = ['Boozer', 'Quasisymmetry']
 
+
 class Boozer(Optimizable):
     """
     This class handles the transformation to Boozer coordinates.
@@ -123,10 +124,6 @@ class Boozer(Optimizable):
         if isinstance(self.equil, Vmec):
             #partake in parallel VMEC job
             self.equil.run()
-            #skedaddle if you are not proc0 of your group
-            if (self.mpi is not None) and (not self.mpi.proc0_groups):
-                logger.info("This proc is skipping the rest of boozer.run since it is not a group leader.")
-                return
 
             wout = self.equil.wout  # Shorthand
 
@@ -311,7 +308,6 @@ class Quasisymmetry(Optimizable):
         if (self.boozer.mpi is not None) and (not self.boozer.mpi.proc0_groups):
             logger.info("This proc is skipping Quasisymmetry.J since it is not a group leader.")
             return np.array([])
-
 
         symmetry_error = []
         for js, s in enumerate(self.s):

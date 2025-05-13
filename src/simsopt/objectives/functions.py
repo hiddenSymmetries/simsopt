@@ -342,7 +342,7 @@ class Failer(Optimizable):
         if self.nevals == self.fail_index:
             raise ObjectiveFailure("nevals == fail_index")
         else:
-            if self.nvals == 0: 
+            if self.nvals == 0:
                 # return scalar
                 return 1.0
             else:
@@ -373,4 +373,3 @@ class Beale(Optimizable):
         return np.array([1.5 - x + x * y,
                          2.25 - x + x * y * y,
                          2.625 - x + x * y * y * y])
-
