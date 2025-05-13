@@ -2,11 +2,11 @@ Magnetohydrodynamic codes
 -------------------------
 
 The :obj:`simsopt.mhd` module contains a collection of interfaces to Magnetohydrodynamic codes. 
-Currently it contains an interface to the Variational Moments Equilibrium Code (VMEC) through the :obj:`simsopt.mhd.vmec` module and an interface to the Stepped
-Pressure Equilibrium Code (SPEC) through the :obj:`simsopt.mhd.spec` module.
+Currently it contains an interface to the Variational Moments Equilibrium Code (VMEC) through the :obj:`simsopt.mhd.Vmec` module and an interface to the Stepped
+Pressure Equilibrium Code (SPEC) through the :obj:`simsopt.mhd.Spec` module.
 
 The equilibrium codes must be installed separately with python bindings provided by f90wrap. 
-See the instructions for [VMEC](https://github.com/hiddenSymmetries/vmec2000) and for [SPEC](https://github.com/PrincetonUniversity/SPEC/blob/master/compilation_instructions.md) page for instructions.
+See the installation instructions for `VMEC2000 <https://github.com/hiddenSymmetries/vmec2000>`_ and for `SPEC <https://github.com/PrincetonUniversity/SPEC/blob/master/compilation_instructions.md>`_ in their respective repositories.
 
 The ``Vmec`` and ``Spec`` classes instantiate the MHD solvers as ``Optimizable`` objects that can depend on other :obj:`Optimizable` objects, such as a :obj:`simsopt.mhd.Profile` for the pressure, current and rotational transform profiles, as well as :obj:`simsopt.mhd.Surface` for boundary and internal surfaces
 This allows for direct handling of profiles parameters, surface degrees of freedom, and solver options through the python class.
@@ -66,7 +66,7 @@ As such, it provides a very large number of diagnostics and outputs and has
 couplings to other codes providing further metrics that can be used in 
 optimization. 
 VMEC assumes nested flux surfaces. 
-The :obj:`simsopt.mhd.vmec` module provides the interface, and can be instantiated from the same input file as is usually used for running VMEC (an ``input.<name`` or ``wout_<name>.nc`` file): 
+The :obj:`simsopt.mhd.Vmec` class provides the interface, and can be instantiated from the same input file as is usually used for running VMEC (an ``input.<name`` or ``wout_<name>.nc`` file): 
 
 See :ref:`running_vmec` for a more in-depth tutorial on running ``VMEC`` in ``simsopt``.
 
@@ -90,7 +90,7 @@ SPEC
 
 The Stepped Pressure Equilibrium Code (SPEC) computes equilibria using the Multi-region relaxed MHD (MRxMHD) formulation. 
 This models the plasma equilibrium as a finite number of ideal interfaces between which the magnetic field is relaxed to a force-free solution. 
-The :obj:`simsopt.mhd.spec` module provides the interface, and can be instantiated from the same input file as is usually used for running SPEC (an ``<name>.sp`` file). 
+The :obj:`simsopt.mhd.Spec` class provides the interface, and can be instantiated from the same input file as is usually used for running SPEC (an ``<name>.sp`` file). 
 
 SPEC equilibria can contain magnetic islands and regions of magnetic chaos,
 making it possible to check for and optimize such features. 
