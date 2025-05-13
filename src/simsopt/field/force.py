@@ -618,7 +618,32 @@ def coil_coil_inductances_pure(gammas, gammadashs, downsample, regularizations):
 
 def coil_coil_inductances_inv_pure(gammas, gammadashs, downsample, regularizations):
     """
-    Pure function for computing the inverse of the coil inductance matrix.
+    Pure function for computing the inverse of the coil inductance matrix L. This matrix
+    is symmetric positive definite by definition.
+    
+    Performs a Cholesky decomposition of the coil inductance matrix L and then solves for the
+    inverse. Note that inverse of a (nonsingular)lower triangular matrix C is upper triangular 
+    and vice versa.
+
+    .. math::
+
+        L = (C C^T)
+
+    where :math:`C` is a lower triangular matrix from the Cholesky decomposition of :math:`L`. 
+    Then, we solve two triangular systems of equations:
+
+    .. math::
+
+        C^{-1}C = I
+
+        L^{-1} = (C C^T)^{-1} = (C^T)^{-1} C^{-1}
+
+    so that we can solve for :math:`L^{-1}` by multiplying both sides by :math:`C^T` and 
+    solving it as an upper triangular system,
+
+    .. math::
+
+        C^TL^{-1} = C^{-1}
 
     Args:
         gammas (array): Array of coil positions.
@@ -662,7 +687,7 @@ def b2energy_pure(gammas, gammadashs, currents, downsample, regularizations):
     The function is
 
      .. math::
-        J = \frac{1}{2}I_iL_{ij}I_j
+        J = \sum_{i,j}\frac{1}{2}I_iL_{ij}I_j
 
     where :math:`L_{ij}` is the coil inductance matrix (positive definite),
     and :math:`I_i` is the current in the ith coil.

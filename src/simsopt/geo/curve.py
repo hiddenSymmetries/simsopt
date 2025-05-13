@@ -435,6 +435,14 @@ class Curve(Optimizable):
         return centroid_pure(self.gamma(), self.gammadash())
 
 class JaxCurve(sopp.Curve, Curve):
+    """
+    A class for curves defined by a pure function.
+
+    Args:
+        quadpoints (array): Array of quadrature points.
+        gamma_pure (function): Pure function for the curve.
+        **kwargs: Additional keyword arguments.
+    """
     def __init__(self, quadpoints, gamma_pure, **kwargs):
         if isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
@@ -481,6 +489,9 @@ class JaxCurve(sopp.Curve, Curve):
         self.dtorsion_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v)[0])
 
     def set_dofs(self, dofs):
+        """
+        This function sets the dofs of the curve.
+        """
         self.local_x = dofs
         sopp.Curve.set_dofs(self, dofs)
 
@@ -491,10 +502,16 @@ class JaxCurve(sopp.Curve, Curve):
         gamma[:, :] = self.gamma_impl_jax(self.get_dofs(), quadpoints)
 
     def incremental_arclength_pure(self, dofs):
+        """
+        This function returns the incremental arclength of the curve.
+        """
         gammadash = self.gammadash_jax(dofs)
         return jnp.linalg.norm(gammadash, axis=1)
 
     def incremental_arclength(self):
+        """
+        This function returns the incremental arclength of the curve.
+        """
         return self.incremental_arclength_jax(self.get_dofs())
 
     # @jit
@@ -520,6 +537,10 @@ class JaxCurve(sopp.Curve, Curve):
         return t, n, b
 
     def frenet_frame(self):
+        """
+        This function returns the Frenet frame, :math:`(\mathbf{t}, \mathbf{n}, \mathbf{b})`,
+        associated to the curve.
+        """
         return self.frenet_frame_jax(self.get_dofs())
 
     def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
@@ -1104,7 +1125,7 @@ def create_planar_curves_between_two_toroidal_surfaces(
     if jax_flag:
         curves = [JaxCurvePlanarFourier(nquad, order) for i in range(ncoils)]
     else:
-        curves = [CurvePlanarFourier(nquad, order, nfp=1, stellsym=False) for i in range(ncoils)]
+        curves = [CurvePlanarFourier(nquad, order) for i in range(ncoils)]
 
     # Initialize a bunch of circular coils with same normal vector
     for ic in range(ncoils):
@@ -1126,11 +1147,11 @@ def create_planar_curves_between_two_toroidal_surfaces(
         dofs[2 * order + 4] = -salpha2 * sdelta2
         # Now specify the center
         dofs[2 * order + 5:2 * order + 8] = grid_xyz[ic, :]
-        if jax_flag:
-            curves[ic].set_dofs(dofs)
-        else:
-            for j in range(2 * order + 8):
-                curves[ic].set('x' + str(j), dofs[j])
+        # if jax_flag:
+        curves[ic].set_dofs(dofs)
+        # else:
+        #     for j in range(2 * order + 8):
+        #         curves[ic].set('x' + str(j), dofs[j])
         curves[ic].x = curves[ic].x  # need to do this to transfer data to C++
     all_curves = apply_symmetries_to_curves(curves, nfp, stellsym)
     return curves, all_curves
@@ -1153,37 +1174,27 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
         base_currents = [Current(1e5) for c in base_curves]
         coils = coils_via_symmetries(base_curves, base_currents, 3, stellsym=True)
     """
+    from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
     if numquadpoints is None:
         numquadpoints = 15 * order
-    curves = []
-    from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
     if jax_flag:
-        for i in range(ncurves):
-            curve = JaxCurveXYZFourier(numquadpoints, order)
-            angle = (i + 0.5) * (2 * np.pi) / ((1 + int(stellsym)) * nfp * ncurves)
-            coeffs = np.zeros((3, len(curve.get_dofs()) // 3))
-            coeffs[0][0] = cos(angle) * R0
-            coeffs[0][2] = cos(angle) * R1
-            coeffs[1][0] = sin(angle) * R0
-            coeffs[1][2] = sin(angle) * R1
-            coeffs[2][1] = -R1
-            curve.set_dofs(np.concatenate(coeffs))
-            curve.x = curve.x  # need to do this to transfer data to C++
-            curves.append(curve)
+        curvefunc = JaxCurveXYZFourier
     else:
-        for i in range(ncurves):
-            curve = CurveXYZFourier(numquadpoints, order)
-            angle = (i + 0.5) * (2 * np.pi) / ((1 + int(stellsym)) * nfp * ncurves)
-            curve.set("xc(0)", cos(angle) * R0)
-            curve.set("xc(1)", cos(angle) * R1)
-            curve.set("yc(0)", sin(angle) * R0)
-            curve.set("yc(1)", sin(angle) * R1)
-            # The the next line, the minus sign is for consistency with
-            # Vmec.external_current(), so the coils create a toroidal field of the
-            # proper sign and free-boundary equilibrium works following stage-2 optimization.
-            curve.set("zs(1)", -R1)
-            curve.x = curve.x  # need to do this to transfer data to C++
-            curves.append(curve)
+        curvefunc = CurveXYZFourier
+    curves = []
+    for i in range(ncurves):
+        curve = curvefunc(numquadpoints, order)
+        angle = (i + 0.5) * (2 * np.pi) / ((1 + int(stellsym)) * nfp * ncurves)
+        curve.set("xc(0)", cos(angle) * R0)
+        curve.set("xc(1)", cos(angle) * R1)
+        curve.set("yc(0)", sin(angle) * R0)
+        curve.set("yc(1)", sin(angle) * R1)
+        # The the next line, the minus sign is for consistency with
+        # Vmec.external_current(), so the coils create a toroidal field of the
+        # proper sign and free-boundary equilibrium works following stage-2 optimization.
+        curve.set("zs(1)", -R1)
+        curve.x = curve.x  # need to do this to transfer data to C++
+        curves.append(curve)
     return curves
 
 
@@ -1196,19 +1207,17 @@ def create_equally_spaced_planar_curves(
     radius ``R0`` and minor radius ``R1``) after applying
     :obj:`~simsopt.field.coil.coils_via_symmetries`.
     """
-
+    from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
     if numquadpoints is None:
         numquadpoints = 15 * order
+    if jax_flag:
+        curvefunc = JaxCurvePlanarFourier
+    else:
+        curvefunc = CurvePlanarFourier
     curves = []
-    from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
     for k in range(ncurves):
         angle = (k + 0.5) * (2 * np.pi) / ((1 + int(stellsym)) * nfp * ncurves)
-
-        if jax_flag:
-            curve = JaxCurvePlanarFourier(numquadpoints, order)
-        else:
-            curve = CurvePlanarFourier(numquadpoints, order, nfp, stellsym)
-
+        curve = curvefunc(numquadpoints, order)
         rcCoeffs = np.zeros(order+1)
         rcCoeffs[0] = R1
         rsCoeffs = np.zeros(order)

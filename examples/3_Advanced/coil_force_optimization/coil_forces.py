@@ -93,8 +93,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 ###############################################################################
 
 # Initialize the boundary magnetic surface:
-nphi = 32
-ntheta = 32
+nphi = 32 if not in_github_actions else 8
+ntheta = 32 if not in_github_actions else 8
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 # Create the initial coils:

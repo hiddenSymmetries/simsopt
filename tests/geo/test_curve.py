@@ -83,7 +83,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     elif curvetype == "CurveHelicalInitx0":
         curve = CurveHelical(x, order, 5, 2, 1.0, 0.3, x0=np.ones((2*order,)))
     elif curvetype == "CurvePlanarFourier":
-        curve = CurvePlanarFourier(x, order, 2, True)
+        curve = CurvePlanarFourier(x, order)
     elif curvetype == "JaxCurvePlanarFourier":
         curve = JaxCurvePlanarFourier(x, order)
     elif curvetype == "CurveXYZFourierSymmetries1":
@@ -979,15 +979,48 @@ class Testing(unittest.TestCase):
         R0, R1 = 5.0, 1.0
         order = 3
         numquadpoints = 12
-        curves = create_equally_spaced_curves(ncurves, nfp, stellsym,
+        # JAX version
+        curves_jax = create_equally_spaced_curves(ncurves, nfp, stellsym,
                                               R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, jax_flag=True)
-        self.assertEqual(len(curves), ncurves)
-        for curve in curves:
-            gamma = curve.gamma()
-            self.assertEqual(gamma.shape, (numquadpoints, 3))
+        # Non-JAX version
+        curves_std = create_equally_spaced_curves(ncurves, nfp, stellsym,
+                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, jax_flag=False)
+        self.assertEqual(len(curves_jax), ncurves)
+        self.assertEqual(len(curves_std), ncurves)
+        for curve_jax, curve_std in zip(curves_jax, curves_std):
+            gamma_jax = curve_jax.gamma()
+            gamma_std = curve_std.gamma()
+            self.assertEqual(gamma_jax.shape, (numquadpoints, 3))
+            self.assertEqual(gamma_std.shape, (numquadpoints, 3))
             # Check that the major radius is close to R0 for all points
-            R = np.sqrt(gamma[:, 0]**2 + gamma[:, 1]**2)
-            self.assertTrue(np.allclose(np.mean(R), R0, atol=0.2))
+            R_jax = np.sqrt(gamma_jax[:, 0]**2 + gamma_jax[:, 1]**2)
+            R_std = np.sqrt(gamma_std[:, 0]**2 + gamma_std[:, 1]**2)
+            self.assertTrue(np.allclose(np.mean(R_jax), R0, atol=0.2))
+            self.assertTrue(np.allclose(np.mean(R_std), R0, atol=0.2))
+            # Check that the gamma outputs are close
+            np.testing.assert_allclose(gamma_jax, gamma_std, atol=1e-12, rtol=1e-12)
+            # Check that the dof names are identical
+            self.assertEqual(getattr(curve_jax, 'names', None), getattr(curve_std, 'names', None))
+            # Check gammadash
+            gammadash_jax = curve_jax.gammadash()
+            gammadash_std = curve_std.gammadash()
+            np.testing.assert_allclose(gammadash_jax, gammadash_std, atol=1e-12, rtol=1e-12)
+            # Check gammadashdash if available
+            if hasattr(curve_jax, 'gammadashdash') and hasattr(curve_std, 'gammadashdash'):
+                gammadashdash_jax = curve_jax.gammadashdash()
+                gammadashdash_std = curve_std.gammadashdash()
+                np.testing.assert_allclose(gammadashdash_jax, gammadashdash_std, atol=1e-12, rtol=1e-12)
+            # Check kappa if available
+            if hasattr(curve_jax, 'kappa') and hasattr(curve_std, 'kappa'):
+                kappa_jax = curve_jax.kappa()
+                kappa_std = curve_std.kappa()
+                np.testing.assert_allclose(kappa_jax, kappa_std, atol=1e-12, rtol=1e-12)
+            # Check order if available
+            if hasattr(curve_jax, 'order') and hasattr(curve_std, 'order'):
+                self.assertEqual(curve_jax.order, curve_std.order)
+            # Check num_dofs if available
+            if hasattr(curve_jax, 'num_dofs') and hasattr(curve_std, 'num_dofs'):
+                self.assertEqual(curve_jax.num_dofs(), curve_std.num_dofs())
 
     def test_curve_centroid(self):
         """
@@ -1001,7 +1034,7 @@ class Testing(unittest.TestCase):
         order = 1
         R0 = 3.0
         # Create a circle in the x-y plane centered at (R0, 0, 0)
-        curve = CurvePlanarFourier(nquad, order, nfp=1, stellsym=False)
+        curve = CurvePlanarFourier(nquad, order)
         dofs = np.zeros(curve.dof_size)
         dofs[0] = 1.0  # radius
         # Set the center to (R0, 0, 0)
@@ -1077,6 +1110,119 @@ class Testing(unittest.TestCase):
         # test rc and zs
         assert curve.rc[1] == curve.get('rc(1)')
         assert curve.zs[1] == curve.get('zs(2)')
+
+    def test_make_names_xyzfourier_and_jax(self):
+        """
+        Test the _make_names method for CurveXYZFourier and JaxCurveXYZFourier.
+        """
+        from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
+        order = 2
+        expected_names = [
+            'xc(0)', 'xs(1)', 'xc(1)', 'xs(2)', 'xc(2)',
+            'yc(0)', 'ys(1)', 'yc(1)', 'ys(2)', 'yc(2)',
+            'zc(0)', 'zs(1)', 'zc(1)', 'zs(2)', 'zc(2)'
+        ]
+        # Test CurveXYZFourier
+        c = CurveXYZFourier([0.0, 0.5], order)
+        names = c._make_names(order)
+        self.assertEqual(names, expected_names)
+        # Test JaxCurveXYZFourier
+        jc = JaxCurveXYZFourier([0.0, 0.5], order)
+        jnames = jc._make_names(order)
+        self.assertEqual(jnames, expected_names)
+
+    def test_create_equally_spaced_planar_curves_jax(self):
+        from simsopt.geo.curve import create_equally_spaced_planar_curves
+        ncurves, nfp = 2, 2
+        stellsym = True
+        R0, R1 = 5.0, 1.0
+        order = 3
+        numquadpoints = 12
+        # JAX version
+        curves_jax = create_equally_spaced_planar_curves(ncurves, nfp, stellsym,
+                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, jax_flag=True)
+        # Non-JAX version
+        curves_std = create_equally_spaced_planar_curves(ncurves, nfp, stellsym,
+                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, jax_flag=False)
+        self.assertEqual(len(curves_jax), ncurves)
+        self.assertEqual(len(curves_std), ncurves)
+        for curve_jax, curve_std in zip(curves_jax, curves_std):
+            gamma_jax = curve_jax.gamma()
+            gamma_std = curve_std.gamma()
+            self.assertEqual(gamma_jax.shape, (numquadpoints, 3))
+            self.assertEqual(gamma_std.shape, (numquadpoints, 3))
+            # Check that the major radius is close to R0 for all points
+            R_jax = np.sqrt(gamma_jax[:, 0]**2 + gamma_jax[:, 1]**2)
+            R_std = np.sqrt(gamma_std[:, 0]**2 + gamma_std[:, 1]**2)
+            self.assertTrue(np.allclose(np.mean(R_jax), R0, atol=0.2))
+            self.assertTrue(np.allclose(np.mean(R_std), R0, atol=0.2))
+            # Check that the gamma outputs are close
+            np.testing.assert_allclose(gamma_jax, gamma_std, atol=1e-12, rtol=1e-12)
+            # Check that the dof names are identical
+            self.assertEqual(getattr(curve_jax, 'names', None), getattr(curve_std, 'names', None))
+            # Check gammadash
+            gammadash_jax = curve_jax.gammadash()
+            gammadash_std = curve_std.gammadash()
+            np.testing.assert_allclose(gammadash_jax, gammadash_std, atol=1e-12, rtol=1e-12)
+            # Check gammadashdash if available
+            if hasattr(curve_jax, 'gammadashdash') and hasattr(curve_std, 'gammadashdash'):
+                gammadashdash_jax = curve_jax.gammadashdash()
+                gammadashdash_std = curve_std.gammadashdash()
+                np.testing.assert_allclose(gammadashdash_jax, gammadashdash_std, atol=1e-12, rtol=1e-12)
+            # Check kappa if available
+            if hasattr(curve_jax, 'kappa') and hasattr(curve_std, 'kappa'):
+                kappa_jax = curve_jax.kappa()
+                kappa_std = curve_std.kappa()
+                np.testing.assert_allclose(kappa_jax, kappa_std, atol=1e-12, rtol=1e-12)
+            # Check order if available
+            if hasattr(curve_jax, 'order') and hasattr(curve_std, 'order'):
+                self.assertEqual(curve_jax.order, curve_std.order)
+            # Check num_dofs if available
+            if hasattr(curve_jax, 'num_dofs') and hasattr(curve_std, 'num_dofs'):
+                self.assertEqual(curve_jax.num_dofs(), curve_std.num_dofs())
+
+    def test_curve_set_dofs_vs_set_by_name(self):
+        """
+        Test that curve dofs can be set either by set_dofs(array), set(name, value), or direct .x assignment, and the results are identical.
+        """
+        from simsopt.geo.curvexyzfourier import CurveXYZFourier
+        from simsopt.geo.curveplanarfourier import CurvePlanarFourier
+        order = 3
+        numquadpoints = 10
+        # Test CurveXYZFourier
+        curve1 = CurveXYZFourier(numquadpoints, order)
+        curve2 = CurveXYZFourier(numquadpoints, order)
+        curve3 = CurveXYZFourier(numquadpoints, order)
+        names = curve1._make_names(order)
+        values = np.arange(len(names)) * 1.1  # arbitrary values
+        # 1. Use the set_dofs function
+        curve1.set_dofs(values)
+        # 2. Use the set(name, value) function
+        for name, val in zip(names, values):
+            curve2.set(name, val)
+        # 3. Use the direct .x assignment
+        curve3.x = values.copy()
+        np.testing.assert_allclose(curve1.get_dofs(), curve2.get_dofs(), atol=1e-14)
+        np.testing.assert_allclose(curve1.get_dofs(), curve3.get_dofs(), atol=1e-14)
+        np.testing.assert_allclose(curve1.gamma(), curve2.gamma(), atol=1e-14)
+        np.testing.assert_allclose(curve1.gamma(), curve3.gamma(), atol=1e-14)
+        # Test CurvePlanarFourier
+        curve4 = CurvePlanarFourier(numquadpoints, order)
+        curve5 = CurvePlanarFourier(numquadpoints, order)
+        curve6 = CurvePlanarFourier(numquadpoints, order)
+        names_p = curve4._make_names(order)
+        values_p = np.arange(len(names_p)) * 2.2  # different arbitrary values
+        # 1. Use the set_dofs function
+        curve4.set_dofs(values_p)
+        # 2. Use the set(name, value) function
+        for name, val in zip(names_p, values_p):
+            curve5.set(name, val)
+        # 3. Use the direct .x assignment
+        curve6.x = values_p.copy()
+        np.testing.assert_allclose(curve4.get_dofs(), curve5.get_dofs(), atol=1e-14)
+        np.testing.assert_allclose(curve4.get_dofs(), curve6.get_dofs(), atol=1e-14)
+        np.testing.assert_allclose(curve4.gamma(), curve5.gamma(), atol=1e-14)
+        np.testing.assert_allclose(curve4.gamma(), curve6.gamma(), atol=1e-14)
 
 
 if __name__ == "__main__":

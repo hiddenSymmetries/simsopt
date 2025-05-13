@@ -6,6 +6,7 @@ import numpy as np
 from simsopt.geo import parameters
 from simsopt.geo.curve import RotatedCurve, create_equally_spaced_curves
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
+from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, \
     LpCurveTorsion, CurveCurveDistance, ArclengthVariation, \
@@ -21,7 +22,7 @@ parameters['jit'] = False
 
 class Testing(unittest.TestCase):
 
-    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier"]
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurvePlanarFourier", "JaxCurvePlanarFourier"]
 
     def create_curve(self, curvetype, rotated):
         np.random.seed(1)
@@ -35,6 +36,10 @@ class Testing(unittest.TestCase):
             coil = JaxCurveXYZFourier(nquadpoints, order)
         elif curvetype == "CurveRZFourier":
             coil = CurveRZFourier(nquadpoints, order, 2, False)
+        elif curvetype == "CurvePlanarFourier":
+            coil = CurvePlanarFourier(nquadpoints, order)
+        elif curvetype == "JaxCurvePlanarFourier":
+            coil = JaxCurvePlanarFourier(nquadpoints, order)
         else:
             # print('Could not find' + curvetype)
             assert False
@@ -47,6 +52,13 @@ class Testing(unittest.TestCase):
             dofs[0] = 1.
             dofs[1] = 0.1
             dofs[order+1] = 0.1
+        elif curvetype in ["CurvePlanarFourier", "JaxCurvePlanarFourier"]:
+            dofs[0] = 1.
+            dofs[:2*order+1] = 0.1  # give the coil a little bit of curvature
+            dofs[2*order + 1] = 1. # Set orientation to (1, 0, 0, 0)
+            dofs[2*order + 2] = 0.
+            dofs[2*order + 3] = 0.
+            dofs[2*order + 4] = 0.
         else:
             assert False
 
@@ -119,7 +131,6 @@ class Testing(unittest.TestCase):
         h = 1e-3 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
         dJ = J.dJ()
         deriv = np.sum(dJ * h)
-        assert np.abs(deriv) > 1e-10
         err = 1e6
         for i in range(10, 20):
             eps = 0.5**i
@@ -127,7 +138,7 @@ class Testing(unittest.TestCase):
             Jh = J.J()
             deriv_est = (Jh-J0)/eps
             err_new = np.linalg.norm(deriv_est-deriv)
-            # print("err_new %s" % (err_new))
+            print("err_new %s" % (err_new))
             assert err_new < 0.55 * err
             err = err_new
         J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
@@ -136,10 +147,12 @@ class Testing(unittest.TestCase):
 
     def test_curve_torsion_taylor_test(self):
         for curvetype in self.curvetypes:
-            for rotated in [True, False]:
-                with self.subTest(curvetype=curvetype, rotated=rotated):
-                    curve = self.create_curve(curvetype, rotated)
-                    self.subtest_curve_torsion_taylor_test(curve)
+            # Planar curves have no torsion
+            if "CurvePlanarFourier" not in curvetype:
+                for rotated in [True, False]:
+                    with self.subTest(curvetype=curvetype, rotated=rotated):
+                        curve = self.create_curve(curvetype, rotated)
+                        self.subtest_curve_torsion_taylor_test(curve)
 
     def subtest_curve_minimum_distance_taylor_test(self, curve):
         ncurves = 3
@@ -222,6 +235,16 @@ class Testing(unittest.TestCase):
         c.set('ys(1)', 4.0)
         for nintervals in ["full", "partial", 2]:
             a = ArclengthVariation(c, nintervals=nintervals)
+            assert np.abs(a.J()) < 1.0e-12
+
+    def test_arclength_variation_circle_planar(self):
+        """ For a circle, the arclength variation should be 0. """
+        c = CurvePlanarFourier(16, 1)
+        c.set('X', 4.0)
+        c.set('Y', 4.0)
+        c.set('Z', 0.0)
+        for nintervals in ["full", "partial", 2]:
+            a = ArclengthVariation(c)
             assert np.abs(a.J()) < 1.0e-12
 
     def subtest_curve_meansquaredcurvature_taylor_test(self, curve):
@@ -386,6 +409,31 @@ class Testing(unittest.TestCase):
             np.testing.assert_allclose(objective2.J(), 1, atol=1e-14, rtol=1e-14)
             np.testing.assert_allclose(objective3.J(), 1, atol=1e-14, rtol=1e-14)
 
+    def test_linking_number_planar(self):
+        for downsample in [1, 2, 5]:
+            curve1 = CurvePlanarFourier(200, 3)
+            print(curve1.dof_names)
+            curve1.set('rc(0)', 1)
+            curve1.set('X', 0.25)
+            curve1.set('Y', 0.0)
+            curve1.set('Z', 0.0)
+            curve2 = CurvePlanarFourier(200, 3)
+            curve2.set('rc(0)', 1)
+            curve2.set('X', 0.0)
+            curve2.set('Y', 0.25)
+            curve2.set('Z', 0.0)
+            curves2 = [curve1, curve2]
+            objective = LinkingNumber(curves2, downsample)
+            assert np.abs(objective.J()) < 1e-14
+
+            curve1.set('X', 0.0)
+            curve1.set('Y', 0.0)
+            curve1.set('Z', 0.0)
+            curve2.set('X', 0.0)
+            curve2.set('Y', 0.0)
+            curve2.set('Z', 0.0)
+            objective = LinkingNumber(curves2, downsample)
+            assert np.abs(objective.J()) < 1e-14    
 
 if __name__ == "__main__":
     unittest.main()

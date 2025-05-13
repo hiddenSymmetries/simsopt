@@ -43,6 +43,14 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
                            external_dof_setter=CurveXYZFourier.set_dofs_impl)
 
     def _make_names(self, order):
+        """
+        This function returns the names of the dofs associated to this object.
+        Args:
+            order (int): Order of the Fourier series.
+
+        Returns:
+            List of dof names.
+        """
         x_names = ['xc(0)']
         x_cos_names = [f'xc({i})' for i in range(1, order + 1)]
         x_sin_names = [f'xs({i})' for i in range(1, order + 1)]
@@ -55,7 +63,6 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         z_cos_names = [f'zc({i})' for i in range(1, order + 1)]
         z_sin_names = [f'zs({i})' for i in range(1, order + 1)]
         z_names += list(chain.from_iterable(zip(z_sin_names, z_cos_names)))
-
         return x_names + y_names + z_names
 
     def get_dofs(self):
@@ -68,7 +75,6 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         """
         This function sets the dofs associated to this object.
         """
-        print(np.shape(self.local_x), np.shape(dofs))
         self.local_x = dofs
         sopp.CurveXYZFourier.set_dofs(self, dofs)
 
@@ -220,6 +226,11 @@ class JaxCurveXYZFourier(JaxCurve):
     :mod:`simsoptpp`, but the point of this class is to illustrate how jax can be used
     to define a geometric object class and calculate all the derivatives (both
     with respect to dofs and with respect to the angle :math:`\theta`) automatically.
+
+    Args:
+        quadpoints (array): Array of quadrature points.
+        order (int): Order of the Fourier series.
+        dofs (array): Array of dofs.
     """
 
     def __init__(self, quadpoints, order, dofs=None):
@@ -231,9 +242,11 @@ class JaxCurveXYZFourier(JaxCurve):
         self.coefficients = [np.zeros((2*order+1,)), np.zeros((2*order+1,)), np.zeros((2*order+1,))]
         if dofs is None:
             super().__init__(quadpoints, pure, x0=np.concatenate(self.coefficients),
+                             names=self._make_names(order),
                              external_dof_setter=JaxCurveXYZFourier.set_dofs_impl)
         else:
             super().__init__(quadpoints, pure, dofs=dofs,
+                             names=self._make_names(order),
                              external_dof_setter=JaxCurveXYZFourier.set_dofs_impl)
 
     def num_dofs(self):
@@ -261,3 +274,27 @@ class JaxCurveXYZFourier(JaxCurve):
                 counter += 1
                 self.coefficients[i][2*j] = dofs[counter]
                 counter += 1
+
+    def _make_names(self, order):
+        """
+        This function returns the names of the dofs associated to this object.
+
+        Args:
+            order (int): Order of the Fourier series.
+
+        Returns:
+            List of dof names.
+        """
+        x_names = ['xc(0)']
+        x_cos_names = [f'xc({i})' for i in range(1, order + 1)]
+        x_sin_names = [f'xs({i})' for i in range(1, order + 1)]
+        x_names += list(chain.from_iterable(zip(x_sin_names, x_cos_names)))
+        y_names = ['yc(0)']
+        y_cos_names = [f'yc({i})' for i in range(1, order + 1)]
+        y_sin_names = [f'ys({i})' for i in range(1, order + 1)]
+        y_names += list(chain.from_iterable(zip(y_sin_names, y_cos_names)))
+        z_names = ['zc(0)']
+        z_cos_names = [f'zc({i})' for i in range(1, order + 1)]
+        z_sin_names = [f'zs({i})' for i in range(1, order + 1)]
+        z_names += list(chain.from_iterable(zip(z_sin_names, z_cos_names)))
+        return x_names + y_names + z_names

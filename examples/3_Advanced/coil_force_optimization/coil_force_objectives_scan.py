@@ -37,6 +37,7 @@ from simsopt.field import BiotSavart
 from simsopt.field.force import LpCurveForce, \
     SquaredMeanForce, SquaredMeanTorque, LpCurveTorque, B2_Energy, NetFluxes
 from simsopt.field.selffield import regularization_circ
+from simsopt.util import in_github_actions
 
 # --- Argument check and usage warning ---
 if len(sys.argv) < 3:
@@ -87,7 +88,7 @@ MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
 # Number of iterations to perform:
-MAXITER = 200
+MAXITER = 200 if not in_github_actions else 10
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
@@ -104,8 +105,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 ###############################################################################
 
 # Initialize the boundary magnetic surface:
-nphi = 32
-ntheta = 32
+nphi = 32 if not in_github_actions else 8
+ntheta = 32 if not in_github_actions else 8
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 qphi = nphi * 2
