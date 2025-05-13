@@ -70,7 +70,7 @@ dynamic = ["version"]
 [project.optional-dependencies]
 SPEC = ["py_spec>=3.0.1", "pyoculus>=0.1.1", "h5py>=3.1.0"]
 MPI = ["mpi4py>=3.0.3"]
-VIS = ["vtk >= 8.1.2", "PyQt5", "plotly", "networkx"]
+VIS = ["vtk >= 8.1.2", "PyQt5", "plotly", "networkx", "pandas"]
 DOCS = ["sphinx", "sphinx-rtd-theme"]
 ALGS = ["ground", "bentley_ottmann", "qsc"]
 
