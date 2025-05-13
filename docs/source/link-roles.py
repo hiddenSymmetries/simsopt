@@ -11,9 +11,9 @@ def run_cmd_get_output(cmd):
 def get_github_rev():
     path = run_cmd_get_output('git rev-parse --short HEAD')
     tag = run_cmd_get_output('git describe --exact-match')
-    print 'Git commit ID: ', path
+    print('Git commit ID: ', path)
     if len(tag):
-        print 'Git tag: ', tag
+        print('Git tag: ', tag)
         path = tag
     return path
 
