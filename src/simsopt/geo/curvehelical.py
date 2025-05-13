@@ -25,8 +25,7 @@ def jaxHelicalfouriercurve_pure(dofs, quadpoints, order, m, ell, R0, r):
 
 
 class CurveHelical(JaxCurve):
-    r"""Curve representation of a helical coil lying on a circular-cross-section
-    axisymmetric torus.
+    r"""A helical curve lying on a circular-cross-section axisymmetric torus.
 
     This curve type can describe the coils from the
     `Hanson & Cary (1984) <https://doi.org/10.1063/1.864692>`__
@@ -35,9 +34,9 @@ class CurveHelical(JaxCurve):
     papers on optimization for reduced stochasticity, as well as the Compact
     Toroidal Hybrid (CTH) device at Auburn University.
 
-    The helical coil lies on a circular-cross-section axisymmetric torus with
+    The helical curve lies on a circular-cross-section axisymmetric torus with
     major radius :math:`R_0` and minor radius :math:`r`. Following Hanson and
-    Cary, the position along the coil is written in terms of a poloidal angle
+    Cary, the position along the curve is written in terms of a poloidal angle
     on the winding surface :math:`\eta` and the standard toroidal angle :math:`\phi`:
 
     .. math::
@@ -47,25 +46,31 @@ class CurveHelical(JaxCurve):
         z &= -r \sin(\eta).
         \end{align*}
 
-    Along the coil, the poloidal angle depends on the toroidal angle both
+    Along the curve, the poloidal angle depends on the toroidal angle both
     through a secular linear term and periodic Fourier terms:
 
     .. math:: 
         \eta = \frac{m \phi}{l}
         + A_0 + \sum_{k=1}^N \left[ A_k \cos(k \phi m / l) + B_k \sin(k \phi m / l) \right]
 
-    When the toroidal angle :math:`\phi` increases by :math:`2 \pi l`,
-    the poloidal angle :math:`\eta` increases by :math:`2 \pi m`, so the
-    "rotational transform" of the coil is :math:`m / l`.
-    The shape of the helical coil on the surface can be adjusted through the
-    :math:`A_k` and :math:`B_k` Fourier coefficients, which are the optimizable degrees of
-    freedom for this class.
+    When the toroidal angle :math:`\phi` increases by :math:`2 \pi l`, the
+    poloidal angle :math:`\eta` increases by :math:`2 \pi m`, so the "rotational
+    transform" of the curve is :math:`m / l`. The shape of the helical curve on
+    the surface can be adjusted through the :math:`A_k` and :math:`B_k` Fourier
+    coefficients, which are the optimizable degrees of freedom for this class.
+
+    The 1986 Cary-Hanson paper has a more general parameterization than the 1984
+    Hanson-Cary paper, relaxing the constraint that the curves lie on a circle
+    in the R-z plane, although no results in the paper use this freedom. We do
+    not consider this more general parameterization here in this class. For a
+    more general parameterization of helical curves and coils in simsopt, see
+    :class:`simsopt.geo.CurveXYZFourierSymmetries`.
 
     The order in which the degrees of freedom are stored in the state vector
     ``x`` is
 
     .. math::
-        A_0, A_1, \ldots, A_N, B_1, \ldots, B_N
+        A_0, A_1, \ldots, A_N, B_1, \ldots, B_N.
 
     The default values of ``m``, ``ell``, ``R0``, and ``r`` correspond to the
     coils in the Hanson-Cary and Cary-Hanson papers.
