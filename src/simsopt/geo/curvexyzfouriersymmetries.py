@@ -7,36 +7,36 @@ __all__ = ['CurveXYZFourierSymmetries']
 
 
 def jaxXYZFourierSymmetriescurve_pure(dofs, quadpoints, order, nfp, stellsym, ntor):
-    
+
     theta, m = jnp.meshgrid(quadpoints, jnp.arange(order + 1), indexing='ij')
 
     if stellsym:
         xc = dofs[:order+1]
         ys = dofs[order+1:2*order+1]
         zs = dofs[2*order+1:]
-        
+
         xhat = np.sum(xc[None, :] * jnp.cos(2 * jnp.pi * nfp*m*theta), axis=1)
         yhat = np.sum(ys[None, :] * jnp.sin(2 * jnp.pi * nfp*m[:, 1:]*theta[:, 1:]), axis=1)
-        
+
         z = jnp.sum(zs[None, :] * jnp.sin(2*jnp.pi*nfp * m[:, 1:]*theta[:, 1:]), axis=1)
     else:
-        xc = dofs[0        :   order+1]
-        xs = dofs[order+1  : 2*order+1]
+        xc = dofs[0: order+1]
+        xs = dofs[order+1: 2*order+1]
         yc = dofs[2*order+1: 3*order+2]
         ys = dofs[3*order+2: 4*order+2]
         zc = dofs[4*order+2: 5*order+3]
-        zs = dofs[5*order+3:          ]
-        
+        zs = dofs[5*order+3:]
+
         xhat = np.sum(xc[None, :] * jnp.cos(2*jnp.pi*nfp*m*theta), axis=1) + np.sum(xs[None, :] * jnp.sin(2*jnp.pi*nfp*m[:, 1:]*theta[:, 1:]), axis=1)
         yhat = np.sum(yc[None, :] * jnp.cos(2*jnp.pi*nfp*m*theta), axis=1) + np.sum(ys[None, :] * jnp.sin(2*jnp.pi*nfp*m[:, 1:]*theta[:, 1:]), axis=1)
-        
+
         z = np.sum(zc[None, :] * jnp.cos(2*jnp.pi*nfp*m*theta), axis=1) + np.sum(zs[None, :] * jnp.sin(2*jnp.pi*nfp*m[:, 1:]*theta[:, 1:]), axis=1)
 
     angle = 2 * jnp.pi * quadpoints * ntor
     x = jnp.cos(angle) * xhat - jnp.sin(angle) * yhat
     y = jnp.sin(angle) * xhat + jnp.cos(angle) * yhat
 
-    gamma = jnp.zeros((len(quadpoints),3))
+    gamma = jnp.zeros((len(quadpoints), 3))
     gamma = gamma.at[:, 0].add(x)
     gamma = gamma.at[:, 1].add(y)
     gamma = gamma.at[:, 2].add(z)
@@ -46,7 +46,7 @@ def jaxXYZFourierSymmetriescurve_pure(dofs, quadpoints, order, nfp, stellsym, nt
 class CurveXYZFourierSymmetries(JaxCurve):
     r'''A curve representation that allows for stellarator and discrete rotational symmetries.  This class can be used to
     represent a helical coil that does not lie on a torus.  The coordinates of the curve are given by:
-    
+
     .. math::
         x(\theta) &= \hat x(\theta)  \cos(2 \pi \theta n_{\text{tor}}) - \hat y(\theta)  \sin(2 \pi \theta n_{\text{tor}})\\
         y(\theta) &= \hat x(\theta)  \sin(2 \pi \theta n_{\text{tor}}) + \hat y(\theta)  \cos(2 \pi \theta n_{\text{tor}})\\
@@ -68,7 +68,7 @@ class CurveXYZFourierSymmetries(JaxCurve):
         z(\theta) &= z_{c, 0} + \sum_{m=1}^{\text{order}} \left[ z_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) + z_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right]
 
     where
-    
+
     .. math::
         \hat x(\theta) &= x_{c, 0} + \sum_{m=1}^{\text{order}} \left[ x_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) +  x_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right] \\
         \hat y(\theta) &= y_{c, 0} + \sum_{m=1}^{\text{order}} \left[ y_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) +  y_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right] \\
@@ -88,9 +88,9 @@ class CurveXYZFourierSymmetries(JaxCurve):
     def __init__(self, quadpoints, order, nfp, stellsym, ntor=1, **kwargs):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
-        pure = lambda dofs, points: jaxXYZFourierSymmetriescurve_pure(
+        def pure(dofs, points): return jaxXYZFourierSymmetriescurve_pure(
             dofs, points, order, nfp, stellsym, ntor)
-        
+
         if gcd(ntor, nfp) != 1:
             raise Exception('nfp and ntor must be coprime')
 
@@ -139,4 +139,3 @@ class CurveXYZFourierSymmetries(JaxCurve):
 
     def set_dofs_impl(self, dofs):
         self.coefficients[:] = dofs[:]
-

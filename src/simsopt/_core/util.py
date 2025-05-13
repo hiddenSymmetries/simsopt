@@ -232,7 +232,7 @@ def finite_difference_steps(x: RealArray,
     # If abs_step == 0 and any elements of x are 0, we could end up
     # with a step of size 0:
     if np.any(steps == 0.0):
-        raise ValueError('Finite difference step size cannot be 0. ' \
+        raise ValueError('Finite difference step size cannot be 0. '
                          'Increase abs_step.')
 
     return steps
@@ -296,4 +296,3 @@ def parallel_loop_bounds(comm, n):
         assert idxs[0] == 0
         assert idxs[-1] == n
         return idxs[comm.rank], idxs[comm.rank+1]
-

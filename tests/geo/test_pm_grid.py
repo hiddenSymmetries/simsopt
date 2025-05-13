@@ -11,7 +11,7 @@ from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO, relax_and_split
 from simsopt.util import *
 from simsopt.util.polarization_project import (faceedge_vectors, facecorner_vectors,
-                                               pol_e, pol_f, pol_fe, pol_c, 
+                                               pol_e, pol_f, pol_fe, pol_c,
                                                pol_fc, pol_ec, pol_fc27, pol_fc39,
                                                pol_ec23, pol_fe17, pol_fe23, pol_fe30)
 
@@ -216,17 +216,17 @@ class Testing(unittest.TestCase):
             Nnorms = np.ravel(np.sqrt(np.sum(s.normal() ** 2, axis=-1)))
             Ngrid = nphi * ntheta
             Bn_Am = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms)
-            assert np.allclose(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
+            np.testing.assert_allclose(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2), atol=1e-15)
 
             # check <Bn>
             B_opt = np.mean(np.abs(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms))
             B_dipole_field = np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-            assert np.isclose(B_opt, B_dipole_field)
+            np.testing.assert_allclose(B_opt, B_dipole_field)
 
             # check integral Bn^2
             f_B_Am = 0.5 * np.linalg.norm(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj, ord=2) ** 2
             f_B = SquaredFlux(s, b_dipole, -Bn).J()
-            assert np.isclose(f_B, f_B_Am)
+            np.testing.assert_allclose(f_B, f_B_Am)
 
             # Create PM class with cylindrical bricks
             Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
@@ -235,11 +235,11 @@ class Testing(unittest.TestCase):
             mmax_new = pm_opt.m_maxima / 2.0
             kwargs_geo = {"dr": 0.15, "coordinate_flag": "cylindrical", "m_maxima": mmax_new}
             pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs_geo)
-            assert np.allclose(pm_opt.m_maxima, mmax_new)
+            np.testing.assert_allclose(pm_opt.m_maxima, mmax_new)
             mmax_new = pm_opt.m_maxima[-1] / 2.0
             kwargs_geo = {"dr": 0.15, "coordinate_flag": "cylindrical", "m_maxima": mmax_new}
             pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs_geo)
-            assert np.allclose(pm_opt.m_maxima, mmax_new)
+            np.testing.assert_allclose(pm_opt.m_maxima, mmax_new)
             pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2)
             _, _, _, = relax_and_split(pm_opt)
             b_dipole = DipoleField(pm_opt.dipole_grid_xyz, pm_opt.m_proxy, nfp=s.nfp,
@@ -249,18 +249,18 @@ class Testing(unittest.TestCase):
         # check Bn
         Nnorms = np.ravel(np.sqrt(np.sum(s.normal() ** 2, axis=-1)))
         Ngrid = nphi * ntheta
-        Bn_Am = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms) 
-        assert np.allclose(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
+        Bn_Am = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms)
+        np.testing.assert_allclose(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2), atol=1e-15)
 
         # check <Bn>
         B_opt = np.mean(np.abs(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms))
         B_dipole_field = np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-        assert np.isclose(B_opt, B_dipole_field)
+        np.testing.assert_allclose(B_opt, B_dipole_field)
 
         # check integral Bn^2
         f_B_Am = 0.5 * np.linalg.norm(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj, ord=2) ** 2
         f_B = SquaredFlux(s, b_dipole, -Bn).J()
-        assert np.isclose(f_B, f_B_Am)
+        np.testing.assert_allclose(f_B, f_B_Am)
 
     def test_grid_chopping(self):
         """
@@ -290,7 +290,7 @@ class Testing(unittest.TestCase):
             s2.to_vtk('s2')
             match_tol = 0.1
             r_cartesian = np.sqrt(pm_opt.dipole_grid_xyz[:, 0] ** 2 + pm_opt.dipole_grid_xyz[:, 1] ** 2)
-            r_fit = np.sqrt((r_cartesian - R0) ** 2 + pm_opt.dipole_grid_xyz[:, 2] ** 2)     
+            r_fit = np.sqrt((r_cartesian - R0) ** 2 + pm_opt.dipole_grid_xyz[:, 2] ** 2)
             assert (np.min(r_fit) > (r0 + 1 - match_tol))
             assert (np.max(r_fit) < (r0 + 2 + match_tol))
 
@@ -299,7 +299,7 @@ class Testing(unittest.TestCase):
                 s, np.zeros((nphi, ntheta)), s1, s2, coordinate_flag='cylindrical'
             )
             r_cartesian = np.sqrt(pm_opt.dipole_grid_xyz[:, 0] ** 2 + pm_opt.dipole_grid_xyz[:, 1] ** 2)
-            r_fit = np.sqrt((r_cartesian - R0) ** 2 + pm_opt.dipole_grid_xyz[:, 2] ** 2)        
+            r_fit = np.sqrt((r_cartesian - R0) ** 2 + pm_opt.dipole_grid_xyz[:, 2] ** 2)
             assert (np.min(r_fit) > (r0 + 1 - match_tol))
             assert (np.max(r_fit) < (r0 + 2 + match_tol))
 
@@ -418,7 +418,7 @@ class Testing(unittest.TestCase):
         Tests the polarizations and related functions from the
         polarization_project file.
         """
-        theta = 0.0 
+        theta = 0.0
         vecs = faceedge_vectors(theta)
         assert np.allclose(np.linalg.norm(vecs, axis=-1), 1.0)
         vecs = facecorner_vectors(theta)
@@ -463,19 +463,19 @@ class Testing(unittest.TestCase):
         assert np.allclose(pol_fc39, pol_axes)
         pol_axes, _ = polarization_axes('ec23')
         assert np.allclose(pol_ec23, pol_axes)
-        theta = 38.12 * np.pi / 180.0 
+        theta = 38.12 * np.pi / 180.0
         vectors = facecorner_vectors(theta)
         pol_axes, _ = polarization_axes('fc_ftri')
         assert np.allclose(vectors, pol_axes)
-        theta = 30.35 * np.pi / 180.0 
+        theta = 30.35 * np.pi / 180.0
         vectors = faceedge_vectors(theta)
         pol_axes, _ = polarization_axes('fe_ftri')
         assert np.allclose(vectors, pol_axes)
-        theta = 18.42 * np.pi / 180.0 
+        theta = 18.42 * np.pi / 180.0
         vectors = faceedge_vectors(theta)
         pol_axes, _ = polarization_axes('fe_etri')
         assert np.allclose(vectors, pol_axes)
-        theta = 38.56 * np.pi / 180.0 
+        theta = 38.56 * np.pi / 180.0
         vectors = facecorner_vectors(theta)
         pol_axes, _ = polarization_axes('fc_etri')
         assert np.allclose(vectors, pol_axes)
@@ -634,7 +634,7 @@ class Testing(unittest.TestCase):
 
         # Test build of the MUSE coils
         input_name = 'input.muse'
-        nphi = 8 
+        nphi = 8
         ntheta = nphi
         surface_filename = TEST_DIR / input_name
         s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)

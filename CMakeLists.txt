@@ -111,7 +111,6 @@ else()
     message(STATUS "Boost include dirs are ${Boost_INCLUDE_DIRS}")
 endif()
 
-# add_subdirectory(thirdparty/pybind11)
 add_subdirectory(thirdparty/fmt EXCLUDE_FROM_ALL)
 set(XTENSOR_USE_OPENMP 0)
 set(XTENSOR_USE_TBB 0)
@@ -128,9 +127,11 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/surface.cpp src/simsoptpp/surfacerzfourier.cpp src/simsoptpp/surfacexyzfourier.cpp
     src/simsoptpp/integral_BdotN.cpp
     src/simsoptpp/dipole_field.cpp src/simsoptpp/permanent_magnet_optimization.cpp
-    src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp
-    src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp
+    src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp 
+    src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp 
+    src/simsoptpp/magneticfield_wireframe.cpp
     src/simsoptpp/boozerradialinterpolant.cpp
+    src/simsoptpp/wireframe_optimization.cpp
     )
 
 set_target_properties(${PROJECT_NAME}

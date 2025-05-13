@@ -72,7 +72,7 @@ class MPIOptimizable(Optimizable):
         startidx, endidx = parallel_loop_bounds(comm, len(optimizables))
         self.local_optimizables = optimizables[startidx:endidx]
         self.global_optimizables = optimizables
-        
+
         self.comm = comm
         self.attributes = attributes
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=optimizables)
@@ -81,7 +81,7 @@ class MPIOptimizable(Optimizable):
             for attr in self.attributes:
                 if not hasattr(opt, attr):
                     raise Exception(f'All Optimizables in the optimizable list must contain the attribute {attr}')
-    
+
     def __getitem__(self, key):
         if self.need_to_communicate:
             self.communicate()
@@ -194,12 +194,15 @@ class QuadraticPenalty(Optimizable):
 
 
 class Weight(object):
-
     def __init__(self, value):
         self.value = float(value)
 
     def __float__(self):
         return float(self.value)
+
+    def __iadd__(self, alpha):
+        self.value += alpha
+        return self
 
     def __imul__(self, alpha):
         self.value *= alpha

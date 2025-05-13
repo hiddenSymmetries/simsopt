@@ -1,6 +1,7 @@
 import abc
 
 import numpy as np
+from scipy import interpolate
 
 try:
     from pyevtk.hl import gridToVTK
@@ -75,7 +76,7 @@ class Surface(Optimizable):
             nphi, ntheta, nfp=nfp, range=range)
         return cls(quadpoints_phi=quadpoints_phi,
                    quadpoints_theta=quadpoints_theta, nfp=nfp, **kwargs)
-    
+
     @staticmethod
     def get_quadpoints(nphi=None,
                        ntheta=None,
@@ -110,7 +111,7 @@ class Surface(Optimizable):
         """
         return (Surface.get_phi_quadpoints(nphi=nphi, range=range, nfp=nfp),
                 Surface.get_theta_quadpoints(ntheta=ntheta))
-    
+
     @staticmethod
     def get_theta_quadpoints(ntheta=None):
         r"""
@@ -126,7 +127,7 @@ class Surface(Optimizable):
         if ntheta is None:
             ntheta = 62
         return list(np.linspace(0.0, 1.0, ntheta, endpoint=False))
-    
+
     @staticmethod
     def get_phi_quadpoints(nphi=None, range=None, nfp=1):
         r"""
@@ -322,18 +323,24 @@ class Surface(Optimizable):
         implement this abstract method.
         """
         raise NotImplementedError
-    
+
     def cross_section(self, phi, thetas=None):
         """
-        This function takes in a cylindrical angle :math:`\phi` and returns the cross
-        section of the surface in that plane evaluated at `thetas`. This is
-        done using the method of bisection.
-        This function takes in a cylindrical angle :math:`\phi` and returns
-        the cross section of the surface in that plane evaluated at `thetas`.
-        This is done using the method of bisection.
-
+        Computes the cross-section at a given cylindrical angle :math:`\phi` at `thetas` using bisection.
         This function assumes that the surface intersection with the plane is a
         single curve.
+
+        Parameters
+        ----------
+            phi: float
+                toroidal angle
+            thetas: float array
+                collocation points to compute cross-section with
+
+        Returns
+        -------
+            cross_section: float
+                The cross-section evaluated at :math:`\phi` given support points `thetas`
         """
 
         # phi is assumed to be between [-pi, pi], so if it does not lie on that interval
@@ -434,7 +441,7 @@ class Surface(Optimizable):
         cross_section = np.zeros((sol.size, 3))
         self.gamma_lin(cross_section, sol, theta)
         return cross_section
-    
+
     @SimsoptRequires(get_context is not None, "is_self_intersecting requires ground package")
     @SimsoptRequires(contour_self_intersects is not None, "is_self_intersecting requires the bentley_ottmann package")
     def is_self_intersecting(self, angle=0., thetas=None):
@@ -458,7 +465,7 @@ class Surface(Optimizable):
         cs = self.cross_section(angle, thetas=thetas)
         R = np.sqrt(cs[:, 0]**2 + cs[:, 1]**2)
         Z = cs[:, 2]
-    
+
         context = get_context()
         Point, Contour = context.point_cls, context.contour_cls
         contour = Contour([Point(R[i], Z[i]) for i in range(cs.shape[0])])
@@ -589,8 +596,8 @@ class Surface(Optimizable):
         dr_dt = self.dminor_radius_by_dcoeff()[None, :]
         d2r_dsdt = self.d2minor_radius_by_dcoeff_dcoeff()
 
-        return ((6*V*dr_dt*dr_ds)/r**4 - (2*dV_dt*dr_ds)/r**3 - \
-                (2*dr_dt*dV_ds)/r**3 - (2*V*d2r_dsdt)/r**3 + \
+        return ((6*V*dr_dt*dr_ds)/r**4 - (2*dV_dt*dr_ds)/r**3 -
+                (2*dr_dt*dV_ds)/r**3 - (2*V*d2r_dsdt)/r**3 +
                 d2V_dsdt/r**2) * np.sign(V)/(2*np.pi**2)
 
     def mean_cross_sectional_area(self):
@@ -736,7 +743,7 @@ class Surface(Optimizable):
         dr_ds = (x*dx_ds+y*dy_ds)/r
         dr_dt = (x*dx_dt+y*dy_dt)/r
         dr2_dsdt = -((2*x*dx_dt + 2*y*dy_dt)*(2*x*dx_ds + 2*y*dy_ds))/(4*(x**2 + y**2)**(3/2)) + (2*dx_dt*dx_ds + 2*dy_dt*dy_ds)/(2*r)
-        
+
         xvarphi = g1[:, :, 0, None, None]
         yvarphi = g1[:, :, 1, None, None]
         zvarphi = g1[:, :, 2, None, None]
@@ -762,61 +769,56 @@ class Surface(Optimizable):
         dztheta_dt = dg2_ds[:, :, 2, None, :]
 
         mean_area = np.mean((1/r) * (ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta)))/(2.*np.pi)
-        d2mean_area_ds2 = np.sign(mean_area)*np.mean((2*(-(xvarphi*y*ztheta) + xtheta*y*zvarphi + x*(yvarphi*ztheta - \
-                                                     ytheta*zvarphi))*dr_dt*dr_ds - r*((yvarphi*ztheta - \
-                                                     ytheta*zvarphi)*dx_dt + y*zvarphi*dxtheta_dt - y*ztheta*dxvarphi_dt - \
-                                                     xvarphi*ztheta*dy_dt + xtheta*zvarphi*dy_dt - xvarphi*y*dztheta_dt + \
-                                                     xtheta*y*dzvarphi_dt + x*(-(zvarphi*dytheta_dt) + ztheta*dyvarphi_dt \
-                                                     + yvarphi*dztheta_dt - ytheta*dzvarphi_dt))*dr_ds - \
-                                                     r*dr_dt*((yvarphi*ztheta - ytheta*zvarphi)*dx_ds + \
-                                                     y*zvarphi*dxtheta_ds - y*ztheta*dxvarphi_ds - xvarphi*ztheta*dy_ds + \
-                                                     xtheta*zvarphi*dy_ds - xvarphi*y*dztheta_ds + xtheta*y*dzvarphi_ds + \
-                                                     x*(-(zvarphi*dytheta_ds) + ztheta*dyvarphi_ds + yvarphi*dztheta_ds - \
-                                                     ytheta*dzvarphi_ds)) + r**2*((-(zvarphi*dytheta_dt) + \
-                                                     ztheta*dyvarphi_dt + yvarphi*dztheta_dt - ytheta*dzvarphi_dt)*dx_ds + \
-                                                     zvarphi*dy_dt*dxtheta_ds + y*dzvarphi_dt*dxtheta_ds - \
-                                                     ztheta*dy_dt*dxvarphi_ds - y*dztheta_dt*dxvarphi_ds + \
-                                                     zvarphi*dxtheta_dt*dy_ds - ztheta*dxvarphi_dt*dy_ds - \
-                                                     xvarphi*dztheta_dt*dy_ds + xtheta*dzvarphi_dt*dy_ds - \
-                                                     y*dxvarphi_dt*dztheta_ds - xvarphi*dy_dt*dztheta_ds + \
-                                                     y*dxtheta_dt*dzvarphi_ds + xtheta*dy_dt*dzvarphi_ds + \
-                                                     dx_dt*(-(zvarphi*dytheta_ds) + ztheta*dyvarphi_ds + \
-                                                     yvarphi*dztheta_ds - ytheta*dzvarphi_ds) + \
-                                                     x*(-(dzvarphi_dt*dytheta_ds) + dztheta_dt*dyvarphi_ds + \
-                                                     dyvarphi_dt*dztheta_ds - dytheta_dt*dzvarphi_ds)) + \
-                                                     r*(xvarphi*y*ztheta - xtheta*y*zvarphi + x*(-(yvarphi*ztheta) + \
-                                                     ytheta*zvarphi))*dr2_dsdt)/r**3, axis=(0, 1))/(2*np.pi) # noqa
+        d2mean_area_ds2 = np.sign(mean_area)*np.mean((2*(-(xvarphi*y*ztheta) + xtheta*y*zvarphi + x*(yvarphi*ztheta -
+                                                     ytheta*zvarphi))*dr_dt*dr_ds - r*((yvarphi*ztheta -
+                                                     ytheta*zvarphi)*dx_dt + y*zvarphi*dxtheta_dt - y*ztheta*dxvarphi_dt -
+                                                     xvarphi*ztheta*dy_dt + xtheta*zvarphi*dy_dt - xvarphi*y*dztheta_dt +
+                                                     xtheta*y*dzvarphi_dt + x*(-(zvarphi*dytheta_dt) + ztheta*dyvarphi_dt
+                                                     + yvarphi*dztheta_dt - ytheta*dzvarphi_dt))*dr_ds -
+                                                     r*dr_dt*((yvarphi*ztheta - ytheta*zvarphi)*dx_ds +
+                                                     y*zvarphi*dxtheta_ds - y*ztheta*dxvarphi_ds - xvarphi*ztheta*dy_ds +
+                                                     xtheta*zvarphi*dy_ds - xvarphi*y*dztheta_ds + xtheta*y*dzvarphi_ds +
+                                                     x*(-(zvarphi*dytheta_ds) + ztheta*dyvarphi_ds + yvarphi*dztheta_ds -
+                                                     ytheta*dzvarphi_ds)) + r**2*((-(zvarphi*dytheta_dt) +
+                                                     ztheta*dyvarphi_dt + yvarphi*dztheta_dt - ytheta*dzvarphi_dt)*dx_ds +
+                                                     zvarphi*dy_dt*dxtheta_ds + y*dzvarphi_dt*dxtheta_ds -
+                                                     ztheta*dy_dt*dxvarphi_ds - y*dztheta_dt*dxvarphi_ds +
+                                                     zvarphi*dxtheta_dt*dy_ds - ztheta*dxvarphi_dt*dy_ds -
+                                                     xvarphi*dztheta_dt*dy_ds + xtheta*dzvarphi_dt*dy_ds -
+                                                     y*dxvarphi_dt*dztheta_ds - xvarphi*dy_dt*dztheta_ds +
+                                                     y*dxtheta_dt*dzvarphi_ds + xtheta*dy_dt*dzvarphi_ds +
+                                                     dx_dt*(-(zvarphi*dytheta_ds) + ztheta*dyvarphi_ds +
+                                                     yvarphi*dztheta_ds - ytheta*dzvarphi_ds) +
+                                                     x*(-(dzvarphi_dt*dytheta_ds) + dztheta_dt*dyvarphi_ds +
+                                                     dyvarphi_dt*dztheta_ds - dytheta_dt*dzvarphi_ds)) +
+                                                     r*(xvarphi*y*ztheta - xtheta*y*zvarphi + x*(-(yvarphi*ztheta) +
+                                                     ytheta*zvarphi))*dr2_dsdt)/r**3, axis=(0, 1))/(2*np.pi)  # noqa
         return d2mean_area_ds2
 
     def arclength_poloidal_angle(self):
         """
-        Computes poloidal angle based on arclenth along magnetic surface at
-        constant phi. The resulting angle is in the range [0,1]. This is required
-        for evaluating the adjoint shape gradient for free-boundary calculations.
+        Computes a poloidal (angle) coordinate θ on a surface for which 
+        the arclength ∂|r|/∂θ is independent of θ in each φ plane.
+        In other words, this function computes the uniform-arclength
+        poloidal coordinate. The returned poloidal coordinate is in the
+        range [0,1), and is used in methods evaluating the adjoint shape gradient.
 
         Returns:
             2d array of shape ``(numquadpoints_phi, numquadpoints_theta)``
-            containing the arclength poloidal angle
+            containing the new poloidal angle
         """
         gamma = self.gamma()
-        X = gamma[:, :, 0]
-        Y = gamma[:, :, 1]
-        Z = gamma[:, :, 2]
-        R = np.sqrt(X ** 2 + Y ** 2)
+        nphi = gamma.shape[0]
+        dr = np.linalg.norm(gamma[:, 1:, :] - gamma[:, :-1, :], axis=2)
+        dr_boundary = np.linalg.norm(gamma[:, 0, :] - gamma[:, -1, :], axis=1).reshape((-1, 1))
 
-        theta_arclength = np.zeros_like(gamma[:, :, 0])
-        nphi = len(theta_arclength[:, 0])
-        ntheta = len(theta_arclength[0, :])
-        for iphi in range(nphi):
-            for itheta in range(1, ntheta):
-                dr = np.sqrt((R[iphi, itheta] - R[iphi, itheta - 1]) ** 2
-                             + (Z[iphi, itheta] - Z[iphi, itheta - 1]) ** 2)
-                theta_arclength[iphi, itheta] = \
-                    theta_arclength[iphi, itheta - 1] + dr
-            dr = np.sqrt((R[iphi, 0] - R[iphi, -1]) ** 2
-                         + (Z[iphi, 0] - Z[iphi, -1]) ** 2)
-            L = theta_arclength[iphi, -1] + dr
-            theta_arclength[iphi, :] = theta_arclength[iphi, :] / L
+        dr = np.concatenate((dr, dr_boundary), axis=1)
+        L = np.sum(dr, axis=1)
+        almost_theta_arclength = np.cumsum(dr, axis=1) / L[:, None]
+        # Add row with theta=0, and remove the row with theta=1:
+        theta_arclength = np.concatenate(
+            (np.zeros((nphi, 1)), almost_theta_arclength[:, :-1]), axis=1
+        )
         return theta_arclength
 
     def interpolate_on_arclength_grid(self, function, theta_evaluate):
@@ -825,23 +827,78 @@ class Surface(Optimizable):
         poloidal angle. This is required for evaluating the adjoint shape gradient
         for free-boundary calculations.
 
+        The ``theta_evaluate`` grid may have a different number of poloidal grid
+        points compared to the surface's ``numquadpoints_theta``, but it must have the same number of
+        toroidal grid points as the surface's ``numquadpoints_phi``.
+        This is because we interpolate in theta but not phi.
+
         Returns:
             function_interpolated: 2d array (numquadpoints_phi,numquadpoints_theta)
                 defining interpolated function on arclength angle along curve
                 at constant phi
         """
-        from scipy import interpolate
 
         theta_arclength = self.arclength_poloidal_angle()
-        function_interpolated = np.zeros_like(function)
-        nphi = len(theta_arclength[:, 0])
+        # Add a repeated point at the end to ensure periodicity
+        theta_arclength_big = np.concatenate(
+            (
+                theta_arclength,
+                theta_arclength[:, 0:1] + 1
+            ),
+            axis=1,
+        )
+        function_big = np.concatenate(
+            (
+                function,
+                function[:, 0:1]
+            ),
+            axis=1,
+        )
+        function_interpolated = np.zeros_like(theta_evaluate)
+        nphi = theta_arclength.shape[0]
         for iphi in range(nphi):
-            f = interpolate.InterpolatedUnivariateSpline(
-                theta_arclength[iphi, :], function[iphi, :])
-            function_interpolated[iphi, :] = f(theta_evaluate[iphi, :])
+            interpolant = interpolate.make_interp_spline(
+                theta_arclength_big[iphi, :],
+                function_big[iphi, :],
+                bc_type="periodic",
+            )
+            function_interpolated[iphi, :] = interpolant(theta_evaluate[iphi, :])
 
         return function_interpolated
 
+    def make_theta_uniform_arclength(self):
+        """
+        Reparameterize the surface in terms of a uniform-arclength poloidal
+        angle.
+
+        To do the conversion accurately, make sure the surface has both a
+        sufficient number of quadrature points and a sufficiently large number
+        of basis functions. More basis functions may be needed to represent the
+        shape than for the original theta coordinate.        
+        """
+        gamma = self.gamma()
+        nphi = gamma.shape[0]
+        gamma_new = np.empty_like(gamma)
+        theta_evaluate = self.quadpoints_theta[None, :] * np.ones((nphi, 1))
+        for j_xyz in range(3):
+            gamma_new[:, :, j_xyz] = self.interpolate_on_arclength_grid(gamma[:, :, j_xyz], theta_evaluate)
+
+        self.least_squares_fit(gamma_new)
+
+    @property
+    def deduced_range(self):
+        """
+        The quadpoints of a surface can be anything, but are often set to 
+        'full torus', 'field period' or 'half period'. 
+        Since this is not stored in the object, but often useful to know
+        this function deduces the range from the quadpoints
+        """
+        if np.isclose(self.quadpoints_phi[-1], 1-1/len(self.quadpoints_phi), atol=1e-10):
+            return Surface.RANGE_FULL_TORUS
+        elif self.quadpoints_phi[0] == 0:
+            return Surface.RANGE_FIELD_PERIOD
+        else:
+            return Surface.RANGE_HALF_PERIOD
 
 
 def signed_distance_from_surface(xyz, surface):
@@ -1010,4 +1067,3 @@ def best_nphi_over_ntheta(surf):
     gammadash2 = np.linalg.norm(surf.gammadash2(), axis=2)
     ratio = gammadash1 / gammadash2
     return np.sqrt(np.max(ratio) / np.max(1 / ratio))
-

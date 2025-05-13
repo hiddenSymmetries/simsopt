@@ -6,8 +6,8 @@
 
 # Two ways of achieving the above-mentioned objective
 # Use "from xyz import XYZ" style
-# Define __all__ dunder at module and subpackage level. Then you could do 
-# "from xyz import *".  If xyz[.py] contains __all__ = ['XYZ'], only XYZ is 
+# Define __all__ dunder at module and subpackage level. Then you could do
+# "from xyz import *".  If xyz[.py] contains __all__ = ['XYZ'], only XYZ is
 # imported
 
 from ._core import make_optimizable, load, save

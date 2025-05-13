@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.9]
+        python-version: ["3.11"]
 
     steps:
     - uses: actions/checkout@v4
@@ -26,8 +26,11 @@ jobs:
       run: |
         pip install -r docs/requirements.txt
 
+    - name: Install doxygen
+      run: sudo apt install doxygen
+
     - name: Install simsopt package
-      run: pip install -v .
+      run: pip install -v .[docs]
 
     - name: Build docs
       run: |

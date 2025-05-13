@@ -141,7 +141,7 @@ class Spec(Optimizable):
                 filename = f"{filename}.sp"
             if self.mpi.proc0_groups:
                 logger.info(f"Group {self.mpi.group}: Initializing a SPEC object from file: {filename}")
-        
+
         #If spec has run before, clear the f90wrap array caches.
         # See https://github.com/hiddenSymmetries/simsopt/pull/431
         # This addresses the issue https://github.com/hiddenSymmetries/simsopt/issues/357
@@ -152,7 +152,7 @@ class Spec(Optimizable):
         self._init_fortran_state(filename)
         si = spec.inputlist  # Shorthand
 
-        # Copy useful and commonly used values from SPEC inputlist to 
+        # Copy useful and commonly used values from SPEC inputlist to
         self.stellsym = bool(si.istellsym)
         self.freebound = bool(si.lfreebound)
         self.nfp = si.nfp
@@ -161,20 +161,20 @@ class Spec(Optimizable):
         self.nvol = si.nvol
         if self.freebound:
             self.mvol = si.nvol + 1
-        else: 
+        else:
             self.mvol = si.nvol
 
         # Store initial guess data
         # The initial guess is a collection of SurfaceRZFourier instances,
         # stored in a list of size Mvol-1 (the number of inner interfaces)
-        read_initial_guess = self.inputlist.linitialize == 0 and self.nvol > 1 
+        read_initial_guess = self.inputlist.linitialize == 0 and self.nvol > 1
         if read_initial_guess:
             self.initial_guess = self._read_initial_guess()
             # In general, initial guess is NOT a degree of freedom for the
             # optimization - we thus fix them.
             for surface in self.initial_guess:
                 surface.fix_all()
-        else: 
+        else:
             # There is no initial guess - in this case, we let SPEC handle
             # the construction of the initial guess. This generally means
             # that the geometry of the inner interfaces will be constructed
@@ -198,20 +198,20 @@ class Spec(Optimizable):
         self._boundary = SurfaceRZFourier(nfp=self.nfp, stellsym=self.stellsym,
                                           mpol=self.mpol, ntor=self.ntor)
         self._boundary.rc[:] = self.array_translator(si.rbc, style='spec').as_simsopt
-        self._boundary.zs[:] = self.array_translator(si.zbs, style='spec').as_simsopt 
-        if not self.freebound:
+        self._boundary.zs[:] = self.array_translator(si.zbs, style='spec').as_simsopt
+        if not self.stellsym:
             self._boundary.rs[:] = self.array_translator(si.rbs, style='spec').as_simsopt
             self._boundary.zc[:] = self.array_translator(si.zbc, style='spec').as_simsopt
         self._boundary.local_full_x = self._boundary.get_dofs()
 
         # If the equilibrium is freeboundary, we need to read the computational
         # boundary as well. Otherwise set the outermost boundary as the
-        # computational boundary. 
+        # computational boundary.
         if self.freebound:
             self._computational_boundary = SurfaceRZFourier(nfp=self.nfp, stellsym=self.stellsym,
                                                             mpol=self.mpol, ntor=self.ntor)
             self._computational_boundary.rc[:] = self.array_translator(si.rwc, style='spec').as_simsopt
-            self._computational_boundary.zs[:] = self.array_translator(si.zws, style='spec').as_simsopt 
+            self._computational_boundary.zs[:] = self.array_translator(si.zws, style='spec').as_simsopt
             if not self.stellsym:
                 self._computational_boundary.rs[:] = self.array_translator(si.rws, style='spec').as_simsopt
                 self._computational_boundary.zc[:] = self.array_translator(si.zwc, style='spec').as_simsopt
@@ -239,7 +239,7 @@ class Spec(Optimizable):
             vnc = self.array_translator(si.vnc)
             self._normal_field = NormalField(nfp=self.nfp, stellsym=self.stellsym,
                                              mpol=self.mpol, ntor=self.ntor,
-                                             vns=vns.as_simsopt, vnc=vnc.as_simsopt, 
+                                             vns=vns.as_simsopt, vnc=vnc.as_simsopt,
                                              surface=self._computational_boundary)
         else:
             self._normal_field: Optional[NormalField] = None
@@ -257,7 +257,7 @@ class Spec(Optimizable):
         super().__init__(x0=x0, fixed=fixed, names=names,
                          depends_on=depends_on,
                          external_dof_setter=Spec.set_dofs)
-        
+
     @classmethod
     def default_freeboundary(cls, copy_to_pwd, verbose=True):
         """
@@ -267,9 +267,9 @@ class Spec(Optimizable):
             verbose: boolean, if True, print statements will be printed
         """
         filename = 'defaults_freebound.sp'
-        if verbose: 
+        if verbose:
             print(f'Copying {os.path.join(os.path.dirname(__file__), filename)} to {os.getcwd()}/{filename}')
-        shutil.copy(os.path.join(os.path.dirname(__file__), filename), os.getcwd()) 
+        shutil.copy(os.path.join(os.path.dirname(__file__), filename), os.getcwd())
         return cls(filename=filename, verbose=verbose)
 
     @classmethod
@@ -310,7 +310,7 @@ class Spec(Optimizable):
                     thissurf.set_zc(mm, nn, thissurf_zc[imode])
             interfaces.append(thissurf)
         return interfaces
-    
+
     def _set_spec_initial_guess(self):
         """
         Set initial guesses in SPEC from a list of surfaceRZFourier objects.
@@ -351,11 +351,11 @@ class Spec(Optimizable):
 #            numel = np.sum(index_mask) # number of trues in mask, i.e. chosen elements
 #            spec.allglobal.mmrzrz[:numel] = m_values[index_mask] # skip elements, make 1
 #            spec.allglobal.nnrzrz[:numel] = n_values[index_mask] # skip m==0 n<0 elements
-#            
+#
 #            initial_guess = [s.to_RZFourier() for s in self.initial_guess]
 #            for lvol, surface in enumerate(initial_guess):
 #                # EXPLAIN: surface.rc is m,n indexed, transpose, apply above mask which unravels to 1d
-#                spec.allglobal.allrzrz[0, lvol, :numel] = surface.rc.transpose()[index_mask] 
+#                spec.allglobal.allrzrz[0, lvol, :numel] = surface.rc.transpose()[index_mask]
 #                spec.allglobal.allrzrz[1, lvol, :numel] = surface.zs.transpose()[index_mask]
 #                if not self.stellsym:
 #                    spec.allglobal.allrzrz[2, lvol, :numel] = surface.rs.transpose()[index_mask]
@@ -376,7 +376,7 @@ class Spec(Optimizable):
         """
         Setter for the geometry of the plasma boundary
         """
-        if not self.freebound: 
+        if not self.freebound:
             if self._boundary is not boundary:
                 self.remove_parent(self._boundary)
                 self._boundary = boundary
@@ -384,14 +384,14 @@ class Spec(Optimizable):
                 return
         else:  # in freeboundary case, plasma boundary is is not a parent
             self._boundary = boundary
-    
+
     @property
     def normal_field(self):
         """
         Getter for the normal field
         """
         return self._normal_field
-    
+
     @normal_field.setter
     def normal_field(self, normal_field):
         """
@@ -751,17 +751,11 @@ class Spec(Optimizable):
         """
         Take a profile from the inputlist, and make it optimizable in 
         simsopt.
+
         Args:
-            longname: string, either 
-                - 'pressure'
-                - 'volume_current'
-                - 'interface_current'
-                - 'iota'
-                - 'oita'
-                - 'mu'
-                - 'pflux'
-                - 'tflux'
-                - 'helicity'
+            longname: string, one of ``"pressure"``, ``"volume_current"``, 
+                ``"interface_current"``, ``"iota"``, ``"oita"``, ``"mu"``, 
+                ``"pflux"``, ``"tflux"`` or ``"helicity"``.
         """
         profile_dict = {
             'pressure': {'specname': 'pressure', 'cumulative': False, 'length': self.nvol},
@@ -805,7 +799,7 @@ class Spec(Optimizable):
 
         # If the profile is cumulative, values in lvol to Mvol-1 are modified.
         # If it is not cumulative, only the value in lvol is modified.
-        if profile.cumulative: 
+        if profile.cumulative:
             old_value = profile.f(lvol)
 
             profile.set(lvol, value)
@@ -868,7 +862,7 @@ class Spec(Optimizable):
             if p is not None:
                 p.psi_edge = x[0]
 
-    @property 
+    @property
     def poloidal_current_amperes(self):
         """
         return the total poloidal current in Amperes,
@@ -876,11 +870,11 @@ class Spec(Optimizable):
         poloidally
         """
         return self.inputlist.curpol/(mu_0)
-    
+
     def _clear_f90wrap_array_caches(self):
         """
         Clear the f90wrap array caches. This is necessary when a new file is read after SPEC has run before.
-        
+
         See https://github.com/hiddenSymmetries/simsopt/pull/431
 
         This function is for addressing the issue https://github.com/hiddenSymmetries/simsopt/issues/357
@@ -1088,7 +1082,7 @@ class Spec(Optimizable):
                 logger.debug('About to call check_inputs')
                 spec.allglobal.check_inputs()
             logger.debug('About to call broadcast_inputs')
-            self.mpi.comm_groups.Barrier()  # Barrier to ensure all groups are ready to broadcast. 
+            self.mpi.comm_groups.Barrier()  # Barrier to ensure all groups are ready to broadcast.
             spec.allglobal.broadcast_inputs()
             logger.debug('About to call preset')
             spec.preset()
@@ -1127,7 +1121,7 @@ class Spec(Optimizable):
         # is finished:
         self.mpi.comm_groups.Barrier()
 
-        # Try to read SPEC output. 
+        # Try to read SPEC output.
         try:
             self.results = py_spec.SPECout(filename + '.sp.h5')
         except BaseException:
@@ -1140,20 +1134,20 @@ class Spec(Optimizable):
             logger.info("Successfully loaded SPEC results.")
         self.need_to_run_code = False
 
-        # Deal with unconverged equilibria - these are excluded by 
+        # Deal with unconverged equilibria - these are excluded by
         # the optimizer, and the objective function is set to a large number
         if self.results.output.ForceErr > self.tolerance:
-            # re-set the boundary field guess before failing, so the next run does not start unconverged. 
+            # re-set the boundary field guess before failing, so the next run does not start unconverged.
             if self.freebound:
                 logger.info(f"run {filename}: Force balance unconverged, re-setting boundary field guess and raising ObjectiveFailure")
                 si.bns, si.bnc = initial_bns, initial_bnc
             raise ObjectiveFailure(
                 'SPEC could not find force balance'
             )
-        
+
         # check for picard convergence once SPEC is updated
         if self.freebound:
-            try: 
+            try:
                 if self.results.output.BnsErr > self.inputlist.gbntol:
                     if self.mpi.proc0_groups:
                         logger.info(f"run {filename}: Picard iteration unconverged, re-setting boundary field guess and raising ObjectiveFailure")
@@ -1164,7 +1158,7 @@ class Spec(Optimizable):
             except AttributeError:
                 logger.info('Picard convergence not checked, please update SPEC version 3.22 or higher')
                 print("Picard convergence not checked, please update SPEC version 3.22 or higher")
-            
+
         # Save geometry as initial guess for next iterations
         if update_guess:
             new_guess = None
@@ -1229,7 +1223,7 @@ class Spec(Optimizable):
         """
         self.run()
         return self.results.transform.fiota[1, 0]
-    
+
     def array_translator(self, array=None, style='spec'):
         """
         Returns a SpecFourierArray object to help transforming between
@@ -1237,7 +1231,7 @@ class Spec(Optimizable):
 
         create from an array of either style by setting style='spec' or
         style='simsopt' upon creation. 
-        
+
         The created class will have properties:
         - as_spec: returns the SPEC style array
         - as_simsopt: returns the simsopt style array
@@ -1256,11 +1250,11 @@ class Spec(Optimizable):
             obj = Spec.SpecFourierArray(self)
             obj.as_simsopt = array  # setter function
             return obj
-        else: 
+        else:
             raise ValueError(f'array style:{style} not supported, options: [simsopt, spec]')
-            
+
     # Inner class of Spec
-    class SpecFourierArray: 
+    class SpecFourierArray:
         """
         Helper class to make index-jangling easier and hide away
         strange SPEC array sizing and indexing conventions.
@@ -1272,18 +1266,19 @@ class Spec(Optimizable):
 
 
         """
-        def __init__(self, outer_spec, array=None): 
+
+        def __init__(self, outer_spec, array=None):
             self._outer_spec = outer_spec
             self._mmpol = outer_spec.inputlist.mmpol
             self._mntor = outer_spec.inputlist.mntor
             if array is None:
-                array = np.zeros((2*self._mntor+1, 2*self._mmpol+1))   
+                array = np.zeros((2*self._mntor+1, 2*self._mmpol+1))
             self._array = np.array(array)
-        
+
         @property
         def as_spec(self):
             return self._array
-        
+
         @as_spec.setter
         def as_spec(self, array):
             if array.shape != [2*self.mntor+1, 2*self.mmpol+1]:
@@ -1305,7 +1300,7 @@ class Spec(Optimizable):
             m_start = self._mmpol
             m_end = self._mmpol + mpol + 1
             return self._array[n_start:n_end, m_start:m_end].transpose()  # switch n and m
-        
+
         @as_simsopt.setter
         def as_simsopt(self, array, ntor=None, mpol=None):
             """
@@ -1380,7 +1375,7 @@ class Residue(Optimizable):
         """
         if self.need_to_run_code:
             self.spec.run()
-        
+
         if not self.mpi.proc0_groups:
             logger.debug(
                 "This proc is skipping Residue.J() since it is not a group leader.")

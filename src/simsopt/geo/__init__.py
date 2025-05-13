@@ -28,7 +28,12 @@ from .surfacerzfourier import *
 from .surfacexyzfourier import *
 from .surfacexyztensorfourier import *
 from .strain_optimization import *
+<<<<<<< HEAD
 from .strain_optimization import *
+=======
+from .wireframe_toroidal import *
+from .ports import *
+>>>>>>> 671003f36182fcc97c7f654796984c88fce25b5c
 
 from .permanent_magnet_grid import *
 
@@ -46,6 +51,6 @@ __all__ = (curve.__all__ + curvehelical.__all__ +
            surfacegarabedian.__all__ + surfacehenneberg.__all__ +
            surfacerzfourier.__all__ + surfacexyzfourier.__all__ +
            surfacexyztensorfourier.__all__ + surfaceobjectives.__all__ +
-           strain_optimization.__all__ + framedcurve.__all__ + 
-           strain_optimization.__all__ + framedcurve.__all__ + 
+           strain_optimization.__all__ + framedcurve.__all__ +
+           wireframe_toroidal.__all__ + ports.__all__ +
            permanent_magnet_grid.__all__)
