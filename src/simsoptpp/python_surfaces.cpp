@@ -152,6 +152,7 @@ template <typename T, typename S> void register_common_surface_methods(S &s) {
      .def("extend_via_projected_normal", &T::extend_via_projected_normal, "This function takes as input a number, and then uses the plasma normal vectors at all quadrature points to extend the surface in question. Unlike the extend_via_normal function, this function uses the (R, phi, Z) normal vectors, zeros the phi components, and then extends the vectors. This results in a new surface with the same toroidal angle locations as the original surface. Args: distance: double. Distance by which the surface is extended.")
      .def("least_squares_fit", &T::least_squares_fit)
      .def("invalidate_cache", &T::invalidate_cache)
+     .def("resize_cache", &T::resize_cache, "Resizes cache objects based on the new dofs_size. Invalidates cache")
      .def("set_dofs", &T::set_dofs)
      .def("set_dofs_impl", &T::set_dofs_impl)
      .def("get_dofs", &T::get_dofs)
@@ -165,7 +166,7 @@ void init_surfaces(py::module_ &m){
     register_common_surface_methods<PySurface>(pysurface);
 
     auto pysurfacerzfourier = py::class_<PySurfaceRZFourier, shared_ptr<PySurfaceRZFourier>, PySurfaceRZFourierTrampoline<PySurfaceRZFourier>, PySurface>(m, "SurfaceRZFourier")
-        .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
+        .def(py::init<unsigned int, unsigned int, unsigned int, bool, vector<double>, vector<double>>())
         .def_readwrite("rc", &PySurfaceRZFourier::rc)
         .def_readwrite("rs", &PySurfaceRZFourier::rs)
         .def_readwrite("zc", &PySurfaceRZFourier::zc)
@@ -174,7 +175,8 @@ void init_surfaces(py::module_ &m){
         .def_readwrite("ntor", &PySurfaceRZFourier::ntor)
         .def_readwrite("nfp", &PySurfaceRZFourier::nfp)
         .def_readwrite("stellsym", &PySurfaceRZFourier::stellsym)
-        .def("allocate", &PySurfaceRZFourier::allocate);
+        .def("allocate", &PySurfaceRZFourier::allocate)
+        .def("resize", &PySurfaceRZFourier::resize);
 
     auto pysurfacexyzfourier = py::class_<PySurfaceXYZFourier, shared_ptr<PySurfaceXYZFourier>, PySurfaceXYZFourierTrampoline<PySurfaceXYZFourier>, PySurface>(m, "SurfaceXYZFourier")
         .def(py::init<int, int, int, bool, vector<double>, vector<double>>())

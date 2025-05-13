@@ -33,12 +33,12 @@ class SurfaceRZFourier : public Surface<Array> {
         Array rs;
         Array zc;
         Array zs;
-        int nfp;
-        int mpol;
-        int ntor;
+        unsigned int nfp;
+        unsigned int mpol;
+        unsigned int ntor;
         bool stellsym;
 
-        SurfaceRZFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, vector<double> _quadpoints_phi, vector<double> _quadpoints_theta)
+        SurfaceRZFourier(unsigned int _mpol, unsigned int _ntor, unsigned int _nfp, bool _stellsym, vector<double> _quadpoints_phi, vector<double> _quadpoints_theta)
             : Surface<Array>(_quadpoints_phi, _quadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
                 this->allocate();
             }
@@ -48,6 +48,13 @@ class SurfaceRZFourier : public Surface<Array> {
             rs = xt::zeros<double>({mpol+1, 2*ntor+1});
             zc = xt::zeros<double>({mpol+1, 2*ntor+1});
             zs = xt::zeros<double>({mpol+1, 2*ntor+1});
+        }
+
+        void resize() {
+            rc.resize({mpol+1, 2*ntor+1});
+            rs.resize({mpol+1, 2*ntor+1});
+            zc.resize({mpol+1, 2*ntor+1});
+            zs.resize({mpol+1, 2*ntor+1});
         }
 
         int num_dofs() override {

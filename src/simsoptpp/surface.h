@@ -5,6 +5,9 @@ using std::vector;
 #include <string>
 using std::string;
 
+#include <iostream>
+using std::cout, std::endl;
+
 #include <map>
 using std::map;
 #include <stdexcept>
@@ -90,6 +93,34 @@ class Surface {
 
             for (auto it = cache.begin(); it != cache.end(); ++it) {
                 (it->second).status = false;
+            }
+        }
+
+        void resize_cache(){
+            string key = "by_dcoeff";
+            for (auto it = cache.begin(); it != cache.end(); ++it){
+                if (it->first.find(key) != string::npos) { // First derivative pattern matched
+                    cout << "Key is " << it->first << endl;
+                    auto dims = (it->second).data.shape();
+                    cout << "Before resize " << (it->second).data.size() << endl;
+                    cout << "Dims are " ;
+                    for (auto i : dims)
+                        cout << i << " ";
+                    cout << endl;
+                    dims.back() = num_dofs();
+                    if (it->first.find("by_dcoeffdcoeff") != string::npos) { // Second derivative pattern matched
+                        dims[dims.size()-2] = num_dofs();
+                    }
+                    cout << "Dims after reisze are ";
+                    for (auto i : dims)
+                        cout << i << " ";
+                    cout << endl;
+                    // cout << "After resize" <<  << endl;
+                    (it->second).data.resize(dims);
+                    cout << "Are we here?"  << endl;
+                    cout << "After resize " << (it->second).data.size() << endl;
+                    (it->second).status = false;
+                }
             }
         }
 
