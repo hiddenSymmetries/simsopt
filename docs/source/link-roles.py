@@ -17,7 +17,7 @@ def get_github_rev():
             print('Git tag: ', tag)
             path = tag
     except:
-        continue
+        pass
     return path
 
 
