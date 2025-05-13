@@ -383,8 +383,8 @@ def coils_via_symmetries(curves, currents, nfp, stellsym, regularizations=None):
         Number of field periods (rotational symmetry).
     stellsym : bool
         Whether to apply stellarator symmetry.
-    regularization : Regularization
-        The regularization object for the coils representing the finite coil cross section.
+    regularizations : np.array, shape (n_coils,), optional
+        The regularization objects for the coils representing the finite coil cross section.
         Default is a circular cross section with radius 0.05.
 
     Returns

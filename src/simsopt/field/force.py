@@ -35,7 +35,7 @@ __all__ = [
 
 def coil_force(coil, other_coils):
     """
-    Compute the force on a coil.
+    Compute the force per unit length on a coil in Newtons/meter.
 
     Args:
         coil (Coil): Coil to compute the pointwise forces on.
@@ -43,7 +43,7 @@ def coil_force(coil, other_coils):
         regularization (Regularization): Regularization object.
 
     Returns:
-        array: Array of force.
+        array: Array of forces per unit length.
     """
     gammadash = coil.curve.gammadash()
     gammadash_norm = np.linalg.norm(gammadash, axis=1)[:, None]
@@ -61,7 +61,8 @@ def coil_force(coil, other_coils):
 
 def coil_net_force(coil, other_coils):
     """
-    Compute the net forces on a list of coils.
+    Compute the net forces on a list of coils in Newtons. This is
+    the integrated pointwise force per unit length on a coil curve.
 
     Args:
         coils (list): Coil to compute the net forces on.
@@ -80,7 +81,8 @@ def coil_net_force(coil, other_coils):
 
 def coil_torque(coil, other_coils):
     """
-    Compute the torques on a coil.
+    Compute the torques per unit length on a coil in Newtons (note that the force is per unit length, 
+    so the force has units of Newtons/meter and the torques per unit length have units of Newtons).
 
     Args:
         coil (Coil): Coil to compute the pointwise torques on.
@@ -97,7 +99,8 @@ def coil_torque(coil, other_coils):
 
 def coil_net_torque(coil, other_coils):
     """
-    Compute the net torques on a list of coils.
+    Compute the net torques on a list of coils in Newton-meters. This is
+    the integrated pointwise torque per unit length on a coil curve.
 
     Args:
         coils (list): Coil to compute the net torques on.
@@ -116,7 +119,7 @@ def coil_net_torque(coil, other_coils):
 
 def coil_force_pure(B, I, t):
     """
-    force on coil for optimization
+    Compute the pointwise Lorentz force per unit length on a coil in Newtons/meter. 
 
     Args:
         B (array): Array of magnetic field.
@@ -124,20 +127,20 @@ def coil_force_pure(B, I, t):
         t (array): Array of coil tangent vectors.
 
     Returns:
-        array: Array of force.
+        array: Array of force per unit length.
     """
     return jnp.cross(I * t, B)
 
 
 def self_force(coil):
     """
-    Compute the self-force of a coil.
+    Compute the self-force per unit length of a coil, in Newtons/meter.
 
     Args:
-        coil (Coil): Coil to compute the self-force on.
+        coil (Coil): Coil to compute the self-force per unit length on.
 
     Returns:
-        array: Array of self-force.
+        array: Array of self-force per unit length.
     """
     I = coil.current.get_value()
     tangent = coil.curve.gammadash() / np.linalg.norm(coil.curve.gammadash(),
@@ -148,14 +151,14 @@ def self_force(coil):
 
 def self_force_circ(coil, a):
     """
-    Compute the Lorentz self-force of a coil with circular cross-section
+    Compute the Lorentz self-force per unit length of a coil with circular cross-section, in Newtons/meter.
 
     Args:
         coil (Coil): Coil to compute the self-force on.
         a (array): Array of coil positions.
 
     Returns:
-        array: Array of self-force.
+        array: Array of self-force per unit length.
     """
     coil.regularization = regularization_circ(a)
     return self_force(coil)
@@ -163,7 +166,7 @@ def self_force_circ(coil, a):
 
 def self_force_rect(coil, a, b):
     """
-    Compute the Lorentz self-force of a coil with rectangular cross-section
+    Compute the Lorentz self-force per unit length of a coil with rectangular cross-section, in Newtons/meter.
 
     Args:
         coil (Coil): Coil to compute the self-force on.
@@ -171,7 +174,7 @@ def self_force_rect(coil, a, b):
         b (array): Array of coil tangent vectors.
 
     Returns:
-        array: Array of self-force.
+        array: Array of self-force per unit length.
     """
     coil.regularization = regularization_rect(a, b)
     return self_force(coil)
@@ -182,11 +185,13 @@ def lp_force_pure_deprecated(gamma, gammadash, gammadashdash, quadpoints, curren
 
     The function is
 
-     .. math::
-        J = \frac{1}{p}\left(\int \text{max}(|\vec{F}| - F_0, 0)^p d\ell\right)
+    .. math::
+        J = \frac{1}{pL}\left(\int \text{max}(|d\vec{F}/d\ell| - dF_0/d\ell, 0)^p d\ell\right)
 
-    where :math:`\vec{F}` is the Lorentz force, :math:`F_0` is a threshold force,  
-    and :math:`\ell` is arclength along the coil.
+    where :math:`d\vec{F}/d\ell` is the Lorentz force per unit length, 
+    :math:`dF_0/d\ell` is a threshold force per unit length,  
+    L is the total length of the coil, and :math:`\ell` is arclength along the coil. 
+    The units of the objective function are (N/m)^p.
 
     Args:
         gamma (array): Array of coil positions.
@@ -212,15 +217,18 @@ def lp_force_pure_deprecated(gamma, gammadash, gammadashdash, quadpoints, curren
 
 
 class LpCurveForce_deprecated(Optimizable):
-    r"""  Optimizable class to minimize the Lorentz force on a coil in MN/m
+    r"""  
+    Optimizable class to minimize the Lorentz force per unit length on a coil in Newtons/meter.
 
     The objective function is
 
     .. math::
         J = \frac{1}{pL}\left(\int \text{max}(|d\vec{F}/d\ell| - dF_0/d\ell, 0)^p d\ell\right)
 
-    where :math:`\vec{F}` is the Lorentz force, :math:`F_0` is a threshold force,  
-    L is the total length of the coil, and :math:`\ell` is arclength along the coil.
+    where :math:`d\vec{F}/d\ell` is the Lorentz force per unit length, 
+    :math:`dF_0/d\ell` is a threshold force per unit length,  
+    L is the total length of the coil, and :math:`\ell` is arclength along the coil. In total
+    the objective function has units of (N/m)^p. 
 
     Args:
         coil (Coil): Coil whose force is being computed.
@@ -360,15 +368,16 @@ class LpCurveForce_deprecated(Optimizable):
 
 # @jit
 def mean_squared_force_pure_deprecated(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual, downsample):
-    r"""Pure function for minimizing the Lorentz force on a coil.
+    r"""
+    Pure function for integrating the squares of the Lorentz force per unit length over the coil curve.
 
     The function is
 
     .. math:
         J = \frac{\int |d\vec{F}/d\ell|^2 d\ell}{L}
 
-    where :math:`\vec{F}` is the Lorentz force, L is the total coil length,
-    and :math:`\ell` is arclength along the coil.
+    where :math:`d\vec{F}/d\ell` is the Lorentz force per unit length, L is the total coil length,
+    and :math:`\ell` is arclength along the coil. The objective function has units of (N/m)^2.
 
     Args:
         gamma (array): Array of coil positions.
@@ -396,15 +405,17 @@ def mean_squared_force_pure_deprecated(gamma, gammadash, gammadashdash, quadpoin
 
 
 class MeanSquaredForce_deprecated(Optimizable):
-    r"""Optimizable class to minimize the Lorentz force on a coil.
+    r"""
+    Optimizable class to minimize the squares of the Lorentz force per unit length 
+    integrated over the coil curve.
 
     The objective function is
 
     .. math:
         J = \frac{\int |\vec{F}|^2 d\ell}{L}
 
-    where :math:`\vec{F}` is the Lorentz force, L is the total coil length,
-    and :math:`\ell` is arclength along the coil.
+    where :math:`d\vec{F}/d\ell` is the Lorentz force per unit length, L is the total coil length,
+    and :math:`\ell` is arclength along the coil. The objective function has units of (N/m)^2.
 
     Args:
         coil (Coil): Coil whose force is being computed.
@@ -569,7 +580,8 @@ def coil_coil_inductances_pure(gammas, gammadashs, downsample, regularizations):
         L = \frac{\mu_0}{4\pi} \int_0^{2\pi} d\phi \int_0^{2\pi} d\tilde{\phi} 
             \frac{\vec{r}_c' \cdot \tilde{\vec{r}}_c'}{\sqrt{|\vec{r}_c - \tilde{\vec{r}}_c|^2 + \delta a b}}
 
-    where $\delta a b$ is a regularization parameter depending on the cross-section.
+    where $\delta a b$ is a regularization parameter depending on the cross-section. The units
+    of the inductance matrices are henries.
 
     Args:
         gammas (array): Array of coil positions.
@@ -682,7 +694,8 @@ def induced_currents_pure(gammas, gammadashs, gammas_TF, gammadashs_TF, currents
 
 
 def b2energy_pure(gammas, gammadashs, currents, downsample, regularizations):
-    r"""Pure function for minimizing the total vacuum energy on a coil.
+    r"""
+    Pure function for minimizing the total vacuum magnetic field energy from a set of coils.
 
     The function is
 
@@ -690,7 +703,7 @@ def b2energy_pure(gammas, gammadashs, currents, downsample, regularizations):
         J = \sum_{i,j}\frac{1}{2}I_iL_{ij}I_j
 
     where :math:`L_{ij}` is the coil inductance matrix (positive definite),
-    and :math:`I_i` is the current in the ith coil.
+    and :math:`I_i` is the current in the ith coil. The units of the objective function are Joules.
 
     Args:
         gamma (array): Array of coil positions.
@@ -714,7 +727,8 @@ def b2energy_pure(gammas, gammadashs, currents, downsample, regularizations):
 
 
 class B2_Energy(Optimizable):
-    r"""Optimizable class for minimizing the total vacuum energy on a coil.
+    r"""
+    Optimizable class for minimizing the total vacuum magnetic field energy from a set of coils.
 
     The function is
 
@@ -722,7 +736,7 @@ class B2_Energy(Optimizable):
         J = \frac{1}{2}I_i L_{ij} I_j
 
     where :math:`L_{ij}` is the coil inductance matrix (positive definite),
-    and :math:`I_i` is the current in the ith coil.
+    and :math:`I_i` is the current in the ith coil. The units of the objective function are Joules.
 
     Args:
         coils_to_target (Coil): List of coils contributing to the total energy.
@@ -806,9 +820,19 @@ def net_fluxes_pure(gammas, gammadashs, gammas2, gammadashs2, currents2, downsam
     due to the magnetic field generated by another set of coils. The flux is calculated
     using the line integral of the vector potential along the coil paths.
 
+    math:: 
+        \Psi = \sum_i \int_{C_i} A_{ext}\cdot d\ell_i / L_i
+
+    where :math:`A_{ext}` is the vector potential of an external magnetic field,
+    evaluated along the quadpoints along the curve,
+    :math:`L_i` is the total length of the ith coil, and :math:`\ell_i` is arclength
+    along the ith coil.
+
     Note that the first set of coils is assumed to all have the same number of quadrature 
     points for the purposes of jit speed. Same with the second set of coils, although
     the number of points does not have to be the same between the two sets.
+
+    The units of the objective function are Weber.
 
     Args:
         gammas (array): Position vectors for the coils receiving flux.
@@ -829,7 +853,7 @@ def net_fluxes_pure(gammas, gammadashs, gammas2, gammadashs2, currents2, downsam
     rij_norm = jnp.linalg.norm(gammas[:, :, None, None, :] - gammas2[None, None, :, :, :], axis=-1)
     # sum over the currents, and sum over the biot savart integral
     A_ext = jnp.sum(currents2[None, None, :, None] * jnp.sum(gammadashs2[None, None, :, :, :] / rij_norm[:, :, :, :, None], axis=-2), axis=-2) / jnp.shape(gammadashs2)[1]
-    # Now sum over the PSC coil loops
+    # Now sum over all the coil loops
     return 1e-7 * jnp.sum(jnp.sum(A_ext * gammadashs, axis=-1), axis=-1) / jnp.shape(gammadashs)[1]
 
 
@@ -837,9 +861,18 @@ def net_ext_fluxes_pure(gammadash, A_ext, downsample):
     """
     Calculate the net magnetic flux through a coil due to an external vector potential.
 
+    math:: 
+        \Psi = \int A_{ext}\cdot d\ell / L
+
+    where :math:`A_{ext}` is the vector potential of an external magnetic field,
+    evaluated along the quadpoints along the curve,
+    L is the total length of the coil, and :math:`\ell` is arclength along the coil.
+
     This function computes the total magnetic flux passing through a coil due to
     an external magnetic field represented by its vector potential. The flux is
     calculated using the line integral of the vector potential along the coil path.
+
+    The units of the objective function are Weber.
 
     Args:
         gammadash (array): Tangent vectors along the coil.
@@ -856,9 +889,9 @@ def net_ext_fluxes_pure(gammadash, A_ext, downsample):
 
 
 class NetFluxes(Optimizable):
-    r"""Optimizable class for minimizing the total net flux (from an external field)
-    through a coil. Unclear why you would want to do this.
-    This is mostly a test class for the passive coil arrays.
+    r"""
+    Optimizable class for minimizing the total net flux (from an external field)
+    through a coil. This is mostly a test class for the passive coil arrays.
 
     The function is
 
@@ -868,6 +901,8 @@ class NetFluxes(Optimizable):
     where :math:`A_{ext}` is the vector potential of an external magnetic field,
     evaluated along the quadpoints along the curve,
     L is the total length of the coil, and :math:`\ell` is arclength along the coil.
+
+    The units of the objective function are Weber.
 
     Args:
         coil (Coil): Coil whose net flux is being computed.
@@ -976,6 +1011,15 @@ def squared_mean_force_pure(gammas, gammas2, gammadashs, gammadashs2, currents,
     """
     Compute the squared mean force on coil set 1 due to coil set 1 and another coil set 2.
 
+    The objective function is
+
+    .. math:
+        J = \sum_i \left(\frac{\int \frac{d\vec{F}_i}{d\ell_i} d\ell_i}{L_i}\right)^2
+
+    where :math:`\frac{d\vec{F}_i}{d\ell_i}` is the Lorentz force per unit length, 
+    :math:`L_i` is the total coil length,
+    and :math:`\ell_i` is arclength along the ith coil. The units of the objective function are (N/m)^2.
+
     The coils are allowed to have different numbers of quadrature points, but for the purposes of
     jax speed, the coils are downsampled here to have the same number of quadrature points.
     """
@@ -1049,11 +1093,13 @@ class SquaredMeanForce(Optimizable):
     The objective function is
 
     .. math:
-        J = (\frac{\int \vec{F}_i d\ell}{L})^2
+        J = \sum_i \left(\frac{\int \frac{d\vec{F}_i}{d\ell_i} d\ell_i}{L_i}\right)^2
 
-    where :math:`\vec{F}` is the Lorentz force, L is the total coil length,
-    and :math:`\ell` is arclength along the coil. This class assumes 
-    there are two distinct lists of coils,
+    where :math:`\frac{d\vec{F}_i}{d\ell_i}` is the Lorentz force per unit length, 
+    :math:`L_i` is the total coil length,
+    and :math:`\ell_i` is arclength along the ith coil. The units of the objective function are (N/m)^2.
+    
+    This class assumes there are two distinct lists of coils,
     which may have different finite-build parameters. In order to avoid buildup of optimizable 
     dependencies, it directly computes the BiotSavart law terms, instead of relying on the existing
     C++ code that computes BiotSavart related terms. This is also useful for optimizing passive coils,
@@ -1175,9 +1221,21 @@ def lp_force_pure(
     quadpoints, currents, currents2, regularizations, p, threshold, downsample=1
 ):
     """
-    Computes the mixed Lp force objective by summing over all coils in the first set, 
+    Computes the Lp force objective by summing over all coils in the first set, 
     where each coil receives force from all coils (including itself and the second set).
     This version allows each coil to have its own quadrature points array.
+
+    The objective function is
+
+    .. math::
+        J = \frac{1}{p}\sum_i\frac{1}{L_i}\left(\int \text{max}(|d\vec{F}/d\ell_i| - dF_0/d\ell_i, 0)^p d\ell_i\right)
+
+    where :math:`\frac{d\vec{F}_i}{d\ell_i}` is the Lorentz force per unit length, 
+    :math:`d\ell_i` is the arclength along the ith coil,
+    :math:`L_i` is the total coil length,
+    and :math:`dF_0/d\ell_i` is a threshold force at the ith coil.
+
+    The units of the objective function are (N/m)^p.
     """
     all_lengths = [g.shape[0] for g in gammas] + [g2.shape[0] for g2 in gammas2]
     min_npts = min(all_lengths)
@@ -1255,15 +1313,20 @@ def lp_force_pure(
 
 
 class LpCurveForce(Optimizable):
-    r"""Optimizable class to minimize the net Lorentz force on a coil.
+    r"""Optimizable class to minimize the net Lorentz force on a set of coils.
 
-    The objective function is
+        The objective function is
 
     .. math::
-        J = \frac{1}{pL}\left(\int \text{max}(|d\vec{F}/d\ell| - dF_0/d\ell, 0)^p d\ell\right)
+        J = \frac{1}{p}\sum_i\frac{1}{L_i}\left(\int \text{max}(|d\vec{F}/d\ell_i| - dF_0/d\ell_i, 0)^p d\ell_i\right)
 
-    where :math:`\vec{F}` is the Lorentz force, :math:`F_0` is a threshold force,  
-    L is the total length of the coil, and :math:`\ell` is arclength along the coil.
+    where :math:`\frac{d\vec{F}_i}{d\ell_i}` is the Lorentz force per unit length, 
+    :math:`d\ell_i` is the arclength along the ith coil,
+    :math:`L_i` is the total coil length,
+    and :math:`dF_0/d\ell_i` is a threshold force at the ith coil.
+
+    The units of the objective function are (N/m)^p.
+
     This class assumes there are two distinct lists of coils,
     which may have different finite-build parameters. In order to avoid buildup of optimizable 
     dependencies, it directly computes the BiotSavart law terms, instead of relying on the existing
@@ -1395,7 +1458,19 @@ class LpCurveForce(Optimizable):
 def lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs,
                    quadpoints, currents, currents2, regularizations, p, threshold, downsample):
     r"""
-    Pure function for computing the mixed lp torque on a coil.
+    Pure function for computing the lp torque on a set of coils.
+
+    The objective function is
+
+    .. math::
+        J = \frac{1}{p}\sum_i\frac{1}{L_i}\left(\int \text{max}(|d\vec{T}/d\ell_i| - dT_0/d\ell_i, 0)^p d\ell_i\right)
+
+    where :math:`\frac{d\vec{T}_i}{d\ell_i}` is the Lorentz torque per unit length,  
+    :math:`d\ell_i` is the arclength along the ith coil,
+    :math:`L_i` is the total coil length,
+    and :math:`dT_0/d\ell_i` is a threshold torque at the ith coil.
+
+    The units of the objective function are (N)^p.
 
     Args:
         gammas (array): Array of coil positions.
@@ -1497,15 +1572,20 @@ def lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs,
 
 
 class LpCurveTorque(Optimizable):
-    r"""Optimizable class to minimize the net Lorentz force on a coil.
+    r"""Optimizable class to minimize the net Lorentz torque on a set of coils.
 
     The objective function is
 
     .. math::
-        J = \frac{1}{pL}\left(\int \text{max}(|d\vec{\tau}/d\ell| - d\tau_0/d\ell, 0)^p d\ell\right)
+        J = \frac{1}{p}\sum_i\frac{1}{L_i}\left(\int \text{max}(|d\vec{T}/d\ell_i| - dT_0/d\ell_i, 0)^p d\ell_i\right)
 
-    where :math:`\vec{\tau}` is the Lorentz torque, :math:`\tau_0` is a threshold torque,  
-    L is the total length of the coil, and :math:`\ell` is arclength along the coil.
+    where :math:`\frac{d\vec{T}_i}{d\ell_i}` is the Lorentz torque per unit length,  
+    :math:`d\ell_i` is the arclength along the ith coil,
+    :math:`L_i` is the total coil length,
+    and :math:`dT_0/d\ell_i` is a threshold torque at the ith coil.
+
+    The units of the objective function are (N)^p.
+
     This class assumes there are two distinct lists of coils,
     which may have different finite-build parameters. In order to avoid buildup of optimizable 
     dependencies, it directly computes the BiotSavart law terms, instead of relying on the existing
@@ -1641,6 +1721,17 @@ def squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents, curr
     """
     Compute the squared mean torque in coil set 1 due to themselves and coil set 2.
 
+    The objective function is
+
+    .. math:
+        J = \sum_i(\frac{\int \frac{d\vec{T}_i}{d\ell_i} d\ell_i}{L_i})^2
+        
+    where :math:`\frac{d\vec{T}_i}{d\ell_i}` is the Lorentz torque per unit length,  
+    :math:`d\ell_i` is the arclength along the ith coil,
+    :math:`L_i` is the total coil length.
+
+    The units of the objective function are (N)^2.
+
     Args:
         gammas (array): Array of coil positions in coil set 1.
         gammas2 (array): Array of coil positions in coil set 2.
@@ -1734,11 +1825,15 @@ class SquaredMeanTorque(Optimizable):
     The objective function is
 
     .. math:
-        J = (\frac{\int \vec{\tau}_i d\ell}{L})^2
+        J = \sum_i(\frac{\int \frac{d\vec{T}_i}{d\ell_i} d\ell_i}{L_i})^2
+        
+    where :math:`\frac{d\vec{T}_i}{d\ell_i}` is the Lorentz torque per unit length,  
+    :math:`d\ell_i` is the arclength along the ith coil,
+    :math:`L_i` is the total coil length.
 
-    where :math:`\vec{\tau}` is the Lorentz torque, L is the total coil length,
-    and :math:`\ell` is arclength along the coil. This class assumes 
-    there are two distinct lists of coils,
+    The units of the objective function are (N)^2.
+    
+    This class assumes there are two distinct lists of coils,
     which may have different finite-build parameters. In order to avoid buildup of optimizable 
     dependencies, it directly computes the BiotSavart law terms, instead of relying on the existing
     C++ code that computes BiotSavart related terms. The two sets of coils may contain 
