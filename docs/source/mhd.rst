@@ -18,7 +18,7 @@ One can even combine different solvers such that the equilibrium objects depend 
 soltions provided by the other solver. 
 
 .. warning::
-    ``f90wrapped`` code is not re-entrant. You cannot create multiple 
+    ``f90wrapped`` code creates singleton classes. You cannot create multiple 
     ``Vmec`` or ``Spec`` objects in the same kernel. Code like:
 
     :: 
