@@ -5,7 +5,7 @@ from .curve import JaxCurve
 __all__ = ["CurveHelical"]
 
 
-def jaxHelicalfouriercurve_pure(dofs, quadpoints, order, m, ell, R0, r):
+def curve_helical_pure(dofs, quadpoints, order, m, ell, R0, r):
     """Pure function for the position vector used by CurveHelical."""
     A = dofs[: order + 1]
     B = jnp.concatenate(
@@ -58,6 +58,9 @@ class CurveHelical(JaxCurve):
     transform" of the curve is :math:`m / l`. The shape of the helical curve on
     the surface can be adjusted through the :math:`A_k` and :math:`B_k` Fourier
     coefficients, which are the optimizable degrees of freedom for this class.
+    Although :math:`\phi` in the above formulas is periodic in the range
+    :math:`[0, 2 \pi)`, the ``quadpoints`` argument should be in the range
+    :math:`[0, 1)` as usual for simsopt curves.
 
     The 1986 Cary-Hanson paper has a more general parameterization than the 1984
     Hanson-Cary paper, relaxing the constraint that the curves lie on a circle
@@ -78,7 +81,7 @@ class CurveHelical(JaxCurve):
     Args:
         quadpoints: (int or array-like) Grid points (or number thereof) along the curve.
         order:  Maximum (inclusive) Fourier mode number :math:`N` for :math:`A_k` and :math:`B_k`.
-        m:  Integer describing helicity of the coil.
+        m:  Integer :math:`m` describing helicity of the coil.
         ell:  Integer :math:`l` describing helicity of the coil.
         R0:  Major radius of the toroidal surface on which the coil lies.
         r:  Minor radius of the toroidal surface on which the coil lies.
@@ -89,7 +92,7 @@ class CurveHelical(JaxCurve):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
 
         def pure(dofs, points):
-            return jaxHelicalfouriercurve_pure(dofs, points, order, m, ell, R0, r)
+            return curve_helical_pure(dofs, points, order, m, ell, R0, r)
 
         self.order = order
         self.m = m
