@@ -86,7 +86,7 @@ class GaussianSampler(GSONable):
         n = len(self.points)
         n_derivs = self.n_derivs
         if randomgen is None:
-            randomgen = np.random
+            randomgen = np.random.Generator(np.random.PCG64DXSM())
         z = randomgen.standard_normal(size=(n*(n_derivs+1), 3))
         curve_and_derivs = self.L@z
         return [curve_and_derivs[(i*n):((i+1)*n), :] for i in range(n_derivs+1)]
