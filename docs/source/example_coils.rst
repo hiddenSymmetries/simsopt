@@ -440,7 +440,7 @@ the previous examples, we additionally define::
   Jals = [ArclengthVariation(c) for c in base_curves]
 
   # Objective function for the coils and its perturbations
-  rg = np.random.PCG64DXSM(seed)
+  rg = np.random.Generator(np.random.PCG64DXSM(seed))
   sampler = GaussianSampler(curves[0].quadpoints, SIGMA, L, n_derivs=1)
   Jfs = []
   curves_pert = []
