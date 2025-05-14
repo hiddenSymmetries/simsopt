@@ -49,5 +49,5 @@ They linkage is given below:
 *. ``simsoptpp``: https://github.com/hiddenSymmetries/simsopt/tree/master/src/simsoptpp
 *. ``examples``: https://github.com/hiddenSymmetries/simsopt/tree/master/examples
 
-So, to point to the ``ci`` folder, use :simsopt:`ci`. Similarly to point to the ``geo`` folder, we use :simsoptpy:`geo`.
+So, to point to the ``ci`` folder, use :simsopt:`ci`. Similarly to point to the ``geo`` folder,  use :simsoptpy:`geo`.
 For pointing to files, use ``simsoptpy_file``, ``simsoptpp_file``, ``example_file``, ``tests_file``.
