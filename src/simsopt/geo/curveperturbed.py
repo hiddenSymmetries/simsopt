@@ -151,7 +151,7 @@ class CurvePerturbed(sopp.Curve, Curve):
 
         .. code-block:: python
 
-            from randomgen import SeedSequence, PCG64
+            from np.random import SeedSequence, PCG64DXSM
             import numpy as np
             curves = ...
             sigma = 0.01
@@ -163,7 +163,7 @@ class CurvePerturbed(sopp.Curve, Curve):
             idx_start, idx_end = split_range_between_mpi_rank(N) # e.g. [0, 5) on rank 0, [5, 10) on rank 1
             perturbed_curves = [] # this will be a List[List[Curve]], with perturbed_curves[i] containing the perturbed curves for the i-th stellarator
             for i in range(idx_start, idx_end):
-                rg = np.random.Generator(PCG64(seeds_sys[j], inc=0))
+                rg = np.random.Generator(PCG64DXSM(seeds_sys[j], inc=0))
                 stell = []
                 for c in curves:
                     pert = PerturbationSample(sampler_systematic, randomgen=rg)

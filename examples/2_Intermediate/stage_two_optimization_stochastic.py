@@ -26,7 +26,7 @@ the latter is independent for each coil.
 
 import os
 from pathlib import Path
-from randomgen import PCG64
+from numpy.random import PCG64DXSM as PCG64
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import BiotSavart, Current, Coil, coils_via_symmetries
@@ -125,7 +125,7 @@ Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 Jals = [ArclengthVariation(c) for c in base_curves]
 
 seed = 0
-rg = np.random.Generator(PCG64(seed, inc=0))
+rg = PCG64(seed)
 
 sampler = GaussianSampler(curves[0].quadpoints, SIGMA, L, n_derivs=1)
 Jfs = []
