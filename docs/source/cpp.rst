@@ -4,7 +4,7 @@ Simsopt C++ backend
 ``SIMSOPT`` uses C++ for performance critical functions such as the Biot Savart law, many of the geometric classes, and particle tracing.
 This section is aimed at advanced developers of ``SIMSOPT`` to give an overview over the interface between C++ and Python and to help avoid common pitfalls. For most users of ``SIMSOPT`` this is not relevant.
 
-The C++ code can be found in the folder ``src/simsoptpp``.
+The C++ code can be found in the folder :simsopt:`src/simsoptpp`.
 
 
 pybind11
@@ -16,7 +16,7 @@ The interfacing happens in the ``python.cpp`` and ``python_*.cpp`` files.
 
 Trampoline classes:
 In many cases we define some parent class in C++ that has virtual functions and then we want to inherit from this class on the python side and overload these functions.
-A good example for this is the :mod:`simsoptpp.MagneticField` class. This is the base class for magnetic fields and it takes care of things like caching, or coordinate systems for evaluating magnetic fields. When you create a new magnetic field, you overload functions such as ``B_impl``, in order to compute the magnetic field at given locations. In order for this overload to work on the python side, pybind requires so called `trampoline classes <https://pybind11-jagerman.readthedocs.io/en/latest/advanced/classes.html#overriding-virtual-functions-in-python>`_. In the case of magnetic fields, this can be found in ``src/simsoptpp/pymagneticfield.h``.
+A good example for this is the :mod:`simsoptpp.MagneticField` class. This is the base class for magnetic fields and it takes care of things like caching, or coordinate systems for evaluating magnetic fields. When you create a new magnetic field, you overload functions such as ``B_impl``, in order to compute the magnetic field at given locations. In order for this overload to work on the python side, pybind requires so called `trampoline classes <https://pybind11-jagerman.readthedocs.io/en/latest/advanced/classes.html#overriding-virtual-functions-in-python>`_. In the case of magnetic fields, this can be found in :simsoptpp_file:`pymagneticfield.h`.
 
 
 Lifetime of objects:
