@@ -466,6 +466,12 @@ class DofNames(unittest.TestCase):
                 s.set('zc(1,-3)', 2.0)
                 assert s.get('rs(3,2)') == s.rs[3, s.ntor + 2]
                 assert s.get('zc(1,-3)') == s.zc[1, s.ntor - 3]
+            else:
+                with self.assertRaises(Exception):
+                    # make sure that stellarator symmetric surfaces don't
+                    # have stellarator asymmetric modes
+                    s.set('rs(3,2)', 1.0)
+                    s.set('zc(1,-3)', 2.0)
         elif surfacetype == "SurfaceXYZFourier":
             s.set('xc(3,2)', 1.0)
             s.set('ys(1,-3)', 2.0)
@@ -480,6 +486,11 @@ class DofNames(unittest.TestCase):
                 assert s.get('xs(3,2)') == s.xs[3, s.ntor + 2]
                 assert s.get('yc(1,-3)') == s.yc[1, s.ntor - 3]
                 assert s.get('zc(0,0)') == s.zc[0, s.ntor]
+            else:
+                with self.assertRaises(Exception):
+                    s.set('xs(3,2)', 1.0)
+                    s.set('yc(1,-3)', 2.0)
+                    s.set('zc(0,0)', 3.0)
         elif surfacetype == "SurfaceXYZTensorFourier":
             s.set('x(3,2)', 1.0)
             s.set('y(7,1)', 2.0)
@@ -495,6 +506,11 @@ class DofNames(unittest.TestCase):
                 assert s.get('x(3,7)') == s.xcs[3, 7]
                 assert s.get('y(7,6)') == s.ycs[7, 6]
                 assert s.get('z(0,0)') == s.zcs[0, 0]
+            else:
+                with self.assertRaises(Exception):
+                    s.set('x(3,7)', 1.0)
+                    s.set('y(7,6)', 2.0)
+                    s.set('z(0,0)', 3.0)
         else:
             raise NotImplementedError("Surface type not implemented")
 
