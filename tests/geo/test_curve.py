@@ -84,7 +84,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     elif curvetype == "CurveHelical":
         curve = CurveHelical(x, order, 5, 2, 1.0, 0.3)
     elif curvetype == "CurveHelicalInitx0":
-        curve = CurveHelical(x, order, 5, 2, 1.0, 0.3, x0=np.ones((2*order,)))
+        curve = CurveHelical(x, order, 5, 2, 1.0, 0.3, x0=np.ones(2 * order + 1))
     elif curvetype == "CurvePlanarFourier":
         curve = CurvePlanarFourier(x, order)
     elif curvetype == "JaxCurvePlanarFourier":
@@ -203,7 +203,7 @@ class Testing(unittest.TestCase):
         curve1.set('xc(0)', R)
         curve1.set('xc(1)', r)
         curve1.set('zs(1)', -r)
-        curve2 = CurveHelical(np.linspace(0, 1, 100, endpoint=False), order, nfp, 1, R, r, x0=np.zeros((2*order,)))
+        curve2 = CurveHelical(np.linspace(0, 1, 100, endpoint=False), order, nfp, 1, R, r, x0=np.zeros(2 * order + 1))
         np.testing.assert_allclose(curve1.gamma(), curve2.gamma(), atol=1e-14)
 
     def test_trefoil_nonstellsym(self):
@@ -382,8 +382,8 @@ class Testing(unittest.TestCase):
 
     def test_curve_helical_xyzfourier(self):
         x = np.asarray([0.6])
-        curve1 = CurveHelical(x, 2, 5, 2, 1.0, 0.3)
-        curve1.x = [np.pi/2, 0, 0, 0]
+        curve1 = CurveHelical(x, 1, 5, 2, 1.0, 0.3)
+        curve1.x = [np.pi/2, 0, 0]
         curve2 = CurveXYZFourier(x, 7)
         curve2.x = \
             [0, 0, 0, 0, 1, -0.15, 0, 0, 0, 0, 0, 0, 0, -0.15, 0,
