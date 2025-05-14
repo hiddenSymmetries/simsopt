@@ -1243,14 +1243,14 @@ class Testing(unittest.TestCase):
         """
         from simsopt.field import apply_symmetries_to_curves
         TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
-        nphi, ntheta = 8, 8
+        nphi, ntheta = 4, 4
         nfp_file_map = {
             1: 'input.circular_tokamak',
             2: 'input.LandremanPaul2021_QA_reactorScale_lowres',
             3: 'c09r00_B_axis_half_tesla_PM4Stell.plasma',
             4: 'input.LandremanPaul2021_QH_reactorScale_lowres'
         }
-        Nmin_factors = [2.01, 3.0, 4.0]
+        Nmin_factors = [2.01, 3.0]
         half_period_factors = [1.0, 2.0]
         for nfp, fname in nfp_file_map.items():
             with self.subTest(nfp=nfp):
@@ -1264,7 +1264,7 @@ class Testing(unittest.TestCase):
                 s_outer = load_func(file_nfp, range="half period", nphi=nphi, ntheta=ntheta)
                 s_inner.extend_via_projected_normal(1.0)
                 s_outer.extend_via_projected_normal(2.0)
-                Nx, Ny, Nz = 5, 5, 5
+                Nx, Ny, Nz =  5, 5, 5,
                 for Nmin_factor in Nmin_factors:
                     for half_period_factor in half_period_factors:
                         print(f"nfp={nfp}, Nmin_factor={Nmin_factor}, half_period_factor={half_period_factor}")

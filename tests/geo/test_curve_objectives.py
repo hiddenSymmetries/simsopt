@@ -452,5 +452,35 @@ class Testing(unittest.TestCase):
                 np.testing.assert_allclose(objective2.J(), 1, atol=1e-14, rtol=1e-14)
                 np.testing.assert_allclose(objective3.J(), 1, atol=1e-14, rtol=1e-14)
 
+    def test_curve_curve_distance_empty_candidates(self):
+        """
+        Test that setting candidates to an empty list in CurveCurveDistance still allows
+        shortest_distance() to compute the true minimum distance between two curves,
+        matching a direct calculation.
+        """
+        # Use two simple curves
+        curve1 = CurvePlanarFourier(100, 0)
+        curve2 = CurvePlanarFourier(100, 0)
+        # Set curve1 to a circle of radius 1 at (0,0,0)
+        dofs1 = np.zeros(curve1.dof_size)
+        dofs1[0] = 1.0
+        curve1.x = dofs1
+        # Set curve2 to a circle of radius 1 at (3,0,0)
+        dofs2 = np.zeros(curve2.dof_size)
+        dofs2[0] = 1.0
+        dofs2[-3] = 3.0  # X offset
+        curve2.x = dofs2
+        curves = [curve1, curve2]
+        J = CurveCurveDistance(curves, 0.5)
+        J.candidates = []  # Force candidates to be empty
+        # Compute shortest_distance via the class
+        dist_class = J.shortest_distance()
+        # Compute minimum distance directly
+        gamma1 = curve1.gamma()
+        gamma2 = curve2.gamma()
+        dists = np.linalg.norm(gamma1[:, None, :] - gamma2[None, :, :], axis=2)
+        dist_direct = np.min(dists)
+        self.assertAlmostEqual(dist_class, dist_direct, msg=f"Class: {dist_class}, Direct: {dist_direct}")
+
 if __name__ == "__main__":
     unittest.main()

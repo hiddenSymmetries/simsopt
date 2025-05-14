@@ -44,6 +44,20 @@ class Coil(sopp.Coil, Optimizable):
         Optimizable.__init__(self, depends_on=[curve, current])
 
     def vjp(self, v_gamma, v_gammadash, v_current):
+        """
+        Compute the Jacobian-vector product of the coil.
+
+        .. math::
+            \frac{\partial \mathbf{B}}{\partial \mathbf{x}} = \frac{\partial \mathbf{B}}{\partial \mathbf{\gamma}} \frac{\partial \mathbf{\gamma}}{\partial \mathbf{x}} + \frac{\partial \mathbf{B}}{\partial \mathbf{\gammadash}} \frac{\partial \mathbf{\gammadash}}{\partial \mathbf{x}} + \frac{\partial \mathbf{B}}{\partial \mathbf{I}} \frac{\partial \mathbf{I}}{\partial \mathbf{x}}
+
+        Args:
+            v_gamma: The vector to multiply the Jacobian with.
+            v_gammadash: The vector to multiply the Jacobian with.
+            v_current: The vector to multiply the Jacobian with.
+
+        Returns:
+            The Jacobian-vector product of the coil.
+        """
         return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
             + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) \
             + self.current.vjp(v_current)
@@ -61,35 +75,88 @@ class Coil(sopp.Coil, Optimizable):
 class CurrentBase(Optimizable):
     """
     Abstract base class for current objects that are optimizable.
+
+    Args:
+        **kwargs: Additional keyword arguments.
     """
 
     def __init__(self, **kwargs):
         Optimizable.__init__(self, **kwargs)
 
     def __mul__(self, other):
+        """
+        Multiply the current object by a scalar.
+
+        Args:
+            other: The scalar to multiply the current object by.
+
+        Returns:
+            A new current object that is the product of the current object and the scalar.
+        """
         assert isinstance(other, float) or isinstance(other, int)
         return ScaledCurrent(self, other)
 
     def __rmul__(self, other):
+        """
+        Multiply the current object by a scalar.
+
+        Args:
+            other: The scalar to multiply the current object by.
+
+        Returns:
+            A new current object that is the product of the current object and the scalar.
+        """
         assert isinstance(other, float) or isinstance(other, int)
         return ScaledCurrent(self, other)
 
     def __truediv__(self, other):
+        """
+        Divide the current object by a scalar.
+
+        Args:
+            other: The scalar to divide the current object by.
+
+        Returns:
+            A new current object that is the quotient of the current object and the scalar.
+        """
         assert isinstance(other, float) or isinstance(other, int)
         return ScaledCurrent(self, 1.0/other)
 
     def __neg__(self):
+        """
+        Negate the current value in the current object.
+
+        Returns:
+            A new current object that has the opposite sign of current.
+        """
         return ScaledCurrent(self, -1.)
 
     def __add__(self, other):
+        """
+        Add two current objects.
+
+        Returns:
+            A new current object that is the sum of the current object and the other current object.
+        """
         return CurrentSum(self, other)
 
     def __sub__(self, other):
+        """
+        Subtract two current objects.
+
+        Returns:
+            A new current object that is the difference of the current object and the other current object.
+        """
         return CurrentSum(self, -other)
 
     # https://stackoverflow.com/questions/11624955/avoiding-python-sum-default-start-arg-behavior
     def __radd__(self, other):
-        # This allows sum() to work (the default start value is zero)
+        """
+        Add two current objects. This allows sum() to work (the default start value is zero).
+
+        Returns:
+            A new current object that is the sum of the current object and the other current object.
+        """
         if other == 0:
             return self
         return self.__add__(other)
@@ -103,12 +170,12 @@ class Current(sopp.Current, CurrentBase):
     This class is used for the current in a coil, or in a set of coils constrained 
     to use the same current.
 
-    Parameters
-    ----------
-    current : float
-        Initial value of the current.
-    dofs : array-like or None, optional
-        Degrees of freedom for optimization. If None, uses the current value.
+    Args:
+        current : float
+            Initial value of the current.
+        dofs : array-like or None, optional
+            Degrees of freedom for optimization. If None, uses the current value.
+        kwargs: Additional keyword arguments.
     """
 
     def __init__(self, current, dofs=None, **kwargs):
@@ -121,25 +188,41 @@ class Current(sopp.Current, CurrentBase):
                                  dofs=dofs, **kwargs)
 
     def vjp(self, v_current):
+        """
+        Compute the Jacobian-vector product of the current function.
+
+        Args:
+            v_current: The vector to multiply the Jacobian with.
+
+        Returns:
+            The Jacobian-vector product of the current function.
+        """
         return Derivative({self: v_current})
 
     @property
     def current(self):
+        """
+        Get the current value of the current object.
+
+        Returns:
+            The current value of the current object.
+        """
         return self.get_value()
 
 
 class ScaledCurrent(sopp.CurrentBase, CurrentBase):
     """
-    Represents a current that is a scaled version of another current object (Scales :mod:`Current` by a factor.)
+    Represents a current that is a scaled version of another current object 
+    (Scales :mod:`Current` by a factor.)
 
     Used, for example, to flip currents for stellarator symmetric coils.
 
-    Parameters
-    ----------
-    current_to_scale : CurrentBase
-        The current object to scale.
-    scale : float
-        The scaling factor.
+    Args:
+        current_to_scale : CurrentBase
+            The current object to scale.
+        scale : float
+            The scaling factor.
+        kwargs: Additional keyword arguments.
     """
 
     def __init__(self, current_to_scale, scale, **kwargs):
@@ -149,18 +232,47 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
         CurrentBase.__init__(self, depends_on=[current_to_scale], **kwargs)
 
     def vjp(self, v_current):
+        """
+        Compute the Jacobian-vector product of the current function.
+
+        Args:
+            v_current: The vector to multiply the Jacobian with.
+
+        Returns:
+            The Jacobian-vector product of the current function.
+        """
         return self.scale * self.current_to_scale.vjp(v_current)
 
     def get_value(self):
+        """
+        Get the current value of the current object.
+
+        Returns:
+            The current value of the current object.
+        """
         return self.scale * self.current_to_scale.get_value()
 
     def set_dofs(self, dofs):
+        """
+        Set the degrees of freedom for the current object.
+
+        Args:
+            dofs: The degrees of freedom to set.
+        """
         self.current_to_scale.set_dofs(dofs / self.scale)
 
 
 def current_pure(dofs):
-    return dofs
+    """
+    A pure function that returns the current value.
 
+    Args:
+        dofs: The current value.
+
+    Returns:
+        The current value.
+    """
+    return dofs
 
 class JaxCurrent(sopp.Current, CurrentBase):
     """
@@ -168,12 +280,12 @@ class JaxCurrent(sopp.Current, CurrentBase):
     entirely jax-based optimizations with JaxCurves and JaxCurrents. Probably
     need a full Jax-based BiotSavart class to support this fully.
 
-    Parameters
-    ----------
-    current : float
-        Initial value of the current.
-    dofs : array-like or None, optional
-        Degrees of freedom for optimization. If None, uses the current value.
+    Args:
+        current : float
+            Initial value of the current.
+        dofs : array-like or None, optional
+            Degrees of freedom for optimization. If None, uses the current value.
+        kwargs: Additional keyword arguments.
     """
     def __init__(self, current, dofs=None, **kwargs):
         sopp.Current.__init__(self, current)
@@ -188,20 +300,26 @@ class JaxCurrent(sopp.Current, CurrentBase):
         self.dcurrent_by_dcurrent_jax = jit(jacrev(self.current_jax))
         self.dcurrent_by_dcurrent_vjp_jax = jit(lambda x, v: vjp(self.current_jax, x)[1](v)[0])
 
-    def current_impl(self, dofs):
-        return self.current_jax(dofs)
-
     def vjp(self, v):
         r"""
+        Compute the Jacobian-vector product of the current function.
+
+        Args:
+            v: The vector to multiply the Jacobian with.
+
+        Returns:
+            The Jacobian-vector product of the current function.
         """
         return Derivative({self: self.dcurrent_by_dcurrent_vjp_jax(self.get_dofs(), v)})
 
-    def set_dofs(self, dofs):
-        self.local_x = dofs
-        sopp.Current.set_dofs(self, dofs)
-
     @property
     def current(self):
+        """
+        Get the current value of the current object.
+
+        Returns:
+            The current value of the current object.
+        """
         return self.get_value()
 
 
@@ -226,9 +344,24 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
         CurrentBase.__init__(self, depends_on=[current_a, current_b])
 
     def vjp(self, v_current):
+        """
+        Compute the Jacobian-vector product of the current function.
+
+        Args:
+            v_current: The vector to multiply the Jacobian with.
+
+        Returns:
+            The Jacobian-vector product of the current function.
+        """
         return self.current_a.vjp(v_current) + self.current_b.vjp(v_current)
 
     def get_value(self):
+        """
+        Get the current value of the current object.
+
+        Returns:
+            The current value of the current object.
+        """
         return self.current_a.get_value() + self.current_b.get_value()
 
 
@@ -311,15 +444,22 @@ def coils_to_vtk(coils, filename, close=False, extra_data=None):
         coils: A python list of Coil objects.
         filename: Name of the file to write.
         close: Whether to draw the segment from the last quadrature point back to the first.
+        extra_data: Additional data to save to the VTK file.
     """
     from simsopt.field.force import coil_net_force, coil_net_torque, coil_force, coil_torque
     from simsopt.geo.curve import curves_to_vtk
+
+    # get the curves and currents
     curves = [coil.curve for coil in coils]
     currents = [coil.current.get_value() for coil in coils]
+
+    # get the number of points per curve
     if close:
         ppl = np.asarray([c.gamma().shape[0]+1 for c in curves])
     else:
         ppl = np.asarray([c.gamma().shape[0] for c in curves])
+
+    # get the current data, which is the same at every point on a given coil
     contig = np.ascontiguousarray
     pointData = {}
     data = np.concatenate([i*np.ones((ppl[i], )) for i in range(len(curves))])
@@ -335,16 +475,23 @@ def coils_to_vtk(coils, filename, close=False, extra_data=None):
     coil_forces = np.zeros((data.shape[0], 3))
     coil_torques = np.zeros((data.shape[0], 3))
     for i, c in enumerate(coils):
+        # get the pointwise forces and torques for the current coil
         coil_force_temp = np.squeeze([coil_force(c, coils)])
         coil_torque_temp = np.squeeze([coil_torque(c, coils)])
+
+        # get the net forces and torques for the current coil, 
+        # which is the same at every point on the coil
         net_forces[i, :] = np.array([coil_net_force(c, coils)])
         net_torques[i, :] = np.array([coil_net_torque(c, coils)])
+
+        # if the curve is closed, add the first point to the end
         if close:
             coil_force_temp = np.vstack((coil_force_temp, coil_force_temp[0, :]))
             coil_torque_temp = np.vstack((coil_torque_temp, coil_torque_temp[0, :]))
         coil_forces[i * ppl[i]: (i + 1) * ppl[i], :] = coil_force_temp
         coil_torques[i * ppl[i]: (i + 1) * ppl[i], :] = coil_torque_temp
 
+    # copy force and torque data over to pointwise data on a coil curve
     coil_data = np.zeros((data.shape[0], 3))
     for i in range(len(coils)):
         coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = net_forces[i, :]
@@ -356,13 +503,19 @@ def coils_to_vtk(coils, filename, close=False, extra_data=None):
     for i in range(len(coils)):
         coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = net_torques[i, :]
     coil_data = np.ascontiguousarray(coil_data)
+
+    # Add pointwise force and torque data to the dictionary
     pointData['NetTorques'] = (contig(coil_data[:, 0]),
                                 contig(coil_data[:, 1]),
                                 contig(coil_data[:, 2]))
     pointData["Pointwise_Forces"] = (contig(coil_forces[:, 0]), contig(coil_forces[:, 1]), contig(coil_forces[:, 2]))
     pointData["Pointwise_Torques"] = (contig(coil_torques[:, 0]), contig(coil_torques[:, 1]), contig(coil_torques[:, 2]))
+    
+    # If extra data is provided, add it to the dictionary
     if extra_data is not None:
         pointData = {**pointData, **extra_data}
+
+    # Call curves_to_vtk to save the curves and extra dictionary data 
     curves_to_vtk(curves, filename, close=close, extra_data=pointData)
 
 def coils_via_symmetries(curves, currents, nfp, stellsym, regularizations=None):

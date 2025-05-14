@@ -192,9 +192,6 @@ class JaxCurvePlanarFourier(JaxCurve):
         """
         self.dof_list = np.array(dofs)
 
-    def set_quadpoints(self, quadpoints):
-        self.quadpoints = quadpoints
-
     def _make_names(self, order):
         """
         This function returns the names of the dofs associated to this object.

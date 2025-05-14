@@ -177,6 +177,8 @@ class ScaledCurrentTesting(unittest.TestCase):
             c3 = ScaledCurrent(c0, fak)
             assert abs(c3.get_value()-fak * c0.get_value()) < 1e-15
             assert np.linalg.norm((c3.vjp(one)-fak * c0.vjp(one))(c0)) < 1e-15
+            c3.set_dofs(5. * fak)
+            assert np.isclose(c3.current_to_scale.get_value(), 5.)
 
             c4 = -c0
             assert abs(c4.get_value() - (-1.) * c0.get_value()) < 1e-15
@@ -341,12 +343,14 @@ class CoilFormatConvertTesting(unittest.TestCase):
         curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical", "CurvePlanarFourier", "JaxCurvePlanarFourier"]
         for curvetype in curvetypes:
             for rotated in [True, False]:
-                curve = get_curve(curvetype, rotated=rotated)
-                coil = Coil(curve, Current(1.0))
-                filename = "test_coil"
-                coils_to_vtk([coil], filename)
-                self.assertTrue(os.path.exists(filename + '.vtu'), "VTK file was not created.")
-                self.assertGreater(os.path.getsize(filename + '.vtu'), 0, "VTK file is empty.")
+                for close in [True, False]:
+                    for extra_data in [None, {}]:
+                        curve = get_curve(curvetype, rotated=rotated, x=20)  # Give the curve more than 1 quadpoint
+                        coil = Coil(curve, Current(1.0))
+                        filename = "test_coil"
+                        coils_to_vtk([coil], filename, close=close, extra_data=extra_data)
+                        self.assertTrue(os.path.exists(filename + '.vtu'), "VTK file was not created.")
+                        self.assertGreater(os.path.getsize(filename + '.vtu'), 0, "VTK file is empty.")
 
 
 if __name__ == "__main__":
