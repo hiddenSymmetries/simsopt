@@ -9,7 +9,8 @@ def run_cmd_get_output(cmd):
 
 
 def get_github_rev():
-    path = run_cmd_get_output(['git', 'rev-parse', '--abbrev-ref=strict', 'HEAD'])
+    # path = run_cmd_get_output(['git', 'rev-parse', '--abbrev-ref=strict', 'HEAD'])
+    path = run_cmd_get_output(['git', 'symbolic-ref', '-q',  '--short', 'HEAD'])
     print("==============*********========")
     print('Git branch ID: ', path)
     print("==============*********========")
