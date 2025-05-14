@@ -38,3 +38,16 @@ Whenever the code is updated, repopulate the code tree and run either step-1  or
 cd docs
 sphinx-apidoc -f -o source ../src/simsopt 
 ```
+
+## Refering to code on GitHub
+
+To point to the simsopt repo on GitHub, use the directives ``simsopt``, ``simsoptpy``, ``simsoptpp``, ``examples``, ``tests``.
+They linkage is given below:
+
+*. ``simsopt``: https://github.com/hiddenSymmetries/simsopt
+*. ``simsoptpy``: https://github.com/hiddenSymmetries/simsopt/tree/master/src/simsopt
+*. ``simsoptpp``: https://github.com/hiddenSymmetries/simsopt/tree/master/src/simsoptpp
+*. ``examples``: https://github.com/hiddenSymmetries/simsopt/tree/master/examples
+
+So, to point to the ``ci`` folder, use :simsopt:`ci`. Similarly to point to the ``geo`` folder, we use :simsoptpy:`geo`.
+For pointing to files, use ``simsoptpy_file``, ``simsoptpp_file``, ``example_file``, ``tests_file``.

@@ -36,7 +36,7 @@ def setup(app):
     app.add_role('simsoptpp_file', autolink('{}/blob/{}/src/simsoptpp/%s'.format(baseurl, rev)))
     app.add_role('example', autolink('{}/tree/{}/examples/%s'.format(baseurl, rev)))
     app.add_role('example_file', autolink('{}/blob/{}/examples/%s'.format(baseurl, rev)))
-    app.add_role('tests', autolink('{}/blob/{}/tests/%s'.format(baseurl, rev)))
+    app.add_role('tests', autolink('{}/tree/{}/tests/%s'.format(baseurl, rev)))
     app.add_role('tests_file', autolink('{}/blob/{}/tests/%s'.format(baseurl, rev)))
 
 
