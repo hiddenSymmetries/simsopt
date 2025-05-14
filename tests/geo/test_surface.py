@@ -582,5 +582,81 @@ class UtilTests(unittest.TestCase):
         np.testing.assert_allclose(surf1.x, surf2.x, atol=1e-14)
 
 
+class DofNames(unittest.TestCase):
+    """
+    Check that the dof names correspond to the correct values within each
+    Surface class by using the set and get methods and checking against
+    the internal arrays.
+    """
+    def test_dof_names(self):
+        surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier",
+                        "SurfaceXYZTensorFourier"]
+        for surfacetype in surfacetypes:
+            for stellsym in [False, True]:
+                with self.subTest(surfacetype=surfacetype):
+                    self.subtest_set_get_surf_dofs(surfacetype, stellsym)
+
+    def subtest_set_get_surf_dofs(self, surfacetype, stellsym):
+        s = get_surface(surfacetype, stellsym, full=True)
+        # for each surface, set some random dofs and check for consistency
+        if surfacetype == "SurfaceRZFourier":
+            s.set('rc(3,2)', 1.0)
+            s.set('zs(1,-3)', 2.0)
+            assert s.get('rc(3,2)') == s.rc[3, s.ntor + 2]
+            assert s.get('zs(1,-3)') == s.zs[1, s.ntor - 3]
+            if not stellsym:
+                s.set('rs(3,2)', 1.0)
+                s.set('zc(1,-3)', 2.0)
+                assert s.get('rs(3,2)') == s.rs[3, s.ntor + 2]
+                assert s.get('zc(1,-3)') == s.zc[1, s.ntor - 3]
+            else:
+                with self.assertRaises(Exception):
+                    # make sure that stellarator symmetric surfaces don't
+                    # have stellarator asymmetric modes
+                    s.set('rs(3,2)', 1.0)
+                    s.set('zc(1,-3)', 2.0)
+        elif surfacetype == "SurfaceXYZFourier":
+            s.set('xc(3,2)', 1.0)
+            s.set('ys(1,-3)', 2.0)
+            s.set('zs(2,1)', 3.0)
+            assert s.get('xc(3,2)') == s.xc[3, s.ntor + 2]
+            assert s.get('ys(1,-3)') == s.ys[1, s.ntor - 3]
+            assert s.get('zs(2,1)') == s.zs[2, s.ntor + 1]
+            if not stellsym:
+                s.set('xs(3,2)', 1.0)
+                s.set('yc(1,-3)', 2.0)
+                s.set('zc(0,0)', 3.0)
+                assert s.get('xs(3,2)') == s.xs[3, s.ntor + 2]
+                assert s.get('yc(1,-3)') == s.yc[1, s.ntor - 3]
+                assert s.get('zc(0,0)') == s.zc[0, s.ntor]
+            else:
+                with self.assertRaises(Exception):
+                    s.set('xs(3,2)', 1.0)
+                    s.set('yc(1,-3)', 2.0)
+                    s.set('zc(0,0)', 3.0)
+        elif surfacetype == "SurfaceXYZTensorFourier":
+            s.set('x(3,2)', 1.0)
+            s.set('y(7,1)', 2.0)
+            s.set('z(10,5)', 3.0)
+            # note for this class, indices start from 0 not -ntor
+            assert s.get('x(3,2)') == s.xcs[3, 2]
+            assert s.get('y(7,1)') == s.ycs[7, 1]
+            assert s.get('z(10,5)') == s.zcs[10, 5]
+            if not stellsym:
+                s.set('x(3,7)', 1.0)
+                s.set('y(7,6)', 2.0)
+                s.set('z(0,0)', 3.0)
+                assert s.get('x(3,7)') == s.xcs[3, 7]
+                assert s.get('y(7,6)') == s.ycs[7, 6]
+                assert s.get('z(0,0)') == s.zcs[0, 0]
+            else:
+                with self.assertRaises(Exception):
+                    s.set('x(3,7)', 1.0)
+                    s.set('y(7,6)', 2.0)
+                    s.set('z(0,0)', 3.0)
+        else:
+            raise NotImplementedError("Surface type not implemented")
+
+
 if __name__ == "__main__":
     unittest.main()
