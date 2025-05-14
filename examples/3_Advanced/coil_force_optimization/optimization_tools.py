@@ -38,7 +38,7 @@ from simsopt.geo import (
     SurfaceRZFourier)
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
 from simsopt.field.force import coil_force, coil_torque, coil_net_force, coil_net_torque, \
-    LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque, B2_Energy
+    LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque, B2Energy
 
 def continuation(N=10000, dx=0.05,
                  INPUT_DIR="./output/QA/with-force-penalty/1/pareto/",
@@ -182,7 +182,7 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
 
         if with_force:
             # (1e-20, 1e-8) for Squared forces
-            # (1e-14, 1e-5) for Lpforces or B2_Energy
+            # (1e-14, 1e-5) for Lpforces or B2Energy
             FORCE_WEIGHT = 10.0 ** np.random.uniform(-13, -8)
         else:
             FORCE_WEIGHT = 0
@@ -440,7 +440,7 @@ def optimization(
         try:
             Jforce = FORCE_OBJ(base_coils, coils, downsample=2)
         except:
-            Jforce = FORCE_OBJ(coils)  # For B2_Energy
+            Jforce = FORCE_OBJ(coils)  # For B2Energy
 
     Jals = [ArclengthVariation(c) for c in base_curves]
     Jlength = sum(QuadraticPenalty(Jl, LENGTH_TARGET, "max") for Jl in Jls)
@@ -523,7 +523,7 @@ def optimization(
     # SAVE DATA TO JSON
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     mean_AbsB = np.mean(bs.AbsB())
-    b2energy = B2_Energy(coils).J()
+    b2energy = B2Energy(coils).J()
     lpcurveforce = LpCurveForce(base_coils, coils, p=2, threshold=FORCE_THRESHOLD, downsample=2).J()
     lpcurvetorque = LpCurveTorque(base_coils, coils, p=2, threshold=FORCE_THRESHOLD, downsample=2).J()
     squaredmeanforce = SquaredMeanForce(base_coils, coils).J()

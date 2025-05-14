@@ -16,9 +16,9 @@ __all__ = [
     "coil_force",
     "self_force_circ",
     "self_force_rect",
-    "coil_coil_inductances_pure",
-    "coil_coil_inductances_inv_pure",
-    "induced_currents_pure",
+    "_coil_coil_inductances_pure",
+    "_coil_coil_inductances_inv_pure",
+    "_induced_currents_pure",
     "NetFluxes",
     "B2Energy",
     "coil_net_force",
@@ -112,7 +112,7 @@ def coil_net_torque(target_coil, source_coils):
     return net_torque
 
 
-def coil_force_pure(B, I, t):
+def _coil_force_pure(B, I, t):
     """
     Compute the pointwise Lorentz force per unit length on a coil with n quadrature points, in Newtons/meter. 
 
@@ -141,7 +141,7 @@ def self_force(target_coil):
     tangent = target_coil.curve.gammadash() / np.linalg.norm(target_coil.curve.gammadash(),
                                                       axis=1)[:, None]
     B = B_regularized(target_coil)
-    return coil_force_pure(B, I, tangent)
+    return _coil_force_pure(B, I, tangent)
 
 
 def self_force_circ(target_coil, a):
@@ -505,7 +505,7 @@ class MeanSquaredForce_deprecated(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
-def coil_coil_inductances_pure(gammas, gammadashs, downsample, regularizations):
+def _coil_coil_inductances_pure(gammas, gammadashs, downsample, regularizations):
     r"""
     Compute the full inductance matrix for a set of coils, including both mutual and 
     self-inductances. The coils are allowed to have different numbers of quadrature points,
@@ -576,7 +576,7 @@ def coil_coil_inductances_pure(gammas, gammadashs, downsample, regularizations):
     return 1e-7 * Lij
 
 
-def coil_coil_inductances_inv_pure(gammas, gammadashs, downsample, regularizations):
+def _coil_coil_inductances_inv_pure(gammas, gammadashs, downsample, regularizations):
     """
     Pure function for computing the inverse of the coil inductance matrix L. This matrix
     is symmetric positive definite by definition.
@@ -618,13 +618,13 @@ def coil_coil_inductances_inv_pure(gammas, gammadashs, downsample, regularizatio
         array (shape (m,m)): Array of inverse of the coil inductance matrix.
     """
     # Lij is symmetric positive definite so has a cholesky decomposition
-    C = jnp.linalg.cholesky(coil_coil_inductances_pure(gammas, gammadashs, downsample, regularizations))
+    C = jnp.linalg.cholesky(_coil_coil_inductances_pure(gammas, gammadashs, downsample, regularizations))
     inv_C = jscp.linalg.solve_triangular(C, jnp.eye(C.shape[0]), lower=True)
     inv_L = jscp.linalg.solve_triangular(C.T, inv_C, lower=False)
     return inv_L
 
 
-def induced_currents_pure(gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, regularizations):
+def _induced_currents_pure(gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, regularizations):
     """
     Pure function for computing the induced currents in a set of m passive coils with n quadrature points
     due to a set of m' TF coils with n' quadrature points (and themselves). 
@@ -647,7 +647,7 @@ def induced_currents_pure(gammas, gammadashs, gammas_TF, gammadashs_TF, currents
     Returns:
         array (shape (m,)): Array of induced currents.
     """
-    return -coil_coil_inductances_inv_pure(gammas, gammadashs, downsample, regularizations) @ net_fluxes_pure(gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)
+    return -_coil_coil_inductances_inv_pure(gammas, gammadashs, downsample, regularizations) @ net_fluxes_pure(gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)
 
 
 def b2energy_pure(gammas, gammadashs, currents, downsample, regularizations):
@@ -679,7 +679,7 @@ def b2energy_pure(gammas, gammadashs, currents, downsample, regularizations):
         float: Value of the objective function.
     """
     Ii_Ij = (currents[:, None] * currents[None, :])
-    Lij = coil_coil_inductances_pure(
+    Lij = _coil_coil_inductances_pure(
         gammas, gammadashs, downsample, regularizations
     )
     U = 0.5 * (jnp.sum(Ii_Ij * Lij))
