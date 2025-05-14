@@ -26,7 +26,7 @@ Main steps:
 
 Usage:
     python coil_force_objectives_scan.py <ObjectiveType> <ForceWeight> [<Threshold>]
-    where <ObjectiveType> is one of: SquaredMeanForce, SquaredMeanTorque, LpCurveForce, LpCurveTorque, B2_Energy, NetFluxes
+    where <ObjectiveType> is one of: SquaredMeanForce, SquaredMeanTorque, LpCurveForce, LpCurveTorque, B2Energy, NetFluxes
     and <ForceWeight> is the weight for the force/torque term.
     <Threshold> is optional for LpCurveForce/LpCurveTorque.
 
@@ -45,14 +45,14 @@ from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance,
                          MeanSquaredCurvature, LpCurveCurvature)
 from simsopt.field import BiotSavart
 from simsopt.field.force import LpCurveForce, \
-    SquaredMeanForce, SquaredMeanTorque, LpCurveTorque, B2_Energy, NetFluxes
+    SquaredMeanForce, SquaredMeanTorque, LpCurveTorque, B2Energy, NetFluxes
 from simsopt.field.selffield import regularization_circ
 from simsopt.util import in_github_actions
 
 # --- Argument check and usage warning ---
 if len(sys.argv) < 3:
     print("\nUsage: python coil_force_objectives_scan.py <ObjectiveType> <ForceWeight> [<Threshold>]")
-    print("  <ObjectiveType>: SquaredMeanForce, SquaredMeanTorque, LpCurveForce, LpCurveTorque, B2_Energy, NetFluxes")
+    print("  <ObjectiveType>: SquaredMeanForce, SquaredMeanTorque, LpCurveForce, LpCurveTorque, B2Energy, NetFluxes")
     print("  <ForceWeight>: weight for the force/torque term (float)")
     print("  <Threshold>: (optional) threshold for LpCurveForce/LpCurveTorque (float)")
     print("\nExample: python coil_force_objectives_scan.py LpCurveForce 1e-3 0.0\n")
@@ -183,8 +183,8 @@ elif sys.argv[1] == 'LpCurveTorque':
         Jforce = LpCurveTorque(base_coils, coils, p=2, threshold=float(sys.argv[3]))
     except:
         Jforce = LpCurveTorque(base_coils, coils, p=2, threshold=0.0)
-elif sys.argv[1] == 'B2_Energy':
-    Jforce = B2_Energy(coils)
+elif sys.argv[1] == 'B2Energy':
+    Jforce = B2Energy(coils)
 elif sys.argv[1] == 'NetFluxes':
     Jforce = sum([NetFluxes(c, coils) for c in base_coils])
 else:

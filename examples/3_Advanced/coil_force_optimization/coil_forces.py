@@ -35,7 +35,7 @@ from simsopt.objectives import SquaredFlux, Weight, QuadraticPenalty
 from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance,
                          MeanSquaredCurvature, LpCurveCurvature)
 from simsopt.field import BiotSavart
-from simsopt.field.force import LpCurveForce, B2_Energy
+from simsopt.field.force import LpCurveForce, B2Energy
 from simsopt.field.selffield import regularization_circ
 from simsopt.util import in_github_actions, calculate_modB_on_major_radius
 
@@ -81,7 +81,7 @@ MSC_WEIGHT = 1e-6
 
 # Weight for forces and total vacuum energy
 FORCE_WEIGHT = Weight(1e-26)
-B2_Energy_WEIGHT = Weight(1e-10)
+B2Energy_WEIGHT = Weight(1e-10)
 
 # Number of iterations to perform:
 MAXITER = 50 if in_github_actions else 400
@@ -141,7 +141,7 @@ Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 for c in coils:
     c.regularization = regularization_circ(a)
 Jforce = LpCurveForce(base_coils, coils, p=4)
-J_b2energy = B2_Energy(coils)
+J_b2energy = B2Energy(coils)
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
@@ -153,7 +153,7 @@ JF = Jf \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
     + FORCE_WEIGHT * Jforce \
-    + B2_Energy_WEIGHT * J_b2energy
+    + B2Energy_WEIGHT * J_b2energy
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -187,7 +187,7 @@ def fun(dofs):
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.2f}"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", F={Jforce.J():.2e}"
-    outstr += f", B2_Energy={J_b2energy.J():.2e}"
+    outstr += f", B2Energy={J_b2energy.J():.2e}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
     return J, grad

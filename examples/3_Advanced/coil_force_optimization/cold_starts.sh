@@ -12,4 +12,4 @@ export OMP_NUM_THREADS=1  # number of threads for OpenMP
 export MKL_NUM_THREADS=1  # number of threads for Intel MKL
 # IMPORTANT: Activate your conda environment 
 # (e.g., 'conda activate simsopt_env') or any other required environment before running this script.
-srun python initiation.py B2_Energy  # specify the force-related objective function to use
+srun python initiation.py B2Energy  # specify the force-related objective function to use

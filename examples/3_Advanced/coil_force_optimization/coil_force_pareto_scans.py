@@ -13,7 +13,7 @@ configurations, but the parameters used for the scans defined in optimization_to
 
 The assumption is that a large number of optimizations
 have already been performed with "python initialization.py" (or sbatch cold_starts.sh to run batch jobs on 
-a supercomputer) and the results are stored in the ./output/QA/B2_Energy/ or a similar directory. This pareto
+a supercomputer) and the results are stored in the ./output/QA/B2Energy/ or a similar directory. This pareto
 scan script was used to generate the results in the papers:
 
     Hurwitz, S., Landreman, M., Huslage, P. and Kaptanoglu, A., 2025. 
@@ -137,7 +137,7 @@ def success_plt(df, df_filtered):
     plt.tight_layout()
     return fig
 
-def get_dfs(INPUT_DIR='./output/QA/B2_Energy/', OUTPUT_DIR=None):
+def get_dfs(INPUT_DIR='./output/QA/B2Energy/', OUTPUT_DIR=None):
     """
     Load, filter, and compute Pareto front for coil optimization results. Filtering is 
     done based on the following engineering constraints. Max denotes the maximum over all coils,
@@ -228,7 +228,7 @@ def get_dfs(INPUT_DIR='./output/QA/B2_Energy/', OUTPUT_DIR=None):
     ### Return statement
     return df, df_filtered, df_pareto
 
-INPUT_DIR = "./output/QA/B2_Energy/"
+INPUT_DIR = "./output/QA/B2Energy/"
 
 df, df_filtered, df_pareto = get_dfs(INPUT_DIR=INPUT_DIR)
 

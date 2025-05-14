@@ -8,7 +8,7 @@ This script initiates a large set of coil optimizations
 using SIMSOPT. The force objective can be specified 
 and the optimization will randomly sample the parameter space
 within some range. This range should be set in optimization_tools.py. 
-The outputs are stored in the ./output/QA/B2_Energy/ directory.
+The outputs are stored in the ./output/QA/B2Energy/ directory.
 
 This pareto scan script was used to generate the results in the papers:
 

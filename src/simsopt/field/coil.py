@@ -22,18 +22,15 @@ class Coil(sopp.Coil, Optimizable):
     """
     Represents a magnetic coil as a combination of a geometric curve and an electric current.
 
-    This class combines a :class:`~simsopt.geo.curve.Curve` and a :class:`Current` object, and is used as input for
-    :class:`~simsopt.field.biotsavart.BiotSavart` field calculations. 
+    This class combines a :class:`~simsopt.geo.curve.Curve` and a :class:`Current` object, and 
+    is used as input for :class:`~simsopt.field.biotsavart.BiotSavart` field calculations. 
 
     Parameters
     ----------
-    curve : simsopt.geo.curve.Curve
-        The geometric curve describing the coil shape.
-    current : Current
-        The current object describing the electric current in the coil.
-    regularization : Regularization
-        The regularization object for the coil corresponding to the coil cross section. 
-        Default is a circular cross section with radius 0.05.
+    curve (simsopt.geo.curve.Curve) : The geometric curve describing the coil shape.
+    current (Current) : The current object describing the electric current in the coil.
+    regularization (Regularization) : The regularization object for the coil corresponding to 
+        the coil cross section. Default is a circular cross section with radius 0.05.
     """
 
     def __init__(self, curve, current, regularization=regularization_circ(0.05)):
@@ -51,9 +48,9 @@ class Coil(sopp.Coil, Optimizable):
             \frac{\partial \mathbf{B}}{\partial \mathbf{x}} = \frac{\partial \mathbf{B}}{\partial \mathbf{\gamma}} \frac{\partial \mathbf{\gamma}}{\partial \mathbf{x}} + \frac{\partial \mathbf{B}}{\partial \mathbf{\gammadash}} \frac{\partial \mathbf{\gammadash}}{\partial \mathbf{x}} + \frac{\partial \mathbf{B}}{\partial \mathbf{I}} \frac{\partial \mathbf{I}}{\partial \mathbf{x}}
 
         Args:
-            v_gamma: The vector to multiply the Jacobian with.
-            v_gammadash: The vector to multiply the Jacobian with.
-            v_current: The vector to multiply the Jacobian with.
+            v_gamma (array) : The vector to multiply the Jacobian with.
+            v_gammadash (array) : The vector to multiply the Jacobian with.
+            v_current (array) : The vector to multiply the Jacobian with.
 
         Returns:
             The Jacobian-vector product of the coil.
@@ -68,6 +65,9 @@ class Coil(sopp.Coil, Optimizable):
         the :obj:`~simsopt.geo.curve.Curve.plot()` function on the
         underlying Curve. All arguments are passed to
         :obj:`simsopt.geo.curve.Curve.plot()`
+
+        Args:
+            kwargs (dictionary): Additional keyword arguments.
         """
         return self.curve.plot(**kwargs)
 
@@ -77,7 +77,7 @@ class CurrentBase(Optimizable):
     Abstract base class for current objects that are optimizable.
 
     Args:
-        **kwargs: Additional keyword arguments.
+        kwargs (dictionary): Additional keyword arguments.
     """
 
     def __init__(self, **kwargs):
@@ -171,11 +171,9 @@ class Current(sopp.Current, CurrentBase):
     to use the same current.
 
     Args:
-        current : float
-            Initial value of the current.
-        dofs : array-like or None, optional
-            Degrees of freedom for optimization. If None, uses the current value.
-        kwargs: Additional keyword arguments.
+        current (float) : Initial value of the current.
+        dofs (array-like or None, optional) : Degrees of freedom for optimization. If None, uses the current value.
+        kwargs (dictionary): Additional keyword arguments.
     """
 
     def __init__(self, current, dofs=None, **kwargs):
@@ -192,7 +190,7 @@ class Current(sopp.Current, CurrentBase):
         Compute the Jacobian-vector product of the current function.
 
         Args:
-            v_current: The vector to multiply the Jacobian with.
+            v_current (array) : The vector to multiply the Jacobian with.
 
         Returns:
             The Jacobian-vector product of the current function.
@@ -218,11 +216,9 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
     Used, for example, to flip currents for stellarator symmetric coils.
 
     Args:
-        current_to_scale : CurrentBase
-            The current object to scale.
-        scale : float
-            The scaling factor.
-        kwargs: Additional keyword arguments.
+        current_to_scale (CurrentBase) : The current object to scale.
+        scale (float) : The scaling factor.
+        kwargs (dictionary): Additional keyword arguments.
     """
 
     def __init__(self, current_to_scale, scale, **kwargs):
@@ -236,7 +232,7 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
         Compute the Jacobian-vector product of the current function.
 
         Args:
-            v_current: The vector to multiply the Jacobian with.
+            v_current (array) : The vector to multiply the Jacobian with.
 
         Returns:
             The Jacobian-vector product of the current function.
@@ -257,7 +253,7 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
         Set the degrees of freedom for the current object.
 
         Args:
-            dofs: The degrees of freedom to set.
+            dofs (array or scalar) : The degrees of freedom to set.
         """
         self.current_to_scale.set_dofs(dofs / self.scale)
 
@@ -267,7 +263,7 @@ def current_pure(dofs):
     A pure function that returns the current value.
 
     Args:
-        dofs: The current value.
+        dofs (array or scalar) : The current value.
 
     Returns:
         The current value.
@@ -281,11 +277,9 @@ class JaxCurrent(sopp.Current, CurrentBase):
     need a full Jax-based BiotSavart class to support this fully.
 
     Args:
-        current : float
-            Initial value of the current.
-        dofs : array-like or None, optional
-            Degrees of freedom for optimization. If None, uses the current value.
-        kwargs: Additional keyword arguments.
+        current (float) : Initial value of the current.
+        dofs (array-like or None, optional) : Degrees of freedom for optimization. If None, uses the current value.
+        kwargs (dictionary): Additional keyword arguments.
     """
     def __init__(self, current, dofs=None, **kwargs):
         sopp.Current.__init__(self, current)
@@ -305,7 +299,7 @@ class JaxCurrent(sopp.Current, CurrentBase):
         Compute the Jacobian-vector product of the current function.
 
         Args:
-            v: The vector to multiply the Jacobian with.
+            v (array) : The vector to multiply the Jacobian with.
 
         Returns:
             The Jacobian-vector product of the current function.
@@ -331,10 +325,8 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
 
     Parameters
     ----------
-    current_a : CurrentBase
-        First current object.
-    current_b : CurrentBase
-        Second current object.
+    current_a (CurrentBase) : First current object.
+    current_b (CurrentBase) : Second current object.
     """
 
     def __init__(self, current_a, current_b):
@@ -348,7 +340,7 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
         Compute the Jacobian-vector product of the current function.
 
         Args:
-            v_current: The vector to multiply the Jacobian with.
+            v_current (array) : The vector to multiply the Jacobian with.
 
         Returns:
             The Jacobian-vector product of the current function.
@@ -376,17 +368,13 @@ def apply_symmetries_to_curves(base_curves, nfp, stellsym):
 
     Parameters
     ----------
-    base_curves : list of Curve
-        List of base curves to replicate.
-    nfp : int
-        Number of field periods (rotational symmetry).
-    stellsym : bool
-        Whether to apply stellarator symmetry (flipping).
+    base_curves (list) : List of base curves to replicate.
+    nfp (int) : Number of field periods (rotational symmetry).
+    stellsym (bool) : Whether to apply stellarator symmetry (flipping).
 
     Returns
     -------
-    curves : list of Curve
-        List of curves with symmetries applied.
+    curves (list) : List of curves with symmetries applied.
     """
     flip_list = [False, True] if stellsym else [False]
     curves = []
@@ -441,10 +429,10 @@ def coils_to_vtk(coils, filename, close=False, extra_data=None):
     Saves coil currents, net forces, net torques, and pointwise forces and torques.
 
     Args:
-        coils: A python list of Coil objects.
-        filename: Name of the file to write.
-        close: Whether to draw the segment from the last quadrature point back to the first.
-        extra_data: Additional data to save to the VTK file.
+        coils (list): A python list of Coil objects.
+        filename (str): Name of the file to write.
+        close (bool): Whether to draw the segment from the last quadrature point back to the first.
+        extra_data (dict): Additional data to save to the VTK file.
     """
     from simsopt.field.force import coil_net_force, coil_net_torque, coil_force, coil_torque
     from simsopt.geo.curve import curves_to_vtk
@@ -528,21 +516,21 @@ def coils_via_symmetries(curves, currents, nfp, stellsym, regularizations=None):
 
     Parameters
     ----------
-    curves : list of Curve
+    curves (list) : list of Curve
         List of base curves.
-    currents : list of Current
+    currents (list) : list of Current
         List of base current objects.
-    nfp : int
+    nfp (int) : int
         Number of field periods (rotational symmetry).
-    stellsym : bool
+    stellsym (bool) : bool
         Whether to apply stellarator symmetry.
-    regularizations : np.array, shape (n_coils,), optional
+    regularizations (np.array, shape (n_coils,), optional):
         The regularization objects for the coils representing the finite coil cross section.
         Default is a circular cross section with radius 0.05.
 
     Returns
     -------
-    coils : list of Coil
+    coils (list) : list of Coil
         List of Coil objects with symmetries applied.
     """
 
@@ -557,7 +545,7 @@ def coils_via_symmetries(curves, currents, nfp, stellsym, regularizations=None):
 
 def load_coils_from_makegrid_file(filename, order, ppp=20, group_names=None):
     """
-    Load coils from a MAKEGRID input file, returning a list of Coil objects.
+    Load coils from a mgrid input file, returning a list of Coil objects.
 
     This function loads a file in MAKEGRID input format containing the Cartesian coordinates 
     and the currents for several coils and returns an array with the corresponding coils. 
@@ -566,19 +554,18 @@ def load_coils_from_makegrid_file(filename, order, ppp=20, group_names=None):
 
     Parameters
     ----------
-    filename : str
+    filename (str):
         Path to the MAKEGRID input file.
-    order : int
+    order (int):
         Maximum mode number in the Fourier expansion.
-    ppp : int, optional
+    ppp (int, optional):
         Points per period for quadrature (default: 20).
-    group_names : list of str or str or None, optional
+    group_names (list of str or str or None, optional):
         If provided, only load coils in these groups.
 
     Returns
     -------
-    coils : list of Coil
-        List of Coil objects loaded from the file.
+    coils (list) : List of Coil objects loaded from the file.
     """
 
     if isinstance(group_names, str):
@@ -612,24 +599,24 @@ def load_coils_from_makegrid_file(filename, order, ppp=20, group_names=None):
 
 def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=False):
     """
-    Export a list of Curve objects and currents to a MAKEGRID input file.
+    Export a list of Curve objects and currents to a mgrid (MAKEGRID) input file.
 
     The output can be used by MAKEGRID and FOCUS. The format is described at
     https://princetonuniversity.github.io/STELLOPT/MAKEGRID
 
     Parameters
     ----------
-    filename : str
+    filename (str):
         Name of the file to write.
-    curves : list of Curve objects.
+    curves (list) : list of Curve objects.
         List of Curve objects.
-    currents : list of Current objects.
+    currents (list) : list of Current objects.
         List of current objects.
-    groups : list or None, optional
+    groups (list or None, optional):
         Coil current group. Coils in the same group are assembled together.
-    nfp : int, optional
+    nfp (int, optional):
         Number of field periods (default: 1).
-    stellsym : bool, optional
+    stellsym (bool, optional):
         Whether to apply stellarator symmetry (default: False).
     """
 
@@ -673,19 +660,19 @@ def coils_to_focus(filename, curves, currents, nfp=1, stellsym=False, Ifree=Fals
 
     Parameters
     ----------
-    filename : str
+    filename (str):
         Name of the file to write.
-    curves : list of CurveXYZFourier
+    curves (list) : list of CurveXYZFourier
         List of CurveXYZFourier objects.
-    currents : list of Current
+    currents (list) : list of Current
         List of current objects.
-    nfp : int, optional
+    nfp (int, optional):
         Number of field periods (default: 1).
-    stellsym : bool, optional
+    stellsym (bool, optional):
         Whether to apply stellarator symmetry (default: False).
-    Ifree : bool, optional
+    Ifree (bool, optional):
         Whether the coil current is free (default: False).
-    Lfree : bool, optional
+    Lfree (bool, optional):
         Whether the coil geometry is free (default: False).
     """
     from simsopt.geo import CurveLength

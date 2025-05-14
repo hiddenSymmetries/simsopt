@@ -29,7 +29,7 @@ from simsopt.field import (
     coil_coil_inductances_inv_pure,
     induced_currents_pure,
     NetFluxes,
-    B2_Energy,
+    B2Energy,
     MeanSquaredForce_deprecated,
     LpCurveTorque,
     SquaredMeanTorque,
@@ -437,8 +437,8 @@ class CoilForcesTest(unittest.TestCase):
         base_currents = [Current(I) for j in range(ncoils)]
         coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
 
-        # Test B2_Energy
-        objective = B2_Energy(coils).J()
+        # Test B2Energy
+        objective = B2Energy(coils).J()
 
         # Test LpCurveForce
 
@@ -693,7 +693,7 @@ class CoilForcesTest(unittest.TestCase):
                                             coils2 = coils_via_symmetries(base_curves2, base_currents, nfp, stellsym)
                                             objectives = [
                                                 sum([NetFluxes(coils[i], coils2) for i in range(len(coils))]),
-                                                B2_Energy(coils + coils2, downsample=downsample),
+                                                B2Energy(coils + coils2, downsample=downsample),
                                                 LpCurveTorque(coils, coils2, p=p, threshold=threshold, downsample=downsample),
                                                 SquaredMeanTorque(coils, coils2, downsample=downsample),
                                                 LpCurveForce(coils, coils2, p=p, threshold=threshold, downsample=downsample),
