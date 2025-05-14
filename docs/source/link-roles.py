@@ -11,7 +11,7 @@ def run_cmd_get_output(cmd):
 def get_github_rev():
     path = run_cmd_get_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
     try:
-        tag = run_cmd_get_output(['git', 'describe', '--exact-match'])
+        tag = run_cmd_get_output(['git', 'describe', '--exact-match', '--tag'])
         print('Git commit ID: ', path)
         if len(tag):
             print('Git tag: ', tag)
