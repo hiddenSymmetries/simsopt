@@ -182,7 +182,16 @@ def cc_distance_pure(gamma1, l1, gamma2, l2, minimum_distance, downsample=1):
         gamma2 (array-like): Points along the second curve.
         l2 (array-like): Tangent vectors along the second curve.
         minimum_distance (float): The minimum allowed distance between curves.
-        downsample (int, optional): Downsampling factor for quadrature points. Defaults to 1.
+        downsample (int, default=1): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
 
     Returns:
         float: The curve-curve distance penalty value.
@@ -569,12 +578,18 @@ class LinkingNumber(Optimizable):
         :math:`\textbf{r}_2` is the position vector along the second curve.
 
         Args:
-            curves: the set of curves for which the linking number should be computed.
-            downsample: integer factor by which to downsample the quadrature
-                points when computing the linking number. Setting this parameter to
-                a value larger than 1 will speed up the calculation, which may
-                be useful if the set of coils is large, though it may introduce
-                inaccuracy if ``downsample`` is set too large.
+            curves (list of Curve, shape (n_curves)): 
+                The set of curves for which the linking number should be computed.
+            downsample (int, default=1): 
+                Factor by which to downsample the quadrature points 
+                by skipping through the array by a factor of ``downsample``,
+                e.g. curve.gamma()[::downsample, :]. 
+                Setting this parameter to a value larger than 1 will speed up the calculation,
+                which may be useful if the set of coils is large, though it may introduce
+                inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+                total number of quadrature points (since this will produce a nonuniform set of points). 
+                This parameter is used to speed up expensive calculations during optimization, 
+                while retaining higher accuracy for the other objectives. 
         """
 
     def J(self):

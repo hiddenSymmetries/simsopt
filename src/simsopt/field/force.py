@@ -201,7 +201,16 @@ def lp_force_pure_deprecated(gamma, gammadash, gammadashdash, quadpoints, curren
             Array of mutual magnetic field from other coils, calculated on the quadrature points.
         p (float): Power of the objective function.
         threshold (float): Threshold for the objective function.
-        downsample (int): Downsample factor for the curve quadrature points.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
 
     Returns:
         float: Value of the objective function.
@@ -239,7 +248,16 @@ class LpCurveForce_deprecated(Optimizable):
         regularization (Regularization): Regularization object.
         p (float): Power of the objective function.
         threshold (float): Threshold for the objective function.
-        downsample (int): Downsample factor for the curve quadrature points.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
     """
 
     def __init__(self, target_coil, source_coils, regularization, p=2.0, threshold=0.0, downsample=1):
@@ -361,7 +379,16 @@ def mean_squared_force_pure_deprecated(gamma, gammadash, gammadashdash, quadpoin
         regularization (Regularization): Regularization object.
         B_mutual (array, shape (n,3)): 
             Array of mutual magnetic field from other coils, calculated on the quadrature points.
-        downsample (int): Downsample factor for the objective function.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
 
     Returns:
         float: Value of the objective function.
@@ -396,7 +423,16 @@ class MeanSquaredForce_deprecated(Optimizable):
         source_coils (list, shape (m,)): 
             List of coils to use for computing MeanSquaredForce of the primary coil. 
         regularization (Regularization): Regularization object.
-        downsample (int): Downsample factor for the curve quadrature points.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
     """
 
     def __init__(self, target_coil, source_coils, regularization, downsample=1):
@@ -533,7 +569,16 @@ def _coil_coil_inductances_pure(gammas, gammadashs, downsample, regularizations)
             Array of coil positions for all m coils (which are each downsampled to shape (n,3)).
         gammadashs (array, shape (m,n,3)): 
             Array of coil tangent vectors for all m coils (which are each downsampled to shape (n,3)).
-        downsample (int): Downsample factor for the objective function.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
         regularizations (array, shape (m,)): 
             Array of regularizations coming from finite cross-section for all m coils.
 
@@ -610,7 +655,16 @@ def _coil_coil_inductances_inv_pure(gammas, gammadashs, downsample, regularizati
             Array of coil positions for all m coils (which are each downsampled to shape (n,3)).
         gammadashs (array, shape (m,n,3)): 
             Array of coil tangent vectors for all m coils (which are each downsampled to shape (n,3)).
-        downsample (int): Downsample factor for the objective function.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
         regularizations (array, shape (m,)): 
             Array of regularizations coming from finite cross-section for all m coils.
 
@@ -640,7 +694,16 @@ def _induced_currents_pure(gammas, gammadashs, gammas_TF, gammadashs_TF, current
             Array of TF coil tangent vectors for all m' coils.
         currents_TF (array, shape (m',)): 
             Array of TF coil current.
-        downsample (int): Downsample factor for the objective function.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
         regularizations (array, shape (m,)): 
             Array of regularizations coming from finite cross-section for all m coils.
 
@@ -671,7 +734,16 @@ def b2energy_pure(gammas, gammadashs, currents, downsample, regularizations):
             Array of coil tangent vectors for all m coils.
         currents (array, shape (m,)): 
             Array of coil current for all m coils.
-        downsample (int): Downsample factor for the objective function.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
         regularizations (array, shape (m,)): 
             Array of regularizations coming from finite cross-section for all m coils.
 
@@ -701,7 +773,16 @@ class B2Energy(Optimizable):
     Args:
         coils_to_target (list of Coil, shape (m,)): 
             List of coils contributing to the total energy.
-        downsample (int): Downsample factor for the objective function.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
     """
 
     def __init__(self, coils_to_target, downsample=1):
@@ -806,7 +887,16 @@ def net_fluxes_pure(gammas, gammadashs, gammas2, gammadashs2, currents2, downsam
             Tangent vectors for the coils generating flux.
         currents2 (array, shape (m',)): 
             Current values for the coils generating flux.
-        downsample (int): Factor by which to downsample the coil points for computation.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
 
     Returns:
         array (shape (m,)): 
@@ -847,7 +937,16 @@ def net_ext_fluxes_pure(gammadash, A_ext, downsample):
             Tangent vectors along the coil.
         A_ext (array, shape (n,3)): 
             External vector potential evaluated at coil points.
-        downsample (int): Factor by which to downsample the coil points for computation.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
 
     Returns:
         float: Net magnetic flux through the coil due to the external field.
@@ -879,7 +978,16 @@ class NetFluxes(Optimizable):
         target_coil (Coil): Coil whose net flux is being computed.
         source_coils (list of Coil, shape (m,)): 
             List of coils to use for computing the net flux.
-        downsample (int): Factor by which to downsample the coil points for computation.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
     """
 
     def __init__(self, target_coil, source_coils, downsample=1):
@@ -983,8 +1091,15 @@ def squared_mean_force_pure(gammas, gammas2, gammadashs, gammadashs2, currents,
         currents2 (array, shape (m',)): 
             Currents for the coils generating force.
         downsample (int): 
-            Factor by which to downsample the coils for computation.
-
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
     Returns:
         float: The squared mean force.
     """
@@ -1080,7 +1195,15 @@ class SquaredMeanForce(Optimizable):
             List of coils that provide forces on the first set of coils but that
             we do not care about optimizing their forces. 
         downsample (int): 
-            Downsample factor for the objective function.
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
     """
 
     def __init__(self, coils_to_target, source_coils, downsample=1):
@@ -1227,8 +1350,17 @@ def lp_force_pure(
             Exponent for the Lp force objective.
         threshold (float):
             Threshold force for the coils receiving force.
-        downsample (int):
-            Factor by which to downsample the coils for computation.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
+
     Returns:
         float: The Lp force objective.
     """
@@ -1338,7 +1470,16 @@ class LpCurveForce(Optimizable):
             we do not care about optimizing their forces. 
         p (float): Power of the objective function.
         threshold (float): Threshold for the objective function.
-        downsample (int): Downsample factor for the objective function.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
     """
 
     def __init__(self, coils_to_target, source_coils, p=2.0, threshold=0.0, downsample=1):
@@ -1485,7 +1626,16 @@ def lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs,
         regularizations (array, shape (m,)): Array of coil regularizations.
         p (float): Power of the objective function.
         threshold (float): Threshold for the objective function.
-        downsample (int): Downsample factor for the objective function.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
 
     Returns:
         float: Value of the objective function.
@@ -1601,7 +1751,16 @@ class LpCurveTorque(Optimizable):
             we do not care about optimizing their torques. 
         p (float): Power of the objective function.
         threshold (float): Threshold for the objective function.
-        downsample (int): Downsample factor for the objective function.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
     """
 
     def __init__(self, coils_to_target, source_coils, p=2.0, threshold=0.0, downsample=1):
@@ -1744,7 +1903,16 @@ def squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents, curr
         gammadashs2 (array, shape (m',n,3)): Array of coil tangent vectors in coil set 2.
         currents (array, shape (m,)): Array of coil currents in coil set 1.
         currents2 (array, shape (m',)): Array of coil currents in coil set 2.
-        downsample (int): Downsample factor for the curve quadrature points.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
 
     Returns:
         float: Value of the objective function.
@@ -1850,7 +2018,16 @@ class SquaredMeanTorque(Optimizable):
         coils_to_target (list of Coil, shape (m,)): List of coils to use for computing SquaredMeanTorque. 
         source_coils (list of Coil, shape (m',)): List of coils that provide torques on the first set of coils but that
             we do not care about optimizing their torques. 
-        downsample (int): Downsample factor for the objective function.
+        downsample (int): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
 
     Returns:
         float: Value of the objective function.

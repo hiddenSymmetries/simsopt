@@ -164,35 +164,36 @@ class Testing(unittest.TestCase):
         ncurves = 3
         curve_t = curve.curve.__class__.__name__ if isinstance(curve, RotatedCurve) else curve.__class__.__name__
         curves = [curve] + [RotatedCurve(self.create_curve(curve_t, False), 0.1*i, True) for i in range(1, ncurves)]
-        J = CurveCurveDistance(curves, 0.4)  # Change for CurveHelical, which has deriv = 0 for 0.2
-        mindist = 1e10
-        for i in range(len(curves)):
-            for j in range(i):
-                mindist = min(mindist, np.min(np.linalg.norm(curves[i].gamma()[:, None, :] - curves[j].gamma()[None, :, :], axis=2)))
-        assert abs(J.shortest_distance() - mindist) < 1e-14
-        assert mindist > 1e-10
+        for downsample in [1, 2, 3]:
+            J = CurveCurveDistance(curves, 0.4, downsample=downsample)  # Change for CurveHelical, which has deriv = 0 for 0.2
+            mindist = 1e10
+            for i in range(len(curves)):
+                for j in range(i):
+                    mindist = min(mindist, np.min(np.linalg.norm(curves[i].gamma()[::downsample, None, :] - curves[j].gamma()[None, ::downsample, :], axis=2)))
+            assert abs(J.shortest_distance() - mindist) < 1e-14
+            assert mindist > 1e-10
 
-        for k in range(ncurves):
-            curve_dofs = curves[k].x
-            h = 1e-3 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
-            J0 = J.J()
-            dJ = J.dJ(partials=True)(curves[k].curve if isinstance(curves[k], RotatedCurve) else curves[k])
-            deriv = np.sum(dJ * h)
-            assert np.abs(deriv) > 1e-10
-            err = 1e6
-            for i in range(5, 12):
-                eps = 0.5**i
-                curves[k].x = curve_dofs + eps * h
-                Jh = J.J()
-                deriv_est = (Jh-J0)/eps
-                err_new = np.linalg.norm(deriv_est-deriv)
-                if err_new > 0.6 * err:
-                    print("i = ", i, " err_new %s" % (err_new), err_new/err)
-                assert err_new < 0.6 * err
-                err = err_new
-        J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
-        J_regen = json.loads(J_str, cls=GSONDecoder)
-        self.assertAlmostEqual(J.J(), J_regen.J())
+            for k in range(ncurves):
+                curve_dofs = curves[k].x
+                h = 1e-3 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
+                J0 = J.J()
+                dJ = J.dJ(partials=True)(curves[k].curve if isinstance(curves[k], RotatedCurve) else curves[k])
+                deriv = np.sum(dJ * h)
+                assert np.abs(deriv) > 1e-10
+                err = 1e6
+                for i in range(5, 12):
+                    eps = 0.5**i
+                    curves[k].x = curve_dofs + eps * h
+                    Jh = J.J()
+                    deriv_est = (Jh-J0)/eps
+                    err_new = np.linalg.norm(deriv_est-deriv)
+                    if err_new > 0.6 * err:
+                        print("i = ", i, " err_new %s" % (err_new), err_new/err)
+                    assert err_new < 0.6 * err
+                    err = err_new
+            J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+            J_regen = json.loads(J_str, cls=GSONDecoder)
+            self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_minimum_distance_taylor_test(self):
         for curvetype in self.curvetypes:
