@@ -17,6 +17,7 @@ from simsopt.geo.surface import signed_distance_from_surface, SurfaceScaled, \
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 from .surface_test_helpers import get_surface, get_boozer_surface
+from simsopt._core import load
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
@@ -485,6 +486,41 @@ class isSelfIntersecting(unittest.TestCase):
     """
     @unittest.skipIf(ground is None or bentley_ottmann is None,
                      "Libraries to check whether self-intersecting or not are missing")
+
+    def test_cross_section(self):
+        # this cross section calculation fails on the previous implementation of the cross
+        # section algorithm
+        filename = os.path.join(TEST_DIR, 'serial2680021.json')
+        [surfaces, coils] = load(filename)
+        angle = np.pi/10
+        xs = surfaces[-1].cross_section(angle/(2*np.pi), thetas=256)
+        Z = xs[:, 2]
+        assert np.all(Z<-0.08)
+        
+        # take this surface, and rotate it 30 degrees about the x-axis.  This should cause
+        # the surface to 'go back' on itself, and trigger the exception.
+        surface_orig = SurfaceXYZTensorFourier(mpol=surfaces[-1].mpol, ntor=surfaces[-1].ntor,\
+                stellsym=True, nfp=surfaces[-1].nfp, quadpoints_phi=np.linspace(0, 1, 100),\
+                quadpoints_theta=surfaces[-1].quadpoints_theta)
+        surface_orig.x = surfaces[-1].x
+
+        angle = 2*np.pi*(30/180)
+        R = np.array([[1, 0, 0], [0, np.cos(angle), -np.sin(angle)], [0, np.sin(angle), np.cos(angle)]])
+        gamma = surface_orig.gamma().copy()
+        Rgamma = gamma@R.T
+
+        surface_rotated = SurfaceXYZTensorFourier(mpol=surfaces[-1].mpol, ntor=surfaces[-1].ntor,\
+                stellsym=True, nfp=1, quadpoints_phi=np.linspace(0, 1, 100),\
+                quadpoints_theta=surfaces[-1].quadpoints_theta)
+        surface_rotated.least_squares_fit(Rgamma)
+        
+        # unit test to check that the exceptions are properly raised
+        with self.assertRaises(Exception):
+            _ = surface_rotated.cross_section(0., thetas=256)
+
+        with self.assertRaises(Exception):
+            _ = surface_rotated.cross_section(0., thetas='wrong')
+        
     def test_is_self_intersecting(self):
         # dofs results in a surface that is self-intersecting
         dofs = np.array([1., 0., 0., 0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1,
@@ -499,16 +535,16 @@ class isSelfIntersecting(unittest.TestCase):
         # make sure it works on an NCSX BoozerSurface
         bs, boozer_surf = get_boozer_surface()
         s = boozer_surf.surface
-        assert not s.is_self_intersecting(angle=0.123*np.pi)
-        assert not s.is_self_intersecting(angle=0.123*np.pi, thetas=200)
+        assert not s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi))
+        assert not s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi), thetas=200)
         assert not s.is_self_intersecting(thetas=231)
 
         # make sure it works on a perturbed NCSX BoozerSurface
         dofs = s.x.copy()
         dofs[14] += 0.2
         s.x = dofs
-        assert s.is_self_intersecting(angle=0.123*np.pi)
-        assert s.is_self_intersecting(angle=0.123*np.pi, thetas=200)
+        assert s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi))
+        assert s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi), thetas=200)
         assert s.is_self_intersecting(thetas=202)
 
 
