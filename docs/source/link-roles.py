@@ -5,11 +5,11 @@ from subprocess import check_output
 
 
 def run_cmd_get_output(cmd):
-    return check_output(cmd).strip()
+    return check_output(cmd).decode('utf-8').strip()
 
 
 def get_github_rev():
-    path = run_cmd_get_output(['git', 'rev-parse', '--short', 'HEAD'])
+    path = run_cmd_get_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
     try:
         tag = run_cmd_get_output(['git', 'describe', '--exact-match'])
         print('Git commit ID: ', path)
