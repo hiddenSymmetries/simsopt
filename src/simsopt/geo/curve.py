@@ -32,8 +32,12 @@ def centroid_pure(gamma, gammadash):
 def incremental_arclength_pure(d1gamma):
     """
     This function is used in a Python+Jax implementation of the curve arc length formula.
-    """
 
+    .. math::
+        \text{incremental arclength} = \|\mathbf{\gammadash}(\phi)\| d\phi
+
+    where :math:`\mathbf{\gammadash}(\phi)` is the derivative of the tangent vector to the curve.
+    """
     return jnp.linalg.norm(d1gamma, axis=1)
 
 
@@ -44,8 +48,13 @@ incremental_arclength_vjp = jit(lambda d1gamma, v: vjp(lambda d1g: incremental_a
 def kappa_pure(d1gamma, d2gamma):
     """
     This function is used in a Python+Jax implementation of formula for curvature.
-    """
 
+    .. math::
+        \kappa(\phi) = \frac{\|\mathbf{\gammadash} \times \mathbf{\gammadashdash}\|}{\|\mathbf{\gammadash}\|^3}
+
+    where :math:`\mathbf{\gammadash}` is the tangent vector to the curve and 
+    :math:`\mathbf{\gammadashdash}` is the derivative of the tangent vector.
+    """
     return jnp.linalg.norm(jnp.cross(d1gamma, d2gamma), axis=1)/jnp.linalg.norm(d1gamma, axis=1)**3
 
 
@@ -59,8 +68,14 @@ kappagrad1 = jit(lambda d1gamma, d2gamma: jacfwd(lambda d2g: kappa_pure(d1gamma,
 def torsion_pure(d1gamma, d2gamma, d3gamma):
     """
     This function is used in a Python+Jax implementation of formula for torsion.
-    """
 
+    .. math::
+        \tau(\phi) = \frac{\mathbf{\gammadash} \times \mathbf{\gammadashdash} \cdot \mathbf{\gammadashdashdash}}{\|\mathbf{\gammadash} \times \mathbf{\gammadashdash}\|^2}
+
+    where :math:`\mathbf{\gammadash}` is the tangent vector to the curve, 
+    :math:`\mathbf{\gammadashdash}` is the derivative of the tangent vector, and 
+    :math:`\mathbf{\gammadashdashdash}` is the derivative of the derivative of the tangent vector.
+    """
     return jnp.sum(jnp.cross(d1gamma, d2gamma, axis=1) * d3gamma, axis=1) / jnp.sum(jnp.cross(d1gamma, d2gamma, axis=1)**2, axis=1)
 
 
@@ -68,6 +83,36 @@ torsionvjp0 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d1g: torsion_p
 torsionvjp1 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d2g: torsion_pure(d1gamma, d2g, d3gamma), d2gamma)[1](v)[0])
 torsionvjp2 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d3g: torsion_pure(d1gamma, d2gamma, d3g), d3gamma)[1](v)[0])
 
+
+@jit
+def frenet_frame_pure(gammadash, gammadashdash, incremental_arclength):
+    r"""
+    This function returns the Frenet frame, :math:`(\mathbf{t}, \mathbf{n}, \mathbf{b})`,
+    associated to the curve.
+
+    .. math::
+        \mathbf{t} = \frac{1}{l} \mathbf{\gammadash}
+
+    where :math:`l` is the arclength of the curve.
+
+    .. math::
+        \mathbf{n} = \frac{1}{\|\mathbf{\gammadashdash}\|}\mathbf{\gammadashdash}
+
+    .. math::
+        \mathbf{b} = \mathbf{t} \times \mathbf{n}
+    """
+    def norm(a): return jnp.linalg.norm(a, axis=1)
+    def inner(a, b): return jnp.sum(a*b, axis=1)
+    N = jnp.shape(gammadash)[0]
+    t, n, b = (jnp.zeros((N, 3)), jnp.zeros((N, 3)), jnp.zeros((N, 3)))
+    t = (1./incremental_arclength[:, None]) * gammadash
+
+    tdash = (1./incremental_arclength[:, None])**2 * (incremental_arclength[:, None] * gammadashdash
+                                    - (inner(gammadash, gammadashdash)/incremental_arclength)[:, None] * gammadash
+                                    )
+    n = (1./norm(tdash))[:, None] * tdash
+    b = jnp.cross(t, n, axis=1)
+    return t, n, b
 
 class Curve(Optimizable):
     """
@@ -287,22 +332,7 @@ class Curve(Optimizable):
         This function returns the Frenet frame, :math:`(\mathbf{t}, \mathbf{n}, \mathbf{b})`,
         associated to the curve.
         """
-
-        gammadash = self.gammadash()
-        gammadashdash = self.gammadashdash()
-        l = self.incremental_arclength()
-        def norm(a): return np.linalg.norm(a, axis=1)
-        def inner(a, b): return np.sum(a*b, axis=1)
-        N = len(self.quadpoints)
-        t, n, b = (np.zeros((N, 3)), np.zeros((N, 3)), np.zeros((N, 3)))
-        t[:, :] = (1./l[:, None]) * gammadash
-
-        tdash = (1./l[:, None])**2 * (l[:, None] * gammadashdash
-                                      - (inner(gammadash, gammadashdash)/l)[:, None] * gammadash
-                                      )
-        n[:, :] = (1./norm(tdash))[:, None] * tdash
-        b[:, :] = np.cross(t, n, axis=1)
-        return t, n, b
+        return frenet_frame_pure(self.gammadash(), self.gammadashdash(), self.incremental_arclength())
 
     def kappadash(self):
         r"""
@@ -477,14 +507,7 @@ class JaxCurve(sopp.Curve, Curve):
         self.dgammadashdashdash_by_dcoeff_jax = jit(jacfwd(self.gammadashdashdash_jax))
         self.dgammadashdashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdashdash_jax, x)[1](v)[0])
 
-        self.centroid_jax = jit(lambda x, v: centroid_pure(x, v))
-        self.dcentroid_dgamma = jit(jacfwd(self.centroid_jax, argnums=0))
-        self.dcentroid_dgammadash = jit(jacfwd(self.centroid_jax, argnums=1))
-        self.kappa_pure = kappa_pure
-        self.kappa_jax = jit(lambda x, v: kappa_pure(x, v))
-        self.kappa_impl_jax = jit(lambda x, v: kappa_pure(x, v))
-        self.frenet_frame_jax = jit(lambda x: self.frenet_frame_pure(x))
-        self.incremental_arclength_jax = jit(lambda x: self.incremental_arclength_pure(x))
+        self.incremental_arclength_jax = jit(lambda x: incremental_arclength_pure(self.gammadash_jax(x)))
         self.dkappa_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: kappa_pure(self.gammadash_jax(d), self.gammadashdash_jax(d)), x)[1](v)[0])
         self.dtorsion_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v)[0])
 
@@ -501,47 +524,11 @@ class JaxCurve(sopp.Curve, Curve):
         """
         gamma[:, :] = self.gamma_impl_jax(self.get_dofs(), quadpoints)
 
-    def incremental_arclength_pure(self, dofs):
-        """
-        This function returns the incremental arclength of the curve.
-        """
-        gammadash = self.gammadash_jax(dofs)
-        return jnp.linalg.norm(gammadash, axis=1)
-
     def incremental_arclength(self):
         """
         This function returns the incremental arclength of the curve.
         """
         return self.incremental_arclength_jax(self.get_dofs())
-
-    # @jit
-    def frenet_frame_pure(self, dofs):
-        r"""
-        This function returns the Frenet frame, :math:`(\mathbf{t}, \mathbf{n}, \mathbf{b})`,
-        associated to the curve.
-        """
-        gammadash = self.gammadash_jax(dofs)
-        gammadashdash = self.gammadashdash_jax(dofs)
-        l = self.incremental_arclength()
-        def norm(a): return jnp.linalg.norm(a, axis=1)
-        def inner(a, b): return jnp.sum(a*b, axis=1)
-        N = len(self.quadpoints)
-        t, n, b = (jnp.zeros((N, 3)), jnp.zeros((N, 3)), jnp.zeros((N, 3)))
-        t = (1./l[:, None]) * gammadash
-
-        tdash = (1./l[:, None])**2 * (l[:, None] * gammadashdash
-                                      - (inner(gammadash, gammadashdash)/l)[:, None] * gammadash
-                                      )
-        n = (1./norm(tdash))[:, None] * tdash
-        b = jnp.cross(t, n, axis=1)
-        return t, n, b
-
-    def frenet_frame(self):
-        """
-        This function returns the Frenet frame, :math:`(\mathbf{t}, \mathbf{n}, \mathbf{b})`,
-        associated to the curve.
-        """
-        return self.frenet_frame_jax(self.get_dofs())
 
     def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
         r"""
@@ -943,14 +930,16 @@ def curves_to_vtk(curves, filename, close=False, extra_data=None):
     polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData=pointData)
 
 
-def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_factor=2.5):
+def setup_uniform_grid_in_bounding_box(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_factor=2.01, half_period_factor=2.0):
     """
-    Generate a uniform 3D grid of points between two toroidal surfaces, with spacing and filtering to avoid coil 
-    overlap and respect stellarator symmetry.
+    Generate a uniform 3D grid of points in a bounding box defined by the inner and outermost points 
+    of two toroidal surfaces. Filtering on this grid is done to avoid coil overlap and respect 
+    stellarator symmetry.
 
     This function is typically used to initialize candidate coil center locations for planar coil optimization. 
-    It computes a uniform grid in the bounding box between two surfaces, then (for nfp > 1) removes points 
-    outside the fundamental sector and those too close to the symmetry plane, to avoid overlap after symmetry operations.
+    It computes a uniform grid in the bounding box between two surfaces, then (for nfp >= 1) removes points 
+    outside the unique sector [0, pi / nfp] (or [0, 2pi / nfp] for stellsym = False) and those too close to 
+    the symmetry plane, to avoid overlap after symmetry operations.
 
     Parameters
     ----------
@@ -967,7 +956,11 @@ def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_factor=2.5):
     Nz : int
         Number of grid points in the z direction.
     Nmin_factor : float, optional
-        Factor to set minimum coil spacing (default: 2.5). The coil radius is set to Nmin / Nmin_factor, where Nmin is the minimum grid spacing.
+        Factor to set minimum coil spacing (default: 2.01). The coil radius is set to Nmin / Nmin_factor, 
+        where Nmin is the minimum grid spacing. So as long as Nmin_factor > 2, then the coils 
+        (which are initialized as circles of radius R) will not overlap.
+    half_period_factor : float, optional (default: 2.0)
+        Factor to set the spacing between different sectors for nfp > 1.
 
     Returns
     -------
@@ -986,6 +979,10 @@ def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_factor=2.5):
       are also filtered out to avoid overlap after symmetry operations.
     - The returned grid is suitable for initializing planar coil centers in optimization routines.
     """
+    import warnings
+    if Nmin_factor <= 2.0:
+        warnings.warn('Nmin_factor should be greater than 2.0 to avoid coil overlap.')
+
     # Get (X, Y, Z) coordinates of the two boundaries
     nfp = s.nfp
     xyz_inner = s_inner.gamma().reshape(-1, 3)
@@ -999,22 +996,12 @@ def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_factor=2.5):
     y_min = np.min(y_outer)
     z_max = np.max(z_outer)
     z_min = np.min(z_outer)
-    z_max = max(z_max, abs(z_min))
-
+    z_max = min(z_max, abs(z_min))  # Note min here! 
+    
     # Initialize uniform grid
     dx = (x_max - x_min) / (Nx - 1)
     dy = (y_max - y_min) / (Ny - 1)
-    dz = 2 * z_max / (Nz - 1)
-    Nmin = min(dx, min(dy, dz))
-
-    # This is not a guarantee that coils will not touch but inductance
-    # matrix blows up if they do so it is easy to tell when they do
-    R = Nmin / Nmin_factor
-
-    print('Major radius of the coils is R = ', R)
-    print('Coils are spaced so that every coil of radius R '
-          ' is at least 2R away from the next coil'
-          )
+    dz = 2 * z_max / (Nz - 1)  # Z-grid spacing should be symmetric to be able to impose stellarator symmetry
 
     if nfp > 1:
         # Throw away any points not in the section phi = [0, pi / n_p] and
@@ -1033,39 +1020,47 @@ def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_factor=2.5):
         Y = np.linspace(y_min, y_max, Ny, endpoint=True)
     Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
 
+    # Now recompute the grid spacing since we have shifted the end points of the grid.
+    dx = X[1] - X[0]
+    dy = Y[1] - Y[0]
+    dz = Z[1] - Z[0]
+    Nmin = min(dx, min(dy, dz))
+
+    # Coils are spaced so that every coil of radius R is at least 2R away from the next coil'
+    R = Nmin / Nmin_factor
+    print('Major radius of the coils is R = ', R)
+
     # Make 3D mesh
     X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
     xyz_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3)
 
-    # Extra work for nfp > 1 to chop off points outside sector
-    # This is probably not robust for every stellarator but seems to work
-    # reasonably well for the Landreman/Paul QA/QH in the code.
-    if nfp > 1:
-        inds = []
-        for i in range(Nx):
-            for j in range(Ny):
-                for k in range(Nz):
-                    phi = np.arctan2(Y[i, j, k], X[i, j, k])
-                    if nfp == 4:
-                        phi2 = np.arctan2(R / 1.4, X[i, j, k])
-                    elif nfp == 3:
-                        phi2 = np.arctan2(Y[i, j, k] + R / 2.0, X[i, j, k] - R / 2.0) - phi
-                    elif nfp == 2:
-                        phi2 = np.arctan2(R, s.get_rc(0, 0))
-                    # Add a little factor to avoid phi = pi / n_p degrees
-                    # exactly, which can intersect with a symmetrized
-                    # coil if not careful
-                    if phi >= (np.pi / nfp - phi2) or phi < 0.0:
-                        inds.append(int(i * Ny * Nz + j * Nz + k))
-        good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds)
-        xyz_uniform = xyz_uniform[good_inds, :]
+    # Extra work to chop off points outside the unique sector [0, pi / nfp] for 
+    # stellarator symmetric designs. 
+    phi2 = np.arctan2(R * half_period_factor, s.get_rc(0, 0))
+    print(f"Small angle addition to avoid symmetry plane = {phi2}")
+    inds = []
+    for i in range(Nx):
+        for j in range(Ny):
+            for k in range(Nz):
+                phi = np.arctan2(Y[i, j, k], X[i, j, k])
+                # Add a little factor (phi2) to avoid coils near the boundary of the 
+                # sector [0, pi / nfp]. Coils placed there can intersect with a symmetrized
+                # coil if not careful!
+                if phi >= (np.pi / nfp - phi2) or phi <= phi2:
+                    inds.append(int(i * Ny * Nz + j * Nz + k))
+
+    # Also chop indices sufficiently close to the origin in the x-y plane
+    origin_inds = np.where(np.sqrt(xyz_uniform[:, 0]**2 + xyz_uniform[:, 1]**2) < 2 * R)
+    good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds)
+    good_inds = np.setdiff1d(good_inds, origin_inds)
+    xyz_uniform = xyz_uniform[good_inds, :]
     return xyz_uniform, xyz_inner, xyz_outer, R
 
 
 def create_planar_curves_between_two_toroidal_surfaces(
     s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1,
     coil_coil_flag=False, jax_flag=False, numquadpoints=None,
-    Nmin_factor=2.5, eps=0.01,
+    Nmin_factor=2.5, eps=0.01, half_period_factor=2.0
 ):
     from simsopt.geo import CurvePlanarFourier, JaxCurvePlanarFourier
     from simsopt.field import apply_symmetries_to_curves
@@ -1074,8 +1069,9 @@ def create_planar_curves_between_two_toroidal_surfaces(
     stellsym = s.stellsym
     normal_inner = s_inner.unitnormal().reshape(-1, 3)
     normal_outer = s_outer.unitnormal().reshape(-1, 3)
-    xyz_uniform, xyz_inner, xyz_outer, R = setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_factor=Nmin_factor)
-    # Have the uniform grid, now need to loop through and eliminate cells.
+    xyz_uniform, xyz_inner, xyz_outer, R = setup_uniform_grid_in_bounding_box(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_factor=Nmin_factor, half_period_factor=half_period_factor)
+    # Have the uniform grid, now need to loop through and eliminate any points that are 
+    # not actually between the two toroidal surfaces.
     contig = np.ascontiguousarray
     grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
         contig(normal_inner),
@@ -1147,12 +1143,8 @@ def create_planar_curves_between_two_toroidal_surfaces(
         dofs[2 * order + 4] = -salpha2 * sdelta2
         # Now specify the center
         dofs[2 * order + 5:2 * order + 8] = grid_xyz[ic, :]
-        # if jax_flag:
         curves[ic].set_dofs(dofs)
-        # else:
-        #     for j in range(2 * order + 8):
-        #         curves[ic].set('x' + str(j), dofs[j])
-        curves[ic].x = curves[ic].x  # need to do this to transfer data to C++
+        curves[ic].x = curves[ic].x  # need to do this to transfer data to C++?
     all_curves = apply_symmetries_to_curves(curves, nfp, stellsym)
     return curves, all_curves
 
