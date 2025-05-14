@@ -30,14 +30,15 @@ def setup(app):
     baseurl = 'https://github.com/hiddenSymmetries/simsopt'
     rev = get_github_rev()
     app.add_role('simsopt', autolink('{}/tree/{}/%s'.format(baseurl, rev)))
+    app.add_role('simsopt_file', autolink('{}/blob/{}/%s'.format(baseurl, rev)))
     app.add_role('simsoptpy', autolink('{}/tree/{}/src/simsopt/%s'.format(baseurl, rev)))
     app.add_role('simsoptpy_file', autolink('{}/blob/{}/src/simsopt/%s'.format(baseurl, rev)))
     app.add_role('simsoptpp', autolink('{}/tree/{}/src/simsoptpp/%s'.format(baseurl, rev)))
     app.add_role('simsoptpp_file', autolink('{}/blob/{}/src/simsoptpp/%s'.format(baseurl, rev)))
-    app.add_role('example', autolink('{}/tree/{}/examples/%s'.format(baseurl, rev)))
+    app.add_role('examples', autolink('{}/tree/{}/examples/%s'.format(baseurl, rev)))
     app.add_role('example_file', autolink('{}/blob/{}/examples/%s'.format(baseurl, rev)))
     app.add_role('tests', autolink('{}/tree/{}/tests/%s'.format(baseurl, rev)))
-    app.add_role('tests_file', autolink('{}/blob/{}/tests/%s'.format(baseurl, rev)))
+    app.add_role('test_file', autolink('{}/blob/{}/tests/%s'.format(baseurl, rev)))
 
 
 def autolink(pattern):
