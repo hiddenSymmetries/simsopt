@@ -5,8 +5,11 @@ updated whenever master branch is updated.
 
 ## Prerequsites
 
-Install *sphinx*, *sphinx-rtd-theme*, *sphinxcontrib-napoleon*,
-*sphinx-autodoc-napoleon-typehints* with pip.
+1. Install *doxygen*. On Linux machines, you can use system package managers to install doxygen.
+   On Mac use homebrew.
+
+2. Install *sphinx*, *sphinx-rtd-theme*, *sphinxcontrib-napoleon*,
+*sphinx-autodoc-napoleon-typehints*, and *breathe*  with pip.
 
 ## Build
 1. Use sphinx-build

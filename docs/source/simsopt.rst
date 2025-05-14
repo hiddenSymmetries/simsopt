@@ -1,5 +1,5 @@
-simsopt package
-===============
+Simsopt Python API
+==================
 
 Subpackages
 -----------
