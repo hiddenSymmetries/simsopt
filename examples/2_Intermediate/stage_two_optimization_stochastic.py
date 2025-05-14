@@ -214,7 +214,7 @@ proc0_print(f"Mean Flux Objective across perturbed coils: {Jmpi.J():.3e}")
 proc0_print(f"Flux Objective for exact coils coils      : {Jf.J():.3e}")
 
 # now draw some fresh samples to evaluate the out-of-sample error
-rg = Generator(PCG64DXSM(seed+1, inc=0))
+rg = Generator(PCG64DXSM(seed+1))
 val = 0
 for i in range(N_OOS):
     # first add the 'systematic' error. this error is applied to the base curves and hence the various symmetries are applied to it.
