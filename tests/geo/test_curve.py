@@ -9,16 +9,23 @@ import numpy as np
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
-from simsopt.geo.curveplanarfourier import CurvePlanarFourier
+from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curvexyzfouriersymmetries import CurveXYZFourierSymmetries
-from simsopt.geo.curve import RotatedCurve, curves_to_vtk
+from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_planar_curves_between_two_toroidal_surfaces
 from simsopt.geo import parameters
 from simsopt.configs.zoo import get_ncsx_data, get_w7x_data
 from simsopt.field import BiotSavart, Current, coils_via_symmetries, Coil
 from simsopt.field.coil import coils_to_makegrid
 from simsopt.geo import CurveLength, CurveCurveDistance
 from math import gcd
+from simsopt.geo.curveplanarellipticalcylindrical import (
+    CurvePlanarEllipticalCylindrical, create_equally_spaced_cylindrical_curves,
+    r_ellipse, xyz_cyl, rotations, convert_to_cyl, cylindrical_shift, cyl_to_cart, gamma_pure
+)
+from simsopt.geo import SurfaceRZFourier
+from pathlib import Path
+from monty.tempfile import ScratchDir
 
 try:
     import pyevtk
@@ -77,6 +84,8 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = CurveHelical(x, order, 5, 2, 1.0, 0.3, x0=np.ones(2 * order + 1))
     elif curvetype == "CurvePlanarFourier":
         curve = CurvePlanarFourier(x, order, 2, True)
+    elif curvetype == "JaxCurvePlanarFourier":
+        curve = JaxCurvePlanarFourier(x, order)
     elif curvetype == "CurveXYZFourierSymmetries1":
         curve = CurveXYZFourierSymmetries(x, order, 2, True)
     elif curvetype == "CurveXYZFourierSymmetries2":
@@ -91,7 +100,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         dofs[1] = 1.
         dofs[2*order + 3] = 1.
         dofs[4*order + 3] = 1.
-    elif curvetype in ["CurveRZFourier", "CurvePlanarFourier"]:
+    elif curvetype in ["CurveRZFourier", "CurvePlanarFourier", "JaxCurvePlanarFourier"]:
         dofs[0] = 1.
         dofs[1] = 0.1
         dofs[order+1] = 0.1
@@ -136,7 +145,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
 
 class Testing(unittest.TestCase):
 
-    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurvePlanarFourier", "CurveHelical", "CurveXYZFourierSymmetries1", "CurveXYZFourierSymmetries2", "CurveXYZFourierSymmetries3", "CurveHelicalInitx0"]
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "JaxCurvePlanarFourier", "CurvePlanarFourier", "CurveHelical", "CurveXYZFourierSymmetries1", "CurveXYZFourierSymmetries2", "CurveXYZFourierSymmetries3", "CurveHelicalInitx0"]
 
     def get_curvexyzfouriersymmetries(self, stellsym=True, x=None, nfp=None, ntor=1):
         # returns a CurveXYZFourierSymmetries that is randomly perturbed
@@ -776,6 +785,281 @@ class Testing(unittest.TestCase):
 
             os.remove("coils.file_to_load")
 
+    def test_curveplanarellipticalcylindrical_basic(self):
+        quadpoints = 20
+        a, b = 2.0, 1.0
+        curve = CurvePlanarEllipticalCylindrical(quadpoints, a, b)
+        self.assertEqual(curve.num_dofs(), 6)
+        self.assertEqual(len(curve.get_dofs()), 6)
+        self.assertEqual(curve._make_names(), ['R0', 'phi', 'Z0', 'r_rotation', 'phi_rotation', 'z_rotation'])
+        gamma = curve.gamma()
+        self.assertEqual(gamma.shape, (quadpoints, 3))
+
+    def test_curveplanarellipticalcylindrical_set_get_dofs(self):
+        quadpoints = 10
+        a, b = 1.5, 0.5
+        curve = CurvePlanarEllipticalCylindrical(quadpoints, a, b)
+        dofs = np.arange(6)
+        curve.set_dofs_impl(dofs)
+        np.testing.assert_allclose(curve.get_dofs(), dofs)
+
+    def test_create_equally_spaced_cylindrical_curves(self):
+        ncurves, nfp = 3, 2
+        stellsym = True
+        R0, a, b = 5.0, 1.0, 0.5
+        numquadpoints = 12
+        curves = create_equally_spaced_cylindrical_curves(ncurves, nfp, stellsym, R0, a, b, numquadpoints)
+        self.assertEqual(len(curves), ncurves)
+        for curve in curves:
+            self.assertIsInstance(curve, CurvePlanarEllipticalCylindrical)
+            gamma = curve.gamma()
+            self.assertEqual(gamma.shape, (numquadpoints, 3))
+            R = np.sqrt(gamma[:, 0]**2 + gamma[:, 1]**2)
+            self.assertTrue(np.allclose(np.mean(R), R0, atol=0.2))
+
+    def test_r_ellipse(self):
+        a, b = 2.0, 1.0
+        l = np.linspace(0, 1, 100)
+        r = r_ellipse(a, b, l)
+        self.assertEqual(r.shape, l.shape)
+        self.assertTrue(np.all(r > 0))
+
+    def test_xyz_cyl(self):
+        a, b = 2.0, 1.0
+        l = np.linspace(0, 1, 50)
+        xyz = xyz_cyl(a, b, l)
+        self.assertEqual(xyz.shape, (50, 3))
+        # y should be all zeros
+        self.assertTrue(np.allclose(xyz[:, 1], 0))
+
+    def test_rotations(self):
+        a, b = 2.0, 1.0
+        l = np.linspace(0, 1, 10)
+        curve = xyz_cyl(a, b, l)
+        alpha_r, alpha_phi, alpha_z, dr = 0.1, 0.2, 0.3, 1.0
+        rotated = rotations(curve, a, b, alpha_r, alpha_phi, alpha_z, dr)
+        self.assertEqual(rotated.shape, curve.shape)
+        # Check that the shift in R (x) is applied
+        self.assertTrue(np.allclose(rotated[:, 0] - curve[:, 0], dr, atol=0.1) == False)
+
+        # Check that a full pi or 2pi rotation in each angle returns the original curve (modulo numerical error)
+        for idx, (ar, ap, az) in enumerate([
+            (2 * np.pi, 0, 0),
+            (0, 2 * np.pi, 0),
+            (0, 0, 2 * np.pi),
+            (2 * np.pi, 0, 2 * np.pi),
+            (0, 2 * np.pi, 2 * np.pi),
+            (2 * np.pi, 2 * np.pi, 0),
+            (2 * np.pi, 2 * np.pi, 2 * np.pi),
+            (np.pi, np.pi, np.pi),
+            (np.pi, np.pi, 0),
+        ]):
+            rotated_full = rotations(curve, a, b, ar, ap, az, dr=0.0)
+            np.testing.assert_allclose(np.abs(rotated_full), np.abs(curve), atol=1e-12, err_msg=f"Failed for full rotation in angle index {idx}")
+
+    def test_convert_to_cyl(self):
+        xyz = np.array([[1.0, 0.0, 2.0], [0.0, 1.0, 3.0]])
+        cyl = convert_to_cyl(xyz)
+        self.assertEqual(cyl.shape, xyz.shape)
+        # R should be sqrt(x^2 + y^2)
+        np.testing.assert_allclose(cyl[:, 0], [1.0, 1.0])
+        # phi should be correct
+        np.testing.assert_allclose(cyl[:, 1], [0.0, np.pi/2])
+        # z unchanged
+        np.testing.assert_allclose(cyl[:, 2], [2.0, 3.0])
+
+    def test_cylindrical_shift(self):
+        cyl = np.array([[1.0, 0.0, 2.0], [1.0, 1.0, 3.0]])
+        dphi, dz = 0.5, 1.5
+        shifted = cylindrical_shift(cyl, dphi, dz)
+        self.assertEqual(shifted.shape, cyl.shape)
+        np.testing.assert_allclose(shifted[:, 1], cyl[:, 1] + dphi)
+        np.testing.assert_allclose(shifted[:, 2], cyl[:, 2] + dz)
+
+    def test_cyl_to_cart(self):
+        cyl = np.array([[1.0, 0.0, 2.0], [1.0, np.pi/2, 3.0]])
+        cart = cyl_to_cart(cyl)
+        self.assertEqual(cart.shape, cyl.shape)
+        np.testing.assert_allclose(cart[:, 0], [1.0, 0.0], atol=1e-14)
+        np.testing.assert_allclose(cart[:, 1], [0.0, 1.0], atol=1e-14)
+        np.testing.assert_allclose(cart[:, 2], [2.0, 3.0])
+
+    def test_gamma_pure(self):
+        a, b = 2.0, 1.0
+        points = np.linspace(0, 1, 20)
+        dofs = np.zeros(6)
+        gamma = gamma_pure(dofs, points, a, b)
+        self.assertEqual(gamma.shape, (20, 3))
+
+    def test_create_planar_curves_between_two_toroidal_surfaces(self):
+        # Use a real surface from test files for a minimal working test
+        TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
+        filename = TEST_DIR / 'input.LandremanPaul2021_QA'
+        nphi, ntheta = 8, 8
+        with ScratchDir("."):
+            s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s_inner = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s_outer = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s_inner.extend_via_projected_normal(0.1)
+            s_outer.extend_via_projected_normal(0.2)
+            # Standard usage
+            curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
+                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, coil_coil_flag=False, jax_flag=False, numquadpoints=10
+            )
+            self.assertTrue(len(curves) > 0)
+            self.assertTrue(len(all_curves) >= len(curves))
+            for curve in curves:
+                gamma = curve.gamma()
+                self.assertEqual(gamma.shape[1], 3)
+                self.assertEqual(gamma.shape[0], 10)
+
+            # Test with jax_flag=True
+            curves_jax, all_curves_jax = create_planar_curves_between_two_toroidal_surfaces(
+                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, coil_coil_flag=False, jax_flag=True, numquadpoints=10
+            )
+            self.assertTrue(len(curves_jax) > 0)
+            self.assertTrue(len(all_curves_jax) >= len(curves_jax))
+            for curve in curves_jax:
+                gamma = curve.gamma()
+                self.assertEqual(gamma.shape[1], 3)
+                self.assertEqual(gamma.shape[0], 10)
+
+            # Test coil_coil_flag=True
+            with self.assertRaises(ValueError):
+                curves_cc, all_curves_cc = create_planar_curves_between_two_toroidal_surfaces(
+                    s, s_inner, s_outer, Nx=6, Ny=6, Nz=6, order=1, coil_coil_flag=True, jax_flag=False, numquadpoints=10,
+                    eps=1, Nmin_factor=1.0
+                )
+
+            # Test coil_coil_flag=True with forced overlap
+            curves_cc, all_curves_cc = create_planar_curves_between_two_toroidal_surfaces(
+                s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1, coil_coil_flag=True, jax_flag=False, numquadpoints=10
+            )
+            self.assertTrue(len(curves_cc) > 0)
+
+            # Additional tests for different nfp values and files
+            nfp_file_map = {
+                1: 'input.circular_tokamak',
+                3: 'c09r00_B_axis_half_tesla_PM4Stell.plasma',
+                4: 'input.LandremanPaul2021_QH_reactorScale_lowres'
+            }
+            for nfp, fname in nfp_file_map.items():
+                print(f"Testing {fname} with nfp={nfp}")
+                with self.subTest(nfp=nfp):
+                    file_nfp = TEST_DIR / fname
+                    print(file_nfp)
+                    if nfp == 3:
+                        load_func = SurfaceRZFourier.from_focus
+                    else:
+                        load_func = SurfaceRZFourier.from_vmec_input
+                    s_nfp = load_func(file_nfp, range="half period", nphi=nphi, ntheta=ntheta)
+                    s_inner_nfp = load_func(file_nfp, range="half period", nphi=nphi, ntheta=ntheta)
+                    s_outer_nfp = load_func(file_nfp, range="half period", nphi=nphi, ntheta=ntheta)
+                    # Use different extension distances for QH reactor scale (nfp=4)
+                    if nfp == 4:
+                        s_inner_nfp.extend_via_projected_normal(1.0)
+                        s_outer_nfp.extend_via_projected_normal(2.0)
+                    else:
+                        s_inner_nfp.extend_via_projected_normal(0.1)
+                        s_outer_nfp.extend_via_projected_normal(0.2)
+                    curves_nfp, all_curves_nfp = create_planar_curves_between_two_toroidal_surfaces(
+                        s_nfp, s_inner_nfp, s_outer_nfp, Nx=10, Ny=10, Nz=10, order=1, coil_coil_flag=False, jax_flag=False, numquadpoints=10
+                    )
+                    self.assertTrue(len(curves_nfp) > 0)
+                    self.assertTrue(len(all_curves_nfp) >= len(curves_nfp))
+                    for curve in curves_nfp:
+                        gamma = curve.gamma()
+                        self.assertEqual(gamma.shape[1], 3)
+                        self.assertEqual(gamma.shape[0], 10)
+
+    def test_create_equally_spaced_curves_jax(self):
+        from simsopt.geo.curve import create_equally_spaced_curves
+        ncurves, nfp = 2, 2
+        stellsym = True
+        R0, R1 = 5.0, 1.0
+        order = 3
+        numquadpoints = 12
+        curves = create_equally_spaced_curves(ncurves, nfp, stellsym,
+                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, jax_flag=True)
+        self.assertEqual(len(curves), ncurves)
+        for curve in curves:
+            gamma = curve.gamma()
+            self.assertEqual(gamma.shape, (numquadpoints, 3))
+            # Check that the major radius is close to R0 for all points
+            R = np.sqrt(gamma[:, 0]**2 + gamma[:, 1]**2)
+            self.assertTrue(np.allclose(np.mean(R), R0, atol=0.2))
+
+    def test_curve_center(self):
+        """
+        Test that the center of a curve is computed correctly.
+
+        Note that the PlanarFourier curve is not initialized with the correct quaternion dofs,
+        which should always be normalized to one, but instead is initialized to zero. 
+        """
+        # Use a simple planar circle for which the centroid is known
+        nquad = 100
+        order = 1
+        R0 = 3.0
+        # Create a circle in the x-y plane centered at (R0, 0, 0)
+        curve = CurvePlanarFourier(nquad, order, nfp=1, stellsym=False)
+        dofs = np.zeros(curve.dof_size)
+        dofs[0] = 1.0  # radius
+        # Set the center to (R0, 0, 0)
+        dofs[-3] = R0
+        dofs[-2] = 0.0
+        dofs[-1] = 0.0
+        curve.set_dofs(dofs)
+        gamma = curve.gamma()
+        gammadash = curve.gammadash()
+        centroid = curve.center(gamma, gammadash)
+        # The centroid should be at (R0, 0, 0)
+        np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12)
+
+        # Repeat with RotatedCurve
+        curve = RotatedCurve(curve, np.pi, flip=False)
+        dofs = np.zeros(curve.dof_size)
+        dofs[0] = 1.0  # radius
+        # Set the center to (R0, 0, 0)
+        dofs[-3] = R0
+        dofs[-2] = 0.0
+        dofs[-1] = 0.0
+        curve.set_dofs(dofs)
+        gamma = curve.gamma()
+        gammadash = curve.gammadash()
+        centroid = curve.center(gamma, gammadash)
+        # The centroid should be at (R0, 0, 0)
+        np.testing.assert_allclose(centroid * -1, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
+
+        # Repeat with JaxCurve
+        curve = JaxCurvePlanarFourier(nquad, order)
+        dofs = np.zeros(curve.dof_size)
+        dofs[0] = 1.0  # radius
+        # Set the center to (R0, 0, 0)
+        dofs[-3] = R0
+        dofs[-2] = 0.0
+        dofs[-1] = 0.0
+        curve.set_dofs(dofs)
+        gamma = curve.gamma()
+        gammadash = curve.gammadash()
+        centroid = curve.center(gamma, gammadash)
+        # The centroid should be at (R0, 0, 0)
+        np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
+
+        # Repeat with RotatedCurve
+        curve = RotatedCurve(curve, np.pi, flip=False)
+        dofs = np.zeros(curve.dof_size)
+        dofs[0] = 1.0  # radius
+        # Set the center to (R0, 0, 0)
+        dofs[-3] = R0
+        dofs[-2] = 0.0
+        dofs[-1] = 0.0
+        curve.set_dofs(dofs)
+        gamma = curve.gamma()
+        gammadash = curve.gammadash()
+        centroid = curve.center(gamma, gammadash)
+        # The centroid should be at (R0, 0, 0)
+        np.testing.assert_allclose(centroid * -1, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
+
     def test_curverzfourier_dofnames(self):
         # test that the dof names correspond to how they are treated in the code
         order = 3
@@ -786,7 +1070,7 @@ class Testing(unittest.TestCase):
         curve.set('rs(1)', 2)
         curve.set('zc(2)', 3)
         curve.set('zs(3)', 4)
-        
+
         # test rc, rs, zc, and zs, note sine arrays start from mode number 1
         assert curve.rc[0] == curve.get('rc(0)')
         assert curve.zc[2] == curve.get('zc(2)')
@@ -797,10 +1081,11 @@ class Testing(unittest.TestCase):
         curve = CurveRZFourier(32, order, 1, True)
         curve.set('rc(1)', 1)
         curve.set('zs(2)', 2)
-        
+
         # test rc and zs
         assert curve.rc[1] == curve.get('rc(1)')
         assert curve.zs[1] == curve.get('zs(2)')
+
 
 if __name__ == "__main__":
     unittest.main()

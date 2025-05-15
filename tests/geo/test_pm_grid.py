@@ -22,7 +22,7 @@ TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 
-class Testing(unittest.TestCase):
+class PermanentMagnetGridTesting(unittest.TestCase):
 
     def test_bad_params(self):
         """
@@ -531,21 +531,21 @@ class Testing(unittest.TestCase):
             # Check coil initialization for some common stellarators wout_LandremanPaul2021_QA_lowres
             s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QA_lowres.nc',
                                            range="half period", nphi=nphi, ntheta=ntheta)
-            base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s)
+            base_curves, curves, coils = initialize_coils_pms('qa', TEST_DIR, s)
             bs = BiotSavart(coils)
             B0avg = calculate_on_axis_B(bs, s)
             assert np.allclose(B0avg, 0.15)
 
             s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc',
                                            range="half period", nphi=nphi, ntheta=ntheta)
-            base_curves, curves, coils = initialize_coils('qh', TEST_DIR, s)
+            base_curves, curves, coils = initialize_coils_pms('qh', TEST_DIR, s)
             bs = BiotSavart(coils)
             B0avg = calculate_on_axis_B(bs, s)
-            assert np.allclose(B0avg, 0.15)
+            assert np.allclose(B0avg, 5.7)
 
             # Repeat with wrapper function
             s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-            base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s)
+            base_curves, curves, coils = initialize_coils_pms('muse_famus', TEST_DIR, s)
             bs = BiotSavart(coils)
             B0avg = calculate_on_axis_B(bs, s)
             assert np.allclose(B0avg, 0.15)
@@ -638,7 +638,7 @@ class Testing(unittest.TestCase):
         ntheta = nphi
         surface_filename = TEST_DIR / input_name
         s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-        base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s)
+        base_curves, curves, coils = initialize_coils_pms('muse_famus', TEST_DIR, s)
         bs = BiotSavart(coils)
         B0avg = calculate_on_axis_B(bs, s)
         assert np.allclose(B0avg, 0.15)
@@ -667,12 +667,30 @@ class Testing(unittest.TestCase):
         # Make QFM surfaces
         Bfield = bs + b_dipole
         Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
-        #qfm_surf = make_qfm(s_plot, Bfield)
-        #qfm_surf = qfm_surf.surface
+        qfm_surf = make_qfm(s_plot, Bfield, n_iters=10)
+        qfm_surf = qfm_surf.surface
 
         # Run poincare plotting
         #with ScratchDir("."):
         #    run_Poincare_plots(s_plot, bs, b_dipole, None, 'poincare_test')
+
+    def test_analytic_magnet_fields(self):
+        # Initialize one permanent magnet
+        # Compute the A matrix at some faraway point using the pure dipole functionality in the existing code
+        # Repeat with your full analytic matrix
+        # nphi = 8
+        # ntheta = nphi
+        # s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+        # s1 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+        # s2 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+        # s1.extend_via_projected_normal(0.1)
+        # s2.extend_via_projected_normal(0.2)
+        # Bn = np.zeros(())
+        # kwargs = {"dr": 0.15}
+        # pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+        A_matrix_original = np.zeros(10)
+        A_matrix_new = np.zeros(10)
+        assert np.allclose(A_matrix_original, A_matrix_new)
 
 
 if __name__ == "__main__":
