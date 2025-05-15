@@ -8,7 +8,7 @@ class CurvePlanarFourier : public Curve<Array> {
         CurvePlanarFourier is a curve that is restricted to lie in a plane. In
         the plane, the curve is represented using a Fourier series in plane polar coordinates:
 
-           r(phi) = \sum_{n=0}^{order} x_{c,n}cos(n*nfp*phi) + \sum_{n=1}^order x_{s,n}sin(n*nfp*phi)
+           r(phi) = \sum_{n=0}^{order} x_{c,n}cos(n*phi) + \sum_{n=1}^order x_{s,n}sin(n*phi)
         
         The plane is rotated using a quarternion
 
@@ -31,8 +31,6 @@ class CurvePlanarFourier : public Curve<Array> {
        */
     public:
         const int order;
-        const int nfp;
-        const bool stellsym;
         using Curve<Array>::quadpoints;
         using Curve<Array>::numquadpoints;
         using Curve<Array>::check_the_persistent_cache;
@@ -42,21 +40,21 @@ class CurvePlanarFourier : public Curve<Array> {
         Array q;
         Array center;
 
-        CurvePlanarFourier(int _numquadpoints, int _order, int _nfp, bool _stellsym) : Curve<Array>(_numquadpoints), order(_order), nfp(_nfp), stellsym(_stellsym) {
+        CurvePlanarFourier(int _numquadpoints, int _order) : Curve<Array>(_numquadpoints), order(_order) {
             rc = xt::zeros<double>({order + 1});
             rs = xt::zeros<double>({order});
             q = xt::zeros<double>({4});
             center = xt::zeros<double>({3});
         }
 
-        CurvePlanarFourier(vector<double> _quadpoints, int _order, int _nfp, bool _stellsym) : Curve<Array>(_quadpoints), order(_order), nfp(_nfp), stellsym(_stellsym) {
+        CurvePlanarFourier(vector<double> _quadpoints, int _order) : Curve<Array>(_quadpoints), order(_order) {
             rc = xt::zeros<double>({order + 1});
             rs = xt::zeros<double>({order});
             q = xt::zeros<double>({4});
             center = xt::zeros<double>({3});
         }
 
-        CurvePlanarFourier(Array _quadpoints, int _order, int _nfp, bool _stellsym) : Curve<Array>(_quadpoints), order(_order), nfp(_nfp), stellsym(_stellsym) {
+        CurvePlanarFourier(Array _quadpoints, int _order) : Curve<Array>(_quadpoints), order(_order) {
             rc = xt::zeros<double>({order + 1});
             rs = xt::zeros<double>({order});
             q = xt::zeros<double>({4});
