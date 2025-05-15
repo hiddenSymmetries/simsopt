@@ -1,8 +1,7 @@
 import numpy as np
-import jax.numpy as jnp
 from itertools import chain
 import simsoptpp as sopp
-from .curve import Curve, JaxCurve
+from .curve import Curve
 
 __all__ = ['CurvePlanarFourier']
 
