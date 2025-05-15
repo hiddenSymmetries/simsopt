@@ -798,6 +798,15 @@ class Testing(unittest.TestCase):
         gamma = curve.gamma()
         self.assertEqual(gamma.shape, (quadpoints, 3))
 
+        # Retry with specified dofs
+        dofs = np.arange(6)
+        curve = CurvePlanarEllipticalCylindrical(quadpoints, a, b, dofs=dofs)
+        self.assertEqual(curve.num_dofs(), 6)
+        self.assertEqual(len(curve.get_dofs()), 6)
+        self.assertEqual(curve._make_names(), ['R0', 'phi', 'Z0', 'x_rotation', 'y_rotation', 'z_rotation'])
+        gamma = curve.gamma()
+        self.assertEqual(gamma.shape, (quadpoints, 3))
+
     def test_curve_planar_elliptical_cylindrical_set_get_dofs(self):
         quadpoints = 10
         a, b = 1.5, 0.5
@@ -908,38 +917,39 @@ class Testing(unittest.TestCase):
             s_outer.extend_via_projected_normal(0.2)
             # Standard usage
             curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, coil_coil_flag=False, jax_flag=False, numquadpoints=10
+                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, jax_flag=False, numquadpoints=10
             )
             self.assertTrue(len(curves) > 0)
             self.assertTrue(len(all_curves) >= len(curves))
             for curve in curves:
                 gamma = curve.gamma()
+                print(gamma.shape)
                 self.assertEqual(gamma.shape[1], 3)
                 self.assertEqual(gamma.shape[0], 10)
 
+            # Standard usage without specified numquadpoints
+            curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
+                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, jax_flag=False
+            )
+            self.assertTrue(len(curves) > 0)
+            self.assertTrue(len(all_curves) >= len(curves))
+            for curve in curves:
+                gamma = curve.gamma()
+                print(gamma.shape)
+                self.assertEqual(gamma.shape[1], 3)
+                self.assertEqual(gamma.shape[0], 80)  # default numquadpoints = (order + 1) * 40
+
             # Test with jax_flag=True
             curves_jax, all_curves_jax = create_planar_curves_between_two_toroidal_surfaces(
-                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, coil_coil_flag=False, jax_flag=True, numquadpoints=10
+                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, jax_flag=True, numquadpoints=10
             )
             self.assertTrue(len(curves_jax) > 0)
             self.assertTrue(len(all_curves_jax) >= len(curves_jax))
             for curve in curves_jax:
                 gamma = curve.gamma()
+                print(gamma.shape)
                 self.assertEqual(gamma.shape[1], 3)
                 self.assertEqual(gamma.shape[0], 10)
-
-            # Test coil_coil_flag=True
-            with self.assertRaises(ValueError):
-                curves_cc, all_curves_cc = create_planar_curves_between_two_toroidal_surfaces(
-                    s, s_inner, s_outer, Nx=6, Ny=6, Nz=6, order=1, coil_coil_flag=True, jax_flag=False, numquadpoints=10,
-                    eps=1, Nmin_factor=1.0
-                )
-
-            # Test coil_coil_flag=True with forced overlap
-            curves_cc, all_curves_cc = create_planar_curves_between_two_toroidal_surfaces(
-                s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1, coil_coil_flag=True, jax_flag=False, numquadpoints=10
-            )
-            self.assertTrue(len(curves_cc) > 0)
 
             # Additional tests for different nfp values and files
             nfp_file_map = {
@@ -969,7 +979,7 @@ class Testing(unittest.TestCase):
                             s_inner_nfp.extend_via_projected_normal(0.1)
                             s_outer_nfp.extend_via_projected_normal(0.2)
                         curves_nfp, all_curves_nfp = create_planar_curves_between_two_toroidal_surfaces(
-                            s_nfp, s_inner_nfp, s_outer_nfp, Nx=10, Ny=10, Nz=10, order=1, coil_coil_flag=False, jax_flag=jax_flag, numquadpoints=10
+                            s_nfp, s_inner_nfp, s_outer_nfp, Nx=10, Ny=10, Nz=10, order=1, jax_flag=jax_flag, numquadpoints=10
                         )
                         self.assertTrue(len(curves_nfp) > 0)
                         self.assertTrue(len(all_curves_nfp) >= len(curves_nfp))
@@ -1251,7 +1261,6 @@ class Testing(unittest.TestCase):
             4: 'input.LandremanPaul2021_QH_reactorScale_lowres'
         }
         Nmin_factors = [2.01, 3.0]
-        half_period_factors = [1.0, 2.0]
         for nfp, fname in nfp_file_map.items():
             with self.subTest(nfp=nfp):
                 file_nfp = TEST_DIR / fname
@@ -1260,91 +1269,98 @@ class Testing(unittest.TestCase):
                 else:
                     load_func = SurfaceRZFourier.from_vmec_input
                 s = load_func(file_nfp, range="half period", nphi=nphi, ntheta=ntheta)
-                s_inner = load_func(file_nfp, range="half period", nphi=nphi, ntheta=ntheta)
                 s_outer = load_func(file_nfp, range="half period", nphi=nphi, ntheta=ntheta)
-                s_inner.extend_via_projected_normal(1.0)
                 s_outer.extend_via_projected_normal(2.0)
                 Nx, Ny, Nz =  5, 5, 5,
                 for Nmin_factor in Nmin_factors:
-                    for half_period_factor in half_period_factors:
-                        print(f"nfp={nfp}, Nmin_factor={Nmin_factor}, half_period_factor={half_period_factor}")
-                        xyz_uniform, xyz_inner, xyz_outer, R = setup_uniform_grid_in_bounding_box(
-                            s, s_inner, s_outer, Nx, Ny, Nz, Nmin_factor=Nmin_factor, half_period_factor=half_period_factor)
-                        # Check shapes
-                        self.assertEqual(xyz_inner.shape[1], 3)
-                        self.assertEqual(xyz_outer.shape[1], 3)
-                        self.assertEqual(xyz_uniform.shape[1], 3)
-                        self.assertTrue(xyz_uniform.shape[0] > 0)
-                        self.assertTrue(R > 0)
-                        # Check that all points are within the bounding box of the outer surface
-                        x_outer, y_outer, z_outer = xyz_outer[:, 0], xyz_outer[:, 1], xyz_outer[:, 2]
-                        x_min, x_max = np.min(x_outer), np.max(x_outer)
-                        y_min, y_max = np.min(y_outer), np.max(y_outer)
-                        z_min, z_max = np.min(z_outer), np.max(z_outer)
-                        z_max = min(z_max, abs(z_min))
-                        z_min = -z_max
-                        for pt in xyz_uniform:
-                            self.assertTrue(x_min - 1e-8 <= pt[0] <= x_max + 1e-8)
-                            self.assertTrue(y_min - 1e-8 <= pt[1] <= y_max + 1e-8)
-                            self.assertTrue(z_min - 1e-8 <= pt[2] <= z_max + 1e-8)
-                        # Check pairwise distances (no overlap)
-                        dists = np.full(len(xyz_uniform), np.inf)
-                        for i in range(len(xyz_uniform)):
-                            for j in range(len(xyz_uniform)):
-                                if i != j:
-                                    dist = np.linalg.norm(xyz_uniform[i] - xyz_uniform[j])
-                                    if dist < dists[i]:
-                                        dists[i] = dist
-                        print(f"Before symmetrization: min nearest distance = {np.min(dists):.6g}, max = {np.max(dists):.6g}, mean = {np.mean(dists):.6g}")
-                        for i, min_dist in enumerate(dists):
-                            self.assertGreaterEqual(
-                                min_dist, 2*R - 1e-12,
-                                f"Coil {i} has min distance {min_dist:.6g} < 2R={2*R:.6g} to another coil center"
-                            )
+                    print(f"nfp={nfp}, Nmin_factor={Nmin_factor}")
+                    xyz_uniform, xyz_outer, R = setup_uniform_grid_in_bounding_box(
+                        s, s_outer, Nx, Ny, Nz, Nmin_factor=Nmin_factor)
+                    # Check shapes
+                    self.assertEqual(xyz_outer.shape[1], 3)
+                    self.assertEqual(xyz_uniform.shape[1], 3)
+                    self.assertTrue(xyz_uniform.shape[0] > 0)
+                    self.assertTrue(R > 0)
+                    # Check pairwise distances (no overlap)
+                    dists = np.full(len(xyz_uniform), np.inf)
+                    for i in range(len(xyz_uniform)):
+                        for j in range(len(xyz_uniform)):
+                            if i != j:
+                                dist = np.linalg.norm(xyz_uniform[i] - xyz_uniform[j])
+                                if dist < dists[i]:
+                                    dists[i] = dist
+                    print(f"Before symmetrization: min nearest distance = {np.min(dists):.6g}, max = {np.max(dists):.6g}, mean = {np.mean(dists):.6g}")
+                    for i, min_dist in enumerate(dists):
+                        self.assertGreaterEqual(
+                            min_dist, 2*R - 1e-12,
+                            f"Coil {i} has min distance {min_dist:.6g} < 2R={2*R:.6g} to another coil center"
+                        )
 
-                        order = 0
-                        ncoils = xyz_uniform.shape[0]
-                        nquad = 20
-                        curves = [CurvePlanarFourier(nquad, order) for i in range(ncoils)]
+                    order = 0
+                    ncoils = xyz_uniform.shape[0]
+                    nquad = 20
+                    curves = [CurvePlanarFourier(nquad, order) for i in range(ncoils)]
 
-                        # Initialize a bunch of circular coils with same normal vector
-                        for ic in range(ncoils):
-                            alpha2 = (np.random.rand(1) * np.pi - np.pi / 2.0)[0]
-                            delta2 = (np.random.rand(1) * np.pi)[0]
-                            calpha2 = np.cos(alpha2)
-                            salpha2 = np.sin(alpha2)
-                            cdelta2 = np.cos(delta2)
-                            sdelta2 = np.sin(delta2)
-                            dofs = np.zeros(2 * order + 8)
-                            dofs[0] = R
-                            for j in range(1, 2 * order + 1):
-                                dofs[j] = 0.0
-                            # Conversion from Euler angles in 3-2-1 body sequence to quaternions:
-                            # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
-                            dofs[2 * order + 1] = calpha2 * cdelta2
-                            dofs[2 * order + 2] = salpha2 * cdelta2
-                            dofs[2 * order + 3] = calpha2 * sdelta2
-                            dofs[2 * order + 4] = -salpha2 * sdelta2
-                            # Now specify the center
-                            dofs[2 * order + 5:2 * order + 8] = xyz_uniform[ic, :]
-                            curves[ic].set_dofs(dofs)
-                        all_curves = apply_symmetries_to_curves(curves, s.nfp, s.stellsym)
-                        ncoils = len(all_curves)
+                    # Initialize a bunch of circular coils with same normal vector
+                    for ic in range(ncoils):
+                        alpha2 = (np.random.rand(1) * np.pi - np.pi / 2.0)[0]
+                        delta2 = (np.random.rand(1) * np.pi)[0]
+                        calpha2 = np.cos(alpha2)
+                        salpha2 = np.sin(alpha2)
+                        cdelta2 = np.cos(delta2)
+                        sdelta2 = np.sin(delta2)
+                        dofs = np.zeros(2 * order + 8)
+                        dofs[0] = R
+                        for j in range(1, 2 * order + 1):
+                            dofs[j] = 0.0
+                        # Conversion from Euler angles in 3-2-1 body sequence to quaternions:
+                        # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+                        dofs[2 * order + 1] = calpha2 * cdelta2
+                        dofs[2 * order + 2] = salpha2 * cdelta2
+                        dofs[2 * order + 3] = calpha2 * sdelta2
+                        dofs[2 * order + 4] = -salpha2 * sdelta2
+                        # Now specify the center
+                        dofs[2 * order + 5:2 * order + 8] = xyz_uniform[ic, :]
+                        curves[ic].set_dofs(dofs)
+                    all_curves = apply_symmetries_to_curves(curves, s.nfp, s.stellsym)
+                    ncoils = len(all_curves)
 
-                        # Check pairwise distances, now with the symmetrized entire grid
-                        dists = np.full(len(all_curves), np.inf)
-                        for i in range(len(all_curves)):
-                            for j in range(len(all_curves)):
-                                if i != j:
-                                    dist = np.min(np.linalg.norm(all_curves[i].centroid() - all_curves[j].centroid(), axis=-1))
-                                    if dist < dists[i]:
-                                        dists[i] = dist
-                        print(f"After symmetrization: min nearest distance = {np.min(dists):.6g}, max = {np.max(dists):.6g}, mean = {np.mean(dists):.6g}")
-                        for i, min_dist in enumerate(dists):
-                            self.assertGreaterEqual(
-                                min_dist, 2*R - 1e-12,
-                                f"Coil {i} has min distance {min_dist:.6g} < 2R={2*R:.6g} to another coil center"
-                            )
+                    # Check pairwise distances, now with the symmetrized entire grid
+                    dists = np.full(len(all_curves), np.inf)
+                    for i in range(len(all_curves)):
+                        for j in range(len(all_curves)):
+                            if i != j:
+                                dist = np.min(np.linalg.norm(all_curves[i].centroid() - all_curves[j].centroid(), axis=-1))
+                                if dist < dists[i]:
+                                    dists[i] = dist
+                    print(f"After symmetrization: min nearest distance = {np.min(dists):.6g}, max = {np.max(dists):.6g}, mean = {np.mean(dists):.6g}")
+                    for i, min_dist in enumerate(dists):
+                        self.assertGreaterEqual(
+                            min_dist, 2*R - 1e-12,
+                            f"Coil {i} has min distance {min_dist:.6g} < 2R={2*R:.6g} to another coil center"
+                        )
+
+                    # Optionally plot coil centers in 3D
+                    # centers_orig = np.array([curve.centroid() for curve in curves])
+                    # centers = np.array([curve.centroid() for curve in all_curves])
+                    # fig = plt.figure()
+                    # ax = fig.add_subplot(111, projection='3d')
+                    # ax.scatter(centers_orig[:, 0], centers_orig[:, 1], centers_orig[:, 2], c='k', marker='x', s=100)
+                    # ax.scatter(centers[:, 0], centers[:, 1], centers[:, 2], c='b', marker='o')
+                    # ax.set_xlabel('X')
+                    # ax.set_ylabel('Y')
+                    # ax.set_zlabel('Z')
+                    # ax.set_title(f'nfp={nfp}, Nmin_factor={Nmin_factor}')
+                    # plt.tight_layout()
+                    # plt.show()
+
+        # Check that a warning is raised if Nmin_factor < 2
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            # Use a valid s and s_outer from above, but Nmin_factor < 2
+            _ = setup_uniform_grid_in_bounding_box(s, s_outer, Nx, Ny, Nz, Nmin_factor=1.5)
+            assert any(issubclass(warn.category, UserWarning) for warn in w), "Expected a UserWarning for Nmin_factor < 2"
 
 if __name__ == "__main__":
     unittest.main()

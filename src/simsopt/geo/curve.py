@@ -930,23 +930,40 @@ def curves_to_vtk(curves, filename, close=False, extra_data=None):
     polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData=pointData)
 
 
-def setup_uniform_grid_in_bounding_box(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_factor=2.01, half_period_factor=2.0):
+def setup_uniform_grid_in_bounding_box(s, s_outer, Nx, Ny, Nz, Nmin_factor=2.01):
     """
-    Generate a uniform 3D grid of points in a bounding box defined by the inner and outermost points 
-    of two toroidal surfaces. Filtering on this grid is done to avoid coil overlap and respect 
-    stellarator symmetry.
+    Generate a uniform 3D grid of points for setting up circular coils. 
+    The grid is defined by the inner and outermost points of a toroidal surface s_outer.
+    Filtering on this grid is done to avoid coil overlap and respect stellarator and 
+    field-period symmetries.
 
-    This function is typically used to initialize candidate coil center locations for planar coil optimization. 
-    It computes a uniform grid in the bounding box between two surfaces, then (for nfp >= 1) removes points 
-    outside the unique sector [0, pi / nfp] (or [0, 2pi / nfp] for stellsym = False) and those too close to 
-    the symmetry plane, to avoid overlap after symmetry operations.
+    This function is typically used to initialize candidate coil center locations for planar 
+    coil optimization. 
+    It computes a uniform grid in the bounding box from the min and max points of the toroidal surface 
+    s_outer (typically generated using s.extend_via_normal() or similar function). Then it:
+    1. Generates a uniform grid for a set of circular coils by:
+        (a) X = np.linspace(dx / 2.0 + x_min, x_max - dx / 2.0, Nx, endpoint=True)
+        (b) Y = np.linspace(dy / 2.0 + y_min, y_max - dy / 2.0, Ny, endpoint=True)
+        (c) Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
+        (d) Computes the radius R of the coils by taking the minimum spacing of the grid and dividing by Nmin_factor:
+            dx = X[1] - X[0]
+            dy = Y[1] - Y[0]
+            dz = Z[1] - Z[0]
+            Nmin = min(dx, min(dy, dz))
+            R = Nmin / Nmin_factor
+            - As long as Nmin_factor > 2, then the coils cannot overlap.
+        (e) Removes points too close to the unique sector [0, pi / nfp] (or [0, 2pi / nfp] 
+            for stellsym = False) to avoid overlap after symmetry operations. To guarantee that 
+            the symmetrized coils do not overlap, we remove points according to the following logic:
+            - Compute the coil curve in the x-y plane.
+            - Compute the angle of every point on the coil curve.
+            - Remove points where the angle is greater than phi0 or less than 0.
+            - This guarantees that the symmetrized coils do not overlap.
 
     Parameters
     ----------
     s : Surface
         The main surface object (used for nfp and geometry info).
-    s_inner : Surface
-        The inner toroidal surface (for grid bounding box).
     s_outer : Surface
         The outer toroidal surface (for grid bounding box).
     Nx : int
@@ -959,25 +976,15 @@ def setup_uniform_grid_in_bounding_box(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_fac
         Factor to set minimum coil spacing (default: 2.01). The coil radius is set to Nmin / Nmin_factor, 
         where Nmin is the minimum grid spacing. So as long as Nmin_factor > 2, then the coils 
         (which are initialized as circles of radius R) will not overlap.
-    half_period_factor : float, optional (default: 2.0)
-        Factor to set the spacing between different sectors for nfp > 1.
 
     Returns
     -------
     xyz_uniform : ndarray, shape (N, 3)
         Array of candidate coil center points in 3D, filtered for symmetry and spacing.
-    xyz_inner : ndarray, shape (M, 3)
-        Array of points on the inner surface.
     xyz_outer : ndarray, shape (M, 3)
         Array of points on the outer surface.
     R : float
         The coil radius used for spacing.
-
-    Notes
-    -----
-    - For nfp > 1, points outside the fundamental sector are removed, and points too close to the symmetry plane 
-      are also filtered out to avoid overlap after symmetry operations.
-    - The returned grid is suitable for initializing planar coil centers in optimization routines.
     """
     import warnings
     if Nmin_factor <= 2.0:
@@ -985,7 +992,6 @@ def setup_uniform_grid_in_bounding_box(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_fac
 
     # Get (X, Y, Z) coordinates of the two boundaries
     nfp = s.nfp
-    xyz_inner = s_inner.gamma().reshape(-1, 3)
     xyz_outer = s_outer.gamma().reshape(-1, 3)
     x_outer = xyz_outer[:, 0]
     y_outer = xyz_outer[:, 1]
@@ -993,40 +999,41 @@ def setup_uniform_grid_in_bounding_box(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_fac
     x_max = np.max(x_outer)
     x_min = np.min(x_outer)
     y_max = np.max(y_outer)
-    y_min = np.min(y_outer)
+    y_min = 0
     z_max = np.max(z_outer)
     z_min = np.min(z_outer)
     z_max = min(z_max, abs(z_min))  # Note min here! 
     
     # Initialize uniform grid
-    dx = (x_max - x_min) / (Nx - 1)
-    dy = (y_max - y_min) / (Ny - 1)
-    dz = 2 * z_max / (Nz - 1)  # Z-grid spacing should be symmetric to be able to impose stellarator symmetry
+    if nfp != 1:
+        x_min = 0.0
+    
+    dx = (x_max - x_min) / (Nx - 1)  # x \in [x_min, x_max], x_min = 0.0 if nfp != 1
+    dy = (y_max) / (Ny - 1)  # y \in [0, y_max]
+    # Z-grid spacing should be symmetric around z = 0 to be able 
+    # to properly impose stellarator symmetry
+    dz = 2 * z_max / (Nz - 1)  # z \in [-z_max, z_max]
 
-    if nfp > 1:
-        # Throw away any points not in the section phi = [0, pi / n_p] and
-        # make sure all centers points are at least a distance R from the
-        # sector so that all the coil points are reflected correctly.
-        X = np.linspace(
-            dx / 2.0 + x_min, x_max - dx / 2.0,
-            Nx, endpoint=True
-        )
-        Y = np.linspace(
-            dy / 2.0 + y_min, y_max - dy / 2.0,
-            Ny, endpoint=True
-        )
-    else:
-        X = np.linspace(x_min, x_max, Nx, endpoint=True)
-        Y = np.linspace(y_min, y_max, Ny, endpoint=True)
+    # Shift by dx / 2.0 to the right and dy / 2.0 to the top to continue to have 
+    # dx and dy spacing between points on either side of a symmetry plane. 
+    X = np.linspace(
+        dx / 2.0 + x_min, x_max - dx / 2.0,
+        Nx, endpoint=True
+    )
+    Y = np.linspace(
+        dy / 2.0 + y_min, y_max - dy / 2.0,
+        Ny, endpoint=True
+    )
     Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
 
-    # Now recompute the grid spacing since we have shifted the end points of the grid.
+    # Now recompute the grid spacing (for setting the coil radius R)
+    # since we have shifted the end points of the grid.
     dx = X[1] - X[0]
     dy = Y[1] - Y[0]
     dz = Z[1] - Z[0]
     Nmin = min(dx, min(dy, dz))
 
-    # Coils are spaced so that every coil of radius R is at least 2R away from the next coil'
+    # Coils are now spaced so that every coil of radius R is at least 2R away from the next coil'
     R = Nmin / Nmin_factor
     print('Major radius of the coils is R = ', R)
 
@@ -1034,33 +1041,33 @@ def setup_uniform_grid_in_bounding_box(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_fac
     X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
     xyz_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3)
 
-    # Extra work to chop off points outside the unique sector [0, pi / nfp] for 
-    # stellarator symmetric designs. 
-    phi2 = np.arctan2(R * half_period_factor, s.get_rc(0, 0))
-    print(f"Small angle addition to avoid symmetry plane = {phi2}")
-    inds = []
-    for i in range(Nx):
-        for j in range(Ny):
-            for k in range(Nz):
-                phi = np.arctan2(Y[i, j, k], X[i, j, k])
-                # Add a little factor (phi2) to avoid coils near the boundary of the 
-                # sector [0, pi / nfp]. Coils placed there can intersect with a symmetrized
-                # coil if not careful!
-                if phi >= (np.pi / nfp - phi2) or phi <= phi2:
-                    inds.append(int(i * Ny * Nz + j * Nz + k))
+    # Now need to chop off points close to the unique sector [0, (2)pi / nfp]
+    # to avoid overlap after discrete symmetry operations.
+    if s.stellsym:
+        phi0 = np.pi / nfp
+    else:
+        phi0 = 2 * np.pi / nfp
 
-    # Also chop indices sufficiently close to the origin in the x-y plane
-    origin_inds = np.where(np.sqrt(xyz_uniform[:, 0]**2 + xyz_uniform[:, 1]**2) < 2 * R)
-    good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds)
-    good_inds = np.setdiff1d(good_inds, origin_inds)
-    xyz_uniform = xyz_uniform[good_inds, :]
-    return xyz_uniform, xyz_inner, xyz_outer, R
+    # Plan is to generate a circular coil of radius R centered at the coil center in the x-y plane
+    # and then remove points on this circle that have phi > phi0 or phi < 0.
+    nt = 100
+    t = np.linspace(0, 2 * np.pi, nt)
+    circle_xy = np.zeros((nt, Nx * Ny * Nz, 2))
+    circle_xy[:, :, 0] = R * np.outer(np.cos(t), np.ones(Nx * Ny * Nz)) + np.outer(np.ones(nt), xyz_uniform[:, 0])
+    circle_xy[:, :, 1] = R * np.outer(np.sin(t), np.ones(Nx * Ny * Nz)) + np.outer(np.ones(nt), xyz_uniform[:, 1])
+
+    # Remove points where the angle is greater than phi0 or less than 0
+    phi = np.arctan2(circle_xy[:, :, 1], circle_xy[:, :, 0])
+    remove_inds = np.logical_or(phi >= phi0, phi <= 0)
+    intersection_inds = np.any(remove_inds, axis=0)
+    xyz_uniform = xyz_uniform[~intersection_inds, :]
+    return xyz_uniform, xyz_outer, R
 
 
 def create_planar_curves_between_two_toroidal_surfaces(
     s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1,
-    coil_coil_flag=False, jax_flag=False, numquadpoints=None,
-    Nmin_factor=2.5, eps=0.01, half_period_factor=2.0
+    jax_flag=False, numquadpoints=None,
+    Nmin_factor=2.01,
 ):
     from simsopt.geo import CurvePlanarFourier, JaxCurvePlanarFourier
     from simsopt.field import apply_symmetries_to_curves
@@ -1068,8 +1075,12 @@ def create_planar_curves_between_two_toroidal_surfaces(
     nfp = s.nfp
     stellsym = s.stellsym
     normal_inner = s_inner.unitnormal().reshape(-1, 3)
+    xyz_inner = s_inner.gamma().reshape(-1, 3)
     normal_outer = s_outer.unitnormal().reshape(-1, 3)
-    xyz_uniform, xyz_inner, xyz_outer, R = setup_uniform_grid_in_bounding_box(s, s_inner, s_outer, Nx, Ny, Nz, Nmin_factor=Nmin_factor, half_period_factor=half_period_factor)
+
+    # Now guarantees that circular coils of radius R on this grid do not overlap 
+    xyz_uniform, xyz_outer, R = setup_uniform_grid_in_bounding_box(s, s_outer, Nx, Ny, Nz, Nmin_factor=Nmin_factor)
+    
     # Have the uniform grid, now need to loop through and eliminate any points that are 
     # not actually between the two toroidal surfaces.
     contig = np.ascontiguousarray
@@ -1082,37 +1093,6 @@ def create_planar_curves_between_two_toroidal_surfaces(
     )
     inds = np.ravel(np.logical_not(np.all(grid_xyz == 0.0, axis=-1)))
     grid_xyz = np.array(grid_xyz[inds, :], dtype=float)
-
-    # Check if the grid intersects a symmetry plane
-    phi0 = 2 * np.pi / nfp * np.arange(nfp)
-    phi_grid = np.arctan2(grid_xyz[:, 1], grid_xyz[:, 0])
-    phi_dev = np.arctan2(R, np.sqrt(grid_xyz[:, 0] ** 2 + grid_xyz[:, 1] ** 2))
-    inds = []
-    remove_inds = []
-
-    # Remove any coils intersecting with the symmetry plane.
-    for i in range(nfp):
-        conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
-        if len(conflicts) > 0:
-            inds.append(conflicts[0])
-    if len(inds) > 0:
-        print('bad indices = ', inds)
-    remove_inds = inds
-
-    # Remove any coils within a distance eps of another coil.
-    if coil_coil_flag:
-        for i in range(grid_xyz.shape[0]):
-            for j in range(i + 1, grid_xyz.shape[0]):
-                dij = np.sqrt(np.sum((grid_xyz[i, :] - grid_xyz[j, :]) ** 2))
-                conflict_bool = (dij < eps)
-                if conflict_bool:
-                    print('bad indices = ', i, j, dij)
-                    raise ValueError('There is a PSC coil initialized such that it is within a diameter'
-                                     'of another PSC coil. Please reinitialize the coils with a smaller Nmin_factor,'
-                                     'larger epsilon, or a larger number of points.')
-
-    final_inds = np.setdiff1d(np.arange(grid_xyz.shape[0]), remove_inds)
-    grid_xyz = grid_xyz[final_inds, :]
     ncoils = grid_xyz.shape[0]
     if numquadpoints is None:
         nquad = (order + 1)*40

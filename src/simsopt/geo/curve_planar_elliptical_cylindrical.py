@@ -235,7 +235,7 @@ class CurvePlanarEllipticalCylindrical(JaxCurve):
                              external_dof_setter=CurvePlanarEllipticalCylindrical.set_dofs_impl,
                              names=self._make_names())
         else:
-            super().__init__(quadpoints, pure, dofs=dofs,
+            super().__init__(quadpoints, pure, x0=dofs,
                              external_dof_setter=CurvePlanarEllipticalCylindrical.set_dofs_impl,
                              names=self._make_names())
 
