@@ -355,16 +355,16 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
 
 def calculate_modB_on_major_radius(bs, s):
     """
-    Check the average, approximate, on-axis
-    magnetic field strength to make sure the
-    configuration is scaled correctly.
+    Check the average magnetic field strength along the major radius
+    to make sure the configuration is scaled correctly. For highly shaped
+    stellarators, this can deviate a bit from the on-axis B field strength.
 
     Args:
-        bs: MagneticField or BiotSavart class object.
-        s: plasma boundary surface.
+        bs (BiotSavart): MagneticField or BiotSavart class object.
+        s (Surface): plasma boundary surface.
 
     Returns:
-        B0avg: Average magnetic field strength along 
+        B0avg (array, shape (s.nphi,)): Average magnetic field strength along 
           the major radius of the device.
     """
     nphi = len(s.quadpoints_phi)
