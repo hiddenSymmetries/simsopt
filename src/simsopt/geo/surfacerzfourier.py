@@ -7,7 +7,7 @@ import f90nml
 
 import simsoptpp as sopp
 from .surface import Surface
-from .._core.optimizable import DOFs, Optimizable
+from .._core.optimizable import Optimizable
 from .._core.util import nested_lists_to_array
 from .._core.dev import SimsoptRequires
 
