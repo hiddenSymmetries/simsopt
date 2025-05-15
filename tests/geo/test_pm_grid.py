@@ -524,7 +524,7 @@ class PermanentMagnetGridTesting(unittest.TestCase):
                 base_curves[i].fix_all()
             bs = BiotSavart(coils)
 
-            # Calculate average, approximate on-axis B field strength
+            # Calculate average B field strength along the major radius
             B0avg = calculate_modB_on_major_radius(bs, s)
             assert np.allclose(B0avg, 0.15)
 

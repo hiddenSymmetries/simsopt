@@ -310,7 +310,7 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
         R1 = s.get_rc(1, 0) * 2
         order = 5
 
-        # qh needs to be scaled to 0.1 T on-axis magnetic field strength
+        # QH reactor scale needs to be 5.7 T average magnetic field strength
         from simsopt.mhd.vmec import Vmec
         vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
         total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.311753
