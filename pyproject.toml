@@ -61,7 +61,6 @@ dependencies = [
     "ruamel.yaml",
     "sympy",
     "f90nml",
-    "randomgen",
     "pyevtk",
     "matplotlib"
 ]

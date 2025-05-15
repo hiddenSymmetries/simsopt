@@ -45,7 +45,6 @@ requirements:
     - ruamel.yaml
     - sympy
     - f90nml
-    - randomgen
     - pyevtk
 
 about:
