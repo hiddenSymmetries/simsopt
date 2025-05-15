@@ -564,51 +564,24 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             else:
                 kwargs["quadpoints_phi"] = quadpoints_phi
         # create new surface in old resolution
-        surf = SurfaceRZFourier(mpol=self.mpol, ntor=self.ntor, nfp=nfp, stellsym=stellsym,
+        surf = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
                                 **kwargs)
-        surf.rc[:, :] = self.rc
-        surf.zs[:, :] = self.zs
-        if not self.stellsym:
-            surf.rs[:, :] = self.rs
-            surf.zc[:, :] = self.zc
-        # set to the requested resolution
-        surf.change_resolution(mpol, ntor)
+        for m in range(0, mpol):
+            for n in range(-ntor, ntor+1):
+                surf.set_rc(m, n, self.get_rc(m, n))
+                surf.set_zs(m, n, self.get_zs(m, n))
+                if self.stellsym:
+                    surf.set_rs(m, n, self.get_rc(m, n))
+                    surf.set_rs(m, n, self.get_rs(m, n))
+
         surf.local_full_x = surf.get_dofs()
         return surf
 
     def change_resolution(self, mpol, ntor):
         """
-        Change the values of `mpol` and `ntor`. Any new Fourier amplitudes
-        will have a magnitude of zero.  Any previous nonzero Fourier
-        amplitudes that are not within the new range will be
-        discarded.
+        return a new surface with Fourier resolution mpol, ntor
         """
-        old_mpol = self.mpol
-        old_ntor = self.ntor
-        old_rc = self.rc
-        old_zs = self.zs
-        if not self.stellsym:
-            old_rs = self.rs
-            old_zc = self.zc
-        self.mpol = mpol
-        self.ntor = ntor
-        self.allocate()
-        if mpol < old_mpol or ntor < old_ntor:
-            self.invalidate_cache()
-
-        min_mpol = np.min((mpol, old_mpol))
-        min_ntor = np.min((ntor, old_ntor))
-        for m in range(min_mpol + 1):
-            for n in range(-min_ntor, min_ntor + 1):
-                self.rc[m, n + ntor] = old_rc[m, n + old_ntor]
-                self.zs[m, n + ntor] = old_zs[m, n + old_ntor]
-                if not self.stellsym:
-                    self.rs[m, n + ntor] = old_rs[m, n + old_ntor]
-                    self.zc[m, n + ntor] = old_zc[m, n + old_ntor]
-        self._make_mn()
-
-        # Update the dofs object
-        self.replace_dofs(DOFs(self.get_dofs(), self._make_names()))
+        return self.copy(mpol=mpol, ntor=ntor)
 
     def to_RZFourier(self):
         """
@@ -1281,10 +1254,8 @@ class SurfaceRZPseudospectral(Optimizable):
             mpol: The new maximum poloidal mode number.
             ntor: The new maximum toroidal mode number, divided by ``nfp``.
         """
-        # Map to Fourier space:
-        surf2 = self.to_RZFourier()
-        # Change the resolution in Fourier space, by truncating the modes or padding 0s:
-        surf2.change_resolution(mpol=mpol, ntor=ntor)
+        # Map to Fourier space and return a surface with changed resolution
+        surf2 = self.to_RZFourier().change_resolution(mpol=mpol, ntor=ntor)
         # Map from Fourier space back to real space:
         surf3 = SurfaceRZPseudospectral.from_RZFourier(surf2,
                                                        r_shift=self.r_shift,
