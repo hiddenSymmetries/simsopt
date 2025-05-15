@@ -76,7 +76,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     elif curvetype == "CurveHelicalInitx0":
         curve = CurveHelical(x, order, 5, 2, 1.0, 0.3, x0=np.ones(2 * order + 1))
     elif curvetype == "CurvePlanarFourier":
-        curve = CurvePlanarFourier(x, order, 2, True)
+        curve = CurvePlanarFourier(x, order)
     elif curvetype == "CurveXYZFourierSymmetries1":
         curve = CurveXYZFourierSymmetries(x, order, 2, True)
     elif curvetype == "CurveXYZFourierSymmetries2":
