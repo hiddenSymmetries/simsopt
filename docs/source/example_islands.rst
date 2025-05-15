@@ -47,7 +47,7 @@ configuration contains only modes up to m=3, we must increase the
 number of modes in the boundary shape in order to have m=6 modes
 available to vary::
 
-  s.boundary.change_resolution(6, s.boundary.ntor)
+  s.boundary = s.boundary.change_resolution(6, s.boundary.ntor)
 
 Now we can pick out a few modes of the boundary shape to vary in the
 optimization::
