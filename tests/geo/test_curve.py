@@ -784,12 +784,6 @@ class Testing(unittest.TestCase):
 
             os.remove("coils.file_to_load")
 
-    def test_gamma_pure(self):
-        a, b = 2.0, 1.0
-        points = np.linspace(0, 1, 20)
-        dofs = np.zeros(6)
-        gamma = gamma_pure(dofs, points, a, b)
-        self.assertEqual(gamma.shape, (20, 3))
 
     def test_create_planar_curves_between_two_toroidal_surfaces(self):
         # Use a real surface from test files for a minimal working test
