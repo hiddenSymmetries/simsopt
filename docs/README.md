@@ -38,3 +38,26 @@ Whenever the code is updated, repopulate the code tree and run either step-1  or
 cd docs
 sphinx-apidoc -f -o source ../src/simsopt 
 ```
+
+## Refering to code on GitHub
+
+To point to the simsopt repo on GitHub, use the directives ``simsopt``, ``simsoptpy``, ``simsoptpp``, ``examples``, ``tests``.
+They linkage is given below:
+
+*. ``simsopt``: https://github.com/hiddenSymmetries/simsopt
+*. ``simsoptpy``: https://github.com/hiddenSymmetries/simsopt/tree/master/src/simsopt
+*. ``simsoptpp``: https://github.com/hiddenSymmetries/simsopt/tree/master/src/simsoptpp
+*. ``examples``: https://github.com/hiddenSymmetries/simsopt/tree/master/examples
+*. ``tests``: https://github.com/hiddenSymmetries/simsopt/tree/master/tests
+
+So, to point to the ``ci`` folder, use :simsopt:`ci`. Similarly to point to the ``geo`` folder,  use :simsoptpy:`geo`.
+
+For pointing to files, use ``simsopt_file``, ``simsoptpy_file``, ``simsoptpp_file``, ``example_file``, ``tests_file``.
+
+*. ``simsopt_file``: For any file in the simsopt repo
+*. ``simsoptpy_file``: For files in https://github.com/hiddenSymmetries/simsopt/tree/master/src/simsopt
+*. ``simsoptpp_file``: For files in https://github.com/hiddenSymmetries/simsopt/tree/master/src/simsoptpp
+*. ``example_file``: For files in https://github.com/hiddenSymmetries/simsopt/tree/master/examples
+*. ``test_file``: For files in https://github.com/hiddenSymmetries/simsopt/tree/master/tests
+
+So to refer to the ``test_boozersurface.py``, use :test_file:`geo/test_boozersurface.py`.
