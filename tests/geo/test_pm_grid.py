@@ -22,7 +22,7 @@ TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 
-class Testing(unittest.TestCase):
+class PermanentMagnetGridTesting(unittest.TestCase):
 
     def test_bad_params(self):
         """
@@ -525,7 +525,7 @@ class Testing(unittest.TestCase):
             bs = BiotSavart(coils)
 
             # Calculate average, approximate on-axis B field strength
-            B0avg = calculate_on_axis_B(bs, s)
+            B0avg = calculate_modB_on_major_radius(bs, s)
             assert np.allclose(B0avg, 0.15)
 
             # Check coil initialization for some common stellarators wout_LandremanPaul2021_QA_lowres
@@ -533,21 +533,21 @@ class Testing(unittest.TestCase):
                                            range="half period", nphi=nphi, ntheta=ntheta)
             base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s)
             bs = BiotSavart(coils)
-            B0avg = calculate_on_axis_B(bs, s)
+            B0avg = calculate_modB_on_major_radius(bs, s)
             assert np.allclose(B0avg, 0.15)
 
             s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc',
                                            range="half period", nphi=nphi, ntheta=ntheta)
             base_curves, curves, coils = initialize_coils('qh', TEST_DIR, s)
             bs = BiotSavart(coils)
-            B0avg = calculate_on_axis_B(bs, s)
-            assert np.allclose(B0avg, 0.15)
+            B0avg = calculate_modB_on_major_radius(bs, s)
+            assert np.allclose(B0avg, 5.7)
 
             # Repeat with wrapper function
             s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
             base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s)
             bs = BiotSavart(coils)
-            B0avg = calculate_on_axis_B(bs, s)
+            B0avg = calculate_modB_on_major_radius(bs, s)
             assert np.allclose(B0avg, 0.15)
 
         # Test rescaling
@@ -607,6 +607,7 @@ class Testing(unittest.TestCase):
         with ScratchDir("."):
             # Test Bnormal plots
             make_Bnormal_plots(bs, s)
+            make_Bnormal_plots(bs, s, B_axis=1.0)
 
             # optimize pm_opt and plot optimization progress
             kwargs = initialize_default_kwargs(algorithm='GPMO')
@@ -640,7 +641,7 @@ class Testing(unittest.TestCase):
         s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
         base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s)
         bs = BiotSavart(coils)
-        B0avg = calculate_on_axis_B(bs, s)
+        B0avg = calculate_modB_on_major_radius(bs, s)
         assert np.allclose(B0avg, 0.15)
 
         # drastically downsample the grid for speed here
@@ -667,13 +668,12 @@ class Testing(unittest.TestCase):
         # Make QFM surfaces
         Bfield = bs + b_dipole
         Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
-        #qfm_surf = make_qfm(s_plot, Bfield)
-        #qfm_surf = qfm_surf.surface
+        qfm_surf = make_qfm(s_plot, Bfield, n_iters=10)
+        qfm_surf = qfm_surf.surface
 
         # Run poincare plotting
         #with ScratchDir("."):
         #    run_Poincare_plots(s_plot, bs, b_dipole, None, 'poincare_test')
-
 
 if __name__ == "__main__":
     unittest.main()
