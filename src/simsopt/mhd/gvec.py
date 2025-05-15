@@ -241,27 +241,27 @@ class Gvec(Optimizable):
         """
         Run GVEC (via subprocess) if `run_required` or `force` is True.
         """
-        if not self.run_required and not force:
-            if not force:
-                logger.debug("run() called but no need to re-run GVEC")
-                return
+        if not self.run_required:
+            if force:
+                logger.debug("re-run forced")
             else:
-                logger.debug("run() forced")
+                logger.debug("no run required")
+                return
 
         if self._state is not None:
             self._state.finalize()
 
         if self.delete_intermediates and self.run_successful:
-            logger.debug("Deleting output from previous run")
+            logger.debug("deleting output from previous run")
             shutil.rmtree(self.rundir)
         
         self.run_count += 1
-        logger.debug(f"Preparing to run GVEC run number {self.run_count}")
+        logger.debug(f"preparing to run GVEC run number {self.run_count}")
 
         # create run directory
         self.rundir = Path(f"gvec{self._mpi_id}-{self.run_count:03d}")
         if self.rundir.exists():
-            logger.warning(f"Run directory {self.rundir} already exists, replacing")
+            logger.warning(f"run directory {self.rundir} already exists, replacing")
             shutil.rmtree(self.rundir)
         self.rundir.mkdir()
 
@@ -271,13 +271,13 @@ class Gvec(Optimizable):
         # configure restart
         if self.restart_file:
             # ToDo: needs test
-            logger.info(f"Running GVEC with restart from {self.restart_file}")
+            logger.info(f"junning GVEC with restart from {self.restart_file}")
             if self.restart_file.is_absolute():
                 restart_file = self.restart_file
             else:
                 restart_file = ".." / self.restart_file
         else:
-            logger.info("Running GVEC")
+            logger.info("running GVEC")
             restart_file = None
         
         # run GVEC
@@ -328,9 +328,6 @@ class Gvec(Optimizable):
             if f"{key}_mn_max" not in params:
                 params[f"{key}_mn_max"] = (boundary.mpol, boundary.ntor)
 
-        if not isinstance(boundary, SurfaceRZFourier):
-            raise NotImplementedError(f"Boundary object {boundary} not supported.")
-
         # boundary object -> parameters
         params["init_average_axis"] = True
         params["X1_b_cos"] = {}
@@ -346,7 +343,7 @@ class Gvec(Optimizable):
         # flip signs (GVEC default torus coordinates have clockwise zeta)
         params = gvec.util.flip_parameters_zeta(params)
         # perturb boundary when restarting
-        if self.restart_file:  # ToDo: check how perturbation interacts with run_stages
+        if self.restart_file:  # ToDo: check how perturbation interacts with run_stages (wait for gvec update of current_constraint fix)
             perturbation = {"X1pert_b_cos": {}, "X2pert_b_sin": {}, "X1_b_cos": {}, "X2_b_sin": {}, "boundary_perturb": True}
             for (m, n), v in params.items():
                 perturbation["X1pert_b_cos"][m, n] = v - self.base_parameters["X1_b_cos"].get((m, n), 0)
@@ -356,20 +353,23 @@ class Gvec(Optimizable):
             params |= perturbation
         # pressure profile
         params["pres"] = self.profile_to_params(self._pressure)
-        # iota profile
-        if self._iota is None:  # current constraint - set initial iota = 0
-            params["iota"] = dict(
-                type="polynomial",
-                coefs=[0.0]
-            )
-        else:
-            params["iota"] = self.profile_to_params(self._iota)
         # toroidal current profile
         if self._current is None:  # iota constraint
             if "Itor" in params:
                 del params["Itor"]
-        else:
+            if self._iota is None:
+                raise ValueError("missing iota profile for running GVEC with iota-constraint")
+            params["iota"] = self.profile_to_params(self._iota)
+        else:  # current constraint
             params["Itor"] = self.profile_to_params(self._current)
+            # initial iota profile
+            if self._iota is not None:
+                params["iota"] = self.profile_to_params(self._iota)
+            else:
+                params["iota"] = dict(
+                    type="polynomial",
+                    coefs=[0.0]
+                )
 
         # local DOFs
         params["phiedge"] = self._phiedge
@@ -405,7 +405,7 @@ class Gvec(Optimizable):
         elif params["type"] in ["bspline", "interpolation"]:
             raise NotImplementedError(f"Profile of type {params['type']} is not supported for converting a GVEC parameter file to a simsopt.Profile object. Use 'polynomial' instead.")
         else:
-            raise ValueError(f"Unknonw profile type {params['type']}")
+            raise ValueError(f"Unknown profile type {params['type']}")
         
         if "scale" in params:
             profile = ProfileScaled(profile, params["scale"])
@@ -422,9 +422,11 @@ class Gvec(Optimizable):
     @phiedge.setter
     def phiedge(self, phiedge: float):
         """Set the toroidal magnetic flux at the last closed flux surface."""
-        if phiedge != self._phiedge:
-            self._phiedge = phiedge
-            self.run_required = True
+        if phiedge == self._phiedge:
+            return
+        logging.debug(f"setting phiedge to {phiedge}")
+        self._phiedge = phiedge
+        self.run_required = True
 
     @property
     def boundary(self) -> Surface:
@@ -432,14 +434,15 @@ class Gvec(Optimizable):
         return self._boundary
 
     @boundary.setter
-    def boundary(self, boundary: SurfaceRZFourier):
+    def boundary(self, boundary: Surface):
         """Set the plasma boundary."""
-        if boundary is not self._boundary:
-            logging.debug("Replacing surface in boundary setter")
-            self.remove_parent(self._boundary)
-            self._boundary = boundary
-            self.append_parent(self._boundary)
-            self.run_required = True
+        if boundary is self._boundary:
+            return
+        logging.debug("setting plasma boundary")
+        self.remove_parent(self._boundary)
+        self._boundary = boundary
+        self.append_parent(self._boundary)
+        self.run_required = True
 
     @property
     def pressure_profile(self) -> Profile:
@@ -449,6 +452,16 @@ class Gvec(Optimizable):
         Represented as a scaled polynomial profile.
         """
         return self._pressure
+    
+    @pressure_profile.setter
+    def pressure_profile(self, pressure_profile: Profile):
+        if pressure_profile is self._pressure:
+            return
+        logging.debug("setting pressure profile")
+        self.remove_parent(self._pressure)
+        self._pressure = pressure_profile
+        self.append_parent(self._pressure)
+        self.run_required = True
 
     @property
     def iota_profile(self) -> Union[Profile, None]:
@@ -460,12 +473,17 @@ class Gvec(Optimizable):
         return self._iota
     
     @iota_profile.setter
-    def iota_profile(self, profile: Union[Profile, None]):
-        logging.debug("Replacing iota profile")
+    def iota_profile(self, iota_profile: Union[Profile, None]):
+        if iota_profile is self._iota:
+            return
+        if self._current is None:
+            logging.debug("setting iota profile (GVEC configured with iota-constraint)")
+        else:
+            logging.debug("setting initial iota profile (GVEC configured with current-constraint)")
         if self._iota is not None:
             self.remove_parent(self._iota)
-        self._iota = profile
-        if profile is not None:
+        self._iota = iota_profile
+        if iota_profile is not None:
             self.append_parent(self._iota)
         self.run_required = True
     
@@ -479,12 +497,14 @@ class Gvec(Optimizable):
         return self._current
     
     @current_profile.setter
-    def current_profile(self, profile: Union[Profile, None]):
-        logging.debug("Replacing toroidal current profile")
+    def current_profile(self, current_profile: Union[Profile, None]):
+        if current_profile is self._current:
+            return
+        logging.debug("setting toroidal current profile")
         if self._current is not None:
             self.remove_parent(self._current)
-        self._current = profile
-        if profile is not None:
+        self._current = current_profile
+        if current_profile is not None:
             self.append_parent(self._current)
         self.run_required = True
 
@@ -517,7 +537,7 @@ class Gvec(Optimizable):
         self._state.compute(ds, "iota")
         return ds.iota.item()
 
-    def I_tor(self) -> np.ndarray:
+    def current(self) -> np.ndarray:
         """Compute the toroidal current profile, linearly spaced in $s=\rho^2$."""
         self.run()
         rho = np.sqrt(np.linspace(0, 1, 101))
@@ -525,7 +545,7 @@ class Gvec(Optimizable):
         self._state.compute(ds, "I_tor")
         return ds.I_tor.data
 
-    def I_tor_edge(self) -> float:
+    def current_edge(self) -> float:
         """Compute the toroidal current at the edge."""
         self.run()
         ds = gvec.Evaluations(rho=[1], theta="int", zeta="int", state=self._state)
@@ -540,7 +560,7 @@ class Gvec(Optimizable):
         return ds.V.item()
 
     def aspect(self) -> float:
-        """Compute the aspect ratio of the plasma."""
+        """Compute the aspect ratio of the configuration."""
         self.run()
         ds = gvec.Evaluations(rho="int", theta="int", zeta="int", state=self._state)
         self._state.compute(ds, "major_radius", "minor_radius")
