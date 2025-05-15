@@ -1,16 +1,14 @@
 from math import pi
 import numpy as np
-from jax import vjp, jacrev
 
 from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve
-from simsopt.geo.jit import jit
 import simsoptpp as sopp
 from simsopt.field.force import regularization_circ
 
-__all__ = ['Coil', 'JaxCurrent',
+__all__ = ['Coil',
            'Current', 'coils_via_symmetries',
            'load_coils_from_makegrid_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
@@ -256,65 +254,6 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
             dofs (array or scalar) : The degrees of freedom to set.
         """
         self.current_to_scale.set_dofs(dofs / self.scale)
-
-
-def current_pure(dofs):
-    """
-    A pure function that returns the current value.
-
-    Args:
-        dofs (array or scalar) : The current value.
-
-    Returns:
-        The current value.
-    """
-    return dofs
-
-class JaxCurrent(sopp.Current, CurrentBase):
-    """
-    A current object supporting JAX-based automatic differentiation. Can be used for
-    entirely jax-based optimizations with JaxCurves and JaxCurrents. Probably
-    need a full Jax-based BiotSavart class to support this fully.
-
-    Args:
-        current (float) : Initial value of the current.
-        dofs (array-like or None, optional) : Degrees of freedom for optimization. If None, uses the current value.
-        kwargs (dictionary): Additional keyword arguments.
-    """
-    def __init__(self, current, dofs=None, **kwargs):
-        sopp.Current.__init__(self, current)
-        if dofs is None:
-            CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
-                                 x0=self.get_dofs(), **kwargs)
-        else:
-            CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
-                                 dofs=dofs, **kwargs)
-
-        self.current_jax = jit(lambda dofs: current_pure(dofs))
-        self.dcurrent_by_dcurrent_jax = jit(jacrev(self.current_jax))
-        self.dcurrent_by_dcurrent_vjp_jax = jit(lambda x, v: vjp(self.current_jax, x)[1](v)[0])
-
-    def vjp(self, v):
-        r"""
-        Compute the Jacobian-vector product of the current function.
-
-        Args:
-            v (array) : The vector to multiply the Jacobian with.
-
-        Returns:
-            The Jacobian-vector product of the current function.
-        """
-        return Derivative({self: self.dcurrent_by_dcurrent_vjp_jax(self.get_dofs(), v)})
-
-    @property
-    def current(self):
-        """
-        Get the current value of the current object.
-
-        Returns:
-            The current value of the current object.
-        """
-        return self.get_value()
 
 
 class CurrentSum(sopp.CurrentBase, CurrentBase):

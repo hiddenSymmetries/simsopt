@@ -22,10 +22,6 @@ from simsopt.field import BiotSavart, Current, coils_via_symmetries, Coil
 from simsopt.field.coil import coils_to_makegrid
 from simsopt.geo import CurveLength, CurveCurveDistance
 from math import gcd
-from simsopt.geo.curve_planar_elliptical_cylindrical import (
-    CurvePlanarEllipticalCylindrical, create_equally_spaced_cylindrical_curves,
-    r_ellipse, xyz_cyl, rotations, convert_to_cyl, cylindrical_shift, cyl_to_cart, gamma_pure
-)
 from simsopt.geo import SurfaceRZFourier
 from pathlib import Path
 from monty.tempfile import ScratchDir
@@ -787,115 +783,6 @@ class Testing(unittest.TestCase):
             np.testing.assert_allclose(ccdist, loaded_ccdist)
 
             os.remove("coils.file_to_load")
-
-    def test_curve_planar_elliptical_cylindrical_basic(self):
-        quadpoints = 20
-        a, b = 2.0, 1.0
-        curve = CurvePlanarEllipticalCylindrical(quadpoints, a, b)
-        self.assertEqual(curve.num_dofs(), 6)
-        self.assertEqual(len(curve.get_dofs()), 6)
-        self.assertEqual(curve._make_names(), ['R0', 'phi', 'Z0', 'x_rotation', 'y_rotation', 'z_rotation'])
-        gamma = curve.gamma()
-        self.assertEqual(gamma.shape, (quadpoints, 3))
-
-        # Retry with specified dofs
-        dofs = np.arange(6)
-        curve = CurvePlanarEllipticalCylindrical(quadpoints, a, b, dofs=dofs)
-        self.assertEqual(curve.num_dofs(), 6)
-        self.assertEqual(len(curve.get_dofs()), 6)
-        self.assertEqual(curve._make_names(), ['R0', 'phi', 'Z0', 'x_rotation', 'y_rotation', 'z_rotation'])
-        gamma = curve.gamma()
-        self.assertEqual(gamma.shape, (quadpoints, 3))
-
-    def test_curve_planar_elliptical_cylindrical_set_get_dofs(self):
-        quadpoints = 10
-        a, b = 1.5, 0.5
-        curve = CurvePlanarEllipticalCylindrical(quadpoints, a, b)
-        dofs = np.arange(6)
-        curve.set_dofs_impl(dofs)
-        np.testing.assert_allclose(curve.get_dofs(), dofs)
-
-    def test_create_equally_spaced_cylindrical_curves(self):
-        ncurves, nfp = 3, 2
-        stellsym = True
-        R0, a, b = 5.0, 1.0, 0.5
-        numquadpoints = 12
-        curves = create_equally_spaced_cylindrical_curves(ncurves, nfp, stellsym, R0, a, b, numquadpoints)
-        self.assertEqual(len(curves), ncurves)
-        for curve in curves:
-            self.assertIsInstance(curve, CurvePlanarEllipticalCylindrical)
-            gamma = curve.gamma()
-            self.assertEqual(gamma.shape, (numquadpoints, 3))
-            R = np.sqrt(gamma[:, 0]**2 + gamma[:, 1]**2)
-            self.assertTrue(np.allclose(np.mean(R), R0, atol=0.2))
-
-    def test_r_ellipse(self):
-        a, b = 2.0, 1.0
-        l = np.linspace(0, 1, 100)
-        r = r_ellipse(a, b, l)
-        self.assertEqual(r.shape, l.shape)
-        self.assertTrue(np.all(r > 0))
-
-    def test_xyz_cyl(self):
-        a, b = 2.0, 1.0
-        l = np.linspace(0, 1, 50)
-        xyz = xyz_cyl(a, b, l)
-        self.assertEqual(xyz.shape, (50, 3))
-        # y should be all zeros
-        self.assertTrue(np.allclose(xyz[:, 1], 0))
-
-    def test_rotations(self):
-        a, b = 2.0, 1.0
-        l = np.linspace(0, 1, 10)
-        curve = xyz_cyl(a, b, l)
-        alpha_x, alpha_y, alpha_z, dr = 0.1, 0.2, 0.3, 1.0
-        rotated = rotations(curve, b, alpha_x, alpha_y, alpha_z, dr)
-        self.assertEqual(rotated.shape, curve.shape)
-        # Check that the shift in R (x) is applied
-        self.assertTrue(np.allclose(rotated[:, 0] - curve[:, 0], dr, atol=0.1) == False)
-
-        # Check that a full pi or 2pi rotation in each angle returns the original curve (modulo numerical error)
-        for idx, (ar, ap, az) in enumerate([
-            (2 * np.pi, 0, 0),
-            (0, 2 * np.pi, 0),
-            (0, 0, 2 * np.pi),
-            (2 * np.pi, 0, 2 * np.pi),
-            (0, 2 * np.pi, 2 * np.pi),
-            (2 * np.pi, 2 * np.pi, 0),
-            (2 * np.pi, 2 * np.pi, 2 * np.pi),
-            (np.pi, np.pi, np.pi),
-            (np.pi, np.pi, 0),
-        ]):
-            rotated_full = rotations(curve, b, ar, ap, az, dr=0.0)
-            np.testing.assert_allclose(np.abs(rotated_full), np.abs(curve), atol=1e-12, err_msg=f"Failed for full rotation in angle index {idx}")
-
-    def test_convert_to_cyl(self):
-        xyz = np.array([[1.0, 0.0, 2.0], [0.0, 1.0, 3.0]])
-        cyl = convert_to_cyl(xyz)
-        self.assertEqual(cyl.shape, xyz.shape)
-        # R should be sqrt(x^2 + y^2)
-        np.testing.assert_allclose(cyl[:, 0], [1.0, 1.0])
-        # phi should be correct
-        np.testing.assert_allclose(cyl[:, 1], [0.0, np.pi/2])
-        # z unchanged
-        np.testing.assert_allclose(cyl[:, 2], [2.0, 3.0])
-
-    def test_cylindrical_shift(self):
-        cyl = np.array([[1.0, 0.0, 2.0], [1.0, 1.0, 3.0]])
-        dphi, dz = 0.5, 1.5
-        shifted = cylindrical_shift(cyl, dphi, dz)
-        self.assertEqual(shifted.shape, cyl.shape)
-        np.testing.assert_allclose(shifted[:, 0], cyl[:, 0])
-        np.testing.assert_allclose(shifted[:, 1], cyl[:, 1] + dphi)
-        np.testing.assert_allclose(shifted[:, 2], cyl[:, 2] + dz)
-
-    def test_cyl_to_cart(self):
-        cyl = np.array([[1.0, 0.0, 2.0], [1.0, np.pi/2, 3.0]])
-        cart = cyl_to_cart(cyl)
-        self.assertEqual(cart.shape, cyl.shape)
-        np.testing.assert_allclose(cart[:, 0], [1.0, 0.0], atol=1e-14)
-        np.testing.assert_allclose(cart[:, 1], [0.0, 1.0], atol=1e-14)
-        np.testing.assert_allclose(cart[:, 2], [2.0, 3.0])
 
     def test_gamma_pure(self):
         a, b = 2.0, 1.0

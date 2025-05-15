@@ -10,7 +10,7 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
 from simsopt.geo.curve import RotatedCurve, create_equally_spaced_curves, create_equally_spaced_planar_curves
-from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum, coils_via_symmetries, JaxCurrent
+from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum, coils_via_symmetries
 from simsopt.field.coil import coils_to_makegrid, coils_to_focus, load_coils_from_makegrid_file
 from simsopt.field.biotsavart import BiotSavart
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
@@ -97,7 +97,7 @@ class TestCoil(unittest.TestCase):
         x = np.asarray([0.6] + [0.6 + eps for eps in epss])
         curve = get_curve(curvetype, rotated, x)
 
-        for current in (Current(1e4), JaxCurrent(1e4), ScaledCurrent(Current(1e4), 4)):
+        for current in (Current(1e4), ScaledCurrent(Current(1e4), 4)):
             coil = Coil(curve, current)
             coil_str = json.dumps(SIMSON(coil), cls=GSONEncoder)
             coil_regen = json.loads(coil_str, cls=GSONDecoder)
@@ -120,9 +120,9 @@ class TestCoil(unittest.TestCase):
 class TestCurrentSerialization(unittest.TestCase):
     def test_current_serialization(self):
         """
-        Test that Current and JaxCurrent objects can be serialized and deserialized without changing their value.
+        Test that Current objects can be serialized and deserialized without changing their value.
         """
-        for CurrentCls in [Current, JaxCurrent]:
+        for CurrentCls in [Current]:
             current = CurrentCls(1e4)
             current_str = json.dumps(SIMSON(current), cls=GSONEncoder)
             current_regen = json.loads(current_str, cls=GSONDecoder)
@@ -132,7 +132,7 @@ class TestCurrentSerialization(unittest.TestCase):
         """
         Test that ScaledCurrent objects can be serialized and deserialized without changing their value.
         """
-        for CurrentCls in [Current, JaxCurrent]:
+        for CurrentCls in [Current]:
             current = CurrentCls(1e4)
             scaled_current = ScaledCurrent(current, 3)
             current_str = json.dumps(SIMSON(scaled_current), cls=GSONEncoder)
@@ -145,7 +145,7 @@ class TestCurrentSerialization(unittest.TestCase):
         """
         Test that CurrentSum objects can be serialized and deserialized without changing their value.
         """
-        for CurrentCls in [Current, JaxCurrent]:
+        for CurrentCls in [Current]:
             current_a = CurrentCls(1e4)
             current_b = CurrentCls(1.5e4)
             current = CurrentSum(current_a, current_b)
@@ -163,7 +163,7 @@ class ScaledCurrentTesting(unittest.TestCase):
         Test arithmetic operations and vector-Jacobian products for ScaledCurrent and related current objects.
         """
         one = np.asarray([1.])
-        for CurrentCls in [Current, JaxCurrent]:
+        for CurrentCls in [Current]:
             c0 = CurrentCls(5.)
             fak = 3.
             c1 = fak * c0
@@ -301,25 +301,6 @@ class CoilFormatConvertTesting(unittest.TestCase):
 
         coils = coils_via_symmetries(curves, currents, nfp, stellsym)
         coils_planar = coils_via_symmetries(curves_planar, currents_planar, nfp, stellsym)
-        bs = BiotSavart(coils)
-        bs_planar = BiotSavart(coils_planar)
-
-        x1d = np.linspace(R0, R0 + 0.3, 4)
-        y1d = np.linspace(0, 0.2, 3)
-        z1d = np.linspace(-0.2, 0.4, 5)
-        x, y, z = np.meshgrid(x1d, y1d, z1d)
-        points = np.ascontiguousarray(np.array([x.ravel(), y.ravel(), z.ravel()]).T)
-
-        bs.set_points(points)
-        bs_planar.set_points(points)
-
-        np.testing.assert_allclose(bs.B(), bs_planar.B(), atol=1e-16)
-
-        # JaxCurrent version
-        currents_jax = [JaxCurrent(1e5) for i in range(ncoils)]
-        currents_planar_jax = [JaxCurrent(1e5) for i in range(ncoils)]
-        coils = coils_via_symmetries(curves, currents_jax, nfp, stellsym)
-        coils_planar = coils_via_symmetries(curves_planar, currents_planar_jax, nfp, stellsym)
         bs = BiotSavart(coils)
         bs_planar = BiotSavart(coils_planar)
 

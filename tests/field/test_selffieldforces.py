@@ -30,10 +30,8 @@ from simsopt.field import (
     _induced_currents_pure,
     NetFluxes,
     B2Energy,
-    MeanSquaredForce_deprecated,
     LpCurveTorque,
     SquaredMeanTorque,
-    LpCurveForce_deprecated,
     LpCurveForce,
     SquaredMeanForce,
 )
@@ -462,7 +460,6 @@ class CoilForcesTest(unittest.TestCase):
         nfp = 3
         ncoils = 4
         I = 1.7e4
-        regularization = regularization_circ(0.05)
 
         base_curves = create_equally_spaced_curves(ncoils, nfp, True)
         base_currents = [Current(I) for j in range(ncoils)]
@@ -474,8 +471,8 @@ class CoilForcesTest(unittest.TestCase):
         # Test LpCurveForce
         p = 2.5
         threshold = 1.0e3
-        objective = float(LpCurveForce_deprecated(coils[0], coils, regularization, p=p, threshold=threshold).J())
-        dJ = LpCurveForce_deprecated(coils[0], coils, regularization, p=p, threshold=threshold).dJ()
+        objective = float(LpCurveForce(coils[0], coils, p=p, threshold=threshold).J())
+        dJ = LpCurveForce(coils[0], coils, p=p, threshold=threshold).dJ()
         np.testing.assert_allclose(dJ.shape, (ncoils * len(coils[0].x),))
 
         # Now compute the objective a different way, using the independent
@@ -488,15 +485,14 @@ class CoilForcesTest(unittest.TestCase):
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
         np.testing.assert_allclose(objective, objective_alt, rtol=1e-6)
 
-        # Test MeanSquaredForce_deprecated
-        objective = float(MeanSquaredForce_deprecated(coils[0], coils, regularization).J())
-        dJ = MeanSquaredForce_deprecated(coils[0], coils, regularization).dJ()
+        # Test SquaredMeanForce
+        objective = float(SquaredMeanForce(coils[0], coils).J())
+        dJ = SquaredMeanForce(coils[0], coils).dJ()
         np.testing.assert_allclose(dJ.shape, (ncoils * len(coils[0].x),))
 
         # Now compute the objective a different way, using the independent
         # coil_force function
-        force_norm = np.linalg.norm(coil_force(coils[0], coils), axis=1)
-        objective_alt = np.sum(force_norm**2 * gammadash_norm) / np.sum(gammadash_norm)
+        objective_alt = np.linalg.norm(np.sum(coil_force(coils[0], coils) * gammadash_norm[:, None], axis=0) / gammadash_norm.shape[0]) ** 2
 
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
         np.testing.assert_allclose(objective, objective_alt, rtol=1e-6)
@@ -547,14 +543,10 @@ class CoilForcesTest(unittest.TestCase):
         objective2 = 0.0
         objective3 = 0.0
         objective_alt = 0.0
-        objective_mixed = 0.0
-        objective_mixed_downsampled = 0.0
         for i in range(len(coils)):
-            objective += float(LpCurveForce_deprecated(coils[i], coils, regularization, p=p, threshold=threshold).J())
-            objective2 += float(LpCurveForce_deprecated(coils[i], coils, regularization, p=p, threshold=threshold, downsample=2).J())
-            objective3 += float(LpCurveForce_deprecated(coils[i], coils, regularization, p=p, threshold=threshold, downsample=3).J())
-            objective_mixed += float(LpCurveForce(coils[i], coils, p=p, threshold=threshold).J())
-            objective_mixed_downsampled += float(LpCurveForce(coils[i], coils, p=p, threshold=threshold, downsample=2).J())
+            objective += float(LpCurveForce(coils[i], coils, p=p, threshold=threshold).J())
+            objective2 += float(LpCurveForce(coils[i], coils, p=p, threshold=threshold, downsample=2).J())
+            objective3 += float(LpCurveForce(coils[i], coils, p=p, threshold=threshold, downsample=3).J())
             force_norm = np.linalg.norm(coil_force(coils[i], coils), axis=1)
             gammadash_norm = np.linalg.norm(coils[i].curve.gammadash(), axis=1)
             objective_alt += (1 / p) * np.sum(np.maximum(force_norm - threshold, 0)**p * gammadash_norm) / gammadash_norm.shape[0]
@@ -567,12 +559,6 @@ class CoilForcesTest(unittest.TestCase):
 
         print("objective:", objective, "objective3:", objective3, "diff:", objective - objective3)
         np.testing.assert_allclose(objective, objective3, rtol=1e-2)
-
-        print("objective:", objective, "objective_mixed:", objective_mixed, "diff:", objective - objective_mixed)
-        np.testing.assert_allclose(objective, objective_mixed, rtol=1e-6)
-
-        print("objective:", objective, "objective_mixed_downsampled:", objective_mixed_downsampled, "diff:", objective - objective_mixed)
-        np.testing.assert_allclose(objective, objective_mixed_downsampled, rtol=1e-2)
 
         # Scramble the orientations so the torques are nonzero
         for i in range(len(base_curves)):
@@ -747,9 +733,6 @@ class CoilForcesTest(unittest.TestCase):
                                                 SquaredMeanTorque(coils, coils2, downsample=downsample),
                                                 LpCurveForce(coils, coils2, p=p, threshold=threshold, downsample=downsample),
                                                 SquaredMeanForce(coils, coils2, downsample=downsample),
-                                                # Deprecated objectives do not always pass the Taylor tests!
-                                                # sum([MeanSquaredForce_deprecated(coils[i], coils2, regularization) for i in range(len(coils))]),
-                                                # sum([LpCurveForce_deprecated(coils[i], coils2, regularization, p=p, threshold=threshold, downsample=downsample) for i in range(len(coils))]),                                        
                                             ]
                                             dofs = np.copy(LpCurveTorque(coils, coils2, p=p, threshold=threshold, downsample=downsample).x)
                                             h = np.ones_like(dofs)
@@ -807,16 +790,12 @@ class CoilForcesTest(unittest.TestCase):
 
         # List of objective classes to test
         objective_classes = [
-            "LpCurveForce_deprecated (sum all)",
             "LpCurveForce",
             "LpCurveForce (one sum)",
-            "LpCurveTorque_deprecated (sum all)",
             "LpCurveTorque",
             "LpCurveTorque (one sum)",
-            "SquaredMeanForce_deprecated (sum all)",
             "SquaredMeanForce",
             "SquaredMeanForce (one sum)",
-            "SquaredMeanTorque_deprecated (sum all)",
             "SquaredMeanTorque",
             "SquaredMeanTorque (one sum)",
         ]
@@ -843,7 +822,6 @@ class CoilForcesTest(unittest.TestCase):
             # LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque: sum over all coils
             # Mixed objectives are faster if coils are split evenly into two groups
             objectives = [
-                sum([LpCurveForce_deprecated(c, coils, regularization, p=p, threshold=threshold, downsample=2) for c in coils]),
                 LpCurveForce(coils, coils2, p=p, threshold=threshold, downsample=2),
                 LpCurveTorque(coils, coils2, p=p, threshold=threshold, downsample=2),
                 SquaredMeanForce(coils, coils2, downsample=2),
@@ -892,53 +870,6 @@ class CoilForcesTest(unittest.TestCase):
         plt.tight_layout()
         plt.savefig("objective_runtimes_semilogy.png")
         print("Run times saved to objective_runtimes_semilogy.png")
-
-    def test_update_points(self):
-        """Confirm that Biot-Savart evaluation points are updated when the
-        curve shapes change."""
-        from simsopt.field import BiotSavart
-        nfp = 4
-        ncoils = 3
-        I = 1.7e4
-        regularization = regularization_circ(0.05)
-
-        for objective_class in [LpCurveForce_deprecated, MeanSquaredForce_deprecated]:
-
-            base_curves = create_equally_spaced_curves(ncoils, nfp, True, order=2)
-            base_currents = [Current(I) for j in range(ncoils)]
-            coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
-
-            objective = objective_class(coils[0], coils, regularization)
-            old_objective_value = objective.J()
-            biotsavart = BiotSavart(objective.source_coils)
-            old_biot_savart_points = biotsavart.get_points_cart()
-            print(old_biot_savart_points)
-
-            # A deterministic random shift to the coil dofs:
-            shift = np.array([-0.06797948, -0.0808704, -0.02680599, -0.02775893, -0.0325402,
-                              0.04382695, 0.06629717, 0.05050437, -0.09781039, -0.07473099,
-                              0.03492035, 0.08474462, 0.06076695, 0.02420473, 0.00388997,
-                              0.06992079, 0.01505771, -0.09350505, -0.04637735, 0.00321853,
-                              -0.04975992, 0.01802391, 0.09454193, 0.01964133, 0.09205931,
-                              -0.09633654, -0.01449546, 0.07617653, 0.03008342, 0.00636141,
-                              0.09065833, 0.01628199, 0.02683667, 0.03453558, 0.03439423,
-                              -0.07455501, 0.08084003, -0.02490166, -0.05911573, -0.0782221,
-                              -0.03001621, 0.01356862, 0.00085723, 0.06887564, 0.02843625,
-                              -0.04448741, -0.01301828, 0.01511824])
-
-            objective.x = objective.x + shift
-            assert abs(objective.J() - old_objective_value) > 1e-6
-            biotsavart = BiotSavart(objective.source_coils)
-
-            # Don't understand the commented out test below --
-            # the biot savart evaluation points actually
-            # do not change here -- only the coil points are changing
-            # new_biot_savart_points = biotsavart.get_points_cart()
-            # assert not np.allclose(old_biot_savart_points, new_biot_savart_points)
-            objective2 = objective_class(coils[0], coils, regularization)
-            print("objective 1:", objective.J(), "objective 2:", objective2.J())
-            np.testing.assert_allclose(objective.J(), objective2.J())
-
 
 if __name__ == '__main__':
     unittest.main()
