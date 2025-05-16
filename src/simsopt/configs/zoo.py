@@ -203,18 +203,19 @@ def get_QUASR_data(ID, return_style='quasr-style'):
     Download a configuration from the QUASR database.
 
     Args:
-        ID: the ID of the configuration to download.  The database is navigatable at https://quasr.flatironinstitute.org/
-            Alternatively, you can download the latest full set of devices from https://zenodo.org/doi/10.5281/zenodo.10050655
-        
-        return_style: 'simsopt-style' or 'quasr-style'. '. 
-                      simsopt-style: [coils_1fp, surface], similar to get_ncsx_data(), gives the curves and currenst for one field period,
-                      which you can copy and rotate using simsopt methods (allows finer control over degrees-of-freedom). 
-                      NOTE: this does not return the magnetic axis. 
-                      quasr-style: [coils_all, surfaces], returns all coils and all surfaces in the object. 
+        ID (int): the ID of the configuration to download.  A pandas dataframe containing metadata on the devices, including all
+                  valid ID numbers is located at: https://quasr.flatironinstitute.org/QUASR.pkl
+                  The database is navigatable online at https://quasr.flatironinstitute.org/
+                  Alternatively, you can download the latest full set of devices from https://zenodo.org/doi/10.5281/zenodo.10050655
+
+        return_style (string, optional): 'simsopt-style' or 'quasr-style', defaults to 'quasr-style'.
+                      For 'simsopt-style', we return [curves_halfperiod, currents] where the curves lie on a half period, similar to get_ncsx_data().
+                      You can take the currents and apply symmetries to get the full device. NOTE: this does not return the magnetic axis. 
+                      quasr-style: [coils_full_torus, surfaces], returns all coils and all surfaces in the object. 
 
         returns: depending on return_style: 
            simsopt-style: [list of simsopt.geo.Coil objects, list of simsopt.field.Current objects]
-           quasr-style: [list of simsopt.geo.SurfaceXYZTensorFourier objects, list of simsopt.field.COIL objects]
+           quasr-style: [list of simsopt.geo.SurfaceXYZTensorFourier objects, list of simsopt.field.Coil objects]
     """
     
     if return_style not in ['simsopt-style', 'quasr-style']:
@@ -241,6 +242,5 @@ def get_QUASR_data(ID, return_style='quasr-style'):
         return curves, currents
     elif return_style == 'quasr-style':
         return surfaces, coils
-    else: 
-        raise ValueError  #should not be reached as we check before download to avoid clobbering the database. 
+
 
