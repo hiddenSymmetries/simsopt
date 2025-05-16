@@ -2,11 +2,19 @@ import numpy as np
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.coil import Current
+from simsopt._core.dev import SimsoptRequires
+from simsopt._core.json import GSONDecoder
+import json
+
+try:
+    import requests
+except ImportError:
+    requests = None
 
 from pathlib import Path
 THIS_DIR = (Path(__file__).parent).resolve()
 
-__all__ = ['get_ncsx_data', 'get_hsx_data', 'get_giuliani_data', "get_w7x_data"]
+__all__ = ['get_ncsx_data', 'get_hsx_data', 'get_giuliani_data', "get_w7x_data", 'get_QUASR_data']
 
 
 def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
@@ -187,3 +195,54 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
     ma.zs[:] = sZ[0:Nt_ma]
     ma.x = ma.get_dofs()
     return (curves, currents, ma)
+
+
+@SimsoptRequires(requests is not None, "You need to install the requests library to use this function. Run 'pip install requests'")
+def get_QUASR_data(ID, return_style='quasr-style'): 
+    """
+    Download a configuration from the QUASR database.
+
+    Args:
+        ID (int): the ID of the configuration to download.  A pandas dataframe containing metadata on the devices, including all
+                  valid ID numbers is located at: https://quasr.flatironinstitute.org/QUASR.pkl
+                  The database is navigatable online at https://quasr.flatironinstitute.org/
+                  Alternatively, you can download the latest full set of devices from https://zenodo.org/doi/10.5281/zenodo.10050655
+
+        return_style (string, optional): 'simsopt-style' or 'quasr-style', defaults to 'quasr-style'.
+                      For 'simsopt-style', we return [curves_halfperiod, currents] where the curves lie on a half period, similar to get_ncsx_data().
+                      You can take the currents and apply symmetries to get the full device. NOTE: this does not return the magnetic axis. 
+                      quasr-style: [coils_full_torus, surfaces], returns all coils and all surfaces in the object. 
+
+        returns: depending on return_style: 
+           simsopt-style: [list of simsopt.geo.Coil objects, list of simsopt.field.Current objects]
+           quasr-style: [list of simsopt.geo.SurfaceXYZTensorFourier objects, list of simsopt.field.Coil objects]
+    """
+    
+    if return_style not in ['simsopt-style', 'quasr-style']:
+        raise ValueError(f"invalid return_style: {return_style}, must be either simsopt-style or quasr-style")
+    
+    id_str = f"{ID:07d}" # string to 7 digits
+    url = f'https://quasr.flatironinstitute.org/simsopt_serials/{id_str[0:4]}/serial{id_str}.json'
+    
+    try:
+        r = requests.get(url)
+    except:
+        raise Exception(f"requests failure on ID {ID:07}")
+
+    if r.status_code == 200:
+        print(f"Configuration with ID {ID:07} downloaded successfully")
+        surfaces, coils = json.loads(r.content, cls=GSONDecoder)
+    else:
+        raise ValueError(f"requests failure on ID {ID:07d}. Status code: {r.status_code}\n Check if the confituration exists")
+    
+    if return_style == 'simsopt-style':
+        nfp = surfaces[0].nfp
+        nc_per_hp = len(coils) // nfp // (1 + surfaces[0].stellsym)
+        coils = coils[:nc_per_hp]
+
+        curves = [coil.curve for coil in coils]
+        currents = [coil.current for coil in coils]
+        return curves, currents
+    elif return_style == 'quasr-style':
+        return surfaces, coils
+
