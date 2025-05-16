@@ -273,7 +273,8 @@ def make_qfm(s, Bfield):
 def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
     """
     Initializes coils for each of the target configurations that are
-    used for permanent magnet optimization.
+    used for permanent magnet optimization. The total current is chosen
+    to achieve a desired average field strength along the major radius.
 
     Args:
         config_flag: String denoting the stellarator configuration 
@@ -294,15 +295,20 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
     if 'muse' in config_flag:
         # Load in pre-optimized coils
         coils_filename = TEST_DIR / 'muse_tf_coils.focus'
-        base_curves, base_currents, ncoils = read_focus_coils(coils_filename)
+
+        # Slight difference from older MUSE initialization. 
+        # Here we fix the total current summed over all coils and 
+        # older MUSE opt. fixed the first coil current. 
+        base_curves, base_currents0, ncoils = read_focus_coils(coils_filename)
+        total_current = np.sum([curr.get_value() for curr in base_currents0])
+        base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils - 1)]
+        total_current = Current(total_current)
+        total_current.fix_all()
+        base_currents += [total_current - sum(base_currents)]
         coils = []
         for i in range(ncoils):
             coils.append(Coil(base_curves[i], base_currents[i]))
-        base_currents[0].fix_all()
 
-        # fix all the coil shapes
-        for i in range(ncoils):
-            base_curves[i].fix_all()
     elif config_flag == 'qh':
         # generate planar TF coils
         ncoils = 4
@@ -311,10 +317,7 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
         order = 5
 
         # QH reactor scale needs to be 5.7 T average magnetic field strength
-        from simsopt.mhd.vmec import Vmec
-        vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
-        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.311753
-        print('Total current = ', total_current)
+        total_current = 48712698  # Amperes
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True,
                                                    R0=R0, R1=R1, order=order, numquadpoints=64)
         base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils - 1)]
@@ -323,9 +326,6 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
         base_currents += [total_current - sum(base_currents)]
         coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 
-        # fix all the coil shapes so only the currents are optimized
-        for i in range(ncoils):
-            base_curves[i].fix_all()
     elif config_flag == 'qa':
         # generate planar TF coils
         ncoils = 8
@@ -334,18 +334,17 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
         order = 5
 
         # qa needs to be scaled to 0.1 T on-axis magnetic field strength
-        from simsopt.mhd.vmec import Vmec
-        vmec_file = 'wout_LandremanPaul2021_QA_lowres.nc'
-        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 7.131
+        total_current = 187500
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
         base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
         total_current = Current(total_current)
         total_current.fix_all()
         base_currents += [total_current - sum(base_currents)]
         coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-        # fix all the coil shapes so only the currents are optimized
-        for i in range(ncoils):
-            base_curves[i].fix_all()
+    
+    # fix all the coil shapes so only the currents are optimized
+    for i in range(ncoils):
+        base_curves[i].fix_all()
 
     # Initialize the coil curves and save the data to vtk
     curves = [c.curve for c in coils]

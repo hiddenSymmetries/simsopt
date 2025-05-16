@@ -667,12 +667,12 @@ class PermanentMagnetGridTesting(unittest.TestCase):
         # Make QFM surfaces
         Bfield = bs + b_dipole
         Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
-        # qfm_surf = make_qfm(s_plot, Bfield)
-        # qfm_surf = qfm_surf.surface
+        qfm_surf = make_qfm(s_plot, Bfield)
+        qfm_surf = qfm_surf.surface
 
         # Run poincare plotting
-        #with ScratchDir("."):
-        #    run_Poincare_plots(s_plot, bs, b_dipole, None, 'poincare_test')
+        with ScratchDir("."):
+           run_Poincare_plots(s_plot, bs, b_dipole, None, 'poincare_test')
 
 if __name__ == "__main__":
     unittest.main()
