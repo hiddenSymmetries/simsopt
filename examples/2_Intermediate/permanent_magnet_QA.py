@@ -81,7 +81,7 @@ base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s, out_dir)
 bs = BiotSavart(coils)
 
 # Calculate average, approximate on-axis B field strength
-calculate_on_axis_B(bs, s)
+calculate_modB_on_major_radius(bs, s)
 
 # Make higher resolution surface for plotting Bnormal
 qphi = 2 * nphi
@@ -102,7 +102,7 @@ bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # check after-optimization average on-axis magnetic field strength
-calculate_on_axis_B(bs, s)
+calculate_modB_on_major_radius(bs, s)
 
 # Set up correct Bnormal from TF coils
 bs.set_points(s.gamma().reshape((-1, 3)))
