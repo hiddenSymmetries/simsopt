@@ -223,13 +223,17 @@ def get_QUASR_data(ID, return_style='quasr-style'):
     
     id_str = f"{ID:07d}" # string to 7 digits
     url = f'https://quasr.flatironinstitute.org/simsopt_serials/{id_str[0:4]}/serial{id_str}.json'
+    
+    try:
+        r = requests.get(url)
+    except:
+        raise Exception(f"Configuration with ID {ID:07} download failure")
 
-    with requests.get(url) as r:
-        if r.status_code == 200:
-            print(f"Configuration with ID {ID:07} downloaded successfully")
-            surfaces, coils = json.loads(r.content, cls=GSONDecoder)
-        else:
-            raise ValueError(f"Download of ID {ID:07d} failed. Status code: {r.status_code}\n Check if the confituration exists")
+    if r.status_code == 200:
+        print(f"Configuration with ID {ID:07} downloaded successfully")
+        surfaces, coils = json.loads(r.content, cls=GSONDecoder)
+    else:
+        raise ValueError(f"Download of ID {ID:07d} failed. Status code: {r.status_code}\n Check if the confituration exists")
     
     if return_style == 'simsopt-style':
         nfp = surfaces[0].nfp
@@ -241,5 +245,4 @@ def get_QUASR_data(ID, return_style='quasr-style'):
         return curves, currents
     elif return_style == 'quasr-style':
         return surfaces, coils
-
 
