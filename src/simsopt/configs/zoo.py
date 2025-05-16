@@ -227,13 +227,13 @@ def get_QUASR_data(ID, return_style='quasr-style'):
     try:
         r = requests.get(url)
     except:
-        raise Exception(f"Configuration with ID {ID:07} download failure")
+        raise Exception(f"requests failure on ID {ID:07}")
 
     if r.status_code == 200:
         print(f"Configuration with ID {ID:07} downloaded successfully")
         surfaces, coils = json.loads(r.content, cls=GSONDecoder)
     else:
-        raise ValueError(f"Download of ID {ID:07d} failed. Status code: {r.status_code}\n Check if the confituration exists")
+        raise ValueError(f"requests failure on ID {ID:07d}. Status code: {r.status_code}\n Check if the confituration exists")
     
     if return_style == 'simsopt-style':
         nfp = surfaces[0].nfp
