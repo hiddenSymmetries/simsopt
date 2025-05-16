@@ -14,7 +14,7 @@ class ZooTests(unittest.TestCase):
     def test_QUASR_downloader(self, mock_get):
         """
         This unit test checks that the get_QUASR_data functionality works as expected.
-        We download the device with ID=2680021 is downloaded correctly.  We also check that
+        We download the device with ID=0000952 is downloaded correctly.  We also check that
         exceptions are raised if an ID is requested, but the associated device
         does not exist, or if the improper return style is passed.
 
@@ -26,20 +26,20 @@ class ZooTests(unittest.TestCase):
         mock_response = MagicMock()
         mock_response.status_code = 200
 
-        with open(THIS_DIR / '../test_files/serial2680021.json', "rb") as f:
+        with open(THIS_DIR / '../test_files/serial0000952.json', "rb") as f:
             raw_bytes = f.read()
         mock_response.content = raw_bytes
         mock_get.return_value = mock_response
 
-        true_surfaces, true_coils = load(THIS_DIR / '../test_files/serial2680021.json')
+        true_surfaces, true_coils = load(THIS_DIR / '../test_files/serial0000952.json')
 
-        curves, currents = get_QUASR_data(2680021, return_style='simsopt-style')
+        curves, currents = get_QUASR_data(952, return_style='simsopt-style')
         assert isinstance(curves[0], CurveXYZFourier)
         assert isinstance(currents[0], ScaledCurrent)
         np.testing.assert_allclose(curves[0].x, true_coils[0].curve.x)
         np.testing.assert_allclose(currents[0].get_value(), true_coils[0].current.get_value())
 
-        surfaces, coils = get_QUASR_data(2680021, return_style='quasr-style')
+        surfaces, coils = get_QUASR_data(952, return_style='quasr-style')
         assert isinstance(coils[0], Coil)
         assert isinstance(surfaces[0], SurfaceXYZTensorFourier)
         np.testing.assert_allclose(surfaces[0].x, true_surfaces[0].x)
@@ -52,12 +52,12 @@ class ZooTests(unittest.TestCase):
        
         # wrong return style
         with self.assertRaises(Exception):
-            curves, currents, ma = get_QUASR_data(2680021, return_style='')
+            curves, currents, ma = get_QUASR_data(952, return_style='')
         
         # requests.get raises an exception
         mock_response.side_effect = Exception("something went wrong")
         with self.assertRaises(Exception):
-            curves, currents, ma = get_QUASR_data(2680021, return_style='')
+            curves, currents, ma = get_QUASR_data(952, return_style='')
 
 if __name__ == "__main__":
     unittest.main()
