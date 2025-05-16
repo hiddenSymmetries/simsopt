@@ -167,7 +167,7 @@ class IntegratedTests(unittest.TestCase):
                 s = Spec(filename, mpi=mpi)
 
                 # Expand number of Fourier modes to include larger poloidal mode numbers:
-                s.boundary.change_resolution(6, s.boundary.ntor)
+                s.boundary = s.boundary.change_resolution(6, s.boundary.ntor)
                 # To make this example run relatively quickly, we will optimize in a
                 # small parameter space. Here we pick out just 2 Fourier modes to vary
                 # in the optimization:
