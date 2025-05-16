@@ -97,20 +97,30 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
         surface.
         """
         ntor = self.ntor
-        mpol = self.mpol 
-        surf = SurfaceRZFourier(nfp=self.nfp, 
-                                stellsym=self.stellsym, 
-                                mpol=mpol, 
-                                ntor=ntor, 
-                                quadpoints_phi=self.quadpoints_phi, 
+        mpol = self.mpol
+        surf = SurfaceRZFourier(nfp=self.nfp,
+                                stellsym=self.stellsym,
+                                mpol=mpol,
+                                ntor=ntor,
+                                quadpoints_phi=self.quadpoints_phi,
                                 quadpoints_theta=self.quadpoints_theta)
 
         gamma = np.zeros((surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3))
         for idx in range(gamma.shape[0]):
-            gamma[idx, :, :] = self.cross_section(surf.quadpoints_phi[idx]*2*np.pi)
+            gamma[idx, :, :] = self.cross_section(surf.quadpoints_phi[idx])
 
         surf.least_squares_fit(gamma)
         return surf
+
+    def extend_via_normal(self, distance):
+        """
+        Extend the surface in the normal direction by a uniform distance.
+
+        Args:
+            distance: The distance to extend the surface.
+        """
+        self._extend_via_normal_for_nonuniform_phi(distance)
+
 
     return_fn_map = {'area': sopp.SurfaceXYZFourier.area,
                      'volume': sopp.SurfaceXYZFourier.volume,

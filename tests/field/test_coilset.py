@@ -9,23 +9,22 @@ from monty.tempfile import ScratchDir
 from simsopt import load, save
 
 
-
 class TestCoilSet(unittest.TestCase):
     def setUp(self):
         # Create a CoilSet object for testing
         self.coilset = CoilSet()
-    
+
     def test_default_properties(self):
         coilset = CoilSet()
         self.assertEqual(len(coilset.base_coils), 10)
         self.assertEqual(len(coilset.coils), 20)
-    
+
     def test_wrong_init(self):
         curves, currents, _ = get_ncsx_data()
         coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
         with self.assertRaises(ValueError):
-            CoilSet(coils = coils)
-    
+            CoilSet(coils=coils)
+
     def test_for_surface_classmethod(self):
         s = SurfaceRZFourier(nfp=2, mpol=3, ntor=3)
         coilset1 = CoilSet.for_surface(s, current_constraint='fix_all')
@@ -39,15 +38,13 @@ class TestCoilSet(unittest.TestCase):
         for coil in coilset3.base_coils:
             self.assertEqual(coil.current.dof_size, 1)
 
-       
-
     def test_to_from_mgrid(self):
         order = 25
         ppp = 10
         with ScratchDir("."):
             self.coilset.to_makegrid_file("coils.file_to_load")
             loaded_coilset = CoilSet.from_makegrid_file("coils.file_to_load", self.coilset.surface, order=order, ppp=ppp)
-        
+
         np.random.seed(1)
 
         points = np.asarray(17 * [[0.9, 0.4, -0.85]])
@@ -59,12 +56,11 @@ class TestCoilSet(unittest.TestCase):
         loaded_B = loaded_coilset.bs.B()
         np.testing.assert_allclose(B, loaded_B)
 
-
     def test_surface(self):
         # Test the surface property
         surface = self.coilset.surface
         self.assertIsNotNone(surface)
-    
+
     def test_surface_setter_different_nfp(self):
         with self.assertRaises(ValueError):
             self.coilset.surface = SurfaceRZFourier(nfp=3)
@@ -76,14 +72,14 @@ class TestCoilSet(unittest.TestCase):
         self.assertEqual(coilset.surface.deduced_range, SurfaceRZFourier.RANGE_HALF_PERIOD)
         second_surface = SurfaceRZFourier(nfp=2, stellsym=False)
         coilset.surface = second_surface
-        self.assertEqual(coilset.surface.deduced_range, SurfaceRZFourier.RANGE_FIELD_PERIOD) 
-    
+        self.assertEqual(coilset.surface.deduced_range, SurfaceRZFourier.RANGE_FIELD_PERIOD)
+
     def test_surface_setter_stellsym(self):
         # Test the surface setter method
         new_surface = SurfaceRZFourier(nfp=1, stellsym=True)
         self.coilset.surface = new_surface
         self.assertEqual(self.coilset.surface.deduced_range, SurfaceRZFourier.RANGE_HALF_PERIOD)
-    
+
     def test_surface_setter_field_period(self):
         s = SurfaceRZFourier(nfp=2, stellsym=False).copy(range='half period')
         coilset = CoilSet(surface=s)
@@ -97,7 +93,6 @@ class TestCoilSet(unittest.TestCase):
         base_coils = self.coilset.base_coils
         self.assertIsNotNone(base_coils)
 
-
     def test_base_coils_setter(self):
         # Test the base_coils setter method
         curves, currents, _ = get_ncsx_data()
@@ -110,12 +105,12 @@ class TestCoilSet(unittest.TestCase):
         copysurf = self.coilset.surface.copy(quadpoints_theta=np.random.random(5), quadpoints_phi=np.random.random(5))
         gammas = copysurf.gamma().reshape(-1, 3)
         normals = copysurf.normal().reshape(-1, 3)
+
         def target_function(coilset):
             coilset.bs.set_points(gammas)
             return np.sum(coilset.bs.B() * normals, axis=-1)
         reduced_coilset = self.coilset.reduce(target_function, nsv='nonzero')
         self.assertIsNotNone(reduced_coilset)
-        
 
     def test_flux_penalty(self):
         # Test the flux_penalty function
@@ -124,7 +119,7 @@ class TestCoilSet(unittest.TestCase):
 
     def test_length_penalty(self):
         # Test the length_penalty function
-        TOTAL_LENGTH =  50
+        TOTAL_LENGTH = 50
         penalty = self.coilset.length_penalty(TOTAL_LENGTH, f='identity')
         self.assertIsNotNone(penalty.J())
 
@@ -150,7 +145,7 @@ class TestCoilSet(unittest.TestCase):
         # Test the meansquared_curvature_penalty function
         penalty = self.coilset.meansquared_curvature_penalty()
         self.assertIsNotNone(penalty.J())
-    
+
     def test_meansquared_curvature_threshold_penalty(self):
         # Test the meansquared_curvature_penalty function
         penalty = self.coilset.meansquared_curvature_threshold(CURVATURE_THRESHOLD=0.1)
@@ -166,7 +161,7 @@ class TestCoilSet(unittest.TestCase):
         length = self.coilset.total_length_penalty()
         self.assertIsNotNone(length.J())
         self.assertTrue(CurveLength(self.coilset.coils[0].curve).J() < length.J())
-    
+
     def test_total_length_property(self):
         # Test the total_length property
         length = self.coilset.total_length
@@ -182,13 +177,13 @@ class TestCoilSet(unittest.TestCase):
             self.coilset.to_vtk("test2", add_biotsavart=False)
             self.assertTrue(os.path.exists("test2_coils.vtu"))
             self.assertTrue(os.path.exists("test2_surface.vts"))
-    
+
     def test_save_load(self):
         with ScratchDir("."):
             save(self.coilset, "test.json")
             loaded_coilset = load("test.json")
             self.assertEqual(self.coilset.total_length, loaded_coilset.total_length)
-    
+
     def test_dof_orders(self):
         # Test the dof_orders property
         dof_orders = self.coilset.get_dof_orders()
@@ -196,6 +191,8 @@ class TestCoilSet(unittest.TestCase):
         self.assertTrue(len(dof_orders) == self.coilset.dof_size)
 
 #### Inherit from TestCoilSet (all tests run exept those overloaded)
+
+
 class TestReducedCoilSet(TestCoilSet):
     def setUp(self):
         # Create a ReducedCoilSet object using collocation points
@@ -203,26 +200,26 @@ class TestReducedCoilSet(TestCoilSet):
         copysurf = self.unreduced_coilset.surface.copy(quadpoints_theta=np.random.random(7), quadpoints_phi=np.random.random(7))
         gammas = copysurf.gamma().reshape(-1, 3)
         normals = copysurf.normal().reshape(-1, 3)
+
         def target_function(coilset):
             coilset.bs.set_points(gammas)
             return np.sum(coilset.bs.B() * normals, axis=-1)
         self.test_target_function = target_function
         self.coilset = ReducedCoilSet.from_function(self.unreduced_coilset, target_function, nsv='nonzero')
 
-    
     def test_partially_empty_init(self):
         #also test rebasing with none target function
         reduced_coilset = ReducedCoilSet()
         self.assertIsNotNone(reduced_coilset)
         with self.assertRaises(ValueError):
-            reduced_coilset.recalculate_reduced_basis() #target function not set; fail
+            reduced_coilset.recalculate_reduced_basis()  # target function not set; fail
         reduced_coilset2 = ReducedCoilSet(self.unreduced_coilset)
         self.assertIsNotNone(reduced_coilset2)
         self.assertEqual(len(reduced_coilset2.x), len(self.unreduced_coilset.x))
         reduced_coilset3 = ReducedCoilSet(self.unreduced_coilset, nsv=10)
         self.assertEqual(len(reduced_coilset3.x), 10)
         with self.assertRaises(ValueError):
-            ReducedCoilSet(u_matrix=np.random.random((20,20)))
+            ReducedCoilSet(u_matrix=np.random.random((20, 20)))
         with self.assertRaises(ValueError):
             ReducedCoilSet(self.unreduced_coilset, nsv=1000)
         with self.assertRaises(TypeError):
@@ -244,21 +241,21 @@ class TestReducedCoilSet(TestCoilSet):
         with self.assertRaises(ValueError):
             self.coilset.surface = SurfaceRZFourier(nfp=3, stellsym=False)
         self.coilset.surface = SurfaceRZFourier(nfp=1, stellsym=True)
-    
+
     def test_recalculate_reduced_basis(self):
         reduced_coilset = ReducedCoilSet()
         reduced_coilset.recalculate_reduced_basis(self.test_target_function)
         # test if the reduced basis has the correct length
         self.assertEqual(len(reduced_coilset.x), len(self.test_target_function(self.unreduced_coilset)))
-    
+
     def test_dof_orders(self):
         with self.assertRaises(ValueError):
             self.coilset.get_dof_orders()
-    
+
     def test_taylor_test_of_value_decomposition(self):
         # test that small displacements along the singular vectors give the correct change in the target function evaluation.
         self.coilset.nsv = 10
-        # calculate what the normal field on the collocation points is. 
+        # calculate what the normal field on the collocation points is.
         initial_function_value = np.copy(self.test_target_function(self.unreduced_coilset))
         initial_coilset_x = np.copy(self.unreduced_coilset.x)
         epsilon = 1e-6
@@ -267,12 +264,12 @@ class TestReducedCoilSet(TestCoilSet):
             newx[index] = epsilon
             self.coilset.x = newx
             # test if coilset has been updated with rsv
-            np.testing.assert_allclose(self.unreduced_coilset.x, initial_coilset_x+epsilon*rsv, atol = 1e-6)
-            
+            np.testing.assert_allclose(self.unreduced_coilset.x, initial_coilset_x+epsilon*rsv, atol=1e-6)
+
             new_function_value = self.test_target_function(self.coilset.coilset)
             function_diff = new_function_value - initial_function_value
             np.testing.assert_allclose(lsv, function_diff/(epsilon*singular_value), atol=1e-4)
-        
+
         def test_wrong_setters(self):
             with self.assertRaises(ValueError):
                 self.coilset.rsv = np.random.random(10)
@@ -286,9 +283,6 @@ class TestReducedCoilSet(TestCoilSet):
                 self.coilset.coils = self.unreduced_coilset.coils
             with self.assertRaises(ValueError):
                 self.set_dofs(np.random.random(self.coilset.nsv+1))
-
-        
-    
 
 
 if __name__ == '__main__':

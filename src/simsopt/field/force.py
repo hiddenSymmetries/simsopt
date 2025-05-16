@@ -130,7 +130,7 @@ class LpCurveForce(Optimizable):
             self.coil.curve.gammadashdash(),
             self.coil.current.get_value(),
             self.biotsavart.B()
-        ]     
+        ]
 
         return self.J_jax(*args)
 
@@ -242,7 +242,7 @@ class MeanSquaredForce(Optimizable):
             self.coil.curve.gammadashdash(),
             self.coil.current.get_value(),
             self.biotsavart.B()
-        ]     
+        ]
 
         return self.J_jax(*args)
 

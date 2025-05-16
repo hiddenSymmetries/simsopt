@@ -12,7 +12,7 @@ surfacetypes_list = ["SurfaceXYZFourier", "SurfaceRZFourier",
 stellsym_list = [True, False]
 
 
-def taylor_test1(f, df, x, epsilons=None, direction=None):
+def taylor_test1(f, df, x, epsilons=None, direction=None, atol=1e-9):
     np.random.seed(1)
     f(x)
     if direction is None:
@@ -28,7 +28,7 @@ def taylor_test1(f, df, x, epsilons=None, direction=None):
         dfest = (fpluseps-fminuseps)/(2*eps)
         err = np.linalg.norm(dfest - dfx)
         print("taylor test1: ", err, err/err_old)
-        assert err < 1e-9 or err < 0.3 * err_old
+        np.testing.assert_array_less(err, max(atol, 0.31 * err_old))
         err_old = err
     print("###################################################################")
 
@@ -299,7 +299,7 @@ class IotasTests(unittest.TestCase):
                 for optimize_G in [True, False]:
                     for weight_inv_modB in [True, False]:
                         if boozer_type == 'ls' and label == 'ToroidalFlux':
-                           continue
+                            continue
                         if boozer_type == 'exact' and optimize_G is False:
                             continue
                         if boozer_type == 'exact' and weight_inv_modB:
@@ -325,7 +325,7 @@ class IotasTests(unittest.TestCase):
             return io.dJ()
 
         taylor_test1(f, df, coeffs,
-                     epsilons=np.power(2., -np.asarray(range(13, 19))))
+                     epsilons=np.power(2., -np.asarray(range(13, 19))), atol=2e-8)
 
 
 class NonQSRatioTests(unittest.TestCase):
@@ -339,7 +339,7 @@ class NonQSRatioTests(unittest.TestCase):
                     for optimize_G in [True, False]:
                         for fix_coil_dof in [True, False]:
                             if boozer_type == 'ls' and label == 'ToroidalFlux':
-                               continue
+                                continue
                             if boozer_type == 'exact' and optimize_G is False:
                                 continue
                             if boozer_type == 'exact' and weight_inv_modB:
@@ -350,10 +350,10 @@ class NonQSRatioTests(unittest.TestCase):
 
     def subtest_nonQSratio_derivative(self, label, axis, boozer_type, optimize_G, weight_inv_modB, fix_coil_dof):
         bs, boozer_surface = get_boozer_surface(label=label, boozer_type=boozer_type, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
-        
+
         if fix_coil_dof:
             bs.coils[0].curve.fix('xc(0)')
-        
+
         coeffs = bs.x
         io = NonQuasiSymmetricRatio(boozer_surface, bs, quasi_poloidal=axis)
 

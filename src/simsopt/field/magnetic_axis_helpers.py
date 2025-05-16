@@ -4,6 +4,7 @@ from scipy.integrate import solve_ivp
 
 __all__ = ['compute_on_axis_iota']
 
+
 def compute_on_axis_iota(axis, magnetic_field):
     """
     Computes the rotational transform on the magnetic axis of a device using a method based on
@@ -19,7 +20,7 @@ def compute_on_axis_iota(axis, magnetic_field):
         iota: the rotational transform on the given axis.
     """
     assert type(axis) is CurveRZFourier
-    
+
     def tangent_map(phi, x):
         ind = np.array(phi)
         out = np.zeros((1, 3))
@@ -52,39 +53,39 @@ def compute_on_axis_iota(axis, magnetic_field):
         dx_dR = c
         dy_dR = s
 
-        BR   = c*B1 + s*B2
-        Bphi =-s*B1 + c*B2
-        BZ   = B3
-        
+        BR = c*B1 + s*B2
+        Bphi = -s*B1 + c*B2
+        BZ = B3
+
         dB1_dR = dB1_dx * dx_dR + dB1_dy * dy_dR
         dB2_dR = dB2_dx * dx_dR + dB2_dy * dy_dR
         dB3_dR = dB3_dx * dx_dR + dB3_dy * dy_dR
 
-        dBR_dR   =  c*dB1_dR + s*dB2_dR
+        dBR_dR = c*dB1_dR + s*dB2_dR
         dBphi_dR = -s*dB1_dR + c*dB2_dR
-        dBZ_dR   = dB3_dR
+        dBZ_dR = dB3_dR
 
-        dBR_dZ   =  c*dB1_dz + s*dB2_dz
+        dBR_dZ = c*dB1_dz + s*dB2_dz
         dBphi_dZ = -s*dB1_dz + c*dB2_dz
-        dBZ_dZ   =  dB3_dz
+        dBZ_dZ = dB3_dz
 
         Bphi_R = Bphi/R
         d_Bphi_R_dR = (dBphi_dR * R - Bphi)/R**2
         d_Bphi_R_dZ = dBphi_dZ/R
-        
+
         A11 = (dBR_dR - (BR / Bphi_R) * d_Bphi_R_dR) / Bphi_R
         A21 = (dBZ_dR - (BZ / Bphi_R) * d_Bphi_R_dR) / Bphi_R
         A12 = (dBR_dZ - (BR / Bphi_R) * d_Bphi_R_dZ) / Bphi_R
         A22 = (dBZ_dZ - (BZ / Bphi_R) * d_Bphi_R_dZ) / Bphi_R
-        A = np.array([[A11,A12],[A21,A22]])
-        return 2*np.pi*np.array([A@x[:2],  A@x[2:]]).flatten()
-    
+        A = np.array([[A11, A12], [A21, A22]])
+        return 2*np.pi*np.array([A@x[:2], A@x[2:]]).flatten()
+
     t_span = [0, 1/axis.nfp]
     t_eval = t_span
 
     y0 = np.array([1, 0, 0, 1])
     results = solve_ivp(tangent_map, t_span, y0, t_eval=t_eval, rtol=1e-12, atol=1e-12, method='RK45')
-    M = results.y[:, -1].reshape((2,2))
+    M = results.y[:, -1].reshape((2, 2))
     evals, evecs = np.linalg.eig(M)
     iota = np.arctan2(np.imag(evals[0]), np.real(evals[0])) * axis.nfp/(2*np.pi)
     return iota

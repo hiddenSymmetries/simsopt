@@ -1,5 +1,5 @@
 setuptools_scm >= 6.0
-numpy >= 1.19.4
+numpy >= 1.21.0
 jax >= 0.2.5
 jaxlib >= 0.1.56
 scipy >= 1.5.4
@@ -9,5 +9,4 @@ monty >= 2021.6.10
 ruamel.yaml
 sympy
 f90nml
-randomgen
 pyevtk
