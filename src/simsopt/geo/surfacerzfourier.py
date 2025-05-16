@@ -566,8 +566,11 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         # create new surface in old resolution
         surf = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
                                 **kwargs)
-        for m in range(0, mpol):
-            for n in range(-ntor, ntor+1):
+        surf.x[:] = 0 
+
+        # copy coefficients to the new surface
+        for m in range(0, min(mpol, self.mpol)):
+            for n in range(-min(ntor, self.ntor), min(ntor, self.ntor)+1):
                 surf.set_rc(m, n, self.get_rc(m, n))
                 surf.set_zs(m, n, self.get_zs(m, n))
                 if self.stellsym:
