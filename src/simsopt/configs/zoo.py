@@ -221,8 +221,7 @@ def get_QUASR_data(ID, return_style='quasr-style'):
     if return_style not in ['simsopt-style', 'quasr-style']:
         raise ValueError(f"invalid return_style: {return_style}, must be either simsopt-style or quasr-style")
     
-    id_str = f"{ID:07d}"
-    # string to 7 digits
+    id_str = f"{ID:07d}" # string to 7 digits
     url = f'https://quasr.flatironinstitute.org/simsopt_serials/{id_str[0:4]}/serial{id_str}.json'
 
     with requests.get(url) as r:
