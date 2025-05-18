@@ -355,16 +355,17 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
 def calculate_modB_on_major_radius(bs, s):
     """
     Check the average magnetic field strength along the major radius
+    (m=n=0 mode of a SurfaceRZFourier object)
     to make sure the configuration is scaled correctly. For highly shaped
     stellarators, this can deviate a bit from the on-axis B field strength.
 
     Args:
         bs (BiotSavart): MagneticField or BiotSavart class object.
-        s (Surface): plasma boundary surface.
+        s (SurfaceRZFourier): plasma boundary surface.
 
     Returns:
-        B0avg (array, shape (s.nphi,)): Average magnetic field strength along 
-          the major radius of the device.
+        B0avg (float): Average magnetic field strength along 
+          the major radius (m=n=0 mode of a SurfaceRZFourier object) of the device.
     """
     nphi = len(s.quadpoints_phi)
     bspoints = np.zeros((nphi, 3))
