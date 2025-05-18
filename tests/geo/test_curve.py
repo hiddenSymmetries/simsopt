@@ -802,5 +802,38 @@ class Testing(unittest.TestCase):
         assert curve.rc[1] == curve.get('rc(1)')
         assert curve.zs[1] == curve.get('zs(2)')
 
+    def test_curveplanarfourier_make_names(self):
+        # Test that the _make_names function returns the correct dof names for a given order
+        order = 3
+        expected_names = [
+            'rc(0)', 'rc(1)', 'rc(2)', 'rc(3)',
+            'rs(1)', 'rs(2)', 'rs(3)',
+            'q0', 'qi', 'qj', 'qk',
+            'X', 'Y', 'Z'
+        ]
+        curve = CurvePlanarFourier(32, order)
+        self.assertEqual(curve._make_names(order), expected_names)
+
+        # Test setting dofs by names
+        curve.set('rc(0)', 1)
+        curve.set('q0', 1)
+        curve.set('qi', 0)
+        curve.set('qj', 0)
+        curve.set('qk', 0)
+        curve.set('X', 7)   
+        curve.set('Y', 8)
+        curve.set('Z', 9)
+
+        # Test getting dofs by names
+        assert np.allclose(curve.gamma()[:, 2], 9)
+        assert curve.x[0] == 1
+        assert curve.x[2*order + 1] == 1
+        assert curve.x[2*order + 2] == 0
+        assert curve.x[2*order + 3] == 0
+        assert curve.x[2*order + 4] == 0
+        assert curve.x[2*order + 5] == 7
+        assert curve.x[2*order + 6] == 8
+        assert curve.x[2*order + 7] == 9
+
 if __name__ == "__main__":
     unittest.main()

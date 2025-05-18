@@ -1,5 +1,4 @@
 import numpy as np
-from itertools import chain
 import simsoptpp as sopp
 from .curve import Curve
 
@@ -93,8 +92,8 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
         x_names = ['rc(0)']
         x_cos_names = [f'rc({i})' for i in range(1, order + 1)]
         x_sin_names = [f'rs({i})' for i in range(1, order + 1)]
-        x_names += list(chain.from_iterable(zip(x_sin_names, x_cos_names)))
 
+        x_names += x_cos_names + x_sin_names
         y_names = ['q0', 'qi', 'qj', 'qk']
         z_names = ['X', 'Y', 'Z']
         return x_names + y_names + z_names
