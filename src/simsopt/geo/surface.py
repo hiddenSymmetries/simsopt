@@ -292,8 +292,8 @@ class Surface(Optimizable):
         package, which can be installed using ``pip install pyevtk``.
 
         Args:
-            filename: Name of the file to write
-            extra_data: An optional data field (dictionary) on the surface, which can be associated with a colormap in Paraview.
+            filename (str): Name of the file to write
+            extra_data (dict): An optional data field (dictionary) on the surface, which can be associated with a colormap in Paraview.
         """
         g = self.gamma()
         ntor = g.shape[0]
