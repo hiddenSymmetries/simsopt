@@ -1,7 +1,10 @@
 import numpy as np
+import sys
+import os
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.coil import Current
+from simsopt._core import load
 from simsopt._core.dev import SimsoptRequires
 from simsopt._core.json import GSONDecoder
 import json
@@ -198,7 +201,7 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
 
 
 @SimsoptRequires(requests is not None, "You need to install the requests library to use this function. Run 'pip install requests'")
-def get_QUASR_data(ID, return_style='quasr-style'): 
+def get_QUASR_data(ID, return_style='quasr-style', verbose=True): 
     """
     Download a configuration from the QUASR database.
 
@@ -212,6 +215,8 @@ def get_QUASR_data(ID, return_style='quasr-style'):
                       For 'simsopt-style', we return [curves_halfperiod, currents] where the curves lie on a half period, similar to get_ncsx_data().
                       You can take the currents and apply symmetries to get the full device. NOTE: this does not return the magnetic axis. 
                       quasr-style: [coils_full_torus, surfaces], returns all coils and all surfaces in the object. 
+        
+        verbose (boolean): if true, additional caching and downloading status messages are printed, otherwise they are not.
 
         returns: depending on return_style: 
            simsopt-style: [list of simsopt.geo.Coil objects, list of simsopt.field.Current objects]
@@ -224,16 +229,35 @@ def get_QUASR_data(ID, return_style='quasr-style'):
     id_str = f"{ID:07d}" # string to 7 digits
     url = f'https://quasr.flatironinstitute.org/simsopt_serials/{id_str[0:4]}/serial{id_str}.json'
     
-    try:
-        r = requests.get(url)
-    except:
-        raise Exception(f"requests failure on ID {ID:07}")
+    FILE_PATH = THIS_DIR / f'QUASR_cache/serial{id_str}.json'
+    exists = os.path.exists(FILE_PATH)
 
-    if r.status_code == 200:
-        print(f"Configuration with ID {ID:07} downloaded successfully")
-        surfaces, coils = json.loads(r.content, cls=GSONDecoder)
+    if not exists:
+        if verbose:
+            print(f"ID={id_str} is not cached, attempting download...")
+
+        try:
+            os.makedirs(THIS_DIR / 'QUASR_cache', exist_ok=True)
+        except:
+            raise Exception('making the cache folder failed')
+
+        try:
+            r = requests.get(url)
+        except:
+            raise Exception(f"requests failure on ID {ID:07}")
+
+        if r.status_code == 200:
+            print(f"ID={ID:07} downloaded successfully")
+            surfaces, coils = json.loads(r.content, cls=GSONDecoder)
+            
+            with open(FILE_PATH, 'wb') as f:
+                f.write(r.content)
+        else:
+            raise ValueError(f"requests failure on ID {ID:07d}. Status code: {r.status_code}\n Check if the confituration exists")
     else:
-        raise ValueError(f"requests failure on ID {ID:07d}. Status code: {r.status_code}\n Check if the confituration exists")
+        if verbose:
+            print(f"ID={id_str} is cached, loading...")
+        surfaces, coils = load(FILE_PATH)
     
     if return_style == 'simsopt-style':
         nfp = surfaces[0].nfp
