@@ -89,9 +89,9 @@ class Testing(unittest.TestCase):
         points = np.asarray(npoints * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points += pointVar * (np.random.rand(*points.shape)-0.5)
         # Set up helical field
-        curves = [CurveHelical(101, 2, 5, 2, 1., 0.3) for i in range(2)]
-        curves[0].set_dofs(np.concatenate(([np.pi/2, 0], [0, 0])))
-        curves[1].set_dofs(np.concatenate(([0, 0], [0, 0])))
+        curves = [CurveHelical(101, 1, 5, 2, 1., 0.3) for i in range(2)]
+        curves[0].x = [np.pi / 2, 0, 0]
+        curves[1].x = [0, 0, 0]
         currents = [-2.1e5, 2.1e5]
         Bhelical = BiotSavart([
             Coil(curves[0], Current(currents[0])),
@@ -477,9 +477,9 @@ class Testing(unittest.TestCase):
         point = np.asarray([[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         field = [[-0.00101961, 0.20767292, -0.00224908]]
         derivative = [[[0.47545098, 0.01847397, 1.10223595], [0.01847426, -2.66700072, 0.01849548], [1.10237535, 0.01847085, 2.19154973]]]
-        curves = [CurveHelical(100, 2, 5, 2, 1., 0.3) for i in range(2)]
-        curves[0].set_dofs(np.concatenate(([0, 0], [0, 0])))
-        curves[1].set_dofs(np.concatenate(([np.pi/2, 0], [0, 0])))
+        curves = [CurveHelical(100, 1, 5, 2, 1., 0.3) for i in range(2)]
+        curves[0].x = [0, 0, 0]
+        curves[1].x =[np.pi / 2, 0, 0]
         currents = [-3.07e5, 3.07e5]
         Bhelical = BiotSavart([
             Coil(curves[0], Current(currents[0])),

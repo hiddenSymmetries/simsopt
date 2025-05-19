@@ -26,7 +26,7 @@ the latter is independent for each coil.
 
 import os
 from pathlib import Path
-from randomgen import PCG64
+from numpy.random import PCG64DXSM, Generator
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import BiotSavart, Current, Coil, coils_via_symmetries
@@ -125,7 +125,7 @@ Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 Jals = [ArclengthVariation(c) for c in base_curves]
 
 seed = 0
-rg = np.random.Generator(PCG64(seed, inc=0))
+rg = Generator(PCG64DXSM(seed))
 
 sampler = GaussianSampler(curves[0].quadpoints, SIGMA, L, n_derivs=1)
 Jfs = []
@@ -214,7 +214,7 @@ proc0_print(f"Mean Flux Objective across perturbed coils: {Jmpi.J():.3e}")
 proc0_print(f"Flux Objective for exact coils coils      : {Jf.J():.3e}")
 
 # now draw some fresh samples to evaluate the out-of-sample error
-rg = np.random.Generator(PCG64(seed+1, inc=0))
+rg = Generator(PCG64DXSM(seed+1))
 val = 0
 for i in range(N_OOS):
     # first add the 'systematic' error. this error is applied to the base curves and hence the various symmetries are applied to it.
