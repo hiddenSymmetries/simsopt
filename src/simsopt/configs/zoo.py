@@ -1,5 +1,4 @@
 import numpy as np
-import sys
 import os
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
