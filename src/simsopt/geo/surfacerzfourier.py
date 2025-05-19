@@ -569,12 +569,17 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         surf.x[:] = 0 
 
         # copy coefficients to the new surface
-        for m in range(0, min(mpol, self.mpol)):
-            for n in range(-min(ntor, self.ntor), min(ntor, self.ntor)+1):
+        for m in range(0, min(mpol, self.mpol)+1):
+            this_nmax = min(ntor, self.ntor)
+            if m == 0:
+                this_nmin = 0
+            else: 
+                this_nmin = -this_nmax
+            for n in range(this_nmin, this_nmax+1):
                 surf.set_rc(m, n, self.get_rc(m, n))
                 surf.set_zs(m, n, self.get_zs(m, n))
-                if self.stellsym:
-                    surf.set_rs(m, n, self.get_rc(m, n))
+                if not surf.stellsym and not self.stellsym:
+                    surf.set_zc(m, n, self.get_zc(m, n))
                     surf.set_rs(m, n, self.get_rs(m, n))
 
         surf.local_full_x = surf.get_dofs()
