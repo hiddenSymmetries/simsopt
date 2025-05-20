@@ -812,7 +812,7 @@ class Testing(unittest.TestCase):
             'X', 'Y', 'Z'
         ]
         curve = CurvePlanarFourier(32, order)
-        self.assertEqual(curve._make_names(order), expected_names)
+        self.assertEqual(curve._make_names(order), expected_names, "The dof names are not consistent with the order")
 
         # Test setting dofs by names
         curve.set('rc(0)', 1)
@@ -843,7 +843,7 @@ class Testing(unittest.TestCase):
             'X', 'Y', 'Z'
         ]
         curve = CurvePlanarFourier(32, order)
-        self.assertEqual(curve._make_names(order), expected_names)
+        self.assertEqual(curve._make_names(order), expected_names, "The dof names are not consistent with the order")
 
         # Test setting dofs by names
         curve.set('rc(0)', 1)
