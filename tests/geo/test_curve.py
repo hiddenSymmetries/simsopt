@@ -835,5 +835,36 @@ class Testing(unittest.TestCase):
         assert curve.x[2*order + 6] == 8
         assert curve.x[2*order + 7] == 9
 
+        # repeat test with order 0
+        order = 0
+        expected_names = [
+            'rc(0)',
+            'q0', 'qi', 'qj', 'qk',
+            'X', 'Y', 'Z'
+        ]
+        curve = CurvePlanarFourier(32, order)
+        self.assertEqual(curve._make_names(order), expected_names)
+
+        # Test setting dofs by names
+        curve.set('rc(0)', 1)
+        curve.set('q0', 1)
+        curve.set('qi', 0)
+        curve.set('qj', 0)
+        curve.set('qk', 0)
+        curve.set('X', 7)   
+        curve.set('Y', 8)
+        curve.set('Z', 9)
+
+        # Test getting dofs by names
+        assert np.allclose(curve.gamma()[:, 2], 9)
+        assert curve.x[0] == 1
+        assert curve.x[1] == 1
+        assert curve.x[2] == 0
+        assert curve.x[3] == 0
+        assert curve.x[4] == 0
+        assert curve.x[5] == 7
+        assert curve.x[6] == 8
+        assert curve.x[7] == 9
+
 if __name__ == "__main__":
     unittest.main()
