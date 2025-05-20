@@ -26,7 +26,7 @@ class MGrid():
     An mgrid file contains a grid in cylindrical coordinates ``(R, phi, z)`` upon which the
     magnetic field is evaluated. The grid is defined by the number of
     points in the radius (``nr``), the number of planes per field period 
-    in the toroidal angle (``nphi``), and the number of points in the z coordinate (``nz``). 
+    in the toroidal angle (``nphi``), and the number of points in the z-coordinate (``nz``). 
     A good rule here is to choose at least 4 times as many toroidal planes as the maximum toroidal 
     mode number (ex. if ``ntor=6`` then you should have at least 24 toroidal planes). 
     
@@ -38,7 +38,7 @@ class MGrid():
     For example, ``rmin`` should be smaller than ``min R(theta, phi)`` where ``R`` is the radial 
     coordinate of the plasma. The same applies for the z-coordinate.
     
-    The choice of the number or radial and vertical gridpoints is not as straightforward.
+    The choice of the number or radial and vertical gridpoints is not as straightforward as choosing ``nphi``.
     The VMEC code uses these grids to "deform" the plasma boundary in a iterative sense.
     The complication revolves around the spectral condensation VMEC performs in the poloidal direction.
     The code calculates the location of the poloidal grid points so that an optimized choice is made for 
@@ -92,11 +92,15 @@ class MGrid():
 
     def add_field_cylindrical(self, br, bp, bz, ar=None, ap=None, az=None, name=None):
         '''
-        This function saves the magnetic field :math:`B`, and (optionally) the vector potential :math:`A`, to the ``Mgrid`` object.
+        This function saves the magnetic field :math:`B`, and (optionally) the vector potential :math:`A`, to the ``MGrid`` object.
         :math:`B` and :math:`A` are provided on a tensor product grid in cylindrical components :math:`(R, \phi, z)`.
 
         This function may be called once for each current group, to save groups of fields that can be scaled using the
-        ``vmec.indata.extcur`` array.
+        ``vmec.indata.extcur`` array. Current groups emmulate groups of coils that are connected to distinct power supplies,
+        and allows for the current in each group can be controlled independently.
+        For example, W7-X has 7 current groups, one for each base coil (5 nonplanar coils + 2 planar coils), which
+        allows all planar coils to be turned on without changing the currents in the nonplanar coils.
+        In free-boundary vmec, the currents in each current group are scaled using the "extcur" array in the input file.
 
         Args:
             br (ndarray): (nphi, nz, nr) array of the radial component of B-field. 
@@ -134,16 +138,6 @@ class MGrid():
     def write(self, filename):
         '''
         Export class data as a netCDF binary.
-
-        Currently, this function only supports one "current group": a set of coils that are electrically connected 
-        in series. Using multiple current groups emmulates groups of coils that are connected to distinct power supplies,
-        and allows for the current in each group can be controlled independently.
-        For example, W7-X has 7 current groups, one for each base coil (5 nonplanar coils + 2 planar coils), which
-        allows all planar coils to be turned on without changing the currents in the nonplanar coils.
-        In free-boundary vmec, the currents in each current group are scaled using the "extcur" array in the input file.
-        Since only one current group is supported by this function, for
-        free-boundary vmec, the ``vmec.indata.extcur`` array should have a single nonzero
-        element, set to ``1.0``.
 
         Args:
             filename (str): output file name.
@@ -222,13 +216,13 @@ class MGrid():
     @classmethod
     def from_file(cls, filename):
         '''
-        This method reads MGrid data from file.
+        This method reads ``MGrid`` data from file.
 
         Args:
             filename (str): mgrid netCDF input file name.
 
         Returns:
-            MGrid: MGrid object with data from file.
+            MGrid: ``MGrid`` object with data from file.
         '''
 
         with netcdf_file(filename, 'r', mmap=False) as f:
