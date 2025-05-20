@@ -202,7 +202,8 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
 @SimsoptRequires(requests is not None, "You need to install the requests library to use this function. Run 'pip install requests'")
 def get_QUASR_data(ID, return_style='quasr-style', verbose=True): 
     """
-    Download a configuration from the QUASR database.
+    Download a configuration from the QUASR database.  Downloaded configuration files are cached in 
+    [SIMSOPT_INSTALL_DIR]/src/simsopt/configs/QUASR_cache/
 
     Args:
         ID (int): the ID of the configuration to download.  A pandas dataframe containing metadata on the devices, including all

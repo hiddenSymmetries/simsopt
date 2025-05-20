@@ -58,6 +58,13 @@ class ZooTests(unittest.TestCase):
         mock_response.side_effect = Exception("something went wrong")
         with self.assertRaises(Exception):
             curves, currents, ma = get_QUASR_data(952, return_style='')
+        
+        with self.assertRaises(Exception):
+            # mock os.makedir only here so it throws an error
+            with patch("simsopt.configs.zoo.os.makedirs") as mock_makedirs:
+                mock_makedirs.side_effect = Exception("Failed to create directory")
+                _, _ = get_QUASR_data(953, return_style='quasr-style')
+
 
 if __name__ == "__main__":
     unittest.main()
