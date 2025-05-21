@@ -93,7 +93,7 @@ class BoozerSurface(Optimizable):
             label (:obj:`~simsopt._core.optimizable.Optimizable`): A method that computes a flux surface label for the surface, such as  
                 :obj:`~simsopt.geo.Volume`, :obj:`~simsopt.geo.Area`, or :obj:`~simsopt.geo.ToroidalFlux`.
             targetlabel (float): The target value of the label on the surface.
-            boozer_type: Either 'exact' or 'ls'
+            boozer_type (str, Optional): Either 'exact' or 'ls'. Defaults to 'ls'
             constraint_weight (float, Optional): The weight of the label constraint used when solving Boozer least squares. Defaults to 1.0.
             options (dict, Optional): A dictionary of solver options. If a keyword is not specified, then a default
                 value is used. Possible keywords are:
@@ -108,8 +108,8 @@ class BoozerSurface(Optimizable):
                 - solver (int): list of flags to decide what algorithm(s) to use when running BoozerSurface.run_code. Only used if boozer_type is 'ls'. Default is ['ls', 'ls_newton']
                     bfgs: LBFGS applied to the penalty objective
                     ls: scipy.optimize.least_squares applied to the penalty objective. Specify in options what method -  can be 'manual' or anything specified in scipy LS documentation.
-                    ls_newton: Newton applied to the penalty objective -  see _minimize_boozer_penalty_constraints_newton
-                    exact_newton: Newton applied to the constrained optimization problem -  see _minimize_boozer_exact_constraints_newton
+                    ls_newton: Newton applied to the penalty objective -  see :obj:`_minimize_boozer_penalty_constraints_newton`
+                    exact_newton: Newton applied to the constrained optimization problem -  see :obj:`_minimize_boozer_exact_constraints_newton`
         """
         super().__init__(depends_on=[biotsavart])
 
@@ -583,7 +583,6 @@ class BoozerSurface(Optimizable):
                 - 'info': the optimization result
                 - 'success': True if the optimization converged, False otherwise
                 - 'G': the value of G on the surface
-                - 's': the surface object
                 - 'iota': the value of iota on the surface
                 - 'weight_inv_modB': the value of weight_inv_modB used in the optimization
                 - 'type': the type of optimization used
@@ -623,7 +622,6 @@ class BoozerSurface(Optimizable):
             iota = res.x[-2]
             G = res.x[-1]
             resdict['G'] = G
-        resdict['s'] = s
         resdict['iota'] = iota
 
         self.res = resdict
@@ -740,7 +738,6 @@ class BoozerSurface(Optimizable):
                 - 'jacobian': the value of the jacobian at the solution
                 - 'success': True if the optimization converged, False otherwise
                 - 'G': the value of G on the surface
-                - 's': the surface object
                 - 'iota': the value of iota on the surface
         """
 
@@ -781,7 +778,6 @@ class BoozerSurface(Optimizable):
                 iota = x[-2]
                 G = x[-1]
                 resdict['G'] = G
-            resdict['s'] = s
             resdict['iota'] = iota
             return resdict
 
@@ -802,7 +798,6 @@ class BoozerSurface(Optimizable):
             iota = res.x[-2]
             G = res.x[-1]
             resdict['G'] = G
-        resdict['s'] = s
         resdict['iota'] = iota
 
         self.res = resdict
@@ -897,7 +892,6 @@ class BoozerSurface(Optimizable):
         else:
             s.set_dofs(xl[:-3])
             iota = xl[-3]
-        res['s'] = s
         res['iota'] = iota
 
         self.res = res
@@ -994,7 +988,6 @@ class BoozerSurface(Optimizable):
                 - 'iter': the number of iterations taken to converge
                 - 'success': True if the optimization converged, False otherwise
                 - 'G': the value of G on the surface
-                - 's': the surface object
                 - 'iota': the value of iota on the surface
                 - 'PLU': the LU decomposition of the jacobian
                 - 'mask': a mask for the residuals that are not used in the optimization
@@ -1083,14 +1076,20 @@ class BoozerSurface(Optimizable):
         return res
 
     def as_dict(self, serial_objs_dict=None) -> dict:
+        """Construct a dictionary containing the state of the BoozerSurface object. Used to serialize object, and save it in json format. The element `self.res['vjp']` is not saved - if required, the user has to rerun :obj:`run_code`.
+
+        Args:
+            serial_objs_dict: dictionary, used by the :obj:`GSONDecoder` recursive routine to load simsopt objects.
+
+        Returns:
+            A dictionary.
+        """
         d = super().as_dict(serial_objs_dict=serial_objs_dict)
         
         # Modify res dict / pop elements that cannot be easily serialized
         res = self.res
         if 'gradient' in res.keys():
             res['gradient'] = res['gradient'].tolist()
-        if 's' in res.keys():
-            res.pop('s')
         if 'vjp' in res.keys():
             res.pop('vjp')
 
@@ -1099,6 +1098,16 @@ class BoozerSurface(Optimizable):
     
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
+        """Used by the json decoder to load a boozer surface object
+        
+        Args:
+            d: dictionary
+            serial_objs_dict: dictionary, used by the :obj:`GSONDecoder` recursive routine to load simsopt objects.
+            recon_objs: dictionary, used by the :obj:`GSONDecoder` recursive routine to load simsopt objects.
+        
+        Returns:
+            An instance of the BoozerSurface class, as described by the dirctionary d
+        """
         decoder = GSONDecoder()
         biotsavart = decoder.process_decoded(d["biotsavart"], serial_objs_dict, recon_objs)
         surface = decoder.process_decoded(d["surface"], serial_objs_dict, recon_objs)
@@ -1119,7 +1128,6 @@ class BoozerSurface(Optimizable):
             res = d["res"]
             if 'gradient' in res.keys():
                 res['gradient'] = np.array(res['gradient'])
-            res['s'] = surface
         else:
             res = None
 
