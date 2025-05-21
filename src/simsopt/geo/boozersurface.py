@@ -1072,7 +1072,7 @@ class BoozerSurface(Optimizable):
 
         P, L, U = lu(J)
         res = {
-            "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota, "PLU": (P, L, U),
+            "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "iota": iota, "PLU": (P, L, U),
             "mask": mask, 'type': 'exact', "vjp": boozer_surface_dexactresidual_dcoils_dcurrents_vjp
         }
 
