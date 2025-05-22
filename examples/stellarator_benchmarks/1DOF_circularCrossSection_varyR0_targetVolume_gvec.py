@@ -52,8 +52,8 @@ equil = Gvec(
     mpi=mpi,
     delete_intermediates=True,
 )
-# alternatively a GVEC optimizable can also be created with
-# Gvec.from_parameters() or Gvec.from_parameter_file()
+equil.logger.setLevel("WARNING")
+# alternatively a GVEC optimizable can also be created with Gvec.from_parameter_file()
 
 # GVEC parameters (phiedge) are all fixed by default, while surface parameters
 # are all non-fixed by default.  You can choose which parameters are
