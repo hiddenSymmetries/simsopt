@@ -9,17 +9,17 @@ The approach employed here follows the work in the paper
 
 Here we work through several examples of "stage 2" permanent magnet optimization for different stellarators and variants of the optimization algorithm. In this approach, a target plasma shape (i.e. boundary flux surface shape) has already been found in a "stage 1" optimization, and the present task is to optimize a large set of permanent magnets (at predefined locations on a 3D grid) to produce this target field. For this stage-2 problem, no MHD codes are used (example, VMEC or SPEC), so there is no need to have them installed.
 
-We first describe the basic principles of "stage 2" permanent magnet optimization and how they are used in SIMSOPT, namely, how to set up the optimization problem in the minimal example ``examples/1_Simple/permanent_magnet_simple.py``. Several advanced features for permanent magnet optimization can be found in the following scripts:
+We first describe the basic principles of "stage 2" permanent magnet optimization and how they are used in SIMSOPT, namely, how to set up the optimization problem in the minimal example :simsopt_file:`examples/1_Simple/permanent_magnet_simple.py`. Several advanced features for permanent magnet optimization can be found in the following scripts:
 
 - Using a pre-defined FAMUS grid of permanent magnets to optimize the MUSE
   stellarator, and using greedy backtracking to optimize the magnets in 
-  ``examples/2_Intermediate/permanent_magnet_MUSE.py``.
+  :simsopt_file:`examples/2_Intermediate/permanent_magnet_MUSE.py`.
 - Solving the continuous relaxation of the optimization using the 
   relax and split algorithm and the Landreman/Paul QA stellarator in 
-  ``examples/2_Intermediate/permanent_magnet_QA.py``.
+  :simsopt_file:`examples/2_Intermediate/permanent_magnet_QA.py`.
 - Using arbitrarily oriented dipoles with the greedy algorithms for 
   the best flexibility and performance in permanent magnet optimization in
-  ``examples/2_Intermediate/permanent_magnet_PM4Stell.py``.
+  :simsopt_file:`examples/2_Intermediate/permanent_magnet_PM4Stell.py`.
 
 .. _minimal_pm:
 
@@ -75,7 +75,7 @@ To solve this optimization problem in simsopt, we first import the necessary cla
   from simsopt.solve import GPMO
   from simsopt.util.permanent_magnet_helper_functions import *
 
-The target plasma surface is given in the wout input file ``tests/test_files/wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc``.
+The target plasma surface is given in the wout input file :simsopt_file:`tests/test_files/wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc`.
 We load the surface with low-resolution using:
 
 .. code-block::
@@ -151,7 +151,7 @@ a history of the :math:`|Am - b|` errors (Bn_history), and the optimized dipole
 vectors at each point in the algorithm progress (m_history). 
 
 Now we can visualize the solutions by creating a :obj:`~simsopt.field.DipoleField`
-object from the optimized PermanentMagnetGrid::
+object from the optimized :obj:`~simsopt.geo.PermanentMagnetGrid`::
 
   b_dipole = DipoleField(
     pm_opt.dipole_grid_xyz,
@@ -187,7 +187,7 @@ At the end of the optimization, the results can be saved as follows::
   
   pm_opt.write_to_famus()
 
-This saves the PermanentMagnetClass solution and geometry into a FAMUS-style 
+This saves the :obj:`~simsopt.geo.PermanentMagnetGrid` solution and geometry into a FAMUS-style 
 text file. It can be loaded again for post-processing or additional optimization with:: 
 
   pm_opt = PermanentMagnetGrid.geo_setup_from_famus("SIMSOPT_dipole_solution.focus")
