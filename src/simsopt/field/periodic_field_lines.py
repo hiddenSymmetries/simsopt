@@ -8,13 +8,14 @@ import simsoptpp as sopp
 from .tracing import ToroidalTransitStoppingCriterion, IterationStoppingCriterion
 from ..util.spectral_diff_matrix import spectral_diff_matrix
 from .magneticfield import MagneticField
+from ..geo import CurveRZFourier
 
 try:
     from pyevtk.hl import polyLinesToVTK
 except ImportError:
     polyLinesToVTK = None
 
-__all__ = ["find_periodic_field_line", "PeriodicFieldLine", "periodic_field_line_grid_search"]
+__all__ = ["find_periodic_field_line", "PeriodicFieldLine", "periodic_field_line_grid_search", "get_magnetic_axis"]
 
 def _integrate_field_line(field, R0, z0, Delta_phi, tol=1e-10, phi0=0, nphi=1):
     """Integrate a single field line in the toroidal direction.
@@ -963,3 +964,32 @@ def periodic_field_line_grid_search(
         plt.show()
 
     return R_initial[np.argmin(cost)]
+
+def get_magnetic_axis(field, nfp, R0, z0=0.0, order=10):
+    """Return a CurveRZFourier representing the magnetic axis of a
+    field.
+    
+    """
+    n_phi = order * 2 + 1
+    R0 = np.full(n_phi, R0)  # Initial guess
+    z0 = np.full(n_phi, z0)
+    m = 1
+    R, z = find_periodic_field_line(
+        field,
+        nfp,
+        m,
+        R0,
+        z0,
+        method="pseudospectral",
+        nphi=n_phi,
+    )
+    phi = np.linspace(0, 2 * np.pi / nfp, n_phi, endpoint=False)
+    x = R * np.cos(phi)
+    y = R * np.sin(phi)
+    gamma = np.stack([x, y, z], axis=-1)
+    curve = CurveRZFourier(n_phi, order, nfp, True)
+    curve.least_squares_fit(gamma)
+
+    gamma_reconstructed = curve.gamma()
+    np.testing.assert_allclose(gamma, gamma_reconstructed, atol=1e-13)
+    return curve
