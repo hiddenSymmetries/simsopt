@@ -84,61 +84,6 @@ class InstanceCounterMeta(type):
         cls._ids = itertools.count(1)
 
 
-class RegisterMeta(type):
-    """
-    RegisterMeta class can be used to register functions with easy to identify
-    names.
-
-    Note:
-        The class is not used anymore, but kept to explore the idea 3 explained
-        below
-
-
-    The functionality of RegisterMeta is explained with the Spec class
-    defined in simsopt.mhd.spec module. Spec class, which is a subclass
-    of Optimizable, implements two functions volume and iota, which are
-    used by child Optimizables nodes.
-
-    One could register the two functions of Spec class in a couple of ways.
-
-    1. .. code-block:: python
-
-            Spec.return_fn_map = {'volume': Spec.volume, 'iota': Spec.iota}
-
-    2. .. code-block:: python
-
-            Spec.volume = Spec.register_return_fn("volume")(Spec.volume)
-            Spec.iota = Spec.register_return_fn("iota")(Spec.iota)
-
-    3. TO BE IMPLEMENTED
-
-       .. code-block:: python
-
-            class Spec
-                ...
-
-                @register_return_fn("volume")
-                def volume(self, ...):
-                    ...
-
-                @register_return_fn("iota")
-                def iota(self, ...):
-                    ...
-    """
-    def __init__(cls, name, bases, attrs):
-        super().__init__(name, bases, attrs)
-        cls.return_fn_map = {}
-
-        def _register_return_fn(name):
-            def inner_register(f):
-                cls.return_fn_map[name] = f
-                return f
-            return inner_register
-
-        cls.register_return_fn = _register_return_fn
-
-
-#class OptimizableMeta(InstanceCounterMeta, RegisterMeta, ABCMeta):
 class OptimizableMeta(InstanceCounterMeta, ABCMeta, type(Curve)):
     """
     Meta class for Optimizable class that works with pybind11. Here
