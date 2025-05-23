@@ -185,6 +185,7 @@ jobs:
     - name: Run tests on 1 process using coverage
       if: contains(matrix.test-type, 'unit')
       run: | 
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/configs
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/core
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/field
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/geo
