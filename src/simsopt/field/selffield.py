@@ -7,10 +7,11 @@ Landreman, Hurwitz, & Antonsen, arXiv:2310.12087 (2023).
 from scipy import constants
 import numpy as np
 import jax.numpy as jnp
+from ..geo.jit import jit
 
 Biot_savart_prefactor = constants.mu_0 / (4 * np.pi)
 
-__all__ = ['B_regularized_pure', 'regularization_rect']
+__all__ = ['B_regularized_pure', 'regularization_rect', 'regularization_circ']
 
 
 def rectangular_xsection_k(a, b):
@@ -34,7 +35,7 @@ def regularization_rect(a, b):
     """Regularization for a rectangular conductor"""
     return a * b * rectangular_xsection_delta(a, b)
 
-
+@jit
 def B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization):
     """The term in the regularized Biot-Savart law in which the near-singularity
     has been integrated analytically.
@@ -53,6 +54,7 @@ def B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization):
     )[:, None]
 
 
+@jit
 def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization):
     # The factors of 2π in the next few lines come from the fact that simsopt
     # uses a curve parameter that goes up to 1 rather than 2π.
@@ -60,24 +62,18 @@ def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, reg
     rc = gamma
     rc_prime = gammadash / 2 / jnp.pi
     rc_prime_prime = gammadashdash / 4 / jnp.pi**2
-    n_quad = phi.shape[0]
-    dphi = 2 * jnp.pi / n_quad
-
+    dphi = 2 * jnp.pi / phi.shape[0]
     analytic_term = B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization)
-
     dr = rc[:, None] - rc[None, :]
     first_term = jnp.cross(rc_prime[None, :], dr) / ((jnp.sum(dr * dr, axis=2) + regularization) ** 1.5)[:, :, None]
-    cos_fac = 2 - 2 * jnp.cos(phi[None, :] - phi[:, None])
-    denominator2 = cos_fac * jnp.sum(rc_prime * rc_prime, axis=1)[:, None] + regularization
-    factor2 = 0.5 * cos_fac / denominator2**1.5
-    second_term = jnp.cross(rc_prime_prime, rc_prime)[:, None, :] * factor2[:, :, None]
-
+    cos_fac = 2.0 - 2.0 * jnp.cos(phi[None, :] - phi[:, None])
+    second_term = jnp.cross(rc_prime_prime, rc_prime)[:, None, :] * (
+        0.5 * cos_fac / (cos_fac * jnp.sum(rc_prime * rc_prime, axis=1)[:, None] + regularization)**1.5)[:, :, None]
     integral_term = dphi * jnp.sum(first_term + second_term, 1)
-
     return current * Biot_savart_prefactor * (analytic_term + integral_term)
 
 
-def B_regularized(coil, regularization):
+def B_regularized(coil):
     """Calculate the regularized field on a coil following the Landreman and Hurwitz method"""
     return B_regularized_pure(
         coil.curve.gamma(),
@@ -85,13 +81,15 @@ def B_regularized(coil, regularization):
         coil.curve.gammadashdash(),
         coil.curve.quadpoints,
         coil._current.get_value(),
-        regularization,
+        coil.regularization,
     )
 
 
 def B_regularized_circ(coil, a):
-    return B_regularized(coil, regularization_circ(a))
+    coil.regularization = regularization_circ(a)
+    return B_regularized(coil)
 
 
 def B_regularized_rect(coil, a, b):
-    return B_regularized(coil, regularization_rect(a, b))
+    coil.regularization = regularization_rect(a, b)
+    return B_regularized(coil)
