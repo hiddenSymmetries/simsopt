@@ -1008,26 +1008,6 @@ class Testing(unittest.TestCase):
         assert curve.rc[1] == curve.get('rc(1)')
         assert curve.zs[1] == curve.get('zs(2)')
 
-    def test_make_names_xyzfourier_and_jax(self):
-        """
-        Test the _make_names method for CurveXYZFourier and JaxCurveXYZFourier.
-        """
-        from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
-        order = 2
-        expected_names = [
-            'xc(0)', 'xs(1)', 'xc(1)', 'xs(2)', 'xc(2)',
-            'yc(0)', 'ys(1)', 'yc(1)', 'ys(2)', 'yc(2)',
-            'zc(0)', 'zs(1)', 'zc(1)', 'zs(2)', 'zc(2)'
-        ]
-        # Test CurveXYZFourier
-        c = CurveXYZFourier([0.0, 0.5], order)
-        names = c._make_names(order)
-        self.assertEqual(names, expected_names)
-        # Test JaxCurveXYZFourier
-        jc = JaxCurveXYZFourier([0.0, 0.5], order)
-        jnames = jc._make_names(order)
-        self.assertEqual(jnames, expected_names)
-
     def test_create_equally_spaced_planar_curves_jax(self):
         from simsopt.geo.curve import create_equally_spaced_planar_curves
         ncurves, nfp = 2, 2
@@ -1242,6 +1222,112 @@ class Testing(unittest.TestCase):
             # Use a valid s and s_outer from above, but Nmin_factor < 2
             _ = setup_uniform_grid_in_bounding_box(s, s_outer, Nx, Ny, Nz, Nmin_factor=1.5)
             assert any(issubclass(warn.category, UserWarning) for warn in w), "Expected a UserWarning for Nmin_factor < 2"
+
+    def test_curveplanarfourier_make_names(self):
+        # Test that the _make_names function returns the correct dof names for a given order
+        order = 3
+        expected_names = [
+            'rc(0)', 'rc(1)', 'rc(2)', 'rc(3)',
+            'rs(1)', 'rs(2)', 'rs(3)',
+            'q0', 'qi', 'qj', 'qk',
+            'X', 'Y', 'Z'
+        ]
+        curve = CurvePlanarFourier(32, order)
+        self.assertEqual(curve._make_names(order), expected_names, "The dof names are not consistent with the order")
+        curve2 = JaxCurvePlanarFourier(32, order)
+        self.assertEqual(curve._make_names(order), expected_names, "The dof names are not consistent with the order")
+
+        # Test setting dofs by names
+        curve.set('rc(0)', 1)
+        curve.set('q0', 1)
+        curve.set('qi', 0)
+        curve.set('qj', 0)
+        curve.set('qk', 0)
+        curve.set('X', 7)   
+        curve.set('Y', 8)
+        curve.set('Z', 9)
+
+        curve2.set('rc(0)', 1)
+        curve2.set('q0', 1)
+        curve2.set('qi', 0)
+        curve2.set('qj', 0)
+        curve2.set('qk', 0)
+        curve2.set('X', 7)   
+        curve2.set('Y', 8)
+        curve2.set('Z', 9)
+
+        # Test getting dofs by names
+        assert np.allclose(curve.gamma()[:, 2], 9)
+        assert curve.x[0] == 1
+        assert curve.x[2*order + 1] == 1
+        assert curve.x[2*order + 2] == 0
+        assert curve.x[2*order + 3] == 0
+        assert curve.x[2*order + 4] == 0
+        assert curve.x[2*order + 5] == 7
+        assert curve.x[2*order + 6] == 8
+        assert curve.x[2*order + 7] == 9
+
+        assert np.allclose(curve2.gamma()[:, 2], 9)
+        assert curve2.x[0] == 1
+        assert curve2.x[2*order + 1] == 1
+        assert curve2.x[2*order + 2] == 0
+        assert curve2.x[2*order + 3] == 0
+        assert curve2.x[2*order + 4] == 0
+        assert curve2.x[2*order + 5] == 7
+        assert curve2.x[2*order + 6] == 8
+        assert curve2.x[2*order + 7] == 9
+
+        # repeat test with order 0
+        order = 0
+        expected_names = [
+            'rc(0)',
+            'q0', 'qi', 'qj', 'qk',
+            'X', 'Y', 'Z'
+        ]
+        curve = CurvePlanarFourier(32, order)
+        curve2 = JaxCurvePlanarFourier(32, order)
+        self.assertEqual(curve._make_names(order), expected_names, "The dof names are not consistent with the order")
+        self.assertEqual(curve2._make_names(order), expected_names, "The dof names are not consistent with the order")
+
+        # Test setting dofs by names
+        curve.set('rc(0)', 1)
+        curve.set('q0', 1)
+        curve.set('qi', 0)
+        curve.set('qj', 0)
+        curve.set('qk', 0)
+        curve.set('X', 7)   
+        curve.set('Y', 8)
+        curve.set('Z', 9)
+
+        curve2.set('rc(0)', 1)
+        curve2.set('q0', 1)
+        curve2.set('qi', 0)
+        curve2.set('qj', 0)
+        curve2.set('qk', 0)
+        curve2.set('X', 7)   
+        curve2.set('Y', 8)
+        curve2.set('Z', 9)
+
+        # Test getting dofs by names
+        assert np.allclose(curve.gamma()[:, 2], 9)
+        assert curve.x[0] == 1
+        assert curve.x[1] == 1
+        assert curve.x[2] == 0
+        assert curve.x[3] == 0
+        assert curve.x[4] == 0
+        assert curve.x[5] == 7
+        assert curve.x[6] == 8
+        assert curve.x[7] == 9
+
+        assert np.allclose(curve2.gamma()[:, 2], 9)
+        assert curve2.x[0] == 1
+        assert curve2.x[1] == 1
+        assert curve2.x[2] == 0
+        assert curve2.x[3] == 0
+        assert curve2.x[4] == 0
+        assert curve2.x[5] == 7
+        assert curve2.x[6] == 8
+        assert curve2.x[7] == 9
 
 if __name__ == "__main__":
     unittest.main()

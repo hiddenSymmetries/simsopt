@@ -524,7 +524,7 @@ class PermanentMagnetGridTesting(unittest.TestCase):
                 base_curves[i].fix_all()
             bs = BiotSavart(coils)
 
-            # Calculate average, approximate on-axis B field strength
+            # Calculate average B field strength along the major radius
             B0avg = calculate_modB_on_major_radius(bs, s)
             assert np.allclose(B0avg, 0.15)
 
@@ -668,12 +668,12 @@ class PermanentMagnetGridTesting(unittest.TestCase):
         # Make QFM surfaces
         Bfield = bs + b_dipole
         Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
-        qfm_surf = make_qfm(s_plot, Bfield, n_iters=10)
+        qfm_surf = make_qfm(s_plot, Bfield)
         qfm_surf = qfm_surf.surface
 
         # Run poincare plotting
-        #with ScratchDir("."):
-        #    run_Poincare_plots(s_plot, bs, b_dipole, None, 'poincare_test')
+        with ScratchDir("."):
+           run_Poincare_plots(s_plot, bs, b_dipole, None, 'poincare_test')
 
 if __name__ == "__main__":
     unittest.main()

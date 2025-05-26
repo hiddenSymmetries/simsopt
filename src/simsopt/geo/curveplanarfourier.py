@@ -1,6 +1,5 @@
 import numpy as np
 import jax.numpy as jnp
-from itertools import chain
 import simsoptpp as sopp
 from .curve import Curve, JaxCurve
 
@@ -24,7 +23,7 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
 
     .. math::
 
-       \bf{q} &= [q_0,q_i,q_j,q_k]
+       \bf{q} &= [q0,qi,qj,qk]
 
        &= [\cos(\theta / 2), \hat{x}\sin(\theta / 2), \hat{y}\sin(\theta / 2), \hat{z}\sin(\theta / 2)]
 
@@ -45,12 +44,20 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
     The dofs are stored in the order
 
     .. math::
+<<<<<<< HEAD
        [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}}, q_0, q_i, q_j, q_k, X, Y, Z]
+=======
+       [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}}, q0, qi, qj, qk, X, Y, Z]
+>>>>>>> master
 
     Args:
         quadpoints (array): Array of quadrature points.
         order (int): Order of the Fourier series.
+<<<<<<< HEAD
         dofs (array): Array of dofs.
+=======
+        dofs (array, optional): Array of dofs.
+>>>>>>> master
     """
 
     def __init__(self, quadpoints, order, dofs=None):
@@ -94,12 +101,10 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
         x_names = ['rc(0)']
         x_cos_names = [f'rc({i})' for i in range(1, order + 1)]
         x_sin_names = [f'rs({i})' for i in range(1, order + 1)]
-        x_names += list(chain.from_iterable(zip(x_sin_names, x_cos_names)))
-
+        x_names += x_cos_names + x_sin_names
         y_names = ['q0', 'qi', 'qj', 'qk']
         z_names = ['X', 'Y', 'Z']
         return x_names + y_names + z_names
-        
 
 
 def jaxplanarcurve_pure(dofs, quadpoints, order):
@@ -205,8 +210,7 @@ class JaxCurvePlanarFourier(JaxCurve):
         x_names = ['rc(0)']
         x_cos_names = [f'rc({i})' for i in range(1, order + 1)]
         x_sin_names = [f'rs({i})' for i in range(1, order + 1)]
-        x_names += list(chain.from_iterable(zip(x_sin_names, x_cos_names)))
-
+        x_names += x_cos_names + x_sin_names
         y_names = ['q0', 'qi', 'qj', 'qk']
         z_names = ['X', 'Y', 'Z']
         return x_names + y_names + z_names
