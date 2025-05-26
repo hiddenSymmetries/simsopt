@@ -319,7 +319,7 @@ class ArclengthTests(unittest.TestCase):
 
         # Ensure Fourier resolution is high enough for the new theta coordinate
         # to represent the shape accurately:
-        plasma_surf.change_resolution(12, 12)
+        plasma_surf = plasma_surf.change_resolution(12, 12)
         plasma_surf.make_theta_uniform_arclength()
 
         specs2 = get_specs()
