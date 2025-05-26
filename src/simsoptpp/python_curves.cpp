@@ -135,13 +135,11 @@ void init_curves(py::module_ &m) {
     register_common_curve_methods<PyCurveRZFourier>(pycurverzfourier);
 
     auto pycurveplanarfourier = py::class_<PyCurvePlanarFourier, shared_ptr<PyCurvePlanarFourier>, PyCurvePlanarFourierTrampoline<PyCurvePlanarFourier>, PyCurve>(m, "CurvePlanarFourier")
-        .def(py::init<vector<double>, int, int, bool>())
+        .def(py::init<vector<double>, int>())
         .def_readwrite("rc", &PyCurvePlanarFourier::rc)
         .def_readwrite("rs", &PyCurvePlanarFourier::rs)
         .def_readwrite("q", &PyCurvePlanarFourier::q)
         .def_readwrite("center", &PyCurvePlanarFourier::center)
-        .def_readonly("order", &PyCurvePlanarFourier::order)
-        .def_readonly("stellsym", &PyCurvePlanarFourier::stellsym)
-        .def_readonly("nfp", &PyCurvePlanarFourier::nfp);
+        .def_readonly("order", &PyCurvePlanarFourier::order);
     register_common_curve_methods<PyCurvePlanarFourier>(pycurveplanarfourier);
 }

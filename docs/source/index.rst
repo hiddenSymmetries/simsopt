@@ -69,13 +69,13 @@ optimization.  Others include `STELLOPT
    optimizable
    geo
    fields
+   mhd
    tracing
    mpi
    testing
    source
    publications
    contributing
-   cpp
 
 .. toctree::
    :maxdepth: 3
@@ -90,18 +90,20 @@ optimization.  Others include `STELLOPT
    example_wireframe
    example_vmec
 
+
 .. toctree::
    :maxdepth: 3
-   :caption: Developer Guides
+   :caption: API Reference
+
+   simsopt
+   simsoptpp_cpp_api
+
+.. toctree::
+   :maxdepth: 3
+   :caption: Developer Reference
 
    example_derivative
-
-.. toctree::
-   :maxdepth: 3
-   :caption: API reference
-
-   Public functions and classes <simsopt_user>
-   Full listing (for developers) <simsopt>
+   cpp
 
 Indices and tables
 ==================
