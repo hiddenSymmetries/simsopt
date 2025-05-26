@@ -8,9 +8,9 @@ For the latter, full orbits (including gyromotion) or guiding center
 trajectories can be followed in cylindrical coordinates, or guiding
 center motion can be followed in Boozer coordinates.  Examples of
 these various tracing features can be found in
-``examples/1_Simple/tracing_fieldline.py``,
-``examples/1_Simple/tracing_particle.py``, and
-``examples/2_Intermediate/tracing_boozer.py``,
+:simsopt_file:`examples/1_Simple/tracing_fieldline.py`,
+:simsopt_file:`examples/1_Simple/tracing_particle.py`, and
+:simsopt_file:`examples/2_Intermediate/tracing_boozer.py`,
 
 
 
