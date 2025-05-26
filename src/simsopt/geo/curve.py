@@ -900,7 +900,7 @@ def create_equally_spaced_planar_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, 
     from simsopt.geo.curveplanarfourier import CurvePlanarFourier
     for k in range(ncurves):
         angle = (k+0.5)*(2*np.pi) / ((1+int(stellsym))*nfp*ncurves)
-        curve = CurvePlanarFourier(numquadpoints, order, nfp, stellsym)
+        curve = CurvePlanarFourier(numquadpoints, order)
 
         rcCoeffs = np.zeros(order+1)
         rcCoeffs[0] = R1
