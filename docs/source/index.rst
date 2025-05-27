@@ -80,7 +80,8 @@ optimization.  Others include `STELLOPT
 .. toctree::
    :maxdepth: 3
    :caption: Tutorials
-
+   
+   example_vmec
    example_vmec_only
    example_quasisymmetry
    example_islands
@@ -88,7 +89,6 @@ optimization.  Others include `STELLOPT
    example_single_stage
    example_permanent_magnets
    example_wireframe
-   example_vmec
 
 
 .. toctree::
