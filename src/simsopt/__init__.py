@@ -11,10 +11,6 @@
 # imported
 
 from ._core import make_optimizable, load, save
-# from .objectives import LeastSquaresProblem
-# from .solve import least_squares_serial_solve
-
-#__all__ = ['LeastSquaresProblem', 'LeastSquaresTerm']
 
 # VERSION info
 from ._version import version as __version__
