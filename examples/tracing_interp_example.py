@@ -49,7 +49,7 @@ resolution = 16 # 96 used for production runs
 
 reltol = 1e-12 # relative tolerance for integration
 abstol = 1e-12 # absolute tolerance for integration
-boozmn_filename = 'boozmn_QH_boots.nc' # netcdf file, 4608 modes in total
+boozmn_filename = 'boozmn_QA_boots.nc' # netcdf file, 4608 modes in total
 tmax = 1e-3 # Time for integration
 ns_interp = resolution # Number of radial grid points for interpolation
 ntheta_interp = resolution # Number of poloidal angle grid points for interpolation
