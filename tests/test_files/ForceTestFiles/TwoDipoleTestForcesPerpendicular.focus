@@ -1,0 +1,5 @@
+# Total number of coils,  momentq 
+      2     1
+# coiltype, symmetry,  coilname,  ox,  oy,  oz,  Ic,  M_0,  pho,  Lc,  mp,  mt 
+2,          0,       pm00000000   , 0.5, 0.0, 0.0, 1.0, 10, 1.0, 0.0, 1.570796, 1.570796
+2,          0,       pm00000001   , -0.5, 0.0, 0.0, 1.0, 10, 1.0, 0.0, 0.0, 0.0
