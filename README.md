@@ -25,21 +25,11 @@ FIRM3D (Fast Ion Reduced Models in 3D) is a software suite for modeling of energ
 
 ### macOS
 
-All dependencies can be installed inside a conda environment using the provided install bash script located at `install/macOS/install_macos.sh`. 
+All dependencies can be installed inside a conda environment using the provided install bash script located at `install/macOS/install_simsopt_osx.sh`. 
 
 ### Perlmutter (NERSC)
 
-The following commands will install 
-
-```
-module load conda cray-hdf5-parallel cray-netcdf-hdf5parallel openmpi
-conda create --name firm3d
-conda activate firm3d
-conda install pip
-export CI=True
-cd firm3d
-env CC=$(which mpicc) CXX=$(which mpicxx) pip install -e . 
-```
+All dependencies can be installed inside a conda environment using the provided install bash script located at `install/perlmutter/install_simsopt_perlmutter.sh`.
 
 ## Equilibrium magnetic field classes
 
