@@ -44,20 +44,12 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
     The dofs are stored in the order
 
     .. math::
-<<<<<<< HEAD
-       [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}}, q_0, q_i, q_j, q_k, X, Y, Z]
-=======
        [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}}, q0, qi, qj, qk, X, Y, Z]
->>>>>>> master
 
     Args:
         quadpoints (array): Array of quadrature points.
         order (int): Order of the Fourier series.
-<<<<<<< HEAD
-        dofs (array): Array of dofs.
-=======
         dofs (array, optional): Array of dofs.
->>>>>>> master
     """
 
     def __init__(self, quadpoints, order, dofs=None):
