@@ -47,7 +47,7 @@ Array net_force_matrix(Array& magnetMoments, Array& magnetPositions) {
                                + moments[3*i + 1]*moments[3*j + 1]
                                + moments[3*i + 2]*moments[3*j + 2]; 
                 // Coefficient and term4
-                double coeff = (3.0 * mu0) / (4.0 * M_PI * r5);
+                double coeff = -(3.0 * mu0) / (4.0 * M_PI * r5);
                 double term4 = 5.0 * m1dotR * m2dotR / r2; 
                 // Compute force components
                 double fx = coeff * (
