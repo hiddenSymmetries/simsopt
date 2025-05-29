@@ -74,9 +74,9 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     elif curvetype == "CurveHelical":
         curve = CurveHelical(x, order, 5, 2, 1.0, 0.3)
     elif curvetype == "CurveHelicalInitx0":
-        curve = CurveHelical(x, order, 5, 2, 1.0, 0.3, x0=np.ones((2*order,)))
+        curve = CurveHelical(x, order, 5, 2, 1.0, 0.3, x0=np.ones(2 * order + 1))
     elif curvetype == "CurvePlanarFourier":
-        curve = CurvePlanarFourier(x, order, 2, True)
+        curve = CurvePlanarFourier(x, order)
     elif curvetype == "CurveXYZFourierSymmetries1":
         curve = CurveXYZFourierSymmetries(x, order, 2, True)
     elif curvetype == "CurveXYZFourierSymmetries2":
@@ -191,7 +191,7 @@ class Testing(unittest.TestCase):
         curve1.set('xc(0)', R)
         curve1.set('xc(1)', r)
         curve1.set('zs(1)', -r)
-        curve2 = CurveHelical(np.linspace(0, 1, 100, endpoint=False), order, nfp, 1, R, r, x0=np.zeros((2*order,)))
+        curve2 = CurveHelical(np.linspace(0, 1, 100, endpoint=False), order, nfp, 1, R, r, x0=np.zeros(2 * order + 1))
         np.testing.assert_allclose(curve1.gamma(), curve2.gamma(), atol=1e-14)
 
     def test_trefoil_nonstellsym(self):
@@ -370,8 +370,8 @@ class Testing(unittest.TestCase):
 
     def test_curve_helical_xyzfourier(self):
         x = np.asarray([0.6])
-        curve1 = CurveHelical(x, 2, 5, 2, 1.0, 0.3)
-        curve1.x = [np.pi/2, 0, 0, 0]
+        curve1 = CurveHelical(x, 1, 5, 2, 1.0, 0.3)
+        curve1.x = [np.pi/2, 0, 0]
         curve2 = CurveXYZFourier(x, 7)
         curve2.x = \
             [0, 0, 0, 0, 1, -0.15, 0, 0, 0, 0, 0, 0, 0, -0.15, 0,
@@ -776,6 +776,95 @@ class Testing(unittest.TestCase):
 
             os.remove("coils.file_to_load")
 
+    def test_curverzfourier_dofnames(self):
+        # test that the dof names correspond to how they are treated in the code
+        order = 3
+
+        # non-stellarator symmetric case
+        curve = CurveRZFourier(32, order, 1, False)
+        curve.set('rc(0)', 1)
+        curve.set('rs(1)', 2)
+        curve.set('zc(2)', 3)
+        curve.set('zs(3)', 4)
+        
+        # test rc, rs, zc, and zs, note sine arrays start from mode number 1
+        assert curve.rc[0] == curve.get('rc(0)')
+        assert curve.zc[2] == curve.get('zc(2)')
+        assert curve.rs[0] == curve.get('rs(1)')
+        assert curve.zs[2] == curve.get('zs(3)')
+
+        # stellarator symmetric case
+        curve = CurveRZFourier(32, order, 1, True)
+        curve.set('rc(1)', 1)
+        curve.set('zs(2)', 2)
+        
+        # test rc and zs
+        assert curve.rc[1] == curve.get('rc(1)')
+        assert curve.zs[1] == curve.get('zs(2)')
+
+    def test_curveplanarfourier_make_names(self):
+        # Test that the _make_names function returns the correct dof names for a given order
+        order = 3
+        expected_names = [
+            'rc(0)', 'rc(1)', 'rc(2)', 'rc(3)',
+            'rs(1)', 'rs(2)', 'rs(3)',
+            'q0', 'qi', 'qj', 'qk',
+            'X', 'Y', 'Z'
+        ]
+        curve = CurvePlanarFourier(32, order)
+        self.assertEqual(curve._make_names(order), expected_names, "The dof names are not consistent with the order")
+
+        # Test setting dofs by names
+        curve.set('rc(0)', 1)
+        curve.set('q0', 1)
+        curve.set('qi', 0)
+        curve.set('qj', 0)
+        curve.set('qk', 0)
+        curve.set('X', 7)   
+        curve.set('Y', 8)
+        curve.set('Z', 9)
+
+        # Test getting dofs by names
+        assert np.allclose(curve.gamma()[:, 2], 9)
+        assert curve.x[0] == 1
+        assert curve.x[2*order + 1] == 1
+        assert curve.x[2*order + 2] == 0
+        assert curve.x[2*order + 3] == 0
+        assert curve.x[2*order + 4] == 0
+        assert curve.x[2*order + 5] == 7
+        assert curve.x[2*order + 6] == 8
+        assert curve.x[2*order + 7] == 9
+
+        # repeat test with order 0
+        order = 0
+        expected_names = [
+            'rc(0)',
+            'q0', 'qi', 'qj', 'qk',
+            'X', 'Y', 'Z'
+        ]
+        curve = CurvePlanarFourier(32, order)
+        self.assertEqual(curve._make_names(order), expected_names, "The dof names are not consistent with the order")
+
+        # Test setting dofs by names
+        curve.set('rc(0)', 1)
+        curve.set('q0', 1)
+        curve.set('qi', 0)
+        curve.set('qj', 0)
+        curve.set('qk', 0)
+        curve.set('X', 7)   
+        curve.set('Y', 8)
+        curve.set('Z', 9)
+
+        # Test getting dofs by names
+        assert np.allclose(curve.gamma()[:, 2], 9)
+        assert curve.x[0] == 1
+        assert curve.x[1] == 1
+        assert curve.x[2] == 0
+        assert curve.x[3] == 0
+        assert curve.x[4] == 0
+        assert curve.x[5] == 7
+        assert curve.x[6] == 8
+        assert curve.x[7] == 9
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,10 +1,10 @@
-C++ backend
-***********
+Simsopt C++ backend
+*******************
 
 ``SIMSOPT`` uses C++ for performance critical functions such as the Biot Savart law, many of the geometric classes, and particle tracing.
 This section is aimed at advanced developers of ``SIMSOPT`` to give an overview over the interface between C++ and Python and to help avoid common pitfalls. For most users of ``SIMSOPT`` this is not relevant.
 
-The C++ code can be found in the folder ``src/simsoptpp``.
+The C++ code can be found in the folder :simsopt:`src/simsoptpp`.
 
 
 pybind11
@@ -16,7 +16,7 @@ The interfacing happens in the ``python.cpp`` and ``python_*.cpp`` files.
 
 Trampoline classes:
 In many cases we define some parent class in C++ that has virtual functions and then we want to inherit from this class on the python side and overload these functions.
-A good example for this is the :mod:`simsoptpp.MagneticField` class. This is the base class for magnetic fields and it takes care of things like caching, or coordinate systems for evaluating magnetic fields. When you create a new magnetic field, you overload functions such as ``B_impl``, in order to compute the magnetic field at given locations. In order for this overload to work on the python side, pybind requires so called `trampoline classes <https://pybind11-jagerman.readthedocs.io/en/latest/advanced/classes.html#overriding-virtual-functions-in-python>`_. In the case of magnetic fields, this can be found in ``src/simsoptpp/pymagneticfield.h``.
+A good example for this is the :mod:`simsoptpp.MagneticField` class. This is the base class for magnetic fields and it takes care of things like caching, or coordinate systems for evaluating magnetic fields. When you create a new magnetic field, you overload functions such as ``B_impl``, in order to compute the magnetic field at given locations. In order for this overload to work on the python side, pybind requires so called `trampoline classes <https://pybind11-jagerman.readthedocs.io/en/latest/advanced/classes.html#overriding-virtual-functions-in-python>`_. In the case of magnetic fields, this can be found in :simsoptpp_file:`pymagneticfield.h`.
 
 
 Lifetime of objects:
@@ -46,20 +46,28 @@ For simple computations that are compute bound, we use SIMD (`Single Instruction
 CMake
 ^^^^^
 
-When editing the C++ code, it may be useful to use ``CMake`` and ``make`` directly to only recompile those parts of the code that changed. This can be achieved as below
+When editing the C++ code, it may be useful to use ``CMake`` and ``make`` directly to only recompile those parts of the code that changed. This can be achieved as follows.
 
-.. code-block::
+First, install ``SIMSOPT`` in the usual way::
 
     git clone --recursive git@github.com:hiddenSymmetries/simsopt.git
     cd simsopt
-    pip3 install -e .
+    pip install -e .
+
+Install ``cmake`` and ``pybind11`` using ``pip`` if they are not already installed::
+
+    pip install cmake
+    pip install pybind11
+
+Then, recompile the C++ code in a new directory (``cmake_build``)::
+
     mkdir cmake-build
     cd cmake-build
-    cmake ..
+    cmake .. -Dpybind11_DIR=$(python -c "import pybind11; print(pybind11.__path__[0])")/share/cmake/pybind11/
     make -j
-    cd ../src
-    rm simsoptpp.cpython-38-x86_64-linux-gnu.so
-    ln -s ../cmake-build/simsoptpp.cpython-38-x86_64-linux-gnu.so .
 
-You may have to adjust the last two lines to match your local system.
+If the compilation executed successfully, there should now be a shared object file (ending with ``.so``) for ``simsoptpp`` in the ``cmake-build`` directory. After verifying that this ``.so`` file exists, execute the following command::
+
+    ln -sf $(realpath *.so) $(python -c "import simsoptpp; print(simsoptpp.__file__)")
+
 From then on, you can always just call ``make -j`` inside the ``cmake-build`` directory to recompile the C++ part of the code.
