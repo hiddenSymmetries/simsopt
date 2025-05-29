@@ -8,6 +8,9 @@ check_success() {
     fi
 }
 
+# Load modules 
+module load conda cray-hdf5/1.14.3.1 cray-netcdf/4.9.0.13
+
 # Ensure Conda is available
 type conda >/dev/null 2>&1 || { echo "conda command not found. Please install Anaconda/Miniconda first."; exit 1; }
 
@@ -29,20 +32,21 @@ check_success "Failed to activate conda environment $env_name"
 
 # Install Dependencies
 echo "Installing FIRM3D dependencies..."
-conda install -y compilers netcdf-fortran openmpi-mpicc openmpi-mpifort openblas scalapack gsl matplotlib --name "$env_name"
-pip install mpi4py
+conda install -c conda-forge numpy "libblas=*=*mkl" --name "$env_name"
+conda install matplotlib --name "$env_name"
+env CC=cc MPICC=CC pip install mpi4py
 check_success "Failed to install FIRM3D dependencies"
 
 # FIRM3D Installation
 cd simsopt || { echo "Error: firm3d directory not found. Exiting."; exit 1; }
-env CC=$(which mpicc) CXX=$(which mpicxx) pip install -e .
+env CC=cc CXX=CC pip install -e .
 check_success "Failed to install FIRM3D"
 cd ..
 
 # BOOZ_XFORM Installation
 cd booz_xform || { echo "Error: booz_xform directory not found. Exiting."; exit 1; }
 git checkout phip_fix
-env CC=$(which mpicc) CXX=$(which mpicxx) pip install -e .
+env CC=cc CXX=CC pip install -e .
 check_success "Failed to install BOOZ_XFORM"
 cd ..
 
