@@ -45,7 +45,6 @@ cd ..
 
 # BOOZ_XFORM Installation
 cd booz_xform || { echo "Error: booz_xform directory not found. Exiting."; exit 1; }
-git checkout phip_fix
 env CC=cc CXX=CC pip install -e .
 check_success "Failed to install BOOZ_XFORM"
 cd ..

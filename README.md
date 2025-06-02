@@ -5,7 +5,6 @@ FIRM3D (Fast Ion Reduced Models in 3D) is a software suite for modeling of energ
 - [Installation](#installation)
   - [macOS](#macos)
   - [Perlmutter](#perlmutter)
-  - [Ginsburg](#ginsburg)
 - [Magnetic field classes](#magnetic-field-classes)
   - [BoozerAnalytic](#boozeranalytic)
   - [BoozerRadialInterpolant](#boozerradialinterpolant)
@@ -71,7 +70,7 @@ The magnetic field can be computed at any point in Boozer coordinates using radi
 
 ### Preparing `booz_xform` equilibrium
 
-As stated above, the `booz_xform` equilibrium must be performed with all surfaces on the VMEC half grid, and with `phip`, `chi`, `pres`, and `phi` saved in the file. This can be done using the [C++ implementation](https://github.com/hiddenSymmetries/booz_xform) with the phip_fix branch, by passing `flux=True` to `read_wout()`:
+As stated above, the `booz_xform` equilibrium must be performed with all surfaces on the VMEC half grid, and with `phip`, `chi`, `pres`, and `phi` saved in the file. This can be done using the [C++ implementation](https://github.com/hiddenSymmetries/booz_xform) with the main branch, by passing `flux=True` to `read_wout()`:
 
 ```
 import booz_xform as bx
