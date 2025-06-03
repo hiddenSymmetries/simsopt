@@ -200,7 +200,7 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
 
 
 @SimsoptRequires(requests is not None, "You need to install the requests library to use this function. Run 'pip install requests'")
-def get_QUASR_data(ID, return_style='quasr-style', verbose=True): 
+def get_QUASR_data(ID, return_style='quasr-style', verbose=True, use_cache=True): 
     """
     Download a configuration from the QUASR database.  Downloaded configuration files are cached in 
     [SIMSOPT_INSTALL_DIR]/src/simsopt/configs/QUASR_cache/
@@ -256,7 +256,7 @@ def get_QUASR_data(ID, return_style='quasr-style', verbose=True):
         if r.status_code == 200:
             print(f"ID={ID:07} downloaded successfully")
             surfaces, coils = json.loads(r.content, cls=GSONDecoder)
-            sucess = True
+            success = True
             
             if use_cache: 
                 with open(FILE_PATH, 'wb') as f:
