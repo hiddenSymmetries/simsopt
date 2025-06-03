@@ -228,19 +228,26 @@ def get_QUASR_data(ID, return_style='quasr-style', verbose=True):
     
     id_str = f"{ID:07d}" # string to 7 digits
     url = f'https://quasr.flatironinstitute.org/simsopt_serials/{id_str[0:4]}/serial{id_str}.json'
+    success = False
+
+    if use_cache:
+        if os.access(THIS_DIR, os.W_OK):
+            FILE_PATH = THIS_DIR / 'QUASR_cache' / f'serial{id_str}.json' # write to cache in simsopt source dir
+        elif os.access(os.getcwd(), os.W_OK): 
+            FILE_PATH =  Path(os.getcwd()) / 'QUASR_cache'  / f"serial{id_str}.json" # create a local cache 
+        else: 
+            raise ValueError("could not find a writeable location, try again with use_cache=False")
     
-    FILE_PATH = THIS_DIR / f'QUASR_cache/serial{id_str}.json'
-    exists = os.path.exists(FILE_PATH)
+        exists = os.path.exists(FILE_PATH)
 
-    if not exists:
-        if verbose:
-            print(f"ID={id_str} is not cached, attempting download...")
+        if exists:
+            if verbose:
+                print(f"ID={id_str} is cached, loading...")
+            surfaces, coils = load(FILE_PATH)
+            success = True
 
-        try:
-            os.makedirs(THIS_DIR / 'QUASR_cache', exist_ok=True)
-        except:
-            raise Exception('making the cache folder failed')
 
+    if not success: 
         try:
             r = requests.get(url)
         except:
@@ -249,16 +256,14 @@ def get_QUASR_data(ID, return_style='quasr-style', verbose=True):
         if r.status_code == 200:
             print(f"ID={ID:07} downloaded successfully")
             surfaces, coils = json.loads(r.content, cls=GSONDecoder)
+            sucess = True
             
-            with open(FILE_PATH, 'wb') as f:
-                f.write(r.content)
+            if use_cache: 
+                with open(FILE_PATH, 'wb') as f:
+                    f.write(r.content)
         else:
             raise ValueError(f"requests failure on ID {ID:07d}. Status code: {r.status_code}\n Check if the confituration exists")
-    else:
-        if verbose:
-            print(f"ID={id_str} is cached, loading...")
-        surfaces, coils = load(FILE_PATH)
-    
+
     if return_style == 'simsopt-style':
         nfp = surfaces[0].nfp
         nc_per_hp = len(coils) // nfp // (1 + surfaces[0].stellsym)
@@ -269,4 +274,5 @@ def get_QUASR_data(ID, return_style='quasr-style', verbose=True):
         return curves, currents
     elif return_style == 'quasr-style':
         return surfaces, coils
+
 
