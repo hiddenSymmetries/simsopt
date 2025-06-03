@@ -22,7 +22,7 @@ Input files
 -----------
 
 Simsopt does not use input data files to define optimization problems,
-in contrast to ``STELLOPT``. Rather, problems are specified using a
+in contrast to STELLOPT. Rather, problems are specified using a
 python driver script, in which objects are defined and
 configured. However, objects related to specific physics codes may use
 their own input files. In particular, a :obj:`simsopt.mhd.Vmec` object
@@ -66,7 +66,7 @@ To do optimization using simsopt, there are four basic steps:
 4. Solve the optimization problem that has been defined.
 
 This pattern is evident in the tutorials in this documentation
-and in the ``examples`` directory of the repository.
+and in the :simsopt:`examples` directory of the repository.
 
 Some typical objects are a MHD equilibrium represented by the VMEC or
 SPEC code, or some electromagnetic coils. To define objective
