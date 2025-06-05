@@ -7,9 +7,7 @@ from ..geo.curverzfourier import CurveRZFourier
 __all__ = ['get_LHD_like_data']
 
 def get_LHD_like_data(numquadpoints_circular=400, numquadpoints_helical=1000, numquadpoints_axis=30):
-    """
-    Return the coil configurations for the LHD-like configuration, used by Chris
-    Smiet, Ludovic Rais, and Todd Elder.
+    """Return the coils and axis for an LHD-like configuration.
 
     This coil set is a single-filament approximation of the coils in LHD, the
     Large Helical Device in Japan. Each filament corresponds to the center of
@@ -22,6 +20,11 @@ def get_LHD_like_data(numquadpoints_circular=400, numquadpoints_helical=1000, nu
     helical1, helical2. Here, U and L indicate upper and lower, OV and IV indicate
     the outer and inner vertical field coils, and IS indicates the inner shaping
     coils.
+
+    These coils were generated from data generously provided by Yasuhiro Suzuki.
+    They produce a configuration similar to that used in Suzuki, Y., K. Y.
+    Watanabe, and S. Sakakibara. "Theoretical studies of equilibrium beta limit
+    in LHD plasmas." Physics of Plasmas 27, 10 (2020).
     
     Typical usage::
 
