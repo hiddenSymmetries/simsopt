@@ -16,10 +16,136 @@ from .._core.json import GSONDecoder
 
 logger = logging.getLogger(__name__)
 
-__all__ = ['ToroidalField', 'PoloidalField', 'ScalarPotentialRZMagneticField',
+__all__ = ['VirtualCasingField','ToroidalField', 'PoloidalField', 'ScalarPotentialRZMagneticField',
            'CircularCoil', 'Dommaschk', 'Reiman', 'InterpolatedField', 'DipoleField',
            'MirrorModel']
 
+class VirtualCasingField(MagneticField):
+
+    @classmethod
+    def from_vmec(cls, vmec, src_nphi, src_ntheta=None, trgt_nphi=None, trgt_ntheta=None, use_stellsym=True, digits=6, filename="auto"):
+        """
+        Given a :obj:`~simsopt.mhd.vmec.Vmec` object, define MagneticField 
+        for the contribution to the total magnetic field due to currents 
+        outside the plasma.
+
+        This function requires the python ``virtual_casing`` package to be
+        installed.
+
+        The argument ``src_nphi`` refers to the number of points around a half
+        field period if stellarator symmetry is exploited, or a full field
+        period if not.
+
+        To set the grid resolutions ``src_nphi`` and ``src_ntheta``, it can be
+        convenient to use the function
+        :func:`simsopt.geo.surface.best_nphi_over_ntheta`. This is
+        done automatically if you omit the ``src_ntheta`` argument.
+
+        For now, this routine only works for stellarator symmetry.
+
+        Args:
+            vmec: Either an instance of :obj:`simsopt.mhd.vmec.Vmec`, or the name of a
+              Vmec ``input.*`` or ``wout*`` file.
+            src_nphi: Number of grid points toroidally for the input of the calculation.
+            src_ntheta: Number of grid points poloidally for the input of the calculation. If ``None``,
+              the number of grid points will be calculated automatically using
+              :func:`simsopt.geo.surface.best_nphi_over_ntheta()` to minimize
+              the grid anisotropy, given the specified ``nphi``.
+            trgt_nphi: Number of grid points toroidally for the output of the calculation.
+              If unspecified, ``src_nphi`` will be used.
+            trgt_ntheta: Number of grid points poloidally for the output of the calculation.
+              If unspecified, ``src_ntheta`` will be used.
+            use_stellsym: whether to exploit stellarator symmetry in the calculation.
+            digits: Approximate number of digits of precision for the calculation.
+            filename: If not ``None``, the results of the virtual casing calculation
+              will be saved in this file. For the default value of ``"auto"``, the
+              filename will automatically be set to ``"vcasing_<extension>.nc"``
+              where ``<extension>`` is the string associated with Vmec input and output
+              files, analogous to the Vmec output file ``"wout_<extension>.nc"``.
+        """
+        import virtual_casing as vc_module
+        from ..mhd.vmec import Vmec
+        from ..geo.surfacerzfourier import SurfaceRZFourier
+        from ..geo.surface import best_nphi_over_ntheta
+        from ..mhd.vmec_diagnostics import B_cartesian
+        
+        if not isinstance(vmec, Vmec):
+            vmec = Vmec(vmec)
+
+        vmec.run()
+        nfp = vmec.wout.nfp
+        stellsym = (not bool(vmec.wout.lasym)) and use_stellsym
+        if vmec.wout.lasym:
+            raise RuntimeError('virtual casing presently only works for stellarator symmetry')
+
+        if src_ntheta is None:
+            src_ntheta = int((1+int(stellsym)) * nfp * src_nphi / best_nphi_over_ntheta(vmec.boundary))
+            logger.info(f'new src_ntheta: {src_ntheta}')
+
+        # The requested nphi and ntheta may not match the quadrature
+        # points in vmec.boundary, and the range may not be "full torus",
+        # so generate a SurfaceRZFourier with the desired resolution:
+        if stellsym:
+            ran = "half period"
+        else:
+            ran = "field period"
+        surf = SurfaceRZFourier.from_nphi_ntheta(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
+                                                 nphi=src_nphi, ntheta=src_ntheta, range=ran)
+        for jmn in range(vmec.wout.mnmax):
+            surf.set_rc(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.rmnc[jmn, -1])
+            surf.set_zs(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.zmns[jmn, -1])
+        Bxyz = B_cartesian(vmec, nphi=src_nphi, ntheta=src_ntheta, range=ran)
+        gamma = surf.gamma()
+        logger.debug(f'gamma.shape: {gamma.shape}')
+        logger.debug(f'Bxyz[0].shape: {Bxyz[0].shape}')
+
+        if trgt_nphi is None:
+            trgt_nphi = src_nphi
+        if trgt_ntheta is None:
+            trgt_ntheta = src_ntheta
+        trgt_surf = SurfaceRZFourier.from_nphi_ntheta(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
+                                                      nphi=trgt_nphi, ntheta=trgt_ntheta, range=ran)
+        trgt_surf.x = surf.x
+
+        unit_normal = trgt_surf.unitnormal()
+        logger.debug(f'unit_normal.shape: {unit_normal.shape}')
+
+        # virtual_casing wants all input arrays to be 1D. The order is
+        # {x11, x12, ..., x1Np, x21, x22, ... , xNtNp, y11, ... , z11, ...}
+        # where Nt is toroidal (not theta!) and Np is poloidal (not phi!)
+        gamma1d = np.zeros(src_nphi * src_ntheta * 3)
+        B1d = np.zeros(src_nphi * src_ntheta * 3)
+        for jxyz in range(3):
+            gamma1d[jxyz * src_nphi * src_ntheta: (jxyz + 1) * src_nphi * src_ntheta] = gamma[:, :, jxyz].flatten(order='C')
+            B1d[jxyz * src_nphi * src_ntheta: (jxyz + 1) * src_nphi * src_ntheta] = Bxyz[jxyz].flatten(order='C')
+
+        vcasing = vc_module.VirtualCasing()
+        vcasing.setup(
+            digits, nfp, stellsym,
+            src_nphi, src_ntheta, gamma1d,
+            src_nphi, src_ntheta,
+            trgt_nphi, trgt_ntheta)
+        
+        vc = cls()
+        vc.vcasing = vcasing 
+        vc.B1d = B1d 
+
+        MagneticField.__init__(vc) # Need to think about DOFs here 
+
+        return vc 
+
+    def _B_impl(self, B):
+
+        points = self.get_points_cart_ref()
+
+        # Points need to be in order {x1, x2, ..., xn, y1, ..., z1, ..., zn}
+        points1d = points.flatten(order='F')
+
+        # Bexternal1d will be in order {Bx1, Bx2, ..., BxN, By1, ..., Bz1, ..., BzN}
+        # Bexternal1d = np.array(self.vcasing.compute_external_B(self.B1d))
+        Bexternal1d = np.array(self.vcasing.compute_external_B_offsurf(self.B1d, points1d))
+
+        B[:] = Bexternal1d.reshape((len(points), 3),order='F')
 
 class ToroidalField(MagneticField):
     """
