@@ -8,6 +8,11 @@ from jax.lax import while_loop, scan
 from functools import partial
 import numpy as np
 
+__all__ = [
+    'run_opt_lbfgs', 'run_opt_bfgs', 'run_opt_optax', 'solve_quad_unconstrained',
+    'solve_constrained', 'intialize_quad', 'dfdy_from_qcqp'
+]
+
 # lstsq_vmap = vmap(jnp.linalg.lstsq)
 
 # def wl_debug(cond_fun, body_fun, init_val):

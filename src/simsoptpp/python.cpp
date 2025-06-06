@@ -4,6 +4,9 @@
 #define FORCE_IMPORT_ARRAY
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include <Eigen/Core>
+#if defined(_OPENMP)
+#include "biest.hpp" // BIEST
+#endif
 
 typedef xt::pyarray<double> PyArray;
 #include "xtensor-python/pytensor.hpp"     // Numpy bindings
@@ -23,6 +26,9 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "simdhelpers.h"
 #include "winding_surface.h"
 #include "boozerresidual_py.h"
+#if defined(_OPENMP)
+#include "biest_call.h"
+#endif
 
 namespace py = pybind11;
 
@@ -59,6 +65,16 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("biot_savart_vjp", &biot_savart_vjp);
     m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
     m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
+
+#if defined(_OPENMP)
+    // Functions below are implemented for BIEST calculations in QUADCOIL
+    // m.doc() = "Test module for xtensor python bindings";
+    // m.def("sum_of_sines", &sum_of_sines, "Sum the sines of the input values");
+    m.def("test_single", &test_single, "Testing 100 BIEST calls.");
+    m.def("test_double", &test_double, "Testing 100 BIEST calls.");
+    m.def("integrate_multi", &integrate_multi, "Integrating multiple scalar functions using BIEST");
+    m.def("plot_in_vtk", &plot_in_vtk, "Integrating multiple scalar functions using BIEST");
+#endif
 
     // Functions below are implemented for permanent magnet optimization
     m.def("dipole_field_B" , &dipole_field_B);
