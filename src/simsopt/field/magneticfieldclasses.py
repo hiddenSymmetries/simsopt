@@ -605,19 +605,24 @@ class WindingSurfaceField(MagneticField):
         points = self.get_points_cart_ref()
         dA[:] = sopp.WindingSurfacedA(points, self.ws_points, self.ws_normal, self.K) / self.nphi / self.ntheta
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["K"] = self.K
-        d["ws_points"] = self.ws_points
-        d["ws_normal"] = self.ws_normal
+    def as_dict(self, serial_objs_dict) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
+        #d["K"] = self.K
+        #d["ws_points"] = self.ws_points
+        #d["ws_normal"] = self.ws_normal
         d["points"] = self.get_points_cart()
         return d
 
     @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        field = cls(d["ws_points"], d["ws_normal"], d["K"])
-        xyz = decoder.process_decoded(d["points"])
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        decoder = GSONDecoder() #MontyDecoder()
+        cp = decoder.process_decoded(d["current_potential"],
+                                      serial_objs_dict=serial_objs_dict,
+                                      recon_objs=recon_objs)
+        xyz = decoder.process_decoded(d["points"],
+                                      serial_objs_dict=serial_objs_dict,
+                                      recon_objs=recon_objs)
+        field = cls(cp)
         field.set_points_cart(xyz)
         return field
 
