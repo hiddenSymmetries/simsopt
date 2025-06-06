@@ -59,7 +59,7 @@ are provided for each code.
 If not explicitly set, most profiles are handled by the equilibrium code 
 internally, and not exposed to the user.
 
-The :ref:`example-vmec` tutorial contains more detailed information about profiles and using them with ``VMEC``.
+The :ref:`example_vmec` tutorial contains more detailed information about profiles and using them with ``VMEC``.
 
 
 VMEC
