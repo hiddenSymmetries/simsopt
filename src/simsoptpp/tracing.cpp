@@ -665,43 +665,35 @@ particle_guiding_center_boozer_perturbed_tracing(
 }
 
 /**
- * @brief Traces the guiding center of a particle in a Boozer magnetic field.
- *
- * @param field Shared pointer to the BoozerMagneticField object.
- * @param stz_init Initial position of the particle in Boozer coordinates (s, theta, zeta).
- * @param m Mass of the particle.
- * @param q Charge of the particle.
- * @param vtotal Total velocity of the particle.
- * @param vtang Tangential velocity of the particle.
- * @param tmax Maximum time for the simulation.
- * @param dt Initial time step for the simulation.
- * @param abstol Absolute tolerance for the adaptive time stepper.
- * @param reltol Relative tolerance for the adaptive time stepper.
- * @param roottol Tolerance for root finding.
- * @param vacuum Boolean flag indicating if the field is a vacuum field.
- * @param noK Boolean flag indicating if the K term should be ignored.
- * @param solveSympl Boolean flag indicating if the symplectic solver should be used.
- * @param zetas Vector of zeta values for stopping criteria.
- * @param omegas Vector of omega values for stopping criteria.
- * @param stopping_criteria Vector of shared pointers to stopping criteria objects.
- * @param dt_save Time step for saving the results.
- * @param vpars Vector of additional parameters for the velocity.
- * @param zetas_stop Boolean flag indicating if zeta stopping criteria should be used.
- * @param vpars_stop Boolean flag indicating if velocity parameter stopping criteria should be used.
- * @param forget_exact_path Boolean flag indicating if the exact path should be forgotten.
- * @param axis Defines handling of coordinate singularity. If 0, tracing is performed in Boozer coordinates (s,theta,zeta). If 1, tracing is performed in coordinates (sqrt(s)*cos(theta), sqrt(s)*sin(theta), zeta). If 2, tracing is performed in coordinates (s*cos(theta),s*sin(theta),zeta). Option 2 is recommended. 
- * @param predictor_step Boolean flag indicating if predictor step should be used.
- * @return A tuple containing two vectors: the first vector contains arrays of size 5, and the second vector contains arrays of size 6.
- * 
- * @throws std::invalid_argument if dt is not positive.
- */
+See trace_particles_boozer() defined in tracing.py for details on the parameters.
+**/
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
-        shared_ptr<BoozerMagneticField> field, array<double, 3> stz_init,
-        double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol,
-        bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas,
-        vector<shared_ptr<StoppingCriterion>> stopping_criteria,  double dt_save, vector<double> vpars,
-        bool zetas_stop, bool vpars_stop, bool forget_exact_path, int axis, bool predictor_step)
+        shared_ptr<BoozerMagneticField> field, 
+        array<double, 3> stz_init,
+        double m, 
+        double q, 
+        double vtotal, 
+        double vtang, 
+        double tmax, 
+        bool vacuum, 
+        bool noK, 
+        vector<double> zetas, 
+        vector<double> omegas,
+        vector<double> vpars,
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria,  
+        double dt_save, 
+        bool forget_exact_path,
+        bool zetas_stop, 
+        bool vpars_stop, 
+        int axis, 
+        double abstol, 
+        double reltol,
+        bool solveSympl,
+        bool predictor_step, 
+        double roottol,
+        double dt
+        )
 {
     Array2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);

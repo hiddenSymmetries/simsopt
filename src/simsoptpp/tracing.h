@@ -38,7 +38,28 @@ particle_guiding_center_boozer_perturbed_tracing(
 
 tuple<vector<std::array<double, 5>>, vector<std::array<double, 6>>>
 particle_guiding_center_boozer_tracing(
-        shared_ptr<BoozerMagneticField> field, std::array<double, 3> stz_init,
-        double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol,
-        bool vacuum, bool noK, bool solveSympl, vector<double> zetas={}, vector<double> omegas={},
-        vector<shared_ptr<StoppingCriterion>> stopping_criteria={}, double dt_save=1e-6, vector<double> vpars={}, bool zetas_stop=false, bool vpars_stop=false, bool forget_exact_path=false, int axis=0, bool predictor_step=true);
+        shared_ptr<BoozerMagneticField> field, 
+        std::array<double, 3> stz_init,
+        double m, 
+        double q, 
+        double vtotal, 
+        double vtang, 
+        double tmax, 
+        bool vacuum, 
+        bool noK, 
+        vector<double> zetas={}, 
+        vector<double> omegas={},
+        vector<double> vpars={}, 
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria={}, 
+        double dt_save=1e-6, 
+        bool forget_exact_path=false, 
+        bool zetas_stop=false, 
+        bool vpars_stop=false, 
+        int axis=0, 
+        double abstol=1e-9, 
+        double reltol=1e-9, 
+        bool solveSympl=false,
+        bool predictor_step=true,
+        double roottol=1e-9,
+        double dt=1e-7
+);
