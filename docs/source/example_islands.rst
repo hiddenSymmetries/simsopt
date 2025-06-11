@@ -1,3 +1,5 @@
+.. _eliminating-islands:
+
 Eliminating magnetic islands
 ============================
 
