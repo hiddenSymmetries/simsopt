@@ -408,8 +408,6 @@ class FramedCurveCentroid(FramedCurve):
         alphadash = self.rotation.alphadash(self.curve.quadpoints)
         return self.torsion(gamma, d1gamma, d2gamma, alpha, alphadash)
 
-<<<<<<< HEAD
-=======
     def frame_binormal_curvature(self):
         gamma = self.curve.gamma()
         d1gamma = self.curve.gammadash()
@@ -891,29 +889,6 @@ def binormal_curvature_pure_centroid(gamma, gammadash, gammadashdash,
 
     tdash *= 1/jnp.linalg.norm(gammadash, axis=1)[:, None]
     return inner(tdash, b)
-<<<<<<< HEAD
-
-# def twist_pure_frenet(gamma, gammadash, gammadashdash, gammadashdashdash,
-#                           alpha, alphadash):
-#     t, n, _ = rotated_frenet_frame(gamma, gammadash, gammadashdash, alpha)
-#     _, ndash, _ = rotated_frenet_frame_dash(
-#         gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash)
-
-#     T = n[:,0] * (ndash[:,1] * t[:,2] - ndash[:,2] * t[:,1]) \
-#     +   n[:,1] * (ndash[:,2] * t[:,0] - ndash[:,0] * t[:,2]) \
-#     +   n[:,2] * (ndash[:,0] * t[:,1] - ndash[:,1] * t[:,0])
-#     return jnp.cumsum(T)/(2*jnp.pi*jnp.cumsum(jnp.ones_like(T)))
-
-# def twist_pure_centroid(gamma, gammadash, gammadashdash,
-#                           alpha, alphadash):
-#     t, n, _ = rotated_centroid_frame(gamma, gammadash, alpha)
-#     _, ndash, _ = rotated_centroid_frame_dash(
-#         gamma, gammadash, gammadashdash, alpha, alphadash)  
-
-#     T = n[:,0] * (ndash[:,1] * t[:,2] - ndash[:,2] * t[:,1]) \
-#     +   n[:,1] * (ndash[:,2] * t[:,0] - ndash[:,0] * t[:,2]) \
-#     +   n[:,2] * (ndash[:,0] * t[:,1] - ndash[:,1] * t[:,0]) 
-#     return jnp.cumsum(T)/(2*jnp.pi*jnp.cumsum(jnp.ones_like(T)))
 
 def frame_twist_pure(gammadash,t,n,ndash):
     arc_length = jnp.linalg.norm(gammadash, axis=1)
@@ -921,4 +896,3 @@ def frame_twist_pure(gammadash,t,n,ndash):
     +   n[:,1] * (ndash[:,2] * t[:,0] - ndash[:,0] * t[:,2]) \
     +   n[:,2] * (ndash[:,0] * t[:,1] - ndash[:,1] * t[:,0])
     return T/(2*jnp.pi*arc_length)
-    # return jnp.cumsum(T)/(2*jnp.pi*jnp.cumsum(jnp.ones_like(T)))
