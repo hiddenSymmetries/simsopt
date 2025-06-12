@@ -58,7 +58,7 @@ def initialize_position_profile(field, nparticles, profile, nfp=1, ns_max=100, n
 
     # Compute normalized profile values on the grid 
     profile_values = np.array([profile(s) for s in s_grid.flatten()])
-    prob_max = np.max(J * profile_values)  # Normalize by the maximum value of J * profile
+    prob_max = np.max(J[:,0] * profile_values)  # Normalize by the maximum value of J * profile
 
     theta_init = []
     zeta_init = []
