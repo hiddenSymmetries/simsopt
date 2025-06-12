@@ -20,9 +20,9 @@ def centroid_pure(gamma, gammadash):
     This pure function is used in a Python+Jax implementation of formula for centroid.
 
     .. math::
-        \mathbf{c} = \frac{1}{L} \int_0^L \mathbf{\gamma}(\phi) d\phi
+        \mathbf{c} = \frac{1}{L} \int_0^L \mathbf{\gamma}(l) dl
 
-    where :math:`L` is the arclength of the curve.
+    where :math:`\gamma` is the position vector on the curve.
     """
     arclength = jnp.linalg.norm(gammadash, axis=-1)
     centroid = jnp.sum(gamma * arclength[:, None], axis=0) / jnp.sum(arclength)
@@ -36,7 +36,8 @@ def incremental_arclength_pure(d1gamma):
     .. math::
         \text{incremental arclength} = \|\mathbf{\gammadash}(\phi)\| d\phi
 
-    where :math:`\mathbf{\gammadash}(\phi)` is the derivative of the tangent vector to the curve.
+    where :math:`\mathbf{\gammadash}(\phi)` is the derivative of the 
+    position vector to the curve.
     """
     return jnp.linalg.norm(d1gamma, axis=1)
 
@@ -93,10 +94,11 @@ def frenet_frame_pure(gammadash, gammadashdash, incremental_arclength):
     .. math::
         \mathbf{t} = \frac{1}{l} \mathbf{\gammadash}
 
-    where :math:`l` is the arclength of the curve.
+    where :math:`l` is the the derivative of arclength with respect 
+    to the curve parameter. t = gammadash / |gammadash|.
 
     .. math::
-        \mathbf{n} = \frac{1}{\|\mathbf{\gammadashdash}\|}\mathbf{\gammadashdash}
+        \mathbf{n} = \frac{1}{\|\mathbf{tdash}\|}\mathbf{tdash}
 
     .. math::
         \mathbf{b} = \mathbf{t} \times \mathbf{n}
@@ -456,9 +458,9 @@ class Curve(Optimizable):
         Compute the centroid of the curve
 
         .. math::
-            \mathbf{c} = \frac{1}{L} \int_0^L \mathbf{\gamma}(\phi) d\phi
+            \mathbf{c} = \frac{1}{L} \int_0^L \mathbf{\gamma}(l) dl
 
-        where :math:`L` is the arclength of the curve. Note that this function was once called
+        where :math:`\gamma` is the position on the curve. Note that this function was once called
         `center` but this conflicts with the center property of the C++ CurvePlanarFourier
         implementation.
         """
@@ -492,13 +494,11 @@ class JaxCurve(sopp.Curve, Curve):
 
         self.gammadash_pure = lambda x, q: jvp(lambda p: self.gamma_pure(x, p), (q,), (ones,))[1]
         self.gammadash_jax = jit(lambda x: self.gammadash_pure(x, points))
-        self.gammadash_impl_jax = jit(lambda x, p: self.gammadash_pure(x, p))
         self.dgammadash_by_dcoeff_jax = jit(jacfwd(self.gammadash_jax))
         self.dgammadash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadash_jax, x)[1](v)[0])
 
         self.gammadashdash_pure = lambda x, q: jvp(lambda p: self.gammadash_pure(x, p), (q,), (ones,))[1]
         self.gammadashdash_jax = jit(lambda x: self.gammadashdash_pure(x, points))
-        self.gammadashdash_impl_jax = jit(lambda x, p: self.gammadashdash_pure(x, p))
         self.dgammadashdash_by_dcoeff_jax = jit(jacfwd(self.gammadashdash_jax))
         self.dgammadashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdash_jax, x)[1](v)[0])
 
@@ -524,7 +524,7 @@ class JaxCurve(sopp.Curve, Curve):
         """
         gamma[:, :] = self.gamma_impl_jax(self.get_dofs(), quadpoints)
 
-    def incremental_arclength(self):
+    def incremental_arclength_impl(self):
         """
         This function returns the incremental arclength of the curve.
         """
@@ -731,9 +731,9 @@ class RotatedCurve(sopp.Curve, Curve):
         Compute the centroid of the curve
 
         .. math::
-            \mathbf{c} = \frac{1}{L} \int_0^L \mathbf{\gamma}(\phi) d\phi
+            \mathbf{c} = \frac{1}{L} \int_0^L \mathbf{\gamma}(l) dl
 
-        where :math:`L` is the arclength of the curve.
+        where :math:`\gamma` is the position on the curve.
         """
         return centroid_pure(self.gamma(), self.gammadash())
 
@@ -930,9 +930,14 @@ def curves_to_vtk(curves, filename, close=False, extra_data=None):
     polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData=pointData)
 
 
-def setup_uniform_grid_in_bounding_box(s, s_outer, Nx, Ny, Nz, Nmin_factor=2.01):
+def _setup_uniform_grid_in_bounding_box(s_outer, Nx, Ny, Nz, Nmin_factor=2.01):
     """
-    Generate a uniform 3D grid of points for setting up circular coils. 
+    Generate a uniform 3D grid of points where a set of circular coils 
+    will be initialized to have their centers. The coils are uniformly
+    spaced on the Cartesian grid, although the grid may have different spacing 
+    in the x, y, and z directions, and it is appropriately initialized to
+    respect the discrete symmetries of the plasma.
+
     The grid is defined by the inner and outermost points of a toroidal surface s_outer.
     Filtering on this grid is done to avoid coil overlap and respect stellarator and 
     field-period symmetries.
@@ -962,10 +967,9 @@ def setup_uniform_grid_in_bounding_box(s, s_outer, Nx, Ny, Nz, Nmin_factor=2.01)
 
     Parameters
     ----------
-    s : Surface
-        The main surface object (used for nfp and geometry info).
     s_outer : Surface
-        The outer toroidal surface (for grid bounding box).
+        The outer toroidal surface (for grid bounding box). Assumed to have the same 
+        discrete symmetries as the plasma surface.
     Nx : int
         Number of grid points in the x direction.
     Ny : int
@@ -981,8 +985,6 @@ def setup_uniform_grid_in_bounding_box(s, s_outer, Nx, Ny, Nz, Nmin_factor=2.01)
     -------
     xyz_uniform : ndarray, shape (N, 3)
         Array of candidate coil center points in 3D, filtered for symmetry and spacing.
-    xyz_outer : ndarray, shape (M, 3)
-        Array of points on the outer surface.
     R : float
         The coil radius used for spacing.
     """
@@ -991,7 +993,7 @@ def setup_uniform_grid_in_bounding_box(s, s_outer, Nx, Ny, Nz, Nmin_factor=2.01)
         warnings.warn('Nmin_factor should be greater than 2.0 to avoid coil overlap.')
 
     # Get (X, Y, Z) coordinates of the two boundaries
-    nfp = s.nfp
+    nfp = s_outer.nfp
     xyz_outer = s_outer.gamma().reshape(-1, 3)
     x_outer = xyz_outer[:, 0]
     y_outer = xyz_outer[:, 1]
@@ -1043,7 +1045,7 @@ def setup_uniform_grid_in_bounding_box(s, s_outer, Nx, Ny, Nz, Nmin_factor=2.01)
 
     # Now need to chop off points close to the unique sector [0, (2)pi / nfp]
     # to avoid overlap after discrete symmetry operations.
-    if s.stellsym:
+    if s_outer.stellsym:
         phi0 = np.pi / nfp
     else:
         phi0 = 2 * np.pi / nfp
@@ -1061,14 +1063,51 @@ def setup_uniform_grid_in_bounding_box(s, s_outer, Nx, Ny, Nz, Nmin_factor=2.01)
     remove_inds = np.logical_or(phi >= phi0, phi <= 0)
     intersection_inds = np.any(remove_inds, axis=0)
     xyz_uniform = xyz_uniform[~intersection_inds, :]
-    return xyz_uniform, xyz_outer, R
+    return xyz_uniform, R
 
 
 def create_planar_curves_between_two_toroidal_surfaces(
     s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1,
-    jax_flag=False, numquadpoints=None,
+    use_jax_curve=False, numquadpoints=None,
     Nmin_factor=2.01,
 ):
+    """
+    Create a list of planar curves between two toroidal surfaces. The curves are initialized as 
+    circular coils of radius R and then the coils are rotated and flipped to satisfy stellarator 
+    symmetry. They are originally initialized on a uniform Cartesian grid and then filtered to 
+    only include points that are between the two toroidal surfaces.
+
+    Args:
+        s : Surface
+            The plasma surface object (used for nfp and geometry info).
+        s_inner : Surface
+            The inner toroidal surface (for grid bounding box). Typically generated
+            from s.extend_via_normal().
+        s_outer : Surface
+            The outer toroidal surface (for grid bounding box). Typically generated
+            from s.extend_via_normal() and should extend out further than s_inner.
+        Nx : int, optional
+            Number of uniform grid points in the x direction to initialize a uniform grid.
+        Ny : int, optional
+            Number of uniform grid points in the y direction to initialize a uniform grid.
+        Nz : int, optional
+            Number of uniform grid points in the z direction to initialize a uniform grid.
+        order : int, optional
+            Order of the Fourier series in the planar curve representation.
+        use_jax_curve : bool, optional
+            Whether to use JaxCurvePlanarFourier instead of CurvePlanarFourier.
+        numquadpoints : int, optional
+            Number of quadrature points to use.
+        Nmin_factor : float, optional
+            Factor to set minimum coil spacing (default: 2.01). The coil radius is set to Nmin / Nmin_factor, 
+            where Nmin is the minimum grid spacing. So as long as Nmin_factor > 2, then the coils 
+            (which are initialized as circles of radius R) will not overlap.
+
+    Returns:
+        curves : list
+            List of CurvePlanarFourier or JaxCurvePlanarFourier objects.
+        all_curves : list
+    """
     from simsopt.geo import CurvePlanarFourier, JaxCurvePlanarFourier
     from simsopt.field import apply_symmetries_to_curves
 
@@ -1077,9 +1116,10 @@ def create_planar_curves_between_two_toroidal_surfaces(
     normal_inner = s_inner.unitnormal().reshape(-1, 3)
     xyz_inner = s_inner.gamma().reshape(-1, 3)
     normal_outer = s_outer.unitnormal().reshape(-1, 3)
+    xyz_outer = s_outer.gamma().reshape(-1, 3)
 
     # Now guarantees that circular coils of radius R on this grid do not overlap 
-    xyz_uniform, xyz_outer, R = setup_uniform_grid_in_bounding_box(s, s_outer, Nx, Ny, Nz, Nmin_factor=Nmin_factor)
+    xyz_uniform, R = _setup_uniform_grid_in_bounding_box(s_outer, Nx, Ny, Nz, Nmin_factor=Nmin_factor)
     
     # Have the uniform grid, now need to loop through and eliminate any points that are 
     # not actually between the two toroidal surfaces.
@@ -1098,7 +1138,7 @@ def create_planar_curves_between_two_toroidal_surfaces(
         nquad = (order + 1)*40
     else:
         nquad = numquadpoints
-    if jax_flag:
+    if use_jax_curve:
         curves = [JaxCurvePlanarFourier(nquad, order) for i in range(ncoils)]
     else:
         curves = [CurvePlanarFourier(nquad, order) for i in range(ncoils)]
@@ -1129,7 +1169,7 @@ def create_planar_curves_between_two_toroidal_surfaces(
     return curves, all_curves
 
 
-def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None, jax_flag=False):
+def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None, use_jax_curve=False):
     """
     Create ``ncurves`` curves of type
     :obj:`~simsopt.geo.curvexyzfourier.CurveXYZFourier` of order
@@ -1149,7 +1189,7 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
     from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
     if numquadpoints is None:
         numquadpoints = 15 * order
-    if jax_flag:
+    if use_jax_curve:
         curvefunc = JaxCurveXYZFourier
     else:
         curvefunc = CurveXYZFourier
@@ -1171,18 +1211,41 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
 
 
 def create_equally_spaced_planar_curves(
-        ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None, jax_flag=False):
+        ncurves, nfp, stellsym, R0=1.0, R1=0.5, 
+        order=6, numquadpoints=None, use_jax_curve=False):
     """
     Create ``ncurves`` curves of type
     :obj:`~simsopt.geo.curveplanarfourier.CurvePlanarFourier` of order
     ``order`` that will result in circular equally spaced coils (major
     radius ``R0`` and minor radius ``R1``) after applying
     :obj:`~simsopt.field.coil.coils_via_symmetries`.
+
+    Args:
+        ncurves : int
+            Number of curves to create.
+        nfp : int
+            Field period symmetry of the plasma.
+        stellsym : bool
+            Whether the plasma has stellarator symmetry.
+        R0 : float, optional
+            Major radius of the coils.
+        R1 : float, optional
+            Minor radius of the coils.
+        order : int, optional
+            Order of the Fourier series in the planar curve representation.
+        numquadpoints : int, optional
+            Number of quadrature points to use.
+        use_jax_curve : bool, optional
+            Whether to use JaxCurvePlanarFourier instead of CurvePlanarFourier.
+
+    Returns:
+        curves : list
+            List of CurvePlanarFourier or JaxCurvePlanarFourier objects.
     """
     from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
     if numquadpoints is None:
         numquadpoints = 15 * order
-    if jax_flag:
+    if use_jax_curve:
         curvefunc = JaxCurvePlanarFourier
     else:
         curvefunc = CurvePlanarFourier

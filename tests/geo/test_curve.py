@@ -14,7 +14,7 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curvexyzfouriersymmetries import CurveXYZFourierSymmetries
-from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_planar_curves_between_two_toroidal_surfaces, setup_uniform_grid_in_bounding_box
+from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_planar_curves_between_two_toroidal_surfaces, _setup_uniform_grid_in_bounding_box
 from simsopt.geo import parameters
 import simsoptpp as sopp
 from simsopt.configs.zoo import get_ncsx_data, get_w7x_data
@@ -798,7 +798,7 @@ class Testing(unittest.TestCase):
             s_outer.extend_via_projected_normal(0.2)
             # Standard usage
             curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, jax_flag=False, numquadpoints=10
+                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, use_jax_curve=False, numquadpoints=10
             )
             self.assertTrue(len(curves) > 0)
             self.assertTrue(len(all_curves) >= len(curves))
@@ -810,7 +810,7 @@ class Testing(unittest.TestCase):
 
             # Standard usage without specified numquadpoints
             curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, jax_flag=False
+                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, use_jax_curve=False
             )
             self.assertTrue(len(curves) > 0)
             self.assertTrue(len(all_curves) >= len(curves))
@@ -820,9 +820,9 @@ class Testing(unittest.TestCase):
                 self.assertEqual(gamma.shape[1], 3)
                 self.assertEqual(gamma.shape[0], 80)  # default numquadpoints = (order + 1) * 40
 
-            # Test with jax_flag=True
+            # Test with use_jax_curve=True
             curves_jax, all_curves_jax = create_planar_curves_between_two_toroidal_surfaces(
-                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, jax_flag=True, numquadpoints=10
+                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, use_jax_curve=True, numquadpoints=10
             )
             self.assertTrue(len(curves_jax) > 0)
             self.assertTrue(len(all_curves_jax) >= len(curves_jax))
@@ -840,7 +840,7 @@ class Testing(unittest.TestCase):
                 4: 'input.LandremanPaul2021_QH_reactorScale_lowres'
             }
             for nfp, fname in nfp_file_map.items():
-                for jax_flag in [False, True]:
+                for use_jax_curve in [False, True]:
                     print(f"Testing {fname} with nfp={nfp}")
                     with self.subTest(nfp=nfp):
                         file_nfp = TEST_DIR / fname
@@ -860,7 +860,7 @@ class Testing(unittest.TestCase):
                             s_inner_nfp.extend_via_projected_normal(0.1)
                             s_outer_nfp.extend_via_projected_normal(0.2)
                         curves_nfp, all_curves_nfp = create_planar_curves_between_two_toroidal_surfaces(
-                            s_nfp, s_inner_nfp, s_outer_nfp, Nx=10, Ny=10, Nz=10, order=1, jax_flag=jax_flag, numquadpoints=10
+                            s_nfp, s_inner_nfp, s_outer_nfp, Nx=10, Ny=10, Nz=10, order=1, use_jax_curve=use_jax_curve, numquadpoints=10
                         )
                         self.assertTrue(len(curves_nfp) > 0)
                         self.assertTrue(len(all_curves_nfp) >= len(curves_nfp))
@@ -878,10 +878,10 @@ class Testing(unittest.TestCase):
         numquadpoints = 12
         # JAX version
         curves_jax = create_equally_spaced_curves(ncurves, nfp, stellsym,
-                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, jax_flag=True)
+                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, use_jax_curve=True)
         # Non-JAX version
         curves_std = create_equally_spaced_curves(ncurves, nfp, stellsym,
-                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, jax_flag=False)
+                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, use_jax_curve=False)
         self.assertEqual(len(curves_jax), ncurves)
         self.assertEqual(len(curves_std), ncurves)
         for curve_jax, curve_std in zip(curves_jax, curves_std):
@@ -1017,10 +1017,10 @@ class Testing(unittest.TestCase):
         numquadpoints = 12
         # JAX version
         curves_jax = create_equally_spaced_planar_curves(ncurves, nfp, stellsym,
-                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, jax_flag=True)
+                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, use_jax_curve=True)
         # Non-JAX version
         curves_std = create_equally_spaced_planar_curves(ncurves, nfp, stellsym,
-                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, jax_flag=False)
+                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, use_jax_curve=False)
         self.assertEqual(len(curves_jax), ncurves)
         self.assertEqual(len(curves_std), ncurves)
         for curve_jax, curve_std in zip(curves_jax, curves_std):
@@ -1103,7 +1103,7 @@ class Testing(unittest.TestCase):
 
     def test_setup_uniform_grid_in_bounding_box(self):
         """
-        Robustly test setup_uniform_grid_in_bounding_box for different field-period symmetry stellarators.
+        Robustly test _setup_uniform_grid_in_bounding_box for different field-period symmetry stellarators.
         Checks grid shape, radius, and that points are within expected bounds for nfp=1, 2, 3, 4.
         Also checks that circular coils of radius R do not overlap with each other or the symmetry plane, 
         for varying Nmin_factor and half_period_factor.
@@ -1135,10 +1135,9 @@ class Testing(unittest.TestCase):
                 Nx, Ny, Nz =  5, 5, 5,
                 for Nmin_factor in Nmin_factors:
                     print(f"nfp={nfp}, Nmin_factor={Nmin_factor}")
-                    xyz_uniform, xyz_outer, R = setup_uniform_grid_in_bounding_box(
-                        s, s_outer, Nx, Ny, Nz, Nmin_factor=Nmin_factor)
+                    xyz_uniform, R = _setup_uniform_grid_in_bounding_box(
+                        s_outer, Nx, Ny, Nz, Nmin_factor=Nmin_factor)
                     # Check shapes
-                    self.assertEqual(xyz_outer.shape[1], 3)
                     self.assertEqual(xyz_uniform.shape[1], 3)
                     self.assertTrue(xyz_uniform.shape[0] > 0)
                     self.assertTrue(R > 0)
@@ -1220,7 +1219,7 @@ class Testing(unittest.TestCase):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             # Use a valid s and s_outer from above, but Nmin_factor < 2
-            _ = setup_uniform_grid_in_bounding_box(s, s_outer, Nx, Ny, Nz, Nmin_factor=1.5)
+            _ = _setup_uniform_grid_in_bounding_box(s_outer, Nx, Ny, Nz, Nmin_factor=1.5)
             assert any(issubclass(warn.category, UserWarning) for warn in w), "Expected a UserWarning for Nmin_factor < 2"
 
     def test_curveplanarfourier_make_names(self):

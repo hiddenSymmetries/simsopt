@@ -251,8 +251,8 @@ class Testing(unittest.TestCase):
         c.set('X', 4.0)
         c.set('Y', 4.0)
         c.set('Z', 0.0)
-        for nintervals in ["full", "partial", 2]:
-            a = ArclengthVariation(c)
+        for nintervals in ["full", 2]:
+            a = ArclengthVariation(c, nintervals=nintervals)
             assert np.abs(a.J()) < 1.0e-12
 
     def subtest_curve_meansquaredcurvature_taylor_test(self, curve):
@@ -390,8 +390,8 @@ class Testing(unittest.TestCase):
 
     def test_linking_number(self):
         for downsample in [1, 2, 5]:
-            for jax_flag in [False, True]:
-                curves1 = create_equally_spaced_curves(2, 1, stellsym=True, R0=1, R1=0.5, order=5, numquadpoints=120, jax_flag=jax_flag)
+            for use_jax_curve in [False, True]:
+                curves1 = create_equally_spaced_curves(2, 1, stellsym=True, R0=1, R1=0.5, order=5, numquadpoints=120, use_jax_curve=use_jax_curve)
                 curve1 = CurveXYZFourier(200, 3)
                 coeffs = curve1.dofs_matrix
                 coeffs[1][0] = 1.
@@ -420,8 +420,8 @@ class Testing(unittest.TestCase):
 
     def test_linking_number_planar(self):
         for downsample in [1, 2, 5]:
-            for jax_flag in [False, True]:
-                curves1 = create_equally_spaced_planar_curves(2, 1, stellsym=True, R0=1, R1=0.5, order=5, numquadpoints=120, jax_flag=jax_flag)
+            for use_jax_curve in [False, True]:
+                curves1 = create_equally_spaced_planar_curves(2, 1, stellsym=True, R0=1, R1=0.5, order=5, numquadpoints=120, use_jax_curve=use_jax_curve)
                 # 1m radius coil, 0.25m offset
                 curve1 = CurvePlanarFourier(200, 0)
                 curve1.set('rc(0)', 1.0)

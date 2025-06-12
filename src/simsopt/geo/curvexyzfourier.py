@@ -215,7 +215,7 @@ def jaxfouriercurve_pure(dofs, quadpoints, order):
                                      + coeffs[1][2 * jrange, None] * cjp, axis=0)
     gamma_z = coeffs[2][0] + jnp.sum(coeffs[2][2 * jrange - 1, None] * sjp
                                      + coeffs[2][2 * jrange, None] * cjp, axis=0)
-    return jnp.transpose(jnp.vstack((jnp.vstack((gamma_x, gamma_y)), gamma_z)))
+    return jnp.stack((gamma_x, gamma_y, gamma_z), axis=-1)
 
 
 class JaxCurveXYZFourier(JaxCurve):
