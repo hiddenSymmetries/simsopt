@@ -20,12 +20,12 @@ class StoppingCriterion {
 
 class ToroidalTransitStoppingCriterion : public StoppingCriterion {
     private:
-        int max_transits;
+        double max_transits;
         double phi_last;
         double phi_init;
         bool flux;
     public:
-        ToroidalTransitStoppingCriterion(int max_transits, bool flux) : max_transits(max_transits), flux(flux) {
+        ToroidalTransitStoppingCriterion(double max_transits, bool flux) : max_transits(max_transits), flux(flux) {
         };
         bool operator()(int iter, double t, double x, double y, double z) override {
             if (iter == 1) {
@@ -39,8 +39,8 @@ class ToroidalTransitStoppingCriterion : public StoppingCriterion {
               phi_init = phi;
             }
             phi_last = phi;
-            int ntransits = std::abs(std::floor((phi-phi_init)/(2*M_PI)));
-            return ntransits>=max_transits;
+            double ntransits = std::abs((phi - phi_init) / (2 * M_PI));
+            return ntransits >= max_transits;
         };
 };
 
