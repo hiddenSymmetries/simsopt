@@ -59,4 +59,3 @@ simsopt.mhd.vmec\_diagnostics module
    :members:
    :undoc-members:
    :show-inheritance:
-

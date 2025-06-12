@@ -682,7 +682,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
         gc_tys, gc_phi_hits = trace_particles(bsh, xyz_inits, vpar_inits,
                                               tmax=tmax, mass=m, charge=q, Ekin=Ekin, phis=[], mode='gc_vac',
-                                              stopping_criteria=[ToroidalTransitStoppingCriterion(1, False)],
+                                              stopping_criteria=[ToroidalTransitStoppingCriterion(1.0, False)],
                                               tol=1e-12)
 
         mpol = compute_poloidal_transits(gc_tys, ma=ma, flux=False)
@@ -768,7 +768,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
         gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                      tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[0], mode='gc_vac',
-                                                     stopping_criteria=[MinToroidalFluxStoppingCriterion(0.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)],
+                                                     stopping_criteria=[MinToroidalFluxStoppingCriterion(0.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100.0, True)],
                                                      tol=1e-8)
 
         resonances = compute_resonances(gc_tys, gc_phi_hits, delta=0.01)

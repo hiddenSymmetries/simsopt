@@ -116,57 +116,56 @@ class FieldlineTesting(unittest.TestCase):
             assert np.linalg.norm(ma.gamma()[i+1, :] - res_phi_hits[0][i, 2:5]) < 1e-4
 
     def test_poincare_caryhanson(self):
-        # Test with a known magnetic field - optimized Cary&Hanson configuration
+        # Test with a known magnetic field - optimized Cary & Hanson configuration
         # with a magnetic axis at R=0.9413. Field created using the Biot-Savart
         # solver given a set of two helical coils created using the CurveHelical
         # class. The total magnetic field is a superposition of a helical and
         # a toroidal magnetic field.
-        curves = [CurveHelical(200, 2, 5, 2, 1., 0.3) for i in range(2)]
-        curves[0].set_dofs(np.concatenate(([np.pi/2, 0.2841], [0, 0])))
-        curves[1].set_dofs(np.concatenate(([0, 0], [0, 0.2933])))
+        curves = [CurveHelical(200, 1, 5, 2, 1., 0.3) for i in range(2)]
+        curves[0].x = [np.pi/ 2, 0.2841, 0]
+        curves[1].x = [0, 0, 0.2933]
         currents = [3.07e5, -3.07e5]
         Btoroidal = ToroidalField(1.0, 1.0)
         Bhelical = BiotSavart([
             Coil(curves[0], Current(currents[0])),
             Coil(curves[1], Current(currents[1]))])
-        bs = Bhelical+Btoroidal
+        bs = Bhelical + Btoroidal
         ma = CurveXYZFourier(300, 1)
         magnetic_axis_radius = 0.9413
         ma.set_dofs([0, 0, magnetic_axis_radius, 0, magnetic_axis_radius, 0, 0, 0, 0])
         R0 = [np.linalg.norm(ma.gamma()[0, :2])]
-        Z0 = [ma.gamma()[0, 2]]        
+        Z0 = [ma.gamma()[0, 2]]
         phis = np.arctan2(ma.gamma()[:, 1], ma.gamma()[:, 0])
         res_tys, res_phi_hits = compute_fieldlines(
             bs, R0, Z0, tmax=2, phis=phis)
         for i in range(len(res_phi_hits[0])):
             assert np.linalg.norm(ma.gamma()[i+1, :] - res_phi_hits[0][i, 2:5]) < 2e-3
 
-        # Text StoppingCriterion in R and Z 
-        # For each case, check that stopping criterion was met. 
-        # Check that R/Z is less than/greater than the maximum/minimum value. 
+        # Text StoppingCriterion in R and Z
+        # For each case, check that stopping criterion was met.
+        # Check that R/Z is less than/greater than the maximum/minimum value.
         Rmax = 1
         res_tys, res_phi_hits = compute_fieldlines(
             bs, [Rmax-0.02], [1], tmax=2000, stopping_criteria=[MaxRStoppingCriterion(Rmax)])
-        assert res_phi_hits[0][0,1] == -1
+        assert res_phi_hits[0][0, 1] == -1
         assert np.all(np.sqrt(res_tys[0][:, 1]**2 + res_tys[0][:, 2]**2) < Rmax)
 
         Rmin = 0.3
         res_tys, res_phi_hits = compute_fieldlines(
             bs, [Rmin+0.02], [0.3], tmax=500, stopping_criteria=[MinRStoppingCriterion(Rmin)])
-        assert res_phi_hits[0][0,1] == -1
-        assert np.all(np.sqrt(res_tys[0][:, 1]**2 + res_tys[0][:, 2]**2) > Rmin) 
-        
+        assert res_phi_hits[0][0, 1] == -1
+        assert np.all(np.sqrt(res_tys[0][:, 1]**2 + res_tys[0][:, 2]**2) > Rmin)
+
         Zmin = -0.1
         res_tys, res_phi_hits = compute_fieldlines(
             bs, [0.97], [Zmin+0.02], tmax=2000, stopping_criteria=[MinZStoppingCriterion(Zmin)]
-            )
-        assert res_phi_hits[0][0,1] == -1
+        )
+        assert res_phi_hits[0][0, 1] == -1
         assert np.all(res_tys[0][:, 3] > Zmin)
-        
+
         Zmax = 0.5
         res_tys, res_phi_hits = compute_fieldlines(
             bs, [0.5], [Zmax-0.02], tmax=2000, stopping_criteria=[MaxZStoppingCriterion(Zmax)]
-            )
-        assert res_phi_hits[0][0,1] == -1
+        )
+        assert res_phi_hits[0][0, 1] == -1
         assert np.all(res_tys[0][:, 3] < Zmax)
-       
