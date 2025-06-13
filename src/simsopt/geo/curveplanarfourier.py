@@ -101,15 +101,15 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
 
 def jaxplanarcurve_pure(dofs, quadpoints, order):
     """
-    This pure function returns the curve in the plane.
+    This pure function returns the curve coordinates (X, Y, Z).
 
     Args:
-        dofs (array): Array of dofs.
-        quadpoints (array): Array of quadrature points.
+        dofs (array, shape (ndofs,)): Array of dofs.
+        quadpoints (array, shape (N,)): Array of quadrature points.
         order (int): Order of the Fourier series.
 
     Returns:
-        Array of curve points.
+        Array of curve points, shape (N, 3)
     """
     coeffs = dofs[:2 * order + 1]
     q = dofs[2 * order + 1: 2 * order + 5]
@@ -126,14 +126,17 @@ def jaxplanarcurve_pure(dofs, quadpoints, order):
 
     x_curve_in_plane = r_curve * jnp.cos(phi)
     y_curve_in_plane = r_curve * jnp.sin(phi)
+    gamma_x = (1.0 - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3])) * x_curve_in_plane \
+        + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * y_curve_in_plane \
+        + center[0]
+    gamma_y = (1.0 - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3])) * y_curve_in_plane \
+        + 2 * (q_norm[0] * q_norm[3] + q_norm[1] * q_norm[2]) * x_curve_in_plane \
+        + center[1]
+    gamma_z = 2 * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * x_curve_in_plane \
+        + 2 * (q_norm[0] * q_norm[1] + q_norm[2] * q_norm[3]) * y_curve_in_plane \
+        + center[2]
     # apply the quaternion rotation
-    return jnp.transpose(jnp.vstack((jnp.vstack(((1.0 - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3])) * x_curve_in_plane
-                                                 + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * y_curve_in_plane
-                                                 + center[0], (1.0 - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3])) * y_curve_in_plane
-                                                 + 2 * (q_norm[0] * q_norm[3] + q_norm[1] * q_norm[2]) * x_curve_in_plane
-                                                 + center[1])), 2 * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * x_curve_in_plane
-                                     + 2 * (q_norm[0] * q_norm[1] + q_norm[2] * q_norm[3]) * y_curve_in_plane
-                                     + center[2])))
+    return jnp.stack((gamma_x, gamma_y, gamma_z), axis=-1)
 
 
 class JaxCurvePlanarFourier(JaxCurve):

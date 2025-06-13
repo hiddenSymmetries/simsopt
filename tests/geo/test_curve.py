@@ -862,14 +862,18 @@ class Testing(unittest.TestCase):
                         curves_nfp, all_curves_nfp = create_planar_curves_between_two_toroidal_surfaces(
                             s_nfp, s_inner_nfp, s_outer_nfp, Nx=10, Ny=10, Nz=10, order=1, use_jax_curve=use_jax_curve, numquadpoints=10
                         )
-                        self.assertTrue(len(curves_nfp) > 0)
-                        self.assertTrue(len(all_curves_nfp) >= len(curves_nfp))
+                        self.assertTrue(len(curves_nfp) > 0, "Number of unique curves should be nonzero")
+                        self.assertTrue(len(all_curves_nfp) >= len(curves_nfp), "Number of all curves should be at least the number of unique curves")
                         for curve in curves_nfp:
                             gamma = curve.gamma()
-                            self.assertEqual(gamma.shape[1], 3)
-                            self.assertEqual(gamma.shape[0], 10)
+                            self.assertEqual(gamma.shape[1], 3, "Gamma should have 3 columns (x, y, z)")
+                            self.assertEqual(gamma.shape[0], 10, "Gamma should have 10 rows (numquadpoints)")
 
     def test_create_equally_spaced_curves_jax(self):
+        """
+        Test that the create_equally_spaced_curves function works correctly for both JAX and non-JAX versions.
+        This test checks that the curves and curve properties are identical for both JAX and non-JAX versions.
+        """
         from simsopt.geo.curve import create_equally_spaced_curves
         ncurves, nfp = 2, 2
         stellsym = True
@@ -887,37 +891,37 @@ class Testing(unittest.TestCase):
         for curve_jax, curve_std in zip(curves_jax, curves_std):
             gamma_jax = curve_jax.gamma()
             gamma_std = curve_std.gamma()
-            self.assertEqual(gamma_jax.shape, (numquadpoints, 3))
-            self.assertEqual(gamma_std.shape, (numquadpoints, 3))
+            self.assertEqual(gamma_jax.shape, (numquadpoints, 3), "Gamma_jax should be shape (numquadpoints, 3)")
+            self.assertEqual(gamma_std.shape, (numquadpoints, 3), "Gamma_std should be shape (numquadpoints, 3)")
             # Check that the major radius is close to R0 for all points
             R_jax = np.sqrt(gamma_jax[:, 0]**2 + gamma_jax[:, 1]**2)
             R_std = np.sqrt(gamma_std[:, 0]**2 + gamma_std[:, 1]**2)
-            self.assertTrue(np.allclose(np.mean(R_jax), R0, atol=0.2))
-            self.assertTrue(np.allclose(np.mean(R_std), R0, atol=0.2))
+            self.assertTrue(np.allclose(np.mean(R_jax), R0, atol=0.2), "Mean of R_jax should be close to R0")
+            self.assertTrue(np.allclose(np.mean(R_std), R0, atol=0.2), "Mean of R_std should be close to R0")
             # Check that the gamma outputs are close
             np.testing.assert_allclose(gamma_jax, gamma_std, atol=1e-12, rtol=1e-12)
             # Check that the dof names are identical
-            self.assertEqual(getattr(curve_jax, 'names', None), getattr(curve_std, 'names', None))
+            self.assertEqual(getattr(curve_jax, 'names', None), getattr(curve_std, 'names', None), "Dof names should be identical")
             # Check gammadash
             gammadash_jax = curve_jax.gammadash()
             gammadash_std = curve_std.gammadash()
-            np.testing.assert_allclose(gammadash_jax, gammadash_std, atol=1e-12, rtol=1e-12)
+            np.testing.assert_allclose(gammadash_jax, gammadash_std, atol=1e-12, rtol=1e-12, err_msg="Gammadash should be equal for both jax and standard curves")
             # Check gammadashdash if available
             if hasattr(curve_jax, 'gammadashdash') and hasattr(curve_std, 'gammadashdash'):
                 gammadashdash_jax = curve_jax.gammadashdash()
                 gammadashdash_std = curve_std.gammadashdash()
-                np.testing.assert_allclose(gammadashdash_jax, gammadashdash_std, atol=1e-12, rtol=1e-12)
+                np.testing.assert_allclose(gammadashdash_jax, gammadashdash_std, atol=1e-12, rtol=1e-12, err_msg="Gammadashdash should be equal for both jax and standard curves")
             # Check kappa if available
             if hasattr(curve_jax, 'kappa') and hasattr(curve_std, 'kappa'):
                 kappa_jax = curve_jax.kappa()
                 kappa_std = curve_std.kappa()
-                np.testing.assert_allclose(kappa_jax, kappa_std, atol=1e-12, rtol=1e-12)
+                np.testing.assert_allclose(kappa_jax, kappa_std, atol=1e-12, rtol=1e-12, err_msg="Kappa should be equal for both jax and standard curves")
             # Check order if available
             if hasattr(curve_jax, 'order') and hasattr(curve_std, 'order'):
-                self.assertEqual(curve_jax.order, curve_std.order)
+                self.assertEqual(curve_jax.order, curve_std.order, "Order should be equal for both jax and standard curves")
             # Check num_dofs if available
             if hasattr(curve_jax, 'num_dofs') and hasattr(curve_std, 'num_dofs'):
-                self.assertEqual(curve_jax.num_dofs(), curve_std.num_dofs())
+                self.assertEqual(curve_jax.num_dofs(), curve_std.num_dofs(), "Number of dofs should be equal for both jax and standard curves")
 
     def test_curve_centroid(self):
         """
@@ -941,7 +945,7 @@ class Testing(unittest.TestCase):
         curve.set_dofs(dofs)
         centroid = curve.centroid()
         # The centroid should be at (R0, 0, 0)
-        np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12)
+        np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12, err_msg="Centroid of the planar curve should be at the center (R0, 0, 0)")
 
         # Repeat with RotatedCurve
         curve = RotatedCurve(curve, np.pi, flip=False)
@@ -954,7 +958,7 @@ class Testing(unittest.TestCase):
         curve.set_dofs(dofs)
         centroid = curve.centroid()
         # The centroid should be at (R0, 0, 0)
-        np.testing.assert_allclose(centroid * -1, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
+        np.testing.assert_allclose(centroid * -1, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12, err_msg="Centroid of the rotated planar curve should be at the center (R0, 0, 0)")
 
         # Repeat with JaxCurve
         curve = JaxCurvePlanarFourier(nquad, order)
@@ -967,7 +971,7 @@ class Testing(unittest.TestCase):
         curve.set_dofs(dofs)
         centroid = curve.centroid()
         # The centroid should be at (R0, 0, 0)
-        np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
+        np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12, err_msg="Centroid of the jax planar curve should be at the center (R0, 0, 0)")
 
         # Repeat with RotatedCurve
         curve = RotatedCurve(curve, np.pi, flip=False)
@@ -980,7 +984,7 @@ class Testing(unittest.TestCase):
         curve.set_dofs(dofs)
         centroid = curve.centroid()
         # The centroid should be at (R0, 0, 0)
-        np.testing.assert_allclose(centroid * -1, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
+        np.testing.assert_allclose(centroid * -1, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12, err_msg="Centroid of the rotated jax planar curve should be at the center (R0, 0, 0)")
 
     def test_curverzfourier_dofnames(self):
         # test that the dof names correspond to how they are treated in the code

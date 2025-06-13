@@ -202,6 +202,17 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 
 
 def jaxfouriercurve_pure(dofs, quadpoints, order):
+    """
+    This pure function returns the curve position vector in XYZ coordinates..
+
+    Args:
+        dofs (array, shape (ndofs,)): Array of dofs.
+        quadpoints (array, shape (N, 3)): Array of quadrature points.
+        order (int): Order of the Fourier series.
+
+    Returns:
+        Array of curve points, shape (N, 3)
+    """
     k = jnp.shape(dofs)[0]//3
     coeffs = [dofs[:k], dofs[k:(2*k)], dofs[(2*k):]]
     points = 2 * np.pi * quadpoints
