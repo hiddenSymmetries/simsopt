@@ -1,13 +1,15 @@
+import os
+import sys
+import numpy as np
+import builtins
+import time
+
+from booz_xform import Booz_xform
 from simsopt.field.boozermagneticfield import BoozerRadialInterpolant, InterpolatedBoozerField
 from simsopt.field.tracing import trace_particles_boozer, MaxToroidalFluxStoppingCriterion
 from simsopt.field.tracing_helpers import initialize_position_uniform
 from simsopt.util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
-import os
-import sys
-import numpy as np
-from booz_xform import Booz_xform
-import builtins
-import time
+
 try:
     from mpi4py import MPI
     comm = MPI.COMM_WORLD
@@ -20,6 +22,7 @@ except ImportError:
 def print(text):
     builtins.print(text)
     os.fsync(sys.stdout)
+
 time1 = time.time()
 
 resolution = 48 # Resolution for field interpolation
@@ -52,8 +55,7 @@ zetarange = (0, 2*np.pi/nfp, nzeta_interp)
 field = InterpolatedBoozerField(bri, degree, srange, thetarange, zetarange, True, 
     nfp=nfp, stellsym=True, initialize=["modB","psip", "G", "I", "dGds", "dIds", "iota", "modB_derivs"])
 
-# Initialize uniformly distributed particle positions in Boozer coordinates
-points = initialize_position_uniform(field, nParticles, nfp)
+points = initialize_position_uniform(field, nParticles, nfp, comm=comm)
 
 Ekin=FUSION_ALPHA_PARTICLE_ENERGY
 mass=ALPHA_PARTICLE_MASS
@@ -70,42 +72,27 @@ if (comm is not None):
 solver_options = {'abstol': abstol, 'reltol': reltol, 'axis': 2}
 
 ## Trace alpha particles in Boozer coordinates until they hit the s = 1 surface 
-gc_tys, gc_zeta_hits = trace_particles_boozer(
+res_tys, res_zeta_hits = trace_particles_boozer(
         field, points, vpar_init, tmax=tmax, mass=mass, charge=charge, comm=comm,
         Ekin=Ekin, stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
         forget_exact_path=True, mode='gc_vac', solver_options=solver_options)
 
 ## Post-process results to obtain lost particles
 if (verbose):
-    timelost = []
-    theta0 = []
-    zeta0 = []
-    vpar0 = []
-    s0 = []
-    slost = []
-    thetalost = []
-    zetalost = []
-    vparlost = []
-    for im in range(len(gc_tys)):
-        timelost.append(gc_tys[im][1,0])
-        s0.append(gc_tys[im][0,1])
-        theta0.append(gc_tys[im][0,2])
-        zeta0.append(gc_tys[im][0,3])
-        vpar0.append(gc_tys[im][0,4])
-        slost.append(gc_tys[im][1,1])
-        thetalost.append(gc_tys[im][1,2])
-        zetalost.append(gc_tys[im][1,3])
-        vparlost.append(gc_tys[im][1,4])
-
-    np.savetxt('timelost.txt',timelost)
-    np.savetxt('s0lost.txt',s0)
-    np.savetxt('theta0lost.txt',theta0)
-    np.savetxt('zeta0lost.txt',zeta0)
-    np.savetxt('vpar0lost.txt',vpar0)
-    np.savetxt('sflost.txt',slost)
-    np.savetxt('thetaflost.txt',thetalost)
-    np.savetxt('zetaflost.txt',zetalost)
-    np.savetxt('vparflost.txt',vparlost)
-
     time2 = time.time()
     print("Elapsed time for tracing = "+str(time2-time1))
+
+    from simsopt.field.trajectory_helpers import compute_loss_fraction
+
+    times, loss_frac = compute_loss_fraction(res_tys,tmin=1e-5,tmax=1e-2)
+    import matplotlib 
+    matplotlib.use('Agg') # Don't use interactive backend 
+    import matplotlib.pyplot as plt
+
+    plt.figure()
+    plt.loglog(times, loss_frac)
+    plt.xlim([1e-5,1e-2])
+    plt.ylim([1e-3,1])
+    plt.xlabel('Time [s]')
+    plt.ylabel('Fraction of lost particles')
+    plt.savefig('loss_fraction.png')
