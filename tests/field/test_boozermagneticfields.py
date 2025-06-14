@@ -22,7 +22,8 @@ filename_mhd_lasym_reduced = str((TEST_DIR / 'boozmn_ITERModel_reference_reduced
 filename_mhd_lasym_reordered = str((TEST_DIR / 'boozmn_ITERModel_reference_reordered.nc').resolve())
 
 try:
-    from mpi4py import MPI    comm = MPI.COMM_WORLD
+    from mpi4py import MPI    
+    comm = MPI.COMM_WORLD
 except ImportError as e:
     comm = None
 

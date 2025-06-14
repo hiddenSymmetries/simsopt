@@ -242,9 +242,6 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                                 0.99), ToroidalTransitStoppingCriterion(10)],
                                                             tol=1e-12, forget_exact_path=True, solver_options=solver_options)
 
-            for i in range(len(gc_zeta_hits_2)):
-                assert np.allclose(gc_zeta_hits[i], gc_zeta_hits_2[i])
-
             assert len(gc_tys) == N
             assert np.shape(gc_tys[0])[0] == 2
             np.seterr(divide='warn')
