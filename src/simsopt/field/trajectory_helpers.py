@@ -30,7 +30,7 @@ def compute_loss_fraction(res_tys, tmin=1e-7, tmax=1e-2, ntime=1000):
 
     return times, loss_frac
 
-def compute_trajectory_cylindrical(field, res_ty): 
+def compute_trajectory_cylindrical(res_ty, field): 
     r"""
     Compute the cylindrical coordinates (R, Z, phi) in a given BoozerMagneticField for each particle trajectory.
 
@@ -51,9 +51,10 @@ def compute_trajectory_cylindrical(field, res_ty):
     points[:, 1] = res_ty[:, 2]
     points[:, 2] = res_ty[:, 3]
     field.set_points(points)
-    R_traj = field.R()
-    Z_traj = field.Z()
-    nu = field.nu()
+
+    R_traj = field.R()[:,0] 
+    Z_traj = field.Z()[:,0] 
+    nu = field.nu()[:,0] 
     phi_traj = res_ty[:, 3] - nu
 
-    return R_traj, Z_traj, phi_traj
+    return R_traj, phi_traj, Z_traj

@@ -210,6 +210,7 @@ bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<ar
         if(stopping_criteria[i] && (*stopping_criteria[i])(iter, dt, t_current, ykeep[0], ykeep[1], ykeep[2], ykeep[3])){
             stop = true;
             res_hits.push_back(join<2, RHS::Size>({t_current, -1-double(i)}, ykeep));
+            res.push_back(join<1, RHS::Size>({t_current}, {ykeep})); 
             break;
         }
     }
