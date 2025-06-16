@@ -1,13 +1,10 @@
 import simsoptpp as sopp
 from scipy.interpolate import InterpolatedUnivariateSpline
 import numpy as np
-import logging
 from booz_xform import Booz_xform
 from .._core.util import parallel_loop_bounds, align_and_pad, allocate_aligned_and_padded_array
 import os.path
 import warnings
-
-logger = logging.getLogger(__name__)
 
 __all__ = [
     "BoozerMagneticField",
@@ -23,7 +20,6 @@ try:
     from mpi4py import MPI
 except ImportError as e:
     MPI = None
-    logger.debug(str(e))
 
 class BoozerMetric:
     r'''
@@ -329,10 +325,18 @@ class BoozerMagneticField(sopp.BoozerMagneticField):
         points = ... # points is a (n, 3) numpy array defining :math:`(s,\theta,\zeta)`
         booz.set_points(points)
         modB = bfield.modB() # returns the magnetic field strength at `points`
+
+    Args:
+        psi0: The enclosed toroidal flux divided by 2*pi 
+        field_type: A string identifying additional assumptions made on the magnetic field. Can be
+            'vac', 'nok', or ''. 
     """
 
-    def __init__(self, psi0):
+    def __init__(self, psi0, field_type='vac'):
         self.psi0 = psi0
+        field_type = field_type.lower()
+        assert field_type in ['vac','nok','']
+        self.field_type = field_type 
         sopp.BoozerMagneticField.__init__(self, psi0)
 
     def _modB_derivs_impl(self, modB_derivs):
@@ -590,7 +594,14 @@ class BoozerAnalytic(BoozerMagneticField):
         self.iota0 = iota0
         self.psi0 = psi0
         self.iota1 = iota1
-        BoozerMagneticField.__init__(self, psi0)
+        if (self.I0 == 0 and self.I1 == 0 and self.G1 == 0 and self.K1==0):
+            field_type = 'vac' 
+        elif (self.K1 == 0):
+            field_type = 'nok'
+        else:
+            field_type = ''
+        self.field_type = field_type 
+        BoozerMagneticField.__init__(self, psi0, field_type)
 
     def set_etabar(self, etabar):
         self.etabar = etabar
@@ -731,15 +742,19 @@ class BoozerAnalytic(BoozerMagneticField):
 
 class BoozerRadialInterpolant(BoozerMagneticField):
     r"""
-     The magnetic field can be computed at any point in Boozer coordinates using radial spline interpolation (``scipy.interpolate.InterpolatedUnivariateSpline``) and an inverse Fourier transform in the two angles. If given a `VMEC` output file, performs a Boozer coordinate transformation using ``BOOZXFORM``. If given a ``BOOZXFORM`` output file, 
-     the Boozer transformation must be performed with all surfaces on the VMEC
+     The magnetic field can be computed at any point in Boozer coordinates using radial spline interpolation 
+     (``scipy.interpolate.InterpolatedUnivariateSpline``) and an inverse Fourier transform in the two angles. 
+     If given a `VMEC` output file, performs a Boozer coordinate transformation using ``BOOZXFORM``. 
+     If given a ``BOOZXFORM`` output file, the Boozer transformation must be performed with all surfaces on the VMEC
      half grid, and with `phip`, `chi`, `pres`, and `phi` saved in the file.
      
     Args:
         equil: instance of :class:`Booz_xform` or string containing the         
             filename of a boozmn_*.nc file (produced with booz_xform) or 
             wout_*.nc file (produced with VMEC). If a :class:`Booz_xform` 
-            instance or boozmn_*.nc file is passed, the `compute_surfs` needs to include all of the grid points in the half-radius grid of the corresponding Vmec equilibrium. Otherwise, a ValueError is raised.
+            instance or boozmn_*.nc file is passed, the `compute_surfs` needs to 
+            include all of the grid points in the half-radius grid of the corresponding 
+            Vmec equilibrium. Otherwise, a ValueError is raised.
         order: (int) order for radial interpolation. Must satisfy 1 <= order <= 
             5.
         mpol: (int) number of poloidal mode numbers for BOOZXFORM (defaults to 
@@ -747,12 +762,13 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         ntor: (int) number of toroidal mode numbers for BOOZXFORM (defaults to 
             32). Only used if a wout_*.nc file is passed. 
         N: Helicity of quasisymmetry to enforce. If specified, then the 
-            non-symmetric Fourier harmonics of :math:`B` and :math:`K` are filtered out. Otherwise, all harmonics are kept.
-            (defaults to ``None``)
+            non-symmetric Fourier harmonics of :math:`B` and :math:`K` are filtered out. 
+            Otherwise, all harmonics are kept. (defaults to ``None``)
         enforce_vacuum: If True, a vacuum field is assumed, :math:`G` is
             set to its mean value, :math:`I = 0`, and :math:`K = 0`.
         rescale: If True, use the interpolation method in the DELTA5D code. 
-            Here, a few of the first radial grid points or (``bmnc``, ``rmnc``, ``zmns``, ``numns``, ``kmns``) are deleted (determined by ``ns_delete``). The Fourier harmonics are then rescaled as:
+            Here, a few of the first radial grid points or (``bmnc``, ``rmnc``, ``zmns``, ``numns``, ``kmns``) 
+            are deleted (determined by ``ns_delete``). The Fourier harmonics are then rescaled as:
                 bmnc(s)/s^(1/2) for m = 1
 
                 bmnc(s)/s for m even and >= 2
@@ -760,7 +776,8 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                 bmnc(s)/s^(3/2) for m odd and >=3
 
             before performing interpolation and spline differentiation to
-            obtain ``dbmncds``. If ``False``, interpolation of the unscaled Fourier harmonics and its finite-difference derivative wrt ``s`` is performed instead (defaults to ``False``)
+            obtain ``dbmncds``. If ``False``, interpolation of the unscaled Fourier harmonics and its 
+            finite-difference derivative wrt ``s`` is performed instead (defaults to ``False``)
         ns_delete: (see ``rescale``) (defaults to 0)
         no_K: (bool) If ``True``, the Boozer :math:`K` will not be computed or
             interpolated.
@@ -775,9 +792,13 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             to False). 
         no_shear: If True, the shear in the rotational transform will be 
             eliminated, and iota will be taken to be the mean value. (defaults to False).
+        field_type: A string identifying additional assumptions made on the magnetic field. Can be
+            ``'vac'``, ``'nok'``, or ``''``.  Be default, this is determined from the options ``enforce_vacuum``
+            and ``no_K``.
     """
     def __init__(self, equil, order, mpol=32, ntor=32, N=None, 
-                 enforce_vacuum=False, rescale=False, ns_delete=0, no_K=False, write_boozmn=True, comm=None, boozmn_name="boozmn.nc", verbose=0, no_shear=False):
+                 enforce_vacuum=False, rescale=False, ns_delete=0, no_K=False, write_boozmn=True, comm=None, 
+                 boozmn_name="boozmn.nc", verbose=0, no_shear=False, field_type=None):
 
         self.comm = comm
 
@@ -787,6 +808,23 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                 self.proc0 = True
         else:
             self.proc0 = True
+
+        if field_type is not None: 
+            field_type = field_type.lower()
+            assert field_type in ['vac','nok','']
+            if self.proc0:
+                if (enforce_vacuum != (field_type == 'vac')):
+                    warnings.warn(f"Prescribed field_type is inconsistent with enforce_vacuum. Proceeding with field_type={field_type}.",RuntimeWarning)
+                if (no_K != (field_type == 'nok')):
+                    warnings.warn(f"Prescribed field_type is inconsistent with no_K. Proceeding with field_type={field_type}.",RuntimeWarning)
+            self.field_type = field_type 
+        else:
+            if (enforce_vacuum):
+                self.field_type = 'vac'
+            elif (no_K):
+                self.field_type = 'nok'
+            else:
+                self.field_type = ''
 
         if isinstance(equil, str):
             if self.proc0:
@@ -919,7 +957,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         if (not self.no_K):
             self.compute_K()
 
-        BoozerMagneticField.__init__(self, self.psi0)
+        BoozerMagneticField.__init__(self, self.psi0, self.field_type)
 
     def init_splines(self):
         self.xm_b = self.bx.xm_b
@@ -1624,7 +1662,6 @@ class BoozerRadialInterpolant(BoozerMagneticField):
 
             mn_idxs = np.array([i * len(self.xm_b) // size for i in range(size + 1)])
             first_mn, last_mn = mn_idxs[rank], mn_idxs[rank + 1]
-
             recv_buffer = np.zeros(output.shape)
         else:
             first_mn, last_mn = 0, len(self.xm_b)
@@ -1652,7 +1689,6 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             harmonics(us, chunk_mn, inv, 0, last_mn-first_mn, first_mn)
             xm = align_and_pad(self.xm_b[first_mn:last_mn])
             xn =  align_and_pad(self.xn_b[first_mn:last_mn])
-        
         
         inverse_fourier(padded_buffer, chunk_mn, xm, xn, padded_thetas, padded_zetas, self.ntor, self.nfp)
         chunk_mn, padded_thetas, padded_zetas =  None, None, None
@@ -1706,16 +1742,37 @@ class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField)
                       hence it makes sense to use ``thetamin=0`` and ``thetamax=np.pi``.
             initialize: A list of strings, each of which is the name of a 
                 field quantitty, e.g., `modB`, to be initialized when the interpolant is created.
+                By default, this list is determined by field.field_type. 
         """
-        BoozerMagneticField.__init__(self, field.psi0)
+        field_type = field.field_type.lower()
+        assert field_type in ['','vac','nok']
+        self.field_type = field.field_type
+
+        initialize = sorted(initialize)
+        initialize_vac=sorted(["modB","psip","G","iota","modB_derivs"])
+        initialize_nok=sorted(["modB","psip","G","I","dGds","dIds","iota","modB_derivs"])
+        initialize_gen=sorted(["modB","psip","G","I","dGds","dIds","iota","modB_derivs","K","K_derivs"])
+        if (initialize==[]):
+            if (field_type == 'vac'):
+                initialize=initialize_vac
+            elif (field_type == 'nok'):
+                initialize=initialize_nok
+            elif (field_type == ''):
+                initialize=initialize_gen
+        else:
+            if ((field_type == 'vac' and (initialize != initialize_vac)) or (field_type == 'nok' and (initialize != initialize_nok)) 
+                or (field_type == '' and (initialize != initialize_gen))):
+                warnings.warn(f"initialize list does not match field_type={field_type}. Proceeding with initialize={initialize}",RuntimeWarning)
+        
+        BoozerMagneticField.__init__(self, field.psi0, self.field_type)
         if (np.any(np.asarray(thetarange[0:2]) < 0) or np.any(np.asarray(thetarange[0:2]) > 2*np.pi)):
             raise ValueError("thetamin and thetamax must be in [0,2*pi]")
         if (np.any(np.asarray(zetarange[0:2]) < 0) or np.any(np.asarray(zetarange[0:2]) > 2*np.pi)):
             raise ValueError("zetamin and zetamax must be in [0,2*pi]")
         if stellsym and (np.any(np.asarray(thetarange[0:2]) < 0) or np.any(np.asarray(thetarange[0:2]) > np.pi)):
-            logger.warning(fr"Sure about thetarange=[{thetarange[0]},{thetarange[1]}]? When exploiting stellarator symmetry, the interpolant is only evaluated for theta in [0,pi].")
+            warnings.warn(fr"Sure about thetarange=[{thetarange[0]},{thetarange[1]}]? When exploiting stellarator symmetry, the interpolant is only evaluated for theta in [0,pi].",RuntimeWarning)
         if nfp > 1 and (np.any(np.asarray(zetarange[0:2]) < 0) or np.any(np.asarray(zetarange[0:2]) > 2*np.pi/nfp)):
-            logger.warning(fr"Sure about zetarange=[{zetarange[0]},{zetarange[1]}]? When exploiting rotational symmetry, the interpolant is only evaluated for zeta in [0,2\pi/nfp].")
+            warnings.warn(fr"Sure about zetarange=[{zetarange[0]},{zetarange[1]}]? When exploiting rotational symmetry, the interpolant is only evaluated for zeta in [0,2\pi/nfp].",RuntimeWarning)
 
         sopp.InterpolatedBoozerField.__init__(self, field, degree, srange, thetarange, zetarange, extrapolate, nfp, stellsym)
 

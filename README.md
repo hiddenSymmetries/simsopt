@@ -34,6 +34,8 @@ All dependencies can be installed inside a conda environment using the provided 
 
 The equilibrium magnetic field in Boozer coordinates, an instance of ``BoozerMagneticField``, can be represented using a simple [analytic model](#boozeranalytic), a [radial interpolant](#boozerradialinterpolant) of a ``booz_xform`` equilibrium , or a [3D interpolant](#interpolatedboozerfield). 
 
+An important attribute of ``BoozerMagneticField`` classes is ``field_type``, which can be ``vac`` (vacuum field), ``no_k`` (does not retain the radial covariatn component), or an empty string (no assumptions made). By default, the ``field_type`` will determine the ``mode`` used for guiding center tracing, ``gc_vac``, ``gc_noK``, or ``gc``. 
+
 ### BoozerAnalytic
 
 Computes a `BoozerMagneticField` based on a first-order expansion in

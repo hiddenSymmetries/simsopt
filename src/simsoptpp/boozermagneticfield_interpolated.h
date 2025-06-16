@@ -9,14 +9,6 @@ using std::string;
 class InterpolatedBoozerField : public BoozerMagneticField {
     public:
         using typename BoozerMagneticField::Array2;
-    private:
-        shared_ptr<RegularGridInterpolant3D<Array2>> interp_modB, interp_dmodBdtheta, \
-          interp_dmodBdzeta, interp_dmodBds, interp_G, interp_iota, interp_dGds, \
-          interp_I, interp_dIds, interp_diotads, interp_psip, interp_R, interp_Z, \
-          interp_nu, interp_K, interp_dRdtheta, interp_dRdzeta, interp_dRds, \
-          interp_dZdtheta, interp_dZdzeta, interp_dZds, interp_dnudtheta, \
-          interp_dnudzeta, interp_dnuds, interp_dKdtheta, interp_dKdzeta, interp_K_derivs, \
-          interp_nu_derivs, interp_R_derivs, interp_Z_derivs, interp_modB_derivs;
         bool status_modB = false, status_dmodBdtheta = false, status_dmodBdzeta = false, \
           status_dmodBds = false, status_G = false, status_I = false, status_iota = false,
           status_dGds = false, status_dIds = false, status_diotads = false, status_psip = false,
@@ -27,6 +19,14 @@ class InterpolatedBoozerField : public BoozerMagneticField {
           status_dKdtheta = false, status_dKdzeta = false, status_K_derivs = false, \
           status_R_derivs = false, status_Z_derivs = false, status_nu_derivs = false, \
           status_modB_derivs = false;
+    private:
+        shared_ptr<RegularGridInterpolant3D<Array2>> interp_modB, interp_dmodBdtheta, \
+          interp_dmodBdzeta, interp_dmodBds, interp_G, interp_iota, interp_dGds, \
+          interp_I, interp_dIds, interp_diotads, interp_psip, interp_R, interp_Z, \
+          interp_nu, interp_K, interp_dRdtheta, interp_dRdzeta, interp_dRds, \
+          interp_dZdtheta, interp_dZdzeta, interp_dZds, interp_dnudtheta, \
+          interp_dnudzeta, interp_dnuds, interp_dKdtheta, interp_dKdzeta, interp_K_derivs, \
+          interp_nu_derivs, interp_R_derivs, interp_Z_derivs, interp_modB_derivs;
         const bool extrapolate;
         const bool stellsym = false;
         const int nfp = 1;

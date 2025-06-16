@@ -471,7 +471,39 @@ void init_boozermagneticfields(py::module_ &m){
       .def_readonly(
           "rule",
           &InterpolatedBoozerField::rule
-      );
+      )
+      .def_readwrite("status_modB",&InterpolatedBoozerField::status_modB)
+      .def_readwrite("status_dmodBdtheta",&InterpolatedBoozerField::status_dmodBdtheta)
+      .def_readwrite("status_dmodBdzeta",&InterpolatedBoozerField::status_dmodBdzeta)
+      .def_readwrite("status_dmodBds",&InterpolatedBoozerField::status_dmodBds)
+      .def_readwrite("status_G",&InterpolatedBoozerField::status_G)
+      .def_readwrite("status_I",&InterpolatedBoozerField::status_I)
+      .def_readwrite("status_iota",&InterpolatedBoozerField::status_iota)
+      .def_readwrite("status_dGds",&InterpolatedBoozerField::status_dGds)
+      .def_readwrite("status_dIds",&InterpolatedBoozerField::status_dIds)
+      .def_readwrite("status_diotads",&InterpolatedBoozerField::status_diotads)
+      .def_readwrite("status_psip",&InterpolatedBoozerField::status_psip)
+      .def_readwrite("status_R",&InterpolatedBoozerField::status_R)
+      .def_readwrite("status_Z",&InterpolatedBoozerField::status_Z)
+      .def_readwrite("status_nu",&InterpolatedBoozerField::status_nu)
+      .def_readwrite("status_K",&InterpolatedBoozerField::status_K)
+      .def_readwrite("status_dRdtheta",&InterpolatedBoozerField::status_dRdtheta)
+      .def_readwrite("status_dRdzeta",&InterpolatedBoozerField::status_dRdzeta)
+      .def_readwrite("status_dRds",&InterpolatedBoozerField::status_dRds)
+      .def_readwrite("status_dZdtheta",&InterpolatedBoozerField::status_dZdtheta)
+      .def_readwrite("status_dZdzeta",&InterpolatedBoozerField::status_dZdzeta)
+      .def_readwrite("status_dZds",&InterpolatedBoozerField::status_dZds)
+      .def_readwrite("status_dnudtheta",&InterpolatedBoozerField::status_dnudtheta)
+      .def_readwrite("status_dnudzeta",&InterpolatedBoozerField::status_dnudzeta)
+      .def_readwrite("status_dnuds",&InterpolatedBoozerField::status_dnuds)
+      .def_readwrite("status_dKdtheta",&InterpolatedBoozerField::status_dKdtheta)
+      .def_readwrite("status_dKdzeta",&InterpolatedBoozerField::status_dKdzeta)
+      .def_readwrite("status_K_derivs",&InterpolatedBoozerField::status_K_derivs)
+      .def_readwrite("status_R_derivs",&InterpolatedBoozerField::status_R_derivs)
+      .def_readwrite("status_Z_derivs",&InterpolatedBoozerField::status_Z_derivs)
+      .def_readwrite("status_nu_derivs",&InterpolatedBoozerField::status_nu_derivs)
+      .def_readwrite("status_modB_derivs",&InterpolatedBoozerField::status_modB_derivs)
+      ;
     
     // ShearAlfvenWave:
     auto saw = py::class_<

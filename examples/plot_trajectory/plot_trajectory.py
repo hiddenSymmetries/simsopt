@@ -6,7 +6,7 @@ from booz_xform import Booz_xform
 from simsopt.field.boozermagneticfield import BoozerRadialInterpolant, InterpolatedBoozerField
 from simsopt.field.tracing import trace_particles_boozer, MaxToroidalFluxStoppingCriterion
 from simsopt.util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
-from simsopt.util.functions import print 
+from simsopt.util.functions import proc0_print 
 from simsopt.plotting.plotting_helpers import plot_trajectory_overhead_cyl, plot_trajectory_poloidal
 
 try:
@@ -21,7 +21,7 @@ except ImportError:
 
 time1 = time.time()
 
-boozmn_filename = 'boozmn_aten_rescaled.nc' 
+boozmn_filename = '../inputs/boozmn_aten_rescaled.nc' 
 order = 3 # Order for radial interpolation
 reltol = 1e-8 # Relative tolerance for the ODE solver
 abstol = 1e-8 # Absolute tolerance for the ODE solver
@@ -47,8 +47,7 @@ bri = BoozerRadialInterpolant(equil,order,no_K=True,comm=comm)
 srange = (0, 1, ns_interp)
 thetarange = (0, np.pi, ntheta_interp)
 zetarange = (0, 2*np.pi/nfp, nzeta_interp)
-field = InterpolatedBoozerField(bri, degree, srange, thetarange, zetarange, True, 
-    nfp=nfp, stellsym=True, initialize=["modB","psip", "G", "I", "dGds", "dIds", "iota", "modB_derivs"])
+field = InterpolatedBoozerField(bri, degree, srange, thetarange, zetarange, True, nfp=nfp, stellsym=True)
 
 Ekin=FUSION_ALPHA_PARTICLE_ENERGY
 mass=ALPHA_PARTICLE_MASS
@@ -70,11 +69,11 @@ solver_options = {'abstol': abstol, 'reltol': reltol, 'axis': 2}
 traj_booz, res_hits = trace_particles_boozer(
         field, points, vpar_init, tmax=tmax, mass=mass, charge=charge,
         Ekin=Ekin, stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
-        forget_exact_path=False, mode='gc_vac', dt_save=1e-7, solver_options=solver_options)
+        forget_exact_path=False, dt_save=1e-7, solver_options=solver_options)
 
 time2 = time.time()
 
-print('Elapsed time for tracing: ',time2-time1)  
+proc0_print('Elapsed time for tracing: ',time2-time1)  
 
 ax = plot_trajectory_overhead_cyl(traj_booz[0],field)
 
@@ -89,4 +88,4 @@ if verbose:
         fig.savefig('trajectory_poloidal.png', dpi=300, bbox_inches='tight')
 
 time3 = time.time()
-print('Elapsed time for plotting: ',time3-time2)
+proc0_print('Elapsed time for plotting: ',time3-time2)

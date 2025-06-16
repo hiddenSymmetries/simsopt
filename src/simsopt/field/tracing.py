@@ -12,10 +12,10 @@ from ..util.constants import (
     ALPHA_PARTICLE_CHARGE,
     FUSION_ALPHA_PARTICLE_ENERGY
 )
+from ..util.functions import (
+    print, proc0_print
+)
 from .._core.types import RealArray
-
-import logging
-logger = logging.getLogger(__name__)
 
 __all__ = [
     'MinToroidalFluxStoppingCriterion',
@@ -28,7 +28,6 @@ __all__ = [
     'compute_toroidal_transits',
     'trace_particles_boozer'
 ]
-
 
 def trace_particles_boozer_perturbed(
     perturbed_field: ShearAlfvenWave,
@@ -48,7 +47,7 @@ def trace_particles_boozer_perturbed(
     vpars=[],
     stopping_criteria=[],
     dt_save=1e-6,
-    mode='gc_vac',
+    mode=None,
     forget_exact_path=False,
     zetas_stop=False,
     vpars_stop=False,
@@ -128,6 +127,7 @@ def trace_particles_boozer_perturbed(
             `gc_vac`: simplified guiding center equations for the case :math:`G` = const.,
             :math:`I = 0`, and :math:`K = 0`.
             `gc_noK`: simplified guiding center equations for the case :math:`K = 0`.
+            By default, this is determined from field.field_type
         forget_exact_path: return only the first and last position of each
             particle for the ``res_tys``. To be used when only res_hits is 
             of interest or one wants to reduce memory usage.
@@ -156,8 +156,14 @@ def trace_particles_boozer_perturbed(
     speed_par = parallel_speeds
     m = mass
     speed_total = sqrt(2*Ekin/m)
-    mode = mode.lower()
-    assert mode in ['gc', 'gc_vac', 'gc_nok']
+
+    if mode is not None: 
+        mode = mode.lower()
+        assert mode in ['gc', 'gc_vac', 'gc_nok']
+        if ('gc'+perturbed_field.B0.field.field_type != mode):
+            warn(f"Prescribed mode is inconsistent with field_type. Proceeding with mode={mode}.",RuntimeWarning)
+    else:
+        mode = 'gc_'+field.field_type
 
     res_tys = []
     res_hits = []
@@ -193,8 +199,7 @@ def trace_particles_boozer_perturbed(
             res_tys.append(np.asarray([res_ty[0], res_ty[-1]]))
         res_hits.append(np.asarray(res_hit))
         dtavg = res_ty[-1][0]/len(res_ty)
-        logger.debug(
-            f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}, average timestep {1000*dtavg:.10f}ms")
+        print(f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}, average timestep {1000*dtavg:.10f}ms")
         if res_ty[-1][0] < tmax - 1e-15:
             loss_ctr += 1
     if comm is not None:
@@ -203,8 +208,7 @@ def trace_particles_boozer_perturbed(
         res_tys = [i for o in comm.allgather(res_tys) for i in o]
         res_hits = [i for o in comm.allgather(res_hits) for i in o]
 
-    logger.debug(
-        f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:d}%')
+    proc0_print(f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:d}%')
     return res_tys, res_hits
 
 
@@ -220,7 +224,7 @@ def trace_particles_boozer(field: BoozerMagneticField,
                            vpars=[],
                            stopping_criteria=[],
                            dt_save=1e-6,
-                           mode='gc_vac',
+                           mode=None,
                            forget_exact_path=False,
                            solver_options=None):
     r"""
@@ -294,6 +298,7 @@ def trace_particles_boozer(field: BoozerMagneticField,
             `gc_vac`: simplified guiding center equations for the case 
                 :math:`G` = const., :math:`I = 0`, and :math:`K = 0`.
             `gc_noK`: simplified guiding center equations for the case :math:`K = 0`.
+            By default, this is determined from field.field_type.
         forget_exact_path: return only the first and last position of each
                            particle for the ``res_tys``. To be used when only res_hits is of
                            interest or one wants to reduce memory usage.
@@ -344,7 +349,6 @@ def trace_particles_boozer(field: BoozerMagneticField,
                 warn("Symplectic solver does not use option %s" %
                      op, RuntimeWarning)
     else:
-        logger.debug(options)
         for op in ['dt', 'roottol', 'predictor_step']:
             if options.get(op):
                 warn("RK45 solver does not use option %s" % op, RuntimeWarning)
@@ -363,8 +367,14 @@ def trace_particles_boozer(field: BoozerMagneticField,
         Ekin = Ekin * np.ones((len(parallel_speeds),))
     # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
     speed_total = np.sqrt(2*Ekin/m)
-    mode = mode.lower()
-    assert mode in ['gc', 'gc_vac', 'gc_nok']
+
+    if mode is not None: 
+        mode = mode.lower()
+        assert mode in ['gc', 'gc_vac', 'gc_nok']
+        if ('gc'+field.field_type != mode):
+            warn(f"Prescribed mode is inconsistent with field_type. Proceeding with mode={mode}.",RuntimeWarning)
+    else:
+        mode = 'gc'+field.field_type
 
     res_tys = []
     res_hits = []
@@ -394,8 +404,7 @@ def trace_particles_boozer(field: BoozerMagneticField,
             res_tys.append(np.asarray([res_ty[0], res_ty[-1]]))
         res_hits.append(np.asarray(res_hit))
         dtavg = res_ty[-1][0]/len(res_ty)
-        logger.debug(
-            f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}, average timestep {1000*dtavg:.10f}ms")
+        print(f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}, average timestep {1000*dtavg:.10f}ms")
         if res_ty[-1][0] < tmax - 1e-15:
             loss_ctr += 1
     if comm is not None:
@@ -403,8 +412,7 @@ def trace_particles_boozer(field: BoozerMagneticField,
     if comm is not None:
         res_tys = [i for o in comm.allgather(res_tys) for i in o]
         res_hits = [i for o in comm.allgather(res_hits) for i in o]
-    logger.debug(
-        f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:d}%')
+    proc0_print(f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:d}%')
     return res_tys, res_hits
 
 
@@ -455,9 +463,8 @@ def compute_resonances(res_tys, res_hits, delta=1e-2):
                 dist = np.sqrt((x-x0)**2 + (y-y0)**2)
                 t = res_hits[ip][it, 0]
                 if dist < delta:
-                    logger.debug('Resonance found.')
-                    logger.debug(
-                        f'theta = {theta_mod}, theta0 = {theta0_mod}, s = {s}, s0 = {s0}')
+                    proc0_print('Resonance found.')
+                    proc0_print(f'theta = {theta_mod}, theta0 = {theta0_mod}, s = {s}, s0 = {s0}')
                     mpol = np.rint((theta-theta0)/(2*np.pi))
                     ntor = np.rint((zeta-zeta0)/(2*np.pi))
                     resonances.append(np.asarray(

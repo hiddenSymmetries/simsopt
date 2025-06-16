@@ -1,6 +1,6 @@
 import simsoptpp as sopp
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
-from simsopt.field.boozermagneticfield import BoozerAnalytic
+from simsopt.field.boozermagneticfield import BoozerAnalytic, BoozerRadialInterpolant, InterpolatedBoozerField
 from simsopt.field.tracing import \
     IterationStoppingCriterion, trace_particles_boozer, \
     MinToroidalFluxStoppingCriterion, MaxToroidalFluxStoppingCriterion, ToroidalTransitStoppingCriterion, \
@@ -8,12 +8,145 @@ from simsopt.field.tracing import \
 import numpy as np
 import unittest
 import logging
+from pathlib import Path
+from booz_xform import Booz_xform
 
 logging.basicConfig()
 
 
 class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
+    def test_field_type(self):
+
+        etabar = 1.2/1.2
+        B0 = 1.0
+        Bbar = 1.0
+        G0 = 1.1
+        psi0 = 8
+        iota0 = 0.4
+
+        ## Setup Booz_xform object
+        equil = Booz_xform()
+        equil.verbose = 0
+        TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
+        equil.read_boozmn(str((TEST_DIR / 'boozmn_n3are_R7.75B5.7.nc').resolve()))
+        nfp = equil.nfp
+        order = 3
+
+        ns_interp = 2
+        ntheta_interp = 2
+        nzeta_interp = 2
+        nfp = 1
+        degree = 3
+        srange = (0, 1, ns_interp)
+        thetarange = (0, np.pi, ntheta_interp)
+        zetarange = (0, 2*np.pi/nfp, nzeta_interp)
+
+        Ekin = ONE_EV
+        m = PROTON_MASS
+        q = ELEMENTARY_CHARGE
+        stz_inits = np.zeros((1,3))
+        stz_inits[0,0] = 0.5
+        vpar_inits = [1]
+        tmax = 1e-7
+        solver_options = {'axis': 2}
+
+        # Test that if enforce_vacuum = True, the field_type = 'vac', and tracing mode = 'gc_vac'
+        bsh = BoozerAnalytic(etabar, B0, 0, G0, psi0, iota0)
+        bri = BoozerRadialInterpolant(equil,order,enforce_vacuum=True)
+
+        for field_vac in [bsh,bri]:
+            assert field_vac.field_type == 'vac'
+
+            if isinstance(field_vac,BoozerRadialInterpolant):
+                ## Setup 3d interpolation
+                field = InterpolatedBoozerField(field_vac, degree, srange, thetarange, zetarange, True, 
+                    nfp=nfp, stellsym=True)
+
+                # Check that only ["modB","psip","G","iota","modB_derivs"] are initialized
+                assert (field.status_modB and field.status_psip and field.status_G and field.status_iota and field.modB_derivs)
+                assert (not field.status_I and not field.status_dGds and not field.status_dIds and not field.status_K and not field.status_K_derivs)
+            else:
+                field = field_vac
+
+            with self.assertWarns(RuntimeWarning):
+                gc_tys, gc_zeta_hits = trace_particles_boozer(field, stz_inits,
+                                                                vpar_inits,
+                                                                tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_noK',
+                                                                stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
+                                                                tol=1e-3, solver_options=solver_options)
+
+            with self.assertWarns(RuntimeWarning):
+                gc_tys, gc_zeta_hits = trace_particles_boozer(field, stz_inits,
+                                                                vpar_inits,
+                                                                tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc',
+                                                                stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
+                                                                tol=1e-3, solver_options=solver_options)
+
+        ## Now check for no_K
+        bsh = BoozerAnalytic(etabar, B0, 0, G0, psi0, iota0, G1=0.1)
+        bri = BoozerRadialInterpolant(equil,order,no_K=True)
+    
+        for field_vac in [bsh,bri]:
+            assert field_vac.field_type == 'nok'
+
+            if isinstance(field_vac,BoozerRadialInterpolant):
+                ## Setup 3d interpolation
+                field = InterpolatedBoozerField(field_vac, degree, srange, thetarange, zetarange, True, 
+                    nfp=nfp, stellsym=True)
+
+                # Check that only ["modB","psip","G","iota","modB_derivs"] are initialized
+                assert (field.status_modB and field.status_psip and field.status_G and field.status_iota and field.modB_derivs and field.status_I and field.status_dGds and field.status_dIds)
+                assert (not field.status_K and not field.status_K_derivs)
+            else:
+                field = field_vac
+
+            with self.assertWarns(RuntimeWarning):
+                gc_tys, gc_zeta_hits = trace_particles_boozer(field, stz_inits,
+                                                                vpar_inits,
+                                                                tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
+                                                                stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
+                                                                tol=1e-3, solver_options=solver_options)
+
+            with self.assertWarns(RuntimeWarning):
+                gc_tys, gc_zeta_hits = trace_particles_boozer(field, stz_inits,
+                                                                vpar_inits,
+                                                                tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc',
+                                                                stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
+                                                                tol=1e-3, solver_options=solver_options)
+
+        ## Now check for gen
+        bsh = BoozerAnalytic(etabar, B0, 0, G0, psi0, iota0, K1=0.1)
+        bri = BoozerRadialInterpolant(equil,order)
+
+        for field_vac in [bsh,bri]:
+            assert field_vac.field_type == ''
+
+            if isinstance(field_vac,BoozerRadialInterpolant):
+                ## Setup 3d interpolation
+                field = InterpolatedBoozerField(field_vac, degree, srange, thetarange, zetarange, True, 
+                    nfp=nfp, stellsym=True)
+
+                # Check that only ["modB","psip","G","iota","modB_derivs"] are initialized
+                assert (field.status_modB and field.status_psip and field.status_G and field.status_iota and field.modB_derivs and 
+                        field.status_I and field.status_dGds and field.status_dIds and field.status_K and field.status_K_derivs)
+            else:
+                field = field_vac
+
+            with self.assertWarns(RuntimeWarning):
+                gc_tys, gc_zeta_hits = trace_particles_boozer(field, stz_inits,
+                                                                vpar_inits,
+                                                                tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
+                                                                stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
+                                                                tol=1e-3, solver_options=solver_options)
+
+            with self.assertWarns(RuntimeWarning):
+                gc_tys, gc_zeta_hits = trace_particles_boozer(field, stz_inits,
+                                                                vpar_inits,
+                                                                tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_noK',
+                                                                stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
+                                                                tol=1e-3, solver_options=solver_options)
+        
     def test_energy_momentum_conservation_boozer(self):
         """
         Trace 100 particles in a BoozerAnalytic field for 10 toroidal

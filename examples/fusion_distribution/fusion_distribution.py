@@ -7,7 +7,7 @@ from simsopt.field.boozermagneticfield import BoozerRadialInterpolant, Interpola
 from simsopt.field.tracing import trace_particles_boozer, MaxToroidalFluxStoppingCriterion
 from simsopt.field.tracing_helpers import initialize_position_profile
 from simsopt.util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
-from simsopt.util.functions import print
+from simsopt.util.functions import proc0_print
 
 try:
     from mpi4py import MPI
@@ -27,7 +27,7 @@ reltol = 1e-8 # Relative tolerance for the ODE solver
 abstol = 1e-8 # Absolute tolerance for the ODE solver
 order = 3 # Order for radial interpolation
 degree = 3 # Degree for 3d interpolation
-boozmn_filename = 'boozmn_aten_rescaled.nc' 
+boozmn_filename = '../inputs/boozmn_aten_rescaled.nc' 
 tmax = 1e-2 # Time for integration
 ns_interp = resolution
 ntheta_interp = resolution
@@ -48,8 +48,7 @@ bri = BoozerRadialInterpolant(equil,order,no_K=True,comm=comm)
 srange = (0, 1, ns_interp)
 thetarange = (0, np.pi, ntheta_interp)
 zetarange = (0, 2*np.pi/nfp, nzeta_interp)
-field = InterpolatedBoozerField(bri, degree, srange, thetarange, zetarange, True, 
-    nfp=nfp, stellsym=True, initialize=["modB","psip", "G", "I", "dGds", "dIds", "iota", "modB_derivs"])
+field = InterpolatedBoozerField(bri, degree, srange, thetarange, zetarange, True, nfp=nfp, stellsym=True)
 
 # Define fusion birth distribution 
 # Bader, A., et al. "Modeling of energetic particle transport in optimized stellarators." Nuclear Fusion 61.11 (2021): 116060.
@@ -85,10 +84,10 @@ solver_options = {'abstol': abstol, 'reltol': reltol, 'axis': 2}
 res_tys, res_zeta_hits = trace_particles_boozer(
         field, points, vpar_init, tmax=tmax, mass=mass, charge=charge, comm=comm,
         Ekin=Ekin, stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
-        forget_exact_path=True, mode='gc_vac', solver_options=solver_options)
+        forget_exact_path=True, solver_options=solver_options)
 
 time2 = time.time()
-print("Elapsed time for tracing = ",time2-time1)
+proc0_print("Elapsed time for tracing = ",time2-time1)
 
 ## Post-process results to obtain lost particles
 if (verbose):
