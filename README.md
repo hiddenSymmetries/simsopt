@@ -70,6 +70,10 @@ in order to test the guiding center equations at finite beta.
 
 The magnetic field can be computed at any point in Boozer coordinates using radial spline interpolation (``scipy.interpolate.InterpolatedUnivariateSpline``) and an inverse Fourier transform in the two angles. While the Fourier representation is more accurate, typically [InterpolatedBoozerField](#interpolatedboozerfield) is used inside the tracing loop due to its efficiency. If given a `VMEC` output file, performs a Boozer coordinate transformation using ``booz_xform``. If given a ``booz_xform`` output file, the Boozer transformation must be performed with all surfaces on the VMEC half grid, and with `phip`, `chi`, `pres`, and `phi` saved in the file. 
 
+Field evaluations are parallelized over the number of Fourier harmonics over CPUs, given the communicator `comm`. In addition, the evaluations are parallelized over threads with OpenMP. Because the guiding center tracing routines 
+are also parallelized over CPUs with MPI, we don't recommend passing `comm` to ``BoozerRadialInterpolant`` if it is
+being passed to a tracing routine. 
+
 ### Preparing `booz_xform` equilibrium
 
 As stated above, the `booz_xform` equilibrium must be performed with all surfaces on the VMEC half grid, and with `phip`, `chi`, `pres`, and `phi` saved in the file. This can be done using the [C++ implementation](https://github.com/hiddenSymmetries/booz_xform) with the main branch, by passing `flux=True` to `read_wout()`:
