@@ -119,7 +119,11 @@ array<double, m+n> join(const array<double, m>& a, const array<double, n>& b)
 }
 
 template<class RHS, class DENSE>
-bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<array<double, RHS::Size+1>> &res, vector<array<double, RHS::Size+2>> &res_hits, DENSE dense, double t_last, double t_current, double dt, double zeta_last, double zeta_current, double vpar_last, double vpar_current, double abstol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, bool zetas_stop, bool vpars_stop)
+bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<array<double, RHS::Size+1>> &res, 
+    vector<array<double, RHS::Size+2>> &res_hits, DENSE dense, double t_last, double t_current, double dt, 
+    double zeta_last, double zeta_current, double vpar_last, double vpar_current, double abstol, vector<double> zetas, 
+    vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, 
+    bool zetas_stop, bool vpars_stop)
 {
     typedef typename RHS::State State;
     // abstol?

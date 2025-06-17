@@ -311,7 +311,9 @@ def trace_particles_boozer(field: BoozerMagneticField,
                 `zetas_stop`: whether to stop if hit provided zeta planes
                 `vpars_stop`: whether to stop if hit provided vpar planes
                 `dt_save`: Time interval for saving the results. Only use if forget_exact_path = False.
-                `axis`: Defines handling of coordinate singularity. If 0, tracing is performed in Boozer coordinates (s,theta,zeta). If 1, tracing is performed in coordinates (sqrt(s)*cos(theta), sqrt(s)*sin(theta), zeta). If 2, tracing is performed in coordinates (s*cos(theta),s*sin(theta),zeta). Option 2 is recommended. 
+                `axis`: Defines handling of coordinate singularity. If 0, tracing is performed in Boozer coordinates (s,theta,zeta). 
+                        If 1, tracing is performed in coordinates (sqrt(s)*cos(theta), sqrt(s)*sin(theta), zeta). 
+                        If 2, tracing is performed in coordinates (s*cos(theta),s*sin(theta),zeta). Option 2 (default) is recommended. 
             default solver (rk45) specific options are
                 `axis`: If `True`, tracing is performed in coordinates :math:`x = \sqrt{s}\cos(\theta)`
                            and :math:`y = \sqrt{s}\sin(\theta)` to avoid a coordinate singularity on
@@ -353,6 +355,7 @@ def trace_particles_boozer(field: BoozerMagneticField,
                 warn("Symplectic solver does not use option %s" %
                      op, RuntimeWarning)
     else:
+        options.setdefault('axis', 2)
         for op in ['dt', 'roottol', 'predictor_step']:
             if options.get(op):
                 warn("RK45 solver does not use option %s" % op, RuntimeWarning)
@@ -407,9 +410,6 @@ def trace_particles_boozer(field: BoozerMagneticField,
         else:
             res_tys.append(np.asarray([res_ty[0], res_ty[-1]]))
         res_hits.append(np.asarray(res_hit))
-        dtavg = res_ty[-1][0]/len(res_ty)
-        if verbose:
-            print(f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}, average timestep {1000*dtavg:.10f}ms")
         if res_ty[-1][0] < tmax - 1e-15:
             loss_ctr += 1
     if comm is not None:
@@ -418,7 +418,7 @@ def trace_particles_boozer(field: BoozerMagneticField,
         res_tys = [i for o in comm.allgather(res_tys) for i in o]
         res_hits = [i for o in comm.allgather(res_hits) for i in o]
     if verbose:
-        proc0_print(f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:d}%')
+        proc0_print(f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:.5f}%')
     return res_tys, res_hits
 
 

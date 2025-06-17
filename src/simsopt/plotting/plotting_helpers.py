@@ -122,7 +122,7 @@ def plot_trajectory_overhead_cyl(res_ty, field, ax=None):
     return ax 
 
 def passing_poincare_plot(field,lam,sign_vpar,mass,charge,Ekin,ns_poinc=120,ntheta_poinc=2,Nmaps=500,
-                          reltol=1e-8,abstol=1e-8, comm=None,filename='passing_map.pdf'):
+                          comm=None,filename='passing_map.pdf',solver_options={}):
     r"""
     Compute the passing Poincare plot in a given :class:`BoozerMagneticField` instance for a given 
     particle energy and pitch-angle variable, :math:`\lambda = v_\perp^2/(v^2 B)`. 
@@ -141,10 +141,9 @@ def passing_poincare_plot(field,lam,sign_vpar,mass,charge,Ekin,ns_poinc=120,nthe
         ns_poinc : Number of initial conditions in s for Poincare plot (default: 120).
         ntheta_poinc : Number of initial conditions in theta for Poincare plot (default: 2).
         Nmaps : Number of Poincare return maps to compute for each initial condition (default: 500).
-        reltol : Relative tolerance for the integration (default: 1e-8).
-        abstol : Absolute tolerance for the integration (default: 1e-8).
         comm : MPI communicator for parallel execution (default: None).
         filename : Name of the file to save the Poincare plot (default: 'passing_map.pdf').
+        solver_options : Dictionary of options to pass to the ODE solver (default: {}).
 
     Returns:    
         s_all : List of lists containing the s coordinates for each trajectory.
@@ -171,7 +170,7 @@ def passing_poincare_plot(field,lam,sign_vpar,mass,charge,Ekin,ns_poinc=120,nthe
         vpars_plot = [tr[2]]
         for jj in range(Nmaps):
             try:
-                tr = passing_map(tr,field,mass,charge,Ekin,reltol=reltol,abstol=abstol)
+                tr = passing_map(tr,field,mass,charge,Ekin,solver_options=solver_options)
                 s_plot.append(tr[0])
                 thetas_plot.append(tr[1])
                 vpars_plot.append(tr[2])

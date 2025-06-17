@@ -560,23 +560,29 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
 
         // Save path if forget_exact_path = False
         if (forget_exact_path == 0) {
+
+            // Check if we have hit a stopping criterion between t_last and t_current
+            stop = check_stopping_criteria<RHS,dense_stepper_type>(rhs,
+                temp, iter, res, res_hits, dense, t_last, t_current, dt, zeta_last,
+                zeta_current, vpar_last, vpar_current, abstol, zetas, omegas, stopping_criteria,
+                vpars, zetas_stop, vpars_stop);
+
+            // If we have hit a stopping criterion, we still want to save the trajectory up to that point
+            if (stop) {
+                t_current = res.back()[0];
+            }
+
             // This will give the first save point after t_last
             double t_save_last = dt_save * std::ceil(t_last/dt_save);
-            for (double t_save = t_save_last; t_save <= t_current; t_save += dt_save) {
-                if (t_save != 0) {
-                    vpar_last = res.back()[4];
-                    zeta_last = res.back()[3];
-                    dense.calc_state(t_save, temp);
-                    vpar_current = temp[3];
-                    zeta_current = temp[2];
-                    // Only save if we have not hit any stopping criteria
-                    stop = check_stopping_criteria<RHS,dense_stepper_type>(rhs, 
-                        temp, iter, res, res_hits, dense,      
-                        t_save - dt_save, t_save, dt, zeta_last, zeta_current, vpar_last, vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop);
-                    if (stop) {
-                        break;
-                    } else {
+
+            if (stop == 0) {
+                for (double t_save = t_save_last; t_save <= t_current; t_save += dt_save) {
+                    if (t_save != 0) {  // t = 0 is already saved. 
+                        dense.calc_state(t_save, temp);
+                        vpar_current = temp[3];
+                        zeta_current = temp[2];
                         ykeep = temp;
+
                         if (rhs.axis==1) {
                             ykeep[0] = pow(temp[0],2) + pow(temp[1],2);
                             ykeep[1] = atan2(temp[1],temp[0]);
@@ -589,11 +595,11 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
                 }
             }
         } else {
-            stop = check_stopping_criteria<RHS,dense_stepper_type>(rhs, y, 
-                iter, res, res_hits, dense,      
-                t_last, t_current, dt, zeta_last, zeta_current, vpar_last, vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop);
+            stop = check_stopping_criteria<RHS,dense_stepper_type>(rhs, y, iter, res, res_hits, dense, t_last, 
+                t_current, dt, zeta_last, zeta_current, vpar_last, vpar_current, abstol, zetas, omegas, stopping_criteria, 
+                vpars, zetas_stop, vpars_stop);
         }
-        
+
         zeta_last = zeta_current;
         vpar_last = vpar_current;
     } while(t < tmax && !stop);

@@ -60,7 +60,7 @@ def compute_trajectory_cylindrical(res_ty, field):
 
     return R_traj, phi_traj, Z_traj
 
-def passing_map(point,field,mass,charge,Ekin,tmax=1e-2,reltol=1e-8,abstol=1e-8):
+def passing_map(point,field,mass,charge,Ekin,tmax=1e-2,solver_options={}):
     r"""
     Given the coordinates (s,theta,vpar) at zeta = 0, integrates the guiding
     center equations until the trajectory returns to the zeta = 0 plane. 
@@ -77,17 +77,24 @@ def passing_map(point,field,mass,charge,Ekin,tmax=1e-2,reltol=1e-8,abstol=1e-8):
         charge: Particle charge.
         Ekin: Particle total energy.
         tmax: Maximum time for integration (default: 1e-2 seconds).
-        reltol: Relative tolerance for integration (default: 1e-8).
-        abstol: Absolute tolerance for integration (default: 1e-8).
+        solver_options: A dictionary of options to pass to the ODE solver.
+            See :func:`simsopt.field.tracing.trace_particles_boozer` for details.
+
+    Returns:
+        point: A numpy array of shape (3,) containing the coordinates
+            (s,theta,vpar) when the trajectory returns to the zeta = 0 plane.
     """
     points = np.zeros((1,3))
     points[:,0] = point[0]
     points[:,1] = point[1]
     points[:,2] = 0
-    solver_options = {'reltol':reltol,'abstol':abstol,'vpars_stop':True,'zetas_stop':True,'axis':2}
+
+    # Set solver options needed for passing map 
+    solver_options.setdefault('vpars_stop',True)
+    solver_options.setdefault('zetas_stop',True)
     res_tys, res_hits = trace_particles_boozer(field, points, [point[2]], tmax=tmax, mass=mass, charge=charge,
             Ekin=Ekin, zetas=[0], vpars=[0], omegas=[0], stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
-            forget_exact_path=True,solver_options=solver_options)
+            forget_exact_path=False,solver_options=solver_options)
     res_hit = res_hits[0][0,:] # Only check the first hit or stopping criterion
 
     if (res_hit[1] == 0): # Check that the zetas=[0] plane was hit

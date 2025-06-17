@@ -53,7 +53,7 @@ field = InterpolatedBoozerField(bri, degree, srange, thetarange, zetarange, True
 
 s_all, thetas_all, vpars_all = passing_poincare_plot(field,lam,sign_vpar,mass,charge,Ekin,
                                                      ns_poinc=ns_poinc,ntheta_poinc=ntheta_poinc,
-                                                     Nmaps=Nmaps,comm=comm,reltol=tol,abstol=tol)
+                                                     Nmaps=Nmaps,comm=comm,solver_options={'reltol':tol,'abstol':tol})
 
 time2 = time.time()
 
