@@ -144,7 +144,10 @@ def trace_particles_boozer_perturbed(
         - ``res_hits``:
             A list of numpy arrays (one for each particle) containing
             information on each time the particle hits one of the hit planes or
-            one of the stopping criteria. Each row or the array contains `[time] + [idx] + state`, where `idx` tells us which of the hit planes or stopping criteria was hit. If `idx>=0` and `idx<len(zetas)`, then the `zetas[idx]` plane was hit. If `idx>=len(zetas)`, then the `vpars[idx-len(zetas)]` plane was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit. The state vector is `[t, s, theta, zeta, v_par]`.
+            one of the stopping criteria. Each row or the array contains `[time] + [idx] + state`, where `idx` 
+            tells us which of the hit planes or stopping criteria was hit. If `idx>=0` and `idx<len(zetas)`, 
+            then the `zetas[idx]` plane was hit. If `idx>=len(zetas)`, then the `vpars[idx-len(zetas)]` plane was hit. 
+            If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit. The state vector is `[t, s, theta, zeta, v_par]`.
     """
     if reltol is None:
         reltol = tol
@@ -226,7 +229,8 @@ def trace_particles_boozer(field: BoozerMagneticField,
                            dt_save=1e-6,
                            mode=None,
                            forget_exact_path=False,
-                           solver_options=None):
+                           solver_options=None,
+                           verbose=False):
     r"""
     Follow particles in a :class:`BoozerMagneticField`. 
 
@@ -319,7 +323,7 @@ def trace_particles_boozer(field: BoozerMagneticField,
                 `dt`: time step
                 `roottol`: root solver tolerance
                 `predictor_step`: provide better initial guess for the next time step using predictor steps
-
+        verbose: If True, additional printed information about average timestep is printed to stdout. 
     Returns: 2 element tuple containing
         - ``res_tys``:
             A list of numpy arrays (one for each particle) describing the
@@ -375,7 +379,7 @@ def trace_particles_boozer(field: BoozerMagneticField,
             warn(f"Prescribed mode is inconsistent with field_type. Proceeding with mode={mode}.",RuntimeWarning)
     else:
         mode = 'gc'+field.field_type
-
+        
     res_tys = []
     res_hits = []
     loss_ctr = 0
@@ -404,7 +408,8 @@ def trace_particles_boozer(field: BoozerMagneticField,
             res_tys.append(np.asarray([res_ty[0], res_ty[-1]]))
         res_hits.append(np.asarray(res_hit))
         dtavg = res_ty[-1][0]/len(res_ty)
-        print(f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}, average timestep {1000*dtavg:.10f}ms")
+        if verbose:
+            print(f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}, average timestep {1000*dtavg:.10f}ms")
         if res_ty[-1][0] < tmax - 1e-15:
             loss_ctr += 1
     if comm is not None:
@@ -412,7 +417,8 @@ def trace_particles_boozer(field: BoozerMagneticField,
     if comm is not None:
         res_tys = [i for o in comm.allgather(res_tys) for i in o]
         res_hits = [i for o in comm.allgather(res_hits) for i in o]
-    proc0_print(f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:d}%')
+    if verbose:
+        proc0_print(f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:d}%')
     return res_tys, res_hits
 
 

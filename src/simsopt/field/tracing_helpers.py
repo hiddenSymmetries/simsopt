@@ -202,3 +202,56 @@ def initialize_position_uniform_vol(field, nparticles, nfp=1, ns_max=100, ntheta
         field, nparticles, lambda s: 1.0, nfp=nfp, ns_max=ns_max, ntheta_max=ntheta_max, nzeta_max=nzeta_max, 
         comm=comm, seed=seed
     )
+
+def initialize_passing_map(field,lam,vtotal,sign_vpar,ns_poinc=120,ntheta_poinc=2,comm=None):
+    r"""
+    Given a :class:`BoozerMagneticField` instance, this function generates initial positions
+    for the passing Poincare return map.
+
+    Args:
+        field : The :class:`BoozerMagneticField` instance
+        lam: Lambda value for the passing map, defined as :math:`\lambda = v_{\perp}^2/(v^2 B)` 
+            where :math:`v` is the total velocity. 
+        vtotal: Total velocity of the particles
+        sign_vpar: Sign of the parallel velocity. 
+        ns_poinc: Number of points in s direction for Poincare map (default: 120)
+        ntheta_poinc: Number of points in theta direction for Poincare map (default: 2)
+        comm: MPI communicator used for evaluation of initial conditions (default: None)
+    """
+    s = np.linspace(0,1,ns_poinc+1,endpoint=False)[1::]
+    thetas = np.linspace(0,2*np.pi,ntheta_poinc)
+    s, thetas = np.meshgrid(s, thetas)
+    s = s.flatten()
+    thetas = thetas.flatten()
+
+    def vpar_func(s,theta):
+        point = np.zeros((1,3))
+        point[0,0] = s
+        point[0,1] = theta
+        field.set_points(point)
+        modB = field.modB()[0,0]
+        # Skip any trapped particles
+        if (1 - lam*modB < 0):
+            return None
+        else:
+            return sign_vpar*vtotal*np.sqrt(1 - lam*modB)
+
+    first, last = parallel_loop_bounds(comm, len(s))
+    # For each point, find value of vpar such that lambda = vperp^2/(v^2 B)
+    s_init = []
+    thetas_init = []
+    vpars_init = []
+    for i in range(first,last):
+        vpar = vpar_func(s[i],thetas[i])
+        if vpar is not None:
+            s_init.append(s[i])
+            thetas_init.append(thetas[i])
+            vpars_init.append(vpar)
+
+    if comm is not None:
+        s_init = [i for o in comm.allgather(s_init) for i in o]
+        thetas_init = [i for o in comm.allgather(thetas_init) for i in o]
+        vpars_init = [i for o in comm.allgather(vpars_init) for i in o]
+
+    return s_init, thetas_init, vpars_init 
+

@@ -87,5 +87,9 @@ if verbose:
         fig = ax.figure 
         fig.savefig('trajectory_poloidal.png', dpi=300, bbox_inches='tight')
 
+        from simsopt.field.trajectory_helpers import trajectory_to_vtk
+        trajectory_to_vtk(traj_booz[0], field, filename='trajectory')
+
 time3 = time.time()
 proc0_print('Elapsed time for plotting: ',time3-time2)
+
