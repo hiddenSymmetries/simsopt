@@ -378,10 +378,10 @@ def trace_particles_boozer(field: BoozerMagneticField,
     if mode is not None: 
         mode = mode.lower()
         assert mode in ['gc', 'gc_vac', 'gc_nok']
-        if ('gc'+field.field_type != mode):
+        if ('gc_'+field.field_type != mode):
             warn(f"Prescribed mode is inconsistent with field_type. Proceeding with mode={mode}.",RuntimeWarning)
     else:
-        mode = 'gc'+field.field_type
+        mode = 'gc_'+field.field_type
         
     res_tys = []
     res_hits = []
