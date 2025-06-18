@@ -594,14 +594,16 @@ class BoozerAnalytic(BoozerMagneticField):
         self.iota0 = iota0
         self.psi0 = psi0
         self.iota1 = iota1
+        self.set_field_type()
+        BoozerMagneticField.__init__(self, psi0, self.field_type)
+
+    def set_field_type(self):
         if (self.I0 == 0 and self.I1 == 0 and self.G1 == 0 and self.K1==0):
-            field_type = 'vac' 
+            self.field_type = 'vac' 
         elif (self.K1 == 0):
-            field_type = 'nok'
+            self.field_type = 'nok'
         else:
-            field_type = ''
-        self.field_type = field_type 
-        BoozerMagneticField.__init__(self, psi0, field_type)
+            self.field_type = ''
 
     def set_etabar(self, etabar):
         self.etabar = etabar
@@ -623,15 +625,19 @@ class BoozerAnalytic(BoozerMagneticField):
 
     def set_I0(self, I0):
         self.I0 = I0
+        self.set_field_type()
 
     def set_G1(self, G1):
         self.G1 = G1
+        self.set_field_type()
 
     def set_I1(self, I1):
         self.I1 = I1
+        self.set_field_type()
 
     def set_K1(self, K1):
         self.K1 = K1
+        self.set_field_type()
 
     def set_iota0(self, iota0):
         self.iota0 = iota0
