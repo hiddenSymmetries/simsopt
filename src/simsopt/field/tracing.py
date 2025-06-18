@@ -596,7 +596,6 @@ class ToroidalTransitStoppingCriterion(sopp.ToroidalTransitStoppingCriterion):
     """
     pass
 
-
 class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     """
     Stop the iteration once the maximum number of iterations is reached.
@@ -607,19 +606,5 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
 class StepSizeStoppingCriterion(sopp.StepSizeStoppingCriterion):
     """
     Stop the iteration once the step size is too small.
-    """
-    pass
-
-
-class VparStoppingCriterion(sopp.VparStoppingCriterion):
-    """
-    Stop the iteration once the maximum number of iterations is reached.
-    """
-    pass
-
-
-class ZetaStoppingCriterion(sopp.ZetaStoppingCriterion):
-    """
-    Stop the iteration once the maximum number of iterations is reached.
     """
     pass
