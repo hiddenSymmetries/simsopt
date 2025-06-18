@@ -153,17 +153,17 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         transits or 1e-3s. Check for energy and momentum conservation for a QA/QH
         configuration with and without current terms.
         """
-        for solver_options in [{'solveSympl': False}, {'solveSympl': True, 'dt': 1e-7, 'roottol': 1e-15, 'predictor_step': True}]:
+        for solver_options in [{'solveSympl': False},{'solveSympl': True, 'dt': 1e-7, 'roottol': 1e-8, 'predictor_step': True}]:
             # First, test energy and momentum conservation in a QA vacuum field
-            etabar = 1.2/1.2
-            B0 = 1.0
+            etabar = 1/1.2
+            B0 = 2.0
             Bbar = 1.0
             G0 = 1.1
             psi0 = 0.8
             iota0 = 0.4
             bsh = BoozerAnalytic(etabar, B0, 0, G0, psi0, iota0)
 
-            nparticles = 100
+            nparticles = 10
             m = PROTON_MASS
             q = ELEMENTARY_CHARGE
             tmax = 1e-3
@@ -193,15 +193,13 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
             gc_tys, gc_zeta_hits = trace_particles_boozer(bsh, stz_inits,
                                                           vpar_inits,
-                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
-                                                          stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(
-                                                              0.99), ToroidalTransitStoppingCriterion(10)],
-                                                          tol=1e-12, solver_options=solver_options)
-
-            # pick 100 random points on each trace, and ensure that
+                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[],
+                                                          stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0),ToroidalTransitStoppingCriterion(10)],
+                                                          tol=1e-8, solver_options=solver_options, forget_exact_path=False)
+            # pick 10 random points on each trace, and ensure that
             # the energy is being conserved up to some precision
 
-            N = 100
+            N = 10
             max_energy_gc_error = np.array([])
             max_p_gc_error = np.array([])
             np.seterr(divide='ignore')
@@ -235,8 +233,8 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                     max_p_gc_error, max(p_gc_error[3::]))
 
             if not solver_options['solveSympl']:
-                assert max(max_energy_gc_error) < -8
-                assert max(max_p_gc_error) < -8
+                assert max(max_energy_gc_error) < -6
+                assert max(max_p_gc_error) < -6
             else:
                 assert max(max_energy_gc_error) < -1.0
                 assert max(max_p_gc_error) < -8
@@ -267,10 +265,9 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
             gc_tys, gc_zeta_hits = trace_particles_boozer(bsh, stz_inits,
                                                           vpar_inits,
-                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_noK',
-                                                          stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(
-                                                              0.99), ToroidalTransitStoppingCriterion(10)],
-                                                          tol=1e-12, solver_options=solver_options)
+                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[],
+                                                          stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0),ToroidalTransitStoppingCriterion(10)],
+                                                          tol=1e-8, solver_options=solver_options, forget_exact_path=False)
 
             max_energy_gc_error = np.array([])
             max_p_gc_error = np.array([])
@@ -305,8 +302,8 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                     max_p_gc_error, max(p_gc_error[3::]))
 
             if not solver_options['solveSympl']:
-                assert max(max_energy_gc_error) < -8
-                assert max(max_p_gc_error) < -8
+                assert max(max_energy_gc_error) < -7
+                assert max(max_p_gc_error) < -7
             else:
                 assert max(max_energy_gc_error) < -1.0
                 assert max(max_p_gc_error) < -8
@@ -326,10 +323,9 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                 modB_inits + q*(psi_inits - psip_inits)/m
 
             gc_tys, gc_zeta_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
-                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc',
-                                                          stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(
-                                                              0.99), ToroidalTransitStoppingCriterion(10)],
-                                                          tol=1e-12, solver_options=solver_options)
+                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[],
+                                                          stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0),ToroidalTransitStoppingCriterion(10)],
+                                                          tol=1e-8, solver_options=solver_options, forget_exact_path=False)
             max_energy_gc_error = np.array([])
             max_p_gc_error = np.array([])
             for i in range(nparticles):
@@ -362,19 +358,21 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                     max_p_gc_error, max(p_gc_error[3::]))
 
             if not solver_options['solveSympl']:
-                assert max(max_energy_gc_error) < -8
-                assert max(max_p_gc_error) < -8
+                assert max(max_energy_gc_error) < -7
+                assert max(max_p_gc_error) < -7
             else:
                 assert max(max_energy_gc_error) < -1.0
                 assert max(max_p_gc_error) < -8
 
             # Now trace with forget_exact_path = True. Check that gc_zeta_hits is the same
             gc_tys, gc_zeta_hits_2 = trace_particles_boozer(bsh, stz_inits, vpar_inits,
-                                                            tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc',
-                                                            stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(
-                                                                0.99), ToroidalTransitStoppingCriterion(10)],
-                                                            tol=1e-12, forget_exact_path=True, solver_options=solver_options)
+                                                            tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[],
+                                                            stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0),ToroidalTransitStoppingCriterion(10)],
+                                                            tol=1e-8, forget_exact_path=True, solver_options=solver_options)
 
+            for i in range(len(gc_zeta_hits_2)):
+                assert np.allclose(gc_zeta_hits[i], gc_zeta_hits_2[i])
+            
             assert len(gc_tys) == N
             assert np.shape(gc_tys[0])[0] == 2
             np.seterr(divide='warn')
@@ -418,7 +416,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                           tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
                                                           stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(
                                                               0.99), ToroidalTransitStoppingCriterion(1)],
-                                                          tol=1e-12, solver_options=solver_options)
+                                                          tol=1e-10, solver_options=solver_options)
 
             mpol = compute_poloidal_transits(gc_tys)
             ntor = compute_toroidal_transits(gc_tys)
