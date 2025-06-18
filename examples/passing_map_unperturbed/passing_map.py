@@ -5,16 +5,18 @@ import sys
 from booz_xform import Booz_xform
 from simsopt.field.boozermagneticfield import BoozerRadialInterpolant, InterpolatedBoozerField
 from simsopt.util.constants import ALPHA_PARTICLE_MASS, FUSION_ALPHA_PARTICLE_ENERGY,ALPHA_PARTICLE_CHARGE
-from simsopt.plotting.plotting_helpers import passing_poincare_plot
 from simsopt.util.functions import proc0_print
+from simsopt.field.trajectory_helpers import PassingPoincare
 
 try:
     from mpi4py import MPI
     comm = MPI.COMM_WORLD
     comm_size = comm.size 
+    verbose = (comm.rank == 0)
 except ImportError:
     comm = None
     comm_size = 1
+    verbose = True 
 
 boozmn_filename = '../inputs/boozmn_aten_rescaled.nc' 
 
@@ -51,9 +53,12 @@ thetarange = (0, np.pi, ntheta_interp)
 zetarange = (0, 2*np.pi/nfp, nzeta_interp)
 field = InterpolatedBoozerField(bri, degree, srange, thetarange, zetarange, True, nfp=nfp, stellsym=True)
 
-s_all, thetas_all, vpars_all = passing_poincare_plot(field,lam,sign_vpar,mass,charge,Ekin,
-                                                     ns_poinc=ns_poinc,ntheta_poinc=ntheta_poinc,
-                                                     Nmaps=Nmaps,comm=comm,solver_options={'reltol':tol,'abstol':tol})
+poinc = PassingPoincare(field,lam,sign_vpar,mass,charge,Ekin,
+                        ns_poinc=ns_poinc,ntheta_poinc=ntheta_poinc,
+                        Nmaps=Nmaps,comm=comm,solver_options={'reltol':tol,'abstol':tol})
+
+if verbose:
+    poinc.plot_poincare()
 
 time2 = time.time()
 
