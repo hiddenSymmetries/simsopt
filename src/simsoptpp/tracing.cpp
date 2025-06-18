@@ -528,12 +528,9 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     dense.initialize(y, t, dt);
     int iter = 0;
     bool stop = false;
-    double zeta_last;
-    double vpar_last = 0;
     double t_last = 0;
+    double t_current;
     t_last = t;
-    zeta_last = y[2];
-    vpar_last = y[3];
 
     // Save initial state
     ykeep = y;
@@ -546,22 +543,18 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     }
     res.push_back(join<1, RHS::Size>({0}, ykeep));
 
-    double zeta_current, vpar_current, t_current;
     do {
         tuple<double, double> step = dense.do_step(rhs);
         iter++;
         t = dense.current_time();
         y = dense.current_state();
-        zeta_current = y[2];
-        vpar_current = y[3];
         t_last = std::get<0>(step);
         t_current = std::get<1>(step);
-        dt = t_current - t_last;
+        dt = t_current - t_last; // Timestep taken 
 
         // Check if we have hit a stopping criterion between t_last and t_current
-        stop = check_stopping_criteria<RHS,dense_stepper_type>(rhs, y, iter, res, res_hits, dense, t_last, 
-            t_current, dt, zeta_last, zeta_current, vpar_last, vpar_current, abstol, zetas, omegas, stopping_criteria, 
-            vpars, zetas_stop, vpars_stop);
+        stop = check_stopping_criteria<RHS,dense_stepper_type>(rhs, iter, res_hits, dense, t_last, 
+            t_current, dt, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop);
 
         // Save path if forget_exact_path = False
         if (forget_exact_path == 0) {
@@ -587,8 +580,6 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
                 }
             }
         } 
-        zeta_last = zeta_current;
-        vpar_last = vpar_current;
     } while(t < tmax && !stop);
     // Save t = tmax
     if (stop) {

@@ -119,20 +119,25 @@ array<double, m+n> join(const array<double, m>& a, const array<double, n>& b)
 }
 
 template<class RHS, class DENSE>
-bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<array<double, RHS::Size+1>> &res, 
-    vector<array<double, RHS::Size+2>> &res_hits, DENSE dense, double t_last, double t_current, double dt, 
-    double zeta_last, double zeta_current, double vpar_last, double vpar_current, double abstol, vector<double> zetas, 
-    vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, 
-    bool zetas_stop, bool vpars_stop)
+bool check_stopping_criteria(RHS rhs, int iter, vector<array<double, RHS::Size+2>> &res_hits, DENSE dense, double t_last, double t_current, double dt, 
+    double abstol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, 
+    vector<double> vpars, bool zetas_stop, bool vpars_stop)
 {
     typedef typename RHS::State State;
-    // abstol?
     boost::math::tools::eps_tolerance<double> roottol(-int(std::log2(abstol)));
     uintmax_t rootmaxit = 200;
-    State temp;
+    State temp, y;
 
     bool stop = false;
     array<double, RHS::Size> ykeep = {};
+
+    dense.calc_state(t_last, temp);
+    double zeta_last = temp[2];
+    double vpar_last = temp[3];
+
+    dense.calc_state(t_current, y);
+    double zeta_current = y[2];
+    double vpar_current = y[3];
 
     // Now check whether we have hit any of the vpar planes
     for (int i = 0; i < vpars.size(); ++i) {

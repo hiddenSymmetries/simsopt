@@ -210,8 +210,6 @@ tuple<vector<array<double, SymplField::Size+1>>, vector<array<double, SymplField
     double ptheta_old = f.ptheta;
 
     double t_last = t;
-    double zeta_last = y[2];
-    double vpar_last = y[3];
 
     // for interpolation
     sympl_dense dense;
@@ -319,11 +317,8 @@ tuple<vector<array<double, SymplField::Size+1>>, vector<array<double, SymplField
         t += dt;
 
         double t_current = t;
-        double zeta_current = y[2];
-        double vpar_current = y[3];
 
-        stop = check_stopping_criteria<SymplField,sympl_dense>(f, y, iter, 
-            res, res_hits, dense, t_last, t_current, dt, zeta_last, zeta_current, vpar_last, vpar_current, abstol, zetas, 
+        stop = check_stopping_criteria<SymplField,sympl_dense>(f, iter, res_hits, dense, t_last, t_current, dt, abstol, zetas, 
             omegas, stopping_criteria, vpars, zetas_stop, vpars_stop);
  
         // Save path if forget_exact_path = False
@@ -340,19 +335,13 @@ tuple<vector<array<double, SymplField::Size+1>>, vector<array<double, SymplField
 
             for (double t_save = t_save_last; t_save <= t_last; t_save += dt_save) {
                 if (t_save != 0) { // t = 0 is already saved. 
-                    vpar_last = res.back()[4];
-                    zeta_last = res.back()[3];
                     dense.calc_state(t_save, temp);
-                    vpar_current = temp[3];
-                    zeta_current = temp[2];
                     res.push_back(join<1,SymplField::Size>({t_save}, {temp}));
                 }
             }
         } 
 
         t_last = t_current;
-        zeta_last = zeta_current;
-        vpar_last = vpar_current;
     } while(t < tmax && !stop);
     // Save t = tmax
     if(!stop){
