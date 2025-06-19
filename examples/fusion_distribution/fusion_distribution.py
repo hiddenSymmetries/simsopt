@@ -2,17 +2,28 @@ import sys
 import numpy as np
 import time
 
-from simsopt.field.boozermagneticfield import BoozerRadialInterpolant, InterpolatedBoozerField
-from simsopt.field.tracing import trace_particles_boozer, MaxToroidalFluxStoppingCriterion
+from simsopt.field.boozermagneticfield import (
+    BoozerRadialInterpolant,
+    InterpolatedBoozerField,
+)
+from simsopt.field.tracing import (
+    trace_particles_boozer,
+    MaxToroidalFluxStoppingCriterion,
+)
 from simsopt.field.tracing_helpers import initialize_position_profile
-from simsopt.util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
+from simsopt.util.constants import (
+    ALPHA_PARTICLE_MASS,
+    ALPHA_PARTICLE_CHARGE,
+    FUSION_ALPHA_PARTICLE_ENERGY,
+)
 from simsopt.util.functions import proc0_print
 
 try:
     from mpi4py import MPI
+
     comm = MPI.COMM_WORLD
-    verbose = (comm.rank == 0)
-    comm_size = comm.size 
+    verbose = comm.rank == 0
+    comm_size = comm.size
 except ImportError:
     comm = None
     verbose = True
@@ -20,14 +31,14 @@ except ImportError:
 
 time1 = time.time()
 
-resolution = 48 # Resolution for field interpolation
-nParticles = 5000 # Number of particles to trace
-reltol = 1e-8 # Relative tolerance for the ODE solver
-abstol = 1e-8 # Absolute tolerance for the ODE solver
-order = 3 # Order for radial interpolation
-degree = 3 # Degree for 3d interpolation
-boozmn_filename = '../inputs/boozmn_aten_rescaled.nc' 
-tmax = 1e-2 # Time for integration
+resolution = 48  # Resolution for field interpolation
+nParticles = 5000  # Number of particles to trace
+reltol = 1e-8  # Relative tolerance for the ODE solver
+abstol = 1e-8  # Absolute tolerance for the ODE solver
+order = 3  # Order for radial interpolation
+degree = 3  # Degree for 3d interpolation
+boozmn_filename = "../inputs/boozmn_aten_rescaled.nc"
+tmax = 1e-2  # Time for integration
 ns_interp = resolution
 ntheta_interp = resolution
 nzeta_interp = resolution
@@ -35,67 +46,86 @@ nzeta_interp = resolution
 sys.stdout = open(f"stdout_{nParticles}_{resolution}_{comm_size}.txt", "a", buffering=1)
 
 ## Setup radial interpolation
-bri = BoozerRadialInterpolant(boozmn_filename,order,no_K=True,comm=comm)
-nfp = bri.nfp 
+bri = BoozerRadialInterpolant(boozmn_filename, order, no_K=True, comm=comm)
+nfp = bri.nfp
 
 ## Setup 3d interpolation
-srange = (0, 1, ns_interp)
-thetarange = (0, np.pi, ntheta_interp)
-zetarange = (0, 2*np.pi/nfp, nzeta_interp)
-field = InterpolatedBoozerField(bri, degree, srange, thetarange, zetarange, True, nfp=nfp, stellsym=True)
+field = InterpolatedBoozerField(
+    bri,
+    degree,
+    ns_interp=ns_interp,
+    ntheta_interp=ntheta_interp,
+    nzeta_interp=nzeta_interp,
+    nfp=nfp,
+    stellsym=True,
+)
 
-# Define fusion birth distribution 
+# Define fusion birth distribution
 # Bader, A., et al. "Modeling of energetic particle transport in optimized stellarators." Nuclear Fusion 61.11 (2021): 116060.
-nD = lambda s: (1 - s**5) # Normalized density
+nD = lambda s: (1 - s**5)  # Normalized density
 nT = nD
-T = lambda s: 11.5 * (1 - s) # Temperature in keV 
-# D-T cross-section 
+T = lambda s: 11.5 * (1 - s)  # Temperature in keV
+
+
+# D-T cross-section
 def sigmav(T):
-    if T > 0: 
-        return T**(-2/3) * np.exp(-19.94 * T**(-1/3)) 
-    else: 
-        return 0 
+    if T > 0:
+        return T ** (-2 / 3) * np.exp(-19.94 * T ** (-1 / 3))
+    else:
+        return 0
+
+
 # Reactivity profile
 reactivity = lambda s: nD(s) * nT(s) * sigmav(T(s))
 
 points = initialize_position_profile(field, nParticles, reactivity, nfp, comm=comm)
 
-Ekin=FUSION_ALPHA_PARTICLE_ENERGY
-mass=ALPHA_PARTICLE_MASS
-charge=ALPHA_PARTICLE_CHARGE 
+Ekin = FUSION_ALPHA_PARTICLE_ENERGY
+mass = ALPHA_PARTICLE_MASS
+charge = ALPHA_PARTICLE_CHARGE
 # Initialize uniformly distributed parallel velocities
-vpar0=np.sqrt(2*Ekin/mass)
-if verbose: 
-    vpar_init = np.random.uniform(-vpar0,vpar0,(nParticles,))
-else: 
+vpar0 = np.sqrt(2 * Ekin / mass)
+if verbose:
+    vpar_init = np.random.uniform(-vpar0, vpar0, (nParticles,))
+else:
     vpar_init = None
-if (comm is not None):
+if comm is not None:
     vpar_init = comm.bcast(vpar_init, root=0)
 
-solver_options = {'abstol': abstol, 'reltol': reltol, 'axis': 2}
+solver_options = {"abstol": abstol, "reltol": reltol, "axis": 2}
 
-## Trace alpha particles in Boozer coordinates until they hit the s = 1 surface 
+## Trace alpha particles in Boozer coordinates until they hit the s = 1 surface
 res_tys, res_zeta_hits = trace_particles_boozer(
-        field, points, vpar_init, tmax=tmax, mass=mass, charge=charge, comm=comm,
-        Ekin=Ekin, stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
-        forget_exact_path=True, solver_options=solver_options)
+    field,
+    points,
+    vpar_init,
+    tmax=tmax,
+    mass=mass,
+    charge=charge,
+    comm=comm,
+    Ekin=Ekin,
+    stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
+    forget_exact_path=True,
+    solver_options=solver_options,
+)
 
 time2 = time.time()
-proc0_print("Elapsed time for tracing = ",time2-time1)
+proc0_print("Elapsed time for tracing = ", time2 - time1)
 
 ## Post-process results to obtain lost particles
-if (verbose):
+if verbose:
     from simsopt.field.trajectory_helpers import compute_loss_fraction
 
-    times, loss_frac = compute_loss_fraction(res_tys,tmin=1e-5,tmax=1e-2)
-    import matplotlib 
-    matplotlib.use('Agg') # Don't use interactive backend 
+    times, loss_frac = compute_loss_fraction(res_tys, tmin=1e-5, tmax=1e-2)
+    import matplotlib
+
+    matplotlib.use("Agg")  # Don't use interactive backend
     import matplotlib.pyplot as plt
 
     plt.figure()
     plt.loglog(times, loss_frac)
-    plt.xlim([1e-5,1e-2])
-    plt.ylim([1e-3,1])
-    plt.xlabel('Time [s]')
-    plt.ylabel('Fraction of lost particles')
-    plt.savefig('loss_fraction.png')
+    plt.xlim([1e-5, 1e-2])
+    plt.ylim([1e-3, 1])
+    plt.xlabel("Time [s]")
+    plt.ylabel("Fraction of lost particles")
+    plt.savefig("loss_fraction.png")

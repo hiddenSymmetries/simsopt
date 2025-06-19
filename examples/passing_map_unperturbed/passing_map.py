@@ -1,60 +1,83 @@
 import numpy as np
 import time
-import sys 
+import sys
 
-from simsopt.field.boozermagneticfield import BoozerRadialInterpolant, InterpolatedBoozerField
-from simsopt.util.constants import ALPHA_PARTICLE_MASS, FUSION_ALPHA_PARTICLE_ENERGY,ALPHA_PARTICLE_CHARGE
+from simsopt.field.boozermagneticfield import (
+    BoozerRadialInterpolant,
+    InterpolatedBoozerField,
+)
+from simsopt.util.constants import (
+    ALPHA_PARTICLE_MASS,
+    FUSION_ALPHA_PARTICLE_ENERGY,
+    ALPHA_PARTICLE_CHARGE,
+)
 from simsopt.util.functions import proc0_print
 from simsopt.field.trajectory_helpers import PassingPoincare
 
 try:
     from mpi4py import MPI
+
     comm = MPI.COMM_WORLD
-    comm_size = comm.size 
-    verbose = (comm.rank == 0)
+    comm_size = comm.size
+    verbose = comm.rank == 0
 except ImportError:
     comm = None
     comm_size = 1
-    verbose = True 
+    verbose = True
 
-boozmn_filename = '../inputs/boozmn_aten_rescaled.nc' 
+boozmn_filename = "../inputs/boozmn_aten_rescaled.nc"
 
 charge = ALPHA_PARTICLE_CHARGE
 mass = ALPHA_PARTICLE_MASS
 Ekin = FUSION_ALPHA_PARTICLE_ENERGY
 
-resolution = 48 # Resolution for field interpolation
-sign_vpar = 1.0 # sign(vpar). should be +/- 1. 
-lam = 0.0 # lambda = v_perp^2/(v^2 B) = const. along trajectory
-ntheta_poinc = 1 # Number of zeta initial conditions for poincare
-ns_poinc = 120 # Number of s initial conditions for poincare
-Nmaps = 1000 # Number of Poincare return maps to compute
-ns_interp = resolution # number of radial grid points for interpolation
-ntheta_interp = resolution # number of poloidal grid points for interpolation
-nzeta_interp = resolution # number of toroidal grid points for interpolation
-order = 3 # order for interpolation
-tol = 1e-8 # Tolerance for ODE solver
+resolution = 48  # Resolution for field interpolation
+sign_vpar = 1.0  # sign(vpar). should be +/- 1.
+lam = 0.0  # lambda = v_perp^2/(v^2 B) = const. along trajectory
+ntheta_poinc = 1  # Number of zeta initial conditions for poincare
+ns_poinc = 120  # Number of s initial conditions for poincare
+Nmaps = 1000  # Number of Poincare return maps to compute
+ns_interp = resolution  # number of radial grid points for interpolation
+ntheta_interp = resolution  # number of poloidal grid points for interpolation
+nzeta_interp = resolution  # number of toroidal grid points for interpolation
+order = 3  # order for interpolation
+tol = 1e-8  # Tolerance for ODE solver
+degree = 3  # Degree for Lagrange interpolation
 
 sys.stdout = open(f"stdout_passing_map_{resolution}_{comm_size}.txt", "a", buffering=1)
 
 time1 = time.time()
 
-bri = BoozerRadialInterpolant(boozmn_filename,order,no_K=True,comm=comm)
+bri = BoozerRadialInterpolant(boozmn_filename, order, no_K=True, comm=comm)
 nfp = bri.nfp
 
-degree = 3
-srange = (0, 1, ns_interp)
-thetarange = (0, np.pi, ntheta_interp)
-zetarange = (0, 2*np.pi/nfp, nzeta_interp)
-field = InterpolatedBoozerField(bri, degree, srange, thetarange, zetarange, True, nfp=nfp, stellsym=True)
+field = InterpolatedBoozerField(
+    bri,
+    degree,
+    ns_interp=ns_interp,
+    ntheta_interp=ntheta_interp,
+    nzeta_interp=nzeta_interp,
+    nfp=nfp,
+    stellsym=True,
+)
 
-poinc = PassingPoincare(field,lam,sign_vpar,mass,charge,Ekin,
-                        ns_poinc=ns_poinc,ntheta_poinc=ntheta_poinc,
-                        Nmaps=Nmaps,comm=comm,solver_options={'reltol':tol,'abstol':tol})
+poinc = PassingPoincare(
+    field,
+    lam,
+    sign_vpar,
+    mass,
+    charge,
+    Ekin,
+    ns_poinc=ns_poinc,
+    ntheta_poinc=ntheta_poinc,
+    Nmaps=Nmaps,
+    comm=comm,
+    solver_options={"reltol": tol, "abstol": tol},
+)
 
 if verbose:
     poinc.plot_poincare()
 
 time2 = time.time()
 
-proc0_print('poincare time: ',time2-time1)
+proc0_print("poincare time: ", time2 - time1)
