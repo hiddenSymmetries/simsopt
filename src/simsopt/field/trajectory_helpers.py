@@ -1,7 +1,8 @@
 import numpy as np
 
-from ..field.tracing import trace_particles_boozer, MaxToroidalFluxStoppingCriterion
+from ..field.tracing import trace_particles_boozer, MaxToroidalFluxStoppingCriterion, MinToroidalFluxStoppingCriterion
 from .._core.util import parallel_loop_bounds
+from ..util.functions import proc0_print
 
 __all__ = ['compute_loss_fraction','compute_trajectory_cylindrical','PassingPoincare','trajectory_to_vtk']
 
@@ -181,10 +182,9 @@ class PassingPoincare:
         points[:,2] = 0
 
         # Set solver options needed for passing map 
-        self.solver_options.setdefault('vpars_stop',True)
-        self.solver_options.setdefault('zetas_stop',True)
+        self.solver_options.update({'vpars_stop':True, 'zetas_stop':True})
         res_tys, res_hits = trace_particles_boozer(self.field, points, [point[2]], tmax=self.tmax, mass=self.mass, charge=self.charge,
-                Ekin=self.Ekin, zetas=[0], vpars=[0], omegas=[0], stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
+                Ekin=self.Ekin, zetas=[0], vpars=[0], omegas=[0], stopping_criteria=[MinToroidalFluxStoppingCriterion(0.01),MaxToroidalFluxStoppingCriterion(1.0)],
                 forget_exact_path=False,solver_options=self.solver_options)
         res_hit = res_hits[0][0,:] # Only check the first hit or stopping criterion
 
@@ -253,34 +253,45 @@ class PassingPoincare:
             omega_zeta : List of toroidal transit frequencies.
             init_s : List of initial s values for each trajectory.
         """
-        self.field.set_points([1, 0, 0])
+        if self.solver_options['axis'] != 0:
+            raise ValueError('ODE solver must integrate with solver_options["axis"]=0 to compute passing frequencies.')
+            
+        self.field.set_points(np.array([[1],[0],[0]]).T)
         sign_G = np.sign(self.field.G()[0])
 
         omega_theta = []
         omega_zeta = []
         init_s = []
         for s_traj, theta_traj, vpar_traj, t_traj in zip(self.s_all, self.thetas_all, self.vpars_all, self.t_all):
-            delta_theta = np.array(theta_traj[1:]) - np.array(theta_traj[:-1])
-            delta_t = np.array(t_traj[1:]) - np.array(t_traj[:-1])
-            delta_zeta = 2 * np.pi * np.sign(vpar_traj[0]) * sign_G
+            if len(s_traj) < 2: # Need at least one full Poincare return maps to compute frequency
+                continue
+            delta_theta = np.array(theta_traj[1::]) - np.array(theta_traj[0:-1])
+            
+            delta_t = np.array(t_traj[1::]) - np.array(t_traj[0:-1])
+            delta_zeta = 2 * np.pi * self.sign_vpar * sign_G
 
-            # Average over wells along one field line 
-            freq_theta = np.mean(delta_theta / delta_t) 
-            freq_zeta = np.mean(delta_zeta / delta_t)
+            # Average over wells along one field line
+            freq_theta = np.mean(delta_theta)/np.mean(delta_t)
+            freq_zeta = delta_zeta/np.mean(delta_t)
 
             omega_theta.append(freq_theta)
             omega_zeta.append(freq_zeta)
             init_s.append(np.mean(s_traj))
 
+        omega_theta = np.array(omega_theta)
+        omega_zeta = np.array(omega_zeta)
+        init_s = np.array(init_s)
+
         s_prof = np.unique(init_s)
         omega_theta_prof = np.zeros((len(s_prof),))
         omega_zeta_prof = np.zeros((len(s_prof),))
+
         # Average over field-line label 
         for i, s in enumerate(s_prof):
-            omega_theta_prof[i] = np.mean([omega_theta[j] for j in range(len(init_s)) if init_s[j] == s])
-            omega_zeta_prof[i] = np.mean([omega_zeta[j] for j in range(len(init_s)) if init_s[j] == s])
+            omega_theta_prof[i] = np.mean(omega_theta[np.where(init_s==s)])
+            omega_zeta_prof[i] = np.mean(omega_zeta[np.where(init_s==s)])
 
-        return omega_theta_prof, omega_zeta, s_prof
+        return omega_theta_prof, omega_zeta_prof, s_prof
 
     def get_poincare_data(self):
         """
