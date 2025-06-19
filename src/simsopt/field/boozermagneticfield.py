@@ -332,8 +332,9 @@ class BoozerMagneticField(sopp.BoozerMagneticField):
             'vac', 'nok', or ''. 
     """
 
-    def __init__(self, psi0, field_type='vac'):
+    def __init__(self, psi0, field_type='vac', nfp=1):
         self.psi0 = psi0
+        self.nfp = nfp 
         field_type = field_type.lower()
         assert field_type in ['vac','nok','']
         self.field_type = field_type 
@@ -964,7 +965,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         if (not self.no_K):
             self.compute_K()
 
-        BoozerMagneticField.__init__(self, self.psi0, self.field_type)
+        BoozerMagneticField.__init__(self, self.psi0, self.field_type, self.nfp)
 
     def init_splines(self):
         self.xm_b = self.bx.xm_b
@@ -1771,7 +1772,7 @@ class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField)
                 or (field_type == '' and (initialize != initialize_gen))):
                 warnings.warn(f"initialize list does not match field_type={field_type}. Proceeding with initialize={initialize}",RuntimeWarning)
         
-        BoozerMagneticField.__init__(self, field.psi0, self.field_type)
+        BoozerMagneticField.__init__(self, field.psi0, self.field_type, nfp)
         if (np.any(np.asarray(thetarange[0:2]) < 0) or np.any(np.asarray(thetarange[0:2]) > 2*np.pi)):
             raise ValueError("thetamin and thetamax must be in [0,2*pi]")
         if (np.any(np.asarray(zetarange[0:2]) < 0) or np.any(np.asarray(zetarange[0:2]) > 2*np.pi)):
