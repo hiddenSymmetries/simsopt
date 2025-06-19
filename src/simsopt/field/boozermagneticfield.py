@@ -847,6 +847,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                     self.bx = booz
                 elif basename[:4] == 'booz':
                     booz = Booz_xform()
+                    booz.verbose = verbose
                     booz.read_boozmn(equil)
                     self.bx = booz
                     # Check if grid does not have correct size

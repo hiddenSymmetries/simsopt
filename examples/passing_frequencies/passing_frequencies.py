@@ -2,7 +2,6 @@ import numpy as np
 import time
 import sys 
 
-from booz_xform import Booz_xform
 from simsopt.field.boozermagneticfield import BoozerRadialInterpolant, InterpolatedBoozerField
 from simsopt.util.constants import ALPHA_PARTICLE_MASS, FUSION_ALPHA_PARTICLE_ENERGY,ALPHA_PARTICLE_CHARGE
 from simsopt.util.functions import proc0_print
@@ -38,14 +37,10 @@ tol = 1e-8 # Tolerance for ODE solver
 
 sys.stdout = open(f"stdout_passing_freq_{resolution}_{comm_size}.txt", "a", buffering=1)
 
-equil = Booz_xform()
-equil.verbose = 0
-equil.read_boozmn(boozmn_filename)
-nfp = equil.nfp
-
 time1 = time.time()
 
-bri = BoozerRadialInterpolant(equil,order,no_K=True,comm=comm,N=nfp)
+bri = BoozerRadialInterpolant(boozmn_filename,order,no_K=True,comm=comm,N=4)
+nfp = bri.nfp
 
 degree = 3
 srange = (0, 1, ns_interp)

@@ -1,10 +1,7 @@
-import os
 import sys
 import numpy as np
-import builtins
 import time
 
-from booz_xform import Booz_xform
 from simsopt.field.boozermagneticfield import BoozerRadialInterpolant, InterpolatedBoozerField
 from simsopt.field.tracing import trace_particles_boozer, MaxToroidalFluxStoppingCriterion
 from simsopt.field.tracing_helpers import initialize_position_uniform_surf
@@ -37,14 +34,9 @@ nzeta_interp = resolution
 
 sys.stdout = open(f"stdout_{nParticles}_{resolution}_{comm_size}.txt", "a", buffering=1)
 
-## Setup Booz_xform object
-equil = Booz_xform()
-equil.verbose = 0
-equil.read_boozmn(boozmn_filename)
-nfp = equil.nfp
-
 ## Setup radial interpolation
-bri = BoozerRadialInterpolant(equil,order,no_K=True,comm=comm)
+bri = BoozerRadialInterpolant(boozmn_filename,order,no_K=True,comm=comm)
+nfp = bri.nfp
 
 ## Setup 3d interpolation
 srange = (0, 1, ns_interp)
