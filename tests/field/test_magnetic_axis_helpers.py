@@ -4,8 +4,7 @@ import numpy as np
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import coils_via_symmetries
 from simsopt.field.magnetic_axis_helpers import compute_on_axis_iota
-from simsopt.configs.zoo import get_ncsx_data, get_hsx_data, get_giuliani_data
-
+from simsopt.configs.zoo import get_data
 
 class MagneticAxisHelpers(unittest.TestCase):
 
@@ -13,11 +12,11 @@ class MagneticAxisHelpers(unittest.TestCase):
         """
         Verify that the rotational transform can be computed on axis
         """
-        for (get_data, target_iota) in zip([get_hsx_data, get_ncsx_data, get_giuliani_data], [1.0418687161633922, 0.39549339846119463, 0.42297724084249616]):
-            self.subtest_magnetic_axis_iota(get_data, target_iota)
+        for (config, target_iota) in zip(["hsx", "ncsx", "giuliani"], [1.0418687161633922, 0.39549339846119463, 0.42297724084249616]):
+            self.subtest_magnetic_axis_iota(config, target_iota)
 
-    def subtest_magnetic_axis_iota(self, get_data, target_iota):
-        curves, currents, ma = get_data()
+    def subtest_magnetic_axis_iota(self, config, target_iota):
+        curves, currents, ma, _ = get_data(config)
         coils = coils_via_symmetries(curves, currents, ma.nfp, True)
         iota = compute_on_axis_iota(ma, BiotSavart(coils))
         np.testing.assert_allclose(iota, target_iota, rtol=1e-10, atol=1e-10)

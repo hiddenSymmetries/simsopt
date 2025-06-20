@@ -17,12 +17,12 @@ import numpy as np
 from scipy.optimize import minimize
 from simsopt.geo import CoilStrain, LPTorsionalStrainPenalty, LPBinormalCurvatureStrainPenalty
 from simsopt.geo import FrameRotation, FramedCurveCentroid, CurveXYZFourier
-from simsopt.configs import get_hsx_data
+from simsopt.configs import get_data
 from simsopt.util import in_github_actions
 
 MAXITER = 50 if in_github_actions else 400
 
-curves, currents, ma = get_hsx_data(Nt_coils=10, ppp=10)
+curves, currents, ma, _ = get_data("hsx", Nt_coils=10, ppp=10)
 curve = curves[1]
 scale_factor = 0.1
 curve_scaled = CurveXYZFourier(curve.quadpoints, curve.order)

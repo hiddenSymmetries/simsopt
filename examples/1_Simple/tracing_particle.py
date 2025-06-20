@@ -15,7 +15,7 @@ import logging
 import sys
 import numpy as np
 
-from simsopt.configs import get_ncsx_data
+from simsopt.configs import get_data
 from simsopt.field import (BiotSavart, InterpolatedField, coils_via_symmetries, trace_particles_starting_on_curve,
                            SurfaceClassifier, LevelsetStoppingCriterion, plot_poincare_data)
 from simsopt.geo import SurfaceRZFourier, curves_to_vtk
@@ -39,7 +39,7 @@ OUT_DIR = "./output/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 nfp = 3
-curves, currents, ma = get_ncsx_data()
+curves, currents, ma, _ = get_data("ncsx")
 coils = coils_via_symmetries(curves, currents, nfp, True)
 curves = [c.curve for c in coils]
 bs = BiotSavart(coils)

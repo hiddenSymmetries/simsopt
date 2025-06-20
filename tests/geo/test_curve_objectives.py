@@ -12,7 +12,7 @@ from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, \
     MeanSquaredCurvature, CurveSurfaceDistance, LinkingNumber
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.field.coil import coils_via_symmetries
-from simsopt.configs.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_data
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 import simsoptpp as sopp
 
@@ -295,7 +295,7 @@ class Testing(unittest.TestCase):
 
     def test_minimum_distance_candidates_symmetry(self):
         from scipy.spatial.distance import cdist
-        base_curves, base_currents, _ = get_ncsx_data(Nt_coils=10)
+        base_curves, base_currents, _, _ = get_data("ncsx", Nt_coils=10)
         curves = [c.curve for c in coils_via_symmetries(base_curves, base_currents, 3, True)]
         for t in np.linspace(0.05, 0.5, num=10):
             Jnosym = CurveCurveDistance(curves, t)
@@ -315,7 +315,7 @@ class Testing(unittest.TestCase):
 
     def test_curve_surface_distance(self):
         np.random.seed(0)
-        base_curves, base_currents, _ = get_ncsx_data(Nt_coils=10)
+        base_curves, base_currents, _, _ = get_data("ncsx", Nt_coils=10)
         curves = [c.curve for c in coils_via_symmetries(base_curves, base_currents, 3, True)]
         ntor = 0
         surface = SurfaceRZFourier.from_nphi_ntheta(nfp=3, nphi=32, ntheta=32, ntor=ntor)

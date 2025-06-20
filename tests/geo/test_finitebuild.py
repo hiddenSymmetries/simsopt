@@ -7,7 +7,7 @@ from simsopt.geo import CurveFilament, FrameRotation, \
     create_multifilament_grid, ZeroRotation, FramedCurveCentroid, FramedCurveFrenet
 from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.objectives.utilities import QuadraticPenalty
-from simsopt.configs.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_data
 
 import numpy as np
 
@@ -22,7 +22,7 @@ class MultifilamentTesting(unittest.TestCase):
 
     def subtest_multifilament_gammadash(self, order, centroid):
         assert order in [1, None]
-        curves, currents, ma = get_ncsx_data(Nt_coils=6, ppp=120)
+        curves, currents, ma, _ = get_data("ncsx", Nt_coils=6, ppp=120)
         c = curves[0]
 
         if order == 1:
@@ -63,7 +63,7 @@ class MultifilamentTesting(unittest.TestCase):
     def subtest_multifilament_coefficient_derivative(self, order, centroid):
         assert order in [1, None]
 
-        curves, currents, ma = get_ncsx_data(Nt_coils=4, ppp=10)
+        curves, currents, ma, _ = get_data("ncsx", Nt_coils=4, ppp=10)
         c = curves[0]
 
         if order == 1:
@@ -118,7 +118,7 @@ class MultifilamentTesting(unittest.TestCase):
             errg_old = errg
 
     def test_filamentpack(self):
-        curves, currents, ma = get_ncsx_data(Nt_coils=6, ppp=80)
+        curves, currents, ma, _ = get_data("ncsx", Nt_coils=6, ppp=80)
         c = curves[0]
 
         gapsize_n = 0.01
@@ -163,7 +163,7 @@ class MultifilamentTesting(unittest.TestCase):
         on the underlying curve (not the finite build filaments)
         """
         np.random.seed(1)
-        base_curves, base_currents, ma = get_ncsx_data(Nt_coils=5)
+        base_curves, base_currents, ma, _ = get_data("ncsx", Nt_coils=5)
 
         for frame in ['centroid', 'frenet']:
 

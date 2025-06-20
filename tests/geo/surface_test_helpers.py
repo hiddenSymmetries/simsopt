@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import numpy as np
-from simsopt.configs import get_ncsx_data
+from simsopt.configs import get_data
 from simsopt.field import coils_via_symmetries, BiotSavart
 from simsopt.geo import Volume, Area, ToroidalFlux, SurfaceXYZFourier, SurfaceRZFourier, SurfaceXYZTensorFourier, BoozerSurface, AspectRatio
 
@@ -84,7 +84,8 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exac
     if boozer_type == 'exact':
         assert weight_inv_modB == False
 
-    base_curves, base_currents, ma = get_ncsx_data()
+    base_curves, base_currents, ma, _ = get_data("ncsx")
+
     coils = coils_via_symmetries(base_curves, base_currents, 3, True)
     bs = BiotSavart(coils)
     current_sum = sum(abs(c.current.get_value()) for c in coils)

@@ -11,7 +11,7 @@ except ImportError:
 
 from simsopt.field.coil import coils_via_symmetries
 from simsopt.field.biotsavart import BiotSavart
-from simsopt.configs.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_data
 from simsopt.field.tracing import trace_particles_starting_on_curve, compute_fieldlines
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
@@ -23,7 +23,7 @@ class MPITracingTesting(unittest.TestCase):
         super(MPITracingTesting, self).__init__(*args, **kwargs)
         logger = logging.getLogger('simsopt.field.tracing')
         logger.setLevel(1)
-        curves, currents, ma = get_ncsx_data()
+        curves, currents, ma, _ = get_data("ncsx")
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
