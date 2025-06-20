@@ -34,65 +34,66 @@ def get_data(name, **kwargs):
 
     Returns
     -------
-    4-element tuple (`curves`, `currents`, `ma`,  `bs`)
-    - `curves` : list of CurveXYZFourier  
-      The coil curves, with length determined by `Nt_coils` and `ppp`.  
-    - `currents` : list of Current  
-      Corresponding coil currents.  
-    - `ma` : CurveRZFourier  
-      The magnetic axis, of order `Nt_ma`, with `nfp` field periods.  
-    - `bs` : BiotSavart  
-      The Biot–Savart operator assembled from `curves` and `currents`.
+    **tuple**
+        *4-element tuple* ``(curves, currents, ma, bs)``,where:
+
+    curves : list of :class:`CurveXYZFourier` 
+        The coil curves, with length determined by ``Nt_coils`` and ``ppp``.
+    currents : list of :class:`Current`
+        Corresponding coil currents.
+    ma : :class:`CurveRZFourier`
+        The magnetic axis, of order ``Nt_ma``, with ``nfp`` field periods.
+    bs : :class:`BiotSavart`
+        The Biot–Savart operator assembled from ``curves`` and ``currents``.
 
 
     Notes
     -----
-    All of the above keyword arguments may be overridden via `kwargs`.
     
-    **Configurations**
+    Available configurations:
 
-    *NCSX*  
-    Get a configuration that corresponds to the modular coils of the NCSX
-    experiment (circular coils are not included).
+    ``name="ncsx"``
+        **Get a configuration that corresponds to the modular coils of the NCSX
+        experiment (circular coils are not included).**
 
-    *HSX*  
-    Get a configuration that corresponds to the modular coils of the HSX
-    experiment.
+    ``name="hsx"``
+        **Get a configuration that corresponds to the modular coils of the HSX
+        experiment.**
 
-    *Giuliani*  
-    This example simply loads the coils after the nine stage optimization
-    runs discussed in
+    ``name="giuliani"``
+       **This example simply loads the coils after the nine stage optimization runs discussed in**
 
-      A. Giuliani, F. Wechsung, M. Landreman, G. Stadler, A. Cerfon,
-      “Direct computation of magnetic surfaces in Boozer coordinates
-      and coil optimization for quasi-symmetry,” *Journal of Plasma Phys.*
+            *A. Giuliani, F. Wechsung, M. Landreman, G. Stadler, A. Cerfon,
+            “Direct computation of magnetic surfaces in Boozer coordinates
+            and coil optimization for quasi-symmetry,” Journal of Plasma Phys.*
 
-    *W7X*  
-    Get the W7-X coils and magnetic axis.
+    ``name="w7x"`` 
+        **Get the W7-X coils and magnetic axis.**
 
-    Note that this function returns 7 coils: the 5 unique non-planar
-    modular coils, and the 2 planar (A and B) coils. The coil currents
-    correspond to the "Standard configuration", in which the planar A and 
-    B coils carry no current. The shapes come from Fourier-transforming 
-    the `xgrid` file `coils.w7x_v001`, provided by Joachim Geiger (Sept 27, 2022) in an
-    email to Florian Wechsung and others,the Fourier modes here reproduce the Cartesian
-    coordinate data from coils.w7x_v001 to ~ 1e-13 meters. Some
-    description from Joachim:
+        Note that this function returns 7 coils: the 5 unique non-planar
+        modular coils, and the 2 planar (A and B) coils. The coil currents
+        correspond to the "Standard configuration", in which the planar A and 
+        B coils carry no current. The shapes come from Fourier-transforming 
+        the `xgrid` file `coils.w7x_v001`, provided by Joachim Geiger (Sept 27, 2022) in an
+        email to Florian Wechsung and others,the Fourier modes here reproduce the Cartesian
+        coordinate data from coils.w7x_v001 to **~ 1e-13 meters**. 
+        
+        **Some description from Joachim**:
 
-    > "I have attached two coils-files which contain the filaments
-    > suitable for generating the mgrid-file for VMEC with xgrid. They
-    > contain the non-planar and the planar coils in a one-filament
-    > approximation as used here for equilibrium calculations.  The two
-    > coil-sets are slightly different with respect to the planar coils
-    > (the non-planar coil geometry is the same), the w7x_v001 being the
-    > CAD-coil-set while the w7x-set has slightly older planar coils
-    > which I had used in a large number of calculations. The difference
-    > is small, but, depending on what accuracy is needed, noticeable.
-    > In case you want only one coil-set, I would suggest to use the
-    > CAD-coils, i.e. w7x_v001, although the other coil-set had been
-    > used in the PPCF-paper for citation.  If there are any further
-    > questions, do not hesitate to contact me."
-    
+            *"I have attached two coils-files which contain the filaments
+            suitable for generating the mgrid-file for VMEC with xgrid. They
+            contain the non-planar and the planar coils in a one-filament
+            approximation as used here for equilibrium calculations.  The two
+            coil-sets are slightly different with respect to the planar coils
+            (the non-planar coil geometry is the same), the w7x_v001 being the
+            CAD-coil-set while the w7x-set has slightly older planar coils
+            which I had used in a large number of calculations. The difference
+            is small, but, depending on what accuracy is needed, noticeable.
+            In case you want only one coil-set, I would suggest to use the
+            CAD-coils, i.e. w7x_v001, although the other coil-set had been
+            used in the PPCF-paper for citation.  If there are any further
+            questions, do not hesitate to contact me."*
+        
     """
     
     def add_default_args(kw_old, **kw_new):
