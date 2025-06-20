@@ -34,23 +34,23 @@ def get_data(name, **kwargs):
 
     Returns
     -------
-    **tuple**
-        *4-element tuple* ``(curves, currents, ma, bs)``,where:
+    tuple
+        *4-element tuple* ``(curves, currents, ma, bs)``, where:
 
-    curves : list of :class:`CurveXYZFourier` 
-        The coil curves, with length determined by ``Nt_coils`` and ``ppp``.
-    currents : list of :class:`Current`
-        Corresponding coil currents.
-    ma : :class:`CurveRZFourier`
-        The magnetic axis, of order ``Nt_ma``, with ``nfp`` field periods.
-    bs : :class:`BiotSavart`
-        The Biot–Savart operator assembled from ``curves`` and ``currents``.
+        curves : list of :class:`CurveXYZFourier` 
+            The coil curves, with length determined by ``Nt_coils`` and ``ppp``.
+        currents : list of :class:`Current`
+            Corresponding coil currents.
+        ma : :class:`CurveRZFourier`
+            The magnetic axis, of order ``Nt_ma``, with ``nfp`` field periods.
+        bs : :class:`BiotSavart`
+            The Biot–Savart operator assembled from ``curves`` and ``currents``.
 
 
     Notes
     -----
     
-    Available configurations:
+    **Available configurations:**
 
     ``name="ncsx"``
         **Get a configuration that corresponds to the modular coils of the NCSX
