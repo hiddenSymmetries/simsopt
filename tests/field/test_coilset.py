@@ -3,7 +3,7 @@ import os
 from simsopt.field.coilset import CoilSet, ReducedCoilSet
 from simsopt.field.coil import Coil
 from simsopt.geo import SurfaceRZFourier, CurveLength
-from simsopt.configs import get_ncsx_data
+from simsopt.configs import get_data
 import numpy as np
 from monty.tempfile import ScratchDir
 from simsopt import load, save
@@ -20,7 +20,7 @@ class TestCoilSet(unittest.TestCase):
         self.assertEqual(len(coilset.coils), 20)
 
     def test_wrong_init(self):
-        curves, currents, _ = get_ncsx_data()
+        curves, currents, _, _ = get_data("ncsx")
         coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
         with self.assertRaises(ValueError):
             CoilSet(coils=coils)
@@ -95,7 +95,7 @@ class TestCoilSet(unittest.TestCase):
 
     def test_base_coils_setter(self):
         # Test the base_coils setter method
-        curves, currents, _ = get_ncsx_data()
+        curves, currents, _, _= get_data("ncsx")
         new_base_coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
         self.coilset.base_coils = new_base_coils
         self.assertEqual(self.coilset.base_coils, new_base_coils)

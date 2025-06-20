@@ -14,7 +14,7 @@ from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curvexyzfouriersymmetries import CurveXYZFourierSymmetries
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.geo import parameters
-from simsopt.configs.zoo import get_ncsx_data, get_w7x_data
+from simsopt.configs.zoo import get_data
 from simsopt.field import BiotSavart, Current, coils_via_symmetries, Coil
 from simsopt.field.coil import coils_to_makegrid
 from simsopt.geo import CurveLength, CurveCurveDistance
@@ -695,7 +695,7 @@ class Testing(unittest.TestCase):
         print(f'Testing these plotting engines: {engines}')
         c = CurveXYZFourier(30, 2)
         c.set_dofs(np.random.rand(len(c.get_dofs())) - 0.5)
-        coils, currents, ma = get_ncsx_data(Nt_coils=25, Nt_ma=10)
+        coils, currents, ma, _ =  get_data("ncsx", Nt_coils=25, Nt_ma=10)
         for engine in engines:
             for close in [True, False]:
                 # Plot a single curve:
@@ -738,12 +738,12 @@ class Testing(unittest.TestCase):
                     self.subtest_serialization(curvetype, rotated)
 
     def test_load_curves_from_makegrid_file(self):
-        get_config_functions = [get_ncsx_data, get_w7x_data]
+        configs = ["ncsx", "w7x"]
         order = 10
         ppp = 4
 
-        for get_config_function in get_config_functions:
-            curves, currents, ma = get_config_function(Nt_coils=order, ppp=ppp)
+        for cfg in configs:
+            curves, currents, ma, _ = get_data(cfg, Nt_coils=order, ppp=ppp)
 
             # write coils to MAKEGRID file
             coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)

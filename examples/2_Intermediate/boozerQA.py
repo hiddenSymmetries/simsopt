@@ -4,7 +4,7 @@ import os
 import numpy as np
 from scipy.optimize import minimize
 
-from simsopt.configs import get_ncsx_data
+from simsopt.configs import get_data
 from simsopt.field import BiotSavart, coils_via_symmetries
 from simsopt.geo import SurfaceXYZTensorFourier, BoozerSurface, curves_to_vtk, boozer_surface_residual, \
     Volume, MajorRadius, CurveLength, NonQuasiSymmetricRatio, Iotas
@@ -36,7 +36,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 print("Running 2_Intermediate/boozerQA.py")
 print("================================")
 
-base_curves, base_currents, ma = get_ncsx_data()
+base_curves, base_currents, ma, _ = get_data("ncsx")
 coils = coils_via_symmetries(base_curves, base_currents, 3, True)
 curves = [c.curve for c in coils]
 bs = BiotSavart(coils)

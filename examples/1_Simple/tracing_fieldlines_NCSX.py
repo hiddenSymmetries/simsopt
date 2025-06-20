@@ -4,7 +4,7 @@
 This example demonstrates how to use SIMSOPT to compute Poincare plots.
 
 This script uses the NCSX coil shapes available in
-``simsopt.util.zoo.get_ncsx_data()``. For an example in which coils
+``simsopt.util.zoo.get_data("ncsx")``. For an example in which coils
 optimized from a simsopt stage-2 optimization are used, see the
 example tracing_fieldlines_QA.py.
 
@@ -19,7 +19,7 @@ import logging
 import sys
 import numpy as np
 
-from simsopt.configs import get_ncsx_data
+from simsopt.configs import get_data
 from simsopt.field import (BiotSavart, InterpolatedField, coils_via_symmetries, SurfaceClassifier,
                            particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data)
 from simsopt.geo import SurfaceRZFourier, curves_to_vtk
@@ -44,7 +44,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 
 nfp = 3
-curves, currents, ma = get_ncsx_data()
+curves, currents, ma, _ = get_data("ncsx")
 coils = coils_via_symmetries(curves, currents, nfp, True)
 curves = [c.curve for c in coils]
 bs = BiotSavart(coils)

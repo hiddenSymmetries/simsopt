@@ -492,8 +492,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         # test possible bug due to memory leak
         # stell sym
-        from simsopt.configs import get_ncsx_data
-        _, _, ma = get_ncsx_data()
+        from simsopt.configs import get_data
+        _, _, ma, _ = get_data("ncsx")
         qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), nfp=3, etabar=-0.408)
         phis = np.linspace(0, 1/qsc.nfp, 2*ntor+1, endpoint=False)
         thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)

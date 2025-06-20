@@ -17,7 +17,7 @@ except ImportError:
     pyevtk = None
 
 from simsopt._core.json import SIMSON, GSONDecoder, GSONEncoder
-from simsopt.configs import get_ncsx_data
+from simsopt.configs import get_data
 from simsopt.field import (BiotSavart, CircularCoil, Coil, Current,
                            DipoleField, Dommaschk, InterpolatedField,
                            MagneticFieldSum, PoloidalField, Reiman,
@@ -889,7 +889,7 @@ class Testing(unittest.TestCase):
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
 
-        curves, currents, ma = get_ncsx_data()
+        curves, currents, ma, _ = get_data("ncsx")
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
@@ -927,7 +927,7 @@ class Testing(unittest.TestCase):
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
 
-        curves, currents, ma = get_ncsx_data()
+        curves, currents, ma, _ = get_data("ncsx")
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
@@ -970,7 +970,7 @@ class Testing(unittest.TestCase):
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
 
-        curves, currents, ma = get_ncsx_data()
+        curves, currents, ma, _ = get_data("ncsx")
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
@@ -1012,7 +1012,7 @@ class Testing(unittest.TestCase):
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
 
-        curves, currents, ma = get_ncsx_data()
+        curves, currents, ma, _ = get_data("ncsx")
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
@@ -1040,7 +1040,7 @@ class Testing(unittest.TestCase):
             old_err_2 = err_2
 
     def test_get_set_points_cyl_cart(self):
-        curves, currents, ma = get_ncsx_data()
+        curves, currents, ma, _ = get_data("ncsx")
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
@@ -1073,14 +1073,14 @@ class Testing(unittest.TestCase):
 
     @unittest.skipIf(pyevtk is None, "pyevtk not found")
     def test_to_vtk(self):
-        curves, currents, ma = get_ncsx_data()
+        curves, currents, ma, _ = get_data("ncsx")
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
         bs.to_vtk('/tmp/bfield')
 
     def subtest_to_mgrid(self, include_potential):
-        curves, currents, ma = get_ncsx_data()
+        curves, currents, ma, _ = get_data("ncsx")
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)

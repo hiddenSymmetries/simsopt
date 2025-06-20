@@ -2,7 +2,7 @@
 
 import os
 import numpy as np
-from simsopt.configs import get_ncsx_data
+from simsopt.configs import get_data
 from simsopt.field import BiotSavart, coils_via_symmetries
 from simsopt.geo import QfmResidual, QfmSurface, SurfaceRZFourier, ToroidalFlux, Area, Volume
 
@@ -17,7 +17,7 @@ for fixing the area and toroidal flux.
 print("Running 1_Simple/qfm.py")
 print("=======================")
 
-curves, currents, ma = get_ncsx_data()
+curves, currents, ma, _ = get_data("ncsx")
 coils = coils_via_symmetries(curves, currents, 3, True)
 bs = BiotSavart(coils)
 bs_tf = BiotSavart(coils)

@@ -5,7 +5,7 @@ from simsopt.geo.qfmsurface import QfmSurface
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
 from simsopt.geo.surfaceobjectives import Area, Volume
-from simsopt.configs.zoo import get_ncsx_data, get_hsx_data, get_w7x_data
+from simsopt.configs.zoo import get_data
 from .surface_test_helpers import get_surface, get_exact_surface
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
@@ -25,7 +25,7 @@ class QfmSurfaceTests(unittest.TestCase):
         """
 
         s = get_exact_surface()
-        curves, currents, ma = get_ncsx_data()
+        curves, currents, ma, _ = get_data("ncsx")
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
@@ -49,13 +49,14 @@ class QfmSurfaceTests(unittest.TestCase):
         """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
-                for config in [get_ncsx_data, get_hsx_data, get_w7x_data]:
+                for config in ["ncsx", "hsx", "w7x"]:
                     with self.subTest(surfacetype=surfacetype, stellsym=stellsym, config=config):
                         self.subtest_qfm_objective_gradient(surfacetype, stellsym, config)
+                        
 
-    def subtest_qfm_objective_gradient(self, surfacetype, stellsym, get_data):
+    def subtest_qfm_objective_gradient(self, surfacetype, stellsym, config):
         np.random.seed(1)
-        curves, currents, ma = get_data()
+        curves, currents, ma, _ = get_data(config)
         nfp = ma.nfp
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
@@ -100,7 +101,7 @@ class QfmSurfaceTests(unittest.TestCase):
 
     def subtest_qfm_label_constraint_gradient(self, surfacetype, stellsym):
         np.random.seed(1)
-        curves, currents, ma = get_ncsx_data()
+        curves, currents, ma, _ = get_data("ncsx")
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
@@ -140,13 +141,14 @@ class QfmSurfaceTests(unittest.TestCase):
         """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
-                for get_data in [get_ncsx_data, get_hsx_data]:
-                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, get_data=get_data):
-                        self.subtest_qfm_penalty_constraints_gradient(surfacetype, stellsym, get_data)
+                for config in ["ncsx", "hsx"]:
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, config=config):
+                        self.subtest_qfm_penalty_constraints_gradient(surfacetype, stellsym, config)
 
-    def subtest_qfm_penalty_constraints_gradient(self, surfacetype, stellsym, get_data):
+
+    def subtest_qfm_penalty_constraints_gradient(self, surfacetype, stellsym, config):
         np.random.seed(1)
-        curves, currents, ma = get_data()
+        curves, currents, ma, _ = get_data(config)
         nfp = ma.nfp
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
@@ -208,7 +210,7 @@ class QfmSurfaceTests(unittest.TestCase):
         both steps for fixed area. Check that volume is preserved.
         """
         np.random.seed(1)
-        curves, currents, ma = get_ncsx_data()
+        curves, currents, ma, _ = get_data("ncsx")
         nfp = 3
 
         if stellsym:
@@ -318,7 +320,7 @@ class QfmSurfaceTests(unittest.TestCase):
         minimize_qfm_penalty_constraints_LBFGS separately. Test that InputError
         is raised if 'LBFGS' or 'SLSQP' is passed.
         """
-        curves, currents, ma = get_ncsx_data()
+        curves, currents, ma, _ = get_data("ncsx")
         nfp = 3
 
         if stellsym:

@@ -1,6 +1,6 @@
 import unittest
 from simsopt.geo import FrameRotation, ZeroRotation, FramedCurveCentroid, FramedCurveFrenet
-from simsopt.configs.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_data
 from simsopt.geo.strain_optimization import LPBinormalCurvatureStrainPenalty, LPTorsionalStrainPenalty
 import numpy as np
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
@@ -56,7 +56,7 @@ class CoilStrainTesting(unittest.TestCase):
 
     def subtest_binormal_curvature(self, order, centroid):
         assert order in [1, None]
-        curves, currents, ma = get_ncsx_data(Nt_coils=6, ppp=120)
+        curves, currents, ma, _ = get_data("ncsx", Nt_coils=6, ppp=120)
         c = curves[0]
 
         if order == 1:
@@ -98,7 +98,7 @@ class CoilStrainTesting(unittest.TestCase):
 
     def subtest_torsion(self, order, centroid):
         assert order in [1, None]
-        curves, currents, ma = get_ncsx_data(Nt_coils=6, ppp=120)
+        curves, currents, ma, _ = get_data("ncsx", Nt_coils=6, ppp=120)
         c = curves[0]
 
         if order == 1:

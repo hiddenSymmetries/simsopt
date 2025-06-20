@@ -6,7 +6,7 @@ from simsopt.field.magneticfieldclasses import ToroidalField, PoloidalField, Int
 from simsopt.field.tracing import compute_fieldlines, particles_to_vtk, plot_poincare_data, \
     MinRStoppingCriterion, MinZStoppingCriterion, MaxRStoppingCriterion, MaxZStoppingCriterion
 from simsopt.field.biotsavart import BiotSavart
-from simsopt.configs.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_data
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
@@ -75,7 +75,7 @@ class FieldlineTesting(unittest.TestCase):
         assert [np.allclose(rtest[i], 0., rtol=1e-5, atol=1e-5) for i in range(nlines)]
 
     def test_poincare_plot(self):
-        curves, currents, ma = get_ncsx_data()
+        curves, currents, ma, _ = get_data("ncsx")
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
@@ -103,7 +103,7 @@ class FieldlineTesting(unittest.TestCase):
             pass
 
     def test_poincare_ncsx_known(self):
-        curves, currents, ma = get_ncsx_data()
+        curves, currents, ma, _ = get_data("ncsx")
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
