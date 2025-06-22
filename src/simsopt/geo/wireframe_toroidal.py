@@ -90,10 +90,21 @@ class ToroidalWireframe(object):
         self.nodes[0] = nodes_hp
         self.seg_signs[0] = 1.0
         self.nodes[1] = np.ascontiguousarray(np.zeros((self.n_nodes, 3)))
-        self.nodes[1][:, 0] = self.nodes[0][:, 0]
-        self.nodes[1][:, 1] = -self.nodes[0][:, 1]
-        self.nodes[1][:, 2] = -self.nodes[0][:, 2]
+
+        # Calculate equivalent node positions in the last half period 
+        # (connected across x=0 plane) and then rotate by one period to get
+        # the half period that connects in the positive toroidal direction.
+        # This ensures that half periods will appear in toroidal spatial order.
+        last_hp_x =  self.nodes[0][:, 0]
+        last_hp_y = -self.nodes[0][:, 1]
+        last_hp_z = -self.nodes[0][:, 2]
+        dphi = 2.0*np.pi/self.nfp
+        self.nodes[1][:, 0] = np.cos(dphi)*last_hp_x - np.sin(dphi)*last_hp_y
+        self.nodes[1][:, 1] = np.sin(dphi)*last_hp_x + np.cos(dphi)*last_hp_y
+        self.nodes[1][:, 2] = last_hp_z
         self.seg_signs[1] = -1.0
+
+        # Calculate notes of remaining half periods through rotations
         for i in range(1, self.nfp):
 
             phi_rot = 2.0*i*np.pi/self.nfp
