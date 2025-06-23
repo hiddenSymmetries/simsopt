@@ -7,6 +7,7 @@
 #include <functional>
 #include <vector>
 #include <math.h>
+#include "NetForce.h"
 
 // Project a 3-vector onto the L2 ball with radius m_maxima
 std::tuple<double, double, double> projection_L2_balls(double x1, double x2, double x3, double m_maxima) {
@@ -1234,7 +1235,7 @@ std::tuple<Array, Array, Array, Array> GPMO_ArbVec(Array& A_obj, Array& b_obj, A
 // Run the GPMO algorithm for solving 
 // the permanent magnet optimization problem.
 // The A matrix should be rescaled by m_maxima since we are assuming all ones in m.
-std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, int single_direction) 
+std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, int single_direction, Array& dipole_grid_xyz, double force_weight) 
 {
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);
@@ -1250,7 +1251,7 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
 
     // print out the names of the error columns
     if (verbose)
-        printf("Iteration ... |Am - b|^2 ... lam*|m|^2\n");
+        printf("Iteration ... |Am - b|^2 ... lam*|m|^2 ... max_force_penalty\n");
 
     // initialize Gamma_complement with all indices available
     Array Gamma_complement = xt::ones<bool>({N, 3});
@@ -1292,8 +1293,35 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
 		    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]);
 		    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
 		}
-		R2s_ptr[j] = R2 + (mmax_ptr[j] * mmax_ptr[j]);
-		R2s_ptr[j + N3] = R2minus + (mmax_ptr[j] * mmax_ptr[j]);
+		
+		// Add force penalty term if force_weight > 0
+		double force_penalty = 0.0;
+		if (force_weight > 0.0) {
+		    // Create temporary solution with this dipole added (positive orientation)
+		    Array x_temp = x;
+		    int dipole_idx = j / 3;
+		    int component_idx = j % 3;
+		    x_temp(dipole_idx, component_idx) = 1.0; // Positive orientation
+		    
+		    // Calculate forces on all dipoles using the C++ function
+		    Array net_forces = net_force_matrix(x_temp, dipole_grid_xyz);
+		    
+		    // Calculate force magnitudes for each dipole
+		    double max_force = 0.0;
+		    for (int d = 0; d < N; ++d) {
+		        double fx = net_forces(d, 0);
+		        double fy = net_forces(d, 1);
+		        double fz = net_forces(d, 2);
+		        double force_magnitude = sqrt(fx*fx + fy*fy + fz*fz);
+		        if (force_magnitude > max_force) {
+		            max_force = force_magnitude;
+		        }
+		    }
+		    force_penalty = force_weight * max_force;
+		}
+		
+		R2s_ptr[j] = R2 + (mmax_ptr[j] * mmax_ptr[j]) + force_penalty;
+		R2s_ptr[j + N3] = R2minus + (mmax_ptr[j] * mmax_ptr[j]) + force_penalty;
 	    }
 	}
 

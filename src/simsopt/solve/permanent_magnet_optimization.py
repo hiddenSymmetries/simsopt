@@ -344,6 +344,10 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             reg_l2: float.
                 L2 regularization value, applied through the mmax argument in
                 the GPMO algorithm. See the paper for how this works.
+            force_weight: float.
+                Weight for the maximum dipole force penalty term. When > 0, adds
+                a penalty proportional to the maximum force magnitude on any dipole.
+                Defaults to 0.0 for backward compatibility.
             verbose: bool.
                 If True, print out the algorithm progress every 'nhistory'
                 iterations. Also needed to record the algorithm history.
@@ -381,6 +385,9 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
 
     # Set the L2 regularization if it is included in the kwargs 
     reg_l2 = kwargs.pop("reg_l2", 0.0)
+    
+    # Set the force weight if it is included in the kwargs
+    force_weight = kwargs.pop("force_weight", 0.0)
 
     # check that algorithm can generate K binary dipoles if no backtracking done
     if "K" in kwargs:
@@ -399,12 +406,25 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
 
     # Note, only baseline method has the f_m loss term implemented! 
     if algorithm == 'baseline':  # GPMO
+        # Get dipole grid coordinates - use pm_opt.dipole_grid_xyz if available, otherwise from kwargs
+        dipole_grid_xyz = kwargs.pop("dipole_grid_xyz", pm_opt.dipole_grid_xyz)
+        if dipole_grid_xyz is None:
+            raise ValueError("dipole_grid_xyz is required for baseline GPMO with force penalty")
+        
+        # Extract single_direction parameter
+        single_direction = kwargs.pop("single_direction", -1)
+            
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_baseline(
             A_obj=contig(A_obj.T),
             b_obj=contig(pm_opt.b_obj),
             mmax=np.sqrt(reg_l2)*mmax_vec,
             normal_norms=Nnorms,
-            **kwargs
+            K=kwargs.pop("K", pm_opt.ndipoles),
+            verbose=kwargs.pop("verbose", False),
+            nhistory=kwargs.pop("nhistory", 20),
+            single_direction=single_direction,
+            dipole_grid_xyz=contig(dipole_grid_xyz),
+            force_weight=force_weight
         )
     elif algorithm == 'ArbVec':  # GPMO with arbitrary polarization vectors
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_ArbVec(

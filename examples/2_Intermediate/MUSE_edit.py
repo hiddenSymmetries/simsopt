@@ -47,9 +47,9 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
-    nphi = 64  # >= 64 for high-resolution runs
-    nIter_max = 10000
-    downsample = 2
+    nphi = 32  # >= 64 for high-resolution runs
+    nIter_max = 1000
+    downsample = 10
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -105,6 +105,8 @@ pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **
 algorithm = 'baseline'  # Algorithm to use
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
+kwargs['force_weight'] = 0.1
+kwargs['verbose'] = True
 
 # Optimize the permanent magnets greedily
 t1 = time.time()
