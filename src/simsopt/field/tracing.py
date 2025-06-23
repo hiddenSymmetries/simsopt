@@ -3,31 +3,27 @@ from warnings import warn
 import numpy as np
 import simsoptpp as sopp
 from .._core.util import parallel_loop_bounds
-from ..field.boozermagneticfield import (
-    BoozerMagneticField,
-    ShearAlfvenWave
-)
+from ..field.boozermagneticfield import BoozerMagneticField, ShearAlfvenWave
 from ..util.constants import (
     ALPHA_PARTICLE_MASS,
     ALPHA_PARTICLE_CHARGE,
-    FUSION_ALPHA_PARTICLE_ENERGY
+    FUSION_ALPHA_PARTICLE_ENERGY,
 )
-from ..util.functions import (
-    print, proc0_print
-)
+from ..util.functions import print, proc0_print
 from .._core.types import RealArray
 
 __all__ = [
-    'MinToroidalFluxStoppingCriterion',
-    'MaxToroidalFluxStoppingCriterion',
-    'IterationStoppingCriterion',
-    'ToroidalTransitStoppingCriterion',
-    'StepSizeStoppingCriterion',
-    'compute_resonances',
-    'compute_poloidal_transits',
-    'compute_toroidal_transits',
-    'trace_particles_boozer'
+    "MinToroidalFluxStoppingCriterion",
+    "MaxToroidalFluxStoppingCriterion",
+    "IterationStoppingCriterion",
+    "ToroidalTransitStoppingCriterion",
+    "StepSizeStoppingCriterion",
+    "compute_resonances",
+    "compute_poloidal_transits",
+    "compute_toroidal_transits",
+    "trace_particles_boozer",
 ]
+
 
 def trace_particles_boozer_perturbed(
     perturbed_field: ShearAlfvenWave,
@@ -51,14 +47,14 @@ def trace_particles_boozer_perturbed(
     forget_exact_path=False,
     zetas_stop=False,
     vpars_stop=False,
-    axis=0
+    axis=2,
 ):
     r"""
     Follow particles in a perturbed field of class :class:`ShearAlfvenWave`. This is modeled after
     :func:`trace_particles`.
 
 
-    In the case of ``mod='gc_vac'`` we solve the guiding center equations under
+    In the case of ``mode='gc_vac'`` we solve the guiding center equations under
     the vacuum assumption, i.e :math:`G =` const. and :math:`I = 0`:
 
     .. math::
@@ -90,9 +86,9 @@ def trace_particles_boozer_perturbed(
 
         F = - m v_{||} K_{,\theta}/|B| + q + m v_{||}I'/|B|
 
-        D = (F G - C I))/\iota
+        D = (F G - C I)/\iota
 
-    where primes indicate differentiation wrt :math:`\psi`. In the case ``mod='gc_noK'``,
+    where primes indicate differentiation wrt :math:`\psi`. In the case ``mode='gc_noK'``,
     the above equations are used with :math:`K=0`.
 
     Args:
@@ -101,8 +97,8 @@ def trace_particles_boozer_perturbed(
             the particles in Boozer coordinates :math:`(s,\theta,\zeta)`.
         parallel_speeds: A ``(nparticles, )`` array containing the speed in
             direction of the B field for each particle.
-        mus: A ``(nparticles, )`` array containing the magnetic moment for 
-            each particle, vperp^2/(2*B). Note that unlike the unperturbed tracing, mu must be provided independently from the parallel speed since energy is not conserved. 
+        mus: A ``(nparticles, )`` array containing the magnetic moment for
+            each particle, vperp^2/(2*B). Note that unlike the unperturbed tracing, mu must be provided independently from the parallel speed since energy is not conserved.
         tmax: integration time
         mass: particle mass in kg, defaults to the mass of an alpha particle
         charge: charge in Coulomb, defaults to the charge of an alpha particle
@@ -113,14 +109,14 @@ def trace_particles_boozer_perturbed(
         comm: MPI communicator to parallelize over
         zetas: list of angles in [0, 2pi] for which intersection with the plane
             corresponding to that zeta should be computed
-        omegas: list of frequencies defining a stopping criterion such that 
+        omegas: list of frequencies defining a stopping criterion such that
               zetas - omeags*t = 0. Must have the same length as zetas. If provided, the solver will stop when the particle hits the plane defined by zetas and omegas.
-        vpars: list of parallel velocities defining a stopping criterion such 
-              that the solver will stop when the particle hits these values. 
+        vpars: list of parallel velocities defining a stopping criterion such
+              that the solver will stop when the particle hits these values.
         stopping_criteria: list of stopping criteria, mostly used in
             combination with the ``LevelsetStoppingCriterion``
             accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
-        dt_save: Time interval for saving the results. Only use if 
+        dt_save: Time interval for saving the results. Only use if
             forget_exact_path = False.
         mode: how to trace the particles. Options are
             `gc`: general guiding center equations.
@@ -129,12 +125,13 @@ def trace_particles_boozer_perturbed(
             `gc_noK`: simplified guiding center equations for the case :math:`K = 0`.
             By default, this is determined from field.field_type
         forget_exact_path: return only the first and last position of each
-            particle for the ``res_tys``. To be used when only res_hits is 
+            particle for the ``res_tys``. To be used when only res_hits is
             of interest or one wants to reduce memory usage.
         zetas_stop: whether to stop if hit provided zeta planes
-        vpars_stop: whether to stop if hit provided vpar planes 
-        axis: Defines handling of coordinate singularity. If 0, tracing is 
-            performed in Boozer coordinates (s,theta,zeta). If 1, tracing is performed in coordinates (sqrt(s)*cos(theta), sqrt(s)*sin(theta), zeta). If 2, tracing is performed in coordinates (s*cos(theta),s*sin(theta),zeta). Option 2 is recommended. 
+        vpars_stop: whether to stop if hit provided vpar planes
+        axis: Defines handling of coordinate singularity. If 0, tracing is
+            performed in Boozer coordinates (s,theta,zeta). If 1, tracing is performed in coordinates (sqrt(s)*cos(theta), sqrt(s)*sin(theta), zeta). 
+            If 2, tracing is performed in coordinates (s*cos(theta),s*sin(theta),zeta). Option 2 is recommended.
     Returns: 2 element tuple containing
         - ``res_tys``:
             A list of numpy arrays (one for each particle) describing the
@@ -144,9 +141,9 @@ def trace_particles_boozer_perturbed(
         - ``res_hits``:
             A list of numpy arrays (one for each particle) containing
             information on each time the particle hits one of the hit planes or
-            one of the stopping criteria. Each row or the array contains `[time] + [idx] + state`, where `idx` 
-            tells us which of the hit planes or stopping criteria was hit. If `idx>=0` and `idx<len(zetas)`, 
-            then the `zetas[idx]` plane was hit. If `idx>=len(zetas)`, then the `vpars[idx-len(zetas)]` plane was hit. 
+            one of the stopping criteria. Each row or the array contains `[time] + [idx] + state`, where `idx`
+            tells us which of the hit planes or stopping criteria was hit. If `idx>=0` and `idx<len(zetas)`,
+            then the `zetas[idx]` plane was hit. If `idx>=len(zetas)`, then the `vpars[idx-len(zetas)]` plane was hit.
             If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit. The state vector is `[t, s, theta, zeta, v_par]`.
     """
     if reltol is None:
@@ -158,15 +155,18 @@ def trace_particles_boozer_perturbed(
     assert len(mus) == len(parallel_speeds)
     speed_par = parallel_speeds
     m = mass
-    speed_total = sqrt(2*Ekin/m)
+    speed_total = sqrt(2 * Ekin / m)
 
-    if mode is not None: 
+    if mode is not None:
         mode = mode.lower()
-        assert mode in ['gc', 'gc_vac', 'gc_nok']
-        if ('gc'+perturbed_field.B0.field.field_type != mode):
-            warn(f"Prescribed mode is inconsistent with field_type. Proceeding with mode={mode}.",RuntimeWarning)
+        assert mode in ["gc", "gc_vac", "gc_nok"]
+        if "gc" + perturbed_field.B0.field.field_type != mode:
+            warn(
+                f"Prescribed mode is inconsistent with field_type. Proceeding with mode={mode}.",
+                RuntimeWarning,
+            )
     else:
-        mode = 'gc_'+field.field_type
+        mode = "gc_" + perturbed_field.B0.field.field_type
 
     res_tys = []
     res_hits = []
@@ -184,8 +184,8 @@ def trace_particles_boozer_perturbed(
             tmax,
             abstol,
             reltol,
-            vacuum=(mode == 'gc_vac'),
-            noK=(mode == 'gc_nok'),
+            vacuum=(mode == "gc_vac"),
+            noK=(mode == "gc_nok"),
             zetas=zetas,
             omegas=omegas,
             vpars=vpars,
@@ -194,15 +194,13 @@ def trace_particles_boozer_perturbed(
             zetas_stop=zetas_stop,
             vpars_stop=vpars_stop,
             forget_exact_path=forget_exact_path,
-            axis=axis
+            axis=axis,
         )
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
         else:
             res_tys.append(np.asarray([res_ty[0], res_ty[-1]]))
         res_hits.append(np.asarray(res_hit))
-        dtavg = res_ty[-1][0]/len(res_ty)
-        print(f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}, average timestep {1000*dtavg:.10f}ms")
         if res_ty[-1][0] < tmax - 1e-15:
             loss_ctr += 1
     if comm is not None:
@@ -211,28 +209,41 @@ def trace_particles_boozer_perturbed(
         res_tys = [i for o in comm.allgather(res_tys) for i in o]
         res_hits = [i for o in comm.allgather(res_hits) for i in o]
 
-    proc0_print(f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:d}%')
+    proc0_print(
+        f"Particles lost {loss_ctr}/{nparticles}={(100 * loss_ctr) // nparticles:d}%"
+    )
     return res_tys, res_hits
 
 
-def trace_particles_boozer(field: BoozerMagneticField,
-                           stz_inits: RealArray,
-                           parallel_speeds: RealArray,
-                           tmax=1e-4,
-                           mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                           tol=1e-9,
-                           comm=None,
-                           zetas=[],
-                           omegas=[],
-                           vpars=[],
-                           stopping_criteria=[],
-                           dt_save=1e-6,
-                           mode=None,
-                           forget_exact_path=False,
-                           solver_options=None,
-                           verbose=False):
+def trace_particles_boozer(
+    field: BoozerMagneticField,
+    stz_inits: RealArray,
+    parallel_speeds: RealArray,
+    tmax=1e-4,
+    mass=ALPHA_PARTICLE_MASS,
+    charge=ALPHA_PARTICLE_CHARGE,
+    Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
+    tol=1e-9,
+    abstol=None,
+    reltol=None,
+    comm=None,
+    zetas=[],
+    omegas=[],
+    vpars=[],
+    stopping_criteria=[],
+    dt_save=1e-6,
+    mode=None,
+    forget_exact_path=False,
+    zetas_stop=False,
+    vpars_stop=False,
+    axis=None,
+    dt=None,
+    solveSympl=False,
+    roottol=None,
+    predictor_step=None,
+):
     r"""
-    Follow particles in a :class:`BoozerMagneticField`. 
+    Follow particles in a :class:`BoozerMagneticField`.
 
 
     In the case of ``mod='gc_vac'`` we solve the guiding center equations under
@@ -281,51 +292,43 @@ def trace_particles_boozer(field: BoozerMagneticField,
         tmax: integration time
         mass: particle mass in kg, defaults to the mass of an alpha particle
         charge: charge in Coulomb, defaults to the charge of an alpha particle
-        Ekin: kinetic energy in Joule, defaults to 3.52MeV. Either a scalar 
-            (same energy for all particles), or``(nparticles, )`` array. 
-        tol: defualt tolerance for ode solver when solver-specific tolerances 
+        Ekin: kinetic energy in Joule, defaults to 3.52MeV. Either a scalar
+            (same energy for all particles), or``(nparticles, )`` array.
+        tol: default tolerance for ode solver when solver-specific tolerances
             are not set
+        reltol: relative tolerance for adaptive ode solver (defaults to `tol`). Only used if `solveSympl` is False.
+        abstol: absolute tolerance for adaptive ode solver (defaults to `tol`). Only used if `solveSympl` is False.
         comm: MPI communicator to parallelize over
         zetas: list of angles in [0, 2pi] for which intersection with the plane
               corresponding to that zeta should be computed
-        omegas: list of frequencies defining a stopping criterion such that 
-              zetas - omeags*t = 0. Must have the same length as zetas. If provided, the solver will stop when the particle hits the plane defined by zetas and omegas.
-        vpars: list of parallel velocities defining a stopping criterion such 
-              that the solver will stop when the particle hits these values. 
+        omegas: list of frequencies defining a stopping criterion such that
+              zetas - omegas*t = 0. Must have the same length as zetas. If provided, the solver will stop when the particle hits the plane defined by zetas and omegas.
+        vpars: list of parallel velocities defining a stopping criterion such
+              that the solver will stop when the particle hits these values.
         stopping_criteria: list of stopping criteria, mostly used in
                            combination with the ``LevelsetStoppingCriterion``
                            accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
-        dt_save: Time interval for saving the results. Only use if 
+        dt_save: Time interval for saving the results. Only use if
             forget_exact_path = False.
         mode: how to trace the particles. options are
             `gc`: general guiding center equations,
-            `gc_vac`: simplified guiding center equations for the case 
+            `gc_vac`: simplified guiding center equations for the case
                 :math:`G` = const., :math:`I = 0`, and :math:`K = 0`.
             `gc_noK`: simplified guiding center equations for the case :math:`K = 0`.
             By default, this is determined from field.field_type.
         forget_exact_path: return only the first and last position of each
                            particle for the ``res_tys``. To be used when only res_hits is of
                            interest or one wants to reduce memory usage.
-        solver_options: dictionary containing solver options
-            shared options are
-                `zetas_stop`: whether to stop if hit provided zeta planes
-                `vpars_stop`: whether to stop if hit provided vpar planes
-                `dt_save`: Time interval for saving the results. Only use if forget_exact_path = False.
-                `axis`: Defines handling of coordinate singularity. If 0, tracing is performed in Boozer coordinates (s,theta,zeta). 
-                        If 1, tracing is performed in coordinates (sqrt(s)*cos(theta), sqrt(s)*sin(theta), zeta). 
-                        If 2, tracing is performed in coordinates (s*cos(theta),s*sin(theta),zeta). Option 2 (default) is recommended. 
-            default solver (rk45) specific options are
-                `axis`: If `True`, tracing is performed in coordinates :math:`x = \sqrt{s}\cos(\theta)`
-                           and :math:`y = \sqrt{s}\sin(\theta)` to avoid a coordinate singularity on
-                           the magnetic axis. If `False`, tracing is performed in :math:`(s,\theta)`. 
-                `reltol`: relative tolerance for adaptive ode solver
-                `abstol`: absolute tolerance for adaptive ode solver
-            symplectic solver specific options are 
-                `solveSympl`: using symplectic solver
-                `dt`: time step
-                `roottol`: root solver tolerance
-                `predictor_step`: provide better initial guess for the next time step using predictor steps
-        verbose: If True, additional printed information about average timestep is printed to stdout. 
+        zetas_stop: whether to stop if hit provided zeta planes
+        vpars_stop: whether to stop if hit provided vpar planes
+        axis: Defines handling of coordinate singularity. If 0, tracing is performed in Boozer coordinates (s,theta,zeta).
+              Only used if `solveSympl` is False.
+              If 1, tracing is performed in coordinates (sqrt(s)*cos(theta), sqrt(s)*sin(theta), zeta).
+              If 2, tracing is performed in coordinates (s*cos(theta),s*sin(theta),zeta). Option 2 (default) is recommended.
+        dt: time step for the symplectic solver. Only used if `solveSympl` is True.
+        solveSympl: If True, uses symplectic solver. If False (default), uses RK45 solver with adaptive time step.
+        roottol: root solver tolerance for the symplectic solver. Only used if `solveSympl` is True. If None, defaults to `tol`.
+        predictor_step: provide better initial guess for the next time step using predictor steps. Defaults to True if `solveSympl` is True.
     Returns: 2 element tuple containing
         - ``res_tys``:
             A list of numpy arrays (one for each particle) describing the
@@ -335,35 +338,42 @@ def trace_particles_boozer(field: BoozerMagneticField,
         - ``res_hits``:
             A list of numpy arrays (one for each particle) containing
             information on each time the particle hits one of the zeta planes or
-            one of the stopping criteria. Each row or the array contains `[time] + [idx] + state`, where `idx` tells us which of the hit planes or stopping criteria was hit. If `idx>=0` and `idx<len(zetas)`, then the `zetas[idx]` plane was hit. If `idx>=len(zetas)`, then the `vpars[idx-len(zetas)]` plane was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit. The state vector is `[t, s, theta, zeta, v_par]`.
+            one of the stopping criteria. Each row or the array contains `[time] + [idx] + state`, where `idx` tells us which of the hit planes or stopping criteria was hit. 
+            If `idx>=0` and `idx<len(zetas)`, then the `zetas[idx]` plane was hit. If `idx>=len(zetas)`, then the `vpars[idx-len(zetas)]` plane was hit. 
+            If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit. The state vector is `[t, s, theta, zeta, v_par]`.
     """
-    if solver_options:
-        options = dict(solver_options)
+    if zetas_stop and (not len(zetas) and not len(omegas)):
+        raise ValueError("No zetas and omegas provided for the zeta stopping criterion")
+    if vpars_stop and (not len(vpars)):
+        raise ValueError("No vpars provided for the vpar stopping criterion")
+
+    if solveSympl:
+        if abstol is not None or reltol is not None or axis is not None:
+            warn(
+                "Symplectic solver does not use absolute or relative tolerance. "
+                "Use dt and roottol to control timestep.",
+                RuntimeWarning,
+            )
     else:
-        options = dict()
-
-    if options.get('zetas_stop') and (not len(zetas) and not len(omegas)):
-        warn("No zetas and omegas provided for the zeta stopping critierion", RuntimeWarning)
-    if options.get('vpars_stop') and (not len(vpars)):
-        warn("No vpars provided for the vpar stopping criterion", RuntimeWarning)
-
-    options['zetas_stop'] = options.pop('zetas_stop', False)
-
-    if options.get('solveSympl'):
-        for op in ['axis', 'reltol', 'abstol']:
-            if options.get(op):
-                warn("Symplectic solver does not use option %s" %
-                     op, RuntimeWarning)
-    else:
-        options.setdefault('axis', 2)
-        for op in ['dt', 'roottol', 'predictor_step']:
-            if options.get(op):
-                warn("RK45 solver does not use option %s" % op, RuntimeWarning)
-
-    options.setdefault('roottol', tol)
-    options.setdefault('reltol', tol)
-    options.setdefault('abstol', tol)
-    options.setdefault('dt', 1e-7)
+        if dt is not None or roottol is not None or predictor_step is not None:
+            warn(
+                "RK45 solver does not use dt, roottol, or predictor_step. "
+                "Use abstol and reltol to control the timestep.",
+                RuntimeWarning,
+            )
+    # Set default values for parameters
+    if axis is None:
+        axis = 2  
+    if reltol is None:
+        reltol = tol
+    if abstol is None:
+        abstol = tol
+    if roottol is None:
+        roottol = tol
+    if dt is None:
+        dt = 1e-7
+    if predictor_step is None:
+        predictor_step = True
 
     nparticles = stz_inits.shape[0]
     assert stz_inits.shape[0] == len(parallel_speeds)
@@ -373,38 +383,50 @@ def trace_particles_boozer(field: BoozerMagneticField,
     if np.isscalar(Ekin):
         Ekin = Ekin * np.ones((len(parallel_speeds),))
     # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
-    speed_total = np.sqrt(2*Ekin/m)
+    speed_total = np.sqrt(2 * Ekin / m)
 
-    if mode is not None: 
+    if mode is not None:
         mode = mode.lower()
-        assert mode in ['gc', 'gc_vac', 'gc_nok']
-        if ('gc_'+field.field_type != mode):
-            warn(f"Prescribed mode is inconsistent with field_type. Proceeding with mode={mode}.",RuntimeWarning)
+        assert mode in ["gc", "gc_vac", "gc_nok"]
+        if "gc_" + field.field_type != mode:
+            warn(
+                f"Prescribed mode is inconsistent with field_type. Proceeding with mode={mode}.",
+                RuntimeWarning,
+            )
     else:
-        mode = 'gc_'+field.field_type
-        
+        mode = "gc_" + field.field_type
+
     res_tys = []
     res_hits = []
     loss_ctr = 0
     first, last = parallel_loop_bounds(comm, nparticles)
     for i in range(first, last):
         res_ty, res_hit = sopp.particle_guiding_center_boozer_tracing(
-            field, 
-            stz_inits[i, :], 
-            m, 
-            charge, 
-            speed_total[i], 
-            speed_par[i], 
-            tmax, 
-            vacuum=(mode == 'gc_vac'), 
-            noK=(mode == 'gc_nok'), 
-            zetas=zetas, 
-            omegas=omegas, 
+            field,
+            stz_inits[i, :],
+            m,
+            charge,
+            speed_total[i],
+            speed_par[i],
+            tmax,
+            vacuum=(mode == "gc_vac"),
+            noK=(mode == "gc_nok"),
+            zetas=zetas,
+            omegas=omegas,
             vpars=vpars,
-            stopping_criteria=stopping_criteria, 
-            dt_save=dt_save, 
+            stopping_criteria=stopping_criteria,
+            dt_save=dt_save,
             forget_exact_path=forget_exact_path,
-            **options)
+            zetas_stop=zetas_stop,
+            vpars_stop=vpars_stop,
+            axis=axis,
+            abstol=abstol,
+            reltol=reltol,
+            solveSympl=solveSympl,
+            predictor_step=predictor_step,
+            roottol=roottol,
+            dt=dt,
+        )
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
         else:
@@ -417,8 +439,9 @@ def trace_particles_boozer(field: BoozerMagneticField,
     if comm is not None:
         res_tys = [i for o in comm.allgather(res_tys) for i in o]
         res_hits = [i for o in comm.allgather(res_hits) for i in o]
-    if verbose:
-        proc0_print(f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:.5f}%')
+    proc0_print(
+        f"Particles lost {loss_ctr}/{nparticles}={(100 * loss_ctr) // nparticles:.5f}%"
+    )
     return res_tys, res_hits
 
 
@@ -427,7 +450,7 @@ def compute_resonances(res_tys, res_hits, delta=1e-2):
     Computes resonant particle orbits given the output of :func:`trace_particles_boozer`, ``res_tys`` and
     ``res_hits``, with ``forget_exact_path=False``. Resonance indicates a trajectory which returns to the same position
     at the :math:`\zeta = 0` plane after ``mpol`` poloidal turns and
-    ``ntor`` toroidal turns. 
+    ``ntor`` toroidal turns.
 
     Args:
         res_tys: trajectory solution computed from :func:`trace_particles` or
@@ -452,8 +475,8 @@ def compute_resonances(res_tys, res_hits, delta=1e-2):
         s0 = res_tys[ip][0, 1]
         theta0 = res_tys[ip][0, 2]
         zeta0 = res_tys[ip][0, 3]
-        theta0_mod = theta0 % (2*np.pi)
-        zeta0_mod = zeta0 % (2*np.pi)
+        theta0_mod = theta0 % (2 * np.pi)
+        zeta0_mod = zeta0 % (2 * np.pi)
         x0 = s0 * np.cos(theta0)
         y0 = s0 * np.sin(theta0)
         vpar0 = res_tys[ip][0, 4]
@@ -463,18 +486,21 @@ def compute_resonances(res_tys, res_hits, delta=1e-2):
                 s = res_hits[ip][it, 2]
                 theta = res_hits[ip][it, 3]
                 zeta = res_hits[ip][it, 4]
-                theta_mod = theta % 2*np.pi
+                theta_mod = theta % 2 * np.pi
                 x = s * np.cos(theta)
                 y = s * np.sin(theta)
-                dist = np.sqrt((x-x0)**2 + (y-y0)**2)
+                dist = np.sqrt((x - x0) ** 2 + (y - y0) ** 2)
                 t = res_hits[ip][it, 0]
                 if dist < delta:
-                    proc0_print('Resonance found.')
-                    proc0_print(f'theta = {theta_mod}, theta0 = {theta0_mod}, s = {s}, s0 = {s0}')
-                    mpol = np.rint((theta-theta0)/(2*np.pi))
-                    ntor = np.rint((zeta-zeta0)/(2*np.pi))
-                    resonances.append(np.asarray(
-                        [s0, theta0, zeta0, vpar0, t, mpol, ntor]))
+                    proc0_print("Resonance found.")
+                    proc0_print(
+                        f"theta = {theta_mod}, theta0 = {theta0_mod}, s = {s}, s0 = {s0}"
+                    )
+                    mpol = np.rint((theta - theta0) / (2 * np.pi))
+                    ntor = np.rint((zeta - zeta0) / (2 * np.pi))
+                    resonances.append(
+                        np.asarray([s0, theta0, zeta0, vpar0, t, mpol, ntor])
+                    )
     return resonances
 
 
@@ -499,7 +525,7 @@ def compute_toroidal_transits(res_tys):
             phi = res_tys[ip][it, 3]
             phi_prev = phi
         if ntraj > 1:
-            ntransits[ip] = np.round((phi - phi_init)/(2*np.pi))
+            ntransits[ip] = np.round((phi - phi_init) / (2 * np.pi))
     return ntransits
 
 
@@ -541,7 +567,7 @@ def compute_poloidal_transits(res_tys, ma=None, flux=True):
             theta = res_tys[ip][it, 2]
             theta_prev = theta
         if ntraj > 1:
-            ntransits[ip] = np.round((theta - theta_init)/(2*np.pi))
+            ntransits[ip] = np.round((theta - theta_init) / (2 * np.pi))
     return ntransits
 
 
@@ -561,6 +587,7 @@ class MinToroidalFluxStoppingCriterion(sopp.MinToroidalFluxStoppingCriterion):
 
     where ``s`` is the value of the minimum normalized toroidal flux.
     """
+
     pass
 
 
@@ -578,6 +605,7 @@ class MaxToroidalFluxStoppingCriterion(sopp.MaxToroidalFluxStoppingCriterion):
 
     where ``s`` is the value of the maximum normalized toroidal flux.
     """
+
     pass
 
 
@@ -594,12 +622,15 @@ class ToroidalTransitStoppingCriterion(sopp.ToroidalTransitStoppingCriterion):
     where ``ntransits`` is the maximum number of toroidal transits and ``flux``
     is a boolean indicating whether tracing is being performed in a flux coordinate system.
     """
+
     pass
+
 
 class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     """
     Stop the iteration once the maximum number of iterations is reached.
     """
+
     pass
 
 
@@ -607,4 +638,5 @@ class StepSizeStoppingCriterion(sopp.StepSizeStoppingCriterion):
     """
     Stop the iteration once the step size is too small.
     """
+
     pass

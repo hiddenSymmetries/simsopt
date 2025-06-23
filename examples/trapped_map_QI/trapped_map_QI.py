@@ -62,8 +62,6 @@ field = InterpolatedBoozerField(
     ns_interp=ns_interp,
     ntheta_interp=ntheta_interp,
     nzeta_interp=nzeta_interp,
-    nfp=nfp,
-    stellsym=True,
 )
 
 poinc = TrappedPoincare(
@@ -80,7 +78,8 @@ poinc = TrappedPoincare(
     neta_poinc=neta_poinc,
     Nmaps=Nmaps,
     comm=comm,
-    solver_options={"reltol": tol, "abstol": tol, "axis": 0},
+    tol=tol,
+    axis=0,
     tmax=1e-4,
 )
 

@@ -10,7 +10,10 @@ from simsopt.field.tracing import (
     trace_particles_boozer,
     MaxToroidalFluxStoppingCriterion,
 )
-from simsopt.field.tracing_helpers import initialize_position_profile
+from simsopt.field.tracing_helpers import (
+    initialize_position_profile,
+    initialize_velocity_uniform,
+)
 from simsopt.util.constants import (
     ALPHA_PARTICLE_MASS,
     ALPHA_PARTICLE_CHARGE,
@@ -47,7 +50,6 @@ sys.stdout = open(f"stdout_{nParticles}_{resolution}_{comm_size}.txt", "a", buff
 
 ## Setup radial interpolation
 bri = BoozerRadialInterpolant(boozmn_filename, order, no_K=True, comm=comm)
-nfp = bri.nfp
 
 ## Setup 3d interpolation
 field = InterpolatedBoozerField(
@@ -56,8 +58,6 @@ field = InterpolatedBoozerField(
     ns_interp=ns_interp,
     ntheta_interp=ntheta_interp,
     nzeta_interp=nzeta_interp,
-    nfp=nfp,
-    stellsym=True,
 )
 
 # Define fusion birth distribution
@@ -78,21 +78,14 @@ def sigmav(T):
 # Reactivity profile
 reactivity = lambda s: nD(s) * nT(s) * sigmav(T(s))
 
-points = initialize_position_profile(field, nParticles, reactivity, nfp, comm=comm)
+points = initialize_position_profile(field, nParticles, reactivity, comm=comm)
 
 Ekin = FUSION_ALPHA_PARTICLE_ENERGY
 mass = ALPHA_PARTICLE_MASS
 charge = ALPHA_PARTICLE_CHARGE
 # Initialize uniformly distributed parallel velocities
 vpar0 = np.sqrt(2 * Ekin / mass)
-if verbose:
-    vpar_init = np.random.uniform(-vpar0, vpar0, (nParticles,))
-else:
-    vpar_init = None
-if comm is not None:
-    vpar_init = comm.bcast(vpar_init, root=0)
-
-solver_options = {"abstol": abstol, "reltol": reltol, "axis": 2}
+vpar_init = initialize_velocity_uniform(vpar0, nParticles, comm=comm)
 
 ## Trace alpha particles in Boozer coordinates until they hit the s = 1 surface
 res_tys, res_zeta_hits = trace_particles_boozer(
@@ -106,7 +99,8 @@ res_tys, res_zeta_hits = trace_particles_boozer(
     Ekin=Ekin,
     stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
     forget_exact_path=True,
-    solver_options=solver_options,
+    abstol=abstol,
+    reltol=reltol,
 )
 
 time2 = time.time()

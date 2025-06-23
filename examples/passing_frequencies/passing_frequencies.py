@@ -49,7 +49,6 @@ sys.stdout = open(f"stdout_passing_freq_{resolution}_{comm_size}.txt", "a", buff
 time1 = time.time()
 
 bri = BoozerRadialInterpolant(boozmn_filename, order, no_K=True, comm=comm, N=4)
-nfp = bri.nfp
 
 field = InterpolatedBoozerField(
     bri,
@@ -57,8 +56,6 @@ field = InterpolatedBoozerField(
     ns_interp=ns_interp,
     ntheta_interp=ntheta_interp,
     nzeta_interp=nzeta_interp,
-    nfp=nfp,
-    stellsym=True,
 )
 
 poinc = PassingPoincare(

@@ -362,9 +362,10 @@ class BoozerMagneticField(sopp.BoozerMagneticField):
             'vac', 'nok', or ''.
     """
 
-    def __init__(self, psi0, field_type="vac", nfp=1):
+    def __init__(self, psi0, field_type="vac", nfp=1, stellsym=True):
         self.psi0 = psi0
         self.nfp = nfp
+        self.stellsym = stellsym 
         field_type = field_type.lower()
         assert field_type in ["vac", "nok", ""]
         self.field_type = field_type
@@ -1079,7 +1080,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         if not self.no_K:
             self.compute_K()
 
-        BoozerMagneticField.__init__(self, self.psi0, self.field_type, self.nfp)
+        BoozerMagneticField.__init__(self, self.psi0, self.field_type, self.nfp, self.asym==0)
 
     def init_splines(self):
         self.xm_b = self.bx.xm_b
@@ -2266,8 +2267,8 @@ class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField)
         ntheta_interp=48,
         nzeta_interp=48,
         extrapolate=True,
-        nfp=1,
-        stellsym=True,
+        nfp=None,
+        stellsym=None,
         initialize=[],
     ):
         r"""
@@ -2289,10 +2290,11 @@ class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField)
             nfp: Whether to exploit rotational symmetry. In this case any toroidal angle
                  is always mapped into the interval :math:`[0, 2\pi/\mathrm{nfp})`,
                  hence it makes sense to use ``zetamin=0`` and
-                 ``zetamax=2*np.pi/nfp``.
+                 ``zetamax=2*np.pi/nfp``. By default this is obtained from field.nfp.
             stellsym: Whether to exploit stellarator symmetry. In this case
                       ``theta`` is always mapped to the interval :math:`[0, \pi]`,
-                      hence it makes sense to use ``thetamin=0`` and ``thetamax=np.pi``.
+                      hence it makes sense to use ``thetamin=0`` and ``thetamax=np.pi``. By default
+                      this is obtained from field.stellsym. 
             initialize: A list of strings, each of which is the name of a
                 field quantitty, e.g., `modB`, to be initialized when the interpolant is created.
                 By default, this list is determined by field.field_type.
@@ -2337,6 +2339,10 @@ class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField)
                     f"initialize list does not match field_type={field_type}. Proceeding with initialize={initialize}",
                     RuntimeWarning,
                 )
+        if nfp is None:
+            nfp = field.nfp
+        if stellsym is None:
+            stellsym = field.stellsym
 
         if srange is None:
             srange = (0, 1, ns_interp)

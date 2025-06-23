@@ -52,7 +52,6 @@ sys.stdout = open(f"stdout_trapped_map_{resolution}_{comm_size}.txt", "a", buffe
 time1 = time.time()
 
 bri = BoozerRadialInterpolant(boozmn_filename, order, no_K=True, comm=comm)
-nfp = bri.nfp
 
 field = InterpolatedBoozerField(
     bri,
@@ -60,8 +59,6 @@ field = InterpolatedBoozerField(
     ns_interp=ns_interp,
     ntheta_interp=ntheta_interp,
     nzeta_interp=nzeta_interp,
-    nfp=nfp,
-    stellsym=True,
 )
 
 poinc = TrappedPoincare(

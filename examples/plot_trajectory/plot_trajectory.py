@@ -2,7 +2,6 @@ import sys
 import numpy as np
 import time
 
-from booz_xform import Booz_xform
 from simsopt.field.boozermagneticfield import (
     BoozerRadialInterpolant,
     InterpolatedBoozerField,
@@ -48,14 +47,9 @@ nzeta_interp = resolution
 
 sys.stdout = open(f"stdout_trajectory_{resolution}_{comm_size}.txt", "a", buffering=1)
 
-## Setup Booz_xform object
-equil = Booz_xform()
-equil.verbose = 0
-equil.read_boozmn(boozmn_filename)
-nfp = equil.nfp
-
 ## Setup radial interpolation
-bri = BoozerRadialInterpolant(equil, order, no_K=True, comm=comm)
+bri = BoozerRadialInterpolant(boozmn_filename, order, no_K=True, comm=comm)
+nfp = bri.nfp
 
 ## Setup 3d interpolation
 field = InterpolatedBoozerField(
@@ -64,8 +58,6 @@ field = InterpolatedBoozerField(
     ns_interp=ns_interp,
     ntheta_interp=ntheta_interp,
     nzeta_interp=nzeta_interp,
-    nfp=nfp,
-    stellsym=True,
 )
 
 Ekin = FUSION_ALPHA_PARTICLE_ENERGY
@@ -78,8 +70,6 @@ points = np.zeros((1, 3))
 points[0, 0] = 0.5  # s = 0.5 surface
 points[0, 1] = np.random.uniform(0, 2 * np.pi)  # Random theta
 points[0, 2] = np.random.uniform(0, 2 * np.pi / nfp)  # Random zeta
-
-solver_options = {"abstol": abstol, "reltol": reltol, "axis": 2}
 
 ## Trace alpha particle in Boozer coordinates until it hits the s = 1 surface
 ## Set forget_exact_path=False to save the trajectory information.
@@ -96,7 +86,8 @@ traj_booz, res_hits = trace_particles_boozer(
     stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
     forget_exact_path=False,
     dt_save=1e-7,
-    solver_options=solver_options,
+    abstol=abstol,
+    reltol=reltol,
 )
 
 time2 = time.time()
