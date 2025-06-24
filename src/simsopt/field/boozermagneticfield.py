@@ -862,9 +862,11 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             32). Only used if a wout_*.nc file is passed.
         ntor: (int) number of toroidal mode numbers for BOOZXFORM (defaults to
             32). Only used if a wout_*.nc file is passed.
-        N: Helicity of quasisymmetry to enforce. If specified, then the
-            non-symmetric Fourier harmonics of :math:`B` and :math:`K` are filtered out.
-            Otherwise, all harmonics are kept. (defaults to ``None``)
+        helicity_M : Poloidal helicity coefficient for enforcing field
+            quasi-symmetry If specified, then the non-symmetric Fourier harmonics of :math:`B` and :math:`K` are filtered out, so the field is a function of `chi = helicity_M*theta - helicity_N*zeta`. If helicity is unspecified, all harmonics are kept.
+            (defaults to ``None``)
+        helicity_N : Toroidal helicity coefficient for enforcing field
+            quasi-symmetry If specified, then the non-symmetric Fourier harmonics of :math:`B` and :math:`K` are filtered out, so the field is a function of `chi = helicity_M*theta - helicity_N*zeta`. If helicity is unspecified, all harmonics are kept.
         enforce_vacuum: If True, a vacuum field is assumed, :math:`G` is
             set to its mean value, :math:`I = 0`, and :math:`K = 0`.
         rescale: If True, use the interpolation method in the DELTA5D code.
@@ -904,7 +906,8 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         order,
         mpol=32,
         ntor=32,
-        N=None,
+        helicity_M=None,
+        helicity_N=None,
         enforce_vacuum=False,
         rescale=False,
         ns_delete=0,
@@ -984,6 +987,8 @@ class BoozerRadialInterpolant(BoozerMagneticField):
 
         self.no_shear = no_shear
         self.order = order
+        self.helicity_M = helicity_M
+        self.helicity_N = helicity_N
         self.enforce_qs = False
         self.enforce_vacuum = enforce_vacuum
         self.no_K = no_K
@@ -991,9 +996,18 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.no_K = True
         self.ns_delete = ns_delete
         self.rescale = rescale
-        if N is not None:
-            self.N = N
+        if (helicity_M is not None) and (helicity_N is not None):
+            if helicity_M % 1 != 0:
+                raise ValueError("helicity_M must be an integer for field to be 2π-periodic in Boozer poloidal angle.")
+                
+            if helicity_N % 1 != 0:
+                raise ValueError("helicity_N must be an integer for field to be 2π-periodic in Boozer toroidal angle.")
+
+            self.helicity_M = helicity_M
+            self.helicity_N = helicity_N
             self.enforce_qs = True
+        elif (helicity_M is not None) or (helicity_N is not None):
+            raise ValueError("Both helicity_M and helicity_N must be specified when enforcing field symmetry.")
 
         if self.proc0:
             self.asym = self.bx.asym  # Bool for stellarator asymmetry
@@ -1283,7 +1297,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                     s_half_mn, d_mn_factor[im, :], k=self.order
                 )
             )
-            if self.enforce_qs and (self.xn_b[im] != self.N * self.xm_b[im]):
+            if (self.enforce_qs and (self.helicity_M *self.xn_b[im] != self.helicity_N * self.xm_b[im])):
                 self.bmnc_splines.append(
                     InterpolatedUnivariateSpline(
                         s_half_mn, 0 * bmnc[im, :], k=self.order
@@ -1355,7 +1369,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                         s_half_mn, mn_factor[im, :] * zmnc[im, :], k=self.order
                     )
                 )
-                if self.enforce_qs and (self.xn_b[im] != self.N * self.xm_b[im]):
+                if (self.enforce_qs and (self.helicity_M *self.xn_b[im] != self.helicity_N * self.xm_b[im])):
                     self.bmns_splines.append(
                         InterpolatedUnivariateSpline(
                             s_half_mn, 0 * bmns[im, :], k=self.order
@@ -1578,7 +1592,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         if self.proc0:
             self.kmns_splines = []
             for im in range(len(self.xm_b)):
-                if self.enforce_qs and (self.xn_b[im] != self.N * self.xm_b[im]):
+                if (self.enforce_qs and (self.helicity_M *self.xn_b[im] != self.helicity_N * self.xm_b[im])):
                     self.kmns_splines.append(
                         InterpolatedUnivariateSpline(
                             self.s_half_ext, 0 * kmns[:, im], k=self.order
@@ -1596,7 +1610,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             if self.asym:
                 self.kmnc_splines = []
                 for im in range(len(self.xm_b)):
-                    if self.enforce_qs and (self.xn_b[im] != self.N * self.xm_b[im]):
+                    if (self.enforce_qs and (self.helicity_M *self.xn_b[im] != self.helicity_N * self.xm_b[im])):
                         self.kmnc_splines.append(
                             InterpolatedUnivariateSpline(
                                 self.s_half_ext, 0 * kmnc[:, im], k=self.order
