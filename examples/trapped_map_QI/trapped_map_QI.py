@@ -78,8 +78,7 @@ poinc = TrappedPoincare(
     neta_poinc=neta_poinc,
     Nmaps=Nmaps,
     comm=comm,
-    tol=tol,
-    axis=0,
+    solver_options={"reltol": tol, "abstol": tol, "axis": 0},
     tmax=1e-4,
 )
 
