@@ -747,7 +747,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         ntor: (int) number of toroidal mode numbers for BOOZXFORM (defaults to 
             32). Only used if a wout_*.nc file is passed. 
         N: Helicity of quasisymmetry to enforce. If specified, then the 
-            non-symmetric Fourier harmonics of :math:`B` and :math:`K` are filtered out. Otherwise, all harmonics are kept.
+            non-symmetric Fourier harmonics of :math:`B` and :math:`K` are filtered out. Infinite (``float('inf')``) helicity specifies quasi-poloidal field. If helicity is unspecified, all harmonics are kept.
             (defaults to ``None``)
         enforce_vacuum: If True, a vacuum field is assumed, :math:`G` is
             set to its mean value, :math:`I = 0`, and :math:`K = 0`.
@@ -1068,7 +1068,16 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.zmns_splines.append(InterpolatedUnivariateSpline(s_half_mn, mn_factor[im, :]*zmns[im, :], k=self.order))
             self.mn_factor_splines.append(InterpolatedUnivariateSpline(s_half_mn, mn_factor[im, :], k=self.order))
             self.d_mn_factor_splines.append(InterpolatedUnivariateSpline(s_half_mn, d_mn_factor[im, :], k=self.order))
-            if (self.enforce_qs and (self.xn_b[im] != self.N * self.xm_b[im])):
+            if self.enforce_qs:
+                is_QP = np.isinf(self.N)
+                is_QS = not is_QP
+                if is_QP:
+                    keep_mode = (self.xm_b[im] == 0)
+                if is_QS:
+                    keep_mode = (self.xn_b[im] == self.N * self.xm_b[im])
+            else:
+                keep_mode = True
+            if not keep_mode:
                 self.bmnc_splines.append(InterpolatedUnivariateSpline(s_half_mn, 0*bmnc[im, :], k=self.order))
                 self.dbmncds_splines.append(InterpolatedUnivariateSpline(s_full[1:-1], 0*dbmncds[im, :], k=self.order))
             else:
@@ -1100,7 +1109,16 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                 self.numnc_splines.append(InterpolatedUnivariateSpline(s_half_mn, mn_factor[im, :]*numnc[im, :], k=self.order))
                 self.rmns_splines.append(InterpolatedUnivariateSpline(s_half_mn, mn_factor[im, :]*rmns[im, :], k=self.order))
                 self.zmnc_splines.append(InterpolatedUnivariateSpline(s_half_mn, mn_factor[im, :]*zmnc[im, :], k=self.order))
-                if (self.enforce_qs and (self.xn_b[im] != self.N * self.xm_b[im])):
+                if self.enforce_qs:
+                    is_QP = np.isinf(self.N)
+                    is_QS = not is_QP
+                    if is_QP:
+                        keep_mode = (self.xm_b[im] == 0)
+                    if is_QS:
+                        keep_mode = (self.xn_b[im] == self.N * self.xm_b[im])
+                else:
+                    keep_mode = True
+                if not keep_mode:
                     self.bmns_splines.append(InterpolatedUnivariateSpline(s_half_mn, 0*bmns[im, :], k=self.order))
                     self.dbmnsds_splines.append(InterpolatedUnivariateSpline(s_full[1:-1], 0*dbmnsds[im, :], k=self.order))
                 else:
@@ -1209,7 +1227,16 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         if self.proc0:
             self.kmns_splines = []
             for im in range(len(self.xm_b)):
-                if (self.enforce_qs and (self.xn_b[im] != self.N * self.xm_b[im])):
+                if self.enforce_qs:
+                    is_QP = np.isinf(self.N)
+                    is_QS = not is_QP
+                    if is_QP:
+                        keep_mode = (self.xm_b[im] == 0)
+                    if is_QS:
+                        keep_mode = (self.xn_b[im] == self.N * self.xm_b[im])
+                else:
+                    keep_mode = True
+                if not keep_mode:
                     self.kmns_splines.append(InterpolatedUnivariateSpline(self.s_half_ext, 0*kmns[:, im], k=self.order))
                 else:
                     self.kmns_splines.append(InterpolatedUnivariateSpline(self.s_half_ext, self.mn_factor_splines[im](self.s_half_ext)*kmns[:, im], k=self.order))
@@ -1217,7 +1244,16 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             if self.asym:
                 self.kmnc_splines = []
                 for im in range(len(self.xm_b)):
-                    if (self.enforce_qs and (self.xn_b[im] != self.N * self.xm_b[im])):
+                    if self.enforce_qs:
+                        is_QP = np.isinf(self.N)
+                        is_QS = not is_QP
+                        if is_QP:
+                            keep_mode = (self.xm_b[im] == 0)
+                        if is_QS:
+                            keep_mode = (self.xn_b[im] == self.N * self.xm_b[im])
+                    else:
+                        keep_mode = True
+                    if not keep_mode:
                         self.kmnc_splines.append(InterpolatedUnivariateSpline(self.s_half_ext, 0*kmnc[:, im], k=self.order))
                     else:
                         self.kmnc_splines.append(InterpolatedUnivariateSpline(self.s_half_ext, self.mn_factor_splines[im](self.s_half_ext)*kmnc[:, im], k=self.order))
