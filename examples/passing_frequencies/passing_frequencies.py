@@ -47,8 +47,9 @@ degree = 3  # Degree for Lagrange interpolation
 sys.stdout = open(f"stdout_passing_freq_{resolution}_{comm_size}.txt", "a", buffering=1)
 
 time1 = time.time()
-
-bri = BoozerRadialInterpolant(boozmn_filename, order, no_K=True, comm=comm, N=4)
+M = 1
+N = 4
+bri = BoozerRadialInterpolant(boozmn_filename, order, no_K=True, comm=comm, helicity_M=M, helicity_N=N)
 
 field = InterpolatedBoozerField(
     bri,

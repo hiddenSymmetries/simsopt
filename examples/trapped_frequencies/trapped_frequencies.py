@@ -52,8 +52,9 @@ sys.stdout = open(
 )
 
 time1 = time.time()
-
-bri = BoozerRadialInterpolant(boozmn_filename, order, no_K=True, comm=comm, N=0)
+M = 1
+N = 0
+bri = BoozerRadialInterpolant(boozmn_filename, order, no_K=True, comm=comm, helicity_M=M, helicity_N=N)
 
 field = InterpolatedBoozerField(
     bri,
