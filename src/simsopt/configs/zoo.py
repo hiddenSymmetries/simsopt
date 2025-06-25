@@ -4,12 +4,15 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.coil import Current
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import Coil 
+from simsopt.field import coils_via_symmetries
+from simsopt.geo.curve import RotatedCurve
+from simsopt.geo.curvexyzfouriersymmetries import CurveXYZFourierSymmetries
 
 from pathlib import Path
 THIS_DIR = (Path(__file__).parent).resolve()
 
 __all__ = ["get_data", "configurations"]
-configurations = ["ncsx", "hsx", "giuliani", "w7x"]
+configurations = ["ncsx", "hsx", "giuliani", "w7x", "lhd_like"]
 
 def get_data(name, **kwargs):
     """
@@ -20,7 +23,7 @@ def get_data(name, **kwargs):
     ----------
     name : str
         Which configuration to load. Available values are:
-        ``"ncsx"``, ``"hsx"``, ``"giuliani"``, ``"w7x"``.
+        ``"ncsx"``, ``"hsx"``, ``"giuliani"``, ``"w7x"``, ``"lhd_like"``.
     Nt_coils : int, optional
         Order of the curves representing the coils.
     Nt_ma : int, optional
@@ -31,11 +34,17 @@ def get_data(name, **kwargs):
         (*Giuliani only*) Total length for the nine‐stage optimization.
     nsurfaces : int, optional
         (*Giuliani only*) Number of surfaces used in the optimization.
+    numquadpoints_circular : int, optional
+        (*LHD_like only*) Number of quadrature points for the six circular coils.
+    numquadpoints_helical : int, optional
+        (*LHD_like only*) Number of quadrature points for each helical coil.
+    numquadpoints_axis : int, optional
+        (*LHD_like only*) Number of quadrature points for the magnetic axis.
 
     Returns
     -------
     tuple
-        *4-element tuple* ``(curves, currents, ma, bs)``, where:
+        *5-element tuple* ``(curves, currents, ma, nfp, bs)``, where:
 
         curves : list of :class:`CurveXYZFourier` 
             The coil curves, with length determined by ``Nt_coils`` and ``ppp``.
@@ -43,9 +52,14 @@ def get_data(name, **kwargs):
             Corresponding coil currents.
         ma : :class:`CurveRZFourier`
             The magnetic axis, of order ``Nt_ma``, with ``nfp`` field periods.
+        nfp : int
+            Number of field periods.
         bs : :class:`BiotSavart`
-            The Biot–Savart operator assembled from ``curves`` and ``currents``.
-
+            The Biot–Savart operator built from the coil objects.  
+            
+                - For all configurations **except** ``"lhd_like"``, the coils are expanded via ``coils_via_symmetries(curves, currents, nfp, True)`` before building ``bs``.
+                
+                - For ``"lhd_like"``, each ``CurveXYZFourier`` and its ``Current`` are passed directly into ``Coil(curve, current)`` (no symmetry expansion).
 
     Notes
     -----
@@ -94,6 +108,26 @@ def get_data(name, **kwargs):
             used in the PPCF-paper for citation.  If there are any further
             questions, do not hesitate to contact me."*
         
+    ``name="lhd_like"`` 
+        **Get the coils and axis for an LHD-like configuration.**
+
+        This coil set is a single-filament approximation of the coils in LHD, the
+        Large Helical Device in Japan. Each filament corresponds to the center of
+        the winding pack of the real finite-thickness LHD coils. The coil currents
+        correspond to the configuration in which the major radius of the magnetic
+        axis is 3.6 m.
+
+        This configuration has 6 circular coils and 2 helical coils. In the
+        lists of curves and currents, the order is OVU, OVL, ISU, ISL, IVU, IVL,
+        helical1, helical2. Here, U and L indicate upper and lower, OV and IV indicate
+        the outer and inner vertical field coils, and IS indicates the inner shaping
+        coils.
+
+        These coils were generated from data generously provided by Yasuhiro Suzuki.
+        They produce a configuration similar to that used in Suzuki, Y., K. Y.
+        Watanabe, and S. Sakakibara. "Theoretical studies of equilibrium beta limit
+        in LHD plasmas." *Physics of Plasmas 27*, 10 (2020).
+
     """
     
     def add_default_args(kw_old, **kw_new):
@@ -101,6 +135,8 @@ def get_data(name, **kwargs):
             if k not in kw_old:
                 kw_old[k] = v
 
+    ma = None
+    nfp = None # will be assigned in every branch
     cfg = name.lower()
 
     if cfg == "ncsx":
@@ -195,20 +231,105 @@ def get_data(name, **kwargs):
             -1.5142136543872e-06
         ]
 
+    elif cfg == "lhd_like":
+        """Return the coils and axis for an LHD‐like configuration."""
+        add_default_args(kwargs,
+            numquadpoints_circular=400,
+            numquadpoints_helical=1000,
+            numquadpoints_axis=30,
+        )
+        nq_circ = kwargs.pop("numquadpoints_circular")
+        nq_hel  = kwargs.pop("numquadpoints_helical")
+        nq_ax   = kwargs.pop("numquadpoints_axis")
+
+        # LHD‐like parameters
+        nfp = 5  # Even though LHD has nfp=10 overall, each helical coil by itself has nfp=5.
+        order_circ = 1
+        order_hel = 6
+        stellsym = True
+        ntor = 1  # Number of toroidal turns for each helical coil to bite its tail
+        curves = [
+            CurveXYZFourier(nq_circ, order_circ),
+            CurveXYZFourier(nq_circ, order_circ),
+            CurveXYZFourier(nq_circ, order_circ),
+            CurveXYZFourier(nq_circ, order_circ),
+            CurveXYZFourier(nq_circ, order_circ),
+            CurveXYZFourier(nq_circ, order_circ),
+            CurveXYZFourierSymmetries(nq_hel, order_hel, nfp, stellsym, ntor),
+        ]
+        curves.append(RotatedCurve(curves[-1], phi=np.pi/5, flip=False))
+
+        # Set the shape of the first pair of circular coils, OVU and OVL:
+        R = 5.55
+        Z = 1.55
+        curves[0].x = [0, 0, R, 0, R, 0, +Z, 0, 0]
+        curves[1].x = [0, 0, R, 0, R, 0, -Z, 0, 0]
+
+        # Set the shape of the second pair of circular coils, ISU and ISL:
+        R = 2.82
+        Z = 2.0
+        curves[2].x = [0, 0, R, 0, R, 0, +Z, 0, 0]
+        curves[3].x = [0, 0, R, 0, R, 0, -Z, 0, 0]
+        
+        
+        # Set the shape of the third pair of circular coils, IVU and IVL:
+        R = 1.8
+        Z = 0.8
+        curves[4].x = [0, 0, R, 0, R, 0, +Z, 0, 0]
+        curves[5].x = [0, 0, R, 0, R, 0, -Z, 0, 0]
+
+        # Set the shape of the helical coils:
+        curves[6].x = [3.850062473963758, 0.9987505207248398, 0.049916705720487310, 0.0012492189452854780, 1.0408856336378722e-05, 0, 0, 0, 0, 0, -1.0408856336392461e-05, 0, 0, -0.9962526034072403, -0.049958346351996670, -0.0012486983723145407, -2.082291883655196e-05, 0, 0]
+
+        currents = [
+           Current(2824400.0), Current(2824400.0),
+           Current(682200.0),  Current(682200.0),
+           Current(-2940000.0), Current(-2940000.0),
+           Current(-5400000.0), Current(-5400000.0)]
+
+        # magnetic axis
+        ma = CurveRZFourier(quadpoints=nq_ax, order=6, nfp=10, stellsym=True)
+        ma.x = [
+            3.591808210975107,
+            0.03794646194915659,
+            0.00016372996351568552,
+            -3.8324273652135154e-07,
+            -7.090559083982798e-09,
+            -7.966967131848883e-11,
+            -5.308175230062491e-13,
+            -0.03663986968740222,
+            -0.00016230047363370836,
+            4.326127544845136e-07,
+            1.1123540323857856e-08,
+            6.833905523642707e-11,
+            4.612346787214785e-13,
+        ]
+
     else:
         raise ValueError(f"Unrecognized configuration name {name!r}; "
                          f"choose from {configurations!r}")
 
-    # building the magnetic axis
-    nump = Nt_ma * ppp
-    nump = nump + 1 if nump % 2 == 0 else nump
-    ma   = CurveRZFourier(nump, Nt_ma, nfp, True)
-    ma.rc[:] = cR[: (Nt_ma + 1)]
-    ma.zs[:] = sZ[:Nt_ma]
-    ma.x    = ma.get_dofs()
+    if cfg != "lhd_like":   # ie. not lhd_like
+        # building the magnetic axis
+        nump = Nt_ma * ppp
+        if nump % 2 == 0:   # ensure an odd node count
+            nump += 1
+        ma = CurveRZFourier(nump, Nt_ma, nfp, True)
+        ma.rc[:] = cR[:Nt_ma + 1]
+        ma.zs[:] = sZ[:Nt_ma]
+        ma.x = ma.get_dofs()
 
-    # assemble Biot–Savart
-    coils_for_bs = [Coil(curve, current) for curve, current in zip(curves, currents)]
-    bs = BiotSavart(coils_for_bs)
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
+        
+    else: 
+        # ma already defined above in the lhd_like elif case 
+        
+        coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
+        bs = BiotSavart(coils)
+        
 
-    return curves, currents, ma, bs
+    return curves, currents, ma, nfp, bs
+
+
+

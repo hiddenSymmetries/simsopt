@@ -9,8 +9,6 @@ try:
 except ImportError:
     with_mpi = False
 
-from simsopt.field.coil import coils_via_symmetries
-from simsopt.field.biotsavart import BiotSavart
 from simsopt.configs.zoo import get_data
 from simsopt.field.tracing import trace_particles_starting_on_curve, compute_fieldlines
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule
@@ -23,10 +21,7 @@ class MPITracingTesting(unittest.TestCase):
         super(MPITracingTesting, self).__init__(*args, **kwargs)
         logger = logging.getLogger('simsopt.field.tracing')
         logger.setLevel(1)
-        curves, currents, ma, _ = get_data("ncsx")
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        curves, currents, ma, nfp, bs = get_data("ncsx")
         n = 10
         rrange = (1.1, 1.8, n)
         phirange = (0, 2*np.pi/nfp, n*2)

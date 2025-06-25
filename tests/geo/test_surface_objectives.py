@@ -64,10 +64,8 @@ class ToroidalFluxTests(unittest.TestCase):
         of the cross section (varphi = constant) across which it is computed
         """
         s = get_exact_surface()
-        curves, currents, ma, _ = get_data("ncsx")
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs_tf = BiotSavart(coils)
+        curves, currents, ma, nfp, bs= get_data("ncsx")
+        bs_tf = BiotSavart(bs.coils)
 
         gamma = s.gamma()
         num_phi = gamma.shape[0]
@@ -112,10 +110,8 @@ class ToroidalFluxTests(unittest.TestCase):
                     self.subtest_toroidal_flux3(surfacetype, stellsym)
 
     def subtest_toroidal_flux1(self, surfacetype, stellsym):
-        curves, currents, ma, _ = get_data("ncsx")
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs_tf = BiotSavart(coils)
+        curves, currents, ma, nfp, bs = get_data("ncsx")
+        bs_tf = BiotSavart(bs.coils)
         s = get_surface(surfacetype, stellsym)
 
         tf = ToroidalFlux(s, bs_tf)
@@ -131,10 +127,7 @@ class ToroidalFluxTests(unittest.TestCase):
         taylor_test1(f, df, coeffs)
 
     def subtest_toroidal_flux2(self, surfacetype, stellsym):
-        curves, currents, ma, _ = get_data("ncsx")
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        curves, currents, ma, nfp, bs = get_data("ncsx")
         s = get_surface(surfacetype, stellsym)
 
         tf = ToroidalFlux(s, bs)
@@ -155,10 +148,8 @@ class ToroidalFluxTests(unittest.TestCase):
         taylor_test2(f, df, d2f, coeffs)
 
     def subtest_toroidal_flux3(self, surfacetype, stellsym):
-        curves, currents, ma, _ = get_data("ncsx")
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs_tf = BiotSavart(coils)
+        curves, currents, ma, nfp, bs = get_data("ncsx")
+        bs_tf = BiotSavart(bs.coils)
         s = get_surface(surfacetype, stellsym)
 
         tf = ToroidalFlux(s, bs_tf)
@@ -235,10 +226,7 @@ class QfmTests(unittest.TestCase):
                     self.subtest_qfm1(surfacetype, stellsym)
 
     def subtest_qfm1(self, surfacetype, stellsym):
-        curves, currents, ma, _ = get_data("ncsx")
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        curves, currents, ma, nfp, bs = get_data("ncsx")
         s = get_surface(surfacetype, stellsym)
         coeffs = s.x
         qfm = QfmResidual(s, bs)

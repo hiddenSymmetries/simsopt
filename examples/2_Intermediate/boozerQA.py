@@ -5,7 +5,7 @@ import numpy as np
 from scipy.optimize import minimize
 
 from simsopt.configs import get_data
-from simsopt.field import BiotSavart, coils_via_symmetries
+from simsopt.field import BiotSavart
 from simsopt.geo import SurfaceXYZTensorFourier, BoozerSurface, curves_to_vtk, boozer_surface_residual, \
     Volume, MajorRadius, CurveLength, NonQuasiSymmetricRatio, Iotas
 from simsopt.objectives import QuadraticPenalty
@@ -36,12 +36,10 @@ os.makedirs(OUT_DIR, exist_ok=True)
 print("Running 2_Intermediate/boozerQA.py")
 print("================================")
 
-base_curves, base_currents, ma, _ = get_data("ncsx")
-coils = coils_via_symmetries(base_curves, base_currents, 3, True)
-curves = [c.curve for c in coils]
-bs = BiotSavart(coils)
-bs_tf = BiotSavart(coils)
-current_sum = sum(abs(c.current.get_value()) for c in coils)
+base_curves, base_currents, ma, nfp, bs  = get_data("ncsx")
+curves = [c.curve for c in bs.coils]
+bs_tf = BiotSavart(bs.coils)
+current_sum = sum(abs(c.current.get_value()) for c in bs.coils)
 G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
 ## COMPUTE THE INITIAL SURFACE ON WHICH WE WANT TO OPTIMIZE FOR QA##
@@ -49,7 +47,6 @@ G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi))
 mpol = 6
 ntor = 6
 stellsym = True
-nfp = 3
 
 phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
 thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
@@ -71,7 +68,7 @@ res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=2
 out_res = boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)[0]
 print(f"NEWTON {res['success']}: iter={res['iter']}, iota={res['iota']:.3f}, vol={s.volume():.3f}, ||residual||={np.linalg.norm(out_res):.3e}")
 ## SET UP THE OPTIMIZATION PROBLEM AS A SUM OF OPTIMIZABLES ##
-bs_nonQS = BiotSavart(coils)
+bs_nonQS = BiotSavart(bs.coils)
 mr = MajorRadius(boozer_surface)
 ls = [CurveLength(c) for c in base_curves]
 

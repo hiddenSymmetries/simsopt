@@ -889,10 +889,7 @@ class Testing(unittest.TestCase):
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
 
-        curves, currents, ma, _ = get_data("ncsx")
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        curves, currents, ma, nfp, bs = get_data("ncsx")
         btotal = bs + B0
         rmin = 1.5
         rmax = 1.7
@@ -927,10 +924,7 @@ class Testing(unittest.TestCase):
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
 
-        curves, currents, ma, _ = get_data("ncsx")
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        curves, currents, ma, nfp, bs = get_data("ncsx")
         btotal = bs + B0
         n = 12
         rmin = 1.5
@@ -970,10 +964,7 @@ class Testing(unittest.TestCase):
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
 
-        curves, currents, ma, _ = get_data("ncsx")
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        curves, currents, ma, nfp, bs = get_data("ncsx")
         btotal = bs + B0
         n = 8
         rmin = 1.5
@@ -1012,10 +1003,7 @@ class Testing(unittest.TestCase):
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
 
-        curves, currents, ma, _ = get_data("ncsx")
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        curves, currents, ma, nfp, bs = get_data("ncsx")
         old_err_1 = 1e6
         old_err_2 = 1e6
         btotal = bs + B0
@@ -1040,11 +1028,8 @@ class Testing(unittest.TestCase):
             old_err_2 = err_2
 
     def test_get_set_points_cyl_cart(self):
-        curves, currents, ma, _ = get_data("ncsx")
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
-
+        curves, currents, ma, nfp, bs = get_data("ncsx")
+        
         points_xyz = np.asarray([[0.5, 0.6, 0.7], [0.4, 0.1, 0.6]])
         points_rphiz = np.zeros_like(points_xyz)
         points_rphiz[:, 0] = np.linalg.norm(points_xyz[:, 0:2], axis=1)
@@ -1073,17 +1058,11 @@ class Testing(unittest.TestCase):
 
     @unittest.skipIf(pyevtk is None, "pyevtk not found")
     def test_to_vtk(self):
-        curves, currents, ma, _ = get_data("ncsx")
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        curves, currents, ma, nfp, bs = get_data("ncsx")
         bs.to_vtk('/tmp/bfield')
 
     def subtest_to_mgrid(self, include_potential):
-        curves, currents, ma, _ = get_data("ncsx")
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        curves, currents, ma, nfp, bs = get_data("ncsx")
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = Path(tmpdir) / "mgrid.bfield.nc"
             bs.to_mgrid(filename, nfp=nfp, include_potential=include_potential)

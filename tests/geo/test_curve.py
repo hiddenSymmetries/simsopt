@@ -695,7 +695,7 @@ class Testing(unittest.TestCase):
         print(f'Testing these plotting engines: {engines}')
         c = CurveXYZFourier(30, 2)
         c.set_dofs(np.random.rand(len(c.get_dofs())) - 0.5)
-        coils, currents, ma, _ =  get_data("ncsx", Nt_coils=25, Nt_ma=10)
+        coils, currents, ma, nfp, bs =  get_data("ncsx", Nt_coils=25, Nt_ma=10)
         for engine in engines:
             for close in [True, False]:
                 # Plot a single curve:
@@ -743,7 +743,7 @@ class Testing(unittest.TestCase):
         ppp = 4
 
         for cfg in configs:
-            curves, currents, ma, _ = get_data(cfg, Nt_coils=order, ppp=ppp)
+            curves, currents, ma, nfp, bs = get_data(cfg, Nt_coils=order, ppp=ppp)
 
             # write coils to MAKEGRID file
             coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)

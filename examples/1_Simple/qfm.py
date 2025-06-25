@@ -17,15 +17,12 @@ for fixing the area and toroidal flux.
 print("Running 1_Simple/qfm.py")
 print("=======================")
 
-curves, currents, ma, _ = get_data("ncsx")
-coils = coils_via_symmetries(curves, currents, 3, True)
-bs = BiotSavart(coils)
-bs_tf = BiotSavart(coils)
+curves, currents, ma, nfp, bs = get_data("ncsx")
+bs_tf = BiotSavart(bs.coils)
 
 mpol = 5
 ntor = 5
 stellsym = True
-nfp = 3
 constraint_weight = 1e0
 
 phis = np.linspace(0, 1/nfp, 25, endpoint=False)

@@ -7,7 +7,7 @@ from simsopt.field.tracing import compute_fieldlines, particles_to_vtk, plot_poi
     MinRStoppingCriterion, MinZStoppingCriterion, MaxRStoppingCriterion, MaxZStoppingCriterion
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.configs.zoo import get_data
-from simsopt.field.coil import coils_via_symmetries, Coil, Current
+from simsopt.field.coil import Coil, Current
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 
@@ -75,17 +75,14 @@ class FieldlineTesting(unittest.TestCase):
         assert [np.allclose(rtest[i], 0., rtol=1e-5, atol=1e-5) for i in range(nlines)]
 
     def test_poincare_plot(self):
-        curves, currents, ma, _ = get_data("ncsx")
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        curves, currents, ma, nfp, bs = get_data("ncsx")
         n = 10
         rrange = (1.0, 1.9, n)
         phirange = (0, 2*np.pi/nfp, n*2)
         zrange = (0, 0.4, n)
         bsh = InterpolatedField(
             bs, UniformInterpolationRule(2),
-            rrange, phirange, zrange, True, nfp=3, stellsym=True
+            rrange, phirange, zrange, True, nfp=nfp, stellsym=True
         )
         nlines = 4
         r0 = np.linalg.norm(ma.gamma()[0, :2])
@@ -103,10 +100,7 @@ class FieldlineTesting(unittest.TestCase):
             pass
 
     def test_poincare_ncsx_known(self):
-        curves, currents, ma, _ = get_data("ncsx")
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        curves, currents, ma, nfp, bs = get_data("ncsx")
         R0 = [np.linalg.norm(ma.gamma()[0, :2])]
         Z0 = [ma.gamma()[0, 2]]
         phis = np.arctan2(ma.gamma()[:, 1], ma.gamma()[:, 0])

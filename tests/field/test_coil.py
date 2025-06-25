@@ -144,20 +144,20 @@ class ScaledCurrentTesting(unittest.TestCase):
 
 class CoilFormatConvertTesting(unittest.TestCase):
     def test_makegrid(self):
-        curves, currents, ma, _ = get_data("ncsx")
+        curves, currents, ma, nfp, bs= get_data("ncsx")
         with ScratchDir("."):
-            coils_to_focus('test.focus', curves, currents, nfp=3, stellsym=True)
+            coils_to_focus('test.focus', curves, currents, nfp=nfp, stellsym=True)
 
     def test_focus(self):
-        curves, currents, ma, _ = get_data("ncsx")
+        curves, currents, ma, nfp, bs = get_data("ncsx")
         with ScratchDir("."):
-            coils_to_makegrid('coils.test', curves, currents, nfp=3, stellsym=True)
+            coils_to_makegrid('coils.test', curves, currents, nfp=nfp, stellsym=True)
 
     def test_load_coils_from_makegrid_file(self):
         order = 25
         ppp = 10
 
-        curves, currents, ma, _ = get_data("ncsx", Nt_coils=order, ppp=ppp)
+        curves, currents, ma, nfp, bs = get_data("ncsx", Nt_coils=order, ppp=ppp)
         with ScratchDir("."):
             coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
             loaded_coils = load_coils_from_makegrid_file("coils.file_to_load", order, ppp)

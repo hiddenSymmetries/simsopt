@@ -131,7 +131,7 @@ class CoilForcesTest(unittest.TestCase):
         """Check that the self-force is approximately independent of the number of quadrature points"""
         ppps = [8, 4, 2, 7, 5]
         for j, ppp in enumerate(ppps):
-            curves, currents, ma, _ = get_data("hsx", ppp=ppp)
+            curves, currents, ma, nfp, bs = get_data("hsx", ppp=ppp)
             curve = curves[0]
             I = 1.5e3
             a = 0.01
@@ -151,7 +151,7 @@ class CoilForcesTest(unittest.TestCase):
 
     def test_hsx_coil(self):
         """Compare self-force for HSX coil 1 to result from CoilForces.jl"""
-        curves, currents, ma, _ = get_data("hsx")
+        curves, currents, ma, nfp, bs  = get_data("hsx")
         assert len(curves[0].quadpoints) == 160
         I = 150e3
         a = 0.01
@@ -261,10 +261,9 @@ class CoilForcesTest(unittest.TestCase):
         # The Fourier spectrum of the NCSX coils is truncated - we don't need the
         # actual coil shapes from the experiment, just a few nonzero dofs.
 
-        curves, currents, axis, _ = get_data("ncsx", Nt_coils=2)
-        coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
-
-        J = MeanSquaredForce(coils[0], coils, regularization_circ(0.05))
+        curves, currents, axis, nfp, bs = get_data("ncsx", Nt_coils=2)
+        
+        J = MeanSquaredForce(bs.coils[0], bs.coils, regularization_circ(0.05))
         dJ = J.dJ()
         deriv = np.sum(dJ * np.ones_like(J.x))
         dofs = J.x
@@ -287,10 +286,9 @@ class CoilForcesTest(unittest.TestCase):
         # The Fourier spectrum of the NCSX coils is truncated - we don't need the
         # actual coil shapes from the experiment, just a few nonzero dofs.
 
-        curves, currents, axis, _ = get_data("ncsx", Nt_coils=2)
-        coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
-
-        J = LpCurveForce(coils[0], coils, regularization_circ(0.05), 2.5)
+        curves, currents, axis, nfp, bs = get_data("ncsx", Nt_coils=2)
+        
+        J = LpCurveForce(bs.coils[0], bs.coils, regularization_circ(0.05), 2.5)
         dJ = J.dJ()
         deriv = np.sum(dJ * np.ones_like(J.x))
         dofs = J.x
