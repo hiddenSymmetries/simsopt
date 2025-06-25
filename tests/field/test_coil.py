@@ -12,7 +12,7 @@ from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum, coils_v
 from simsopt.field.coil import coils_to_makegrid, coils_to_focus, load_coils_from_makegrid_file
 from simsopt.field.biotsavart import BiotSavart
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
-from simsopt.configs import get_ncsx_data
+from simsopt.configs import get_data
 
 import os
 from . import TEST_DIR
@@ -144,20 +144,20 @@ class ScaledCurrentTesting(unittest.TestCase):
 
 class CoilFormatConvertTesting(unittest.TestCase):
     def test_makegrid(self):
-        curves, currents, ma = get_ncsx_data()
+        curves, currents, ma, nfp, bs= get_data("ncsx")
         with ScratchDir("."):
-            coils_to_focus('test.focus', curves, currents, nfp=3, stellsym=True)
+            coils_to_focus('test.focus', curves, currents, nfp=nfp, stellsym=True)
 
     def test_focus(self):
-        curves, currents, ma = get_ncsx_data()
+        curves, currents, ma, nfp, bs = get_data("ncsx")
         with ScratchDir("."):
-            coils_to_makegrid('coils.test', curves, currents, nfp=3, stellsym=True)
+            coils_to_makegrid('coils.test', curves, currents, nfp=nfp, stellsym=True)
 
     def test_load_coils_from_makegrid_file(self):
         order = 25
         ppp = 10
 
-        curves, currents, ma = get_ncsx_data(Nt_coils=order, ppp=ppp)
+        curves, currents, ma, nfp, bs = get_data("ncsx", Nt_coils=order, ppp=ppp)
         with ScratchDir("."):
             coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
             loaded_coils = load_coils_from_makegrid_file("coils.file_to_load", order, ppp)
