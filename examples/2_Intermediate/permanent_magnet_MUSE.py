@@ -46,11 +46,11 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
-    nphi = 64  # >= 64 for high-resolution runs
-    nIter_max = 15000
+    nphi =32  # >= 64 for high-resolution runs
+    nIter_max = 1000
     nBacktracking = 200
     max_nMagnets = nIter_max
-    downsample = 2
+    downsample = 100
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -243,7 +243,11 @@ print("% of dipoles that are nonzero = ", num_nonzero)
 # Print optimized f_B and other metrics
 ### Note this will only agree with the optimization in the high-resolution
 ### limit where nphi ~ ntheta >= 64!
-net_forces, net_torques = pm_opt.force_torque_calc(pm_opt.m) 
+# Add shape check for pm_opt.m before force calculation
+if pm_opt.m.shape != (pm_opt.ndipoles, 3):
+    print(f"[ERROR] pm_opt.m has shape {pm_opt.m.shape}, expected ({pm_opt.ndipoles}, 3)")
+    raise ValueError(f"pm_opt.m must have shape (N, 3), got {pm_opt.m.shape}")
+net_forces, net_torques = pm_opt.force_torque_calc(pm_opt.m)
 b_dipole = DipoleField(
     pm_opt.dipole_grid_xyz,
     pm_opt.m, 

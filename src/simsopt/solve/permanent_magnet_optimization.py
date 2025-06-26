@@ -269,8 +269,8 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
         m_proxy = m
 
     # note m = m_proxy if not using relax-and-split (i.e. problem is convex)
-    pm_opt.m = m
-    pm_opt.m_proxy = m_proxy
+    pm_opt.m = ensure_dipole_shape(m, pm_opt.ndipoles)
+    pm_opt.m_proxy = ensure_dipole_shape(m_proxy, pm_opt.ndipoles)
     return errors, m_history, m_proxy_history
 
 
@@ -417,7 +417,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_baseline(
             A_obj=contig(A_obj.T),
             b_obj=contig(pm_opt.b_obj),
-            mmax=np.sqrt(reg_l2)*mmax_vec,
+            mmax=np.sqrt(reg_l2)*pm_opt.m_maxima,
             normal_norms=Nnorms,
             K=kwargs.pop("K", pm_opt.ndipoles),
             verbose=kwargs.pop("verbose", False),
@@ -484,16 +484,27 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
 
     # rescale m and m_history
     m = m * (mmax_vec.reshape(pm_opt.ndipoles, 3))
+    m = ensure_dipole_shape(m, pm_opt.ndipoles)
     print('Number of binary dipoles returned by GPMO algorithm = ',
           np.count_nonzero(np.sum(m, axis=-1)))
 
     # rescale the m that have been saved every Nhistory iterations
     for i in range(m_history.shape[-1]):
         m_history[:, :, i] = m_history[:, :, i] * (mmax_vec.reshape(pm_opt.ndipoles, 3))
+    # Ensure m_history is always (N, 3, nhistory+1)
+    if m_history.ndim == 2:
+        m_history = m_history.reshape((pm_opt.ndipoles, 3, -1))
     errors = algorithm_history[algorithm_history != 0]
     Bn_errors = Bn_history[Bn_history != 0]
 
     # note m = m_proxy for GPMO because this is not using relax-and-split
-    pm_opt.m = np.ravel(m)
-    pm_opt.m_proxy = pm_opt.m
+    pm_opt.m = m
+    pm_opt.m_proxy = m
     return errors, Bn_errors, m_history
+
+
+def ensure_dipole_shape(m, ndipoles):
+    m = np.ascontiguousarray(m)
+    if m.ndim == 1:
+        m = m.reshape((ndipoles, 3))
+    return m

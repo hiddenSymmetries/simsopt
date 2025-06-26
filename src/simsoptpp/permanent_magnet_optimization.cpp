@@ -8,6 +8,8 @@
 #include <vector>
 #include <math.h>
 #include "NetForce.h"
+#include <omp.h>
+
 
 // Project a 3-vector onto the L2 ball with radius m_maxima
 std::tuple<double, double, double> projection_L2_balls(double x1, double x2, double x3, double m_maxima) {
@@ -332,23 +334,39 @@ void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr,
     double sqrtR2 = 0.0;
     double R2 = 0.0;
     double L2 = mmax_sum;
+    
+    // SAFETY: Check if raw pointers are valid before using them
+    if (Aij_mj_ptr != nullptr && normal_norms_ptr != nullptr) {
 #pragma omp parallel for schedule(static) reduction(+: R2, sqrtR2)
-    for(int i = 0; i < ngrid; ++i) {
-	R2 += Aij_mj_ptr[i] * Aij_mj_ptr[i];
-	sqrtR2 += abs(Aij_mj_ptr[i]) * sqrt(normal_norms_ptr[i]);
+        for(int i = 0; i < ngrid; ++i) {
+            R2 += Aij_mj_ptr[i] * Aij_mj_ptr[i];
+            sqrtR2 += abs(Aij_mj_ptr[i]) * sqrt(normal_norms_ptr[i]);
+        }
+    } else {
+        // SAFETY: If raw pointers are not available, skip the computation
+        // This is a fallback for when we pass nullptr to avoid memory issues
+        R2 = 0.0;
+        sqrtR2 = 0.0;
     }
-    R2 = 0.5 * R2;
+    
+    // SAFETY: Use array access for x instead of raw pointers
+    for(int j = 0; j < N; ++j) {
+        for(int l = 0; l < 3; ++l) {
+            L2 += x(j, l) * x(j, l);
+        }
+    }
+    
     objective_history(print_iter) = R2;
-    Bn_history(print_iter) = sqrtR2 / sqrt(ngrid);
-#pragma omp parallel for schedule(static) 
-    for (int i = 0; i < N; ++i) {
-	for (int ii = 0; ii < 3; ++ii) {
-	    m_history(i, ii, print_iter) = x(i, ii);
-    	}
+    Bn_history(print_iter) = sqrtR2;
+    
+    for(int j = 0; j < N; ++j) {
+        for(int l = 0; l < 3; ++l) {
+            m_history(j, l, print_iter) = x(j, l);
+        }
     }
-    printf("%d ... %.2e ... %.2e \n", k, R2, L2);
-    print_iter += 1;
-    return;
+    
+    printf("%d ... %.2e ... %.2e ... %.2e\n", k, R2, L2, 0.0);  // Force penalty is 0.0 for now
+    print_iter++;
 }
 
 // compute which dipoles are directly adjacent to every dipole
@@ -1242,9 +1260,8 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
     int N3 = 3 * N;
     int print_iter = 0;
 
+    // Create arrays with simple xt::pyarray objects
     Array x = xt::zeros<double>({N, 3});
-
-    // record the history of the algorithm iterations
     Array m_history = xt::zeros<double>({N, 3, nhistory + 1});
     Array objective_history = xt::zeros<double>({nhistory + 1});
     Array Bn_history = xt::zeros<double>({nhistory + 1});
@@ -1257,21 +1274,14 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
     Array Gamma_complement = xt::ones<bool>({N, 3});
 	
     // initialize least-square values to large numbers    
-    vector<double> R2s(6 * N, 1e50);
-    vector<int> skj(K);
-    vector<int> skjj(K);
-    vector<double> sign_fac(K);
-    
-    double* R2s_ptr = &(R2s[0]);
-    double* Aij_ptr = &(A_obj(0, 0));
-    double* Gamma_ptr = &(Gamma_complement(0, 0));
+    std::vector<double> R2s(6 * N, 1e50);
+    std::vector<int> skj(K);
+    std::vector<int> skjj(K);
+    std::vector<double> sign_fac(K);
     
     // initialize running matrix-vector product
     Array Aij_mj_sum = -b_obj;
     double mmax_sum = 0.0;
-    double* Aij_mj_ptr = &(Aij_mj_sum(0));
-    double* normal_norms_ptr = &(normal_norms(0));
-    double* mmax_ptr = &(mmax(0));
 
     // if using a single direction, increase j by 3 each iteration
     int j_update = 1;
@@ -1279,49 +1289,46 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
     
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
-#pragma omp parallel for schedule(static)
-	for (int j = std::max(0, single_direction); j < N3; j += j_update) {
+        for (int j = std::max(0, single_direction); j < N3; j += j_update) {
 
 	    // Check all the allowed dipole positions
-	    if (Gamma_ptr[j]) {
+	    if (Gamma_complement(j/3, j%3)) {
 		double R2 = 0.0;
 		double R2minus = 0.0;
-		int nj = ngrid * j;
 
 		// Compute contribution of jth dipole component, either with +- orientation
 		for(int i = 0; i < ngrid; ++i) {
-		    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]);
-		    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
+		    R2 += (Aij_mj_sum(i) + A_obj(i, j)) * (Aij_mj_sum(i) + A_obj(i, j));
+		    R2minus += (Aij_mj_sum(i) - A_obj(i, j)) * (Aij_mj_sum(i) - A_obj(i, j));
 		}
 		
 		// Add force penalty term if force_weight > 0
 		double force_penalty = 0.0;
 		if (force_weight > 0.0) {
-		    // Create temporary solution with this dipole added (positive orientation)
-		    Array x_temp = x;
-		    int dipole_idx = j / 3;
-		    int component_idx = j % 3;
-		    x_temp(dipole_idx, component_idx) = 1.0; // Positive orientation
+		    // Create a temporary dipole array with the current dipole added
+		    Array temp_dipoles = x;
+		    temp_dipoles(j/3, j%3) += 1.0; // Add unit dipole to existing value
 		    
-		    // Calculate forces on all dipoles using the C++ function
-		    Array net_forces = net_force_matrix(x_temp, dipole_grid_xyz);
+		    // Compute forces using net_force_matrix
+		    Array forces = net_force_matrix(temp_dipoles, dipole_grid_xyz);
 		    
-		    // Calculate force magnitudes for each dipole
+		    // Find maximum force magnitude
 		    double max_force = 0.0;
-		    for (int d = 0; d < N; ++d) {
-		        double fx = net_forces(d, 0);
-		        double fy = net_forces(d, 1);
-		        double fz = net_forces(d, 2);
-		        double force_magnitude = sqrt(fx*fx + fy*fy + fz*fz);
-		        if (force_magnitude > max_force) {
-		            max_force = force_magnitude;
+		    for(int ii = 0; ii < forces.shape(0); ++ii) {
+		        double force_mag = 0.0;
+		        for(int ll = 0; ll < 3; ++ll) {
+		            force_mag += forces(ii, ll) * forces(ii, ll);
+		        }
+		        force_mag = sqrt(force_mag);
+		        if (force_mag > max_force) {
+		            max_force = force_mag;
 		        }
 		    }
+		    
 		    force_penalty = force_weight * max_force;
 		}
-		
-		R2s_ptr[j] = R2 + (mmax_ptr[j] * mmax_ptr[j]) + force_penalty;
-		R2s_ptr[j + N3] = R2minus + (mmax_ptr[j] * mmax_ptr[j]) + force_penalty;
+		R2s[j] = R2 + (mmax(j/3) * mmax(j/3)) + force_penalty;
+		R2s[j + N3] = R2minus + (mmax(j/3) * mmax(j/3)) + force_penalty;
 	    }
 	}
 
@@ -1340,20 +1347,66 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
 
 	// Add binary magnet and get rid of the magnet (all three components)
         // from the complement of Gamma 
-	int skj_inds = (3 * skj[k] + skjj[k]) * ngrid;
-#pragma omp parallel for schedule(static)
 	for(int i = 0; i < ngrid; ++i) {
-            Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_inds];
+            Aij_mj_sum(i) += sign_fac[k] * A_obj(i, 3 * skj[k] + skjj[k]);
 	}
         for (int j = 0; j < 3; ++j) {
             Gamma_complement(skj[k], j) = false;
 	    R2s[3 * skj[k] + j] = 1e50;
 	    R2s[N3 + 3 * skj[k] + j] = 1e50;
-        }
+	}
 
 	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
-            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
+            // Calculate current values for printing
+            double R2 = 0.0;
+            double L2 = mmax_sum;
+            double max_force_penalty = 0.0;
+            
+            // Calculate R2 (residual squared)
+            for(int i = 0; i < ngrid; ++i) {
+                R2 += Aij_mj_sum(i) * Aij_mj_sum(i);
+            }
+            
+            // Calculate L2 norm
+            for(int j = 0; j < N; ++j) {
+                for(int l = 0; l < 3; ++l) {
+                    L2 += x(j, l) * x(j, l);
+                }
+            }
+            
+            // Calculate current force penalty if force_weight > 0
+            if (force_weight > 0.0) {
+                // Compute forces using net_force_matrix
+                Array forces = net_force_matrix(x, dipole_grid_xyz);
+                
+                // Find maximum force magnitude
+                for(int ii = 0; ii < forces.shape(0); ++ii) {
+                    double force_mag = 0.0;
+                    for(int ll = 0; ll < 3; ++ll) {
+                        force_mag += forces(ii, ll) * forces(ii, ll);
+                    }
+                    force_mag = sqrt(force_mag);
+                    if (force_mag > max_force_penalty) {
+                        max_force_penalty = force_mag;
+                    }
+                }
+                max_force_penalty *= force_weight;
+            }
+            
+            objective_history(print_iter) = R2;
+            Bn_history(print_iter) = 0.0;
+            
+            // Store history
+            for(int j = 0; j < N; ++j) {
+                for(int l = 0; l < 3; ++l) {
+                    m_history(j, l, print_iter) = x(j, l);
+                }
+            }
+            
+            printf("%d ... %.2e ... %.2e ... %.2e\n", k, R2, L2, max_force_penalty);
+            print_iter++;
 	}
     }
+    
     return std::make_tuple(objective_history, Bn_history, m_history, x);
 }

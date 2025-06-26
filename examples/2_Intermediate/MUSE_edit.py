@@ -49,7 +49,7 @@ if in_github_actions:
 else:
     nphi = 32  # >= 64 for high-resolution runs
     nIter_max = 1000
-    downsample = 10
+    downsample = 100
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -125,9 +125,19 @@ plt.ylabel('Metric values')
 plt.legend()
 plt.savefig(out_dir / 'GPMO_MSE_history.png')
 
+# Utility to ensure dipole shape
+def ensure_dipole_shape(m, ndipoles):
+    m = np.ascontiguousarray(m)
+    if m.ndim == 1:
+        m = m.reshape((ndipoles, 3))
+    return m
+
 # Set final m to the minimum achieved during the optimization
 min_ind = np.argmin(R2_history)
-pm_opt.m = np.ravel(m_history[:, :, min_ind])
+m_final = m_history[:, :, min_ind]
+if m_final.ndim == 1:
+    m_final = m_final.reshape((pm_opt.ndipoles, 3))
+pm_opt.m = ensure_dipole_shape(m_final, pm_opt.ndipoles)
 B_max = 1.465
 mu0 = 4 * np.pi * 1e-7
 M_max = B_max / mu0
@@ -153,37 +163,9 @@ if save_plots:
     print(m_history.shape)
     # Look through the solutions as function of K and make plots
     for k in range(0, m_history.shape[-1], 100):
-        #mk = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
         mk = m_history[:, :, k]
+        mk = ensure_dipole_shape(mk, pm_opt.ndipoles)
         print(mk.shape)
-        # #Find indices where there are and aren't dipole moments
-        # mk_nonzero_indices = np.where(np.sum(mk ** 2, axis=-1) > 1e-10)[0]
-        # mk_zero_indices = np.where(np.sum(mk ** 2, axis=-1) <= 1e-10)[0]
-        # #Do net force calcs where there are nonzero dipole moments and make a list
-        # t_force_calc_start = time.time()
-        # net_forces_nonzero = sopp.net_force_matrix(
-        #         np.ascontiguousarray(mk[mk_nonzero_indices, :]), 
-        #         np.ascontiguousarray(pm_opt.dipole_grid_xyz[mk_nonzero_indices, :])
-        #     )
-        # net_forces = np.zeros((pm_opt.ndipoles, 3))
-        # net_forces[mk_nonzero_indices, :] = net_forces_nonzero
-        # net_forces[mk_zero_indices, :] = 0.0
-        # t_force_calc_end = time.time()
-        # print('Time to calc force = ', t_force_calc_end - t_force_calc_start)
-        
-        # # Do net torque calcs where there are nonzero dipole moments and make a list
-        # t_torque_calc_start = time.time()
-        # # This calls the C++ function
-        # net_torques_nonzero = sopp.net_torque_matrix(
-        #         np.ascontiguousarray(mk[mk_nonzero_indices, :]),
-        #         np.ascontiguousarray(pm_opt.dipole_grid_xyz[mk_nonzero_indices, :])
-        #     )
-       
-        # net_torques = np.zeros((pm_opt.ndipoles, 3))
-        # net_torques[mk_nonzero_indices, :] = net_torques_nonzero
-        # net_torques[mk_zero_indices, :] = 0.0 # Ensure these are explicitly zero
-        # t_torque_calc_end = time.time()
-        # print('Time to calc torque for non-zero dipoles = ', t_torque_calc_end - t_torque_calc_start)
         net_forces, net_torques = pm_opt.force_torque_calc(mk)
         
         b_dipole = DipoleField(
@@ -199,7 +181,6 @@ if save_plots:
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
         K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
         b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}")
-        #print("Total fB = ", 0.5 * np.sum((pm_opt.A_obj @ mk - pm_opt.b_obj) ** 2))
         Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
         Bnormal_total = Bnormal + Bnormal_dipoles
 

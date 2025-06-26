@@ -81,7 +81,8 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("GPMO_baseline", &GPMO_baseline, 
         py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"),
         py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, 
-        py::arg("single_direction") = -1, py::arg("dipole_grid_xyz"), py::arg("force_weight") = 0.0);
+        py::arg("single_direction") = -1, py::arg("dipole_grid_xyz"), py::arg("force_weight") = 0.0,
+        py::return_value_policy::take_ownership);
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);
