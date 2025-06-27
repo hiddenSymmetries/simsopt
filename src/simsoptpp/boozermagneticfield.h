@@ -2,16 +2,19 @@
 #include <xtensor/xnoalias.hpp>
 #include <stdexcept>
 #include "xtensor-python/pytensor.hpp"
+#include <string>
 
 using std::logic_error;
 using std::vector;
 using std::shared_ptr;
 using std::make_shared;
+using std::string;
 
 class BoozerMagneticField {
     public:
         using Array2 = xt::pytensor<double, 2, xt::layout_type::row_major>;
         double psi0;
+        string field_type; // "vac" for vacuum, "nok" for no-K, "" for full Boozer field.
 
     protected:
         virtual void _set_points_cb() {}
@@ -112,7 +115,6 @@ class BoozerMagneticField {
         Array2 points, points_sym;
         Array2 data_modB, data_modB_derivs;
         Array2 data_dmodBds, data_dmodBdtheta, data_dmodBdzeta;
-        Array2 data_d2modBdtheta2, data_d2modBdthetadzeta, data_d2modBdzeta;
         Array2 data_G, data_dGds;
         Array2 data_iota, data_diotads;
         Array2 data_psip;
@@ -126,9 +128,23 @@ class BoozerMagneticField {
         Array2 data_Z, data_Z_derivs;
         Array2 data_dZds, data_dZdtheta, data_dZdzeta;
         long npoints;
+        bool status_modB=false, status_modB_derivs=false;
+        bool status_dmodBds=false, status_dmodBdtheta=false, status_dmodBdzeta=false;
+        bool status_G=false, status_dGds=false;
+        bool status_iota=false, status_diotads=false; 
+        bool status_psip=false;
+        bool status_I=false, status_dIds=false;  
+        bool status_nu=false, status_nu_derivs=false;
+        bool status_dnuds=false, status_dnudtheta=false, status_dnudzeta=false;
+        bool status_K=false, status_K_derivs=false;
+        bool status_dKdtheta=false, status_dKdzeta=false;
+        bool status_R=false, status_R_derivs=false;
+        bool status_dRds=false, status_dRdtheta=false, status_dRdzeta=false;
+        bool status_Z=false, status_Z_derivs=false;
+        bool status_dZds=false, status_dZdtheta=false, status_dZdzeta=false;
 
     public:
-        BoozerMagneticField(double psi0) : psi0(psi0) {
+        BoozerMagneticField(double psi0, string field_type) : psi0(psi0), field_type(field_type) {
             Array2 vals({{0., 0., 0.}});
             this->set_points(vals);
         }
@@ -139,6 +155,37 @@ class BoozerMagneticField {
             Array2& _points = points;
             memcpy(_points.data(), p.data(), 3*npoints*sizeof(double));
             this->_set_points_cb();
+            status_modB = false; 
+            status_modB_derivs = false;
+            status_dmodBds = false;
+            status_dmodBdtheta = false;
+            status_dmodBdzeta = false;
+            status_G = false;
+            status_dGds = false;
+            status_iota = false;
+            status_diotads = false;
+            status_psip = false;
+            status_I = false;
+            status_dIds = false;
+            status_nu = false;
+            status_nu_derivs = false;
+            status_dnuds = false;
+            status_dnudtheta = false;
+            status_dnudzeta = false;
+            status_K = false;
+            status_K_derivs = false;
+            status_dKdtheta = false;
+            status_dKdzeta = false;
+            status_R = false;
+            status_R_derivs = false;
+            status_dRds = false;
+            status_dRdtheta = false;
+            status_dRdzeta = false;
+            status_Z = false;
+            status_Z_derivs = false;
+            status_dZds = false;
+            status_dZdtheta = false;
+            status_dZdzeta = false;
         }
 
         Array2 get_points() {
@@ -154,188 +201,281 @@ class BoozerMagneticField {
         }
 
         Array2& K_ref() {
-            data_K.resize({npoints, 1});
-            _K_impl(data_K);
+            if (!status_K) {
+                data_K.resize({npoints, 1});
+                _K_impl(data_K);
+                status_K = true;
+            }
             return data_K;
         }
 
         Array2& K_derivs_ref() {
-            data_K_derivs.resize({npoints, 2});
-            _K_derivs_impl(data_K_derivs);
+            if (!status_K_derivs) {
+                data_K_derivs.resize({npoints, 2});
+                _K_derivs_impl(data_K_derivs);
+                status_K_derivs = true;
+            }
             return data_K_derivs;
         }
 
         Array2& dKdtheta_ref() {
-            data_dKdtheta.resize({npoints, 1});
-            _dKdtheta_impl(data_dKdtheta);
+            if (!status_dKdtheta) {
+                data_dKdtheta.resize({npoints, 1});
+                _dKdtheta_impl(data_dKdtheta);
+                status_dKdtheta = true;
+            }
             return data_dKdtheta;
         }
 
         Array2& dKdzeta_ref() {
-            data_dKdzeta.resize({npoints, 1});
-            _dKdzeta_impl(data_dKdzeta);
+            if (!status_dKdzeta) {
+                data_dKdzeta.resize({npoints, 1});
+                _dKdzeta_impl(data_dKdzeta);
+                status_dKdzeta = true;
+            }
             return data_dKdzeta;
         }
 
         Array2& nu_ref() {
-            data_nu.resize({npoints, 1});
-            _nu_impl(data_nu);
+            if (!status_nu) {
+                data_nu.resize({npoints, 1});
+                _nu_impl(data_nu);
+                status_nu = true;
+            }
             return data_nu;
         }
 
         Array2& dnudtheta_ref() {
-            data_dnudtheta.resize({npoints, 1});
-            _dnudtheta_impl(data_dnudtheta);
+            if (!status_dnudtheta) {
+                data_dnudtheta.resize({npoints, 1});
+                _dnudtheta_impl(data_dnudtheta);
+                status_dnudtheta = true;
+            }
             return data_dnudtheta;
         }
 
         Array2& dnudzeta_ref() {
-            data_dnudzeta.resize({npoints, 1});
-            _dnudzeta_impl(data_dnudzeta);
+            if (!status_dnudzeta) {
+                data_dnudzeta.resize({npoints, 1});
+                _dnudzeta_impl(data_dnudzeta);
+                status_dnudzeta = true;
+            }
             return data_dnudzeta;
         }
 
         Array2& dnuds_ref() {
-            data_dnuds.resize({npoints, 1});
-            _dnuds_impl(data_dnuds);
+            if (!status_dnuds) {
+                data_dnuds.resize({npoints, 1});
+                _dnuds_impl(data_dnuds);
+                status_dnuds = true;
+            }
             return data_dnuds;
         }
 
         Array2& nu_derivs_ref() {
-            data_nu_derivs.resize({npoints, 3});
-            _nu_derivs_impl(data_nu_derivs);
+            if (!status_nu_derivs) {
+                data_nu_derivs.resize({npoints, 3});
+                _nu_derivs_impl(data_nu_derivs);
+                status_nu_derivs = true;
+            }
             return data_nu_derivs;
         }
 
         Array2& R_ref() {
-            data_R.resize({npoints, 1});
-            _R_impl(data_R);
+            if (!status_R) {
+                data_R.resize({npoints, 1});
+                _R_impl(data_R);
+                status_R = true;
+            }
             return data_R;
         }
 
         Array2& dRdtheta_ref() {
-            data_dRdtheta.resize({npoints, 1});
-            _dRdtheta_impl(data_dRdtheta);
+            if (!status_dRdtheta) {
+                data_dRdtheta.resize({npoints, 1});
+                _dRdtheta_impl(data_dRdtheta);
+                status_dRdtheta = true;
+            }
             return data_dRdtheta;
-       }
+        }
 
         Array2& dRdzeta_ref() {
-            data_dRdzeta.resize({npoints, 1});
-            _dRdzeta_impl(data_dRdzeta);
+            if (!status_dRdzeta) {
+                data_dRdzeta.resize({npoints, 1});
+                _dRdzeta_impl(data_dRdzeta);
+                status_dRdzeta = true;
+            }
             return data_dRdzeta;
         }
 
         Array2& dRds_ref() {
-            data_dRds.resize({npoints, 1});
-            _dRds_impl(data_dRds);
+            if (!status_dRds) {
+                data_dRds.resize({npoints, 1});
+                _dRds_impl(data_dRds);
+                status_dRds = true;
+            }
             return data_dRds;
         }
 
         Array2& R_derivs_ref() {
-            data_R_derivs.resize({npoints, 3});
-            _R_derivs_impl(data_R_derivs);
+            if (!status_R_derivs) {
+                data_R_derivs.resize({npoints, 3});
+                _R_derivs_impl(data_R_derivs);
+                status_R_derivs = true;
+            }
             return data_R_derivs;
         }
 
         Array2& Z_ref() {
-            data_Z.resize({npoints, 1});
-            _Z_impl(data_Z);
+            if (!status_Z) {
+                data_Z.resize({npoints, 1});
+                _Z_impl(data_Z);
+                status_Z = true;
+            }
             return data_Z;
         }
 
         Array2& dZdtheta_ref() {
-            data_dZdtheta.resize({npoints, 1});
-            _dZdtheta_impl(data_dZdtheta);
+            if (!status_dZdtheta) {
+                data_dZdtheta.resize({npoints, 1});
+                _dZdtheta_impl(data_dZdtheta);
+                status_dZdtheta = true;
+            }
             return data_dZdtheta;
         }
 
         Array2& dZdzeta_ref() {
-            data_dZdzeta.resize({npoints, 1});
-            _dZdzeta_impl(data_dZdzeta);
+            if (!status_dZdzeta) {
+                data_dZdzeta.resize({npoints, 1});
+                _dZdzeta_impl(data_dZdzeta);
+                status_dZdzeta = true;
+            }
             return data_dZdzeta;
         }
 
         Array2& dZds_ref() {
-            data_dZds.resize({npoints, 1});
-            _dZds_impl(data_dZds);
+            if (!status_dZds) {
+                data_dZds.resize({npoints, 1});
+                _dZds_impl(data_dZds);
+                status_dZds = true;
+            }
             return data_dZds;
         }
 
         Array2& Z_derivs_ref() {
-            data_Z_derivs.resize({npoints, 3});
-            _Z_derivs_impl(data_Z_derivs);
+            if (!status_Z_derivs) {
+                data_Z_derivs.resize({npoints, 3});
+                _Z_derivs_impl(data_Z_derivs);
+                status_Z_derivs = true;
+            }
             return data_Z_derivs;
         }
 
         Array2& modB_ref() {
-            data_modB.resize({npoints, 1});
-            _modB_impl(data_modB);
+            if (!status_modB) {
+                data_modB.resize({npoints, 1});
+                _modB_impl(data_modB);
+                status_modB = true;
+            }
             return data_modB;
         }
 
         Array2& dmodBdtheta_ref() {
-            data_dmodBdtheta.resize({npoints, 1});
-            _dmodBdtheta_impl(data_dmodBdtheta);
+            if (!status_dmodBdtheta) {
+                data_dmodBdtheta.resize({npoints, 1});
+                _dmodBdtheta_impl(data_dmodBdtheta);
+                status_dmodBdtheta = true;
+            }
             return data_dmodBdtheta;
         }
 
         Array2& dmodBdzeta_ref() {
-            data_dmodBdzeta.resize({npoints, 1});
-            _dmodBdzeta_impl(data_dmodBdzeta);
+            if (!status_dmodBdzeta) {
+                data_dmodBdzeta.resize({npoints, 1});
+                _dmodBdzeta_impl(data_dmodBdzeta);
+                status_dmodBdzeta = true;
+            }
             return data_dmodBdzeta;
         }
 
         Array2& dmodBds_ref() {
-            data_dmodBds.resize({npoints, 1});
-            _dmodBds_impl(data_dmodBds);
+            if (!status_dmodBds) {
+                data_dmodBds.resize({npoints, 1});
+                _dmodBds_impl(data_dmodBds);
+                status_dmodBds = true;
+            }
             return data_dmodBds;
         }
 
         Array2& modB_derivs_ref() {
-            data_modB_derivs.resize({npoints, 3});
-            _modB_derivs_impl(data_modB_derivs);
+            if (!status_modB_derivs) {
+                data_modB_derivs.resize({npoints, 3});
+                _modB_derivs_impl(data_modB_derivs);
+                status_modB_derivs = true;
+            }
             return data_modB_derivs;
         }
 
         Array2& I_ref() {
-            data_I.resize({npoints, 1});
-            _I_impl(data_I);
+            if (!status_I) {
+                data_I.resize({npoints, 1});
+                _I_impl(data_I);
+                status_I = true;
+            }
             return data_I;
         }
 
         Array2& G_ref() {
-            data_G.resize({npoints, 1});
-            _G_impl(data_G);
+            if (!status_G) {
+                data_G.resize({npoints, 1});
+                _G_impl(data_G);
+                status_G = true;
+            }
             return data_G;
         }
 
         Array2& psip_ref() {
-            data_psip.resize({npoints, 1});
-            _psip_impl(data_psip);
+            if (!status_psip) {
+                data_psip.resize({npoints, 1});
+                _psip_impl(data_psip);
+                status_psip = true;
+            }
             return data_psip;
         }
 
         Array2& iota_ref() {
-            data_iota.resize({npoints, 1});
-            _iota_impl(data_iota);
+            if (!status_iota) {
+                data_iota.resize({npoints, 1});
+                _iota_impl(data_iota);
+                status_iota = true;
+            }
             return data_iota;
         }
 
         Array2& dGds_ref() {
-            data_dGds.resize({npoints, 1});
-            _dGds_impl(data_dGds);
+            if (!status_dGds) {
+                data_dGds.resize({npoints, 1});
+                _dGds_impl(data_dGds);
+                status_dGds = true;
+            }
             return data_dGds;
         }
 
         Array2& dIds_ref() {
-            data_dIds.resize({npoints, 1});
-            _dIds_impl(data_dIds);
+            if (!status_dIds) {
+                data_dIds.resize({npoints, 1});
+                _dIds_impl(data_dIds);
+                status_dIds = true;
+            }
             return data_dIds;
         }
 
         Array2& diotads_ref() {
-            data_diotads.resize({npoints, 1});
-            _diotads_impl(data_diotads);
+            if (!status_diotads) {
+                data_diotads.resize({npoints, 1});
+                _diotads_impl(data_diotads);
+                status_diotads = true;
+            }
             return data_diotads;
         }
 

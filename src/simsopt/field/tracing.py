@@ -166,7 +166,7 @@ def trace_particles_boozer_perturbed(
                 RuntimeWarning,
             )
     else:
-        mode = "gc_" + perturbed_field.B0.field.field_type
+        mode = "gc_" + perturbed_field.B0.field_type
 
     res_tys = []
     res_hits = []
@@ -201,19 +201,11 @@ def trace_particles_boozer_perturbed(
         else:
             res_tys.append(np.asarray([res_ty[0], res_ty[-1]]))
         res_hits.append(np.asarray(res_hit))
-        if res_ty[-1][0] < tmax - 1e-15:
-            loss_ctr += 1
-    if comm is not None:
-        loss_ctr = comm.allreduce(loss_ctr)
     if comm is not None:
         res_tys = [i for o in comm.allgather(res_tys) for i in o]
         res_hits = [i for o in comm.allgather(res_hits) for i in o]
 
-    proc0_print(
-        f"Particles lost {loss_ctr}/{nparticles}={(100 * loss_ctr) // nparticles:d}%"
-    )
     return res_tys, res_hits
-
 
 def trace_particles_boozer(
     field: BoozerMagneticField,
@@ -241,6 +233,7 @@ def trace_particles_boozer(
     solveSympl=False,
     roottol=None,
     predictor_step=None,
+
 ):
     r"""
     Follow particles in a :class:`BoozerMagneticField`.
@@ -432,16 +425,9 @@ def trace_particles_boozer(
         else:
             res_tys.append(np.asarray([res_ty[0], res_ty[-1]]))
         res_hits.append(np.asarray(res_hit))
-        if res_ty[-1][0] < tmax - 1e-15:
-            loss_ctr += 1
-    if comm is not None:
-        loss_ctr = comm.allreduce(loss_ctr)
     if comm is not None:
         res_tys = [i for o in comm.allgather(res_tys) for i in o]
         res_hits = [i for o in comm.allgather(res_hits) for i in o]
-    proc0_print(
-        f"Particles lost {loss_ctr}/{nparticles}={(100 * loss_ctr) // nparticles:.5f}%"
-    )
     return res_tys, res_hits
 
 

@@ -168,23 +168,18 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
             double modB = field->modB_ref()(0);
             double G = field->G_ref()(0);
             double iota = field->iota_ref()(0);
-            double diotadpsi = field->diotads_ref()(0)/psi0;
             auto modB_derivs = field->modB_derivs_ref();
             double dmodBdpsi = modB_derivs(0)/psi0;
             double dmodBdtheta = modB_derivs(1);
             double dmodBdzeta = modB_derivs(2);
             double v_perp2 = 2*mu*modB;
             double fak1 = m*v_par*v_par/modB + m*mu;
-            double Phi = perturbed_field->Phi_ref()(0);
-            double Phidot = perturbed_field->Phidot_ref()(0);
             double dPhidpsi = perturbed_field->dPhidpsi_ref()(0);
             double dPhidtheta = perturbed_field->dPhidtheta_ref()(0);
             double dPhidzeta = perturbed_field->dPhidzeta_ref()(0);
-            double alpha = perturbed_field->alpha_ref()(0);
             double alphadot = perturbed_field->alphadot_ref()(0);
             double dalphadpsi = perturbed_field->dalphadpsi_ref()(0);
             double dalphadtheta = perturbed_field->dalphadtheta_ref()(0);
-            double dalphadzeta = perturbed_field->dalphadzeta_ref()(0);
 
             double sdot = (-dmodBdtheta*fak1/q + dalphadtheta*modB*v_par - dPhidtheta)/psi0;
             double tdot = dmodBdpsi*fak1/q + (iota - dalphadpsi*G)*v_par*modB/G + dPhidpsi;
@@ -282,7 +277,6 @@ class GuidingCenterNoKBoozerPerturbedRHS {
             stzt(0, 3) = ys[4];
             perturbed_field->set_points(stzt);
             auto field = perturbed_field->get_B0();
-
             auto psi0 = field->psi0;
             double modB = field->modB_ref()(0);
             double G = field->G_ref()(0);
@@ -297,8 +291,6 @@ class GuidingCenterNoKBoozerPerturbedRHS {
             double dmodBdzeta = modB_derivs(2);
             double v_perp2 = 2*mu*modB;
             double fak1 = m*v_par*v_par/modB + m*mu;
-            double Phi = perturbed_field->Phi_ref()(0);
-            double Phidot = perturbed_field->Phidot_ref()(0);
             double dPhidpsi = perturbed_field->dPhidpsi_ref()(0);
             double dPhidtheta = perturbed_field->dPhidtheta_ref()(0);
             double dPhidzeta = perturbed_field->dPhidzeta_ref()(0);

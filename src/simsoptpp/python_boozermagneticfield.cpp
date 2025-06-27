@@ -7,8 +7,9 @@
 #include "regular_grid_interpolant_3d.h"
 #include "shearalfvenwave.h"
 #include "pyshearalfvenwave.h"
+#include <string>
 
-
+using std::string;
 using std::shared_ptr;
 using std::vector;
 
@@ -20,7 +21,7 @@ void init_boozermagneticfields(py::module_ &m){
       BoozerMagneticFieldTrampoline<BoozerMagneticField>,
       shared_ptr<BoozerMagneticField>
       >(m, "BoozerMagneticField", "")
-    .def(py::init<double>());
+    .def(py::init<double,string>());
     mf
     .def(
         "dKdtheta",
@@ -412,7 +413,8 @@ void init_boozermagneticfields(py::module_ &m){
           RangeTriplet,
           bool,
           int,
-          bool>()
+          bool,
+          string>()
       )
       .def(
           py::init<shared_ptr<BoozerMagneticField>,
@@ -422,7 +424,8 @@ void init_boozermagneticfields(py::module_ &m){
           RangeTriplet,
           bool,
           int,
-          bool>()
+          bool,
+          string>()
       )
       .def(
           "estimate_error_K",

@@ -885,14 +885,14 @@ class InterpolatedBoozerField : public BoozerMagneticField {
         InterpolatedBoozerField(
                 shared_ptr<BoozerMagneticField> field, InterpolationRule rule,
                 RangeTriplet s_range, RangeTriplet theta_range, RangeTriplet zeta_range,
-                bool extrapolate, int nfp, bool stellsym) :
-            BoozerMagneticField(field->psi0), field(field), rule(rule), s_range(s_range), theta_range(theta_range), zeta_range(zeta_range), extrapolate(extrapolate), nfp(nfp), stellsym(stellsym)
+                bool extrapolate, int nfp, bool stellsym, string field_type) :
+            BoozerMagneticField(field->psi0, field->field_type), field(field), rule(rule), s_range(s_range), theta_range(theta_range), zeta_range(zeta_range), extrapolate(extrapolate), nfp(nfp), stellsym(stellsym)
         {}
 
         InterpolatedBoozerField(
                 shared_ptr<BoozerMagneticField> field, int degree,
                 RangeTriplet s_range, RangeTriplet theta_range, RangeTriplet zeta_range,
-                bool extrapolate, int nfp, bool stellsym) : InterpolatedBoozerField(field, UniformInterpolationRule(degree), s_range, theta_range, zeta_range, extrapolate, nfp, stellsym) {}
+                bool extrapolate, int nfp, bool stellsym, string field_type) : InterpolatedBoozerField(field, UniformInterpolationRule(degree), s_range, theta_range, zeta_range, extrapolate, nfp, stellsym, field_type) {}
 
                 std::pair<double, double> estimate_error_modB(int samples) {
                     if(!interp_modB) {

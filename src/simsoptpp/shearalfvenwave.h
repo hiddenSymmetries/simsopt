@@ -72,7 +72,6 @@ protected:
     Array2 data_alpha;
     Array2 data_alphadot, data_dalphadpsi, data_dalphadtheta, data_dalphadzeta;
     long npoints;
-
 public:
     ShearAlfvenWave(shared_ptr<BoozerMagneticField> B0field)
         : B0(B0field) {
@@ -340,7 +339,6 @@ public:
 * and vector potential alpha determined by the ideal
 * Ohm's law (i.e., zero electric field along the field line).
 *
-* @tparam T Template for tensor type. It should be a template class compatible with xtensor-like syntax.
 */
 class ShearAlfvenHarmonic : public ShearAlfvenWave {
 public:
@@ -351,131 +349,124 @@ public:
     double omega; // Frequency of the wave.
     double phase; // Phase offset of the wave.
 
-protected:
-  void _Phi_impl(Array2& Phi) override {
-    const Array2& points = this->get_points();
-    const auto& ss = xt::view(points, xt::all(), 0);
-    const auto& thetas = xt::view(points, xt::all(), 1);
-    const auto& zetas = xt::view(points, xt::all(), 2);
-    const auto& times = xt::view(points, xt::all(), 3);
-    for (std::size_t i = 0; i < ss.size(); ++i) {
-      xt::view(Phi, i, 0) = this->phihat(ss(i)) *
-        sin(this->Phim * thetas(i) - this->Phin * zetas(i) +
-        this->omega * times(i) + this->phase);
+    void set_points(Array2& p) override {
+      ShearAlfvenWave::set_points(p);
+      npoints = p.shape(0);
+      // Precompute the data for the wave:
+      auto data_iota = B0->iota_ref();
+      auto data_G = B0->G_ref();
+      auto data_diotadpsi = B0->diotads_ref() / B0->psi0;
+      Array2 data_d_alpha_fac_dpsi;
+      if (B0->field_type == "nok" || B0->field_type == "") {
+        auto data_I = B0->I_ref();
+        auto data_dGdpsi = B0->dGds_ref() / B0->psi0;
+        auto data_dIdpsi = B0->dIds_ref() / B0->psi0;
+        data_alpha_fac = (data_iota * Phim - Phin) /
+          (omega * (data_G + data_iota * data_I));
+        data_d_alpha_fac_dpsi = 
+          (data_diotadpsi * Phim) / (omega * (data_G + data_iota * data_I)) -
+          data_alpha_fac / (data_G + data_iota * data_I) *
+          (data_dGdpsi + data_diotadpsi * data_I + data_iota * data_dIdpsi);
+      } else {
+        data_alpha_fac = (data_iota * Phim - Phin) / (omega * data_G);
+        data_d_alpha_fac_dpsi = data_diotadpsi * Phim / (omega * data_G); 
+      }
+
+      data_Phi.resize({npoints, 1});
+      data_dPhidpsi.resize({npoints, 1});
+      data_dPhidtheta.resize({npoints, 1});
+      data_dPhidzeta.resize({npoints, 1});
+      data_Phidot.resize({npoints, 1});
+      if (B0->field_type == "nok" || B0->field_type == "") {
+        data_alpha.resize({npoints, 1});
+        data_dalphadzeta.resize({npoints, 1});   
+      }
+      data_alphadot.resize({npoints, 1});
+      data_dalphadpsi.resize({npoints, 1});
+      data_dalphadtheta.resize({npoints, 1});
+      data_dalphadzeta.resize({npoints, 1});   
+      for (std::size_t i = 0; i < npoints; ++i) {
+        double s = p(i,0);
+        double theta = p(i,1);
+        double zeta = p(i,2);
+        double time = p(i,3);
+        double data_cos = 
+            cos(Phim * theta - Phin * zeta +
+            omega * time + phase);
+        double data_sin = 
+            sin(Phim * theta - Phin * zeta +
+            omega * time + phase);
+        double data_phihat = phihat(s);
+        double data_dphihatdpsi = phihat.derivative(s) / (B0->psi0);
+        data_Phi(i, 0) = data_phihat * data_sin;
+        data_dPhidpsi(i, 0) = data_dphihatdpsi * data_sin;
+        data_Phidot(i, 0) = data_phihat * data_cos * omega;
+        data_dPhidtheta(i, 0) = data_Phidot(i, 0) * (Phim / omega);
+        data_dPhidzeta(i, 0) = -data_Phidot(i, 0) * (Phin / omega);
+        if (B0->field_type == "nok" || B0->field_type == "") {
+          data_alpha(i, 0) = -data_Phi(i, 0) * data_alpha_fac(i, 0);
+          data_dalphadzeta(i, 0) = -data_dPhidzeta(i, 0) * data_alpha_fac(i, 0);
+        }
+        data_alphadot(i, 0) = -data_Phidot(i, 0) * data_alpha_fac(i, 0);
+        data_dalphadpsi(i, 0) = -data_dPhidpsi(i, 0) * data_alpha_fac(i, 0)
+            - data_Phi(i, 0) * data_d_alpha_fac_dpsi(i, 0);
+        data_dalphadtheta(i, 0) = -data_dPhidtheta(i, 0) * data_alpha_fac(i, 0);
+      }
     }
+
+protected:
+  Array2 data_Phi, data_dPhidpsi, data_dPhidtheta, data_dPhidzeta, data_Phidot;
+  Array2 data_alpha, data_alphadot, data_dalphadpsi, data_dalphadtheta, data_dalphadzeta;
+  Array2 data_alpha_fac; 
+
+  void _Phi_impl(Array2& Phi) override {
+    Phi = data_Phi;
   }
 
   void _dPhidpsi_impl(Array2& dPhidpsi) override {
-    const Array2& points = this->get_points();
-    const auto& ss = xt::view(points, xt::all(), 0);
-    const auto& thetas = xt::view(points, xt::all(), 1);
-    const auto& zetas = xt::view(points, xt::all(), 2);
-    const auto& times = xt::view(points, xt::all(), 3);
-    for (std::size_t i = 0; i < ss.size(); ++i) {
-      xt::view(dPhidpsi, i, 0) =
-        this->phihat.derivative(ss(i)) / (this->B0->psi0) *
-        sin(this->Phim * thetas(i) - this->Phin * zetas(i) +
-        this->omega * times(i) + this->phase);
-     }
+    dPhidpsi = data_dPhidpsi;
   }
   
   void _dPhidtheta_impl(Array2& dPhidtheta) override {
-    const auto Phidot_values = xt::squeeze(this->Phidot_ref(), 1);
-    xt::view(dPhidtheta, xt::all(), 0) =
-      Phidot_values * (this->Phim / this->omega);
+    dPhidtheta = data_dPhidtheta;
   }
 
   void _dPhidzeta_impl(Array2& dPhidzeta) override {
-    const auto Phidot_values = xt::squeeze(this->Phidot_ref(), 1);
-    xt::view(dPhidzeta, xt::all(), 0) =
-      -Phidot_values * (this->Phin / this->omega);
+    dPhidzeta = data_dPhidzeta;
   }
   
   void _Phidot_impl(Array2& Phidot) override {
-    const Array2& points = this->get_points();
-    const auto& ss = xt::view(points, xt::all(), 0);
-    const auto& thetas = xt::view(points, xt::all(), 1);
-    const auto& zetas = xt::view(points, xt::all(), 2);
-    const auto& times = xt::view(points, xt::all(), 3);
-    for (std::size_t i = 0; i < ss.size(); ++i) {
-      xt::view(Phidot, i, 0) =
-        this->phihat(ss(i)) * this->omega *
-        cos(this->Phim * thetas(i) - this->Phin * zetas(i) +
-        this->omega * times(i) + this->phase);
-    }
+    Phidot = data_Phidot;
   }
 
   void _alpha_impl(Array2& alpha) override {
-    const auto phi = xt::squeeze(this->Phi_ref(), 1);
-    const auto iota_ref = xt::squeeze(this->B0->iota_ref(), 1);
-    const auto G_ref = xt::squeeze(this->B0->G_ref(), 1);
-    const auto I_ref = xt::squeeze(this->B0->I_ref(), 1);
-    xt::view(alpha, xt::all(), 0) =
-      -phi *
-      ((iota_ref * this->Phim - this->Phin) /
-      (this->omega * (G_ref + iota_ref * I_ref)));
+    // Data only precomputed if non-vacuum 
+    if (B0->field_type == "vac") {
+      alpha = - data_Phi * data_alpha_fac;
+    } else {
+      alpha = data_alpha; 
+    }
   }
       
   void _alphadot_impl(Array2& alphadot) override {
-    const auto phidot = xt::squeeze(this->Phidot_ref(), 1);
-    const auto iota_ref = xt::squeeze(this->B0->iota_ref(), 1);
-    const auto G_ref = xt::squeeze(this->B0->G_ref(), 1);
-    const auto I_ref = xt::squeeze(this->B0->I_ref(), 1);
-    xt::view(alphadot, xt::all(), 0) =
-        -phidot * ((iota_ref * this->Phim - this->Phin)
-          / (this->omega * (G_ref + iota_ref * I_ref)));
+    alphadot = data_alphadot;
   }
     
   void _dalphadpsi_impl(Array2& dalphadpsi) override {
-      const auto diotadpsi_values = xt::squeeze(this->B0->diotads_ref(), 1)
-                              / this->B0->psi0;
-      const auto dGdpsi_values = xt::squeeze(this->B0->dGds_ref(), 1)
-                           / this->B0->psi0;
-      const auto dIdpsi_values = xt::squeeze(this->B0->dIds_ref(), 1)
-                           / this->B0->psi0;
-      const auto iota_values = xt::squeeze(this->B0->iota_ref(), 1);
-      const auto G_values = xt::squeeze(this->B0->G_ref(), 1);
-      const auto I_values = xt::squeeze(this->B0->I_ref(), 1);
-      const auto dPhidpsi_values = xt::squeeze(this->dPhidpsi_ref(), 1);
-      const auto Phi_values = xt::squeeze(this->Phi_ref(), 1);
-  
-      xt::view(dalphadpsi, xt::all(), 0) =
-        - dPhidpsi_values * (iota_values * this->Phim - this->Phin)
-                          / (this->omega * (G_values + iota_values * I_values))
-        - (Phi_values / this->omega)
-        * ( diotadpsi_values * this->Phim / (G_values + iota_values * I_values)
-            - (iota_values * this->Phim - this->Phin)
-              / (
-                  (G_values + iota_values * I_values)
-                  * (G_values + iota_values * I_values)
-                )
-              * (
-                  dGdpsi_values + diotadpsi_values * I_values
-                  + iota_values * dIdpsi_values
-                )
-          );
+    dalphadpsi = data_dalphadpsi;
   }
-  
+
   void _dalphadtheta_impl(Array2& dalphadtheta) override {
-    const auto iota_values = xt::squeeze(this->B0->iota_ref(), 1);
-    const auto G_values = xt::squeeze(this->B0->G_ref(), 1);
-    const auto I_values = xt::squeeze(this->B0->I_ref(), 1);
-    const auto dPhidtheta_values = xt::squeeze(this->dPhidtheta_ref(), 1);
-  
-    xt::view(dalphadtheta, xt::all(), 0) =
-        - dPhidtheta_values * (iota_values * this->Phim - this->Phin)
-          / (this->omega * (G_values + iota_values * I_values));
+    dalphadtheta = data_dalphadtheta;
   }
   
   void _dalphadzeta_impl(Array2& dalphadzeta) override {
-    const auto iota_values = xt::squeeze(this->B0->iota_ref(), 1);
-    const auto G_values = xt::squeeze(this->B0->G_ref(), 1);
-    const auto I_values = xt::squeeze(this->B0->I_ref(), 1);
-    const auto dPhidzeta_values = xt::squeeze(this->dPhidzeta_ref(), 1);
-  
-    xt::view(dalphadzeta, xt::all(), 0) =
-          - dPhidzeta_values * (iota_values * this->Phim - this->Phin)
-            / (this->omega * (G_values + iota_values * I_values));
+    // Data only precomputed if non-vacuum 
+    if (B0->field_type == "vac") {
+      dalphadzeta = -data_dPhidzeta * data_alpha_fac;
+    } else {
+      dalphadzeta = data_dalphadzeta;
+    }
   }
   
   public:

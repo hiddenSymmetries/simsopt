@@ -369,7 +369,7 @@ class BoozerMagneticField(sopp.BoozerMagneticField):
         field_type = field_type.lower()
         assert field_type in ["vac", "nok", ""]
         self.field_type = field_type
-        sopp.BoozerMagneticField.__init__(self, psi0)
+        sopp.BoozerMagneticField.__init__(self, psi0, field_type)
 
     def _modB_derivs_impl(self, modB_derivs):
         self._dmodBds_impl(np.reshape(modB_derivs[:, 0], (len(modB_derivs[:, 0]), 1)))
@@ -2404,6 +2404,7 @@ class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField)
             extrapolate,
             nfp,
             stellsym,
+            field_type
         )
 
         if initialize:
