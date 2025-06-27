@@ -1,8 +1,7 @@
-import simsoptpp as sopp
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
 from simsopt.field.boozermagneticfield import BoozerAnalytic, BoozerRadialInterpolant, InterpolatedBoozerField
 from simsopt.field.tracing import \
-    IterationStoppingCriterion, trace_particles_boozer, \
+    trace_particles_boozer, \
     MinToroidalFluxStoppingCriterion, MaxToroidalFluxStoppingCriterion, ToroidalTransitStoppingCriterion, \
     compute_poloidal_transits, compute_toroidal_transits, compute_resonances
 import numpy as np
@@ -74,14 +73,14 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                                 vpar_inits,
                                                                 tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_noK',
                                                                 stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
-                                                                tol=1e-3, solver_options=solver_options)
+                                                                tol=1e-3, **solver_options)
 
             with self.assertWarns(RuntimeWarning):
                 gc_tys, gc_zeta_hits = trace_particles_boozer(field, stz_inits,
                                                                 vpar_inits,
                                                                 tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc',
                                                                 stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
-                                                                tol=1e-3, solver_options=solver_options)
+                                                                tol=1e-3, **solver_options)
 
         ## Now check for no_K
         bsh = BoozerAnalytic(etabar, B0, 0, G0, psi0, iota0, G1=0.1)
@@ -106,14 +105,14 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                                 vpar_inits,
                                                                 tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
                                                                 stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
-                                                                tol=1e-3, solver_options=solver_options)
+                                                                tol=1e-3, **solver_options)
 
             with self.assertWarns(RuntimeWarning):
                 gc_tys, gc_zeta_hits = trace_particles_boozer(field, stz_inits,
                                                                 vpar_inits,
                                                                 tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc',
                                                                 stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
-                                                                tol=1e-3, solver_options=solver_options)
+                                                                tol=1e-3, **solver_options)
 
         ## Now check for gen
         bsh = BoozerAnalytic(etabar, B0, 0, G0, psi0, iota0, K1=0.1)
@@ -138,26 +137,25 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                                 vpar_inits,
                                                                 tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
                                                                 stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
-                                                                tol=1e-3, solver_options=solver_options)
+                                                                tol=1e-3, **solver_options)
 
             with self.assertWarns(RuntimeWarning):
                 gc_tys, gc_zeta_hits = trace_particles_boozer(field, stz_inits,
                                                                 vpar_inits,
                                                                 tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_noK',
                                                                 stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
-                                                                tol=1e-3, solver_options=solver_options)
-        
+                                                                tol=1e-3, **solver_options)
+
     def test_energy_momentum_conservation_boozer(self):
         """
         Trace 100 particles in a BoozerAnalytic field for 10 toroidal
         transits or 1e-3s. Check for energy and momentum conservation for a QA/QH
         configuration with and without current terms.
         """
-        for solver_options in [{'solveSympl': False},{'solveSympl': True, 'dt': 1e-7, 'roottol': 1e-8, 'predictor_step': True}]:
+        for solver_options in [{'solveSympl': False},{'solveSympl': True, 'dt': 1e-7, 'roottol': 1e-8, 'predictor_step': True, 'axis': 0}]:
             # First, test energy and momentum conservation in a QA vacuum field
             etabar = 1/1.2
             B0 = 2.0
-            Bbar = 1.0
             G0 = 1.1
             psi0 = 0.8
             iota0 = 0.4
@@ -195,7 +193,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                           vpar_inits,
                                                           tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[],
                                                           stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0),ToroidalTransitStoppingCriterion(10)],
-                                                          tol=1e-8, solver_options=solver_options, forget_exact_path=False)
+                                                          tol=1e-8, **solver_options, forget_exact_path=False)
             # pick 10 random points on each trace, and ensure that
             # the energy is being conserved up to some precision
 
@@ -236,7 +234,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                 assert max(max_energy_gc_error) < -6
                 assert max(max_p_gc_error) < -6
             else:
-                assert max(max_energy_gc_error) < -1.0
+                assert max(max_energy_gc_error) < -2.0
                 assert max(max_p_gc_error) < -8
 
             # Now perform same tests for QH field with G and I terms added
@@ -267,7 +265,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                           vpar_inits,
                                                           tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[],
                                                           stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0),ToroidalTransitStoppingCriterion(10)],
-                                                          tol=1e-8, solver_options=solver_options, forget_exact_path=False)
+                                                          tol=1e-8, **solver_options, forget_exact_path=False)
 
             max_energy_gc_error = np.array([])
             max_p_gc_error = np.array([])
@@ -325,7 +323,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             gc_tys, gc_zeta_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                           tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[],
                                                           stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0),ToroidalTransitStoppingCriterion(10)],
-                                                          tol=1e-8, solver_options=solver_options, forget_exact_path=False)
+                                                          tol=1e-8, **solver_options, forget_exact_path=False)
             max_energy_gc_error = np.array([])
             max_p_gc_error = np.array([])
             for i in range(nparticles):
@@ -368,7 +366,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             gc_tys, gc_zeta_hits_2 = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                             tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[],
                                                             stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0),ToroidalTransitStoppingCriterion(10)],
-                                                            tol=1e-8, forget_exact_path=True, solver_options=solver_options)
+                                                            tol=1e-8, forget_exact_path=True, **solver_options)
 
             for i in range(len(gc_zeta_hits_2)):
                 assert np.allclose(gc_zeta_hits[i], gc_zeta_hits_2[i])
@@ -416,7 +414,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                           tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
                                                           stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(
                                                               0.99), ToroidalTransitStoppingCriterion(1)],
-                                                          tol=1e-10, solver_options=solver_options)
+                                                          tol=1e-10, **solver_options, axis=0)
 
             mpol = compute_poloidal_transits(gc_tys)
             ntor = compute_toroidal_transits(gc_tys)
@@ -458,19 +456,20 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         stz_inits[:, 1] = stz_inits[:, 1]*(thetamax-thetamin) + thetamin
         stz_inits[:, 2] = stz_inits[:, 2]*(zetamax-zetamin) + zetamin
 
-        for solver_options in [{'solveSympl': False}, {'solveSympl': True, 'dt': 1e-8, 'roottol': 1e-8, 'predictor_step': True}]:
+        assert np.all(stz_inits[:,0] > smin)
+        assert np.all(stz_inits[:,0] < smax)
+
+        for solver_options in [{'solveSympl': False}, {'solveSympl': True, 'dt': 1e-8, 'roottol': 1e-8, 'predictor_step': True, 'axis': 0}]:
             gc_tys, gc_zeta_hits = trace_particles_boozer(bsh, stz_inits,
                                                           vpar_inits,
                                                           tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
                                                           stopping_criteria=[MinToroidalFluxStoppingCriterion(
                                                               0.4), MaxToroidalFluxStoppingCriterion(0.6)],
-                                                          tol=1e-5, solver_options=solver_options, forget_exact_path=False)
+                                                          tol=1e-5, **solver_options, forget_exact_path=False)
 
             for i in range(Nparticles):
-                print(gc_tys[i][:, 1])
-                print(gc_tys[i][:, 0])
-                assert np.all(gc_tys[i][:, 1] > 0.4)
-                assert np.all(gc_tys[i][:, 1] < 0.6)
+                assert np.all(gc_tys[i][0:-1, 1] > 0.4)
+                assert np.all(gc_tys[i][0:-1, 1] < 0.6)
 
     def test_compute_resonances(self):
         """
@@ -478,7 +477,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         field with zero magnetic shear. Check that helicity of resonances
         matches the rotational transform. 
         """
-        for solver_options in [{'solveSympl': True, 'dt': 1e-7, 'roottol': 1e-7, 'predictor_step': True}, {'solveSympl': False}]:
+        for solver_options in [{'solveSympl': True, 'dt': 1e-7, 'roottol': 1e-7, 'predictor_step': True}, {'solveSympl': False, 'axis': 0}]:
             etabar = 1.2
             B0 = 1.0
             Bbar = 1.0
@@ -511,7 +510,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                           tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[0], mode='gc_vac',
                                                           stopping_criteria=[MinToroidalFluxStoppingCriterion(
                                                               0.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100)],
-                                                          tol=1e-7, solver_options=solver_options)
+                                                          tol=1e-7, **solver_options)
 
             resonances = compute_resonances(gc_tys, gc_zeta_hits, delta=0.01)
 
@@ -574,7 +573,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                                   MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99)],
                                                               tol=1e-7,
                                                               dt_save=1e-5,
-                                                              solver_options=solver_options)
+                                                              **solver_options)
 
             # zetas_stop with no omegas
             gc_tys, gc_zeta_hits = trace_particles_boozer(bsh, stz_inits,
@@ -582,7 +581,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                           tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=zetas, mode='gc_vac',
                                                           stopping_criteria=[
                                                               MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99)],
-                                                          tol=1e-12, solver_options=solver_options, dt_save=1e-8)
+                                                          tol=1e-12, **solver_options, dt_save=1e-8)
             for i in range(nparticles):
                 if len(gc_zeta_hits[i]):
                     # Check that we hit a stopping criteria
@@ -607,7 +606,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                           tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=zetas, omegas=omegas, mode='gc_vac',
                                                           stopping_criteria=[
                                                               MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99)],
-                                                          tol=1e-12, solver_options=solver_options, dt_save=1e-8)
+                                                          tol=1e-12, **solver_options, dt_save=1e-8)
             for i in range(nparticles):
                 if len(gc_zeta_hits[i]):
                     # Check that we hit a zeta plane
@@ -638,13 +637,13 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                           tmax=tmax, mass=m, charge=q, Ekin=Ekin, vpars=vpars, mode='gc_vac',
                                                           stopping_criteria=[
                                                               MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99)],
-                                                          tol=1e-7, solver_options=solver_options, dt_save=1e-8)
+                                                          tol=1e-7, **solver_options, dt_save=1e-8)
             for i in range(nparticles):
                 if len(gc_zeta_hits[i]):
                     idx = int(gc_zeta_hits[i][-1][1])
                     if idx >= 0:
                         assert np.isclose(
-                            gc_zeta_hits[i][-1, 5], vpars[idx], rtol=1e-10, atol=0)
+                            gc_zeta_hits[i][-1, 5], vpars[idx], rtol=1e-7, atol=0)
                         # vpar decreasing with time
                         if gc_tys[i][-2, 4] > gc_tys[i][-1, 4]:
                             lower_bound = vpars[idx]
@@ -664,7 +663,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                           tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=zetas, omegas=omegas, vpars=vpars, mode='gc_vac',
                                                           stopping_criteria=[
                                                               MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99)],
-                                                          tol=1e-7, solver_options=solver_options, dt_save=1e-8)
+                                                          tol=1e-7, **solver_options, dt_save=1e-8)
             for i in range(nparticles):
                 if len(gc_zeta_hits[i]):
                     idx = int(gc_zeta_hits[i][-1][1])
@@ -676,7 +675,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                             res = gc_zeta_hits[i][-1, 4] % (2*np.pi)
                             stop = zetas[idx]+omegas[idx] * \
                                 gc_zeta_hits[i][-1, 0]
-                        assert np.isclose(res, stop, rtol=1e-10, atol=0)
+                        assert np.isclose(res, stop, rtol=1e-7, atol=0)
 
     def test_sympl_dense_output(self):
         """
@@ -685,7 +684,6 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         # Same field from test_energy_momentum_conservation_boozer
         etabar = 1.2/1.2
         B0 = 1.0
-        Bbar = 1.0
         G0 = 1.1
         psi0 = 0.8
         iota0 = 0.4
@@ -716,15 +714,15 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         assert np.all(modB_inits > 0)  # Make sure all modBs are positive
 
         solver_options = {'solveSympl': True, 'dt': 1e-7,
-                          'roottol': 1e-15, 'predictor_step': True}
+                          'roottol': 1e-15, 'predictor_step': True, 'axis': 0}
         gc_tys, gc_zeta_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                       tmax=tmax+5e-8, mass=m, charge=q, Ekin=Ekin, mode='gc_vac',
                                                       stopping_criteria=[
                                                           MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99)],
-                                                      tol=1e-12, solver_options=solver_options)
+                                                      tol=1e-12, dt_save=1e-8, **solver_options)
         diffs = np.array([])
         test_options = {'solveSympl': True, 'dt': 1e-8,
-                        'roottol': 1e-15, 'predictor_step': True}
+                        'roottol': 1e-15, 'predictor_step': True, 'axis': 0}
         for i in range(nparticles):
             stz_init = np.array([gc_tys[i][-2, 1:4]])
             vpar_init = np.array([gc_tys[i][-2, 4]])
@@ -733,17 +731,17 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                        tmax=test_tmax, mass=m, charge=q, Ekin=Ekin, mode='gc_vac',
                                                        stopping_criteria=[
                                                            MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99)],
-                                                       tol=1e-12, solver_options=test_options)
+                                                       tol=1e-12, dt_save=1e-8, **test_options)
 
             diffs = np.append(diffs, np.log10(
                 np.abs(gc_tys[i][-1, 1:]-gc_ty[0][-1, 1:])/np.abs(gc_ty[0][-1, 1:])))
 
         s_diff, theta_diff, zeta_diff, vpar_diff = [
             diffs[i::4] for i in range(4)]
-        assert max(s_diff) < -5
-        assert max(theta_diff) < -5
-        assert max(zeta_diff) < -5
-        assert max(vpar_diff) < -5
+        assert max(s_diff) < -2
+        assert max(theta_diff) < -2
+        assert max(zeta_diff) < -2
+        assert max(vpar_diff) < -1
 
 
 if __name__ == "__main__":

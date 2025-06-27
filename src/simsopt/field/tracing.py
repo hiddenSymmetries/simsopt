@@ -341,12 +341,18 @@ def trace_particles_boozer(
         raise ValueError("No vpars provided for the vpar stopping criterion")
 
     if solveSympl:
-        if abstol is not None or reltol is not None or axis is not None:
+        if abstol is not None or reltol is not None:
             warn(
                 "Symplectic solver does not use absolute or relative tolerance. "
                 "Use dt and roottol to control timestep.",
                 RuntimeWarning,
             )
+        if (axis is not None and axis != 0):
+            warn(
+                "Symplectic solver must be run with axis = 0.",
+                RuntimeWarning,
+            )
+            axis = 0
     else:
         if dt is not None or roottol is not None or predictor_step is not None:
             warn(
