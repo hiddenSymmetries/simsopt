@@ -501,12 +501,17 @@ class GuidingCenterBoozerRHS {
 
 template<class RHS>
 tuple<vector<array<double, RHS::Size+1>>, vector<array<double, RHS::Size+2>>>
-solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, double abstol, double reltol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, double dt_save, vector<double> vpars, bool zetas_stop=false, bool vpars_stop=false, bool forget_exact_path=false) {
-    
-    if (zetas.size() > 0 && omegas.size() == 0) {
-        omegas.insert(omegas.end(), zetas.size(), 0.);
-    } else if (zetas.size() !=  omegas.size()) {
-        throw std::invalid_argument("zetas and omegas need to have matching length.");
+solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, double abstol, double reltol, vector<double> thetas, vector<double> zetas, vector<double> omega_thetas, vector<double> omega_zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, double dt_save, vector<double> vpars, bool thetas_stop=false, bool zetas_stop=false, bool vpars_stop=false, bool forget_exact_path=false) {
+
+    if (zetas.size() > 0 && omega_zetas.size() == 0) {
+        omega_zetas.insert(omega_zetas.end(), zetas.size(), 0.);
+    } else if (zetas.size() !=  omega_zetas.size()) {
+        throw std::invalid_argument("zetas and omega_zetas need to have matching length.");
+    }
+    if (thetas.size() > 0 && omega_thetas.size() == 0) {
+        omega_thetas.insert(omega_thetas.end(), thetas.size(), 0.);
+    } else if (thetas.size() != omega_thetas.size() and thetas.size() != 0) {
+        throw std::invalid_argument("thetas and omega_thetas need to have matching length.");
     }
 
     vector<array<double, RHS::Size+1>> res = {};
@@ -525,14 +530,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     t_last = t;
 
     // Save initial state
-    ykeep = y;
-    if (rhs.axis==1) {
-        ykeep[0] = pow(y[0],2) + pow(y[1],2);
-        ykeep[1] = atan2(y[1],y[0]);
-    } else if (rhs.axis==2) {
-        ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
-        ykeep[1] = atan2(y[1],y[0]);
-    }
+    y_to_stzt<RHS::Size>(y, ykeep, rhs.axis);
     res.push_back(join<1, RHS::Size>({0}, ykeep));
 
     do {
@@ -546,7 +544,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
 
         // Check if we have hit a stopping criterion between t_last and t_current
         stop = check_stopping_criteria<RHS,dense_stepper_type>(rhs, iter, res_hits, dense, t_last, 
-            t_current, dt, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop);
+            t_current, dt, abstol, thetas, zetas, omega_thetas, omega_zetas, stopping_criteria, vpars, thetas_stop, zetas_stop, vpars_stop);
 
         // Save path if forget_exact_path = False
         if (forget_exact_path == 0) {
@@ -560,14 +558,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
             for (double t_save = t_save_last; t_save <= t_current; t_save += dt_save) {
                 if (t_save != 0) {  // t = 0 is already saved. 
                     dense.calc_state(t_save, temp);
-                    ykeep = temp;
-                    if (rhs.axis==1) {
-                        ykeep[0] = pow(temp[0],2) + pow(temp[1],2);
-                        ykeep[1] = atan2(temp[1],temp[0]);
-                    } else if (rhs.axis==2) {
-                        ykeep[0] = sqrt(pow(temp[0],2) + pow(temp[1],2));
-                        ykeep[1] = atan2(temp[1],temp[0]);        
-                    }
+                    y_to_stzt<RHS::Size>(temp, ykeep, rhs.axis);
                     res.push_back(join<1, RHS::Size>({t_save}, ykeep));
                 }
             }
@@ -578,14 +569,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         tmax = res_hits.back()[0];
     }
     dense.calc_state(tmax, y);
-    ykeep = y;
-    if (rhs.axis==1) {
-        ykeep[0] = pow(y[0],2) + pow(y[1],2);
-        ykeep[1] = atan2(y[1],y[0]);
-    } else if (rhs.axis==2) {
-        ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
-        ykeep[1] = atan2(y[1],y[0]);        
-    }
+    y_to_stzt<RHS::Size>(y, ykeep, rhs.axis);
     res.push_back(join<1, RHS::Size>({tmax}, {ykeep})); 
    
     return std::make_tuple(res, res_hits);
@@ -605,10 +589,13 @@ particle_guiding_center_boozer_perturbed_tracing(
         double reltol,
         bool vacuum,
         bool noK,
+        vector<double> thetas,
         vector<double> zetas,
-        vector<double> omegas,
+        vector<double> omega_thetas,
+        vector<double> omega_zetas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
         double dt_save,
+        bool thetas_stop,
         bool zetas_stop,
         bool vpars_stop,
         bool forget_exact_path,
@@ -636,12 +623,12 @@ particle_guiding_center_boozer_perturbed_tracing(
       auto rhs_class = GuidingCenterVacuumBoozerPerturbedRHS(
           perturbed_field, m, q, mu, axis
       );
-      return solve<GuidingCenterVacuumBoozerPerturbedRHS>(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, dt_save, vpars, zetas_stop, vpars_stop, forget_exact_path);
+      return solve<GuidingCenterVacuumBoozerPerturbedRHS>(rhs_class, y, tmax, dt, dtmax, abstol, reltol, thetas, zetas, omega_thetas, omega_zetas, stopping_criteria, dt_save, vpars, thetas_stop, zetas_stop, vpars_stop, forget_exact_path);
   } else {
       auto rhs_class = GuidingCenterNoKBoozerPerturbedRHS(
           perturbed_field, m, q, mu, axis
       );
-      return solve<GuidingCenterNoKBoozerPerturbedRHS>(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, dt_save, vpars, zetas_stop, vpars_stop, forget_exact_path);
+      return solve<GuidingCenterNoKBoozerPerturbedRHS>(rhs_class, y, tmax, dt, dtmax, abstol, reltol, thetas, zetas, omega_thetas, omega_zetas, stopping_criteria, dt_save, vpars, thetas_stop, zetas_stop, vpars_stop, forget_exact_path);
   }
 }
 
@@ -659,12 +646,15 @@ particle_guiding_center_boozer_tracing(
         double tmax, 
         bool vacuum, 
         bool noK, 
+        vector<double> thetas,
         vector<double> zetas, 
-        vector<double> omegas,
+        vector<double> omega_thetas,
+        vector<double> omega_zetas,
         vector<double> vpars,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,  
         double dt_save, 
         bool forget_exact_path,
+        bool thetas_stop,
         bool zetas_stop, 
         bool vpars_stop, 
         int axis, 
@@ -705,20 +695,20 @@ particle_guiding_center_boozer_tracing(
     if (solveSympl) {
 #ifdef USE_GSL
         auto f = SymplField(field, m, q, mu);
-        return solve_sympl(f, y, tmax, dt, roottol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path, predictor_step, dt_save);
+        return solve_sympl(f, y, tmax, dt, roottol, thetas, zetas, omega_thetas, omega_zetas, stopping_criteria, vpars, thetas_stop, zetas_stop, vpars_stop, forget_exact_path, predictor_step, dt_save);
 #else
         throw std::invalid_argument("Symplectic solver not available. Please recompile with GSL support.");
 #endif
     } else {
         if (vacuum) {
           auto rhs_class = GuidingCenterVacuumBoozerRHS(field, m, q, mu, axis);
-          return solve<GuidingCenterVacuumBoozerRHS>(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, dt_save, vpars, zetas_stop, vpars_stop, forget_exact_path);
+          return solve<GuidingCenterVacuumBoozerRHS>(rhs_class, y, tmax, dt, dtmax, abstol, reltol, thetas, zetas, omega_thetas, omega_zetas, stopping_criteria, dt_save, vpars, thetas_stop, zetas_stop, vpars_stop, forget_exact_path);
         } else if (noK) {
           auto rhs_class = GuidingCenterNoKBoozerRHS(field, m, q, mu, axis);
-          return solve<GuidingCenterNoKBoozerRHS>(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, dt_save, vpars, zetas_stop, vpars_stop, forget_exact_path);
+          return solve<GuidingCenterNoKBoozerRHS>(rhs_class, y, tmax, dt, dtmax, abstol, reltol, thetas, zetas, omega_thetas, omega_zetas, stopping_criteria, dt_save, vpars, thetas_stop, zetas_stop, vpars_stop, forget_exact_path);
         } else {
           auto rhs_class = GuidingCenterBoozerRHS(field, m, q, mu, axis);
-          return solve<GuidingCenterBoozerRHS>(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, dt_save, vpars, zetas_stop, vpars_stop, forget_exact_path);
-        } 
+          return solve<GuidingCenterBoozerRHS>(rhs_class, y, tmax, dt, dtmax, abstol, reltol, thetas, zetas, omega_thetas, omega_zetas, stopping_criteria, dt_save, vpars, thetas_stop, zetas_stop, vpars_stop, forget_exact_path);
+        }
     }
 }

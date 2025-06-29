@@ -2489,7 +2489,7 @@ class ShearAlfvenWave(sopp.ShearAlfvenWave):
         super().__init__(B0)
 
 
-class ShearAlfvenHarmonic(sopp.ShearAlfvenHarmonic):
+class ShearAlfvenHarmonic(sopp.ShearAlfvenHarmonic,ShearAlfvenWave):
     r"""
     Class representing a single harmonic Shear Alfvén Wave (SAW) in a given equilibrium magnetic field.
 
@@ -2590,10 +2590,9 @@ class ShearAlfvenHarmonic(sopp.ShearAlfvenHarmonic):
                 )
 
         # Call the constructor of the base C++ class
-        super().__init__(phihat_object, Phim, Phin, omega, phase, B0)
-
-
-class ShearAlfvenWavesSuperposition(sopp.ShearAlfvenWavesSuperposition):
+        sopp.ShearAlfvenHarmonic.__init__(self,phihat_object, Phim, Phin, omega, phase, B0)
+        ShearAlfvenWave.__init__(self, B0)
+class ShearAlfvenWavesSuperposition(sopp.ShearAlfvenWavesSuperposition,ShearAlfvenWave):
     r"""
     Class representing a superposition of multiple Shear Alfvén Waves (SAWs).
 
@@ -2647,7 +2646,8 @@ class ShearAlfvenWavesSuperposition(sopp.ShearAlfvenWavesSuperposition):
             raise ValueError("At least one ShearAlfvenWave object must be provided.")
 
         # Initialize the base C++ class with the first wave as the base wave
-        super().__init__(SAWs[0])
+        sopp.ShearAlfvenWaveSuperposition.__init__(self,SAWs[0])
+        ShearAlfvenWave.__init__(self, SAWs[0].B0)
 
         # Add subsequent waves to the superposition
         for SAW in SAWs[1:]:

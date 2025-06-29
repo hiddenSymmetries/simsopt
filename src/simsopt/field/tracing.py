@@ -38,13 +38,16 @@ def trace_particles_boozer_perturbed(
     abstol=None,
     reltol=None,
     comm=None,
+    thetas=[],
     zetas=[],
-    omegas=[],
+    omega_thetas=[],
+    omega_zetas=[],
     vpars=[],
     stopping_criteria=[],
     dt_save=1e-6,
     mode=None,
     forget_exact_path=False,
+    thetas_stop=False,
     zetas_stop=False,
     vpars_stop=False,
     axis=2,
@@ -107,10 +110,16 @@ def trace_particles_boozer_perturbed(
         abstol: absolute tolerance for adaptive ode solver
         reltol: relative tolerance for adaptive ode solver
         comm: MPI communicator to parallelize over
+        thetas: list of angles in [0, 2pi] for which intersection with the plane 
+            corresponding to that theta should be computed. Should only be used if axis = 0.
         zetas: list of angles in [0, 2pi] for which intersection with the plane
             corresponding to that zeta should be computed
-        omegas: list of frequencies defining a stopping criterion such that
-              zetas - omeags*t = 0. Must have the same length as zetas. If provided, the solver will stop when the particle hits the plane defined by zetas and omegas.
+        omega_thetas: list of frequencies defining a stopping criterion such that
+              thetas - omega_thetas*t = 0. Must have the same length as thetas.
+              If provided, the solver will stop when the particle hits the plane defined by thetas and omega_thetas.
+        omega_zetas: list of frequencies defining a stopping criterion such that
+              zetas - omega_zetas*t = 0. Must have the same length as zetas.
+              If provided, the solver will stop when the particle hits the plane defined by zetas and omega_zetas.
         vpars: list of parallel velocities defining a stopping criterion such
               that the solver will stop when the particle hits these values.
         stopping_criteria: list of stopping criteria, mostly used in
@@ -127,6 +136,7 @@ def trace_particles_boozer_perturbed(
         forget_exact_path: return only the first and last position of each
             particle for the ``res_tys``. To be used when only res_hits is
             of interest or one wants to reduce memory usage.
+        thetas_stop: whether to stop if hit provided theta planes.
         zetas_stop: whether to stop if hit provided zeta planes
         vpars_stop: whether to stop if hit provided vpar planes
         axis: Defines handling of coordinate singularity. If 0, tracing is
@@ -170,7 +180,6 @@ def trace_particles_boozer_perturbed(
 
     res_tys = []
     res_hits = []
-    loss_ctr = 0
     first, last = parallel_loop_bounds(comm, nparticles)
     for i in range(first, last):
         res_ty, res_hit = sopp.particle_guiding_center_boozer_perturbed_tracing(
@@ -186,11 +195,14 @@ def trace_particles_boozer_perturbed(
             reltol,
             vacuum=(mode == "gc_vac"),
             noK=(mode == "gc_nok"),
+            thetas=thetas,
             zetas=zetas,
-            omegas=omegas,
+            omega_thetas=omega_thetas,
+            omega_zetas=omega_zetas,
             vpars=vpars,
             stopping_criteria=stopping_criteria,
             dt_save=dt_save,
+            thetas_stop=thetas_stop,
             zetas_stop=zetas_stop,
             vpars_stop=vpars_stop,
             forget_exact_path=forget_exact_path,
@@ -219,13 +231,16 @@ def trace_particles_boozer(
     abstol=None,
     reltol=None,
     comm=None,
+    thetas=[],
     zetas=[],
-    omegas=[],
+    omega_thetas=[],
+    omega_zetas=[],
     vpars=[],
     stopping_criteria=[],
     dt_save=1e-6,
     mode=None,
     forget_exact_path=False,
+    thetas_stop=False,
     zetas_stop=False,
     vpars_stop=False,
     axis=None,
@@ -292,10 +307,16 @@ def trace_particles_boozer(
         reltol: relative tolerance for adaptive ode solver (defaults to `tol`). Only used if `solveSympl` is False.
         abstol: absolute tolerance for adaptive ode solver (defaults to `tol`). Only used if `solveSympl` is False.
         comm: MPI communicator to parallelize over
+        thetas: list of angles in [0, 2pi] for which intersection with the plane 
+            corresponding to that theta should be computed. Should only be used if axis = 0.
         zetas: list of angles in [0, 2pi] for which intersection with the plane
-              corresponding to that zeta should be computed
-        omegas: list of frequencies defining a stopping criterion such that
-              zetas - omegas*t = 0. Must have the same length as zetas. If provided, the solver will stop when the particle hits the plane defined by zetas and omegas.
+            corresponding to that zeta should be computed
+        omega_thetas: list of frequencies defining a stopping criterion such that
+              thetas - omega_thetas*t = 0. Must have the same length as thetas.
+              If provided, the solver will stop when the particle hits the plane defined by thetas and omega_thetas.
+        omega_zetas: list of frequencies defining a stopping criterion such that
+              zetas - omega_zetas*t = 0. Must have the same length as zetas.
+              If provided, the solver will stop when the particle hits the plane defined by zetas and omega_zetas.
         vpars: list of parallel velocities defining a stopping criterion such
               that the solver will stop when the particle hits these values.
         stopping_criteria: list of stopping criteria, mostly used in
@@ -339,6 +360,9 @@ def trace_particles_boozer(
         raise ValueError("No zetas and omegas provided for the zeta stopping criterion")
     if vpars_stop and (not len(vpars)):
         raise ValueError("No vpars provided for the vpar stopping criterion")
+    if thetas_stop and (not len(thetas)):
+        raise ValueError("No thetas provided for the theta stopping criterion")
+
 
     if solveSympl:
         if abstol is not None or reltol is not None:
@@ -397,7 +421,6 @@ def trace_particles_boozer(
 
     res_tys = []
     res_hits = []
-    loss_ctr = 0
     first, last = parallel_loop_bounds(comm, nparticles)
     for i in range(first, last):
         res_ty, res_hit = sopp.particle_guiding_center_boozer_tracing(
@@ -410,12 +433,15 @@ def trace_particles_boozer(
             tmax,
             vacuum=(mode == "gc_vac"),
             noK=(mode == "gc_nok"),
+            thetas=thetas,
             zetas=zetas,
-            omegas=omegas,
+            omega_thetas=omega_thetas,
+            omega_zetas=omega_zetas,
             vpars=vpars,
             stopping_criteria=stopping_criteria,
             dt_save=dt_save,
             forget_exact_path=forget_exact_path,
+            thetas_stop=thetas_stop,
             zetas_stop=zetas_stop,
             vpars_stop=vpars_stop,
             axis=axis,
@@ -460,7 +486,6 @@ def compute_resonances(res_tys, res_hits, delta=1e-2):
     """
     nparticles = len(res_tys)
     resonances = []
-    gamma = np.zeros((1, 3))
     # Iterate over particles
     for ip in range(nparticles):
         nhits = len(res_hits[ip])
@@ -468,7 +493,6 @@ def compute_resonances(res_tys, res_hits, delta=1e-2):
         theta0 = res_tys[ip][0, 2]
         zeta0 = res_tys[ip][0, 3]
         theta0_mod = theta0 % (2 * np.pi)
-        zeta0_mod = zeta0 % (2 * np.pi)
         x0 = s0 * np.cos(theta0)
         y0 = s0 * np.sin(theta0)
         vpar0 = res_tys[ip][0, 4]
@@ -512,10 +536,8 @@ def compute_toroidal_transits(res_tys):
     for ip in range(nparticles):
         ntraj = len(res_tys[ip][:, 0])
         phi_init = res_tys[ip][0, 3]
-        phi_prev = phi_init
         for it in range(1, ntraj):
             phi = res_tys[ip][it, 3]
-            phi_prev = phi
         if ntraj > 1:
             ntransits[ip] = np.round((phi - phi_init) / (2 * np.pi))
     return ntransits
@@ -550,14 +572,11 @@ def compute_poloidal_transits(res_tys, ma=None, flux=True):
     """
     nparticles = len(res_tys)
     ntransits = np.zeros((nparticles,))
-    gamma = np.zeros((1, 3))
     for ip in range(nparticles):
         ntraj = len(res_tys[ip][:, 0])
         theta_init = res_tys[ip][0, 2]
-        theta_prev = theta_init
         for it in range(1, ntraj):
             theta = res_tys[ip][it, 2]
-            theta_prev = theta
         if ntraj > 1:
             ntransits[ip] = np.round((theta - theta_init) / (2 * np.pi))
     return ntransits

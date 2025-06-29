@@ -62,7 +62,7 @@ public:
         double get_dvpardt();
 };
 
-tuple<vector<array<double, SymplField::Size+1>>, vector<array<double, SymplField::Size+2>>> solve_sympl(SymplField f, typename SymplField::State y, double tmax, double dt, double roottol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, bool zetas_stop=false, bool vpars_stop=false, bool forget_exact_path = false, bool predictor_step = true, double dt_save=1e-6);
+tuple<vector<array<double, SymplField::Size+1>>, vector<array<double, SymplField::Size+2>>> solve_sympl(SymplField f, typename SymplField::State y, double tmax, double dt, double roottol, vector<double> thetas, vector<double> zetas, vector<double> omega_thetas, vector<double> omega_zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, bool thetas_stop=false, bool zetas_stop=false, bool vpars_stop=false, bool forget_exact_path = false, bool predictor_step = true, double dt_save=1e-6);
 
 class f_quasi_params{
 public:
