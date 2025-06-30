@@ -170,7 +170,7 @@ def trace_particles_boozer_perturbed(
     if mode is not None:
         mode = mode.lower()
         assert mode in ["gc", "gc_vac", "gc_nok"]
-        if "gc" + perturbed_field.B0.field.field_type != mode:
+        if "gc_" + perturbed_field.B0.field_type != mode:
             warn(
                 f"Prescribed mode is inconsistent with field_type. Proceeding with mode={mode}.",
                 RuntimeWarning,
