@@ -33,7 +33,8 @@ def trace_particles_boozer_perturbed(
     tmax=1e-4,
     mass=ALPHA_PARTICLE_MASS,
     charge=ALPHA_PARTICLE_CHARGE,
-    Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
+    Ekin=None, 
+    dt_max=None, 
     tol=1e-9,
     abstol=None,
     reltol=None,
@@ -105,7 +106,10 @@ def trace_particles_boozer_perturbed(
         tmax: integration time
         mass: particle mass in kg, defaults to the mass of an alpha particle
         charge: charge in Coulomb, defaults to the charge of an alpha particle
-        Ekin: kinetic energy in Joule, defaults to 3.52MeV
+        Ekin: kinetic energy in Joule, defaults to 3.52MeV. Note that for perturbed tracing, this is simply used to determine the
+            maximum timestep, dtmax = (G0/B0)*0.5*pi/vtotal, where G0 and B0 are evaluated at the first initial condition 
+            and vtotal = sqrt(2*Ekin/mass). If Ekin is None, then dtmax is computed using data from the first initial condition with 
+            vtotal = sqrt(vpar^2 + 2*mu*B0). 
         tol: tolerance for the adaptive ode solver
         abstol: absolute tolerance for adaptive ode solver
         reltol: relative tolerance for adaptive ode solver
@@ -165,7 +169,12 @@ def trace_particles_boozer_perturbed(
     assert len(mus) == len(parallel_speeds)
     speed_par = parallel_speeds
     m = mass
-    speed_total = sqrt(2 * Ekin / m)
+    if Ekin is None: 
+        perturbed_field.set_points(np.asarray([[stz_inits[0,0]], [stz_inits[0,1]], [stz_inits[0,2]], [0]]).T)
+        B0 = perturbed_field.B0.modB()[0,0]
+        speed_total = sqrt(speed_par[0]**2 + 2 * mus[0] * B0)
+    else: 
+        speed_total = sqrt(2 * Ekin / m)
 
     if mode is not None:
         mode = mode.lower()

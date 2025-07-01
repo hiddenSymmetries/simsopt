@@ -119,7 +119,6 @@ res_tys, res_zeta_hits = trace_particles_boozer_perturbed(
     mass=mass,
     charge=charge,
     comm=comm,
-    Ekin=Ekin,
     stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
     forget_exact_path=True,
     abstol=abstol,

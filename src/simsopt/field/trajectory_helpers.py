@@ -975,7 +975,7 @@ class PassingPerturbedPoincare:
         Eprime = n' * E - omega * p_eta, E is the total energy, and p_eta is the canonical momentum. 
 
         These constants of motion can be prescribed directly with the Eprime and mu parameters. Alternatively,
-        they can be computed from the prescribed pitch-angle variable, lamb = vperp^2/(v^2 B), total unperturbed kinetic energy, Ekin,
+        they can be computed from the prescribed pitch-angle variable, lam = vperp^2/(v^2 B), total unperturbed kinetic energy, Ekin,
         and a given point p0 in Boozer coordinates.
 
         Args:
@@ -1195,7 +1195,7 @@ class PassingPerturbedPoincare:
 
     def passing_map(self, point, t, eta):
         r"""
-        Integrates the GC equations from the provided point on the eta - omegan * t plane 
+        Integrates the GC equations from the provided point on the eta - omega/n' * t plane 
         to the next intersection with this plane. An assumption is made that the particle 
         is passing, so a RuntimeError is raised if the particle mirrors. 
 
@@ -1207,7 +1207,7 @@ class PassingPerturbedPoincare:
             t : Initial time at which the map is evaluated
         Returns:
             point : A numpy array of shape (3,) containing the coordinates (s,chi,eta). 
-            time : The time at which the trajectory returns to the eta - omegan * t plane. 
+            time : The time at which the trajectory returns to the eta - omega/n' * t plane. 
         """
         phase = self.omega * t
         self.saw.phase = phase 
@@ -1240,7 +1240,6 @@ class PassingPerturbedPoincare:
             tmax=self.tmax,
             mass=self.mass,
             charge=self.charge,
-            Ekin=self.Ekin,
             thetas=thetas,
             zetas=zetas,
             vpars=[0],
