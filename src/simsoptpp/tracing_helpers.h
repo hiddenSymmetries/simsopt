@@ -246,7 +246,7 @@ bool check_stopping_criteria(RHS rhs, int iter, vector<array<double, RHS::Size+2
 
             std::function<double(double)> rootfun = [&phase_shift, &theta_last, &omega, &dense, &temp](double t){
                 dense.calc_state(t, temp);
-                return temp[2] - omega*t - phase_shift;
+                return temp[1] - omega*t - phase_shift;
             };
             auto root = toms748_solve(rootfun, t_last, t_current, phase_last - phase_shift, phase_current - phase_shift, roottol, rootmaxit);
             double f0 = rootfun(root.first);
