@@ -365,12 +365,12 @@ def trace_particles_boozer(
             If `idx>=0` and `idx<len(zetas)`, then the `zetas[idx]` plane was hit. If `idx>=len(zetas)`, then the `vpars[idx-len(zetas)]` plane was hit. 
             If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit. The state vector is `[t, s, theta, zeta, v_par]`.
     """
-    if zetas_stop and (not len(zetas) and not len(omegas)):
-        raise ValueError("No zetas and omegas provided for the zeta stopping criterion")
+    if zetas_stop and (not len(zetas) and not len(omega_zetas)):
+        raise ValueError("No zetas and omega_zetas provided for the zeta stopping criterion")
+    if thetas_stop and (not len(thetas) and not len(omega_thetas)):
+        raise ValueError("No thetas and omega_thetas provided for the theta stopping criterion")
     if vpars_stop and (not len(vpars)):
         raise ValueError("No vpars provided for the vpar stopping criterion")
-    if thetas_stop and (not len(thetas)):
-        raise ValueError("No thetas provided for the theta stopping criterion")
 
 
     if solveSympl:

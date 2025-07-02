@@ -228,7 +228,7 @@ class PassingPoincare:
             Ekin=self.Ekin,
             zetas=[0],
             vpars=[0],
-            omegas=[0],
+            omega_zetas=[0],
             stopping_criteria=[
                 MinToroidalFluxStoppingCriterion(0.01),
                 MaxToroidalFluxStoppingCriterion(1.0),
