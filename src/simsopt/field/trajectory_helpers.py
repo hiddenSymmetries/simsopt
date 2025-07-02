@@ -7,10 +7,7 @@ from ..field.tracing import (
     MaxToroidalFluxStoppingCriterion,
     MinToroidalFluxStoppingCriterion,
 )
-from ..field.boozermagneticfield import (
-    ShearAlfvenHarmonic,
-    ShearAlfvenWave
-)
+from ..field.boozermagneticfield import ShearAlfvenHarmonic, ShearAlfvenWave
 from .._core.util import parallel_loop_bounds
 
 __all__ = [
@@ -216,7 +213,6 @@ class PassingPoincare:
         points[:, 0] = point[0]
         points[:, 1] = point[1]
         points[:, 2] = 0
-
         # Set solver options needed for passing map
         res_tys, res_hits = trace_particles_boozer(
             self.field,
@@ -308,10 +304,11 @@ class PassingPoincare:
             omega_zeta : List of toroidal transit frequencies.
             init_s : List of initial s values for each trajectory.
         """
-        if self.solver_options["axis"] != 0:
-            raise ValueError(
-                'ODE solver must integrate with solver_options["axis"]=0 to compute passing frequencies.'
-            )
+        if "axis" in self.solver_options:
+            if self.solver_options["axis"] != 0:
+                raise ValueError(
+                    'ODE solver must integrate with solver_options["axis"]=0 to compute passing frequencies.'
+                )
 
         self.field.set_points(np.array([[1], [0], [0]]).T)
         sign_G = np.sign(self.field.G()[0])
@@ -559,7 +556,10 @@ class TrappedPoincare:
             Ekin=self.Ekin,
             zetas=[],
             vpars=[0],
-            stopping_criteria=[MaxToroidalFluxStoppingCriterion(1.0)],
+            stopping_criteria=[
+                MinToroidalFluxStoppingCriterion(0.01),
+                MaxToroidalFluxStoppingCriterion(1.0),
+            ],
             forget_exact_path=False,
             vpars_stop=True,
             zetas_stop=False,
@@ -807,6 +807,7 @@ class TrappedPoincare:
 
         return omega_eta_prof, omega_b_prof, s_prof
 
+
 def compute_peta(field_or_saw, points, vpar, mass, charge, helicity_M, helicity_N):
     r"""
     Given a ShearAlfvenWave or BoozerMagneticField instance, a point in Boozer coordinates, and particle properties, compute the
@@ -819,9 +820,9 @@ def compute_peta(field_or_saw, points, vpar, mass, charge, helicity_M, helicity_
 
     Args:
         field_or_saw : The BoozerMagneticField or ShearAlfvenWave instance.
-        points : A numpy array of shape (npoints,4) containing the coordinates (s,theta,zeta,t). 
+        points : A numpy array of shape (npoints,4) containing the coordinates (s,theta,zeta,t).
             If field_or_saw is a ShearAlfvenWave, then t is the time coordinate.
-            If field_or_saw is a BoozerMagneticField, then t is ignored, and points is allowed to 
+            If field_or_saw is a BoozerMagneticField, then t is ignored, and points is allowed to
             have shape (npoints,3) for (s,theta,zeta).
         vpar : A numpy array of shape (npoints,) containing the parallel velocity.
         mass : Mass of the particle.
@@ -834,22 +835,24 @@ def compute_peta(field_or_saw, points, vpar, mass, charge, helicity_M, helicity_
             momentum :math:`p_{\eta}` at each point.
     """
     if points.shape[1] not in [3, 4]:
-        raise ValueError("Points must have shape (npoints, 4) for (s, theta, zeta, t) or (npoints, 3) for (s, theta, zeta)")
+        raise ValueError(
+            "Points must have shape (npoints, 4) for (s, theta, zeta, t) or (npoints, 3) for (s, theta, zeta)"
+        )
     if isinstance(vpar, float):
         vpar = np.array([vpar])
-    if isinstance(vpar, list): 
+    if isinstance(vpar, list):
         vpar = np.array(vpar)
     assert vpar.shape[0] == points.shape[0], (
         "vpar must have the same number of points as points"
     )
 
     if isinstance(field_or_saw, ShearAlfvenWave):
-        field = field_or_saw.B0 
+        field = field_or_saw.B0
         field_or_saw.set_points(points)
         alpha = field_or_saw.alpha()
     else:
         field = field_or_saw
-        alpha = 0.0 
+        alpha = 0.0
         if points.shape == 4:
             points = points[:, :3]
         field.set_points(points)
@@ -857,9 +860,9 @@ def compute_peta(field_or_saw, points, vpar, mass, charge, helicity_M, helicity_
     modB = field.modB()[:, 0]
     G = field.G()[:, 0]
     I = field.I()[:, 0]
-    psi = field.psi0*points[:, 0]
+    psi = field.psi0 * points[:, 0]
     psip = field.psip()[:, 0]
-    
+
     # If modB contours close poloidally, then use theta as mapping coordinate
     if helicity_M == 0:
         helicity_Mp = 1
@@ -869,11 +872,15 @@ def compute_peta(field_or_saw, points, vpar, mass, charge, helicity_M, helicity_
         helicity_Mp = 0
         helicity_Np = -1
     denom = helicity_Np * helicity_M - helicity_N * helicity_Mp
-    peta = -(
+    peta = (
+        -(
             (helicity_M * G + helicity_N * I) * (mass * vpar / modB + charge * alpha)
             + charge * (helicity_N * psi - helicity_M * psip)
-        ) / denom
+        )
+        / denom
+    )
     return peta
+
 
 def compute_Eprime(saw, points, vpar, mu, mass, charge, helicity_M, helicity_N):
     r"""
@@ -893,7 +900,7 @@ def compute_Eprime(saw, points, vpar, mu, mass, charge, helicity_M, helicity_N):
         raise ValueError("Points must have shape (npoints, 4) for (s, theta, zeta, t)")
     if isinstance(vpar, float):
         vpar = np.array([vpar])
-    if isinstance(vpar, list): 
+    if isinstance(vpar, list):
         vpar = np.array(vpar)
     assert vpar.shape[0] == points.shape[0], (
         "vpar must have the same number of points as points"
@@ -917,9 +924,7 @@ def compute_Eprime(saw, points, vpar, mu, mass, charge, helicity_M, helicity_N):
     omega = saw.omega
 
     # Compute the canonical momentum p_eta
-    p_eta = compute_peta(
-        saw, points, vpar, mass, charge, helicity_M, helicity_N
-    )
+    p_eta = compute_peta(saw, points, vpar, mass, charge, helicity_M, helicity_N)
 
     # Compute the energy E
     modB = saw.B0.modB()[:, 0]
@@ -931,6 +936,8 @@ def compute_Eprime(saw, points, vpar, mu, mass, charge, helicity_M, helicity_N):
     )
     Eprime = nprime * E - omega * p_eta
     return Eprime
+
+
 class PassingPerturbedPoincare:
     def __init__(
         self,
@@ -941,10 +948,10 @@ class PassingPerturbedPoincare:
         helicity_M,
         helicity_N,
         Eprime=None,
-        mu=None, 
+        mu=None,
         Ekin=None,
         p0=None,
-        lam=None, 
+        lam=None,
         ns_poinc=120,
         nchi_poinc=2,
         Nmaps=500,
@@ -954,25 +961,25 @@ class PassingPerturbedPoincare:
     ):
         """
         Initialize the PassingPerturbedPoincare class, which computes the Poincare return map
-        for passing particles in a ShearAlfvenHarmonic magnetic field. 
+        for passing particles in a ShearAlfvenHarmonic magnetic field.
 
-        The field strength contours are assumed to have helicity (M,N) in Boozer coordinates such that 
+        The field strength contours are assumed to have helicity (M,N) in Boozer coordinates such that
         the field strength can be expressed as B(s,chi), where chi = M*theta - N*zeta is the helical angle.
         The mapping coordinate, eta, is chosen based on the helicity of the field strength contours: if M = 0 (e.g., QP or OP),
         then eta=theta is used, if N = 0 (e.g., QA/OA, QH/OA), then eta = zeta is used.
 
-        The ShearAlfvenHarmonic can then be expressed in terms of the mapping coordinates with phase, 
+        The ShearAlfvenHarmonic can then be expressed in terms of the mapping coordinates with phase,
         m'*chi - n'*eta + omega * t.
-        
-        The map is evaluated by integrating the guiding center equations from the eta - omega/n' * t = 0 plane until the 
+
+        The map is evaluated by integrating the guiding center equations from the eta - omega/n' * t = 0 plane until the
         trajectory returns to the same plane.
-        
+
         The map is well-defined (i.e., trajectories don't cross in the (s,chi=M*theta - N*zeta) plane) if
-        the unperturbed field is quasisymmetric with helicity (M,N). However, the map can still be computed 
+        the unperturbed field is quasisymmetric with helicity (M,N). However, the map can still be computed
         for a non-quasisymmetric field, but the trajectories may cross in the (s,chi) plane.
 
-        The constants of motion are the magnetic moment, mu = vperp^2/(2 B), and the shifted energy, 
-        Eprime = n' * E - omega * p_eta, E is the total energy, and p_eta is the canonical momentum. 
+        The constants of motion are the magnetic moment, mu = vperp^2/(2 B), and the shifted energy,
+        Eprime = n' * E - omega * p_eta, E is the total energy, and p_eta is the canonical momentum.
 
         These constants of motion can be prescribed directly with the Eprime and mu parameters. Alternatively,
         they can be computed from the prescribed pitch-angle variable, lam = vperp^2/(v^2 B), total unperturbed kinetic energy, Ekin,
@@ -989,14 +996,14 @@ class PassingPerturbedPoincare:
             mu: Magnetic moment, mu = vperp^2/(2 B).
             Ekin: Total unperturbed kinetic energy of the particle, used to compute Eprime if not provided.
             p0: Initial point in Boozer coordinates for evaluation of Eprime.
-            lam: Pitch angle variable, lambda = vperp^2/(v^2 B), used to compute mu if not provided. 
+            lam: Pitch angle variable, lambda = vperp^2/(v^2 B), used to compute mu if not provided.
             ns_poinc : Number of initial conditions in s for Poincare plot (default: 120).
             nchi_poinc : Number of initial conditions in chi for Poincare plot (default: 2).
             Nmaps : Number of Poincare return maps to compute for each initial condition (default: 500).
             comm : MPI communicator for parallel execution (default: None).
             tmax : Maximum integration time for each segment of the Poincare map (default: 1e-2 s).
             solver_options : Dictionary of options to pass to the ODE solver (default: {}).
-            """
+        """
         if not isinstance(saw, ShearAlfvenHarmonic):
             raise TypeError("Expected saw to be an instance of ShearAlfvenHarmonic")
         if sign_vpar not in [-1, 1]:
@@ -1037,7 +1044,7 @@ class PassingPerturbedPoincare:
         if Eprime is not None and mu is not None:
             self.Eprime = Eprime
             self.mu = mu
-            self.Ekin = None 
+            self.Ekin = None
         elif Ekin is not None and lam is not None and p0 is not None:
             """
             Compute unperturbed values of mu, p_eta, and Eprime from the given parameters.
@@ -1074,7 +1081,9 @@ class PassingPerturbedPoincare:
         if self.Ekin is None:
             self.Ekin = 0.5 * self.mass * self.vpars_init[0] ** 2
 
-        self.s_all, self.chis_all, self.etas_all, self.vpars_all, self.t_all = self.compute_passing_map()
+        self.s_all, self.chis_all, self.etas_all, self.vpars_all, self.t_all = (
+            self.compute_passing_map()
+        )
 
     def initialize_passing_map(self):
         """
@@ -1098,13 +1107,13 @@ class PassingPerturbedPoincare:
             alpha = self.saw.alpha()[0, 0]
             denom = (
                 self.helicity_Np * self.helicity_M - self.helicity_N * self.helicity_Mp
-            ) # - 1 in QA 
+            )  # - 1 in QA
             d_peta_d_vpar = (
                 -((self.helicity_M * G + self.helicity_N * I) * (self.mass / modB))
-                / denom 
-            ) # G m/ modB in QA
+                / denom
+            )  # G m/ modB in QA
             d_E_d_vpar2 = 0.5 * self.mass
-            a =  self.nprime * d_E_d_vpar2  # Coefficient of vpar^2
+            a = self.nprime * d_E_d_vpar2  # Coefficient of vpar^2
             b = -self.omega * d_peta_d_vpar  # Coefficient of vpar
             # Constant term
             c = (
@@ -1195,29 +1204,29 @@ class PassingPerturbedPoincare:
 
     def passing_map(self, point, t, eta):
         r"""
-        Integrates the GC equations from the provided point on the eta - omega/n' * t plane 
-        to the next intersection with this plane. An assumption is made that the particle 
-        is passing, so a RuntimeError is raised if the particle mirrors. 
+        Integrates the GC equations from the provided point on the eta - omega/n' * t plane
+        to the next intersection with this plane. An assumption is made that the particle
+        is passing, so a RuntimeError is raised if the particle mirrors.
 
-        Since the phase of the ShearAlfvenWave depends on time, the initial time, t, is 
-        passed as an argument. 
+        Since the phase of the ShearAlfvenWave depends on time, the initial time, t, is
+        passed as an argument.
 
         Args:
             point : A numpy array of shape (3,) containing the initial coordinates (s,chi,eta).
             t : Initial time at which the map is evaluated
         Returns:
-            point : A numpy array of shape (3,) containing the coordinates (s,chi,eta). 
-            time : The time at which the trajectory returns to the eta - omega/n' * t plane. 
+            point : A numpy array of shape (3,) containing the coordinates (s,chi,eta).
+            time : The time at which the trajectory returns to the eta - omega/n' * t plane.
         """
         phase = self.omega * t
-        self.saw.phase = phase 
+        self.saw.phase = phase
         theta, zeta = self.chi_eta_to_theta_zeta(point[1], eta)
         points = np.zeros((1, 3))
         points[:, 0] = point[0]
         points[:, 1] = theta
         points[:, 2] = zeta
 
-        if self.helicity_M != 0: 
+        if self.helicity_M != 0:
             zetas = [zeta]
             thetas = []
             omega_zetas = [self.omegan]
@@ -1254,7 +1263,7 @@ class PassingPerturbedPoincare:
             vpars_stop=True,
             zetas_stop=zetas_stop,
             thetas_stop=thetas_stop,
-            **self.solver_options
+            **self.solver_options,
         )
         if len(res_hits[0]) == 0:
             raise RuntimeError("No stopping criterion reached in passing_map.")
@@ -1268,7 +1277,7 @@ class PassingPerturbedPoincare:
             return point, res_hit[0] + t, self.eta(res_hit[3], res_hit[4])
         else:
             raise RuntimeError("Alternative stopping criterion reached in passing_map.")
-        
+
     def compute_passing_map(self):
         r"""
         Evaluates the passing Poincare return map for the initialized particle positions.
@@ -1347,6 +1356,7 @@ class PassingPerturbedPoincare:
             plt.savefig(filename)
 
         return ax
+
 
 def trajectory_to_vtk(res_ty, field, filename="trajectory"):
     r"""
