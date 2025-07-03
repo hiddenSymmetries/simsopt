@@ -642,6 +642,157 @@ class ToroidalWireframeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             enclosed_current(curve, not_a_field, 10)
 
+    def test_coil_finder(self):
+        """
+        Test the coil finding tool
+        """
+
+        test_cur = 1e6
+        nfp, rmaj, rmin = 3, 2, 1
+        surf_wf = surf_torus(nfp, rmaj, rmin)
+        n_phi, n_theta = 4, 4
+        wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
+
+        # Should return empty arrays for a wireframe with no currents
+        coils, currents, group_ids = wf.find_coils()
+        self.assertEqual(len(coils), 0)
+        self.assertEqual(len(currents), 0)
+        self.assertEqual(len(group_ids), 0)
+
+        # Should raise an error if constraints are not met
+        wf.currents[[5, 6, 19, 23]] = [test_cur, -test_cur, -test_cur, test_cur]
+        wf.currents[[10, 11]] = [test_cur, -test_cur]
+        self.assertFalse(wf.check_constraints())
+        with self.assertRaises(ValueError):
+            coils, currents, group_ids = wf.find_coils()
+
+        # Should raise an error if current crossings exist
+        wf.currents[[24, 28]] = [-test_cur, test_cur]
+        self.assertTrue(wf.check_constraints)
+        with self.assertRaises(ValueError):
+            coils, currents, group_ids = wf.find_coils()
+
+        wf.currents[:] = 0
+
+        # Add two (non-contiguous) loops to the middle of the half-period
+        wf.currents[[5, 6, 19, 23]] = [test_cur, -test_cur, -test_cur, test_cur]
+        wf.currents[[11, 8, 25, 29]] = [-2*test_cur, 2*test_cur, 
+                                        2*test_cur, -2*test_cur]
+        self.assertTrue(wf.check_constraints())
+        coils, currents, group_ids = wf.find_coils()
+        self.assertEqual(len(coils), 2*2*nfp)
+        for i in range(2*nfp):
+            self.assertEqual(currents[i], test_cur)
+            self.assertEqual(group_ids[i], 0)
+        for i in range(2*nfp, 4*nfp):
+            self.assertEqual(currents[i], 2*test_cur)
+            self.assertEqual(group_ids[i], 1)
+        node_matches_0 = 0
+        node_matches_1 = 0
+        expected_nodes_0 = wf.nodes[0][[5, 9, 10, 6], :]
+        expected_nodes_1 = wf.nodes[-2][[11, 8, 12, 15], :]
+        for i in range(4):
+            if np.allclose(coils[0], np.roll(expected_nodes_0, i, axis=0)):
+                node_matches_0 += 1
+            if np.allclose(coils[-2], np.roll(expected_nodes_1, i, axis=0)):
+                node_matches_1 += 1
+        self.assertEqual(node_matches_0, 1)
+        self.assertEqual(node_matches_1, 1)
+
+        def rotate_coords(coords, dphi):
+            """
+            Rotates a set of points about the z axis by angle dphi [radians]
+            """
+            x_rot = coords[:, 0]*np.cos(dphi) - coords[:, 1]*np.sin(dphi)
+            y_rot = coords[:, 0]*np.sin(dphi) + coords[:, 1]*np.cos(dphi)
+            z_rot = coords[:, 2]
+            return np.concatenate((x_rot[:, None], y_rot[:, None], 
+                                   z_rot[:, None]), axis=1)
+
+        def hp_transform(coords, phi):
+            """
+            Finds equivalent stellarator-symmetric points across a symmetry
+            plane given by toroidal angle phi [radians]
+            """
+            r_in = np.sqrt(coords[:, 0]**2 + coords[:, 1]**2)
+            p_in = np.arctan2(coords[:, 1], coords[:, 0])
+            z_in = coords[:, 2]
+            r_out = r_in
+            p_out = 2*phi - p_in
+            z_out = -z_in
+            x_out = r_out * np.cos(p_out)
+            y_out = r_out * np.sin(p_out)
+            return(np.concatenate((x_out[:, None], y_out[:, None],
+                                   z_out[:, None]), axis=1))
+
+        for i in range(1, wf.nfp):
+            dphi = 2 * i * np.pi/wf.nfp
+            coil_rot = rotate_coords(coils[0], dphi)
+            self.assertTrue(np.allclose(coils[2*i], coil_rot))
+            coil_hp_rot = rotate_coords(coils[1], dphi)
+            self.assertTrue(np.allclose(coils[2*i+1], coil_hp_rot))
+            coil1_rot = rotate_coords(coils[2*wf.nfp], dphi)
+            self.assertTrue(np.allclose(coils[2*i+2*wf.nfp], coil1_rot))
+            coil1_hp_rot = rotate_coords(coils[2*wf.nfp+1], dphi)
+            self.assertTrue(np.allclose(coils[2*i+2*wf.nfp+1], coil1_hp_rot))
+
+        # Re-run coil finder for the above example with start points repeated
+        coils2, currents2, group_ids2 = \
+            wf.find_coils(repeat_starting_points=True)
+        for i in range(len(coils2)):
+            self.assertTrue(np.allclose(coils[i], coils2[i][:-1,:]))
+            self.assertTrue(np.allclose(coils2[i][0,:], coils2[i][-1,:]))
+        for i in range(1, wf.nfp):
+            dphi = 2 * i * np.pi/wf.nfp
+            coil_rot = rotate_coords(coils2[0], dphi)
+            self.assertTrue(np.allclose(coils2[2*i], coil_rot))
+            coil_hp = rotate_coords(hp_transform(coils2[0], np.pi/wf.nfp), dphi)
+            self.assertTrue(np.allclose(coils2[2*i+1], coil_hp[::-1,:]))
+            coil1_rot = rotate_coords(coils2[2*wf.nfp], dphi)
+            self.assertTrue(np.allclose(coils2[2*i+2*wf.nfp], coil1_rot))
+            coil1_hp = rotate_coords(
+                           hp_transform(coils2[2*wf.nfp], np.pi/wf.nfp), dphi)
+            self.assertTrue(np.allclose(coils2[2*i+2*wf.nfp+1], 
+                            coil1_hp[::-1,:]))
+
+        wf.currents[:] = 0
+        
+        # Add and detect a helical coil
+        helical_coil_inds_4x4 = [0, 4, 22, 9, 13, 2, 6, 24, 11, 15]
+        wf.currents[helical_coil_inds_4x4] = test_cur
+        self.assertTrue(wf.check_constraints())
+        coils, currents, group_ids = wf.find_coils()
+        self.assertEqual(len(coils), 1)
+
+        phi_coil = np.arctan2(coils[0][:,1], coils[0][:,0])
+        dphi_wf = np.pi/(wf.nfp*wf.n_phi)
+        phi_hp = dphi_wf*np.array([0, 1, 2, 2, 3])
+        phi_monotonic = \
+            (phi_hp[None,:] + 
+             (np.pi/wf.nfp)*np.arange(4*wf.nfp)[:,None]).reshape((-1))
+        expected_phi = np.mod(phi_monotonic, 2*np.pi)
+        expected_phi[expected_phi > np.pi] = \
+            expected_phi[expected_phi > np.pi] - 2*np.pi
+        self.assertTrue(np.allclose(phi_coil, expected_phi))
+
+        # Confirm that the same segment indices produce 2 coils with nfp=4
+        surf_wf_4hp = SurfaceRZFourier(4, rmaj, rmin)
+        wf_4fp = ToroidalWireframe(surf_wf_4hp, n_phi, n_theta)
+        wf_4fp.currents[helical_coil_inds_4x4] = test_cur
+        self.assertTrue(wf_4fp.check_constraints())
+        coils, currents, group_ids = wf_4fp.find_coils()
+        self.assertEqual(len(coils), 2)
+        for i in range(len(coils)):
+            self.assertEqual(currents[i], np.abs(test_cur))
+            self.assertEqual(group_ids[i], 0)
+
+        # for the nfp=4 case, coil node coordinates should match when rotated
+        dphi = np.pi/2.0
+        coil_rot = rotate_coords(coils[0], dphi)
+        self.assertTrue(np.allclose(coils[1], coil_rot))
+
+        wf.currents[:] = 0
+
 
 if __name__ == "__main__":
     unittest.main()

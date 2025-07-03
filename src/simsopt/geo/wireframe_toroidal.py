@@ -193,10 +193,13 @@ class ToroidalWireframe(object):
 
     def determine_connected_segments(self):
         """
-        Determine which segments are connected to each node.
+        Determine which segments are connected to each node. Also determine
+        which connections represent a jump from one half-period to another.
         """
 
         self.connected_segments = \
+            np.ascontiguousarray(np.zeros((self.n_nodes, 4)).astype(np.int64))
+        self.connected_segments_hp_jump = \
             np.ascontiguousarray(np.zeros((self.n_nodes, 4)).astype(np.int64))
 
         half_n_theta = int(self.n_theta/2)
@@ -209,28 +212,42 @@ class ToroidalWireframe(object):
                     ind_tor_in = \
                         self.tor_segment_key[i, (self.n_theta-j) % self.n_theta]
                     ind_tor_out = self.tor_segment_key[i, j]
+                    jump_tor_in = -1
+                    jump_tor_out = 0
                     if j == 0:
                         ind_pol_in = self.pol_segment_key[i, j]
                         ind_pol_out = self.pol_segment_key[i, j]
+                        jump_pol_in = -1
+                        jump_pol_out = 0
                     elif j < half_n_theta:
                         ind_pol_in = self.pol_segment_key[i, j-1]
                         ind_pol_out = self.pol_segment_key[i, j]
+                        jump_pol_in = 0
+                        jump_pol_out = 0
                     elif j == half_n_theta:
                         ind_pol_in = self.pol_segment_key[i, j-1]
                         ind_pol_out = self.pol_segment_key[i, j-1]
+                        jump_pol_in = 0
+                        jump_pol_out = -1
                     else:
                         ind_pol_in = self.pol_segment_key[i, self.n_theta-j]
                         ind_pol_out = self.pol_segment_key[i, self.n_theta-j-1]
+                        jump_pol_in = -1
+                        jump_pol_out = -1
 
                 # Between the symmetry planes
                 elif i > 0 and i < self.n_phi:
                     ind_tor_in = self.tor_segment_key[i-1, j]
                     ind_tor_out = self.tor_segment_key[i, j]
+                    jump_tor_in = 0
+                    jump_tor_out = 0
                     if j == 0:
                         ind_pol_in = self.pol_segment_key[i, self.n_theta-1]
                     else:
                         ind_pol_in = self.pol_segment_key[i, j-1]
                     ind_pol_out = self.pol_segment_key[i, j]
+                    jump_pol_in = 0
+                    jump_pol_out = 0
 
                 # Second symmetry plane
                 else:
@@ -238,21 +255,34 @@ class ToroidalWireframe(object):
                     ind_tor_out = \
                         self.tor_segment_key[i-1,
                                              (self.n_theta-j) % self.n_theta]
+                    jump_tor_in = 0
+                    jump_tor_out = 1
                     if j == 0:
                         ind_pol_in = self.pol_segment_key[i, 0]
                         ind_pol_out = self.pol_segment_key[i, 0]
+                        jump_pol_in = 1
+                        jump_pol_out = 0
                     elif j < half_n_theta:
                         ind_pol_in = self.pol_segment_key[i, j-1]
                         ind_pol_out = self.pol_segment_key[i, j]
+                        jump_pol_in = 0
+                        jump_pol_out = 0
                     elif j == half_n_theta:
                         ind_pol_in = self.pol_segment_key[i, j-1]
                         ind_pol_out = self.pol_segment_key[i, j-1]
+                        jump_pol_in = 0
+                        jump_pol_out = 1
                     else:
                         ind_pol_in = self.pol_segment_key[i, self.n_theta-j]
                         ind_pol_out = self.pol_segment_key[i, self.n_theta-j-1]
+                        jump_pol_in = 1
+                        jump_pol_out = 1
 
                 self.connected_segments[self.node_inds[i, j]][:] = \
                     [ind_tor_in, ind_pol_in, ind_tor_out, ind_pol_out]
+
+                self.connected_segments_hp_jump[self.node_inds[i, j]][:] = \
+                    [jump_tor_in, jump_pol_in, jump_tor_out, jump_pol_out]
 
     def set_up_cell_key(self):
         """
@@ -1054,6 +1084,120 @@ class ToroidalWireframe(object):
 
         return np.where(np.logical_or(node_inactive, redundant_for_loop))[0]
 
+    def find_coils(self, repeat_starting_points=False):
+        """
+        Finds closed paths of current in the wireframe and returns the 
+        corresponding sequences of node coordinates that can be used for 
+        constructing coils. The current paths are explicitly categorized into
+        groups such that coils within each group have equivalent geometry
+        and must carry the same current to maintain stellarator symmetry.
+
+        Parameters
+        ----------
+            repeat_starting_points: logical (optional)
+                If True, coordinate arrays for each coil will end with a repeat 
+                of the starting point, explicitly closing the loop (False by
+                default)
+
+        Returns
+        -------
+            coils: list of 3-column float arrays
+                List of arrays, each one corresponding to a coil. The columns
+                correspond to the x, y, and z coordinates of the nodes that
+                form the coil; each row corresponds to a node, ordered in the
+                direction of current flow.
+            currents: list of floats
+                Current carried by each coil in `coils`
+            group_ids: list of integers
+                Coils with like values of `group_id` are equivalent in geometry
+                and must carry the same current to maintain stellarator symmetry
+        """
+
+        # Ensure that constraints are met and no current crossings exist
+        if not self.check_constraints():
+            raise ValueError('Current distribution violates constraints')
+        if self.has_current_crossings():
+            raise ValueError('Current distribution contains crossings')
+
+        # Populate a set with the IDs of the free segments
+        free_segs = [[]] * 2 * self.nfp
+        for i in range(2 * self.nfp):
+            free_segs[i] = set(np.arange(self.segments.shape[0]))
+
+        coils = []
+        currents = []
+        group_ids = []
+        group_id = 0
+
+        is_active = lambda i: np.abs(self.currents[i]) > 0
+       
+        while len(free_segs[0]) > 0:
+
+            iseg_start = free_segs[0].pop()
+
+            # If the segment has no current, don't initialize a coil
+            if not is_active(iseg_start):
+                continue
+
+            # Put segment back into set to trace the coil path
+            free_segs[0].add(iseg_start)
+
+            for ihp_start in range(2 * self.nfp):
+
+                iseg = iseg_start
+
+                if ihp_start == 0 or iseg in free_segs[ihp_start]:
+
+                    # Index of the first node in the coil
+                    ihp = ihp_start
+                    hp_sign = 1 - 2*np.mod(ihp, 2)
+                    inode = self.segments[iseg, 0]
+                    inode_start = inode
+        
+                    # Record coordinates of first node
+                    coil_nodes = []
+                    coil_nodes.append(self.nodes[ihp][inode, :])
+
+                    # Inner loop: follow coil path and record node locations
+                    while True:
+
+                        # Determine the next segment in the coil
+                        connected = self.connected_segments[inode]
+                        hp_jump = self.connected_segments_hp_jump[inode]
+                        ipos_all = np.where(hp_sign * self.currents[connected] 
+                                                    * [-1, -1, 1, 1] > 0)[0]
+                        assert len(ipos_all) == 1
+                        ipos = ipos_all[0]
+                        iseg = connected[ipos]
+                        ihp = np.mod(ihp + hp_sign*hp_jump[ipos], 2*self.nfp)
+                        hp_sign = 1 - 2*np.mod(ihp, 2)
+                        idir = 1 if hp_sign*self.currents[iseg] > 0 else 0
+                        inode = self.segments[iseg, idir]
+
+                        if iseg not in free_segs[ihp]:
+        
+                            # Coil is completed (starting point reached)
+                            if not repeat_starting_points:
+                                coil_nodes = coil_nodes[:-1]
+                            break
+        
+                        else:
+            
+                            # Remove present segment from further consideration
+                            free_segs[ihp].discard(iseg)
+        
+                            # Record the beginning node of the next segment
+                            coil_nodes.append(self.nodes[ihp][inode, :])
+          
+                    coils.append(np.array(coil_nodes))
+                    currents.append(np.abs(self.currents[iseg]))
+                    group_ids.append(group_id)
+
+            # Increment group_id after all group members have been found
+            group_id += 1
+
+        return coils, currents, group_ids 
+
     def get_cell_key(self):
         """
         Returns a matrix of the segments that border every rectangular cell in 
@@ -1191,6 +1335,27 @@ class ToroidalWireframe(object):
             return False
         else:
             return True
+
+    def has_current_crossings(self):
+        """
+        Determines whether the wireframe grid contains crossed current paths,
+        i.e. if there exists at least one node with more than two connected
+        segments carrying nonzero current.
+
+        Returns True if instances of crossings are found; False otherwise.
+        """
+
+        # Check for crossings at each node
+        for i in range(self.n_nodes):
+
+            connected_currents = self.currents[self.connected_segments[i, :]]
+            n_active = np.sum(np.abs(connected_currents) > self.constraint_atol)
+
+            if n_active > 2:
+                return True
+
+        # If no crossings are found
+        return False
 
     def add_tfcoil_currents(self, n_tf, current_per_coil, constraint_atol=None,
                             constraint_rtol=None):
