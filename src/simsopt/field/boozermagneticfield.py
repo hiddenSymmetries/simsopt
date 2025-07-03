@@ -672,46 +672,59 @@ class BoozerAnalytic(BoozerMagneticField):
 
     def set_etabar(self, etabar):
         self.etabar = etabar
+        self.set_points(self.get_points_ref())  # Force cache invalidation
 
     def set_B0(self, B0):
         self.B0 = B0
+        self.set_points(self.get_points_ref())  # Force cache invalidation
 
     def set_B0z(self, B0z):
         self.B0z = B0z
+        self.set_points(self.get_points_ref())  # Force cache invalidation
 
     def set_Bbar(self, Bbar):
         self.Bbar = Bbar
+        self.set_points(self.get_points_ref())  # Force cache invalidation
 
     def set_N(self, N):
-        self.N = N
+        self.N = N 
+        self.set_points(self.get_points_ref())  # Force cache invalidation
 
     def set_G0(self, G0):
         self.G0 = G0
+        self.set_points(self.get_points_ref())  # Force cache invalidation
 
     def set_I0(self, I0):
         self.I0 = I0
         self.set_field_type()
+        self.set_points(self.get_points_ref())  # Force cache invalidation
 
     def set_G1(self, G1):
         self.G1 = G1
         self.set_field_type()
+        self.set_points(self.get_points_ref())  # Force cache invalidation
 
     def set_I1(self, I1):
         self.I1 = I1
         self.set_field_type()
+        self.set_points(self.get_points_ref())  # Force cache invalidation
 
     def set_K1(self, K1):
         self.K1 = K1
         self.set_field_type()
+        self.set_points(self.get_points_ref())  # Force cache invalidation
 
     def set_iota0(self, iota0):
         self.iota0 = iota0
+        self.set_points(self.get_points_ref())  # Force cache invalidation
 
     def set_iota1(self, iota1):
         self.iota1 = iota1
+        self.set_points(self.get_points_ref())  # Force cache invalidation
 
     def set_psi0(self, psi0):
         self.psi0 = psi0
+        self.set_points(self.get_points_ref())  # Force cache invalidation
 
     def _psip_impl(self, psip):
         points = self.get_points_ref()
