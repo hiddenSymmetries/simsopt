@@ -118,87 +118,155 @@ array<double, m+n> join(const array<double, m>& a, const array<double, n>& b)
      return res;
 }
 
-template<std::size_t m>
-void y_to_stzt(const array<double, m>& y, array<double, m>& stzt, int axis)
+template<class RHS>
+void stzvt_to_y(const array<double, RHS::Size>& stzvt, array<double, RHS::Size>& y, RHS rhs)
+{ 
+    if (y.size() != 4 && y.size() != 5) {
+        throw std::invalid_argument("y must have size 4 or 5.");
+    }
+    if (stzvt.size() != y.size()) {
+        throw std::invalid_argument("stzvt must have the same size as y.");
+    }
+    double s, theta;
+    if (rhs.axis == 1) {
+        y[0] = sqrt(stzvt[0]) * cos(stzvt[1]);
+        y[1] = sqrt(stzvt[0]) * sin(stzvt[1]);
+    } else if (rhs.axis == 2) {
+        y[0] = stzvt[0] * cos(stzvt[1]);
+        y[1] = stzvt[0] * sin(stzvt[1]);
+    } else if (rhs.axis == 0) {
+        y[0] = stzvt[0];
+        y[1] = stzvt[1];
+    } else {
+        throw std::invalid_argument("axis must be 0, 1, or 2.");
+    }
+    y[2] = stzvt[2];
+    y[3] = stzvt[3] / rhs.vnorm; // velocity normalization 
+    if (y.size() == 5) {
+        y[4] = stzvt[4] / rhs.tnorm; // time normalization 
+    } 
+}
+
+
+template<class RHS>
+void y_to_stzvt(const array<double, RHS::Size>& y, array<double, RHS::Size>& stzvt, RHS rhs)
 {
     if (y.size() != 4 && y.size() != 5) {
         throw std::invalid_argument("y must have size 4 or 5.");
     }
-    if (stzt.size() != y.size()) {
-        throw std::invalid_argument("stzt must have the same size as y.");
+    if (stzvt.size() != y.size()) {
+        throw std::invalid_argument("stzvt must have the same size as y.");
     }
     double s, theta;
-    if (axis == 1) {
+    if (rhs.axis == 1) {
         s = pow(y[0], 2) + pow(y[1], 2);
         theta = atan2(y[1], y[0]);
-    } else if (axis == 2) {
+    } else if (rhs.axis == 2) {
         s = sqrt(pow(y[0], 2) + pow(y[1], 2));
         theta = atan2(y[1], y[0]);
-    } else if (axis == 0) {
+    } else if (rhs.axis == 0) {
         s = y[0];
         theta = y[1];
     } else {
         throw std::invalid_argument("axis must be 0, 1, or 2.");
     }
-    if (y.size() == 4) {
-        stzt[0] = s;
-        stzt[1] = theta;
-        stzt[2] = y[2];
-        stzt[3] = y[3];
-    } else if (y.size() == 5) {
-        stzt[0] = s;
-        stzt[1] = theta;
-        stzt[2] = y[2];
-        stzt[3] = y[3];
-        stzt[4] = y[4]; // time
-    } 
+    stzvt[0] = s;
+    stzvt[1] = theta;
+    stzvt[2] = y[2];
+    stzvt[3] = y[3] * rhs.vnorm; // velocity normalization
+    if (y.size() == 5) {
+        stzvt[4] = y[4] * rhs.tnorm; // time normalization
+    }
 }
 
+template<class RHS>
+void stzvtdot_to_ydot(const array<double, RHS::Size>& stzvtdot, const array<double, RHS::Size>& stzvt, array<double, RHS::Size>& ydot, RHS rhs)
+{
+    if (stzvtdot.size() != 4 && stzvtdot.size() != 5) {
+        throw std::invalid_argument("stzvtdot must have size 4 or 5.");
+    }
+    if (stzvt.size() != ydot.size() && stzvtdot.size() != ydot.size()) {
+        throw std::invalid_argument("stzvtdot, stzvt, and ydot must have the same size.");
+    }
+    double sdot = stzvtdot[0];
+    double tdot = stzvtdot[1];
+    double s = stzvt[0];
+    double theta = stzvt[1];
+    if (rhs.axis==1) {
+        ydot[0] = sdot*cos(theta)/(2*sqrt(s)) - sqrt(s) * sin(theta) * tdot;
+        ydot[1] = sdot*sin(theta)/(2*sqrt(s)) + sqrt(s) * cos(theta) * tdot;
+    } else if (rhs.axis==2) {
+        ydot[0] = sdot*cos(theta) - s * sin(theta) * tdot;
+        ydot[1] = sdot*sin(theta) + s * cos(theta) * tdot;
+    } else if (rhs.axis==0) {
+        ydot[0] = sdot;
+        ydot[1] = tdot;
+    } else {
+        throw std::invalid_argument("axis must be 0, 1, or 2.");
+    }
+    ydot[0] = ydot[0] * rhs.tnorm;
+    ydot[1] = ydot[1] * rhs.tnorm;
+    ydot[2] = stzvtdot[2] * rhs.tnorm;
+    ydot[3] = stzvtdot[3] * rhs.tnorm / rhs.vnorm;
+
+    if (stzvtdot.size() == 5) {
+        ydot[4] = 1;
+    }
+}
+
+// Here, all time variables (tau_last, tau_current, dtau) are in normalized units, tau = t/tnorm
 template<class RHS, class DENSE>
-bool check_stopping_criteria(RHS rhs, int iter, vector<array<double, RHS::Size+2>> &res_hits, DENSE dense, double t_last, double t_current, double dt, 
+bool check_stopping_criteria(RHS rhs, int iter, vector<array<double, RHS::Size+2>> &res_hits, DENSE dense, double tau_last, double tau_current, double dtau, 
     double abstol, vector<double> thetas, vector<double> zetas, vector<double> omega_thetas, vector<double> omega_zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, 
     vector<double> vpars, bool thetas_stop, bool zetas_stop, bool vpars_stop)
 {
     typedef typename RHS::State State;
     boost::math::tools::eps_tolerance<double> roottol(-int(std::log2(abstol)));
     uintmax_t rootmaxit = 200;
-    State temp, y, stzt;
+    State y, stzvt, stzvt_current; 
 
     bool stop = false;
     array<double, RHS::Size> ykeep = {};
 
-    dense.calc_state(t_last, temp);
-    y_to_stzt<RHS::Size>(temp, stzt, rhs.axis);
-    double theta_last = stzt[1];
-    double zeta_last = stzt[2];
-    double vpar_last = stzt[3];
+    double dt = dtau * rhs.tnorm;
 
-    dense.calc_state(t_current, y);
-    y_to_stzt<RHS::Size>(y, stzt, rhs.axis);
-    double theta_current = stzt[1];
-    double zeta_current = stzt[2];
-    double vpar_current = stzt[3];
+    dense.calc_state(tau_last, y);
+    y_to_stzvt<RHS>(y, stzvt, rhs);
+    double t_last = tau_last * rhs.tnorm;
+    double theta_last = stzvt[1];
+    double zeta_last = stzvt[2];
+    double vpar_last = stzvt[3];
+
+    dense.calc_state(tau_current, y);
+    y_to_stzvt<RHS>(y, stzvt_current, rhs);
+    double t_current = tau_current * rhs.tnorm;
+    double s_current = stzvt_current[0];
+    double theta_current = stzvt_current[1];
+    double zeta_current = stzvt_current[2];
+    double vpar_current = stzvt_current[3];
 
     // Now check whether we have hit any of the vpar planes
     for (int i = 0; i < vpars.size(); ++i) {
         double vpar = vpars[i];
         if((vpar_last-vpar != 0) && (vpar_current-vpar != 0) && (((vpar_last-vpar > 0) ? 1 : ((vpar_last-vpar < 0) ? -1 : 0)) != ((vpar_current-vpar > 0) ? 1 : ((vpar_current-vpar < 0) ? -1 : 0)))){ // check whether vpar = vpars[i] was crossed
-            std::function<double(double)> rootfun = [&dense, &temp, &vpar_last, &vpar](double t){
-                dense.calc_state(t, temp);
+            std::function<double(double)> rootfun = [&dense, &y, &vpar_last, &vpar, &stzvt, &rhs](double tau){
+                dense.calc_state(tau, y);
+                y_to_stzvt<RHS>(y, stzvt, rhs);
                 if (vpar == 0) {
-                    return (temp[3]-vpar);
+                    return (stzvt[3]-vpar);
                 } else {
                     // Normalize by vpar since it can be large in magnitude
-                    return (temp[3]-vpar)/vpar; 
+                    return (stzvt[3]-vpar)/vpar;
                 }
             };
-            auto root = toms748_solve(rootfun, t_last, t_current, vpar_last-vpar, vpar_current-vpar, roottol, rootmaxit);
+            auto root = toms748_solve(rootfun, tau_last, tau_current, vpar_last-vpar, vpar_current-vpar, roottol, rootmaxit);
             double f0 = rootfun(root.first);
             double f1 = rootfun(root.second);
-            double troot = std::abs(f0) < std::abs(f1) ? root.first : root.second;
-            dense.calc_state(troot, ykeep);
-            y_to_stzt<RHS::Size>(ykeep, stzt, rhs.axis);
-            res_hits.push_back(join<2, RHS::Size>({troot, double(i) + zetas.size()}, stzt));
+            double tau_root = std::abs(f0) < std::abs(f1) ? root.first : root.second;
+            double t_root = tau_root * rhs.tnorm;
+            dense.calc_state(tau_root, y);
+            y_to_stzvt<RHS>(y, stzvt, rhs);
+            res_hits.push_back(join<2, RHS::Size>({t_root, double(i) + zetas.size()}, stzvt));
             if (vpars_stop) {
                 stop = true;
                 break;
@@ -216,24 +284,27 @@ bool check_stopping_criteria(RHS rhs, int iter, vector<array<double, RHS::Size+2
             double phase_shift = fak*2*M_PI + zeta;
             assert((phase_last <= phase_shift && phase_shift <= phase_current) || (phase_current <= phase_shift && phase_shift <= phase_last));
 
-            std::function<double(double)> rootfun = [&phase_shift, &zeta_last, &omega, &dense, &temp](double t){
-                dense.calc_state(t, temp);
-                return temp[2] - omega*t - phase_shift;
+            std::function<double(double)> rootfun = [&phase_shift, &zeta_last, &omega, &dense, &y, &rhs, &stzvt](double tau){
+                dense.calc_state(tau, y);
+                double t = tau * rhs.tnorm;
+                y_to_stzvt<RHS>(y, stzvt, rhs);
+                return stzvt[2] - omega*t - phase_shift;
             };
-            auto root = toms748_solve(rootfun, t_last, t_current, phase_last - phase_shift, phase_current - phase_shift, roottol, rootmaxit);
+            auto root = toms748_solve(rootfun, tau_last, tau_current, phase_last - phase_shift, phase_current - phase_shift, roottol, rootmaxit);
             double f0 = rootfun(root.first);
             double f1 = rootfun(root.second);
-            double troot = std::abs(f0) < std::abs(f1) ? root.first : root.second;
-            dense.calc_state(troot, temp);
-            y_to_stzt<RHS::Size>(temp, stzt, rhs.axis);
-            res_hits.push_back(join<2, RHS::Size>({troot, double(i)}, stzt));
+            double tau_root = std::abs(f0) < std::abs(f1) ? root.first : root.second;
+            double t_root = tau_root * rhs.tnorm;
+            dense.calc_state(tau_root, y);
+            y_to_stzvt<RHS>(y, stzvt, rhs);
+            res_hits.push_back(join<2, RHS::Size>({t_root, double(i)}, stzvt));
             if (zetas_stop && !stop) {
                 stop = true;
                 break;
             }
         }
     }
-        // Now check whether we have hit any of the (theta - omega t) planes
+    // Now check whether we have hit any of the (theta - omega t) planes
     for (int i = 0; i < thetas.size(); ++i) {
         double theta = thetas[i];
         double omega = omega_thetas[i];
@@ -244,17 +315,20 @@ bool check_stopping_criteria(RHS rhs, int iter, vector<array<double, RHS::Size+2
             double phase_shift = fak*2*M_PI + theta;
             assert((phase_last <= phase_shift && phase_shift <= phase_current) || (phase_current <= phase_shift && phase_shift <= phase_last));
 
-            std::function<double(double)> rootfun = [&phase_shift, &theta_last, &omega, &dense, &temp](double t){
-                dense.calc_state(t, temp);
-                return temp[1] - omega*t - phase_shift;
+            std::function<double(double)> rootfun = [&phase_shift, &theta_last, &omega, &dense, &y, &rhs, &stzvt](double tau){
+                dense.calc_state(tau, y);
+                double t = tau * rhs.tnorm;
+                y_to_stzvt<RHS>(y, stzvt, rhs);
+                return stzvt[1] - omega*t - phase_shift;
             };
-            auto root = toms748_solve(rootfun, t_last, t_current, phase_last - phase_shift, phase_current - phase_shift, roottol, rootmaxit);
+            auto root = toms748_solve(rootfun, tau_last, tau_current, phase_last - phase_shift, phase_current - phase_shift, roottol, rootmaxit);
             double f0 = rootfun(root.first);
             double f1 = rootfun(root.second);
-            double troot = std::abs(f0) < std::abs(f1) ? root.first : root.second;
-            dense.calc_state(troot, temp);
-            y_to_stzt<RHS::Size>(temp, stzt, rhs.axis);
-            res_hits.push_back(join<2, RHS::Size>({troot, double(i)}, stzt));
+            double tau_root = std::abs(f0) < std::abs(f1) ? root.first : root.second;
+            double t_root = tau_root * rhs.tnorm;
+            dense.calc_state(tau_root, y);
+            y_to_stzvt<RHS>(y, stzvt, rhs);
+            res_hits.push_back(join<2, RHS::Size>({t_root, double(i) + zetas.size() + vpars.size()}, stzvt));
             if (thetas_stop && !stop) {
                 stop = true;
                 break;
@@ -263,11 +337,9 @@ bool check_stopping_criteria(RHS rhs, int iter, vector<array<double, RHS::Size+2
     }
     // check whether we have satisfied any of the extra stopping criteria (e.g. left a surface)
     for (int i = 0; i < stopping_criteria.size(); ++i) {
-        ykeep = y;
-        y_to_stzt<RHS::Size>(ykeep, stzt, rhs.axis);
-        if(stopping_criteria[i] && (*stopping_criteria[i])(iter, dt, t_current, stzt[0], stzt[1], stzt[2], stzt[3])){
+        if(stopping_criteria[i] && (*stopping_criteria[i])(iter, dt, t_current, s_current, theta_current, zeta_current, vpar_current)){
             stop = true;
-            res_hits.push_back(join<2, RHS::Size>({t_current, -1-double(i)}, stzt));
+            res_hits.push_back(join<2, RHS::Size>({t_current, -1-double(i)}, stzvt_current));
             break;
         }
     }

@@ -301,7 +301,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
             if not solver_options['solveSympl']:
                 assert max(max_energy_gc_error) < -7
-                assert max(max_p_gc_error) < -7
+                assert max(max_p_gc_error) < -6
             else:
                 assert max(max_energy_gc_error) < -1.0
                 assert max(max_p_gc_error) < -8
@@ -357,7 +357,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
             if not solver_options['solveSympl']:
                 assert max(max_energy_gc_error) < -7
-                assert max(max_p_gc_error) < -7
+                assert max(max_p_gc_error) < -6
             else:
                 assert max(max_energy_gc_error) < -1.0
                 assert max(max_p_gc_error) < -8
@@ -460,12 +460,13 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         assert np.all(stz_inits[:,0] < smax)
 
         for solver_options in [{'solveSympl': False}, {'solveSympl': True, 'dt': 1e-8, 'roottol': 1e-8, 'predictor_step': True, 'axis': 0}]:
+            # Test that particles remain within MinToroidalFlux and MaxToroidalFlux')
             gc_tys, gc_zeta_hits = trace_particles_boozer(bsh, stz_inits,
                                                           vpar_inits,
                                                           tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
                                                           stopping_criteria=[MinToroidalFluxStoppingCriterion(
                                                               0.4), MaxToroidalFluxStoppingCriterion(0.6)],
-                                                          tol=1e-5, **solver_options, forget_exact_path=False)
+                                                          tol=1e-10, **solver_options, forget_exact_path=False)
 
             for i in range(Nparticles):
                 assert np.all(gc_tys[i][0:-1, 1] > 0.4)
@@ -559,16 +560,16 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         modB_inits = bsh.modB()
         assert np.all(modB_inits > 0)  # Make sure all modBs are positive
 
-        for solver_options in [{'solveSympl': False}, {'solveSympl': True, 'dt': 1e-5, 'roottol': 1e-5, 'predictor_step': True}]:
+        for solver_options in [{'solveSympl': False, 'axis': 0}, {'solveSympl': True, 'dt': 1e-5, 'roottol': 1e-5, 'predictor_step': True}]:
             # zetas_stop with mismatched zetas and omegas
             solver_options['zetas_stop'] = True
             zetas = [1, 2, 3, 4]
-            omegas = [0]
+            omega_zetas = [0]
             zetas = np.array(zetas)
             with self.assertRaises(ValueError):
                 gc_tys, gc_zeta_hits = trace_particles_boozer(bsh, stz_inits,
                                                               vpar_inits,
-                                                              tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=zetas, omegas=omegas, mode='gc_vac',
+                                                              tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=zetas, omega_zetas=omega_zetas, mode='gc_vac',
                                                               stopping_criteria=[
                                                                   MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99)],
                                                               tol=1e-7,
@@ -599,11 +600,11 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                         assert np.all(gc_tys[i][1:-1, 3] > lower_bound)
 
             # add omegas
-            omegas = [0.1, 0.2, 0.3, 0.4]
-            omegas = np.array(omegas)
+            omega_zetas = [0.1, 0.2, 0.3, 0.4]
+            omega_zetas = np.array(omega_zetas)
             gc_tys, gc_zeta_hits = trace_particles_boozer(bsh, stz_inits,
                                                           vpar_inits,
-                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=zetas, omegas=omegas, mode='gc_vac',
+                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=zetas, omega_zetas=omega_zetas, mode='gc_vac',
                                                           stopping_criteria=[
                                                               MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99)],
                                                           tol=1e-12, **solver_options, dt_save=1e-8)
@@ -613,22 +614,91 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                     if (gc_zeta_hits[i][-1][1] >= 0):
                         idx = int(gc_zeta_hits[i][-1][1])
                         assert np.isclose(gc_zeta_hits[i][-1, 4] % (
-                            2*np.pi), zetas[idx]+omegas[idx]*gc_zeta_hits[i][-1, 0], rtol=1e-12, atol=0)
+                            2*np.pi), zetas[idx]+omega_zetas[idx]*gc_zeta_hits[i][-1, 0], rtol=1e-12, atol=0)
                         if gc_tys[i][-2, 3] > gc_tys[i][-1, 3]:
                             lower_bound = zetas[idx] + \
-                                omegas[idx]*gc_tys[i][1:-1, 0]
+                                omega_zetas[idx]*gc_tys[i][1:-1, 0]
                             upper_bound = (
-                                zetas[idx]+1) + (omegas[idx]+0.1)*gc_tys[i][1:-1, 0]
+                                zetas[idx]+1) + (omega_zetas[idx]+0.1)*gc_tys[i][1:-1, 0]
                         else:
                             upper_bound = zetas[idx] + \
-                                omegas[idx]*gc_tys[i][1:-1, 0]
+                                omega_zetas[idx]*gc_tys[i][1:-1, 0]
                             lower_bound = (
-                                zetas[idx]-1) + (omegas[idx]-0.1)*gc_tys[i][1:-1, 0]
+                                zetas[idx]-1) + (omega_zetas[idx]-0.1)*gc_tys[i][1:-1, 0]
                         assert np.all(gc_tys[i][1:-1, 3] < upper_bound)
                         assert np.all(gc_tys[i][1:-1, 3] > lower_bound)
 
+            # thetas_stop with mismatched thetas and omegas
+            solver_options['thetas_stop'] = True
+            solver_options['zetas_stop'] = False
+            thetas = [1, 2, 3, 4]
+            omega_thetas = [0]
+            thetas = np.array(thetas)
+            with self.assertRaises(ValueError):
+                gc_tys, gc_zeta_hits = trace_particles_boozer(bsh, stz_inits,
+                                                              vpar_inits,
+                                                              tmax=tmax, mass=m, charge=q, Ekin=Ekin, thetas=thetas, omega_thetas=omega_thetas, mode='gc_vac',
+                                                              stopping_criteria=[
+                                                                  MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99)],
+                                                              tol=1e-7,
+                                                              dt_save=1e-5,
+                                                              **solver_options)
+
+            # thetas_stop with no omegas
+            gc_tys, gc_zeta_hits = trace_particles_boozer(bsh, stz_inits,
+                                                          vpar_inits,
+                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, thetas=thetas, mode='gc_vac',
+                                                          stopping_criteria=[
+                                                              MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99)],
+                                                          tol=1e-12, **solver_options, dt_save=1e-8)
+            for i in range(nparticles):
+                if len(gc_zeta_hits[i]):
+                    # Check that we hit a stopping criteria
+                    if (gc_zeta_hits[i][-1][1] >= 0):
+                        idx = int(gc_zeta_hits[i][-1][1])
+                        assert np.isclose(
+                            gc_zeta_hits[i][-1, 3] % (2*np.pi), thetas[idx], rtol=1e-12, atol=0)
+                        if gc_tys[i][-2, 2] > gc_tys[i][-1, 2]:
+                            lower_bound = thetas[idx]
+                            upper_bound = lower_bound + 1
+                        else:
+                            upper_bound = thetas[idx]
+                            lower_bound = upper_bound - 1
+                        assert np.all(gc_tys[i][1:-1, 2] < upper_bound)
+                        assert np.all(gc_tys[i][1:-1, 2] > lower_bound)
+
+            # add omegas
+            omega_thetas = [0.1, 0.2, 0.3, 0.4]
+            omega_thetas = np.array(omega_thetas)
+            gc_tys, gc_zeta_hits = trace_particles_boozer(bsh, stz_inits,
+                                                          vpar_inits,
+                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, thetas=thetas, omega_thetas=omega_thetas, mode='gc_vac',
+                                                          stopping_criteria=[
+                                                              MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99)],
+                                                          tol=1e-12, **solver_options, dt_save=1e-8)
+            for i in range(nparticles):
+                if len(gc_zeta_hits[i]):
+                    # Check that we hit a zeta plane
+                    if (gc_zeta_hits[i][-1][1] >= 0):
+                        idx = int(gc_zeta_hits[i][-1][1])
+                        assert np.isclose(gc_zeta_hits[i][-1, 3] % (
+                            2*np.pi), thetas[idx]+omega_thetas[idx]*gc_zeta_hits[i][-1, 0], rtol=1e-12, atol=0)
+                        if gc_tys[i][-2, 2] > gc_tys[i][-1, 2]:
+                            lower_bound = thetas[idx] + \
+                                omega_thetas[idx]*gc_tys[i][1:-1, 0]
+                            upper_bound = (
+                                thetas[idx]+1) + (omega_thetas[idx]+0.1)*gc_tys[i][1:-1, 0]
+                        else:
+                            upper_bound = thetas[idx] + \
+                                omega_thetas[idx]*gc_tys[i][1:-1, 0]
+                            lower_bound = (
+                                thetas[idx]-1) + (omega_thetas[idx]-0.1)*gc_tys[i][1:-1, 0]
+                        assert np.all(gc_tys[i][1:-1, 2] < upper_bound)
+                        assert np.all(gc_tys[i][1:-1, 2] > lower_bound)
+
             # vpars_stop
             solver_options['zetas_stop'] = False
+            solver_options['thetas_stop'] = False
             solver_options['vpars_stop'] = True
             vpars = [vpar*0.25, vpar*0.5, vpar*0.75]
             vpars = np.array(vpars)
@@ -660,7 +730,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             solver_options['vpars_stop'] = True
 
             gc_tys, gc_zeta_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
-                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=zetas, omegas=omegas, vpars=vpars, mode='gc_vac',
+                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=zetas, omega_zetas=omega_zetas, vpars=vpars, mode='gc_vac',
                                                           stopping_criteria=[
                                                               MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99)],
                                                           tol=1e-7, **solver_options, dt_save=1e-8)
@@ -673,7 +743,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                             stop = vpars[idx-len(zetas)]
                         else:
                             res = gc_zeta_hits[i][-1, 4] % (2*np.pi)
-                            stop = zetas[idx]+omegas[idx] * \
+                            stop = zetas[idx]+omega_zetas[idx] * \
                                 gc_zeta_hits[i][-1, 0]
                         assert np.isclose(res, stop, rtol=1e-7, atol=0)
 

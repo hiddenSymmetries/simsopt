@@ -30,6 +30,7 @@ public:
         double H;
         // vpar = (pzeta - q Azeta)/(m hzeta)
         double vpar;
+        double vnorm, tnorm; 
 
         // Derivatives of above quantities wrt (s, theta, zeta)
         double dAtheta[3], dAzeta[3];
@@ -49,8 +50,8 @@ public:
         using State = array<double, Size>;
         static constexpr bool axis = false;
 
-        SymplField(shared_ptr<BoozerMagneticField> field, double m, double q, double mu) :
-            field(field), m(m), q(q), mu(mu) {
+        SymplField(shared_ptr<BoozerMagneticField> field, double m, double q, double mu, double vnorm=1, double tnorm=1) :
+            field(field), m(m), q(q), mu(mu), vnorm(vnorm), tnorm(tnorm) {
         }
         void eval_field(double x, double y, double z);
         double get_pzeta(double vpar);
