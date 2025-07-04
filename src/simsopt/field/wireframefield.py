@@ -1,13 +1,15 @@
 import numpy as np
 import scipy as sp
+from scipy.fft import rfft
 import simsoptpp as sopp
 from .magneticfield import MagneticField
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.geo.curvexyzfourier import CurveXYZFourier
+from simsopt.geo import SurfaceRZFourier, CurveXYZFourier, RotatedCurve
+from simsopt.field import Coil, Current
+from simsopt.field.coil import ScaledCurrent
 
 mu0 = 4.0*np.pi*1e-7
 
-__all__ = ['WireframeField', 'enclosed_current']
+__all__ = ['WireframeField', 'coils_from_wireframe', 'enclosed_current']
 
 
 class WireframeField(sopp.WireframeField, MagneticField):
@@ -105,6 +107,158 @@ class WireframeField(sopp.WireframeField, MagneticField):
             matrix[:, i] = (fac*np.sum(dB_dsc_i * unitn, axis=2)).reshape((-1))
 
         return matrix
+
+def coils_from_wireframe(wf, max_order=20, min_order=2, ppp=20):
+    """
+    Generates `~simsopt.field.Coil` class instances using the 
+    :obj:`~simsopt.geo.CurveXYZFourier` class to represent the geometry of 
+    coils identified within the wireframe. 
+    The :obj:`~simsopt.geo.CurveXYZFourier` space curves are fit to the 
+    nodes that each wireframe-based coil passes through. Only works if 
+    there are no current crossings in the wireframe.
+
+    Parameters
+    ----------
+        wf: wireframe class instance
+            Wireframe from which coils are to be determined
+        max_order: integer (optional)
+            Maximum mode order for Fourier series approximations of the
+            coil curves. Actual order for a given coil may be lower if it 
+            has a small number of wireframe nodes (unless the `min_order` 
+            parameter is used to enforce a minimum order). Default is 20.
+        min_order: integer (optional)
+            Minimum mode order for Fourier series approximations of the
+            coil curves.
+        ppp: integer (optional)
+            Number of quadrature points to assign per period for the 
+            highest-order Fourier harmonic for the curve of each coil
+
+    Returns
+    -------
+        coils: list of Coil class instances
+            :obj:`~simsopt.field.Coil` class instances corresponding to
+            each coil found within the wireframe. Coils constrained to
+            have like currents and geometry by stellarator symmetry share
+            their respective degrees of freedom.
+    """
+
+    # Obtain the current flows in the wireframe forming coils
+    coords_all, curr_all, group_ids = \
+        wf.find_coils(repeat_starting_points=False)
+
+    this_group = -1
+    base_ind = -1
+    first_in_group = True
+
+    n_coils = len(curr_all)
+    coils = []
+
+    for i in range(n_coils):
+
+        # Determine whether the coil is the first in its group
+        if group_ids[i] != this_group:
+            first_in_group = True
+            this_group = group_ids[i]
+        else:
+            first_in_group = False
+
+        # Generate a new coil
+        if first_in_group:
+
+            n_nodes = coords_all[i].shape[0]
+
+            # If not enough nodes to support minimum order, add points at
+            # midpoints between existing nodes
+            coords = np.array(coords_all[i])
+            while n_nodes < 2 * min_order:
+               coords_prev = np.array(coords)
+               coords = np.zeros((2*coords_prev.shape[0], 3))
+               coords[::2, :] = coords_prev
+               coords[1::2, :] = \
+                   0.5 * (coords_prev + np.roll(coords_prev, -1, axis=0))
+               n_nodes = coords.shape[0]
+
+            order = min(int(n_nodes/2), max_order) 
+
+            all_coeffs = []
+
+            # Compute the Fourier coefficients
+            for x in [coords[:, 0], coords[:, 1], coords[:, 2]]:
+
+                xf = rfft(x) / len(x)
+
+                fft_0 = [xf[0].real]                # 0 order coefficient
+                fft_cos = 2 * xf[1:order + 1].real  # cosine coefficients
+                fft_sin = -2 * xf[:order + 1].imag  # sine coefficients
+
+                combined_fft = np.concatenate([fft_sin, fft_0, fft_cos])
+                all_coeffs.append(combined_fft)
+
+            all_coeffs = np.concatenate(all_coeffs).reshape(6, order+1).T
+
+            # Initialize a curve and set its degress of freedom
+            curve = CurveXYZFourier(order*ppp, order)
+            dofs = curve.dofs_matrix
+            dofs[0][0] = all_coeffs[0, 1]
+            dofs[1][0] = all_coeffs[0, 3]
+            dofs[2][0] = all_coeffs[0, 5]
+            for io in range(order):
+                dofs[0][2*io+1] = all_coeffs[io+1, 0]
+                dofs[0][2*io+2] = all_coeffs[io+1, 1]
+                dofs[1][2*io+1] = all_coeffs[io+1, 2]
+                dofs[1][2*io+2] = all_coeffs[io+1, 3]
+                dofs[2][2*io+1] = all_coeffs[io+1, 4]
+                dofs[2][2*io+2] = all_coeffs[io+1, 5]
+
+            curve.local_x = np.concatenate(dofs)
+
+            coils.append(Coil(curve, Current(curr_all[i])))
+
+            base_ind = i
+
+        # Create a scaled/rotated curve that best fits the current coil
+        else:
+
+            # Calculate curve points roughly corresponding to nodes
+            n_qpts = len(curve.quadpoints)
+            n_nodes = coords_all[i].shape[0]
+            qpt_inds = (np.arange(n_nodes)/(n_nodes)*n_qpts).astype(int)
+            curve_pts = coils[base_ind].curve.gamma()[qpt_inds, :]
+
+            coords = coords_all[i]
+            coords_flip = np.roll(coords, -1, axis=0)[::-1, :]
+
+            resid2 = np.zeros((2*wf.nfp))
+
+            # Calculate residuals with nodes for different rotations/flips
+            for i in range(wf.nfp):
+
+                phi = i * 2 * np.pi / wf.nfp
+                rotmat = np.asarray([[np.cos(phi), -np.sin(phi), 0],
+                                     [np.sin(phi),  np.cos(phi), 0],
+                                     [       0,         0, 1]]).T
+                rotmat_flip = rotmat @ np.asarray([[1,  0,  0],
+                                                   [0, -1,  0],
+                                                   [0,  0, -1]])
+
+                resid2[i] = np.sum((curve_pts @ rotmat - coords)**2)
+                resid2[wf.nfp+i] = \
+                    np.sum((curve_pts @ rotmat_flip - coords_flip)**2)
+
+            # Identify the rotation/flip with the lowest residual
+            imin = np.argmin(resid2)
+            flip = imin >= wf.nfp
+            phi_best = np.mod(imin, wf.nfp) * 2 * np.pi / wf.nfp
+
+            curve = RotatedCurve(coils[base_ind].curve, phi_best, flip)
+            if flip:
+                current = ScaledCurrent(coils[base_ind].current, -1)
+            else:
+                current = coils[base_ind].current
+
+            coils.append(Coil(curve, current))
+
+    return coils
 
 
 def enclosed_current(curve, field, n_quadpoints, preserve_points=True):

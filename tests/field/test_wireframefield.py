@@ -1,8 +1,11 @@
 import unittest
 from pathlib import Path
 import numpy as np
-from simsopt.geo import CurveXYZFourier, SurfaceRZFourier, ToroidalWireframe
-from simsopt.field import WireframeField, enclosed_current
+from simsopt.geo import CurveXYZFourier, SurfaceRZFourier, ToroidalWireframe, \
+                        RotatedCurve
+from simsopt.field import WireframeField, enclosed_current, \
+                          coils_from_wireframe, BiotSavart
+from simsopt.field.coil import ScaledCurrent
 from simsopt.objectives import SquaredFlux
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
@@ -289,6 +292,144 @@ class WireframeFieldTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             field_wf_tor.dBnormal_by_dsegmentcurrents_matrix(None)
 
+    def test_coils_from_wireframe(self):
+        '''
+        Tests of the coils_from_wireframe function
+        '''
+
+        test_cur = 1e6
+        nfp, rmaj, rmin = 3, 2, 1
+        surf_wf = surf_torus(nfp, rmaj, rmin)
+        n_phi, n_theta = 4, 4
+        wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
+
+        # Should return empty arrays for a wireframe with no currents
+        coils = coils_from_wireframe(wf)
+        self.assertEqual(len(coils), 0)
+
+        # Should raise an error if constraints are not met
+        wf.currents[[5, 6, 19, 23]] = [test_cur, -test_cur, -test_cur, test_cur]
+        wf.currents[[10, 11]] = [test_cur, -test_cur]
+        self.assertFalse(wf.check_constraints())
+        with self.assertRaises(ValueError):
+            coils = coils_from_wireframe(wf)
+
+        # Should raise an error if current crossings exist
+        wf.currents[[24, 28]] = [-test_cur, test_cur]
+        self.assertTrue(wf.check_constraints)
+        with self.assertRaises(ValueError):
+            coils = coils_from_wireframe(wf)
+
+        wf.currents[:] = 0
+
+        # Add two (non-contiguous) loops to the middle of the half-period
+        wf.currents[[5, 6, 19, 23]] = [test_cur, -test_cur, -test_cur, test_cur]
+        wf.currents[[11, 8, 25, 29]] = [-2*test_cur, 2*test_cur, 
+                                        2*test_cur, -2*test_cur]
+        self.assertTrue(wf.check_constraints())
+        coils = coils_from_wireframe(wf, min_order=3, max_order=3)
+
+        # Verify that the coils agree with the wireframe node coordinates
+        coords, currs, group_ids = wf.find_coils()
+        for i in range(len(coils)):
+
+            # Obtain quadrature points that coincide with nodes (guaranteed
+            # to exist if order == number of nodes)
+            n_qpts = len(coils[i].curve.quadpoints)
+            n_nodes = coords[i].shape[0]
+            qpt_inds = (np.arange(coords[i].shape[0]) \
+                        / (coords[i].shape[0])*n_qpts).astype(int)
+            curve_pts = coils[i].curve.gamma()[qpt_inds, :]
+
+            if np.allclose(curve_pts, coords[i]):
+                # Non-flipped coil
+                self.assertAlmostEqual(coils[i].current.get_value(), currs[i])
+            elif np.allclose(curve_pts, 
+                             np.roll(coords[i], -1, axis=0)[::-1, :]):
+                # Flipped coil
+                self.assertAlmostEqual(-coils[i].current.get_value(), currs[i])
+            else:
+                # Should not get here
+                self.assertTrue(False)
+
+        wf.currents[:] = 0
+        
+        # Add and detect a helical coil
+        helical_coil_inds_4x4 = [0, 4, 22, 9, 13, 2, 6, 24, 11, 15]
+        wf.currents[helical_coil_inds_4x4] = test_cur
+        self.assertTrue(wf.check_constraints())
+        coils = coils_from_wireframe(wf, min_order=wf.nfp*3, max_order=wf.nfp*3)
+        self.assertEqual(len(coils), 1)
+
+        # Verify symmetry under rotation
+        dphi = 2 * np.pi / wf.nfp
+        nqpts = coils[0].curve.gamma().shape[0]
+        rot_start = int(nqpts / wf.nfp)
+        curve_rot = RotatedCurve(coils[0].curve, dphi, False)
+        self.assertTrue(
+            np.allclose(np.roll(coils[0].curve.gamma(), rot_start, axis=0), 
+                        curve_rot.gamma()))
+
+        # Confirm that the same segment indices produce 2 coils with nfp=4
+        surf_wf_4hp = SurfaceRZFourier(4, rmaj, rmin)
+        wf_4fp = ToroidalWireframe(surf_wf_4hp, n_phi, n_theta)
+        wf_4fp.currents[helical_coil_inds_4x4] = test_cur
+        self.assertTrue(wf_4fp.check_constraints())
+        coils = coils_from_wireframe(wf_4fp) 
+        self.assertEqual(len(coils), 2)
+        for i in range(len(coils)):
+            self.assertEqual(coils[i].current.get_value(), np.abs(test_cur))
+        self.assertTrue(isinstance(coils[0].curve, CurveXYZFourier))
+        self.assertTrue(isinstance(coils[1].curve, RotatedCurve))
+
+        # Combination of helical and modular coils
+        n_phi, n_theta = 8, 8
+        wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
+        helical_coil_inds_8x8 = [0,  8, 17, 25, 33, 41, 50, 58, 76, 109, 
+                                 4, 12, 21, 29, 37, 45, 54, 62, 80, 113]
+        wf.currents[helical_coil_inds_8x8] = test_cur
+        wf.currents[[26, 34, 102, 103]] =  2 * test_cur
+        wf.currents[[28, 36,  86,  87]] = -2 * test_cur
+        self.assertTrue(wf.check_constraints())
+        coils = coils_from_wireframe(wf)
+        self.assertEqual(len(coils), 7)
+        n_rotated = 0
+        n_original = 0
+        n_scaled = 0
+        for coil in coils:
+            if isinstance(coil.curve, CurveXYZFourier):
+                n_original += 1
+            elif isinstance(coil.curve, RotatedCurve):
+                n_rotated += 1
+            if isinstance(coil.current, ScaledCurrent):
+                n_scaled += 1
+        self.assertEqual(n_original, 2)
+        self.assertEqual(n_rotated, 5)
+        self.assertEqual(n_scaled, 3)
+
+        # Test the field from a set of TF coils
+        n_phi, n_theta = 48, 8
+        wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
+        n_tf_per_hp = 16
+        wf.add_tfcoil_currents(n_tf_per_hp, -test_cur/(n_tf_per_hp*2*wf.nfp))
+        coils = coils_from_wireframe(wf)
+        coil_field = BiotSavart(coils)
+        
+        # Amperian loop through which poloidal current flows
+        amploop = CurveXYZFourier(10, 1)
+        amploop.set('xc(1)', surf_wf.get_rc(0, 0))
+        amploop.set('ys(1)', surf_wf.get_rc(0, 0))
+
+        # Verify correctness of field along Amperian loop
+        amploop_curr = enclosed_current(amploop, coil_field, 200)
+        self.assertTrue(np.allclose(amploop_curr, test_cur))
+
+        # Recalculate after changing the current in the base coils
+        for i in range(n_tf_per_hp):
+            idx = i * wf.nfp * 2
+            coils[idx].current.set_dofs([2*coils[idx].current.get_value()])
+        amploop_curr = enclosed_current(amploop, coil_field, 200)
+        self.assertTrue(np.allclose(amploop_curr, 2*test_cur))
 
 if __name__ == "__main__":
     unittest.main()

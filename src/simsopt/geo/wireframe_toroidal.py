@@ -3,7 +3,7 @@ Implementation of the ToroidalWireframe class and associated functions
 """
 import numpy as np
 import collections
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.geo import SurfaceRZFourier
 from .._core.dev import SimsoptRequires
 
 try:

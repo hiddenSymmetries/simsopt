@@ -793,6 +793,28 @@ class ToroidalWireframeTests(unittest.TestCase):
 
         wf.currents[:] = 0
 
+        # Combination of helical and modular coils
+        n_phi, n_theta = 8, 8
+        wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
+        helical_coil_inds_8x8 = [0,  8, 17, 25, 33, 41, 50, 58, 76, 109, 
+                                 4, 12, 21, 29, 37, 45, 54, 62, 80, 113]
+        wf.currents[helical_coil_inds_8x8] = test_cur
+        wf.currents[[26, 34, 102, 103]] =  2 * test_cur
+        wf.currents[[28, 36,  86,  87]] = -2 * test_cur
+        self.assertTrue(wf.check_constraints())
+        coils, currents, group_ids = wf.find_coils()
+        self.assertEqual(len(coils), 7)
+        self.assertEqual(len(np.unique(group_ids)), 2)
+        self.assertTrue(0 in group_ids)
+        self.assertTrue(1 in group_ids)
+        id_hel = 0 if np.sum(np.array(group_ids) == 0) > 1 else 0
+        for i in range(len(coils)):
+            if group_ids[i] == id_hel:
+                self.assertEqual(coils[i].shape[0], 
+                                 2*wf.nfp*len(helical_coil_inds_8x8))
+            else:
+                self.assertEqual(coils[i].shape[0], 8)
+
 
 if __name__ == "__main__":
     unittest.main()
