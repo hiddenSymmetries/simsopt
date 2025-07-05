@@ -7,6 +7,7 @@ from .._core.util import (
     align_and_pad,
     allocate_aligned_and_padded_array,
 )
+from ..saw.ae3d import AE3DEigenvector
 import os.path
 import warnings
 
@@ -2590,6 +2591,24 @@ class ShearAlfvenHarmonic(sopp.ShearAlfvenHarmonic,ShearAlfvenWave):
             ):
                 raise TypeError("s_values and Phihat_values must be lists of floats.")
 
+            indices = np.argsort(s_vals)
+            Phihat_vals = np.array(Phihat_vals)[indices].tolist()
+            s_vals = np.array(s_vals)[indices].tolist()
+
+            if s_vals[0] < 0 or s_vals[-1] > 1:
+                raise ValueError(
+                    "s_values must be in the range [0, 1]."
+                )
+
+            # Add on s = 0 boundary condition 
+            if s_vals[0] > 0:
+                if Phim == 0:
+                    s_vals.insert(0, 0)
+                    Phihat_vals.insert(0, Phihat_vals[0])
+                else:
+                    s_vals.insert(0, 0)
+                    Phihat_vals.insert(0, 0)
+
             phihat_object = sopp.Phihat(s_vals, Phihat_vals)
         else:
             # Try to convert Phihat_value_or_tuple to a float if possible
@@ -2605,6 +2624,7 @@ class ShearAlfvenHarmonic(sopp.ShearAlfvenHarmonic,ShearAlfvenWave):
         # Call the constructor of the base C++ class
         sopp.ShearAlfvenHarmonic.__init__(self,phihat_object, Phim, Phin, omega, phase, B0)
         ShearAlfvenWave.__init__(self, B0)
+
 class ShearAlfvenWavesSuperposition(sopp.ShearAlfvenWavesSuperposition,ShearAlfvenWave):
     r"""
     Class representing a superposition of multiple Shear Alfvén Waves (SAWs).
@@ -2659,9 +2679,96 @@ class ShearAlfvenWavesSuperposition(sopp.ShearAlfvenWavesSuperposition,ShearAlfv
             raise ValueError("At least one ShearAlfvenWave object must be provided.")
 
         # Initialize the base C++ class with the first wave as the base wave
-        sopp.ShearAlfvenWaveSuperposition.__init__(self,SAWs[0])
+        sopp.ShearAlfvenWavesSuperposition.__init__(self,SAWs[0])
         ShearAlfvenWave.__init__(self, SAWs[0].B0)
 
         # Add subsequent waves to the superposition
         for SAW in SAWs[1:]:
             self.add_wave(SAW)
+
+    @classmethod
+    def from_ae3d(cls,
+        eigenvector: AE3DEigenvector, 
+        B0: BoozerMagneticField, 
+        max_dB_normal_by_B0: float = 1e-3, 
+        minor_radius_meters = 1.7, 
+        phase = 0.0):
+        """
+        Converts AE3DEigenvector harmonics into ShearAlfvenHarmonics submerged in the given BoozerMagneticField.
+
+        Args:
+            eigenvector (AE3DEigenvector): The eigenvector object containing harmonics from the AE3D simulation.
+            B0 (BoozerMagneticField): The background magnetic field (computed separately), in Tesla
+            max_dB_normal_by_B0 (float): Desired ration of maximum normal B from SAW mode over B0 field
+            minor_radius_meters (float): Stellarator's minor radius, in meters. User can get this from VMEC wout equilibrium
+
+        Returns:
+            ShearAlfvenWavesSuperposition: A superposition of ShearAlfvenHarmonics.
+        """
+        harmonic_list = []
+        m_list = []
+        n_list = []
+        s_list = []
+        omega = np.sqrt(eigenvector.eigenvalue)*1000
+
+        if eigenvector.eigenvalue <= 0:
+            raise ValueError("The eigenvalue must be positive to compute omega.")
+
+        for harmonic in eigenvector.harmonics:
+            sbump = eigenvector.s_coords
+            bump = harmonic.amplitudes
+
+            sah = ShearAlfvenHarmonic(
+                Phihat_value_or_tuple=(sbump, bump),
+                Phim=harmonic.m,
+                Phin=harmonic.n,
+                omega=omega,
+                phase=phase,
+                B0=B0
+            )
+            m_list.append(harmonic.m)
+            n_list.append(harmonic.n)
+            s_list += list(sbump)
+            harmonic_list.append(sah)
+        #start with arbitrary magnitude SAW, then rescale it:
+        unscaled_SAW = ShearAlfvenWavesSuperposition(harmonic_list)
+        #Make radial grid that captures all unique radial values for all harmonic:
+        s_unique = list(set(s_list))
+        s_unique.sort()
+        #Make angle grids that resolve maxima of highest harmonics
+        thetas = np.linspace(0, 2 * np.pi, 5*np.max(np.abs(m_list)))
+        zetas  = np.linspace(0, 2 * np.pi, 5*np.max(np.abs(n_list)))
+        # Create 3D mesh grids:
+        thetas2d, zetas2d, s2d = np.meshgrid(thetas, zetas, s_unique, indexing='ij')
+        points = np.zeros((len(thetas2d.flatten()), 4)) #s theta zeta time
+        points[:, 0] = s2d.flatten()  # s values
+        points[:, 1] = thetas2d.flatten()  # theta values
+        points[:, 2] = zetas2d.flatten()  # zeta values
+        unscaled_SAW.set_points(points)
+        G = unscaled_SAW.B0.G()
+        iota = unscaled_SAW.B0.iota()
+        I = unscaled_SAW.B0.I()
+        Bpsi_default = (1/((iota*I+G)*minor_radius_meters)
+                    *(G*unscaled_SAW.dalphadtheta() - I*unscaled_SAW.dalphadzeta()))
+        max_Bpsi_value = np.max(np.abs(Bpsi_default))
+        max_index = np.argmax(np.abs(Bpsi_default))
+        max_s, max_theta, max_zeta = points[max_index, 0], points[max_index, 1], points[max_index, 2]
+
+        Phihat_scale_factor = max_dB_normal_by_B0/np.max(np.abs(Bpsi_default))
+
+        #Having determine the scale factor, initialize harmonics with corrected amplitudes:
+        harmonic_list = []
+        for harmonic in eigenvector.harmonics:
+            sbump = eigenvector.s_coords
+            bump = harmonic.amplitudes
+            sah = ShearAlfvenHarmonic(
+                Phihat_value_or_tuple = (sbump, bump*Phihat_scale_factor),
+                Phim = harmonic.m,
+                Phin = harmonic.n,
+                omega = omega,
+                phase = phase,
+                B0 = B0
+            )
+            harmonic_list.append(sah)
+        return ShearAlfvenWavesSuperposition(harmonic_list)
+

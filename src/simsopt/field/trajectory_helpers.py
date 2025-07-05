@@ -9,6 +9,7 @@ from ..field.tracing import (
 )
 from ..field.boozermagneticfield import ShearAlfvenHarmonic, ShearAlfvenWave
 from .._core.util import parallel_loop_bounds
+from ..util.functions import proc0_print
 
 __all__ = [
     "compute_loss_fraction",
@@ -43,7 +44,7 @@ def compute_loss_fraction(res_tys, tmin=1e-7, tmax=1e-2, ntime=1000):
 
     loss_frac = np.zeros_like(times)
     for it in range(ntime):
-        loss_frac[it] = np.count_nonzero(timelost < times[it]) / nparticles
+        loss_frac[it] = np.count_nonzero(timelost < times[it]-1e-15) / nparticles
 
     return times, loss_frac
 
