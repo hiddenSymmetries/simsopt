@@ -11,7 +11,8 @@ The Gvec optimizable class is designed to be similar to the Vmec optimizable, bu
 import copy
 import logging
 from pathlib import Path
-from typing import Optional, Mapping, Literal, Union, Optional
+from typing import Optional, Literal, Union
+from collections.abc import Mapping
 import shutil
 
 import numpy as np
@@ -100,6 +101,7 @@ class Gvec(Optimizable):
         self.run_required: bool = True  # flag for caching e.g. set after changing parameters
         self.run_successful: bool = False  # flag for whether the last run was successful
         self._state: State = None  # state object representing the GVEC equilibrium
+        self._runobj: gvec.Run = None  # the gvec run object, used to access the state & diagnostics
 
         # init MPI
         if MPI:
@@ -144,17 +146,14 @@ class Gvec(Optimizable):
             pressure = ProfilePolynomial([pressure])
         self._pressure = pressure
 
-        if iota is None:
-            if "iota" in self.parameters:
-                iota = self.profile_from_params(self.parameters["iota"])
-            else:
-                iota = ProfilePolynomial([0.0])
+        if iota is None and "iota" in self.parameters:
+            iota = self.profile_from_params(self.parameters["iota"])
         elif isinstance(iota, float):
             iota = ProfilePolynomial([iota])
         self._iota = iota
 
-        if current is None and "Itor" in self.parameters:
-            current = self.profile_from_params(self.parameters["Itor"])
+        if current is None and "I_tor" in self.parameters:
+            current = self.profile_from_params(self.parameters["I_tor"])
         elif isinstance(current, float):
             current = ProfilePolynomial([current])
         self._current = current
@@ -163,7 +162,9 @@ class Gvec(Optimizable):
         x0 = self.get_dofs()
         fixed = np.full(len(x0), True)
         names = ['phiedge']
-        depends = [self._boundary, self._pressure, self._iota]
+        depends = [self._boundary, self._pressure]
+        if iota is not None:
+            depends += [self._iota]
         if current is not None:
             depends += [self._current]
         super().__init__(
@@ -219,10 +220,6 @@ class Gvec(Optimizable):
                 logger.debug("no run required")
                 return
 
-        if self._state is not None:
-            self._state.finalize()
-            self._state = None
-
         if self.delete_intermediates and self.run_successful:
             logger.debug("deleting output from previous run")
             shutil.rmtree(self.rundir)
@@ -255,31 +252,17 @@ class Gvec(Optimizable):
         # run GVEC
         self.run_successful = False
         try:
-            with gvec.util.chdir(self.rundir):
-                gvec.util.write_parameters(self.serialize_parameters(params), "parameter.toml")
-                stagedir, statefile, diagnostics = gvec.scripts.run.run_stages(params, restart_file)
+            self._runobj = gvec.run(params, restart_file, runpath=self.rundir)
         except RuntimeError as e:
             logger.error(f"GVEC failed with: {e}")
             raise ObjectiveFailure("Run GVEC failed.") from e
         self.run_successful = True
         
         # read output/statefile
-        logger.debug(f"Reading state: {self.rundir / stagedir / 'parameter.ini'}, {self.rundir / statefile}")
-        self._state = State(self.rundir / stagedir / "parameter.ini", self.rundir / statefile)
+        self._state = self._runobj.state
 
         logger.debug("GVEC finished")
         self.run_required = False
-    
-    @staticmethod
-    def serialize_parameters(params: dict) -> dict:  # ToDo: deprecate with GVEC v1.1
-        for key, value in params.items():
-            if isinstance(value, Mapping):
-                params[key] = Gvec.serialize_parameters(value)
-            elif isinstance(value, np.ndarray):
-                params[key] = value.tolist()
-            else:
-                params[key] = value
-        return params
 
     def prepare_parameters(self) -> Mapping:
         """
@@ -335,13 +318,20 @@ class Gvec(Optimizable):
             params |= perturbation
 
         # profiles
+        if self._iota is None and self._current is None:
+            raise RuntimeError("GVEC requires either an iota or a current profile to be set.")
+
         params["pres"] = self.profile_to_params(self._pressure)
-        params["iota"] = self.profile_to_params(self._iota)
+        if self._iota is None:
+            if "iota" in params:
+                del params["iota"]
+        else:
+            params["iota"] = self.profile_to_params(self._iota)
         if self._current is None:  # iota constraint
-            if "Itor" in params:
-                del params["Itor"]
-        else:  # current constraint
-            params["Itor"] = self.profile_to_params(self._current)
+            if "I_tor" in params:
+                del params["I_tor"]
+        else:  # current optimization
+            params["I_tor"] = self.profile_to_params(self._current)
 
         # local DOFs
         params["phiedge"] = self._phiedge
@@ -469,7 +459,7 @@ class Gvec(Optimizable):
         self.run_required = True
 
     @property
-    def iota_profile(self) -> Profile:
+    def iota_profile(self) -> Union[Profile, None]:
         """
         The rotational transform profile in terms of the normalized toroidal flux $s$.
 
@@ -479,18 +469,17 @@ class Gvec(Optimizable):
         return self._iota
     
     @iota_profile.setter
-    def iota_profile(self, iota_profile: Union[Profile, float]):
+    def iota_profile(self, iota_profile: Union[Profile, float, None]):
         if iota_profile is self._iota:
             return
-        if self._current is None:
-            logging.debug("setting iota profile (GVEC configured with iota-constraint)")
-        else:
-            logging.debug("setting initial iota profile (GVEC configured with current-constraint)")
+        self.logger.debug("setting iota profile")
         if isinstance(iota_profile, float):
             iota_profile = ProfilePolynomial([iota_profile])
-        self.remove_parent(self._iota)
+        if self._iota is not None:
+            self.remove_parent(self._iota)
         self._iota = iota_profile
-        self.append_parent(self._iota)
+        if iota_profile is not None:
+            self.append_parent(self._iota)
         self.run_required = True
     
     @property

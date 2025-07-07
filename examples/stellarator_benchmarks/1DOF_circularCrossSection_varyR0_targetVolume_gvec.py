@@ -49,6 +49,7 @@ surf.set_zs(1, 0, 0.1)
 # Create the GVEC optimizable
 equil = Gvec(
     boundary=surf,
+    iota=0.0,
     mpi=mpi,
     delete_intermediates=True,
 )
