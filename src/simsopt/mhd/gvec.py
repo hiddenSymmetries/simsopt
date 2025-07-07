@@ -221,6 +221,7 @@ class Gvec(Optimizable):
 
         if self._state is not None:
             self._state.finalize()
+            self._state = None
 
         if self.delete_intermediates and self.run_successful:
             logger.debug("deleting output from previous run")
@@ -400,13 +401,18 @@ class Gvec(Optimizable):
             ntor=N,
         )
 
+        # set default values to 0
+        boundary.set_rc(0, 0, 0.0)
+        boundary.set_rc(1, 0, 0.0)
+        boundary.set_zs(1, 0, 0.0)
+
         params = gvec.util.flip_parameters_zeta(params)
         for (m, n), value in params.get("X1_b_cos", {}).items():
             boundary.set_rc(m, n, value)
         for (m, n), value in params.get("X2_b_sin", {}).items():
             boundary.set_zs(m, n, value)
 
-        boundary.local_full_x = boundary.get_dofs()
+        boundary.fix_all()
         return boundary
 
     # === INPUT VARIABLES === #
@@ -522,37 +528,37 @@ class Gvec(Optimizable):
         """Compute the rotational transform profile, linearly spaced in $s=\rho^2$."""
         self.run()
         rho = np.sqrt(np.linspace(0, 1, 101))
-        ds = gvec.Evaluations(rho=rho, theta=None, zeta=None, state=self._state)
-        self._state.compute(ds, "iota")
+        ds = gvec.Evaluations(rho=rho, theta=None, zeta=None, state=self.state())
+        self.state().compute(ds, "iota")
         return ds.iota.data
         
     def iota_axis(self) -> float:
         """Compute the rotational transform at the magnetic axis."""
         self.run()
-        ds = gvec.Evaluations(rho=[0], theta=None, zeta=None, state=self._state)
-        self._state.compute(ds, "iota")
+        ds = gvec.Evaluations(rho=[0], theta=None, zeta=None, state=self.state())
+        self.state().compute(ds, "iota")
         return ds.iota.item()
 
     def iota_edge(self) -> float:
         """Compute the rotational transform at the edge."""
         self.run()
-        ds = gvec.Evaluations(rho=[1], theta=None, zeta=None, state=self._state)
-        self._state.compute(ds, "iota")
+        ds = gvec.Evaluations(rho=[1], theta=None, zeta=None, state=self.state())
+        self.state().compute(ds, "iota")
         return ds.iota.item()
 
     def current(self) -> np.ndarray:
         """Compute the toroidal current profile, linearly spaced in $s=\rho^2$."""
         self.run()
         rho = np.sqrt(np.linspace(0, 1, 101))
-        ds = gvec.Evaluations(rho=rho, theta="int", zeta="int", state=self._state)
-        self._state.compute(ds, "I_tor")
+        ds = gvec.Evaluations(rho=rho, theta="int", zeta="int", state=self.state())
+        self.state().compute(ds, "I_tor")
         return ds.I_tor.data
 
     def current_edge(self) -> float:
         """Compute the toroidal current at the edge."""
         self.run()
-        ds = gvec.Evaluations(rho=[1], theta="int", zeta="int", state=self._state)
-        self._state.compute(ds, "I_tor")
+        ds = gvec.Evaluations(rho=[1], theta="int", zeta="int", state=self.state())
+        self.state().compute(ds, "I_tor")
         return ds.I_tor.data
 
     def volume(self) -> float:
@@ -561,9 +567,8 @@ class Gvec(Optimizable):
         This method integrates the Jacobian determiant over the whole domain.
         The result should be the same as the volume computed from a Surface object.
         """
-        self.run()
-        ds = gvec.Evaluations(rho="int", theta="int", zeta="int", state=self._state)
-        self._state.compute(ds, "V")
+        ds = gvec.Evaluations(rho="int", theta="int", zeta="int", state=self.state())
+        self.state().compute(ds, "V")
         return ds.V.item()
 
     def aspect(self) -> float:
@@ -573,9 +578,8 @@ class Gvec(Optimizable):
         Jacobian determinant. The result should be the same as the aspect ratio
         computed from a Surface object.
         """
-        self.run()
-        ds = gvec.Evaluations(rho="int", theta="int", zeta="int", state=self._state)
-        self._state.compute(ds, "major_radius", "minor_radius")
+        ds = gvec.Evaluations(rho="int", theta="int", zeta="int", state=self.state())
+        self.state().compute(ds, "major_radius", "minor_radius")
         return (ds.major_radius / ds.minor_radius).item()
 
     def vacuum_well(self) -> np.ndarray:
@@ -587,10 +591,9 @@ class Gvec(Optimizable):
         respect to the normalized toroidal flux. Negative values of W are
         favorable for stability to interchange modes.
         """
-        self.run()
         rho = np.linspace(0, 1, 101)
-        ds = gvec.Evaluations(rho=rho, theta="int", zeta="int", state=self._state)
-        self._state.compute(ds, "dV_dPhi_n", "dV_dPhi_n2")
+        ds = gvec.Evaluations(rho=rho, theta="int", zeta="int", state=self.state())
+        self.state().compute(ds, "dV_dPhi_n", "dV_dPhi_n2")
         return (ds.dV_dPhi_n2 / ds.dV_dPhi_n).data
 
     def vacuum_well_edge(self) -> float:
@@ -602,7 +605,19 @@ class Gvec(Optimizable):
         respect to the normalized toroidal flux. Negative values of W are
         favorable for stability to interchange modes.
         """
-        self.run()
-        ds = gvec.Evaluations(rho=[1], theta="int", zeta="int", state=self._state)
-        self._state.compute(ds, "dV_dPhi_n", "dV_dPhi_n2")
+        ds = gvec.Evaluations(rho=[1], theta="int", zeta="int", state=self.state())
+        self.state().compute(ds, "dV_dPhi_n", "dV_dPhi_n2")
         return (ds.dV_dPhi_n2 / ds.dV_dPhi_n).item()
+    
+    def vacuum_magnetic_well_depth(self) -> float:
+        """Compute the vacuum magnetic well depth"""
+        ev = gvec.Evaluations(
+            rho=[1e-4, 1.0],
+            theta="int",
+            zeta="int",
+            state=self.state(),
+        )
+        self.state().compute(ev, "dV_dPhi_n")
+        Vp1 = ev.sel(rho=1.0).dV_dPhi_n.item()
+        Vp0 = ev.sel(rho=1e-4).dV_dPhi_n.item()
+        return (Vp0 - Vp1) / Vp0
