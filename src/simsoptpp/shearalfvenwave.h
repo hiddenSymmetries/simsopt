@@ -208,11 +208,12 @@ private:
       throw std::invalid_argument(
           "s_values contains duplicate entries; all s must be unique.");
     }
-  }
-  if (s_values.size() < 2) {
+    if (s_values.size() < 2) {
       throw std::invalid_argument(
           "s_values must contain at least two points for interpolation.");
+    }
   }
+
 
   /**
   * @brief Sorts the input data based on `s_values`.
