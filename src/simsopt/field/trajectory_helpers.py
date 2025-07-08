@@ -815,7 +815,7 @@ def compute_peta(field_or_saw, points, vpar, mass, charge, helicity_M, helicity_
     value of the canonical momentum, :math:`p_{\eta}`, which is conserved under the
     perturbed guiding center equations if the field strength has helicity (M,N).
 
-    :math:`p_{\eta} = (M G + N I) \left(\frac{m v_{\|\|}}{B} + q \alpha \right) + q (M \psi - M \psi') - \omega P_{\zeta}`
+    :math:`p_{\eta} = (M G + N I) \left(\frac{m v_{\|\|}}{B} + q \alpha \right) + q (M \psi - M \psi')`
 
     If field_or_saw is a BoozerMagneticField instance, then alpha = 0.
 
