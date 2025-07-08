@@ -812,8 +812,8 @@ class TrappedPoincare:
 def compute_peta(field_or_saw, points, vpar, mass, charge, helicity_M, helicity_N):
     r"""
     Given a ShearAlfvenWave or BoozerMagneticField instance, a point in Boozer coordinates, and particle properties, compute the
-    value of the canonical momentum, :math:`p_{\eta}`, which is conserved under the
-    perturbed guiding center equations if the field strength has helicity (M,N).
+    value of the canonical momentum, :math:`p_{\eta}`. This quantity is conserved under the unperturbed guiding center equations
+    if the field strength is exactly quasisymmetric with helicity (M,N) and :math:`\alpha = 0`. 
 
     :math:`p_{\eta} = (M G + N I) \left(\frac{m v_{\|\|}}{B} + q \alpha \right) + q (M \psi - M \psi')`
 
