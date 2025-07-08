@@ -154,11 +154,11 @@ def trace_particles_boozer_perturbed(
 
         - ``res_hits``:
             A list of numpy arrays (one for each particle) containing
-            information on each time the particle hits one of the hit planes or
-            one of the stopping criteria. Each row or the array contains `[time] + [idx] + state`, where `idx`
-            tells us which of the hit planes or stopping criteria was hit. If `idx>=0` and `idx<len(zetas)`,
-            then the `zetas[idx]` plane was hit. If `idx>=len(zetas)`, then the `vpars[idx-len(zetas)]` plane was hit.
-            If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit. The state vector is `[t, s, theta, zeta, v_par]`.
+            information on each time the particle hits one of the zeta planes or
+            one of the stopping criteria. Each row or the array contains `[time] + [idx] + state`, where `idx` tells us which of the hit planes or stopping criteria was hit.
+            If `idx>=0` and `idx<len(zetas)`, then the `zetas[idx]` plane was hit. If `len(vpars)+len(zetas)>idx>=len(zetas)`, then the `vpars[idx-len(zetas)]` plane was hit.
+            If `idx>=len(vpars)+len(zetas)`, then the `thetas[idx-len(vpars)-len(zetas)]` plane was hit.
+            If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit. The state vector is `[s, theta, zeta, v_par, t]`.
     """
     if reltol is None:
         reltol = tol
@@ -361,9 +361,10 @@ def trace_particles_boozer(
         - ``res_hits``:
             A list of numpy arrays (one for each particle) containing
             information on each time the particle hits one of the zeta planes or
-            one of the stopping criteria. Each row or the array contains `[time] + [idx] + state`, where `idx` tells us which of the hit planes or stopping criteria was hit. 
-            If `idx>=0` and `idx<len(zetas)`, then the `zetas[idx]` plane was hit. If `idx>=len(zetas)`, then the `vpars[idx-len(zetas)]` plane was hit. 
-            If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit. The state vector is `[t, s, theta, zeta, v_par]`.
+            one of the stopping criteria. Each row or the array contains `[time] + [idx] + state`, where `idx` tells us which of the hit planes or stopping criteria was hit.
+            If `idx>=0` and `idx<len(zetas)`, then the `zetas[idx]` plane was hit. If `len(vpars)+len(zetas)>idx>=len(zetas)`, then the `vpars[idx-len(zetas)]` plane was hit.
+            If `idx>=len(vpars)+len(zetas)`, then the `thetas[idx-len(vpars)-len(zetas)]` plane was hit.
+            If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit. The state vector is `[s, theta, zeta, v_par]`.
     """
     if zetas_stop and (not len(zetas) and not len(omega_zetas)):
         raise ValueError("No zetas and omega_zetas provided for the zeta stopping criterion")
