@@ -660,7 +660,7 @@ particle_guiding_center_boozer_tracing(
           return solve<GuidingCenterVacuumBoozerRHS>(rhs_class, stzv, tau_max, dtau, dtau_max, abstol, reltol, thetas, zetas, omega_thetas, omega_zetas, stopping_criteria, dtau_save, vpars, thetas_stop, zetas_stop, vpars_stop, forget_exact_path);
         } else if (noK) {
           auto rhs_class = GuidingCenterNoKBoozerRHS(field, m, q, mu, axis, vnorm, tnorm);
-          return solve<GuidingCenterNoKBoozerRHS>(rhs_class, stzv, tau_max, dtau, dtau_max, abstol, reltol, thetas, zetas, omega_thetas, omega_zetas, stopping_criteria, dt_save, vpars, thetas_stop, zetas_stop, vpars_stop, forget_exact_path);
+          return solve<GuidingCenterNoKBoozerRHS>(rhs_class, stzv, tau_max, dtau, dtau_max, abstol, reltol, thetas, zetas, omega_thetas, omega_zetas, stopping_criteria, dtau_save, vpars, thetas_stop, zetas_stop, vpars_stop, forget_exact_path);
         } else {
           auto rhs_class = GuidingCenterBoozerRHS(field, m, q, mu, axis, vnorm, tnorm);
           return solve<GuidingCenterBoozerRHS>(rhs_class, stzv, tau_max, dtau, dtau_max, abstol, reltol, thetas, zetas, omega_thetas, omega_zetas, stopping_criteria, dtau_save, vpars, thetas_stop, zetas_stop, vpars_stop, forget_exact_path);
