@@ -725,17 +725,6 @@ class RotatedCurve(sopp.Curve, Curve):
         This function returns the number of dofs associated to the curve.
         """
         return self.curve.num_dofs()
-    
-    def centroid(self):
-        """ 
-        Compute the centroid of the curve
-
-        .. math::
-            \mathbf{c} = \frac{1}{L} \int_0^L \mathbf{\gamma}(l) dl
-
-        where :math:`\gamma` is the position on the curve.
-        """
-        return centroid_pure(self.gamma(), self.gammadash())
 
     def gamma_impl(self, gamma, quadpoints):
         r"""

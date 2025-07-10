@@ -786,6 +786,13 @@ class Testing(unittest.TestCase):
 
 
     def test_create_planar_curves_between_two_toroidal_surfaces(self):
+        """
+        Rigorously test that the create_planar_curves_between_two_toroidal_surfaces 
+        function works correctly.
+        This test checks that the curves and curve properties are identical for both JAX and non-JAX versions.
+        This test also checks that the curves are created correctly various nfp and 
+        different stellarator equilibria. 
+        """
         # Use a real surface from test files for a minimal working test
         TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
         filename = TEST_DIR / 'input.LandremanPaul2021_QA'
@@ -805,8 +812,8 @@ class Testing(unittest.TestCase):
             for curve in curves:
                 gamma = curve.gamma()
                 print(gamma.shape)
-                self.assertEqual(gamma.shape[1], 3)
-                self.assertEqual(gamma.shape[0], 10)
+                self.assertEqual(gamma.shape[1], 3, "Gamma should have 3 columns (x, y, z)")
+                self.assertEqual(gamma.shape[0], 10, "Gamma should have 10 rows (numquadpoints)")
 
             # Standard usage without specified numquadpoints
             curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
@@ -817,8 +824,8 @@ class Testing(unittest.TestCase):
             for curve in curves:
                 gamma = curve.gamma()
                 print(gamma.shape)
-                self.assertEqual(gamma.shape[1], 3)
-                self.assertEqual(gamma.shape[0], 80)  # default numquadpoints = (order + 1) * 40
+                self.assertEqual(gamma.shape[1], 3, "Gamma should have 3 columns (x, y, z)")
+                self.assertEqual(gamma.shape[0], 80, "Gamma should have 80 rows (numquadpoints)")  # default numquadpoints = (order + 1) * 40
 
             # Test with use_jax_curve=True
             curves_jax, all_curves_jax = create_planar_curves_between_two_toroidal_surfaces(
@@ -829,8 +836,8 @@ class Testing(unittest.TestCase):
             for curve in curves_jax:
                 gamma = curve.gamma()
                 print(gamma.shape)
-                self.assertEqual(gamma.shape[1], 3)
-                self.assertEqual(gamma.shape[0], 10)
+                self.assertEqual(gamma.shape[1], 3, "Gamma should have 3 columns (x, y, z)")
+                self.assertEqual(gamma.shape[0], 10, "Gamma should have 10 rows (numquadpoints)")
 
             # Additional tests for different nfp values and files
             nfp_file_map = {
@@ -1013,6 +1020,13 @@ class Testing(unittest.TestCase):
         assert curve.zs[1] == curve.get('zs(2)')
 
     def test_create_equally_spaced_planar_curves_jax(self):
+        """
+        Rigorously test that the create_equally_spaced_planar_curves function 
+        works correctly. This test checks that the curves and curve properties are 
+        identical for both JAX and non-JAX versions.
+        This test also checks that the curves are created correctly for different 
+        nfp values and stellarator equilibria.
+        """
         from simsopt.geo.curve import create_equally_spaced_planar_curves
         ncurves, nfp = 2, 2
         stellsym = True
@@ -1083,10 +1097,10 @@ class Testing(unittest.TestCase):
             curve2.set(name, val)
         # 3. Use the direct .x assignment
         curve3.x = values.copy()
-        np.testing.assert_allclose(curve1.get_dofs(), curve2.get_dofs(), atol=1e-14)
-        np.testing.assert_allclose(curve1.get_dofs(), curve3.get_dofs(), atol=1e-14)
-        np.testing.assert_allclose(curve1.gamma(), curve2.gamma(), atol=1e-14)
-        np.testing.assert_allclose(curve1.gamma(), curve3.gamma(), atol=1e-14)
+        np.testing.assert_allclose(curve1.get_dofs(), curve2.get_dofs(), atol=1e-14, err_msg="Dofs set by set_dofs and set(name, value) should be identical")
+        np.testing.assert_allclose(curve1.get_dofs(), curve3.get_dofs(), atol=1e-14, err_msg="Dofs set by set_dofs and .x assignment should be identical")
+        np.testing.assert_allclose(curve1.gamma(), curve2.gamma(), atol=1e-14, err_msg="Gamma set by set_dofs and set(name, value) should be identical")
+        np.testing.assert_allclose(curve1.gamma(), curve3.gamma(), atol=1e-14, err_msg="Gamma set by set_dofs and .x assignment should be identical")
         # Test CurvePlanarFourier
         curve4 = CurvePlanarFourier(numquadpoints, order)
         curve5 = CurvePlanarFourier(numquadpoints, order)
@@ -1100,10 +1114,10 @@ class Testing(unittest.TestCase):
             curve5.set(name, val)
         # 3. Use the direct .x assignment
         curve6.x = values_p.copy()
-        np.testing.assert_allclose(curve4.get_dofs(), curve5.get_dofs(), atol=1e-14)
-        np.testing.assert_allclose(curve4.get_dofs(), curve6.get_dofs(), atol=1e-14)
-        np.testing.assert_allclose(curve4.gamma(), curve5.gamma(), atol=1e-14)
-        np.testing.assert_allclose(curve4.gamma(), curve6.gamma(), atol=1e-14)
+        np.testing.assert_allclose(curve4.get_dofs(), curve5.get_dofs(), atol=1e-14, err_msg="Dofs set by set_dofs and set(name, value) should be identical")
+        np.testing.assert_allclose(curve4.get_dofs(), curve6.get_dofs(), atol=1e-14, err_msg="Dofs set by set_dofs and .x assignment should be identical")
+        np.testing.assert_allclose(curve4.gamma(), curve5.gamma(), atol=1e-14, err_msg="Gamma set by set_dofs and set(name, value) should be identical")
+        np.testing.assert_allclose(curve4.gamma(), curve6.gamma(), atol=1e-14, err_msg="Gamma set by set_dofs and .x assignment should be identical")
 
     def test_setup_uniform_grid_in_bounding_box(self):
         """

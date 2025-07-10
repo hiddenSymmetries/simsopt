@@ -232,9 +232,9 @@ def jaxfouriercurve_pure(dofs, quadpoints, order):
 class JaxCurveXYZFourier(JaxCurve):
 
     """
-    A Python+Jax implementation of the CurveXYZFourier class.  There is
-    actually no reason why one should use this over the C++ implementation in
-    :mod:`simsoptpp`, but the point of this class is to illustrate how jax can be used
+    A Python+Jax implementation of the CurveXYZFourier class. This is an autodiff
+    compatible version of the same CurveXYZFourier class in the C++ implementation in
+    :mod:`simsoptpp`. The point of this class is to illustrate how jax can be used
     to define a geometric object class and calculate all the derivatives (both
     with respect to dofs and with respect to the angle :math:`\theta`) automatically.
 
