@@ -1185,6 +1185,28 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
         base_curves = create_equally_spaced_curves(4, 3, stellsym=True)
         base_currents = [Current(1e5) for c in base_curves]
         coils = coils_via_symmetries(base_curves, base_currents, 3, stellsym=True)
+
+    Args:
+        ncurves : int
+            Number of curves to create.
+        nfp : int
+            Field period symmetry of the plasma.
+        stellsym : bool
+            Whether the plasma has stellarator symmetry.
+        R0 : float, optional, default=1.0
+            Major radius of the coils.
+        R1 : float, optional, default=0.5
+            Minor radius of the coils.
+        order : int, optional, default=6
+            Order of the Fourier series in the planar curve representation.
+        numquadpoints : int, optional, default=None
+            Number of quadrature points to use.
+        use_jax_curve : bool, optional, default=False
+            Whether to use JaxCurvePlanarFourier instead of CurvePlanarFourier.
+
+    Returns:
+        curves : list
+            List of CurvePlanarFourier or JaxCurvePlanarFourier objects.
     """
     from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
     if numquadpoints is None:
@@ -1227,15 +1249,15 @@ def create_equally_spaced_planar_curves(
             Field period symmetry of the plasma.
         stellsym : bool
             Whether the plasma has stellarator symmetry.
-        R0 : float, optional
+        R0 : float, optional, default=1.0
             Major radius of the coils.
-        R1 : float, optional
+        R1 : float, optional, default=0.5
             Minor radius of the coils.
-        order : int, optional
+        order : int, optional, default=6
             Order of the Fourier series in the planar curve representation.
-        numquadpoints : int, optional
+        numquadpoints : int, optional, default=None
             Number of quadrature points to use.
-        use_jax_curve : bool, optional
+        use_jax_curve : bool, optional, default=False
             Whether to use JaxCurvePlanarFourier instead of CurvePlanarFourier.
 
     Returns:
