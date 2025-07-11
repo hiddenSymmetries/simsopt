@@ -1,7 +1,5 @@
 import numpy as np 
 
-from .._core.util import parallel_loop_bounds
-
 try:
     from mpi4py import MPI
     comm = MPI.COMM_WORLD
@@ -49,8 +47,6 @@ def plot_trajectory_poloidal(res_ty, helicity_M=1, helicity_N=0, ax=None):
     y1 = np.sin(chi_grid)
 
     if verbose:
-        import matplotlib 
-        matplotlib.use('Agg') # Don't use interactive backend 
         import matplotlib.pyplot as plt
         if ax is None:
             fig, ax = plt.subplots()
@@ -103,8 +99,6 @@ def plot_trajectory_overhead_cyl(res_ty, field, ax=None):
     Y_axis = R_axis * np.sin(phi_axis)
 
     if verbose: 
-        import matplotlib 
-        matplotlib.use('Agg') # Don't use interactive backend 
         import matplotlib.pyplot as plt
 
         if ax is None:
