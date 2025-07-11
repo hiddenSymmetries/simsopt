@@ -202,6 +202,17 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 
 
 def jaxfouriercurve_pure(dofs, quadpoints, order):
+    """
+    This pure function returns the curve position vector in XYZ coordinates..
+
+    Args:
+        dofs (array, shape (ndofs,)): Array of dofs.
+        quadpoints (array, shape (N, 3)): Array of quadrature points.
+        order (int): Order of the Fourier series.
+
+    Returns:
+        Array of curve points, shape (N, 3)
+    """
     k = jnp.shape(dofs)[0]//3
     coeffs = [dofs[:k], dofs[k:(2*k)], dofs[(2*k):]]
     points = 2 * np.pi * quadpoints
@@ -215,15 +226,15 @@ def jaxfouriercurve_pure(dofs, quadpoints, order):
                                      + coeffs[1][2 * jrange, None] * cjp, axis=0)
     gamma_z = coeffs[2][0] + jnp.sum(coeffs[2][2 * jrange - 1, None] * sjp
                                      + coeffs[2][2 * jrange, None] * cjp, axis=0)
-    return jnp.transpose(jnp.vstack((jnp.vstack((gamma_x, gamma_y)), gamma_z)))
+    return jnp.stack((gamma_x, gamma_y, gamma_z), axis=-1)
 
 
 class JaxCurveXYZFourier(JaxCurve):
 
     """
-    A Python+Jax implementation of the CurveXYZFourier class.  There is
-    actually no reason why one should use this over the C++ implementation in
-    :mod:`simsoptpp`, but the point of this class is to illustrate how jax can be used
+    A Python+Jax implementation of the CurveXYZFourier class. This is an autodiff
+    compatible version of the same CurveXYZFourier class in the C++ implementation in
+    :mod:`simsoptpp`. The point of this class is to illustrate how jax can be used
     to define a geometric object class and calculate all the derivatives (both
     with respect to dofs and with respect to the angle :math:`\theta`) automatically.
 

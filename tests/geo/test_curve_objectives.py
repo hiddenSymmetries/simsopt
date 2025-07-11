@@ -86,12 +86,11 @@ class Testing(unittest.TestCase):
             Jh = J.J()
             deriv_est = (Jh-J0)/eps
             err_new = np.linalg.norm(deriv_est-deriv)
-            # print("err_new %s" % (err_new))
-            assert err_new < 0.55 * err
+            self.assertLess(err_new, 0.55 * err, f"New error should be less than 0.55 * old error: {err_new} < {0.55 * err}")
             err = err_new
         J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
         J_regen = json.loads(J_str, cls=GSONDecoder)
-        self.assertAlmostEqual(J.J(), J_regen.J())
+        self.assertAlmostEqual(J.J(), J_regen.J(), msg="J should be equal to the regenerated J")
 
     def test_curve_length_taylor_test(self):
         for curvetype in self.curvetypes:
@@ -107,7 +106,7 @@ class Testing(unittest.TestCase):
         h = 1e-2 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
         dJ = J.dJ()
         deriv = np.sum(dJ * h)
-        assert np.abs(deriv) > 1e-10
+        self.assertGreater(np.abs(deriv), 1e-10, "Derivative should be greater than 1e-10")
         err = 1e6
         for i in range(5, 15):
             eps = 0.5**i
@@ -115,12 +114,11 @@ class Testing(unittest.TestCase):
             Jh = J.J()
             deriv_est = (Jh-J0)/eps
             err_new = np.linalg.norm(deriv_est-deriv)
-            # print("err_new %s" % (err_new))
-            assert err_new < 0.55 * err
+            self.assertLess(err_new, 0.55 * err, f"New error should be less than 0.55 * old error: {err_new} < {0.55 * err}")
             err = err_new
         J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
         J_regen = json.loads(J_str, cls=GSONDecoder)
-        self.assertAlmostEqual(J.J(), J_regen.J())
+        self.assertAlmostEqual(J.J(), J_regen.J(), msg="J should be equal to the regenerated J")
 
     def test_curve_curvature_taylor_test(self):
         for curvetype in self.curvetypes:
@@ -143,12 +141,11 @@ class Testing(unittest.TestCase):
             Jh = J.J()
             deriv_est = (Jh-J0)/eps
             err_new = np.linalg.norm(deriv_est-deriv)
-            # print("err_new %s" % (err_new))
-            assert err_new < 0.55 * err
+            self.assertLess(err_new, 0.55 * err, f"New error should be less than 0.55 * old error: {err_new} < {0.55 * err}")
             err = err_new
         J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
         J_regen = json.loads(J_str, cls=GSONDecoder)
-        self.assertAlmostEqual(J.J(), J_regen.J())
+        self.assertAlmostEqual(J.J(), J_regen.J(), msg="J should be equal to the regenerated J")
 
     def test_curve_torsion_taylor_test(self):
         for curvetype in self.curvetypes:
@@ -170,8 +167,8 @@ class Testing(unittest.TestCase):
             for i in range(len(curves)):
                 for j in range(i):
                     mindist = min(mindist, np.min(np.linalg.norm(curves[i].gamma()[::downsample, None, :] - curves[j].gamma()[None, ::downsample, :], axis=2)))
-            assert abs(J.shortest_distance() - mindist) < 1e-14
-            assert mindist > 1e-10
+            self.assertLess(abs(J.shortest_distance() - mindist), 1e-14, f"Shortest distance should be close to the minimum distance: {J.shortest_distance()} - {mindist} < 1e-14")
+            self.assertGreater(mindist, 1e-10, "Minimum distance should be greater than 1e-10")
 
             for k in range(ncurves):
                 curve_dofs = curves[k].x
@@ -179,7 +176,7 @@ class Testing(unittest.TestCase):
                 J0 = J.J()
                 dJ = J.dJ(partials=True)(curves[k].curve if isinstance(curves[k], RotatedCurve) else curves[k])
                 deriv = np.sum(dJ * h)
-                assert np.abs(deriv) > 1e-10
+                self.assertGreater(np.abs(deriv), 1e-10, "Derivative should be greater than 1e-10")
                 err = 1e6
                 for i in range(5, 12):
                     eps = 0.5**i
@@ -187,13 +184,11 @@ class Testing(unittest.TestCase):
                     Jh = J.J()
                     deriv_est = (Jh-J0)/eps
                     err_new = np.linalg.norm(deriv_est-deriv)
-                    if err_new > 0.6 * err:
-                        print("i = ", i, " err_new %s" % (err_new), err_new/err)
-                    assert err_new < 0.6 * err
+                    self.assertLess(err_new, 0.6 * err, f"New error should be less than 0.6 * old error: {err_new} < {0.6 * err}")
                     err = err_new
             J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
             J_regen = json.loads(J_str, cls=GSONDecoder)
-            self.assertAlmostEqual(J.J(), J_regen.J())
+            self.assertAlmostEqual(J.J(), J_regen.J(), msg="J should be equal to the regenerated J")
 
     def test_curve_minimum_distance_taylor_test(self):
         for curvetype in self.curvetypes:
@@ -212,7 +207,7 @@ class Testing(unittest.TestCase):
         h = 1e-1 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
         dJ = J.dJ()
         deriv = np.sum(dJ * h)
-        assert np.abs(deriv) > 1e-10
+        self.assertGreater(np.abs(deriv), 1e-10, "Derivative should be greater than 1e-10")
         err = 1e6
         for i in range(2, 10):  # CurveHelical fails slightly if you start at i=1
             eps = 0.5**i
@@ -222,12 +217,11 @@ class Testing(unittest.TestCase):
             Jm = J.J()
             deriv_est = (Jp-Jm)/(2*eps)
             err_new = np.linalg.norm(deriv_est-deriv)
-            # print("i, ", i, " err_new %s" % (err_new))
-            assert err_new < 0.3 * err
+            self.assertLess(err_new, 0.3 * err, f"New error should be less than 0.3 * old error: {err_new} < {0.3 * err}")
             err = err_new
         J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
         J_regen = json.loads(J_str, cls=GSONDecoder)
-        self.assertAlmostEqual(J.J(), J_regen.J())
+        self.assertAlmostEqual(J.J(), J_regen.J(), msg="J should be equal to the regenerated J")
 
     def test_curve_arclengthvariation_taylor_test(self):
         for curvetype in self.curvetypes:
@@ -243,7 +237,17 @@ class Testing(unittest.TestCase):
         c.set('ys(1)', 4.0)
         for nintervals in ["full", "partial", 2]:
             a = ArclengthVariation(c, nintervals=nintervals)
-            assert np.abs(a.J()) < 1.0e-12
+            self.assertLess(np.abs(a.J()), 1.0e-12, "Arclength variation should be 0 for a circle")
+
+    def test_arclength_variation_circle_planar(self):
+        """ For a circle, the arclength variation should be 0. """
+        c = CurvePlanarFourier(16, 1)
+        c.set('X', 4.0)
+        c.set('Y', 4.0)
+        c.set('Z', 0.0)
+        for nintervals in ["full", 2]:
+            a = ArclengthVariation(c, nintervals=nintervals)
+            self.assertLess(np.abs(a.J()), 1.0e-12, "Arclength variation should be 0 for a circle")
 
     def test_arclength_variation_circle_planar(self):
         """ For a circle, the arclength variation should be 0. """
@@ -261,7 +265,7 @@ class Testing(unittest.TestCase):
         h = 1e-1 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
         dJ = J.dJ()
         deriv = np.sum(dJ * h)
-        assert np.abs(deriv) > 1e-10
+        self.assertGreater(np.abs(deriv), 1e-10, "Derivative should be greater than 1e-10")
         err = 1e6
         for i in range(5, 10):
             eps = 0.5**i
@@ -271,12 +275,11 @@ class Testing(unittest.TestCase):
             Jm = J.J()
             deriv_est = (Jp-Jm)/(2*eps)
             err_new = np.linalg.norm(deriv_est-deriv)
-            # print("err_new %s" % (err_new))
-            assert err_new < 0.3 * err
+            self.assertLess(err_new, 0.3 * err, f"New error should be less than 0.3 * old error: {err_new} < {0.3 * err}")
             err = err_new
         J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
         J_regen = json.loads(J_str, cls=GSONDecoder)
-        self.assertAlmostEqual(J.J(), J_regen.J())
+        self.assertAlmostEqual(J.J(), J_regen.J(), msg="J should be equal to the regenerated J")
 
     def test_curve_meansquaredcurvature_taylor_test(self):
         for curvetype in self.curvetypes:
@@ -298,11 +301,11 @@ class Testing(unittest.TestCase):
 
         threshold = max(true_min_dists.values()) * 1.0001
         candidates = sopp.get_pointclouds_closer_than_threshold_within_collection(pointClouds, threshold, n_clouds)
-        assert len(candidates) == len(true_min_dists)
+        self.assertEqual(len(candidates), len(true_min_dists), "Number of candidates should be equal to the number of true minimum distances")
 
         threshold = min(true_min_dists.values()) * 1.0001
         candidates = sopp.get_pointclouds_closer_than_threshold_within_collection(pointClouds, threshold, n_clouds)
-        assert len(candidates) == 1
+        self.assertEqual(len(candidates), 1, "Number of candidates should be 1")
 
     def test_minimum_distance_candidates_two_collections(self):
         np.random.seed(0)
@@ -318,11 +321,11 @@ class Testing(unittest.TestCase):
 
         threshold = max(true_min_dists.values()) * 1.0001
         candidates = sopp.get_pointclouds_closer_than_threshold_between_two_collections(pointCloudsA, pointCloudsB, threshold)
-        assert len(candidates) == len(true_min_dists)
+        self.assertEqual(len(candidates), len(true_min_dists), "Number of candidates should be equal to the number of true minimum distances")
 
         threshold = min(true_min_dists.values()) * 1.0001
         candidates = sopp.get_pointclouds_closer_than_threshold_between_two_collections(pointCloudsA, pointCloudsB, threshold)
-        assert len(candidates) == 1
+        self.assertEqual(len(candidates), 1, "Number of candidates should be 1")
 
     def test_minimum_distance_candidates_symmetry(self):
         from scipy.spatial.distance import cdist
@@ -331,18 +334,14 @@ class Testing(unittest.TestCase):
         for t in np.linspace(0.05, 0.5, num=10):
             Jnosym = CurveCurveDistance(curves, t)
             Jsym = CurveCurveDistance(curves, t, num_basecurves=3)
-            assert abs(Jnosym.shortest_distance_among_candidates() - Jsym.shortest_distance_among_candidates()) < 1e-15
-            print(len(Jnosym.candidates), len(Jsym.candidates), Jnosym.shortest_distance_among_candidates())
+            self.assertLess(abs(Jnosym.shortest_distance_among_candidates() - Jsym.shortest_distance_among_candidates()), 
+                            1e-15, f"Shortest distance among candidates should be close to the shortest distance among candidates: {Jnosym.shortest_distance_among_candidates()} - {Jsym.shortest_distance_among_candidates()} < 1e-15")
             distsnosym = [np.min(cdist(Jnosym.curves[i].gamma(), Jnosym.curves[j].gamma())) for i, j in Jnosym.candidates]
             distssym = [np.min(cdist(Jsym.curves[i].gamma(), Jsym.curves[j].gamma())) for i, j in Jsym.candidates]
-            print("distsnosym", distsnosym)
-            print("distssym", distssym)
-            print((Jnosym.candidates), (Jsym.candidates))
 
-            assert np.allclose(
-                np.unique(np.round(distsnosym, 8)),
-                np.unique(np.round(distssym, 8))
-            )
+            self.assertTrue(np.allclose(np.unique(np.round(distsnosym, 8)), 
+                                        np.unique(np.round(distssym, 8))), 
+                                        "Distances before annd after symmetrization should be equal")
 
     def test_curve_surface_distance(self):
         np.random.seed(0)
@@ -358,14 +357,14 @@ class Testing(unittest.TestCase):
         for t in np.linspace(0.01, 1.0, num=10):
             J = CurveSurfaceDistance(curves, surface, t)
             J.compute_candidates()
-            assert len(J.candidates) >= last_num_candidates
+            self.assertGreaterEqual(len(J.candidates), last_num_candidates, "Number of candidates should be greater than or equal to the last number of candidates")
             last_num_candidates = len(J.candidates)
             if len(J.candidates) == 0:
-                assert J.shortest_distance() > J.shortest_distance_among_candidates()
+                self.assertGreater(J.shortest_distance(), J.shortest_distance_among_candidates(), "Shortest distance should be greater than the shortest distance among candidates")
             else:
-                assert J.shortest_distance() == J.shortest_distance_among_candidates()
+                self.assertEqual(J.shortest_distance(), J.shortest_distance_among_candidates(), "Shortest distance should be equal to the shortest distance among candidates")
 
-        assert last_num_candidates == len(curves)
+        self.assertEqual(last_num_candidates, len(curves), "Last number of candidates should be equal to the number of curves")
         threshold = 1.0
         J = CurveSurfaceDistance(curves, surface, threshold)
 
@@ -373,7 +372,7 @@ class Testing(unittest.TestCase):
         h = 1e-1 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
         dJ = J.dJ()
         deriv = np.sum(dJ * h)
-        assert np.abs(deriv) > 1e-10
+        self.assertGreater(np.abs(deriv), 1e-10, "Derivative should be greater than 1e-10")
         err = 1e6
         for i in range(5, 12):
             eps = 0.5**i
@@ -383,15 +382,13 @@ class Testing(unittest.TestCase):
             Jm = J.J()
             deriv_est = (Jp-Jm)/(2*eps)
             err_new = np.linalg.norm(deriv_est-deriv)
-            # print("err_new %s" % (err_new))
-            # print(err_new/err)
-            assert err_new < 0.3 * err
+            self.assertLess(err_new, 0.3 * err, f"New error should be less than 0.3 * old error: {err_new} < {0.3 * err}")
             err = err_new
 
     def test_linking_number(self):
         for downsample in [1, 2, 5]:
-            for jax_flag in [False, True]:
-                curves1 = create_equally_spaced_curves(2, 1, stellsym=True, R0=1, R1=0.5, order=5, numquadpoints=120, jax_flag=jax_flag)
+            for use_jax_curve in [False, True]:
+                curves1 = create_equally_spaced_curves(2, 1, stellsym=True, R0=1, R1=0.5, order=5, numquadpoints=120, use_jax_curve=use_jax_curve)
                 curve1 = CurveXYZFourier(200, 3)
                 coeffs = curve1.dofs_matrix
                 coeffs[1][0] = 1.
@@ -413,15 +410,14 @@ class Testing(unittest.TestCase):
                 objective2 = LinkingNumber(curves2, downsample)
                 objective3 = LinkingNumber(curves3, downsample)
 
-                print("Linking number testing (should be 0, 1, 1):", objective1.J(), objective2.J(), objective3.J())
-                np.testing.assert_allclose(objective1.J(), 0, atol=1e-14, rtol=1e-14)
-                np.testing.assert_allclose(objective2.J(), 1, atol=1e-14, rtol=1e-14)
-                np.testing.assert_allclose(objective3.J(), 1, atol=1e-14, rtol=1e-14)
+                np.testing.assert_allclose(objective1.J(), 0, atol=1e-14, rtol=1e-14, err_msg="Linking number should be 0")
+                np.testing.assert_allclose(objective2.J(), 1, atol=1e-14, rtol=1e-14, err_msg="Linking number should be 1")
+                np.testing.assert_allclose(objective3.J(), 1, atol=1e-14, rtol=1e-14, err_msg="Linking number should be 1")
 
     def test_linking_number_planar(self):
         for downsample in [1, 2, 5]:
-            for jax_flag in [False, True]:
-                curves1 = create_equally_spaced_planar_curves(2, 1, stellsym=True, R0=1, R1=0.5, order=5, numquadpoints=120, jax_flag=jax_flag)
+            for use_jax_curve in [False, True]:
+                curves1 = create_equally_spaced_planar_curves(2, 1, stellsym=True, R0=1, R1=0.5, order=5, numquadpoints=120, use_jax_curve=use_jax_curve)
                 # 1m radius coil, 0.25m offset
                 curve1 = CurvePlanarFourier(200, 0)
                 curve1.set('rc(0)', 1.0)
@@ -448,10 +444,9 @@ class Testing(unittest.TestCase):
                 objective2 = LinkingNumber(curves2, downsample)
                 objective3 = LinkingNumber(curves3, downsample)
 
-                print("Linking number testing (should be 0, 1, 1):", objective1.J(), objective2.J(), objective3.J())
-                np.testing.assert_allclose(objective1.J(), 0, atol=1e-14, rtol=1e-14)
-                np.testing.assert_allclose(objective2.J(), 1, atol=1e-14, rtol=1e-14)
-                np.testing.assert_allclose(objective3.J(), 1, atol=1e-14, rtol=1e-14)
+                np.testing.assert_allclose(objective1.J(), 0, atol=1e-14, rtol=1e-14, err_msg="Linking number should be 0")
+                np.testing.assert_allclose(objective2.J(), 1, atol=1e-14, rtol=1e-14, err_msg="Linking number should be 1")
+                np.testing.assert_allclose(objective3.J(), 1, atol=1e-14, rtol=1e-14, err_msg="Linking number should be 1")
 
     def test_curve_curve_distance_empty_candidates(self):
         """

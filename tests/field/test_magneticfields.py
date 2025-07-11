@@ -375,7 +375,8 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
         assert np.allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
-        # use basic normal and verify against CurvePlanarFourier class
+        
+        # use basic normal and verify CircularCoil against CurvePlanarFourier class
         normal = [0, 0, 1]
         alpha = np.arcsin(normal[1])
         delta = np.arccos(normal[2] / np.cos(alpha))
@@ -406,13 +407,14 @@ class Testing(unittest.TestCase):
         Bcircular2.set_points(points)
         dB1_by_dX = Bfield.dB_by_dX()
         transpGradB1 = [dBdx.T for dBdx in dB1_by_dX]
-        assert np.allclose(Bfield.B(), Bcircular.B())
-        assert np.allclose(Bfield.B(), Bcircular2.B())
-        assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
-        assert np.allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX())
-        assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
-        assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+        np.testing.assert_allclose(Bfield.B(), Bcircular.B(), atol=1e-10,rtol=1e-10, err_msg="Bfield and analytic Bcircular should be identical")
+        np.testing.assert_allclose(Bfield.B(), Bcircular2.B(), atol=1e-10, rtol=1e-10, err_msg="Bfield and analytic Bcircular2 should be identical")
+        np.testing.assert_allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX(), atol=1e-10, rtol=1e-10, err_msg="Bfield and analytic Bcircular should have the same dB_by_dX")
+        np.testing.assert_allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX(), atol=1e-10, rtol=1e-10, err_msg="Bfield and analytic Bcircular2 should have the same dB_by_dX")
+        np.testing.assert_allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)), atol=1e-10, rtol=1e-10, err_msg="Divergence should be zero")  # divergence
+        np.testing.assert_allclose(dB1_by_dX, transpGradB1, atol=1e-10, rtol=1e-10, err_msg="Symmetry of the gradient should be preserved")  # symmetry of the gradient
 
+        # Repeat the above test with JaxCurvePlanarFourier
         curve = JaxCurvePlanarFourier(order*ppp, order)
         dofs = np.zeros(10)
         dofs[0] = radius
@@ -437,12 +439,12 @@ class Testing(unittest.TestCase):
         Bcircular2.set_points(points)
         dB1_by_dX = Bfield.dB_by_dX()
         transpGradB1 = [dBdx.T for dBdx in dB1_by_dX]
-        assert np.allclose(Bfield.B(), Bcircular.B())
-        assert np.allclose(Bfield.B(), Bcircular2.B())
-        assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
-        assert np.allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX())
-        assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
-        assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+        np.testing.assert_allclose(Bfield.B(), Bcircular.B(), atol=1e-10, rtol=1e-10, err_msg="Bfield and analytic Bcircular should be identical")
+        np.testing.assert_allclose(Bfield.B(), Bcircular2.B(), atol=1e-10, rtol=1e-10, err_msg="Bfield and analytic Bcircular2 should be identical")
+        np.testing.assert_allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX(), atol=1e-10, rtol=1e-10, err_msg="Bfield and analytic Bcircular should have the same dB_by_dX")
+        np.testing.assert_allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX(), atol=1e-10, rtol=1e-10, err_msg="Bfield and analytic Bcircular2 should have the same dB_by_dX")
+        np.testing.assert_allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)), atol=1e-10, rtol=1e-10, err_msg="Divergence should be zero")  # divergence
+        np.testing.assert_allclose(dB1_by_dX, transpGradB1, atol=1e-10, rtol=1e-10, err_msg="Symmetry of the gradient should be preserved")  # symmetry of the gradient
 
         # use random normal and verify against CurvePlanarFourier class
         normal = np.random.rand(3)

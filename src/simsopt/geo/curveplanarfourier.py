@@ -44,20 +44,12 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
     The dofs are stored in the order
 
     .. math::
-<<<<<<< HEAD
-       [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}}, q_0, q_i, q_j, q_k, X, Y, Z]
-=======
        [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}}, q0, qi, qj, qk, X, Y, Z]
->>>>>>> master
 
     Args:
         quadpoints (array): Array of quadrature points.
         order (int): Order of the Fourier series.
-<<<<<<< HEAD
-        dofs (array): Array of dofs.
-=======
         dofs (array, optional): Array of dofs.
->>>>>>> master
     """
 
     def __init__(self, quadpoints, order, dofs=None):
@@ -109,15 +101,15 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
 
 def jaxplanarcurve_pure(dofs, quadpoints, order):
     """
-    This pure function returns the curve in the plane.
+    This pure function returns the curve coordinates (X, Y, Z).
 
     Args:
-        dofs (array): Array of dofs.
-        quadpoints (array): Array of quadrature points.
+        dofs (array, shape (ndofs,)): Array of dofs.
+        quadpoints (array, shape (N,)): Array of quadrature points.
         order (int): Order of the Fourier series.
 
     Returns:
-        Array of curve points.
+        Array of curve points, shape (N, 3)
     """
     coeffs = dofs[:2 * order + 1]
     q = dofs[2 * order + 1: 2 * order + 5]
@@ -134,22 +126,25 @@ def jaxplanarcurve_pure(dofs, quadpoints, order):
 
     x_curve_in_plane = r_curve * jnp.cos(phi)
     y_curve_in_plane = r_curve * jnp.sin(phi)
+    gamma_x = (1.0 - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3])) * x_curve_in_plane \
+        + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * y_curve_in_plane \
+        + center[0]
+    gamma_y = (1.0 - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3])) * y_curve_in_plane \
+        + 2 * (q_norm[0] * q_norm[3] + q_norm[1] * q_norm[2]) * x_curve_in_plane \
+        + center[1]
+    gamma_z = 2 * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * x_curve_in_plane \
+        + 2 * (q_norm[0] * q_norm[1] + q_norm[2] * q_norm[3]) * y_curve_in_plane \
+        + center[2]
     # apply the quaternion rotation
-    return jnp.transpose(jnp.vstack((jnp.vstack(((1.0 - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3])) * x_curve_in_plane
-                                                 + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * y_curve_in_plane
-                                                 + center[0], (1.0 - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3])) * y_curve_in_plane
-                                                 + 2 * (q_norm[0] * q_norm[3] + q_norm[1] * q_norm[2]) * x_curve_in_plane
-                                                 + center[1])), 2 * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * x_curve_in_plane
-                                     + 2 * (q_norm[0] * q_norm[1] + q_norm[2] * q_norm[3]) * y_curve_in_plane
-                                     + center[2])))
+    return jnp.stack((gamma_x, gamma_y, gamma_z), axis=-1)
 
 
 class JaxCurvePlanarFourier(JaxCurve):
 
     """
-    A Python+Jax implementation of the CurvePlanarFourier class.  There is
-    actually no reason why one should use this over the C++ implementation in
-    :mod:`simsoptpp`, but the point of this class is to illustrate how jax can be used
+    A Python+Jax implementation of the CurvePlanarFourier class. This is an autodiff
+    compatible version of the same CurvePlanarFourier class in the C++ implementation in
+    :mod:`simsoptpp`. The point of this class is to illustrate how jax can be used
     to define a geometric object class and calculate all the derivatives (both
     with respect to dofs and with respect to the angle :math:`\theta`) automatically.
 

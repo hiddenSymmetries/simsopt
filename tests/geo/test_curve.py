@@ -14,7 +14,7 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curvexyzfouriersymmetries import CurveXYZFourierSymmetries
-from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_planar_curves_between_two_toroidal_surfaces, setup_uniform_grid_in_bounding_box
+from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_planar_curves_between_two_toroidal_surfaces, _setup_uniform_grid_in_bounding_box
 from simsopt.geo import parameters
 import simsoptpp as sopp
 from simsopt.configs.zoo import get_ncsx_data, get_w7x_data
@@ -786,6 +786,13 @@ class Testing(unittest.TestCase):
 
 
     def test_create_planar_curves_between_two_toroidal_surfaces(self):
+        """
+        Rigorously test that the create_planar_curves_between_two_toroidal_surfaces 
+        function works correctly.
+        This test checks that the curves and curve properties are identical for both JAX and non-JAX versions.
+        This test also checks that the curves are created correctly various nfp and 
+        different stellarator equilibria. 
+        """
         # Use a real surface from test files for a minimal working test
         TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
         filename = TEST_DIR / 'input.LandremanPaul2021_QA'
@@ -798,39 +805,39 @@ class Testing(unittest.TestCase):
             s_outer.extend_via_projected_normal(0.2)
             # Standard usage
             curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, jax_flag=False, numquadpoints=10
+                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, use_jax_curve=False, numquadpoints=10
             )
             self.assertTrue(len(curves) > 0)
             self.assertTrue(len(all_curves) >= len(curves))
             for curve in curves:
                 gamma = curve.gamma()
                 print(gamma.shape)
-                self.assertEqual(gamma.shape[1], 3)
-                self.assertEqual(gamma.shape[0], 10)
+                self.assertEqual(gamma.shape[1], 3, "Gamma should have 3 columns (x, y, z)")
+                self.assertEqual(gamma.shape[0], 10, "Gamma should have 10 rows (numquadpoints)")
 
             # Standard usage without specified numquadpoints
             curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, jax_flag=False
+                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, use_jax_curve=False
             )
             self.assertTrue(len(curves) > 0)
             self.assertTrue(len(all_curves) >= len(curves))
             for curve in curves:
                 gamma = curve.gamma()
                 print(gamma.shape)
-                self.assertEqual(gamma.shape[1], 3)
-                self.assertEqual(gamma.shape[0], 80)  # default numquadpoints = (order + 1) * 40
+                self.assertEqual(gamma.shape[1], 3, "Gamma should have 3 columns (x, y, z)")
+                self.assertEqual(gamma.shape[0], 80, "Gamma should have 80 rows (numquadpoints)")  # default numquadpoints = (order + 1) * 40
 
-            # Test with jax_flag=True
+            # Test with use_jax_curve=True
             curves_jax, all_curves_jax = create_planar_curves_between_two_toroidal_surfaces(
-                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, jax_flag=True, numquadpoints=10
+                s, s_inner, s_outer, Nx=3, Ny=3, Nz=3, order=1, use_jax_curve=True, numquadpoints=10
             )
             self.assertTrue(len(curves_jax) > 0)
             self.assertTrue(len(all_curves_jax) >= len(curves_jax))
             for curve in curves_jax:
                 gamma = curve.gamma()
                 print(gamma.shape)
-                self.assertEqual(gamma.shape[1], 3)
-                self.assertEqual(gamma.shape[0], 10)
+                self.assertEqual(gamma.shape[1], 3, "Gamma should have 3 columns (x, y, z)")
+                self.assertEqual(gamma.shape[0], 10, "Gamma should have 10 rows (numquadpoints)")
 
             # Additional tests for different nfp values and files
             nfp_file_map = {
@@ -840,7 +847,7 @@ class Testing(unittest.TestCase):
                 4: 'input.LandremanPaul2021_QH_reactorScale_lowres'
             }
             for nfp, fname in nfp_file_map.items():
-                for jax_flag in [False, True]:
+                for use_jax_curve in [False, True]:
                     print(f"Testing {fname} with nfp={nfp}")
                     with self.subTest(nfp=nfp):
                         file_nfp = TEST_DIR / fname
@@ -860,16 +867,20 @@ class Testing(unittest.TestCase):
                             s_inner_nfp.extend_via_projected_normal(0.1)
                             s_outer_nfp.extend_via_projected_normal(0.2)
                         curves_nfp, all_curves_nfp = create_planar_curves_between_two_toroidal_surfaces(
-                            s_nfp, s_inner_nfp, s_outer_nfp, Nx=10, Ny=10, Nz=10, order=1, jax_flag=jax_flag, numquadpoints=10
+                            s_nfp, s_inner_nfp, s_outer_nfp, Nx=10, Ny=10, Nz=10, order=1, use_jax_curve=use_jax_curve, numquadpoints=10
                         )
-                        self.assertTrue(len(curves_nfp) > 0)
-                        self.assertTrue(len(all_curves_nfp) >= len(curves_nfp))
+                        self.assertTrue(len(curves_nfp) > 0, "Number of unique curves should be nonzero")
+                        self.assertTrue(len(all_curves_nfp) >= len(curves_nfp), "Number of all curves should be at least the number of unique curves")
                         for curve in curves_nfp:
                             gamma = curve.gamma()
-                            self.assertEqual(gamma.shape[1], 3)
-                            self.assertEqual(gamma.shape[0], 10)
+                            self.assertEqual(gamma.shape[1], 3, "Gamma should have 3 columns (x, y, z)")
+                            self.assertEqual(gamma.shape[0], 10, "Gamma should have 10 rows (numquadpoints)")
 
     def test_create_equally_spaced_curves_jax(self):
+        """
+        Test that the create_equally_spaced_curves function works correctly for both JAX and non-JAX versions.
+        This test checks that the curves and curve properties are identical for both JAX and non-JAX versions.
+        """
         from simsopt.geo.curve import create_equally_spaced_curves
         ncurves, nfp = 2, 2
         stellsym = True
@@ -878,46 +889,46 @@ class Testing(unittest.TestCase):
         numquadpoints = 12
         # JAX version
         curves_jax = create_equally_spaced_curves(ncurves, nfp, stellsym,
-                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, jax_flag=True)
+                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, use_jax_curve=True)
         # Non-JAX version
         curves_std = create_equally_spaced_curves(ncurves, nfp, stellsym,
-                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, jax_flag=False)
+                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, use_jax_curve=False)
         self.assertEqual(len(curves_jax), ncurves)
         self.assertEqual(len(curves_std), ncurves)
         for curve_jax, curve_std in zip(curves_jax, curves_std):
             gamma_jax = curve_jax.gamma()
             gamma_std = curve_std.gamma()
-            self.assertEqual(gamma_jax.shape, (numquadpoints, 3))
-            self.assertEqual(gamma_std.shape, (numquadpoints, 3))
+            self.assertEqual(gamma_jax.shape, (numquadpoints, 3), "Gamma_jax should be shape (numquadpoints, 3)")
+            self.assertEqual(gamma_std.shape, (numquadpoints, 3), "Gamma_std should be shape (numquadpoints, 3)")
             # Check that the major radius is close to R0 for all points
             R_jax = np.sqrt(gamma_jax[:, 0]**2 + gamma_jax[:, 1]**2)
             R_std = np.sqrt(gamma_std[:, 0]**2 + gamma_std[:, 1]**2)
-            self.assertTrue(np.allclose(np.mean(R_jax), R0, atol=0.2))
-            self.assertTrue(np.allclose(np.mean(R_std), R0, atol=0.2))
+            self.assertTrue(np.allclose(np.mean(R_jax), R0, atol=0.2), "Mean of R_jax should be close to R0")
+            self.assertTrue(np.allclose(np.mean(R_std), R0, atol=0.2), "Mean of R_std should be close to R0")
             # Check that the gamma outputs are close
             np.testing.assert_allclose(gamma_jax, gamma_std, atol=1e-12, rtol=1e-12)
             # Check that the dof names are identical
-            self.assertEqual(getattr(curve_jax, 'names', None), getattr(curve_std, 'names', None))
+            self.assertEqual(getattr(curve_jax, 'names', None), getattr(curve_std, 'names', None), "Dof names should be identical")
             # Check gammadash
             gammadash_jax = curve_jax.gammadash()
             gammadash_std = curve_std.gammadash()
-            np.testing.assert_allclose(gammadash_jax, gammadash_std, atol=1e-12, rtol=1e-12)
+            np.testing.assert_allclose(gammadash_jax, gammadash_std, atol=1e-12, rtol=1e-12, err_msg="Gammadash should be equal for both jax and standard curves")
             # Check gammadashdash if available
             if hasattr(curve_jax, 'gammadashdash') and hasattr(curve_std, 'gammadashdash'):
                 gammadashdash_jax = curve_jax.gammadashdash()
                 gammadashdash_std = curve_std.gammadashdash()
-                np.testing.assert_allclose(gammadashdash_jax, gammadashdash_std, atol=1e-12, rtol=1e-12)
+                np.testing.assert_allclose(gammadashdash_jax, gammadashdash_std, atol=1e-12, rtol=1e-12, err_msg="Gammadashdash should be equal for both jax and standard curves")
             # Check kappa if available
             if hasattr(curve_jax, 'kappa') and hasattr(curve_std, 'kappa'):
                 kappa_jax = curve_jax.kappa()
                 kappa_std = curve_std.kappa()
-                np.testing.assert_allclose(kappa_jax, kappa_std, atol=1e-12, rtol=1e-12)
+                np.testing.assert_allclose(kappa_jax, kappa_std, atol=1e-12, rtol=1e-12, err_msg="Kappa should be equal for both jax and standard curves")
             # Check order if available
             if hasattr(curve_jax, 'order') and hasattr(curve_std, 'order'):
-                self.assertEqual(curve_jax.order, curve_std.order)
+                self.assertEqual(curve_jax.order, curve_std.order, "Order should be equal for both jax and standard curves")
             # Check num_dofs if available
             if hasattr(curve_jax, 'num_dofs') and hasattr(curve_std, 'num_dofs'):
-                self.assertEqual(curve_jax.num_dofs(), curve_std.num_dofs())
+                self.assertEqual(curve_jax.num_dofs(), curve_std.num_dofs(), "Number of dofs should be equal for both jax and standard curves")
 
     def test_curve_centroid(self):
         """
@@ -941,7 +952,7 @@ class Testing(unittest.TestCase):
         curve.set_dofs(dofs)
         centroid = curve.centroid()
         # The centroid should be at (R0, 0, 0)
-        np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12)
+        np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12, err_msg="Centroid of the planar curve should be at the center (R0, 0, 0)")
 
         # Repeat with RotatedCurve
         curve = RotatedCurve(curve, np.pi, flip=False)
@@ -954,7 +965,7 @@ class Testing(unittest.TestCase):
         curve.set_dofs(dofs)
         centroid = curve.centroid()
         # The centroid should be at (R0, 0, 0)
-        np.testing.assert_allclose(centroid * -1, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
+        np.testing.assert_allclose(centroid * -1, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12, err_msg="Centroid of the rotated planar curve should be at the center (R0, 0, 0)")
 
         # Repeat with JaxCurve
         curve = JaxCurvePlanarFourier(nquad, order)
@@ -967,7 +978,7 @@ class Testing(unittest.TestCase):
         curve.set_dofs(dofs)
         centroid = curve.centroid()
         # The centroid should be at (R0, 0, 0)
-        np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
+        np.testing.assert_allclose(centroid, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12, err_msg="Centroid of the jax planar curve should be at the center (R0, 0, 0)")
 
         # Repeat with RotatedCurve
         curve = RotatedCurve(curve, np.pi, flip=False)
@@ -980,7 +991,7 @@ class Testing(unittest.TestCase):
         curve.set_dofs(dofs)
         centroid = curve.centroid()
         # The centroid should be at (R0, 0, 0)
-        np.testing.assert_allclose(centroid * -1, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12)
+        np.testing.assert_allclose(centroid * -1, [R0, 0.0, 0.0], atol=1e-12, rtol=1e-12, err_msg="Centroid of the rotated jax planar curve should be at the center (R0, 0, 0)")
 
     def test_curverzfourier_dofnames(self):
         # test that the dof names correspond to how they are treated in the code
@@ -1009,6 +1020,13 @@ class Testing(unittest.TestCase):
         assert curve.zs[1] == curve.get('zs(2)')
 
     def test_create_equally_spaced_planar_curves_jax(self):
+        """
+        Rigorously test that the create_equally_spaced_planar_curves function 
+        works correctly. This test checks that the curves and curve properties are 
+        identical for both JAX and non-JAX versions.
+        This test also checks that the curves are created correctly for different 
+        nfp values and stellarator equilibria.
+        """
         from simsopt.geo.curve import create_equally_spaced_planar_curves
         ncurves, nfp = 2, 2
         stellsym = True
@@ -1017,10 +1035,10 @@ class Testing(unittest.TestCase):
         numquadpoints = 12
         # JAX version
         curves_jax = create_equally_spaced_planar_curves(ncurves, nfp, stellsym,
-                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, jax_flag=True)
+                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, use_jax_curve=True)
         # Non-JAX version
         curves_std = create_equally_spaced_planar_curves(ncurves, nfp, stellsym,
-                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, jax_flag=False)
+                                              R0=R0, R1=R1, order=order, numquadpoints=numquadpoints, use_jax_curve=False)
         self.assertEqual(len(curves_jax), ncurves)
         self.assertEqual(len(curves_std), ncurves)
         for curve_jax, curve_std in zip(curves_jax, curves_std):
@@ -1079,10 +1097,10 @@ class Testing(unittest.TestCase):
             curve2.set(name, val)
         # 3. Use the direct .x assignment
         curve3.x = values.copy()
-        np.testing.assert_allclose(curve1.get_dofs(), curve2.get_dofs(), atol=1e-14)
-        np.testing.assert_allclose(curve1.get_dofs(), curve3.get_dofs(), atol=1e-14)
-        np.testing.assert_allclose(curve1.gamma(), curve2.gamma(), atol=1e-14)
-        np.testing.assert_allclose(curve1.gamma(), curve3.gamma(), atol=1e-14)
+        np.testing.assert_allclose(curve1.get_dofs(), curve2.get_dofs(), atol=1e-14, err_msg="Dofs set by set_dofs and set(name, value) should be identical")
+        np.testing.assert_allclose(curve1.get_dofs(), curve3.get_dofs(), atol=1e-14, err_msg="Dofs set by set_dofs and .x assignment should be identical")
+        np.testing.assert_allclose(curve1.gamma(), curve2.gamma(), atol=1e-14, err_msg="Gamma set by set_dofs and set(name, value) should be identical")
+        np.testing.assert_allclose(curve1.gamma(), curve3.gamma(), atol=1e-14, err_msg="Gamma set by set_dofs and .x assignment should be identical")
         # Test CurvePlanarFourier
         curve4 = CurvePlanarFourier(numquadpoints, order)
         curve5 = CurvePlanarFourier(numquadpoints, order)
@@ -1096,14 +1114,14 @@ class Testing(unittest.TestCase):
             curve5.set(name, val)
         # 3. Use the direct .x assignment
         curve6.x = values_p.copy()
-        np.testing.assert_allclose(curve4.get_dofs(), curve5.get_dofs(), atol=1e-14)
-        np.testing.assert_allclose(curve4.get_dofs(), curve6.get_dofs(), atol=1e-14)
-        np.testing.assert_allclose(curve4.gamma(), curve5.gamma(), atol=1e-14)
-        np.testing.assert_allclose(curve4.gamma(), curve6.gamma(), atol=1e-14)
+        np.testing.assert_allclose(curve4.get_dofs(), curve5.get_dofs(), atol=1e-14, err_msg="Dofs set by set_dofs and set(name, value) should be identical")
+        np.testing.assert_allclose(curve4.get_dofs(), curve6.get_dofs(), atol=1e-14, err_msg="Dofs set by set_dofs and .x assignment should be identical")
+        np.testing.assert_allclose(curve4.gamma(), curve5.gamma(), atol=1e-14, err_msg="Gamma set by set_dofs and set(name, value) should be identical")
+        np.testing.assert_allclose(curve4.gamma(), curve6.gamma(), atol=1e-14, err_msg="Gamma set by set_dofs and .x assignment should be identical")
 
     def test_setup_uniform_grid_in_bounding_box(self):
         """
-        Robustly test setup_uniform_grid_in_bounding_box for different field-period symmetry stellarators.
+        Robustly test _setup_uniform_grid_in_bounding_box for different field-period symmetry stellarators.
         Checks grid shape, radius, and that points are within expected bounds for nfp=1, 2, 3, 4.
         Also checks that circular coils of radius R do not overlap with each other or the symmetry plane, 
         for varying Nmin_factor and half_period_factor.
@@ -1135,10 +1153,9 @@ class Testing(unittest.TestCase):
                 Nx, Ny, Nz =  5, 5, 5,
                 for Nmin_factor in Nmin_factors:
                     print(f"nfp={nfp}, Nmin_factor={Nmin_factor}")
-                    xyz_uniform, xyz_outer, R = setup_uniform_grid_in_bounding_box(
-                        s, s_outer, Nx, Ny, Nz, Nmin_factor=Nmin_factor)
+                    xyz_uniform, R = _setup_uniform_grid_in_bounding_box(
+                        s_outer, Nx, Ny, Nz, Nmin_factor=Nmin_factor)
                     # Check shapes
-                    self.assertEqual(xyz_outer.shape[1], 3)
                     self.assertEqual(xyz_uniform.shape[1], 3)
                     self.assertTrue(xyz_uniform.shape[0] > 0)
                     self.assertTrue(R > 0)
@@ -1220,7 +1237,7 @@ class Testing(unittest.TestCase):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             # Use a valid s and s_outer from above, but Nmin_factor < 2
-            _ = setup_uniform_grid_in_bounding_box(s, s_outer, Nx, Ny, Nz, Nmin_factor=1.5)
+            _ = _setup_uniform_grid_in_bounding_box(s_outer, Nx, Ny, Nz, Nmin_factor=1.5)
             assert any(issubclass(warn.category, UserWarning) for warn in w), "Expected a UserWarning for Nmin_factor < 2"
 
     def test_curveplanarfourier_make_names(self):

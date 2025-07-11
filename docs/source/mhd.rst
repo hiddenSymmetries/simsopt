@@ -1,3 +1,6 @@
+.. _mhd:
+
+
 Magnetohydrodynamic codes
 -------------------------
 
@@ -56,7 +59,7 @@ are provided for each code.
 If not explicitly set, most profiles are handled by the equilibrium code 
 internally, and not exposed to the user.
 
-The :ref:`running-vmec` tutorial contains more detailed information about profiles and using them with ``VMEC``.
+The :ref:`example_vmec` tutorial contains more detailed information about profiles and using them with ``VMEC``.
 
 
 VMEC
@@ -68,7 +71,7 @@ optimization.
 VMEC assumes nested flux surfaces. 
 The :obj:`simsopt.mhd.Vmec` class provides the interface, and can be instantiated from the same input file as is usually used for running VMEC (an ``input.<name`` or ``wout_<name>.nc`` file): 
 
-See :ref:`running_vmec` for a more in-depth tutorial on running ``VMEC`` in ``simsopt``.
+See :ref:`example_vmec` for a more in-depth tutorial on running ``VMEC`` in ``simsopt``.
 
 
 Vmec diagnostics
@@ -100,7 +103,7 @@ All ideal interfaces in spec are available as :obj:`SurfaceRZFourier` objects.
 
 
 Greene's residue
-^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
 
 Islands in a SPEC equilibrium can be optimized for using Cary and Hansons' method of minimizing Greene's residue. 
 The fixed points of the islands are found, and their residue is calculated using
