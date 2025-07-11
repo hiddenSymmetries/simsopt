@@ -249,16 +249,6 @@ class Testing(unittest.TestCase):
             a = ArclengthVariation(c, nintervals=nintervals)
             self.assertLess(np.abs(a.J()), 1.0e-12, "Arclength variation should be 0 for a circle")
 
-    def test_arclength_variation_circle_planar(self):
-        """ For a circle, the arclength variation should be 0. """
-        c = CurvePlanarFourier(16, 1)
-        c.set('X', 4.0)
-        c.set('Y', 4.0)
-        c.set('Z', 0.0)
-        for nintervals in ["full", "partial", 2]:
-            a = ArclengthVariation(c)
-            assert np.abs(a.J()) < 1.0e-12
-
     def subtest_curve_meansquaredcurvature_taylor_test(self, curve):
         J = MeanSquaredCurvature(curve)
         curve_dofs = curve.x

@@ -715,10 +715,10 @@ class CoilForcesTest(unittest.TestCase):
                             for reg_name, reg_func in regularization_types:
                                 regularization = reg_func()
                                 for downsample in downsample_list:
-                                    for jax_flag in jax_flag_list:
+                                    for use_jax_curve in jax_flag_list:
                                         for numquadpoints in numquadpoints_list:
-                                            base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym, numquadpoints=numquadpoints, jax_flag=jax_flag)
-                                            base_curves2 = create_equally_spaced_curves(ncoils, nfp, stellsym, numquadpoints=numquadpoints, jax_flag=jax_flag)
+                                            base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym, numquadpoints=numquadpoints, use_jax_curve=use_jax_curve)
+                                            base_curves2 = create_equally_spaced_curves(ncoils, nfp, stellsym, numquadpoints=numquadpoints, use_jax_curve=use_jax_curve)
                                             base_currents = [Current(I) for j in range(ncoils)]
                                             coils = coils_via_symmetries(base_curves, base_currents, nfp, stellsym)
                                             for c in coils:
