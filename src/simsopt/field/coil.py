@@ -6,9 +6,8 @@ from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve
 import simsoptpp as sopp
-from simsopt.field.force import regularization_circ
 
-__all__ = ['Coil',
+__all__ = ['Coil', 'RegularizedCoil',
            'Current', 'coils_via_symmetries',
            'load_coils_from_makegrid_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
@@ -27,14 +26,11 @@ class Coil(sopp.Coil, Optimizable):
     ----------
     curve (simsopt.geo.curve.Curve) : The geometric curve describing the coil shape.
     current (Current) : The current object describing the electric current in the coil.
-    regularization (Regularization) : The regularization object for the coil corresponding to 
-        the coil cross section. Default is a circular cross section with radius 0.05.
     """
 
-    def __init__(self, curve, current, regularization=regularization_circ(0.05)):
+    def __init__(self, curve, current):
         self._curve = curve
         self._current = current
-        self.regularization = regularization
         sopp.Coil.__init__(self, curve, current)
         Optimizable.__init__(self, depends_on=[curve, current])
 
@@ -68,7 +64,22 @@ class Coil(sopp.Coil, Optimizable):
             kwargs (dictionary): Additional keyword arguments.
         """
         return self.curve.plot(**kwargs)
-
+    
+class RegularizedCoil(Coil):
+    """
+    A coil with a model for its cross section. This cross section is used to compute the
+    forces and torques on the coil.
+    
+    Parameters
+    ----------
+    curve (simsopt.geo.curve.Curve) : The geometric curve describing the coil shape.
+    current (Current) : The current object describing the electric current in the coil.
+    regularization (Regularization) : The regularization object for the coil corresponding to 
+        the coil cross section. Options are "regularization_circ" and "regularization_rect".
+    """
+    def __init__(self, curve, current, regularization):
+        self.regularization = regularization
+        Coil.__init__(self, curve, current)    
 
 class CurrentBase(Optimizable):
     """
@@ -397,46 +408,50 @@ def coils_to_vtk(coils, filename, close=False, extra_data=None):
     pointData['I'] = coil_data
     pointData['I_mag'] = contig(np.abs(coil_data))
 
-    net_forces = np.zeros((len(coils), 3))
-    net_torques = np.zeros((len(coils), 3))
-    coil_forces = np.zeros((data.shape[0], 3))
-    coil_torques = np.zeros((data.shape[0], 3))
-    for i, c in enumerate(coils):
-        # get the pointwise forces and torques for the current coil
-        coil_force_temp = np.squeeze([coil_force(c, coils)])
-        coil_torque_temp = np.squeeze([coil_torque(c, coils)])
+    if not isinstance(coils[0], RegularizedCoil):
+        print("Warning: coils_to_vtk will not save forces and torques for coils that "
+              "do not have a model for their cross section. Please use the RegularizedCoil class.")
+    else:    
+        net_forces = np.zeros((len(coils), 3))
+        net_torques = np.zeros((len(coils), 3))
+        coil_forces = np.zeros((data.shape[0], 3))
+        coil_torques = np.zeros((data.shape[0], 3))
+        for i, c in enumerate(coils):
+            # get the pointwise forces and torques for the current coil
+            coil_force_temp = np.squeeze([coil_force(c, coils)])
+            coil_torque_temp = np.squeeze([coil_torque(c, coils)])
 
-        # get the net forces and torques for the current coil, 
-        # which is the same at every point on the coil
-        net_forces[i, :] = np.array([coil_net_force(c, coils)])
-        net_torques[i, :] = np.array([coil_net_torque(c, coils)])
+            # get the net forces and torques for the current coil, 
+            # which is the same at every point on the coil
+            net_forces[i, :] = np.array([coil_net_force(c, coils)])
+            net_torques[i, :] = np.array([coil_net_torque(c, coils)])
 
-        # if the curve is closed, add the first point to the end
-        if close:
-            coil_force_temp = np.vstack((coil_force_temp, coil_force_temp[0, :]))
-            coil_torque_temp = np.vstack((coil_torque_temp, coil_torque_temp[0, :]))
-        coil_forces[i * ppl[i]: (i + 1) * ppl[i], :] = coil_force_temp
-        coil_torques[i * ppl[i]: (i + 1) * ppl[i], :] = coil_torque_temp
+            # if the curve is closed, add the first point to the end
+            if close:
+                coil_force_temp = np.vstack((coil_force_temp, coil_force_temp[0, :]))
+                coil_torque_temp = np.vstack((coil_torque_temp, coil_torque_temp[0, :]))
+            coil_forces[i * ppl[i]: (i + 1) * ppl[i], :] = coil_force_temp
+            coil_torques[i * ppl[i]: (i + 1) * ppl[i], :] = coil_torque_temp
 
-    # copy force and torque data over to pointwise data on a coil curve
-    coil_data = np.zeros((data.shape[0], 3))
-    for i in range(len(coils)):
-        coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = net_forces[i, :]
-    coil_data = np.ascontiguousarray(coil_data)
-    pointData['NetForces'] = (contig(coil_data[:, 0]),
-                                contig(coil_data[:, 1]),
-                                contig(coil_data[:, 2]))
-    coil_data = np.zeros((data.shape[0], 3))
-    for i in range(len(coils)):
-        coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = net_torques[i, :]
-    coil_data = np.ascontiguousarray(coil_data)
+        # copy force and torque data over to pointwise data on a coil curve
+        coil_data = np.zeros((data.shape[0], 3))
+        for i in range(len(coils)):
+            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = net_forces[i, :]
+        coil_data = np.ascontiguousarray(coil_data)
+        pointData['NetForces'] = (contig(coil_data[:, 0]),
+                                    contig(coil_data[:, 1]),
+                                    contig(coil_data[:, 2]))
+        coil_data = np.zeros((data.shape[0], 3))
+        for i in range(len(coils)):
+            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = net_torques[i, :]
+        coil_data = np.ascontiguousarray(coil_data)
 
-    # Add pointwise force and torque data to the dictionary
-    pointData['NetTorques'] = (contig(coil_data[:, 0]),
-                                contig(coil_data[:, 1]),
-                                contig(coil_data[:, 2]))
-    pointData["Pointwise_Forces"] = (contig(coil_forces[:, 0]), contig(coil_forces[:, 1]), contig(coil_forces[:, 2]))
-    pointData["Pointwise_Torques"] = (contig(coil_torques[:, 0]), contig(coil_torques[:, 1]), contig(coil_torques[:, 2]))
+        # Add pointwise force and torque data to the dictionary
+        pointData['NetTorques'] = (contig(coil_data[:, 0]),
+                                    contig(coil_data[:, 1]),
+                                    contig(coil_data[:, 2]))
+        pointData["Pointwise_Forces"] = (contig(coil_forces[:, 0]), contig(coil_forces[:, 1]), contig(coil_forces[:, 2]))
+        pointData["Pointwise_Torques"] = (contig(coil_torques[:, 0]), contig(coil_torques[:, 1]), contig(coil_torques[:, 2]))
     
     # If extra data is provided, add it to the dictionary
     if extra_data is not None:
@@ -465,7 +480,6 @@ def coils_via_symmetries(curves, currents, nfp, stellsym, regularizations=None):
         Whether to apply stellarator symmetry.
     regularizations (np.array, shape (n_coils,), optional):
         The regularization objects for the coils representing the finite coil cross section.
-        Default is a circular cross section with radius 0.05.
 
     Returns
     -------
@@ -477,8 +491,10 @@ def coils_via_symmetries(curves, currents, nfp, stellsym, regularizations=None):
     curves = apply_symmetries_to_curves(curves, nfp, stellsym)
     currents = apply_symmetries_to_currents(currents, nfp, stellsym)
     if regularizations is None:
-        regularizations = [regularization_circ(0.05) for _ in curves]
-    coils = [Coil(curv, curr, regularization) for (curv, curr, regularization) in zip(curves, currents, regularizations)]
+        coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
+    else:
+        regularizations = regularizations * (nfp * (1 + stellsym))
+        coils = [RegularizedCoil(curv, curr, regularization) for (curv, curr, regularization) in zip(curves, currents, regularizations)]
     return coils
 
 

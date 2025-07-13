@@ -1,7 +1,16 @@
 """
 This module contains functions for computing the self-field of a coil using the
-methods from Hurwitz, Landreman, & Antonsen, arXiv:2310.09313 (2023) and
-Landreman, Hurwitz, & Antonsen, arXiv:2310.12087 (2023).
+methods from:
+
+    Hurwitz, Siena, Matt Landreman, and Thomas M. Antonsen. 
+    "Efficient calculation of the self magnetic field, self-force, and self-inductance for 
+    electromagnetic coils." IEEE Transactions on Magnetics (2024).
+
+    Landreman, Matt, Siena Hurwitz, and Thomas M. Antonsen. 
+    "Efficient calculation of self magnetic field, self-force, and self-inductance for 
+    electromagnetic coils with rectangular cross-section." 
+    Nuclear Fusion 65.3 (2025): 036008.
+
 """
 
 from scipy import constants
@@ -15,24 +24,55 @@ __all__ = ['B_regularized_pure', 'regularization_rect', 'regularization_circ']
 
 
 def rectangular_xsection_k(a, b):
-    """Auxiliary function for field in rectangular conductor"""
+    """Auxiliary function for field in rectangular conductor
+    
+    Args:
+        a (float): The width of the rectangular conductor.
+        b (float): The height of the rectangular conductor.
+
+    Returns:
+        float: The regularization parameter.
+    """
     return (4 * b) / (3 * a) * jnp.arctan(a/b) + (4*a)/(3*b)*jnp.arctan(b/a) + \
         (b**2)/(6*a**2)*jnp.log(b/a) + (a**2)/(6*b**2)*jnp.log(a/b) - \
         (a**4 - 6*a**2*b**2 + b**4)/(6*a**2*b**2)*jnp.log(a/b+b/a)
 
 
 def rectangular_xsection_delta(a, b):
-    """Auxiliary function for field in rectangular conductor"""
+    """Auxiliary function for field in rectangular conductor
+    
+    Args:
+        a (float): The width of the rectangular conductor.
+        b (float): The height of the rectangular conductor.
+
+    Returns:
+        float: The regularization parameter.
+    """
     return jnp.exp(-25/6 + rectangular_xsection_k(a, b))
 
 
 def regularization_circ(a):
-    """Regularization for a circular conductor"""
+    """Regularization for a circular conductor
+    
+    Args:
+        a (float): The radius of the circular conductor.
+
+    Returns:
+        float: The regularization parameter.
+    """
     return a**2 / jnp.sqrt(jnp.e)
 
 
 def regularization_rect(a, b):
-    """Regularization for a rectangular conductor"""
+    """Regularization for a rectangular conductor
+
+    Args:
+        a (float): The width of the rectangular conductor.
+        b (float): The height of the rectangular conductor.
+
+    Returns:
+        float: The regularization parameter.
+    """
     return a * b * rectangular_xsection_delta(a, b)
 
 @jit
@@ -56,8 +96,23 @@ def B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization):
 
 @jit
 def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization):
-    # The factors of 2π in the next few lines come from the fact that simsopt
-    # uses a curve parameter that goes up to 1 rather than 2π.
+    """
+    Compute the regularized field on a coil following the Landreman and Hurwitz method
+    
+    Args:
+        gamma (array (shape (n,3))): The curve of the coil.
+        gammadash (array (shape (n,3))): The first derivative of the curve.
+        gammadashdash (array (shape (n,3))): The second derivative of the curve.
+        quadpoints (array (shape (n,))): The quadrature points of the curve.
+        current (float): The current in the coil.
+        regularization (float): The regularization parameter.
+
+        The factors of 2π in the next few lines come from the fact that simsopt
+        uses a curve parameter that goes up to 1 rather than 2π.
+
+    Returns:
+        array (shape (n,3)): The regularized field on the coil.
+    """
     phi = quadpoints * 2 * jnp.pi
     rc = gamma
     rc_prime = gammadash / 2 / jnp.pi
@@ -74,7 +129,14 @@ def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, reg
 
 
 def B_regularized(coil):
-    """Calculate the regularized field on a coil following the Landreman and Hurwitz method"""
+    """Calculate the regularized field on a coil following the Landreman and Hurwitz method
+    
+    Args:
+        coil (RegularizedCoil): The coil to compute the field on.
+    
+    Returns:
+        array (shape (n,3)): The regularized field on the coil.
+    """
     return B_regularized_pure(
         coil.curve.gamma(),
         coil.curve.gammadash(),
@@ -83,13 +145,3 @@ def B_regularized(coil):
         coil._current.get_value(),
         coil.regularization,
     )
-
-
-def B_regularized_circ(coil, a):
-    coil.regularization = regularization_circ(a)
-    return B_regularized(coil)
-
-
-def B_regularized_rect(coil, a, b):
-    coil.regularization = regularization_rect(a, b)
-    return B_regularized(coil)

@@ -10,9 +10,10 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
 from simsopt.geo.curve import RotatedCurve, create_equally_spaced_curves, create_equally_spaced_planar_curves
-from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum, coils_via_symmetries
+from simsopt.field.coil import Coil, RegularizedCoil, Current, ScaledCurrent, CurrentSum, coils_via_symmetries
 from simsopt.field.coil import coils_to_makegrid, coils_to_focus, load_coils_from_makegrid_file
 from simsopt.field.biotsavart import BiotSavart
+from simsopt.field.selffield import regularization_circ
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.configs import get_ncsx_data
 
@@ -322,16 +323,20 @@ class CoilFormatConvertTesting(unittest.TestCase):
         """
         from simsopt.field.coil import coils_to_vtk
         curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical", "CurvePlanarFourier", "JaxCurvePlanarFourier"]
-        for curvetype in curvetypes:
-            for rotated in [True, False]:
-                for close in [True, False]:
-                    for extra_data in [None, {}]:
-                        curve = get_curve(curvetype, rotated=rotated, x=20)  # Give the curve more than 1 quadpoint
-                        coil = Coil(curve, Current(1.0))
-                        filename = "test_coil"
-                        coils_to_vtk([coil], filename, close=close, extra_data=extra_data)
-                        self.assertTrue(os.path.exists(filename + '.vtu'), "VTK file was not created.")
-                        self.assertGreater(os.path.getsize(filename + '.vtu'), 0, "VTK file is empty.")
+        for coil_type in [Coil, RegularizedCoil]:
+            for curvetype in curvetypes:
+                for rotated in [True, False]:
+                    for close in [True, False]:
+                        for extra_data in [None, {}]:
+                            curve = get_curve(curvetype, rotated=rotated, x=20)  # Give the curve more than 1 quadpoint
+                            if coil_type == RegularizedCoil:
+                                coil = coil_type(curve, Current(1.0), regularization=regularization_circ(0.05))
+                            else:
+                                coil = coil_type(curve, Current(1.0))
+                            filename = "test_coil"
+                            coils_to_vtk([coil], filename, close=close, extra_data=extra_data)
+                            self.assertTrue(os.path.exists(filename + '.vtu'), "VTK file was not created.")
+                            self.assertGreater(os.path.getsize(filename + '.vtu'), 0, "VTK file is empty.")
 
 
 if __name__ == "__main__":

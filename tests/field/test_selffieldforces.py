@@ -11,8 +11,7 @@ from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.configs import get_hsx_data
 from simsopt.geo import CurveXYZFourier, JaxCurveXYZFourier, CurvePlanarFourier, JaxCurvePlanarFourier
 from simsopt.field.selffield import (
-    B_regularized_circ,
-    B_regularized_rect,
+    B_regularized,
     rectangular_xsection_k,
     rectangular_xsection_delta,
     regularization_circ,
@@ -21,10 +20,10 @@ from simsopt.field.selffield import (
 from simsopt.field import (
     coil_force,
     coil_torque,
+    self_force,
     coil_net_force,
     coil_net_torque,
-    self_force_circ,
-    self_force_rect,
+    RegularizedCoil,
     _coil_coil_inductances_pure,
     _coil_coil_inductances_inv_pure,
     _induced_currents_pure,
@@ -136,23 +135,21 @@ class CoilForcesTest(unittest.TestCase):
                 phi = 2 * np.pi * curve.quadpoints
 
                 current = Current(I)
-                coil = Coil(curve, current)
+                coil = RegularizedCoil(curve, current, regularization=regularization_circ(a))
 
                 # Check the case of circular cross-section:
-
-                B_reg_test = B_regularized_circ(coil, a)
+                B_reg_test = B_regularized(coil)
                 np.testing.assert_allclose(B_reg_test[:, 2], B_reg_analytic_circ)
                 np.testing.assert_allclose(B_reg_test[:, 0:2], 0)
 
                 # Test self-force for circular coil
-                force_test = self_force_circ(coil, a)
+                force_test = self_force(coil)
                 np.testing.assert_allclose(force_test[:, 0], force_analytic_circ * np.cos(phi))
                 np.testing.assert_allclose(force_test[:, 1], force_analytic_circ * np.sin(phi))
                 np.testing.assert_allclose(force_test[:, 2], 0.0)
 
                 # Test self-torque for circular coil (should be zero by symmetry)
                 # Analytic torque for a perfect circle is zero
-                coil.regularization = regularization_circ(a)
                 torque_test = coil_torque(coil, [coil])
                 np.testing.assert_allclose(torque_test, 0.0, atol=1e-9)
 
@@ -289,19 +286,19 @@ class CoilForcesTest(unittest.TestCase):
                 assert np.allclose(np.linalg.inv(Lij3), Lij_inv)
 
                 # Check the case of rectangular cross-section:
-                B_reg_test = B_regularized_rect(coil, a, b)
+                coil_rect = RegularizedCoil(curve, current, regularization=regularization_rect(a, b))
+                B_reg_test = B_regularized(coil_rect)
                 np.testing.assert_allclose(B_reg_test[:, 2], B_reg_analytic_rect)
                 np.testing.assert_allclose(B_reg_test[:, 0:2], 0)
 
-                force_test = self_force_rect(coil, a, b)
+                force_test = self_force(coil_rect)
                 np.testing.assert_allclose(force_test[:, 0], force_analytic_rect * np.cos(phi))
                 np.testing.assert_allclose(force_test[:, 1], force_analytic_rect * np.sin(phi))
                 np.testing.assert_allclose(force_test[:, 2], 0.0)
 
                 # Test self-torque for rectangular cross-section coil (should also be zero by symmetry)
                 # Analytic torque for a perfect rectangle is zero
-                coil.regularization = regularization_rect(a, b)
-                torque_test_rect = coil_torque(coil, [coil])
+                torque_test_rect = coil_torque(coil_rect, [coil_rect])
                 np.testing.assert_allclose(torque_test_rect, 0.0, atol=1e-9)
 
                 # --- Two concentric circular coils: test mutual torque ---
@@ -312,12 +309,8 @@ class CoilForcesTest(unittest.TestCase):
                 curve_outer.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * R1
                 current_inner = Current(I)
                 current_outer = Current(I)
-                coil_inner = Coil(curve_inner, current_inner)
-                coil_outer = Coil(curve_outer, current_outer)
-                reg_inner = regularization_circ(a)
-                reg_outer = regularization_circ(a)
-                coil_inner.regularization = reg_inner
-                coil_outer.regularization = reg_outer
+                coil_inner = RegularizedCoil(curve_inner, current_inner, regularization=regularization_circ(a))
+                coil_outer = RegularizedCoil(curve_outer, current_outer, regularization=regularization_circ(a))
                 # Compute torque on each coil due to both
                 torque_inner = coil_torque(coil_inner, [coil_inner, coil_outer])
                 torque_outer = coil_torque(coil_outer, [coil_inner, coil_outer])
@@ -341,14 +334,10 @@ class CoilForcesTest(unittest.TestCase):
                 np.testing.assert_allclose(net_force_outer, 0.0, atol=1e-6)
 
                 # --- Two circular coils, separated along z but sharing a common axis: torque should be zero ---
-                coil_z1 = Coil(curve2, Current(I))
-                coil_z2 = Coil(curve3, Current(I))
+                coil_z1 = RegularizedCoil(curve2, Current(I), regularization=regularization_circ(a))
+                coil_z2 = RegularizedCoil(curve3, Current(I), regularization=regularization_circ(a))
                 np.testing.assert_allclose(curve3.centroid(), [0, 0, 5], atol=1e-10)
                 np.testing.assert_allclose(curve2.centroid(), [0, 0, 0], atol=1e-10)
-                reg_z1 = regularization_circ(a)
-                reg_z2 = regularization_circ(a)
-                coil_z1.regularization = reg_z1
-                coil_z2.regularization = reg_z2
                 torque_z1 = coil_torque(coil_z1, [coil_z1, coil_z2])
                 torque_z2 = coil_torque(coil_z2, [coil_z1, coil_z2])
                 np.testing.assert_allclose(np.sum(torque_z1, axis=0), 0.0, atol=1e-8)
@@ -357,15 +346,14 @@ class CoilForcesTest(unittest.TestCase):
                 # --- JAX CurveXYZFourier: check equivalence ---
                 jax_curve = JaxCurveXYZFourier(N_quad, order)
                 jax_curve.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * R0
-                jax_coil = Coil(jax_curve, current)
+                jax_coil = RegularizedCoil(jax_curve, current, regularization=regularization_circ(a))
                 # B_regularized_circ
-                B_reg_jax = B_regularized_circ(jax_coil, a)
+                B_reg_jax = B_regularized(jax_coil)
                 np.testing.assert_allclose(B_reg_jax, B_reg_test, rtol=1e-2, atol=1e-12)
                 # self_force_circ
-                force_jax = self_force_circ(jax_coil, a)
+                force_jax = self_force(jax_coil)
                 np.testing.assert_allclose(force_jax, force_test, rtol=1e-2, atol=1e-12)
                 # self-torque
-                jax_coil.regularization = regularization_circ(a)
                 torque_jax = coil_torque(jax_coil, [jax_coil])
                 np.testing.assert_allclose(torque_jax, torque_test, rtol=1e-2, atol=1e-10)
 
@@ -398,27 +386,26 @@ class CoilForcesTest(unittest.TestCase):
                 )
                 np.testing.assert_allclose(Lij_rect_jax, Lij_rect, rtol=1e-2, atol=1e-12)
                 # B_regularized_rect
-                jax_coil_p = Coil(jax_curve_p, current)
-                B_reg_rect_jax = B_regularized_rect(jax_coil_p, a, b)
+                jax_coil_rect = RegularizedCoil(jax_curve_p, current, regularization=regularization_rect(a, b))
+                B_reg_rect_jax = B_regularized(jax_coil_rect)
                 np.testing.assert_allclose(B_reg_rect_jax, B_reg_test, rtol=1e-2, atol=1e-12)
                 # self_force_rect
-                force_rect_jax = self_force_rect(jax_coil_p, a, b)
+                force_rect_jax = self_force(jax_coil_rect)
                 np.testing.assert_allclose(force_rect_jax, force_test, rtol=1e-2, atol=1e-12)
                 # self-torque rect
-                jax_coil_p.regularization = regularization_rect(a, b)
-                torque_rect_jax = coil_torque(jax_coil_p, [jax_coil_p])
+                torque_rect_jax = coil_torque(jax_coil_rect, [jax_coil_rect])
                 np.testing.assert_allclose(torque_rect_jax, torque_test_rect, rtol=1e-2, atol=1e-10)
 
     def test_force_convergence(self):
         """Check that the self-force is approximately independent of the number of quadrature points"""
         ppps = [8, 4, 2, 7, 5]
         for j, ppp in enumerate(ppps):
-            curves, currents, ma = get_hsx_data(ppp=ppp)
+            curves, _, _ = get_hsx_data(ppp=ppp)
             curve = curves[0]
             I = 1.5e3
             a = 0.01
-            coil = Coil(curve, Current(I))
-            force = self_force_circ(coil, a)
+            coil = RegularizedCoil(curve, Current(I), regularization=regularization_circ(a))
+            force = self_force(coil)
             max_force = np.max(np.abs(force))
             if j == 0:
                 interpolant = interp1d(curve.quadpoints, force, axis=0)
@@ -428,12 +415,12 @@ class CoilForcesTest(unittest.TestCase):
 
     def test_hsx_coil(self):
         """Compare self-force for HSX coil 1 to result from CoilForces.jl"""
-        curves, currents, ma = get_hsx_data()
+        curves, _, _ = get_hsx_data()
         assert len(curves[0].quadpoints) == 160
         I = 150e3
         a = 0.01
         b = 0.023
-        coil = Coil(curves[0], Current(I))
+        coil = RegularizedCoil(curves[0], Current(I), regularization=regularization_circ(a))
 
         # Case of circular cross-section
 
@@ -443,7 +430,7 @@ class CoilForcesTest(unittest.TestCase):
             [-15624.06752062059, -21673.892879345873, -27805.92218896322, -33138.2025931857, -36514.62850757798, -37154.811045050716, -35224.36483811566, -31790.6909934216, -28271.570764376913, -25877.063414550663, -25275.54000792784, -26426.552957555898, -28608.08732785721, -30742.66146788618, -31901.1192650387, -31658.2982018783, -30115.01252455622, -27693.625158453917, -24916.97602450875, -22268.001550194127, -20113.123569572494, -18657.02934190755, -17925.729621918534, -17787.670352261383, -18012.98424762069, -18355.612668419068, -18631.130455525174, -18762.19098176415, -18778.162916012046, -18776.500656205895, -18866.881771744567, -19120.832848894337, -19543.090214569205, -20070.954769137115, -20598.194181114803, -21013.020202255055, -21236.028702664324, -21244.690600996386, -21076.947768954156, -20815.355048694666, -20560.007956111527, -20400.310604802795, -20393.566682281307, -20554.83647318684, -20858.986285059094, -21253.088938981215, -21675.620708707665, -22078.139271497712, -22445.18444801059, -22808.75225496607, -23254.130115531163, -23913.827617806084, -24946.957266144746, -26504.403695291898, -28685.32300927181, -31495.471071978012, -34819.49374359714, -38414.82789487393, -41923.29333627555, -44885.22293635466, -46749.75134352123, -46917.59025432583, -44896.50887106118, -40598.462003586974, -34608.57105847433, -28108.332731765862, -22356.321253373, -18075.405570497107, -15192.820251877345, -13027.925896696135, -10728.68775277632, -7731.104577216556, -4026.458734812997, -67.65800705092924, 3603.7480987311537, 6685.7274727329805, 9170.743233515725, 11193.25631660189, 12863.446736995473, 14199.174999621611, 15157.063376046968, 15709.513692788054, 15907.086239630167, 15889.032882713132, 15843.097529146156, 15944.109516240991, 16304.199171854023, 16953.280592130628, 17852.57440796256, 18932.066168700923, 20133.516941300426, 21437.167716977303, 22858.402963585464, 24417.568974489524, 26100.277202379944, 27828.811426061613, 29459.771430218898, 30813.7836860175, 31730.62350657151, 32128.502820609796, 32038.429339023023, 31593.803847403953, 30979.028723505002, 30362.077268204735, 29840.850204702965, 29422.877198133527, 29042.28057709125, 28604.02774189412, 28036.121314230902, 27327.793860493435, 26538.11580899982, 25773.01411179288, 25142.696104375616, 24718.6066327647, 24507.334842447635, 24451.10991168722, 24454.085831995577, 24423.536258237124, 24308.931868210013, 24122.627773352768, 23933.764307662732, 23838.57162949479, 23919.941100154054, 24212.798983180386, 24689.158548635372, 25269.212310785344, 25854.347267952628, 26368.228758087153, 26787.918123459167, 27150.79244000832, 27533.348289627098, 28010.279752667528, 28611.021858534772, 29293.073660468486, 29946.40958260143, 30430.92513540546, 30631.564524187717, 30503.197269324868, 30080.279217014842, 29444.6938562621, 28667.38229651914, 27753.348490269695, 26621.137071620036, 25137.82866539427, 23205.371963209964, 20853.92976118877, 18273.842305983166, 15753.018584850472, 13562.095187201534, 11864.517807863573, 10688.16332321768, 9935.766441264674, 9398.023223792645, 8766.844594289494, 7680.841209848606, 5824.4042671660145, 3040.702284846631, -630.2054351866387, -5035.57692055936, -10048.785939525675]
         )
 
-        F_x_test = self_force_circ(coil, a)[:, 0]
+        F_x_test = self_force(coil)[:, 0]
         np.testing.assert_allclose(F_x_benchmark, F_x_test, rtol=1e-9, atol=0)
 
         # Case of rectangular cross-section
@@ -452,7 +439,8 @@ class CoilForcesTest(unittest.TestCase):
             [-15905.20099921593, -22089.84960387874, -28376.348489470365, -33849.08438046449, -37297.138833218974, -37901.3580214951, -35838.71064362283, -32228.643120480687, -28546.9118841109, -26046.96628692484, -25421.777194138715, -26630.791911489407, -28919.842325785943, -31157.40078884933, -32368.19957740524, -32111.184287572887, -30498.330514718982, -27974.45692852191, -25085.400672446423, -22334.49737678633, -20104.78648017159, -18610.931535243944, -17878.995292047493, -17767.35330442759, -18030.259902092654, -18406.512856357545, -18702.39969540496, -18838.862854941028, -18849.823944445518, -18840.62799920807, -18928.85330885538, -19191.02138695175, -19632.210519767978, -20185.474968977625, -20737.621297822592, -21169.977809582055, -21398.747768091078, -21400.62658689198, -21216.133558586924, -20932.595132161085, -20655.60793743372, -20479.40191077005, -20464.28582628529, -20625.83431400738, -20936.962932518098, -21341.067527434556, -21772.38656616101, -22178.862986210577, -22542.999300185398, -22897.045487538875, -23329.342412912913, -23978.387795050137, -25011.595805992223, -26588.8272541588, -28816.499234411625, -31703.566987071903, -35132.3971671138, -38852.71510558583, -42494.50815372789, -45583.48852415488, -47551.1577527285, -47776.415427331594, -45743.97982645536, -41354.37991615283, -35210.20495138465, -28540.23742988024, -22654.55869049082, -18301.96907423793, -15401.963398143102, -13243.762349314706, -10939.450828758423, -7900.820612170931, -4120.028225769904, -72.86209546891608, 3674.253747922276, 6809.0803070326565, 9328.115750414787, 11374.122069162511, 13062.097330371573, 14409.383808494194, 15369.251684718018, 15911.988418337934, 16090.021555975769, 16048.21613878066, 15981.151899412167, 16068.941633738388, 16425.88464448961, 17080.88532516404, 17992.129241265648, 19086.46631302506, 20304.322975363317, 21627.219065732254, 23073.563938875737, 24666.38845701993, 26391.47816311481, 28167.521012668185, 29843.93199662863, 31232.367301229497, 32164.969954389788, 32556.923587447265, 32442.446350951064, 31963.284032424053, 31314.01211399212, 30670.79551082286, 30135.039340095944, 29712.330052677768, 29330.71025802117, 28887.8200773726, 28306.412420411067, 27574.83013193789, 26755.843397583598, 25961.936385889934, 25310.01540139794, 24875.789463354584, 24666.066357125907, 24619.136261928328, 24632.619408002214, 24607.413073397413, 24489.503028993608, 24292.044623409187, 24088.74651990258, 23982.195361428472, 24060.929104794097, 24362.6460843878, 24858.082439252874, 25462.457564195745, 26070.50973682213, 26600.547196554344, 27028.01270305341, 27393.03996450607, 27777.872708277075, 28263.357416931998, 28882.7902495421, 29593.307386932454, 30279.887846398404, 30794.507327329207, 31014.791285198782, 30892.485429183558, 30464.50108998591, 29819.03800239511, 29033.577206319136, 28116.32127507844, 26983.626000124084, 25495.394951521277, 23544.852551314456, 21157.350595114454, 18526.131317622883, 15948.394109661942, 13705.248433750054, 11967.480036214449, 10766.293968812726, 10004.685998499026, 9470.706025372589, 8849.607342610005, 7769.149525451194, 5902.017638994769, 3084.6416074691333, -641.878548205229, -5119.944566458021, -10221.371299891642]
         )
 
-        F_x_test = self_force_rect(coil, a, b)[:, 0]
+        coil = RegularizedCoil(curves[0], Current(I), regularization=regularization_rect(a, b))
+        F_x_test = self_force(coil)[:, 0]
         np.testing.assert_allclose(F_x_benchmark, F_x_test, rtol=1e-9, atol=0)
 
     def test_force_objectives(self):
@@ -462,8 +450,9 @@ class CoilForcesTest(unittest.TestCase):
         I = 1.7e4
 
         base_curves = create_equally_spaced_curves(ncoils, nfp, True)
-        base_currents = [Current(I) for j in range(ncoils)]
-        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+        base_currents = [Current(I) for _ in range(ncoils)]
+        regularizations = [regularization_circ(0.05) for _ in range(ncoils)]
+        coils = coils_via_symmetries(base_curves, base_currents, nfp, True, regularizations)
 
         # Test B2Energy
         objective = B2Energy(coils).J()
@@ -639,9 +628,9 @@ class CoilForcesTest(unittest.TestCase):
         current1 = Current(I)
         current2 = Current(I)
         current3 = Current(I)
-        coil1 = Coil(curve1, current1)
-        coil2 = Coil(curve2, current2)
-        coil3 = Coil(curve3, current3)
+        coil1 = RegularizedCoil(curve1, current1, regularization=regularization_circ(0.05))
+        coil2 = RegularizedCoil(curve2, current2, regularization=regularization_circ(0.05))
+        coil3 = RegularizedCoil(curve3, current3, regularization=regularization_circ(0.05))
         coils = [coil1, coil2, coil3]
         # LpCurveForce
         val = LpCurveForce(coil1, coil2, p=2.5, threshold=1.0e3).J()
@@ -719,13 +708,11 @@ class CoilForcesTest(unittest.TestCase):
                                         for numquadpoints in numquadpoints_list:
                                             base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym, numquadpoints=numquadpoints, use_jax_curve=use_jax_curve)
                                             base_curves2 = create_equally_spaced_curves(ncoils, nfp, stellsym, numquadpoints=numquadpoints, use_jax_curve=use_jax_curve)
-                                            base_currents = [Current(I) for j in range(ncoils)]
-                                            coils = coils_via_symmetries(base_curves, base_currents, nfp, stellsym)
-                                            for c in coils:
-                                                c.regularization = regularization
+                                            base_currents = [Current(I) for _ in range(ncoils)]
+                                            coils = coils_via_symmetries(base_curves, base_currents, nfp, stellsym, regularizations=[regularization] * ncoils)
                                             for ii in range(ncoils):
                                                 base_curves2[ii].x = base_curves2[ii].x + np.ones(len(base_curves2[ii].x)) * 0.1
-                                            coils2 = coils_via_symmetries(base_curves2, base_currents, nfp, stellsym)
+                                            coils2 = coils_via_symmetries(base_curves2, base_currents, nfp, stellsym, regularizations=[regularization] * ncoils)
                                             objectives = [
                                                 sum([NetFluxes(coils[i], coils2) for i in range(len(coils))]),
                                                 B2Energy(coils + coils2, downsample=downsample),
@@ -810,7 +797,7 @@ class CoilForcesTest(unittest.TestCase):
             print(f"\n--- Timing tests for ncoils = {ncoils} ---")
             base_curves = create_equally_spaced_curves(ncoils, nfp, True)
             base_currents = [Current(I) for j in range(ncoils)]
-            coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+            coils = coils_via_symmetries(base_curves, base_currents, nfp, True, regularizations=[regularization] * ncoils)
             base_curves2 = create_equally_spaced_curves(ncoils, nfp, True)
             for i in range(ncoils):
                 base_curves2[i].x = base_curves2[i].x + np.ones(len(base_curves2[i].x)) * 0.01
@@ -870,6 +857,44 @@ class CoilForcesTest(unittest.TestCase):
         plt.tight_layout()
         plt.savefig("objective_runtimes_semilogy.png")
         print("Run times saved to objective_runtimes_semilogy.png")
+
+    def test_regularized_coil_requirement(self):
+        """Test that force, torque, and energy objectives require RegularizedCoil objects."""
+        # Create regular Coil objects (not RegularizedCoil)
+        curve = CurveXYZFourier(20, 1)
+        curve.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 1.0
+        current = Current(1.7e4)
+        coil = Coil(curve, current)
+        
+        # Create RegularizedCoil for comparison
+        regularization = regularization_circ(0.05)
+        reg_coil = RegularizedCoil(curve, current, regularization=regularization)
+        
+        # Test that regular Coil objects raise ValueError for force/torque/energy objectives
+        with self.assertRaises(ValueError):
+            LpCurveForce(coil, [reg_coil], p=2.5, threshold=1.0e3)
+        
+        # Net forces do not include a self-force, so no issue!
+        SquaredMeanForce(coil, [reg_coil])
+        
+        with self.assertRaises(ValueError):
+            LpCurveTorque(coil, [reg_coil], p=2.5, threshold=1.0e3)
+        
+        # Net torques do not include a self-torque, so no issue!
+        SquaredMeanTorque(coil, [reg_coil])
+        
+        with self.assertRaises(ValueError):
+            B2Energy([coil, reg_coil])
+        
+        # Test that RegularizedCoil objects work fine
+        try:
+            LpCurveForce(reg_coil, [reg_coil], p=2.5, threshold=1.0e3)
+            SquaredMeanForce(reg_coil, [reg_coil])
+            LpCurveTorque(reg_coil, [reg_coil], p=2.5, threshold=1.0e3)
+            SquaredMeanTorque(reg_coil, [reg_coil])
+            B2Energy([reg_coil])
+        except ValueError:
+            self.fail("RegularizedCoil objects should not raise ValueError")
 
 if __name__ == '__main__':
     unittest.main()

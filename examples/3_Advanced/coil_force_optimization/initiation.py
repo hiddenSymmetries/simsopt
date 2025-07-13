@@ -22,7 +22,7 @@ This pareto scan script was used to generate the results in the papers:
     Nuclear Fusion, 65(4), p.046029.
     https://iopscience.iop.org/article/10.1088/1741-4326/adc318/meta
 """
-from optimization_tools import *
+from simsopt.util.coil_optimization_helper_functions import *
 import sys
 from pathlib import Path
 

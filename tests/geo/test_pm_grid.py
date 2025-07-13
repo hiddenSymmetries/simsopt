@@ -531,21 +531,21 @@ class PermanentMagnetGridTesting(unittest.TestCase):
             # Check coil initialization for some common stellarators wout_LandremanPaul2021_QA_lowres
             s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QA_lowres.nc',
                                            range="half period", nphi=nphi, ntheta=ntheta)
-            base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s)
+            base_curves, curves, coils = initialize_coils_for_pm_optimization('qa', TEST_DIR, s)
             bs = BiotSavart(coils)
             B0avg = calculate_modB_on_major_radius(bs, s)
             assert np.allclose(B0avg, 0.15)
 
             s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc',
                                            range="half period", nphi=nphi, ntheta=ntheta)
-            base_curves, curves, coils = initialize_coils('qh', TEST_DIR, s)
+            base_curves, curves, coils = initialize_coils_for_pm_optimization('qh', TEST_DIR, s)
             bs = BiotSavart(coils)
             B0avg = calculate_modB_on_major_radius(bs, s)
             assert np.allclose(B0avg, 5.7)
 
             # Repeat with wrapper function
             s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-            base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s)
+            base_curves, curves, coils = initialize_coils_for_pm_optimization('muse_famus', TEST_DIR, s)
             bs = BiotSavart(coils)
             B0avg = calculate_modB_on_major_radius(bs, s)
             assert np.allclose(B0avg, 0.15)
@@ -639,7 +639,7 @@ class PermanentMagnetGridTesting(unittest.TestCase):
         ntheta = nphi
         surface_filename = TEST_DIR / input_name
         s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-        base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s)
+        base_curves, curves, coils = initialize_coils_for_pm_optimization('muse_famus', TEST_DIR, s)
         bs = BiotSavart(coils)
         B0avg = calculate_modB_on_major_radius(bs, s)
         assert np.allclose(B0avg, 0.15)

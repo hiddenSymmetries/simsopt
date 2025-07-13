@@ -139,7 +139,8 @@ base_currents = [Current(1e5) for i in range(ncoils)]
 # of the currents:
 base_currents[0].fix_all()
 
-coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+coils = coils_via_symmetries(base_curves, base_currents, s.nfp, 
+                             True, regularizations=[regularization_circ(0.05)] * ncoils)
 base_coils = coils[:ncoils]
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
@@ -164,8 +165,6 @@ Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 Jlength = QuadraticPenalty(sum(Jls), LENGTH_TARGET)
-for c in coils:
-    c.regularization = regularization_circ(0.05)
 
 if sys.argv[1] == 'SquaredMeanForce':
     Jforce = SquaredMeanForce(base_coils, coils)

@@ -6,7 +6,8 @@ import jax.scipy as jscp
 from jax import grad, vmap
 from jax.lax import cond
 from .biotsavart import BiotSavart
-from .selffield import B_regularized_pure, B_regularized, regularization_circ, regularization_rect
+from .coil import RegularizedCoil
+from .selffield import B_regularized_pure, B_regularized
 from ..geo.jit import jit
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
@@ -14,8 +15,7 @@ Biot_savart_prefactor = constants.mu_0 / 4 / np.pi
 
 __all__ = [
     "coil_force",
-    "self_force_circ",
-    "self_force_rect",
+    "self_force",
     "_coil_coil_inductances_pure",
     "_coil_coil_inductances_inv_pure",
     "_induced_currents_pure",
@@ -140,39 +140,6 @@ def self_force(target_coil):
                                                       axis=1)[:, None]
     B = B_regularized(target_coil)
     return _coil_force_pure(B, I, tangent)
-
-
-def self_force_circ(target_coil, a):
-    """
-    Compute the Lorentz self-force per unit length of a coil with 
-    circular cross-section of radius a, in Newtons/meter.
-
-    Args:
-        target_coil (Coil, shape (n,)): Coil to compute the self-force on.
-        a (float): Radius of circular cross-section.
-
-    Returns:
-        array (shape (n,3)): Array of self-force per unit length.
-    """
-    target_coil.regularization = regularization_circ(a)
-    return self_force(target_coil)
-
-
-def self_force_rect(target_coil, a, b):
-    """
-    Compute the Lorentz self-force per unit length of a coil with rectangular cross-section of 
-    shape (a, b), in Newtons/meter.
-
-    Args:
-        target_coil (Coil): Coil to compute the self-force on.
-        a (float): Width of rectangular cross-section.
-        b (float): Height of rectangular cross-section.
-
-    Returns:
-        array (shape (n,3)): Array of self-force per unit length.
-    """
-    target_coil.regularization = regularization_rect(a, b)
-    return self_force(target_coil)
 
 
 def _coil_coil_inductances_pure(gammas, gammadashs, downsample, regularizations):
@@ -422,6 +389,8 @@ class B2Energy(Optimizable):
     def __init__(self, coils_to_target, downsample=1):
         self.coils_to_target = coils_to_target
         self.downsample = downsample
+        if not isinstance(self.coils_to_target[0], RegularizedCoil):
+            raise ValueError("B2Energy can only be used with RegularizedCoil objects")
         regularizations = jnp.asarray([c.regularization for c in self.coils_to_target])
 
         args = {"static_argnums": (3,)}
@@ -1121,6 +1090,8 @@ class LpCurveForce(Optimizable):
             coils_to_target = [coils_to_target]
         if not isinstance(source_coils, list):
             source_coils = [source_coils]
+        if not isinstance(coils_to_target[0], RegularizedCoil):
+            raise ValueError("LpCurveForce can only be used with RegularizedCoil objects")
         regularizations = jnp.array([c.regularization for c in coils_to_target])
         self.coils_to_target = coils_to_target
         self.source_coils = [c for c in source_coils if c not in coils_to_target]
@@ -1402,6 +1373,8 @@ class LpCurveTorque(Optimizable):
             coils_to_target = [coils_to_target]
         if not isinstance(source_coils, list):
             source_coils = [source_coils]
+        if not isinstance(coils_to_target[0], RegularizedCoil):
+            raise ValueError("LpCurveTorque can only be used with RegularizedCoil objects")
         regularizations = jnp.array([c.regularization for c in coils_to_target])
         self.coils_to_target = coils_to_target
         self.source_coils = [c for c in source_coils if c not in coils_to_target]

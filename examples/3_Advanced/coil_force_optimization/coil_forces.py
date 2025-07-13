@@ -116,7 +116,9 @@ base_currents = [Current(1e5) for i in range(ncoils)]
 # of the currents:
 base_currents[0].fix_all()
 
-coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+regularizations = [regularization_circ(0.05) for _ in range(ncoils)]
+coils = coils_via_symmetries(base_curves, base_currents, s.nfp, 
+                             True, regularizations)
 base_coils = coils[:ncoils]
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
@@ -126,7 +128,6 @@ bs.set_points(s.gamma().reshape((-1, 3)))
 a = 0.05
 nturns = 100
 curves = [c.curve for c in coils]
-a_list = regularization_circ(a) * np.ones(len(coils))
 coils_to_vtk(coils, OUT_DIR + "coils_init", close=True)
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
@@ -138,8 +139,6 @@ Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
-for c in coils:
-    c.regularization = regularization_circ(a)
 Jforce = LpCurveForce(base_coils, coils, p=4)
 J_b2energy = B2Energy(coils)
 
