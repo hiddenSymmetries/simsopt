@@ -496,60 +496,67 @@ def initial_optimizations(N=10000, MAXITER=14000,
         with_force = True
 
     for i in range(N):
-        # FIXED PARAMETERS
-        ARCLENGTH_WEIGHT = 0.01
-        UUID_init_from = None  # not starting from prev. optimization
-        order = 16  # 16 is very high!!!
+        try:
+            # FIXED PARAMETERS
+            ARCLENGTH_WEIGHT = 0.01
+            UUID_init_from = None  # not starting from prev. optimization
+            order = 16  # 16 is very high!!!
 
-        # RANDOM PARAMETERS
-        R1 = np.random.uniform(0.35, 0.75)
-        CURVATURE_THRESHOLD = np.random.uniform(5, 12)
-        MSC_THRESHOLD = np.random.uniform(4, 6)
-        CS_THRESHOLD = np.random.uniform(0.166, 0.300)
-        CC_THRESHOLD = np.random.uniform(0.083, 0.120)
-        FORCE_THRESHOLD = np.random.uniform(0, 5e+04)
-        LENGTH_TARGET = np.random.uniform(4.9, 5.0)
+            # RANDOM PARAMETERS
+            R1 = np.random.uniform(0.35, 0.75)
+            CURVATURE_THRESHOLD = np.random.uniform(5, 12)
+            MSC_THRESHOLD = np.random.uniform(4, 6)
+            CS_THRESHOLD = np.random.uniform(0.166, 0.300)
+            CC_THRESHOLD = np.random.uniform(0.083, 0.120)
+            FORCE_THRESHOLD = np.random.uniform(0, 5e+04)
+            LENGTH_TARGET = np.random.uniform(4.9, 5.0)
 
-        LENGTH_WEIGHT = 10.0 ** np.random.uniform(-4, -2)
-        CURVATURE_WEIGHT = 10.0 ** np.random.uniform(-9, -5)
-        MSC_WEIGHT = 10.0 ** np.random.uniform(-7, -3)
-        CS_WEIGHT = 10.0 ** np.random.uniform(-1, 4)
-        CC_WEIGHT = 10.0 ** np.random.uniform(2, 5)
+            LENGTH_WEIGHT = 10.0 ** np.random.uniform(-4, -2)
+            CURVATURE_WEIGHT = 10.0 ** np.random.uniform(-9, -5)
+            MSC_WEIGHT = 10.0 ** np.random.uniform(-7, -3)
+            CS_WEIGHT = 10.0 ** np.random.uniform(-1, 4)
+            CC_WEIGHT = 10.0 ** np.random.uniform(2, 5)
 
-        if with_force:
-            # (1e-20, 1e-8) for Squared forces
-            # (1e-14, 1e-5) for Lpforces or B2Energy
-            FORCE_WEIGHT = 10.0 ** np.random.uniform(-13, -8)
-        else:
-            FORCE_WEIGHT = 0
+            if with_force:
+                # (1e-20, 1e-8) for Squared forces
+                # (1e-14, 1e-5) for Lpforces or B2Energy
+                FORCE_WEIGHT = 10.0 ** np.random.uniform(-13, -8)
+            else:
+                FORCE_WEIGHT = 0
 
-        # RUNNING THE JOBS
-        optimization(
-            OUTPUT_DIR,
-            INPUT_FILE,
-            R1,
-            order,
-            ncoils,
-            UUID_init_from,
-            LENGTH_TARGET,
-            LENGTH_WEIGHT,
-            CURVATURE_THRESHOLD,
-            CURVATURE_WEIGHT,
-            MSC_THRESHOLD,
-            MSC_WEIGHT,
-            CC_THRESHOLD,
-            CC_WEIGHT,
-            CS_THRESHOLD,
-            CS_WEIGHT,
-            FORCE_THRESHOLD,
-            FORCE_WEIGHT,
-            FORCE_OBJ,
-            ARCLENGTH_WEIGHT,
-            with_force=with_force,
-            debug=debug,
-            MAXITER=MAXITER)
+            # RUNNING THE JOBS
+            results = optimization(
+                OUTPUT_DIR,
+                INPUT_FILE,
+                R1,
+                order,
+                ncoils,
+                UUID_init_from,
+                LENGTH_TARGET,
+                LENGTH_WEIGHT,
+                CURVATURE_THRESHOLD,
+                CURVATURE_WEIGHT,
+                MSC_THRESHOLD,
+                MSC_WEIGHT,
+                CC_THRESHOLD,
+                CC_WEIGHT,
+                CS_THRESHOLD,
+                CS_WEIGHT,
+                FORCE_THRESHOLD,
+                FORCE_WEIGHT,
+                FORCE_OBJ,
+                ARCLENGTH_WEIGHT,
+                with_force=with_force,
+                debug=debug,
+                MAXITER=MAXITER)
 
-        print(f"Job {i+1} completed")
+            print(f"Job {i+1} completed with UUID={results['UUID']}")
+        except Exception as e:
+            print(f"Job {i+1} failed with error: {e}")
+            import traceback
+            traceback.print_exc()
+            # Continue with next job instead of failing completely
+            continue
 
 
 def initial_optimizations_QH(N=10000, MAXITER=14000,
@@ -581,57 +588,64 @@ def initial_optimizations_QH(N=10000, MAXITER=14000,
         with_force = True
     
     for i in range(N):
-        # FIXED PARAMETERS
-        ARCLENGTH_WEIGHT = 0.01
-        UUID_init_from = None  # not starting from prev. optimization
-        order = 16
+        try:
+            # FIXED PARAMETERS
+            ARCLENGTH_WEIGHT = 0.01
+            UUID_init_from = None  # not starting from prev. optimization
+            order = 16
 
-        # RANDOM PARAMETERS
-        R1 = np.random.uniform(0.35, 0.75)
-        CURVATURE_THRESHOLD = np.random.uniform(5, 12)
-        MSC_THRESHOLD = np.random.uniform(4, 6)
-        CS_THRESHOLD = np.random.uniform(0.166, 0.300)
-        CC_THRESHOLD = np.random.uniform(0.083, 0.120)
-        FORCE_THRESHOLD = np.random.uniform(0, 5e+04)
-        LENGTH_TARGET = np.random.uniform(4.9, 5.0)
+            # RANDOM PARAMETERS
+            R1 = np.random.uniform(0.35, 0.75)
+            CURVATURE_THRESHOLD = np.random.uniform(5, 12)
+            MSC_THRESHOLD = np.random.uniform(4, 6)
+            CS_THRESHOLD = np.random.uniform(0.166, 0.300)
+            CC_THRESHOLD = np.random.uniform(0.083, 0.120)
+            FORCE_THRESHOLD = np.random.uniform(0, 5e+04)
+            LENGTH_TARGET = np.random.uniform(4.9, 5.0)
 
-        LENGTH_WEIGHT = 10.0 ** np.random.uniform(-3, -1)
-        CURVATURE_WEIGHT = 10.0 ** np.random.uniform(-9, -5)
-        MSC_WEIGHT = 10.0 ** np.random.uniform(-5, -1)
-        CS_WEIGHT = 10.0 ** np.random.uniform(-1, 4)
-        CC_WEIGHT = 10.0 ** np.random.uniform(2, 5)
+            LENGTH_WEIGHT = 10.0 ** np.random.uniform(-3, -1)
+            CURVATURE_WEIGHT = 10.0 ** np.random.uniform(-9, -5)
+            MSC_WEIGHT = 10.0 ** np.random.uniform(-5, -1)
+            CS_WEIGHT = 10.0 ** np.random.uniform(-1, 4)
+            CC_WEIGHT = 10.0 ** np.random.uniform(2, 5)
 
-        if with_force:
-            FORCE_WEIGHT = 10.0 ** np.random.uniform(-14, -9)
-        else:
-            FORCE_WEIGHT = 0
+            if with_force:
+                FORCE_WEIGHT = 10.0 ** np.random.uniform(-14, -9)
+            else:
+                FORCE_WEIGHT = 0
 
-        # RUNNING THE JOBS
-        results = optimization(
-            OUTPUT_DIR,
-            INPUT_FILE,
-            R1,
-            order,
-            ncoils,
-            UUID_init_from,
-            LENGTH_TARGET,
-            LENGTH_WEIGHT,
-            CURVATURE_THRESHOLD,
-            CURVATURE_WEIGHT,
-            MSC_THRESHOLD,
-            MSC_WEIGHT,
-            CC_THRESHOLD,
-            CC_WEIGHT,
-            CS_THRESHOLD,
-            CS_WEIGHT,
-            FORCE_THRESHOLD,
-            FORCE_WEIGHT,
-            FORCE_OBJ,
-            ARCLENGTH_WEIGHT,
-            with_force=with_force,
-            MAXITER=MAXITER)
+            # RUNNING THE JOBS
+            results = optimization(
+                OUTPUT_DIR,
+                INPUT_FILE,
+                R1,
+                order,
+                ncoils,
+                UUID_init_from,
+                LENGTH_TARGET,
+                LENGTH_WEIGHT,
+                CURVATURE_THRESHOLD,
+                CURVATURE_WEIGHT,
+                MSC_THRESHOLD,
+                MSC_WEIGHT,
+                CC_THRESHOLD,
+                CC_WEIGHT,
+                CS_THRESHOLD,
+                CS_WEIGHT,
+                FORCE_THRESHOLD,
+                FORCE_WEIGHT,
+                FORCE_OBJ,
+                ARCLENGTH_WEIGHT,
+                with_force=with_force,
+                MAXITER=MAXITER)
 
-        print(f"Job {i+1} completed with UUID={results['UUID']}")
+            print(f"Job {i+1} completed with UUID={results['UUID']}")
+        except Exception as e:
+            print(f"Job {i+1} failed with error: {e}")
+            import traceback
+            traceback.print_exc()
+            # Continue with next job instead of failing completely
+            continue
 
 
 def optimization(
@@ -876,9 +890,12 @@ def optimization(
 
     UUID = uuid.uuid4().hex  # unique id for each optimization
     OUTPUT_DIR = OUTPUT_DIR + UUID + "/"  # Directory for output
+    print(f"Creating output directory: {OUTPUT_DIR}")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+    print("Output directory created successfully")
 
     # EXPORT VTKS
+    print("Exporting VTK files...")
     coils_to_vtk(coils, OUTPUT_DIR + "coils_opt", close=True)
 
     bs_big = BiotSavart(coils)
@@ -978,7 +995,9 @@ def optimization(
 
     with open(OUTPUT_DIR + "results.json", "w") as outfile:
         json.dump(results, outfile, indent=2)
+    print(f"Results JSON written to: {OUTPUT_DIR}results.json")
     bs.save(OUTPUT_DIR + "biot_savart.json")  # save the optimized coil shapes and currents
+    print(f"Biot-Savart JSON written to: {OUTPUT_DIR}biot_savart.json")
     print(time.perf_counter() - start_time)
     # return res, base_coils
 

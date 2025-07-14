@@ -151,6 +151,15 @@ class TestContinuation(unittest.TestCase):
     """Test cases for continuation function using real files."""
 
     def test_continuation_basic(self):
+
+        # First run initial_optimizations to create input data for continuation
+        initial_optimizations(
+            N=1,
+            MAXITER=5,
+            OUTPUT_DIR=str(OUTPUT_DIR / 'qa_output/'),
+            INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+            ncoils=3
+        )
         """Test basic functionality of continuation with real files."""
         continuation(
             N=1,
