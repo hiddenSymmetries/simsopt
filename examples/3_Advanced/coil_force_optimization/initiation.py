@@ -22,25 +22,30 @@ This pareto scan script was used to generate the results in the papers:
     Nuclear Fusion, 65(4), p.046029.
     https://iopscience.iop.org/article/10.1088/1741-4326/adc318/meta
 """
-from simsopt.util.coil_optimization_helper_functions import *
+from simsopt.util.coil_optimization_helper_functions import initial_optimizations
 import sys
 from pathlib import Path
 
+print(len(sys.argv), sys.argv)
 if len(sys.argv) != 2:
-    print("Usage: python initiation.py <function_name>")
-    sys.exit(1)
+    print("Usage: python initiation.py <function_name>"
+          "\n If you want to run the optimizations with a force/torque/energy objective, "
+          " otherwise, the optimization will be run with no such objective.")
+    func = None
+    func_name = ""
+else: 
+    func_name = sys.argv[1]
+    if func_name in globals() and callable(globals()[func_name]):
+        func = globals()[func_name]
+    else:
+        print(f"The command line argument, function '{func_name}', is not a valid force objective.")
+        sys.exit(1)
 
-func_name = sys.argv[1]
 OUTPUT_DIR = "./output/QA/" + func_name + "/"
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 INPUT_FILE = TEST_DIR / "input.LandremanPaul2021_QA"
 N = 10  # number of optimizations to run
 MAXITER = 10  # maximum number of iterations for each optimization
+initial_optimizations(OUTPUT_DIR=OUTPUT_DIR, INPUT_FILE=INPUT_FILE, 
+                      FORCE_OBJ=func, N=N, MAXITER=MAXITER)
 
-if func_name in globals() and callable(globals()[func_name]):
-    func = globals()[func_name]
-    initial_optimizations(OUTPUT_DIR=OUTPUT_DIR, INPUT_FILE=INPUT_FILE, 
-                          with_force=True, FORCE_OBJ=func, N=N, MAXITER=MAXITER)
-else:
-    print(f"Function '{func_name}' not found in optimization_tools.py.")
-    sys.exit(1)

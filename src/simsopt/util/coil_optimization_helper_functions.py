@@ -531,7 +531,8 @@ def initial_optimizations(N=10000, MAXITER=14000,
         print(f"Job {i+1} completed")
 
 
-def initial_optimizations_QH(N=10000, with_force=True, MAXITER=14000,
+def initial_optimizations_QH(N=10000, MAXITER=14000,
+                             FORCE_OBJ=None,
                              OUTPUT_DIR="./output/QA/with-force-penalty/1/optimizations/",
                              INPUT_FILE="./inputs/input.LandremanPaul2021_QH_magwell_R0=1",
                              ncoils=3):
@@ -553,6 +554,11 @@ def initial_optimizations_QH(N=10000, with_force=True, MAXITER=14000,
     ncoils : int
         Number of unique coil shapes.
     """
+    if FORCE_OBJ is None:
+        with_force = False
+    else:
+        with_force = True
+    
     for i in range(N):
         # FIXED PARAMETERS
         ARCLENGTH_WEIGHT = 0.01
@@ -599,7 +605,9 @@ def initial_optimizations_QH(N=10000, with_force=True, MAXITER=14000,
             CS_WEIGHT,
             FORCE_THRESHOLD,
             FORCE_WEIGHT,
+            FORCE_OBJ,
             ARCLENGTH_WEIGHT,
+            with_force=with_force,
             MAXITER=MAXITER)
 
         print(f"Job {i+1} completed with UUID={results['UUID']}")
@@ -627,7 +635,7 @@ def optimization(
         FORCE_OBJ=None,
         ARCLENGTH_WEIGHT=1e-2,
         dx=None,
-        with_force=True,
+        with_force=False,
         debug=False,
         MAXITER=14000):
     """
@@ -767,13 +775,22 @@ def optimization(
     Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
     Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 
-    try:
-        Jforce = FORCE_OBJ(base_coils, coils, p=2, threshold=FORCE_THRESHOLD, downsample=2)
-    except:
+    if with_force:
         try:
-            Jforce = FORCE_OBJ(base_coils, coils, downsample=2)
+            Jforce = FORCE_OBJ(base_coils, coils, p=2, threshold=FORCE_THRESHOLD, downsample=2)
         except:
-            Jforce = FORCE_OBJ(coils)  # For B2Energy
+            try:
+                Jforce = FORCE_OBJ(base_coils, coils, downsample=2)
+            except:
+                Jforce = FORCE_OBJ(coils)  # For B2Energy
+    else:
+        class dummyObjective:
+            def __init__(self):
+                self.J = 0
+                self.dJ = 0
+            def __call__(self, x):
+                return self.J, self.dJ
+        Jforce = dummyObjective()
 
     Jals = [ArclengthVariation(c) for c in base_curves]
     Jlength = sum(QuadraticPenalty(Jl, LENGTH_TARGET, "max") for Jl in Jls)
