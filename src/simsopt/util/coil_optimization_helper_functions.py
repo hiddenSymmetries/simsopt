@@ -890,12 +890,9 @@ def optimization(
 
     UUID = uuid.uuid4().hex  # unique id for each optimization
     OUTPUT_DIR = OUTPUT_DIR + UUID + "/"  # Directory for output
-    print(f"Creating output directory: {OUTPUT_DIR}")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    print("Output directory created successfully")
 
     # EXPORT VTKS
-    print("Exporting VTK files...")
     coils_to_vtk(coils, OUTPUT_DIR + "coils_opt", close=True)
 
     bs_big = BiotSavart(coils)
@@ -995,9 +992,7 @@ def optimization(
 
     with open(OUTPUT_DIR + "results.json", "w") as outfile:
         json.dump(results, outfile, indent=2)
-    print(f"Results JSON written to: {OUTPUT_DIR}results.json")
     bs.save(OUTPUT_DIR + "biot_savart.json")  # save the optimized coil shapes and currents
-    print(f"Biot-Savart JSON written to: {OUTPUT_DIR}biot_savart.json")
     print(time.perf_counter() - start_time)
     # return res, base_coils
 
