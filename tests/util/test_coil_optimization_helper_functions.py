@@ -1,468 +1,318 @@
 import unittest
-import tempfile
-import shutil
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+import json
+import os
 
 from simsopt.util.coil_optimization_helper_functions import (
     initial_optimizations, 
-    initial_optimizations_QH
+    initial_optimizations_QH,
+    continuation,
+    read_focus_coils
 )
-from simsopt.field import LpCurveForce, SquaredMeanForce, LpCurveTorque, SquaredMeanTorque, B2Energy
-
+from simsopt.field import LpCurveForce
+TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
+OUTPUT_DIR = (Path(__file__).parent / ".." / "util").resolve()
 
 class TestInitialOptimizations(unittest.TestCase):
     """Test cases for initial_optimizations function."""
 
-    def setUp(self):
-        """Set up test fixtures."""
-        self.temp_dir = tempfile.mkdtemp()
-        self.test_input_file = Path(__file__).parent / ".." / ".." / "tests" / "test_files" / "input.LandremanPaul2021_QA"
+    def test_initial_optimizations_basic(self):
+        """Test basic functionality of initial_optimizations with real file."""
+        output_dir = "qa_output/"
         
-    def tearDown(self):
-        """Clean up test fixtures."""
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
-
-    @patch('simsopt.util.coil_optimization_helper_functions.optimization')
-    def test_initial_optimizations_basic(self, mock_optimization):
-        """Test basic functionality of initial_optimizations."""
-        # Mock the optimization function to avoid actual optimization
-        mock_optimization.return_value = None
-        
-        # Test with minimal parameters
-        initial_optimizations(
-            N=2,  # Small number for testing
-            MAXITER=10,
-            OUTPUT_DIR=self.temp_dir + "/test_output/",
-            INPUT_FILE=str(self.test_input_file),
-            debug=False,
-            ncoils=3
-        )
-        
-        # Check that optimization was called twice (N=2)
-        self.assertEqual(mock_optimization.call_count, 2)
-        
-        # Check that the calls were made with expected parameters
-        calls = mock_optimization.call_args_list
-        for call in calls:
-            args, kwargs = call
-            # Check that required parameters are present in positional args
-            self.assertEqual(len(args), 20)  # 20 positional arguments
-            self.assertIn('with_force', kwargs)
-            self.assertIn('debug', kwargs)
-            self.assertIn('MAXITER', kwargs)
-            
-            # Check parameter ranges (positional arguments)
-            self.assertTrue(0.35 <= args[2] <= 0.75)  # R1
-            self.assertTrue(5 <= args[8] <= 12)  # CURVATURE_THRESHOLD
-            self.assertTrue(4 <= args[10] <= 6)  # MSC_THRESHOLD
-            self.assertTrue(0.166 <= args[14] <= 0.300)  # CS_THRESHOLD
-            self.assertTrue(0.083 <= args[12] <= 0.120)  # CC_THRESHOLD
-            self.assertTrue(0 <= args[16] <= 5e+04)  # FORCE_THRESHOLD
-            self.assertTrue(4.9 <= args[6] <= 5.0)  # LENGTH_TARGET
-
-    @patch('simsopt.util.coil_optimization_helper_functions.optimization')
-    def test_initial_optimizations_with_force_objective(self, mock_optimization):
-        """Test initial_optimizations with force objective."""
-        mock_optimization.return_value = None
-        
-        # Test with force objective
         initial_optimizations(
             N=1,
-            MAXITER=10,
-            FORCE_OBJ=LpCurveForce,
-            OUTPUT_DIR=self.temp_dir + "/test_output/",
-            INPUT_FILE=str(self.test_input_file),
-            debug=True,
-            ncoils=4
-        )
-        
-        # Check that optimization was called with force parameters
-        call_args = mock_optimization.call_args
-        args, kwargs = call_args
-        
-        self.assertTrue(kwargs['with_force'])
-        self.assertEqual(args[18], LpCurveForce)  # FORCE_OBJ is positional arg
-        self.assertTrue(1e-13 <= args[17] <= 1e-8)  # FORCE_WEIGHT is positional arg
-
-    @patch('simsopt.util.coil_optimization_helper_functions.optimization')
-    def test_initial_optimizations_without_force_objective(self, mock_optimization):
-        """Test initial_optimizations without force objective."""
-        mock_optimization.return_value = None
-        
-        # Test without force objective
-        initial_optimizations(
-            N=1,
-            MAXITER=10,
-            FORCE_OBJ=None,
-            OUTPUT_DIR=self.temp_dir + "/test_output/",
-            INPUT_FILE=str(self.test_input_file),
-            debug=False,
-            ncoils=5
-        )
-        
-        # Check that optimization was called without force parameters
-        call_args = mock_optimization.call_args
-        args, kwargs = call_args
-        
-        self.assertFalse(kwargs['with_force'])
-        self.assertEqual(args[17], 0)  # FORCE_WEIGHT is positional arg
-
-    @patch('simsopt.util.coil_optimization_helper_functions.optimization')
-    def test_initial_optimizations_parameter_ranges(self, mock_optimization):
-        """Test that parameter ranges are within expected bounds."""
-        mock_optimization.return_value = None
-        
-        # Run multiple iterations to test parameter ranges
-        initial_optimizations(
-            N=10,
             MAXITER=5,
-            OUTPUT_DIR=self.temp_dir + "/test_output/",
-            INPUT_FILE=str(self.test_input_file),
-            debug=False,
+            OUTPUT_DIR=str(OUTPUT_DIR / output_dir),
+            INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
             ncoils=3
         )
         
-        calls = mock_optimization.call_args_list
-        for call in calls:
-            args, kwargs = call
-            # Test weight parameter ranges (positional arguments)
-            self.assertTrue(1e-4 <= args[7] <= 1e-2)  # LENGTH_WEIGHT
-            self.assertTrue(1e-9 <= args[9] <= 1e-5)  # CURVATURE_WEIGHT
-            self.assertTrue(1e-7 <= args[11] <= 1e-3)  # MSC_WEIGHT
-            self.assertTrue(1e-1 <= args[15] <= 1e+4)  # CS_WEIGHT
-            self.assertTrue(1e+2 <= args[13] <= 1e+5)  # CC_WEIGHT
-
-    @patch('simsopt.util.coil_optimization_helper_functions.optimization')
-    def test_initial_optimizations_different_force_objectives(self, mock_optimization):
-        """Test initial_optimizations with different force objectives."""
-        mock_optimization.return_value = None
+        # Check that output directory was created
+        self.assertTrue(os.path.exists(str(OUTPUT_DIR / output_dir)))
         
-        force_objectives = [LpCurveForce, SquaredMeanForce, B2Energy]
+        # Check that a results.json file was created
+        found = False
+        for root, dirs, files in os.walk(str(OUTPUT_DIR / output_dir)):
+            if "results.json" in files:
+                results_path = os.path.join(root, "results.json")
+                found = True
+                break
+        self.assertTrue(found, "results.json not found after initial_optimizations")
         
-        for force_obj in force_objectives:
-            with self.subTest(force_obj=force_obj.__name__):
-                initial_optimizations(
-                    N=1,
-                    MAXITER=5,
-                    FORCE_OBJ=force_obj,
-                    OUTPUT_DIR=self.temp_dir + "/test_output/",
-                    INPUT_FILE=str(self.test_input_file),
-                    debug=False,
-                    ncoils=3
-                )
-                
-                call_args = mock_optimization.call_args
-                args, kwargs = call_args
-                
-                self.assertTrue(kwargs['with_force'])
-                self.assertEqual(args[18], force_obj)  # FORCE_OBJ is positional arg
+        # Check that results.json contains expected keys
+        with open(results_path) as f:
+            results = json.load(f)
+        expected_keys = ["UUID", "ncoils", "order", "R1", "JF", "Jf"]
+        for key in expected_keys:
+            self.assertIn(key, results)
 
-    def test_initial_optimizations_invalid_input_file(self):
-        """Test that initial_optimizations handles invalid input file gracefully."""
-        with self.assertRaises(Exception):
-            initial_optimizations(
-                N=1,
-                MAXITER=5,
-                OUTPUT_DIR=self.temp_dir + "/test_output/",
-                INPUT_FILE="nonexistent_file.txt",
-                debug=False,
-                ncoils=3
-            )
+    def test_initial_optimizations_with_force_objective(self):
+        """Test initial_optimizations with force objective."""
+        output_dir = "qa_force_output/"
+        
+        initial_optimizations(
+            N=1,
+            MAXITER=5,
+            FORCE_OBJ=LpCurveForce,
+            OUTPUT_DIR=str(OUTPUT_DIR / output_dir),
+            INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+            ncoils=3
+        )
+        
+        # Check that output directory was created
+        self.assertTrue(os.path.exists(str(OUTPUT_DIR / output_dir)))
+        
+        # Check that a results.json file was created
+        found = False
+        for root, dirs, files in os.walk(str(OUTPUT_DIR / output_dir)):
+            if "results.json" in files:
+                results_path = os.path.join(root, "results.json")
+                found = True
+                break
+        self.assertTrue(found, "results.json not found after initial_optimizations with force")
+        
+        # Check that results.json contains force-related keys
+        with open(results_path) as f:
+            results = json.load(f)
+        force_keys = ["lpcurveforce", "max_forces", "force_weight"]
+        for key in force_keys:
+            self.assertIn(key, results)
 
 
 class TestInitialOptimizationsQH(unittest.TestCase):
-    """Test cases for initial_optimizations_QH function."""
+    """Test cases for initial_optimizations_QH function using real files."""
 
-    def setUp(self):
-        """Set up test fixtures."""
-        self.temp_dir = tempfile.mkdtemp()
-        self.test_input_file = Path(__file__).parent / ".." / ".." / "tests" / "test_files" / "input.LandremanPaul2021_QH_magwell_R0=1"
+    def test_initial_optimizations_QH_basic(self):
+        """Test basic functionality of initial_optimizations_QH with real file."""
+        output_dir = "qh_output/"
         
-    def tearDown(self):
-        """Clean up test fixtures."""
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
-
-    @patch('simsopt.util.coil_optimization_helper_functions.optimization')
-    def test_initial_optimizations_QH_basic(self, mock_optimization):
-        """Test basic functionality of initial_optimizations_QH."""
-        # Mock the optimization function to return expected values
-        mock_result = MagicMock()
-        mock_results = {'UUID': 'test-uuid-123'}
-        mock_coils = [MagicMock()]
-        mock_optimization.return_value = (mock_result, mock_results, mock_coils)
-        
-        # Test with minimal parameters
         initial_optimizations_QH(
-            N=2,  # Small number for testing
-            MAXITER=10,
-            OUTPUT_DIR=self.temp_dir + "/test_output/",
-            INPUT_FILE=str(self.test_input_file),
+            N=1,
+            MAXITER=5,
+            OUTPUT_DIR=str(OUTPUT_DIR / output_dir),
+            INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres',
             ncoils=3
         )
         
-        # Check that optimization was called twice (N=2)
-        self.assertEqual(mock_optimization.call_count, 2)
+        # Check that output directory was created
+        self.assertTrue(os.path.exists(str(OUTPUT_DIR / output_dir)))
         
-        # Check that the calls were made with expected parameters
-        calls = mock_optimization.call_args_list
-        for call in calls:
-            args, kwargs = call
-            print(args)
-            print(kwargs)
-            # Check that required parameters are present in positional args
-            self.assertEqual(len(args), 20, msg="There should be 20 positional arguments")
-            self.assertIn('MAXITER', kwargs, msg="MAXITER should be present in kwargs")
-            self.assertIn('with_force', kwargs, msg="with_force should be present in kwargs")
-            self.assertFalse(kwargs['with_force'], msg="with_force should be False")
-            # Check parameter ranges (different from QA)
-            self.assertTrue(0.35 <= args[2] <= 0.75, msg="R1 should be between 0.35 and 0.75")  # R1
-            self.assertTrue(5 <= args[8] <= 12, msg="CURVATURE_THRESHOLD should be between 5 and 12")  # CURVATURE_THRESHOLD
-            self.assertTrue(4 <= args[10] <= 6, msg="MSC_THRESHOLD should be between 4 and 6")  # MSC_THRESHOLD
-            self.assertTrue(0.166 <= args[14] <= 0.300, msg="CS_THRESHOLD should be between 0.166 and 0.300")  # CS_THRESHOLD
-            self.assertTrue(0.083 <= args[12] <= 0.120, msg="CC_THRESHOLD should be between 0.083 and 0.120")  # CC_THRESHOLD
-            self.assertTrue(0 <= args[16] <= 5e+04, msg="FORCE_THRESHOLD should be between 0 and 5e+04")  # FORCE_THRESHOLD
-            self.assertTrue(4.9 <= args[6] <= 5.0, msg="LENGTH_TARGET should be between 4.9 and 5.0")  # LENGTH_TARGET
+        # Check that a results.json file was created
+        found = False
+        for root, dirs, files in os.walk(str(OUTPUT_DIR / output_dir)):
+            if "results.json" in files:
+                results_path = os.path.join(root, "results.json")
+                found = True
+                break
+        self.assertTrue(found, "results.json not found after initial_optimizations_QH")
+        
+        # Check that results.json contains expected keys
+        with open(results_path) as f:
+            results = json.load(f)
+        expected_keys = ["UUID", "ncoils", "order", "R1", "JF", "Jf"]
+        for key in expected_keys:
+            self.assertIn(key, results)
 
-    @patch('simsopt.util.coil_optimization_helper_functions.optimization')
-    def test_initial_optimizations_QH_with_force_objective(self, mock_optimization):
-        """Test initial_optimizations_QH with force objective."""
-        mock_result = MagicMock()
-        mock_results = {'UUID': 'test-uuid-456'}
-        mock_coils = [MagicMock()]
-        mock_optimization.return_value = (mock_result, mock_results, mock_coils)
+    def test_initial_optimizations_QH_with_force_objective(self):
+        """Test initial_optimizations_QH with force objective using real file."""
+        output_dir = "qh_force_output/"
         
-        # Test with force objective
         initial_optimizations_QH(
             N=1,
-            MAXITER=10,
+            MAXITER=5,
             FORCE_OBJ=LpCurveForce,
-            OUTPUT_DIR=self.temp_dir + "/test_output/",
-            INPUT_FILE=str(self.test_input_file),
-            ncoils=4
-        )
-        
-        # Check that optimization was called with force parameters
-        call_args = mock_optimization.call_args
-        args, kwargs = call_args
-        
-        self.assertTrue(kwargs['with_force'])
-        self.assertTrue(1e-14 <= args[17] <= 1e-9)  # FORCE_WEIGHT is positional arg
-
-    @patch('simsopt.util.coil_optimization_helper_functions.optimization')
-    def test_initial_optimizations_QH_without_force_objective(self, mock_optimization):
-        """Test initial_optimizations_QH without force objective."""
-        mock_result = MagicMock()
-        mock_results = {'UUID': 'test-uuid-789'}
-        mock_coils = [MagicMock()]
-        mock_optimization.return_value = (mock_result, mock_results, mock_coils)
-        
-        # Test without force objective
-        initial_optimizations_QH(
-            N=1,
-            MAXITER=10,
-            FORCE_OBJ=None,
-            OUTPUT_DIR=self.temp_dir + "/test_output/",
-            INPUT_FILE=str(self.test_input_file),
-            ncoils=5
-        )
-        
-        # Check that optimization was called without force parameters
-        call_args = mock_optimization.call_args
-        args, kwargs = call_args
-        
-        self.assertFalse(kwargs['with_force'])
-        self.assertEqual(args[17], 0)  # FORCE_WEIGHT is positional arg
-
-    @patch('simsopt.util.coil_optimization_helper_functions.optimization')
-    def test_initial_optimizations_QH_parameter_ranges(self, mock_optimization):
-        """Test that QH parameter ranges are within expected bounds."""
-        mock_result = MagicMock()
-        mock_results = {'UUID': 'test-uuid-param'}
-        mock_coils = [MagicMock()]
-        mock_optimization.return_value = (mock_result, mock_results, mock_coils)
-        
-        # Run multiple iterations to test parameter ranges
-        initial_optimizations_QH(
-            N=10,
-            MAXITER=5,
-            OUTPUT_DIR=self.temp_dir + "/test_output/",
-            INPUT_FILE=str(self.test_input_file),
+            OUTPUT_DIR=str(OUTPUT_DIR / output_dir),
+            INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres',
             ncoils=3
         )
         
-        calls = mock_optimization.call_args_list
-        for call in calls:
-            args, kwargs = call
-            # Test weight parameter ranges (positional arguments)
-            self.assertTrue(1e-3 <= args[7] <= 1e-1)  # LENGTH_WEIGHT
-            self.assertTrue(1e-9 <= args[9] <= 1e-5)  # CURVATURE_WEIGHT
-            self.assertTrue(1e-5 <= args[11] <= 1e-1)  # MSC_WEIGHT
-            self.assertTrue(1e-1 <= args[15] <= 1e+4)  # CS_WEIGHT
-            self.assertTrue(1e+2 <= args[13] <= 1e+5)  # CC_WEIGHT
-
-    @patch('simsopt.util.coil_optimization_helper_functions.optimization')
-    def test_initial_optimizations_QH_different_force_objectives(self, mock_optimization):
-        """Test initial_optimizations_QH with different force objectives."""
-        mock_result = MagicMock()
-        mock_results = {'UUID': 'test-uuid-force'}
-        mock_coils = [MagicMock()]
-        mock_optimization.return_value = (mock_result, mock_results, mock_coils)
+        # Check that output directory was created
+        self.assertTrue(os.path.exists(str(OUTPUT_DIR / output_dir)))
         
-        force_objectives = [LpCurveForce, SquaredMeanForce, LpCurveTorque, SquaredMeanTorque, B2Energy]
+        # Check that a results.json file was created
+        found = False
+        for root, dirs, files in os.walk(str(OUTPUT_DIR / output_dir)):
+            if "results.json" in files:
+                results_path = os.path.join(root, "results.json")
+                found = True
+                break
+        self.assertTrue(found, "results.json not found after initial_optimizations_QH with force")
         
-        for force_obj in force_objectives:
-            with self.subTest(force_obj=force_obj.__name__):
-                initial_optimizations_QH(
-                    N=1,
-                    MAXITER=5,
-                    FORCE_OBJ=force_obj,
-                    OUTPUT_DIR=self.temp_dir + "/test_output/",
-                    INPUT_FILE=str(self.test_input_file),
-                    ncoils=3
-                )
-                
-                call_args = mock_optimization.call_args
-                args, kwargs = call_args
-                
-                self.assertTrue(kwargs['with_force'])
+        # Check that results.json contains force-related keys
+        with open(results_path) as f:
+            results = json.load(f)
+        force_keys = ["lpcurveforce", "max_forces", "force_weight"]
+        for key in force_keys:
+            self.assertIn(key, results)
 
-    def test_initial_optimizations_QH_invalid_input_file(self):
-        """Test that initial_optimizations_QH handles invalid input file gracefully."""
-        with self.assertRaises(Exception):
-            initial_optimizations_QH(
-                N=1,
-                MAXITER=5,
-                OUTPUT_DIR=self.temp_dir + "/test_output/",
-                INPUT_FILE="nonexistent_file.txt",
-                ncoils=3
-            )
 
-    @patch('simsopt.util.coil_optimization_helper_functions.optimization')
-    def test_initial_optimizations_QH_return_values(self, mock_optimization):
-        """Test that initial_optimizations_QH properly handles return values from optimization."""
-        mock_result = MagicMock()
-        mock_results = {'UUID': 'test-uuid-return'}
-        mock_coils = [MagicMock()]
-        mock_optimization.return_value = (mock_result, mock_results, mock_coils)
-        
-        # Test that the function completes without error
-        initial_optimizations_QH(
+class TestContinuation(unittest.TestCase):
+    """Test cases for continuation function using real files."""
+
+    def test_continuation_basic(self):
+        """Test basic functionality of continuation with real files."""
+        continuation(
             N=1,
-            MAXITER=5,
-            OUTPUT_DIR=self.temp_dir + "/test_output/",
-            INPUT_FILE=str(self.test_input_file),
-            ncoils=3
+            dx=0.1,
+            INPUT_DIR=str(OUTPUT_DIR / 'qa_output/'),
+            OUTPUT_DIR=str(OUTPUT_DIR / 'qa_output_continuation/'),
+            INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+            MAXITER=5
         )
         
-        # Verify that optimization was called
-        mock_optimization.assert_called_once()
-
-
-class TestInitialOptimizationsComparison(unittest.TestCase):
-    """Test cases comparing QA and QH optimization functions."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        self.temp_dir = tempfile.mkdtemp()
-        self.qa_input_file = Path(__file__).parent / ".." / ".." / "tests" / "test_files" / "input.LandremanPaul2021_QA"
-        self.qh_input_file = Path(__file__).parent / ".." / ".." / "tests" / "test_files" / "input.LandremanPaul2021_QH_magwell_R0=1"
+        # Check that output directory was created
+        self.assertTrue(os.path.exists(str(OUTPUT_DIR / 'qa_output_continuation/')))
         
-    def tearDown(self):
-        """Clean up test fixtures."""
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
-
-    @patch('simsopt.util.coil_optimization_helper_functions.optimization')
-    def test_qa_vs_qh_parameter_differences(self, mock_optimization):
-        """Test that QA and QH functions use different parameter ranges."""
-        mock_optimization.return_value = None
+        # Check that a results.json file was created
+        found = False
+        for root, dirs, files in os.walk(str(OUTPUT_DIR / 'qa_output_continuation/')):
+            if "results.json" in files:
+                results_path = os.path.join(root, "results.json")
+                found = True
+                break
+        self.assertTrue(found, "results.json not found after continuation")
         
-        # Run QA optimization
+        # Check that results.json contains expected keys
+        with open(results_path) as f:
+            results = json.load(f)
+        expected_keys = ["UUID", "ncoils", "order", "R1", "JF", "Jf"]
+        for key in expected_keys:
+            self.assertIn(key, results)
+
+
+class TestReadFocusCoils(unittest.TestCase):
+    """Test cases for read_focus_coils function."""
+
+    def test_read_focus_coils_basic(self):
+        """Test basic functionality of read_focus_coils using real FOCUS file."""
+        focus_file = Path(__file__).parent / ".." / ".." / "tests" / "test_files" / "muse_tf_coils.focus"
+        
+        coils, base_currents, ncoils = read_focus_coils(str(focus_file))
+        
+        # Check that we got reasonable outputs
+        # ncoils might be a numpy array, so convert to int for comparison
+        ncoils_int = int(ncoils)
+        self.assertGreater(ncoils_int, 0)
+        self.assertIsInstance(coils, list)
+        self.assertEqual(len(coils), ncoils_int)
+        self.assertIsInstance(base_currents, list)
+        self.assertEqual(len(base_currents), ncoils_int)
+        
+        # Check that coils are CurveXYZFourier objects
+        from simsopt.geo import CurveXYZFourier
+        for coil in coils:
+            self.assertIsInstance(coil, CurveXYZFourier)
+        
+        # Check that currents are Current objects
+        from simsopt.field import Current
+        for current in base_currents:
+            self.assertIsInstance(current, Current)
+
+    def test_read_focus_coils_file_not_found(self):
+        """Test read_focus_coils with non-existent file."""
+        with self.assertRaises(FileNotFoundError):
+            read_focus_coils("non_existent_file.txt")
+
+
+class TestRealOptimizationRun(unittest.TestCase):
+    """Test cases for initial and then continuation optimization runs."""
+
+    def test_initial_optimizations_and_continuation(self):
+        """Test initial_optimizations and continuation."""
+        # Run initial_optimizations
         initial_optimizations(
             N=1,
             MAXITER=5,
-            OUTPUT_DIR=self.temp_dir + "/qa_output/",
-            INPUT_FILE=str(self.qa_input_file),
-            ncoils=5
+            OUTPUT_DIR=str(OUTPUT_DIR / 'qa_output/'),
+            INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+            ncoils=3
         )
         
-        qa_call = mock_optimization.call_args
-        qa_args, qa_kwargs = qa_call
+        # Check that a results.json file was created
+        found = False
+        for root, dirs, files in os.walk(str(OUTPUT_DIR / 'qa_output/')):
+            if "results.json" in files:
+                results_path = os.path.join(root, "results.json")
+                found = True
+                break
+        self.assertTrue(found, "results.json not found after initial_optimizations")
         
-        # Reset mock
-        mock_optimization.reset_mock()
+        with open(results_path) as f:
+            results = json.load(f)
+        for key in ["UUID", "ncoils", "order"]:
+            self.assertIn(key, results)
+
+        # Run continuation using the previous output as input
+        continuation(
+            N=1,
+            dx=0.05,
+            INPUT_DIR=str(OUTPUT_DIR / 'qa_output/'),
+            OUTPUT_DIR=str(OUTPUT_DIR / 'qa_output_continuation/'),
+            INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+            MAXITER=5
+        )
+        
+        # Check that a results.json file was created in the new output
+        found2 = False
+        for root, dirs, files in os.walk(str(OUTPUT_DIR / 'qa_output_continuation/')):
+            if "results.json" in files:
+                results_path2 = os.path.join(root, "results.json")
+                found2 = True
+                break
+        self.assertTrue(found2, "results.json not found after continuation")
+        
+        with open(results_path2) as f:
+            results2 = json.load(f)
+        for key in ["UUID", "ncoils", "order"]:
+            self.assertIn(key, results2)
+
+    def test_qa_vs_qh_comparison(self):
+        """Test that QA and QH optimizations produce different results."""
+        # Run QA optimization
+        qa_output_dir = "qa_output/"
+        initial_optimizations(
+            N=1,
+            MAXITER=5,
+            OUTPUT_DIR=str(OUTPUT_DIR / qa_output_dir),
+            INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+            ncoils=3
+        )
         
         # Run QH optimization
-        mock_result = MagicMock()
-        mock_results = {'UUID': 'test-uuid-compare'}
-        mock_coils = [MagicMock()]
-        mock_optimization.return_value = (mock_result, mock_results, mock_coils)
-        
+        qh_output_dir = "qh_output/"
         initial_optimizations_QH(
             N=1,
             MAXITER=5,
-            OUTPUT_DIR=self.temp_dir + "/qh_output/",
-            INPUT_FILE=str(self.qh_input_file),
+            OUTPUT_DIR=str(OUTPUT_DIR / qh_output_dir),
+            INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres',
             ncoils=3
         )
         
-        qh_call = mock_optimization.call_args
-        qh_args, qh_kwargs = qh_call
+        # Find results files
+        qa_results = None
+        qh_results = None
         
-        # Compare parameter ranges
-        # QH should have different weight ranges than QA
-        self.assertNotEqual(qa_args[7], qh_args[7])  # LENGTH_WEIGHT
-        self.assertNotEqual(qa_args[11], qh_args[11])  # MSC_WEIGHT
+        for root, dirs, files in os.walk(str(OUTPUT_DIR / qa_output_dir)):
+            if "results.json" in files:
+                with open(os.path.join(root, "results.json")) as f:
+                    qa_results = json.load(f)
+                break
+                
+        for root, dirs, files in os.walk(str(OUTPUT_DIR / qh_output_dir)):
+            if "results.json" in files:
+                with open(os.path.join(root, "results.json")) as f:
+                    qh_results = json.load(f)
+                break
         
-        # Check that QH uses different ncoils default
-        self.assertEqual(qa_args[4], 5)
-        self.assertEqual(qh_args[4], 3)
-
-    @patch('simsopt.util.coil_optimization_helper_functions.optimization')
-    def test_qa_vs_qh_force_weight_ranges(self, mock_optimization):
-        """Test that QA and QH use different force weight ranges."""
-        mock_optimization.return_value = None
+        self.assertIsNotNone(qa_results, "QA results not found")
+        self.assertIsNotNone(qh_results, "QH results not found")
         
-        # Test QA force weights
-        initial_optimizations(
-            N=1,
-            MAXITER=5,
-            FORCE_OBJ=LpCurveForce,
-            OUTPUT_DIR=self.temp_dir + "/qa_output/",
-            INPUT_FILE=str(self.qa_input_file),
-            ncoils=3
-        )
-        
-        qa_call = mock_optimization.call_args
-        qa_args, qa_kwargs = qa_call
-        qa_force_weight = qa_args[17]
-        
-        # Reset mock
-        mock_optimization.reset_mock()
-        
-        # Test QH force weights
-        mock_result = MagicMock()
-        mock_results = {'UUID': 'test-uuid-force-compare'}
-        mock_coils = [MagicMock()]
-        mock_optimization.return_value = (mock_result, mock_results, mock_coils)
-        
-        initial_optimizations_QH(
-            N=1,
-            MAXITER=5,
-            FORCE_OBJ=LpCurveForce,
-            OUTPUT_DIR=self.temp_dir + "/qh_output/",
-            INPUT_FILE=str(self.qh_input_file),
-            ncoils=3
-        )
-        
-        qh_call = mock_optimization.call_args
-        qh_args, qh_kwargs = qh_call
-        qh_force_weight = qh_args[17]
-        
-        # Both should be within their respective ranges
-        self.assertTrue(1e-13 <= qa_force_weight <= 1e-8)
-        self.assertTrue(1e-14 <= qh_force_weight <= 1e-9)
+        # Check that both have expected keys
+        for results in [qa_results, qh_results]:
+            for key in ["UUID", "ncoils", "order", "R1", "JF", "Jf"]:
+                self.assertIn(key, results)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main() 

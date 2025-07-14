@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 """
 initiation.py
 -------------
@@ -23,9 +22,14 @@ This pareto scan script was used to generate the results in the papers:
     https://iopscience.iop.org/article/10.1088/1741-4326/adc318/meta
 """
 from simsopt.util.coil_optimization_helper_functions import initial_optimizations
+from simsopt.field import LpCurveForce, B2Energy, SquaredMeanForce, LpCurveTorque, SquaredMeanTorque
 import sys
 from pathlib import Path
 
+force_dict = {"LpCurveForce": LpCurveForce, "B2Energy": B2Energy, 
+              "SquaredMeanForce": SquaredMeanForce, 
+              "LpCurveTorque": LpCurveTorque, 
+              "SquaredMeanTorque": SquaredMeanTorque}
 print(len(sys.argv), sys.argv)
 if len(sys.argv) != 2:
     print("Usage: python initiation.py <function_name>"
@@ -35,8 +39,8 @@ if len(sys.argv) != 2:
     func_name = ""
 else: 
     func_name = sys.argv[1]
-    if func_name in globals() and callable(globals()[func_name]):
-        func = globals()[func_name]
+    if func_name in force_dict.keys():
+        func = force_dict[func_name]
     else:
         print(f"The command line argument, function '{func_name}', is not a valid force objective.")
         sys.exit(1)
@@ -44,8 +48,8 @@ else:
 OUTPUT_DIR = "./output/QA/" + func_name + "/"
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 INPUT_FILE = TEST_DIR / "input.LandremanPaul2021_QA"
-N = 10  # number of optimizations to run
-MAXITER = 10  # maximum number of iterations for each optimization
+N = 5  # number of optimizations to run
+MAXITER = 5  # maximum number of iterations for each optimization
 initial_optimizations(OUTPUT_DIR=OUTPUT_DIR, INPUT_FILE=INPUT_FILE, 
                       FORCE_OBJ=func, N=N, MAXITER=MAXITER)
 

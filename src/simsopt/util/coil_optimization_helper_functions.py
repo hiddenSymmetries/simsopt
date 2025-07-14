@@ -353,6 +353,7 @@ def continuation(N=10000, dx=0.05,
                  INPUT_DIR="./output/QA/with-force-penalty/1/pareto/",
                  OUTPUT_DIR="./output/QA/with-force-penalty/2/optimizations/",
                  INPUT_FILE="./inputs/input.LandremanPaul2021_QA",
+                 FORCE_OBJ=None,
                  MAXITER=14000):
     """
     Perform a continuation method on a set of previous optimizations, 
@@ -373,23 +374,41 @@ def continuation(N=10000, dx=0.05,
     MAXITER : int
         Maximum number of optimizer iterations per job.
     """
+    if FORCE_OBJ is None:
+        with_force = False
+    else:
+        with_force = True
+
     # Read in input optimizations
     results = glob.glob(f"{INPUT_DIR}*/results.json")
     df = pd.DataFrame()
     for results_file in results:
         with open(results_file, "r") as f:
             data = json.load(f)
-        # Wrap lists in another list
-        for key, value in data.items():
-            if isinstance(value, list):
-                data[key] = [value]
-        df = pd.concat([df, pd.DataFrame(data)], ignore_index=True)
+        print(f"DEBUG: Data keys: {list(data.keys())}")
+        
+        # Check if the corresponding directory and biot_savart.json exist
+        uuid_from_path = os.path.basename(os.path.dirname(results_file))
+        biot_savart_path = os.path.join(INPUT_DIR, uuid_from_path, "biot_savart.json")
+        
+        # Only include results that have both results.json and biot_savart.json
+        if os.path.exists(biot_savart_path):
+            # Wrap lists in another list
+            for key, value in data.items():
+                if isinstance(value, list):
+                    data[key] = [value]
+            df = pd.concat([df, pd.DataFrame(data)], ignore_index=True)
+        else:
+            print(f"DEBUG: Skipping {uuid_from_path} - no biot_savart.json found")
 
     def perturb(init, parameter):
         "Perturbs a parameter from an initial optimization."
         return np.random.uniform(1-dx, 1+dx) * init[parameter].iloc[0]
 
     for i in range(N):
+        if len(df) == 0:
+            print("ERROR: DataFrame is empty, cannot sample from it")
+            return
         init = df.sample()
 
         # FIXED PARAMETERS
@@ -415,7 +434,7 @@ def continuation(N=10000, dx=0.05,
         FORCE_WEIGHT = perturb(init, 'force_weight')
 
         # RUNNING THE JOBS
-        res, results, coils = optimization(
+        results = optimization(
             OUTPUT_DIR,
             INPUT_FILE,
             R1,
@@ -434,7 +453,9 @@ def continuation(N=10000, dx=0.05,
             CS_WEIGHT,
             FORCE_THRESHOLD,
             FORCE_WEIGHT,
+            FORCE_OBJ,
             ARCLENGTH_WEIGHT,
+            with_force=with_force,
             dx=dx,
             MAXITER=MAXITER)
 
@@ -586,7 +607,7 @@ def initial_optimizations_QH(N=10000, MAXITER=14000,
             FORCE_WEIGHT = 0
 
         # RUNNING THE JOBS
-        res, results, coils = optimization(
+        results = optimization(
             OUTPUT_DIR,
             INPUT_FILE,
             R1,
@@ -968,6 +989,8 @@ def optimization(
         c._children = set()
         c.curve._children = set()
         c.current._children = set()
+
+    return results
 
 
 """
