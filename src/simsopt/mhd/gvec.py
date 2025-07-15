@@ -296,7 +296,7 @@ class Gvec(Optimizable):
             if key in params:
                 params[key] = str(Path(params[key]).absolute())
 
-        self.boundary_to_params(boundary, params)
+        params = self.boundary_to_params(boundary, params)
 
         # perturb boundary when restarting
         if self.restart_file:  # ToDo: check how perturbation interacts with run_stages (wait for gvec update of current_constraint fix)
@@ -369,11 +369,14 @@ class Gvec(Optimizable):
     
     @staticmethod
     def boundary_to_params(boundary: SurfaceRZFourier, append: Optional[Mapping] = None) -> dict:
-        """Convert a simsopt.SurfaceRZFourier object into GVEC boundary parameters."""
+        """Convert a simsopt.SurfaceRZFourier object into GVEC boundary parameters.
+        
+        The output parameters will include the (non-boundary) contents of the `append` dictionary, if provided.
+        """
         if append is None:
             params = {}
         else:
-            params = append
+            params = copy.deepcopy(append)
 
         params["nfp"] = boundary.nfp
         params["init_average_axis"] = True
