@@ -810,12 +810,11 @@ def optimization(
     else:
         class dummyObjective:
             def __init__(self):
-                self.J = 0
-                self.dJ = 0
-            def J(self, x):
-                return self.J, 
-            def dJ(self, x):
-                return self.dJ
+                pass
+            def J(self):
+                return 0.0
+            def dJ(self):
+                return 0.0
         Jforce = dummyObjective()
 
     Jals = [ArclengthVariation(c) for c in base_curves]

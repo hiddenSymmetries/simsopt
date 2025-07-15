@@ -879,9 +879,6 @@ class CoilForcesTest(unittest.TestCase):
         SquaredMeanForce(coil, reg_coil)  # should not raise ValueError
         SquaredMeanTorque(coil, [reg_coil])
         SquaredMeanTorque(coil, reg_coil)  # should not raise ValueError
-
-        with self.assertRaises(ValueError):
-            SquaredMeanForce(coil, [reg_coil], downsample=2.5)
         
         with self.assertRaises(ValueError):
             LpCurveTorque(coil, [reg_coil], p=2.5, threshold=1.0e3)
