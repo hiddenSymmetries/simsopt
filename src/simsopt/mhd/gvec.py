@@ -432,7 +432,7 @@ class Gvec(Optimizable):
     
         nfp = params["nfp"]
         M, N = params["X1_mn_max"]
-        stellsym = params["X1_sin_cos"] == "cos" and params["X2_sin_cos"] == "sin"
+        stellsym = params.get("X1_sin_cos", "_cos_") == "_cos_" and params.get("X2_sin_cos", "_sin_") == "_sin_"
 
         boundary = SurfaceRZFourier(
             nfp=nfp,
