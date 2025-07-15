@@ -385,7 +385,6 @@ def continuation(N=10000, dx=0.05,
     for results_file in results:
         with open(results_file, "r") as f:
             data = json.load(f)
-        print(f"DEBUG: Data keys: {list(data.keys())}")
         
         # Check if the corresponding directory and biot_savart.json exist
         uuid_from_path = os.path.basename(os.path.dirname(results_file))
@@ -496,73 +495,67 @@ def initial_optimizations(N=10000, MAXITER=14000,
         with_force = True
 
     for i in range(N):
-        try:
-            # FIXED PARAMETERS
-            ARCLENGTH_WEIGHT = 0.01
-            UUID_init_from = None  # not starting from prev. optimization
-            order = 16  # 16 is very high!!!
+        # FIXED PARAMETERS
+        ARCLENGTH_WEIGHT = 0.01
+        UUID_init_from = None  # not starting from prev. optimization
+        order = 16  # 16 is very high!!!
 
-            # RANDOM PARAMETERS
-            R1 = np.random.uniform(0.35, 0.75)
-            CURVATURE_THRESHOLD = np.random.uniform(5, 12)
-            MSC_THRESHOLD = np.random.uniform(4, 6)
-            CS_THRESHOLD = np.random.uniform(0.166, 0.300)
-            CC_THRESHOLD = np.random.uniform(0.083, 0.120)
-            FORCE_THRESHOLD = np.random.uniform(0, 5e+04)
-            LENGTH_TARGET = np.random.uniform(4.9, 5.0)
+        # RANDOM PARAMETERS
+        R1 = np.random.uniform(0.35, 0.75)
+        CURVATURE_THRESHOLD = np.random.uniform(5, 12)
+        MSC_THRESHOLD = np.random.uniform(4, 6)
+        CS_THRESHOLD = np.random.uniform(0.166, 0.300)
+        CC_THRESHOLD = np.random.uniform(0.083, 0.120)
+        FORCE_THRESHOLD = np.random.uniform(0, 5e+04)
+        LENGTH_TARGET = np.random.uniform(4.9, 5.0)
 
-            LENGTH_WEIGHT = 10.0 ** np.random.uniform(-4, -2)
-            CURVATURE_WEIGHT = 10.0 ** np.random.uniform(-9, -5)
-            MSC_WEIGHT = 10.0 ** np.random.uniform(-7, -3)
-            CS_WEIGHT = 10.0 ** np.random.uniform(-1, 4)
-            CC_WEIGHT = 10.0 ** np.random.uniform(2, 5)
+        LENGTH_WEIGHT = 10.0 ** np.random.uniform(-4, -2)
+        CURVATURE_WEIGHT = 10.0 ** np.random.uniform(-9, -5)
+        MSC_WEIGHT = 10.0 ** np.random.uniform(-7, -3)
+        CS_WEIGHT = 10.0 ** np.random.uniform(-1, 4)
+        CC_WEIGHT = 10.0 ** np.random.uniform(2, 5)
 
-            if with_force:
-                # (1e-20, 1e-8) for Squared forces
-                # (1e-14, 1e-5) for Lpforces or B2Energy
-                FORCE_WEIGHT = 10.0 ** np.random.uniform(-13, -8)
-            else:
-                FORCE_WEIGHT = 0
+        if with_force:
+            # (1e-20, 1e-8) for Squared forces
+            # (1e-14, 1e-5) for Lpforces or B2Energy
+            FORCE_WEIGHT = 10.0 ** np.random.uniform(-13, -8)
+        else:
+            FORCE_WEIGHT = 0
 
-            # RUNNING THE JOBS
-            results = optimization(
-                OUTPUT_DIR,
-                INPUT_FILE,
-                R1,
-                order,
-                ncoils,
-                UUID_init_from,
-                LENGTH_TARGET,
-                LENGTH_WEIGHT,
-                CURVATURE_THRESHOLD,
-                CURVATURE_WEIGHT,
-                MSC_THRESHOLD,
-                MSC_WEIGHT,
-                CC_THRESHOLD,
-                CC_WEIGHT,
-                CS_THRESHOLD,
-                CS_WEIGHT,
-                FORCE_THRESHOLD,
-                FORCE_WEIGHT,
-                FORCE_OBJ,
-                ARCLENGTH_WEIGHT,
-                with_force=with_force,
-                debug=debug,
-                MAXITER=MAXITER)
+        # RUNNING THE JOBS
+        results = optimization(
+            OUTPUT_DIR,
+            INPUT_FILE,
+            R1,
+            order,
+            ncoils,
+            UUID_init_from,
+            LENGTH_TARGET,
+            LENGTH_WEIGHT,
+            CURVATURE_THRESHOLD,
+            CURVATURE_WEIGHT,
+            MSC_THRESHOLD,
+            MSC_WEIGHT,
+            CC_THRESHOLD,
+            CC_WEIGHT,
+            CS_THRESHOLD,
+            CS_WEIGHT,
+            FORCE_THRESHOLD,
+            FORCE_WEIGHT,
+            FORCE_OBJ,
+            ARCLENGTH_WEIGHT,
+            with_force=with_force,
+            debug=debug,
+            MAXITER=MAXITER)
 
-            print(f"Job {i+1} completed with UUID={results['UUID']}")
-        except Exception as e:
-            print(f"Job {i+1} failed with error: {e}")
-            import traceback
-            traceback.print_exc()
-            # Continue with next job instead of failing completely
-            continue
+        print(f"Job {i+1} completed with UUID={results['UUID']}")
 
 
 def initial_optimizations_QH(N=10000, MAXITER=14000,
                              FORCE_OBJ=None,
                              OUTPUT_DIR="./output/QA/with-force-penalty/1/optimizations/",
                              INPUT_FILE="./inputs/input.LandremanPaul2021_QH_magwell_R0=1",
+                             debug=False,
                              ncoils=3):
     """
     Perform a batch of initial random parameter optimizations for QH configurations.
@@ -579,6 +572,8 @@ def initial_optimizations_QH(N=10000, MAXITER=14000,
         Directory to save optimization results.
     INPUT_FILE : str
         Path to VMEC input file for the target surface.
+    debug : bool
+        If True, print extra diagnostics.
     ncoils : int
         Number of unique coil shapes.
     """
@@ -588,64 +583,58 @@ def initial_optimizations_QH(N=10000, MAXITER=14000,
         with_force = True
     
     for i in range(N):
-        try:
-            # FIXED PARAMETERS
-            ARCLENGTH_WEIGHT = 0.01
-            UUID_init_from = None  # not starting from prev. optimization
-            order = 16
+        # FIXED PARAMETERS
+        ARCLENGTH_WEIGHT = 0.01
+        UUID_init_from = None  # not starting from prev. optimization
+        order = 16
 
-            # RANDOM PARAMETERS
-            R1 = np.random.uniform(0.35, 0.75)
-            CURVATURE_THRESHOLD = np.random.uniform(5, 12)
-            MSC_THRESHOLD = np.random.uniform(4, 6)
-            CS_THRESHOLD = np.random.uniform(0.166, 0.300)
-            CC_THRESHOLD = np.random.uniform(0.083, 0.120)
-            FORCE_THRESHOLD = np.random.uniform(0, 5e+04)
-            LENGTH_TARGET = np.random.uniform(4.9, 5.0)
+        # RANDOM PARAMETERS
+        R1 = np.random.uniform(0.35, 0.75)
+        CURVATURE_THRESHOLD = np.random.uniform(5, 12)
+        MSC_THRESHOLD = np.random.uniform(4, 6)
+        CS_THRESHOLD = np.random.uniform(0.166, 0.300)
+        CC_THRESHOLD = np.random.uniform(0.083, 0.120)
+        FORCE_THRESHOLD = np.random.uniform(0, 5e+04)
+        LENGTH_TARGET = np.random.uniform(4.9, 5.0)
 
-            LENGTH_WEIGHT = 10.0 ** np.random.uniform(-3, -1)
-            CURVATURE_WEIGHT = 10.0 ** np.random.uniform(-9, -5)
-            MSC_WEIGHT = 10.0 ** np.random.uniform(-5, -1)
-            CS_WEIGHT = 10.0 ** np.random.uniform(-1, 4)
-            CC_WEIGHT = 10.0 ** np.random.uniform(2, 5)
+        LENGTH_WEIGHT = 10.0 ** np.random.uniform(-3, -1)
+        CURVATURE_WEIGHT = 10.0 ** np.random.uniform(-9, -5)
+        MSC_WEIGHT = 10.0 ** np.random.uniform(-5, -1)
+        CS_WEIGHT = 10.0 ** np.random.uniform(-1, 4)
+        CC_WEIGHT = 10.0 ** np.random.uniform(2, 5)
 
-            if with_force:
-                FORCE_WEIGHT = 10.0 ** np.random.uniform(-14, -9)
-            else:
-                FORCE_WEIGHT = 0
+        if with_force:
+            FORCE_WEIGHT = 10.0 ** np.random.uniform(-14, -9)
+        else:
+            FORCE_WEIGHT = 0
 
-            # RUNNING THE JOBS
-            results = optimization(
-                OUTPUT_DIR,
-                INPUT_FILE,
-                R1,
-                order,
-                ncoils,
-                UUID_init_from,
-                LENGTH_TARGET,
-                LENGTH_WEIGHT,
-                CURVATURE_THRESHOLD,
-                CURVATURE_WEIGHT,
-                MSC_THRESHOLD,
-                MSC_WEIGHT,
-                CC_THRESHOLD,
-                CC_WEIGHT,
-                CS_THRESHOLD,
-                CS_WEIGHT,
-                FORCE_THRESHOLD,
-                FORCE_WEIGHT,
-                FORCE_OBJ,
-                ARCLENGTH_WEIGHT,
-                with_force=with_force,
-                MAXITER=MAXITER)
+        # RUNNING THE JOBS
+        results = optimization(
+            OUTPUT_DIR,
+            INPUT_FILE,
+            R1,
+            order,
+            ncoils,
+            UUID_init_from,
+            LENGTH_TARGET,
+            LENGTH_WEIGHT,
+            CURVATURE_THRESHOLD,
+            CURVATURE_WEIGHT,
+            MSC_THRESHOLD,
+            MSC_WEIGHT,
+            CC_THRESHOLD,
+            CC_WEIGHT,
+            CS_THRESHOLD,
+            CS_WEIGHT,
+            FORCE_THRESHOLD,
+            FORCE_WEIGHT,
+            FORCE_OBJ,
+            ARCLENGTH_WEIGHT,
+            with_force=with_force,
+            debug=debug,
+            MAXITER=MAXITER)
 
-            print(f"Job {i+1} completed with UUID={results['UUID']}")
-        except Exception as e:
-            print(f"Job {i+1} failed with error: {e}")
-            import traceback
-            traceback.print_exc()
-            # Continue with next job instead of failing completely
-            continue
+        print(f"Job {i+1} completed with UUID={results['UUID']}")
 
 
 def optimization(
@@ -823,8 +812,10 @@ def optimization(
             def __init__(self):
                 self.J = 0
                 self.dJ = 0
-            def __call__(self, x):
-                return self.J, self.dJ
+            def J(self, x):
+                return self.J, 
+            def dJ(self, x):
+                return self.dJ
         Jforce = dummyObjective()
 
     Jals = [ArclengthVariation(c) for c in base_curves]
@@ -1046,10 +1037,10 @@ Dependencies:
     - pandas
     - numpy
     - paretoset
-    - glob, json, shutil, os
+    - glob, json, os
 
 """
-def success_plt(df, df_filtered):
+def success_plt(df: pd.DataFrame, df_filtered: pd.DataFrame, OUTPUT_DIR: str = "./"):
     """
     Generate and save histograms comparing distributions of key metrics before and after filtering.
 
@@ -1059,17 +1050,14 @@ def success_plt(df, df_filtered):
         DataFrame containing all raw optimization results.
     df_filtered : pandas.DataFrame
         DataFrame containing filtered optimization results.
-
-    Returns
-    -------
-    fig : matplotlib.figure.Figure
-        The matplotlib figure object containing the histograms.
+    OUTPUT_DIR (default "./") : str
+        Directory to save the histogram.
     """
-    fig = plt.figure(1, figsize=(14.5, 11))
+    plt.figure(1, figsize=(14.5, 11))
     nrows = 5
     ncols = 5
 
-    def plot_2d_hist(field, log=False, subplot_index=0):
+    def plot_2d_hist(field: str, subplot_index: int = 0):
         """
         Plot a histogram for a given field, comparing before and after filtering.
 
@@ -1077,61 +1065,57 @@ def success_plt(df, df_filtered):
         ----------
         field : str
             The column name to plot.
-        log : bool, optional
-            Whether to use a logarithmic x-axis (default: False).
         subplot_index : int
             The subplot index in the figure.
         """
         plt.subplot(nrows, ncols, subplot_index)
         nbins = 20
-        if log:
-            data = df[field]
+        data = df[field]
+        if np.min(data) > 0:
             bins = np.logspace(np.log10(data.min()), np.log10(data.max()), nbins)
         else:
             bins = nbins
-        n, bins, patchs = plt.hist(df[field], bins=bins, label="before filtering")
+        _, bins, _ = plt.hist(df[field], bins=bins, label="before filtering")
         plt.hist(df_filtered[field], bins=bins, alpha=1, label="after filtering")
         plt.xlabel(field)
         plt.legend(loc=0, fontsize=6)
         plt.xlim(0, np.mean(df[field]) * 2)
-        if log:
+        if np.min(data) > 0:
             plt.xscale("log")
-        plt.savefig('hist.pdf')
 
     # 2nd entry of each tuple is True if the field should be plotted on a log x-scale.
-    fields = (
-        ("R1", False),
-        ("order", False),
-        ("max_max_force", False),
-        ("max_length", False),
-        ("max_max_κ", False),
-        ("max_MSC", False),
-        ("coil_coil_distance", False),
-        ("coil_surface_distance", False),
-        ("length_target", False),
-        ("force_threshold", False),
-        ("max_κ_threshold", False),
-        ("msc_threshold", False),
-        ("cc_threshold", False),
-        ("cs_threshold", False),
-        ("length_weight", True),
-        ("max_κ_weight", True),
-        ("msc_weight", True),
-        ("cc_weight", True),
-        ("cs_weight", True),
-        ("force_weight", True),
-        ('ncoils', False)
-    )
+    fields = [
+        "R1",
+        "order",
+        "max_max_force",
+        "max_length",
+        "max_max_κ",
+        "max_MSC",
+        "coil_coil_distance",
+        "coil_surface_distance",
+        "length_target",
+        "force_threshold",
+        "max_κ_threshold",
+        "msc_threshold",
+        "cc_threshold",
+        "cs_threshold",
+        "length_weight",
+        "max_κ_weight",
+        "msc_weight",
+        "cc_weight",
+        "cs_weight",
+        "force_weight",
+        "ncoils"
+    ]
 
-    i = 1
-    for field, log in fields:
-        plot_2d_hist(field, log, i)
-        i += 1
+    for i, field in enumerate(fields):
+        plot_2d_hist(field, i + 1)
 
     plt.tight_layout()
-    return fig
+    plt.savefig(f'{OUTPUT_DIR}hist.pdf')
+    print(f'Saved {OUTPUT_DIR}hist.pdf')
 
-def get_dfs(INPUT_DIR='./output/QA/B2Energy/', OUTPUT_DIR=None):
+def get_dfs(INPUT_DIR='./output/QA/B2Energy/', margin_up: float = 1.5, margin_low: float = 0.5):
     """
     Load, filter, and compute Pareto front for coil optimization results. Filtering is 
     done based on the following engineering constraints. Max denotes the maximum over all coils,
@@ -1156,8 +1140,10 @@ def get_dfs(INPUT_DIR='./output/QA/B2Energy/', OUTPUT_DIR=None):
     ----------
     INPUT_DIR : str, optional
         Directory containing optimization result folders with results.json files.
-    OUTPUT_DIR : str or None, optional
-        If provided, Pareto-optimal result folders will be copied to this directory.
+    margin_up (default 1.5) : float
+        The upper bound margin to consider for tolerable engineering constraints.
+    margin_low (default 0.5) : float
+        The lower bound margin to consider for tolerable engineering constraints.
 
     Returns
     -------
@@ -1168,7 +1154,6 @@ def get_dfs(INPUT_DIR='./output/QA/B2Energy/', OUTPUT_DIR=None):
     df_pareto : pandas.DataFrame
         DataFrame containing Pareto-optimal results (minimizing normalized_BdotN and max_max_force).
     """
-    import shutil
     from paretoset import paretoset
 
     ### STEP 1: Import raw data
@@ -1185,10 +1170,7 @@ def get_dfs(INPUT_DIR='./output/QA/B2Energy/', OUTPUT_DIR=None):
         dfs.append(pd.DataFrame(data))
     df = pd.concat(dfs, ignore_index=True)
 
-    ### STEP 2: Filter the data
-    margin_up = 1.5  # the upper bound margin to consider for tolerable engineering constraints
-    margin_low = 0.5  # the lower bound margin to consider for tolerable engineering constraints
-
+    ### STEP 2: Filter the data -- you may need to fiddle with the constraints here!
     df_filtered = df.query(
         # ENGINEERING CONSTRAINTS:
         f"max_length < {5 * margin_up}"
@@ -1196,31 +1178,19 @@ def get_dfs(INPUT_DIR='./output/QA/B2Energy/', OUTPUT_DIR=None):
         f"and max_MSC < {6.00 * margin_up}"
         f"and coil_coil_distance > {0.083 * margin_low}"
         f"and coil_surface_distance > {0.166 * margin_low}"
-        f"and mean_AbsB > 0.22"  # prevent coils from becoming detached from LCFS
+        f"and mean_AbsB > {0.22 * margin_low}"  # prevent coils from becoming detached from LCFS when margin_low ~ 1
         # FILTERING OUT BAD/UNNECESSARY DATA:
-        f"and max_arclength_variance < 1e-2"
-        f"and coil_surface_distance < 0.375"
-        f"and coil_coil_distance < 0.15"
-        f"and max_length > 3.0"
-        f"and normalized_BdotN < {4e-2}"
-        f"and max_max_force<50000"
+        f"and max_arclength_variance < 1e-2 * {margin_up}"
+        f"and coil_surface_distance < 0.375 * {margin_up}"
+        f"and coil_coil_distance < 0.15 * {margin_up}"
+        f"and max_length > 3.0 * {margin_low}"
+        f"and normalized_BdotN < {4e-2 * margin_up}"
+        f"and max_max_force<50000 * {margin_up}"
     )
-    print(df_filtered.keys(), df_filtered[["normalized_BdotN", "max_max_force"]])
-    print(paretoset(df_filtered[["normalized_BdotN", "max_max_force"]]))
 
     ### STEP 3: Generate Pareto front and export UUIDs as .txt
     pareto_mask = paretoset(df_filtered[["normalized_BdotN", "max_max_force"]], sense=[min, min])
     df_pareto = df_filtered[pareto_mask]
-
-    # Copy pareto fronts to a separate folder
-    if OUTPUT_DIR is not None:
-        if os.path.exists(OUTPUT_DIR):
-            shutil.rmtree(OUTPUT_DIR)
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        for UUID in df_pareto['UUID']:
-            SOURCE_DIR = glob.glob(f"/**/{UUID}/", recursive=True)[0]
-            DEST_DIR = f"{OUTPUT_DIR}{UUID}/"
-            shutil.copytree(SOURCE_DIR, DEST_DIR)
 
     ### Return statement
     return df, df_filtered, df_pareto

@@ -613,12 +613,13 @@ class PermanentMagnetGridTesting(unittest.TestCase):
             kwargs = initialize_default_kwargs(algorithm='GPMO')
             kwargs['K'] = 100
             kwargs['nhistory'] = 10
-            kwargs['verbose'] = False
+            kwargs['verbose'] = True
             R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
             m_history = np.transpose(m_history, [2, 0, 1])
             m_history = m_history.reshape(1, 11, m_history.shape[1], 3)
             make_optimization_plots(R2_history, m_history, m_history, pm_opt)
 
+            kwargs['verbose'] = False
             kwargs_geo = {"downsample": 100}
             pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bn, TEST_DIR / 'zot80.focus', **kwargs_geo)
             R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)

@@ -6,9 +6,9 @@ from monty.tempfile import ScratchDir
 
 from simsopt.util.coil_optimization_helper_functions import (
     initial_optimizations, initial_optimizations_QH, continuation,
-    read_focus_coils
+    read_focus_coils, get_dfs, success_plt
 )
-from simsopt.field import LpCurveForce
+from simsopt.field import LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque
 
 # Test directory setup
 TEST_DIR = Path(__file__).parent / "../test_files"
@@ -31,6 +31,14 @@ class TestInitialOptimizations(unittest.TestCase):
                 OUTPUT_DIR=output_dir,
                 INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
                 ncoils=3
+            )
+            initial_optimizations(
+                N=1,
+                MAXITER=5,
+                OUTPUT_DIR=output_dir,
+                INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+                ncoils=3,
+                debug=True
             )
             
             # Check that output directory was created
@@ -59,6 +67,69 @@ class TestInitialOptimizations(unittest.TestCase):
                 OUTPUT_DIR=output_dir,
                 INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
                 ncoils=3
+            )
+            continuation(
+                N=1,
+                dx=0.1,
+                INPUT_DIR=output_dir,
+                OUTPUT_DIR=output_dir + "_continuation/",
+                INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+                MAXITER=5,
+                FORCE_OBJ=LpCurveForce,
+            )
+
+            initial_optimizations(
+                N=1,
+                MAXITER=5,
+                FORCE_OBJ=LpCurveTorque,
+                OUTPUT_DIR=output_dir,
+                INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+                ncoils=3
+            )
+            continuation(
+                N=1,
+                dx=0.1,
+                INPUT_DIR=output_dir,
+                OUTPUT_DIR=output_dir + "_continuation/",
+                INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+                MAXITER=5,
+                FORCE_OBJ=LpCurveTorque,
+            )
+
+            initial_optimizations(
+                N=1,
+                MAXITER=5,
+                FORCE_OBJ=SquaredMeanForce,
+                OUTPUT_DIR=output_dir,
+                INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+                ncoils=3
+            )
+            continuation(
+                N=1,
+                dx=0.1,
+                INPUT_DIR=output_dir,
+                OUTPUT_DIR=output_dir + "_continuation/",
+                INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+                MAXITER=5,
+                FORCE_OBJ=SquaredMeanForce,
+            )
+
+            initial_optimizations(
+                N=1,
+                MAXITER=5,
+                FORCE_OBJ=SquaredMeanTorque,
+                OUTPUT_DIR=output_dir,
+                INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+                ncoils=3
+            )
+            continuation(
+                N=1,
+                dx=0.1,
+                INPUT_DIR=output_dir,
+                OUTPUT_DIR=output_dir + "_continuation/",
+                INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+                MAXITER=5,
+                FORCE_OBJ=SquaredMeanTorque,
             )
             
             # Check that output directory was created
@@ -89,6 +160,15 @@ class TestInitialOptimizationsQH(unittest.TestCase):
                 OUTPUT_DIR=output_dir,
                 INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres',
                 ncoils=3
+            )
+            initial_optimizations_QH(
+                N=1,
+                MAXITER=5,
+                FORCE_OBJ=LpCurveForce,
+                OUTPUT_DIR=output_dir,
+                INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres',
+                ncoils=3,
+                debug=True
             )
             
             # Check that output directory was created
@@ -201,22 +281,28 @@ class TestRealOptimizationRun(unittest.TestCase):
             shutil.copy(TEST_DIR / "input.LandremanPaul2021_QA_reactorScale_lowres", ".")
             
             initial_optimizations(
-                N=1,
-                MAXITER=5,
+                N=2,
+                MAXITER=50,
                 OUTPUT_DIR="qa_output/",
                 INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
-                ncoils=3
+                ncoils=4
             )
             
             # Run continuation
             continuation(
-                N=1,
-                dx=0.1,
+                N=2,
+                dx=0.01,
                 INPUT_DIR="qa_output/",
                 OUTPUT_DIR="qa_output_continuation/",
                 INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
                 MAXITER=5
             )
+
+            df, df_filtered, _ = get_dfs(INPUT_DIR="qa_output/", 
+                                         margin_up=1e5,
+                                         margin_low=1e-5)
+            print('Done filtering')
+            success_plt(df, df_filtered, OUTPUT_DIR="qa_output_continuation/")
             
             # Check that both output directories were created
             self.assertTrue(os.path.exists("qa_output/"))
@@ -225,8 +311,10 @@ class TestRealOptimizationRun(unittest.TestCase):
             # Check that results.json files were created in both directories
             qa_results = list(Path("qa_output/").glob("*/results.json"))
             continuation_results = list(Path("qa_output_continuation/").glob("*/results.json"))
+            continuation_hist = list(Path("qa_output_continuation/").glob("hist.pdf"))
             self.assertGreater(len(qa_results), 0)
             self.assertGreater(len(continuation_results), 0)
+            self.assertGreater(len(continuation_hist), 0)
             
             # Check that biot_savart.json files were created in both directories
             qa_biot_savart = list(Path("qa_output/").glob("*/biot_savart.json"))

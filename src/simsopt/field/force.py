@@ -809,9 +809,7 @@ class SquaredMeanForce(Optimizable):
             while retaining higher accuracy for the other objectives. 
     """
 
-    def __init__(self, coils_to_target, source_coils, downsample=1):
-        if not isinstance(downsample, int):
-            raise ValueError("downsample must be an integer")
+    def __init__(self, coils_to_target, source_coils, downsample: int = 1):
         if not isinstance(coils_to_target, list):
             coils_to_target = [coils_to_target]
         if not isinstance(source_coils, list):
@@ -1085,7 +1083,7 @@ class LpCurveForce(Optimizable):
             while retaining higher accuracy for the other objectives. 
     """
 
-    def __init__(self, coils_to_target, source_coils, p=2.0, threshold=0.0, downsample=1):
+    def __init__(self, coils_to_target, source_coils, p: float = 2.0, threshold: float = 0.0, downsample: int = 1):
         if not isinstance(coils_to_target, list):
             coils_to_target = [coils_to_target]
         if not isinstance(source_coils, list):
@@ -1368,7 +1366,7 @@ class LpCurveTorque(Optimizable):
             while retaining higher accuracy for the other objectives. 
     """
 
-    def __init__(self, coils_to_target, source_coils, p=2.0, threshold=0.0, downsample=1):
+    def __init__(self, coils_to_target, source_coils, p: float = 2.0, threshold: float = 0.0, downsample: int = 1):
         if not isinstance(coils_to_target, list):
             coils_to_target = [coils_to_target]
         if not isinstance(source_coils, list):
@@ -1640,7 +1638,7 @@ class SquaredMeanTorque(Optimizable):
         float: Value of the objective function.
     """
 
-    def __init__(self, coils_to_target, source_coils, downsample=1):
+    def __init__(self, coils_to_target, source_coils, downsample: int = 1):
         if not isinstance(coils_to_target, list):
             coils_to_target = [coils_to_target]
         if not isinstance(source_coils, list):
