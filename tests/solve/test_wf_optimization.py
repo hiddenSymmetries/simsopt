@@ -404,6 +404,127 @@ class WireframeOptimizationTests(unittest.TestCase):
 
         self.assertTrue(np.allclose(res8['x'], res9['x']))
 
+    def test_optimize_wireframe_errors_and_bnorm_target(self):
+        """
+        Tests error conditions in optimize_wireframe and the bnorm_target functionality
+        """
+        # Set up test objects
+        plas_fname = TEST_DIR / 'input.rotating_ellipse'
+        surf_plas = SurfaceRZFourier.from_vmec_input(plas_fname)
+        surf_wf = SurfaceRZFourier.from_vmec_input(plas_fname)
+        surf_wf.extend_via_normal(1.0)
+        wf = ToroidalWireframe(surf_wf, 4, 8)
+
+        # Test 1: wframe must be a ToroidalWireframe instance
+        with self.assertRaisesRegex(ValueError, 'Input `wframe` must be a ToroidalWireframe class instance'):
+            optimize_wireframe(None, 'rcls', {'reg_W': 1e-10}, surf_plas=surf_plas)
+
+        # Test 2: If surf_plas is given, Amat and bvec must not be supplied
+        with self.assertRaisesRegex(ValueError, 'Inputs `Amat` and `bvec` must not be supplied if `surf_plas` is given'):
+            optimize_wireframe(wf, 'rcls', {'reg_W': 1e-10},
+                               surf_plas=surf_plas,
+                               Amat=np.eye(10),
+                               bvec=np.ones(10))
+
+        # Test 3: If Amat and bvec provided without surf_plas, other parameters must not be provided
+        dummy_matrix = np.random.rand(10, wf.n_segments)
+        dummy_vector = np.random.rand(10, 1)
+        with self.assertRaisesRegex(ValueError, 'If `Amat` and `bvec` are provided, the following parameters must not be provided'):
+            optimize_wireframe(wf, 'rcls', {'reg_W': 1e-10},
+                               Amat=dummy_matrix,
+                               bvec=dummy_vector,
+                               ext_field=True)  # Using ext_field to trigger this error
+
+        # Test 4: Either surf_plas or both Amat and bvec must be supplied
+        with self.assertRaisesRegex(ValueError, '`surf_plas` or `Amat` and `bvec` must be supplied'):
+            optimize_wireframe(wf, 'rcls', {'reg_W': 1e-10})
+
+        # Test 5: Amat dimensions must be consistent
+        wrong_matrix = np.random.rand(5, 5)  # Wrong dimensions
+        with self.assertRaisesRegex(ValueError, 'Input `Amat` has inconsistent dimensions'):
+            optimize_wireframe(wf, 'rcls', {'reg_W': 1e-10},
+                               Amat=wrong_matrix,
+                               bvec=np.ones((5, 1)))
+
+        # Test 6: bnorm_target must have correct dimensions
+        n_quadrature_points = surf_plas.gamma().shape[0]
+        wrong_bnorm_target = np.ones(n_quadrature_points + 1) * 0.1
+        with self.assertRaisesRegex(ValueError, 'Input `bnorm_target` must have the same'):
+            optimize_wireframe(wf, 'rcls', {'reg_W': 1e-10},
+                               surf_plas=surf_plas,
+                               bnorm_target=wrong_bnorm_target,
+                               verbose=False)
+
+        # Test bnorm_target functionality
+
+        # Poloidal current constraint
+        cur_pol = 1e6
+        wf.set_poloidal_current(cur_pol)
+
+        # Create a non-zero target normal field that would arise from a
+        # uniform vertical external field with strength 0.1 T
+        n = surf_plas.normal()
+        absn = np.linalg.norm(n, axis=2)[:, :, None]
+        unitn = n * (1./absn)
+        bnorm_target = 0.1 * unitn[:, :, 2]
+
+        # Run optimization with bnorm_target
+        reg_W = 0.0
+        opt_params = {'reg_W': reg_W}
+        # Define Amperian loops for checking current constraints
+        n_pts_amploop = 200  # number of quadrature points in the loop
+        amploop_pol = CurveXYZFourier(n_pts_amploop, 1)
+        amploop_pol.set('xc(1)', surf_wf.get_rc(0, 0))
+        amploop_pol.set('ys(1)', surf_wf.get_rc(0, 0))
+        amploop_tor = CurveXYZFourier(n_pts_amploop, 1)
+        amploop_tor.set('xc(0)', surf_wf.get_rc(0, 0))
+        amploop_tor.set('xc(1)', 2*surf_wf.get_rc(1, 0))
+        amploop_tor.set('zs(1)', 2*surf_wf.get_zs(1, 0))
+        res_baseline = optimize_wireframe(wf, 'rcls', opt_params,
+                                          surf_plas=surf_plas,
+                                          area_weighted=False, verbose=False)
+        self.assertTrue(wf.check_constraints())
+        self.assertTrue(np.isclose(cur_pol,
+                                   -enclosed_current(amploop_pol, res_baseline['wframe_field'], n_pts_amploop)))
+
+        # Now run with a nonzero target field
+        res_with_target = optimize_wireframe(wf, 'rcls', opt_params,
+                                             surf_plas=surf_plas,
+                                             bnorm_target=bnorm_target,
+                                             area_weighted=False, verbose=False)
+
+        self.assertTrue(wf.check_constraints())
+        self.assertTrue(np.isclose(cur_pol,
+                                   -enclosed_current(amploop_pol, res_with_target['wframe_field'], n_pts_amploop)))
+
+        # The bvec should differ between the two runs
+        self.assertFalse(np.allclose(res_baseline['bvec'], res_with_target['bvec']),
+                         "Target field should change the optimization target vector")
+
+        bvec_diff = res_with_target['bvec'] - res_baseline['bvec']
+        assert np.allclose(bvec_diff, bnorm_target.reshape((-1, 1)))
+
+        # Run with a different target field
+        bnorm_target2 = 3 * bnorm_target
+        res_with_target2 = optimize_wireframe(wf, 'rcls', opt_params,
+                                              surf_plas=surf_plas,
+                                              bnorm_target=bnorm_target2,
+                                              area_weighted=False, verbose=False)
+        self.assertTrue(wf.check_constraints())
+        self.assertTrue(np.isclose(cur_pol,
+                                   -enclosed_current(amploop_pol, res_with_target2['wframe_field'], n_pts_amploop)))
+
+        print('x', res_with_target['x'] - res_with_target2['x'])
+        print('bvec', res_with_target['bvec'] - res_with_target2['bvec'])
+        print('Amat @ x - bvec', res_with_target['Amat'] @ res_with_target['x'] - res_with_target['bvec'],
+              res_with_target2['Amat'] @ res_with_target2['x'] - res_with_target2['bvec'])
+        self.assertFalse(np.allclose(res_with_target['x'], res_with_target2['x']),
+                         "Different target fields should produce different solutions")
+
+        # The difference in bvec should match the difference in target values
+        bvec_diff2 = res_with_target2['bvec'] - res_with_target['bvec']
+        assert np.allclose(bvec_diff2, 2*bnorm_target.reshape((-1, 1)))
+
 
 if __name__ == "__main__":
     unittest.main()
