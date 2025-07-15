@@ -24,9 +24,8 @@ import numpy as np
 from simsopt.field import BiotSavart, DipoleField, Coil
 from simsopt.geo import SurfaceRZFourier, PermanentMagnetGrid
 from simsopt.solve import GPMO
-from simsopt.util.permanent_magnet_helper_functions \
-    import initialize_default_kwargs, make_Bnormal_plots
-from simsopt.util import FocusPlasmaBnormal, FocusData, read_focus_coils, in_github_actions
+from simsopt.util import FocusPlasmaBnormal, FocusData, read_focus_coils, \
+    initialize_default_kwargs, make_Bnormal_plots, in_github_actions
 from simsopt.util.polarization_project import (polarization_axes, orientation_phi,
                                                discretize_polarizations)
 
