@@ -110,7 +110,7 @@ class WireframeField(sopp.WireframeField, MagneticField):
 
 def coils_from_wireframe(wf, max_order=20, min_order=2, ppp=20):
     """
-    Generates `~simsopt.field.Coil` class instances using the 
+    Generates :obj:`~simsopt.field.Coil` class instances using the 
     :obj:`~simsopt.geo.CurveXYZFourier` class to represent the geometry of 
     coils identified within the wireframe. 
     The :obj:`~simsopt.geo.CurveXYZFourier` space curves are fit to the 

@@ -642,6 +642,23 @@ class ToroidalWireframeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             enclosed_current(curve, not_a_field, 10)
 
+    def test_add_helical_coil_currents(self):
+        """
+        Tests the method that adds helical coil current paths
+        """
+
+        test_cur_1 = 1e6
+        nfp, rmaj, rmin = 3, 2, 1
+        surf_wf = surf_torus(nfp, rmaj, rmin)
+        n_phi, n_theta = 18, 18 
+        wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
+
+        wf.add_helical_coil_currents('both', 1, [test_cur_1, -2*test_cur_1])
+        self.assertTrue(wf.check_constraints())
+
+        #TODO test erroneous inputs
+      
+
     def test_coil_finder(self):
         """
         Test the coil finding tool
