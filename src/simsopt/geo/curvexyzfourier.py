@@ -5,6 +5,7 @@ import jax.numpy as jnp
 from scipy.fft import rfft
 
 from .curve import Curve, JaxCurve
+from .coilio import get_data_from_makegrid, get_data_from_xyzfile
 import simsoptpp as sopp
 
 
@@ -109,7 +110,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
                 dofs[2][2*io+2] = coil_data[io+1, 6*ic + 5]
             coils[ic].local_x = np.concatenate(dofs)
         return coils
-
+    
     @staticmethod
     def load_curves_from_makegrid_file(filename: str, order: int, ppp=20, group_names=None):
         """
@@ -127,79 +128,81 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         Returns:
             A list of ``CurveXYZFourier`` objects.
         """
+        curve_data = get_data_from_makegrid(filename, group_names=group_names)  # read file
+        if len(curve_data) == 0:
+            raise ValueError(f"No curves found in file {filename}. Check the file format and group names.")
+        
+        num_coils = len(curve_data)
 
-        with open(filename, 'r') as f:
-            file_lines = f.read().splitlines()[3:]
+        coils = [CurveXYZFourier(order*ppp, order) for i in range(num_coils)]  # create empty coils
+        for curve_datum, coil in zip(curve_data, coils):
+            coil.x = CurveXYZFourier.fft_coil_positions(curve_datum, order, ppp)  # ft the data from file. 
 
-        curve_data = []
-        single_curve_data = []
-        for j_line in range(len(file_lines)):
-            vals = file_lines[j_line].split()
-            n_vals = len(vals)
-            if n_vals == 4:
-                float_vals = [float(val) for val in vals[:3]]
-                single_curve_data.append(float_vals)
-            elif n_vals == 6:
-                # This must be the last line of the coil
-                if group_names is None:
-                    curve_data.append(single_curve_data)
-                else:
-                    this_group_name = vals[5]
-                    if this_group_name in group_names:
-                        curve_data.append(single_curve_data)
-                single_curve_data = []
-            elif n_vals == 1:
-                # Presumably the line that is just "end"
-                break
-            else:
-                raise RuntimeError("Should not get here")
-
-        coil_data = []
-
-        # Compute the Fourier coefficients for each coil
-        for curve in curve_data:
-            xArr, yArr, zArr = np.transpose(curve)
-
-            curves_Fourier = []
-
-            # Compute the Fourier coefficients
-            for x in [xArr, yArr, zArr]:
-                assert len(x) >= 2*order  # the order of the fft is limited by the number of samples
-                xf = rfft(x) / len(x)
-
-                fft_0 = [xf[0].real]  # find the 0 order coefficient
-                fft_cos = 2 * xf[1:order + 1].real  # find the cosine coefficients
-                fft_sin = -2 * xf[:order + 1].imag  # find the sine coefficients
-
-                combined_fft = np.concatenate([fft_sin, fft_0, fft_cos])
-                curves_Fourier.append(combined_fft)
-
-            coil_data.append(np.concatenate(curves_Fourier))
-
-        coil_data = np.asarray(coil_data)
-        coil_data = coil_data.reshape(6 * len(curve_data), order + 1)  # There are 6 * order coefficients per coil
-        coil_data = np.transpose(coil_data)
-
-        assert coil_data.shape[1] % 6 == 0
-        assert order <= coil_data.shape[0]-1
-
-        num_coils = coil_data.shape[1] // 6
-        coils = [CurveXYZFourier(order*ppp, order) for i in range(num_coils)]
-        for ic in range(num_coils):
-            dofs = coils[ic].dofs_matrix
-            dofs[0][0] = coil_data[0, 6*ic + 1]
-            dofs[1][0] = coil_data[0, 6*ic + 3]
-            dofs[2][0] = coil_data[0, 6*ic + 5]
-            for io in range(0, min(order, coil_data.shape[0] - 1)):
-                dofs[0][2*io+1] = coil_data[io+1, 6*ic + 0]
-                dofs[0][2*io+2] = coil_data[io+1, 6*ic + 1]
-                dofs[1][2*io+1] = coil_data[io+1, 6*ic + 2]
-                dofs[1][2*io+2] = coil_data[io+1, 6*ic + 3]
-                dofs[2][2*io+1] = coil_data[io+1, 6*ic + 4]
-                dofs[2][2*io+2] = coil_data[io+1, 6*ic + 5]
-            coils[ic].local_x = np.concatenate(dofs)
         return coils
+    
+    @staticmethod
+    def load_curves_from_xyz_file(filename: str, order: int, ppp=20, group_names = None):
+        """
+        This function loads a Makegrid input file containing the Cartesian
+        coordinates for several coils and finds the corresponding Fourier
+        coefficients through an fft. The format is described at
+        https://princetonuniversity.github.io/STELLOPT/MAKEGRID
 
+        Args:
+            filename: file to load.
+            order: maximum mode number in the Fourier series. 
+            ppp: points-per-period: number of quadrature points per period.
+            group_names: List of coil group names (str). If not 'None', only get coils in coil groups that are in the list.
+
+        Returns:
+            A list of ``CurveXYZFourier`` objects.
+        """
+        curve_datum = get_data_from_xyzfile(filename)  # read file
+        if len(curve_datum) == 0:
+            raise ValueError(f"No curves found in file {filename}. Check the file format and group names.")
+
+        coil = CurveXYZFourier(order*ppp, order)  # create empty coil
+        coil.x = CurveXYZFourier.fft_coil_positions(curve_datum, order, ppp)  # ft the data from file. 
+
+        return [coil,]
+
+    
+    @staticmethod
+    def fft_coil_positions(coil_positions, order, ppp=20):
+        """
+        This function computes the Fourier coefficients for a set of coil positions.
+        
+        Args:
+            coil_positions: An Nx3-array containing coordinates along each coil.
+            order: The maximum mode number in the Fourier series.
+        
+        Returns:
+            an array of Fourier coefficents in the order of the degrees-of-freedom
+            of the CurveXYZFourier class (x_c0, x_s1, x_c1, ..., y_c0, y_s1, y_c1, ..., z_c0, z_s1, z_c1, ...).
+            
+        """
+        assert len(coil_positions) >= 2 * order, "Not enough points to compute Fourier coefficients."
+        
+        xArr, yArr, zArr = np.transpose(coil_positions)
+
+        fourier_lists = []
+        for x in [xArr, yArr, zArr]:
+            assert len(x) >= 2 * order  # the order of the f:ft is limited by the number of samples
+            ft = 2* rfft(x) / len(x)
+            coeffs = np.empty((2*order+1,))  # empty array to hold the coefficients
+            coeffs[0::2] = ft[:order+1].real  # cosine coefficients are the real parts even indices
+            coeffs[1::2] = - ft[1:order+1].imag  # rest is sine coefficient, they are negative imaginary, skip the first one
+            coeffs[0] /= 2   # divide the 0th coefficient by 2, as it is only half the amplitude in the rfft
+            fourier_lists.append(coeffs)
+        
+        # fourier_lists now contains the fourier coefficients for the x, y, and z coordinates
+        # in the order of the degrees-of-freedom of the CurveXYZFourier class
+        fourier_coeffs = np.concatenate(fourier_lists)
+        assert len(fourier_coeffs) == 3 * (2 * order + 1), \
+            f"Expected {3 * (2 * order + 1)} coefficients, got {len(fourier_coeffs)}."
+        return fourier_coeffs
+
+        
 
 def jaxfouriercurve_pure(dofs, quadpoints, order):
     """
