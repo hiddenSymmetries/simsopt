@@ -30,7 +30,7 @@ else:
     newpyoculus = False
 
 
-__all__ = ['PyOculusFixedPoint', 'ClinicConnection', 'SimpleFixedPoint_RZ', 'SimpleIntegrator']
+__all__ = ['PyOculusFixedPoint', 'ClinicConnection', 'SimpleFixedPoint_RZ', 'SimpleIntegrator', 'SimpleMapJac']
 
 def _rphiz_to_xyz(array: NDArray[np.float64]) -> NDArray[np.float64]:
     """
@@ -137,9 +137,9 @@ class PyOculusFixedPoint(Optimizable):
                    integration_args: dict = dict()
                    ):
         """
-        Create a PyOculusFixedPoint object from a MagneticField
+        Create the map first, using a simsopt MagneticField object, then instantiate the PyOculusFixedPoint object.
         """
-        if 'tol' not in integration_args:
+        if 'rtol' not in integration_args:
             integration_args['rtol'] = integration_tol
         oculus_field_representation = SimsoptBfield(nfp, field)  # pyoculus' interfacing class
         if axis is True or isinstance(axis, Iterable):
@@ -387,7 +387,36 @@ class ClinicConnection(Optimizable):
         if self._need_to_reset:
             self.reset()
         return np.abs(self._manifold.turnstile_areas).sum()
+    
+    def first_area(self):
+        if self._need_to_reset:
+            self.reset()
+        return np.abs(self._manifold.turnstile_areas[0])
+    
+    def second_area(self):
+        if self._need_to_reset:
+            self.reset()
+        return np.abs(self._manifold.turnstile_areas[1])
+    
+    def third_area(self):
+        if self._need_to_reset:
+            self.reset()
+        return np.abs(self._manifold.turnstile_areas[2])
+    
+    def fourth_area(self):
+        if self._need_to_reset:
+            self.reset()
+        return np.abs(self._manifold.turnstile_areas[3])
 
+    def fifth_area(self):
+        if self._need_to_reset:
+            self.reset()
+        return np.abs(self._manifold.turnstile_areas[4])
+    
+    def sixth_area(self):
+        if self._need_to_reset:
+            self.reset()
+        return np.abs(self._manifold.turnstile_areas[5])
 
 class SimpleIntegrator(Optimizable):
     """
@@ -563,6 +592,62 @@ class SimpleFixedPoint_RZ(SimpleIntegrator, Optimizable):
         return dist_mapped
 
     # def dJ(self): can be made with integration of the derivatives
+
+
+
+class SimpleMapJac(SimpleIntegrator, Optimizable):
+    """
+    The SimpleMapJac class is a simple method of calculating the jacobian of the field line map using finite differencing. 
+    The J() returns the trace of the jacobian, for residue-like optimisations (though if the point is not a fixed point, you might get strange results)
+
+    ```
+
+    """
+    def __init__(self, field: "MagneticField", RZ: NDArray[np.float64], field_nfp: int, integration_nfp: int, FD_stepsize=1e-7, phi0: float = 0., tol=1e-9, max_step=1e5):
+        """
+        Initialize a SimpleFixedPoint
+        Args:
+            field: MagneticField object
+            RZ: the R and Z-coordinate where the Jacobian of the field line map needs to be evaluated
+            nfp: Number of field periods in the magnetic field
+            integration_nfp: number of field periods to integrate. 
+            phi0: Toroidal angle where integration is started. 
+            FD_stepsize: size of the FD step to take. 
+            tol: integartion Tolerance.
+            max_step= maximum number of steps. 
+        """
+        self.field = field
+        self.RZ = RZ
+        self.field_nfp = field_nfp
+        self.integration_nfp = integration_nfp
+        self.phi0 = phi0
+        self.TOL = tol
+        self.FD_stepsize = FD_stepsize
+        self.integrator = SimpleIntegrator(field, self.TOL)
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[field])
+
+    def mapjac(self):
+        """
+        Calculate the distance from the target fixed point
+        """
+        phi_end = self.phi0 + 2*np.pi*self.integration_nfp/self.field_nfp
+        startpoints_posdiff = self.RZ + np.eye(2) * self.FD_stepsize
+        startpoints_negdiff = self.RZ - np.eye(2) * self.FD_stepsize
+        try:
+            centermap = self.integrator.integrate_in_phi(self.RZ, self.phi0, phi_end)
+            posdiffmaps = np.array([self.integrator.integrate_in_phi(diffstart, self.phi0, phi_end) - centermap for diffstart in startpoints_posdiff])
+            negdiffmaps = np.array([self.integrator.integrate_in_phi(diffstart, self.phi0, phi_end) - centermap for diffstart in startpoints_negdiff])
+            jac = ((posdiffmaps - negdiffmaps)/(2*self.FD_stepsize)).T
+        except Exception as e:
+            raise ObjectiveFailure("Failed to integrate field line") from e
+        return jac
+
+    def J(self):
+        """
+        return the trace of the calculated jacobian
+        """
+        return np.trace(self.mapjac())
+
 
 
 
