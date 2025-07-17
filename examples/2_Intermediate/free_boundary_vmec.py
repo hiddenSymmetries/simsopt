@@ -45,7 +45,7 @@ input_file = str(TEST_DIR / "input.W7-X_standard_configuration")
 mpi = MpiPartition(1)
 vmec = Vmec(input_file, mpi=mpi)
 
-# That input file was for fixed-boundary. We need to change some of 
+# That input file was for fixed-boundary. We need to change some of
 # the vmec input parameters for a free-boundary calculation:
 vmec.indata.lfreeb = True
 vmec.indata.mgrid_file = mgrid_file

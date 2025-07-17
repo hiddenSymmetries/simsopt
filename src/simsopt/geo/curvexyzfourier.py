@@ -1,4 +1,3 @@
-from math import pi
 from itertools import chain
 
 import numpy as np
@@ -45,6 +44,14 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
                            external_dof_setter=CurveXYZFourier.set_dofs_impl)
 
     def _make_names(self, order):
+        """
+        This function returns the names of the dofs associated to this object.
+        Args:
+            order (int): Order of the Fourier series.
+
+        Returns:
+            List of dof names.
+        """
         x_names = ['xc(0)']
         x_cos_names = [f'xc({i})' for i in range(1, order + 1)]
         x_sin_names = [f'xs({i})' for i in range(1, order + 1)]
@@ -57,7 +64,6 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         z_cos_names = [f'zc({i})' for i in range(1, order + 1)]
         z_sin_names = [f'zs({i})' for i in range(1, order + 1)]
         z_names += list(chain.from_iterable(zip(z_sin_names, z_cos_names)))
-
         return x_names + y_names + z_names
 
     def get_dofs(self):
@@ -106,7 +112,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         return coils
     
     @staticmethod
-    def load_curves_from_makegrid_file(filename: str, order: int, ppp=20, group_names = None):
+    def load_curves_from_makegrid_file(filename: str, order: int, ppp=20, group_names=None):
         """
         This function loads a Makegrid input file containing the Cartesian
         coordinates for several coils and finds the corresponding Fourier
@@ -199,39 +205,62 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         
 
 def jaxfouriercurve_pure(dofs, quadpoints, order):
-    k = len(dofs)//3
+    """
+    This pure function returns the curve position vector in XYZ coordinates..
+
+    Args:
+        dofs (array, shape (ndofs,)): Array of dofs.
+        quadpoints (array, shape (N, 3)): Array of quadrature points.
+        order (int): Order of the Fourier series.
+
+    Returns:
+        Array of curve points, shape (N, 3)
+    """
+    k = jnp.shape(dofs)[0]//3
     coeffs = [dofs[:k], dofs[k:(2*k)], dofs[(2*k):]]
-    points = quadpoints
-    gamma = jnp.zeros((len(points), 3))
-    for i in range(3):
-        gamma = gamma.at[:, i].add(coeffs[i][0])
-        for j in range(1, order+1):
-            gamma = gamma.at[:, i].add(coeffs[i][2 * j - 1] * jnp.sin(2 * pi * j * points))
-            gamma = gamma.at[:, i].add(coeffs[i][2 * j] * jnp.cos(2 * pi * j * points))
-    return gamma
+    points = 2 * np.pi * quadpoints
+    jrange = jnp.arange(1, order + 1)
+    jp = jrange[:, None] * points[None, :]
+    sjp = jnp.sin(jp)
+    cjp = jnp.cos(jp)
+    gamma_x = coeffs[0][0] + jnp.sum(coeffs[0][2 * jrange - 1, None] * sjp
+                                     + coeffs[0][2 * jrange, None] * cjp, axis=0)
+    gamma_y = coeffs[1][0] + jnp.sum(coeffs[1][2 * jrange - 1, None] * sjp
+                                     + coeffs[1][2 * jrange, None] * cjp, axis=0)
+    gamma_z = coeffs[2][0] + jnp.sum(coeffs[2][2 * jrange - 1, None] * sjp
+                                     + coeffs[2][2 * jrange, None] * cjp, axis=0)
+    return jnp.stack((gamma_x, gamma_y, gamma_z), axis=-1)
 
 
 class JaxCurveXYZFourier(JaxCurve):
 
     """
-    A Python+Jax implementation of the CurveXYZFourier class.  There is
-    actually no reason why one should use this over the C++ implementation in
-    :mod:`simsoptpp`, but the point of this class is to illustrate how jax can be used
+    A Python+Jax implementation of the CurveXYZFourier class. This is an autodiff
+    compatible version of the same CurveXYZFourier class in the C++ implementation in
+    :mod:`simsoptpp`. The point of this class is to illustrate how jax can be used
     to define a geometric object class and calculate all the derivatives (both
     with respect to dofs and with respect to the angle :math:`\theta`) automatically.
+
+    Args:
+        quadpoints (array): Array of quadrature points.
+        order (int): Order of the Fourier series.
+        dofs (array): Array of dofs.
     """
 
     def __init__(self, quadpoints, order, dofs=None):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
-        pure = lambda dofs, points: jaxfouriercurve_pure(dofs, points, order)
+
+        def pure(dofs, points): return jaxfouriercurve_pure(dofs, points, order)
         self.order = order
         self.coefficients = [np.zeros((2*order+1,)), np.zeros((2*order+1,)), np.zeros((2*order+1,))]
         if dofs is None:
             super().__init__(quadpoints, pure, x0=np.concatenate(self.coefficients),
+                             names=self._make_names(order),
                              external_dof_setter=JaxCurveXYZFourier.set_dofs_impl)
         else:
             super().__init__(quadpoints, pure, dofs=dofs,
+                             names=self._make_names(order),
                              external_dof_setter=JaxCurveXYZFourier.set_dofs_impl)
 
     def num_dofs(self):
@@ -259,3 +288,27 @@ class JaxCurveXYZFourier(JaxCurve):
                 counter += 1
                 self.coefficients[i][2*j] = dofs[counter]
                 counter += 1
+
+    def _make_names(self, order):
+        """
+        This function returns the names of the dofs associated to this object.
+
+        Args:
+            order (int): Order of the Fourier series.
+
+        Returns:
+            List of dof names.
+        """
+        x_names = ['xc(0)']
+        x_cos_names = [f'xc({i})' for i in range(1, order + 1)]
+        x_sin_names = [f'xs({i})' for i in range(1, order + 1)]
+        x_names += list(chain.from_iterable(zip(x_sin_names, x_cos_names)))
+        y_names = ['yc(0)']
+        y_cos_names = [f'yc({i})' for i in range(1, order + 1)]
+        y_sin_names = [f'ys({i})' for i in range(1, order + 1)]
+        y_names += list(chain.from_iterable(zip(y_sin_names, y_cos_names)))
+        z_names = ['zc(0)']
+        z_cos_names = [f'zc({i})' for i in range(1, order + 1)]
+        z_sin_names = [f'zs({i})' for i in range(1, order + 1)]
+        z_names += list(chain.from_iterable(zip(z_sin_names, z_cos_names)))
+        return x_names + y_names + z_names

@@ -90,17 +90,17 @@ class UtilityObjectiveTesting(unittest.TestCase):
         """
         This test checks that the `x` attribute of the surfaces is correctly communicated across the ranks.
         """
-        
+
         comm = MPI.COMM_WORLD
         for size in [1, 2, 3, 4, 5]:
             surfaces = [SurfaceXYZTensorFourier(mpol=1, ntor=1, stellsym=True) for i in range(size)]
-       
+
             equal_to = []
             for i in range(size):
                 x = np.zeros(surfaces[i].x.size)
                 x[:] = i
                 equal_to.append(x)
-            
+
             startidx, endidx = parallel_loop_bounds(comm, len(surfaces))
             for idx in range(startidx, endidx):
                 surfaces[idx].x = equal_to[idx]
@@ -108,7 +108,7 @@ class UtilityObjectiveTesting(unittest.TestCase):
             mpi_surfaces = MPIOptimizable(surfaces, ["x"], comm)
             for s, sx in zip(mpi_surfaces, equal_to):
                 np.testing.assert_allclose(s.x, sx, atol=1e-14)
-            
+
             # this should raise an exception
             mpi_surfaces = [SurfaceXYZTensorFourier(mpol=1, ntor=1, stellsym=True) for i in range(size)]
             with self.assertRaises(Exception):

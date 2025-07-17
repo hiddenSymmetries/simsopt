@@ -16,6 +16,7 @@ __all__ = ['PortSet', 'Port', 'CircularPort', 'RectangularPort']
 
 contig = np.ascontiguousarray
 
+
 class PortSet(object):
     """
     Handles sets of port-like objects.
@@ -51,7 +52,7 @@ class PortSet(object):
                 file = [file]
 
             if port_type is None:
-                raise ValueError('port_type must be specified if loading ' \
+                raise ValueError('port_type must be specified if loading '
                                  + 'from file')
             elif isinstance(port_type, str):
                 port_type = [port_type]
@@ -59,7 +60,7 @@ class PortSet(object):
                 port_type = [port_type]
 
             if len(file) > 1 and len(port_type) != len(file):
-                raise ValueError('port_type must have one element for every ' \
+                raise ValueError('port_type must have one element for every '
                                  'element of file')
 
             for i in range(len(file)):
@@ -67,11 +68,10 @@ class PortSet(object):
                 if port_type[i] == 'circular' or port_type[i] == CircularPort:
                     self.load_circular_ports_from_file(file[i])
                 elif port_type[i] == 'rectangular' or \
-                     port_type[i] == RectangularPort:
+                        port_type[i] == RectangularPort:
                     self.load_rectangular_ports_from_file(file[i])
                 else:
                     raise ValueError('Input port_type is not supported')
-                
 
     def add_ports(self, ports):
         """
@@ -88,8 +88,8 @@ class PortSet(object):
         for port in ports:
             if not (isinstance(port, CircularPort) or
                     isinstance(port, RectangularPort)):
-               raise ValueError('Element %d of `ports` is not a supported '
-                                + 'port class')
+                raise ValueError('Element %d of `ports` is not a supported '
+                                 + 'port class')
 
         for port in ports:
             self.ports.append(port)
@@ -109,9 +109,8 @@ class PortSet(object):
             return p_out
 
         else:
-            raise ValueError('Addition with PortSet class instances is only ' \
+            raise ValueError('Addition with PortSet class instances is only '
                              'supported for Port and PortSet class instances.')
-
 
     def __getitem__(self, key):
         """
@@ -120,7 +119,6 @@ class PortSet(object):
         """
 
         return self.ports[key]
-
 
     def load_circular_ports_from_file(self, file):
         """
@@ -141,18 +139,18 @@ class PortSet(object):
         portdata = np.loadtxt(file, delimiter=',', skiprows=1)
 
         if portdata.shape[1] != 10:
-            raise ValueError('Circular ports input file must have 10 columns ' \
-                             + 'with the following data:\n' \
+            raise ValueError('Circular ports input file must have 10 columns '
+                             + 'with the following data:\n'
                              + 'ox, oy, oz, ax, ay, az, ir, thick, l0, l1')
-        
+
         for i in range(portdata.shape[0]):
 
-            self.ports.append( \
-                CircularPort(ox = portdata[i,0], oy = portdata[i,1], \
-                             oz = portdata[i,2], ax = portdata[i,3], \
-                             ay = portdata[i,4], az = portdata[i,5], \
-                             ir = portdata[i,6], thick = portdata[i,7], \
-                             l0 = portdata[i,8], l1 = portdata[i,9]))
+            self.ports.append(
+                CircularPort(ox=portdata[i, 0], oy=portdata[i, 1],
+                             oz=portdata[i, 2], ax=portdata[i, 3],
+                             ay=portdata[i, 4], az=portdata[i, 5],
+                             ir=portdata[i, 6], thick=portdata[i, 7],
+                             l0=portdata[i, 8], l1=portdata[i, 9]))
 
             self.n_ports = self.n_ports + 1
 
@@ -175,21 +173,21 @@ class PortSet(object):
         portdata = np.loadtxt(file, delimiter=',', skiprows=1)
 
         if portdata.shape[1] != 14:
-            raise ValueError('Rectangular ports input file must have 17 ' \
-                             + 'columns with the following data:\n' \
-                             + 'ox, oy, oz, ax, ay, az, wx, wy, wz, ' \
+            raise ValueError('Rectangular ports input file must have 17 '
+                             + 'columns with the following data:\n'
+                             + 'ox, oy, oz, ax, ay, az, wx, wy, wz, '
                              + 'iw, ih, thick, l0, l1')
-        
+
         for i in range(portdata.shape[0]):
 
-            self.ports.append( \
-                RectangularPort(ox = portdata[i, 0], oy = portdata[i, 1], \
-                                oz = portdata[i, 2], ax = portdata[i, 3], \
-                                ay = portdata[i, 4], az = portdata[i, 5], \
-                                wx = portdata[i, 6], wy = portdata[i, 7], \
-                                wz = portdata[i, 8], iw = portdata[i, 9], \
-                                ih = portdata[i,10], thick = portdata[i,11], \
-                                l0 = portdata[i,12], l1 = portdata[i,13]))
+            self.ports.append(
+                RectangularPort(ox=portdata[i, 0], oy=portdata[i, 1],
+                                oz=portdata[i, 2], ax=portdata[i, 3],
+                                ay=portdata[i, 4], az=portdata[i, 5],
+                                wx=portdata[i, 6], wy=portdata[i, 7],
+                                wz=portdata[i, 8], iw=portdata[i, 9],
+                                ih=portdata[i, 10], thick=portdata[i, 11],
+                                l0=portdata[i, 12], l1=portdata[i, 13]))
 
             self.n_ports = self.n_ports + 1
 
@@ -212,8 +210,8 @@ class PortSet(object):
 
         # Save the circular ports if any exist
         if len(circ_ports) > 0:
-            lines = [('%.16e,'*9 + '%.16e') % (p.ox, p.oy, p.oz, p.ax, p.ay, 
-                         p.az, p.ir, p.thick, p.l0, p.l1) for p in circ_ports]
+            lines = [('%.16e,'*9 + '%.16e') % (p.ox, p.oy, p.oz, p.ax, p.ay,
+                                               p.az, p.ir, p.thick, p.l0, p.l1) for p in circ_ports]
             all_lines = '\n'.join(lines)
             print('Saving circular ports to ' + fname + '_circ.csv')
             with open(fname + '_circ.csv', 'w') as f:
@@ -222,9 +220,9 @@ class PortSet(object):
 
         # Save the rectangular ports if any exist
         if len(rect_ports) > 0:
-            lines = [('%.16e,'*13 + '%.16e') % (p.ox, p.oy, p.oz, p.ax, p.ay, 
-                         p.az, p.wx, p.wy, p.wz, p.iw, p.ih, p.thick, 
-                         p.l0, p.l1) for p in rect_ports]
+            lines = [('%.16e,'*13 + '%.16e') % (p.ox, p.oy, p.oz, p.ax, p.ay,
+                                                p.az, p.wx, p.wy, p.wz, p.iw, p.ih, p.thick,
+                                                p.l0, p.l1) for p in rect_ports]
             all_lines = '\n'.join(lines)
             print('Saving rectangular ports to ' + fname + '_rect.csv')
             with open(fname + '_rect.csv', 'w') as f:
@@ -260,7 +258,7 @@ class PortSet(object):
         else:
             gaparr = np.array(gap).reshape((-1))
             if len(gaparr) != self.n_ports:
-                raise ValueError('Input gap must be scalar or have one ' \
+                raise ValueError('Input gap must be scalar or have one '
                                  'element per port in the set')
 
         colliding = np.full(x.shape, False)
@@ -329,7 +327,7 @@ class PortSet(object):
 
         return surfs
 
-    @SimsoptRequires(unstructuredGridToVTK is not None, \
+    @SimsoptRequires(unstructuredGridToVTK is not None,
                      "to_vtk method requires pyevtk module")
     def to_vtk(self, filename, n_edges=100):
         """
@@ -382,9 +380,10 @@ class PortSet(object):
         offsets = contig(3*np.arange(triangles.shape[0])+3)
         index = contig(np.concatenate(index_list))
 
-        unstructuredGridToVTK(filename, x, y, z, connectivity, offsets, \
-            contig(np.full(offsets.shape, VtkTriangle.tid)), \
-            pointData={'index': index})
+        unstructuredGridToVTK(filename, x, y, z, connectivity, offsets,
+                              contig(np.full(offsets.shape, VtkTriangle.tid)),
+                              pointData={'index': index})
+
 
 class Port(ABC):
     """
@@ -443,8 +442,9 @@ class Port(ABC):
             return PortSet(ports=([self] + p.ports))
 
         else:
-            raise ValueError('Addition with Port class instances is only ' \
+            raise ValueError('Addition with Port class instances is only '
                              'supported for Port and PortSet class instances.')
+
 
 class CircularPort(Port):
     """
@@ -452,7 +452,7 @@ class CircularPort(Port):
     a circular cross section.
     """
 
-    def __init__(self, ox=1.0, oy=0.0, oz=0.0, ax=1.0, ay=0.0, az=0.0, \
+    def __init__(self, ox=1.0, oy=0.0, oz=0.0, ax=1.0, ay=0.0, az=0.0,
                  ir=0.5, thick=0.01, l0=0.0, l1=0.5):
         """
         Initializes the CircularPort class according to the geometric port
@@ -512,7 +512,7 @@ class CircularPort(Port):
                 Array of logical values indicating whether each of the input
                 points collide with the port.
         """
-            
+
         xarr = np.array(x)
         yarr = np.array(y)
         zarr = np.array(z)
@@ -537,9 +537,9 @@ class CircularPort(Port):
         out_r2 = out_r * out_r
 
         l_start = np.min([self.l0, self.l1])
-        l_stop  = np.max([self.l0, self.l1])
-        in_axial_bounds = np.logical_and(l_proj >= l_start - gap, \
-                                         l_proj <= l_stop  + gap)
+        l_stop = np.max([self.l0, self.l1])
+        in_axial_bounds = np.logical_and(l_proj >= l_start - gap,
+                                         l_proj <= l_stop + gap)
         in_radial_bounds = r2 <= out_r2
 
         return np.logical_and(in_axial_bounds, in_radial_bounds)
@@ -584,15 +584,15 @@ class CircularPort(Port):
 
             if i > 0:
 
-                ports.append(CircularPort(ox=oxi, oy=oyi, oz=ozi, \
-                    ax=axi, ay=ayi, az=azi, ir=self.ir, thick=self.thick, \
-                    l0=self.l0, l1=self.l1))
+                ports.append(CircularPort(ox=oxi, oy=oyi, oz=ozi,
+                                          ax=axi, ay=ayi, az=azi, ir=self.ir, thick=self.thick,
+                                          l0=self.l0, l1=self.l1))
 
             if stell_sym:
 
-                ports.append(CircularPort(ox=oxi, oy=-oyi, oz=-ozi, \
-                    ax=-axi, ay=ayi, az=azi, ir=self.ir, thick=self.thick, \
-                    l0=-self.l1, l1=-self.l0))
+                ports.append(CircularPort(ox=oxi, oy=-oyi, oz=-ozi,
+                                          ax=-axi, ay=ayi, az=azi, ir=self.ir, thick=self.thick,
+                                          l0=-self.l1, l1=-self.l0))
 
         return PortSet(ports=ports)
 
@@ -601,7 +601,7 @@ class CircularPort(Port):
         Constructs a triangular mesh representation of the port for plotting
         and visualization.
 
-       
+
         Parameters
         ----------
             n_edges: integer (optional)
@@ -626,9 +626,9 @@ class CircularPort(Port):
         bx = np.sin(b_theta)*np.cos(b_phi)
         by = np.sin(b_theta)*np.sin(b_phi)
         bz = np.cos(b_theta)
-        cx =  self.ay * bz - self.az * by
+        cx = self.ay * bz - self.az * by
         cy = -self.ax * bz + self.az * bx
-        cz =  self.ax * by - self.ay * bx
+        cz = self.ax * by - self.ay * bx
 
         # Points at each end of the cylinder
         x0 = self.ox + self.l0*self.ax
@@ -639,7 +639,7 @@ class CircularPort(Port):
         z1 = self.oz + self.l1*self.az
 
         # Radial unit vector extending from the axis at different angles
-        phi = np.linspace(0, 2.*np.pi, n_edges, endpoint=False).reshape((1,-1))
+        phi = np.linspace(0, 2.*np.pi, n_edges, endpoint=False).reshape((1, -1))
         rx = bx*np.cos(phi) + cx*np.sin(phi)
         ry = by*np.cos(phi) + cy*np.sin(phi)
         rz = bz*np.cos(phi) + cz*np.sin(phi)
@@ -647,22 +647,22 @@ class CircularPort(Port):
         # Coordinates of points on the inner and outer edges of the cylinder
         ri = self.ir
         ro = self.ir + self.thick
-        x = np.concatenate((x0 + ro*rx, x0 + ri*rx, x1 + ri*rx, x1 + ro*rx), \
-                           axis=0).reshape((-1,1))
-        y = np.concatenate((y0 + ro*ry, y0 + ri*ry, y1 + ri*ry, y1 + ro*ry), \
-                           axis=0).reshape((-1,1))
-        z = np.concatenate((z0 + ro*rz, z0 + ri*rz, z1 + ri*rz, z1 + ro*rz), \
-                           axis=0).reshape((-1,1))
+        x = np.concatenate((x0 + ro*rx, x0 + ri*rx, x1 + ri*rx, x1 + ro*rx),
+                           axis=0).reshape((-1, 1))
+        y = np.concatenate((y0 + ro*ry, y0 + ri*ry, y1 + ri*ry, y1 + ro*ry),
+                           axis=0).reshape((-1, 1))
+        z = np.concatenate((z0 + ro*rz, z0 + ri*rz, z1 + ri*rz, z1 + ro*rz),
+                           axis=0).reshape((-1, 1))
 
         # Index arrays
-        upper_left = np.arange(4*n_edges).reshape((4,n_edges))
+        upper_left = np.arange(4*n_edges).reshape((4, n_edges))
         lower_left = np.roll(upper_left, 1, axis=1)
         upper_right = np.roll(upper_left, 1, axis=0)
         lower_right = np.roll(upper_right, 1, axis=1)
-        ul_col = upper_left.reshape((-1,1))
-        ll_col = lower_left.reshape((-1,1))
-        ur_col = upper_right.reshape((-1,1))
-        lr_col = lower_right.reshape((-1,1))
+        ul_col = upper_left.reshape((-1, 1))
+        ll_col = lower_left.reshape((-1, 1))
+        ur_col = upper_right.reshape((-1, 1))
+        lr_col = lower_right.reshape((-1, 1))
         triangles1 = np.concatenate((ul_col, ll_col, lr_col), axis=1)
         triangles2 = np.concatenate((ul_col, lr_col, ur_col), axis=1)
         triangles = np.concatenate((triangles1, triangles2), axis=0)
@@ -699,7 +699,7 @@ class CircularPort(Port):
             kwargs['color'] = (0.75, 0.75, 0.75)
         return mlab.triangular_mesh(x, y, z, triangles, **kwargs)
 
-    @SimsoptRequires(unstructuredGridToVTK is not None, \
+    @SimsoptRequires(unstructuredGridToVTK is not None,
                      "to_vtk method requires pyevtk module")
     def to_vtk(self, filename, n_edges=100):
         """
@@ -730,16 +730,17 @@ class CircularPort(Port):
         offsets = contig(3*np.arange(triangles.shape[0]) + 3)
 
         # Save to file
-        unstructuredGridToVTK(filename, x, y, z, connectivity, offsets, \
+        unstructuredGridToVTK(filename, x, y, z, connectivity, offsets,
                               contig(np.full(offsets.shape, VtkTriangle.tid)))
+
 
 class RectangularPort(Port):
     """
     Class representing a port with a rectangular cross-section.
     """
 
-    def __init__(self, ox=1.0, oy=0.0, oz=0.0, ax=1.0, ay=0.0, az=0.0, \
-                 wx=0.0, wy=1.0, wz=0.0, iw=0.5, ih=0.5, thick=0.01, \
+    def __init__(self, ox=1.0, oy=0.0, oz=0.0, ax=1.0, ay=0.0, az=0.0,
+                 wx=0.0, wy=1.0, wz=0.0, iw=0.5, ih=0.5, thick=0.01,
                  l0=0.0, l1=0.5):
         """
         Initializes the RectangularPort class according to the geometric port
@@ -778,7 +779,7 @@ class RectangularPort(Port):
         mod_a = np.linalg.norm([ax, ay, az])
         mod_w = np.linalg.norm([wx, wy, wz])
         if mod_a == 0 or mod_w == 0:
-            raise ValueError('Vectors given by (ax, ay, az),  (wx, wy, wz), ' \
+            raise ValueError('Vectors given by (ax, ay, az),  (wx, wy, wz), '
                              + 'and (hx, hy, hz) must have nonzero length')
 
         # Ensure that the axis vectors are mutually perpendiclar
@@ -790,13 +791,13 @@ class RectangularPort(Port):
         self.wz = wz/mod_w
         tol = 1e-12
         if np.abs(self.ax*self.wx + self.ay*self.wy + self.az*self.wz) > tol:
-            raise ValueError('Vectors given by (ax, ay, az),  (wx, wy, wz), ' \
+            raise ValueError('Vectors given by (ax, ay, az),  (wx, wy, wz), '
                              + 'and (hx, hy, hz) must be mutually perpendicuar')
 
         # Determine the third axis (height) from the two suppied axes
-        self.hx =  self.ay*self.wz - self.az*self.wy
+        self.hx = self.ay*self.wz - self.az*self.wy
         self.hy = -self.ax*self.wz + self.az*self.wx
-        self.hz =  self.ax*self.wy - self.ay*self.wx
+        self.hz = self.ax*self.wy - self.ay*self.wx
         assert np.abs(np.sqrt(self.hx**2 + self.hy**2 + self.hz**2) - 1) < tol
 
         self.iw = iw
@@ -824,7 +825,7 @@ class RectangularPort(Port):
                 Array of logical values indicating whether each of the input
                 points collide with the port.
         """
-            
+
         xarr = np.array(x)
         yarr = np.array(y)
         zarr = np.array(z)
@@ -838,18 +839,17 @@ class RectangularPort(Port):
         # Projected positions of the points along the width-spanning axis
         w_proj = (xarr - self.ox) * self.wx + (yarr - self.oy) * self.wy \
                                             + (zarr - self.oz) * self.wz
-        
+
         # Projected positions of the points along the height-spanning axis
         h_proj = (xarr - self.ox) * self.hx + (yarr - self.oy) * self.hy \
                                             + (zarr - self.oz) * self.hz
-        
 
         l_start = np.min([self.l0, self.l1])
-        l_stop  = np.max([self.l0, self.l1])
-        in_axial_bounds = np.logical_and(l_proj >= l_start - gap, \
-                                         l_proj <= l_stop  + gap)
+        l_stop = np.max([self.l0, self.l1])
+        in_axial_bounds = np.logical_and(l_proj >= l_start - gap,
+                                         l_proj <= l_stop + gap)
         in_cross_section = \
-            np.logical_and(np.abs(w_proj) < 0.5*self.iw + self.thick + gap, \
+            np.logical_and(np.abs(w_proj) < 0.5*self.iw + self.thick + gap,
                            np.abs(h_proj) < 0.5*self.ih + self.thick + gap)
 
         return np.logical_and(in_axial_bounds, in_cross_section)
@@ -898,17 +898,17 @@ class RectangularPort(Port):
 
             if i > 0:
 
-                ports.append(RectangularPort(ox=oxi, oy=oyi, oz=ozi, \
-                    ax=axi, ay=ayi, az=azi, wx=wxi, wy=wyi, wz=wzi, \
-                    iw=self.iw, ih=self.ih, thick=self.thick, \
-                    l0=self.l0, l1=self.l1))
+                ports.append(RectangularPort(ox=oxi, oy=oyi, oz=ozi,
+                                             ax=axi, ay=ayi, az=azi, wx=wxi, wy=wyi, wz=wzi,
+                                             iw=self.iw, ih=self.ih, thick=self.thick,
+                                             l0=self.l0, l1=self.l1))
 
             if stell_sym:
 
-                ports.append(RectangularPort(ox=oxi, oy=-oyi, oz=-ozi, \
-                    ax=-axi, ay=ayi, az=azi, wx=-wxi, wy=wyi, wz=wzi, \
-                    iw=self.iw, ih=self.ih, thick=self.thick, \
-                    l0=-self.l1, l1=-self.l0))
+                ports.append(RectangularPort(ox=oxi, oy=-oyi, oz=-ozi,
+                                             ax=-axi, ay=ayi, az=azi, wx=-wxi, wy=wyi, wz=wzi,
+                                             iw=self.iw, ih=self.ih, thick=self.thick,
+                                             l0=-self.l1, l1=-self.l0))
 
         return PortSet(ports=ports)
 
@@ -936,12 +936,12 @@ class RectangularPort(Port):
         z1 = self.oz + self.l1*self.az
 
         # Unit vectors in the cross-sectional dimensions
-        wxxs = self.wx * np.array([[ 1,  1, -1, -1]])
-        wyxs = self.wy * np.array([[ 1,  1, -1, -1]])
-        wzxs = self.wz * np.array([[ 1,  1, -1, -1]])
-        hxxs = self.hx * np.array([[-1,  1,  1, -1]])
-        hyxs = self.hy * np.array([[-1,  1,  1, -1]])
-        hzxs = self.hz * np.array([[-1,  1,  1, -1]])
+        wxxs = self.wx * np.array([[1, 1, -1, -1]])
+        wyxs = self.wy * np.array([[1, 1, -1, -1]])
+        wzxs = self.wz * np.array([[1, 1, -1, -1]])
+        hxxs = self.hx * np.array([[-1, 1, 1, -1]])
+        hyxs = self.hy * np.array([[-1, 1, 1, -1]])
+        hzxs = self.hz * np.array([[-1, 1, 1, -1]])
 
         # Coordinates of points on the inner and outer edges of the cylinder
         ihw = 0.5*self.iw
@@ -950,23 +950,23 @@ class RectangularPort(Port):
         ohh = 0.5*self.ih + self.thick
         x = np.concatenate((x0 + ihw*wxxs + ihh*hxxs, x0 + ohw*wxxs + ohh*hxxs,
                             x1 + ohw*wxxs + ohh*hxxs, x1 + ihw*wxxs + ihh*hxxs),
-                           axis=0).reshape((-1,1))
+                           axis=0).reshape((-1, 1))
         y = np.concatenate((y0 + ihw*wyxs + ihh*hyxs, y0 + ohw*wyxs + ohh*hyxs,
                             y1 + ohw*wyxs + ohh*hyxs, y1 + ihw*wyxs + ihh*hyxs),
-                           axis=0).reshape((-1,1))
+                           axis=0).reshape((-1, 1))
         z = np.concatenate((z0 + ihw*wzxs + ihh*hzxs, z0 + ohw*wzxs + ohh*hzxs,
                             z1 + ohw*wzxs + ohh*hzxs, z1 + ihw*wzxs + ihh*hzxs),
-                           axis=0).reshape((-1,1))
+                           axis=0).reshape((-1, 1))
 
         # Index arrays
-        upper_left = np.arange(16).reshape((4,4))
+        upper_left = np.arange(16).reshape((4, 4))
         lower_left = np.roll(upper_left, 1, axis=1)
         upper_right = np.roll(upper_left, 1, axis=0)
         lower_right = np.roll(upper_right, 1, axis=1)
-        ul_col = upper_left.reshape((-1,1))
-        ll_col = lower_left.reshape((-1,1))
-        ur_col = upper_right.reshape((-1,1))
-        lr_col = lower_right.reshape((-1,1))
+        ul_col = upper_left.reshape((-1, 1))
+        ll_col = lower_left.reshape((-1, 1))
+        ur_col = upper_right.reshape((-1, 1))
+        lr_col = lower_right.reshape((-1, 1))
         triangles1 = np.concatenate((ul_col, ll_col, lr_col), axis=1)
         triangles2 = np.concatenate((ul_col, lr_col, ur_col), axis=1)
         triangles = np.concatenate((triangles1, triangles2), axis=0)
@@ -1000,7 +1000,7 @@ class RectangularPort(Port):
             kwargs['color'] = (0.75, 0.75, 0.75)
         return mlab.triangular_mesh(x, y, z, triangles, **kwargs)
 
-    @SimsoptRequires(unstructuredGridToVTK is not None, \
+    @SimsoptRequires(unstructuredGridToVTK is not None,
                      "to_vtk method requires pyevtk module")
     def to_vtk(self, filename):
         """
@@ -1028,7 +1028,5 @@ class RectangularPort(Port):
         offsets = contig(3*np.arange(triangles.shape[0]) + 3)
 
         # Save to file
-        unstructuredGridToVTK(filename, x, y, z, connectivity, offsets, \
+        unstructuredGridToVTK(filename, x, y, z, connectivity, offsets,
                               contig(np.full(offsets.shape, VtkTriangle.tid)))
-
-

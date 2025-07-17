@@ -44,7 +44,7 @@ Stage: devel
     python3 -m venv /venv/
     . /venv/bin/activate
     /venv/bin/pip install -U pip
-    /venv/bin/pip install numpy scipy jax jaxlib f90nml jupyter notebook ipython qsc sympy scikit-build ninja "pybind11[global]" cmake f90wrap h5py
+    /venv/bin/pip install numpy scipy jax jaxlib f90nml jupyter notebook ipython qsc sympy scikit-build ninja "pybind11[global]<3.0" cmake f90wrap h5py
     PATH="/usr/local/bin:/venv/bin:${PATH}"
     LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"
 
@@ -77,6 +77,7 @@ Stage: devel
     /venv/bin/pip install git+https://github.com/zhisong/pyoculus
     /venv/bin/pip install vtk==9.2.6 pyqt5 matplotlib pyevtk plotly
     /venv/bin/pip install mayavi
+    /venv/bin/pip install ground bentley_ottmann
     /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
     /venv/bin/pip install  git+https://github.com/hiddenSymmetries/virtual-casing
     /venv/bin/pip install  git+https://github.com/rogeriojorge/pyQIC

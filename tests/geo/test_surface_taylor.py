@@ -376,7 +376,7 @@ class SurfaceTaylorTests(unittest.TestCase):
         """
         Taylor test for the second derivative of the volume w.r.t. the dofs
         """
-        
+
         # defining a local function get_random_surface because it let's me control number of quadpoints, and modes
         def get_random_surface(surfacetype, stellsym, mpol, ntor, nphi, ntheta):
             from .surface_test_helpers import get_surface as get_surface_ext
@@ -399,7 +399,7 @@ class SurfaceTaylorTests(unittest.TestCase):
 
                     s3 = get_random_surface(surfacetype, stellsym, mpol=1, ntor=1, nphi=2, ntheta=1)
                     self.subtest_volume_coefficient_second_derivative(s3)
-                    
+
                     s4 = get_random_surface(surfacetype, stellsym, mpol=1, ntor=1, nphi=1, ntheta=2)
                     self.subtest_volume_coefficient_second_derivative(s4)
 
@@ -474,9 +474,9 @@ class SurfaceTaylorTests(unittest.TestCase):
         def d2f(dofs):
             s.x = dofs
             return s.d2minor_radius_by_dcoeff_dcoeff()
-        
+
         taylor_test2(f, df, d2f, coeffs,
-             epsilons=np.power(2., -np.asarray(range(13, 20))))
+                     epsilons=np.power(2., -np.asarray(range(13, 20))))
 
     def test_major_radius_second_derivative(self):
         """
@@ -505,9 +505,9 @@ class SurfaceTaylorTests(unittest.TestCase):
         def d2f(dofs):
             s.x = dofs
             return s.d2major_radius_by_dcoeff_dcoeff()
-        
+
         taylor_test2(f, df, d2f, coeffs,
-             epsilons=np.power(2., -np.asarray(range(13, 20))))
+                     epsilons=np.power(2., -np.asarray(range(13, 20))))
 
     def test_mean_area_second_derivative(self):
         """
@@ -536,9 +536,9 @@ class SurfaceTaylorTests(unittest.TestCase):
         def d2f(dofs):
             s.x = dofs
             return s.d2mean_cross_sectional_area_by_dcoeff_dcoeff()
-        
+
         taylor_test2(f, df, d2f, coeffs,
-             epsilons=np.power(2., -np.asarray(range(13, 20))))
+                     epsilons=np.power(2., -np.asarray(range(13, 20))))
 
     def test_AR_second_derivative(self):
         """
@@ -546,7 +546,7 @@ class SurfaceTaylorTests(unittest.TestCase):
         """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
-                
+
                 # mean cross sectional area should always be positive since minor radius = sqrt(mean_cross_sectional_area/pi), which
                 # the aspect ratio depends on
                 # flipping the sign of the dofs should still give the correct derivatives
