@@ -6,7 +6,8 @@ import numpy as np
 import simsoptpp as sopp
 from .._core import Optimizable
 from .._core.util import parallel_loop_bounds
-from ..field.magneticfield import MagneticField, InterpolatedField
+from ..field.magneticfield import MagneticField
+from ..field.magneticfieldclasses import InterpolatedField
 from ..field.boozermagneticfield import BoozerMagneticField
 from ..field.sampling import draw_uniform_on_curve, draw_uniform_on_surface
 from ..geo.surface import SurfaceClassifier
@@ -1331,9 +1332,6 @@ class ScipyFieldlineIntegrator(Integrator):
         sol = solve_ivp(self.integration_function3d, [0, l_total], xyz_start, t_eval=np.linspace(0, l_total, n_points),  method='RK45', rtol=self.TOL, atol=self.TOL)
         return sol.y.T
     
-    def res_tys
-
-
 
 class PoincarePlotter(Optimizable):
     """
@@ -1483,7 +1481,6 @@ class PoincarePlotter(Optimizable):
         else:
             fig = ax.figure
         
-
         hits_thisplane = self.plane_hits_cyl(phi_index)
         
         marker = kwargs.pop('marker', '.')
@@ -1493,7 +1490,7 @@ class PoincarePlotter(Optimizable):
         for idx, trajpoints in enumerate(hits_thisplane):
             if color == 'random':
                 color = np.random.rand(3,)
-            if mark_lost
+            if mark_lost:
                 lost = self.lost[idx]
                 if lost:
                     color = 'r'
