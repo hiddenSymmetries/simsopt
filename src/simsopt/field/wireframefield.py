@@ -108,6 +108,7 @@ class WireframeField(sopp.WireframeField, MagneticField):
 
         return matrix
 
+
 def coils_from_wireframe(wf, max_order=20, min_order=2, ppp=20):
     """
     Generates :obj:`~simsopt.field.Coil` class instances using the 
@@ -171,14 +172,14 @@ def coils_from_wireframe(wf, max_order=20, min_order=2, ppp=20):
             # midpoints between existing nodes
             coords = np.array(coords_all[i])
             while n_nodes < 2 * min_order:
-               coords_prev = np.array(coords)
-               coords = np.zeros((2*coords_prev.shape[0], 3))
-               coords[::2, :] = coords_prev
-               coords[1::2, :] = \
-                   0.5 * (coords_prev + np.roll(coords_prev, -1, axis=0))
-               n_nodes = coords.shape[0]
+                coords_prev = np.array(coords)
+                coords = np.zeros((2*coords_prev.shape[0], 3))
+                coords[::2, :] = coords_prev
+                coords[1::2, :] = \
+                    0.5 * (coords_prev + np.roll(coords_prev, -1, axis=0))
+                n_nodes = coords.shape[0]
 
-            order = min(int(n_nodes/2), max_order) 
+            order = min(int(n_nodes/2), max_order)
 
             all_coeffs = []
 
@@ -236,7 +237,7 @@ def coils_from_wireframe(wf, max_order=20, min_order=2, ppp=20):
                 phi = i * 2 * np.pi / wf.nfp
                 rotmat = np.asarray([[np.cos(phi), -np.sin(phi), 0],
                                      [np.sin(phi),  np.cos(phi), 0],
-                                     [       0,         0, 1]]).T
+                                     [          0,            0, 1]]).T
                 rotmat_flip = rotmat @ np.asarray([[1,  0,  0],
                                                    [0, -1,  0],
                                                    [0,  0, -1]])

@@ -647,17 +647,102 @@ class ToroidalWireframeTests(unittest.TestCase):
         Tests the method that adds helical coil current paths
         """
 
-        test_cur_1 = 1e6
-        nfp, rmaj, rmin = 3, 2, 1
-        surf_wf = surf_torus(nfp, rmaj, rmin)
-        n_phi, n_theta = 18, 18 
-        wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
+        # Test to assess consistency of a set of inputs
+        def test_helical_coilset(wf, crossings_0, crossings_hp, currents,
+                                 plot=False):
+            x0 = [crossings_0] if np.isscalar(crossings_0) else crossings_0
+            xhp = [crossings_hp] if np.isscalar(crossings_hp) else crossings_hp
+            c = [currents] if np.isscalar(currents) else currents
+            if len(c) != len(x0):
+                c = c * len(x0)
+            wf.set_toroidal_current(np.sum(c))
+            wf.set_poloidal_current(
+                np.sum([2 * (theta_hp - theta_0) * wf.nfp * curr
+                        for theta_0, theta_hp, curr in zip(x0, xhp, c)]))
+            wf.add_helical_coil_currents(crossings_0, crossings_hp, currents)
+            self.assertTrue(wf.check_constraints)
+            if plot:
+                import matplotlib.pyplot as pl
+                wf.make_plot_2d()
+                pl.show()
+            wf.remove_toroidal_current_constraint()
+            wf.remove_poloidal_current_constraint()
+            wf.currents[:] = 0
 
-        wf.add_helical_coil_currents('both', 1, [test_cur_1, -2*test_cur_1])
-        self.assertTrue(wf.check_constraints())
+        # Set of consistency tests to perform for a given wireframe
+        def test_different_helical_inputs(wf, cur1):
 
-        #TODO test erroneous inputs
-      
+            # Four paths making a quarter turn in one half-period
+            test_helical_coilset(wf, [0, 0.25, 0.5, 0.75], [0.25, 0.5, 0.75, 1],
+                                 [cur1, -2*cur1, cur1, -2*cur1])
+
+            # Three paths making a half-turn in one half-period
+            test_helical_coilset(wf, [0, 1/3, 2/3], [0.5, 5/6, 7/6],
+                                 [cur1, -cur1, -cur1])
+
+            # Three paths making a negative half-turn in one half-period
+            test_helical_coilset(wf, [0, 1/3, 2/3], [-0.5, -1/6, 1/6],
+                                 [cur1, -cur1, -cur1])
+
+            # Three paths with same current (input as scalar)
+            test_helical_coilset(wf, [0, 1/3, 2/3], [-0.5, -1/6, 1/6], cur1)
+
+            # Three paths with same current (input as single element np array)
+            test_helical_coilset(wf, [0, 1/3, 2/3], [-0.5, -1/6, 1/6],
+                                 np.array([cur1]))
+
+            # High rotational transform (current paths include consecutive
+            # poloidal segments)
+            test_helical_coilset(wf, 0, 3, cur1)
+
+            # High rotational transform, negative
+            test_helical_coilset(wf, 0, -4, cur1)
+
+            # Pair of PF coils
+            test_helical_coilset(wf, [0.1, -0.1], [0.1, -0.1], -cur1)
+
+            # Test cases of erroneous input
+
+            # Inconsistent lengths of theta inputs
+            with self.assertRaises(ValueError):
+                wf.add_helical_coil_currents([0.25, 0.75], [1.25], cur1)
+
+            # Mismatched dimensions of current input
+            with self.assertRaises(ValueError):
+                wf.add_helical_coil_currents([0.25, 0.75], [1.25, 1.75],
+                                             [cur1]*3)
+
+            # Mismatched crossing locations at symmetry planes
+            with self.assertRaises(ValueError):
+                wf.add_helical_coil_currents([0.25, 0.75], [1.25, 1.9], cur1)
+
+            # Mismatched currents at symmetry planes
+            with self.assertRaises(ValueError):
+                wf.add_helical_coil_currents([0.25, 0.75], [1.25, 1.75],
+                                             [cur1, -cur1])
+
+            # Too tightly wound
+            with self.assertRaises(ValueError):
+                wf.add_helical_coil_currents(0, wf.n_phi, cur1)
+
+            # Crossed paths
+            with self.assertRaises(ValueError):
+                wf.add_helical_coil_currents([0, 0.5], [0.75, 0.25],
+                    [cur1, 2*cur1], enforce_no_crossings=True)
+
+        test_cur = 1e6
+        rmaj, rmin = 2, 1
+
+        nfp_test = [1, 2, 3, 4]
+        n_phi_test = [16, 18, 20]
+        n_theta_test = [16, 18, 20]
+
+        for nfp in nfp_test:
+            for n_phi in n_phi_test:
+                for n_theta in n_theta_test:
+                    surf_wf = surf_torus(nfp, rmaj, rmin)
+                    wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
+                    test_different_helical_inputs(wf, test_cur)
 
     def test_coil_finder(self):
         """
@@ -693,7 +778,7 @@ class ToroidalWireframeTests(unittest.TestCase):
 
         # Add two (non-contiguous) loops to the middle of the half-period
         wf.currents[[5, 6, 19, 23]] = [test_cur, -test_cur, -test_cur, test_cur]
-        wf.currents[[11, 8, 25, 29]] = [-2*test_cur, 2*test_cur, 
+        wf.currents[[11, 8, 25, 29]] = [-2*test_cur, 2*test_cur,
                                         2*test_cur, -2*test_cur]
         self.assertTrue(wf.check_constraints())
         coils, currents, group_ids = wf.find_coils()
@@ -723,7 +808,7 @@ class ToroidalWireframeTests(unittest.TestCase):
             x_rot = coords[:, 0]*np.cos(dphi) - coords[:, 1]*np.sin(dphi)
             y_rot = coords[:, 0]*np.sin(dphi) + coords[:, 1]*np.cos(dphi)
             z_rot = coords[:, 2]
-            return np.concatenate((x_rot[:, None], y_rot[:, None], 
+            return np.concatenate((x_rot[:, None], y_rot[:, None],
                                    z_rot[:, None]), axis=1)
 
         def hp_transform(coords, phi):
@@ -739,8 +824,8 @@ class ToroidalWireframeTests(unittest.TestCase):
             z_out = -z_in
             x_out = r_out * np.cos(p_out)
             y_out = r_out * np.sin(p_out)
-            return(np.concatenate((x_out[:, None], y_out[:, None],
-                                   z_out[:, None]), axis=1))
+            return np.concatenate((x_out[:, None], y_out[:, None],
+                                   z_out[:, None]), axis=1)
 
         for i in range(1, wf.nfp):
             dphi = 2 * i * np.pi/wf.nfp
@@ -757,23 +842,23 @@ class ToroidalWireframeTests(unittest.TestCase):
         coils2, currents2, group_ids2 = \
             wf.find_coils(repeat_starting_points=True)
         for i in range(len(coils2)):
-            self.assertTrue(np.allclose(coils[i], coils2[i][:-1,:]))
-            self.assertTrue(np.allclose(coils2[i][0,:], coils2[i][-1,:]))
+            self.assertTrue(np.allclose(coils[i], coils2[i][:-1, :]))
+            self.assertTrue(np.allclose(coils2[i][0, :], coils2[i][-1, :]))
         for i in range(1, wf.nfp):
             dphi = 2 * i * np.pi/wf.nfp
             coil_rot = rotate_coords(coils2[0], dphi)
             self.assertTrue(np.allclose(coils2[2*i], coil_rot))
             coil_hp = rotate_coords(hp_transform(coils2[0], np.pi/wf.nfp), dphi)
-            self.assertTrue(np.allclose(coils2[2*i+1], coil_hp[::-1,:]))
+            self.assertTrue(np.allclose(coils2[2*i+1], coil_hp[::-1, :]))
             coil1_rot = rotate_coords(coils2[2*wf.nfp], dphi)
             self.assertTrue(np.allclose(coils2[2*i+2*wf.nfp], coil1_rot))
             coil1_hp = rotate_coords(
-                           hp_transform(coils2[2*wf.nfp], np.pi/wf.nfp), dphi)
-            self.assertTrue(np.allclose(coils2[2*i+2*wf.nfp+1], 
-                            coil1_hp[::-1,:]))
+                hp_transform(coils2[2*wf.nfp], np.pi/wf.nfp), dphi)
+            self.assertTrue(np.allclose(coils2[2*i+2*wf.nfp+1],
+                            coil1_hp[::-1, :]))
 
         wf.currents[:] = 0
-        
+
         # Add and detect a helical coil
         helical_coil_inds_4x4 = [0, 4, 22, 9, 13, 2, 6, 24, 11, 15]
         wf.currents[helical_coil_inds_4x4] = test_cur
@@ -781,12 +866,12 @@ class ToroidalWireframeTests(unittest.TestCase):
         coils, currents, group_ids = wf.find_coils()
         self.assertEqual(len(coils), 1)
 
-        phi_coil = np.arctan2(coils[0][:,1], coils[0][:,0])
+        phi_coil = np.arctan2(coils[0][:, 1], coils[0][:, 0])
         dphi_wf = np.pi/(wf.nfp*wf.n_phi)
         phi_hp = dphi_wf*np.array([0, 1, 2, 2, 3])
         phi_monotonic = \
-            (phi_hp[None,:] + 
-             (np.pi/wf.nfp)*np.arange(4*wf.nfp)[:,None]).reshape((-1))
+            (phi_hp[None, :] +
+             (np.pi/wf.nfp)*np.arange(4*wf.nfp)[:, None]).reshape((-1))
         expected_phi = np.mod(phi_monotonic, 2*np.pi)
         expected_phi[expected_phi > np.pi] = \
             expected_phi[expected_phi > np.pi] - 2*np.pi
@@ -813,7 +898,7 @@ class ToroidalWireframeTests(unittest.TestCase):
         # Combination of helical and modular coils
         n_phi, n_theta = 8, 8
         wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
-        helical_coil_inds_8x8 = [0,  8, 17, 25, 33, 41, 50, 58, 76, 109, 
+        helical_coil_inds_8x8 = [0,  8, 17, 25, 33, 41, 50, 58, 76, 109,
                                  4, 12, 21, 29, 37, 45, 54, 62, 80, 113]
         wf.currents[helical_coil_inds_8x8] = test_cur
         wf.currents[[26, 34, 102, 103]] =  2 * test_cur
@@ -827,7 +912,7 @@ class ToroidalWireframeTests(unittest.TestCase):
         id_hel = 0 if np.sum(np.array(group_ids) == 0) > 1 else 0
         for i in range(len(coils)):
             if group_ids[i] == id_hel:
-                self.assertEqual(coils[i].shape[0], 
+                self.assertEqual(coils[i].shape[0],
                                  2*wf.nfp*len(helical_coil_inds_8x8))
             else:
                 self.assertEqual(coils[i].shape[0], 8)

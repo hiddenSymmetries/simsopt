@@ -484,8 +484,9 @@ class WireframeOptimizationTests(unittest.TestCase):
                                           surf_plas=surf_plas,
                                           area_weighted=False, verbose=False)
         self.assertTrue(wf.check_constraints())
-        self.assertTrue(np.isclose(cur_pol,
-                                   -enclosed_current(amploop_pol, res_baseline['wframe_field'], n_pts_amploop)))
+        self.assertTrue(np.isclose(
+            cur_pol, -enclosed_current(
+                amploop_pol, res_baseline['wframe_field'], n_pts_amploop)))
 
         # Now run with a nonzero target field
         res_with_target = optimize_wireframe(wf, 'rcls', opt_params,
@@ -494,12 +495,15 @@ class WireframeOptimizationTests(unittest.TestCase):
                                              area_weighted=False, verbose=False)
 
         self.assertTrue(wf.check_constraints())
-        self.assertTrue(np.isclose(cur_pol,
-                                   -enclosed_current(amploop_pol, res_with_target['wframe_field'], n_pts_amploop)))
+        self.assertTrue(np.isclose(
+            cur_pol, -enclosed_current(
+                amploop_pol, res_with_target['wframe_field'], n_pts_amploop)))
 
         # The bvec should differ between the two runs
-        self.assertFalse(np.allclose(res_baseline['bvec'], res_with_target['bvec']),
-                         "Target field should change the optimization target vector")
+        self.assertFalse(np.allclose(res_baseline['bvec'], 
+                         res_with_target['bvec']),
+                         "Target field should change the optimization target "
+                         "vector")
 
         bvec_diff = res_with_target['bvec'] - res_baseline['bvec']
         assert np.allclose(bvec_diff, bnorm_target.reshape((-1, 1)))
@@ -511,15 +515,14 @@ class WireframeOptimizationTests(unittest.TestCase):
                                               bnorm_target=bnorm_target2,
                                               area_weighted=False, verbose=False)
         self.assertTrue(wf.check_constraints())
-        self.assertTrue(np.isclose(cur_pol,
-                                   -enclosed_current(amploop_pol, res_with_target2['wframe_field'], n_pts_amploop)))
+        self.assertTrue(np.isclose(
+            cur_pol, -enclosed_current(
+                amploop_pol, res_with_target2['wframe_field'], n_pts_amploop)))
 
-        print('x', res_with_target['x'] - res_with_target2['x'])
-        print('bvec', res_with_target['bvec'] - res_with_target2['bvec'])
-        print('Amat @ x - bvec', res_with_target['Amat'] @ res_with_target['x'] - res_with_target['bvec'],
-              res_with_target2['Amat'] @ res_with_target2['x'] - res_with_target2['bvec'])
-        self.assertFalse(np.allclose(res_with_target['x'], res_with_target2['x']),
-                         "Different target fields should produce different solutions")
+        self.assertFalse(np.allclose(res_with_target['x'], 
+                                     res_with_target2['x']),
+                         "Different target fields should produce different "
+                         "solutions")
 
         # The difference in bvec should match the difference in target values
         bvec_diff2 = res_with_target2['bvec'] - res_with_target['bvec']

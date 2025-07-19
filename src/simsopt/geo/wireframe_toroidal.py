@@ -91,7 +91,7 @@ class ToroidalWireframe(object):
         self.seg_signs[0] = 1.0
         self.nodes[1] = np.ascontiguousarray(np.zeros((self.n_nodes, 3)))
 
-        # Calculate equivalent node positions in the last half period 
+        # Calculate equivalent node positions in the last half period
         # (connected across x=0 plane) and then rotate by one period to get
         # the half period that connects in the positive toroidal direction.
         # This ensures that half periods will appear in toroidal spatial order.
@@ -1129,8 +1129,8 @@ class ToroidalWireframe(object):
         group_ids = []
         group_id = 0
 
-        is_active = lambda i: np.abs(self.currents[i]) > 0
-       
+        def is_active(i): return np.abs(self.currents[i]) > 0
+
         while len(free_segs[0]) > 0:
 
             iseg_start = free_segs[0].pop()
@@ -1152,8 +1152,7 @@ class ToroidalWireframe(object):
                     ihp = ihp_start
                     hp_sign = 1 - 2*np.mod(ihp, 2)
                     inode = self.segments[iseg, 0]
-                    inode_start = inode
-        
+
                     # Record coordinates of first node
                     coil_nodes = []
                     coil_nodes.append(self.nodes[ihp][inode, :])
@@ -1164,7 +1163,7 @@ class ToroidalWireframe(object):
                         # Determine the next segment in the coil
                         connected = self.connected_segments[inode]
                         hp_jump = self.connected_segments_hp_jump[inode]
-                        ipos_all = np.where(hp_sign * self.currents[connected] 
+                        ipos_all = np.where(hp_sign * self.currents[connected]
                                                     * [-1, -1, 1, 1] > 0)[0]
                         assert len(ipos_all) == 1
                         ipos = ipos_all[0]
@@ -1175,20 +1174,20 @@ class ToroidalWireframe(object):
                         inode = self.segments[iseg, idir]
 
                         if iseg not in free_segs[ihp]:
-        
+
                             # Coil is completed (starting point reached)
                             if not repeat_starting_points:
                                 coil_nodes = coil_nodes[:-1]
                             break
-        
+
                         else:
-            
+
                             # Remove present segment from further consideration
                             free_segs[ihp].discard(iseg)
-        
+
                             # Record the beginning node of the next segment
                             coil_nodes.append(self.nodes[ihp][inode, :])
-          
+
                     coils.append(np.array(coil_nodes))
                     currents.append(np.abs(self.currents[iseg]))
                     group_ids.append(group_id)
@@ -1196,7 +1195,7 @@ class ToroidalWireframe(object):
             # Increment group_id after all group members have been found
             group_id += 1
 
-        return coils, currents, group_ids 
+        return coils, currents, group_ids
 
     def get_cell_key(self):
         """
@@ -1336,19 +1335,36 @@ class ToroidalWireframe(object):
         else:
             return True
 
-    def has_current_crossings(self):
+    def has_current_crossings(self, currents=None):
         """
         Determines whether the wireframe grid contains crossed current paths,
         i.e. if there exists at least one node with more than two connected
         segments carrying nonzero current.
 
-        Returns True if instances of crossings are found; False otherwise.
+        Parameters
+        ----------
+            currents: 1d float array (optional)
+                Array of currents to check for crossings. If not provided,
+                the currents of the current class instance will be checked.
+
+        Returns
+        -------
+            has_current_crossings: logical
+                True if instances of crossings are found; False otherwise.
         """
+
+        if currents is not None:
+            if len(currents) != self.n_segments:
+                raise ValueError('`currents` array does not match number of '
+                                 + 'segments')
+            curr = currents
+        else:
+            curr = self.currents
 
         # Check for crossings at each node
         for i in range(self.n_nodes):
 
-            connected_currents = self.currents[self.connected_segments[i, :]]
+            connected_currents = curr[self.connected_segments[i, :]]
             n_active = np.sum(np.abs(connected_currents) > self.constraint_atol)
 
             if n_active > 2:
@@ -1413,46 +1429,46 @@ class ToroidalWireframe(object):
         else:
             raise ValueError('Constraints not met for desired currents')
 
-    def add_helical_coil_currents(self, crossings_at_phi_0, turns_per_period,
-                                  coil_currents, constraint_atol=None, 
-                                  constraint_rtol=None):
+    def add_helical_coil_currents(self, crossings_at_phi_0, crossings_at_phi_hp,
+                                  path_currents, enforce_no_crossings=False,
+                                  constraint_atol=None, constraint_rtol=None):
         """
         Adds current to certain poloidal segments in order to form a set of 
-        helical coils. Supports up to two pairs of helical current paths
-        (in the sense that there may be one or two pairs of current paths
-        intersecting any given poloidal cross-section). A given current path
-        may ultimately form one or two distinct coils depending on the number
-        of field periods.
+        helical coils (or, in the case of no helical wrapping, poloidal field
+        coils).
 
         Parameters
         ----------
-            crossings_at_phi_0: string
-                If `'in_out'`, adds one pair of current paths that cross the
-                phi=0 plane on the inboard and outboard midplanes (i.e. theta=0 
-                and theta=pi). If `'top_bottom'`, adds one pair of current 
-                paths that cross the phi=0 plane near the top and bottom (i.e.
-                approximately theta=pi/4 and theta=3*pi/4). If `'both'`, adds
-                two pairs, one with in-out intersections and one with 
-                top-bottom intersections.
-            turns_per_period: float
-                Number of poloidal turns that each helical current path makes
-                per field period. Must be a positive or negative integer 
-                multiple of 0.5. If positive, the current paths will wind in
-                the positive poloidal direciton with increasing toroidal angle;
-                if negative, the paths will wind in the negative poloidal 
-                direction with increasing toroidal angle.
-            coil_currents: float or list of floats
-                Current to be carried by the pair(s) of current paths, with a
-                positive sign corresponding to current flowing in the positive
-                toroidal direction along the helical paths. If
-                `crossings_at_phi_0` is `'in_out'` or `'top_bottom'`, 
-                `coil_currents` must be a float or a list with one float.
-                If `crossings_at_phi_0` is `'both'`, `coil_currents` must be
-                a list of two floats, in which the first corresponds to the 
-                current in the paths intersecting the phi=0 plane at the 
-                inboard and outboard midplane and the second corresponding to
-                the current in the paths intersecting the phi=0 plane near the
-                top and bottom.
+            crossings_at_phi_0: list or array of floats
+                Normalized poloidal angles (i.e. 1 corresponds to 2*pi radians) 
+                at which the helical paths cross the symmetry plane at phi=0. 
+                To uphold stellarator symmetry, any path that crosses at a 
+                normalized angle theta between 0 and 0.5 exclusive must be
+                accompanied by another path with equal current that crosses at 
+                1 - theta (modulo 1). Note that paths crossing at exactly 0 or
+                0.5 do not need to be paired.
+            crossings_at_phi_hp: list or array of floats
+                Normalized poloidal angles at which the helical paths cross 
+                the symmetry plane one half-period in the positive toroidal 
+                direction from phi=0. Must have the same number of elements as
+                `crossings_at_phi_0`. If an angle in `crossings_at_phi_hp` is 
+                greater than its counterpart in `crossings_at_phi_0`, then the 
+                helical current path will be wound such that its poloidal 
+                increases with toroidal angle. If the angle is less than its 
+                counterpart, then the poloidal angle of the current path will 
+                decrease with toroidal angle. If the angle is equal to its 
+                counterpart, the current path will form a poloidal field coil 
+                (i.e. it will not wind helically). To uphold stellarator 
+                symmetry, current paths must be paired as specified in the 
+                description for `crossings_at_phi_0`.
+            path_currents: float or list of floats
+                Current to be carried by each current path, with the positive
+                sign corresponding to current flowing in the positive toroidal 
+                direction. If scalar, all paths will have the same current.
+            enforce_no_crossings: logical (optional)
+                If true, will raise an error if the current distribution
+                resulting from adding the specified current paths would
+                create crossed currents in the wireframe.
             constraint_atol, constraint_rtol: float (optional)
                 Absolute and relative tolerances to apply when checking to 
                 ensure that the added currents do not violate any existing 
@@ -1460,88 +1476,94 @@ class ToroidalWireframe(object):
                 the class instance.
         """
 
-        if np.isscalar(coil_currents):
-            pair_currents = np.array([coil_currents])
+        # Standardize inputs as numpy arrays and check for consistency
+        if np.isscalar(crossings_at_phi_0):
+            crossings_0_arr = np.array([crossings_at_phi_0])
         else:
-            pair_currents = np.array(coil_currents)
+            crossings_0_arr = np.array(crossings_at_phi_0)
+        n_paths = len(crossings_0_arr)
 
-        # Check the inputs for consistency
-        if crossings_at_phi_0 not in ['in_out', 'top_bottom', 'both']:
-            raise ValueError('`crossings_at_phi_0` must be '
-                             '''in_out'', ''top_bottom'', or ''both''')
-        elif not np.isclose(turns_per_period % 0.5, 0):
-            raise ValueError('`turns_per_period` must be an integer multiple '
-                             'of 0.5')
-        elif crossings_at_phi_0=='both' and len(pair_currents) != 2:
-            raise ValueError('`coil_currents` must have 2 elements if '
-                             '`crosings_at_phi` is ''both''')
-        elif crossings_at_phi_0 in ['in_out', 'top_bottom'] \
-            and len(pair_currents) != 1:
-            raise ValueError('`coil_currents` must be scalar or have 1 element '
-                             'if `crosings_at_phi` is ''both''')
+        if np.isscalar(crossings_at_phi_hp):
+            crossings_hp_arr = np.array([crossings_at_phi_hp])
+        else:
+            crossings_hp_arr = np.array(crossings_at_phi_hp)
 
-        atol = self.constraint_atol if constraint_atol is None \
-               else constraint_atol
-        rtol = self.constraint_rtol if constraint_rtol is None \
-               else constraint_rtol
+        if np.isscalar(path_currents):
+            path_cur_arr = np.array([path_currents] * n_paths)
+        elif len(path_currents) == 1:
+            path_cur_arr = np.array(list(path_currents) * n_paths)
+        else:
+            path_cur_arr = np.array(path_currents)
 
-        # Quarter turns per half-period
-        qtphp = float(2*turns_per_period)
-        n_pol_steps_float = qtphp * float(self.n_theta) / 4.0
+        if len(crossings_hp_arr) != n_paths:
+            raise ValueError('`crossings_at_phi_0` and `crossings_at_phi_hp` '
+                             'must have the same number of elements')
+        elif len(path_cur_arr) != n_paths:
+            raise ValueError('`path_currents` must be scalar or have the same '
+                             'number of elements as `crossings_at_phi_0`')
 
         # Round non-integer poloidal indices to the inboard-most index
-        round_pol_ind = lambda i: \
+        def round_pol_ind(i): return \
             np.ceil(i) if i % self.n_theta < self.n_theta/2 else np.floor(i)
 
         # Determine the which segments to use for each helical path
-        def segments_for_helical_path(ind_start):
-            pol_ind_start = round_pol_ind(ind_start)
-            pol_ind_end = round_pol_ind(pol_ind_start + n_pol_steps_float)
-            delta_pol_ind = pol_ind_end - pol_ind_start
+        def segments_for_helical_path(theta_0, theta_hp):
+            pol_ind_start = round_pol_ind(theta_0 * float(self.n_theta))
+            pol_ind_end = round_pol_ind(theta_hp * float(self.n_theta))
+            delta_ind = pol_ind_end - pol_ind_start
             tor_inds_cont = \
-                ind_start + delta_pol_ind * np.linspace(0, 1, self.n_phi)
+                pol_ind_start + delta_ind * np.linspace(0, 1, self.n_phi)
             tor_inds = np.round(tor_inds_cont).astype(int)
             tor_inds_wrap = tor_inds % self.n_theta
-            tor_seg_inds = [self.tor_segment_key[i, tor_inds_wrap[i]] 
+            tor_seg_inds = [self.tor_segment_key[i, tor_inds_wrap[i]]
                             for i in range(self.n_phi)]
-            inds_shift = np.where(np.abs(np.diff(tor_inds)) > atol)[0] + 1
-            offs = -1 if np.sign(n_pol_steps_float) > 0 else 0
-            pol_seg_inds = [self.pol_segment_key[i, tor_inds_wrap[i] + offs]
-                            for i in inds_shift]
+            pol_shift = np.diff(tor_inds)
+            inds_shift = np.where(np.abs(pol_shift) > 0)[0] + 1
+            offs = 0 if theta_hp > theta_0 else -1
+            pol_seg_inds = []
+            for i in inds_shift:
+                pol_inds_i = np.arange(tor_inds[i-1], tor_inds[i],
+                                       np.sign(delta_ind)) + offs
+                pol_inds_i_wrap = pol_inds_i.astype(int) % self.n_theta
+                if len(np.unique(pol_inds_i_wrap)) < len(pol_inds_i):
+                    raise ValueError('Rotational transform of the winding '
+                                     'is to large for the wireframe resolution.\n'
+                                     'Increase the wireframe toroidal resolution or '
+                                     'reduce the poloidal excursion of the paths.')
+                pol_seg_inds += list(self.pol_segment_key[i, pol_inds_i_wrap])
             tor_signs = [1 for i in range(len(tor_seg_inds))]
-            pol_signs = [np.sign(qtphp) for i in range(len(pol_seg_inds))]
+            pol_signs = [np.sign(delta_ind) for i in range(len(pol_seg_inds))]
             return tor_seg_inds + pol_seg_inds, np.array(tor_signs + pol_signs)
 
         hel_currents = np.zeros(self.n_segments)
 
-        # Determine poloidal indices where each path starts at the phi=0 plane
-        if crossings_at_phi_0 == 'in_out':
-            start_inds = float(self.n_theta) * np.array([0, 0.5])
-            all_curr = pair_currents[[0, 0]]
-        elif crossings_at_phi_0 == 'top_bottom':
-            start_inds = float(self.n_theta) * np.array([0.25, 0.75])
-            all_curr = pair_currents[[0, 0]]
-        else:
-            start_inds = float(self.n_theta) * np.array([0, 0.5, 0.25, 0.75])
-            all_curr = pair_currents[[0, 0, 1, 1]]
-
-        for ind, curr in zip(start_inds, all_curr):
-            segments, signs = segments_for_helical_path(ind)
+        # Determine the segments and currents for each path
+        for theta_0, theta_hp, curr in zip(crossings_0_arr, crossings_hp_arr,
+                                           path_cur_arr):
+            segments, signs = segments_for_helical_path(theta_0, theta_hp)
             hel_currents[segments] += signs * curr
 
         # Add new helical currents to any existing currents
         new_currents = hel_currents + self.currents
 
         # Check whether proposed new currents adhere to the constraints
-        valid = self.check_constraints(currents=new_currents,
-                                       atol=constraint_atol,
-                                       rtol=constraint_rtol)
-
-        # Update currents with new values if they are within constraints
-        if valid:
-            self.currents[:] = new_currents[:]
-        else:
+        atol = self.constraint_atol if constraint_atol is None \
+            else constraint_atol
+        rtol = self.constraint_rtol if constraint_rtol is None \
+            else constraint_rtol
+        if not self.check_constraints(currents=new_currents,
+                                      atol=atol, rtol=rtol):
             raise ValueError('Constraints not met for desired currents')
+
+        # If desired, check whether crossings would be introduced
+        if enforce_no_crossings and self.has_current_crossings(new_currents):
+            raise ValueError('Adding the specified current paths would result '
+                             'in a wireframe with crossed current paths.\nTo '
+                             'avoid this error, modify the specifications or '
+                             'set `enforce_no_crossings` to False.')
+
+        # If all checks have passed, update the currents in the wireframe
+        self.currents[:] = new_currents[:]
 
     @SimsoptRequires(linesToVTK is not None,
                      "to_vtk method requires pyevtk module")

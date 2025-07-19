@@ -324,7 +324,7 @@ class WireframeFieldTests(unittest.TestCase):
 
         # Add two (non-contiguous) loops to the middle of the half-period
         wf.currents[[5, 6, 19, 23]] = [test_cur, -test_cur, -test_cur, test_cur]
-        wf.currents[[11, 8, 25, 29]] = [-2*test_cur, 2*test_cur, 
+        wf.currents[[11, 8, 25, 29]] = [-2*test_cur, 2*test_cur,
                                         2*test_cur, -2*test_cur]
         self.assertTrue(wf.check_constraints())
         coils = coils_from_wireframe(wf, min_order=3, max_order=3)
@@ -337,14 +337,13 @@ class WireframeFieldTests(unittest.TestCase):
             # to exist if order == number of nodes)
             n_qpts = len(coils[i].curve.quadpoints)
             n_nodes = coords[i].shape[0]
-            qpt_inds = (np.arange(coords[i].shape[0]) \
-                        / (coords[i].shape[0])*n_qpts).astype(int)
+            qpt_inds = (np.arange(n_nodes) / n_nodes * n_qpts).astype(int)
             curve_pts = coils[i].curve.gamma()[qpt_inds, :]
 
             if np.allclose(curve_pts, coords[i]):
                 # Non-flipped coil
                 self.assertAlmostEqual(coils[i].current.get_value(), currs[i])
-            elif np.allclose(curve_pts, 
+            elif np.allclose(curve_pts,
                              np.roll(coords[i], -1, axis=0)[::-1, :]):
                 # Flipped coil
                 self.assertAlmostEqual(-coils[i].current.get_value(), currs[i])
@@ -353,7 +352,7 @@ class WireframeFieldTests(unittest.TestCase):
                 self.assertTrue(False)
 
         wf.currents[:] = 0
-        
+
         # Add and detect a helical coil
         helical_coil_inds_4x4 = [0, 4, 22, 9, 13, 2, 6, 24, 11, 15]
         wf.currents[helical_coil_inds_4x4] = test_cur
@@ -367,7 +366,7 @@ class WireframeFieldTests(unittest.TestCase):
         rot_start = int(nqpts / wf.nfp)
         curve_rot = RotatedCurve(coils[0].curve, dphi, False)
         self.assertTrue(
-            np.allclose(np.roll(coils[0].curve.gamma(), rot_start, axis=0), 
+            np.allclose(np.roll(coils[0].curve.gamma(), rot_start, axis=0),
                         curve_rot.gamma()))
 
         # Confirm that the same segment indices produce 2 coils with nfp=4
@@ -375,7 +374,7 @@ class WireframeFieldTests(unittest.TestCase):
         wf_4fp = ToroidalWireframe(surf_wf_4hp, n_phi, n_theta)
         wf_4fp.currents[helical_coil_inds_4x4] = test_cur
         self.assertTrue(wf_4fp.check_constraints())
-        coils = coils_from_wireframe(wf_4fp) 
+        coils = coils_from_wireframe(wf_4fp)
         self.assertEqual(len(coils), 2)
         for i in range(len(coils)):
             self.assertEqual(coils[i].current.get_value(), np.abs(test_cur))
@@ -385,7 +384,7 @@ class WireframeFieldTests(unittest.TestCase):
         # Combination of helical and modular coils
         n_phi, n_theta = 8, 8
         wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
-        helical_coil_inds_8x8 = [0,  8, 17, 25, 33, 41, 50, 58, 76, 109, 
+        helical_coil_inds_8x8 = [0,  8, 17, 25, 33, 41, 50, 58, 76, 109,
                                  4, 12, 21, 29, 37, 45, 54, 62, 80, 113]
         wf.currents[helical_coil_inds_8x8] = test_cur
         wf.currents[[26, 34, 102, 103]] =  2 * test_cur
@@ -414,7 +413,7 @@ class WireframeFieldTests(unittest.TestCase):
         wf.add_tfcoil_currents(n_tf_per_hp, -test_cur/(n_tf_per_hp*2*wf.nfp))
         coils = coils_from_wireframe(wf)
         coil_field = BiotSavart(coils)
-        
+
         # Amperian loop through which poloidal current flows
         amploop = CurveXYZFourier(10, 1)
         amploop.set('xc(1)', surf_wf.get_rc(0, 0))
@@ -430,6 +429,106 @@ class WireframeFieldTests(unittest.TestCase):
             coils[idx].current.set_dofs([2*coils[idx].current.get_value()])
         amploop_curr = enclosed_current(amploop, coil_field, 200)
         self.assertTrue(np.allclose(amploop_curr, 2*test_cur))
+
+    def test_add_helical_coil_currents(self):
+        '''
+        Tests the `add_helical_coil_currents` method of the ToroidalWireframe
+        class
+        '''
+
+        def amperian_loop_tests(wf, crossings_0, crossings_hp, currents,
+                                loop_tor, loop_pol):
+
+            # Calculated expected toroidal and poloidal currents
+            x0 = [crossings_0] if np.isscalar(crossings_0) else crossings_0
+            xhp = [crossings_hp] if np.isscalar(crossings_hp) else crossings_hp
+            c = [currents] if np.isscalar(currents) else currents
+            if len(c) != len(x0):
+                c = c * len(x0)
+            expected_tor_cur = np.sum(c)
+            expected_pol_cur = \
+                np.sum([2 * (theta_hp - theta_0) * wf.nfp * curr
+                        for theta_0, theta_hp, curr in zip(x0, xhp, c)])
+
+            # Add currents to the wireframe
+            wf.add_helical_coil_currents(crossings_0, crossings_hp, currents)
+
+            # Calculate fields from (1) wireframe and (2) extracted coils
+            field_wf = WireframeField(wf)
+            field_coils = BiotSavart(coils_from_wireframe(wf, max_order=100))
+
+            # Calculate loop currents for both fields
+            loop_tor_cur_wf = enclosed_current(loop_tor, field_wf, 100)
+            loop_tor_cur_coils = enclosed_current(loop_tor, field_coils, 100)
+            loop_pol_cur_wf = enclosed_current(loop_pol, field_wf, 100)
+            loop_pol_cur_coils = enclosed_current(loop_pol, field_coils, 100)
+
+            # Check against expectations
+            self.assertTrue(np.isclose(expected_tor_cur, -loop_pol_cur_wf))
+            self.assertTrue(np.isclose(expected_tor_cur, -loop_pol_cur_coils))
+            self.assertTrue(np.isclose(expected_pol_cur, -loop_tor_cur_wf))
+            self.assertTrue(np.isclose(expected_pol_cur, -loop_tor_cur_coils))
+
+            wf.currents[:] = 0
+
+        def run_tests_for_different_coils(wf, cur1, loop_tor, loop_pol):
+
+            # Four paths making a quarter turn in one half-period
+            amperian_loop_tests(wf, [0, 0.25, 0.5, 0.75], [0.25, 0.5, 0.75, 1],
+                                [cur1, -2*cur1, cur1, -2*cur1], loop_tor,
+                                loop_pol)
+
+            # Three paths making a half-turn in one half-period
+            amperian_loop_tests(wf, [0, 1/3, 2/3], [0.5, 5/6, 7/6],
+                                [cur1, -cur1, -cur1], loop_tor, loop_pol)
+
+            # Three paths making a negative half-turn in one half-period
+            amperian_loop_tests(wf, [0, 1/3, 2/3], [-0.5, -1/6, 1/6],
+                                [cur1, -cur1, -cur1], loop_tor, loop_pol)
+
+            # Three paths with same current (input as scalar)
+            amperian_loop_tests(wf, [0, 1/3, 2/3], [-0.5, -1/6, 1/6], cur1,
+                                loop_tor, loop_pol)
+
+            # Three paths with same current (input as single element np array)
+            amperian_loop_tests(wf, [0, 1/3, 2/3], [-0.5, -1/6, 1/6],
+                                np.array([cur1]), loop_tor, loop_pol)
+
+            # High rotational transform (current paths include consecutive
+            # poloidal segments)
+            amperian_loop_tests(wf, 0, 3, cur1, loop_tor, loop_pol)
+
+            # High rotational transform, negative
+            amperian_loop_tests(wf, 0, -4, cur1, loop_tor, loop_pol)
+
+            # Pair of PF coils
+            amperian_loop_tests(wf, [0.1, -0.1], [0.1, -0.1], -cur1,
+                                loop_tor, loop_pol)
+
+        test_cur = 1e6
+        rmaj, rmin = 2, 1
+
+        amploop_tor = CurveXYZFourier(10, 1)
+        amploop_tor.set('xc(1)', rmaj)
+        amploop_tor.set('ys(1)', rmaj)
+
+        amploop_pol = CurveXYZFourier(10, 1)
+        amploop_pol.set('xc(0)', rmaj)
+        amploop_pol.set('xc(1)', 2*rmin)
+        amploop_pol.set('zs(1)', 2*rmin)
+
+        nfp_test = [1, 2, 3]
+        n_phi_test = [8, 10, 12]
+        n_theta_test = [8, 10, 12]
+
+        for nfp in nfp_test:
+            for n_phi in n_phi_test:
+                for n_theta in n_theta_test:
+                    surf_wf = surf_torus(nfp, rmaj, rmin)
+                    wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
+                    run_tests_for_different_coils(wf, test_cur, amploop_tor,
+                                                  amploop_pol)
+
 
 if __name__ == "__main__":
     unittest.main()
