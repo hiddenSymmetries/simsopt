@@ -23,15 +23,14 @@ requirements:
     - boost
     - pybind11 <3.0
     - scikit-build-core
+    - numpy >=2.0
+    - scikit-build-core
+    - "setuptools_scm[toml]"
 
   host:
     - pip
     - wheel
-    - numpy
-    - "setuptools_scm[toml]"
-    - scikit-build-core
     - python {{ python }}
-    - pybind11 <3.0
 
   run:
     - python
