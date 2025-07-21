@@ -35,9 +35,8 @@ Fixed resolution
    The final configuration is also available at
    ~/Box Sync/work21/wout_20211217-01-001_simsopt_docs_tutorials_nfp4_QH_warm_start_000_000038.nc
 
-This example is also available as ``QH_fixed_resolution.py`` in the
-:simsopt:`examples/2_Intermediate` directory.  As usual, a driver script begins with
-imports of the classes and functions we will need::
+This example is also available at :simsopt_file:`examples/2_Intermediate/QH_fixed_resolution.py`.  
+As usual, a driver script begins with imports of the classes and functions we will need::
 
   import numpy as np
   from simsopt.util import MpiPartition
@@ -64,12 +63,11 @@ distributed among the groups that are available.  There is no need to
 make the number of groups a multiple of the number of available MPI
 processes, although there cannot be more groups than processes.
 
-We next initialize a VMEC object from an input file::
+We next initialize a VMEC object from an input file, :simsopt_file:`examples/2_Intermediate/inputs/input.nfp4_QH_warm_start`::
 
   vmec = Vmec("input.nfp4_QH_warm_start", mpi=mpi)
 
-This file can be found in the :simsopt:`examples/2_Intermediate/inputs`
-directory. The file describes a configuration that has already been
+The file describes a configuration that has already been
 partially optimized for quasi-helical symmetry in a very small
 parameter space, keeping poloidal and toroidal mode numbers (the
 latter divided by the number of field periods) only up through 1:
