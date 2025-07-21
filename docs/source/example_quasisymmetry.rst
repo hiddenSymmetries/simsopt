@@ -334,9 +334,8 @@ Here we show an alternative method of quasisymmetry optimization using
 a different objective function,
 :obj:`simsopt.mhd.Quasisymmetry`, based on the
 symmetry-breaking Fourier mode aplitudes :math:`B_{m,n}` in Boozer
-coordinates.  This example can also be found in the
-:simsopt:`examples/2_Intermediate` directory as
-``resolution_increase_boozer.py``.
+coordinates.  This example can also be found at
+:simsopt_file:`examples/2_Intermediate/resolution_increase_boozer.py`.
 
 In this case, the imports needed are::
 
