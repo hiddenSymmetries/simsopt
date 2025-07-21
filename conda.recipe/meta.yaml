@@ -24,13 +24,13 @@ requirements:
     - pybind11 <3.0
     - scikit-build-core
     - numpy >=2.0
-    - scikit-build-core
-    - "setuptools_scm[toml]"
 
   host:
     - pip
     - wheel
     - python {{ python }}
+    - scikit-build-core
+    - "setuptools_scm[toml]"
 
   run:
     - python
