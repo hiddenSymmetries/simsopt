@@ -23,7 +23,7 @@ We then add several advanced features to the problem:
   using the virtual casing principle, similar to the example
   in :simsopt_file:`examples/2_Intermediate/stage_two_optimization_finite_beta.py`.
 - Taking into account finite coil width using a multi-filament approach
-  similar to the example in :simsopt_file:`examples/3_Advanced/stage_two_optimization_finite_build.py`.
+  similar to the example in :simsopt_file:`examples/3_Advanced/stage_two_optimization_finitebuild.py`.
 
 
 .. _minimal_stage2:
@@ -482,7 +482,7 @@ in which there is current inside the plasma, which contributes significantly to
 the total magnetic field.Therefore, the
 target quantity :math:`\vec{B}_{external}\cdot \vec{n}` is no longer zero
 and a virtual casing calculation is used to find its value.
-The complete script can be found in :simsopt_file:`examples/2_Intermediate/stage_two_finite_beta.py`.
+The complete script can be found in :simsopt_file:`examples/2_Intermediate/stage_two_optimization_finite_beta.py`.
 
 We use an objective function similar to :ref:`the first example <minimal_stage2>`
 with small modifications::
