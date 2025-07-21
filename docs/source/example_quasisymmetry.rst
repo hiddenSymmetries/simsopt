@@ -222,9 +222,9 @@ you are free to add other scripting in your problem definition. Here
 we show how this capability can be used to increase the numerical
 resolution of codes such as VMEC during the optimization. At the same
 time, we will increase the number of Fourier modes in the parameter
-space during the optimization. This example can also be found in the
-:simsopt:`examples/2_Intermediate` directory as
-``resolution_increase.py``. This example is very similar to the
+space during the optimization. This example can also be found at
+:simsopt_file:`examples/2_Intermediate/resolution_increase.py`.
+This example is very similar to the
 quasi-axisymmetry optimization shown in `arXiv:2108.03711
 <https://arxiv.org/pdf/2108.03711>`__.
 
