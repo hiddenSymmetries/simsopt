@@ -1,6 +1,7 @@
 import unittest
 import logging
 import numpy as np
+from pathlib import Path
 
 from simsopt.field.magneticfieldclasses import ToroidalField, PoloidalField, InterpolatedField, UniformInterpolationRule
 from simsopt.field.tracing import compute_fieldlines, particles_to_vtk, plot_poincare_data, \
@@ -10,6 +11,7 @@ from simsopt.configs.zoo import get_ncsx_data
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 
 logging.basicConfig()
 
@@ -76,6 +78,10 @@ class FieldlineTesting(unittest.TestCase):
 
     def test_poincare_plot(self):
         curves, currents, ma = get_ncsx_data()
+        TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests"
+                    / "test_files").resolve()
+        surf = SurfaceRZFourier.from_focus(
+                   TEST_DIR / 'input.NCSX_c09r00_halfTeslaTF')
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
@@ -98,7 +104,8 @@ class FieldlineTesting(unittest.TestCase):
             bsh, R0, Z0, tmax=1000, phis=phis, stopping_criteria=[])
         try:
             import matplotlib  # noqa
-            plot_poincare_data(res_phi_hits, phis, '/tmp/fieldlines.png')
+            plot_poincare_data(res_phi_hits, phis, '/tmp/fieldlines.png',
+                               surf=surf)
         except ImportError:
             pass
 
@@ -116,20 +123,20 @@ class FieldlineTesting(unittest.TestCase):
             assert np.linalg.norm(ma.gamma()[i+1, :] - res_phi_hits[0][i, 2:5]) < 1e-4
 
     def test_poincare_caryhanson(self):
-        # Test with a known magnetic field - optimized Cary&Hanson configuration
+        # Test with a known magnetic field - optimized Cary & Hanson configuration
         # with a magnetic axis at R=0.9413. Field created using the Biot-Savart
         # solver given a set of two helical coils created using the CurveHelical
         # class. The total magnetic field is a superposition of a helical and
         # a toroidal magnetic field.
-        curves = [CurveHelical(200, 2, 5, 2, 1., 0.3) for i in range(2)]
-        curves[0].set_dofs(np.concatenate(([np.pi/2, 0.2841], [0, 0])))
-        curves[1].set_dofs(np.concatenate(([0, 0], [0, 0.2933])))
+        curves = [CurveHelical(200, 1, 5, 2, 1., 0.3) for i in range(2)]
+        curves[0].x = [np.pi/ 2, 0.2841, 0]
+        curves[1].x = [0, 0, 0.2933]
         currents = [3.07e5, -3.07e5]
         Btoroidal = ToroidalField(1.0, 1.0)
         Bhelical = BiotSavart([
             Coil(curves[0], Current(currents[0])),
             Coil(curves[1], Current(currents[1]))])
-        bs = Bhelical+Btoroidal
+        bs = Bhelical + Btoroidal
         ma = CurveXYZFourier(300, 1)
         magnetic_axis_radius = 0.9413
         ma.set_dofs([0, 0, magnetic_axis_radius, 0, magnetic_axis_radius, 0, 0, 0, 0])
