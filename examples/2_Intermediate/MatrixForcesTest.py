@@ -1,3 +1,4 @@
+import time
 import numpy as np
 
 def random_dipoles_and_positions(N):
@@ -7,8 +8,9 @@ def random_dipoles_and_positions(N):
         moments: array of length 3N
         positions: array of length 3N
     """
-    moments = np.random.randint(-10, 11, size=3*N)
-    positions = np.random.randint(-10, 11, size=3*N)
+    bounds = N * 10
+    moments = np.random.randint(-bounds, bounds, size=3*N)
+    positions = np.random.randint(-bounds, bounds, size=3*N)
     return moments, positions
 
 
@@ -36,9 +38,9 @@ def build_A_tildeF_tensor(r):
     r_squared = np.dot(r, r)
     C = (3 * mu0) / (4 * np.pi * (r_squared ** 2.5))
     A_tildeF = np.zeros((3, 3, 3))
-    for j in range(3):
-        for i in range(3):
-            for l in range(3):
+    for j in range(3): # j is the index of the force component
+        for i in range(3): # i is the index of the dipole moment of the first dipole
+            for l in range(3): # l is the index of the dipole moment of the second dipole
                 delta_ij = 1 if i == j else 0  # Kronecker delta for i, j
                 delta_jl = 1 if j == l else 0  # Kronecker delta for j, l
                 delta_il = 1 if i == l else 0  # Kronecker delta for i, l
@@ -166,11 +168,32 @@ def build_interaction_matrix(positions):
     """
     return build_A_F(positions)
 
+def diagnostic_test(N):
+    moments, positions = random_dipoles_and_positions(N)
+    moments = moments * 1000
+    
+    t1 = time.time()
+    A_F = build_interaction_matrix(positions)
+    t2 = time.time()
+    print(f"Time to build A_F: {t2-t1:.3f} seconds")
+    
+    t3 = time.time()
+    matrix_squared = matrix_force_squared_components_per_dipole(moments, A_F)
+    t4 = time.time()
+    print(f"Time to compute matrix force squared components: {t4-t3:.3f} seconds")
+    
+    return matrix_squared
 
 # Example usage:
 if __name__ == "__main__":
+    # Test performance for different numbers of dipoles
+    for N in [10, 50, 100, 200, 500, 1000, 2000]:
+        print(f"\nTesting N = {N} dipoles:")
+        matrix_squared = diagnostic_test(N)
+    
+    '''
     # Create random dipole pair
-    N = 3
+    N = 10000
     print("Number of magnets:", N)
     moments, positions = random_dipoles_and_positions(N)
     moments = moments * 1000
@@ -186,16 +209,20 @@ if __name__ == "__main__":
     #print("m2:", m2) 
     #print("p1:", p1)
     #print("p2:", p2)
-    print('moments: ', moments)
-    print("positions: ", positions)
+    #print('moments: ', moments)
+    #print("positions: ", positions)
     # Calculate forces using classic and matrix methods
-    print("Classic force (m2 on m1):", classic_force(m1, m2, p1, p2))
-    print("     m1 ~A_F m2:         ", tildematrix_force(m1, m2, p1, p2))
+    #print("Classic force (m2 on m1):", classic_force(m1, m2, p1, p2))
+    #print("     m1 ~A_F m2:         ", tildematrix_force(m1, m2, p1, p2))
     
     # Build full interaction matrices and calculate forces
+    t1 = time.time()
     A_F = build_interaction_matrix(positions)
+    t2 = time.time()
+    print(f"Time to build A_F: {t2-t1:.3f} seconds")
+    
     print("\nFull interaction matrix A_F shape:", A_F.shape)
-    print("full m^T A_F m:", matrix_force(moments, A_F))
+    #print("full m^T A_F m:", matrix_force(moments, A_F))
     
     # Test per-dipole forces
     #dipole_forces = dipole_forces_from_A_F(moments, A_F)
@@ -204,14 +231,18 @@ if __name__ == "__main__":
     #print("Force on dipole 2:", dipole_forces[3:6])
     
     # Test squared components
+    t3 = time.time()
     matrix_squared = matrix_force_squared_components_per_dipole(moments, A_F)
- 
-    print("\nMatrix force squared components:", matrix_squared)
-    print("Net force (matrix method) squared components for dipole 1:", matrix_squared[0:3])
-    print("Net force (matrix method) squared components for dipole 2:", matrix_squared[3:6])
-    print("Net force squared (matrix method) components for dipole 3:", matrix_squared[6:9])
+    t4 = time.time()
+    print(f"\nTime to compute matrix force squared components: {t4-t3:.3f} seconds\n")
+    
+    #print("\nMatrix force squared components:", matrix_squared)
+    #print("Net force (matrix method) squared components for dipole 1:", matrix_squared[0:3])
+    #print("Net force (matrix method) squared components for dipole 2:", matrix_squared[3:6])
+    #print("Net force squared (matrix method) components for dipole 3:", matrix_squared[6:9])
     #print("\nClassic force squared components:", classic_force_squared_components(m1, m2, p1, p2), "(For just one dipole)")
-    print("\nNet force (classic method) squared on dipole 1:", (classic_force(m1, m2, p1, p2)+classic_force(m1, m3, p1, p3))**2)
-    print("Net force (classic method) squared on dipole 2:", (classic_force(m2, m1, p2, p1)+classic_force(m2, m3, p2, p3))**2)
-    print("Net force (classic method) squared on dipole 3:", (classic_force(m3, m2, p3, p2)+classic_force(m3, m1, p3, p1))**2)
+    #print("\nNet force (classic method) squared on dipole 1:", (classic_force(m1, m2, p1, p2)+classic_force(m1, m3, p1, p3))**2)
+    #print("Net force (classic method) squared on dipole 2:", (classic_force(m2, m1, p2, p1)+classic_force(m2, m3, p2, p3))**2)
+    #print("Net force (classic method) squared on dipole 3:", (classic_force(m3, m2, p3, p2)+classic_force(m3, m1, p3, p1))**2)
+    '''
     
