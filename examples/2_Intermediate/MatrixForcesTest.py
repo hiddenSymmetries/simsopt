@@ -13,7 +13,7 @@ def random_dipoles_and_positions(N):
     positions = np.random.randint(-bounds, bounds, size=3*N)
     return moments, positions
 
-
+'''
 def random_magnet_pair():
     m1 = np.random.randint(-10, 11, size=3)
     m2 = np.random.randint(-10, 11, size=3)
@@ -21,6 +21,7 @@ def random_magnet_pair():
     p2 = np.random.randint(-10, 11, size=3)
     return m1, m2, p1, p2
 # m1, m2, p1, p2 = random_magnet_pair()
+'''
 '''
 m1 = np.array([2, -1, 3])
 m2 = np.array([-1, 4, 2])
@@ -82,13 +83,14 @@ def build_A_F(positions):
     return A_F
 
  
-
+'''
 def tildematrix_force(m1, m2, p1, p2):
     r = p2 - p1
     A_tildeF = build_A_tildeF_tensor(r)
     # Contract: F_j = sum_{i,l} m2_i * A_{jil} * m1_l
     F = np.einsum('i,jil,l->j', m2, A_tildeF, m1)
     return F
+
 def matrix_force(moments, A_F):
     """
     Computes the force vector F = m A_F m via matrix multiplication
@@ -101,7 +103,7 @@ def matrix_force(moments, A_F):
     # Contract: F_j = sum_{i,l} m_i * A_{jil} * m_l
     F = np.einsum('i,ilk,l->k', moments, A_F, moments)
     return F
-
+'''
 def dipole_forces_from_A_F(moments, A_F):
     """
     Computes the force on each individual dipole using the A_F tensor.
@@ -128,7 +130,7 @@ def dipole_forces_from_A_F(moments, A_F):
                 forces[3*i:3*(i+1)] += force_ij
     
     return forces
-
+'''
 def matrix_force_squared_components_per_dipole(moments, A_F):
     """
     Computes the squared force components for each dipole using the A_F tensor.
@@ -140,7 +142,8 @@ def matrix_force_squared_components_per_dipole(moments, A_F):
     """
     forces = dipole_forces_from_A_F(moments, A_F)
     return forces**2
-
+'''
+'''
 def classic_force(m1, m2, p1, p2):
     mu0 = 4 * np.pi * 1e-7
     r = p2 - p1
@@ -160,20 +163,15 @@ def classic_force(m1, m2, p1, p2):
 def classic_force_squared_components(m1, m2, p1, p2):
     F = classic_force(m1, m2, p1, p2)
     return F**2
-
-def build_interaction_matrix(positions):
-    """
-    Builds the interaction matrix A_F for the given positions.
-    This is an alias for build_A_F for clarity.
-    """
-    return build_A_F(positions)
+'''
+(positions)
 
 def diagnostic_test(N):
     moments, positions = random_dipoles_and_positions(N)
     moments = moments * 1000
     
     t1 = time.time()
-    A_F = build_interaction_matrix(positions)
+    A_F = build_A_F(positions)
     t2 = time.time()
     print(f"Time to build A_F: {t2-t1:.3f} seconds")
     
@@ -217,7 +215,7 @@ if __name__ == "__main__":
     
     # Build full interaction matrices and calculate forces
     t1 = time.time()
-    A_F = build_interaction_matrix(positions)
+    A_F = build_A_F(positions)
     t2 = time.time()
     print(f"Time to build A_F: {t2-t1:.3f} seconds")
     
