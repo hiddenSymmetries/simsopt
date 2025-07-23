@@ -1,6 +1,7 @@
 import unittest
 import logging
 import numpy as np
+from pathlib import Path
 
 from simsopt.field.magneticfieldclasses import ToroidalField, PoloidalField, InterpolatedField, UniformInterpolationRule
 from simsopt.field.tracing import compute_fieldlines, particles_to_vtk, plot_poincare_data, \
@@ -10,6 +11,7 @@ from simsopt.configs.zoo import get_ncsx_data
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 
 logging.basicConfig()
 
@@ -76,6 +78,10 @@ class FieldlineTesting(unittest.TestCase):
 
     def test_poincare_plot(self):
         curves, currents, ma = get_ncsx_data()
+        TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests"
+                    / "test_files").resolve()
+        surf = SurfaceRZFourier.from_focus(
+                   TEST_DIR / 'input.NCSX_c09r00_halfTeslaTF')
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
@@ -98,7 +104,8 @@ class FieldlineTesting(unittest.TestCase):
             bsh, R0, Z0, tmax=1000, phis=phis, stopping_criteria=[])
         try:
             import matplotlib  # noqa
-            plot_poincare_data(res_phi_hits, phis, '/tmp/fieldlines.png')
+            plot_poincare_data(res_phi_hits, phis, '/tmp/fieldlines.png',
+                               surf=surf)
         except ImportError:
             pass
 
