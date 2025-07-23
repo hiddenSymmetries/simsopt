@@ -35,9 +35,9 @@ jobs:
 
       - name: Check out code for the container build
         uses: actions/checkout@v4
-      - uses: eWaterCycle/setup-singularity@v7
+      - uses: eWaterCycle/setup-apptainer@v2
         with:
-          singularity-version: 3.8.3
+          apptainer-version: 1.4.1
 
       - name: Fetch all history for all tags and branches
         run: git fetch --prune --unshallow
