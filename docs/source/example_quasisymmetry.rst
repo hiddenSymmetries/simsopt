@@ -18,7 +18,7 @@ that break the symmetry. The recommended approach is to use
 :obj:`~simsopt.mhd.QuasisymmetryRatioResidual`, since
 it has the modest advantage of not requiring a transformation to
 Boozer coordinates, although both methods are effective. The first two
-examples on this page do not require the ``booz_xform`` package,
+examples on this page do not require the `booz_xform <https://github.com/hiddenSymmetries/booz_xform>`_ package,
 whereas the third example does.
 
 For these optimization examples, you probably want to write a script
@@ -35,9 +35,8 @@ Fixed resolution
    The final configuration is also available at
    ~/Box Sync/work21/wout_20211217-01-001_simsopt_docs_tutorials_nfp4_QH_warm_start_000_000038.nc
 
-This example is also available as ``QH_fixed_resolution.py`` in the
-``examples/2_Intermediate`` directory.  As usual, a driver script begins with
-imports of the classes and functions we will need::
+This example is also available at :simsopt_file:`examples/2_Intermediate/QH_fixed_resolution.py`.  
+As usual, a driver script begins with imports of the classes and functions we will need::
 
   import numpy as np
   from simsopt.util import MpiPartition
@@ -64,12 +63,11 @@ distributed among the groups that are available.  There is no need to
 make the number of groups a multiple of the number of available MPI
 processes, although there cannot be more groups than processes.
 
-We next initialize a VMEC object from an input file::
+We next initialize a VMEC object from an input file, :simsopt_file:`examples/2_Intermediate/inputs/input.nfp4_QH_warm_start`::
 
   vmec = Vmec("input.nfp4_QH_warm_start", mpi=mpi)
 
-This file can be found in the ``examples/2_Intermediate/inputs``
-directory. The file describes a configuration that has already been
+The file describes a configuration that has already been
 partially optimized for quasi-helical symmetry in a very small
 parameter space, keeping poloidal and toroidal mode numbers (the
 latter divided by the number of field periods) only up through 1:
@@ -224,9 +222,9 @@ you are free to add other scripting in your problem definition. Here
 we show how this capability can be used to increase the numerical
 resolution of codes such as VMEC during the optimization. At the same
 time, we will increase the number of Fourier modes in the parameter
-space during the optimization. This example can also be found in the
-``examples/2_Intermediate`` directory as
-``resolution_increase.py``. This example is very similar to the
+space during the optimization. This example can also be found at
+:simsopt_file:`examples/2_Intermediate/resolution_increase.py`.
+This example is very similar to the
 quasi-axisymmetry optimization shown in `arXiv:2108.03711
 <https://arxiv.org/pdf/2108.03711>`__.
 
@@ -250,7 +248,7 @@ starting "from scratch"::
 
   vmec = Vmec("input.nfp2_QA", mpi=mpi)
 
-This input file can be found in the ``examples/2_Intermediate/inputs``
+This input file can be found in the :simsopt:`examples/2_Intermediate/inputs`
 directory. We define the quasisymmetry objective as in the previous
 section, except that we specify a helicity of (1,0) instead of (1,1)
 or (1,-1) to get quasi-axisymmetry instead of quasi-helical symmetry::
@@ -336,9 +334,8 @@ Here we show an alternative method of quasisymmetry optimization using
 a different objective function,
 :obj:`simsopt.mhd.Quasisymmetry`, based on the
 symmetry-breaking Fourier mode aplitudes :math:`B_{m,n}` in Boozer
-coordinates.  This example can also be found in the
-``examples/2_Intermediate`` directory as
-``resolution_increase_boozer.py``.
+coordinates.  This example can also be found at
+:simsopt_file:`examples/2_Intermediate/resolution_increase_boozer.py`.
 
 In this case, the imports needed are::
 
@@ -348,13 +345,13 @@ In this case, the imports needed are::
   from simsopt.solve import least_squares_mpi_solve
 
 We again split the pool of MPI processes into worker groups and
-initialize a ``Vmec`` object as in the previous example::
+initialize a :obj:`~simsopt.mhd.Vmec` object as in the previous example::
 
   mpi = MpiPartition()
   vmec = Vmec("input.nfp2_QA", mpi=mpi)
 
 This input file, corresponding to an axisymmetric torus with circular
-cross-section, can be found in the ``examples/2_Intermediate/inputs``
+cross-section, can be found in the :simsopt:`examples/2_Intermediate/inputs`
 directory. Next, this alternative quasisymmetry objective can be
 created as follows::
 
@@ -370,7 +367,7 @@ and :obj:`~simsopt.mhd.Quasisymmetry`. The numerical resolution
 of the Boozer-coordinate transformation can be adjusted by passing
 parameters to the :obj:`~simsopt.mhd.Boozer` constructor, as in
 ``Boozer(vmec, mpol=64, ntor=32)``. The second argument to
-``Quasisymmetry`` above sets the quasisymmetry objective to be
+:obj:`~simsopt.mhd.Quasisymmetry` above sets the quasisymmetry objective to be
 evaluated at normalized toroidal flux of 0.5, but you are free to
 provide different values.  Or, a list of values can be provided to
 target quasisymmetry on multiple surfaces. The

@@ -39,9 +39,8 @@ from `the hiddenSymmetries repository <https://github.com/hiddenSymmetries/virtu
 Vacuum optimization
 -------------------
 
-This example is available as ``single_stage_optimization.py`` in the
-``examples/3_Advanced`` directory.  As usual, a driver script begins with
-imports of the classes and functions we will need
+This example is available at :simsopt_file:`examples/3_Advanced/single_stage_optimization.py`.
+As usual, a driver script begins with imports of the classes and functions we will need
 
 .. code-block::
 
@@ -61,9 +60,9 @@ imports of the classes and functions we will need
 
 
 For a description of each class and function imported, please see the stage 1
-script ``QH_fixed_resolution.py`` in the ``examples/2_Intermediate`` directory
-and the stage 2 script ``stage_two_optimization_minimal.py`` in the ``examples/1_Simple``
-directory. For convenience, a ``print`` function is defined that only prints once even when
+script at :simsopt_file:`examples/2_Intermediate/QH_fixed_resolution.py` 
+and the stage 2 script at :simsopt_file:`examples/1_Simple/stage_two_optimization_minimal.py`.
+For convenience, a ``print`` function is defined that only prints once even when
 the code is ran in parallel:
 
 .. code-block::
@@ -197,9 +196,9 @@ The results are then printed and stored in files.
 Finite beta optimization
 -------------------------
 
-The finite beta generalization example is available as
-``single_stage_optimization_finite_beta.py`` in the
-``examples/3_Advanced`` directory. In addition to the parameters in the
+The finite beta generalization example is available at
+:simsopt_file:`examples/3_Advanced/single_stage_optimization_finite_beta.py`.
+In addition to the parameters in the
 previous example, the finite beta script uses the Virtual Casing principle
 to decouple the plasma magnetic field from the coil magnetic field.
 The VirtualCasing module is imported in
