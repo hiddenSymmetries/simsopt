@@ -35,7 +35,7 @@ jobs:
       fail-fast: false
       matrix:
         test-type: [unit, integrated]
-        packages: [all, vmec, spec, none]
+        packages: [all, none]
         python-version: ["3.10", "3.11", "3.12", "3.13"]
         include:
             - python-version: "3.13"
