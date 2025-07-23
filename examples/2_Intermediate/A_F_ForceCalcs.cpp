@@ -131,7 +131,7 @@ double diagnostic_test(int N) {
 }
 
 int main() {
-    vector<int> Ns = {1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000};
+    vector<int> Ns = {1000,2000,5000,10000};
     for (int N : Ns) {
         cout << "\nTesting N = " << N << " dipoles:" << endl;
         double force_norm_squared = diagnostic_test(N);
