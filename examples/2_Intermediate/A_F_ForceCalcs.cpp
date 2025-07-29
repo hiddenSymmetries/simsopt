@@ -8,7 +8,7 @@
 
 using namespace std;
 using namespace Eigen;
-
+// compile with: g++ -std=c++17 -fopenmp -I/usr/include/eigen3 -o A_F_ForceCalcs A_F_ForceCalcs.cpp
 // Generate random dipole moments and positions for N dipoles
 void random_dipoles_and_positions(int N, VectorXd& moments, VectorXd& positions) {
     int size = 3 * N;
@@ -107,35 +107,99 @@ double two_norm_squared(const VectorXd& array) {
 }
 
 // Diagnostic test
-double diagnostic_test(int N) {
-    VectorXd moments, positions;
-    random_dipoles_and_positions(N, moments, positions);
-    moments = moments * 1000;
+double diagnostic_test(int N, const VectorXd& moments = VectorXd(), const VectorXd& positions = VectorXd()) {
+    VectorXd moments_use, positions_use;
+    
+    if (moments.size() == 0 || positions.size() == 0) {
+        // Generate random moments and positions
+        random_dipoles_and_positions(N, moments_use, positions_use);
+        moments_use = moments_use * 1000;
+    } else {
+        // Use provided moments and positions
+        if (moments.size() != 3*N || positions.size() != 3*N) {
+            throw runtime_error("Length of provided moments and positions must be 3*N");
+        }
+        moments_use = moments;
+        positions_use = positions;
+    }
 
     auto t1 = chrono::high_resolution_clock::now();
     vector<vector<vector<vector<vector<double>>>>> A_F;
-    build_A_F(positions, A_F);
+    build_A_F(positions_use, A_F);
     auto t2 = chrono::high_resolution_clock::now();
     chrono::duration<double> build_time = t2 - t1;
     cout << "Time to build A_F: " << build_time.count() << " seconds" << endl;
 
     auto t3 = chrono::high_resolution_clock::now();
     VectorXd net_forces;
-    dipole_forces_from_A_F(moments, A_F, net_forces);
+    dipole_forces_from_A_F(moments_use, A_F, net_forces);
     auto t4 = chrono::high_resolution_clock::now();
     chrono::duration<double> force_time = t4 - t3;
     cout << "Time to compute net force components: " << force_time.count() << " seconds" << endl;
 
     double force_2norm_squared = two_norm_squared(net_forces);
+    if (N < 6) {
+        cout << "\nDetailed output:" << endl;
+        cout << "\nMoments: [";
+        for (int i = 0; i < moments_use.size(); ++i) {
+            cout << moments_use(i);
+            if (i < moments_use.size() - 1) cout << ", ";
+        }
+        cout << "]" << endl;
+        
+        cout << "\nPositions: [";
+        for (int i = 0; i < positions_use.size(); ++i) {
+            cout << positions_use(i);
+            if (i < positions_use.size() - 1) cout << ", ";
+        }
+        cout << "]" << endl;
+        
+        cout << "\nNet forces: [";
+        for (int i = 0; i < net_forces.size(); ++i) {
+            cout << net_forces(i);
+            if (i < net_forces.size() - 1) cout << ", ";
+        }
+        cout << "]" << endl;
+    }
+    
     return force_2norm_squared;
 }
 
 int main() {
-    vector<int> Ns = {1000,2000,5000,10000};
+    // Test case for two orthogonal dipoles. Should be zero force and gradient.
+    VectorXd moments(6), positions(6);
+    moments << 0.0, 1.0, 0.0, 0.0, 0.0, 1.0;
+    positions << 1.0, 0.0, 0.0, -1.0, 0.0, 0.0;
+    double force_norm_squared = diagnostic_test(2, moments, positions);
+
+    // Test case for 3 collinear dipoles. Should be zero force and gradient.
+    moments.resize(9);
+    positions.resize(9);
+    moments << 0.0, 1.0, 0.0, 0.0, -0.0625, 0.0, 0.0, 1.0, 0.0;
+    positions << -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0;
+    force_norm_squared = diagnostic_test(3, moments, positions);
+
+    // Test case for 4 dipoles in a circle. Should be nonzero force and gradient should be zero.
+    moments.resize(12);
+    positions.resize(12);
+    moments << 0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 1.0, 0.0, 0.0;
+    positions << 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0;
+    force_norm_squared = diagnostic_test(4, moments, positions);
+
+    // Test case for two dipoles.
+    // Force should be [ 0.0, -0.1875, 0.0, 0.0, 0.1875, 0.0] * 10^-7
+    // Gradient should be [ 0.0, 0.0, -0.09375, 0.0, 0.0, 0.09375] * 10^-7
+    moments.resize(6);
+    positions.resize(6);
+    moments << 0.0, 1.0, 0.0, 0.0, 1.0, 1.0;
+    positions << 1.0, 0.0, 0.0, -1.0, 0.0, 0.0;
+    force_norm_squared = diagnostic_test(2, moments, positions);
+    
+    /*vector<int> Ns = {1000,2000,5000,10000, 37500};
     for (int N : Ns) {
         cout << "\nTesting N = " << N << " dipoles:" << endl;
         double force_norm_squared = diagnostic_test(N);
         cout << "Force two norm squared: " << force_norm_squared << endl;
-    }
+    }*/
     return 0;
 }

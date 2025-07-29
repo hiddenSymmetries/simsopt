@@ -140,7 +140,6 @@ def gradient_of_force_squared(moments, forces, A_F):
     final_grad = 2 * grad
     return final_grad
 
-
 def diagnostic_test(N, moments=None, positions=None):
     if moments is None or positions is None:
         moments, positions = random_dipoles_and_positions(N)
