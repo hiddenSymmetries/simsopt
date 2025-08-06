@@ -1,3 +1,5 @@
+.. _example_quasisymmetry:
+
 Optimizing for quasisymmetry
 ============================
 
