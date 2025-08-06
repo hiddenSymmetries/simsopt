@@ -28,12 +28,8 @@ from .surfacerzfourier import *
 from .surfacexyzfourier import *
 from .surfacexyztensorfourier import *
 from .strain_optimization import *
-<<<<<<< HEAD
-from .strain_optimization import *
-=======
 from .wireframe_toroidal import *
 from .ports import *
->>>>>>> 671003f36182fcc97c7f654796984c88fce25b5c
 
 from .permanent_magnet_grid import *
 
