@@ -42,10 +42,10 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include(CheckCXXCompilerFlag)
 IF(DEFINED ENV{CI})
     if (APPLE)
-    	set(CMAKE_CXX_FLAGS "-O3")
+    	set(CMAKE_CXX_FLAGS "-O3 -Wno-deprecated-declarations")
     else()
         message(STATUS "CI environment detected. Set compilation flags targetting Westmere microarch.")
-        set(CMAKE_CXX_FLAGS "-O3 -march=westmere")
+        set(CMAKE_CXX_FLAGS "-O3 -march=westmere -Wno-deprecated-declarations")
     endif()
 elseif(DEFINED ENV{CONDA_BUILD})
     message(STATUS "conda build environment detected. Let conda set compilation flags accordingly.")
@@ -56,11 +56,11 @@ else()
     unset(COMPILER_SUPPORTS_MARCH_NATIVE CACHE)
     CHECK_CXX_COMPILER_FLAG(-march=native COMPILER_SUPPORTS_MARCH_NATIVE)
     if(COMPILER_SUPPORTS_MARCH_NATIVE)
-        set(CMAKE_CXX_FLAGS "-O3 -march=native -ffp-contract=fast")
+        set(CMAKE_CXX_FLAGS "-O3 -march=native -ffp-contract=fast -Wno-deprecated-declarations")
     elseif(${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "arm64")
-        set(CMAKE_CXX_FLAGS "-O3 -mcpu=apple-a14 -ffp-contract=fast")
+        set(CMAKE_CXX_FLAGS "-O3 -mcpu=apple-a14 -ffp-contract=fast -Wno-deprecated-declarations")
     else()
-        set(CMAKE_CXX_FLAGS "-O3 -ffp-contract=fast")
+        set(CMAKE_CXX_FLAGS "-O3 -ffp-contract=fast -Wno-deprecated-declarations")
     endif()
 endif()
 # Ensure all code used from Eigen does not have LGPL license:
@@ -131,6 +131,7 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp
     src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp
     src/simsoptpp/boozerradialinterpolant.cpp src/simsoptpp/NetTorque.cpp
+    src/simsoptpp/A_F_ForceCalcs.cpp
     )
 
 set_target_properties(${PROJECT_NAME}

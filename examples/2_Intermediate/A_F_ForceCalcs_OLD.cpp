@@ -202,4 +202,17 @@ int main() {
         cout << "Force two norm squared: " << force_norm_squared << endl;
     }*/
     return 0;
+
+    // Benchmark tests for N = 1,000 and N = 10,000 dipoles
+    cout << "\n" << string(50, '=') << endl;
+    cout << "BENCHMARK TESTS" << endl; 
+    cout << string(50, '=') << endl;
+
+    cout << "\nBenchmark 1: N = 1,000 dipoles" << endl;
+    double force_norm_squared_1k = diagnostic_test(1000);
+    cout << "Force norm squared: " << force_norm_squared_1k << endl;
+
+    cout << "\nBenchmark 2: N = 10,000 dipoles" << endl;
+    double force_norm_squared_10k = diagnostic_test(10000);
+    cout << "Force norm squared: " << force_norm_squared_10k << endl;
 }

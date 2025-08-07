@@ -21,6 +21,7 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "permanent_magnet_optimization.h"
 #include "NetForce.h"
 #include "NetTorque.h"
+#include "A_F_ForceCalcs.h"
 #include "reiman.h"
 #include "simdhelpers.h"
 #include "boozerresidual_py.h"
@@ -70,6 +71,16 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("define_a_uniform_cartesian_grid_between_two_toroidal_surfaces" , &define_a_uniform_cartesian_grid_between_two_toroidal_surfaces);
     m.def("net_force_matrix", &net_force_matrix);
     m.def("net_torque_matrix", &net_torque_matrix);
+
+    // A_F tensor-based force calculations
+    m.def("build_A_tildeF_tensor", &build_A_tildeF_tensor, py::arg("r"));
+    m.def("build_A_F_tensor", &build_A_F_tensor, py::arg("positions"));
+    m.def("dipole_forces_from_A_F", &dipole_forces_from_A_F, py::arg("moments"), py::arg("A_F"));
+    m.def("matrix_force_squared_components_per_dipole", &matrix_force_squared_components_per_dipole, py::arg("moments"), py::arg("A_F"));
+    m.def("matrix_force", &matrix_force, py::arg("moments"), py::arg("A_F"));
+    m.def("diagnostic_test", &diagnostic_test, py::arg("N"), py::arg("moments") = PyArray(), py::arg("positions") = PyArray());
+    m.def("random_dipoles_and_positions", &random_dipoles_and_positions, py::arg("N"), py::arg("moments"), py::arg("positions"));
+    m.def("two_norm_squared", &two_norm_squared, py::arg("array"));
 
     // Permanent magnet optimization algorithms have many default arguments
     m.def("MwPGP_algorithm", &MwPGP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("alpha"), py::arg("nu") = 1.0e100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("max_iter") = 500, py::arg("min_fb") = 1.0e-20, py::arg("verbose") = false);
