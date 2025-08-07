@@ -503,6 +503,10 @@ class isSelfIntersecting(unittest.TestCase):
         xs_array = surfaces[-1].cross_section(angle/(2*np.pi), thetas=thetas, tol=1e-13)
         np.testing.assert_allclose(xs, xs_array, atol=1e-13, err_msg="The cross_section method should return the same result for an array of thetas.")
         
+        # check that an exception is raised if theta is 2D
+        with self.assertRaises(Exception):
+            _ = surfaces[-1].cross_section(angle/(2*np.pi), thetas=[[0, 0.8], [0.5, 0.7]])
+
         """
         Take this surface, and rotate it 30 degrees about the x-axis.  This should cause
         the surface to 'go back' on itself, and trigger the exception.
