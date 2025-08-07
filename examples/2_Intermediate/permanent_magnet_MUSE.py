@@ -32,7 +32,13 @@ from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO
 from simsopt.util import FocusData, discretize_polarizations, polarization_axes, in_github_actions
-from simsopt.util.permanent_magnet_helper_functions import *
+from simsopt.util.coil_optimization_helper_functions import \
+    make_Bnormal_plots, \
+    calculate_modB_on_major_radius, \
+    make_qfm
+from simsopt.util.permanent_magnet_helper_functions import \
+    initialize_default_kwargs, \
+    initialize_coils_for_pm_optimization
 
 t_start = time.time()
 
@@ -68,7 +74,7 @@ out_dir = Path("output_permanent_magnet_GPMO_MUSE")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 # initialize the coils
-base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s, out_dir)
+base_curves, curves, coils = initialize_coils_for_pm_optimization('muse_famus', TEST_DIR, s, out_dir)
 
 # Set up BiotSavart fields
 bs = BiotSavart(coils)
