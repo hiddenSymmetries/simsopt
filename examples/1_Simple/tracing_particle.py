@@ -16,7 +16,7 @@ import sys
 import numpy as np
 
 from simsopt.configs import get_data
-from simsopt.field import (BiotSavart, InterpolatedField, coils_via_symmetries, trace_particles_starting_on_curve,
+from simsopt.field import (InterpolatedField, trace_particles_starting_on_curve,
                            SurfaceClassifier, LevelsetStoppingCriterion, plot_poincare_data)
 from simsopt.geo import SurfaceRZFourier, curves_to_vtk
 from simsopt.util import in_github_actions, proc0_print, comm_world

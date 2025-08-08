@@ -56,7 +56,7 @@ class CoilStrainTesting(unittest.TestCase):
 
     def subtest_binormal_curvature(self, order, centroid):
         assert order in [1, None]
-        curves, currents, ma, nfp, bs = get_data("ncsx", Nt_coils=6, ppp=120)
+        curves, currents, ma, nfp, bs = get_data("ncsx", coil_order=6, points_per_period=120)
         c = curves[0]
 
         if order == 1:
@@ -98,7 +98,7 @@ class CoilStrainTesting(unittest.TestCase):
 
     def subtest_torsion(self, order, centroid):
         assert order in [1, None]
-        curves, currents, ma, nfp, bs = get_data("ncsx", Nt_coils=6, ppp=120)
+        curves, currents, ma, nfp, bs = get_data("ncsx", coil_order=6, points_per_period=120)
         c = curves[0]
 
         if order == 1:

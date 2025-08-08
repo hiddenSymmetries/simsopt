@@ -155,12 +155,12 @@ class CoilFormatConvertTesting(unittest.TestCase):
 
     def test_load_coils_from_makegrid_file(self):
         order = 25
-        ppp = 10
+        points_per_period = 10
 
-        curves, currents, ma, nfp, bs = get_data("ncsx", Nt_coils=order, ppp=ppp)
+        curves, currents, ma, nfp, bs = get_data("ncsx", coil_order=order, points_per_period=points_per_period)
         with ScratchDir("."):
             coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
-            loaded_coils = load_coils_from_makegrid_file("coils.file_to_load", order, ppp)
+            loaded_coils = load_coils_from_makegrid_file("coils.file_to_load", order, points_per_period)
 
         gamma = [curve.gamma() for curve in curves]
         loaded_gamma = [coil.curve.gamma() for coil in loaded_coils]
@@ -192,12 +192,12 @@ class CoilFormatConvertTesting(unittest.TestCase):
 
     def test_load_coils_from_makegrid_file_group(self):
         order = 25
-        ppp = 10
+        points_per_period = 10
 
         # Coil group_names is a list of strings
         filecoils = os.path.join(TEST_DIR, "coils.M16N08")
-        coils = load_coils_from_makegrid_file(filecoils, order, ppp, group_names=["245th-coil", "100th-coil"])
-        all_coils = load_coils_from_makegrid_file(filecoils, order, ppp)
+        coils = load_coils_from_makegrid_file(filecoils, order, points_per_period, group_names=["245th-coil", "100th-coil"])
+        all_coils = load_coils_from_makegrid_file(filecoils, order, points_per_period)
         #     NOTE: coils will be returned in order they appear in the file, not in order of listed groups.
         #     So group_names = ["245th-coil","100th-coil"] gives the array [<coil nr 100>, <coil nr 245>]
         compare_coils = [all_coils[99], all_coils[244]]
@@ -206,8 +206,8 @@ class CoilFormatConvertTesting(unittest.TestCase):
         np.testing.assert_allclose(gamma, compare_gamma)
 
         # Coil group_names is a single string
-        coils = load_coils_from_makegrid_file(filecoils, order, ppp, group_names="256th-coil")
-        all_coils = load_coils_from_makegrid_file(filecoils, order, ppp)
+        coils = load_coils_from_makegrid_file(filecoils, order, points_per_period, group_names="256th-coil")
+        all_coils = load_coils_from_makegrid_file(filecoils, order, points_per_period)
         compare_coils = [all_coils[255]]
         gamma = [coil.curve.gamma() for coil in coils]
         compare_gamma = [coil.curve.gamma() for coil in compare_coils]

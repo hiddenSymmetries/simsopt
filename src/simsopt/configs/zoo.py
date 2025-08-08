@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.coil import Current
@@ -11,7 +12,15 @@ from simsopt.geo.curvexyzfouriersymmetries import CurveXYZFourierSymmetries
 from pathlib import Path
 THIS_DIR = (Path(__file__).parent).resolve()
 
-__all__ = ["get_data", "configurations"]
+__all__ = [
+    "get_data", 
+    "configurations", 
+    "get_ncsx_data",
+    "get_hsx_data",
+    "get_giuliani_data",
+    "get_w7x_data",
+]
+
 configurations = ["ncsx", "hsx", "giuliani", "w7x", "lhd_like"]
 
 def get_data(name, **kwargs):
@@ -24,22 +33,54 @@ def get_data(name, **kwargs):
     name : str
         Which configuration to load. Available values are:
         ``"ncsx"``, ``"hsx"``, ``"giuliani"``, ``"w7x"``, ``"lhd_like"``.
-    Nt_coils : int, optional
-        Order of the curves representing the coils.
-    Nt_ma : int, optional
-        Order of the curve representing the magnetic axis.
-    ppp : int, optional
-        Points-per-period: number of quadrature points per period.
-    length : int, optional
-        (*Giuliani only*) Total length for the nine‐stage optimization.
-    nsurfaces : int, optional
-        (*Giuliani only*) Number of surfaces used in the optimization.
-    numquadpoints_circular : int, optional
-        (*LHD_like only*) Number of quadrature points for the six circular coils.
-    numquadpoints_helical : int, optional
-        (*LHD_like only*) Number of quadrature points for each helical coil.
-    numquadpoints_axis : int, optional
-        (*LHD_like only*) Number of quadrature points for the magnetic axis.
+    kwargs : dict
+        Configuration-specific parameters. See the sections below for details.
+        
+        .. note::
+        
+            The following keys are supported in ``kwargs`` based on the value
+            of ``name``:
+
+            **ncsx**
+
+            -  ``coil_order`` *(int, default=25)*  
+               Order of the curves representing the coils.
+            -  ``points_per_period`` *(int, default=10)*  
+               Points-per-period for quadrature.
+            -  ``magnetic_axis_order`` *(int, default=10)*  
+               Order of the curve representing the magnetic axis.
+
+            **hsx**
+
+            -  ``coil_order`` *(int, default=16)*
+            -  ``points_per_period`` *(int, default=10)*
+            -  ``magnetic_axis_order`` *(int, default=10)*
+
+            **giuliani**
+
+            -  ``coil_order`` *(int, default=16)*
+            -  ``magnetic_axis_order`` *(int, default=10)*
+            -  ``points_per_period`` *(int, default=10)*
+            -  ``length`` *(int, default=18)*  
+               Total length for the nine-stage optimization.
+            -  ``nsurfaces`` *(int, default=5)*  
+               Number of surfaces for the optimization.
+
+            **w7x**
+
+            -  ``coil_order`` *(int, default=48)*
+            -  ``points_per_period`` *(int, default=2)*
+            -  ``magnetic_axis_order`` *(int, default=10)*
+
+            **lhd_like**
+
+            -  ``numquadpoints_circular`` *(int, default=400)*  
+               Number of quadrature points for the six circular coils.
+            -  ``numquadpoints_helical`` *(int, default=1000)*  
+               Number of quadrature points for each helical coil.
+            -  ``numquadpoints_axis`` *(int, default=30)*  
+               Number of quadrature points for the magnetic axis.
+
 
     Returns
     -------
@@ -47,19 +88,19 @@ def get_data(name, **kwargs):
         *5-element tuple* ``(curves, currents, ma, nfp, bs)``, where:
 
         curves : list of :class:`CurveXYZFourier` 
-            The coil curves, with length determined by ``Nt_coils`` and ``ppp``.
+            The coil curves, with length determined by ``coil_order`` and ``points_per_period``.
         currents : list of :class:`Current`
             Corresponding coil currents.
         ma : :class:`CurveRZFourier`
-            The magnetic axis, of order ``Nt_ma``, with ``nfp`` field periods.
+            The magnetic axis, of order ``magnetic_axis_order``, with ``nfp`` field periods.
         nfp : int
             Number of field periods.
         bs : :class:`BiotSavart`
-            The Biot–Savart operator built from the coil objects.  
+            The Biot–Savart operator assembled from the complete physical coil set.
             
-                - For all configurations **except** ``"lhd_like"``, the coils are expanded via ``coils_via_symmetries(curves, currents, nfp, True)`` before building ``bs``.
-                
-                - For ``"lhd_like"``, each ``CurveXYZFourier`` and its ``Current`` are passed directly into ``Coil(curve, current)`` (no symmetry expansion).
+                .. note::
+                    - For all configurations **except** ``"lhd_like"``, the coils are expanded via ``coils_via_symmetries(curves, currents, nfp, True)`` before building ``bs``.                    
+                    - For ``"lhd_like"``, each ``CurveXYZFourier`` and its ``Current`` are passed directly into ``Coil(curve, current)`` (no symmetry expansion).
 
     Notes
     -----
@@ -141,12 +182,12 @@ def get_data(name, **kwargs):
 
     if cfg == "ncsx":
         """Get a configuration that corresponds to the modular coils of the NCSX experiment (circular coils are not included)."""
-        add_default_args(kwargs, Nt_coils=25, Nt_ma=10, ppp=10)
-        Nt_coils = kwargs.pop("Nt_coils")
-        Nt_ma = kwargs.pop("Nt_ma")
-        ppp = kwargs.pop("ppp")
+        add_default_args(kwargs, coil_order=25, magnetic_axis_order=10, points_per_period=10)
+        coil_order = kwargs.pop("coil_order")
+        magnetic_axis_order = kwargs.pop("magnetic_axis_order")
+        points_per_period = kwargs.pop("points_per_period")
         filename = THIS_DIR / "NCSX.dat"
-        curves = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
+        curves = CurveXYZFourier.load_curves_from_file(filename, order=coil_order, ppp=points_per_period)
         nfp = 3
         
         currents = [Current(c) for c in [6.52271941985300E+05, 6.51868569367400E+05, 5.37743588647300E+05]]
@@ -170,12 +211,12 @@ def get_data(name, **kwargs):
 
     elif cfg == "hsx":
         """Get a configuration that corresponds to the modular coils of the HSX experiment."""
-        add_default_args(kwargs, Nt_coils=16, Nt_ma=10, ppp=10)
-        Nt_coils = kwargs.pop("Nt_coils")
-        Nt_ma = kwargs.pop("Nt_ma")
-        ppp  = kwargs.pop("ppp")
+        add_default_args(kwargs, coil_order=16, magnetic_axis_order=10, points_per_period=10)
+        coil_order = kwargs.pop("coil_order")
+        magnetic_axis_order = kwargs.pop("magnetic_axis_order")
+        points_per_period  = kwargs.pop("points_per_period")
         filename = THIS_DIR / "HSX.dat"
-        curves = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
+        curves = CurveXYZFourier.load_curves_from_file(filename, order=coil_order, ppp=points_per_period)
         nfp = 4
         currents = [Current(c) for c in [-1.500725500000000e+05] * 6]
         cR = [1.221168734647426701e+00, 2.069298947130969735e-01, 1.819037041932574511e-02, 4.787659822787012774e-05,
@@ -195,12 +236,12 @@ def get_data(name, **kwargs):
 
     elif cfg == "giuliani":
         """This example simply loads the coils after the nine‐stage optimization runs discussed in Giuliani et al., J. Plasma Phys."""
-        add_default_args(kwargs, Nt_coils=16, Nt_ma=10, ppp=10, length=18, nsurfaces=5)
-        Nt_coils, Nt_ma, ppp = kwargs.pop("Nt_coils"), kwargs.pop("Nt_ma"), kwargs.pop("ppp")
+        add_default_args(kwargs, coil_order=16, magnetic_axis_order=10, points_per_period=10, length=18, nsurfaces=5)
+        coil_order, magnetic_axis_order, points_per_period = kwargs.pop("coil_order"), kwargs.pop("magnetic_axis_order"), kwargs.pop("points_per_period")
         length, nsurfaces = kwargs.pop("length"), kwargs.pop("nsurfaces")
         filename = THIS_DIR / f"GIULIANI_length{length}_nsurfaces{nsurfaces}"
         curves   = CurveXYZFourier.load_curves_from_file(filename.with_suffix(".curves"),
-                                                         order=Nt_coils, ppp=ppp)
+                                                         order=coil_order, ppp=points_per_period)
         currents = [Current(c) for c in np.loadtxt(filename.with_suffix(".currents"))]
         dofs = np.loadtxt(filename.with_suffix(".ma"))
         cR = dofs[:26]
@@ -209,10 +250,10 @@ def get_data(name, **kwargs):
 
     elif cfg == "w7x":
         """Get the W7-X coils and magnetic axis."""
-        add_default_args(kwargs, Nt_coils=48, Nt_ma=10, ppp=2)
-        Nt_coils, Nt_ma, ppp = kwargs.pop("Nt_coils"), kwargs.pop("Nt_ma"), kwargs.pop("ppp")
+        add_default_args(kwargs, coil_order=48, magnetic_axis_order=10, points_per_period=2)
+        coil_order, magnetic_axis_order, points_per_period = kwargs.pop("coil_order"), kwargs.pop("magnetic_axis_order"), kwargs.pop("points_per_period")
         filename = THIS_DIR / "W7-X.dat"
-        curves = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
+        curves = CurveXYZFourier.load_curves_from_file(filename, order=coil_order, ppp=points_per_period)
         nfp = 5
         turns = 108
         currents = [Current(15000.0 * turns)] * 5 + [Current(0.0), Current(0.0)]
@@ -311,12 +352,12 @@ def get_data(name, **kwargs):
 
     if cfg != "lhd_like":   # ie. not lhd_like
         # building the magnetic axis
-        nump = Nt_ma * ppp
+        nump = magnetic_axis_order * points_per_period
         if nump % 2 == 0:   # ensure an odd node count
             nump += 1
-        ma = CurveRZFourier(nump, Nt_ma, nfp, True)
-        ma.rc[:] = cR[:Nt_ma + 1]
-        ma.zs[:] = sZ[:Nt_ma]
+        ma = CurveRZFourier(nump, magnetic_axis_order, nfp, True)
+        ma.rc[:] = cR[:magnetic_axis_order + 1]
+        ma.zs[:] = sZ[:magnetic_axis_order]
         ma.x = ma.get_dofs()
 
         coils = coils_via_symmetries(curves, currents, nfp, True)
@@ -333,3 +374,115 @@ def get_data(name, **kwargs):
 
 
 
+def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
+    """
+    Get a configuration that corresponds to the modular coils of the NCSX experiment (circular coils are not included).
+
+    Args:
+        Nt_coils: order of the curves representing the coils.
+        Nt_ma: order of the curve representing the magnetic axis.
+        ppp: point-per-period: number of quadrature points per period
+
+    Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
+    """
+    warnings.warn(
+        "get_ncsx_data is deprecated and will be removed in the next major release; "
+        "please use get_data('ncsx', coil_order=..., magnetic_axis_order=..., points_per_period=...) instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    curves, currents, ma, *_ = get_data(
+        "ncsx",
+        coil_order=Nt_coils,
+        magnetic_axis_order=Nt_ma,
+        points_per_period=ppp,
+    )
+    return curves, currents, ma
+
+
+def get_hsx_data(Nt_coils=16, Nt_ma=10, ppp=10):
+    """
+    Get a configuration that corresponds to the modular coils of the HSX experiment.
+
+    Args:
+        Nt_coils: order of the curves representing the coils.
+        Nt_ma: order of the curve representing the magnetic axis.
+        ppp: point-per-period: number of quadrature points per period
+
+    Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
+    """
+    warnings.warn(
+        "get_hsx_data is deprecated and will be removed in the next major release; "
+        "please use get_data('hsx', coil_order=..., magnetic_axis_order=..., points_per_period=...) instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    curves, currents, ma, *_ = get_data(
+        "hsx",
+        coil_order=Nt_coils,
+        magnetic_axis_order=Nt_ma,
+        points_per_period=ppp,
+    )
+    return curves, currents, ma
+
+
+def get_giuliani_data(Nt_coils=16, Nt_ma=10, ppp=10, length=18, nsurfaces=5):
+    """
+    This example simply loads the coils after the nine stage optimization runs discussed in
+
+       A. Giuliani, F. Wechsung, M. Landreman, G. Stadler, A. Cerfon, Direct computation of magnetic surfaces in Boozer coordinates and coil optimization for quasi-symmetry. Journal of Plasma Physics.
+
+    Args:
+        Nt_coils: order of the curves representing the coils.
+        Nt_ma: order of the curve representing the magnetic axis.
+        ppp: point-per-period: number of quadrature points per period
+
+    Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
+    """
+    warnings.warn(
+        "get_giuliani_data is deprecated and will be removed in the next major release; "
+        "please use get_data('giuliani', coil_order=..., magnetic_axis_order=..., "
+        "points_per_period=..., length=..., nsurfaces=...) instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    curves, currents, ma, *_ = get_data(
+        "giuliani",
+        coil_order=Nt_coils,
+        magnetic_axis_order=Nt_ma,
+        points_per_period=ppp,
+        length=length,
+        nsurfaces=nsurfaces,
+    )
+    return curves, currents, ma
+
+
+def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
+    """
+    Get the W7-X coils and magnetic axis.
+
+    Note that this function returns 7 coils: the 5 unique nonplanar
+    modular coils, and the 2 planar (A and B) coils. The coil currents
+    returned by this function correspond to the "Standard
+    configuration", in which the planar A and B coils carry no current.
+    
+    Args:
+        Nt_coils: order of the curves representing the coils.
+        Nt_ma: order of the curve representing the magnetic axis.
+        ppp: point-per-period: number of quadrature points per period.
+
+    Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
+    """
+    warnings.warn(
+        "get_w7x_data is deprecated and will be removed in the next major release; "
+        "please use get_data('w7x', coil_order=..., magnetic_axis_order=..., points_per_period=...) instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    curves, currents, ma, *_ = get_data(
+        "w7x",
+        coil_order=Nt_coils,
+        magnetic_axis_order=Nt_ma,
+        points_per_period=ppp,
+    )
+    return curves, currents, ma

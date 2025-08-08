@@ -129,9 +129,9 @@ class CoilForcesTest(unittest.TestCase):
 
     def test_force_convergence(self):
         """Check that the self-force is approximately independent of the number of quadrature points"""
-        ppps = [8, 4, 2, 7, 5]
-        for j, ppp in enumerate(ppps):
-            curves, currents, ma, nfp, bs = get_data("hsx", ppp=ppp)
+        points_per_periods = [8, 4, 2, 7, 5]
+        for j, points_per_period in enumerate(points_per_periods):
+            curves, currents, ma, nfp, bs = get_data("hsx", points_per_period=points_per_period)
             curve = curves[0]
             I = 1.5e3
             a = 0.01
@@ -261,7 +261,7 @@ class CoilForcesTest(unittest.TestCase):
         # The Fourier spectrum of the NCSX coils is truncated - we don't need the
         # actual coil shapes from the experiment, just a few nonzero dofs.
 
-        curves, currents, axis, nfp, bs = get_data("ncsx", Nt_coils=2)
+        curves, currents, axis, nfp, bs = get_data("ncsx", coil_order=2)
         
         J = MeanSquaredForce(bs.coils[0], bs.coils, regularization_circ(0.05))
         dJ = J.dJ()
@@ -286,7 +286,7 @@ class CoilForcesTest(unittest.TestCase):
         # The Fourier spectrum of the NCSX coils is truncated - we don't need the
         # actual coil shapes from the experiment, just a few nonzero dofs.
 
-        curves, currents, axis, nfp, bs = get_data("ncsx", Nt_coils=2)
+        curves, currents, axis, nfp, bs = get_data("ncsx", coil_order=2)
         
         J = LpCurveForce(bs.coils[0], bs.coils, regularization_circ(0.05), 2.5)
         dJ = J.dJ()

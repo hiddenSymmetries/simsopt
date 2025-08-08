@@ -294,7 +294,7 @@ class Testing(unittest.TestCase):
 
     def test_minimum_distance_candidates_symmetry(self):
         from scipy.spatial.distance import cdist
-        base_curves, base_currents, ma, nfp, bs = get_data("ncsx", Nt_coils=10)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx", coil_order=10)
         curves = [c.curve for c in bs.coils]
         for t in np.linspace(0.05, 0.5, num=10):
             Jnosym = CurveCurveDistance(curves, t)
@@ -314,7 +314,7 @@ class Testing(unittest.TestCase):
 
     def test_curve_surface_distance(self):
         np.random.seed(0)
-        base_curves, base_currents, ma, nfp, bs = get_data("ncsx", Nt_coils=10)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx", coil_order=10)
         curves = [c.curve for c in bs.coils]
         ntor = 0
         surface = SurfaceRZFourier.from_nphi_ntheta(nfp=3, nphi=32, ntheta=32, ntor=ntor)

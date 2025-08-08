@@ -3,7 +3,7 @@
 import os
 import numpy as np
 from simsopt.configs import get_data
-from simsopt.field import BiotSavart, coils_via_symmetries
+from simsopt.field import BiotSavart
 from simsopt.geo import QfmResidual, QfmSurface, SurfaceRZFourier, ToroidalFlux, Area, Volume
 
 """

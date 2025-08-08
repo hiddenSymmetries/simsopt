@@ -22,7 +22,7 @@ class MultifilamentTesting(unittest.TestCase):
 
     def subtest_multifilament_gammadash(self, order, centroid):
         assert order in [1, None]
-        curves, currents, ma, nfp, bs = get_data("ncsx", Nt_coils=6, ppp=120)
+        curves, currents, ma, nfp, bs = get_data("ncsx", coil_order=6, points_per_period=120)
         c = curves[0]
 
         if order == 1:
@@ -63,7 +63,7 @@ class MultifilamentTesting(unittest.TestCase):
     def subtest_multifilament_coefficient_derivative(self, order, centroid):
         assert order in [1, None]
 
-        curves, currents, ma, nfp, bs = get_data("ncsx", Nt_coils=4, ppp=10)
+        curves, currents, ma, nfp, bs = get_data("ncsx", coil_order=4, points_per_period=10)
         c = curves[0]
 
         if order == 1:
@@ -118,7 +118,7 @@ class MultifilamentTesting(unittest.TestCase):
             errg_old = errg
 
     def test_filamentpack(self):
-        curves, currents, ma, nfp, bs = get_data("ncsx", Nt_coils=6, ppp=80)
+        curves, currents, ma, nfp, bs = get_data("ncsx", coil_order=6, points_per_period=80)
         c = curves[0]
 
         gapsize_n = 0.01
@@ -163,7 +163,7 @@ class MultifilamentTesting(unittest.TestCase):
         on the underlying curve (not the finite build filaments)
         """
         np.random.seed(1)
-        base_curves, base_currents, ma, nfp, bs = get_data("ncsx", Nt_coils=5)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx", coil_order=5)
 
         for frame in ['centroid', 'frenet']:
 

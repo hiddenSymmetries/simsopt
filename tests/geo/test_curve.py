@@ -695,7 +695,7 @@ class Testing(unittest.TestCase):
         print(f'Testing these plotting engines: {engines}')
         c = CurveXYZFourier(30, 2)
         c.set_dofs(np.random.rand(len(c.get_dofs())) - 0.5)
-        coils, currents, ma, nfp, bs =  get_data("ncsx", Nt_coils=25, Nt_ma=10)
+        coils, currents, ma, nfp, bs =  get_data("ncsx", coil_order=25, magnetic_axis_order=10)
         for engine in engines:
             for close in [True, False]:
                 # Plot a single curve:
@@ -740,14 +740,14 @@ class Testing(unittest.TestCase):
     def test_load_curves_from_makegrid_file(self):
         configs = ["ncsx", "w7x"]
         order = 10
-        ppp = 4
+        points_per_period = 4
 
         for cfg in configs:
-            curves, currents, ma, nfp, bs = get_data(cfg, Nt_coils=order, ppp=ppp)
+            curves, currents, ma, nfp, bs = get_data(cfg, coil_order=order, points_per_period=points_per_period)
 
             # write coils to MAKEGRID file
             coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
-            loaded_curves = CurveXYZFourier.load_curves_from_makegrid_file("coils.file_to_load", order, ppp)
+            loaded_curves = CurveXYZFourier.load_curves_from_makegrid_file("coils.file_to_load", order, points_per_period)
 
             assert len(curves) == len(loaded_curves)
 
