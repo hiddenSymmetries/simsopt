@@ -326,40 +326,37 @@ class Surface(Optimizable):
 
     def cross_section(self, phi, thetas=None, tol=1e-13):
         """
-        Computes the cross-section at an angle :math:`\phi` at `thetas` using bisection.
-        :math:`\phi'` follows the same conventions as `Surfaces`, i.e. :math:`\phi=0, 1` 
-        corresponds to the standard cylindrical angle :math:`0, 2\pi`, respectively.  This 
-        function assumes that the surface intersection with the plane is a single curve.
-        The surface should only go once around the z-axis and it should not go back on itself.
+        Computes an array of points on the cross section with cylindrical angle :math:`\phi`, using the bisection method.
+        The poloidal angles of the points on the cross section are given by ``thetas``. This function assumes that the surface
+        intersection with the :math:`\phi`-plane is a single curve: the surface should only go once around the z-axis,
+        and it should not go back on itself.
 
-        Parameters
-        ----------
+        Args:
             phi (float):
-                the standard cylindrical angle (toroidal angle) normalized by :math:`2\pi`.
-                There is no restriction on :math:`\phi`, i.e. is can be larger than 1, or
-                smaller than 0.
+                The standard cylindrical angle (toroidal angle) normalized by :math:`2\pi`, i.e. :math:`\phi=0, 1` 
+                corresponds to the standard cylindrical angle :math:`0, 2\pi`, respectively.
             thetas (int, array, optional):
-                can be (1) an integer indicating that the cross section should be calculated at the poloidal angles in the array
-                np.linspace(0, 1, thetas, endpoint=False), or (2) an array containing the poloidal positions at which the cross section 
-                should be computed, between 0 and 1.  If thetas is not provided, then the cross section will be calculated at the positions given by
-                self.quadpoints_theta.
+                An optional argument indicating at which poloidal angle the cross section should be calculated. If ``thetas`` is an ``int``, the cross
+                section will be calculated at the poloidal angles in the array ``np.linspace(0, 1, thetas, endpoint=False)``. ``thetas`` can also be an array
+                of poloidal angles between :math:`0` and :math:`1`. If ``thetas`` is not provided, then the cross section will be calculated at the positions given by
+                ``Surface.quadpoints_theta``. Defaults to ``None``.
             tol (float): 
-                the tolerance for the bisection root-finding
+                The tolerance for the bisection root-finding. Defaults to ``1e-13``.
 
-        Returns
-        -------
-            cross_section (np.array): 
-                The cross-section evaluated at :math:`\phi` given support points `thetas`.
-                cross_section.shape is (thetas,) if thetas is an integer, thetas.size if it's
-                an array, and (self.quadpoints_theta.size,) if not provided.
+        Returns:
+            ``(ntheta, 3)`` array of the Cartesian coordinates along the cross-section at each of the ``ntheta`` poloidal angles.
         """
         
         if thetas is None:
             thetas = np.asarray(self.quadpoints_theta)
         elif isinstance(thetas, int):
             thetas = np.linspace(0, 1, thetas, endpoint=False)
+        elif isinstance(thetas, np.ndarray) or isinstance(thetas, list):
+            thetas = np.asarray(thetas)
+            if thetas.ndim > 1:
+                raise ValueError('thetas must be an int, a 1d array, or None.')
         else:
-            raise NotImplementedError('Need to pass int or 1d np.array to thetas')
+            raise ValueError('thetas must be an int, a 1d array, or None.')
         
         # shift phi_prime to lie on [0, 1)
         phi_prime = phi + np.ceil(-phi)
@@ -433,6 +430,7 @@ class Surface(Optimizable):
         varphi_root = (varphia + varphic) / 2.
         cross_section = np.zeros((varphi_root.size, 3))
         self.gamma_lin(cross_section, varphi_root, thetas)
+        
         return cross_section
 
     @SimsoptRequires(get_context is not None, "is_self_intersecting requires ground package")
