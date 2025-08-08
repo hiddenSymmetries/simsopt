@@ -36,6 +36,9 @@ Array3D build_A_F_tensor(const PyArray& positions);
 /**
  * @brief Computes forces on all dipoles using the A_F tensor
  * 
+ * This function includes optimization to skip calculations for magnets with zero moments,
+ * which can significantly improve performance when many magnets have zero moments.
+ * 
  * @param moments Array of shape (3N) containing dipole moments
  * @param A_F The interaction tensor from build_A_F_tensor
  * @return PyArray Array of shape (3N) containing forces on each dipole
@@ -45,6 +48,9 @@ PyArray dipole_forces_from_A_F(const PyArray& moments, const Array3D& A_F);
 /**
  * @brief Computes squared force components per dipole
  * 
+ * This function includes optimization to skip calculations for magnets with zero moments,
+ * which can significantly improve performance when many magnets have zero moments.
+ * 
  * @param moments Array of shape (3N) containing dipole moments
  * @param A_F The interaction tensor from build_A_F_tensor
  * @return PyArray Array of shape (3N) containing squared force components
@@ -53,6 +59,9 @@ PyArray matrix_force_squared_components_per_dipole(const PyArray& moments, const
 
 /**
  * @brief Computes the net force vector
+ * 
+ * This function includes optimization to skip calculations for magnets with zero moments,
+ * which can significantly improve performance when many magnets have zero moments.
  * 
  * @param moments Array of shape (3N) containing dipole moments
  * @param A_F The interaction tensor from build_A_F_tensor

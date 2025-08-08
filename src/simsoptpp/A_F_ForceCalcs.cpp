@@ -142,6 +142,15 @@ Array3D build_A_F_tensor(const PyArray& positions) {
     return A_F;
 }
 
+// Helper function to check if a magnet has zero moments
+// This optimization skips force calculations for magnets with zero moments
+// since they cannot contribute to the net force, saving compute time
+bool magnet_has_zero_moments(const double* moments_ptr, int magnet_index) {
+    return (moments_ptr[3*magnet_index] == 0.0 && 
+            moments_ptr[3*magnet_index + 1] == 0.0 && 
+            moments_ptr[3*magnet_index + 2] == 0.0);
+}
+
 // Computes the force on each individual dipole using the A_F tensor
 PyArray dipole_forces_from_A_F(const PyArray& moments, const Array3D& A_F) {
     int N = moments.size() / 3;
@@ -176,8 +185,18 @@ PyArray dipole_forces_from_A_F(const PyArray& moments, const Array3D& A_F) {
         
         #pragma omp for schedule(dynamic,1)
         for (int i = 0; i < N; ++i) {
+            // Skip if magnet i has zero moments
+            if (magnet_has_zero_moments(moments_ptr, i)) {
+                continue;
+            }
+            
             for (int j = 0; j < N; ++j) {
                 if (i != j) {
+                    // Skip if magnet j has zero moments
+                    if (magnet_has_zero_moments(moments_ptr, j)) {
+                        continue;
+                    }
+                    
                     for (int a = 0; a < 3; ++a) {
                         for (int b = 0; b < 3; ++b) {
                             for (int c = 0; c < 3; ++c) {
@@ -278,7 +297,17 @@ PyArray matrix_force(const PyArray& moments, const Array3D& A_F) {
         #pragma omp for schedule(dynamic,1)
         for (int j = 0; j < 3; ++j) {
             for (int i = 0; i < N; ++i) {
+                // Skip if magnet i has zero moments
+                if (magnet_has_zero_moments(moments_ptr, i)) {
+                    continue;
+                }
+                
                 for (int l = 0; l < N; ++l) {
+                    // Skip if magnet l has zero moments
+                    if (magnet_has_zero_moments(moments_ptr, l)) {
+                        continue;
+                    }
+                    
                     for (int a = 0; a < 3; ++a) {
                         for (int b = 0; b < 3; ++b) {
                             // Correct pointer arithmetic for 3D tensor A_F[3*N, 3*N, 3]
