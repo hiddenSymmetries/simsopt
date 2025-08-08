@@ -47,9 +47,9 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
-    nphi = 64  # >= 64 for high-resolution runs
+    nphi = 32  # >= 64 for high-resolution runs
     nIter_max = 10000
-    downsample = 2
+    downsample = 10
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -100,6 +100,16 @@ kwargs = {"downsample": downsample, "dr": dr}
 
 # Finally, initialize the permanent magnet class
 pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs)
+print('Number of available dipoles = ', pm_opt.ndipoles)
+
+# Create flattened version of dipole grid coordinates
+flattened_dipole_xyz = pm_opt.dipole_grid_xyz.flatten()
+t1 = time.time()
+A_F = sopp.build_A_F_tensor(flattened_dipole_xyz)
+t2 = time.time()
+print(f"Time to build A_F: {t2-t1:.3f} seconds")
+print('Shape of A_F = ', A_F.shape)
+
 
 # Set some hyperparameters for the optimization
 algorithm = 'baseline'  # Algorithm to use
@@ -154,34 +164,18 @@ if save_plots:
         #mk = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
         mk = m_history[:, :, k]
         print(mk.shape)
-        # #Find indices where there are and aren't dipole moments
-        # mk_nonzero_indices = np.where(np.sum(mk ** 2, axis=-1) > 1e-10)[0]
-        # mk_zero_indices = np.where(np.sum(mk ** 2, axis=-1) <= 1e-10)[0]
-        # #Do net force calcs where there are nonzero dipole moments and make a list
-        # t_force_calc_start = time.time()
-        # net_forces_nonzero = sopp.net_force_matrix(
-        #         np.ascontiguousarray(mk[mk_nonzero_indices, :]), 
-        #         np.ascontiguousarray(pm_opt.dipole_grid_xyz[mk_nonzero_indices, :])
-        #     )
-        # net_forces = np.zeros((pm_opt.ndipoles, 3))
-        # net_forces[mk_nonzero_indices, :] = net_forces_nonzero
-        # net_forces[mk_zero_indices, :] = 0.0
-        # t_force_calc_end = time.time()
-        # print('Time to calc force = ', t_force_calc_end - t_force_calc_start)
         
-        # # Do net torque calcs where there are nonzero dipole moments and make a list
-        # t_torque_calc_start = time.time()
-        # # This calls the C++ function
-        # net_torques_nonzero = sopp.net_torque_matrix(
-        #         np.ascontiguousarray(mk[mk_nonzero_indices, :]),
-        #         np.ascontiguousarray(pm_opt.dipole_grid_xyz[mk_nonzero_indices, :])
-        #     )
        
-        # net_torques = np.zeros((pm_opt.ndipoles, 3))
-        # net_torques[mk_nonzero_indices, :] = net_torques_nonzero
-        # net_torques[mk_zero_indices, :] = 0.0 # Ensure these are explicitly zero
-        # t_torque_calc_end = time.time()
-        # print('Time to calc torque for non-zero dipoles = ', t_torque_calc_end - t_torque_calc_start)
+        mk_flat = mk.flatten()
+        t3 = time.time()
+        mk_forces = sopp.dipole_forces_from_A_F(mk_flat, A_F)
+        t4 = time.time()
+        print(f"Time to calculate forces: {t4-t3:.3f} seconds")
+        print('Shape of mk_forces = ', mk_forces.shape)
+        F_norm_squared = sopp.two_norm_squared(mk_forces)
+        print(f"Force norm squared: {F_norm_squared}")
+        
+        
         net_forces, net_torques = pm_opt.force_torque_calc(mk)
         
         b_dipole = DipoleField(

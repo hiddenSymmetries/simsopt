@@ -59,7 +59,6 @@ def test_A_F_integration():
     force_norm_squared_10k = simsoptpp.diagnostic_test(10000)
     print(f"Force norm squared: {force_norm_squared_10k}")
     
-    print("\nAll analytical tests and benchmarks completed successfully!")
     
     # Benchmark N = 10,000 dipoles with zero moments
     print("\nBenchmark 3: N = 10,000 dipoles with half moments equal to zero")
@@ -74,14 +73,12 @@ def test_A_F_integration():
     force_norm_squared_10k = simsoptpp.diagnostic_test(10000, moments, positions)
     print(f"Force norm squared: {force_norm_squared_10k}")
     
-    print("\nAll analytical tests and benchmarks completed successfully!")
     '''
     # Benchmark N = 37,500 dipoles
     print("\nBenchmark 4: N = 37,500 dipoles")
     force_norm_squared_10k = simsoptpp.diagnostic_test(37500)
     print(f"Force norm squared: {force_norm_squared_10k}")
     
-    print("\nAll analytical tests and benchmarks completed successfully!")
     
     # Benchmark N = 37,500 dipoles with zero moments
     print("\nBenchmark 5: N = 37,500 dipoles with half moments equal to zero")
@@ -96,8 +93,8 @@ def test_A_F_integration():
     force_norm_squared_10k = simsoptpp.diagnostic_test(37500, moments, positions)
     print(f"Force norm squared: {force_norm_squared_10k}")
     
-    print("\nAll analytical tests and benchmarks completed successfully!")
   '''  
   
+    print("\nAll analytical tests and benchmarks completed successfully!")
 if __name__ == "__main__":
     test_A_F_integration() 
