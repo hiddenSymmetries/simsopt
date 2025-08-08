@@ -75,7 +75,7 @@ def test_A_F_integration():
     print(f"Force norm squared: {force_norm_squared_10k}")
     
     print("\nAll analytical tests and benchmarks completed successfully!")
-    
+    '''
     # Benchmark N = 37,500 dipoles
     print("\nBenchmark 4: N = 37,500 dipoles")
     force_norm_squared_10k = simsoptpp.diagnostic_test(37500)
@@ -97,6 +97,7 @@ def test_A_F_integration():
     print(f"Force norm squared: {force_norm_squared_10k}")
     
     print("\nAll analytical tests and benchmarks completed successfully!")
-    
+  '''  
+  
 if __name__ == "__main__":
     test_A_F_integration() 

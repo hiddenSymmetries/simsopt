@@ -46,28 +46,12 @@ Array3D build_A_F_tensor(const PyArray& positions);
 PyArray dipole_forces_from_A_F(const PyArray& moments, const Array3D& A_F);
 
 /**
- * @brief Computes squared force components per dipole
+ * @brief Computes the squared 2-norm of an array
  * 
- * This function includes optimization to skip calculations for magnets with zero moments,
- * which can significantly improve performance when many magnets have zero moments.
- * 
- * @param moments Array of shape (3N) containing dipole moments
- * @param A_F The interaction tensor from build_A_F_tensor
- * @return PyArray Array of shape (3N) containing squared force components
+ * @param array Input array
+ * @return double Sum of squares of array elements
  */
-PyArray matrix_force_squared_components_per_dipole(const PyArray& moments, const Array3D& A_F);
-
-/**
- * @brief Computes the net force vector
- * 
- * This function includes optimization to skip calculations for magnets with zero moments,
- * which can significantly improve performance when many magnets have zero moments.
- * 
- * @param moments Array of shape (3N) containing dipole moments
- * @param A_F The interaction tensor from build_A_F_tensor
- * @return PyArray Array of shape (3) containing net force vector
- */
-PyArray matrix_force(const PyArray& moments, const Array3D& A_F);
+double two_norm_squared(const PyArray& array);
 
 /**
  * @brief Diagnostic test function for performance and correctness
@@ -86,12 +70,4 @@ double diagnostic_test(int N, const PyArray& moments = PyArray(), const PyArray&
  * @param moments Output array for dipole moments
  * @param positions Output array for dipole positions
  */
-void random_dipoles_and_positions(int N, PyArray& moments, PyArray& positions);
-
-/**
- * @brief Computes the squared 2-norm of an array
- * 
- * @param array Input array
- * @return double Sum of squares of array elements
- */
-double two_norm_squared(const PyArray& array); 
+void random_dipoles_and_positions(int N, PyArray& moments, PyArray& positions); 
