@@ -41,6 +41,10 @@ def get_LHD_like_data(numquadpoints_circular=400, numquadpoints_helical=1000, nu
 
     Returns:
         3 element tuple containing the curves, currents, and the magnetic axis.
+        
+    .. deprecated:: 1.11.0
+       Use :func:`get_data` instead:
+       ``get_data('lhd_like', numquadpoints_circular=..., numquadpoints_helical=..., numquadpoints_axis=...)``.
     """
     warnings.warn(
         "get_LHD_like_data is deprecated and will be removed in the next major release; "

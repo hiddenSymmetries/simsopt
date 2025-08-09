@@ -92,7 +92,7 @@ def get_data(name, **kwargs):
         currents : list of :class:`Current`
             Corresponding coil currents.
         ma : :class:`CurveRZFourier`
-            The magnetic axis, of order ``magnetic_axis_order``, with ``nfp`` field periods.
+            The magnetic axis, of order ``magnetic_axis_order``.
         nfp : int
             Number of field periods.
         bs : :class:`BiotSavart`
@@ -168,6 +168,9 @@ def get_data(name, **kwargs):
         They produce a configuration similar to that used in Suzuki, Y., K. Y.
         Watanabe, and S. Sakakibara. "Theoretical studies of equilibrium beta limit
         in LHD plasmas." *Physics of Plasmas 27*, 10 (2020).
+        
+        **Special Note:** For ``"lhd_like"``, the returned ``nfp`` (5) reflects the coil periodicity,
+        while the magnetic axis uses ``nfp=10``.
 
     """
     
@@ -384,6 +387,10 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
         ppp: point-per-period: number of quadrature points per period
 
     Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
+    
+    .. deprecated:: 1.11.0
+       Use :func:`get_data` instead:
+       ``get_data('ncsx', coil_order=..., magnetic_axis_order=..., points_per_period=...)``.
     """
     warnings.warn(
         "get_ncsx_data is deprecated and will be removed in the next major release; "
@@ -410,6 +417,10 @@ def get_hsx_data(Nt_coils=16, Nt_ma=10, ppp=10):
         ppp: point-per-period: number of quadrature points per period
 
     Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
+    
+    .. deprecated:: 1.11.0
+       Use :func:`get_data` instead:
+       ``get_data('hsx', coil_order=..., magnetic_axis_order=..., points_per_period=...)``.
     """
     warnings.warn(
         "get_hsx_data is deprecated and will be removed in the next major release; "
@@ -438,6 +449,10 @@ def get_giuliani_data(Nt_coils=16, Nt_ma=10, ppp=10, length=18, nsurfaces=5):
         ppp: point-per-period: number of quadrature points per period
 
     Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
+        
+    .. deprecated:: 1.11.0
+       Use :func:`get_data` instead:
+       ``get_data('giuliani', coil_order=..., magnetic_axis_order=..., points_per_period=..., length=..., nsurfaces=...)``.
     """
     warnings.warn(
         "get_giuliani_data is deprecated and will be removed in the next major release; "
@@ -472,6 +487,10 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
         ppp: point-per-period: number of quadrature points per period.
 
     Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
+    
+    .. deprecated:: 1.11.0
+       Use :func:`get_data` instead:
+       ``get_data('w7x', coil_order=..., magnetic_axis_order=..., points_per_period=...)``.
     """
     warnings.warn(
         "get_w7x_data is deprecated and will be removed in the next major release; "
