@@ -1,8 +1,8 @@
 import unittest
 import numpy as np
 
-from simsopt.configs import get_LHD_like_data
-from simsopt.field import BiotSavart, Coil, Current
+from simsopt.configs import get_data
+from simsopt.field import BiotSavart, Coil
 import simsoptpp as sopp
 
 
@@ -12,12 +12,11 @@ class Tests(unittest.TestCase):
         If we trace a field line starting from the expected magnetic axis, it should
         match the purported axis.
         """
-        coils, currents, axis = get_LHD_like_data()
+        curves, currents, axis, nfp, bs = get_data("lhd_like")
         # Flip the sign of current so B points towards +phi. Otherwise
         # fieldline_tracing traces towards -phi.
-        currents = -np.array(currents)
         coils = [
-            Coil(curve, Current(current)) for curve, current in zip(coils, currents)
+            Coil(curve, -1*current) for curve, current in zip(curves, currents)
         ]
         field = BiotSavart(coils)
 

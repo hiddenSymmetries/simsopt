@@ -15,8 +15,8 @@ import logging
 import sys
 import numpy as np
 
-from simsopt.configs import get_ncsx_data
-from simsopt.field import (BiotSavart, InterpolatedField, coils_via_symmetries, trace_particles_starting_on_curve,
+from simsopt.configs import get_data
+from simsopt.field import (InterpolatedField, trace_particles_starting_on_curve,
                            SurfaceClassifier, LevelsetStoppingCriterion, plot_poincare_data)
 from simsopt.geo import SurfaceRZFourier, curves_to_vtk
 from simsopt.util import in_github_actions, proc0_print, comm_world
@@ -38,11 +38,8 @@ degree = 2 if in_github_actions else 3
 OUT_DIR = "./output/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
-nfp = 3
-curves, currents, ma = get_ncsx_data()
-coils = coils_via_symmetries(curves, currents, nfp, True)
-curves = [c.curve for c in coils]
-bs = BiotSavart(coils)
+curves, currents, ma, nfp, bs = get_data("ncsx")
+curves = [c.curve for c in bs.coils]
 proc0_print("Mean(|B|) on axis =", np.mean(np.linalg.norm(bs.set_points(ma.gamma()).B(), axis=1)))
 proc0_print("Mean(Axis radius) =", np.mean(np.linalg.norm(ma.gamma(), axis=1)))
 curves_to_vtk(curves + [ma], OUT_DIR + 'coils')
