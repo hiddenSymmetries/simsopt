@@ -19,7 +19,7 @@ Coils and BiotSavart
 ~~~~~~~~~~~~~~~~~~~~
 
 In simsopt, a filamentary coil is represented by the class
-:obj:`simsopt.field.Coil`. A ``Coil`` is a pairing of a
+:obj:`simsopt.field.Coil`. A :obj:`~simsopt.field.Coil` is a pairing of a
 :obj:`~simsopt.geo.Curve` with a current magnitude. The latter
 is represented by a :obj:`simsopt.field.Current` object.  For
 information about Curve objects see :ref:`the page on geometric
@@ -62,7 +62,7 @@ Example::
 For a more complex example of a
 :obj:`~simsopt.field.BiotSavart` object used in coil
 optimization, see
-``examples/2_Intermediate/stage_two_optimization.py``.
+:simsopt_file:`examples/2_Intermediate/stage_two_optimization.py`.
 
 ToroidalField
 ~~~~~~~~~~~~~
@@ -115,7 +115,7 @@ class initializes a vacuum magnetic field :math:`\mathbf B = \nabla
 coordinates :math:`(R,Z,\phi)`. The field :math:`\Phi` is specified as
 an analytical expression via a string argument. Simsopt performs the
 necessary partial derivatives in order find :math:`\mathbf B` and its
-derivatives. For example, the function
+derivatives. For example, the object
 ``ScalarPotentialRZMagneticField("2*phi")`` represents a toroidal
 magnetic field :math:`\mathbf B = \nabla (2\phi)=2/R \mathbf e_\phi`.
 Note: this functions needs the library ``sympy`` for the analytical
@@ -216,29 +216,29 @@ set the evaluation points. This can be done using either Cartesian or cylindrica
 Let ``m`` be a :obj:`~simsopt.field.MagneticField` object, and suppose there are ``n`` points
 at which you wish to evaluate the field.
 
-- ``m.set_points_cart()`` takes a numpy array of size ``(n, 3)`` with the Cartesian coordinates ``(x, y, z)`` of the points.
-- ``m.set_points_cyl()`` takes a numpy array of size ``(n, 3)`` with the cylindrical coordinates ``(r, phi, z)`` of the points.
-- ``m.set_points()`` is shorthand for ``m.set_points_cart()``.
-- ``m.get_points_cart()`` returns a numpy array of size ``(n, 3)`` with the Cartesian coordinates ``(x, y, z)`` of the points.
-- ``m.get_points_cyl()`` returns a numpy array of size ``(n, 3)`` with the cylindrical coordinates ``(r, phi, z)`` of the points.
+- :func:`m.set_points_cart() <simsopt.field.MagneticField.set_points_cart>` takes a numpy array of size ``(n, 3)`` with the Cartesian coordinates ``(x, y, z)`` of the points.
+- :func:`m.set_points_cyl() <simsopt.field.MagneticField.set_points_cyl>` takes a numpy array of size ``(n, 3)`` with the cylindrical coordinates ``(r, phi, z)`` of the points.
+- :func:`m.set_points() <simsopt.field.MagneticField.set_points>` is shorthand for ``m.set_points_cart()``.
+- :func:`m.get_points_cart() <simsoptpp.MagneticField.get_points_cart>` returns a numpy array of size ``(n, 3)`` with the Cartesian coordinates ``(x, y, z)`` of the points.
+- :func:`m.get_points_cyl() <simsoptpp.MagneticField.get_points_cyl>` returns a numpy array of size ``(n, 3)`` with the cylindrical coordinates ``(r, phi, z)`` of the points.
 
 A variety of functions are available to return the magnetic field
 :math:`B`, vector potential :math:`A`, and their gradients.  The most
 commonly used ones are the following:
 
-- ``m.B()`` returns an array of size ``(n, 3)`` with the Cartesian coordinates of :math:`B`.
-- ``m.B_cyl()`` returns an array of size ``(n, 3)`` with the cylindrical ``(r, phi, z)`` coordinates of :math:`B`.
-- ``m.A()`` returns an array of size ``(n, 3)`` with the Cartesian coordinates of :math:`A`.
-- ``m.AbsB()`` returns an array of size ``(n, 1)`` with the field magnitude :math:`|B|`.
-- ``m.dB_by_dX()`` returns an array of size ``(n, 3, 3)`` with the Cartesian coordinates of :math:`\nabla B`. Denoting the indices
+- :func:`m.B() <simsoptpp.MagneticField.B>` returns an array of size ``(n, 3)`` with the Cartesian coordinates of :math:`B`.
+- :func:`m.B_cyl() <simsoptpp.MagneticField.B_cyl>` returns an array of size ``(n, 3)`` with the cylindrical ``(r, phi, z)`` coordinates of :math:`B`.
+- :func:`m.A() <simsoptpp.MagneticField.A>` returns an array of size ``(n, 3)`` with the Cartesian coordinates of :math:`A`.
+- :func:`m.AbsB() <simsoptpp.MagneticField.AbsB>` returns an array of size ``(n, 1)`` with the field magnitude :math:`|B|`.
+- :func:`m.dB_by_dX() <simsoptpp.MagneticField.dB_by_dX>` returns an array of size ``(n, 3, 3)`` with the Cartesian coordinates of :math:`\nabla B`. Denoting the indices
   by :math:`(i,j,l)`, the result contains  :math:`\partial_j B_l(x_i)`.
-- ``m.d2B_by_dXdX()`` returns an array of size ``(n, 3, 3, 3)`` with the Cartesian coordinates of :math:`\nabla\nabla B`. Denoting the indices
+- :func:`m.d2B_by_dXdX() <simsoptpp.MagneticField.d2B_by_dXdX>` returns an array of size ``(n, 3, 3, 3)`` with the Cartesian coordinates of :math:`\nabla\nabla B`. Denoting the indices
   by :math:`(i,j,k,l)`, the result contains  :math:`\partial_k \partial_j B_l(x_i)`.
-- ``m.dA_by_dX()`` returns an array of size ``(n, 3, 3)`` with the Cartesian coordinates of :math:`\nabla A`. Denoting the indices
+- :func:`m.dA_by_dX() <simsoptpp.MagneticField.dA_by_dX>` returns an array of size ``(n, 3, 3)`` with the Cartesian coordinates of :math:`\nabla A`. Denoting the indices
   by :math:`(i,j,l)`, the result contains  :math:`\partial_j A_l(x_i)`.
-- ``m.d2A_by_dXdX()`` returns an array of size ``(n, 3, 3, 3)`` with the Cartesian coordinates of :math:`\nabla\nabla A`. Denoting the indices
+- :func:`m.d2A_by_dXdX() <simsoptpp.MagneticField.d2A_by_dXdX>` returns an array of size ``(n, 3, 3, 3)`` with the Cartesian coordinates of :math:`\nabla\nabla A`. Denoting the indices
   by :math:`(i,j,k,l)`, the result contains  :math:`\partial_k \partial_j A_l(x_i)`.
-- ``m.GradAbsB()`` returns an array of size ``(n, 3)`` with the Cartesian components of :math:`\nabla |B|`.
+- :func:`m.GradAbsB() <simsoptpp.MagneticField.GradAbsB>` returns an array of size ``(n, 3)`` with the Cartesian components of :math:`\nabla |B|`.
 
 Example:
 
