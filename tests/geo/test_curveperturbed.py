@@ -1,5 +1,5 @@
 import unittest
-from randomgen import PCG64
+from numpy.random import PCG64DXSM, Generator
 import json
 
 import numpy as np
@@ -17,7 +17,7 @@ class CurvePerturbationTesting(unittest.TestCase):
         length_scale = 0.5
         points = np.linspace(0, 1, 200, endpoint=False)
         sampler = GaussianSampler(points, sigma, length_scale, n_derivs=2)
-        rg = np.random.Generator(PCG64(1))
+        rg = Generator(PCG64DXSM(1))
         sample = PerturbationSample(sampler, randomgen=rg)
 
         dphi = points[1]
@@ -42,7 +42,7 @@ class CurvePerturbationTesting(unittest.TestCase):
         n = 100
         points = np.linspace(0, 2, 2*n, endpoint=False)
         sampler = GaussianSampler(points, sigma, length_scale, n_derivs=0)
-        rg = np.random.Generator(PCG64(1))
+        rg = Generator(PCG64DXSM(1))
         sample = PerturbationSample(sampler, randomgen=rg)
         periodic_err = np.abs(sample[0][:n, :] - sample[0][n:, :])
         print("periodic_err", np.mean(periodic_err))
@@ -55,7 +55,7 @@ class CurvePerturbationTesting(unittest.TestCase):
         length_scale = 0.5
         points = np.linspace(0, 1, 200, endpoint=False)
         sampler = GaussianSampler(points, sigma, length_scale, n_derivs=3)
-        rg = np.random.Generator(PCG64(1))
+        rg = Generator(PCG64DXSM(1))
         sample = PerturbationSample(sampler, randomgen=rg)
 
         order = 4
@@ -94,7 +94,7 @@ class CurvePerturbationTesting(unittest.TestCase):
         length_scale = 0.2
         points = np.linspace(0, 1, 200, endpoint=False)
         sampler = GaussianSampler(points, sigma, length_scale, n_derivs=1)
-        rg = np.random.Generator(PCG64(1))
+        rg = Generator(PCG64DXSM(1))
         sample1 = PerturbationSample(sampler, randomgen=rg)
         sample2 = PerturbationSample(sampler, randomgen=rg)
 
