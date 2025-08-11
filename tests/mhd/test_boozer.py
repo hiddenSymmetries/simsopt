@@ -226,6 +226,31 @@ class QuasisymmetryTests(unittest.TestCase):
         np.testing.assert_allclose(bmnc[:, 1], bmnc_ref[:, -1],
                                    atol=atol, rtol=rtol)
 
+    @unittest.skipIf((booz_xform is None) or (vmec is None),
+                     "vmec or booz_xform python package not found")
+    def test_boozer_basic_non_stellsym(self):
+        """Check that we are close to precalculated quasisymmetry errors.
+        For a stellarator assymmetric configuration with less-used normalization flags to increase code coverage.
+        Also registers surfaces with a float instead of an iterable for code-coverage.
+        In practical code, this is redundant since the Quasisymmetry objective would register the needed surface automatically.
+        This is run for an unrealistically low number of iterations for the sake of speed."""
+        with ScratchDir("."):
+            v = Vmec(os.path.join(TEST_DIR, "input.basic_non_stellsym"))
+            v.indata.niter_array[:2] = [100, 0]  # Low number of iterations
+            b = Boozer(v, mpol=32, ntor=16)
+            # code coverage for the case where we register a float and not something iterable.
+            b.register(0.5)
+            J = Quasisymmetry(b, s=0.5, helicity_m=1, helicity_n=0,
+                              normalization="symmetric", weight="stellopt").J()
+
+            np.testing.assert_allclose(
+                J[0], -3.2704931879062826, err_msg='Weight "stellopt" for normalization "symmetric" does not match precalculated value for a non-stellarator symmetric configuration.')
+            J = Quasisymmetry(b, s=0.5, helicity_m=1, helicity_n=0,
+                              normalization="B00", weight="stellopt_ornl").J()
+            np.testing.assert_allclose(
+                J[0], 0.8089189591823078, err_msg='Weight "stellopt_ornl" does not match precalculated value.')
+            surfs = b.bx.compute_surfs
+            self.assertEqual(surfs[0], 49, msg='Surface index is not the expected value. Wrong surface is being used in the calculation.')
 
 if __name__ == "__main__":
     unittest.main()
