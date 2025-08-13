@@ -1,10 +1,11 @@
 #pragma once
-
 #include <cmath>  // pow function
 #include <tuple>  // c++ tuples
 #include <algorithm>  // std::min_element function
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
+#include "A_F_ForceCalcs.h"               // Force calculation functions
 typedef xt::pyarray<double> Array;
+typedef xt::pytensor<double, 3, xt::layout_type::row_major> Array3D;
 using std::vector;
 
 // helper functions for convex MwPGP algorithm
@@ -29,6 +30,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
     Array& dipole_grid_xyz, int Nadjacent, double thresh_angle, 
     int max_nMagnets, Array& x_init);
 std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, Array&mmax, Array& normal_norms, int K, bool verbose, int nhistory, int single_direction);
+std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, Array3D& A_F, int K, bool verbose, int nhistory, int single_direction);
 
 // helper functions for GPMO algorithm
 void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& Bn_history, Array& m_history, double mmax_sum, double* normal_norms_ptr); 

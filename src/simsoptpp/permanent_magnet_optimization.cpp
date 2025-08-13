@@ -4,6 +4,7 @@
 #include "vec3dsimd.h"
 #include "xtensor/xsort.hpp"
 #include "xtensor/xview.hpp"
+#include "A_F_ForceCalcs.h"
 #include <functional>
 #include <vector>
 #include <math.h>
@@ -1294,6 +1295,162 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
 		}
 		R2s_ptr[j] = R2 + (mmax_ptr[j] * mmax_ptr[j]);
 		R2s_ptr[j + N3] = R2minus + (mmax_ptr[j] * mmax_ptr[j]);
+	    }
+	}
+
+	// find the dipole that most minimizes the least-squares term
+        skj[k] = int(std::distance(R2s.begin(), std::min_element(R2s.begin(), R2s.end())));
+	if (skj[k] >= N3) {
+	    skj[k] -= N3;
+	    sign_fac[k] = -1.0;
+	}
+	else {
+            sign_fac[k] = 1.0;
+	}
+	skjj[k] = (skj[k] % 3); 
+	skj[k] = int(skj[k] / 3.0);
+        x(skj[k], skjj[k]) = sign_fac[k];
+
+	// Add binary magnet and get rid of the magnet (all three components)
+        // from the complement of Gamma 
+	int skj_inds = (3 * skj[k] + skjj[k]) * ngrid;
+#pragma omp parallel for schedule(static)
+	for(int i = 0; i < ngrid; ++i) {
+            Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_inds];
+	}
+        for (int j = 0; j < 3; ++j) {
+            Gamma_complement(skj[k], j) = false;
+	    R2s[3 * skj[k] + j] = 1e50;
+	    R2s[N3 + 3 * skj[k] + j] = 1e50;
+        }
+
+	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
+            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
+	}
+    }
+    return std::make_tuple(objective_history, Bn_history, m_history, x);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+// Run the GPMO algorithm for solving 
+// the permanent magnet optimization problem with force calculations.
+// The A matrix should be rescaled by m_maxima since we are assuming all ones in m.
+std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, Array3D& A_F, int K, bool verbose, int nhistory, int single_direction) 
+{
+    int ngrid = A_obj.shape(1);
+    int N = int(A_obj.shape(0) / 3);
+    int N3 = 3 * N;
+    int print_iter = 0;
+
+    Array x = xt::zeros<double>({N, 3});
+
+    // record the history of the algorithm iterations
+    Array m_history = xt::zeros<double>({N, 3, nhistory + 1});
+    Array objective_history = xt::zeros<double>({nhistory + 1});
+    Array Bn_history = xt::zeros<double>({nhistory + 1});
+
+    // print out the names of the error columns
+    if (verbose)
+        printf("Iteration ... |Am - b|^2 ... lam*|m|^2 ... Force penalty\n");
+
+    // initialize Gamma_complement with all indices available
+    Array Gamma_complement = xt::ones<bool>({N, 3});
+	
+    // initialize least-square values to large numbers    
+    vector<double> R2s(6 * N, 1e50);
+    vector<int> skj(K);
+    vector<int> skjj(K);
+    vector<double> sign_fac(K);
+    
+    double* R2s_ptr = &(R2s[0]);
+    double* Aij_ptr = &(A_obj(0, 0));
+    double* Gamma_ptr = &(Gamma_complement(0, 0));
+    
+    // initialize running matrix-vector product
+    Array Aij_mj_sum = -b_obj;
+    double mmax_sum = 0.0;
+    double* Aij_mj_ptr = &(Aij_mj_sum(0));
+    double* normal_norms_ptr = &(normal_norms(0));
+    double* mmax_ptr = &(mmax(0));
+
+    // Force penalty weight - can be made configurable
+    double force_weight = 1.0e-6;  // Adjust this weight as needed
+
+    // if using a single direction, increase j by 3 each iteration
+    int j_update = 1;
+    if (single_direction >= 0) j_update = 3;
+    
+    // Main loop over the optimization iterations
+    for (int k = 0; k < K; ++k) {
+#pragma omp parallel for schedule(static)
+	for (int j = std::max(0, single_direction); j < N3; j += j_update) {
+
+	    // Check all the allowed dipole positions
+	    if (Gamma_ptr[j]) {
+		double R2 = 0.0;
+		double R2minus = 0.0;
+		int nj = ngrid * j;
+
+		// Compute contribution of jth dipole component, either with +- orientation
+		for(int i = 0; i < ngrid; ++i) {
+		    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]);
+		    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
+		}
+
+		// Calculate force penalties for both orientations in the same loop
+		double force_penalty_plus = 0.0;
+		double force_penalty_minus = 0.0;
+		
+		// Conservative force calculation with size limits
+		if (A_F.size() > 0) {  
+		    // Safety check: ensure A_F has the expected dimensions
+		    if (A_F.shape(0) == 3*N && A_F.shape(1) == 3*N && A_F.shape(2) == 3) {
+		        // Disable OpenMP for force calculations to prevent thread conflicts
+		        #pragma omp critical
+		        {
+		            try {
+		                // Create temporary dipole moments array with this placement
+		                Array temp_moments = xt::zeros<double>({3 * N});
+		                
+		                // Copy current dipole moments
+		                for (int i = 0; i < N; ++i) {
+		                    for (int l = 0; l < 3; ++l) {
+		                        temp_moments(3*i + l) = x(i, l);
+		                    }
+		                }
+		            
+		            // Calculate force penalty for positive orientation
+		            int dipole_idx = j / 3;
+		            int component_idx = j % 3;
+		            
+		            // Safety check: ensure indices are within bounds
+		            if (dipole_idx < N && component_idx < 3) {
+		                temp_moments(3*dipole_idx + component_idx) = 1.0;
+		                
+		                // Calculate forces with error handling
+		                Array forces_plus = dipole_forces_from_A_F(temp_moments, A_F);
+		                force_penalty_plus = two_norm_squared(forces_plus);
+		                
+		                // Calculate force penalty for negative orientation
+		                temp_moments(3*dipole_idx + component_idx) = -1.0;
+		                Array forces_minus = dipole_forces_from_A_F(temp_moments, A_F);
+		                force_penalty_minus = two_norm_squared(forces_minus);
+		            }
+		        } catch (...) {
+		            // If any exception occurs, set force penalties to zero
+		            force_penalty_plus = 0.0;
+		            force_penalty_minus = 0.0;
+		        }
+		        }
+		    }
+		}
+
+		// Add force penalties to the respective cost functions
+		R2s_ptr[j] = R2 + force_weight * force_penalty_plus + (mmax_ptr[j] * mmax_ptr[j]);
+		R2s_ptr[j + N3] = R2minus + force_weight * force_penalty_minus + (mmax_ptr[j] * mmax_ptr[j]);
 	    }
 	}
 

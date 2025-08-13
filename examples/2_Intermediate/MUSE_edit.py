@@ -48,8 +48,8 @@ if in_github_actions:
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
     nphi = 32  # >= 64 for high-resolution runs
-    nIter_max = 10000
-    downsample = 10
+    nIter_max = 500
+    downsample = 80
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -110,11 +110,11 @@ t2 = time.time()
 print(f"Time to build A_F: {t2-t1:.3f} seconds")
 print('Shape of A_F = ', A_F.shape)
 
-
 # Set some hyperparameters for the optimization
-algorithm = 'baseline'  # Algorithm to use
+algorithm = 'Forces'  # Algorithm to use
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
+kwargs['A_F'] = A_F  # Add A_F to kwargs for the Forces algorithm
 
 # Optimize the permanent magnets greedily
 t1 = time.time()
