@@ -21,26 +21,24 @@ requirements:
     - libgomp      # [linux]
     - "setuptools_scm[toml]"
     - boost
-    - pybind11
+    - pybind11 <3.0
     - scikit-build-core
 
   host:
     - pip
     - wheel
-    - numpy {{ numpy }}
-    - "setuptools_scm[toml]"
-    - scikit-build-core
     - python {{ python }}
-    - pybind11
+    - scikit-build-core
+    - "setuptools_scm[toml]"
+    - numpy >=2.0
 
   run:
     - python
-    - numpy {{ numpy }}
+    - numpy
     - jax >=0.2.5
     - jaxlib >=0.1.56
     - scipy >=1.5.4
     - Deprecated >=1.2.10
-    - nptyping >=1.3.0
     - monty >=2021.6.10 
     - ruamel.yaml
     - sympy
