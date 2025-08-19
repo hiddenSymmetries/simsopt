@@ -247,7 +247,7 @@ double two_norm_squared(const PyArray& array) {
     return sum;
 }
 
-// Abbv_Force_Calc(moments, forces, j_index, dipole_grid_xyz, sign = positive)
+// Iterative_Forces(moments, forces, j_index, dipole_grid_xyz, sign = positive)
 // moments: 3N list of the dipole moments
 // forces: 3N list of the net forces on the dipoles
 // j_index: index from moments which will be used to calculate the new forces (i.e. the dipole that is being "activated")
@@ -272,7 +272,7 @@ double two_norm_squared(const PyArray& array) {
      // e) In the force array, add the negative of the resultant vector to the indices of magnet j 
 //Step 3: Calculate and return the two_norm_squared() of the forces array
 
-std::tuple<PyArray, double> Abbv_Force_Calc(const PyArray& moments, const PyArray& forces, int j_index, const PyArray& dipole_grid_xyz, int sign = 1) {
+std::tuple<PyArray, double> Iterative_Forces(const PyArray& moments, const PyArray& forces, int j_index, const PyArray& dipole_grid_xyz, int sign = 1) {
     int N = moments.size() / 3;
     
     // Extract magnet number and component from j_index
@@ -281,17 +281,17 @@ std::tuple<PyArray, double> Abbv_Force_Calc(const PyArray& moments, const PyArra
     
     // Safety checks
     if (N <= 0 || j < 0 || j >= N) {
-        std::cerr << "Error: Invalid magnet number derived from j_index in Abbv_Force_Calc" << std::endl;
+        std::cerr << "Error: Invalid magnet number derived from j_index in Iterative_Forces" << std::endl;
         return std::make_tuple(PyArray(), 0.0);
     }
     
     if (component < 0 || component > 2) {
-        std::cerr << "Error: Invalid component number derived from j_index in Abbv_Force_Calc" << std::endl;
+        std::cerr << "Error: Invalid component number derived from j_index in Iterative_Forces" << std::endl;
         return std::make_tuple(PyArray(), 0.0);
     }
     
     if (forces.size() != 3*N || dipole_grid_xyz.size() != 3*N) {
-        std::cerr << "Error: Array size mismatch in Abbv_Force_Calc" << std::endl;
+        std::cerr << "Error: Array size mismatch in Iterative_Forces" << std::endl;
         return std::make_tuple(PyArray(), 0.0);
     }
     

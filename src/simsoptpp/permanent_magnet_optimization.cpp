@@ -1432,21 +1432,22 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
 		                    }
 		                }
 		            
-		            // Calculate force penalty for positive orientation using Abbv_Force_Calc
+		            // Calculate force penalty for positive orientation using Iterative_Forces
 		            int dipole_idx = j / 3;
 		            int component_idx = j % 3;
+		            
 		            
 		            // Safety check: ensure indices are within bounds
 		            if (dipole_idx < N && component_idx < 3) {
 		                temp_moments(3*dipole_idx + component_idx) = 1.0;
 		                
-		                // Calculate forces using Abbv_Force_Calc for positive orientation
-		                auto [forces_plus, norm_plus] = Abbv_Force_Calc(temp_moments, current_forces, j, dipole_grid_flat, 1);
+		                // Calculate forces using Iterative_Forces for positive orientation
+		                auto [forces_plus, norm_plus] = Iterative_Forces(temp_moments, current_forces, j, dipole_grid_flat, 1);
 		                force_penalty_plus = norm_plus;
 		                
 		                // Calculate force penalty for negative orientation
 		                temp_moments(3*dipole_idx + component_idx) = -1.0;
-		                auto [forces_minus, norm_minus] = Abbv_Force_Calc(temp_moments, current_forces, j, dipole_grid_flat, -1);
+		                auto [forces_minus, norm_minus] = Iterative_Forces(temp_moments, current_forces, j, dipole_grid_flat, -1);
 		                force_penalty_minus = norm_minus;
 		            }
 		        } catch (...) {
@@ -1487,8 +1488,8 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
             }
         }
 
-        // Update current_forces using Abbv_Force_Calc for the dipole that is about to be activated
-        auto [new_forces, norm] = Abbv_Force_Calc(moments, current_forces, new_j, dipole_grid_flat, sign_fac[k]);
+        // Update current_forces using Iterative_Forces for the dipole that is about to be activated
+        auto [new_forces, norm] = Iterative_Forces(moments, current_forces, new_j, dipole_grid_flat, sign_fac[k]);
         current_forces = new_forces;
         force_penalty = force_weight * two_norm_squared(current_forces);
         // Now activate the dipole in the x array

@@ -79,7 +79,7 @@ double diagnostic_test(int N, const PyArray& moments = PyArray(), const PyArray&
  * @param sign Orientation of new magnet (default: 1 for positive)
  * @return std::tuple<PyArray, double> The modified forces array and its two-norm squared
  */
-std::tuple<PyArray, double> Abbv_Force_Calc(const PyArray& moments, const PyArray& forces, int j_index, const PyArray& dipole_grid_xyz, int sign = 1);
+std::tuple<PyArray, double> Iterative_Forces(const PyArray& moments, const PyArray& forces, int j_index, const PyArray& dipole_grid_xyz, int sign = 1);
 
 /**
  * @brief Generate random dipole moments and positions

@@ -76,7 +76,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("build_A_tildeF_tensor", &build_A_tildeF_tensor, py::arg("r"));
     m.def("build_A_F_tensor", &build_A_F_tensor, py::arg("positions"));
     m.def("dipole_forces_from_A_F", &dipole_forces_from_A_F, py::arg("moments"), py::arg("A_F"));
-    m.def("Abbv_Force_Calc", &Abbv_Force_Calc, py::arg("moments"), py::arg("forces"), py::arg("j_index"), py::arg("dipole_grid_xyz"), py::arg("sign") = 1);
+    m.def("Iterative_Forces", &Iterative_Forces, py::arg("moments"), py::arg("forces"), py::arg("j_index"), py::arg("dipole_grid_xyz"), py::arg("sign") = 1);
     m.def("diagnostic_test", &diagnostic_test, py::arg("N"), py::arg("moments") = PyArray(), py::arg("positions") = PyArray());
     m.def("random_dipoles_and_positions", &random_dipoles_and_positions, py::arg("N"), py::arg("moments"), py::arg("positions"));
     m.def("two_norm_squared", &two_norm_squared, py::arg("array"));
