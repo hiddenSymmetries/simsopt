@@ -102,19 +102,12 @@ kwargs = {"downsample": downsample, "dr": dr}
 pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs)
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
-# Create flattened version of dipole grid coordinates
-flattened_dipole_xyz = pm_opt.dipole_grid_xyz.flatten()
-t1 = time.time()
-A_F = sopp.build_A_F_tensor(flattened_dipole_xyz)
-t2 = time.time()
-print(f"Time to build A_F: {t2-t1:.3f} seconds")
-print('Shape of A_F = ', A_F.shape)
 
 # Set some hyperparameters for the optimization
 algorithm = 'Forces'  # Algorithm to use
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
-kwargs['A_F'] = A_F  # Add A_F to kwargs for the Forces algorithm
+kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # Add dipole grid positions for the Forces algorithm
 
 # Optimize the permanent magnets greedily
 t1 = time.time()
@@ -167,13 +160,13 @@ if save_plots:
         
        
         mk_flat = mk.flatten()
-        t3 = time.time()
-        mk_forces = sopp.dipole_forces_from_A_F(mk_flat, A_F)
-        t4 = time.time()
-        print(f"Time to calculate forces: {t4-t3:.3f} seconds")
-        print('Shape of mk_forces = ', mk_forces.shape)
-        F_norm_squared = sopp.two_norm_squared(mk_forces)
-        print(f"Force norm squared: {F_norm_squared}")
+        #t3 = time.time()
+        #mk_forces = sopp.dipole_forces_from_A_F(mk_flat, A_F)
+        #t4 = time.time()
+        #print(f"Time to calculate forces: {t4-t3:.3f} seconds")
+        #print('Shape of mk_forces = ', mk_forces.shape)
+        #F_norm_squared = sopp.two_norm_squared(mk_forces)
+        #print(f"Force norm squared: {F_norm_squared}")
         
         
         net_forces, net_torques = pm_opt.force_torque_calc(mk)

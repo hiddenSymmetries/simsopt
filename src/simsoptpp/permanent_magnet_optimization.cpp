@@ -1338,7 +1338,7 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
 // Run the GPMO algorithm for solving 
 // the permanent magnet optimization problem with force calculations.
 // The A matrix should be rescaled by m_maxima since we are assuming all ones in m.
-std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, Array3D& A_F, int K, bool verbose, int nhistory, int single_direction) 
+std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, Array& dipole_grid_flat, int K, bool verbose, int nhistory, int single_direction) 
 {
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);
@@ -1379,6 +1379,9 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
     // Force penalty weight - can be made configurable
     double force_weight = 1.0e-6;  // Adjust this weight as needed
 
+    // Initialize forces array for force calculations
+    Array current_forces = xt::zeros<double>({3 * N});
+
     // if using a single direction, increase j by 3 each iteration
     int j_update = 1;
     if (single_direction >= 0) j_update = 3;
@@ -1404,10 +1407,10 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
 		double force_penalty_plus = 0.0;
 		double force_penalty_minus = 0.0;
 		
-		// Conservative force calculation with size limits
-		if (A_F.size() > 0) {  
-		    // Safety check: ensure A_F has the expected dimensions
-		    if (A_F.shape(0) == 3*N && A_F.shape(1) == 3*N && A_F.shape(2) == 3) {
+				// Conservative force calculation with size limits
+		if (dipole_grid_flat.size() > 0) {  
+		    // Safety check: ensure dipole_grid_flat has the expected dimensions (3*N)
+		    if (dipole_grid_flat.shape(0) == 3*N) {
 		        // Disable OpenMP for force calculations to prevent thread conflicts
 		        #pragma omp critical
 		        {
@@ -1422,7 +1425,7 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
 		                    }
 		                }
 		            
-		            // Calculate force penalty for positive orientation
+		            // Calculate force penalty for positive orientation using Abbv_Force_Calc
 		            int dipole_idx = j / 3;
 		            int component_idx = j % 3;
 		            
@@ -1430,14 +1433,14 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
 		            if (dipole_idx < N && component_idx < 3) {
 		                temp_moments(3*dipole_idx + component_idx) = 1.0;
 		                
-		                // Calculate forces with error handling
-		                Array forces_plus = dipole_forces_from_A_F(temp_moments, A_F);
-		                force_penalty_plus = two_norm_squared(forces_plus);
+		                // Calculate forces using Abbv_Force_Calc for positive orientation
+		                auto [forces_plus, norm_plus] = Abbv_Force_Calc(temp_moments, current_forces, j, dipole_grid_flat, 1);
+		                force_penalty_plus = norm_plus;
 		                
 		                // Calculate force penalty for negative orientation
 		                temp_moments(3*dipole_idx + component_idx) = -1.0;
-		                Array forces_minus = dipole_forces_from_A_F(temp_moments, A_F);
-		                force_penalty_minus = two_norm_squared(forces_minus);
+		                auto [forces_minus, norm_minus] = Abbv_Force_Calc(temp_moments, current_forces, j, dipole_grid_flat, -1);
+		                force_penalty_minus = norm_minus;
 		            }
 		        } catch (...) {
 		            // If any exception occurs, set force penalties to zero
@@ -1465,11 +1468,29 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
 	}
 	skjj[k] = (skj[k] % 3); 
 	skj[k] = int(skj[k] / 3.0);
+        
+        // Calculate new_j index for the dipole that is about to be activated
+        int new_j = 3*skj[k] + skjj[k];
+        
+        // Flatten current x into 1D moments array (before activating the new dipole)
+        Array moments = xt::zeros<double>({3 * N});
+        for (int i = 0; i < N; ++i) {
+            for (int l = 0; l < 3; ++l) {
+                moments(3*i + l) = x(i, l); 
+            }
+        }
+
+        // Update current_forces using Abbv_Force_Calc for the dipole that is about to be activated
+        auto [new_forces, norm] = Abbv_Force_Calc(moments, current_forces, new_j, dipole_grid_flat, sign_fac[k]);
+        current_forces = new_forces;
+        
+        // Now activate the dipole in the x array
         x(skj[k], skjj[k]) = sign_fac[k];
 
 	// Add binary magnet and get rid of the magnet (all three components)
         // from the complement of Gamma 
 	int skj_inds = (3 * skj[k] + skjj[k]) * ngrid;
+
 #pragma omp parallel for schedule(static)
 	for(int i = 0; i < ngrid; ++i) {
             Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_inds];

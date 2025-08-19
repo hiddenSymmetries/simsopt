@@ -294,7 +294,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
                 the simple implementation of GPMO,
             Forces:
                 the simple implementation of GPMO with force calculations,
-                requires additional "A_F" kwarg,
+                requires additional "dipole_grid_xyz" kwarg,
             multi:
                 GPMO, but placing multiple magnets per iteration,
             backtracking:
@@ -323,7 +323,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             dipole_grid_xyz: 2D numpy array, shape (ndipoles, 3).
                 XYZ coordinates of the permanent magnet locations. Needed for
                 figuring out which permanent magnets are adjacent to one another.
-                Not a keyword argument for 'baseline', 'Forces', and 'ArbVec'.
+                Not a keyword argument for 'baseline' and 'ArbVec'.
             max_nMagnets: integer.
                 Maximum number of magnets to place before algorithm quits. Only
                 a keyword argument for 'backtracking' and 'ArbVec_backtracking'
@@ -347,8 +347,6 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             reg_l2: float.
                 L2 regularization value, applied through the mmax argument in
                 the GPMO algorithm. See the paper for how this works.
-            A_F: 3D numpy array
-                Force calculation matrix required for the 'Forces' algorithm.
             verbose: bool.
                 If True, print out the algorithm progress every 'nhistory'
                 iterations. Also needed to record the algorithm history.
@@ -381,7 +379,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
     mmax_vec = contig(np.array([mmax, mmax, mmax]).T.reshape(pm_opt.ndipoles * 3))
     A_obj = pm_opt.A_obj * mmax_vec
 
-    if (algorithm != 'baseline' and algorithm != 'Forces' and algorithm != 'mutual_coherence' and algorithm != 'ArbVec') and 'dipole_grid_xyz' not in kwargs:
+    if (algorithm != 'baseline' and algorithm != 'mutual_coherence' and algorithm != 'ArbVec') and 'dipole_grid_xyz' not in kwargs:
         raise ValueError('GPMO variants require dipole_grid_xyz to be defined.')
 
     # Set the L2 regularization if it is included in the kwargs 
@@ -413,16 +411,18 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             **kwargs
         )
     elif algorithm == 'Forces':  # GPMO with force calculations
-        # Extract A_F from kwargs for the Forces algorithm
-        if 'A_F' not in kwargs:
-            raise ValueError('Forces algorithm requires A_F kwarg to be defined.')
-        A_F = kwargs.pop('A_F')  # Remove A_F from kwargs to avoid passing it to other parameters
+        # Extract dipole_grid_xyz from kwargs for the Forces algorithm
+        if 'dipole_grid_xyz' not in kwargs:
+            raise ValueError('Forces algorithm requires dipole_grid_xyz kwarg to be defined.')
+        dipole_grid_xyz = kwargs.pop('dipole_grid_xyz')  # Remove dipole_grid_xyz from kwargs to avoid passing it to other parameters
+        # Flatten dipole_grid_xyz into a 1D array of length 3N
+        dipole_grid_flat = contig(dipole_grid_xyz.ravel())
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_Forces(
             A_obj=contig(A_obj.T),
             b_obj=contig(pm_opt.b_obj),
             mmax=np.sqrt(reg_l2)*mmax_vec,
             normal_norms=Nnorms,
-            A_F=contig(A_F),
+            dipole_grid_flat=dipole_grid_flat,
             **kwargs
         )
     elif algorithm == 'ArbVec':  # GPMO with arbitrary polarization vectors
