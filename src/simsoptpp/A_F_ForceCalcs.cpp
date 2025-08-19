@@ -247,6 +247,128 @@ double two_norm_squared(const PyArray& array) {
     return sum;
 }
 
+// Abbv_Force_Calc(moments, forces, j_index, dipole_grid_xyz, sign = positive)
+// moments: 3N list of the dipole moments
+// forces: 3N list of the net forces on the dipoles
+// j_index: index from moments which will be used to calculate the new forces (i.e. the dipole that is being "activated")
+// dipole_grid_xyz: 3N list of the positions of the dipoles 
+// sign: orientation of new magnet (which side does north face)
+
+// This function takes the current magnet array with moments and forces, and iterates them to account for changes if 
+// a new magnet. First it must identify from moment the indices, m's, of all active magnets. Then from j_index and sign it must identify
+// both the index, component, and orientation of the new magnet. Afterwards it will run through force calculations, calculating
+// the force vector on m due to magnet j, and adding those to m's sub 3vector in force, and adding the negative to j's sub 3 vector in force
+// After this is done for the affect of j on all current m's, calculate the two norm of the modified forces vector. 
+// Note: Do this using pointers such that instead of building entirely new copies of the input arrays (only forces is cloned and the clone is modified)
+// Note: Code needs to be as fast as possible, minimize overhead and unnnecessary calculations where possible.
+// Note: Use PyArrays and Array3D for inputs.
+
+// Step 1: Determine from moments which dipoles (m's) are currently active and from j_index the index, component, and orientation of the new magnet. Additionally once j is known find its position vector from dipole_grid_xyz
+// Step 2: For each active magnet m: compute force interactions
+     // a) Get position vector for magnet m and calculate displacement vector r pointing from j to m. 
+     // b) Use vector r and build_A_tildeF_tensor_raw() to build 3x3x3 interaction matrix between m and j.
+     // c) Do matrix operation m A j which results in a resultant vector (length 3) of the force on m due to j.
+     // d) In the force array, add the x,y,z components of the resultant vector to the respective x,y,z indices of magnet m.
+     // e) In the force array, add the negative of the resultant vector to the indices of magnet j 
+//Step 3: Calculate and return the two_norm_squared() of the forces array
+
+std::tuple<PyArray, double> Abbv_Force_Calc(const PyArray& moments, const PyArray& forces, int j_index, const PyArray& dipole_grid_xyz, int sign = 1) {
+    int N = moments.size() / 3;
+    
+    // Extract magnet number and component from j_index
+    int j = j_index / 3;           // Magnet number
+    int component = j_index % 3;    // Component (0=x, 1=y, 2=z)
+    
+    // Safety checks
+    if (N <= 0 || j < 0 || j >= N) {
+        std::cerr << "Error: Invalid magnet number derived from j_index in Abbv_Force_Calc" << std::endl;
+        return std::make_tuple(PyArray(), 0.0);
+    }
+    
+    if (component < 0 || component > 2) {
+        std::cerr << "Error: Invalid component number derived from j_index in Abbv_Force_Calc" << std::endl;
+        return std::make_tuple(PyArray(), 0.0);
+    }
+    
+    if (forces.size() != 3*N || dipole_grid_xyz.size() != 3*N) {
+        std::cerr << "Error: Array size mismatch in Abbv_Force_Calc" << std::endl;
+        return std::make_tuple(PyArray(), 0.0);
+    }
+    
+    // Create a clone of the forces array to work with
+    PyArray forces_clone = forces;
+    
+    // Get raw pointers for direct array manipulation
+    const double* moments_ptr = &(moments(0));
+    double* forces_clone_ptr = &(forces_clone(0));
+    const double* positions_ptr = &(dipole_grid_xyz(0));
+    
+    // Step 1: Identify active magnets and get j's position
+    std::vector<int> active_magnets;
+    for (int m = 0; m < N; ++m) {
+        if (!magnet_has_zero_moments(moments_ptr, m)) {
+            active_magnets.push_back(m);
+        }
+    }
+    
+    // Get position vector for magnet j
+    double j_pos[3] = {positions_ptr[3*j], positions_ptr[3*j + 1], positions_ptr[3*j + 2]};
+    
+    // Step 2: Compute force interactions for each active magnet
+    for (int m_idx = 0; m_idx < active_magnets.size(); ++m_idx) {
+        int m = active_magnets[m_idx];
+        
+        if (m == j) continue; // Skip self-interaction
+        
+        // a) Calculate displacement vector r from j to m
+        double r[3];
+        for (int d = 0; d < 3; ++d) {
+            r[d] = positions_ptr[3*m + d] - j_pos[d];
+        }
+        
+        // b) Build 3x3x3 interaction matrix using build_A_tildeF_tensor_raw
+        double A_tildeF[27]; // 3x3x3 = 27 elements
+        build_A_tildeF_tensor_raw(r, A_tildeF);
+        
+        // c) Compute matrix operation m A j (force on m due to j)
+        // Build a proper moment vector for magnet j: zeros except for the specific component
+        double moment_j[3] = {0.0, 0.0, 0.0};
+        moment_j[component] = 1.0; // Set only the specific component to 1
+        
+        double force_on_m[3] = {0.0, 0.0, 0.0};
+        
+        // Use the same matrix multiplication approach as dipole_forces_from_A_F
+        for (int a = 0; a < 3; ++a) {
+            for (int b = 0; b < 3; ++b) {
+                for (int c = 0; c < 3; ++c) {
+                    // Calculate the linear index for A_tildeF tensor
+                    // A_tildeF[a][b][c] = A_tildeF[a*9 + b*3 + c]
+                    int idx = a * 9 + b * 3 + c;
+                    force_on_m[c] += moments_ptr[3*m + a] * A_tildeF[idx] * moment_j[b];
+                }
+            }
+        }
+        
+        // Apply sign orientation
+        for (int d = 0; d < 3; ++d) {
+            force_on_m[d] *= sign;
+        }
+        
+        // d) Add force to magnet m's force vector
+        for (int d = 0; d < 3; ++d) {
+            forces_clone_ptr[3*m + d] += force_on_m[d];
+        }
+        
+        // e) Add negative force to magnet j's force vector (Newton's 3rd law)
+        for (int d = 0; d < 3; ++d) {
+            forces_clone_ptr[3*j + d] -= force_on_m[d];
+        }
+    }
+    
+    // Step 3: Return both the forces clone and its two_norm_squared
+    return std::make_tuple(forces_clone, two_norm_squared(forces_clone));
+}
+
 // Diagnostic test
 double diagnostic_test(int N, const PyArray& moments = PyArray(), const PyArray& positions = PyArray()) {
     PyArray moments_use, positions_use;

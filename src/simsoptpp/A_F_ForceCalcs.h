@@ -4,6 +4,7 @@
 #include "xtensor-python/pytensor.hpp"
 #include <vector>
 #include <cmath>
+#include <tuple>
 
 typedef xt::pyarray<double> PyArray;
 typedef xt::pytensor<double, 3, xt::layout_type::row_major> Array3D;
@@ -62,6 +63,23 @@ double two_norm_squared(const PyArray& array);
  * @return double Squared 2-norm of the net forces
  */
 double diagnostic_test(int N, const PyArray& moments = PyArray(), const PyArray& positions = PyArray());
+
+/**
+ * @brief Calculate forces when activating a new magnet and return the 2-norm squared of forces
+ * 
+ * This function takes the current magnet array with moments and forces, and iterates them to account for changes
+ * when a new magnet is activated. It identifies active magnets, calculates force interactions between the new
+ * magnet j and all existing active magnets, updates a clone of the forces array, and returns the 2-norm squared.
+ * The function only returns the modified forces norm if the j magnet is actually used (has non-zero moments).
+ * 
+ * @param moments Reference to dipole moments array (3N elements)
+ * @param forces Reference to forces array (3N elements) - not modified, a clone is used internally
+ * @param j_index Index of the dipole being "activated"
+ * @param dipole_grid_xyz Array of dipole positions (3N elements)
+ * @param sign Orientation of new magnet (default: 1 for positive)
+ * @return std::tuple<PyArray, double> The modified forces array and its two-norm squared
+ */
+std::tuple<PyArray, double> Abbv_Force_Calc(const PyArray& moments, const PyArray& forces, int j_index, const PyArray& dipole_grid_xyz, int sign = 1);
 
 /**
  * @brief Generate random dipole moments and positions
