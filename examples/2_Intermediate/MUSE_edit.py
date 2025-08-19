@@ -101,6 +101,13 @@ kwargs = {"downsample": downsample, "dr": dr}
 # Finally, initialize the permanent magnet class
 pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs)
 print('Number of available dipoles = ', pm_opt.ndipoles)
+# Build A_F tensor for force calculations
+# Flatten dipole grid positions into 1D array
+dipole_grid_flat = pm_opt.dipole_grid_xyz.reshape(-1)
+
+# Build A_F tensor using cpp function
+A_F = sopp.build_A_F_tensor(dipole_grid_flat)
+
 
 
 # Set some hyperparameters for the optimization
@@ -160,13 +167,13 @@ if save_plots:
         
        
         mk_flat = mk.flatten()
-        #t3 = time.time()
-        #mk_forces = sopp.dipole_forces_from_A_F(mk_flat, A_F)
-        #t4 = time.time()
-        #print(f"Time to calculate forces: {t4-t3:.3f} seconds")
-        #print('Shape of mk_forces = ', mk_forces.shape)
-        #F_norm_squared = sopp.two_norm_squared(mk_forces)
-        #print(f"Force norm squared: {F_norm_squared}")
+        t3 = time.time()
+        mk_forces = sopp.dipole_forces_from_A_F(mk_flat, A_F)
+        t4 = time.time()
+        print(f"Time to calculate forces: {t4-t3:.3f} seconds")
+        print('Shape of mk_forces = ', mk_forces.shape)
+        F_norm_squared = sopp.two_norm_squared(mk_forces)
+        print(f"Force norm squared: {F_norm_squared}")
         
         
         net_forces, net_torques = pm_opt.force_torque_calc(mk)

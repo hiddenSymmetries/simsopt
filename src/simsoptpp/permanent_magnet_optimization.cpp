@@ -326,7 +326,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
 
 
 // fairly convoluted way to print every ~ K / nhistory iterations
-void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& Bn_history, Array& m_history, double mmax_sum, double* normal_norms_ptr) 
+void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& Bn_history, Array& m_history, double mmax_sum, double* normal_norms_ptr, double force_penalty) 
 {	
     int N = x.shape(0);
     double sqrtR2 = 0.0;
@@ -346,7 +346,11 @@ void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr,
 	    m_history(i, ii, print_iter) = x(i, ii);
     	}
     }
-    printf("%d ... %.2e ... %.2e \n", k, R2, L2);
+    if (force_penalty > 0.0) {
+        printf("%d ... %.2e ... %.2e ... %.2e\n", k, R2, L2, force_penalty);
+    } else {
+        printf("%d ... %.2e ... %.2e \n", k, R2, L2);
+    }
     print_iter += 1;
     return;
 }
@@ -1354,7 +1358,7 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
 
     // print out the names of the error columns
     if (verbose)
-        printf("Iteration ... |Am - b|^2 ... lam*|m|^2 ... Force penalty\n");
+        printf("Iteration ... |Am - b|^2 ... lam*|m|^2 ... alpha*|F|^2\n");
 
     // initialize Gamma_complement with all indices available
     Array Gamma_complement = xt::ones<bool>({N, 3});
@@ -1381,6 +1385,9 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
 
     // Initialize forces array for force calculations
     Array current_forces = xt::zeros<double>({3 * N});
+    
+    // Variable to store force penalty for printing
+    double force_penalty = 0.0;
 
     // if using a single direction, increase j by 3 each iteration
     int j_update = 1;
@@ -1483,7 +1490,7 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
         // Update current_forces using Abbv_Force_Calc for the dipole that is about to be activated
         auto [new_forces, norm] = Abbv_Force_Calc(moments, current_forces, new_j, dipole_grid_flat, sign_fac[k]);
         current_forces = new_forces;
-        
+        force_penalty = force_weight * two_norm_squared(current_forces);
         // Now activate the dipole in the x array
         x(skj[k], skjj[k]) = sign_fac[k];
 
@@ -1502,7 +1509,7 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
         }
 
 	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
-            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
+            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr, force_penalty);
 	}
     }
     return std::make_tuple(objective_history, Bn_history, m_history, x);

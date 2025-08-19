@@ -33,7 +33,7 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
 std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, Array& dipole_grid_flat, int K, bool verbose, int nhistory, int single_direction);
 
 // helper functions for GPMO algorithm
-void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& Bn_history, Array& m_history, double mmax_sum, double* normal_norms_ptr); 
+void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& Bn_history, Array& m_history, double mmax_sum, double* normal_norms_ptr, double force_penalty = 0.0); 
 Array connectivity_matrix(Array& dipole_grid_xyz, int Nadjacent);
 void initialize_GPMO_ArbVec(Array& x_init, Array& pol_vectors, 
          Array& x, vector<int>& x_vec, vector<int>& x_sign, 
