@@ -1442,6 +1442,9 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
                     int dipole_idx = j / 3;
                     int j_plus1 = j + 1;
                     int j_plus2 = j + 2;
+                    int j_N3 = j + N3;
+                    int j_N3_plus1 = j_N3 + 1;
+                    int j_N3_plus2 = j_N3 + 2;
                     if (m == dipole_idx) continue; // Skip self-interaction
 
                     // precompute indices for better performance
@@ -1580,9 +1583,9 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
                     total_x3_minus -= force_on_m[2];
                 
                     // Add negative force to magnet j's force vector (Newton's 3rd law)
-                    temp_forces_ptr[j] += force_on_m[0];
-                    temp_forces_ptr[j_plus1] += force_on_m[1];
-                    temp_forces_ptr[j_plus2] += force_on_m[2];
+                    temp_forces_ptr[j_N3] += force_on_m[0];
+                    temp_forces_ptr[j_N3_plus1] += force_on_m[1];
+                    temp_forces_ptr[j_N3_plus2] += force_on_m[2];
                 }
             }
             temp_forces_ptr[m3] += total_x1_plus;
@@ -1599,6 +1602,7 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
                 double R2 = 0.0;
                 double R2minus = 0.0;
                 int nj = ngrid * j;
+                int j_N3 = j + N3;
 
                 // Compute contribution of jth dipole component, either with +- orientation
                 for(int i = 0; i < ngrid; ++i) {
@@ -1607,7 +1611,7 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
                 }
                 // Set the R2 values properly (not +=) and add force penalties
                 R2s_ptr[j] = R2 + force_weight * temp_forces_ptr[j] * temp_forces_ptr[j] + (mmax_ptr[j] * mmax_ptr[j]);
-                R2s_ptr[j + N3] = R2minus + force_weight * temp_forces_ptr[j + N3] * temp_forces_ptr[j + N3] + (mmax_ptr[j] * mmax_ptr[j]);
+                R2s_ptr[j_N3] = R2minus + force_weight * temp_forces_ptr[j_N3] * temp_forces_ptr[j_N3] + (mmax_ptr[j] * mmax_ptr[j]);
             }
         }
 
