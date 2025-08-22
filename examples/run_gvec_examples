@@ -20,4 +20,9 @@ export OMP_NUM_THREADS=1
 
 ./stellarator_benchmarks/1DOF_circularCrossSection_varyR0_targetVolume_gvec.py
 mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/1DOF_circularCrossSection_varyR0_targetVolume_gvec.py
-mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/1DOF_circularCrossSection_varyR0_targetVolume_gvec.py
+
+./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota_gvec.py
+mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota_gvec.py
+
+./stellarator_benchmarks/2DOF_gvecOnly_targetIotaAndVolume.py
+mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/2DOF_gvecOnly_targetIotaAndVolume.py

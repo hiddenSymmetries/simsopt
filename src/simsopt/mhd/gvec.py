@@ -264,6 +264,7 @@ class Gvec(Optimizable):
         self.run_successful = False
         try:
             self._runobj = gvec.run(params, restart_file, runpath=self.rundir, quiet=True, keep_intermediates=self.keep_gvec_intermediates)
+            self._runobj.plot_diagnostics_minimization().savefig(self.rundir / "iterations.png")
         except RuntimeError as e:
             logger.error(f"GVEC failed with: {e}")
             raise ObjectiveFailure("Run GVEC failed.") from e

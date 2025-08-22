@@ -6,6 +6,7 @@
 *fort.9
 simsopt_20*.dat
 objective*.dat
+jac_log*.dat
 residuals_20*.dat
 _skbuild/
 build/
