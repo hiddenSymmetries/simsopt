@@ -8,6 +8,7 @@
 #include "xtensor-python/pytensor.hpp"
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include "permanent_magnet_optimization.h"
 
 typedef xt::pyarray<double> PyArray;
 typedef xt::pytensor<double, 3, xt::layout_type::row_major> Array3D;
@@ -236,19 +237,19 @@ PyArray dipole_forces_from_A_F(const PyArray& moments, const Array3D& A_F) {
 }
 
 // Computes the squared 2-norm (sum of squares) of an array
-double two_norm_squared(const PyArray& array) {
-    double sum = 0.0;
-    double* array_ptr = const_cast<double*>(&(array(0)));
+// double two_norm_squared(const PyArray& array) {
+//     double sum = 0.0;
+//     double* array_ptr = const_cast<double*>(&(array(0)));
     
-    #pragma omp parallel for reduction(+:sum)
-    for (int i = 0; i < array.size(); ++i) {
-        sum += array_ptr[i] * array_ptr[i];
-    }
-    return sum;
-}
+//     #pragma omp parallel for reduction(+:sum)
+//     for (int i = 0; i < array.size(); ++i) {
+//         sum += array_ptr[i] * array_ptr[i];
+//     }
+//     return sum;
+// }
 
 // Iterative_Forces(moments, forces, j_index, dipole_grid_xyz, sign = positive)
-// moments: 3N list of the dipole moments
+// moments: (N, 3) array of the dipole moments
 // forces: 3N list of the net forces on the dipoles
 // j_index: index from moments which will be used to calculate the new forces (i.e. the dipole that is being "activated")
 // dipole_grid_xyz: 3N list of the positions of the dipoles 
@@ -272,7 +273,7 @@ double two_norm_squared(const PyArray& array) {
      // e) In the force array, add the negative of the resultant vector to the indices of magnet j 
 //Step 3: Calculate and return the two_norm_squared() of the forces array
 
-std::tuple<PyArray, double> Iterative_Forces(const PyArray& moments, const PyArray& forces, int j_index, const PyArray& dipole_grid_xyz, int sign = 1) {
+std::tuple<PyArray, double> Iterative_Forces(PyArray& moments, PyArray& forces, int j_index, PyArray& dipole_grid_xyz, int sign = 1) {
     int N = moments.size() / 3;
     
     // Extract magnet number and component from j_index
@@ -290,20 +291,32 @@ std::tuple<PyArray, double> Iterative_Forces(const PyArray& moments, const PyArr
         return std::make_tuple(PyArray(), 0.0);
     }
     
-    if (forces.size() != 3*N || dipole_grid_xyz.size() != 3*N) {
+    if (forces.size() != 3*N || dipole_grid_xyz.size() != 3*N || moments.size() != 3*N) {
         std::cerr << "Error: Array size mismatch in Iterative_Forces" << std::endl;
         return std::make_tuple(PyArray(), 0.0);
     }
-    
-    // Create a clone of the forces array to work with
-    PyArray forces_clone = forces;
+
+    // Create truly independent copies to avoid threading issues
+    // PyArray forces_clone = forces;  // Deep copy
+    // PyArray moments_copy = moments; // Deep copy
+    // PyArray positions_copy = dipole_grid_xyz; // Deep copy
     
     // Get raw pointers for direct array manipulation
-    const double* moments_ptr = &(moments(0));
-    double* forces_clone_ptr = &(forces_clone(0));
-    const double* positions_ptr = &(dipole_grid_xyz(0));
+    double* moments_ptr = &(moments(0));
+    double* forces_clone_ptr = &(forces(0));
+    double* positions_ptr = &(dipole_grid_xyz(0));
+    
+    // Pre-allocate arrays to avoid repeated allocation
+    // static thread_local std::vector<int> active_magnets;
+    // static thread_local std::vector<double> A_tildeF_buffer(27);
+    
+    // Ensure thread-local buffers are large enough
+    // if (active_magnets.capacity() < N) {
+    //     active_magnets.reserve(N);
+    // }
     
     // Step 1: Identify active magnets and get j's position
+    // active_magnets.clear();
     std::vector<int> active_magnets;
     for (int m = 0; m < N; ++m) {
         if (!magnet_has_zero_moments(moments_ptr, m)) {
@@ -311,10 +324,15 @@ std::tuple<PyArray, double> Iterative_Forces(const PyArray& moments, const PyArr
         }
     }
     
-    // Get position vector for magnet j
+    // Get position vector for magnet j (cache for better memory access)
     double j_pos[3] = {positions_ptr[3*j], positions_ptr[3*j + 1], positions_ptr[3*j + 2]};
     
+    // Pre-compute moment_j vector (only component is non-zero)
+    double moment_j[3] = {0.0, 0.0, 0.0};
+    moment_j[component] = 1.0;
+    
     // Step 2: Compute force interactions for each active magnet
+    // #pragma omp parallel for schedule(static)
     for (int m_idx = 0; m_idx < active_magnets.size(); ++m_idx) {
         int m = active_magnets[m_idx];
         
@@ -322,21 +340,22 @@ std::tuple<PyArray, double> Iterative_Forces(const PyArray& moments, const PyArr
         
         // a) Calculate displacement vector r from j to m
         double r[3];
-        for (int d = 0; d < 3; ++d) {
-            r[d] = positions_ptr[3*m + d] - j_pos[d];
-        }
+        r[0] = positions_ptr[3*m] - j_pos[0];
+        r[1] = positions_ptr[3*m + 1] - j_pos[1];
+        r[2] = positions_ptr[3*m + 2] - j_pos[2];
         
         // b) Build 3x3x3 interaction matrix using build_A_tildeF_tensor_raw
-        double A_tildeF[27]; // 3x3x3 = 27 elements
+        // double* A_tildeF = A_tildeF_buffer.data();
+        double A_tildeF[27];
         build_A_tildeF_tensor_raw(r, A_tildeF);
         
         // c) Compute matrix operation m A j (force on m due to j)
-        // Build a proper moment vector for magnet j: zeros except for the specific component
-        double moment_j[3] = {0.0, 0.0, 0.0};
-        moment_j[component] = 1.0; // Set only the specific component to 1
-        
+        // Optimize the matrix multiplication by pre-computing indices
         double force_on_m[3] = {0.0, 0.0, 0.0};
         
+        // Unroll the matrix multiplication for better performance
+        // const double* moment_m = &moments_ptr[3*m];
+
         // Use the same matrix multiplication approach as dipole_forces_from_A_F
         for (int a = 0; a < 3; ++a) {
             for (int b = 0; b < 3; ++b) {
@@ -349,24 +368,314 @@ std::tuple<PyArray, double> Iterative_Forces(const PyArray& moments, const PyArr
             }
         }
         
-        // Apply sign orientation
-        for (int d = 0; d < 3; ++d) {
-            force_on_m[d] *= sign;
-        }
+        // Component 0 (x)
+        // force_on_m[0] = moment_m[3*m + 0] * A_tildeF[0*9 + 0*3 + 0] * moment_j[0] +
+        //                 moment_m[3*m + 1] * A_tildeF[1*9 + 0*3 + 0] * moment_j[0] +
+        //                 moment_m[3*m + 2] * A_tildeF[2*9 + 0*3 + 0] * moment_j[0];
         
-        // d) Add force to magnet m's force vector
-        for (int d = 0; d < 3; ++d) {
-            forces_clone_ptr[3*m + d] += force_on_m[d];
-        }
+        // // Component 1 (y)
+        // force_on_m[1] = moment_m[3*m + 0] * A_tildeF[0*9 + 0*3 + 1] * moment_j[0] +
+        //                 moment_m[3*m + 1] * A_tildeF[1*9 + 0*3 + 1] * moment_j[0] +
+        //                 moment_m[3*m + 2] * A_tildeF[2*9 + 0*3 + 1] * moment_j[0];
+        
+        // // Component 2 (z)
+        // force_on_m[2] = moment_m[3*m + 0] * A_tildeF[0*9 + 0*3 + 2] * moment_j[0] +
+        //                 moment_m[3*m + 1] * A_tildeF[1*9 + 0*3 + 2] * moment_j[0] +
+        //                 moment_m[3*m + 2] * A_tildeF[2*9 + 0*3 + 2] * moment_j[0];
+        
+        // Apply sign orientation
+        force_on_m[0] *= sign;
+        force_on_m[1] *= sign;
+        force_on_m[2] *= sign;
+        
+        // d) Add force to magnet m's force vector (vectorized)
+        forces_clone_ptr[3*m + 0] += force_on_m[0];
+        forces_clone_ptr[3*m + 1] += force_on_m[1];
+        forces_clone_ptr[3*m + 2] += force_on_m[2];
         
         // e) Add negative force to magnet j's force vector (Newton's 3rd law)
-        for (int d = 0; d < 3; ++d) {
-            forces_clone_ptr[3*j + d] -= force_on_m[d];
-        }
+        forces_clone_ptr[3*j + 0] -= force_on_m[0];
+        forces_clone_ptr[3*j + 1] -= force_on_m[1];
+        forces_clone_ptr[3*j + 2] -= force_on_m[2];
     }
     
     // Step 3: Return both the forces clone and its two_norm_squared
-    return std::make_tuple(forces_clone, two_norm_squared(forces_clone));
+    return std::make_tuple(forces, two_norm_squared(forces));
+}
+
+
+// HIGHLY OPTIMIZED version that accepts active magnet list directly (no scanning needed)
+std::tuple<PyArray, double> Iterative_Forces_With_Active_List(PyArray& moments, PyArray& forces, int j_index, PyArray& dipole_grid_xyz, int sign, const std::vector<int>& active_magnets) {
+    int N = moments.size() / 3;
+    
+    // Extract magnet number and component from j_index
+    int j = j_index / 3;           // Magnet number
+    int component = j_index % 3;    // Component (0=x, 1=y, 2=z)
+    
+    // Safety checks
+    if (N <= 0 || j < 0 || j >= N) {
+        std::cerr << "Error: Invalid magnet number derived from j_index in Iterative_Forces_With_Active_List" << std::endl;
+        return std::make_tuple(PyArray(), 0.0);
+    }
+    
+    if (component < 0 || component > 2) {
+        std::cerr << "Error: Invalid component number derived from j_index in Iterative_Forces_With_Active_List" << std::endl;
+        return std::make_tuple(PyArray(), 0.0);
+    }
+    
+    if (forces.size() != 3*N || dipole_grid_xyz.size() != 3*N || moments.size() != 3*N) {
+        std::cerr << "Error: Array size mismatch in Iterative_Forces_With_Active_List" << std::endl;
+        return std::make_tuple(PyArray(), 0.0);
+    }
+
+    // Get raw pointers for direct array manipulation
+    double* moments_ptr = &(moments(0));
+    double* forces_clone_ptr = &(forces(0));
+    double* positions_ptr = &(dipole_grid_xyz(0));
+    
+    // Get position vector for magnet j (cache for better memory access)
+    double j_pos[3] = {positions_ptr[3*j], positions_ptr[3*j + 1], positions_ptr[3*j + 2]};
+    
+    // Pre-compute moment_j vector (only component is non-zero)
+    double moment_j[3] = {0.0, 0.0, 0.0};
+    moment_j[component] = 1.0;
+    
+    // OPTIMIZATION: Pre-compute constants outside the loop
+    const double mu0 = 4.0 * M_PI * 1e-7;
+    const double mu0_factor = (3.0 * mu0) / (4.0 * M_PI);
+    
+    // Step 2: Compute force interactions for each active magnet (no scanning needed!)
+    for (int m_idx = 0; m_idx < active_magnets.size(); ++m_idx) {
+        int m = active_magnets[m_idx];
+        
+        if (m == j) continue; // Skip self-interaction
+        
+        // a) Calculate displacement vector r from j to m
+        double r[3];
+        r[0] = positions_ptr[3*m] - j_pos[0];
+        r[1] = positions_ptr[3*m + 1] - j_pos[1];
+        r[2] = positions_ptr[3*m + 2] - j_pos[2];
+        
+        // OPTIMIZATION: Compute r_squared and check for small distances early
+        double r_squared = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
+        if (r_squared < 1e-20) continue; // Skip very close dipoles
+        
+        // OPTIMIZATION: Replace expensive pow() with faster math operations
+        double r_sqrt = sqrt(r_squared);
+        double r_squared_squared = r_squared * r_squared;
+        double C = mu0_factor / (r_sqrt * r_squared_squared);
+        
+        // OPTIMIZATION: Inline the tensor calculation instead of calling build_A_tildeF_tensor_raw
+        // This eliminates function call overhead and allows better optimization
+        double A_tildeF[27];
+        
+        // OPTIMIZATION: Unroll the tensor calculation loop for better performance
+        // Index mapping: (j, i, l) -> j*9 + i*3 + l
+        int idx = 0;
+        for (int j_idx = 0; j_idx < 3; ++j_idx) {
+            for (int i_idx = 0; i_idx < 3; ++i_idx) {
+                for (int l_idx = 0; l_idx < 3; ++l_idx) {
+                    int delta_ij = (i_idx == j_idx) ? 1 : 0;
+                    int delta_jl = (j_idx == l_idx) ? 1 : 0;
+                    int delta_il = (i_idx == l_idx) ? 1 : 0;
+                    
+                    A_tildeF[idx] = (delta_ij * r[l_idx] + r[i_idx] * delta_jl + delta_il * r[j_idx] - 5.0 * r[i_idx] * r[l_idx] * r[j_idx] / r_squared) * C;
+                    idx++;
+                }
+            }
+        }
+        
+        // OPTIMIZATION: Unroll the matrix multiplication loop for better performance
+        double force_on_m[3] = {0.0, 0.0, 0.0};
+        
+        // Component 0 (x)
+        force_on_m[0] = moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 2] * moment_j[2] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 2] * moment_j[2] +
+                        moments_ptr[3*m + 2] * A_tildeF[2*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 2] * A_tildeF[2*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 2] * A_tildeF[2*9 + component*3 + 2] * moment_j[2];
+        
+        // Component 1 (y)
+        force_on_m[1] = moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 2] * moment_j[2] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 2] * moment_j[2] +
+                        moments_ptr[3*m + 2] * A_tildeF[2*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 2] * A_tildeF[2*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 2] * A_tildeF[2*9 + component*3 + 2] * moment_j[2];
+        
+        // Component 2 (z)
+        force_on_m[2] = moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 2] * moment_j[2] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 2] * moment_j[2] +
+                        moments_ptr[3*m + 2] * A_tildeF[2*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 1] * A_tildeF[2*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 2] * A_tildeF[2*9 + component*3 + 2] * moment_j[2];
+        
+        // OPTIMIZATION: Apply sign orientation once
+        force_on_m[0] *= sign;
+        force_on_m[1] *= sign;
+        force_on_m[2] *= sign;
+        
+        // d) Add force to magnet m's force vector
+        forces_clone_ptr[3*m + 0] += force_on_m[0];
+        forces_clone_ptr[3*m + 1] += force_on_m[1];
+        forces_clone_ptr[3*m + 2] += force_on_m[2];
+        
+        // e) Add negative force to magnet j's force vector (Newton's 3rd law)
+        forces_clone_ptr[3*j + 0] -= force_on_m[0];
+        forces_clone_ptr[3*j + 1] -= force_on_m[1];
+        forces_clone_ptr[3*j + 2] -= force_on_m[2];
+    }
+    
+    // Return both the forces and its two_norm_squared
+    return std::make_tuple(forces, two_norm_squared(forces));
+}
+
+// HIGHLY OPTIMIZED version that accepts active magnet list directly (no scanning needed)
+double Iterative_Forces_With_Active_List_noforcereturn(PyArray& moments, PyArray& forces, int j_index, PyArray& dipole_grid_xyz, int sign, const std::vector<int>& active_magnets) {
+    int N = moments.size() / 3;
+    
+    // Extract magnet number and component from j_index
+    int j = j_index / 3;           // Magnet number
+    int component = j_index % 3;    // Component (0=x, 1=y, 2=z)
+    
+    // Safety checks
+    if (N <= 0 || j < 0 || j >= N) {
+        std::cerr << "Error: Invalid magnet number derived from j_index in Iterative_Forces_With_Active_List" << std::endl;
+        return 0.0;
+    }
+    
+    if (component < 0 || component > 2) {
+        std::cerr << "Error: Invalid component number derived from j_index in Iterative_Forces_With_Active_List" << std::endl;
+        return 0.0;
+    }
+    
+    if (forces.size() != 3*N || dipole_grid_xyz.size() != 3*N || moments.size() != 3*N) {
+        std::cerr << "Error: Array size mismatch in Iterative_Forces_With_Active_List" << std::endl;
+        return 0.0;
+    }
+
+    // Get raw pointers for direct array manipulation
+    double* moments_ptr = &(moments(0));
+    double* forces_clone_ptr = &(forces(0));
+    double* positions_ptr = &(dipole_grid_xyz(0));
+    
+    // Get position vector for magnet j (cache for better memory access)
+    double j_pos[3] = {positions_ptr[3*j], positions_ptr[3*j + 1], positions_ptr[3*j + 2]};
+    
+    // Pre-compute moment_j vector (only component is non-zero)
+    double moment_j[3] = {0.0, 0.0, 0.0};
+    moment_j[component] = 1.0;
+    
+    // OPTIMIZATION: Pre-compute constants outside the loop
+    const double mu0 = 4.0 * M_PI * 1e-7;
+    const double mu0_factor = (3.0 * mu0) / (4.0 * M_PI);
+    
+    // Step 2: Compute force interactions for each active magnet (no scanning needed!)
+    for (int m_idx = 0; m_idx < active_magnets.size(); ++m_idx) {
+        int m = active_magnets[m_idx];
+        
+        if (m == j) continue; // Skip self-interaction
+        
+        // a) Calculate displacement vector r from j to m
+        double r[3];
+        r[0] = positions_ptr[3*m] - j_pos[0];
+        r[1] = positions_ptr[3*m + 1] - j_pos[1];
+        r[2] = positions_ptr[3*m + 2] - j_pos[2];
+        
+        // OPTIMIZATION: Compute r_squared and check for small distances early
+        double r_squared = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
+        if (r_squared < 1e-20) continue; // Skip very close dipoles
+        
+        // OPTIMIZATION: Replace expensive pow() with faster math operations
+        double r_sqrt = sqrt(r_squared);
+        double r_squared_squared = r_squared * r_squared;
+        double C = mu0_factor / (r_sqrt * r_squared_squared);
+        
+        // OPTIMIZATION: Inline the tensor calculation instead of calling build_A_tildeF_tensor_raw
+        // This eliminates function call overhead and allows better optimization
+        double A_tildeF[27];
+        
+        // OPTIMIZATION: Unroll the tensor calculation loop for better performance
+        // Index mapping: (j, i, l) -> j*9 + i*3 + l
+        int idx = 0;
+        for (int j_idx = 0; j_idx < 3; ++j_idx) {
+            for (int i_idx = 0; i_idx < 3; ++i_idx) {
+                for (int l_idx = 0; l_idx < 3; ++l_idx) {
+                    int delta_ij = (i_idx == j_idx) ? 1 : 0;
+                    int delta_jl = (j_idx == l_idx) ? 1 : 0;
+                    int delta_il = (i_idx == l_idx) ? 1 : 0;
+                    
+                    A_tildeF[idx] = (delta_ij * r[l_idx] + r[i_idx] * delta_jl + delta_il * r[j_idx] - 5.0 * r[i_idx] * r[l_idx] * r[j_idx] / r_squared) * C;
+                    idx++;
+                }
+            }
+        }
+        
+        // OPTIMIZATION: Unroll the matrix multiplication loop for better performance
+        double force_on_m[3] = {0.0, 0.0, 0.0};
+        
+        // Component 0 (x)
+        force_on_m[0] = moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 2] * moment_j[2] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 2] * moment_j[2] +
+                        moments_ptr[3*m + 2] * A_tildeF[2*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 2] * A_tildeF[2*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 2] * A_tildeF[2*9 + component*3 + 2] * moment_j[2];
+        
+        // Component 1 (y)
+        force_on_m[1] = moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 2] * moment_j[2] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 2] * moment_j[2] +
+                        moments_ptr[3*m + 2] * A_tildeF[2*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 2] * A_tildeF[2*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 2] * A_tildeF[2*9 + component*3 + 2] * moment_j[2];
+        
+        // Component 2 (z)
+        force_on_m[2] = moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 0] * A_tildeF[0*9 + component*3 + 2] * moment_j[2] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 1] * A_tildeF[1*9 + component*3 + 2] * moment_j[2] +
+                        moments_ptr[3*m + 2] * A_tildeF[2*9 + component*3 + 0] * moment_j[0] +
+                        moments_ptr[3*m + 1] * A_tildeF[2*9 + component*3 + 1] * moment_j[1] +
+                        moments_ptr[3*m + 2] * A_tildeF[2*9 + component*3 + 2] * moment_j[2];
+        
+        // OPTIMIZATION: Apply sign orientation once
+        force_on_m[0] *= sign;
+        force_on_m[1] *= sign;
+        force_on_m[2] *= sign;
+        
+        // d) Add force to magnet m's force vector
+        forces_clone_ptr[3*m + 0] += force_on_m[0];
+        forces_clone_ptr[3*m + 1] += force_on_m[1];
+        forces_clone_ptr[3*m + 2] += force_on_m[2];
+        
+        // e) Add negative force to magnet j's force vector (Newton's 3rd law)
+        forces_clone_ptr[3*j + 0] -= force_on_m[0];
+        forces_clone_ptr[3*j + 1] -= force_on_m[1];
+        forces_clone_ptr[3*j + 2] -= force_on_m[2];
+    }
+    
+    // Return both the forces and its two_norm_squared
+    return two_norm_squared(forces);
 }
 
 // Diagnostic test

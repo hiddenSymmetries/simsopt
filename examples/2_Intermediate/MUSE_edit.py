@@ -48,8 +48,8 @@ if in_github_actions:
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
     nphi = 32  # >= 64 for high-resolution runs
-    nIter_max = 500
-    downsample = 80
+    nIter_max = 5000
+    downsample = 8
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -106,7 +106,11 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 dipole_grid_flat = pm_opt.dipole_grid_xyz.reshape(-1)
 
 # Build A_F tensor using cpp function
+print('Building A_F tensor...')
+t_A_F_start = time.time()
 A_F = sopp.build_A_F_tensor(dipole_grid_flat)
+t_A_F_end = time.time()
+print(f'A_F tensor construction took {t_A_F_end - t_A_F_start:.3f} seconds')
 
 
 
@@ -114,13 +118,16 @@ A_F = sopp.build_A_F_tensor(dipole_grid_flat)
 algorithm = 'Forces'  # Algorithm to use
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
+kwargs['nhistory'] = 100
+kwargs['force_weight'] = 1e2
 kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # Add dipole grid positions for the Forces algorithm
 
 # Optimize the permanent magnets greedily
+print('Starting GPMO optimization...')
 t1 = time.time()
 R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 t2 = time.time()
-print('GPMO took t = ', t2 - t1, ' s')
+print(f'GPMO optimization took {t2 - t1:.3f} seconds')
 
 # plot the MSE history
 iterations = np.linspace(0, nIter_max, len(R2_history), endpoint=False)

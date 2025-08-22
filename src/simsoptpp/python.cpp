@@ -77,9 +77,15 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("build_A_F_tensor", &build_A_F_tensor, py::arg("positions"));
     m.def("dipole_forces_from_A_F", &dipole_forces_from_A_F, py::arg("moments"), py::arg("A_F"));
     m.def("Iterative_Forces", &Iterative_Forces, py::arg("moments"), py::arg("forces"), py::arg("j_index"), py::arg("dipole_grid_xyz"), py::arg("sign") = 1);
+    m.def("Iterative_Forces_With_Active_List_noforcereturn", &Iterative_Forces_With_Active_List_noforcereturn, py::arg("moments"), py::arg("forces"), py::arg("j_index"), py::arg("dipole_grid_xyz"), py::arg("sign"), py::arg("active_magnets"));
     m.def("diagnostic_test", &diagnostic_test, py::arg("N"), py::arg("moments") = PyArray(), py::arg("positions") = PyArray());
     m.def("random_dipoles_and_positions", &random_dipoles_and_positions, py::arg("N"), py::arg("moments"), py::arg("positions"));
     m.def("two_norm_squared", &two_norm_squared, py::arg("array"));
+    
+    // Add binding for optimized force calculation function
+    m.def("Iterative_Forces_With_Active_List", &Iterative_Forces_With_Active_List, 
+           py::arg("moments"), py::arg("forces"), py::arg("j_index"), 
+           py::arg("dipole_grid_xyz"), py::arg("sign"), py::arg("active_magnets"));
 
     // Permanent magnet optimization algorithms have many default arguments
     m.def("MwPGP_algorithm", &MwPGP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("alpha"), py::arg("nu") = 1.0e100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("max_iter") = 500, py::arg("min_fb") = 1.0e-20, py::arg("verbose") = false);
@@ -89,7 +95,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("GPMO_ArbVec", &GPMO_ArbVec, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("pol_vectors"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100);
     m.def("GPMO_ArbVec_backtracking", &GPMO_ArbVec_backtracking, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("pol_vectors"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("backtracking") = 100, py::arg("dipole_grid_xyz"), py::arg("Nadjacent") = 7, py::arg("thresh_angle") = 3.1415926535897931, py::arg("max_nMagnets"), py::arg("x_init"));
     m.def("GPMO_baseline", &GPMO_baseline, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("single_direction") = -1);
-    m.def("GPMO_Forces", &GPMO_Forces, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("dipole_grid_flat"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("single_direction") = -1);
+    m.def("GPMO_Forces", &GPMO_Forces, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("dipole_grid_flat"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("single_direction") = -1, py::arg("force_weight") = 1.0e-6);
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);

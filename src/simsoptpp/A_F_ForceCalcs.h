@@ -11,6 +11,16 @@ typedef xt::pytensor<double, 3, xt::layout_type::row_major> Array3D;
 using std::vector;
 
 /**
+ * @brief Builds the A_tildeF tensor for a single dipole-dipole interaction using raw arrays
+ * 
+ * Thread-safe version that works with raw arrays for OpenMP parallelization.
+ * 
+ * @param r Displacement vector from dipole 1 to dipole 2 (raw pointer)
+ * @param A_tildeF Output tensor array (raw pointer, 27 elements)
+ */
+void build_A_tildeF_tensor_raw(const double* r, double* A_tildeF);
+
+/**
  * @brief Builds the A_tildeF tensor for a single dipole-dipole interaction
  * 
  * Constructs the rank-3 tensor A_F[j, i, l] such that:
@@ -46,13 +56,13 @@ Array3D build_A_F_tensor(const PyArray& positions);
  */
 PyArray dipole_forces_from_A_F(const PyArray& moments, const Array3D& A_F);
 
-/**
- * @brief Computes the squared 2-norm of an array
- * 
- * @param array Input array
- * @return double Sum of squares of array elements
- */
-double two_norm_squared(const PyArray& array);
+// /**
+//  * @brief Computes the squared 2-norm of an array
+//  * 
+//  * @param array Input array
+//  * @return double Sum of squares of array elements
+//  */
+// double two_norm_squared(const PyArray& array);
 
 /**
  * @brief Diagnostic test function for performance and correctness
@@ -76,10 +86,27 @@ double diagnostic_test(int N, const PyArray& moments = PyArray(), const PyArray&
  * @param forces Reference to forces array (3N elements) - not modified, a clone is used internally
  * @param j_index Index of the dipole being "activated"
  * @param dipole_grid_xyz Array of dipole positions (3N elements)
- * @param sign Orientation of new magnet (default: 1 for positive)
+ * @param sign Orientation of new magnet (which side does north face)
  * @return std::tuple<PyArray, double> The modified forces array and its two-norm squared
  */
-std::tuple<PyArray, double> Iterative_Forces(const PyArray& moments, const PyArray& forces, int j_index, const PyArray& dipole_grid_xyz, int sign = 1);
+std::tuple<PyArray, double> Iterative_Forces(PyArray& moments, PyArray& forces, int j_index, PyArray& dipole_grid_xyz, int sign = 1);
+double Iterative_Forces_With_Active_List_noforcereturn(PyArray& moments, PyArray& forces, int j_index, PyArray& dipole_grid_xyz, int sign, const std::vector<int>& active_magnets);
+
+/**
+ * @brief Optimized version that accepts active magnet list directly (no scanning needed)
+ * 
+ * This function eliminates the O(N) scan by accepting the list of active magnets directly.
+ * This provides significant performance improvement when called multiple times in GPMO iterations.
+ * 
+ * @param moments Reference to dipole moments array (3N elements)
+ * @param forces Reference to forces array (3N elements) - not modified, a clone is used internally
+ * @param j_index Index of the dipole being "activated"
+ * @param dipole_grid_xyz Array of dipole positions (3N elements)
+ * @param sign Orientation of new magnet (which side does north face)
+ * @param active_magnets Vector of indices of currently active magnets (no scanning needed)
+ * @return std::tuple<PyArray, double> The modified forces array and its two-norm squared
+ */
+std::tuple<PyArray, double> Iterative_Forces_With_Active_List(PyArray& moments, PyArray& forces, int j_index, PyArray& dipole_grid_xyz, int sign, const std::vector<int>& active_magnets);
 
 /**
  * @brief Generate random dipole moments and positions

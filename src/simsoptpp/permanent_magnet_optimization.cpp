@@ -4,10 +4,10 @@
 #include "vec3dsimd.h"
 #include "xtensor/xsort.hpp"
 #include "xtensor/xview.hpp"
-#include "A_F_ForceCalcs.h"
 #include <functional>
 #include <vector>
 #include <math.h>
+#include <set>
 
 // Project a 3-vector onto the L2 ball with radius m_maxima
 std::tuple<double, double, double> projection_L2_balls(double x1, double x2, double x3, double m_maxima) {
@@ -347,9 +347,9 @@ void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr,
     	}
     }
     if (force_penalty > 0.0) {
-        printf("%d ... %.2e ... %.2e ... %.2e\n", k, R2, L2, force_penalty);
+        printf("%d ... %.2e ... %.2e ... %.2e ... %.2e\n", k, R2, L2, force_penalty, R2 + L2 + force_penalty);
     } else {
-        printf("%d ... %.2e ... %.2e \n", k, R2, L2);
+        printf("%d ... %.2e ... %.2e ... %.2e\n", k, R2, L2, R2 + L2);
     }
     print_iter += 1;
     return;
@@ -399,7 +399,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 
     // print out the names of the error columns
     if (verbose)
-        printf("Iteration ... |Am - b|^2 ... lam*|m|^2\n");
+        printf("Iteration ... |Am - b|^2 ... lam*|m|^2 ... total\n");
 
     // initialize Gamma_complement with all indices available
     Array Gamma_complement = xt::ones<bool>({N, 3});
@@ -481,11 +481,15 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 	for(int i = 0; i < ngrid; ++i) {
             Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_inds];
 	}
+        
+        // Update mmax_sum for L2 regularization tracking
+        mmax_sum += mmax_ptr[skj[k]] * mmax_ptr[skj[k]];
+        
         for (int j = 0; j < 3; ++j) {
             Gamma_complement(skj[k], j) = false;
 	    R2s[3 * skj[k] + j] = 1e50;
 	    R2s[N3 + 3 * skj[k] + j] = 1e50;
-	}
+        }
 
 	// backtrack by removing adjacent dipoles that are equal and opposite
 	if ((k >= backtracking) and ((k % backtracking) == 0)) {
@@ -601,7 +605,7 @@ std::tuple<Array, Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, Ar
 
     // print out the names of the error columns
     if (verbose)
-        printf("Iteration ... |Am - b|^2 ... lam*|m|^2\n");
+        printf("Iteration ... |Am - b|^2 ... lam*|m|^2 ... total\n");
 
     // initialize Gamma_complement with all indices available
     Array Gamma_complement = xt::ones<bool>({N, 3});
@@ -758,7 +762,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
     if (verbose)
         printf("Running the GPMO backtracking algorithm with arbitrary "
                "polarization vectors\n");
-        printf("Iteration ... |Am - b|^2 ... lam*|m|^2\n");
+        printf("Iteration ... |Am - b|^2 ... lam*|m|^2 ... total\n");
 
     // initialize Gamma_complement with all indices available
     Array Gamma_complement = xt::ones<bool>({N});
@@ -1145,7 +1149,7 @@ std::tuple<Array, Array, Array, Array> GPMO_ArbVec(Array& A_obj, Array& b_obj, A
     if (verbose)
         printf("Running the GPMO baseline algorithm with arbitrary "
                "polarization vectors\n");
-        printf("Iteration ... |Am - b|^2 ... lam*|m|^2\n");
+        printf("Iteration ... |Am - b|^2 ... lam*|m|^2 ... total\n");
 
     // initialize Gamma_complement with all indices available
     Array Gamma_complement = xt::ones<bool>({N});
@@ -1255,7 +1259,7 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
 
     // print out the names of the error columns
     if (verbose)
-        printf("Iteration ... |Am - b|^2 ... lam*|m|^2\n");
+        printf("Iteration ... |Am - b|^2 ... lam*|m|^2 ... total\n");
 
     // initialize Gamma_complement with all indices available
     Array Gamma_complement = xt::ones<bool>({N, 3});
@@ -1322,6 +1326,10 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
 	for(int i = 0; i < ngrid; ++i) {
             Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_inds];
 	}
+        
+        // Update mmax_sum for L2 regularization tracking
+        mmax_sum += mmax_ptr[skj[k]] * mmax_ptr[skj[k]];
+        
         for (int j = 0; j < 3; ++j) {
             Gamma_complement(skj[k], j) = false;
 	    R2s[3 * skj[k] + j] = 1e50;
@@ -1342,14 +1350,18 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
 // Run the GPMO algorithm for solving 
 // the permanent magnet optimization problem with force calculations.
 // The A matrix should be rescaled by m_maxima since we are assuming all ones in m.
-std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, Array& dipole_grid_flat, int K, bool verbose, int nhistory, int single_direction) 
+std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, Array& dipole_grid_flat, int K, bool verbose, int nhistory, int single_direction, double force_weight) 
 {
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);
     int N3 = 3 * N;
     int print_iter = 0;
+    const double mu0 = 4.0 * M_PI * 1e-7;
+    const double mu0_factor = (3.0 * mu0) / (4.0 * M_PI);
 
-    Array x = xt::zeros<double>({N, 3});
+    // Fix: x should be 2D array for dipole moments (N dipoles, 3 components each)
+    Array x = xt::zeros<double>({N * 3});
+    Array x_2D = xt::zeros<double>({N, 3});
 
     // record the history of the algorithm iterations
     Array m_history = xt::zeros<double>({N, 3, nhistory + 1});
@@ -1358,7 +1370,7 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
 
     // print out the names of the error columns
     if (verbose)
-        printf("Iteration ... |Am - b|^2 ... lam*|m|^2 ... alpha*|F|^2\n");
+        printf("Iteration ... |Am - b|^2 ... lam*|m|^2 ... alpha*|F|^2 ... total\n");
 
     // initialize Gamma_complement with all indices available
     Array Gamma_complement = xt::ones<bool>({N, 3});
@@ -1368,7 +1380,6 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
     vector<int> skj(K);
     vector<int> skjj(K);
     vector<double> sign_fac(K);
-    
     double* R2s_ptr = &(R2s[0]);
     double* Aij_ptr = &(A_obj(0, 0));
     double* Gamma_ptr = &(Gamma_complement(0, 0));
@@ -1380,14 +1391,14 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
     double* normal_norms_ptr = &(normal_norms(0));
     double* mmax_ptr = &(mmax(0));
 
-    // Force penalty weight - can be made configurable
-    double force_weight = 1.0e-6;  // Adjust this weight as needed
-
     // Initialize forces array for force calculations
-    Array current_forces = xt::zeros<double>({3 * N});
-    
-    // Variable to store force penalty for printing
-    double force_penalty = 0.0;
+    Array current_forces = xt::zeros<double>({6 * N});
+    double* x_ptr = &(x(0));
+    double* current_forces_ptr = &(current_forces(0));
+    double* positions_ptr = &(dipole_grid_flat(0));
+
+    // Track active magnets to avoid repeated scanning
+    std::vector<int> active_magnets;
 
     // if using a single direction, increase j by 3 each iteration
     int j_update = 1;
@@ -1395,123 +1406,267 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
     
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
-#pragma omp parallel for schedule(static)
-	for (int j = std::max(0, single_direction); j < N3; j += j_update) {
-
-	    // Check all the allowed dipole positions
-	    if (Gamma_ptr[j]) {
-		double R2 = 0.0;
-		double R2minus = 0.0;
-		int nj = ngrid * j;
-
-		// Compute contribution of jth dipole component, either with +- orientation
-		for(int i = 0; i < ngrid; ++i) {
-		    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]);
-		    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
-		}
-
-		// Calculate force penalties for both orientations in the same loop
-		double force_penalty_plus = 0.0;
-		double force_penalty_minus = 0.0;
-		
-				// Conservative force calculation with size limits
-		if (dipole_grid_flat.size() > 0) {  
-		    // Safety check: ensure dipole_grid_flat has the expected dimensions (3*N)
-		    if (dipole_grid_flat.shape(0) == 3*N) {
-		        // Disable OpenMP for force calculations to prevent thread conflicts
-		        #pragma omp critical
-		        {
-		            try {
-		                // Create temporary dipole moments array with this placement
-		                Array temp_moments = xt::zeros<double>({3 * N});
-		                
-		                // Copy current dipole moments
-		                for (int i = 0; i < N; ++i) {
-		                    for (int l = 0; l < 3; ++l) {
-		                        temp_moments(3*i + l) = x(i, l);
-		                    }
-		                }
-		            
-		            // Calculate force penalty for positive orientation using Iterative_Forces
-		            int dipole_idx = j / 3;
-		            int component_idx = j % 3;
-		            
-		            
-		            // Safety check: ensure indices are within bounds
-		            if (dipole_idx < N && component_idx < 3) {
-		                temp_moments(3*dipole_idx + component_idx) = 1.0;
-		                
-		                // Calculate forces using Iterative_Forces for positive orientation
-		                auto [forces_plus, norm_plus] = Iterative_Forces(temp_moments, current_forces, j, dipole_grid_flat, 1);
-		                force_penalty_plus = norm_plus;
-		                
-		                // Calculate force penalty for negative orientation
-		                temp_moments(3*dipole_idx + component_idx) = -1.0;
-		                auto [forces_minus, norm_minus] = Iterative_Forces(temp_moments, current_forces, j, dipole_grid_flat, -1);
-		                force_penalty_minus = norm_minus;
-		            }
-		        } catch (...) {
-		            // If any exception occurs, set force penalties to zero
-		            force_penalty_plus = 0.0;
-		            force_penalty_minus = 0.0;
-		        }
-		        }
-		    }
-		}
-
-		// Add force penalties to the respective cost functions
-		R2s_ptr[j] = R2 + force_weight * force_penalty_plus + (mmax_ptr[j] * mmax_ptr[j]);
-		R2s_ptr[j + N3] = R2minus + force_weight * force_penalty_minus + (mmax_ptr[j] * mmax_ptr[j]);
-	    }
-	}
-
-	// find the dipole that most minimizes the least-squares term
-        skj[k] = int(std::distance(R2s.begin(), std::min_element(R2s.begin(), R2s.end())));
-	if (skj[k] >= N3) {
-	    skj[k] -= N3;
-	    sign_fac[k] = -1.0;
-	}
-	else {
-            sign_fac[k] = 1.0;
-	}
-	skjj[k] = (skj[k] % 3); 
-	skj[k] = int(skj[k] / 3.0);
         
-        // Calculate new_j index for the dipole that is about to be activated
-        int new_j = 3*skj[k] + skjj[k];
-        
-        // Flatten current x into 1D moments array (before activating the new dipole)
-        Array moments = xt::zeros<double>({3 * N});
-        for (int i = 0; i < N; ++i) {
-            for (int l = 0; l < 3; ++l) {
-                moments(3*i + l) = x(i, l); 
+        // Loop over the ACTIVE magnets, then loop over the VACANT positions, to compute net forces
+        Array temp_forces = current_forces; // Copy current forces
+        double* temp_forces_ptr = &(temp_forces(0));
+        for (int m_idx = 0; m_idx < active_magnets.size(); ++m_idx) {
+            int m = active_magnets[m_idx];
+            // precompute indices for better performance
+            int m3 = 3 * m;
+            int m3_plus1 = m3 + 1;
+            int m3_plus2 = m3 + 2;
+            int m3_N3_plus1 = m3 + N3;
+            int m3_N3_plus2 = m3 + N3 + 1;
+            int m3_N3_plus3 = m3 + N3 + 2;
+
+            // precompute position and moment vectors for better performance
+            double r0 = positions_ptr[m3];
+            double r1 = positions_ptr[m3_plus1];
+            double r2 = positions_ptr[m3_plus2];
+            double x1 = x_ptr[m3];
+            double x2 = x_ptr[m3_plus1];
+            double x3 = x_ptr[m3_plus2];
+            double total_x1_plus = 0.0;
+            double total_x2_plus = 0.0;
+            double total_x3_plus = 0.0;
+            double total_x1_minus = 0.0;
+            double total_x2_minus = 0.0;
+            double total_x3_minus = 0.0;
+            
+            #pragma omp parallel for schedule(static)
+            for (int j = 0; j < N3; ++j) {
+                if (Gamma_ptr[j]) {
+                    
+                    // Calculate force penalty for positive orientation
+                    int dipole_idx = j / 3;
+                    int j_plus1 = j + 1;
+                    int j_plus2 = j + 2;
+                    if (m == dipole_idx) continue; // Skip self-interaction
+
+                    // precompute indices for better performance
+                    int component_idx = j % 3;
+                    int component_idx_3 = component_idx * 3;
+                    int component_idx_3_plus1 = component_idx_3 + 1;
+                    int component_idx_3_plus2 = component_idx_3 + 2;
+                    int component_idx_9 = component_idx_3 + 9;
+                    int component_idx_9_plus1 = component_idx_9 + 1;
+                    int component_idx_9_plus2 = component_idx_9 + 2;
+                    int component_idx_18 = component_idx_9 + 9;
+                    int component_idx_18_plus1 = component_idx_18 + 1;
+                    int component_idx_18_plus2 = component_idx_18 + 2;
+
+                    // Get position vector for magnet jj
+                    double j_pos[3] = {positions_ptr[j], positions_ptr[j_plus1], positions_ptr[j_plus2]};
+
+                    // Pre-compute moment_j vector (only component is non-zero)
+                    double moment_j[3] = {0.0, 0.0, 0.0};
+                    moment_j[component_idx] = 1.0;
+
+                    // a) Calculate displacement vector r from j to m
+                    r0 -= j_pos[0];
+                    r1 -= j_pos[1];
+                    r2 -= j_pos[2];
+                    double r[3] = {r0, r1, r2};
+                    // precompute important factors in the Atilde
+                    double r0_squared_times_5 = 5.0 * r0 * r0;
+                    double r1_squared_times_5 = 5.0 * r1 * r1;
+                    double r2_squared_times_5 = 5.0 * r2 * r2;
+                    double r0_r1_r2_times_5 = 5.0 * r0 * r1 * r2;
+                    
+                    // Compute r_squared and check for small distances early
+                    double r_squared = r0*r0 + r1*r1 + r2*r2;
+                    if (r_squared < 1e-20) continue; // Skip very close dipoles
+                    double r_sqrt = sqrt(r_squared);
+                    double r_squared_squared = r_squared * r_squared;
+                    double C = mu0_factor / (r_sqrt * r_squared_squared);
+                    double A_tildeF[27];
+                    
+                    // Completely unroll the tensor calculation for maximum performance
+                    // Index mapping: (j, i, l) -> j*9 + i*3 + l
+                    // j=0, i=0, l=0,1,2
+                    A_tildeF[0] = (r0 + r0 + r0 - r0 * r0_squared_times_5);
+                    A_tildeF[1] = (r1 - r1 * r0_squared_times_5);
+                    A_tildeF[2] = (r2 - r2 * r0_squared_times_5);
+                    // j=0, i=1, l=0,1,2
+                    A_tildeF[3] = (r0 - r1 * r0_squared_times_5);
+                    A_tildeF[4] = (r1 + r1 - r1_squared_times_5 * r0);
+                    A_tildeF[5] = (r2 - r0_r1_r2_times_5);
+                    // j=0, i=2, l=0,1,2
+                    A_tildeF[6] = (r0 - r2 * r0_squared_times_5);
+                    A_tildeF[7] = (r1 - r0_r1_r2_times_5);
+                    A_tildeF[8] = (r2 - r2_squared_times_5 * r0);
+                    
+                    // j=1, i=0, l=0,1,2
+                    A_tildeF[9] = (r0 - r0_squared_times_5 * r1);
+                    A_tildeF[10] = (r1 + r1 - r0 * r1_squared_times_5);
+                    A_tildeF[11] = (r2 - r0_r1_r2_times_5);
+                    // j=1, i=1, l=0,1,2
+                    A_tildeF[12] = (r0 - r0 * r1_squared_times_5);
+                    A_tildeF[13] = (r1 - r1 * r1_squared_times_5);
+                    A_tildeF[14] = (r2 - r2 * r1_squared_times_5);
+                    // j=1, i=2, l=0,1,2
+                    A_tildeF[15] = (r0 - r0_r1_r2_times_5);
+                    A_tildeF[16] = (r1 - r2 * r1_squared_times_5);
+                    A_tildeF[17] = (r2 - r1 * r2_squared_times_5);
+                    
+                    // j=2, i=0, l=0,1,2
+                    A_tildeF[18] = (r0 - r2 * r0_squared_times_5);
+                    A_tildeF[19] = (r1 - r0_r1_r2_times_5);
+                    A_tildeF[20] = (r2 + r2 - r0 * r2_squared_times_5);
+                    // j=2, i=1, l=0,1,2
+                    A_tildeF[21] = (r0 - r0_r1_r2_times_5);
+                    A_tildeF[22] = (r1 - r2 * r1_squared_times_5);
+                    A_tildeF[23] = (r2 - r1 * r2_squared_times_5);
+                    // j=2, i=2, l=0,1,2
+                    A_tildeF[24] = (r0 - r0 * r2_squared_times_5);
+                    A_tildeF[25] = (r1 - r1 * r2_squared_times_5);
+                    A_tildeF[26] = (r2 - r2 * r2_squared_times_5);
+                    
+                    // Unroll the matrix multiplication loop for better performance
+                    double force_on_m[3] = {0.0, 0.0, 0.0};
+
+                    // Component 0 (x)
+                    force_on_m[0] = x1 * A_tildeF[component_idx_3] * moment_j[0] +
+                                    x1 * A_tildeF[component_idx_3_plus1] * moment_j[1] +
+                                    x1 * A_tildeF[component_idx_3_plus2] * moment_j[2] +
+                                    x2 * A_tildeF[component_idx_9] * moment_j[0] +
+                                    x2 * A_tildeF[component_idx_9_plus1] * moment_j[1] +
+                                    x2 * A_tildeF[component_idx_9_plus2] * moment_j[2] +
+                                    x3 * A_tildeF[component_idx_18] * moment_j[0] +
+                                    x3 * A_tildeF[component_idx_18_plus1] * moment_j[1] +
+                                    x3 * A_tildeF[component_idx_18_plus2] * moment_j[2];
+                    
+                    // Component 1 (y)
+                    force_on_m[1] = x1 * A_tildeF[component_idx_3] * moment_j[0] +
+                                    x1 * A_tildeF[component_idx_3_plus1] * moment_j[1] +
+                                    x1 * A_tildeF[component_idx_3_plus2] * moment_j[2] +
+                                    x2 * A_tildeF[component_idx_9] * moment_j[0] +
+                                    x2 * A_tildeF[component_idx_9_plus1] * moment_j[1] +
+                                    x2 * A_tildeF[component_idx_9_plus2] * moment_j[2] +
+                                    x3 * A_tildeF[component_idx_18] * moment_j[0] +
+                                    x3 * A_tildeF[component_idx_18_plus1] * moment_j[1] +
+                                    x3 * A_tildeF[component_idx_18_plus2] * moment_j[2];
+                    
+                    // Component 2 (z)
+                    force_on_m[2] = x1 * A_tildeF[component_idx_3] * moment_j[0] +
+                                    x1 * A_tildeF[component_idx_3_plus1] * moment_j[1] +
+                                    x1 * A_tildeF[component_idx_3_plus2] * moment_j[2] +
+                                    x2 * A_tildeF[component_idx_9] * moment_j[0] +
+                                    x2 * A_tildeF[component_idx_9_plus1] * moment_j[1] +
+                                    x2 * A_tildeF[component_idx_9_plus2] * moment_j[2] +
+                                    x3 * A_tildeF[component_idx_18] * moment_j[0] +
+                                    x3 * A_tildeF[component_idx_18_plus1] * moment_j[1] +
+                                    x3 * A_tildeF[component_idx_18_plus2] * moment_j[2];
+
+                    // overall factor of C / r_squared to add back in
+                    force_on_m[0] *= C / r_squared;
+                    force_on_m[1] *= C / r_squared;
+                    force_on_m[2] *= C / r_squared;
+                    
+                    // Add force to magnet m's force vector
+                    total_x1_plus += force_on_m[0];
+                    total_x2_plus += force_on_m[1];
+                    total_x3_plus += force_on_m[2];
+                
+                    //Add negative force to magnet j's force vector (Newton's 3rd law)
+                    temp_forces_ptr[j] -= force_on_m[0];
+                    temp_forces_ptr[j_plus1] -= force_on_m[1];
+                    temp_forces_ptr[j_plus2] -= force_on_m[2];
+
+                    // Repeat for opposite orientation
+                    total_x1_minus -= force_on_m[0];
+                    total_x2_minus -= force_on_m[1];
+                    total_x3_minus -= force_on_m[2];
+                
+                    // Add negative force to magnet j's force vector (Newton's 3rd law)
+                    temp_forces_ptr[j] += force_on_m[0];
+                    temp_forces_ptr[j_plus1] += force_on_m[1];
+                    temp_forces_ptr[j_plus2] += force_on_m[2];
+                }
+            }
+            temp_forces_ptr[m3] += total_x1_plus;
+            temp_forces_ptr[m3_plus1] += total_x2_plus;
+            temp_forces_ptr[m3_plus2] += total_x3_plus;
+            temp_forces_ptr[m3_N3_plus1] += total_x1_minus;
+            temp_forces_ptr[m3_N3_plus2] += total_x2_minus;
+            temp_forces_ptr[m3_N3_plus3] += total_x3_minus;
+        }
+        // Loop over to compute the full objective, adding forces computed above
+        #pragma omp parallel for schedule(static)
+        for (int j = 0; j < N3; ++j) {
+            if (Gamma_ptr[j]) {
+                double R2 = 0.0;
+                double R2minus = 0.0;
+                int nj = ngrid * j;
+
+                // Compute contribution of jth dipole component, either with +- orientation
+                for(int i = 0; i < ngrid; ++i) {
+                    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]);
+                    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
+                }
+                // Set the R2 values properly (not +=) and add force penalties
+                R2s_ptr[j] = R2 + force_weight * temp_forces_ptr[j] * temp_forces_ptr[j] + (mmax_ptr[j] * mmax_ptr[j]);
+                R2s_ptr[j + N3] = R2minus + force_weight * temp_forces_ptr[j + N3] * temp_forces_ptr[j + N3] + (mmax_ptr[j] * mmax_ptr[j]);
             }
         }
 
-        // Update current_forces using Iterative_Forces for the dipole that is about to be activated
-        auto [new_forces, norm] = Iterative_Forces(moments, current_forces, new_j, dipole_grid_flat, sign_fac[k]);
-        current_forces = new_forces;
-        force_penalty = force_weight * two_norm_squared(current_forces);
+	    // find the dipole that most minimizes the least-squares term
+        skj[k] = int(std::distance(R2s.begin(), std::min_element(R2s.begin(), R2s.end())));
+        if (skj[k] >= N3) {
+            skj[k] -= N3;
+            sign_fac[k] = -1.0;
+        }
+        else {
+                sign_fac[k] = 1.0;
+        }
+        skjj[k] = (skj[k] % 3); 
+        skj[k] = int(skj[k] / 3.0);
+
+        // Update current forces with the new dipole
+        current_forces_ptr[skj[k]] = temp_forces_ptr[skj[k]];
+        double force_penalty = force_weight * two_norm_squared(current_forces);
+        
         // Now activate the dipole in the x array
-        x(skj[k], skjj[k]) = sign_fac[k];
+        x(skj[k] * 3 + skjj[k]) = sign_fac[k];
+        x_2D(skj[k], skjj[k]) = sign_fac[k];
 
-	// Add binary magnet and get rid of the magnet (all three components)
+        // Add to active magnets list for next iteration
+        active_magnets.push_back(skj[k]);
+
+        // Add binary magnet and get rid of the magnet (all three components)
         // from the complement of Gamma 
-	int skj_inds = (3 * skj[k] + skjj[k]) * ngrid;
+        int skj_inds = (3 * skj[k] + skjj[k]) * ngrid;
 
-#pragma omp parallel for schedule(static)
-	for(int i = 0; i < ngrid; ++i) {
-            Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_inds];
-	}
+        #pragma omp parallel for schedule(static)
+        for(int i = 0; i < ngrid; ++i) {
+                Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_inds];
+        }
+        
+        // Update mmax_sum for L2 regularization tracking
+        mmax_sum += mmax_ptr[skj[k]] * mmax_ptr[skj[k]];
+        
         for (int j = 0; j < 3; ++j) {
             Gamma_complement(skj[k], j) = false;
-	    R2s[3 * skj[k] + j] = 1e50;
-	    R2s[N3 + 3 * skj[k] + j] = 1e50;
+            R2s[3 * skj[k] + j] = 1e50;
+            R2s[N3 + 3 * skj[k] + j] = 1e50;
         }
 
-	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
-            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr, force_penalty);
-	}
+        if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
+                print_GPMO(k, ngrid, print_iter, x_2D, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr, force_penalty);
+        }
     }
-    return std::make_tuple(objective_history, Bn_history, m_history, x);
+    return std::make_tuple(objective_history, Bn_history, m_history, x_2D);
+}
+
+// Computes the squared 2-norm (sum of squares) of an array
+double two_norm_squared(const Array& array) {
+    double sum = 0.0;
+    double* array_ptr = const_cast<double*>(&(array(0)));
+    
+    #pragma omp parallel for reduction(+:sum)
+    for (int i = 0; i < array.size(); ++i) {
+        sum += array_ptr[i] * array_ptr[i];
+    }
+    return sum;
 }
