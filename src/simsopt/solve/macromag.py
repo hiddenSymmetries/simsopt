@@ -173,7 +173,6 @@ def _assemble_tensor_local_nb(centres, half, Rg2l):
             # exact local prism tensor
             Nloc[i,j] = _prism_N_local_nb(a, b, c, x_loc, y_loc, z_loc)
     return Nloc
-
 class MacroMag:
     """Compute demag tensor for rectangular prisms."""
 
@@ -234,8 +233,13 @@ class MacroMag:
 
         return Rg2l, Rl2g
     
-    def fast_get_demag_tensor(self):
-        return _assemble_tensor_local_nb(self.centres, self.half, self.Rg2l)
+    def fast_get_demag_tensor(self, cache: bool = True):
+        # Reuse a cached full tensor if it matches the current size
+        if cache and hasattr(self, "_N_full") and self._N_full is not None and self._N_full.shape[:2] == (self.n, self.n):
+            return self._N_full
+        N = _assemble_tensor_local_nb(self.centres, self.half, self.Rg2l)
+        self._N_full = N
+        return N
     
     def load_coils(self, focus_file: Path) -> None:
         """Load and cache a BiotSavart coil model for this instance."""
@@ -314,7 +318,7 @@ class MacroMag:
         # build coil field object if requested
         bs = self.load_coils(coil_path) if use_coils and coil_path else None
         def Hcoil_func(pts):
-            return self._coil_field_at(pts, const_H, use_coils, bs)
+            return self._coil_field_at(pts, const_H, use_coils)
 
         tiles   = self.tiles
         centres = self.centres
@@ -398,8 +402,7 @@ class MacroMag:
 
         return self
 
-    def direct_solve(
-        self,
+    def direct_solve(self,
         Ms: float,
         K: float,
         const_H: tuple[float,float,float],
@@ -408,11 +411,17 @@ class MacroMag:
         demag_only: bool = False,
         krylov_tol: float = 1e-3,
         krylov_it: int = 200,
-    ) -> "MacroMag":
+        demag_tensor: np.ndarray | None = None, 
+        print_progress: bool = False,
+        x0: np.ndarray | None = None) -> "MacroMag":
+        
         """Run the Krylov‐based direct magstatics solve in place."""
+        if use_coils and coil_path:
+            self.load_coils(coil_path)
+
         bs = self.load_coil_BiotSavart(coil_path) if use_coils and coil_path else None
         def Hcoil_func(pts):
-            return self.coil_field_at(pts, const_H, use_coils, bs)
+            return self._coil_field_at(pts, const_H, use_coils)
 
         tiles   = self.tiles
         centres = self.centres
@@ -437,33 +446,33 @@ class MacroMag:
         b = np.vstack([m_rem[i]*u[i] + chi[i] @ H_a[i] for i in range(n)]).ravel()
 
         # assemble A
-        demag_tensor = self.fast_get_demag_tensor()
+        N = demag_tensor if demag_tensor is not None else self.fast_get_demag_tensor()
+
         A = np.zeros((3*n, 3*n), dtype=np.float64)
         for i in range(n):
-            mats = -np.einsum(
-                'pr,jrq->jpq', chi[i], demag_tensor[i], optimize=True
-            )
+            mats = -np.einsum('pr,jrq->jpq', chi[i], N[i], optimize=True)
             mats[i] += np.eye(3)
-            r = slice(3*i,   3*i+3)
+            r = slice(3*i, 3*i+3)
             for j in range(n):
                 c = slice(3*j, 3*j+3)
                 A[r, c] = mats[j]
 
-        # symmetric?
         sym = np.allclose(A, A.T, atol=1e-12, rtol=1e-10)
-        print(f"symmetry check: {sym}")
+        if print_progress:
+            print(f"symmetry check: {sym}")
 
         linop = LinearOperator(A.shape,
             matvec = lambda v: A @ v,
             rmatvec= lambda v: A.T @ v
         )
+        
         if sym:
-            x, info = minres(linop, b, rtol=krylov_tol, maxiter=krylov_it)
-            print(f"MINRES   res  {norm(A@x - b)/norm(b):.2e}, info {info}")
+            x, info = minres(linop, b, rtol=krylov_tol, maxiter=krylov_it, x0=x0)
+            if print_progress: print(f"MINRES   res  {norm(A@x - b)/norm(b):.2e}, info {info}")
         else:
-            x, info = gmres(linop, b, rtol=krylov_tol, maxiter=krylov_it)
-            print(f"GMRES    res  {norm(A@x - b)/norm(b):.2e}, info {info}")
-
+            x, info = gmres(linop, b, rtol=krylov_tol, maxiter=krylov_it, x0=x0)
+            if print_progress: print(f"GMRES    res  {norm(A@x - b)/norm(b):.2e}, info {info}")
+        
         tiles.M = x.reshape(n, 3)
         return self
 

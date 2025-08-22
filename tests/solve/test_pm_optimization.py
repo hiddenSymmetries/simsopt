@@ -192,6 +192,128 @@ class Testing(unittest.TestCase):
                 kwargs['m_init'] = m_history6[:-1, :, -1]
                 errors6, Bn_errors6, m_history6 = GPMO(pm_opt, algorithm='ArbVec_backtracking', **kwargs)
 
+    def _make_pm_opt_tiny(self, TEST_DIR, nphi=2, ntheta=2, dr=0.05, coff=0.05, poff=0.03, vmec_name='input.LandremanPaul2021_QA_lowres'):
+        """
+        Tiny helper to build a very small problem instance quickly.
+        """
+        surface_filename = TEST_DIR / vmec_name
+        s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+        s_inner = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+        s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+        s_inner.extend_via_projected_normal(poff)
+        s_outer.extend_via_projected_normal(poff + coff)
+
+        base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s)
+        bs = BiotSavart(coils)
+        bs = coil_optimization(s, bs, base_curves, curves)
+        bs.set_points(s.gamma().reshape((-1, 3)))
+        Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+
+        pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+            s, Bnormal, s_inner, s_outer, **{"dr": dr}
+        )
+        setup_initial_condition(pm_opt, np.zeros(pm_opt.ndipoles * 3))
+        # Use simple Cartesian {x,y,z} polarization set so the greedy path is deterministic:
+        ndip = pm_opt.ndipoles
+        pvx = np.zeros((ndip, 3)); pvx[:, 0] = 1.0
+        pvy = np.zeros((ndip, 3)); pvy[:, 1] = 1.0
+        pvz = np.zeros((ndip, 3)); pvz[:, 2] = 1.0
+        pm_opt.pol_vectors = np.transpose(np.array([pvx, pvy, pvz]), (1, 0, 2))
+        return s, pm_opt
+
+    def test_arbvec_backtracking_py_matches_cpp(self):
+        """
+        Verify the pure-Python ArbVec_backtracking implementation matches the C++/sopp backend.
+        """
+        TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+        with ScratchDir("."):
+            _, pm_opt = self._make_pm_opt_tiny(TEST_DIR, nphi=4, ntheta=4, dr=0.05, coff=0.06, poff=0.03)
+
+            # Shared kwargs (small problem so it runs fast)
+            kwargs = initialize_default_kwargs('GPMO')
+            kwargs['nhistory'] = 5
+            kwargs['K'] = 20
+            kwargs['Nadjacent'] = 1
+            kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
+            kwargs['backtracking'] = 10
+            kwargs['max_nMagnets'] = 30
+            kwargs['thresh_angle'] = np.pi
+
+            # C++ backend
+            errors_cpp, Bn_cpp, m_hist_cpp = GPMO(pm_opt, algorithm='ArbVec_backtracking', **kwargs)
+            m_cpp = pm_opt.m.copy()
+
+            # Python backend, same init
+            pm_opt.m = np.zeros_like(pm_opt.m)
+            errors_py, Bn_py, m_hist_py = GPMO(pm_opt, algorithm='ArbVec_backtracking_py', **kwargs)
+            m_py = pm_opt.m.copy()
+
+            # Exact match (history for ArbVec_backtracking variants includes initial snapshot)
+            np.testing.assert_allclose(errors_py, errors_cpp, rtol=1e-12, atol=1e-12)
+            np.testing.assert_allclose(Bn_py, Bn_cpp, rtol=1e-12, atol=1e-12)
+            np.testing.assert_allclose(m_hist_py, m_hist_cpp, rtol=1e-12, atol=1e-12)
+            np.testing.assert_allclose(m_py, m_cpp, rtol=1e-12, atol=1e-12)
+
+
+    def test_arbvec_backtracking_macromag_smoke(self):
+        """
+        MacroMag-driven ArbVec_backtracking: massively downsampled smoke test.
+
+        Verifies:
+        - The run completes on a tiny instance.
+        - The magnetization history tensor has shape (ndipoles, 3, >= nhistory+1)
+        - With m_init = 0, the initial objective equals 0.5‖b‖^2 (b = pm_opt.b_obj)
+        - If the initial residual is non-tiny (> 1e-12), the objective strictly decreases
+        - If the initial residual is tiny (<=1e-12), the final objective remains tiny (<=1e-6)..
+        - When improvement is possible, at least one magnet is placed; in all cases
+        the number of placed magnets is capped by max_nMagnets (4 here)
+        """
+        TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+        with ScratchDir("."):
+            # Tiny instance to keep demag tensor assembly cheap.... 
+            _, pm_opt = self._make_pm_opt_tiny(
+                TEST_DIR, nphi=2, ntheta=2, dr=0.08, coff=0.08, poff=0.04
+            )
+            kwargs = initialize_default_kwargs('GPMO')
+            kwargs['nhistory'] = 3
+            kwargs['K'] = 8
+            kwargs['Nadjacent'] = 1
+            kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
+            kwargs['backtracking'] = 4
+            kwargs['max_nMagnets'] = 4
+            kwargs['thresh_angle'] = np.pi
+            # Ensure MacroMag variants start from a clean slate
+            kwargs['m_init'] = np.zeros((pm_opt.ndipoles, 3))
+            errors_mm, Bn_mm, m_hist_mm = GPMO(pm_opt, algorithm='ArbVec_backtracking_macromag_py', **kwargs)
+            m_mm = pm_opt.m.copy()
+
+            # Basic shape checks
+            self.assertEqual(m_hist_mm.shape[0], pm_opt.ndipoles)
+            self.assertEqual(m_hist_mm.shape[1], 3)
+            self.assertGreaterEqual(m_hist_mm.shape[2], kwargs['nhistory'] + 1)  # includes initial snapshot
+
+            # Initial objective equals 0.5||b||^2 (since m=0)
+            b = pm_opt.b_obj
+            init_R2 = 0.5 * float(b @ b)
+            self.assertAlmostEqual(
+                errors_mm[0],
+                init_R2,
+                delta=max(1e-12, 1e-6 * max(1.0, init_R2))
+            )
+
+            # If the initial residual is not tiny, require improvement; otherwise just require it stays tiny
+            tiny_tol = 1e-12
+            if init_R2 > tiny_tol:
+                self.assertLess(errors_mm[-1], errors_mm[0])
+            else:
+                self.assertLessEqual(errors_mm[-1], 1e-6)
+
+            # Magnet count: require at least 1 only when improvement is possible; always enforce the cap
+            nonzero = np.count_nonzero(np.linalg.norm(m_mm.reshape(-1, 3), axis=1))
+            if init_R2 > tiny_tol:
+                self.assertGreaterEqual(nonzero, 1)
+            self.assertLessEqual(nonzero, kwargs['max_nMagnets'])
+
 
 if __name__ == "__main__":
     unittest.main()
