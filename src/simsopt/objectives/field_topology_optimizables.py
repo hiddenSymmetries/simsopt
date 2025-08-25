@@ -266,7 +266,7 @@ class ClinicConnection(Optimizable):
     """
     A ClinicConnection is a connection between two fixed points.
     It is the Simsopt-binding to the pyoculus Manifold class.
-    It gives allows calculation of the turnstile area, which is a measure
+    It gives allows calculation of the turnstile flux, which is a measure
     for stochastic transport.
 
     fixed points must be of the same map, etc!
