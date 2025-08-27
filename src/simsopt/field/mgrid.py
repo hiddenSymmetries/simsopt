@@ -91,7 +91,7 @@ class MGrid():
         self.ap_arr = []
 
     def add_field_cylindrical(self, br, bp, bz, ar=None, ap=None, az=None, name=None):
-        '''
+        r'''
         This function saves the magnetic field :math:`B`, and (optionally) the vector potential :math:`A`, to the ``MGrid`` object.
         :math:`B` and :math:`A` are provided on a tensor product grid in cylindrical components :math:`(R, \phi, z)`.
 
