@@ -504,7 +504,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
         algorithm_history, Bn_history, m_history, num_nonzeros, m = GPMO_ArbVec_backtracking_macromag_py(
             A_obj=contig(A_obj.T),                 # MacroMag path also expects (3N, ngrid)
             b_obj=contig(pm_opt.b_obj),
-            mmax=np.sqrt(reg_l2) * mmax_vec,
+            mmax=mmax_vec,
             normal_norms=Nnorms,
             pol_vectors=contig(pm_opt.pol_vectors),
             **kwargs
@@ -872,7 +872,10 @@ def GPMO_ArbVec_backtracking_macromag_py(
     Nadjacent: int,
     thresh_angle: float,
     max_nMagnets: int,
-    x_init: np.ndarray
+    x_init: np.ndarray, 
+    cube_dim: float = 0.004, 
+    mu_ea: float = 1.00, # Susceptibilities 
+    mu_oa: float = 1.00
 ):
     """
     Greedy selection via MacroMag:
@@ -884,10 +887,8 @@ def GPMO_ArbVec_backtracking_macromag_py(
     The full demag tensor is computed once and sliced per subproblem.
     """
     # MacroMag constants
-    MM_CUBOID_FULL_DIMS = (0.1, 0.1, 0.1)  # 10 cm × 10 cm × 10 cm
-    MM_MU_R_EA = 1.2
-    MM_MU_R_OA = 1.05
-    MM_M_REM   = 1.465 / (4.0 * np.pi * 1e-7)  # ≈ 1.165e6 A/m
+    MM_CUBOID_FULL_DIMS = (cube_dim, cube_dim, cube_dim)  
+    MM_M_REM   = 1.465 / (4.0 * np.pi * 1e-7)  # aprox. 1.165e6 A/m
 
     # Basic shapes / casting
     A_obj = np.asarray(A_obj, dtype=np.float64, order="C")
@@ -933,15 +934,16 @@ def GPMO_ArbVec_backtracking_macromag_py(
         tiles_all.size     = (dims, j)
         tiles_all.rot      = ((0.0, 0.0, 0.0), j)
         tiles_all.M_rem    = (0.0, j)  # subproblems set M_rem
-        tiles_all.mu_r_ea  = (MM_MU_R_EA, j)
-        tiles_all.mu_r_oa  = (MM_MU_R_OA, j)
+        tiles_all.mu_r_ea  = (mu_ea, j)
+        tiles_all.mu_r_oa  = (mu_oa, j)
         tiles_all.u_ea     = ((0.0, 0.0, 1.0), j)
     mac_all = MacroMag(tiles_all)
     N_full = mac_all.fast_get_demag_tensor(cache=True)
 
     # Map physical m -> x for A_obj = A * mmax_vec
     V = float(np.prod(MM_CUBOID_FULL_DIMS))
-    mmax_scalar = MM_M_REM * V if MM_M_REM > 0 else 1.0
+    assert (mmax is not None) and (mmax.size == 3*N) and np.all(mmax > 0), \
+        "mmax must be the length-3N vector used in A_obj = A * mmax_vec."
 
     # Solve-and-score helper
     def solve_subset_and_score(active_idx: np.ndarray, ea_list: np.ndarray):
@@ -957,8 +959,8 @@ def GPMO_ArbVec_backtracking_macromag_py(
             sub.offset   = (tiles_all.offset[j], k)
             sub.size     = (dims, k)
             sub.rot      = ((0.0, 0.0, 0.0), k)
-            sub.mu_r_ea  = (MM_MU_R_EA, k)
-            sub.mu_r_oa  = (MM_MU_R_OA, k)
+            sub.mu_r_ea  = (mu_ea, k)
+            sub.mu_r_oa  = (mu_oa, k)
             sub.M_rem    = (MM_M_REM, k)
             ea = ea_list[k] / (np.linalg.norm(ea_list[k]) + 1e-30)
             sub.u_ea     = (ea, k)
@@ -974,10 +976,8 @@ def GPMO_ArbVec_backtracking_macromag_py(
         m_full_vec = m_full.reshape(3*N)
 
         # Prefer provided 3N mmax; else scalar
-        mmax_used = (mmax if (mmax is not None and mmax.size == 3*N and np.all(mmax > 0))
-                    else (MM_M_REM * V))
-
-        x_macro = m_full_vec / mmax_used
+        x_macro = m_full_vec / mmax                 # elementwise divide by the 3N vector
+        
         res = A_obj.T @ x_macro - b_obj
         R2 = 0.5 * np.dot(res, res)
         return R2, x_macro, mac.tiles.M
@@ -989,10 +989,10 @@ def GPMO_ArbVec_backtracking_macromag_py(
             ea_list[i] = x[j]
         R2_snap, x_macro_flat, M_subset = solve_subset_and_score(active, ea_list)
         idx = print_iter_ref[0]
-        m_full = np.zeros((N, 3))
-        if active.size:
-            m_full[active, :] = M_subset * V
-        m_history[:, :, idx] = m_full
+        
+        # Record normalized selection (same semantics as other GPMO variants)
+        m_history[:, :, idx] = x                                 
+        
         objective_history[idx] = R2_snap
         res = (A_obj.T @ x_macro_flat) - b_obj
         Bn_history[idx] = np.sum(np.abs(res) * np.sqrt(normal_norms)) / np.sqrt(float(ngrid))

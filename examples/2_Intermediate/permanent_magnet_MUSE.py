@@ -143,21 +143,29 @@ pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
+# Python+Macromag
 algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
+#algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 1  # How many magnets to consider "adjacent" to one another
 nHistory = 20  # How often to save the algorithm progress
 thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
 kwargs['nhistory'] = nHistory
-if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking_macromag_py':
+if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking_macromag_py' or algorithm == 'ArbVec_backtracking':
     kwargs['backtracking'] = nBacktracking  # How often to perform the backtrackinig
     kwargs['Nadjacent'] = nAdjacent
     kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)
     kwargs['max_nMagnets'] = max_nMagnets
-    if algorithm == 'ArbVec_backtracking_macromag_py':
+    if algorithm == 'ArbVec_backtracking_macromag_py' or algorithm == 'ArbVec_backtracking':
         kwargs['thresh_angle'] = thresh_angle
 
+# Macromag branch
+if algorithm == "ArbVec_backtracking_macromag_py": 
+    kwargs['cube_dim'] = 0.004
+    kwargs['mu_ea'] = 1.0
+    kwargs['mu_oa'] = 1.0    
+    
 # Optimize the permanent magnets greedily
 t1 = time.time()
 R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
@@ -285,128 +293,12 @@ print('Total time = ', t_end - t_start)
 
 
 ### Armin ouput inspection (temporary) additions
-def write_dipoles_vtu(
-    fname: Path,
-    points: np.ndarray,
-    moments: np.ndarray,
-    drop_zeros: bool = False,     
-    nfp: int | None = None,
-    replicate_full_torus: bool = False  # optional symmetry replication
-) -> None:
-    import math
-    pts = np.asarray(points, dtype=float)
-    m   = np.asarray(moments, dtype=float)
-    if m.ndim != 2 or m.shape != pts.shape or m.shape[1] != 3:
-        raise ValueError("points and moments must both be (N,3)")
-
-    # Optional: replicate around torus (simple rotation about z by equal angles)
-    if nfp is not None and replicate_full_torus:
-        copies = 2 * nfp              # half-period → full torus replication
-        all_p, all_m = [], []
-        for k in range(copies):
-            ang = k * (math.pi / nfp) # step = π/nfp
-            ca, sa = math.cos(ang), math.sin(ang)
-            Rz = np.array([[ca, -sa, 0.0],
-                           [sa,  ca, 0.0],
-                           [0.0, 0.0, 1.0]])
-            all_p.append(pts @ Rz.T)
-            all_m.append(m   @ Rz.T)
-        pts = np.vstack(all_p)
-        m   = np.vstack(all_m)
-
-    # Mask & optional zero-drop
-    m_mag = np.linalg.norm(m, axis=1)
-    mask  = (m_mag > 0.0).astype(np.uint8)
-    if drop_zeros:
-        keep = mask.astype(bool)
-        pts, m, m_mag, mask = pts[keep], m[keep], m_mag[keep], mask[keep]
-
-    N = len(pts)
-    if N == 0:
-        print(f"[write_dipoles_vtu] no dipoles to write → {fname}")
-        return
-
-    # Direction (unit vector); safe for zeros
-    m_dir = np.zeros_like(m)
-    nz = m_mag > 0
-    m_dir[nz] = m[nz] / m_mag[nz][:, None]
-
-    # VTK arrays
-    connectivity = " ".join(str(i) for i in range(N))
-    offsets      = " ".join(str(i+1) for i in range(N))
-    types        = " ".join("1" for _ in range(N))   # VTK_VERTEX
-
-    fname = Path(fname); fname.parent.mkdir(parents=True, exist_ok=True)
-    with open(fname, "w") as f:
-        f.write('<?xml version="1.0"?>\n')
-        f.write('<VTKFile type="UnstructuredGrid" byte_order="LittleEndian">\n')
-        f.write('  <UnstructuredGrid>\n')
-        f.write(f'    <Piece NumberOfPoints="{N}" NumberOfCells="{N}">\n')
-
-        # Points
-        f.write('      <Points>\n')
-        f.write('        <DataArray type="Float64" NumberOfComponents="3" format="ascii">\n')
-        for x, y, z in pts:
-            f.write(f'          {x:.15e} {y:.15e} {z:.15e}\n')
-        f.write('        </DataArray>\n')
-        f.write('      </Points>\n')
-
-        # Cells
-        f.write('      <Cells>\n')
-        f.write('        <DataArray type="Int32" Name="connectivity" format="ascii">\n')
-        f.write('          ' + connectivity + '\n')
-        f.write('        </DataArray>\n')
-        f.write('        <DataArray type="Int32" Name="offsets" format="ascii">\n')
-        f.write('          ' + offsets + '\n')
-        f.write('        </DataArray>\n')
-        f.write('        <DataArray type="UInt8" Name="types" format="ascii">\n')
-        f.write('          ' + types + '\n')
-        f.write('        </DataArray>\n')
-        f.write('      </Cells>\n')
-
-        # PointData
-        f.write('      <PointData Scalars="m_mag" Vectors="m_dir">\n')
-
-        # magnitude for coloring
-        f.write('        <DataArray type="Float64" Name="m_mag" format="ascii">\n')
-        for v in m_mag:
-            f.write(f'          {v:.15e}\n')
-        f.write('        </DataArray>\n')
-
-        # unit direction for glyph orientation
-        f.write('        <DataArray type="Float64" Name="m_dir" NumberOfComponents="3" format="ascii">\n')
-        for vx, vy, vz in m_dir:
-            f.write(f'          {vx:.15e} {vy:.15e} {vz:.15e}\n')
-        f.write('        </DataArray>\n')
-
-        # full moment vector (A·m^2) if you want it
-        f.write('        <DataArray type="Float64" Name="m_full" NumberOfComponents="3" format="ascii">\n')
-        for vx, vy, vz in m:
-            f.write(f'          {vx:.15e} {vy:.15e} {vz:.15e}\n')
-        f.write('        </DataArray>\n')
-
-        # mask so you can threshold to active magnets
-        f.write('        <DataArray type="UInt8" Name="mask_nonzero" format="ascii">\n')
-        for q in mask:
-            f.write(f'          {int(q)}\n')
-        f.write('        </DataArray>\n')
-
-        f.write('      </PointData>\n')
-        f.write('    </Piece>\n')
-        f.write('  </UnstructuredGrid>\n')
-        f.write('</VTKFile>\n')
-    print(f"[write_dipoles_vtu] wrote {fname}")
-
-    
-xyz     = pm_opt.dipole_grid_xyz
-m_final = pm_opt.m.reshape(pm_opt.ndipoles, 3)
-
-# all sites (zeros included), plus full-torus copies:
-write_dipoles_vtu(
-    out_dir / "dipoles_final.vtu",
-    xyz, m_final,
-    drop_zeros=False,
+b_final = DipoleField(
+    pm_opt.dipole_grid_xyz,
+    pm_opt.m,                        # flat (3N,) is fine;  or pm_opt.m.reshape(-1, 3)
     nfp=s.nfp,
-    replicate_full_torus=True
+    coordinate_flag=pm_opt.coordinate_flag,
+    m_maxima=pm_opt.m_maxima         # enables normalized |m| in the VTK
 )
-
+b_final._toVTK(out_dir / f"dipoles_final_{algorithm}")
+print(f"[SIMSOPT] Wrote dipoles_final_{algorithm}.vtu")

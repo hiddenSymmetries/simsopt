@@ -257,7 +257,7 @@ class Testing(unittest.TestCase):
 
     def test_arbvec_backtracking_macromag_smoke(self):
         """
-        MacroMag-driven ArbVec_backtracking: massively downsampled smoke test.
+        MacroMag-driven ArbVec_backtracking: massively downsampled test.
 
         Verifies:
         - The run completes on a tiny instance.
@@ -313,6 +313,68 @@ class Testing(unittest.TestCase):
             if init_R2 > tiny_tol:
                 self.assertGreaterEqual(nonzero, 1)
             self.assertLessEqual(nonzero, kwargs['max_nMagnets'])
+            
+    def test_macromag_finite_mu_consistency(self):
+        """
+        Consistency check:
+        With cube side = 4 mm and mu_ea=mu_oa=1 (i.e. a isotropic case), MacroMag driven
+        ArbVec+backtracking must match the non-Macromag enhanced ArbVec+backtracking result,
+        provided we set the GPMO 'm_maxima' to the physical full-strength
+        moment m_max = M_rem * V (with V = cube_dim^3).
+        """
+        TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+        with ScratchDir("."):
+            _, pm_opt = self._make_pm_opt_tiny(
+                TEST_DIR, nphi=4, ntheta=4, dr=0.05, coff=0.06, poff=0.03
+            )
+
+            cube_dim = 0.004  # 4 mm
+            V = cube_dim ** 3
+            mu0 = 4.0 * np.pi * 1e-7
+            B_max = 1.465
+            M_rem = B_max / mu0  # A/m
+            m_max = M_rem * V    # A·m^2 full-strength dipole for each site
+
+            # Force GPMO to use this exact full-strength magnitude at every site
+            pm_opt.m_maxima[:] = m_max
+
+            base_kwargs = initialize_default_kwargs('GPMO')
+            base_kwargs.update({
+                'nhistory': 6,
+                'K': 24,
+                'Nadjacent': 1,
+                'dipole_grid_xyz': pm_opt.dipole_grid_xyz,
+                'backtracking': 6,
+                'max_nMagnets': 30,
+                'thresh_angle': np.pi,
+                'm_init': np.zeros((pm_opt.ndipoles, 3)),
+                'verbose': False,
+            })
+
+            errors_ref, Bn_ref, m_hist_ref = GPMO(pm_opt, algorithm='ArbVec_backtracking', **base_kwargs)
+            m_ref = pm_opt.m.copy()
+
+            pm_opt.m = np.zeros_like(pm_opt.m)
+            pm_opt.m_proxy = np.zeros_like(pm_opt.m)
+
+            mm_kwargs = dict(base_kwargs)
+            mm_kwargs.update({
+                'cube_dim': cube_dim,
+                'mu_ea': 1.0,
+                'mu_oa': 1.0,
+            })
+            errors_mm, Bn_mm, m_hist_mm = GPMO(pm_opt, algorithm='ArbVec_backtracking_macromag_py', **mm_kwargs)
+            m_mm = pm_opt.m.copy()
+
+            np.testing.assert_allclose(errors_mm,errors_ref,rtol=1e-12, atol=1e-12)
+            np.testing.assert_allclose(Bn_mm,Bn_ref,rtol=1e-12, atol=1e-12)
+            np.testing.assert_allclose(m_hist_mm,m_hist_ref,rtol=1e-12, atol=1e-12)
+            np.testing.assert_allclose(m_mm,m_ref,rtol=1e-12, atol=1e-12)
+
+            # just a quick check to veify if at least one magnet is placed (unless the residual was already aprox. 0)
+            if errors_ref[0] > 1e-12:
+                self.assertGreater(np.count_nonzero(np.linalg.norm(m_ref.reshape(-1, 3), axis=1)), 0)
+
 
 
 if __name__ == "__main__":
