@@ -48,8 +48,8 @@ if in_github_actions:
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
     nphi = 32  # >= 64 for high-resolution runs
-    nIter_max = 5000
-    downsample = 8
+    nIter_max = 501
+    downsample = 70
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -119,7 +119,7 @@ algorithm = 'Forces'  # Algorithm to use
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
 kwargs['nhistory'] = 100
-kwargs['force_weight'] = 1e2
+kwargs['force_weight'] = 1e-6
 kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # Add dipole grid positions for the Forces algorithm
 
 # Optimize the permanent magnets greedily
