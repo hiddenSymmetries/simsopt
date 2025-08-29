@@ -38,6 +38,8 @@ from simsopt.util.permanent_magnet_helper_functions import *
 
 t_start = time.time()
 
+high_res_run = True
+
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:
     nphi = 2
@@ -45,6 +47,12 @@ if in_github_actions:
     nBacktracking = 50
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
+elif high_res_run: 
+    nphi = 32  # >= 64 for high-resolution runs
+    nIter_max = 10000
+    nBacktracking = 200
+    max_nMagnets = 12000
+    downsample = 6    
 else:
     nphi = 16  # >= 64 for high-resolution runs
     nIter_max = 10000
@@ -145,7 +153,7 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 # Set some hyperparameters for the optimization
 # Python+Macromag
 algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
-#algorithm = 'ArbVec_backtracking'  # Algorithm to use
+# algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 1  # How many magnets to consider "adjacent" to one another
 nHistory = 20  # How often to save the algorithm progress
 thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
@@ -163,8 +171,10 @@ if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking_macromag_py'
 # Macromag branch
 if algorithm == "ArbVec_backtracking_macromag_py": 
     kwargs['cube_dim'] = 0.004
-    kwargs['mu_ea'] = 1.0
-    kwargs['mu_oa'] = 1.0    
+    kwargs['mu_ea'] = 1.15
+    kwargs['mu_oa'] = 1.05
+    kwargs['use_coils'] = True
+    kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
     
 # Optimize the permanent magnets greedily
 t1 = time.time()
@@ -300,5 +310,10 @@ b_final = DipoleField(
     coordinate_flag=pm_opt.coordinate_flag,
     m_maxima=pm_opt.m_maxima         # enables normalized |m| in the VTK
 )
-b_final._toVTK(out_dir / f"dipoles_final_{algorithm}")
-print(f"[SIMSOPT] Wrote dipoles_final_{algorithm}.vtu")
+if high_res_run: 
+    b_final._toVTK(out_dir / f"dipoles_final_high_res{algorithm}")
+    print(f"[SIMSOPT] Wrote dipoles_final_high_res{algorithm}.vtu")
+else: 
+    b_final._toVTK(out_dir / f"dipoles_final_{algorithm}")
+    print(f"[SIMSOPT] Wrote dipoles_final_{algorithm}.vtu")
+

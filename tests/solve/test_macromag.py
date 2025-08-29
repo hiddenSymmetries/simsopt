@@ -130,7 +130,7 @@ class MacroMagTests(unittest.TestCase):
         )
         
     def test_sor_magnitude_constant(self):
-        """When χ = 0 and H_coil = 0, SOR should leave ‖M‖ ≡ M_rem."""
+        """When chi = 0 and H_coil = 0, SOR should leave ‖M‖ = M_rem."""
         tiles = make_trivial_tiles(5)
         macro = MacroMag(tiles)
         # zero‐field, demag‐only mode
@@ -150,12 +150,10 @@ class MacroMagTests(unittest.TestCase):
         )
 
     def test_direct_solve_magnitude_constant(self):
-        """When χ = 0 and H_coil = 0, direct solve should yield M ≡ M_rem u."""
+        """When chi = 0 and H_coil = 0, direct solve should yield M = M_rem u."""
         tiles = make_trivial_tiles(4)
         macro = MacroMag(tiles)
         macro.direct_solve(
-            Ms=1.0,
-            K=1.0,
             const_H=(0.0,0.0,0.0),
             use_coils=False,
             demag_only=True,

@@ -179,12 +179,13 @@ class MacroMag:
     _INV4PI = _INV4PI
     _MACHEPS = _MACHEPS
 
-    def __init__(self, tiles):
+    def __init__(self, tiles, bs_coil: Optional[BiotSavart] = None):
         self.tiles = tiles
         self.n = tiles.n
         self.centres = tiles.offset.copy()
         self.half    = (tiles.size * 0.5).astype(np.float64)
         self.Rg2l    = np.zeros((self.n, 3, 3), dtype=np.float64)
+        self._bs_coil = bs_coil
         for k in range(self.n):
             self.Rg2l[k], _ = MacroMag.get_rotation_matrices(*tiles.rot[k])
 
@@ -253,8 +254,10 @@ class MacroMag:
         proj = np.einsum('ij,ij->i', M, u)
         return (2*K/(mu_0*Ms**2)) * proj[:, None] * u
 
-    def _coil_field_at(self, pts: np.ndarray, const_H: tuple[float,float,float], use_coils: bool) -> np.ndarray:
+    def _coil_field_at(self, pts: np.ndarray, const_H: tuple[float,float,float], use_coils: bool, H_a_override: Optional[np.ndarray] = None) -> np.ndarray:
         """Return H at pts, either uniform or via Biot–Savart."""
+        if H_a_override is not None:
+            return H_a_override
         if use_coils and getattr(self, '_bs_coil', None) is not None:
             self._bs_coil.set_points(pts)
             return self._bs_coil.B() / mu_0
@@ -317,8 +320,8 @@ class MacroMag:
         """Run the SOR‐based macromag solve in place."""
         # build coil field object if requested
         bs = self.load_coils(coil_path) if use_coils and coil_path else None
-        def Hcoil_func(pts):
-            return self._coil_field_at(pts, const_H, use_coils)
+        def Hcoil_func(pts, H_override=None):
+            return self._coil_field_at(pts, const_H, use_coils, H_override)
 
         tiles   = self.tiles
         centres = self.centres
@@ -403,25 +406,20 @@ class MacroMag:
         return self
 
     def direct_solve(self,
-        Ms: float,
-        K: float,
-        const_H: tuple[float,float,float],
+        const_H: tuple[float,float,float] = [0.0, 0.0, 0.0],
         use_coils: bool = False,
-        coil_path: Optional[Path] = None,
         demag_only: bool = False,
         krylov_tol: float = 1e-3,
         krylov_it: int = 200,
         demag_tensor: np.ndarray | None = None, 
         print_progress: bool = False,
-        x0: np.ndarray | None = None) -> "MacroMag":
+        x0: np.ndarray | None = None, 
+        H_a_override: Optional[np.ndarray] = None) -> "MacroMag":
         
         """Run the Krylov‐based direct magstatics solve in place."""
-        if use_coils and coil_path:
-            self.load_coils(coil_path)
 
-        bs = self.load_coil_BiotSavart(coil_path) if use_coils and coil_path else None
         def Hcoil_func(pts):
-            return self._coil_field_at(pts, const_H, use_coils)
+            return self._coil_field_at(pts, const_H, use_coils, H_a_override)
 
         tiles   = self.tiles
         centres = self.centres
@@ -438,11 +436,7 @@ class MacroMag:
             chi[i] = chi_pa[i]*uuT + chi_pe[i]*(np.eye(3)-uuT)
 
         # assemble b
-        H_a = (
-            Hcoil_func(centres).astype(np.float64)
-            if not demag_only
-            else np.zeros((n, 3))
-        )
+        H_a = np.zeros((n, 3)) if demag_only else Hcoil_func(centres).astype(np.float64)
         b = np.vstack([m_rem[i]*u[i] + chi[i] @ H_a[i] for i in range(n)]).ravel()
 
         # assemble A
