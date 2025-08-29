@@ -1414,7 +1414,7 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
         double* temp_forces_minus_ptr = &(temp_forces_minus(0));
         
         // Loop over all possible magnet positions j
-        #pragma omp parallel for schedule(static)
+        //#pragma omp parallel for schedule(static) 
         for (int j = 0; j < N3; ++j) {
             if (Gamma_ptr[j]) {
                 // Set up variables for j's moment and position
@@ -1524,38 +1524,38 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
                     // Unroll the matrix multiplication loop for better performance
                     double force_on_m[3] = {0.0, 0.0, 0.0};
 
-                    // Component 0 (x) - uses same A_tildeF indices as A_F_ForceCalcs.cpp
-                    force_on_m[0] = x1 * A_tildeF[0*9 + component_idx_3] * moment_j[0] +
-                                    x1 * A_tildeF[0*9 + component_idx_3_plus1] * moment_j[1] +
-                                    x1 * A_tildeF[0*9 + component_idx_3_plus2] * moment_j[2] +
-                                    x2 * A_tildeF[1*9 + component_idx_3] * moment_j[0] +
-                                    x2 * A_tildeF[1*9 + component_idx_3_plus1] * moment_j[1] +
-                                    x2 * A_tildeF[1*9 + component_idx_3_plus2] * moment_j[2] +
-                                    x3 * A_tildeF[2*9 + component_idx_3] * moment_j[0] +
-                                    x3 * A_tildeF[2*9 + component_idx_3_plus1] * moment_j[1] +
-                                    x3 * A_tildeF[2*9 + component_idx_3_plus2] * moment_j[2];
+                    // Component 0 (x) - uses A_tildeF indices for x-component of force (j=0)
+                    force_on_m[0] = x1 * A_tildeF[0*9 + 0*3 + 0] * moment_j[0] +
+                                    x1 * A_tildeF[0*9 + 0*3 + 1] * moment_j[1] +
+                                    x1 * A_tildeF[0*9 + 0*3 + 2] * moment_j[2] +
+                                    x2 * A_tildeF[0*9 + 1*3 + 0] * moment_j[0] +
+                                    x2 * A_tildeF[0*9 + 1*3 + 1] * moment_j[1] +
+                                    x2 * A_tildeF[0*9 + 1*3 + 2] * moment_j[2] +
+                                    x3 * A_tildeF[0*9 + 2*3 + 0] * moment_j[0] +
+                                    x3 * A_tildeF[0*9 + 2*3 + 1] * moment_j[1] +
+                                    x3 * A_tildeF[0*9 + 2*3 + 2] * moment_j[2];
                     
-                    // Component 1 (y) - uses same A_tildeF indices as A_F_ForceCalcs.cpp
-                    force_on_m[1] = x1 * A_tildeF[0*9 + component_idx_3] * moment_j[0] +
-                                    x1 * A_tildeF[0*9 + component_idx_3_plus1] * moment_j[1] +
-                                    x1 * A_tildeF[0*9 + component_idx_3_plus2] * moment_j[2] +
-                                    x2 * A_tildeF[1*9 + component_idx_3] * moment_j[0] +
-                                    x2 * A_tildeF[1*9 + component_idx_3_plus1] * moment_j[1] +
-                                    x2 * A_tildeF[1*9 + component_idx_3_plus2] * moment_j[2] +
-                                    x3 * A_tildeF[2*9 + component_idx_3] * moment_j[0] +
-                                    x3 * A_tildeF[2*9 + component_idx_3_plus1] * moment_j[1] +
-                                    x3 * A_tildeF[2*9 + component_idx_3_plus2] * moment_j[2];
+                    // Component 1 (y) - uses A_tildeF indices for y-component of force (j=1)
+                    force_on_m[1] = x1 * A_tildeF[1*9 + 0*3 + 0] * moment_j[0] +
+                                    x1 * A_tildeF[1*9 + 0*3 + 1] * moment_j[1] +
+                                    x1 * A_tildeF[1*9 + 0*3 + 2] * moment_j[2] +
+                                    x2 * A_tildeF[1*9 + 1*3 + 0] * moment_j[0] +
+                                    x2 * A_tildeF[1*9 + 1*3 + 1] * moment_j[1] +
+                                    x2 * A_tildeF[1*9 + 1*3 + 2] * moment_j[2] +
+                                    x3 * A_tildeF[1*9 + 2*3 + 0] * moment_j[0] +
+                                    x3 * A_tildeF[1*9 + 2*3 + 1] * moment_j[1] +
+                                    x3 * A_tildeF[1*9 + 2*3 + 2] * moment_j[2];
                     
-                    // Component 2 (z) - uses same A_tildeF indices as A_F_ForceCalcs.cpp
-                    force_on_m[2] = x1 * A_tildeF[0*9 + component_idx_3] * moment_j[0] +
-                                    x1 * A_tildeF[0*9 + component_idx_3_plus1] * moment_j[1] +
-                                    x1 * A_tildeF[0*9 + component_idx_3_plus2] * moment_j[2] +
-                                    x2 * A_tildeF[1*9 + component_idx_3] * moment_j[0] +
-                                    x2 * A_tildeF[1*9 + component_idx_3_plus1] * moment_j[1] +
-                                    x2 * A_tildeF[1*9 + component_idx_3_plus2] * moment_j[2] +
-                                    x3 * A_tildeF[2*9 + component_idx_3] * moment_j[0] +
-                                    x3 * A_tildeF[2*9 + component_idx_3_plus1] * moment_j[1] +
-                                    x3 * A_tildeF[2*9 + component_idx_3_plus2] * moment_j[2];
+                    // Component 2 (z) - uses A_tildeF indices for z-component of force (j=2)
+                    force_on_m[2] = x1 * A_tildeF[2*9 + 0*3 + 0] * moment_j[0] +
+                                    x1 * A_tildeF[2*9 + 0*3 + 1] * moment_j[1] +
+                                    x1 * A_tildeF[2*9 + 0*3 + 2] * moment_j[2] +
+                                    x2 * A_tildeF[2*9 + 1*3 + 0] * moment_j[0] +
+                                    x2 * A_tildeF[2*9 + 1*3 + 1] * moment_j[1] +
+                                    x2 * A_tildeF[2*9 + 1*3 + 2] * moment_j[2] +
+                                    x3 * A_tildeF[2*9 + 2*3 + 0] * moment_j[0] +
+                                    x3 * A_tildeF[2*9 + 2*3 + 1] * moment_j[1] +
+                                    x3 * A_tildeF[2*9 + 2*3 + 2] * moment_j[2];
 
                     // overall factor of C / r_squared to add back in
                     force_on_m[0] *= C / r_squared;
@@ -1724,38 +1724,38 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
             // Unroll the matrix multiplication loop for better performance
             double force_on_m[3] = {0.0, 0.0, 0.0};
 
-            // Component 0 (x) - uses same A_tildeF indices as A_F_ForceCalcs.cpp
-            force_on_m[0] = x1 * A_tildeF[0*9 + skjj[k]*3] * moment_skj[0] +
-                            x1 * A_tildeF[0*9 + skjj[k]*3 + 1] * moment_skj[1] +
-                            x1 * A_tildeF[0*9 + skjj[k]*3 + 2] * moment_skj[2] +
-                            x2 * A_tildeF[1*9 + skjj[k]*3] * moment_skj[0] +
-                            x2 * A_tildeF[1*9 + skjj[k]*3 + 1] * moment_skj[1] +
-                            x2 * A_tildeF[1*9 + skjj[k]*3 + 2] * moment_skj[2] +
-                            x3 * A_tildeF[2*9 + skjj[k]*3] * moment_skj[0] +
-                            x3 * A_tildeF[2*9 + skjj[k]*3 + 1] * moment_skj[1] +
-                            x3 * A_tildeF[2*9 + skjj[k]*3 + 2] * moment_skj[2];
+            // Component 0 (x) - uses A_tildeF indices for x-component of force (j=0)
+            force_on_m[0] = x1 * A_tildeF[0*9 + 0*3 + 0] * moment_skj[0] +
+                            x1 * A_tildeF[0*9 + 0*3 + 1] * moment_skj[1] +
+                            x1 * A_tildeF[0*9 + 0*3 + 2] * moment_skj[2] +
+                            x2 * A_tildeF[0*9 + 1*3 + 0] * moment_skj[0] +
+                            x2 * A_tildeF[0*9 + 1*3 + 1] * moment_skj[1] +
+                            x2 * A_tildeF[0*9 + 1*3 + 2] * moment_skj[2] +
+                            x3 * A_tildeF[0*9 + 2*3 + 0] * moment_skj[0] +
+                            x3 * A_tildeF[0*9 + 2*3 + 1] * moment_skj[1] +
+                            x3 * A_tildeF[0*9 + 2*3 + 2] * moment_skj[2];
             
-            // Component 1 (y) - uses same A_tildeF indices as A_F_ForceCalcs.cpp
-            force_on_m[1] = x1 * A_tildeF[0*9 + skjj[k]*3] * moment_skj[0] +
-                            x1 * A_tildeF[0*9 + skjj[k]*3 + 1] * moment_skj[1] +
-                            x1 * A_tildeF[0*9 + skjj[k]*3 + 2] * moment_skj[2] +
-                            x2 * A_tildeF[1*9 + skjj[k]*3] * moment_skj[0] +
-                            x2 * A_tildeF[1*9 + skjj[k]*3 + 1] * moment_skj[1] +
-                            x2 * A_tildeF[1*9 + skjj[k]*3 + 2] * moment_skj[2] +
-                            x3 * A_tildeF[2*9 + skjj[k]*3] * moment_skj[0] +
-                            x3 * A_tildeF[2*9 + skjj[k]*3 + 1] * moment_skj[1] +
-                            x3 * A_tildeF[2*9 + skjj[k]*3 + 2] * moment_skj[2];
+            // Component 1 (y) - uses A_tildeF indices for y-component of force (j=1)
+            force_on_m[1] = x1 * A_tildeF[1*9 + 0*3 + 0] * moment_skj[0] +
+                            x1 * A_tildeF[1*9 + 0*3 + 1] * moment_skj[1] +
+                            x1 * A_tildeF[1*9 + 0*3 + 2] * moment_skj[2] +
+                            x2 * A_tildeF[1*9 + 1*3 + 0] * moment_skj[0] +
+                            x2 * A_tildeF[1*9 + 1*3 + 1] * moment_skj[1] +
+                            x2 * A_tildeF[1*9 + 1*3 + 2] * moment_skj[2] +
+                            x3 * A_tildeF[1*9 + 2*3 + 0] * moment_skj[0] +
+                            x3 * A_tildeF[1*9 + 2*3 + 1] * moment_skj[1] +
+                            x3 * A_tildeF[1*9 + 2*3 + 2] * moment_skj[2];
             
-            // Component 2 (z) - uses same A_tildeF indices as A_F_ForceCalcs.cpp
-            force_on_m[2] = x1 * A_tildeF[0*9 + skjj[k]*3] * moment_skj[0] +
-                            x1 * A_tildeF[0*9 + skjj[k]*3 + 1] * moment_skj[1] +
-                            x1 * A_tildeF[0*9 + skjj[k]*3 + 2] * moment_skj[2] +
-                            x2 * A_tildeF[1*9 + skjj[k]*3] * moment_skj[0] +
-                            x2 * A_tildeF[1*9 + skjj[k]*3 + 1] * moment_skj[1] +
-                            x2 * A_tildeF[1*9 + skjj[k]*3 + 2] * moment_skj[2] +
-                            x3 * A_tildeF[2*9 + skjj[k]*3] * moment_skj[0] +
-                            x3 * A_tildeF[2*9 + skjj[k]*3 + 1] * moment_skj[1] +
-                            x3 * A_tildeF[2*9 + skjj[k]*3 + 2] * moment_skj[2];
+            // Component 2 (z) - uses A_tildeF indices for z-component of force (j=2)
+            force_on_m[2] = x1 * A_tildeF[2*9 + 0*3 + 0] * moment_skj[0] +
+                            x1 * A_tildeF[2*9 + 0*3 + 1] * moment_skj[1] +
+                            x1 * A_tildeF[2*9 + 0*3 + 2] * moment_skj[2] +
+                            x2 * A_tildeF[2*9 + 1*3 + 0] * moment_skj[0] +
+                            x2 * A_tildeF[2*9 + 1*3 + 1] * moment_skj[1] +
+                            x2 * A_tildeF[2*9 + 1*3 + 2] * moment_skj[2] +
+                            x3 * A_tildeF[2*9 + 2*3 + 0] * moment_skj[0] +
+                            x3 * A_tildeF[2*9 + 2*3 + 1] * moment_skj[1] +
+                            x3 * A_tildeF[2*9 + 2*3 + 2] * moment_skj[2];
 
             // overall factor of C / r_squared to add back in
             force_on_m[0] *= C / r_squared;

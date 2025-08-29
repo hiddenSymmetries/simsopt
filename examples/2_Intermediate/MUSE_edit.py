@@ -119,7 +119,7 @@ algorithm = 'Forces'  # Algorithm to use
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
 kwargs['nhistory'] = 100
-kwargs['force_weight'] = 1e-6
+kwargs['force_weight'] = 1e-19
 kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # Add dipole grid positions for the Forces algorithm
 
 # Optimize the permanent magnets greedily
@@ -150,7 +150,11 @@ dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
+mk_forces = sopp.dipole_forces_from_A_F(pm_opt.m, A_F)
+F_norm_squared = sopp.two_norm_squared(mk_forces)
+print(f"Force norm squared of final magnets: {F_norm_squared}")
 save_plots = True
+
 if save_plots:
     # Save the MSE history and history of the m vectors
     np.savetxt(
@@ -171,18 +175,6 @@ if save_plots:
         #mk = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
         mk = m_history[:, :, k]
         print(mk.shape)
-        
-       
-        mk_flat = mk.flatten()
-        t3 = time.time()
-        mk_forces = sopp.dipole_forces_from_A_F(mk_flat, A_F)
-        t4 = time.time()
-        print(f"Time to calculate forces: {t4-t3:.3f} seconds")
-        print('Shape of mk_forces = ', mk_forces.shape)
-        F_norm_squared = sopp.two_norm_squared(mk_forces)
-        print(f"Force norm squared: {F_norm_squared}")
-        
-        
         net_forces, net_torques = pm_opt.force_torque_calc(mk)
         
         b_dipole = DipoleField(
