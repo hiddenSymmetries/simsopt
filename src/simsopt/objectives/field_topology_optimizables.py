@@ -121,8 +121,8 @@ class PyOculusFixedPoint(Optimizable):
         if not self._fixed_point.successful:
             raise ValueError("Fixed point finder failed")
         self._current_location = np.copy(self._fixed_point.coords[0])
-        self._refind_fp = False
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[self._parent_field])
+        self._refind_fp = False
 
     @classmethod
     def from_field(cls,  
@@ -648,6 +648,24 @@ class SimpleMapJac(SimpleIntegrator, Optimizable):
         """
         return np.trace(self.mapjac())
 
-
-
-
+    def residue(self):
+        """
+        return the residue-like quantity of the calculated jacobian
+        """
+        tr = self.J()
+        return (2 - tr)/4
+    
+    def ellipticity(self):
+        """
+        return the ellipticity-like quantity of the calculated jacobian, as described
+        by Greene 1968: https://doi.org/10.1063/1.1664639
+        The ellipticity is +1 for cirular elliptic fixed points, 0 when parabolic, and negative
+        when hyperbolic. Ellipticity of -1 correspoinds to perpendicular intersection of stable and unstable manifolds.
+        TODO: check if indices are correct (though anser is invariant to index permutations)
+        """
+        jac = self.mapjac()
+        a = (jac[0, 0] + jac[1, 1])/2
+        b = (jac[0, 0] - jac[1, 1])/2
+        c = (jac[0, 1] + jac[1, 0])/2
+        d = (jac[0, 1] - jac[1, 0])/2
+        return (1-a**2)/(b**2 + c**2 + d**2)
