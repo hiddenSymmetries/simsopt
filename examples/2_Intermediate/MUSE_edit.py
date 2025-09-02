@@ -47,8 +47,8 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
-    nphi = 32  # >= 64 for high-resolution runs
-    nIter_max = 5000
+    nphi = 16  # >= 64 for high-resolution runs
+    nIter_max = 500
     downsample = 8
 
 ntheta = nphi  # same as above
@@ -119,7 +119,7 @@ algorithm = 'Forces'  # Algorithm to use
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
 kwargs['nhistory'] = 100
-kwargs['force_weight'] = 1e2
+kwargs['force_weight'] = 1e-5
 kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # Add dipole grid positions for the Forces algorithm
 
 # Optimize the permanent magnets greedily
@@ -167,7 +167,7 @@ if save_plots:
     make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
     print(m_history.shape)
     # Look through the solutions as function of K and make plots
-    for k in range(0, m_history.shape[-1], 100):
+    for k in range(0, m_history.shape[-1]):
         #mk = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
         mk = m_history[:, :, k]
         print(mk.shape)
@@ -176,11 +176,12 @@ if save_plots:
         mk_flat = mk.flatten()
         t3 = time.time()
         mk_forces = sopp.dipole_forces_from_A_F(mk_flat, A_F)
+        mu0_factor = (3.0 * 4.0 * np.pi * 1e-7) / (4.0 * np.pi)
         t4 = time.time()
         print(f"Time to calculate forces: {t4-t3:.3f} seconds")
         print('Shape of mk_forces = ', mk_forces.shape)
         F_norm_squared = sopp.two_norm_squared(mk_forces)
-        print(f"Force norm squared: {F_norm_squared}")
+        print(f"Force norm squared: {kwargs['force_weight'] * F_norm_squared}")
         
         
         net_forces, net_torques = pm_opt.force_torque_calc(mk)
@@ -198,9 +199,13 @@ if save_plots:
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
         K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
         b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}")
-        #print("Total fB = ", 0.5 * np.sum((pm_opt.A_obj @ mk - pm_opt.b_obj) ** 2))
+        print("Total fB = ", 0.5 * np.sum((pm_opt.A_obj @ mk_flat - pm_opt.b_obj) ** 2))
         Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
         Bnormal_total = Bnormal + Bnormal_dipoles
+        print(SquaredFlux(s_plot, b_dipole, -Bnormal).J())
+        print(f"Bnormal_total: {0.5 * np.mean(Bnormal_total ** 2)}")
+        print("mmax_fourth = ", pm_opt.m_maxima[0] ** 4)
+        print("Forces_rescaled = ", kwargs['force_weight'] * F_norm_squared / pm_opt.m_maxima[0] ** 4)
 
         # For plotting Bn on the full torus surface at the end with just the dipole fields
         make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}")
