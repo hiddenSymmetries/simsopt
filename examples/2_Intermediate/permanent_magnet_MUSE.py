@@ -1,5 +1,3 @@
-from __future__ import annotations #ToDo: Remove this
-
 #!/usr/bin/env python
 r"""
 This example script uses the GPMO
@@ -38,25 +36,25 @@ from simsopt.util.permanent_magnet_helper_functions import *
 
 t_start = time.time()
 
-high_res_run = True
+high_res_run = False
 
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:
     nphi = 2
     nIter_max = 100
     nBacktracking = 50
-    max_nMagnets = 20
+    max_nMagnets = 1
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 elif high_res_run: 
-    nphi = 32  # >= 64 for high-resolution runs
+    nphi = 16
     nIter_max = 10000
-    nBacktracking = 200
+    nBacktracking = 0
     max_nMagnets = 12000
     downsample = 6    
 else:
     nphi = 16  # >= 64 for high-resolution runs
     nIter_max = 10000
-    nBacktracking = 200
+    nBacktracking = 0
     max_nMagnets = 1000
     downsample = 8
 
@@ -152,8 +150,8 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 # Python+Macromag
-algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
-# algorithm = 'ArbVec_backtracking'  # Algorithm to use
+#algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
+algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 1  # How many magnets to consider "adjacent" to one another
 nHistory = 20  # How often to save the algorithm progress
 thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
@@ -173,7 +171,7 @@ if algorithm == "ArbVec_backtracking_macromag_py":
     kwargs['cube_dim'] = 0.004
     kwargs['mu_ea'] = 1.15
     kwargs['mu_oa'] = 1.05
-    kwargs['use_coils'] = True
+    kwargs['use_coils'] = True  
     kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
     
 # Optimize the permanent magnets greedily
@@ -196,6 +194,13 @@ plt.savefig(out_dir / 'GPMO_MSE_history.png')
 # Set final m to the minimum achieved during the optimization
 min_ind = np.argmin(R2_history)
 pm_opt.m = np.ravel(m_history[:, :, min_ind])
+
+#For solo magnet case since otherwise outputted glyphs are empty
+# H = m_history.shape[2]
+# filled = np.linalg.norm(m_history, axis=1).sum(axis=0) > 0   # (H,)
+# last_idx = np.where(filled)[0][-1]                           
+# pm_opt.m = m_history[:, :, last_idx].ravel()
+
 
 # Print effective permanent magnet volume
 B_max = 1.465
@@ -317,3 +322,49 @@ else:
     b_final._toVTK(out_dir / f"dipoles_final_{algorithm}")
     print(f"[SIMSOPT] Wrote dipoles_final_{algorithm}.vtu")
 
+
+### add B \dot n output
+min_res = 164
+qphi_view   = max(2 * nphi,   min_res)
+qtheta_view = max(2 * ntheta, min_res)
+quad_phi    = np.linspace(0, 1, qphi_view,   endpoint=False)
+quad_theta  = np.linspace(0, 1, qtheta_view, endpoint=False)
+
+s_view = SurfaceRZFourier.from_focus(
+    surface_filename,
+    quadpoints_phi=quad_phi,
+    quadpoints_theta=quad_theta
+)
+
+# Evaluate fields on that surface
+pts = s_view.gamma().reshape((-1, 3))
+bs.set_points(pts)
+b_final.set_points(pts)
+
+# Compute B·n components
+n_hat    = s_view.unitnormal().reshape(qphi_view, qtheta_view, 3)
+B_coils  = bs.B().reshape(qphi_view, qtheta_view, 3)
+B_mags   = b_final.B().reshape(qphi_view, qtheta_view, 3)
+
+Bn_coils   = np.sum(B_coils * n_hat, axis=2)          # shape (qphi_view, qtheta_view)
+Bn_magnets = np.sum(B_mags  * n_hat, axis=2)
+Bn_target  = -Bn_coils                                # target: magnets cancel coil Bn
+Bn_total   = Bn_coils + Bn_magnets
+Bn_error   = Bn_magnets - Bn_target                   # = Bn_total
+Bn_error_abs = np.abs(Bn_error)
+
+def _as_field3(a2):
+    return np.ascontiguousarray(a2, dtype=np.float64)[:, :, None]
+
+extra_data = {
+    "Bn_total":     _as_field3(Bn_total),
+    "Bn_coils":     _as_field3(Bn_coils),
+    "Bn_magnets":   _as_field3(Bn_magnets),
+    "Bn_target":    _as_field3(Bn_target),
+    "Bn_error":     _as_field3(Bn_error),
+    "Bn_error_abs": _as_field3(Bn_error_abs),
+}
+
+surface_fname = out_dir / f"surface_Bn_fields_{algorithm}"
+s_view.to_vtk(surface_fname, extra_data=extra_data)
+print(f"[SIMSOPT] Wrote {surface_fname}.vtp")

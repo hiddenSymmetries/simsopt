@@ -7,6 +7,9 @@ from .macromag import MacroMag, Tiles
 import simsoptpp as sopp
 from .._core.types import RealArray
 
+from scipy.constants import mu_0
+
+
 __all__ = ['relax_and_split', 'GPMO']
 
 
@@ -743,14 +746,12 @@ def GPMO_ArbVec_backtracking_py(
 
     cos_thresh_angle = np.cos(thresh_angle)
 
-    # ---------------
     # Main iterations
-    # ---------------
     for k in range(K):
 
         # For each available site j, evaluate all allowable pol vectors (±)
         # Fill R2s[mj] and R2s[mj + NNp] like C++.
-        # We compute R2 and R2minus vectorized over grid for each (j,m).
+        # Here we compute R2 and R2minus vectorized over grid for each (j,m).
         for j in range(N):
             if Gamma_complement[j]:
                 Aj = A_obj[j]  # (3, ngrid)
@@ -796,49 +797,48 @@ def GPMO_ArbVec_backtracking_py(
 
         num_nonzero_ref[0] += 1
 
-        # ----------------
         # Backtracking step
-        # ----------------
-        if (k % backtracking) == 0:
-            wyrm_sum = 0
-            # Loop over all dipoles
-            for j in range(N):
-                if Gamma_complement[j]:
-                    continue  # skip if not placed
-                m = x_vec[j]
-                # Scan adjacent dipoles; find minimum cosine (largest angle)
-                min_cos_angle = 2.0   # > max possible 1
-                cj_min = -1
-                for jj in range(Connect.shape[1]):
-                    cj = int(Connect[j, jj])
-                    if Gamma_complement[cj]:
-                        continue  # not placed
-                    cos_angle = float(np.dot(x[j, :], x[cj, :]))  # dot of two (presumed unit) vectors
-                    if cos_angle < min_cos_angle:
-                        min_cos_angle = cos_angle
-                        cj_min = cj
-                # Remove pair if angle threshold exceeded
-                if cj_min != -1 and (min_cos_angle <= cos_thresh_angle):
-                    cm_min = x_vec[cj_min]
-                    # Subtract pair's contribution to residual
-                    # Aij_mj_sum -= x_sign[j]*pv_j·A_j + x_sign[cj_min]*pv_c·A_c
-                    pv_j = pol_vectors[j, m, :]
-                    pv_c = pol_vectors[cj_min, cm_min, :]
-                    Aj = A_obj[j]
-                    Ac = A_obj[cj_min]
-                    Aij_mj_sum -= (
-                        x_sign[j]     * (pv_j[:, None] * Aj).sum(axis=0) +
-                        x_sign[cj_min]* (pv_c[:, None] * Ac).sum(axis=0)
-                    )
-                    # Reset solution / metadata
-                    x[j, :] = 0.0; x[cj_min, :] = 0.0
-                    x_vec[j] = 0;   x_vec[cj_min] = 0
-                    x_sign[j] = 0;  x_sign[cj_min] = 0
-                    Gamma_complement[j] = True
-                    Gamma_complement[cj_min] = True
-                    num_nonzero_ref[0] -= 2
-                    wyrm_sum += 1
-            print(f"Backtracking: {wyrm_sum} wyrms removed")
+        if backtracking != 0: 
+            if (k % backtracking) == 0:
+                wyrm_sum = 0
+                # Loop over all dipoles
+                for j in range(N):
+                    if Gamma_complement[j]:
+                        continue  # skip if not placed
+                    m = x_vec[j]
+                    # Scan adjacent dipoles; find minimum cosine (largest angle)
+                    min_cos_angle = 2.0   # > max possible 1
+                    cj_min = -1
+                    for jj in range(Connect.shape[1]):
+                        cj = int(Connect[j, jj])
+                        if Gamma_complement[cj]:
+                            continue  # not placed
+                        cos_angle = float(np.dot(x[j, :], x[cj, :]))  # dot of two (presumed unit) vectors
+                        if cos_angle < min_cos_angle:
+                            min_cos_angle = cos_angle
+                            cj_min = cj
+                    # Remove pair if angle threshold exceeded
+                    if cj_min != -1 and (min_cos_angle <= cos_thresh_angle):
+                        cm_min = x_vec[cj_min]
+                        # Subtract pair's contribution to residual
+                        # Aij_mj_sum -= x_sign[j]*pv_j·A_j + x_sign[cj_min]*pv_c·A_c
+                        pv_j = pol_vectors[j, m, :]
+                        pv_c = pol_vectors[cj_min, cm_min, :]
+                        Aj = A_obj[j]
+                        Ac = A_obj[cj_min]
+                        Aij_mj_sum -= (
+                            x_sign[j]     * (pv_j[:, None] * Aj).sum(axis=0) +
+                            x_sign[cj_min]* (pv_c[:, None] * Ac).sum(axis=0)
+                        )
+                        # Reset solution / metadata
+                        x[j, :] = 0.0; x[cj_min, :] = 0.0
+                        x_vec[j] = 0;   x_vec[cj_min] = 0
+                        x_sign[j] = 0;  x_sign[cj_min] = 0
+                        Gamma_complement[j] = True
+                        Gamma_complement[cj_min] = True
+                        num_nonzero_ref[0] -= 2
+                        wyrm_sum += 1
+                print(f"Backtracking: {wyrm_sum} wyrms removed")
 
         # Verbose progress & stagnation check
         if verbose and (((k % max(1, K // nhistory)) == 0) or k == 0 or k == K - 1):
@@ -953,6 +953,9 @@ def GPMO_ArbVec_backtracking_macromag_py(
     if use_coils and coil_path is not None:
         mac_all.load_coils(coil_path)  # sets mac_all._bs_coil
     N_full = mac_all.fast_get_demag_tensor(cache=True)
+    
+    
+    Hcoil_all = mac_all._coil_field_at(tiles_all.offset.copy(), [0.0, 0.0, 0.0], use_coils).astype(np.float64)  
 
     def solve_subset_and_score(active_idx: np.ndarray, ea_list: np.ndarray):
         if active_idx.size == 0:
@@ -970,7 +973,9 @@ def GPMO_ArbVec_backtracking_macromag_py(
             sub.u_ea = (ej, k)
         mac = MacroMag(sub, bs_coil=getattr(mac_all, "_bs_coil", None))
         N_sub = N_full[np.ix_(active_idx, active_idx)]
-        mac.direct_solve(use_coils=use_coils, demag_tensor=N_sub, krylov_tol=1e-3, krylov_it=200,print_progress=False, x0=None)
+        
+        #mac.direct_solve(use_coils=False, const_H=[10e7, 0,0],demag_tensor=N_sub, krylov_tol=1e-3, krylov_it=200,print_progress=False, x0=None, H_a_override=Hcoil_all[active_idx])
+        mac.direct_solve(use_coils=False, demag_tensor=N_sub, krylov_tol=1e-3, krylov_it=200,print_progress=False, x0=None, H_a_override=Hcoil_all[active_idx])
 
         m_sub = mac.tiles.M * vol
         m_full = np.zeros((N, 3))
@@ -981,7 +986,6 @@ def GPMO_ArbVec_backtracking_macromag_py(
         R2 = 0.5 * float(np.dot(res, res))
         return R2, x_macro_flat, mac.tiles.M
 
-    # ---- initialization snapshot (ALWAYS, like reference) ----
     active0 = np.where(~Gamma_complement)[0]
     ea0 = np.zeros((active0.size, 3))
     R2_0, x_macro_flat_0, _ = solve_subset_and_score(active0, ea0)
@@ -998,7 +1002,8 @@ def GPMO_ArbVec_backtracking_macromag_py(
     print_iter_ref[0] += 1
 
     # Running residual for ArbVec scoring (classical)
-    Aij_mj_sum = -b_obj.astype(np.float64, copy=True)
+    Aij_mj_sum = (A_obj.T @ x_macro_flat_0) - b_obj
+
     R2s = np.full((2 * N * nPolVecs,), 1e50, dtype=np.float64)
 
     # Initialize from x_init (may place some dipoles)
@@ -1007,9 +1012,7 @@ def GPMO_ArbVec_backtracking_macromag_py(
         A_obj_3x, Aij_mj_sum, R2s, Gamma_complement, num_nonzero_ref
     )
 
-    # -------------------
     # Main greedy loop
-    # -------------------
     for k in range(1, K + 1):
         # Stop if filled or hit magnet cap
         if (num_nonzero_ref[0] >= N) or (num_nonzero_ref[0] >= max_nMagnets):
@@ -1031,7 +1034,7 @@ def GPMO_ArbVec_backtracking_macromag_py(
             print("Stopping iterations: maximum number of nonzero magnets reached " if (num_nonzero_ref[0] >= max_nMagnets) else "Stopping iterations: all dipoles in grid are populated")
             break
 
-        # ---- Selection with classical ArbVec score (no MacroMag here) ----
+        # Selection with classical ArbVec score (no MacroMag here to prevent N^4 complexity) 
         NNp = N * nPolVecs
         for j in range(N):
             if not Gamma_complement[j]:
@@ -1070,57 +1073,61 @@ def GPMO_ArbVec_backtracking_macromag_py(
         R2s[base:base + nPolVecs] = 1e50
         R2s[NNp + base:NNp + base + nPolVecs] = 1e50
 
-        # Backtracking (angle heuristic)
-        if (k % backtracking) == 0:
-            removed = 0
-            for j in range(N):
-                if Gamma_complement[j]:
-                    continue
-                min_cos = 2.0
-                cj_min = -1
-                for jj in range(Connect.shape[1]):
-                    cj = int(Connect[j, jj])
-                    if Gamma_complement[cj]:
+        # Backtracking
+        if backtracking != 0:  # Omitting backtracking in case 0 is passed
+            if (k % backtracking) == 0:
+                removed = 0
+                for j in range(N):
+                    if Gamma_complement[j]:
                         continue
-                    cos_angle = float(np.dot(x[j, :], x[cj, :]))
-                    if cos_angle < min_cos:
-                        min_cos = cos_angle
-                        cj_min = cj
-                if cj_min != -1 and (min_cos <= cos_thresh_angle):
-                    pv_j = pol_vectors[j, x_vec[j], :]
-                    pv_c = pol_vectors[cj_min, x_vec[cj_min], :]
-                    Aj = A_obj_3x[j]
-                    Ac = A_obj_3x[cj_min]
-                    Aij_mj_sum -= (
-                        float(x_sign[j]) * (pv_j[:, None] * Aj).sum(axis=0) +
-                        float(x_sign[cj_min]) * (pv_c[:, None] * Ac).sum(axis=0)
-                    )
-                    x[j, :] = 0.0; x[cj_min, :] = 0.0
-                    x_vec[j] = 0;  x_vec[cj_min] = 0
-                    x_sign[j] = 0; x_sign[cj_min] = 0
-                    Gamma_complement[j] = True
-                    Gamma_complement[cj_min] = True
-                    num_nonzero_ref[0] -= 2
-                    removed += 1
-            if verbose:
-                print(f"Backtracking: {removed} pairs removed")
+                    min_cos = 2.0
+                    cj_min = -1
+                    for jj in range(Connect.shape[1]):
+                        cj = int(Connect[j, jj])
+                        if Gamma_complement[cj]:
+                            continue
+                        cos_angle = float(np.dot(x[j, :], x[cj, :]))
+                        if cos_angle < min_cos:
+                            min_cos = cos_angle
+                            cj_min = cj
+                    if cj_min != -1 and (min_cos <= cos_thresh_angle):
+                        pv_j = pol_vectors[j, x_vec[j], :]
+                        pv_c = pol_vectors[cj_min, x_vec[cj_min], :]
+                        Aj = A_obj_3x[j]
+                        Ac = A_obj_3x[cj_min]
+                        Aij_mj_sum -= (
+                            float(x_sign[j]) * (pv_j[:, None] * Aj).sum(axis=0) +
+                            float(x_sign[cj_min]) * (pv_c[:, None] * Ac).sum(axis=0)
+                        )
+                        x[j, :] = 0.0; x[cj_min, :] = 0.0
+                        x_vec[j] = 0;  x_vec[cj_min] = 0
+                        x_sign[j] = 0; x_sign[cj_min] = 0
+                        Gamma_complement[j] = True
+                        Gamma_complement[cj_min] = True
+                        num_nonzero_ref[0] -= 2
+                        removed += 1
+                if verbose:
+                    print(f"Backtracking: {removed} pairs removed")
 
-        # ---- Run MacroMag EACH iteration to keep 'm' current, but only RECORD like reference ----
+        # ---- Run MacroMag for the committed set ----
         active = np.where(~Gamma_complement)[0]
         ea_list = x[active] if active.size else np.zeros((0, 3))
         R2_snap, x_macro_flat, _ = solve_subset_and_score(active, ea_list)
         last_x_macro_flat[:] = x_macro_flat
 
+        Aij_mj_sum = (A_obj.T @ x_macro_flat) - b_obj
+
         if verbose and (((k % max(1, K // nhistory)) == 0) or (k == K)):
             idx = print_iter_ref[0]
             m_history[:, :, idx] = x_macro_flat.reshape(N, 3)
             objective_history[idx] = R2_snap
-            res = (A_obj.T @ x_macro_flat) - b_obj
-            Bn_history[idx] = float(np.sum(np.abs(res) * np.sqrt(normal_norms))) / np.sqrt(float(ngrid))
+            Bn_history[idx] = float(np.sum(np.abs(Aij_mj_sum) * np.sqrt(normal_norms))) / np.sqrt(float(ngrid))
             num_nonzeros[idx] = num_nonzero_ref[0]
             print(f"{k} ... {R2_snap:.2e} ... 0.00e+00 ")
             print(f"Iteration = {k}, Number of nonzero dipoles = {num_nonzero_ref[0]}")
             print_iter_ref[0] += 1
+
+
 
         # Stagnation stop (match reference: no forced recording here)
         if print_iter_ref[0] > 3:

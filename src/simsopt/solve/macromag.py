@@ -319,7 +319,6 @@ class MacroMag:
     ) -> "MacroMag":
         """Run the SOR‐based macromag solve in place."""
         # build coil field object if requested
-        bs = self.load_coils(coil_path) if use_coils and coil_path else None
         def Hcoil_func(pts, H_override=None):
             return self._coil_field_at(pts, const_H, use_coils, H_override)
 
