@@ -3,8 +3,6 @@ from pathlib import Path
 import numpy as np
 import logging
 from simsopt.solve.macromag import MacroMag, muse2tiles, Tiles
-from coilpy.magtense_interface import muse2magntense
-from scipy.constants import mu_0
 
 logger = logging.getLogger(__name__)
 
@@ -49,16 +47,14 @@ class MacroMagTests(unittest.TestCase):
         cls.hfield_ref = np.load(cls.hfield_path, allow_pickle=False).astype(np.float64)
 
         # build tiles + MacroMag
-        tiles = muse2tiles(str(cls.csv_path),magnetization=1.1658e6)
+        tiles = muse2tiles(str(cls.csv_path), magnetization=1.1658e6)
         cls.macro = MacroMag(tiles)
-        
 
         # also precompute our tensor once
         cls.demag_test = cls.macro.fast_get_demag_tensor().astype(np.float64)
         cls.demag_test[np.abs(cls.demag_test) < 1e-12] = 0.0
 
         cls.pts = cls.macro.centres
-
 
     def test_shape(self):
         """Test that the computed tensor has the same shape as the stored one."""
@@ -95,13 +91,13 @@ class MacroMagTests(unittest.TestCase):
             max_err, ABS_TOL,
             f"max absolute error {max_err:.2e} exceeds tol={ABS_TOL:.2e}"
         )
-        
+
     def test_mismatch_report(self):
         """If there is a big mismatch, print its location (for debugging)."""
         diff = np.abs(self.demag_test - self.demag_ref)
         max_err = diff.max()
-        
-        logger.info("Max |ΔN|:", max_err, "(rms", np.sqrt(np.mean(diff**2)), ")")
+
+        logger.info("Max |ΔN|: %.3e (rms %.3e)", max_err, np.sqrt(np.mean(diff**2)))
 
         tol = 1e-9
         mask = diff > tol
@@ -114,8 +110,7 @@ class MacroMagTests(unittest.TestCase):
                 f"abs delta={diff[idx]:.2e} (tol={tol})"
             )
             self.fail(msg)
-            
-            
+
     def test_demag_field(self):
         """Compare our _demag_field_at to saved MagTense H_field."""
         H_test = self.macro._demag_field_at(self.pts, self.demag_ref)
@@ -128,42 +123,21 @@ class MacroMagTests(unittest.TestCase):
             max_err, 1e-9,
             f"Max |ΔH| = {max_err:.3e}, RMS = {rms:.3e}"
         )
-        
-    def test_sor_magnitude_constant(self):
-        """When chi = 0 and H_coil = 0, SOR should leave ‖M‖ = M_rem."""
-        tiles = make_trivial_tiles(5)
-        macro = MacroMag(tiles)
-        # zero‐field, demag‐only mode
-        macro.sor_solve(
-            Ms=1.0, K=1.0,
-            omega=1.0, max_it=20, tol=1e-8,
-            const_H=(0.0,0.0,0.0),
-            use_coils=False,
-            demag_only=True,
-            log_every=100
-        )
-        norms   = np.linalg.norm(tiles.M, axis=1)
-        expected = tiles.M_rem
-        self.assertTrue(
-            np.allclose(norms, expected, atol=1e-8),
-            f"Direct solve changed magnitudes beyond tolerance: got {norms}, expected {expected}"
-        )
 
     def test_direct_solve_magnitude_constant(self):
         """When chi = 0 and H_coil = 0, direct solve should yield M = M_rem u."""
         tiles = make_trivial_tiles(4)
         macro = MacroMag(tiles)
         macro.direct_solve(
-            const_H=(0.0,0.0,0.0),
             use_coils=False,
-            demag_only=True,
             krylov_tol=1e-8
         )
         norms   = np.linalg.norm(tiles.M, axis=1)
         expected = tiles.M_rem
         for idx, (n_val, e_val) in enumerate(zip(norms, expected)):
             with self.subTest(tile=idx):
-                self.assertAlmostEqual(n_val, e_val, places=8,msg=f"Tile {idx}: |M| = {n_val:.12f}, expected {e_val:.12f}")
+                self.assertAlmostEqual(n_val, e_val, places=8,
+                    msg=f"Tile {idx}: |M| = {n_val:.12f}, expected {e_val:.12f}")
 
     def test_tile_proxy(self):
         """Tile proxy should get/set individual elements and enforce bounds."""
@@ -183,36 +157,18 @@ class MacroMagTests(unittest.TestCase):
         s = str(tiles)
         self.assertIn("Tile_0", s)
         self.assertIn("Tile_1", s)
-        
-        def test_rotation_and_ffgg_hh(self):
-            # get_rotation_matrices ↔ orthonormal inverses:
-            Rg2l, Rl2g = MacroMag.get_rotation_matrices(0.1, 0.2, 0.3)
-            I = np.eye(3)
-            self.assertTrue(np.allclose(Rl2g @ Rg2l, I, atol=1e-12))
 
-            # simple calls to the f/g/h/FF/GG/HH wrappers (via MacroMag static methods)
-            for func in ("_f_3D","_g_3D","_h_3D","_FF_3D","_GG_3D","_HH_3D"):
-                # pick a non‐degenerate point
-                val = getattr(MacroMag, func)(1.0, 2.0, 3.0, 0.1, -0.2, 0.5)
-                self.assertIsInstance(val, float)
+    def test_rotation_and_ffgg_hh(self):
+        # get_rotation_matrices ↔ orthonormal inverses:
+        Rg2l, Rl2g = MacroMag.get_rotation_matrices(0.1, 0.2, 0.3)
+        I = np.eye(3)
+        self.assertTrue(np.allclose(Rl2g @ Rg2l, I, atol=1e-12))
 
-    def test_anisotropy_and_coil_field(self):
-        # tiny 2‐tile system
-        tiles = make_trivial_tiles(2)
-        macro = MacroMag(tiles)
-
-        # anisotropy_field: if M parallel to u_ea, should be (2K/(μ0Ms²))*|M|
-        M = np.array([[0,0,1.0],[0,0,2.0]])
-        K, Ms = 4.0, 2.0
-        Ha = macro._anisotropy_field(M, K, Ms)
-        expected = (2*K/(mu_0*Ms*Ms)) * np.array([1.0,2.0])[:,None] * tiles.u_ea
-        self.assertTrue(np.allclose(Ha, expected))
-
-        # coil_field_at: uniform, no _bs_coil
-        pts = np.zeros((3,3))
-        Hc = macro._coil_field_at(pts, (1.0,2.0,3.0), use_coils=False)
-        self.assertEqual(Hc.shape, (3,3))
-        self.assertTrue(np.allclose(Hc, [[1,2,3]]*3))
+        # simple calls to the f/g/h/FF/GG/HH wrappers (via MacroMag static methods)
+        for func in ("_f_3D","_g_3D","_h_3D","_FF_3D","_GG_3D","_HH_3D"):
+            # pick a non‐degenerate point
+            val = getattr(MacroMag, func)(1.0, 2.0, 3.0, 0.1, -0.2, 0.5)
+            self.assertIsInstance(val, float)
 
     def test_set_easy_axis_error(self):
         tiles = Tiles(1)
@@ -235,7 +191,7 @@ class MacroMagTests(unittest.TestCase):
         # invalid shape
         with self.assertRaises(AssertionError):
             tiles.vertices = np.zeros((5,5))
-            
+
     def test_other_tiles_setters(self):
         n = 3
         tiles = Tiles(n)
@@ -300,13 +256,6 @@ class MacroMagTests(unittest.TestCase):
         for idx in range(1, tiles.n):
             with self.subTest(tile=idx):
                 np.testing.assert_allclose(tiles.u_ea[idx], u0)
-
-
-
-
-
-
-
 
 
 if __name__ == "__main__":

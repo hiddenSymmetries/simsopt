@@ -2,7 +2,7 @@ from __future__ import annotations
 import math
 import numpy as np
 from coilpy import rotation_angle
-from simsopt.field import Coil, BiotSavart
+from simsopt.field import Coil, BiotSavart, InterpolatedField
 from simsopt.util.permanent_magnet_helper_functions import read_focus_coils
 from scipy.constants import mu_0
 from scipy.sparse.linalg import LinearOperator, minres, gmres
@@ -10,6 +10,7 @@ from numpy.linalg import norm
 from numba import njit, prange
 from pathlib import Path
 from typing import Optional
+
 
 __all__ = ["MacroMag"]
 
@@ -179,13 +180,21 @@ class MacroMag:
     _INV4PI = _INV4PI
     _MACHEPS = _MACHEPS
 
-    def __init__(self, tiles, bs_coil: Optional[BiotSavart] = None):
+    def __init__(self, tiles, bs_interp: Optional[InterpolatedField] = None):
         self.tiles = tiles
         self.n = tiles.n
         self.centres = tiles.offset.copy()
         self.half    = (tiles.size * 0.5).astype(np.float64)
         self.Rg2l    = np.zeros((self.n, 3, 3), dtype=np.float64)
-        self._bs_coil = bs_coil
+        self.bs_interp = bs_interp
+        self._interp_cfg = dict(
+            degree=3,   # interpolant degree
+            nr=12, nphi=2, nz=12,
+            pad_frac=0.05,
+            nfp=1, stellsym=False,
+            extra_pts=None,
+        )       
+
         for k in range(self.n):
             self.Rg2l[k], _ = MacroMag.get_rotation_matrices(*tiles.rot[k])
 
@@ -241,28 +250,46 @@ class MacroMag:
         N = _assemble_tensor_local_nb(self.centres, self.half, self.Rg2l)
         self._N_full = N
         return N
-    
+            
     def load_coils(self, focus_file: Path) -> None:
-        """Load and cache a BiotSavart coil model for this instance."""
+        """Load coils and cache both BiotSavart and an InterpolatedField."""
         curves, currents, ncoils = read_focus_coils(str(focus_file))
         coils = [Coil(curves[i], currents[i]) for i in range(ncoils)]
-        self._bs_coil = BiotSavart(coils)
+        bs = BiotSavart(coils)
 
-    def _anisotropy_field(self, M: np.ndarray, K: float, Ms: float) -> np.ndarray:
-        """Compute uniaxial anisotropy for our tiles."""
-        u = self.tiles.u_ea
-        proj = np.einsum('ij,ij->i', M, u)
-        return (2*K/(mu_0*Ms**2)) * proj[:, None] * u
+        # TODO: find way to use this since currently causing to much extra cost...
+        #       CAUSE: of increased time: high res field.... I can turn down the resolution of self._interp_cfg but will reduce accuracy...
+        
+        # cfg = self._interp_cfg
+        # pts = self.tiles.offset.copy()
+        # if cfg.get("extra_pts") is not None:
+        #     pts = np.vstack([pts, np.asarray(cfg["extra_pts"], dtype=np.float64)])
 
-    def _coil_field_at(self, pts: np.ndarray, const_H: tuple[float,float,float], use_coils: bool, H_a_override: Optional[np.ndarray] = None) -> np.ndarray:
-        """Return H at pts, either uniform or via Biot–Savart."""
-        if H_a_override is not None:
-            return H_a_override
-        if use_coils and getattr(self, '_bs_coil', None) is not None:
-            self._bs_coil.set_points(pts)
-            return self._bs_coil.B() / mu_0
-        N = pts.shape[0]
-        return np.broadcast_to(const_H, (N,3)).copy()
+        # R = np.linalg.norm(pts[:, :2], axis=1)
+        # z = pts[:, 2]
+        # rmin, rmax = float(R.min()), float(R.max())
+        # zmin, zmax = float(z.min()), float(z.max())
+        # rpad = max(1e-4, cfg["pad_frac"] * max(rmax - rmin, 1.0))
+        # zpad = max(1e-4, cfg["pad_frac"] * max(zmax - zmin, 1.0))
+
+        # rrange   = (max(0.0, rmin - rpad), rmax + rpad, cfg["nr"])
+        # phirange = (0.0, 2.0 * np.pi / max(1, cfg["nfp"]), cfg["nphi"])
+        # zrange   = (zmin - zpad, zmax + zpad, cfg["nz"])
+
+        # self.bs_interp = InterpolatedField(
+        #     bs, cfg["degree"], rrange, phirange, zrange,
+        #     True, nfp=cfg["nfp"], stellsym=cfg["stellsym"], skip=None
+        # )
+        
+        #Faster...(for now)
+        self.bs_interp = bs
+        
+    def coil_field_at(self, pts):
+        if self.bs_interp is None:
+            raise ValueError("Coils not loaded correctly")
+        pts = np.ascontiguousarray(pts, dtype=np.float64)  
+        self.bs_interp.set_points(pts)
+        return self.bs_interp.B() / mu_0
     
     def _demag_field_at(self, pts: np.ndarray, demag_tensor: np.ndarray) -> np.ndarray:
         """
@@ -298,127 +325,34 @@ class MacroMag:
             # multiply each (3×3) by the same M_loc[i] -> yields (n_pts,3)
             H_loc = np.einsum('pqr,r->pq', demag_tensor[i], M_loc[i])
             # rotate back to global
-            H    += (Rl2g[i] @ H_loc.T).T
+            H += (Rl2g[i] @ H_loc.T).T
 
         return H
 
-        
-        
-    def sor_solve(
-        self,
-        Ms: float,
-        K: float,
-        omega: float,
-        max_it: int,
-        tol: float,
-        const_H: tuple[float,float,float],
-        use_coils: bool = False,
-        coil_path: Optional[Path] = None,
-        demag_only: bool = False,
-        log_every: int = 10,
-    ) -> "MacroMag":
-        """Run the SOR‐based macromag solve in place."""
-        # build coil field object if requested
-        def Hcoil_func(pts, H_override=None):
-            return self._coil_field_at(pts, const_H, use_coils, H_override)
-
-        tiles   = self.tiles
-        centres = self.centres
-        demag_tensor = self.fast_get_demag_tensor()
-
-        lambda_ = 1.0
-        H_prev  = np.zeros((tiles.n, 3), dtype=np.float64)
-        M_prev  = None
-        maxDiff = [0.0, 0.0, 0.0, 0.0]
-
-        for it in range(1, max_it + 1):
-            # 1) update M from H_prev
-            u      = tiles.u_ea
-            H_par  = (H_prev * u).sum(axis=1)[:, None] * u
-            H_perp = H_prev - H_par
-            chi_par  = (tiles.mu_r_ea - 1)[:, None]
-            chi_perp = (tiles.mu_r_oa - 1)[:, None]
-            M_rem   = tiles.M_rem[:, None] * u
-            tiles.M = M_rem + chi_par * H_par + chi_perp * H_perp
-
-            # 2) compute field terms
-            H_demag = self._demag_field_at(centres, demag_tensor).astype(np.float64)
-            H_anis  = np.zeros_like(H_demag)
-            # H_anis = anisotropy_field(tiles.M, u, K, Ms) if not demag_only else np.zeros_like(H_demag)
-            H_coil  = (
-                Hcoil_func(centres).astype(np.float64)
-                if not demag_only
-                else np.zeros_like(H_demag)
-            )
-            H_eff = H_demag + H_anis + H_coil
-
-            # 3) SOR update
-            H_prev = H_prev + lambda_ * (H_eff - H_prev)
-
-            # 4) check convergence on |M|
-            if M_prev is None:
-                err = float("inf")
-            else:
-                delta_m = np.abs(
-                    np.linalg.norm(tiles.M, axis=1)
-                    - np.linalg.norm(M_prev, axis=1)
-                )
-                rel = delta_m / np.maximum(np.linalg.norm(M_prev, axis=1), 1e-30)
-                err = rel.max()
-
-            # 5) adapt relaxation parameter
-            maxDiff = [err] + maxDiff[:3]
-            if it > 3:
-                c1 = maxDiff[0] > maxDiff[1] < maxDiff[2] > maxDiff[3]
-                c2 = maxDiff[3] > maxDiff[2] > maxDiff[1] > maxDiff[0]
-                c3 = maxDiff[3] > maxDiff[2] > maxDiff[1] < maxDiff[0]
-                if c1 or c2 or c3:
-                    lambda_ *= 0.5
-
-            # 6) logging
-            m_hat = tiles.M / np.linalg.norm(tiles.M, axis=1, keepdims=True)
-            h_hat = H_eff / np.maximum(
-                np.linalg.norm(H_eff, axis=1, keepdims=True), 1e-30
-            )
-            max_angle_MH = np.degrees(
-                np.arccos(
-                    np.clip((m_hat * h_hat).sum(axis=1), -1, 1)
-                )
-            ).max()
-
-            if it == 1 or it % log_every == 0:
-                print(
-                    f"  iter {it:3d}: lambda={lambda_:.3f} "
-                    f"| max‖ΔM‖/‖M‖={err:.2e} max∠MH={max_angle_MH:6.2f}° "
-                    f"| max|H_demag|={np.linalg.norm(H_demag, axis=1).max():.2e} "
-                    f"| max|H_anis|={np.linalg.norm(H_anis, axis=1).max():.2e} "
-                    f"| max|H_coil|={np.linalg.norm(H_coil, axis=1).max():.2e} "
-                    f"| max|H_eff|={np.linalg.norm(H_eff, axis=1).max():.2e}"
-                )
-
-            if err < tol * lambda_ and it > 3:
-                print(f"  converged in {it} iterations (err={err:.2e})")
-                break
-
-            M_prev = tiles.M.copy()
-
-        return self
-
     def direct_solve(self,
-        const_H: tuple[float,float,float] = [0.0, 0.0, 0.0],
         use_coils: bool = False,
-        demag_only: bool = False,
         krylov_tol: float = 1e-3,
         krylov_it: int = 200,
         demag_tensor: np.ndarray | None = None, 
         print_progress: bool = False,
-        x0: np.ndarray | None = None, 
+        x0: np.ndarray | None = None,
         H_a_override: Optional[np.ndarray] = None) -> "MacroMag":
         
         """Run the Krylov‐based direct magstatics solve in place."""
+        
+        if use_coils and (self.bs_interp is None) and (H_a_override is None):
+            raise ValueError("use_coils=True, but no coil interpolant is loaded and no H_a_override was provided.")
+
+        if H_a_override is not None:
+            H_a_override = np.asarray(H_a_override, dtype=np.float64, order="C")
+            if H_a_override.shape != (self.centres.shape[0], 3):
+                raise ValueError("H_a_override must have shape (n_tiles, 3) in A/m.")
 
         def Hcoil_func(pts):
-            return self._coil_field_at(pts, const_H, use_coils, H_a_override)
+            if H_a_override is not None:
+                return H_a_override 
+            else: 
+                return self.coil_field_at(pts)
 
         tiles   = self.tiles
         centres = self.centres
@@ -435,20 +369,18 @@ class MacroMag:
             chi[i] = chi_pa[i]*uuT + chi_pe[i]*(np.eye(3)-uuT)
 
         # assemble b
-        H_a = np.zeros((n, 3)) if demag_only else Hcoil_func(centres).astype(np.float64)
+        H_a = np.zeros((n, 3)) if (not use_coils) else Hcoil_func(centres).astype(np.float64)
         b = np.vstack([m_rem[i]*u[i] + chi[i] @ H_a[i] for i in range(n)]).ravel()
 
         # assemble A
         N = demag_tensor if demag_tensor is not None else self.fast_get_demag_tensor()
 
-        A = np.zeros((3*n, 3*n), dtype=np.float64)
-        for i in range(n):
-            mats = -np.einsum('pr,jrq->jpq', chi[i], N[i], optimize=True)
-            mats[i] += np.eye(3)
-            r = slice(3*i, 3*i+3)
-            for j in range(n):
-                c = slice(3*j, 3*j+3)
-                A[r, c] = mats[j]
+
+        # B[i,j,:,:] = - chi[i] @ N[i,j]
+        B = -np.einsum('ipq,ijqr->ijpr', chi, N, optimize=True)  # (n,n,3,3)
+        idx = np.arange(n)
+        B[idx, idx] += np.eye(3)
+        A = B.transpose(0,2,1,3).reshape(3*n, 3*n)
 
         sym = np.allclose(A, A.T, atol=1e-12, rtol=1e-10)
         if print_progress:

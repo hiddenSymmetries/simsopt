@@ -1,13 +1,12 @@
 import warnings
 
-
 import numpy as np
 from .macromag import MacroMag, Tiles
 
 import simsoptpp as sopp
 from .._core.types import RealArray
 
-from scipy.constants import mu_0
+from line_profiler import profile
 
 
 __all__ = ['relax_and_split', 'GPMO']
@@ -554,8 +553,6 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
     return errors, Bn_errors, m_history
 
 
-
-
 def _connectivity_matrix_py(dipole_grid_xyz: np.ndarray, Nadjacent: int) -> np.ndarray:
     """
     Python port of C++ connectivity_matrix:
@@ -563,7 +560,6 @@ def _connectivity_matrix_py(dipole_grid_xyz: np.ndarray, Nadjacent: int) -> np.n
     (including itself). C++ filled 2000; here we fill exactly what's needed.
     """
     xyz = np.asarray(dipole_grid_xyz, dtype=np.float64, order="C")
-    N = xyz.shape[0]
     # pairwise squared distances (broadcasted)
     # dist^2 = ||x_i - x_j||^2 = |x|^2 + |y|^2 - 2 x_i·x_j
     norms = (xyz**2).sum(axis=1)
@@ -577,8 +573,7 @@ def _connectivity_matrix_py(dipole_grid_xyz: np.ndarray, Nadjacent: int) -> np.n
     return idx_sorted[:, :Nadj].astype(np.int32, copy=False)
 
 
-def _print_GPMO_py(k, ngrid, print_iter_ref, x, Aij_mj_vec, objective_history,
-                   Bn_history, m_history, mmax_sum, normal_norms):
+def _print_GPMO_py(k, ngrid, print_iter_ref, x, Aij_mj_vec, objective_history, Bn_history, m_history, mmax_sum, normal_norms):
     """
     Python port of print_GPMO (records histories + prints status).
     """
@@ -655,7 +650,7 @@ def _initialize_GPMO_ArbVec_py(x_init, pol_vectors, x, x_vec, x_sign,
             R2s[j*nPolVecs:(j+1)*nPolVecs] = 1e50
             R2s[NNp + j*nPolVecs:NNp + (j+1)*nPolVecs] = 1e50
 
-        # out-of-tolerance check (vs assigned x[j])
+        # outof tolerance check (vs assigned x[j])
         if np.any(np.abs(xin - x[j]) > tol):
             n_OutOfTol += 1
 
@@ -681,10 +676,9 @@ def GPMO_ArbVec_backtracking_py(
     Nadjacent: int,
     thresh_angle: float,
     max_nMagnets: int,
-    x_init: np.ndarray
-):
+    x_init: np.ndarray):
     """
-    Python implementation matching the C++:
+    Python implementation of the C++ version of the following
     std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(...)
     Returns:
       (objective_history, Bn_history, m_history, num_nonzeros, x)
@@ -741,8 +735,7 @@ def GPMO_ArbVec_backtracking_py(
     num_nonzeros[0] = num_nonzero_ref[0]
 
     # Record the initialization snapshot
-    _print_GPMO_py(0, ngrid, print_iter_ref, x, Aij_mj_sum, objective_history,
-                   Bn_history, m_history, 0.0, normal_norms)
+    _print_GPMO_py(0, ngrid, print_iter_ref, x, Aij_mj_sum, objective_history, Bn_history, m_history, 0.0, normal_norms)
 
     cos_thresh_angle = np.cos(thresh_angle)
 
@@ -764,9 +757,8 @@ def GPMO_ArbVec_backtracking_py(
                 tmp_minus = Aij_mj_sum[None, :] - bnorm
                 R2 = (tmp_plus**2).sum(axis=1)      # (nPolVecs,)
                 R2minus = (tmp_minus**2).sum(axis=1)
-                # Add mmax contribution as in C++
+                # Add mmax contribution as in cpp version of this
                 # NOTE: C++ uses mmax_ptr[j] even though Python passes len=3N
-                # This mirrors the original behavior exactly:
                 R2 += mmax[j] * mmax[j]
                 R2minus += mmax[j] * mmax[j]
                 base = j * nPolVecs
@@ -871,6 +863,7 @@ def GPMO_ArbVec_backtracking_py(
     return objective_history, Bn_history, m_history, num_nonzeros, x
 
 
+@profile
 def GPMO_ArbVec_backtracking_macromag_py(
     A_obj: np.ndarray,  # shape (3N, ngrid) == (A * mmax_vec)
     b_obj: np.ndarray,  # (ngrid,)
@@ -893,10 +886,7 @@ def GPMO_ArbVec_backtracking_macromag_py(
     coil_path: str = None
 ):
     """
-    Hybrid ArbVec GPMO + MacroMag (3.A):
-      * Selection: classical ArbVec GPMO score over ALL candidates (cheap, no solve).
-      * Commit: run MacroMag to update the current solution EACH iteration,
-        but record history ONLY when the reference algorithm would.
+    Hybrid ArbVec GPMO + MacroMag:
     Returns (objective_history, Bn_history, m_history, num_nonzeros, x)
     """
     if use_coils and coil_path == None: 
@@ -935,7 +925,9 @@ def GPMO_ArbVec_backtracking_macromag_py(
         print("Hybrid GPMO (ArbVec score) with MacroMag-on-winner evaluation")
         print("Iteration ... |Am - b|^2 ... lam*|m|^2")
 
-    Connect = _connectivity_matrix_py(dipole_grid_xyz, Nadjacent)
+    Connect = None
+    if backtracking != 0:
+        Connect = _connectivity_matrix_py(dipole_grid_xyz, Nadjacent)
 
     MM_CUBOID_FULL_DIMS = (cube_dim, cube_dim, cube_dim)
     vol = float(np.prod(MM_CUBOID_FULL_DIMS))
@@ -954,13 +946,13 @@ def GPMO_ArbVec_backtracking_macromag_py(
         mac_all.load_coils(coil_path)  # sets mac_all._bs_coil
     N_full = mac_all.fast_get_demag_tensor(cache=True)
     
+    if use_coils:
+        Hcoil_all = mac_all.coil_field_at(tiles_all.offset).astype(np.float64)
     
-    Hcoil_all = mac_all._coil_field_at(tiles_all.offset.copy(), [0.0, 0.0, 0.0], use_coils).astype(np.float64)  
-
-    def solve_subset_and_score(active_idx: np.ndarray, ea_list: np.ndarray):
+    def solve_subset_and_score(active_idx: np.ndarray, ea_list: np.ndarray, x0_prev = None):
         if active_idx.size == 0:
             res0 = -b_obj
-            return 0.5 * float(np.dot(res0, res0)), np.zeros(3 * N), np.zeros((0, 3))
+            return 0.5 * float(np.dot(res0, res0)), np.zeros(3 * N), np.zeros((0, 3)), res0
         sub = Tiles(active_idx.size)
         for k, j in enumerate(active_idx):
             sub.offset = (tiles_all.offset[j], k)
@@ -968,14 +960,16 @@ def GPMO_ArbVec_backtracking_macromag_py(
             sub.rot = ((0.0, 0.0, 0.0), k)
             sub.mu_r_ea = (mu_ea, k)
             sub.mu_r_oa = (mu_oa, k)
-            sub.M_rem = (1.465 / (4.0 * np.pi * 1e-7), k)  # ~1.1659e6 A/m
+            sub.M_rem = (1.465 / (4.0 * np.pi * 1e-7), k)  # aprox. 1.1659e6 A/m
             ej = ea_list[k] / (np.linalg.norm(ea_list[k]) + 1e-30)
             sub.u_ea = (ej, k)
-        mac = MacroMag(sub, bs_coil=getattr(mac_all, "_bs_coil", None))
+        mac = MacroMag(sub, bs_interp=mac_all.bs_interp) #Taking already built interpolanet field to avod reloading...
         N_sub = N_full[np.ix_(active_idx, active_idx)]
         
-        #mac.direct_solve(use_coils=False, const_H=[10e7, 0,0],demag_tensor=N_sub, krylov_tol=1e-3, krylov_it=200,print_progress=False, x0=None, H_a_override=Hcoil_all[active_idx])
-        mac.direct_solve(use_coils=False, demag_tensor=N_sub, krylov_tol=1e-3, krylov_it=200,print_progress=False, x0=None, H_a_override=Hcoil_all[active_idx])
+        if use_coils: 
+            mac.direct_solve(use_coils=use_coils, demag_tensor=N_sub, x0=x0_prev, H_a_override=Hcoil_all[active_idx])
+        else:
+            mac.direct_solve(use_coils=use_coils, demag_tensor=N_sub, x0=x0_prev)
 
         m_sub = mac.tiles.M * vol
         m_full = np.zeros((N, 3))
@@ -984,17 +978,16 @@ def GPMO_ArbVec_backtracking_macromag_py(
         x_macro_flat = m_full_vec / mmax
         res = A_obj.T @ x_macro_flat - b_obj
         R2 = 0.5 * float(np.dot(res, res))
-        return R2, x_macro_flat, mac.tiles.M
+        return R2, x_macro_flat, mac.tiles.M, res
 
     active0 = np.where(~Gamma_complement)[0]
     ea0 = np.zeros((active0.size, 3))
-    R2_0, x_macro_flat_0, _ = solve_subset_and_score(active0, ea0)
+    R2_0, x_macro_flat_0, _, res0 = solve_subset_and_score(active0, ea0)
     last_x_macro_flat[:] = x_macro_flat_0
     # record init
     idx0 = print_iter_ref[0]
     m_history[:, :, idx0] = x_macro_flat_0.reshape(N, 3)
     objective_history[idx0] = R2_0
-    res0 = (A_obj.T @ x_macro_flat_0) - b_obj
     Bn_history[idx0] = float(np.sum(np.abs(res0) * np.sqrt(normal_norms))) / np.sqrt(float(ngrid))
     num_nonzeros[idx0] = num_nonzero_ref[0]
     if verbose:
@@ -1014,17 +1007,19 @@ def GPMO_ArbVec_backtracking_macromag_py(
 
     # Main greedy loop
     for k in range(1, K + 1):
-        # Stop if filled or hit magnet cap
+        
+        x0_prev = None # ToDo: Implement and Profile if warm start helps speed-up iteartion
+
+        # Stop if filled or hit magnet cap        
         if (num_nonzero_ref[0] >= N) or (num_nonzero_ref[0] >= max_nMagnets):
             # record final snapshot (ALWAYS on early stop, like reference)
             active = np.where(~Gamma_complement)[0]
             ea_list = x[active] if active.size else np.zeros((0, 3))
-            R2_snap, x_macro_flat, _ = solve_subset_and_score(active, ea_list)
+            R2_snap, x_macro_flat, _, res = solve_subset_and_score(active, ea_list, x0_prev)
             last_x_macro_flat[:] = x_macro_flat
             idx = print_iter_ref[0]
             m_history[:, :, idx] = x_macro_flat.reshape(N, 3)
             objective_history[idx] = R2_snap
-            res = (A_obj.T @ x_macro_flat) - b_obj
             Bn_history[idx] = float(np.sum(np.abs(res) * np.sqrt(normal_norms))) / np.sqrt(float(ngrid))
             num_nonzeros[idx] = num_nonzero_ref[0]
             if verbose:
@@ -1109,13 +1104,13 @@ def GPMO_ArbVec_backtracking_macromag_py(
                 if verbose:
                     print(f"Backtracking: {removed} pairs removed")
 
-        # ---- Run MacroMag for the committed set ----
+        # Run MacroMag for the committed set
         active = np.where(~Gamma_complement)[0]
         ea_list = x[active] if active.size else np.zeros((0, 3))
-        R2_snap, x_macro_flat, _ = solve_subset_and_score(active, ea_list)
+        R2_snap, x_macro_flat, _, res = solve_subset_and_score(active, ea_list, x0_prev=x0_prev)
         last_x_macro_flat[:] = x_macro_flat
-
-        Aij_mj_sum = (A_obj.T @ x_macro_flat) - b_obj
+        Aij_mj_sum = res
+        
 
         if verbose and (((k % max(1, K // nhistory)) == 0) or (k == K)):
             idx = print_iter_ref[0]

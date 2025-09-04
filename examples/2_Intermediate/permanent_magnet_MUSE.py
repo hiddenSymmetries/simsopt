@@ -43,7 +43,7 @@ if in_github_actions:
     nphi = 2
     nIter_max = 100
     nBacktracking = 50
-    max_nMagnets = 1
+    max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 elif high_res_run: 
     nphi = 16
@@ -150,8 +150,8 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 # Python+Macromag
-#algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
-algorithm = 'ArbVec_backtracking'  # Algorithm to use
+algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
+# algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 1  # How many magnets to consider "adjacent" to one another
 nHistory = 20  # How often to save the algorithm progress
 thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
@@ -315,12 +315,10 @@ b_final = DipoleField(
     coordinate_flag=pm_opt.coordinate_flag,
     m_maxima=pm_opt.m_maxima         # enables normalized |m| in the VTK
 )
-if high_res_run: 
-    b_final._toVTK(out_dir / f"dipoles_final_high_res{algorithm}")
-    print(f"[SIMSOPT] Wrote dipoles_final_high_res{algorithm}.vtu")
-else: 
-    b_final._toVTK(out_dir / f"dipoles_final_{algorithm}")
-    print(f"[SIMSOPT] Wrote dipoles_final_{algorithm}.vtu")
+
+
+b_final._toVTK(out_dir / f"dipoles_final_{algorithm}")
+print(f"[SIMSOPT] Wrote dipoles_final_{algorithm}.vtu")
 
 
 ### add B \dot n output
