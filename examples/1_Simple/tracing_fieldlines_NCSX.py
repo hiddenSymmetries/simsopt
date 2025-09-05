@@ -44,6 +44,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 
 base_curves, currents, ma, nfp, bs = get_data("ncsx")
+# bs.coils includes all coils after symmetry expansion (not just the base coils).
+# You can access them directly like this:
 all_curves = [c.curve for c in bs.coils]
 proc0_print("Mean(|B|) on axis =", np.mean(np.linalg.norm(bs.set_points(ma.gamma()).B(), axis=1)))
 proc0_print("Mean(Axis radius) =", np.mean(np.linalg.norm(ma.gamma(), axis=1)))

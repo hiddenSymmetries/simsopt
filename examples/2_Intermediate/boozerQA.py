@@ -37,6 +37,8 @@ print("Running 2_Intermediate/boozerQA.py")
 print("================================")
 
 base_curves, base_currents, ma, nfp, bs  = get_data("ncsx")
+# bs.coils includes all coils after symmetry expansion (not just the base coils).
+# You can access them directly like this:
 all_curves = [c.curve for c in bs.coils]
 bs_tf = BiotSavart(bs.coils)
 current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
