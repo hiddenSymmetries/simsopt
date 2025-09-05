@@ -37,6 +37,7 @@ except ImportError as e:
 
 from simsopt._core.optimizable import Optimizable
 from simsopt._core.util import ObjectiveFailure
+from simsopt._core.types import RealArray
 from simsopt.geo import Surface, SurfaceRZFourier
 from simsopt.mhd.profiles import Profile, ProfilePolynomial, ProfileScaled
 
@@ -79,7 +80,7 @@ class Gvec(Optimizable):
         iota: the prescribed (or initial) rotational transform profile.
         current: the prescribed toroidal current profile. if None, GVEC will run in iota-constraint mode, otherwise it will run in current-constraint mode with the given iota as initial guess.
         parameters: a dictionary of GVEC parameters.
-        restart_file: path to a GVEC Statefile to restart from.
+        restart: ...
         delete_intermediates: whether to delete intermediate files after the run.
         mpi: the MPI partition to use. For now, GVEC is best run with ngroups = nprocs and multiple OpenMP threads assigned to each MPI process.
     """
@@ -92,23 +93,28 @@ class Gvec(Optimizable):
         iota: Union[Profile, float, None] = None,
         current: Union[Profile, float, None] = None,
         parameters: Mapping = {},
-        restart_file: Union[str, Path, None] = None,
+        restart: Union[Literal["first", "last"], Path, str, None] = None,
         delete_intermediates: bool = False,
         keep_gvec_intermediates: Optional[Literal['all', 'stages']] = None,
         mpi: Optional[MpiPartition] = None,
     ):
         # init arguments which are not DoFs
         self.parameters = gvec.util.CaseInsensitiveDict(parameters) # nested parameters
-        self.restart_file = Path(restart_file) if restart_file else None
         self.delete_intermediates = delete_intermediates
         self.keep_gvec_intermediates = keep_gvec_intermediates
         self.mpi = mpi
 
-        if self.restart_file and not self.restart_file.exists():
-            raise FileNotFoundError(f"Restart file {self.restart_file} not found")
+        if restart in [None, "first", "last"]:
+            self.restart = restart
+        elif isinstance(restart, (str, Path)):
+            if not Path(restart).is_dir():
+                raise ValueError(f"restart path {restart} does not exist or is not a directory.")
+            self.restart = gvec.find_state(restart)
+        else:
+            raise ValueError("restart must be 'first', 'last', a path to a GVEC run directory or None.")
 
         # auxiliary attributes
-        self.run_count: int = 0  # number of times GVEC has been run (this MPI-process only)
+        self.run_count: int = -1  # number of times GVEC has been run (0-indexed, this MPI-process only)
         self.run_required: bool = True  # flag for caching e.g. set after changing parameters
         self.run_successful: bool = False  # flag for whether the last run was successful
         self._state: State = None  # state object representing the GVEC equilibrium
@@ -195,6 +201,18 @@ class Gvec(Optimizable):
         parameters = gvec.util.read_parameters(parameter_file)
         return cls(parameters=parameters, **kwargs)
     
+    @classmethod
+    def from_rundir(
+        cls,
+        rundir: Union[str, Path],
+        **kwargs,
+    ):
+        state = gvec.find_state(rundir)
+        self = cls.from_parameter_file(state.parameter_file, **kwargs)
+        self._state = state
+        self.run_required = False
+        return self
+    
     def recompute_bell(self, parent=None):
         """Set the recomputation flag"""
         logger.debug(f"recompute_bell called by {parent}: run_required = {self.run_required}")
@@ -231,52 +249,73 @@ class Gvec(Optimizable):
                 logger.debug("no run required")
                 return
 
-        if self.delete_intermediates and self.run_successful:
-            logger.debug("deleting output from previous run")
-            shutil.rmtree(self.rundir)
-        
         self.run_count += 1
         logger.debug(f"preparing to run GVEC run number {self.run_count}")
 
         # create run directory
+        if self.run_successful:
+            previous_rundir = self.rundir
+        else:
+            previous_rundir = None
         self.rundir = Path(f"gvec{self._mpi_id}-{self.run_count:03d}")
         if self.rundir.exists():
             logger.warning(f"run directory {self.rundir} already exists, replacing")
             shutil.rmtree(self.rundir)
         self.rundir.mkdir()
 
-        # prepare parameter file
-        params = self.prepare_parameters()
-
         # configure restart
-        if self.restart_file:
-            # ToDo: needs test
-            logger.info(f"running GVEC with restart from {self.restart_file}")
-            if self.restart_file.is_absolute():
-                restart_file = self.restart_file
-            else:
-                restart_file = ".." / self.restart_file
-        else:
+        if self.restart is None:
+            restart = None
             logger.info("running GVEC")
-            restart_file = None
+        elif isinstance(self.restart, State):
+            restart = self.restart
+            logger.info(f"running GVEC from {self.restart}")
+        elif self.restart == "first":
+            if self.run_count == 0 and (not MPI or self.mpi.proc0_world):
+                restart = None
+                logger.info("running GVEC (first run)")
+            else:
+                if MPI:
+                    restart = gvec.find_state("gvec_000-000")
+                else:
+                    restart = gvec.find_state("gvec-000")
+                logger.info("running GVEC from first run")
+        elif self.restart == "last":
+            if self.run_successful:
+                restart = self._state
+                logger.info("running GVEC from previous run")
+            else:
+                restart = None
+                logger.info("running GVEC (previous run not successful)")
+        else:
+            raise RuntimeError(f"invalid value for restart: {self.restart}")
+
+        # prepare parameter file
+        params = self.prepare_parameters(restart)
+        gvec.util.write_parameters(params, self.rundir / "parameters.toml")
         
         # run GVEC
         self.run_successful = False
+        self._state = None
+
         try:
-            self._runobj = gvec.run(params, restart_file, runpath=self.rundir, quiet=True, keep_intermediates=self.keep_gvec_intermediates)
+            self._runobj = gvec.run(params, restart, runpath=self.rundir, quiet=True, keep_intermediates=self.keep_gvec_intermediates)
             self._runobj.plot_diagnostics_minimization().savefig(self.rundir / "iterations.png")
         except RuntimeError as e:
             logger.error(f"GVEC failed with: {e}")
             raise ObjectiveFailure("Run GVEC failed.") from e
+
         self.run_successful = True
-        
-        # read output/statefile
         self._state = self._runobj.state
-
-        logger.debug("GVEC finished")
         self.run_required = False
+        logger.debug(f"GVEC finished in {self._runobj.GVEC_iter_used} iterations")
 
-    def prepare_parameters(self) -> Mapping:
+        # remove previous rundir
+        if self.delete_intermediates and previous_rundir and (self.restart != "first" or previous_rundir not in [Path("gvec-000"), Path("gvec_000-000")]):
+            logger.debug("deleting output from previous run")
+            shutil.rmtree(previous_rundir)
+
+    def prepare_parameters(self, restart: Union[State, None] = None) -> Mapping:
         """
         Prepare DOFs as parameters for the GVEC input file as keyword arguments which can be passed to `run_stages`.
         """
@@ -295,19 +334,30 @@ class Gvec(Optimizable):
             "hmap_ncfile",
             ]:
             if key in params:
-                params[key] = str(Path(params[key]).absolute())
+                params[key] = str(Path(params[key]).resolve())
 
         params = self.boundary_to_params(boundary, params)
 
         # perturb boundary when restarting
-        if self.restart_file:  # ToDo: check how perturbation interacts with run_stages (wait for gvec update of current_constraint fix)
-            perturbation = {"X1pert_b_cos": {}, "X2pert_b_sin": {}, "X1_b_cos": {}, "X2_b_sin": {}, "boundary_perturb": True}
-            for (m, n), v in params.items():
-                perturbation["X1pert_b_cos"][m, n] = v - self.parameters["X1_b_cos"].get((m, n), 0)
-                perturbation["X2pert_b_sin"][m, n] = v - self.parameters["X2_b_sin"].get((m, n), 0)
-                perturbation["X1_b_cos"][m, n] = self.parameters["X1_b_cos"].get((m, n), 0)
-                perturbation["X2_b_sin"][m, n] = self.parameters["X2_b_sin"].get((m, n), 0)
-            params |= perturbation
+        if restart:
+            perturbation = gvec.util.CaseInsensitiveDict(boundary_perturb=True)
+            for Xi in ["X1", "X2"]:
+                for scs in ["sin", "cos"]:
+                    perturbation[f"{Xi}pert_b_{scs}"] = {}
+                    perturbation[f"{Xi}_b_{scs}"] = {}
+                    # set boundary modes to values from restart
+                    for (m, n), v in restart.parameters.get(f"{Xi}_b_{scs}", {}).items():
+                        perturbation[f"{Xi}_b_{scs}"][m, n] = v
+                    # set boundary perturbation to difference between current and restart
+                    for (m, n), v in params.get(f"{Xi}_b_{scs}", {}).items():
+                        v = v - restart.parameters[f"{Xi}_b_{scs}"].get((m, n), 0)
+                        if v != 0.0:
+                            perturbation[f"{Xi}pert_b_{scs}"][m, n] = v
+                    if len(perturbation[f"{Xi}pert_b_{scs}"]) == 0:
+                        del perturbation[f"{Xi}pert_b_{scs}"]
+                    if len(perturbation[f"{Xi}_b_{scs}"]) == 0:
+                        del perturbation[f"{Xi}_b_{scs}"]
+            params.update(perturbation)
 
         # profiles
         if self._iota is None and self._current is None:
@@ -463,6 +513,18 @@ class Gvec(Optimizable):
 
         boundary.fix_all()
         return boundary
+    
+    @property
+    def state(self) -> State:
+        """Return the gvec.State object, representing the equilibrium, rerunning GVEC if necessary.
+        
+        The State object allows evaluating the configuration at any position
+        using the same accuracy and discretization as used during the minimization.
+
+        As this is not a number, this is not a 'return function' in the usual sense.
+        """
+        self.run()
+        return self._state
 
     # === INPUT VARIABLES === #
 
@@ -576,31 +638,22 @@ class Gvec(Optimizable):
 
     # === RETURN FUNCTIONS === #
 
-    def state(self) -> State:
-        """Compute the gvec.State object, representing the equilibrium.
-        
-        The State object allows evaluating the configuration at any position
-        using the same accuracy and discretization as used during the minimization.
-        """
-        self.run()
-        return self._state
-
     @return_function
     def iota_axis(self) -> float:
         """Compute the rotational transform at the magnetic axis."""
-        ev = self.state().evaluate("iota", rho=0.0, theta=None, zeta=None)
+        ev = self.state.evaluate("iota", rho=0.0, theta=None, zeta=None)
         return ev.iota.item()
 
     @return_function
     def iota_edge(self) -> float:
         """Compute the rotational transform at the edge."""
-        ev = self.state().evaluate("iota", rho=1.0, theta=None, zeta=None)
+        ev = self.state.evaluate("iota", rho=1.0, theta=None, zeta=None)
         return ev.iota.item()
 
     @return_function
     def current_edge(self) -> float:
         """Compute the toroidal current at the edge."""
-        ev = self.state().evaluate("I_tor", rho=1.0, theta="int", zeta="int")
+        ev = self.state.evaluate("I_tor", rho=1.0, theta="int", zeta="int")
         return ev.I_tor.item()
 
     @return_function
@@ -610,7 +663,7 @@ class Gvec(Optimizable):
         This method integrates the Jacobian determiant over the whole domain.
         The result should be the same as the volume computed from a Surface object.
         """
-        ev = self.state().evaluate("V", rho="int", theta="int", zeta="int")
+        ev = self.state.evaluate("V", rho="int", theta="int", zeta="int")
         return ev.V.item()
 
     @return_function
@@ -621,8 +674,14 @@ class Gvec(Optimizable):
         Jacobian determinant. The result should be the same as the aspect ratio
         computed from a Surface object.
         """
-        ev = self.state().evaluate("major_radius", "minor_radius", rho="int", theta="int", zeta="int")
+        ev = self.state.evaluate("major_radius", "minor_radius", rho="int", theta="int", zeta="int")
         return (ev.major_radius / ev.minor_radius).item()
+    
+    @return_function
+    def beta_avg(self) -> float:
+        """Compute the volume-averaged beta of the configuration."""
+        ev = self.state.evaluate("beta_avg", rho="int", theta="int", zeta="int")
+        return ev.beta_avg.item()
 
     @return_function
     def vacuum_well(self) -> float:
@@ -645,11 +704,86 @@ class Gvec(Optimizable):
         is dimensionless, and it scales as the square of the minor
         radius.
         """
-        ev = self.state().evaluate(
+        ev = self.state.evaluate(
             "dV_dPhi_n", rho=[1e-4, 1.0], theta="int", zeta="int"
         )
         Vp1 = ev.sel(rho=1.0).dV_dPhi_n.item()
         Vp0 = ev.sel(rho=1e-4).dV_dPhi_n.item()
         return (Vp0 - Vp1) / Vp0
-
+    
     return_fn_map = {func.__name__: func for func in _return_functions}
+
+
+# === DERIVED OPTIMIZABLES === #
+
+
+class MirrorRatio(Optimizable):
+    """
+    This optimizable computes the mirror ratio on a specified set of flux surfaces from a GVEC equilibrium.
+    """
+    
+    def __init__(self, eq: Gvec, rho: Union[float, RealArray] = [0.5, 1.0]):
+        self.eq = eq
+        self.rho = rho
+
+        super().__init__(depends_on=[eq])
+    
+    def J(self) -> np.ndarray:
+        ev = self.eq.state.evaluate("mod_B", rho=self.rho, theta="int", zeta="int")
+        Bmax = ev.mod_B.max(("theta", "zeta")).values
+        Bmin = ev.mod_B.min(("theta", "zeta")).values
+        return (Bmax - Bmin) / (Bmax + Bmin)
+    
+    return_fn_map = {"J": J}
+
+
+class Elongation(Optimizable):
+    """
+    This optimizable computes the elongation of the plasma cross-sections using PCA.
+
+    Applying a PCA on the boundary points gives us the principal axes for the cross-section.
+    We can then take the minimum and maximum values along the principal axes to get an estimate for the "length" and "width" of the cross-section.
+    """
+
+    def __init__(self, eq: Gvec, zeta: Union[float, RealArray, Literal["int"]] = "int"):
+        self.eq = eq
+        self.zeta = zeta
+
+        super().__init__(depends_on=[eq])
+
+    def J(self):
+        from scipy.linalg import svd
+
+        ev = self.eq.state.evaluate("pos", rho=[1.0], theta="int", zeta=self.zeta).squeeze()
+
+        elongation = np.zeros(len(ev.zeta))
+        for z, zeta in enumerate(ev.zeta):
+            pos = ev.pos.sel(zeta=zeta).squeeze().transpose("xyz", "pol").values
+            # weighting with arclength
+            tan = np.sqrt(np.sum((np.roll(pos, 1, axis=1) - np.roll(pos, -1, axis=1))**2, axis=0))
+            tan /= np.sum(tan)
+            cen0 = np.mean(pos, axis=1)
+            cen = np.mean((pos - cen0[:, None]) * tan[None, :], axis=1) + cen0
+            delta = pos - cen[:, None]
+
+            # PCA
+            sigma = delta * np.sqrt(tan[None, :])
+            Sigma = sigma @ sigma.T
+            U, S, V = svd(Sigma)
+
+            u1 = U[:, 0]
+            u2 = U[:, 1]
+            # S[2] should be negligible (planar cross-sections)
+
+            lim1 = np.array([np.min(delta.T @ u1), np.max(delta.T @ u1)])
+            lim2 = np.array([np.min(delta.T @ u2), np.max(delta.T @ u2)])
+            len1 = lim1[1] - lim1[0]
+            len2 = lim2[1] - lim2[0]
+
+            elongation[z] = len1 / len2
+        return elongation
+    
+    def max(self):
+        return np.max(self.J())
+    
+    return_fn_map = {"J": J, "max": max}
