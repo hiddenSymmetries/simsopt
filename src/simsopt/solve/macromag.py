@@ -10,7 +10,7 @@ from numpy.linalg import norm
 from numba import njit, prange
 from pathlib import Path
 from typing import Optional
-
+import time
 
 __all__ = ["MacroMag"]
 
@@ -331,15 +331,44 @@ class MacroMag:
 
     def direct_solve(self,
         use_coils: bool = False,
-        krylov_tol: float = 1e-3,
-        krylov_it: int = 200,
-        demag_tensor: np.ndarray | None = None, 
+        krylov_tol: float = 1e-6,
+        krylov_it: int = 20,
+        N_new_rows: np.ndarray | None = None,
+        N_new_cols: np.ndarray | None = None,
+        N_new_diag: np.ndarray | None = None,
         print_progress: bool = False,
         x0: np.ndarray | None = None,
-        H_a_override: Optional[np.ndarray] = None) -> "MacroMag":
+        H_a_override: Optional[np.ndarray] = None,
+        A_prev: np.ndarray | None = None,
+        prev_n: int = 0) -> "MacroMag":
         
-        """Run the Krylov‐based direct magstatics solve in place."""
+        """
+        Run the Krylov‐based direct magstatics solve in place.
+
+        Args:
+            use_coils: bool, default False
+                Whether to use coils in the solve.
+            krylov_tol: float, default 1e-3
+                Tolerance for the Krylov solver.
+            krylov_it: int, default 200
+                Maximum number of iterations for the Krylov solver.
+            demag_tensor: np.ndarray | None, default None
+                Precomputed demagnetization tensor.
+            print_progress: bool, default False
+                Whether to print progress.
+            x0: np.ndarray | None, default None
+                Initial guess for the solution.
+            H_a_override: Optional[np.ndarray], default None
+                External magnetic field to override the coil field.
+            A_prev: np.ndarray | None, default None
+                Previous A matrix for incremental updates.
+            prev_n: int, default 0
+                Number of tiles in the previous A matrix.
+
+        Returns:
+            MacroMag: self
         
+        """
         if use_coils and (self.bs_interp is None) and (H_a_override is None):
             raise ValueError("use_coils=True, but no coil interpolant is loaded and no H_a_override was provided.")
 
@@ -348,6 +377,7 @@ class MacroMag:
             if H_a_override.shape != (self.centres.shape[0], 3):
                 raise ValueError("H_a_override must have shape (n_tiles, 3) in A/m.")
 
+        # Define helper function to compute the coil field or override it
         def Hcoil_func(pts):
             if H_a_override is not None:
                 return H_a_override 
@@ -359,47 +389,72 @@ class MacroMag:
         n       = tiles.n
         u       = tiles.u_ea
         m_rem   = tiles.M_rem
-        chi_pa  = tiles.mu_r_ea - 1
-        chi_pe  = tiles.mu_r_oa - 1
+        chi_parallel  = tiles.mu_r_ea - 1
+        chi_perp  = tiles.mu_r_oa - 1
 
-        # build local chi tensors
-        chi = np.empty((n, 3, 3), dtype=np.float64)
-        for i in range(n):
-            uuT   = np.outer(u[i], u[i])
-            chi[i] = chi_pa[i]*uuT + chi_pe[i]*(np.eye(3)-uuT)
-
-        # assemble b
+        # assemble b and B directly without forming chi tensor
         H_a = np.zeros((n, 3)) if (not use_coils) else Hcoil_func(centres).astype(np.float64)
-        b = np.vstack([m_rem[i]*u[i] + chi[i] @ H_a[i] for i in range(n)]).ravel()
-
-        # assemble A
-        N = demag_tensor if demag_tensor is not None else self.fast_get_demag_tensor()
-
-
-        # B[i,j,:,:] = - chi[i] @ N[i,j]
-        B = -np.einsum('ipq,ijqr->ijpr', chi, N, optimize=True)  # (n,n,3,3)
-        idx = np.arange(n)
-        B[idx, idx] += np.eye(3)
-        A = B.transpose(0,2,1,3).reshape(3*n, 3*n)
-
-        sym = np.allclose(A, A.T, atol=1e-12, rtol=1e-10)
-        if print_progress:
-            print(f"symmetry check: {sym}")
-
-        linop = LinearOperator(A.shape,
-            matvec = lambda v: A @ v,
-            rmatvec= lambda v: A.T @ v
-        )
         
-        if sym:
-            x, info = minres(linop, b, rtol=krylov_tol, maxiter=krylov_it, x0=x0)
-            if print_progress: print(f"MINRES   res  {norm(A@x - b)/norm(b):.2e}, info {info}")
+        # Vectorized computation of u[i]^T * H_a[i] for all i
+        u_dot_Ha = np.sum(u * H_a, axis=1)  # shape: (n,)
+        
+        # Vectorized computation of chi[i] @ H_a[i] for all i
+        # chi[i] @ H_a[i] = chi_pe[i] * H_a[i] + (chi_pa[i] - chi_pe[i]) * (u[i]^T * H_a[i]) * u[i]
+        chi_Ha = (chi_perp[:, None] * H_a + 
+                 (chi_parallel - chi_perp)[:, None] * u_dot_Ha[:, None] * u)
+        
+        # Vectorized computation of b
+        b = (m_rem[:, None] * u + chi_Ha).ravel()
+
+        t1 = time.time()
+        
+        # Precompute frequently used terms
+        chi_diff = chi_parallel - chi_perp  # (n,)
+        u_outer = np.einsum('ik,il->ikl', u, u, optimize=True)  # (n, 3, 3) - u_i * u_i^T
+        
+        chi_tensor = (chi_parallel[:, None, None] * np.eye(3)[None, :, :] + 
+                     chi_diff[:, None, None] * u_outer)  # (n, 3, 3)
+        
+        # Start with previous A matrix and extend it
+        A = np.zeros((3*n, 3*n))
+        A[:3*prev_n, :3*prev_n] = A_prev
+        
+        # Add identity blocks for new tiles
+        for i in range(prev_n, n):
+            A[3*i:3*i+3, 3*i:3*i+3] = np.eye(3)
+        
+        # Add new rows and columns 
+        if prev_n > 0:
+            chi_new = chi_tensor[prev_n:, :, :] 
+            A[3*prev_n:, :3*prev_n] -= (chi_new[:, None, :, :] * N_new_rows).reshape(3*(n-prev_n), 3*prev_n)
+            chi_prev = chi_tensor[:prev_n, :, :]  # (prev_n, 3, 3)
+            A[:3*prev_n, 3*prev_n:] -= (chi_prev[:, None, :, :] * N_new_cols).reshape(3*prev_n, 3*(n-prev_n))
+            # New diagonal block: interactions between new tiles and new tiles
+            A[3*prev_n:, 3*prev_n:] -= (chi_new[:, None, :, :] * N_new_diag).reshape(3*(n-prev_n), 3*(n-prev_n))
+
         else:
-            x, info = gmres(linop, b, rtol=krylov_tol, maxiter=krylov_it, x0=x0)
-            if print_progress: print(f"GMRES    res  {norm(A@x - b)/norm(b):.2e}, info {info}")
+            A -= (chi_tensor[:, None, :, :] * N_new_rows).reshape(3*n, 3*n)
+            
+        t2 = time.time()
+        print(f"Time taken for direct A assembly: {t2 - t1} seconds")
+        
+        if print_progress and False:
+            
+            # Use a closure to track iteration number
+            def make_gmres_callback():
+                iteration = [0]  # Use list to make it mutable in closure
+                def gmres_callback(residual_norm):
+                    iteration[0] += 1
+                    print(f"GMRES iteration {iteration[0]}: residual norm = {residual_norm:.6e}")
+                return gmres_callback
+            
+            x, info = gmres(A, b, rtol=krylov_tol, maxiter=krylov_it, x0=x0)
+                        # callback=make_gmres_callback(), callback_type='pr_norm')
+        else:
+            x, info = gmres(A, b, rtol=krylov_tol, maxiter=krylov_it, x0=x0)
         
         tiles.M = x.reshape(n, 3)
-        return self
+        return self, A
 
 
 

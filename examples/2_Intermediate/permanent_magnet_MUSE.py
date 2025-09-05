@@ -55,7 +55,7 @@ else:
     nphi = 16  # >= 64 for high-resolution runs
     nIter_max = 10000
     nBacktracking = 0
-    max_nMagnets = 1000
+    max_nMagnets = 10000
     downsample = 8
 
 ntheta = nphi  # same as above
