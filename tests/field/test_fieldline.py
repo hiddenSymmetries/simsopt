@@ -77,7 +77,7 @@ class FieldlineTesting(unittest.TestCase):
         assert [np.allclose(rtest[i], 0., rtol=1e-5, atol=1e-5) for i in range(nlines)]
 
     def test_poincare_plot(self):
-        curves, currents, ma, nfp, bs = get_data("ncsx")
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests"
                     / "test_files").resolve()
         surf = SurfaceRZFourier.from_focus(
@@ -107,7 +107,7 @@ class FieldlineTesting(unittest.TestCase):
             pass
 
     def test_poincare_ncsx_known(self):
-        curves, currents, ma, nfp, bs = get_data("ncsx")
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         R0 = [np.linalg.norm(ma.gamma()[0, :2])]
         Z0 = [ma.gamma()[0, 2]]
         phis = np.arctan2(ma.gamma()[:, 1], ma.gamma()[:, 0])

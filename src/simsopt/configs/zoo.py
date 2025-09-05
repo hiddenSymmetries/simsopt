@@ -85,11 +85,11 @@ def get_data(name, **kwargs):
     Returns
     -------
     tuple
-        *5-element tuple* ``(curves, currents, ma, nfp, bs)``, where:
+        *5-element tuple* ``(base_curves, base_currents, ma, nfp, bs)``, where:
 
-        curves : list of :class:`CurveXYZFourier` 
+        base_curves : list of :class:`CurveXYZFourier` 
             The coil curves, with length determined by ``coil_order`` and ``points_per_period``.
-        currents : list of :class:`Current`
+        base_currents : list of :class:`Current`
             Corresponding coil currents.
         ma : :class:`CurveRZFourier`
             The magnetic axis, of order ``magnetic_axis_order``.
@@ -190,10 +190,10 @@ def get_data(name, **kwargs):
         magnetic_axis_order = kwargs.pop("magnetic_axis_order")
         points_per_period = kwargs.pop("points_per_period")
         filename = THIS_DIR / "NCSX.dat"
-        curves = CurveXYZFourier.load_curves_from_file(filename, order=coil_order, ppp=points_per_period)
+        base_curves = CurveXYZFourier.load_curves_from_file(filename, order=coil_order, ppp=points_per_period)
         nfp = 3
         
-        currents = [Current(c) for c in [6.52271941985300E+05, 6.51868569367400E+05, 5.37743588647300E+05]]
+        base_currents = [Current(c) for c in [6.52271941985300E+05, 6.51868569367400E+05, 5.37743588647300E+05]]
         
         cR = [
             1.471415400740515, 0.1205306261840785, 0.008016125223436036, -0.000508473952304439,
@@ -219,9 +219,9 @@ def get_data(name, **kwargs):
         magnetic_axis_order = kwargs.pop("magnetic_axis_order")
         points_per_period  = kwargs.pop("points_per_period")
         filename = THIS_DIR / "HSX.dat"
-        curves = CurveXYZFourier.load_curves_from_file(filename, order=coil_order, ppp=points_per_period)
+        base_curves = CurveXYZFourier.load_curves_from_file(filename, order=coil_order, ppp=points_per_period)
         nfp = 4
-        currents = [Current(c) for c in [-1.500725500000000e+05] * 6]
+        base_currents = [Current(c) for c in [-1.500725500000000e+05] * 6]
         cR = [1.221168734647426701e+00, 2.069298947130969735e-01, 1.819037041932574511e-02, 4.787659822787012774e-05,
             -3.394778038757981920e-05, 4.051690884402789139e-05, 1.066865447680375597e-05, -1.418831703321225589e-05,
             2.041664078576817539e-05, 2.407340923216046553e-05, -1.281275289727263035e-05, -2.712941403326357315e-05,
@@ -243,9 +243,9 @@ def get_data(name, **kwargs):
         coil_order, magnetic_axis_order, points_per_period = kwargs.pop("coil_order"), kwargs.pop("magnetic_axis_order"), kwargs.pop("points_per_period")
         length, nsurfaces = kwargs.pop("length"), kwargs.pop("nsurfaces")
         filename = THIS_DIR / f"GIULIANI_length{length}_nsurfaces{nsurfaces}"
-        curves   = CurveXYZFourier.load_curves_from_file(filename.with_suffix(".curves"),
+        base_curves   = CurveXYZFourier.load_curves_from_file(filename.with_suffix(".curves"),
                                                          order=coil_order, ppp=points_per_period)
-        currents = [Current(c) for c in np.loadtxt(filename.with_suffix(".currents"))]
+        base_currents = [Current(c) for c in np.loadtxt(filename.with_suffix(".currents"))]
         dofs = np.loadtxt(filename.with_suffix(".ma"))
         cR = dofs[:26]
         sZ = dofs[26:]
@@ -256,10 +256,10 @@ def get_data(name, **kwargs):
         add_default_args(kwargs, coil_order=48, magnetic_axis_order=10, points_per_period=2)
         coil_order, magnetic_axis_order, points_per_period = kwargs.pop("coil_order"), kwargs.pop("magnetic_axis_order"), kwargs.pop("points_per_period")
         filename = THIS_DIR / "W7-X.dat"
-        curves = CurveXYZFourier.load_curves_from_file(filename, order=coil_order, ppp=points_per_period)
+        base_curves = CurveXYZFourier.load_curves_from_file(filename, order=coil_order, ppp=points_per_period)
         nfp = 5
         turns = 108
-        currents = [Current(15000.0 * turns)] * 5 + [Current(0.0), Current(0.0)]
+        base_currents = [Current(15000.0 * turns)] * 5 + [Current(0.0), Current(0.0)]
         cR = [
             5.56069066955626, 0.370739830964738, 0.0161526928867275,
             0.0011820724983052, 3.43773868380292e-06, -4.71423775536881e-05,
@@ -292,7 +292,7 @@ def get_data(name, **kwargs):
         order_hel = 6
         stellsym = True
         ntor = 1  # Number of toroidal turns for each helical coil to bite its tail
-        curves = [
+        base_curves = [
             CurveXYZFourier(nq_circ, order_circ),
             CurveXYZFourier(nq_circ, order_circ),
             CurveXYZFourier(nq_circ, order_circ),
@@ -301,31 +301,31 @@ def get_data(name, **kwargs):
             CurveXYZFourier(nq_circ, order_circ),
             CurveXYZFourierSymmetries(nq_hel, order_hel, nfp, stellsym, ntor),
         ]
-        curves.append(RotatedCurve(curves[-1], phi=np.pi/5, flip=False))
+        base_curves.append(RotatedCurve(base_curves[-1], phi=np.pi/5, flip=False))
 
         # Set the shape of the first pair of circular coils, OVU and OVL:
         R = 5.55
         Z = 1.55
-        curves[0].x = [0, 0, R, 0, R, 0, +Z, 0, 0]
-        curves[1].x = [0, 0, R, 0, R, 0, -Z, 0, 0]
+        base_curves[0].x = [0, 0, R, 0, R, 0, +Z, 0, 0]
+        base_curves[1].x = [0, 0, R, 0, R, 0, -Z, 0, 0]
 
         # Set the shape of the second pair of circular coils, ISU and ISL:
         R = 2.82
         Z = 2.0
-        curves[2].x = [0, 0, R, 0, R, 0, +Z, 0, 0]
-        curves[3].x = [0, 0, R, 0, R, 0, -Z, 0, 0]
+        base_curves[2].x = [0, 0, R, 0, R, 0, +Z, 0, 0]
+        base_curves[3].x = [0, 0, R, 0, R, 0, -Z, 0, 0]
         
         
         # Set the shape of the third pair of circular coils, IVU and IVL:
         R = 1.8
         Z = 0.8
-        curves[4].x = [0, 0, R, 0, R, 0, +Z, 0, 0]
-        curves[5].x = [0, 0, R, 0, R, 0, -Z, 0, 0]
+        base_curves[4].x = [0, 0, R, 0, R, 0, +Z, 0, 0]
+        base_curves[5].x = [0, 0, R, 0, R, 0, -Z, 0, 0]
 
         # Set the shape of the helical coils:
-        curves[6].x = [3.850062473963758, 0.9987505207248398, 0.049916705720487310, 0.0012492189452854780, 1.0408856336378722e-05, 0, 0, 0, 0, 0, -1.0408856336392461e-05, 0, 0, -0.9962526034072403, -0.049958346351996670, -0.0012486983723145407, -2.082291883655196e-05, 0, 0]
+        base_curves[6].x = [3.850062473963758, 0.9987505207248398, 0.049916705720487310, 0.0012492189452854780, 1.0408856336378722e-05, 0, 0, 0, 0, 0, -1.0408856336392461e-05, 0, 0, -0.9962526034072403, -0.049958346351996670, -0.0012486983723145407, -2.082291883655196e-05, 0, 0]
 
-        currents = [
+        base_currents = [
            Current(2824400.0), Current(2824400.0),
            Current(682200.0),  Current(682200.0),
            Current(-2940000.0), Current(-2940000.0),
@@ -363,17 +363,16 @@ def get_data(name, **kwargs):
         ma.zs[:] = sZ[:magnetic_axis_order]
         ma.x = ma.get_dofs()
 
-        coils = coils_via_symmetries(curves, currents, nfp, True)
+        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
         bs = BiotSavart(coils)
-        
     else: 
         # ma already defined above in the lhd_like elif case 
         
-        coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
+        coils = [Coil(curve, current) for curve, current in zip(base_curves, base_currents)]
         bs = BiotSavart(coils)
         
 
-    return curves, currents, ma, nfp, bs
+    return base_curves, base_currents, ma, nfp, bs
 
 
 
@@ -398,13 +397,13 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
         DeprecationWarning,
         stacklevel=2,
     )
-    curves, currents, ma, *_ = get_data(
+    base_curves, base_currents, ma, *_ = get_data(
         "ncsx",
         coil_order=Nt_coils,
         magnetic_axis_order=Nt_ma,
         points_per_period=ppp,
     )
-    return curves, currents, ma
+    return base_curves, base_currents, ma
 
 
 def get_hsx_data(Nt_coils=16, Nt_ma=10, ppp=10):
@@ -428,13 +427,13 @@ def get_hsx_data(Nt_coils=16, Nt_ma=10, ppp=10):
         DeprecationWarning,
         stacklevel=2,
     )
-    curves, currents, ma, *_ = get_data(
+    base_curves, base_currents, ma, *_ = get_data(
         "hsx",
         coil_order=Nt_coils,
         magnetic_axis_order=Nt_ma,
         points_per_period=ppp,
     )
-    return curves, currents, ma
+    return base_curves, base_currents, ma
 
 
 def get_giuliani_data(Nt_coils=16, Nt_ma=10, ppp=10, length=18, nsurfaces=5):
@@ -461,7 +460,7 @@ def get_giuliani_data(Nt_coils=16, Nt_ma=10, ppp=10, length=18, nsurfaces=5):
         DeprecationWarning,
         stacklevel=2,
     )
-    curves, currents, ma, *_ = get_data(
+    base_curves, base_currents, ma, *_ = get_data(
         "giuliani",
         coil_order=Nt_coils,
         magnetic_axis_order=Nt_ma,
@@ -469,7 +468,7 @@ def get_giuliani_data(Nt_coils=16, Nt_ma=10, ppp=10, length=18, nsurfaces=5):
         length=length,
         nsurfaces=nsurfaces,
     )
-    return curves, currents, ma
+    return base_curves, base_currents, ma
 
 
 def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
@@ -498,10 +497,10 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
         DeprecationWarning,
         stacklevel=2,
     )
-    curves, currents, ma, *_ = get_data(
+    base_curves, base_currents, ma, *_ = get_data(
         "w7x",
         coil_order=Nt_coils,
         magnetic_axis_order=Nt_ma,
         points_per_period=ppp,
     )
-    return curves, currents, ma
+    return base_curves, base_currents, ma

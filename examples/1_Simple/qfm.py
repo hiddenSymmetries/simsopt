@@ -17,7 +17,7 @@ for fixing the area and toroidal flux.
 print("Running 1_Simple/qfm.py")
 print("=======================")
 
-curves, currents, ma, nfp, bs = get_data("ncsx")
+base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
 bs_tf = BiotSavart(bs.coils)
 
 mpol = 5

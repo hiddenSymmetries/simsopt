@@ -86,7 +86,7 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exac
 
     base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
     
-    current_sum = sum(abs(c.current.get_value()) for c in bs.coils)
+    current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
     G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi)) if optimize_G else None
 
     # currents need to be fixed if optimize_G is None

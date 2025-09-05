@@ -131,8 +131,8 @@ class CoilForcesTest(unittest.TestCase):
         """Check that the self-force is approximately independent of the number of quadrature points"""
         points_per_periods = [8, 4, 2, 7, 5]
         for j, points_per_period in enumerate(points_per_periods):
-            curves, currents, ma, nfp, bs = get_data("hsx", points_per_period=points_per_period)
-            curve = curves[0]
+            base_curves, base_currents, ma, nfp, bs = get_data("hsx", points_per_period=points_per_period)
+            curve = base_curves[0]
             I = 1.5e3
             a = 0.01
             coil = Coil(curve, Current(I))
@@ -151,12 +151,12 @@ class CoilForcesTest(unittest.TestCase):
 
     def test_hsx_coil(self):
         """Compare self-force for HSX coil 1 to result from CoilForces.jl"""
-        curves, currents, ma, nfp, bs  = get_data("hsx")
-        assert len(curves[0].quadpoints) == 160
+        base_curves, base_currents, ma, nfp, bs  = get_data("hsx")
+        assert len(base_curves[0].quadpoints) == 160
         I = 150e3
         a = 0.01
         b = 0.023
-        coil = Coil(curves[0], Current(I))
+        coil = Coil(base_curves[0], Current(I))
 
         # Case of circular cross-section
 
@@ -261,7 +261,7 @@ class CoilForcesTest(unittest.TestCase):
         # The Fourier spectrum of the NCSX coils is truncated - we don't need the
         # actual coil shapes from the experiment, just a few nonzero dofs.
 
-        curves, currents, axis, nfp, bs = get_data("ncsx", coil_order=2)
+        base_curves, base_currents, axis, nfp, bs = get_data("ncsx", coil_order=2)
         
         J = MeanSquaredForce(bs.coils[0], bs.coils, regularization_circ(0.05))
         dJ = J.dJ()
@@ -286,7 +286,7 @@ class CoilForcesTest(unittest.TestCase):
         # The Fourier spectrum of the NCSX coils is truncated - we don't need the
         # actual coil shapes from the experiment, just a few nonzero dofs.
 
-        curves, currents, axis, nfp, bs = get_data("ncsx", coil_order=2)
+        base_curves, base_currents, axis, nfp, bs = get_data("ncsx", coil_order=2)
         
         J = LpCurveForce(bs.coils[0], bs.coils, regularization_circ(0.05), 2.5)
         dJ = J.dJ()

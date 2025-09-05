@@ -22,13 +22,13 @@ class MultifilamentTesting(unittest.TestCase):
 
     def subtest_multifilament_gammadash(self, order, centroid):
         assert order in [1, None]
-        curves, currents, ma, nfp, bs = get_data("ncsx", coil_order=6, points_per_period=120)
-        c = curves[0]
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx", coil_order=6, points_per_period=120)
+        c = base_curves[0]
 
         if order == 1:
             rotation = FrameRotation(c.quadpoints, order)
             rotation.x = np.array([0, 0.1, 0.3])
-            rotationShared = FrameRotation(curves[0].quadpoints, order, dofs=rotation.dofs)
+            rotationShared = FrameRotation(base_curves[0].quadpoints, order, dofs=rotation.dofs)
             assert np.allclose(rotation.x, rotationShared.x)
             assert np.allclose(rotation.alpha(c.quadpoints), rotationShared.alpha(c.quadpoints))
         else:
@@ -63,8 +63,8 @@ class MultifilamentTesting(unittest.TestCase):
     def subtest_multifilament_coefficient_derivative(self, order, centroid):
         assert order in [1, None]
 
-        curves, currents, ma, nfp, bs = get_data("ncsx", coil_order=4, points_per_period=10)
-        c = curves[0]
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx", coil_order=4, points_per_period=10)
+        c = base_curves[0]
 
         if order == 1:
             rotation = FrameRotation(c.quadpoints, order)
@@ -118,8 +118,8 @@ class MultifilamentTesting(unittest.TestCase):
             errg_old = errg
 
     def test_filamentpack(self):
-        curves, currents, ma, nfp, bs = get_data("ncsx", coil_order=6, points_per_period=80)
-        c = curves[0]
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx", coil_order=6, points_per_period=80)
+        c = base_curves[0]
 
         gapsize_n = 0.01
         gapsize_b = 0.02

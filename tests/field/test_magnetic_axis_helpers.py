@@ -14,7 +14,7 @@ class MagneticAxisHelpers(unittest.TestCase):
             self.subtest_magnetic_axis_iota(config, target_iota)
 
     def subtest_magnetic_axis_iota(self, config, target_iota):
-        curves, currents, ma, nfp, bs = get_data(config)
+        base_curves, base_currents, ma, nfp, bs = get_data(config)
         iota = compute_on_axis_iota(ma, bs)
         np.testing.assert_allclose(iota, target_iota, rtol=1e-10, atol=1e-10)
 

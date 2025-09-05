@@ -22,8 +22,8 @@ from simsopt.util import in_github_actions
 
 MAXITER = 50 if in_github_actions else 400
 
-curves, currents, ma, nfp, bs= get_data("hsx", coil_order=10, points_per_period=10)
-curve = curves[1]
+base_curves, base_currents, ma, nfp, bs= get_data("hsx", coil_order=10, points_per_period=10)
+curve = base_curves[1]
 scale_factor = 0.1
 curve_scaled = CurveXYZFourier(curve.quadpoints, curve.order)
 curve_scaled.x = curve.x * scale_factor  # scale coil to magnify the strains

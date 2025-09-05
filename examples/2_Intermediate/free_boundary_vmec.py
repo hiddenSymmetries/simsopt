@@ -15,7 +15,7 @@ from simsopt.mhd import Vmec
 from simsopt.util import MpiPartition
 
 # Load in some coils
-curves, currents, magnetic_axis, nfp, bs = get_data("w7x")
+base_curves, base_currents, magnetic_axis, nfp, bs = get_data("w7x")
 
 # Number of grid points in the toroidal angle:
 nphi = 24

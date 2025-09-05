@@ -85,7 +85,7 @@ class VmecTests(unittest.TestCase):
         """
         input_file = str(TEST_DIR / "input.W7-X_standard_configuration")
 
-        curves, currents, magnetic_axis, nfp, bs  = get_data("w7x")
+        base_curves, base_currents, magnetic_axis, nfp, bs  = get_data("w7x")
         eq = Vmec(input_file)
         nphi = 24
         with ScratchDir("."):

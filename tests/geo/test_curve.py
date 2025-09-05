@@ -702,7 +702,7 @@ class Testing(unittest.TestCase):
         print(f'Testing these plotting engines: {engines}')
         c = CurveXYZFourier(30, 2)
         c.set_dofs(np.random.rand(len(c.get_dofs())) - 0.5)
-        coils, currents, ma, nfp, bs =  get_data("ncsx", coil_order=25, magnetic_axis_order=10)
+        base_coils, base_currents, ma, nfp, bs =  get_data("ncsx", coil_order=25, magnetic_axis_order=10)
         for engine in engines:
             for close in [True, False]:
                 # Plot a single curve:
@@ -710,7 +710,7 @@ class Testing(unittest.TestCase):
 
                 # Plot multiple curves together:
                 ax = None
-                for curve in coils:
+                for curve in base_coils:
                     ax = curve.plot(engine=engine, ax=ax, show=False, close=close)
                 c.plot(engine=engine, ax=ax, close=close, plot_derivative=True, show=show)
 
@@ -750,33 +750,33 @@ class Testing(unittest.TestCase):
         points_per_period = 4
 
         for cfg in configs:
-            curves, currents, ma, nfp, bs = get_data(cfg, coil_order=order, points_per_period=points_per_period)
+            base_curves, base_currents, ma, nfp, bs = get_data(cfg, coil_order=order, points_per_period=points_per_period)
 
             # write coils to MAKEGRID file
-            coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
+            coils_to_makegrid("coils.file_to_load", base_curves, base_currents, nfp=1)
             loaded_curves = CurveXYZFourier.load_curves_from_makegrid_file("coils.file_to_load", order, points_per_period)
 
-            assert len(curves) == len(loaded_curves)
+            assert len(base_curves) == len(loaded_curves)
 
-            for j in range(len(curves)):
-                np.testing.assert_allclose(curves[j].x, loaded_curves[j].x)
+            for j in range(len(base_curves)):
+                np.testing.assert_allclose(base_curves[j].x, loaded_curves[j].x)
 
-            gamma = [curve.gamma() for curve in curves]
+            gamma = [curve.gamma() for curve in base_curves]
             loaded_gamma = [curve.gamma() for curve in loaded_curves]
 
             np.testing.assert_allclose(gamma, loaded_gamma)
 
-            kappa = [np.max(curve.kappa()) for curve in curves]
+            kappa = [np.max(curve.kappa()) for curve in base_curves]
             loaded_kappa = [np.max(curve.kappa()) for curve in loaded_curves]
 
             np.testing.assert_allclose(kappa, loaded_kappa)
 
-            length = [CurveLength(c).J() for c in curves]
+            length = [CurveLength(c).J() for c in base_curves]
             loaded_length = [CurveLength(c).J() for c in loaded_curves]
 
             np.testing.assert_allclose(length, loaded_length)
 
-            ccdist = CurveCurveDistance(curves, 0).J()
+            ccdist = CurveCurveDistance(base_curves, 0).J()
             loaded_ccdist = CurveCurveDistance(loaded_curves, 0).J()
 
             np.testing.assert_allclose(ccdist, loaded_ccdist)

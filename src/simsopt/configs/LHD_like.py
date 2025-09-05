@@ -56,10 +56,10 @@ def get_LHD_like_data(numquadpoints_circular=400, numquadpoints_helical=1000, nu
         stacklevel=2)
 
     # call the unified loader, drop the extra outputs
-    curves, currents, axis, _, _ = get_data(
+    base_curves, base_currents, axis, _, _ = get_data(
         "lhd_like",
         numquadpoints_circular=numquadpoints_circular,
         numquadpoints_helical=numquadpoints_helical,
         numquadpoints_axis=numquadpoints_axis
     )
-    return curves, currents, axis
+    return base_curves, base_currents, axis

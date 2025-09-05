@@ -1,6 +1,6 @@
 import unittest
 import os
-from simsopt.field.coilset import CoilSet, ReducedCoilSet
+from simsopt.field.coilset import CoilSet, ReducedCoilSet, Coil
 from simsopt.geo import SurfaceRZFourier, CurveLength
 from simsopt.configs import get_data
 import numpy as np
@@ -19,7 +19,7 @@ class TestCoilSet(unittest.TestCase):
         self.assertEqual(len(coilset.coils), 20)
 
     def test_wrong_init(self):
-        curves, currents, ma, nfp, bs = get_data("ncsx")
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         with self.assertRaises(ValueError):
             CoilSet(coils=bs.coils)
 
@@ -93,9 +93,11 @@ class TestCoilSet(unittest.TestCase):
 
     def test_base_coils_setter(self):
         # Test the base_coils setter method
-        curves, currents, ma, nfp, bs = get_data("ncsx")
-        self.coilset.base_coils = bs.coils
-        self.assertEqual(self.coilset.base_coils, bs.coils)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx") 
+        new_base_coils = [Coil(curve, current) for curve, current in zip(base_curves, base_currents)]
+        self.coilset.base_coils = new_base_coils
+        self.assertEqual(self.coilset.base_coils, new_base_coils)
+        
 
     def test_reduce(self):
         # Test the reduce method on simple collocation points

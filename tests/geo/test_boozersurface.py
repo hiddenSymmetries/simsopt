@@ -24,7 +24,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         """
 
         s = get_exact_surface()
-        curves, currents, ma, nfp, bs = get_data("ncsx")
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         bs_tf = BiotSavart(bs.coils)
 
         weight = 1.
@@ -80,9 +80,9 @@ class BoozerSurfaceTests(unittest.TestCase):
     def subtest_boozer_penalty_constraints_gradient(self, surfacetype, stellsym,
                                                     optimize_G=False, vectorize=False):
         np.random.seed(1)
-        curves, currents, ma, nfp, bs = get_data("ncsx")
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         bs_tf = BiotSavart(bs.coils)
-        current_sum = sum(abs(c.current.get_value()) for c in bs.coils)
+        current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
 
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
@@ -118,9 +118,9 @@ class BoozerSurfaceTests(unittest.TestCase):
     def subtest_boozer_penalty_constraints_hessian(self, surfacetype, stellsym,
                                                    optimize_G=False, vectorize=False):
         np.random.seed(1)
-        curves, currents, ma, nfp, bs = get_data("ncsx")
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         bs_tf = BiotSavart(bs.coils)
-        current_sum = sum(abs(c.current.get_value()) for c in bs.coils)
+        current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
 
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
@@ -170,9 +170,9 @@ class BoozerSurfaceTests(unittest.TestCase):
     def subtest_boozer_constrained_jacobian(self, surfacetype, stellsym,
                                             optimize_G=False):
         np.random.seed(1)
-        curves, currents, ma, nfp, bs = get_data("ncsx")
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         bs_tf = BiotSavart(bs.coils)
-        current_sum = sum(abs(c.current.get_value()) for c in bs.coils)
+        current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
 
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
@@ -233,7 +233,7 @@ class BoozerSurfaceTests(unittest.TestCase):
                                                         stellsym, optimize_G,
                                                         second_stage, config,
                                                         vectorize):
-        curves, currents, ma, nfp, bs = get_data(config)
+        base_curves, base_currents, ma, nfp, bs = get_data(config)
         if stellsym:
             coils = bs.coils
         else:
@@ -242,15 +242,15 @@ class BoozerSurfaceTests(unittest.TestCase):
             # stellarator symmetry, then breaking this slightly, and then
             # applying rotational symmetry
             from simsopt.geo.curve import RotatedCurve
-            curves_flipped = [RotatedCurve(c, 0, True) for c in curves]
-            currents_flipped = [-cur for cur in currents]
+            curves_flipped = [RotatedCurve(c, 0, True) for c in base_curves]
+            currents_flipped = [-cur for cur in base_currents]
             for c in curves_flipped:
                 c.rotmat += 0.001*np.random.uniform(low=-1., high=1.,
                                                     size=c.rotmat.shape)
                 c.rotmatT = c.rotmat.T
-            coils = coils_via_symmetries(curves + curves_flipped,
-                                         currents + currents_flipped, nfp, False)
-        current_sum = sum(abs(c.current.get_value()) for c in coils)
+            coils = coils_via_symmetries(base_curves + curves_flipped,
+                                         base_currents + currents_flipped, nfp, False)
+        current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
 
         bs = BiotSavart(coils)
 
@@ -387,8 +387,8 @@ class BoozerSurfaceTests(unittest.TestCase):
         """
         compute a surface using either the vectorized or non-vectorized subroutines
         """
-        curves, currents, ma, nfp, bs = get_data("ncsx")
-        current_sum = sum(abs(c.current.get_value()) for c in bs.coils)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
+        current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
 
         s = get_surface('SurfaceXYZTensorFourier', True, nfp=nfp)
         s.fit_to_curve(ma, 0.1)
@@ -437,9 +437,9 @@ class BoozerSurfaceTests(unittest.TestCase):
     def subtest_boozer_penalty_constraints_cpp_notcpp(self, surfacetype, stellsym, optimize_G, nphi, ntheta, weight_inv_modB, mpol, ntor):
 
         np.random.seed(1)
-        curves, currents, ma, nfp, bs = get_data("ncsx")
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         bs_tf = BiotSavart(bs.coils)
-        current_sum = sum(abs(c.current.get_value()) for c in bs.coils)
+        current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
 
         phis = None
         thetas = None

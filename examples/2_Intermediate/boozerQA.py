@@ -37,9 +37,9 @@ print("Running 2_Intermediate/boozerQA.py")
 print("================================")
 
 base_curves, base_currents, ma, nfp, bs  = get_data("ncsx")
-curves = [c.curve for c in bs.coils]
+all_curves = [c.curve for c in bs.coils]
 bs_tf = BiotSavart(bs.coils)
-current_sum = sum(abs(c.current.get_value()) for c in bs.coils)
+current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
 G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
 ## COMPUTE THE INITIAL SURFACE ON WHICH WE WANT TO OPTIMIZE FOR QA##
@@ -80,7 +80,7 @@ Jls = QuadraticPenalty(sum(ls), float(sum(ls).J()), 'max')
 # sum the objectives together
 JF = J_nonQSRatio + J_iotas + J_major_radius + Jls
 
-curves_to_vtk(curves, OUT_DIR + "curves_init")
+curves_to_vtk(all_curves, OUT_DIR + "curves_init")
 boozer_surface.surface.to_vtk(OUT_DIR + "surf_init")
 
 # let's fix the coil current
@@ -141,7 +141,7 @@ print("""
 MAXITER = 50 if in_github_actions else 1e3
 
 res = minimize(fun, dofs, jac=True, method='BFGS', options={'maxiter': MAXITER}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + "curves_opt")
+curves_to_vtk(all_curves, OUT_DIR + "curves_opt")
 boozer_surface.surface.to_vtk(OUT_DIR + "surf_opt")
 
 print("End of 2_Intermediate/boozerQA.py")

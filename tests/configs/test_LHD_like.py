@@ -12,11 +12,11 @@ class Tests(unittest.TestCase):
         If we trace a field line starting from the expected magnetic axis, it should
         match the purported axis.
         """
-        curves, currents, axis, nfp, bs = get_data("lhd_like")
+        base_curves, base_currents, axis, nfp, bs = get_data("lhd_like")
         # Flip the sign of current so B points towards +phi. Otherwise
         # fieldline_tracing traces towards -phi.
         coils = [
-            Coil(curve, -1*current) for curve, current in zip(curves, currents)
+            Coil(curve, -1*current) for curve, current in zip(base_curves, base_currents)
         ]
         field = BiotSavart(coils)
 

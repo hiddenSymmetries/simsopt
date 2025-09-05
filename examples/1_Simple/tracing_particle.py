@@ -38,11 +38,11 @@ degree = 2 if in_github_actions else 3
 OUT_DIR = "./output/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
-curves, currents, ma, nfp, bs = get_data("ncsx")
-curves = [c.curve for c in bs.coils]
+base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
+all_curves = [c.curve for c in bs.coils]
 proc0_print("Mean(|B|) on axis =", np.mean(np.linalg.norm(bs.set_points(ma.gamma()).B(), axis=1)))
 proc0_print("Mean(Axis radius) =", np.mean(np.linalg.norm(ma.gamma(), axis=1)))
-curves_to_vtk(curves + [ma], OUT_DIR + 'coils')
+curves_to_vtk(all_curves + [ma], OUT_DIR + 'coils')
 
 mpol = 5
 ntor = 5

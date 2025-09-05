@@ -19,10 +19,9 @@ aim for a Boozer surface with three times larger flux.
 print("Running 2_Intermediate/boozer.py")
 print("================================")
 
-curves, currents, ma, nfp, bs = get_data("ncsx")
-curves = [c.curve for c in bs.coils]
+base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
 bs_tf = BiotSavart(bs.coils)
-current_sum = sum(abs(c.current.get_value()) for c in bs.coils)
+current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
 G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
 mpol = 5  # try increasing this to 8 or 10 for smoother surfaces

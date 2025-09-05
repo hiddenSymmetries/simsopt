@@ -21,7 +21,7 @@ class MPITracingTesting(unittest.TestCase):
         super(MPITracingTesting, self).__init__(*args, **kwargs)
         logger = logging.getLogger('simsopt.field.tracing')
         logger.setLevel(1)
-        curves, currents, ma, nfp, bs = get_data("ncsx")
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         n = 10
         rrange = (1.1, 1.8, n)
         phirange = (0, 2*np.pi/nfp, n*2)

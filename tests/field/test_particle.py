@@ -67,7 +67,7 @@ class ParticleTracingTesting(unittest.TestCase):
         super(ParticleTracingTesting, self).__init__(*args, **kwargs)
         logger = logging.getLogger('simsopt.field.tracing')
         logger.setLevel(1)
-        curves, currents, ma, nfp, bs = get_data("ncsx")
+        base_curves,base_currents, ma, nfp, bs = get_data("ncsx")
         n = 16
 
         rrange = (1.1, 1.8, n)
