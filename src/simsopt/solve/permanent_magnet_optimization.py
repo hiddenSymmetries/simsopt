@@ -1006,7 +1006,6 @@ def GPMO_ArbVec_backtracking_macromag_py(
             N_sub: np.ndarray, shape (n_active, n_active, 3, 3), current submatrix
 
         """
-        t1 = time.time()
         # If no active tiles, return 0 score and empty solution
         if active_idx.size == 0:
             res0 = -b_obj
@@ -1035,15 +1034,13 @@ def GPMO_ArbVec_backtracking_macromag_py(
         sub.M_rem = np.full(n_active, M_rem_value)
         
         # Set easy axes for all active tiles (vectorized normalization)
+        # Avoid triggering the u_ea setter which calls M setter for each tile
         ea_norms = np.linalg.norm(ea_list, axis=1, keepdims=True)
         ea_normalized = ea_list / (ea_norms + 1e-30)
-        sub.u_ea = ea_normalized
-        t2 = time.time()
-        print(f"Time taken for setting tiles: {t2 - t1} seconds")
+        sub._u_ea = ea_normalized  # Direct assignment to avoid setter overhead
 
         mac = MacroMag(sub, bs_interp=mac_all.bs_interp) #Taking already built interpolanet field to avod reloading...
         
-        t1 = time.time()
         n_prev = prev_active_idx.size if prev_active_idx is not None else 0
         n_active = active_idx.size
         n_new = n_active - n_prev
@@ -1060,11 +1057,7 @@ def GPMO_ArbVec_backtracking_macromag_py(
             N_new_cols = None
             N_new_diag = None
             
-        t2 = time.time()
-        print(f"Time taken for demagnetization tensor: {t2 - t1} seconds")
-
         # Perform the magtense coupling direct solve
-        # print(x0_prev)
         mac, A_sub = mac.direct_solve(
             use_coils=use_coils, 
             N_new_rows=N_new_rows, 
@@ -1261,9 +1254,8 @@ def GPMO_ArbVec_backtracking_macromag_py(
                 if verbose:
                     print(f"Backtracking: {removed} pairs removed")
 
-        # Run MacroMag for the committed set ONLY every few iterations
-        t1_macromag = time.time()
-        if (((k % 10) == 0)):
+        # Probably only need to run MacroMag for the committed set ONLY every couple dozen iterations
+        if (((k % 20) == 0)):
             # active = np.where(~Gamma_complement)[0]
             # active = gamma_inds
             # ea_list = x[gamma_inds]  # if gamma_inds.size else np.zeros((0, 3))
@@ -1271,17 +1263,18 @@ def GPMO_ArbVec_backtracking_macromag_py(
             #     j_best_position = np.where(active == j_best)[0][0]
             #     # print(j_best, j_best_position, active[j_best_position])
             #     x0_prev = np.insert(x0_prev_partial, j_best_position, np.zeros(3))
+            t1_macromag = time.time()
             R2_snap, x_macro_flat, _, Aij_mj_sum, A_sub_prev = solve_subset_and_score(
                 np.array(gamma_inds), x[gamma_inds], prev_active_idx=prev_active_indices, 
                 A_prev=A_sub_prev, prev_n=prev_n
                 ) #, x0_prev=x0_prev)
+            t2_macromag = time.time()
+            print(f"Iteration {k}: Time in macromag call: {t2_macromag - t1_macromag} seconds")
             prev_active_indices = np.array(gamma_inds.copy())
             prev_n = len(gamma_inds)
             # last_x_macro_flat[:] = x_macro_flat
             # Aij_mj_sum = res
-        
-            t2_macromag = time.time()
-            print(f"Iteration {k}: Time taken for macromag on committed set: {t2_macromag - t1_macromag} seconds")
+    
 
         # print(f"x0_prev_partial: {np.shape(x0_prev_partial)}")
         # print(f"x0_prev: {np.shape(x0_prev)}")

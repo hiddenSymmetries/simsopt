@@ -406,7 +406,7 @@ class MacroMag:
         # Vectorized computation of b
         b = (m_rem[:, None] * u + chi_Ha).ravel()
 
-        t1 = time.time()
+        # t1 = time.time()
         
         # Precompute frequently used terms
         chi_diff = chi_parallel - chi_perp  # (n,)
@@ -435,8 +435,8 @@ class MacroMag:
         else:
             A -= (chi_tensor[:, None, :, :] * N_new_rows).reshape(3*n, 3*n)
             
-        t2 = time.time()
-        print(f"Time taken for direct A assembly: {t2 - t1} seconds")
+        # t2 = time.time()
+        # print(f"Time taken for direct A assembly: {t2 - t1} seconds")
         
         if print_progress and False:
             
@@ -798,18 +798,26 @@ class Tiles:
         else:
             if isinstance(val[0], (int, float)):
                 val = [val for _ in range(self.n)]
-            for i, ea in enumerate(val):
-                self._u_ea[i] = np.around(ea / np.linalg.norm(ea), decimals=9)
-                self.M = (self.M_rem[i] * self.u_ea[i], i)
-                if ea[1] != 0 or ea[2] != 0:
-                    w = np.array([1, 0, 0])
-                else:
-                    w = np.array([0, 1, 0])
-                self.u_oa1 = (np.around(np.cross(self.u_ea[i], w), decimals=9), i)
-                self.u_oa2 = (
-                    np.around(np.cross(self.u_ea[i], self.u_oa1[i]), decimals=9),
-                    i,
-                )
+            
+            # Convert to numpy array for vectorized operations
+            val = np.asarray(val)
+            
+            # Vectorized normalization
+            ea_norms = np.linalg.norm(val, axis=1, keepdims=True)
+            self._u_ea[:] = np.around(val / (ea_norms + 1e-30), decimals=9)
+            
+            # Vectorized M computation
+            self._M[:] = self.M_rem[:, None] * self._u_ea
+            
+            # Vectorized orthogonal axis computation
+            # Choose reference vector: [1,0,0] if y or z component is non-zero, else [0,1,0]
+            w_choice = np.array([[1, 0, 0], [0, 1, 0]])
+            w_mask = (val[:, 1] != 0) | (val[:, 2] != 0)
+            w = w_choice[w_mask.astype(int)]  # (n, 3)
+            
+            # Vectorized cross products
+            self._u_oa1[:] = np.around(np.cross(self._u_ea, w), decimals=9)
+            self._u_oa2[:] = np.around(np.cross(self._u_ea, self._u_oa1), decimals=9)
 
     @property
     def u_oa1(self) -> np.ndarray:
