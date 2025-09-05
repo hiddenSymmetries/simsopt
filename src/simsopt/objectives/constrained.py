@@ -33,13 +33,13 @@ class ConstrainedProblem(Optimizable):
 
         .. math::
 
-            \min_x f(x) 
+            \\min_x f(x) 
 
             \\text{s.t.} 
 
-            l_{\\text{nlc}} \leq c(x) \leq u_{\\text{nlc}}
+            l_{\\text{nlc}} \\leq c(x) \\leq u_{\\text{nlc}}
 
-            l_{\\text{lc}} \leq Ax \leq u_{\\text{lc}}
+            l_{\\text{lc}} \\leq Ax \\leq u_{\\text{lc}}
 
     Constrained optimization problems can be solved with the ``constrained_mpi_solve`` or
     ``constrained_serial_solve`` functions. Typically, this class is used for Stage-I optimization.
@@ -107,7 +107,7 @@ class ConstrainedProblem(Optimizable):
 
     def nonlinear_constraints(self, x=None, *args, **kwargs):
         """
-        Evaluates the nonlinear constraints, :math:`l_{\\text{nlc}} \leq c(x) \leq u_{\\text{nlc}}`.
+        Evaluates the nonlinear constraints, :math:`l_{\\text{nlc}} \\leq c(x) \\leq u_{\\text{nlc}}`.
 
         Args:
             x (array, Optional): Degrees of freedom. If not provided, the current degrees of freedom are used.

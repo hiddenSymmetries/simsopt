@@ -988,7 +988,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         return scalars
 
     def make_rotating_ellipse(self, major_radius, minor_radius, elongation, torsion=0):
-        """
+        r"""
         Set the surface shape to be a rotating ellipse with the given
         parameters.
 

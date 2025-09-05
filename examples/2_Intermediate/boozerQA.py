@@ -11,7 +11,7 @@ from simsopt.geo import SurfaceXYZTensorFourier, BoozerSurface, curves_to_vtk, b
 from simsopt.objectives import QuadraticPenalty
 from simsopt.util import in_github_actions
 
-"""
+r"""
 This example optimizes the NCSX coils and currents for QA on a single surface.  The objective is
 
     J = ( \int_S B_nonQA**2 dS )/(\int_S B_QA dS)

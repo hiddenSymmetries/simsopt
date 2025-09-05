@@ -112,13 +112,13 @@ class SurfaceGarabedian(sopp.Surface, Surface):
         self.local_full_x = Delta.flatten()
 
     def get_Delta(self, m, n):
-        """
+        r"""
         Return a particular :math:`\Delta_{m,n}` coefficient.
         """
         return self.Delta[m - self.mmin, n - self.nmin]
 
     def set_Delta(self, m, n, val):
-        """
+        r"""
         Set a particular :math:`\Delta_{m,n}` coefficient.
         """
         i = self.ndim * (m - self.mmin) + n - self.nmin
