@@ -150,8 +150,8 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 # Python+Macromag
-# algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
-algorithm = 'ArbVec_backtracking'  # Algorithm to use
+algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
+# algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 1  # How many magnets to consider "adjacent" to one another
 nHistory = 20  # How often to save the algorithm progress
 thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
@@ -352,16 +352,16 @@ Bn_total   = Bn_coils + Bn_magnets
 Bn_error   = Bn_magnets - Bn_target                   # = Bn_total
 Bn_error_abs = np.abs(Bn_error)
 
-def _as_field3(a2):
+def as_field3(a2):
     return np.ascontiguousarray(a2, dtype=np.float64)[:, :, None]
 
 extra_data = {
-    "Bn_total":     _as_field3(Bn_total),
-    "Bn_coils":     _as_field3(Bn_coils),
-    "Bn_magnets":   _as_field3(Bn_magnets),
-    "Bn_target":    _as_field3(Bn_target),
-    "Bn_error":     _as_field3(Bn_error),
-    "Bn_error_abs": _as_field3(Bn_error_abs),
+    "Bn_total":     as_field3(Bn_total),
+    "Bn_coils":     as_field3(Bn_coils),
+    "Bn_magnets":   as_field3(Bn_magnets),
+    "Bn_target":    as_field3(Bn_target),
+    "Bn_error":     as_field3(Bn_error),
+    "Bn_error_abs": as_field3(Bn_error_abs),
 }
 
 surface_fname = out_dir / f"surface_Bn_fields_{algorithm}"

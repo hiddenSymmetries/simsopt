@@ -333,7 +333,7 @@ class MacroMag:
         use_coils: bool = False,
         krylov_tol: float = 1e-6,
         krylov_it: int = 20,
-        N_new_rows: np.ndarray | None = None,
+        N_new_rows: np.ndarray = None,
         N_new_cols: np.ndarray | None = None,
         N_new_diag: np.ndarray | None = None,
         print_progress: bool = False,
@@ -369,6 +369,19 @@ class MacroMag:
             MacroMag: self
         
         """
+        if prev_n == 0:
+            if N_new_rows is None:
+                raise ValueError(
+                    "direct_solve requires N_new_rows (full demag tensor) for the initial pass "
+                    "when prev_n == 0."
+                )
+        else:
+            if N_new_rows is None or N_new_cols is None or N_new_diag is None:
+                raise ValueError(
+                    "direct_solve requires N_new_rows, N_new_cols, and N_new_diag for incremental "
+                    "updates when prev_n > 0."
+                )
+            
         if use_coils and (self.bs_interp is None) and (H_a_override is None):
             raise ValueError("use_coils=True, but no coil interpolant is loaded and no H_a_override was provided.")
 
@@ -1372,8 +1385,7 @@ def muse2tiles(muse_file, mu=(1.05, 1.05), magnetization=1.16e6, **kwargs):
         mxyz = data[i, 15:18]
         mp   = math.atan2(mxyz[1], mxyz[0])
         mt   = math.acos(mxyz[2] / np.linalg.norm(mxyz))
-        ang[i] = (mt, mp)
-
+        ang[i, 0:2] = [mt, mp]
         Br[i] = magnetization
 
     return build_prism(lwh, center, rot, ang, mu_arr, Br)
