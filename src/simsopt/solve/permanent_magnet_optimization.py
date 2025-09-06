@@ -509,6 +509,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
         
         use_coils = kwargs.pop('use_coils', False)
         coil_path = kwargs.pop('coil_path', None)
+        mm_refine_every = kwargs.pop('mm_refine_every', 20)
             
         algorithm_history, Bn_history, m_history, num_nonzeros, m = GPMO_ArbVec_backtracking_macromag_py(
             A_obj=contig(A_obj.T),                 # MacroMag path also expects (3N, ngrid)
@@ -521,6 +522,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             mu_oa=mu_oa,
             use_coils=use_coils, 
             coil_path=coil_path, 
+            mm_refine_every=mm_refine_every, 
             **kwargs
         )
         
@@ -882,7 +884,8 @@ def GPMO_ArbVec_backtracking_macromag_py(
     mu_ea: float = 1.00,
     mu_oa: float = 1.00,
     use_coils: bool = False,
-    coil_path: str = None
+    coil_path: str = None, 
+    mm_refine_every: int = 20, 
 ):
     """
     Hybrid ArbVec GPMO + MacroMag:
@@ -980,9 +983,13 @@ def GPMO_ArbVec_backtracking_macromag_py(
         mac_all.load_coils(coil_path)  # sets mac_all._bs_coil
 
     # Precompute demagnetization tensor
-    N_full = mac_all.fast_get_demag_tensor(cache=True)
+    # HACK: fast_get_demag_tensor yields a -N due to convention from H_d = -N M
+    # HACK: NOTE: if you later switch to magnets with rotations might need to re-look at local vs global tensor here... 
+    # so need to flip sign again to get positive N    
+    N_full = -mac_all.fast_get_demag_tensor(cache=True)
     
     # Precompute coil field if requested
+    Hcoil_all = np.zeros((N, 3))
     if use_coils:
         Hcoil_all = mac_all.coil_field_at(tiles_all.offset).astype(np.float64)
     
@@ -1064,7 +1071,8 @@ def GPMO_ArbVec_backtracking_macromag_py(
             N_new_cols=N_new_cols, 
             N_new_diag=N_new_diag, 
             x0=x0_prev, 
-            H_a_override=Hcoil_all[active_idx], print_progress=verbose, 
+            H_a_override=Hcoil_all[active_idx], 
+            print_progress=verbose, 
             A_prev=A_prev, 
             prev_n=prev_n
         )
@@ -1083,6 +1091,12 @@ def GPMO_ArbVec_backtracking_macromag_py(
     ea0 = np.zeros((active0.size, 3))
     R2_0, x_macro_flat_0, _, res0, A_sub_0 = solve_subset_and_score(active0, ea0)
     last_x_macro_flat[:] = x_macro_flat_0
+
+    x_macro_flat = x_macro_flat_0
+    R2_snap = R2_0
+    A_sub_prev = A_sub_0
+    prev_active_indices = active0
+    prev_n = active0.size
 
     # record init
     idx0 = print_iter_ref[0]
@@ -1107,16 +1121,11 @@ def GPMO_ArbVec_backtracking_macromag_py(
     # Main greedy loop
     t_gpmo = time.time()
     x0_prev = None
-    x0_prev_partial = None
-    prev_active_indices = None
-    N_sub_prev = None
-    A_sub_prev = None
-    prev_n = 0
     
     for k in range(1, K + 1):
         # t_k = time.time()
         
-        # x0_prev = None # ToDo: Implement and Profile if warm start helps speed-up iteartion
+        # x0_prev = None # TODO: Implement and Profile if warm start helps speed-up iteartion
 
         # Stop if filled or hit magnet cap     
         # t1_magtens = time.time()   
@@ -1125,7 +1134,13 @@ def GPMO_ArbVec_backtracking_macromag_py(
             active = np.where(~Gamma_complement)[0]
             # active = Gamma
             ea_list = x[active] if active.size else np.zeros((0, 3))
-            R2_snap, x_macro_flat, _, res, _ = solve_subset_and_score(active, ea_list, x0_prev)
+            
+            # One final solve before commiting set
+            R2_snap, x_macro_flat, _, res, _ = solve_subset_and_score(active, ea_list, x0_prev,
+                prev_active_idx=prev_active_indices,
+                A_prev=A_sub_prev, prev_n=prev_n
+            )
+            
             last_x_macro_flat[:] = x_macro_flat
             idx = print_iter_ref[0]
             m_history[:, :, idx] = x_macro_flat.reshape(N, 3)
@@ -1255,7 +1270,7 @@ def GPMO_ArbVec_backtracking_macromag_py(
                     print(f"Backtracking: {removed} pairs removed")
 
         # Probably only need to run MacroMag for the committed set ONLY every couple dozen iterations
-        if (((k % 20) == 0)):
+        if (k % mm_refine_every) == 0:
             # active = np.where(~Gamma_complement)[0]
             # active = gamma_inds
             # ea_list = x[gamma_inds]  # if gamma_inds.size else np.zeros((0, 3))
@@ -1265,9 +1280,10 @@ def GPMO_ArbVec_backtracking_macromag_py(
             #     x0_prev = np.insert(x0_prev_partial, j_best_position, np.zeros(3))
             t1_macromag = time.time()
             R2_snap, x_macro_flat, _, Aij_mj_sum, A_sub_prev = solve_subset_and_score(
-                np.array(gamma_inds), x[gamma_inds], prev_active_idx=prev_active_indices, 
-                A_prev=A_sub_prev, prev_n=prev_n
-                ) #, x0_prev=x0_prev)
+                np.array(gamma_inds), x[gamma_inds], 
+                prev_active_idx=prev_active_indices, 
+                A_prev=A_sub_prev, prev_n=prev_n)
+            
             t2_macromag = time.time()
             print(f"Iteration {k}: Time in macromag call: {t2_macromag - t1_macromag} seconds")
             prev_active_indices = np.array(gamma_inds.copy())

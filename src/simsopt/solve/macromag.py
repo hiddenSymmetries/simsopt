@@ -323,7 +323,7 @@ class MacroMag:
         for i in range(n):
             # demag_local[i] is shape (n_pts,3,3)
             # multiply each (3×3) by the same M_loc[i] -> yields (n_pts,3)
-            H_loc = np.einsum('pqr,r->pq', demag_tensor[i], M_loc[i])
+            H_loc = -np.einsum('pqr,r->pq', demag_tensor[i], M_loc[i]) # if demag_tensor is +N
             # rotate back to global
             H += (Rl2g[i] @ H_loc.T).T
 
@@ -373,7 +373,7 @@ class MacroMag:
             raise ValueError("use_coils=True, but no coil interpolant is loaded and no H_a_override was provided.")
 
         if H_a_override is not None:
-            H_a_override = np.asarray(H_a_override, dtype=np.float64, order="C")
+            H_a_override = np.asarray(H_a_override, dtype=np.float64, order="C") 
             if H_a_override.shape != (self.centres.shape[0], 3):
                 raise ValueError("H_a_override must have shape (n_tiles, 3) in A/m.")
 
@@ -391,6 +391,13 @@ class MacroMag:
         m_rem   = tiles.M_rem
         chi_parallel  = tiles.mu_r_ea - 1
         chi_perp  = tiles.mu_r_oa - 1
+        
+        # necessary short circuit in chi=0 case 
+        if np.allclose(chi_parallel, 0.0) and np.allclose(chi_perp, 0.0):
+            if (not use_coils) and (H_a_override is None):
+                # trivial hard-magnet solution: M = M_rem u
+                tiles.M = m_rem[:, None] * u
+                return self, None
 
         # assemble b and B directly without forming chi tensor
         H_a = np.zeros((n, 3)) if (not use_coils) else Hcoil_func(centres).astype(np.float64)
@@ -412,8 +419,10 @@ class MacroMag:
         chi_diff = chi_parallel - chi_perp  # (n,)
         u_outer = np.einsum('ik,il->ikl', u, u, optimize=True)  # (n, 3, 3) - u_i * u_i^T
         
-        chi_tensor = (chi_parallel[:, None, None] * np.eye(3)[None, :, :] + 
-                     chi_diff[:, None, None] * u_outer)  # (n, 3, 3)
+        # TODO: Something wrong with the math here..
+        chi_tensor = (chi_perp[:, None, None] * np.eye(3)[None, :, :] + 
+                    chi_diff[:, None, None] * u_outer)  # (n, 3, 3)
+
         
         # Start with previous A matrix and extend it
         A = np.zeros((3*n, 3*n))
@@ -426,14 +435,29 @@ class MacroMag:
         # Add new rows and columns 
         if prev_n > 0:
             chi_new = chi_tensor[prev_n:, :, :] 
-            A[3*prev_n:, :3*prev_n] -= (chi_new[:, None, :, :] * N_new_rows).reshape(3*(n-prev_n), 3*prev_n)
             chi_prev = chi_tensor[:prev_n, :, :]  # (prev_n, 3, 3)
-            A[:3*prev_n, 3*prev_n:] -= (chi_prev[:, None, :, :] * N_new_cols).reshape(3*prev_n, 3*(n-prev_n))
-            # New diagonal block: interactions between new tiles and new tiles
-            A[3*prev_n:, 3*prev_n:] -= (chi_new[:, None, :, :] * N_new_diag).reshape(3*(n-prev_n), 3*(n-prev_n))
+
+            # BUG: Mistake in hadammard here... 
+            # A[3*prev_n:, :3*prev_n] -= (chi_new[:, None, :, :] * N_new_rows).reshape(3*(n-prev_n), 3*prev_n)
+            
+            # A[:3*prev_n, 3*prev_n:] -= (chi_prev[:, None, :, :] * N_new_cols).reshape(3*prev_n, 3*(n-prev_n))
+            # # New diagonal block: interactions between new tiles and new tiles
+            # A[3*prev_n:, 3*prev_n:] -= (chi_new[:, None, :, :] * N_new_diag).reshape(3*(n-prev_n), 3*(n-prev_n))
+            
+            # FIX:
+            # # new rows vs old cols
+            A[3*prev_n:, :3*prev_n] += np.einsum('iab,ijbc->iajc', chi_new, N_new_rows).reshape(3*(n-prev_n), 3*prev_n)
+            # old rows vs new cols
+            A[:3*prev_n, 3*prev_n:] += np.einsum('iab,ijbc->iajc', chi_prev, N_new_cols).reshape(3*prev_n, 3*(n-prev_n))
+            # new rows vs new cols (diagonal block of the “new” part)
+            A[3*prev_n:, 3*prev_n:] += np.einsum('iab,ijbc->iajc', chi_new, N_new_diag).reshape(3*(n-prev_n), 3*(n-prev_n))
 
         else:
-            A -= (chi_tensor[:, None, :, :] * N_new_rows).reshape(3*n, 3*n)
+            # BUG: Mistake in hadammard here...
+            #A -= (chi_tensor[:, None, :, :] * N_new_rows).reshape(3*n, 3*n)
+            
+            # FIX:
+            A += np.einsum('iab,ijbc->iajc', chi_tensor, N_new_rows).reshape(3*n, 3*n)
             
         # t2 = time.time()
         # print(f"Time taken for direct A assembly: {t2 - t1} seconds")
@@ -1294,6 +1318,32 @@ Adapted from:
 
 
 def muse2tiles(muse_file, mu=(1.05, 1.05), magnetization=1.16e6, **kwargs):
+    """Convert a MUSE-exported CSV file into a set of magnet "tiles" suitable for MacroMag
+
+    Parameters
+    ----------
+    muse_file : str or Path
+        Path to a CSV file exported from MUSE. The file is expected to contain one
+        row per magnet with columns for position, size, local basis vectors, and
+        magnetization vector.
+    mu : tuple of float, optional
+        Relative permeabilities assigned to each tile. The **first entry is mu_ea**
+        (permeability along the easy axis), and the **second entry is mu_oa**
+        (permeability orthogonal to the easy axis). Defaults to (1.05, 1.05).
+    magnetization : float, optional
+        Remanent magnetization (A/m) assigned to each magnet. Defaults to 1.16e6.
+    **kwargs
+        Extra keyword arguments passed downstream to `build_prism`.
+
+    Returns
+    -------
+    Tiles
+        A `Tiles` object constructed by `build_prism`, containing the prism
+        geometries, orientations, anisotropy parameters, and magnetizations
+        parsed from the MUSE file.
+
+    """
+    
     data = np.loadtxt(muse_file, skiprows=1, delimiter=",")
     nmag = len(data)
     print(f"{nmag} magnets are identified in {muse_file!r}.")
@@ -1356,12 +1406,12 @@ def build_prism(lwh, center, rot, mag_angle, mu, remanence):
 
     for i in range(nmag):
         # tuple‐setter form writes into the i-th row of each array
-        prism.size     = (lwh[i],      i)
-        prism.offset   = (center[i],   i)
-        prism.rot      = (rot[i],      i)
-        prism.M_rem    = (rem[i],      i)
-        prism.mu_r_ea  = (mu[i,0],     i)
-        prism.mu_r_oa  = (mu[i,1],     i)
+        prism.size     = (lwh[i],i)
+        prism.offset   = (center[i],i)
+        prism.rot      = (rot[i],i)
+        prism.M_rem    = (rem[i],i)
+        prism.mu_r_ea  = (mu[i,0],i)
+        prism.mu_r_oa  = (mu[i,1],i)
         prism.set_easy_axis(val=mag_angle[i], idx=i)
         prism.color    = ([0, 0, (i+1)/nmag], i)
 

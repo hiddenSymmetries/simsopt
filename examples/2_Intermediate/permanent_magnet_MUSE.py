@@ -36,13 +36,13 @@ from simsopt.util.permanent_magnet_helper_functions import *
 
 t_start = time.time()
 
-high_res_run = False
+high_res_run = True
 
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:
     nphi = 2
     nIter_max = 100
-    nBacktracking = 50
+    nBacktracking = 0
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 elif high_res_run: 
@@ -150,8 +150,8 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 # Python+Macromag
-algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
-# algorithm = 'ArbVec_backtracking'  # Algorithm to use
+# algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
+algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 1  # How many magnets to consider "adjacent" to one another
 nHistory = 20  # How often to save the algorithm progress
 thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
@@ -169,10 +169,11 @@ if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking_macromag_py'
 # Macromag branch
 if algorithm == "ArbVec_backtracking_macromag_py": 
     kwargs['cube_dim'] = 0.004
-    kwargs['mu_ea'] = 1.15
-    kwargs['mu_oa'] = 1.05
+    kwargs['mu_ea'] = 1.05
+    kwargs['mu_oa'] = 1.15
     kwargs['use_coils'] = True  
     kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
+    kwargs['mm_refine_every'] = 20
     
 # Optimize the permanent magnets greedily
 t1 = time.time()

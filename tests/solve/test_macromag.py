@@ -130,7 +130,7 @@ class MacroMagTests(unittest.TestCase):
         macro = MacroMag(tiles)
         macro.direct_solve(
             use_coils=False,
-            krylov_tol=1e-8
+            krylov_tol=1e-8,
         )
         norms   = np.linalg.norm(tiles.M, axis=1)
         expected = tiles.M_rem

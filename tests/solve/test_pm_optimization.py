@@ -264,7 +264,7 @@ class Testing(unittest.TestCase):
         - The magnetization history tensor has shape (ndipoles, 3, >= nhistory+1)
         - With m_init = 0, the initial objective equals 0.5‖b‖^2 (b = pm_opt.b_obj)
         - If the initial residual is non-tiny (> 1e-12), the objective strictly decreases
-        - If the initial residual is tiny (<=1e-12), the final objective remains tiny (<=1e-6)..
+        - If the initial residual is tiny (<= 1e-12), the final objective remains tiny (<= 1e-6)..
         - When improvement is possible, at least one magnet is placed; in all cases
         the number of placed magnets is capped by max_nMagnets (4 here)
         """
@@ -282,8 +282,10 @@ class Testing(unittest.TestCase):
             kwargs['backtracking'] = 4
             kwargs['max_nMagnets'] = 4
             kwargs['thresh_angle'] = np.pi
-            # Ensure MacroMag variants start from a clean slate
             kwargs['m_init'] = np.zeros((pm_opt.ndipoles, 3))
+            kwargs['verbose'] = False               
+            kwargs['mm_refine_every'] = 1 
+            kwargs['use_coils'] = False
             errors_mm, Bn_mm, m_hist_mm = GPMO(pm_opt, algorithm='ArbVec_backtracking_macromag_py', **kwargs)
             m_mm = pm_opt.m.copy()
 
@@ -362,6 +364,8 @@ class Testing(unittest.TestCase):
                 'cube_dim': cube_dim,
                 'mu_ea': 1.0,
                 'mu_oa': 1.0,
+                'mm_refine_every': 1,   
+                'use_coils': False, 
             })
             errors_mm, Bn_mm, m_hist_mm = GPMO(pm_opt, algorithm='ArbVec_backtracking_macromag_py', **mm_kwargs)
             m_mm = pm_opt.m.copy()
