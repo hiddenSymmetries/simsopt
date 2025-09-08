@@ -150,6 +150,16 @@ dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
+af_forces = sopp.dipole_forces_from_A_F(pm_opt.m, A_F)
+mu0_factor = (3.0 * 4.0 * np.pi * 1e-7) / (4.0 * np.pi)
+F_norm_squared = sopp.two_norm_squared(af_forces)
+print(f"Force norm squared (From A_F method): {kwargs['force_weight'] * F_norm_squared}")
+net_forces, net_torques = pm_opt.force_torque_calc(dipoles)
+print("mmax_fourth = ", pm_opt.m_maxima[0] ** 4)
+print("Force norm from AF method rescaled (To match optimization)= ", kwargs['force_weight'] * F_norm_squared / pm_opt.m_maxima[0] ** 4)   
+
+
+
 save_plots = True
 if save_plots:
     # Save the MSE history and history of the m vectors
@@ -165,23 +175,23 @@ if save_plots:
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
     make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
-    print(m_history.shape)
+    #print(m_history.shape)
     # Look through the solutions as function of K and make plots
-    for k in range(0, m_history.shape[-1]):
+    for k in range(0, m_history.shape[-1], 100):
         #mk = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
         mk = m_history[:, :, k]
-        print(mk.shape)
+        #print(mk.shape)
         
        
         mk_flat = mk.flatten()
-        t3 = time.time()
-        mk_forces = sopp.dipole_forces_from_A_F(mk_flat, A_F)
-        mu0_factor = (3.0 * 4.0 * np.pi * 1e-7) / (4.0 * np.pi)
-        t4 = time.time()
-        print(f"Time to calculate forces: {t4-t3:.3f} seconds")
-        print('Shape of mk_forces = ', mk_forces.shape)
-        F_norm_squared = sopp.two_norm_squared(mk_forces)
-        print(f"Force norm squared: {kwargs['force_weight'] * F_norm_squared}")
+        #t3 = time.time()
+        #mk_forces = sopp.dipole_forces_from_A_F(mk_flat, A_F)
+        #mu0_factor = (3.0 * 4.0 * np.pi * 1e-7) / (4.0 * np.pi)
+        #t4 = time.time()
+        #print(f"Time to calculate forces: {t4-t3:.3f} seconds")
+        #print('Shape of mk_forces = ', mk_forces.shape)
+        #F_norm_squared = sopp.two_norm_squared(mk_forces)
+        #print(f"Force norm squared: {kwargs['force_weight'] * F_norm_squared}")
         
         
         net_forces, net_torques = pm_opt.force_torque_calc(mk)
@@ -201,15 +211,15 @@ if save_plots:
         b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}")
         print("Total fB = ", 0.5 * np.sum((pm_opt.A_obj @ mk_flat - pm_opt.b_obj) ** 2))
         Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
-        Bnormal_total = Bnormal + Bnormal_dipoles
+        normal_total = Bnormal + Bnormal_dipoles
         print(SquaredFlux(s_plot, b_dipole, -Bnormal).J())
-        print(f"Bnormal_total: {0.5 * np.mean(Bnormal_total ** 2)}")
-        print("mmax_fourth = ", pm_opt.m_maxima[0] ** 4)
-        print("Forces_rescaled = ", kwargs['force_weight'] * F_norm_squared / pm_opt.m_maxima[0] ** 4)
+        print(f"Bnormal_total: {0.5 * np.mean(normal_total ** 2)}")
+        #print("mmax_fourth = ", pm_opt.m_maxima[0] ** 4)
+        #print("Forces_rescaled = ", kwargs['force_weight'] * F_norm_squared / pm_opt.m_maxima[0] ** 4)
 
         # For plotting Bn on the full torus surface at the end with just the dipole fields
         make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}")
-        pointData = {"B_N": Bnormal_total[:, :, None]}
+        pointData = {"B_N": normal_total[:, :, None]}
         s_plot.to_vtk(out_dir / "m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}", extra_data=pointData)
         
     # write solution to FAMUS-type file
