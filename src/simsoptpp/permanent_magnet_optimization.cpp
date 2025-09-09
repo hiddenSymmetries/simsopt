@@ -1404,6 +1404,9 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
     int j_update = 1;
     if (single_direction >= 0) j_update = 3;
     
+    // rescale force_weight by mu0_factor
+    force_weight *= mu0_factor;
+
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
         
@@ -1419,25 +1422,36 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
             if (Gamma_ptr[j]) {
                 // Set up variables for j's moment and position
                 int dipole_idx = j / 3;
-                int j_plus1 = j + 1;
-                int j_plus2 = j + 2;
-                int j_N3 = j + N3;
+                int j_plus0 = 3 * dipole_idx;
+                int j_plus1 = j_plus0 + 1;
+                int j_plus2 = j_plus0 + 2;
+                int j_N3 = j_plus0 + N3;
                 int j_N3_plus1 = j_N3 + 1;
                 int j_N3_plus2 = j_N3 + 2;
                 
                 // precompute indices for better performance
                 int component_idx = j % 3;
-                int component_idx_3 = component_idx * 3;
-                int component_idx_3_plus1 = component_idx_3 + 1;
-                int component_idx_3_plus2 = component_idx_3 + 2;
+
                 
                 // Get position vector for magnet j
-                double j_pos[3] = {positions_ptr[j], positions_ptr[j_plus1], positions_ptr[j_plus2]};
+                double j_pos0_shared = positions_ptr[j_plus0];
+                double j_pos1_shared = positions_ptr[j_plus1];
+                double j_pos2_shared = positions_ptr[j_plus2];
                 
                 // Pre-compute moment_j vector (only component is non-zero)
-                double moment_j[3] = {0.0, 0.0, 0.0};
-                moment_j[component_idx] = 1.0;
-                
+                double moment_j0 = 0.0;
+                double moment_j1 = 0.0;
+                double moment_j2 = 0.0;
+                if (component_idx == 0) {
+                    moment_j0 = 1.0;
+                }
+                else if (component_idx == 1) {
+                    moment_j1 = 1.0;
+                }
+                else {
+                    moment_j2 = 1.0;
+                }
+
                 // Nested loop over active magnets m
                 for (int m_idx = 0; m_idx < active_magnets.size(); ++m_idx) {
                     int m = active_magnets[m_idx];
@@ -1451,136 +1465,98 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
                     int m3_N3_plus1 = m3_N3 + 1;
                     int m3_N3_plus2 = m3_N3 + 2;
                     
-                    double r0 = positions_ptr[m3];
-                    double r1 = positions_ptr[m3_plus1];
-                    double r2 = positions_ptr[m3_plus2];
-                    double x1 = x_ptr[m3];
-                    double x2 = x_ptr[m3_plus1];
-                    double x3 = x_ptr[m3_plus2];
+                    double m_pos0 = positions_ptr[m3];
+                    double m_pos1 = positions_ptr[m3_plus1];
+                    double m_pos2 = positions_ptr[m3_plus2];
+                    double x0 = x_ptr[m3];
+                    double x1 = x_ptr[m3_plus1];
+                    double x2 = x_ptr[m3_plus2];
             
                     // a) Calculate displacement vector r from j to m
-                    r0 -= j_pos[0];
-                    r1 -= j_pos[1];
-                    r2 -= j_pos[2];
-                    double r[3] = {r0, r1, r2};
+                    double r0 = m_pos0 - j_pos0_shared;
+                    double r1 = m_pos1 - j_pos1_shared;
+                    double r2 = m_pos2 - j_pos2_shared;
+                    //double r[3] = {r0, r1, r2};
                     
                     // Compute r_squared and check for small distances early
                     double r_squared = r0*r0 + r1*r1 + r2*r2;
                     if (r_squared < 1e-20) continue; // Skip very close dipoles
-                    double r_sqrt = sqrt(r_squared);
-                    double r_squared_squared = r_squared * r_squared;
-                    double C = mu0_factor / (r_sqrt * r_squared_squared);
-                    double A_tildeF[27];
-
-                    // Completely unroll the tensor calculation for maximum performance
-                    // Index mapping: (j, i, l) -> j*9 + i*3 + l
-                    // Formula: A_tildeF[j,i,l] = (delta_ij * r[l] + r[i] * delta_jl + delta_il * r[j] - 5 * r[i] * r[l] * r[j] / r_squared) * C
-                    
-                    // j=0, i=0, l=0,1,2
-                    A_tildeF[0] = (3.0 * r0 - 5.0 * r0 * r0 * r0 / r_squared);  // j=0, i=0, l=0: delta_ij=1, delta_jl=1, delta_il=1
-                    A_tildeF[1] = (r1 - 5.0 * r0 * r0 * r1 / r_squared);         // j=0, i=0, l=1: delta_ij=1, delta_jl=0, delta_il=0
-                    A_tildeF[2] = (r2 - 5.0 * r0 * r0 * r2 / r_squared);         // j=0, i=0, l=2: delta_ij=1, delta_jl=0, delta_il=0
-                    
-                    // j=0, i=1, l=0,1,2
-                    A_tildeF[3] = (r0 - 5.0 * r1 * r0 * r0 / r_squared);         // j=0, i=1, l=0: delta_ij=0, delta_jl=1, delta_il=0
-                    A_tildeF[4] = (r1 - 5.0 * r1 * r1 * r0 / r_squared);         // j=0, i=1, l=1: delta_ij=0, delta_jl=0, delta_il=1
-                    A_tildeF[5] = (r2 - 5.0 * r1 * r0 * r2 / r_squared);         // j=0, i=1, l=2: delta_ij=0, delta_jl=0, delta_il=0
-                    
-                    // j=0, i=2, l=0,1,2
-                    A_tildeF[6] = (r0 - 5.0 * r2 * r0 * r0 / r_squared);         // j=0, i=2, l=0: delta_ij=0, delta_jl=1, delta_il=0
-                    A_tildeF[7] = (r1 - 5.0 * r2 * r0 * r1 / r_squared);         // j=0, i=2, l=1: delta_ij=0, delta_jl=0, delta_il=0
-                    A_tildeF[8] = (r2 - 5.0 * r2 * r2 * r0 / r_squared);         // j=0, i=2, l=2: delta_ij=0, delta_jl=0, delta_il=1
-                    
-                    // j=1, i=0, l=0,1,2
-                    A_tildeF[9] = (r0 - 5.0 * r0 * r1 * r0 / r_squared);         // j=1, i=0, l=0: delta_ij=0, delta_jl=0, delta_il=1
-                    A_tildeF[10] = (r1 - 5.0 * r0 * r1 * r1 / r_squared);        // j=1, i=0, l=1: delta_ij=0, delta_jl=1, delta_il=0
-                    A_tildeF[11] = (r2 - 5.0 * r0 * r1 * r2 / r_squared);        // j=1, i=0, l=2: delta_ij=0, delta_jl=0, delta_il=0
-                    
-                    // j=1, i=1, l=0,1,2
-                    A_tildeF[12] = (r0 - 5.0 * r1 * r1 * r0 / r_squared);        // j=1, i=1, l=0: delta_ij=1, delta_jl=0, delta_il=0
-                    A_tildeF[13] = (3.0 * r1 - 5.0 * r1 * r1 * r1 / r_squared);  // j=1, i=1, l=1: delta_ij=1, delta_jl=1, delta_il=1
-                    A_tildeF[14] = (r2 - 5.0 * r1 * r1 * r2 / r_squared);         // j=1, i=1, l=2: delta_ij=1, delta_jl=0, delta_il=0
-                    
-                    // j=1, i=2, l=0,1,2
-                    A_tildeF[15] = (r0 - 5.0 * r1 * r2 * r0 / r_squared);        // j=1, i=2, l=0: delta_ij=0, delta_jl=0, delta_il=0
-                    A_tildeF[16] = (r1 - 5.0 * r1 * r2 * r1 / r_squared);         // j=1, i=2, l=1: delta_ij=0, delta_jl=0, delta_il=0
-                    A_tildeF[17] = (r2 - 5.0 * r1 * r2 * r2 / r_squared);         // j=1, i=2, l=2: delta_ij=0, delta_jl=0, delta_il=1
-                    
-                    // j=2, i=0, l=0,1,2
-                    A_tildeF[18] = (r0 - 5.0 * r2 * r0 * r0 / r_squared);        // j=2, i=0, l=0: delta_ij=0, delta_jl=0, delta_il=1
-                    A_tildeF[19] = (r1 - 5.0 * r2 * r0 * r1 / r_squared);         // j=2, i=0, l=1: delta_ij=0, delta_jl=0, delta_il=0
-                    A_tildeF[20] = (r2 - 5.0 * r2 * r0 * r2 / r_squared);         // j=2, i=0, l=2: delta_ij=0, delta_jl=1, delta_il=0
-                    
-                    // j=2, i=1, l=0,1,2
-                    A_tildeF[21] = (r0 - 5.0 * r2 * r1 * r0 / r_squared);        // j=2, i=1, l=0: delta_ij=0, delta_jl=0, delta_il=0
-                    A_tildeF[22] = (r1 - 5.0 * r2 * r1 * r1 / r_squared);         // j=2, i=1, l=1: delta_ij=0, delta_jl=0, delta_il=1
-                    A_tildeF[23] = (r2 - 5.0 * r2 * r1 * r2 / r_squared);         // j=2, i=1, l=2: delta_ij=0, delta_jl=1, delta_il=0
-                    
-                    // j=2, i=2, l=0,1,2
-                    A_tildeF[24] = (r0 - 5.0 * r2 * r2 * r0 / r_squared);        // j=2, i=2, l=0: delta_ij=0, delta_jl=0, delta_il=0
-                    A_tildeF[25] = (r1 - 5.0 * r2 * r2 * r1 / r_squared);         // j=2, i=2, l=1: delta_ij=0, delta_jl=0, delta_il=0
-                    A_tildeF[26] = (3.0 * r2 - 5.0 * r2 * r2 * r2 / r_squared);  // j=2, i=2, l=2: delta_ij=1, delta_jl=1, delta_il=1
-                    
+                    double r_mag = sqrt(r_squared);
+                    double inv_r_squared_5 = 5.0 / r_squared;
+                    double r_fifth = r_squared * r_squared * r_mag;
+                    double r_fifth_inv = 1.0 / r_fifth;
+                    double r0_r0_r0_5 = r0 * r0 * r0 * inv_r_squared_5;
+                    double r1_r1_r1_5 = r1 * r1 * r1 * inv_r_squared_5;
+                    double r2_r2_r2_5 = r2 * r2 * r2 * inv_r_squared_5;
+                    double r0_r1_r2_5 = r0 * r1 * r2 * inv_r_squared_5;
+                    double r0_r0_r1_5 = r0 * r0 * r1 * inv_r_squared_5;
+                    double r0_r0_r2_5 = r0 * r0 * r2 * inv_r_squared_5;
+                    double r0_r1_r1_5 = r0 * r1 * r1 * inv_r_squared_5;
+                    double r0_r2_r2_5 = r0 * r2 * r2 * inv_r_squared_5;
+                    double r1_r1_r2_5 = r1 * r1 * r2 * inv_r_squared_5;
+                    double r1_r2_r2_5 = r1 * r2 * r2 * inv_r_squared_5;
                     // Unroll the matrix multiplication loop for better performance
-                    double force_on_m[3] = {0.0, 0.0, 0.0};
+                    double force_on_m0 = 0.0;
+                    double force_on_m1 = 0.0;
+                    double force_on_m2 = 0.0;
 
                     // Component 0 (x) - uses A_tildeF indices for x-component of force (j=0)
-                    force_on_m[0] = x1 * A_tildeF[0*9 + 0*3 + 0] * moment_j[0] +
-                                    x1 * A_tildeF[0*9 + 0*3 + 1] * moment_j[1] +
-                                    x1 * A_tildeF[0*9 + 0*3 + 2] * moment_j[2] +
-                                    x2 * A_tildeF[0*9 + 1*3 + 0] * moment_j[0] +
-                                    x2 * A_tildeF[0*9 + 1*3 + 1] * moment_j[1] +
-                                    x2 * A_tildeF[0*9 + 1*3 + 2] * moment_j[2] +
-                                    x3 * A_tildeF[0*9 + 2*3 + 0] * moment_j[0] +
-                                    x3 * A_tildeF[0*9 + 2*3 + 1] * moment_j[1] +
-                                    x3 * A_tildeF[0*9 + 2*3 + 2] * moment_j[2];
+                    force_on_m0 = x0 * (3.0 * r0 - r0_r0_r0_5) * moment_j0 +
+                                    x0 * (r1 - r0_r0_r1_5) * moment_j1 +
+                                    x0 * (r2 - r0_r0_r2_5) * moment_j2 +
+                                    x1 * (r1 - r0_r0_r1_5) * moment_j0 +
+                                    x1 * (r0 - r0_r1_r1_5) * moment_j1 +
+                                    x1 * (-r0_r1_r2_5) * moment_j2 +
+                                    x2 * (r2 - r0_r0_r2_5) * moment_j0 +
+                                    x2 * (-r0_r1_r2_5) * moment_j1 +
+                                    x2 * (r0 - r0_r2_r2_5) * moment_j2;
                     
                     // Component 1 (y) - uses A_tildeF indices for y-component of force (j=1)
-                    force_on_m[1] = x1 * A_tildeF[1*9 + 0*3 + 0] * moment_j[0] +
-                                    x1 * A_tildeF[1*9 + 0*3 + 1] * moment_j[1] +
-                                    x1 * A_tildeF[1*9 + 0*3 + 2] * moment_j[2] +
-                                    x2 * A_tildeF[1*9 + 1*3 + 0] * moment_j[0] +
-                                    x2 * A_tildeF[1*9 + 1*3 + 1] * moment_j[1] +
-                                    x2 * A_tildeF[1*9 + 1*3 + 2] * moment_j[2] +
-                                    x3 * A_tildeF[1*9 + 2*3 + 0] * moment_j[0] +
-                                    x3 * A_tildeF[1*9 + 2*3 + 1] * moment_j[1] +
-                                    x3 * A_tildeF[1*9 + 2*3 + 2] * moment_j[2];
+                    force_on_m1 = x0 * (r1 - r0_r0_r1_5) * moment_j0 +
+                                    x0 * (r0 - r0_r1_r1_5) * moment_j1 +
+                                    x0 * (-r0_r1_r2_5) * moment_j2 +
+                                    x1 * (r0 - r0_r1_r1_5) * moment_j0 +
+                                    x1 * (3.0 * r1 - r1_r1_r1_5) * moment_j1 +
+                                    x1 * (r2 - r1_r1_r2_5) * moment_j2 +
+                                    x2 * (-r0_r1_r2_5) * moment_j0 +
+                                    x2 * (r2 - r1_r1_r2_5) * moment_j1 +
+                                    x2 * (r1 - r1_r2_r2_5) * moment_j2;
                     
                     // Component 2 (z) - uses A_tildeF indices for z-component of force (j=2)
-                    force_on_m[2] = x1 * A_tildeF[2*9 + 0*3 + 0] * moment_j[0] +
-                                    x1 * A_tildeF[2*9 + 0*3 + 1] * moment_j[1] +
-                                    x1 * A_tildeF[2*9 + 0*3 + 2] * moment_j[2] +
-                                    x2 * A_tildeF[2*9 + 1*3 + 0] * moment_j[0] +
-                                    x2 * A_tildeF[2*9 + 1*3 + 1] * moment_j[1] +
-                                    x2 * A_tildeF[2*9 + 1*3 + 2] * moment_j[2] +
-                                    x3 * A_tildeF[2*9 + 2*3 + 0] * moment_j[0] +
-                                    x3 * A_tildeF[2*9 + 2*3 + 1] * moment_j[1] +
-                                    x3 * A_tildeF[2*9 + 2*3 + 2] * moment_j[2];
+                    force_on_m2 = x0 * (r2 - r0_r0_r2_5) * moment_j0 +
+                                    x0 * (-r0_r1_r2_5) * moment_j1 +
+                                    x0 * (r0 - r0_r2_r2_5) * moment_j2 +
+                                    x1 * (-r0_r1_r2_5) * moment_j0 +
+                                    x1 * (r2 - r1_r1_r2_5) * moment_j1 +
+                                    x1 * (r1 - r1_r2_r2_5) * moment_j2 +
+                                    x2 * (r0 - r0_r2_r2_5) * moment_j0 +
+                                    x2 * (r1 - r1_r2_r2_5) * moment_j1 +
+                                    x2 * (3.0 * r2 - r2_r2_r2_5) * moment_j2;
 
                     // overall factor of C / r_squared to add back in
-                    force_on_m[0] *= C / r_squared;
-                    force_on_m[1] *= C / r_squared;
-                    force_on_m[2] *= C / r_squared;
-                    
+                    force_on_m0 *= r_fifth_inv;
+                    force_on_m1 *= r_fifth_inv;
+                    force_on_m2 *= r_fifth_inv;
+
                     // Add force to magnet m's force vector in temp_forces_plus
-                    temp_forces_plus_ptr[m3] += force_on_m[0];
-                    temp_forces_plus_ptr[m3_plus1] += force_on_m[1];
-                    temp_forces_plus_ptr[m3_plus2] += force_on_m[2];
+                    temp_forces_plus_ptr[m3] += force_on_m0;
+                    temp_forces_plus_ptr[m3_plus1] += force_on_m1;
+                    temp_forces_plus_ptr[m3_plus2] += force_on_m2;
                     
                     // Subtract force from magnet m's force vector in temp_forces_minus
-                    temp_forces_minus_ptr[m3] -= force_on_m[0];
-                    temp_forces_minus_ptr[m3_plus1] -= force_on_m[1];
-                    temp_forces_minus_ptr[m3_plus2] -= force_on_m[2];
+                    temp_forces_minus_ptr[m3] -= force_on_m0;
+                    temp_forces_minus_ptr[m3_plus1] -= force_on_m1;
+                    temp_forces_minus_ptr[m3_plus2] -= force_on_m1;
                     
                     // Subtract force from magnet j's force vector in temp_forces_plus (Newton's 3rd law)
-                    temp_forces_plus_ptr[j] -= force_on_m[0];
-                    temp_forces_plus_ptr[j_plus1] -= force_on_m[1];
-                    temp_forces_plus_ptr[j_plus2] -= force_on_m[2];
+                    temp_forces_plus_ptr[j] -= force_on_m0;
+                    temp_forces_plus_ptr[j_plus1] -= force_on_m1;
+                    temp_forces_plus_ptr[j_plus2] -= force_on_m2;
                     
                     // Add force to magnet j's force vector in temp_forces_minus (Newton's 3rd law)
-                    temp_forces_minus_ptr[j] += force_on_m[0];
-                    temp_forces_minus_ptr[j_plus1] += force_on_m[1];
-                    temp_forces_minus_ptr[j_plus2] += force_on_m[2];
+                    temp_forces_minus_ptr[j] += force_on_m0;
+                    temp_forces_minus_ptr[j_plus1] += force_on_m1;
+                    temp_forces_minus_ptr[j_plus2] += force_on_m2;
                 }
                 
                 // Compute the two norm squared of temp_forces_plus and use it to calculate the positive R2 value
@@ -1662,114 +1638,76 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
             r0 -= skj_pos[0];
             r1 -= skj_pos[1];
             r2 -= skj_pos[2];
-            double r[3] = {r0, r1, r2};
+            //double r[3] = {r0, r1, r2};
             
             // Compute r_squared and check for small distances early
             double r_squared = r0*r0 + r1*r1 + r2*r2;
             if (r_squared < 1e-20) continue; // Skip very close dipoles
-            double r_sqrt = sqrt(r_squared);
-            double r_squared_squared = r_squared * r_squared;
-            double C = mu0_factor / (r_sqrt * r_squared_squared);
-            double A_tildeF[27];
-            
-            // Completely unroll the tensor calculation for maximum performance
-            // Index mapping: (j, i, l) -> j*9 + i*3 + l
-            // Formula: A_tildeF[j,i,l] = (delta_ij * r[l] + r[i] * delta_jl + delta_il * r[j] - 5 * r[i] * r[l] * r[j] / r_squared) * C
-            
-            // j=0, i=0, l=0,1,2
-            A_tildeF[0] = (3.0 * r0 - 5.0 * r0 * r0 * r0 / r_squared);  // j=0, i=0, l=0: delta_ij=1, delta_jl=1, delta_il=1
-            A_tildeF[1] = (r1 - 5.0 * r0 * r0 * r1 / r_squared);         // j=0, i=0, l=1: delta_ij=1, delta_jl=0, delta_il=0
-            A_tildeF[2] = (r2 - 5.0 * r0 * r0 * r2 / r_squared);         // j=0, i=0, l=2: delta_ij=1, delta_jl=0, delta_il=0
-            
-            // j=0, i=1, l=0,1,2
-            A_tildeF[3] = (r0 - 5.0 * r1 * r0 * r0 / r_squared);         // j=0, i=1, l=0: delta_ij=0, delta_jl=1, delta_il=0
-            A_tildeF[4] = (r1 - 5.0 * r1 * r1 * r0 / r_squared);         // j=0, i=1, l=1: delta_ij=0, delta_jl=0, delta_il=1
-            A_tildeF[5] = (r2 - 5.0 * r1 * r0 * r2 / r_squared);         // j=0, i=1, l=2: delta_ij=0, delta_jl=0, delta_il=0
-            
-            // j=0, i=2, l=0,1,2
-            A_tildeF[6] = (r0 - 5.0 * r2 * r0 * r0 / r_squared);         // j=0, i=2, l=0: delta_ij=0, delta_jl=1, delta_il=0
-            A_tildeF[7] = (r1 - 5.0 * r2 * r0 * r1 / r_squared);         // j=0, i=2, l=1: delta_ij=0, delta_jl=0, delta_il=0
-            A_tildeF[8] = (r2 - 5.0 * r2 * r2 * r0 / r_squared);         // j=0, i=2, l=2: delta_ij=0, delta_jl=0, delta_il=1
-            
-            // j=1, i=0, l=0,1,2
-            A_tildeF[9] = (r0 - 5.0 * r0 * r1 * r0 / r_squared);         // j=1, i=0, l=0: delta_ij=0, delta_jl=0, delta_il=1
-            A_tildeF[10] = (r1 - 5.0 * r0 * r1 * r1 / r_squared);        // j=1, i=0, l=1: delta_ij=0, delta_jl=1, delta_il=0
-            A_tildeF[11] = (r2 - 5.0 * r0 * r1 * r2 / r_squared);        // j=1, i=0, l=2: delta_ij=0, delta_jl=0, delta_il=0
-            
-            // j=1, i=1, l=0,1,2
-            A_tildeF[12] = (r0 - 5.0 * r1 * r1 * r0 / r_squared);        // j=1, i=1, l=0: delta_ij=1, delta_jl=0, delta_il=0
-            A_tildeF[13] = (3.0 * r1 - 5.0 * r1 * r1 * r1 / r_squared);  // j=1, i=1, l=1: delta_ij=1, delta_jl=1, delta_il=1
-            A_tildeF[14] = (r2 - 5.0 * r1 * r1 * r2 / r_squared);         // j=1, i=1, l=2: delta_ij=1, delta_jl=0, delta_il=0
-            
-            // j=1, i=2, l=0,1,2
-            A_tildeF[15] = (r0 - 5.0 * r1 * r2 * r0 / r_squared);        // j=1, i=2, l=0: delta_ij=0, delta_jl=0, delta_il=0
-            A_tildeF[16] = (r1 - 5.0 * r1 * r2 * r1 / r_squared);         // j=1, i=2, l=1: delta_ij=0, delta_jl=0, delta_il=0
-            A_tildeF[17] = (r2 - 5.0 * r1 * r2 * r2 / r_squared);         // j=1, i=2, l=2: delta_ij=0, delta_jl=0, delta_il=1
-            
-            // j=2, i=0, l=0,1,2
-            A_tildeF[18] = (r0 - 5.0 * r2 * r0 * r0 / r_squared);        // j=2, i=0, l=0: delta_ij=0, delta_jl=0, delta_il=1
-            A_tildeF[19] = (r1 - 5.0 * r2 * r0 * r1 / r_squared);         // j=2, i=0, l=1: delta_ij=0, delta_jl=0, delta_il=0
-            A_tildeF[20] = (r2 - 5.0 * r2 * r0 * r2 / r_squared);         // j=2, i=0, l=2: delta_ij=0, delta_jl=1, delta_il=0
-            
-            // j=2, i=1, l=0,1,2
-            A_tildeF[21] = (r0 - 5.0 * r2 * r1 * r0 / r_squared);        // j=2, i=1, l=0: delta_ij=0, delta_jl=0, delta_il=0
-            A_tildeF[22] = (r1 - 5.0 * r2 * r1 * r1 / r_squared);         // j=2, i=1, l=1: delta_ij=0, delta_jl=0, delta_il=1
-            A_tildeF[23] = (r2 - 5.0 * r2 * r1 * r2 / r_squared);         // j=2, i=1, l=2: delta_ij=0, delta_jl=1, delta_il=0
-            
-            // j=2, i=2, l=0,1,2
-            A_tildeF[24] = (r0 - 5.0 * r2 * r2 * r0 / r_squared);        // j=2, i=2, l=0: delta_ij=0, delta_jl=0, delta_il=0
-            A_tildeF[25] = (r1 - 5.0 * r2 * r2 * r1 / r_squared);         // j=2, i=2, l=1: delta_ij=0, delta_jl=0, delta_il=0
-            A_tildeF[26] = (3.0 * r2 - 5.0 * r2 * r2 * r2 / r_squared);  // j=2, i=2, l=2: delta_ij=1, delta_jl=1, delta_il=1
-            
+            double r_mag = sqrt(r_squared);
+            double inv_r_squared_5 = 5.0 / r_squared;
+            double r_fifth = r_squared * r_squared * r_mag;
+            double r_fifth_inv = 1.0 / r_fifth;
+            double r0_r0_r0_5 = r0 * r0 * r0 * inv_r_squared_5;
+            double r1_r1_r1_5 = r1 * r1 * r1 * inv_r_squared_5;
+            double r2_r2_r2_5 = r2 * r2 * r2 * inv_r_squared_5;
+            double r0_r1_r2_5 = r0 * r1 * r2 * inv_r_squared_5;
+            double r0_r0_r1_5 = r0 * r0 * r1 * inv_r_squared_5;
+            double r0_r0_r2_5 = r0 * r0 * r2 * inv_r_squared_5;
+            double r0_r1_r1_5 = r0 * r1 * r1 * inv_r_squared_5;
+            double r0_r2_r2_5 = r0 * r2 * r2 * inv_r_squared_5;
+            double r1_r1_r2_5 = r1 * r1 * r2 * inv_r_squared_5;
+            double r1_r2_r2_5 = r1 * r2 * r2 * inv_r_squared_5;
             // Unroll the matrix multiplication loop for better performance
-            double force_on_m[3] = {0.0, 0.0, 0.0};
+            double force_on_m0 = 0.0;
+            double force_on_m1 = 0.0;
+            double force_on_m2 = 0.0;
 
             // Component 0 (x) - uses A_tildeF indices for x-component of force (j=0)
-            force_on_m[0] = x1 * A_tildeF[0*9 + 0*3 + 0] * moment_skj[0] +
-                            x1 * A_tildeF[0*9 + 0*3 + 1] * moment_skj[1] +
-                            x1 * A_tildeF[0*9 + 0*3 + 2] * moment_skj[2] +
-                            x2 * A_tildeF[0*9 + 1*3 + 0] * moment_skj[0] +
-                            x2 * A_tildeF[0*9 + 1*3 + 1] * moment_skj[1] +
-                            x2 * A_tildeF[0*9 + 1*3 + 2] * moment_skj[2] +
-                            x3 * A_tildeF[0*9 + 2*3 + 0] * moment_skj[0] +
-                            x3 * A_tildeF[0*9 + 2*3 + 1] * moment_skj[1] +
-                            x3 * A_tildeF[0*9 + 2*3 + 2] * moment_skj[2];
+                    force_on_m0 = x1 * (3.0 * r0 - r0_r0_r0_5) * moment_skj[0] +
+                                    x1 * (r1 - r0_r0_r1_5) * moment_skj[1] +
+                                    x1 * (r2 - r0_r0_r2_5) * moment_skj[2] +
+                                    x2 * (r1 - r0_r0_r1_5) * moment_skj[0] +
+                                    x2 * (r0 - r0_r1_r1_5) * moment_skj[1] +
+                                    x2 * (-r0_r1_r2_5) * moment_skj[2] +
+                                    x3 * (r2 - r0_r0_r2_5) * moment_skj[0] +
+                                    x3 * (-r0_r1_r2_5) * moment_skj[1] +
+                                    x3 * (r0 - r0_r2_r2_5) * moment_skj[2];
             
             // Component 1 (y) - uses A_tildeF indices for y-component of force (j=1)
-            force_on_m[1] = x1 * A_tildeF[1*9 + 0*3 + 0] * moment_skj[0] +
-                            x1 * A_tildeF[1*9 + 0*3 + 1] * moment_skj[1] +
-                            x1 * A_tildeF[1*9 + 0*3 + 2] * moment_skj[2] +
-                            x2 * A_tildeF[1*9 + 1*3 + 0] * moment_skj[0] +
-                            x2 * A_tildeF[1*9 + 1*3 + 1] * moment_skj[1] +
-                            x2 * A_tildeF[1*9 + 1*3 + 2] * moment_skj[2] +
-                            x3 * A_tildeF[1*9 + 2*3 + 0] * moment_skj[0] +
-                            x3 * A_tildeF[1*9 + 2*3 + 1] * moment_skj[1] +
-                            x3 * A_tildeF[1*9 + 2*3 + 2] * moment_skj[2];
+                    force_on_m1 = x1 * (r1 - r0_r0_r1_5) * moment_skj[0] +
+                                    x1 * (r0 - r0_r1_r1_5) * moment_skj[1] +
+                                    x1 * (-r0_r1_r2_5) * moment_skj[2] +
+                                    x1 * (r0 - r0_r1_r1_5) * moment_skj[0] +
+                                    x1 * (3.0 * r1 - r1_r1_r1_5) * moment_skj[1] +
+                                    x1 * (r2 - r1_r1_r2_5) * moment_skj[2] +
+                                    x2 * (-r0_r1_r2_5) * moment_skj[0] +
+                                    x2 * (r2 - r1_r1_r2_5) * moment_skj[1] +
+                                    x2 * (r1 - r1_r2_r2_5) * moment_skj[2];
             
             // Component 2 (z) - uses A_tildeF indices for z-component of force (j=2)
-            force_on_m[2] = x1 * A_tildeF[2*9 + 0*3 + 0] * moment_skj[0] +
-                            x1 * A_tildeF[2*9 + 0*3 + 1] * moment_skj[1] +
-                            x1 * A_tildeF[2*9 + 0*3 + 2] * moment_skj[2] +
-                            x2 * A_tildeF[2*9 + 1*3 + 0] * moment_skj[0] +
-                            x2 * A_tildeF[2*9 + 1*3 + 1] * moment_skj[1] +
-                            x2 * A_tildeF[2*9 + 1*3 + 2] * moment_skj[2] +
-                            x3 * A_tildeF[2*9 + 2*3 + 0] * moment_skj[0] +
-                            x3 * A_tildeF[2*9 + 2*3 + 1] * moment_skj[1] +
-                            x3 * A_tildeF[2*9 + 2*3 + 2] * moment_skj[2];
+                    force_on_m2 = x1 * (r2 - r0_r0_r2_5) * moment_skj[0] +
+                                    x1 * (-r0_r1_r2_5) * moment_skj[1] +
+                                    x1 * (r0 - r0_r2_r2_5) * moment_skj[2] +
+                                    x1 * (-r0_r1_r2_5) * moment_skj[0] +
+                                    x1 * (r2 - r1_r1_r2_5) * moment_skj[1] +
+                                    x1 * (r1 - r1_r2_r2_5) * moment_skj[2] +
+                                    x2 * (r0 - r0_r2_r2_5) * moment_skj[0] +
+                                    x2 * (r1 - r1_r2_r2_5) * moment_skj[1] +
+                                    x2 * (3.0 * r2 - r2_r2_r2_5) * moment_skj[2];
 
             // overall factor of C / r_squared to add back in
-            force_on_m[0] *= C / r_squared;
-            force_on_m[1] *= C / r_squared;
-            force_on_m[2] *= C / r_squared;
-            
+            force_on_m0 *= r_fifth_inv;
+            force_on_m1 *= r_fifth_inv;
+            force_on_m2 *= r_fifth_inv;
+
             // Add this force to the current_forces indices for m
-            current_forces_ptr[m3] += force_on_m[0];
-            current_forces_ptr[m3_plus1] += force_on_m[1];
-            current_forces_ptr[m3_plus2] += force_on_m[2];
+            current_forces_ptr[m3] += force_on_m0;
+            current_forces_ptr[m3_plus1] += force_on_m1;
+            current_forces_ptr[m3_plus2] += force_on_m2;
             // Subtract this force from the current_forces indices for skj[k] (Newton's 3rd law)
-            current_forces_ptr[skj_k_3] -= force_on_m[0];
-            current_forces_ptr[skj_k_3_plus1] -= force_on_m[1];
-            current_forces_ptr[skj_k_3_plus2] -= force_on_m[2];
+            current_forces_ptr[skj_k_3] -= force_on_m0;
+            current_forces_ptr[skj_k_3_plus1] -= force_on_m1;
+            current_forces_ptr[skj_k_3_plus2] -= force_on_m2;
         }
         
 
