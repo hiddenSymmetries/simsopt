@@ -7,6 +7,7 @@ from monty.tempfile import ScratchDir
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
+from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
 from simsopt.geo.curve import RotatedCurve, create_equally_spaced_curves, create_equally_spaced_planar_curves
 from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum, coils_via_symmetries
 from simsopt.field.coil import coils_to_makegrid, coils_to_focus, load_coils_from_makegrid_file
@@ -30,7 +31,11 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     elif curvetype == "CurveRZFourier":
         curve = CurveRZFourier(x, order, 2, True)
     elif curvetype == "CurveHelical":
-        curve = CurveHelical(x, order, 5, 2, 1.0, 0.3)
+        curve = CurveHelical(x, order, 5, 1, 1.0, 0.3)
+    elif curvetype == "CurvePlanarFourier":
+        curve = CurvePlanarFourier(x, order)
+    elif curvetype == "JaxCurvePlanarFourier":
+        curve = JaxCurvePlanarFourier(x, order)
     else:
         assert False
     dofs = np.zeros((curve.dof_size, ))
@@ -44,6 +49,10 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         dofs[order+1] = 0.1
     elif curvetype in ["CurveHelical"]:
         dofs[0] = np.pi/2
+    elif curvetype in ["CurvePlanarFourier", "JaxCurvePlanarFourier"]:
+        dofs[0] = 1.
+        dofs[1] = 0.1
+        dofs[order+1] = 0.1
     else:
         assert False
 
@@ -55,7 +64,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
 
 class TestCoil(unittest.TestCase):
 
-    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical"]
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical", "CurvePlanarFourier", "JaxCurvePlanarFourier"]
 
     def subtest_serialization(self, curvetype, rotated):
         epss = [0.5**i for i in range(10, 15)]

@@ -1,7 +1,7 @@
 [build-system]
 requires = [
   "scikit-build-core",
-  "pybind11",
+  "pybind11 < 3.0.0",
   "numpy >= 2.0.0",
   "setuptools_scm>=8.0",
   'tomli; python_version < "3.11"',]
@@ -61,7 +61,6 @@ dependencies = [
     "ruamel.yaml",
     "sympy",
     "f90nml",
-    "randomgen",
     "pyevtk",
     "matplotlib"
 ]
@@ -92,9 +91,9 @@ build-dir = "build/{wheel_tag}"
 
 [tool.ruff]
 src = ["src/simsopt"] 
-ignore = ["E226","E265","E266","E4","E501","E701","E702","E712","E722","E731","E741","F403","F405","F406","W5"]
+lint.ignore = ["E226","E265","E266","E4","E501","E701","E702","E712","E722","E731","E741","F403","F405","F406","W5"]
 extend-exclude = ["thirdparty"]
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402","F401"]
 "src/simsopt/field/magneticfieldclasses.py" = ["E743"]
 "src/simsopt/mhd/bootstrap.py" = ["F841"]

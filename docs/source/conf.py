@@ -14,6 +14,7 @@ import os
 import sys
 import subprocess
 sys.path.insert(0, os.path.abspath('../../src'))
+sys.path.insert(0, os.path.abspath('.'))
 
 
 # -- Run Doxygen -------------------------------------------------------------
@@ -45,6 +46,7 @@ extensions = [
               'sphinx.ext.mathjax',
               'sphinx.ext.intersphinx',
               'breathe',
+              'link-roles',
 ]
 
 autodoc_mock_imports=['mpi4py', 'pyoculus', 'py_spec']
