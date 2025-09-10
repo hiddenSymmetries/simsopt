@@ -119,9 +119,15 @@ class BoozerSurface(Optimizable):
 
         if boozer_type not in ['ls', 'exact']:
             raise ValueError("Invalid boozer_type - please choose between 'ls' and 'exact'")
+        
 
         self.biotsavart = biotsavart
         self.surface = surface
+
+        nphi, ntheta = surface.quadpoints_phi.size, surface.quadpoints_theta.size
+        if boozer_type=='exact' and ((nphi!=2*surface.ntor+1) or (ntheta!=2*surface.npol+1)):
+            raise ValueError(f'For BoozerExact surfaces, the number of quadrature points must be (2*ntor+1, 2*npol+1) = ({2*surface.ntor+1}, {2*surface.npol+1}), but you have (nphi, ntheta)=({nphi}, {ntheta}).')
+
         self.label = label
         self.targetlabel = targetlabel
         self.constraint_weight = constraint_weight
