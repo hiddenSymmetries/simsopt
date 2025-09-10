@@ -95,12 +95,14 @@ class Gvec(Optimizable):
         parameters: Mapping = {},
         restart: Union[Literal["first", "last"], Path, str, None] = None,
         delete_intermediates: bool = False,
+        keep_failures: bool = True,
         keep_gvec_intermediates: Optional[Literal['all', 'stages']] = None,
         mpi: Optional[MpiPartition] = None,
     ):
         # init arguments which are not DoFs
         self.parameters = gvec.util.CaseInsensitiveDict(parameters) # nested parameters
         self.delete_intermediates = delete_intermediates
+        self.keep_failures = keep_failures
         self.keep_gvec_intermediates = keep_gvec_intermediates
         self.mpi = mpi
 
@@ -208,7 +210,11 @@ class Gvec(Optimizable):
         **kwargs,
     ):
         state = gvec.find_state(rundir)
-        self = cls.from_parameter_file(state.parameter_file, **kwargs)
+        parameter_toml = list(Path(rundir).glob("parameter*.toml"))
+        if len(parameter_toml) == 1:
+            self = cls.from_parameter_file(parameter_toml[0], **kwargs)
+        else:
+            self = cls.from_parameter_file(state.parameterfile, **kwargs)
         self._state = state
         self.run_required = False
         return self
@@ -253,7 +259,7 @@ class Gvec(Optimizable):
         logger.debug(f"preparing to run GVEC run number {self.run_count}")
 
         # create run directory
-        if self.run_successful:
+        if self.run_successful or (self.keep_failures and self.run_count > 0):
             previous_rundir = self.rundir
         else:
             previous_rundir = None
@@ -713,8 +719,15 @@ class Gvec(Optimizable):
     
     return_fn_map = {func.__name__: func for func in _return_functions}
 
+    # === DEPENDENT OPTIMIZABLES === #
 
-# === DERIVED OPTIMIZABLES === #
+    def MirrorRatio(self, rho: Union[float, RealArray] = [0.5, 1.0]) -> "MirrorRatio":
+        """Return a dependent optimizable which computes the mirror ratio on a specified set of flux surfaces."""
+        return MirrorRatio(self, rho)
+    
+    def Elongation(self, zeta: Union[float, RealArray, Literal["int"]] = "int") -> "Elongation":
+        """Return a dependent optimizable which computes the elongation of the plasma cross-sections."""
+        return Elongation(self, zeta)
 
 
 class MirrorRatio(Optimizable):
@@ -730,8 +743,8 @@ class MirrorRatio(Optimizable):
     
     def J(self) -> np.ndarray:
         ev = self.eq.state.evaluate("mod_B", rho=self.rho, theta="int", zeta="int")
-        Bmax = ev.mod_B.max(("theta", "zeta")).values
-        Bmin = ev.mod_B.min(("theta", "zeta")).values
+        Bmax = ev.mod_B.max(("pol", "tor")).values
+        Bmin = ev.mod_B.min(("pol", "tor")).values
         return (Bmax - Bmin) / (Bmax + Bmin)
     
     return_fn_map = {"J": J}
