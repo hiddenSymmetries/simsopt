@@ -666,6 +666,9 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         # Get a BoozerSurface and its as_dict
         bs, boozer = get_boozer_surface(label="Area", boozer_type="ls", converge=True)
+
+        assert not boozer.need_to_run_code  # should have converged
+
         serial_objs_dict = {}
         d = boozer.as_dict(serial_objs_dict=serial_objs_dict)
         recon_objs = {}
