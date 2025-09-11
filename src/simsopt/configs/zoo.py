@@ -88,7 +88,7 @@ def get_data(name, **kwargs):
         *5-element tuple* ``(base_curves, base_currents, ma, nfp, bs)``, where:
 
         base_curves : list of :class:`CurveXYZFourier` 
-            The coil curves, with length determined by ``coil_order`` and ``points_per_period``.
+            The curves representing the unique coils of the configuration (excluding symmetry copies). Fidelity and number of degrees-of-freedom are determined by ``coil_order`` and ``points_per_period``.
         base_currents : list of :class:`Current`
             Corresponding coil currents.
         ma : :class:`CurveRZFourier`
