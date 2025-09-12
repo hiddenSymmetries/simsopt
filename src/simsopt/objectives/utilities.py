@@ -156,6 +156,8 @@ class QuadraticPenalty(Optimizable):
             cons: constant
             f: the function that wraps the difference :math:`obj-\text{cons}`.  The options are ``"min"``, ``"max"``, or ``"identity"``.
                which respectively return :math:`\min(\text{obj}-\text{cons}, 0)`, :math:`\max(\text{obj}-\text{cons}, 0)`, and :math:`\text{obj}-\text{cons}`.
+               Note that ``"max"`` penalizes when objective is above the constraint, and ``"min"`` penalizes when the objective is below the constraint.
+               For simplicity you can also use "penalize_below" (= "min") or "penalize_above" (= "max").
         """
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[obj])
         self.obj = obj
@@ -166,9 +168,9 @@ class QuadraticPenalty(Optimizable):
         val = self.obj.J()
         diff = float(val - self.cons)
 
-        if self.f == 'max':
+        if self.f == 'max' or self.f == 'penalize_above':
             return 0.5*np.maximum(diff, 0)**2
-        elif self.f == 'min':
+        elif self.f == 'min' or self.f == 'penalize_below':
             return 0.5*np.minimum(diff, 0)**2
         elif self.f == 'identity':
             return 0.5*diff**2
