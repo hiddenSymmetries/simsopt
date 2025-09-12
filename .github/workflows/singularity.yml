@@ -11,7 +11,7 @@ on:
       - v*
 
   # Do the builds on all pull requests (to test them)
-  pull_request: []
+  pull_request: 
   workflow_dispatch:
 
 concurrency:
