@@ -250,7 +250,8 @@ class BoozerSurfaceTests(unittest.TestCase):
                 c.rotmatT = c.rotmat.T
             coils = coils_via_symmetries(base_curves + curves_flipped,
                                          base_currents + currents_flipped, nfp, False)
-        current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
+        
+        current_sum = sum(abs(c.current.get_value()) for c in coils)
 
         bs = BiotSavart(coils)
 
