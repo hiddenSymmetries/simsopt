@@ -4,12 +4,13 @@ import numpy as np
 import jax.numpy as jnp
 from scipy.fft import rfft
 
-from .curve import Curve, JaxCurve
+from .curve import Curve, JaxCurve, RotatedCurve
 from .coilio import get_data_from_makegrid, get_data_from_xyzfile
 import simsoptpp as sopp
+from simsopt._core import Optimizable
 
 
-__all__ = ['CurveXYZFourier', 'JaxCurveXYZFourier']
+__all__ = ['CurveXYZFourier', 'JaxCurveXYZFourier', 'CurveXYZFourierStellSelfSymmetric']
 
 
 class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
@@ -312,3 +313,82 @@ class JaxCurveXYZFourier(JaxCurve):
         z_sin_names = [f'zs({i})' for i in range(1, order + 1)]
         z_names += list(chain.from_iterable(zip(z_sin_names, z_cos_names)))
         return x_names + y_names + z_names
+    
+
+
+class CurveXYZFourierStellSelfSymmetric(RotatedCurve):
+    r"""
+       ``CurveXYZFourierStellSelfSymmetric is functionally identical to CurveXYZFourier, but
+       it is self-stellarator-symmetric. This requires it intersect the z=0 line on a symmetry 
+       plane. 
+       It has half as many degrees of freedom (minus one) as a CurveXYZFourier of the same order.
+       
+       Here (just as the rest of simsopt) the phi=0 plane is hard-coded to be a stellarator symmetry
+       plane, and this curve can be copied to other field periods if needed. 
+       
+       The curve is represented in cartesian coordinates using the following Fourier series:
+
+        .. math::
+        Rotate[\phi, 
+           x(\theta) &= \sum_{m=0}^{\text{order}} x_{c,m}\cos(m\theta) 
+           y(\theta) &= \sum_{m=1}^{\text{order}} y_{s,m}\sin(m\theta) \\
+           z(\theta) &= \sum_{m=1}^{\text{order}} z_{s,m}\sin(m\theta)
+           ]"""
+    
+    def __init__(self, quadpoints, order, stellsym_plane_angle=0.0, dofs=None):
+        """
+        Initializes the CurveXYZFourierStellSelfSymmetric. 
+        First call the sopp constructor, which initializes the C++ object.
+        Then fix the self-stellarator-symmetric dofs. 
+        finally call the RotatedCurve constructor on itself to 
+        overload gammas and dgammas, anf 
+        """
+        if isinstance(quadpoints, int):
+            quadpoints = list(np.linspace(0, 1, quadpoints, endpoint=False))
+        elif isinstance(quadpoints, np.ndarray):
+            quadpoints = list(quadpoints)
+        # 
+        self._secret_curve = CurveXYZFourier(quadpoints, order, dofs=None)
+
+        # Now inherit from 
+        RotatedCurve.__init__(self, self._secret_curve, phi=stellsym_plane_angle, flip=False)
+        #this has set the gamma and derivatives correctly, but we have lost the dofs
+        
+        # We now need to forward the dof functions to the hidden curve
+        self.set = self._secret_curve.set
+        self.get = self._secret_curve.get
+        self.fix = self._secret_curve.fix
+        self.unfix = self._secret_curve.unfix
+        self.is_fixed = self._secret_curve.is_fixed
+
+        #Now that we have linked the two, we can fix the dofs that are zero by symmetry
+        for i in range(order):
+            if i >0:
+                self._secret_curve.set(f'xs({i})', 0.0)
+                self.fix(f'xs({i})')
+            self.set(f'yc({i})', 0.0)
+            self.fix(f'yc({i})')
+            self.set(f'zc({i})', 0.0)
+            self.fix(f'zc({i})')
+        
+        # then we initialize Optimizable so that this objects dofs are the hidden CurveXYZFourier's free dofs. 
+        Optimizable.__init__(self, external_dof_setter=CurveXYZFourierStellSelfSymmetric.set_dofs_impl,
+                             dofs=self._secret_curve.dofs, names=self._secret_curve.dof_names)
+
+    def get_dofs(self):
+        """
+        return the dofs of the underlying CurveXYZFourier object.
+        """
+        return self._secret_curve.get_dofs()
+
+    def set_dofs_impl(self, d):
+        """
+        pass to the underlying CurveXYZFourier object.
+        """
+        self._secret_curve.set_dofs_impl(d)
+
+    def num_dofs(self):
+        """
+        This function returns the number of dofs associated to the curve.
+        """
+        return self._secret_curve.num_dofs()
