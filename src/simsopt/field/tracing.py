@@ -30,8 +30,8 @@ __all__ = ['SurfaceClassifier', 'LevelsetStoppingCriterion',
            'trace_particles', 'trace_particles_boozer',
            'trace_particles_starting_on_curve',
            'trace_particles_starting_on_surface',
-           'particles_to_vtk', 'plot_poincare_data', 'ScipyFieldlineIntegrator',
-           'SimsoptFieldlineIntegrator', 'PoincarePlotter']
+           'particles_to_vtk', 'plot_poincare_data', 'Integrator',
+           'ScipyFieldlineIntegrator', 'SimsoptFieldlineIntegrator', 'PoincarePlotter']
 
 
 def compute_gc_radius(m, vperp, q, absb):
@@ -1084,7 +1084,7 @@ class SimsoptFieldlineIntegrator(Integrator):
                      `phis[int(idx)]` was hit. If `idx<0`, then one of the stopping criteria
                      was hit, which is specified in the `stopping_criteria` argument.
                   """
-        stopping_criteria = [ToroidalTransitStoppingCriterion(n_transits, isinstance(self.field, BoozerMagneticField)), ]
+        stopping_criteria = [ToroidalTransitStoppingCriterion(n_transits, isinstance(self.field, BoozerMagneticField)), ] #TODO: Add self.stopping_criteria
         return compute_fieldlines(
             self.field, start_points_RZ[:,0], start_points_RZ[:,1], phi0=phi0, tmax=self.tmax, tol=self.tol,
             phis=phis, stopping_criteria=stopping_criteria, comm=self.comm)
@@ -1124,7 +1124,7 @@ class SimsoptFieldlineIntegrator(Integrator):
             )
         
         if return_cartesian: #return [x,y,z] array
-            return res_phi_hits[-2][2:]
+            return np.array(res_phi_hits[-2][2:])
         else: #return [R,Z] array
             return self._xyz_to_rphiz(res_phi_hits[-2][2:])
 
@@ -1160,7 +1160,7 @@ class SimsoptFieldlineIntegrator(Integrator):
             flux=True
         else: 
             flux=False
-        self.field.set_points(start_xyz[None, :])
+        self.field.set_points(np.atleast_2d(start_xyz))
         #test direction of the field and switch if necessary, normalize to field strength at start
         Bstart = self.field.B_cyl()[0]
         if Bstart[1] < 0:  # direction of bphi
@@ -1176,7 +1176,7 @@ class SimsoptFieldlineIntegrator(Integrator):
             phis=[0,], 
             stopping_criteria=[ToroidalTransitStoppingCriterion(n_transits, flux),])
         
-        points_cart = np.array(res_tys[:,1:])
+        points_cart = np.array(res_tys)[:,1:]
         if return_cartesian:
             return points_cart
         else: 
@@ -1227,20 +1227,20 @@ class ScipyFieldlineIntegrator(Integrator):
         res_phi_hits = []
         first, last = parallel_loop_bounds(self.comm, len(start_points_RZ))
         for this_RZ_start in start_points_RZ[first:last, :]:
-            trajectory_hits = []
-            for transit_number in n_transits:
-                success, strike_locations = self.integrate_cyl_planes(
-                    this_RZ_start,
-                    phis=phis, return_cartesian=True)
-                # create array with phi, idx, x, y, z:
-                this_transit_strike_locations = np.vstack((phis +2*np.pi*transit_number, np.arange(len(phis)), strike_locations)))
-                if not success:
-                    this_transit_strike_locations[1, :] = -1  # mark as failed
-                    #stop the ntransit loop:
-                    break
-                trajectory_hits.append(this_transit_strike_locations.T)
-            res_phi_hits.append(np.concatenate(trajectory_hits))
-
+            all_phis = np.array([phis + 2*np.pi*nt for nt in n_transits]).flatten()
+            integration_solution = solve_ivp(self.integration_fn, 
+                                             [all_phis[0], all_phis[-1]], 
+                                             this_RZ_start, 
+                                             t_eval=phis, 
+                                             events=self.event_function, 
+                                             method=self._integrator_type, 
+                                             rtol=self._integrator_args['rtol'], 
+                                             atol=self._integrator_args['atol']
+                                             )
+            res_phi_hits_line = np.stack(integration_solution.t % 2*np.pi, np.zeros_like(integration_solution.t), integration_solution.y)
+            if integration_solution == 1 or integration_solution.status == -1:  # integration failed
+                res_phi_hits_line[-1, 1] = -1
+            res_phi_hits.append(res_phi_hits_line)
         if self.comm is not None:
             res_phi_hits = [hit for gathered_hits in self.comm.allgather(res_phi_hits) for hit in gathered_hits]
         return res_phi_hits
@@ -1276,7 +1276,7 @@ class ScipyFieldlineIntegrator(Integrator):
         _event.terminal = True
         return _event
 
-    def integrate_in_phi(self, RZ_start, phi_start, phi_end):
+    def integrate_in_phi_cyl(self, RZ_start, phi_start, phi_end):
         """
         Integrate the field line using scipy's odeint method
         """
@@ -1489,11 +1489,18 @@ class PoincarePlotter(Optimizable):
         self._lost=None
         self.need_to_recompute = True
     
+    @property
+    def res_tys(self):
+        if self.need_to_recompute:
+            self._res_tys, self._res_phi_hits = self.integrator.compute_poincare_hits(
+                self.start_points_RZ, phi0=self.phi0, n_transits=self.n_transits, phis=self.phis)
+            self.need_to_recompute = False
+        return self._res_tys
     
     @property
     def res_phi_hits(self):
         if self.need_to_recompute:
-            _, self._res_phi_hits = self.integrator.compute_poincare_hits(
+            self._res_tys, self._res_phi_hits = self.integrator.compute_poincare_hits(
                 self.start_points_RZ, phi0=self.phi0, n_transits=self.n_transits, phis=self.phis)
             self.need_to_recompute = False
         return self._res_phi_hits
@@ -1577,9 +1584,8 @@ class PoincarePlotter(Optimizable):
                 fig = ax.figure
             
             marker = kwargs.pop('marker', '.')
-            s = kwargs.pop('s', 0.5)
+            s = kwargs.pop('s', 2.5)
             color = kwargs.pop('color', 'random')
-            print(color)
 
             for idx, trajpoints in enumerate(hits_thisplane):
                 if color == 'random':
@@ -1597,7 +1603,7 @@ class PoincarePlotter(Optimizable):
                         this_s = s*3
                 if flipped_plane:
                     trajpoints[:, 1] = -trajpoints[:, 1]
-                ax.scatter(trajpoints[:, 0], trajpoints[:, 1], marker=this_marker, s=this_s, c=this_color, **kwargs)
+                ax.scatter(trajpoints[:, 0], trajpoints[:, 1], marker=this_marker, s=this_s, c=this_color, linewidths=0, **kwargs)
 
             if surf is not None:
                 cross_section = surf.cross_section(phi=phi)
@@ -1628,11 +1634,10 @@ class PoincarePlotter(Optimizable):
             plt.figure()
             fig, axs = plt.subplots(nrowcol, nrowcol, figsize=(8, 5))
             
-            if not isinstance(axs, list):  # subplots returns a single Axes if nrowcol=1
-                axs = [axs,]
+            axs = np.atleast_1d(axs).ravel()  # make array and flatten
 
             for section_idx, phi in enumerate(plot_phis):  #ony the plane in the first field period
-                ax=axs[section_idx]
+                ax = axs[section_idx]
                 self.plot_poincare_single(phi, ax=ax, mark_lost=mark_lost, prevent_recompute=True, fix_axes=fix_ax, **kwargs)
                 # find other planes in other field periods:
                 for add_idx in np.where(np.isclose((self.phis - phi) % (2*np.pi/self.integrator.nfp), 0))[0]:
@@ -1642,10 +1647,142 @@ class PoincarePlotter(Optimizable):
                 textstr = f" φ = {phi/np.pi:.2f}π "
                 props = dict(boxstyle='round', facecolor='white', edgecolor='black')
                 ax.text(0.05, 0.02, textstr, transform=ax.transAxes, fontsize=6,
-                verticalalignment='bottom', bbox=props)
+                        verticalalignment='bottom', bbox=props)
 
             plt.tight_layout()
 
             return fig, axs
         else: 
             return None, None  # other ranks do not plot anything
+
+    def plot_fieldline_trajectories_3d(self, engine='mayavi', mark_lost=False, show=True,  **kwargs): 
+        """
+        Plot the full 3D trajectories of the field lines. 
+        Uses mayavi or plotly for plotting. 
+        """
+        trajectories = self.res_tys  # trigger recompute if necessary
+
+        if self.i_am_the_plotter:
+            if engine == 'mayavi':
+                from mayavi import mlab
+                tube_radius = kwargs.pop('tube_radius', 0.005)
+                color = kwargs.pop('color', 'random')
+                for idx, traj in enumerate(trajectories): 
+                    if color == 'random':
+                        this_color = tuple(self.randomcolors[idx])
+                    else: 
+                        this_color = tuple(color)
+                    lost = self.lost[idx] if mark_lost else False
+                    this_tube_radius = tube_radius*3 if lost else tube_radius
+                    this_color = (1,0,0) if lost else this_color
+                    mlab.plot3d(traj[:,1], traj[:,2], traj[:,3], tube_radius=this_tube_radius, color=this_color, **kwargs)
+                if show:
+                    mlab.show()
+            if engine == 'plotly':
+                import plotly.graph_objects as go
+                fig = go.Figure()
+                for idx, traj in enumerate(trajectories): 
+                    if color == 'random':
+                        this_color = 'rgb({},{},{})'.format(*(self.randomcolors[idx]*255).astype(int))
+                    else: 
+                        this_color = color
+                    lost = self.lost[idx] if mark_lost else False
+                    this_width = 6 if lost else 2
+                    this_color = 'rgb(255,0,0)' if lost else this_color
+                    fig.add_trace(go.Scatter3d(x=traj[:,1], y=traj[:,2], z=traj[:,3], mode='lines', line=dict(color=this_color, width=this_width), **kwargs))
+                fig.update_layout(scene=dict(
+                    xaxis_title='X',
+                    yaxis_title='Y',
+                    zaxis_title='Z'),
+                    width=800,
+                    margin=dict(r=20, b=10, l=10, t=10))
+                if show:
+                    fig.show()
+            elif engine == 'matplotlib':
+                import matplotlib.pyplot as plt
+                fig = plt.figure()
+                ax = fig.add_subplot(111, projection='3d')
+                for idx, traj in enumerate(trajectories):
+                    if color == 'random':
+                        this_color = self.randomcolors[idx]
+                    else:
+                        this_color = color
+                    lost = self.lost[idx] if mark_lost else False
+                    this_width = 6 if lost else 2
+                    this_color = 'rgb(255,0,0)' if lost else this_color
+                    ax.plot(traj[:,1], traj[:,2], traj[:,3], color=this_color, linewidth=this_width, **kwargs)
+                if show:
+                    plt.show()
+
+    def plot_poincare_in_3d(self, engine='mayavi', mark_lost=False, show=True, **kwargs):
+        """
+        Plot the Poincare points in 3D. 
+        Uses mayavi or plotly for plotting. 
+        """
+        hits = self.res_phi_hits  # trigger recompute if necessary
+
+        if self.i_am_the_plotter:
+            if engine == 'mayavi':
+                from mayavi import mlab
+                marker = kwargs.pop('marker', 'o')
+                scale_factor = kwargs.pop('scale_factor', 0.02)
+                color = kwargs.pop('color', 'random')
+                for idx in range(len(self.phis)):
+                    plane_hits = self.plane_hits_cart(idx)
+                    for hit_group in plane_hits:
+                        if color == 'random':
+                            this_color = tuple(self.randomcolors[idx])
+                        else: 
+                            this_color = tuple(color)
+                        
+                        this_scale_factor = scale_factor
+                        if mark_lost:
+                            lost = self.lost[idx]
+                            this_scale_factor = scale_factor*3 if lost else scale_factor
+                            this_color = (1,0,0) if lost else this_color
+                        mlab.points3d(hit_group[:, 0], hit_group[:, 1], hit_group[:, 2], scale_factor=this_scale_factor, color=this_color, mode=marker, **kwargs)
+                if show:
+                    mlab.show()
+            if engine == 'plotly':
+                import plotly.graph_objects as go
+                fig = go.Figure()
+                for idx in range(len(self.phis)):
+                    plane_hits = self.plane_hits_cart(idx)
+                    for hit_group in plane_hits:
+                        if color == 'random':
+                            this_color = 'rgb({},{},{})'.format(*(self.randomcolors[idx]*255).astype(int))
+                        else: 
+                            this_color = color
+                        lost = self.lost[idx] if mark_lost else False
+                        this_size = 8 if lost else 4
+                        this_color = 'rgb(255,0,0)' if lost else this_color
+                        fig.add_trace(go.Scatter3d(x=hit_group[:,0], y=hit_group[:,1], z=hit_group[:,2], mode='markers', marker=dict(size=this_size, color=this_color), **kwargs))
+                fig.update_layout(scene=dict(
+                    xaxis_title='X',
+                    yaxis_title='Y',
+                    zaxis_title='Z'),
+                    width=800,
+                    margin=dict(r=20, b=10, l=10, t=10))
+                if show:
+                    fig.show()
+            elif engine == 'matplotlib':
+                import matplotlib.pyplot as plt
+                fig = plt.figure()
+                ax = fig.add_subplot(111, projection='3d')
+                for idx in range(len(self.phis)):
+                    plane_hits = self.plane_hits_cart(idx)
+                    for hit_group in plane_hits:
+                        if color == 'random':
+                            this_color = self.randomcolors[idx]
+                        else:
+                            this_color = color
+                        lost = self.lost[idx] if mark_lost else False
+                        this_size = 80 if lost else 40
+                        this_color = 'rgb(255,0,0)' if lost else this_color
+                        ax.scatter(hit_group[:,0], hit_group[:,1], hit_group[:,2], color=this_color, s=this_size, **kwargs)
+                if show:
+                    plt.show()  
+
+
+
+    #TODO: use res_tys to plot rotational transform
