@@ -488,17 +488,29 @@ class isSelfIntersecting(unittest.TestCase):
                      "Libraries to check whether self-intersecting or not are missing")
 
     def test_cross_section(self):
-        # this cross section calculation fails on the previous implementation of the cross
-        # section algorithm
+        """ Test the cross_section method for a surface that is not self-intersecting. """
         filename = os.path.join(TEST_DIR, 'serial2680021.json')
         [surfaces, coils] = load(filename)
         angle = np.pi/10
+
+        # check that the cross_section method works for a surface that is not self-intersecting
         xs = surfaces[-1].cross_section(angle/(2*np.pi), thetas=256)
         Z = xs[:, 2]
-        assert np.all(Z<-0.08)
+        self.assertTrue(np.all(Z < -0.08), msg="The Z coordinate should be < - 0.8 for this surface.")
+
+        # check that the same answer is returned for an array valued thetas
+        thetas = np.linspace(0, 1, 256, endpoint=False)
+        xs_array = surfaces[-1].cross_section(angle/(2*np.pi), thetas=thetas, tol=1e-13)
+        np.testing.assert_allclose(xs, xs_array, atol=1e-13, err_msg="The cross_section method should return the same result for an array of thetas.")
         
-        # take this surface, and rotate it 30 degrees about the x-axis.  This should cause
-        # the surface to 'go back' on itself, and trigger the exception.
+        # check that an exception is raised if theta is 2D
+        with self.assertRaises(Exception):
+            _ = surfaces[-1].cross_section(angle/(2*np.pi), thetas=[[0, 0.8], [0.5, 0.7]])
+
+        """
+        Take this surface, and rotate it 30 degrees about the x-axis.  This should cause
+        the surface to 'go back' on itself, and trigger the exception.
+        """
         surface_orig = SurfaceXYZTensorFourier(mpol=surfaces[-1].mpol, ntor=surfaces[-1].ntor,\
                 stellsym=True, nfp=surfaces[-1].nfp, quadpoints_phi=np.linspace(0, 1, 100),\
                 quadpoints_theta=surfaces[-1].quadpoints_theta)
@@ -518,9 +530,10 @@ class isSelfIntersecting(unittest.TestCase):
         with self.assertRaises(Exception):
             _ = surface_rotated.cross_section(0., thetas=256)
 
+        # check that cross_section raises an exception if thetas is not an appropriate argument
         with self.assertRaises(Exception):
             _ = surface_rotated.cross_section(0., thetas='wrong')
-        
+
     def test_is_self_intersecting(self):
         # dofs results in a surface that is self-intersecting
         dofs = np.array([1., 0., 0., 0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1,
