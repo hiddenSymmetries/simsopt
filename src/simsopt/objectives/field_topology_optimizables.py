@@ -18,6 +18,7 @@ except ImportError:
 from .._core import Optimizable
 from .._core.dev import SimsoptRequires
 from .._core.util import ObjectiveFailure
+from . import QuadraticPenalty
 
 from numpy.typing import NDArray
 from typing import Union, Iterable
@@ -30,7 +31,7 @@ else:
     newpyoculus = False
 
 
-__all__ = ['PyOculusFixedPoint', 'ClinicConnection', 'SimpleFixedPoint_RZ', 'SimpleIntegrator', 'SimpleMapJac']
+__all__ = ['PyOculusFixedPoint', 'TwoFixedPointDifference', 'ClinicConnection', 'SimpleFixedPoint_RZ', 'SimpleIntegrator', 'SimpleMapJac', 'SimpleEllipticity', 'SimpleResidue', 'SimpleTrace']
 
 def _rphiz_to_xyz(array: NDArray[np.float64]) -> NDArray[np.float64]:
     """
@@ -51,6 +52,21 @@ def _xyz_to_rphiz(array: NDArray[np.float64]) -> NDArray[np.float64]:
     else:
         array2 = array[:, :]
     return np.array([np.sqrt(array2[:, 0]**2 + array2[:, 1]**2), np.arctan2(array2[:, 1], array2[:, 0]), array2[:, 2]]).T
+
+
+def _ellipticity(matrix):
+    """
+    return the ellipticity-like quantity of the calculated jacobian, as described
+    by Greene 1968: https://doi.org/10.1063/1.1664639
+    The ellipticity is +1 for cirular elliptic fixed points, 0 when parabolic, and negative
+    when hyperbolic. Ellipticity of -1 correspoinds to perpendicular intersection of stable and unstable manifolds.
+    TODO: check if indices are correct (though anser is invariant to index permutations)
+    """
+    a = (matrix[0, 0] + matrix[1, 1])/2
+    b = (matrix[0, 0] - matrix[1, 1])/2
+    c = (matrix[0, 1] + matrix[1, 0])/2
+    d = (matrix[0, 1] - matrix[1, 0])/2
+    return (1-a**2)/(b**2 + c**2 + d**2)
 
 class IndexableGenerator(object):
 
@@ -252,13 +268,125 @@ class PyOculusFixedPoint(Optimizable):
         return self._fixed_point.Jacobian
     
     def trace(self):
-        return np.trace(self.jacobian)
+        return np.trace(self.jacobian())
+    
+    def loc_at_other_angle(self, phi): 
+        """
+        return the location of the fixed point at a different toroidal angle.
+        This is done by integrating the field line from the known location
+        to the new angle.
+        """
+        if self._refind_fp:
+            self.refind()
+        fraction_of_nfp = phi * self.map._mf.Nfp / (2 * np.pi)  # convert to normalized toroidal angle
+        RZ_end = self.map.f(fraction_of_nfp, self.loc_RZ())
+        return RZ_end
+    
+    def ellipticity(self):
+        """
+        return the ellipticity-like quantity of the calculated jacobian, as described
+        by Greene 1968: https://doi.org/10.1063/1.1664639
+        The ellipticity is +1 for cirular elliptic fixed points, 0 when parabolic, and negative
+        when hyperbolic. Ellipticity of -1 correspoinds to perpendicular intersection of stable and unstable manifolds.
+        """
+        return _ellipticity(self.jacobian())
 
-    @property
-    def position_difference(self, position_RZ):
-        def _position_difference():
-            return np.linalg.norm(self.loc_RZ() - position_RZ)
-        return _position_difference
+    def difference_optimizable(self, position_RZ):
+        """ 
+        return an optimizable child object whose J function is the distance
+        from this fixed point to the given position_RZ. 
+        """
+        _difference_optimizable = Optimizable(x0=np.asarray([]), depends_on=[self,])
+        setattr(_difference_optimizable, 'J', lambda: np.linalg.norm(self.loc_RZ() - position_RZ))
+        return _difference_optimizable
+    
+    def ellipticity_optimizable(self, target_ellipticity=0, penalize="difference"):
+        """
+        return an optimizable child object whose J function is the ellipticity"""
+        _ellipticity_optimizable = Optimizable(x0=np.asarray([]), depends_on=[self,])
+        if penalize == "above":
+            setattr(_ellipticity_optimizable, 'J', lambda: np.maximum(0, self.ellipticity() - target_ellipticity))
+        elif penalize == "below":
+            setattr(_ellipticity_optimizable, 'J', lambda: np.minimum(0, self.ellipticity() - target_ellipticity))
+        else:
+            setattr(_ellipticity_optimizable, 'J', lambda: self.ellipticity() - target_ellipticity)
+        return _ellipticity_optimizable
+    
+    
+    def residue_optimizable(self):
+        """
+        return an optimizable child object whose J function is the Greenes residue
+        """
+        _residue_optimizable = Optimizable(x0=np.asarray([]), depends_on=[self,])
+        setattr(_residue_optimizable, 'J', lambda: np.linalg.norm(self.residue()))
+        return _residue_optimizable
+    
+    def trace_optimizable(self, target_trace=0, penalize="difference"):
+        """
+        return an optimizable child object whose J function is the trace.
+        penalize can be "difference" (default), "above", or "below", 
+        """
+        _trace_optimizable = Optimizable(x0=np.asarray([]), depends_on=[self,])
+        if penalize == "above":
+            setattr(_trace_optimizable, 'J', lambda: np.maximum(0, self.trace() - target_trace))
+        elif penalize == "below":
+            setattr(_trace_optimizable, 'J', lambda: np.minimum(0, self.trace() - target_trace))
+        elif penalize == "difference":
+            setattr(_trace_optimizable, 'J', lambda: self.trace() - target_trace)
+        else:
+            raise ValueError("penalize must be 'difference', 'above', or 'below'")
+        return _trace_optimizable
+
+    def trace_in_range_optimizable(self, min_trace=-2, max_trace=2):
+        """
+        return an optimizable child object that is a QuadraticPenalty applied to the trace
+        of the fixed point.
+        """
+        return self.trace_optimizable(target_trace=min_trace, penalize="below") + self.trace_optimizable(target_trace=max_trace, penalize="above")
+    
+    def other_angle_location_optimizable(self, phi, target_RZ):
+        """
+        return an optimizable child object whose J function is the distance
+        from the location of this fixed point at toroidal angle phi to the given target_RZ. 
+        """
+        _other_angle_location_optimizable = Optimizable(x0=np.asarray([]), depends_on=[self,])
+        setattr(_other_angle_location_optimizable, 'J', lambda: np.linalg.norm(self.loc_at_other_angle(phi) - target_RZ))
+        return _other_angle_location_optimizable
+    
+class TwoFixedPointDifference(Optimizable):
+    """
+    An optimizable that is the distance between two fixed points.
+    """
+    def __init__(self, fp1: PyOculusFixedPoint, fp2: PyOculusFixedPoint):
+        """
+        Initialize a TwoFixedPointDifference
+        Args:
+            fp1: First fixed point
+            fp2: Second fixed point
+        """
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[fp1, fp2])
+        self.fp1 = fp1
+        self.fp2 = fp2
+
+    def J(self):
+        return np.linalg.norm(self.fp1.loc_RZ() - self.fp2.loc_RZ())
+    
+    def other_angle_difference_optimizable(self, phi, desired_distance=0, penalize="above"):
+        """
+        return an optimizable child object whose J function is the distance
+        between the location of the two fixed points at toroidal angle phi. 
+        """
+        _other_angle_location_difference = Optimizable(x0=np.asarray([]), depends_on=[self.fp1, self.fp2])
+        if penalize == "above":
+            setattr(_other_angle_location_difference, 'J', lambda: np.maximum(0, np.linalg.norm(self.fp1.loc_at_other_angle(phi) - self.fp2.loc_at_other_angle(phi)) - desired_distance))
+        elif penalize == "below":
+            setattr(_other_angle_location_difference, 'J', lambda: np.minimum(0, np.linalg.norm(self.fp1.loc_at_other_angle(phi) - self.fp2.loc_at_other_angle(phi)) - desired_distance))
+        else:
+            setattr(_other_angle_location_difference, 'J', lambda: np.linalg.norm(self.fp1.loc_at_other_angle(phi) - self.fp2.loc_at_other_angle(phi)) - desired_distance)
+        return _other_angle_location_difference
+    
+
+
 
 
 @SimsoptRequires(newpyoculus, "This PyOculusFixedPoint class requres the additions by L. Rais in 1.0.0")
@@ -461,7 +589,7 @@ class SimpleIntegrator(Optimizable):
         _event.terminal = True
         return _event
 
-    def integrate_in_phi(self, RZ_start, phi_start, phi_end):
+    def integrate_in_phi_cyl(self, RZ_start, phi_start, phi_end):
         """
         Integrate the field line using scipy's odeint method
         """
@@ -518,7 +646,7 @@ class SimpleIntegrator(Optimizable):
         def _fieldline_iterator():
             coords = RZ_start
             while True:
-                coords = self.integrate_in_phi(coords, phi_start, phi_start + phi_distance)
+                coords = self.integrate_in_phi_cyl(coords, phi_start, phi_start + phi_distance)
                 yield coords
         return IndexableGenerator(_fieldline_iterator())
 
@@ -542,7 +670,7 @@ class SimpleIntegrator(Optimizable):
 
 
 
-class SimpleFixedPoint_RZ(SimpleIntegrator, Optimizable):
+class SimpleFixedPoint_RZ(Optimizable):
     """
     The SimpleFixedPoint class is a very robust and simple method of optimizing for a fixed point at a given location.
     The cost is simply the distance that a field line is mapped away from its starting point after nfp field periods in an R,Z plane.
@@ -562,7 +690,7 @@ class SimpleFixedPoint_RZ(SimpleIntegrator, Optimizable):
     ```
 
     """
-    def __init__(self, field: "MagneticField", RZ: NDArray[np.float64], field_nfp: int, integration_nfp: int, phi0: float = 0., tol=1e-9, max_step=1e5):
+    def __init__(self, integrator: "Integrator", RZ: NDArray[np.float64], integration_nfp: int, phi0: float = 0.):
         """
         Initialize a SimpleFixedPoint
         Args:
@@ -571,14 +699,12 @@ class SimpleFixedPoint_RZ(SimpleIntegrator, Optimizable):
             nfp: Number of field period
             phi0: Toroidal angle of the fixed point
         """
-        self.field = field
         self.RZ = RZ
-        self.field_nfp = field_nfp
+        self.field_nfp = integrator.nfp
         self.integration_nfp = integration_nfp
         self.phi0 = phi0
-        self.TOL = tol
-        self.integrator = SimpleIntegrator(field, self.TOL)
-        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[field])
+        self.integrator = integrator
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[integrator])
 
     def J(self):
         """
@@ -586,7 +712,7 @@ class SimpleFixedPoint_RZ(SimpleIntegrator, Optimizable):
         """
         phi_end = self.phi0 + 2*np.pi*self.integration_nfp/self.field_nfp
         try:
-            dist_mapped = np.linalg.norm(self.integrator.integrate_in_phi(self.RZ, self.phi0, phi_end) - self.RZ)
+            dist_mapped = np.linalg.norm(self.integrator.integrate_in_phi_cyl(self.RZ, self.phi0, phi_end)[::2] - self.RZ)
         except Exception as e:
             raise ObjectiveFailure("Failed to integrate field line") from e
         return dist_mapped
@@ -603,7 +729,7 @@ class SimpleMapJac(SimpleIntegrator, Optimizable):
     ```
 
     """
-    def __init__(self, field: "MagneticField", RZ: NDArray[np.float64], field_nfp: int, integration_nfp: int, FD_stepsize=1e-7, phi0: float = 0., tol=1e-9, max_step=1e5):
+    def __init__(self, integrator: "Integrator", RZ: NDArray[np.float64], integration_nfp: int, FD_stepsize=1e-7, phi0: float = 0., tol=1e-9, max_step=1e5):
         """
         Initialize a SimpleFixedPoint
         Args:
@@ -616,17 +742,25 @@ class SimpleMapJac(SimpleIntegrator, Optimizable):
             tol: integartion Tolerance.
             max_step= maximum number of steps. 
         """
-        self.field = field
         self.RZ = RZ
-        self.field_nfp = field_nfp
+        self.field_nfp = integrator.nfp
         self.integration_nfp = integration_nfp
         self.phi0 = phi0
-        self.TOL = tol
         self.FD_stepsize = FD_stepsize
-        self.integrator = SimpleIntegrator(field, self.TOL)
-        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[field])
+        self.integrator = integrator
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[integrator])
+        self._mapjac = None
 
+    @property
     def mapjac(self):
+        if self._mapjac is None:
+            self._mapjac = self.calculate_mapjac()
+        return self._mapjac
+    
+    def recompute_bell(self, parent=None):
+        self._mapjac = None
+
+    def calculate_mapjac(self):
         """
         Calculate the distance from the target fixed point
         """
@@ -634,9 +768,9 @@ class SimpleMapJac(SimpleIntegrator, Optimizable):
         startpoints_posdiff = self.RZ + np.eye(2) * self.FD_stepsize
         startpoints_negdiff = self.RZ - np.eye(2) * self.FD_stepsize
         try:
-            centermap = self.integrator.integrate_in_phi(self.RZ, self.phi0, phi_end)
-            posdiffmaps = np.array([self.integrator.integrate_in_phi(diffstart, self.phi0, phi_end) - centermap for diffstart in startpoints_posdiff])
-            negdiffmaps = np.array([self.integrator.integrate_in_phi(diffstart, self.phi0, phi_end) - centermap for diffstart in startpoints_negdiff])
+            centermap = self.integrator.integrate_in_phi_cyl(self.RZ, self.phi0, phi_end)[::2]  # only R,Z
+            posdiffmaps = np.array([self.integrator.integrate_in_phi_cyl(diffstart, self.phi0, phi_end)[::2] - centermap for diffstart in startpoints_posdiff])
+            negdiffmaps = np.array([self.integrator.integrate_in_phi_cyl(diffstart, self.phi0, phi_end)[::2] - centermap for diffstart in startpoints_negdiff])
             jac = ((posdiffmaps - negdiffmaps)/(2*self.FD_stepsize)).T
         except Exception as e:
             raise ObjectiveFailure("Failed to integrate field line") from e
@@ -646,7 +780,7 @@ class SimpleMapJac(SimpleIntegrator, Optimizable):
         """
         return the trace of the calculated jacobian
         """
-        return np.trace(self.mapjac())
+        return np.trace(self.mapjac)
 
     def residue(self):
         """
@@ -663,9 +797,48 @@ class SimpleMapJac(SimpleIntegrator, Optimizable):
         when hyperbolic. Ellipticity of -1 correspoinds to perpendicular intersection of stable and unstable manifolds.
         TODO: check if indices are correct (though anser is invariant to index permutations)
         """
-        jac = self.mapjac()
-        a = (jac[0, 0] + jac[1, 1])/2
-        b = (jac[0, 0] - jac[1, 1])/2
-        c = (jac[0, 1] + jac[1, 0])/2
-        d = (jac[0, 1] - jac[1, 0])/2
-        return (1-a**2)/(b**2 + c**2 + d**2)
+        return _ellipticity(self.mapjac)
+
+
+
+class SimpleEllipticity(Optimizable):
+    """
+    Wrapper around SimpleMapJac to return the ellipticity of the map jacobian
+    as described by Greene 1968: https://doi.org/10.1063/1.1664639
+    
+    The ellipticity is +1 for cirular elliptic fixed points, 0 when parabolic, and negative
+    when hyperbolic. Ellipticity of -1 correspoinds to perpendicular intersection of stable and unstable manifolds.
+    """
+    def __init__(self, simplemapjac: SimpleMapJac):
+        self.simplemapjac = simplemapjac
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[simplemapjac])
+    
+    def J(self):
+        return self.simplemapjac.ellipticity()
+    
+
+class SimpleResidue(Optimizable):
+    """
+    Wrapper around SimpleMapJac to return the Greenes residue of the map jacobian
+    as described by Greene 1968: https://doi.org/10.1063/1.1664639
+    The residue is 0 for regular parabolic fixed points, and positive
+    for regular hyperbolic fixed points. 
+    Negative residue can be elliptic or alternating hyperbolic. 
+    """
+    def __init__(self, simplemapjac: SimpleMapJac):
+        self.simplemapjac = simplemapjac
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[simplemapjac])  
+    
+    def J(self):
+        return self.mapjac.residue()
+    
+class SimpleTrace(Optimizable):
+    """
+    Wrapper around SimpleMapJac to return the trace of the map jacobian
+    """
+    def __init__(self, simplemapjac: SimpleMapJac):
+        self.simplemapjac = simplemapjac
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[simplemapjac])  
+
+    def J(self):
+        return self.simplemapjac.J()  
