@@ -522,6 +522,9 @@ class Vmec(Optimizable):
             raise ValueError("VMEC does not allow ntor > 101")
         vi.rbc[:, :] = 0
         vi.zbs[:, :] = 0
+        if vi.lasym:
+            vi.rbs[:, :] = 0
+            vi.zbc[:, :] = 0
         mpol_capped = np.min([boundary_RZFourier.mpol, 101])
         ntor_capped = np.min([boundary_RZFourier.ntor, 101])
         # Transfer boundary shape data from the surface object to VMEC:
@@ -529,6 +532,9 @@ class Vmec(Optimizable):
             for n in range(-ntor_capped, ntor_capped + 1):
                 vi.rbc[101 + n, m] = boundary_RZFourier.get_rc(m, n)
                 vi.zbs[101 + n, m] = boundary_RZFourier.get_zs(m, n)
+                if vi.lasym:
+                    vi.rbs[101 + n, m] = boundary_RZFourier.get_rs(m, n)
+                    vi.zbc[101 + n, m] = boundary_RZFourier.get_zc(m, n)
 
         # Set axis shape to something that is obviously wrong (R=0) to
         # trigger vmec's internal guess_axis.f to run. Otherwise the
