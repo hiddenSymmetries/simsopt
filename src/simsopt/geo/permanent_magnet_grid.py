@@ -82,13 +82,21 @@ class PermanentMagnetGrid:
             y_outer = self.xyz_outer[:, 1]
             z_outer = self.xyz_outer[:, 2]
 
-            x_max = np.max(x_outer)
-            x_min = np.min(x_outer)
-            y_max = np.max(y_outer)
-            y_min = np.min(y_outer)
-            z_max = np.max(z_outer)
-            z_min = np.min(z_outer)
-            z_max = max(z_max, abs(z_min))
+            # x_max = np.max(x_outer)
+            # x_min = np.min(x_outer)
+            # y_max = np.max(y_outer)
+            # y_min = np.min(y_outer)
+            # z_max = np.max(z_outer)
+            # z_min = np.min(z_outer)
+            # z_max = max(z_max, abs(z_min))
+
+            x_max = 3.48
+            x_min = -1.072
+            y_max = 3.25
+            y_min = -1.5
+            z_max = 2.59
+            z_min = -2.38
+
             print(x_min, x_max, y_min, y_max, z_min, z_max)
 
             # Initialize uniform grid
@@ -98,7 +106,9 @@ class PermanentMagnetGrid:
             self.dx = (x_max - x_min) / (Nx - 1)
             self.dy = (y_max - y_min) / (Ny - 1)
             self.dz = 2 * z_max / (Nz - 1)
+
             print(Nx, Ny, Nz, self.dx, self.dy, self.dz)
+            print('ratios are ', (x_max-x_min)/self.dx, (y_max-y_min)/self.dy, (z_max-z_min)/self.dz)
 
             # Extra work below so that the stitching with the symmetries is done in
             # such a way that the reflected cells are still dx and dy away from
@@ -347,7 +357,7 @@ class PermanentMagnetGrid:
         coordinate_flag = kwargs.pop("coordinate_flag", "cartesian")
         pol_vectors = kwargs.pop("pol_vectors", None)
         m_maxima = kwargs.pop("m_maxima", None)
-        pm_grid = cls(plasma_boundary, Bn, coordinate_flag) 
+        pm_grid = cls(plasma_boundary, Bn, coordinate_flag)
         Nx = kwargs.pop("Nx", 10)
         Ny = kwargs.pop("Ny", Nx)
         Nz = kwargs.pop("Nz", Nx)
@@ -389,7 +399,7 @@ class PermanentMagnetGrid:
             contig(pm_grid.xyz_outer))
         inds = np.ravel(np.logical_not(np.all(pm_grid.dipole_grid_xyz == 0.0, axis=-1)))
         pm_grid.dipole_grid_xyz = pm_grid.dipole_grid_xyz[inds, :]
-        print('DIPOLE GRID LOOKS LIKE ',pm_grid.dipole_grid_xyz)
+        # print('DIPOLE GRID LOOKS LIKE ',pm_grid.dipole_grid_xyz)
         pm_grid.ndipoles = pm_grid.dipole_grid_xyz.shape[0]
         pm_grid.pm_phi = np.arctan2(pm_grid.dipole_grid_xyz[:, 1], pm_grid.dipole_grid_xyz[:, 0])
         if coordinate_flag == 'cylindrical':
@@ -402,7 +412,7 @@ class PermanentMagnetGrid:
                     contig(pm_grid.dipole_grid_xyz[:, 2]))
         
         pm_grid.dims = np.array([pm_grid.dx, pm_grid.dy, pm_grid.dz])
-        print('DIPOLE DIMS = ',pm_grid.dims)
+        print('MAG DIMS = ',pm_grid.dims)
         if m_maxima is None:
             B_max = 1.465  # value used in FAMUS runs for MUSE
             mu0 = 4 * np.pi * 1e-7
@@ -668,13 +678,21 @@ class ExactMagnetGrid:
             y_outer = self.xyz_outer[:, 1]
             z_outer = self.xyz_outer[:, 2]
 
-            x_max = np.max(x_outer)
-            x_min = np.min(x_outer)
-            y_max = np.max(y_outer)
-            y_min = np.min(y_outer)
-            z_max = np.max(z_outer)
-            z_min = np.min(z_outer)
-            z_max = max(z_max, abs(z_min))
+            # x_max = np.max(x_outer)
+            # x_min = np.min(x_outer)
+            # y_max = np.max(y_outer)
+            # y_min = np.min(y_outer)
+            # z_max = np.max(z_outer)
+            # z_min = np.min(z_outer)
+            # z_max = max(z_max, abs(z_min))
+
+            x_max = 3.48
+            x_min = -1.072
+            y_max = 3.25
+            y_min = -1.5
+            z_max = 2.59
+            z_min = -2.38
+
             print(x_min, x_max, y_min, y_max, z_min, z_max)
 
             # Initialize uniform grid
@@ -684,7 +702,9 @@ class ExactMagnetGrid:
             self.dx = (x_max - x_min) / (Nx - 1)
             self.dy = (y_max - y_min) / (Ny - 1)
             self.dz = 2 * z_max / (Nz - 1)
+
             print(Nx, Ny, Nz, self.dx, self.dy, self.dz)
+            print('ratios are ', (x_max-x_min)/self.dx, (y_max-y_min)/self.dy, (z_max-z_min)/self.dz)
 
             # Extra work below so that the stitching with the symmetries is done in
             # such a way that the reflected cells are still dx and dy away from
@@ -945,7 +965,7 @@ class ExactMagnetGrid:
             contig(pm_grid.xyz_outer))
         inds = np.ravel(np.logical_not(np.all(pm_grid.pm_grid_xyz == 0.0, axis=-1)))
         pm_grid.pm_grid_xyz = pm_grid.pm_grid_xyz[inds, :]
-        print('DIPOLE GRID LOOKS LIKE ',pm_grid.pm_grid_xyz)
+        # print('DIPOLE GRID LOOKS LIKE ',pm_grid.pm_grid_xyz)
         pm_grid.ndipoles = pm_grid.pm_grid_xyz.shape[0]
         pm_grid.pm_phi = np.arctan2(pm_grid.pm_grid_xyz[:, 1], pm_grid.pm_grid_xyz[:, 0])
         if coordinate_flag == 'cylindrical':
@@ -992,86 +1012,86 @@ class ExactMagnetGrid:
         pm_grid._optimization_setup()
         return pm_grid
     
-    def geo_setup_from_magpie(cls, plasma_boundary, Bn, centroids_file, corners_file, **kwargs): # so far only setup for qhex
+    # def geo_setup_from_magpie(cls, plasma_boundary, Bn, centroids_file, corners_file, **kwargs): # so far only setup for qhex
         
-        downsample = kwargs.pop("downsample", 1)
-        pol_vectors = kwargs.pop("pol_vectors", None)
-        m_maxima = kwargs.pop("m_maxima", None)
+    #     downsample = kwargs.pop("downsample", 1)
+    #     pol_vectors = kwargs.pop("pol_vectors", None)
+    #     m_maxima = kwargs.pop("m_maxima", None)
 
-        pm_grid = cls(plasma_boundary, Bn)
+    #     pm_grid = cls(plasma_boundary, Bn)
 
-        # GET CORNERS
-        all_corners = pd.read_csv(corners_file).values
-        pm_grid.corners = np.array(list(map(get_corners, all_corners)))
+    #     # GET CORNERS
+    #     all_corners = pd.read_csv(corners_file).values
+    #     pm_grid.corners = np.array(list(map(get_corners, all_corners)))
 
-        # GET CENTROIDS
-        all_centroids = pd.read_csv(centroids_file, skiprows=3).values
-        pm_grid.pm_grid_xyz = np.array(list(map(get_centroids, all_centroids)))
-        print('GRID LOOKS LIKE',pm_grid.pm_grid_xyz)
+    #     # GET CENTROIDS
+    #     all_centroids = pd.read_csv(centroids_file, skiprows=3).values
+    #     pm_grid.pm_grid_xyz = np.array(list(map(get_centroids, all_centroids)))
+    #     print('GRID LOOKS LIKE',pm_grid.pm_grid_xyz)
 
-        pm_grid.centroids_filename = centroids_file
-        pm_grid.corners_filename = corners_file
-        ox, oy, oz, Ic, M0s = np.loadtxt(centroids_file, skiprows=3, usecols=[3, 4, 5, 6, 7],
-                                         delimiter=',', unpack=True)
+    #     pm_grid.centroids_filename = centroids_file
+    #     pm_grid.corners_filename = corners_file
+    #     ox, oy, oz, Ic, M0s = np.loadtxt(centroids_file, skiprows=3, usecols=[3, 4, 5, 6, 7],
+    #                                      delimiter=',', unpack=True)
 
-        # Downsample the resolution as needed 
-        inds_total = np.arange(len(ox))
-        inds_downsampled = inds_total[::downsample]
+    #     # Downsample the resolution as needed 
+    #     inds_total = np.arange(len(ox))
+    #     inds_downsampled = inds_total[::downsample]
 
-        # also remove any dipoles where the diagnostic ports should be
-        nonzero_inds = np.intersect1d(np.ravel(np.where(Ic == 1.0)), inds_downsampled) 
-        pm_grid.Ic_inds = nonzero_inds
-        ox = ox[nonzero_inds]
-        oy = oy[nonzero_inds]
-        oz = oz[nonzero_inds]
-        premade_pm_grid = np.array([ox, oy, oz]).T
-        pm_grid.ndipoles = premade_pm_grid.shape[0]
+    #     # also remove any dipoles where the diagnostic ports should be
+    #     nonzero_inds = np.intersect1d(np.ravel(np.where(Ic == 1.0)), inds_downsampled) 
+    #     pm_grid.Ic_inds = nonzero_inds
+    #     ox = ox[nonzero_inds]
+    #     oy = oy[nonzero_inds]
+    #     oz = oz[nonzero_inds]
+    #     premade_pm_grid = np.array([ox, oy, oz]).T
+    #     pm_grid.ndipoles = premade_pm_grid.shape[0]
 
-        # Not normalized to 1 like quadpoints_phi!
-        pm_grid.pm_phi = np.arctan2(premade_pm_grid[:, 1], premade_pm_grid[:, 0])
-        uniq_phi, counts_phi = np.unique(pm_grid.pm_phi.round(decimals=6), return_counts=True)
-        pm_grid.pm_nphi = len(uniq_phi)
-        pm_grid.pm_uniq_phi = uniq_phi
-        pm_grid.inds = counts_phi
-        for i in reversed(range(1, pm_grid.pm_nphi)):
-            for j in range(0, i):
-                pm_grid.inds[i] += pm_grid.inds[j]
-        pm_grid.pm_grid_xyz = premade_pm_grid
+    #     # Not normalized to 1 like quadpoints_phi!
+    #     pm_grid.pm_phi = np.arctan2(premade_pm_grid[:, 1], premade_pm_grid[:, 0])
+    #     uniq_phi, counts_phi = np.unique(pm_grid.pm_phi.round(decimals=6), return_counts=True)
+    #     pm_grid.pm_nphi = len(uniq_phi)
+    #     pm_grid.pm_uniq_phi = uniq_phi
+    #     pm_grid.inds = counts_phi
+    #     for i in reversed(range(1, pm_grid.pm_nphi)):
+    #         for j in range(0, i):
+    #             pm_grid.inds[i] += pm_grid.inds[j]
+    #     pm_grid.pm_grid_xyz = premade_pm_grid
 
-        if m_maxima is None:
-            B_max = 1.465  # value used in FAMUS runs for MUSE
-            mu0 = 4 * np.pi * 1e-7
-            cell_vol = M0s * mu0 / B_max
-            print('mag vol = ', cell_vol[0])
+    #     if m_maxima is None:
+    #         B_max = 1.465  # value used in FAMUS runs for MUSE
+    #         mu0 = 4 * np.pi * 1e-7
+    #         cell_vol = M0s * mu0 / B_max
+    #         print('mag vol = ', cell_vol[0])
             
-            # Assumes that the magnets are all the same shape, and are perfect cubes!
-            cube_root_vol = np.cbrt(cell_vol[0]) # Assume FAMUS magnets are cubes
-            pm_grid.dims = np.array([cube_root_vol, cube_root_vol, cube_root_vol])
-            print('MAG DIMS = ',pm_grid.dims)
-            pm_grid.m_maxima = B_max * cell_vol[nonzero_inds] / mu0
-        else:
-            if isinstance(m_maxima, float):
-                pm_grid.m_maxima = m_maxima * np.ones(pm_grid.ndipoles)
-            else:
-                pm_grid.m_maxima = m_maxima
-            if len(pm_grid.m_maxima) != pm_grid.ndipoles:
-                raise ValueError('m_maxima passed to geo_setup_from_famus but with '
-                                 'the wrong shape, i.e. != number of dipoles.')
+    #         # Assumes that the magnets are all the same shape, and are perfect cubes!
+    #         cube_root_vol = np.cbrt(cell_vol[0]) # Assume FAMUS magnets are cubes
+    #         pm_grid.dims = np.array([cube_root_vol, cube_root_vol, cube_root_vol])
+    #         print('MAG DIMS = ',pm_grid.dims)
+    #         pm_grid.m_maxima = B_max * cell_vol[nonzero_inds] / mu0
+    #     else:
+    #         if isinstance(m_maxima, float):
+    #             pm_grid.m_maxima = m_maxima * np.ones(pm_grid.ndipoles)
+    #         else:
+    #             pm_grid.m_maxima = m_maxima
+    #         if len(pm_grid.m_maxima) != pm_grid.ndipoles:
+    #             raise ValueError('m_maxima passed to geo_setup_from_famus but with '
+    #                              'the wrong shape, i.e. != number of dipoles.')
 
-        if pol_vectors is not None:
-            pol_vectors = np.array(pol_vectors)
-            if len(pol_vectors.shape) != 3:
-                raise ValueError('pol vectors must be a 3D array.')
-            elif pol_vectors.shape[2] != 3:
-                raise ValueError('Third dimension of `pol_vectors` array '
-                                 'must be 3')
-            elif pol_vectors.shape[0] != pm_grid.ndipoles:
-                raise ValueError('First dimension of `pol_vectors` array '
-                                 'must equal the number of dipoles')
+    #     if pol_vectors is not None:
+    #         pol_vectors = np.array(pol_vectors)
+    #         if len(pol_vectors.shape) != 3:
+    #             raise ValueError('pol vectors must be a 3D array.')
+    #         elif pol_vectors.shape[2] != 3:
+    #             raise ValueError('Third dimension of `pol_vectors` array '
+    #                              'must be 3')
+    #         elif pol_vectors.shape[0] != pm_grid.ndipoles:
+    #             raise ValueError('First dimension of `pol_vectors` array '
+    #                              'must equal the number of dipoles')
         
-        pm_grid.pol_vectors = pol_vectors
-        pm_grid._optimization_setup()
-        return pm_grid
+    #     pm_grid.pol_vectors = pol_vectors
+    #     pm_grid._optimization_setup()
+    #     return pm_grid
 
     
     def _optimization_setup(self):

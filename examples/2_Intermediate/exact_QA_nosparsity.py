@@ -16,6 +16,9 @@ from simsopt.util.permanent_magnet_helper_functions import *
 t_start = time.time()
 
 # Set some parameters -- if doing CI, lower the resolution
+coff = 0.2  # PM grid starts offset ~ 10 cm from the plasma surface
+poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
+
 if in_github_actions:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
@@ -23,10 +26,8 @@ if in_github_actions:
 else:
     nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 32 # bricks with radial extent ??? cm
+    Nx = 72 # bricks with radial extent ??? cm
 
-coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.025  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
 # Read in the plas/ma equilibrium file
@@ -90,14 +91,12 @@ pm_comp = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
     s, Bnormal, s_inner, s_outer, **kwargs_geo
 )
 
-print(pm_opt.phiThetas)
-
 m0 = np.zeros(pm_opt.ndipoles * 3) 
 reg_l0 = 0.0  # No sparsity
 nu = 1e100
 kwargs = initialize_default_kwargs()
 kwargs['nu'] = nu  # Strength of the "relaxation" part of relax-and-split
-kwargs['max_iter'] = 10000  # Number of iterations to take in a convex step
+kwargs['max_iter'] = 100  # Number of iterations to take in a convex step
 kwargs['max_iter_RS'] = 1  # Number of total iterations of the relax-and-split algorithm
 kwargs['reg_l0'] = reg_l0
 RS_history, m_history, m_proxy_history = relax_and_split(pm_opt, m0=m0, **kwargs)
@@ -108,8 +107,8 @@ B_max = 1.465
 mu0 = 4 * np.pi * 1e-7
 M_max = B_max / mu0 
 magnets = pm_opt.m.reshape(pm_opt.ndipoles, 3)
-print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(magnets ** 2, axis=-1))) / M_max)
-print('sum(|m_i|)', np.sum(np.sqrt(np.sum(magnets ** 2, axis=-1))))
+# print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(magnets ** 2, axis=-1))) / M_max)
+# print('sum(|m_i|)', np.sum(np.sqrt(np.sum(magnets ** 2, axis=-1))))
 
 print('magnets have dimensions ',pm_opt.dims, ' with volume v = ',np.prod(pm_opt.dims))
 
@@ -154,7 +153,7 @@ f_B_sf = SquaredFlux(s, b_magnet, -Bnormal).J()
 
 print('f_B = ', f_B_sf)
 total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
-print('Total volume = ', total_volume)
+# print('Total volume = ', total_volume)
 
 assert np.all(pm_comp.m == 0.0)
 assert np.all(pm_comp.dipole_grid_xyz == pm_opt.pm_grid_xyz)
@@ -188,10 +187,10 @@ f_Bc_sf = SquaredFlux(s, b_dipole, -Bcnormal).J()
 
 print('f_Bc = ', f_Bc_sf)
 total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
-print('Total volume = ', total_volume)
+# print('Total volume = ', total_volume)
 
-print('fB diff (ex - dip) = ', fB - fBc)
-print('f_B (squared flux function) diff', f_B_sf - f_Bc_sf)
+# print('fB diff (ex - dip) = ', fB - fBc)
+# print('f_B (squared flux function) diff', f_B_sf - f_Bc_sf)
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
