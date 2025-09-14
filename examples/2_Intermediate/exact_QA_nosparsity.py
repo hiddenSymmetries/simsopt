@@ -16,18 +16,18 @@ from simsopt.util.permanent_magnet_helper_functions import *
 t_start = time.time()
 
 # Set some parameters -- if doing CI, lower the resolution
-coff = 0.2  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
 
 if in_github_actions:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     dx = 0.05  # bricks with radial extent 5 cm
 else:
-    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     Nx = 72 # bricks with radial extent ??? cm
 
+coff = 0.2  # PM grid starts offset ~ 10 cm from the plasma surface
+poff = 0.1  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
 # Read in the plas/ma equilibrium file
@@ -99,8 +99,32 @@ kwargs['nu'] = nu  # Strength of the "relaxation" part of relax-and-split
 kwargs['max_iter'] = 100  # Number of iterations to take in a convex step
 kwargs['max_iter_RS'] = 1  # Number of total iterations of the relax-and-split algorithm
 kwargs['reg_l0'] = reg_l0
+print('nu, lambda = ', kwargs['nu'], kwargs['reg_l0'])
 RS_history, m_history, m_proxy_history = relax_and_split(pm_opt, m0=m0, **kwargs)
 m0 = pm_opt.m
+
+# Optimize the permanent magnets. This actually solves
+# 2 full relax-and-split problems, and uses the result of each
+# problem to initialize the next, increasing L0 threshold each time,
+# until thresholding over all magnets with strengths < 50% the max.
+# m0 = np.zeros(pm_opt.ndipoles * 3) 
+# total_m_history = []
+# total_mproxy_history = []
+# total_RS_history = []
+# for i in range(20):
+#     print('Relax-and-split iteration ', i, ', L0 threshold = ', reg_l0)
+#     reg_l0_scaled = reg_l0 * (i + 1) / 2.0
+#     kwargs['reg_l0'] = reg_l0_scaled
+#     RS_history, m_history, m_proxy_history = relax_and_split(pm_opt, m0=m0, **kwargs)
+#     total_RS_history.append(RS_history)
+#     total_m_history.append(m_history)
+#     total_mproxy_history.append(m_proxy_history)
+#     m_norms = np.linalg.norm(m_proxy_history[-1].reshape(-1, 3), axis=-1)
+#     # bar_x = np.linspace(0, np.max(m_norms), 20)
+#     plt.figure()
+#     plt.hist(m_norms, bins=100)
+#     m0 = pm_opt.m
+
 
 # Print effective permanent magnet volume
 B_max = 1.465
@@ -130,9 +154,10 @@ print("Total fB = ", fB)
 
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
+make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_coils")
 Bnormal_magnets = np.sum(b_magnet.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
 Bnormal_total = Bnormal + Bnormal_magnets
+make_Bnormal_plots(bs + b_magnet, s_plot, out_dir, "biot_savart_optimized")
 
 # Compute metrics with permanent magnet results
 magnets_m = pm_opt.m.reshape(pm_opt.ndipoles, 3)
