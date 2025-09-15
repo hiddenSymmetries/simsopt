@@ -12,10 +12,11 @@ import copy
 import logging
 from pathlib import Path
 from typing import Optional, Literal, Union
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 import shutil
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
@@ -251,6 +252,9 @@ class Gvec(Optimizable):
         if not self.run_required:
             if force:
                 logger.debug("re-run forced")
+            elif not self.run_successful:
+                logger.debug("no run required, cached run not successful")
+                raise ObjectiveFailure("cached GVEC run was not successful")
             else:
                 logger.debug("no run required")
                 return
@@ -259,7 +263,7 @@ class Gvec(Optimizable):
         logger.debug(f"preparing to run GVEC run number {self.run_count}")
 
         # create run directory
-        if self.run_successful or (self.keep_failures and self.run_count > 0):
+        if self.run_successful:
             previous_rundir = self.rundir
         else:
             previous_rundir = None
@@ -301,19 +305,23 @@ class Gvec(Optimizable):
         gvec.util.write_parameters(params, self.rundir / "parameters.toml")
         
         # run GVEC
+        self.run_required = False
         self.run_successful = False
         self._state = None
 
         try:
             self._runobj = gvec.run(params, restart, runpath=self.rundir, quiet=True, keep_intermediates=self.keep_gvec_intermediates)
-            self._runobj.plot_diagnostics_minimization().savefig(self.rundir / "iterations.png")
+            fig = self._runobj.plot_diagnostics_minimization()
+            fig.savefig(self.rundir / "iterations.png")
+            plt.close(fig)
         except RuntimeError as e:
             logger.error(f"GVEC failed with: {e}")
+            if not self.keep_failures:
+                shutil.rmtree(self.rundir)
             raise ObjectiveFailure("Run GVEC failed.") from e
 
         self.run_successful = True
         self._state = self._runobj.state
-        self.run_required = False
         logger.debug(f"GVEC finished in {self._runobj.GVEC_iter_used} iterations")
 
         # remove previous rundir
