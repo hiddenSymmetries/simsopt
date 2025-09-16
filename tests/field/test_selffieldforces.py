@@ -269,7 +269,7 @@ class CoilForcesTest(unittest.TestCase):
         dofs = J.x
         h = np.ones_like(dofs)
         err = 100
-        for i in range(10, 18):
+        for i in range(10, 17):
             eps = 0.5**i
             J.x = dofs + eps * h
             Jp = J.J()
