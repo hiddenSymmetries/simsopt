@@ -1548,7 +1548,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         for j, variable in enumerate(variables):
             plt.subplot(nrows, ncols, j + 1)
             plt.plot(phi[0, 0, :], eval("results." + variable + '[0, 0, :]'))
-            plt.xlabel('Standard toroidal angle $\phi$')
+            plt.xlabel(r'Standard toroidal angle $\phi$')
             plt.title(variable)
 
         plt.figtext(0.5, 0.995, f's={s[0]}, alpha={alpha[0]}', ha='center', va='top')
