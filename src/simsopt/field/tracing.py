@@ -973,10 +973,6 @@ class Integrator(Optimizable):
         if test_symmetries:
             self.test_symmetries()
         if isinstance(self.field, InterpolatedField):
-            if self.field.nfp != self.nfp:
-                raise ValueError(f"Field has {self.field.nfp} field periods, but integrator is set to {self.nfp}.")
-            if self.field.stellsym != self.stellsym:
-                raise ValueError(f"Field is {'not ' if not self.field.stellsym else ''}stellarator symmetric, but integrator is set to {'not ' if not self.stellsym else ''}be.")
             self.interpolated = True
         Optimizable.__init__(self, depends_on=[field,])
 
@@ -1058,10 +1054,14 @@ class Integrator(Optimizable):
 class SimsoptFieldlineIntegrator(Integrator):
     """
     Integration of field lines using the `simsoptpp` routines. 
-    Integration is performed in cylindrical coordinates. 
-    MPI parallelization is supported. 
-    
+    Integration is performed in three dimensions, solving the 
+    ODE:
+    .. math::
+        \frac{d\mathbf{x}(t)}{dt} = \mathbf{B}(\mathbf{x})
+    where :math:`\mathbf{x}=(x,y,z)` are the cartesian coordinates.
+    MPI parallelization is supported by passing an MPI communicator. 
     """
+    
     def __init__(self, field, comm=None, nfp=None, stellsym=False, R0=None, test_symmetries=True, stopping_criteria=[], tol=1e-9, tmax=1e4):
         self.tol = tol
         self.stopping_criteria = stopping_criteria
@@ -1421,9 +1421,7 @@ class PoincarePlotter(Optimizable):
 
     @staticmethod
     def generate_phis(nplanes, nfp=1):
-        phis = np.linspace(0, 2*np.pi/nfp, nplanes, endpoint=False)
-        list_of_phis = [phis + per_idx*2*np.pi/nfp for per_idx in range(nfp)]
-        return np.concatenate(list_of_phis)
+        return np.linspace(0, 2*np.pi/nfp, nplanes, endpoint=False)
     
     @staticmethod
     def generate_symmetry_planes(phis, nfp=1):
@@ -1435,6 +1433,15 @@ class PoincarePlotter(Optimizable):
         # remove duplicates and sort
         list_of_phis = np.unique(np.concatenate(list_of_phis))
         return list_of_phis
+    
+    @property
+    def plot_phis(self):
+        """
+        the phis in the first period, useful for plotting
+        """
+        plot_period = 2*np.pi/self.integrator.nfp
+        plot_phis = self.phis[np.where(self.phis < plot_period)]
+        return plot_phis
 
     @property
     def start_points_R(self):
@@ -1471,6 +1478,7 @@ class PoincarePlotter(Optimizable):
     def phis(self, value):
         self._phis = value
         self.recompute_bell()
+
 
     @classmethod
     def from_field(cls, field, start_points_RZ, phis=[], stopping_criteria=[], comm=None, integrator_type='simsopt', tol=1e-9, tmax=200):
@@ -1511,9 +1519,10 @@ class PoincarePlotter(Optimizable):
         Get the points where the integration stopped due to a stopping criterion.
         This means the last entry of the 'idx' column in the res_phi_hits array is negative.
         """
-        # list comprehension... look at final element, if element 1 negative, then lost.
+        # list comprehension... look at final element, if element 1 negative, then stopping 
+        # criterion was encounterd. first stopping criterion is transit number, so ignore.
         if self._lost is None:
-            self.lost = [traj[traj_idx][-1, 1] < 0 for traj_idx, traj in enumerate(self.res_phi_hits)]
+            self._lost = [traj[-1,1] < -1 for traj in self.res_phi_hits]
         return self._lost
 
     def plane_hits_cyl(self, plane_idx):
@@ -1551,30 +1560,15 @@ class PoincarePlotter(Optimizable):
         if title is not None:
             ax.set_title(title)
 
-    def plot_poincare_plane_idx(self, plane_idx, **kwargs):
+    def plot_poincare_plane_idx(self, plane_idx, mark_lost=False, ax=None, **kwargs):
         """
         plot a single cross-section of the field at a given plane index. 
         """
         if plane_idx >= len(self.phis):
             raise ValueError(f"Plane index {plane_idx} is larger than the number of planes {len(self.phis)}.")
-        return self.plot_poincare_single(self.phis[plane_idx], prevent_recompute=True, **kwargs)
-
-    def plot_poincare_single(self, phi, prevent_recompute=False, ax=None, mark_lost=False, fix_axes=True, surf=None, flipped_plane=False, **kwargs):
-        """
-        plot a single cross-section of the field at a given phi value. 
-        If this value is not in the list of phis, a recompute will be triggered. 
-        *NOTE*: if running parallel, call this function on all ranks. 
-        """
-        if phi not in self.phis:
-            if not prevent_recompute:
-                self.phis = [phi,]
-            else:
-                raise ValueError(f"The requested plane at phi={phi} has not been computed.")
-        else:
-            phi_index = np.where(np.isclose(self.phis, phi))[0][0]
         
         # can trigger recompute, so all ranks execute
-        hits_thisplane = self.plane_hits_cyl(phi_index)
+        hits_thisplane = self.plane_hits_cyl(plane_idx)
 
         # rank0 only
         if self.i_am_the_plotter: 
@@ -1601,9 +1595,40 @@ class PoincarePlotter(Optimizable):
                         this_color = 'r'
                         this_marker = 'x'
                         this_s = s*3
-                if flipped_plane:
-                    trajpoints[:, 1] = -trajpoints[:, 1]
                 ax.scatter(trajpoints[:, 0], trajpoints[:, 1], marker=this_marker, s=this_s, c=this_color, linewidths=0, **kwargs)
+            return fig, ax
+        else: 
+            return None, None  # other ranks do not plot anything
+
+    def plot_poincare_single(self, phi, prevent_recompute=False, ax=None, mark_lost=False, fix_axes=True, surf=None, include_symmetry_planes=True, **kwargs):
+        """
+        plot a single cross-section of the field at a given phi value. 
+        If this value is not in the list of phis, a recompute will be triggered. 
+        *NOTE*: if running parallel, call this function on all ranks. 
+        """
+        if phi not in self.phis:
+            if not prevent_recompute:
+                self.phis.append(phi)
+                phi_indices = [len(self.phis) - 1]  # index of the newly added plane
+            else:
+                raise ValueError(f"The requested plane at phi={phi} has not been computed.")
+        else:
+            if include_symmetry_planes:
+                phi_indices = np.where(np.isclose((self.phis - phi) % (2*np.pi/self.integrator.nfp), 0))[0]
+            else: 
+                phi_indices = np.where(np.isclose(self.phis, phi))[0]
+        
+        # trigger recompute on all ranks if necessary:
+        res_phi_hits = self.res_phi_hits
+
+        if self.i_am_the_plotter:
+            if ax is None:
+                fig, ax = plt.subplots()
+            else:
+                fig = ax.figure
+
+            for phi_index in phi_indices:
+                self.plot_poincare_plane_idx(phi_index, ax=ax, mark_lost=mark_lost, **kwargs)
 
             if surf is not None:
                 cross_section = surf.cross_section(phi=phi)
@@ -1613,10 +1638,11 @@ class PoincarePlotter(Optimizable):
             
             if fix_axes:
                 self.fix_axes(ax)
-            
             return fig, ax
         else: 
             return None, None  # other ranks do not plot anything
+
+        
 
 
     def plot_poincare_all(self, mark_lost=False, fix_ax=True, **kwargs):
@@ -1627,23 +1653,15 @@ class PoincarePlotter(Optimizable):
         res_phi_hits = self.res_phi_hits  #trigger recompute on all ranks if necessary
 
         if self.i_am_the_plotter:
-            plot_period = 2*np.pi/self.integrator.nfp
-            plot_phis = self.phis[np.where((self.phis % (2*np.pi)) < plot_period)]
             from math import ceil
-            nrowcol = ceil(sqrt(len(plot_phis)))
+            nrowcol = ceil(sqrt(len(self.plot_phis)))
             fig, axs = plt.subplots(nrowcol, nrowcol, figsize=(8, 5))
             
             axs = np.atleast_1d(axs).ravel()  # make array and flatten
 
-            for section_idx, phi in enumerate(plot_phis):  #ony the plane in the first field period
+            for section_idx, phi in enumerate(self.plot_phis):  #ony the plane in the first field period
                 ax = axs[section_idx]
                 self.plot_poincare_single(phi, ax=ax, mark_lost=mark_lost, prevent_recompute=True, fix_axes=fix_ax, **kwargs)
-                # find other planes in other field periods:
-                for add_idx in np.where(np.isclose((self.phis - phi) % (2*np.pi/self.integrator.nfp), 0))[0]:
-                    if add_idx == section_idx: 
-                        continue
-                    # plot the additional plane data into the same axis
-                    self.plot_poincare_plane_idx(add_idx, ax=ax, mark_lost=mark_lost, prevent_recompute=True, fix_axes=fix_ax, **kwargs)
                 textstr = f" φ = {phi/np.pi:.2f}π "
                 props = dict(boxstyle='round', facecolor='white', edgecolor='black')
                 ax.text(0.05, 0.02, textstr, transform=ax.transAxes, fontsize=6,
@@ -1725,19 +1743,19 @@ class PoincarePlotter(Optimizable):
             if engine == 'mayavi':
                 from mayavi import mlab
                 marker = kwargs.pop('marker', 'sphere')
-                scale_factor = kwargs.pop('scale_factor', 0.02)
+                scale_factor = kwargs.pop('scale_factor', 0.005)
                 color = kwargs.pop('color', 'random')
                 for idx in range(len(self.phis)):
                     plane_hits = self.plane_hits_cart(idx)
-                    for hit_group in plane_hits:
+                    for traj_idx, hit_group in enumerate(plane_hits):
                         if color == 'random':
-                            this_color = tuple(self.randomcolors[idx])
+                            this_color = tuple(self.randomcolors[traj_idx])
                         else: 
                             this_color = tuple(color)
                         
                         this_scale_factor = scale_factor
                         if mark_lost:
-                            lost = self.lost[idx]
+                            lost = self.lost[traj_idx]
                             this_scale_factor = scale_factor*3 if lost else scale_factor
                             this_color = (1,0,0) if lost else this_color
                         mlab.points3d(hit_group[:, 0], hit_group[:, 1], hit_group[:, 2], scale_factor=this_scale_factor, color=this_color, mode=marker, **kwargs)
@@ -1748,12 +1766,12 @@ class PoincarePlotter(Optimizable):
                 fig = go.Figure()
                 for idx in range(len(self.phis)):
                     plane_hits = self.plane_hits_cart(idx)
-                    for hit_group in plane_hits:
+                    for traj_idx, hit_group in enumerate(plane_hits):
                         if color == 'random':
-                            this_color = 'rgb({},{},{})'.format(*(self.randomcolors[idx]*255).astype(int))
+                            this_color = 'rgb({},{},{})'.format(*(self.randomcolors[traj_idx]*255).astype(int))
                         else: 
                             this_color = color
-                        lost = self.lost[idx] if mark_lost else False
+                        lost = self.lost[traj_idx] if mark_lost else False
                         this_size = 8 if lost else 4
                         this_color = 'rgb(255,0,0)' if lost else this_color
                         fig.add_trace(go.Scatter3d(x=hit_group[:,0], y=hit_group[:,1], z=hit_group[:,2], mode='markers', marker=dict(size=this_size, color=this_color), **kwargs))
@@ -1771,12 +1789,12 @@ class PoincarePlotter(Optimizable):
                 ax = fig.add_subplot(111, projection='3d')
                 for idx in range(len(self.phis)):
                     plane_hits = self.plane_hits_cart(idx)
-                    for hit_group in plane_hits:
+                    for traj_idx, hit_group in enumerate(plane_hits):
                         if color == 'random':
-                            this_color = self.randomcolors[idx]
+                            this_color = self.randomcolors[traj_idx]
                         else:
                             this_color = color
-                        lost = self.lost[idx] if mark_lost else False
+                        lost = self.lost[traj_idx] if mark_lost else False
                         this_size = 80 if lost else 40
                         this_color = 'rgb(255,0,0)' if lost else this_color
                         ax.scatter(hit_group[:,0], hit_group[:,1], hit_group[:,2], color=this_color, s=this_size, **kwargs)
