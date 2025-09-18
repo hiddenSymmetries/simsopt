@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 
 import simsopt
-from simsopt.field import (SurfaceClassifier, SimsoptFieldlineIntegrator, PoincarePlotter)
+from simsopt.field import (SurfaceClassifier, SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator, PoincarePlotter)
 from simsopt.geo import SurfaceRZFourier
 from simsopt.util import in_github_actions, proc0_print, comm_world
 from simsopt.geo import plot
@@ -54,10 +54,12 @@ nfp = surf.nfp
 coils_filename = Path(simsopt.__file__).parent / ".." / ".." / "examples" / "1_Simple" / "inputs" / "biot_savart_opt.json"
 bs = simsopt.load(coils_filename)
 
-integrator_bs = SimsoptFieldlineIntegrator(bs, comm=comm_world, nfp=nfp, stellsym=True, tmax=tmax_fl, tol=1e-15)
+integrator = ScipyFieldlineIntegrator(bs, comm=comm_world, nfp=nfp, stellsym=True)
+
 # create a Poincare plotter object, which can compute and plot Poincare sections
 start_points_poincare_RZ = np.linspace(np.array([1.2125346, 0.0]), np.array([1.295, 0.0]), nfieldlines)
-poincare_bs = PoincarePlotter(integrator_bs, start_points_poincare_RZ, phis=4, n_transits=n_transits, add_symmetry_planes=True)
+
+poincare = PoincarePlotter(integrator, start_points_poincare_RZ, phis=4, n_transits=n_transits, add_symmetry_planes=True)
 
 
 surf.to_vtk(OUT_DIR + 'surface')
@@ -65,18 +67,21 @@ sc_fieldline = SurfaceClassifier(surf, h=0.03, p=2)
 sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 
 # Plot the phi=0 plane:
-fig1, ax = poincare_bs.plot_poincare_single(0)
-fig2, ax = poincare_bs.plot_poincare_all()
+fig1, ax = poincare.plot_poincare_single(0)
+# Plot all planes in a multi-panel figure:
+fig2, ax = poincare.plot_poincare_all()
 # the poincareplotter has an attribute that can help such that only the plotting process does things.
-if poincare_bs.i_am_the_plotter:
-    fig1.savefig(OUT_DIR + 'QA_poincare_bs_phi0.png')
-    fig2.savefig(OUT_DIR + 'QA_poincare_bs_all.png')
+if poincare.i_am_the_plotter:
+    fig1.savefig(OUT_DIR + 'QA_poincare_phi0.png')
+    fig2.savefig(OUT_DIR + 'QA_poincare_all.png')
 
 # create a 3D plot to see the coils and the fieldlines together: 
 if not in_github_actions:
-    plot(bs.coils, engine='mayavi', show=False, tube_radius=0.01)
-    poincare_bs.plot_fieldline_trajectories_3d(engine='mayavi', show=False, tube_radius=0.001, opacity=0.3)
-    poincare_bs.plot_poincare_in_3d(engine='mayavi', show=True, scale_factor=0.01)
+    if poincare.i_am_the_plotter:
+        plot(bs.coils, engine='mayavi', show=False, tube_radius=0.01)
+    poincare.plot_fieldline_trajectories_3d(engine='mayavi', show=False, tube_radius=0.001, opacity=0.3)
+    poincare.plot_poincare_in_3d(engine='mayavi', show=False, scale_factor=0.01)
+    
 
 
 
