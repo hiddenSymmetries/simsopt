@@ -80,7 +80,7 @@ if not in_github_actions:
     if poincare.i_am_the_plotter:
         plot(bs.coils, engine='mayavi', show=False, tube_radius=0.01)
     poincare.plot_fieldline_trajectories_3d(engine='mayavi', show=False, tube_radius=0.001, opacity=0.3)
-    poincare.plot_poincare_in_3d(engine='mayavi', show=False, scale_factor=0.01)
+    poincare.plot_poincare_in_3d(engine='mayavi', show=True, scale_factor=0.01)
     
 
 

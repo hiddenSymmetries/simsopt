@@ -1185,7 +1185,7 @@ class SimsoptFieldlineIntegrator(Integrator):
         else:  # return [R,Z] array
             return self._xyz_to_rphiz(res_phi_hits[-2][2:])
 
-    def integrate_in_phi_cyl(self, start_RZ, start_phi, delta_phi=2*np.pi, return_cartesian=True):
+    def integrate_in_phi_cyl(self, start_RZ, start_phi=0, delta_phi=2*np.pi, return_cartesian=True):
         """
         Integrate the field line giving thes tarting location in cylindrical coordinates.
         Integrate the field line over an angle phi from the starting point given by 
@@ -1380,11 +1380,11 @@ class ScipyFieldlineIntegrator(Integrator):
         #_event.terminal = True
         return _event
 
-    def integrate_in_phi_cyl(self, RZ_start, phi_start, phi_end):
+    def integrate_in_phi_cyl(self, RZ_start, start_phi=0, delta_phi=2*np.pi):
         """
         Integrate the field line using scipy's odeint method
         """
-        sol = solve_ivp(self.integration_fn_cyl, [phi_start, phi_end], RZ_start, events=self.event_function, method=self._integrator_type, rtol=self._integrator_args['rtol'], atol=self._integrator_args['atol'])
+        sol = solve_ivp(self.integration_fn_cyl, [start_phi, start_phi + delta_phi], RZ_start, events=self.event_function, method=self._integrator_type, rtol=self._integrator_args['rtol'], atol=self._integrator_args['atol'])
         if not sol.success:
             return np.array(np.nan, np.nan)
         return sol.y[:, -1]
