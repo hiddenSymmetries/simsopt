@@ -109,7 +109,8 @@ class WireframeField(sopp.WireframeField, MagneticField):
         return matrix
 
 
-def coils_from_wireframe(wf, max_order=20, min_order=2, ppp=20):
+def coils_from_wireframe(wf, max_order=20, min_order=2, ppp=20, 
+                         max_normalized_current=1.0):
     """
     Generates :obj:`~simsopt.field.Coil` class instances using the 
     :obj:`~simsopt.geo.CurveXYZFourier` class to represent the geometry of 
@@ -133,6 +134,10 @@ def coils_from_wireframe(wf, max_order=20, min_order=2, ppp=20):
         ppp: integer (optional)
             Number of quadrature points to assign per period for the 
             highest-order Fourier harmonic for the curve of each coil
+        max_normalized_current: float or None (optional)
+            Maximum value of the degrees of freedom to which the coil currents
+            are normalized. If None, each degree of freedom will be set equal 
+            to its corresponding coil current.
 
     Returns
     -------
@@ -213,7 +218,16 @@ def coils_from_wireframe(wf, max_order=20, min_order=2, ppp=20):
 
             curve.local_x = np.concatenate(dofs)
 
-            coils.append(Coil(curve, Current(curr_all[i])))
+            # Set the degree of freedom for the current
+            if max_normalized_current is None:
+                coils.append(Coil(curve, Current(curr_all[i])))
+            elif np.isscalar(max_normalized_current):
+                factor = np.max(np.abs(curr_all))/max_normalized_current
+                normalized_current = curr_all[i]/factor
+                coils.append(Coil(curve, Current(normalized_current) * factor))
+            else:
+                raise ValueError('`max_normalized_current` '
+                                 'must be scalar or None')
 
             base_ind = i
 
