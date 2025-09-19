@@ -246,6 +246,7 @@ class TestIntegratorAgreement(unittest.TestCase):
                 gamma = ma.gamma()
                 start_xyz = gamma[0, :]
                 target_xyz = gamma[-1, :]
+                R0 = Integrator._xyz_to_rphiz(start_xyz)[0][0]
 
                 # Compute phi start/end directly from endpoints
                 phi_start = np.arctan2(start_xyz[1], start_xyz[0])
@@ -254,7 +255,7 @@ class TestIntegratorAgreement(unittest.TestCase):
 
                 # Simsopt integrator: integrate over delta_phi in Cartesian space
                 so = SimsoptFieldlineIntegrator(
-                    bs, nfp=nfp, test_symmetries=False, R0=np.linalg.norm(start_xyz[:2]), tmax=5e4, tol=1e-10
+                    bs, nfp=nfp, test_symmetries=False, R0=R0, tmax=5e4, tol=1e-10
                 )
                 end_xyz_so = so.integrate_in_phi_cart(start_xyz, delta_phi=delta_phi, return_cartesian=True)
 
@@ -262,7 +263,7 @@ class TestIntegratorAgreement(unittest.TestCase):
                 rphiz0 = Integrator._xyz_to_rphiz(start_xyz)[-1]
                 RZ0 = np.array([rphiz0[0], rphiz0[2]])
                 sc = ScipyFieldlineIntegrator(
-                    bs, nfp=nfp, test_symmetries=False, R0=np.linalg.norm(start_xyz[:2]), integrator_type='RK45', integrator_args={'rtol': 1e-10, 'atol': 1e-12}
+                    bs, nfp=nfp, test_symmetries=False, R0=R0, integrator_type='RK45', integrator_args={'rtol': 1e-10, 'atol': 1e-12}
                 )
                 RZ_end = sc.integrate_in_phi_cyl(RZ0, phi_start=phi_start, phi_end=phi_end)
                 self.assertTrue(np.all(np.isfinite(RZ_end)), msg=f"scipy integrator produced non-finite result for config {name}")
