@@ -3,10 +3,6 @@ import time
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
-
-import simsopt.field
-print(dir(simsopt.field))
-
 from simsopt.field import BiotSavart, ExactField, DipoleField
 from simsopt.geo import ExactMagnetGrid, SurfaceRZFourier, PermanentMagnetGrid
 from simsopt.objectives import SquaredFlux
@@ -14,30 +10,31 @@ from simsopt.solve import GPMO, relax_and_split
 from simsopt.util import in_github_actions
 from simsopt.util.permanent_magnet_helper_functions import *
 import csv
+import pandas as pd
 
 t_start = time.time()
 
-nphi = 64
+nphi = 8
 ntheta = nphi
 Nx = 80
 
 # for now just with variable magnet distance
-iters = 2
+iters = 70
 
 coff = 0.2  # outer surface distance away from inner surface
-poff = np.linspace(2.0, 5.0, iters, dtype=float64)
+poff = np.linspace(0.05, 0.6, iters, dtype=np.float64)
 
 input_name = 'input.LandremanPaul2021_QA_lowres'
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
 
 objectives = {
-    'coff': np.linspace(coff, coff, iters, dtype=float64),
+    'coff': np.linspace(coff, coff, iters, dtype=np.float64),
     'poff': poff,
-    'dipole_dipole': np.zeros(iters,dtype=float64),
-    'dipole_exact': np.zeros(iters,dtype=float64),
-    'exact_exact': np.zeros(iters,dtype=float64),
-    'exact_dipole': np.zeros(iters,dtype=float64)
+    'dipole_dipole': np.zeros(iters,dtype=np.float64),
+    'dipole_exact': np.zeros(iters,dtype=np.float64),
+    'exact_exact': np.zeros(iters,dtype=np.float64),
+    'exact_dipole': np.zeros(iters,dtype=np.float64)
 }
 
 for it in range(iters):
@@ -50,11 +47,11 @@ for it in range(iters):
     s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 
     # Make the inner and outer surfaces by extending the plasma surface
-    s_inner.extend_via_projected_normal(poff)
-    s_outer.extend_via_projected_normal(poff + coff)
+    s_inner.extend_via_projected_normal(poff[it])
+    s_outer.extend_via_projected_normal(poff[it] + coff)
 
     # Make the output directory
-    out_str = f"bulkRun/exact_QA_noSparsity_poff{poff}"
+    out_str = f"bulkRun/exact_QA_noSparsity_poff{poff[it]}"
     out_dir = Path(out_str)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -108,7 +105,7 @@ for it in range(iters):
     nu = 1e100
     kwargs = initialize_default_kwargs()
     kwargs['nu'] = nu  # Strength of the "relaxation" part of relax-and-split
-    kwargs['max_iter'] = 100  # Number of iterations to take in a convex step
+    kwargs['max_iter'] = 10  # Number of iterations to take in a convex step
     kwargs['max_iter_RS'] = 1  # Number of total iterations of the relax-and-split algorithm
     kwargs['reg_l0'] = reg_l0
     RS_history, m_history, m_proxy_history = relax_and_split(pm_opt, m0=m0, **kwargs)
@@ -203,11 +200,11 @@ for it in range(iters):
     s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
     s_inner = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
     s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-    s_inner.extend_via_projected_normal(poff)
-    s_outer.extend_via_projected_normal(poff + coff)
+    s_inner.extend_via_projected_normal(poff[it])
+    s_outer.extend_via_projected_normal(poff[it] + coff)
 
     # Make the output directory
-    out_str = f"bulkRun/dipole_QA_noSparsity_poff{poff}"
+    out_str = f"bulkRun/dipole_QA_noSparsity_poff{poff[it]}"
     out_dir = Path(out_str)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -353,10 +350,8 @@ for it in range(iters):
     Bcnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
     f_Bc_sf = SquaredFlux(s, b_comp, -Bcnormal).J()
 
-with open("objectives.csv", "w", newline="") as f:
-    w = csv.DictWriter(f, objectives.keys())
-    w.writeheader()
-    w.writerow(objectives)
+df = pd.DataFrame(objectives)
+df.to_csv('bulkRun/objectives.csv', index=False)
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
