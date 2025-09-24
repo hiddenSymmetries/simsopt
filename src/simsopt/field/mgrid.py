@@ -143,7 +143,7 @@ class MGrid():
             filename (str): output file name.
         '''
 
-        with netcdf_file(filename, 'w', mmap=False) as ds:
+        with netcdf_file(filename, 'w', mmap=False, version=2) as ds:
 
             # set netcdf dimensions
             ds.createDimension('stringsize', 30)
@@ -225,7 +225,7 @@ class MGrid():
             MGrid: ``MGrid`` object with data from file.
         '''
 
-        with netcdf_file(filename, 'r', mmap=False) as f:
+        with netcdf_file(filename, 'r', mmap=False, version=2) as f:
 
             # load grid
             nr = f.variables['ir'].getValue()
