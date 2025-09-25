@@ -304,21 +304,23 @@ class WireframeFieldTests(unittest.TestCase):
         wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
 
         # Should return empty arrays for a wireframe with no currents
-        coils = coils_from_wireframe(wf)
+        coils, base_curves, base_currents = coils_from_wireframe(wf)
         self.assertEqual(len(coils), 0)
+        self.assertEqual(len(base_curves), 0)
+        self.assertEqual(len(base_currents), 0)
 
         # Should raise an error if constraints are not met
         wf.currents[[5, 6, 19, 23]] = [test_cur, -test_cur, -test_cur, test_cur]
         wf.currents[[10, 11]] = [test_cur, -test_cur]
         self.assertFalse(wf.check_constraints())
         with self.assertRaises(ValueError):
-            coils = coils_from_wireframe(wf)
+            coils, base_curves, base_currents = coils_from_wireframe(wf)
 
         # Should raise an error if current crossings exist
         wf.currents[[24, 28]] = [-test_cur, test_cur]
         self.assertTrue(wf.check_constraints)
         with self.assertRaises(ValueError):
-            coils = coils_from_wireframe(wf)
+            coils, base_curves, base_currents = coils_from_wireframe(wf)
 
         wf.currents[:] = 0
 
@@ -327,29 +329,87 @@ class WireframeFieldTests(unittest.TestCase):
         wf.currents[[11, 8, 25, 29]] = [-2*test_cur, 2*test_cur,
                                         2*test_cur, -2*test_cur]
         self.assertTrue(wf.check_constraints())
-        coils = coils_from_wireframe(wf, min_order=3, max_order=3)
+        coils = coils_from_wireframe(wf, min_order=3, max_order=3)[0]
 
         # Verify that the coils agree with the wireframe node coordinates
         coords, currs, group_ids = wf.find_coils()
-        for i in range(len(coils)):
+        idx_first_in_group = \
+            [np.where(group_ids == idx)[0][0] for idx in np.unique(group_ids)]
+        idx_not_first = \
+            [i for i in range(len(group_ids)) if i not in idx_first_in_group]
+        idx_reordered = idx_first_in_group + idx_not_first
+        for i1, i2 in zip(np.arange(len(coils)), idx_reordered):
 
             # Obtain quadrature points that coincide with nodes (guaranteed
             # to exist if order == number of nodes)
-            n_qpts = len(coils[i].curve.quadpoints)
-            n_nodes = coords[i].shape[0]
+            n_qpts = len(coils[i1].curve.quadpoints)
+            n_nodes = coords[i2].shape[0]
             qpt_inds = (np.arange(n_nodes) / n_nodes * n_qpts).astype(int)
-            curve_pts = coils[i].curve.gamma()[qpt_inds, :]
+            curve_pts = coils[i1].curve.gamma()[qpt_inds, :]
 
-            if np.allclose(curve_pts, coords[i]):
+            if np.allclose(curve_pts, coords[i2]):
                 # Non-flipped coil
-                self.assertAlmostEqual(coils[i].current.get_value(), currs[i])
+                self.assertAlmostEqual(coils[i1].current.get_value(), currs[i2])
             elif np.allclose(curve_pts,
-                             np.roll(coords[i], -1, axis=0)[::-1, :]):
+                             np.roll(coords[i2], -1, axis=0)[::-1, :]):
                 # Flipped coil
-                self.assertAlmostEqual(-coils[i].current.get_value(), currs[i])
+                self.assertAlmostEqual(-coils[i1].current.get_value(), 
+                                       currs[i2])
             else:
                 # Should not get here
                 self.assertTrue(False)
+
+        # Test invalid input for normalization factor
+        with self.assertRaises(ValueError):
+            result = coils_from_wireframe(wf, max_normalized_current=[1.])
+
+        # Verify that the coils are in the right order
+        coils, base_curves, base_currents = coils_from_wireframe(wf)
+        self.assertEqual(len(base_curves), 2)
+        for i in range(len(base_curves)):
+            self.assertTrue(coils[i].curve == base_curves[i]) 
+            self.assertTrue(coils[i].current == base_currents[i]) 
+
+        # Verify that current values are the same for different normalizations
+        coils_nf0 = coils_from_wireframe(wf, max_normalized_current=None)[0]
+        coils_nf1 = coils_from_wireframe(wf, max_normalized_current=1.0)[0]
+        coils_nf2 = coils_from_wireframe(wf, max_normalized_current=0.1)[0]
+        self.assertEqual(coils_nf0[0].current.get_value(),
+                         coils_nf1[0].current.get_value())
+        self.assertEqual(coils_nf0[0].current.get_value(),
+                         coils_nf2[0].current.get_value())
+
+        # Check DOF values with different normalization factors
+        ind1 = 1 if np.isclose(coils_nf1[0].current.x[0], 1.0) else 0
+        ind2 = 1 - ind1
+        self.assertAlmostEqual(coils_nf0[ind1].current.x[0], np.abs(test_cur))
+        self.assertAlmostEqual(coils_nf0[ind2].current.x[0], 2*np.abs(test_cur))
+        self.assertAlmostEqual(coils_nf1[ind1].current.x[0], 0.5)
+        self.assertAlmostEqual(coils_nf1[ind2].current.x[0], 1.0)
+        self.assertAlmostEqual(coils_nf2[ind1].current.x[0], 0.05)
+        self.assertAlmostEqual(coils_nf2[ind2].current.x[0], 0.1)
+
+        # Verify that the field is the same at different normalization factors
+        bs_nf0 = BiotSavart(coils_nf0)
+        bs_nf1 = BiotSavart(coils_nf1)
+        bs_nf2 = BiotSavart(coils_nf2)
+        test_point_curve = CurveXYZFourier(10, 1)
+        test_point_curve.set('xc(1)', surf_wf.get_rc(0, 0))
+        test_point_curve.set('ys(1)', surf_wf.get_rc(0, 0))
+        bs_nf0.set_points(test_point_curve.gamma())
+        bs_nf1.set_points(test_point_curve.gamma())
+        bs_nf2.set_points(test_point_curve.gamma())
+        self.assertTrue(np.allclose(bs_nf0.B(), bs_nf1.B()))
+        self.assertTrue(np.allclose(bs_nf0.B(), bs_nf2.B()))
+
+        # Check the setting of bounds
+        coils_b0, curv_b0, curr_b0 = coils_from_wireframe(wf)
+        coils_b1, curv_b1, curr_b1 = coils_from_wireframe(wf, 
+                                         current_bound=3*test_cur)
+        self.assertAlmostEqual(curr_b0[0].lower_bounds[0], -np.inf)
+        self.assertAlmostEqual(curr_b0[0].upper_bounds[0],  np.inf)
+        self.assertAlmostEqual(curr_b1[0].lower_bounds[0], -1.5)
+        self.assertAlmostEqual(curr_b1[0].upper_bounds[0],  1.5)
 
         wf.currents[:] = 0
 
@@ -357,8 +417,11 @@ class WireframeFieldTests(unittest.TestCase):
         helical_coil_inds_4x4 = [0, 4, 22, 9, 13, 2, 6, 24, 11, 15]
         wf.currents[helical_coil_inds_4x4] = test_cur
         self.assertTrue(wf.check_constraints())
-        coils = coils_from_wireframe(wf, min_order=wf.nfp*3, max_order=wf.nfp*3)
+        coils, base_curves, base_currents = \
+            coils_from_wireframe(wf, min_order=wf.nfp*3, max_order=wf.nfp*3)
         self.assertEqual(len(coils), 1)
+        self.assertEqual(len(base_curves), 1)
+        self.assertEqual(len(base_currents), 1)
 
         # Verify symmetry under rotation
         dphi = 2 * np.pi / wf.nfp
@@ -374,7 +437,7 @@ class WireframeFieldTests(unittest.TestCase):
         wf_4fp = ToroidalWireframe(surf_wf_4hp, n_phi, n_theta)
         wf_4fp.currents[helical_coil_inds_4x4] = test_cur
         self.assertTrue(wf_4fp.check_constraints())
-        coils = coils_from_wireframe(wf_4fp)
+        coils, base_curves, base_currents = coils_from_wireframe(wf_4fp)
         self.assertEqual(len(coils), 2)
         for i in range(len(coils)):
             self.assertEqual(coils[i].current.get_value(), np.abs(test_cur))
@@ -390,8 +453,18 @@ class WireframeFieldTests(unittest.TestCase):
         wf.currents[[26, 34, 102, 103]] =  2 * test_cur
         wf.currents[[28, 36,  86,  87]] = -2 * test_cur
         self.assertTrue(wf.check_constraints())
-        coils = coils_from_wireframe(wf)
+        coils, base_curves, base_currents = \
+            coils_from_wireframe(wf, max_normalized_current=None)
         self.assertEqual(len(coils), 7)
+        self.assertEqual(len(base_curves), 2)
+        self.assertEqual(len(base_currents), 2)
+
+        # Verify that coils are provided in the correct order
+        for i in range(len(base_curves)):
+            self.assertTrue(coils[i].curve == base_curves[i]) 
+            self.assertTrue(coils[i].current == base_currents[i]) 
+
+        # Verify the quantities of each type of curve and current in the coils
         n_rotated = 0
         n_original = 0
         n_scaled = 0
@@ -411,7 +484,7 @@ class WireframeFieldTests(unittest.TestCase):
         wf = ToroidalWireframe(surf_wf, n_phi, n_theta)
         n_tf_per_hp = 16
         wf.add_tfcoil_currents(n_tf_per_hp, -test_cur/(n_tf_per_hp*2*wf.nfp))
-        coils = coils_from_wireframe(wf)
+        coils, base_curves, base_currents = coils_from_wireframe(wf)
         coil_field = BiotSavart(coils)
 
         # Amperian loop through which poloidal current flows
@@ -425,8 +498,7 @@ class WireframeFieldTests(unittest.TestCase):
 
         # Recalculate after changing the current in the base coils
         for i in range(n_tf_per_hp):
-            idx = i * wf.nfp * 2
-            coils[idx].current.set_dofs([2*coils[idx].current.get_value()])
+            base_currents[i].x = [2*base_currents[i].x[0]]
         amploop_curr = enclosed_current(amploop, coil_field, 200)
         self.assertTrue(np.allclose(amploop_curr, 2*test_cur))
 
@@ -455,7 +527,7 @@ class WireframeFieldTests(unittest.TestCase):
 
             # Calculate fields from (1) wireframe and (2) extracted coils
             field_wf = WireframeField(wf)
-            field_coils = BiotSavart(coils_from_wireframe(wf, max_order=100))
+            field_coils = BiotSavart(coils_from_wireframe(wf, max_order=100)[0])
 
             # Calculate loop currents for both fields
             loop_tor_cur_wf = enclosed_current(loop_tor, field_wf, 100)

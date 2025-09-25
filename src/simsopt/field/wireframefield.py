@@ -110,7 +110,7 @@ class WireframeField(sopp.WireframeField, MagneticField):
 
 
 def coils_from_wireframe(wf, max_order=20, min_order=2, ppp=20, 
-                         max_normalized_current=1.0):
+                         max_normalized_current=1.0, current_bound=None):
     """
     Generates :obj:`~simsopt.field.Coil` class instances using the 
     :obj:`~simsopt.geo.CurveXYZFourier` class to represent the geometry of 
@@ -138,6 +138,11 @@ def coils_from_wireframe(wf, max_order=20, min_order=2, ppp=20,
             Maximum value of the degrees of freedom to which the coil currents
             are normalized. If None, each degree of freedom will be set equal 
             to its corresponding coil current.
+        current_bound: float (optional)
+            Maximum current to impose as bounds, if desired, on the current 
+            degrees of freedom for all the coils that would be applied in
+            subsequent bounded optimizations; if None (default), the bounds
+            will remain at the default values of (-inf, inf).
 
     Returns
     -------
@@ -146,18 +151,45 @@ def coils_from_wireframe(wf, max_order=20, min_order=2, ppp=20,
             each coil found within the wireframe. Coils constrained to
             have like currents and geometry by stellarator symmetry share
             their respective degrees of freedom.
+        base_curves: list of Curve class instances
+            :obj:`~simsopt.geo.Curve` class instances corresponding to the 
+            base curves, i.e. the curves for the minimal set of coils from
+            which the geometry of the remaining coils are constrained by
+            symmetries.
+        base_currents: list of Current class instances
+            :obj:`~simsopt.field.Current` class instances corresponding to the
+            base currents, i.e. the currents for the minimal set of coils from
+            which the currents of the remaining coils are constrained by
+            symmetries.
     """
 
     # Obtain the current flows in the wireframe forming coils
     coords_all, curr_all, group_ids = \
         wf.find_coils(repeat_starting_points=False)
 
+    # Check input for current normalization factor
+    if max_normalized_current is not None and len(group_ids) > 0:
+        if np.isscalar(max_normalized_current):
+            norm_factor = np.max(np.abs(curr_all))/max_normalized_current
+        else:
+            raise ValueError('`max_normalized_current` must be scalar or None')
+    else:
+        norm_factor = 1.0
+
+    # Check input for max current
+    if current_bound is not None:
+        if not np.isscalar(current_bound):
+            raise ValueError('`current_bound` must be scalar')
+
     this_group = -1
     base_ind = -1
     first_in_group = True
 
     n_coils = len(curr_all)
-    coils = []
+    base_coils = []
+    symm_coils = []
+    base_curves = []
+    base_currents = []
 
     for i in range(n_coils):
 
@@ -220,16 +252,21 @@ def coils_from_wireframe(wf, max_order=20, min_order=2, ppp=20,
 
             # Set the degree of freedom for the current
             if max_normalized_current is None:
-                coils.append(Coil(curve, Current(curr_all[i])))
-            elif np.isscalar(max_normalized_current):
-                factor = np.max(np.abs(curr_all))/max_normalized_current
-                normalized_current = curr_all[i]/factor
-                coils.append(Coil(curve, Current(normalized_current) * factor))
+                current = Current(curr_all[i])
             else:
-                raise ValueError('`max_normalized_current` '
-                                 'must be scalar or None')
+                norm_current = curr_all[i]/norm_factor
+                current = Current(norm_current) * norm_factor
 
-            base_ind = i
+            # Set bounds on the current if desired
+            if current_bound is not None:
+                current.lower_bounds = [-np.abs(current_bound/norm_factor)]
+                current.upper_bounds = [ np.abs(current_bound/norm_factor)]
+
+            base_ind += 1
+
+            base_coils.append(Coil(curve, current))
+            base_curves.append(curve)
+            base_currents.append(current)
 
         # Create a scaled/rotated curve that best fits the current coil
         else:
@@ -238,7 +275,7 @@ def coils_from_wireframe(wf, max_order=20, min_order=2, ppp=20,
             n_qpts = len(curve.quadpoints)
             n_nodes = coords_all[i].shape[0]
             qpt_inds = (np.arange(n_nodes)/(n_nodes)*n_qpts).astype(int)
-            curve_pts = coils[base_ind].curve.gamma()[qpt_inds, :]
+            curve_pts = base_coils[base_ind].curve.gamma()[qpt_inds, :]
 
             coords = coords_all[i]
             coords_flip = np.roll(coords, -1, axis=0)[::-1, :]
@@ -265,15 +302,15 @@ def coils_from_wireframe(wf, max_order=20, min_order=2, ppp=20,
             flip = imin >= wf.nfp
             phi_best = np.mod(imin, wf.nfp) * 2 * np.pi / wf.nfp
 
-            curve = RotatedCurve(coils[base_ind].curve, phi_best, flip)
+            curve = RotatedCurve(base_coils[base_ind].curve, phi_best, flip)
             if flip:
-                current = ScaledCurrent(coils[base_ind].current, -1)
+                current = ScaledCurrent(base_coils[base_ind].current, -1)
             else:
-                current = coils[base_ind].current
+                current = base_coils[base_ind].current
 
-            coils.append(Coil(curve, current))
+            symm_coils.append(Coil(curve, current))
 
-    return coils
+    return base_coils + symm_coils, base_curves, base_currents
 
 
 def enclosed_current(curve, field, n_quadpoints, preserve_points=True):
