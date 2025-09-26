@@ -1246,7 +1246,8 @@ class SimsoptFieldlineIntegrator(Integrator):
         start_xyz = self._rphiz_to_xyz(np.array([start_RZ[0], start_phi, start_RZ[1]]))[-1, :]
         return self.get_fieldlinepoints_cart(
             start_xyz, n_transits=n_transits, return_cartesian=return_cartesian)
-    
+
+
 class ScipyFieldlineIntegrator(Integrator):
     """
     Field line integration using scipy solve_ivp methods. 
@@ -1277,6 +1278,16 @@ class ScipyFieldlineIntegrator(Integrator):
             integrator_type: type of integrator to use (default 'dopri5')
             integrator_args: additional arguments to pass to the integrator
         """
+        # check if field is in positive B_phi direction at (R0,0,0)
+        if R0 is None:
+            logger.warning("R0 is not set, using default value of 1.")
+            R0 = 1
+        field.set_points_cyl(np.array([[R0, 0.0, 0.0]]))
+        B = field.B_cyl().flatten()
+        if B[1] < 0:
+            self.flip_B = True
+        else:
+            self.flip_B = False
         super().__init__(field, comm, nfp, stellsym, R0, test_symmetries)
         self._integrator_type = integrator_type
         self._integrator_args = integrator_args
@@ -1419,27 +1430,24 @@ class ScipyFieldlineIntegrator(Integrator):
         else:
             return success, rphiz
     
-    def integrate_fieldlinepoints_RZ(self, start_RZ, phi_start, phi_end, n_points, endpoint=False, return_cartesian=True):
+    def integrate_fieldlinepoints_RZ(self, start_RZ, phi_start, delta_phi, n_points, endpoint=False, return_cartesian=True):
         """
         integrate a fieldline for a given toroidal distance, giving the start point in R,Z. 
         """
-        if phi_end < phi_start:
-            raise ValueError("phi_end must be greater than phi_start")
-        phis = np.linspace(phi_start, phi_end, n_points, endpoint=endpoint)
+        phis = np.linspace(phi_start, phi_start+delta_phi, n_points, endpoint=endpoint)
         sucess, points = self.integrate_cyl_planes(start_RZ, phis, return_cartesian=return_cartesian)
         if not sucess:
             raise ObjectiveFailure("Integration failed")
         return points
 
-    def integrate_fieldlinepoints_xyz(self, xyz_start, phi_total, n_points, endpoint=False, return_cartesian=True):
+    def integrate_fieldlinepoints_xyz(self, xyz_start, delta_phi, n_points, endpoint=False, return_cartesian=True):
         """
         integrate a fieldline for a given toroidal distance, giving the start point in xyz. 
         """
         rphiz_start = self._xyz_to_rphiz(xyz_start)[-1]
         RZ_start = rphiz_start[[0, 2]]
         phi_start = rphiz_start[1]
-        phi_end = phi_start + phi_total
-        points = self.integrate_fieldlinepoints_RZ(RZ_start, phi_start, phi_end, n_points, endpoint=endpoint, return_cartesian=return_cartesian)
+        points = self.integrate_fieldlinepoints_RZ(RZ_start, phi_start, delta_phi, n_points, endpoint=endpoint, return_cartesian=return_cartesian)
         return points
 
     def integration_fn_3d(self, t, xyz):
