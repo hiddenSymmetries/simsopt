@@ -14,6 +14,7 @@ from simsopt.solve import GPMO, relax_and_split
 from simsopt.util import in_github_actions
 from simsopt.util.permanent_magnet_helper_functions import *
 import csv
+import pandas as pd
 
 t_start = time.time()
 
@@ -22,19 +23,21 @@ ntheta = nphi
 Nx = 80
 
 # for now just with variable magnet distance
-iters = 2
+iters = 10
 
 coff = 0.2  # outer surface distance away from inner surface
-poff = np.linspace(2.0, 5.0, iters, dtype=np.float64)
+poff = np.linspace(0.1, 3.0, iters, dtype=np.float64)
 
-max_nMagnets = 1000
+max_nMagnets = 100
 
 input_name = 'input.LandremanPaul2021_QA_lowres'
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
 
+repo = 'bulkGPMO'
+
 objectives = {
-    'coff': np.linspace(coff, coff, iters, dtype=float64),
+    'coff': np.linspace(coff, coff, iters, dtype=np.float64),
     'poff': poff,
     'dipole_dipole': np.zeros(iters,dtype=np.float64),
     'dipole_exact': np.zeros(iters,dtype=np.float64),
@@ -52,11 +55,11 @@ for it in range(iters):
     s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 
     # Make the inner and outer surfaces by extending the plasma surface
-    s_inner.extend_via_projected_normal(poff)
-    s_outer.extend_via_projected_normal(poff + coff)
+    s_inner.extend_via_projected_normal(poff[it])
+    s_outer.extend_via_projected_normal(poff[it] + coff)
 
     # Make the output directory
-    out_str = f"bulkRun/exact_QA_noSparsity_poff{poff}"
+    out_str = repo+f"/exact_QA_noSparsity_poff{poff[it]}"
     out_dir = Path(out_str)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -107,7 +110,7 @@ for it in range(iters):
 
     # Optimize the permanent magnets. This actually solves
     kwargs = initialize_default_kwargs('GPMO')
-    nIter_max = 10000
+    nIter_max = 1000
     algorithm = 'baseline'
     # algorithm = 'ArbVec_backtracking'
     # nBacktracking = 200 
@@ -219,11 +222,11 @@ for it in range(iters):
     s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
     s_inner = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
     s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-    s_inner.extend_via_projected_normal(poff)
-    s_outer.extend_via_projected_normal(poff + coff)
+    s_inner.extend_via_projected_normal(poff[it])
+    s_outer.extend_via_projected_normal(poff[it] + coff)
 
     # Make the output directory
-    out_str = f"bulkRun/dipole_QA_noSparsity_poff{poff}"
+    out_str = repo+f"/dipole_QA_noSparsity_poff{poff[it]}"
     out_dir = Path(out_str)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -274,7 +277,7 @@ for it in range(iters):
 
     # Optimize the permanent magnets. This actually solves
     kwargs = initialize_default_kwargs('GPMO')
-    nIter_max = 10000
+    nIter_max = 1000
     algorithm = 'baseline'
     # algorithm = 'ArbVec_backtracking'
     # nBacktracking = 200 
@@ -383,10 +386,8 @@ for it in range(iters):
     Bcnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
     f_Bc_sf = SquaredFlux(s, b_comp, -Bcnormal).J()
 
-with open("objectives.csv", "w", newline="") as f:
-    w = csv.DictWriter(f, objectives.keys())
-    w.writeheader()
-    w.writerow(objectives)
+df = pd.DataFrame(objectives)
+df.to_csv(repo+'/objectives.csv', index=False)
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
