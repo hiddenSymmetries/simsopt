@@ -13,7 +13,6 @@ processes (e.g. by mpirun -n or srun), but it also works on a single
 process.
 """
 
-import time
 import os
 import logging
 import sys
@@ -54,7 +53,7 @@ proc0_print("Mean(|B|) on axis =", np.mean(np.linalg.norm(bs.set_points(ma.gamma
 proc0_print("Mean(Axis radius) =", np.mean(np.linalg.norm(ma.gamma(), axis=1)))
 
 # create an integrator, that performs tasks like integrating field lines.
-integrator_bs = SimsoptFieldlineIntegrator(bs, comm=comm_world, nfp=nfp, R0=ma.gamma()[0,0], stellsym=True, tmax=tmax_fl, tol=1e-9)
+integrator_bs = SimsoptFieldlineIntegrator(bs, comm=comm_world, nfp=nfp, R0=ma.gamma()[0, 0], stellsym=True, tmax=tmax_fl, tol=1e-9)
 
 # create a Poincare plotter object, which can compute and plot Poincare sections
 axis_RZ = ma.gamma()[0, 0:2]
@@ -96,8 +95,9 @@ phirange = (0, 2*np.pi/nfp, n*2)
 # exploit stellarator symmetry and only consider positive z values:
 zrange = (0, np.max(zs), n//2)
 
-
 sc_fieldline = SurfaceClassifier(s, h=0.03, p=2)
+
+
 def skip(rs, phis, zs):
     # The RegularGrindInterpolant3D class allows us to specify a function that
     # is used in order to figure out which cells to be skipped.  Internally,
@@ -132,7 +132,7 @@ B = bs.B()
 proc0_print("|B-Bh| on axis", np.sort(np.abs(B-Bh).flatten()))
 
 # The integrator accepts any MagneticField, also our faster InterpolatedField:
-integrator_bsh = SimsoptFieldlineIntegrator(bsh, comm=comm_world, nfp=nfp, R0=ma.gamma()[0,0], stellsym=True)
+integrator_bsh = SimsoptFieldlineIntegrator(bsh, comm=comm_world, nfp=nfp, R0=ma.gamma()[0, 0], stellsym=True)
 # create a Poincare plotter object for the interpolated field
 poincare_bsh = PoincarePlotter(integrator_bsh, poincare_start_points, phis=4, n_transits=n_transits, add_symmetry_planes=True)
 
@@ -150,8 +150,8 @@ if comm_world is None or comm_world.rank == 0:
 
 if comm_world is None or comm_world.rank == 0:
     curves_to_vtk(all_curves + [ma], OUT_DIR + 'coils')
-    particles_to_vtk(poincare_bsh.res_tys, OUT_DIR + f'fieldlines_bsh')
-    particles_to_vtk(poincare_bs.res_tys, OUT_DIR + f'fieldlines_bs')
+    particles_to_vtk(poincare_bsh.res_tys, OUT_DIR + 'fieldlines_bsh')
+    particles_to_vtk(poincare_bs.res_tys, OUT_DIR + 'fieldlines_bs')
     s.to_vtk(OUT_DIR + 'surface')
     sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 

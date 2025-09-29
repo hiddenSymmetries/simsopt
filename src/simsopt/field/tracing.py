@@ -14,7 +14,6 @@ from ..geo.surface import SurfaceClassifier
 from ..util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
 from .._core.types import RealArray
 from numpy.typing import NDArray
-from typing import Union, Iterable
 from matplotlib import pyplot as plt
 from scipy.integrate import solve_ivp
 
@@ -660,7 +659,7 @@ def compute_poloidal_transits(res_tys, ma=None, flux=True):
     return ntransits
 
 
-def compute_fieldlines(field, R0, Z0, phi0=0, tmax=200, tol=1e-7, phis=None, stopping_criteria=None, comm=None):
+def compute_fieldlines(field, R0, Z0, phi0 = 0, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None):
     r"""
     Compute magnetic field lines by solving
 
@@ -1325,7 +1324,6 @@ class ScipyFieldlineIntegrator(Integrator):
             res_phi_hits.append(res_phi_hits_line)
         if self.comm is not None:
             res_phi_hits = [hit for gathered_hits in self.comm.allgather(res_phi_hits) for hit in gathered_hits]
-        res_tys = None
         return res_phi_hits
     
     def compute_poincare_trajectories(self, start_points_RZ, n_transits, phi0=0):
@@ -1761,7 +1759,7 @@ class PoincarePlotter(Optimizable):
                 phi_indices = np.where(np.isclose(self.phis, phi))[0]
         
         # trigger recompute on all ranks if necessary:
-        res_phi_hits = self.res_phi_hits
+        _ = self.res_phi_hits
 
         if self.i_am_the_plotter:
             if ax is None:
@@ -1792,7 +1790,7 @@ class PoincarePlotter(Optimizable):
         plot all the planes in a single figure. 
         *NOTE*: if running parallel, call this function on all ranks. 
         """
-        res_phi_hits = self.res_phi_hits  #trigger recompute on all ranks if necessary
+        _ = self.res_phi_hits  #trigger recompute on all ranks if necessary
 
         if self.i_am_the_plotter:
             from math import ceil
@@ -1886,7 +1884,7 @@ class PoincarePlotter(Optimizable):
         Plot the Poincare points in 3D. 
         Uses mayavi or plotly for plotting. 
         """
-        hits = self.res_phi_hits  # trigger recompute if necessary
+        _ = self.res_phi_hits  # trigger recompute if necessary
 
         if self.i_am_the_plotter:
             # unify color kw handling across engines

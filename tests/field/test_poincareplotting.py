@@ -6,7 +6,6 @@ from simsopt.field.tracing import (
     PoincarePlotter,
     SimsoptFieldlineIntegrator,
     ScipyFieldlineIntegrator,
-    Integrator,
 )
 from simsopt.configs.zoo import get_data
 

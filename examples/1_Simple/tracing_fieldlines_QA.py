@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 
 import simsopt
-from simsopt.field import (SurfaceClassifier, SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator, PoincarePlotter)
+from simsopt.field import (SurfaceClassifier, ScipyFieldlineIntegrator, PoincarePlotter)
 from simsopt.geo import SurfaceRZFourier
 from simsopt.util import in_github_actions, proc0_print, comm_world
 from simsopt.geo import plot
@@ -61,7 +61,6 @@ start_points_poincare_RZ = np.linspace(np.array([1.2125346, 0.0]), np.array([1.2
 
 poincare = PoincarePlotter(integrator, start_points_poincare_RZ, phis=4, n_transits=n_transits, add_symmetry_planes=True)
 
-
 surf.to_vtk(OUT_DIR + 'surface')
 sc_fieldline = SurfaceClassifier(surf, h=0.03, p=2)
 sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
@@ -81,9 +80,6 @@ if not in_github_actions:
         plot(bs.coils, engine='mayavi', show=False, tube_radius=0.01)
     poincare.plot_fieldline_trajectories_3d(engine='mayavi', show=False, tube_radius=0.001, opacity=0.3)
     poincare.plot_poincare_in_3d(engine='mayavi', show=True, scale_factor=0.01)
-    
-
-
 
 
 proc0_print("End of 1_Simple/tracing_fieldlines_QA.py")
