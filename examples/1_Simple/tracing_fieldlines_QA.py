@@ -14,7 +14,6 @@ processes (e.g. by mpirun -n or srun), but it also works on a single
 process.
 """
 
-import time
 import os
 import logging
 from pathlib import Path
