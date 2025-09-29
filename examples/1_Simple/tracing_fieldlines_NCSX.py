@@ -157,7 +157,8 @@ if comm_world is None or comm_world.rank == 0:
 
 # not necessary, but output will be garbled if other threads race 
 # ahead whilst proc0 plots.
-comm_world.Barrier()
+if comm_world is not None:
+    comm_world.Barrier()
 
 # Because our PoincarePlotter depends on the magnetic field, changes 
 # to the magnetic field will trigger a recomputation, but only
