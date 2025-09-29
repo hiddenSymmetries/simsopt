@@ -685,8 +685,10 @@ class VmecTests(unittest.TestCase):
                 vmec3 = Vmec(outfilename)
                 np.testing.assert_allclose(rmnc, vmec3.wout.rmnc, atol=1e-10)
 
-    def test_transfer_data_whlie_optimization():
-        
+    def test_data_transfer_during_optimization():
+        """
+        This test confirms that the non-stellarator-symmetric boundary components of a non-stellarator-symmetric configuration are modified during a simple optimization.
+        """
         def find_latest_file():
             import re
             
@@ -724,10 +726,10 @@ class VmecTests(unittest.TestCase):
             least_squares_serial_solve(prob, grad=True, bounds=prob.bounds)
     
             newfile = find_latest_file()
-            print(newfile)
             vmec1 = Vmec(wout_filename)
             vmec2 = Vmec(newfile)
             assert not np.allclose(vmec1.wout.rmns[:, -1], vmec2.wout.rmns[:, -1], atol=1e-10)
+            assert not np.allclose(vmec1.wout.zmnc[:, -1], vmec2.wout.zmnc[:, -1], atol=1e-10)
 
     #def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):
         """
