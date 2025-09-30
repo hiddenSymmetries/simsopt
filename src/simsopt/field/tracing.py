@@ -1062,19 +1062,23 @@ class Integrator(Optimizable):
         Do not use this in optimization! 
         """
         if self.interpolated:
-            self.field = InterpolatedField(
-                self._true_field,
-                self._degree,
-                self._rrange if len(self._rrange) == 3 else (self._rrange[0], self._rrange[1], 4),
-                self._phirange if len(self._phirange) == 3 else (self._phirange[0], self._phirange[1], 4),
-                self._zrange if len(self._zrange) == 3 else (self._zrange[0], self._zrange[1], 4),
-                extrapolate=self._extrapolate,
-                nfp=self.nfp,
-                stellsym=self.stellsym,
-                skip=self._skip,
-            )
+            logger.warning("Integrator recompute bell was rung, indicating need to recmpute interpolation. " \
+                           "Currently this is not implemented")
+            # cannot call this every time a dof is changed, need to work with flag that triggers on first
+            # call to the underlying field.
+#            self.field = InterpolatedField(
+#                self._true_field,
+#                self._degree,
+#                self._rrange if len(self._rrange) == 3 else (self._rrange[0], self._rrange[1], 4),
+#                self._phirange if len(self._phirange) == 3 else (self._phirange[0], self._phirange[1], 4),
+#                self._zrange if len(self._zrange) == 3 else (self._zrange[0], self._zrange[1], 4),
+#                extrapolate=self._extrapolate,
+#                nfp=self.nfp,
+#                stellsym=self.stellsym,
+#                skip=self._skip,
+#            )
         else:
-            logger.warning("Field is not interpolated, nothing to do.")
+            pass
 
 
     @staticmethod
