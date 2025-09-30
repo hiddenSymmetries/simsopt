@@ -3,6 +3,7 @@ from .._core.optimizable import DOFs, Optimizable
 import simsoptpp as sopp
 from simsopt.geo import Surface, SurfaceRZFourier
 from scipy.io import netcdf_file
+from .._core.json import GSONDecoder
 
 __all__ = ['CurrentPotentialFourier', 'CurrentPotential']
 
@@ -42,6 +43,15 @@ class CurrentPotential(Optimizable):
     def num_dofs(self):
         return len(self.get_dofs())
 
+    @classmethod
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        decoder = GSONDecoder()
+        winding_s = decoder.process_decoded(d["winding_surface"],
+                                      serial_objs_dict=serial_objs_dict,
+                                      recon_objs=recon_objs)
+        cp = cls(winding_s)
+        return cp
+    
 
 class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
     """
@@ -394,3 +404,50 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
                  stellsym=stellsym)
 
         return cp
+
+    def as_dict(self, serial_objs_dict) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
+        d['dofs'] = self.get_dofs()
+        return d
+
+    @classmethod
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        decoder = GSONDecoder()
+        winding_s = decoder.process_decoded(d["winding_surface"],
+                                      serial_objs_dict=serial_objs_dict,
+                                      recon_objs=recon_objs)
+        npc = decoder.process_decoded(d["net_poloidal_current_amperes"],
+                                        serial_objs_dict=serial_objs_dict,
+                                        recon_objs=recon_objs)
+        ntc = decoder.process_decoded(d["net_toroidal_current_amperes"],
+                                        serial_objs_dict=serial_objs_dict,
+                                        recon_objs=recon_objs)
+
+        nfp = decoder.process_decoded(d["nfp"],
+                                        serial_objs_dict=serial_objs_dict,
+                                        recon_objs=recon_objs)
+
+        ss = decoder.process_decoded(d["stellsym"],
+                                        serial_objs_dict=serial_objs_dict,
+                                        recon_objs=recon_objs)
+
+        mpol = decoder.process_decoded(d["mpol"],
+                                        serial_objs_dict=serial_objs_dict,
+                                        recon_objs=recon_objs)
+        ntor = decoder.process_decoded(d["ntor"],
+                                        serial_objs_dict=serial_objs_dict,
+                                        recon_objs=recon_objs)
+
+        qpp = decoder.process_decoded(d["quadpoints_phi"],
+                                        serial_objs_dict=serial_objs_dict,
+                                        recon_objs=recon_objs)
+        qpt = decoder.process_decoded(d["quadpoints_theta"],
+                                        serial_objs_dict=serial_objs_dict,
+                                        recon_objs=recon_objs)
+        dofs = decoder.process_decoded(d["dofs"],
+                                        serial_objs_dict=serial_objs_dict,
+                                        recon_objs=recon_objs)
+        
+        cpf = cls(winding_s, npc, ntc, nfp, ss, mpol, ntor, qpp, qpt)
+        cpf.set_dofs(dofs)
+        return cpf
