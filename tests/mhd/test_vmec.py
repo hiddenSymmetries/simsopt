@@ -685,7 +685,7 @@ class VmecTests(unittest.TestCase):
                 vmec3 = Vmec(outfilename)
                 np.testing.assert_allclose(rmnc, vmec3.wout.rmnc, atol=1e-10)
 
-    def test_data_transfer_during_optimization():
+    def test_data_transfer_during_optimization(self):
         """
         This test confirms that the non-stellarator-symmetric boundary components of a non-stellarator-symmetric configuration are modified during a simple optimization.
         """
