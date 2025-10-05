@@ -36,7 +36,7 @@ from simsopt.util.permanent_magnet_helper_functions import *
 
 t_start = time.time()
 
-high_res_run = True
+high_res_run = False
 
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:
@@ -46,17 +46,17 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 elif high_res_run: 
-    nphi = 16
-    nIter_max = 10000
-    nBacktracking = 0
-    max_nMagnets = 12000
-    downsample = 6    
+    nphi = 32
+    nIter_max = 25000
+    nBacktracking = 200
+    max_nMagnets = 20000
+    downsample = 1    
 else:
     nphi = 16  # >= 64 for high-resolution runs
-    nIter_max = 10000
+    nIter_max = 20000
     nBacktracking = 0
-    max_nMagnets = 10000
-    downsample = 8
+    max_nMagnets = 20000
+    downsample = 3
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -77,6 +77,14 @@ out_dir.mkdir(parents=True, exist_ok=True)
 
 # initialize the coils
 base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s, out_dir)
+
+scale_coils = True
+current_scale = 1
+if(scale_coils):
+    from simsopt.field import Coil
+    current_scale = 1  
+    coils = [Coil(c.curve, c.current * current_scale) for c in coils]
+    print(f"[INFO] Coil currents scaled by {current_scale}x")
 
 # Set up BiotSavart fields
 bs = BiotSavart(coils)
@@ -146,13 +154,37 @@ kwargs = {"pol_vectors": pol_vectors, "downsample": downsample, "dr": dr}
 # Finally, initialize the permanent magnet class
 pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs)
 
+# --- Temporary consistency check (minimal, robust) ---
+from simsopt.solve.macromag import MacroMag, Tiles  # REQUIRED
+
+mu0 = 4*np.pi*1e-7
+
+# Use SIMSOPT's own grid of magnet centers (already an (N,3) ndarray)
+pts = np.ascontiguousarray(pm_opt.dipole_grid_xyz, dtype=np.float64)
+
+# Build a tiny MacroMag instance just to load coils & query H at arbitrary points
+tiles_chk = Tiles(1)               # size doesn't matter for coil_field_at
+mac_chk = MacroMag(tiles_chk)
+mac_chk.load_coils(TEST_DIR / 'muse_tf_coils.focus', current_scale=current_scale)
+
+# Evaluate H from scaled Biot–Savart and from MacroMag’s coil model at the same points
+bs.set_points(pts)
+H_bs = (bs.B() / mu0).astype(np.float64)         # A/m
+H_mm = mac_chk.coil_field_at(pts).astype(np.float64)
+
+print("[CHECK] ||H(bs)|| / ||H(mm)|| =",
+      np.linalg.norm(H_bs) / np.linalg.norm(H_mm))
+# --- End temporary check ---
+
+
+
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 # Python+Macromag
 algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
 # algorithm = 'ArbVec_backtracking'  # Algorithm to use
-nAdjacent = 1  # How many magnets to consider "adjacent" to one another
+nAdjacent = 12  # How many magnets to consider "adjacent" to one another
 nHistory = 20  # How often to save the algorithm progress
 thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
 kwargs = initialize_default_kwargs('GPMO')
@@ -173,7 +205,8 @@ if algorithm == "ArbVec_backtracking_macromag_py":
     kwargs['mu_oa'] = 1.15
     kwargs['use_coils'] = True  
     kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
-    kwargs['mm_refine_every'] = 20
+    kwargs['mm_refine_every'] = 50
+    kwargs['current_scale'] = current_scale
     
 # Optimize the permanent magnets greedily
 t1 = time.time()
@@ -211,17 +244,20 @@ dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
-save_plots = False
+save_plots = True
 if save_plots:
     # Save the MSE history and history of the m vectors
+    H = m_history.shape[2]
     np.savetxt(
-        out_dir / f"mhistory_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}.txt",
-        m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory'] + 1)
+        out_dir / f"mhistory_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}_{algorithm}.txt",
+        m_history.reshape(pm_opt.ndipoles * 3, H)
     )
     np.savetxt(
-        out_dir / f"R2history_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}.txt",
+        out_dir / f"R2history_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}_{algorithm}.txt",
         R2_history
     )
+    np.savetxt(out_dir / f"Bn_history_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}_{algorithm}.txt", Bn_history)
+
     # Plot the SIMSOPT GPMO solution
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
@@ -239,7 +275,7 @@ if save_plots:
         )
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
         K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
-        b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}")
+        b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}_{algorithm}")
         print("Total fB = ", 0.5 * np.sum((pm_opt.A_obj @ mk - pm_opt.b_obj) ** 2))
         Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
         Bnormal_total = Bnormal + Bnormal_dipoles
@@ -367,3 +403,14 @@ extra_data = {
 surface_fname = out_dir / f"surface_Bn_fields_{algorithm}"
 s_view.to_vtk(surface_fname, extra_data=extra_data)
 print(f"[SIMSOPT] Wrote {surface_fname}.vtp")
+
+### saving for later poincare plotting
+np.savez(
+    out_dir / f"dipoles_final_{algorithm}.npz",
+    xyz=pm_opt.dipole_grid_xyz,
+    m=pm_opt.m.reshape(pm_opt.ndipoles, 3),
+    nfp=s.nfp,
+    coordinate_flag=pm_opt.coordinate_flag,
+    m_maxima=pm_opt.m_maxima,
+)
+print(f"[SIMSOPT] Saved dipoles_final_{algorithm}.npz")

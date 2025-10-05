@@ -1,7 +1,7 @@
 import warnings
 
 import numpy as np
-from .macromag import MacroMag, Tiles
+from .macromag import MacroMag, Tiles, assemble_blocks_subset
 
 import simsoptpp as sopp
 from .._core.types import RealArray
@@ -986,7 +986,8 @@ def GPMO_ArbVec_backtracking_macromag_py(
     # HACK: fast_get_demag_tensor yields a -N due to convention from H_d = -N M
     # HACK: NOTE: if you later switch to magnets with rotations might need to re-look at local vs global tensor here... 
     # so need to flip sign again to get positive N    
-    N_full = -mac_all.fast_get_demag_tensor(cache=True)
+    # NOTE: Build demag blocks on demand (no global N_full)
+    # N_full = -mac_all.fast_get_demag_tensor(cache=True)
     
     # Precompute coil field if requested
     Hcoil_all = np.zeros((N, 3))
@@ -1053,16 +1054,34 @@ def GPMO_ArbVec_backtracking_macromag_py(
         n_new = n_active - n_prev
         
         # Add new rows and columns from newly placed magnets
+        t0_n_construction = time.time()
         if n_prev > 0:
             new_indices = active_idx[n_prev:]
             old_indices = active_idx[:n_prev]
-            N_new_rows = N_full[np.ix_(new_indices, old_indices)]  # (n_new, n, 3, 3)
-            N_new_cols = N_full[np.ix_(old_indices, new_indices)]  # (n, n_new, 3, 3)
-            N_new_diag = N_full[np.ix_(new_indices, new_indices)]  # (n_new, n_new, 3, 3)
+            # assemble_blocks_subset returns -N (because H_d = -N M); flip sign to get +N
+            N_new_rows = -assemble_blocks_subset(
+                mac_all.centres, mac_all.half, mac_all.Rg2l,
+                new_indices.astype(np.int64), old_indices.astype(np.int64)
+            )
+            N_new_cols = -assemble_blocks_subset(
+                mac_all.centres, mac_all.half, mac_all.Rg2l,
+                old_indices.astype(np.int64), new_indices.astype(np.int64)
+            )
+            N_new_diag = -assemble_blocks_subset(
+                mac_all.centres, mac_all.half, mac_all.Rg2l,
+                new_indices.astype(np.int64), new_indices.astype(np.int64)
+            )
         else:
-            N_new_rows = N_full[np.ix_(active_idx, active_idx)]
+            # initial pass: only rows are needed by direct_solve(prev_n == 0)
+            N_new_rows = -assemble_blocks_subset(
+                mac_all.centres, mac_all.half, mac_all.Rg2l,
+                active_idx.astype(np.int64), active_idx.astype(np.int64)
+            )
             N_new_cols = None
             N_new_diag = None
+            
+        t1_n_construction = time.time()
+        print(f"Iteration {k}: Time in N block assembly: {t1_n_construction - t0_n_construction} seconds")
             
         # Perform the magtense coupling direct solve
         mac, A_sub = mac.direct_solve(
@@ -1271,13 +1290,6 @@ def GPMO_ArbVec_backtracking_macromag_py(
 
         # Probably only need to run MacroMag for the committed set ONLY every couple dozen iterations
         if (k % mm_refine_every) == 0:
-            # active = np.where(~Gamma_complement)[0]
-            # active = gamma_inds
-            # ea_list = x[gamma_inds]  # if gamma_inds.size else np.zeros((0, 3))
-            # if x0_prev_partial is not None:
-            #     j_best_position = np.where(active == j_best)[0][0]
-            #     # print(j_best, j_best_position, active[j_best_position])
-            #     x0_prev = np.insert(x0_prev_partial, j_best_position, np.zeros(3))
             t1_macromag = time.time()
             R2_snap, x_macro_flat, _, Aij_mj_sum, A_sub_prev = solve_subset_and_score(
                 np.array(gamma_inds), x[gamma_inds], 
@@ -1288,8 +1300,15 @@ def GPMO_ArbVec_backtracking_macromag_py(
             print(f"Iteration {k}: Time in macromag call: {t2_macromag - t1_macromag} seconds")
             prev_active_indices = np.array(gamma_inds.copy())
             prev_n = len(gamma_inds)
-            # last_x_macro_flat[:] = x_macro_flat
-            # Aij_mj_sum = res
+
+            # if k == 500:
+            #     mm_refine_every = 100
+                
+            # if k == 1000:
+            #     mm_refine_every = 500
+                
+            # if k == 4000:
+            #     mm_refine_every = 1000
     
 
         # print(f"x0_prev_partial: {np.shape(x0_prev_partial)}")
