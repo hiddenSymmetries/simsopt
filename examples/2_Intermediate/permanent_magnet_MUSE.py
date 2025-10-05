@@ -154,30 +154,6 @@ kwargs = {"pol_vectors": pol_vectors, "downsample": downsample, "dr": dr}
 # Finally, initialize the permanent magnet class
 pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs)
 
-# --- Temporary consistency check (minimal, robust) ---
-from simsopt.solve.macromag import MacroMag, Tiles  # REQUIRED
-
-mu0 = 4*np.pi*1e-7
-
-# Use SIMSOPT's own grid of magnet centers (already an (N,3) ndarray)
-pts = np.ascontiguousarray(pm_opt.dipole_grid_xyz, dtype=np.float64)
-
-# Build a tiny MacroMag instance just to load coils & query H at arbitrary points
-tiles_chk = Tiles(1)               # size doesn't matter for coil_field_at
-mac_chk = MacroMag(tiles_chk)
-mac_chk.load_coils(TEST_DIR / 'muse_tf_coils.focus', current_scale=current_scale)
-
-# Evaluate H from scaled Biot–Savart and from MacroMag’s coil model at the same points
-bs.set_points(pts)
-H_bs = (bs.B() / mu0).astype(np.float64)         # A/m
-H_mm = mac_chk.coil_field_at(pts).astype(np.float64)
-
-print("[CHECK] ||H(bs)|| / ||H(mm)|| =",
-      np.linalg.norm(H_bs) / np.linalg.norm(H_mm))
-# --- End temporary check ---
-
-
-
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
