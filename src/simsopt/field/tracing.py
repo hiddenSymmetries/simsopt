@@ -1462,7 +1462,7 @@ class ScipyFieldlineIntegrator(Integrator):
         rphiz_start = self._xyz_to_rphiz(start_xyz)[-1]
         start_RZ = rphiz_start[[0, 2]]
         start_phi = rphiz_start[1]
-        points = self.integrate_fieldlinepoints_RZ(start_RZ, start_phi, delta_phi, n_points, endpoint=endpoint, return_cartesian=return_cartesian)
+        points = self.integrate_fieldlinepoints_cyl(start_RZ, start_phi, delta_phi, n_points, endpoint=endpoint, return_cartesian=return_cartesian)
         return points
 
     def integration_fn_3d(self, t, xyz):
