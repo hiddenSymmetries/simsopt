@@ -1307,8 +1307,8 @@ class ScipyFieldlineIntegrator(Integrator):
         res_phi_hits = []
         first, last = parallel_loop_bounds(self.comm, len(start_points_RZ))
         for this_start_RZ in start_points_RZ[first:last, :]:
-            print(f'Integrating poincare section for field line starting at R={this_start_RZ[0]}, Z={this_start_RZ[1]}')
-            all_phis = np.array([phis + 2*np.pi*nt for nt in range(n_transits)]).flatten()
+            logger.info(f'Integrating poincare section for field line starting at R={this_start_RZ[0]}, Z={this_start_RZ[1]}')
+            all_phis = np.array([phis + 2*np.pi*nt for nt in range(int(n_transits))]).flatten()
             integration_solution = solve_ivp(self.integration_fn_cyl, 
                                              [all_phis[0], all_phis[-1]], 
                                              this_start_RZ, 
@@ -1339,10 +1339,10 @@ class ScipyFieldlineIntegrator(Integrator):
         res_tys = []
         first, last = parallel_loop_bounds(self.comm, len(start_points_RZ))
         for this_start_RZ in start_points_RZ[first:last, :]:
-            print(f'Integrating trajectory of field line starting at R={this_start_RZ[0]}, Z={this_start_RZ[1]}')
+            logger.info(f'Integrating trajectory of field line starting at R={this_start_RZ[0]}, Z={this_start_RZ[1]}')
             start_phi = phi0
             phi_end = start_phi + n_transits*2*np.pi
-            phi_eval = np.linspace(start_phi, phi_end, 1000*n_transits)
+            phi_eval = np.linspace(start_phi, phi_end, int(1000*int(n_transits)))
             integration_solution = solve_ivp(self.integration_fn_cyl, 
                                              [start_phi, phi_end], 
                                              this_start_RZ, 
@@ -1727,10 +1727,10 @@ class PoincarePlotter(Optimizable):
         with np.load(filename, allow_pickle=True) as data:
             if res_phi_key in data.files:
                 loaded_hits = data[res_phi_key]
-                self._res_phi_hits = [np.array(arr, copy=True) for arr in loaded_hits]
+                self._res_phi_hits = [np.asarray(arr, dtype=float).copy() for arr in loaded_hits]
             if res_tys_key in data.files:
                 loaded_tys = data[res_tys_key]
-                self._res_tys = [np.array(arr, copy=True) for arr in loaded_tys]
+                self._res_tys = [np.asarray(arr, dtype=float).copy() for arr in loaded_tys]
 
         if self._res_phi_hits is not None or self._res_tys is not None:
             self.need_to_recompute = False
