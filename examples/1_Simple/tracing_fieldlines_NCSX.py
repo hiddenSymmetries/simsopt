@@ -75,7 +75,8 @@ if comm_world is None or comm_world.rank == 0:
 
 # not necessary, but output will be garbled if other threads race 
 # ahead whilst proc0 plots.
-comm_world.Barrier()
+if comm_world is not none:
+    comm_world.Barrier()
 
 # if you want faster integration, you can generate an InterpolatedField:
 # create a surface inside of which we will keep the field
