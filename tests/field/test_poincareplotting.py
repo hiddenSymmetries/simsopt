@@ -8,6 +8,8 @@ from simsopt.field.tracing import (
     ScipyFieldlineIntegrator,
 )
 from simsopt.configs.zoo import get_data
+from monty.tempfile import ScratchDir
+import os, glob
 
 
 class TestPoincarePlotterSimsopt(unittest.TestCase):
@@ -236,6 +238,55 @@ class TestPoincarePlotter3DBackends(unittest.TestCase):
         self.pp.plot_fieldline_trajectories_3d(engine='mayavi', show=False)
         self.pp.plot_poincare_in_3d(engine='mayavi', show=False)
 
+
+class TestPoincarePlotterSaveLoad(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        base_curves, base_currents, ma, nfp, bs = get_data('ncsx', coil_order=4, magnetic_axis_order=4, points_per_period=3)
+        cls.bs = bs
+        cls.nfp = nfp
+        cls.R0 = float(ma.gamma()[0, 0])
+        cls.start_points_RZ = np.array([
+            [cls.R0 + 0.02, 0.0],
+            [cls.R0 + 0.04, 0.0],
+        ])
+        cls.intg = SimsoptFieldlineIntegrator(cls.bs, nfp=nfp, stellsym=True, R0=cls.R0, tmax=40.0, tol=1e-7)
+
+    def test_save_and_load_with_dof_change(self):
+        with ScratchDir('.'):
+            archive = 'poincare_data.npz'
+            pp = PoincarePlotter(self.intg, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True)
+            _ = pp.res_phi_hits  # prime cache and save to disk
+            # Check archive created with hashed datasets
+            self.assertTrue(os.path.exists(archive))
+            with np.load(archive, allow_pickle=True) as data:
+                hash_key = str(pp.poincare_hash)
+                self.assertIn(f'res_phi_{hash_key}', data.files)
+                self.assertIn(f'res_tys_{hash_key}', data.files)
+
+            # A new instance with same params should already have data
+            pp2 = PoincarePlotter(self.intg, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True)
+            # comparing to hidden attributes to avoid recompute.
+            self.assertTrue(np.array_equal(pp.res_phi_hits, pp2._res_phi_hits))
+            self.assertTrue(np.array_equal(pp.res_tys, pp2._res_tys))
+
+            # change an element of the res_phi_hits and res tys, to make sure this modification is the one that is read:
+            pp2._res_phi_hits[0][0, 0] = 1e5
+            pp2._res_tys[0][0, 0] = 1e5
+            pp2.save_to_disk()  # overwrite datasets inside archive
+
+            # Change a dof to invalidate cache of both plotters:
+            old_val = self.bs.coils[0].current.x.copy()
+            self.bs.coils[0].current.x *= old_val * 1.02
+            self.assertIsNone(pp._res_tys)
+            self.assertIsNone(pp2._res_tys)
+
+            # return the dof and see that the modified file is read from disk
+            self.bs.coils[0].current.x = old_val
+            pp2_from_disk = pp2.res_phi_hits  # should read from disk
+            pp2_tys_from_disk = pp2.res_tys
+            self.assertTrue(pp2_from_disk[0][0, 0] == 1e5)
+            self.assertTrue(pp2_tys_from_disk[0][0, 0] == 1e5)
 
 if __name__ == '__main__':
     unittest.main()

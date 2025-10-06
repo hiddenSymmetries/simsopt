@@ -3,6 +3,7 @@ from math import sqrt
 
 import numpy as np
 from pathlib import Path
+import os
 
 import simsoptpp as sopp
 from .._core import Optimizable, ObjectiveFailure
@@ -1752,6 +1753,22 @@ class PoincarePlotter(Optimizable):
         if self._res_phi_hits is not None or self._res_tys is not None:
             self.need_to_recompute = False
         return
+    
+    def remove_poincare_data(self, filename=None):
+        """
+        Clear the saved poincare data file.
+        The hash does not take into account the integrator type or tolerances, so if you need higher precision, use this method
+        to clear the file and recompute.
+        """
+        if not self.i_am_the_plotter:
+            return
+        if filename is None:
+            filename = Path("poincare_data.npz")
+        if filename.exists():
+            os.remove(filename)
+            logger.info(f"Removed poincare data file {filename}.")  
+        return
+
         
     @property
     def lost(self): 
