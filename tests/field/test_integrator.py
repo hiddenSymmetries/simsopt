@@ -125,10 +125,10 @@ class TestSimsoptFieldlineIntegrator(unittest.TestCase):
         recon_xyz = Integrator._rphiz_to_xyz(np.array([end_RZ[0], phi_end, end_RZ[1]])[None, :])[0]
         self.assertTrue(np.allclose(recon_xyz, expected, atol=5e-6))
 
-    def test_get_fieldlinepoints_cart_and_cyl(self):
+    def test_integrate_fieldlinepoints_cart_and_cyl(self):
         # One transit around torus; points should lie on circle R=R0, Z=0
         start_xyz = np.array([self.R0, 0.0, 0.0])
-        pts_cart = self.intg.get_fieldlinepoints_cart(start_xyz, n_transits=1, return_cartesian=True)
+        pts_cart = self.intg.integrate_fieldlinepoints_cart(start_xyz, n_transits=1, return_cartesian=True)
         self.assertEqual(pts_cart.shape[1], 3)
         r = np.sqrt(pts_cart[:, 0]**2 + pts_cart[:, 1]**2)
         z = pts_cart[:, 2]
@@ -138,7 +138,7 @@ class TestSimsoptFieldlineIntegrator(unittest.TestCase):
         # Cylindrical variant should be consistent
         start_RZ = np.array([self.R0, 0.0])
         start_phi = 0.0
-        pts_cyl = self.intg.get_fieldlinepoints_cyl(start_RZ, start_phi, n_transits=1, return_cartesian=False)
+        pts_cyl = self.intg.integrate_fieldlinepoints_cyl(start_RZ, start_phi, n_transits=1, return_cartesian=False)
         self.assertEqual(pts_cyl.shape[1], 3)
         self.assertTrue(np.allclose(pts_cyl[:, 0], self.R0, atol=1e-7))
         self.assertTrue(np.allclose(pts_cyl[:, 2], 0.0, atol=1e-9))
@@ -219,7 +219,7 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
 
         # Fieldline points by RZ
         # Existing API: (start_RZ, start_phi, delta_phi, n_points, ...)
-        pts_xyz = self.intg.integrate_fieldlinepoints_RZ(RZ0, 0.0, 2*np.pi, 50, endpoint=True, return_cartesian=True)
+        pts_xyz = self.intg.integrate_fieldlinepoints_cyl(RZ0, 0.0, 2*np.pi, 50, endpoint=True, return_cartesian=True)
         self.assertEqual(pts_xyz.shape, (50, 3))
         r = np.sqrt(pts_xyz[:, 0]**2 + pts_xyz[:, 1]**2)
         self.assertTrue(np.allclose(r, self.R0, atol=1e-6))
@@ -228,17 +228,17 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
         # Fieldline points by xyz convenience wrapper
         start_xyz = np.array([self.R0, 0.0, 0.0])
         # Existing API: (start_xyz, delta_phi, n_points, ...)
-        pts2 = self.intg.integrate_fieldlinepoints_xyz(start_xyz, 2*np.pi, 60, endpoint=True, return_cartesian=True)
+        pts2 = self.intg.integrate_fieldlinepoints_cart(start_xyz, 2*np.pi, 60, endpoint=True, return_cartesian=True)
         self.assertEqual(pts2.shape, (60, 3))
         r2 = np.sqrt(pts2[:, 0]**2 + pts2[:, 1]**2)
         self.assertTrue(np.allclose(r2, self.R0, atol=1e-6))
         self.assertTrue(np.allclose(pts2[:, 2], 0.0, atol=1e-9))
 
-    def test_integrate_3d_fieldlinepoints_xyz(self):
+    def test_integrate_3d_fieldlinepoints_cart(self):
         # Integrate 3D arc length: quarter circle
         start_xyz = np.array([self.R0, 0.0, 0.0])
         l_total = self.R0 * (np.pi/2)
-        pts = self.intg.integrate_3d_fieldlinepoints_xyz(start_xyz, l_total=l_total, n_points=40)
+        pts = self.intg.integrate_3d_fieldlinepoints_cart(start_xyz, l_total=l_total, n_points=40)
         self.assertEqual(pts.shape, (40, 3))
         # End point should be around phi=pi/2
         end_phi = np.arctan2(pts[-1, 1], pts[-1, 0])

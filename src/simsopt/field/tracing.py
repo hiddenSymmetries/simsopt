@@ -1198,7 +1198,7 @@ class SimsoptFieldlineIntegrator(Integrator):
         return self.integrate_in_phi_cart(
             start_xyz, delta_phi=delta_phi, return_cartesian=return_cartesian)
 
-    def get_fieldlinepoints_cart(self, start_xyz, n_transits=1, return_cartesian=True):
+    def integrate_fieldlinepoints_cart(self, start_xyz, n_transits=1, return_cartesian=True):
         """
         Calculate a string of points along a field line starting at 
         (start_R, start_Z, start_phi) and going to (start_R, start_Z, start_phi+delta_phi).
@@ -1241,13 +1241,13 @@ class SimsoptFieldlineIntegrator(Integrator):
         else:
             return self._xyz_to_rphiz(points_cart)
 
-    def get_fieldlinepoints_cyl(self, start_RZ, start_phi, n_transits=1, return_cartesian=True):
+    def integrate_fieldlinepoints_cyl(self, start_RZ, start_phi, n_transits=1, return_cartesian=True):
         """
         Integrate the field line over an angle phi from the starting point given by 
         cartesian coordinates (x,y,z).
         """
         start_xyz = self._rphiz_to_xyz(np.array([start_RZ[0], start_phi, start_RZ[1]]))[-1, :]
-        return self.get_fieldlinepoints_cart(
+        return self.integrate_fieldlinepoints_cart(
             start_xyz, n_transits=n_transits, return_cartesian=return_cartesian)
 
 
@@ -1445,7 +1445,7 @@ class ScipyFieldlineIntegrator(Integrator):
         else:
             return success, rphiz
     
-    def integrate_fieldlinepoints_RZ(self, start_RZ, start_phi, delta_phi, n_points, endpoint=False, return_cartesian=True):
+    def integrate_fieldlinepoints_cyl(self, start_RZ, start_phi, delta_phi, n_points, endpoint=False, return_cartesian=True):
         """
         integrate a fieldline for a given toroidal distance, giving the start point in R,Z. 
         """
@@ -1455,7 +1455,7 @@ class ScipyFieldlineIntegrator(Integrator):
             raise ObjectiveFailure("Integration failed")
         return points
 
-    def integrate_fieldlinepoints_xyz(self, start_xyz, delta_phi, n_points, endpoint=False, return_cartesian=True):
+    def integrate_fieldlinepoints_cart(self, start_xyz, delta_phi, n_points, endpoint=False, return_cartesian=True):
         """
         integrate a fieldline for a given toroidal distance, giving the start point in xyz. 
         """
@@ -1470,7 +1470,7 @@ class ScipyFieldlineIntegrator(Integrator):
         B = self.field.B().flatten()
         return B/np.linalg.norm(B)
 
-    def integrate_3d_fieldlinepoints_xyz(self, start_xyz, l_total, n_points):
+    def integrate_3d_fieldlinepoints_cart(self, start_xyz, l_total, n_points):
         """
         integrate a fieldline in three dimensions for a given distance. 
         This solves the equations 
