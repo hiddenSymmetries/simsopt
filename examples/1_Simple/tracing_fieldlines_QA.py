@@ -50,7 +50,7 @@ surf = SurfaceRZFourier.from_vmec_input(filename, nphi=200, ntheta=30, range="fu
 nfp = surf.nfp
 
 # Load in the optimized coils from stage_two_optimization.py:
-coils_filename = Path(simsopt.__file__).parent / ".." / ".." / "examples" / "1_Simple" / "inputs" / "biot_savart_opt.json"
+coils_filename = Path(__file__).parent / ".." / ".." / "examples" / "1_Simple" / "inputs" / "biot_savart_opt.json"
 bs = simsopt.load(coils_filename)
 
 integrator = ScipyFieldlineIntegrator(bs, comm=comm_world, nfp=nfp, stellsym=True)
