@@ -9,7 +9,7 @@ from simsopt.field.tracing import (
 )
 from simsopt.configs.zoo import get_data
 from monty.tempfile import ScratchDir
-import os, glob
+import os
 
 
 class TestPoincarePlotterSimsopt(unittest.TestCase):
