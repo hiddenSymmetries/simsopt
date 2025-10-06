@@ -1578,24 +1578,6 @@ class PoincarePlotter(Optimizable):
         return plot_phis
 
     @property
-    def start_points_R(self):
-        return self._start_points_RZ[0, :]
-    
-    @start_points_R.setter
-    def start_points_R(self, array):
-        self._start_points_RZ[0, :] = array
-        self.recompute_bell()
-    
-    @property
-    def start_points_Z(self):
-        return self._start_points_RZ[1, :]
-    
-    @start_points_Z.setter
-    def start_points_Z(self, array):
-        self._start_points_RZ[1, :] = array
-        self.recompute_bell()
-    
-    @property
     def start_points_RZ(self):
         return self._start_points_RZ
 
@@ -1753,6 +1735,21 @@ class PoincarePlotter(Optimizable):
         if self._res_phi_hits is not None or self._res_tys is not None:
             self.need_to_recompute = False
         return
+    
+    def particles_to_vtk(self, filename):
+        """
+        legacy method from sopp, stores the trajectories in a vtk file
+        for visualization in paraview.
+        Export particle tracing or field lines to a vtk file.
+        """
+        from pyevtk.hl import polyLinesToVTK
+        x = np.concatenate([xyz[:, 1] for xyz in self.res_tys])
+        y = np.concatenate([xyz[:, 2] for xyz in self.res_tys])
+        z = np.concatenate([xyz[:, 3] for xyz in self.res_tys])
+        ppl = np.asarray([xyz.shape[0] for xyz in self.res_tys])
+        data = np.concatenate([i*np.ones((self.res_tys[i].shape[0], )) for i in range(len(self.res_tys))])
+        polyLinesToVTK(filename, x, y, z, pointsPerLine=ppl, pointData={'idx': data})
+
     
     def remove_poincare_data(self, filename=None):
         """

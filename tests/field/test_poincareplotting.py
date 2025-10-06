@@ -270,6 +270,9 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
         cls.intg = SimsoptFieldlineIntegrator(cls.bs, nfp=nfp, stellsym=True, R0=cls.R0, tmax=40.0, tol=1e-7)
 
     def test_save_and_load_with_dof_change(self):
+        """
+        test that the hashing, saving and loading works as intended. 
+        """
         with ScratchDir('.'):
             archive = 'poincare_data.npz'
             pp = PoincarePlotter(self.intg, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True)
@@ -308,6 +311,17 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
             #test removing the poincare cache file
             pp2.remove_poincare_data()
             self.assertFalse(os.path.exists(archive))
+
+    def test_save_to_vtk(self):
+        """
+        test that the hashing, saving and loading works as intended. 
+        """
+        with ScratchDir('.'):
+            pp = PoincarePlotter(self.intg, self.start_points_RZ, phis=4, n_transits=2, add_symmetry_planes=True, store_results=False)
+            filename = "test"
+            pp.particles_to_vtk(filename)
+            self.assertTrue(os.path.exists(f"{filename}.vtu"))
+    
 
 
 if __name__ == '__main__':
