@@ -287,6 +287,11 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
             pp2_tys_from_disk = pp2.res_tys
             self.assertTrue(pp2_from_disk[0][0, 0] == 1e5)
             self.assertTrue(pp2_tys_from_disk[0][0, 0] == 1e5)
+            
+            #test removing the poincare cache file
+            pp2.remove_poincare_data_file()
+            self.assertFalse(os.path.exists(archive))
+
 
 if __name__ == '__main__':
     unittest.main()
