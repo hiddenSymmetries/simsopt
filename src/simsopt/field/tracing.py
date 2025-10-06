@@ -1681,7 +1681,7 @@ class PoincarePlotter(Optimizable):
         """
         Generate a hash from dofs, self.phis, self.start_points_RZ, and self.n_transits
         """
-        hash_list = self.integrator.field.x.tolist() + self.phis.tolist() + self.start_points_RZ.flatten().tolist() + [self.n_transits]
+        hash_list = self.integrator.field.full_x.tolist() + self.phis.tolist() + self.start_points_RZ.flatten().tolist() + [self.n_transits]
         poincare_hash = hash(tuple(hash_list))
         return poincare_hash
     
