@@ -297,8 +297,6 @@ class TestIntegratorAgreement(unittest.TestCase):
             with self.subTest(config=name):
                 # Known upstream issue: W7-X target endpoint mismatch (~0.29 m) though integrators agree.
                 # unittest has no per-subTest xfail; skip just this config to keep CI green while preserving others.
-                if str(name).lower().startswith("w7x"):
-                    self.skipTest("Known upstream issue: W7-X magnetic axis endpoint mismatch; integrators agree but miss target")
                 base_curves, base_currents, ma, nfp, bs = get_data(name)
                 gamma = ma.gamma()
                 start_xyz = gamma[0, :]
@@ -328,7 +326,8 @@ class TestIntegratorAgreement(unittest.TestCase):
                 end_xyz_sc = Integrator._rphiz_to_xyz(np.array([RZ_end[0], phi_end, RZ_end[1]]))[-1]
 
                 # Tolerances: strict agreement in meters
-                tol_abs = 1e-4
+                # (the w7x axis is not really great...)
+                tol_abs = 2e-3 if str(name).lower().startswith("w7x") else 1e-4
                 err_so = np.linalg.norm(end_xyz_so - target_xyz)
                 err_sc = np.linalg.norm(end_xyz_sc - target_xyz)
                 agree = np.linalg.norm(end_xyz_so - end_xyz_sc)
