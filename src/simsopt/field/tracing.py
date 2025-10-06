@@ -2,6 +2,7 @@ import logging
 from math import sqrt
 
 import numpy as np
+from pathlib import Path
 
 import simsoptpp as sopp
 from .._core import Optimizable, ObjectiveFailure
@@ -1499,17 +1500,21 @@ class PoincarePlotter(Optimizable):
     plotting the results in a Poincare plot. 
     Uses field periodicity to speed up calculation
     """
-    def __init__(self, integrator: Integrator, start_points_RZ, phis=None, n_transits=100, add_symmetry_planes=True):
+    def __init__(self, integrator: Integrator, start_points_RZ, phis=None, n_transits=100, add_symmetry_planes=True, store_results=False):
         """
-        Initialize the PoincarePlotter.
+        Initialize the PoincarePlotter. 
+        This class uses an Integrator to compute field lines, and takes care of plotting them. 
+        If the field is stellarator-symmetric, and symmetry planes are included, then 
+        these are overplotted in the plot (resulting in better plots with shorter integration). 
+
         Args:
-            start_points_R: list of radial components of initial points
-            start_points_Z: list of vertical components of initial points
             integrator: the integrator to be used for the calculation
+            start_points_RZ: nx2 array of starting points in cylindrical coordinates (R,Z)
             phis: angles in [0, 2pi] for which we wish to compute Poincare.
                   *OR* int: number of planes to compute, equally spaced in [0, 2pi/nfp].
-            stopping_criteria: list of stopping criteria to be used during the integration 
-            (only works with SimsoptFieldlineIntegrator)
+            n_transits: number of toroidal transits to compute
+            add_symmetry_planes: if true, we add planes that are identical through field periodicity, increasing the efficiency of the calculation. 
+            store_results: if true, save the results to disk in files with a unique filename based on a hash. 
         """
         self._start_points_RZ = start_points_RZ
         self.integrator = integrator
@@ -1529,6 +1534,10 @@ class PoincarePlotter(Optimizable):
         self.need_to_recompute = True
         self._randomcolors = None
         Optimizable.__init__(self, depends_on=[integrator,])
+        self.store_results = store_results
+        if store_results:
+            # load file form disk if it exists
+            self.load_from_disk()
 
     @property
     def randomcolors(self):
@@ -1629,11 +1638,14 @@ class PoincarePlotter(Optimizable):
     def recompute_bell(self, parent=None):
         self._res_phi_hits = None
         self._res_tys = None
-        self._lost=None
+        self._lost = None
         self.need_to_recompute = True
     
     @property  # TODO: make different if scipy integrator
     def res_tys(self):
+        if self.store_results and self._res_tys is None:
+            # read from disk if it already exists
+            self.load_from_disk()
         if self._res_tys is None or self.need_to_recompute:
             if isinstance(self.integrator, SimsoptFieldlineIntegrator):
                 self._res_tys, self._res_phi_hits = self.integrator.compute_poincare_hits(
@@ -1641,12 +1653,16 @@ class PoincarePlotter(Optimizable):
             else:  # ScipyFieldlineIntegrator 
                 self._res_tys = self.integrator.compute_poincare_trajectories(
                     self.start_points_RZ, phi0=self.phi0, n_transits=self.n_transits)
-
+            if self.store_results:
+                self.save_to_disk()
             self.need_to_recompute = False
         return self._res_tys
     
     @property
     def res_phi_hits(self):
+        if self.store_results and self._res_phi_hits is None:
+            # read from disk if it already exists
+            self.load_from_disk()
         if self._res_phi_hits is None or self.need_to_recompute:
             if isinstance(self.integrator, SimsoptFieldlineIntegrator):
                 self._res_tys, self._res_phi_hits = self.integrator.compute_poincare_hits(
@@ -1654,9 +1670,89 @@ class PoincarePlotter(Optimizable):
             else:  # ScipyFieldlineIntegrator
                 self._res_phi_hits = self.integrator.compute_poincare_hits(
                     self.start_points_RZ, phi0=self.phi0, n_transits=self.n_transits, phis=self.phis)
+            if self.store_results:
+                self.save_to_disk()
             self.need_to_recompute = False
         return self._res_phi_hits
     
+    @property
+    def poincare_hash(self):
+        """
+        Generate a hash from dofs, self.phis, self.start_points_RZ, and self.n_transits
+        """
+        hash_list = self.integrator.field.x.tolist() + self.phis.tolist() + self.start_points_RZ.flatten().tolist() + [self.n_transits]
+        poincare_hash = hash(tuple(hash_list))
+        return poincare_hash
+    
+    def save_to_disk(self, filename=None, name=None):
+        """
+        Persist the current state of the PoincarePlotter. By default the results
+        are stored inside ``poincare_data.npz`` under keys derived from the
+        poincare hash. Passing ``filename`` allows saving to an alternate archive
+        location, while ``name`` can override the hash-derived key prefix.
+        """
+        if not self.i_am_the_plotter:
+            return
+
+        if filename is None:
+            filename = "poincare_data.npz"
+        filename = Path(filename)
+        if filename.suffix != ".npz":
+            filename = filename.with_suffix(".npz")
+
+        if name is None:
+            name = self.poincare_hash
+        name = str(name)
+
+        data_to_save = {}
+        if filename.exists():
+            with np.load(filename, allow_pickle=True) as existing:
+                data_to_save = {key: existing[key] for key in existing.files}
+
+        updated = False
+        if self._res_phi_hits is not None:
+            data_to_save[f"res_phi_{name}"] = np.array(self._res_phi_hits, dtype=object)
+            updated = True
+        if self._res_tys is not None:
+            data_to_save[f"res_tys_{name}"] = np.array(self._res_tys, dtype=object)
+            updated = True
+
+        if updated:
+            np.savez_compressed(filename, **data_to_save)
+
+    def load_from_disk(self, name=None, filename=None):
+        """
+        Load previously stored results for this plotter from ``poincare_data.npz``
+        (or a user-specified archive). Results are keyed by the poincare hash,
+        which can be overridden via ``name``.
+        """
+        if filename is None:
+            filename = "poincare_data.npz"
+        filename = Path(filename)
+        if filename.suffix != ".npz":
+            filename = filename.with_suffix(".npz")
+        if name is None:
+            name = self.poincare_hash
+        name = str(name)
+
+        if not filename.exists():
+            logger.debug(f"File {filename} not found. Not loading cached poincare data.")
+            return
+
+        res_phi_key = f"res_phi_{name}"
+        res_tys_key = f"res_tys_{name}"
+        with np.load(filename, allow_pickle=True) as data:
+            if res_phi_key in data.files:
+                loaded_hits = data[res_phi_key]
+                self._res_phi_hits = [np.array(arr, copy=True) for arr in loaded_hits]
+            if res_tys_key in data.files:
+                loaded_tys = data[res_tys_key]
+                self._res_tys = [np.array(arr, copy=True) for arr in loaded_tys]
+
+        if self._res_phi_hits is not None or self._res_tys is not None:
+            self.need_to_recompute = False
+        return
+        
     @property
     def lost(self): 
         """
