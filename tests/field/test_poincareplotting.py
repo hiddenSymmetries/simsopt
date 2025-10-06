@@ -14,6 +14,8 @@ import os, glob
 
 class TestPoincarePlotterSimsopt(unittest.TestCase):
     def setUp(self):
+        """ set up a simple toroidal field and a plotter
+        with two fieldlines"""
         self.R0 = 1.25
         self.B0 = 0.9
         self.field = ToroidalField(self.R0, self.B0)
@@ -26,6 +28,10 @@ class TestPoincarePlotterSimsopt(unittest.TestCase):
         self.pp = PoincarePlotter(self.intg, self.start_points_RZ, phis=4, n_transits=2, add_symmetry_planes=False)
 
     def test_res_properties_and_invariants(self):
+        """
+        test that the results are of the correct shape
+        for the test parameters
+        """
         tys = self.pp.res_tys
         hits = self.pp.res_phi_hits
         self.assertEqual(len(tys), self.start_points_RZ.shape[0])
@@ -38,6 +44,10 @@ class TestPoincarePlotterSimsopt(unittest.TestCase):
             self.assertTrue(np.allclose(z, self.Z0s[i], atol=1e-10))
 
     def test_plane_hits_methods(self):
+        """
+        test that the plane hits are correctly 
+        deduced from the results
+        """
         # plane 0 exists since phis=4
         hits_cart = self.pp.plane_hits_cart(0)
         hits_cyl = self.pp.plane_hits_cyl(0)
@@ -77,6 +87,9 @@ class TestPoincarePlotterSimsopt(unittest.TestCase):
     # Once upstream is fixed, these can be re-enabled.
 
     def test_randomcolors_and_lost(self):
+        """
+        test some methbods used in the plotting
+        """
         colors = self.pp.randomcolors
         self.assertEqual(colors.shape[0], self.start_points_RZ.shape[0])
         self.assertEqual(colors.shape[1], 3)
@@ -86,6 +99,7 @@ class TestPoincarePlotterSimsopt(unittest.TestCase):
 
 class TestPoincarePlotterScipy(unittest.TestCase):
     def setUp(self):
+        """set up a simple toroidal field and a plotter with three field lines using scipy integrator"""
         self.R0 = 1.1
         self.B0 = 0.7
         self.field = ToroidalField(self.R0, self.B0)
@@ -100,7 +114,7 @@ class TestPoincarePlotterScipy(unittest.TestCase):
             integrator_type='RK45',
             integrator_args={'rtol': 1e-9, 'atol': 1e-11},
         )
-        self.pp = PoincarePlotter(self.intg, self.start_points_RZ, phis=6, n_transits=2, add_symmetry_planes=False)
+        self.pp = PoincarePlotter(self.intg, self.start_points_RZ, phis=None, n_transits=2, add_symmetry_planes=False)
 
     def test_res_properties_and_plane_hits(self):
         tys = self.pp.res_tys
@@ -108,7 +122,7 @@ class TestPoincarePlotterScipy(unittest.TestCase):
         self.assertEqual(len(tys), self.start_points_RZ.shape[0])
         self.assertEqual(len(hits), self.start_points_RZ.shape[0])
         # Check plane hits for a couple of planes
-        for plane_idx in [0, 1]:
+        for plane_idx in [0]:
             hits_cart = self.pp.plane_hits_cart(plane_idx)
             hits_cyl = self.pp.plane_hits_cyl(plane_idx)
             self.assertEqual(len(hits_cart), self.start_points_RZ.shape[0])
@@ -126,7 +140,7 @@ class TestPoincarePlotterScipy(unittest.TestCase):
         except Exception:
             pass
         # Index-based plot
-        fig, ax = self.pp.plot_poincare_plane_idx(1)
+        fig, ax = self.pp.plot_poincare_plane_idx(0)
         self.assertIsNotNone(fig)
         self.assertIsNotNone(ax)
         # Value-based plot for an existing phi
@@ -137,11 +151,13 @@ class TestPoincarePlotterScipy(unittest.TestCase):
         # Grid of planes
         fig3, axs = self.pp.plot_poincare_all()
         self.assertIsNotNone(fig3)
-    # 3D plotting (matplotlib backend) skipped due to upstream undefined 'color' bug in matplotlib branch
 
 
 class TestPoincarePlotterFactory(unittest.TestCase):
     def test_from_field_factory(self):
+        """
+        test that the classmethod to skip integrator creation works
+        """
         R0 = 1.15
         B0 = 0.85
         field = ToroidalField(R0, B0)
@@ -157,6 +173,7 @@ class TestPoincarePlotterFactory(unittest.TestCase):
 class TestPoincarePlotterRealField(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        """ same but with NCSX coils, also testing cache invalidation on coil current change """
         # Load a realistic configuration (NCSX)
         base_curves, base_currents, ma, nfp, bs = get_data('ncsx', coil_order=5, magnetic_axis_order=6, points_per_period=4)
         cls.bs = bs
@@ -171,7 +188,7 @@ class TestPoincarePlotterRealField(unittest.TestCase):
             [cls.R0 + 0.03, 0.0],
         ])
         cls.intg = SimsoptFieldlineIntegrator(cls.field, nfp=nfp, stellsym=True, R0=cls.R0, tmax=50.0, tol=1e-7)
-        cls.pp = PoincarePlotter(cls.intg, cls.start_points_RZ, phis=cls.n_planes, n_transits=cls.n_transits, add_symmetry_planes=False)
+        cls.pp = PoincarePlotter(cls.intg, cls.start_points_RZ, phis=cls.n_planes, n_transits=cls.n_transits, add_symmetry_planes=True)
 
     def test_basic_hits_exist(self):
         hits = self.pp.res_phi_hits
@@ -289,7 +306,7 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
             self.assertTrue(pp2_tys_from_disk[0][0, 0] == 1e5)
             
             #test removing the poincare cache file
-            pp2.remove_poincare_data_file()
+            pp2.remove_poincare_data()
             self.assertFalse(os.path.exists(archive))
 
 
