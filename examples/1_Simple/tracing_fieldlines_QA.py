@@ -43,7 +43,7 @@ OUT_DIR = "./output/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # Load in the boundary surface:
-TEST_DIR = (Path(simsopt.__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 # Note that the range must be "full torus"!
 surf = SurfaceRZFourier.from_vmec_input(filename, nphi=200, ntheta=30, range="full torus")
