@@ -18,16 +18,13 @@ except ImportError:
 from .._core import Optimizable
 from .._core.dev import SimsoptRequires
 from .._core.util import ObjectiveFailure
-from . import QuadraticPenalty
-
 from numpy.typing import NDArray
 from typing import Union, Iterable
 import itertools
 
-
-if pyoc_version >= '1.0.0':
-    newpyoculus = True
-else:
+try:
+    newpyoculus = int(str(pyoc_version).split('.')[0]) >= 1
+except Exception:
     newpyoculus = False
 
 
