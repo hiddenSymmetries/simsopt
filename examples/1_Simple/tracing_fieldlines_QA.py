@@ -14,17 +14,16 @@ processes (e.g. by mpirun -n or srun), but it also works on a single
 process.
 """
 
-import time
 import os
 import logging
 from pathlib import Path
 import numpy as np
 
 import simsopt
-from simsopt.field import (InterpolatedField, SurfaceClassifier, particles_to_vtk,
-                           compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data)
+from simsopt.field import (SurfaceClassifier, ScipyFieldlineIntegrator, PoincarePlotter)
 from simsopt.geo import SurfaceRZFourier
 from simsopt.util import in_github_actions, proc0_print, comm_world
+from simsopt.geo import plot
 
 proc0_print("Running 1_Simple/tracing_fieldlines_QA.py")
 proc0_print("=========================================")
@@ -35,6 +34,7 @@ logger.setLevel(1)
 
 # If we're in the CI, make the run a bit cheaper:
 nfieldlines = 3 if in_github_actions else 10
+n_transits = 50 if in_github_actions else 100
 tmax_fl = 10000 if in_github_actions else 20000
 degree = 2 if in_github_actions else 4
 
@@ -50,82 +50,36 @@ surf = SurfaceRZFourier.from_vmec_input(filename, nphi=200, ntheta=30, range="fu
 nfp = surf.nfp
 
 # Load in the optimized coils from stage_two_optimization.py:
-coils_filename = Path(__file__).parent / "inputs" / "biot_savart_opt.json"
+coils_filename = Path(__file__).parent / ".." / ".." / "examples" / "1_Simple" / "inputs" / "biot_savart_opt.json"
 bs = simsopt.load(coils_filename)
+
+integrator = ScipyFieldlineIntegrator(bs, comm=comm_world, nfp=nfp, stellsym=True)
+
+# create a Poincare plotter object, which can compute and plot Poincare sections
+start_points_poincare_RZ = np.linspace(np.array([1.2125346, 0.0]), np.array([1.295, 0.0]), nfieldlines)
+
+poincare = PoincarePlotter(integrator, start_points_poincare_RZ, phis=4, n_transits=n_transits, add_symmetry_planes=True)
 
 surf.to_vtk(OUT_DIR + 'surface')
 sc_fieldline = SurfaceClassifier(surf, h=0.03, p=2)
 sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 
+# Plot the phi=0 plane:
+fig1, ax = poincare.plot_poincare_single(0)
+# Plot all planes in a multi-panel figure:
+fig2, ax = poincare.plot_poincare_all()
+# the poincareplotter has an attribute that can help such that only the plotting process does things.
+if poincare.i_am_the_plotter:
+    fig1.savefig(OUT_DIR + 'QA_poincare_phi0.png')
+    fig2.savefig(OUT_DIR + 'QA_poincare_all.png')
 
-def trace_fieldlines(bfield, label):
-    t1 = time.time()
-    # Set initial grid of points for field line tracing, going from
-    # the magnetic axis to the surface. The actual plasma boundary is
-    # at R=1.300425, but the outermost initial point is a bit inward
-    # from that, R = 1.295, so the SurfaceClassifier does not think we
-    # have exited the surface
-    R0 = np.linspace(1.2125346, 1.295, nfieldlines)
-    Z0 = np.zeros(nfieldlines)
-    phis = [(i/4)*(2*np.pi/nfp) for i in range(4)]
-    fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-        bfield, R0, Z0, tmax=tmax_fl, tol=1e-16, comm=comm_world,
-        phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
-    t2 = time.time()
-    proc0_print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
-    if comm_world is None or comm_world.rank == 0:
-        particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
-        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=150)
+# create a 3D plot to see the coils and the fieldlines together: 
+if not in_github_actions:
+    if poincare.i_am_the_plotter:
+        plot(bs.coils, engine='mayavi', show=False, tube_radius=0.01)
+    poincare.plot_fieldline_trajectories_3d(engine='mayavi', show=False, tube_radius=0.001, opacity=0.3)
+    poincare.plot_poincare_in_3d(engine='mayavi', show=True, scale_factor=0.01)
 
-
-# uncomment this to run tracing using the biot savart field (very slow!)
-# trace_fieldlines(bs, 'bs')
-
-
-# Bounds for the interpolated magnetic field chosen so that the surface is
-# entirely contained in it
-n = 20
-rs = np.linalg.norm(surf.gamma()[:, :, 0:2], axis=2)
-zs = surf.gamma()[:, :, 2]
-rrange = (np.min(rs), np.max(rs), n)
-phirange = (0, 2*np.pi/nfp, n*2)
-# exploit stellarator symmetry and only consider positive z values:
-zrange = (0, np.max(zs), n//2)
-
-
-def skip(rs, phis, zs):
-    # The RegularGrindInterpolant3D class allows us to specify a function that
-    # is used in order to figure out which cells to be skipped.  Internally,
-    # the class will evaluate this function on the nodes of the regular mesh,
-    # and if *all* of the eight corners are outside the domain, then the cell
-    # is skipped.  Since the surface may be curved in a way that for some
-    # cells, all mesh nodes are outside the surface, but the surface still
-    # intersects with a cell, we need to have a bit of buffer in the signed
-    # distance (essentially blowing up the surface a bit), to avoid ignoring
-    # cells that shouldn't be ignored
-    rphiz = np.asarray([rs, phis, zs]).T.copy()
-    dists = sc_fieldline.evaluate_rphiz(rphiz)
-    skip = list((dists < -0.05).flatten())
-    proc0_print("Skip", sum(skip), "cells out of", len(skip), flush=True)
-    return skip
-
-
-proc0_print('Initializing InterpolatedField')
-bsh = InterpolatedField(
-    bs, degree, rrange, phirange, zrange, True, nfp=nfp, stellsym=True, skip=skip
-)
-proc0_print('Done initializing InterpolatedField.')
-
-bsh.set_points(surf.gamma().reshape((-1, 3)))
-bs.set_points(surf.gamma().reshape((-1, 3)))
-Bh = bsh.B()
-B = bs.B()
-proc0_print("Mean(|B|) on plasma surface =", np.mean(bs.AbsB()))
-
-proc0_print("|B-Bh| on surface:", np.sort(np.abs(B-Bh).flatten()))
-
-proc0_print('Beginning field line tracing')
-trace_fieldlines(bsh, 'bsh')
 
 proc0_print("End of 1_Simple/tracing_fieldlines_QA.py")
 proc0_print("========================================")
