@@ -10,7 +10,7 @@ from simsopt.util import MpiPartition, proc0_print
 """
 Optimize a VMEC equilibrium for quasi-helical symmetry (M=1, N=1)
 throughout the volume.
-Run this example with mpirun -n 9 python QH_fixed_resolution.py
+Run this example with mpirun -n 2 python QH_fixed_resolution.py
 """
 
 max_nfev = 10  # Maximum number of function evaluations
@@ -22,7 +22,7 @@ max_mode = 1  # Maximum poloidal and toroidal mode numbers to vary
 proc0_print("Running 2_Intermediate/QH_fixed_resolution.py")
 proc0_print("=============================================")
 
-mpi = MpiPartition(9)
+mpi = MpiPartition(2)
 
 # For forming filenames for vmec, pathlib sometimes does not work, so use os.path.join instead.
 filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp4_QH_warm_start')
