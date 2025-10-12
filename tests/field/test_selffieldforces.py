@@ -8,7 +8,7 @@ from scipy.special import ellipk, ellipe
 
 from simsopt.field import Coil, Current, coils_via_symmetries
 from simsopt.geo.curve import create_equally_spaced_curves
-from simsopt.configs import get_hsx_data
+from simsopt.configs import get_data
 from simsopt.geo import CurveXYZFourier, JaxCurveXYZFourier, CurvePlanarFourier, JaxCurvePlanarFourier
 from simsopt.field.selffield import (
     B_regularized,
@@ -398,10 +398,10 @@ class CoilForcesTest(unittest.TestCase):
 
     def test_force_convergence(self):
         """Check that the self-force is approximately independent of the number of quadrature points"""
-        ppps = [8, 4, 2, 7, 5]
-        for j, ppp in enumerate(ppps):
-            curves, _, _ = get_hsx_data(ppp=ppp)
-            curve = curves[0]
+        points_per_periods = [8, 4, 2, 7, 5]
+        for j, points_per_period in enumerate(points_per_periods):
+            base_curves, base_currents, ma, nfp, bs = get_data("hsx", points_per_period=points_per_period)
+            curve = base_curves[0]
             I = 1.5e3
             a = 0.01
             coil = RegularizedCoil(curve, Current(I), regularization=regularization_circ(a))
@@ -415,12 +415,12 @@ class CoilForcesTest(unittest.TestCase):
 
     def test_hsx_coil(self):
         """Compare self-force for HSX coil 1 to result from CoilForces.jl"""
-        curves, _, _ = get_hsx_data()
-        assert len(curves[0].quadpoints) == 160
+        base_curves, base_currents, ma, nfp, bs  = get_data("hsx")
+        assert len(base_curves[0].quadpoints) == 160
         I = 150e3
         a = 0.01
         b = 0.023
-        coil = RegularizedCoil(curves[0], Current(I), regularization=regularization_circ(a))
+        coil = RegularizedCoil(base_curves[0], Current(I), regularization=regularization_circ(a))
 
         # Case of circular cross-section
 

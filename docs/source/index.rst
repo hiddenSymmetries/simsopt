@@ -1,7 +1,9 @@
 Simsopt documentation
 =====================
 
-``simsopt`` is a framework for optimizing `stellarators
+.. _simsopt: https://github.com/hiddenSymmetries/simsopt
+
+`simsopt`_ is a framework for optimizing `stellarators
 <https://en.wikipedia.org/wiki/Stellarator>`_.  The high-level
 routines are in python, with calls to C++ or fortran where needed for
 performance. Several types of components are included:
@@ -15,7 +17,7 @@ performance. Several types of components are included:
   field representations, including derivatives.
 - Tools for parallelized finite-difference gradient calculations.
 
-The design of ``simsopt`` is guided by several principles:
+The design of `simsopt`_ is guided by several principles:
 
 - Thorough unit testing, regression testing, and continuous
   integration.
@@ -29,11 +31,11 @@ The design of ``simsopt`` is guided by several principles:
   optimize SPEC equilibria, the VMEC module need not be installed.
 - Flexibility: The components used to define an objective function can
   be re-used for applications other than standard optimization. For
-  instance, a ``simsopt`` objective function is a standard python
+  instance, a `simsopt`_ objective function is a standard python
   function that can be plotted, passed to optimization packages
-  outside of ``simsopt``, etc.
+  outside of `simsopt`_, etc.
 
-``simsopt`` is fully open-source, and anyone is welcome to use it,
+`simsopt`_ is fully open-source, and anyone is welcome to use it,
 make suggestions, and contribute.
 
 Some of the physics modules with compiled code reside in separate
@@ -45,14 +47,14 @@ repositories. These separate modules include
   equilibrium.
 - `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_, for
   Boozer coordinates and quasisymmetry.
-- `virtual_casing <https://github.com/hiddenSymmetries/virtual_casing>`_,
+- `virtual-casing <https://github.com/hiddenSymmetries/virtual-casing>`_,
   needed for coil optimization in the case of finite-beta plasmas.
   
 We gratefully acknowledge funding from the `Simons Foundation's Hidden
 symmetries and fusion energy project
 <https://hiddensymmetries.princeton.edu>`_.
 
-``simsopt`` is one of several available systems for stellarator
+`simsopt`_ is one of several available systems for stellarator
 optimization.  Others include `STELLOPT
 <https://github.com/PrincetonUniversity/STELLOPT>`_, `DESC
 <https://github.com/PlasmaControl/DESC>`_, `ROSE
