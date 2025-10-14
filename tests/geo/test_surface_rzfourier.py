@@ -532,21 +532,18 @@ class SurfaceRZFourierTests(unittest.TestCase):
                 a1 = s.area()
 
                 s.change_resolution(mpol+1, ntor)
-                s.recalculate = True
                 v2 = s.volume()
                 a2 = s.area()
                 self.assertAlmostEqual(v1, v2)
                 self.assertAlmostEqual(a1, a2)
 
                 s.change_resolution(mpol, ntor+1)
-                s.recalculate = True
                 v2 = s.volume()
                 a2 = s.area()
                 self.assertAlmostEqual(v1, v2)
                 self.assertAlmostEqual(a1, a2)
 
                 s.change_resolution(mpol+1, ntor+1)
-                s.recalculate = True
                 v2 = s.volume()
                 a2 = s.area()
                 self.assertAlmostEqual(v1, v2)
