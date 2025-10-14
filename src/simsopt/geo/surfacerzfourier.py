@@ -1033,6 +1033,19 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             self.zc = -self.zc
         self.local_full_x = self.get_dofs()
 
+    def rotate_half_field_period(self):
+        """
+        Rotate the surface toroidally by half a field period.
+
+        This is useful when you have a surface with the bean cross-section at
+        ϕ = π / nfp, and you want to rotate it so that the bean is at ϕ = 0.
+        """
+        x = self.local_full_x
+        # Flip the sign of all modes with odd n:
+        odd_ns = (self.n % 2 == 1)
+        x[odd_ns] = -x[odd_ns]
+        self.local_full_x = x
+
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,
                      'aspect-ratio': Surface.aspect_ratio}

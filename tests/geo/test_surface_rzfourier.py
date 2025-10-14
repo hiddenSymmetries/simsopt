@@ -1033,6 +1033,32 @@ class SurfaceRZFourierTests(unittest.TestCase):
                     np.testing.assert_allclose(old_gamma[:, :, 1], new_gamma[:, :, 1])
                     np.testing.assert_allclose(old_gamma[:, :, 2], -new_gamma[:, :, 2])
 
+    def test_rotate_half_field_period(self):
+        """Test the rotate_half_field_period() method."""
+        nfp = 3
+        nphi_per_half_period = 9
+        quadpoints_phi = np.linspace(0, 1, nphi_per_half_period * 2 * nfp, endpoint=False)
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    s = SurfaceRZFourier(
+                        mpol=mpol,
+                        ntor=ntor,
+                        nfp=nfp,
+                        stellsym=stellsym,
+                        quadpoints_phi=quadpoints_phi,
+                    )
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_Z = old_gamma[:, :, 2]
+                    s.rotate_half_field_period()
+                    new_gamma = s.gamma()
+                    new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    new_Z = new_gamma[:, :, 2]
+                    np.testing.assert_allclose(old_R, np.roll(new_R, nphi_per_half_period, axis=0))
+                    np.testing.assert_allclose(old_Z, np.roll(new_Z, nphi_per_half_period, axis=0), atol=1e-13)
+
         
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):
