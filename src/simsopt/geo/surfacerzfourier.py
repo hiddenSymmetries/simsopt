@@ -1023,6 +1023,16 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self.set_rc(1, 0, amplitude)
         self.set_zs(1, 0, amplitude)
 
+    def flip_z(self):
+        """
+        Flip the sign of the z coordinate. This will flip the sign of the
+        rotational transform of a plasma bounded by this surface.
+        """
+        self.zs = -self.zs
+        if not self.stellsym:
+            self.zc = -self.zc
+        self.local_full_x = self.get_dofs()
+
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,
                      'aspect-ratio': Surface.aspect_ratio}

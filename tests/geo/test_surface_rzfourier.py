@@ -1019,6 +1019,20 @@ class SurfaceRZFourierTests(unittest.TestCase):
         np.testing.assert_allclose(dv, dv_truth,
                                    err_msg = 'Volume derivative does not match precalculated results.', atol = 1e-14)
         
+    def test_flip_z(self):
+        """Test the flip_z() method."""
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    s = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=3, stellsym=stellsym)
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    s.flip_z()
+                    new_gamma = s.gamma()
+                    np.testing.assert_allclose(old_gamma[:, :, 0], new_gamma[:, :, 0])
+                    np.testing.assert_allclose(old_gamma[:, :, 1], new_gamma[:, :, 1])
+                    np.testing.assert_allclose(old_gamma[:, :, 2], -new_gamma[:, :, 2])
+
         
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):
