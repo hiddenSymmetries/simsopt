@@ -508,8 +508,10 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
         mu_oa = kwargs.pop('mu_oa', 1.0)
         
         use_coils = kwargs.pop('use_coils', False)
+        use_demag = kwargs.pop('use_demag', True)
         coil_path = kwargs.pop('coil_path', None)
         mm_refine_every = kwargs.pop('mm_refine_every', 20)
+        current_scale = kwargs.pop('current_scale', 1)
             
         algorithm_history, Bn_history, m_history, num_nonzeros, m = GPMO_ArbVec_backtracking_macromag_py(
             A_obj=contig(A_obj.T),                 # MacroMag path also expects (3N, ngrid)
@@ -521,8 +523,10 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             mu_ea=mu_ea, 
             mu_oa=mu_oa,
             use_coils=use_coils, 
+            use_demag=use_demag, 
             coil_path=coil_path, 
             mm_refine_every=mm_refine_every, 
+            current_scale=current_scale, 
             **kwargs
         )
         
@@ -884,8 +888,10 @@ def GPMO_ArbVec_backtracking_macromag_py(
     mu_ea: float = 1.00,
     mu_oa: float = 1.00,
     use_coils: bool = False,
+    use_demag: bool = True, 
     coil_path: str = None, 
     mm_refine_every: int = 20, 
+    current_scale: float = 1.0,
 ):
     """
     Hybrid ArbVec GPMO + MacroMag:
@@ -910,12 +916,18 @@ def GPMO_ArbVec_backtracking_macromag_py(
         mu_ea: float
         mu_oa: float
         use_coils: bool
+        use_demag: bool
         coil_path: str, Optional, default None
+        mm_refine_every: int = 20 
+        current_scale: int
     """
     import time
     if use_coils and coil_path == None: 
         raise ValueError("Use coils set to True but missing coil path; Please provide the correct focus coil path")
     
+    print("use_coils mode =",use_coils)
+    print("use_demag mode =",use_demag)
+        
     # Convert to numpy arrays
     A_obj = np.asarray(A_obj, dtype=np.float64, order="C")
     b_obj = np.asarray(b_obj, dtype=np.float64, order="C")
@@ -980,7 +992,7 @@ def GPMO_ArbVec_backtracking_macromag_py(
 
     # Load coils if requested
     if use_coils and coil_path is not None:
-        mac_all.load_coils(coil_path)  # sets mac_all._bs_coil
+        mac_all.load_coils(coil_path, current_scale=current_scale)  # sets mac_all._bs_coil
 
     # Precompute demagnetization tensor
     # HACK: fast_get_demag_tensor yields a -N due to convention from H_d = -N M
@@ -1291,15 +1303,62 @@ def GPMO_ArbVec_backtracking_macromag_py(
         # Probably only need to run MacroMag for the committed set ONLY every couple dozen iterations
         if (k % mm_refine_every) == 0:
             t1_macromag = time.time()
-            R2_snap, x_macro_flat, _, Aij_mj_sum, A_sub_prev = solve_subset_and_score(
-                np.array(gamma_inds), x[gamma_inds], 
-                prev_active_idx=prev_active_indices, 
-                A_prev=A_sub_prev, prev_n=prev_n)
+            active = np.array(gamma_inds, dtype=np.int64)
+
+
+            if prev_active_indices is not None and A_sub_prev is not None and prev_n > 0:
+                # intersection in "old" order to keep A_prev alignment
+                common = np.intersect1d(prev_active_indices, active, assume_unique=True)
+
+                # indices of 'common' in the old order (prev_active_indices)
+                old_pos = {idx: i for i, idx in enumerate(prev_active_indices)}
+                common_in_prev_order = np.array(sorted(common, key=lambda v: old_pos[v]), dtype=np.int64)
+
+                # anything new (not in 'common')
+                is_new = ~np.isin(active, common_in_prev_order)
+                new_only = active[is_new]
+
+                # assemble the order: [survivors in old order] + [new ones]
+                active_ordered = np.concatenate([common_in_prev_order, new_only]) if new_only.size else common_in_prev_order
+
+                # build the aligned cached block for survivors only
+                # helper to expand dipole indices -> 3x dof indices
+                def _expand3(idx_1d: np.ndarray) -> np.ndarray:
+                    base = (3 * idx_1d).reshape(-1, 1)
+                    return (base + np.array([0, 1, 2])).reshape(-1)
+
+                # positions of survivors inside the previous active list
+                iprev = np.array([old_pos[v] for v in common_in_prev_order], dtype=np.int64)
+                iprev3 = _expand3(iprev)
+
+                # A_prev_common is the cached block for the survivors (aligned to their old order)
+                A_prev_common = A_sub_prev[np.ix_(iprev3, iprev3)]
+                prev_active_for_call = common_in_prev_order
+                prev_n_for_call = len(common_in_prev_order)
+
+                # easy axis list in the same order we pass to MacroMag
+                ea_list = x[active_ordered]
+            else:
+                active_ordered = active
+                ea_list = x[active_ordered]
+                A_prev_common = None
+                prev_active_for_call = None
+                prev_n_for_call = 0
+
+            R2_snap, x_macro_flat, _, Aij_mj_sum, A_sub = solve_subset_and_score(
+                active_ordered, ea_list,
+                prev_active_idx=prev_active_for_call,
+                A_prev=A_prev_common,
+                prev_n=prev_n_for_call
+            )
+
+            # update caches for next iteration
+            A_sub_prev = A_sub
+            prev_active_indices = active_ordered
+            prev_n = len(active_ordered)
             
             t2_macromag = time.time()
             print(f"Iteration {k}: Time in macromag call: {t2_macromag - t1_macromag} seconds")
-            prev_active_indices = np.array(gamma_inds.copy())
-            prev_n = len(gamma_inds)
 
             # if k == 500:
             #     mm_refine_every = 100

@@ -5,8 +5,7 @@ from coilpy import rotation_angle
 from simsopt.field import Coil, BiotSavart, InterpolatedField
 from simsopt.util.permanent_magnet_helper_functions import read_focus_coils
 from scipy.constants import mu_0
-from scipy.sparse.linalg import LinearOperator, minres, gmres
-from numpy.linalg import norm
+from scipy.sparse.linalg import gmres
 from numba import njit, prange
 from pathlib import Path
 from typing import Optional
@@ -174,6 +173,24 @@ def _assemble_tensor_local_nb(centres, half, Rg2l):
             # exact local prism tensor
             Nloc[i,j] = _prism_N_local_nb(a, b, c, x_loc, y_loc, z_loc)
     return Nloc
+
+@njit(parallel=True, cache=False)
+def assemble_blocks_subset(centres, half, Rg2l, I, J):
+    nI, nJ = I.shape[0], J.shape[0]
+    out = np.empty((nI, nJ, 3, 3), np.float64)
+    for ii in prange(nI):
+        i = I[ii]
+        a,b,c = half[i]
+        R = Rg2l[i]
+        cx,cy,cz = centres[i]
+        for jj in range(nJ):
+            j = J[jj]
+            dx = cx - centres[j,0]; dy = cy - centres[j,1]; dz = cz - centres[j,2]
+            x = R[0,0]*dx + R[0,1]*dy + R[0,2]*dz
+            y = R[1,0]*dx + R[1,1]*dy + R[1,2]*dz
+            z = R[2,0]*dx + R[2,1]*dy + R[2,2]*dz
+            out[ii,jj] = _prism_N_local_nb(a,b,c,x,y,z)
+    return out
 class MacroMag:
     """Compute demag tensor for rectangular prisms."""
 
@@ -251,10 +268,14 @@ class MacroMag:
         self._N_full = N
         return N
             
-    def load_coils(self, focus_file: Path) -> None:
+    def load_coils(self, focus_file: Path, current_scale: Optional[int] = 1) -> None:
         """Load coils and cache both BiotSavart and an InterpolatedField."""
         curves, currents, ncoils = read_focus_coils(str(focus_file))
-        coils = [Coil(curves[i], currents[i]) for i in range(ncoils)]
+        coils = [Coil(curves[i], currents[i]*current_scale) for i in range(ncoils)]
+                
+        if(current_scale != 1):
+                print(f"[INFO Macromag] Scaled Coil currents scaled by {current_scale}x")
+
         bs = BiotSavart(coils)
 
         # TODO: find way to use this since currently causing to much extra cost...
@@ -492,6 +513,124 @@ class MacroMag:
         
         tiles.M = x.reshape(n, 3)
         return self, A
+    
+    
+    def direct_solve_toggle(self,
+        use_coils: bool = False,
+        use_demag: bool = True,
+        krylov_tol: float = 1e-6,
+        krylov_it: int = 20,
+        N_new_rows: np.ndarray = None,
+        N_new_cols: np.ndarray | None = None,
+        N_new_diag: np.ndarray | None = None,
+        print_progress: bool = False,
+        x0: np.ndarray | None = None,
+        H_a_override: Optional[np.ndarray] = None,
+        A_prev: np.ndarray | None = None,
+        prev_n: int = 0) -> "MacroMag":
+        
+        """
+        Run the Krylov‐based direct magstatics solve in place.
+
+        Args:
+            use_coils: bool, default False
+                Whether to use coils in the solve.
+            krylov_tol: float, default 1e-3
+                Tolerance for the Krylov solver.
+            krylov_it: int, default 200
+                Maximum number of iterations for the Krylov solver.
+            demag_tensor: np.ndarray | None, default None
+                Precomputed demagnetization tensor.
+            print_progress: bool, default False
+                Whether to print progress.
+            x0: np.ndarray | None, default None
+                Initial guess for the solution.
+            H_a_override: Optional[np.ndarray], default None
+                External magnetic field to override the coil field.
+            A_prev: np.ndarray | None, default None
+                Previous A matrix for incremental updates.
+            prev_n: int, default 0
+                Number of tiles in the previous A matrix.
+
+        Returns:
+            MacroMag: self
+        
+        """
+        if use_demag and prev_n == 0:
+            if N_new_rows is None:
+                raise ValueError(
+                    "direct_solve requires N_new_rows (full demag tensor) for the initial pass "
+                    "when prev_n == 0."
+                )
+        elif use_demag and prev_n > 0:
+            if N_new_rows is None or N_new_cols is None or N_new_diag is None:
+                raise ValueError(
+                    "direct_solve requires N_new_rows, N_new_cols, and N_new_diag for incremental "
+                    "updates when prev_n > 0."
+                )
+            
+        if use_coils and (self.bs_interp is None) and (H_a_override is None):
+            raise ValueError("use_coils=True, but no coil interpolant is loaded and no H_a_override was provided.")
+
+        if H_a_override is not None:
+            H_a_override = np.asarray(H_a_override, dtype=np.float64, order="C") 
+            if H_a_override.shape != (self.centres.shape[0], 3):
+                raise ValueError("H_a_override must have shape (n_tiles, 3) in A/m.")
+
+        def Hcoil_func(pts):
+            if H_a_override is not None:
+                return H_a_override 
+            else: 
+                return self.coil_field_at(pts)
+
+        tiles   = self.tiles
+        centres = self.centres
+        n       = tiles.n
+        u       = tiles.u_ea
+        m_rem   = tiles.M_rem
+        chi_parallel  = tiles.mu_r_ea - 1
+        chi_perp  = tiles.mu_r_oa - 1
+        
+        if np.allclose(chi_parallel, 0.0) and np.allclose(chi_perp, 0.0):
+            if (not use_coils) and (H_a_override is None):
+                tiles.M = m_rem[:, None] * u
+                return self, None
+
+        H_a = np.zeros((n, 3)) if (not use_coils) else Hcoil_func(centres).astype(np.float64)
+        u_dot_Ha = np.sum(u * H_a, axis=1)
+        chi_Ha = (chi_perp[:, None] * H_a + 
+                 (chi_parallel - chi_perp)[:, None] * u_dot_Ha[:, None] * u)
+        b = (m_rem[:, None] * u + chi_Ha).ravel()
+        chi_diff = chi_parallel - chi_perp
+        u_outer = np.einsum('ik,il->ikl', u, u, optimize=True)
+        chi_tensor = (chi_perp[:, None, None] * np.eye(3)[None, :, :] + 
+                    chi_diff[:, None, None] * u_outer)
+        A = np.zeros((3*n, 3*n))
+        A[:3*prev_n, :3*prev_n] = A_prev
+        for i in range(prev_n, n):
+            A[3*i:3*i+3, 3*i:3*i+3] = np.eye(3)
+        if use_demag:
+            if prev_n > 0:
+                chi_new = chi_tensor[prev_n:, :, :]
+                chi_prev = chi_tensor[:prev_n, :, :]
+                A[3*prev_n:, :3*prev_n] += np.einsum('iab,ijbc->iajc', chi_new, N_new_rows).reshape(3*(n-prev_n), 3*prev_n)
+                A[:3*prev_n, 3*prev_n:] += np.einsum('iab,ijbc->iajc', chi_prev, N_new_cols).reshape(3*prev_n, 3*(n-prev_n))
+                A[3*prev_n:, 3*prev_n:] += np.einsum('iab,ijbc->iajc', chi_new, N_new_diag).reshape(3*(n-prev_n), 3*(n-prev_n))
+            else:
+                A += np.einsum('iab,ijbc->iajc', chi_tensor, N_new_rows).reshape(3*n, 3*n)
+        if print_progress and False:
+            def make_gmres_callback():
+                iteration = [0]
+                def gmres_callback(residual_norm):
+                    iteration[0] += 1
+                    print(f"GMRES iteration {iteration[0]}: residual norm = {residual_norm:.6e}")
+                return gmres_callback
+            x, info = gmres(A, b, rtol=krylov_tol, maxiter=krylov_it, x0=x0)
+        else:
+            x, info = gmres(A, b, rtol=krylov_tol, maxiter=krylov_it, x0=x0)
+        tiles.M = x.reshape(n, 3)
+        return self, A
+
 
 
 

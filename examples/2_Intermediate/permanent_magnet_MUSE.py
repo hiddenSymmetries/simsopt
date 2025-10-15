@@ -36,7 +36,7 @@ from simsopt.util.permanent_magnet_helper_functions import *
 
 t_start = time.time()
 
-high_res_run = False
+high_res_run = True
 
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:
@@ -56,7 +56,7 @@ else:
     nIter_max = 20000
     nBacktracking = 0
     max_nMagnets = 20000
-    downsample = 3
+    downsample = 1
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -82,7 +82,7 @@ scale_coils = True
 current_scale = 1
 if(scale_coils):
     from simsopt.field import Coil
-    current_scale = 1  
+    current_scale = 100  
     coils = [Coil(c.curve, c.current * current_scale) for c in coils]
     print(f"[INFO] Coil currents scaled by {current_scale}x")
 
@@ -158,11 +158,11 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 # Python+Macromag
-algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
-# algorithm = 'ArbVec_backtracking'  # Algorithm to use
+# algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
+algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 12  # How many magnets to consider "adjacent" to one another
 nHistory = 20  # How often to save the algorithm progress
-thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
+thresh_angle = np.pi - (5 * np.pi / 180)  # The angle between two "adjacent" dipoles such that they should be removed
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
 kwargs['nhistory'] = nHistory
@@ -179,7 +179,8 @@ if algorithm == "ArbVec_backtracking_macromag_py":
     kwargs['cube_dim'] = 0.004
     kwargs['mu_ea'] = 1.05
     kwargs['mu_oa'] = 1.15
-    kwargs['use_coils'] = True  
+    kwargs['use_coils'] = True
+    kwargs['use_demag'] = True
     kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
     kwargs['mm_refine_every'] = 50
     kwargs['current_scale'] = current_scale
