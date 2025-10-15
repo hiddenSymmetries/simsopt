@@ -4,7 +4,7 @@
 This example demonstrates how to use SIMSOPT to compute Poincare plots.
 
 This script uses the NCSX coil shapes available in
-``simsopt.util.zoo.get_ncsx_data()``. For an example in which coils
+``simsopt.util.zoo.get_data("ncsx")``. For an example in which coils
 optimized from a simsopt stage-2 optimization are used, see the
 example tracing_fieldlines_QA.py.
 
@@ -19,8 +19,8 @@ import logging
 import sys
 import numpy as np
 
-from simsopt.configs import get_ncsx_data
-from simsopt.field import (BiotSavart, InterpolatedField, coils_via_symmetries, SurfaceClassifier,
+from simsopt.configs import get_data
+from simsopt.field import (InterpolatedField, SurfaceClassifier,
                            particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data)
 from simsopt.geo import SurfaceRZFourier, curves_to_vtk
 from simsopt.util import in_github_actions, proc0_print, comm_world
@@ -43,14 +43,13 @@ OUT_DIR = "./output/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 
-nfp = 3
-curves, currents, ma = get_ncsx_data()
-coils = coils_via_symmetries(curves, currents, nfp, True)
-curves = [c.curve for c in coils]
-bs = BiotSavart(coils)
+base_curves, currents, ma, nfp, bs = get_data("ncsx")
+# bs.coils includes all coils after symmetry expansion (not just the base coils).
+# You can access them directly like this:
+all_curves = [c.curve for c in bs.coils]
 proc0_print("Mean(|B|) on axis =", np.mean(np.linalg.norm(bs.set_points(ma.gamma()).B(), axis=1)))
 proc0_print("Mean(Axis radius) =", np.mean(np.linalg.norm(ma.gamma(), axis=1)))
-curves_to_vtk(curves + [ma], OUT_DIR + 'coils')
+curves_to_vtk(all_curves + [ma], OUT_DIR + 'coils')
 
 mpol = 5
 ntor = 5

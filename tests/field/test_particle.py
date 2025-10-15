@@ -5,10 +5,8 @@ logging.basicConfig()
 
 import numpy as np
 
-from simsopt.field.coil import coils_via_symmetries
-from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.configs.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_data
 from simsopt.field.tracing import trace_particles_starting_on_curve, SurfaceClassifier, \
     particles_to_vtk, LevelsetStoppingCriterion, compute_gc_radius, gc_to_fullorbit_initial_guesses, \
     IterationStoppingCriterion, trace_particles_starting_on_surface, trace_particles_boozer, \
@@ -69,10 +67,7 @@ class ParticleTracingTesting(unittest.TestCase):
         super(ParticleTracingTesting, self).__init__(*args, **kwargs)
         logger = logging.getLogger('simsopt.field.tracing')
         logger.setLevel(1)
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        base_curves,base_currents, ma, nfp, bs = get_data("ncsx")
         n = 16
 
         rrange = (1.1, 1.8, n)
