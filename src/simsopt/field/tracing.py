@@ -1860,7 +1860,8 @@ class PoincarePlotter(Optimizable):
                 self.plot_poincare_plane_idx(phi_index, ax=ax, mark_lost=mark_lost, **kwargs)
 
             if surf is not None:
-                cross_section = surf.cross_section(phi=phi)
+                # divide by 2pi cause simsopt surf phi is in [0,1]
+                cross_section = surf.cross_section(phi=phi/(2*np.pi))
                 r_interp = np.sqrt(cross_section[:, 0] ** 2 + cross_section[:, 1] ** 2)
                 z_interp = cross_section[:, 2]
                 ax.plot(r_interp, z_interp, linewidth=1, c='k')
