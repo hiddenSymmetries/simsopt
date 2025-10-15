@@ -1021,35 +1021,23 @@ class Integrator(Optimizable):
         """
         if self.interpolated:
             raise ValueError("Field is already interpolated.")
-        # Normalize ranges to (min, max, n) tuples expected by InterpolatedField
-        def _norm_range(rng):
-            rng_t = tuple(rng)
-            if len(rng_t) == 2:
-                return (rng_t[0], rng_t[1], 4)
-            elif len(rng_t) == 3:
-                return rng_t
-            else:
-                raise ValueError("Range must have 2 or 3 elements: (min,max[,n])")
 
-        rrange_n = _norm_range(rrange)
-        phirange_n = _norm_range(phirange)
-        zrange_n = _norm_range(zrange)
 
         interpolatedfield = InterpolatedField(
             self.field,
             degree,
-            rrange_n,
-            phirange_n,
-            zrange_n,
+            rrange,
+            phirange,
+            zrange,
             extrapolate=extrapolate,
             nfp=self.nfp,
             stellsym=self.stellsym,
             skip=skip,
         )
         self._true_field = self.field
-        self._rrange = rrange_n
-        self._phirange = phirange_n
-        self._zrange = zrange_n
+        self._rrange = rrange
+        self._phirange = phirange
+        self._zrange = zrange
         self._degree = degree
         self._skip = skip
         self._extrapolate = extrapolate
@@ -1066,19 +1054,6 @@ class Integrator(Optimizable):
         if self.interpolated:
             logger.warning("Integrator recompute bell was rung, indicating need to recmpute interpolation. " \
                            "Currently this is not implemented")
-            # cannot call this every time a dof is changed, need to work with flag that triggers on first
-            # call to the underlying field.
-#            self.field = InterpolatedField(
-#                self._true_field,
-#                self._degree,
-#                self._rrange if len(self._rrange) == 3 else (self._rrange[0], self._rrange[1], 4),
-#                self._phirange if len(self._phirange) == 3 else (self._phirange[0], self._phirange[1], 4),
-#                self._zrange if len(self._zrange) == 3 else (self._zrange[0], self._zrange[1], 4),
-#                extrapolate=self._extrapolate,
-#                nfp=self.nfp,
-#                stellsym=self.stellsym,
-#                skip=self._skip,
-#            )
         else:
             pass
 
@@ -1284,7 +1259,7 @@ class ScipyFieldlineIntegrator(Integrator):
         # check if field is in positive B_phi direction at (R0,0,0)
         if R0 is None:
             logger.warning("R0 is not set, using default value of 1.")
-            R0 = 1
+            R0 = 1.0
         field.set_points_cyl(np.array([[R0, 0.0, 0.0]]))
         B = field.B_cyl().flatten()
         if B[1] < 0:
