@@ -531,21 +531,21 @@ class PermanentMagnetGridTesting(unittest.TestCase):
             # Check coil initialization for some common stellarators wout_LandremanPaul2021_QA_lowres
             s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QA_lowres.nc',
                                            range="half period", nphi=nphi, ntheta=ntheta)
-            base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s)
+            base_curves, curves, coils = initialize_coils_for_pm_optimization('qa', TEST_DIR, s)
             bs = BiotSavart(coils)
             B0avg = calculate_modB_on_major_radius(bs, s)
             assert np.allclose(B0avg, 0.15)
 
             s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc',
                                            range="half period", nphi=nphi, ntheta=ntheta)
-            base_curves, curves, coils = initialize_coils('qh', TEST_DIR, s)
+            base_curves, curves, coils = initialize_coils_for_pm_optimization('qh', TEST_DIR, s)
             bs = BiotSavart(coils)
             B0avg = calculate_modB_on_major_radius(bs, s)
             assert np.allclose(B0avg, 5.7)
 
             # Repeat with wrapper function
             s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-            base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s)
+            base_curves, curves, coils = initialize_coils_for_pm_optimization('muse_famus', TEST_DIR, s)
             bs = BiotSavart(coils)
             B0avg = calculate_modB_on_major_radius(bs, s)
             assert np.allclose(B0avg, 0.15)
@@ -607,17 +607,19 @@ class PermanentMagnetGridTesting(unittest.TestCase):
         with ScratchDir("."):
             # Test Bnormal plots
             make_Bnormal_plots(bs, s)
+            make_Bnormal_plots(bs, s, B_axis=1.0)
 
             # optimize pm_opt and plot optimization progress
             kwargs = initialize_default_kwargs(algorithm='GPMO')
             kwargs['K'] = 100
             kwargs['nhistory'] = 10
-            kwargs['verbose'] = False
+            kwargs['verbose'] = True
             R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
             m_history = np.transpose(m_history, [2, 0, 1])
             m_history = m_history.reshape(1, 11, m_history.shape[1], 3)
             make_optimization_plots(R2_history, m_history, m_history, pm_opt)
 
+            kwargs['verbose'] = False
             kwargs_geo = {"downsample": 100}
             pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bn, TEST_DIR / 'zot80.focus', **kwargs_geo)
             R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
@@ -638,7 +640,7 @@ class PermanentMagnetGridTesting(unittest.TestCase):
         ntheta = nphi
         surface_filename = TEST_DIR / input_name
         s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-        base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s)
+        base_curves, curves, coils = initialize_coils_for_pm_optimization('muse_famus', TEST_DIR, s)
         bs = BiotSavart(coils)
         B0avg = calculate_modB_on_major_radius(bs, s)
         assert np.allclose(B0avg, 0.15)
@@ -667,12 +669,12 @@ class PermanentMagnetGridTesting(unittest.TestCase):
         # Make QFM surfaces
         Bfield = bs + b_dipole
         Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
-        qfm_surf = make_qfm(s_plot, Bfield)
+        qfm_surf = make_qfm(s_plot, Bfield, n_iters=10)
         qfm_surf = qfm_surf.surface
 
         # Run poincare plotting
         with ScratchDir("."):
-           run_Poincare_plots(s_plot, bs, b_dipole, None, 'poincare_test')
+           run_Poincare_plots_with_permanent_magnets(s_plot, bs, b_dipole, None, 'poincare_test')
 
 if __name__ == "__main__":
     unittest.main()
