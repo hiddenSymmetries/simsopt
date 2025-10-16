@@ -35,7 +35,7 @@ jobs:
       fail-fast: false
       matrix:
         test-type: [unit, integrated]
-        python-version: [3.9, "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
         include:
             - python-version: "3.13"
               test-type: unit
@@ -101,7 +101,7 @@ jobs:
     - name: Install python dependencies
       run: |
            sudo apt-get install graphviz graphviz-dev
-           pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap
+           pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap mpi4py
 
     - name: Install booz_xform
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
