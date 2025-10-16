@@ -18,17 +18,17 @@ import pandas as pd
 
 t_start = time.time()
 
-nphi = 64
+nphi = 32
 ntheta = nphi
-Nx = 80
+Nx = 200
 
 # for now just with variable magnet distance
-iters = 10
+iters = 20
 
 coff = 0.2  # outer surface distance away from inner surface
-poff = np.linspace(0.1, 3.0, iters, dtype=np.float64)
+poff = np.linspace(0.05, 0.35, iters, dtype=np.float64)
 
-max_nMagnets = 100
+max_nMagnets = 7500
 
 input_name = 'input.LandremanPaul2021_QA_lowres'
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -110,11 +110,11 @@ for it in range(iters):
 
     # Optimize the permanent magnets. This actually solves
     kwargs = initialize_default_kwargs('GPMO')
-    nIter_max = 1000
-    algorithm = 'baseline'
-    # algorithm = 'ArbVec_backtracking'
-    # nBacktracking = 200 
-    nAdjacent = 10
+    nIter_max = 50000
+    # algorithm = 'baseline'
+    algorithm = 'ArbVec_backtracking'
+    nBacktracking = 200 
+    nAdjacent = 30
     thresh_angle = np.pi  # / np.sqrt(2)
     angle = int(thresh_angle * 180 / np.pi)
     kwargs['K'] = max_nMagnets
@@ -128,7 +128,7 @@ for it in range(iters):
         # Below line required for the backtracking to be backwards 
         # compatible with the PermanentMagnetGrid class
         pm_opt.coordinate_flag = 'cartesian'  
-    nHistory = 10
+    nHistory = 20
     kwargs['nhistory'] = nHistory
     t1 = time.time()
     R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
@@ -212,6 +212,8 @@ for it in range(iters):
     total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
 
     print('exact ',it, ' complete')
+    print('exact_exact = ',fB)
+    print('exact_dipole = ',fBc)
 
     ###############################################################
     ###############################################################
@@ -277,18 +279,18 @@ for it in range(iters):
 
     # Optimize the permanent magnets. This actually solves
     kwargs = initialize_default_kwargs('GPMO')
-    nIter_max = 1000
-    algorithm = 'baseline'
-    # algorithm = 'ArbVec_backtracking'
-    # nBacktracking = 200 
-    nAdjacent = 10
+    nIter_max = 50000
+    # algorithm = 'baseline'
+    algorithm = 'ArbVec_backtracking'
+    nBacktracking = 200 
+    nAdjacent = 30
     thresh_angle = np.pi  # / np.sqrt(2)
     angle = int(thresh_angle * 180 / np.pi)
     kwargs['K'] = max_nMagnets
     if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
         kwargs['backtracking'] = nBacktracking
         kwargs['Nadjacent'] = nAdjacent
-        kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.pm_grid_xyz)
+        kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)
         if algorithm == 'ArbVec_backtracking':
             kwargs['thresh_angle'] = thresh_angle
             kwargs['max_nMagnets'] = max_nMagnets
@@ -385,6 +387,10 @@ for it in range(iters):
     bs.set_points(s.gamma().reshape((-1, 3)))
     Bcnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
     f_Bc_sf = SquaredFlux(s, b_comp, -Bcnormal).J()
+
+    print('dip_dip = ',dipfB)
+    print('dip_exact = ',compfB)
+    print('completed dip',it)
 
 df = pd.DataFrame(objectives)
 df.to_csv(repo+'/objectives.csv', index=False)
