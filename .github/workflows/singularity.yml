@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   build-containers:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     # container:
     #   image: quay.io/singularity/singularity:v3.9.3
     #   options: --security-opt seccomp=unconfined --security-opt systempaths=unconfined
