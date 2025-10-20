@@ -3,6 +3,7 @@ import time
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 import simsopt.field
 print(dir(simsopt.field))
@@ -18,15 +19,15 @@ import pandas as pd
 
 t_start = time.time()
 
-nphi = 32
+nphi = 16
 ntheta = nphi
-Nx = 200
+Nx = 80
 
 # for now just with variable magnet distance
-iters = 20
+iters = 2
 
 coff = 0.2  # outer surface distance away from inner surface
-poff = np.linspace(0.05, 0.35, iters, dtype=np.float64)
+poff = np.linspace(0.1, 0.3, iters, dtype=np.float64)
 
 max_nMagnets = 7500
 
@@ -35,6 +36,8 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 surface_filename = TEST_DIR / input_name
 
 repo = 'bulkGPMO'
+os.makedirs(repo+'/opt_mvecs', exist_ok=True)
+os.makedirs(repo+'/Anb_objs', exist_ok=True)
 
 objectives = {
     'coff': np.linspace(coff, coff, iters, dtype=np.float64),
@@ -163,6 +166,9 @@ for it in range(iters):
     make_Bnormal_plots(bs + b_magnet, s_plot, out_dir, "biot_savart_optimized")
 
     # Compute metrics with permanent magnet results
+    np.save(f'bulkGPMO/opt_mvecs/exact{it}', pm_opt.m)
+    np.save(f'bulkGPMO/Anb_objs/Aexact{it}', pm_opt.A_obj)
+    np.save(f'bulkGPMO/Anb_objs/bexact{it}', pm_opt.b_obj)
     magnets_m = pm_opt.m.reshape(pm_opt.ndipoles, 3)
     num_nonzero = np.count_nonzero(np.sum(magnets_m ** 2, axis=-1)) / pm_opt.ndipoles * 100
 
@@ -302,6 +308,10 @@ for it in range(iters):
     t1 = time.time()
     R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 
+
+    np.save(f'bulkGPMO/opt_mvecs/dip{it}', pm_opt.m)
+    np.save(f'bulkGPMO/Anb_objs/Adip{it}', pm_opt.A_obj)
+    np.save(f'bulkGPMO/Anb_objs/bdip{it}', pm_opt.b_obj)
     # Print effective permanent magnet volume
     B_max = 1.465
     mu0 = 4 * np.pi * 1e-7
