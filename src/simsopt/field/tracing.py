@@ -2,6 +2,7 @@ import logging
 from math import sqrt
 
 import numpy as np
+
 import simsoptpp as sopp
 from .._core.util import parallel_loop_bounds
 from ..field.magneticfield import MagneticField
@@ -879,31 +880,30 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
 
     """
     import matplotlib.pyplot as plt
-    #nrowcol = ceil(sqrt(len(phis)))
-    nrowcol = len(phis) 
+    from math import ceil, sqrt
+    nrowcol = ceil(sqrt(len(phis)))
     plt.figure()
     fig, axs = plt.subplots(nrowcol, nrowcol, figsize=(8, 5))
     for ax in axs.ravel():
         ax.set_aspect(aspect)
     color = None
-    fs = 16
     for i in range(len(phis)):
-        # row = i//nrowcol
+        row = i//nrowcol
         col = i % nrowcol
-        if (i != len(phis) - 1):
-            axs[col].set_title(f"$\\phi = {phis[i]/np.pi:.2f}\\pi$ ", loc='left', y=0.0, fontsize=fs-2)
+        if i != len(phis) - 1:
+            axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.2f}\\pi$ ", loc='left', y=0.0)
         else:
-            axs[col].set_title(f"$\\phi = {phis[i]/np.pi:.2f}\\pi$ ", loc='left', y=0.9, fontsize=fs-2)
-        #if row == nrowcol - 1:
-        axs[col].set_xlabel("$r$", fontsize=fs)
+            axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.2f}\\pi$ ", loc='right', y=0.0)
+        if row == nrowcol - 1:
+            axs[row, col].set_xlabel("$r$")
         if col == 0:
-            axs[col].set_ylabel("$z$", fontsize=fs)
-        else:
-            axs[col].set_yticklabels([])
+            axs[row, col].set_ylabel("$z$")
+        if col == 1:
+            axs[row, col].set_yticklabels([])
         if xlims is not None:
-            axs[col].set_xlim(xlims)
+            axs[row, col].set_xlim(xlims)
         if ylims is not None:
-            axs[col].set_ylim(ylims)
+            axs[row, col].set_ylim(ylims)
         for j in range(len(fieldlines_phi_hits)):
             lost = fieldlines_phi_hits[j][-1, 1] < 0
             if mark_lost:
@@ -912,20 +912,18 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
             if data_this_phi.size == 0:
                 continue
             r = np.sqrt(data_this_phi[:, 2]**2+data_this_phi[:, 3]**2)
-            axs[col].scatter(r, data_this_phi[:, 4], marker='o', s=2, linewidths=0, c=color)
-        axs[col].tick_params(axis='both', which='major', labelsize=fs-2)
+            axs[row, col].scatter(r, data_this_phi[:, 4], marker=marker, s=s, linewidths=0, c=color)
+
         plt.rc('axes', axisbelow=True)
-        axs[col].grid(True, linewidth=0.5)
-        axs[col].set_aspect(aspect, adjustable='box')
-        #plt.gca().set_aspect('equal',adjustable='box')
+        axs[row, col].grid(True, linewidth=0.5)
 
         # if passed a surface, plot the plasma surface outline
         if surf is not None:
-            cross_section = surf.cross_section(phi=phis[i]/(2.0*np.pi))
+            cross_section = surf.cross_section(phi=phis[i])
             r_interp = np.sqrt(cross_section[:, 0] ** 2 + cross_section[:, 1] ** 2)
             z_interp = cross_section[:, 2]
-            axs[col].plot(r_interp, z_interp, linewidth=1, c='k')
+            axs[row, col].plot(r_interp, z_interp, linewidth=1, c='k')
 
     plt.tight_layout()
     plt.savefig(filename, dpi=dpi)
-    # plt.close()
+    plt.close()

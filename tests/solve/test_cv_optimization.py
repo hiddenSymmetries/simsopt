@@ -20,7 +20,7 @@ class Testing(unittest.TestCase):
         assert np.all(np.linalg.norm(m_thresholded, axis=1) >= 1e5)
 
     def test_compute_J(self):
-        nphi = 8
+        nphi = 16
         ntheta = nphi
         coff = 0.1
         poff = 0.05
@@ -49,8 +49,8 @@ class Testing(unittest.TestCase):
             Test the relax and split algorithm for solving
             the current voxel problem.
         """
-        nphi = 8
-        ntheta = 8
+        nphi = 16
+        ntheta = nphi
         coff = 0.1
         poff = 0.05
         input_name = 'input.LandremanPaul2021_QA_lowres'
@@ -78,10 +78,10 @@ class Testing(unittest.TestCase):
         )
 
         # Test we get the trivial solution in sigma = 0 or kappa = infty limits
-        kwargs = {"kappa": 1e20, "print_iter": 1}
+        kwargs = {"kappa": 1e20}
         _ = relax_and_split_minres(cv_opt, **kwargs)
         assert np.allclose(cv_opt.alphas, 0.0)
-        kwargs = {"sigma": 0.0, "print_iter": 1}
+        kwargs = {"sigma": 0.0}
         _ = relax_and_split_minres(cv_opt, **kwargs)
         assert np.allclose(cv_opt.alphas, 0.0)
 

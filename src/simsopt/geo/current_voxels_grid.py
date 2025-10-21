@@ -1045,11 +1045,11 @@ class CurrentVoxelsGrid:
             for j in range(6):
                 if (i in self.x_inds) and (j == 1) and (self.coil_range != 'full torus'):
                     k_ind = self.z_flip_x[q]
-                    assert np.isclose(flux[i, 1], flux[k_ind, 1], atol=flux_max, rtol=1e-3)
+                    np.testing.assert_allclose(flux[i, 1], flux[k_ind, 1], atol=flux_max, rtol=1e-3, err_msg=f'Fluxes do not match, flux1 = {flux[i, 1]}, flux2 = {flux[k_ind, 2]}')
                     q += 1
                 elif (i in self.y_inds) and (j == 3) and (self.coil_range != 'full torus'):
                     k_ind = self.z_flip_y[qq]
-                    assert np.isclose(flux[i, 3], flux[k_ind, 3], atol=flux_max, rtol=1e-3)
+                    np.testing.assert_allclose(flux[i, 3], flux[k_ind, 3], atol=flux_max, rtol=1e-3, err_msg=f'Fluxes do not match, flux3 = {flux[i, 3]}, flux4 = {flux[k_ind, 4]}')
                     qq += 1
                 elif np.any(self.connection_list[i, :, j] >= 0):
                     inds = np.ravel(np.where(self.connection_list[i, :, j] >= 0))
@@ -1061,9 +1061,9 @@ class CurrentVoxelsGrid:
                             j_ind = j - 1
                         if not np.isclose(flux[i, j], -flux[k_ind, j_ind], atol=flux_max, rtol=1e-1):
                             print(i, j, k_ind, j_ind, ind, flux[i, j], flux[k_ind, j_ind])
-                        assert np.isclose(flux[i, j], -flux[k_ind, j_ind], atol=flux_max, rtol=1e-1)
+                        np.testing.assert_allclose(flux[i, j], -flux[k_ind, j_ind], atol=flux_max, rtol=1e-1, err_msg=f'Fluxes do not match, {flux[i, j]}, {-flux[k_ind, j_ind]}')
                 else:
                     if not np.isclose(flux[i, j], 0.0, atol=flux_max):
                         print(i, j, flux[i, j])
-                    assert np.isclose(flux[i, j], 0.0, atol=flux_max)
+                    np.testing.assert_allclose(flux[i, j], 0.0, atol=flux_max, err_msg=f'Fluxes do not match, |{flux[i, j]} - flux_max| != 0.0')
 

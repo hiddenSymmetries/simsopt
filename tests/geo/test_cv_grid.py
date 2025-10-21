@@ -121,7 +121,7 @@ class Testing(unittest.TestCase):
         with the default parameters. Checks the the cv_opt object agrees with Bn and
         f_B with the DipoleField + SquaredFlux way of calculating Bn and f_B.
         """
-        nphi = 8
+        nphi = 16
         ntheta = nphi
         with ScratchDir("."):
             s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
@@ -177,7 +177,7 @@ class Testing(unittest.TestCase):
 
         # Test build of the MUSE coils
         with ScratchDir("."):
-            nphi = 8
+            nphi = 32
             ntheta = nphi
 
             filename = TEST_DIR / 'wout_LandremanPaul2021_QA_lowres.nc'

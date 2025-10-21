@@ -1296,8 +1296,8 @@ class Testing(unittest.TestCase):
         dz = dx
         grid_scaling = dx ** 3 / nx ** 3
         x_leftpoints = [0]
-        y_leftpoints = [20]  # x_leftpoints
-        z_leftpoints = [0]  # x_leftpoints 
+        y_leftpoints = [20] 
+        z_leftpoints = [0] 
         xrange = np.zeros((n, nx))
         yrange = np.zeros((n, ny))
         zrange = np.zeros((n, nz))
@@ -1334,9 +1334,11 @@ class Testing(unittest.TestCase):
 
         # now compute the equivalent dipole field
         m = np.zeros((1, 3))
-        m[0, 1] = 1
-        m[0, 2] = -1
-        m = dx ** 4 / 4.0 * 1e6 * m
+        # m[0, 0] = 1
+        # m[0, 1] = 1
+        m[0, 2] = 1
+        m *= 2 * dx ** 2 * 1e6
+        print(dx, m, grid_scaling)
         bs_dipole = DipoleField(
             voxel_location,
             m,
@@ -1346,16 +1348,16 @@ class Testing(unittest.TestCase):
         bs_dipole.set_points(points)
 
         # Do it yourself in python
+        Bi = np.zeros((10, 3))
         for i in range(points.shape[0]):
-            Bi = 0.0
             for j in range(XYZ_integration.shape[1]):
                 r_minus_rprime = points[i] - XYZ_integration[0, j, :]
-                Jcrossr = np.cross(J, r_minus_rprime)
+                Jcrossr = np.cross(J[0, j, :], r_minus_rprime)
                 rmag3 = np.linalg.norm(r_minus_rprime, axis=-1) ** 3
-                Bi += Jcrossr / rmag3
-            Bi *= grid_scaling * 1e-7
-        assert np.allclose(bs_wv.B(), bs_dipole.B())
-
+                Bi[i, :] += Jcrossr / rmag3
+            Bi[i, :] *= grid_scaling * 1e-7
+        np.testing.assert_allclose(bs_wv.B(), bs_dipole.B(), atol=1e-15, err_msg='Bfields do not match, B1 = {bs_wv.B()}, B2 = {bs_dipole.B()}')
+        np.testing.assert_allclose(bs_wv.B(), Bi, atol=1e-15, err_msg='Bfields do not match, B1 = {bs_wv.B()}, B2 = {Bi}')
 
 if __name__ == "__main__":
     unittest.main()
