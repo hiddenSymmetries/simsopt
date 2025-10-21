@@ -14,13 +14,11 @@ import os
 from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
-import simsoptpp as sopp
-from simsopt.geo import SurfaceRZFourier, Curve, CurveRZFourier, curves_to_vtk
+from simsopt.geo import SurfaceRZFourier, CurveRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
-from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.magneticfieldclasses import CurrentVoxelsField
 from simsopt.geo import CurrentVoxelsGrid
-from simsopt.solve import relax_and_split, relax_and_split_increasingl0
+from simsopt.solve import relax_and_split_increasingl0
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
 from mpi4py import MPI
@@ -93,7 +91,7 @@ for n in range(s.ntor + 1):
 
 curve.x = curve.get_dofs()
 curve.x = curve.x  # need to do this to transfer data to C++
-curves_to_vtk([curve], OUT_DIR + f"Itarget_curve")
+curves_to_vtk([curve], OUT_DIR + "Itarget_curve")
 Itarget = 0.5e6
 t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')

@@ -3,7 +3,6 @@ import unittest
 
 import numpy as np
 
-import simsoptpp as sopp
 from simsopt.solve.current_voxels_optimization import prox_group_l0, compute_J
 from simsopt.solve import relax_and_split_minres
 from simsopt.util import *
@@ -80,10 +79,10 @@ class Testing(unittest.TestCase):
 
         # Test we get the trivial solution in sigma = 0 or kappa = infty limits
         kwargs = {"kappa": 1e20, "print_iter": 1}
-        mdict = relax_and_split_minres(cv_opt, **kwargs)
+        _ = relax_and_split_minres(cv_opt, **kwargs)
         assert np.allclose(cv_opt.alphas, 0.0)
         kwargs = {"sigma": 0.0, "print_iter": 1}
-        mdict = relax_and_split_minres(cv_opt, **kwargs)
+        _ = relax_and_split_minres(cv_opt, **kwargs)
         assert np.allclose(cv_opt.alphas, 0.0)
 
         kwargs_geo = {"Bn": Bnormal}
@@ -109,7 +108,7 @@ class Testing(unittest.TestCase):
         kwargs['max_iter_RS'] = 20
         l0_thresholds = np.linspace(1e4, 1e5)
         kwargs['l0_thresholds'] = l0_thresholds
-        mdict3 = relax_and_split_minres(cv_opt)
+        _ = relax_and_split_minres(cv_opt)
         w = cv_opt.w[~np.isclose(np.linalg.norm(cv_opt.w, axis=-1), 0.0), :]
         assert np.all(np.linalg.norm(w, axis=-1) > l0_thresholds[-1])
 

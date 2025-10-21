@@ -14,11 +14,8 @@ import os
 #from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
-from scipy.sparse import csc_matrix
-from scipy.sparse import vstack
 from scipy.sparse import eye as sparse_eye
 from scipy.sparse.linalg import inv as sparse_inv
-import simsoptpp as sopp
 from simsopt.geo import SurfaceRZFourier, CurveRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
 from simsopt.field.biotsavart import BiotSavart
@@ -97,7 +94,7 @@ r_min = 0.4
 curve.rc[0] = r_min
 curve.x = curve.get_dofs()
 curve.x = curve.x  # need to do this to transfer data to C++
-curves_to_vtk([curve], OUT_DIR + f"Itarget_curve")
+curves_to_vtk([curve], OUT_DIR + "Itarget_curve")
 Itarget = 1e5  # 0.1 MA
 
 # Set up Bnormal on the curve

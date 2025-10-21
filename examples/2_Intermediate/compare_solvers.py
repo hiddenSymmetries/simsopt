@@ -22,7 +22,7 @@ b_I = data['b_I'][0]
 
 
 # overall constraint matrix
-scale = 1e6;    # scaling factor
+scale = 1e6    # scaling factor
 A1 *= scale
 b1 *= scale
 A_I *= scale

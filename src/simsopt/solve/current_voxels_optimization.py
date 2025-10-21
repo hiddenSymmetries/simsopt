@@ -1,12 +1,8 @@
-import sys
 import numpy as np
-from simsoptpp import matmult, matmult_sparseA
 import time
-from matplotlib import pyplot as plt
-from scipy.io import savemat
-from scipy.sparse import csc_matrix, spdiags, vstack, hstack, eye
+from scipy.sparse import spdiags
 from scipy.sparse.linalg import LinearOperator, splu, utils
-from numpy import inner, zeros, inf, finfo, isclose
+from numpy import inner, zeros, inf, finfo
 from numpy.linalg import norm
 from math import sqrt
 from functools import partial
@@ -294,10 +290,10 @@ def minres(A, b, x0=None, shift=0.0, tol=1e-5, maxiter=None,
         if diag == 0:
             diag = epsa
 
-        if itn == 1:
-            test0 = 0
-        else:
-            test0 = test1
+        # if itn == 1:
+        #     test0 = 0
+        # else:
+        #     test0 = test1
 
         qrnorm = phibar
         rnorm = qrnorm
@@ -322,7 +318,7 @@ def minres(A, b, x0=None, shift=0.0, tol=1e-5, maxiter=None,
         # In rare cases, istop is already -1 from above (Abar = const*I).
 
         if istop == 0:
-            t1 = 1 + test1      # These tests work if tol < eps
+            # t1 = 1 + test1      # These tests work if tol < eps
             t2 = 1 + test2
             if t2 <= 1:
                 istop = 2
@@ -412,8 +408,6 @@ def compute_J(current_voxels, alphas, ws):
         ws: 2D numpy array, shape (num_voxels, num_basis_functions) 
           representing the proxy voxel degrees of freedom.
     """
-    num_basis = current_voxels.n_functions
-    n_interp = current_voxels.Phi.shape[2]
     current_voxels.J = np.sum(np.multiply(alphas.T[:, :, np.newaxis, np.newaxis], current_voxels.Phi), axis=0)
     current_voxels.J_sparse = np.sum(np.multiply(ws.T[:, :, np.newaxis, np.newaxis], current_voxels.Phi), axis=0)
 
@@ -509,11 +503,11 @@ def relax_and_split_minres(
         alpha_opt = np.zeros((N, 1))  # (np.random.rand(N, 1) - 0.5) * 1e4  
 
     B = current_voxels.B_matrix
-    BT = B.T
+
     b_B = current_voxels.b_rhs.reshape(-1, 1)
     b_I = current_voxels.Itarget_rhs.reshape(-1, 1)
     I = current_voxels.Itarget_matrix.reshape(1, -1)
-    IT = I.T
+
     kappa = kappa / n  # normalize kappa by the number of voxels
     kappa_nu = (kappa + 1.0 / nu)
     scale = 1e6

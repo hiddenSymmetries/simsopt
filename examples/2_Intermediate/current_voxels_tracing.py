@@ -15,15 +15,13 @@ import logging
 from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
-import simsoptpp as sopp
 import simsopt
-from simsopt.geo import SurfaceRZFourier, Curve, CurveRZFourier, curves_to_vtk
+from simsopt.geo import SurfaceRZFourier, CurveRZFourier
 from simsopt.objectives import SquaredFlux
-from simsopt.field.biotsavart import BiotSavart
 from simsopt.field import InterpolatedField, SurfaceClassifier
 from simsopt.field.magneticfieldclasses import CurrentVoxelsField
 from simsopt.geo import CurrentVoxelsGrid
-from simsopt.solve import relax_and_split, relax_and_split_increasingl0
+from simsopt.solve import relax_and_split_increasingl0
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
 from mpi4py import MPI

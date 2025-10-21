@@ -14,18 +14,14 @@ import os
 #from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
-from scipy.sparse import csc_matrix
-from scipy.sparse import vstack
 from scipy.sparse import eye as sparse_eye
 from scipy.sparse.linalg import inv as sparse_inv
 # from sksparse.cholmod import cholesky
-import simsoptpp as sopp
-from simsopt.geo import SurfaceRZFourier, Curve, CurveRZFourier, curves_to_vtk
+from simsopt.geo import SurfaceRZFourier, CurveRZFourier
 from simsopt.objectives import SquaredFlux
-from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.magneticfieldclasses import WindingVolumeField
 from simsopt.geo import WindingVolumeGrid
-from simsopt.solve import relax_and_split, relax_and_split_increasingl0
+from simsopt.solve import relax_and_split_increasingl0
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
 from mpi4py import MPI

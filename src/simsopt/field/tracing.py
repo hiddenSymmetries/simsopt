@@ -879,7 +879,6 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
 
     """
     import matplotlib.pyplot as plt
-    from math import ceil, sqrt
     #nrowcol = ceil(sqrt(len(phis)))
     nrowcol = len(phis) 
     plt.figure()
@@ -889,7 +888,7 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
     color = None
     fs = 16
     for i in range(len(phis)):
-        row = i//nrowcol
+        # row = i//nrowcol
         col = i % nrowcol
         if (i != len(phis) - 1):
             axs[col].set_title(f"$\\phi = {phis[i]/np.pi:.2f}\\pi$ ", loc='left', y=0.0, fontsize=fs-2)

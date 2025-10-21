@@ -14,15 +14,8 @@ import os
 #from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
-from scipy.sparse import csc_matrix
-from scipy.sparse import vstack
-from scipy.sparse import eye as sparse_eye
-from scipy.sparse.linalg import inv as sparse_inv
 # from sksparse.cholmod import cholesky
-import simsoptpp as sopp
-from simsopt.geo import SurfaceRZFourier, Curve, CurveRZFourier, curves_to_vtk
-from simsopt.objectives import SquaredFlux
-from simsopt.field.biotsavart import BiotSavart
+from simsopt.geo import SurfaceRZFourier, CurveRZFourier, curves_to_vtk
 from simsopt.field.magneticfieldclasses import WindingVolumeField
 from simsopt.geo import WindingVolumeGrid
 from simsopt.solve import projected_gradient_descent_Tikhonov 
@@ -78,7 +71,7 @@ for m in range(s.mpol + 1):
 
 curve.x = curve.get_dofs()
 curve.x = curve.x  # need to do this to transfer data to C++
-curves_to_vtk([curve], OUT_DIR + f"Itarget_curve")
+curves_to_vtk([curve], OUT_DIR + "Itarget_curve")
 Itarget = 1e6  # 1 MA
 
 nx = 8

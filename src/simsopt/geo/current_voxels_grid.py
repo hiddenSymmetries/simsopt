@@ -1,5 +1,5 @@
 import numpy as np
-from simsopt.geo import Surface, SurfaceRZFourier
+from simsopt.geo import Surface
 from simsopt.solve.current_voxels_optimization import compute_J
 from simsopt.util.permanent_magnet_helper_functions import make_curve_at_theta0 
 from pyevtk.hl import pointsToVTK, unstructuredGridToVTK
@@ -8,7 +8,6 @@ from pyevtk.vtk import VtkVoxel
 import simsoptpp as sopp
 import time
 from scipy.sparse import lil_matrix
-from scipy.sparse import csc_matrix
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
 
@@ -417,8 +416,8 @@ class CurrentVoxelsGrid:
         oy = self.XYZ_flat[:, 1]
         oz = self.XYZ_flat[:, 2]
 
-        Phi = self.Phi
-        n_interp = Phi.shape[2]
+        # Phi = self.Phi
+        # n_interp = Phi.shape[2]
         Jvec = self.J
         Jvec_sparse = self.J_sparse
         alphas = self.alphas.reshape(n, self.n_functions).T
@@ -662,10 +661,10 @@ class CurrentVoxelsGrid:
         if self.coil_range == 'full torus':
             stell_list = [1]
             nfp = 1
-            nsym = nfp
+            # nsym = nfp
         elif stellsym:
             stell_list = [1, -1]
-            nsym = nfp * 2
+            # nsym = nfp * 2
 
         # get the coordinates
         ox = integration_points[:, :, 0]
@@ -680,7 +679,7 @@ class CurrentVoxelsGrid:
         plasma_normal = self.plasma_boundary.normal().reshape(-1, 3)
         normN = np.linalg.norm(plasma_normal, ord=2, axis=-1)
         num_basis = Phi.shape[0]
-        n_interp = Phi.shape[2]
+        # n_interp = Phi.shape[2]
         nphi_loop_inv = 1.0 / len(self.Itarget_curve.quadpoints)
         curve_dl = self.Itarget_curve.gammadash().reshape(-1, 3)
 
@@ -992,8 +991,8 @@ class CurrentVoxelsGrid:
         """
         Phi = self.Phi
         n = Phi.shape[1]
-        n_interp = Phi.shape[2]
-        alpha_opt = self.alphas.reshape(n, self.n_functions)
+        # n_interp = Phi.shape[2]
+        # alpha_opt = self.alphas.reshape(n, self.n_functions)
         # integration_points = self.integration_points
         Nx = self.nx
         Ny = self.ny

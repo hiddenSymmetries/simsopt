@@ -15,7 +15,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib.animation as animation
 from scipy.optimize import minimize
-from scipy.interpolate import CubicSpline
 from simsopt.geo import CurveLength, CurveCurveDistance, \
     MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LpCurveTorsion
 from simsopt.geo import curves_to_vtk
@@ -107,7 +106,6 @@ def coil_optimization(s, bs, base_curves, curves, out_dir=''):
     out_dir = Path(out_dir)
     nphi = len(s.quadpoints_phi)
     ntheta = len(s.quadpoints_theta)
-    ncoils = len(base_curves)
 
     # Weight on the curve lengths in the objective function:
     LENGTH_WEIGHT = 1e-4
@@ -663,7 +661,7 @@ def make_filament_from_voxels(current_voxels_grid, final_threshold, truncate=Fal
             index += n
 
     # number of fourier modes to use for the fourier expansion in each coordinate
-    ax = plt.figure().add_subplot(projection='3d')
+    _ = plt.figure().add_subplot(projection='3d')
     xyz_curve = xyz_total
     plt.plot(xyz_curve[:, 0], xyz_curve[:, 1], xyz_curve[:, 2])
 
@@ -841,9 +839,9 @@ def perform_filament_optimization(s, bs, curves, **kwargs):
     ################################################################################
     """)
     MAXITER = kwargs.pop("max_iter", 500)
-    res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 200}, tol=1e-15)
-    curves_to_vtk(curves, out_dir + f"curves_opt")
+    _ = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 200}, tol=1e-15)
+    curves_to_vtk(curves, out_dir + "curves_opt")
     pointData = {"B_N": np.sum(bs.B().reshape(s.gamma().shape) * s.unitnormal(), axis=2)[:, :, None]}
     s.to_vtk(out_dir + "surf_opt", extra_data=pointData)
-    calculate_on_axis_B(bs, s)
+    calculate_modB_on_major_radius(bs, s)
     bs.save(out_dir + "biot_savart_opt.json")

@@ -3,12 +3,9 @@ import unittest
 
 import numpy as np
 from monty.tempfile import ScratchDir
-import simsoptpp as sopp
 
-from simsopt.field import (BiotSavart, Current, CurrentVoxelsField, InterpolatedField,
-                           coils_via_symmetries, Coil)
-from simsopt.geo import (CurrentVoxelsGrid, SurfaceRZFourier, SurfaceXYZFourier,
-                         create_equally_spaced_curves)
+from simsopt.field import (BiotSavart, Current, CurrentVoxelsField, Coil)
+from simsopt.geo import (CurrentVoxelsGrid, SurfaceRZFourier, SurfaceXYZFourier)
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import relax_and_split_minres
 from simsopt.util import *
@@ -101,22 +98,22 @@ class Testing(unittest.TestCase):
             cv_opt = CurrentVoxelsGrid(s, s1, s2)
 
             with self.assertRaises(ValueError):
-                mdict = relax_and_split_minres(cv_opt, kappa=-1)
+                _ = relax_and_split_minres(cv_opt, kappa=-1)
             with self.assertRaises(ValueError):
-                mdict = relax_and_split_minres(cv_opt, sigma=-1)
+                _ = relax_and_split_minres(cv_opt, sigma=-1)
             with self.assertRaises(ValueError):
-                mdict = relax_and_split_minres(cv_opt, nu=-1)
+                _ = relax_and_split_minres(cv_opt, nu=-1)
             with self.assertRaises(ValueError):
-                mdict = relax_and_split_minres(cv_opt, rs_max_iter=-1)
+                _ = relax_and_split_minres(cv_opt, rs_max_iter=-1)
             with self.assertRaises(ValueError):
-                mdict = relax_and_split_minres(cv_opt, max_iter=-1)
+                _ = relax_and_split_minres(cv_opt, max_iter=-1)
             with self.assertRaises(ValueError):
-                mdict = relax_and_split_minres(cv_opt, print_iter=-1)
+                _ = relax_and_split_minres(cv_opt, print_iter=-1)
             with self.assertRaises(ValueError):
-                mdict = relax_and_split_minres(cv_opt, alpha0=np.zeros((10, 1)))
+                _ = relax_and_split_minres(cv_opt, alpha0=np.zeros((10, 1)))
             with self.assertRaises(ValueError):
-                mdict = relax_and_split_minres(cv_opt, alpha0=np.zeros((cv_opt.N_grid * 5, 2)))
-            mdict = relax_and_split_minres(cv_opt)
+                _ = relax_and_split_minres(cv_opt, alpha0=np.zeros((cv_opt.N_grid * 5, 2)))
+            _ = relax_and_split_minres(cv_opt)
 
     def test_Bn(self):
         """
@@ -145,7 +142,7 @@ class Testing(unittest.TestCase):
             Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
             kwargs = {"Bn": Bn}
             cv_opt = CurrentVoxelsGrid(s, s1, s2, **kwargs)
-            mdict = relax_and_split_minres(cv_opt)
+            _ = relax_and_split_minres(cv_opt)
             cv_opt.check_fluxes()
             bs_current_voxels = CurrentVoxelsField(
                 cv_opt.J,
@@ -197,7 +194,7 @@ class Testing(unittest.TestCase):
             cv_opt = CurrentVoxelsGrid(s, s1, s2)
             cv_opt.to_vtk_before_solve('test_current_voxels')
             kwargs = {"l0_thresholds": [1e5]}
-            mdict = relax_and_split_minres(cv_opt)
+            _ = relax_and_split_minres(cv_opt, **kwargs)
             cv_opt.to_vtk_after_solve('test_current_voxels_after_opt')
             bs_current_voxels = CurrentVoxelsField(
                 cv_opt.J,
@@ -206,6 +203,8 @@ class Testing(unittest.TestCase):
                 nfp=s.nfp,
                 stellsym=s.stellsym
             )
+            bs_current_voxels.set_points(s.gamma().reshape((-1, 3)))
+            bs_current_voxels.B()
             curve = make_filament_from_voxels(cv_opt, 1e5, num_fourier=16)
             current = Current(cv_opt.Itarget)
             current.fix_all()

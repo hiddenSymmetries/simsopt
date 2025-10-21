@@ -11,16 +11,11 @@ The script should be run as:
 """
 
 import os
-import logging
 from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
-import simsoptpp as sopp
-import simsopt
-from simsopt.geo import SurfaceRZFourier, Curve, curves_to_vtk
+from simsopt.geo import SurfaceRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.field import InterpolatedField, SurfaceClassifier
 from simsopt.field.magneticfieldclasses import CurrentVoxelsField
 from simsopt.geo import CurrentVoxelsGrid
 from simsopt.solve import relax_and_split_minres
@@ -70,7 +65,7 @@ print('First setup took time = ', t2 - t1, ' s')
 t1 = time.time()
 numquadpoints = nphi * s.nfp * 2
 curve = make_curve_at_theta0(s, numquadpoints)
-curves_to_vtk([curve], out_dir + f"Itarget_curve")
+curves_to_vtk([curve], out_dir + "Itarget_curve")
 Itarget = 30e6
 t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')
@@ -126,7 +121,7 @@ fminres = minres_dict['fminres']
 t2 = time.time()
 print('MINRES solve time = ', t2 - t1, ' s')    
 
-curves_to_vtk([current_voxels_grid.Itarget_curve], out_dir + f"Itarget_curve")
+curves_to_vtk([current_voxels_grid.Itarget_curve], out_dir + "Itarget_curve")
 current_voxels_grid.to_vtk_after_solve(out_dir + 'grid_after_Tikhonov_solve_Nx' + str(Nx))
 
 # set up CurrentVoxels Bfield and check fB value

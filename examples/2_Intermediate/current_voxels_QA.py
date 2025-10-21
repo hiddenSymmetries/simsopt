@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
-from simsopt.geo import SurfaceRZFourier, Curve, curves_to_vtk
+from simsopt.geo import SurfaceRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field import Coil, Current
@@ -75,7 +75,7 @@ current_voxels_grid = CurrentVoxelsGrid(
 
 # Save vtks of the Itarget_curve, inner and outer toroidal surfaces (used to generate
 # the volume of current voxels), and current voxel grid.
-curves_to_vtk([current_voxels_grid.Itarget_curve], out_dir + f"Itarget_curve")
+curves_to_vtk([current_voxels_grid.Itarget_curve], out_dir + "Itarget_curve")
 current_voxels_grid.inner_toroidal_surface.to_vtk(out_dir + 'inner')
 current_voxels_grid.outer_toroidal_surface.to_vtk(out_dir + 'outer')
 current_voxels_grid.to_vtk_before_solve(out_dir + 'grid_before_solve_Nx' + str(Nx))
@@ -171,7 +171,7 @@ print(f0[-1], fB[-1], fI[-1], fK[-1], fC[-1])
 # Initialize a filament optimization from the current voxels solution
 filament_curve = make_filament_from_voxels(current_voxels_grid, l0_thresholds[-1], num_fourier=30)
 curves = [filament_curve]
-curves_to_vtk(curves, out_dir + f"filament_curve")
+curves_to_vtk(curves, out_dir + "filament_curve")
 current = Current(current_voxels_grid.Itarget / 2.0)
 current.fix_all()
 coil = [Coil(filament_curve, current)]

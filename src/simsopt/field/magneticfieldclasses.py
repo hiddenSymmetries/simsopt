@@ -602,7 +602,6 @@ class CurrentVoxelsField(MagneticField):
         Jx = J[:, :, 0]
         Jy = J[:, :, 1]
         Jz = J[:, :, 2]
-        contig = np.ascontiguousarray
         # cannot use the symmetries unless nfp = 2 or nfp = 4
         if nfp != 2 and nfp != 4:
             stell_list = [1]
