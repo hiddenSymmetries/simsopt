@@ -11,13 +11,20 @@ import simsoptpp as sopp
 
 __all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
            'CurveCurveDistance', 'CurveSurfaceDistance', 'ArclengthVariation',
-           'MeanSquaredCurvature', 'LinkingNumber']
+           'MeanSquaredCurvature', 'LinkingNumber',
+           ]
 
 
 @jit
 def curve_length_pure(l):
     """
-    This function is used in a Python+Jax implementation of the curve length formula.
+    Compute the mean of the incremental arclengths along a curve (the curve length).
+
+    Args:
+        l (array-like): Array of incremental arclengths along the curve.
+
+    Returns:
+        float: The mean arclength (i.e., the curve length).
     """
     return jnp.mean(l)
 
@@ -33,7 +40,7 @@ class CurveLength(Optimizable):
 
     def __init__(self, curve):
         self.curve = curve
-        self.thisgrad = jit(lambda l: grad(curve_length_pure)(l))
+        self.dJ_dl = jit(lambda l: grad(curve_length_pure)(l))
         super().__init__(depends_on=[curve])
 
     def J(self):
@@ -49,7 +56,7 @@ class CurveLength(Optimizable):
         """
 
         return self.curve.dincremental_arclength_by_dcoeff_vjp(
-            self.thisgrad(self.curve.incremental_arclength()))
+            self.dJ_dl(self.curve.incremental_arclength()))
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -57,7 +64,16 @@ class CurveLength(Optimizable):
 @jit
 def Lp_curvature_pure(kappa, gammadash, p, desired_kappa):
     """
-    This function is used in a Python+Jax implementation of the curvature penalty term.
+    Compute the Lp penalty for curvature exceeding a threshold along a curve.
+
+    Args:
+        kappa (array-like): Curvature values along the curve.
+        gammadash (array-like): Tangent vectors along the curve.
+        p (float): The Lp norm exponent.
+        desired_kappa (float): The threshold curvature value.
+
+    Returns:
+        float: The Lp penalty value.
     """
     arc_length = jnp.linalg.norm(gammadash, axis=1)
     return (1./p)*jnp.mean(jnp.maximum(kappa-desired_kappa, 0)**p * arc_length)
@@ -80,8 +96,8 @@ class LpCurveCurvature(Optimizable):
         self.threshold = threshold
         super().__init__(depends_on=[curve])
         self.J_jax = jit(lambda kappa, gammadash: Lp_curvature_pure(kappa, gammadash, p, threshold))
-        self.thisgrad0 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=0)(kappa, gammadash))
-        self.thisgrad1 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=1)(kappa, gammadash))
+        self.dJ_dkappa = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=0)(kappa, gammadash))
+        self.dJ_dgammadash = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=1)(kappa, gammadash))
 
     def J(self):
         """
@@ -94,8 +110,8 @@ class LpCurveCurvature(Optimizable):
         """
         This returns the derivative of the quantity with respect to the curve dofs.
         """
-        grad0 = self.thisgrad0(self.curve.kappa(), self.curve.gammadash())
-        grad1 = self.thisgrad1(self.curve.kappa(), self.curve.gammadash())
+        grad0 = self.dJ_dkappa(self.curve.kappa(), self.curve.gammadash())
+        grad1 = self.dJ_dgammadash(self.curve.kappa(), self.curve.gammadash())
         return self.curve.dkappa_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
 
     return_fn_map = {'J': J, 'dJ': dJ}
@@ -104,7 +120,16 @@ class LpCurveCurvature(Optimizable):
 @jit
 def Lp_torsion_pure(torsion, gammadash, p, threshold):
     """
-    This function is used in a Python+Jax implementation of the formula for the torsion penalty term.
+    Compute the Lp penalty for torsion exceeding a threshold along a curve.
+
+    Args:
+        torsion (array-like): Torsion values along the curve.
+        gammadash (array-like): Tangent vectors along the curve.
+        p (float): The Lp norm exponent.
+        threshold (float): The threshold torsion value.
+
+    Returns:
+        float: The Lp penalty value.
     """
     arc_length = jnp.linalg.norm(gammadash, axis=1)
     return (1./p)*jnp.mean(jnp.maximum(jnp.abs(torsion)-threshold, 0)**p * arc_length)
@@ -126,8 +151,8 @@ class LpCurveTorsion(Optimizable):
         self.threshold = threshold
         super().__init__(depends_on=[curve])
         self.J_jax = jit(lambda torsion, gammadash: Lp_torsion_pure(torsion, gammadash, p, threshold))
-        self.thisgrad0 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=0)(torsion, gammadash))
-        self.thisgrad1 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=1)(torsion, gammadash))
+        self.dJ_dtorsion = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=0)(torsion, gammadash))
+        self.dJ_dgammadash = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=1)(torsion, gammadash))
 
     def J(self):
         """
@@ -140,17 +165,41 @@ class LpCurveTorsion(Optimizable):
         """
         This returns the derivative of the quantity with respect to the curve dofs.
         """
-        grad0 = self.thisgrad0(self.curve.torsion(), self.curve.gammadash())
-        grad1 = self.thisgrad1(self.curve.torsion(), self.curve.gammadash())
+        grad0 = self.dJ_dtorsion(self.curve.torsion(), self.curve.gammadash())
+        grad1 = self.dJ_dgammadash(self.curve.torsion(), self.curve.gammadash())
         return self.curve.dtorsion_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
-def cc_distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
+def cc_distance_pure(gamma1, l1, gamma2, l2, minimum_distance, downsample=1):
     """
-    This function is used in a Python+Jax implementation of the curve-curve distance formula.
+    Compute the curve-curve distance penalty between two curves.
+
+    Args:
+        gamma1 (array-like): Points along the first curve.
+        l1 (array-like): Tangent vectors along the first curve.
+        gamma2 (array-like): Points along the second curve.
+        l2 (array-like): Tangent vectors along the second curve.
+        minimum_distance (float): The minimum allowed distance between curves.
+        downsample (int, default=1): 
+            Factor by which to downsample the quadrature points 
+            by skipping through the array by a factor of ``downsample``,
+            e.g. curve.gamma()[::downsample, :]. 
+            Setting this parameter to a value larger than 1 will speed up the calculation,
+            which may be useful if the set of coils is large, though it may introduce
+            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+            total number of quadrature points (since this will produce a nonuniform set of points). 
+            This parameter is used to speed up expensive calculations during optimization, 
+            while retaining higher accuracy for the other objectives. 
+
+    Returns:
+        float: The curve-curve distance penalty value.
     """
+    gamma1 = gamma1[::downsample, :]
+    gamma2 = gamma2[::downsample, :]
+    l1 = l1[::downsample, :]
+    l2 = l2[::downsample, :]
     dists = jnp.sqrt(jnp.sum((gamma1[:, None, :] - gamma2[None, :, :])**2, axis=2))
     alen = jnp.linalg.norm(l1, axis=1)[:, None] * jnp.linalg.norm(l2, axis=1)[None, :]
     return jnp.sum(alen * jnp.maximum(minimum_distance-dists, 0)**2)/(gamma1.shape[0]*gamma2.shape[0])
@@ -178,15 +227,16 @@ class CurveCurveDistance(Optimizable):
 
     """
 
-    def __init__(self, curves, minimum_distance, num_basecurves=None):
+    def __init__(self, curves, minimum_distance, num_basecurves=None, downsample=1):
         self.curves = curves
         self.minimum_distance = minimum_distance
-
-        self.J_jax = jit(lambda gamma1, l1, gamma2, l2: cc_distance_pure(gamma1, l1, gamma2, l2, minimum_distance))
-        self.thisgrad0 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=0)(gamma1, l1, gamma2, l2))
-        self.thisgrad1 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=1)(gamma1, l1, gamma2, l2))
-        self.thisgrad2 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=2)(gamma1, l1, gamma2, l2))
-        self.thisgrad3 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=3)(gamma1, l1, gamma2, l2))
+        self.downsample = downsample
+        args = {"static_argnums": (4,)}
+        self.J_jax = jit(lambda gamma1, l1, gamma2, l2, dsample: cc_distance_pure(gamma1, l1, gamma2, l2, minimum_distance, dsample), **args)
+        self.dJ_dgamma1 = jit(lambda gamma1, l1, gamma2, l2, dsample: grad(self.J_jax, argnums=0)(gamma1, l1, gamma2, l2, dsample), **args)
+        self.dJ_dl1 = jit(lambda gamma1, l1, gamma2, l2, dsample: grad(self.J_jax, argnums=1)(gamma1, l1, gamma2, l2, dsample), **args)
+        self.dJ_dgamma2 = jit(lambda gamma1, l1, gamma2, l2, dsample: grad(self.J_jax, argnums=2)(gamma1, l1, gamma2, l2, dsample), **args)
+        self.dJ_dl2 = jit(lambda gamma1, l1, gamma2, l2, dsample: grad(self.J_jax, argnums=3)(gamma1, l1, gamma2, l2, dsample), **args)
         self.candidates = None
         self.num_basecurves = num_basecurves or len(curves)
         super().__init__(depends_on=curves)
@@ -197,20 +247,22 @@ class CurveCurveDistance(Optimizable):
     def compute_candidates(self):
         if self.candidates is None:
             candidates = sopp.get_pointclouds_closer_than_threshold_within_collection(
-                [c.gamma() for c in self.curves], self.minimum_distance, self.num_basecurves)
+                [c.gamma()[::self.downsample, :] for c in self.curves], self.minimum_distance, self.num_basecurves)
             self.candidates = candidates
 
     def shortest_distance_among_candidates(self):
         self.compute_candidates()
         from scipy.spatial.distance import cdist
-        return min([self.minimum_distance] + [np.min(cdist(self.curves[i].gamma(), self.curves[j].gamma())) for i, j in self.candidates])
+        return min([self.minimum_distance] + [np.min(cdist(self.curves[i].gamma()[::self.downsample, :],
+                                                           self.curves[j].gamma()[::self.downsample, :])) for i, j in self.candidates])
 
     def shortest_distance(self):
         self.compute_candidates()
         if len(self.candidates) > 0:
             return self.shortest_distance_among_candidates()
         from scipy.spatial.distance import cdist
-        return min([np.min(cdist(self.curves[i].gamma(), self.curves[j].gamma())) for i in range(len(self.curves)) for j in range(i)])
+        return min([np.min(cdist(self.curves[i].gamma()[::self.downsample, :],
+                                 self.curves[j].gamma()[::self.downsample, :])) for i in range(len(self.curves)) for j in range(i)])
 
     def J(self):
         """
@@ -223,7 +275,7 @@ class CurveCurveDistance(Optimizable):
             l1 = self.curves[i].gammadash()
             gamma2 = self.curves[j].gamma()
             l2 = self.curves[j].gammadash()
-            res += self.J_jax(gamma1, l1, gamma2, l2)
+            res += self.J_jax(gamma1, l1, gamma2, l2, self.downsample)
 
         return res
 
@@ -241,10 +293,10 @@ class CurveCurveDistance(Optimizable):
             l1 = self.curves[i].gammadash()
             gamma2 = self.curves[j].gamma()
             l2 = self.curves[j].gammadash()
-            dgamma_by_dcoeff_vjp_vecs[i] += self.thisgrad0(gamma1, l1, gamma2, l2)
-            dgammadash_by_dcoeff_vjp_vecs[i] += self.thisgrad1(gamma1, l1, gamma2, l2)
-            dgamma_by_dcoeff_vjp_vecs[j] += self.thisgrad2(gamma1, l1, gamma2, l2)
-            dgammadash_by_dcoeff_vjp_vecs[j] += self.thisgrad3(gamma1, l1, gamma2, l2)
+            dgamma_by_dcoeff_vjp_vecs[i] += self.dJ_dgamma1(gamma1, l1, gamma2, l2, self.downsample)
+            dgammadash_by_dcoeff_vjp_vecs[i] += self.dJ_dl1(gamma1, l1, gamma2, l2, self.downsample)
+            dgamma_by_dcoeff_vjp_vecs[j] += self.dJ_dgamma2(gamma1, l1, gamma2, l2, self.downsample)
+            dgammadash_by_dcoeff_vjp_vecs[j] += self.dJ_dl2(gamma1, l1, gamma2, l2, self.downsample)
 
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
         return sum(res)
@@ -254,8 +306,17 @@ class CurveCurveDistance(Optimizable):
 
 def cs_distance_pure(gammac, lc, gammas, ns, minimum_distance):
     """
-    This function is used in a Python+Jax implementation of the curve-surface distance
-    formula.
+    Compute the curve-surface distance penalty between a curve and a surface.
+
+    Args:
+        gammac (array-like): Points along the curve.
+        lc (array-like): Tangent vectors along the curve.
+        gammas (array-like): Points on the surface.
+        ns (array-like): Surface normal vectors.
+        minimum_distance (float): The minimum allowed distance between curve and surface.
+
+    Returns:
+        float: The curve-surface distance penalty value.
     """
     dists = jnp.sqrt(jnp.sum(
         (gammac[:, None, :] - gammas[None, :, :])**2, axis=2))
@@ -290,8 +351,8 @@ class CurveSurfaceDistance(Optimizable):
         self.minimum_distance = minimum_distance
 
         self.J_jax = jit(lambda gammac, lc, gammas, ns: cs_distance_pure(gammac, lc, gammas, ns, minimum_distance))
-        self.thisgrad0 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=0)(gammac, lc, gammas, ns))
-        self.thisgrad1 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=1)(gammac, lc, gammas, ns))
+        self.dJ_dgamma = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=0)(gammac, lc, gammas, ns))
+        self.dJ_dlc = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=1)(gammac, lc, gammas, ns))
         self.candidates = None
         super().__init__(depends_on=curves)  # Bharat's comment: Shouldn't we add surface here
 
@@ -347,8 +408,8 @@ class CurveSurfaceDistance(Optimizable):
         for i, _ in self.candidates:
             gammac = self.curves[i].gamma()
             lc = self.curves[i].gammadash()
-            dgamma_by_dcoeff_vjp_vecs[i] += self.thisgrad0(gammac, lc, gammas, ns)
-            dgammadash_by_dcoeff_vjp_vecs[i] += self.thisgrad1(gammac, lc, gammas, ns)
+            dgamma_by_dcoeff_vjp_vecs[i] += self.dJ_dgamma(gammac, lc, gammas, ns)
+            dgammadash_by_dcoeff_vjp_vecs[i] += self.dJ_dlc(gammac, lc, gammas, ns)
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
         return sum(res)
 
@@ -358,7 +419,14 @@ class CurveSurfaceDistance(Optimizable):
 @jit
 def curve_arclengthvariation_pure(l, mat):
     """
-    This function is used in a Python+Jax implementation of the curve arclength variation.
+    Compute the variance of the average incremental arclengths over intervals.
+
+    Args:
+        l (array-like): Incremental arclengths along the curve.
+        mat (array-like): Matrix mapping arclengths to intervals.
+
+    Returns:
+        float: The variance of the average arclengths over intervals.
     """
     return jnp.var(mat @ l)
 
@@ -417,7 +485,7 @@ class ArclengthVariation(Optimizable):
         for i in range(nintervals):
             mat[i, indices[i]:indices[i+1]] = 1/(indices[i+1]-indices[i])
         self.mat = mat
-        self.thisgrad = jit(lambda l: grad(lambda x: curve_arclengthvariation_pure(x, mat))(l))
+        self.dJ_dl = jit(lambda l: grad(lambda x: curve_arclengthvariation_pure(x, mat))(l))
 
     def J(self):
         return float(curve_arclengthvariation_pure(self.curve.incremental_arclength(), self.mat))
@@ -428,7 +496,7 @@ class ArclengthVariation(Optimizable):
         This returns the derivative of the quantity with respect to the curve dofs.
         """
         return self.curve.dincremental_arclength_by_dcoeff_vjp(
-            self.thisgrad(self.curve.incremental_arclength()))
+            self.dJ_dl(self.curve.incremental_arclength()))
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -436,7 +504,14 @@ class ArclengthVariation(Optimizable):
 @jit
 def curve_msc_pure(kappa, gammadash):
     """
-    This function is used in a Python+Jax implementation of the mean squared curvature objective.
+    Compute the mean squared curvature objective for a curve.
+
+    Args:
+        kappa (array-like): Curvature values along the curve.
+        gammadash (array-like): Tangent vectors along the curve.
+
+    Returns:
+        float: The mean squared curvature value.
     """
     arc_length = jnp.linalg.norm(gammadash, axis=1)
     return jnp.mean(kappa**2 * arc_length)/jnp.mean(arc_length)
@@ -459,16 +534,16 @@ class MeanSquaredCurvature(Optimizable):
         """
         super().__init__(depends_on=[curve])
         self.curve = curve
-        self.thisgrad0 = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=0)(kappa, gammadash))
-        self.thisgrad1 = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=1)(kappa, gammadash))
+        self.dJ_dkappa = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=0)(kappa, gammadash))
+        self.dJ_dgammadash = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=1)(kappa, gammadash))
 
     def J(self):
         return float(curve_msc_pure(self.curve.kappa(), self.curve.gammadash()))
 
     @derivative_dec
     def dJ(self):
-        grad0 = self.thisgrad0(self.curve.kappa(), self.curve.gammadash())
-        grad1 = self.thisgrad1(self.curve.kappa(), self.curve.gammadash())
+        grad0 = self.dJ_dkappa(self.curve.kappa(), self.curve.gammadash())
+        grad1 = self.dJ_dgammadash(self.curve.kappa(), self.curve.gammadash())
         return self.curve.dkappa_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
 
 
@@ -479,48 +554,51 @@ class MinimumDistance(CurveCurveDistance):
 
 class LinkingNumber(Optimizable):
 
-    def __init__(self, curves):
+    def __init__(self, curves, downsample=1):
         Optimizable.__init__(self, depends_on=curves)
         self.curves = curves
-        r"""
-        Compute the Linking number of a set of curves (whether the curves 
-        are interlocked or not).
+        for curve in curves:
+            assert np.mod(len(curve.quadpoints), downsample) == 0, f"Downsample {downsample} does not divide the number of quadpoints {len(curve.quadpoints)}."
 
-        The value is 1 if the are interlocked, 0 if not.
+        self.downsample = downsample
+        self.dphis = np.array([(c.quadpoints[1] - c.quadpoints[0]) * downsample for c in self.curves])
+
+        r"""
+        Compute the Gauss linking number of a set of curves, i.e. whether the curves
+        are interlocked or not.
+
+        The value is an integer, >= 1 if the curves are interlocked, 0 if not. For each pair
+        of curves, the contribution to the linking number is
         
         .. math::
-            Link(c1,c2) = \frac{1}{4\pi} \oint_{c1}\oint_{c2}\frac{\textbf{R1} - \textbf{R2}}{|\textbf{R1}-\textbf{R2}|^3} (d\textbf{R1} \times d\textbf{R2})
+            Link(c_1, c_2) = \frac{1}{4\pi} \left| \oint_{c_1}\oint_{c_2}\frac{\textbf{r}_1 - \textbf{r}_2}{|\textbf{r}_1 - \textbf{r}_2|^3} (d\textbf{r}_1 \times d\textbf{r}_2) \right|
             
-        where :math:`c1` is the first curve and :math:`c2` is the second curve, 
-        :math:`\textbf{R1}` is the radius vector of the first curve, and 
-        :math:`\textbf{R2}` is the radius vector of the second curve
+        where :math:`c_1` is the first curve, :math:`c_2` is the second curve,
+        :math:`\textbf{r}_1` is the position vector along the first curve, and
+        :math:`\textbf{r}_2` is the position vector along the second curve.
 
         Args:
-            curves: the set of curves on which the linking number should be computed.
-        
+            curves (list of Curve, shape (n_curves)): 
+                The set of curves for which the linking number should be computed.
+            downsample (int, default=1): 
+                Factor by which to downsample the quadrature points 
+                by skipping through the array by a factor of ``downsample``,
+                e.g. curve.gamma()[::downsample, :]. 
+                Setting this parameter to a value larger than 1 will speed up the calculation,
+                which may be useful if the set of coils is large, though it may introduce
+                inaccuracy if ``downsample`` is set too large, or not a multiple of the 
+                total number of quadrature points (since this will produce a nonuniform set of points). 
+                This parameter is used to speed up expensive calculations during optimization, 
+                while retaining higher accuracy for the other objectives. 
         """
 
     def J(self):
-        ncoils = len(self.curves)
-        linkNum = np.zeros([ncoils + 1, ncoils + 1])
-        i = 0
-        for c1 in self.curves[:(ncoils + 1)]:
-            j = 0
-            i = i + 1
-            for c2 in self.curves[:(ncoils + 1)]:
-                j = j + 1
-                if i < j:
-                    R1 = c1.gamma()
-                    R2 = c2.gamma()
-                    dS = c1.quadpoints[1] - c1.quadpoints[0]
-                    dT = c2.quadpoints[1] - c1.quadpoints[0]
-                    dR1 = c1.gammadash()
-                    dR2 = c2.gammadash()
-
-                    integrals = sopp.linkNumber(R1, R2, dR1, dR2) * dS * dT
-                    linkNum[i-1][j-1] = 1/(4*np.pi) * (integrals)
-        linkNumSum = sum(sum(abs(linkNum)))
-        return linkNumSum
+        return sopp.compute_linking_number(
+            [c.gamma() for c in self.curves],
+            [c.gammadash() for c in self.curves],
+            self.dphis,
+            self.downsample,
+        )
 
     @derivative_dec
     def dJ(self):

@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 This module provides Jacobian evaluated with finite difference scheme
@@ -32,7 +32,7 @@ from .util import finite_difference_steps
 
 logger = logging.getLogger(__name__)
 
-__all__ = ['FiniteDifference']
+__all__ = ['FiniteDifference', 'MPIFiniteDifference']
 
 
 class FiniteDifference:

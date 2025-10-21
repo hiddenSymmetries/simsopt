@@ -11,15 +11,34 @@ from .._core.derivative import Derivative
 from .jit import jit
 from .plotting import fix_matplotlib_3d
 
-__all__ = ['Curve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves']
+__all__ = ['Curve', 'JaxCurve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves',
+           'create_equally_spaced_planar_curves', 'create_planar_curves_between_two_toroidal_surfaces']
 
+@jit
+def centroid_pure(gamma, gammadash):
+    """
+    This pure function is used in a Python+Jax implementation of formula for centroid.
+
+    .. math::
+        \mathbf{c} = \frac{1}{L} \int_0^L \mathbf{\gamma}(l) dl
+
+    where :math:`\gamma` is the position vector on the curve.
+    """
+    arclength = jnp.linalg.norm(gammadash, axis=-1)
+    centroid = jnp.sum(gamma * arclength[:, None], axis=0) / jnp.sum(arclength)
+    return centroid
 
 @jit
 def incremental_arclength_pure(d1gamma):
     """
     This function is used in a Python+Jax implementation of the curve arc length formula.
-    """
 
+    .. math::
+        \text{incremental arclength} = \|\mathbf{\gammadash}(\phi)\| d\phi
+
+    where :math:`\mathbf{\gammadash}(\phi)` is the derivative of the 
+    position vector to the curve.
+    """
     return jnp.linalg.norm(d1gamma, axis=1)
 
 
@@ -30,8 +49,13 @@ incremental_arclength_vjp = jit(lambda d1gamma, v: vjp(lambda d1g: incremental_a
 def kappa_pure(d1gamma, d2gamma):
     """
     This function is used in a Python+Jax implementation of formula for curvature.
-    """
 
+    .. math::
+        \kappa(\phi) = \frac{\|\mathbf{\gammadash} \times \mathbf{\gammadashdash}\|}{\|\mathbf{\gammadash}\|^3}
+
+    where :math:`\mathbf{\gammadash}` is the tangent vector to the curve and 
+    :math:`\mathbf{\gammadashdash}` is the derivative of the tangent vector.
+    """
     return jnp.linalg.norm(jnp.cross(d1gamma, d2gamma), axis=1)/jnp.linalg.norm(d1gamma, axis=1)**3
 
 
@@ -45,8 +69,14 @@ kappagrad1 = jit(lambda d1gamma, d2gamma: jacfwd(lambda d2g: kappa_pure(d1gamma,
 def torsion_pure(d1gamma, d2gamma, d3gamma):
     """
     This function is used in a Python+Jax implementation of formula for torsion.
-    """
 
+    .. math::
+        \tau(\phi) = \frac{\mathbf{\gammadash} \times \mathbf{\gammadashdash} \cdot \mathbf{\gammadashdashdash}}{\|\mathbf{\gammadash} \times \mathbf{\gammadashdash}\|^2}
+
+    where :math:`\mathbf{\gammadash}` is the tangent vector to the curve, 
+    :math:`\mathbf{\gammadashdash}` is the derivative of the tangent vector, and 
+    :math:`\mathbf{\gammadashdashdash}` is the derivative of the derivative of the tangent vector.
+    """
     return jnp.sum(jnp.cross(d1gamma, d2gamma, axis=1) * d3gamma, axis=1) / jnp.sum(jnp.cross(d1gamma, d2gamma, axis=1)**2, axis=1)
 
 
@@ -54,6 +84,37 @@ torsionvjp0 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d1g: torsion_p
 torsionvjp1 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d2g: torsion_pure(d1gamma, d2g, d3gamma), d2gamma)[1](v)[0])
 torsionvjp2 = jit(lambda d1gamma, d2gamma, d3gamma, v: vjp(lambda d3g: torsion_pure(d1gamma, d2gamma, d3g), d3gamma)[1](v)[0])
 
+
+@jit
+def frenet_frame_pure(gammadash, gammadashdash, incremental_arclength):
+    r"""
+    This function returns the Frenet frame, :math:`(\mathbf{t}, \mathbf{n}, \mathbf{b})`,
+    associated to the curve.
+
+    .. math::
+        \mathbf{t} = \frac{1}{l} \mathbf{\gammadash}
+
+    where :math:`l` is the the derivative of arclength with respect 
+    to the curve parameter. t = gammadash / |gammadash|.
+
+    .. math::
+        \mathbf{n} = \frac{1}{\|\mathbf{tdash}\|}\mathbf{tdash}
+
+    .. math::
+        \mathbf{b} = \mathbf{t} \times \mathbf{n}
+    """
+    def norm(a): return jnp.linalg.norm(a, axis=1)
+    def inner(a, b): return jnp.sum(a*b, axis=1)
+    N = jnp.shape(gammadash)[0]
+    t, n, b = (jnp.zeros((N, 3)), jnp.zeros((N, 3)), jnp.zeros((N, 3)))
+    t = (1./incremental_arclength[:, None]) * gammadash
+
+    tdash = (1./incremental_arclength[:, None])**2 * (incremental_arclength[:, None] * gammadashdash
+                                    - (inner(gammadash, gammadashdash)/incremental_arclength)[:, None] * gammadash
+                                    )
+    n = (1./norm(tdash))[:, None] * tdash
+    b = jnp.cross(t, n, axis=1)
+    return t, n, b
 
 class Curve(Optimizable):
     """
@@ -111,7 +172,7 @@ class Curve(Optimizable):
 
         if engine == "matplotlib":
             # plot in matplotlib.pyplot
-            import matplotlib.pyplot as plt 
+            import matplotlib.pyplot as plt
 
             if ax is None or ax.name != "3d":
                 fig = plt.figure()
@@ -204,10 +265,8 @@ class Curve(Optimizable):
         dgamma_by_dphidphi = self.gammadashdash()
         dgamma_by_dphidcoeff = self.dgammadash_by_dcoeff()
         dgamma_by_dphidphidcoeff = self.dgammadashdash_by_dcoeff()
-        num_coeff = dgamma_by_dphidcoeff.shape[2]
 
-        norm = lambda a: np.linalg.norm(a, axis=1)
-        inner = lambda a, b: np.sum(a*b, axis=1)
+        def norm(a): return np.linalg.norm(a, axis=1)
         numerator = np.cross(dgamma_by_dphi, dgamma_by_dphidphi)
         denominator = self.incremental_arclength()
         dkappa_by_dcoeff[:, :] = (1 / (denominator**3*norm(numerator)))[:, None] * np.sum(numerator[:, :, None] * (
@@ -275,23 +334,7 @@ class Curve(Optimizable):
         This function returns the Frenet frame, :math:`(\mathbf{t}, \mathbf{n}, \mathbf{b})`,
         associated to the curve.
         """
-
-        gammadash = self.gammadash()
-        gammadashdash = self.gammadashdash()
-        l = self.incremental_arclength()
-        norm = lambda a: np.linalg.norm(a, axis=1)
-        inner = lambda a, b: np.sum(a*b, axis=1)
-        N = len(self.quadpoints)
-        t, n, b = (np.zeros((N, 3)), np.zeros((N, 3)), np.zeros((N, 3)))
-        t[:, :] = (1./l[:, None]) * gammadash
-
-        tdash = (1./l[:, None])**2 * (l[:, None] * gammadashdash
-                                      - (inner(gammadash, gammadashdash)/l)[:, None] * gammadash
-                                      )
-        kappa = self.kappa
-        n[:, :] = (1./norm(tdash))[:, None] * tdash
-        b[:, :] = np.cross(t, n, axis=1)
-        return t, n, b
+        return frenet_frame_pure(self.gammadash(), self.gammadashdash(), self.incremental_arclength())
 
     def kappadash(self):
         r"""
@@ -301,9 +344,9 @@ class Curve(Optimizable):
         dgamma = self.gammadash()
         d2gamma = self.gammadashdash()
         d3gamma = self.gammadashdashdash()
-        norm = lambda a: np.linalg.norm(a, axis=1)
-        inner = lambda a, b: np.sum(a*b, axis=1)
-        cross = lambda a, b: np.cross(a, b, axis=1)
+        def norm(a): return np.linalg.norm(a, axis=1)
+        def inner(a, b): return np.sum(a*b, axis=1)
+        def cross(a, b): return np.cross(a, b, axis=1)
         dkappa_by_dphi[:] = inner(cross(dgamma, d2gamma), cross(dgamma, d3gamma))/(norm(cross(dgamma, d2gamma)) * norm(dgamma)**3) \
             - 3 * inner(dgamma, d2gamma) * norm(cross(dgamma, d2gamma))/norm(dgamma)**5
         return dkappa_by_dphi
@@ -325,9 +368,8 @@ class Curve(Optimizable):
         l = self.incremental_arclength()
         dl_by_dcoeff = self.dincremental_arclength_by_dcoeff()
 
-        norm = lambda a: np.linalg.norm(a, axis=1)
-        inner = lambda a, b: np.sum(a*b, axis=1)
-        inner2 = lambda a, b: np.sum(a*b, axis=2)
+        def norm(a): return np.linalg.norm(a, axis=1)
+        def inner(a, b): return np.sum(a*b, axis=1)
 
         N = len(self.quadpoints)
         dt_by_dcoeff, dn_by_dcoeff, db_by_dcoeff = (np.zeros((N, 3, self.num_dofs())), np.zeros((N, 3, self.num_dofs())), np.zeros((N, 3, self.num_dofs())))
@@ -370,9 +412,9 @@ class Curve(Optimizable):
         d2gamma = self.gammadashdash()
         d3gamma = self.gammadashdashdash()
 
-        norm = lambda a: np.linalg.norm(a, axis=1)
-        inner = lambda a, b: np.sum(a*b, axis=1)
-        cross = lambda a, b: np.cross(a, b, axis=1)
+        def norm(a): return np.linalg.norm(a, axis=1)
+        def inner(a, b): return np.sum(a*b, axis=1)
+        def cross(a, b): return np.cross(a, b, axis=1)
         d1_dot_d2 = inner(dgamma, d2gamma)
         d1_x_d2 = cross(dgamma, d2gamma)
         d1_x_d3 = cross(dgamma, d3gamma)
@@ -411,8 +453,28 @@ class Curve(Optimizable):
             )
         return dkappadash_by_dcoeff
 
+    def centroid(self):
+        """ 
+        Compute the centroid of the curve
+
+        .. math::
+            \mathbf{c} = \frac{1}{L} \int_0^L \mathbf{\gamma}(l) dl
+
+        where :math:`\gamma` is the position on the curve. Note that this function was once called
+        `center` but this conflicts with the center property of the C++ CurvePlanarFourier
+        implementation.
+        """
+        return centroid_pure(self.gamma(), self.gammadash())
 
 class JaxCurve(sopp.Curve, Curve):
+    """
+    A class for curves defined by a pure function.
+
+    Args:
+        quadpoints (array): Array of quadrature points.
+        gamma_pure (function): Pure function for the curve.
+        **kwargs: Additional keyword arguments.
+    """
     def __init__(self, quadpoints, gamma_pure, **kwargs):
         if isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
@@ -445,11 +507,14 @@ class JaxCurve(sopp.Curve, Curve):
         self.dgammadashdashdash_by_dcoeff_jax = jit(jacfwd(self.gammadashdashdash_jax))
         self.dgammadashdashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdashdash_jax, x)[1](v)[0])
 
+        self.incremental_arclength_jax = jit(lambda x: incremental_arclength_pure(self.gammadash_jax(x)))
         self.dkappa_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: kappa_pure(self.gammadash_jax(d), self.gammadashdash_jax(d)), x)[1](v)[0])
-
         self.dtorsion_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v)[0])
 
     def set_dofs(self, dofs):
+        """
+        This function sets the dofs of the curve.
+        """
         self.local_x = dofs
         sopp.Curve.set_dofs(self, dofs)
 
@@ -457,8 +522,13 @@ class JaxCurve(sopp.Curve, Curve):
         r"""
         This function returns the x,y,z coordinates of the curve :math:`\Gamma`.
         """
-
         gamma[:, :] = self.gamma_impl_jax(self.get_dofs(), quadpoints)
+
+    def incremental_arclength_impl(self):
+        """
+        This function returns the incremental arclength of the curve.
+        """
+        return self.incremental_arclength_jax(self.get_dofs())
 
     def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
         r"""
@@ -482,7 +552,6 @@ class JaxCurve(sopp.Curve, Curve):
         where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z coordinates
         of the curve.
         """
-
         return self.dgamma_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
     def gammadash_impl(self, gammadash):
@@ -516,7 +585,6 @@ class JaxCurve(sopp.Curve, Curve):
         where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z coordinates
         of the curve.
         """
-
         return self.dgammadash_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
     def gammadashdash_impl(self, gammadashdash):
@@ -817,7 +885,7 @@ class RotatedCurve(sopp.Curve, Curve):
         return True if self.rotmat[2][2] == -1 else False
 
 
-def curves_to_vtk(curves, filename, close=False):
+def curves_to_vtk(curves, filename, close=False, extra_data=None):
     """
     Export a list of Curve objects in VTK format, so they can be
     viewed using Paraview. This function requires the python package ``pyevtk``,
@@ -844,10 +912,253 @@ def curves_to_vtk(curves, filename, close=False):
         z = np.concatenate([c.gamma()[:, 2] for c in curves])
         ppl = np.asarray([c.gamma().shape[0] for c in curves])
     data = np.concatenate([i*np.ones((ppl[i], )) for i in range(len(curves))])
-    polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData={'idx': data})
+    pointData = {'idx': data}
+    if extra_data is not None:
+        pointData = {**pointData, **extra_data}
+
+    polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData=pointData)
 
 
-def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):
+def _setup_uniform_grid_in_bounding_box(s_outer, Nx, Ny, Nz, Nmin_factor=2.01):
+    """
+    Generate a uniform 3D grid of points where a set of circular coils 
+    will be initialized to have their centers. The coils are uniformly
+    spaced on the Cartesian grid, although the grid may have different spacing 
+    in the x, y, and z directions, and it is appropriately initialized to
+    respect the discrete symmetries of the plasma.
+
+    The grid is defined by the inner and outermost points of a toroidal surface s_outer.
+    Filtering on this grid is done to avoid coil overlap and respect stellarator and 
+    field-period symmetries.
+
+    This function is typically used to initialize candidate coil center locations for planar 
+    coil optimization. 
+    It computes a uniform grid in the bounding box from the min and max points of the toroidal surface 
+    s_outer (typically generated using s.extend_via_normal() or similar function). Then it:
+    1. Generates a uniform grid for a set of circular coils by:
+        (a) X = np.linspace(dx / 2.0 + x_min, x_max - dx / 2.0, Nx, endpoint=True)
+        (b) Y = np.linspace(dy / 2.0 + y_min, y_max - dy / 2.0, Ny, endpoint=True)
+        (c) Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
+        (d) Computes the radius R of the coils by taking the minimum spacing of the grid and dividing by Nmin_factor:
+            dx = X[1] - X[0]
+            dy = Y[1] - Y[0]
+            dz = Z[1] - Z[0]
+            Nmin = min(dx, min(dy, dz))
+            R = Nmin / Nmin_factor
+            - As long as Nmin_factor > 2, then the coils cannot overlap.
+        (e) Removes points too close to the unique sector [0, pi / nfp] (or [0, 2pi / nfp] 
+            for stellsym = False) to avoid overlap after symmetry operations. To guarantee that 
+            the symmetrized coils do not overlap, we remove points according to the following logic:
+            - Compute the coil curve in the x-y plane.
+            - Compute the angle of every point on the coil curve.
+            - Remove points where the angle is greater than phi0 or less than 0.
+            - This guarantees that the symmetrized coils do not overlap.
+
+    Parameters
+    ----------
+    s_outer : Surface
+        The outer toroidal surface (for grid bounding box). Assumed to have the same 
+        discrete symmetries as the plasma surface.
+    Nx : int
+        Number of grid points in the x direction.
+    Ny : int
+        Number of grid points in the y direction.
+    Nz : int
+        Number of grid points in the z direction.
+    Nmin_factor : float, optional
+        Factor to set minimum coil spacing (default: 2.01). The coil radius is set to Nmin / Nmin_factor, 
+        where Nmin is the minimum grid spacing. So as long as Nmin_factor > 2, then the coils 
+        (which are initialized as circles of radius R) will not overlap.
+
+    Returns
+    -------
+    xyz_uniform : ndarray, shape (N, 3)
+        Array of candidate coil center points in 3D, filtered for symmetry and spacing.
+    R : float
+        The coil radius used for spacing.
+    """
+    import warnings
+    if Nmin_factor <= 2.0:
+        warnings.warn('Nmin_factor should be greater than 2.0 to avoid coil overlap.')
+
+    # Get (X, Y, Z) coordinates of the two boundaries
+    nfp = s_outer.nfp
+    xyz_outer = s_outer.gamma().reshape(-1, 3)
+    x_outer = xyz_outer[:, 0]
+    y_outer = xyz_outer[:, 1]
+    z_outer = xyz_outer[:, 2]
+    x_max = np.max(x_outer)
+    x_min = np.min(x_outer)
+    y_max = np.max(y_outer)
+    y_min = 0
+    z_max = np.max(z_outer)
+    z_min = np.min(z_outer)
+    z_max = min(z_max, abs(z_min))  # Note min here! 
+    
+    # Initialize uniform grid
+    if nfp != 1:
+        x_min = 0.0
+    
+    dx = (x_max - x_min) / (Nx - 1)  # x \in [x_min, x_max], x_min = 0.0 if nfp != 1
+    dy = (y_max) / (Ny - 1)  # y \in [0, y_max]
+    # Z-grid spacing should be symmetric around z = 0 to be able 
+    # to properly impose stellarator symmetry
+    dz = 2 * z_max / (Nz - 1)  # z \in [-z_max, z_max]
+
+    # Shift by dx / 2.0 to the right and dy / 2.0 to the top to continue to have 
+    # dx and dy spacing between points on either side of a symmetry plane. 
+    X = np.linspace(
+        dx / 2.0 + x_min, x_max - dx / 2.0,
+        Nx, endpoint=True
+    )
+    Y = np.linspace(
+        dy / 2.0 + y_min, y_max - dy / 2.0,
+        Ny, endpoint=True
+    )
+    Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
+
+    # Now recompute the grid spacing (for setting the coil radius R)
+    # since we have shifted the end points of the grid.
+    dx = X[1] - X[0]
+    dy = Y[1] - Y[0]
+    dz = Z[1] - Z[0]
+    Nmin = min(dx, min(dy, dz))
+
+    # Coils are now spaced so that every coil of radius R is at least 2R away from the next coil'
+    R = Nmin / Nmin_factor
+    print('Major radius of the coils is R = ', R)
+
+    # Make 3D mesh
+    X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
+    xyz_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3)
+
+    # Now need to chop off points close to the unique sector [0, (2)pi / nfp]
+    # to avoid overlap after discrete symmetry operations.
+    if s_outer.stellsym:
+        phi0 = np.pi / nfp
+    else:
+        phi0 = 2 * np.pi / nfp
+
+    # Plan is to generate a circular coil of radius R centered at the coil center in the x-y plane
+    # and then remove points on this circle that have phi > phi0 or phi < 0.
+    nt = 100
+    t = np.linspace(0, 2 * np.pi, nt)
+    circle_xy = np.zeros((nt, Nx * Ny * Nz, 2))
+    circle_xy[:, :, 0] = R * np.outer(np.cos(t), np.ones(Nx * Ny * Nz)) + np.outer(np.ones(nt), xyz_uniform[:, 0])
+    circle_xy[:, :, 1] = R * np.outer(np.sin(t), np.ones(Nx * Ny * Nz)) + np.outer(np.ones(nt), xyz_uniform[:, 1])
+
+    # Remove points where the angle is greater than phi0 or less than 0
+    phi = np.arctan2(circle_xy[:, :, 1], circle_xy[:, :, 0])
+    remove_inds = np.logical_or(phi >= phi0, phi <= 0)
+    intersection_inds = np.any(remove_inds, axis=0)
+    xyz_uniform = xyz_uniform[~intersection_inds, :]
+    return xyz_uniform, R
+
+
+def create_planar_curves_between_two_toroidal_surfaces(
+    s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1,
+    use_jax_curve=False, numquadpoints=None,
+    Nmin_factor=2.01,
+):
+    """
+    Create a list of planar curves between two toroidal surfaces. The curves are initialized as 
+    circular coils of radius R and then the coils are rotated and flipped to satisfy stellarator 
+    symmetry. They are originally initialized on a uniform Cartesian grid and then filtered to 
+    only include points that are between the two toroidal surfaces.
+
+    Args:
+        s : Surface
+            The plasma surface object (used for nfp and geometry info).
+        s_inner : Surface
+            The inner toroidal surface (for grid bounding box). Typically generated
+            from s.extend_via_normal().
+        s_outer : Surface
+            The outer toroidal surface (for grid bounding box). Typically generated
+            from s.extend_via_normal() and should extend out further than s_inner.
+        Nx : int, optional
+            Number of uniform grid points in the x direction to initialize a uniform grid.
+        Ny : int, optional
+            Number of uniform grid points in the y direction to initialize a uniform grid.
+        Nz : int, optional
+            Number of uniform grid points in the z direction to initialize a uniform grid.
+        order : int, optional
+            Order of the Fourier series in the planar curve representation.
+        use_jax_curve : bool, optional
+            Whether to use JaxCurvePlanarFourier instead of CurvePlanarFourier.
+        numquadpoints : int, optional
+            Number of quadrature points to use.
+        Nmin_factor : float, optional
+            Factor to set minimum coil spacing (default: 2.01). The coil radius is set to Nmin / Nmin_factor, 
+            where Nmin is the minimum grid spacing. So as long as Nmin_factor > 2, then the coils 
+            (which are initialized as circles of radius R) will not overlap.
+
+    Returns:
+        curves : list
+            List of CurvePlanarFourier or JaxCurvePlanarFourier objects.
+        all_curves : list
+    """
+    from simsopt.geo import CurvePlanarFourier, JaxCurvePlanarFourier
+    from simsopt.field import apply_symmetries_to_curves
+
+    nfp = s.nfp
+    stellsym = s.stellsym
+    normal_inner = s_inner.unitnormal().reshape(-1, 3)
+    xyz_inner = s_inner.gamma().reshape(-1, 3)
+    normal_outer = s_outer.unitnormal().reshape(-1, 3)
+    xyz_outer = s_outer.gamma().reshape(-1, 3)
+
+    # Now guarantees that circular coils of radius R on this grid do not overlap 
+    xyz_uniform, R = _setup_uniform_grid_in_bounding_box(s_outer, Nx, Ny, Nz, Nmin_factor=Nmin_factor)
+    
+    # Have the uniform grid, now need to loop through and eliminate any points that are 
+    # not actually between the two toroidal surfaces.
+    contig = np.ascontiguousarray
+    grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
+        contig(normal_inner),
+        contig(normal_outer),
+        contig(xyz_uniform),
+        contig(xyz_inner),
+        contig(xyz_outer)
+    )
+    inds = np.ravel(np.logical_not(np.all(grid_xyz == 0.0, axis=-1)))
+    grid_xyz = np.array(grid_xyz[inds, :], dtype=float)
+    ncoils = grid_xyz.shape[0]
+    if numquadpoints is None:
+        nquad = (order + 1)*40
+    else:
+        nquad = numquadpoints
+    if use_jax_curve:
+        curves = [JaxCurvePlanarFourier(nquad, order) for i in range(ncoils)]
+    else:
+        curves = [CurvePlanarFourier(nquad, order) for i in range(ncoils)]
+
+    # Initialize a bunch of circular coils with same normal vector
+    for ic in range(ncoils):
+        alpha2 = (np.random.rand(1) * np.pi - np.pi / 2.0)[0]
+        delta2 = (np.random.rand(1) * np.pi)[0]
+        calpha2 = np.cos(alpha2)
+        salpha2 = np.sin(alpha2)
+        cdelta2 = np.cos(delta2)
+        sdelta2 = np.sin(delta2)
+        dofs = np.zeros(2 * order + 8)
+        dofs[0] = R
+        for j in range(1, 2 * order + 1):
+            dofs[j] = 0.0
+        # Conversion from Euler angles in 3-2-1 body sequence to quaternions:
+        # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+        dofs[2 * order + 1] = calpha2 * cdelta2
+        dofs[2 * order + 2] = salpha2 * cdelta2
+        dofs[2 * order + 3] = calpha2 * sdelta2
+        dofs[2 * order + 4] = -salpha2 * sdelta2
+        # Now specify the center
+        dofs[2 * order + 5:2 * order + 8] = grid_xyz[ic, :]
+        curves[ic].set_dofs(dofs)
+        curves[ic].x = curves[ic].x  # need to do this to transfer data to C++?
+    all_curves = apply_symmetries_to_curves(curves, nfp, stellsym)
+    return curves, all_curves
+
+
+def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None, use_jax_curve=False):
     """
     Create ``ncurves`` curves of type
     :obj:`~simsopt.geo.curvexyzfourier.CurveXYZFourier` of order
@@ -863,22 +1174,117 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
         base_curves = create_equally_spaced_curves(4, 3, stellsym=True)
         base_currents = [Current(1e5) for c in base_curves]
         coils = coils_via_symmetries(base_curves, base_currents, 3, stellsym=True)
+
+    Args:
+        ncurves : int
+            Number of curves to create.
+        nfp : int
+            Field period symmetry of the plasma.
+        stellsym : bool
+            Whether the plasma has stellarator symmetry.
+        R0 : float, optional, default=1.0
+            Major radius of the coils.
+        R1 : float, optional, default=0.5
+            Minor radius of the coils.
+        order : int, optional, default=6
+            Order of the Fourier series in the planar curve representation.
+        numquadpoints : int, optional, default=None
+            Number of quadrature points to use.
+        use_jax_curve : bool, optional, default=False
+            Whether to use JaxCurvePlanarFourier instead of CurvePlanarFourier.
+
+    Returns:
+        curves : list
+            List of CurvePlanarFourier or JaxCurvePlanarFourier objects.
     """
+    from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
     if numquadpoints is None:
         numquadpoints = 15 * order
+    if use_jax_curve:
+        curvefunc = JaxCurveXYZFourier
+    else:
+        curvefunc = CurveXYZFourier
     curves = []
-    from simsopt.geo.curvexyzfourier import CurveXYZFourier
     for i in range(ncurves):
-        curve = CurveXYZFourier(numquadpoints, order)
-        angle = (i+0.5)*(2*np.pi)/((1+int(stellsym))*nfp*ncurves)
-        curve.set("xc(0)", cos(angle)*R0)
-        curve.set("xc(1)", cos(angle)*R1)
-        curve.set("yc(0)", sin(angle)*R0)
-        curve.set("yc(1)", sin(angle)*R1)
+        curve = curvefunc(numquadpoints, order)
+        angle = (i + 0.5) * (2 * np.pi) / ((1 + int(stellsym)) * nfp * ncurves)
+        curve.set("xc(0)", cos(angle) * R0)
+        curve.set("xc(1)", cos(angle) * R1)
+        curve.set("yc(0)", sin(angle) * R0)
+        curve.set("yc(1)", sin(angle) * R1)
         # The the next line, the minus sign is for consistency with
         # Vmec.external_current(), so the coils create a toroidal field of the
         # proper sign and free-boundary equilibrium works following stage-2 optimization.
         curve.set("zs(1)", -R1)
         curve.x = curve.x  # need to do this to transfer data to C++
+        curves.append(curve)
+    return curves
+
+
+def create_equally_spaced_planar_curves(
+        ncurves, nfp, stellsym, R0=1.0, R1=0.5, 
+        order=6, numquadpoints=None, use_jax_curve=False):
+    """
+    Create ``ncurves`` curves of type
+    :obj:`~simsopt.geo.curveplanarfourier.CurvePlanarFourier` of order
+    ``order`` that will result in circular equally spaced coils (major
+    radius ``R0`` and minor radius ``R1``) after applying
+    :obj:`~simsopt.field.coil.coils_via_symmetries`.
+
+    Args:
+        ncurves : int
+            Number of curves to create.
+        nfp : int
+            Field period symmetry of the plasma.
+        stellsym : bool
+            Whether the plasma has stellarator symmetry.
+        R0 : float, optional, default=1.0
+            Major radius of the coils.
+        R1 : float, optional, default=0.5
+            Minor radius of the coils.
+        order : int, optional, default=6
+            Order of the Fourier series in the planar curve representation.
+        numquadpoints : int, optional, default=None
+            Number of quadrature points to use.
+        use_jax_curve : bool, optional, default=False
+            Whether to use JaxCurvePlanarFourier instead of CurvePlanarFourier.
+
+    Returns:
+        curves : list
+            List of CurvePlanarFourier or JaxCurvePlanarFourier objects.
+    """
+    from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
+    if numquadpoints is None:
+        numquadpoints = 15 * order
+    if use_jax_curve:
+        curvefunc = JaxCurvePlanarFourier
+    else:
+        curvefunc = CurvePlanarFourier
+    curves = []
+    for k in range(ncurves):
+        angle = (k + 0.5) * (2 * np.pi) / ((1 + int(stellsym)) * nfp * ncurves)
+        curve = curvefunc(numquadpoints, order)
+        rcCoeffs = np.zeros(order+1)
+        rcCoeffs[0] = R1
+        rsCoeffs = np.zeros(order)
+        center = [R0 * cos(angle), R0 * sin(angle), 0]
+        rotation = [1, -cos(angle), -sin(angle), 0]
+        dofs = np.zeros(len(curve.get_dofs()))
+
+        j = 0
+        for i in rcCoeffs:
+            dofs[j] = i
+            j += 1
+        for i in rsCoeffs:
+            dofs[j] = i
+            j += 1
+        for i in rotation:
+            dofs[j] = i
+            j += 1
+        for i in center:
+            dofs[j] = i
+            j += 1
+
+        curve.set_dofs(dofs)
         curves.append(curve)
     return curves

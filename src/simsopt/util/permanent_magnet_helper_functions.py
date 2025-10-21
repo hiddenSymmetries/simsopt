@@ -2,9 +2,9 @@
 This module contains the a number of useful functions for using 
 the permanent magnets functionality in the SIMSOPT code.
 """
-__all__ = ['read_focus_coils', 'coil_optimization', 
-           'trace_fieldlines', 'make_qfm', 
-           'initialize_coils', 'calculate_on_axis_B',
+__all__ = ['read_focus_coils', 'coil_optimization',
+           'trace_fieldlines', 'make_qfm',
+           'initialize_coils', 'calculate_modB_on_major_radius',
            'make_optimization_plots', 'run_Poincare_plots',
            'make_curve_at_theta0', 'make_filament_from_voxels',
            'make_Bnormal_plots', 'initialize_default_kwargs',
@@ -185,7 +185,7 @@ def coil_optimization(s, bs, base_curves, curves, out_dir=''):
     ### Run the optimisation #######################################################
     ################################################################################
     """)
-    res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+    minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
     curves_to_vtk(curves, out_dir / "curves_opt")
     bs.set_points(s.gamma().reshape((-1, 3)))
     return bs
@@ -207,8 +207,8 @@ def trace_fieldlines(bfield, label, s, comm, R0, out_dir=''):
           at the phi = 0 plane).
         out_dir: Path or string for the output directory for saved files.
     """
-    from simsopt.field.tracing import particles_to_vtk, compute_fieldlines, \
-        LevelsetStoppingCriterion, plot_poincare_data, \
+    from simsopt.field.tracing import compute_fieldlines, \
+        plot_poincare_data, \
         IterationStoppingCriterion, SurfaceClassifier
 
     out_dir = Path(out_dir)
@@ -235,7 +235,8 @@ def trace_fieldlines(bfield, label, s, comm, R0, out_dir=''):
 
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
         bfield, R0, Z0, tmax=tmax_fl, tol=1e-16, comm=comm,
-        phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
+        phis=phis,
+        stopping_criteria=[IterationStoppingCriterion(20000)])
 
     # make the poincare plots
     if comm is None or comm.rank == 0:
@@ -256,7 +257,7 @@ def make_qfm(s, Bfield):
         qfm_surface: The identified QfmSurface class object.
     """
     from simsopt.geo.qfmsurface import QfmSurface
-    from simsopt.geo.surfaceobjectives import QfmResidual, ToroidalFlux, Area, Volume
+    from simsopt.geo.surfaceobjectives import QfmResidual, Volume
 
     # weight for the optimization
     constraint_weight = 1e0
@@ -270,13 +271,13 @@ def make_qfm(s, Bfield):
     vol_target = vol.J()
     qfm_surface = QfmSurface(Bfield, s, vol, vol_target)
 
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=50,
-                                                             constraint_weight=constraint_weight)
+    qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=50,
+                                                       constraint_weight=constraint_weight)
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
     # repeat the optimization for further convergence
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=200,
-                                                             constraint_weight=constraint_weight)
+    qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=200,
+                                                       constraint_weight=constraint_weight)
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
     return qfm_surface
 
@@ -284,7 +285,8 @@ def make_qfm(s, Bfield):
 def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
     """
     Initializes coils for each of the target configurations that are
-    used for permanent magnet optimization.
+    used for permanent magnet optimization. The total current is chosen
+    to achieve a desired average field strength along the major radius.
 
     Args:
         config_flag: String denoting the stellarator configuration 
@@ -304,15 +306,20 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
     if 'muse' in config_flag:
         # Load in pre-optimized coils
         coils_filename = TEST_DIR / 'muse_tf_coils.focus'
-        base_curves, base_currents, ncoils = read_focus_coils(coils_filename)
+
+        # Slight difference from older MUSE initialization. 
+        # Here we fix the total current summed over all coils and 
+        # older MUSE opt. fixed the first coil current. 
+        base_curves, base_currents0, ncoils = read_focus_coils(coils_filename)
+        total_current = np.sum([curr.get_value() for curr in base_currents0])
+        base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils - 1)]
+        total_current = Current(total_current)
+        total_current.fix_all()
+        base_currents += [total_current - sum(base_currents)]
         coils = []
         for i in range(ncoils):
             coils.append(Coil(base_curves[i], base_currents[i]))
-        base_currents[0].fix_all()
 
-        # fix all the coil shapes
-        for i in range(ncoils):
-            base_curves[i].fix_all()
     elif config_flag == 'qh':
         # generate planar TF coils
         ncoils = 4
@@ -320,20 +327,16 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
         R1 = s.get_rc(1, 0) * 2
         order = 5
 
-        # qh needs to be scaled to 0.1 T on-axis magnetic field strength
-        from simsopt.mhd.vmec import Vmec
-        vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
-        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 8.75 / 5.69674966667
-        base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
-        base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
+        # QH reactor scale needs to be 5.7 T average magnetic field strength
+        total_current = 48712698  # Amperes
+        base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True,
+                                                   R0=R0, R1=R1, order=order, numquadpoints=64)
+        base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils - 1)]
         total_current = Current(total_current)
         total_current.fix_all()
         base_currents += [total_current - sum(base_currents)]
         coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 
-        # fix all the coil shapes so only the currents are optimized
-        for i in range(ncoils):
-            base_curves[i].fix_all()
     elif config_flag == 'qa':
         # generate planar TF coils
         ncoils = 8
@@ -342,18 +345,17 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
         order = 5
 
         # qa needs to be scaled to 0.1 T on-axis magnetic field strength
-        from simsopt.mhd.vmec import Vmec
-        vmec_file = 'wout_LandremanPaul2021_QA_lowres.nc'
-        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 7.131
+        total_current = 187500
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
         base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
         total_current = Current(total_current)
         total_current.fix_all()
         base_currents += [total_current - sum(base_currents)]
         coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-        # fix all the coil shapes so only the currents are optimized
-        for i in range(ncoils):
-            base_curves[i].fix_all()
+    
+    # fix all the coil shapes so only the currents are optimized
+    for i in range(ncoils):
+        base_curves[i].fix_all()
 
     # Initialize the coil curves and save the data to vtk
     curves = [c.curve for c in coils]
@@ -361,19 +363,20 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
     return base_curves, curves, coils
 
 
-def calculate_on_axis_B(bs, s):
+def calculate_modB_on_major_radius(bs, s):
     """
-    Check the average, approximate, on-axis
-    magnetic field strength to make sure the
-    configuration is scaled correctly.
+    Check the average magnetic field strength along the major radius
+    (m=n=0 mode of a SurfaceRZFourier object)
+    to make sure the configuration is scaled correctly. For highly shaped
+    stellarators, this can deviate a bit from the on-axis B field strength.
 
     Args:
-        bs: MagneticField or BiotSavart class object.
-        s: plasma boundary surface.
+        bs (BiotSavart): MagneticField or BiotSavart class object.
+        s (SurfaceRZFourier): plasma boundary surface.
 
     Returns:
-        B0avg: Average magnetic field strength along 
-          the major radius of the device.
+        B0avg (float): Average magnetic field strength along 
+          the major radius (m=n=0 mode of a SurfaceRZFourier object) of the device.
     """
     nphi = len(s.quadpoints_phi)
     bspoints = np.zeros((nphi, 3))
@@ -390,8 +393,6 @@ def calculate_on_axis_B(bs, s):
     bs.set_points(bspoints)
     B0 = np.linalg.norm(bs.B(), axis=-1)
     B0avg = np.mean(np.linalg.norm(bs.B(), axis=-1))
-    surface_area = s.area()
-    bnormalization = B0avg * surface_area
     print("Bmag at R = ", R0, ", Z = 0: ", B0)
     print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg)
     return B0avg
@@ -482,12 +483,11 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, out_
 
             plt.xlabel('Normalized magnitudes')
             plt.ylabel('Number of dipoles')
-            ani = animation.FuncAnimation(
+            animation.FuncAnimation(
                 fig, prepare_animation(bar_container),
                 range(0, m_history.shape[0], 2),
                 repeat=False, blit=True
             )
-            # ani.save(out_dir / 'm_history' + str(i) + '.mp4')
 
 
 def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, R0, out_dir=''):
@@ -507,7 +507,7 @@ def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, R0, out_di
         out_dir: Path or string for the output directory for saved files.
     """
     from simsopt.field.magneticfieldclasses import InterpolatedField
-    from simsopt.objectives import SquaredFlux
+    # from simsopt.objectives import SquaredFlux
 
     out_dir = Path(out_dir)
 
@@ -519,13 +519,13 @@ def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, R0, out_di
     phirange = (0, 2 * np.pi / s_plot.nfp, n * 2)
     zrange = (0, np.max(zs), n // 2)
     degree = 4  # 2 is sufficient sometimes
-    nphi = len(s_plot.quadpoints_phi)
-    ntheta = len(s_plot.quadpoints_theta)
+    # nphi = len(s_plot.quadpoints_phi)
+    # ntheta = len(s_plot.quadpoints_theta)
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-    Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-    Bnormal_dipole = np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-    f_B = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
+    # Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+    # Bnormal_dipole = np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+    # f_B = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
     make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_pre_poincare_check")
     make_Bnormal_plots(b_dipole, s_plot, out_dir, "dipole_pre_poincare_check")
     make_Bnormal_plots(bs + b_dipole, s_plot, out_dir, "total_pre_poincare_check")
@@ -594,7 +594,7 @@ def initialize_default_kwargs(algorithm='RS'):
         kwargs['reg_l2'] = 0.0
     elif 'GPMO' in algorithm or 'ArbVec' in algorithm:
         kwargs['K'] = 1000
-        kwargs["reg_l2"] = 0.0 
+        kwargs["reg_l2"] = 0.0
         kwargs['nhistory'] = 500  # K > nhistory and nhistory must be divisor of K
     return kwargs
 

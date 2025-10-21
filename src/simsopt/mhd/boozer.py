@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 This module provides a class that handles the transformation to
@@ -114,10 +114,6 @@ class Boozer(Optimizable):
         Run booz_xform on all the surfaces that have been registered.
         """
 
-        if (self.mpi is not None) and (not self.mpi.proc0_groups):
-            logger.info("This proc is skipping Boozer.run since it is not a group leader.")
-            return
-
         if not self.need_to_run_code:
             logger.info("Boozer.run() called but no need to re-run Boozer transformation.")
             return
@@ -126,7 +122,9 @@ class Boozer(Optimizable):
         logger.info("Preparing to run Boozer transformation. Registry:{}".format(s))
 
         if isinstance(self.equil, Vmec):
+            #partake in parallel VMEC job
             self.equil.run()
+
             wout = self.equil.wout  # Shorthand
 
             # Get the half-grid points that are closest to the requested values
@@ -176,8 +174,8 @@ class Boozer(Optimizable):
             self.bx.mnmax = wout.mnmax
             self.bx.xm = wout.xm
             self.bx.xn = wout.xn
-            logger.info('mnmax:', wout.mnmax, ' len(xm):', len(wout.xm), ' len(xn):', len(wout.xn))
-            logger.info('mnmax_nyq:', wout.mnmax_nyq, ' len(xm_nyq):', len(wout.xm_nyq), ' len(xn_nyq):', len(wout.xn_nyq))
+            logger.info(f'mnmax: {wout.mnmax} len(xm): {len(wout.xm)} len(xn): {len(wout.xn)}')
+            logger.info(f'mnmax_nyq: {wout.mnmax_nyq} len(xm_nyq): {len(wout.xm_nyq)} len(xn_nyq): {len(wout.xn_nyq)}')
             assert len(wout.xm) == wout.mnmax
             assert len(wout.xn) == wout.mnmax
             assert len(self.bx.xm) == self.bx.mnmax
@@ -297,23 +295,47 @@ class Quasisymmetry(Optimizable):
 
     def J(self) -> RealArray:
         """
-        Carry out the calculation of the quasisymmetry error.
+        Compute the quasisymmetry error on each flux surface ``s`` in ``self.s``.
+        
+        **MPI behavior:** when running under MPI, only group-leader ranks compute the error; all other ranks immediately return an empty array.
 
-        Returns:
-            1D numpy array listing all the normalized mode amplitudes of
-            symmetry-breaking Fourier modes of ``|B|``.
+        1. Extracts the Boozer-coordinate Fourier spectrum ``B_{m,n}(s)``.
+        2. Identifies which ``(m,n)`` modes break the specified quasi-symmetry.
+        3. Computes the normalized amplitudes :math:`A_{m,n}(s)=B_{m,n}(s)/N(s)`, where the normalization is either:
+
+            - :math:`N(s) = B_{0,0}`, the ``(0,0)`` harmonic (mean field), if ``normalization="B00"``; or
+            - :math:`N(s)=\sqrt{\sum_{(m',n')\in\mathrm{sym}}|B_{m',n'}(s)|^2}`, the root-sum-square of the symmetric modes if ``normalization="symmetric"``.
+
+        4. Applies one of the following three weighting options to the non-symmetric modes, where the error terms for the flux surface ``s`` are defined as:
+
+            - ``"even"`` :math:`j(s,m,n)=A_{m,n}(s)` returns each normalized amplitude unchanged.
+            - ``"stellopt"`` :math:`j(s,m,n)=A_{m,n}(s)/s^2` divides each amplitude by flux surface label squared to amplify core-surface errors.
+            - ``"stellopt_ornl"`` :math:`j(s)=\sqrt{\sum_{(m,n)\in\mathrm{non-sym}}|A_{m,n}(s)|^2}` compute a **single** Euclidean norm of the non-symmetric amplitudes.
+    
+        Finishes by collecting the weighted, non-symmetric amplitudes from each surface into a flat 1D array. 
+        
+        The array will have shape :math:`(n_s * n_{mpol} * n_{ntor},)` if ``weight="even"`` or ``weight="stellopt"``, where :math:`n_{mpol}` and :math:`n_{ntor}` are the number of non-symmetric Boozer poloidal and toroidal harmonics, respectively.  
+        If ``weight="stellopt_ornl"``, the array will instead have shape :math:`(n_s,)` (one scalar per surface).  
+             
+        Returns
+        -------
+        symmetry_error : np.ndarray
+            A normalized, weighted symmetry-error array.
+
+            - Shape :math:`(n_s * n_{mpol} * n_{ntor},)` for ``weight="even"`` or ``weight="stellopt"``.  
+            - Shape :math:`(n_s,)` for ``weight="stellopt_ornl"``.
         """
 
-        # Only group leaders do anything:
+        # run on all mpi processes (will skip if recompute bell not rung)
+        self.boozer.run()
+
+        # Group leaders calculate metric, workers participate in job:
         if (self.boozer.mpi is not None) and (not self.boozer.mpi.proc0_groups):
             logger.info("This proc is skipping Quasisymmetry.J since it is not a group leader.")
             return np.array([])
 
-        # The next line is the expensive part of the calculation:
-        self.boozer.run()
-
         symmetry_error = []
-        for js, s in enumerate(self.s):
+        for s in self.s:
             index = self.boozer.s_to_index[s]
             bmnc = self.boozer.bx.bmnc_b[:, index]
             xm = self.boozer.bx.xm_b

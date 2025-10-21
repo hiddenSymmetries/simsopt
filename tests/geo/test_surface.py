@@ -4,7 +4,7 @@ from pathlib import Path
 import os
 import logging
 import numpy as np
-
+from scipy import interpolate
 
 from simsopt.geo.surface import Surface
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
@@ -16,23 +16,28 @@ from simsopt.geo.surface import signed_distance_from_surface, SurfaceScaled, \
     best_nphi_over_ntheta
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
-from .surface_test_helpers import get_surface
+from .surface_test_helpers import get_surface, get_boozer_surface
+from simsopt._core import load
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 stellsym_list = [True, False]
-
-try:
-    import pyevtk
-    pyevtk_found = True
-except ImportError:
-    pyevtk_found = False
 
 surface_types = ["SurfaceRZFourier", "SurfaceXYZFourier", "SurfaceXYZTensorFourier",
                  "SurfaceHenneberg", "SurfaceGarabedian"]
 
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.DEBUG)
+
+try:
+    import ground
+except:
+    ground = None
+
+try:
+    import bentley_ottmann
+except:
+    bentley_ottmann = None
 
 
 class QuadpointsTests(unittest.TestCase):
@@ -145,8 +150,8 @@ class QuadpointsTests(unittest.TestCase):
                 s.set_zs(1, 0, 0.6)
                 s.set_rc(0, 1, 1.1)
                 s.set_zs(0, 1, 0.8)
-                logger.debug(f'range={range_str:13} n={nphi:5} ' \
-                             f'area={s.area():22.14} diff={area_ref - s.area():22.14} ' \
+                logger.debug(f'range={range_str:13} n={nphi:5} '
+                             f'area={s.area():22.14} diff={area_ref - s.area():22.14} '
                              f'volume={s.volume():22.15} diff={volume_ref - s.volume():22.15}')
                 np.testing.assert_allclose(s.area(), area_ref, atol=0, rtol=1e-13)
                 np.testing.assert_allclose(s.volume(), volume_ref, atol=0, rtol=1e-13)
@@ -158,32 +163,32 @@ class ArclengthTests(unittest.TestCase):
         Compute arclength poloidal angle from circular cross-section tokamak.
         Check that this matches parameterization angle.
         Check that arclength_poloidal_angle is in [0,1] for both circular
-            cross-section tokamak and rotating ellipse boundary.
+        cross-section tokamak and rotating ellipse boundary.
         """
         s = get_surface('SurfaceRZFourier', True, mpol=1, ntor=0,
                         ntheta=200, nphi=5, full=True)
-        s.rc[0, 0] = 5.
-        s.rc[1, 0] = 1.5
-        s.zs[1, 0] = 1.5
+        s.set_rc(0, 0, 5.)
+        s.set_rc(1, 0, 1.5)
+        s.set_zs(1, 0, 1.5)
 
         theta1D = s.quadpoints_theta
 
         arclength = s.arclength_poloidal_angle()
         nphi = len(arclength[:, 0])
         for iphi in range(nphi):
-            np.testing.assert_allclose(arclength[iphi, :], theta1D, atol=1e-3)
+            np.testing.assert_allclose(arclength[iphi, :], theta1D, atol=1e-14, rtol=1e-14)
             self.assertTrue(np.all(arclength[iphi, :] >= 0))
-            self.assertTrue(np.all(arclength[iphi, :] <= 1))
+            self.assertTrue(np.all(arclength[iphi, :] < 1))
 
         s = get_surface('SurfaceRZFourier', True, mpol=2, ntor=2,
                         ntheta=20, nphi=20, full=True)
-        s.rc[0, 0] = 5.
-        s.rc[1, 0] = -1.5
-        s.rc[1, 1] = -0.5
-        s.rc[0, 1] = -0.5
-        s.zs[1, 1] = 0.5
-        s.zs[1, 0] = -1.5
-        s.zs[0, 1] = 0.5
+        s.set_rc(0, 0, 5.)
+        s.set_rc(1, 0, 1.5)
+        s.set_zs(1, 0, 1.5)
+        s.set_rc(1, 1, -0.5)
+        s.set_zs(1, 1, 0.5)
+        s.set_rc(0, 1, -0.5)
+        s.set_zs(0, 1, 0.5)
 
         theta1D = s.quadpoints_theta
 
@@ -191,39 +196,145 @@ class ArclengthTests(unittest.TestCase):
         nphi = len(arclength[:, 0])
         for iphi in range(nphi):
             self.assertTrue(np.all(arclength[iphi, :] >= 0))
-            self.assertTrue(np.all(arclength[iphi, :] <= 1))
+            self.assertTrue(np.all(arclength[iphi, :] < 1))
+
+    def test_arclength_poloidal_angle_2_ways(self):
+        """Compare with an alternative way to code up the same method."""
+        filename_base = "wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc"
+        filename = os.path.join(TEST_DIR, filename_base)
+        nphi = 10
+        ntheta = 13
+        surf = SurfaceRZFourier.from_wout(filename, range="half period", nphi=nphi, ntheta=ntheta)
+        gamma = surf.gamma()
+        X = gamma[:, :, 0]
+        Y = gamma[:, :, 1]
+        Z = gamma[:, :, 2]
+        R = np.sqrt(X ** 2 + Y ** 2)
+
+        theta_arclength = np.zeros_like(gamma[:, :, 0])
+        nphi = len(theta_arclength[:, 0])
+        ntheta = len(theta_arclength[0, :])
+        for iphi in range(nphi):
+            for itheta in range(1, ntheta):
+                dr = np.sqrt((R[iphi, itheta] - R[iphi, itheta - 1]) ** 2
+                             + (Z[iphi, itheta] - Z[iphi, itheta - 1]) ** 2)
+                theta_arclength[iphi, itheta] = \
+                    theta_arclength[iphi, itheta - 1] + dr
+            dr = np.sqrt((R[iphi, 0] - R[iphi, -1]) ** 2
+                         + (Z[iphi, 0] - Z[iphi, -1]) ** 2)
+            L = theta_arclength[iphi, -1] + dr
+            theta_arclength[iphi, :] = theta_arclength[iphi, :] / L
+
+        theta_arclength_alt = surf.arclength_poloidal_angle()
+        np.testing.assert_allclose(theta_arclength, theta_arclength_alt, rtol=1e-14)
 
     def test_interpolate_on_arclength_grid(self):
         """
-        Check that line integral of (1 + cos(theta - phi)) at constant phi is
+        Check that line integral of an arbitrary function at constant phi is
         unchanged when evaluated on parameterization or arclength poloidal angle
         grid.
         """
-        ntheta = 500
+        ntheta = 100
         nphi = 10
         s = get_surface('SurfaceRZFourier', True, mpol=5, ntor=5,
                         ntheta=ntheta, nphi=nphi, full=True)
-        s.rc[0, 0] = 5.
-        s.rc[1, 0] = -1.5
-        s.zs[1, 0] = -1.5
-        s.rc[1, 1] = -0.5
-        s.zs[1, 1] = 0.5
-        s.rc[0, 1] = -0.5
-        s.zs[0, 1] = 0.5
+        s.set_rc(0, 0, 5.)
+        s.set_rc(1, 0, 1.5)
+        s.set_zs(1, 0, 1.4)
+        s.set_rc(1, 1, -0.6)
+        s.set_zs(1, 1, 0.6)
+        s.set_rc(0, 1, -0.5)
+        s.set_zs(0, 1, 0.5)
 
         dgamma2 = s.gammadash2()
         theta1D = s.quadpoints_theta
         phi1D = s.quadpoints_phi
         theta, phi = np.meshgrid(theta1D, phi1D)
-        integrand = 1 + np.cos(theta - phi)
+        integrand = np.log(1.2 + np.cos(2 * np.pi * (theta - phi) + 0.3))
 
-        norm_drdtheta = np.linalg.norm(dgamma2, axis=2)
         theta_interp = theta
         integrand_arclength = s.interpolate_on_arclength_grid(integrand, theta_interp)
+
+        norm_drdtheta = np.linalg.norm(dgamma2, axis=2)
+        integral_1 = np.sum(integrand * norm_drdtheta, axis=1) / np.sum(norm_drdtheta, axis=1)
+        integral_2 = np.sum(integrand_arclength, axis=1) / np.sum(np.ones_like(norm_drdtheta), axis=1)
+        np.testing.assert_allclose(integral_1, integral_2, rtol=9e-4)
+
+    def test_interpolate_on_arclength_grid_2_ways(self):
+        """
+        Try doing periodic interpolation a different way (involving ghost
+        points) and make sure the result is the same.
+        """
+        nphi = 4
+        ntheta = 40
+        ntheta_eval = 13
+        filename_base = "wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc"
+        filename = os.path.join(TEST_DIR, filename_base)
+        surf = SurfaceRZFourier.from_wout(filename, range="half period", nphi=nphi, ntheta=ntheta)
+
+        function = 1.2 * (0.3 + surf.quadpoints_phi[:, None] + np.cos(surf.quadpoints_theta[None, :] * 2 * np.pi))
+        assert function.shape == (nphi, ntheta)
+        theta_evaluate = np.linspace(0, 1, ntheta_eval)[None, :] * np.linspace(0.3, 1, nphi)[:, None]
+        assert np.min(theta_evaluate) >= 0
+        assert np.max(theta_evaluate) <= 1
+        assert theta_evaluate.shape == (nphi, ntheta_eval)
+
+        function_interpolated1 = surf.interpolate_on_arclength_grid(function, theta_evaluate)
+
+        n_ghost = 10  # Number of points to repeat at each end, to ensure periodicity
+        theta_arclength = surf.arclength_poloidal_angle()
+        theta_arclength_big = np.concatenate(
+            (
+                theta_arclength[:, -n_ghost:] - 1, 
+                theta_arclength, 
+                theta_arclength[:, :n_ghost] + 1,
+            ),
+            axis=1,
+        )
+        function_big = np.concatenate(
+            (
+                function[:, -n_ghost:], 
+                function, 
+                function[:, :n_ghost],  
+            ),
+            axis=1,
+        )
+        function_interpolated2 = np.zeros((nphi, ntheta_eval))  
+        nphi = len(theta_arclength[:, 0])
         for iphi in range(nphi):
-            integral_1 = np.sum(integrand[iphi, :] * norm_drdtheta[iphi, :]) / np.sum(norm_drdtheta[iphi, :])
-            integral_2 = np.sum(integrand_arclength[iphi, :]) / np.sum(np.ones_like(norm_drdtheta[iphi, :]))
-            self.assertAlmostEqual(integral_1, integral_2, places=3)
+            interpolator = interpolate.InterpolatedUnivariateSpline(
+                theta_arclength_big[iphi, :], function_big[iphi, :])
+            function_interpolated2[iphi, :] = interpolator(theta_evaluate[iphi, :])
+
+        np.testing.assert_allclose(function_interpolated1, function_interpolated2, rtol=2e-9)
+
+    def test_make_theta_uniform_arclength(self):
+        wout_filename = TEST_DIR / 'wout_LandremanSenguptaPlunk_section5p3_reference.nc'
+        plasma_surf = SurfaceRZFourier.from_wout(wout_filename, range="half period", ntheta=51, nphi=50)
+
+        def get_specs():
+            return plasma_surf.volume(), plasma_surf.area(), plasma_surf.major_radius(), plasma_surf.aspect_ratio()
+
+        specs1 = get_specs()
+
+        # Ensure Fourier resolution is high enough for the new theta coordinate
+        # to represent the shape accurately:
+        plasma_surf.change_resolution(12, 12)
+        plasma_surf.make_theta_uniform_arclength()
+
+        specs2 = get_specs()
+        np.testing.assert_allclose(specs1, specs2, rtol=1e-3)
+
+        # Compare to reference calculation using regcoil to represent the same surface
+        # using the uniform-arclength theta:
+        regcoil_surf = SurfaceRZFourier.from_nescoil_input(
+            TEST_DIR / "nescin.LandremanSenguptaPlunk_section5p3_separation0_uniform_arclength",
+            "current",
+            quadpoints_phi=plasma_surf.quadpoints_phi,
+            quadpoints_theta=plasma_surf.quadpoints_theta,
+        )
+        np.testing.assert_allclose(plasma_surf.gamma(), regcoil_surf.gamma(), atol=1e-3)
+
 
 
 class SurfaceDistanceTests(unittest.TestCase):
@@ -300,7 +411,7 @@ class SurfaceScaledTests(unittest.TestCase):
                     scale_factors = np.random.random_sample(dof_size)
                     scaled_s = SurfaceScaled(s, scale_factors)
                     scaled_s_str = json.dumps(SIMSON(scaled_s), cls=GSONEncoder)
-                    regen_s = json.loads(scaled_s_str, cls=GSONDecoder)
+                    json.loads(scaled_s_str, cls=GSONDecoder)
 
 
 class BestNphiOverNthetaTests(unittest.TestCase):
@@ -369,6 +480,87 @@ class CurvatureTests(unittest.TestCase):
                     assert np.abs(np.sum(K*N)) < 1e-12
 
 
+class isSelfIntersecting(unittest.TestCase):
+    """
+    Tests the self-intersection algorithm:
+    """
+    @unittest.skipIf(ground is None or bentley_ottmann is None,
+                     "Libraries to check whether self-intersecting or not are missing")
+
+    def test_cross_section(self):
+        """ Test the cross_section method for a surface that is not self-intersecting. """
+        filename = os.path.join(TEST_DIR, 'serial2680021.json')
+        [surfaces, coils] = load(filename)
+        angle = np.pi/10
+
+        # check that the cross_section method works for a surface that is not self-intersecting
+        xs = surfaces[-1].cross_section(angle/(2*np.pi), thetas=256)
+        Z = xs[:, 2]
+        self.assertTrue(np.all(Z < -0.08), msg="The Z coordinate should be < - 0.8 for this surface.")
+
+        # check that the same answer is returned for an array valued thetas
+        thetas = np.linspace(0, 1, 256, endpoint=False)
+        xs_array = surfaces[-1].cross_section(angle/(2*np.pi), thetas=thetas, tol=1e-13)
+        np.testing.assert_allclose(xs, xs_array, atol=1e-13, err_msg="The cross_section method should return the same result for an array of thetas.")
+        
+        # check that an exception is raised if theta is 2D
+        with self.assertRaises(Exception):
+            _ = surfaces[-1].cross_section(angle/(2*np.pi), thetas=[[0, 0.8], [0.5, 0.7]])
+
+        """
+        Take this surface, and rotate it 30 degrees about the x-axis.  This should cause
+        the surface to 'go back' on itself, and trigger the exception.
+        """
+        surface_orig = SurfaceXYZTensorFourier(mpol=surfaces[-1].mpol, ntor=surfaces[-1].ntor,\
+                stellsym=True, nfp=surfaces[-1].nfp, quadpoints_phi=np.linspace(0, 1, 100),\
+                quadpoints_theta=surfaces[-1].quadpoints_theta)
+        surface_orig.x = surfaces[-1].x
+
+        angle = 2*np.pi*(30/180)
+        R = np.array([[1, 0, 0], [0, np.cos(angle), -np.sin(angle)], [0, np.sin(angle), np.cos(angle)]])
+        gamma = surface_orig.gamma().copy()
+        Rgamma = gamma@R.T
+
+        surface_rotated = SurfaceXYZTensorFourier(mpol=surfaces[-1].mpol, ntor=surfaces[-1].ntor,\
+                stellsym=True, nfp=1, quadpoints_phi=np.linspace(0, 1, 100),\
+                quadpoints_theta=surfaces[-1].quadpoints_theta)
+        surface_rotated.least_squares_fit(Rgamma)
+        
+        # unit test to check that the exceptions are properly raised
+        with self.assertRaises(Exception):
+            _ = surface_rotated.cross_section(0., thetas=256)
+
+        # check that cross_section raises an exception if thetas is not an appropriate argument
+        with self.assertRaises(Exception):
+            _ = surface_rotated.cross_section(0., thetas='wrong')
+
+    def test_is_self_intersecting(self):
+        # dofs results in a surface that is self-intersecting
+        dofs = np.array([1., 0., 0., 0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1,
+                         0., 0., 0., 0., 0., 0., 0.1])
+        s = get_surface('SurfaceRZFourier', True, full=True, nphi=200, ntheta=200, mpol=2, ntor=2)
+        s.x = dofs
+        assert s.is_self_intersecting()
+
+        s = get_surface('SurfaceRZFourier', True, full=True, nphi=200, ntheta=200, mpol=2, ntor=2)
+        assert not s.is_self_intersecting()
+
+        # make sure it works on an NCSX BoozerSurface
+        bs, boozer_surf = get_boozer_surface()
+        s = boozer_surf.surface
+        assert not s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi))
+        assert not s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi), thetas=200)
+        assert not s.is_self_intersecting(thetas=231)
+
+        # make sure it works on a perturbed NCSX BoozerSurface
+        dofs = s.x.copy()
+        dofs[14] += 0.2
+        s.x = dofs
+        assert s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi))
+        assert s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi), thetas=200)
+        assert s.is_self_intersecting(thetas=202)
+
+
 class UtilTests(unittest.TestCase):
     def test_extend_via_normal(self):
         """
@@ -401,6 +593,82 @@ class UtilTests(unittest.TestCase):
 
         surf1.extend_via_projected_normal(aminor2 - aminor1)
         np.testing.assert_allclose(surf1.x, surf2.x, atol=1e-14)
+
+
+class DofNames(unittest.TestCase):
+    """
+    Check that the dof names correspond to the correct values within each
+    Surface class by using the set and get methods and checking against
+    the internal arrays.
+    """
+    def test_dof_names(self):
+        surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier",
+                        "SurfaceXYZTensorFourier"]
+        for surfacetype in surfacetypes:
+            for stellsym in [False, True]:
+                with self.subTest(surfacetype=surfacetype):
+                    self.subtest_set_get_surf_dofs(surfacetype, stellsym)
+
+    def subtest_set_get_surf_dofs(self, surfacetype, stellsym):
+        s = get_surface(surfacetype, stellsym, full=True)
+        # for each surface, set some random dofs and check for consistency
+        if surfacetype == "SurfaceRZFourier":
+            s.set('rc(3,2)', 1.0)
+            s.set('zs(1,-3)', 2.0)
+            assert s.get('rc(3,2)') == s.rc[3, s.ntor + 2]
+            assert s.get('zs(1,-3)') == s.zs[1, s.ntor - 3]
+            if not stellsym:
+                s.set('rs(3,2)', 1.0)
+                s.set('zc(1,-3)', 2.0)
+                assert s.get('rs(3,2)') == s.rs[3, s.ntor + 2]
+                assert s.get('zc(1,-3)') == s.zc[1, s.ntor - 3]
+            else:
+                with self.assertRaises(Exception):
+                    # make sure that stellarator symmetric surfaces don't
+                    # have stellarator asymmetric modes
+                    s.set('rs(3,2)', 1.0)
+                    s.set('zc(1,-3)', 2.0)
+        elif surfacetype == "SurfaceXYZFourier":
+            s.set('xc(3,2)', 1.0)
+            s.set('ys(1,-3)', 2.0)
+            s.set('zs(2,1)', 3.0)
+            assert s.get('xc(3,2)') == s.xc[3, s.ntor + 2]
+            assert s.get('ys(1,-3)') == s.ys[1, s.ntor - 3]
+            assert s.get('zs(2,1)') == s.zs[2, s.ntor + 1]
+            if not stellsym:
+                s.set('xs(3,2)', 1.0)
+                s.set('yc(1,-3)', 2.0)
+                s.set('zc(0,0)', 3.0)
+                assert s.get('xs(3,2)') == s.xs[3, s.ntor + 2]
+                assert s.get('yc(1,-3)') == s.yc[1, s.ntor - 3]
+                assert s.get('zc(0,0)') == s.zc[0, s.ntor]
+            else:
+                with self.assertRaises(Exception):
+                    s.set('xs(3,2)', 1.0)
+                    s.set('yc(1,-3)', 2.0)
+                    s.set('zc(0,0)', 3.0)
+        elif surfacetype == "SurfaceXYZTensorFourier":
+            s.set('x(3,2)', 1.0)
+            s.set('y(7,1)', 2.0)
+            s.set('z(10,5)', 3.0)
+            # note for this class, indices start from 0 not -ntor
+            assert s.get('x(3,2)') == s.xcs[3, 2]
+            assert s.get('y(7,1)') == s.ycs[7, 1]
+            assert s.get('z(10,5)') == s.zcs[10, 5]
+            if not stellsym:
+                s.set('x(3,7)', 1.0)
+                s.set('y(7,6)', 2.0)
+                s.set('z(0,0)', 3.0)
+                assert s.get('x(3,7)') == s.xcs[3, 7]
+                assert s.get('y(7,6)') == s.ycs[7, 6]
+                assert s.get('z(0,0)') == s.zcs[0, 0]
+            else:
+                with self.assertRaises(Exception):
+                    s.set('x(3,7)', 1.0)
+                    s.set('y(7,6)', 2.0)
+                    s.set('z(0,0)', 3.0)
+        else:
+            raise NotImplementedError("Surface type not implemented")
 
 
 if __name__ == "__main__":

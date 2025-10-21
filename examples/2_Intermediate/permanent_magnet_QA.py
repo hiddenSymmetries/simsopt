@@ -31,12 +31,10 @@ faster on multi-core machines (make sure that all the cores
 are available to OpenMP, e.g. through setting OMP_NUM_THREADS).
 """
 
-import os
 import time
 from pathlib import Path
 
 import numpy as np
-from matplotlib import pyplot as plt
 
 from simsopt.field import BiotSavart, DipoleField
 from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
@@ -83,15 +81,15 @@ base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s, out_dir)
 bs = BiotSavart(coils)
 
 # Calculate average, approximate on-axis B field strength
-calculate_on_axis_B(bs, s)
+calculate_modB_on_major_radius(bs, s)
 
 # Make higher resolution surface for plotting Bnormal
 qphi = 2 * nphi
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 s_plot = SurfaceRZFourier.from_vmec_input(
-    surface_filename, 
-    quadpoints_phi=quadpoints_phi, 
+    surface_filename,
+    quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta
 )
 
@@ -104,14 +102,14 @@ bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # check after-optimization average on-axis magnetic field strength
-calculate_on_axis_B(bs, s)
+calculate_modB_on_major_radius(bs, s)
 
-# Set up correct Bnormal from TF coils 
+# Set up correct Bnormal from TF coils
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the permanent magnet class
-kwargs_geo = {"dr": dr, "coordinate_flag": "cylindrical"}  
+kwargs_geo = {"dr": dr, "coordinate_flag": "cylindrical"}
 pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
     s, Bnormal, s_inner, s_outer, **kwargs_geo
 )
@@ -133,7 +131,7 @@ kwargs['reg_l0'] = reg_l0
 # 2 full relax-and-split problems, and uses the result of each
 # problem to initialize the next, increasing L0 threshold each time,
 # until thresholding over all magnets with strengths < 50% the max.
-m0 = np.zeros(pm_opt.ndipoles * 3) 
+m0 = np.zeros(pm_opt.ndipoles * 3)
 total_m_history = []
 total_mproxy_history = []
 total_RS_history = []
@@ -162,7 +160,7 @@ except ValueError:
 # Print effective permanent magnet volume
 B_max = 1.465
 mu0 = 4 * np.pi * 1e-7
-M_max = B_max / mu0 
+M_max = B_max / mu0
 dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
@@ -242,7 +240,6 @@ pm_opt.write_to_famus(out_dir)
 # surface is at least 64 x 64 resolution.
 vmec_flag = False
 if vmec_flag:
-    from mpi4py import MPI
     from simsopt.mhd.vmec import Vmec
     from simsopt.util.mpi import MpiPartition
     mpi = MpiPartition(ngroups=1)

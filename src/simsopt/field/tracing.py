@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 __all__ = ['SurfaceClassifier', 'LevelsetStoppingCriterion',
            'MinToroidalFluxStoppingCriterion', 'MaxToroidalFluxStoppingCriterion',
+           'MinRStoppingCriterion', 'MinZStoppingCriterion',
+           'MaxRStoppingCriterion', 'MaxZStoppingCriterion',
            'IterationStoppingCriterion', 'ToroidalTransitStoppingCriterion',
            'compute_fieldlines', 'compute_resonances',
            'compute_poloidal_transits', 'compute_toroidal_transits',
@@ -70,7 +72,7 @@ def gc_to_fullorbit_initial_guesses(field, xyz_inits, speed_pars, speed_total, m
 
 
 def trace_particles_boozer(field: BoozerMagneticField,
-                           stz_inits: RealArray,  
+                           stz_inits: RealArray,
                            parallel_speeds: RealArray,
                            tmax=1e-4,
                            mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
@@ -198,7 +200,7 @@ def trace_particles_boozer(field: BoozerMagneticField,
 
 def trace_particles(field: MagneticField,
                     xyz_inits: RealArray,
-                    parallel_speeds: RealArray,  
+                    parallel_speeds: RealArray,
                     tmax=1e-4,
                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                     tol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
@@ -474,7 +476,6 @@ def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2):
             theta0 = res_tys[ip][0, 2]
             zeta0 = res_tys[ip][0, 3]
             theta0_mod = theta0 % (2*np.pi)
-            zeta0_mod = zeta0 % (2*np.pi)
             x0 = s0 * np.cos(theta0)
             y0 = s0 * np.sin(theta0)
         else:
@@ -549,10 +550,10 @@ def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2):
                             logger.debug(f'(R,Z)r = {np.sqrt(res_tys[ip][indexr,1]**2 + res_tys[ip][indexr,2]**2),res_tys[ip][indexr,3]}')
 
                         mpol = np.amax([mpoll, mpolm, mpolr])
-                        index_mpol = np.argmax([mpoll, mpolm, mpolr])
+                        # index_mpol = np.argmax([mpoll, mpolm, mpolr])
                         ntor = np.amax([ntorl, ntorm, ntorr])
-                        index_ntor = np.argmax([ntorl, ntorm, ntorr])
-                        index = np.amax([index_mpol, index_ntor])
+                        # index_ntor = np.argmax([ntorl, ntorm, ntorr])
+                        # index = np.amax([index_mpol, index_ntor])
                         resonances.append(np.asarray([R0, Z0, phi0, vpar0, t, mpol, ntor]))
     return resonances
 
@@ -798,7 +799,71 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     pass
 
 
-def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300, xlims=None, 
+class MinRStoppingCriterion(sopp.MinRStoppingCriterion):
+    """
+    Stop the iteration once a particle falls below a critical value of
+    ``R``, the radial cylindrical coordinate. 
+
+    Usage:
+
+    .. code-block::
+
+        stopping_criteria=[MinRStopingCriterion(crit_r)]
+
+    where ``crit_r`` is the value of the critical coordinate.
+    """
+    pass
+
+
+class MinZStoppingCriterion(sopp.MinZStoppingCriterion):
+    """
+    Stop the iteration once a particle falls below a critical value of
+    ``Z``, the cylindrical vertical coordinate. 
+
+    Usage:
+
+    .. code-block::
+
+        stopping_criteria=[MinZStopingCriterion(crit_z)]
+
+    where ``crit_z`` is the value of the critical coordinate.
+    """
+    pass
+
+
+class MaxRStoppingCriterion(sopp.MaxRStoppingCriterion):
+    """
+    Stop the iteration once a particle goes above a critical value of
+    ``R``, the radial cylindrical coordinate. 
+
+    Usage:
+
+    .. code-block::
+
+        stopping_criteria=[MaxRStopingCriterion(crit_r)]
+
+    where ``crit_r`` is the value of the critical coordinate.
+    """
+    pass
+
+
+class MaxZStoppingCriterion(sopp.MaxZStoppingCriterion):
+    """
+    Stop the iteration once a particle gove above a critical value of
+    ``Z``, the cylindrical vertical coordinate. 
+
+    Usage:
+
+    .. code-block::
+
+        stopping_criteria=[MaxZStopingCriterion(crit_z)]
+
+    where ``crit_z`` is the value of the critical coordinate.
+    """
+    pass
+
+
+def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300, xlims=None,
                        ylims=None, surf=None, s=2, marker='o'):
     """
     Create a poincare plot. Usage:
@@ -857,7 +922,7 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
 
         # if passed a surface, plot the plasma surface outline
         if surf is not None:
-            cross_section = surf.cross_section(phi=phis[i])
+            cross_section = surf.cross_section(phi=phis[i]/(2.0*np.pi))
             r_interp = np.sqrt(cross_section[:, 0] ** 2 + cross_section[:, 1] ** 2)
             z_interp = cross_section[:, 2]
             axs[col].plot(r_interp, z_interp, linewidth=1, c='k')

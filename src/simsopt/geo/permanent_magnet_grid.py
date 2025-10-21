@@ -5,7 +5,7 @@ import numpy as np
 from pyevtk.hl import pointsToVTK
 
 from .._core.descriptor import OneofStrings
-from . import Surface, SurfaceRZFourier
+from . import Surface
 import simsoptpp as sopp
 
 __all__ = ['PermanentMagnetGrid']
@@ -50,7 +50,7 @@ class PermanentMagnetGrid:
 
     def __init__(self, plasma_boundary: Surface, Bn, coordinate_flag='cartesian'):
         Bn = np.array(Bn)
-        if len(Bn.shape) != 2: 
+        if len(Bn.shape) != 2:
             raise ValueError('Normal magnetic field surface data is incorrect shape.')
         self.Bn = Bn
 
@@ -100,7 +100,7 @@ class PermanentMagnetGrid:
             # Extra work below so that the stitching with the symmetries is done in
             # such a way that the reflected cells are still dx and dy away from
             # the old cells.
-            #### Note that Cartesian cells can only do nfp = 2, 4, 6, ... 
+            #### Note that Cartesian cells can only do nfp = 2, 4, 6, ...
             #### and correctly be rotated to have the right symmetries
             if (self.plasma_boundary.nfp % 2) == 0:
                 X = np.linspace(self.dx / 2.0, (x_max - x_min) + self.dx / 2.0, Nx, endpoint=True)
@@ -127,7 +127,7 @@ class PermanentMagnetGrid:
         else:
             # Get (R, Z) coordinates of the outer boundary
             rphiz_outer = np.array(
-                [np.sqrt(self.xyz_outer[:, 0] ** 2 + self.xyz_outer[:, 1] ** 2), 
+                [np.sqrt(self.xyz_outer[:, 0] ** 2 + self.xyz_outer[:, 1] ** 2),
                  np.arctan2(self.xyz_outer[:, 1], self.xyz_outer[:, 0]),
                  self.xyz_outer[:, 2]]
             ).T
@@ -209,12 +209,12 @@ class PermanentMagnetGrid:
         ox, oy, oz, Ic, M0s = np.loadtxt(famus_filename, skiprows=3, usecols=[3, 4, 5, 6, 7],
                                          delimiter=',', unpack=True)
 
-        # Downsample the resolution as needed 
+        # Downsample the resolution as needed
         inds_total = np.arange(len(ox))
         inds_downsampled = inds_total[::downsample]
 
         # also remove any dipoles where the diagnostic ports should be
-        nonzero_inds = np.intersect1d(np.ravel(np.where(Ic == 1.0)), inds_downsampled) 
+        nonzero_inds = np.intersect1d(np.ravel(np.where(Ic == 1.0)), inds_downsampled)
         pm_grid.Ic_inds = nonzero_inds
         ox = ox[nonzero_inds]
         oy = oy[nonzero_inds]
@@ -266,10 +266,10 @@ class PermanentMagnetGrid:
 
     @classmethod
     def geo_setup_between_toroidal_surfaces(
-        cls, 
+        cls,
         plasma_boundary,
         Bn,
-        inner_toroidal_surface: Surface, 
+        inner_toroidal_surface: Surface,
         outer_toroidal_surface: Surface,
         **kwargs,
     ):
@@ -340,7 +340,7 @@ class PermanentMagnetGrid:
         coordinate_flag = kwargs.pop("coordinate_flag", "cartesian")
         pol_vectors = kwargs.pop("pol_vectors", None)
         m_maxima = kwargs.pop("m_maxima", None)
-        pm_grid = cls(plasma_boundary, Bn, coordinate_flag) 
+        pm_grid = cls(plasma_boundary, Bn, coordinate_flag)
         Nx = kwargs.pop("Nx", 10)
         Ny = kwargs.pop("Ny", 10)
         Nz = kwargs.pop("Nz", 10)
@@ -356,23 +356,23 @@ class PermanentMagnetGrid:
         pm_grid.Ny = Ny
         pm_grid.Nz = Nz
         pm_grid.inner_toroidal_surface = inner_toroidal_surface.to_RZFourier()
-        pm_grid.outer_toroidal_surface = outer_toroidal_surface.to_RZFourier()    
+        pm_grid.outer_toroidal_surface = outer_toroidal_surface.to_RZFourier()
         warnings.warn(
             'Plasma boundary and inner and outer toroidal surfaces should '
             'all have the same "range" parameter in order for a permanent'
             ' magnet grid to be correctly initialized.'
-        )        
+        )
 
         # Have the uniform grid, now need to loop through and eliminate cells.
         contig = np.ascontiguousarray
-        normal_inner = inner_toroidal_surface.unitnormal().reshape(-1, 3)   
-        normal_outer = outer_toroidal_surface.unitnormal().reshape(-1, 3)   
+        normal_inner = inner_toroidal_surface.unitnormal().reshape(-1, 3)
+        normal_outer = outer_toroidal_surface.unitnormal().reshape(-1, 3)
         pm_grid._setup_uniform_grid()
         pm_grid.dipole_grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
-            contig(normal_inner), 
-            contig(normal_outer), 
-            contig(pm_grid.xyz_uniform), 
-            contig(pm_grid.xyz_inner), 
+            contig(normal_inner),
+            contig(normal_outer),
+            contig(pm_grid.xyz_uniform),
+            contig(pm_grid.xyz_inner),
             contig(pm_grid.xyz_outer))
         inds = np.ravel(np.logical_not(np.all(pm_grid.dipole_grid_xyz == 0.0, axis=-1)))
         pm_grid.dipole_grid_xyz = pm_grid.dipole_grid_xyz[inds, :]
@@ -381,7 +381,7 @@ class PermanentMagnetGrid:
         if coordinate_flag == 'cylindrical':
             cell_vol = np.sqrt(pm_grid.dipole_grid_xyz[:, 0] ** 2 + pm_grid.dipole_grid_xyz[:, 1] ** 2) * pm_grid.dr * pm_grid.dz * 2 * np.pi / (pm_grid.nphi * pm_grid.plasma_boundary.nfp * 2)
         else:
-            cell_vol = pm_grid.dx * pm_grid.dy * pm_grid.dz * np.ones(pm_grid.ndipoles)     
+            cell_vol = pm_grid.dx * pm_grid.dy * pm_grid.dz * np.ones(pm_grid.ndipoles)
         pointsToVTK('dipole_grid',
                     contig(pm_grid.dipole_grid_xyz[:, 0]),
                     contig(pm_grid.dipole_grid_xyz[:, 1]),

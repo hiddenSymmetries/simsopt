@@ -15,12 +15,12 @@ from . import TEST_DIR
 
 try:
     import booz_xform
-except ImportError as e:
+except ImportError:
     booz_xform = None
 
 try:
     import vmec as vmec_extension
-except ImportError as e:
+except ImportError:
     vmec_extension = None
 
 logger = logging.getLogger(__name__)
@@ -128,7 +128,7 @@ class BootstrapTests(unittest.TestCase):
             np.testing.assert_allclose(epsilon_in, epsilon_out)
             # Eq (A8):
             np.testing.assert_allclose(fsa_B2, B0 * B0 / np.sqrt(1 - epsilon_in ** 2), rtol=1e-6)
-            np.testing.assert_allclose(f_t, f_t_Kim, rtol=0.1, atol=0.07)  # We do not expect precise agreement. 
+            np.testing.assert_allclose(f_t, f_t_Kim, rtol=0.1, atol=0.07)  # We do not expect precise agreement.
             np.testing.assert_allclose(fsa_1overB, (2 + epsilon_in ** 2) / (2 * B0))
 
             if False:
@@ -190,13 +190,13 @@ class BootstrapTests(unittest.TestCase):
         ln_Lambda_ii = 30.0 - np.log((Zeff_s ** 3) * np.sqrt(ni_s) / (Ti_s ** 1.5))
 
         # Sauter eq (18b)-(18c):
-        nu_e = abs(R * (6.921e-18) * ne_s * Zeff_s * ln_Lambda_e \
+        nu_e = abs(R * (6.921e-18) * ne_s * Zeff_s * ln_Lambda_e
                    / ((iota - helicity_N) * (Te_s ** 2) * (epsilon ** 1.5)))
-        nu_i = abs(R * (4.90e-18) * ni_s * (Zeff_s ** 4) * ln_Lambda_ii \
+        nu_i = abs(R * (4.90e-18) * ni_s * (Zeff_s ** 4) * ln_Lambda_ii
                    / ((iota - helicity_N) * (Ti_s ** 2) * (epsilon ** 1.5)))
 
         # Redl eq (11):
-        X31 = f_t / (1 + 0.67 * (1 - 0.7 * f_t) * np.sqrt(nu_e) / (0.56 + 0.44 * Zeff_s) \
+        X31 = f_t / (1 + 0.67 * (1 - 0.7 * f_t) * np.sqrt(nu_e) / (0.56 + 0.44 * Zeff_s)
                      + (0.52 + 0.086 * np.sqrt(nu_e)) * (1 + 0.87 * f_t) * nu_e / (1 + 1.13 * np.sqrt(Zeff_s - 1)))
 
         # Redl eq (10):
@@ -205,8 +205,8 @@ class BootstrapTests(unittest.TestCase):
             + 0.01 / Zfac * (X31 ** 3) + 0.06 / Zfac * (X31 ** 4)
 
         # Redl eq (14):
-        X32e = f_t / (1 + 0.23 * (1 - 0.96 * f_t) * np.sqrt(nu_e / Zeff_s) \
-                      + 0.13 * (1 - 0.38 * f_t) * nu_e / (Zeff_s ** 2) \
+        X32e = f_t / (1 + 0.23 * (1 - 0.96 * f_t) * np.sqrt(nu_e / Zeff_s)
+                      + 0.13 * (1 - 0.38 * f_t) * nu_e / (Zeff_s ** 2)
                       * (np.sqrt(1 + 2 * np.sqrt(Zeff_s - 1))
                          + f_t * f_t * np.sqrt((0.075 + 0.25 * ((Zeff_s - 1) ** 2)) * nu_e)))
 
@@ -216,7 +216,7 @@ class BootstrapTests(unittest.TestCase):
             + 1.3 / (1 + 0.5 * Zeff_s) * (X32e ** 4)
 
         # Redl eq (16)
-        X32ei = f_t / (1 + 0.87 * (1 + 0.39 * f_t) * np.sqrt(nu_e) / (1 + 2.95 * ((Zeff_s - 1) ** 2)) \
+        X32ei = f_t / (1 + 0.87 * (1 + 0.39 * f_t) * np.sqrt(nu_e) / (1 + 2.95 * ((Zeff_s - 1) ** 2))
                        + 1.53 * (1 - 0.37 * f_t) * nu_e * (2 + 0.375 * (Zeff_s - 1)))
 
         # Redl eq (15)
@@ -378,7 +378,7 @@ class BootstrapTests(unittest.TestCase):
             else:
                 assert np.min(details.L32) < -0.13
                 assert details.alpha[0] < -0.9
-            assert details.alpha[-1] > -0.1 
+            assert details.alpha[-1] > -0.1
 
     def test_Redl_figures_4_5(self):
         """

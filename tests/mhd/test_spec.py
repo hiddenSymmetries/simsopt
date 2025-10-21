@@ -1,23 +1,22 @@
-from cmath import isnan
 import logging
 import os
-import shutil
 import unittest
+
 
 import numpy as np
 from monty.tempfile import ScratchDir
+from scipy.constants import mu_0
+from simsopt._core.util import ObjectiveFailure
 
 try:
-    import spec
-    spec_found = True
+    import spec as spec_mod
 except ImportError:
-    spec_found = False
+    spec_mod = None
 
 try:
     import pyoculus
-    pyoculus_found = True
 except ImportError:
-    pyoculus_found = False
+    pyoculus = None
 
 try:
     from mpi4py import MPI
@@ -26,10 +25,11 @@ except ImportError:
 
 from simsopt.geo import SurfaceGarabedian
 from simsopt.mhd import ProfileSpec
+from simsopt.field import NormalField
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_serial_solve
 
-if (MPI is not None) and spec_found:
+if (MPI is not None) and (spec_mod is not None):
     from simsopt.mhd import Spec, Residue
 
 from . import TEST_DIR
@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # logging.basicConfig(level=logging.DEBUG)
 
 
-@unittest.skipIf(not spec_found, "SPEC python module not found")
+@unittest.skipIf(spec_mod is None, "SPEC python module not found")
 class SpecTests(unittest.TestCase):
     def test_init_defaults(self):
         """
@@ -95,6 +95,25 @@ class SpecTests(unittest.TestCase):
             self.assertAlmostEqual(s.normal_field.get_vns(3, -1), -1.269776831212886e-04, places)
             self.assertAlmostEqual(s.normal_field.get_vnc(1, 0), 1.924871538367248e-04, places)
             self.assertAlmostEqual(s.normal_field.get_vnc(1, -2), 4.070523669489626e-04, places)
+
+    def test_normal_field_setter(self):
+        """
+        Try creating a Spec instance from a freeboundary file that is also
+        non-stellarator symmetric.
+        Check value of normal field
+        """
+
+        filename = os.path.join(TEST_DIR, 'M16N08.sp')
+
+        with ScratchDir("."):
+            s = Spec(filename)
+            surface = s.boundary
+            old_normal = s.normal_field
+            new_normal = NormalField(s.nfp, stellsym=s.stellsym, mpol=s.mpol, ntor=s.ntor, surface=surface)
+            s.normal_field = new_normal
+            self.assertAlmostEqual(s.normal_field.get_vns(0, 1), 0)  # set to zeros
+            self.assertIs(s.normal_field.surface, s._computational_boundary)  # normal field surface is set to spec computational boundary.
+            self.assertIsNot(old_normal, new_normal)
 
     def test_init_freeboundary(self):
         """
@@ -199,6 +218,92 @@ class SpecTests(unittest.TestCase):
                     self.assertEqual(s.get_profile('volume_current', lvol), 0)
                 else:
                     self.assertEqual(s.get_profile('volume_current', lvol), 1)
+
+    def test_activate_profiles(self):
+        """
+        test activate all profiles and confirm that DOFs are
+        correctly added
+        """
+        profiles = ['pressure',
+                    'volume_current',
+                    'interface_current',
+                    'iota',
+                    'oita',
+                    'mu',
+                    'pflux',
+                    'tflux',
+                    'helicity']
+
+        for profile in profiles:
+            with ScratchDir("."):
+                s = Spec.default_freeboundary(copy_to_pwd=True)
+                startdofs = len(s.x)
+                self.assertIsNone(s.__getattribute__(profile+'_profile'))
+                s.activate_profile(profile)
+                self.assertIsNotNone(s.__getattribute__(profile+'_profile'))
+                if profile in ['tflux', 'pflux', 'mu', 'oita', 'iota', 'helicity']:
+                    # test that the 'mvol' length profiles have been increased by two
+                    self.assertEqual(len(s.x), startdofs+2)
+                elif profile in ['volume_current', 'pressure']:
+                    # test that the 'nvol' length profiles have been increased by one
+                    self.assertEqual(len(s.x), startdofs+1)
+                elif profile in ['interface_current']:
+                    # test that the surface current profile has not been increased
+                    self.assertEqual(len(s.x), startdofs)
+                else:
+                    raise ValueError(f"Profile {profile} not recognized")
+
+    def test_freeboundary_default(self):
+        """
+        test the default freeboundary file, and re-set if Picard
+        iteration fails
+        """
+        with ScratchDir("."):
+            s = Spec.default_freeboundary(copy_to_pwd=True)
+            startingboundary = np.copy(s.inputlist.bns)
+            # run sucessfully as default should be converged
+            s.run()
+            # ask to generate guess, not enough freeboundary iterations
+            s.inputlist.linitialize = 2
+            s.inputlist.lautoinitbn = 1
+            s.inputlist.mfreeits = 2
+            s.recompute_bell()
+            try:
+                s.run()
+            except ObjectiveFailure:
+                self.assertTrue(np.all(s.inputlist.bns == startingboundary))
+            else:
+                raise ValueError("ObjectiveFailure not raised")
+            # give enough freeboundary iterations, let ir run successfully
+            s.inputlist.mfreeits = 10
+            s.recompute_bell()
+            s.run()
+
+    def test_array_translator(self):
+        """
+        Test the array_translator method to convert a SPEC style array to simsopt style array.
+        """
+        spec = Spec()
+        array = spec.inputlist.rbc
+        translator = spec.array_translator(array)
+        translator2 = spec.array_translator(array, style='spec')
+        translator3 = spec.array_translator(translator.as_simsopt, style='simsopt')
+
+        self.assertTrue(np.all(array == translator.as_spec))
+        self.assertTrue(np.all(array == translator2.as_spec))
+        self.assertTrue(np.all(array == translator3.as_spec))
+        self.assertTrue(np.all(translator.as_simsopt == translator2.as_simsopt))
+        self.assertTrue(np.all(translator2.as_simsopt == translator3.as_simsopt))
+        # test that the shape of the array is correct:
+        self.assertEqual(translator2.as_simsopt.shape, (spec.inputlist.ntor+1, (2*spec.inputlist.mpol)+1))
+
+    def test_poloidal_current_amperes(self):
+        """
+        Test the poloidal current in amperes
+        """
+        filename = os.path.join(TEST_DIR, 'RotatingEllipse_Nvol8.sp')
+        s = Spec(filename)
+        self.assertAlmostEqual(s.poloidal_current_amperes, s.inputlist.curpol/mu_0)
 
     def test_integrated_stellopt_scenarios_1dof(self):
         """
@@ -439,7 +544,7 @@ class SpecTests(unittest.TestCase):
             self.assertAlmostEqual(equil.iota(), -0.4114567, places=3)
             self.assertAlmostEqual(prob.objective(), 7.912501330E-04, places=3)
 
-    @unittest.skipIf((not spec_found) or (not pyoculus_found),
+    @unittest.skipIf((spec_mod is None) or (pyoculus is None),
                      "SPEC python module or pyoculus not found")
     def test_residue(self):
         """

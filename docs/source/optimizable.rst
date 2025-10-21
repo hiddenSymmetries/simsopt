@@ -659,23 +659,41 @@ Derivatives
 -----------
 
 Simsopt can be used for both derivative-free and derivative-based
-optimization. Examples are included in which derivatives are computed
-analytically, with adjoint methods, or with automatic differentiation.
+optimization. When derivatives are provided, they may be computed
+analytically, with adjoint methods, with finite differences,
+or with automatic differentiation (AD).
+For example, :obj:`simsopt.mhd.vmec_diagnostics.IotaTargetMetric` uses
+an adjoint method to compute the derivative of the rotational transform
+with respect to the free DOFs of a VMEC equilibria;
+:obj:`simsopt.field.biotsavart.BiotSavart.B_and_dB_vjp`
+computes derivatives of the magnetic field with respect to coil DOFs
+analytically; and members of the :obj:`simsopt.geo.curve.JaxCurve` class
+use automatic differentiation to compute derivatives with respect to their DOFS.
 Generally, the objects in the :obj:`simsopt.geo` and
 :obj:`simsopt.field` modules provide derivative information, while
 objects in :obj:`simsopt.mhd` do not, aside from several adjoint
-methods in the latter.  For problems with derivatives, the class
-:obj:`simsopt._core.derivative.Derivative` is used.  See the API
-documentation of this class for details.  This class provides the
-chain rule, and automatically masks out rows of the gradient
-corresponding to fixed dofs. The chain rule is computed with "reverse
-mode", using vector-Jacobian products, which is efficient for cases in
-which the objective function is a scalar or a vector with fewer
-dimensions than the number of dofs.  For objects that return a
+methods in the latter. For Optimizable objects that provide a
 gradient, the gradient function is typically named ``.dJ()``.
 
-Serialization
--------------
+Depending on whether derivatives are provided, the approach to optimization
+may differ. See :ref:`example_coils` for an example of how analytic and AD based
+derivatves are used in Stage-II coil optimization. Unlike the stage-II problem,
+derivatives are not always available for the stage-I problem. For example, in
+stage-1 optimization with VMEC, derivatives are computed with finite differences,
+parallelized through MPI with :obj:`simsopt._core.finite_difference.MPIFiniteDifference`. See
+:ref:`example_quasisymmetry` for an example of finite-difference based stage-1 optimization.
+
+Writing derivative computations for methods of Optimizable objects is made easy because of the
+:obj:`simsopt._core.derivative.Derivative` class. This class provides the chain rule,
+and automatically masks out rows of the gradient
+corresponding to *fixed* DOFs. The chain rule is computed with "reverse
+mode", using vector-Jacobian products, which is efficient for cases in
+which the objective function is a scalar or a vector with fewer
+dimensions than the number of DOFs. See the :ref:`example_derivative` tutorial
+for a thorough introduction to writing new Optimizables with derivatives.
+
+Saving/Loading (serialization)
+------------------------------
 
 Simsopt has the ability to serialize geometric and field objects 
 into JSON objects for archiving and sharing. To save a single simsopt 

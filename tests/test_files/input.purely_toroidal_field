@@ -1,0 +1,37 @@
+! DSHAPE tokamak boundary shape from Hirshman and Whitson 1983, but with no pressure and iota ~ 0.
+&INDATA
+  MGRID_FILE = 'NONE                                                        '
+  LOPTIM =  F
+  LSPECTRUM_DUMP =  F
+  DELT =  0.9
+  TCON0 =  2.
+  NFP =  1
+  MPOL =  6
+  NTOR =  0
+
+!  NS_ARRAY    =     13     25     51
+!  FTOL_ARRAY  =  1e-20  1e-20  1e-11
+!  NITER_ARRAY =   1000   1500   2000
+
+  NS_ARRAY    =     13     25     51    101
+  FTOL_ARRAY  =  1e-20  1e-20  1e-20  1e-15
+  NITER_ARRAY =   1000   1500   2000  30000
+
+!  NS_ARRAY    =     13     25     51    101    150    201
+!  FTOL_ARRAY  =  1e-20  1e-20  1e-20  1e-20  1e-20  1e-14
+!  NITER_ARRAY =   1000   1500   2000   2500   3000  30000
+
+  NSTEP =  200
+  NVACSKIP =  3
+  GAMMA =   0.00000000E+00
+  PHIEDGE =   5.0
+  CURTOR =  1.0
+  SPRES_PED =   1.0000E+00
+  NCURR =  0
+  AM =  0.0
+  AI =  1.0e-6  ! Add a tiny iota so the problem is not completely degenerate
+  AC = 0.0
+  RBC(0, 0) =  3.510    ZBS(0, 0) =  0.000
+  RBC(0, 1) =  1.000    ZBS(0, 1) =  1.470
+  RBC(0, 2) =  0.106    ZBS(0, 2) = -0.160
+ /

@@ -1,22 +1,19 @@
 import unittest
-import json
 import tempfile
 import os
 
 import numpy as np
 
-from simsopt.geo import Surface, SurfaceXYZFourier, SurfaceXYZTensorFourier
+from simsopt.geo import Surface, SurfaceXYZFourier
 from .surface_test_helpers import get_surface, get_exact_surface
-from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 from simsopt._core.optimizable import load, save
 
 stellsym_list = [True, False]
 
 try:
     import pyevtk
-    pyevtk_found = True
 except ImportError:
-    pyevtk_found = False
+    pyevtk = None
 
 
 class SurfaceXYZFourierTests(unittest.TestCase):
@@ -40,8 +37,8 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 
         np.random.seed(0)
         angle = np.random.random()*1000
-        scs = s.cross_section(angle, thetas=100)
-        sRZcs = sRZ.cross_section(angle, thetas=100)
+        scs = s.cross_section(angle/(2*np.pi), thetas=100)
+        sRZcs = sRZ.cross_section(angle/(2*np.pi), thetas=100)
 
         max_pointwise_err = np.max(np.abs(scs - sRZcs))
         print(max_pointwise_err)
@@ -75,14 +72,26 @@ class SurfaceXYZFourierTests(unittest.TestCase):
                 self.subtest_toRZFourier_lossless_at_quadraturepoints(surface_type)
 
     def subtest_toRZFourier_lossless_at_quadraturepoints(self, surface_type):
+        """
+        When converting a SurfaceXYZTensorFourier to SurfaceRZFourier, we solve a linear
+        least squares problem, fitting the SurfaceRZFourier basis functions to the target
+        coordinates from the SurfaceXYZTensorFourier.  This conversion is lossless at the 
+        quadrature points if there aren't too many collocation points with respect to
+        the number of surface dofs, i.e., the SurfaceRZFourier will interpolate the 
+        SurfaceXYZTensorFourier at the surface collocation points.
+
+        This test checks that SurfaceRZFourier interpolates the SurfaceXYZTensorFourier as
+        expected and that the angles of the cylindrical cross sections used in the linear
+        least squares problem are as expected.
+        """
         s = get_exact_surface(surface_type=surface_type)
         sRZ = s.to_RZFourier()
-
+        
         max_angle_error = -1
         max_pointwise_error = -1
         for angle in sRZ.quadpoints_phi:
-            scs = s.cross_section(angle * 2 * np.pi)
-            sRZcs = sRZ.cross_section(angle * 2 * np.pi)
+            scs = s.cross_section(angle)
+            sRZcs = sRZ.cross_section(angle)
 
             # compute the cylindrical angle error of the cross section
             phi = angle * 2. * np.pi
@@ -117,8 +126,8 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 
         np.random.seed(0)
         angle = np.random.random()*1000
-        scs = s.cross_section(angle)
-        sRZcs = sRZ.cross_section(angle)
+        scs = s.cross_section(angle/(2*np.pi))
+        sRZcs = sRZ.cross_section(angle/(2*np.pi))
 
         # compute the cylindrical angle error of the cross section
         phi = angle
@@ -135,7 +144,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         an = np.arctan2(scs[:, 1], scs[:, 0])
         max_angle_err1 = np.max(np.abs(an - phi))
         assert max_angle_err1 < 1e-12
-
+        
         an = np.arctan2(sRZcs[:, 1], sRZcs[:, 0])
         max_angle_err2 = np.max(np.abs(an - phi))
         assert max_angle_err2 < 1e-12
@@ -184,9 +193,20 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         angle[6] = -np.pi
         angle[7] = -3. * np.pi / 2.
         angle[8] = -2. * np.pi
+
+        angle_atan = np.zeros((num_cs,))
+        angle_atan[0] = 0.
+        angle_atan[1] = np.pi/2.
+        angle_atan[2] = -np.pi
+        angle_atan[3] = - np.pi / 2.
+        angle_atan[4] = 0.
+        angle_atan[5] = -np.pi/2.
+        angle_atan[6] = -np.pi
+        angle_atan[7] = np.pi / 2.
+        angle_atan[8] = 0.
         cs = np.zeros((num_cs, 100, 3))
         for idx in range(angle.size):
-            cs[idx, :, :] = s.cross_section(angle[idx], thetas=100)
+            cs[idx, :, :] = s.cross_section(angle[idx]/(2*np.pi), thetas=100)
 
         cs_area = np.zeros((num_cs,))
         max_angle_error = -1
@@ -194,24 +214,18 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         from scipy import fftpack
         for i in range(num_cs):
 
-            phi = angle[i]
-            phi = phi - np.sign(phi) * np.floor(np.abs(phi) / (2*np.pi)) * (2. * np.pi)
-            if phi > np.pi:
-                phi = phi - 2. * np.pi
-            if phi < -np.pi:
-                phi = phi + 2. * np.pi
-
+            phi = angle_atan[i]
             # check that the angle of the cross section is what we expect
             an = np.arctan2(cs[i, :, 1], cs[i, :, 0])
             curr_angle_err = np.max(np.abs(an - phi))
 
             if max_angle_error < curr_angle_err:
                 max_angle_error = curr_angle_err
-
+            
             R = np.sqrt(cs[i, :, 0]**2 + cs[i, :, 1]**2)
             Z = cs[i, :, 2]
             Rp = fftpack.diff(R, period=1.)
-            Zp = fftpack.diff(Z, period=1.)
+            fftpack.diff(Z, period=1.)
             cs_area[i] = np.abs(np.mean(Z*Rp))
         exact_area = np.pi * minor_R**2.
 
@@ -266,11 +280,11 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         from scipy import fftpack
         angle = np.linspace(-np.pi, np.pi, vpr, endpoint=False)
         for idx in range(angle.size):
-            cs = s.cross_section(angle[idx], thetas=tr)
+            cs = s.cross_section(angle[idx]/(2*np.pi), thetas=tr)
             R = np.sqrt(cs[:, 0]**2 + cs[:, 1]**2)
             Z = cs[:, 2]
             Rp = fftpack.diff(R, period=1.)
-            Zp = fftpack.diff(Z, period=1.)
+            fftpack.diff(Z, period=1.)
             ar = np.mean(Z*Rp)
             cs_area[idx] = ar
 
@@ -285,7 +299,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         print("AR rel error is:", rel_err)
         assert rel_err < 1e-5
 
-    @unittest.skipIf(not pyevtk_found, "pyevtk not found")
+    @unittest.skipIf(pyevtk is None, "pyevtk not found")
     def test_to_vtk(self):
         mpol = 4
         ntor = 3

@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 Provides graph based Optimizable class, whose instances can be used to
@@ -87,7 +87,7 @@ class DOFs(GSONable, Hashable):
             free: Array of boolean values denoting if the DOFs is are free.
                   False values implies the corresponding DOFs are fixed
             lower_bounds: Lower bounds for the DOFs. Meaningful only if
-                DOF is not fixed. Default is np.NINF
+                DOF is not fixed. Default is -np.inf
             upper_bounds: Upper bounds for the DOFs. Meaningful only if
                 DOF is not fixed. Default is np.inf
         """
@@ -106,7 +106,7 @@ class DOFs(GSONable, Hashable):
             free = np.asarray(free, dtype=np.bool_)
 
         if lower_bounds is None:
-            lower_bounds = np.full(len(x), np.NINF)
+            lower_bounds = np.full(len(x), -np.inf)
         else:
             lower_bounds = np.asarray(lower_bounds, np.double)
 
@@ -115,7 +115,7 @@ class DOFs(GSONable, Hashable):
         else:
             upper_bounds = np.asarray(upper_bounds, np.double)
 
-        assert (len(x) == len(free) == len(lower_bounds) == len(upper_bounds) \
+        assert (len(x) == len(free) == len(lower_bounds) == len(upper_bounds)
                 == len(names))
         self._x = x
         self._free = free
@@ -1289,7 +1289,6 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         Upper bounds of the free DOFs associated with the current
         Optimizable object and those of its ancestors
         """
-        opts = self.ancestors + [self]
         return np.concatenate([opt._dofs.free_upper_bounds for opt in self.unique_dof_lineage])
 
     @upper_bounds.setter
@@ -1544,7 +1543,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         """
 
         G = nx.DiGraph()
-        G.add_node(self.name) 
+        G.add_node(self.name)
 
         def traversal(root):
             for p in root.parents:
@@ -1827,4 +1826,3 @@ class OptimizableSum(Optimizable):
     def dJ(self):
         # Next line uses __add__ function for the Derivative class
         return sum(opt.dJ(partials=True) for opt in self.opts)
-

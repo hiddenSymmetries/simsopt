@@ -20,12 +20,12 @@ class StoppingCriterion {
 
 class ToroidalTransitStoppingCriterion : public StoppingCriterion {
     private:
-        int max_transits;
+        double max_transits;
         double phi_last;
         double phi_init;
         bool flux;
     public:
-        ToroidalTransitStoppingCriterion(int max_transits, bool flux) : max_transits(max_transits), flux(flux) {
+        ToroidalTransitStoppingCriterion(double max_transits, bool flux) : max_transits(max_transits), flux(flux) {
         };
         bool operator()(int iter, double t, double x, double y, double z) override {
             if (iter == 1) {
@@ -39,8 +39,8 @@ class ToroidalTransitStoppingCriterion : public StoppingCriterion {
               phi_init = phi;
             }
             phi_last = phi;
-            int ntransits = std::abs(std::floor((phi-phi_init)/(2*M_PI)));
-            return ntransits>=max_transits;
+            double ntransits = std::abs((phi - phi_init) / (2 * M_PI));
+            return ntransits >= max_transits;
         };
 };
 
@@ -61,6 +61,46 @@ class MinToroidalFluxStoppingCriterion : public StoppingCriterion{
         MinToroidalFluxStoppingCriterion(double min_s) : min_s(min_s) {};
         bool operator()(int iter, double t, double s, double theta, double zeta) override {
             return s<=min_s;
+        };
+};
+
+class MinZStoppingCriterion : public StoppingCriterion{
+    private:
+        double crit_z;
+    public:
+        MinZStoppingCriterion(double crit_z) : crit_z(crit_z) {};
+        bool operator()(int iter, double t, double x, double y, double z) override {
+            return z<=crit_z;
+        };
+};
+
+class MaxZStoppingCriterion : public StoppingCriterion{
+    private:
+        double crit_z;
+    public:
+        MaxZStoppingCriterion(double crit_z) : crit_z(crit_z) {};
+        bool operator()(int iter, double t, double x, double y, double z) override {
+            return z>=crit_z;
+        };
+};
+
+class MinRStoppingCriterion : public StoppingCriterion{
+    private:
+        double crit_r;
+    public:
+        MinRStoppingCriterion(double crit_r) : crit_r(crit_r) {};
+        bool operator()(int iter, double t, double x, double y, double z) override {
+            return std::sqrt(x*x+y*y)<=crit_r;            
+        };
+};
+
+class MaxRStoppingCriterion : public StoppingCriterion{
+    private:
+        double crit_r;
+    public:
+        MaxRStoppingCriterion(double crit_r) : crit_r(crit_r) {};
+        bool operator()(int iter, double t, double x, double y, double z) override {
+            return std::sqrt(x*x+y*y)>=crit_r;            
         };
 };
 

@@ -1,9 +1,6 @@
-{% set data = load_setup_py_data(setup_file='../setup.py', from_recipe_dir=True) %}
-{% set version = data.get('version') %}
-
 package:
   name: simsopt
-  version: {{ version }}
+  version: {{ GIT_DESCRIBE_TAG }}+{{ GIT_BUILD_STR }}
 
 source:
   path: ..
@@ -24,38 +21,38 @@ requirements:
     - libgomp      # [linux]
     - "setuptools_scm[toml]"
     - boost
+    - pybind11 <3.0
+    - scikit-build-core
 
   host:
     - pip
     - wheel
-    - setuptools
-    - numpy {{ numpy }}
-    - "setuptools_scm[toml]"
     - python {{ python }}
+    - scikit-build-core
+    - "setuptools_scm[toml]"
+    - numpy >=2.0
 
   run:
     - python
-    - numpy {{ numpy }}
+    - numpy
     - jax >=0.2.5
     - jaxlib >=0.1.56
     - scipy >=1.5.4
     - Deprecated >=1.2.10
-    - nptyping >=1.3.0
     - monty >=2021.6.10 
     - ruamel.yaml
     - sympy
     - f90nml
-    - randomgen
     - pyevtk
 
 about:
-  home: {{ data.get('url') }}
+  home: https://github.com/hiddenSymmetries/simsopt
   summary: simplified framework for stellarator optimization
-  license: LGPL
-  license_file: ["COPYING", "COPYING.LESSER"]
+  license: MIT
+  license_file: "LICENSE"
   description:
   doc_url: https://simsopt.readthedocs.io/
-  dev_url: {{ data.get('url') }}
+  dev_url: https://github.com/hiddenSymmetries/simsopt
 
 extra:
   recipe-maintainers:

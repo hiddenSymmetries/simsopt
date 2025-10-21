@@ -11,7 +11,15 @@ on:
       - v*
 
   # Do the builds on all pull requests (to test them)
-  pull_request: []
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # Use github.run_id on main branch
+  # Use github.event.pull_request.number on pull requests, so it's unique per pull request
+  # Use github.ref on other branches, so it's unique per branch
+  group: ${{ github.workflow }}-${{ github.ref == github.ref_protected && github.run_id || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-containers:
@@ -26,7 +34,7 @@ jobs:
     steps:
 
       - name: Check out code for the container build
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - uses: eWaterCycle/setup-singularity@v7
         with:
           singularity-version: 3.8.3

@@ -10,7 +10,6 @@ Rogerio Jorge, April 2023
 """
 import os
 import numpy as np
-from mpi4py import MPI
 from math import isnan
 from pathlib import Path
 from scipy.optimize import minimize
@@ -62,7 +61,7 @@ MSC_WEIGHT = 1e-3  # Weight for the mean squared curvature penalty in the object
 ARCLENGTH_WEIGHT = 1e-9  # Weight for the arclength variation penalty in the objective function
 ##########################################################################################
 ##########################################################################################
-directory = f'optimization_QH_finitebeta'
+directory = 'optimization_QH_finitebeta'
 vmec_verbose = False
 # Create output directories
 this_path = os.path.join(parent_path, directory)
@@ -122,7 +121,7 @@ J_LENGTH_PENALTY = LENGTH_CON_WEIGHT * sum([QuadraticPenalty(Jls[i], LENGTH_THRE
 JF = Jf + J_CC + J_LENGTH + J_LENGTH_PENALTY + J_CURVATURE + J_MSC
 
 ##########################################################################################
-proc0_print(f'  Starting optimization')
+proc0_print('  Starting optimization')
 ##########################################################################################
 # Initial stage 2 optimization
 ##########################################################################################
@@ -169,7 +168,7 @@ def fun_J(prob, coils_prob):
         try:
             vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC, filename=None)
             Jf.target = vc.B_external_normal
-        except ObjectiveFailure as e:
+        except ObjectiveFailure:
             pass
 
     bs.set_points(surf.gamma().reshape((-1, 3)))
@@ -249,10 +248,10 @@ free_coil_dofs = JF.dofs_free_status
 JF.fix_all()
 
 with MPIFiniteDifference(
-    opt.J, 
-    mpi, 
-    diff_method=diff_method, 
-    abs_step=finite_difference_abs_step, 
+    opt.J,
+    mpi,
+    diff_method=diff_method,
+    abs_step=finite_difference_abs_step,
     rel_step=finite_difference_rel_step,
 ) as prob_jacobian:
     if mpi.proc0_world:
@@ -265,7 +264,7 @@ if comm_world.rank == 0:
     pointData = {"B_N": BdotN_surf[:, :, None]}
     surf.to_vtk(os.path.join(coils_results_path, "surf_opt"), extra_data=pointData)
 bs.save(os.path.join(coils_results_path, "biot_savart_opt.json"))
-vmec.write_input(os.path.join(this_path, f'input.final'))
+vmec.write_input(os.path.join(this_path, 'input.final'))
 proc0_print(f"Aspect ratio after optimization: {vmec.aspect()}")
 proc0_print(f"Mean iota after optimization: {vmec.mean_iota()}")
 proc0_print(f"Quasisymmetry objective after optimization: {qs.total()}")

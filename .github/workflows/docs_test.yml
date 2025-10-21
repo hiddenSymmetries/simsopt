@@ -2,6 +2,13 @@ name: Docs_test
 
 on: [push, pull_request]
 
+concurrency:
+  # Use github.run_id on main branch
+  # Use github.event.pull_request.number on pull requests, so it's unique per pull request
+  # Use github.ref on other branches, so it's unique per branch
+  group: ${{ github.workflow }}-${{ github.ref == github.ref_protected && github.run_id || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   CI:
     runs-on: ubuntu-latest
@@ -9,13 +16,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.9]
+        python-version: ["3.11"]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -26,8 +33,11 @@ jobs:
       run: |
         pip install -r docs/requirements.txt
 
+    - name: Install doxygen
+      run: sudo apt install doxygen
+
     - name: Install simsopt package
-      run: pip install -v .
+      run: pip install -v .[docs]
 
     - name: Build docs
       run: |

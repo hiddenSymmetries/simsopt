@@ -1,5 +1,4 @@
 import unittest
-import logging
 import numpy as np
 from simsopt.objectives.functions import Identity, Rosenbrock, Failer, Affine
 from simsopt.objectives.constrained import ConstrainedProblem

@@ -7,17 +7,17 @@ from monty.tempfile import ScratchDir
 from scipy.io import netcdf_file
 try:
     import booz_xform
-except ImportError as e:
-    booz_xform = None 
+except ImportError:
+    booz_xform = None
 
 try:
     import vmec
-except ImportError as e:
-    vmec = None 
+except ImportError:
+    vmec = None
 
 try:
     from mpi4py import MPI
-except ImportError as e:
+except ImportError:
     MPI = None
 
 from simsopt._core.optimizable import Optimizable
@@ -92,11 +92,14 @@ class QuasisymmetryTests(unittest.TestCase):
         # bmnc:  [100 21 31 41 51 61 71 81 91 101 111 121 131 141 151 161 171 181]]
 
         # QA
-        s = 0; q = Quasisymmetry(b, s, 1, 0, "B00", "even")
+        s = 0
+        q = Quasisymmetry(b, s, 1, 0, "B00", "even")
         np.testing.assert_allclose(q.J(), [2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18])
-        s = 1; q = Quasisymmetry(b, s, 1, 0, "B00", "even")
+        s = 1
+        q = Quasisymmetry(b, s, 1, 0, "B00", "even")
         np.testing.assert_allclose(q.J(), [.21, .31, .41, .51, .71, .81, .91, 1.01, 1.21, 1.31, 1.41, 1.51, 1.71, 1.81])
-        s = (0, 1); q = Quasisymmetry(b, s, 1, 0, "B00", "even")
+        s = (0, 1)
+        q = Quasisymmetry(b, s, 1, 0, "B00", "even")
         np.testing.assert_allclose(q.J(), [2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18,
                                            .21, .31, .41, .51, .71, .81, .91, 1.01, 1.21, 1.31, 1.41, 1.51, 1.71, 1.81])
 
@@ -118,19 +121,19 @@ class QuasisymmetryTests(unittest.TestCase):
         b1 = Boozer(None)
         self.assertEqual(b1.s, set())
         # Try registering a single surface:
-        qs11 = Quasisymmetry(b1, 0.5, 1, 1)
+        Quasisymmetry(b1, 0.5, 1, 1)
         self.assertEqual(b1.s, {0.5})
         # Register another surface:
-        qs12 = Quasisymmetry(b1, 0.75, 1, 0)
+        Quasisymmetry(b1, 0.75, 1, 0)
         self.assertEqual(b1.s, {0.5, 0.75})
         # Register the same surface:
-        qs13 = Quasisymmetry(b1, 0.75, 1, 0)
+        Quasisymmetry(b1, 0.75, 1, 0)
         self.assertEqual(b1.s, {0.5, 0.75})
         # Register two surfaces:
-        qs14 = Quasisymmetry(b1, [0.1, 0.2], 1, 0)
+        Quasisymmetry(b1, [0.1, 0.2], 1, 0)
         self.assertEqual(b1.s, {0.1, 0.2, 0.5, 0.75})
         # Register two surfaces, with a copy:
-        qs15 = Quasisymmetry(b1, {0.2, 0.3}, 1, 0)
+        Quasisymmetry(b1, {0.2, 0.3}, 1, 0)
         self.assertEqual(b1.s, {0.1, 0.2, 0.3, 0.5, 0.75})
 
     @unittest.skipIf((booz_xform is None) or (vmec is None),
@@ -184,9 +187,8 @@ class QuasisymmetryTests(unittest.TestCase):
             # registered surface:
             # Register a QP target at s = 1:
             s = 0.9999
-            qs4 = Quasisymmetry(b, s, 0, 1)
+            Quasisymmetry(b, s, 0, 1).J()
             self.assertEqual(b.s, {0.5, s, 1.0})
-            residuals4 = qs4.J()
             np.testing.assert_allclose(b.bx.compute_surfs, [7, 15])
             self.assertEqual(b.s_to_index, {0.5: 0, 1.0: 1, s: 1})
 
@@ -206,8 +208,7 @@ class QuasisymmetryTests(unittest.TestCase):
     def test_boozer_li383(self):
         v = Vmec(os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc"))
         b = Boozer(v, mpol=32, ntor=16)
-        qs1 = Quasisymmetry(b, [0.0, 1.0], 1, 0)
-        residuals = qs1.J()
+        Quasisymmetry(b, [0.0, 1.0], 1, 0).J()
         np.testing.assert_allclose(b.bx.compute_surfs, [0, 14])
         self.assertEqual(b.s_to_index, {0.0: 0, 1.0: 1})
         bmnc = b.bx.bmnc_b

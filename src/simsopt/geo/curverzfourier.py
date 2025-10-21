@@ -1,7 +1,6 @@
 import numpy as np
 
 import simsoptpp as sopp
-from .._core.json import GSONDecoder
 from .curve import Curve
 
 __all__ = ['CurveRZFourier']
@@ -36,11 +35,19 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
             quadpoints = list(quadpoints)
         sopp.CurveRZFourier.__init__(self, quadpoints, order, nfp, stellsym)
         if dofs is None:
-            Curve.__init__(self, external_dof_setter=CurveRZFourier.set_dofs_impl,
-                           x0=self.get_dofs())
+            Curve.__init__(self, x0=self.get_dofs(), names=self._make_names(order, stellsym),
+                           external_dof_setter=CurveRZFourier.set_dofs_impl)
         else:
             Curve.__init__(self, external_dof_setter=CurveRZFourier.set_dofs_impl,
                            dofs=dofs)
+
+    def _make_names(self, order, stellsym):
+        r_names = [f'rc({i})' for i in range(0, order + 1)]
+        z_names = [f'zs({i})' for i in range(1, order + 1)]
+        if not stellsym:
+            r_names += [f'rs({i})' for i in range(1, order + 1)]
+            z_names = [f'zc({i})' for i in range(0, order + 1)] + z_names
+        return r_names + z_names
 
     def get_dofs(self):
         """

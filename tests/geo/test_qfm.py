@@ -5,7 +5,7 @@ from simsopt.geo.qfmsurface import QfmSurface
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
 from simsopt.geo.surfaceobjectives import Area, Volume
-from simsopt.configs.zoo import get_ncsx_data, get_hsx_data, get_w7x_data
+from simsopt.configs.zoo import get_data
 from .surface_test_helpers import get_surface, get_exact_surface
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
@@ -25,11 +25,8 @@ class QfmSurfaceTests(unittest.TestCase):
         """
 
         s = get_exact_surface()
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
-        bs_tf = BiotSavart(coils)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
+        bs_tf = BiotSavart(bs.coils)
 
         weight = 1.
         tf = ToroidalFlux(s, bs_tf)
@@ -49,17 +46,15 @@ class QfmSurfaceTests(unittest.TestCase):
         """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
-                for config in [get_ncsx_data, get_hsx_data, get_w7x_data]:
+                for config in ["ncsx", "hsx", "w7x"]:
                     with self.subTest(surfacetype=surfacetype, stellsym=stellsym, config=config):
                         self.subtest_qfm_objective_gradient(surfacetype, stellsym, config)
+                        
 
-    def subtest_qfm_objective_gradient(self, surfacetype, stellsym, get_data):
+    def subtest_qfm_objective_gradient(self, surfacetype, stellsym, config):
         np.random.seed(1)
-        curves, currents, ma = get_data()
-        nfp = ma.nfp
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
-        bs_tf = BiotSavart(coils)
+        base_curves, base_currents, ma, nfp, bs = get_data(config)
+        bs_tf = BiotSavart(bs.coils)
 
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
@@ -100,11 +95,8 @@ class QfmSurfaceTests(unittest.TestCase):
 
     def subtest_qfm_label_constraint_gradient(self, surfacetype, stellsym):
         np.random.seed(1)
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
-        bs_tf = BiotSavart(coils)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
+        bs_tf = BiotSavart(bs.coils)
 
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
@@ -140,17 +132,15 @@ class QfmSurfaceTests(unittest.TestCase):
         """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
-                for get_data in [get_ncsx_data, get_hsx_data]:
-                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, get_data=get_data):
-                        self.subtest_qfm_penalty_constraints_gradient(surfacetype, stellsym, get_data)
+                for config in ["ncsx", "hsx"]:
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, config=config):
+                        self.subtest_qfm_penalty_constraints_gradient(surfacetype, stellsym, config)
 
-    def subtest_qfm_penalty_constraints_gradient(self, surfacetype, stellsym, get_data):
+
+    def subtest_qfm_penalty_constraints_gradient(self, surfacetype, stellsym, config):
         np.random.seed(1)
-        curves, currents, ma = get_data()
-        nfp = ma.nfp
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
-        bs_tf = BiotSavart(coils)
+        base_curves, base_currents, ma, nfp, bs = get_data(config)
+        bs_tf = BiotSavart(bs.coils)
 
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
@@ -208,26 +198,24 @@ class QfmSurfaceTests(unittest.TestCase):
         both steps for fixed area. Check that volume is preserved.
         """
         np.random.seed(1)
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
 
         if stellsym:
-            coils = coils_via_symmetries(curves, currents, nfp, True)
+            coils = bs.coils
         else:
             # Create a stellarator that still has rotational symmetry but
             # doesn't have stellarator symmetry. We do this by first applying
             # stellarator symmetry, then breaking this slightly, and then
             # applying rotational symmetry
             from simsopt.geo.curve import RotatedCurve
-            curves_flipped = [RotatedCurve(c, 0, True) for c in curves]
-            currents_flipped = [-cur for cur in currents]
+            curves_flipped = [RotatedCurve(c, 0, True) for c in base_curves]
+            currents_flipped = [-cur for cur in base_currents]
             for c in curves_flipped:
                 c.rotmat += 0.001*np.random.uniform(low=-1., high=1.,
                                                     size=c.rotmat.shape)
                 c.rotmatT = c.rotmat.T.copy()
-            coils = coils_via_symmetries(curves + curves_flipped, currents + currents_flipped, nfp, False)
+            coils = coils_via_symmetries(base_curves + curves_flipped, base_currents + currents_flipped, nfp, False)
         bs = BiotSavart(coils)
-        bs_tf = BiotSavart(coils)
 
         phis = np.linspace(0, 1/nfp, 20, endpoint=False)
         thetas = np.linspace(0, 1, 20, endpoint=False)
@@ -319,27 +307,25 @@ class QfmSurfaceTests(unittest.TestCase):
         minimize_qfm_penalty_constraints_LBFGS separately. Test that InputError
         is raised if 'LBFGS' or 'SLSQP' is passed.
         """
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
 
         if stellsym:
-            coils = coils_via_symmetries(curves, currents, nfp, True)
+            coils = bs.coils
         else:
             # Create a stellarator that still has rotational symmetry but
             # doesn't have stellarator symmetry. We do this by first applying
             # stellarator symmetry, then breaking this slightly, and then
             # applying rotational symmetry
             from simsopt.geo.curve import RotatedCurve
-            curves_flipped = [RotatedCurve(c, 0, True) for c in curves]
-            currents_flipped = [-cur for cur in currents]
+            curves_flipped = [RotatedCurve(c, 0, True) for c in base_curves]
+            currents_flipped = [-cur for cur in base_currents]
             for c in curves_flipped:
                 c.rotmat += 0.001*np.random.uniform(low=-1., high=1.,
                                                     size=c.rotmat.shape)
                 c.rotmatT = c.rotmat.T.copy()
-            coils = coils_via_symmetries(curves + curves_flipped, currents + currents_flipped, nfp, False)
+            coils = coils_via_symmetries(base_curves + curves_flipped, base_currents + currents_flipped, nfp, False)
 
         bs = BiotSavart(coils)
-        bs_tf = BiotSavart(coils)
 
         phis = np.linspace(0, 1/nfp, 20, endpoint=False)
         thetas = np.linspace(0, 1, 20, endpoint=False)

@@ -4,7 +4,7 @@ from typing import Union
 import numpy as np
 from scipy.optimize import minimize_scalar
 from scipy.interpolate import interp1d
-#import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 import simsoptpp as sopp
 from .surface import Surface
@@ -231,7 +231,7 @@ class SurfaceHenneberg(sopp.Surface, Surface):
 
         n = self.num_dofs()
         if len(v) != n:
-            raise ValueError('Input vector should have ' + str(n) + \
+            raise ValueError('Input vector should have ' + str(n) +
                              ' elements but instead has ' + str(len(v)))
 
         index = 0
@@ -467,8 +467,8 @@ class SurfaceHenneberg(sopp.Surface, Surface):
             sign_flips = d_Z_rot_d_theta_circ[1:] * d_Z_rot_d_theta_circ[:-1]
             sign_flip_indices = [j for j in range(ntheta) if sign_flips[j] < 0]
             if len(sign_flip_indices) != 2:
-                logger.warning(f'A number of sign flips other than 2 detected for jphi={jphi}: sign_flip_indices={sign_flip_indices}.' \
-                               ' This may mean the surface cannot be represented in Henneberg form.' \
+                logger.warning(f'A number of sign flips other than 2 detected for jphi={jphi}: sign_flip_indices={sign_flip_indices}.'
+                               ' This may mean the surface cannot be represented in Henneberg form.'
                                f' sign_flips={sign_flips}')
 
             temp = (Z * cosaphi - R * sinaphi - Q) / b
@@ -682,7 +682,7 @@ class SurfaceHenneberg(sopp.Surface, Surface):
                 rho += self.get_rhomn(m, n) * cosangle
                 d_rho_d_phi -= self.get_rhomn(m, n) * sinangle * (nfp * n - alpha)
         R0H2D = np.kron(R0H, np.ones((ntheta, 1)))
-        Z0H2D = np.kron(Z0H, np.ones((ntheta, 1)))
+        # Z0H2D = np.kron(Z0H, np.ones((ntheta, 1)))
         b2D = np.kron(b, np.ones((ntheta, 1)))
         zeta = b2D * np.sin(theta - alpha * phi)
         d_R0H2D_d_phi = np.kron(d_R0H_d_phi, np.ones((ntheta, 1)))
@@ -693,7 +693,7 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         sinaphi = np.sin(alpha * phi)
         cosaphi = np.cos(alpha * phi)
         R = R0H2D + rho * cosaphi - zeta * sinaphi
-        Z = Z0H2D + rho * sinaphi + zeta * cosaphi
+        # Z = Z0H2D + rho * sinaphi + zeta * cosaphi
         d_R_d_phi = d_R0H2D_d_phi + d_rho_d_phi * cosaphi + rho * (-alpha * sinaphi) \
             - d_zeta_d_phi * sinaphi - zeta * (alpha * cosaphi)
         d_Z_d_phi = d_Z0H2D_d_phi + d_rho_d_phi * sinaphi + rho * (alpha * cosaphi) \

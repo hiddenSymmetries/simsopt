@@ -9,32 +9,34 @@ with respect to binormal curvature and torsional strain cost functions as define
     86 (2020), doi:10.1017/S0022377820001208.
     
 The orientation of the tape is defined with respect to the Frenet-Serret Frame
+
+Authors: Paul Huslage, Elizabeth Paul
 """
 
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.geo import CoilStrain, LPTorsionalStrainPenalty, LPBinormalCurvatureStrainPenalty
-from simsopt.geo import FrameRotation, FramedCurveFrenet, CurveXYZFourier
-from simsopt.configs import get_hsx_data
+from simsopt.geo import FrameRotation, FramedCurveCentroid, CurveXYZFourier
+from simsopt.configs import get_data
 from simsopt.util import in_github_actions
 
 MAXITER = 50 if in_github_actions else 400
 
-curves, currents, ma = get_hsx_data(Nt_coils=10, ppp=10)
-curve = curves[1]
+base_curves, base_currents, ma, nfp, bs= get_data("hsx", coil_order=10, points_per_period=10)
+curve = base_curves[1]
 scale_factor = 0.1
 curve_scaled = CurveXYZFourier(curve.quadpoints, curve.order)
 curve_scaled.x = curve.x * scale_factor  # scale coil to magnify the strains
 rot_order = 10  # order of the Fourier expression for the rotation of the filament pack
-width = 1e-3  # tape width
+width = 3e-3  # tape width
 
 curve_scaled.fix_all()  # fix curve DOFs -> only optimize winding angle
 rotation = FrameRotation(curve_scaled.quadpoints, rot_order)
 
-framedcurve = FramedCurveFrenet(curve_scaled, rotation)
+framedcurve = FramedCurveCentroid(curve_scaled, rotation)
 
-tor_threshold = 0.02  # Threshold for strain parameters
-cur_threshold = 0.02
+tor_threshold = 0.002  # Threshold for strain parameters
+cur_threshold = 0.002
 
 Jtor = LPTorsionalStrainPenalty(framedcurve, p=2, threshold=tor_threshold)
 Jbin = LPBinormalCurvatureStrainPenalty(

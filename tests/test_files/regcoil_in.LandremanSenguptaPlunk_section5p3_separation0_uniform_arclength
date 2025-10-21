@@ -1,0 +1,24 @@
+&regcoil_nml
+  nlambda = 1
+  lambda_min = 1e-15
+  lambda_max = 1e-14
+
+  ntheta_plasma = 128
+  ntheta_coil   = 128
+  nzeta_plasma  = 128
+  nzeta_coil    = 128
+  mpol_potential = 1
+  ntor_potential = 1
+
+
+  geometry_option_plasma = 2
+  wout_filename = '/Users/mattland/simsopt/simsopt/tests/test_files/wout_LandremanSenguptaPlunk_section5p3_reference.nc'
+
+  geometry_option_coil = 4
+  separation = 0.0
+
+  net_poloidal_current_Amperes = 1.0
+  net_toroidal_current_Amperes = 0.0
+
+  symmetry_option = 1
+/

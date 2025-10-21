@@ -21,8 +21,6 @@ For high-resolution and more realistic designs, please see the script files at
 https://github.com/akaptano/simsopt_permanent_magnet_advanced_scripts.git
 """
 
-import os
-import pickle
 import time
 from pathlib import Path
 
@@ -46,11 +44,11 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
-    nphi = 16  # >= 64 for high-resolution runs
-    nIter_max = 10000
+    nphi = 32  # >= 64 for high-resolution runs
+    nIter_max = 50000
     nBacktracking = 200
-    max_nMagnets = 1000
-    downsample = 1
+    max_nMagnets = 20000
+    downsample = 2
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -76,7 +74,7 @@ base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s, out_dir
 bs = BiotSavart(coils)
 
 # Calculate average, approximate on-axis B field strength
-calculate_on_axis_B(bs, s)
+calculate_modB_on_major_radius(bs, s)
 
 # Make higher resolution surface for plotting Bnormal
 qphi = 2 * nphi
@@ -84,14 +82,14 @@ quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 s_plot = SurfaceRZFourier.from_focus(
     surface_filename,
-    quadpoints_phi=quadpoints_phi, 
+    quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta
 )
 
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 
-# Set up correct Bnormal from TF coils 
+# Set up correct Bnormal from TF coils
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
@@ -125,7 +123,7 @@ if PM4Stell_orientations:
     pol_axes = np.concatenate((pol_axes, pol_axes_fc_ftri), axis=0)
     pol_type = np.concatenate((pol_type, pol_type_fc_ftri))
 
-ophi = np.arctan2(mag_data.oy, mag_data.ox) 
+ophi = np.arctan2(mag_data.oy, mag_data.ox)
 discretize_polarizations(mag_data, ophi, pol_axes, pol_type)
 pol_vectors = np.zeros((mag_data.nMagnets, len(pol_type), 3))
 pol_vectors[:, :, 0] = mag_data.pol_x
@@ -134,11 +132,11 @@ pol_vectors[:, :, 2] = mag_data.pol_z
 print('pol_vectors_shape = ', pol_vectors.shape)
 
 # pol_vectors is only used for the greedy algorithms with cartesian coordinate_flag
-# which is the default, so no need to specify it here. 
+# which is the default, so no need to specify it here.
 kwargs = {"pol_vectors": pol_vectors, "downsample": downsample, "dr": dr}
 
 # Finally, initialize the permanent magnet class
-pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs) 
+pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs)
 
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
@@ -182,7 +180,7 @@ pm_opt.m = np.ravel(m_history[:, :, min_ind])
 # Print effective permanent magnet volume
 B_max = 1.465
 mu0 = 4 * np.pi * 1e-7
-M_max = B_max / mu0 
+M_max = B_max / mu0
 dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
@@ -191,7 +189,7 @@ save_plots = False
 if save_plots:
     # Save the MSE history and history of the m vectors
     np.savetxt(
-        out_dir / f"mhistory_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}.txt", 
+        out_dir / f"mhistory_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}.txt",
         m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory'] + 1)
     )
     np.savetxt(
@@ -208,7 +206,7 @@ if save_plots:
         mk = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
         b_dipole = DipoleField(
             pm_opt.dipole_grid_xyz,
-            mk, 
+            mk,
             nfp=s.nfp,
             coordinate_flag=pm_opt.coordinate_flag,
             m_maxima=pm_opt.m_maxima,
@@ -239,7 +237,7 @@ print("% of dipoles that are nonzero = ", num_nonzero)
 ### limit where nphi ~ ntheta >= 64!
 b_dipole = DipoleField(
     pm_opt.dipole_grid_xyz,
-    pm_opt.m, 
+    pm_opt.m,
     nfp=s.nfp,
     coordinate_flag=pm_opt.coordinate_flag,
     m_maxima=pm_opt.m_maxima,
@@ -255,9 +253,8 @@ print('Total volume = ', total_volume)
 # Optionally make a QFM and pass it to VMEC
 # This is worthless unless plasma
 # surface is at least 64 x 64 resolution.
-vmec_flag = False 
+vmec_flag = False
 if vmec_flag:
-    from mpi4py import MPI
     from simsopt.mhd.vmec import Vmec
     from simsopt.util.mpi import MpiPartition
     mpi = MpiPartition(ngroups=1)
@@ -280,6 +277,75 @@ if vmec_flag:
     equil.boundary = qfm_surf
     equil.run()
 
+from simsopt.util import in_github_actions, proc0_print, comm_world
+from simsopt.field import (InterpolatedField, SurfaceClassifier, particles_to_vtk,
+                           compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data)
+sc_fieldline = SurfaceClassifier(s, h=0.03, p=2)
+sc_fieldline.to_vtk(out_dir + 'levelset', h=0.02)
+
+def trace_fieldlines(bfield, label):
+    t1 = time.time()
+    # Set initial grid of points for field line tracing, going from
+    # the magnetic axis to the surface. The actual plasma boundary is
+    # at R=1.300425, but the outermost initial point is a bit inward
+    # from that, R = 1.295, so the SurfaceClassifier does not think we
+    # have exited the surface
+    R0 = np.linspace(0.32, 0.36, nfieldlines)
+    Z0 = np.zeros(nfieldlines)
+    phis = [(i/4)*(2*np.pi/s.nfp) for i in range(4)]
+    fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
+        bfield, R0, Z0, tmax=tmax_fl, tol=1e-16, comm=comm_world,
+        phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
+    t2 = time.time()
+    proc0_print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
+    if comm_world is None or comm_world.rank == 0:
+        particles_to_vtk(fieldlines_tys, out_dir + f'fieldlines_{label}')
+        plot_poincare_data(fieldlines_phi_hits, phis, out_dir + f'poincare_fieldline_{label}.png', dpi=150)
+
+
+# uncomment this to run tracing using the biot savart field (very slow!)
+# trace_fieldlines(bs, 'bs')
+
+
+# Bounds for the interpolated magnetic field chosen so that the surface is
+# entirely contained in it
+nfieldlines = 30
+tmax_fl = 20000 
+degree = 2 
+n = 20
+rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
+zs = s.gamma()[:, :, 2]
+rrange = (np.min(rs), np.max(rs), n)
+phirange = (0, 2*np.pi/s.nfp, n*2)
+# exploit stellarator symmetry and only consider positive z values:
+zrange = (0, np.max(zs), n//2)
+
+
+def skip(rs, phis, zs):
+    # The RegularGrindInterpolant3D class allows us to specify a function that
+    # is used in order to figure out which cells to be skipped.  Internally,
+    # the class will evaluate this function on the nodes of the regular mesh,
+    # and if *all* of the eight corners are outside the domain, then the cell
+    # is skipped.  Since the surface may be curved in a way that for some
+    # cells, all mesh nodes are outside the surface, but the surface still
+    # intersects with a cell, we need to have a bit of buffer in the signed
+    # distance (essentially blowing up the surface a bit), to avoid ignoring
+    # cells that shouldn't be ignored
+    rphiz = np.asarray([rs, phis, zs]).T.copy()
+    dists = sc_fieldline.evaluate_rphiz(rphiz)
+    skip = list((dists < -0.05).flatten())
+    proc0_print("Skip", sum(skip), "cells out of", len(skip), flush=True)
+    return skip
+
+
+bsh = InterpolatedField(
+    bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True, skip=skip
+)
+
+bsh.set_points(s.gamma().reshape((-1, 3)))
+Bh = bsh.B()
+trace_fieldlines(bsh, 'bsh')
+
 t_end = time.time()
 print('Total time = ', t_end - t_start)
-# plt.show()
+plt.show()

@@ -4,6 +4,7 @@
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include "xtensor-python/pytensor.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
+typedef xt::pyarray<int> PyIntArray;
 typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 using std::shared_ptr;
 using std::vector;
@@ -11,12 +12,14 @@ using std::vector;
 namespace py = pybind11;
 #include "magneticfield.h"
 #include "magneticfield_biotsavart.h"
+#include "magneticfield_wireframe.h"
 #include "magneticfield_interpolated.h"
 #include "pymagneticfield.h"
 #include "regular_grid_interpolant_3d.h"
 #include "pycurrent.h"
 typedef MagneticField<xt::pytensor> PyMagneticField;
 typedef BiotSavart<xt::pytensor, PyArray> PyBiotSavart;
+typedef WireframeField<xt::pytensor, PyArray, PyIntArray> PyWireframeField;
 typedef InterpolatedField<xt::pytensor> PyInterpolatedField;
 
 
@@ -37,6 +40,8 @@ template <typename T, typename S> void register_common_field_methods(S &c) {
      .def("B_cyl", py::overload_cast<>(&T::B_cyl), "Return a `(npoints, 3)` array containing the magnetic field (in cylindrical coordinates) (the order is :math:`(B_r, B_\\phi, B_z)`).")
      .def("B_cyl_ref", py::overload_cast<>(&T::B_cyl_ref), "As `B_cyl`, but returns a reference to the array (this array should be read only).")
      .def("A", py::overload_cast<>(&T::A), "Returns a `(npoints, 3)` array containing the magnetic potential (in cartesian coordinates). Denoting the indices by `i` and `l`, the result contains  `A_l(x_i)`.")
+     .def("A_cyl", py::overload_cast<>(&T::A_cyl), "Return a `(npoints, 3)` array containing the magnetic potential (in cylindrical coordinates) (the order is :math:`(A_r, A_\\phi, A_z)`).")
+     .def("A_cyl_ref", py::overload_cast<>(&T::A_cyl_ref), "As `A_cyl`, but returns a reference to the array (this array should be read only).")
      .def("dA_by_dX", py::overload_cast<>(&T::dA_by_dX), "Returns a `(npoints, 3, 3)` array containing the gradient of the magnetic potential (in cartesian coordinates). Denoting the indices by `i`, `j` and `l`, the result contains  `\\partial_j A_l(x_i)`.")
      .def("d2A_by_dXdX", py::overload_cast<>(&T::d2A_by_dXdX), "Returns a `(npoints, 3, 3)` array containing the hessian of the magnetic potential (in cartesian coordinates). Denoting the indices by `i`, `j`, `k` and `l`, the result contains  `\\partial_k\\partial_j  A_l(x_i)`.")
      .def("A_ref", py::overload_cast<>(&T::A_ref), "As `A`, but returns a reference to the array (this array should be read only).")
@@ -115,4 +120,11 @@ void init_magneticfields(py::module_ &m){
         .def_readonly("rule", &PyInterpolatedField::rule);
     //register_common_field_methods<PyInterpolatedField>(ifield);
  
+    auto wf = py::class_<PyWireframeField, PyMagneticFieldTrampoline<PyWireframeField>, shared_ptr<PyWireframeField>, PyMagneticField>(m, "WireframeField")
+        .def(py::init<vector<PyArray>, PyIntArray&, vector<double>, PyArray&>())
+        .def("compute", &PyWireframeField::compute)
+        .def("fieldcache_get_or_create", &PyWireframeField::fieldcache_get_or_create)
+        .def("fieldcache_get_status", &PyWireframeField::fieldcache_get_status);
+    register_common_field_methods<PyWireframeField>(wf);
+
 }

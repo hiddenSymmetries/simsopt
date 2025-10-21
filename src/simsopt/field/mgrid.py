@@ -1,11 +1,10 @@
-import sys
 import numpy as np
 from scipy.io import netcdf_file
 
 __all__ = ["MGrid"]
 
 
-def _pad_string(string): 
+def _pad_string(string):
     '''
     Pads a string with 30 underscores (for writing coil group names).
     '''
@@ -22,34 +21,51 @@ def _unpack(binary_array):
 
 class MGrid():
 
-    '''
-    This class reads and writes mgrid files for use in free boundary VMEC and other codes.
+    """This class reads and writes mgrid (NetCDF) files for use in free boundary VMEC and other codes.
 
-    The mgrid representation consists of the cylindrical components of B on a
-    tensor product grid in cylindrical coordinates. Mgrid files are saved in
-    NetCDF format.
-
+    An mgrid file contains a grid in cylindrical coordinates ``(R, phi, z)`` upon which the
+    magnetic field is evaluated. The grid is defined by the number of
+    points in the radius (``nr``), the number of planes per field period 
+    in the toroidal angle (``nphi``), and the number of points in the z-coordinate (``nz``). 
+    A good rule here is to choose at least 4 times as many toroidal planes as the maximum toroidal 
+    mode number (ex. if ``ntor=6`` then you should have at least 24 toroidal planes). 
+    
+    The grid boundary is defined by the minimum and maximum values of the radial coordinate
+    (``rmin``, ``rmax``), the minimum and maximum values of the z-coordinate (``zmin``, ``zmax``).
+    Note the ``R`` and ``z`` grids include both end points while the ``phi`` dimension includes 
+    the start point and excludes the end point.
+    For free boundary calculations, the grid should be large enough to contain the entire plasma. 
+    For example, ``rmin`` should be smaller than ``min R(theta, phi)`` where ``R`` is the radial 
+    coordinate of the plasma. The same applies for the z-coordinate.
+    
+    The choice of the number or radial and vertical gridpoints is not as straightforward as choosing ``nphi``.
+    The VMEC code uses these grids to "deform" the plasma boundary in a iterative sense.
+    The complication revolves around the spectral condensation VMEC performs in the poloidal direction.
+    The code calculates the location of the poloidal grid points so that an optimized choice is made for 
+    the form of the plasma.
+    The user should decide how accurately the wish to know the plasma boundary.
+    If centimeter precision is required then the number of grid points chosen should provide at least this resolution.
+    Remember that the more datapoints, the slower VMEC will run.
+    
     Args:
-        nr: number of radial points
-        nz: number of axial points
-        nphi: number of azimuthal points, in one field period
-        nfp: number of field periods
-        rmin: minimum r grid point
-        rmax: maximum r grid point
-        zmin: minimum z grid point
-        zmax: maximum z grid point
-
-    Note the (r,z) dimensions include both end points. The (phi) dimension includes the start point and excludes the end point.
-    '''
+        nr (int): Number of grid points in the radial direction. Default is 51.
+        nz (int): Number of grid points in the z coordinate. Default is 51.
+        nphi (int): Number of planes in the toroidal angle. Default is 24.
+        nfp (int): Number of field periods. Default is 2.
+        rmin (float): Minimum value of major radius coordinate of the grid. Default is 0.2.
+        rmax (float): Maximum value of major radius coordinate of the grid. Default is 0.4.
+        zmin (float): Minimum value of z-coordinate of the grid. Default is -0.1.
+        zmax (float): Maximum value of z-coordinate of the grid. Default is 0.1.
+    """
 
     def __init__(self,  # fname='temp', #binary=False,
-                 nr: int = 51, 
-                 nz: int = 51, 
-                 nphi: int = 24, 
+                 nr: int = 51,
+                 nz: int = 51,
+                 nphi: int = 24,
                  nfp: int = 2,
-                 rmin: float = 0.20, 
-                 rmax: float = 0.40, 
-                 zmin: float = -0.10, 
+                 rmin: float = 0.20,
+                 rmax: float = 0.40,
+                 zmin: float = -0.10,
                  zmax: float = 0.10,
                  ):
 
@@ -66,36 +82,48 @@ class MGrid():
         self.n_ext_cur = 0
         self.coil_names = []
 
-        self.br_arr = [] 
-        self.bz_arr = [] 
-        self.bp_arr = [] 
+        self.br_arr = []
+        self.bz_arr = []
+        self.bp_arr = []
 
-    def add_field_cylindrical(self, br, bp, bz, name=None):
-        '''
-        This function saves the vector field B.
-        B is defined by cylindrical components.
+        self.ar_arr = []
+        self.az_arr = []
+        self.ap_arr = []
 
-        The Mgrid array assumes B is sampled linearly first in r, then z, and last phi.
-        Python arrays use the opposite convention such that B[0] gives a (r,z) square at const phi
-        and B[0,0] gives a radial line and const phi and z.
+    def add_field_cylindrical(self, br, bp, bz, ar=None, ap=None, az=None, name=None):
+        r'''
+        This function saves the magnetic field :math:`B`, and (optionally) the vector potential :math:`A`, to the ``MGrid`` object.
+        :math:`B` and :math:`A` are provided on a tensor product grid in cylindrical components :math:`(R, \phi, z)`.
 
-        It is assumed that the (br,bp,bz) inputs for this function is already in a
-        (nphi, nz, nr) shaped array.
-
-        This function may be called once for each coil group, 
-        to save sets of fields that can be scaled using EXTCUR in VMEC.
+        This function may be called once for each current group, to save groups of fields that can be scaled using the
+        ``vmec.indata.extcur`` array. Current groups emmulate groups of coils that are connected to distinct power supplies,
+        and allows for the current in each group can be controlled independently.
+        For example, W7-X has 7 current groups, one for each base coil (5 nonplanar coils + 2 planar coils), which
+        allows all planar coils to be turned on without changing the currents in the nonplanar coils.
+        In free-boundary vmec, the currents in each current group are scaled using the "extcur" array in the input file.
 
         Args:
-            br: the radial component of B field
-            bp: the azimuthal component of B field
-            bz: the axial component of B field
-            name: Name of the coil group
+            br (ndarray): (nphi, nz, nr) array of the radial component of B-field. 
+            bp (ndarray): (nphi, nz, nr) array of the azimuthal component of B-field.
+            bz (ndarray): (nphi, nz, nr) array of the z-component of B-field.
+            ar (ndarray, Optional): (nphi, nz, nr) array of the radial component of the vector potential A. Default is None.
+            ap (ndarray, Optional): (nphi, nz, nr) array of the azimuthal component of the vector potential A. Default is None.
+            az (ndarray, Optional): (nphi, nz, nr) array of the axial component of the vector potential A. Default is None.
+            name (str, Optional): Name of the coil group. Default is None.
         '''
 
         # appending B field to an array for all coil groups.
         self.br_arr.append(br)
         self.bz_arr.append(bz)
         self.bp_arr.append(bp)
+
+        # add potential
+        if ar is not None:
+            self.ar_arr.append(ar)
+        if ap is not None:
+            self.az_arr.append(az)
+        if az is not None:
+            self.ap_arr.append(ap)
 
         # add coil label
         if (name is None):
@@ -111,12 +139,8 @@ class MGrid():
         '''
         Export class data as a netCDF binary.
 
-        The field data is represented as a single "current group". For
-        free-boundary vmec, the "extcur" array should have a single nonzero
-        element, set to 1.0.
-
         Args:
-            filename: output file name
+            filename (str): output file name.
         '''
 
         with netcdf_file(filename, 'w', mmap=False) as ds:
@@ -152,16 +176,16 @@ class MGrid():
             var_raw_coil_cur = ds.createVariable('raw_coil_cur', 'f8', ('external_coils',))
 
             # assign values
-            var_ir.assignValue(self.nr)
-            var_jz.assignValue(self.nz)
-            var_kp.assignValue(self.nphi)
-            var_nfp.assignValue(self.nfp)
-            var_nextcur.assignValue(self.n_ext_cur)
+            var_ir.data[()] = self.nr
+            var_jz.data[()] = self.nz
+            var_kp.data[()] = self.nphi
+            var_nfp.data[()] = self.nfp
+            var_nextcur.data[()] = self.n_ext_cur
 
-            var_rmin.assignValue(self.rmin)
-            var_zmin.assignValue(self.zmin)
-            var_rmax.assignValue(self.rmax)
-            var_zmax.assignValue(self.zmax)
+            var_rmin.data[()] = self.rmin
+            var_zmin.data[()] = self.zmin
+            var_rmax.data[()] = self.rmax
+            var_zmax.data[()] = self.zmax
 
             var_mgrid_mode[:] = 'N'  # R - Raw, S - scaled, N - none (old version)
             var_raw_coil_cur[:] = np.ones(self.n_ext_cur)
@@ -178,13 +202,27 @@ class MGrid():
                 var_bz_001[:, :, :] = self.bz_arr[j]
                 var_bp_001[:, :, :] = self.bp_arr[j]
 
-    @classmethod 
+                #If the potential value is not an empty cell, then include it
+                if len(self.ar_arr) > 0:
+                    var_ar_001 = ds.createVariable('ar'+tag, 'f8', ('phi', 'zee', 'rad'))
+                    var_ar_001[:, :, :] = self.ar_arr[j]
+                if len(self.ap_arr) > 0:
+                    var_ap_001 = ds.createVariable('ap'+tag, 'f8', ('phi', 'zee', 'rad'))
+                    var_ap_001[:, :, :] = self.ap_arr[j]
+                if len(self.az_arr) > 0:
+                    var_az_001 = ds.createVariable('az'+tag, 'f8', ('phi', 'zee', 'rad'))
+                    var_az_001[:, :, :] = self.az_arr[j]
+
+    @classmethod
     def from_file(cls, filename):
         '''
-        This method reads MGrid data from file.
+        This method reads ``MGrid`` data from file.
 
         Args:
-            filename: mgrid netCDF input file name
+            filename (str): mgrid netCDF input file name.
+
+        Returns:
+            MGrid: ``MGrid`` object with data from file.
         '''
 
         with netcdf_file(filename, 'r', mmap=False) as f:
@@ -197,14 +235,17 @@ class MGrid():
             rmax = f.variables['rmax'].getValue()
             zmin = f.variables['zmin'].getValue()
             zmax = f.variables['zmax'].getValue()
-            kwargs = {"nr": nr, "nphi": nphi, "nz": nz, 
+            kwargs = {"nr": nr, "nphi": nphi, "nz": nz,
                       "rmin": rmin, "rmax": rmax, "zmin": zmin, "zmax": zmax}
 
             mgrid = cls(**kwargs)
             mgrid.filename = filename
             mgrid.n_ext_cur = int(f.variables['nextcur'].getValue())
             coil_data = f.variables['coil_group'][:]
-            mgrid.coil_names = [_unpack(coil_data[j]) for j in range(mgrid.n_ext_cur)] 
+            if len(f.variables['coil_group'].dimensions) == 2:
+                mgrid.coil_names = [_unpack(coil_data[j]) for j in range(mgrid.n_ext_cur)]
+            else:
+                mgrid.coil_names = [_unpack(coil_data)]
 
             mgrid.mode = f.variables['mgrid_mode'][:][0].decode()
             mgrid.raw_coil_current = np.array(f.variables['raw_coil_cur'][:])
@@ -212,6 +253,14 @@ class MGrid():
             br_arr = []
             bp_arr = []
             bz_arr = []
+
+            ar_arr = []
+            ap_arr = []
+            az_arr = []
+
+            ar = []
+            ap = []
+            az = []
 
             nextcur = mgrid.n_ext_cur
             for j in range(nextcur):
@@ -229,23 +278,66 @@ class MGrid():
                     bp_arr.append(bp)
                     bz_arr.append(bz)
 
+                #check for potential in mgrid file
+                if 'ar_'+idx in f.variables:
+                    ar = f.variables['ar_'+idx][:]
+                    if mgrid.mode == 'S':
+                        ar_arr.append(ar * mgrid.raw_coil_current[j])
+                    else:
+                        ar_arr.append(ar)
+
+                if 'ap_'+idx in f.variables:
+                    ap = f.variables['ap_'+idx][:]
+                    if mgrid.mode == 'S':
+                        ap_arr.append(ap * mgrid.raw_coil_current[j])
+                    else:
+                        ap_arr.append(ap)
+
+                if 'az_'+idx in f.variables:
+                    az = f.variables['az_'+idx][:]
+                    if mgrid.mode == 'S':
+                        az_arr.append(az * mgrid.raw_coil_current[j])
+                    else:
+                        az_arr.append(az)
+
             mgrid.br_arr = np.array(br_arr)
             mgrid.bp_arr = np.array(bp_arr)
             mgrid.bz_arr = np.array(bz_arr)
+
+            mgrid.ar_arr = np.array(ar_arr)
+            mgrid.ap_arr = np.array(ap_arr)
+            mgrid.az_arr = np.array(az_arr)
 
             # sum over coil groups
             if nextcur > 1:
                 br = np.sum(br_arr, axis=0)
                 bp = np.sum(bp_arr, axis=0)
                 bz = np.sum(bz_arr, axis=0)
+
+                if len(mgrid.ar_arr) > 0:
+                    ar = np.sum(ar_arr, axis=0)
+                if len(mgrid.ap_arr) > 0:
+                    ap = np.sum(ap_arr, axis=0)
+                if len(mgrid.az_arr) > 0:
+                    az = np.sum(az_arr, axis=0)
             else:
                 br = br_arr[0]
                 bp = bp_arr[0]
                 bz = bz_arr[0]
+                if len(mgrid.ar_arr) > 0:
+                    ar = ar_arr[0]
+                if len(mgrid.ap_arr) > 0:
+                    ap = ap_arr[0]
+                if len(mgrid.az_arr) > 0:
+                    az = az_arr[0]
 
             mgrid.br = br
             mgrid.bp = bp
             mgrid.bz = bz
+
+            mgrid.ar = ar
+            mgrid.ap = ap
+            mgrid.az = az
 
             mgrid.bvec = np.transpose([br, bp, bz])
 
@@ -254,14 +346,14 @@ class MGrid():
     def plot(self, jphi=0, bscale=0, show=True):
         '''
         Creates a plot of the mgrid data.
-        Shows the three components (br,bphi,bz) in a 2D plot for a fixed toroidal plane.
+        Shows the three components ``(br,bphi,bz)`` in a 2D plot for a fixed toroidal plane.
 
         Args: 
-            jphi: integer index for a toroidal slice.
-            bscale: sets saturation scale for colorbar. (This is useful, because
+            jphi (int): integer index for a toroidal slice. Default is 0.
+            bscale (float): sets saturation scale for colorbar. (This is useful, because
                 the mgrid domain often includes coil currents, and arbitrarily
-                close to the current source the Bfield values become singular.)
-            show: Whether to call matplotlib's ``show()`` function.
+                close to the current source the Bfield values become singular.). Default is 0.
+            show (bool): If True, will call matplotlib's ``show()`` function. Default is True.
 
         Returns:
             2-element tuple ``(fig, axs)`` with the Matplotlib figure and axes handles.
@@ -290,6 +382,7 @@ class MGrid():
         axs[1].set_title(f"nextcur = {self.n_ext_cur}, mode {self.mode}", fontsize=10)
         axs[2].set_title(f"nr,np,nz = ({self.nr},{self.nphi},{self.nz})", fontsize=10)
 
-        if (show): plt.show()
+        if (show):
+            plt.show()
 
         return fig, axs

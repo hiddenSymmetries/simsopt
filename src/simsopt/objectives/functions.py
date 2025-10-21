@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 This module provides a few minimal optimizable objects, each
@@ -245,48 +245,6 @@ class TestObject1(Optimizable):
         return self.parents
 
 
-class TestObject2(Optimizable):
-    """
-    Implements a graph based optimizable with two single degree of freedom
-    and has two parent optimizable nodes. Mainly used for testing.
-
-    The output method is named `f`. Call hook internally calls method `f`.
-
-    Args:
-        val1: First degree of freedom
-        val2: Second degree of freedom
-    """
-
-    def __init__(self, val1, val2):
-        x = [val1, val2]
-        names = ['val1', 'val2']
-        funcs = [TestObject1(0.0), Adder(2)]
-        super().__init__(x0=x, names=names, funcs_in=funcs)
-
-    def f(self):
-        x = self.local_full_x
-        v1 = x[0]
-        v2 = x[1]
-        t = self.parents[0]()
-        a = self.parents[1]()
-        return v1 + a * np.cos(v2 + t)
-
-    return_fn_map = {'f': f}
-
-    def dJ(self):
-        x = self.local_full_x
-        v1 = x[0]
-        v2 = x[1]
-        t = self.parents[0]()
-        a = self.parents[1]()
-        cosat = np.cos(v2 + t)
-        sinat = np.sin(v2 + t)
-        # Order of terms in the gradient: v1, v2, t, a
-        return np.concatenate((np.array([1.0, -a * sinat]),
-                               -a * sinat * self.parents[0].dJ(),
-                               cosat * self.parents[1].dJ()))
-
-
 class Affine(Optimizable):
     """
     Implements a random affine (i.e. linear plus constant)
@@ -343,7 +301,7 @@ class Failer(Optimizable):
         if self.nevals == self.fail_index:
             raise ObjectiveFailure("nevals == fail_index")
         else:
-            if self.nvals == 0: 
+            if self.nvals == 0:
                 # return scalar
                 return 1.0
             else:
@@ -374,4 +332,3 @@ class Beale(Optimizable):
         return np.array([1.5 - x + x * y,
                          2.25 - x + x * y * y,
                          2.625 - x + x * y * y * y])
-

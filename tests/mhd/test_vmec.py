@@ -11,10 +11,9 @@ except:
     MPI = None
 
 try:
-    import vmec
-    vmec_found = True
+    import vmec as vmec_mod
 except ImportError:
-    vmec_found = False
+    vmec_mod = None
 
 from simsopt._core.optimizable import make_optimizable
 from simsopt.objectives.least_squares import LeastSquaresProblem
@@ -153,13 +152,13 @@ class InitializedFromWout(unittest.TestCase):
         """
         filename = os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc')
         vmec = Vmec(filename)
-        iota = vmec.mean_iota()
+        _ = vmec.mean_iota()
         vmec.boundary.set_rc(1, 0, 2.0)
         with self.assertRaises(RuntimeError):
-            iota2 = vmec.mean_iota()
+            vmec.mean_iota()
 
 
-@unittest.skipIf((MPI is not None) and (vmec_found), "Interface to MPI and VMEC found")
+@unittest.skipIf((MPI is not None) and (vmec_mod is not None), "Interface to MPI and VMEC found")
 class VmecTestsWithoutMPIorvmec(unittest.TestCase):
     def test_runnable_raises(self):
         """
@@ -168,10 +167,10 @@ class VmecTestsWithoutMPIorvmec(unittest.TestCase):
         """
         from simsopt.mhd.vmec import Vmec
         with self.assertRaises(RuntimeError):
-            v = Vmec()
+            Vmec()
 
 
-@unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
+@unittest.skipIf((MPI is None) or (vmec_mod is None), "Valid Python interface to VMEC not found")
 class VmecTests(unittest.TestCase):
     def test_init_defaults(self):
         """
@@ -541,6 +540,24 @@ class VmecTests(unittest.TestCase):
                                        factor * (1 + 2 * s_test - 2.2 * s_test ** 2), rtol=1e-3)
             self.assertEqual(netcdf_to_str(vmec.wout.pcurr_type[:15]), 'cubic_spline_ip')
 
+            # Now we try a current profile setting the total current instead
+            # of its derivative. We do this by using "cubic_spline_i" instead
+            # of 'cubic_spline_ip'
+            vmec.indata.pcurr_type = 'cubic_spline_i'
+            current2.local_unfix_all()
+            current2.x = factor * (1.0 * s_spline - 0.4 * s_spline ** 2)
+            vmec.current_profile = current2
+            #vmec.recompute_bell()
+            vmec.run()
+            np.testing.assert_allclose(vmec.wout.ctor, factor * 0.6, rtol=1e-2)
+            output_jcurv = np.array([795774.715459479, 755985.979686504, 716197.243913528,
+                                     676408.508140556, 636619.772367582, 596831.036594607, 557042.300821634,
+                                     517253.565048661, 477464.829275686, 437676.09350271, 397887.357729738,
+                                     358098.621956765, 318309.886183791, 278521.150410821, 238732.414637841,
+                                     198943.678864868, 159154.943091895])
+            np.testing.assert_allclose(vmec.wout.jcurv, output_jcurv, rtol=1e-3)
+            self.assertEqual(netcdf_to_str(vmec.wout.pcurr_type[:15]), 'cubic_spline_i ')
+
     def test_iota_profile(self):
         """
         Set a prescribed iota profile, run vmec, and check that we got
@@ -574,7 +591,6 @@ class VmecTests(unittest.TestCase):
             # Now try a spline Profile with vmec using splines:
             vmec.indata.piota_type = 'cubic_spline'
             iota2.local_unfix_all()
-            newx = (2.2 - 0.7 * s_spline - 1.1 * s_spline ** 2)
             iota2.x = (2.2 - 0.7 * s_spline - 1.1 * s_spline ** 2)
             vmec.run()
             np.testing.assert_allclose(vmec.wout.iotas[1:], (2.2 - 0.7 * s - 1.1 * s * s))
@@ -668,6 +684,52 @@ class VmecTests(unittest.TestCase):
                 # Read in reference values and compare:
                 vmec3 = Vmec(outfilename)
                 np.testing.assert_allclose(rmnc, vmec3.wout.rmnc, atol=1e-10)
+
+    def test_data_transfer_during_optimization(self):
+        """
+        This test confirms that the non-stellarator-symmetric boundary components of a non-stellarator-symmetric configuration are modified during a simple optimization.
+        """
+        def find_latest_file():
+            import re
+            
+            pattern = r'wout_LandremanSenguptaPlunk_section5p3_000_(\d+)\.nc'
+            
+            max_number = -1
+            latest_file = None
+            
+            for filename in os.listdir('.'):
+                match = re.match(pattern, filename)
+                if match:
+                    number = int(match.group(1))
+                    if number > max_number:
+                        max_number = number
+                        latest_file = filename
+            
+            return latest_file
+        
+        input_filename = os.path.join(TEST_DIR, 'input.LandremanSenguptaPlunk_section5p3')
+        wout_filename = os.path.join(TEST_DIR, 'wout_LandremanSenguptaPlunk_section5p3_reference.nc')
+        with ScratchDir("."):
+            vmec = Vmec(input_filename)
+            surf = vmec.boundary
+            
+            prob = LeastSquaresProblem.from_tuples([
+                (vmec.aspect,       6, 1e0),
+                (vmec.iota_edge, -0.5, 1e0),
+            ])
+            
+            surf.fix_all()
+            surf.fixed_range(mmin=0, mmax=1, nmin=-1, nmax=1, fixed=False)
+            surf.fix("rc(0,0)")
+            surf.fix("zc(0,0)")
+            
+            least_squares_serial_solve(prob, grad=True, bounds=prob.bounds)
+    
+            newfile = find_latest_file()
+            vmec1 = Vmec(wout_filename)
+            vmec2 = Vmec(newfile)
+            assert not np.allclose(vmec1.wout.rmns[:, -1], vmec2.wout.rmns[:, -1], atol=1e-10)
+            assert not np.allclose(vmec1.wout.zmnc[:, -1], vmec2.wout.zmnc[:, -1], atol=1e-10)
 
     #def test_stellopt_scenarios_1DOF_circularCrossSection_varyR0_targetVolume(self):
         """

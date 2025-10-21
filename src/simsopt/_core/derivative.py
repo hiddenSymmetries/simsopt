@@ -173,22 +173,38 @@ class Derivative:
 
         Args:
             optim: An Optimizable object
+            as_derivative: if True return as a Derivative object. The keys
+                           of the returned Derivative dictionary can include `optim`, the ancestors of `optim`
+                           or Optimizables that share DOFs with ancestors of `optim`.  The values are numpy arrays
+                           corresponding to the derivatives with respect to all degrees of freedom, both free and fixed.
+                           If False, return as a numpy array.  The entries of the array correspond only to free
+                           DOFs, and fixed ones are removed out.
         """
         from .optimizable import Optimizable  # Import here to avoid circular import
         assert isinstance(optim, Optimizable)
         derivs = []
-        keys = []
-        for k in optim.unique_dof_lineage:
-            if np.any(k.dofs_free_status):
-                local_derivs = np.zeros(k.local_dof_size)
-                for opt in k.dofs.dep_opts():
-                    local_derivs += self.data[opt][opt.local_dofs_free_status]
-                    keys.append(opt)
-                derivs.append(local_derivs)
 
         if as_derivative:
+            keys = []
+
+            for k in optim.unique_dof_lineage:
+                for opt in k.dofs.dep_opts():
+                    # the next if-statament is there to avoid the dictionary from accumulating
+                    # empty values e.g. if there are no local DOFs to opt, then self.data[opt]
+                    # returns np.array([]).
+                    if opt.local_full_dof_size > 0:
+                        derivs.append(self.data[opt])
+                        keys.append(opt)
+
             return Derivative({k: d for k, d in zip(keys, derivs)})
+
         else:
+            for k in optim.unique_dof_lineage:
+                if np.any(k.dofs_free_status):
+                    local_derivs = np.zeros(k.local_dof_size)
+                    for opt in k.dofs.dep_opts():
+                        local_derivs += self.data[opt][opt.local_dofs_free_status]
+                    derivs.append(local_derivs)
             return np.concatenate(derivs)
 
     # https://stackoverflow.com/questions/11624955/avoiding-python-sum-default-start-arg-behavior

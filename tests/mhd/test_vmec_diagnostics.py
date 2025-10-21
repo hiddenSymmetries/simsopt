@@ -8,22 +8,20 @@ from monty.tempfile import ScratchDir
 from simsopt.mhd.vmec_diagnostics import QuasisymmetryRatioResidual, \
     B_cartesian, IotaTargetMetric, IotaWeighted, WellWeighted, \
     vmec_splines, vmec_compute_geometry, vmec_fieldlines
-from simsopt.objectives.least_squares import LeastSquaresProblem
 
 try:
     import matplotlib
-    matplotlib_found = True
 except:
-    matplotlib_found = False
+    matplotlib = None
 
 try:
     import vmec
-except ImportError as e:
+except ImportError:
     vmec = None
 
 try:
     from mpi4py import MPI
-except ImportError as e:
+except ImportError:
     MPI = None
 
 from simsopt.mhd.vmec import Vmec
@@ -192,7 +190,7 @@ class QuasisymmetryRatioResidualTests(unittest.TestCase):
             results2 = qs2.compute()
             residuals2 = qs2.residuals()
 
-            logger.info('Max difference in residuals after scaling vmec:' \
+            logger.info('Max difference in residuals after scaling vmec:'
                         + str(np.max(np.abs(residuals1 - residuals2))))
             np.testing.assert_allclose(residuals1, residuals2, rtol=1e-10, atol=1e-10)
             np.testing.assert_allclose(results1.total, results2.total, rtol=1e-10, atol=1e-10)
@@ -255,8 +253,6 @@ class BCartesianTests(unittest.TestCase):
                     theta, phi = np.meshgrid(theta1D, phi1D)
 
                     bmnc = 1.5 * vmec.wout.bmnc[:, -1] - 0.5 * vmec.wout.bmnc[:, -2]
-                    xm = vmec.wout.xm_nyq
-                    xn = vmec.wout.xn_nyq
                     angle = vmec.wout.xm_nyq[:, None, None] * theta[None, :, :] \
                         - vmec.wout.xn_nyq[:, None, None] * phi[None, :, :]
                     B = np.sum(bmnc[:, None, None] * np.cos(angle), axis=0)
@@ -275,7 +271,7 @@ class IotaTargetMetricTests(unittest.TestCase):
         with ScratchDir("."):
             vmec = Vmec(filename, ntheta=50, nphi=50)
 
-            target_function = lambda s: np.cos(s)
+            def target_function(s): return np.cos(s)
             iota_target_metric = IotaTargetMetric(vmec, target_function)
 
             metric1 = iota_target_metric.J()
@@ -295,7 +291,7 @@ class IotaTargetMetricTests(unittest.TestCase):
         with ScratchDir("."):
             vmec = Vmec(filename, ntheta=100, nphi=100)
 
-            target_function = lambda s: 0.68
+            def target_function(s): return 0.68
             epsilon = 1.e-4  # FD step size
             adjoint_epsilon = 1.e-2  # perturbation amplitude for adjoint solve
 
@@ -337,7 +333,7 @@ class IotaWeightedTests(unittest.TestCase):
             vmec.run()
             iota_center = vmec.wout.iotas[50]
             s_center = vmec.s_half_grid[50]
-            weight_function = lambda s: np.exp(-(s-s_center)**2/0.01**2)
+            def weight_function(s): return np.exp(-(s-s_center)**2/0.01**2)
             iota_weighted = IotaWeighted(vmec, weight_function)
 
             self.assertAlmostEqual(iota_weighted.J(), iota_center, places=2)
@@ -349,7 +345,7 @@ class IotaWeightedTests(unittest.TestCase):
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
 
-        weight_function = lambda s: s**2
+        def weight_function(s): return s**2
         epsilon = 1.e-4  # FD step size
         adjoint_epsilon = 5.e-2  # perturbation amplitude for adjoint solve
 
@@ -394,8 +390,8 @@ class WellWeightedTests(unittest.TestCase):
             vp_l = 1.5*vmec.wout.vp[1]-0.5*vmec.wout.vp[2]
             vp_r = 1.5*vmec.wout.vp[-1]-0.5*vmec.wout.vp[-2]
             well1 = (vp_l-vp_r)/(vp_l+vp_r)
-            weight1 = lambda s: np.exp(-s**2/0.01**2)
-            weight2 = lambda s: np.exp(-(1-s)**2/0.01**2)
+            def weight1(s): return np.exp(-s**2/0.01**2)
+            def weight2(s): return np.exp(-(1-s)**2/0.01**2)
 
             well_weighted = WellWeighted(vmec, weight1, weight2)
             well2 = well_weighted.J()
@@ -409,8 +405,8 @@ class WellWeightedTests(unittest.TestCase):
         epsilon = 1.e-2  # FD step size
         adjoint_epsilon = 1.e0  # perturbation amplitude for adjoint solve
 
-        weight1 = lambda s: np.exp(-s**2/0.5**2)
-        weight2 = lambda s: np.exp(-(1-s)**2/0.5**2)
+        def weight1(s): return np.exp(-s**2/0.5**2)
+        def weight2(s): return np.exp(-(1-s)**2/0.5**2)
 
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
         with ScratchDir("."):
@@ -464,9 +460,9 @@ class VmecComputeGeometryTests(unittest.TestCase):
         results1 = vmec_compute_geometry(splines, s, theta, phi)
         results2 = vmec_compute_geometry(vmec, np.array([s]), theta3d, phi3d)
 
-        variables = ["theta_pest", "grad_psi_dot_grad_psi", "B_cross_kappa_dot_grad_psi"]
-        for v in variables:
-            np.testing.assert_allclose(eval("results1." + v), eval("results2." + v))
+        np.testing.assert_allclose(results1.theta_pest, results2.theta_pest)
+        np.testing.assert_allclose(results1.grad_psi_dot_grad_psi, results2.grad_psi_dot_grad_psi)
+        np.testing.assert_allclose(results1.B_cross_kappa_dot_grad_psi, results2.B_cross_kappa_dot_grad_psi)
 
     def test_compare_to_desc(self):
         """
@@ -493,6 +489,142 @@ class VmecComputeGeometryTests(unittest.TestCase):
                                        [0.006650641, 0.0244553647, 0.0525678846, 0.0552814479, 0.0301276863]])
 
         np.testing.assert_allclose(simsopt_data.grad_psi_dot_grad_psi, desc_data, rtol=0.005, atol=0.0005)
+
+    def test_derivatives(self):
+        """
+        Compare some of the derivatives to finite differences.
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, "wout_LandremanPaul2021_QA_lowres.nc"))
+
+        ds = 0.01
+        s = [1.0 - ds, 1.0]
+        ntheta = 100
+        nphi = 102
+        theta = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
+        phi = np.linspace(0, 2 * np.pi / vmec.wout.nfp, nphi, endpoint=False)
+        dtheta = theta[1] - theta[0]
+        dphi = phi[1] - phi[0]
+
+        def d_d_theta(f):
+            return (np.roll(f, -1, axis=1) - np.roll(f, 1, axis=1)) / (2 * dtheta)
+
+        def d_d_phi(f):
+            return (np.roll(f, -1, axis=2) - np.roll(f, 1, axis=2)) / (2 * dphi)
+
+        def d2_d_theta2(f):
+            return (np.roll(f, -1, axis=1) - 2 * f + np.roll(f, 1, axis=1)) / (dtheta**2)
+
+        def d2_d_phi2(f):
+            return (np.roll(f, -1, axis=2) - 2 * f + np.roll(f, 1, axis=2)) / (dphi**2)
+
+        def d_d_s(f):
+            return (f[1, :, :] - f[0, :, :]) / ds
+
+        def s_mean(f):
+            # Average over the two surfaces
+            return 0.5 * (f[0, :, :] + f[1, :, :])
+
+        data = vmec_compute_geometry(vmec, s, theta, phi)
+
+        np.testing.assert_allclose(data.d_R_d_theta_vmec, d_d_theta(data.R), atol=3e-3)
+        np.testing.assert_allclose(data.d2_R_d_theta_vmec_d_phi, d_d_theta(d_d_phi(data.R)), atol=2e-3)
+        np.testing.assert_allclose(data.d2_Z_d_theta_vmec_d_phi, d_d_theta(d_d_phi(data.Z)), atol=2e-3)
+        np.testing.assert_allclose(data.d2_R_d_theta_vmec2, d2_d_theta2(data.R), atol=4e-4)
+        np.testing.assert_allclose(data.d2_Z_d_theta_vmec2, d2_d_theta2(data.Z), atol=3e-4)
+        np.testing.assert_allclose(data.d2_R_d_phi2, d2_d_phi2(data.R), atol=2e-3)
+        np.testing.assert_allclose(data.d2_Z_d_phi2, d2_d_phi2(data.Z), atol=2e-3)
+        np.testing.assert_allclose(s_mean(data.d2_R_d_s_d_phi), d_d_s(data.d_R_d_phi), atol=3e-6)
+        np.testing.assert_allclose(s_mean(data.d2_Z_d_s_d_phi), d_d_s(data.d_Z_d_phi), atol=2e-6)
+        np.testing.assert_allclose(s_mean(data.d2_R_d_s_d_theta_vmec), d_d_s(data.d_R_d_theta_vmec), atol=2e-6)
+        np.testing.assert_allclose(s_mean(data.d2_Z_d_s_d_theta_vmec), d_d_s(data.d_Z_d_theta_vmec), atol=2e-6)
+
+        np.testing.assert_allclose(data.d_B_sup_theta_vmec_d_theta_vmec, d_d_theta(data.B_sup_theta_vmec), atol=2e-2)
+        np.testing.assert_allclose(data.d_B_sup_theta_vmec_d_phi, d_d_phi(data.B_sup_theta_vmec), atol=4e-3)
+        np.testing.assert_allclose(data.d_B_sup_phi_d_theta_vmec, d_d_theta(data.B_sup_phi), atol=8e-3)
+        np.testing.assert_allclose(data.d_B_sup_phi_d_phi, d_d_phi(data.B_sup_phi), atol=8e-4)
+        np.testing.assert_allclose(s_mean(data.d_B_sup_phi_d_s), d_d_s(data.B_sup_phi), atol=6e-6)
+        np.testing.assert_allclose(s_mean(data.d_B_sup_theta_vmec_d_s), d_d_s(data.B_sup_theta_vmec), atol=4e-5)
+
+        if False:
+            # f_an = np.squeeze(data.d2_R_d_phi2)[1, :, :]
+            # f_fd = np.squeeze(d2_d_phi2(data.R))[1, :, :]
+            f_an = s_mean(data.d2_R_d_s_d_theta_vmec)
+            f_fd = d_d_s(data.d_R_d_theta_vmec)
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=(14, 7))
+            nrows = 1
+            ncols = 3
+            ncontours = 25
+
+            plt.subplot(nrows, ncols, 1)
+            plt.contour(phi, theta, f_an, ncontours)
+            plt.colorbar()
+            plt.title("analytic")
+
+            plt.subplot(nrows, ncols, 2)
+            plt.contour(phi, theta, f_fd, ncontours)
+            plt.colorbar()
+            plt.title("finite diff")
+
+            plt.subplot(nrows, ncols, 3)
+            plt.contour(phi, theta, f_an - f_fd, ncontours)
+            plt.colorbar()
+            plt.title("diff")
+
+            plt.tight_layout()
+            plt.show()
+
+    def test_L_grad_B_regression(self):
+        """
+        Compare L_{grad B} to an indepedent calculation in Matt Landreman's
+        Matlab code m20240601_01_gradBTensorComplexityMetricForVMEC.m
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, "wout_LandremanPaul2021_QA_lowres.nc"))
+
+        s = 1.0
+        ntheta = 9
+        nphi = 7
+        theta = np.linspace(0, 2 * np.pi, ntheta, endpoint=True)
+        phi = np.linspace(0, 2 * np.pi / vmec.wout.nfp, nphi, endpoint=True)
+
+        data = vmec_compute_geometry(vmec, s, theta, phi)
+
+        matlab_data = np.array([
+            [0.777048118791033, 0.850059335051267, 1.058251880937882, 1.238755906102585, 1.058251880937882, 0.850059335051267, 0.777048118791033],
+            [0.732357468770512, 0.887635027604753, 1.100038034467113, 1.149372447382607, 0.914652536061020, 0.732423846297739, 0.732357468770512],
+            [0.642772279126891, 0.810075234122540, 1.009506601358511, 1.036192879128092, 0.822941521630497, 0.638233465781766, 0.642772279126891],
+            [0.561114055795734, 0.718502389029629, 0.920071594222606, 0.997769685332234, 0.817986738735225, 0.595098001722719, 0.561114055795734],
+            [0.520891960189527, 0.633214068787356, 0.866980355399107, 0.967856711826989, 0.866980355399108, 0.633214068787355, 0.520891960189527],
+            [0.561114055795734, 0.595098001722719, 0.817986738735225, 0.997769685332234, 0.920071594222606, 0.718502389029630, 0.561114055795734],
+            [0.642772279126891, 0.638233465781766, 0.822941521630497, 1.036192879128092, 1.009506601358511, 0.810075234122540, 0.642772279126891],
+            [0.732357468770512, 0.732423846297739, 0.914652536061019, 1.149372447382608, 1.100038034467113, 0.887635027604753, 0.732357468770512],
+            [0.777048118791033, 0.850059335051268, 1.058251880937882, 1.238755906102585, 1.058251880937882, 0.850059335051267, 0.777048118791033],
+        ])
+
+        np.testing.assert_allclose(np.squeeze(data.L_grad_B), matlab_data, rtol=7e-3)
+
+        # Trace of the grad \vec{B} tensor is div(B), which should be 0.
+        div_B = data.grad_B__XX + data.grad_B__YY + data.grad_B__ZZ
+        np.testing.assert_allclose(div_B, 0, atol=4e-4)
+
+    def test_L_grad_B_axisymmetry(self):
+        """
+        For a purely toroidal magnetic field, L_{grad B} should equal the major radius.
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, "wout_purely_toroidal_field_reference.nc"))
+
+        s = 1.0
+        ntheta = 50
+        nphi = 4
+        theta = np.linspace(0, 2 * np.pi, ntheta, endpoint=True)
+        phi = np.linspace(0, 2 * np.pi / vmec.wout.nfp, nphi, endpoint=True)
+
+        data = vmec_compute_geometry(vmec, s, theta, phi)
+        np.testing.assert_allclose(data.L_grad_B, data.R, rtol=1e-5)
+
+        # Trace of the grad \vec{B} tensor is div(B), which should be 0.
+        div_B = data.grad_B__XX + data.grad_B__YY + data.grad_B__ZZ
+        np.testing.assert_allclose(div_B, 0, atol=3e-11)
 
 
 class VmecFieldlinesTests(unittest.TestCase):
@@ -710,7 +842,7 @@ class VmecFieldlinesTests(unittest.TestCase):
                                    fl.toroidal_flux_sign * (B0 / Aminor) * (-np.cos(theta) / R + phi * d_iota_d_r * eps * np.sin(theta)),
                                    atol=0.006)
 
-    @unittest.skipIf(not matplotlib_found, "Matplotlib python module not found")
+    @unittest.skipIf(matplotlib is None, "Matplotlib python module not found")
     def test_plot(self):
         """
         Test the plotting function of vmec_fieldlines()
@@ -718,13 +850,13 @@ class VmecFieldlinesTests(unittest.TestCase):
         vmec = Vmec(os.path.join(TEST_DIR, 'wout_W7-X_without_coil_ripple_beta0p05_d23p4_tm_reference.nc'))
 
         phi = np.linspace(-np.pi / 5, np.pi / 5, 7)
-        fl = vmec_fieldlines(vmec, s=1, alpha=0, phi1d=phi, plot=True, show=False)
+        vmec_fieldlines(vmec, s=1, alpha=0, phi1d=phi, plot=True, show=False)
 
         theta = np.linspace(-np.pi, np.pi, 100)
-        fl = vmec_fieldlines(vmec, s=0.5, alpha=np.pi, theta1d=theta, plot=True, show=False)
+        vmec_fieldlines(vmec, s=0.5, alpha=np.pi, theta1d=theta, plot=True, show=False)
 
         alpha = np.linspace(0, 2 * np.pi, 10, endpoint=False)
-        fl = vmec_fieldlines(vmec, s=[0.25, 0.5], alpha=alpha, phi1d=phi, plot=True, show=False)
+        vmec_fieldlines(vmec, s=[0.25, 0.5], alpha=alpha, phi1d=phi, plot=True, show=False)
 
 
 if __name__ == "__main__":

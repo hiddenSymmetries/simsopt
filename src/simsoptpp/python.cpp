@@ -25,8 +25,10 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "dommaschk.h"
 #include "integral_BdotN.h"
 #include "permanent_magnet_optimization.h"
+#include "wireframe_optimization.h"
 #include "reiman.h"
 #include "simdhelpers.h"
+#include "boozerresidual_py.h"
 
 namespace py = pybind11;
 
@@ -90,6 +92,14 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("GPMO_ArbVec_backtracking", &GPMO_ArbVec_backtracking, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("pol_vectors"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("backtracking") = 100, py::arg("dipole_grid_xyz"), py::arg("Nadjacent") = 7, py::arg("thresh_angle") = 3.1415926535897931, py::arg("max_nMagnets"), py::arg("x_init"));
     m.def("GPMO_baseline", &GPMO_baseline, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("single_direction") = -1);
 
+    // Greedy stellarator coil optimization (GSCO) solver
+    m.def("GSCO", &GSCO, py::arg("no_crossing"), py::arg("no_new_coils"), 
+          py::arg("match_current"), py::arg("A_obj"), py::arg("b_obj"), 
+          py::arg("current"), py::arg("max_current"), py::arg("max_loop_count"),
+          py::arg("loops"), py::arg("free_loops"), py::arg("segments"), 
+          py::arg("connections"), py::arg("lambda_P"), py::arg("nIter"), 
+          py::arg("x_init"), py::arg("cell_count_init"), py::arg("print_freq"));
+
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);
 
@@ -138,7 +148,11 @@ PYBIND11_MODULE(simsoptpp, m) {
             return res;
         });
 
-    m.def("matmult", [](PyArray& A, PyArray& B) {
+    m.def("boozer_residual", &boozer_residual);
+    m.def("boozer_residual_ds", &boozer_residual_ds);
+    m.def("boozer_residual_ds2", &boozer_residual_ds2);
+
+    m.def("matmult", [](PyArray& A, PyArray&B) {
             // Product of an lxm matrix with an mxn matrix, results in an l x n matrix
             int l = A.shape(0);
             int m = A.shape(1);

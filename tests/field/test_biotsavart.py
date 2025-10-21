@@ -33,33 +33,22 @@ class Testing(unittest.TestCase):
         assert np.allclose(B1, B2)
 
     def test_biotsavart_exponential_convergence(self):
-        coil = BiotSavart([Coil(get_curve(), Current(1e4))])
-        from time import time
-        # points = np.asarray(17 * [[-1.41513202e-03,  8.99999382e-01, -3.14473221e-04 ]])
+        BiotSavart([Coil(get_curve(), Current(1e4))])
         points = np.asarray(10 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
-        tic = time()
         btrue = BiotSavart([Coil(get_curve(1000), Current(1e4))]).set_points(points).B()
-        # print(btrue)
         bcoarse = BiotSavart([Coil(get_curve(10), Current(1e4))]).set_points(points).B()
         bfine = BiotSavart([Coil(get_curve(20), Current(1e4))]).set_points(points).B()
         assert np.linalg.norm(btrue-bfine) < 1e-4 * np.linalg.norm(bcoarse-bfine)
-        # print(time()-tic)
 
-        tic = time()
         dbtrue = BiotSavart([Coil(get_curve(1000), Current(1e4))]).set_points(points).dB_by_dX()
-        # print(dbtrue)
         dbcoarse = BiotSavart([Coil(get_curve(10), Current(1e4))]).set_points(points).dB_by_dX()
         dbfine = BiotSavart([Coil(get_curve(20), Current(1e4))]).set_points(points).dB_by_dX()
-        assert np.linalg.norm(btrue-bfine) < 1e-4 * np.linalg.norm(bcoarse-bfine)
-        # print(time()-tic)
+        assert np.linalg.norm(dbtrue-dbfine) < 1e-4 * np.linalg.norm(dbcoarse-dbfine)
 
-        tic = time()
         dbtrue = BiotSavart([Coil(get_curve(1000), Current(1e4))]).set_points(points).d2B_by_dXdX()
-        # print("dbtrue", dbtrue)
         dbcoarse = BiotSavart([Coil(get_curve(10), Current(1e4))]).set_points(points).d2B_by_dXdX()
         dbfine = BiotSavart([Coil(get_curve(20), Current(1e4))]).set_points(points).d2B_by_dXdX()
-        assert np.linalg.norm(btrue-bfine) < 1e-4 * np.linalg.norm(bcoarse-bfine)
-        # print(time()-tic)
+        assert np.linalg.norm(dbtrue-dbfine) < 1e-4 * np.linalg.norm(dbcoarse-dbfine)
 
     def test_dB_by_dcoilcoeff_reverse_taylortest(self):
         np.random.seed(1)
@@ -180,7 +169,7 @@ class Testing(unittest.TestCase):
         bs = BiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         bs.set_points(points)
-        dB_by_dX, d2B_by_dXdX = bs.dB_by_dX(), bs.d2B_by_dXdX()
+        d2B_by_dXdX = bs.d2B_by_dXdX()
         for d1 in range(3):
             for d2 in range(3):
                 second_deriv = d2B_by_dXdX[idx, d1, d2]
@@ -214,7 +203,7 @@ class Testing(unittest.TestCase):
         bs = BiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         bs.set_points(points)
-        B, dA_by_dX = bs.B(), bs.dA_by_dX() 
+        B, dA_by_dX = bs.B(), bs.dA_by_dX()
         curlA1 = dA_by_dX[:, 1, 2] - dA_by_dX[:, 2, 1]
         curlA2 = dA_by_dX[:, 2, 0] - dA_by_dX[:, 0, 2]
         curlA3 = dA_by_dX[:, 0, 1] - dA_by_dX[:, 1, 0]
@@ -255,7 +244,7 @@ class Testing(unittest.TestCase):
         bs = BiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         bs.set_points(points)
-        dA_by_dX, d2A_by_dXdX = bs.dA_by_dX(), bs.d2A_by_dXdX()
+        d2A_by_dXdX = bs.d2A_by_dXdX()
         for d1 in range(3):
             for d2 in range(3):
                 second_deriv = d2A_by_dXdX[idx, d1, d2]
@@ -371,6 +360,7 @@ class Testing(unittest.TestCase):
     def test_flux_through_disk(self):
         # this test makes sure that the toroidal flux through a disk (D)
         # given by \int_D B \cdot n dB = \int_{\partial D} A \cdot dl
+        np.random.seed(1)
 
         from scipy.spatial.transform import Rotation as R
         rot = R.from_euler('zyx', [21.234, 8.431, -4.86392], degrees=True).as_matrix()
@@ -392,9 +382,12 @@ class Testing(unittest.TestCase):
         # int_r int_theta B int r dr dtheta
         from scipy import integrate
         r = 0.15
-        fluxB = integrate.dblquad(f, 0, r, 0, 2*np.pi, epsabs=1e-15, epsrel=1e-15) 
+        fluxB = integrate.dblquad(f, 0, r, 0, 2*np.pi, epsabs=1e-15, epsrel=1e-15)
 
-        for num in range(20, 60):
+        # num range used to be (20, 60) but this fails for num <= 20-30 for certain
+        # random coil initializations since don't have enough quadrature points
+        # to integrate to numerical precision.
+        for num in range(40, 100):
             npoints = num
             angles = np.linspace(0, 2*np.pi, npoints, endpoint=False).reshape((-1, 1))
             t = np.concatenate((-np.sin(angles), np.cos(angles), np.zeros((angles.size, 1))), axis=1) @ rot.T
@@ -402,7 +395,6 @@ class Testing(unittest.TestCase):
             bs.set_points(pts)
             A = bs.A()
             fluxA = r*np.sum(A*t) * 2 * np.pi/npoints
-
             assert np.abs(fluxB[0]-fluxA)/fluxB[0] < 1e-14
 
     def test_biotsavart_vector_potential_coil_current_taylortest(self):
