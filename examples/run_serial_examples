@@ -33,3 +33,4 @@ set -ex
 ./3_Advanced/current_voxel_examples/current_voxels_QA.py
 ./3_Advanced/current_voxel_examples/current_voxels_QH.py
 ./3_Advanced/current_voxel_examples/current_voxels_tokamak_nosparsity.py
+./3_Advanced/current_voxel_examples/current_voxels_axisymmetric.py

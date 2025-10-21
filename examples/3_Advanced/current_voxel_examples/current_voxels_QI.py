@@ -5,13 +5,12 @@ outline in Kaptanoglu & Landreman 2023 in order
 to make finite-build coils with no multi-filament
 approximation. 
 
-The script should be run as:
-    mpirun -n 1 python current_voxels.py 
+The QI configuration is the two-field-period vacuum design from:
+https://zenodo.org/records/7220257
 
 """
 
 import os
-import logging
 from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
@@ -94,25 +93,32 @@ wv_grid = CurrentVoxelsGrid(
     sparse_constraint_matrix=True,
     coil_range=coil_range
 )
-wv_grid.rz_inner_surface.to_vtk(OUT_DIR + 'inner')
-wv_grid.rz_outer_surface.to_vtk(OUT_DIR + 'outer')
+wv_grid.inner_toroidal_surface.to_vtk(OUT_DIR + 'inner')
+wv_grid.outer_toroidal_surface.to_vtk(OUT_DIR + 'outer')
 wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
 t2 = time.time()
 print('WV grid initialization took time = ', t2 - t1, ' s')
 
-max_iter = 400
-rs_max_iter = 200  # 1
+max_iter = 40  # 400
+rs_max_iter = 20  # 200  # 1
 nu = 1e2
 kappa = 1e-7
 l0_threshold = 2e4
 l0_thresholds = np.linspace(l0_threshold, 50 * l0_threshold, 20, endpoint=True)
-alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, fBw, fKw, fIw, fRSw, fCw = relax_and_split_minres( 
-    #alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, fBw, fKw, fIw, fRSw, fCw = ras_minres( 
+return_dict = relax_and_split_minres( 
     wv_grid, kappa=kappa, nu=nu, max_iter=max_iter,
     l0_thresholds=l0_thresholds, 
     rs_max_iter=rs_max_iter,
     OUT_DIR=OUT_DIR,
 )
+alpha_opt = return_dict["alpha_opt"]
+fB = return_dict["fB"]
+fK = return_dict["fK"]
+fI = return_dict["fI"]
+fRS = return_dict["fRS"]
+f0 = return_dict["f0"]
+fC = return_dict["fC"]
+fminres = return_dict["fminres"]
 t2 = time.time()
 print('(Preconditioned) MINRES solve time = ', t2 - t1, ' s')    
 
@@ -124,7 +130,10 @@ print('fB after optimization = ', fB[-1])
 print('fB check = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ alpha_opt - wv_grid.b_rhs) ** 2 * s.nfp * 2)
 
 # set up CurrentVoxels Bfield
-bs_wv = CurrentVoxelsField(wv_grid.J, wv_grid.XYZ_integration, wv_grid.grid_scaling, wv_grid.coil_range, nfp=s.nfp, stellsym=s.stellsym)
+bs_wv = CurrentVoxelsField(
+    wv_grid.J, wv_grid.XYZ_integration, 
+    wv_grid.grid_scaling, 
+    nfp=s.nfp, stellsym=s.stellsym)
 t1 = time.time()
 bs_wv.set_points(s.gamma().reshape((-1, 3)))
 Bnormal_wv = np.sum(bs_wv.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
@@ -142,7 +151,6 @@ bs_wv.set_points(gamma)
 gammadash = curve.gammadash().reshape(-1, 3)
 Bnormal_Itarget_curve = np.sum(bs_wv.B() * gammadash, axis=-1)
 mu0 = 4 * np.pi * 1e-7
-# print(curve.quadpoints)
 Itarget_check = np.sum(Bnormal_Itarget_curve) / mu0 / len(curve.quadpoints)
 print('Itarget_check = ', Itarget_check)
 print('Itarget second check = ', wv_grid.Itarget_matrix @ alpha_opt / mu0) 
@@ -174,10 +182,12 @@ except AssertionError:
 t2 = time.time()
 print('Time to check all the flux constraints = ', t2 - t1, ' s')
 
-calculate_on_axis_B(bs_wv, s)
+calculate_modB_on_major_radius(bs_wv, s)
 
-trace_field = False
-if trace_field:
+post_processing = False
+if post_processing:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
     t1 = time.time()
     bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
     print('R0 = ', s.get_rc(0, 0), ', r0 = ', s.get_rc(1, 0))
