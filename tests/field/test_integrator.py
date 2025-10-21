@@ -3,6 +3,7 @@ import numpy as np
 
 from simsopt.field.magneticfieldclasses import ToroidalField
 from simsopt.field.tracing import Integrator, SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator
+from simsopt.field import BiotSavart, Coil, BoozerAnalytic
 from simsopt.configs.zoo import get_data, configurations
 
 
@@ -34,6 +35,29 @@ class TestIntegratorBase(unittest.TestCase):
         # Any nfp should pass periodicity for this field
         _ = Integrator(self.field, nfp=5, stellsym=True, R0=self.R0, test_symmetries=True)
 
+    def test_symmetry_checks_raise(self):
+        # stellarator field from get_data should raise if nfp or stellsym are wrong
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
+        with self.assertRaises(ValueError):
+            _ = Integrator(bs, nfp=nfp+1, stellsym=True, R0=ma.gamma()[0][0], test_symmetries=True)
+
+        # there is no non-stellarator-symmetric stellarator in the zoo, so we make one by only using the base coils)
+        non_ss_coils = [Coil(b_curv, b_curr) for b_curv, b_curr in zip(base_curves, base_currents)]
+        bs2 = BiotSavart(non_ss_coils)
+        with self.assertRaises(ValueError):
+            _ = Integrator(bs2, nfp=nfp, stellsym=False, R0=ma.gamma()[0][0], test_symmetries=True)
+
+    def test_incorrect_staticmethods(self):
+        # Test incorrect static method calls
+        with self.assertRaises(AttributeError):
+            Integrator._rphiz_to_xyz(1)  # Invalid input
+        with self.assertRaises(ValueError):
+            Integrator._rphiz_to_xyz(np.random.random(4))  # Invalid input
+
+        with self.assertRaises(AttributeError):
+            Integrator._xyz_to_rphiz(1)  # Invalid input
+        with self.assertRaises(ValueError):
+            Integrator._rphiz_to_xyz(np.random.random(2))  # Invalid input
 
 
 class TestSimsoptFieldlineIntegrator(unittest.TestCase):
@@ -144,6 +168,7 @@ class TestSimsoptFieldlineIntegrator(unittest.TestCase):
         self.assertTrue(np.allclose(pts_cyl[:, 2], 0.0, atol=1e-9))
 
 
+
 class TestScipyFieldlineIntegrator(unittest.TestCase):
     def setUp(self):
         self.R0 = 1.1
@@ -181,6 +206,15 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
         self.assertTrue(np.allclose(r_traj, RZ[0, 0], atol=1e-9))
         self.assertTrue(np.allclose(z_traj, RZ[0, 1], atol=1e-12))
 
+    def test_defaults(self):
+        # Defaults should be reasonable and work
+        intg2 = ScipyFieldlineIntegrator(self.field)
+        self.assertEqual(intg2._integrator_args['rtol'], 1e-7)
+        self.assertEqual(intg2._integrator_args['atol'], 1e-9)
+        self.assertEqual(intg2._integrator_type, 'RK45')
+        self.assertEqual(intg2.nfp, 1)
+        self.assertEqual(intg2.R0, 1.0)
+
     def test_integrate_in_phi_cyl_rotation(self):
         # Start at phi=pi/6, rotate by pi/3
         RZ0 = np.array([self.R0, 0.0])
@@ -206,6 +240,13 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
         self.assertTrue(np.allclose(end_RZ[1], 0.0, atol=1e-9))
         recon_xyz = Integrator._rphiz_to_xyz(np.array([end_RZ[0], phi_start + delta_phi, end_RZ[1]])[None, :])[0]
         self.assertTrue(np.allclose(recon_xyz, expected, atol=1e-6))
+
+    def compare_cart_cyl_rotation(self, start_RZ, start_phi, delta_phi):
+        # Helper to compare cylindrical and cartesian integration paths
+        end_xyz_from_cyl = self.intg.integrate_in_phi_cyl(start_RZ, start_phi, delta_phi, return_cartesian=True)
+        start_xyz = Integrator._rphiz_to_xyz(np.array([start_RZ[0], start_phi, start_RZ[1]]))[0]
+        end_xyz_from_cart = self.intg.integrate_in_phi_cart(start_xyz, delta_phi, return_cartesian=True)
+        self.assertTrue(np.allclose(end_xyz_from_cyl, end_xyz_from_cart, atol=1e-6))
 
     def test_integrate_cyl_planes_and_fieldlinepoints(self):
         # Evaluate at specific phis and via fieldlinepoints helpers
@@ -234,6 +275,7 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
         self.assertTrue(np.allclose(r2, self.R0, atol=1e-6))
         self.assertTrue(np.allclose(pts2[:, 2], 0.0, atol=1e-9))
 
+
     def test_integrate_3d_fieldlinepoints_cart(self):
         # Integrate 3D arc length: quarter circle
         start_xyz = np.array([self.R0, 0.0, 0.0])
@@ -249,6 +291,37 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
         r = np.sqrt(pts[:, 0]**2 + pts[:, 1]**2)
         self.assertTrue(np.allclose(r, self.R0, atol=1e-6))
         self.assertTrue(np.allclose(pts[:, 2], 0.0, atol=1e-9))
+
+    def test_lost_poincare(self):
+        # integration should fail if toroidal field returns nans. Overload B_cyl to simulate this.
+        R0 = 1.0
+        B0 = 1.0
+        field = ToroidalField(R0, B0)
+        b_hidden = field.B_cyl
+        global global_counter
+        global_counter = 0
+        def failing_field():
+            global global_counter
+            if global_counter < 100:
+                global_counter += 1
+                return b_hidden()
+            else:
+                return np.array([np.nan, np.nan, np.nan])
+        field.B_cyl = failing_field
+        intg = ScipyFieldlineIntegrator(field, nfp=1) #, integrator_args={'max_step':1e3})
+        RZ = np.array([[R0 + 0.05, 0.0], [R0 + 0.10, 0.0]])
+        phis = np.linspace(0, 2*np.pi, 8, endpoint=False)
+        res_phi_hits = intg.compute_poincare_hits(RZ, n_transits=35, phis=phis, phi0=0.0)
+        # the second integration failed and should have -1 as first index, indicating failure
+        self.assertEqual(res_phi_hits[-1][-1, 1], -1)
+        
+        start_RZ = np.array([self.R0 + 0.05, 0.0])
+        global_counter = 90
+        endpoint_RZ = intg.integrate_in_phi_cyl(start_RZ, 0.0, 2*np.pi, return_cartesian=False)
+        #should be nans
+        self.assertTrue(np.isnan(endpoint_RZ).all())
+
+        
 
 
 class TestIntegratorInterpolation(unittest.TestCase):
@@ -269,6 +342,10 @@ class TestIntegratorInterpolation(unittest.TestCase):
         # Recompute should succeed and keep an InterpolatedField
         base.recompute_bell()
         self.assertIsInstance(base.field, InterpolatedField)
+
+        # test initialization with an InterpolatedField
+        integrator2 = Integrator(base.field, nfp=1, stellsym=True, R0=R0, test_symmetries=True)
+        self.assertIsInstance(integrator2.field, InterpolatedField)
 
     def test_interpolate_twice_raises(self):
         R0 = 1.1

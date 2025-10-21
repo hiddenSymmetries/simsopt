@@ -1096,9 +1096,21 @@ class SimsoptFieldlineIntegrator(Integrator):
         \frac{d\mathbf{x}(t)}{dt} = \mathbf{B}(\mathbf{x})
     where :math:`\mathbf{x}=(x,y,z)` are the cartesian coordinates.
     MPI parallelization is supported by passing an MPI communicator. 
+
+    Args:
+        field: the magnetic field to be used for the integration (BoozerMagneticfield is not supported yet)
+        comm: MPI communicator to parallelize over
+        nfp: number of field periods
+        stellsym: if True, the field is assumed to be stellarator symmetric
+        R0: major radius of the device. Used for testing symmetries of the field
+        test_symmetries: (bool): if True, test if the values of nfp and stellsym
+            are consistent with the field. If False, no test is performed.
+        stopping_criteria: list of stopping criteria to be used during integration
+        tol: tolerance for the adaptive ODE solver
+        tmax: maximum time to integrate each field line
     """
-    
-    def __init__(self, field, comm=None, nfp=None, stellsym=False, R0=None, test_symmetries=True, stopping_criteria=[], tol=1e-9, tmax=1e4):
+
+    def __init__(self, field: MagneticField, comm=None, nfp=None, stellsym=False, R0=None, test_symmetries=True, stopping_criteria=[], tol=1e-9, tmax=1e4):
         self.tol = tol
         self.stopping_criteria = stopping_criteria
         self.tmax = tmax
@@ -1120,8 +1132,7 @@ class SimsoptFieldlineIntegrator(Integrator):
                      `phis[int(idx)]` was hit. If `idx<0`, then one of the stopping criteria
                      was hit, which is specified in the `stopping_criteria` argument.
                   """
-        # TODO: Add self.stopping_criteria
-        stopping_criteria = [ToroidalTransitStoppingCriterion(n_transits, isinstance(self.field, BoozerMagneticField)), ]
+        stopping_criteria = self.stopping_criteria + [ToroidalTransitStoppingCriterion(n_transits, False),]
         return compute_fieldlines(
             self.field, start_points_RZ[:, 0], start_points_RZ[:, 1], phi0=phi0, tmax=self.tmax, tol=self.tol,
             phis=phis, stopping_criteria=stopping_criteria, comm=self.comm)
@@ -1137,10 +1148,6 @@ class SimsoptFieldlineIntegrator(Integrator):
         """
         start_phi = self._xyz_to_rphiz(start_xyz)[0, 1]
         phi_end = start_phi + delta_phi
-        if isinstance(self.field, BoozerMagneticField):  # can InterpolatedField also be a flux field?
-            flux = True
-        else:
-            flux = False
         self.field.set_points(start_xyz[None, :])
         # test direction of the field and switch if necessary, normalize to field strength at start
         Bstart = self.field.B_cyl()[0]
@@ -1155,7 +1162,7 @@ class SimsoptFieldlineIntegrator(Integrator):
             tmax=self.tmax, 
             tol=self.tol, 
             phis=[phi_end,],
-            stopping_criteria=[ToroidalTransitStoppingCriterion(1.0, flux),]
+            stopping_criteria=[ToroidalTransitStoppingCriterion(1.0, False),]
             )
         xyz = np.array(res_phi_hits[-2][2:])  # second to last hit is the phi_end hit
         if return_cartesian:  # return [x,y,z] array
@@ -1191,10 +1198,6 @@ class SimsoptFieldlineIntegrator(Integrator):
             delta_phi: ending phi coordinate (default 0)
             return_cartesian: if True, return the points in cartesian coordinates, otherwise return Cylindrical coordinates (default False). 
         """
-        if isinstance(self.field, BoozerMagneticField):  # can InterpolatedField also be a flux field?
-            flux = True
-        else:
-            flux = False
         self.field.set_points(np.atleast_2d(start_xyz))
         # test direction of the field and switch if necessary, normalize to field strength at start
         Bstart = self.field.B_cyl()[0]
@@ -1209,7 +1212,7 @@ class SimsoptFieldlineIntegrator(Integrator):
             tmax=self.tmax, 
             tol=self.tol, 
             phis=[0,], 
-            stopping_criteria=[ToroidalTransitStoppingCriterion(n_transits, flux),])
+            stopping_criteria=[ToroidalTransitStoppingCriterion(n_transits, False),])
         points_cart = np.array(res_tys)[:, 1:]
         if return_cartesian:
             return points_cart
@@ -1298,8 +1301,8 @@ class ScipyFieldlineIntegrator(Integrator):
             xyz_values = self._rphiz_to_xyz(rphiz_values)
             plane_idx = np.array(range(len(all_phis))) % len(phis)
             res_phi_hits_line = np.column_stack((phis_values, 
-                                         plane_idx, 
-                                         xyz_values))
+                                         plane_idx[:len(phis_values)], 
+                                         xyz_values[:len(phis_values), :]))
             if integration_solution.status == -1 or integration_solution.status == 1:  # integration failed
                 res_phi_hits_line[-1, 1] = -1
             res_phi_hits.append(res_phi_hits_line)
@@ -1374,7 +1377,7 @@ class ScipyFieldlineIntegrator(Integrator):
         """
         sol = solve_ivp(self.integration_fn_cyl, [start_phi, start_phi + delta_phi], start_RZ, events=self.event_function, method=self._integrator_type, rtol=self._integrator_args['rtol'], atol=self._integrator_args['atol'])
         if not sol.success:
-            return np.array(np.nan, np.nan)
+            return np.array([np.nan, np.nan])
         if return_cartesian:
             rphiz = np.array([sol.y[0, -1], start_phi + delta_phi, sol.y[1, -1]])
             return self._rphiz_to_xyz(rphiz)[-1, :]
