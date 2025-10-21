@@ -1,7 +1,4 @@
 import numpy as np
-from simsopt.geo import Surface
-from simsopt.solve.current_voxels_optimization import compute_J
-from simsopt.util.permanent_magnet_helper_functions import make_curve_at_theta0 
 from pyevtk.hl import pointsToVTK, unstructuredGridToVTK
 from pyevtk.vtk import VtkVoxel
 
@@ -140,6 +137,7 @@ class CurrentVoxelsGrid:
         ny: Number of Y points in each individual voxel (for integrating Biot Savart). Defaults to 6. 
         nz: Number of Z points in each individual voxel (for integrating Biot Savart). Defaults to 6. 
     """
+    from simsopt.geo import Surface
 
     def __init__(
         self, plasma_boundary: Surface,
@@ -147,6 +145,7 @@ class CurrentVoxelsGrid:
         outer_toroidal_surface: Surface,
         **kwargs,
     ):
+        from ..util import make_curve_at_theta0 
         self.plasma_boundary = plasma_boundary.to_RZFourier()
         self.inner_toroidal_surface = inner_toroidal_surface.to_RZFourier()
         self.outer_toroidal_surface = outer_toroidal_surface.to_RZFourier()
@@ -647,6 +646,7 @@ class CurrentVoxelsGrid:
         related matrices we need. Calculates the hardest part of this problem -- 
         getting the constraint matrix correct with the symmetries.
         """
+        from ..solve import compute_J
 
         # Compute Bnormal factor of the optimization problem
         points = contig(self.plasma_boundary.gamma().reshape(-1, 3))

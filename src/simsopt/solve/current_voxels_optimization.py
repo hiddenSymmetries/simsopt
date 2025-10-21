@@ -4,7 +4,7 @@ from scipy.sparse import spdiags
 from scipy.sparse.linalg import LinearOperator, splu, minres
 from functools import partial
 
-__all__ = ['relax_and_split_minres']
+__all__ = ['relax_and_split_minres', 'compute_J']
 
 def compute_J(current_voxels, alphas, ws):
     """
