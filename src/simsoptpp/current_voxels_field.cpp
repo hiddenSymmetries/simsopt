@@ -603,7 +603,7 @@ Array current_voxels_field_dB(Array& points, Array& integration_points, Array& J
                 double Jcrossr_x = Jy * rvecz - Jz * rvecy;
 		double Jcrossr_y = Jz * rvecx - Jx * rvecz;
 		double Jcrossr_z = Jx * rvecy - Jy * rvecx;
-                dB_i1.x += -3 * Jcrossr_x * rvecx * rvec_inv3
+                dB_i1.x += -3 * Jcrossr_x * rvecx * rvec_inv3;
                 dB_i1.y += -Jz * rvec_inv3 - 3 * Jcrossr_x * rvecy * rvec_inv5;
                 dB_i1.z += Jy * rvec_inv3 - 3 * Jcrossr_x * rvecz * rvec_inv5;
                 dB_i2.x += Jz * rvec_inv3 - 3 * Jcrossr_y * rvecx * rvec_inv5;

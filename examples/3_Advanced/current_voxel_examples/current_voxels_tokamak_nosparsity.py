@@ -1,12 +1,18 @@
 #!/usr/bin/env python
 r"""
 This example uses the current voxels method 
-outline in Kaptanoglu & Landreman 2023 in order
-to make finite-build coils with no multi-filament
-approximation. 
+outline in Kaptanoglu, Langlois & Landreman 2024 in order
+to make finite-build coils with the voxels method:
+
+Kaptanoglu, A. A., Langlois, G. P., & Landreman, M. (2024). 
+Topology optimization for inverse magnetostatics as sparse regression: 
+Application to electromagnetic coils for stellarators. 
+Computer Methods in Applied Mechanics and Engineering, 418, 116504.
 
 The script should be run as:
-    mpirun -n 1 python current_voxels.py 
+    mpirun -n 1 python current_voxels_tokamak_nosparsity.py
+or
+    python current_voxels_tokamak_nosparsity.py
 
 """
 

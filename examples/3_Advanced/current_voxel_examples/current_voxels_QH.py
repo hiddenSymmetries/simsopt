@@ -1,17 +1,21 @@
 #!/usr/bin/env python
 r"""
 This example uses the winding volume method 
-outline in Kaptanoglu & Landreman 2023 in order
-to make finite-build coils with no multi-filament
-approximation. 
+outline in Kaptanoglu, Langlois & Landreman 2024 in order
+to make finite-build coils with the voxels method:
+
+Kaptanoglu, A. A., Langlois, G. P., & Landreman, M. (2024). 
+Topology optimization for inverse magnetostatics as sparse regression: 
+Application to electromagnetic coils for stellarators. 
+Computer Methods in Applied Mechanics and Engineering, 418, 116504.
 
 The script should be run as:
-    mpirun -n 1 python current_voxels.py 
-
+    mpirun -n 1 python current_voxels_QH.py
+or
+    python current_voxels_QH.py
 """
 
 import os
-import logging
 from pathlib import Path
 from matplotlib import pyplot as plt
 import numpy as np
@@ -51,8 +55,6 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 OUT_DIR = 'current_voxels_QH/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
-# No external coils
-Bnormal = np.zeros((nphi, ntheta))
 t2 = time.time()
 print('First setup took time = ', t2 - t1, ' s')
 
@@ -93,20 +95,10 @@ Ny = Nx
 Nz = Nx 
 # Finally, initialize the winding volume 
 t1 = time.time()
+kwargs = {}
+kwargs = {"Nx": Nx, "Ny": Nx, "Nz": Nx, "Itarget_curve": curve, "Itarget": Itarget}
 wv_grid = CurrentVoxelsGrid(
-    s, Itarget_curve=curve, Itarget=Itarget, 
-    plasma_offset=poff,
-    coil_offset=coff, 
-    inner_toroidal_surface=s_in,
-    outer_toroidal_surface=s_out,
-    Nx=Nx, Ny=Ny, Nz=Nz, 
-    Bn=Bnormal,
-    Bn_Itarget=np.zeros(curve.gammadash().reshape(-1, 3).shape[0]),
-    filename=surface_filename,
-    surface_flag='vmec',
-    OUT_DIR=OUT_DIR,
-    nx=nx, ny=nx, nz=nx,
-    sparse_constraint_matrix=True,
+    s, inner_toroidal_surface=s_in, outer_toroidal_surface=s_out, **kwargs
 )
 wv_grid.inner_toroidal_surface.to_vtk(OUT_DIR + 'inner')
 wv_grid.outer_toroidal_surface.to_vtk(OUT_DIR + 'outer')
@@ -162,12 +154,12 @@ Bnormal_wv = np.sum(bs_wv.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=
 Bnormal_wv_sparse = np.sum(bs_wv_sparse.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 normN = np.linalg.norm(s.normal().reshape(-1, 3), axis=-1)
 contig = np.ascontiguousarray
-print('fB direct = ', np.sum(normN * np.ravel(Bnormal_wv + Bnormal) ** 2) * 0.5 / (nphi * ntheta) * s.nfp * 2)
-print('fB direct (sparse) = ', np.sum(normN * np.ravel(Bnormal_wv_sparse + Bnormal) ** 2) * 0.5 / (nphi * ntheta) * s.nfp * 2)
+print('fB direct = ', np.sum(normN * np.ravel(Bnormal_wv) ** 2) * 0.5 / (nphi * ntheta) * s.nfp * 2)
+print('fB direct (sparse) = ', np.sum(normN * np.ravel(Bnormal_wv_sparse) ** 2) * 0.5 / (nphi * ntheta) * s.nfp * 2)
 
 t2 = time.time()
 print('Time to compute Bnormal_wv = ', t2 - t1, ' s')
-fB_direct = SquaredFlux(s, bs_wv, -Bnormal).J() * 2 * s.nfp
+fB_direct = SquaredFlux(s, bs_wv).J() * 2 * s.nfp
 print('fB_direct = ', fB_direct)
 
 bs_wv.set_points(curve.gamma().reshape((-1, 3)))
