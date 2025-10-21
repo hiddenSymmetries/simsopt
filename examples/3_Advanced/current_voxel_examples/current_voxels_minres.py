@@ -11,7 +11,6 @@ The script should be run as:
 """
 
 import os
-import logging
 from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
@@ -20,14 +19,9 @@ from simsopt.objectives import SquaredFlux
 from simsopt.field import InterpolatedField, SurfaceClassifier
 from simsopt.field.magneticfieldclasses import CurrentVoxelsField
 from simsopt.geo import CurrentVoxelsGrid
-from simsopt.solve import ras_minres
+from simsopt.solve import relax_and_split_minres
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
-#from mpi4py import MPI
-#comm = MPI.COMM_WORLD
-logging.basicConfig()
-logger = logging.getLogger('simsopt.field.tracing')
-logger.setLevel(1)
 
 t_start = time.time()
 
@@ -44,7 +38,7 @@ lam = 1e-40
 nu = 1e100
 
 # Read in the plasma equilibrium file
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 
@@ -57,7 +51,7 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 )
 
 # Make the output directory
-out_dir = 'wv_test/'
+out_dir = 'current_voxels_minres/'
 os.makedirs(out_dir, exist_ok=True)
 
 # No external coils
@@ -125,8 +119,8 @@ wv_grid = CurrentVoxelsGrid(
     s, Itarget_curve=curve, Itarget=Itarget, 
     #plasma_offset=poff, 
     #coil_offset=coff, 
-    rz_inner_surface=s_in,
-    rz_outer_surface=s_out,
+    inner_toroidal_surface=s_in,
+    outer_toroidal_surface=s_out,
     Nx=Nx, Ny=Ny, Nz=Nz, 
     Bn=Bnormal,
     Bn_Itarget=np.zeros(curve.gammadash().reshape(-1, 3).shape[0]),
@@ -135,30 +129,35 @@ wv_grid = CurrentVoxelsGrid(
     nx=nx, ny=nx, nz=nx,
     sparse_constraint_matrix=True,
 )
-wv_grid.rz_inner_surface.to_vtk(out_dir + 'inner')
-wv_grid.rz_outer_surface.to_vtk(out_dir + 'outer')
+wv_grid.inner_toroidal_surface.to_vtk(out_dir + 'inner')
+wv_grid.outer_toroidal_surface.to_vtk(out_dir + 'outer')
 wv_grid.to_vtk_before_solve(out_dir + 'grid_before_solve_Nx' + str(Nx))
 t2 = time.time()
 print('WV grid initialization took time = ', t2 - t1, ' s')
 
 max_iter = 20
-rs_max_iter = 200
+rs_max_iter = 100
 nu = 1e2  # 1e1
-l0_threshold = 5e4  # 60 below line
-l0_thresholds = np.linspace(l0_threshold, 150 * l0_threshold, 40, endpoint=True)
-alpha_opt, fB, fK, fI, fRS, f0, fC, fBw, fKw, fIw = ras_minres( 
+l0_threshold = 1e4  # 60 below line
+l0_thresholds = np.linspace(l0_threshold, 150 * l0_threshold, 20, endpoint=True)
+return_dict = relax_and_split_minres( 
     wv_grid, lam=lam, nu=nu, max_iter=max_iter,
     l0_thresholds=l0_thresholds, 
     rs_max_iter=rs_max_iter,
-    print_iter=100,
     OUT_DIR=out_dir
 )
+alpha_opt = return_dict["alpha_opt"]
+fB = return_dict["fB"]
+fK = return_dict["fK"]
+fI = return_dict["fI"]
+fRS = return_dict["fRS"]
+f0 = return_dict["f0"]
+fC = return_dict["fC"]
+fminres = return_dict["fminres"]
 print('solution shape = ', alpha_opt.shape)
 
 t2 = time.time()
 print('Gradient Descent Tikhonov solve time = ', t2 - t1, ' s')    
-#print('||P * alpha_opt - alpha_opt|| / ||alpha_opt|| = ', np.linalg.norm(wv_grid.P.dot(alpha_opt) - alpha_opt) / np.linalg.norm(alpha_opt))
-#print('||P * w_opt - w_opt|| / ||w_opt|| = ', np.linalg.norm(wv_grid.P.dot(wv_grid.w) - wv_grid.w) / np.linalg.norm(wv_grid.w))
 
 t1 = time.time()
 wv_grid.to_vtk_after_solve(out_dir + 'grid_after_Tikhonov_solve_Nx' + str(Nx))
@@ -168,8 +167,13 @@ print('fB after optimization = ', fB[-1])
 print('fB check = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ alpha_opt - wv_grid.b_rhs) ** 2 * s.nfp * 2)
 
 # set up CurrentVoxels Bfield
-bs_wv = CurrentVoxelsField(wv_grid.J, wv_grid.XYZ_integration, wv_grid.grid_scaling, wv_grid.coil_range, nfp=s.nfp, stellsym=s.stellsym)
-bs_wv_sparse = CurrentVoxelsField(wv_grid.J_sparse, wv_grid.XYZ_integration, wv_grid.grid_scaling, wv_grid.coil_range, nfp=s.nfp, stellsym=s.stellsym)
+bs_wv = CurrentVoxelsField(
+    wv_grid.J, wv_grid.XYZ_integration, wv_grid.grid_scaling, 
+    nfp=s.nfp, stellsym=s.stellsym)
+bs_wv_sparse = CurrentVoxelsField(
+    wv_grid.J_sparse, wv_grid.XYZ_integration, 
+    wv_grid.grid_scaling, 
+    nfp=s.nfp, stellsym=s.stellsym)
 t1 = time.time()
 bs_wv.set_points(s.gamma().reshape((-1, 3)))
 bs_wv_sparse.set_points(s.gamma().reshape((-1, 3)))
@@ -200,25 +204,19 @@ t2 = time.time()
 
 print('Time to plot Bnormal_wv = ', t2 - t1, ' s')
 
-w_range = np.linspace(0, len(fB), len(fBw), endpoint=True)
+w_range = np.linspace(0, len(fB), endpoint=True)
 plt.figure()
 plt.semilogy(fB, 'r', label=r'$f_B$')
-#plt.semilogy(lam * fK, 'b', label=r'$\lambda \|\alpha\|^2$')
 plt.semilogy(fI, 'm', label=r'$f_I$')
 plt.semilogy(fC, 'k', label=r'$f_C$')
-#plt.semilogy(fRS, 'k', label=r'$f_{RS}$')
-#plt.semilogy(w_range, fBw, 'r--', label=r'$f_Bw$')
-#plt.semilogy(w_range, lam * fKw, 'b--', label=r'$\lambda \|w\|^2$')
-#plt.semilogy(w_range, fIw, 'm--', label=r'$f_Iw$')
 if l0_thresholds[-1] > 0:
     plt.semilogy(fRS / nu, label=r'$\nu^{-1} \|\alpha - w\|^2$')
     # plt.semilogy(f0, label=r'$\|\alpha\|_0^G$')
 plt.semilogy(fB + fI + lam * fK, 'g', label='Total objective (not incl. l0)')
-#plt.semilogy(w_range, fBw + fIw + lam * fKw, 'g--', label='Total w objective (not incl. l0)')
 plt.grid(True)
 plt.legend()
-
 # plt.savefig(out_dir + 'optimization_progress.jpg')
+
 t1 = time.time()
 wv_grid.check_fluxes()
 t2 = time.time()
@@ -227,10 +225,11 @@ print('Time to check all the flux constraints = ', t2 - t1, ' s')
 bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
 make_Bnormal_plots(bs_wv, s_plot, out_dir, "biot_savart_current_voxels")
 B = bs_wv.B()
-calculate_on_axis_B(bs_wv, s)
+calculate_modB_on_major_radius(bs_wv, s)
 print("Mean(|B|) on plasma surface =", np.mean(bs_wv.AbsB()))
 
-if False: 
+post_processing = False
+if post_processing: 
     t1 = time.time()
     # biotsavart_json_str = bs_wv.save(filename=out_dir + 'BiotSavart.json')
     print('R0 = ', s.get_rc(0, 0), ', r0 = ', s.get_rc(1, 0))
@@ -243,7 +242,6 @@ if False:
     degree = 4
 
     # compute the fieldlines from the initial locations specified above
-
     ####### s -> s_plot here is critical!!!
     sc_fieldline = SurfaceClassifier(s_plot, h=0.03, p=2)
     sc_fieldline.to_vtk(out_dir + 'levelset', h=0.02)

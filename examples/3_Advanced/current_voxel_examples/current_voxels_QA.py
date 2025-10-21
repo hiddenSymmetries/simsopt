@@ -26,7 +26,7 @@ from simsopt.geo import CurrentVoxelsGrid
 from simsopt.solve import relax_and_split_minres 
 from simsopt.util.permanent_magnet_helper_functions import \
     make_filament_from_voxels, perform_filament_optimization, make_Bnormal_plots, \
-    calculate_on_axis_B
+    calculate_modB_on_major_radius
 import time
 
 t_start = time.time()
@@ -37,7 +37,7 @@ ntheta = nphi
 input_name = 'input.LandremanPaul2021_QA'
 
 # Read in the plasma equilibrium file
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_vmec_input(surface_filename, range='half period', nphi=nphi, ntheta=ntheta)
 
@@ -161,7 +161,7 @@ plt.legend()
 current_voxels_grid.check_fluxes()
 
 # Check the average |B| along the major radius
-calculate_on_axis_B(bs_current_voxels, s)
+calculate_modB_on_major_radius(bs_current_voxels, s)
 
 t_end = time.time()
 print('Total voxels time = ', t_end - t_start)

@@ -77,7 +77,7 @@ def relax_and_split_minres(
                 relax-and-split problems in a row.
             alpha0: 1D numpy array, shape (N, 1)
                 Initial guess for the alphas that are trying to be optimized for.
-            out_dir: string 
+            OUT_DIR: string 
                 Output directory to save MINRES progress to.
             precondition: bool, default False
                 Whether to use the approximate Schur preconditioner for MINRES.
@@ -89,7 +89,7 @@ def relax_and_split_minres(
     rs_max_iter = kwargs.pop("rs_max_iter", 1)
     l0_thresholds = kwargs.pop("l0_thresholds", [0.0])
     alpha0 = kwargs.pop("alpha0", None)
-    out_dir = kwargs.pop("out_dir", '')
+    OUT_DIR = kwargs.pop("OUT_DIR", '')
     precondition = kwargs.pop("precondition", False)
     if kappa < 0 or sigma < 0 or nu < 0 or np.any(np.array(l0_thresholds) < 0) or max_iter <= 0 or rs_max_iter <= 0:
         raise ValueError('Hyperparameters must be positive floats and max/print iterations must be positive integers')
@@ -202,7 +202,7 @@ def relax_and_split_minres(
     w_opt = alpha_opt  # prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
 
     # We will write minres output to a text file so initialize the file now
-    with open(out_dir + 'minres_output.txt', 'w') as minres_file:
+    with open(OUT_DIR + 'minres_output.txt', 'w') as minres_file:
         minres_file.write('Total   fB   sigma * fI   kappa * fK   fRS/nu   C*alpha   MINRES residual\n')
         t0 = time.time()
         for j, threshold in enumerate(l0_thresholds):
@@ -258,7 +258,7 @@ def relax_and_split_minres(
     t1 = time.time()
     alpha_opt = np.ravel(alpha_opt)
     print('Avg |alpha| in a cell = ', np.mean(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
-    f0, fB, fI, fK, fRS, fC, fminres = np.loadtxt(out_dir + 'minres_output.txt', skiprows=1, unpack=True)
+    f0, fB, fI, fK, fRS, fC, fminres = np.loadtxt(OUT_DIR + 'minres_output.txt', skiprows=1, unpack=True)
     current_voxels.alphas = alpha_opt
     current_voxels.w = np.ravel(w_opt)
     current_voxels.J = np.zeros((n, current_voxels.Phi.shape[2], 3))

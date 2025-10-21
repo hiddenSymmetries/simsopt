@@ -32,7 +32,7 @@ coil_range = 'half period'
 input_name = 'input.circular_tokamak' 
 
 # Read in the plasma equilibrium file
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_vmec_input(surface_filename, range=coil_range, nphi=nphi, ntheta=ntheta)
 
@@ -165,7 +165,7 @@ plt.legend()
 # current_voxels_grid.check_fluxes()
 
 # Check the average |B| along the major radius
-calculate_on_axis_B(bs_current_voxels, s)
+calculate_modB_on_major_radius(bs_current_voxels, s)
 
 t_end = time.time()
 print('Total voxels time = ', t_end - t_start)

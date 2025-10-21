@@ -20,14 +20,9 @@ from simsopt.objectives import SquaredFlux
 from simsopt.field import InterpolatedField, SurfaceClassifier
 from simsopt.field.magneticfieldclasses import CurrentVoxelsField
 from simsopt.geo import CurrentVoxelsGrid
-from simsopt.solve import ras_preconditioned_minres
+from simsopt.solve import relax_and_split_minres
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
-from mpi4py import MPI
-comm = MPI.COMM_WORLD
-logging.basicConfig()
-logger = logging.getLogger('simsopt.field.tracing')
-logger.setLevel(1)
 
 t_start = time.time()
 
@@ -37,17 +32,17 @@ nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = nphi
 poff = 0.3
 coff = 0.3
-input_name = 'wout_LandremanPaul_QH_variant.nc'
+input_name = 'input.20210406-01-002-nfp4_QH_000_000240'
 
 # Read in the plasma equilibrium file
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
-s = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 qphi = s.nfp * nphi * 2
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
-s_plot = SurfaceRZFourier.from_wout(
+s_plot = SurfaceRZFourier.from_vmec_input(
     surface_filename, range="full torus",
     quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
 )
@@ -102,19 +97,19 @@ wv_grid = CurrentVoxelsGrid(
     s, Itarget_curve=curve, Itarget=Itarget, 
     plasma_offset=poff,
     coil_offset=coff, 
-    #rz_inner_surface=s_in,
-    #rz_outer_surface=s_out,
+    inner_toroidal_surface=s_in,
+    outer_toroidal_surface=s_out,
     Nx=Nx, Ny=Ny, Nz=Nz, 
     Bn=Bnormal,
     Bn_Itarget=np.zeros(curve.gammadash().reshape(-1, 3).shape[0]),
     filename=surface_filename,
-    surface_flag='wout',
+    surface_flag='vmec',
     OUT_DIR=OUT_DIR,
     nx=nx, ny=nx, nz=nx,
     sparse_constraint_matrix=True,
 )
-wv_grid.rz_inner_surface.to_vtk(OUT_DIR + 'inner')
-wv_grid.rz_outer_surface.to_vtk(OUT_DIR + 'outer')
+wv_grid.inner_toroidal_surface.to_vtk(OUT_DIR + 'inner')
+wv_grid.outer_toroidal_surface.to_vtk(OUT_DIR + 'outer')
 t2 = time.time()
 print('WV grid initialization took time = ', t2 - t1, ' s')
 wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
@@ -124,18 +119,24 @@ rs_max_iter = 200
 kappa = 1e-6
 sigma = 1
 nu = 1e2
-l0_threshold = 5e4
+l0_threshold = 5e3
 l0_thresholds = np.linspace(l0_threshold, 100 * l0_threshold, 8, endpoint=True)
 #alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, fBw, fKw, fIw, fRSw, fCw = ras_minres( 
-alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, fBw, fKw, fIw, fRSw, fCw = ras_preconditioned_minres( 
+return_dict = relax_and_split_minres( 
     wv_grid, kappa=kappa, nu=nu, max_iter=max_iter,
     l0_thresholds=l0_thresholds,
     sigma=sigma,
     rs_max_iter=rs_max_iter,
-    print_iter=20,
     OUT_DIR=OUT_DIR
 )
-
+alpha_opt = return_dict["alpha_opt"]
+fB = return_dict["fB"]
+fK = return_dict["fK"]
+fI = return_dict["fI"]
+fRS = return_dict["fRS"]
+f0 = return_dict["f0"]
+fC = return_dict["fC"]
+fminres = return_dict["fminres"]
 t2 = time.time()
 print('MINRES solve time = ', t2 - t1, ' s')    
 
@@ -147,8 +148,13 @@ print('fB after optimization = ', fB[-1])
 print('fB check = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ alpha_opt - wv_grid.b_rhs) ** 2 * s.nfp * 2)
 
 # set up CurrentVoxels Bfield
-bs_wv = CurrentVoxelsField(wv_grid.J, wv_grid.XYZ_integration, wv_grid.grid_scaling, wv_grid.coil_range, nfp=s.nfp, stellsym=s.stellsym)
-bs_wv_sparse = CurrentVoxelsField(wv_grid.J_sparse, wv_grid.XYZ_integration, wv_grid.grid_scaling, wv_grid.coil_range, nfp=s.nfp, stellsym=s.stellsym)
+bs_wv = CurrentVoxelsField(
+    wv_grid.J, wv_grid.XYZ_integration, 
+    wv_grid.grid_scaling, 
+    nfp=s.nfp, stellsym=s.stellsym)
+bs_wv_sparse = CurrentVoxelsField(
+    wv_grid.J_sparse, wv_grid.XYZ_integration, wv_grid.grid_scaling, 
+    nfp=s.nfp, stellsym=s.stellsym)
 t1 = time.time()
 bs_wv.set_points(s.gamma().reshape((-1, 3)))
 bs_wv_sparse.set_points(s.gamma().reshape((-1, 3)))
@@ -173,7 +179,7 @@ print('Itarget_check = ', Itarget_check)
 print('Itarget second check = ', wv_grid.Itarget_matrix @ alpha_opt / mu0) 
 
 t1 = time.time()
-calculate_on_axis_B(bs_wv, s)
+calculate_modB_on_major_radius(bs_wv, s)
 make_Bnormal_plots(bs_wv, s_plot, OUT_DIR, "biot_savart_current_voxels_Nx" + str(Nx))
 make_Bnormal_plots(bs_wv_sparse, s_plot, OUT_DIR, "biot_savart_current_voxels_sparse_Nx" + str(Nx))
 t2 = time.time()
