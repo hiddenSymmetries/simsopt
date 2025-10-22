@@ -25,7 +25,7 @@ from simsopt.util import in_github_actions
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
-ncoils = 3
+ncoils = 4
 
 # Major radius for the initial circular coils:
 R0 = 1.0

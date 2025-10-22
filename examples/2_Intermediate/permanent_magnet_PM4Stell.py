@@ -24,7 +24,6 @@ import numpy as np
 from simsopt.field import BiotSavart, DipoleField, Coil
 from simsopt.geo import SurfaceRZFourier, PermanentMagnetGrid
 from simsopt.solve import GPMO
-from simsopt.objectives import SquaredFlux
 from simsopt.util.permanent_magnet_helper_functions \
     import initialize_default_kwargs, make_Bnormal_plots
 from simsopt.util import FocusPlasmaBnormal, FocusData, read_focus_coils, in_github_actions
@@ -41,9 +40,9 @@ if in_github_actions:
     downsample = 100  # drastically downsample the grid if running CI
 else:
     N = 16  # >= 64 for high-resolution runs
-    nIter_max = 100000
-    max_nMagnets = 10000
-    downsample = 4
+    nIter_max = 10000
+    max_nMagnets = 1000
+    downsample = 1
 
 nphi = N
 ntheta = N
@@ -53,7 +52,7 @@ nAdjacent = 10
 thresh_angle = np.pi  # / np.sqrt(2)
 nHistory = 10
 angle = int(thresh_angle * 180 / np.pi)
-out_dir = Path("PM4Stell") 
+out_dir = Path("PM4Stell_angle{angle}_nb{nBacktracking)_na{nAdjacent}")
 out_dir.mkdir(parents=True, exist_ok=True)
 print('out directory = ', out_dir)
 
@@ -61,6 +60,12 @@ print('out directory = ', out_dir)
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 fname_plasma = TEST_DIR / 'c09r00_B_axis_half_tesla_PM4Stell.plasma'
 lcfs_ncsx = SurfaceRZFourier.from_focus(
+    fname_plasma, range='half period', nphi=nphi, ntheta=ntheta
+)
+s1 = SurfaceRZFourier.from_focus(
+    fname_plasma, range='half period', nphi=nphi, ntheta=ntheta
+)
+s2 = SurfaceRZFourier.from_focus(
     fname_plasma, range='half period', nphi=nphi, ntheta=ntheta
 )
 
@@ -137,7 +142,11 @@ pol_vectors[:, :, 0] = mag_data.pol_x
 pol_vectors[:, :, 1] = mag_data.pol_y
 pol_vectors[:, :, 2] = mag_data.pol_z
 
-kwargs_geo = {"pol_vectors": pol_vectors, "downsample": downsample}
+# Using m_maxima functionality to try out unrealistically strong magnets
+B_max = 5  # 5 Tesla!!!!
+mu0 = 4 * np.pi * 1e-7
+m_maxima = B_max / mu0
+kwargs_geo = {"pol_vectors": pol_vectors, "m_maxima": m_maxima, "downsample": downsample}
 
 # Initialize the permanent magnet grid from the PM4Stell arrangement
 pm_ncsx = PermanentMagnetGrid.geo_setup_from_famus(
@@ -159,10 +168,6 @@ t1 = time.time()
 R2_history, Bn_history, m_history = GPMO(pm_ncsx, algorithm, **kwargs)
 dt = time.time() - t1
 print('GPMO took t = ', dt, ' s')
-# Print effective permanent magnet volume
-dipoles = pm_ncsx.m.reshape(pm_ncsx.ndipoles, 3)
-print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / pm_ncsx.m_maxima)
-print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
 # Save files
 if False:
@@ -190,11 +195,6 @@ if False:
     pointData = {"B_N": Bnormal_total[:, :, None]}
     s_plot.to_vtk(out_dir / "Bnormal_total", extra_data=pointData)
     pm_ncsx.write_to_famus(out_dir)
-    b_dipole.set_points(lcfs_ncsx.gamma().reshape((-1, 3)))
-    bs_tfcoils.set_points(lcfs_ncsx.gamma().reshape((-1, 3)))
-    Bnormal_plasma = bnormal_obj_ncsx.bnormal_grid(nphi, ntheta, 'half period')
-    f_B_sf = SquaredFlux(s_plot, b_dipole + bs_tfcoils, -Bnormal_plasma).J()
-    print('f_B = ', f_B_sf) 
     np.savetxt(out_dir / 'R2_history.txt', R2_history)
     np.savetxt(out_dir / 'absBn_history.txt', Bn_history)
     nmags = m_history.shape[0]
@@ -212,4 +212,4 @@ plt.grid(True)
 plt.xlabel('K')
 plt.ylabel('Metric values')
 plt.legend()
-plt.show()
+# plt.show()

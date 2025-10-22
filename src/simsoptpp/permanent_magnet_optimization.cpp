@@ -1,5 +1,7 @@
 #include "permanent_magnet_optimization.h"
 #include <Eigen/Dense>
+#include "simdhelpers.h"
+#include "vec3dsimd.h"
 #include "xtensor/xsort.hpp"
 #include "xtensor/xview.hpp"
 #include <functional>

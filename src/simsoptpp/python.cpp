@@ -1,15 +1,11 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 #include "pybind11/functional.h"
-#include "pybind11/eigen.h"
 #define FORCE_IMPORT_ARRAY
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include <Eigen/Core>
-#include <Eigen/Sparse>
 
 typedef xt::pyarray<double> PyArray;
-typedef xt::pyarray<float> PyArray_float;
-typedef xt::pyarray<int> PyArray_int;
 #include "xtensor-python/pytensor.hpp"     // Numpy bindings
 typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include <math.h>
@@ -20,8 +16,6 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "biot_savart_vjp_py.h"
 #include "boozerradialinterpolant.h"
 #include "dipole_field.h"
-#include "current_voxels.h"
-#include "current_voxels_field.h"
 #include "dommaschk.h"
 #include "integral_BdotN.h"
 #include "permanent_magnet_optimization.h"
@@ -29,6 +23,8 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "reiman.h"
 #include "simdhelpers.h"
 #include "boozerresidual_py.h"
+#include "current_voxels.h"
+#include "current_voxels_field.h"
 
 namespace py = pybind11;
 
@@ -65,7 +61,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("biot_savart_vjp", &biot_savart_vjp);
     m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
     m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
-    
+
     // Functions below are implemented for current voxels method
     m.def("current_voxels_geo_factors", &current_voxels_geo_factors); 
     m.def("current_voxels_flux_jumps", &current_voxels_flux_jumps); 
@@ -160,19 +156,6 @@ PYBIND11_MODULE(simsoptpp, m) {
             PyArray C = xt::zeros<double>({l, n});
 
             Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigA(const_cast<double*>(A.data()), l, m);
-            Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigB(const_cast<double*>(B.data()), m, n);
-            Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigC(const_cast<double*>(C.data()), l, n);
-            eigC = eigA*eigB;
-            return C;
-        });
-        
-    m.def("matmult_sparseA", [](Eigen::SparseMatrix<double, Eigen::RowMajor>& eigA, int l, PyArray& B) {
-            // Product of an lxm matrix with an mxn matrix, results in an l x n matrix. Assumes A is sparse.
-            int m = B.shape(0);
-            int n = B.shape(1);
-            PyArray C = xt::zeros<double>({l, n});
-
-//             Eigen::Map<Eigen::SparseMatrix<double,Eigen::RowMajor>> eigA(l, m, nnz, const_cast<int*>(outer_index_ptr.data()), const_cast<int*>(inner_index_ptr.data()), const_cast<double*>(A.data()));
             Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigB(const_cast<double*>(B.data()), m, n);
             Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigC(const_cast<double*>(C.data()), l, n);
             eigC = eigA*eigB;
