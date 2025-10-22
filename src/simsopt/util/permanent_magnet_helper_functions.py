@@ -189,7 +189,7 @@ def coil_optimization(s, bs, base_curves, curves, out_dir=''):
     return bs
 
 
-def trace_fieldlines(bfield, label, s, comm, R0, out_dir=''):
+def trace_fieldlines(bfield, label, s, comm, out_dir=''):
     """
     Make Poincare plots on a surface as in the trace_fieldlines
     example in the examples/1_Simple/ directory.
@@ -199,10 +199,6 @@ def trace_fieldlines(bfield, label, s, comm, R0, out_dir=''):
         label: Name of the file to write to.
         s: plasma boundary surface.
         comm: MPI COMM_WORLD object for using MPI for tracing.
-        R0: 1D numpy array containing the cylindrical R locations
-          that should be sampled by the field tracing (usually the
-          points are from the magnetic axis to the plasma boundary
-          at the phi = 0 plane).
         out_dir: Path or string for the output directory for saved files.
     """
     from simsopt.field.tracing import compute_fieldlines, \
@@ -212,26 +208,19 @@ def trace_fieldlines(bfield, label, s, comm, R0, out_dir=''):
     out_dir = Path(out_dir)
 
     # set fieldline tracer parameters
-    nfieldlines = len(R0)
+    nfieldlines = 20
     tmax_fl = 60000
 
     Z0 = np.zeros(nfieldlines)
+    R0 = np.linspace(s.get_rc(0, 0), s.get_rc(0, 0) + s.get_rc(1, 0) / 2.0, nfieldlines)
     print('R0s = ', R0)
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
 
     # compute the fieldlines from the initial locations specified above
-    sc_fieldline = SurfaceClassifier(s, h=0.01, p=2)
+    sc_fieldline = SurfaceClassifier(s, h=0.05, p=2)
     sc_fieldline.to_vtk(str(out_dir) + 'levelset', h=0.02)
 
-    # See field tracing example in examples/1_Simple for description
-    def skip(rs, phis, zs):
-        rphiz = np.asarray([rs, phis, zs]).T.copy()
-        dists = sc_fieldline.evaluate_rphiz(rphiz)
-        skip = list((dists < -0.05).flatten())
-        print("Skip", sum(skip), "cells out of", len(skip), flush=True)
-        return skip
-
-    fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
+    _, fieldlines_phi_hits = compute_fieldlines(
         bfield, R0, Z0, tmax=tmax_fl, tol=1e-16, comm=comm,
         phis=phis,
         stopping_criteria=[IterationStoppingCriterion(20000)])
@@ -488,7 +477,7 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, out_
             )
 
 
-def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, R0, out_dir=''):
+def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, out_dir=''):
     """
     Wrapper function for making Poincare plots.
 
@@ -532,7 +521,7 @@ def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, R0, out_di
         bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym
     )
     bsh.set_points(s_plot.gamma().reshape((-1, 3)))
-    trace_fieldlines(bsh, 'bsh_PMs_' + filename_poincare, s_plot, comm, R0, out_dir)
+    trace_fieldlines(bsh, 'bsh_PMs_' + filename_poincare, s_plot, comm, out_dir)
 
 
 def make_Bnormal_plots(bs, s_plot, out_dir='', bs_filename="Bnormal"):

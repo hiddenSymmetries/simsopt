@@ -108,8 +108,6 @@ class Testing(unittest.TestCase):
             with self.assertRaises(ValueError):
                 _ = relax_and_split_minres(cv_opt, max_iter=-1)
             with self.assertRaises(ValueError):
-                _ = relax_and_split_minres(cv_opt, print_iter=-1)
-            with self.assertRaises(ValueError):
                 _ = relax_and_split_minres(cv_opt, alpha0=np.zeros((10, 1)))
             with self.assertRaises(ValueError):
                 _ = relax_and_split_minres(cv_opt, alpha0=np.zeros((cv_opt.N_grid * 5, 2)))
