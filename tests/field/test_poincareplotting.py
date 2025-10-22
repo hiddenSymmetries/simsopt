@@ -232,7 +232,10 @@ class TestPoincarePlotterFactory(unittest.TestCase):
         # Ensure phis interpreted correctly (int -> equally spaced)
         self.assertEqual(len(pp.plot_phis), 4)
         
-        pp2 = PoincarePlotter.from_field(field, start_points_RZ, phis= np.array([0, 0.1, 0.2]), n_transits=2, add_symmetry_planes=False)
+        #set with array of phis
+        phis_array = np.array([0, 0.1, 0.2])
+        pp2 = PoincarePlotter.from_field(field, start_points_RZ, phis=phis_array, n_transits=2, add_symmetry_planes=False)
+        self.assertTrue(np.array_equal(pp2.phis[:3], phis_array))
 
 
 class TestPoincarePlotterRealField(unittest.TestCase):
