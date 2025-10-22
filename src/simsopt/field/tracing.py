@@ -1840,7 +1840,7 @@ class PoincarePlotter(Optimizable):
         """
         if phi not in self.phis:
             if not prevent_recompute:
-                self.phis.append(phi)
+                self.phis = np.append(self.phis, phi)
                 phi_indices = [len(self.phis) - 1]  # index of the newly added plane
             else:
                 raise ValueError(f"The requested plane at phi={phi} has not been computed.")

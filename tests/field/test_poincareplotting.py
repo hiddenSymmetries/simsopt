@@ -82,9 +82,28 @@ class TestPoincarePlotterSimsopt(unittest.TestCase):
         # All planes
         fig3, axs = self.pp.plot_poincare_all()
         self.assertIsNotNone(fig3)
-    # 3D trajectories and 3D poincare in matplotlib backend
-    # Upstream code has an undefined 'color' variable for matplotlib branch; skip these calls for now.
-    # Once upstream is fixed, these can be re-enabled.
+
+    def test_setters(self):
+        """
+        test that the setters for start points and phis work
+        """
+        self.pp.need_to_recompute = False  # reset flag
+        # change start points
+        new_start_points = np.array([[self.R0 + 0.03, 0.0], [self.R0 + 0.06, 0.0], [self.R0 + 0.09, 0.0]])
+        self.pp.start_points_RZ = new_start_points
+        self.assertEqual(self.pp.start_points_RZ.shape[0], 3)
+        self.assertIsNone(self.pp._res_phi_hits)
+        self.assertIsNone(self.pp._res_tys)
+        self.assertTrue(self.pp.need_to_recompute)
+
+        self.pp.need_to_recompute = False  # reset flag
+        # change phis
+        new_phis = np.array([0.0, 0.2, 0.4])
+        self.pp.phis = new_phis
+        self.assertTrue(np.array_equal(self.pp.phis, new_phis))
+        self.assertIsNone(self.pp._res_phi_hits)
+        self.assertIsNone(self.pp._res_tys)
+        self.assertTrue(self.pp.need_to_recompute)
 
     def test_randomcolors_and_lost(self):
         """
@@ -152,6 +171,50 @@ class TestPoincarePlotterScipy(unittest.TestCase):
         fig3, axs = self.pp.plot_poincare_all()
         self.assertIsNotNone(fig3)
 
+    def test_raise_error(self):
+        """
+        test that an error is raised when trying to plot a plane
+        that does not exist
+        """
+        with self.assertRaises(ValueError):
+            self.pp.plot_poincare_plane_idx(10)  # out of bounds
+        with self.assertRaises(ValueError):
+            self.pp.plot_poincare_single(0.123, prevent_recompute=True)  # not in phis
+
+    def test_simple_plots(self):
+        """
+        test that the simple plotting functions run without error
+        """
+        try:
+            import matplotlib  # noqa: F401
+        except ImportError:
+            self.skipTest("matplotlib not installed")
+        # Ensure non-interactive backend
+        import matplotlib
+        try:
+            matplotlib.use('Agg')
+        except Exception:
+            pass
+        from simsopt.geo import SurfaceRZFourier
+        surface = SurfaceRZFourier()
+        num_planes = self.pp.phis.shape[0]
+        # Simple plots
+        fig1, ax1 = self.pp.plot_poincare_single(self.pp.phis[0], include_symmetry_planes=False)
+        self.assertIsNotNone(fig1)
+        self.assertIsNotNone(ax1)
+        self.assertEqual(self.pp.phis.shape[0], num_planes)
+
+        fig1, ax1 = self.pp.plot_poincare_single(0.123, prevent_recompute=False, surf=surface)
+        self.assertIsNotNone(fig1)
+        self.assertIsNotNone(ax1)
+        self.assertEqual(self.pp.phis.shape[0], num_planes+1)
+
+
+
+        fig2, axs2 = self.pp.plot_poincare_all()
+        self.assertIsNotNone(fig2)
+        self.assertIsNotNone(axs2)
+
 
 class TestPoincarePlotterFactory(unittest.TestCase):
     def test_from_field_factory(self):
@@ -162,12 +225,14 @@ class TestPoincarePlotterFactory(unittest.TestCase):
         B0 = 0.85
         field = ToroidalField(R0, B0)
         start_points_RZ = np.array([[R0 + 0.02, 0.0], [R0 + 0.04, 0.0]])
-        pp = PoincarePlotter.from_field(field, start_points_RZ, phis=4, n_transits=2, add_symmetry_planes=False)
+        pp = PoincarePlotter.from_field(field, start_points_RZ, phis=None, n_transits=2, add_symmetry_planes=False)
         # Basic shape checks
         self.assertEqual(len(pp.res_phi_hits), start_points_RZ.shape[0])
         self.assertEqual(pp.res_phi_hits[0].shape[1], 5)
         # Ensure phis interpreted correctly (int -> equally spaced)
         self.assertEqual(len(pp.plot_phis), 4)
+        
+        pp2 = PoincarePlotter.from_field(field, start_points_RZ, phis= np.array([0, 0.1, 0.2]), n_transits=2, add_symmetry_planes=False)
 
 
 class TestPoincarePlotterRealField(unittest.TestCase):
@@ -264,10 +329,11 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
         cls.nfp = nfp
         cls.R0 = float(ma.gamma()[0, 0])
         cls.start_points_RZ = np.array([
+            [cls.R0 + 0.01, 0.0],
             [cls.R0 + 0.02, 0.0],
-            [cls.R0 + 0.04, 0.0],
         ])
-        cls.intg = SimsoptFieldlineIntegrator(cls.bs, nfp=nfp, stellsym=True, R0=cls.R0, tmax=40.0, tol=1e-7)
+        cls.intg_sopp = SimsoptFieldlineIntegrator(cls.bs, nfp=nfp, stellsym=True, R0=cls.R0, tmax=40.0, tol=1e-7)
+        cls.intg_scipy = ScipyFieldlineIntegrator(cls.bs, nfp=nfp, stellsym=True, R0=cls.R0, integrator_type='RK45')
 
     def test_save_and_load_with_dof_change(self):
         """
@@ -275,7 +341,7 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
         """
         with ScratchDir('.'):
             archive = 'poincare_data.npz'
-            pp = PoincarePlotter(self.intg, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True)
+            pp = PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True)
             _ = pp.res_phi_hits  # prime cache and save to disk
             # Check archive created with hashed datasets
             self.assertTrue(os.path.exists(archive))
@@ -285,10 +351,11 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
                 self.assertIn(f'res_tys_{hash_key}', data.files)
 
             # A new instance with same params should already have data
-            pp2 = PoincarePlotter(self.intg, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True)
+            pp2 = PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True)
             # comparing to hidden attributes to avoid recompute.
             self.assertTrue(np.array_equal(pp.res_phi_hits, pp2._res_phi_hits))
-            self.assertTrue(np.array_equal(pp.res_tys, pp2._res_tys))
+            for pp1_data, pp2_data in zip(pp.res_tys, pp2._res_tys):
+                self.assertTrue(np.array_equal(pp1_data, pp2_data))
 
             # change an element of the res_phi_hits and res tys, to make sure this modification is the one that is read:
             pp2._res_phi_hits[0][0, 0] = 1e5
@@ -297,7 +364,7 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
 
             # Change a dof to invalidate cache of both plotters:
             old_val = self.bs.coils[0].current.x.copy()
-            self.bs.coils[0].current.x *= old_val * 1.02
+            self.bs.coils[0].current.x = old_val * 1.02
             self.assertIsNone(pp._res_tys)
             self.assertIsNone(pp2._res_tys)
 
@@ -307,6 +374,18 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
             pp2_tys_from_disk = pp2.res_tys
             self.assertTrue(pp2_from_disk[0][0, 0] == 1e5)
             self.assertTrue(pp2_tys_from_disk[0][0, 0] == 1e5)
+
+            #load with scipy integrator:
+            pp3 = PoincarePlotter(self.intg_scipy, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True)
+            pp3.recompute_bell()
+            _ = pp3.res_tys
+            # trigger new compute
+            self.bs.coils[1].current.x = old_val * 0.9999
+            _ = pp3.res_tys  # should recompute
+            pp3.save_to_disk(filename='othername_no_suffix')
+            # load it with different pplotter 
+            pp.load_from_disk(filename='othername_no_suffix')
+
             
             #test removing the poincare cache file
             pp2.remove_poincare_data()
@@ -317,7 +396,7 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
         test that the hashing, saving and loading works as intended. 
         """
         with ScratchDir('.'):
-            pp = PoincarePlotter(self.intg, self.start_points_RZ, phis=4, n_transits=2, add_symmetry_planes=True, store_results=False)
+            pp = PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=2, add_symmetry_planes=True, store_results=False)
             filename = "test"
             pp.particles_to_vtk(filename)
             self.assertTrue(os.path.exists(f"{filename}.vtu"))

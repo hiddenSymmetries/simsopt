@@ -3,8 +3,9 @@ import numpy as np
 
 from simsopt.field.magneticfieldclasses import ToroidalField
 from simsopt.field.tracing import Integrator, SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator
-from simsopt.field import BiotSavart, Coil, BoozerAnalytic
+from simsopt.field import BiotSavart, Coil
 from simsopt.configs.zoo import get_data, configurations
+from simsopt._core.util import ObjectiveFailure
 
 
 class TestIntegratorBase(unittest.TestCase):
@@ -167,6 +168,23 @@ class TestSimsoptFieldlineIntegrator(unittest.TestCase):
         self.assertTrue(np.allclose(pts_cyl[:, 0], self.R0, atol=1e-7))
         self.assertTrue(np.allclose(pts_cyl[:, 2], 0.0, atol=1e-9))
 
+    def test_integrate_right_direction(self):
+        # W7X has B_phi in the negative phi direction; verify that field is flipped. 
+        name = "w7x"
+        base_curves, base_currents, ma, nfp, bs = get_data(name)
+        # confirm that B_phi is negative:
+        bs.set_points(ma.gamma()[0: 1])
+        self.assertTrue(bs.B_cyl()[0, 1] < 0, msg="Expected B_phi < 0 for W7X configuration")
+                        
+        gamma = ma.gamma()
+        start_xyz = gamma[0, :]
+        intg = SimsoptFieldlineIntegrator(bs, nfp=nfp, test_symmetries=False, R0=ma.gamma()[0][0], tmax=1e3)
+        axispoints = intg.integrate_fieldlinepoints_cart(start_xyz, n_transits=0.5, return_cartesian=False)
+        # check that phi is nevertheless strictly increasing:
+        phis = axispoints[:, 1]
+        dphis = np.diff(phis)
+        self.assertTrue(np.all(dphis > 0), msg="Expected strictly increasing phi along integrated fieldline in W7X configuration")
+
 
 
 class TestScipyFieldlineIntegrator(unittest.TestCase):
@@ -321,6 +339,11 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
         #should be nans
         self.assertTrue(np.isnan(endpoint_RZ).all())
 
+        # test integrate in cyl failure: 
+        global_counter = 90
+        with self.assertRaises(ObjectiveFailure):
+            _ = intg.integrate_fieldlinepoints_cyl(start_RZ, 0.0, 4*np.pi, n_points=50, return_cartesian=True)
+
         
 
 
@@ -372,8 +395,6 @@ class TestIntegratorAgreement(unittest.TestCase):
         # This is also a test of the configurations. 
         for name in configurations:
             with self.subTest(config=name):
-                # Known upstream issue: W7-X target endpoint mismatch (~0.29 m) though integrators agree.
-                # unittest has no per-subTest xfail; skip just this config to keep CI green while preserving others.
                 base_curves, base_currents, ma, nfp, bs = get_data(name)
                 gamma = ma.gamma()
                 start_xyz = gamma[0, :]
@@ -423,3 +444,4 @@ class TestIntegratorAgreement(unittest.TestCase):
                     tol_abs,
                     msg=f"[{name}] simsopt vs scipy dist={agree:.3e} > tol={tol_abs:.1e}; |simsopt-target|={err_so:.3e}; |scipy-target|={err_sc:.3e}",
                 )
+    
