@@ -25,7 +25,11 @@ from simsopt.geo import SurfaceRZFourier
 from simsopt.util import in_github_actions, proc0_print, MpiPartition
 from simsopt.geo import plot
 
-mpi = MpiPartition(2)
+try: 
+    mpi = MpiPartition(2)
+except RuntimeError:
+    mpi = lambda: None
+    mpi.comm_world = None
 
 proc0_print("Running 1_Simple/tracing_fieldlines_QA.py")
 proc0_print("=========================================")

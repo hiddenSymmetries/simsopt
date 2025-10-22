@@ -27,7 +27,11 @@ from simsopt.util import in_github_actions, proc0_print, MpiPartition
 proc0_print("Running 1_Simple/tracing_fieldlines_NCSX.py")
 proc0_print("===========================================")
 
-mpi = MpiPartition(2)
+try: 
+    mpi = MpiPartition(2)
+except RuntimeError:
+    mpi = lambda: None
+    mpi.comm_world = None
 
 sys.path.append(os.path.join("..", "tests", "geo"))
 logging.basicConfig()
