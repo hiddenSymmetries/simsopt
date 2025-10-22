@@ -198,8 +198,11 @@ class TestPoincarePlotterScipy(unittest.TestCase):
         from simsopt.geo import SurfaceRZFourier
         surface = SurfaceRZFourier()
         num_planes = self.pp.phis.shape[0]
+
+        _ = self.pp.res_phi_hits
+        self.pp._res_phi_hits[-1][-1,1] = -1  #simulate a lost particle
         # Simple plots
-        fig1, ax1 = self.pp.plot_poincare_single(self.pp.phis[0], include_symmetry_planes=False)
+        fig1, ax1 = self.pp.plot_poincare_single(self.pp.phis[0], include_symmetry_planes=False, mark_lost=True)
         self.assertIsNotNone(fig1)
         self.assertIsNotNone(ax1)
         self.assertEqual(self.pp.phis.shape[0], num_planes)
