@@ -941,12 +941,9 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
 
 class Integrator(Optimizable):
     """
-    Base class for Integrators. 
-    Integrators provide a method `compute_poincare_hits` which returns 
-    res_phi_hits that interfaces with the PoincarePlotter. 
-    It can also provide other integration services on a MagneticField. 
-    and being an Optimizable, the results of integrations can be
-    optimized. 
+    A Base class for integrators as Optimizable objects. Outputs of integrators can be optimized. 
+    Instances of the Integrator class implement a compute_poincare_hits method which interface with the PoincarePlotter class.
+    Do not use this base class, use the SimsoptFieldlineIntegrator or ScipyFieldlineIntegrator depending on need.
     """
     def __init__(self, field: MagneticField, comm=None, nfp=None, stellsym=False, R0=None, test_symmetries=True):
         """
