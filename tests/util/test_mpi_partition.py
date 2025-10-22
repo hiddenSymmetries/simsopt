@@ -119,3 +119,5 @@ class OtherMpiTests(unittest.TestCase):
     def test_proc0_print(self):
         proc0_print("foo")
         proc0_print("foo", flush=True)  # Try with a kwarg
+        with MPI as None:
+            proc0_print("foo with MPI")

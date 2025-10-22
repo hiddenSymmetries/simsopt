@@ -315,7 +315,7 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
         # the second integration failed and should have -1 as first index, indicating failure
         self.assertEqual(res_phi_hits[-1][-1, 1], -1)
         
-        start_RZ = np.array([self.R0 + 0.05, 0.0])
+        start_RZ = np.array([R0 + 0.05, 0.0])
         global_counter = 90
         endpoint_RZ = intg.integrate_in_phi_cyl(start_RZ, 0.0, 2*np.pi, return_cartesian=False)
         #should be nans
