@@ -692,6 +692,9 @@ class ToroidalWireframe(object):
                 False.
         """
 
+        if n_breaks == 0:
+            return
+
         # Ensure that there aren't excessive breaks
         if n_breaks >= 0.5*self.n_phi:
             raise ValueError('n_breaks must be < half of wireframe n_phi')
