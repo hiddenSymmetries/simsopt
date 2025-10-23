@@ -1135,8 +1135,7 @@ class SimsoptFieldlineIntegrator(Integrator):
 
     def integrate_fieldlinepoints_cart(self, start_xyz, n_transits=1, return_cartesian=True):
         """
-        Calculate a string of points along a field line starting at 
-        (start_R, start_Z, start_phi) and going to (start_R, start_Z, start_phi+delta_phi).
+        Calculate a string of points along a field line starting at a location given by cartesian coordinates.
         The points are returned in the form of a numpy array of shape (npoints, 3). 
         If return_cartesian is True, the points are in cartesian coordinates (x,y,z), otherwise they are in (R, phi, Z). 
 
@@ -1172,8 +1171,18 @@ class SimsoptFieldlineIntegrator(Integrator):
 
     def integrate_fieldlinepoints_cyl(self, start_RZ, start_phi, n_transits=1, return_cartesian=True):
         """
-        Integrate the field line over an angle phi from the starting point given by 
-        cartesian coordinates (x,y,z).
+        Calculate a string of points along a field line starting at a location given by cartesian coordinates.
+        The points are returned in the form of a numpy array of shape (npoints, 3). 
+        If return_cartesian is True, the points are in cartesian coordinates (x,y,z), otherwise they are in (R, phi, Z). 
+
+        The SimsoptFieldLineIntegrator does not give control over the number of points, but relies
+        on the adaptive step size of the integrator. The number of points returned will depend on the field
+        complexity and the tolerance set for the integrator.
+        Args: 
+            start_RZ: starting cylindrical coordinates Array[R,Z]
+            start_phi: starting toroidal angle
+            n_transits: number of times to go around the device.
+            return_cartesian: if True, return the points in cartesian coordinates, otherwise return Cylindrical coordinates (default False).
         """
         start_xyz = self._rphiz_to_xyz(np.array([start_RZ[0], start_phi, start_RZ[1]]))[-1, :]
         return self.integrate_fieldlinepoints_cart(
@@ -1336,7 +1345,8 @@ class ScipyFieldlineIntegrator(Integrator):
 
     def integrate_in_phi_cyl(self, start_RZ, start_phi=0, delta_phi=2*np.pi, return_cartesian=False):
         """
-        Integrate along the field in the phi direction, starting from cylindrical coordinates (R,Z) at angle start_phi. 
+        Integrate along the field in the phi direction, returning the end location. 
+        Integration starts from cylindrical coordinates (R,Z) at angle start_phi. 
         Args:
             start_RZ: starting point in cylindrical coordinates (R,Z)
             start_phi: starting angle in phi
@@ -1350,11 +1360,12 @@ class ScipyFieldlineIntegrator(Integrator):
             rphiz = np.array([sol.y[0, -1], start_phi + delta_phi, sol.y[1, -1]])
             return self._rphiz_to_xyz(rphiz)[-1, :]
         else:
-            return sol.y[:, -1]
+            return sol.y[:, -1] # final R,Z
     
     def integrate_in_phi_cart(self, start_xyz, delta_phi=2*np.pi, return_cartesian=True):
         """
-        Integrate along the field in the phi direction, starting from cartesian coordinates (x,y,z).
+        Integrate along the field in the phi direction, starting from cartesian coordinates (x,y,z). 
+        Return only the end location after integrating over delta_phi.
         Args:
             start_xyz: starting point in cartesian coordinates (x,y,z)
             delta_phi: angle to integrate over
@@ -1397,7 +1408,7 @@ class ScipyFieldlineIntegrator(Integrator):
     
     def integrate_fieldlinepoints_cyl(self, start_RZ, start_phi, delta_phi, n_points, endpoint=False, return_cartesian=True):
         """
-        Calculate a set of points along a field line starting at an R,Z location and starting angle in phi, for a 
+        Calculate n_points along a field line starting at an R,Z location and starting angle in phi, for a 
         distance delta_phi. 
         Args:
             start_RZ: starting point in cylindrical coordinates (R,Z)
@@ -1514,7 +1525,7 @@ class PoincarePlotter(Optimizable):
         self.store_results = store_results
         if store_results:
             # load file form disk if it exists
-            self.load_from_disk()
+            self.retrieve_poincare_data()
 
     @property
     def randomcolors(self):
@@ -1620,7 +1631,7 @@ class PoincarePlotter(Optimizable):
         """
         if self.store_results and self._res_tys is None:
             # read from disk if it already exists
-            self.load_from_disk()
+            self.retrieve_poincare_data()
         if self._res_tys is None or self.need_to_recompute:
             if isinstance(self.integrator, SimsoptFieldlineIntegrator):
                 self._res_tys, self._res_phi_hits = self.integrator.compute_poincare_hits(
@@ -1629,15 +1640,22 @@ class PoincarePlotter(Optimizable):
                 self._res_tys = self.integrator.compute_poincare_trajectories(
                     self.start_points_RZ, phi0=self.phi0, n_transits=self.n_transits)
             if self.store_results:
-                self.save_to_disk()
+                self.save_poincare_data()
             self.need_to_recompute = False
         return self._res_tys
     
     @property
     def res_phi_hits(self):
+        """
+        Compute or retrieve the Poincare section hits for the Poincare plot.
+        Returns:
+            res_phi_hits: list of numpy arrays (one for each particle) containing
+                          the Poincare section hits of each field line. Each row of the array contains
+                          `[phi, plane_index, x, y, z]`.
+        """
         if self.store_results and self._res_phi_hits is None:
             # read from disk if it already exists
-            self.load_from_disk()
+            self.retrieve_poincare_data()
         if self._res_phi_hits is None or self.need_to_recompute:
             if isinstance(self.integrator, SimsoptFieldlineIntegrator):
                 self._res_tys, self._res_phi_hits = self.integrator.compute_poincare_hits(
@@ -1646,7 +1664,7 @@ class PoincarePlotter(Optimizable):
                 self._res_phi_hits = self.integrator.compute_poincare_hits(
                     self.start_points_RZ, phi0=self.phi0, n_transits=self.n_transits, phis=self.phis)
             if self.store_results:
-                self.save_to_disk()
+                self.save_poincare_data()
             self.need_to_recompute = False
         return self._res_phi_hits
     
@@ -1659,7 +1677,7 @@ class PoincarePlotter(Optimizable):
         poincare_hash = hash(tuple(hash_list))
         return poincare_hash
     
-    def save_to_disk(self, filename=None, name=None):
+    def save_poincare_data(self, filename=None, name=None):
         """
         Persist the current state of the PoincarePlotter. By default the results
         are stored inside ``poincare_data.npz`` under keys derived from the
@@ -1695,7 +1713,7 @@ class PoincarePlotter(Optimizable):
         if updated:
             np.savez_compressed(filename, **data_to_save)
 
-    def load_from_disk(self, name=None, filename=None):
+    def retrieve_poincare_data(self, name=None, filename=None):
         """
         Load previously stored results for this plotter from ``poincare_data.npz``
         (or a user-specified archive). Results are keyed by the poincare hash,
