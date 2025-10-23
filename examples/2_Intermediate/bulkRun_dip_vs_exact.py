@@ -111,6 +111,10 @@ for it in range(iters):
     RS_history, m_history, m_proxy_history = relax_and_split(pm_opt, m0=m0, **kwargs)
     m0 = pm_opt.m
 
+    # Set final m to the minimum achieved during the optimization
+    min_ind = np.argmin(R2_history)
+    pm_opt.m = np.ravel(m_history[:, :, min_ind])
+
     # Print effective permanent magnet volume
     B_max = 1.465
     mu0 = 4 * np.pi * 1e-7

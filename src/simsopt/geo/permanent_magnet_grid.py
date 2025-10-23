@@ -222,6 +222,8 @@ class PermanentMagnetGrid:
         ox, oy, oz, Ic, M0s = np.loadtxt(famus_filename, skiprows=3, usecols=[3, 4, 5, 6, 7],
                                          delimiter=',', unpack=True)
 
+        print('M0s are ', M0s)
+
         # Downsample the resolution as needed 
         inds_total = np.arange(len(ox))
         inds_downsampled = inds_total[::downsample]
@@ -253,6 +255,9 @@ class PermanentMagnetGrid:
             pm_grid.m_maxima = B_max * cell_vol[nonzero_inds] / mu0
 
             cubrt_vol = np.cbrt(cell_vol[0])
+            pm_grid.dx = cubrt_vol
+            pm_grid.dy = cubrt_vol
+            pm_grid.dz = cubrt_vol
             pm_grid.dims = np.array([cubrt_vol, cubrt_vol, cubrt_vol])
             print('DIPOLE DIMS = ',pm_grid.dims)
         else:
@@ -808,6 +813,8 @@ class ExactMagnetGrid:
         ox, oy, oz, Ic, M0s = np.loadtxt(famus_filename, skiprows=3, usecols=[3, 4, 5, 6, 7],
                                          delimiter=',', unpack=True)
 
+        print('M0s are ', M0s)
+
         # Downsample the resolution as needed 
         inds_total = np.arange(len(ox))
         inds_downsampled = inds_total[::downsample]
@@ -841,6 +848,10 @@ class ExactMagnetGrid:
             # Assumes that the magnets are all the same shape, and are perfect cubes!
             cube_root_vol = np.cbrt(cell_vol[0]) # Assume FAMUS magnets are cubes
             pm_grid.dims = np.array([cube_root_vol, cube_root_vol, cube_root_vol])
+            pm_grid.dx = cube_root_vol
+            pm_grid.dy = cube_root_vol
+            pm_grid.dz = cube_root_vol
+            # magnets are not all perfect cubes for MUSE, but we will continue with this for now
             print('MAG DIMS = ',pm_grid.dims)
             pm_grid.m_maxima = B_max * cell_vol[nonzero_inds] / mu0
         else:

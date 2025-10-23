@@ -44,10 +44,10 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
-    nphi = 16  # >= 64 for high-resolution runs
-    nIter_max = 10000
-    nBacktracking = 200
-    max_nMagnets = 1000
+    nphi = 8  # >= 64 for high-resolution runs
+    nIter_max = 1000
+    nBacktracking = 10
+    max_nMagnets = 100
     downsample = 1
 
 ntheta = nphi  # same as above
@@ -95,6 +95,10 @@ Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Load a downsampled version of the magnet grid from a FAMUS file
 mag_data = FocusData(famus_filename, downsample=downsample)
+
+print(mag_data)
+
+exit()
 
 # Set the allowable orientations of the magnets to be face-aligned
 # i.e. the local x, y, or z directions
