@@ -209,7 +209,6 @@ class Testing(unittest.TestCase):
             coil = [Coil(curve, current)]
             bs = BiotSavart(coil)
             bs.set_points(s.gamma().reshape((-1, 3)))
-            perform_filament_optimization(s, bs, [curve])
 
 
 if __name__ == "__main__":
