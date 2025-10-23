@@ -136,8 +136,8 @@ def relax_and_split_minres(
                           (C @ alpha)[:, np.newaxis]))
 
     A_operator = LinearOperator((N + K, N + K), matvec=A_fun)
-    tol = 1e-20
-    minres_kwargs = {"tol": tol, "maxiter": max_iter}
+    rtol = 1e-20
+    minres_kwargs = {"rtol": rtol, "maxiter": max_iter}
 
     t1 = time.time()
     if precondition:
