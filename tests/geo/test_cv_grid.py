@@ -36,7 +36,11 @@ class Testing(unittest.TestCase):
             s1.extend_via_projected_normal(0.1)
             s2.extend_via_projected_normal(0.2)
             Bn = np.zeros(s.gamma().shape[:2])
+            
+            # Check SurfaceXYZFourier initialization
+            CurrentVoxelsGrid(s3, s3, s3)
 
+            # Check SurfaceRZFourier initialization
             CurrentVoxelsGrid(s, s1, s2)
             s.stellsym = False
             c = CurrentVoxelsGrid(s, s1, s2)
