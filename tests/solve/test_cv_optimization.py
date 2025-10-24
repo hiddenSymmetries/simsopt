@@ -91,16 +91,49 @@ class Testing(unittest.TestCase):
         )
 
         # Set some hyperparameters for the optimization
-        kwargs = {"kappa": 1e-3} 
-        mdict1 = relax_and_split_minres(cv_opt)
+        kwargs = {"kappa": 1e-3, "max_iter": 1e4} 
+        mdict1 = relax_and_split_minres(cv_opt, **kwargs)
         kwargs['precondition'] = True
-        mdict2 = relax_and_split_minres(cv_opt)
-        assert mdict1['f0'][-1] == mdict2['f0'][-1]
-        assert mdict1['fB'][-1] == mdict2['fB'][-1]
-        assert mdict1['fC'][-1] == mdict2['fC'][-1]
-        assert mdict1['fI'][-1] == mdict2['fI'][-1]
-        assert mdict1['fK'][-1] == mdict2['fK'][-1]
-        assert mdict1['fminres'][-1] == mdict2['fminres'][-1]
+        mdict2 = relax_and_split_minres(cv_opt, **kwargs)
+        print(mdict1['f0'][-1], mdict2['f0'][-1])
+        print(mdict1['fB'][-1], mdict2['fB'][-1])
+        print(mdict1['fC'][-1], mdict2['fC'][-1])
+        print(mdict1['fI'][-1], mdict2['fI'][-1])
+        print(mdict1['fK'][-1], mdict2['fK'][-1])
+        print(mdict1['fminres'][-1], mdict2['fminres'][-1])
+        f0_1 = mdict1['f0'][-1]
+        f0_2 = mdict2['f0'][-1]
+        fB_1 = mdict1['fB'][-1]
+        fB_2 = mdict2['fB'][-1]
+        fC_1 = mdict1['fC'][-1]
+        fC_2 = mdict2['fC'][-1]
+        fI_1 = mdict1['fI'][-1]
+        fI_2 = mdict2['fI'][-1]
+        fK_1 = mdict1['fK'][-1]
+        fK_2 = mdict2['fK'][-1]
+        fminres_1 = mdict1['fminres'][-1]
+        fminres_2 = mdict2['fminres'][-1]
+        np.testing.assert_allclose(
+            f0_1, f0_2, rtol=1e-2, 
+            err_msg=f'f0 does not match, f01 = {f0_1}, f02 = {f0_2}')
+        np.testing.assert_allclose(
+            fB_1, fB_2, rtol=1e-2, 
+            err_msg=f'fB does not match, fB1 = {fB_1}, fB2 = {fB_2}')
+        # fC will only match up to the first digit in absolute tolerance
+        np.testing.assert_allclose(
+            fC_1, fC_2, atol=1e-1,
+            err_msg=f'fC does not match, fC1 = {fC_1}, fC2 = {fC_2}')
+        np.testing.assert_allclose(
+            fI_1, fI_2, rtol=1e-2, 
+            err_msg=f'fI does not match, fI1 = {fI_1}, fI2 = {fI_2}')
+        np.testing.assert_allclose(
+            fK_1, fK_2, rtol=1e-2, 
+            err_msg=f'fK does not match, fK1 = {fK_1}, fK2 = {fK_2}')
+        np.testing.assert_allclose(
+            fminres_1, fminres_2, atol=1e-1,
+            err_msg=f'fminres does not match, fminres1 = {fminres_1}, fminres2 = {fminres_2}')
+
+        cv_opt.check_fluxes()
 
         kwargs['nu'] = 1e2
         kwargs['alpha0'] = mdict2['alpha_opt']
@@ -108,10 +141,9 @@ class Testing(unittest.TestCase):
         kwargs['max_iter_RS'] = 20
         l0_thresholds = np.linspace(1e4, 1e5)
         kwargs['l0_thresholds'] = l0_thresholds
-        _ = relax_and_split_minres(cv_opt)
+        _ = relax_and_split_minres(cv_opt, **kwargs)
         w = cv_opt.w[~np.isclose(np.linalg.norm(cv_opt.w, axis=-1), 0.0), :]
         assert np.all(np.linalg.norm(w, axis=-1) > l0_thresholds[-1])
-
 
 if __name__ == "__main__":
     unittest.main()

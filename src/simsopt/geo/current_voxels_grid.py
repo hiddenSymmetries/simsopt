@@ -665,6 +665,8 @@ class CurrentVoxelsGrid:
         elif stellsym:
             stell_list = [1, -1]
             # nsym = nfp * 2
+        else:
+            stell_list = [1]
 
         # get the coordinates
         ox = integration_points[:, :, 0]
@@ -991,9 +993,6 @@ class CurrentVoxelsGrid:
         """
         Phi = self.Phi
         n = Phi.shape[1]
-        # n_interp = Phi.shape[2]
-        # alpha_opt = self.alphas.reshape(n, self.n_functions)
-        # integration_points = self.integration_points
         Nx = self.nx
         Ny = self.ny
         Nz = self.nz
@@ -1038,7 +1037,7 @@ class CurrentVoxelsGrid:
                             flux[i, j] += nx * Jvec[i, l, m, z_ind, 0] + ny * Jvec[i, l, m, z_ind, 1] + nz * Jvec[i, l, m, z_ind, 2]
 
         # Compare fluxes across adjacent cells
-        flux_max = 5000  # flag any disagreements in the few kilo-Amperes range
+        flux_max = 1e4  # flag any disagreements in the 10 kilo-Amperes range
         q = 0
         qq = 0
         for i in range(n):

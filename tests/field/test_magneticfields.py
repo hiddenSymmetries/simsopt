@@ -1358,6 +1358,11 @@ class Testing(unittest.TestCase):
             Bi[i, :] *= grid_scaling * 1e-7
         np.testing.assert_allclose(bs_wv.B(), bs_dipole.B(), atol=1e-15, err_msg='Bfields do not match, B1 = {bs_wv.B()}, B2 = {bs_dipole.B()}')
         np.testing.assert_allclose(bs_wv.B(), Bi, atol=1e-15, err_msg='Bfields do not match, B1 = {bs_wv.B()}, B2 = {Bi}')
+        # No idea how to test the derivatives right now, since I think they should disagree
+        # with the dipole ones, which are symmetric, while the voxel ones are not.
+        bs_wv.dB_by_dX()
+        bs_wv.dA_by_dX()
+        np.testing.assert_allclose(bs_wv.A(), bs_dipole.A(), atol=1e-15, err_msg='A fields do not match, A1 = {bs_wv.A()}, A2 = {bs_dipole.A()}')
 
 if __name__ == "__main__":
     unittest.main()
