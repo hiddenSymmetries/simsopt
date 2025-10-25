@@ -1056,7 +1056,34 @@ class SurfaceRZFourierTests(unittest.TestCase):
                     np.testing.assert_allclose(old_R, np.roll(new_R, nphi_per_half_period, axis=0))
                     np.testing.assert_allclose(old_Z, np.roll(new_Z, nphi_per_half_period, axis=0), atol=1e-13)
 
-        
+    def test_shift_theta_by_half(self):
+        """Test the shift_theta_by_half() method."""
+        nfp = 3
+        half_ntheta = 9
+        ntheta = 2 * half_ntheta
+        quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=False)
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    s = SurfaceRZFourier(
+                        mpol=mpol,
+                        ntor=ntor,
+                        nfp=nfp,
+                        stellsym=stellsym,
+                        quadpoints_theta=quadpoints_theta,
+                    )
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_Z = old_gamma[:, :, 2]
+                    s.shift_theta_by_half()
+                    new_gamma = s.gamma()
+                    new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    new_Z = new_gamma[:, :, 2]
+                    np.testing.assert_allclose(old_R, np.roll(new_R, half_ntheta, axis=1))
+                    np.testing.assert_allclose(old_Z, np.roll(new_Z, half_ntheta, axis=1), atol=1e-13)
+
+
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):
         """

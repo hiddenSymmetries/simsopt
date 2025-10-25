@@ -1037,13 +1037,27 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         Rotate the surface toroidally by half a field period.
 
-        This is useful when you have a surface with the bean cross-section at
-        ϕ = π / nfp, and you want to rotate it so that the bean is at ϕ = 0.
+        This operation is useful when you have a surface with the bean
+        cross-section at ϕ = π / nfp, and you want to rotate it so that the bean
+        is at ϕ = 0.
         """
         x = self.local_full_x
         # Flip the sign of all modes with odd n:
         odd_ns = (self.n % 2 == 1)
         x[odd_ns] = -x[odd_ns]
+        self.local_full_x = x
+
+    def shift_theta_by_half(self):
+        """
+        Shift the origin of the poloidal angle θ by 1/2.
+
+        This operation is useful when you have a surface with θ=0 at the inboard
+        side instead of the usual outboard side.
+        """
+        x = self.local_full_x
+        # Flip the sign of all modes with odd m:
+        odd_ms = (self.m % 2 == 1)
+        x[odd_ms] = -x[odd_ms]
         self.local_full_x = x
 
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
