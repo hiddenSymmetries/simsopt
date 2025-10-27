@@ -44,7 +44,7 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
-    nphi = 8  # >= 64 for high-resolution runs
+    nphi = 4  # >= 64 for high-resolution runs
     nIter_max = 1000
     nBacktracking = 10
     max_nMagnets = 100
@@ -94,17 +94,7 @@ bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Load a downsampled version of the magnet grid from a FAMUS file
-ox, oy, oz, Ic, M0s = np.loadtxt(famus_filename, skiprows=3, usecols=[3, 4, 5, 6, 7],
-                                         delimiter=',', unpack=True)
-print('M0s are ', M0s)
-for m in M0s:
-    if m != 0.074625:
-        print('variation')
 mag_data = FocusData(famus_filename, downsample=downsample)
-
-print(mag_data)
-
-# exit()
 
 # Set the allowable orientations of the magnets to be face-aligned
 # i.e. the local x, y, or z directions

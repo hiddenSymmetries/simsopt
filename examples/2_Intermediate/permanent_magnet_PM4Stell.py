@@ -39,9 +39,9 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # drastically downsample the grid if running CI
 else:
-    N = 16  # >= 64 for high-resolution runs
-    nIter_max = 100000
-    max_nMagnets = 10000
+    N = 4  # >= 64 for high-resolution runs
+    nIter_max = 10000
+    max_nMagnets = 1000
     downsample = 10
 
 nphi = N
@@ -143,10 +143,6 @@ pol_vectors[:, :, 0] = mag_data.pol_x
 pol_vectors[:, :, 1] = mag_data.pol_y
 pol_vectors[:, :, 2] = mag_data.pol_z
 
-<<<<<<< HEAD
-# Using m_maxima functionality to try out unrealistically strong magnets
-=======
->>>>>>> master
 kwargs_geo = {"pol_vectors": pol_vectors, "downsample": downsample}
 
 # Initialize the permanent magnet grid from the PM4Stell arrangement
