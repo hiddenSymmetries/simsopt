@@ -223,6 +223,7 @@ class PermanentMagnetGrid:
                                          delimiter=',', unpack=True)
 
         print('M0s are ', M0s)
+        pm_grid.realsolution_M = M0s
 
         # Downsample the resolution as needed 
         inds_total = np.arange(len(ox))
@@ -814,6 +815,7 @@ class ExactMagnetGrid:
                                          delimiter=',', unpack=True)
 
         print('M0s are ', M0s)
+        pm_grid.realsolution_M = M0s
 
         # Downsample the resolution as needed 
         inds_total = np.arange(len(ox))

@@ -94,11 +94,17 @@ bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Load a downsampled version of the magnet grid from a FAMUS file
+ox, oy, oz, Ic, M0s = np.loadtxt(famus_filename, skiprows=3, usecols=[3, 4, 5, 6, 7],
+                                         delimiter=',', unpack=True)
+print('M0s are ', M0s)
+for m in M0s:
+    if m != 0.074625:
+        print('variation')
 mag_data = FocusData(famus_filename, downsample=downsample)
 
 print(mag_data)
 
-exit()
+# exit()
 
 # Set the allowable orientations of the magnets to be face-aligned
 # i.e. the local x, y, or z directions
@@ -134,6 +140,9 @@ pol_vectors[:, :, 0] = mag_data.pol_x
 pol_vectors[:, :, 1] = mag_data.pol_y
 pol_vectors[:, :, 2] = mag_data.pol_z
 print('pol_vectors_shape = ', pol_vectors.shape)
+print('pol_vectors are ',pol_vectors)
+
+exit()
 
 # pol_vectors is only used for the greedy algorithms with cartesian coordinate_flag
 # which is the default, so no need to specify it here. 
