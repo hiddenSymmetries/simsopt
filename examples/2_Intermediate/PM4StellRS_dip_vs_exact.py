@@ -35,7 +35,7 @@ from simsopt.objectives import SquaredFlux
 t_start = time.time()
 
 N = 16  # >= 64 for high-resolution runs
-nIter_max = 100
+nIter_max = 10
 downsample = 10
 
 nphi = N
@@ -149,6 +149,9 @@ pm_comp = ExactMagnetGrid.geo_setup_from_famus(
     lcfs_ncsx, bn_total, fname_argmt, **kwargs_geo
 )
 
+pm_ncsx.phiThetas = np.zeros((nMagnets_tot, 2))
+pm_ncsx.phiThetas[:,0] = ophi
+
 # Optimize with the GPMO algorithm
 m0 = np.zeros(pm_ncsx.ndipoles * 3) 
 reg_l0 = 0.0  # No sparsity
@@ -180,7 +183,7 @@ b_dipole = DipoleField(
         m_maxima=pm_ncsx.m_maxima
     )
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-b_dipole._toVTK(out_dir / "Dipole_Fields", pm_ncsx.dx, pm_ncsx.dy, pm_ncsx.dz)
+b_dipole._toVTK(out_dir / "dipdip_normal_Fields", pm_ncsx.dx, pm_ncsx.dy, pm_ncsx.dz)
 
 dipfB = 0.5 * np.sum((pm_ncsx.A_obj @ pm_ncsx.m - pm_ncsx.b_obj) ** 2)
 objectives['dipole_dipole'].append(dipfB)
@@ -198,7 +201,7 @@ num_nonzero = np.count_nonzero(np.sum(dipoles_m ** 2, axis=-1)) / pm_ncsx.ndipol
 # For plotting Bn on the full torus surface at the end with just the dipole fields
 make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_dipdip_optimized")
 pointData = {"B_N": Bnormal_total[:, :, None]}
-s_plot.to_vtk(out_dir / "m_optimized", extra_data=pointData)
+s_plot.to_vtk(out_dir / "mdip_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
 bs_tfcoils.set_points(lcfs_ncsx.gamma().reshape(-1, 3))
@@ -228,7 +231,7 @@ assert pm_comp.dy == pm_ncsx.dy
 assert pm_comp.dz == pm_ncsx.dz
 
 b_comp.set_points(s_plot.gamma().reshape((-1, 3)))
-b_comp._toVTK(out_dir / "magnet_ex_fields", pm_comp.dx, pm_comp.dy, pm_comp.dz)
+b_comp._toVTK(out_dir / "exdip_normal_fields", pm_comp.dx, pm_comp.dy, pm_comp.dz)
 
 # Print optimized metrics
 assert all(pm_comp.b_obj == pm_ncsx.b_obj)
@@ -350,6 +353,9 @@ pm_ncsx = ExactMagnetGrid.geo_setup_from_famus(
     lcfs_ncsx, bn_total, fname_argmt, **kwargs_geo
 )
 
+pm_ncsx.phiThetas = np.zeros((nMagnets_tot, 2))
+pm_ncsx.phiThetas[:,0] = ophi
+
 # Optimize with the GPMO algorithm
 m0 = np.zeros(pm_ncsx.ndipoles * 3) 
 reg_l0 = 0.0  # No sparsity
@@ -382,7 +388,7 @@ b_magnet = ExactField(
         m_maxima=pm_ncsx.m_maxima,
     )
 b_magnet.set_points(s_plot.gamma().reshape((-1, 3)))
-b_magnet._toVTK(out_dir / "magnet_ex_fields", pm_ncsx.dx, pm_ncsx.dy, pm_ncsx.dz)
+b_magnet._toVTK(out_dir / "exex_normal_fields", pm_ncsx.dx, pm_ncsx.dy, pm_ncsx.dz)
 
 # Print optimized metrics
 fB = 0.5 * np.sum((pm_ncsx.A_obj @ pm_ncsx.m - pm_ncsx.b_obj) ** 2)
@@ -400,7 +406,7 @@ magnets_m = pm_ncsx.m.reshape(pm_ncsx.ndipoles, 3)
 num_nonzero = np.count_nonzero(np.sum(magnets_m ** 2, axis=-1)) / pm_ncsx.ndipoles * 100
 
 # For plotting Bn on the full torus surface at the end with just the magnet fields
-make_Bnormal_plots(b_magnet, s_plot, out_dir, "only_mex_optimized")
+make_Bnormal_plots(b_magnet, s_plot, out_dir, "only_exex_optimized")
 pointData = {"B_N": Bnormal_total[:, :, None]}
 s_plot.to_vtk(out_dir / "mex_optimized", extra_data=pointData)
 
@@ -430,11 +436,15 @@ b_dipole = DipoleField(
     m_maxima=pm_ncsx.m_maxima
 )
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-b_dipole._toVTK(out_dir / "ex_magnet_fields", pm_ncsx.dx, pm_ncsx.dy, pm_ncsx.dz)
+b_dipole._toVTK(out_dir / "dipex_normal_fields", pm_ncsx.dx, pm_ncsx.dy, pm_ncsx.dz)
 
 # Print optimized metrics
 fBc = 0.5 * np.sum((pm_comp.A_obj @ pm_ncsx.m - pm_ncsx.b_obj) ** 2)
 objectives['exact_dipole'].append(fBc)
+
+make_Bnormal_plots(b_magnet, s_plot, out_dir, "only_dipex_optimized")
+pointData = {"B_N": Bnormal_total[:, :, None]}
+s_plot.to_vtk(out_dir / "mex_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
 b_dipole.set_points(lcfs_ncsx.gamma().reshape((-1, 3)))
