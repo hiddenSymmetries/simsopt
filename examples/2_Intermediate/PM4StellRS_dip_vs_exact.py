@@ -34,7 +34,7 @@ from simsopt.objectives import SquaredFlux
 
 t_start = time.time()
 
-N = 16  # >= 64 for high-resolution runs
+N = 8  # >= 64 for high-resolution runs
 nIter_max = 10
 downsample = 10
 
@@ -49,7 +49,10 @@ print('out directory = ', out_dir)
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 fname_plasma = TEST_DIR / 'c09r00_B_axis_half_tesla_PM4Stell.plasma'
 
-objectives = {}
+objectives = dict.fromkeys(['dipole_dipole',
+                            'dipole_exact',
+                            'exact_exact',
+                            'exact_dipole'])
 
 ######################
 ######################
@@ -185,7 +188,7 @@ b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
 b_dipole._toVTK(out_dir / "dipdip_normal_Fields", pm_ncsx.dx, pm_ncsx.dy, pm_ncsx.dz)
 
 dipfB = 0.5 * np.sum((pm_ncsx.A_obj @ pm_ncsx.m - pm_ncsx.b_obj) ** 2)
-objectives.append({'dipole_dipole': dipfB})
+objectives['dipole_dipole'] = dipfB
 
 bs_tfcoils.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
@@ -223,7 +226,6 @@ b_comp = ExactField(
 
 assert np.all(pm_comp.m == 0.0)
 assert np.all(pm_comp.pm_grid_xyz == pm_ncsx.dipole_grid_xyz)
-assert np.all(pm_comp.phiThetas == pm_ncsx.phiThetas)
 
 assert pm_comp.dx == pm_ncsx.dx
 assert pm_comp.dy == pm_ncsx.dy
@@ -235,7 +237,7 @@ b_comp._toVTK(out_dir / "exdip_normal_fields", pm_comp.dx, pm_comp.dy, pm_comp.d
 # Print optimized metrics
 assert all(pm_comp.b_obj == pm_ncsx.b_obj)
 compfB = 0.5 * np.sum((pm_comp.A_obj @ pm_ncsx.m - pm_ncsx.b_obj) ** 2)
-objectives.append({'dipole_exact': compfB})
+objectives['dipole_exact'] = compfB
 
 bs_tfcoils.set_points(s_plot.gamma().reshape((-1, 3)))
 Bcnormal = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
@@ -391,7 +393,7 @@ b_magnet._toVTK(out_dir / "exex_normal_fields", pm_ncsx.dx, pm_ncsx.dy, pm_ncsx.
 
 # Print optimized metrics
 fB = 0.5 * np.sum((pm_ncsx.A_obj @ pm_ncsx.m - pm_ncsx.b_obj) ** 2)
-objectives.append({'exact_exact': fB})
+objectives['exact_exact'] = fB
 
 bs_tfcoils.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
@@ -419,7 +421,6 @@ total_volume = np.sum(np.sqrt(np.sum(pm_ncsx.m.reshape(pm_ncsx.ndipoles, 3) ** 2
 
 assert np.all(pm_comp.m == 0.0)
 assert np.all(pm_comp.dipole_grid_xyz == pm_ncsx.pm_grid_xyz)
-assert np.all(pm_comp.phiThetas == pm_ncsx.phiThetas)
 
 assert pm_comp.dx == pm_ncsx.dx
 assert pm_comp.dy == pm_ncsx.dy
@@ -439,7 +440,7 @@ b_dipole._toVTK(out_dir / "dipex_normal_fields", pm_ncsx.dx, pm_ncsx.dy, pm_ncsx
 
 # Print optimized metrics
 fBc = 0.5 * np.sum((pm_comp.A_obj @ pm_ncsx.m - pm_ncsx.b_obj) ** 2)
-objectives.append({'exact_dipole': fBc})
+objectives['exact_dipole'] = fBc
 
 make_Bnormal_plots(b_magnet, s_plot, out_dir, "only_dipex_optimized")
 pointData = {"B_N": Bnormal_total[:, :, None]}
@@ -456,7 +457,7 @@ total_volume = np.sum(np.sqrt(np.sum(pm_ncsx.m.reshape(pm_ncsx.ndipoles, 3) ** 2
 ######################
 ######################
 
-df = pd.DataFrame(objectives)
+df = pd.DataFrame([objectives])
 df.to_csv(out_dir / 'objectives.csv', index=False)
 
 # Plot optimization results as function of iterations

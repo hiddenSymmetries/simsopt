@@ -49,7 +49,10 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 famus_filename = TEST_DIR / 'zot80.focus'
 surface_filename = TEST_DIR / input_name
 
-objectives = {}
+objectives = dict.fromkeys(['dipole_dipole',
+                            'dipole_exact',
+                            'exact_exact',
+                            'exact_dipole'])
 
 #################################################
 #################################################
@@ -163,7 +166,7 @@ b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
 b_dipole._toVTK(out_dir / "dipdip_normal_Fields", pm_opt.dx, pm_opt.dy, pm_opt.dz)
 
 dipfB = 0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2)
-objectives.append({'dipole_dipole': dipfB})
+objectives['dipole_dipole'] = dipfB
 
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
@@ -213,7 +216,7 @@ b_comp._toVTK(out_dir / "exdip_normal_fields", pm_comp.dx, pm_comp.dy, pm_comp.d
 # Print optimized metrics
 assert all(pm_comp.b_obj == pm_opt.b_obj)
 compfB = 0.5 * np.sum((pm_comp.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2)
-objectives.append({'dipole_exact': compfB})
+objectives['dipole_exact'] = compfB
 
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bcnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
@@ -351,7 +354,7 @@ b_magnet._toVTK(out_dir / "exex_normal_fields", pm_opt.dx, pm_opt.dy, pm_opt.dz)
 
 # Print optimized metrics
 fB = 0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2)
-objectives.append({'exact_exact': fB})
+objectives['exact_exact'] = fB
 
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
@@ -399,7 +402,7 @@ b_dipole._toVTK(out_dir / "dipex_normal_fields", pm_opt.dx, pm_opt.dy, pm_opt.dz
 
 # Print optimized metrics
 fBc = 0.5 * np.sum((pm_comp.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2)
-objectives.append({'exact_dipole': fBc})
+objectives['exact_dipole'] = fBc
 
 make_Bnormal_plots(b_magnet, s_plot, out_dir, "only_dipex_optimized")
 pointData = {"B_N": Bnormal_total[:, :, None]}
@@ -416,7 +419,7 @@ total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, 
 ########################
 ########################
 
-df = pd.DataFrame(objectives)
+df = pd.DataFrame([objectives])
 df.to_csv(out_dir / 'objectives.csv', index=False)
 
 t_end = time.time()
