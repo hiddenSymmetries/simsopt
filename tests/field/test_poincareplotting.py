@@ -366,7 +366,7 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
             # change an element of the res_phi_hits and res tys, to make sure this modification is the one that is read:
             pp2._res_phi_hits[0][0, 0] = 1e5
             pp2._res_tys[0][0, 0] = 1e5
-            pp2.save_to_disk()  # overwrite datasets inside archive
+            pp2.save_poincare_data()()  # overwrite datasets inside archive
 
             # Change a dof to invalidate cache of both plotters:
             old_val = self.bs.coils[0].current.x.copy()
@@ -388,9 +388,9 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
             # trigger new compute
             self.bs.coils[1].current.x = old_val * 0.9999
             _ = pp3.res_tys  # should recompute
-            pp3.save_to_disk(filename='othername_no_suffix')
+            pp3.save_poincare_data(filename='othername_no_suffix')
             # load it with different pplotter 
-            pp.load_from_disk(filename='othername_no_suffix')
+            pp.retrieve_poincare_data(filename='othername_no_suffix')
 
             
             #test removing the poincare cache file
