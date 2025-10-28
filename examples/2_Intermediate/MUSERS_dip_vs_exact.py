@@ -37,7 +37,7 @@ from simsopt.util.permanent_magnet_helper_functions import *
 
 t_start = time.time()
 
-nphi = 4  # >= 64 for high-resolution runs
+nphi = 8  # >= 64 for high-resolution runs
 max_iter = 10
 downsample = 10
 
@@ -60,6 +60,9 @@ objectives = dict.fromkeys(['dipole_dipole',
 s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 s_outer = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+
+s_inner.extend_via_projected_normal(0.1)
+s_outer.extend_via_projected_normal(0.1 + 0.2)
 
 # these surfaces not referenced again after this, grid is loaded in
 # maybe distance vs performance is not a necessary test with MUSE
@@ -124,9 +127,19 @@ kwargs = {"pol_vectors": pol_vectors, "downsample": downsample, "dr": dr}
 
 # HERE IS WHERE A MATRIX IS ENCODED
 # encoded in _opt_setup, not which grid initializer you use, so it should be good to go?
-pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs)
+# pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs)
 
-pm_comp = ExactMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs)
+# pm_comp = ExactMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs)
+Nx = 100
+kwargs_geo = {"Nx":Nx}
+pm_opt = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
+        s, Bnormal, s_inner, s_outer, **kwargs_geo
+    )
+
+kwargs_geo = {"Nx":Nx}
+pm_comp = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+    s, Bnormal, s_inner, s_outer, **kwargs_geo
+)
 
 print('Number of available dipoles = ', pm_opt.ndipoles)
 

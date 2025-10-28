@@ -14,17 +14,18 @@ import pandas as pd
 
 t_start = time.time()
 
-nphi = 8
+nphi = 16
 ntheta = nphi
 Nx = 80
 
 # for now just with variable magnet distance
-iters = 70
+iters = 2
 
 coff = 0.2  # outer surface distance away from inner surface
-poff = np.linspace(0.05, 0.6, iters, dtype=np.float64)
+poff = np.linspace(0.05, 0.15, iters, dtype=np.float64)
 
-input_name = 'input.LandremanPaul2021_QA_lowres'
+# input_name = 'input.LandremanPaul2021_QA_lowres'
+input_name = 'input.muse'
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
 
@@ -42,9 +43,14 @@ for it in range(iters):
     print('starting exact ',it)
 
     # Read in the plas/ma equilibrium file
-    s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-    s_inner = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-    s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+    # s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+    # s_inner = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+    # s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+
+    s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+    s_inner = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+    s_outer = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+
 
     # Make the inner and outer surfaces by extending the plasma surface
     s_inner.extend_via_projected_normal(poff[it])
@@ -68,7 +74,12 @@ for it in range(iters):
     qphi = 2 * nphi
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
-    s_plot = SurfaceRZFourier.from_vmec_input(
+    # s_plot = SurfaceRZFourier.from_vmec_input(
+    #     surface_filename, 
+    #     quadpoints_phi=quadpoints_phi, 
+    #     quadpoints_theta=quadpoints_theta
+    # )
+    s_plot = SurfaceRZFourier.from_focus(
         surface_filename, 
         quadpoints_phi=quadpoints_phi, 
         quadpoints_theta=quadpoints_theta
@@ -112,8 +123,8 @@ for it in range(iters):
     m0 = pm_opt.m
 
     # Set final m to the minimum achieved during the optimization
-    min_ind = np.argmin(R2_history)
-    pm_opt.m = np.ravel(m_history[:, :, min_ind])
+    # min_ind = np.argmin(RS_history)
+    # pm_opt.m = np.ravel(m_history[:, :, min_ind])
 
     # Print effective permanent magnet volume
     B_max = 1.465
@@ -201,9 +212,14 @@ for it in range(iters):
     print('starting dipole ',it)
 
     # Read in the plas/ma equilibrium file
-    s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-    s_inner = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-    s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+    # s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+    # s_inner = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+    # s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+    
+    s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+    s_inner = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+    s_outer = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+    
     s_inner.extend_via_projected_normal(poff[it])
     s_outer.extend_via_projected_normal(poff[it] + coff)
 
@@ -225,7 +241,12 @@ for it in range(iters):
     qphi = 2 * nphi
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
-    s_plot = SurfaceRZFourier.from_vmec_input(
+    # s_plot = SurfaceRZFourier.from_vmec_input(
+    #     surface_filename, 
+    #     quadpoints_phi=quadpoints_phi, 
+    #     quadpoints_theta=quadpoints_theta
+    # )
+    s_plot = SurfaceRZFourier.from_focus(
         surface_filename, 
         quadpoints_phi=quadpoints_phi, 
         quadpoints_theta=quadpoints_theta
