@@ -36,12 +36,12 @@ jobs:
       matrix:
         test-type: [unit, integrated]
         packages: [all, vmec, spec, none]
-        python-version: [3.9, "3.10", "3.11"]
+        python-version: ["3.10", "3.11"]
         include:
-            - python-version: 3.9
+            - python-version: 3.11
               test-type: unit
               packages: none
-            - python-version: 3.9
+            - python-version: 3.11
               test-type: integrated
               packages: none
 
@@ -262,7 +262,7 @@ jobs:
     - name: Set up Python 
       uses: actions/setup-python@v5
       with:
-        python-version: 3.9
+        python-version: 3.11
 
     - name: Install coverage
       run: pip install coverage
