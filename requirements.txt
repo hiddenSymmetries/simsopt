@@ -1,11 +1,10 @@
 setuptools_scm >= 6.0
-numpy >= 1.21.0
-jax >= 0.2.5
-jaxlib >= 0.1.56
-scipy >= 1.5.4
+numpy >= 2.1.0
+jax >= 0.5.0
+jaxlib >= 0.5.0
+scipy >= 1.15.0
 Deprecated >= 1.2.10
-nptyping >= 1.3.0
-monty >= 2021.6.10
+monty >= 2024.1.23
 ruamel.yaml
 sympy
 f90nml
