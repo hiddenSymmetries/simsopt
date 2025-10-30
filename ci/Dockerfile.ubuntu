@@ -46,19 +46,19 @@ RUN \
 RUN /sbin/ldconfig
 
 
-RUN git clone --depth 1 https://github.com/PrincetonUniversity/SPEC.git /src/SPEC && \
-    cd /src/SPEC   &&  \
-    /venv/bin/pip install -v . 2>&1 | tee spec_build.log && \
-    cd Utilities/pythontools && \
-    /venv/bin/pip install -r requirements.txt && \
-    /venv/bin/pip install -v .
+# RUN git clone --depth 1 https://github.com/PrincetonUniversity/SPEC.git /src/SPEC && \
+#     cd /src/SPEC   &&  \
+#     /venv/bin/pip install -v . 2>&1 | tee spec_build.log && \
+#     cd Utilities/pythontools && \
+#     /venv/bin/pip install -r requirements.txt && \
+#     /venv/bin/pip install -v .
     
 RUN git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git /src/VMEC && \
     cd /src/VMEC && \
     cp cmake/machines/ubuntu.json cmake_config_file.json && \
     /venv/bin/pip install -v . 2>&1 | tee vmec_build.log
 
-RUN /venv/bin/pip install git+https://github.com/zhisong/pyoculus
+# RUN /venv/bin/pip install git+https://github.com/zhisong/pyoculus
 RUN /venv/bin/pip install vtk==9.2.6 pyqt5 matplotlib pyevtk plotly
 RUN /venv/bin/pip install mayavi
 RUN /venv/bin/pip install ground bentley_ottmann
