@@ -25,7 +25,7 @@ from simsopt.field import BiotSavart, DipoleField, Coil
 from simsopt.geo import SurfaceRZFourier, PermanentMagnetGrid
 from simsopt.solve import GPMO
 from simsopt.objectives import SquaredFlux
-from simsopt.util import initialize_default_kwargs, make_Bnormal_plots
+from simsopt.util import initialize_default_kwargs
 from simsopt.util import FocusPlasmaBnormal, FocusData, read_focus_coils, in_github_actions
 from simsopt.util.polarization_project import (polarization_axes, orientation_phi,
                                                discretize_polarizations)
@@ -98,7 +98,9 @@ bn_tfcoils = np.sum(
     axis=2
 )
 bn_total = bn_plasma + bn_tfcoils
-make_Bnormal_plots(bs_tfcoils, s_plot, out_dir, "biot_savart_initial")
+bs_tfcoils.set_points(s_plot.gamma().reshape((-1, 3)))
+Bnormal = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+s_plot.to_vtk(out_dir / "biot_savart_initial", extra_data={"B_N": Bnormal[:, :, None]})
 
 # Obtain data on the magnet arrangement
 fname_argmt = TEST_DIR / 'magpie_trial104b_PM4Stell.focus'
@@ -179,7 +181,6 @@ if not in_github_actions:
     )
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
     b_dipole._toVTK(out_dir / "Dipole_Fields")
-    make_Bnormal_plots(bs_tfcoils + b_dipole, s_plot, out_dir, "biot_savart_optimized")
     Bnormal_coils = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_plasma = bnormal_obj_ncsx.bnormal_grid(qphi, ntheta, 'full torus')

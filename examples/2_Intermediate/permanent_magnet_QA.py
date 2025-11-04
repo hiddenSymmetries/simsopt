@@ -37,13 +37,12 @@ from pathlib import Path
 import numpy as np
 
 from simsopt.field import BiotSavart, DipoleField
-from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
+from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import relax_and_split
 from simsopt.util import in_github_actions
 from simsopt.util.coil_optimization_helper_functions import \
     coil_optimization, \
-    make_Bnormal_plots, \
     calculate_modB_on_major_radius, \
     make_qfm
 from simsopt.util.permanent_magnet_helper_functions import \
@@ -85,6 +84,7 @@ out_dir.mkdir(parents=True, exist_ok=True)
 
 # initialize the coils
 base_curves, curves, coils = initialize_coils_for_pm_optimization('qa', TEST_DIR, s, out_dir)
+curves_to_vtk(curves, out_dir / "curves_init")
 
 # Set up BiotSavart fields
 bs = BiotSavart(coils)
@@ -103,10 +103,12 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 )
 
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
-make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
+bs.set_points(s_plot.gamma().reshape((-1, 3)))
+Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+s_plot.to_vtk(out_dir / "biot_savart_initial", extra_data={"B_N": Bnormal[:, :, None]})
 
 # optimize the currents in the TF coils
-bs = coil_optimization(s, bs, base_curves, curves, out_dir)
+bs = coil_optimization(s, bs, base_curves, curves)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
@@ -202,7 +204,7 @@ print("Total fB (sparse) = ",
 
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
+s_plot.to_vtk(out_dir / "biot_savart_optimized", extra_data={"B_N": Bnormal[:, :, None]})
 Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
 Bnormal_total = Bnormal + Bnormal_dipoles
 Bnormal_dipoles_proxy = np.sum(b_dipole_proxy.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
@@ -215,8 +217,12 @@ print("Number of possible dipoles = ", pm_opt.ndipoles)
 print("% of dipoles that are nonzero = ", num_nonzero)
 
 # For plotting Bn on the full torus surface at the end with just the dipole fields
-make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized")
-make_Bnormal_plots(b_dipole_proxy, s_plot, out_dir, "only_m_proxy_optimized")
+b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
+Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
+s_plot.to_vtk(out_dir / "only_m_optimized", extra_data={"B_N": Bnormal_dipoles[:, :, None]})
+b_dipole_proxy.set_points(s_plot.gamma().reshape((-1, 3)))
+Bnormal_dipoles_proxy = np.sum(b_dipole_proxy.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
+s_plot.to_vtk(out_dir / "only_m_proxy_optimized", extra_data={"B_N": Bnormal_dipoles_proxy[:, :, None]})
 pointData = {"B_N": Bnormal_total[:, :, None]}
 s_plot.to_vtk(out_dir / "m_optimized", extra_data=pointData)
 pointData = {"B_N": Bnormal_total_proxy[:, :, None]}

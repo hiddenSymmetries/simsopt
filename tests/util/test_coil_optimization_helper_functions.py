@@ -1,13 +1,14 @@
 import unittest
 import os
 import shutil
+import numpy as np
 from pathlib import Path
 from monty.tempfile import ScratchDir
 
 from simsopt.util import (
     initial_vacuum_stage_II_optimizations, continuation_vacuum_stage_II_optimizations,
     read_focus_coils, build_stage_II_data_array, make_stage_II_pareto_plots,
-    vacuum_stage_II_optimization
+    vacuum_stage_II_optimization, coil_optimization
 )
 # from simsopt.field import LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque
 
@@ -400,6 +401,7 @@ class TestOptimizationKwargs(unittest.TestCase):
             # First run initial_optimizations to create input data for continuation
             shutil.copy(TEST_DIR / "input.LandremanPaul2021_QA_reactorScale_lowres", ".")
             
+            # Run initial optimizations to create input data for continuation
             initial_vacuum_stage_II_optimizations(
                 N=1,
                 MAXITER=5,
@@ -502,6 +504,106 @@ class TestOptimizationKwargs(unittest.TestCase):
                     results_data = json.load(f)
                     # Check that returned UUID matches saved UUID
                     self.assertEqual(results['UUID'], results_data['UUID'])
+
+
+class TestCoilOptimization(unittest.TestCase):
+
+    def test_coil_optimization_basic(self):
+        """Test basic functionality of coil_optimization function."""
+        from simsopt.geo import SurfaceRZFourier, create_equally_spaced_curves
+        from simsopt.field import Current, coils_via_symmetries, BiotSavart
+        from simsopt.objectives import SquaredFlux
+        
+        with ScratchDir("."):
+            # Copy required files into the temp dir
+            shutil.copy(TEST_DIR / "input.LandremanPaul2021_QA_reactorScale_lowres", ".")
+            
+            # Create surface from test file
+            nphi = 32
+            ntheta = 32
+            s = SurfaceRZFourier.from_vmec_input(
+                TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+                range="half period",
+                nphi=nphi,
+                ntheta=ntheta
+            )
+            nfp = s.nfp
+            R0 = s.get_rc(0, 0)
+            
+            # Create initial coils
+            ncoils = 3
+            order = 5
+            R1 = 0.5
+            base_curves = create_equally_spaced_curves(
+                ncoils,
+                nfp,
+                stellsym=True,
+                R0=R0,
+                R1=R1,
+                order=order,
+            )
+            
+            # Create currents
+            total_current = 3e5
+            base_currents = [Current(total_current / ncoils * 1e-5) * 1e5 for _ in range(ncoils-1)]
+            total_current_obj = Current(total_current)
+            total_current_obj.fix_all()
+            base_currents += [total_current_obj - sum(base_currents)]
+            
+            # Create coils with symmetries
+            coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+            curves = [c.curve for c in coils]
+            
+            # Create BiotSavart object
+            bs = BiotSavart(coils)
+            bs.set_points(s.gamma().reshape((-1, 3)))
+            fB_initial = SquaredFlux(s, bs).J()
+            
+            # Run optimization with minimal iterations
+            bs_optimized = coil_optimization(
+                s, bs, base_curves, curves,
+                MAXITER=5,
+                LENGTH_WEIGHT=1.0,
+                LENGTH_THRESHOLD=18.0 * R0,
+                CC_WEIGHT=1.0,
+                CC_THRESHOLD=0.1 * R0,
+                CS_WEIGHT=1e-2,
+                CS_THRESHOLD=0.15 * R0,
+                CURVATURE_WEIGHT=1e-6,
+                CURVATURE_THRESHOLD=0.1 * R0,
+                MSC_WEIGHT=1e-6,
+                MSC_THRESHOLD=0.1 * R0,
+                LINKING_NUMBER_WEIGHT=0.0,
+                FORCE_WEIGHT=0.0,
+                FORCE_THRESHOLD=0.0
+            )
+            
+            # Verify that optimization returns a BiotSavart object
+            self.assertIsInstance(bs_optimized, BiotSavart)
+            
+            # Verify that the coils are still present
+            self.assertEqual(len(bs_optimized.coils), len(coils))
+            
+            # Verify that the field can still be evaluated
+            bs_optimized.set_points(s.gamma().reshape((-1, 3)))
+            final_BdotN = np.mean(np.abs(np.sum(bs_optimized.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+            
+            # Field should be finite
+            self.assertTrue(np.isfinite(final_BdotN))
+
+            # fB should have decreased
+            fB_final = SquaredFlux(s, bs_optimized).J()
+            self.assertLess(fB_final, fB_initial)
+
+            # Run optimization with minimal iterations without passing arguments
+            bs_optimized = coil_optimization(
+                s, bs, base_curves, curves,
+                MAXITER=5,
+            )
+            
+            # Verify that points are set correctly
+            points = s.gamma().reshape((-1, 3))
+            np.testing.assert_allclose(bs_optimized.get_points_cart_ref(), points, atol=1e-8)
 
 
 if __name__ == "__main__":

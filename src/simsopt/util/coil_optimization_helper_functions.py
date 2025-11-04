@@ -163,6 +163,7 @@ def coil_optimization(s, bs, base_curves, curves, **kwargs):
     FORCE_WEIGHT = kwargs.get('FORCE_WEIGHT', 0)
     FORCE_THRESHOLD = kwargs.get('FORCE_THRESHOLD', 0)
     coils = bs.coils
+    base_coils = [coils[i] for i, c in enumerate(base_curves)]
 
     MAXITER = kwargs.get('MAXITER', 500)  # number of iterations for minimize
 
@@ -174,7 +175,8 @@ def coil_optimization(s, bs, base_curves, curves, **kwargs):
     Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
     Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
     linking_number = LinkingNumber(curves)
-    Jforce = [LpCurveForce(c, coils, regularization_circ(0.03 * R0), p=2, threshold=FORCE_THRESHOLD) for c in base_curves]
+    # Hard-coded finite widths below -- 3 cm width for 1m device, ~ 30 cm width for 10m device
+    Jforce = [LpCurveForce(c, coils, regularization_circ(0.03 * R0), p=2, threshold=FORCE_THRESHOLD) for c in base_coils]
 
     # Form the total objective function.
     JF = Jf \
@@ -204,13 +206,13 @@ def coil_optimization(s, bs, base_curves, curves, **kwargs):
         outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
         print(outstr)
         valuestr = f"J={J:.2e}, Jf={jf:.2e}"
-        valuestr += f", LenObj={LENGTH_WEIGHT * sum(Jls):.2e}"
-        valuestr += f", ccObj={CC_WEIGHT * Jccdist:.2e}"
-        valuestr += f", csObj={CS_WEIGHT * Jcsdist:.2e}"
-        valuestr += f", curvatureObj={CURVATURE_WEIGHT * sum(Jcs):.2e}"
-        valuestr += f", mscObj={MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs):.2e}"
-        valuestr += f", linkingNumberObj={LINKING_NUMBER_WEIGHT * linking_number:.2e}"
-        valuestr += f", forceObj={FORCE_WEIGHT * sum(Jforce):.2e}"
+        valuestr += f", LenObj={LENGTH_WEIGHT * QuadraticPenalty(sum(Jls), LENGTH_THRESHOLD, 'max').J():.2e}"
+        valuestr += f", ccObj={CC_WEIGHT * Jccdist.J():.2e}"
+        valuestr += f", csObj={CS_WEIGHT * Jcsdist.J():.2e}"
+        valuestr += f", curvatureObj={CURVATURE_WEIGHT * sum(Jcs).J():.2e}"
+        valuestr += f", mscObj={MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs).J():.2e}"
+        valuestr += f", linkingNumberObj={LINKING_NUMBER_WEIGHT * linking_number.J():.2e}"
+        valuestr += f", forceObj={FORCE_WEIGHT * sum(Jforce).J():.2e}"
         print(valuestr)
         return J, grad
 

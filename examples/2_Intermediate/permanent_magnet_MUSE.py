@@ -33,7 +33,6 @@ from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO
 from simsopt.util import FocusData, discretize_polarizations, polarization_axes, in_github_actions
 from simsopt.util.coil_optimization_helper_functions import \
-    make_Bnormal_plots, \
     calculate_modB_on_major_radius, \
     make_qfm
 from simsopt.util.permanent_magnet_helper_functions import \
@@ -93,7 +92,9 @@ s_plot = SurfaceRZFourier.from_focus(
 )
 
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
-make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
+bs.set_points(s_plot.gamma().reshape((-1, 3)))
+Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+s_plot.to_vtk(out_dir / "biot_savart_initial", extra_data={"B_N": Bnormal[:, :, None]})
 
 # Set up correct Bnormal from TF coils
 bs.set_points(s.gamma().reshape((-1, 3)))
@@ -204,7 +205,7 @@ if not in_github_actions:
     # Plot the SIMSOPT GPMO solution
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-    make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
+    s_plot.to_vtk(out_dir / "biot_savart_optimized", extra_data={"B_N": Bnormal[:, :, None]})
 
     # Look through the solutions as function of K and make plots
     for k in range(0, nHistory + 2, 50):
@@ -224,7 +225,6 @@ if not in_github_actions:
         Bnormal_total = Bnormal + Bnormal_dipoles
 
         # For plotting Bn on the full torus surface at the end with just the dipole fields
-        make_Bnormal_plots(b_dipole, s_plot, out_dir, f"only_m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}")
         pointData = {"B_N": Bnormal_total[:, :, None]}
         s_plot.to_vtk(out_dir / f"m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}", extra_data=pointData)
 

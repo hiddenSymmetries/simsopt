@@ -605,9 +605,6 @@ class PermanentMagnetGridTesting(unittest.TestCase):
         assert kwargs['K'] == 1000
 
         with ScratchDir("."):
-            # Test Bnormal plots
-            make_Bnormal_plots(bs, s)
-            make_Bnormal_plots(bs, s, B_axis=1.0)
 
             # optimize pm_opt and plot optimization progress
             kwargs = initialize_default_kwargs(algorithm='GPMO')
