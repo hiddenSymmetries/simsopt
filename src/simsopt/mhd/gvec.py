@@ -42,33 +42,20 @@ from simsopt._core.types import RealArray
 from simsopt.geo import Surface, SurfaceRZFourier
 from simsopt.mhd.profiles import Profile, ProfilePolynomial, ProfileScaled
 
-__all__ = ["Gvec"]
+__all__ = ["Gvec", "GVECQuantity"]
 
 default_parameters = dict(
-    ProjectName = "SIMSOPT-GVEC",
-
-    X1X2_deg = 5,
-    LA_deg = 5,
-
-    totalIter = 10000,
-    minimize_tol = 1e-5,
-
-    sgrid = dict(
-        grid_type = 4,
-        nElems = 5,
-    )
+    ProjectName="SIMSOPT-GVEC",
+    X1X2_deg=5,
+    LA_deg=5,
+    totalIter=10000,
+    minimize_tol=1e-5,
+    sgrid=dict(
+        grid_type=4,
+        nElems=5,
+    ),
 )
 
-_return_functions = set()
-
-def return_function(method):
-    """
-    Decorator to mark a method as a return function.
-    
-    This is used to indicate that the method returns a value that is computed from the GVEC state.
-    """
-    _return_functions.add(method)
-    return method
 
 class Gvec(Optimizable):
     """
@@ -95,13 +82,13 @@ class Gvec(Optimizable):
         current: Union[Profile, float, None] = None,
         parameters: Mapping = {},
         restart: Union[Literal["first", "last"], Path, str, None] = None,
-        delete_intermediates: bool = False,
-        keep_failures: bool = True,
-        keep_gvec_intermediates: Optional[Literal['all', 'stages']] = None,
+        delete_intermediates: bool = True,
+        keep_failures: bool = False,
+        keep_gvec_intermediates: Optional[Literal["all", "stages"]] = None,
         mpi: Optional[MpiPartition] = None,
     ):
         # init arguments which are not DoFs
-        self.parameters = gvec.util.CaseInsensitiveDict(parameters) # nested parameters
+        self.parameters = gvec.util.CaseInsensitiveDict(parameters)  # nested parameters
         self.delete_intermediates = delete_intermediates
         self.keep_failures = keep_failures
         self.keep_gvec_intermediates = keep_gvec_intermediates
@@ -111,17 +98,29 @@ class Gvec(Optimizable):
             self.restart = restart
         elif isinstance(restart, (str, Path)):
             if not Path(restart).is_dir():
-                raise ValueError(f"restart path {restart} does not exist or is not a directory.")
+                raise ValueError(
+                    f"restart path {restart} does not exist or is not a directory."
+                )
             self.restart = gvec.find_state(restart)
         else:
-            raise ValueError("restart must be 'first', 'last', a path to a GVEC run directory or None.")
+            raise ValueError(
+                "restart must be 'first', 'last', a path to a GVEC run directory or None."
+            )
 
         # auxiliary attributes
-        self.run_count: int = -1  # number of times GVEC has been run (0-indexed, this MPI-process only)
-        self.run_required: bool = True  # flag for caching e.g. set after changing parameters
-        self.run_successful: bool = False  # flag for whether the last run was successful
+        self.run_count: int = (
+            -1
+        )  # number of times GVEC has been run (0-indexed, this MPI-process only)
+        self.run_required: bool = (
+            True  # flag for caching e.g. set after changing parameters
+        )
+        self.run_successful: bool = (
+            False  # flag for whether the last run was successful
+        )
         self._state: State = None  # state object representing the GVEC equilibrium
-        self._runobj: gvec.Run = None  # the gvec run object, used to access the state & diagnostics
+        self._runobj: gvec.Run = (
+            None  # the gvec run object, used to access the state & diagnostics
+        )
 
         # init MPI
         if MPI:
@@ -181,29 +180,29 @@ class Gvec(Optimizable):
         # init Optimizable
         x0 = self.get_dofs()
         fixed = np.full(len(x0), True)
-        names = ['phiedge']
+        names = ["phiedge"]
         depends = [self._boundary, self._pressure]
         if iota is not None:
             depends += [self._iota]
         if current is not None:
             depends += [self._current]
         super().__init__(
-            x0=x0, 
-            fixed=fixed, 
+            x0=x0,
+            fixed=fixed,
             names=names,
             depends_on=depends,
             external_dof_setter=self.__class__.set_dofs,
         )
-    
+
     @classmethod
     def from_parameter_file(
-        cls, 
+        cls,
         parameter_file: Union[str, Path],
         **kwargs,
     ):
         parameters = gvec.util.read_parameters(parameter_file)
         return cls(parameters=parameters, **kwargs)
-    
+
     @classmethod
     def from_rundir(
         cls,
@@ -219,32 +218,34 @@ class Gvec(Optimizable):
         self._state = state
         self.run_required = False
         return self
-    
+
     def recompute_bell(self, parent=None):
         """Set the recomputation flag"""
-        logger.debug(f"recompute_bell called by {parent}: run_required = {self.run_required}")
+        logger.debug(
+            f"recompute_bell called by {parent}: run_required = {self.run_required}"
+        )
         self.run_required = True
 
     def get_dofs(self):
         """Return the DOFs owned by the GVEC optimizable.
-       o
-        This does not include any DoFs owned by dependent objects (boundary or profiles).
+        o
+         This does not include any DoFs owned by dependent objects (boundary or profiles).
         """
         return np.array([self._phiedge])
 
     def set_dofs(self, x):
         """Set the DoFs owned by the GVEC optimizable.
-        
+
         This does not include any DoFs owned by dependent objects (boundary or profiles).
         """
         if len(x) != 1:
             raise ValueError(f"Expected 1 DOF, got {len(x)}")
         self.phiedge = x[0]
-    
+
     @property
     def logger(self):
         return logging.getLogger("gvec")
-    
+
     def run(self, force: bool = False) -> None:
         """
         Run GVEC (via subprocess) if `run_required` or `force` is True.
@@ -303,14 +304,20 @@ class Gvec(Optimizable):
         # prepare parameter file
         params = self.prepare_parameters(restart)
         gvec.util.write_parameters(params, self.rundir / "parameters.toml")
-        
+
         # run GVEC
         self.run_required = False
         self.run_successful = False
         self._state = None
 
         try:
-            self._runobj = gvec.run(params, restart, runpath=self.rundir, quiet=True, keep_intermediates=self.keep_gvec_intermediates)
+            self._runobj = gvec.run(
+                params,
+                restart,
+                runpath=self.rundir,
+                quiet=True,
+                keep_intermediates=self.keep_gvec_intermediates,
+            )
             fig = self._runobj.plot_diagnostics_minimization()
             fig.savefig(self.rundir / "iterations.png")
             plt.close(fig)
@@ -325,7 +332,14 @@ class Gvec(Optimizable):
         logger.debug(f"GVEC finished in {self._runobj.GVEC_iter_used} iterations")
 
         # remove previous rundir
-        if self.delete_intermediates and previous_rundir and (self.restart != "first" or previous_rundir not in [Path("gvec-000"), Path("gvec_000-000")]):
+        if (
+            self.delete_intermediates
+            and previous_rundir
+            and (
+                self.restart != "first"
+                or previous_rundir not in [Path("gvec-000"), Path("gvec_000-000")]
+            )
+        ):
             logger.debug("deleting output from previous run")
             shutil.rmtree(previous_rundir)
 
@@ -336,17 +350,19 @@ class Gvec(Optimizable):
         if isinstance(self.boundary, SurfaceRZFourier):
             boundary = self.boundary
         else:
-            logger.debug(f"Converting boundary from {self.boundary.__class__} to SurfaceRZFourier")
+            logger.debug(
+                f"Converting boundary from {self.boundary.__class__} to SurfaceRZFourier"
+            )
             boundary = self.boundary.to_RZFourier()
 
         params = copy.deepcopy(self.parameters)
-        
+
         # set paths to other files absolute
         for key in [
             "vmecwoutfile",
             "boundary_filename",
             "hmap_ncfile",
-            ]:
+        ]:
             if key in params:
                 params[key] = str(Path(params[key]).resolve())
 
@@ -360,7 +376,9 @@ class Gvec(Optimizable):
                     perturbation[f"{Xi}pert_b_{scs}"] = {}
                     perturbation[f"{Xi}_b_{scs}"] = {}
                     # set boundary modes to values from restart
-                    for (m, n), v in restart.parameters.get(f"{Xi}_b_{scs}", {}).items():
+                    for (m, n), v in restart.parameters.get(
+                        f"{Xi}_b_{scs}", {}
+                    ).items():
                         perturbation[f"{Xi}_b_{scs}"][m, n] = v
                     # set boundary perturbation to difference between current and restart
                     for (m, n), v in params.get(f"{Xi}_b_{scs}", {}).items():
@@ -375,7 +393,9 @@ class Gvec(Optimizable):
 
         # profiles
         if self._iota is None and self._current is None:
-            raise RuntimeError("GVEC requires either an iota or a current profile to be set.")
+            raise RuntimeError(
+                "GVEC requires either an iota or a current profile to be set."
+            )
 
         params["pres"] = self.profile_to_params(self._pressure)
         if self._iota is None:
@@ -400,11 +420,10 @@ class Gvec(Optimizable):
     def profile_to_params(profile: Profile) -> dict:
         """Convert a simsopt.Profile object to a dictionary of parameters for GVEC."""
         if isinstance(profile, ProfilePolynomial):
-            return dict(
-                type="polynomial",
-                coefs=profile.local_full_x
-            )
-        elif isinstance(profile, ProfileScaled) and isinstance(profile.base, ProfilePolynomial):
+            return dict(type="polynomial", coefs=profile.local_full_x)
+        elif isinstance(profile, ProfileScaled) and isinstance(
+            profile.base, ProfilePolynomial
+        ):
             return dict(
                 type="polynomial",
                 coefs=profile.base.local_full_x,
@@ -412,30 +431,30 @@ class Gvec(Optimizable):
             )
         else:
             s = np.linspace(0, 1, 101)
-            return dict(
-                type="interpolation",
-                vals=profile(s),
-                rho2=s
-            )
-    
+            return dict(type="interpolation", vals=profile(s), rho2=s)
+
     @staticmethod
     def profile_from_params(params: Mapping) -> Profile:
         """Convert a dictionary of parameters to a simsopt.Profile object."""
         if params["type"] == "polynomial":
             profile = ProfilePolynomial(params["coefs"])
         elif params["type"] in ["bspline", "interpolation"]:
-            raise NotImplementedError(f"Profile of type {params['type']} is not supported for converting a GVEC parameter file to a simsopt.Profile object. Use 'polynomial' instead.")
+            raise NotImplementedError(
+                f"Profile of type {params['type']} is not supported for converting a GVEC parameter file to a simsopt.Profile object. Use 'polynomial' instead."
+            )
         else:
             raise ValueError(f"Unknown profile type {params['type']}")
-        
+
         if "scale" in params:
             profile = ProfileScaled(profile, params["scale"])
         return profile
-    
+
     @staticmethod
-    def boundary_to_params(boundary: SurfaceRZFourier, append: Optional[Mapping] = None) -> dict:
+    def boundary_to_params(
+        boundary: SurfaceRZFourier, append: Optional[Mapping] = None
+    ) -> dict:
         """Convert a simsopt.SurfaceRZFourier object into GVEC boundary parameters.
-        
+
         The output parameters will include the (non-boundary) contents of the `append` dictionary, if provided.
         """
         if append is None:
@@ -450,10 +469,10 @@ class Gvec(Optimizable):
         for key in ["X1", "X2", "LA"]:
             m, n = params.get(f"{key}_mn_max", (0, 0))
             params[f"{key}_mn_max"] = (max(boundary.mpol, m), max(boundary.ntor, n))
-        
+
         params["X1_sin_cos"] = "_cos_" if boundary.stellsym else "_sin_cos_"
         params["X2_sin_cos"] = "_sin_" if boundary.stellsym else "_sin_cos_"
-                
+
         for Xi in ["X1", "X2"]:
             for ab in ["a", "b"]:
                 for sincos in ["sin", "cos"]:
@@ -473,31 +492,36 @@ class Gvec(Optimizable):
                 for sincos in ["sin", "cos"]:
                     if len(params[f"{Xi}_{ab}_{sincos}"]) == 0:
                         del params[f"{Xi}_{ab}_{sincos}"]
-        
+
         # change (R,phi,Z) -> (R,Z,phi)
         params = gvec.util.flip_boundary_zeta(params)
         # ensure right-handed (R,Z,phi)
         if not gvec.util.check_boundary_direction(params):
             params = gvec.util.flip_boundary_theta(params)
         return params
-    
+
     @staticmethod
     def boundary_from_params(params: Mapping) -> SurfaceRZFourier:
         """Convert a dictionary of parameters to a simsopt.SurfaceRZFourier object.
-        
+
         Note that simsopt assumes a (right-handed) (R,phi,Z) coordinate system,
         while GVEC uses a (R,Z,phi) coordinate system. The toroidal angle therefore increases
         in the clockwise, rather than counter-clockwise direction, when viewed from above.
         """
         hmap = params.get("which_hmap", 1)
         if hmap != 1:
-            logger.warning(f"interpreting GVEC boundary with {hmap:=} as SurfaceRZFourier")
+            logger.warning(
+                f"interpreting GVEC boundary with {hmap:=} as SurfaceRZFourier"
+            )
         if params["X1_mn_max"] != params["X2_mn_max"]:
             raise NotImplementedError("X1_mn_max != X2_mn_max is not supported.")
-    
+
         nfp = params["nfp"]
         M, N = params["X1_mn_max"]
-        stellsym = params.get("X1_sin_cos", "_cos_") == "_cos_" and params.get("X2_sin_cos", "_sin_") == "_sin_"
+        stellsym = (
+            params.get("X1_sin_cos", "_cos_") == "_cos_"
+            and params.get("X2_sin_cos", "_sin_") == "_sin_"
+        )
 
         boundary = SurfaceRZFourier(
             nfp=nfp,
@@ -527,11 +551,11 @@ class Gvec(Optimizable):
 
         boundary.fix_all()
         return boundary
-    
+
     @property
     def state(self) -> State:
         """Return the gvec.State object, representing the equilibrium, rerunning GVEC if necessary.
-        
+
         The State object allows evaluating the configuration at any position
         using the same accuracy and discretization as used during the minimization.
 
@@ -546,7 +570,7 @@ class Gvec(Optimizable):
     def phiedge(self) -> float:
         """The toroidal magnetic flux at the last closed flux surface."""
         return self._phiedge
-    
+
     @phiedge.setter
     def phiedge(self, phiedge: float):
         """Set the toroidal magnetic flux at the last closed flux surface."""
@@ -559,7 +583,7 @@ class Gvec(Optimizable):
     @property
     def boundary(self) -> Surface:
         """The plasma boundary as a simsopt.Surface object.
-        
+
         Note that the default coordinate system for VMEC uses a toroidal angle in the opposite
         direction of GVEC's toroidal angle (counter-clockwise vs clockwise when viewed from above).
         """
@@ -580,7 +604,7 @@ class Gvec(Optimizable):
     def pressure_profile(self) -> Profile:
         """The pressure profile in terms of the normalized toroidal flux $s$."""
         return self._pressure
-    
+
     @pressure_profile.setter
     def pressure_profile(self, pressure_profile: Union[Profile, float]):
         if pressure_profile is self._pressure:
@@ -606,7 +630,7 @@ class Gvec(Optimizable):
         Therefore the iota profile typically has the opposite sign compared to VMEC.
         """
         return self._iota
-    
+
     @iota_profile.setter
     def iota_profile(self, iota_profile: Union[Profile, float, None]):
         if iota_profile is self._iota:
@@ -620,7 +644,7 @@ class Gvec(Optimizable):
         if iota_profile is not None:
             self.append_parent(self._iota)
         self.run_required = True
-    
+
     @property
     def current_profile(self) -> Union[Profile, None]:
         """
@@ -635,7 +659,7 @@ class Gvec(Optimizable):
         Therefore the current profile typically has the opposite sign compared to VMEC.
         """
         return self._current
-    
+
     @current_profile.setter
     def current_profile(self, current_profile: Union[Profile, float, None]):
         if current_profile is self._current:
@@ -650,111 +674,79 @@ class Gvec(Optimizable):
             self.append_parent(self._current)
         self.run_required = True
 
-    # === RETURN FUNCTIONS === #
+    # === RETURN FUNCTIONS - TO BE SIMILAR TO VMEC === #
 
-    @return_function
-    def iota_axis(self) -> float:
-        """Compute the rotational transform at the magnetic axis."""
-        ev = self.state.evaluate("iota", rho=0.0, theta=None, zeta=None)
-        return ev.iota.item()
+    def aspect(self):
+        """Return the effective aspect ratio."""
+        ev = self.state.evaluate("aspect_ratio")
+        return ev.aspect_ratio.item()
 
-    @return_function
-    def iota_edge(self) -> float:
-        """Compute the rotational transform at the edge."""
-        ev = self.state.evaluate("iota", rho=1.0, theta=None, zeta=None)
-        return ev.iota.item()
-
-    @return_function
-    def current_edge(self) -> float:
-        """Compute the toroidal current at the edge."""
-        ev = self.state.evaluate("I_tor", rho=1.0, theta="int", zeta="int")
-        return ev.I_tor.item()
-
-    @return_function
-    def volume(self) -> float:
-        """Compute the volume enclosed by the flux surfaces.
-        
-        This method integrates the Jacobian determiant over the whole domain.
-        The result should be the same as the volume computed from a Surface object.
-        """
-        ev = self.state.evaluate("V", rho="int", theta="int", zeta="int")
+    def volume(self):
+        """Return the volume inside the last closed flux surface."""
+        ev = self.state.evaluate("V")
         return ev.V.item()
 
-    @return_function
-    def aspect(self) -> float:
-        """Compute the aspect ratio of the configuration.
-        
-        This method computes the effective major and minor radii by integration of the
-        Jacobian determinant. The result should be the same as the aspect ratio
-        computed from a Surface object.
-        """
-        ev = self.state.evaluate("major_radius", "minor_radius", rho="int", theta="int", zeta="int")
-        return (ev.major_radius / ev.minor_radius).item()
-    
-    @return_function
-    def beta_avg(self) -> float:
-        """Compute the volume-averaged beta of the configuration."""
-        ev = self.state.evaluate("beta_avg", rho="int", theta="int", zeta="int")
-        return ev.beta_avg.item()
+    def iota_axis(self):
+        """Return the rotational transform on axis."""
+        ev = self.state.evaluate("iota", rho=1e-4)
+        return ev.iota.item()
 
-    @return_function
+    def iota_edge(self):
+        """Return the rotational transform at the boundary."""
+        ev = self.state.evaluate("iota", rho=1.0)
+        return ev.iota.item()
+
+    def mean_iota(self):
+        """Return the mean rotational transform."""
+        ev = self.state.evaluate("iota_avg2")
+        return ev.iota_avg2.item()
+
+    def mean_shear(self):
+        """Return the average magnetic shear."""
+        ev = self.state.evaluate("shear_avg2")
+        return ev.shear_avg2.item()
+
     def vacuum_well(self) -> float:
-        """Compute the depth of the vacuum magnetic well.
+        """Return the depth of the vacuum magnetic well."""
+        ev = self.state.evaluate("vacuum_magnetic_well_depth")
+        return ev.vacuum_magnetic_well_depth.item()
 
-        Compute a single number W that summarizes the vacuum magnetic well,
-        given by the formula
-
-        W = (dV/ds(s=0) - dV/ds(s=1)) / (dV/ds(s=0)
-
-        where dVds is the derivative of the flux surface volume with
-        respect to the normalized toroidal flux s=Phi_n. Positive values
-        of W are favorable for stability to interchange modes. This formula
-        for W is motivated by the fact that
-
-        d^2 V / d s^2 < 0
-
-        is favorable for stability. Integrating over s from 0 to 1
-        and normalizing gives the above formula for W. Notice that W
-        is dimensionless, and it scales as the square of the minor
-        radius.
-        """
-        ev = self.state.evaluate(
-            "dV_dPhi_n", rho=[1e-4, 1.0], theta="int", zeta="int"
-        )
-        Vp1 = ev.sel(rho=1.0).dV_dPhi_n.item()
-        Vp0 = ev.sel(rho=1e-4).dV_dPhi_n.item()
-        return (Vp0 - Vp1) / Vp0
-    
-    return_fn_map = {func.__name__: func for func in _return_functions}
-
-    # === DEPENDENT OPTIMIZABLES === #
-
-    def MirrorRatio(self, rho: Union[float, RealArray] = [0.5, 1.0]) -> "MirrorRatio":
-        """Return a dependent optimizable which computes the mirror ratio on a specified set of flux surfaces."""
-        return MirrorRatio(self, rho)
-    
-    def Elongation(self, zeta: Union[float, RealArray, Literal["int"]] = "int") -> "Elongation":
-        """Return a dependent optimizable which computes the elongation of the plasma cross-sections."""
-        return Elongation(self, zeta)
+    return_fn_map = {
+        "aspect": aspect,
+        "volume": volume,
+        "iota_axis": iota_axis,
+        "iota_edge": iota_edge,
+        "mean_iota": mean_iota,
+        "mean_shear": mean_shear,
+        "vacuum_well": vacuum_well,
+    }
 
 
-class MirrorRatio(Optimizable):
+class GVECQuantity(Optimizable):
     """
-    This optimizable computes the mirror ratio on a specified set of flux surfaces from a GVEC equilibrium.
+    This optimizable computes a specified quantity as a dependent optimizable from the GVEC equilibrium.
     """
-    
-    def __init__(self, eq: Gvec, rho: Union[float, RealArray] = [0.5, 1.0]):
+
+    def __init__(self, eq: Gvec, quantity: str, **kwargs):
         self.eq = eq
-        self.rho = rho
+        self.quantity = quantity
+        self.kwargs = kwargs
 
         super().__init__(depends_on=[eq])
-    
+
+    @property
+    def ev(self):
+        """
+        Evaluate the specified quantity from the GVEC state.
+
+        Returns:
+            The evaluated quantity as an xarray.Dataset.
+        """
+        return self.eq.state.evaluate(self.quantity, **self.kwargs)
+
     def J(self) -> np.ndarray:
-        ev = self.eq.state.evaluate("mod_B", rho=self.rho, theta="int", zeta="int")
-        Bmax = ev.mod_B.max(("pol", "tor")).values
-        Bmin = ev.mod_B.min(("pol", "tor")).values
-        return (Bmax - Bmin) / (Bmax + Bmin)
-    
+        return self.ev[self.quantity].data
+
     return_fn_map = {"J": J}
 
 
@@ -775,13 +767,19 @@ class Elongation(Optimizable):
     def J(self):
         from scipy.linalg import svd
 
-        ev = self.eq.state.evaluate("pos", rho=[1.0], theta="int", zeta=self.zeta).squeeze()
+        ev = self.eq.state.evaluate(
+            "pos", rho=[1.0], theta="int", zeta=self.zeta
+        ).squeeze()
 
         elongation = np.zeros(len(ev.zeta))
         for z, zeta in enumerate(ev.zeta):
             pos = ev.pos.sel(zeta=zeta).squeeze().transpose("xyz", "pol").values
             # weighting with arclength
-            tan = np.sqrt(np.sum((np.roll(pos, 1, axis=1) - np.roll(pos, -1, axis=1))**2, axis=0))
+            tan = np.sqrt(
+                np.sum(
+                    (np.roll(pos, 1, axis=1) - np.roll(pos, -1, axis=1)) ** 2, axis=0
+                )
+            )
             tan /= np.sum(tan)
             cen0 = np.mean(pos, axis=1)
             cen = np.mean((pos - cen0[:, None]) * tan[None, :], axis=1) + cen0
@@ -803,8 +801,8 @@ class Elongation(Optimizable):
 
             elongation[z] = len1 / len2
         return elongation
-    
+
     def max(self):
         return np.max(self.J())
-    
+
     return_fn_map = {"J": J, "max": max}
