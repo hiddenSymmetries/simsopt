@@ -1030,6 +1030,33 @@ class SurfaceRZFourierTests(unittest.TestCase):
                     np.testing.assert_allclose(old_gamma[:, :, 1], new_gamma[:, :, 1])
                     np.testing.assert_allclose(old_gamma[:, :, 2], -new_gamma[:, :, 2])
 
+    def test_flip_phi(self):
+        """Test the flip_phi() method."""
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    quadpoints_phi = np.linspace(0, 1, 12)  # Must include endpoint!
+                    quadpoints_theta = np.linspace(0, 1, 8)
+                    s = SurfaceRZFourier(
+                        mpol=mpol,
+                        ntor=ntor,
+                        nfp=3,
+                        stellsym=stellsym,
+                        quadpoints_phi=quadpoints_phi,
+                        quadpoints_theta=quadpoints_theta,
+                    )
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_x = s.x.copy()
+                    s.flip_phi()
+                    new_gamma = s.gamma()
+                    new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    # flipping the arrays along the phi axis should have the
+                    # same effect as calling flip_phi():
+                    np.testing.assert_allclose(old_gamma[:, :, 2], np.flip(new_gamma[:, :, 2], axis=0), atol=1e-14)
+                    np.testing.assert_allclose(old_R, np.flip(new_R, axis=0), atol=1e-14)
+
     def test_rotate_half_field_period(self):
         """Test the rotate_half_field_period() method."""
         nfp = 3

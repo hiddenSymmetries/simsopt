@@ -1026,11 +1026,52 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     def flip_z(self):
         """
         Flip the sign of the z coordinate. This will flip the sign of the
-        rotational transform of a plasma bounded by this surface.
+        rotational transform of a plasma bounded by this surface. Note that vmec
+        requires θ to increase as you move from the outboard to inboard side
+        over the top of the surface. This z-flip transformation will reverse
+        that direction.
         """
         self.zs = -self.zs
         if not self.stellsym:
             self.zc = -self.zc
+        self.local_full_x = self.get_dofs()
+
+    def flip_phi(self):
+        """
+        Flip the sign of the toroidal angle ϕ, i.e. mirror the surface about the
+        x-z plane. This will reverse the sign of the rotational transform of a
+        plasma bounded by this surface, without reversing the direction in which
+        θ increases. This is the best way to flip the sign of the rotational
+        transform for a vmec calculation.
+        """
+        # Handle m=0 modes, where there are no modes with negative n.
+        # cos(-nϕ) → cos(nϕ) = cos(-nϕ)
+        # sin(-nϕ) → sin(nϕ) = -sin(-nϕ)
+        for n in range(1, self.ntor + 1):
+            self.zs[0, n + self.ntor] = -self.zs[0, n + self.ntor]
+            if not self.stellsym:
+                self.rs[0, n + self.ntor] = -self.rs[0, n + self.ntor]
+
+        # Handle m>0 modes: swap the positive and negative n modes
+        for m in range(1, self.mpol + 1):
+            for n in range(1, self.ntor + 1):
+                temp = self.rc[m, n + self.ntor]
+                self.rc[m, n + self.ntor] = self.rc[m, -n + self.ntor]
+                self.rc[m, -n + self.ntor] = temp
+
+                temp = self.zs[m, n + self.ntor]
+                self.zs[m, n + self.ntor] = self.zs[m, -n + self.ntor]
+                self.zs[m, -n + self.ntor] = temp
+
+                if not self.stellsym:
+                    temp = self.rs[m, n + self.ntor]
+                    self.rs[m, n + self.ntor] = self.rs[m, -n + self.ntor]
+                    self.rs[m, -n + self.ntor] = temp
+
+                    temp = self.zc[m, n + self.ntor]
+                    self.zc[m, n + self.ntor] = self.zc[m, -n + self.ntor]
+                    self.zc[m, -n + self.ntor] = temp
+
         self.local_full_x = self.get_dofs()
 
     def rotate_half_field_period(self):
