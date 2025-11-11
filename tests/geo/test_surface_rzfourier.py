@@ -1048,7 +1048,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
                     s.x = np.random.rand(len(s.x))
                     old_gamma = s.gamma().copy()
                     old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
-                    old_x = s.x.copy()
                     s.flip_phi()
                     new_gamma = s.gamma()
                     new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)

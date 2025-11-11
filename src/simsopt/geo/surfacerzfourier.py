@@ -1038,11 +1038,11 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
     def flip_phi(self):
         """
-        Flip the sign of the toroidal angle ϕ, i.e. mirror the surface about the
-        x-z plane. This will reverse the sign of the rotational transform of a
-        plasma bounded by this surface, without reversing the direction in which
-        θ increases. This is the best way to flip the sign of the rotational
-        transform for a vmec calculation.
+        Flip the sign of the toroidal angle ϕ, i.e. mirror-reflect the surface
+        about the x-z plane. This will reverse the sign of the rotational
+        transform of a plasma bounded by this surface, without reversing the
+        direction in which θ increases. This is the best way to flip the sign of
+        the rotational transform for a vmec calculation.
         """
         # Handle m=0 modes, where there are no modes with negative n.
         # cos(-nϕ) → cos(nϕ) = cos(-nϕ)
