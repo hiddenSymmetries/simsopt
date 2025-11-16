@@ -943,4 +943,36 @@ The end result of this multistep procedure is shown in 2D and 3D below.
 .. image:: gsco_multistep_plot3d.png
   :width: 500
 
+Extracting coils from a wireframe
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If a wireframe current distribution exhibits no crossed current paths,
+it is possible to initialize a set of :obj:`~simsopt.field.Coil` objects
+that approximate the geometry of the coils from the wireframe. In effect,
+this converts the coils with jagged shapes characteristic of the wireframe
+to smooth curves that are likely more feasible to construct. Furthermore,
+as :obj:`~simsopt.field.Coil` class instances, their shapes and current
+may be further optimized using the continuous procedures describe in the
+tutorial on coil optimization.
+
+The coils may be extracted simply from the wireframe with the 
+:obj:`~simsopt.field.coils_from_wireframe` function::
+
+  coils, base_curves, base_currents = coils_from_wireframe(wf)
+
+Here, ``coils`` is a list of the :obj:`~simsopt.field.Coil` class instances.
+``base_curves`` is a list of the :obj:`~simsopt.geo.Curve` class instances
+corresponding to the minimal set of coils from which the geometry of the 
+remaining coils is constrained by stellarator symmetry. 
+``base_currents`` is a list of :obj:`~simsopt.field.Current` class instances
+corresponding to the current ascribed to each curve in ``base_curves``.
+
+The function has optional parameters ``max_order``, ``min_order``, and
+``ppp`` that constrain the Fourier parameterizations of each curve.
+In addition, there are optional parameters indented to be helpful for
+continuous coil optimizations including ``max_normalized_current`` and
+``current_bounds``. These are explained in more detail in the documentation
+For :obj:`~simsopt.field.coils_from_wireframe`.  
+   
+
 
