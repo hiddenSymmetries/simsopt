@@ -1048,13 +1048,45 @@ class SurfaceRZFourierTests(unittest.TestCase):
                     s.x = np.random.rand(len(s.x))
                     old_gamma = s.gamma().copy()
                     old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_Z = old_gamma[:, :, 2]
                     s.flip_phi()
                     new_gamma = s.gamma()
                     new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    new_Z = new_gamma[:, :, 2]
                     # flipping the arrays along the phi axis should have the
                     # same effect as calling flip_phi():
-                    np.testing.assert_allclose(old_gamma[:, :, 2], np.flip(new_gamma[:, :, 2], axis=0), atol=1e-14)
+                    np.testing.assert_allclose(old_Z, np.flip(new_Z, axis=0), atol=1e-14)
                     np.testing.assert_allclose(old_R, np.flip(new_R, axis=0), atol=1e-14)
+
+    def test_flip_theta(self):
+        """Test the flip_theta() method."""
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    quadpoints_phi = np.linspace(0, 1, 12)
+                    quadpoints_theta = np.linspace(0, 1, 8)  # Must include endpoint!
+                    s = SurfaceRZFourier(
+                        mpol=mpol,
+                        ntor=ntor,
+                        nfp=3,
+                        stellsym=stellsym,
+                        quadpoints_phi=quadpoints_phi,
+                        quadpoints_theta=quadpoints_theta,
+                    )
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_Z = old_gamma[:, :, 2]
+                    s.flip_theta()
+                    new_gamma = s.gamma()
+                    new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    new_Z = new_gamma[:, :, 2]
+                    # flipping the arrays along the theta axis should have the
+                    # same effect as calling flip_theta():
+                    old_Z = old_gamma[:, :, 2]
+                    new_Z = new_gamma[:, :, 2]
+                    np.testing.assert_allclose(old_Z, np.flip(new_Z, axis=1), atol=1e-14)
+                    np.testing.assert_allclose(old_R, np.flip(new_R, axis=1), atol=1e-14)
 
     def test_rotate_half_field_period(self):
         """Test the rotate_half_field_period() method."""

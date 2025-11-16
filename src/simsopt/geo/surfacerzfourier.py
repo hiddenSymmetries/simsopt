@@ -1074,6 +1074,49 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         self.local_full_x = self.get_dofs()
 
+    def flip_theta(self):
+        """
+        Flip the direction in which the poloidal angle θ increases. The physical
+        shape of the surface in 3D will not change, only its parameterization.
+        Note that vmec requires θ to increase as you move from the outboard to
+        inboard side over the top of the surface. This transformation will
+        reverse that direction.
+        """
+        # We don't change the m=0 modes since they are independent of θ.
+        for m in range(1, self.mpol + 1):
+            # For m>0 modes with n=0:
+            # cos(mθ) → cos(-mθ) =  cos(mθ)
+            # sin(mθ) → sin(-mθ) = -sin(mθ)
+            # So, flip the sign of the sin terms
+            self.zs[m, self.ntor] = -self.zs[m, self.ntor]
+            if not self.stellsym:
+                self.rs[m, self.ntor] = -self.rs[m, self.ntor]
+
+            # For m>0 modes with nonzero n:
+            # cos(mθ-nϕ) → cos(-mθ-nϕ) =  cos(mθ+nϕ)
+            # sin(mθ-nϕ) → sin(-mθ-nϕ) = -sin(mθ+nϕ)
+            # So, swap the positive and negative n modes,
+            # with a sign flip for the sin terms only.
+            for n in range(1, self.ntor + 1):
+                temp = self.rc[m, n + self.ntor]
+                self.rc[m, n + self.ntor] = self.rc[m, -n + self.ntor]
+                self.rc[m, -n + self.ntor] = temp
+
+                temp = self.zs[m, n + self.ntor]
+                self.zs[m, n + self.ntor] = -self.zs[m, -n + self.ntor]
+                self.zs[m, -n + self.ntor] = -temp
+
+                if not self.stellsym:
+                    temp = self.rs[m, n + self.ntor]
+                    self.rs[m, n + self.ntor] = -self.rs[m, -n + self.ntor]
+                    self.rs[m, -n + self.ntor] = -temp
+
+                    temp = self.zc[m, n + self.ntor]
+                    self.zc[m, n + self.ntor] = self.zc[m, -n + self.ntor]
+                    self.zc[m, -n + self.ntor] = temp
+
+        self.local_full_x = self.get_dofs()
+
     def rotate_half_field_period(self):
         """
         Rotate the surface toroidally by half a field period.
