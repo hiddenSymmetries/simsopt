@@ -141,7 +141,7 @@ jobs:
     - name: Build SPEC python wrapper.
       run: |
         cd SPEC
-        pip install .
+        pip install --no-build-isolation .
 
     - name: Try import spec
       run: python -c "import spec.spec_f90wrapped as spec; print(spec.constants.version)"

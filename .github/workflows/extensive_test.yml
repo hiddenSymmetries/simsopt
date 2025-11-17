@@ -136,7 +136,7 @@ jobs:
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       run: |
          cd SPEC
-         pip install .
+         pip install --no-build-isolation .
 
     - name: Try import spec
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
