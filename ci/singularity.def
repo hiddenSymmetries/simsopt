@@ -60,7 +60,7 @@ Stage: devel
     cd SPEC   &&  \
     # /venv/bin/python setup.py bdist_wheel && \
     # /venv/bin/pip install -v dist/*.whl &&  \
-    /venv/bin/pip install -v . 
+    /venv/bin/pip install --no-build-isolation -v . 
     cd Utilities/pythontools && \
     /venv/bin/pip install -r requirements.txt && \
     /venv/bin/pip install . && \
