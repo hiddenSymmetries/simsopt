@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.9]
+        python-version: ["3.12"]
         test-type: [unit, integrated]
 
     steps:
