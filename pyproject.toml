@@ -2,7 +2,7 @@
 requires = [
   "scikit-build-core",
   "pybind11 < 3.0.0",
-  "numpy >= 2.0.0",
+  "numpy >= 2.1.0",
   "setuptools_scm>=8.0",
   'tomli; python_version < "3.11"',]
 build-backend = "scikit_build_core.build"
@@ -14,7 +14,7 @@ description="Framework for optimizing stellarators"
 readme = "README.md"
 # long_description = file: README.md
 # long_description_content_type = text/markdown
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 authors = [
   {name = "Matt Landreman", email = "mattland@umd.edu"},
   {name = "Bharat Medasani", email = "mbkumar@gmail.com"},
@@ -33,9 +33,9 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
     "Environment :: Console",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10"
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 keywords = [
     "plasma physics",
@@ -52,12 +52,12 @@ keywords = [
     "magnetostatics"
 ]
 dependencies = [
-    "numpy>=1.21",
-    "jax>=0.2.5",
-    "jaxlib>=0.1.56",
-    "scipy>=1.5.4",
+    "numpy>=2.1.0",
+    "jax>=0.5.0",
+    "jaxlib>=0.5.0",
+    "scipy>=1.15.0",
     "Deprecated>=1.2.10",
-    "monty>=2021.6.10",
+    "monty>=2024.1.23",
     "ruamel.yaml",
     "sympy",
     "f90nml",
@@ -68,7 +68,7 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 SPEC = ["py_spec>=3.0.1", "pyoculus>=0.1.1", "h5py>=3.1.0"]
-MPI = ["mpi4py>=3.0.3"]
+MPI = ["mpi4py>=3.1.6"]
 VIS = ["vtk >= 8.1.2", "PyQt5", "plotly", "networkx"]
 DOCS = ["sphinx", "sphinx-rtd-theme", "sphinxcontrib-napoleon", "sphinx-autodoc-napoleon-typehints", "breathe"]
 ALGS = ["ground", "bentley_ottmann", "qsc"]

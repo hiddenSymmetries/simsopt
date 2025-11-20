@@ -1,6 +1,5 @@
 import numpy as np
 import scipy
-# from monty.json import MSONable, MontyDecoder
 
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec

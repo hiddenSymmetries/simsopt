@@ -24,9 +24,6 @@ concurrency:
 jobs:
   build-containers:
     runs-on: ubuntu-latest
-    # container:
-    #   image: quay.io/singularity/singularity:v3.9.3
-    #   options: --security-opt seccomp=unconfined --security-opt systempaths=unconfined
     strategy:
       fail-fast: true
 
