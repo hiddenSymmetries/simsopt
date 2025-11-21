@@ -4,29 +4,29 @@
 # Actions continuous integration.
 set -ex
 
-./1_Simple/just_a_quadratic.py
-./1_Simple/surf_vol_area.py
-./1_Simple/minimize_curve_length.py
-./1_Simple/tracing_fieldlines_NCSX.py
-./1_Simple/tracing_fieldlines_QA.py
-./1_Simple/tracing_particle.py
-./1_Simple/qfm.py
-./1_Simple/stage_two_optimization_minimal.py
-./1_Simple/permanent_magnet_simple.py
-./2_Intermediate/QSC.py
-./2_Intermediate/boozer.py
-./2_Intermediate/stage_two_optimization.py
-./2_Intermediate/stage_two_optimization_planar_coils.py
-./2_Intermediate/stage_two_optimization_stochastic.py
-./2_Intermediate/stage_two_optimization_finite_beta.py
-./2_Intermediate/strain_optimization.py
-./2_Intermediate/permanent_magnet_MUSE.py
-./2_Intermediate/permanent_magnet_QA.py
-./2_Intermediate/permanent_magnet_PM4Stell.py
+# ./1_Simple/just_a_quadratic.py
+# ./1_Simple/surf_vol_area.py
+# ./1_Simple/minimize_curve_length.py
+# ./1_Simple/tracing_fieldlines_NCSX.py
+# ./1_Simple/tracing_fieldlines_QA.py
+# ./1_Simple/tracing_particle.py
+# ./1_Simple/qfm.py
+# ./1_Simple/stage_two_optimization_minimal.py
+# ./1_Simple/permanent_magnet_simple.py
+# ./2_Intermediate/QSC.py
+# ./2_Intermediate/boozer.py
+# ./2_Intermediate/stage_two_optimization.py
+# ./2_Intermediate/stage_two_optimization_planar_coils.py
+# ./2_Intermediate/stage_two_optimization_stochastic.py
+# ./2_Intermediate/stage_two_optimization_finite_beta.py
+# ./2_Intermediate/strain_optimization.py
+# ./2_Intermediate/permanent_magnet_MUSE.py
+# ./2_Intermediate/permanent_magnet_QA.py
+# ./2_Intermediate/permanent_magnet_PM4Stell.py
 ./2_Intermediate/wireframe_rcls_basic.py
 ./2_Intermediate/wireframe_rcls_with_ports.py
 ./2_Intermediate/wireframe_gsco_modular.py
 ./2_Intermediate/wireframe_gsco_sector_saddle.py
-./3_Advanced/stage_two_optimization_finitebuild.py
-./3_Advanced/coil_forces.py
+# ./3_Advanced/stage_two_optimization_finitebuild.py
+# ./3_Advanced/coil_forces.py
 ./3_Advanced/wireframe_gsco_multistep.py

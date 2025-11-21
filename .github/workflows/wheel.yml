@@ -2,7 +2,11 @@ name: Wheel Builder
 
 # This file is based on https://github.com/pypa/cibuildwheel/blob/main/examples/github-deploy.yml
 
-on: [push, pull_request]
+on: 
+  push:
+    branches-ignore: [fix_issue_553]
+  pull_request:
+    branches-ignore: [fix_issue_553]
 
 concurrency:
   # Use github.run_id on main branch

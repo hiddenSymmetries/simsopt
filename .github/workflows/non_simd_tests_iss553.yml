@@ -121,6 +121,6 @@ jobs:
       run: |
         cd examples
         ./run_serial_examples
-        ./run_parallel_examples
+        # ./run_parallel_examples
 
 

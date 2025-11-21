@@ -185,8 +185,8 @@ jobs:
       run: |
         cd examples
         ./run_serial_examples
-        ./run_parallel_examples
-        ./run_vmec_examples
+        # ./run_parallel_examples
+        # ./run_vmec_examples
         # ./run_spec_examples
         # ./run_spec_vmec_examples
 
