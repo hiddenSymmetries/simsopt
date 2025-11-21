@@ -1639,11 +1639,11 @@ class ToroidalWireframe(object):
         # Call limit getters to avoid errors in certain systems
         #_ = ax.get_xlim()
         #_ = ax.get_ylim()
-        #print('DEBUG: query the plot limits and upstream quantities')
-        #print('    Output of get_xlim(): ', ax.get_xlim())
-        #print('    Output of get_ylim(): ', ax.get_ylim())
-        #print('    delta_x: ', delta_x)
-        #print('    delta_y: ', delta_y)
+        print('DEBUG: query the plot limits and upstream quantities')
+        print('    Output of get_xlim(): ', ax.get_xlim())
+        print('    Output of get_ylim(): ', ax.get_ylim())
+        print('    delta_x: ', delta_x)
+        print('    delta_y: ', delta_y)
  
         ax.set_xlabel(label_x)
         ax.set_ylabel(label_y)
