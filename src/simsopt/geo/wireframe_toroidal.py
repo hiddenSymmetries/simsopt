@@ -1659,8 +1659,8 @@ class ToroidalWireframe(object):
 
         ax.add_collection(lc)
 
-        ax.set_xlim((-delta_x, delta_x*(n_half_periods*self.n_phi + 1)))
-        ax.set_ylim((-delta_y, delta_y*(self.n_theta + 1)))
+        #ax.set_xlim((-delta_x, delta_x*(n_half_periods*self.n_phi + 1)))
+        #ax.set_ylim((-delta_y, delta_y*(self.n_theta + 1)))
 
         return ax, lc, cb
 
