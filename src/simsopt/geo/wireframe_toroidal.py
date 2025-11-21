@@ -1616,15 +1616,6 @@ class ToroidalWireframe(object):
             pl_angles[:, :, 0] = angle_factor * (phi_mod + phi_offs)
             pl_angles[:, :, 1] = angle_factor * (theta_mod + theta_offs)
 
-            print('DEBUG: print coordinates of the wireframe segments to be '
-                  'plotted')
-            for ind in inds_to_plot:
-                print(f'    Index {ind:03d}: ', end='')
-                for ind_i in range(2):
-                    for ind_j in range(2):
-                        print(f'{pl_angles[ind, ind_i, ind_j]:g}, ', end='')
-                print('')
-
             lc = LineCollection(pl_angles[inds_to_plot], **kwargs)
 
             delta_x = angle_factor * (qp_phi[1] - qp_phi[0])
@@ -1648,11 +1639,9 @@ class ToroidalWireframe(object):
         ax.set_xlim((-delta_x, delta_x*(n_half_periods*self.n_phi + 1)))
         ax.set_ylim((-delta_y, delta_y*(self.n_theta + 1)))
 
-        print('DEBUG: query the plot limits and upstream quantities')
-        print('    Output of get_xlim(): ', ax.get_xlim())
-        print('    Output of get_ylim(): ', ax.get_ylim())
-        print('    delta_x: ', delta_x)
-        print('    delta_y: ', delta_y)
+        # Call limit getters to avoid errors in certain systems
+        _ = ax.get_xlim()
+        _ = ax.get_ylim()
 
         ax.set_xlabel(label_x)
         ax.set_ylabel(label_y)

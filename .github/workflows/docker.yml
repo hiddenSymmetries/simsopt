@@ -2,8 +2,8 @@ name: docker container
 
 on: 
   push:
-    branches: 
-      - '**'
+    branches-ignore: 
+      - fix_issue_553
     tags: 
       - v*
   pull_request:
