@@ -10,10 +10,10 @@ name: Tests
 
 on: 
   push:
-    branches-ignore: [master]
+    branches-ignore: [master, fix_issue_553]
     tags-ignore: [v*]
   pull_request:
-    branches-ignore: [master]
+    branches-ignore: [master, fix_issue_553]
 
 concurrency:
   # Use github.run_id on main branch

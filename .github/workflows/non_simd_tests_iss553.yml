@@ -1,6 +1,9 @@
 # This file is based on examples in
 # https://docs.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions
 
+# The purpose of this test is to debug errors arising in GitHub workflows
+# as described in Issue 553.
+
 # Note that all the "sudo" commands here appear to cause a warning message
 # "sudo: setrlimit(RLIMIT_CORE): operation not permitted"
 # This appears to be a known harmless annoyance:
@@ -10,10 +13,10 @@ name: Tests with no XSIMD
 
 on: 
   push:
-    branches-ignore: [master, fix_issue_553]
+    branches: [fix_issue_553]
     tags-ignore: [v*]
   pull_request:
-    branches-ignore: [master, fix_issue_553]
+    branches: [fix_issue_553]
 
 concurrency:
   # Use github.run_id on main branch
@@ -120,13 +123,4 @@ jobs:
         ./run_serial_examples
         ./run_parallel_examples
 
-    - name: Run tests on 1 process 
-      run: | 
-        python -m unittest discover -t tests -v -s tests/field
-        python -m unittest discover -t tests -v -s tests/geo
-        python -m unittest discover -t tests -v -s tests/objectives
-
-    - name: Run MPI tests 
-      run: | 
-        mpiexec -n 2 python -m unittest discover -k "mpi" -s tests -v
 
