@@ -1645,8 +1645,8 @@ class ToroidalWireframe(object):
         #print('    delta_x: ', delta_x)
         #print('    delta_y: ', delta_y)
  
-        ax.set_xlabel(label_x)
-        ax.set_ylabel(label_y)
+        #ax.set_xlabel(label_x)
+        #ax.set_ylabel(label_y)
         if False: #add_colorbar:
             cb = pl.colorbar(lc, ax=ax)
             if quantity == 'currents' or quantity == 'nonzero currents':
@@ -1659,8 +1659,8 @@ class ToroidalWireframe(object):
 
         #ax.add_collection(lc)
 
-        ax.set_xlim((-delta_x, delta_x*(n_half_periods*self.n_phi + 1)))
-        ax.set_ylim((-delta_y, delta_y*(self.n_theta + 1)))
+        #ax.set_xlim((-delta_x, delta_x*(n_half_periods*self.n_phi + 1)))
+        #ax.set_ylim((-delta_y, delta_y*(self.n_theta + 1)))
 
         return ax, lc, cb
 
