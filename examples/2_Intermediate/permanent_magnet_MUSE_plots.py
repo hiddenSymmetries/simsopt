@@ -101,16 +101,30 @@ if len(npz_files) >= 2:
         diffs = np.array(diffs)
         diffs = diffs[diffs > 0]  # clip out zeros or near-zeros
 
+        # --- Linear scale histogram ---
+        plt.figure()
+        plt.hist(diffs, bins=200, alpha=0.7)
+        plt.xlabel(r"$|\Delta M| = \|M_i - M'_i\|_2$ [A·m$^2$]")
+        plt.ylabel("Number of magnets")
+        plt.title("Histogram of |ΔM| (linear scale)")
+        plt.grid(True)
+        fname_lin = save_dir / "Histogram_DeltaM_linear.png"
+        plt.savefig(fname_lin, dpi=180)
+        plt.close()
+        print(f"Saved linear-scale histogram to {fname_lin}")
+
+        # --- Log scale histogram ---
         plt.figure()
         plt.hist(diffs, bins=200, alpha=0.7)
         plt.xlabel(r"$|\Delta M| = \|M_i - M'_i\|_2$ [A·m$^2$]")
         plt.ylabel("Number of magnets (log scale)")
-        plt.yscale("log")    # log scale on the y-axis
+        plt.title("Histogram of |ΔM| (log scale)")
+        plt.yscale("log")
         plt.grid(True)
-        fname = save_dir / "Histogram_DeltaM.png"
-        plt.savefig(fname, dpi=180)
+        fname_log = save_dir / "Histogram_DeltaM_log.png"
+        plt.savefig(fname_log, dpi=180)
         plt.close()
-        print(f"Saved histogram of |ΔM| to {fname}")
+        print(f"Saved log-scale histogram to {fname_log}")
         
 
 
