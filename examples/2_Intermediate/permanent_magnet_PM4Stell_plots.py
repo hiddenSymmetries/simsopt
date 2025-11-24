@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-outdir = Path("output_permanent_magnet_GPMO_MUSE")
+outdir = Path("PM4Stell_angle{angle}_nb{nBacktracking)_na{nAdjacent}")
 
 save_dir = outdir / "plots"
 save_dir.mkdir(parents=True, exist_ok=True)

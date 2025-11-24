@@ -10,6 +10,7 @@ from numba import njit, prange
 from pathlib import Path
 from typing import Optional
 import time
+from scipy.sparse import coo_matrix
 
 __all__ = ["MacroMag"]
 
@@ -496,7 +497,7 @@ class MacroMag:
         # t2 = time.time()
         # print(f"Time taken for direct A assembly: {t2 - t1} seconds")
         
-        if print_progress and False:
+        if print_progress:
             
             # Use a closure to track iteration number
             def make_gmres_callback():
@@ -506,13 +507,194 @@ class MacroMag:
                     print(f"GMRES iteration {iteration[0]}: residual norm = {residual_norm:.6e}")
                 return gmres_callback
             
-            x, info = gmres(A, b, rtol=krylov_tol, maxiter=krylov_it, x0=x0)
-                        # callback=make_gmres_callback(), callback_type='pr_norm')
+            x, info = gmres(A, b, rtol=krylov_tol, maxiter=krylov_it, x0=x0, callback=make_gmres_callback(), callback_type='pr_norm')
         else:
             x, info = gmres(A, b, rtol=krylov_tol, maxiter=krylov_it, x0=x0)
         
         tiles.M = x.reshape(n, 3)
         return self, A
+    
+    
+    def direct_solve_neighbor_sparse(
+        self,
+        neighbors: np.ndarray,
+        use_coils: bool = False,
+        krylov_tol: float = 1e-6,
+        krylov_it: int = 200,
+        print_progress: bool = False,
+        x0: np.ndarray | None = None,
+        H_a_override: Optional[np.ndarray] = None,
+        drop_tol: float = 0.0,):
+        """
+        Sparse near-field demag solve.
+
+        This builds A as a sparse 3n×3n matrix using only the demag couplings
+        specified in `neighbors`, instead of the dense all-to-all demag tensor.
+
+        Mathematically, we are solving
+
+            (I + χ N_near) M = M_rem u + χ H_a
+
+        where N_near is the demag operator truncated to the pairs (i,j)
+        listed in `neighbors`. The far-field tail is discarded, with a
+        controllable Frobenius-norm threshold `drop_tol` on the 3×3 blocks
+        χ_i @ N_ij.
+
+        Parameters
+        ----------
+        neighbors : ndarray, shape (n, k)
+            neighbors[i, :] are local tile indices j (0 ≤ j < n) that
+            couple to tile i via demag. Entries < 0 are ignored.
+            It is recommended that i itself is included in neighbors[i, :].
+        use_coils : bool
+            If True, use the coil field (or H_a_override) as in direct_solve.
+        krylov_tol, krylov_it :
+            GMRES settings.
+        print_progress : bool
+            If True, print GMRES status.
+        x0 : ndarray or None
+            Optional initial guess for GMRES (length 3n).
+        H_a_override : ndarray or None, shape (n, 3)
+            External field at each tile. If not None, overrides coil field.
+        drop_tol : float
+            If > 0, any 3×3 block χ_i @ N_ij with Frobenius norm < drop_tol
+            is dropped (far-field truncation).
+
+        Returns
+        -------
+        self, A_sparse
+            self with updated tiles.M, and the sparse A used in the solve.
+        """
+        neighbors = np.asarray(neighbors, dtype=np.int64)
+        n = self.tiles.n
+
+        if neighbors.shape[0] != n:
+            raise ValueError(
+                f"neighbors must have shape (n, k) with n={n}, "
+                f"got {neighbors.shape}"
+            )
+
+        tiles   = self.tiles
+        centres = self.centres
+        u       = tiles.u_ea
+        m_rem   = tiles.M_rem
+        mu_r_ea = tiles.mu_r_ea
+        mu_r_oa = tiles.mu_r_oa
+
+        chi_parallel = mu_r_ea - 1.0
+        chi_perp     = mu_r_oa - 1.0
+
+        # trivial case: no susceptibility, no coils
+        if np.allclose(chi_parallel, 0.0) and np.allclose(chi_perp, 0.0):
+            if (not use_coils) and (H_a_override is None):
+                tiles.M = m_rem[:, None] * u
+                return self, None
+
+        # external field setup
+        if use_coils and (self.bs_interp is None) and (H_a_override is None):
+            raise ValueError(
+                "use_coils=True, but no coil field is loaded and no H_a_override was provided."
+            )
+
+        if H_a_override is not None:
+            H_a_override = np.asarray(H_a_override, dtype=np.float64, order="C")
+            if H_a_override.shape != (centres.shape[0], 3):
+                raise ValueError("H_a_override must have shape (n_tiles, 3).")
+
+        def Hcoil_func(pts):
+            if H_a_override is not None:
+                return H_a_override
+            else:
+                return self.coil_field_at(pts)
+
+        n = centres.shape[0]
+        # H_a: either zero, coil field, or override
+        H_a = np.zeros((n, 3), dtype=np.float64)
+        if use_coils or (H_a_override is not None):
+            H_a = Hcoil_func(centres).astype(np.float64)
+
+        # Build RHS: b = M_rem u + χ H_a, tilewise
+        u_dot_Ha = np.sum(u * H_a, axis=1)  # shape (n,)
+        chi_Ha = (chi_perp[:, None] * H_a +
+                  (chi_parallel - chi_perp)[:, None] * u_dot_Ha[:, None] * u)
+        b = (m_rem[:, None] * u + chi_Ha).ravel()  # length 3n
+
+        # Build χ tensor per tile (3×3)
+        chi_diff = chi_parallel - chi_perp
+        u_outer = np.einsum("ik,il->ikl", u, u, optimize=True)  # (n,3,3)
+        chi_tensor = (chi_perp[:, None, None] * np.eye(3)[None, :, :] +
+                      chi_diff[:, None, None] * u_outer)
+
+        # Build sparse A in COO format: A = I + χ N_near
+        rows = []
+        cols = []
+        data = []
+
+        # Identity blocks
+        for i in range(n):
+            base = 3 * i
+            for a in range(3):
+                rows.append(base + a)
+                cols.append(base + a)
+                data.append(1.0)
+
+        # Near-field demag blocks
+        for i in range(n):
+            nbrs = neighbors[i]
+            nbrs = nbrs[nbrs >= 0]
+            if nbrs.size == 0:
+                continue
+
+            I = np.array([i], dtype=np.int64)
+            J = np.asarray(nbrs, dtype=np.int64)
+            # assemble_blocks_subset returns -N (because H_d = -N M), match direct_solve convention
+            N_row = assemble_blocks_subset(self.centres, self.half, self.Rg2l, I, J)[0]
+            # N_row has shape (len(J), 3, 3)
+
+            chi_i = chi_tensor[i]  # (3,3)
+            base_i = 3 * i
+
+            for idx_j, j in enumerate(J):
+                Nij = N_row[idx_j]  # (3,3)
+                block = chi_i @ Nij  # (3,3)
+
+                if drop_tol > 0.0:
+                    # Frobenius norm threshold
+                    if np.linalg.norm(block) < drop_tol:
+                        continue
+
+                base_j = 3 * j
+                for a in range(3):
+                    for c in range(3):
+                        rows.append(base_i + a)
+                        cols.append(base_j + c)
+                        data.append(block[a, c])
+
+        A_sparse = coo_matrix(
+            (np.asarray(data, dtype=np.float64),
+             (np.asarray(rows, dtype=np.int64),
+              np.asarray(cols, dtype=np.int64))),
+            shape=(3 * n, 3 * n),
+        ).tocsr()
+
+        if print_progress:
+            # Hook for detailed GMRES logging if you want it later
+            def make_gmres_callback():
+                it = [0]
+                def cb(res_norm):
+                    it[0] += 1
+                    print(f"[neighbor_sparse] GMRES it {it[0]}: ||r|| = {res_norm:.3e}")
+                return cb
+            x, info = gmres(A_sparse, b, rtol=krylov_tol, maxiter=krylov_it, x0=x0 , callback=make_gmres_callback(), callback_type='pr_norm')
+        else:
+            x, info = gmres(A_sparse, b, rtol=krylov_tol, maxiter=krylov_it, x0=x0)
+
+        if info != 0:
+            print(f"[MacroMag] direct_solve_neighbor_sparse GMRES did not fully converge, info = {info}")
+
+        tiles.M = x.reshape(n, 3)
+        return self, A_sparse
+
     
     
     def direct_solve_toggle(self,

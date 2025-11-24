@@ -36,7 +36,7 @@ from simsopt.util.permanent_magnet_helper_functions import *
 
 t_start = time.time()
 
-high_res_run = True
+high_res_run = False
 
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:
@@ -46,13 +46,13 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 elif high_res_run: 
-    nphi = 32
+    nphi = 64
     nIter_max = 25000
     nBacktracking = 200
     max_nMagnets = 20000
     downsample = 1    
 else:
-    nphi = 16  # >= 64 for high-resolution runs
+    nphi = 64  # >= 64 for high-resolution runs
     nIter_max = 20000
     nBacktracking = 0
     max_nMagnets = 20000
@@ -78,11 +78,11 @@ out_dir.mkdir(parents=True, exist_ok=True)
 # initialize the coils
 base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s, out_dir)
 
-scale_coils = True
+scale_coils = False
 current_scale = 1
 if(scale_coils):
     from simsopt.field import Coil
-    current_scale = 100  
+    current_scale = 100
     coils = [Coil(c.curve, c.current * current_scale) for c in coils]
     print(f"[INFO] Coil currents scaled by {current_scale}x")
 
