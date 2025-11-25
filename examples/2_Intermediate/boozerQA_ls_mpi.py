@@ -77,6 +77,7 @@ surfaces = surfaces[:nsurfaces]
 boozer_surfaces = boozer_surfaces[:nsurfaces]
 ress = ress[:nsurfaces]
 for boozer_surface, res in zip(boozer_surfaces, ress):
+    boozer_surface.options['solver'] = ['bfgs', 'ls_newton']
     boozer_surface.run_code(res['iota'], res['G'])
 
 mpi_surfaces = MPIOptimizable(surfaces, ["x"], comm)
@@ -131,8 +132,14 @@ for idx, surface in enumerate(mpi_surfaces):
         surface.to_vtk(OUT_DIR + f"surf_init_{idx}")
 
 # dictionary used to save the last accepted surface dofs in the line search, in case Newton's method fails
-prevs = {'sdofs': [surface.x.copy() for surface in mpi_surfaces], 'iota': [boozer_surface.res['iota'] for boozer_surface in mpi_boozer_surfaces],
-         'G': [boozer_surface.res['G'] for boozer_surface in mpi_boozer_surfaces], 'J': JF.J(), 'dJ': JF.dJ().copy(), 'it': 0}
+prevs = {
+    'sdofs': [surface.x.copy() for surface in mpi_surfaces], 
+    'iota': [boozer_surface.res['iota'] for boozer_surface in mpi_boozer_surfaces],
+    'G': [boozer_surface.res['G'] for boozer_surface in mpi_boozer_surfaces],
+    'J': JF.J(), 
+    'dJ': JF.dJ().copy(), 
+    'it': 0
+}
 
 
 def fun(dofs):
@@ -155,7 +162,11 @@ def fun(dofs):
     # check to make sure that all the surface solves succeeded
     success1 = np.all([boozer_surface.res['success'] for boozer_surface in mpi_boozer_surfaces])
     # check to make sure that the surfaces are not self-intersecting
-    success2 = np.all([not surface.is_self_intersecting() for surface in mpi_surfaces])
+    try:
+        success2 = np.all([not surface.is_self_intersecting() for surface in mpi_surfaces])
+    except BaseException:
+        success2 = False
+
     if not (success1 and success2):
         J = prevs['J']
         grad = -prevs['dJ']
