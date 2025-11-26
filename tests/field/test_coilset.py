@@ -1,9 +1,8 @@
 import unittest
 import os
-from simsopt.field.coilset import CoilSet, ReducedCoilSet
-from simsopt.field.coil import Coil
+from simsopt.field.coilset import CoilSet, ReducedCoilSet, Coil
 from simsopt.geo import SurfaceRZFourier, CurveLength
-from simsopt.configs import get_ncsx_data
+from simsopt.configs import get_data
 import numpy as np
 from monty.tempfile import ScratchDir
 from simsopt import load, save
@@ -20,10 +19,9 @@ class TestCoilSet(unittest.TestCase):
         self.assertEqual(len(coilset.coils), 20)
 
     def test_wrong_init(self):
-        curves, currents, _ = get_ncsx_data()
-        coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         with self.assertRaises(ValueError):
-            CoilSet(coils=coils)
+            CoilSet(coils=bs.coils)
 
     def test_for_surface_classmethod(self):
         s = SurfaceRZFourier(nfp=2, mpol=3, ntor=3)
@@ -95,10 +93,11 @@ class TestCoilSet(unittest.TestCase):
 
     def test_base_coils_setter(self):
         # Test the base_coils setter method
-        curves, currents, _ = get_ncsx_data()
-        new_base_coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx") 
+        new_base_coils = [Coil(curve, current) for curve, current in zip(base_curves, base_currents)]
         self.coilset.base_coils = new_base_coils
         self.assertEqual(self.coilset.base_coils, new_base_coils)
+        
 
     def test_reduce(self):
         # Test the reduce method on simple collocation points
