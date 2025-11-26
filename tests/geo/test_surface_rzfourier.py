@@ -492,9 +492,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         # test possible bug due to memory leak
         # stell sym
-        from simsopt.configs import get_ncsx_data
-        _, _, ma = get_ncsx_data()
-        qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), nfp=3, etabar=-0.408)
+        from simsopt.configs import get_data
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
+        qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), nfp=nfp, etabar=-0.408)
         phis = np.linspace(0, 1/qsc.nfp, 2*ntor+1, endpoint=False)
         thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
         full_torus = SurfaceRZFourier.from_pyQSC(qsc, r=0.1, ntheta=100, mpol=6, ntor=6)
@@ -506,7 +506,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         np.random.seed(1)
         # non stell sym for code coverage
-        qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), rs=np.random.rand(5)*1e-7, zc=np.random.rand(5)*1e-7, nfp=3, etabar=-0.408)
+        qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), rs=np.random.rand(5)*1e-7, zc=np.random.rand(5)*1e-7, nfp=nfp, etabar=-0.408)
         phis = np.linspace(0, 1/qsc.nfp, 2*ntor+1, endpoint=False)
         thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
         full_torus = SurfaceRZFourier.from_pyQSC(qsc, r=0.1, ntheta=100, mpol=6, ntor=6)
