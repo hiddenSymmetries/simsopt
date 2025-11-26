@@ -1677,8 +1677,8 @@ def vmec_compute_geometry(vs, s:RealArray, theta:RealArray, phi:RealArray, phi_c
 
 
 def vmec_fieldlines(vs,
-                    s:float|RealArray,
-                    alpha:float|RealArray,
+                    s:Union[float,RealArray],
+                    alpha:Union[float,RealArray],
                     theta1d:Optional[RealArray]=None,
                     phi1d:Optional[RealArray]=None,
                     phi_center:float=0.0,
