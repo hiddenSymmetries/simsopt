@@ -21,10 +21,13 @@ except ImportError as e:
     logger.debug(str(e))
 
 try:
-    import booz_xform
-except ImportError as e:
-    booz_xform = None
-    logger.debug(str(e))
+    import booz_xform_jax as booz_xform
+except ImportError:
+    try:
+        import booz_xform
+    except ImportError:
+        booz_xform = None
+        logger.debug(str(e))
 
 from .vmec import Vmec
 from .._core.optimizable import Optimizable
