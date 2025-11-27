@@ -25,7 +25,7 @@ try:
 except ImportError:
     try:
         import booz_xform
-    except ImportError:
+    except ImportError as e:
         booz_xform = None
         logger.debug(str(e))
 
