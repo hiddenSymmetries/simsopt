@@ -26,6 +26,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-22.04
+    timeout-minutes: 180
 
     env:
       OMPI_ALLOW_RUN_AS_ROOT: 1
