@@ -167,7 +167,7 @@ jobs:
         pip install -v .
         pip install mpi4py
 
-    - name: Run serial examples as part of integrated tests
+    - name: Run examples as part of integrated tests
       if: contains(matrix.test-type, 'integrated')
       run: |
         cd examples
