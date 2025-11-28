@@ -46,16 +46,16 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 elif high_res_run: 
-    nphi = 64
-    nIter_max = 25000
+    nphi = 16
+    nIter_max = 1200
     nBacktracking = 200
-    max_nMagnets = 20000
+    max_nMagnets = 1000
     downsample = 1    
 else:
-    nphi = 64  # >= 64 for high-resolution runs
-    nIter_max = 20000
+    nphi = 16  # >= 64 for high-resolution runs
+    nIter_max = 1200
     nBacktracking = 0
-    max_nMagnets = 20000
+    max_nMagnets = 1000
     downsample = 1
 
 ntheta = nphi  # same as above
@@ -161,7 +161,7 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 # algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
 algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 12  # How many magnets to consider "adjacent" to one another
-nHistory = 20  # How often to save the algorithm progress
+nHistory = nIter_max # setting this to n_Itermax to improve logging...
 thresh_angle = np.pi - (5 * np.pi / 180)  # The angle between two "adjacent" dipoles such that they should be removed
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
@@ -174,7 +174,9 @@ if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking_macromag_py'
     if algorithm == 'ArbVec_backtracking_macromag_py' or algorithm == 'ArbVec_backtracking':
         kwargs['thresh_angle'] = thresh_angle
 
-# Macromag branch
+# Macromag branch (GPMOmr)
+param_suffix = f"_bt{nBacktracking}_Nadj{nAdjacent}_nmax{max_nMagnets}"
+mm_suffix = ""
 if algorithm == "ArbVec_backtracking_macromag_py": 
     kwargs['cube_dim'] = 0.004
     kwargs['mu_ea'] = 1.05
@@ -184,6 +186,10 @@ if algorithm == "ArbVec_backtracking_macromag_py":
     kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
     kwargs['mm_refine_every'] = 50
     kwargs['current_scale'] = current_scale
+    mm_suffix = f"_kmm{kwargs['mm_refine_every']}"
+
+full_suffix = param_suffix + mm_suffix
+
     
 # Optimize the permanent magnets greedily
 t1 = time.time()
@@ -226,41 +232,49 @@ if save_plots:
     # Save the MSE history and history of the m vectors
     H = m_history.shape[2]
     np.savetxt(
-        out_dir / f"mhistory_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}_{algorithm}.txt",
+        out_dir / f"mhistory_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}{full_suffix}_{algorithm}.txt",
         m_history.reshape(pm_opt.ndipoles * 3, H)
     )
     np.savetxt(
-        out_dir / f"R2history_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}_{algorithm}.txt",
+        out_dir / f"R2history_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}{full_suffix}_{algorithm}.txt",
         R2_history
     )
-    np.savetxt(out_dir / f"Bn_history_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}_{algorithm}.txt", Bn_history)
+    np.savetxt(
+        out_dir / f"Bn_history_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}{full_suffix}_{algorithm}.txt",
+        Bn_history
+    )
 
     # Plot the SIMSOPT GPMO solution
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
     make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
 
-    # Look through the solutions as function of K and make plots
-    for k in range(0, kwargs["nhistory"] + 1, 50):
-        mk = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
-        b_dipole = DipoleField(
-            pm_opt.dipole_grid_xyz,
-            mk,
-            nfp=s.nfp,
-            coordinate_flag=pm_opt.coordinate_flag,
-            m_maxima=pm_opt.m_maxima,
-        )
-        b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-        K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
-        b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}_{algorithm}")
-        print("Total fB = ", 0.5 * np.sum((pm_opt.A_obj @ mk - pm_opt.b_obj) ** 2))
-        Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
-        Bnormal_total = Bnormal + Bnormal_dipoles
+    # Only log and export the final iterate
+    k_final = m_history.shape[2] - 1
+    mk = m_history[:, :, k_final].reshape(pm_opt.ndipoles * 3)
 
-        # For plotting Bn on the full torus surface at the end with just the dipole fields
-        make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}")
-        pointData = {"B_N": Bnormal_total[:, :, None]}
-        s_plot.to_vtk(out_dir / "m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}", extra_data=pointData)
+    b_dipole = DipoleField(
+        pm_opt.dipole_grid_xyz,
+        mk,
+        nfp=s.nfp,
+        coordinate_flag=pm_opt.coordinate_flag,
+        m_maxima=pm_opt.m_maxima,
+    )
+    b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
+
+    K_save = int(kwargs['K'])  # nominal final iteration number
+    b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}{full_suffix}_{algorithm}")
+
+    print("Total fB = ", 0.5 * np.sum((pm_opt.A_obj @ mk - pm_opt.b_obj) ** 2))
+
+    # Compute and export final Bnormal fields
+    Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
+    Bnormal_total = Bnormal + Bnormal_dipoles
+
+    # For plotting Bn on the full torus surface at the end with just the dipole fields
+    make_Bnormal_plots(b_dipole, s_plot, out_dir, f"only_m_optimized_K{K_save}_nphi{nphi}{full_suffix}_ntheta{ntheta}")
+    pointData = {"B_N": Bnormal_total[:, :, None]}
+    s_plot.to_vtk(out_dir / f"m_optimized_K{K_save}_nphi{nphi}{full_suffix}_ntheta{ntheta}", extra_data=pointData)
 
     # write solution to FAMUS-type file
     pm_opt.write_to_famus(out_dir)
@@ -331,8 +345,8 @@ b_final = DipoleField(
 )
 
 
-b_final._toVTK(out_dir / f"dipoles_final_{algorithm}")
-print(f"[SIMSOPT] Wrote dipoles_final_{algorithm}.vtu")
+b_final._toVTK(out_dir / f"dipoles_final{full_suffix}_{algorithm}")
+print(f"[SIMSOPT] Wrote dipoles_final{full_suffix}_{algorithm}.vtu")
 
 
 ### add B \dot n output
@@ -377,17 +391,17 @@ extra_data = {
     "Bn_error_abs": as_field3(Bn_error_abs),
 }
 
-surface_fname = out_dir / f"surface_Bn_fields_{algorithm}"
+surface_fname = out_dir / f"surface_Bn_fields{full_suffix}_{algorithm}"
 s_view.to_vtk(surface_fname, extra_data=extra_data)
 print(f"[SIMSOPT] Wrote {surface_fname}.vtp")
 
 ### saving for later poincare plotting
 np.savez(
-    out_dir / f"dipoles_final_{algorithm}.npz",
+    out_dir / f"dipoles_final{full_suffix}_{algorithm}.npz",
     xyz=pm_opt.dipole_grid_xyz,
     m=pm_opt.m.reshape(pm_opt.ndipoles, 3),
     nfp=s.nfp,
     coordinate_flag=pm_opt.coordinate_flag,
     m_maxima=pm_opt.m_maxima,
 )
-print(f"[SIMSOPT] Saved dipoles_final_{algorithm}.npz")
+print(f"[SIMSOPT] Saved dipoles_final{full_suffix}_{algorithm}.npz")
