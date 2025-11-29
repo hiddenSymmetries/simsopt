@@ -350,13 +350,14 @@ while not final_step:
 
 
 # Save plots and visualization data to files
-wf.make_plot_2d(coordinates='degrees', quantity='nonzero currents')
-pl.savefig(OUT_DIR + 'gsco_multistep_curr2d.png')
-pl.close(pl.gcf())
-wf.to_vtk(OUT_DIR + 'gsco_multistep')
+if not in_github_actions:
+    wf.make_plot_2d(coordinates='degrees', quantity='nonzero currents')
+    pl.savefig(OUT_DIR + 'gsco_multistep_curr2d.png')
+    pl.close(pl.gcf())
+    wf.to_vtk(OUT_DIR + 'gsco_multistep')
 
 # Generate a 3D plot of the wireframe and plasma if desired
-if make_mayavi_plots:
+if make_mayavi_plots and not in_github_actions:
 
     from mayavi import mlab
     mlab.options.offscreen = True

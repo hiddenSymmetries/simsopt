@@ -171,13 +171,14 @@ print('  <|Bn|/|B|>     %12.4e' % (mean_rel_Bn))
 print('  I_max [MA]     %12.4e' % (max_cur))
 
 # Save plots and visualization data to files
-wf.make_plot_2d(coordinates='degrees', quantity='nonzero currents')
-pl.savefig(OUT_DIR + 'gsco_sector_saddle_wireframe_curr2d.png')
-pl.close(pl.gcf())
-wf.to_vtk(OUT_DIR + 'gsco_sector_saddle_wireframe')
+if not in_github_actions:
+    wf.make_plot_2d(coordinates='degrees', quantity='nonzero currents')
+    pl.savefig(OUT_DIR + 'gsco_sector_saddle_wireframe_curr2d.png')
+    pl.close(pl.gcf())
+    wf.to_vtk(OUT_DIR + 'gsco_sector_saddle_wireframe')
 
 # Generate a 3D plot of the wireframe and plasma if desired
-if make_mayavi_plots:
+if make_mayavi_plots and not in_github_actions:
 
     from mayavi import mlab
     mlab.options.offscreen = True
