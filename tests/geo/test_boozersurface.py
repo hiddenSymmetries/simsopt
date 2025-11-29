@@ -243,6 +243,8 @@ class BoozerSurfaceTests(unittest.TestCase):
             # applying rotational symmetry
             from simsopt.geo.curve import RotatedCurve
             rng = np.random.default_rng(12345)
+            curves_flipped = [RotatedCurve(c, 0, True) for c in base_curves]
+            currents_flipped = [-cur for cur in base_currents]
             for c in curves_flipped:
                 c.rotmat += 0.001*rng.uniform(low=-1., high=1.,
                                                     size=c.rotmat.shape)
