@@ -194,7 +194,7 @@ jobs:
         ./run_serial_examples
 
     - name: Run simple parallel examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'all')
+      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'none')
       run: |
         cd examples
         ./run_parallel_examples
