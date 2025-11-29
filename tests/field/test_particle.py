@@ -5,10 +5,8 @@ logging.basicConfig()
 
 import numpy as np
 
-from simsopt.field.coil import coils_via_symmetries
-from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.configs.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_data
 from simsopt.field.tracing import trace_particles_starting_on_curve, SurfaceClassifier, \
     particles_to_vtk, LevelsetStoppingCriterion, compute_gc_radius, gc_to_fullorbit_initial_guesses, \
     IterationStoppingCriterion, trace_particles_starting_on_surface, trace_particles_boozer, \
@@ -69,10 +67,7 @@ class ParticleTracingTesting(unittest.TestCase):
         super(ParticleTracingTesting, self).__init__(*args, **kwargs)
         logger = logging.getLogger('simsopt.field.tracing')
         logger.setLevel(1)
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        base_curves,base_currents, ma, nfp, bs = get_data("ncsx")
         n = 16
 
         rrange = (1.1, 1.8, n)
@@ -682,7 +677,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
         gc_tys, gc_phi_hits = trace_particles(bsh, xyz_inits, vpar_inits,
                                               tmax=tmax, mass=m, charge=q, Ekin=Ekin, phis=[], mode='gc_vac',
-                                              stopping_criteria=[ToroidalTransitStoppingCriterion(1, False)],
+                                              stopping_criteria=[ToroidalTransitStoppingCriterion(1.0, False)],
                                               tol=1e-12)
 
         mpol = compute_poloidal_transits(gc_tys, ma=ma, flux=False)
@@ -768,7 +763,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
         gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                      tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[0], mode='gc_vac',
-                                                     stopping_criteria=[MinToroidalFluxStoppingCriterion(0.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)],
+                                                     stopping_criteria=[MinToroidalFluxStoppingCriterion(0.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100.0, True)],
                                                      tol=1e-8)
 
         resonances = compute_resonances(gc_tys, gc_phi_hits, delta=0.01)

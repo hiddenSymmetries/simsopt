@@ -360,6 +360,7 @@ class Testing(unittest.TestCase):
     def test_flux_through_disk(self):
         # this test makes sure that the toroidal flux through a disk (D)
         # given by \int_D B \cdot n dB = \int_{\partial D} A \cdot dl
+        np.random.seed(1)
 
         from scipy.spatial.transform import Rotation as R
         rot = R.from_euler('zyx', [21.234, 8.431, -4.86392], degrees=True).as_matrix()
@@ -394,7 +395,6 @@ class Testing(unittest.TestCase):
             bs.set_points(pts)
             A = bs.A()
             fluxA = r*np.sum(A*t) * 2 * np.pi/npoints
-
             assert np.abs(fluxB[0]-fluxA)/fluxB[0] < 1e-14
 
     def test_biotsavart_vector_potential_coil_current_taylortest(self):

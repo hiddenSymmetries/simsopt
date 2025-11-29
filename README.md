@@ -55,9 +55,9 @@ can be started using
     docker run -it --rm hiddensymmetries/simsopt
 
 More [installation
-options](https://simsopt.readthedocs.io/en/latest/installation.html),
+options](https://simsopt.readthedocs.io/latest/installation.html),
 [instructions for the Docker
-container](https://simsopt.readthedocs.io/en/latest/containers.html), and
+container](https://simsopt.readthedocs.io/latest/containers.html), and
 other information can be found in the [main simsopt documentation
 here.](https://simsopt.readthedocs.io)
 
@@ -78,7 +78,7 @@ If you use `simsopt` in your research, kindly cite the code using
     "SIMSOPT: A flexible framework for stellarator optimization",
     *J. Open Source Software* **6**, 3525 (2021).
 
-See also [the simsopt publications page](https://simsopt.readthedocs.io/en/latest/publications.html).
+See also [the simsopt publications page](https://simsopt.readthedocs.io/latest/publications.html).
 
 We gratefully acknowledge funding from the [Simons Foundation's Hidden
 symmetries and fusion energy
