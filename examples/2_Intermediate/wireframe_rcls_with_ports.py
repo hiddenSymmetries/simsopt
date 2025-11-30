@@ -25,6 +25,7 @@ import matplotlib.pyplot as pl
 from simsopt.geo import SurfaceRZFourier, ToroidalWireframe
 from simsopt.geo import PortSet, CircularPort
 from simsopt.solve import optimize_wireframe
+from simsopt.util import in_github_actions
 
 # Set to True generate a 3d rendering with the mayavi package
 make_mayavi_plot = False
@@ -144,13 +145,14 @@ print('  <|Bn|/|B|>     %12.4e' % (mean_rel_Bn))
 print('  I_max [MA]     %12.4e' % (max_cur))
 
 # Save plots and visualization data to files
-wf.make_plot_2d(quantity='nonzero currents', coordinates='degrees')
-pl.savefig(OUT_DIR + 'rcls_ports_wireframe_curr2d.png')
-wf.to_vtk(OUT_DIR + 'rcls_ports_wireframe')
-ports.to_vtk(OUT_DIR + 'rcls_ports_port_geometry')
+if not in_github_actions:
+    wf.make_plot_2d(quantity='nonzero currents', coordinates='degrees')
+    pl.savefig(OUT_DIR + 'rcls_ports_wireframe_curr2d.png')
+    wf.to_vtk(OUT_DIR + 'rcls_ports_wireframe')
+    ports.to_vtk(OUT_DIR + 'rcls_ports_port_geometry')
 
 # Generate a 3D plot if desired
-if make_mayavi_plot:
+if make_mayavi_plot and not in_github_actions:
 
     from mayavi import mlab
     mlab.options.offscreen = True
