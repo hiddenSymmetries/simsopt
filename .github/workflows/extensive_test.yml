@@ -94,29 +94,29 @@ jobs:
         python-version: ${{ matrix.python-version }}
         allow-prereleases: false
 
-    - name: Ensure pip is available (Python 3.12 fix)
-      if: matrix.python-version == '3.12'
+    - name: Ensure pip is available
       run: |
-        # For Python 3.12 on Ubuntu 24.04, pip might not be available
-        # Try multiple methods to ensure pip is installed
+        # Check if pip is available
         if ! python -m pip --version 2>/dev/null; then
           echo "pip not found, attempting to install..."
-          # Method 1: Try ensurepip
-          if python -m ensurepip --version 2>/dev/null; then
+          # Method 1: Try ensurepip (should work for Python installed by setup-python)
+          if python -c "import ensurepip" 2>/dev/null; then
+            echo "Using ensurepip to install pip..."
             python -m ensurepip --upgrade --default-pip
-          # Method 2: Install via apt (for system Python)
-          elif command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y python3-pip || true
-          # Method 3: Use get-pip.py
+          # Method 2: Use get-pip.py as fallback
           else
-            curl -sS https://bootstrap.pypa.io/get-pip.py | python
+            echo "Using get-pip.py to install pip..."
+            curl -sS https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+            python get-pip.py
+            rm -f get-pip.py
           fi
         fi
-        # Verify pip is now available
-        python -m pip --version || (echo "ERROR: pip still not available" && exit 1)
+        # Verify pip is now available and upgrade it
+        python -m pip --version || (echo "ERROR: pip still not available after installation attempt" && exit 1)
         python -m pip install --upgrade pip setuptools wheel
         python -m pip --version
+        # Also verify pip module can be imported (critical for build tools)
+        python -c "import pip; print(f'pip module version: {pip.__version__}')" || (echo "ERROR: pip module cannot be imported" && exit 1)
 
     - name: which python3 after python setup
       run: which python3
