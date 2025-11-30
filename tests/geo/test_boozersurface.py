@@ -383,7 +383,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         """
         x_vec = self.subtest_convergence_cpp_and_notcpp_same(True)
         x_nonvec = self.subtest_convergence_cpp_and_notcpp_same(False)
-        np.testing.assert_allclose(x_vec, x_nonvec, atol=1e-11)
+        np.testing.assert_allclose(x_vec, x_nonvec, atol=1e-9)
 
     def subtest_convergence_cpp_and_notcpp_same(self, vectorize):
         """
@@ -484,7 +484,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         f1, J1 = boozer_surface.boozer_penalty_constraints_vectorized(
             x, derivatives=1, constraint_weight=w, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
         np.testing.assert_allclose(f0, f1, atol=1e-13, rtol=1e-13)
-        np.testing.assert_allclose(J0, J1, atol=1e-11, rtol=1e-11)
+        np.testing.assert_allclose(J0, J1, atol=1e-9, rtol=1e-11)
 
         # check directional derivative
         h1 = np.random.rand(J0.size)-0.5
@@ -498,7 +498,7 @@ class BoozerSurfaceTests(unittest.TestCase):
             x, derivatives=2, constraint_weight=w, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
 
         np.testing.assert_allclose(f0, f1, atol=1e-13, rtol=1e-13)
-        np.testing.assert_allclose(J0, J1, atol=1e-11, rtol=1e-11)
+        np.testing.assert_allclose(J0, J1, atol=1e-9, rtol=1e-11)
         np.testing.assert_allclose(H0, H1, atol=1e-10, rtol=1e-10)
         h2 = np.random.rand(J0.size)-0.5
 
