@@ -107,7 +107,7 @@ jobs:
     - name: Install python dependencies
       run: |
            sudo apt-get install graphviz graphviz-dev
-           python -m pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap
+           python -m pip install wheel numpy scipy f90nml h5py scikit-build-core setuptools-scm cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap
 
     - name: Install booz_xform
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
