@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 from pathlib import Path
 import math
 import numpy as np
@@ -123,6 +121,8 @@ print(f"max  Δθ [deg] = {theta_mc.max():.12f}")
 print(f"mean Δ|M| [A/m] = {np.abs(dmag_mc).mean():.12f}")
 print(f"max  Δ|M| [A/m] = {np.abs(dmag_mc).max():.12f}")
 
+
+# Magnet-only B·n diagnostics on a closed full-torus surface
 qphi_bn = 2 * nphi
 quadpoints_phi_bn = np.linspace(0.0, 1.0, qphi_bn, endpoint=True)
 quadpoints_theta_bn = np.linspace(0.0, 1.0, ntheta, endpoint=True)
@@ -195,7 +195,7 @@ print(f"mean = {change_Bn_unique.mean():.12e}")
 print(f"max  = {np.abs(change_Bn_unique).max():.12e}")
 print(f"rms  = {math.sqrt(np.mean(change_Bn_unique ** 2)):.12e}")
 
-# f_B evaluation on 64 x 64 surface grid
+# f_B evaluation on 64 x 64 surface grid (half-period wedge)
 B_max = 1.465
 mu0 = 4 * np.pi * 1e-7
 M_max = B_max / mu0
@@ -211,6 +211,51 @@ s_half = SurfaceRZFourier.from_focus(
 
 base_curves, curves, coils = initialize_coils("muse_famus", TEST_DIR, s_half, out_dir)
 bs = BiotSavart(coils)
+
+bs.set_points(PTS_BN)
+B_coils_bn = bs.B().reshape((nphi_grid, ntheta_grid, 3))
+NORM_BN_grid = NORM_BN.reshape((nphi_grid, ntheta_grid, 3))
+Bnormal_coils_bn = np.sum(B_coils_bn * NORM_BN_grid, axis=2)
+
+# Total B·n = (B_coils + B_magnets)·n for each case
+Btotal_unc_grid = Bnormal_coils_bn + Bn_uncoupled_grid
+Btotal_mm_grid = Bnormal_coils_bn + Bn_mag_only_grid
+Btotal_mc_grid = Bnormal_coils_bn + Bn_mag_coil_grid
+
+Btotal_unc_abs = np.abs(Btotal_unc_grid)
+Btotal_mm_abs = np.abs(Btotal_mm_grid)
+Btotal_mc_abs = np.abs(Btotal_mc_grid)
+
+extra_error_data = {
+    "Btotal_unc": as_field3(Btotal_unc_grid),
+    "Btotal_mm": as_field3(Btotal_mm_grid),
+    "Btotal_mc": as_field3(Btotal_mc_grid),
+    "Btotal_unc_abs": as_field3(Btotal_unc_abs),
+    "Btotal_mm_abs": as_field3(Btotal_mm_abs),
+    "Btotal_mc_abs": as_field3(Btotal_mc_abs),
+}
+
+vtk_path_err = out_dir / "surface_Btotal_error_MUSE_post_processing"
+surf_bn.to_vtk(vtk_path_err, extra_data=extra_error_data)
+print(
+    f"[SIMSOPT] Wrote {vtk_path_err}.vtp with fields: "
+    f"{', '.join(extra_error_data.keys())}"
+)
+
+# Summary of total B·n error on unique half-period wedge
+Btotal_unc_unique = Btotal_unc_grid[:nphi_unique, :].ravel()
+Btotal_mm_unique = Btotal_mm_grid[:nphi_unique, :].ravel()
+Btotal_mc_unique = Btotal_mc_grid[:nphi_unique, :].ravel()
+
+def summarize_error(name, arr):
+    print(f"\n{name} total B·n error (unique half period wedge)")
+    print(f"mean = {arr.mean():.12e}")
+    print(f"max  = {np.abs(arr).max():.12e}")
+    print(f"rms  = {math.sqrt(np.mean(arr ** 2)):.12e}")
+
+summarize_error("Uncoupled", Btotal_unc_unique)
+summarize_error("Magnet-magnet only", Btotal_mm_unique)
+summarize_error("Magnet-magnet + coil", Btotal_mc_unique)
 
 nfp = 2
 qphi = 2 * nphi
