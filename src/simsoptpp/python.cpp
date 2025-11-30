@@ -23,6 +23,8 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "reiman.h"
 #include "simdhelpers.h"
 #include "boozerresidual_py.h"
+#include "current_voxels.h"
+#include "current_voxels_field.h"
 
 namespace py = pybind11;
 
@@ -59,6 +61,15 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("biot_savart_vjp", &biot_savart_vjp);
     m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
     m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
+
+    // Functions below are implemented for current voxels method
+    m.def("current_voxels_geo_factors", &current_voxels_geo_factors); 
+    m.def("current_voxels_flux_jumps", &current_voxels_flux_jumps); 
+    m.def("current_voxels_field_B" , &current_voxels_field_B);
+    m.def("current_voxels_field_A" , &current_voxels_field_A);
+    m.def("current_voxels_field_dB" , &current_voxels_field_dB);
+    m.def("current_voxels_field_dA" , &current_voxels_field_dA);
+    m.def("current_voxels_field_Bext" , &current_voxels_field_Bext);
 
     // Functions below are implemented for permanent magnet optimization
     m.def("dipole_field_B" , &dipole_field_B);

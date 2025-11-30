@@ -6,7 +6,8 @@ __all__ = ['read_focus_coils', 'coil_optimization',
            'trace_fieldlines', 'make_qfm',
            'initialize_coils', 'calculate_modB_on_major_radius',
            'make_optimization_plots', 'run_Poincare_plots',
-           'make_Bnormal_plots', 'initialize_default_kwargs'
+           'make_Bnormal_plots', 'initialize_default_kwargs',
+           'make_filament_from_voxels', 'make_curve_at_theta0'
            ]
 
 import numpy as np
@@ -268,6 +269,153 @@ def make_qfm(s, Bfield):
                                                        constraint_weight=constraint_weight)
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
     return qfm_surface
+
+def make_curve_at_theta0(s, numquadpoints):
+    from simsopt.geo import CurveRZFourier
+
+    order = s.ntor + 1
+    quadpoints = np.linspace(0, 1, numquadpoints, endpoint=True)
+    curve = CurveRZFourier(quadpoints, order, nfp=s.nfp, stellsym=s.stellsym)
+    r_mn = np.zeros((s.mpol + 1, 2 * s.ntor + 1))
+    z_mn = np.zeros((s.mpol + 1, 2 * s.ntor + 1))
+    for m in range(s.mpol + 1):
+        if m == 0:
+            nmin = 0
+        else: 
+            nmin = -s.ntor
+        for n in range(nmin, s.ntor + 1):
+            r_mn[m, n + s.ntor] = s.get_rc(m, n)
+            z_mn[m, n + s.ntor] = s.get_zs(m, n)
+    r_n = np.sum(r_mn, axis=0)
+    z_n = np.sum(z_mn, axis=0)
+    for n in range(s.ntor + 1):
+        if n == 0:
+            curve.rc[n] = r_n[n + s.ntor]
+        else:
+            curve.rc[n] = r_n[n + s.ntor] + r_n[-n + s.ntor]
+            curve.zs[n - 1] = -z_n[n + s.ntor] + z_n[-n + s.ntor]
+
+    curve.x = curve.get_dofs()
+    curve.x = curve.x  # need to do this to transfer data to C++
+    return curve
+
+
+def make_filament_from_voxels(current_voxels_grid, final_threshold, truncate=False, num_fourier=16):
+    """
+    Take an optimized CurrentVoxelGrid class object and the largest
+    threshold used to optimize it, and produce a filamentary curve from
+    the solution. This function assumes that the current voxel solution
+    is curve-like, i.e. that it makes sense to try and fit this solution
+    with a Fourier series.
+    """
+    from simsopt.geo import CurveXYZFourier
+
+    # Find where voxels are nonzero
+    alphas = current_voxels_grid.alphas.reshape(current_voxels_grid.N_grid, current_voxels_grid.n_functions)
+    nonzero_inds = (np.linalg.norm(alphas, axis=-1) > final_threshold)
+    xyz_curve = current_voxels_grid.XYZ_flat[nonzero_inds, :]
+    nfp = current_voxels_grid.plasma_boundary.nfp
+    stellsym = current_voxels_grid.plasma_boundary.stellsym
+    n = xyz_curve.shape[0]
+
+    # complete the curve via the symmetries 
+    xyz_total = np.zeros((n * nfp * (stellsym + 1), 3)) 
+    if stellsym:
+        stell_list = [1, -1]
+    else:
+        stell_list = [1]
+    index = 0
+    for stell in stell_list:
+        for fp in range(nfp):
+            phi0 = (2 * np.pi / nfp) * fp
+            xyz_total[index:index + n, 0] = xyz_curve[:, 0] * np.cos(phi0) - xyz_curve[:, 1] * np.sin(phi0) * stell 
+            xyz_total[index:index + n, 1] = xyz_curve[:, 0] * np.sin(phi0) + xyz_curve[:, 1] * np.cos(phi0) * stell 
+            xyz_total[index:index + n, 2] = xyz_curve[:, 2] * stell 
+            index += n
+
+    # number of fourier modes to use for the fourier expansion in each coordinate
+    _ = plt.figure().add_subplot(projection='3d')
+    xyz_curve = xyz_total
+    plt.plot(xyz_curve[:, 0], xyz_curve[:, 1], xyz_curve[:, 2])
+
+    # Let's assume curve is unique w/ respect to theta or phi
+    # in the 1 / 2 * nfp part of the surface
+    phi, unique_inds = np.unique(np.arctan2(xyz_curve[:, 1], xyz_curve[:, 0]), return_index=True)
+    xyz_curve = xyz_curve[unique_inds, :]
+    plt.plot(xyz_curve[:, 0], xyz_curve[:, 1], xyz_curve[:, 2])
+
+    def moving_average(x, w):
+        return np.convolve(x, np.ones(w), 'valid') / w
+
+    x_curve = moving_average(xyz_curve[:, 0], 10)
+    y_curve = moving_average(xyz_curve[:, 1], 10)
+    z_curve = moving_average(xyz_curve[:, 2], 10)
+
+    # Stitch together missing points lost during the moving average
+    xn = len(x_curve)
+    extra_x = -x_curve[xn // 2:xn // 2 + 6]
+    extra_y = -y_curve[xn // 2:xn // 2 + 6]
+    extra_z = z_curve[xn // 2:xn // 2 + 6]
+    x_curve = np.concatenate((extra_x, x_curve))
+    y_curve = np.concatenate((extra_y, y_curve))
+    z_curve = np.concatenate((extra_z, z_curve))
+    x_curve = np.append(x_curve, np.flip(extra_x))
+    y_curve = np.append(y_curve, -np.flip(extra_y))
+    z_curve = np.append(z_curve, -np.flip(extra_z))
+    xyz_curve = np.transpose([x_curve, y_curve, z_curve])
+    plt.plot(xyz_curve[:, 0], xyz_curve[:, 1], xyz_curve[:, 2])
+
+    # get phi and reorder it from -pi to pi (sometimes arctan returns different quadrant)
+    phi = np.arctan2(xyz_curve[:, 1], xyz_curve[:, 0])
+    phi_inds = np.argsort(phi)
+    phi = phi[phi_inds] + np.pi
+    xyz_curve = xyz_curve[phi_inds, :]
+    plt.figure()
+    plt.plot(phi, xyz_curve[:, 0])
+    plt.plot(phi, xyz_curve[:, 1])
+    plt.plot(phi, xyz_curve[:, 2])
+    # plt.show()
+
+    # Initialize CurveXYZFourier object
+    quadpoints = 2000
+    coil = CurveXYZFourier(quadpoints, num_fourier)
+    dofs = coil.dofs_matrix
+    dofs[0][0] = np.trapz(xyz_curve[:, 0], phi) / np.pi
+
+    if truncate and abs(dofs[0][0]) < 1e-2:
+        dofs[0][0] = 0.0
+    for f in range(num_fourier):
+        for i in range(3):
+            if i == 0:
+                dofs[i][f * 2 + 2] = np.trapz(xyz_curve[:, i] * np.cos((f + 1) * phi), phi) / np.pi
+                if truncate and abs(dofs[i][f * 2 + 2]) < 1e-2:
+                    dofs[i][f * 2 + 2] = 0.0
+            else:
+                dofs[i][f * 2 + 1] = np.trapz(xyz_curve[:, i] * np.sin((f + 1) * phi), phi) / np.pi
+                if truncate and abs(dofs[i][f * 2 + 1]) < 1e-2:
+                    dofs[i][f * 2 + 1] = 0.0
+    coil.local_x = np.concatenate(dofs)
+
+    # now make the stellarator symmetry fixed in the optimization
+    for f in range(num_fourier):
+        coil.fix(f'xs({f + 1})')
+    for f in range(num_fourier + 1):
+        coil.fix(f'yc({f})')
+        coil.fix(f'zc({f})')
+
+    # attempt to fix all the non-nfp-symmetric coefficients to zero during optimiziation
+    for f in range(num_fourier * 2 + 1):
+        for i in range(3):
+            if i == 0:
+                if np.isclose(dofs[i][f], 0.0) and (f % 2) == 0 and (f // 2) % 2 == 0:
+                    coil.fix(f'xc({f // 2})')
+            elif i == 1: 
+                if np.isclose(dofs[i][f], 0.0) and (f % 2) != 0 and (f // 2) % 2 != 0:
+                    coil.fix(f'ys({f // 2 + 1})')
+            if i == 2: 
+                if np.isclose(dofs[i][f], 0.0) and (f % 2) != 0:
+                    coil.fix(f'zs({f // 2 + 1})')
+    return coil
 
 
 def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
