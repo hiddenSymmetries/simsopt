@@ -96,54 +96,27 @@ jobs:
 
     - name: Ensure pip is available
       run: |
-        # Check if pip is available
         if ! python -m pip --version 2>/dev/null; then
-          echo "pip not found, attempting to install..."
-          # Method 1: Try ensurepip (should work for Python installed by setup-python)
           if python -c "import ensurepip" 2>/dev/null; then
-            echo "Using ensurepip to install pip..."
             python -m ensurepip --upgrade --default-pip
-          # Method 2: Use get-pip.py as fallback
           else
-            echo "Using get-pip.py to install pip..."
-            curl -sS https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-            python get-pip.py
-            rm -f get-pip.py
+            curl -sS https://bootstrap.pypa.io/get-pip.py | python
           fi
         fi
-        # Verify pip is now available and upgrade it
-        python -m pip --version || (echo "ERROR: pip still not available after installation attempt" && exit 1)
-        python -m pip install --upgrade pip setuptools wheel
-        python -m pip --version
-        # Also verify pip module can be imported (critical for build tools)
-        python -c "import pip; print(f'pip module version: {pip.__version__}')" || (echo "ERROR: pip module cannot be imported" && exit 1)
-
-    - name: which python3 after python setup
-      run: which python3
-
-    - name: Verify pip is accessible
-      run: |
-        # Verify pip is accessible via python -m pip
-        python -m pip --version
-        # Also verify pip command is available (for compatibility)
-        python -m pip install --upgrade pip setuptools wheel
-        # Test that pip can be invoked
-        python -c "import pip; print(f'pip version: {pip.__version__}')" || echo "Warning: pip module import failed"
-
-    - name: env after adding python
-      run: env
+        python -m pip install --break-system-packages --upgrade pip setuptools wheel 2>/dev/null || python -m pip install --upgrade pip setuptools wheel
 
     - name: Install python dependencies
       run: |
            sudo apt-get install graphviz graphviz-dev
-           python -m pip install wheel "numpy>=2.0.0" scipy f90nml h5py scikit-build-core setuptools-scm "pybind11<3.0.0" cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap
+           # Use --break-system-packages for Python 3.12 on Ubuntu 24.04 (PEP 668)
+           python -m pip install --break-system-packages wheel "numpy>=2.0.0" scipy f90nml h5py scikit-build-core setuptools-scm "pybind11<3.0.0" cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap || python -m pip install wheel "numpy>=2.0.0" scipy f90nml h5py scikit-build-core setuptools-scm "pybind11<3.0.0" cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap
 
     - name: Install booz_xform
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
-      run: python -m pip install -v git+https://github.com/hiddenSymmetries/booz_xform
+      run: python -m pip install --break-system-packages -v git+https://github.com/hiddenSymmetries/booz_xform 2>/dev/null || python -m pip install -v git+https://github.com/hiddenSymmetries/booz_xform
 
     - name: Install virtual_casing
-      run: python -m pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
+      run: python -m pip install --break-system-packages -v git+https://github.com/hiddenSymmetries/virtual-casing 2>/dev/null || python -m pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
 
     # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
     # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
@@ -210,11 +183,9 @@ jobs:
     - name: Install simsopt package
       if: contains(matrix.packages, 'none')
       run: |
-        python -m pip install --upgrade pip build wheel
-        # Ensure build dependencies are available in the environment
-        python -m pip install scikit-build-core "setuptools-scm>=8.0" "pybind11<3.0.0" "numpy>=2.0.0"
-        # Use --no-build-isolation to use the current environment where pip is available
-        python -m pip install --no-build-isolation -v .
+        python -m pip install --break-system-packages --upgrade pip setuptools wheel build 2>/dev/null || python -m pip install --upgrade pip setuptools wheel build
+        python -m pip install --break-system-packages scikit-build-core "setuptools-scm>=8.0" "pybind11<3.0.0" "numpy>=2.0.0" 2>/dev/null || python -m pip install scikit-build-core "setuptools-scm>=8.0" "pybind11<3.0.0" "numpy>=2.0.0"
+        python -m pip install --break-system-packages --no-build-isolation -v . 2>/dev/null || python -m pip install --no-build-isolation -v .
 
     - name: Install simsopt package
       if: contains(matrix.packages, 'vmec')
