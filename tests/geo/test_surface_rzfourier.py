@@ -4,6 +4,7 @@ from pathlib import Path
 from qsc import Qsc
 import numpy as np
 from monty.tempfile import ScratchDir
+from scipy.special import jv as bessel_J
 
 from simsopt import save, load
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier, SurfaceRZPseudospectral
@@ -998,7 +999,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
         da = s.darea()
         np.testing.assert_allclose(da, da_truth,
                                    err_msg = 'Area derivative does not match precalculated results.', atol = 1e-14)
-        
 
     def test_volume_derivative(self):
         """
@@ -1018,8 +1018,95 @@ class SurfaceRZFourierTests(unittest.TestCase):
         dv = s.dvolume()
         np.testing.assert_allclose(dv, dv_truth,
                                    err_msg = 'Volume derivative does not match precalculated results.', atol = 1e-14)
+
+    def test_condense_spectrum(self):
+        """Test the condense_spectrum() and spectral_width() methods."""
+        # filename = TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres'
+        filename = TEST_DIR / 'input.li383_low_res'
+        for method in ['BFGS', 'lm']:
+            power = 2
+            print(f"Testing condense_spectrum() with method {method}")
+            surf = SurfaceRZFourier.from_vmec_input(filename)
+            surf.change_resolution(mpol=10, ntor=8)
+            original_spectral_width_1 = surf.spectral_width(power=power)
+            original_spectral_width_2, final_spectral_width_2 = surf.condense_spectrum(method=method, power=power, verbose=True, plot=True)
+            print("Minor radius after condensing:", surf.minor_radius())
+            final_spectral_width_1 = surf.spectral_width(power=power)
+            print("Original spectral width 1:", original_spectral_width_1)
+            print("Original spectral width 2:", original_spectral_width_2)
+            print("Final spectral width 1:", final_spectral_width_1)
+            print("Final spectral width 2:", final_spectral_width_2)
+            np.testing.assert_allclose(original_spectral_width_1, original_spectral_width_2)
+            # There is a slight difference in the 2 methods for computing the
+            # final spectral width due to a slight change in the minor radius
+            # associated with discretization error.
+            np.testing.assert_allclose(final_spectral_width_1, final_spectral_width_2, rtol=2e-5)
+            np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
+
+    def test_condense_spectrum_circle(self):
+        """Test the condense_spectrum() method for a circle.
         
+        This uses an analytic form for a circular cross-section using a poloidal
+        angle
+        theta1 = theta0 + alpha * sin(theta0)
+        where theta0 is the usual geometric poloidal angle, and alpha is a
+        constant.
         
+        The Fourier coefficients of R and Z with respect to theta1 can be computed
+        analytically in terms of Bessel J functions. For details see section 4 of
+        https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
+        
+        """
+        for method in ['trf', 'BFGS']:
+            power = 2
+            print(f"Testing condense_spectrum() with method {method}")
+            major_radius = 10.0
+            minor_radius = 1.7
+            mpol = 15
+            surf = SurfaceRZFourier(
+                mpol=mpol,
+                ntor=0,
+                nfp=1,
+                quadpoints_phi=[0],
+                quadpoints_theta=np.linspace(0, 1, 50, endpoint=False),
+            )
+            alpha = 0.8
+            surf.set_rc(0, 0, minor_radius * bessel_J(1, alpha) + major_radius)
+            for m in range(1, mpol + 1):
+                surf.set_rc(m, 0, minor_radius * (bessel_J(1 - m, alpha) + bessel_J(1 + m, alpha)))
+                surf.set_zs(m, 0, minor_radius * (bessel_J(1 - m, alpha) - bessel_J(1 + m, alpha)))
+
+            np.testing.assert_allclose(surf.minor_radius(), minor_radius)
+            np.testing.assert_allclose(surf.major_radius(), major_radius)
+
+            original_spectral_width_1 = surf.spectral_width(power=power)
+            original_spectral_width_2, final_spectral_width_2 = surf.condense_spectrum(
+                n_theta=300, n_phi=2, method=method, power=power, verbose=True, plot=True, show=False
+            )
+            print("Minor radius after condensing:", surf.minor_radius())
+            final_spectral_width_1 = surf.spectral_width(power=power)
+            print("Original spectral width 1:", original_spectral_width_1)
+            print("Original spectral width 2:", original_spectral_width_2)
+            print("Final spectral width 1:", final_spectral_width_1)
+            print("Final spectral width 2:", final_spectral_width_2)
+            np.testing.assert_allclose(original_spectral_width_1, original_spectral_width_2)
+            # There is a slight difference in the 2 methods for computing the
+            # final spectral width due to a slight change in the minor radius
+            # associated with discretization error.
+            np.testing.assert_allclose(final_spectral_width_1, final_spectral_width_2, rtol=2e-5)
+            np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
+            np.testing.assert_allclose(final_spectral_width_1, 1.0)
+            np.testing.assert_allclose(surf.minor_radius(), minor_radius)
+            np.testing.assert_allclose(surf.major_radius(), major_radius)
+            # Compare to the expected Fourier coefficients for a circle in the
+            # simple geometric poloidal angle:
+            x_should_be = np.zeros(mpol * 2 + 1)
+            x_should_be[0] = major_radius
+            x_should_be[1] = minor_radius
+            x_should_be[mpol + 1] = minor_radius
+            np.testing.assert_allclose(surf.x, x_should_be, atol=1e-5)
+
+
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):
         """

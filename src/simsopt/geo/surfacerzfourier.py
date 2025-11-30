@@ -1,9 +1,16 @@
 import logging
+import time
 
 import numpy as np
 from scipy.io import netcdf_file
 from scipy.interpolate import interp1d
+from scipy.optimize import minimize, least_squares
 import f90nml
+import jax
+import jax.numpy as jnp
+import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
+import matplotlib.colors as mpl_colors
 
 import simsoptpp as sopp
 from .surface import Surface
@@ -1022,6 +1029,348 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         amplitude = 0.5 * minor_radius * (1 / sqrt_elong + sqrt_elong)
         self.set_rc(1, 0, amplitude)
         self.set_zs(1, 0, amplitude)
+
+    def spectral_width(self, power=2):
+        r"""
+        Compute the spectral width of the surface Fourier coefficients.
+
+        The spectral width is defined as:
+
+        .. math::
+            W = \12 \sum_{m,n} \left( \frac{ (r_{m,n}^c)^2 + (r_{m,n}^s)^2 + (z_{m,n}^c)^2 + (z_{m,n}^s)^2 }{ a^2 } \right) (m^2 + n^2)^{p}
+
+        where :math:`r_{m,n}^c`, :math:`r_{m,n}^s`, :math:`z_{m,n}^c`, and
+        :math:`z_{m,n}^s` are the Fourier coefficients of the surface shape,
+        :math:`a` is the minor radius of the surface, and :math:`p` is a
+        constant corresponding to the ``power`` argument.
+
+        Args:
+            power: The power to which to raise the Fourier coefficients
+                when computing the spectral width. Default is 2.
+
+        Returns:
+            The spectral width as a float.
+        """
+        return 0.5 * np.sum((self.x / self.minor_radius())**2 * (self.m**2 + self.n**2)**power)
+
+    def condense_spectrum(
+        self,
+        n_theta=None,
+        n_phi=None,
+        power=2,
+        maxiter=None,
+        method="lm",
+        verbose=True,
+        plot=False,
+        show=True,
+    ):
+        """Apply spectral condensation so the Fourier amplitudes rc and zs decay
+        more rapidly with m and n.
+
+        The objective function minimized is the same function shown in the
+        documentation for :func:`~simsopt.geo.SurfaceRZFourier.spectral_width`.
+
+        Let theta1 be the original poloidal angle, and let theta2 be a new
+        poloidal angle with theta2 = theta1 + lambda(theta1, phi). This routine
+        solves for lambda to minimize the objective.
+
+        If `n_theta` and `n_phi` are not specified, they default to `2*mpol+1`
+        and `2*ntor+1`, respectively.
+
+        The optimization algorithm is specified by `method`. It can be any of
+        the methods supported by `scipy.optimize.least_squares` (`trf`,
+        `dogleg`, or `lm`), or any of the methods supported by
+        `scipy.optimize.minimize` (`L-BFGS-B`, `BFGS`, etc.) Based on
+        experience, the least-squares methods achieve lower values of the
+        spectral width, but take more time per iteration.
+
+        If `maxiter` is not specified, it defaults to 100 for the least-squares
+        methods, and 200 for other methods.
+
+        Args:
+            n_theta: Number of theta grid points to use for fitting. If None,
+                `2"""
+        if not self.stellsym:
+            raise NotImplementedError("condense_spectrum is only implemented for stellarator-symmetric surfaces")
+        
+        mpol = self.mpol
+        ntor = self.ntor
+        nfp = self.nfp
+        minor_radius = self.minor_radius()
+        print("minor radius before condensation:", minor_radius)
+        original_x = self.x.copy()
+
+        if n_theta is None:
+            n_theta = 3 * mpol + 1
+        if n_phi is None:
+            n_phi = 3 * ntor + 1
+
+        method_is_lstsq = (method.lower() in ["trf", "lm", "dogleg"])
+        if maxiter is None:
+            if method_is_lstsq:
+                maxiter = 100
+            else:
+                maxiter = 200
+
+        title_str = f"n_theta: {n_theta}, n_phi: {n_phi}, power: {power}, method: {method}, maxiter: {maxiter}"
+
+        # Make a copy of the surface with the desired grid resolution:
+        surf = SurfaceRZFourier.from_nphi_ntheta(
+            mpol=mpol,
+            ntor=ntor,
+            nfp=nfp,
+            stellsym=self.stellsym,
+            nphi=n_phi,
+            ntheta=n_theta,
+            range="half period",
+        )
+        surf.x = self.x
+
+        # Index in .x where Rmnc and Zmns are separated:
+        n_Rmn = (len(surf.x) + 1) // 2
+        m_for_R = surf.m[:n_Rmn]
+        n_for_R = surf.n[:n_Rmn]
+        m_for_Z = surf.m[n_Rmn:]
+        n_for_Z = surf.n[n_Rmn:]
+        m_for_lambda = m_for_Z
+        n_for_lambda = n_for_Z
+
+        # Evaluate the surface shape on uniformly spaced points in theta1 and phi:
+        gamma = surf.gamma()
+        R = np.sqrt(gamma[:, :, 0]**2 + gamma[:, :, 1]**2)
+        Z = gamma[:, :, 2]
+        R_to_fit = R.flatten()
+        Z_to_fit = Z.flatten()
+
+        theta2d, phi2d = np.meshgrid(2 * np.pi * surf.quadpoints_theta, 2 * np.pi * surf.quadpoints_phi)
+        phi_1d = phi2d.flatten()
+        theta1_1d = theta2d.flatten()
+
+        # If the lambda dofs are exactly 0, jax gives NaN gradients, so
+        # initialize to a small nonzero value:
+        lambda_dofs = np.zeros(len(m_for_lambda)) + 1e-10
+        # For the TRF algorithm, the initial trust region radius is determined in part
+        # by the scale of the initial guess. If |x0| is very small, the initial
+        # trust region is very small, leading to tiny steps and no progress. So, set one
+        # element to a value that is not too small:
+        lambda_dofs[0] = 0.01
+
+        # Exponential spectral scaling:
+        x_scale = np.exp(-1.0 * np.sqrt(m_for_lambda**2 + n_for_lambda**2))
+
+        def compute_r2mn_and_z2mn(lambda_dofs):
+            scaled_lambda_dofs = lambda_dofs * x_scale
+            lambd = jnp.sum(scaled_lambda_dofs[None, :] * jnp.sin(
+                m_for_lambda[None, :] * theta1_1d[:, None] - nfp * n_for_lambda[None, :] * phi_1d[:, None]
+            ), axis=1)
+            theta2_1d = theta1_1d + lambd
+
+            lsq_for_R_matrix = jnp.cos(m_for_R[None, :] * theta2_1d[:, None] - nfp * n_for_R[None, :] * phi_1d[:, None])
+            lsq_for_Z_matrix = jnp.sin(m_for_Z[None, :] * theta2_1d[:, None] - nfp * n_for_Z[None, :] * phi_1d[:, None])
+
+            # Compute least-squares fit for Rmnc and Zmns with respect to theta2:
+            rcond = None
+            Rmnc_new = jnp.linalg.lstsq(lsq_for_R_matrix, R_to_fit, rcond=rcond)[0]
+            Zmns_new = jnp.linalg.lstsq(lsq_for_Z_matrix, Z_to_fit, rcond=rcond)[0]
+
+            return jnp.concatenate([Rmnc_new, Zmns_new])
+
+        @jax.jit
+        def residuals_func(lambda_dofs):
+            """Objective function for spectral width."""
+            x = compute_r2mn_and_z2mn(lambda_dofs)
+            # numerator = jnp.sum(x**2 * (surf.m**2 + surf.n**2)**power_for_objective)
+            residuals = (x / minor_radius) * (surf.m**2 + surf.n**2)**(power * 0.5)
+            # The first residual is always zero (since m=n=0) so there is no need to include it:
+            return residuals[1:]
+
+        @jax.jit
+        def scalar_objective(lambda_dofs):
+            residuals = residuals_func(lambda_dofs)
+            return 0.5 * jnp.sum(residuals**2)
+
+        iteration_counter = {"count": 0}
+
+        def scalar_objective_with_printing(lambda_dofs):
+            obj_value = scalar_objective(lambda_dofs)
+            iteration_counter["count"] += 1
+            obj_value_float = obj_value.astype(float)
+            print(f"Iteration {iteration_counter['count']:5}: objective = {obj_value_float:.6e}")
+            return obj_value
+
+        initial_objective = scalar_objective(np.zeros_like(lambda_dofs))
+        start_time = time.time()
+        if method_is_lstsq:
+            jac_fn = jax.jit(jax.jacfwd(residuals_func))
+            if verbose:
+                verbose_for_least_squares = 2
+            else:
+                verbose_for_least_squares = 0
+
+            res = least_squares(
+                residuals_func,
+                lambda_dofs,
+                jac=jac_fn,
+                method=method,
+                verbose=verbose_for_least_squares,
+                max_nfev=maxiter,
+            )
+        else:
+            grad_objective = jax.jit(jax.grad(scalar_objective))
+            if verbose:
+                objective_to_use = scalar_objective_with_printing
+            else:
+                objective_to_use = scalar_objective
+
+            # objective_to_use = scalar_objective
+            res = minimize(
+                objective_to_use,
+                lambda_dofs,
+                jac=grad_objective,
+                method=method,
+                options={"maxiter": maxiter}
+            )
+        elapsed_time = time.time() - start_time
+        if verbose:
+            print(res)
+            print("Time taken (s):", elapsed_time)
+
+        # Update surface with optimized parameters
+        lambda_dofs_optimized = res.x
+        final_objective = scalar_objective(lambda_dofs_optimized)
+        self.x = compute_r2mn_and_z2mn(lambda_dofs_optimized)
+
+        ##########################################################################################################
+        if plot:
+            n_theta_points_for_plot = 20
+            decimate = 6
+
+            quadpoints_theta_for_plotting = np.linspace(0, 1, n_theta_points_for_plot * decimate + 1)
+            quadpoints_phi_for_plotting = np.linspace(0, 1 / nfp, 8, endpoint=False)
+            surf_theta1_for_plotting = SurfaceRZFourier(
+                mpol=surf.mpol,
+                ntor=surf.ntor,
+                nfp=nfp,
+                quadpoints_theta=quadpoints_theta_for_plotting,
+                quadpoints_phi=quadpoints_phi_for_plotting,
+            )
+            surf_theta1_for_plotting.x = original_x
+            surf_theta2_for_plotting = SurfaceRZFourier(
+                mpol=surf.mpol,
+                ntor=surf.ntor,
+                nfp=surf.nfp,
+                quadpoints_theta=quadpoints_theta_for_plotting,
+                quadpoints_phi=quadpoints_phi_for_plotting,
+            )
+            surf_theta2_for_plotting.x = self.x
+
+            # Create a layout with the left half split into a 2x2 grid and a
+            # single subplot occupying the entire right half.
+            fig = plt.figure(figsize=(14.5, 8.1))
+            gs = GridSpec(2, 3, figure=fig, width_ratios=[1, 1, 2])
+
+            # Left half: 2x2 small subplots
+            axes_small = [
+                fig.add_subplot(gs[0, 0], aspect='equal'),
+                fig.add_subplot(gs[0, 1], aspect='equal'),
+                fig.add_subplot(gs[1, 0], aspect='equal'),
+                fig.add_subplot(gs[1, 1], aspect='equal'),
+            ]
+
+            colors = ["b", "r"]
+
+            for j_surf in range(2):
+                if j_surf == 0:
+                    surf_to_plot = surf_theta1_for_plotting
+                    short_name = "theta1"
+                else:
+                    surf_to_plot = surf_theta2_for_plotting
+                    short_name = "theta2"
+
+                for j_rz in range(2):
+                    if j_rz == 0:
+                        data_to_plot = surf_to_plot.rc
+                        data_name = 'Rmnc'
+                    else:
+                        data_to_plot = surf_to_plot.zs
+                        data_name = 'Zmns'
+
+                    ax = axes_small[j_surf + j_rz * 2]
+                    extent = (-surf_to_plot.ntor - 0.5, surf_to_plot.ntor + 0.5, surf_to_plot.mpol + 0.5, -0.5)
+                    im = ax.imshow(np.abs(data_to_plot / minor_radius), extent=extent, norm=mpl_colors.LogNorm(vmin=1e-6, vmax=10))
+                    fig.colorbar(im, ax=ax)
+                    ax.set_title(data_name + " / minor_radius, " + short_name)
+                    ax.set_xlabel('n / nfp')
+                    ax.set_ylabel('m')
+
+            # Right half: one large subplot spanning both rows
+            ax_big = fig.add_subplot(gs[:, -1])
+
+            plt.semilogy(
+                np.sqrt(surf_theta1_for_plotting.m**2 + surf_theta1_for_plotting.n**2),
+                surf_theta1_for_plotting.x / minor_radius,
+                '+',
+                color=colors[0],
+                label='theta1'
+            )
+            plt.semilogy(
+                np.sqrt(surf_theta2_for_plotting.m**2 + surf_theta2_for_plotting.n**2),
+                surf_theta2_for_plotting.x / minor_radius,
+                'x',
+                color=colors[1],
+                label='theta2'
+            )
+            plt.legend(loc=0)
+            ax_big.set_xlabel('sqrt(m^2 + n^2)')
+            ax_big.set_ylabel('(rc or zs) / minor radius')
+            ax_big.set_ylim(5e-7, 2e1)
+
+            plt.suptitle(title_str, fontsize=12)
+            plt.tight_layout()
+
+            ##########################################################################################################
+            ##########################################################################################################
+
+            n_rows = 2
+            n_cols = 4
+            fig, axes = plt.subplots(n_rows, n_cols, figsize=(14.5, 8.1), subplot_kw={'aspect': 'equal'})
+
+            axes = axes.flatten()
+
+            for j_phi in range(8):
+                for j_surf in range(2):
+                    if j_surf == 0:
+                        surf_to_plot = surf_theta1_for_plotting
+                        linespec = '-'
+                        marker = '+'
+                        theta0_marker = 's'
+                    else:
+                        surf_to_plot = surf_theta2_for_plotting
+                        linespec = ':'
+                        marker = 'x'
+                        theta0_marker = 'o'
+
+                    gamma = surf_to_plot.gamma()
+                    R = np.sqrt(gamma[:, :, 0]**2 + gamma[:, :, 1]**2)
+                    Z = gamma[:, :, 2]
+                    color = colors[j_surf]
+                    axes[j_phi].plot(R[j_phi, :], Z[j_phi, :], linespec, color=color)
+                    axes[j_phi].plot(R[j_phi, 0], Z[j_phi, 0], theta0_marker, color=color)
+                    axes[j_phi].plot(R[j_phi, ::decimate], Z[j_phi, ::decimate], marker, color=color, label=f"theta{j_surf+1}")
+
+                axes[j_phi].set_title(f"phi = {j_phi/(8*nfp):.3f} * 2pi")
+                axes[j_phi].set_xlabel("R")
+                axes[j_phi].set_ylabel("Z")
+
+            axes[0].legend(loc=0)
+
+            plt.suptitle(title_str, fontsize=12)
+
+            plt.tight_layout()
+            if show:
+                plt.show()
+
+        return initial_objective, final_objective
 
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,
