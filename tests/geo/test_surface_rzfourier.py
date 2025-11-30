@@ -533,21 +533,18 @@ class SurfaceRZFourierTests(unittest.TestCase):
                 a1 = s.area()
 
                 s.change_resolution(mpol+1, ntor)
-                s.recalculate = True
                 v2 = s.volume()
                 a2 = s.area()
                 self.assertAlmostEqual(v1, v2)
                 self.assertAlmostEqual(a1, a2)
 
                 s.change_resolution(mpol, ntor+1)
-                s.recalculate = True
                 v2 = s.volume()
                 a2 = s.area()
                 self.assertAlmostEqual(v1, v2)
                 self.assertAlmostEqual(a1, a2)
 
                 s.change_resolution(mpol+1, ntor+1)
-                s.recalculate = True
                 v2 = s.volume()
                 a2 = s.area()
                 self.assertAlmostEqual(v1, v2)
@@ -1019,6 +1016,131 @@ class SurfaceRZFourierTests(unittest.TestCase):
         np.testing.assert_allclose(dv, dv_truth,
                                    err_msg = 'Volume derivative does not match precalculated results.', atol = 1e-14)
 
+    def test_flip_z(self):
+        """Test the flip_z() method."""
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    s = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=3, stellsym=stellsym)
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    s.flip_z()
+                    new_gamma = s.gamma()
+                    np.testing.assert_allclose(old_gamma[:, :, 0], new_gamma[:, :, 0])
+                    np.testing.assert_allclose(old_gamma[:, :, 1], new_gamma[:, :, 1])
+                    np.testing.assert_allclose(old_gamma[:, :, 2], -new_gamma[:, :, 2])
+
+    def test_flip_phi(self):
+        """Test the flip_phi() method."""
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    quadpoints_phi = np.linspace(0, 1, 12)  # Must include endpoint!
+                    quadpoints_theta = np.linspace(0, 1, 8)
+                    s = SurfaceRZFourier(
+                        mpol=mpol,
+                        ntor=ntor,
+                        nfp=3,
+                        stellsym=stellsym,
+                        quadpoints_phi=quadpoints_phi,
+                        quadpoints_theta=quadpoints_theta,
+                    )
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_Z = old_gamma[:, :, 2]
+                    s.flip_phi()
+                    new_gamma = s.gamma()
+                    new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    new_Z = new_gamma[:, :, 2]
+                    # flipping the arrays along the phi axis should have the
+                    # same effect as calling flip_phi():
+                    np.testing.assert_allclose(old_Z, np.flip(new_Z, axis=0), atol=1e-14)
+                    np.testing.assert_allclose(old_R, np.flip(new_R, axis=0), atol=1e-14)
+
+    def test_flip_theta(self):
+        """Test the flip_theta() method."""
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    quadpoints_phi = np.linspace(0, 1, 12)
+                    quadpoints_theta = np.linspace(0, 1, 8)  # Must include endpoint!
+                    s = SurfaceRZFourier(
+                        mpol=mpol,
+                        ntor=ntor,
+                        nfp=3,
+                        stellsym=stellsym,
+                        quadpoints_phi=quadpoints_phi,
+                        quadpoints_theta=quadpoints_theta,
+                    )
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_Z = old_gamma[:, :, 2]
+                    s.flip_theta()
+                    new_gamma = s.gamma()
+                    new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    new_Z = new_gamma[:, :, 2]
+                    # flipping the arrays along the theta axis should have the
+                    # same effect as calling flip_theta():
+                    old_Z = old_gamma[:, :, 2]
+                    new_Z = new_gamma[:, :, 2]
+                    np.testing.assert_allclose(old_Z, np.flip(new_Z, axis=1), atol=1e-14)
+                    np.testing.assert_allclose(old_R, np.flip(new_R, axis=1), atol=1e-14)
+
+    def test_rotate_half_field_period(self):
+        """Test the rotate_half_field_period() method."""
+        nfp = 3
+        nphi_per_half_period = 9
+        quadpoints_phi = np.linspace(0, 1, nphi_per_half_period * 2 * nfp, endpoint=False)
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    s = SurfaceRZFourier(
+                        mpol=mpol,
+                        ntor=ntor,
+                        nfp=nfp,
+                        stellsym=stellsym,
+                        quadpoints_phi=quadpoints_phi,
+                    )
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_Z = old_gamma[:, :, 2]
+                    s.rotate_half_field_period()
+                    new_gamma = s.gamma()
+                    new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    new_Z = new_gamma[:, :, 2]
+                    np.testing.assert_allclose(old_R, np.roll(new_R, nphi_per_half_period, axis=0))
+                    np.testing.assert_allclose(old_Z, np.roll(new_Z, nphi_per_half_period, axis=0), atol=1e-13)
+
+    def test_shift_theta_by_half(self):
+        """Test the shift_theta_by_half() method."""
+        nfp = 3
+        half_ntheta = 9
+        ntheta = 2 * half_ntheta
+        quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=False)
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    s = SurfaceRZFourier(
+                        mpol=mpol,
+                        ntor=ntor,
+                        nfp=nfp,
+                        stellsym=stellsym,
+                        quadpoints_theta=quadpoints_theta,
+                    )
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_Z = old_gamma[:, :, 2]
+                    s.shift_theta_by_half()
+                    new_gamma = s.gamma()
+                    new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    new_Z = new_gamma[:, :, 2]
+                    np.testing.assert_allclose(old_R, np.roll(new_R, half_ntheta, axis=1))
+                    np.testing.assert_allclose(old_Z, np.roll(new_Z, half_ntheta, axis=1), atol=1e-13)
+                    
     def test_condense_spectrum(self):
         """Test the condense_spectrum() and spectral_width() methods."""
         # filename = TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres'
@@ -1029,7 +1151,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
             surf = SurfaceRZFourier.from_vmec_input(filename)
             surf.change_resolution(mpol=10, ntor=8)
             original_spectral_width_1 = surf.spectral_width(power=power)
-            original_spectral_width_2, final_spectral_width_2 = surf.condense_spectrum(method=method, power=power, verbose=True, plot=True)
+            original_spectral_width_2, final_spectral_width_2 = surf.condense_spectrum(
+                method=method, maxiter=15, power=power, verbose=True, plot=True, show=False
+            )
             print("Minor radius after condensing:", surf.minor_radius())
             final_spectral_width_1 = surf.spectral_width(power=power)
             print("Original spectral width 1:", original_spectral_width_1)
