@@ -100,9 +100,12 @@ jobs:
           if python -c "import ensurepip" 2>/dev/null; then
             python -m ensurepip --upgrade --default-pip
           else
-            curl -sS https://bootstrap.pypa.io/get-pip.py | python
+            curl -sS https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+            python get-pip.py --break-system-packages 2>/dev/null || python get-pip.py || python get-pip.py --user
+            rm -f get-pip.py
           fi
         fi
+        python -m pip --version || exit 1
         python -m pip install --break-system-packages --upgrade pip setuptools wheel 2>/dev/null || python -m pip install --upgrade pip setuptools wheel
 
     - name: Install python dependencies
@@ -132,15 +135,15 @@ jobs:
     - name: Install py_spec
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       run: |
-        python -m pip install -r SPEC/Utilities/pythontools/requirements.txt
-        python -m pip install -e SPEC/Utilities/pythontools
+        python -m pip install --break-system-packages -r SPEC/Utilities/pythontools/requirements.txt 2>/dev/null || python -m pip install -r SPEC/Utilities/pythontools/requirements.txt
+        python -m pip install --break-system-packages -e SPEC/Utilities/pythontools 2>/dev/null || python -m pip install -e SPEC/Utilities/pythontools
         python -c "import py_spec; print('success')"
 
     - name: Build SPEC python wrapper.
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       run: |
          cd SPEC
-         python -m pip install .
+         python -m pip install --break-system-packages . 2>/dev/null || python -m pip install .
 
     - name: Try import spec
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
@@ -165,7 +168,7 @@ jobs:
         cd VMEC2000
         cp cmake/machines/ubuntu.json cmake_config_file.json
         cat cmake_config_file.json
-        python -m pip install .
+        python -m pip install --break-system-packages . 2>/dev/null || python -m pip install .
 
     - name: Try importing vmec module
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
@@ -174,11 +177,11 @@ jobs:
     - name: Install simsopt package
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       run: |
-        python -m pip install --upgrade pip build wheel
-        python -m pip install scikit-build-core "setuptools-scm>=8.0" "pybind11<3.0.0" "numpy>=2.0.0"
-        python -m pip install -v git+https://github.com/zhisong/pyoculus
-        python -m pip install --no-build-isolation -v .
-        python -m pip install mpi4py py_spec h5py
+        python -m pip install --break-system-packages --upgrade pip build wheel 2>/dev/null || python -m pip install --upgrade pip build wheel
+        python -m pip install --break-system-packages scikit-build-core "setuptools-scm>=8.0" "pybind11<3.0.0" "numpy>=2.0.0" 2>/dev/null || python -m pip install scikit-build-core "setuptools-scm>=8.0" "pybind11<3.0.0" "numpy>=2.0.0"
+        python -m pip install --break-system-packages -v git+https://github.com/zhisong/pyoculus 2>/dev/null || python -m pip install -v git+https://github.com/zhisong/pyoculus
+        python -m pip install --break-system-packages --no-build-isolation -v . 2>/dev/null || python -m pip install --no-build-isolation -v .
+        python -m pip install --break-system-packages mpi4py py_spec h5py 2>/dev/null || python -m pip install mpi4py py_spec h5py
 
     - name: Install simsopt package
       if: contains(matrix.packages, 'none')
@@ -190,10 +193,10 @@ jobs:
     - name: Install simsopt package
       if: contains(matrix.packages, 'vmec')
       run: |
-        python -m pip install --upgrade pip build wheel
-        python -m pip install scikit-build-core "setuptools-scm>=8.0" "pybind11<3.0.0" "numpy>=2.0.0"
-        python -m pip install --no-build-isolation -v .
-        python -m pip install mpi4py
+        python -m pip install --break-system-packages --upgrade pip build wheel 2>/dev/null || python -m pip install --upgrade pip build wheel
+        python -m pip install --break-system-packages scikit-build-core "setuptools-scm>=8.0" "pybind11<3.0.0" "numpy>=2.0.0" 2>/dev/null || python -m pip install scikit-build-core "setuptools-scm>=8.0" "pybind11<3.0.0" "numpy>=2.0.0"
+        python -m pip install --break-system-packages --no-build-isolation -v . 2>/dev/null || python -m pip install --no-build-isolation -v .
+        python -m pip install --break-system-packages mpi4py 2>/dev/null || python -m pip install mpi4py
 
     - name: Run serial examples as part of integrated tests
       if: contains(matrix.test-type, 'integrated') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'all'))
@@ -227,7 +230,7 @@ jobs:
 
     - name: Install coverage dependencies
       if: contains(matrix.test-type, 'unit')
-      run: python -m pip install coverage 
+      run: python -m pip install --break-system-packages coverage 2>/dev/null || python -m pip install coverage 
 
     - name: Run expensive tests on 1 MPI process using coverage
       if: contains(matrix.test-type, 'unit') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'all'))
@@ -276,13 +279,13 @@ jobs:
         python-version: 3.9
 
     - name: Install coverage
-      run: python -m pip install coverage
+      run: python -m pip install --break-system-packages coverage 2>/dev/null || python -m pip install coverage
 
     - name: Checkout simsopt 
       uses: actions/checkout@v4
 
     - name: Install simsopt before running coverage
-      run: python -m pip install .
+      run: python -m pip install --break-system-packages . 2>/dev/null || python -m pip install .
 
     - name: Download artifact
       uses: actions/download-artifact@v4
