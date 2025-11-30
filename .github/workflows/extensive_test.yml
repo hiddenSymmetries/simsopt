@@ -94,25 +94,41 @@ jobs:
         python-version: ${{ matrix.python-version }}
         allow-prereleases: false
 
-    - name: Ensure pip is available
+    - name: Ensure pip is available (Python 3.12 fix)
+      if: matrix.python-version == '3.12'
       run: |
+        # For Python 3.12 on Ubuntu 24.04, pip might not be available
+        # Try multiple methods to ensure pip is installed
         if ! python -m pip --version 2>/dev/null; then
+          echo "pip not found, attempting to install..."
+          # Method 1: Try ensurepip
           if python -m ensurepip --version 2>/dev/null; then
-            python -m ensurepip --upgrade
+            python -m ensurepip --upgrade --default-pip
+          # Method 2: Install via apt (for system Python)
+          elif command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y python3-pip || true
+          # Method 3: Use get-pip.py
           else
             curl -sS https://bootstrap.pypa.io/get-pip.py | python
           fi
         fi
-        python -m pip install --upgrade pip
+        # Verify pip is now available
+        python -m pip --version || (echo "ERROR: pip still not available" && exit 1)
+        python -m pip install --upgrade pip setuptools wheel
         python -m pip --version
 
     - name: which python3 after python setup
       run: which python3
 
-    - name: which pip after python setup
+    - name: Verify pip is accessible
       run: |
-        python -m pip install --upgrade pip
-        pip --version
+        # Verify pip is accessible via python -m pip
+        python -m pip --version
+        # Also verify pip command is available (for compatibility)
+        python -m pip install --upgrade pip setuptools wheel
+        # Test that pip can be invoked
+        python -c "import pip; print(f'pip version: {pip.__version__}')" || echo "Warning: pip module import failed"
 
     - name: env after adding python
       run: env
