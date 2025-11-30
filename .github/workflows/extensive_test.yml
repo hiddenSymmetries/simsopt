@@ -96,7 +96,14 @@ jobs:
 
     - name: Ensure pip is available
       run: |
-        python -m ensurepip --upgrade || python -m pip install --upgrade pip
+        if ! python -m pip --version 2>/dev/null; then
+          if python -m ensurepip --version 2>/dev/null; then
+            python -m ensurepip --upgrade
+          else
+            curl -sS https://bootstrap.pypa.io/get-pip.py | python
+          fi
+        fi
+        python -m pip install --upgrade pip
         python -m pip --version
 
     - name: which python3 after python setup
@@ -113,14 +120,14 @@ jobs:
     - name: Install python dependencies
       run: |
            sudo apt-get install graphviz graphviz-dev
-           pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap
+           python -m pip install wheel numpy scipy f90nml h5py scikit-build-core setuptools-scm cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap
 
     - name: Install booz_xform
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
-      run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
+      run: python -m pip install -v git+https://github.com/hiddenSymmetries/booz_xform
 
     - name: Install virtual_casing
-      run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
+      run: python -m pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
 
     # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
     # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
@@ -136,15 +143,15 @@ jobs:
     - name: Install py_spec
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       run: |
-        pip install -r SPEC/Utilities/pythontools/requirements.txt
-        pip install -e SPEC/Utilities/pythontools
+        python -m pip install -r SPEC/Utilities/pythontools/requirements.txt
+        python -m pip install -e SPEC/Utilities/pythontools
         python -c "import py_spec; print('success')"
 
     - name: Build SPEC python wrapper.
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       run: |
          cd SPEC
-         pip install .
+         python -m pip install .
 
     - name: Try import spec
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
@@ -169,7 +176,7 @@ jobs:
         cd VMEC2000
         cp cmake/machines/ubuntu.json cmake_config_file.json
         cat cmake_config_file.json
-        pip install .
+        python -m pip install .
 
     - name: Try importing vmec module
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
@@ -178,19 +185,19 @@ jobs:
     - name: Install simsopt package
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       run: |
-        pip install -v git+https://github.com/zhisong/pyoculus
-        pip install -v .
-        pip install mpi4py py_spec h5py
+        python -m pip install -v git+https://github.com/zhisong/pyoculus
+        python -m pip install -v .
+        python -m pip install mpi4py py_spec h5py
 
     - name: Install simsopt package
       if: contains(matrix.packages, 'none')
-      run: pip install -v .
+      run: python -m pip install -v .
 
     - name: Install simsopt package
       if: contains(matrix.packages, 'vmec')
       run: |
-        pip install -v .
-        pip install mpi4py
+        python -m pip install -v .
+        python -m pip install mpi4py
 
     - name: Run serial examples as part of integrated tests
       if: contains(matrix.test-type, 'integrated') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'all'))
@@ -224,7 +231,7 @@ jobs:
 
     - name: Install coverage dependencies
       if: contains(matrix.test-type, 'unit')
-      run: pip install coverage 
+      run: python -m pip install coverage 
 
     - name: Run expensive tests on 1 MPI process using coverage
       if: contains(matrix.test-type, 'unit') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'all'))
@@ -273,13 +280,13 @@ jobs:
         python-version: 3.9
 
     - name: Install coverage
-      run: pip install coverage
+      run: python -m pip install coverage
 
     - name: Checkout simsopt 
       uses: actions/checkout@v4
 
     - name: Install simsopt before running coverage
-      run: pip install .
+      run: python -m pip install .
 
     - name: Download artifact
       uses: actions/download-artifact@v4
