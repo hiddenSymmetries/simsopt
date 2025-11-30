@@ -46,20 +46,21 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 elif high_res_run: 
-    nphi = 16
-    nIter_max = 1200
+    nphi = 64
+    nIter_max = 25000
     nBacktracking = 200
-    max_nMagnets = 1000
+    max_nMagnets = 20000
     downsample = 1    
 else:
-    nphi = 16  # >= 64 for high-resolution runs
-    nIter_max = 1200
+    nphi = 64  # >= 64 for high-resolution runs
+    nIter_max = 25000
     nBacktracking = 0
-    max_nMagnets = 1000
+    max_nMagnets = 20000
     downsample = 1
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
+dx = dy = dz = dr
 input_name = 'input.muse'
 
 # Read in the plasma equilibrium file
@@ -263,7 +264,7 @@ if save_plots:
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
 
     K_save = int(kwargs['K'])  # nominal final iteration number
-    b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}{full_suffix}_{algorithm}")
+    b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}{full_suffix}_{algorithm}", dx, dy, dz)
 
     print("Total fB = ", 0.5 * np.sum((pm_opt.A_obj @ mk - pm_opt.b_obj) ** 2))
 
@@ -345,7 +346,7 @@ b_final = DipoleField(
 )
 
 
-b_final._toVTK(out_dir / f"dipoles_final{full_suffix}_{algorithm}")
+b_final._toVTK(out_dir / f"dipoles_final{full_suffix}_{algorithm}", dx, dy, dz)
 print(f"[SIMSOPT] Wrote dipoles_final{full_suffix}_{algorithm}.vtu")
 
 
@@ -353,8 +354,8 @@ print(f"[SIMSOPT] Wrote dipoles_final{full_suffix}_{algorithm}.vtu")
 min_res = 164
 qphi_view   = max(2 * nphi,   min_res)
 qtheta_view = max(2 * ntheta, min_res)
-quad_phi    = np.linspace(0, 1, qphi_view,   endpoint=False)
-quad_theta  = np.linspace(0, 1, qtheta_view, endpoint=False)
+quad_phi    = np.linspace(0, 1, qphi_view,   endpoint=True)
+quad_theta  = np.linspace(0, 1, qtheta_view, endpoint=True)
 
 s_view = SurfaceRZFourier.from_focus(
     surface_filename,
