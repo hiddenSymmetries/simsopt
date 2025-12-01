@@ -96,25 +96,39 @@ jobs:
 
     - name: Ensure pip is available
       run: |
-        if ! python -m pip --version 2>/dev/null; then
-          # Try ensurepip first (installs pip in Python's site-packages)
-          # Note: --default-pip was removed in Python 3.12, so we just use --upgrade
-          if python -c "import ensurepip" 2>/dev/null; then
-            python -m ensurepip --upgrade || true
-          fi
-          # If still not available, install via get-pip.py with --break-system-packages
-          if ! python -m pip --version 2>/dev/null; then
+        set -x  # Enable command tracing for debugging
+        echo "Python location: $(which python)"
+        echo "Python version: $(python --version)"
+        
+        # Check if pip is already available
+        if python -m pip --version; then
+          echo "pip is already available"
+        else
+          echo "pip not found, attempting to install..."
+          
+          # Method 1: Try ensurepip (built into Python)
+          echo "Trying ensurepip..."
+          if python -m ensurepip --upgrade; then
+            echo "ensurepip succeeded"
+          else
+            echo "ensurepip failed, trying get-pip.py..."
+            
+            # Method 2: Download and run get-pip.py
             curl -sS https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-            python get-pip.py --break-system-packages 2>/dev/null || python get-pip.py
+            python get-pip.py
             rm -f get-pip.py
           fi
+          
           # Verify pip is now accessible
-          python -m pip --version || (echo "ERROR: pip still not available after installation" && exit 1)
+          python -m pip --version || { echo "FATAL: pip still not available after installation attempts"; exit 1; }
         fi
-        # Upgrade pip and ensure it's accessible
-        python -m pip install --break-system-packages --upgrade pip setuptools wheel 2>/dev/null || python -m pip install --upgrade pip setuptools wheel
-        # Final verification that pip module can be imported
-        python -c "import pip" || (echo "ERROR: pip module not importable" && exit 1)
+        
+        # Upgrade pip to latest version
+        python -m pip install --upgrade pip setuptools wheel
+        
+        # Final verification
+        python -m pip --version
+        python -c "import pip; print(f'pip module version: {pip.__version__}')"
 
     - name: Install python dependencies
       run: |
