@@ -752,7 +752,7 @@ class BoozerSurface(Optimizable):
         self.need_to_run_code = False
         return resdict
 
-    def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.], stab=1e-12):
+    def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.], stab=1e-8):
         r"""
         This function solves the constrained optimization problem
 
@@ -778,7 +778,7 @@ class BoozerSurface(Optimizable):
             iota (float, Optional): The initial guess for the value of the rotational transform on the surface. Defaults to 0.
             G (float, Optional): The initial guess for the value of G on the surface. Defaults to None.
             lm (list, Optional): The initial guesses for the Lagrange multipliers. Defaults to [0., 0.].
-            stab (float, Optional): The stabilization parameter for the Newton method. Adds regularization to prevent singular matrices. Defaults to 1e-12.
+            stab (float, Optional): The stabilization parameter for the Newton method. Adds regularization to prevent singular matrices. The algorithm will automatically increase this value if needed. Defaults to 1e-8.
 
         Returns:
             dict: A dictionary containing the results of the optimization. The dictionary contains the following keys in addition
@@ -803,36 +803,64 @@ class BoozerSurface(Optimizable):
         val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None)
         norm = np.linalg.norm(val)
         i = 0
+        current_stab = stab
         while i < maxiter and norm > tol:
             if s.stellsym:
                 A = dval[:-1, :-1]
                 b = val[:-1]
-                # Add regularization to prevent singular matrices
-                A_reg = A + stab * np.eye(A.shape[0])
-                try:
-                    dx = scipy.linalg.solve(A_reg, b)
-                except (np.linalg.LinAlgError, ValueError):
-                    # Fallback to least squares if solve fails
-                    dx = np.linalg.lstsq(A_reg, b, rcond=None)[0]
+                # Check condition number to diagnose ill-conditioning
+                # Use a more robust approach if matrix is ill-conditioned
+                cond_num = np.linalg.cond(A)
+                if cond_num > 1e12:
+                    # Matrix is very ill-conditioned, use larger initial regularization
+                    attempt_stab = max(stab, 1e-6 * np.trace(A) / A.shape[0])
+                else:
+                    attempt_stab = current_stab
+                # Adaptive regularization: increase if solve fails
+                dx = None
+                for _ in range(10):  # Try up to 10 times with increasing regularization
+                    A_reg = A + attempt_stab * np.eye(A.shape[0])
+                    try:
+                        dx = scipy.linalg.solve(A_reg, b)
+                        break
+                    except (np.linalg.LinAlgError, ValueError):
+                        attempt_stab *= 10.0
+                if dx is None:
+                    # Final fallback: use pseudo-inverse
+                    A_reg = A + attempt_stab * np.eye(A.shape[0])
+                    dx = scipy.linalg.pinv(A_reg) @ b
                 if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
                     try:
                         dx += scipy.linalg.solve(A_reg, b-A_reg@dx)
                     except (np.linalg.LinAlgError, ValueError):
-                        dx += np.linalg.lstsq(A_reg, b-A_reg@dx, rcond=None)[0]
+                        dx += scipy.linalg.pinv(A_reg) @ (b-A_reg@dx)
                 xl[:-1] = xl[:-1] - dx
             else:
-                # Add regularization to prevent singular matrices
-                dval_reg = dval + stab * np.eye(dval.shape[0])
-                try:
-                    dx = scipy.linalg.solve(dval_reg, val)
-                except (np.linalg.LinAlgError, ValueError):
-                    # Fallback to least squares if solve fails
-                    dx = np.linalg.lstsq(dval_reg, val, rcond=None)[0]
+                # Check condition number to diagnose ill-conditioning
+                cond_num = np.linalg.cond(dval)
+                if cond_num > 1e12:
+                    # Matrix is very ill-conditioned, use larger initial regularization
+                    attempt_stab = max(stab, 1e-6 * np.trace(dval) / dval.shape[0])
+                else:
+                    attempt_stab = current_stab
+                # Adaptive regularization: increase if solve fails
+                dx = None
+                for _ in range(10):  # Try up to 10 times with increasing regularization
+                    dval_reg = dval + attempt_stab * np.eye(dval.shape[0])
+                    try:
+                        dx = scipy.linalg.solve(dval_reg, val)
+                        break
+                    except (np.linalg.LinAlgError, ValueError):
+                        attempt_stab *= 10.0
+                if dx is None:
+                    # Final fallback: use pseudo-inverse
+                    dval_reg = dval + attempt_stab * np.eye(dval.shape[0])
+                    dx = scipy.linalg.pinv(dval_reg) @ val
                 if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
                     try:
                         dx += scipy.linalg.solve(dval_reg, val-dval_reg@dx)
                     except (np.linalg.LinAlgError, ValueError):
-                        dx += np.linalg.lstsq(dval_reg, val-dval_reg@dx, rcond=None)[0]
+                        dx += scipy.linalg.pinv(dval_reg) @ (val-dval_reg@dx)
                 xl = xl - dx
             val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None)
             norm = np.linalg.norm(val)
