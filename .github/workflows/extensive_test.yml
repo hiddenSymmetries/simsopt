@@ -38,7 +38,9 @@ jobs:
         # 2025-11-28: Temporarily disabling SPEC tests in this workflow due to github issue #561
         # packages: [all, vmec, spec, none]
         packages: [vmec, none]
-        python-version: [3.9, "3.10", "3.11", "3.12"]
+        # 2025-12-01: Excluding Python 3.12+ on Ubuntu 24.04 due to corrupted Python in GitHub's
+        # hostedtoolcache (version mismatch causes _ctypes import failures). See PR #486.
+        python-version: [3.9, "3.10", "3.11"]
         include:
             - python-version: 3.9
               test-type: unit
@@ -93,60 +95,6 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
         allow-prereleases: false
-        check-latest: true  # Force fresh download instead of using corrupted cache
-
-    - name: Fix Python site-packages path
-      run: |
-        set -x
-        echo "=== Diagnosing Python site configuration ==="
-        python --version
-        python -m site
-        
-        # Get the site-packages path - ALWAYS add it to PYTHONPATH
-        # This works around a bug where site-packages disappears from sys.path in later steps
-        SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
-        echo "Site-packages path: $SITE_PACKAGES"
-        echo "PYTHONPATH=$SITE_PACKAGES" >> $GITHUB_ENV
-        echo "Set PYTHONPATH=$SITE_PACKAGES for all subsequent steps"
-        
-        # Verify the path exists
-        ls -la "$SITE_PACKAGES" | head -10
-
-    - name: Ensure pip is available
-      run: |
-        set -x  # Enable command tracing for debugging
-        echo "Python location: $(which python)"
-        echo "Python version: $(python --version)"
-        
-        # Check if pip is already available
-        if python -m pip --version; then
-          echo "pip is already available"
-        else
-          echo "pip not found, attempting to install..."
-          
-          # Method 1: Try ensurepip (built into Python)
-          echo "Trying ensurepip..."
-          if python -m ensurepip --upgrade; then
-            echo "ensurepip succeeded"
-          else
-            echo "ensurepip failed, trying get-pip.py..."
-            
-            # Method 2: Download and run get-pip.py
-            curl -sS https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-            python get-pip.py
-            rm -f get-pip.py
-          fi
-          
-          # Verify pip is now accessible
-          python -m pip --version || { echo "FATAL: pip still not available after installation attempts"; exit 1; }
-        fi
-        
-        # Upgrade pip to latest version
-        python -m pip install --upgrade pip setuptools wheel
-        
-        # Final verification
-        python -m pip --version
-        python -c "import pip; print(f'pip module version: {pip.__version__}')"
 
     - name: Install python dependencies
       run: |
@@ -202,41 +150,13 @@ jobs:
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: ls -l VMEC2000/python
 
-    - name: Debug pip before VMEC2000
-      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
-      run: |
-        set -x
-        echo "=== Full pip diagnostics ==="
-        echo "Python executable:"
-        which python
-        python --version
-        echo ""
-        echo "Python sys.path:"
-        python -c "import sys; print('\n'.join(sys.path))"
-        echo ""
-        echo "Checking if pip directory exists:"
-        ls -la /opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/pip/ 2>&1 | head -20 || echo "pip directory not found!"
-        echo ""
-        echo "Checking site-packages:"
-        ls -la /opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/ | grep -i pip || echo "No pip in site-packages"
-        echo ""
-        echo "Trying to import pip:"
-        python -c "import pip; print('pip imported successfully:', pip.__version__)" || echo "Failed to import pip"
-        echo ""
-        echo "Checking PYTHONPATH and related env vars:"
-        echo "PYTHONPATH=$PYTHONPATH"
-        echo "PYTHONHOME=$PYTHONHOME"
-        echo ""
-        echo "Trying pip as module:"
-        python -m pip --version || echo "python -m pip failed"
-
     - name: Configure VMEC2000 module
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: |
         cd VMEC2000
         cp cmake/machines/ubuntu.json cmake_config_file.json
         cat cmake_config_file.json
-        python -m pip install .
+        python -m pip install --break-system-packages . 2>/dev/null || python -m pip install .
 
     - name: Try importing vmec module
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
