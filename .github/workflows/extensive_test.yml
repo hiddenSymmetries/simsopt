@@ -98,8 +98,9 @@ jobs:
       run: |
         if ! python -m pip --version 2>/dev/null; then
           # Try ensurepip first (installs pip in Python's site-packages)
+          # Note: --default-pip was removed in Python 3.12, so we just use --upgrade
           if python -c "import ensurepip" 2>/dev/null; then
-            python -m ensurepip --upgrade --default-pip
+            python -m ensurepip --upgrade || true
           fi
           # If still not available, install via get-pip.py with --break-system-packages
           if ! python -m pip --version 2>/dev/null; then
