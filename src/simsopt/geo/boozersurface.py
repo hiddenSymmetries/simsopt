@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.linalg import lu
 from scipy.optimize import minimize, least_squares
+import scipy.linalg
 import simsoptpp as sopp
 
 from .surfaceobjectives import boozer_surface_residual, boozer_surface_dexactresidual_dcoils_dcurrents_vjp, boozer_surface_dlsqgrad_dcoils_vjp
@@ -751,7 +752,7 @@ class BoozerSurface(Optimizable):
         self.need_to_run_code = False
         return resdict
 
-    def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.]):
+    def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.], stab=1e-12):
         r"""
         This function solves the constrained optimization problem
 
@@ -777,6 +778,7 @@ class BoozerSurface(Optimizable):
             iota (float, Optional): The initial guess for the value of the rotational transform on the surface. Defaults to 0.
             G (float, Optional): The initial guess for the value of G on the surface. Defaults to None.
             lm (list, Optional): The initial guesses for the Lagrange multipliers. Defaults to [0., 0.].
+            stab (float, Optional): The stabilization parameter for the Newton method. Adds regularization to prevent singular matrices. Defaults to 1e-12.
 
         Returns:
             dict: A dictionary containing the results of the optimization. The dictionary contains the following keys in addition
@@ -805,14 +807,32 @@ class BoozerSurface(Optimizable):
             if s.stellsym:
                 A = dval[:-1, :-1]
                 b = val[:-1]
-                dx = np.linalg.solve(A, b)
+                # Add regularization to prevent singular matrices
+                A_reg = A + stab * np.eye(A.shape[0])
+                try:
+                    dx = scipy.linalg.solve(A_reg, b)
+                except (np.linalg.LinAlgError, ValueError):
+                    # Fallback to least squares if solve fails
+                    dx = np.linalg.lstsq(A_reg, b, rcond=None)[0]
                 if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
-                    dx += np.linalg.solve(A, b-A@dx)
+                    try:
+                        dx += scipy.linalg.solve(A_reg, b-A_reg@dx)
+                    except (np.linalg.LinAlgError, ValueError):
+                        dx += np.linalg.lstsq(A_reg, b-A_reg@dx, rcond=None)[0]
                 xl[:-1] = xl[:-1] - dx
             else:
-                dx = np.linalg.solve(dval, val)
+                # Add regularization to prevent singular matrices
+                dval_reg = dval + stab * np.eye(dval.shape[0])
+                try:
+                    dx = scipy.linalg.solve(dval_reg, val)
+                except (np.linalg.LinAlgError, ValueError):
+                    # Fallback to least squares if solve fails
+                    dx = np.linalg.lstsq(dval_reg, val, rcond=None)[0]
                 if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
-                    dx += np.linalg.solve(dval, val-dval@dx)
+                    try:
+                        dx += scipy.linalg.solve(dval_reg, val-dval_reg@dx)
+                    except (np.linalg.LinAlgError, ValueError):
+                        dx += np.linalg.lstsq(dval_reg, val-dval_reg@dx, rcond=None)[0]
                 xl = xl - dx
             val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None)
             norm = np.linalg.norm(val)
