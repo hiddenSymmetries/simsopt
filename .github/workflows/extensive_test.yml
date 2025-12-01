@@ -101,21 +101,15 @@ jobs:
         python --version
         python -m site
         
-        # Get the site-packages path
+        # Get the site-packages path - ALWAYS add it to PYTHONPATH
+        # This works around a bug where site-packages disappears from sys.path in later steps
         SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
         echo "Site-packages path: $SITE_PACKAGES"
+        echo "PYTHONPATH=$SITE_PACKAGES" >> $GITHUB_ENV
+        echo "Set PYTHONPATH=$SITE_PACKAGES for all subsequent steps"
         
-        # Check if site-packages is in sys.path
-        if python -c "import sys; sys.exit(0 if '$SITE_PACKAGES' in sys.path else 1)"; then
-          echo "site-packages is already in sys.path"
-        else
-          echo "WARNING: site-packages is NOT in sys.path! Adding it..."
-          echo "PYTHONPATH=$SITE_PACKAGES" >> $GITHUB_ENV
-        fi
-        
-        # Also ensure user site-packages for good measure
-        USER_SITE=$(python -m site --user-site)
-        echo "User site-packages: $USER_SITE"
+        # Verify the path exists
+        ls -la "$SITE_PACKAGES" | head -10
 
     - name: Ensure pip is available
       run: |
