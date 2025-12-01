@@ -94,6 +94,29 @@ jobs:
         python-version: ${{ matrix.python-version }}
         allow-prereleases: false
 
+    - name: Fix Python site-packages path
+      run: |
+        set -x
+        echo "=== Diagnosing Python site configuration ==="
+        python --version
+        python -m site
+        
+        # Get the site-packages path
+        SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
+        echo "Site-packages path: $SITE_PACKAGES"
+        
+        # Check if site-packages is in sys.path
+        if python -c "import sys; sys.exit(0 if '$SITE_PACKAGES' in sys.path else 1)"; then
+          echo "site-packages is already in sys.path"
+        else
+          echo "WARNING: site-packages is NOT in sys.path! Adding it..."
+          echo "PYTHONPATH=$SITE_PACKAGES" >> $GITHUB_ENV
+        fi
+        
+        # Also ensure user site-packages for good measure
+        USER_SITE=$(python -m site --user-site)
+        echo "User site-packages: $USER_SITE"
+
     - name: Ensure pip is available
       run: |
         set -x  # Enable command tracing for debugging
