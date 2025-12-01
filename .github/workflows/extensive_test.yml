@@ -93,6 +93,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
         allow-prereleases: false
+        check-latest: true  # Force fresh download instead of using corrupted cache
 
     - name: Fix Python site-packages path
       run: |
