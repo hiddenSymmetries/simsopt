@@ -187,10 +187,21 @@ jobs:
     - name: Configure VMEC2000 module
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: |
+        set -x
+        echo "=== Debugging pip availability ==="
+        echo "Before cd - checking pip:"
+        python -m pip --version
+        echo "Checking for pip shadowing files in VMEC2000:"
+        ls -la VMEC2000/pip* 2>/dev/null || echo "No pip* files in VMEC2000"
+        find VMEC2000 -name "pip.py" -o -name "pip" -type d 2>/dev/null || echo "No pip.py or pip directory found"
         cd VMEC2000
+        echo "After cd - checking pip:"
+        python -m pip --version
+        echo "Current directory contents:"
+        ls -la
         cp cmake/machines/ubuntu.json cmake_config_file.json
         cat cmake_config_file.json
-        python -m pip install --break-system-packages . 2>/dev/null || python -m pip install .
+        python -m pip install .
 
     - name: Try importing vmec module
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
