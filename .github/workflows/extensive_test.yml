@@ -184,21 +184,38 @@ jobs:
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: ls -l VMEC2000/python
 
-    - name: Configure VMEC2000 module
+    - name: Debug pip before VMEC2000
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: |
         set -x
-        echo "=== Debugging pip availability ==="
-        echo "Before cd - checking pip:"
-        python -m pip --version
-        echo "Checking for pip shadowing files in VMEC2000:"
-        ls -la VMEC2000/pip* 2>/dev/null || echo "No pip* files in VMEC2000"
-        find VMEC2000 -name "pip.py" -o -name "pip" -type d 2>/dev/null || echo "No pip.py or pip directory found"
+        echo "=== Full pip diagnostics ==="
+        echo "Python executable:"
+        which python
+        python --version
+        echo ""
+        echo "Python sys.path:"
+        python -c "import sys; print('\n'.join(sys.path))"
+        echo ""
+        echo "Checking if pip directory exists:"
+        ls -la /opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/pip/ 2>&1 | head -20 || echo "pip directory not found!"
+        echo ""
+        echo "Checking site-packages:"
+        ls -la /opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/ | grep -i pip || echo "No pip in site-packages"
+        echo ""
+        echo "Trying to import pip:"
+        python -c "import pip; print('pip imported successfully:', pip.__version__)" || echo "Failed to import pip"
+        echo ""
+        echo "Checking PYTHONPATH and related env vars:"
+        echo "PYTHONPATH=$PYTHONPATH"
+        echo "PYTHONHOME=$PYTHONHOME"
+        echo ""
+        echo "Trying pip as module:"
+        python -m pip --version || echo "python -m pip failed"
+
+    - name: Configure VMEC2000 module
+      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
+      run: |
         cd VMEC2000
-        echo "After cd - checking pip:"
-        python -m pip --version
-        echo "Current directory contents:"
-        ls -la
         cp cmake/machines/ubuntu.json cmake_config_file.json
         cat cmake_config_file.json
         python -m pip install .
