@@ -627,6 +627,38 @@ class VmecComputeGeometryTests(unittest.TestCase):
         np.testing.assert_allclose(div_B, 0, atol=3e-11)
 
 
+    def test_basic_non_stellsym(self):
+        """
+        This is a regression test for a non-stellarator symmetric configuration.
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, "input.basic_non_stellsym"))
+        vmec.run()
+        s = 1.0
+        ntheta = 5
+        nphi = 4
+        theta = np.linspace(0, 2 * np.pi, ntheta, endpoint=True)
+        phi = np.linspace(0, 2 * np.pi / vmec.wout.nfp, nphi, endpoint=True)
+
+        # 
+        R_precalc = np.array([[[6.85, 4.571410161513775, 3.8785898384862243, 6.85], [4.5, 3.721410161513776, 3.0285898384862238, 4.5], [5.65, 4.005384757729337, 5.044615242270662, 5.65], [8.0, 4.855384757729337, 5.894615242270662, 8.0], [6.85, 4.571410161513775, 3.8785898384862247, 6.85]]])
+        d2_Z_d_theta_vmec_d_phi_precalc = np.array([[[-0.5, -0.18301270189221946, 0.6830127018922194, -0.4999999999999999], [0.49999999999999994, -0.6830127018922193, 0.18301270189221908, 0.5000000000000001], [0.5000000000000001, 0.1830127018922194, -0.6830127018922194, 0.49999999999999994], [-0.4999999999999999, 0.6830127018922193, -0.18301270189221913, -0.5], [-0.5000000000000001, -0.1830127018922196, 0.6830127018922194, -0.5]]])
+
+
+        d_B_d_theta_vmec_precalc = np.array([[[3.797382850490039, 8.62225895484851, 14.159181806821593, 3.7973828504900395], [2.8919186555758207, -3.998872017181843, -3.458246653557826, 2.89191865557582], [-4.854840544126677, -7.566177748008503, -11.874600310783727, -4.854840544126677], [-1.5912894561501743, 2.815018903778379, 0.6849479261949663, -1.5912894561501754], [3.797382850490038, 8.622258954848505, 14.159181806821596, 3.7973828504900387]]])
+
+        data = vmec_compute_geometry(vmec, s, theta, phi)
+
+        # More arrays to check against can be printed by uncommenting this:
+        # print('np.array(' + str(data.d_B_d_theta_vmec.tolist()) + ')')
+        # and copy+pasting the output as 'precalc' array above
+        
+        np.testing.assert_allclose(data.R, R_precalc, rtol=1e-5)
+        np.testing.assert_allclose(data.d2_Z_d_theta_vmec_d_phi, d2_Z_d_theta_vmec_d_phi_precalc, rtol=1e-5)
+        np.testing.assert_allclose(data.d_B_d_theta_vmec, d_B_d_theta_vmec_precalc, rtol=1e-5)
+        # Non-regression test, comparing the two ways to calculate sqrt(g)
+        np.testing.assert_allclose(data.sqrt_g_vmec_alt,data.sqrt_g_vmec, rtol=1e-4, atol=1e-4)
+        
+
 class VmecFieldlinesTests(unittest.TestCase):
     def test_fieldline_grids(self):
         """
