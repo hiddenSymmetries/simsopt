@@ -38,8 +38,6 @@ jobs:
         # 2025-11-28: Temporarily disabling SPEC tests in this workflow due to github issue #561
         # packages: [all, vmec, spec, none]
         packages: [vmec, none]
-        # 2025-12-01: Excluding Python 3.12+ on Ubuntu 24.04 due to corrupted Python in GitHub's
-        # hostedtoolcache (version mismatch causes _ctypes import failures). See PR #486.
         python-version: [3.9, "3.10", "3.11"]
         include:
             - python-version: 3.9
@@ -94,20 +92,29 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-        allow-prereleases: false
+
+    - name: which python3 after python setup
+      run: which python3
+
+    - name: which pip after python setup
+      run: |
+        python -m pip install --upgrade pip
+        pip --version
+
+    - name: env after adding python
+      run: env
 
     - name: Install python dependencies
       run: |
            sudo apt-get install graphviz graphviz-dev
-           # Use --break-system-packages for Python 3.12 on Ubuntu 24.04 (PEP 668)
-           python -m pip install --break-system-packages wheel "numpy>=2.0.0" scipy f90nml h5py scikit-build-core setuptools-scm "pybind11<3.0.0" cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap || python -m pip install wheel "numpy>=2.0.0" scipy f90nml h5py scikit-build-core setuptools-scm "pybind11<3.0.0" cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap
+           pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap
 
     - name: Install booz_xform
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
-      run: python -m pip install --break-system-packages -v git+https://github.com/hiddenSymmetries/booz_xform 2>/dev/null || python -m pip install -v git+https://github.com/hiddenSymmetries/booz_xform
+      run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
 
     - name: Install virtual_casing
-      run: python -m pip install --break-system-packages -v git+https://github.com/hiddenSymmetries/virtual-casing 2>/dev/null || python -m pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
+      run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
 
     # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
     # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
@@ -123,15 +130,15 @@ jobs:
     - name: Install py_spec
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       run: |
-        python -m pip install --break-system-packages -r SPEC/Utilities/pythontools/requirements.txt 2>/dev/null || python -m pip install -r SPEC/Utilities/pythontools/requirements.txt
-        python -m pip install --break-system-packages -e SPEC/Utilities/pythontools 2>/dev/null || python -m pip install -e SPEC/Utilities/pythontools
+        pip install -r SPEC/Utilities/pythontools/requirements.txt
+        pip install -e SPEC/Utilities/pythontools
         python -c "import py_spec; print('success')"
 
     - name: Build SPEC python wrapper.
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       run: |
          cd SPEC
-         python -m pip install --break-system-packages . 2>/dev/null || python -m pip install .
+         pip install .
 
     - name: Try import spec
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
@@ -156,7 +163,7 @@ jobs:
         cd VMEC2000
         cp cmake/machines/ubuntu.json cmake_config_file.json
         cat cmake_config_file.json
-        python -m pip install --break-system-packages . 2>/dev/null || python -m pip install .
+        pip install .
 
     - name: Try importing vmec module
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
@@ -165,26 +172,19 @@ jobs:
     - name: Install simsopt package
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       run: |
-        python -m pip install --break-system-packages --upgrade pip build wheel 2>/dev/null || python -m pip install --upgrade pip build wheel
-        python -m pip install --break-system-packages scikit-build-core "setuptools-scm>=8.0" "pybind11<3.0.0" "numpy>=2.0.0" 2>/dev/null || python -m pip install scikit-build-core "setuptools-scm>=8.0" "pybind11<3.0.0" "numpy>=2.0.0"
-        python -m pip install --break-system-packages -v git+https://github.com/zhisong/pyoculus 2>/dev/null || python -m pip install -v git+https://github.com/zhisong/pyoculus
-        python -m pip install --break-system-packages --no-build-isolation -v . 2>/dev/null || python -m pip install --no-build-isolation -v .
-        python -m pip install --break-system-packages mpi4py py_spec h5py 2>/dev/null || python -m pip install mpi4py py_spec h5py
+        pip install -v git+https://github.com/zhisong/pyoculus
+        pip install -v .
+        pip install mpi4py py_spec h5py
 
     - name: Install simsopt package
       if: contains(matrix.packages, 'none')
-      run: |
-        python -m pip install --break-system-packages --upgrade pip setuptools wheel build 2>/dev/null || python -m pip install --upgrade pip setuptools wheel build
-        python -m pip install --break-system-packages scikit-build-core "setuptools-scm>=8.0" "pybind11<3.0.0" "numpy>=2.0.0" 2>/dev/null || python -m pip install scikit-build-core "setuptools-scm>=8.0" "pybind11<3.0.0" "numpy>=2.0.0"
-        python -m pip install --break-system-packages --no-build-isolation -v . 2>/dev/null || python -m pip install --no-build-isolation -v .
+      run: pip install -v .
 
     - name: Install simsopt package
       if: contains(matrix.packages, 'vmec')
       run: |
-        python -m pip install --break-system-packages --upgrade pip build wheel 2>/dev/null || python -m pip install --upgrade pip build wheel
-        python -m pip install --break-system-packages scikit-build-core "setuptools-scm>=8.0" "pybind11<3.0.0" "numpy>=2.0.0" 2>/dev/null || python -m pip install scikit-build-core "setuptools-scm>=8.0" "pybind11<3.0.0" "numpy>=2.0.0"
-        python -m pip install --break-system-packages --no-build-isolation -v . 2>/dev/null || python -m pip install --no-build-isolation -v .
-        python -m pip install --break-system-packages mpi4py 2>/dev/null || python -m pip install mpi4py
+        pip install -v .
+        pip install mpi4py
 
     - name: Run serial examples as part of integrated tests
       if: contains(matrix.test-type, 'integrated') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'all'))
@@ -218,7 +218,7 @@ jobs:
 
     - name: Install coverage dependencies
       if: contains(matrix.test-type, 'unit')
-      run: python -m pip install --break-system-packages coverage 2>/dev/null || python -m pip install coverage 
+      run: pip install coverage 
 
     - name: Run expensive tests on 1 MPI process using coverage
       if: contains(matrix.test-type, 'unit') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'all'))
@@ -257,7 +257,7 @@ jobs:
         include-hidden-files: true
 
   coverage:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     needs: [ test ]
     steps:
 
@@ -267,13 +267,13 @@ jobs:
         python-version: 3.9
 
     - name: Install coverage
-      run: python -m pip install --break-system-packages coverage 2>/dev/null || python -m pip install coverage
+      run: pip install coverage
 
     - name: Checkout simsopt 
       uses: actions/checkout@v4
 
     - name: Install simsopt before running coverage
-      run: python -m pip install --break-system-packages . 2>/dev/null || python -m pip install .
+      run: pip install .
 
     - name: Download artifact
       uses: actions/download-artifact@v4

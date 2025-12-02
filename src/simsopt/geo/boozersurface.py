@@ -494,7 +494,7 @@ class BoozerSurface(Optimizable):
         dres[-1, :-2] = drz
         return res, dres
 
-    def minimize_boozer_penalty_constraints_LBFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None, vectorize=True, limited_memory=True, weight_inv_modB=True, verbose=False, n_restarts=1, restart_perturbation=1e-3, random_seed=None):
+    def minimize_boozer_penalty_constraints_LBFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None, vectorize=True, limited_memory=True, weight_inv_modB=True, verbose=False):
         r"""
         This function uses L-BFGS to find the surface that approximately solves
 
@@ -515,9 +515,6 @@ class BoozerSurface(Optimizable):
             limited_memory (bool, Optional): If True, use the limited memory version of L-BFGS. Defaults to True.
             weight_inv_modB (bool, Optional): If True, weight the residual by modB so that it does not scale with coil currents. Defaults to True.
             verbose (bool, Optional): If True, print the optimization progress. Defaults to False.
-            n_restarts (int, Optional): Number of optimization runs with different initial conditions. The best result is returned. Defaults to 1.
-            restart_perturbation (float, Optional): Size of random perturbation applied to initial conditions for restarts. Defaults to 1e-3.
-            random_seed (int, Optional): Random seed for reproducibility when using n_restarts > 1. Defaults to None.
         
         Returns:
             res (dict): A dictionary containing the results of the optimization. The dictionary contains the following keys in addition
@@ -556,47 +553,12 @@ class BoozerSurface(Optimizable):
             options['maxcor'] = 200
             options['ftol'] = tol
 
-        # Set random seed for reproducibility
-        if random_seed is not None:
-            rng = np.random.default_rng(random_seed)
-        else:
-            rng = np.random.default_rng()
-
-        best_res = None
-        best_fun = np.inf
-        total_iter = 0
-
-        for restart in range(n_restarts):
-            # Perturb initial conditions for restarts > 0
-            if restart == 0:
-                x = x0.copy()
-            else:
-                # Apply small random perturbation to surface DOFs only (not iota/G)
-                perturbation = restart_perturbation * rng.uniform(-1, 1, size=original_dofs.shape)
-                perturbed_dofs = original_dofs + perturbation
-                if G is None:
-                    x = np.concatenate((perturbed_dofs, [iota]))
-                else:
-                    x = np.concatenate((perturbed_dofs, [iota, G]))
-
-            res = minimize(
-                fun, x, jac=True, method=method,
-                options=options)
-            
-            total_iter += res.nit
-            
-            if verbose and n_restarts > 1:
-                print(f"  Restart {restart + 1}/{n_restarts}: fun={res.fun:.6e}, success={res.success}")
-
-            # Keep track of best result
-            if res.fun < best_fun:
-                best_fun = res.fun
-                best_res = res
-
-        res = best_res
+        res = minimize(
+            fun, x0, jac=True, method=method,
+            options=options)
 
         resdict = {
-            "fun": res.fun, "gradient": res.jac, "iter": total_iter, "info": res, "success": res.success, "G": None, 'weight_inv_modB': weight_inv_modB, 'type': 'ls'
+            "fun": res.fun, "gradient": res.jac, "iter": res.nit, "info": res, "success": res.success, "G": None, 'weight_inv_modB': weight_inv_modB, 'type': 'ls'
         }
         if G is None:
             s.set_dofs(res.x[:-1])
@@ -617,7 +579,7 @@ class BoozerSurface(Optimizable):
 
         return resdict
 
-    def minimize_boozer_penalty_constraints_newton(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, stab=0., vectorize=True, weight_inv_modB=True, verbose=False):
+    def minimize_boozer_penalty_constraints_newton(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, stab=1e-10, vectorize=True, weight_inv_modB=True, verbose=False):
         """
         This function does the same as :mod:`minimize_boozer_penalty_constraints_LBFGS`, but instead of LBFGS it uses
         Newton's method.
@@ -847,56 +809,18 @@ class BoozerSurface(Optimizable):
             if s.stellsym:
                 A = dval[:-1, :-1]
                 b = val[:-1]
-                # Try solve without regularization first (original behavior)
-                try:
-                    dx = scipy.linalg.solve(A, b)
-                    A_reg = A  # For iterative refinement
-                except (np.linalg.LinAlgError, ValueError):
-                    # If solve fails, use adaptive regularization
-                    dx = None
-                    attempt_stab = stab
-                    for _ in range(10):  # Try up to 10 times with increasing regularization
-                        A_reg = A + attempt_stab * np.eye(A.shape[0])
-                        try:
-                            dx = scipy.linalg.solve(A_reg, b)
-                            break
-                        except (np.linalg.LinAlgError, ValueError):
-                            attempt_stab *= 10.0
-                    if dx is None:
-                        # Final fallback: use pseudo-inverse
-                        A_reg = A + attempt_stab * np.eye(A.shape[0])
-                        dx = scipy.linalg.pinv(A_reg) @ b
+                # Always use regularization to avoid ill-conditioned matrix warnings
+                A_reg = A + stab * np.eye(A.shape[0])
+                dx = scipy.linalg.solve(A_reg, b, check_finite=False)
                 if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
-                    try:
-                        dx += scipy.linalg.solve(A_reg, b-A_reg@dx)
-                    except (np.linalg.LinAlgError, ValueError):
-                        dx += scipy.linalg.pinv(A_reg) @ (b-A_reg@dx)
+                    dx += scipy.linalg.solve(A_reg, b-A_reg@dx, check_finite=False)
                 xl[:-1] = xl[:-1] - dx
             else:
-                # Try solve without regularization first (original behavior)
-                try:
-                    dx = scipy.linalg.solve(dval, val)
-                    dval_reg = dval  # For iterative refinement
-                except (np.linalg.LinAlgError, ValueError):
-                    # If solve fails, use adaptive regularization
-                    dx = None
-                    attempt_stab = stab
-                    for _ in range(10):  # Try up to 10 times with increasing regularization
-                        dval_reg = dval + attempt_stab * np.eye(dval.shape[0])
-                        try:
-                            dx = scipy.linalg.solve(dval_reg, val)
-                            break
-                        except (np.linalg.LinAlgError, ValueError):
-                            attempt_stab *= 10.0
-                    if dx is None:
-                        # Final fallback: use pseudo-inverse
-                        dval_reg = dval + attempt_stab * np.eye(dval.shape[0])
-                        dx = scipy.linalg.pinv(dval_reg) @ val
+                # Always use regularization to avoid ill-conditioned matrix warnings
+                dval_reg = dval + stab * np.eye(dval.shape[0])
+                dx = scipy.linalg.solve(dval_reg, val, check_finite=False)
                 if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
-                    try:
-                        dx += scipy.linalg.solve(dval_reg, val-dval_reg@dx)
-                    except (np.linalg.LinAlgError, ValueError):
-                        dx += scipy.linalg.pinv(dval_reg) @ (val-dval_reg@dx)
+                    dx += scipy.linalg.solve(dval_reg, val-dval_reg@dx, check_finite=False)
                 xl = xl - dx
             val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None)
             norm = np.linalg.norm(val)

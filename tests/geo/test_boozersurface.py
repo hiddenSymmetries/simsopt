@@ -283,10 +283,9 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         cw = (s.quadpoints_phi.size * s.quadpoints_theta.size * 3)
         # compute surface first using LBFGS exact and an area constraint
-        # Use random_seed for reproducibility across platforms
         res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
             tol=1e-12, maxiter=700, constraint_weight=100/cw, iota=iota, G=G,
-            vectorize=vectorize, random_seed=RANDOM_SEED)
+            vectorize=vectorize)
         print('Residual norm after LBFGS', res['iter'], np.sqrt(2*res['fun']))
 
         boozer_surface.recompute_bell()
@@ -297,7 +296,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         elif second_stage == 'newton':
             res = boozer_surface.minimize_boozer_penalty_constraints_newton(
                 tol=1e-10, maxiter=100, constraint_weight=100./cw,
-                iota=res['iota'], G=res['G'], stab=1e-4, vectorize=vectorize)
+                iota=res['iota'], G=res['G'], vectorize=vectorize)
         elif second_stage == 'newton_exact':
             res = boozer_surface.minimize_boozer_exact_constraints_newton(
                 tol=1e-10, maxiter=100, iota=res['iota'], G=res['G'])
@@ -429,13 +428,13 @@ class BoozerSurfaceTests(unittest.TestCase):
         # Use random_seed for reproducibility across platforms
         res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
             tol=1e-10, maxiter=600, constraint_weight=100./cw, iota=iota, G=G,
-            vectorize=vectorize, random_seed=RANDOM_SEED)
+            vectorize=vectorize)
         print(f'Residual norm after LBFGS (vectorize={vectorize})', np.sqrt(2*res['fun']))
 
         boozer_surface.recompute_bell()
         res = boozer_surface.minimize_boozer_penalty_constraints_newton(
             tol=1e-10, maxiter=20, constraint_weight=100./cw,
-            iota=res['iota'], G=res['G'], stab=0., vectorize=vectorize)
+            iota=res['iota'], G=res['G'], vectorize=vectorize)
 
         # Compute the final residual norm
         residual_norm = np.linalg.norm(res['residual'])
