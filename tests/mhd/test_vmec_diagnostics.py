@@ -629,7 +629,7 @@ class VmecComputeGeometryTests(unittest.TestCase):
 
     def test_basic_non_stellsym(self):
         """
-        This is a regression test for a non-stellarator symmetric configuration.
+        Perform a sqrt(g) calculation comparison and a few regression tests for a non-stellarator symmetric configuration.
         """
         vmec = Vmec(os.path.join(TEST_DIR, "input.basic_non_stellsym"))
         vmec.run()
