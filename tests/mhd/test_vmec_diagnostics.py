@@ -626,10 +626,11 @@ class VmecComputeGeometryTests(unittest.TestCase):
         div_B = data.grad_B__XX + data.grad_B__YY + data.grad_B__ZZ
         np.testing.assert_allclose(div_B, 0, atol=3e-11)
 
-
+    @unittest.skipIf(vmec is None, "vmec python package is not found")
     def test_basic_non_stellsym(self):
         """
-        Perform a sqrt(g) calculation comparison and a few regression tests for a non-stellarator symmetric configuration.
+        Perform a sqrt(g) calculation comparison and a few regression tests 
+        for a non-stellarator symmetric configuration.
         """
         vmec = Vmec(os.path.join(TEST_DIR, "input.basic_non_stellsym"))
         vmec.run()
