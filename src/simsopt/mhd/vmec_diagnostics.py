@@ -930,11 +930,11 @@ class VmecGeometryResults:
     modB: np.ndarray
     """The magnetic field magnitude :math:`|B|`"""
     d_B_d_s: np.ndarray
-    r"""Derivative of :math:`|B|` with respect to s: :math:`\partial |B| / \partial s`."""
+    r"""Derivative of :math:`|B|` with respect to s. :math:`\partial |B| / \partial s`."""
     d_B_d_theta_vmec: np.ndarray
-    r"""Derivative of :math:`|B|` with respect to theta_vmec: :math:`\partial |B| / \partial \theta_{\text{vmec}}`."""
+    r"""Derivative of :math:`|B|` with respect to theta_vmec. :math:`\partial |B| / \partial \theta_{\text{vmec}}`."""
     d_B_d_phi: np.ndarray
-    r"""Derivative of :math:`|B|` with respect to phi: :math:`\partial |B| / \partial \phi`."""
+    r"""Derivative of :math:`|B|` with respect to phi. :math:`\partial |B| / \partial \phi`."""
     ### Contravariant Magnetic Field
     B_sup_theta_vmec: np.ndarray
     r"""Contravariant poloidal component of B. :math:`\vec{B}\cdot\nabla\theta_{vmec}`"""
