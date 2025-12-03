@@ -325,12 +325,12 @@ class BoozerSurfaceTests(unittest.TestCase):
             if surfacetype == 'SurfaceXYZTensorFourier':
                 assert np.linalg.norm(res['residual']) < 1e-9
 
-        print(ar_target, ar.J())
-        print(res['residual'][-10:])
-        if surfacetype == 'SurfaceXYZTensorFourier' or second_stage == 'newton_exact':
-            assert np.abs(ar_target - ar.J()) < 1e-9
-        else:
-            assert np.abs(ar_target - ar.J()) < 1e-4
+            print(ar_target, ar.J())
+            print(res['residual'][-10:])
+            if surfacetype == 'SurfaceXYZTensorFourier' or second_stage == 'newton_exact':
+                assert np.abs(ar_target - ar.J()) < 1e-9
+            else:
+                assert np.abs(ar_target - ar.J()) < 1e-4
 
     def test_boozer_serialization(self):
         """
