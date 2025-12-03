@@ -298,6 +298,7 @@ class BoozerSurfaceTests(unittest.TestCase):
                 tol=1e-10, maxiter=100, constraint_weight=100./cw,
                 iota=res['iota'], G=res['G'], vectorize=vectorize)
         elif second_stage == 'newton_exact':
+            print(res)
             res = boozer_surface.minimize_boozer_exact_constraints_newton(
                 tol=1e-10, maxiter=100, iota=res['iota'], G=res['G'])
         elif second_stage == 'residual_exact':

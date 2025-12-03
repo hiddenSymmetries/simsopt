@@ -624,13 +624,35 @@ class BoozerSurface(Optimizable):
         val, dval, d2val = fun_name(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
 
         norm = np.linalg.norm(dval)
+        norm_prev = norm
         while i < maxiter and norm > tol:
             d2val += stab*np.identity(d2val.shape[0])
             dx = np.linalg.solve(d2val, dval)
             if norm < 1e-9:
                 dx += np.linalg.solve(d2val, dval - d2val@dx)
-            x = x - dx
+            
+            # Line search: reduce step size if residual increases
+            alpha = 1.0
+            x_trial = x - alpha * dx
+            _, dval_trial = fun_name(x_trial, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
+            norm_trial = np.linalg.norm(dval_trial)
+            
+            # If residual increases, use damping with backtracking
+            if norm_trial > norm or norm_trial > 10.0 * norm_prev:
+                for _ in range(10):  # Try up to 10 damping steps
+                    alpha *= 0.5
+                    x_trial = x - alpha * dx
+                    _, dval_trial = fun_name(x_trial, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
+                    norm_trial = np.linalg.norm(dval_trial)
+                    if norm_trial <= norm or norm_trial <= 10.0 * norm_prev:
+                        break
+                # If still diverging, stop early
+                if norm_trial > 100.0 * norm_prev:
+                    break
+            
+            x = x_trial
             val, dval, d2val = fun_name(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
+            norm_prev = norm
             norm = np.linalg.norm(dval)
             i = i+1
 
@@ -804,6 +826,7 @@ class BoozerSurface(Optimizable):
             xl = np.concatenate((s.get_dofs(), [iota], lm))
         val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None)
         norm = np.linalg.norm(val)
+        norm_prev = norm
         i = 0
         while i < maxiter and norm > tol:
             if s.stellsym:
@@ -814,15 +837,43 @@ class BoozerSurface(Optimizable):
                 dx = scipy.linalg.solve(A_reg, b, check_finite=False)
                 if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
                     dx += scipy.linalg.solve(A_reg, b-A_reg@dx, check_finite=False)
-                xl[:-1] = xl[:-1] - dx
             else:
                 # Always use regularization to avoid ill-conditioned matrix warnings
                 dval_reg = dval + stab * np.eye(dval.shape[0])
                 dx = scipy.linalg.solve(dval_reg, val, check_finite=False)
                 if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
                     dx += scipy.linalg.solve(dval_reg, val-dval_reg@dx, check_finite=False)
-                xl = xl - dx
+            
+            # Line search: reduce step size if residual increases
+            alpha = 1.0
+            xl_trial = xl.copy()
+            if s.stellsym:
+                xl_trial[:-1] = xl[:-1] - alpha * dx
+            else:
+                xl_trial = xl - alpha * dx
+            
+            val_trial = self.boozer_exact_constraints(xl_trial, derivatives=0, optimize_G=G is not None)
+            norm_trial = np.linalg.norm(val_trial)
+            
+            # If residual increases, use damping with backtracking
+            if norm_trial > norm or norm_trial > 10.0 * norm_prev:
+                for _ in range(10):  # Try up to 10 damping steps
+                    alpha *= 0.5
+                    if s.stellsym:
+                        xl_trial[:-1] = xl[:-1] - alpha * dx
+                    else:
+                        xl_trial = xl - alpha * dx
+                    val_trial = self.boozer_exact_constraints(xl_trial, derivatives=0, optimize_G=G is not None)
+                    norm_trial = np.linalg.norm(val_trial)
+                    if norm_trial <= norm or norm_trial <= 10.0 * norm_prev:
+                        break
+                # If still diverging, stop early
+                if norm_trial > 100.0 * norm_prev:
+                    break
+            
+            xl = xl_trial
             val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None)
+            norm_prev = norm
             norm = np.linalg.norm(val)
             i = i + 1
 
