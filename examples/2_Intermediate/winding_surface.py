@@ -78,7 +78,7 @@ def run_scan():
             net_toroidal_current_amperes=cp.net_toroidal_current_amperes,
             stellsym=True)
         cpst = CurrentPotentialSolve(cp, cpst.plasma_surface, cpst.Bnormal_plasma, cpst.B_GI)
-
+        
         # define a number of geometric quantities from the plasma and coil surfaces
         s_coil = cpst.winding_surface
         s_plasma = cpst.plasma_surface
