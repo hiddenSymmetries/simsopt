@@ -331,4 +331,4 @@ jobs:
 
     - name: Run boozersurface tests
       run: |
-        python -m unittest tests.geo.test_boozersurface -v
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/geo -p "test_boozersurface.py"
