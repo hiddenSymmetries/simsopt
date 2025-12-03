@@ -7,9 +7,6 @@
 [submodule "thirdparty/xtl"]
 	path = thirdparty/xtl
 	url = https://github.com/xtensor-stack/xtl.git
-[submodule "thirdparty/pybind11"]
-	path = thirdparty/pybind11
-	url = https://github.com/pybind/pybind11.git
 [submodule "thirdparty/xsimd"]
 	path = thirdparty/xsimd
 	url = https://github.com/xtensor-stack/xsimd.git
@@ -19,6 +16,3 @@
 [submodule "thirdparty/fmt"]
 	path = thirdparty/fmt
 	url = https://github.com/fmtlib/fmt.git
-[submodule "thirdparty/BIEST"]
-	path = thirdparty/BIEST
-	url = https://github.com/dmalhotra/BIEST.git

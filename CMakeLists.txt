@@ -148,7 +148,6 @@ if(OpenMP_CXX_FOUND)
         src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp
         src/simsoptpp/boozerradialinterpolant.cpp src/simsoptpp/python_currentpotential.cpp
         src/simsoptpp/currentpotential.cpp src/simsoptpp/currentpotentialfourier.cpp
-        src/simsoptpp/biest_call.cpp  # BIEST requires openmp!
     )
 else()
     pybind11_add_module(${PROJECT_NAME}

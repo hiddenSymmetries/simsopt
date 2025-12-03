@@ -11,9 +11,3 @@ sympy
 f90nml
 randomgen
 pyevtk
-cvxpy
-optax
-interpax
-lineax
-mosek
-pyvista
