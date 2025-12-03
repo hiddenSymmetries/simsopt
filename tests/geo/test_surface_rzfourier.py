@@ -1145,14 +1145,14 @@ class SurfaceRZFourierTests(unittest.TestCase):
         """Test the condense_spectrum() and spectral_width() methods."""
         # filename = TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres'
         filename = TEST_DIR / 'input.li383_low_res'
-        for method in ['BFGS', 'lm']:
+        for method in ['trf', 'BFGS', 'lm']:
             power = 2
             print(f"Testing condense_spectrum() with method {method}")
             surf = SurfaceRZFourier.from_vmec_input(filename)
             surf.change_resolution(mpol=10, ntor=8)
             original_spectral_width_1 = surf.spectral_width(power=power)
-            original_spectral_width_2, final_spectral_width_2 = surf.condense_spectrum(
-                method=method, maxiter=15, power=power, verbose=True, plot=True, show=False
+            original_spectral_width_2, final_spectral_width_2 = surf.condense_spectrum_lambdaSpectral(
+                method=method, maxiter=15, power=power, verbose=True, plot=True, show=True
             )
             print("Minor radius after condensing:", surf.minor_radius())
             final_spectral_width_1 = surf.spectral_width(power=power)
@@ -1181,7 +1181,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
         
         """
-        for method in ['trf', 'BFGS']:
+        for method in ['trf','BFGS']:
             power = 2
             print(f"Testing condense_spectrum() with method {method}")
             major_radius = 10.0
@@ -1204,8 +1204,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
             np.testing.assert_allclose(surf.major_radius(), major_radius)
 
             original_spectral_width_1 = surf.spectral_width(power=power)
-            original_spectral_width_2, final_spectral_width_2 = surf.condense_spectrum(
-                n_theta=300, n_phi=2, method=method, power=power, verbose=True, plot=True, show=False
+            original_spectral_width_2, final_spectral_width_2 = surf.condense_spectrum_lambdaSpectral(
+                n_theta=46, n_phi=2, method=method, power=power, verbose=True, plot=True, show=True
             )
             print("Minor radius after condensing:", surf.minor_radius())
             final_spectral_width_1 = surf.spectral_width(power=power)
