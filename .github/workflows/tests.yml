@@ -329,6 +329,9 @@ jobs:
     - name: Verify that importing simsopt does not automatically initialize MPI
       run: ./tests/verify_MPI_not_initialized.py
 
+    - name: Install coverage dependencies
+      run: pip install coverage
+
     - name: Run boozersurface tests
       run: |
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/geo -p "test_boozersurface.py"
