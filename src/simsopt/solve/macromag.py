@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__ import annotations # Temporary fix for python compatibility
 import math
 import numpy as np
 from coilpy import rotation_angle
@@ -1650,7 +1650,7 @@ Adapted from:
   - CoilPy authors: Zhu, Cao et al.
 """
 
-
+# Inspired by: https://zhucaoxiang.github.io/CoilPy/_modules/coilpy/magtense_interface.html#muse2magntense
 def muse2tiles(muse_file, mu=(1.05, 1.05), magnetization=1.16e6, **kwargs):
     """Convert a MUSE-exported CSV file into a set of magnet "tiles" suitable for MacroMag
 
@@ -1717,7 +1717,7 @@ def build_prism(lwh, center, rot, mag_angle, mu, remanence):
     Construct a prism in our local Tiles container (no bind helper needed).
 
     Args:
-        lwh        (n x 3): half dims (i.e. half lengths)
+        lwh        (n x 3): The dimensions of the prism in length, width, height.
         center     (n x 3): centers
         rot        (n x 3): Euler angles
         mag_angle  (n x 2): (theta,phi)
