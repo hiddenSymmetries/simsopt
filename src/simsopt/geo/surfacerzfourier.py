@@ -2248,6 +2248,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         power=2,
         maxiter=None,
         method="lm",
+        Fourier_continuation=True,
         verbose=True,
         plot=False,
         show=True,
@@ -2320,8 +2321,16 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         n_for_R = surf.n[:n_Rmn]
         m_for_Z = surf.m[n_Rmn:]
         n_for_Z = surf.n[n_Rmn:]
-        m_for_lambda = m_for_Z
-        n_for_lambda = n_for_Z
+        m_for_lambda_full = m_for_Z
+        n_for_lambda_full = n_for_Z
+        max_mn_lambda = max(max(m_for_lambda_full), max(n_for_lambda_full))
+
+        def compute_x_scale(m_for_lambda, n_for_lambda):
+            # Exponential spectral scaling:
+            x_scale = np.exp(-1.0 * np.sqrt(m_for_lambda**2 + n_for_lambda**2))
+            return x_scale
+
+        x_scale_full = compute_x_scale(m_for_lambda_full, n_for_lambda_full)
 
         # Evaluate the surface shape on uniformly spaced points in theta1 and phi:
         gamma = surf.gamma()
@@ -2335,19 +2344,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         phi_1d = phi2d.flatten()
         theta1_1d = theta2d.flatten()
 
-        # If the lambda dofs are exactly 0, jax gives NaN gradients, so
-        # initialize to a small nonzero value:
-        lambda_dofs = np.zeros(len(m_for_lambda)) + 1e-10
-        # For the TRF algorithm, the initial trust region radius is determined in part
-        # by the scale of the initial guess. If |x0| is very small, the initial
-        # trust region is very small, leading to tiny steps and no progress. So, set one
-        # element to a value that is not too small:
-        lambda_dofs[0] = 0.01
-
-        # Exponential spectral scaling:
-        x_scale = np.exp(-1.0 * np.sqrt(m_for_lambda**2 + n_for_lambda**2))
-
-        def lambda_Fourier_to_grid(lambda_dofs):
+        def lambda_Fourier_to_grid(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
             scaled_lambda_dofs = lambda_dofs * x_scale
             lambd = jnp.sum(scaled_lambda_dofs[None, :] * jnp.sin(
                 m_for_lambda[None, :] * theta1_1d[:, None] - nfp * n_for_lambda[None, :] * phi_1d[:, None]
@@ -2355,74 +2352,146 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             theta2_1d = theta1_1d + lambd
             return theta2_1d
         
-        def compute_r2mn_and_z2mn(lambda_dofs):
-            theta2_1d = lambda_Fourier_to_grid(lambda_dofs)
+        def _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            theta2_1d = lambda_Fourier_to_grid(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
 
             lsq_for_R_matrix = jnp.cos(m_for_R[None, :] * theta2_1d[:, None] - nfp * n_for_R[None, :] * phi_1d[:, None])
             lsq_for_Z_matrix = jnp.sin(m_for_Z[None, :] * theta2_1d[:, None] - nfp * n_for_Z[None, :] * phi_1d[:, None])
 
             # Compute least-squares fit for Rmnc and Zmns with respect to theta2:
             rcond = None
-            Rmnc_new = jnp.linalg.lstsq(lsq_for_R_matrix, R_to_fit, rcond=rcond)[0]
-            Zmns_new = jnp.linalg.lstsq(lsq_for_Z_matrix, Z_to_fit, rcond=rcond)[0]
+            # Rmnc_new = jnp.linalg.lstsq(lsq_for_R_matrix, R_to_fit, rcond=rcond)[0]
+            # Zmns_new = jnp.linalg.lstsq(lsq_for_Z_matrix, Z_to_fit, rcond=rcond)[0]
+            # Solve least-squares via QR for better numerical stability
+            Q_R, R_R = jnp.linalg.qr(lsq_for_R_matrix, mode="reduced")
+            Rmnc_new = jnp.linalg.solve(R_R, Q_R.T @ R_to_fit)
 
+            Q_Z, R_Z = jnp.linalg.qr(lsq_for_Z_matrix, mode="reduced")
+            Zmns_new = jnp.linalg.solve(R_Z, Q_Z.T @ Z_to_fit)
+
+            return Rmnc_new, Zmns_new, lsq_for_R_matrix, lsq_for_Z_matrix
+        
+        def compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            Rmnc_new, Zmns_new, _, _ = _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
             return jnp.concatenate([Rmnc_new, Zmns_new])
 
+        def compute_RZ_errors(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            Rmnc_new, Zmns_new, lsq_for_R_matrix, lsq_for_Z_matrix = _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            R_error = (lsq_for_R_matrix @ Rmnc_new - R_to_fit) / minor_radius
+            Z_error = (lsq_for_Z_matrix @ Zmns_new - Z_to_fit) / minor_radius
+            max_error = max(np.max(np.abs(R_error)), np.max(np.abs(Z_error)))
+            print(f"(Max error in fitting R or Z of points) / minor_radius: {max_error:.3e}")
+            return R_error, Z_error
+
         @jax.jit
-        def residuals_func(lambda_dofs):
+        def residuals_func(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
             """Objective function for spectral width."""
-            x = compute_r2mn_and_z2mn(lambda_dofs)
+            x = compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
             # numerator = jnp.sum(x**2 * (surf.m**2 + surf.n**2)**power_for_objective)
             residuals = (x / minor_radius) * (surf.m**2 + surf.n**2)**(power * 0.5)
             # The first residual is always zero (since m=n=0) so there is no need to include it:
             return residuals[1:]
 
         @jax.jit
-        def scalar_objective(lambda_dofs):
-            residuals = residuals_func(lambda_dofs)
+        def scalar_objective(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            residuals = residuals_func(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
             return 0.5 * jnp.sum(residuals**2)
 
         iteration_counter = {"count": 0}
 
-        def scalar_objective_with_printing(lambda_dofs):
-            obj_value = scalar_objective(lambda_dofs)
+        def scalar_objective_with_printing(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            obj_value = scalar_objective(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
             iteration_counter["count"] += 1
             obj_value_float = obj_value.astype(float)
             print(f"Iteration {iteration_counter['count']:5}: objective = {obj_value_float:.6e}")
             return obj_value
 
-        initial_objective = scalar_objective(np.zeros_like(lambda_dofs))
+        initial_objective = scalar_objective(
+            np.zeros_like(m_for_lambda_full),
+            m_for_lambda_full,
+            n_for_lambda_full,
+            x_scale_full,
+        )
         start_time = time.time()
-        if method_is_lstsq:
-            jac_fn = jax.jit(jax.jacfwd(residuals_func))
-            if verbose:
-                verbose_for_least_squares = 2
-            else:
-                verbose_for_least_squares = 0
 
-            res = least_squares(
-                residuals_func,
-                lambda_dofs,
-                jac=jac_fn,
-                method=method,
-                verbose=verbose_for_least_squares,
-                max_nfev=maxiter,
-            )
+        if Fourier_continuation:
+            mnmax_steps = np.arange(1, max_mn_lambda + 1)
         else:
-            grad_objective = jax.jit(jax.grad(scalar_objective))
-            if verbose:
-                objective_to_use = scalar_objective_with_printing
-            else:
-                objective_to_use = scalar_objective
+            mnmax_steps = [max_mn_lambda]
 
-            # objective_to_use = scalar_objective
-            res = minimize(
-                objective_to_use,
-                lambda_dofs,
-                jac=grad_objective,
-                method=method,
-                options={"maxiter": maxiter}
-            )
+        for mnmax in mnmax_steps:
+            if Fourier_continuation:
+                line_width = 120
+                print("*" * line_width)
+                print(f"Beginning Fourier continuation step with mnmax = {mnmax}")
+                print("*" * line_width)
+
+            # Select only lambda dofs with |m|, |n| <= mnmax:
+            indices_to_keep = np.where((np.abs(m_for_lambda_full) <= mnmax) & (np.abs(n_for_lambda_full) <= mnmax))[0]
+            m_for_lambda = m_for_lambda_full[indices_to_keep]
+            n_for_lambda = n_for_lambda_full[indices_to_keep]
+            x_scale = compute_x_scale(m_for_lambda, n_for_lambda)
+
+            # If the lambda dofs are exactly 0, jax gives NaN gradients, so
+            # initialize to a small nonzero value:
+            # lambda_dofs = np.zeros(len(m_for_lambda)) + 1e-10
+            # lambda_dofs = np.zeros(len(m_for_lambda))
+            # For the TRF algorithm, the initial trust region radius is determined in part
+            # by the scale of the initial guess. If |x0| is very small, the initial
+            # trust region is very small, leading to tiny steps and no progress. So, set one
+            # element to a value that is not too small:
+            # lambda_dofs[0] = 0.01
+            lambda_dofs = np.zeros(len(m_for_lambda))
+            if Fourier_continuation and mnmax > 1:
+                # Copy lambda_dofs_optimized from the previous Fourier
+                # continuation step to the new set of dofs:
+                for j_new, (m_new, n_new) in enumerate(zip(m_for_lambda, n_for_lambda)):
+                    for j_old, (m_old, n_old) in enumerate(zip(previous_m_for_lambda, previous_n_for_lambda)):
+                        if (m_new == m_old) and (n_new == n_old):
+                            lambda_dofs[j_new] = lambda_dofs_optimized[j_old]
+
+            if method_is_lstsq:
+                jac_fn = jax.jit(jax.jacfwd(residuals_func))
+                if verbose:
+                    verbose_for_least_squares = 2
+                else:
+                    verbose_for_least_squares = 0
+
+                res = least_squares(
+                    residuals_func,
+                    lambda_dofs,
+                    jac=jac_fn,
+                    method=method,
+                    verbose=verbose_for_least_squares,
+                    max_nfev=maxiter,
+                    args=(m_for_lambda, n_for_lambda, x_scale)
+                )
+            else:
+                grad_objective = jax.jit(jax.grad(scalar_objective))
+                if verbose:
+                    objective_to_use = scalar_objective_with_printing
+                else:
+                    objective_to_use = scalar_objective
+
+                # objective_to_use = scalar_objective
+                res = minimize(
+                    objective_to_use,
+                    lambda_dofs,
+                    jac=grad_objective,
+                    method=method,
+                    options={"maxiter": maxiter, "disp": verbose},
+                    args=(m_for_lambda, n_for_lambda, x_scale)
+                )
+
+            lambda_dofs_optimized = res.x
+            previous_m_for_lambda = m_for_lambda
+            previous_n_for_lambda = n_for_lambda
+            compute_RZ_errors(lambda_dofs_optimized, m_for_lambda, n_for_lambda, x_scale)
+            # np.set_printoptions(linewidth=400)
+            # print("m, n, lambda dofs:")
+            # for m_val, n_val, lambda_val in zip(m_for_lambda, n_for_lambda, lambda_dofs_optimized):
+            #     print(f"{m_val:3d} {n_val:3d} {lambda_val:12.5e}")
+
         elapsed_time = time.time() - start_time
         if verbose:
             print(res)
@@ -2430,9 +2499,9 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         # Update surface with optimized parameters
         lambda_dofs_optimized = res.x
-        theta_optimized = lambda_Fourier_to_grid(lambda_dofs_optimized)
-        final_objective = scalar_objective(lambda_dofs_optimized)
-        self.x = compute_r2mn_and_z2mn(lambda_dofs_optimized)
+        theta_optimized = lambda_Fourier_to_grid(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+        final_objective = scalar_objective(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+        self.x = compute_r2mn_and_z2mn(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
 
         ##########################################################################################################
         if plot:
@@ -2458,7 +2527,13 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             )
             surf_theta2_for_plotting.x = self.x
 
-            plt.figure(figsize=(8, 8))
+            figsize = (14.5, 8.1)
+            plt.figure(figsize=figsize)
+
+            n_rows = 1
+            n_cols = 2
+
+            plt.subplot(n_rows, n_cols, 1)
             cmap = plt.get_cmap("jet")
             for j_phi in range(n_phi):
                 color = cmap(float(j_phi) / n_phi)
@@ -2466,11 +2541,89 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
             plt.xlabel('theta1')
             plt.ylabel('lambda')
+
+            plt.subplot(n_rows, n_cols, 2)
+            plt.semilogy(
+                np.sqrt(m_for_lambda_full**2 + n_for_lambda_full**2),
+                np.abs(lambda_dofs_optimized  * x_scale_full),
+                '.g',
+            )
+            plt.xlabel('sqrt(m^2 + n^2)')
+            plt.ylabel('Mode amplitudes of lambda')
+            plt.ylim(1e-16, 2e1)
+            # np.set_printoptions(linewidth=400)
+            # print("m, n, lambda dofs:")
+            # for m_val, n_val, lambda_val in zip(m_for_lambda_full, n_for_lambda_full, lambda_dofs_optimized):
+            #     print(f"{m_val:3d} {n_val:3d} {lambda_val:12.5e}")
+
+            plt.tight_layout()
+
+            plt.figure(figsize=figsize)
+
+            n_rows = 2
+            n_cols = 3
+
+            plt.subplot(n_rows, n_cols, 1)
+            theta2_1d = lambda_Fourier_to_grid(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+            theta2_2d = theta2_1d.reshape((n_phi, n_theta))
+            plt.contourf(phi2d, theta2d, theta2_2d - theta2d, 25)
+            plt.colorbar()
+            plt.xlabel('phi')
+            plt.ylabel('theta1')
+            plt.title('lambda')
+
+            plt.subplot(n_rows, n_cols, 2)
+            theta2_1d = lambda_Fourier_to_grid(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+            theta2_2d = theta2_1d.reshape((n_phi, n_theta))
+            plt.contourf(phi2d, theta2d, theta2_2d, 25)
+            plt.colorbar()
+            plt.xlabel('phi')
+            plt.ylabel('theta1')
+            plt.title('theta2 after optimization')
+
+            plt.subplot(n_rows, n_cols, 3)
+            mask = np.logical_and(np.abs(m_for_lambda_full) <= 1, np.abs(n_for_lambda_full) <= 1)
+            theta2_1d = lambda_Fourier_to_grid(lambda_dofs_optimized[mask], m_for_lambda_full[mask], n_for_lambda_full[mask], x_scale_full[mask])
+            theta2_2d = theta2_1d.reshape((n_phi, n_theta))
+            plt.contourf(phi2d, theta2d, theta2_2d - theta2d, 25)
+            plt.colorbar()
+            plt.xlabel('phi')
+            plt.ylabel('theta1')
+            plt.title('lambda, |m|,|n| <= 1')
+
+            plt.subplot(n_rows, n_cols, 4)
+            theta2_1d = lambda_Fourier_to_grid(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+            theta2_2d = theta2_1d.reshape((n_phi, n_theta))
+            plt.contourf(phi2d, theta2d, theta2_2d, 25)
+            plt.colorbar()
+            plt.xlabel('phi')
+            plt.ylabel('theta1')
+            plt.title('theta2 after optimization, |m|,|n| <= 1')
+
+            plt.subplot(n_rows, n_cols, 5)
+            mask = np.logical_and(np.abs(m_for_lambda_full) <= 1, np.abs(n_for_lambda_full) <= 2)
+            theta2_1d = lambda_Fourier_to_grid(lambda_dofs_optimized[mask], m_for_lambda_full[mask], n_for_lambda_full[mask], x_scale_full[mask])
+            theta2_2d = theta2_1d.reshape((n_phi, n_theta))
+            plt.contourf(phi2d, theta2d, theta2_2d - theta2d, 25)
+            plt.colorbar()
+            plt.xlabel('phi')
+            plt.ylabel('theta1')
+            plt.title('lambda, |m|,|n| <= 2')
+
+            plt.subplot(n_rows, n_cols, 6)
+            theta2_1d = lambda_Fourier_to_grid(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+            theta2_2d = theta2_1d.reshape((n_phi, n_theta))
+            plt.contourf(phi2d, theta2d, theta2_2d, 25)
+            plt.colorbar()
+            plt.xlabel('phi')
+            plt.ylabel('theta1')
+            plt.title('theta2 after optimization, |m|,|n| <= 2')
+
             plt.tight_layout()
 
             # Create a layout with the left half split into a 2x2 grid and a
             # single subplot occupying the entire right half.
-            fig = plt.figure(figsize=(14.5, 8.1))
+            fig = plt.figure(figsize=figsize)
             gs = GridSpec(2, 3, figure=fig, width_ratios=[1, 1, 2])
 
             # Left half: 2x2 small subplots
@@ -2512,14 +2665,14 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
             plt.semilogy(
                 np.sqrt(surf_theta1_for_plotting.m**2 + surf_theta1_for_plotting.n**2),
-                surf_theta1_for_plotting.x / minor_radius,
+                np.abs(surf_theta1_for_plotting.x / minor_radius),
                 '+',
                 color=colors[0],
                 label='theta1'
             )
             plt.semilogy(
                 np.sqrt(surf_theta2_for_plotting.m**2 + surf_theta2_for_plotting.n**2),
-                surf_theta2_for_plotting.x / minor_radius,
+                np.abs(surf_theta2_for_plotting.x / minor_radius),
                 'x',
                 color=colors[1],
                 label='theta2'
@@ -2527,7 +2680,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             plt.legend(loc=0)
             ax_big.set_xlabel('sqrt(m^2 + n^2)')
             ax_big.set_ylabel('(rc or zs) / minor radius')
-            ax_big.set_ylim(5e-7, 2e1)
+            ax_big.set_ylim(1e-16, 2e1)
 
             plt.suptitle(title_str, fontsize=12)
             plt.tight_layout()
@@ -2537,7 +2690,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
             n_rows = 2
             n_cols = 4
-            fig, axes = plt.subplots(n_rows, n_cols, figsize=(14.5, 8.1), subplot_kw={'aspect': 'equal'})
+            fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, subplot_kw={'aspect': 'equal'})
 
             axes = axes.flatten()
 

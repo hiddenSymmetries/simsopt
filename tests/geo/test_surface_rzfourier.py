@@ -5,6 +5,7 @@ from qsc import Qsc
 import numpy as np
 from monty.tempfile import ScratchDir
 from scipy.special import jv as bessel_J
+from scipy.interpolate import CubicSpline
 
 from simsopt import save, load
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier, SurfaceRZPseudospectral
@@ -1140,32 +1141,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
                     new_Z = new_gamma[:, :, 2]
                     np.testing.assert_allclose(old_R, np.roll(new_R, half_ntheta, axis=1))
                     np.testing.assert_allclose(old_Z, np.roll(new_Z, half_ntheta, axis=1), atol=1e-13)
-                    
-    def test_condense_spectrum(self):
-        """Test the condense_spectrum() and spectral_width() methods."""
-        # filename = TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres'
-        filename = TEST_DIR / 'input.li383_low_res'
-        for method in ['trf', 'BFGS', 'lm']:
-            power = 2
-            print(f"Testing condense_spectrum() with method {method}")
-            surf = SurfaceRZFourier.from_vmec_input(filename)
-            surf.change_resolution(mpol=10, ntor=8)
-            original_spectral_width_1 = surf.spectral_width(power=power)
-            original_spectral_width_2, final_spectral_width_2 = surf.condense_spectrum_lambdaSpectral(
-                method=method, maxiter=15, power=power, verbose=True, plot=True, show=True
-            )
-            print("Minor radius after condensing:", surf.minor_radius())
-            final_spectral_width_1 = surf.spectral_width(power=power)
-            print("Original spectral width 1:", original_spectral_width_1)
-            print("Original spectral width 2:", original_spectral_width_2)
-            print("Final spectral width 1:", final_spectral_width_1)
-            print("Final spectral width 2:", final_spectral_width_2)
-            np.testing.assert_allclose(original_spectral_width_1, original_spectral_width_2)
-            # There is a slight difference in the 2 methods for computing the
-            # final spectral width due to a slight change in the minor radius
-            # associated with discretization error.
-            np.testing.assert_allclose(final_spectral_width_1, final_spectral_width_2, rtol=2e-5)
-            np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
 
     def test_condense_spectrum_circle(self):
         """Test the condense_spectrum() method for a circle.
@@ -1204,8 +1179,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
             np.testing.assert_allclose(surf.major_radius(), major_radius)
 
             original_spectral_width_1 = surf.spectral_width(power=power)
-            original_spectral_width_2, final_spectral_width_2 = surf.condense_spectrum_lambdaSpectral(
-                n_theta=46, n_phi=2, method=method, power=power, verbose=True, plot=True, show=True
+            original_spectral_width_2, final_spectral_width_2 = surf.condense_spectrum_Fourier_continuation(
+                n_theta=46, n_phi=2, method=method, power=power, verbose=True, plot=True, show=False
             )
             print("Minor radius after condensing:", surf.minor_radius())
             final_spectral_width_1 = surf.spectral_width(power=power)
@@ -1229,6 +1204,149 @@ class SurfaceRZFourierTests(unittest.TestCase):
             x_should_be[1] = minor_radius
             x_should_be[mpol + 1] = minor_radius
             np.testing.assert_allclose(surf.x, x_should_be, atol=1e-5)
+
+    def test_condense_spectrum_theta_origin(self):
+        """Test the condense_spectrum() method for eliminating unnecessary
+        toroidal variation in the origin of the theta coordinate."""
+        for method in ['trf', 'BFGS', 'lm']:
+            power = 2
+            print(f"Testing condense_spectrum() with method {method}")
+
+            # Create a circular-cross-section axisymmetric torus, but with
+            # a toroidally varying shift in the poloidal angle:
+            major_radius = 10.0
+            minor_radius = 1.5
+            nfp = 5
+
+            mpol = 2
+            ntor = 10
+            n_theta = 32
+            n_phi = 33
+            surf = SurfaceRZFourier.from_nphi_ntheta(
+                mpol=mpol,
+                ntor=ntor,
+                nphi=n_phi,
+                ntheta=n_theta,
+                nfp=nfp,    
+                range="half period",
+            )
+            gamma = np.zeros((n_phi, n_theta, 3))
+            theta = surf.quadpoints_theta * 2 * np.pi
+            for j_phi in range(n_phi):
+                phi = surf.quadpoints_phi[j_phi] * 2 * np.pi
+                theta0 = 1.7 * np.sin(nfp * phi)
+                R = major_radius + minor_radius * np.cos(theta - theta0)
+                Z = minor_radius * np.sin(theta - theta0)
+                X = R * np.cos(phi)
+                Y = R * np.sin(phi)
+                gamma[j_phi, :, 0] = X
+                gamma[j_phi, :, 1] = Y
+                gamma[j_phi, :, 2] = Z
+
+            surf.least_squares_fit(gamma)
+            # surf2 = surf.copy(quadpoints_phi=np.linspace(0, 1, 300)[:-1], quadpoints_theta=np.linspace(0, 1, 80)[:-1])
+            # surf.to_vtk("test_condense_spectrum_initial")
+            # surf2.to_vtk("test_condense_spectrum_initial_full_torus")
+            # surf2.plot()
+
+            original_spectral_width_1 = surf.spectral_width(power=power)
+            original_spectral_width_2, final_spectral_width_2 = surf.condense_spectrum_Fourier_continuation(
+                method=method, maxiter=15, power=power, verbose=True, plot=True, show=False
+            )
+            print("Minor radius after condensing:", surf.minor_radius())
+            final_spectral_width_1 = surf.spectral_width(power=power)
+            print("Original spectral width 1:", original_spectral_width_1)
+            print("Original spectral width 2:", original_spectral_width_2)
+            print("Final spectral width 1:", final_spectral_width_1)
+            print("Final spectral width 2:", final_spectral_width_2)
+            np.testing.assert_allclose(original_spectral_width_1, original_spectral_width_2)
+            # There is a slight difference in the 2 methods for computing the
+            # final spectral width due to a slight change in the minor radius
+            # associated with discretization error.
+            np.testing.assert_allclose(final_spectral_width_1, final_spectral_width_2, rtol=2e-5)
+            np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
+            np.testing.assert_allclose(final_spectral_width_1, 1.0)
+            np.testing.assert_allclose(surf.minor_radius(), minor_radius)
+            np.testing.assert_allclose(surf.major_radius(), major_radius)
+            # Compare to the expected Fourier coefficients for a circle in the
+            # simple geometric poloidal angle:
+            x_should_be = np.zeros_like(surf.x)
+            x_should_be[0] = major_radius
+            x_should_be[2 * ntor + 1] = minor_radius  # rc(m=1, n=0)
+            x_should_be[(len(surf.x) - 1) // 2 + 2 * ntor + 1] = minor_radius  # zs(m=1, n=0)
+            np.testing.assert_allclose(surf.x, x_should_be, atol=1e-8)
+
+    def test_condense_spectrum(self):
+        """Test the condense_spectrum() and spectral_width() methods."""
+        for method in ['trf', 'BFGS', 'lm']:
+            power = 2
+            print(f"Testing condense_spectrum() with method {method}")
+
+            # Make a surface for which the poloidal angle is the geometric angle
+            # arctan(Z/(R - major_radius)), which is far from the spectrally
+            # compressed angle:
+            major_radius = 10.0
+            minor_radius = 1.5
+            axis_excursion = 0.9
+            nfp = 5
+
+            n_theta = 32
+            n_phi = 33
+            surf = SurfaceRZFourier.from_nphi_ntheta(
+                mpol=5,
+                ntor=5,
+                nphi=n_phi,
+                ntheta=n_theta,
+                nfp=nfp,    
+                range="half period",
+            )
+            gamma = np.zeros((n_phi, n_theta, 3))
+            theta = surf.quadpoints_theta * 2 * np.pi
+            for j_phi in range(n_phi):
+                phi = surf.quadpoints_phi[j_phi] * 2 * np.pi
+                R_original_theta = major_radius + axis_excursion * np.cos(nfp * phi) + minor_radius * np.cos(theta)
+                Z_original_theta = axis_excursion * np.sin(nfp * phi) + minor_radius * np.sin(theta)
+                new_theta = np.arctan2(Z_original_theta, R_original_theta - major_radius)
+                perm = np.argsort(new_theta)
+                new_theta = new_theta[perm]
+                R_original_theta = R_original_theta[perm]
+                Z_original_theta = Z_original_theta[perm]
+                new_theta_big = np.concatenate([new_theta, [new_theta[0] + 2 * np.pi]])
+                R_original_theta = np.concatenate([R_original_theta, [R_original_theta[0]]])
+                Z_original_theta = np.concatenate([Z_original_theta, [Z_original_theta[0]]])
+                spline_R = CubicSpline(new_theta_big, R_original_theta, bc_type='periodic')
+                spline_Z = CubicSpline(new_theta_big, Z_original_theta, bc_type='periodic')
+                R = spline_R(theta)
+                Z = spline_Z(theta)
+
+                X = R * np.cos(phi)
+                Y = R * np.sin(phi)
+                gamma[j_phi, :, 0] = X
+                gamma[j_phi, :, 1] = Y
+                gamma[j_phi, :, 2] = Z
+
+            surf.least_squares_fit(gamma)
+            # surf2 = surf.copy(quadpoints_phi=np.linspace(0, 1, 300)[:-1], quadpoints_theta=np.linspace(0, 1, 80)[:-1])
+            # surf.to_vtk("test_condense_spectrum_initial")
+            # surf2.to_vtk("test_condense_spectrum_initial_full_torus")
+            # surf2.plot()
+
+            original_spectral_width_1 = surf.spectral_width(power=power)
+            original_spectral_width_2, final_spectral_width_2 = surf.condense_spectrum_Fourier_continuation(
+                method=method, maxiter=15, power=power, verbose=True, plot=True, show=False
+            )
+            print("Minor radius after condensing:", surf.minor_radius())
+            final_spectral_width_1 = surf.spectral_width(power=power)
+            print("Original spectral width 1:", original_spectral_width_1)
+            print("Original spectral width 2:", original_spectral_width_2)
+            print("Final spectral width 1:", final_spectral_width_1)
+            print("Final spectral width 2:", final_spectral_width_2)
+            np.testing.assert_allclose(original_spectral_width_1, original_spectral_width_2)
+            # There is a slight difference in the 2 methods for computing the
+            # final spectral width due to a slight change in the minor radius
+            # associated with discretization error.
+            np.testing.assert_allclose(final_spectral_width_1, final_spectral_width_2, rtol=2e-5)
+            np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
 
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):
