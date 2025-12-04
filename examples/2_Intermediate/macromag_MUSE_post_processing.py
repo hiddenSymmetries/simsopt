@@ -20,7 +20,8 @@ mu_oa = 1.15
 # High resolution for smooth surface plots
 nphi = 64
 ntheta = nphi
-nfp = 2  # number of field periods for MUSE
+## USING NFP=1 since grid from Towered MUSE setup is already set..... i.e no repeating portion....  -> Any comments or other points on this let me know. 
+nfp = 1  # number of field periods for MUSE
 
 
 def unit(v, eps=1e-30):
@@ -31,25 +32,6 @@ def angle_deg(a, b, eps=1e-30):
     an, bn = unit(a, eps), unit(b, eps)
     c = np.clip(np.sum(an * bn, axis=1), -1.0, 1.0)
     return np.degrees(np.arccos(c))
-
-
-def surface_from_focus(path):
-    s = SurfaceRZFourier.from_focus(
-        path,
-        nphi=nphi,
-        ntheta=ntheta,
-        range="full torus",
-    )
-
-    pts = s.gamma().reshape(-1, 3)
-    try:
-        n_hat = s.unitnormal().reshape(-1, 3)
-    except AttributeError:
-        n_hat = unit(s.normal().reshape(-1, 3))
-
-    shape = (nphi, ntheta)
-    return s, pts, n_hat, shape
-
 
 def Bn_from_dipoles(centers, moments, pts, normals):
     dip = DipoleField(centers, moments)
@@ -65,7 +47,7 @@ tiles = muse2tiles(muse_grid_filename, (mu_ea, mu_oa))
 M0 = tiles.M_rem[:, None] * tiles.u_ea
 
 # Full physical dimensions and volumes
-full_sizes = 2.0 * tiles.size  # size stores half lengths
+full_sizes = tiles.size 
 vol = np.prod(full_sizes, axis=1)
 
 # Per tile box sizes for VTK glyphs
@@ -196,8 +178,8 @@ print(f"max  = {np.abs(change_Bn_unique).max():.12e}")
 print(f"rms  = {math.sqrt(np.mean(change_Bn_unique ** 2)):.12e}")
 
 # f_B evaluation on 64 x 64 surface grid (half-period wedge)
-B_max = 1.465
-mu0 = 4 * np.pi * 1e-7
+B_max = 1.465 # Using same B_max as was used in MUSE stuff
+mu0 = 4 * np.pi * 1e-14
 M_max = B_max / mu0
 
 m_maxima = vol * M_max
@@ -217,7 +199,7 @@ B_coils_bn = bs.B().reshape((nphi_grid, ntheta_grid, 3))
 NORM_BN_grid = NORM_BN.reshape((nphi_grid, ntheta_grid, 3))
 Bnormal_coils_bn = np.sum(B_coils_bn * NORM_BN_grid, axis=2)
 
-# Total B·n = (B_coils + B_magnets)·n for each case
+# Total B*n = (B_coils + B_magnets)*n for each case
 Btotal_unc_grid = Bnormal_coils_bn + Bn_uncoupled_grid
 Btotal_mm_grid = Bnormal_coils_bn + Bn_mag_only_grid
 Btotal_mc_grid = Bnormal_coils_bn + Bn_mag_coil_grid
@@ -242,7 +224,7 @@ print(
     f"{', '.join(extra_error_data.keys())}"
 )
 
-# Summary of total B·n error on unique half-period wedge
+# HEre we have the summary of total Bn error on unique half-period wedge
 Btotal_unc_unique = Btotal_unc_grid[:nphi_unique, :].ravel()
 Btotal_mm_unique = Btotal_mm_grid[:nphi_unique, :].ravel()
 Btotal_mc_unique = Btotal_mc_grid[:nphi_unique, :].ravel()
@@ -257,7 +239,6 @@ summarize_error("Uncoupled", Btotal_unc_unique)
 summarize_error("Magnet-magnet only", Btotal_mm_unique)
 summarize_error("Magnet-magnet + coil", Btotal_mc_unique)
 
-nfp = 2
 qphi = 2 * nphi
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
@@ -311,11 +292,11 @@ b_dipole_mag_coil.set_points(pts_fb)
 fB_mag_coil = SquaredFlux(s_plot, b_dipole_mag_coil, -Bnormal).J()
 
 print("\nf_B on Nphi = Ntheta = ", nphi)
-print("Case (i) MUSE solution without coupling:")
+print("case (i) MUSE solution without coupling:")
 print(f"f_B (uncoupled M0)                 = {fB_uncoupled:.12e}")
-print("\nCase (ii) magnet magnet coupling only (no coil coupling in macromag solve):")
+print("\ncase (ii) magnet magnet coupling only (no coil coupling in macromag solve):")
 print(f"f_B (magnet magnet only)           = {fB_mag_only:.12e}")
-print("\nCase (iii) magnet magnet and coil coupling:")
+print("\ncase (iii) magnet magnet and coil coupling:")
 print(f"f_B (magnet magnet + coil)         = {fB_mag_coil:.12e}")
 
 rel_change_mag_only = (fB_uncoupled - fB_mag_only) / fB_uncoupled * 100.0
