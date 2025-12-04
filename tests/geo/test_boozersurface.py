@@ -8,7 +8,6 @@ from simsopt.geo import SurfaceXYZTensorFourier, SurfaceRZFourier
 from simsopt.geo.surfaceobjectives import ToroidalFlux, Area
 from simsopt.configs.zoo import get_data
 from .surface_test_helpers import get_surface, get_exact_surface, get_boozer_surface
-from simsopt.util import in_github_actions
 
 # Fixed random seed for reproducibility across platforms
 RANDOM_SEED = 42
@@ -309,8 +308,8 @@ class BoozerSurfaceTests(unittest.TestCase):
         assert res['success']
 
         # Newton method diverges sometimes in ubuntu24 CI, returns a nonsense surface.
-        if not in_github_actions:
-            assert not boozer_surface.surface.is_self_intersecting(thetas=100)
+        # if not in_github_actions:
+        assert not boozer_surface.surface.is_self_intersecting(thetas=100)
 
         # For the stellsym case we have z(0, 0) = y(0, 0) = 0. For the not
         # stellsym case, we enforce z(0, 0) = 0, but expect y(0, 0) \neq 0
@@ -321,16 +320,16 @@ class BoozerSurfaceTests(unittest.TestCase):
         else:
             assert np.abs(gammazero[1]) > 1e-6
 
-        if not in_github_actions:
-            if surfacetype == 'SurfaceXYZTensorFourier':
-                assert np.linalg.norm(res['residual']) < 1e-9
+        # if not in_github_actions:
+        if surfacetype == 'SurfaceXYZTensorFourier':
+            assert np.linalg.norm(res['residual']) < 1e-9
 
-            print(ar_target, ar.J())
-            print(res['residual'][-10:])
-            if surfacetype == 'SurfaceXYZTensorFourier' or second_stage == 'newton_exact':
-                assert np.abs(ar_target - ar.J()) < 1e-9
-            else:
-                assert np.abs(ar_target - ar.J()) < 1e-4
+        print(ar_target, ar.J())
+        print(res['residual'][-10:])
+        if surfacetype == 'SurfaceXYZTensorFourier' or second_stage == 'newton_exact':
+            assert np.abs(ar_target - ar.J()) < 1e-9
+        else:
+            assert np.abs(ar_target - ar.J()) < 1e-4
 
     def test_boozer_serialization(self):
         """
@@ -404,15 +403,15 @@ class BoozerSurfaceTests(unittest.TestCase):
         # Known issue on Ubuntu24 CI: the Newton method diverges sometimes 
         # and returns a nonsense surface. So we are skipping these checks on the CI
         # for now. Newton methods are sensitive! 
-        if not in_github_actions:
-            assert res_vec['success'], "Vectorized implementation failed to converge"
-            assert res_nonvec['success'], "Non-vectorized implementation failed to converge"
+        # if not in_github_actions:
+        assert res_vec['success'], "Vectorized implementation failed to converge"
+        assert res_nonvec['success'], "Non-vectorized implementation failed to converge"
+    
+        # Both should achieve small residuals (< 1e-8)
+        assert residual_vec < 1e-8, f"Vectorized residual too large: {residual_vec}"
+        assert residual_nonvec < 1e-8, f"Non-vectorized residual too large: {residual_nonvec}"
         
-            # Both should achieve small residuals (< 1e-8)
-            assert residual_vec < 1e-8, f"Vectorized residual too large: {residual_vec}"
-            assert residual_nonvec < 1e-8, f"Non-vectorized residual too large: {residual_nonvec}"
-            
-            assert rel_diff < 0.05, f"Iota values differ by more than 5%: {iota_vec} vs {iota_nonvec}"
+        assert rel_diff < 0.05, f"Iota values differ by more than 5%: {iota_vec} vs {iota_nonvec}"
 
     def subtest_convergence_cpp_and_notcpp_same(self, vectorize):
         """
