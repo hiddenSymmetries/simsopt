@@ -2,6 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from simsopt.geo import SurfaceRZFourier
+from simsopt.field import DipoleField
+
 outdir = Path("PM4Stell_angle{angle}_nb{nBacktracking)_na{nAdjacent}")
 
 save_dir = outdir / "plots"
@@ -64,12 +67,12 @@ if R2_files:
         else:
             algo_label = R2_suffix
 
-        if (algo_label == "ArbVec_backtracking"): 
+        if (algo_label == "ArbVec_backtracking"):
             plt.semilogy(iterations, R2_plot, label=fr'$f_B$ (GPMO (no coupling))')
-            plt.semilogy(iterations, Bn_plot, label=fr'$<|Bn|>$ (GPMO (no coupling))')
-        else: 
+            #plt.semilogy(iterations, Bn_plot, label=fr'$<|Bn|>$ (GPMO (no coupling))')
+        else:
             plt.semilogy(iterations, R2_plot, label=fr'$f_B$ (MacroMag GPMO)')
-            plt.semilogy(iterations, Bn_plot, label=fr'$<|Bn|>$ (MacroMag GPMO)')
+            #plt.semilogy(iterations, Bn_plot, label=fr'$<|Bn|>$ (MacroMag GPMO)')
 
     plt.grid(True)
     plt.xlabel('K')
@@ -104,9 +107,9 @@ if len(npz_files) >= 2:
             else:
                 diffs.append(np.linalg.norm(v1 - v2))
         diffs = np.array(diffs)
-        diffs = diffs[diffs > 0]  # clip out zeros or near-zeros
+        diffs = diffs[diffs > 0]
 
-        # --- Linear scale histogram ---
+        # Linear scale histogram 
         plt.figure()
         plt.hist(diffs, bins=200, alpha=0.7)
         plt.xlabel(r"$|\Delta M| = \|M_i - M'_i\|_2$ [A·m$^2$]")
@@ -118,7 +121,7 @@ if len(npz_files) >= 2:
         plt.close()
         print(f"Saved linear-scale histogram to {fname_lin}")
 
-        # --- Log scale histogram ---
+        # Log scale histogram 
         plt.figure()
         plt.hist(diffs, bins=200, alpha=0.7)
         plt.xlabel(r"$|\Delta M| = \|M_i - M'_i\|_2$ [A·m$^2$]")
@@ -130,6 +133,92 @@ if len(npz_files) >= 2:
         plt.savefig(fname_log, dpi=180)
         plt.close()
         print(f"Saved log-scale histogram to {fname_log}")
-        
 
+        # Trying to COmpute max B*n error betwen uncoupled and coupled version
+        full_data = {}
+        for f in npz_files:
+            key = f.stem.split("dipoles_final_")[-1]
+            full_data[key] = np.load(f)
 
+        if len(full_data) == 2:
+            (name1, arr1), (name2, arr2) = full_data.items()
+
+            def is_coupled(name):
+                return "macromag" in name.lower()
+
+            # Identify uncoupled (classical GPMO ArbVec) vs coupled (MacroMag GPMO)
+            if is_coupled(name1) == is_coupled(name2):
+                print("Could not uniquely identify uncoupled vs coupled solution from filenames.")
+            else:
+                if is_coupled(name1):
+                    name_cpl, arr_cpl = name1, arr1
+                    name_unc, arr_unc = name2, arr2
+                else:
+                    name_cpl, arr_cpl = name2, arr2
+                    name_unc, arr_unc = name1, arr1
+
+                xyz_cpl = arr_cpl["xyz"]
+                xyz_unc = arr_unc["xyz"]
+                if not np.allclose(xyz_cpl, xyz_unc):
+                    raise ValueError("xyz grids differ between coupled and uncoupled solutions.")
+
+                m_cpl = arr_cpl["m"]
+                m_unc = arr_unc["m"]
+                nfp = int(arr_cpl["nfp"])
+                coordinate_flag = int(arr_cpl["coordinate_flag"])
+                m_maxima = arr_cpl["m_maxima"]
+
+                # Build a viewing surface from input.muse
+                TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+                surface_filename = TEST_DIR / "input.muse"
+
+                min_res = 164
+                nphi_view = min_res
+                ntheta_view = min_res
+                quad_phi = np.linspace(0, 1, nphi_view, endpoint=False)
+                quad_theta = np.linspace(0, 1, ntheta_view, endpoint=False)
+
+                s_view = SurfaceRZFourier.from_focus(
+                    surface_filename,
+                    quadpoints_phi=quad_phi,
+                    quadpoints_theta=quad_theta
+                )
+
+                pts = s_view.gamma().reshape((-1, 3))
+                n_hat = s_view.unitnormal().reshape(nphi_view, ntheta_view, 3)
+
+                # Build dipole fields for uncoupled and coupled solutions
+                b_unc = DipoleField(
+                    xyz_unc,
+                    m_unc.reshape(-1),
+                    nfp=nfp,
+                    coordinate_flag=coordinate_flag,
+                    m_maxima=m_maxima,
+                )
+                b_cpl = DipoleField(
+                    xyz_cpl,
+                    m_cpl.reshape(-1),
+                    nfp=nfp,
+                    coordinate_flag=coordinate_flag,
+                    m_maxima=m_maxima,
+                )
+
+                b_unc.set_points(pts)
+                b_cpl.set_points(pts)
+
+                B_unc = b_unc.B().reshape(nphi_view, ntheta_view, 3)
+                B_cpl = b_cpl.B().reshape(nphi_view, ntheta_view, 3)
+
+                Bn_unc = np.sum(B_unc * n_hat, axis=2)
+                Bn_cpl = np.sum(B_cpl * n_hat, axis=2)
+
+                Bn_diff = Bn_unc - Bn_cpl
+
+                ref_B = 0.15
+                max_rel = float(np.max(np.abs(Bn_diff))) / ref_B
+                rms_rel = float(np.sqrt(np.mean(Bn_diff**2))) / ref_B
+
+                print(f"Algorithm uncoupled: {name_unc}")
+                print(f"Algorithm coupled:   {name_cpl}")
+                print(f"Max |Bn_uncoupled - Bn_coupled| / 0.15 = {max_rel:.3e}")
+                print(f"RMS |Bn_uncoupled - Bn_coupled| / 0.15 = {rms_rel:.3e}")
