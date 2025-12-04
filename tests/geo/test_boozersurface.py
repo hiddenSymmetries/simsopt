@@ -287,7 +287,8 @@ class BoozerSurfaceTests(unittest.TestCase):
             tol=1e-12, maxiter=700, constraint_weight=100/cw, iota=iota, G=G,
             vectorize=vectorize)
         print('Residual norm after LBFGS', res['iter'], np.sqrt(2*res['fun']))
-
+        print('Vectorize', vectorize)
+        
         boozer_surface.recompute_bell()
         if second_stage == 'ls':
             res = boozer_surface.minimize_boozer_penalty_constraints_ls(
