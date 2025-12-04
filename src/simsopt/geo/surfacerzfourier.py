@@ -2241,13 +2241,13 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         return initial_objective, final_objective
 
-    def condense_spectrum_Fourier_continuation(
+    def condense_spectrum(
         self,
         n_theta=None,
         n_phi=None,
         power=2,
         maxiter=None,
-        method="lm",
+        method="trf",
         Fourier_continuation=True,
         verbose=True,
         plot=False,
@@ -2359,10 +2359,17 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             lsq_for_Z_matrix = jnp.sin(m_for_Z[None, :] * theta2_1d[:, None] - nfp * n_for_Z[None, :] * phi_1d[:, None])
 
             # Compute least-squares fit for Rmnc and Zmns with respect to theta2:
-            rcond = None
+            # rcond = None
             # Rmnc_new = jnp.linalg.lstsq(lsq_for_R_matrix, R_to_fit, rcond=rcond)[0]
             # Zmns_new = jnp.linalg.lstsq(lsq_for_Z_matrix, Z_to_fit, rcond=rcond)[0]
-            # Solve least-squares via QR for better numerical stability
+
+            # # Solve the normal equations: x = solve(A.T @ A, A.T @ b)
+            # Rmnc_new = jnp.linalg.solve(lsq_for_R_matrix.T @ lsq_for_R_matrix, 
+            #                             lsq_for_R_matrix.T @ R_to_fit)
+            # Zmns_new = jnp.linalg.solve(lsq_for_Z_matrix.T @ lsq_for_Z_matrix, 
+            #                             lsq_for_Z_matrix.T @ Z_to_fit)
+            
+            # Solve least-squares via QR:
             Q_R, R_R = jnp.linalg.qr(lsq_for_R_matrix, mode="reduced")
             Rmnc_new = jnp.linalg.solve(R_R, Q_R.T @ R_to_fit)
 
@@ -2381,13 +2388,12 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             Z_error = (lsq_for_Z_matrix @ Zmns_new - Z_to_fit) / minor_radius
             max_error = max(np.max(np.abs(R_error)), np.max(np.abs(Z_error)))
             print(f"(Max error in fitting R or Z of points) / minor_radius: {max_error:.3e}")
-            return R_error, Z_error
+            return max_error
 
         @jax.jit
         def residuals_func(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
             """Objective function for spectral width."""
             x = compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
-            # numerator = jnp.sum(x**2 * (surf.m**2 + surf.n**2)**power_for_objective)
             residuals = (x / minor_radius) * (surf.m**2 + surf.n**2)**(power * 0.5)
             # The first residual is always zero (since m=n=0) so there is no need to include it:
             return residuals[1:]
@@ -2486,7 +2492,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             lambda_dofs_optimized = res.x
             previous_m_for_lambda = m_for_lambda
             previous_n_for_lambda = n_for_lambda
-            compute_RZ_errors(lambda_dofs_optimized, m_for_lambda, n_for_lambda, x_scale)
+            max_RZ_error = compute_RZ_errors(lambda_dofs_optimized, m_for_lambda, n_for_lambda, x_scale)
             # np.set_printoptions(linewidth=400)
             # print("m, n, lambda dofs:")
             # for m_val, n_val, lambda_val in zip(m_for_lambda, n_for_lambda, lambda_dofs_optimized):
@@ -2727,7 +2733,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             if show:
                 plt.show()
 
-        return initial_objective, final_objective
+        return initial_objective, final_objective, max_RZ_error
 
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,

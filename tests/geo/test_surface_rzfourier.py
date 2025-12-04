@@ -1179,7 +1179,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
             np.testing.assert_allclose(surf.major_radius(), major_radius)
 
             original_spectral_width_1 = surf.spectral_width(power=power)
-            original_spectral_width_2, final_spectral_width_2 = surf.condense_spectrum_Fourier_continuation(
+            original_spectral_width_2, final_spectral_width_2, max_RZ_error = surf.condense_spectrum(
                 n_theta=46, n_phi=2, method=method, power=power, verbose=True, plot=True, show=False
             )
             print("Minor radius after condensing:", surf.minor_radius())
@@ -1194,6 +1194,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
             # associated with discretization error.
             np.testing.assert_allclose(final_spectral_width_1, final_spectral_width_2, rtol=2e-5)
             np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
+            np.testing.assert_array_less(max_RZ_error, 1e-9)
             np.testing.assert_allclose(final_spectral_width_1, 1.0)
             np.testing.assert_allclose(surf.minor_radius(), minor_radius)
             np.testing.assert_allclose(surf.major_radius(), major_radius)
@@ -1250,7 +1251,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
             # surf2.plot()
 
             original_spectral_width_1 = surf.spectral_width(power=power)
-            original_spectral_width_2, final_spectral_width_2 = surf.condense_spectrum_Fourier_continuation(
+            original_spectral_width_2, final_spectral_width_2, max_RZ_error = surf.condense_spectrum(
                 method=method, maxiter=15, power=power, verbose=True, plot=True, show=False
             )
             print("Minor radius after condensing:", surf.minor_radius())
@@ -1265,6 +1266,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
             # associated with discretization error.
             np.testing.assert_allclose(final_spectral_width_1, final_spectral_width_2, rtol=2e-5)
             np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
+            np.testing.assert_array_less(max_RZ_error, 1e-8)
             np.testing.assert_allclose(final_spectral_width_1, 1.0)
             np.testing.assert_allclose(surf.minor_radius(), minor_radius)
             np.testing.assert_allclose(surf.major_radius(), major_radius)
@@ -1332,7 +1334,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
             # surf2.plot()
 
             original_spectral_width_1 = surf.spectral_width(power=power)
-            original_spectral_width_2, final_spectral_width_2 = surf.condense_spectrum_Fourier_continuation(
+            original_spectral_width_2, final_spectral_width_2, max_RZ_error = surf.condense_spectrum(
                 method=method, maxiter=15, power=power, verbose=True, plot=True, show=False
             )
             print("Minor radius after condensing:", surf.minor_radius())
@@ -1347,6 +1349,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
             # associated with discretization error.
             np.testing.assert_allclose(final_spectral_width_1, final_spectral_width_2, rtol=2e-5)
             np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
+            np.testing.assert_array_less(max_RZ_error, 1e-3)
 
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):
