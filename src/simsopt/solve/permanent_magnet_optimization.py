@@ -7,7 +7,7 @@ import simsoptpp as sopp
 from .._core.types import RealArray
 from scipy.spatial import cKDTree
 
-from typing import Any, Optional
+from typing import Optional
 
 
 __all__ = ['relax_and_split', 'GPMO']
@@ -1169,9 +1169,8 @@ def GPMO_ArbVec_backtracking_macromag_py(
             N_new_rows=N_new_rows, 
             N_new_cols=N_new_cols, 
             N_new_diag=N_new_diag, 
-            x0=x0_prev, 
+            #x0=x0_prev, Commenting our since can cause issue when backtrackng
             H_a_override=Hcoil_all[active_idx], 
-            print_progress=verbose, 
             A_prev=A_prev, 
             prev_n=prev_n
         )
@@ -1224,6 +1223,7 @@ def GPMO_ArbVec_backtracking_macromag_py(
     for k in range(1, K + 1):
         # t_k = time.time()
         
+        # BUG: If implemting warm start there is issue with backtracking case since magnets are gone from x_prev...
         # x0_prev = None # TODO: Implement and Profile if warm start helps speed-up iteartion
 
         # Stop if filled or hit magnet cap     
@@ -1235,11 +1235,12 @@ def GPMO_ArbVec_backtracking_macromag_py(
             ea_list = x[active] if active.size else np.zeros((0, 3))
             
             # One final solve before commiting set
-            R2_snap, x_macro_flat, _, res, _ = solve_subset_and_score(active, ea_list, x0_prev,
-                prev_active_idx=prev_active_indices,
-                A_prev=A_sub_prev, prev_n=prev_n
-            )
-            
+            R2_snap, x_macro_flat, _, res, _ = solve_subset_and_score(active, ea_list, 
+                                                                      #x0_prev, removing since causes error with backtrakcing
+                                                                        prev_active_idx=prev_active_indices,
+                                                                        A_prev=A_sub_prev, prev_n=prev_n
+                                                                    )
+                                                                    
             last_x_macro_flat[:] = x_macro_flat
             idx = print_iter_ref[0]
             m_history[:, :, idx] = x_macro_flat.reshape(N, 3)
