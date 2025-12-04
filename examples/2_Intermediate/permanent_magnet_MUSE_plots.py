@@ -17,7 +17,10 @@ mh_files = sorted(outdir.glob("mhistory_*.txt"))
 Bn_files = sorted([p for p in outdir.glob("*history_*.txt") if "bn" in p.stem.lower()])
 
 if R2_files:
-    plt.figure()
+    plt.figure(figsize=(5.5, 3.5))
+    r2_min = None
+    r2_max = None
+
     for R2_file in R2_files:
         R2_suffix = parse_suffix(R2_file.stem, "R2history_")
         if R2_suffix is None:
@@ -42,41 +45,112 @@ if R2_files:
         except Exception:
             continue
 
+        # Nominal K from filename
         K_nom = None
         for tok in mh_match.stem.split("_"):
             if tok.startswith("K"):
                 try:
                     K_nom = int(tok[1:])
                     break
-                except:
+                except Exception:
                     pass
         if K_nom is None:
             K_nom = max(len(R2_history), len(Bn_history))
-
-        H = min(len(R2_history), len(Bn_history))
-        R2_plot = R2_history[:H]
-        Bn_plot = Bn_history[:H]
-        iterations = np.linspace(0, K_nom, H, endpoint=False)
-
+        
+        K_norm = len(R2_history)
+        #Parse params and algorithm from file name 
+        print(K_nom)
         parts = R2_suffix.split("_")
-        if len(parts) > 3:
-            algo_label = "_".join(parts[3:])
-        else:
-            algo_label = R2_suffix
 
-        if (algo_label == "ArbVec_backtracking"): 
-            plt.semilogy(iterations, R2_plot, label=fr'$f_B$ (GPMO (no coupling))')
-            plt.semilogy(iterations, Bn_plot, label=fr'$<|Bn|>$ (GPMO (no coupling))')
-        else: 
-            plt.semilogy(iterations, R2_plot, label=fr'$f_B$ (MacroMag GPMO)')
-            plt.semilogy(iterations, Bn_plot, label=fr'$<|Bn|>$ (MacroMag GPMO)')
+        bt_val = None
+        nadj_val = None
+        nmax_val = None
+        kmm_val = None
+
+        for tok in parts:
+            if tok.startswith("bt"):
+                try:
+                    bt_val = int(tok[2:])
+                except Exception:
+                    pass
+            elif tok.startswith("Nadj"):
+                try:
+                    nadj_val = int(tok[4:])
+                except Exception:
+                    pass
+            elif tok.startswith("nmax"):
+                try:
+                    nmax_val = int(tok[4:])
+                except Exception:
+                    pass
+            elif tok.startswith("kmm"):
+                try:
+                    kmm_val = int(tok[3:])
+                except Exception:
+                    pass
+
+        base_prefixes = ("K", "nphi", "ntheta")
+        param_prefixes = ("bt", "Nadj", "nmax", "kmm")
+        algo_tokens = [
+            tok for tok in parts
+            if not tok.startswith(base_prefixes + param_prefixes)
+        ]
+        algo_label = "_".join(algo_tokens) if algo_tokens else R2_suffix
+
+        # Human-readable algorithm label
+        if "macromag" in algo_label:
+            algo_human = "GPMOmr"
+        elif "ArbVec_backtracking" in algo_label:
+            algo_human = "GPMO"
+        else:
+            algo_human = algo_label
+
+        # x-axis in terms of number of nonzero magnets (cap)
+        max_n_magnets = nmax_val
+
+
+        R2_plot = R2_history[:]
+        K_actual = len(R2_plot)
+        iterations = np.linspace(0, len(R2_history), len(R2_history), endpoint=True)
+
+        # track global min/max for y-limits
+        cur_min = float(np.min(R2_plot))
+        cur_max = float(np.max(R2_plot))
+        if r2_min is None:
+            r2_min, r2_max = cur_min, cur_max
+        else:
+            r2_min = min(r2_min, cur_min)
+            r2_max = max(r2_max, cur_max)
+
+        # Build label with backtracking params (and kmm if present)
+        param_labels = []
+        if bt_val is not None:
+            param_labels.append(f"bt={bt_val}")
+        if nadj_val is not None:
+            param_labels.append(f"Nadj={nadj_val}")
+        if nmax_val is not None:
+            param_labels.append(f"nmax={nmax_val}")
+        if kmm_val is not None:
+            param_labels.append(f"kmm={kmm_val}")
+
+        if param_labels:
+            label = rf"$f_B$ ({algo_human}, " + ", ".join(param_labels) + ")"
+        else:
+            label = rf"$f_B$ ({algo_human})"
+
+        plt.semilogy(iterations, R2_plot, label=label)
 
     plt.grid(True)
-    plt.xlabel('K')
-    plt.ylabel('Metric values')
-    plt.legend(fontsize=8)
+    plt.xlabel(r'Iteration $K$')
+    plt.ylabel(r'$f_B$ [T$^2$ m$^2$]')
+
+    if r2_min is not None and r2_max is not None:
+        plt.ylim(r2_min * 0.8, r2_max * 1.2)
+
+    plt.legend(fontsize=8, frameon=True, facecolor='white', edgecolor='black')
+    plt.tight_layout()
     fname = save_dir / "Combined_MSE_history.png"
-    plt.savefig(fname, dpi=180)
+    plt.savefig(fname, dpi=300)
     plt.close()
     print(f"Saved combined plot {fname}")
 
@@ -106,7 +180,7 @@ if len(npz_files) >= 2:
         diffs = np.array(diffs)
         diffs = diffs[diffs > 0]  # clip out zeros or near-zeros
 
-        # --- Linear scale histogram ---
+        # Linear scale histogram 
         plt.figure()
         plt.hist(diffs, bins=200, alpha=0.7)
         plt.xlabel(r"$|\Delta M| = \|M_i - M'_i\|_2$ [A·m$^2$]")
@@ -118,7 +192,7 @@ if len(npz_files) >= 2:
         plt.close()
         print(f"Saved linear-scale histogram to {fname_lin}")
 
-        # --- Log scale histogram ---
+        # Log scale histogram 
         plt.figure()
         plt.hist(diffs, bins=200, alpha=0.7)
         plt.xlabel(r"$|\Delta M| = \|M_i - M'_i\|_2$ [A·m$^2$]")
@@ -130,6 +204,3 @@ if len(npz_files) >= 2:
         plt.savefig(fname_log, dpi=180)
         plt.close()
         print(f"Saved log-scale histogram to {fname_log}")
-        
-
-
