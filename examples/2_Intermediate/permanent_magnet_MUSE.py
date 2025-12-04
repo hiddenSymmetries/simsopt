@@ -159,8 +159,8 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 # Python+Macromag
-# algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
-algorithm = 'ArbVec_backtracking'  # Algorithm to use
+algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
+# algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 12  # How many magnets to consider "adjacent" to one another
 nHistory = nIter_max # setting this to n_Itermax to improve logging...
 thresh_angle = np.pi - (5 * np.pi / 180)  # The angle between two "adjacent" dipoles such that they should be removed
@@ -185,7 +185,7 @@ if algorithm == "ArbVec_backtracking_macromag_py":
     kwargs['use_coils'] = True
     kwargs['use_demag'] = True
     kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
-    kwargs['mm_refine_every'] = 50
+    kwargs['mm_refine_every'] = 25
     kwargs['current_scale'] = current_scale
     mm_suffix = f"_kmm{kwargs['mm_refine_every']}"
 
