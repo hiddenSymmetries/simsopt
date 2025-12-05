@@ -1250,6 +1250,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
             # surf2.to_vtk("test_condense_spectrum_initial_full_torus")
             # surf2.plot()
 
+            np.testing.assert_allclose(surf.minor_radius(), minor_radius)
+            np.testing.assert_allclose(surf.major_radius(), major_radius)
             original_spectral_width_1 = surf.spectral_width(power=power)
             original_spectral_width_2, final_spectral_width_2, max_RZ_error = surf.condense_spectrum(
                 method=method, maxiter=15, power=power, verbose=True, plot=True, show=False
@@ -1279,14 +1281,16 @@ class SurfaceRZFourierTests(unittest.TestCase):
             np.testing.assert_allclose(surf.x, x_should_be, atol=1e-8)
 
     def test_condense_spectrum(self):
-        """Test the condense_spectrum() and spectral_width() methods."""
+        """Test the condense_spectrum() and spectral_width() methods.
+        
+        Here, condense_spectrum() is applied to a 3D surface for which the poloidal
+        angle is the geometric angle arctan2(Z / (R - major_radius)), which is far
+        from the spectrally compressed angle.
+        """
         for method in ['trf', 'BFGS', 'lm']:
             power = 2
             print(f"Testing condense_spectrum() with method {method}")
 
-            # Make a surface for which the poloidal angle is the geometric angle
-            # arctan(Z/(R - major_radius)), which is far from the spectrally
-            # compressed angle:
             major_radius = 10.0
             minor_radius = 1.5
             axis_excursion = 0.9
@@ -1334,7 +1338,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
             # surf2.plot()
 
             original_spectral_width_1 = surf.spectral_width(power=power)
-            # original_spectral_width_2, final_spectral_width_2, max_RZ_error = surf.condense_spectrum_constrained(
+            np.testing.assert_allclose(surf.minor_radius(), minor_radius, rtol=1e-5)
+            np.testing.assert_allclose(surf.major_radius(), major_radius)
             original_spectral_width_2, final_spectral_width_2, max_RZ_error = surf.condense_spectrum(
                 method=method, maxiter=15, power=power, verbose=True, plot=True, show=False
             )
@@ -1345,6 +1350,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
             print("Final spectral width 1:", final_spectral_width_1)
             print("Final spectral width 2:", final_spectral_width_2)
             np.testing.assert_allclose(original_spectral_width_1, original_spectral_width_2)
+            np.testing.assert_allclose(surf.minor_radius(), minor_radius, rtol=1e-5)
+            np.testing.assert_allclose(surf.major_radius(), major_radius)
             # There is a slight difference in the 2 methods for computing the
             # final spectral width due to a slight change in the minor radius
             # associated with discretization error.
