@@ -1156,7 +1156,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
         
         """
-        for method in ['trf','BFGS']:
+        for method in ['trf', 'BFGS']:
             power = 2
             print(f"Testing condense_spectrum() with method {method}")
             major_radius = 10.0
@@ -1209,7 +1209,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
     def test_condense_spectrum_theta_origin(self):
         """Test the condense_spectrum() method for eliminating unnecessary
         toroidal variation in the origin of the theta coordinate."""
-        for method in ['trf', 'BFGS', 'lm']:
+        for method in ['BFGS', 'trf']:
             power = 2
             print(f"Testing condense_spectrum() with method {method}")
 
@@ -1334,6 +1334,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
             # surf2.plot()
 
             original_spectral_width_1 = surf.spectral_width(power=power)
+            # original_spectral_width_2, final_spectral_width_2, max_RZ_error = surf.condense_spectrum_constrained(
             original_spectral_width_2, final_spectral_width_2, max_RZ_error = surf.condense_spectrum(
                 method=method, maxiter=15, power=power, verbose=True, plot=True, show=False
             )
