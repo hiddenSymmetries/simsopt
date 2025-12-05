@@ -591,11 +591,8 @@ class BoozerSurface(Optimizable):
             return self.res
 
         s = self.surface
-        if G is None:
-            x = np.concatenate((s.get_dofs(), [iota]))
-        else:
-            x = np.concatenate((s.get_dofs(), [iota, G]))
-
+        original_dofs = s.get_dofs().copy()
+        
         fun_name = self.boozer_penalty_constraints_vectorized if vectorize else self.boozer_penalty_constraints
         def fun(x): return fun_name(x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
 
@@ -605,10 +602,35 @@ class BoozerSurface(Optimizable):
             options['maxcor'] = 200
             options['ftol'] = tol
 
-        print('norm(x0)', np.linalg.norm(x))
-        res = minimize(
-            fun, x, jac=True, method=method,
-            options=options)
+        # Try multiple initial guesses for iota to avoid bad local minima
+        # This helps with platform-specific numerical differences
+        iota_perturbations = [0.0, 0.05, -0.05]
+        best_res = None
+        best_fun = np.inf
+        
+        for iota_pert in iota_perturbations:
+            iota_trial = iota + iota_pert
+            s.set_dofs(original_dofs)
+            
+            if G is None:
+                x = np.concatenate((original_dofs, [iota_trial]))
+            else:
+                x = np.concatenate((original_dofs, [iota_trial, G]))
+
+            print('norm(x0)', np.linalg.norm(x))
+            res = minimize(
+                fun, x, jac=True, method=method,
+                options=options)
+            
+            if res.fun < best_fun:
+                best_fun = res.fun
+                best_res = res
+                
+            # If we found a good solution, no need to try more
+            if res.fun < tol:
+                break
+        
+        res = best_res
 
         resdict = {
             "fun": res.fun, "gradient": res.jac, "iter": res.nit, "info": res, "success": res.success, "G": None, 'weight_inv_modB': weight_inv_modB, 'type': 'ls'
