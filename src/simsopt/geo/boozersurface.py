@@ -252,7 +252,8 @@ class BoozerSurface(Optimizable):
         else:
             sdofs = x[:-1]
             iota = x[-1]
-            G = None
+            # Always compute G to match vectorized version (it will be removed from derivatives later if needed)
+            G = 2. * np.pi * np.sum(np.abs([coil.current.get_value() for coil in self.biotsavart._coils])) * (4 * np.pi * 10**(-7) / (2 * np.pi))
         nsurfdofs = sdofs.size
         s = self.surface
         num_res = 3 * s.quadpoints_phi.size * s.quadpoints_theta.size
@@ -261,56 +262,109 @@ class BoozerSurface(Optimizable):
         s.set_dofs(sdofs)
 
         boozer = boozer_surface_residual(s, iota, G, biotsavart, derivatives=derivatives, weight_inv_modB=weight_inv_modB)
-        # normalizing the residuals here
-        boozer = tuple([b/np.sqrt(num_res) for b in boozer])
+        
+        # Compute scalar values first, then normalize all at once to match vectorized version
+        # In vectorized: sopp.boozer_residual returns 0.5 * sum(r^2) (scalar), then normalized
+        # In non-vectorized: we have r (vector), so compute 0.5 * sum(r^2) first, then normalize
+        r_orig = boozer[0]  # residual vector
+        rnl_scalar = 0.5 * np.sum(r_orig**2)
+        
+        if derivatives == 0:
+            boozer = (rnl_scalar,)
+        elif derivatives == 1:
+            J_orig = boozer[1]  # Jacobian
+            # We always compute and pass G (to match vectorized version), so J_orig always includes G
+            # J_orig has shape (n_res, nsurfdofs + 2) = (n_res, surface_dofs + iota + G)
+            # Jnl_scalar = gradient of 0.5 * sum(r_orig^2) w.r.t. (surface_dofs, iota, G)
+            Jnl_scalar = np.sum(r_orig[:, None] * J_orig, axis=0)
+            # Jnl_scalar has shape (nsurfdofs + 2,), will be trimmed to (nsurfdofs + 1,) if optimize_G=False
+            boozer = (rnl_scalar, Jnl_scalar)
+        elif derivatives == 2:
+            J_orig = boozer[1]  # Jacobian
+            H_orig = boozer[2]  # Hessian
+            Jnl_scalar = np.sum(r_orig[:, None] * J_orig, axis=0)
+            Hnl_scalar = J_orig.T @ J_orig + np.sum(r_orig[:, None, None] * H_orig, axis=0)
+            boozer = (rnl_scalar, Jnl_scalar, Hnl_scalar)
+        
+        # Normalize all boozer values at once to match vectorized version
+        # This ensures gradient scaling matches vectorized version for better optimization convergence
+        boozer = tuple([b/num_res for b in boozer])
+        
+        # Remove G component if optimize_G=False, matching vectorized version
+        # boozer_surface_residual always includes G in derivatives when G is provided (not None)
+        # So we need to remove it when optimize_G=False
+        if derivatives >= 1 and not optimize_G:
+            if derivatives == 1:
+                boozer = (boozer[0], boozer[1][:-1])
+            elif derivatives == 2:
+                boozer = (boozer[0], boozer[1][:-1], boozer[2][:-1, :-1])
 
-        r = boozer[0]
         l = self.label.J()
-        rl = (l-self.targetlabel)
-        rz = (s.gamma()[0, 0, 2] - 0.)
-        r = np.concatenate((r, [
-            np.sqrt(constraint_weight) * rl,
-            np.sqrt(constraint_weight) * rz
-        ]))
+        rl = np.sqrt(constraint_weight) * (l-self.targetlabel)
+        rz = np.sqrt(constraint_weight) * (s.gamma()[0, 0, 2] - 0.)
 
-        val = 0.5 * np.sum(r**2)
+        # Match vectorized version: r = rnl + 0.5*rl^2 + 0.5*rz^2
+        rnl = boozer[0]
+        val = rnl + 0.5*rl**2 + 0.5*rz**2
+        
         if derivatives == 0:
             if scalarize:
                 return val
             else:
-                return r
+                # For non-scalarized case, return normalized residual vector (divided by sqrt(num_res))
+                # to maintain backward compatibility with methods like solve_residual_equation_exactly_newton
+                r_normalized = r_orig / np.sqrt(num_res)
+                r_full = np.concatenate((r_normalized, [
+                    np.sqrt(constraint_weight) * (l-self.targetlabel),
+                    np.sqrt(constraint_weight) * (s.gamma()[0, 0, 2] - 0.)
+                ]))
+                return r_full
 
-        J = boozer[1]
+        Jnl = boozer[1]
 
         dl = np.zeros(x.shape)
         drz = np.zeros(x.shape)
-
         dl[:nsurfdofs] = self.label.dJ(partials=True)(s)
-
         drz[:nsurfdofs] = s.dgamma_by_dcoeff()[0, 0, 2, :]
-        J = np.concatenate((
-            J,
-            np.sqrt(constraint_weight) * dl[None, :],
-            np.sqrt(constraint_weight) * drz[None, :]), axis=0)
-        dval = np.sum(r[:, None]*J, axis=0)
+
+        # Match vectorized version: J = Jnl + rl * drl + rz * drz
+        drl = np.sqrt(constraint_weight) * dl
+        drz_scaled = np.sqrt(constraint_weight) * drz
+        dval = Jnl + rl * drl + rz * drz_scaled
+        
         if derivatives == 1:
             if scalarize:
                 return val, dval
             else:
-                return r, J
+                # For non-scalarized case, return normalized residual vector and Jacobian (divided by sqrt(num_res))
+                # to maintain backward compatibility with methods like solve_residual_equation_exactly_newton
+                r_normalized = r_orig / np.sqrt(num_res)
+                J_normalized = J_orig / np.sqrt(num_res)
+                # Remove G from J if optimize_G=False to match x shape
+                J_for_concat = J_normalized[:, :-1] if not optimize_G else J_normalized
+                J_full = np.concatenate((
+                    J_for_concat,
+                    np.sqrt(constraint_weight) * dl[None, :],
+                    np.sqrt(constraint_weight) * drz[None, :]), axis=0)
+                r_full = np.concatenate((r_normalized, [
+                    np.sqrt(constraint_weight) * (l-self.targetlabel),
+                    np.sqrt(constraint_weight) * (s.gamma()[0, 0, 2] - 0.)
+                ]))
+                return r_full, J_full
+        
         if not scalarize:
             raise NotImplementedError('Can only return Hessian for scalarized version.')
 
-        H = boozer[2]
+        Hnl = boozer[2]  # normalized Hessian (already computed and normalized above)
 
         d2l = np.zeros((x.shape[0], x.shape[0]))
         d2l[:nsurfdofs, :nsurfdofs] = self.label.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
 
-        H = np.concatenate((
-            H,
-            np.sqrt(constraint_weight) * d2l[None, :, :],
-            np.zeros(d2l[None, :, :].shape)), axis=0)
-        d2val = J.T @ J + np.sum(r[:, None, None] * H, axis=0)
+        # Match vectorized version: H = Hnl + drl[:, None] @ drl[None, :] + drz[:, None] @ drz[None, :] + rl * d2rl
+        drl = np.sqrt(constraint_weight) * dl
+        drz_scaled = np.sqrt(constraint_weight) * drz
+        d2rl = np.sqrt(constraint_weight) * d2l
+        d2val = Hnl + drl[:, None] @ drl[None, :] + drz_scaled[:, None] @ drz_scaled[None, :] + rl * d2rl
         return val, dval, d2val
 
     def boozer_penalty_constraints_vectorized(self, dofs, derivatives=0, constraint_weight=1., optimize_G=False, weight_inv_modB=True):
@@ -537,12 +591,10 @@ class BoozerSurface(Optimizable):
             return self.res
 
         s = self.surface
-        original_dofs = s.get_dofs().copy()
-        
         if G is None:
-            x0 = np.concatenate((original_dofs, [iota]))
+            x = np.concatenate((s.get_dofs(), [iota]))
         else:
-            x0 = np.concatenate((original_dofs, [iota, G]))
+            x = np.concatenate((s.get_dofs(), [iota, G]))
 
         fun_name = self.boozer_penalty_constraints_vectorized if vectorize else self.boozer_penalty_constraints
         def fun(x): return fun_name(x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
@@ -553,8 +605,9 @@ class BoozerSurface(Optimizable):
             options['maxcor'] = 200
             options['ftol'] = tol
 
+        print('norm(x0)', np.linalg.norm(x))
         res = minimize(
-            fun, x0, jac=True, method=method,
+            fun, x, jac=True, method=method,
             options=options)
 
         resdict = {
@@ -579,7 +632,7 @@ class BoozerSurface(Optimizable):
 
         return resdict
 
-    def minimize_boozer_penalty_constraints_newton(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, stab=1e-10, vectorize=True, weight_inv_modB=True, verbose=False):
+    def minimize_boozer_penalty_constraints_newton(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, stab=0., vectorize=True, weight_inv_modB=True, verbose=False):
         """
         This function does the same as :mod:`minimize_boozer_penalty_constraints_LBFGS`, but instead of LBFGS it uses
         Newton's method.
@@ -624,35 +677,13 @@ class BoozerSurface(Optimizable):
         val, dval, d2val = fun_name(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
 
         norm = np.linalg.norm(dval)
-        norm_prev = norm
         while i < maxiter and norm > tol:
             d2val += stab*np.identity(d2val.shape[0])
             dx = np.linalg.solve(d2val, dval)
             if norm < 1e-9:
                 dx += np.linalg.solve(d2val, dval - d2val@dx)
-            
-            # Line search: reduce step size if residual increases
-            alpha = 1.0
-            x_trial = x - alpha * dx
-            _, dval_trial = fun_name(x_trial, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
-            norm_trial = np.linalg.norm(dval_trial)
-            
-            # If residual increases, use damping with backtracking
-            if norm_trial > norm or norm_trial > 10.0 * norm_prev:
-                for _ in range(10):  # Try up to 10 damping steps
-                    alpha *= 0.5
-                    x_trial = x - alpha * dx
-                    _, dval_trial = fun_name(x_trial, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
-                    norm_trial = np.linalg.norm(dval_trial)
-                    if norm_trial <= norm or norm_trial <= 10.0 * norm_prev:
-                        break
-                # If still diverging, stop early
-                if norm_trial > 100.0 * norm_prev:
-                    break
-            
-            x = x_trial
+            x = x - dx
             val, dval, d2val = fun_name(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
-            norm_prev = norm
             norm = np.linalg.norm(dval)
             i = i+1
 
@@ -826,54 +857,67 @@ class BoozerSurface(Optimizable):
             xl = np.concatenate((s.get_dofs(), [iota], lm))
         val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None)
         norm = np.linalg.norm(val)
-        norm_prev = norm
         i = 0
+        current_stab = stab
         while i < maxiter and norm > tol:
             if s.stellsym:
                 A = dval[:-1, :-1]
                 b = val[:-1]
-                # Always use regularization to avoid ill-conditioned matrix warnings
-                A_reg = A + stab * np.eye(A.shape[0])
-                dx = scipy.linalg.solve(A_reg, b, check_finite=False)
-                if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
-                    dx += scipy.linalg.solve(A_reg, b-A_reg@dx, check_finite=False)
-            else:
-                # Always use regularization to avoid ill-conditioned matrix warnings
-                dval_reg = dval + stab * np.eye(dval.shape[0])
-                dx = scipy.linalg.solve(dval_reg, val, check_finite=False)
-                if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
-                    dx += scipy.linalg.solve(dval_reg, val-dval_reg@dx, check_finite=False)
-            
-            # Line search: reduce step size if residual increases
-            alpha = 1.0
-            xl_trial = xl.copy()
-            if s.stellsym:
-                xl_trial[:-1] = xl[:-1] - alpha * dx
-            else:
-                xl_trial = xl - alpha * dx
-            
-            val_trial = self.boozer_exact_constraints(xl_trial, derivatives=0, optimize_G=G is not None)
-            norm_trial = np.linalg.norm(val_trial)
-            
-            # If residual increases, use damping with backtracking
-            if norm_trial > norm or norm_trial > 10.0 * norm_prev:
-                for _ in range(10):  # Try up to 10 damping steps
-                    alpha *= 0.5
-                    if s.stellsym:
-                        xl_trial[:-1] = xl[:-1] - alpha * dx
-                    else:
-                        xl_trial = xl - alpha * dx
-                    val_trial = self.boozer_exact_constraints(xl_trial, derivatives=0, optimize_G=G is not None)
-                    norm_trial = np.linalg.norm(val_trial)
-                    if norm_trial <= norm or norm_trial <= 10.0 * norm_prev:
+                # Check condition number to diagnose ill-conditioning
+                # Use a more robust approach if matrix is ill-conditioned
+                cond_num = np.linalg.cond(A)
+                if cond_num > 1e12:
+                    # Matrix is very ill-conditioned, use larger initial regularization
+                    attempt_stab = max(stab, 1e-6 * np.trace(A) / A.shape[0])
+                else:
+                    attempt_stab = current_stab
+                # Adaptive regularization: increase if solve fails
+                dx = None
+                for _ in range(10):  # Try up to 10 times with increasing regularization
+                    A_reg = A + attempt_stab * np.eye(A.shape[0])
+                    try:
+                        dx = scipy.linalg.solve(A_reg, b)
                         break
-                # If still diverging, stop early
-                if norm_trial > 100.0 * norm_prev:
-                    break
-            
-            xl = xl_trial
+                    except (np.linalg.LinAlgError, ValueError):
+                        attempt_stab *= 10.0
+                if dx is None:
+                    # Final fallback: use pseudo-inverse
+                    A_reg = A + attempt_stab * np.eye(A.shape[0])
+                    dx = scipy.linalg.pinv(A_reg) @ b
+                if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
+                    try:
+                        dx += scipy.linalg.solve(A_reg, b-A_reg@dx)
+                    except (np.linalg.LinAlgError, ValueError):
+                        dx += scipy.linalg.pinv(A_reg) @ (b-A_reg@dx)
+                xl[:-1] = xl[:-1] - dx
+            else:
+                # Check condition number to diagnose ill-conditioning
+                cond_num = np.linalg.cond(dval)
+                if cond_num > 1e12:
+                    # Matrix is very ill-conditioned, use larger initial regularization
+                    attempt_stab = max(stab, 1e-6 * np.trace(dval) / dval.shape[0])
+                else:
+                    attempt_stab = current_stab
+                # Adaptive regularization: increase if solve fails
+                dx = None
+                for _ in range(10):  # Try up to 10 times with increasing regularization
+                    dval_reg = dval + attempt_stab * np.eye(dval.shape[0])
+                    try:
+                        dx = scipy.linalg.solve(dval_reg, val)
+                        break
+                    except (np.linalg.LinAlgError, ValueError):
+                        attempt_stab *= 10.0
+                if dx is None:
+                    # Final fallback: use pseudo-inverse
+                    dval_reg = dval + attempt_stab * np.eye(dval.shape[0])
+                    dx = scipy.linalg.pinv(dval_reg) @ val
+                if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
+                    try:
+                        dx += scipy.linalg.solve(dval_reg, val-dval_reg@dx)
+                    except (np.linalg.LinAlgError, ValueError):
+                        dx += scipy.linalg.pinv(dval_reg) @ (val-dval_reg@dx)
+                xl = xl - dx
             val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None)
-            norm_prev = norm
             norm = np.linalg.norm(val)
             i = i + 1
 

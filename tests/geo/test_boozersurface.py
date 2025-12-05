@@ -107,15 +107,15 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(7, 20)))
-        print("###############################################################")
+        # print("###############################################################")
         for eps in epsilons:
             f1 = fun(x + eps*h, derivatives=0, constraint_weight=weight, optimize_G=optimize_G)
             Jfd = (f1-f0)/eps
             err = np.linalg.norm(Jfd-Jex)/np.linalg.norm(Jex)
-            print(err/err_old, f0, f1)
+            # print(err/err_old, f0, f1)
             assert err < err_old * 0.55
             err_old = err
-        print("###############################################################")
+        # print("###############################################################")
 
     def subtest_boozer_penalty_constraints_hessian(self, surfacetype, stellsym,
                                                    optimize_G=False, vectorize=False):
@@ -146,12 +146,12 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(10, 20)))
-        print("###############################################################")
+        # print("###############################################################")
         for eps in epsilons:
             fp, Jp = fun(x + eps*h1, derivatives=1, optimize_G=optimize_G)
             d2f_fd = (Jp@h2-J0@h2)/eps
             err = np.abs(d2f_fd-d2f)/np.abs(d2f)
-            print(err/err_old)
+            # print(err/err_old)
             assert err < err_old * 0.55
             err_old = err
 
@@ -199,16 +199,16 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(7, 20)))
-        print("###############################################################")
+        # print("###############################################################")
         for eps in epsilons:
             res1 = boozer_surface.boozer_exact_constraints(
                 xl + eps*h, derivatives=0, optimize_G=optimize_G)
             dres_fd = (res1-res0)/eps
             err = np.linalg.norm(dres_fd-dres_exact)
-            print(err/err_old)
+            # print(err/err_old)
             assert err < err_old * 0.55
             err_old = err
-        print("###############################################################")
+        # print("###############################################################")
 
     def test_boozer_surface_optimisation_convergence(self):
         """
@@ -326,7 +326,7 @@ class BoozerSurfaceTests(unittest.TestCase):
             assert np.linalg.norm(res['residual']) < 1e-9
 
         print(ar_target, ar.J())
-        print(res['residual'][-10:])
+        # print(res['residual'][-10:])
         if surfacetype == 'SurfaceXYZTensorFourier' or second_stage == 'newton_exact':
             assert np.abs(ar_target - ar.J()) < 1e-9
         else:
@@ -508,7 +508,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         f1 = boozer_surface.boozer_penalty_constraints_vectorized(
             x, derivatives=0, constraint_weight=w, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
         np.testing.assert_allclose(f0, f1, atol=1e-13, rtol=1e-13)
-        print(np.abs(f0-f1)/np.abs(f0))
+        # print(np.abs(f0-f1)/np.abs(f0))
 
         # deriv = 1
         f0, J0 = boozer_surface.boozer_penalty_constraints(
@@ -521,7 +521,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         # check directional derivative
         h1 = np.random.rand(J0.size)-0.5
         np.testing.assert_allclose(J0@h1, J1@h1, atol=1e-13, rtol=1e-13)
-        print(np.abs(f0-f1)/np.abs(f0), np.abs(J0@h1-J1@h1)/np.abs(J0@h1))
+        # print(np.abs(f0-f1)/np.abs(f0), np.abs(J0@h1-J1@h1)/np.abs(J0@h1))
 
         # deriv = 2
         f0, J0, H0 = boozer_surface.boozer_penalty_constraints(
@@ -537,7 +537,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         np.testing.assert_allclose(f0, f1, atol=1e-13, rtol=1e-13)
         np.testing.assert_allclose(J0@h1, J1@h1, atol=1e-13, rtol=1e-13)
         np.testing.assert_allclose((H0@h1)@h2, (H1@h1)@h2, atol=1e-13, rtol=1e-13)
-        print(np.abs(f0-f1)/np.abs(f0), np.abs(J0@h1-J1@h1)/np.abs(J0@h1), np.abs((H0@h1)@h2-(H1@h1)@h2)/np.abs((H0@h1)@h2))
+        # print(np.abs(f0-f1)/np.abs(f0), np.abs(J0@h1-J1@h1)/np.abs(J0@h1), np.abs((H0@h1)@h2-(H1@h1)@h2)/np.abs((H0@h1)@h2))
 
         def compute_differences(Ha, Hb):
             diff = np.abs(Ha.flatten() - Hb.flatten())
@@ -612,6 +612,75 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         with self.assertRaises(Exception):
             _ = BoozerSurface(bs, s, lab, lab_target)
+
+    def test_boozer_penalty_constraints_vectorized_vs_nonvectorized(self):
+        """
+        Test to verify that boozer_penalty_constraints_vectorized and boozer_penalty_constraints
+        return the same function values and derivatives when called with the same parameters
+        as defined in minimize_boozer_penalty_constraints_LBFGS (lines 548-549).
+        Tests many random points to ensure agreement across a range of inputs.
+        """
+        np.random.seed(1)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
+        bs_tf = BiotSavart(bs.coils)
+        current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
+
+        s = get_surface("SurfaceXYZTensorFourier", True)
+        s.fit_to_curve(ma, 0.1)
+
+        weight = 11.1232
+        constraint_weight = weight
+
+        tf = ToroidalFlux(s, bs_tf, nphi=51, ntheta=51)
+        tf_target = 0.1
+        boozer_surface = BoozerSurface(bs, s, tf, tf_target)
+
+        # Base point
+        iota_base = -0.3
+        G_base = 2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))
+        original_dofs = s.get_dofs().copy()
+
+        # Test multiple combinations of parameters and random points
+        n_tests = 20
+        for test_idx in range(n_tests):
+            # Random perturbation of surface dofs
+            dof_perturbation = np.random.uniform(-0.01, 0.01, size=original_dofs.shape)
+            perturbed_dofs = original_dofs + dof_perturbation
+            
+            # Random iota and G values
+            iota = iota_base + np.random.uniform(-0.1, 0.1)
+            G = G_base * (1.0 + np.random.uniform(-0.1, 0.1))
+            
+            # Test different parameter combinations
+            for optimize_G in [True, False]:
+                for weight_inv_modB in [True, False]:
+                    # Set up x as in minimize_boozer_penalty_constraints_LBFGS
+                    if optimize_G:
+                        x = np.concatenate((perturbed_dofs, [iota, G]))
+                    else:
+                        x = np.concatenate((perturbed_dofs, [iota]))
+
+                    # Define the function as in lines 548-549 for vectorized version
+                    fun_name_vec = boozer_surface.boozer_penalty_constraints_vectorized
+                    def fun_vec(x): return fun_name_vec(x, derivatives=1, constraint_weight=constraint_weight, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
+
+                    # Define the function as in lines 548-549 for non-vectorized version
+                    fun_name_nonvec = boozer_surface.boozer_penalty_constraints
+                    def fun_nonvec(x): return fun_name_nonvec(x, derivatives=1, constraint_weight=constraint_weight, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
+
+                    # Evaluate both functions
+                    f_vec, J_vec = fun_vec(x)
+                    f_nonvec, J_nonvec = fun_nonvec(x)
+
+                    # Verify function values are close
+                    np.testing.assert_allclose(
+                        f_vec, f_nonvec, atol=1e-13, rtol=1e-13,
+                        err_msg=f"Function values differ at test {test_idx} (optimize_G={optimize_G}, weight_inv_modB={weight_inv_modB})")
+
+                    # Verify derivatives are close
+                    np.testing.assert_allclose(
+                        J_vec, J_nonvec, atol=1e-9, rtol=1e-11,
+                        err_msg=f"Derivatives differ at test {test_idx} (optimize_G={optimize_G}, weight_inv_modB={weight_inv_modB})")
 
 
 if __name__ == "__main__":
