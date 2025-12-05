@@ -4,7 +4,7 @@ import time
 import numpy as np
 from scipy.io import netcdf_file
 from scipy.interpolate import interp1d
-from scipy.optimize import minimize, least_squares, NonlinearConstraint
+from scipy.optimize import minimize, least_squares
 import f90nml
 import jax
 import jax.numpy as jnp
@@ -1366,38 +1366,35 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             theta2_1d = theta1_1d + lambd
             return theta2_1d
         
+        # Same as compute_r2mn_and_z2mn, but also returns theta2_1d for use in computing R and Z errors
         def _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
             theta2_1d = lambda_Fourier_to_grid(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
 
-            lsq_for_R_matrix = jnp.cos(m_for_R[None, :] * theta2_1d[:, None] - nfp * n_for_R[None, :] * phi_1d[:, None])
-            lsq_for_Z_matrix = jnp.sin(m_for_Z[None, :] * theta2_1d[:, None] - nfp * n_for_Z[None, :] * phi_1d[:, None])
+            scaled_lambda_dofs = lambda_dofs * x_scale
+            d_theta2_d_theta1 = 1 + jnp.sum(scaled_lambda_dofs[None, :] * m_for_lambda[None, :] * jnp.cos(
+                m_for_lambda[None, :] * theta1_1d[:, None] - nfp * n_for_lambda[None, :] * phi_1d[:, None]
+            ), axis=1)
+            # Order of indices: (point index, mode index)
+            Rmnc_new = 2 * jnp.mean(d_theta2_d_theta1[:, None] * R_to_fit[:, None] * jnp.cos(
+                m_for_R[None, :] * theta2_1d[:, None] - nfp * n_for_R[None, :] * phi_1d[:, None]
+            ), axis=0)
+            Rmnc_new = Rmnc_new.at[0].set(Rmnc_new[0] * 0.5)
+            Zmns_new = 2 * jnp.mean(d_theta2_d_theta1[:, None] * Z_to_fit[:, None] * jnp.sin(
+                m_for_Z[None, :] * theta2_1d[:, None] - nfp * n_for_Z[None, :] * phi_1d[:, None]
+            ), axis=0)
 
-            # Compute least-squares fit for Rmnc and Zmns with respect to
-            # theta2.
-            
-            # For some reason, jax's lstsq function returns NaNs even when it shouldn't.
-            # rcond = None
-            # Rmnc_new = jnp.linalg.lstsq(lsq_for_R_matrix, R_to_fit, rcond=rcond)[0]
-            # Zmns_new = jnp.linalg.lstsq(lsq_for_Z_matrix, Z_to_fit, rcond=rcond)[0]
-
-            # To avoid the NaNs, we instead solve the least-squares problem via
-            # QR decomposition:
-            Q_R, R_R = jnp.linalg.qr(lsq_for_R_matrix, mode="reduced")
-            Rmnc_new = jnp.linalg.solve(R_R, Q_R.T @ R_to_fit)
-
-            Q_Z, R_Z = jnp.linalg.qr(lsq_for_Z_matrix, mode="reduced")
-            Zmns_new = jnp.linalg.solve(R_Z, Q_Z.T @ Z_to_fit)
-
-            return Rmnc_new, Zmns_new, lsq_for_R_matrix, lsq_for_Z_matrix
+            return Rmnc_new, Zmns_new, theta2_1d
         
         def compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
-            Rmnc_new, Zmns_new, _, _ = _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            Rmnc_new, Zmns_new, _ = _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
             return jnp.concatenate([Rmnc_new, Zmns_new])
 
         def compute_RZ_errors(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
-            Rmnc_new, Zmns_new, lsq_for_R_matrix, lsq_for_Z_matrix = _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
-            R_error = (lsq_for_R_matrix @ Rmnc_new - R_to_fit) / minor_radius
-            Z_error = (lsq_for_Z_matrix @ Zmns_new - Z_to_fit) / minor_radius
+            Rmnc_new, Zmns_new, theta2_1d = _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            R_new = jnp.sum(Rmnc_new[None, :] * jnp.cos(m_for_R[None, :] * theta2_1d[:, None] - nfp * n_for_R[None, :] * phi_1d[:, None]), axis=1)
+            Z_new = jnp.sum(Zmns_new[None, :] * jnp.sin(m_for_Z[None, :] * theta2_1d[:, None] - nfp * n_for_Z[None, :] * phi_1d[:, None]), axis=1)
+            R_error = (R_new - R_to_fit) / minor_radius
+            Z_error = (Z_new - Z_to_fit) / minor_radius
             max_error = max(np.max(np.abs(R_error)), np.max(np.abs(Z_error)))
             if verbose:
                 print(f"(Max error in fitting R or Z of points) / minor_radius: {max_error:.3e}")
@@ -1438,6 +1435,10 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         else:
             mnmax_steps = [max_mn_lambda]
 
+        previous_m_for_lambda = None
+        previous_n_for_lambda = None
+        lambda_dofs_optimized = None
+        # Fourier continuation loop:
         for mnmax in mnmax_steps:
             if Fourier_continuation and verbose:
                 line_width = 120
@@ -1477,13 +1478,13 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                     args=(m_for_lambda, n_for_lambda, x_scale)
                 )
             else:
+                # Non-least-squares methods:
                 grad_objective = jax.jit(jax.grad(scalar_objective))
                 if verbose:
                     objective_to_use = scalar_objective_with_printing
                 else:
                     objective_to_use = scalar_objective
 
-                # objective_to_use = scalar_objective
                 res = minimize(
                     objective_to_use,
                     lambda_dofs,

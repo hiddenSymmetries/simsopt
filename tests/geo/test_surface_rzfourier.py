@@ -1194,7 +1194,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
             # associated with discretization error.
             np.testing.assert_allclose(final_spectral_width_1, final_spectral_width_2, rtol=2e-5)
             np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
-            np.testing.assert_array_less(max_RZ_error, 1e-9)
+            np.testing.assert_array_less(max_RZ_error, 1e-7)
             np.testing.assert_allclose(final_spectral_width_1, 1.0)
             np.testing.assert_allclose(surf.minor_radius(), minor_radius)
             np.testing.assert_allclose(surf.major_radius(), major_radius)
@@ -1357,7 +1357,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
             # associated with discretization error.
             np.testing.assert_allclose(final_spectral_width_1, final_spectral_width_2, rtol=2e-5)
             np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
-            np.testing.assert_array_less(max_RZ_error, 1e-3)
+            np.testing.assert_array_less(max_RZ_error, 2e-3)
 
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):
