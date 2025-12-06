@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 from scipy.linalg import lu
 from scipy.optimize import minimize, least_squares
@@ -535,6 +536,14 @@ class BoozerSurface(Optimizable):
         if not self.need_to_run_code:
             return self.res
 
+        if not vectorize:
+            warnings.warn(
+                "Using vectorize=False is not recommended. The non-vectorized implementation "
+                "has platform-specific numerical issues that may cause convergence failures. "
+                "Use vectorize=True (the default) for reliable results.",
+                UserWarning
+            )
+
         s = self.surface
         if G is None:
             x = np.concatenate((s.get_dofs(), [iota]))
@@ -609,6 +618,14 @@ class BoozerSurface(Optimizable):
         """
         if not self.need_to_run_code:
             return self.res
+
+        if not vectorize:
+            warnings.warn(
+                "Using vectorize=False is not recommended. The non-vectorized implementation "
+                "has platform-specific numerical issues that may cause convergence failures. "
+                "Use vectorize=True (the default) for reliable results.",
+                UserWarning
+            )
 
         s = self.surface
         if G is None:

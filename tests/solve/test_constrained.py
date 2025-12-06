@@ -128,6 +128,7 @@ class ConstrainedSolveTests_mpi(unittest.TestCase):
                     np.testing.assert_allclose(prob.objective(), 0.125, atol=1e-3)
 
     def test_nlc(self):
+        np.random.seed(42)  # Fixed seed for reproducibility
         grads = [True, False]
 
         # QP
