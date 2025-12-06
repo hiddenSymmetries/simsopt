@@ -4,7 +4,7 @@ import time
 import numpy as np
 from scipy.io import netcdf_file
 from scipy.interpolate import interp1d
-from scipy.optimize import minimize, least_squares
+from scipy.optimize import minimize, least_squares, NonlinearConstraint
 import f90nml
 import jax
 import jax.numpy as jnp
@@ -1190,7 +1190,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         n_phi=None,
         power=2,
         maxiter=None,
-        method="trf",
+        method="trust-constr",
+        epsilon=1e-3,
         Fourier_continuation=True,
         verbose=True,
         plot=False,
@@ -1213,21 +1214,31 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         objective function minimized is the same function shown in the
         documentation for :func:`~simsopt.geo.SurfaceRZFourier.spectral_width`.
         At each iteration, i.e. for any specific choice of :math:`\lambda`,
-        updated values of ``rc`` and ``zs`` are computed by fitting to points on
-        the original surface, with the results used to evaluate the objective.
+        updated values of ``rc`` and ``zs`` are computed by Fourier-transforming
+        points on the original surface, with the results used to evaluate the
+        objective. Gradients are evaluated using JAX. Optionally, a constrained
+        optimization method can be used to ensure that the maximum change to the
+        surface shape is below a specified fraction of the minor radius, given
+        by the ``epsilon`` argument.
 
         If ``n_theta`` and ``n_phi`` are not specified, they default to ``3*mpol+1``
         and ``3*ntor+1``, respectively.
 
-        The optimization algorithm is specified by ``method``. It can be any of
-        the methods supported by
-        `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`__
-        (``trf``, ``dogleg``, or ``lm``), or any of the methods supported by
-        `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html>`__
-        (``L-BFGS-B``, ``BFGS``, etc). Based on experience, the least-squares
-        methods achieve slightly lower values of the spectral width, but take
-        more time per iteration. Any of the algorithms ``trf``, ``BFGS``, and
-        ``lm`` are likely to work.
+        The optimization algorithm is specified by ``method``. The recommended
+        settings are either ``SLSQP`` or ``trust-constr``. This argument accepts
+        any method supported by `scipy.optimize.minimize
+        <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html>`__
+        (``L-BFGS-B``, ``BFGS``, etc.) or any of the methods supported by
+        `scipy.optimize.least_squares
+        <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`__
+        (``trf``, ``dogleg``, or ``lm``). The constrained algorithms ``SLSQP``
+        or ``trust-constr`` are recommended to ensure that the surface shape
+        does not change too much. You can try the unconstrained algorithms,
+        which may be faster and result in a smaller spectral width, but not
+        always, and sometimes the surface shape will not be preserved well.
+        Based on experience, the least-squares methods achieve slightly lower
+        values of the spectral width, but take more time per iteration. Any of
+        the algorithms ``trf``, ``BFGS``, and ``lm`` are likely to work.
 
         If ``maxiter`` is not specified, it defaults to 25 for the least-squares
         methods, and 100 for other methods.
@@ -1237,7 +1248,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         then modes with :math:`|m|` and :math:`|n|` up to 2, and so on. If
         ``False``, all modes of :math:`\lambda` are optimized at once. Using
         Fourier continuation generally results in better spectral condensation,
-        but it is slower.
+        but it requires more time.
 
         The surface degrees of freedom are modified in place.
 
@@ -1245,8 +1256,10 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         surface shape. Ideally this change is as small as possible. To measure
         this change, the return value ``max_RZ_error`` gives the maximum
         absolute change to ``R`` and ``Z`` on the :math:`\theta_1` grid points,
-        normalized to the minor radius. If this value is unacceptably large, use
-        the :func:`~simsopt.geo.SurfaceRZFourier.change_resolution` method to
+        normalized to the minor radius. If this value is approximately equal to
+        ``epsilon`` for the constrained algorithms, or unacceptably large for
+        the unconstrained algorithms, you can use the
+        :func:`~simsopt.geo.SurfaceRZFourier.change_resolution` method to
         increase ``mpol`` and ``ntor`` of the surface before calling
         ``condense_spectrum``, so both the Fourier and grid resolutions used in
         ``condense_spectrum`` are increased. You may then be able to call
@@ -1265,12 +1278,16 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 Maximum number of iterations for the optimization.
             method: str or None, optional
                 Optimization method to use. See above for details.
+            epsilon: float, optional
+                Maximum allowed change to R and Z on the θ₁ grid points,
+                normalized to the minor radius. Only matters if
+                ``method=="SLSQP"`` or ``method=="trust-constr"``.
             Fourier_continuation: bool, optional
                 Whether to use Fourier continuation.
             verbose: bool, optional
                 Whether to print progress messages.
             plot: bool, optional
-                Whether to plot the convergence of the spectral width.
+                Whether to plot information related to the spectral condensation.
             show: bool, optional
                 Whether to call matplotlib's ``show()`` function after plotting.
 
@@ -1281,7 +1298,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             final_objective: float
                 The final value of the spectral width objective.
             max_RZ_error: float
-                The maximum absolute change to R and Z on the theta1 grid points, normalized to the minor radius.
+                The maximum absolute change to R and Z on the θ₁ grid points, normalized to the minor radius.
         """
         if not self.stellsym:
             raise NotImplementedError("condense_spectrum is only implemented for stellarator-symmetric surfaces")
@@ -1395,7 +1412,11 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             Z_new = jnp.sum(Zmns_new[None, :] * jnp.sin(m_for_Z[None, :] * theta2_1d[:, None] - nfp * n_for_Z[None, :] * phi_1d[:, None]), axis=1)
             R_error = (R_new - R_to_fit) / minor_radius
             Z_error = (Z_new - Z_to_fit) / minor_radius
-            max_error = max(np.max(np.abs(R_error)), np.max(np.abs(Z_error)))
+            return jnp.concatenate([R_error, Z_error])
+
+        def compute_max_RZ_error(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            RZ_errors = compute_RZ_errors(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            max_error = np.max(np.abs(RZ_errors))
             if verbose:
                 print(f"(Max error in fitting R or Z of points) / minor_radius: {max_error:.3e}")
             return max_error
@@ -1421,6 +1442,10 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             obj_value_float = obj_value.astype(float)
             print(f"Iteration {iteration_counter['count']:5}: objective = {obj_value_float:.6e}")
             return obj_value
+
+        n_constraints = R_to_fit.size + Z_to_fit.size
+
+        jac_constraints = jax.jit(jax.jacfwd(compute_RZ_errors))
 
         initial_objective = scalar_objective(
             np.zeros_like(m_for_lambda_full),
@@ -1477,8 +1502,38 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                     max_nfev=maxiter,
                     args=(m_for_lambda, n_for_lambda, x_scale)
                 )
+            elif method in ["SLSQP", "trust-constr"]:
+                # Constrained optimization methods:
+                constraints = NonlinearConstraint(
+                    lambda x: compute_RZ_errors(x, m_for_lambda, n_for_lambda, x_scale),
+                    jnp.full(n_constraints, -epsilon),
+                    jnp.full(n_constraints, epsilon),
+                    jac=lambda x: jac_constraints(x, m_for_lambda, n_for_lambda, x_scale),
+                )
+
+                options = {"maxiter": maxiter}
+                if verbose:
+                    if method == "trust-constr":
+                        options["verbose"] = 3
+                        objective_to_use = scalar_objective
+                    else:
+                        # SLSQP does not have a 'verbose' option
+                        objective_to_use = scalar_objective_with_printing
+                else:
+                    objective_to_use = scalar_objective
+
+                grad_objective = jax.jit(jax.grad(scalar_objective))
+                res = minimize(
+                    objective_to_use,
+                    lambda_dofs,
+                    jac=grad_objective,
+                    method=method,
+                    constraints=constraints,
+                    options=options,
+                    args=(m_for_lambda, n_for_lambda, x_scale)
+                )
             else:
-                # Non-least-squares methods:
+                # Other non-least-squares methods:
                 grad_objective = jax.jit(jax.grad(scalar_objective))
                 if verbose:
                     objective_to_use = scalar_objective_with_printing
@@ -1497,7 +1552,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             lambda_dofs_optimized = res.x
             previous_m_for_lambda = m_for_lambda
             previous_n_for_lambda = n_for_lambda
-            max_RZ_error = compute_RZ_errors(lambda_dofs_optimized, m_for_lambda, n_for_lambda, x_scale)
+            max_RZ_error = compute_max_RZ_error(lambda_dofs_optimized, m_for_lambda, n_for_lambda, x_scale)
 
         elapsed_time = time.time() - start_time
         if verbose:

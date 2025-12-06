@@ -1156,7 +1156,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
         
         """
-        for method in ['trf', 'BFGS']:
+        for method in ['SLSQP', 'trust-constr', 'trf', 'BFGS']:
             power = 2
             print(f"Testing condense_spectrum() with method {method}")
             major_radius = 10.0
@@ -1194,7 +1194,12 @@ class SurfaceRZFourierTests(unittest.TestCase):
             # associated with discretization error.
             np.testing.assert_allclose(final_spectral_width_1, final_spectral_width_2, rtol=2e-5)
             np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
-            np.testing.assert_array_less(max_RZ_error, 1e-7)
+            if method == "SLSQP":
+                # For some reason SLSQP is less accurate for this test.
+                allowed_RZ_error = 3e-7
+            else:
+                allowed_RZ_error = 1e-7
+            np.testing.assert_array_less(max_RZ_error, allowed_RZ_error)
             np.testing.assert_allclose(final_spectral_width_1, 1.0)
             np.testing.assert_allclose(surf.minor_radius(), minor_radius)
             np.testing.assert_allclose(surf.major_radius(), major_radius)
@@ -1209,7 +1214,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
     def test_condense_spectrum_theta_origin(self):
         """Test the condense_spectrum() method for eliminating unnecessary
         toroidal variation in the origin of the theta coordinate."""
-        for method in ['BFGS', 'trf']:
+        for method in ['SLSQP', 'trust-constr', 'trf', 'BFGS', 'lm']:
             power = 2
             print(f"Testing condense_spectrum() with method {method}")
 
@@ -1278,7 +1283,12 @@ class SurfaceRZFourierTests(unittest.TestCase):
             x_should_be[0] = major_radius
             x_should_be[2 * ntor + 1] = minor_radius  # rc(m=1, n=0)
             x_should_be[(len(surf.x) - 1) // 2 + 2 * ntor + 1] = minor_radius  # zs(m=1, n=0)
-            np.testing.assert_allclose(surf.x, x_should_be, atol=1e-8)
+            if method == "SLSQP":
+                # For some reason SLSQP is less accurate for this test.
+                atol = 1e-6
+            else:
+                atol = 1e-8
+            np.testing.assert_allclose(surf.x, x_should_be, atol=atol)
 
     def test_condense_spectrum(self):
         """Test the condense_spectrum() and spectral_width() methods.
@@ -1287,7 +1297,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         angle is the geometric angle arctan2(Z / (R - major_radius)), which is far
         from the spectrally compressed angle.
         """
-        for method in ['trf', 'BFGS', 'lm']:
+        for method in ['SLSQP', 'trust-constr', 'trf', 'BFGS', 'lm']:
             power = 2
             print(f"Testing condense_spectrum() with method {method}")
 
@@ -1357,7 +1367,11 @@ class SurfaceRZFourierTests(unittest.TestCase):
             # associated with discretization error.
             np.testing.assert_allclose(final_spectral_width_1, final_spectral_width_2, rtol=2e-5)
             np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
-            np.testing.assert_array_less(max_RZ_error, 2e-3)
+            if method in ['SLSQP', 'trust-constr']:
+                max_allowed_error = 1e-3
+            else:
+                max_allowed_error = 2e-3
+            np.testing.assert_array_less(max_RZ_error, max_allowed_error)
 
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):
