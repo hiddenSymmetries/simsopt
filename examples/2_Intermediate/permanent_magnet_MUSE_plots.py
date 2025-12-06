@@ -138,7 +138,7 @@ if R2_files:
         else:
             label = rf"$f_B$ ({algo_human})"
 
-        plt.semilogy(iterations, R2_plot, label=label)
+        plt.semilogy(iterations, R2_plot, label=label, linestyle="--")
 
     plt.grid(True)
     plt.xlabel(r'Iteration $K$')
@@ -155,6 +155,7 @@ if R2_files:
     print(f"Saved combined plot {fname}")
 
 npz_files = [f for f in outdir.glob("dipoles_final_*.npz") if not f.name.endswith("relax-and-split.npz")]
+print(npz_files)
 if len(npz_files) >= 2:
     data = {}
     for f in npz_files:
