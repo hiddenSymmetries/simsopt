@@ -298,6 +298,7 @@ class IotasTests(unittest.TestCase):
         """
         Taylor test for derivative of surface rotational transform wrt coil parameters
         """
+        np.random.seed(1)  # Fixed seed for reproducibility across platforms
 
         bs, boozer_surface = get_boozer_surface(label=label, boozer_type=boozer_type, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
         coeffs = bs.x
