@@ -494,11 +494,13 @@ class JaxCurve(sopp.Curve, Curve):
 
         self.gammadash_pure = lambda x, q: jvp(lambda p: self.gamma_pure(x, p), (q,), (ones,))[1]
         self.gammadash_jax = jit(lambda x: self.gammadash_pure(x, points))
+        self.gammadash_impl_jax = jit(lambda x, p: self.gammadash_pure(x, p))
         self.dgammadash_by_dcoeff_jax = jit(jacfwd(self.gammadash_jax))
         self.dgammadash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadash_jax, x)[1](v)[0])
 
         self.gammadashdash_pure = lambda x, q: jvp(lambda p: self.gammadash_pure(x, p), (q,), (ones,))[1]
         self.gammadashdash_jax = jit(lambda x: self.gammadashdash_pure(x, points))
+        self.gammadashdash_impl_jax = jit(lambda x, p: self.gammadashdash_pure(x, p))
         self.dgammadashdash_by_dcoeff_jax = jit(jacfwd(self.gammadashdash_jax))
         self.dgammadashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdash_jax, x)[1](v)[0])
 
@@ -726,6 +728,12 @@ class RotatedCurve(sopp.Curve, Curve):
         """
         return self.curve.num_dofs()
 
+    def center(self, gamma, gammadash):
+        # Compute the centroid of the curve
+        arclength = jnp.linalg.norm(gammadash, axis=-1)
+        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / jnp.sum(arclength)
+        return barycenter
+
     def gamma_impl(self, gamma, quadpoints):
         r"""
         This function returns the x,y,z coordinates of the curve, :math:`\Gamma`, where :math:`\Gamma` are the x, y, z
@@ -885,7 +893,7 @@ class RotatedCurve(sopp.Curve, Curve):
         return True if self.rotmat[2][2] == -1 else False
 
 
-def curves_to_vtk(curves, filename, close=False, extra_data=None):
+def curves_to_vtk(curves, filename, close=False, extra_point_data=None, I=None, NetForces=None, NetTorques=None):
     """
     Export a list of Curve objects in VTK format, so they can be
     viewed using Paraview. This function requires the python package ``pyevtk``,
@@ -895,6 +903,10 @@ def curves_to_vtk(curves, filename, close=False, extra_data=None):
         curves: A python list of Curve objects.
         filename: Name of the file to write.
         close: Whether to draw the segment from the last quadrature point back to the first.
+        extra_point_data: A dictionary of additional point data to add to the VTK file.
+        I: A list of currents for the coils.
+        NetForces: A list of net forces for the coils.
+        NetTorques: A list of net torques for the coils.
     """
     from pyevtk.hl import polyLinesToVTK
 
@@ -911,10 +923,26 @@ def curves_to_vtk(curves, filename, close=False, extra_data=None):
         y = np.concatenate([c.gamma()[:, 1] for c in curves])
         z = np.concatenate([c.gamma()[:, 2] for c in curves])
         ppl = np.asarray([c.gamma().shape[0] for c in curves])
-    data = np.concatenate([i*np.ones((ppl[i], )) for i in range(len(curves))])
-    pointData = {'idx': data}
-    if extra_data is not None:
-        pointData = {**pointData, **extra_data}
+    pointData = {}
+    if I is not None:
+        data = np.concatenate([I[i]*np.ones((ppl[i], )) for i in range(len(curves))])
+        pointData = {'I': data, 'I_mag': np.abs(data)}
+    if NetForces is not None:
+        # NetForces is a list/array of 3D vectors, shape (len(curves), 3)
+        # For each curve, repeat the force vector for each point on that curve
+        fx = np.concatenate([NetForces[i][0]*np.ones((ppl[i], )) for i in range(len(curves))])
+        fy = np.concatenate([NetForces[i][1]*np.ones((ppl[i], )) for i in range(len(curves))])
+        fz = np.concatenate([NetForces[i][2]*np.ones((ppl[i], )) for i in range(len(curves))])
+        pointData = {**pointData, 'NetForces': (fx, fy, fz)}
+    if NetTorques is not None:
+        # NetTorques is a list/array of 3D vectors, shape (len(curves), 3)
+        # For each curve, repeat the torque vector for each point on that curve
+        tx = np.concatenate([NetTorques[i][0]*np.ones((ppl[i], )) for i in range(len(curves))])
+        ty = np.concatenate([NetTorques[i][1]*np.ones((ppl[i], )) for i in range(len(curves))])
+        tz = np.concatenate([NetTorques[i][2]*np.ones((ppl[i], )) for i in range(len(curves))])
+        pointData = {**pointData, 'NetTorques': (tx, ty, tz)}
+    if extra_point_data is not None:
+        pointData = {**pointData, **extra_point_data}
 
     polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData=pointData)
 
