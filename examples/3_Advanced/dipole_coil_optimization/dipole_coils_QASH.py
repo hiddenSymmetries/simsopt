@@ -13,7 +13,7 @@ from simsopt.mhd import VirtualCasing
 from simsopt.field.force import LpCurveForce, \
     SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque
-from simsopt.util import calculate_on_axis_B, remove_inboard_dipoles, \
+from simsopt.util import calculate_modB_on_major_radius, remove_inboard_dipoles, \
     remove_interlinking_dipoles_and_TFs, initialize_coils, save_coil_sets
 from simsopt.geo import (
     CurveLength, CurveCurveDistance,
@@ -141,14 +141,14 @@ else:
     bs_TF = BiotSavart(coils_TF)
 
     # Calculate average, approximate on-axis B field strength
-    calculate_on_axis_B(bs_TF, s)
+    calculate_modB_on_major_radius(bs_TF, s)
 
     Nx = 5
     Ny = Nx
     Nz = Nx
     # Create the initial coils:
     base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-        s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=True, jax_flag=False,
+        s, s_inner, s_outer, Nx, Ny, Nz, order=order, use_jax_curve=False,
     )
 
     base_curves = remove_inboard_dipoles(s, base_curves, eps=-0.4)
@@ -157,20 +157,22 @@ else:
     ncoils = len(base_curves)
     print('Ncoils = ', ncoils)
     for i in range(len(base_curves)):
-        # Fix shape of each coil
-        for j in range(2 * order + 1):
-            base_curves[i].fix('x' + str(j))
+        # Fix shape of each coil (Fourier coefficients)
+        for j in range(order + 1):
+            base_curves[i].fix(f'rc({j})')
+        for j in range(1, order + 1):
+            base_curves[i].fix(f'rs({j})')
         # Fix center points of each coil
-        # base_curves[i].fix('x' + str(2 * order + 5))
-        # base_curves[i].fix('x' + str(2 * order + 6))
-        # base_curves[i].fix('x' + str(2 * order + 7))
+        # base_curves[i].fix('X')
+        # base_curves[i].fix('Y')
+        # base_curves[i].fix('Z')
 
     base_currents = [Current(1.0) * 1e7 for i in range(ncoils)]
     coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
     base_coils = coils[:ncoils]
     bs = BiotSavart(coils)
     btot = bs + bs_TF
-    calculate_on_axis_B(btot, s)
+    calculate_modB_on_major_radius(btot, s)
     btot.set_points(s.gamma().reshape((-1, 3)))
     bs.set_points(s.gamma().reshape((-1, 3)))
     curves = [c.curve for c in coils]
@@ -379,7 +381,7 @@ pointData = {
                         ) - vc.B_external_normal) / np.linalg.norm(btot.B().reshape(nphi, ntheta, 3), axis=-1))[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_optimized_unique", extra_data=pointData)
 
-calculate_on_axis_B(btot, s)
+calculate_modB_on_major_radius(btot, s)
 
 t2 = time.time()
 print('Total time = ', t2 - t1)

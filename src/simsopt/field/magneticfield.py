@@ -94,25 +94,53 @@ class MagneticField(sopp.MagneticField, Optimizable):
 
     def to_mgrid(self, filename, nr=10, nphi=4, nz=12, rmin=1.0, rmax=2.0, zmin=-0.5, zmax=0.5, nfp=1,
                  include_potential=False):
-        """Export the field to the mgrid format for free boundary calculations.
+        """Export the field to the mgrid (NetCDF) file format for free boundary calculations.
 
-        The field data is represented as a single "current group". For
-        free-boundary vmec, the "extcur" array should have a single nonzero
-        element, set to 1.0.
-
-        In the future, we may want to implement multiple current groups.
+        An mgrid file contains a grid in cylindrical coordinates ``(R, phi, z)`` upon which the
+        magnetic field is evaluated. The grid is defined by the number of
+        points in the radius (``nr``), the number of planes per field period 
+        in the toroidal angle (``nphi``), and the number of points in the z coordinate (``nz``). 
+        A good rule here is to choose at least 4 times as many toroidal planes as the maximum toroidal 
+        mode number (ex. if ``ntor=6`` then you should have at least 24 toroidal planes). 
+        
+        The grid boundary is defined by the minimum and maximum values of the radial coordinate
+        (``rmin``, ``rmax``), the minimum and maximum values of the z-coordinate (``zmin``, ``zmax``).
+        Note the ``R`` and ``z`` grids include both end points while the ``phi`` dimension includes 
+        the start point and excludes the end point.
+        For free boundary calculations, the grid should be large enough to contain the entire plasma. 
+        For example, ``rmin`` should be smaller than ``min R(theta, phi)`` where ``R`` is the radial 
+        coordinate of the plasma. The same applies for the z-coordinate.
+        
+        The choice of the number or radial and vertical gridpoints is not as straightforward.
+        The VMEC code uses these grids to 'deform' the plasma boundary in a iterative sense.
+        The complication revolves around the spectral condensation VMEC performs in the poloidal direction.
+        The code calculates the location of the poloidal grid points so that an optimized choice is made for 
+        the form of the plasma.
+        The user should decide how accurately the wish to know the plasma boundary.
+        If [cm] precision is required then the number of grid points chosen should provide at least this resolution.
+        Remember that the more datapoints, the slower VMEC will run.
+        
+        Currently, this function only supports one "current group": a set of coils that are electrically connected 
+        in series. Using multiple current groups emmulates groups of coils that are connected to distinct power supplies,
+        and allows for the current in each group can be controlled independently.
+        For example, W7-X has 7 current groups, one for each base coil (5 nonplanar coils + 2 planar coils), which
+        allows all planar coils to be turned on without changing the currents in the nonplanar coils.
+        In free-boundary vmec, the currents in each current group are scaled using the "extcur" array in the input file.
+        Since only one current group is supported by this function, for
+        free-boundary vmec, the ``vmec.indata.extcur`` array should have a single nonzero
+        element, set to ``1.0``.
 
         Args:
-            filename: Name of the NetCDF file to save.
-            nr: Number of grid points in the major radius dimension.
-            nphi: Number of planes in the toroidal angle.
-            nz: Number of grid points in the z coordinate.
-            rmin: Minimum value of major radius for the grid.
-            rmax: Maximum value of major radius for the grid.
-            zmin: Minimum value of z for the grid.
-            zmax: Maximum value of z for the grid.
-            nfp: Number of field periods.
-            include_potential: Boolean to include the vector potential A. Defaults to false.
+            filename (str): Name of the NetCDF file to save.
+            nr (int): Number of grid points in the radial direction.
+            nphi (int): Number of planes in the toroidal angle.
+            nz (int): Number of grid points in the z coordinate.
+            rmin (float): Minimum value of major radius coordinate of the grid.
+            rmax (float): Maximum value of major radius coordinate of the grid.
+            zmin (float): Minimum value of z-coordinate of the grid.
+            zmax (float): Maximum value of z-coordinate of the grid.
+            nfp (int): Number of field periods.
+            include_potential (bool): Boolean to include the vector potential A. Defaults to false.
         """
 
         rs = np.linspace(rmin, rmax, nr, endpoint=True)

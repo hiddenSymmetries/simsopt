@@ -11,8 +11,8 @@ try:
 except ImportError:
     vmec = None
 
-from simsopt.configs import get_w7x_data
-from simsopt.field import BiotSavart, coils_via_symmetries, MGrid
+from simsopt.configs import get_data
+from simsopt.field import MGrid
 from simsopt.mhd import Vmec
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
@@ -85,10 +85,7 @@ class VmecTests(unittest.TestCase):
         """
         input_file = str(TEST_DIR / "input.W7-X_standard_configuration")
 
-        curves, currents, magnetic_axis = get_w7x_data()
-        nfp = 5
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        base_curves, base_currents, magnetic_axis, nfp, bs  = get_data("w7x")
         eq = Vmec(input_file)
         nphi = 24
         with ScratchDir("."):

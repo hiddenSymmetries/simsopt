@@ -27,7 +27,7 @@ import time
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import BiotSavart, Current, coils_via_symmetries, regularization_rect, PSCArray
-from simsopt.util import calculate_on_axis_B, remove_inboard_dipoles, \
+from simsopt.util import calculate_modB_on_major_radius, remove_inboard_dipoles, \
     remove_interlinking_dipoles_and_TFs, initialize_coils, in_github_actions, \
     dipole_array_optimization_function, save_coil_sets, align_dipoles_with_plasma
 from simsopt.geo import (
@@ -99,7 +99,7 @@ bs_TF = BiotSavart(coils_TF)
 
 # # Calculate average, approximate on-axis B field strength
 print(s, bs_TF, base_curves_TF)
-calculate_on_axis_B(bs_TF, s)
+calculate_modB_on_major_radius(bs_TF, s)
 
 # wire cross section for the TF coils is a square 20 cm x 20 cm
 # This cross-section is not reflected in optimization except
@@ -154,25 +154,29 @@ for i in range(len(base_curves)):
     salpha2 = np.sin(alpha2)
     cdelta2 = np.cos(delta2)
     sdelta2 = np.sin(delta2)
-    base_curves[i].set('x' + str(2 * order + 1), calpha2 * cdelta2)
-    base_curves[i].set('x' + str(2 * order + 2), salpha2 * cdelta2)
-    base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
-    base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
+    # Set quaternion DOFs: q0, qi, qj, qk
+    base_curves[i].set('q0', calpha2 * cdelta2)
+    base_curves[i].set('qi', salpha2 * cdelta2)
+    base_curves[i].set('qj', calpha2 * sdelta2)
+    base_curves[i].set('qk', -salpha2 * sdelta2)
 
     if shape_fixed:
-        # Fix shape of each coil
-        for j in range(2 * order + 1):
-            base_curves[i].fix('x' + str(j))
+        # Fix shape of each coil (Fourier coefficients)
+        for j in range(order + 1):
+            base_curves[i].fix(f'rc({j})')
+        for j in range(1, order + 1):
+            base_curves[i].fix(f'rs({j})')
 
     if spatially_fixed:
-        # Fix the orientation of each coil
-        base_curves[i].fix('x' + str(2 * order + 2))
-        base_curves[i].fix('x' + str(2 * order + 3))
-        base_curves[i].fix('x' + str(2 * order + 4))
+        # Fix the orientation of each coil (quaternion components)
+        base_curves[i].fix('q0')
+        base_curves[i].fix('qi')
+        base_curves[i].fix('qj')
+        base_curves[i].fix('qk')
         # Fix center points of each coil
-        base_curves[i].fix('x' + str(2 * order + 5))
-        base_curves[i].fix('x' + str(2 * order + 6))
-        base_curves[i].fix('x' + str(2 * order + 7))
+        base_curves[i].fix('X')
+        base_curves[i].fix('Y')
+        base_curves[i].fix('Z')
 
 eval_points = s.gamma().reshape(-1, 3)
 if passive_coil_array:
@@ -183,10 +187,10 @@ if passive_coil_array:
     psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
 
     # Calculate average, approximate on-axis B field strength
-    calculate_on_axis_B(psc_array.biot_savart_TF, s)
+    calculate_modB_on_major_radius(psc_array.biot_savart_TF, s)
     psc_array.biot_savart_TF.set_points(eval_points)
     btot = psc_array.biot_savart_total
-    calculate_on_axis_B(btot, s)
+    calculate_modB_on_major_radius(btot, s)
     coils = psc_array.coils
     base_coils = coils[:ncoils]
 else:
@@ -200,7 +204,7 @@ else:
 
     # Create the total Bfield object from both the TF and dipole coils
     btot = bs + bs_TF
-    calculate_on_axis_B(btot, s)
+    calculate_modB_on_major_radius(btot, s)
 
 allcoils = coils + coils_TF
 btot.set_points(eval_points)
@@ -347,6 +351,6 @@ pointData = {"B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.uni
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_optimized", extra_data=pointData)
 btot.set_points(eval_points)
-calculate_on_axis_B(btot, s)
+calculate_modB_on_major_radius(btot, s)
 t2 = time.time()
 print('Total time = ', t2 - t1)

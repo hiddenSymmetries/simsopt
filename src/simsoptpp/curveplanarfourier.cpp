@@ -18,7 +18,6 @@ void CurvePlanarFourier<Array>::gamma_impl(Array& data, Array& quadpoints) {
     data *= 0;
     Array q_norm = q * inv_magnitude();
 
-// #pragma omp parallel for schedule(static) 
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         double cosphi = cos(phi);

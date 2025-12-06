@@ -75,7 +75,7 @@ Basic RCLS
 The first example includes the fundamental elements of a wireframe optimization
 using RCLS: creating the wireframe, setting its constraints, setting the
 optimization parameters, and running the optimization. It can also be found
-in ``/examples/2_Intermediate/wireframe_rcls_basic.py``.
+in :simsopt_file:`examples/2_Intermediate/wireframe_rcls_basic.py`.
 
 First import the necessary classes, including the ones for creating and
 optimizing toroidal wireframes::
@@ -238,7 +238,7 @@ avoids placing currents in segments that overlap a set of ports placed on
 the outboard side of the stellarator. The ports will be assumed to have
 circular cross-sections and can thus be represented by the 
 :obj:`~simsopt.geo.CircularPort` class. This example may also be found in the 
-file ``/examples/2_Intermediate/wireframe_rcls_with_ports.py``.
+file :simsopt_file:`examples/2_Intermediate/wireframe_rcls_with_ports.py`.
 
 First, the general :obj:`~simsopt.geo.PortSet` and 
 :obj:`~simsopt.geo.CircularPort` classes must be imported::
@@ -472,7 +472,7 @@ wireframe grid, because the current loops added during GSCO iterations can
 contribute no net poloidal current component. However, if the wireframe is 
 initialized with a set of (planar) TF coils, GSCO can reshape the coils to
 minimize the objective function. An example of this is demonstrated in the file  
-``/examples/2_Intermediate/wireframe_gsco_modular.py``.
+:simsopt_file:`examples/2_Intermediate/wireframe_gsco_modular.py`.
 
 To achieve good field accuracy with GSCO, one generally must use a higher
 wireframe resolution than what is sufficient with the RCLS approach::
@@ -595,7 +595,7 @@ of GSCO and the wireframe; namely, the ability to control where coils may be
 placed. In this next example, constraints will be used to produce a design
 consisting of a combination of planar TF coils and saddle coils that are 
 confined to the sectors in between adjacent TF coils. The example is implemented
-in the file ``/examples/2_Intermediate/wireframe_gsco_sector_saddle.py``.
+in the file :simsopt_file:`examples/2_Intermediate/wireframe_gsco_sector_saddle.py`.
 
 The setup for this example will be similar to that of the modular coil example,
 although with a few key differences. First, rather than initializing six planar
@@ -764,7 +764,7 @@ To summarize, the multistep procedure in this example goes as follows:
    "no new coils"
 
 This example is implemented in the file 
-``/examples/3_Advanced/wireframe_gsco_multistep.py``. The wireframe is 
+:simsopt_file:`examples/3_Advanced/wireframe_gsco_multistep.py`. The wireframe is 
 initialized in a very similar way to that of the 
 `sector-confined saddle coil <#sector-confined-saddle-coils>`_ example; however 
 with twice the resolution and with no planar TF coils appearing in the 
@@ -886,7 +886,7 @@ the shape of coils carrying the initial (highest) current level::
                    }
 
 Conveniently, with ``opt_params`` set suitably for the respective stage of the 
-procedure, the call to ``optimize_wireframe`` is the same. Note that, unlike in 
+procedure, the call to :func:`~simsopt.solve.optimize_wireframe` is the same. Note that, unlike in 
 the other examples in this tutorial, an external field (``ext_field``) must be 
 provided corresponding to the field provided by the external TF coils::
 
@@ -894,7 +894,7 @@ provided corresponding to the field provided by the external TF coils::
   res = optimize_wireframe(wf, 'gsco', opt_params, surf_plas=surf_plas,
                            ext_field=mf_tf, verbose=False)
 
-If ``final_step == False``, the above call to ``optimize_wireframe`` 
+If ``final_step == False``, the above call to :func:`~simsopt.solve.optimize_wireframe`
 constitutes step 2a of the above procedure. Before moving on to the next GSCO 
 stage, steps 2b-c must be conducted. First, any saddle coil smaller than the 
 user-designated minimum size is removed from the solution. The coil sizes are 

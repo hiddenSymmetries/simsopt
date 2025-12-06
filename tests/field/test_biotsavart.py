@@ -396,8 +396,6 @@ class Testing(unittest.TestCase):
             bs.set_points(pts)
             A = bs.A()
             fluxA = r*np.sum(A*t) * 2 * np.pi/npoints
-            print(fluxB[0], fluxA, np.abs(fluxB[0]-fluxA)/fluxB[0])
-
             assert np.abs(fluxB[0]-fluxA)/fluxB[0] < 1e-14
 
     def test_biotsavart_vector_potential_coil_current_taylortest(self):

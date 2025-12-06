@@ -1,14 +1,10 @@
 simsopt.configs package
 =======================
 
-Submodules
-----------
+Module contents
+---------------
 
-simsopt.configs.zoo module
---------------------------
-
-.. automodule:: simsopt.configs.zoo
+.. automodule:: simsopt.configs
    :members:
    :undoc-members:
    :show-inheritance:
-

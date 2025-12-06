@@ -12,7 +12,7 @@ from simsopt.field import regularization_rect
 from simsopt.field.force import LpCurveForce, \
     SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque
-from simsopt.util import calculate_on_axis_B, remove_interlinking_dipoles_and_TFs, \
+from simsopt.util import calculate_modB_on_major_radius, remove_interlinking_dipoles_and_TFs, \
     align_dipoles_with_plasma, initialize_coils, save_coil_sets, in_github_actions
 from simsopt.geo import (
     CurveLength, CurveCurveDistance, MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
@@ -96,7 +96,7 @@ if not continuation_run:
     bs_TF = BiotSavart(coils_TF)
 
     # Calculate average, approximate on-axis B field strength
-    calculate_on_axis_B(bs_TF, s)
+    calculate_modB_on_major_radius(bs_TF, s)
 
     # Initialize the dipole coils
     Nx = 6
@@ -127,19 +127,21 @@ if not continuation_run:
         # base_curves[i].fix('x' + str(2 * order + 3))
         # base_curves[i].fix('x' + str(2 * order + 4))
 
-        # Fix shape of each coil
-        for j in range(2 * order + 1):
-            base_curves[i].fix('x' + str(j))
+        # Fix shape of each coil (Fourier coefficients)
+        for j in range(order + 1):
+            base_curves[i].fix(f'rc({j})')
+        for j in range(1, order + 1):
+            base_curves[i].fix(f'rs({j})')
         # Fix center points of each coil
-        # base_curves[i].fix('x' + str(2 * order + 5))
-        # base_curves[i].fix('x' + str(2 * order + 6))
-        # base_curves[i].fix('x' + str(2 * order + 7))
+        # base_curves[i].fix('X')
+        # base_curves[i].fix('Y')
+        # base_curves[i].fix('Z')
     base_currents = [Current(1.0) * 2e7 for i in range(ncoils)]
     coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
     base_coils = coils[:ncoils]
     bs = BiotSavart(coils)
     btot = bs + bs_TF
-    calculate_on_axis_B(btot, s)
+    calculate_modB_on_major_radius(btot, s)
 else:
     btot = Optimizable.from_file(OUT_DIR + "biot_savart_optimized.json")
     bs = btot.Bfields[0]
@@ -333,7 +335,7 @@ pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnorm
 s_plot.to_vtk(OUT_DIR + "surf_optimized" + file_suffix, extra_data=pointData)
 
 btot.set_points(s.gamma().reshape((-1, 3)))
-calculate_on_axis_B(btot, s)
+calculate_modB_on_major_radius(btot, s)
 
 t2 = time.time()
 print('Total time = ', t2 - t1)

@@ -105,23 +105,26 @@ if not continuation_run:
         salpha2 = np.sin(alpha2)
         cdelta2 = np.cos(delta2)
         sdelta2 = np.sin(delta2)
-        base_curves[i].set('x' + str(2 * order + 1), calpha2 * cdelta2)
-        base_curves[i].set('x' + str(2 * order + 2), salpha2 * cdelta2)
-        base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
-        base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
+        # Set quaternion DOFs: q0, qi, qj, qk
+        base_curves[i].set('q0', calpha2 * cdelta2)
+        base_curves[i].set('qi', salpha2 * cdelta2)
+        base_curves[i].set('qj', calpha2 * sdelta2)
+        base_curves[i].set('qk', -salpha2 * sdelta2)
         # Fix orientations of each coil
-        base_curves[i].fix('x' + str(2 * order + 1))
-        base_curves[i].fix('x' + str(2 * order + 2))
-        base_curves[i].fix('x' + str(2 * order + 3))
-        base_curves[i].fix('x' + str(2 * order + 4))
+        base_curves[i].fix('q0')
+        base_curves[i].fix('qi')
+        base_curves[i].fix('qj')
+        base_curves[i].fix('qk')
 
-        # Fix shape of each coil
-        for j in range(2 * order + 1):
-            base_curves[i].fix('x' + str(j))
+        # Fix shape of each coil (Fourier coefficients)
+        for j in range(order + 1):
+            base_curves[i].fix(f'rc({j})')
+        for j in range(1, order + 1):
+            base_curves[i].fix(f'rs({j})')
         # Fix center points of each coil
-        # base_curves[i].fix('x' + str(2 * order + 5))
-        # base_curves[i].fix('x' + str(2 * order + 6))
-        # base_curves[i].fix('x' + str(2 * order + 7))
+        # base_curves[i].fix('X')
+        # base_curves[i].fix('Y')
+        # base_curves[i].fix('Z')
     # psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
     ncoils = len(base_curves)
     base_currents = [Current(1.0) * 2e7 for i in range(ncoils)]
@@ -147,14 +150,16 @@ else:
     # Give coils more dofs now that we have a good initial guess
     for i in range(len(base_curves)):
         # unfix orientations of each coil
-        base_curves[i].unfix('x' + str(2 * order + 1))
-        base_curves[i].unfix('x' + str(2 * order + 2))
-        base_curves[i].unfix('x' + str(2 * order + 3))
-        base_curves[i].unfix('x' + str(2 * order + 4))
+        base_curves[i].unfix('q0')
+        base_curves[i].unfix('qi')
+        base_curves[i].unfix('qj')
+        base_curves[i].unfix('qk')
 
-        # unfix shape of each coil
-        for j in range(2 * order + 1):
-            base_curves[i].unfix('x' + str(j))
+        # unfix shape of each coil (Fourier coefficients)
+        for j in range(order + 1):
+            base_curves[i].unfix(f'rc({j})')
+        for j in range(1, order + 1):
+            base_curves[i].unfix(f'rs({j})')
 
     base_coils = [coils[i] for i in inds]
     base_currents = [c.current for c in base_coils]

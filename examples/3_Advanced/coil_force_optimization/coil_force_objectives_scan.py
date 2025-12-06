@@ -95,9 +95,9 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 
 # Create the initial coils:
 # base_curves = create_equally_spaced_curves(
-#     ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, jax_flag=True)
+#     ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, use_jax_curve=True)
 base_curves = create_equally_spaced_curves(
-    ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, jax_flag=False)
+    ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, use_jax_curve=False)
 base_currents = [Current(1e5) for i in range(ncoils)]
 # Since the target field is zero, one possible solution is just to set all
 # currents to 0. To avoid the minimizer finding that solution, we fix one

@@ -24,7 +24,7 @@ from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
-from simsopt.util import calculate_on_axis_B, save_coil_sets, generate_curves, in_github_actions
+from simsopt.util import calculate_modB_on_major_radius, save_coil_sets, generate_curves, in_github_actions
 from simsopt.geo import (
     CurveLength, CurveCurveDistance,
     SurfaceRZFourier
@@ -100,7 +100,7 @@ base_coils = coils[:ncoils]
 bs = BiotSavart(coils)
 btot = bs + bs_TF
 
-calculate_on_axis_B(btot, s)
+calculate_modB_on_major_radius(btot, s)
 btot.set_points(s.gamma().reshape((-1, 3)))
 bs.set_points(s.gamma().reshape((-1, 3)))
 curves = [c.curve for c in coils]

@@ -1,6 +1,5 @@
 import numpy as np
 import jax.numpy as jnp
-
 import simsoptpp as sopp
 from .curve import Curve, JaxCurve
 
@@ -11,9 +10,10 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
     r"""
     ``CurvePlanarFourier`` is a curve that is restricted to lie in a plane. The
     shape of the curve within the plane is represented by a Fourier series in
-    polar coordinates. The resulting planar curve is then rotated in three
-    dimensions using a quaternion, and finally a translation is applied. The
-    Fourier series in polar coordinates is
+    polar coordinates centered at the center of curve. 
+    The resulting planar curve is then rotated in three
+    dimensions using a quaternion, and finally a translation is applied by the center point
+    (X, Y, Z). The Fourier series in polar coordinates is
 
     .. math::
 
@@ -23,7 +23,7 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
 
     .. math::
 
-       \bf{q} &= [q_0,q_i,q_j,q_k]
+       \bf{q} &= [q0,qi,qj,qk]
 
        &= [\cos(\theta / 2), \hat{x}\sin(\theta / 2), \hat{y}\sin(\theta / 2), \hat{z}\sin(\theta / 2)]
 
@@ -44,23 +44,28 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
     The dofs are stored in the order
 
     .. math::
-       [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}}, q_0, q_i, q_j, q_k, x_{\text{center}}, y_{\text{center}}, z_{\text{center}}]
+       [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}}, q0, qi, qj, qk, X, Y, Z]
 
-
+    Args:
+        quadpoints (array): Array of quadrature points.
+        order (int): Order of the Fourier series.
+        dofs (array, optional): Array of dofs.
     """
 
-    def __init__(self, quadpoints, order, nfp, stellsym, dofs=None):
+    def __init__(self, quadpoints, order, dofs=None):
         if isinstance(quadpoints, int):
             quadpoints = list(np.linspace(0, 1., quadpoints, endpoint=False))
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
-        sopp.CurvePlanarFourier.__init__(self, quadpoints, order, nfp, stellsym)
+        sopp.CurvePlanarFourier.__init__(self, quadpoints, order)
         if dofs is None:
             Curve.__init__(self, external_dof_setter=CurvePlanarFourier.set_dofs_impl,
+                           names=self._make_names(order),
                            x0=self.get_dofs())
         else:
             Curve.__init__(self, external_dof_setter=CurvePlanarFourier.set_dofs_impl,
-                           dofs=dofs)
+                           dofs=dofs,
+                           names=self._make_names(order))
 
     def get_dofs(self):
         """
@@ -76,13 +81,51 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
         sopp.CurvePlanarFourier.set_dofs(self, dofs)
 
     def center(self, gamma, gammadash):
-        # Compute the centroid of the curve
+        """
+        Compute the centroid of the curve.
+        
+        Args:
+            gamma: Array of curve points.
+            gammadash: Array of curve derivatives.
+            
+        Returns:
+            Array: Centroid of the curve.
+        """
         arclength = jnp.linalg.norm(gammadash, axis=-1)
         barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / jnp.sum(arclength)
         return barycenter
 
+    def _make_names(self, order):
+        """
+        This function returns the names of the dofs associated to this object.
+
+        Args:
+            order (int): Order of the Fourier series.
+
+        Returns:
+            List of dof names.
+        """
+        x_names = ['rc(0)']
+        x_cos_names = [f'rc({i})' for i in range(1, order + 1)]
+        x_sin_names = [f'rs({i})' for i in range(1, order + 1)]
+        x_names += x_cos_names + x_sin_names
+        y_names = ['q0', 'qi', 'qj', 'qk']
+        z_names = ['X', 'Y', 'Z']
+        return x_names + y_names + z_names
+
 
 def jaxplanarcurve_pure(dofs, quadpoints, order):
+    """
+    This pure function returns the curve coordinates (X, Y, Z).
+
+    Args:
+        dofs (array, shape (ndofs,)): Array of dofs.
+        quadpoints (array, shape (N,)): Array of quadrature points.
+        order (int): Order of the Fourier series.
+
+    Returns:
+        Array of curve points, shape (N, 3)
+    """
     coeffs = dofs[:2 * order + 1]
     q = dofs[2 * order + 1: 2 * order + 5]
     norm_q = jnp.linalg.norm(q)
@@ -98,27 +141,35 @@ def jaxplanarcurve_pure(dofs, quadpoints, order):
 
     x_curve_in_plane = r_curve * jnp.cos(phi)
     y_curve_in_plane = r_curve * jnp.sin(phi)
-    return jnp.transpose(jnp.vstack((jnp.vstack(((1.0 - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3])) * x_curve_in_plane
-                                                 + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * y_curve_in_plane
-                                                 + center[0], (1.0 - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3])) * y_curve_in_plane
-                                                 + 2 * (q_norm[0] * q_norm[3] + q_norm[1] * q_norm[2]) * x_curve_in_plane
-                                                 + center[1])), 2 * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * x_curve_in_plane
-                                     + 2 * (q_norm[0] * q_norm[1] + q_norm[2] * q_norm[3]) * y_curve_in_plane
-                                     + center[2])))
+    gamma_x = (1.0 - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3])) * x_curve_in_plane \
+        + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * y_curve_in_plane \
+        + center[0]
+    gamma_y = (1.0 - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3])) * y_curve_in_plane \
+        + 2 * (q_norm[0] * q_norm[3] + q_norm[1] * q_norm[2]) * x_curve_in_plane \
+        + center[1]
+    gamma_z = 2 * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * x_curve_in_plane \
+        + 2 * (q_norm[0] * q_norm[1] + q_norm[2] * q_norm[3]) * y_curve_in_plane \
+        + center[2]
+    # apply the quaternion rotation
+    return jnp.stack((gamma_x, gamma_y, gamma_z), axis=-1)
 
 
 class JaxCurvePlanarFourier(JaxCurve):
-
-    """
-    A Python+Jax implementation of the CurvePlanarFourier class.  There is
-    actually no reason why one should use this over the C++ implementation in
-    :mod:`simsoptpp`, but the point of this class is to illustrate how jax can be used
+    r"""
+    A Python+Jax implementation of the CurvePlanarFourier class. This is an autodiff
+    compatible version of the same CurvePlanarFourier class in the C++ implementation in
+    :mod:`simsoptpp`. The point of this class is to illustrate how jax can be used
     to define a geometric object class and calculate all the derivatives (both
     with respect to dofs and with respect to the angle :math:`\theta`) automatically.
 
     [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}}, 
     q_0, q_i, q_j, q_k, 
     x_{\text{center}}, y_{\text{center}}, z_{\text{center}}]
+
+    Args:
+        quadpoints (array): Array of quadrature points.
+        order (int): Order of the Fourier series.
+        dofs (array): Array of dofs.
     """
 
     def __init__(self, quadpoints, order, dofs=None):
@@ -130,9 +181,11 @@ class JaxCurvePlanarFourier(JaxCurve):
         self.dof_list = np.zeros(2 * order + 1 + 4 + 3)
         if dofs is None:
             super().__init__(quadpoints, pure, x0=self.dof_list,
+                             names=self._make_names(order),
                              external_dof_setter=JaxCurvePlanarFourier.set_dofs_impl)
         else:
             super().__init__(quadpoints, pure, dofs=dofs,
+                             names=self._make_names(order),
                              external_dof_setter=JaxCurvePlanarFourier.set_dofs_impl)
 
     def num_dofs(self):
@@ -153,5 +206,20 @@ class JaxCurvePlanarFourier(JaxCurve):
         """
         self.dof_list = np.array(dofs)
 
-    def set_quadpoints(self, quadpoints):
-        self.quadpoints = quadpoints
+    def _make_names(self, order):
+        """
+        This function returns the names of the dofs associated to this object.
+
+        Args:
+            order (int): Order of the Fourier series.
+
+        Returns:
+            List of dof names.
+        """
+        x_names = ['rc(0)']
+        x_cos_names = [f'rc({i})' for i in range(1, order + 1)]
+        x_sin_names = [f'rs({i})' for i in range(1, order + 1)]
+        x_names += x_cos_names + x_sin_names
+        y_names = ['q0', 'qi', 'qj', 'qk']
+        z_names = ['X', 'Y', 'Z']
+        return x_names + y_names + z_names

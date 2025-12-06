@@ -12,7 +12,7 @@ from simsopt.field.force import LpCurveForce, \
     SquaredMeanForce, \
     LpCurveTorque, \
     SquaredMeanTorque
-from simsopt.util import calculate_on_axis_B, save_coil_sets, initialize_coils, \
+from simsopt.util import calculate_modB_on_major_radius, save_coil_sets, initialize_coils, \
     align_dipoles_with_plasma, in_github_actions
 from simsopt.geo import (
     CurveLength, CurveCurveDistance, MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
@@ -93,7 +93,7 @@ if not continuation_run:
     Nz = Nx
     # Create the initial coils:
     base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-        s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=False, jax_flag=False,
+        s, s_inner, s_outer, Nx, Ny, Nz, order=order, use_jax_curve=False,
     )
     # base_curves = remove_interlinking_dipoles_and_TFs(base_curves, base_curves_TF, eps=0.06)
     alphas, deltas = align_dipoles_with_plasma(s, base_curves)
@@ -104,23 +104,26 @@ if not continuation_run:
         salpha2 = np.sin(alpha2)
         cdelta2 = np.cos(delta2)
         sdelta2 = np.sin(delta2)
-        base_curves[i].set('x' + str(2 * order + 1), calpha2 * cdelta2)
-        base_curves[i].set('x' + str(2 * order + 2), salpha2 * cdelta2)
-        base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
-        base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
+        # Set quaternion DOFs: q0, qi, qj, qk
+        base_curves[i].set('q0', calpha2 * cdelta2)
+        base_curves[i].set('qi', salpha2 * cdelta2)
+        base_curves[i].set('qj', calpha2 * sdelta2)
+        base_curves[i].set('qk', -salpha2 * sdelta2)
         # Fix orientations of each coil
-        # base_curves[i].fix('x' + str(2 * order + 1))
-        # base_curves[i].fix('x' + str(2 * order + 2))
-        # base_curves[i].fix('x' + str(2 * order + 3))
-        # base_curves[i].fix('x' + str(2 * order + 4))
+        # base_curves[i].fix('q0')
+        # base_curves[i].fix('qi')
+        # base_curves[i].fix('qj')
+        # base_curves[i].fix('qk')
 
-        # Fix shape of each coil
-        for j in range(2 * order + 1):
-            base_curves[i].fix('x' + str(j))
+        # Fix shape of each coil (Fourier coefficients)
+        for j in range(order + 1):
+            base_curves[i].fix(f'rc({j})')
+        for j in range(1, order + 1):
+            base_curves[i].fix(f'rs({j})')
         # Fix center points of each coil
-        # base_curves[i].fix('x' + str(2 * order + 5))
-        # base_curves[i].fix('x' + str(2 * order + 6))
-        # base_curves[i].fix('x' + str(2 * order + 7))
+        # base_curves[i].fix('X')
+        # base_curves[i].fix('Y')
+        # base_curves[i].fix('Z')
 else:
     # Load the coils from a previous run
     input_dir = "passive_coils_QH/"
@@ -136,9 +139,11 @@ else:
     # Give coils more dofs now that we have a good initial guess
     for i in range(len(base_curves)):
 
-        # unfix shape of each coil
-        for j in range(2 * order + 1):
-            base_curves[i].unfix('x' + str(j))
+        # unfix shape of each coil (Fourier coefficients)
+        for j in range(order + 1):
+            base_curves[i].unfix(f'rc({j})')
+        for j in range(1, order + 1):
+            base_curves[i].unfix(f'rs({j})')
 
 ncoils = len(base_curves)
 a_list = np.ones(len(base_curves)) * aa
@@ -150,10 +155,10 @@ eval_points = s.gamma().reshape(-1, 3)
 psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
 
 # Calculate average, approximate on-axis B field strength
-calculate_on_axis_B(psc_array.biot_savart_TF, s)
+calculate_modB_on_major_radius(psc_array.biot_savart_TF, s)
 psc_array.biot_savart_TF.set_points(eval_points)
 btot = psc_array.biot_savart_total
-calculate_on_axis_B(btot, s)
+calculate_modB_on_major_radius(btot, s)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
 # bs.set_points(s.gamma().reshape((-1, 3)))
@@ -386,7 +391,7 @@ s_plot.to_vtk(OUT_DIR + "surf_PSC" + file_suffix, extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 print('Max I = ', np.max(dipole_currents))
 print('Min I = ', np.min(dipole_currents))
-calculate_on_axis_B(btot, s)
+calculate_modB_on_major_radius(btot, s)
 
 t2 = time.time()
 print('Total time = ', t2 - t1)

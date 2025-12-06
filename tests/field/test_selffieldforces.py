@@ -8,7 +8,7 @@ from scipy.special import ellipk, ellipe
 
 from simsopt.field import Coil, Current, coils_via_symmetries
 from simsopt.geo.curve import create_equally_spaced_curves
-from simsopt.configs import get_hsx_data
+from simsopt.configs import get_data
 from simsopt.geo import CurveXYZFourier, CurvePlanarFourier
 from simsopt.field.selffield import (
     B_regularized_circ,
@@ -156,7 +156,7 @@ class CoilForcesTest(unittest.TestCase):
             normal = [0, 0, 1]
             alpha = np.arcsin(normal[1])
             delta = np.arccos(normal[2] / np.cos(alpha))
-            curve = CurvePlanarFourier(N_quad, 0, nfp=1, stellsym=False)
+            curve = CurvePlanarFourier(N_quad, 0)
             dofs = np.zeros(8)
             dofs[0] = R0
             dofs[1] = np.cos(alpha / 2.0) * np.cos(delta / 2.0)
@@ -170,12 +170,12 @@ class CoilForcesTest(unittest.TestCase):
             curve.set_dofs(dofs)
 
             # Make concentric coil with larger radius
-            curve2 = CurvePlanarFourier(N_quad, 0, nfp=1, stellsym=False)
+            curve2 = CurvePlanarFourier(N_quad, 0)
             dofs[0] = R1
             curve2.set_dofs(dofs)
 
             # Make circular coil with shared axis
-            curve3 = CurvePlanarFourier(N_quad, 0, nfp=1, stellsym=False)
+            curve3 = CurvePlanarFourier(N_quad, 0)
             dofs[0] = R2
             dofs[7] = d
             curve3.set_dofs(dofs)
@@ -335,10 +335,10 @@ class CoilForcesTest(unittest.TestCase):
 
     def test_force_convergence(self):
         """Check that the self-force is approximately independent of the number of quadrature points"""
-        ppps = [8, 4, 2, 7, 5]
-        for j, ppp in enumerate(ppps):
-            curves, currents, ma = get_hsx_data(ppp=ppp)
-            curve = curves[0]
+        points_per_periods = [8, 4, 2, 7, 5]
+        for j, points_per_period in enumerate(points_per_periods):
+            base_curves, base_currents, ma, nfp, bs = get_data("hsx", points_per_period=points_per_period)
+            curve = base_curves[0]
             I = 1.5e3
             a = 0.01
             coil = Coil(curve, Current(I))
@@ -352,12 +352,12 @@ class CoilForcesTest(unittest.TestCase):
 
     def test_hsx_coil(self):
         """Compare self-force for HSX coil 1 to result from CoilForces.jl"""
-        curves, currents, ma = get_hsx_data()
-        assert len(curves[0].quadpoints) == 160
+        base_curves, base_currents, ma, nfp, bs  = get_data("hsx")
+        assert len(base_curves[0].quadpoints) == 160
         I = 150e3
         a = 0.01
         b = 0.023
-        coil = Coil(curves[0], Current(I))
+        coil = Coil(base_curves[0], Current(I))
 
         # Case of circular cross-section
 
@@ -985,6 +985,56 @@ class CoilForcesTest(unittest.TestCase):
             objective2 = objective_class(coils[0], coils, regularization)
             print("objective 1:", objective.J(), "objective 2:", objective2.J())
             np.testing.assert_allclose(objective.J(), objective2.J())
+
+    def test_meansquaredforces_taylor_test(self):
+        """Verify that dJ matches finite differences of J"""
+        # The Fourier spectrum of the NCSX coils is truncated - we don't need the
+        # actual coil shapes from the experiment, just a few nonzero dofs.
+
+        base_curves, base_currents, axis, nfp, bs = get_data("ncsx", coil_order=2)
+        
+        J = MeanSquaredForce_deprecated(bs.coils[0], bs.coils, regularization_circ(0.05))
+        dJ = J.dJ()
+        deriv = np.sum(dJ * np.ones_like(J.x))
+        dofs = J.x
+        h = np.ones_like(dofs)
+        err = 100
+        for i in range(10, 17):
+            eps = 0.5**i
+            J.x = dofs + eps * h
+            Jp = J.J()
+            J.x = dofs - eps * h
+            Jm = J.J()
+            deriv_est = (Jp - Jm) / (2 * eps)
+            err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
+            # print("i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
+            np.testing.assert_array_less(err_new, 0.3 * err)
+            err = err_new
+
+    def test_lpcurveforces_taylor_test(self):
+        """Verify that dJ matches finite differences of J"""
+        # The Fourier spectrum of the NCSX coils is truncated - we don't need the
+        # actual coil shapes from the experiment, just a few nonzero dofs.
+
+        base_curves, base_currents, axis, nfp, bs = get_data("ncsx", coil_order=2)
+        
+        J = LpCurveForce(bs.coils[0], bs.coils, regularization_circ(0.05), 2.5)
+        dJ = J.dJ()
+        deriv = np.sum(dJ * np.ones_like(J.x))
+        dofs = J.x
+        h = np.ones_like(dofs)
+        err = 100
+        for i in range(10, 18):
+            eps = 0.5**i
+            J.x = dofs + eps * h
+            Jp = J.J()
+            J.x = dofs - eps * h
+            Jm = J.J()
+            deriv_est = (Jp - Jm) / (2 * eps)
+            err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
+            print("test_lpcurveforces_taylor_test i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
+            np.testing.assert_array_less(err_new, 0.31 * err)
+            err = err_new
 
 
 if __name__ == '__main__':

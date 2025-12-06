@@ -1983,7 +1983,7 @@ def lp_force_pure(
     gammadashs2 = jnp.stack([subsample(g, min_npts) for g in gammadashs2])
     currents = jnp.array(currents)
     currents2 = jnp.array(currents2)
-    regularizations = jnp.squeeze(regularizations)
+    regularizations = jnp.atleast_1d(jnp.squeeze(regularizations))
 
     n1 = gammas.shape[0]
     n2 = gammas2.shape[0]
@@ -2223,7 +2223,7 @@ def lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs,
     gammadashs2 = jnp.stack([subsample(g, min_npts) for g in gammadashs2])
     currents = jnp.array(currents)
     currents2 = jnp.array(currents2)
-    regularizations = jnp.squeeze(regularizations)
+    regularizations = jnp.atleast_1d(jnp.squeeze(regularizations))
 
     def center(gamma, gammadash):
         # Compute the centroid of the curve

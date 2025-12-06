@@ -1533,7 +1533,7 @@ class ToroidalWireframe(object):
             raise ValueError('extent must be \'half period\', '
                              + '\'field period\', or \'torus\'')
 
-        pl_segments = np.zeros((n_half_periods*self.n_segments, 2, 2))
+        pl_segments = np.zeros((n_half_periods*self.n_segments, 2, 2), dtype=int)
         pl_quantity = np.zeros((n_half_periods*self.n_segments))
 
         # Calculate the toroidal and poloidal indices of each segment's

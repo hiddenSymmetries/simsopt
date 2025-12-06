@@ -988,7 +988,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         return scalars
 
     def make_rotating_ellipse(self, major_radius, minor_radius, elongation, torsion=0):
-        """
+        r"""
         Set the surface shape to be a rotating ellipse with the given
         parameters.
 
@@ -1022,6 +1022,127 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         amplitude = 0.5 * minor_radius * (1 / sqrt_elong + sqrt_elong)
         self.set_rc(1, 0, amplitude)
         self.set_zs(1, 0, amplitude)
+
+    def flip_z(self):
+        """
+        Flip the sign of the z coordinate. This will flip the sign of the
+        rotational transform of a plasma bounded by this surface. Note that vmec
+        requires θ to increase as you move from the outboard to inboard side
+        over the top of the surface. This z-flip transformation will reverse
+        that direction.
+        """
+        self.zs = -self.zs
+        if not self.stellsym:
+            self.zc = -self.zc
+        self.local_full_x = self.get_dofs()
+
+    def flip_phi(self):
+        """
+        Flip the sign of the toroidal angle ϕ, i.e. mirror-reflect the surface
+        about the x-z plane. This will reverse the sign of the rotational
+        transform of a plasma bounded by this surface, without reversing the
+        direction in which θ increases. This is the best way to flip the sign of
+        the rotational transform for a vmec calculation.
+        """
+        # Handle m=0 modes, where there are no modes with negative n.
+        # cos(-nϕ) → cos(nϕ) = cos(-nϕ)
+        # sin(-nϕ) → sin(nϕ) = -sin(-nϕ)
+        for n in range(1, self.ntor + 1):
+            self.zs[0, n + self.ntor] = -self.zs[0, n + self.ntor]
+            if not self.stellsym:
+                self.rs[0, n + self.ntor] = -self.rs[0, n + self.ntor]
+
+        # Handle m>0 modes: swap the positive and negative n modes
+        for m in range(1, self.mpol + 1):
+            for n in range(1, self.ntor + 1):
+                temp = self.rc[m, n + self.ntor]
+                self.rc[m, n + self.ntor] = self.rc[m, -n + self.ntor]
+                self.rc[m, -n + self.ntor] = temp
+
+                temp = self.zs[m, n + self.ntor]
+                self.zs[m, n + self.ntor] = self.zs[m, -n + self.ntor]
+                self.zs[m, -n + self.ntor] = temp
+
+                if not self.stellsym:
+                    temp = self.rs[m, n + self.ntor]
+                    self.rs[m, n + self.ntor] = self.rs[m, -n + self.ntor]
+                    self.rs[m, -n + self.ntor] = temp
+
+                    temp = self.zc[m, n + self.ntor]
+                    self.zc[m, n + self.ntor] = self.zc[m, -n + self.ntor]
+                    self.zc[m, -n + self.ntor] = temp
+
+        self.local_full_x = self.get_dofs()
+
+    def flip_theta(self):
+        """
+        Flip the direction in which the poloidal angle θ increases. The physical
+        shape of the surface in 3D will not change, only its parameterization.
+        Note that vmec requires θ to increase as you move from the outboard to
+        inboard side over the top of the surface. This transformation will
+        reverse that direction.
+        """
+        # We don't change the m=0 modes since they are independent of θ.
+        for m in range(1, self.mpol + 1):
+            # For m>0 modes with n=0:
+            # cos(mθ) → cos(-mθ) =  cos(mθ)
+            # sin(mθ) → sin(-mθ) = -sin(mθ)
+            # So, flip the sign of the sin terms
+            self.zs[m, self.ntor] = -self.zs[m, self.ntor]
+            if not self.stellsym:
+                self.rs[m, self.ntor] = -self.rs[m, self.ntor]
+
+            # For m>0 modes with nonzero n:
+            # cos(mθ-nϕ) → cos(-mθ-nϕ) =  cos(mθ+nϕ)
+            # sin(mθ-nϕ) → sin(-mθ-nϕ) = -sin(mθ+nϕ)
+            # So, swap the positive and negative n modes,
+            # with a sign flip for the sin terms only.
+            for n in range(1, self.ntor + 1):
+                temp = self.rc[m, n + self.ntor]
+                self.rc[m, n + self.ntor] = self.rc[m, -n + self.ntor]
+                self.rc[m, -n + self.ntor] = temp
+
+                temp = self.zs[m, n + self.ntor]
+                self.zs[m, n + self.ntor] = -self.zs[m, -n + self.ntor]
+                self.zs[m, -n + self.ntor] = -temp
+
+                if not self.stellsym:
+                    temp = self.rs[m, n + self.ntor]
+                    self.rs[m, n + self.ntor] = -self.rs[m, -n + self.ntor]
+                    self.rs[m, -n + self.ntor] = -temp
+
+                    temp = self.zc[m, n + self.ntor]
+                    self.zc[m, n + self.ntor] = self.zc[m, -n + self.ntor]
+                    self.zc[m, -n + self.ntor] = temp
+
+        self.local_full_x = self.get_dofs()
+
+    def rotate_half_field_period(self):
+        """
+        Rotate the surface toroidally by half a field period.
+
+        This operation is useful when you have a surface with the bean
+        cross-section at ϕ = π / nfp, and you want to rotate it so that the bean
+        is at ϕ = 0.
+        """
+        x = self.local_full_x
+        # Flip the sign of all modes with odd n:
+        odd_ns = (self.n % 2 == 1)
+        x[odd_ns] = -x[odd_ns]
+        self.local_full_x = x
+
+    def shift_theta_by_half(self):
+        """
+        Shift the origin of the poloidal angle θ by 1/2.
+
+        This operation is useful when you have a surface with θ=0 at the inboard
+        side instead of the usual outboard side.
+        """
+        x = self.local_full_x
+        # Flip the sign of all modes with odd m:
+        odd_ms = (self.m % 2 == 1)
+        x[odd_ms] = -x[odd_ms]
+        self.local_full_x = x
 
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,

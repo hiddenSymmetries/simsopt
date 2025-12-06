@@ -77,7 +77,7 @@ base_curves, curves, coils = initialize_coils_pms('muse_famus', TEST_DIR, s, out
 bs = BiotSavart(coils)
 
 # Calculate average, approximate on-axis B field strength
-calculate_on_axis_B(bs, s)
+calculate_modB_on_major_radius(bs, s)
 
 # Make higher resolution surface for plotting Bnormal
 qphi = 2 * nphi

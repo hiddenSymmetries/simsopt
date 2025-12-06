@@ -17,7 +17,7 @@ from simsopt.field import BiotSavart
 from simsopt.field.force import coil_force, coil_net_forces, \
     coil_net_torques, LpCurveForce, TVE, pointData_forces_torques
 from simsopt.field.selffield import regularization_circ
-from simsopt.util import in_github_actions, calculate_on_axis_B
+from simsopt.util import in_github_actions, calculate_modB_on_major_radius
 
 
 ###############################################################################
@@ -88,7 +88,7 @@ s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, n
 
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(
-    ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, jax_flag=False
+    ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, use_jax_curve=False,
 )
 base_currents = [Current(1e5) for i in range(ncoils)]
 # Since the target field is zero, one possible solution is just to set all
@@ -100,7 +100,7 @@ coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 base_coils = coils[:ncoils]
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
-calculate_on_axis_B(bs, s)
+calculate_modB_on_major_radius(bs, s)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
 a = 0.05
@@ -235,5 +235,5 @@ outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shorte
 outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
 print(outstr)
 
-calculate_on_axis_B(bs, s)
+calculate_modB_on_major_radius(bs, s)
 print(sum([c.get_value() for c in base_currents]))

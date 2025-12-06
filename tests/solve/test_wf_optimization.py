@@ -514,7 +514,6 @@ class WireframeOptimizationTests(unittest.TestCase):
         self.assertTrue(np.isclose(cur_pol,
                                    -enclosed_current(amploop_pol, res_with_target2['wframe_field'], n_pts_amploop)))
 
-        # The solutions should be different but they are not -- wireframe passing bnorm_target is not working
         print('x', res_with_target['x'] - res_with_target2['x'])
         print('bvec', res_with_target['bvec'] - res_with_target2['bvec'])
         print('Amat @ x - bvec', res_with_target['Amat'] @ res_with_target['x'] - res_with_target['bvec'],

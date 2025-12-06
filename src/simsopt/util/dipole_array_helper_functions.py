@@ -641,25 +641,27 @@ def generate_windowpane_array(winding_surface, inboard_radius, wp_fil_spacing, h
             unitn_interp = np.stack([interp((phi_coil/(2*np.pi), theta_coil/(2*np.pi))) for interp in unitn_interpolators], axis=-1)
             gamma_interp = np.stack([interp((phi_coil/(2*np.pi), theta_coil/(2*np.pi))) for interp in gamma_interpolators], axis=-1)
             dgammadtheta_interp = np.stack([interp((phi_coil/(2*np.pi), theta_coil/(2*np.pi))) for interp in dgammadtheta_interpolators], axis=-1)
-            curve = CurvePlanarFourier(numquadpoints, order, winding_surface.nfp, stellsym=True)
-            # dofs stored as: [r0, higher order curve terms, q_0, q_i, q_j, q_k, x0, y0, z0]
+            curve = CurvePlanarFourier(numquadpoints, order)
+            # dofs stored as: [rc(0), rc(1), ..., rc(order), rs(1), ..., rs(order), q0, qi, qj, qk, X, Y, Z]
             # Compute fourier coefficients for given super-ellipse
             coeffs = compute_fourier_coeffs(order, Rpol, Rtor, wp_n)
-            for m in range(order+1):
-                curve.set(f'x{m}', coeffs['a_m'][m])
-                if m != 0:
-                    curve.set(f'x{m+order+1}', coeffs['b_m'][m])
+            # Set rc(0) (constant term)
+            curve.set('rc(0)', coeffs['a_m'][0])
+            # Set rc(m) and rs(m) for m=1 to order
+            for m in range(1, order+1):
+                curve.set(f'rc({m})', coeffs['a_m'][m])
+                curve.set(f'rs({m})', coeffs['b_m'][m])
             # Align the coil normal with the surface normal and Rpol axis with dgamma/dtheta
             # Renormalize the vector because interpolation can slightly modify its norm
             quaternion = compute_quaternion(unitn_interp/np.linalg.norm(unitn_interp), dgammadtheta_interp/np.linalg.norm(dgammadtheta_interp))
-            curve.set(f'x{curve.dof_size-7}', quaternion[0])
-            curve.set(f'x{curve.dof_size-6}', quaternion[1])
-            curve.set(f'x{curve.dof_size-5}', quaternion[2])
-            curve.set(f'x{curve.dof_size-4}', quaternion[3])
+            curve.set('q0', quaternion[0])
+            curve.set('qi', quaternion[1])
+            curve.set('qj', quaternion[2])
+            curve.set('qk', quaternion[3])
             # Align the coil center with the winding surface gamma
-            curve.set(f"x{curve.dof_size-3}", gamma_interp[0])
-            curve.set(f"x{curve.dof_size-2}", gamma_interp[1])
-            curve.set(f"x{curve.dof_size-1}", gamma_interp[2])
+            curve.set('X', gamma_interp[0])
+            curve.set('Y', gamma_interp[1])
+            curve.set('Z', gamma_interp[2])
             base_wp_curves.append(curve)
     return base_wp_curves
 

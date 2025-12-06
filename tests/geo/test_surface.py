@@ -17,6 +17,7 @@ from simsopt.geo.surface import signed_distance_from_surface, SurfaceScaled, \
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 from .surface_test_helpers import get_surface, get_boozer_surface
+from simsopt._core import load
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
@@ -484,6 +485,54 @@ class isSelfIntersecting(unittest.TestCase):
     """
     @unittest.skipIf(ground is None or bentley_ottmann is None,
                      "Libraries to check whether self-intersecting or not are missing")
+
+    def test_cross_section(self):
+        """ Test the cross_section method for a surface that is not self-intersecting. """
+        filename = os.path.join(TEST_DIR, 'serial2680021.json')
+        [surfaces, coils] = load(filename)
+        angle = np.pi/10
+
+        # check that the cross_section method works for a surface that is not self-intersecting
+        xs = surfaces[-1].cross_section(angle/(2*np.pi), thetas=256)
+        Z = xs[:, 2]
+        self.assertTrue(np.all(Z < -0.08), msg="The Z coordinate should be < - 0.8 for this surface.")
+
+        # check that the same answer is returned for an array valued thetas
+        thetas = np.linspace(0, 1, 256, endpoint=False)
+        xs_array = surfaces[-1].cross_section(angle/(2*np.pi), thetas=thetas, tol=1e-13)
+        np.testing.assert_allclose(xs, xs_array, atol=1e-13, err_msg="The cross_section method should return the same result for an array of thetas.")
+        
+        # check that an exception is raised if theta is 2D
+        with self.assertRaises(Exception):
+            _ = surfaces[-1].cross_section(angle/(2*np.pi), thetas=[[0, 0.8], [0.5, 0.7]])
+
+        """
+        Take this surface, and rotate it 30 degrees about the x-axis.  This should cause
+        the surface to 'go back' on itself, and trigger the exception.
+        """
+        surface_orig = SurfaceXYZTensorFourier(mpol=surfaces[-1].mpol, ntor=surfaces[-1].ntor,\
+                stellsym=True, nfp=surfaces[-1].nfp, quadpoints_phi=np.linspace(0, 1, 100),\
+                quadpoints_theta=surfaces[-1].quadpoints_theta)
+        surface_orig.x = surfaces[-1].x
+
+        angle = 2*np.pi*(30/180)
+        R = np.array([[1, 0, 0], [0, np.cos(angle), -np.sin(angle)], [0, np.sin(angle), np.cos(angle)]])
+        gamma = surface_orig.gamma().copy()
+        Rgamma = gamma@R.T
+
+        surface_rotated = SurfaceXYZTensorFourier(mpol=surfaces[-1].mpol, ntor=surfaces[-1].ntor,\
+                stellsym=True, nfp=1, quadpoints_phi=np.linspace(0, 1, 100),\
+                quadpoints_theta=surfaces[-1].quadpoints_theta)
+        surface_rotated.least_squares_fit(Rgamma)
+        
+        # unit test to check that the exceptions are properly raised
+        with self.assertRaises(Exception):
+            _ = surface_rotated.cross_section(0., thetas=256)
+
+        # check that cross_section raises an exception if thetas is not an appropriate argument
+        with self.assertRaises(Exception):
+            _ = surface_rotated.cross_section(0., thetas='wrong')
+
     def test_is_self_intersecting(self):
         # dofs results in a surface that is self-intersecting
         dofs = np.array([1., 0., 0., 0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1,
@@ -498,16 +547,16 @@ class isSelfIntersecting(unittest.TestCase):
         # make sure it works on an NCSX BoozerSurface
         bs, boozer_surf = get_boozer_surface()
         s = boozer_surf.surface
-        assert not s.is_self_intersecting(angle=0.123*np.pi)
-        assert not s.is_self_intersecting(angle=0.123*np.pi, thetas=200)
+        assert not s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi))
+        assert not s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi), thetas=200)
         assert not s.is_self_intersecting(thetas=231)
 
         # make sure it works on a perturbed NCSX BoozerSurface
         dofs = s.x.copy()
         dofs[14] += 0.2
         s.x = dofs
-        assert s.is_self_intersecting(angle=0.123*np.pi)
-        assert s.is_self_intersecting(angle=0.123*np.pi, thetas=200)
+        assert s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi))
+        assert s.is_self_intersecting(angle=0.123*np.pi/(2*np.pi), thetas=200)
         assert s.is_self_intersecting(thetas=202)
 
 
@@ -543,6 +592,82 @@ class UtilTests(unittest.TestCase):
 
         surf1.extend_via_projected_normal(aminor2 - aminor1)
         np.testing.assert_allclose(surf1.x, surf2.x, atol=1e-14)
+
+
+class DofNames(unittest.TestCase):
+    """
+    Check that the dof names correspond to the correct values within each
+    Surface class by using the set and get methods and checking against
+    the internal arrays.
+    """
+    def test_dof_names(self):
+        surfacetypes = ["SurfaceRZFourier", "SurfaceXYZFourier",
+                        "SurfaceXYZTensorFourier"]
+        for surfacetype in surfacetypes:
+            for stellsym in [False, True]:
+                with self.subTest(surfacetype=surfacetype):
+                    self.subtest_set_get_surf_dofs(surfacetype, stellsym)
+
+    def subtest_set_get_surf_dofs(self, surfacetype, stellsym):
+        s = get_surface(surfacetype, stellsym, full=True)
+        # for each surface, set some random dofs and check for consistency
+        if surfacetype == "SurfaceRZFourier":
+            s.set('rc(3,2)', 1.0)
+            s.set('zs(1,-3)', 2.0)
+            assert s.get('rc(3,2)') == s.rc[3, s.ntor + 2]
+            assert s.get('zs(1,-3)') == s.zs[1, s.ntor - 3]
+            if not stellsym:
+                s.set('rs(3,2)', 1.0)
+                s.set('zc(1,-3)', 2.0)
+                assert s.get('rs(3,2)') == s.rs[3, s.ntor + 2]
+                assert s.get('zc(1,-3)') == s.zc[1, s.ntor - 3]
+            else:
+                with self.assertRaises(Exception):
+                    # make sure that stellarator symmetric surfaces don't
+                    # have stellarator asymmetric modes
+                    s.set('rs(3,2)', 1.0)
+                    s.set('zc(1,-3)', 2.0)
+        elif surfacetype == "SurfaceXYZFourier":
+            s.set('xc(3,2)', 1.0)
+            s.set('ys(1,-3)', 2.0)
+            s.set('zs(2,1)', 3.0)
+            assert s.get('xc(3,2)') == s.xc[3, s.ntor + 2]
+            assert s.get('ys(1,-3)') == s.ys[1, s.ntor - 3]
+            assert s.get('zs(2,1)') == s.zs[2, s.ntor + 1]
+            if not stellsym:
+                s.set('xs(3,2)', 1.0)
+                s.set('yc(1,-3)', 2.0)
+                s.set('zc(0,0)', 3.0)
+                assert s.get('xs(3,2)') == s.xs[3, s.ntor + 2]
+                assert s.get('yc(1,-3)') == s.yc[1, s.ntor - 3]
+                assert s.get('zc(0,0)') == s.zc[0, s.ntor]
+            else:
+                with self.assertRaises(Exception):
+                    s.set('xs(3,2)', 1.0)
+                    s.set('yc(1,-3)', 2.0)
+                    s.set('zc(0,0)', 3.0)
+        elif surfacetype == "SurfaceXYZTensorFourier":
+            s.set('x(3,2)', 1.0)
+            s.set('y(7,1)', 2.0)
+            s.set('z(10,5)', 3.0)
+            # note for this class, indices start from 0 not -ntor
+            assert s.get('x(3,2)') == s.xcs[3, 2]
+            assert s.get('y(7,1)') == s.ycs[7, 1]
+            assert s.get('z(10,5)') == s.zcs[10, 5]
+            if not stellsym:
+                s.set('x(3,7)', 1.0)
+                s.set('y(7,6)', 2.0)
+                s.set('z(0,0)', 3.0)
+                assert s.get('x(3,7)') == s.xcs[3, 7]
+                assert s.get('y(7,6)') == s.ycs[7, 6]
+                assert s.get('z(0,0)') == s.zcs[0, 0]
+            else:
+                with self.assertRaises(Exception):
+                    s.set('x(3,7)', 1.0)
+                    s.set('y(7,6)', 2.0)
+                    s.set('z(0,0)', 3.0)
+        else:
+            raise NotImplementedError("Surface type not implemented")
 
 
 if __name__ == "__main__":
