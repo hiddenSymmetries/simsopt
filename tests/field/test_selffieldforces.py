@@ -814,7 +814,7 @@ class CoilForcesTest(unittest.TestCase):
                                     err_new = np.abs(deriv_est - deriv)
                                 else:
                                     err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
-                                if errors[-1] > 0:
+                                if len(errors) > 0 and errors[-1] > 0:
                                     print(f"err: {err_new}, eps: {eps}, ratio: {err_new / errors[-1]}")
                                     assert err_new < 0.5 * errors[-1], f"Error did not decrease by factor 0.5: prev={errors[-1]}, curr={err_new}"
                                 errors.append(err_new)

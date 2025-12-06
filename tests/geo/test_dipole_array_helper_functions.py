@@ -158,7 +158,7 @@ class TestDipoleArrayHelperFunctions(unittest.TestCase):
             VV.extend_via_normal(0.5)
             # Windowpane array
             wp_curves = generate_windowpane_array(
-                VV, inboard_radius=0.2, wp_fil_spacing=0.1, half_per_spacing=0.1, wp_n=2,
+                VV, inboard_radius=0.1, wp_fil_spacing=0.05, half_per_spacing=0.05, wp_n=2,
                 numquadpoints=32, order=2, verbose=False
             )
             self.assertTrue(len(wp_curves) > 0)
