@@ -92,17 +92,90 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
+        check-latest: true  # Force fresh download to avoid corrupted cache (especially for Python 3.12)
 
-    - name: which python3 after python setup
-      run: which python3
-
-    - name: which pip after python setup
+    - name: Debug Python setup
       run: |
-        python -m pip install --upgrade pip
-        pip --version
+        set -x
+        echo "=== Python Setup Diagnostics ==="
+        echo "Matrix Python version: ${{ matrix.python-version }}"
+        echo "OS: $(uname -a)"
+        echo ""
+        echo "=== Python Executables ==="
+        which python || echo "python not found in PATH"
+        which python3 || echo "python3 not found in PATH"
+        which pip || echo "pip not found in PATH"
+        which pip3 || echo "pip3 not found in PATH"
+        echo ""
+        echo "=== Python Version Info ==="
+        python --version 2>&1 || echo "python --version failed"
+        python3 --version 2>&1 || echo "python3 --version failed"
+        echo ""
+        echo "=== Python Executable Paths ==="
+        python -c "import sys; print('python executable:', sys.executable)" 2>&1 || echo "python -c failed"
+        python3 -c "import sys; print('python3 executable:', sys.executable)" 2>&1 || echo "python3 -c failed"
+        echo ""
+        echo "=== Python sys.path ==="
+        python -c "import sys; print('\n'.join(sys.path))" 2>&1 || echo "Failed to get sys.path"
+        echo ""
+        echo "=== PATH Environment ==="
+        echo "$PATH"
+        echo ""
+        echo "=== Python Site Packages ==="
+        python -c "import site; print('Site packages:', site.getsitepackages())" 2>&1 || echo "Failed to get site packages"
 
-    - name: env after adding python
-      run: env
+    - name: Ensure pip is available
+      run: |
+        set -x
+        echo "=== Pip Availability Check ==="
+        echo "Attempting to check pip via python -m pip..."
+        if python -m pip --version 2>&1; then
+          echo "SUCCESS: python -m pip is available"
+          PIP_AVAILABLE=true
+        else
+          echo "WARNING: python -m pip not available, attempting to install via ensurepip..."
+          PIP_AVAILABLE=false
+          if python -m ensurepip --upgrade --default-pip 2>&1; then
+            echo "SUCCESS: ensurepip completed"
+            if python -m pip --version 2>&1; then
+              echo "SUCCESS: pip is now available after ensurepip"
+              PIP_AVAILABLE=true
+            else
+              echo "ERROR: pip still not available after ensurepip"
+              PIP_AVAILABLE=false
+            fi
+          else
+            echo "ERROR: ensurepip failed"
+            PIP_AVAILABLE=false
+          fi
+        fi
+        
+        if [ "$PIP_AVAILABLE" = "true" ]; then
+          echo "=== Upgrading pip ==="
+          python -m pip install --upgrade pip setuptools wheel 2>&1
+          echo ""
+          echo "=== Final pip verification ==="
+          python -m pip --version 2>&1
+          python -m pip list 2>&1 | head -20
+        else
+          echo "ERROR: Cannot proceed without pip"
+          exit 1
+        fi
+
+    - name: Debug environment after Python setup
+      run: |
+        set -x
+        echo "=== Environment Variables ==="
+        env | grep -E "(PATH|PYTHON|PIP)" | sort
+        echo ""
+        echo "=== Python Module Search ==="
+        python -c "import sys; import os; print('Python executable:', sys.executable); print('Python version:', sys.version); print('Platform:', sys.platform)" 2>&1
+        echo ""
+        echo "=== Check for pip module ==="
+        python -c "import pip; print('pip module found:', pip.__version__)" 2>&1 || echo "pip module not importable"
+        echo ""
+        echo "=== Check pip executable location ==="
+        python -c "import pip; import os; print('pip location:', os.path.join(os.path.dirname(pip.__file__), '..', 'bin', 'pip'))" 2>&1 || echo "Cannot determine pip location"
 
     - name: Install python dependencies
       run: |
@@ -157,13 +230,82 @@ jobs:
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: ls -l VMEC2000/python
 
+    - name: Debug before VMEC2000 installation
+      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
+      run: |
+        set -x
+        echo "=== Pre-VMEC2000 Installation Diagnostics ==="
+        echo "Current directory: $(pwd)"
+        echo "Python version: $(python --version 2>&1)"
+        echo "Python executable: $(python -c 'import sys; print(sys.executable)' 2>&1)"
+        echo ""
+        echo "=== Pip Status ==="
+        python -m pip --version 2>&1 || echo "ERROR: python -m pip --version failed"
+        which pip 2>&1 || echo "pip not in PATH"
+        echo ""
+        echo "=== Environment Check ==="
+        echo "PATH: $PATH"
+        echo "PYTHONPATH: ${PYTHONPATH:-not set}"
+        echo ""
+        echo "=== Python sys.path ==="
+        python -c "import sys; print('\n'.join(sys.path))" 2>&1
+        echo ""
+        echo "=== Check if VMEC2000 directory exists ==="
+        ls -la VMEC2000/ 2>&1 | head -10 || echo "VMEC2000 directory not found"
+
     - name: Configure VMEC2000 module
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: |
+        set -x
+        echo "=== Starting VMEC2000 Installation ==="
         cd VMEC2000
+        echo "Changed to directory: $(pwd)"
+        echo ""
+        echo "=== Copying cmake config ==="
         cp cmake/machines/ubuntu.json cmake_config_file.json
         cat cmake_config_file.json
-        pip install .
+        echo ""
+        echo "=== Verifying pip before installation ==="
+        echo "Python executable: $(python -c 'import sys; print(sys.executable)' 2>&1)"
+        echo "Python version: $(python --version 2>&1)"
+        echo ""
+        echo "=== Testing pip availability ==="
+        if python -m pip --version 2>&1; then
+          echo "SUCCESS: python -m pip is available"
+        else
+          echo "ERROR: python -m pip not available, attempting ensurepip..."
+          python -m ensurepip --upgrade --default-pip 2>&1
+          if python -m pip --version 2>&1; then
+            echo "SUCCESS: pip available after ensurepip"
+          else
+            echo "FATAL ERROR: pip still not available after ensurepip"
+            echo "Attempting alternative: checking for pip in different locations"
+            find /opt/hostedtoolcache -name pip 2>/dev/null | head -5 || echo "pip not found in hostedtoolcache"
+            find /usr -name pip 2>/dev/null | head -5 || echo "pip not found in /usr"
+            exit 1
+          fi
+        fi
+        echo ""
+        echo "=== Installing VMEC2000 ==="
+        echo "Command: python -m pip install ."
+        python -m pip install . 2>&1 || {
+          echo "ERROR: pip install failed"
+          echo "=== Debugging failed installation ==="
+          echo "Python sys.path:"
+          python -c "import sys; print('\n'.join(sys.path))" 2>&1
+          echo ""
+          echo "Pip version:"
+          python -m pip --version 2>&1
+          echo ""
+          echo "Current directory contents:"
+          ls -la . 2>&1
+          echo ""
+          echo "setup.py or pyproject.toml check:"
+          ls -la setup.py pyproject.toml 2>&1 || echo "No setup.py or pyproject.toml found"
+          exit 1
+        }
+        echo ""
+        echo "=== VMEC2000 Installation Complete ==="
 
     - name: Try importing vmec module
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
