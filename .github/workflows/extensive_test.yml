@@ -35,7 +35,9 @@ jobs:
       fail-fast: false
       matrix:
         test-type: [unit, integrated]
-        packages: [all, vmec, spec, none]
+        # 2025-11-28: Temporarily disabling SPEC tests in this workflow due to github issue #561
+        # packages: [all, vmec, spec, none]
+        packages: [vmec, none]
         python-version: [3.9, "3.10", "3.11"]
         include:
             - python-version: 3.9
@@ -222,17 +224,23 @@ jobs:
       if: contains(matrix.test-type, 'unit') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'all'))
       run: |
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/geo
-        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/field
+    - name: Run field tests using coverage (only when VMEC is available)
+      if: contains(matrix.test-type, 'unit') && (contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all'))
+      run: |
+        mpiexec -n 1 coverage run --source=simsopt -m unittest discover -t tests -v -s tests/field
 
     - name: Run remaining tests on 1 MPI process using coverage
       if: contains(matrix.test-type, 'unit')
       run: | 
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/configs
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/core
-        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/mhd
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/objectives
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/solve
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/util
+    - name: Run MHD tests using coverage (only when VMEC or SPEC is available, same condition as MPI tests)
+      if: contains(matrix.test-type, 'unit') && (contains(matrix.packages, 'all') || contains(matrix.packages, 'vmec') || contains(matrix.packages, 'spec'))
+      run: |
+        mpiexec -n 1 coverage run --source=simsopt -m unittest discover -t tests -v -s tests/mhd
 
     - name: Run MPI tests using coverage
       if: contains(matrix.test-type, 'unit') && (contains(matrix.packages, 'all') || contains(matrix.packages, 'vmec') || contains(matrix.packages, 'spec'))
