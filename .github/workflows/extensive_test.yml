@@ -38,7 +38,7 @@ jobs:
         # 2025-11-28: Temporarily disabling SPEC tests in this workflow due to github issue #561
         # packages: [all, vmec, spec, none]
         packages: [vmec, none]
-        python-version: [3.9, "3.10", "3.11"]
+        python-version: [3.9, "3.10", "3.11", "3.12"]
         include:
             - python-version: 3.9
               test-type: unit
