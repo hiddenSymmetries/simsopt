@@ -88,11 +88,74 @@ jobs:
         ls -l
         pwd
 
+    # For Python 3.12 on Ubuntu 24.04, GitHub's hostedtoolcache has a corrupted Python installation
+    # (undefined symbol _PyErr_SetLocaleString in _ctypes module). This breaks imports of ctypes,
+    # jax, scipy, etc. 
+    # 
+    # Workaround: Install Python 3.12 from deadsnakes PPA instead of using the corrupted cache.
+    # The deadsnakes PPA is a well-known Ubuntu repository that provides multiple Python versions.
+    # This approach:
+    # - Avoids the corrupted hostedtoolcache Python installation
+    # - Provides a clean, working Python 3.12 with all modules (including _ctypes) functional
+    # - Is faster than building from source or using pyenv
+    # - Is lighter-weight than conda/miniconda
+    #
+    # References:
+    # - GitHub issue about Python 3.12 on Ubuntu 24.04: https://github.com/actions/runner-images/issues/10781
+    # - Deadsnakes PPA: https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa
+    # - General guide: https://tecadmin.net/how-to-install-python-3-12-on-ubuntu/
+    - name: Install Python 3.12 from deadsnakes (workaround for corrupted hostedtoolcache)
+      if: matrix.python-version == '3.12'
+      run: |
+        set -x
+        echo "=== Installing Python 3.12 from deadsnakes PPA ==="
+        echo "This is a workaround for corrupted Python 3.12 in GitHub's hostedtoolcache"
+        echo "See: https://github.com/actions/runner-images/issues/10781"
+        sudo apt-get update
+        sudo apt-get install -y software-properties-common
+        sudo add-apt-repository -y ppa:deadsnakes/ppa
+        sudo apt-get update
+        sudo apt-get install -y python3.12 python3.12-dev python3.12-venv python3.12-distutils libpython3.12-dev
+        # Install pip for Python 3.12
+        curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
+        python3.12 /tmp/get-pip.py
+        rm -f /tmp/get-pip.py
+        # Update PATH to prioritize Python 3.12
+        echo "/usr/bin" >> $GITHUB_PATH
+        # Verify installation and test _ctypes
+        python3.12 --version
+        python3.12 -m pip --version
+        echo "Testing _ctypes import (this was failing with corrupted Python):"
+        python3.12 -c "import ctypes; print('SUCCESS: _ctypes works!')" || echo "ERROR: _ctypes still broken"
+        echo "Python 3.12 installed from deadsnakes PPA"
+
     - name: Set up Python ${{ matrix.python-version }}
+      if: matrix.python-version != '3.12'
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-        check-latest: true  # Force fresh download to avoid corrupted cache (especially for Python 3.12)
+        check-latest: true
+
+    - name: Set up Python environment for Python 3.12 (deadsnakes)
+      if: matrix.python-version == '3.12'
+      run: |
+        set -x
+        echo "=== Setting up Python 3.12 environment ==="
+        # Configure update-alternatives to set python/python3 to python3.12
+        sudo update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1
+        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
+        # Set python3.12 as the default
+        sudo update-alternatives --set python /usr/bin/python3.12
+        sudo update-alternatives --set python3 /usr/bin/python3.12
+        # Verify
+        echo "Python command points to: $(which python)"
+        echo "Python3 command points to: $(which python3)"
+        python --version
+        python3 --version
+        python -m pip --version
+        # Test that _ctypes works (this was the failing import)
+        python -c "import ctypes; print('SUCCESS: ctypes import works!')" || { echo "ERROR: ctypes still broken"; exit 1; }
+        python -c "import sys; print('Python executable:', sys.executable)" || { echo "ERROR: Cannot get Python executable"; exit 1; }
 
     - name: Debug Python setup
       run: |
