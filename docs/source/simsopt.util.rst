@@ -67,4 +67,3 @@ simsopt.util.polarization\_project module
    :members:
    :undoc-members:
    :show-inheritance:
-

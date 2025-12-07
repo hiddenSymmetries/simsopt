@@ -12,6 +12,7 @@ Biot_savart_prefactor = constants.mu_0 / (4 * np.pi)
 
 __all__ = ['B_regularized_pure', 'regularization_rect']
 
+
 def rectangular_xsection_k(a, b):
     """Auxiliary function for field in rectangular conductor"""
     return (4 * b) / (3 * a) * jnp.arctan(a/b) + (4*a)/(3*b)*jnp.arctan(b/a) + \
@@ -64,7 +65,7 @@ def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, reg
 
     analytic_term = B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization)
 
-    dr = rc[:, None] - rc[None, :]    
+    dr = rc[:, None] - rc[None, :]
     first_term = jnp.cross(rc_prime[None, :], dr) / ((jnp.sum(dr * dr, axis=2) + regularization) ** 1.5)[:, :, None]
     cos_fac = 2 - 2 * jnp.cos(phi[None, :] - phi[:, None])
     denominator2 = cos_fac * jnp.sum(rc_prime * rc_prime, axis=1)[:, None] + regularization
@@ -72,7 +73,7 @@ def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, reg
     second_term = jnp.cross(rc_prime_prime, rc_prime)[:, None, :] * factor2[:, :, None]
 
     integral_term = dphi * jnp.sum(first_term + second_term, 1)
-    
+
     return current * Biot_savart_prefactor * (analytic_term + integral_term)
 
 

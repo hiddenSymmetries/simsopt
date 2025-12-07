@@ -235,7 +235,7 @@ class QuasisymmetryRatioResidual(Optimizable):
         nn = self.helicity_n * nfp
         for js in range(ns):
             residuals3d[js, :, :] = np.sqrt(self.weights[js] * nfp * dtheta * dphi / V_prime[js] * sqrtg[js, :, :]) \
-                * (B_cross_grad_B_dot_grad_psi[js, :, :] * (nn - iota[js] * self.helicity_m) \
+                * (B_cross_grad_B_dot_grad_psi[js, :, :] * (nn - iota[js] * self.helicity_m)
                    - B_dot_grad_B[js, :, :] * (self.helicity_m * G[js] + nn * I[js])) \
                 / (modB[js, :, :] ** 3)
 
@@ -736,7 +736,6 @@ def vmec_splines(vmec):
     d_zmnc_d_s = []
     d_lmnc_d_s = []
 
-    
     for jmn in range(vmec.wout.mnmax):
         rmnc.append(InterpolatedUnivariateSpline(vmec.s_full_grid, vmec.wout.rmnc[jmn, :]))
         zmns.append(InterpolatedUnivariateSpline(vmec.s_full_grid, vmec.wout.zmns[jmn, :]))
@@ -783,7 +782,6 @@ def vmec_splines(vmec):
     d_bsupumns_d_s = []
     d_bsupvmns_d_s = []
 
-    
     for jmn in range(vmec.wout.mnmax_nyq):
         gmnc.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.gmnc[jmn, 1:]))
         bmnc.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bmnc[jmn, 1:]))
@@ -820,7 +818,6 @@ def vmec_splines(vmec):
         d_bsupumns_d_s.append(bsupumns[-1].derivative())
         d_bsupvmns_d_s.append(bsupvmns[-1].derivative())
 
-        
     # Handle 1d profiles:
     results.pressure = InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.pres[1:])
     results.d_pressure_d_s = results.pressure.derivative()
@@ -1067,7 +1064,7 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     d2_R_d_theta_vmec_d_phi = np.einsum('ij,jikl->ikl', rmnc, mncosangle)
     d2_R_d_s_d_theta_vmec = np.einsum('ij,jikl->ikl', -d_rmnc_d_s, msinangle)
     d2_R_d_s_d_phi = np.einsum('ij,jikl->ikl', d_rmnc_d_s, nsinangle)
-    
+
     Z = np.einsum('ij,jikl->ikl', zmns, sinangle)
     d_Z_d_s = np.einsum('ij,jikl->ikl', d_zmns_d_s, sinangle)
     d_Z_d_theta_vmec = np.einsum('ij,jikl->ikl', zmns, mcosangle)
@@ -1178,7 +1175,7 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     # approaches give the same answer (within some tolerance).
     # *********************************************************************
 
-    B_cross_grad_s_dot_grad_alpha = (B_sub_phi * (1 + d_lambda_d_theta_vmec) \
+    B_cross_grad_s_dot_grad_alpha = (B_sub_phi * (1 + d_lambda_d_theta_vmec)
                                      - B_sub_theta_vmec * (d_lambda_d_phi - iota[:, None, None])) / sqrt_g_vmec
 
     B_cross_grad_s_dot_grad_alpha_alternate = 0 \
@@ -1190,11 +1187,11 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
         - B_Y * grad_s_X * grad_alpha_Z
 
     B_cross_grad_B_dot_grad_alpha = 0 \
-        + (B_sub_s * d_B_d_theta_vmec * (d_lambda_d_phi - iota[:, None, None]) \
-           + B_sub_theta_vmec * d_B_d_phi * (d_lambda_d_s - (phi - phi_center) * d_iota_d_s[:, None, None]) \
-           + B_sub_phi * d_B_d_s * (1 + d_lambda_d_theta_vmec) \
-           - B_sub_phi * d_B_d_theta_vmec * (d_lambda_d_s - (phi - phi_center) * d_iota_d_s[:, None, None]) \
-           - B_sub_theta_vmec * d_B_d_s * (d_lambda_d_phi - iota[:, None, None]) \
+        + (B_sub_s * d_B_d_theta_vmec * (d_lambda_d_phi - iota[:, None, None])
+           + B_sub_theta_vmec * d_B_d_phi * (d_lambda_d_s - (phi - phi_center) * d_iota_d_s[:, None, None])
+           + B_sub_phi * d_B_d_s * (1 + d_lambda_d_theta_vmec)
+           - B_sub_phi * d_B_d_theta_vmec * (d_lambda_d_s - (phi - phi_center) * d_iota_d_s[:, None, None])
+           - B_sub_theta_vmec * d_B_d_s * (d_lambda_d_phi - iota[:, None, None])
            - B_sub_s * d_B_d_phi * (1 + d_lambda_d_theta_vmec)) / sqrt_g_vmec
 
     B_cross_grad_B_dot_grad_alpha_alternate = 0 \
@@ -1551,7 +1548,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         for j, variable in enumerate(variables):
             plt.subplot(nrows, ncols, j + 1)
             plt.plot(phi[0, 0, :], eval("results." + variable + '[0, 0, :]'))
-            plt.xlabel('Standard toroidal angle $\phi$')
+            plt.xlabel(r'Standard toroidal angle $\phi$')
             plt.title(variable)
 
         plt.figtext(0.5, 0.995, f's={s[0]}, alpha={alpha[0]}', ha='center', va='top')

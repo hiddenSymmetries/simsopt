@@ -16,9 +16,16 @@ on:
     branches: [master]
   workflow_dispatch: 
 
+concurrency:
+  # Use github.run_id on main branch
+  # Use github.event.pull_request.number on pull requests, so it's unique per pull request
+  # Use github.ref on other branches, so it's unique per branch
+  group: ${{ github.workflow }}-${{ github.ref == github.ref_protected && github.run_id || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     env:
       OMPI_ALLOW_RUN_AS_ROOT: 1
@@ -28,8 +35,10 @@ jobs:
       fail-fast: false
       matrix:
         test-type: [unit, integrated]
-        packages: [all, vmec, spec, none]
-        python-version: [3.9, "3.10", "3.11"]
+        # 2025-11-28: Temporarily disabling SPEC tests in this workflow due to github issue #561
+        # packages: [all, vmec, spec, none]
+        packages: [vmec, none]
+        python-version: [3.9, "3.10", "3.11", "3.12"]
         include:
             - python-version: 3.9
               test-type: unit
@@ -184,7 +193,7 @@ jobs:
         ./run_serial_examples
 
     - name: Run simple parallel examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'all')
+      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'none')
       run: |
         cd examples
         ./run_parallel_examples
@@ -220,6 +229,7 @@ jobs:
     - name: Run remaining tests on 1 MPI process using coverage
       if: contains(matrix.test-type, 'unit')
       run: | 
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/configs
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/core
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/mhd
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/objectives

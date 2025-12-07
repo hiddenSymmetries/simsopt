@@ -10,17 +10,12 @@ You can run this example with one or multiple MPI processes.
 
 from pathlib import Path
 import numpy as np
-from simsopt.configs import get_w7x_data
-from simsopt.field import BiotSavart, coils_via_symmetries
+from simsopt.configs import get_data
 from simsopt.mhd import Vmec
 from simsopt.util import MpiPartition
 
-nfp = 5
-
 # Load in some coils
-curves, currents, magnetic_axis = get_w7x_data()
-coils = coils_via_symmetries(curves, currents, nfp, True)
-bs = BiotSavart(coils)
+base_curves, base_currents, magnetic_axis, nfp, bs = get_data("w7x")
 
 # Number of grid points in the toroidal angle:
 nphi = 24
@@ -45,7 +40,7 @@ input_file = str(TEST_DIR / "input.W7-X_standard_configuration")
 mpi = MpiPartition(1)
 vmec = Vmec(input_file, mpi=mpi)
 
-# That input file was for fixed-boundary. We need to change some of 
+# That input file was for fixed-boundary. We need to change some of
 # the vmec input parameters for a free-boundary calculation:
 vmec.indata.lfreeb = True
 vmec.indata.mgrid_file = mgrid_file

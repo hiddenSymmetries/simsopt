@@ -12,7 +12,6 @@ __all__ = ['orientation_phi', 'polarization_axes', 'discretize_polarizations',
            ]
 
 import numpy as np
-import numpy.matlib as ml
 
 
 # Designated column indices from MAGPIE corners files
@@ -78,7 +77,7 @@ pol_fe30_pos = np.array([[fe30_1, fe30_2, 0],
                          [-fe30_2, 0, fe30_1],
                          [0, fe30_2, fe30_1],
                          [0, -fe30_2, fe30_1]]
-                        ) 
+                        )
 
 # Face/edge polarization, 22.5 degrees from face-centered
 fe23_1 = np.sin(np.pi / 8.0)
@@ -95,7 +94,7 @@ pol_fe23_pos = np.array([[fe23_1, fe23_2, 0],
                          [-fe23_2, 0, fe23_1],
                          [0, fe23_2, fe23_1],
                          [0, -fe23_2, fe23_1]]
-                        ) 
+                        )
 
 # Face/edge polarization, 17 degrees from face-centered
 fe17_1 = np.sin(17.0 * np.pi / 180.0)
@@ -112,7 +111,7 @@ pol_fe17_pos = np.array([[fe17_1, fe17_2, 0],
                          [-fe17_2, 0, fe17_1],
                          [0, fe17_2, fe17_1],
                          [0, -fe17_2, fe17_1]]
-                        ) 
+                        )
 
 # Face/corner-centered polarizations
 pol_fc_pos = np.array([[1.0, 0.5, 0.5],
@@ -236,7 +235,7 @@ def faceedge_vectors(theta):
                             [-comp_2, 0, comp_1],
                             [0, comp_2, comp_1],
                             [0, -comp_2, comp_1]]
-                           ) 
+                           )
 
     return np.concatenate((vectors_pos, -vectors_pos), axis=0)
 
@@ -288,7 +287,7 @@ def face_triplet(theta_fe, theta_fc):
             3-column array in which each row is one unit vector in the full set
     """
     return np.concatenate((pol_f, faceedge_vectors(theta_fe),
-                           facecorner_vectors(theta_fc)), 
+                           facecorner_vectors(theta_fc)),
                           axis=0
                           )
 
@@ -309,7 +308,7 @@ def edge_triplet(theta_fe, theta_fc):
             3-column array in which each row is one unit vector in the full set
     """
     return np.concatenate((pol_e, faceedge_vectors(theta_fe),
-                           facecorner_vectors(theta_fc)), 
+                           facecorner_vectors(theta_fc)),
                           axis=0
                           )
 
@@ -430,7 +429,7 @@ def polarization_axes(polarizations):
             pol_axes = np.concatenate((pol_axes, vectors), axis=0)
             n_polarizations = np.shape(vectors)[0]
         else:
-            raise ValueError('polarization_axes: Polarization type ' + 
+            raise ValueError('polarization_axes: Polarization type ' +
                              pol_name + ' is not recognized or supported.')
 
         i = i + 1
@@ -469,16 +468,16 @@ def discretize_polarizations(mag_data, orientation_phi, pol_axes, pol_type):
     nPol = pol_axes.shape[0]
     mag_data.init_pol_vecs(nPol)
 
-    # Unit vector components for the "r" and "phi" faces of each magnet    
+    # Unit vector components for the "r" and "phi" faces of each magnet
     rhat_x = np.cos(orientation_phi).reshape((nMagnets, 1))
     rhat_y = np.sin(orientation_phi).reshape((nMagnets, 1))
     phat_x = -np.sin(orientation_phi).reshape((nMagnets, 1))
     phat_y = np.cos(orientation_phi).reshape((nMagnets, 1))
 
     # Allowable axes for each magnet in the magnet frame
-    pol_r = ml.repmat(np.reshape(pol_axes[:, 0], (1, nPol)), mag_data.nMagnets, 1)
-    pol_p = ml.repmat(np.reshape(pol_axes[:, 1], (1, nPol)), mag_data.nMagnets, 1)
-    pol_z = ml.repmat(np.reshape(pol_axes[:, 2], (1, nPol)), mag_data.nMagnets, 1)
+    pol_r = np.repeat(np.reshape(pol_axes[:, 0], (1, nPol)), mag_data.nMagnets, axis=0)
+    pol_p = np.repeat(np.reshape(pol_axes[:, 1], (1, nPol)), mag_data.nMagnets, axis=0)
+    pol_z = np.repeat(np.reshape(pol_axes[:, 2], (1, nPol)), mag_data.nMagnets, axis=0)
 
     # Populate allowable axes for each magnet in the lab frame
     mag_data.pol_x[:, :] = pol_r*rhat_x + pol_p*phat_x
@@ -501,9 +500,9 @@ def discretize_polarizations(mag_data, orientation_phi, pol_axes, pol_type):
 
     # Scale orig axes by magnet density and copy for each allowable polarization
     rho = mag_data.pho**mag_data.momentq
-    rmx_orig = ml.repmat(np.reshape(rho*nx_orig, (nMagnets, 1)), 1, nPol+1)
-    rmy_orig = ml.repmat(np.reshape(rho*ny_orig, (nMagnets, 1)), 1, nPol+1)
-    rmz_orig = ml.repmat(np.reshape(rho*nz_orig, (nMagnets, 1)), 1, nPol+1)
+    rmx_orig = np.repeat(np.reshape(rho*nx_orig, (nMagnets, 1)), nPol+1, axis=1)
+    rmy_orig = np.repeat(np.reshape(rho*ny_orig, (nMagnets, 1)), nPol+1, axis=1)
+    rmz_orig = np.repeat(np.reshape(rho*nz_orig, (nMagnets, 1)), nPol+1, axis=1)
 
     # 2-norm of differences between allowable vectors and scaled orig vectors
     resid2 = (pol_x-rmx_orig)**2 + (pol_y-rmy_orig)**2 + (pol_z-rmz_orig)**2

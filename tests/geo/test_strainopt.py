@@ -1,6 +1,6 @@
 import unittest
 from simsopt.geo import FrameRotation, ZeroRotation, FramedCurveCentroid, FramedCurveFrenet
-from simsopt.configs.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_data
 from simsopt.geo.strain_optimization import LPBinormalCurvatureStrainPenalty, LPTorsionalStrainPenalty
 import numpy as np
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
@@ -21,7 +21,7 @@ class CoilStrainTesting(unittest.TestCase):
             curve.set('xc(1)', 1e-4)
             curve.set('ys(1)', 1e-4)
             curve.fix_all()
-            order = 2 
+            order = 2
             np.random.seed(1)
             rotation = FrameRotation(quadpoints, order)
             rotation.x = np.random.standard_normal(size=(2*order+1,))
@@ -38,8 +38,8 @@ class CoilStrainTesting(unittest.TestCase):
                 grad = J.dJ()
                 return J.J(), grad
             minimize(fun, J.x, jac=True, method='L-BFGS-B',
-                           options={'maxiter': 100, 'maxcor': 10, 'gtol': 1e-20, 'ftol': 1e-20}, tol=1e-20)
-            assert Jt.J() < 1e-12 
+                     options={'maxiter': 100, 'maxcor': 10, 'gtol': 1e-20, 'ftol': 1e-20}, tol=1e-20)
+            assert Jt.J() < 1e-12
             assert Jb.J() < 1e-12
 
     def test_torsion(self):
@@ -56,13 +56,13 @@ class CoilStrainTesting(unittest.TestCase):
 
     def subtest_binormal_curvature(self, order, centroid):
         assert order in [1, None]
-        curves, currents, ma = get_ncsx_data(Nt_coils=6, ppp=120)
-        c = curves[0]
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx", coil_order=6, points_per_period=120)
+        c = base_curves[0]
 
         if order == 1:
             rotation = FrameRotation(c.quadpoints, order)
             rotation.x = np.array([0, 0.1, 0.3])
-            rotationShared = FrameRotation(curves[0].quadpoints, order, dofs=rotation.dofs)
+            rotationShared = FrameRotation(base_curves[0].quadpoints, order, dofs=rotation.dofs)
             assert np.allclose(rotation.x, rotationShared.x)
             assert np.allclose(rotation.alpha(c.quadpoints), rotationShared.alpha(c.quadpoints))
         else:
@@ -98,13 +98,13 @@ class CoilStrainTesting(unittest.TestCase):
 
     def subtest_torsion(self, order, centroid):
         assert order in [1, None]
-        curves, currents, ma = get_ncsx_data(Nt_coils=6, ppp=120)
-        c = curves[0]
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx", coil_order=6, points_per_period=120)
+        c = base_curves[0]
 
         if order == 1:
             rotation = FrameRotation(c.quadpoints, order)
             rotation.x = np.array([0, 0.1, 0.3])
-            rotationShared = FrameRotation(curves[0].quadpoints, order, dofs=rotation.dofs)
+            rotationShared = FrameRotation(base_curves[0].quadpoints, order, dofs=rotation.dofs)
             assert np.allclose(rotation.x, rotationShared.x)
             assert np.allclose(rotation.alpha(c.quadpoints), rotationShared.alpha(c.quadpoints))
         else:
@@ -133,4 +133,3 @@ class CoilStrainTesting(unittest.TestCase):
             errf = np.abs((f1-f2)/(2*eps) - df)
             assert errf < 0.3 * errf_old
             errf_old = errf
-
