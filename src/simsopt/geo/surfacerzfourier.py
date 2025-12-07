@@ -1190,7 +1190,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         n_phi=None,
         power=2,
         maxiter=None,
-        method="trust-constr",
+        method="SLSQP",
         epsilon=1e-3,
         Fourier_continuation=True,
         verbose=True,
@@ -1418,7 +1418,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             RZ_errors = compute_RZ_errors(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
             max_error = np.max(np.abs(RZ_errors))
             if verbose:
-                print(f"(Max error in fitting R or Z of points) / minor_radius: {max_error:.3e}")
+                print(f"(Max error in fitting R or Z of points) / minor_radius: {max_error:.3e}", flush=True)
             return max_error
 
         @jax.jit
@@ -1469,7 +1469,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 line_width = 120
                 print("*" * line_width)
                 print(f"Beginning Fourier continuation step with mnmax = {mnmax}")
-                print("*" * line_width)
+                print("*" * line_width, flush=True)
 
             # Select only lambda dofs with |m|, |n| <= mnmax:
             indices_to_keep = np.where((np.abs(m_for_lambda_full) <= mnmax) & (np.abs(n_for_lambda_full) <= mnmax))[0]
@@ -1557,7 +1557,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         elapsed_time = time.time() - start_time
         if verbose:
             print(res)
-            print("Time taken (s):", elapsed_time)
+            print("Time taken (s):", elapsed_time, flush=True)
 
         # Update surface with optimized parameters
         lambda_dofs_optimized = res.x
