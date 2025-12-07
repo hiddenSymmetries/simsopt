@@ -36,15 +36,11 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         boozer_surface = BoozerSurface(bs, s, tf, tf_target)
         x = np.concatenate((s.get_dofs(), [iota]))
-        r0 = boozer_surface.boozer_penalty_constraints(
-            x, derivatives=0, constraint_weight=weight, optimize_G=False,
-            scalarize=False)
-        # the residual should be close to zero for all entries apart from the y
-        # and z coordinate at phi=0 and theta=0 (and the corresponding rotations)
-        ignores_idxs = np.zeros_like(r0)
-        ignores_idxs[[1, 2, 693, 694, 695, 1386, 1387, 1388, -2, -1]] = 1
-        assert np.max(np.abs(r0[ignores_idxs < 0.5])) < 1e-8
-        assert np.max(np.abs(r0[-2:])) < 1e-6
+        # Vectorized version returns scalar objective, not residual vector
+        r0_scalar = boozer_surface.boozer_penalty_constraints_vectorized(
+            x, derivatives=0, constraint_weight=weight, optimize_G=False)
+        # Check that the objective is small (residual should be close to zero)
+        assert r0_scalar < 1e-6
 
     def test_boozer_penalty_constraints_gradient(self):
         """
@@ -54,12 +50,10 @@ class BoozerSurfaceTests(unittest.TestCase):
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 for optimize_G in [True, False]:
-                    for vectorize in [True, False]:
-                        with self.subTest(surfacetype=surfacetype,
-                                          stellsym=stellsym,
-                                          optimize_G=optimize_G,
-                                          vectorize=vectorize):
-                            self.subtest_boozer_penalty_constraints_gradient(surfacetype, stellsym, optimize_G, vectorize)
+                    with self.subTest(surfacetype=surfacetype,
+                                      stellsym=stellsym,
+                                      optimize_G=optimize_G):
+                        self.subtest_boozer_penalty_constraints_gradient(surfacetype, stellsym, optimize_G)
 
     def test_boozer_penalty_constraints_hessian(self):
         """
@@ -69,16 +63,14 @@ class BoozerSurfaceTests(unittest.TestCase):
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 for optimize_G in [True, False]:
-                    for vectorize in [True, False]:
-                        with self.subTest(surfacetype=surfacetype,
-                                          stellsym=stellsym,
-                                          optimize_G=optimize_G,
-                                          vectorize=vectorize):
-                            self.subtest_boozer_penalty_constraints_hessian(
-                                surfacetype, stellsym, optimize_G, vectorize)
+                    with self.subTest(surfacetype=surfacetype,
+                                      stellsym=stellsym,
+                                      optimize_G=optimize_G):
+                        self.subtest_boozer_penalty_constraints_hessian(
+                            surfacetype, stellsym, optimize_G)
 
     def subtest_boozer_penalty_constraints_gradient(self, surfacetype, stellsym,
-                                                    optimize_G=False, vectorize=False):
+                                                    optimize_G=False):
         np.random.seed(1)
         base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         bs_tf = BiotSavart(bs.coils)
@@ -93,7 +85,7 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         tf_target = 0.1
         boozer_surface = BoozerSurface(bs, s, tf, tf_target)
-        fun = boozer_surface.boozer_penalty_constraints_vectorized if vectorize else boozer_surface.boozer_penalty_constraints
+        fun = boozer_surface.boozer_penalty_constraints_vectorized
 
         iota = -0.3
         x = np.concatenate((s.get_dofs(), [iota]))
@@ -116,7 +108,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         print("###############################################################")
 
     def subtest_boozer_penalty_constraints_hessian(self, surfacetype, stellsym,
-                                                   optimize_G=False, vectorize=False):
+                                                   optimize_G=False):
         np.random.seed(1)
         base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         bs_tf = BiotSavart(bs.coils)
@@ -129,7 +121,7 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         tf_target = 0.1
         boozer_surface = BoozerSurface(bs, s, tf, tf_target)
-        fun = boozer_surface.boozer_penalty_constraints_vectorized if vectorize else boozer_surface.boozer_penalty_constraints
+        fun = boozer_surface.boozer_penalty_constraints_vectorized
 
         iota = -0.3
         x = np.concatenate((s.get_dofs(), [iota]))
@@ -223,18 +215,14 @@ class BoozerSurfaceTests(unittest.TestCase):
         ]
         for surfacetype, stellsym, optimize_G, second_stage in configs:
             for config in ["hsx", "ncsx", "giuliani"]:
-                # Only test vectorize=True; non-vectorized has platform-specific numerical issues
-                # that cause convergence failures on some CI platforms
-                for vectorize in [True]:
-                    with self.subTest(
+                with self.subTest(
                         surfacetype=surfacetype, stellsym=stellsym,
-                            optimize_G=optimize_G, second_stage=second_stage, config=config, vectorize=vectorize):
-                        self.subtest_boozer_surface_optimisation_convergence(surfacetype, stellsym, optimize_G, second_stage, config, vectorize)
+                            optimize_G=optimize_G, second_stage=second_stage, config=config):
+                        self.subtest_boozer_surface_optimisation_convergence(surfacetype, stellsym, optimize_G, second_stage, config)
 
     def subtest_boozer_surface_optimisation_convergence(self, surfacetype,
                                                         stellsym, optimize_G,
-                                                        second_stage, config,
-                                                        vectorize):
+                                                        second_stage, config):
         base_curves, base_currents, ma, nfp, bs = get_data(config)
         if stellsym:
             coils = bs.coils
@@ -281,8 +269,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         cw = (s.quadpoints_phi.size * s.quadpoints_theta.size * 3)
         # compute surface first using LBFGS exact and an area constraint
         res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
-            tol=1e-12, maxiter=700, constraint_weight=100/cw, iota=iota, G=G,
-            vectorize=vectorize)
+            tol=1e-12, maxiter=700, constraint_weight=100/cw, iota=iota, G=G)
         print('Residual norm after LBFGS', res['iter'], np.sqrt(2*res['fun']))
 
         boozer_surface.recompute_bell()
@@ -293,7 +280,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         elif second_stage == 'newton':
             res = boozer_surface.minimize_boozer_penalty_constraints_newton(
                 tol=1e-10, maxiter=20, constraint_weight=100./cw,
-                iota=res['iota'], G=res['G'], stab=1e-4, vectorize=vectorize)
+                iota=res['iota'], G=res['G'], stab=1e-4)
         elif second_stage == 'newton_exact':
             res = boozer_surface.minimize_boozer_exact_constraints_newton(
                 tol=1e-10, maxiter=15, iota=res['iota'], G=res['G'])
@@ -377,154 +364,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         boozer_surface.need_to_run_code = True
         boozer_surface.solve_residual_equation_exactly_newton(iota=boozer_surface.res['iota'])
 
-    @unittest.skip("Non-vectorized implementation has platform-specific numerical issues on CI")
-    def test_convergence_cpp_and_notcpp_same(self):
-        """
-        This unit test verifies that that the cpp and not cpp implementations converge to 
-        the same solutions.
-        
-        NOTE: This test is skipped because the non-vectorized implementation has 
-        platform-specific numerical issues that cause convergence failures on some CI platforms.
-        The vectorized (C++) implementation is recommended for production use.
-        """
-        x_vec = self.subtest_convergence_cpp_and_notcpp_same(True)
-        x_nonvec = self.subtest_convergence_cpp_and_notcpp_same(False)
-        np.testing.assert_allclose(x_vec, x_nonvec, atol=1e-11)
 
-    def subtest_convergence_cpp_and_notcpp_same(self, vectorize):
-        """
-        compute a surface using either the vectorized or non-vectorized subroutines
-        """
-        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
-        current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
-
-        s = get_surface('SurfaceXYZTensorFourier', True, nfp=nfp)
-        s.fit_to_curve(ma, 0.1)
-        iota = -0.4
-
-        ar = Area(s)
-        ar_target = ar.J()
-        boozer_surface = BoozerSurface(bs, s, ar, ar_target)
-
-        G = 2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))
-
-        cw = 3*s.quadpoints_phi.size * s.quadpoints_theta.size
-        # vectorized solution first
-        res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
-            tol=1e-10, maxiter=600, constraint_weight=100./cw, iota=iota, G=G,
-            vectorize=vectorize)
-        print('Residual norm after LBFGS', np.sqrt(2*res['fun']))
-
-        boozer_surface.recompute_bell()
-        res = boozer_surface.minimize_boozer_penalty_constraints_newton(
-            tol=1e-10, maxiter=20, constraint_weight=100./cw,
-            iota=res['iota'], G=res['G'], stab=0., vectorize=vectorize)
-
-        assert res['success']
-        x = boozer_surface.surface.x.copy()
-        iota = res['iota']
-        G = res['G']
-        return np.concatenate([x, [iota, G]])
-
-    def test_boozer_penalty_constraints_cpp_notcpp(self):
-        """
-        Test to verify cpp and python implementations of the BoozerLS objective return the same thing.
-        """
-        for surfacetype in surfacetypes_list:
-            for stellsym in stellsym_list:
-                for weight_inv_modB in [False, True]:
-                    for (optimize_G, nphi, ntheta, mpol, ntor) in [(True, 1, 1, 3, 3), (False, 1, 1, 13, 2), (True, 2, 2, 10, 3), (False, 2, 1, 3, 4), (True, 6, 9, 3, 3), (False, 7, 8, 3, 4), (True, 3, 3, 3, 3), (False, 3, 3, 3, 5)]:
-                        with self.subTest(surfacetype=surfacetype,
-                                          stellsym=stellsym,
-                                          optimize_G=optimize_G,
-                                          weight_inv_modB=weight_inv_modB,
-                                          mpol=mpol,
-                                          ntor=ntor):
-                            self.subtest_boozer_penalty_constraints_cpp_notcpp(surfacetype, stellsym, optimize_G, nphi, ntheta, weight_inv_modB, mpol, ntor)
-
-    def subtest_boozer_penalty_constraints_cpp_notcpp(self, surfacetype, stellsym, optimize_G, nphi, ntheta, weight_inv_modB, mpol, ntor):
-
-        np.random.seed(1)
-        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
-        bs_tf = BiotSavart(bs.coils)
-        current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
-
-        phis = None
-        thetas = None
-        if nphi == 1:
-            phis = [0.2234567989]
-        elif nphi == 2:
-            phis = [0.2234567989, 0.432123451]
-
-        if ntheta == 1:
-            thetas = [0.2432101234]
-        elif ntheta == 2:
-            thetas = [0.2432101234, 0.9832134]
-
-        s = get_surface(surfacetype, stellsym, nphi=nphi, ntheta=ntheta, thetas=thetas, phis=phis, mpol=mpol, ntor=ntor)
-        s.fit_to_curve(ma, 0.1)
-        s.x = s.x + np.random.rand(s.x.size)*1e-6
-
-        tf = ToroidalFlux(s, bs_tf, nphi=51, ntheta=51)
-
-        tf_target = 0.1
-        boozer_surface = BoozerSurface(bs, s, tf, tf_target)
-
-        iota = -0.3
-        x = np.concatenate((s.get_dofs(), [iota]))
-        if optimize_G:
-            x = np.concatenate((x, [2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))]))
-
-        # deriv = 0
-        w = 0.
-        f0 = boozer_surface.boozer_penalty_constraints(
-            x, derivatives=0, constraint_weight=w, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
-        f1 = boozer_surface.boozer_penalty_constraints_vectorized(
-            x, derivatives=0, constraint_weight=w, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
-        np.testing.assert_allclose(f0, f1, atol=1e-13, rtol=1e-13)
-        print(np.abs(f0-f1)/np.abs(f0))
-
-        # deriv = 1
-        f0, J0 = boozer_surface.boozer_penalty_constraints(
-            x, derivatives=1, constraint_weight=w, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
-        f1, J1 = boozer_surface.boozer_penalty_constraints_vectorized(
-            x, derivatives=1, constraint_weight=w, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
-        np.testing.assert_allclose(f0, f1, atol=1e-13, rtol=1e-13)
-        np.testing.assert_allclose(J0, J1, atol=1e-11, rtol=1e-11)
-
-        # check directional derivative
-        h1 = np.random.rand(J0.size)-0.5
-        np.testing.assert_allclose(J0@h1, J1@h1, atol=1e-13, rtol=1e-13)
-        print(np.abs(f0-f1)/np.abs(f0), np.abs(J0@h1-J1@h1)/np.abs(J0@h1))
-
-        # deriv = 2
-        f0, J0, H0 = boozer_surface.boozer_penalty_constraints(
-            x, derivatives=2, constraint_weight=w, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
-        f1, J1, H1 = boozer_surface.boozer_penalty_constraints_vectorized(
-            x, derivatives=2, constraint_weight=w, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
-
-        np.testing.assert_allclose(f0, f1, atol=1e-13, rtol=1e-13)
-        np.testing.assert_allclose(J0, J1, atol=1e-11, rtol=1e-11)
-        np.testing.assert_allclose(H0, H1, atol=1e-10, rtol=1e-10)
-        h2 = np.random.rand(J0.size)-0.5
-
-        np.testing.assert_allclose(f0, f1, atol=1e-13, rtol=1e-13)
-        np.testing.assert_allclose(J0@h1, J1@h1, atol=1e-13, rtol=1e-13)
-        np.testing.assert_allclose((H0@h1)@h2, (H1@h1)@h2, atol=1e-13, rtol=1e-13)
-        print(np.abs(f0-f1)/np.abs(f0), np.abs(J0@h1-J1@h1)/np.abs(J0@h1), np.abs((H0@h1)@h2-(H1@h1)@h2)/np.abs((H0@h1)@h2))
-
-        def compute_differences(Ha, Hb):
-            diff = np.abs(Ha.flatten() - Hb.flatten())
-            rel_diff = diff/np.abs(Ha.flatten())
-            ij1 = np.where(diff.reshape(Ha.shape) == np.max(diff))
-            i1 = ij1[0][0]
-            j1 = ij1[1][0]
-
-            ij2 = np.where(rel_diff.reshape(Ha.shape) == np.max(rel_diff))
-            i2 = ij2[0][0]
-            j2 = ij2[1][0]
-            print(f'max err     ({i1:03}, {j1:03}): {np.max(diff):.6e}, {Ha[i1, j1]:.6e}\nmax rel err ({i2:03}, {j2:03}): {np.max(rel_diff):.6e}, {Ha[i2,j2]:.6e}\n')
-        compute_differences(H0, H1)
 
     def test_boozer_surface_quadpoints(self):
         """ 
