@@ -149,6 +149,28 @@ jobs:
           echo "pip executable not in PATH"
         fi
         
+        # Check if site-packages is in sys.path - this is critical!
+        echo ""
+        echo "=== Checking Python sys.path for site-packages ==="
+        python -c "import sys; print('\n'.join(sys.path))" 2>&1
+        SITE_PACKAGES=$(python -c "import site; pkgs = site.getsitepackages(); print(pkgs[0] if pkgs else '')" 2>&1)
+        echo "Site-packages path: $SITE_PACKAGES"
+        
+        # Check if site-packages is actually in sys.path
+        if python -c "import sys; sys.path" 2>&1 | grep -q "site-packages"; then
+          echo "SUCCESS: site-packages is in sys.path"
+        else
+          echo "ERROR: site-packages is NOT in sys.path - this is the root cause!"
+          if [ -n "$SITE_PACKAGES" ] && [ -d "$SITE_PACKAGES" ]; then
+            echo "Adding site-packages to PYTHONPATH..."
+            export PYTHONPATH="$SITE_PACKAGES:${PYTHONPATH:-}"
+            echo "PYTHONPATH=$PYTHONPATH" >> $GITHUB_ENV
+            echo "Updated PYTHONPATH: $PYTHONPATH"
+          else
+            echo "WARNING: site-packages directory not found at expected location"
+          fi
+        fi
+        
         # Always use python -m pip to avoid corrupted pip executable
         echo ""
         echo "=== Checking python -m pip ==="
@@ -160,16 +182,35 @@ jobs:
           PIP_AVAILABLE=false
           if python -m ensurepip --upgrade --default-pip 2>&1; then
             echo "SUCCESS: ensurepip completed"
+            # Re-check and fix sys.path after ensurepip
+            SITE_PACKAGES=$(python -c "import site; pkgs = site.getsitepackages(); print(pkgs[0] if pkgs else '')" 2>&1)
+            if [ -n "$SITE_PACKAGES" ] && [ -d "$SITE_PACKAGES" ]; then
+              export PYTHONPATH="$SITE_PACKAGES:${PYTHONPATH:-}"
+              echo "PYTHONPATH=$PYTHONPATH" >> $GITHUB_ENV
+              echo "Updated PYTHONPATH after ensurepip: $PYTHONPATH"
+            fi
+            # Verify sys.path now includes site-packages
+            echo "Re-checking sys.path:"
+            python -c "import sys; print('\n'.join(sys.path))" 2>&1
             if python -m pip --version 2>&1; then
               echo "SUCCESS: pip is now available after ensurepip"
               PIP_AVAILABLE=true
             else
               echo "ERROR: pip still not available after ensurepip"
-              echo "Attempting to reinstall pip..."
+              echo "Attempting to reinstall pip using get-pip.py..."
               # Try to get pip and reinstall it
               curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
               python /tmp/get-pip.py --force-reinstall 2>&1
               rm -f /tmp/get-pip.py
+              # Update PYTHONPATH again after get-pip.py
+              SITE_PACKAGES=$(python -c "import site; pkgs = site.getsitepackages(); print(pkgs[0] if pkgs else '')" 2>&1)
+              if [ -n "$SITE_PACKAGES" ] && [ -d "$SITE_PACKAGES" ]; then
+                export PYTHONPATH="$SITE_PACKAGES:${PYTHONPATH:-}"
+                echo "PYTHONPATH=$PYTHONPATH" >> $GITHUB_ENV
+                echo "Updated PYTHONPATH after get-pip.py: $PYTHONPATH"
+              fi
+              # Final check
+              python -c "import sys; print('Final sys.path:', '\n'.join(sys.path))" 2>&1
               if python -m pip --version 2>&1; then
                 echo "SUCCESS: pip available after get-pip.py"
                 PIP_AVAILABLE=true
@@ -195,6 +236,11 @@ jobs:
           echo "The pip executable may be corrupted, but python -m pip works"
         else
           echo "ERROR: Cannot proceed without pip"
+          echo "Final diagnostic - sys.path:"
+          python -c "import sys; print('\n'.join(sys.path))" 2>&1
+          echo "PYTHONPATH: ${PYTHONPATH:-not set}"
+          echo "Site-packages location:"
+          python -c "import site; print(site.getsitepackages())" 2>&1
           exit 1
         fi
 
@@ -309,16 +355,49 @@ jobs:
         if python -m pip --version 2>&1; then
           echo "SUCCESS: python -m pip is available"
         else
-          echo "ERROR: python -m pip not available, attempting ensurepip..."
+          echo "ERROR: python -m pip not available, checking sys.path..."
+          python -c "import sys; print('Current sys.path:', '\n'.join(sys.path))" 2>&1
+          SITE_PACKAGES=$(python -c "import site; pkgs = site.getsitepackages(); print(pkgs[0] if pkgs else '')" 2>&1)
+          echo "Site-packages: $SITE_PACKAGES"
+          if [ -n "$SITE_PACKAGES" ] && [ -d "$SITE_PACKAGES" ]; then
+            echo "Adding site-packages to PYTHONPATH..."
+            export PYTHONPATH="$SITE_PACKAGES:${PYTHONPATH:-}"
+            echo "PYTHONPATH=$PYTHONPATH" >> $GITHUB_ENV
+          fi
+          echo "Attempting ensurepip..."
           python -m ensurepip --upgrade --default-pip 2>&1
+          # Re-check and update PYTHONPATH after ensurepip
+          SITE_PACKAGES=$(python -c "import site; pkgs = site.getsitepackages(); print(pkgs[0] if pkgs else '')" 2>&1)
+          if [ -n "$SITE_PACKAGES" ] && [ -d "$SITE_PACKAGES" ]; then
+            export PYTHONPATH="$SITE_PACKAGES:${PYTHONPATH:-}"
+            echo "PYTHONPATH=$PYTHONPATH" >> $GITHUB_ENV
+            echo "Updated PYTHONPATH: $PYTHONPATH"
+          fi
+          echo "Re-checking sys.path:"
+          python -c "import sys; print('\n'.join(sys.path))" 2>&1
           if python -m pip --version 2>&1; then
-            echo "SUCCESS: pip available after ensurepip"
+            echo "SUCCESS: pip available after ensurepip and PYTHONPATH fix"
           else
             echo "FATAL ERROR: pip still not available after ensurepip"
-            echo "Attempting alternative: checking for pip in different locations"
-            find /opt/hostedtoolcache -name pip 2>/dev/null | head -5 || echo "pip not found in hostedtoolcache"
-            find /usr -name pip 2>/dev/null | head -5 || echo "pip not found in /usr"
-            exit 1
+            echo "Attempting get-pip.py as last resort..."
+            curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
+            python /tmp/get-pip.py --force-reinstall 2>&1
+            rm -f /tmp/get-pip.py
+            # Update PYTHONPATH again
+            SITE_PACKAGES=$(python -c "import site; pkgs = site.getsitepackages(); print(pkgs[0] if pkgs else '')" 2>&1)
+            if [ -n "$SITE_PACKAGES" ] && [ -d "$SITE_PACKAGES" ]; then
+              export PYTHONPATH="$SITE_PACKAGES:${PYTHONPATH:-}"
+              echo "PYTHONPATH=$PYTHONPATH" >> $GITHUB_ENV
+            fi
+            if python -m pip --version 2>&1; then
+              echo "SUCCESS: pip available after get-pip.py"
+            else
+              echo "FATAL: pip still not available"
+              echo "Final sys.path:"
+              python -c "import sys; print('\n'.join(sys.path))" 2>&1
+              echo "PYTHONPATH: ${PYTHONPATH:-not set}"
+              exit 1
+            fi
           fi
         fi
         echo ""
