@@ -323,7 +323,8 @@ class BoozerSurfaceTests(unittest.TestCase):
         import json
         from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 
-        bs, boozer_surface = get_boozer_surface(label=label)
+        # Don't converge the BoozerSurface to avoid slow optimization that can cause timeouts
+        bs, boozer_surface = get_boozer_surface(label=label, converge=False)
 
         # test serialization of BoozerSurface here too
         bs_str = json.dumps(SIMSON(boozer_surface), cls=GSONEncoder)
