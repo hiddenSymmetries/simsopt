@@ -1357,7 +1357,9 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         max_mn_lambda = max(max(m_for_lambda_full), max(n_for_lambda_full))
 
         def compute_x_scale(m_for_lambda, n_for_lambda):
-            # Exponential spectral scaling:
+            # Exponential spectral scaling, which will be applied to lambda. See
+            # Jang, Conlin, & Landreman, (2025)
+            # https://arxiv.org/abs/2509.16320
             x_scale = np.exp(-1.0 * np.sqrt(m_for_lambda**2 + n_for_lambda**2))
             return x_scale
 
@@ -1406,6 +1408,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             Rmnc_new, Zmns_new, _ = _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
             return jnp.concatenate([Rmnc_new, Zmns_new])
 
+        @jax.jit
         def compute_RZ_errors(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
             Rmnc_new, Zmns_new, theta2_1d = _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
             R_new = jnp.sum(Rmnc_new[None, :] * jnp.cos(m_for_R[None, :] * theta2_1d[:, None] - nfp * n_for_R[None, :] * phi_1d[:, None]), axis=1)
