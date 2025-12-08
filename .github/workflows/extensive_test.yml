@@ -147,17 +147,6 @@ jobs:
 
     - name: Ensure pip is available
       run: |
-        # Check if pip executable exists but module is missing (corrupted cache issue)
-        if command -v pip >/dev/null 2>&1; then
-          PIP_ERROR_OUTPUT=$(pip --version 2>&1) || PIP_EXIT_CODE=$?
-          if [ "$PIP_EXIT_CODE" != "0" ]; then
-            if echo "$PIP_ERROR_OUTPUT" | grep -q "ModuleNotFoundError.*pip"; then
-              # pip executable exists but pip module is missing (corrupted cache)
-              # Solution: Use 'python -m pip' instead of 'pip' command
-            fi
-          fi
-        fi
-        
         # Check if site-packages is in sys.path - this is critical!
         SITE_PACKAGES=$(python -c "import site; pkgs = site.getsitepackages(); print(pkgs[0] if pkgs else '')" 2>&1)
         
