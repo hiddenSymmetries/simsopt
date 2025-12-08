@@ -524,19 +524,19 @@ class BoozerSurfaceTests(unittest.TestCase):
         ar_target = ar.J()
         boozer_surface = BoozerSurface(bs, s, ar, ar_target)
 
-        iota = -0.4
+        iota = -0.3
         G = 2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))
 
         # First run LBFGS to get a good initial guess
         cw = (s.quadpoints_phi.size * s.quadpoints_theta.size * 3)
         res_lbfgs = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
-            tol=1e-6, maxiter=100, constraint_weight=100./cw, iota=iota, G=G)
+            tol=1e-8, maxiter=200, constraint_weight=100./cw, iota=iota, G=G)
         
         boozer_surface.recompute_bell()
         
         # Now run exact constraints Newton with stellsym=False
         res = boozer_surface.minimize_boozer_exact_constraints_newton(
-            tol=1e-6, maxiter=50, iota=res_lbfgs['iota'], G=res_lbfgs['G'])
+            tol=1e-8, maxiter=50, iota=res_lbfgs['iota'], G=res_lbfgs['G'])
         
         assert 'iota' in res
         assert 'G' in res
