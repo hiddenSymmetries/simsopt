@@ -536,7 +536,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         
         # Now run exact constraints Newton with stellsym=False
         res = boozer_surface.minimize_boozer_exact_constraints_newton(
-            tol=1e-8, maxiter=50, iota=res_lbfgs['iota'], G=res_lbfgs['G'])
+            tol=1e-6, maxiter=50, iota=res_lbfgs['iota'], G=res_lbfgs['G'])
         
         assert 'iota' in res
         assert 'G' in res
@@ -544,7 +544,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         # For non-stellsym, lm should be a list of 2 elements
         assert len(res['lm']) == 2
         # Check that residual is reasonable (not diverged)
-        assert np.linalg.norm(res['residual']) < 1e-3 and res['success']
+        assert np.linalg.norm(res['residual']) < 1e-6 and res['success']
 
 
     def test_boozer_surface_quadpoints(self):

@@ -587,25 +587,21 @@ class BoozerSurface(Optimizable):
         if method == 'manual':
             i = 0
             lam = 1.
-            # Use vectorized version for gradient/hessian (faster)
-            _, b = self.boozer_penalty_constraints_vectorized(
-                x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
-            _, _, H = self.boozer_penalty_constraints_vectorized(
-                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
-            JTJ = H  # For least squares, H ≈ J^T J
+            r, J = self._get_residual_vector_and_jacobian(
+                x, constraint_weight, G is not None, weight_inv_modB)
+            b = J.T@r
+            JTJ = J.T@J
+            norm = np.linalg.norm(b)
             while i < maxiter and norm > tol:
                 dx = np.linalg.solve(JTJ + lam * np.diag(np.diag(JTJ)), b)
                 x -= dx
-                _, b = self.boozer_penalty_constraints_vectorized(
-                    x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
-                _, _, H = self.boozer_penalty_constraints_vectorized(
-                    x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
-                JTJ = H
+                r, J = self._get_residual_vector_and_jacobian(
+                    x, constraint_weight, G is not None, weight_inv_modB)
+                b = J.T@r
+                JTJ = J.T@J
                 norm = np.linalg.norm(b)
                 lam *= 1/3
                 i += 1
-            # Get residual vector for output
-            r, _ = self._get_residual_vector_and_jacobian(x, constraint_weight, G is not None, weight_inv_modB)
             resdict = {
                 "residual": r, "gradient": b, "jacobian": JTJ, "success": norm <= tol
             }
@@ -621,8 +617,14 @@ class BoozerSurface(Optimizable):
             resdict['iota'] = iota
             return resdict
 
-        def fun(x): return self._get_residual_vector_and_jacobian(x, constraint_weight, G is not None, weight_inv_modB)[0]
-        def jac(x): return self._get_residual_vector_and_jacobian(x, constraint_weight, G is not None, weight_inv_modB)[1]
+        def fun(x): 
+            return self._get_residual_vector_and_jacobian(
+                x, constraint_weight, G is not None, weight_inv_modB)[0]
+
+        def jac(x): 
+            return self._get_residual_vector_and_jacobian(
+                x, constraint_weight, G is not None, weight_inv_modB)[1]
+
         res = least_squares(fun, x, jac=jac, method=method, ftol=tol, xtol=tol, gtol=tol, x_scale=1.0, max_nfev=maxiter)
         resdict = {
             "info": res, "residual": res.fun, "gradient": res.grad, "jacobian": res.jac, "success": res.status > 0,
@@ -674,7 +676,7 @@ class BoozerSurface(Optimizable):
         drz = np.zeros(J.shape[1])
         dl[:nsurfdofs] = self.label.dJ(partials=True)(s)
         drz[:nsurfdofs] = s.dgamma_by_dcoeff()[0, 0, 2, :]
-        
+
         J = np.vstack((J, np.sqrt(constraint_weight) * dl[None, :], np.sqrt(constraint_weight) * drz[None, :]))
         return r, J
 
