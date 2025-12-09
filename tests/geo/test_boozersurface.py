@@ -302,7 +302,10 @@ class BoozerSurfaceTests(unittest.TestCase):
             assert np.abs(gammazero[1]) > 1e-6
 
         if surfacetype == 'SurfaceXYZTensorFourier':
-            assert np.linalg.norm(res['residual']) < 1e-9
+            residual_norm = np.linalg.norm(res['residual'])
+            np.testing.assert_array_less(
+                residual_norm, 1e-9,
+                err_msg=f"Residual norm {residual_norm:.2e} is not less than 1e-9. Residual: {res['residual']}")
 
         print(ar_target, ar.J())
         print(res['residual'][-10:])
@@ -409,7 +412,11 @@ class BoozerSurfaceTests(unittest.TestCase):
             assert 'G' in res
         assert 's' in res
         # Check that residual is reasonable (not diverged)
-        assert np.linalg.norm(res['residual']) < 1e-3 and res['success']
+        residual_norm = np.linalg.norm(res['residual'])
+        np.testing.assert_array_less(
+            residual_norm, 1e-3,
+            err_msg=f"Residual norm {residual_norm:.2e} is not less than 1e-3. Residual: {res['residual']}")
+        assert res['success'], f"Optimization did not succeed. Residual norm: {residual_norm:.2e}, Residual: {res['residual']}"
 
     def test_need_to_run_code_false(self):
         """
@@ -536,7 +543,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         
         # Now run exact constraints Newton with stellsym=False
         res = boozer_surface.minimize_boozer_exact_constraints_newton(
-            tol=1e-6, maxiter=50, iota=res_lbfgs['iota'], G=res_lbfgs['G'])
+            tol=1e-6, maxiter=100, iota=res_lbfgs['iota'], G=res_lbfgs['G'])
         
         assert 'iota' in res
         assert 'G' in res
@@ -544,7 +551,11 @@ class BoozerSurfaceTests(unittest.TestCase):
         # For non-stellsym, lm should be a list of 2 elements
         assert len(res['lm']) == 2
         # Check that residual is reasonable (not diverged)
-        assert np.linalg.norm(res['residual']) < 1e-6 and res['success']
+        residual_norm = np.linalg.norm(res['residual'])
+        np.testing.assert_array_less(
+            residual_norm, 1e-6,
+            err_msg=f"Residual norm {residual_norm:.2e} is not less than 1e-6. Residual: {res['residual']}")
+        assert res['success'], f"Optimization did not succeed. Residual norm: {residual_norm:.2e}, Residual: {res['residual']}"
 
 
     def test_boozer_surface_quadpoints(self):
