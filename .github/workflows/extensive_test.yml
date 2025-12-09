@@ -91,18 +91,17 @@ jobs:
     # For Python 3.12 on Ubuntu 24.04, GitHub's hostedtoolcache has a corrupted Python installation
     # (undefined symbol _PyErr_SetLocaleString in _ctypes module). This breaks imports of ctypes,
     # jax, scipy, etc. 
-    # 
-    # Workaround: Use the system Python 3.12 from Ubuntu repositories instead of the corrupted
-    # hostedtoolcache version. The key difference:
-    # - hostedtoolcache Python: Pre-built by GitHub, stored at /opt/hostedtoolcache/Python/3.12.12/x64/
-    #   This specific build is corrupted (broken _ctypes module)
-    # - System Python 3.12: Built and packaged by Ubuntu, installed at /usr/bin/python3.12
-    #   This is a different build that may not have the same corruption
     #
     # This approach:
     # - Uses a different Python 3.12 build (Ubuntu's vs GitHub's)
     # - Different compilation, different library dependencies
     # - Bypasses the corrupted hostedtoolcache entirely
+    # Steps directly below:
+    # - Install Python 3.12 and development packages from Ubuntu repositories
+    # - Note: python3.12-distutils doesn't exist (distutils removed in Python 3.12)
+    # - Install pip for Python 3.12
+    # - Update PATH to prioritize system Python 3.12 over hostedtoolcache
+    # - Verify installation and test _ctypes
     #
     # References:
     # - GitHub issue: https://github.com/actions/runner-images/issues/10781
@@ -110,16 +109,11 @@ jobs:
       if: matrix.python-version == '3.12'
       run: |
         sudo apt-get update
-        # Install Python 3.12 and development packages from Ubuntu repositories
-        # Note: python3.12-distutils doesn't exist (distutils removed in Python 3.12)
         sudo apt-get install -y python3.12 python3.12-dev python3.12-venv python3.12-full libpython3.12-dev
-        # Install pip for Python 3.12
         curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
         python3.12 /tmp/get-pip.py
         rm -f /tmp/get-pip.py
-        # Update PATH to prioritize system Python 3.12 over hostedtoolcache
         echo "/usr/bin" >> $GITHUB_PATH
-        # Verify installation and test _ctypes
         python3.12 -c "import ctypes" || exit 1
 
     - name: Set up Python ${{ matrix.python-version }}
@@ -182,7 +176,6 @@ jobs:
     - name: ls in VMEC2000/python 1
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: ls -l VMEC2000/python
-
 
     - name: Configure VMEC2000 module
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')

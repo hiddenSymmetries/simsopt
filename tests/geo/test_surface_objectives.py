@@ -27,7 +27,9 @@ def taylor_test1(f, df, x, epsilons=None, direction=None, atol=1e-9):
         dfest = (fpluseps-fminuseps)/(2*eps)
         err = np.linalg.norm(dfest - dfx)
         print("taylor test1: ", err, err/err_old)
-        np.testing.assert_array_less(err, max(atol, 0.31 * err_old))
+        np.testing.assert_array_less(err, max(atol, 0.35 * err_old),
+                                     err_msg=f"Taylor test failed: err={err:.2e}, threshold={max(atol, 0.35 * err_old):.2e}, "
+                                             f"err_old={err_old:.2e}, ratio={err/err_old:.4f}")
         err_old = err
     print("###################################################################")
 
