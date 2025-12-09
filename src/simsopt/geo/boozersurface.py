@@ -592,30 +592,15 @@ class BoozerSurface(Optimizable):
             b = J.T@r
             JTJ = J.T@J
             norm = np.linalg.norm(b)
-            prev_norm = norm
             while i < maxiter and norm > tol:
-                # Use lstsq to handle singular matrices robustly
-                A = JTJ + lam * np.diag(np.diag(JTJ))
-                try:
-                    dx = np.linalg.solve(A, b)
-                except np.linalg.LinAlgError:
-                    # If solve fails due to singular matrix, use least squares
-                    dx, _, _, _ = np.linalg.lstsq(A, b, rcond=None)
-                
+                dx = np.linalg.solve(JTJ + lam * np.diag(np.diag(JTJ)), b)
                 x -= dx
                 r, J = self._get_residual_vector_and_jacobian(
                     x, constraint_weight, G is not None, weight_inv_modB)
                 b = J.T@r
                 JTJ = J.T@J
                 norm = np.linalg.norm(b)
-                
-                # Adaptive damping: increase if norm increases, decrease if it decreases
-                if norm > prev_norm:
-                    lam *= 2.0  # Increase damping if diverging
-                else:
-                    lam *= 0.5  # Decrease damping if converging
-                lam = max(1e-10, min(1e10, lam))  # Clamp damping parameter
-                prev_norm = norm
+                lam *= 1/3
                 i += 1
             resdict = {
                 "residual": r, "gradient": b, "jacobian": JTJ, "success": norm <= tol
@@ -749,22 +734,14 @@ class BoozerSurface(Optimizable):
             if s.stellsym:
                 A = dval[:-1, :-1]
                 b = val[:-1]
-                try:
-                    dx = np.linalg.solve(A, b)
-                    if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
-                        dx += np.linalg.solve(A, b-A@dx)
-                except np.linalg.LinAlgError:
-                    # If solve fails, use least squares as fallback
-                    dx, _, _, _ = np.linalg.lstsq(A, b, rcond=None)
+                dx = np.linalg.solve(A, b)
+                if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
+                    dx += np.linalg.solve(A, b-A@dx)
                 xl[:-1] = xl[:-1] - dx
             else:
-                try:
-                    dx = np.linalg.solve(dval, val)
-                    if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
-                        dx += np.linalg.solve(dval, val-dval@dx)
-                except np.linalg.LinAlgError:
-                    # If solve fails, use least squares as fallback
-                    dx, _, _, _ = np.linalg.lstsq(dval, val, rcond=None)
+                dx = np.linalg.solve(dval, val)
+                if norm < 1e-9:  # iterative refinement for higher accuracy. TODO: cache LU factorisation
+                    dx += np.linalg.solve(dval, val-dval@dx)
                 xl = xl - dx
             val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None)
             norm = np.linalg.norm(val)

@@ -397,14 +397,16 @@ class BoozerSurfaceTests(unittest.TestCase):
         
         # First run LBFGS to get a good initial guess
         res_lbfgs = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
-            tol=1e-12, maxiter=700, constraint_weight=100./cw, iota=iota, G=G)
+            tol=1e-12, maxiter=700, constraint_weight=1000./cw, iota=iota, G=G)
+        print('Residual norm after LBFGS', res_lbfgs['iter'], np.sqrt(2*res_lbfgs['fun']))
         
         boozer_surface.recompute_bell()
         
         # Now run manual method starting from LBFGS result
         res = boozer_surface.minimize_boozer_penalty_constraints_ls(
-            tol=1e-8, maxiter=500, constraint_weight=100./cw,
+            tol=1e-8, maxiter=50, constraint_weight=1000./cw,
             iota=res_lbfgs['iota'], G=res_lbfgs.get('G'), method='manual')
+        print(np.linalg.norm(res['residual']))
         
         # Manual method may not always succeed, but should improve or at least not diverge too much
         assert 'iota' in res
@@ -531,7 +533,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         ar_target = ar.J()
         boozer_surface = BoozerSurface(bs, s, ar, ar_target)
 
-        iota = -0.3
+        iota = -0.4
         G = 2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))
 
         # First run LBFGS to get a good initial guess
