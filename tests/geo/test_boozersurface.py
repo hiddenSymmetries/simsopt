@@ -34,7 +34,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         tf_target = 0.41431152
         iota = -0.44856192
 
-        boozer_surface = BoozerSurface(bs, s, tf, tf_target)
+        boozer_surface = BoozerSurface(bs, s, tf, tf_target, boozer_type='exact')
         x = np.concatenate((s.get_dofs(), [iota]))
         r0 = boozer_surface.boozer_penalty_constraints(
             x, derivatives=0, constraint_weight=weight, optimize_G=False,
@@ -92,7 +92,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         tf = ToroidalFlux(s, bs_tf, nphi=51, ntheta=51)
 
         tf_target = 0.1
-        boozer_surface = BoozerSurface(bs, s, tf, tf_target)
+        boozer_surface = BoozerSurface(bs, s, tf, tf_target, boozer_type='exact')
         fun = boozer_surface.boozer_penalty_constraints_vectorized if vectorize else boozer_surface.boozer_penalty_constraints
 
         iota = -0.3
@@ -128,7 +128,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         tf = ToroidalFlux(s, bs_tf, nphi=51, ntheta=51)
 
         tf_target = 0.1
-        boozer_surface = BoozerSurface(bs, s, tf, tf_target)
+        boozer_surface = BoozerSurface(bs, s, tf, tf_target, boozer_type='exact')
         fun = boozer_surface.boozer_penalty_constraints_vectorized if vectorize else boozer_surface.boozer_penalty_constraints
 
         iota = -0.3
@@ -180,7 +180,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         tf = ToroidalFlux(s, bs_tf, nphi=51, ntheta=51)
 
         tf_target = 0.1
-        boozer_surface = BoozerSurface(bs, s, tf, tf_target)
+        boozer_surface = BoozerSurface(bs, s, tf, tf_target, boozer_type='exact')
 
         iota = -0.3
         lm = [0., 0.]
@@ -269,7 +269,7 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         ar = Area(s)
         ar_target = ar.J()
-        boozer_surface = BoozerSurface(bs, s, ar, ar_target)
+        boozer_surface = BoozerSurface(bs, s, ar, ar_target, boozer_type='exact')
 
         if optimize_G:
             G = 2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))
@@ -278,25 +278,25 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         cw = (s.quadpoints_phi.size * s.quadpoints_theta.size * 3)
         # compute surface first using LBFGS exact and an area constraint
-        res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
+        res = boozer_surface._minimize_boozer_penalty_constraints_LBFGS(
             tol=1e-12, maxiter=700, constraint_weight=100/cw, iota=iota, G=G,
             vectorize=vectorize)
         print('Residual norm after LBFGS', res['iter'], np.sqrt(2*res['fun']))
 
         boozer_surface.recompute_bell()
         if second_stage == 'ls':
-            res = boozer_surface.minimize_boozer_penalty_constraints_ls(
+            res = boozer_surface._minimize_boozer_penalty_constraints_ls(
                 tol=1e-11, maxiter=100, constraint_weight=1000./cw,
                 iota=res['iota'], G=res['G'])
         elif second_stage == 'newton':
-            res = boozer_surface.minimize_boozer_penalty_constraints_newton(
+            res = boozer_surface._minimize_boozer_penalty_constraints_newton(
                 tol=1e-10, maxiter=20, constraint_weight=100./cw,
                 iota=res['iota'], G=res['G'], stab=1e-4, vectorize=vectorize)
         elif second_stage == 'newton_exact':
-            res = boozer_surface.minimize_boozer_exact_constraints_newton(
+            res = boozer_surface._minimize_boozer_exact_constraints_newton(
                 tol=1e-10, maxiter=15, iota=res['iota'], G=res['G'])
         elif second_stage == 'residual_exact':
-            res = boozer_surface.solve_residual_equation_exactly_newton(
+            res = boozer_surface._solve_residual_equation_exactly_newton(
                 tol=1e-12, maxiter=15, iota=res['iota'], G=res['G'])
 
         print('Residual norm after second stage', np.linalg.norm(res['residual']))
@@ -373,7 +373,7 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         # run the BoozerExact algorithm without a guess for G
         boozer_surface.need_to_run_code = True
-        boozer_surface.solve_residual_equation_exactly_newton(iota=boozer_surface.res['iota'])
+        boozer_surface._solve_residual_equation_exactly_newton(iota=boozer_surface.res['iota'])
 
     def test_convergence_cpp_and_notcpp_same(self):
         """
@@ -397,19 +397,19 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         ar = Area(s)
         ar_target = ar.J()
-        boozer_surface = BoozerSurface(bs, s, ar, ar_target)
+        boozer_surface = BoozerSurface(bs, s, ar, ar_target, boozer_type='exact')
 
         G = 2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))
 
         cw = 3*s.quadpoints_phi.size * s.quadpoints_theta.size
         # vectorized solution first
-        res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
+        res = boozer_surface._minimize_boozer_penalty_constraints_LBFGS(
             tol=1e-10, maxiter=600, constraint_weight=100./cw, iota=iota, G=G,
             vectorize=vectorize)
         print('Residual norm after LBFGS', np.sqrt(2*res['fun']))
 
         boozer_surface.recompute_bell()
-        res = boozer_surface.minimize_boozer_penalty_constraints_newton(
+        res = boozer_surface._minimize_boozer_penalty_constraints_newton(
             tol=1e-10, maxiter=20, constraint_weight=100./cw,
             iota=res['iota'], G=res['G'], stab=0., vectorize=vectorize)
 
@@ -461,7 +461,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         tf = ToroidalFlux(s, bs_tf, nphi=51, ntheta=51)
 
         tf_target = 0.1
-        boozer_surface = BoozerSurface(bs, s, tf, tf_target)
+        boozer_surface = BoozerSurface(bs, s, tf, tf_target, boozer_type='exact')
 
         iota = -0.3
         x = np.concatenate((s.get_dofs(), [iota]))
@@ -578,7 +578,145 @@ class BoozerSurfaceTests(unittest.TestCase):
         lab_target = 0.1
 
         with self.assertRaises(Exception):
-            _ = BoozerSurface(bs, s, lab, lab_target)
+            _ = BoozerSurface(bs, s, lab, lab_target, boozer_type='exact')
+
+    def test_boozersurface_errors_and_options(self):
+        """
+        Test ValueErrors for invalid boozer_type and solver, the verbose flag, and different solver choices.
+        """
+        from simsopt.geo.boozersurface import BoozerSurface
+        from simsopt.geo.surfaceobjectives import Area
+        from simsopt.field.biotsavart import BiotSavart
+        from simsopt.field.coil import coils_via_symmetries
+        from simsopt.configs.zoo import get_ncsx_data
+        from .surface_test_helpers import get_surface
+
+        # Setup a valid surface and BiotSavart
+        curves, currents, ma = get_ncsx_data()
+        coils = coils_via_symmetries(curves, currents, 3, True)
+        bs = BiotSavart(coils)
+        s = get_surface('SurfaceXYZTensorFourier', True)
+        s.fit_to_curve(ma, 0.1)
+        lab = Area(s)
+        lab_target = lab.J()
+
+        # Test ValueError for invalid boozer_type
+        with self.assertRaises(ValueError):
+            BoozerSurface(bs, s, lab, lab_target, boozer_type='invalid')
+
+        # Test ValueError for invalid solver
+        options = {'solver': ['not_a_solver']}
+        boozer = BoozerSurface(bs, s, lab, lab_target, boozer_type='ls', options=options)
+        for c in coils:
+            c.current.fix_all()
+        with self.assertRaises(ValueError):
+            boozer.run_code(iota=-0.4)
+
+        # Test verbose flag (should not raise, just exercise the code)
+        options = {'verbose': True, 'solver': ['ls']}
+        boozer = BoozerSurface(bs, s, lab, lab_target, boozer_type='ls', options=options)
+        for c in coils:
+            c.current.fix_all()
+        try:
+            boozer.run_code(iota=-0.4)
+        except Exception as e:
+            self.fail(f"run_code raised an exception with verbose=True: {e}")
+
+        options = {'verbose': False, 'solver': ['ls']}
+        boozer = BoozerSurface(bs, s, lab, lab_target, boozer_type='ls', options=options)
+        for c in coils:
+            c.current.fix_all()
+        try:
+            boozer.run_code(iota=-0.4)
+        except Exception as e:
+            self.fail(f"run_code raised an exception with verbose=False: {e}")
+
+        # Test different solver choices (should not raise, just exercise the code)
+        for solver in ['ls', 'ls_newton', 'bfgs', 'exact_newton']:
+            options = {'solver': [solver], 'verbose': False}
+            boozer = BoozerSurface(bs, s, lab, lab_target, boozer_type='ls', options=options)
+            for c in coils:
+                c.current.fix_all()
+            try:
+                boozer.run_code(iota=-0.4)
+            except Exception as e:
+                self.fail(f"run_code raised an exception with solver={solver}: {e}")
+
+    def test_from_dict_various_keys(self):
+        """
+        Test BoozerSurface.from_dict with and without various dictionary keys.
+        """
+        from simsopt.geo.boozersurface import BoozerSurface
+        from .surface_test_helpers import get_boozer_surface
+        import copy
+        import numpy as np
+
+        # Get a BoozerSurface and its as_dict
+        bs, boozer = get_boozer_surface(label="Area", boozer_type="ls", converge=True)
+
+        assert not boozer.need_to_run_code  # should have converged
+
+        serial_objs_dict = {}
+        d = boozer.as_dict(serial_objs_dict=serial_objs_dict)
+        recon_objs = {}
+
+        # Helper to call from_dict and check type
+        def check_from_dict(dct, msg):
+            obj = BoozerSurface.from_dict(dct, serial_objs_dict, recon_objs)
+            self.assertIsInstance(obj, BoozerSurface, msg)
+            self.assertEqual(obj.targetlabel, dct["targetlabel"], msg)
+            self.assertEqual(obj.constraint_weight, dct["constraint_weight"], msg)
+            expected_type = dct.get("boozer_type", "ls")
+            self.assertEqual(obj.boozer_type, expected_type, msg)
+            # If options present, check it, else should be the default options for the type
+            if "options" in dct:
+                expected_options = dct["options"]
+            else:
+                # Get default options by constructing a BoozerSurface with only required args
+                from simsopt.geo.boozersurface import BoozerSurface as BS
+                dummy = BS(obj.biotsavart, obj.surface, obj.label, obj.targetlabel, obj.boozer_type, obj.constraint_weight)
+                expected_options = dummy.options
+            self.assertEqual(obj.options, expected_options, msg)
+            if "res" in dct:
+                self.assertIsNotNone(obj.res, msg)
+            else:
+                self.assertIsNone(obj.res, msg)
+            return obj
+
+        # 1. All keys present
+        check_from_dict(copy.deepcopy(d), "all keys present")
+
+        # 2. Missing boozer_type
+        d2 = copy.deepcopy(d)
+        d2.pop("boozer_type", None)
+        check_from_dict(d2, "missing boozer_type")
+
+        # 3. Missing options
+        d3 = copy.deepcopy(d)
+        d3.pop("options", None)
+        check_from_dict(d3, "missing options")
+
+        # 4. Missing res
+        d4 = copy.deepcopy(d)
+        d4.pop("res", None)
+        check_from_dict(d4, "missing res")
+
+        # 5. Only required keys
+        required_keys = ["biotsavart", "surface", "label", "targetlabel", "constraint_weight"]
+        d5 = {k: d[k] for k in required_keys}
+        check_from_dict(d5, "only required keys")
+
+        # 6. res with and without gradient
+        # With gradient
+        d6 = copy.deepcopy(d)
+        d6["res"] = {"gradient": [1.0, 2.0, 3.0], "s": d["surface"]}
+        obj6 = check_from_dict(d6, "res with gradient")
+        self.assertTrue(isinstance(obj6.res["gradient"], np.ndarray), "gradient should be np.ndarray")
+        # Without gradient
+        d7 = copy.deepcopy(d)
+        d7["res"] = {"s": d["surface"]}
+        obj7 = check_from_dict(d7, "res without gradient")
+        self.assertFalse("gradient" in obj7.res, "gradient should not be present")
 
 
 if __name__ == "__main__":
