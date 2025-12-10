@@ -41,7 +41,7 @@ mu_ea = 1.05  # Relative permeability along easy axis
 mu_oa = 1.15  # Relative permeability along orthogonal axis
 
 # High resolution for smooth surface plots
-nphi = 128  # Number of toroidal grid points
+nphi = 1024  # Number of toroidal grid points
 ntheta = nphi  # Number of poloidal grid points (set equal to nphi)
 
 # Number of field periods for MUSE
@@ -106,6 +106,75 @@ def Bn_from_dipoles(centers, moments, pts, normals):
 
 
 # ============================================================================
+# Symmetry diagnostics for magnet volumes
+# ============================================================================
+
+def check_stellarator_symmetry(centers, volumes, nfp=2, z_tol=1e-6, rel_tol=1e-3):
+    """
+    Check whether the magnet volumes obey stellarator, midplane, and inversion symmetries.
+
+    Args:
+        centers : (N,3) array of magnet center coordinates [x,y,z]
+        volumes : (N,) array of magnet volumes
+        nfp      : integer, number of field periods
+        z_tol    : tolerance [m] for matching midplane symmetry in z
+        rel_tol  : relative tolerance for volume equality
+    """
+    from scipy.spatial.transform import Rotation as R
+
+    N = len(volumes)
+    phi_period = 2 * np.pi / nfp
+
+    print("\n[Symmetry check] --- Magnet volume symmetries ---")
+
+    # Toroidal (nfp) periodicity test
+    rot = R.from_euler("z", phi_period).as_matrix()
+    rotated = (rot @ centers.T).T
+
+    # For each magnet, find nearest partner in rotated set
+    from scipy.spatial import cKDTree
+    tree = cKDTree(centers)
+    dists, idx = tree.query(rotated, k=1)
+
+    vol_err = np.abs(volumes - volumes[idx]) / np.maximum(volumes, 1e-20)
+    print(f"  nfp={nfp} toroidal symmetry:")
+    print(f"    mean |ΔV/V| = {vol_err.mean():.2e}")
+    print(f"    max  |ΔV/V| = {vol_err.max():.2e}")
+    print(f"    mean position mismatch = {dists.mean():.3e} m")
+    print(f"    max  position mismatch = {dists.max():.3e} m")
+
+    # Midplane (pancake) Z -> -Z symmetry
+    flipped = centers.copy()
+    flipped[:, 2] *= -1
+    treeZ = cKDTree(centers)
+    dZ, idxZ = treeZ.query(flipped, k=1)
+    mask = dZ < z_tol
+    if np.any(mask):
+        vol_errZ = np.abs(volumes[mask] - volumes[idxZ[mask]]) / np.maximum(volumes[mask], 1e-20)
+        print(f"  midplane (Z->-Z) symmetry:")
+        print(f"    matched {mask.sum()} / {N} tiles within {z_tol:.1e} m")
+        print(f"    mean |ΔV/V| = {vol_errZ.mean():.2e}")
+        print(f"    max  |ΔV/V| = {vol_errZ.max():.2e}")
+    else:
+        print("  midplane symmetry: no matching pairs found within tolerance")
+
+    # Combined inversion (R,φ,Z)->(R,φ+π/nfp,-Z)
+    rot_half = R.from_euler("z", phi_period / 2).as_matrix()
+    inv = (rot_half @ centers.T).T
+    inv[:, 2] *= -1
+    treeI = cKDTree(centers)
+    dI, idxI = treeI.query(inv, k=1)
+    vol_errI = np.abs(volumes - volumes[idxI]) / np.maximum(volumes, 1e-20)
+    print(f"  inversion (φ+π/nfp, Z->-Z) symmetry:")
+    print(f"    mean |ΔV/V| = {vol_errI.mean():.2e}")
+    print(f"    max  |ΔV/V| = {vol_errI.max():.2e}")
+    print(f"    mean position mismatch = {dI.mean():.3e} m")
+    print(f"    max  position mismatch = {dI.max():.3e} m")
+
+    print("-------------------------------------------------------------\n")
+
+
+# ============================================================================
 # Load and initialize magnet tiles
 # ============================================================================
 
@@ -123,6 +192,9 @@ full_sizes = tiles.size  # Shape: (N, 3) - [dx, dy, dz] for each tile
 vol = np.prod(full_sizes, axis=1)  # Volume = dx * dy * dz for each tile
 print(f"minimum volume: {vol.min()}")
 print(f"maximum volume: {vol.max()}")
+
+# Check if tiles satisfy stellerator symmetry
+check_stellarator_symmetry(tiles.offset, vol, nfp=nfp)
 
 # Per tile box sizes for VTK glyphs (used for visualization)
 dx_tile = full_sizes[:, 0]  # x-dimension of each tile
