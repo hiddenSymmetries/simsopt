@@ -106,8 +106,8 @@ wf.add_tfcoil_currents(n_tf_coils_hp, tfcoil_current)
 wf.set_toroidal_breaks(n_tf_coils_hp, break_width, allow_pol_current=True)
 
 # Make a plot to show the constrained segments
+wf.make_plot_2d(quantity='constrained segments')
 if not in_github_actions:
-    wf.make_plot_2d(quantity='constrained segments')
     pl.savefig(OUT_DIR + 'gsco_sector_saddle_wireframe_constraints.png')
     pl.close(pl.gcf())
 
@@ -172,8 +172,8 @@ print('  <|Bn|/|B|>     %12.4e' % (mean_rel_Bn))
 print('  I_max [MA]     %12.4e' % (max_cur))
 
 # Save plots and visualization data to files
+wf.make_plot_2d(coordinates='degrees', quantity='nonzero currents')
 if not in_github_actions:
-    wf.make_plot_2d(coordinates='degrees', quantity='nonzero currents')
     pl.savefig(OUT_DIR + 'gsco_sector_saddle_wireframe_curr2d.png')
     pl.close(pl.gcf())
     wf.to_vtk(OUT_DIR + 'gsco_sector_saddle_wireframe')
