@@ -163,8 +163,8 @@ print('pol_vectors_shape = ', pol_vectors.shape)
 # This ensures the optimizer sees the correct dipole-moment cap for the chosen material.
 B_ref = 1.465  # reference B_max used when generating the MUSE .focus (FAMUS) grid 
 #B_max = 1.465 # MUSE MAGNET
-#B_max = 1.410  # Tesla, GB50UH
-B_max = 0.72  # Tesla, AiNiCo
+B_max = 1.410  # Tesla, GB50UH
+#B_max = 0.72  # Tesla, AiNiCo
 mu0 = 4 * np.pi * 1e-7
 
 ox, oy, oz, Ic, M0s = np.loadtxt(
@@ -207,8 +207,8 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 # Python+Macromag
-algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
-#algorithm = 'ArbVec_backtracking'  # Algorithm to use
+#algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
+algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 12  # How many magnets to consider "adjacent" to one another
 nHistory = nIter_max // 10 ## Saving every 1000 iterations...
 thresh_angle = np.pi - (5 * np.pi / 180)  # The angle between two "adjacent" dipoles such that they should be removed
