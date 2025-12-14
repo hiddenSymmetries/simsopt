@@ -11,11 +11,6 @@ from typing import Optional
 
 
 __all__ = ['relax_and_split', 'GPMO']
-#B_max = 1.465 # MUSE MAGNET
-#B_max = 1.410  # Tesla, GB50UH 
-B_max = 0.72  # Tesla, AiNiCo 
-M_rem_value = B_max / (4.0 * np.pi * 1e-7) 
-
 
 def prox_l0(m: RealArray,
             mmax: RealArray,
@@ -1122,7 +1117,8 @@ def GPMO_ArbVec_backtracking_macromag_py(
         sub.mu_r_oa = np.full(n_active, mu_oa)
         
         # Set remanent magnetization for all active tiles
-        sub.M_rem = np.full(n_active, M_rem_value)
+        M_rem_inferred = mmax[active_idx] / vol
+        sub.M_rem = M_rem_inferred
         
         # Set easy axes for all active tiles (vectorized normalization)
         # Avoid triggering the u_ea setter which calls M setter for each tile

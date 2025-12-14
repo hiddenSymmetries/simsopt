@@ -1,18 +1,18 @@
 #!/usr/bin/env python
 r"""
 This example script uses the GPMO
-greedy algorithm for solving permanent 
-magnet optimization on the MUSE grid. This 
+greedy algorithm for solving permanent
+magnet optimization on the MUSE grid. This
 algorithm is described in the following paper:
-    A. A. Kaptanoglu, R. Conlin, and M. Landreman, 
-    Greedy permanent magnet optimization, 
+    A. A. Kaptanoglu, R. Conlin, and M. Landreman,
+    Greedy permanent magnet optimization,
     Nuclear Fusion 63, 036016 (2023)
 
 The script should be run as:
     mpirun -n 1 python permanent_magnet_MUSE.py
-on a cluster machine but 
+on a cluster machine but
     python permanent_magnet_MUSE.py
-is sufficient on other machines. Note that this code does not use MPI, but is 
+is sufficient on other machines. Note that this code does not use MPI, but is
 parallelized via OpenMP and XSIMD, so will run substantially
 faster on multi-core machines (make sure that all the cores
 are available to OpenMP, e.g. through setting OMP_NUM_THREADS).
@@ -45,12 +45,12 @@ if in_github_actions:
     nBacktracking = 0
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
-elif high_res_run: 
+elif high_res_run:
     nphi = 64
     nIter_max = 25000
     nBacktracking = 200
     max_nMagnets = 20000
-    downsample = 1    
+    downsample = 1
 else:
     nphi = 16  # >= 64 for high-resolution runs
     nIter_max = 35000
@@ -97,7 +97,7 @@ if(scale_coils):
     bs2 = BiotSavart(coils)
     B0_check = calculate_modB_on_major_radius(bs2, s)
     print("[INFO] B0 before:", B0, "scale:", current_scale, "B0 after:", B0_check)
-    
+
 # Set up BiotSavart fields
 bs = BiotSavart(coils)
 
@@ -159,9 +159,46 @@ pol_vectors[:, :, 1] = mag_data.pol_y
 pol_vectors[:, :, 2] = mag_data.pol_z
 print('pol_vectors_shape = ', pol_vectors.shape)
 
+# m_maxima: Here we want keep cell volume fixed and rescale by material B_max (the logic here is same cube dimensions but different material)
+# This ensures the optimizer sees the correct dipole-moment cap for the chosen material.
+B_ref = 1.465  # reference B_max used when generating the MUSE .focus (FAMUS) grid 
+#B_max = 1.465 # MUSE MAGNET
+#B_max = 1.410  # Tesla, GB50UH
+B_max = 0.72  # Tesla, AiNiCo
+mu0 = 4 * np.pi * 1e-7
+
+ox, oy, oz, Ic, M0s = np.loadtxt(
+    famus_filename, skiprows=3, usecols=[3, 4, 5, 6, 7],
+    delimiter=',', unpack=True
+)
+
+inds_total = np.arange(len(ox))
+inds_downsampled = inds_total[::downsample]
+nonzero_inds = np.intersect1d(np.ravel(np.where(Ic == 1.0)), inds_downsampled)
+
+# M0s stores the reference dipole magnitudes; rescale to new material at fixed cell volume:
+# m_maxima_new = m_maxima_ref * (B_max / B_ref)
+m_maxima = M0s[nonzero_inds] * (B_max / B_ref)
+
+# Infer the (fixed) cell volume from the reference material, then cube_dim from V = cube_dim^3:
+cell_vol = M0s * mu0 / B_ref
+cube_dim = float(cell_vol[0] ** (1.0 / 3.0))
+
+# Print + verify cube dimensions and consistency with m_maxima scaling
+vol_from_cube = cube_dim ** 3
+rel_err_vol = abs(vol_from_cube - float(cell_vol[0])) / max(float(cell_vol[0]), 1e-300)
+print(f"[INFO] MacroMag cube dims (m): {cube_dim:.8g} x {cube_dim:.8g} x {cube_dim:.8g}")
+print(f"[INFO] Volume check: V_ref(from file)={float(cell_vol[0]):.8g}, V(from cube_dim^3)={vol_from_cube:.8g}, rel_err={rel_err_vol:.3e}")
+
+# Optional sanity check: predicted full-magnet dipole magnitude from geometry + B_max should match m_maxima
+mmax_pred0 = (B_max / mu0) * vol_from_cube
+mmax_file0 = float(m_maxima[0]) if len(m_maxima) > 0 else np.nan
+rel_err_mmax0 = abs(mmax_pred0 - mmax_file0) / max(abs(mmax_file0), 1e-300)
+print(f"[INFO] m_maxima check (first active tile): mmax_pred={mmax_pred0:.8g}, mmax_from_file={mmax_file0:.8g}, rel_err={rel_err_mmax0:.3e}")
+
 # pol_vectors is only used for the greedy algorithms with cartesian coordinate_flag
 # which is the default, so no need to specify it here.
-kwargs = {"pol_vectors": pol_vectors, "downsample": downsample, "dr": dr}
+kwargs = {"pol_vectors": pol_vectors, "downsample": downsample, "dr": dr, "m_maxima": m_maxima}
 
 # Finally, initialize the permanent magnet class
 pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs)
@@ -171,7 +208,7 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 # Set some hyperparameters for the optimization
 # Python+Macromag
 algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
-# algorithm = 'ArbVec_backtracking'  # Algorithm to use
+#algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 12  # How many magnets to consider "adjacent" to one another
 nHistory = nIter_max // 10 ## Saving every 1000 iterations...
 thresh_angle = np.pi - (5 * np.pi / 180)  # The angle between two "adjacent" dipoles such that they should be removed
@@ -189,8 +226,8 @@ if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking_macromag_py'
 # Macromag branch (GPMOmr)
 param_suffix = f"_bt{nBacktracking}_Nadj{nAdjacent}_nmax{max_nMagnets}"
 mm_suffix = ""
-if algorithm == "ArbVec_backtracking_macromag_py": 
-    kwargs['cube_dim'] = 0.004
+if algorithm == "ArbVec_backtracking_macromag_py":
+    kwargs['cube_dim'] = cube_dim
     kwargs['mu_ea'] = 3.00
     kwargs['mu_oa'] = 3.00
     kwargs['use_coils'] = True
@@ -202,7 +239,7 @@ if algorithm == "ArbVec_backtracking_macromag_py":
 
 full_suffix = param_suffix + mm_suffix
 
-    
+
 # Optimize the permanent magnets greedily
 t1 = time.time()
 R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
@@ -227,15 +264,11 @@ pm_opt.m = np.ravel(m_history[:, :, min_ind])
 #For solo magnet case since otherwise outputted glyphs are empty
 # H = m_history.shape[2]
 # filled = np.linalg.norm(m_history, axis=1).sum(axis=0) > 0   # (H,)
-# last_idx = np.where(filled)[0][-1]                           
+# last_idx = np.where(filled)[0][-1]
 # pm_opt.m = m_history[:, :, last_idx].ravel()
 
 
 # Print effective permanent magnet volume
-#B_max = 1.465 # MUSE MAGNET
-B_max = 1.410  # Tesla, GB50UH 
-B_max = 0.72  # Tesla, AiNiCo 
-mu0 = 4 * np.pi * 1e-7
 M_max = B_max / mu0
 dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
