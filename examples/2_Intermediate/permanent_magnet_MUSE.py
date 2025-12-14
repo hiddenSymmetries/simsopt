@@ -196,7 +196,7 @@ if algorithm == "ArbVec_backtracking_macromag_py":
     kwargs['use_coils'] = True
     kwargs['use_demag'] = True
     kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
-    kwargs['mm_refine_every'] = 100
+    kwargs['mm_refine_every'] = 50
     kwargs['current_scale'] = current_scale
     mm_suffix = f"_kmm{kwargs['mm_refine_every']}"
 
