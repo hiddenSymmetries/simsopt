@@ -52,10 +52,10 @@ elif high_res_run:
     max_nMagnets = 20000
     downsample = 1    
 else:
-    nphi = 64  # >= 64 for high-resolution runs
-    nIter_max = 25000
+    nphi = 16  # >= 64 for high-resolution runs
+    nIter_max = 35000
     nBacktracking = 0
-    max_nMagnets = 20000
+    max_nMagnets = 35000
     downsample = 1
 
 ntheta = nphi  # same as above
@@ -79,14 +79,25 @@ out_dir.mkdir(parents=True, exist_ok=True)
 # initialize the coils
 base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s, out_dir)
 
-scale_coils = False
+scale_coils = True
 current_scale = 1
 if(scale_coils):
     from simsopt.field import Coil
-    current_scale = 100
-    coils = [Coil(c.curve, c.current * current_scale) for c in coils]
-    print(f"[INFO] Coil currents scaled by {current_scale}x")
+    # compute current B0 (really B0avg on major radius)
+    bs2 = BiotSavart(coils)
+    B0 = calculate_modB_on_major_radius(bs2, s)   # Tesla (if geometry in meters, currents in Amps)
 
+    # picking a target and scale currents linearly
+    target_B0 = 0.5  # Tesla
+    current_scale = target_B0 / B0
+
+    coils = [Coil(c.curve, c.current * current_scale) for c in coils]
+
+    # verify
+    bs2 = BiotSavart(coils)
+    B0_check = calculate_modB_on_major_radius(bs2, s)
+    print("[INFO] B0 before:", B0, "scale:", current_scale, "B0 after:", B0_check)
+    
 # Set up BiotSavart fields
 bs = BiotSavart(coils)
 
@@ -162,7 +173,7 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
 # algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 12  # How many magnets to consider "adjacent" to one another
-nHistory = nIter_max # setting this to n_Itermax to improve logging...
+nHistory = nIter_max // 50 
 thresh_angle = np.pi - (5 * np.pi / 180)  # The angle between two "adjacent" dipoles such that they should be removed
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
@@ -185,7 +196,7 @@ if algorithm == "ArbVec_backtracking_macromag_py":
     kwargs['use_coils'] = True
     kwargs['use_demag'] = True
     kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
-    kwargs['mm_refine_every'] = 25
+    kwargs['mm_refine_every'] = 2500
     kwargs['current_scale'] = current_scale
     mm_suffix = f"_kmm{kwargs['mm_refine_every']}"
 
@@ -221,7 +232,8 @@ pm_opt.m = np.ravel(m_history[:, :, min_ind])
 
 
 # Print effective permanent magnet volume
-B_max = 1.465
+#B_max = 1.465
+B_max = 1.410  # Tesla, GB50UH 
 mu0 = 4 * np.pi * 1e-7
 M_max = B_max / mu0
 dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
