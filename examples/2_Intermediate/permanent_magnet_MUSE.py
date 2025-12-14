@@ -36,7 +36,7 @@ from simsopt.util.permanent_magnet_helper_functions import *
 
 t_start = time.time()
 
-high_res_run = False
+high_res_run = True
 
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:
@@ -47,9 +47,9 @@ if in_github_actions:
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 elif high_res_run: 
     nphi = 64
-    nIter_max = 25000
+    nIter_max = 50000
     nBacktracking = 200
-    max_nMagnets = 20000
+    max_nMagnets = 40000
     downsample = 1    
 else:
     nphi = 16  # >= 64 for high-resolution runs
@@ -173,7 +173,7 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
 # algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 12  # How many magnets to consider "adjacent" to one another
-nHistory = nIter_max // 50 
+nHistory = nIter_max
 thresh_angle = np.pi - (5 * np.pi / 180)  # The angle between two "adjacent" dipoles such that they should be removed
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
@@ -196,7 +196,7 @@ if algorithm == "ArbVec_backtracking_macromag_py":
     kwargs['use_coils'] = True
     kwargs['use_demag'] = True
     kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
-    kwargs['mm_refine_every'] = 2500
+    kwargs['mm_refine_every'] = 100
     kwargs['current_scale'] = current_scale
     mm_suffix = f"_kmm{kwargs['mm_refine_every']}"
 
