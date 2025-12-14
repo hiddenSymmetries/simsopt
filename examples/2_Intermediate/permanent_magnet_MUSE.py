@@ -228,8 +228,8 @@ param_suffix = f"_bt{nBacktracking}_Nadj{nAdjacent}_nmax{max_nMagnets}"
 mm_suffix = ""
 if algorithm == "ArbVec_backtracking_macromag_py":
     kwargs['cube_dim'] = cube_dim
-    kwargs['mu_ea'] = 3.00
-    kwargs['mu_oa'] = 3.00
+    kwargs['mu_ea'] = 1.05
+    kwargs['mu_oa'] = 1.15
     kwargs['use_coils'] = True
     kwargs['use_demag'] = True
     kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
