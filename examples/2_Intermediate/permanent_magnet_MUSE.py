@@ -79,7 +79,7 @@ out_dir.mkdir(parents=True, exist_ok=True)
 # initialize the coils
 base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s, out_dir)
 
-scale_coils = True
+scale_coils = True # Set to true when testing GB50UH or AiNiCo Magnet material due to different properties
 current_scale = 1
 if(scale_coils):
     from simsopt.field import Coil
@@ -88,7 +88,8 @@ if(scale_coils):
     B0 = calculate_modB_on_major_radius(bs2, s)   # Tesla (if geometry in meters, currents in Amps)
 
     # picking a target and scale currents linearly
-    target_B0 = 0.5  # Tesla
+    target_B0 = 0.5  # Tesla  -> for GB50UH Magnets
+    #target_B0 = 0.05 # Tesla -> for AiNiCo Magnets
     current_scale = target_B0 / B0
 
     coils = [Coil(c.curve, c.current * current_scale) for c in coils]
@@ -210,7 +211,7 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 #algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
 algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 12  # How many magnets to consider "adjacent" to one another
-nHistory = nIter_max // 10 ## Saving every 1000 iterations...
+nHistory = nIter_max // 1000 ## Saving every 1000 iterations...
 thresh_angle = np.pi - (5 * np.pi / 180)  # The angle between two "adjacent" dipoles such that they should be removed
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
