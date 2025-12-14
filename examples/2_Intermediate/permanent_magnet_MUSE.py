@@ -47,9 +47,9 @@ if in_github_actions:
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 elif high_res_run:
     nphi = 64
-    nIter_max = 25000
+    nIter_max = 50000
     nBacktracking = 200
-    max_nMagnets = 20000
+    max_nMagnets = 40000
     downsample = 1
 else:
     nphi = 16  # >= 64 for high-resolution runs
