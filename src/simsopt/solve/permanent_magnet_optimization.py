@@ -11,7 +11,7 @@ from typing import Optional
 
 
 __all__ = ['relax_and_split', 'GPMO']
-#B_max = 1.465
+#B_max = 1.465 # MUSE MAGNET
 B_max = 1.410  # Tesla, GB50UH 
 M_rem_value = B_max / (4.0 * np.pi * 1e-7)  # aprox. 1.1659e6 A/m
 
