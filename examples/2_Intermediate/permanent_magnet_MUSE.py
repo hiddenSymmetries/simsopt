@@ -88,7 +88,7 @@ if(scale_coils):
     B0 = calculate_modB_on_major_radius(bs2, s)   # Tesla (if geometry in meters, currents in Amps)
 
     # picking a target and scale currents linearly
-    target_B0 = 0.05  # Tesla
+    target_B0 = 0.5  # Tesla
     current_scale = target_B0 / B0
 
     coils = [Coil(c.curve, c.current * current_scale) for c in coils]
