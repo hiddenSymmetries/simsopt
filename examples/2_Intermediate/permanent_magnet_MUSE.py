@@ -47,9 +47,9 @@ if in_github_actions:
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 elif high_res_run:
     nphi = 64
-    nIter_max = 50000
+    nIter_max = 25000
     nBacktracking = 200
-    max_nMagnets = 40000
+    max_nMagnets = 20000
     downsample = 1
 else:
     nphi = 16  # >= 64 for high-resolution runs
@@ -88,8 +88,8 @@ if(scale_coils):
     B0 = calculate_modB_on_major_radius(bs2, s)   # Tesla (if geometry in meters, currents in Amps)
 
     # picking a target and scale currents linearly
-    target_B0 = 0.5  # Tesla  -> for GB50UH Magnets
-    #target_B0 = 0.05 # Tesla -> for AiNiCo Magnets
+    #target_B0 = 0.5  # Tesla  -> for GB50UH Magnets
+    target_B0 = 0.05 # Tesla -> for AiNiCo Magnets
     current_scale = target_B0 / B0
 
     coils = [Coil(c.curve, c.current * current_scale) for c in coils]
@@ -164,8 +164,8 @@ print('pol_vectors_shape = ', pol_vectors.shape)
 # This ensures the optimizer sees the correct dipole-moment cap for the chosen material.
 B_ref = 1.465  # reference B_max used when generating the MUSE .focus (FAMUS) grid 
 #B_max = 1.465 # MUSE MAGNET
-B_max = 1.410  # Tesla, GB50UH
-#B_max = 0.72  # Tesla, AiNiCo
+#B_max = 1.410  # Tesla, GB50UH
+B_max = 0.72  # Tesla, AiNiCo
 mu0 = 4 * np.pi * 1e-7
 
 ox, oy, oz, Ic, M0s = np.loadtxt(
@@ -211,7 +211,7 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 #algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
 algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 12  # How many magnets to consider "adjacent" to one another
-nHistory = nIter_max // 1000 ## Saving every 1000 iterations...
+nHistory = nIter_max // 10 ## Saving every 1000 iterations...
 thresh_angle = np.pi - (5 * np.pi / 180)  # The angle between two "adjacent" dipoles such that they should be removed
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
@@ -229,8 +229,8 @@ param_suffix = f"_bt{nBacktracking}_Nadj{nAdjacent}_nmax{max_nMagnets}"
 mm_suffix = ""
 if algorithm == "ArbVec_backtracking_macromag_py":
     kwargs['cube_dim'] = cube_dim
-    kwargs['mu_ea'] = 1.05
-    kwargs['mu_oa'] = 1.15
+    kwargs['mu_ea'] = 3.00 # Set ea and oa to 3.00 for AlNiCo Runs # but keep like this for Ndfeb and also for GB50UH
+    kwargs['mu_oa'] = 3.00
     kwargs['use_coils'] = True
     kwargs['use_demag'] = True
     kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
