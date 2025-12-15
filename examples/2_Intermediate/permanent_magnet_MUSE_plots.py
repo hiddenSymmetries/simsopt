@@ -54,7 +54,6 @@ def active_counts_from_mhistory_txt(path, eps=0.0, max_loadtxt_bytes=200 * 1024 
         for line in f:
             v = np.fromstring(line, sep=" ")
             if v.size != H:
-                # If formatting mismatch, try to be conservative and skip this file.
                 raise ValueError(f"{path.name}: inconsistent column count (expected {H}, got {v.size}).")
             buf.append(v)
             if len(buf) == 3:
@@ -62,10 +61,6 @@ def active_counts_from_mhistory_txt(path, eps=0.0, max_loadtxt_bytes=200 * 1024 
                 norm2 = mx * mx + my * my + mz * mz
                 counts += (norm2 > eps).astype(int)
                 buf = []
-
-        if len(buf) != 0:
-            # leftover incomplete dipole triple; ignore
-            pass
 
     return counts
 
@@ -96,7 +91,7 @@ if R2_files:
         if Bn_match is None:
             continue
 
-        # Find matching mhistory file 
+        # Find matching mhistory file
         mh_match = None
         for mh in mh_files:
             mh_suffix = parse_suffix(mh.stem, "mhistory_")
@@ -108,12 +103,6 @@ if R2_files:
         Bn_history = np.loadtxt(Bn_match)
         print(f"{R2_file.name}: loaded {len(R2_history)} points, final iteration = {R2_history[-1]}")
 
-        # Nominal K from filename
-        K_nom = len(R2_history) * record_every
-
-        K_norm = len(R2_history)
-        # Parse params and algorithm from file name
-        print(K_nom)
         parts = R2_suffix.split("_")
 
         bt_val = None
@@ -151,7 +140,6 @@ if R2_files:
         ]
         algo_label = "_".join(algo_tokens) if algo_tokens else R2_suffix
 
-        # Human-readable algorithm label
         if "macromag" in algo_label:
             algo_human = "GPMOmr"
         elif "ArbVec_backtracking" in algo_label:
@@ -159,23 +147,16 @@ if R2_files:
         else:
             algo_human = algo_label
 
-        # x-axis in terms of number of nonzero magnets (cap)
-        max_n_magnets = nmax_val
-
-        R2_plot = R2_history[:]
-        K_actual = len(R2_plot)
         iterations = np.arange(1, len(R2_history) + 1) * record_every
 
-        # track global min/max for y-limits
-        cur_min = float(np.min(R2_plot))
-        cur_max = float(np.max(R2_plot))
+        cur_min = float(np.min(R2_history))
+        cur_max = float(np.max(R2_history))
         if r2_min is None:
             r2_min, r2_max = cur_min, cur_max
         else:
             r2_min = min(r2_min, cur_min)
             r2_max = max(r2_max, cur_max)
 
-        # Build label with backtracking params (and kmm if present)
         param_labels = []
         if bt_val is not None:
             param_labels.append(f"bt={bt_val}")
@@ -193,10 +174,8 @@ if R2_files:
             label = rf"$f_B$ ({algo_human})"
             nlabel = rf"$N_{{\rm active}}$ ({algo_human})"
 
-        # Plot f_B
-        (line_fb,) = ax1.semilogy(iterations, R2_plot, label=label)
+        (line_fb,) = ax1.semilogy(iterations, R2_history, label=label)
 
-        # Plot number of active magnets if mhistory exists
         if mh_match is not None:
             try:
                 n_active = active_counts_from_mhistory_txt(mh_match, eps=0.0)
@@ -221,14 +200,26 @@ if R2_files:
     if r2_min is not None and r2_max is not None:
         ax1.set_ylim(r2_min * 0.8, r2_max * 1.2)
 
-    # combined legend (both axes)
+    # combined legend placed ABOVE the plot (no overlap with either y-axis)
     h1, l1 = ax1.get_legend_handles_labels()
     h2, l2 = ax2.get_legend_handles_labels()
-    ax1.legend(h1 + h2, l1 + l2, fontsize=8, frameon=True, facecolor='white', edgecolor='black')
+    fig.legend(
+        h1 + h2,
+        l1 + l2,
+        fontsize=8,
+        frameon=True,
+        facecolor='white',
+        edgecolor='black',
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.02),
+        ncol=1,  # set to 2 if you want it more compact
+    )
 
-    fig.tight_layout()
+    # leave room on top for the external legend
+    fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.81])
+
     fname = save_dir / "Combined_MSE_history.png"
-    plt.savefig(fname, dpi=300)
+    plt.savefig(fname, dpi=300, bbox_inches="tight")
     plt.close()
     print(f"Saved combined plot {fname}")
 
@@ -268,7 +259,6 @@ if len(npz_files) >= 2:
 
         diffs_raw = np.asarray(diffs_raw)
 
-        # Estimate M_rem from the "one run only" peak when possible
         if len(one_only_vals) > 0:
             Mrem_est = float(np.median(one_only_vals))
         else:
@@ -276,7 +266,6 @@ if len(npz_files) >= 2:
             mags = mags[mags > 0]
             Mrem_est = float(np.median(mags)) if len(mags) else np.nan
 
-        # Bucket boundaries halfway between peaks at 0, Mrem, sqrt(2)Mrem, 2Mrem
         if np.isfinite(Mrem_est) and Mrem_est > 0:
             b01 = 0.5 * Mrem_est
             b12 = 0.5 * (1.0 + np.sqrt(2.0)) * Mrem_est
@@ -312,9 +301,8 @@ if len(npz_files) >= 2:
             )
 
         diffs = diffs_raw
-        diffs = diffs[diffs > 0]  # clip out exact zeros
+        diffs = diffs[diffs > 0]
 
-        # Linear scale histogram
         plt.figure()
         plt.hist(diffs, bins=200, alpha=0.7)
         plt.xlabel(r"$|\Delta M| = \|M_i - M'_i\|_2$ [A·m$^2$]")
@@ -326,7 +314,6 @@ if len(npz_files) >= 2:
         plt.close()
         print(f"Saved linear-scale histogram to {fname_lin}")
 
-        # Log scale histogram
         plt.figure()
         plt.hist(diffs, bins=200, alpha=0.7)
         plt.xlabel(r"$|\Delta M| = \|M_i - M'_i\|_2$ [A·m$^2$]")
