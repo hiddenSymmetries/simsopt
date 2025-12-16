@@ -1283,7 +1283,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 normalized to the minor radius. Only matters if
                 ``method=="SLSQP"`` or ``method=="trust-constr"``.
             Fourier_continuation: bool, optional
-                Whether to use Fourier continuation.
+                If True, increase the Fourier resolution of λ in steps (slower).
+                If False, optimize all Fourier modes of λ at once (faster).
             verbose: bool, optional
                 Whether to print progress messages.
             plot: bool, optional
@@ -1323,16 +1324,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 maxiter = 100
 
         # Make a copy of the surface with the desired grid resolution:
-        surf = SurfaceRZFourier.from_nphi_ntheta(
-            mpol=mpol,
-            ntor=ntor,
-            nfp=nfp,
-            stellsym=self.stellsym,
-            nphi=n_phi,
-            ntheta=n_theta,
-            range="half period",
-        )
-        surf.x = self.x
+        surf = self.copy(range="half period", nphi=n_phi, ntheta=n_theta)
 
         # Index in .x where Rmnc and Zmns are separated:
         n_Rmn = (len(surf.x) + 1) // 2
