@@ -26,7 +26,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-__all__ = ['SurfaceRZFourier', 'SurfaceRZPseudospectral']
+__all__ = ['SurfaceRZFourier', 'SurfaceRZPseudospectral', 'plot_spectral_condensation']
 
 
 class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
@@ -1194,8 +1194,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         epsilon=1e-3,
         Fourier_continuation=True,
         verbose=True,
-        plot=False,
-        show=True,
     ):
         r"""Apply spectral condensation so the Fourier amplitudes ``rc`` and ``zs`` decay
         more rapidly with ``m`` and ``n``.
@@ -1250,7 +1248,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         Fourier continuation generally results in better spectral condensation,
         but it requires more time.
 
-        The surface degrees of freedom are modified in place.
+        The degrees of freedom of the original surface are not modified.
 
         Spectral condensation always results in some finite change to the
         surface shape. Ideally this change is as small as possible. To measure
@@ -1265,6 +1263,16 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         ``condense_spectrum`` are increased. You may then be able to call
         :func:`~simsopt.geo.SurfaceRZFourier.change_resolution` again to reduce
         ``mpol`` and ``ntor`` after the condensation.
+
+        The ``data`` dictionary that is returned contains information about
+        the optimization. The most noteworthy entries are ``max_RZ_error`` and
+        ``spectral_width_reduction``. The former indicates how well the surface
+        shape was preserved, and the latter indicates how much the spectral
+        width was reduced by the optimization.
+        
+        The function
+        :func:`~simsopt.geo.plot_spectral_condensation` is
+        useful for visualizing the results of spectral condensation.
 
         Parameters
         ----------
@@ -1287,19 +1295,95 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 If False, optimize all Fourier modes of λ at once (faster).
             verbose: bool, optional
                 Whether to print progress messages.
-            plot: bool, optional
-                Whether to plot information related to the spectral condensation.
-            show: bool, optional
-                Whether to call matplotlib's ``show()`` function after plotting.
 
         Returns
         -------
-            initial_objective: float
-                The initial value of the spectral width objective.
-            final_objective: float
-                The final value of the spectral width objective.
-            max_RZ_error: float
-                The maximum absolute change to R and Z on the θ₁ grid points, normalized to the minor radius.
+            surface: SurfaceRZFourier
+                A new SurfaceRZFourier object with the condensed spectrum.
+            data: dict
+                A dictionary containing the following data from the
+                condensation:
+                
+                - "method" (str):
+                    The optimization method used (value of the ``method`` argument).
+                - "maxiter" (int):
+                    The maximum number of iterations supplied to the optimizer.
+                - "n_theta" (int):
+                    Number of theta grid points used for fitting.
+                - "n_phi" (int):
+                    Number of phi grid points used for fitting.
+                - "power" (float):
+                    The spectral-width power parameter used in the objective.
+                - "epsilon" (float):
+                    The constraint tolerance on pointwise R and Z changes, normalized
+                    to the minor radius (only relevant for constrained optimizers).
+                - "Fourier_continuation" (bool):
+                    Whether Fourier continuation (progressively increasing mode count)
+                    was used.
+                - "initial_objective" (float):
+                    Value of the scalar objective (spectral width) before optimization.
+                    This is computed using the initial (zero) reparameterization.
+                - "final_objective" (float):
+                    Value of the scalar objective after the final optimization step,
+                    evaluated for the full lambda Fourier resolution.
+                - "spectral_width_reduction" (float):
+                    The ratio initial_objective / final_objective indicating the
+                    reduction in the objective.
+                - "max_RZ_error" (float):
+                    The maximum absolute change in R or Z on the θ₁ grid points,
+                    normalized by the minor radius, observed for the optimized
+                    reparameterization. This is the same quantity printed during
+                    optimization when verbose is True.
+                - "m" (ndarray of int):
+                    The array of Fourier poloidal mode numbers (m) used for the
+                    full lambda representation returned in "lambda_dofs_optimized".
+                    This corresponds to the full set of lambda modes (including zeros
+                    and negative m symmetry as appropriate for the SurfaceRZFourier
+                    representation used internally).
+                - "n" (ndarray of int):
+                    The array of toroidal mode numbers (n) paired with "m" above.
+                - "lambda_dofs_optimized" (ndarray of float):
+                    The optimized Fourier coefficients for the reparameterization
+                    function :math:`\lambda` (sin coefficients only for the
+                    stellarator-symmetric case implemented here). These coefficients
+                    are in the same ordering as "m" and "n" and should be multiplied
+                    by "x_scale" to obtain the scaled coefficients used internally.
+                - "x_scale" (ndarray of float):
+                    The exponential spectral scaling applied to lambda modes. This is
+                    the same array used to scale the returned "lambda_dofs_optimized"
+                    when forming the reparameterization and when computing gradients.
+                - "elapsed_time" (float):
+                    Wall-clock time in seconds spent in the condensation routine.
+                - "minor_radius" (float):
+                    The minor radius used to normalize R and Z errors and to form
+                    objective normalization.
+                - "theta1_1d" (ndarray, shape (n_theta*n_phi,)):
+                    The flattened original poloidal angles (θ₁) corresponding to the
+                    quadrature points used to evaluate the surface. Values are in
+                    radians in the interval [0, 2π).
+                - "phi_1d" (ndarray, shape (n_theta*n_phi,)):
+                    The flattened toroidal angles corresponding to the quadrature
+                    points used to evaluate the surface. Values are in radians.
+                - "theta1_2d" (ndarray, shape (n_phi, n_theta)):
+                    The 2-D grid of original poloidal angles used to evaluate the
+                    surface (meshgrid of quadpoints_theta scaled by 2π).
+                - "phi_2d" (ndarray, shape (n_phi, n_theta)):
+                    The 2-D grid of toroidal angles used to evaluate the surface
+                    (meshgrid of quadpoints_phi scaled by 2π).
+                - "theta_optimized" (ndarray, shape (n_theta*n_phi,)):
+                    The optimized poloidal angles θ₂ = θ₁ + λ(θ₁, φ) evaluated at the
+                    quadrature points (flattened). This uses the full optimized
+                    lambda coefficients (i.e. "lambda_dofs_optimized" scaled by
+                    "x_scale").
+                - "original_x" (ndarray):
+                    The original surface coefficient vector (local_full_x) prior to
+                    condensation. Use this to compare pre- and post-condensation
+                    coefficients.
+                - "condensed_x" (ndarray):
+                    The condensed surface coefficient vector (local_full_x) produced
+                    by re-fitting the surface in the new parametrization. This is
+                    the set of Fourier coefficients stored in the returned Surface
+                    object.
         """
         if not self.stellsym:
             raise NotImplementedError("condense_spectrum is only implemented for stellarator-symmetric surfaces")
@@ -1309,7 +1393,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         nfp = self.nfp
         minor_radius = self.minor_radius()
         print("minor radius before condensation:", minor_radius)
-        original_x = self.x.copy()
+        original_x = self.local_full_x.copy()
 
         if n_theta is None:
             n_theta = 3 * mpol + 1
@@ -1364,10 +1448,10 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         R_to_fit = R.flatten()
         Z_to_fit = Z.flatten()
 
-        theta2d, phi2d = np.meshgrid(2 * np.pi * surf.quadpoints_theta, 2 * np.pi * surf.quadpoints_phi)
-        assert theta2d.shape == (n_phi, n_theta)
-        phi_1d = phi2d.flatten()
-        theta1_1d = theta2d.flatten()
+        theta1_2d, phi_2d = np.meshgrid(2 * np.pi * surf.quadpoints_theta, 2 * np.pi * surf.quadpoints_phi)
+        assert theta1_2d.shape == (n_phi, n_theta)
+        phi_1d = phi_2d.flatten()
+        theta1_1d = theta1_2d.flatten()
 
         def lambda_Fourier_to_grid(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
             scaled_lambda_dofs = lambda_dofs * x_scale
@@ -1558,236 +1642,223 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         lambda_dofs_optimized = res.x
         theta_optimized = lambda_Fourier_to_grid(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
         final_objective = scalar_objective(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
-        self.x = compute_r2mn_and_z2mn(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+        surf_to_return = surf.copy()
+        surf_to_return.local_full_x = compute_r2mn_and_z2mn(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
 
-        ##########################################################################################################
-        if plot:
-            title_str = f"n_theta: {n_theta}, n_phi: {n_phi}, power: {power}, method: {method}, maxiter: {maxiter}"
-
-            n_theta_points_for_plot = 20
-            decimate = 6
-
-            quadpoints_theta_for_plotting = np.linspace(0, 1, n_theta_points_for_plot * decimate + 1)
-            quadpoints_phi_for_plotting = np.linspace(0, 1 / nfp, 8, endpoint=False)
-            surf_theta1_for_plotting = SurfaceRZFourier(
-                mpol=surf.mpol,
-                ntor=surf.ntor,
-                nfp=nfp,
-                quadpoints_theta=quadpoints_theta_for_plotting,
-                quadpoints_phi=quadpoints_phi_for_plotting,
-            )
-            surf_theta1_for_plotting.x = original_x
-            surf_theta2_for_plotting = SurfaceRZFourier(
-                mpol=surf.mpol,
-                ntor=surf.ntor,
-                nfp=surf.nfp,
-                quadpoints_theta=quadpoints_theta_for_plotting,
-                quadpoints_phi=quadpoints_phi_for_plotting,
-            )
-            surf_theta2_for_plotting.x = self.x
-
-            figsize = (14.5, 8.1)
-            plt.figure(figsize=figsize)
-
-            n_rows = 1
-            n_cols = 2
-
-            plt.subplot(n_rows, n_cols, 1)
-            cmap = plt.get_cmap("jet")
-            for j_phi in range(n_phi):
-                color = cmap(float(j_phi) / n_phi)
-                plt.plot(theta2d[j_phi, :], (theta_optimized - theta1_1d).reshape((n_phi, n_theta))[j_phi, :], '.-', color=color)
-
-            plt.xlabel('theta1')
-            plt.ylabel('lambda')
-
-            plt.subplot(n_rows, n_cols, 2)
-            plt.semilogy(
-                np.sqrt(m_for_lambda_full**2 + n_for_lambda_full**2),
-                np.abs(lambda_dofs_optimized  * x_scale_full),
-                '.g',
-            )
-            plt.xlabel('sqrt(m^2 + n^2)')
-            plt.ylabel('Mode amplitudes of lambda')
-            plt.ylim(1e-16, 2e1)
-
-            plt.tight_layout()
-
-            plt.figure(figsize=figsize)
-
-            n_rows = 2
-            n_cols = 3
-
-            plt.subplot(n_rows, n_cols, 1)
-            theta2_1d = lambda_Fourier_to_grid(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
-            theta2_2d = theta2_1d.reshape((n_phi, n_theta))
-            plt.contourf(phi2d, theta2d, theta2_2d - theta2d, 25)
-            plt.colorbar()
-            plt.xlabel('phi')
-            plt.ylabel('theta1')
-            plt.title('lambda')
-
-            plt.subplot(n_rows, n_cols, 2)
-            theta2_1d = lambda_Fourier_to_grid(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
-            theta2_2d = theta2_1d.reshape((n_phi, n_theta))
-            plt.contourf(phi2d, theta2d, theta2_2d, 25)
-            plt.colorbar()
-            plt.xlabel('phi')
-            plt.ylabel('theta1')
-            plt.title('theta2 after optimization')
-
-            plt.subplot(n_rows, n_cols, 3)
-            mask = np.logical_and(np.abs(m_for_lambda_full) <= 1, np.abs(n_for_lambda_full) <= 1)
-            theta2_1d = lambda_Fourier_to_grid(lambda_dofs_optimized[mask], m_for_lambda_full[mask], n_for_lambda_full[mask], x_scale_full[mask])
-            theta2_2d = theta2_1d.reshape((n_phi, n_theta))
-            plt.contourf(phi2d, theta2d, theta2_2d - theta2d, 25)
-            plt.colorbar()
-            plt.xlabel('phi')
-            plt.ylabel('theta1')
-            plt.title('lambda, |m|,|n| <= 1')
-
-            plt.subplot(n_rows, n_cols, 4)
-            theta2_1d = lambda_Fourier_to_grid(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
-            theta2_2d = theta2_1d.reshape((n_phi, n_theta))
-            plt.contourf(phi2d, theta2d, theta2_2d, 25)
-            plt.colorbar()
-            plt.xlabel('phi')
-            plt.ylabel('theta1')
-            plt.title('theta2 after optimization, |m|,|n| <= 1')
-
-            plt.subplot(n_rows, n_cols, 5)
-            mask = np.logical_and(np.abs(m_for_lambda_full) <= 1, np.abs(n_for_lambda_full) <= 2)
-            theta2_1d = lambda_Fourier_to_grid(lambda_dofs_optimized[mask], m_for_lambda_full[mask], n_for_lambda_full[mask], x_scale_full[mask])
-            theta2_2d = theta2_1d.reshape((n_phi, n_theta))
-            plt.contourf(phi2d, theta2d, theta2_2d - theta2d, 25)
-            plt.colorbar()
-            plt.xlabel('phi')
-            plt.ylabel('theta1')
-            plt.title('lambda, |m|,|n| <= 2')
-
-            plt.subplot(n_rows, n_cols, 6)
-            theta2_1d = lambda_Fourier_to_grid(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
-            theta2_2d = theta2_1d.reshape((n_phi, n_theta))
-            plt.contourf(phi2d, theta2d, theta2_2d, 25)
-            plt.colorbar()
-            plt.xlabel('phi')
-            plt.ylabel('theta1')
-            plt.title('theta2 after optimization, |m|,|n| <= 2')
-
-            plt.tight_layout()
-
-            # Create a layout with the left half split into a 2x2 grid and a
-            # single subplot occupying the entire right half.
-            fig = plt.figure(figsize=figsize)
-            gs = GridSpec(2, 3, figure=fig, width_ratios=[1, 1, 2])
-
-            # Left half: 2x2 small subplots
-            axes_small = [
-                fig.add_subplot(gs[0, 0], aspect='equal'),
-                fig.add_subplot(gs[0, 1], aspect='equal'),
-                fig.add_subplot(gs[1, 0], aspect='equal'),
-                fig.add_subplot(gs[1, 1], aspect='equal'),
-            ]
-
-            colors = ["b", "r"]
-
-            for j_surf in range(2):
-                if j_surf == 0:
-                    surf_to_plot = surf_theta1_for_plotting
-                    short_name = "theta1"
-                else:
-                    surf_to_plot = surf_theta2_for_plotting
-                    short_name = "theta2"
-
-                for j_rz in range(2):
-                    if j_rz == 0:
-                        data_to_plot = surf_to_plot.rc
-                        data_name = 'Rmnc'
-                    else:
-                        data_to_plot = surf_to_plot.zs
-                        data_name = 'Zmns'
-
-                    ax = axes_small[j_surf + j_rz * 2]
-                    extent = (-surf_to_plot.ntor - 0.5, surf_to_plot.ntor + 0.5, surf_to_plot.mpol + 0.5, -0.5)
-                    im = ax.imshow(np.abs(data_to_plot / minor_radius), extent=extent, norm=mpl_colors.LogNorm(vmin=1e-6, vmax=10))
-                    fig.colorbar(im, ax=ax)
-                    ax.set_title(data_name + " / minor_radius, " + short_name)
-                    ax.set_xlabel('n / nfp')
-                    ax.set_ylabel('m')
-
-            # Right half: one large subplot spanning both rows
-            ax_big = fig.add_subplot(gs[:, -1])
-
-            plt.semilogy(
-                np.sqrt(surf_theta1_for_plotting.m**2 + surf_theta1_for_plotting.n**2),
-                np.abs(surf_theta1_for_plotting.x / minor_radius),
-                '+',
-                color=colors[0],
-                label='theta1'
-            )
-            plt.semilogy(
-                np.sqrt(surf_theta2_for_plotting.m**2 + surf_theta2_for_plotting.n**2),
-                np.abs(surf_theta2_for_plotting.x / minor_radius),
-                'x',
-                color=colors[1],
-                label='theta2'
-            )
-            plt.legend(loc=0)
-            ax_big.set_xlabel('sqrt(m^2 + n^2)')
-            ax_big.set_ylabel('(rc or zs) / minor radius')
-            ax_big.set_ylim(1e-16, 2e1)
-
-            plt.suptitle(title_str, fontsize=12)
-            plt.tight_layout()
-
-            ##########################################################################################################
-            ##########################################################################################################
-
-            n_rows = 2
-            n_cols = 4
-            fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, subplot_kw={'aspect': 'equal'})
-
-            axes = axes.flatten()
-
-            for j_phi in range(8):
-                for j_surf in range(2):
-                    if j_surf == 0:
-                        surf_to_plot = surf_theta1_for_plotting
-                        linespec = '-'
-                        marker = '+'
-                        theta0_marker = 's'
-                    else:
-                        surf_to_plot = surf_theta2_for_plotting
-                        linespec = ':'
-                        marker = 'x'
-                        theta0_marker = 'o'
-
-                    gamma = surf_to_plot.gamma()
-                    R = np.sqrt(gamma[:, :, 0]**2 + gamma[:, :, 1]**2)
-                    Z = gamma[:, :, 2]
-                    color = colors[j_surf]
-                    axes[j_phi].plot(R[j_phi, :], Z[j_phi, :], linespec, color=color)
-                    axes[j_phi].plot(R[j_phi, 0], Z[j_phi, 0], theta0_marker, color=color)
-                    axes[j_phi].plot(R[j_phi, ::decimate], Z[j_phi, ::decimate], marker, color=color, label=f"theta{j_surf+1}")
-
-                axes[j_phi].set_title(f"phi = {j_phi/(8*nfp):.3f} * 2pi")
-                axes[j_phi].set_xlabel("R")
-                axes[j_phi].set_ylabel("Z")
-
-            axes[0].legend(loc=0)
-
-            plt.suptitle(title_str, fontsize=12)
-
-            plt.tight_layout()
-            if show:
-                plt.show()
-
-        return initial_objective, final_objective, max_RZ_error
+        data = {
+            "method": method,
+            "maxiter": maxiter,
+            "n_theta": n_theta,
+            "n_phi": n_phi,
+            "power": power,
+            "epsilon": epsilon,
+            "Fourier_continuation": Fourier_continuation,
+            "initial_objective": float(initial_objective),
+            "final_objective": float(final_objective),
+            "spectral_width_reduction": float(initial_objective / final_objective),
+            "max_RZ_error": float(max_RZ_error),
+            "m": m_for_lambda_full,
+            "n": n_for_lambda_full,
+            "lambda_dofs_optimized": lambda_dofs_optimized,
+            "x_scale": x_scale_full,
+            "elapsed_time": elapsed_time,
+            "minor_radius": minor_radius,
+            "theta1_1d": theta1_1d,
+            "phi_1d": phi_1d,
+            "theta1_2d": theta1_2d,
+            "phi_2d": phi_2d,
+            "theta_optimized": theta_optimized,
+            "original_x": original_x,
+            "condensed_x": surf_to_return.local_full_x,
+        }
+        return surf_to_return, data
 
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,
                      'aspect-ratio': Surface.aspect_ratio}
 
+def plot_spectral_condensation(surf1, surf2, data, show=True):
+    """Plot results from :func:`~simsopt.geo.SurfaceRZFourier.condense_spectrum`.
+
+    Parameters
+    ----------
+    surf1 : SurfaceRZFourier
+        The original surface before spectral condensation.
+    surf2 : SurfaceRZFourier
+        The condensed surface after spectral condensation.
+    data : dict
+        The data dictionary returned by :func:`~simsopt.geo.SurfaceRZFourier.condense_spectrum`.
+    show : bool, optional
+        Whether to call matplotlib's ``show()`` function. Default is True.    
+    """
+    assert surf1.nfp == surf2.nfp
+    assert surf1.mpol == surf2.mpol
+    assert surf1.ntor == surf2.ntor
+    n_theta = data["n_theta"]
+    n_phi = data["n_phi"]
+    minor_radius = data["minor_radius"]
+    nfp = surf1.nfp
+    title_str = f"n_theta: {n_theta}, n_phi: {n_phi}, power: {data['power']}, method: {data['method']}, maxiter: {data['maxiter']}\n"
+
+    n_theta_points_for_plot = 20
+    decimate = 6
+
+    quadpoints_theta_for_plotting = np.linspace(0, 1, n_theta_points_for_plot * decimate + 1)
+    quadpoints_phi_for_plotting = np.linspace(0, 1 / nfp, 8, endpoint=False)
+    surf_theta1_for_plotting = SurfaceRZFourier(
+        mpol=surf1.mpol,
+        ntor=surf1.ntor,
+        nfp=nfp,
+        quadpoints_theta=quadpoints_theta_for_plotting,
+        quadpoints_phi=quadpoints_phi_for_plotting,
+    )
+    surf_theta1_for_plotting.local_full_x = surf1.local_full_x
+    surf_theta2_for_plotting = SurfaceRZFourier(
+        mpol=surf1.mpol,
+        ntor=surf1.ntor,
+        nfp=nfp,
+        quadpoints_theta=quadpoints_theta_for_plotting,
+        quadpoints_phi=quadpoints_phi_for_plotting,
+    )
+    surf_theta2_for_plotting.local_full_x = surf2.local_full_x
+
+    figsize = (14.5, 8.1)
+    plt.figure(figsize=figsize)
+
+    n_rows = 1
+    n_cols = 2
+
+    plt.subplot(n_rows, n_cols, 1)
+    cmap = plt.get_cmap("jet")
+    for j_phi in range(n_phi):
+        color = cmap(float(j_phi) / n_phi)
+        plt.plot(
+            data["theta1_2d"][j_phi, :],
+            (data["theta_optimized"] - data["theta1_1d"]).reshape((n_phi, n_theta))[j_phi, :],
+            '.-',
+            color=color,
+        )
+
+    plt.xlabel('theta1')
+    plt.ylabel('lambda')
+
+    plt.subplot(n_rows, n_cols, 2)
+    plt.semilogy(
+        np.sqrt(data["m"]**2 + data["n"]**2),
+        np.abs(data["lambda_dofs_optimized"] * data["x_scale"]),
+        '.g',
+    )
+    plt.xlabel('sqrt(m^2 + n^2)')
+    plt.ylabel('Mode amplitudes of lambda')
+    plt.ylim(1e-16, 2e1)
+
+    plt.tight_layout()
+
+    # Create a layout with the left half split into a 2x2 grid and a
+    # single subplot occupying the entire right half.
+    fig = plt.figure(figsize=figsize)
+    gs = GridSpec(2, 3, figure=fig, width_ratios=[1, 1, 2])
+
+    # Left half: 2x2 small subplots
+    axes_small = [
+        fig.add_subplot(gs[0, 0], aspect='equal'),
+        fig.add_subplot(gs[0, 1], aspect='equal'),
+        fig.add_subplot(gs[1, 0], aspect='equal'),
+        fig.add_subplot(gs[1, 1], aspect='equal'),
+    ]
+
+    colors = ["b", "r"]
+
+    for j_surf in range(2):
+        if j_surf == 0:
+            surf_to_plot = surf_theta1_for_plotting
+            short_name = "theta1"
+        else:
+            surf_to_plot = surf_theta2_for_plotting
+            short_name = "theta2"
+
+        for j_rz in range(2):
+            if j_rz == 0:
+                data_to_plot = surf_to_plot.rc
+                data_name = 'Rmnc'
+            else:
+                data_to_plot = surf_to_plot.zs
+                data_name = 'Zmns'
+
+            ax = axes_small[j_surf + j_rz * 2]
+            extent = (-surf_to_plot.ntor - 0.5, surf_to_plot.ntor + 0.5, surf_to_plot.mpol + 0.5, -0.5)
+            im = ax.imshow(np.abs(data_to_plot / minor_radius), extent=extent, norm=mpl_colors.LogNorm(vmin=1e-6, vmax=10))
+            fig.colorbar(im, ax=ax)
+            ax.set_title(data_name + " / minor_radius, " + short_name)
+            ax.set_xlabel('n / nfp')
+            ax.set_ylabel('m')
+
+    # Right half: one large subplot spanning both rows
+    ax_big = fig.add_subplot(gs[:, -1])
+
+    plt.semilogy(
+        np.sqrt(surf_theta1_for_plotting.m**2 + surf_theta1_for_plotting.n**2),
+        np.abs(surf_theta1_for_plotting.x / minor_radius),
+        '+',
+        color=colors[0],
+        label='theta1'
+    )
+    plt.semilogy(
+        np.sqrt(surf_theta2_for_plotting.m**2 + surf_theta2_for_plotting.n**2),
+        np.abs(surf_theta2_for_plotting.x / minor_radius),
+        'x',
+        color=colors[1],
+        label='theta2'
+    )
+    plt.legend(loc=0)
+    ax_big.set_xlabel('sqrt(m^2 + n^2)')
+    ax_big.set_ylabel('(rc or zs) / minor radius')
+    ax_big.set_ylim(1e-16, 2e1)
+
+    plt.suptitle(title_str, fontsize=12)
+    plt.tight_layout()
+
+    ##########################################################################################################
+    ##########################################################################################################
+
+    n_rows = 2
+    n_cols = 4
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, subplot_kw={'aspect': 'equal'})
+
+    axes = axes.flatten()
+
+    for j_phi in range(8):
+        for j_surf in range(2):
+            if j_surf == 0:
+                surf_to_plot = surf_theta1_for_plotting
+                linespec = '-'
+                marker = '+'
+                theta0_marker = 's'
+            else:
+                surf_to_plot = surf_theta2_for_plotting
+                linespec = ':'
+                marker = 'x'
+                theta0_marker = 'o'
+
+            gamma = surf_to_plot.gamma()
+            R = np.sqrt(gamma[:, :, 0]**2 + gamma[:, :, 1]**2)
+            Z = gamma[:, :, 2]
+            color = colors[j_surf]
+            axes[j_phi].plot(R[j_phi, :], Z[j_phi, :], linespec, color=color)
+            axes[j_phi].plot(R[j_phi, 0], Z[j_phi, 0], theta0_marker, color=color)
+            axes[j_phi].plot(R[j_phi, ::decimate], Z[j_phi, ::decimate], marker, color=color, label=f"theta{j_surf+1}")
+
+        axes[j_phi].set_title(f"phi = {j_phi/(8*nfp):.3f} * 2pi")
+        axes[j_phi].set_xlabel("R")
+        axes[j_phi].set_ylabel("Z")
+
+    axes[0].legend(loc=0)
+
+    plt.suptitle(title_str, fontsize=12)
+
+    plt.tight_layout()
+    if show:
+        plt.show()
 
 class SurfaceRZPseudospectral(Optimizable):
     """

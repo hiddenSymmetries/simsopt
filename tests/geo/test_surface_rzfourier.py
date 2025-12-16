@@ -8,7 +8,7 @@ from scipy.special import jv as bessel_J
 from scipy.interpolate import CubicSpline
 
 from simsopt import save, load
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier, SurfaceRZPseudospectral
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier, SurfaceRZPseudospectral, plot_spectral_condensation
 from simsopt.geo.surface import Surface
 from simsopt._core.optimizable import Optimizable
 
@@ -1179,37 +1179,38 @@ class SurfaceRZFourierTests(unittest.TestCase):
             np.testing.assert_allclose(surf.major_radius(), major_radius)
 
             original_spectral_width_1 = surf.spectral_width(power=power)
-            original_spectral_width_2, final_spectral_width_2, max_RZ_error = surf.condense_spectrum(
-                n_theta=46, n_phi=2, method=method, power=power, verbose=True, plot=True, show=False
+            surf2, data = surf.condense_spectrum(
+                n_theta=46, n_phi=2, method=method, power=power, verbose=True
             )
-            print("Minor radius after condensing:", surf.minor_radius())
-            final_spectral_width_1 = surf.spectral_width(power=power)
+            plot_spectral_condensation(surf, surf2, data, show=False)
+            print("Minor radius after condensing:", surf2.minor_radius())
+            final_spectral_width_1 = surf2.spectral_width(power=power)
             print("Original spectral width 1:", original_spectral_width_1)
-            print("Original spectral width 2:", original_spectral_width_2)
+            print("Original spectral width 2:", data["initial_objective"])
             print("Final spectral width 1:", final_spectral_width_1)
-            print("Final spectral width 2:", final_spectral_width_2)
-            np.testing.assert_allclose(original_spectral_width_1, original_spectral_width_2)
+            print("Final spectral width 2:", data["final_objective"])
+            np.testing.assert_allclose(original_spectral_width_1, data["initial_objective"])
             # There is a slight difference in the 2 methods for computing the
             # final spectral width due to a slight change in the minor radius
             # associated with discretization error.
-            np.testing.assert_allclose(final_spectral_width_1, final_spectral_width_2, rtol=2e-5)
+            np.testing.assert_allclose(final_spectral_width_1, data["final_objective"], rtol=2e-5)
             np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
             if method == "SLSQP":
                 # For some reason SLSQP is less accurate for this test.
                 allowed_RZ_error = 3e-7
             else:
                 allowed_RZ_error = 1e-7
-            np.testing.assert_array_less(max_RZ_error, allowed_RZ_error)
+            np.testing.assert_array_less(data["max_RZ_error"], allowed_RZ_error)
             np.testing.assert_allclose(final_spectral_width_1, 1.0)
-            np.testing.assert_allclose(surf.minor_radius(), minor_radius)
-            np.testing.assert_allclose(surf.major_radius(), major_radius)
+            np.testing.assert_allclose(surf2.minor_radius(), minor_radius)
+            np.testing.assert_allclose(surf2.major_radius(), major_radius)
             # Compare to the expected Fourier coefficients for a circle in the
             # simple geometric poloidal angle:
             x_should_be = np.zeros(mpol * 2 + 1)
             x_should_be[0] = major_radius
             x_should_be[1] = minor_radius
             x_should_be[mpol + 1] = minor_radius
-            np.testing.assert_allclose(surf.x, x_should_be, atol=1e-5)
+            np.testing.assert_allclose(surf2.x, x_should_be, atol=1e-5)
 
     def test_condense_spectrum_theta_origin(self):
         """Test the condense_spectrum() method for eliminating unnecessary
@@ -1258,37 +1259,38 @@ class SurfaceRZFourierTests(unittest.TestCase):
             np.testing.assert_allclose(surf.minor_radius(), minor_radius)
             np.testing.assert_allclose(surf.major_radius(), major_radius)
             original_spectral_width_1 = surf.spectral_width(power=power)
-            original_spectral_width_2, final_spectral_width_2, max_RZ_error = surf.condense_spectrum(
-                method=method, maxiter=15, power=power, verbose=True, plot=True, show=False
+            surf2, data = surf.condense_spectrum(
+                method=method, maxiter=15, power=power, verbose=True
             )
-            print("Minor radius after condensing:", surf.minor_radius())
-            final_spectral_width_1 = surf.spectral_width(power=power)
+            plot_spectral_condensation(surf, surf2, data, show=False)
+            print("Minor radius after condensing:", surf2.minor_radius())
+            final_spectral_width_1 = surf2.spectral_width(power=power)
             print("Original spectral width 1:", original_spectral_width_1)
-            print("Original spectral width 2:", original_spectral_width_2)
+            print("Original spectral width 2:", data["initial_objective"])
             print("Final spectral width 1:", final_spectral_width_1)
-            print("Final spectral width 2:", final_spectral_width_2)
-            np.testing.assert_allclose(original_spectral_width_1, original_spectral_width_2)
+            print("Final spectral width 2:", data["final_objective"])
+            np.testing.assert_allclose(original_spectral_width_1, data["initial_objective"])
             # There is a slight difference in the 2 methods for computing the
             # final spectral width due to a slight change in the minor radius
             # associated with discretization error.
-            np.testing.assert_allclose(final_spectral_width_1, final_spectral_width_2, rtol=2e-5)
+            np.testing.assert_allclose(final_spectral_width_1, data["final_objective"], rtol=2e-5)
             np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
-            np.testing.assert_array_less(max_RZ_error, 1e-8)
+            np.testing.assert_array_less(data["max_RZ_error"], 1e-8)
             np.testing.assert_allclose(final_spectral_width_1, 1.0)
-            np.testing.assert_allclose(surf.minor_radius(), minor_radius)
-            np.testing.assert_allclose(surf.major_radius(), major_radius)
+            np.testing.assert_allclose(surf2.minor_radius(), minor_radius)
+            np.testing.assert_allclose(surf2.major_radius(), major_radius)
             # Compare to the expected Fourier coefficients for a circle in the
             # simple geometric poloidal angle:
-            x_should_be = np.zeros_like(surf.x)
+            x_should_be = np.zeros_like(surf2.x)
             x_should_be[0] = major_radius
             x_should_be[2 * ntor + 1] = minor_radius  # rc(m=1, n=0)
-            x_should_be[(len(surf.x) - 1) // 2 + 2 * ntor + 1] = minor_radius  # zs(m=1, n=0)
+            x_should_be[(len(surf2.x) - 1) // 2 + 2 * ntor + 1] = minor_radius  # zs(m=1, n=0)
             if method == "SLSQP":
                 # For some reason SLSQP is less accurate for this test.
                 atol = 1e-6
             else:
                 atol = 1e-8
-            np.testing.assert_allclose(surf.x, x_should_be, atol=atol)
+            np.testing.assert_allclose(surf2.x, x_should_be, atol=atol)
 
     def test_condense_spectrum(self):
         """Test the condense_spectrum() and spectral_width() methods.
@@ -1350,28 +1352,29 @@ class SurfaceRZFourierTests(unittest.TestCase):
             original_spectral_width_1 = surf.spectral_width(power=power)
             np.testing.assert_allclose(surf.minor_radius(), minor_radius, rtol=1e-5)
             np.testing.assert_allclose(surf.major_radius(), major_radius)
-            original_spectral_width_2, final_spectral_width_2, max_RZ_error = surf.condense_spectrum(
-                method=method, maxiter=15, power=power, verbose=True, plot=True, show=False
+            surf2, data = surf.condense_spectrum(
+                method=method, maxiter=15, power=power, verbose=True
             )
+            plot_spectral_condensation(surf, surf2, data, show=False)
             print("Minor radius after condensing:", surf.minor_radius())
-            final_spectral_width_1 = surf.spectral_width(power=power)
+            final_spectral_width_1 = surf2.spectral_width(power=power)
             print("Original spectral width 1:", original_spectral_width_1)
-            print("Original spectral width 2:", original_spectral_width_2)
+            print("Original spectral width 2:", data["initial_objective"])
             print("Final spectral width 1:", final_spectral_width_1)
-            print("Final spectral width 2:", final_spectral_width_2)
-            np.testing.assert_allclose(original_spectral_width_1, original_spectral_width_2)
-            np.testing.assert_allclose(surf.minor_radius(), minor_radius, rtol=1e-5)
-            np.testing.assert_allclose(surf.major_radius(), major_radius)
+            print("Final spectral width 2:", data["final_objective"])
+            np.testing.assert_allclose(original_spectral_width_1, data["initial_objective"])
+            np.testing.assert_allclose(surf2.minor_radius(), minor_radius, rtol=1e-5)
+            np.testing.assert_allclose(surf2.major_radius(), major_radius)
             # There is a slight difference in the 2 methods for computing the
             # final spectral width due to a slight change in the minor radius
             # associated with discretization error.
-            np.testing.assert_allclose(final_spectral_width_1, final_spectral_width_2, rtol=2e-5)
+            np.testing.assert_allclose(final_spectral_width_1, data["final_objective"], rtol=2e-5)
             np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
             if method in ['SLSQP', 'trust-constr']:
                 max_allowed_error = 1e-3
             else:
                 max_allowed_error = 2e-3
-            np.testing.assert_array_less(max_RZ_error, max_allowed_error)
+            np.testing.assert_array_less(data["max_RZ_error"], max_allowed_error)
 
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):
