@@ -243,12 +243,6 @@ print(f"[SIMSOPT] Wrote {out_dir}/surface_Bn_delta_AlNiCo.vtp")
 
 # =====================================================================
 # f_B EVALUATION  (match pm_opt convention: unitnormal, metadata, arrays)
-#
-# IMPORTANT (correct method):
-#   Evaluate all three cases (unc/mm/mc) on the SAME full-length dipole arrays,
-#   with the SAME m_maxima and the SAME symmetry settings (stellsym=False).
-#   This removes spurious differences that arise from mixing masked arrays or
-#   relying on DipoleField defaults.
 # =====================================================================
 
 qphi = 2 * nphi
