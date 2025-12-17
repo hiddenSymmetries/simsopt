@@ -1249,6 +1249,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         but it requires more time.
 
         The degrees of freedom of the original surface are not modified.
+        Instead, a copy of the surface is returned with the new optimized
+        degrees of freedom.
 
         Spectral condensation always results in some finite change to the
         surface shape. Ideally this change is as small as possible. To measure
@@ -1302,18 +1304,18 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 A new SurfaceRZFourier object with the condensed spectrum.
             data: dict
                 A dictionary containing the following data from the
-                condensation:
+                optimization:
                 
                 - "method" (str):
-                    The optimization method used (value of the ``method`` argument).
+                    The optimization algorithm used (value of the ``method`` argument).
                 - "maxiter" (int):
-                    The maximum number of iterations supplied to the optimizer.
+                    The maximum number of iterations for the optimizer.
                 - "n_theta" (int):
                     Number of theta grid points used for fitting.
                 - "n_phi" (int):
                     Number of phi grid points used for fitting.
                 - "power" (float):
-                    The spectral-width power parameter used in the objective.
+                    The exponent used in the definition of spectral width.
                 - "epsilon" (float):
                     The constraint tolerance on pointwise R and Z changes, normalized
                     to the minor radius (only relevant for constrained optimizers).
@@ -1322,48 +1324,39 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                     was used.
                 - "initial_objective" (float):
                     Value of the scalar objective (spectral width) before optimization.
-                    This is computed using the initial (zero) reparameterization.
                 - "final_objective" (float):
-                    Value of the scalar objective after the final optimization step,
-                    evaluated for the full lambda Fourier resolution.
+                    Value of the scalar objective after the final optimization step.
                 - "spectral_width_reduction" (float):
-                    The ratio initial_objective / final_objective indicating the
-                    reduction in the objective.
+                    The ratio final_objective / initial_objective
                 - "max_RZ_error" (float):
                     The maximum absolute change in R or Z on the θ₁ grid points,
-                    normalized by the minor radius, observed for the optimized
-                    reparameterization. This is the same quantity printed during
-                    optimization when verbose is True.
+                    normalized by the minor radius, for the optimized
+                    poloidal angle.
                 - "m" (ndarray of int):
-                    The array of Fourier poloidal mode numbers (m) used for the
-                    full lambda representation returned in "lambda_dofs_optimized".
-                    This corresponds to the full set of lambda modes (including zeros
-                    and negative m symmetry as appropriate for the SurfaceRZFourier
-                    representation used internally).
+                    The array of Fourier poloidal mode numbers used for the
+                    angle difference λ.
                 - "n" (ndarray of int):
-                    The array of toroidal mode numbers (n) paired with "m" above.
-                - "lambda_dofs_optimized" (ndarray of float):
+                    The array of Fourier toroidal mode numbers used for the
+                    angle difference λ.
+                - "lambda_mn" (ndarray of float):
                     The optimized Fourier coefficients for the reparameterization
-                    function :math:`\lambda` (sin coefficients only for the
+                    function λ (sin coefficients only for the
                     stellarator-symmetric case implemented here). These coefficients
-                    are in the same ordering as "m" and "n" and should be multiplied
-                    by "x_scale" to obtain the scaled coefficients used internally.
+                    are in the same ordering as "m" and "n".
                 - "x_scale" (ndarray of float):
-                    The exponential spectral scaling applied to lambda modes. This is
-                    the same array used to scale the returned "lambda_dofs_optimized"
-                    when forming the reparameterization and when computing gradients.
+                    The exponential spectral scaling applied to λ modes.
                 - "elapsed_time" (float):
                     Wall-clock time in seconds spent in the condensation routine.
                 - "minor_radius" (float):
-                    The minor radius used to normalize R and Z errors and to form
-                    objective normalization.
+                    The minor radius used to normalize R and Z errors and 
+                    the objective.
                 - "theta1_1d" (ndarray, shape (n_theta*n_phi,)):
                     The flattened original poloidal angles (θ₁) corresponding to the
-                    quadrature points used to evaluate the surface. Values are in
+                    quadrature points on the surface. Values are in
                     radians in the interval [0, 2π).
                 - "phi_1d" (ndarray, shape (n_theta*n_phi,)):
                     The flattened toroidal angles corresponding to the quadrature
-                    points used to evaluate the surface. Values are in radians.
+                    points on the surface. Values are in radians.
                 - "theta1_2d" (ndarray, shape (n_phi, n_theta)):
                     The 2-D grid of original poloidal angles used to evaluate the
                     surface (meshgrid of quadpoints_theta scaled by 2π).
@@ -1372,18 +1365,12 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                     (meshgrid of quadpoints_phi scaled by 2π).
                 - "theta_optimized" (ndarray, shape (n_theta*n_phi,)):
                     The optimized poloidal angles θ₂ = θ₁ + λ(θ₁, φ) evaluated at the
-                    quadrature points (flattened). This uses the full optimized
-                    lambda coefficients (i.e. "lambda_dofs_optimized" scaled by
-                    "x_scale").
+                    quadrature points (flattened).
                 - "original_x" (ndarray):
-                    The original surface coefficient vector (local_full_x) prior to
-                    condensation. Use this to compare pre- and post-condensation
-                    coefficients.
+                    The Fourier amplitudes of the original surface prior to
+                    condensation.
                 - "condensed_x" (ndarray):
-                    The condensed surface coefficient vector (local_full_x) produced
-                    by re-fitting the surface in the new parametrization. This is
-                    the set of Fourier coefficients stored in the returned Surface
-                    object.
+                    The Fourier amplitudes of the surface after condensation.
         """
         if not self.stellsym:
             raise NotImplementedError("condense_spectrum is only implemented for stellarator-symmetric surfaces")
@@ -1655,11 +1642,11 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             "Fourier_continuation": Fourier_continuation,
             "initial_objective": float(initial_objective),
             "final_objective": float(final_objective),
-            "spectral_width_reduction": float(initial_objective / final_objective),
+            "spectral_width_reduction": float(final_objective / initial_objective),
             "max_RZ_error": float(max_RZ_error),
             "m": m_for_lambda_full,
             "n": n_for_lambda_full,
-            "lambda_dofs_optimized": lambda_dofs_optimized,
+            "lambda_mn": lambda_dofs_optimized,
             "x_scale": x_scale_full,
             "elapsed_time": elapsed_time,
             "minor_radius": minor_radius,
@@ -1745,7 +1732,7 @@ def plot_spectral_condensation(surf1, surf2, data, show=True):
     plt.subplot(n_rows, n_cols, 2)
     plt.semilogy(
         np.sqrt(data["m"]**2 + data["n"]**2),
-        np.abs(data["lambda_dofs_optimized"] * data["x_scale"]),
+        np.abs(data["lambda_mn"] * data["x_scale"]),
         '.g',
     )
     plt.xlabel('sqrt(m^2 + n^2)')
