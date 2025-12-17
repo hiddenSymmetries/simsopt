@@ -36,16 +36,12 @@ jobs:
       matrix:
         test-type: [unit, integrated]
         # 2025-11-28: Temporarily disabling SPEC tests in this workflow due to github issue #561
-        # packages: [all, vmec, spec, none]
-        packages: [vmec, none]
-        python-version: [3.9, "3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
         include:
-            - python-version: 3.9
+            - python-version: "3.11"
               test-type: unit
-              packages: none
-            - python-version: 3.9
+            - python-version: "3.11"
               test-type: integrated
-              packages: none
 
     steps:
     # First print out lots of information. We do this in separate 
@@ -79,7 +75,6 @@ jobs:
 
     # We must run actions/checkout before downloading and building VMEC, since checkout deletes the contents of the directory.
     - name: Download the VMEC2000 standalone repository
-      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: git clone https://github.com/hiddensymmetries/VMEC2000.git
 
     - name: ls -l again
@@ -130,7 +125,6 @@ jobs:
            python -m pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap
 
     - name: Install booz_xform
-      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: python -m pip install -v git+https://github.com/hiddenSymmetries/booz_xform
 
     - name: Install virtual_casing
@@ -139,30 +133,30 @@ jobs:
     # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
     # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
     # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
-    - name: Check out SPEC
-      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
-      uses: actions/checkout@v4
-      with:
-        repository: PrincetonUniversity/SPEC
-        path: SPEC
+    # - name: Check out SPEC
+    #  if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
+    #  uses: actions/checkout@v4
+    #  with:
+    #    repository: PrincetonUniversity/SPEC
+    #    path: SPEC
 
     # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
-    - name: Install py_spec
-      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
-      run: |
-        python -m pip install -r SPEC/Utilities/pythontools/requirements.txt
-        python -m pip install -e SPEC/Utilities/pythontools
-        python -c "import py_spec; print('success')"
+    #- name: Install py_spec
+    #  if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
+    #  run: |
+    #    python -m pip install -r SPEC/Utilities/pythontools/requirements.txt
+    #    python -m pip install -e SPEC/Utilities/pythontools
+    #    python -c "import py_spec; print('success')"
 
-    - name: Build SPEC python wrapper.
-      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
-      run: |
-         cd SPEC
-         python -m pip install .
+    #- name: Build SPEC python wrapper.
+    #  if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
+    #  run: |
+    #     cd SPEC
+    #     python -m pip install .
 
-    - name: Try import spec
-      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
-      run: python -c "import spec.spec_f90wrapped as spec; print(spec.constants.version)"
+    #- name: Try import spec
+    #  if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
+    #  run: python -c "import spec.spec_f90wrapped as spec; print(spec.constants.version)"
 
     - name: ls in /usr/lib/x86_64-linux-gnu
       run: ls -l /usr/lib/x86_64-linux-gnu
@@ -174,81 +168,64 @@ jobs:
       run: env
 
     - name: ls in VMEC2000/python 1
-      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: ls -l VMEC2000/python
 
     - name: Configure VMEC2000 module
-      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: |
         cd VMEC2000
         cp cmake/machines/ubuntu.json cmake_config_file.json
         python -m pip install . 2>&1 || exit 1
 
     - name: Try importing vmec module
-      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
     - name: Install simsopt package
-      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
-      run: |
-        python -m pip install -v git+https://github.com/zhisong/pyoculus
-        python -m pip install -v .
-        python -m pip install mpi4py py_spec h5py
-
-    - name: Install simsopt package
-      if: contains(matrix.packages, 'none')
-      run: python -m pip install -v .
-
-    - name: Install simsopt package
-      if: contains(matrix.packages, 'vmec')
       run: |
         python -m pip install -v .
-        python -m pip install mpi4py
+        python -m pip install --no-binary=mpi4py mpi4py
+        # python -m pip install -v git+https://github.com/zhisong/pyoculus
+        # python -m pip install py_spec h5py
+
 
     - name: Run serial examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'all'))
+      if: contains(matrix.test-type, 'integrated')
       run: |
         cd examples
         ./run_serial_examples
 
     - name: Run simple parallel examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'none')
+      if: contains(matrix.test-type, 'integrated')
       run: |
         cd examples
         ./run_parallel_examples
 
-    - name: Run spec examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'spec')
-      run: |
-        cd examples
-        ./run_spec_examples
+    # - name: Run spec examples as part of integrated tests
+    #  if: contains(matrix.test-type, 'integrated')
+    #  run: |
+    #    cd examples
+    #    ./run_spec_examples
 
     - name: Run vmec examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'vmec')
+      if: contains(matrix.test-type, 'integrated')
       run: |
         cd examples
         ./run_vmec_examples
 
-    - name: Run vmec and spec examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'all')
-      run: |
-        cd examples
-        ./run_spec_vmec_examples
+    # - name: Run vmec and spec examples as part of integrated tests
+    #  if: contains(matrix.test-type, 'integrated')
+    #  run: |
+    #    cd examples
+    #    ./run_spec_vmec_examples
 
     - name: Install coverage dependencies
       if: contains(matrix.test-type, 'unit')
       run: python -m pip install coverage 
 
-    - name: Run expensive tests on 1 MPI process using coverage
-      # 2025-12-16: When SPEC is re-enabled in the CI, change "vmec" to "all" in the next line.
-      if: contains(matrix.test-type, 'unit') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'vmec'))
+    - name: Run unit tests on 1 MPI process using coverage
+      if: contains(matrix.test-type, 'unit')
       run: |
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/geo
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/field
-
-    - name: Run remaining tests on 1 MPI process using coverage
-      if: contains(matrix.test-type, 'unit')
-      run: | 
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/configs
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/core
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/mhd
@@ -257,7 +234,7 @@ jobs:
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/util
 
     - name: Run MPI tests using coverage
-      if: contains(matrix.test-type, 'unit') && (contains(matrix.packages, 'all') || contains(matrix.packages, 'vmec') || contains(matrix.packages, 'spec'))
+      if: contains(matrix.test-type, 'unit')
       run: |
         mpiexec -n 1 coverage run -m unittest discover -k "mpi" -s tests -v
         mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests -v
@@ -284,7 +261,7 @@ jobs:
     - name: Set up Python 
       uses: actions/setup-python@v5
       with:
-        python-version: 3.9
+        python-version: "3.11"
 
     - name: Install coverage
       run: python -m pip install coverage
