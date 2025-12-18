@@ -29,7 +29,7 @@ mpi = MpiPartition()
 
 class CrossSectionFixedZetaCartesian(Optimizable):
     '''
-    Class for toroidal cross section using cartesian vectors as the basis
+    Class for toroidal cross section, using cartesian vectors as the basis
     '''
     def __init__(
         self,
@@ -140,8 +140,7 @@ class CrossSectionFixedZetaCartesian(Optimizable):
 
 class CrossSectionFixedZeta(Optimizable):
     '''
-    Class for toroidal cross section using a spline interpolater at `n_ctrl_pts` eqidistant points about the axis.
-    Note that the interpolant is r(theta)
+    Class for toroidal cross section, using local polar coordinates to describe control points. 
     '''
     def __init__(
         self,
@@ -490,6 +489,23 @@ class PseudoAxis(Optimizable):
         return name_list
        
 class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
+    r"""
+    Class for a B-spline surface, as described in Ali et. al (manuscript
+    in progress). The main benefits of this representation are
+    threefold:
+    - Easy to box-bound to a space of diverse but feasible
+    stellarator shapes
+    - Local control 
+    - Can be constrained to be unique
+
+    The `PseudoAxisSurface` class is a composite of two other
+    classes: the `PseudoAxis`, which is a B-spline curve intended to
+    be constrained to lie in the interior of the control points, and
+    the control point cross sections (`CrossSectionFixedZeta` or
+    `CrossSectionFixedZetaCartesian`), which define the control
+    points in local cartesian or polar coordinates in planes of
+    constant toroidal angle, respectively. 
+    """
     def __init__(
         self, 
         pas_dofs=None,
@@ -696,8 +712,6 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
         '''
         Return toroidal coordinate (e.g., (r,t,z) tuples) for each control point over the entire
         device domain. 
-
-        Note that this applies the rotation.
         '''
         point_list = []
 
@@ -866,35 +880,8 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
             x_centroid, y_centroid, z_centroid = self.centroid_axis_callable(a)
 
             ax.plot(x_centroid, y_centroid, z_centroid, **_centroid_axis_kwargs)
-
-        # offsetx, offsety, _ = self.centroid_axis_callable([0])
-        # offset = np.arctan2(offsety, offsetx) + np.pi
-
-        # def f0(a, target):
-        #     a = a % (2 * np.pi)
-        #     x, y, z = self.centroid_axis_callable(a)
-        #     zeta = np.arctan2(y, x) + np.pi
-        #     return zeta - target
-        # def f1(a, target):
-        #     a = a % (2 * np.pi)
-        #     x, y, z = self.centroid_axis_callable(a)
-        #     dx_da, dy_da, dz_da = self.centroid_axis_derivative_callable(a)
-        #     return (1/(1+(y/x)**2) * ((dy_da/x) - (y/x**2)*dx_da))
-        # a_star = []
-        # for target in np.linspace(0, 2*np.pi, 21, endpoint = False):
-        #     a_star.append(fsolve(
-        #         func = f0, 
-        #         x0 = (target - offset) % (2 * np.pi),
-        #         fprime = f1,
-        #         args = target
-        #     ))
-        # a_star = np.array(a_star).flatten() % (2 * np.pi)
-        # print(a_star)
-        # # a_star = np.linspace(0, 2*np.pi, 16)
-        # x_solved, y_solved, z_solved = self.centroid_axis_callable(a_star)
-        # ax.plot(x_solved, y_solved, z_solved, 'b.')        
+     
         ax._axis3don = False
-        #plt.show()
 
     def surf_callable(
             self, 
@@ -916,8 +903,6 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
         control_points_jim = np.array(point_list)            
         w_list_jim = np.array(w_list)
         
-        #print(f'control_points_ijm.shape: {control_points_ijm.shape}')
-
         n_u = control_points_jim.shape[1] - 1
         n_v = control_points_jim.shape[0] - 1
 
@@ -946,17 +931,12 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
         #assert(len(knots_v)==n_knots_v), f"len(knots_v) = {len(knots_v)}"
         assert np.isclose(knots_v[p_v],0), f"knots_v[p_v] = {knots_v[p_v]}"
         assert np.isclose(knots_v[n_v + p_v + 1], 2*np.pi), f"knots_v[n_v - p_v + 1] = {knots_v[n_v + p_v + 1]}"
-        #v = np.linspace(knots_v[p_v], knots_v[n_v - p_v + 1], nv_sample, endpoint = True) # TODO: change this part to work for one 1fp only
         v_basis = b_p(knots_v, p_v, v)
 
         if basis == "Cartesian":
-            #x_surf = np.zeros_like(v_basis[:, 0])
-            #y_surf = np.zeros_like(v_basis[:, 0])
-            #z_surf = np.zeros_like(v_basis[:, 0])
-
             trimmed_ctrl_pts_jim = control_points_jim[:n_v+p_v+1, :n_u+p_u+1, :]
             trimmed_weights_ji = w_list_jim[:n_v+p_v+1, :n_u+p_u+1]
-            # note that u_basis, v_basis have already been evluated on a grid that is the 
+            # note that u_basis, v_basis have already been evaluated on a grid that is the 
             # flattened tensor product of u, v
             tp_basis = np.einsum('xj,xi->xji', v_basis, u_basis)
             w_tp_basis = np.einsum('xji,ji->xji',tp_basis, trimmed_weights_ji)
@@ -968,11 +948,6 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
             y_surf = surf[:, 1]
             z_surf = surf[:, 2]
 
-            # for i in range(n_u+p_u+1):
-            #     for j in range(n_v+p_v+1):
-            #         x_surf += control_points_jim[j, i, 0] * v_basis[:, j] * u_basis[:, i]
-            #         y_surf += control_points_jim[j, i, 1] * v_basis[:, j] * u_basis[:, i]
-            #         z_surf += control_points_jim[j, i, 2] * v_basis[:, j] * u_basis[:, i]
             return x_surf, y_surf, z_surf
         
         elif basis == "Cylindrical":
@@ -1069,7 +1044,6 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
             a,
         ):
         xyz_list = self.get_xyz_centroids()
-        #print(f'centroids: {np.array(xyz_list).shape}')
         p_a = self.p_v
 
         centroids_im = np.array(xyz_list)
@@ -1320,22 +1294,32 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
             ax=None,
             _fsolve=False,
         ):
-        '''
-        Return R, Z values computed on a (theta_a, zeta) grid, where theta_a is the poloidal angle demarking
-        unit arc length on the curve, and zeta is the toroidal polar angle. First evaluates the R, Z
-        values on a uniform (u,v) grid, then interpolates to obtain R, Z on a (theta_p, zeta) grid, where
-        theta_p is the polar angle about the centroid in a plane of constant zeta. The points are mirrored to 
-        make sure that the collocation points themselves are stellarator symmetric. Finally, another interpolation
-        to finally evaluate R, Z on a (theta_a, zeta) grid is performed. 
+        r"""
+        Return R, Z values computed on a (theta_a, zeta) grid,
+        where theta_a is the poloidal angle demarking unit arc
+        length on the curve, and zeta is the toroidal polar
+        angle. First evaluates the R, Z values on a uniform
+        (u,v) grid, then interpolates to obtain R, Z on a
+        (theta_p, zeta) grid, where theta_p is the polar angle
+        about the centroid in a plane of constant zeta. The
+        points are mirrored to make sure that the collocation
+        points themselves are stellarator symmetric. Finally,
+        another interpolation is performed to evaluate R, Z on
+        a (theta_a, zeta) grid.
 
         Args:
-            nu,nv: The shape of the outputted array is (nu, nv)
-            nu_interp,nv_interp: The (u, v) grid is generated with the shape (nu_interp, nv_interp)
-            nu_intermediate, nv_intermediate: The intermediate grid with polar theta_p has the shape (nu_eq, 2*nv_eq + 1). 
-            note that nv_intermediate is the number of points in a half-field period
-            plot: Boolean to turn on plotting of the points making up the equal arclength grid
-        '''
-
+            nu,nv: The shape of the outputted array is
+            (nu, nv)
+            nu_interp,nv_interp: The (u, v) grid is generated
+            with the shape (nu_interp, nv_interp)
+            nu_intermediate, nv_intermediate: The intermediate
+            grid with polar theta_p has the shape
+            (nu_eq, 2*nv_eq + 1).
+            Note that nv_intermediate is the number of points
+            in a half-field period
+            plot: Boolean to turn on plotting of the points
+            making up the equal arclength grid
+        """
         # Creating grid to interpolate u and v on 
 
         u = np.linspace(0, 2*np.pi, nu_interp, endpoint = True)
@@ -1346,15 +1330,6 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
         x_surf = x_surf.reshape(nu_interp, nv_interp)
         y_surf = y_surf.reshape(nu_interp, nv_interp)
         z_surf = z_surf.reshape(nu_interp, nv_interp)
-
-        # if plot:
-        #     fig3d, ax = plt.subplots(subplot_kw={"projection": "3d"})
-        #     ax.plot_surface(x_surf, y_surf, z_surf)
-        #     ax.set_box_aspect((1, 1, 1))
-        #     ax.set_ylim(-1, 1)
-        #     ax.set_xlim(-1, 1)
-        #     ax.set_zlim(-1, 1)
-        #     plt.show()
 
         zeta_surf= np.arctan2(y_surf, x_surf) % (2*np.pi)
         R_surf = np.sqrt(x_surf**2 + y_surf**2)
@@ -1378,73 +1353,8 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
             values=z_surf.flatten(),
         )
 
-        # if plot:
-        #     numCols = 5
-        #     numRows = 2
-        #     plotNum = 1
-        #     nzeta_cs = 9
-        #     zeta_cs = np.linspace(0, 2*np.pi/self.nfp,num=nzeta_cs,endpoint=True)
-        #     theta_cs_eval = np.linspace(0, 2*np.pi, 64)
-
-        #     fig = plt.figure("Poincare Plots",figsize=(14,7))
-        #     fig.patch.set_facecolor('white')
-        #     plt.subplot(numRows,numCols,plotNum)
-
-        #     plotNum += 1
-        #     for ind in range(nzeta_cs):
-        #         if zeta_cs[ind] >= np.pi/self.nfp:
-        #             plt.subplot(numRows,numCols,ind+1)
-        #             plt.title(r'$\phi =$' + str(zeta_cs[ind]))
-        #             plt.gca().set_aspect('equal',adjustable='box')
-        #             plt.plot()
-        #             point = np.vstack((theta_cs_eval, zeta_cs[ind]*np.ones_like(theta_cs_eval))).T
-        #             R_cs = R_uz_callable(point)
-        #             z_cs = z_uz_callable(point)
-        #             plt.plot(R_cs, z_cs, 'r--')
-        #             plt.gca().set_aspect('equal',adjustable='box')
-        #             plt.xlabel('R')
-        #             plt.ylabel('Z')
-        #         else:
-        #             plt.subplot(numRows,numCols,ind+1)
-        #             plt.title(r'$\phi =$' + str(zeta_cs[ind]))
-        #             plt.gca().set_aspect('equal',adjustable='box')
-        #             plt.plot()
-        #             point = np.vstack((theta_cs_eval, (zeta_cs[ind]+np.pi/self.nfp)*np.ones_like(theta_cs_eval))).T
-        #             R_cs = R_uz_callable(point)
-        #             z_cs = -z_uz_callable(point)
-        #             plt.plot(R_cs, z_cs, 'r--')
-        #             plt.gca().set_aspect('equal',adjustable='box')
-        #             plt.xlabel('R')
-        #             plt.ylabel('Z')
-        #     plt.show()
-
         R_on_uz_grid = R_uz_callable(eval_grid.T).reshape(nu_uz, nv_uz)
         z_on_uz_grid = z_uz_callable(eval_grid.T).reshape(nu_uz, nv_uz)
-
-        # if plot:
-        #     x_on_uz_grid = R_on_uz_grid * np.cos(zeta_eval)
-        #     y_on_uz_grid = R_on_uz_grid * np.sin(zeta_eval)
-        #     z_on_uz_grid = z_on_uz_grid
-        #     #for theta, i in enumerate(ulist):
-
-        #     # x_0 = R_0 * np.cos(zeta_1d_halfgrid)
-        #     # y_0 = R_0 * np.sin(zeta_1d_halfgrid)
-        #     fig3d, ax = plt.subplots(subplot_kw={"projection": "3d"})
-
-        #     # zeta_axis = zeta_1d_halfgrid
-        #     # axis = axis_zeta_callable(zeta_axis)
-        #     # R_c, z_c = axis[:, 0], axis[:, 1]
-        #     # x_c = R_c * np.cos(zeta_axis)
-        #     # y_c = R_c * np.sin(zeta_axis)
-
-        #     ax.scatter(x_on_uz_grid, y_on_uz_grid, z_on_uz_grid)
-        #     # ax.plot(x_0, y_0, z_0, 'r.')
-        #     # ax.plot(x_c, y_c, z_c)
-        #     ax.set_box_aspect((1, 1, 1))
-        #     ax.set_ylim(-1, 1)
-        #     ax.set_xlim(-1, 1)
-        #     ax.set_zlim(-1, 1)
-        #     plt.show()
 
         # obtaining centroid axis as a function of zeta
         x_axis, y_axis, z_axis = self.centroid_axis_callable(np.linspace(0, 2*np.pi, nv_uz, endpoint=False))
@@ -1466,10 +1376,6 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
         axis_on_uz_grid = axis_zeta_callable(zeta_eval)
         R_axis_on_uz_grid = axis_on_uz_grid[:, :, 0].reshape(nu_uz, nv_uz)
         z_axis_on_uz_grid = axis_on_uz_grid[:, :, 1].reshape(nu_uz, nv_uz)
-
-        # print(f'z_axis_on_uz_grid: {z_axis_on_uz_grid.shape}')
-        # print(f'z_on_uz_grid: {z_on_uz_grid.shape}')
-
 
         def check_r_lt_raxis(x, zeta):
             xstar = np.array([x, zeta])
@@ -1495,14 +1401,6 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
                 a = u_eval[np.roll(switch_indices, -1)]
                 b = u_eval[np.roll(switch_indices, 0)]
 
-            # # Sometimes, especially for tokamak cases, the z-axis will be very close 
-            # # to the theta=0 point and due to error due to interpolation 
-            # # for R(theta) and Z(theta), the sign would flip 
-            # # erroneously. The following handles that issue. 
-            
-            # if len(a)>2:
-            #     a=[point for point in a if not (np.isclose(point, 0) or np.isclose(point, 2*np.pi))]
-
             def f(x, zeta):
                 xstar = np.array([x, zeta])
                 _z = z_uz_callable(xstar)
@@ -1511,12 +1409,8 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
             nfails = 0
             nsucc = 0
             nattempts = 0
-            # print(zeta)
-            # print(a)
-            # print(f'zs: {zs}')
-            for k, _ in enumerate(a):
 
-                # print(f'len(a): {len(a)}')
+            for k, _ in enumerate(a):
                 u_theta0, r = bisect(
                     f,
                     a = a[k],
@@ -1524,34 +1418,21 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
                     args = zeta,
                     full_output=True
                 )
-                # print(f'nfails: {nfails}')
-                # if not r.converged:
-                #     print(f'failed to converge. surf.x = {self.x}')
+
                 if (r.converged) and check_r_lt_raxis(u_theta0, zeta):
-                    # ulist.append(a[k])
                     ulist.append(u_theta0)
                     nsucc+=1
                     nattempts+=1
-                    # print('Appended converged point')
                     break
                 else:
                     nfails+=1
                     nattempts+=1
-                    # print(nfails)
-                    # xstar = np.array([u_theta0, zeta])
-                    # _R = R_uz_callable(xstar)
-                    # R_axis, z_axis = axis_zeta_callable(zeta)
-                    # print(f'R_axis: {R_axis}')
-                    # print(f'_R: {_R}')
+
             if nfails == len(a):
-                # print(f'failed. Appending startpoint')
                 u_feasible = u_eval[(R_on_uz_grid - R_axis_on_uz_grid)[:, i]>0]
                 zs_feasible = zs[(R_on_uz_grid - R_axis_on_uz_grid)[:, i]>0]
                 ulist.append(u_feasible[np.argmin(zs_feasible)])
-                # nfails+=1
-                # print(f'nfails: {nfails}')
-                # if nfails == nattempts: 
-                #     ulist.append(a[k])
+
             assert nsucc+nfails == nattempts
         ulist = np.array(ulist).flatten()
         # print(ulist)
@@ -1607,69 +1488,7 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
 
         R_on_az_grid = R_az_callable(eval_grid.T).reshape(nu_final, nv_final+1)
         z_on_az_grid = z_az_callable(eval_grid.T).reshape(nu_final, nv_final+1)
-        
-        # if plot:
-        #     numCols = 5
-        #     numRows = 2
-        #     plotNum = 1
-        #     nzeta_cs = 9
-        #     zeta_cs = np.linspace(0, 2*np.pi/self.nfp,num=nzeta_cs,endpoint=True)
-        #     theta_cs_eval = np.linspace(0, 2*np.pi, 64)
-
-        #     fig = plt.figure("Poincare Plots",figsize=(14,7))
-        #     fig.patch.set_facecolor('white')
-        #     plt.subplot(numRows,numCols,plotNum)
-
-        #     plotNum += 1
-        #     for ind in range(nzeta_cs):
-        #         if zeta_cs[ind] >= np.pi/self.nfp:
-        #             plt.subplot(numRows,numCols,ind+1)
-        #             plt.title(r'$\phi =$' + str(zeta_cs[ind]))
-        #             plt.gca().set_aspect('equal',adjustable='box')
-        #             plt.plot()
-        #             point = np.vstack((theta_cs_eval, zeta_cs[ind]*np.ones_like(theta_cs_eval))).T
-        #             R_cs = R_az_callable(point)
-        #             z_cs = z_az_callable(point)
-        #             plt.plot(R_cs, z_cs, 'r--')
-        #             plt.gca().set_aspect('equal',adjustable='box')
-        #             plt.xlabel('R')
-        #             plt.ylabel('Z')
-        #         else:
-        #             plt.subplot(numRows,numCols,ind+1)
-        #             plt.title(r'$\phi =$' + str(zeta_cs[ind]))
-        #             plt.gca().set_aspect('equal',adjustable='box')
-        #             plt.plot()
-        #             point = np.vstack((theta_cs_eval, (np.pi-zeta_cs[ind])*np.ones_like(theta_cs_eval))).T
-        #             R_cs = R_az_callable(point)[::-1]
-        #             z_cs = -z_az_callable(point)[::-1]
-        #             plt.plot(R_cs, z_cs, 'r--')
-        #             plt.gca().set_aspect('equal',adjustable='box')
-        #             plt.xlabel('R')
-        #             plt.ylabel('Z')
-
-        # if plot:
-        #     x_on_az_grid = R_on_az_grid * np.cos(zeta_ffeval)
-        #     y_on_az_grid = R_on_az_grid * np.sin(zeta_ffeval)
-        #     z_on_az_grid = z_on_az_grid
-        #     #for theta, i in enumerate(ulist):
-
-        #     x_0 = R_0 * np.cos(zeta_1d_halfgrid)
-        #     y_0 = R_0 * np.sin(zeta_1d_halfgrid)
-
-        #     zeta_axis = zeta_1d_halfgrid
-        #     axis = axis_zeta_callable(zeta_axis)
-        #     R_c, z_c = axis[:, 0], axis[:, 1]
-        #     x_c = R_c * np.cos(zeta_axis)
-        #     y_c = R_c * np.sin(zeta_axis)
-
-        #     ax.scatter(x_on_az_grid, y_on_az_grid, z_on_az_grid)
-        #     ax.plot(x_0, y_0, z_0, 'r.')
-        #     ax.plot(x_c, y_c, z_c)
-        #     ax.set_box_aspect((1, 1, 1))
-        #     ax.set_ylim(-1, 1)
-        #     ax.set_xlim(-1, 1)
-        #     ax.set_zlim(-1, 1)
-        
+               
         R_flipped = np.roll(R_on_az_grid[::-1, -1:0:-1], 1, axis=0)
         z_flipped = np.roll(-z_on_az_grid[::-1, -1:0:-1], 1, axis = 0)
         R_1fp = np.concatenate([R_flipped, R_on_az_grid[:, :-1]], axis = 1)
@@ -1721,7 +1540,10 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
             'cutoff':1e-6
             }
         ):
-        
+        r"""
+        Performs Fourier transform from spline surface to Fourier
+        coefficients for a VMEC surface. 
+        """
         assert(nv%2==0), 'nv must be even'
 
         if np.any(R==None) or np.any(z==None) or np.any(zeta==None) or np.any(theta==None):
@@ -2196,6 +2018,7 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
         return rbc_f, zbs_f 
 
     def write_inequality_constraints(self, maxval=np.inf):
+        raise NotImplementedError
         '''
         Return a tuple containing lb, ub, A, for inequality constraints
         '''
@@ -2344,10 +2167,9 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
         return A, lb, ub, constraint_titles
 
     def write_ub_constraints(self):
+        raise NotImplementedError
         '''
         Writing constraints in the form Ax <= b_ub
-        '''
-        '''
         Return a tuple containing lb, ub, A, for inequality constraints
         '''
         dofs = self.dof_names
@@ -2511,7 +2333,8 @@ def vmec_from_surf(
         niter=3000
     ):
     '''
-    Generate VMEC input file given a dictionary with boundary modes
+    Generate VMEC object from any optimizable object with a
+    `to_RZFourier` method. 
     '''
     # runtime params
     vmec = Vmec(mpi = mpi, verbose=verbose)
@@ -2793,7 +2616,10 @@ def any_to_arclength_grid(
         nv_uz=64,
         plot=False,
     ):
-
+    """
+    Given a set of input rbc, zbs, compute points on uniform
+    arclength grid with resolution `(nu,nv)`
+    """
     u_1d = np.linspace(0, 2*np.pi, nu_uz, endpoint=True)
     zeta_1d = np.linspace(0, 2*np.pi, nv_uz, endpoint=True)        
     zeta_grid, u_grid = np.meshgrid(zeta_1d, u_1d)
