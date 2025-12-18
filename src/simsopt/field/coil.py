@@ -1,14 +1,19 @@
 from math import pi
 import numpy as np
+from jax import vjp, jacrev
 
 from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve
+from simsopt.geo.jit import jit
+from .force import coil_currents_barebones
 import simsoptpp as sopp
 
 
-__all__ = ['Coil', 'Current', 'coils_via_symmetries', 'load_coils_from_makegrid_file',
+__all__ = ['Coil', 'JaxCurrent', 'PSCArray',
+           'Current', 'coils_via_symmetries',
+           'load_coils_from_makegrid_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
            'coils_to_makegrid', 'coils_to_focus'
            ]
@@ -100,6 +105,151 @@ class Current(sopp.Current, CurrentBase):
         return self.get_value()
 
 
+class PSCArray():
+    """
+    A class that represents an array of passive superconducting 
+    coils (PSCs). PSCs have quite a complicated structure, so custom
+    derivative terms are needed, that depend on all the coils
+    and currents in the PSCs and the TFs.
+    """
+
+    def __init__(self, base_psc_curves, coils_TF, eval_points, a_list, b_list, nfp=1,
+                 stellsym=False, downsample=1, cross_section='circular'):
+        from .biotsavart import BiotSavart
+        self.base_psc_curves = base_psc_curves  # not the symmetrized ones
+        self.nfp = nfp
+        self.stellsym = stellsym
+
+        # Get the symmetrized curves
+        psc_curves = apply_symmetries_to_curves(base_psc_curves, nfp, stellsym)
+
+        self.coils_TF = coils_TF
+        ncoils = len(psc_curves)
+        self.biot_savart_TF = BiotSavart(coils_TF)
+
+        # eval_points is assumed to be where you want to evaluate the Bfield during optimization
+        # e.g. on the surface of the plasma. This needs to be saved since the TF Bfield
+        # gets evaluated on the PSC curves during the calculations.
+        self.eval_points = eval_points
+        self.a_list = a_list[0] * np.ones(ncoils)
+        self.b_list = b_list[0] * np.ones(ncoils)
+        self.downsample = downsample
+        self.cross_section = cross_section
+
+        # Uses jacrev since # of inputs >> # of outputs
+        args = {"static_argnums": (5,)}
+        self.I_jax = jit(
+            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample:
+            coil_currents_barebones(gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, self.a_list, self.b_list, downsample, cross_section),
+            **args
+        )
+        self.dI_dgammas_vjp = jit(
+            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v:
+            vjp(self.I_jax, gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)[1](v)[0],
+            **args
+        )
+        self.dI_dgammadashs_vjp = jit(
+            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v:
+            vjp(self.I_jax, gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)[1](v)[1],
+            **args
+        )
+        self.dI_dgammasTF_vjp = jit(
+            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v:
+            vjp(self.I_jax, gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)[1](v)[2],
+            **args
+        )
+        self.dI_dgammadashsTF_vjp = jit(
+            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v:
+            vjp(self.I_jax, gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)[1](v)[3],
+            **args
+        )
+        self.dI_dcurrentsTF_vjp = jit(
+            lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample, v:
+            vjp(self.I_jax, gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)[1](v)[4],
+            **args
+        )
+
+        gammas = np.array([c.gamma() for c in psc_curves])
+        gammadashs = np.array([c.gammadash() for c in psc_curves])
+        gammas_TF = np.array([c.curve.gamma() for c in self.coils_TF])
+        gammadashs_TF = np.array([c.curve.gammadash() for c in self.coils_TF])
+        currents_TF = np.array([c.current.get_value() for c in self.coils_TF])
+        args = [
+            gammas,
+            gammadashs,
+            gammas_TF,
+            gammadashs_TF,
+            currents_TF,
+            self.downsample
+        ]
+        currents = self.I_jax(*args)
+
+        psc_currents = [Current(currents[i] * 1e-6) * 1e6 for i in range(ncoils)]
+        self.base_psc_currents = psc_currents[:ncoils // (int(stellsym) + 1) // nfp]
+        [c.fix_all() for c in self.base_psc_currents]  # Fix all the current dofs which are fake anyways
+        self.coils = coils_via_symmetries(self.base_psc_curves, self.base_psc_currents, nfp, stellsym)
+        self.psc_curves = [c.curve for c in self.coils]
+        self.biot_savart = BiotSavart(self.coils, self)
+        self.biot_savart_total = self.biot_savart + self.biot_savart_TF
+        self.biot_savart_total.set_points(self.eval_points)
+        # Optimizable.__init__(self, depends_on=[self.coils, self.coils_TF])
+
+    def vjp_setup(self, v_currents):
+        gammas = np.array([c.gamma() for c in self.psc_curves])
+        gammadashs = np.array([c.gammadash() for c in self.psc_curves])
+        gammas_TF = np.array([c.curve.gamma() for c in self.coils_TF])
+        gammadashs_TF = np.array([c.curve.gammadash() for c in self.coils_TF])
+        currents_TF = np.array([c.current.get_value() for c in self.coils_TF])
+        args = [
+            gammas,
+            gammadashs,
+            gammas_TF,
+            gammadashs_TF,
+            currents_TF,
+            self.downsample
+        ]
+        dJ_dgammas = self.dI_dgammas_vjp(*args, v_currents)
+        dJ_dgammadashs = self.dI_dgammadashs_vjp(*args, v_currents)
+        dJ_dgammas2 = self.dI_dgammasTF_vjp(*args, v_currents)
+        dJ_dgammadashs2 = self.dI_dgammadashsTF_vjp(*args, v_currents)
+        dJ_dcurrents2 = self.dI_dcurrentsTF_vjp(*args, v_currents)
+        vjp_psc = [c.dgamma_by_dcoeff_vjp(dJ_dgammas[i]) + c.dgammadash_by_dcoeff_vjp(dJ_dgammadashs[i]) for i, c in enumerate(self.psc_curves)]
+        vjp_TF = [c.vjp(dJ_dgammas2[i], dJ_dgammadashs2[i], dJ_dcurrents2[i]) for i, c in enumerate(self.coils_TF)]
+
+        # Appears essential to reset the children of the coils, curves and currents
+        # to avoid the optimizable graph growing extremely large when # of coils > 10 or so
+        # for c in (self.coils + self.coils_TF):
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
+        return sum(vjp_psc + vjp_TF)
+
+    def recompute_currents(self):
+        gammas = np.array([c.gamma() for c in self.psc_curves])
+        gammadashs = np.array([c.gammadash() for c in self.psc_curves])
+        gammas_TF = np.array([c.curve.gamma() for c in self.coils_TF])
+        gammadashs_TF = np.array([c.curve.gammadash() for c in self.coils_TF])
+        currents_TF = np.array([c.current.get_value() for c in self.coils_TF])
+        args = [
+            gammas,
+            gammadashs,
+            gammas_TF,
+            gammadashs_TF,
+            currents_TF,
+            self.downsample
+        ]
+        currents = self.I_jax(*args)
+        for i, c in enumerate(self.coils):
+            c.current.set_dofs(currents[i])
+
+        # Appears essential to reset the children of the coils, curves and currents
+        # to avoid the optimizable graph growing extremely large when # of coils > 10 or so
+        # for c in (self.coils + self.coils_TF):
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
+
+
 class ScaledCurrent(sopp.CurrentBase, CurrentBase):
     """
     Scales :mod:`Current` by a factor. To be used for example to flip currents
@@ -117,6 +267,45 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
 
     def get_value(self):
         return self.scale * self.current_to_scale.get_value()
+
+    def set_dofs(self, dofs):
+        self.current_to_scale.set_dofs(dofs / self.scale)
+
+
+def current_pure(dofs):
+    return dofs
+
+
+class JaxCurrent(sopp.Current, CurrentBase):
+    def __init__(self, current, dofs=None, **kwargs):
+        sopp.Current.__init__(self, current)
+        if dofs is None:
+            CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
+                                 x0=self.get_dofs(), **kwargs)
+        else:
+            CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
+                                 dofs=dofs, **kwargs)
+
+        self.current_pure = current_pure
+        self.current_jax = jit(lambda dofs: self.current_pure(dofs))
+        self.dcurrent_by_dcurrent_jax = jit(jacrev(self.current_jax))
+        self.dcurrent_by_dcurrent_vjp_jax = jit(lambda x, v: vjp(self.current_jax, x)[1](v)[0])
+
+    def current_impl(self, dofs):
+        return self.current_jax(dofs)
+
+    def vjp(self, v):
+        r"""
+        """
+        return Derivative({self: self.dcurrent_by_dcurrent_vjp_jax(self.get_dofs(), v)})
+
+    def set_dofs(self, dofs):
+        self.local_x = dofs
+        sopp.Current.set_dofs(self, dofs)
+
+    @property
+    def current(self):
+        return self.get_value()
 
 
 class CurrentSum(sopp.CurrentBase, CurrentBase):
