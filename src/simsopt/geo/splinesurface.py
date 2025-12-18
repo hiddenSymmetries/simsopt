@@ -37,10 +37,14 @@ class CrossSectionFixedZetaCartesian(Optimizable):
         cs_dofs=None,
         n_ctrl_pts=6,
         z_sym=False,
+        nurbs=False
     ):
         self.zeta_index = zeta_index
         self.n_ctrl_pts = n_ctrl_pts
         self.z_sym = z_sym
+
+        if nurbs:
+            raise NotImplementedError('need to implement nurbs for cartesian cross sections')
 
         assert n_ctrl_pts%2 == 0, 'an even number of control vectors must be supplied for the cartesian cross section'
 
@@ -139,13 +143,27 @@ class CrossSectionFixedZetaCartesian(Optimizable):
             )
 
 class CrossSectionFixedZeta(Optimizable):
-    '''
-    Class for toroidal cross section, using local polar coordinates to describe control points. 
-    '''
+    r"""
+    Class for toroidal control point cross section, using local polar
+    coordinates to describe control points. 
+
+    Initializes to a polygon of control points, approximating a 
+    circle. 
+    
+    Args:
+        zeta_index: index of the cross-section as tracked by the 
+        parent `PseudoAxisSurface`
+        n_ctrl_pts: number of control points per cross-section
+        (includes endpoints for z-symmetric cross sections)
+        z_sym: whether the cross section is up-down symmetric
+        equispaced: whether to fix the polar angle degrees of
+        freedom of the control vectors
+        default_r: default radius
+        nurbs: whether or not to use nurbs
+    """
     def __init__(
         self,
         zeta_index,
-        cs_dofs=None,
         n_ctrl_pts=7,
         z_sym=False,
         equispaced=False,
@@ -158,39 +176,31 @@ class CrossSectionFixedZeta(Optimizable):
         if z_sym:
             n_pts = (n_ctrl_pts // 2) + 1
             max_angle = np.pi
-            if np.any(cs_dofs==None):
-                # default behaviour: circular 
-                r_ctrl = default_r*np.ones(n_pts)
-                theta_ctrl = np.arange(0, n_pts, 1) * 2*np.pi/n_ctrl_pts
-                # np.linspace(0, max_angle, n_pts+1)[:-1]
-                w_ctrl = 0.5*np.ones(n_pts)
-                cs_dofs = np.concatenate([r_ctrl, theta_ctrl, w_ctrl])
-            else:
-                r_ctrl = cs_dofs[:n_pts]
-                theta_ctrl = cs_dofs[n_pts:2*n_pts]
-                w_ctrl = cs_dofs[2*n_pts:]
+            # default behaviour: circular 
+            r_ctrl = default_r*np.ones(n_pts)
+            theta_ctrl = np.arange(0, n_pts, 1) * 2*np.pi/n_ctrl_pts
+            w_ctrl = 0.5*np.ones(n_pts)
+            cs_dofs = np.concatenate([r_ctrl, theta_ctrl, w_ctrl])
+
             assert len(cs_dofs) == 3*((n_ctrl_pts // 2) + 1)
             if not n_ctrl_pts % 2:
                 assert theta_ctrl[-1] == np.pi, f'theta_ctrl: {theta_ctrl}'
         else:
             n_pts = n_ctrl_pts
             max_angle = 2*np.pi
-            if np.any(cs_dofs==None):
-                # default behaviour: circular 
-                r_ctrl = default_r*np.ones(n_pts)
-                theta_ctrl=np.linspace(0, max_angle, n_pts+1)[:-1]# + 0.5*np.linspace(0, max_angle, n_pts+1)[1]
-                w_ctrl = 0.5*np.ones(n_pts)
-                cs_dofs = np.concatenate([r_ctrl, theta_ctrl, w_ctrl])
-            else:
-                r_ctrl = cs_dofs[:n_pts]
-                theta_ctrl = cs_dofs[n_pts:2*n_pts]
-                w_ctrl = cs_dofs[2*n_pts:]
+            # default behaviour: circular 
+            r_ctrl = default_r*np.ones(n_pts)
+            theta_ctrl=np.linspace(0, max_angle, n_pts+1)[:-1]
+            w_ctrl = 0.5*np.ones(n_pts)
+            cs_dofs = np.concatenate([r_ctrl, theta_ctrl, w_ctrl])
+
             assert len(cs_dofs) == 3*n_ctrl_pts
 
         self.r_ctrl = cs_dofs[:n_pts]
         self.theta_ctrl = cs_dofs[n_pts:2*n_pts:]
         self.w_ctrl = cs_dofs[2*n_pts:]
         self.n_pts = n_pts
+        self.nurbs = nurbs
 
         # naming dofs
         names = self._name_dofs(n_pts)
@@ -278,30 +288,38 @@ class CrossSectionFixedZeta(Optimizable):
         if self.z_sym:
             return self
         else:
-            #r_ctrl_flipped = np.insert(self.r_ctrl[:0:-1], 0, self.r_ctrl[0])
             r_flipped = np.insert(self.r_ctrl[:0:-1], 0, self.r_ctrl[0])
-            ws_flipped = np.insert(self.w_ctrl[:0:-1], 0, self.w_ctrl[0])
+            ws_flipped = self.w_ctrl[:0:-1]
             theta_flipped = 2*np.pi - np.insert(self.theta_ctrl[:0:-1], 0, self.theta_ctrl[0])
-            # print(r_flipped)
-            # print(theta_flipped)
-            dofs_flipped = np.concatenate((r_flipped, theta_flipped, ws_flipped))
-            return CrossSectionFixedZeta(
+            if self.nurbs:
+                dofs_flipped = np.concatenate((r_flipped, theta_flipped, ws_flipped))
+            else:
+                dofs_flipped = np.concatenate((r_flipped, theta_flipped))
+            print(f'flipped dofs: {dofs_flipped}')
+            flipped_cs = CrossSectionFixedZeta(
                 zeta_index=self.zeta_index,
-                cs_dofs=dofs_flipped,
                 n_ctrl_pts=self.n_ctrl_pts,
-                z_sym=False
+                z_sym=False,
+                nurbs=self.nurbs
             )
+            flipped_cs.x = dofs_flipped
+            return flipped_cs
 
 class PseudoAxis(Optimizable):
-    '''
-    Class for a pseudo axis around which to build a spline surface. The number of 
-    dofs includes BOTH endpoints, and if DOFs are supplied for a non-stellarator-symmetric,
-    axis, the endpoints must be identical. 
-    dofs: list of dofs in the following order: `[0r, 0z, 0zeta, 1r, 1z, 1zeta...]`
-    '''
+    r"""
+    Class for a pseudo-axis around which to build a spline surface.
+    The number of dofs includes BOTH endpoints. Control points are 
+    vectors described in cylindrical coordinates. 
+
+    Args:
+        n_ctrl_pts: number of control points
+        nfp: number of field periods
+        stellsym: whether axis is stellarator symmetric
+        axis_angles_fixed: whether to freeze dofs for polar
+        angle of control points. 
+    """
     def __init__(
         self, 
-        axisdofs=None,
         n_ctrl_pts=2,
         nfp=2,
         stellsym=True,
@@ -316,25 +334,11 @@ class PseudoAxis(Optimizable):
         else:
             max_angle=np.pi/nfp
         
-        if np.any(axisdofs==None):
-            # default behaviour: circular axis
-            r_ctrl = np.ones(n_ctrl_pts)
-            z_ctrl = np.zeros(n_ctrl_pts)
-            zeta_ctrl = np.linspace(0, max_angle, n_ctrl_pts)       
-            axisdofs = np.concatenate([r_ctrl, z_ctrl, zeta_ctrl])
-        else:
-            #assert len(dofs) == 3*(n_ctrl_pts-2)
-            r_ctrl, z_ctrl, zeta_ctrl = axisdofs[:n_ctrl_pts], axisdofs[n_ctrl_pts:2*n_ctrl_pts], axisdofs[2*n_ctrl_pts:]
-            assert len(r_ctrl) == n_ctrl_pts
-            assert len(z_ctrl) == n_ctrl_pts
-            assert len(zeta_ctrl) == n_ctrl_pts
-
-            assert min(zeta_ctrl) == 0.0
-            assert max(zeta_ctrl) <= max_angle
-            if not stellsym:    
-                assert max(zeta_ctrl) == 2*np.pi/nfp
-                assert r_ctrl[0] == r_ctrl[-1]
-                assert z_ctrl[0] == z_ctrl[-1]
+        # default behaviour: circular axis
+        r_ctrl = np.ones(n_ctrl_pts)
+        z_ctrl = np.zeros(n_ctrl_pts)
+        zeta_ctrl = np.linspace(0, max_angle, n_ctrl_pts)       
+        axisdofs = np.concatenate([r_ctrl, z_ctrl, zeta_ctrl])
 
         self.r_ctrl = axisdofs[:n_ctrl_pts]
         self.z_ctrl = axisdofs[n_ctrl_pts:2*n_ctrl_pts]
@@ -389,16 +393,7 @@ class PseudoAxis(Optimizable):
                 x=zeta_ctrl,
                 y=z_ctrl
             )
-            # R = interp1d(
-            #     x = zeta_ctrl,
-            #     y = r_ctrl,
-            #     kind=method
-            # )
-            # z = interp1d(
-            #     x = zeta_ctrl,
-            #     y = z_ctrl, 
-            #     kind=method
-            # )
+
             zeta = zeta % (2*np.pi/self.nfp)
             return R(zeta), z(zeta)
 
@@ -508,9 +503,6 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
     """
     def __init__(
         self, 
-        pas_dofs=None,
-        axis_dofs=None,
-        cs_dofs=None, #TODO: Actually accomodate these as inputs
         axis_points=4, 
         points_per_cs=7,
         cs_equispaced=True,
@@ -550,22 +542,16 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
         self.cs_global_angle_free = cs_global_angle_free
         self.axis_points = axis_points
 
-        if np.any(pas_dofs == None):
-            # create equidistant points in zeta
-            cs_zeta = np.linspace(0, max_angle, n_cs)
-            # all angles zero
-            cs_angles = np.zeros(n_cs)
+        # create equidistant points in zeta
+        cs_zeta = np.linspace(0, max_angle, n_cs)
+        # all angles zero
+        cs_angles = np.zeros(n_cs)
 
-        else:
-            assert len(pas_dofs) == 2 * n_cs
-            cs_zeta = pas_dofs[:n_cs]
-            cs_angles = pas_dofs[n_cs:]
 
         self.cs_zeta = cs_zeta
         self.cs_angles = cs_angles
 
-        if cs_dofs == None:
-            cs_dofs = np.array([None] * n_cs)
+        cs_dofs = np.array([None] * n_cs)
 
         if stellsym & np.all(cs_dofs != None):
             assert len(cs_dofs[0]) == 2*((points_per_cs//2) + 1)
@@ -588,7 +574,6 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
         dofs.fix(f'cs_zeta{n_cs-1}')
 
         self.axis = PseudoAxis(
-                axisdofs=axis_dofs,
                 n_ctrl_pts=axis_points,
                 nfp=nfp,
                 stellsym=stellsym,
@@ -601,7 +586,6 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
             if cs_basis == 'polar':
                 cross_section = CrossSectionFixedZeta(
                     zeta_index=i,
-                    cs_dofs=cs_dofs[i],
                     n_ctrl_pts=points_per_cs,
                     equispaced=cs_equispaced,
                     default_r=default_r,
@@ -611,7 +595,6 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
             elif cs_basis == 'cartesian':
                 cross_section = CrossSectionFixedZetaCartesian(
                     zeta_index=i,
-                    cs_dofs=cs_dofs[i],
                     n_ctrl_pts=points_per_cs,
                     default_r=default_r,
                     z_sym=((i == 0) or (i == n_cs-1)),
