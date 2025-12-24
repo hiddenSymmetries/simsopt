@@ -124,10 +124,10 @@ ms = np.linspace(m_min, m_max, 10)
 
 # Give resonances, evaluate resonant orbits
 
-vpar_res = np.zeros((len(resonances), 1))
+vpar_res = np.zeros(len(resonances))
 stz_res = np.zeros((len(resonances), 3))
 for i in range(len(resonances)):
-    vpar_res[i, 0] = resonances[i, 3]
+    vpar_res[i] = resonances[i, 3]
     stz_res[i, :] = resonances[i, 0:3]
 
 gc_tys, gc_zeta_hits = trace_particles_boozer(
