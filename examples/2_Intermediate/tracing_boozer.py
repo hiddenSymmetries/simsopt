@@ -69,8 +69,7 @@ modB_inits = field.modB()
 Ekin = 100000*ONE_EV
 mass = PROTON_MASS
 vpar = np.sqrt(2*0.8*Ekin/mass)
-vpar_inits = np.zeros((nParticles, 1))
-vpar_inits[:, 0] = vpar
+vpar_inits = np.full(nParticles, vpar)
 mu_inits = (Ekin - mass*0.5*vpar**2)/modB_inits  # m vperp^2 /(2B)
 
 gc_tys, gc_zeta_hits = trace_particles_boozer(
@@ -107,8 +106,7 @@ stz_inits[:, 2] = np.zeros_like(s.flatten())
 Ekin = 1e3*ONE_EV
 mass = PROTON_MASS
 vpar = np.sqrt(2*Ekin/mass)
-vpar_inits = np.zeros((nParticles, 1))
-vpar_inits[:, 0] = -vpar
+vpar_inits = np.full(nParticles, -vpar)
 
 gc_tys, gc_zeta_hits = trace_particles_boozer(
     field, stz_inits, vpar_inits, tmax=1e-2, mass=mass, charge=ELEMENTARY_CHARGE,
