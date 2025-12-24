@@ -1379,7 +1379,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         ntor = self.ntor
         nfp = self.nfp
         minor_radius = self.minor_radius()
-        print("minor radius before condensation:", minor_radius)
+        if verbose:
+            print("minor radius before condensation:", minor_radius)
         original_x = self.local_full_x.copy()
 
         if n_theta is None:
