@@ -1387,6 +1387,9 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         if n_phi is None:
             n_phi = 3 * ntor + 1
 
+        # Avoid error about finding dphi when n_phi=1:
+        n_phi = max(n_phi, 2)
+
         method_is_lstsq = (method.lower() in ["trf", "lm", "dogleg"])
         if maxiter is None:
             if method_is_lstsq:
