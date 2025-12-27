@@ -12,6 +12,7 @@ import matplotlib. pyplot as plt
 from scipy.interpolate import griddata
 from scipy.optimize import fsolve, minimize_scalar, bisect
 from simsopt.util import MpiPartition
+import shapely
 
 import matplotlib
 matplotlib.use('QtAgg')
