@@ -10,18 +10,9 @@ import numpy as np
 from scipy.interpolate import CubicSpline, CloughTocher2DInterpolator, Akima1DInterpolator
 import matplotlib. pyplot as plt
 from scipy.interpolate import griddata
-from scipy.optimize import fsolve, minimize, golden, minimize_scalar, linprog, bisect, root_scalar  
+from scipy.optimize import fsolve, minimize_scalar, bisect
 from simsopt.util import MpiPartition
-import matplotlib as mpl
 
-# from .agTargets_6 import BoundarySim_PassArgs
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
-from simsopt import make_optimizable
-from mpi4py import MPI
-import time 
-import sys
-import fnmatch
 import matplotlib
 matplotlib.use('QtAgg')
 
@@ -483,7 +474,7 @@ class PseudoAxis(Optimizable):
         name_list = [f'{j}_axis_{i}' for j in ('r', 'z', 'zeta') for i in range(self.n_ctrl_pts)]
         return name_list
        
-class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
+class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
     r"""
     Class for a B-spline surface, as described in Ali et. al (manuscript
     in progress). The main benefits of this representation are
@@ -1751,9 +1742,9 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
         vmec.run()
 
         return surf
-
+    
     def variational_spec_cond(
-            self,
+            # self,
             rbc,
             zbs,
             M,
@@ -1767,7 +1758,7 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
             shapetol=None,
             niters=5000,
             verbose=False,
-            cutoff=1e-6
+            cutoff=1e-5
         ):
         '''
         Variational spectral condensation à la Hirshman, Meier 1985. 
@@ -1834,74 +1825,6 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
 
             return X*x_t + Y*y_t
 
-        def spec_cond_scipy(
-                rbc_in,
-                zbs_in,
-                ftol=1e-20, 
-                verbose = False    
-            ):
-            '''
-            Use scipy.optimize.minimize to solve the spectral condensation problem.
-            δx_mn are used fallaciously as the gradient and ∫I^2(t,z)dtdz ~ δM is used as the 
-            target function
-            '''
-            rbc = np.copy(rbc_in)
-            zbs = np.copy(zbs_in)
-            dtdz = ((2*np.pi)/(nzeta-1)) * ((2*np.pi)/(ntheta-1))
-            I = hw_I_callable(rbc, zbs)
-            integral_I2 = np.einsum('tz,tz',I**2,dtdz*np.ones_like(I))
-            niter = 0
-            if verbose:        
-                print(f'∫I^2(t,z)dtdz: {integral_I2}')
-                print(f'Initial M: {hwM_pq(rbc, zbs)}')
-
-            # scipy refactorization
-
-            rbc_flat = rbc.flatten()
-            zbs_flat = zbs.flatten()
-            xmn_flat = np.concatenate([rbc_flat, zbs_flat])
-
-            def shape_error_constraint(x, rbc_init, zbs_init):
-                _rbc, _zbs = np.split(x,2)
-                _rbc = _rbc.reshape(rbc.shape)
-                _zbs = _zbs.reshape(zbs.shape)
-                return shape_error_fourier(_rbc, _zbs, rbc_init, zbs_init)
-
-            def f_x(x):
-                _rbc, _zbs = np.split(x,2)
-                _rbc = _rbc.reshape(rbc.shape)
-                _zbs = _zbs.reshape(zbs.shape)
-                I = hw_I_callable(_rbc, _zbs)
-                integral_I2 = np.einsum('tz,tz',I**2,dtdz*np.ones_like(I))
-                #print(f'integral_I2: {integral_I2}')
-                return integral_I2
-
-            def f_prime_x(x):
-                _rbc, _zbs = np.split(x,2)
-                _rbc = _rbc.reshape(rbc.shape)
-                _zbs = _zbs.reshape(zbs.shape)
-                I = hw_I_callable(_rbc, _zbs)
-                x_t, y_t = x_t_y_t(_rbc, _zbs)
-                rmn_integrand = np.einsum('nmtz,tz->nmtz', cosnmtz,-I*x_t)
-                zmn_integrand = np.einsum('nmtz,tz->nmtz', sinnmtz,-I*y_t)
-                drbc = np.einsum('nmtz,tz->nm',rmn_integrand,dtdz*np.ones_like(I)).flatten()
-                dzbs = np.einsum('nmtz,tz->nm',zmn_integrand,dtdz*np.ones_like(I)).flatten()
-                dx = np.concatenate([drbc, dzbs])
-                #print(f'|dx|: {np.linalg.norm(dx)}')
-                return -dx
-
-            res = minimize(f_x, xmn_flat, method='BFGS', jac = f_prime_x, options={'disp':True, 'maxiter':150})
-            print(res)
-            _rbc, _zbs = np.split(res.x,2)
-            rbc = _rbc.reshape(rbc.shape)
-            zbs = _zbs.reshape(zbs.shape)
-
-            if verbose:
-                print(f'Final ∫I^2(t,z)dtdz: {f_x(res.x)}')
-                print(f'Final M: {hwM_pq(rbc, zbs)}')
-
-            return rbc, zbs
-
         def naive_spec_cond(
                 rbc_in,
                 zbs_in,
@@ -1911,6 +1834,7 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
             iterate R_mn, Z_mn as X_mn,[n+1] = X_mn,[n] + aδx_mn 
             Includes a line-search for the step size a
             '''
+            print("Running naive_spec_cond")
             rbc = np.copy(rbc_in)
             zbs = np.copy(zbs_in)
             dtdz = ((2*np.pi)/(nzeta-1)) * ((2*np.pi)/(ntheta-1))
@@ -1922,7 +1846,6 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
             if verbose:
                 print(f'∫I^2(t,z)dtdz: {integral_I2}')
                 print(f'Initial M: {flast}')
-
             success=False
 
             while success == False:
@@ -1966,12 +1889,14 @@ class PseudoAxisSurface(Optimizable):#(sopp.Surface, Surface):#
                                         zbs,
                                         rbc_in,
                                         zbs_in,
-                                        self.nfp,
-                                        self.M,
-                                        self.N,
-                                        self.M,
-                                        self.N
+                                        nfp,
+                                        M,
+                                        N,
+                                        M,
+                                        N,
                                     )
+                    print(np.average(shapetol))
+                    shape_error = (np.average(shapetol))
                     if shape_error >= shapetol:
                         success = True
                         message = f'Shape error {shapetol} reached'
@@ -2587,7 +2512,8 @@ def b_prime_pm1(t, p, x, i=None):
     else:
         return b[-1][:, i]
 
-def any_to_arclength_grid(
+
+def any_to_uz_grid(
         rbc,
         zbs,
         M,
@@ -2595,20 +2521,15 @@ def any_to_arclength_grid(
         nfp,
         nu=64,
         nv=64,
-        nu_uz=64,
-        nv_uz=64,
         plot=False,
     ):
-    """
-    Given a set of input rbc, zbs, compute points on uniform
-    arclength grid with resolution `(nu,nv)`
-    """
-    u_1d = np.linspace(0, 2*np.pi, nu_uz, endpoint=True)
-    zeta_1d = np.linspace(0, 2*np.pi, nv_uz, endpoint=True)        
+
+    u_1d = np.linspace(0, 2*np.pi, nu, endpoint=True)
+    zeta_1d = np.linspace(0, 2*np.pi, nv, endpoint=True)        
     zeta_grid, u_grid = np.meshgrid(zeta_1d, u_1d)
     u_zeta_points = np.vstack((u_grid.flatten(), zeta_grid.flatten()))
 
-    zeta_eval, theta_eval = np.meshgrid(np.linspace(np.pi/nfp, 2*np.pi/nfp, nv_uz, endpoint=True), np.linspace(0, 2*np.pi, nu_uz, endpoint=True))  
+    zeta_eval, theta_eval = np.meshgrid(np.linspace(np.pi/nfp, 2*np.pi/nfp, nv, endpoint=True), np.linspace(0, 2*np.pi, nu, endpoint=True))  
     eval_grid = np.vstack((theta_eval.flatten(), zeta_eval.flatten()))
 
     cosnmuz = np.array(
@@ -2630,208 +2551,35 @@ def any_to_arclength_grid(
         values=z_surf.flatten(),
     )
 
-    R_on_uz_grid = R_uz_callable(eval_grid.T).reshape(nu_uz, nv_uz)
-    z_on_uz_grid = z_uz_callable(eval_grid.T).reshape(nu_uz, nv_uz)
-
-    # obtaining centroid axis as a function of zeta
-    R_cent_on_z = np.einsum('uz->z', R_surf)/nu_uz
-    Z_cent_on_z = np.einsum('uz->z', z_surf)/nu_uz
-    axis_zeta_callable=CubicSpline(zeta_1d, np.vstack([R_cent_on_z, Z_cent_on_z]).T)
-
-    zeta_1d_halfgrid = zeta_eval[0, :]
-
-    # if plot:
-    #     x_on_uz_grid = R_on_uz_grid * np.cos(zeta_eval)
-    #     y_on_uz_grid = R_on_uz_grid * np.sin(zeta_eval)
-    #     z_on_uz_grid = z_on_uz_grid
-    #     #for theta, i in enumerate(ulist):
-
-    #     # x_0 = R_0 * np.cos(zeta_1d_halfgrid)
-    #     # y_0 = R_0 * np.sin(zeta_1d_halfgrid)
-    #     fig3d, ax = plt.subplots(subplot_kw={"projection": "3d"})
-
-    #     zeta_axis = zeta_1d_halfgrid
-    #     axis = axis_zeta_callable(zeta_axis)
-    #     R_c, z_c = axis[:, 0], axis[:, 1]
-    #     x_c = R_c * np.cos(zeta_axis)
-    #     y_c = R_c * np.sin(zeta_axis)
-
-    #     ax.scatter(x_on_uz_grid, y_on_uz_grid, z_on_uz_grid)
-    #     # ax.plot(x_0, y_0, z_0, 'r.')
-    #     ax.plot(x_c, y_c, z_c, 'r.')
-    #     ax.set_box_aspect((1, 1, 1))
-    #     ax.set_ylim(-1, 1)
-    #     ax.set_xlim(-1, 1)
-    #     ax.set_zlim(-1, 1)
-        # plt.show()
-
-    # finding theta=0 point
-    ulist = []
-
-    axis_on_uz_grid = axis_zeta_callable(zeta_eval)
-    R_axis_on_uz_grid = axis_on_uz_grid[:, :, 0].reshape(nu_uz, nv_uz)
-    z_axis_on_uz_grid = axis_on_uz_grid[:, :, 1].reshape(nu_uz, nv_uz)
-
-    def check_r_lt_raxis(x, zeta):
-        xstar = np.array([x, zeta])
-        _R = R_uz_callable(xstar)
-        _z = z_uz_callable(xstar)
-        R_axis, z_axis = axis_zeta_callable(zeta)
-        if _R>R_axis:
-            return True
-        else:
-            return False
-
-    # print(f'zeta_1d_halfgrid: {zeta_1d_halfgrid}')
-
-    for i, zeta in enumerate(zeta_1d_halfgrid):
-        # computing difference between axis and z at a given zeta
-        zs = (z_on_uz_grid - z_axis_on_uz_grid)[:, i]
-
-        u_eval = theta_eval[:, i]
-        switch_indices = np.logical_xor(zs>0, np.roll(zs>0, 1))
-
-        if switch_indices[0]:
-            a = u_eval[np.roll(switch_indices, -1)]
-            b = np.roll(u_eval[np.roll(switch_indices, 0)], -1)
-        else:
-            a = u_eval[np.roll(switch_indices, -1)]
-            b = u_eval[np.roll(switch_indices, 0)]
-
-        # # Sometimes, especially for tokamak cases, the z-axis will be very close 
-        # # to the theta=0 point and due to error due to interpolation 
-        # # for R(theta) and Z(theta), the sign would flip 
-        # # erroneously. The following handles that issue. 
-
-        # if len(a)>2:
-        #     a=[point for point in a if not (np.isclose(point, 0) or np.isclose(point, 2*np.pi))]
-        #     b=[point for point in b if not (np.isclose(point, 0) or np.isclose(point, 2*np.pi))]
-
-        def f(x, zeta):
-            xstar = np.array([x, zeta])
-            _z = z_uz_callable(xstar)
-            z_axis = z_axis_on_uz_grid[0, i] #TODO: LOOK HERE
-            return (_z - z_axis) # (theta)
-        nfails = 0
-        nsucc = 0
-        nattempts = 0
-        # print(f'i: {i}, zeta: {zeta}')
-        # print(f'switch_indices: {switch_indices}')
-        # print(f'zs: {zs}')
-        # print(f'u_eval: {u_eval}')
-        # print(f'a: {a}')
-        # print(f'b: {b}')
-        # print(f'zs: {zs}')
-
-        for k, _ in enumerate(a):
-            if (np.isclose(a[k], 0) or np.isclose(a[k], 2*np.pi)) and  (np.isclose(b[k], 0) or np.isclose(b[k], 2*np.pi)):
-                ulist.append(0)
-
-            else:
-                u_theta0, r = bisect(
-                    f,
-                    a = a[k],
-                    b = b[k],
-                    args = zeta,
-                    full_output=True
-                )
-
-                if (r.converged) and check_r_lt_raxis(u_theta0, zeta):
-                    ulist.append(u_theta0)
-                    nsucc+=1
-                    nattempts+=1
-                    break
-                else:
-                    nfails+=1
-                    nattempts+=1
-
-            if nfails == len(a):
-                u_feasible = u_eval[(R_on_uz_grid - R_axis_on_uz_grid)[:, i]>0]
-                zs_feasible = zs[(R_on_uz_grid - R_axis_on_uz_grid)[:, i]>0]
-                ulist.append(u_feasible[np.argmin(zs_feasible)])
-
-            assert nsucc+nfails == nattempts
-
-    ulist = np.array(ulist).flatten()
-    # print(ulist)
-
-    xstar = np.vstack([ulist, zeta_1d_halfgrid]).T
-    R_0 = R_uz_callable(xstar).reshape(1, nv_uz)
-    z_0 = z_uz_callable(xstar).reshape(1, nv_uz)
-
-    # reparametrizing on arclength
-
-    # sorting by u, starting from theta=0 point
-    theta0_eval = (theta_eval - np.outer(np.ones(nu_uz), ulist))%(2*np.pi)
-    sorted_theta0_indices = np.argsort(theta0_eval, axis=0)
-
-    R_on_uz_grid = np.take_along_axis(R_on_uz_grid, sorted_theta0_indices, axis=0)# R_on_arclength_grid[sorted_theta_indices]
-    z_on_uz_grid = np.take_along_axis(z_on_uz_grid, sorted_theta0_indices, axis=0)# z_on_arclength_grid[sorted_theta_indices]
-
-    # adding zero arclength point to start of R array
-    R_on_uz_grid = np.insert(R_on_uz_grid, 0, R_0, axis = 0)
-    z_on_uz_grid = np.insert(z_on_uz_grid, 0, z_0, axis = 0)
-
-    # copying zero arclength point to end of array 
-    R_on_uz_grid = np.concatenate([R_on_uz_grid, R_0], axis = 0)
-    z_on_uz_grid = np.concatenate([z_on_uz_grid, z_0], axis = 0)
-
-    dist_to_next_u = np.sqrt((R_on_uz_grid[1:, :] - R_on_uz_grid[0:-1, :])**2 + (z_on_uz_grid[1:, :] - z_on_uz_grid[0:-1, :])**2)
-    dist_to_next_u = np.insert(dist_to_next_u, 0, np.zeros_like(R_on_uz_grid[0, :]), axis=0)
-    u_arclength = np.cumsum(dist_to_next_u, axis = 0)
-    col_max = np.outer(np.ones(u_arclength.shape[0]), u_arclength[-1, :])
-
-    u_arclength_normalized = (u_arclength/col_max) * 2*np.pi
-
-    zeta_extended = np.concatenate([zeta_eval, zeta_eval[:2, :]], axis = 0)
-
-    if nv%(2*nfp) != 0:
-        raise ValueError('nv must be divisible by 2*nfp. ')
-
-    nv_final = nv//(2*nfp)
-    nu_final = nu
-
-    arclength_points = np.vstack((u_arclength_normalized.flatten(), zeta_extended.flatten()))
-    zeta_ffeval, theta_ffeval = np.meshgrid(np.linspace(np.pi/nfp, 2*np.pi/nfp, nv_final+1, endpoint=True), np.linspace(0, 2*np.pi, nu_final, endpoint=False))  
-    eval_grid = np.vstack((theta_ffeval.flatten(), zeta_ffeval.flatten()))
-
-    R_az_callable = CloughTocher2DInterpolator(
-        points=arclength_points.T,
-        values=R_on_uz_grid.flatten(),
-    )
-    z_az_callable = CloughTocher2DInterpolator(
-        points=arclength_points.T,
-        values=z_on_uz_grid.flatten(),
-    )
-
-    R_on_az_grid = R_az_callable(eval_grid.T).reshape(nu_final, nv_final+1)
-    z_on_az_grid = z_az_callable(eval_grid.T).reshape(nu_final, nv_final+1)
+    R_on_uz_grid = R_uz_callable(eval_grid.T).reshape(nu, nv)
+    z_on_uz_grid = z_uz_callable(eval_grid.T).reshape(nu, nv)
 
     if plot:
-        x_on_az_grid = R_on_az_grid * np.cos(zeta_ffeval)
-        y_on_az_grid = R_on_az_grid * np.sin(zeta_ffeval)
-        z_on_az_grid = z_on_az_grid
+        x_on_uz_grid = R_on_uz_grid * np.cos(zeta_eval)
+        y_on_uz_grid = R_on_uz_grid * np.sin(zeta_eval)
+        z_on_uz_grid = z_on_uz_grid
         #for theta, i in enumerate(ulist):
 
-        x_0 = R_0 * np.cos(zeta_1d_halfgrid)
-        y_0 = R_0 * np.sin(zeta_1d_halfgrid)
+        # x_0 = R_0 * np.cos(zeta_1d_halfgrid)
+        # y_0 = R_0 * np.sin(zeta_1d_halfgrid)
         fig3d, ax = plt.subplots(subplot_kw={"projection": "3d"})
 
-        zeta_axis = zeta_1d_halfgrid
-        axis = axis_zeta_callable(zeta_axis)
-        R_c, z_c = axis[:, 0], axis[:, 1]
-        x_c = R_c * np.cos(zeta_axis)
-        y_c = R_c * np.sin(zeta_axis)
+        # zeta_axis = zeta_1d_halfgrid
+        # axis = axis_zeta_callable(zeta_axis)
+        # R_c, z_c = axis[:, 0], axis[:, 1]
+        # x_c = R_c * np.cos(zeta_axis)
+        # y_c = R_c * np.sin(zeta_axis)
 
-        ax.scatter(x_on_az_grid, y_on_az_grid, z_on_az_grid)
-        ax.plot(x_0, y_0, z_0, 'r.')
-        ax.plot(x_c, y_c, z_c)
+        ax.scatter(x_on_uz_grid, y_on_uz_grid, z_on_uz_grid)
+        # ax.plot(x_0, y_0, z_0, 'r.')
+        # ax.plot(x_c, y_c, z_c)
         ax.set_box_aspect((1, 1, 1))
         ax.set_ylim(-1, 1)
         ax.set_xlim(-1, 1)
         ax.set_zlim(-1, 1)
-
-    return R_on_az_grid, z_on_az_grid
+        plt.show()
+        
+    return R_on_uz_grid, z_on_uz_grid, eval_grid.T
 
 def shape_error_fourier(
         rbc1,
@@ -2845,16 +2593,12 @@ def shape_error_fourier(
         N2,
         nu=64,
         nv=64,
-        nu_eval=64,
-        nv_eval=64,
         verbose=False,
         plot=False,
         as_scalar=True
     ):
 
-    tic = time.time()
-
-    R_az_1, z_az_1 = any_to_arclength_grid(
+    R_uz_1, z_uz_1, eval_grid = any_to_uz_grid(
         rbc=rbc1,
         zbs=zbs1,
         M=M1,
@@ -2862,12 +2606,10 @@ def shape_error_fourier(
         nfp=nfp,
         nu=nu,
         nv=nv,
-        nu_uz=nu_eval,
-        nv_uz=nv_eval,
         plot=plot
     )
 
-    R_az_2, z_az_2 = any_to_arclength_grid(
+    R_uz_2, z_uz_2, _ = any_to_uz_grid(
         rbc=rbc2,
         zbs=zbs2,
         M=M2,
@@ -2875,33 +2617,20 @@ def shape_error_fourier(
         nfp=nfp,
         nu=nu,
         nv=nv,
-        nu_uz=nu_eval,
-        nv_uz=nv_eval,
         plot=plot
     )
 
-    err_rsq = np.nan_to_num(
-        (R_az_1 - R_az_2)**2, 
-    )
-    err_zsq = np.nan_to_num(
-        (z_az_1 - z_az_2)**2
-    )
+    j = []
 
-    if as_scalar:
-        shape_error = (np.sum(err_rsq) + np.sum(err_zsq))/(nu_eval * nv_eval)
+    for i, zeta in enumerate(eval_grid.T[1,:].reshape(nu, nv)):
+        coords1 = zip(R_uz_1[:-1,i], z_uz_1[:-1,i])
+        coords2 = zip(R_uz_2[:-1,i], z_uz_2[:-1,i])
+        poly1 = shapely.Polygon(coords1)
+        poly2 = shapely.Polygon(coords2)
+        j.append(shapely.intersection(poly1, poly2).area/shapely.union(poly1, poly2).area)
+        #print(shapely.intersection(poly1, poly2).area/shapely.union(poly1, poly2).area)
+    return np.log(j)
 
-        toc = time.time()
-        elapsed = toc-tic
-
-        if verbose:
-            print(f'Computed shape error in {elapsed:.2f} s')
-
-        return shape_error
-    
-    else:
-        res = np.concatenate([err_rsq.flatten(), err_zsq.flatten()])
-        # print(res.shape)
-        return res
 
 def print_dofs_nicely(surf, lb=None, ub=None):
     if lb is None and ub is None:
