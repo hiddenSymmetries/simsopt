@@ -2512,7 +2512,6 @@ def b_prime_pm1(t, p, x, i=None):
     else:
         return b[-1][:, i]
 
-
 def any_to_uz_grid(
         rbc,
         zbs,
@@ -2630,7 +2629,6 @@ def shape_error_fourier(
         j.append(shapely.intersection(poly1, poly2).area/shapely.union(poly1, poly2).area)
         #print(shapely.intersection(poly1, poly2).area/shapely.union(poly1, poly2).area)
     return np.log(j)
-
 
 def print_dofs_nicely(surf, lb=None, ub=None):
     if lb is None and ub is None:
