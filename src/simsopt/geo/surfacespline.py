@@ -2632,7 +2632,7 @@ def shape_error_fourier(
         poly2 = shapely.Polygon(coords2)
         j.append(shapely.intersection(poly1, poly2).area/shapely.union(poly1, poly2).area)
         #print(shapely.intersection(poly1, poly2).area/shapely.union(poly1, poly2).area)
-    return np.log(j)
+    return np.log10(j)
 
 def print_dofs_nicely(surf, lb=None, ub=None):
     if lb is None and ub is None:
