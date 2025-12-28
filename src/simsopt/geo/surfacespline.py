@@ -1679,7 +1679,7 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
             'plot':False,
             'ftol':3e-4,
             'Mtol':1.5,
-            'shapetol':1,
+            'shapetol':0.01,
             'niters':400,
             'verbose':True,
             'cutoff':1e-6
@@ -2245,7 +2245,7 @@ def variational_spec_cond(
                 success = True
                 message = 'dM < ftol reached'
             if shapetol is not None:
-                shape_error = shape_error_fourier(
+                shape_error_arr = shape_error_fourier(
                                     rbc,
                                     zbs,
                                     rbc_in,
@@ -2254,8 +2254,9 @@ def variational_spec_cond(
                                     M,
                                     N,
                                     M,
-                                    N
+                                    N,
                                 )
+                shape_error = (np.average(np.abs(shape_error_arr)))
                 if shape_error >= shapetol:
                     success = True
                     message = f'Shape error {shapetol} reached'
