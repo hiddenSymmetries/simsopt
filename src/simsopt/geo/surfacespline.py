@@ -170,6 +170,7 @@ class CrossSectionFixedZeta(Optimizable):
         self.zeta_index = zeta_index
         self.n_ctrl_pts = n_ctrl_pts 
         self.z_sym = z_sym
+        self.nurbs = nurbs
         if z_sym:
             n_pts = (n_ctrl_pts // 2) + 1
             max_angle = np.pi
@@ -291,13 +292,15 @@ class CrossSectionFixedZeta(Optimizable):
                 dofs_flipped = np.concatenate((r_flipped, theta_flipped, ws_flipped))
             else:
                 dofs_flipped = np.concatenate((r_flipped, theta_flipped))
-            print(f'flipped dofs: {dofs_flipped}')
+            # print(f'flipped dofs: {dofs_flipped}')
             flipped_cs = CrossSectionFixedZeta(
                 zeta_index=self.zeta_index,
                 n_ctrl_pts=self.n_ctrl_pts,
                 z_sym=False,
                 nurbs=self.nurbs
             )
+            flipped_cs.x = dofs_flipped
+            return flipped_cs
 
 class PseudoAxis(Optimizable):
     r"""
@@ -2126,66 +2129,6 @@ def variational_spec_cond(
 
         return X*x_t + Y*y_t
 
-    def spec_cond_scipy(
-            rbc_in,
-            zbs_in,
-            ftol=1e-20, 
-            verbose = False    
-        ):
-        '''
-        Use scipy.optimize.minimize to solve the spectral condensation problem.
-        δx_mn are used fallaciously as the gradient and ∫I^2(t,z)dtdz ~ δM is used as the 
-        target function
-        '''
-        rbc = np.copy(rbc_in)
-        zbs = np.copy(zbs_in)
-        dtdz = ((2*np.pi)/(nzeta-1)) * ((2*np.pi)/(ntheta-1))
-        I = hw_I_callable(rbc, zbs)
-        integral_I2 = np.einsum('tz,tz',I**2,dtdz*np.ones_like(I))
-        niter = 0
-        if verbose:        
-            print(f'∫I^2(t,z)dtdz: {integral_I2}')
-            print(f'Initial M: {hwM_pq(rbc, zbs)}')
-
-        rbc_flat = rbc.flatten()
-        zbs_flat = zbs.flatten()
-        xmn_flat = np.concatenate([rbc_flat, zbs_flat])
-
-        def f_x(x):
-            _rbc, _zbs = np.split(x,2)
-            _rbc = _rbc.reshape(rbc.shape)
-            _zbs = _zbs.reshape(zbs.shape)
-            I = hw_I_callable(_rbc, _zbs)
-            integral_I2 = np.einsum('tz,tz',I**2,dtdz*np.ones_like(I))
-            #print(f'integral_I2: {integral_I2}')
-            return integral_I2
-
-        def f_prime_x(x):
-            _rbc, _zbs = np.split(x,2)
-            _rbc = _rbc.reshape(rbc.shape)
-            _zbs = _zbs.reshape(zbs.shape)
-            I = hw_I_callable(_rbc, _zbs)
-            x_t, y_t = x_t_y_t(_rbc, _zbs)
-            rmn_integrand = np.einsum('nmtz,tz->nmtz', cosnmtz,-I*x_t)
-            zmn_integrand = np.einsum('nmtz,tz->nmtz', sinnmtz,-I*y_t)
-            drbc = np.einsum('nmtz,tz->nm',rmn_integrand,dtdz*np.ones_like(I)).flatten()
-            dzbs = np.einsum('nmtz,tz->nm',zmn_integrand,dtdz*np.ones_like(I)).flatten()
-            dx = np.concatenate([drbc, dzbs])
-            #print(f'|dx|: {np.linalg.norm(dx)}')
-            return -dx
-
-        res = minimize(f_x, xmn_flat, method='BFGS', jac = f_prime_x, options={'disp':True, 'maxiter':150})
-        print(res)
-        _rbc, _zbs = np.split(res.x,2)
-        rbc = _rbc.reshape(rbc.shape)
-        zbs = _zbs.reshape(zbs.shape)
-
-        if verbose:
-            print(f'Final ∫I^2(t,z)dtdz: {f_x(res.x)}')
-            print(f'Final M: {hwM_pq(rbc, zbs)}')
-
-        return rbc, zbs
-
     def naive_spec_cond(
             rbc_in,
             zbs_in,
@@ -2216,7 +2159,10 @@ def variational_spec_cond(
             y_mn_integrand = np.einsum('nmtz,tz->nmtz', sinnmtz,-I*y_t)
             drbc = np.einsum('nmtz,tz->nm',x_mn_integrand,dtdz*np.ones_like(I))
             dzbs = np.einsum('nmtz,tz->nm',y_mn_integrand,dtdz*np.ones_like(I))
-            
+
+            drbc[:N,0] = 0
+            dzbs[:N,0] = 0
+
             def f(alpha, rbc, zbs, drbc, dzbs):
                 _rbc = np.copy(rbc)
                 _zbs = np.copy(zbs)
