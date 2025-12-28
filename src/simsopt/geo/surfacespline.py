@@ -10,10 +10,19 @@ import numpy as np
 from scipy.interpolate import CubicSpline, CloughTocher2DInterpolator, Akima1DInterpolator
 import matplotlib. pyplot as plt
 from scipy.interpolate import griddata
-from scipy.optimize import fsolve, minimize_scalar, bisect
+from scipy.optimize import fsolve, minimize, golden, minimize_scalar, linprog, bisect, root_scalar  
 from simsopt.util import MpiPartition
+import matplotlib as mpl
 import shapely
 
+# from .agTargets_6 import BoundarySim_PassArgs
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.mpi import least_squares_mpi_solve
+from simsopt import make_optimizable
+from mpi4py import MPI
+import time 
+import sys
+import fnmatch
 import matplotlib
 matplotlib.use('QtAgg')
 
@@ -29,14 +38,10 @@ class CrossSectionFixedZetaCartesian(Optimizable):
         cs_dofs=None,
         n_ctrl_pts=6,
         z_sym=False,
-        nurbs=False
     ):
         self.zeta_index = zeta_index
         self.n_ctrl_pts = n_ctrl_pts
         self.z_sym = z_sym
-
-        if nurbs:
-            raise NotImplementedError('need to implement nurbs for cartesian cross sections')
 
         assert n_ctrl_pts%2 == 0, 'an even number of control vectors must be supplied for the cartesian cross section'
 
@@ -192,7 +197,6 @@ class CrossSectionFixedZeta(Optimizable):
         self.theta_ctrl = cs_dofs[n_pts:2*n_pts:]
         self.w_ctrl = cs_dofs[2*n_pts:]
         self.n_pts = n_pts
-        self.nurbs = nurbs
 
         # naming dofs
         names = self._name_dofs(n_pts)
@@ -294,8 +298,6 @@ class CrossSectionFixedZeta(Optimizable):
                 z_sym=False,
                 nurbs=self.nurbs
             )
-            flipped_cs.x = dofs_flipped
-            return flipped_cs
 
 class PseudoAxis(Optimizable):
     r"""
@@ -538,7 +540,6 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         cs_zeta = np.linspace(0, max_angle, n_cs)
         # all angles zero
         cs_angles = np.zeros(n_cs)
-
 
         self.cs_zeta = cs_zeta
         self.cs_angles = cs_angles
@@ -855,7 +856,6 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
             x_centroid, y_centroid, z_centroid = self.centroid_axis_callable(a)
 
             ax.plot(x_centroid, y_centroid, z_centroid, **_centroid_axis_kwargs)
-     
         ax._axis3don = False
 
     def surf_callable(
@@ -911,8 +911,6 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         if basis == "Cartesian":
             trimmed_ctrl_pts_jim = control_points_jim[:n_v+p_v+1, :n_u+p_u+1, :]
             trimmed_weights_ji = w_list_jim[:n_v+p_v+1, :n_u+p_u+1]
-            # note that u_basis, v_basis have already been evaluated on a grid that is the 
-            # flattened tensor product of u, v
             tp_basis = np.einsum('xj,xi->xji', v_basis, u_basis)
             w_tp_basis = np.einsum('xji,ji->xji',tp_basis, trimmed_weights_ji)
             summed_w_tp_basis = np.einsum('xji->x',w_tp_basis)
@@ -1119,7 +1117,8 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
             nv = 32,
             nu_interp = 64,
             nv_interp = 64,
-            plot=False, 
+            plot=False,
+            _fsolve=False,
         ):
         '''
         Return R, Z values computed on a (theta_a, zeta) grid, where theta_a is the conventional polar angle
@@ -1526,7 +1525,7 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
             if collocation == 'uniform':
                 R_on_tz_grid, z_on_tz_grid, zeta_eval, theta_eval = self.uniform_tz_interp(
                     nu = nu,
-                    nv = nv//2,
+                    nv = nv,
                     nv_interp = nv_interp,
                     nu_interp = nu_interp,
                     # plot=plot_intermediate,
@@ -1581,7 +1580,7 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
 
         if spec_cond:
             #tic = time.perf_counter()
-            rbc, zbs = self.variational_spec_cond(rbc_in, zbs_in, self.M, self.N, self.nfp, **spec_cond_options)
+            rbc, zbs = variational_spec_cond(rbc_in, zbs_in, self.M, self.N, self.nfp, **spec_cond_options)
             #toc = time.perf_counter()
             #print(f'Spectral condensation took {toc - tic:0.4f} seconds')
         else:
@@ -1680,7 +1679,7 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
             'plot':False,
             'ftol':3e-4,
             'Mtol':1.5,
-            'shapetol':5e-4,
+            'shapetol':1,
             'niters':400,
             'verbose':True,
             'cutoff':1e-6
@@ -1743,191 +1742,8 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         vmec.run()
 
         return surf
-    
-    def variational_spec_cond(
-            # self,
-            rbc,
-            zbs,
-            M,
-            N,
-            nfp,
-            p=4,
-            q=1,
-            plot=False,
-            ftol=1e-4,
-            Mtol=1.1,
-            shapetol=None,
-            niters=5000,
-            verbose=False,
-            cutoff=1e-5
-        ):
-        '''
-        Variational spectral condensation à la Hirshman, Meier 1985. 
-        '''
-
-        m_arr = np.arange(0, M+1)
-        n_arr = np.arange(-N, N+1)
-        ntheta = 32
-        nzeta = 32
-        t_1d = np.linspace(0,2*np.pi,num=ntheta)
-        z_1d = np.linspace(0,2*np.pi,num=nzeta)# + 2*np.pi/nfp
-        z_grid, t_grid = np.meshgrid(z_1d,t_1d)
-
-        # fourier basis functions
-        cosnmtz = np.array(
-            [[np.cos(m*t_grid - n*z_grid*nfp) for m in range(0, M+1)] for n in range(-N, N+1)],
-        )
-        sinnmtz = np.array(
-            [[np.sin(m*t_grid - n*z_grid*nfp) for m in range(0, M+1)] for n in range(-N, N+1)],
-        )
-
-        #print(f'cosnmtz.shape: {cosnmtz.shape}')
-
-        def x_t_y_t(
-                rbc,
-                zbs
-        ):
-            '''
-            Computes Fourier representation of derivative of the surface wrt. theta
-            '''
-            # coefficients of derivatives of the r, z wrt. theta
-            rnm_t = np.einsum('nm,m->nm', rbc, m_arr)
-            znm_t = np.einsum('nm,m->nm', zbs, m_arr)
-
-            x_t = np.einsum('nm,nmtz->tz', rnm_t, -sinnmtz)
-            y_t = np.einsum('nm,nmtz->tz', znm_t, cosnmtz)
-
-            return x_t, y_t
-
-        def hwM_pq(
-                rbc,
-                zbs,
-                p=p,
-                q=q
-        ):
-            num = np.einsum('m,nm->nm', m_arr**(p+q), rbc**2 + zbs**2)
-            denom = np.einsum('m,nm->nm', m_arr**(p), rbc**2 + zbs**2)
-            return np.sum(num)/np.sum(denom)
-        
-        def hw_I_callable(
-                rbc,
-                zbs,
-        ):
-            M_pq = hwM_pq(rbc, zbs)
-            f_m = (m_arr**p) * (m_arr**q - M_pq)
-            
-            xfm = np.einsum('nm,m->nm', rbc, f_m)
-            yfm = np.einsum('nm,m->nm', zbs, f_m)
-
-            X = np.einsum('nmtz,nm->tz', cosnmtz[:,1:,:,:], xfm[:,1:])
-            Y = np.einsum('nmtz,nm->tz', sinnmtz[:,1:,:,:], yfm[:,1:])
-
-            x_t, y_t = x_t_y_t(rbc, zbs)
-
-            return X*x_t + Y*y_t
-
-        def naive_spec_cond(
-                rbc_in,
-                zbs_in,
-                verbose=verbose
-            ):
-            '''
-            iterate R_mn, Z_mn as X_mn,[n+1] = X_mn,[n] + aδx_mn 
-            Includes a line-search for the step size a
-            '''
-            print("Running naive_spec_cond")
-            rbc = np.copy(rbc_in)
-            zbs = np.copy(zbs_in)
-            dtdz = ((2*np.pi)/(nzeta-1)) * ((2*np.pi)/(ntheta-1))
-            I = hw_I_callable(rbc, zbs)
-            integral_I2 = np.einsum('tz,tz',I**2,dtdz*np.ones_like(I))
-            niter = 0
-            flast = hwM_pq(rbc, zbs)
-            df = 1
-            if verbose:
-                print(f'∫I^2(t,z)dtdz: {integral_I2}')
-                print(f'Initial M: {flast}')
-            success=False
-
-            while success == False:
-                niter += 1
-                x_t, y_t = x_t_y_t(rbc, zbs)
-                x_mn_integrand = np.einsum('nmtz,tz->nmtz', cosnmtz,-I*x_t)
-                y_mn_integrand = np.einsum('nmtz,tz->nmtz', sinnmtz,-I*y_t)
-                drbc = np.einsum('nmtz,tz->nm',x_mn_integrand,dtdz*np.ones_like(I))
-                dzbs = np.einsum('nmtz,tz->nm',y_mn_integrand,dtdz*np.ones_like(I))
-                
-                def f(alpha, rbc, zbs, drbc, dzbs):
-                    _rbc = np.copy(rbc)
-                    _zbs = np.copy(zbs)
-                    _rbc += alpha * drbc
-                    _zbs += alpha * dzbs
-                    return hwM_pq(_rbc, _zbs)
-
-                res = minimize_scalar(f, bracket = (-1e-4, 1e-4), args = (rbc, zbs, drbc, dzbs), method='golden', options={'disp':False})
-                alpha = res.x
-
-                rbc += alpha * drbc
-                zbs += alpha * dzbs
-                I = hw_I_callable(rbc, zbs)
-                integral_I2 = np.einsum('tz,tz',I**2,dtdz*np.ones_like(I))
-                fnew = hwM_pq(rbc, zbs)
-                df = np.abs(fnew - flast)
-                flast = fnew 
-
-                if hwM_pq(rbc, zbs) <= Mtol:
-                    success = True
-                    message = 'Terminated due to sufficiently low M'
-                if niter > niters:#5000:
-                    success = True
-                    message = 'Maxiter reached'
-                if df <= ftol:#1e-3:
-                    success = True
-                    message = 'dM < ftol reached'
-                if shapetol is not None:
-                    shape_error = shape_error_fourier(
-                                        rbc,
-                                        zbs,
-                                        rbc_in,
-                                        zbs_in,
-                                        nfp,
-                                        M,
-                                        N,
-                                        M,
-                                        N,
-                                    )
-                    print(np.average(shapetol))
-                    shape_error = (np.average(shapetol))
-                    if shape_error >= shapetol:
-                        success = True
-                        message = f'Shape error {shapetol} reached'
-
-            if verbose:
-                print(message)
-                print(f'Final ∫I^2(t,z)dtdz: {integral_I2}')
-                print(f'Final M: {hwM_pq(rbc, zbs)}')
-
-            return rbc, zbs
-
-        rbc_f, zbs_f = naive_spec_cond(rbc, zbs)
-
-        rbc_f *= (np.abs(rbc_f) > cutoff)
-        zbs_f *= (np.abs(zbs_f) > cutoff)
-
-        if plot:
-            fig, ax = plt.subplots()
-            pwr_init = np.einsum('nm->m', rbc**2 + zbs**2)
-            pwr_final = np.einsum('nm->m', rbc_f**2 + zbs_f**2)
-            ax.semilogy(m_arr, pwr_init, label = 'equal arc length')
-            ax.semilogy(m_arr, pwr_final, label ='condensed')
-            ax.set_xlabel('m')
-            ax.set_ylabel('$\sum_n R_{mn}^2 + Z_{mn}^2$')
-            ax.legend()
-
-        return rbc_f, zbs_f 
 
     def write_inequality_constraints(self, maxval=np.inf):
-        raise NotImplementedError
         '''
         Return a tuple containing lb, ub, A, for inequality constraints
         '''
@@ -2076,9 +1892,10 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         return A, lb, ub, constraint_titles
 
     def write_ub_constraints(self):
-        raise NotImplementedError
         '''
         Writing constraints in the form Ax <= b_ub
+        '''
+        '''
         Return a tuple containing lb, ub, A, for inequality constraints
         '''
         dofs = self.dof_names
@@ -2227,6 +2044,245 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         self.axis.x = dofs[end_idx:axis_end]
         self.local_x = dofs[axis_end:]
         return None
+
+def variational_spec_cond(
+        rbc,
+        zbs,
+        M,
+        N,
+        nfp,
+        p=4,
+        q=1,
+        plot=False,
+        ftol=1e-4,
+        Mtol=1.1,
+        shapetol=None,
+        niters=5000,
+        verbose=False,
+        cutoff=1e-6
+    ):
+    '''
+    Variational spectral condensation à la Hirshman, Meier 1985. 
+    '''
+
+    m_arr = np.arange(0, M+1)
+    n_arr = np.arange(-N, N+1)
+    ntheta = 32
+    nzeta = 32
+    t_1d = np.linspace(0,2*np.pi,num=ntheta)
+    z_1d = np.linspace(0,2*np.pi,num=nzeta)# + 2*np.pi/nfp
+    z_grid, t_grid = np.meshgrid(z_1d,t_1d)
+
+    # fourier basis functions
+    cosnmtz = np.array(
+        [[np.cos(m*t_grid - n*z_grid*nfp) for m in range(0, M+1)] for n in range(-N, N+1)],
+    )
+    sinnmtz = np.array(
+        [[np.sin(m*t_grid - n*z_grid*nfp) for m in range(0, M+1)] for n in range(-N, N+1)],
+    )
+
+    #print(f'cosnmtz.shape: {cosnmtz.shape}')
+
+    def x_t_y_t(
+            rbc,
+            zbs
+    ):
+        '''
+        Computes Fourier representation of derivative of the surface wrt. theta
+        '''
+        # coefficients of derivatives of the r, z wrt. theta
+        rnm_t = np.einsum('nm,m->nm', rbc, m_arr)
+        znm_t = np.einsum('nm,m->nm', zbs, m_arr)
+
+        x_t = np.einsum('nm,nmtz->tz', rnm_t, -sinnmtz)
+        y_t = np.einsum('nm,nmtz->tz', znm_t, cosnmtz)
+
+        return x_t, y_t
+
+    def hwM_pq(
+            rbc,
+            zbs,
+            p=p,
+            q=q
+    ):
+        num = np.einsum('m,nm->nm', m_arr**(p+q), rbc**2 + zbs**2)
+        denom = np.einsum('m,nm->nm', m_arr**(p), rbc**2 + zbs**2)
+        return np.sum(num)/np.sum(denom)
+    
+    def hw_I_callable(
+            rbc,
+            zbs,
+    ):
+        M_pq = hwM_pq(rbc, zbs)
+        f_m = (m_arr**p) * (m_arr**q - M_pq)
+        
+        xfm = np.einsum('nm,m->nm', rbc, f_m)
+        yfm = np.einsum('nm,m->nm', zbs, f_m)
+
+        X = np.einsum('nmtz,nm->tz', cosnmtz[:,1:,:,:], xfm[:,1:])
+        Y = np.einsum('nmtz,nm->tz', sinnmtz[:,1:,:,:], yfm[:,1:])
+
+        x_t, y_t = x_t_y_t(rbc, zbs)
+
+        return X*x_t + Y*y_t
+
+    def spec_cond_scipy(
+            rbc_in,
+            zbs_in,
+            ftol=1e-20, 
+            verbose = False    
+        ):
+        '''
+        Use scipy.optimize.minimize to solve the spectral condensation problem.
+        δx_mn are used fallaciously as the gradient and ∫I^2(t,z)dtdz ~ δM is used as the 
+        target function
+        '''
+        rbc = np.copy(rbc_in)
+        zbs = np.copy(zbs_in)
+        dtdz = ((2*np.pi)/(nzeta-1)) * ((2*np.pi)/(ntheta-1))
+        I = hw_I_callable(rbc, zbs)
+        integral_I2 = np.einsum('tz,tz',I**2,dtdz*np.ones_like(I))
+        niter = 0
+        if verbose:        
+            print(f'∫I^2(t,z)dtdz: {integral_I2}')
+            print(f'Initial M: {hwM_pq(rbc, zbs)}')
+
+        rbc_flat = rbc.flatten()
+        zbs_flat = zbs.flatten()
+        xmn_flat = np.concatenate([rbc_flat, zbs_flat])
+
+        def f_x(x):
+            _rbc, _zbs = np.split(x,2)
+            _rbc = _rbc.reshape(rbc.shape)
+            _zbs = _zbs.reshape(zbs.shape)
+            I = hw_I_callable(_rbc, _zbs)
+            integral_I2 = np.einsum('tz,tz',I**2,dtdz*np.ones_like(I))
+            #print(f'integral_I2: {integral_I2}')
+            return integral_I2
+
+        def f_prime_x(x):
+            _rbc, _zbs = np.split(x,2)
+            _rbc = _rbc.reshape(rbc.shape)
+            _zbs = _zbs.reshape(zbs.shape)
+            I = hw_I_callable(_rbc, _zbs)
+            x_t, y_t = x_t_y_t(_rbc, _zbs)
+            rmn_integrand = np.einsum('nmtz,tz->nmtz', cosnmtz,-I*x_t)
+            zmn_integrand = np.einsum('nmtz,tz->nmtz', sinnmtz,-I*y_t)
+            drbc = np.einsum('nmtz,tz->nm',rmn_integrand,dtdz*np.ones_like(I)).flatten()
+            dzbs = np.einsum('nmtz,tz->nm',zmn_integrand,dtdz*np.ones_like(I)).flatten()
+            dx = np.concatenate([drbc, dzbs])
+            #print(f'|dx|: {np.linalg.norm(dx)}')
+            return -dx
+
+        res = minimize(f_x, xmn_flat, method='BFGS', jac = f_prime_x, options={'disp':True, 'maxiter':150})
+        print(res)
+        _rbc, _zbs = np.split(res.x,2)
+        rbc = _rbc.reshape(rbc.shape)
+        zbs = _zbs.reshape(zbs.shape)
+
+        if verbose:
+            print(f'Final ∫I^2(t,z)dtdz: {f_x(res.x)}')
+            print(f'Final M: {hwM_pq(rbc, zbs)}')
+
+        return rbc, zbs
+
+    def naive_spec_cond(
+            rbc_in,
+            zbs_in,
+            verbose=verbose
+        ):
+        '''
+        iterate R_mn, Z_mn as X_mn,[n+1] = X_mn,[n] + aδx_mn 
+        Includes a line-search for the step size a
+        '''
+        rbc = np.copy(rbc_in)
+        zbs = np.copy(zbs_in)
+        dtdz = ((2*np.pi)/(nzeta-1)) * ((2*np.pi)/(ntheta-1))
+        I = hw_I_callable(rbc, zbs)
+        integral_I2 = np.einsum('tz,tz',I**2,dtdz*np.ones_like(I))
+        niter = 0
+        flast = hwM_pq(rbc, zbs)
+        df = 1
+        if verbose:
+            print(f'∫I^2(t,z)dtdz: {integral_I2}')
+            print(f'Initial M: {flast}')
+
+        success=False
+
+        while success == False:
+            niter += 1
+            x_t, y_t = x_t_y_t(rbc, zbs)
+            x_mn_integrand = np.einsum('nmtz,tz->nmtz', cosnmtz,-I*x_t)
+            y_mn_integrand = np.einsum('nmtz,tz->nmtz', sinnmtz,-I*y_t)
+            drbc = np.einsum('nmtz,tz->nm',x_mn_integrand,dtdz*np.ones_like(I))
+            dzbs = np.einsum('nmtz,tz->nm',y_mn_integrand,dtdz*np.ones_like(I))
+            
+            def f(alpha, rbc, zbs, drbc, dzbs):
+                _rbc = np.copy(rbc)
+                _zbs = np.copy(zbs)
+                _rbc += alpha * drbc
+                _zbs += alpha * dzbs
+                return hwM_pq(_rbc, _zbs)
+
+            res = minimize_scalar(f, bracket = (-1e-4, 1e-4), args = (rbc, zbs, drbc, dzbs), method='golden', options={'disp':False})
+            alpha = res.x
+
+            rbc += alpha * drbc
+            zbs += alpha * dzbs
+            I = hw_I_callable(rbc, zbs)
+            integral_I2 = np.einsum('tz,tz',I**2,dtdz*np.ones_like(I))
+            fnew = hwM_pq(rbc, zbs)
+            df = np.abs(fnew - flast)
+            flast = fnew 
+
+            if hwM_pq(rbc, zbs) <= Mtol:
+                success = True
+                message = 'Terminated due to sufficiently low M'
+            if niter > niters:#5000:
+                success = True
+                message = 'Maxiter reached'
+            if df <= ftol:#1e-3:
+                success = True
+                message = 'dM < ftol reached'
+            if shapetol is not None:
+                shape_error = shape_error_fourier(
+                                    rbc,
+                                    zbs,
+                                    rbc_in,
+                                    zbs_in,
+                                    nfp,
+                                    M,
+                                    N,
+                                    M,
+                                    N
+                                )
+                if shape_error >= shapetol:
+                    success = True
+                    message = f'Shape error {shapetol} reached'
+
+        if verbose:
+            print(message)
+            print(f'Final ∫I^2(t,z)dtdz: {integral_I2}')
+            print(f'Final M: {hwM_pq(rbc, zbs)}')
+
+        return rbc, zbs
+
+    rbc_f, zbs_f = naive_spec_cond(rbc, zbs)
+
+    rbc_f *= (np.abs(rbc_f) > cutoff)
+    zbs_f *= (np.abs(zbs_f) > cutoff)
+
+    if plot:
+        fig, ax = plt.subplots()
+        pwr_init = np.einsum('nm->m', rbc**2 + zbs**2)
+        pwr_final = np.einsum('nm->m', rbc_f**2 + zbs_f**2)
+        ax.semilogy(m_arr, pwr_init, label = 'equal arc length')
+        ax.semilogy(m_arr, pwr_final, label ='condensed')
+        ax.set_xlabel('m')
+        ax.set_ylabel('$\sum_n R_{mn}^2 + Z_{mn}^2$')
+        ax.legend()
+
+    return rbc_f, zbs_f 
 
 def vmec_from_surf(
         nfp,
@@ -2642,3 +2698,65 @@ def print_dofs_nicely(surf, lb=None, ub=None):
         val, lb, ub = v
         print("{:<30} {:<20} {:<20} {:<20}".format(k, val, lb, ub))
 
+def vol_from_boundary(rbc, zbs, M, N, nu, nv, nfp):
+    u_1d = np.linspace(0, 2*np.pi, nu, endpoint=True)
+    v_1d = np.linspace(0, 2*np.pi, nv, endpoint=True)        
+    v_grid, u_grid = np.meshgrid(v_1d, u_1d)
+    cosnmuz = np.array(
+        [[np.cos(m*u_grid - n*(nfp*v_grid)) for m in range(0, M+1)] for n in range(-N, N+1)],
+    )
+    sinnmuz = np.array(
+        [[np.sin(m*u_grid - n*(nfp*v_grid)) for m in range(0, M+1)] for n in range(-N, N+1)],
+    )
+    m = np.array(
+        [[m for m in range(0, M+1)] for n in range(-N, N+1)]
+    )
+    n = np.array(
+        [[n for m in range(0, M+1)] for n in range(-N, N+1)]
+    )
+
+    R_uz = np.einsum('nm,nmuz->uz', rbc, cosnmuz)
+    Z_uz = np.einsum('nm,nmuz->uz', zbs, sinnmuz)
+
+    # x_on_uz_grid = R_uz * np.cos(v_grid)
+    # y_on_uz_grid = R_uz * np.sin(v_grid)
+    # z_on_uz_grid = Z_uz
+    # #for theta, i in enumerate(ulist):
+
+    # # x_0 = R_0 * np.cos(zeta_1d_halfgrid)
+    # # y_0 = R_0 * np.sin(zeta_1d_halfgrid)
+    # fig3d, ax = plt.subplots(subplot_kw={"projection": "3d"})
+
+    # # zeta_axis = zeta_1d_halfgrid
+    # # axis = axis_zeta_callable(zeta_axis)
+    # # R_c, z_c = axis[:, 0], axis[:, 1]
+    # # x_c = R_c * np.cos(zeta_axis)
+    # # y_c = R_c * np.sin(zeta_axis)
+
+    # ax.scatter(x_on_uz_grid, y_on_uz_grid, z_on_uz_grid)
+    # # ax.plot(x_0, y_0, z_0, 'r.')
+    # # ax.plot(x_c, y_c, z_c)
+    # ax.set_box_aspect((1, 1, 1))
+    # ax.set_ylim(-1, 1)
+    # ax.set_xlim(-1, 1)
+    # ax.set_zlim(-1, 1)
+    # plt.show()
+
+    duR_uz = np.einsum('nm,nmuz->uz', -m*rbc, sinnmuz)
+    dvR_uz = np.einsum('nm,nmuz->uz', n*rbc, sinnmuz)
+    duZ_uz = np.einsum('nm,nmuz->uz', m*zbs, cosnmuz)
+    dvZ_uz = np.einsum('nm,nmuz->uz', -n*zbs, cosnmuz)
+
+    #sqrt_g = (duR_uz**2 + duZ_uz**2)*(dvR_uz**2 + R_uz**2 + dvZ_uz**2) - (duR_uz*dvR_uz + duZ_uz*dvZ_uz)**2
+
+    integrand = Z_uz * R_uz * duR_uz
+
+    integrand_roll1 = np.roll(integrand, 1, 0)
+    integrand_roll2 = np.roll(integrand, 1, 1)
+    integrand_roll3 = np.roll(integrand_roll1, 1, 1)
+
+    # res = (u_1d[1]-u_1d[0])*(v_1d[1]-v_1d[0])*np.sum(((integrand + integrand_roll1 + integrand_roll2 + integrand_roll3)/4))
+
+    res = (u_1d[1]-u_1d[0])*(v_1d[1]-v_1d[0])*np.sum(integrand)
+
+    return res
