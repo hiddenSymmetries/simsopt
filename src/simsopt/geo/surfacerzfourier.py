@@ -1633,7 +1633,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         lambda_dofs_optimized = res.x
         theta_optimized = lambda_Fourier_to_grid(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
         final_objective = scalar_objective(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
-        surf_to_return = surf.copy()
+        surf_to_return = self.copy()
         surf_to_return.local_full_x = compute_r2mn_and_z2mn(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
 
         data = {
