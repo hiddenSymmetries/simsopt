@@ -1,3 +1,5 @@
+.. _eliminating-islands:
+
 Eliminating magnetic islands
 ============================
 
@@ -11,7 +13,7 @@ Greene's residue for several O-points and X-points, similar to the
 approach of Hanson and Cary (1984).
 
 The initial configuration is defined in the SPEC input file
-``QH-residues.sp``, which can be found in the ``examples/2_Intermediate/inputs``
+``QH-residues.sp``, which can be found in the :simsopt:`examples/2_Intermediate/inputs`
 directory. If you generate a Poincare plot for this boundary shape by
 running standalone SPEC, it can be seen that there is an island chain
 corresponding to the :math:`\iota = -8/7` resonance:

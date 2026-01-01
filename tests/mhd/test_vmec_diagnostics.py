@@ -190,7 +190,7 @@ class QuasisymmetryRatioResidualTests(unittest.TestCase):
             results2 = qs2.compute()
             residuals2 = qs2.residuals()
 
-            logger.info('Max difference in residuals after scaling vmec:' \
+            logger.info('Max difference in residuals after scaling vmec:'
                         + str(np.max(np.abs(residuals1 - residuals2))))
             np.testing.assert_allclose(residuals1, residuals2, rtol=1e-10, atol=1e-10)
             np.testing.assert_allclose(results1.total, results2.total, rtol=1e-10, atol=1e-10)
@@ -271,7 +271,7 @@ class IotaTargetMetricTests(unittest.TestCase):
         with ScratchDir("."):
             vmec = Vmec(filename, ntheta=50, nphi=50)
 
-            target_function = lambda s: np.cos(s)
+            def target_function(s): return np.cos(s)
             iota_target_metric = IotaTargetMetric(vmec, target_function)
 
             metric1 = iota_target_metric.J()
@@ -291,7 +291,7 @@ class IotaTargetMetricTests(unittest.TestCase):
         with ScratchDir("."):
             vmec = Vmec(filename, ntheta=100, nphi=100)
 
-            target_function = lambda s: 0.68
+            def target_function(s): return 0.68
             epsilon = 1.e-4  # FD step size
             adjoint_epsilon = 1.e-2  # perturbation amplitude for adjoint solve
 
@@ -333,7 +333,7 @@ class IotaWeightedTests(unittest.TestCase):
             vmec.run()
             iota_center = vmec.wout.iotas[50]
             s_center = vmec.s_half_grid[50]
-            weight_function = lambda s: np.exp(-(s-s_center)**2/0.01**2)
+            def weight_function(s): return np.exp(-(s-s_center)**2/0.01**2)
             iota_weighted = IotaWeighted(vmec, weight_function)
 
             self.assertAlmostEqual(iota_weighted.J(), iota_center, places=2)
@@ -345,7 +345,7 @@ class IotaWeightedTests(unittest.TestCase):
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
 
-        weight_function = lambda s: s**2
+        def weight_function(s): return s**2
         epsilon = 1.e-4  # FD step size
         adjoint_epsilon = 5.e-2  # perturbation amplitude for adjoint solve
 
@@ -390,8 +390,8 @@ class WellWeightedTests(unittest.TestCase):
             vp_l = 1.5*vmec.wout.vp[1]-0.5*vmec.wout.vp[2]
             vp_r = 1.5*vmec.wout.vp[-1]-0.5*vmec.wout.vp[-2]
             well1 = (vp_l-vp_r)/(vp_l+vp_r)
-            weight1 = lambda s: np.exp(-s**2/0.01**2)
-            weight2 = lambda s: np.exp(-(1-s)**2/0.01**2)
+            def weight1(s): return np.exp(-s**2/0.01**2)
+            def weight2(s): return np.exp(-(1-s)**2/0.01**2)
 
             well_weighted = WellWeighted(vmec, weight1, weight2)
             well2 = well_weighted.J()
@@ -405,8 +405,8 @@ class WellWeightedTests(unittest.TestCase):
         epsilon = 1.e-2  # FD step size
         adjoint_epsilon = 1.e0  # perturbation amplitude for adjoint solve
 
-        weight1 = lambda s: np.exp(-s**2/0.5**2)
-        weight2 = lambda s: np.exp(-(1-s)**2/0.5**2)
+        def weight1(s): return np.exp(-s**2/0.5**2)
+        def weight2(s): return np.exp(-(1-s)**2/0.5**2)
 
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
         with ScratchDir("."):
@@ -590,15 +590,15 @@ class VmecComputeGeometryTests(unittest.TestCase):
         data = vmec_compute_geometry(vmec, s, theta, phi)
 
         matlab_data = np.array([
-            [0.777048118791033,   0.850059335051267,   1.058251880937882,   1.238755906102585,   1.058251880937882,   0.850059335051267,   0.777048118791033],
-            [0.732357468770512,   0.887635027604753,   1.100038034467113,   1.149372447382607,   0.914652536061020,   0.732423846297739,   0.732357468770512],
-            [0.642772279126891,   0.810075234122540,   1.009506601358511,   1.036192879128092,   0.822941521630497,   0.638233465781766,   0.642772279126891],
-            [0.561114055795734,   0.718502389029629,   0.920071594222606,   0.997769685332234,   0.817986738735225,   0.595098001722719,   0.561114055795734],
-            [0.520891960189527,   0.633214068787356,   0.866980355399107,   0.967856711826989,   0.866980355399108,   0.633214068787355,   0.520891960189527],
-            [0.561114055795734,   0.595098001722719,   0.817986738735225,   0.997769685332234,   0.920071594222606,   0.718502389029630,   0.561114055795734],
-            [0.642772279126891,   0.638233465781766,   0.822941521630497,   1.036192879128092,   1.009506601358511,   0.810075234122540,   0.642772279126891],
-            [0.732357468770512,   0.732423846297739,   0.914652536061019,   1.149372447382608,   1.100038034467113,   0.887635027604753,   0.732357468770512],
-            [0.777048118791033,   0.850059335051268,   1.058251880937882,   1.238755906102585,   1.058251880937882,   0.850059335051267,   0.777048118791033],
+            [0.777048118791033, 0.850059335051267, 1.058251880937882, 1.238755906102585, 1.058251880937882, 0.850059335051267, 0.777048118791033],
+            [0.732357468770512, 0.887635027604753, 1.100038034467113, 1.149372447382607, 0.914652536061020, 0.732423846297739, 0.732357468770512],
+            [0.642772279126891, 0.810075234122540, 1.009506601358511, 1.036192879128092, 0.822941521630497, 0.638233465781766, 0.642772279126891],
+            [0.561114055795734, 0.718502389029629, 0.920071594222606, 0.997769685332234, 0.817986738735225, 0.595098001722719, 0.561114055795734],
+            [0.520891960189527, 0.633214068787356, 0.866980355399107, 0.967856711826989, 0.866980355399108, 0.633214068787355, 0.520891960189527],
+            [0.561114055795734, 0.595098001722719, 0.817986738735225, 0.997769685332234, 0.920071594222606, 0.718502389029630, 0.561114055795734],
+            [0.642772279126891, 0.638233465781766, 0.822941521630497, 1.036192879128092, 1.009506601358511, 0.810075234122540, 0.642772279126891],
+            [0.732357468770512, 0.732423846297739, 0.914652536061019, 1.149372447382608, 1.100038034467113, 0.887635027604753, 0.732357468770512],
+            [0.777048118791033, 0.850059335051268, 1.058251880937882, 1.238755906102585, 1.058251880937882, 0.850059335051267, 0.777048118791033],
         ])
 
         np.testing.assert_allclose(np.squeeze(data.L_grad_B), matlab_data, rtol=7e-3)
@@ -626,6 +626,39 @@ class VmecComputeGeometryTests(unittest.TestCase):
         div_B = data.grad_B__XX + data.grad_B__YY + data.grad_B__ZZ
         np.testing.assert_allclose(div_B, 0, atol=3e-11)
 
+    @unittest.skipIf(vmec is None, "vmec python package is not found")
+    def test_basic_non_stellsym(self):
+        """
+        Perform a sqrt(g) calculation comparison and a few regression tests 
+        for a non-stellarator symmetric configuration.
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, "input.basic_non_stellsym"))
+        vmec.run()
+        s = 1.0
+        ntheta = 5
+        nphi = 4
+        theta = np.linspace(0, 2 * np.pi, ntheta, endpoint=True)
+        phi = np.linspace(0, 2 * np.pi / vmec.wout.nfp, nphi, endpoint=True)
+
+        # 
+        R_precalc = np.array([[[6.85, 4.571410161513775, 3.8785898384862243, 6.85], [4.5, 3.721410161513776, 3.0285898384862238, 4.5], [5.65, 4.005384757729337, 5.044615242270662, 5.65], [8.0, 4.855384757729337, 5.894615242270662, 8.0], [6.85, 4.571410161513775, 3.8785898384862247, 6.85]]])
+        d2_Z_d_theta_vmec_d_phi_precalc = np.array([[[-0.5, -0.18301270189221946, 0.6830127018922194, -0.4999999999999999], [0.49999999999999994, -0.6830127018922193, 0.18301270189221908, 0.5000000000000001], [0.5000000000000001, 0.1830127018922194, -0.6830127018922194, 0.49999999999999994], [-0.4999999999999999, 0.6830127018922193, -0.18301270189221913, -0.5], [-0.5000000000000001, -0.1830127018922196, 0.6830127018922194, -0.5]]])
+
+
+        d_B_d_theta_vmec_precalc = np.array([[[3.797382850490039, 8.62225895484851, 14.159181806821593, 3.7973828504900395], [2.8919186555758207, -3.998872017181843, -3.458246653557826, 2.89191865557582], [-4.854840544126677, -7.566177748008503, -11.874600310783727, -4.854840544126677], [-1.5912894561501743, 2.815018903778379, 0.6849479261949663, -1.5912894561501754], [3.797382850490038, 8.622258954848505, 14.159181806821596, 3.7973828504900387]]])
+
+        data = vmec_compute_geometry(vmec, s, theta, phi)
+
+        # More arrays to check against can be printed by uncommenting this:
+        # print('np.array(' + str(data.d_B_d_theta_vmec.tolist()) + ')')
+        # and copy+pasting the output as 'precalc' array above
+        
+        np.testing.assert_allclose(data.R, R_precalc, rtol=1e-5)
+        np.testing.assert_allclose(data.d2_Z_d_theta_vmec_d_phi, d2_Z_d_theta_vmec_d_phi_precalc, rtol=1e-5)
+        np.testing.assert_allclose(data.d_B_d_theta_vmec, d_B_d_theta_vmec_precalc, rtol=1e-5)
+        # Non-regression test, comparing the two ways to calculate sqrt(g)
+        np.testing.assert_allclose(data.sqrt_g_vmec_alt,data.sqrt_g_vmec, rtol=1e-4, atol=1e-4)
+        
 
 class VmecFieldlinesTests(unittest.TestCase):
     def test_fieldline_grids(self):

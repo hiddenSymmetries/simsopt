@@ -16,9 +16,9 @@ from .._core.types import RealArray
 logger = logging.getLogger(__name__)
 
 __all__ = ['SurfaceClassifier', 'LevelsetStoppingCriterion',
-           'MinToroidalFluxStoppingCriterion','MaxToroidalFluxStoppingCriterion',
-           'MinRStoppingCriterion','MinZStoppingCriterion',
-           'MaxRStoppingCriterion','MaxZStoppingCriterion',
+           'MinToroidalFluxStoppingCriterion', 'MaxToroidalFluxStoppingCriterion',
+           'MinRStoppingCriterion', 'MinZStoppingCriterion',
+           'MaxRStoppingCriterion', 'MaxZStoppingCriterion',
            'IterationStoppingCriterion', 'ToroidalTransitStoppingCriterion',
            'compute_fieldlines', 'compute_resonances',
            'compute_poloidal_transits', 'compute_toroidal_transits',
@@ -73,7 +73,7 @@ def gc_to_fullorbit_initial_guesses(field, xyz_inits, speed_pars, speed_total, m
 
 
 def trace_particles_boozer(field: BoozerMagneticField,
-                           stz_inits: RealArray,  
+                           stz_inits: RealArray,
                            parallel_speeds: RealArray,
                            tmax=1e-4,
                            mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
@@ -201,7 +201,7 @@ def trace_particles_boozer(field: BoozerMagneticField,
 
 def trace_particles(field: MagneticField,
                     xyz_inits: RealArray,
-                    parallel_speeds: RealArray,  
+                    parallel_speeds: RealArray,
                     tmax=1e-4,
                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                     tol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
@@ -740,6 +740,7 @@ class LevelsetStoppingCriterion(sopp.LevelsetStoppingCriterion):
         else:
             sopp.LevelsetStoppingCriterion.__init__(self, classifier)
 
+
 class MinToroidalFluxStoppingCriterion(sopp.MinToroidalFluxStoppingCriterion):
     """
     Stop the iteration once a particle falls below a critical value of
@@ -775,6 +776,7 @@ class MaxToroidalFluxStoppingCriterion(sopp.MaxToroidalFluxStoppingCriterion):
     """
     pass
 
+
 class ToroidalTransitStoppingCriterion(sopp.ToroidalTransitStoppingCriterion):
     """
     Stop the iteration once the maximum number of toroidal transits is reached.
@@ -797,6 +799,7 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     """
     pass
 
+
 class MinRStoppingCriterion(sopp.MinRStoppingCriterion):
     """
     Stop the iteration once a particle falls below a critical value of
@@ -811,6 +814,7 @@ class MinRStoppingCriterion(sopp.MinRStoppingCriterion):
     where ``crit_r`` is the value of the critical coordinate.
     """
     pass
+
 
 class MinZStoppingCriterion(sopp.MinZStoppingCriterion):
     """
@@ -827,6 +831,7 @@ class MinZStoppingCriterion(sopp.MinZStoppingCriterion):
     """
     pass
 
+
 class MaxRStoppingCriterion(sopp.MaxRStoppingCriterion):
     """
     Stop the iteration once a particle goes above a critical value of
@@ -841,6 +846,7 @@ class MaxRStoppingCriterion(sopp.MaxRStoppingCriterion):
     where ``crit_r`` is the value of the critical coordinate.
     """
     pass
+
 
 class MaxZStoppingCriterion(sopp.MaxZStoppingCriterion):
     """
@@ -857,7 +863,8 @@ class MaxZStoppingCriterion(sopp.MaxZStoppingCriterion):
     """
     pass
 
-def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300, xlims=None, 
+
+def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300, xlims=None,
                        ylims=None, surf=None, s=2, marker='o'):
     """
     Create a poincare plot. Usage:
@@ -912,7 +919,7 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
 
         # if passed a surface, plot the plasma surface outline
         if surf is not None:
-            cross_section = surf.cross_section(phi=phis[i])
+            cross_section = surf.cross_section(phi=phis[i]/(2.0*np.pi))
             r_interp = np.sqrt(cross_section[:, 0] ** 2 + cross_section[:, 1] ** 2)
             z_interp = cross_section[:, 2]
             axs[row, col].plot(r_interp, z_interp, linewidth=1, c='k')

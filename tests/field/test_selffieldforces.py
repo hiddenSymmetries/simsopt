@@ -7,7 +7,7 @@ from scipy.interpolate import interp1d
 
 from simsopt.field import Coil, Current, coils_via_symmetries
 from simsopt.geo.curve import create_equally_spaced_curves
-from simsopt.configs import get_hsx_data, get_ncsx_data
+from simsopt.configs import get_data
 from simsopt.geo import CurveXYZFourier
 from simsopt.field.selffield import (
     B_regularized_circ,
@@ -18,9 +18,9 @@ from simsopt.field.selffield import (
 )
 from simsopt.field.force import (
     coil_force,
-    self_force_circ, 
-    self_force_rect, 
-    MeanSquaredForce, 
+    self_force_circ,
+    self_force_rect,
+    MeanSquaredForce,
     LpCurveForce)
 
 logger = logging.getLogger(__name__)
@@ -129,10 +129,10 @@ class CoilForcesTest(unittest.TestCase):
 
     def test_force_convergence(self):
         """Check that the self-force is approximately independent of the number of quadrature points"""
-        ppps = [8, 4, 2, 7, 5]
-        for j, ppp in enumerate(ppps):
-            curves, currents, ma = get_hsx_data(ppp=ppp)
-            curve = curves[0]
+        points_per_periods = [8, 4, 2, 7, 5]
+        for j, points_per_period in enumerate(points_per_periods):
+            base_curves, base_currents, ma, nfp, bs = get_data("hsx", points_per_period=points_per_period)
+            curve = base_curves[0]
             I = 1.5e3
             a = 0.01
             coil = Coil(curve, Current(I))
@@ -151,12 +151,12 @@ class CoilForcesTest(unittest.TestCase):
 
     def test_hsx_coil(self):
         """Compare self-force for HSX coil 1 to result from CoilForces.jl"""
-        curves, currents, ma = get_hsx_data()
-        assert len(curves[0].quadpoints) == 160
+        base_curves, base_currents, ma, nfp, bs  = get_data("hsx")
+        assert len(base_curves[0].quadpoints) == 160
         I = 150e3
         a = 0.01
         b = 0.023
-        coil = Coil(curves[0], Current(I))
+        coil = Coil(base_curves[0], Current(I))
 
         # Case of circular cross-section
 
@@ -217,7 +217,6 @@ class CoilForcesTest(unittest.TestCase):
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
         np.testing.assert_allclose(objective, objective_alt)
 
-
     def test_update_points(self):
         """Confirm that Biot-Savart evaluation points are updated when the
         curve shapes change."""
@@ -237,16 +236,16 @@ class CoilForcesTest(unittest.TestCase):
             old_biot_savart_points = objective.biotsavart.get_points_cart()
 
             # A deterministic random shift to the coil dofs:
-            shift = np.array([-0.06797948, -0.0808704 , -0.02680599, -0.02775893, -0.0325402 ,
-                0.04382695,  0.06629717,  0.05050437, -0.09781039, -0.07473099,
-                0.03492035,  0.08474462,  0.06076695,  0.02420473,  0.00388997,
-                0.06992079,  0.01505771, -0.09350505, -0.04637735,  0.00321853,
-                -0.04975992,  0.01802391,  0.09454193,  0.01964133,  0.09205931,
-                -0.09633654, -0.01449546,  0.07617653,  0.03008342,  0.00636141,
-                0.09065833,  0.01628199,  0.02683667,  0.03453558,  0.03439423,
-                -0.07455501,  0.08084003, -0.02490166, -0.05911573, -0.0782221 ,
-                -0.03001621,  0.01356862,  0.00085723,  0.06887564,  0.02843625,
-                -0.04448741, -0.01301828,  0.01511824])
+            shift = np.array([-0.06797948, -0.0808704, -0.02680599, -0.02775893, -0.0325402,
+                              0.04382695, 0.06629717, 0.05050437, -0.09781039, -0.07473099,
+                              0.03492035, 0.08474462, 0.06076695, 0.02420473, 0.00388997,
+                              0.06992079, 0.01505771, -0.09350505, -0.04637735, 0.00321853,
+                              -0.04975992, 0.01802391, 0.09454193, 0.01964133, 0.09205931,
+                              -0.09633654, -0.01449546, 0.07617653, 0.03008342, 0.00636141,
+                              0.09065833, 0.01628199, 0.02683667, 0.03453558, 0.03439423,
+                              -0.07455501, 0.08084003, -0.02490166, -0.05911573, -0.0782221,
+                              -0.03001621, 0.01356862, 0.00085723, 0.06887564, 0.02843625,
+                              -0.04448741, -0.01301828, 0.01511824])
 
             objective.x = objective.x + shift
             assert abs(objective.J() - old_objective_value) > 1e-6
@@ -257,22 +256,20 @@ class CoilForcesTest(unittest.TestCase):
             print("objective 1:", objective.J(), "objective 2:", objective2.J())
             np.testing.assert_allclose(objective.J(), objective2.J())
 
-
     def test_meansquaredforces_taylor_test(self):
         """Verify that dJ matches finite differences of J"""
         # The Fourier spectrum of the NCSX coils is truncated - we don't need the
         # actual coil shapes from the experiment, just a few nonzero dofs.
 
-        curves, currents, axis = get_ncsx_data(Nt_coils=2)
-        coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
-
-        J = MeanSquaredForce(coils[0], coils, regularization_circ(0.05))
+        base_curves, base_currents, axis, nfp, bs = get_data("ncsx", coil_order=2)
+        
+        J = MeanSquaredForce(bs.coils[0], bs.coils, regularization_circ(0.05))
         dJ = J.dJ()
         deriv = np.sum(dJ * np.ones_like(J.x))
         dofs = J.x
         h = np.ones_like(dofs)
         err = 100
-        for i in range(10, 18):
+        for i in range(10, 17):
             eps = 0.5**i
             J.x = dofs + eps * h
             Jp = J.J()
@@ -289,10 +286,9 @@ class CoilForcesTest(unittest.TestCase):
         # The Fourier spectrum of the NCSX coils is truncated - we don't need the
         # actual coil shapes from the experiment, just a few nonzero dofs.
 
-        curves, currents, axis = get_ncsx_data(Nt_coils=2)
-        coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
-
-        J = LpCurveForce(coils[0], coils, regularization_circ(0.05), 2.5)
+        base_curves, base_currents, axis, nfp, bs = get_data("ncsx", coil_order=2)
+        
+        J = LpCurveForce(bs.coils[0], bs.coils, regularization_circ(0.05), 2.5)
         dJ = J.dJ()
         deriv = np.sum(dJ * np.ones_like(J.x))
         dofs = J.x

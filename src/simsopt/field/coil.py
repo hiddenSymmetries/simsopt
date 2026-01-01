@@ -94,6 +94,7 @@ class Current(sopp.Current, CurrentBase):
 
     def vjp(self, v_current):
         return Derivative({self: v_current})
+
     @property
     def current(self):
         return self.get_value()
@@ -203,12 +204,12 @@ def load_coils_from_makegrid_file(filename, order, ppp=20, group_names=None):
         A list of ``Coil`` objects with the Fourier coefficients and currents given by the file.
     """
 
-    if isinstance(group_names,str):
+    if isinstance(group_names, str):
         # Handle case of a single string
         group_names = [group_names]
-    
+
     with open(filename, 'r') as f:
-        all_coils_values = f.read().splitlines()[3:] 
+        all_coils_values = f.read().splitlines()[3:]
 
     currents = []
     flag = True
@@ -224,10 +225,9 @@ def load_coils_from_makegrid_file(filename, order, ppp=20, group_names=None):
             else:
                 this_group_name = vals[5]
                 if this_group_name in group_names:
-                    currents.append(curr)  
-            
-            
-    curves = CurveXYZFourier.load_curves_from_makegrid_file(filename, order=order, ppp=ppp, group_names=group_names)    
+                    currents.append(curr)
+
+    curves = CurveXYZFourier.load_curves_from_makegrid_file(filename, order=order, ppp=ppp, group_names=group_names)
     coils = [Coil(curves[i], Current(currents[i])) for i in range(len(curves))]
 
     return coils
@@ -258,7 +258,7 @@ def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=F
         assert len(groups) == ncoils
         # should be careful. SIMSOPT flips the current, but actually should change coil order
     with open(filename, "w") as wfile:
-        wfile.write("periods {:3d} \n".format(nfp)) 
+        wfile.write("periods {:3d} \n".format(nfp))
         wfile.write("begin filament \n")
         wfile.write("mirror NIL \n")
         for icoil in range(ncoils):

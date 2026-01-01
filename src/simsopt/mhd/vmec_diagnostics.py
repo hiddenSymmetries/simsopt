@@ -235,7 +235,7 @@ class QuasisymmetryRatioResidual(Optimizable):
         nn = self.helicity_n * nfp
         for js in range(ns):
             residuals3d[js, :, :] = np.sqrt(self.weights[js] * nfp * dtheta * dphi / V_prime[js] * sqrtg[js, :, :]) \
-                * (B_cross_grad_B_dot_grad_psi[js, :, :] * (nn - iota[js] * self.helicity_m) \
+                * (B_cross_grad_B_dot_grad_psi[js, :, :] * (nn - iota[js] * self.helicity_m)
                    - B_dot_grad_B[js, :, :] * (self.helicity_m * G[js] + nn * I[js])) \
                 / (modB[js, :, :] ** 3)
 
@@ -736,7 +736,6 @@ def vmec_splines(vmec):
     d_zmnc_d_s = []
     d_lmnc_d_s = []
 
-    
     for jmn in range(vmec.wout.mnmax):
         rmnc.append(InterpolatedUnivariateSpline(vmec.s_full_grid, vmec.wout.rmnc[jmn, :]))
         zmns.append(InterpolatedUnivariateSpline(vmec.s_full_grid, vmec.wout.zmns[jmn, :]))
@@ -783,7 +782,6 @@ def vmec_splines(vmec):
     d_bsupumns_d_s = []
     d_bsupvmns_d_s = []
 
-    
     for jmn in range(vmec.wout.mnmax_nyq):
         gmnc.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.gmnc[jmn, 1:]))
         bmnc.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bmnc[jmn, 1:]))
@@ -820,7 +818,6 @@ def vmec_splines(vmec):
         d_bsupumns_d_s.append(bsupumns[-1].derivative())
         d_bsupvmns_d_s.append(bsupvmns[-1].derivative())
 
-        
     # Handle 1d profiles:
     results.pressure = InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.pres[1:])
     results.d_pressure_d_s = results.pressure.derivative()
@@ -947,9 +944,7 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     # If given a Vmec object, convert it to vmec_splines:
     if isinstance(vs, Vmec):
         vs = vmec_splines(vs)
-    if not vs.stellsym:
-        raise NotImplementedError("vmec_compute_geometry() does not yet support non-stellarator-symmetric configurations.")
-
+    
     # Make sure s is an array:
     try:
         ns = len(s)
@@ -991,6 +986,7 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
         phi = np.kron(np.ones((ns, ntheta, 1)), phi.reshape(1, 1, nphi))
 
     # Shorthand:
+    stellsym = vs.stellsym
     mnmax = vs.mnmax
     xm = vs.xm
     xn = vs.xn
@@ -1012,6 +1008,15 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     d_rmnc_d_s = np.zeros((ns, mnmax))
     d_zmns_d_s = np.zeros((ns, mnmax))
     d_lmns_d_s = np.zeros((ns, mnmax))
+    # stellsym
+    rmns = np.zeros((ns, mnmax))
+    zmnc = np.zeros((ns, mnmax))
+    lmnc = np.zeros((ns, mnmax))
+    d_rmns_d_s = np.zeros((ns, mnmax))
+    d_zmnc_d_s = np.zeros((ns, mnmax))
+    d_lmnc_d_s = np.zeros((ns, mnmax))
+    
+    
     for jmn in range(mnmax):
         rmnc[:, jmn] = vs.rmnc[jmn](s)
         zmns[:, jmn] = vs.zmns[jmn](s)
@@ -1019,7 +1024,16 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
         d_rmnc_d_s[:, jmn] = vs.d_rmnc_d_s[jmn](s)
         d_zmns_d_s[:, jmn] = vs.d_zmns_d_s[jmn](s)
         d_lmns_d_s[:, jmn] = vs.d_lmns_d_s[jmn](s)
+        if not stellsym:
+            rmns[:, jmn] = vs.rmns[jmn](s)
+            zmnc[:, jmn] = vs.zmnc[jmn](s)
+            lmnc[:, jmn] = vs.lmnc[jmn](s)
+            d_rmns_d_s[:, jmn] = vs.d_rmns_d_s[jmn](s)
+            d_zmnc_d_s[:, jmn] = vs.d_zmnc_d_s[jmn](s)
+            d_lmnc_d_s[:, jmn] = vs.d_lmnc_d_s[jmn](s)
+        
 
+        
     gmnc = np.zeros((ns, mnmax_nyq))
     bmnc = np.zeros((ns, mnmax_nyq))
     d_bmnc_d_s = np.zeros((ns, mnmax_nyq))
@@ -1030,6 +1044,17 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     bsubvmnc = np.zeros((ns, mnmax_nyq))
     d_bsupumnc_d_s = np.zeros((ns, mnmax_nyq))
     d_bsupvmnc_d_s = np.zeros((ns, mnmax_nyq))
+    # stellsym
+    gmns = np.zeros((ns, mnmax_nyq))
+    bmns = np.zeros((ns, mnmax_nyq))
+    d_bmns_d_s = np.zeros((ns, mnmax_nyq))
+    bsupumns = np.zeros((ns, mnmax_nyq))
+    bsupvmns = np.zeros((ns, mnmax_nyq))
+    bsubsmnc = np.zeros((ns, mnmax_nyq))
+    bsubumns = np.zeros((ns, mnmax_nyq))
+    bsubvmns = np.zeros((ns, mnmax_nyq))
+    d_bsupumns_d_s = np.zeros((ns, mnmax_nyq))
+    d_bsupvmns_d_s = np.zeros((ns, mnmax_nyq))
     for jmn in range(mnmax_nyq):
         gmnc[:, jmn] = vs.gmnc[jmn](s)
         bmnc[:, jmn] = vs.bmnc[jmn](s)
@@ -1041,7 +1066,19 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
         bsubvmnc[:, jmn] = vs.bsubvmnc[jmn](s)
         d_bsupumnc_d_s[:, jmn] = vs.d_bsupumnc_d_s[jmn](s)
         d_bsupvmnc_d_s[:, jmn] = vs.d_bsupvmnc_d_s[jmn](s)
+        if not stellsym:
+            gmns[:, jmn] = vs.gmns[jmn](s)
+            bmns[:, jmn] = vs.bmns[jmn](s)
+            d_bmns_d_s[:, jmn] = vs.d_bmns_d_s[jmn](s)
+            bsupumns[:, jmn] = vs.bsupumns[jmn](s)
+            bsupvmns[:, jmn] = vs.bsupvmns[jmn](s)
+            bsubsmnc[:, jmn] = vs.bsubsmnc[jmn](s)
+            bsubumns[:, jmn] = vs.bsubumns[jmn](s)
+            bsubvmns[:, jmn] = vs.bsubvmns[jmn](s)
+            d_bsupumns_d_s[:, jmn] = vs.d_bsupumns_d_s[jmn](s)
+            d_bsupvmns_d_s[:, jmn] = vs.d_bsupvmns_d_s[jmn](s)
 
+        
     # Now that we know theta_vmec, compute all the geometric quantities
     angle = xm[:, None, None, None] * theta_vmec[None, :, :, :] - xn[:, None, None, None] * phi[None, :, :, :]
     cosangle = np.cos(angle)
@@ -1058,30 +1095,30 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     n2sinangle = xn[:, None, None, None]**2 * sinangle
     # Order of indices in cosangle and sinangle: mn, s, theta, phi
     # Order of indices in rmnc, bmnc, etc: s, mn
-    R = np.einsum('ij,jikl->ikl', rmnc, cosangle)
-    d_R_d_s = np.einsum('ij,jikl->ikl', d_rmnc_d_s, cosangle)
-    d_R_d_theta_vmec = np.einsum('ij,jikl->ikl', -rmnc, msinangle)
-    d_R_d_phi = np.einsum('ij,jikl->ikl', rmnc, nsinangle)
-    d2_R_d_phi2 = np.einsum('ij,jikl->ikl', -rmnc, n2cosangle)
-    d2_R_d_theta_vmec2 = np.einsum('ij,jikl->ikl', -rmnc, m2cosangle)
-    d2_R_d_theta_vmec_d_phi = np.einsum('ij,jikl->ikl', rmnc, mncosangle)
-    d2_R_d_s_d_theta_vmec = np.einsum('ij,jikl->ikl', -d_rmnc_d_s, msinangle)
-    d2_R_d_s_d_phi = np.einsum('ij,jikl->ikl', d_rmnc_d_s, nsinangle)
-    
-    Z = np.einsum('ij,jikl->ikl', zmns, sinangle)
-    d_Z_d_s = np.einsum('ij,jikl->ikl', d_zmns_d_s, sinangle)
-    d_Z_d_theta_vmec = np.einsum('ij,jikl->ikl', zmns, mcosangle)
-    d_Z_d_phi = np.einsum('ij,jikl->ikl', -zmns, ncosangle)
-    d2_Z_d_theta_vmec2 = np.einsum('ij,jikl->ikl', -zmns, m2sinangle)
-    d2_Z_d_phi2 = np.einsum('ij,jikl->ikl', -zmns, n2sinangle)
-    d2_Z_d_theta_vmec_d_phi = np.einsum('ij,jikl->ikl', zmns, mnsinangle)
-    d2_Z_d_s_d_theta_vmec = np.einsum('ij,jikl->ikl', d_zmns_d_s, mcosangle)
-    d2_Z_d_s_d_phi = np.einsum('ij,jikl->ikl', -d_zmns_d_s, ncosangle)
+    R = np.einsum('ij,jikl->ikl', rmnc, cosangle) + np.einsum('ij,jikl->ikl', rmns, sinangle)
+    d_R_d_s = np.einsum('ij,jikl->ikl', d_rmnc_d_s, cosangle) + np.einsum('ij,jikl->ikl', d_rmns_d_s, sinangle)
+    d_R_d_theta_vmec = np.einsum('ij,jikl->ikl', -rmnc, msinangle) + np.einsum('ij,jikl->ikl', rmns, mcosangle)
+    d_R_d_phi = np.einsum('ij,jikl->ikl', rmnc, nsinangle) + np.einsum('ij,jikl->ikl', -rmns, ncosangle)
+    d2_R_d_phi2 = np.einsum('ij,jikl->ikl', -rmnc, n2cosangle) + np.einsum('ij,jikl->ikl', -rmns, n2sinangle)
+    d2_R_d_theta_vmec2 = np.einsum('ij,jikl->ikl', -rmnc, m2cosangle) + np.einsum('ij,jikl->ikl', -rmns, m2sinangle)
+    d2_R_d_theta_vmec_d_phi = np.einsum('ij,jikl->ikl', rmnc, mncosangle) + np.einsum('ij,jikl->ikl', rmns, mnsinangle)
+    d2_R_d_s_d_theta_vmec = np.einsum('ij,jikl->ikl', -d_rmnc_d_s, msinangle) + np.einsum('ij,jikl->ikl', d_rmns_d_s, mcosangle)
+    d2_R_d_s_d_phi = np.einsum('ij,jikl->ikl', d_rmnc_d_s, nsinangle) + np.einsum('ij,jikl->ikl', -d_rmns_d_s, ncosangle)
 
-    lambd = np.einsum('ij,jikl->ikl', lmns, sinangle)
-    d_lambda_d_s = np.einsum('ij,jikl->ikl', d_lmns_d_s, sinangle)
-    d_lambda_d_theta_vmec = np.einsum('ij,jikl->ikl', lmns, mcosangle)
-    d_lambda_d_phi = np.einsum('ij,jikl->ikl', -lmns, ncosangle)
+    Z = np.einsum('ij,jikl->ikl', zmns, sinangle) + np.einsum('ij,jikl->ikl', zmnc, cosangle)
+    d_Z_d_s = np.einsum('ij,jikl->ikl', d_zmns_d_s, sinangle) + np.einsum('ij,jikl->ikl', d_zmnc_d_s, cosangle)
+    d_Z_d_theta_vmec = np.einsum('ij,jikl->ikl', zmns, mcosangle) + np.einsum('ij,jikl->ikl', -zmnc, msinangle)
+    d_Z_d_phi = np.einsum('ij,jikl->ikl', -zmns, ncosangle) + np.einsum('ij,jikl->ikl', zmnc, nsinangle)
+    d2_Z_d_phi2 = np.einsum('ij,jikl->ikl', -zmns, n2sinangle) + np.einsum('ij,jikl->ikl', -zmnc, n2cosangle)
+    d2_Z_d_theta_vmec2 = np.einsum('ij,jikl->ikl', -zmns, m2sinangle) + np.einsum('ij,jikl->ikl', -zmnc, m2cosangle)
+    d2_Z_d_theta_vmec_d_phi = np.einsum('ij,jikl->ikl', zmns, mnsinangle) + np.einsum('ij,jikl->ikl', zmnc, mncosangle)
+    d2_Z_d_s_d_theta_vmec = np.einsum('ij,jikl->ikl', d_zmns_d_s, mcosangle) + np.einsum('ij,jikl->ikl', -d_zmnc_d_s, msinangle)
+    d2_Z_d_s_d_phi = np.einsum('ij,jikl->ikl', -d_zmns_d_s, ncosangle) + np.einsum('ij,jikl->ikl', d_zmnc_d_s, nsinangle)
+
+    lambd = np.einsum('ij,jikl->ikl', lmns, sinangle) + np.einsum('ij,jikl->ikl', lmnc, cosangle)
+    d_lambda_d_s = np.einsum('ij,jikl->ikl', d_lmns_d_s, sinangle) +  np.einsum('ij,jikl->ikl', d_lmnc_d_s, cosangle)
+    d_lambda_d_theta_vmec = np.einsum('ij,jikl->ikl', lmns, mcosangle) +  + np.einsum('ij,jikl->ikl', -lmnc, msinangle)
+    d_lambda_d_phi = np.einsum('ij,jikl->ikl', -lmns, ncosangle) + np.einsum('ij,jikl->ikl', lmnc, nsinangle)
     theta_pest = theta_vmec + lambd
 
     # Now handle the Nyquist quantities:
@@ -1093,24 +1130,24 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     msinangle = xm_nyq[:, None, None, None] * sinangle
     nsinangle = xn_nyq[:, None, None, None] * sinangle
 
-    sqrt_g_vmec = np.einsum('ij,jikl->ikl', gmnc, cosangle)
-    modB = np.einsum('ij,jikl->ikl', bmnc, cosangle)
-    d_B_d_s = np.einsum('ij,jikl->ikl', d_bmnc_d_s, cosangle)
-    d_B_d_theta_vmec = np.einsum('ij,jikl->ikl', -bmnc, msinangle)
-    d_B_d_phi = np.einsum('ij,jikl->ikl', bmnc, nsinangle)
+    sqrt_g_vmec = np.einsum('ij,jikl->ikl', gmnc, cosangle) + np.einsum('ij,jikl->ikl', gmns, sinangle)
+    modB = np.einsum('ij,jikl->ikl', bmnc, cosangle) + np.einsum('ij,jikl->ikl', bmns, sinangle)
+    d_B_d_s = np.einsum('ij,jikl->ikl', d_bmnc_d_s, cosangle) +  np.einsum('ij,jikl->ikl', d_bmns_d_s, sinangle)
+    d_B_d_theta_vmec = np.einsum('ij,jikl->ikl', -bmnc, msinangle) + np.einsum('ij,jikl->ikl', bmns, mcosangle)
+    d_B_d_phi = np.einsum('ij,jikl->ikl', bmnc, nsinangle) + np.einsum('ij,jikl->ikl', -bmns, ncosangle)
 
-    B_sup_theta_vmec = np.einsum('ij,jikl->ikl', bsupumnc, cosangle)
-    B_sup_phi = np.einsum('ij,jikl->ikl', bsupvmnc, cosangle)
-    B_sub_s = np.einsum('ij,jikl->ikl', bsubsmns, sinangle)
-    B_sub_theta_vmec = np.einsum('ij,jikl->ikl', bsubumnc, cosangle)
-    B_sub_phi = np.einsum('ij,jikl->ikl', bsubvmnc, cosangle)
+    B_sup_theta_vmec = np.einsum('ij,jikl->ikl', bsupumnc, cosangle) + np.einsum('ij,jikl->ikl', bsupumns, sinangle)
+    B_sup_phi = np.einsum('ij,jikl->ikl', bsupvmnc, cosangle) + np.einsum('ij,jikl->ikl', bsupvmns, sinangle)
+    B_sub_s = np.einsum('ij,jikl->ikl', bsubsmns, sinangle) +  np.einsum('ij,jikl->ikl', bsubsmnc, cosangle)
+    B_sub_theta_vmec = np.einsum('ij,jikl->ikl', bsubumnc, cosangle) + np.einsum('ij,jikl->ikl', bsubumns, sinangle)
+    B_sub_phi = np.einsum('ij,jikl->ikl', bsubvmnc, cosangle) + np.einsum('ij,jikl->ikl', bsubvmns, sinangle)
     B_sup_theta_pest = iota[:, None, None] * B_sup_phi
-    d_B_sup_phi_d_theta_vmec = np.einsum('ij,jikl->ikl', -bsupvmnc, msinangle)
-    d_B_sup_phi_d_phi = np.einsum('ij,jikl->ikl', bsupvmnc, nsinangle)
-    d_B_sup_theta_vmec_d_theta_vmec = np.einsum('ij,jikl->ikl', -bsupumnc, msinangle)
-    d_B_sup_theta_vmec_d_phi = np.einsum('ij,jikl->ikl', bsupumnc, nsinangle)
-    d_B_sup_theta_vmec_d_s = np.einsum('ij,jikl->ikl', d_bsupumnc_d_s, cosangle)
-    d_B_sup_phi_d_s = np.einsum('ij,jikl->ikl', d_bsupvmnc_d_s, cosangle)
+    d_B_sup_phi_d_theta_vmec = np.einsum('ij,jikl->ikl', -bsupvmnc, msinangle) + np.einsum('ij,jikl->ikl', bsupvmns, mcosangle)
+    d_B_sup_phi_d_phi = np.einsum('ij,jikl->ikl', bsupvmnc, nsinangle) + np.einsum('ij,jikl->ikl', -bsupvmns, ncosangle)
+    d_B_sup_theta_vmec_d_theta_vmec = np.einsum('ij,jikl->ikl', -bsupumnc, msinangle) + np.einsum('ij,jikl->ikl', bsupumns, mcosangle)
+    d_B_sup_theta_vmec_d_phi = np.einsum('ij,jikl->ikl', bsupumnc, nsinangle) + np.einsum('ij,jikl->ikl', -bsupumns, ncosangle)
+    d_B_sup_theta_vmec_d_s = np.einsum('ij,jikl->ikl', d_bsupumnc_d_s, cosangle) + np.einsum('ij,jikl->ikl', d_bsupumns_d_s, sinangle)
+    d_B_sup_phi_d_s = np.einsum('ij,jikl->ikl', d_bsupvmnc_d_s, cosangle) + np.einsum('ij,jikl->ikl', d_bsupvmns_d_s, sinangle)
 
     sqrt_g_vmec_alt = R * (d_Z_d_s * d_R_d_theta_vmec - d_R_d_s * d_Z_d_theta_vmec)
 
@@ -1178,7 +1215,7 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     # approaches give the same answer (within some tolerance).
     # *********************************************************************
 
-    B_cross_grad_s_dot_grad_alpha = (B_sub_phi * (1 + d_lambda_d_theta_vmec) \
+    B_cross_grad_s_dot_grad_alpha = (B_sub_phi * (1 + d_lambda_d_theta_vmec)
                                      - B_sub_theta_vmec * (d_lambda_d_phi - iota[:, None, None])) / sqrt_g_vmec
 
     B_cross_grad_s_dot_grad_alpha_alternate = 0 \
@@ -1190,11 +1227,11 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
         - B_Y * grad_s_X * grad_alpha_Z
 
     B_cross_grad_B_dot_grad_alpha = 0 \
-        + (B_sub_s * d_B_d_theta_vmec * (d_lambda_d_phi - iota[:, None, None]) \
-           + B_sub_theta_vmec * d_B_d_phi * (d_lambda_d_s - (phi - phi_center) * d_iota_d_s[:, None, None]) \
-           + B_sub_phi * d_B_d_s * (1 + d_lambda_d_theta_vmec) \
-           - B_sub_phi * d_B_d_theta_vmec * (d_lambda_d_s - (phi - phi_center) * d_iota_d_s[:, None, None]) \
-           - B_sub_theta_vmec * d_B_d_s * (d_lambda_d_phi - iota[:, None, None]) \
+        + (B_sub_s * d_B_d_theta_vmec * (d_lambda_d_phi - iota[:, None, None])
+           + B_sub_theta_vmec * d_B_d_phi * (d_lambda_d_s - (phi - phi_center) * d_iota_d_s[:, None, None])
+           + B_sub_phi * d_B_d_s * (1 + d_lambda_d_theta_vmec)
+           - B_sub_phi * d_B_d_theta_vmec * (d_lambda_d_s - (phi - phi_center) * d_iota_d_s[:, None, None])
+           - B_sub_theta_vmec * d_B_d_s * (d_lambda_d_phi - iota[:, None, None])
            - B_sub_s * d_B_d_phi * (1 + d_lambda_d_theta_vmec)) / sqrt_g_vmec
 
     B_cross_grad_B_dot_grad_alpha_alternate = 0 \
@@ -1551,7 +1588,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         for j, variable in enumerate(variables):
             plt.subplot(nrows, ncols, j + 1)
             plt.plot(phi[0, 0, :], eval("results." + variable + '[0, 0, :]'))
-            plt.xlabel('Standard toroidal angle $\phi$')
+            plt.xlabel(r'Standard toroidal angle $\phi$')
             plt.title(variable)
 
         plt.figtext(0.5, 0.995, f's={s[0]}, alpha={alpha[0]}', ha='center', va='top')

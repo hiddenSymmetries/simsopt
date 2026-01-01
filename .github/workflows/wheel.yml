@@ -4,6 +4,13 @@ name: Wheel Builder
 
 on: [push, pull_request]
 
+concurrency:
+  # Use github.run_id on main branch
+  # Use github.event.pull_request.number on pull requests, so it's unique per pull request
+  # Use github.ref on other branches, so it's unique per branch
+  group: ${{ github.workflow }}-${{ github.ref == github.ref_protected && github.run_id || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
@@ -11,8 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macos-13 is an intel runner, macos-14 is apple silicon
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-13, macos-14]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-15, macos-15-intel]
 
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +34,7 @@ jobs:
           #   CIBW_ARCHS_MACOS: "x86_64 arm64"
           #   # Skip python 3.8 and PyPy builds since there is are errors when building the
           #   # wheel in those cases:
-          CIBW_SKIP: cp38-* pp*
+          CIBW_SKIP: cp38-* pp* *-manylinux_i686 *-musllinux*
           #   CIBW_DEPENDENCY_VERSIONS: latest
 
       - uses: actions/upload-artifact@v4

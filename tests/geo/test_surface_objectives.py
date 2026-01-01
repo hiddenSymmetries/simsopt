@@ -1,9 +1,8 @@
 import unittest
 import numpy as np
 from simsopt.field.biotsavart import BiotSavart
-from simsopt.field.coil import coils_via_symmetries
 from simsopt.geo.surfaceobjectives import ToroidalFlux, QfmResidual, parameter_derivatives, Volume, PrincipalCurvature, MajorRadius, Iotas, NonQuasiSymmetricRatio, BoozerResidual
-from simsopt.configs.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_data
 from .surface_test_helpers import get_surface, get_exact_surface, get_boozer_surface
 
 
@@ -64,10 +63,8 @@ class ToroidalFluxTests(unittest.TestCase):
         of the cross section (varphi = constant) across which it is computed
         """
         s = get_exact_surface()
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs_tf = BiotSavart(coils)
+        base_curves, base_currents, ma, nfp, bs= get_data("ncsx")
+        bs_tf = BiotSavart(bs.coils)
 
         gamma = s.gamma()
         num_phi = gamma.shape[0]
@@ -112,10 +109,8 @@ class ToroidalFluxTests(unittest.TestCase):
                     self.subtest_toroidal_flux3(surfacetype, stellsym)
 
     def subtest_toroidal_flux1(self, surfacetype, stellsym):
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs_tf = BiotSavart(coils)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
+        bs_tf = BiotSavart(bs.coils)
         s = get_surface(surfacetype, stellsym)
 
         tf = ToroidalFlux(s, bs_tf)
@@ -131,10 +126,7 @@ class ToroidalFluxTests(unittest.TestCase):
         taylor_test1(f, df, coeffs)
 
     def subtest_toroidal_flux2(self, surfacetype, stellsym):
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         s = get_surface(surfacetype, stellsym)
 
         tf = ToroidalFlux(s, bs)
@@ -155,10 +147,8 @@ class ToroidalFluxTests(unittest.TestCase):
         taylor_test2(f, df, d2f, coeffs)
 
     def subtest_toroidal_flux3(self, surfacetype, stellsym):
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs_tf = BiotSavart(coils)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
+        bs_tf = BiotSavart(bs.coils)
         s = get_surface(surfacetype, stellsym)
 
         tf = ToroidalFlux(s, bs_tf)
@@ -235,10 +225,7 @@ class QfmTests(unittest.TestCase):
                     self.subtest_qfm1(surfacetype, stellsym)
 
     def subtest_qfm1(self, surfacetype, stellsym):
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         s = get_surface(surfacetype, stellsym)
         coeffs = s.x
         qfm = QfmResidual(s, bs)
@@ -299,7 +286,7 @@ class IotasTests(unittest.TestCase):
                 for optimize_G in [True, False]:
                     for weight_inv_modB in [True, False]:
                         if boozer_type == 'ls' and label == 'ToroidalFlux':
-                           continue
+                            continue
                         if boozer_type == 'exact' and optimize_G is False:
                             continue
                         if boozer_type == 'exact' and weight_inv_modB:
@@ -339,7 +326,7 @@ class NonQSRatioTests(unittest.TestCase):
                     for optimize_G in [True, False]:
                         for fix_coil_dof in [True, False]:
                             if boozer_type == 'ls' and label == 'ToroidalFlux':
-                               continue
+                                continue
                             if boozer_type == 'exact' and optimize_G is False:
                                 continue
                             if boozer_type == 'exact' and weight_inv_modB:
@@ -350,10 +337,10 @@ class NonQSRatioTests(unittest.TestCase):
 
     def subtest_nonQSratio_derivative(self, label, axis, boozer_type, optimize_G, weight_inv_modB, fix_coil_dof):
         bs, boozer_surface = get_boozer_surface(label=label, boozer_type=boozer_type, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
-        
+
         if fix_coil_dof:
             bs.coils[0].curve.fix('xc(0)')
-        
+
         coeffs = bs.x
         io = NonQuasiSymmetricRatio(boozer_surface, bs, quasi_poloidal=axis)
 

@@ -2,22 +2,23 @@ Installation
 ============
 
 This page provides general information on installation.  Detailed
-installation instructions for some specific systems can also be found
+installation instructions for some specific systems – such as `Mac <https://github.com/hiddenSymmetries/simsopt/wiki/Mac-Conda-script-installation>`_ or `NERSC Perlmutter <https://github.com/hiddenSymmetries/simsopt/wiki/NERSC-Perlmutter>`_ – can also be found
 on `the wiki <https://github.com/hiddenSymmetries/simsopt/wiki>`_.
 
 Requirements
 ^^^^^^^^^^^^
 
-``simsopt`` is a python package focused on stellarator optimization
-and requires python version 3.7 or higher.  ``simsopt`` also requires
+.. _simsopt: https://github.com/hiddenSymmetries/simsopt
+
+`simsopt`_ is a python package focused on stellarator optimization
+and requires python version 3.9 or higher. `simsopt`_ also requires
 some mandatory python packages, listed in
-`requirements.txt <https://github.com/hiddenSymmetries/simsopt/blob/master/requirements.txt>`_
-and in the ``[options]`` section of
-`setup.cfg <https://github.com/hiddenSymmetries/simsopt/blob/master/setup.cfg>`_.
-These packages are all installed automatically when you install using
+:simsopt_file:`requirements.txt`
+and in the ``[dependencies]`` section of
+:simsopt_file:`pyproject.toml`.
+These packages are all installed automatically when you install simsopt using
 ``pip`` or another python package manager such as ``conda``, as
-discussed below.  If you prefer to install via ``python setup.py
-install`` or ``python setup.py develop``, you will need to install
+discussed below.  You can install
 these python packages manually using ``pip`` or ``conda``, e.g.
 with ``pip install -r requirements.txt``.
 
@@ -27,23 +28,22 @@ Optional Packages
 Several other optional packages are needed for certain aspects of
 simsopt, such as running SPEC or VMEC, visualization/graphics, and building the
 documentation.  These requirements can be found in the
-``[options.extras_require]`` section of `setup.cfg
-<https://github.com/hiddenSymmetries/simsopt/blob/master/setup.cfg>`_.
+``[project.optional-dependencies]`` section of :simsopt_file:`pyproject.toml`.
 Also,
 
 - For MPI support:
-    * mpi4py
+    * `mpi4py <https://github.com/mpi4py/mpi4py>`_
 - For VMEC support:
-    * https://github.com/hiddenSymmetries/vmec2000 Note that the
+    * `VMEC2000 <https://github.com/hiddenSymmetries/vmec2000>`_. Note that the
       python extension in this repository is required to run VMEC or
       optimize VMEC configurations, but is not needed for computing
       properties of existing ``wout`` output files.
 - For computing Boozer coordinates:
     * `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_
 - For SPEC support:
-    * py_spec
-    * pyoculus
-    * h5py
+    * `py_spec <https://github.com/PrincetonUniversity/SPEC/tree/master/Utilities/pythontools>`_
+    * `pyoculus <https://github.com/zhisong/pyoculus>`_
+    * `h5py <https://github.com/h5py/h5py>`_
 
 For requirements of separate physics modules like VMEC, see the
 documentation of the module you wish to use.
@@ -55,7 +55,7 @@ Virtual Environments
 
 This is an optional step, but users are strongly encouraged to use a python virtual environment
 to install simsopt. There are two popular ways to create a python virtual environment using 
-either ``venv`` module supplied with python or the conda virtual environment.
+either `venv <https://docs.python.org/3/library/venv.html>`_ module supplied with python or the conda virtual environment.
 
 venv
 ----
@@ -73,7 +73,7 @@ Activate the newly created virtual environmnet (for bash shell)
     . <path/to/new/virtual/environment>/bin/activate
 
 If you are on a different shell, use the ``activate`` file with an appropriate extension reflecting the shell type.
-For more information, please refer to `venv official documentation <https://https://docs.python.org/3/library/venv.html>`_.
+For more information, please refer to `venv official documentation <https://docs.python.org/3/library/venv.html>`_.
 
 conda
 -----
@@ -84,9 +84,9 @@ A conda python virtual environment can be created by running
 
 .. code-block::
 
-    conda create -n <your_virtual_env_name> python=3.8
+    conda create -n <your_virtual_env_name> python=3.10
 
-For the new virtual environment, python version 3.8 was chosen in the above command, but you are free to choose any version you want. 
+For the new virtual environment, python version 3.10 was chosen in the above command, but you are free to choose any version you want. 
 The newly created virtual environment can be activated with a simple command
 
 .. code-block::
