@@ -87,6 +87,11 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
     MPI. All MPI processes (including group leaders and workers)
     should call this function.
 
+    This function solves
+    min f(x)
+    subject to lb <= x <= ub
+    where the bounds are taken from the prob.bounds attribute.
+    
     Args:
         prob: Optimizable object defining the objective function(s) and
              parameter space.

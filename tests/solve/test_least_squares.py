@@ -49,6 +49,12 @@ class LeastSquaresProblemTests(unittest.TestCase):
         """
         Same as test_solve_quadratic, except with different bounds. The solver 
         should therefore run into the bounds instead of the regular minimum.
+
+        The optimization problem is
+        min (x1 - 1)^2 + 2(x2 - 2)^2 + 3(x3 - 3)^2
+        subject to
+        x2 <= 1, x3 <=10.
+        The solution, [1, 1, 3], is bound constrained.
         """
         with ScratchDir("."):
             for solver in solvers:

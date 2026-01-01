@@ -12,6 +12,7 @@ from datetime import datetime
 from time import time
 from typing import Union, Callable
 import logging
+import warnings
 
 import numpy as np
 from scipy.optimize import least_squares, minimize
@@ -142,9 +143,9 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
         return residuals
 
     if "bounds" in kwargs:
-        import warnings
         warnings.warn("The bounds argument has been deprecated and is being ignored, \
                       please use prob.bounds instead.", DeprecationWarning, 2)
+        logger.info("The bounds argument has been deprecated and is being ignored, please use prob.bounds instead.")
         kwargs.pop("bounds", None)
 
     logger.info("Beginning solve.")
@@ -258,7 +259,6 @@ def serial_solve(prob: Union[Optimizable, Callable],
         #if not 'verbose' in kwargs:
 
         if "bounds" in kwargs:
-            import warnings
             warnings.warn("The bounds argument has been deprecated and is being ignored, \
                         please use prob.bounds instead.", DeprecationWarning, 2)
         # Only specify the bounds argument if they are finite
