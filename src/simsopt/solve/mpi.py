@@ -209,6 +209,7 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
         import warnings
         warnings.warn("The bounds argument has been deprecated and is being ignored, \
                       please use prob.bounds instead.", DeprecationWarning, 2)
+        logger.info("The bounds argument has been deprecated and is being ignored, please use prob.bounds instead.")
         kwargs.pop("bounds", None)
 
     # For MPI finite difference gradient, get the worker and leader action from

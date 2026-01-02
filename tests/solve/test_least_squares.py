@@ -58,25 +58,20 @@ class LeastSquaresProblemTests(unittest.TestCase):
         """
         with ScratchDir("."):
             for solver in solvers:
-                # Check that bounds via problem and bounds argument behave the same
-                for bounds_type  in ['argument', 'property']: 
-                    iden1 = Identity()
-                    iden2 = Identity()
-                    iden3 = Identity()
-                    term1 = (iden1.f, 1, 1)
-                    term2 = (iden2.f, 2, 2)
-                    term3 = (iden3.f, 3, 3)
-                    prob = LeastSquaresProblem.from_tuples([term1, term2, term3])
-                    if bounds_type == 'argument':
-                        solver(prob, bounds=([-np.inf, -np.inf, -np.inf], [np.inf, 1, 10]))
-                    else:
-                        prob.upper_bounds = [np.inf, 1, 10]
-                        solver(prob)
-                    print("assertAlmostEqual", prob.objective(), prob.x)
-                    self.assertAlmostEqual(prob.objective(), 2)
-                    self.assertTrue(np.allclose(iden1.x, [1]))
-                    self.assertTrue(np.allclose(iden2.x, [1]))
-                    self.assertTrue(np.allclose(iden3.x, [3]))
+                iden1 = Identity()
+                iden2 = Identity()
+                iden3 = Identity()
+                term1 = (iden1.f, 1, 1)
+                term2 = (iden2.f, 2, 2)
+                term3 = (iden3.f, 3, 3)
+                prob = LeastSquaresProblem.from_tuples([term1, term2, term3])
+                prob.upper_bounds = [np.inf, 1, 10]
+                solver(prob)
+                print("assertAlmostEqual", prob.objective(), prob.x)
+                self.assertAlmostEqual(prob.objective(), 2)
+                self.assertTrue(np.allclose(iden1.x, [1]))
+                self.assertTrue(np.allclose(iden2.x, [1]))
+                self.assertTrue(np.allclose(iden3.x, [3]))
 
     def test_solve_quadratic_fixed(self):
         """
