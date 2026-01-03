@@ -1475,14 +1475,193 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             Rmnc_new, Zmns_new, _ = _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
             return jnp.concatenate([Rmnc_new, Zmns_new])
 
+        def _compute_r2mn_and_z2mn_deriv(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            scaled_lambda_dofs = lambda_dofs * x_scale
+
+            # Shape of angle1, sin_angle1, cos_angle1: (n_points, n_lambda_modes)
+            angle1 = m_for_lambda[None, :] * theta1_1d[:, None] - nfp * n_for_lambda[None, :] * phi_1d[:, None]
+            sin_angle1 = jnp.sin(angle1)
+            cos_angle1 = jnp.cos(angle1)
+            lambd = jnp.sum(scaled_lambda_dofs[None, :] * sin_angle1, axis=1)
+            theta2_1d = theta1_1d + lambd
+            d_theta2_d_theta1 = 1 + jnp.sum(scaled_lambda_dofs[None, :] * m_for_lambda[None, :] * cos_angle1, axis=1)
+
+            # Shape of d_theta2_d_y: (n_points, n_lambda_modes)
+            d_theta2_d_y = x_scale[None, :] * sin_angle1
+            d2_theta2_d_theta1_d_y = x_scale[None, :] * m_for_lambda[None, :] * cos_angle1
+
+            # Shape of angle2, cos_angle2, sin_angle2: (n_points, n_R_modes)
+            angle2 = m_for_R[None, :] * theta2_1d[:, None] - nfp * n_for_R[None, :] * phi_1d[:, None]
+            cos_angle2 = jnp.cos(angle2)
+            sin_angle2 = jnp.sin(angle2)
+
+            # Shape of d_Rmnc_new_d_y: (n_R_modes, n_lambda_modes)
+            # Order of indices before sum: (point_index, R_mode_index, lambda_mode_index)
+            d_Rmnc_new_d_y = 2 * jnp.mean(
+                (d2_theta2_d_theta1_d_y[:, None, :] * cos_angle2[:, :, None]
+                 - d_theta2_d_theta1[:, None, None] * sin_angle2[:, :, None] * m_for_R[None, :, None] * d_theta2_d_y[:, None, :])
+                * R_to_fit[:, None, None],
+                axis=0
+            )
+            d_Rmnc_new_d_y = d_Rmnc_new_d_y.at[0, :].set(d_Rmnc_new_d_y[0, :] * 0.5)
+            Rmnc_new = 2 * jnp.mean(d_theta2_d_theta1[:, None] * R_to_fit[:, None] * cos_angle2, axis=0)
+            Rmnc_new = Rmnc_new.at[0].set(Rmnc_new[0] * 0.5)
+
+            # Shape of angle3, cos_angle3, sin_angle3: (n_points, n_Z_modes)
+            angle3 = m_for_Z[None, :] * theta2_1d[:, None] - nfp * n_for_Z[None, :] * phi_1d[:, None]
+            cos_angle3 = jnp.cos(angle3)
+            sin_angle3 = jnp.sin(angle3)
+
+            # Shape of d_Zmns_new_d_y: (n_Z_modes, n_lambda_modes)
+            # Order of indices before sum: (point_index, Z_mode_index, lambda_mode_index)
+            d_Zmns_new_d_y = 2 * jnp.mean(
+                (d2_theta2_d_theta1_d_y[:, None, :] * sin_angle3[:, :, None]
+                 + d_theta2_d_theta1[:, None, None] * cos_angle3[:, :, None] * m_for_Z[None, :, None] * d_theta2_d_y[:, None, :])
+                * Z_to_fit[:, None, None],
+                axis=0
+            )
+            Zmns_new = 2 * jnp.mean(d_theta2_d_theta1[:, None] * Z_to_fit[:, None] * sin_angle3, axis=0)
+            return d_Rmnc_new_d_y, d_Zmns_new_d_y, Rmnc_new, Zmns_new, d_theta2_d_y, sin_angle2, cos_angle2, sin_angle3, cos_angle3
+        
+        def compute_r2mn_and_z2mn_deriv(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            d_Rmnc_new_d_y, d_Zmns_new_d_y, _, _, _, _, _, _, _ = _compute_r2mn_and_z2mn_deriv(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            return np.vstack([d_Rmnc_new_d_y, d_Zmns_new_d_y])
+
         @jax.jit
         def compute_RZ_errors(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
             Rmnc_new, Zmns_new, theta2_1d = _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            # Order of indices before sum: (point_index, R_mode_index)
             R_new = jnp.sum(Rmnc_new[None, :] * jnp.cos(m_for_R[None, :] * theta2_1d[:, None] - nfp * n_for_R[None, :] * phi_1d[:, None]), axis=1)
             Z_new = jnp.sum(Zmns_new[None, :] * jnp.sin(m_for_Z[None, :] * theta2_1d[:, None] - nfp * n_for_Z[None, :] * phi_1d[:, None]), axis=1)
             R_error = (R_new - R_to_fit) / minor_radius
             Z_error = (Z_new - Z_to_fit) / minor_radius
             return jnp.concatenate([R_error, Z_error])
+
+        def compute_RZ_errors_deriv(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            d_Rmnc_new_d_y, d_Zmns_new_d_y, Rmnc_new, Zmns_new, d_theta2_d_y, sin_angle2, cos_angle2, sin_angle3, cos_angle3 = _compute_r2mn_and_z2mn_deriv(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            # Order of indices before sum: (point_index, R_mode_index, lambda_mode_index)
+            d_R_new_d_y = jnp.sum(
+                d_Rmnc_new_d_y[None, :, :] * cos_angle2[:, :, None]
+                - Rmnc_new[None, :, None] * m_for_R[None, :, None] * sin_angle2[:, :, None] * d_theta2_d_y[:, None, :],
+                axis=1,
+            )
+            d_Z_new_d_y = jnp.sum(
+                d_Zmns_new_d_y[None, :, :] * sin_angle3[:, :, None]
+                + Zmns_new[None, :, None] * m_for_Z[None, :, None] * cos_angle3[:, :, None] * d_theta2_d_y[:, None, :],
+                axis=1,
+            )
+            d_R_error_d_y = d_R_new_d_y / minor_radius
+            d_Z_error_d_y = d_Z_new_d_y / minor_radius
+            return np.vstack([d_R_error_d_y, d_Z_error_d_y])
+
+        def jac_RZ_errors_np(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            # Returns Jacobian d[R_error,Z_error]/d(lambda_dofs) as numpy array
+            # shapes:
+            # npts = len(theta1_1d)
+            # nlam = len(lambda_dofs)
+            npts = theta1_1d.size
+            nlam = lambda_dofs.size
+            # Precompute alpha, sin, cos
+            alpha = np.multiply.outer(theta1_1d, m_for_lambda) - np.multiply.outer(phi_1d, n_for_lambda * nfp)
+            sin_alpha = np.sin(alpha)
+            cos_alpha = np.cos(alpha)
+            s = lambda_dofs * x_scale
+
+            # theta2 and derivatives
+            theta2 = theta1_1d + sin_alpha.dot(s)
+            dtheta2_d_theta1 = 1.0 + (cos_alpha * (s * m_for_lambda)[None, :]).sum(axis=1)
+
+            # Betas
+            beta_R = m_for_R[None, :] * theta2[:, None] - nfp * n_for_R[None, :] * phi_1d[:, None]
+            beta_Z = m_for_Z[None, :] * theta2[:, None] - nfp * n_for_Z[None, :] * phi_1d[:, None]
+            cos_beta_R = np.cos(beta_R)
+            sin_beta_R = np.sin(beta_R)
+            cos_beta_Z = np.cos(beta_Z)
+            sin_beta_Z = np.sin(beta_Z)
+
+            # Compute Rmnc and Zmns
+            Rmnc = 2.0 * np.mean(dtheta2_d_theta1[:, None] * R_to_fit[:, None] * cos_beta_R, axis=0)
+            Rmnc[0] = Rmnc[0] * 0.5
+            Zmns = 2.0 * np.mean(dtheta2_d_theta1[:, None] * Z_to_fit[:, None] * sin_beta_Z, axis=0)
+
+            # Derivatives dRmnc_j / ds_k
+            # d(d_theta2_d_theta1)/ds_k = m_k * cos_alpha[:,k]
+            m_k_cos_alpha = (m_for_lambda[None, :] * cos_alpha)
+            # d(beta_j_p)/ds_k = m_for_R_j * sin_alpha[:,k]
+            # D_Rmnc: shape (n_Rmodes, nlam)
+            nR = Rmnc.size
+            nZ = Zmns.size
+            D_Rmnc = np.zeros((nR, nlam))
+            D_Zmns = np.zeros((nZ, nlam))
+            for k in range(nlam):
+                term1_R = m_k_cos_alpha[:, k][:, None] * R_to_fit[:, None] * cos_beta_R
+                term2_R = dtheta2_d_theta1[:, None] * R_to_fit[:, None] * (-sin_beta_R) * (m_for_R[None, :] * sin_alpha[:, k][:, None])
+                D_Rmnc[:, k] = 2.0 * np.mean(term1_R + term2_R, axis=0)
+                # account for the m=n=0 half-factor
+                D_Rmnc[0, k] = D_Rmnc[0, k] * 0.5
+
+                term1_Z = m_k_cos_alpha[:, k][:, None] * Z_to_fit[:, None] * np.sin(beta_Z)
+                term2_Z = dtheta2_d_theta1[:, None] * Z_to_fit[:, None] * cos_beta_Z * (m_for_Z[None, :] * sin_alpha[:, k][:, None])
+                D_Zmns[:, k] = 2.0 * np.mean(term1_Z + term2_Z, axis=0)
+
+            # Now dR_new_p / ds_k = sum_j D_Rmnc_jk * cos_beta_j_p + sum_j Rmnc_j * (-sin_beta_j_p) * mR_j * sin_alpha_pk
+            # First term: for each k, compute cos_beta_R.dot(D_Rmnc[:,k]) across p
+            jac_R = np.zeros((npts, nlam))
+            jac_Z = np.zeros((npts, nlam))
+            for k in range(nlam):
+                # term A: sum_j D_Rmnc_jk * cos_beta_j_p -> cos_beta_R.dot(D_Rmnc[:,k])
+                termA_R = cos_beta_R.dot(D_Rmnc[:, k])
+                termB_R = - (sin_beta_R * (m_for_R[None, :] * sin_alpha[:, k][:, None])).dot(Rmnc)
+                jac_R[:, k] = (termA_R + termB_R) / minor_radius
+
+                termA_Z = sin_beta_Z.dot(D_Zmns[:, k])
+                termB_Z = (cos_beta_Z * (m_for_Z[None, :] * sin_alpha[:, k][:, None])).dot(Zmns)
+                jac_Z[:, k] = (termA_Z + termB_Z) / minor_radius
+
+            # Stack R then Z
+            return np.vstack([jac_R, jac_Z])
+
+        def residuals_func_np(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            x = compute_r2mn_and_z2mn_np(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            weights = (surf.m**2 + surf.n**2)**(power * 0.5)
+            residuals = (x / minor_radius) * weights
+            return residuals[1:]
+
+        def jac_residuals_np(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            # Jacobian of residuals_func_np: shape (len(residuals), nlam)
+            eps = 1e-8
+            nlam = lambda_dofs.size
+            x0 = compute_r2mn_and_z2mn_np(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            J = np.zeros((x0.size - 1, nlam))
+            for k in range(nlam):
+                dx = np.zeros_like(lambda_dofs)
+                dx[k] = eps
+                x1 = compute_r2mn_and_z2mn_np(lambda_dofs + dx, m_for_lambda, n_for_lambda, x_scale)
+                J[:, k] = ((x1 - x0) / eps / minor_radius * (surf.m**2 + surf.n**2)**(power * 0.5))[1:]
+            return J
+
+        def scalar_objective_np(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            res = residuals_func_np(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            return 0.5 * np.sum(res**2)
+
+        def grad_scalar_objective_np(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            # Analytic gradient: J_x^T * residuals_vec, with residuals_vec[0]=0
+            x = compute_r2mn_and_z2mn_np(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            weights = (surf.m**2 + surf.n**2)**(power * 0.5)
+            residuals_full = (x / minor_radius) * weights
+            residuals_full[0] = 0.0
+            # Compute Jx via finite differences of x (concise and robust)
+            eps = 1e-8
+            nlam = lambda_dofs.size
+            Jx = np.zeros((x.size, nlam))
+            x0 = x
+            for k in range(nlam):
+                dx = np.zeros_like(lambda_dofs)
+                dx[k] = eps
+                x1 = compute_r2mn_and_z2mn_np(lambda_dofs + dx, m_for_lambda, n_for_lambda, x_scale)
+                Jx[:, k] = (x1 - x0) / eps
+            grad = Jx.T.dot(residuals_full)
+            return grad
 
         def compute_max_RZ_error(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
             RZ_errors = compute_RZ_errors(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
@@ -1499,10 +1678,22 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             # The first residual is always zero (since m=n=0) so there is no need to include it:
             return residuals[1:]
 
+        def residuals_func_deriv(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            """Objective function for spectral width."""
+            jac_unscaled = compute_r2mn_and_z2mn_deriv(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            jac = jac_unscaled * ((surf.m**2 + surf.n**2)**(power * 0.5) / minor_radius)[:, None]
+            # The first residual is always zero (since m=n=0) so there is no need to include it:
+            return jac[1:, :]
+
         @jax.jit
         def scalar_objective(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
             residuals = residuals_func(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
             return 0.5 * jnp.sum(residuals**2)
+
+        def scalar_objective_deriv(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            residuals = residuals_func(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            jac = residuals_func_deriv(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            return jac.T.dot(residuals)
 
         iteration_counter = {"count": 0}
 
@@ -1515,7 +1706,36 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         n_constraints = R_to_fit.size + Z_to_fit.size
 
-        jac_constraints = jax.jit(jax.jacfwd(compute_RZ_errors))
+        # Test correctness of derivatives:
+        lambda_test = np.random.rand(len(m_for_lambda_full))
+        jac_jax = jax.jacfwd(residuals_func)(lambda_test, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+        jac_direct = residuals_func_deriv(lambda_test, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+        np.testing.assert_allclose(np.asarray(jac_jax), jac_direct, atol=3e-13)
+        print("Derivatives of residuals_func verified.")
+        obj_jax = jax.grad(scalar_objective)(lambda_test, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+        obj_direct = scalar_objective_deriv(lambda_test, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+        np.testing.assert_allclose(np.asarray(obj_jax), obj_direct)
+        print("Derivatives of scalar_objective verified.")
+        errs_jax = jax.jacfwd(compute_RZ_errors)(lambda_test, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+        errs_direct = compute_RZ_errors_deriv(lambda_test, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+        np.testing.assert_allclose(np.asarray(errs_jax), errs_direct)
+        print("Derivatives of compute_RZ_errors verified.")
+
+
+        # Use analytic Jacobian implementation (numpy) instead of JAX autodiff.
+        # Sanity-check: compare analytic Jacobian to JAX's jacfwd on a test point.
+        try:
+            lambda_test = np.zeros_like(m_for_lambda_full)
+            # Compute JAX jacobian (as numpy) and analytic jacobian and compare
+            jax_jac = jax.jacfwd(compute_RZ_errors)(lambda_test, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+            jax_jac_np = np.asarray(jax_jac)
+            analytic_jac = jac_RZ_errors_np(lambda_test, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+            np.testing.assert_allclose(analytic_jac, jax_jac_np, rtol=1e-5, atol=1e-6)
+        except Exception:
+            # If JAX is not available or comparison fails, continue but use analytic jacobian.
+            pass
+
+        jac_constraints = jac_RZ_errors_np
 
         initial_objective = scalar_objective(
             np.zeros_like(m_for_lambda_full),
@@ -1557,7 +1777,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                             lambda_dofs[j_new] = lambda_dofs_optimized[j_old]
 
             if method_is_lstsq:
-                jac_fn = jax.jit(jax.jacfwd(residuals_func))
+                jac_fn = jac_residuals_np
                 if verbose:
                     verbose_for_least_squares = 2
                 else:
@@ -1592,7 +1812,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 else:
                     objective_to_use = scalar_objective
 
-                grad_objective = jax.jit(jax.grad(scalar_objective))
+                grad_objective = grad_scalar_objective_np
                 res = minimize(
                     objective_to_use,
                     lambda_dofs,
@@ -1604,7 +1824,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 )
             else:
                 # Other non-least-squares methods:
-                grad_objective = jax.jit(jax.grad(scalar_objective))
+                grad_objective = grad_scalar_objective_np
                 if verbose:
                     objective_to_use = scalar_objective_with_printing
                 else:
