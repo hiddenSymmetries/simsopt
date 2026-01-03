@@ -6,6 +6,7 @@
 This module contains functions that can postprocess VMEC output.
 """
 
+import inspect
 import logging
 from typing import Union, Optional
 
@@ -1196,6 +1197,9 @@ class VmecGeometryResults:
     """1D array of theta points for coordinate-line tracing."""
     phi1d: Optional[np.ndarray] = None
     """1D array of phi points for coordinate-line tracing."""
+
+
+VmecGeometryResults.__signature__ = inspect.Signature()
 
 
 def vmec_compute_geometry(vs, s:RealArray, theta:RealArray, phi:RealArray, phi_center:float=0.0)->VmecGeometryResults:
