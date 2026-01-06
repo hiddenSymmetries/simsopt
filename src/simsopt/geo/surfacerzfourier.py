@@ -1480,13 +1480,14 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             Rmnc_new, Zmns_new, theta2_1d = _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
             R_new = jnp.sum(Rmnc_new[None, :] * jnp.cos(m_for_R[None, :] * theta2_1d[:, None] - nfp * n_for_R[None, :] * phi_1d[:, None]), axis=1)
             Z_new = jnp.sum(Zmns_new[None, :] * jnp.sin(m_for_Z[None, :] * theta2_1d[:, None] - nfp * n_for_Z[None, :] * phi_1d[:, None]), axis=1)
-            R_error = (R_new - R_to_fit) / minor_radius
-            Z_error = (Z_new - Z_to_fit) / minor_radius
+            # Scale errors so the constraints are at +/- 1:
+            R_error = (R_new - R_to_fit) / (minor_radius * epsilon)
+            Z_error = (Z_new - Z_to_fit) / (minor_radius * epsilon)
             return jnp.concatenate([R_error, Z_error])
 
         def compute_max_RZ_error(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
             RZ_errors = compute_RZ_errors(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
-            max_error = np.max(np.abs(RZ_errors))
+            max_error = np.max(np.abs(RZ_errors)) * epsilon
             if verbose:
                 print(f"(Max error in fitting R or Z of points) / minor_radius: {max_error:.3e}", flush=True)
             return max_error
@@ -1576,8 +1577,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 # Constrained optimization methods:
                 constraints = NonlinearConstraint(
                     lambda x: compute_RZ_errors(x, m_for_lambda, n_for_lambda, x_scale),
-                    jnp.full(n_constraints, -epsilon),
-                    jnp.full(n_constraints, epsilon),
+                    -jnp.ones(n_constraints),  # Lower bounds
+                    jnp.ones(n_constraints),  # Upper bounds
                     jac=lambda x: jac_constraints(x, m_for_lambda, n_for_lambda, x_scale),
                 )
 
