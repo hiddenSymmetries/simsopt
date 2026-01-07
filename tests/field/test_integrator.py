@@ -270,8 +270,8 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
         # Evaluate at specific phis and via fieldlinepoints helpers
         RZ0 = np.array([self.R0, 0.0])
         phis = np.linspace(0, 2*np.pi, 9, endpoint=True)
-        success, rphiz = self.intg.integrate_cyl_planes(RZ0, phis, return_cartesian=False)
-        self.assertTrue(success)
+        status, rphiz = self.intg.integrate_cyl_planes(RZ0, phis, return_cartesian=False)
+        self.assertEqual(status, 0)
         self.assertEqual(rphiz.shape, (len(phis), 3))
         self.assertTrue(np.allclose(rphiz[:, 0], self.R0, atol=1e-7))
         self.assertTrue(np.allclose(rphiz[:, 2], 0.0, atol=1e-9))
