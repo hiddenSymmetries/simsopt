@@ -1503,20 +1503,18 @@ class ScipyFieldlineIntegrator(Integrator):
     
     #TODO: add jacobian of integrand
 
-
 class PoincarePlotter(Optimizable):
     """
     Class to facilitate the calculation of field lines and 
     plotting the results in a Poincare plot. 
     Uses field periodicity to speed up calculation
     """
-    def __init__(self, integrator: Integrator, start_points_RZ, phis=None, n_transits=100, add_symmetry_planes=True, store_results=False):
+    def __init__(self, integrator: Integrator, start_points_RZ, phis=None, n_transits=100, add_symmetry_planes=True, store_results=False, phi0=None):
         """
         Initialize the PoincarePlotter. 
         This class uses an Integrator to compute field lines, and takes care of plotting them. 
-        If the field has multiple field periods, and add_symmetry_planes is given, then planes corresponding
-        to identical locations (through this symmetry) are all plotted at on the same plane
-        (resulting in better plots with shorter integration). 
+        If the field is stellarator-symmetric, and symmetry planes are included, then 
+        these are overplotted in the plot (resulting in better plots with shorter integration). 
 
         Args:
             integrator: the integrator to be used for the calculation
@@ -1539,8 +1537,8 @@ class PoincarePlotter(Optimizable):
         
         if add_symmetry_planes:
             self._phis = self.generate_symmetry_planes(self._phis, nfp=self.integrator.nfp)
-        
-        self.phi0 = self._phis[0]
+
+        self.phi0 = self._phis[0] if phi0 is None else phi0
         self.i_am_the_plotter = self.integrator.comm is None or self.integrator.comm.rank == 0  # only rank 0 does plotting
         self.need_to_recompute = True
         self._randomcolors = None
@@ -1549,6 +1547,7 @@ class PoincarePlotter(Optimizable):
         if store_results:
             # load file form disk if it exists
             self.retrieve_poincare_data()
+
 
     @property
     def randomcolors(self):
