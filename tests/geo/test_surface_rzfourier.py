@@ -403,9 +403,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         wout_filename = TEST_DIR / 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
         plasma_surf = SurfaceRZFourier.from_wout(wout_filename, range="full torus", ntheta=100, nphi=400)
 
-        coil_surf = SurfaceRZFourier.from_wout(wout_filename, range="half period", ntheta=71, nphi=70)
+        coil_surf_load = SurfaceRZFourier.from_wout(wout_filename, range="half period", ntheta=71, nphi=70)
         # Increase Fourier resolution so we can represent the surface accurately
-        coil_surf.change_resolution(24, 24)
+        coil_surf = coil_surf_load.change_resolution(24, 24)
         separation = 3.0
         coil_surf.extend_via_normal(separation)
 
@@ -437,9 +437,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         wout_filename = TEST_DIR / 'wout_LandremanSenguptaPlunk_section5p3_reference.nc'
         plasma_surf = SurfaceRZFourier.from_wout(wout_filename, range="full torus", ntheta=100, nphi=400)
 
-        coil_surf = SurfaceRZFourier.from_wout(wout_filename, range="field period", ntheta=101, nphi=100)
+        coil_surf_load = SurfaceRZFourier.from_wout(wout_filename, range="field period", ntheta=101, nphi=100)
         # Increase Fourier resolution so we can represent the surface accurately
-        coil_surf.change_resolution(24, 24)
+        coil_surf = coil_surf_load.change_resolution(24, 24)
         separation = 0.2
         coil_surf.extend_via_normal(separation)
 
@@ -522,32 +522,37 @@ class SurfaceRZFourierTests(unittest.TestCase):
         """
         for mpol in [1, 2]:
             for ntor in [0, 1]:
-                s = SurfaceRZFourier(mpol=mpol, ntor=ntor)
-                n = len(s.get_dofs())
-                s.set_dofs((np.random.rand(n) - 0.5) * 0.01)
-                s.set_rc(0, 0, 1.0)
-                s.set_rc(1, 0, 0.1)
-                s.set_zs(1, 0, 0.13)
-                v1 = s.volume()
-                a1 = s.area()
+                s_orig = SurfaceRZFourier(mpol=mpol, ntor=ntor)
+                n = len(s_orig.get_dofs())
+                s_orig.set_dofs((np.random.rand(n) - 0.5) * 0.01)
+                s_orig.set_rc(0, 0, 1.0)
+                s_orig.set_rc(1, 0, 0.1)
+                s_orig.set_zs(1, 0, 0.13)
+                v1 = s_orig.volume()
+                a1 = s_orig.area()
 
-                s.change_resolution(mpol+1, ntor)
+                s = s_orig.change_resolution(mpol+1, ntor)
                 v2 = s.volume()
                 a2 = s.area()
                 self.assertAlmostEqual(v1, v2)
                 self.assertAlmostEqual(a1, a2)
 
-                s.change_resolution(mpol, ntor+1)
-                v2 = s.volume()
-                a2 = s.area()
+                s2 = s.change_resolution(mpol, ntor+1)
+                v2 = s2.volume()
+                a2 = s2.area()
                 self.assertAlmostEqual(v1, v2)
                 self.assertAlmostEqual(a1, a2)
 
-                s.change_resolution(mpol+1, ntor+1)
-                v2 = s.volume()
-                a2 = s.area()
+                s3 = s2.change_resolution(mpol+1, ntor+1)
+                v2 = s3.volume()
+                a2 = s3.area()
                 self.assertAlmostEqual(v1, v2)
                 self.assertAlmostEqual(a1, a2)
+
+                # test against cpp backend memory failure when increasing (mpol,ntor), causing out-of-bounds access see #478 
+                s4 = s_orig.change_resolution(10, 10)
+                s_orig.darea_by_dcoeff()  # if no error, pass
+                s4.darea_by_dcoeff()  # if no error, pass
 
     def test_repr(self):
         s = SurfaceRZFourier(nfp=2, mpol=3, ntor=5)
