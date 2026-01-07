@@ -549,6 +549,11 @@ class SurfaceRZFourierTests(unittest.TestCase):
                 self.assertAlmostEqual(v1, v2)
                 self.assertAlmostEqual(a1, a2)
 
+                # test against cpp backend memory failure when increasing (mpol,ntor), causing out-of-bounds access see #478 
+                s4 = s_orig.change_resolution(10, 10)
+                s_orig.darea_by_dcoeff()  # if no error, pass
+                s4.darea_by_dcoeff()  # if no error, pass
+
     def test_repr(self):
         s = SurfaceRZFourier(nfp=2, mpol=3, ntor=5)
         s_str = repr(s)
