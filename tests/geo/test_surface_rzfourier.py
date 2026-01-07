@@ -492,9 +492,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         # test possible bug due to memory leak
         # stell sym
-        from simsopt.configs import get_ncsx_data
-        _, _, ma = get_ncsx_data()
-        qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), nfp=3, etabar=-0.408)
+        from simsopt.configs import get_data
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
+        qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), nfp=nfp, etabar=-0.408)
         phis = np.linspace(0, 1/qsc.nfp, 2*ntor+1, endpoint=False)
         thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
         full_torus = SurfaceRZFourier.from_pyQSC(qsc, r=0.1, ntheta=100, mpol=6, ntor=6)
@@ -506,7 +506,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         np.random.seed(1)
         # non stell sym for code coverage
-        qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), rs=np.random.rand(5)*1e-7, zc=np.random.rand(5)*1e-7, nfp=3, etabar=-0.408)
+        qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), rs=np.random.rand(5)*1e-7, zc=np.random.rand(5)*1e-7, nfp=nfp, etabar=-0.408)
         phis = np.linspace(0, 1/qsc.nfp, 2*ntor+1, endpoint=False)
         thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
         full_torus = SurfaceRZFourier.from_pyQSC(qsc, r=0.1, ntheta=100, mpol=6, ntor=6)
@@ -1016,7 +1016,132 @@ class SurfaceRZFourierTests(unittest.TestCase):
         np.testing.assert_allclose(dv, dv_truth,
                                    err_msg = 'Volume derivative does not match precalculated results.', atol = 1e-14)
         
-        
+    def test_flip_z(self):
+        """Test the flip_z() method."""
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    s = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=3, stellsym=stellsym)
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    s.flip_z()
+                    new_gamma = s.gamma()
+                    np.testing.assert_allclose(old_gamma[:, :, 0], new_gamma[:, :, 0])
+                    np.testing.assert_allclose(old_gamma[:, :, 1], new_gamma[:, :, 1])
+                    np.testing.assert_allclose(old_gamma[:, :, 2], -new_gamma[:, :, 2])
+
+    def test_flip_phi(self):
+        """Test the flip_phi() method."""
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    quadpoints_phi = np.linspace(0, 1, 12)  # Must include endpoint!
+                    quadpoints_theta = np.linspace(0, 1, 8)
+                    s = SurfaceRZFourier(
+                        mpol=mpol,
+                        ntor=ntor,
+                        nfp=3,
+                        stellsym=stellsym,
+                        quadpoints_phi=quadpoints_phi,
+                        quadpoints_theta=quadpoints_theta,
+                    )
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_Z = old_gamma[:, :, 2]
+                    s.flip_phi()
+                    new_gamma = s.gamma()
+                    new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    new_Z = new_gamma[:, :, 2]
+                    # flipping the arrays along the phi axis should have the
+                    # same effect as calling flip_phi():
+                    np.testing.assert_allclose(old_Z, np.flip(new_Z, axis=0), atol=1e-14)
+                    np.testing.assert_allclose(old_R, np.flip(new_R, axis=0), atol=1e-14)
+
+    def test_flip_theta(self):
+        """Test the flip_theta() method."""
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    quadpoints_phi = np.linspace(0, 1, 12)
+                    quadpoints_theta = np.linspace(0, 1, 8)  # Must include endpoint!
+                    s = SurfaceRZFourier(
+                        mpol=mpol,
+                        ntor=ntor,
+                        nfp=3,
+                        stellsym=stellsym,
+                        quadpoints_phi=quadpoints_phi,
+                        quadpoints_theta=quadpoints_theta,
+                    )
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_Z = old_gamma[:, :, 2]
+                    s.flip_theta()
+                    new_gamma = s.gamma()
+                    new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    new_Z = new_gamma[:, :, 2]
+                    # flipping the arrays along the theta axis should have the
+                    # same effect as calling flip_theta():
+                    old_Z = old_gamma[:, :, 2]
+                    new_Z = new_gamma[:, :, 2]
+                    np.testing.assert_allclose(old_Z, np.flip(new_Z, axis=1), atol=1e-14)
+                    np.testing.assert_allclose(old_R, np.flip(new_R, axis=1), atol=1e-14)
+
+    def test_rotate_half_field_period(self):
+        """Test the rotate_half_field_period() method."""
+        nfp = 3
+        nphi_per_half_period = 9
+        quadpoints_phi = np.linspace(0, 1, nphi_per_half_period * 2 * nfp, endpoint=False)
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    s = SurfaceRZFourier(
+                        mpol=mpol,
+                        ntor=ntor,
+                        nfp=nfp,
+                        stellsym=stellsym,
+                        quadpoints_phi=quadpoints_phi,
+                    )
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_Z = old_gamma[:, :, 2]
+                    s.rotate_half_field_period()
+                    new_gamma = s.gamma()
+                    new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    new_Z = new_gamma[:, :, 2]
+                    np.testing.assert_allclose(old_R, np.roll(new_R, nphi_per_half_period, axis=0))
+                    np.testing.assert_allclose(old_Z, np.roll(new_Z, nphi_per_half_period, axis=0), atol=1e-13)
+
+    def test_shift_theta_by_half(self):
+        """Test the shift_theta_by_half() method."""
+        nfp = 3
+        half_ntheta = 9
+        ntheta = 2 * half_ntheta
+        quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=False)
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    s = SurfaceRZFourier(
+                        mpol=mpol,
+                        ntor=ntor,
+                        nfp=nfp,
+                        stellsym=stellsym,
+                        quadpoints_theta=quadpoints_theta,
+                    )
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_Z = old_gamma[:, :, 2]
+                    s.shift_theta_by_half()
+                    new_gamma = s.gamma()
+                    new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    new_Z = new_gamma[:, :, 2]
+                    np.testing.assert_allclose(old_R, np.roll(new_R, half_ntheta, axis=1))
+                    np.testing.assert_allclose(old_Z, np.roll(new_Z, half_ntheta, axis=1), atol=1e-13)
+
+
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):
         """

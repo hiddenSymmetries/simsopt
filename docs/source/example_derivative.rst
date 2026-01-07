@@ -1,3 +1,5 @@
+.. _example_derivative:
+
 Using the Derivative class
 ============================
 
