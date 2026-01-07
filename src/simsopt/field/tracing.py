@@ -981,6 +981,9 @@ class Integrator(Optimizable):
         Test if the number of field periods and the 
         stellarator symmetry setting are consistent
         for the given field.
+        Raises: 
+            ValueError: if the field symmetries are not consistent
+                with the integrator settings.
         """
         rphiz_point = np.array([self.R0, 0.1, .1])[None, :]
         rphiz_stellsym = np.array([self.R0, -0.1, -0.1])[None, :]
@@ -1012,7 +1015,8 @@ class Integrator(Optimizable):
         Convert cylindrical coordinates to Cartesian coordinates.
         Args: 
             array: an nx3 array of cylindrical coordinates
-
+        Returns: 
+            nx3 array of Cartesian coordinates
         """
         array = np.atleast_2d(array)
         if np.shape(array)[1] != 3 or array.ndim > 2:
@@ -1025,6 +1029,8 @@ class Integrator(Optimizable):
         Convert Cartesian coordinates to cylindrical. 
         Args: 
             array: an nx3 array of Cartesian coordinates
+        Returns:
+            nx3 array of cylindrical coordinates
         """
         array = np.atleast_2d(array)
         if np.shape(array)[1] != 3 or array.ndim > 2:
@@ -1221,13 +1227,14 @@ class ScipyFieldlineIntegrator(Integrator):
         """
         Args:
             field: the magnetic field to be used for the integration
+            comm: MPI communicator to parallelize over
             nfp: number of field periods
             stellsym: if True, the field is assumed to be stellarator symmetric
             R0: major radius of the device. Used for testing symmetries of the field
             test_symmetries: (bool): if True, test if the values of nfp and stellsym
                 are consistent with the field. If False, no test is performed.  
             integrator_type: type of integrator to use (default 'dopri5')
-            integrator_args: additional arguments to pass to the integrator
+            integrator_args: additional arguments to pass to the integrator given as a dictionary {parameter: value} (for example, {'rtol': 1e-6, 'atol':1e-9})
         """
         # check if field is in positive B_phi direction at (R0,0,0)
         if R0 is None:
@@ -1257,7 +1264,7 @@ class ScipyFieldlineIntegrator(Integrator):
             n_transits: number of times to go around the device.
             phis: list of angles in [0, 2pi] for which intersection with the plane
                   corresponding to that phi should be computed. 
-            phi0: initial angle in the phi plane.
+            phi0: initial angle in the phi plane (default 0). if this plane is not in phis, it will be added. 
         Returns:
             res_phi_hits: list of numpy arrays (one for each start point) containing
                         information on each time the particle hits one of the phi planes. Each row of the array contains
@@ -1268,23 +1275,16 @@ class ScipyFieldlineIntegrator(Integrator):
         for this_start_RZ in start_points_RZ[first:last, :]:
             logger.info(f'Integrating poincare section for field line starting at R={this_start_RZ[0]}, Z={this_start_RZ[1]}')
             all_phis = np.array([phis + 2*np.pi*nt for nt in range(int(n_transits))]).flatten()
-            integration_solution = solve_ivp(self.integration_fn_cyl, 
-                                             [phi0, all_phis[-1]], 
-                                             this_start_RZ, 
-                                             t_eval=all_phis, 
-                                             events=self._event_function, 
-                                             method=self._integrator_type, 
-                                             rtol=self._integrator_args['rtol'], 
-                                             atol=self._integrator_args['atol']
-                                             )
-            phis_values = integration_solution.t % (2*np.pi)
-            rphiz_values = np.array([integration_solution.y[0, :], phis_values, integration_solution.y[1, :]]).T
-            xyz_values = self._rphiz_to_xyz(rphiz_values)
+            if all_phis[0] != phi0:
+                all_phis = np.insert(all_phis, 0, phi0)
+            status, rphiz = self.integrate_cyl_planes(this_start_RZ, all_phis)
+            xyz_values = self._rphiz_to_xyz(rphiz)
             plane_idx = np.array(range(len(all_phis))) % len(phis)
-            res_phi_hits_line = np.column_stack((phis_values, 
-                                         plane_idx[:len(phis_values)], 
-                                         xyz_values[:len(phis_values), :]))
-            if integration_solution.status == -1 or integration_solution.status == 1:  # integration failed
+            num_values = rphiz.shape[0]
+            res_phi_hits_line = np.column_stack((rphiz[:, 1],
+                                         plane_idx[:num_values], 
+                                         xyz_values[:, :]))
+            if status == -1 or status == 1:  # integration did not finish
                 res_phi_hits_line[-1, 1] = -1
             res_phi_hits.append(res_phi_hits_line)
         if self.comm is not None:
@@ -1295,9 +1295,9 @@ class ScipyFieldlineIntegrator(Integrator):
         """
         calculate the trajectories of the field lines starting at start_points_RZ in the phi0 plane. 
         Args:
-            start_points_RZ: nx2 array of starting radial coordinates
+            start_points_RZ: nx2 array of starting points in (R,Z) cylindrical coordinates.
             n_transits: number of times to go around the device.
-            phi0: initial angle in the phi plane.
+            phi0: initial angle in the phi plane (default 0).
         Returns:
             res_tys: list of numpy arrays (one for each particle) containing
                      information on the trajectory of the field line. Each row of the array contains
@@ -1310,20 +1310,11 @@ class ScipyFieldlineIntegrator(Integrator):
             start_phi = phi0
             phi_end = start_phi + n_transits*2*np.pi
             phi_eval = np.linspace(start_phi, phi_end, int(1000*int(n_transits)))
-            integration_solution = solve_ivp(self.integration_fn_cyl, 
-                                             [start_phi, phi_end], 
-                                             this_start_RZ, 
-                                             t_eval=phi_eval, 
-                                             events=self._event_function, 
-                                             method=self._integrator_type, 
-                                             rtol=self._integrator_args['rtol'], 
-                                             atol=self._integrator_args['atol']
-                                             )
-            phis_values = integration_solution.t % (2*np.pi)
-            rphiz_values = np.array([integration_solution.y[0, :], phis_values, integration_solution.y[1, :]]).T
-            xyz_values = self._rphiz_to_xyz(rphiz_values)
-            res_tys_line = np.column_stack((integration_solution.t, 
-                                         xyz_values))
+            status, rphiz = self.integrate_cyl_planes(this_start_RZ, phi_eval)
+            xyz_values = self._rphiz_to_xyz(rphiz)
+            phis_values = rphiz[:, 1] % (2*np.pi)
+            res_tys_line = np.column_stack((rphiz[:, 1], 
+                                            xyz_values))
             res_tys.append(res_tys_line)
         if self.comm is not None:
             res_tys = [ty for gathered_tys in self.comm.allgather(res_tys) for ty in gathered_tys]
@@ -1331,9 +1322,12 @@ class ScipyFieldlineIntegrator(Integrator):
 
     def integration_fn_cyl(self, t, rz):
         """
-        Integrand for simple field line following, ugly written to speed operations
-        dR/dphi = R*B_R/B_phi,
-        dZ/dphi = R*B_Z/B_phi
+        Integrand for field line tracing in cylindrical coordinates. 
+        Returns the right hand side of the ODEs:
+        .. math::
+            dR/d\phi = R*B_R/B_\phi,
+            dZ/d\phi = R*B_Z/B_\phi
+        
         Args:
             t: toroidal angle phi
             rz: array of R,Z coordinates
@@ -1366,6 +1360,11 @@ class ScipyFieldlineIntegrator(Integrator):
         """
         Integrate along the field in the phi direction, returning the end location. 
         Integration starts from cylindrical coordinates (R,Z) at angle start_phi. 
+        The cylindrical field line ODE is given by: 
+        .. math::
+            \frac{dR}{d\phi} = R \frac{B_R}{B_\phi}, \\
+            \frac{dZ}{d\phi} = R \frac{B_Z}{B_\phi}.
+
         Args:
             start_RZ: starting point in cylindrical coordinates (R,Z)
             start_phi: starting angle in phi
@@ -1387,6 +1386,10 @@ class ScipyFieldlineIntegrator(Integrator):
         """
         Integrate along the field in the phi direction, starting from cartesian coordinates (x,y,z). 
         Return only the end location after integrating over delta_phi.
+        The cylindrical field line ODE is given by: 
+        .. math::
+            \frac{dR}{d\phi} = R \frac{B_R}{B_\phi}, \\
+            \frac{dZ}{d\phi} = R \frac{B_Z}{B_\phi}.
         Args:
             start_xyz: starting point in cartesian coordinates (x,y,z)
             delta_phi: angle to integrate over
@@ -1415,20 +1418,22 @@ class ScipyFieldlineIntegrator(Integrator):
             start_RZ: starting point in cylindrical coordinates (R,Z)
             phis: list of angles in [0, 2pi] for which intersection with. 
 
-        Default returns cylindrical coordinates, can also
-        return cartesian coordinates.
+        returns: 
+            status, rphiz: tuple cointaining
+            - status: integration status (0 if successful, -1 if failed, or 1 if stopped by event)
+            - rphiz: the (R,Z,phi) coordinates of the field line 
+            OR:
+            - xyz: the (x,y,z) coordinates of the field line if return_cartesian is True
         """
         sol = solve_ivp(self.integration_fn_cyl, [phis[0], phis[-1]], start_RZ, t_eval=phis, events=self._event_function, method=self._integrator_type, rtol=self._integrator_args['rtol'], atol=self._integrator_args['atol'])
-        success = sol.success
-        if success:
-            rphiz = np.array([sol.y[0, :], sol.t, sol.y[1, :]]).T
-        else:
-            rphiz = np.full((len(phis), 3), np.nan)
+        status = sol.status
+        rphiz = np.array([sol.y[0, :], sol.t, sol.y[1, :]]).T
+        
         if return_cartesian:
-            return success, self._rphiz_to_xyz(rphiz)
+            return status, self._rphiz_to_xyz(rphiz)
         else:
-            return success, rphiz
-    
+            return status, rphiz
+
     def integrate_fieldlinepoints_cyl(self, start_RZ, start_phi, delta_phi, n_points, endpoint=False, return_cartesian=True):
         """
         Calculate n_points along a field line starting at an R,Z location and starting angle in phi, for a 
@@ -1444,8 +1449,8 @@ class ScipyFieldlineIntegrator(Integrator):
             points: a numpy array of shape (n_points, 3) containing the points along the field line
         """
         phis = np.linspace(start_phi, start_phi+delta_phi, n_points, endpoint=endpoint)
-        sucess, points = self.integrate_cyl_planes(start_RZ, phis, return_cartesian=return_cartesian)
-        if not sucess:
+        status, points = self.integrate_cyl_planes(start_RZ, phis, return_cartesian=return_cartesian)
+        if status != 0:
             raise ObjectiveFailure("Integration failed")
         return points
 
@@ -1514,16 +1519,20 @@ class PoincarePlotter(Optimizable):
         Initialize the PoincarePlotter. 
         This class uses an Integrator to compute field lines, and takes care of plotting them. 
         If the field is stellarator-symmetric, and symmetry planes are included, then 
-        these are overplotted in the plot (resulting in better plots with shorter integration). 
+        information from identical planes are all plotted together (resulting in better plots with shorter integration). 
 
         Args:
             integrator: the integrator to be used for the calculation
             start_points_RZ: nx2 array of starting points in cylindrical coordinates (R,Z)
-            phis: angles in [0, 2pi] for which we wish to compute Poincare.
+        Kwargs:
+            phis (None): angles in [0, 2pi] for which we wish to compute Poincare.
                   *OR* int: number of planes to compute, equally spaced in [0, 2pi/nfp].
-            n_transits: number of toroidal transits to compute
-            add_symmetry_planes: if true, we add planes that are identical through field periodicity, increasing the efficiency of the calculation. 
-            store_results: if true, save the results to disk in files with a unique filename based on a hash. 
+            n_transits (100): number of toroidal transits to compute
+            add_symmetry_planes (True): if true, we add planes that are identical through field periodicity, increasing the efficiency of the calculation. 
+            store_results (False): if true, use a cache on disk to store/retrieve results. 
+                The results are stored in a file named 'poincare_data.npz' in the current directory. 
+                The results are given a hash based on the MagneticField degrees of freedom and poincare attributes, triggering recomputation only if relevant parameters change.
+            phi0 (None): initial angle in the phi plane (default None). if None, the first phi in phis is used.
         """
         self._start_points_RZ = start_points_RZ
         self.integrator = integrator
@@ -1591,13 +1600,13 @@ class PoincarePlotter(Optimizable):
         return list_of_phis
     
     @property
-    def plot_phis(self):
+    def phis_for_plotting(self):
         """
         the phis in the first period, useful for plotting
         """
         plot_period = 2*np.pi/self.integrator.nfp
-        plot_phis = self.phis[np.where(self.phis < plot_period)]
-        return plot_phis
+        phis_for_plotting = self.phis[np.where(self.phis < plot_period)]
+        return phis_for_plotting
 
     @property
     def start_points_RZ(self):
@@ -1608,6 +1617,8 @@ class PoincarePlotter(Optimizable):
 
     @start_points_RZ.setter
     def start_points_RZ(self, array):
+        if array.shape != self._start_points_RZ.shape:
+            self._randomcolors = None  # reset colors 
         self._start_points_RZ = array
         self.recompute_bell()
 
@@ -1628,7 +1639,8 @@ class PoincarePlotter(Optimizable):
     def from_field(cls, field, start_points_RZ, phis=None, n_transits=1, add_symmetry_planes=True,
                    stopping_criteria=None, comm=None, integrator_type='simsopt', **kwargs):
         """
-        Helper to create a PoincarePlotter directly from a MagneticField.
+        Helper to create a PoincarePlotter directly from a MagneticField bypassing 
+        the manual creation of an Integrator. 
 
         Parameters mirror PoincarePlotter.__init__, while constructing the appropriate integrator.
         Args:
@@ -1657,6 +1669,9 @@ class PoincarePlotter(Optimizable):
 
 
     def recompute_bell(self, parent=None):
+        """
+        clear the caches when any object on which this depends changes. 
+        """
         self._res_phi_hits = None
         self._res_tys = None
         self._lost = None
@@ -1951,7 +1966,7 @@ class PoincarePlotter(Optimizable):
         """
         plot a single cross-section of the field at a given phi value. 
         If this value is not in the list of phis, this phi will be added to the PoincarePlotters planes
-        and the sections will be re-computed. 
+        and the sections will be re-computed (unless prevent_recompute is True, in which case an error is raised). 
         *NOTE*: if running parallel, call this function on all ranks. 
         Args: 
             phi: angle in [0, 2pi] at which to plot the Poincare section
@@ -2021,12 +2036,12 @@ class PoincarePlotter(Optimizable):
 
         if self.i_am_the_plotter:
             from math import ceil
-            nrowcol = ceil(sqrt(len(self.plot_phis)))
+            nrowcol = ceil(sqrt(len(self.phis_for_plotting)))
             fig, axs = plt.subplots(nrowcol, nrowcol, figsize=(8, 5))
             
             axs = np.atleast_1d(axs).ravel()  # make array and flatten
 
-            for section_idx, phi in enumerate(self.plot_phis):  #ony the plane in the first field period
+            for section_idx, phi in enumerate(self.phis_for_plotting):  #ony the plane in the first field period
                 ax = axs[section_idx]
                 self.plot_poincare_single(phi, ax=ax, mark_lost=mark_lost, prevent_recompute=True, fix_axes=fix_ax, **kwargs)
                 textstr = f" φ = {phi/np.pi:.2f}π "
@@ -2119,8 +2134,7 @@ class PoincarePlotter(Optimizable):
 
     def plot_poincare_in_3d(self, engine='mayavi', mark_lost=False, show=True, **kwargs):
         """
-        Plot the Poincare points in 3D. 
-        Uses mayavi or plotly for plotting. 
+        Plot the Poincare points in 3D. Useful to visualize the poincare planes together with the coils and field lines. 
         Args: 
             engine: 'mayavi' or 'plotly' or 'matplotlib'
             mark_lost: if True, mark the field lines that were lost due to stopping criteria in red
