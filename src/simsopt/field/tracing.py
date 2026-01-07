@@ -1312,7 +1312,6 @@ class ScipyFieldlineIntegrator(Integrator):
             phi_eval = np.linspace(start_phi, phi_end, int(1000*int(n_transits)))
             status, rphiz = self.integrate_cyl_planes(this_start_RZ, phi_eval)
             xyz_values = self._rphiz_to_xyz(rphiz)
-            phis_values = rphiz[:, 1] % (2*np.pi)
             res_tys_line = np.column_stack((rphiz[:, 1], 
                                             xyz_values))
             res_tys.append(res_tys_line)
