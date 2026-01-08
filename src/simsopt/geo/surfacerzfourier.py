@@ -1672,6 +1672,17 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 def plot_spectral_condensation(surf1, surf2, data, show=True):
     """Plot results from :func:`~simsopt.geo.SurfaceRZFourier.condense_spectrum`.
 
+    Three figures are generated.
+
+    Figure 1 shows λ as a function of θ₁ at various ϕ values (left), and the
+    Fourier amplitudes of λ are plotted on the right.
+
+    Figure 2 shows the m- and n-dependence of rc and zs with respect to θ₁ and
+    θ₂ in two ways: heatmaps on the left, and a scatter plot on the right.
+
+    Figure 3 shows eight cross-sections of the surface, including points that
+    are uniformly spaced with respect to θ₁ and θ₂.
+
     Parameters
     ----------
     surf1 : SurfaceRZFourier
@@ -1682,6 +1693,11 @@ def plot_spectral_condensation(surf1, surf2, data, show=True):
         The data dictionary returned by :func:`~simsopt.geo.SurfaceRZFourier.condense_spectrum`.
     show : bool, optional
         Whether to call matplotlib's ``show()`` function. Default is True.    
+
+    Returns
+    -------
+    fig1, fig2, fig3
+        Matplotlib handles for the three figures
     """
     assert surf1.nfp == surf2.nfp
     assert surf1.mpol == surf2.mpol
@@ -1715,7 +1731,7 @@ def plot_spectral_condensation(surf1, surf2, data, show=True):
     surf_theta2_for_plotting.local_full_x = surf2.local_full_x
 
     figsize = (14.5, 8.1)
-    plt.figure(figsize=figsize)
+    fig1 = plt.figure(figsize=figsize)
 
     n_rows = 1
     n_cols = 2
@@ -1749,6 +1765,7 @@ def plot_spectral_condensation(surf1, surf2, data, show=True):
     # Create a layout with the left half split into a 2x2 grid and a
     # single subplot occupying the entire right half.
     fig = plt.figure(figsize=figsize)
+    fig2 = fig
     gs = GridSpec(2, 3, figure=fig, width_ratios=[1, 1, 2])
 
     # Left half: 2x2 small subplots
@@ -1815,7 +1832,7 @@ def plot_spectral_condensation(surf1, surf2, data, show=True):
 
     n_rows = 2
     n_cols = 4
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, subplot_kw={'aspect': 'equal'})
+    fig3, axes = plt.subplots(n_rows, n_cols, figsize=figsize, subplot_kw={'aspect': 'equal'})
 
     axes = axes.flatten()
 
@@ -1851,6 +1868,8 @@ def plot_spectral_condensation(surf1, surf2, data, show=True):
     plt.tight_layout()
     if show:
         plt.show()
+
+    return fig1, fig2, fig3
 
 class SurfaceRZPseudospectral(Optimizable):
     """
