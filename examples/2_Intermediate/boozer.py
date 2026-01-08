@@ -2,8 +2,8 @@
 
 import os
 import numpy as np
-from simsopt.configs import get_ncsx_data
-from simsopt.field import BiotSavart, coils_via_symmetries
+from simsopt.configs import get_data
+from simsopt.field import BiotSavart
 from simsopt.geo import BoozerSurface, boozer_surface_residual, ToroidalFlux, Area, SurfaceXYZTensorFourier
 
 """
@@ -19,18 +19,14 @@ aim for a Boozer surface with three times larger flux.
 print("Running 2_Intermediate/boozer.py")
 print("================================")
 
-curves, currents, ma = get_ncsx_data()
-coils = coils_via_symmetries(curves, currents, 3, True)
-curves = [c.curve for c in coils]
-bs = BiotSavart(coils)
-bs_tf = BiotSavart(coils)
-current_sum = sum(abs(c.current.get_value()) for c in coils)
+base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
+bs_tf = BiotSavart(bs.coils)
+current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
 G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
 mpol = 5  # try increasing this to 8 or 10 for smoother surfaces
 ntor = 5  # try increasing this to 8 or 10 for smoother surfaces
 stellsym = True
-nfp = 3
 
 phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
 thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
