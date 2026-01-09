@@ -22,8 +22,14 @@ import numpy as np
 import simsopt
 from simsopt.field import (SurfaceClassifier, ScipyFieldlineIntegrator, PoincarePlotter)
 from simsopt.geo import SurfaceRZFourier
-from simsopt.util import in_github_actions, proc0_print, comm_world
+from simsopt.util import in_github_actions, proc0_print, MpiPartition
 from simsopt.geo import plot
+
+try: 
+    mpi = MpiPartition(2)
+except RuntimeError:
+    mpi = lambda: None
+    mpi.comm_world = None
 
 proc0_print("Running 1_Simple/tracing_fieldlines_QA.py")
 proc0_print("=========================================")
@@ -53,7 +59,7 @@ nfp = surf.nfp
 coils_filename = Path(__file__).parent / ".." / ".." / "examples" / "1_Simple" / "inputs" / "biot_savart_opt.json"
 bs = simsopt.load(coils_filename)
 
-integrator = ScipyFieldlineIntegrator(bs, comm=comm_world, nfp=nfp, stellsym=True)
+integrator = ScipyFieldlineIntegrator(bs, comm=mpi.comm_world, nfp=nfp, stellsym=True)
 
 # create a Poincare plotter object, which can compute and plot Poincare sections
 start_points_poincare_RZ = np.linspace(np.array([1.2125346, 0.0]), np.array([1.295, 0.0]), nfieldlines)

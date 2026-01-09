@@ -22,10 +22,16 @@ from simsopt.configs import get_data
 from simsopt.field import (InterpolatedField, SurfaceClassifier, SimsoptFieldlineIntegrator, PoincarePlotter,
                            particles_to_vtk)
 from simsopt.geo import SurfaceRZFourier, curves_to_vtk
-from simsopt.util import in_github_actions, proc0_print, comm_world
+from simsopt.util import in_github_actions, proc0_print, MpiPartition
 
 proc0_print("Running 1_Simple/tracing_fieldlines_NCSX.py")
 proc0_print("===========================================")
+
+try: 
+    mpi = MpiPartition(2)
+except RuntimeError:
+    mpi = lambda: None
+    mpi.comm_world = None
 
 sys.path.append(os.path.join("..", "tests", "geo"))
 logging.basicConfig()
@@ -53,7 +59,7 @@ proc0_print("Mean(|B|) on axis =", np.mean(np.linalg.norm(bs.set_points(ma.gamma
 proc0_print("Mean(Axis radius) =", np.mean(np.linalg.norm(ma.gamma(), axis=1)))
 
 # create an integrator, that performs tasks like integrating field lines.
-integrator_bs = SimsoptFieldlineIntegrator(bs, comm=comm_world, nfp=nfp, R0=ma.gamma()[0, 0], stellsym=True, tmax=tmax_fl, tol=1e-9)
+integrator_bs = SimsoptFieldlineIntegrator(bs, comm=mpi.comm_world, nfp=nfp, R0=ma.gamma()[0, 0], stellsym=True, tmax=tmax_fl, tol=1e-9)
 
 # create a Poincare plotter object, which can compute and plot Poincare sections
 axis_RZ = ma.gamma()[0, 0:2]
@@ -68,15 +74,15 @@ fig1, ax = poincare_bs.plot_poincare_single(0)
 fig2, axs = poincare_bs.plot_poincare_all(mark_lost=False)
 
 # Save the figures:
-if comm_world is None or comm_world.rank == 0:
+if mpi.comm_world is None or mpi.comm_world.rank == 0:
     fig1.savefig(OUT_DIR + 'poincare_bs_phi_0.png', dpi=150)
     fig2.savefig(OUT_DIR + 'poincare_bs_all.png', dpi=150)
     print(f"Saved poincare plots to {OUT_DIR}")
 
 # not necessary, but output will be garbled if other threads race 
 # ahead whilst proc0 plots.
-if comm_world is not None:
-    comm_world.Barrier()
+if mpi.comm_world is not None:
+    mpi.comm_world.Barrier()
 
 # if you want faster integration, you can generate an InterpolatedField:
 # create a surface inside of which we will keep the field
@@ -133,7 +139,7 @@ B = bs.B()
 proc0_print("|B-Bh| on axis", np.sort(np.abs(B-Bh).flatten()))
 
 # The integrator accepts any MagneticField, also our faster InterpolatedField:
-integrator_bsh = SimsoptFieldlineIntegrator(bsh, comm=comm_world, nfp=nfp, R0=ma.gamma()[0, 0], stellsym=True)
+integrator_bsh = SimsoptFieldlineIntegrator(bsh, comm=mpi.comm_world, nfp=nfp, R0=ma.gamma()[0, 0], stellsym=True)
 # create a Poincare plotter object for the interpolated field
 poincare_bsh = PoincarePlotter(integrator_bsh, poincare_start_points, phis=4, n_transits=n_transits, add_symmetry_planes=True)
 
@@ -143,13 +149,13 @@ fig3, ax = poincare_bsh.plot_poincare_single(0)
 fig4, axs = poincare_bsh.plot_poincare_all(mark_lost=False)
 
 # Save the figures:
-if comm_world is None or comm_world.rank == 0:
+if mpi.comm_world is None or mpi.comm_world.rank == 0:
     fig3.savefig(OUT_DIR + 'poincare_bsh_phi_0.png', dpi=150)
     fig4.savefig(OUT_DIR + 'poincare_bsh_all.png', dpi=150)
     print(f"Saved poincare plots to {OUT_DIR}")
 
 
-if comm_world is None or comm_world.rank == 0:
+if mpi.comm_world is None or mpi.comm_world.rank == 0:
     curves_to_vtk(all_curves + [ma], OUT_DIR + 'coils')
     particles_to_vtk(poincare_bsh.res_tys, OUT_DIR + 'fieldlines_bsh')
     particles_to_vtk(poincare_bs.res_tys, OUT_DIR + 'fieldlines_bs')
@@ -158,8 +164,8 @@ if comm_world is None or comm_world.rank == 0:
 
 # not necessary, but output will be garbled if other threads race 
 # ahead whilst proc0 plots.
-if comm_world is not None:
-    comm_world.Barrier()
+if mpi.comm_world is not None:
+    mpi.comm_world.Barrier()
 
 # Because our PoincarePlotter depends on the magnetic field, changes 
 # to the magnetic field will trigger a recomputation, but only
@@ -176,7 +182,7 @@ for coil_num, current in enumerate(currents):
 # The biot-savart integrator knows the field has changed, so it will
 # recompute the field lines when a plot is requested.
 fig_pert, axs = poincare_bs.plot_poincare_all(mark_lost=True)
-if comm_world is None or comm_world.rank == 0:
+if mpi.comm_world is None or mpi.comm_world.rank == 0:
     fig_pert.savefig(OUT_DIR + 'poincare_perturbed.png', dpi=150)
 
 

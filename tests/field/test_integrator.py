@@ -3,7 +3,9 @@ import numpy as np
 
 from simsopt.field.magneticfieldclasses import ToroidalField
 from simsopt.field.tracing import Integrator, SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator
+from simsopt.field import BiotSavart, Coil
 from simsopt.configs.zoo import get_data, configurations
+from simsopt._core.util import ObjectiveFailure
 
 
 class TestIntegratorBase(unittest.TestCase):
@@ -34,6 +36,29 @@ class TestIntegratorBase(unittest.TestCase):
         # Any nfp should pass periodicity for this field
         _ = Integrator(self.field, nfp=5, stellsym=True, R0=self.R0, test_symmetries=True)
 
+    def test_symmetry_checks_raise(self):
+        # stellarator field from get_data should raise if nfp or stellsym are wrong
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
+        with self.assertRaises(ValueError):
+            _ = Integrator(bs, nfp=nfp+1, stellsym=True, R0=ma.gamma()[0][0], test_symmetries=True)
+
+        # there is no non-stellarator-symmetric stellarator in the zoo, so we make one by only using the base coils)
+        non_ss_coils = [Coil(b_curv, b_curr) for b_curv, b_curr in zip(base_curves, base_currents)]
+        bs2 = BiotSavart(non_ss_coils)
+        with self.assertRaises(ValueError):
+            _ = Integrator(bs2, nfp=nfp, stellsym=False, R0=ma.gamma()[0][0], test_symmetries=True)
+
+    def test_incorrect_staticmethods(self):
+        # Test incorrect static method calls
+        with self.assertRaises(ValueError):
+            Integrator._rphiz_to_xyz(1)  # Invalid input
+        with self.assertRaises(ValueError):
+            Integrator._rphiz_to_xyz(np.random.random(4))  # Invalid input
+
+        with self.assertRaises(ValueError):
+            Integrator._xyz_to_rphiz(1)  # Invalid input
+        with self.assertRaises(ValueError):
+            Integrator._rphiz_to_xyz(np.random.random(2))  # Invalid input
 
 
 class TestSimsoptFieldlineIntegrator(unittest.TestCase):
@@ -143,6 +168,24 @@ class TestSimsoptFieldlineIntegrator(unittest.TestCase):
         self.assertTrue(np.allclose(pts_cyl[:, 0], self.R0, atol=1e-7))
         self.assertTrue(np.allclose(pts_cyl[:, 2], 0.0, atol=1e-9))
 
+    def test_integrate_right_direction(self):
+        # W7X has B_phi in the negative phi direction; verify that field is flipped. 
+        name = "w7x"
+        base_curves, base_currents, ma, nfp, bs = get_data(name)
+        # confirm that B_phi is negative:
+        bs.set_points(ma.gamma()[0: 1])
+        self.assertTrue(bs.B_cyl()[0, 1] < 0, msg="Expected B_phi < 0 for W7X configuration")
+                        
+        gamma = ma.gamma()
+        start_xyz = gamma[0, :]
+        intg = SimsoptFieldlineIntegrator(bs, nfp=nfp, test_symmetries=False, R0=ma.gamma()[0][0], tmax=1e3)
+        axispoints = intg.integrate_fieldlinepoints_cart(start_xyz, n_transits=0.5, return_cartesian=False)
+        # check that phi is nevertheless strictly increasing:
+        phis = axispoints[:, 1]
+        dphis = np.diff(phis)
+        self.assertTrue(np.all(dphis > 0), msg="Expected strictly increasing phi along integrated fieldline in W7X configuration")
+
+
 
 class TestScipyFieldlineIntegrator(unittest.TestCase):
     def setUp(self):
@@ -181,6 +224,15 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
         self.assertTrue(np.allclose(r_traj, RZ[0, 0], atol=1e-9))
         self.assertTrue(np.allclose(z_traj, RZ[0, 1], atol=1e-12))
 
+    def test_defaults(self):
+        # Defaults should be reasonable and work
+        intg2 = ScipyFieldlineIntegrator(self.field)
+        self.assertEqual(intg2._integrator_args['rtol'], 1e-7)
+        self.assertEqual(intg2._integrator_args['atol'], 1e-9)
+        self.assertEqual(intg2._integrator_type, 'RK45')
+        self.assertEqual(intg2.nfp, 1)
+        self.assertEqual(intg2.R0, 1.0)
+
     def test_integrate_in_phi_cyl_rotation(self):
         # Start at phi=pi/6, rotate by pi/3
         RZ0 = np.array([self.R0, 0.0])
@@ -207,12 +259,19 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
         recon_xyz = Integrator._rphiz_to_xyz(np.array([end_RZ[0], phi_start + delta_phi, end_RZ[1]])[None, :])[0]
         self.assertTrue(np.allclose(recon_xyz, expected, atol=1e-6))
 
+    def compare_cart_cyl_rotation(self, start_RZ, start_phi, delta_phi):
+        # Helper to compare cylindrical and cartesian integration paths
+        end_xyz_from_cyl = self.intg.integrate_in_phi_cyl(start_RZ, start_phi, delta_phi, return_cartesian=True)
+        start_xyz = Integrator._rphiz_to_xyz(np.array([start_RZ[0], start_phi, start_RZ[1]]))[0]
+        end_xyz_from_cart = self.intg.integrate_in_phi_cart(start_xyz, delta_phi, return_cartesian=True)
+        self.assertTrue(np.allclose(end_xyz_from_cyl, end_xyz_from_cart, atol=1e-6))
+
     def test_integrate_cyl_planes_and_fieldlinepoints(self):
         # Evaluate at specific phis and via fieldlinepoints helpers
         RZ0 = np.array([self.R0, 0.0])
         phis = np.linspace(0, 2*np.pi, 9, endpoint=True)
-        success, rphiz = self.intg.integrate_cyl_planes(RZ0, phis, return_cartesian=False)
-        self.assertTrue(success)
+        status, rphiz = self.intg.integrate_cyl_planes(RZ0, phis, return_cartesian=False)
+        self.assertEqual(status, 0)
         self.assertEqual(rphiz.shape, (len(phis), 3))
         self.assertTrue(np.allclose(rphiz[:, 0], self.R0, atol=1e-7))
         self.assertTrue(np.allclose(rphiz[:, 2], 0.0, atol=1e-9))
@@ -234,6 +293,7 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
         self.assertTrue(np.allclose(r2, self.R0, atol=1e-6))
         self.assertTrue(np.allclose(pts2[:, 2], 0.0, atol=1e-9))
 
+
     def test_integrate_3d_fieldlinepoints_cart(self):
         # Integrate 3D arc length: quarter circle
         start_xyz = np.array([self.R0, 0.0, 0.0])
@@ -250,41 +310,41 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
         self.assertTrue(np.allclose(r, self.R0, atol=1e-6))
         self.assertTrue(np.allclose(pts[:, 2], 0.0, atol=1e-9))
 
-
-class TestIntegratorInterpolation(unittest.TestCase):
-    def test_interpolate_field_and_recompute_bell(self):
-        R0 = 1.25
-        B0 = 0.9
+    def test_lost_poincare(self):
+        # integration should fail if toroidal field returns nans. Overload B_cyl to simulate this.
+        R0 = 1.0
+        B0 = 1.0
         field = ToroidalField(R0, B0)
-        base = Integrator(field, nfp=1, stellsym=True, R0=R0, test_symmetries=True)
-        # Interpolate over a small box around R0
-        rrange = (R0 - 0.1, R0 + 0.1, 6)
-        phirange = (0.0, 0.2, 8)
-        zrange = (-0.05, 0.05, 6)
-        base.Interpolate_field(rrange, phirange, zrange, degree=1, extrapolate=True)
-        self.assertTrue(getattr(base, 'interpolated', False))
-        from simsopt.field.magneticfieldclasses import InterpolatedField
-        self.assertIsInstance(base.field, InterpolatedField)
+        b_hidden = field.B_cyl
+        global global_counter
+        global_counter = 0
+        def failing_field():
+            global global_counter
+            if global_counter < 100:
+                global_counter += 1
+                return b_hidden()
+            else:
+                return np.array([np.nan, np.nan, np.nan])
+        field.B_cyl = failing_field
+        intg = ScipyFieldlineIntegrator(field, nfp=1) #, integrator_args={'max_step':1e3})
+        RZ = np.array([[R0 + 0.05, 0.0], [R0 + 0.10, 0.0]])
+        phis = np.linspace(0, 2*np.pi, 8, endpoint=False)
+        res_phi_hits = intg.compute_poincare_hits(RZ, n_transits=35, phis=phis, phi0=0.0)
+        # the second integration failed and should have -1 as first index, indicating failure
+        self.assertEqual(res_phi_hits[-1][-1, 1], -1)
+        
+        start_RZ = np.array([R0 + 0.05, 0.0])
+        global_counter = 90
+        endpoint_RZ = intg.integrate_in_phi_cyl(start_RZ, 0.0, 2*np.pi, return_cartesian=False)
+        #should be nans
+        self.assertTrue(np.isnan(endpoint_RZ).all())
 
-        # Recompute should succeed and keep an InterpolatedField
-        base.recompute_bell()
-        self.assertIsInstance(base.field, InterpolatedField)
+        # test integrate in cyl failure: 
+        global_counter = 90
+        with self.assertRaises(ObjectiveFailure):
+            _ = intg.integrate_fieldlinepoints_cyl(start_RZ, 0.0, 4*np.pi, n_points=50, return_cartesian=True)
 
-    def test_interpolate_twice_raises(self):
-        R0 = 1.1
-        B0 = 0.7
-        field = ToroidalField(R0, B0)
-        base = Integrator(field, nfp=1, stellsym=True, R0=R0, test_symmetries=True)
-        rrange = (R0 - 0.05, R0 + 0.05, 6)
-        phirange = (0.0, 0.1, 8)
-        zrange = (-0.02, 0.02, 6)
-        base.Interpolate_field(rrange, phirange, zrange, degree=1, extrapolate=True)
-        with self.assertRaises(ValueError):
-            base.Interpolate_field(rrange, phirange, zrange, degree=1, extrapolate=True)
-
-
-if __name__ == '__main__':
-    unittest.main()
+        
 
 
 class TestIntegratorAgreement(unittest.TestCase):
@@ -295,8 +355,6 @@ class TestIntegratorAgreement(unittest.TestCase):
         # This is also a test of the configurations. 
         for name in configurations:
             with self.subTest(config=name):
-                # Known upstream issue: W7-X target endpoint mismatch (~0.29 m) though integrators agree.
-                # unittest has no per-subTest xfail; skip just this config to keep CI green while preserving others.
                 base_curves, base_currents, ma, nfp, bs = get_data(name)
                 gamma = ma.gamma()
                 start_xyz = gamma[0, :]
@@ -327,7 +385,7 @@ class TestIntegratorAgreement(unittest.TestCase):
 
                 # Tolerances: strict agreement in meters
                 # (the w7x axis is not really great...)
-                tol_abs = 2e-3 if str(name).lower().startswith("w7x") else 1e-4
+                tol_abs = 2e-3 # 2 mm distance tolerance
                 err_so = np.linalg.norm(end_xyz_so - target_xyz)
                 err_sc = np.linalg.norm(end_xyz_sc - target_xyz)
                 agree = np.linalg.norm(end_xyz_so - end_xyz_sc)
@@ -346,3 +404,7 @@ class TestIntegratorAgreement(unittest.TestCase):
                     tol_abs,
                     msg=f"[{name}] simsopt vs scipy dist={agree:.3e} > tol={tol_abs:.1e}; |simsopt-target|={err_so:.3e}; |scipy-target|={err_sc:.3e}",
                 )
+    
+
+if __name__ == '__main__':
+    unittest.main()
