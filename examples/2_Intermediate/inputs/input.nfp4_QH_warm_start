@@ -4,9 +4,9 @@
   NITER = 10000
   NSTEP =  200
   TCON0 =   2.00E+00
-  NS_ARRAY    =      16       50
-  NITER_ARRAY =     600     2000
-  FTOL_ARRAY  = 1.0E-16  1.0E-11
+  NS_ARRAY    =      31
+  NITER_ARRAY =    1500
+  FTOL_ARRAY  = 1.0E-13
   PRECON_TYPE = 'none'
   PREC2D_THRESHOLD =   1.000000E-19
 !----- Grid Parameters -----

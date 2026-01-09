@@ -45,6 +45,34 @@ class LeastSquaresProblemTests(unittest.TestCase):
                 self.assertTrue(np.allclose(iden2.x, [2]))
                 self.assertTrue(np.allclose(iden3.x, [3]))
 
+    def test_solve_quadratic_bounds(self):
+        """
+        Same as test_solve_quadratic, except with different bounds. The solver 
+        should therefore run into the bounds instead of the regular minimum.
+
+        The optimization problem is
+        min (x1 - 1)^2 + 2(x2 - 2)^2 + 3(x3 - 3)^2
+        subject to
+        x2 <= 1, x3 <=10.
+        The solution, [1, 1, 3], is bound constrained.
+        """
+        with ScratchDir("."):
+            for solver in solvers:
+                iden1 = Identity()
+                iden2 = Identity()
+                iden3 = Identity()
+                term1 = (iden1.f, 1, 1)
+                term2 = (iden2.f, 2, 2)
+                term3 = (iden3.f, 3, 3)
+                prob = LeastSquaresProblem.from_tuples([term1, term2, term3])
+                prob.upper_bounds = [np.inf, 1, 10]
+                solver(prob)
+                print("assertAlmostEqual", prob.objective(), prob.x)
+                self.assertAlmostEqual(prob.objective(), 2)
+                self.assertTrue(np.allclose(iden1.x, [1]))
+                self.assertTrue(np.allclose(iden2.x, [1]))
+                self.assertTrue(np.allclose(iden3.x, [3]))
+
     def test_solve_quadratic_fixed(self):
         """
         Same as test_solve_quadratic, except with different weights and x

@@ -9,3 +9,4 @@ sources =
     /**/lib/python3.9/site-packages
     /**/lib/python3.10/site-packages
     /**/lib/python3.11/site-packages
+    /**/lib/python3.12/site-packages

@@ -4,9 +4,11 @@ from pathlib import Path
 from qsc import Qsc
 import numpy as np
 from monty.tempfile import ScratchDir
+from scipy.special import jv as bessel_J
+from scipy.interpolate import CubicSpline
 
 from simsopt import save, load
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier, SurfaceRZPseudospectral
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier, SurfaceRZPseudospectral, plot_spectral_condensation
 from simsopt.geo.surface import Surface
 from simsopt._core.optimizable import Optimizable
 
@@ -403,9 +405,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         wout_filename = TEST_DIR / 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
         plasma_surf = SurfaceRZFourier.from_wout(wout_filename, range="full torus", ntheta=100, nphi=400)
 
-        coil_surf = SurfaceRZFourier.from_wout(wout_filename, range="half period", ntheta=71, nphi=70)
+        coil_surf_load = SurfaceRZFourier.from_wout(wout_filename, range="half period", ntheta=71, nphi=70)
         # Increase Fourier resolution so we can represent the surface accurately
-        coil_surf.change_resolution(24, 24)
+        coil_surf = coil_surf_load.change_resolution(24, 24)
         separation = 3.0
         coil_surf.extend_via_normal(separation)
 
@@ -437,9 +439,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         wout_filename = TEST_DIR / 'wout_LandremanSenguptaPlunk_section5p3_reference.nc'
         plasma_surf = SurfaceRZFourier.from_wout(wout_filename, range="full torus", ntheta=100, nphi=400)
 
-        coil_surf = SurfaceRZFourier.from_wout(wout_filename, range="field period", ntheta=101, nphi=100)
+        coil_surf_load = SurfaceRZFourier.from_wout(wout_filename, range="field period", ntheta=101, nphi=100)
         # Increase Fourier resolution so we can represent the surface accurately
-        coil_surf.change_resolution(24, 24)
+        coil_surf = coil_surf_load.change_resolution(24, 24)
         separation = 0.2
         coil_surf.extend_via_normal(separation)
 
@@ -522,35 +524,37 @@ class SurfaceRZFourierTests(unittest.TestCase):
         """
         for mpol in [1, 2]:
             for ntor in [0, 1]:
-                s = SurfaceRZFourier(mpol=mpol, ntor=ntor)
-                n = len(s.get_dofs())
-                s.set_dofs((np.random.rand(n) - 0.5) * 0.01)
-                s.set_rc(0, 0, 1.0)
-                s.set_rc(1, 0, 0.1)
-                s.set_zs(1, 0, 0.13)
-                v1 = s.volume()
-                a1 = s.area()
+                s_orig = SurfaceRZFourier(mpol=mpol, ntor=ntor)
+                n = len(s_orig.get_dofs())
+                s_orig.set_dofs((np.random.rand(n) - 0.5) * 0.01)
+                s_orig.set_rc(0, 0, 1.0)
+                s_orig.set_rc(1, 0, 0.1)
+                s_orig.set_zs(1, 0, 0.13)
+                v1 = s_orig.volume()
+                a1 = s_orig.area()
 
-                s.change_resolution(mpol+1, ntor)
-                s.recalculate = True
+                s = s_orig.change_resolution(mpol+1, ntor)
                 v2 = s.volume()
                 a2 = s.area()
                 self.assertAlmostEqual(v1, v2)
                 self.assertAlmostEqual(a1, a2)
 
-                s.change_resolution(mpol, ntor+1)
-                s.recalculate = True
-                v2 = s.volume()
-                a2 = s.area()
+                s2 = s.change_resolution(mpol, ntor+1)
+                v2 = s2.volume()
+                a2 = s2.area()
                 self.assertAlmostEqual(v1, v2)
                 self.assertAlmostEqual(a1, a2)
 
-                s.change_resolution(mpol+1, ntor+1)
-                s.recalculate = True
-                v2 = s.volume()
-                a2 = s.area()
+                s3 = s2.change_resolution(mpol+1, ntor+1)
+                v2 = s3.volume()
+                a2 = s3.area()
                 self.assertAlmostEqual(v1, v2)
                 self.assertAlmostEqual(a1, a2)
+
+                # test against cpp backend memory failure when increasing (mpol,ntor), causing out-of-bounds access see #478 
+                s4 = s_orig.change_resolution(10, 10)
+                s_orig.darea_by_dcoeff()  # if no error, pass
+                s4.darea_by_dcoeff()  # if no error, pass
 
     def test_repr(self):
         s = SurfaceRZFourier(nfp=2, mpol=3, ntor=5)
@@ -998,7 +1002,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
         da = s.darea()
         np.testing.assert_allclose(da, da_truth,
                                    err_msg = 'Area derivative does not match precalculated results.', atol = 1e-14)
-        
 
     def test_volume_derivative(self):
         """
@@ -1018,8 +1021,367 @@ class SurfaceRZFourierTests(unittest.TestCase):
         dv = s.dvolume()
         np.testing.assert_allclose(dv, dv_truth,
                                    err_msg = 'Volume derivative does not match precalculated results.', atol = 1e-14)
+
+    def test_flip_z(self):
+        """Test the flip_z() method."""
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    s = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=3, stellsym=stellsym)
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    s.flip_z()
+                    new_gamma = s.gamma()
+                    np.testing.assert_allclose(old_gamma[:, :, 0], new_gamma[:, :, 0])
+                    np.testing.assert_allclose(old_gamma[:, :, 1], new_gamma[:, :, 1])
+                    np.testing.assert_allclose(old_gamma[:, :, 2], -new_gamma[:, :, 2])
+
+    def test_flip_phi(self):
+        """Test the flip_phi() method."""
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    quadpoints_phi = np.linspace(0, 1, 12)  # Must include endpoint!
+                    quadpoints_theta = np.linspace(0, 1, 8)
+                    s = SurfaceRZFourier(
+                        mpol=mpol,
+                        ntor=ntor,
+                        nfp=3,
+                        stellsym=stellsym,
+                        quadpoints_phi=quadpoints_phi,
+                        quadpoints_theta=quadpoints_theta,
+                    )
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_Z = old_gamma[:, :, 2]
+                    s.flip_phi()
+                    new_gamma = s.gamma()
+                    new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    new_Z = new_gamma[:, :, 2]
+                    # flipping the arrays along the phi axis should have the
+                    # same effect as calling flip_phi():
+                    np.testing.assert_allclose(old_Z, np.flip(new_Z, axis=0), atol=1e-14)
+                    np.testing.assert_allclose(old_R, np.flip(new_R, axis=0), atol=1e-14)
+
+    def test_flip_theta(self):
+        """Test the flip_theta() method."""
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    quadpoints_phi = np.linspace(0, 1, 12)
+                    quadpoints_theta = np.linspace(0, 1, 8)  # Must include endpoint!
+                    s = SurfaceRZFourier(
+                        mpol=mpol,
+                        ntor=ntor,
+                        nfp=3,
+                        stellsym=stellsym,
+                        quadpoints_phi=quadpoints_phi,
+                        quadpoints_theta=quadpoints_theta,
+                    )
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_Z = old_gamma[:, :, 2]
+                    s.flip_theta()
+                    new_gamma = s.gamma()
+                    new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    new_Z = new_gamma[:, :, 2]
+                    # flipping the arrays along the theta axis should have the
+                    # same effect as calling flip_theta():
+                    old_Z = old_gamma[:, :, 2]
+                    new_Z = new_gamma[:, :, 2]
+                    np.testing.assert_allclose(old_Z, np.flip(new_Z, axis=1), atol=1e-14)
+                    np.testing.assert_allclose(old_R, np.flip(new_R, axis=1), atol=1e-14)
+
+    def test_rotate_half_field_period(self):
+        """Test the rotate_half_field_period() method."""
+        nfp = 3
+        nphi_per_half_period = 9
+        quadpoints_phi = np.linspace(0, 1, nphi_per_half_period * 2 * nfp, endpoint=False)
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    s = SurfaceRZFourier(
+                        mpol=mpol,
+                        ntor=ntor,
+                        nfp=nfp,
+                        stellsym=stellsym,
+                        quadpoints_phi=quadpoints_phi,
+                    )
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_Z = old_gamma[:, :, 2]
+                    s.rotate_half_field_period()
+                    new_gamma = s.gamma()
+                    new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    new_Z = new_gamma[:, :, 2]
+                    np.testing.assert_allclose(old_R, np.roll(new_R, nphi_per_half_period, axis=0))
+                    np.testing.assert_allclose(old_Z, np.roll(new_Z, nphi_per_half_period, axis=0), atol=1e-13)
+
+    def test_shift_theta_by_half(self):
+        """Test the shift_theta_by_half() method."""
+        nfp = 3
+        half_ntheta = 9
+        ntheta = 2 * half_ntheta
+        quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=False)
+        for mpol in [1, 2]:
+            for ntor in [0, 1, 2]:
+                for stellsym in [True, False]:
+                    s = SurfaceRZFourier(
+                        mpol=mpol,
+                        ntor=ntor,
+                        nfp=nfp,
+                        stellsym=stellsym,
+                        quadpoints_theta=quadpoints_theta,
+                    )
+                    s.x = np.random.rand(len(s.x))
+                    old_gamma = s.gamma().copy()
+                    old_R = np.sqrt(old_gamma[:, :, 0]**2 + old_gamma[:, :, 1]**2)
+                    old_Z = old_gamma[:, :, 2]
+                    s.shift_theta_by_half()
+                    new_gamma = s.gamma()
+                    new_R = np.sqrt(new_gamma[:, :, 0]**2 + new_gamma[:, :, 1]**2)
+                    new_Z = new_gamma[:, :, 2]
+                    np.testing.assert_allclose(old_R, np.roll(new_R, half_ntheta, axis=1))
+                    np.testing.assert_allclose(old_Z, np.roll(new_Z, half_ntheta, axis=1), atol=1e-13)
+
+    def test_condense_spectrum_circle(self):
+        """Test the condense_spectrum() method for a circle.
         
+        This uses an analytic form for a circular cross-section using a poloidal
+        angle
+        theta1 = theta0 + alpha * sin(theta0)
+        where theta0 is the usual geometric poloidal angle, and alpha is a
+        constant.
         
+        The Fourier coefficients of R and Z with respect to theta1 can be computed
+        analytically in terms of Bessel J functions. For details see section 4 of
+        https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
+        
+        """
+        for method in ['SLSQP', 'trust-constr', 'trf', 'BFGS']:
+            power = 2
+            print(f"Testing condense_spectrum() with method {method}")
+            major_radius = 10.0
+            minor_radius = 1.7
+            mpol = 15
+            surf = SurfaceRZFourier(
+                mpol=mpol,
+                ntor=0,
+                nfp=1,
+                quadpoints_phi=[0],
+                quadpoints_theta=np.linspace(0, 1, 50, endpoint=False),
+            )
+            alpha = 0.8
+            surf.set_rc(0, 0, minor_radius * bessel_J(1, alpha) + major_radius)
+            for m in range(1, mpol + 1):
+                surf.set_rc(m, 0, minor_radius * (bessel_J(1 - m, alpha) + bessel_J(1 + m, alpha)))
+                surf.set_zs(m, 0, minor_radius * (bessel_J(1 - m, alpha) - bessel_J(1 + m, alpha)))
+
+            np.testing.assert_allclose(surf.minor_radius(), minor_radius)
+            np.testing.assert_allclose(surf.major_radius(), major_radius)
+
+            original_spectral_width_1 = surf.spectral_width(power=power)
+            surf2, data = surf.condense_spectrum(
+                n_theta=46, n_phi=2, method=method, power=power, verbose=True
+            )
+            plot_spectral_condensation(surf, surf2, data, show=False)
+            print("Minor radius after condensing:", surf2.minor_radius())
+            final_spectral_width_1 = surf2.spectral_width(power=power)
+            print("Original spectral width 1:", original_spectral_width_1)
+            print("Original spectral width 2:", data["initial_objective"])
+            print("Final spectral width 1:", final_spectral_width_1)
+            print("Final spectral width 2:", data["final_objective"])
+            np.testing.assert_allclose(original_spectral_width_1, data["initial_objective"])
+            # There is a slight difference in the 2 methods for computing the
+            # final spectral width due to a slight change in the minor radius
+            # associated with discretization error.
+            np.testing.assert_allclose(final_spectral_width_1, data["final_objective"], rtol=2e-5)
+            np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
+            if method == "SLSQP":
+                # For some reason SLSQP is less accurate for this test.
+                allowed_RZ_error = 3e-7
+            else:
+                allowed_RZ_error = 1e-7
+            np.testing.assert_array_less(data["max_RZ_error"], allowed_RZ_error)
+            np.testing.assert_allclose(final_spectral_width_1, 1.0)
+            np.testing.assert_allclose(surf2.minor_radius(), minor_radius)
+            np.testing.assert_allclose(surf2.major_radius(), major_radius)
+            # Compare to the expected Fourier coefficients for a circle in the
+            # simple geometric poloidal angle:
+            x_should_be = np.zeros(mpol * 2 + 1)
+            x_should_be[0] = major_radius
+            x_should_be[1] = minor_radius
+            x_should_be[mpol + 1] = minor_radius
+            np.testing.assert_allclose(surf2.x, x_should_be, atol=1e-5)
+
+    def test_condense_spectrum_theta_origin(self):
+        """Test the condense_spectrum() method for eliminating unnecessary
+        toroidal variation in the origin of the theta coordinate."""
+        for method in ['SLSQP', 'trust-constr', 'trf', 'BFGS', 'lm']:
+            power = 2
+            print(f"Testing condense_spectrum() with method {method}")
+
+            # Create a circular-cross-section axisymmetric torus, but with
+            # a toroidally varying shift in the poloidal angle:
+            major_radius = 10.0
+            minor_radius = 1.5
+            nfp = 5
+
+            mpol = 2
+            ntor = 10
+            n_theta = 32
+            n_phi = 33
+            surf = SurfaceRZFourier.from_nphi_ntheta(
+                mpol=mpol,
+                ntor=ntor,
+                nphi=n_phi,
+                ntheta=n_theta,
+                nfp=nfp,    
+                range="half period",
+            )
+            gamma = np.zeros((n_phi, n_theta, 3))
+            theta = surf.quadpoints_theta * 2 * np.pi
+            for j_phi in range(n_phi):
+                phi = surf.quadpoints_phi[j_phi] * 2 * np.pi
+                theta0 = 1.7 * np.sin(nfp * phi)
+                R = major_radius + minor_radius * np.cos(theta - theta0)
+                Z = minor_radius * np.sin(theta - theta0)
+                X = R * np.cos(phi)
+                Y = R * np.sin(phi)
+                gamma[j_phi, :, 0] = X
+                gamma[j_phi, :, 1] = Y
+                gamma[j_phi, :, 2] = Z
+
+            surf.least_squares_fit(gamma)
+            # surf2 = surf.copy(quadpoints_phi=np.linspace(0, 1, 300)[:-1], quadpoints_theta=np.linspace(0, 1, 80)[:-1])
+            # surf.to_vtk("test_condense_spectrum_initial")
+            # surf2.to_vtk("test_condense_spectrum_initial_full_torus")
+            # surf2.plot()
+
+            np.testing.assert_allclose(surf.minor_radius(), minor_radius)
+            np.testing.assert_allclose(surf.major_radius(), major_radius)
+            original_spectral_width_1 = surf.spectral_width(power=power)
+            surf2, data = surf.condense_spectrum(
+                method=method, maxiter=15, power=power, verbose=True
+            )
+            plot_spectral_condensation(surf, surf2, data, show=False)
+            print("Minor radius after condensing:", surf2.minor_radius())
+            final_spectral_width_1 = surf2.spectral_width(power=power)
+            print("Original spectral width 1:", original_spectral_width_1)
+            print("Original spectral width 2:", data["initial_objective"])
+            print("Final spectral width 1:", final_spectral_width_1)
+            print("Final spectral width 2:", data["final_objective"])
+            np.testing.assert_allclose(original_spectral_width_1, data["initial_objective"])
+            # There is a slight difference in the 2 methods for computing the
+            # final spectral width due to a slight change in the minor radius
+            # associated with discretization error.
+            np.testing.assert_allclose(final_spectral_width_1, data["final_objective"], rtol=2e-5)
+            np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
+            np.testing.assert_array_less(data["max_RZ_error"], 1e-8)
+            np.testing.assert_allclose(final_spectral_width_1, 1.0)
+            np.testing.assert_allclose(surf2.minor_radius(), minor_radius)
+            np.testing.assert_allclose(surf2.major_radius(), major_radius)
+            # Compare to the expected Fourier coefficients for a circle in the
+            # simple geometric poloidal angle:
+            x_should_be = np.zeros_like(surf2.x)
+            x_should_be[0] = major_radius
+            x_should_be[2 * ntor + 1] = minor_radius  # rc(m=1, n=0)
+            x_should_be[(len(surf2.x) - 1) // 2 + 2 * ntor + 1] = minor_radius  # zs(m=1, n=0)
+            if method == "SLSQP":
+                # For some reason SLSQP is less accurate for this test.
+                atol = 1e-6
+            else:
+                atol = 1e-8
+            np.testing.assert_allclose(surf2.x, x_should_be, atol=atol)
+
+    def test_condense_spectrum(self):
+        """Test the condense_spectrum() and spectral_width() methods.
+        
+        Here, condense_spectrum() is applied to a 3D surface for which the poloidal
+        angle is the geometric angle arctan2(Z / (R - major_radius)), which is far
+        from the spectrally compressed angle.
+        """
+        for method in ['SLSQP', 'trust-constr', 'trf', 'BFGS', 'lm']:
+            power = 2
+            print(f"Testing condense_spectrum() with method {method}")
+
+            major_radius = 10.0
+            minor_radius = 1.5
+            axis_excursion = 0.9
+            nfp = 5
+
+            n_theta = 32
+            n_phi = 33
+            surf = SurfaceRZFourier.from_nphi_ntheta(
+                mpol=5,
+                ntor=5,
+                nphi=n_phi,
+                ntheta=n_theta,
+                nfp=nfp,    
+                range="half period",
+            )
+            gamma = np.zeros((n_phi, n_theta, 3))
+            theta = surf.quadpoints_theta * 2 * np.pi
+            for j_phi in range(n_phi):
+                phi = surf.quadpoints_phi[j_phi] * 2 * np.pi
+                R_original_theta = major_radius + axis_excursion * np.cos(nfp * phi) + minor_radius * np.cos(theta)
+                Z_original_theta = axis_excursion * np.sin(nfp * phi) + minor_radius * np.sin(theta)
+                new_theta = np.arctan2(Z_original_theta, R_original_theta - major_radius)
+                perm = np.argsort(new_theta)
+                new_theta = new_theta[perm]
+                R_original_theta = R_original_theta[perm]
+                Z_original_theta = Z_original_theta[perm]
+                new_theta_big = np.concatenate([new_theta, [new_theta[0] + 2 * np.pi]])
+                R_original_theta = np.concatenate([R_original_theta, [R_original_theta[0]]])
+                Z_original_theta = np.concatenate([Z_original_theta, [Z_original_theta[0]]])
+                spline_R = CubicSpline(new_theta_big, R_original_theta, bc_type='periodic')
+                spline_Z = CubicSpline(new_theta_big, Z_original_theta, bc_type='periodic')
+                R = spline_R(theta)
+                Z = spline_Z(theta)
+
+                X = R * np.cos(phi)
+                Y = R * np.sin(phi)
+                gamma[j_phi, :, 0] = X
+                gamma[j_phi, :, 1] = Y
+                gamma[j_phi, :, 2] = Z
+
+            surf.least_squares_fit(gamma)
+            # surf2 = surf.copy(quadpoints_phi=np.linspace(0, 1, 300)[:-1], quadpoints_theta=np.linspace(0, 1, 80)[:-1])
+            # surf.to_vtk("test_condense_spectrum_initial")
+            # surf2.to_vtk("test_condense_spectrum_initial_full_torus")
+            # surf2.plot()
+
+            original_spectral_width_1 = surf.spectral_width(power=power)
+            np.testing.assert_allclose(surf.minor_radius(), minor_radius, rtol=1e-5)
+            np.testing.assert_allclose(surf.major_radius(), major_radius)
+            surf2, data = surf.condense_spectrum(
+                method=method, maxiter=15, power=power, verbose=True
+            )
+            plot_spectral_condensation(surf, surf2, data, show=False)
+            print("Minor radius after condensing:", surf.minor_radius())
+            final_spectral_width_1 = surf2.spectral_width(power=power)
+            print("Original spectral width 1:", original_spectral_width_1)
+            print("Original spectral width 2:", data["initial_objective"])
+            print("Final spectral width 1:", final_spectral_width_1)
+            print("Final spectral width 2:", data["final_objective"])
+            np.testing.assert_allclose(original_spectral_width_1, data["initial_objective"])
+            np.testing.assert_allclose(surf2.minor_radius(), minor_radius, rtol=1e-5)
+            np.testing.assert_allclose(surf2.major_radius(), major_radius)
+            # There is a slight difference in the 2 methods for computing the
+            # final spectral width due to a slight change in the minor radius
+            # associated with discretization error.
+            np.testing.assert_allclose(final_spectral_width_1, data["final_objective"], rtol=2e-5)
+            np.testing.assert_array_less(final_spectral_width_1, original_spectral_width_1)
+            if method in ['SLSQP', 'trust-constr']:
+                max_allowed_error = 1e-3
+            else:
+                max_allowed_error = 2e-3
+            np.testing.assert_array_less(data["max_RZ_error"], max_allowed_error)
+
+
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):
         """
