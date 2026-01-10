@@ -850,7 +850,10 @@ def vmec_splines(vmec):
 class VmecGeometryResults:
     """
     A class to hold the output of the :func:`vmec_compute_geometry` and :func:`vmec_fieldlines` functions.
-    
+
+    The arguments required of this class have been hidden in the Sphinx documentation, since they are
+    extensively long. See the code for vmec_compute_geometry for an example of initializing this class.
+
     This data class contains geometric quantities computed from VMEC equilibria, including
     magnetic quantities, coordinates, metric tensors, and various geometric coefficients
     used in gyrokinetic simulations.
