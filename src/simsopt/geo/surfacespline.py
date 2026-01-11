@@ -1,143 +1,22 @@
-from simsopt._core import Optimizable
-from simsopt._core.optimizable import DOFs
-from simsopt.geo import Surface
-import simsoptpp as sopp
-from simsopt.geo import SurfaceRZFourier
-from simsopt.mhd import Vmec
-from simsopt.util.mpi import MpiPartition
+from .._core import Optimizable
+from .._core.optimizable import DOFs
+from ..geo import SurfaceRZFourier
+from ..mhd import Vmec
+from ..util.mpi import MpiPartition
 
 import numpy as np
-from scipy.interpolate import CubicSpline, CloughTocher2DInterpolator, Akima1DInterpolator
+from scipy.interpolate import CubicSpline, Akima1DInterpolator, CloughTocher2DInterpolator
 import matplotlib. pyplot as plt
 from scipy.interpolate import griddata
-from scipy.optimize import fsolve, minimize, golden, minimize_scalar, linprog, bisect, root_scalar  
+from scipy.optimize import fsolve, bisect
 from simsopt.util import MpiPartition
-import matplotlib as mpl
-import shapely
 
-# from .agTargets_6 import BoundarySim_PassArgs
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.mpi import least_squares_mpi_solve
-from simsopt import make_optimizable
-from mpi4py import MPI
-import time 
-import sys
-import fnmatch
 import matplotlib
 matplotlib.use('QtAgg')
 
 mpi = MpiPartition()
 
-class CrossSectionFixedZetaCartesian(Optimizable):
-    '''
-    Class for toroidal cross section, using cartesian vectors as the basis
-    '''
-    def __init__(
-        self,
-        zeta_index,
-        cs_dofs=None,
-        n_ctrl_pts=6,
-        z_sym=False,
-    ):
-        self.zeta_index = zeta_index
-        self.n_ctrl_pts = n_ctrl_pts
-        self.z_sym = z_sym
-
-        assert n_ctrl_pts%2 == 0, 'an even number of control vectors must be supplied for the cartesian cross section'
-
-        if z_sym:
-            n_pts = n_ctrl_pts // 2
-            max_angle = np.pi
-            if np.any(cs_dofs==None):
-                # default behaviour: circular 
-                r = 0.6*np.ones(n_pts)
-                t = np.linspace(0+(np.pi/n_ctrl_pts), np.pi-(np.pi/n_ctrl_pts), n_pts, endpoint=True)
-                x_ctrl = r*np.cos(t)
-                y_ctrl = r*np.sin(t)
-                cs_dofs = np.concatenate([x_ctrl, y_ctrl])
-            else:
-                x_ctrl = cs_dofs[:n_pts]
-                y_ctrl = cs_dofs[n_pts:]
-            # assert len(cs_dofs) == 2*((n_ctrl_pts // 2) + 1)
-            # if not n_ctrl_pts % 2:
-            #     assert theta_ctrl[-1] == np.pi, f'theta_ctrl: {theta_ctrl}'
-        else:
-            n_pts = n_ctrl_pts
-            max_angle = 2*np.pi
-            if np.any(cs_dofs==None):
-                # default behaviour: circular 
-                r = 0.6*np.ones(n_pts)
-                t = np.linspace(0+(np.pi/n_ctrl_pts), 2*np.pi-(np.pi/n_ctrl_pts), n_pts, endpoint=True)
-                x_ctrl = r*np.cos(t)
-                y_ctrl = r*np.sin(t)
-                cs_dofs = np.concatenate([x_ctrl, y_ctrl])
-            else:
-                x_ctrl = cs_dofs[:n_pts]
-                y_ctrl = cs_dofs[n_pts:]
-            assert len(cs_dofs) == 2*n_ctrl_pts
-
-        self.x_ctrl = cs_dofs[:n_pts]
-        self.y_ctrl = cs_dofs[n_pts:]
-        self.n_pts = n_pts
-
-        # naming dofs
-        names = self._name_dofs(n_pts)
-          
-        if z_sym:
-            dofs = DOFs(
-                cs_dofs,
-                names,
-                [True]*(n_pts) + [True]*(n_pts),
-                np.linspace(-1, 1, n_pts+1)[:-1][::-1].tolist() + [0]*n_pts,
-                np.linspace(-1, 1, n_pts+1)[1:][::-1].tolist() + [1]*n_pts
-            )
-        else:
-            dofs = DOFs(
-                cs_dofs,
-                names,
-                [True]*(n_pts) + [True]*(n_pts),
-                np.linspace(-1, 1, n_pts//2+1)[:-1][::-1].tolist() + np.linspace(-1, 1, n_pts//2+1)[:-1].tolist() + [0]*(n_pts//2) + [-1]*(n_pts//2),
-                np.linspace(-1, 1, n_pts//2+1)[1:][::-1].tolist() + np.linspace(-1, 1, n_pts//2+1)[1:].tolist() + [1]*(n_pts//2) + [0]*(n_pts//2)
-            )
-
-        super().__init__(dofs=dofs)   
-
-    def _name_dofs(self, n_pts):
-        namelist = []
-        for i in range(n_pts):
-            namelist.append(f'x_{i}')
-        for i in range(n_pts):
-            namelist.append(f'y_{i}')
-        return namelist
-
-    def get_r_ctrl_full(self):
-        r = np.sqrt(self.x_ctrl**2 + self.y_ctrl**2)
-        if self.z_sym:
-            full = np.concatenate((r, r[::-1]))
-        else:
-            full = r
-        return full
-
-    def get_theta_ctrl_full(self):
-        if self.z_sym:
-            full_x = np.concatenate((self.x_ctrl, self.x_ctrl[::-1]))
-            full_y = np.concatenate((self.y_ctrl, -self.y_ctrl[::-1]))
-            theta = np.arctan2(full_y, full_x) % (2*np.pi)
-        else:
-            theta = np.arctan2(self.y_ctrl, self.x_ctrl) % (2*np.pi)
-        return theta
-
-    def flipped(self):       
-        if self.z_sym:
-            return self
-        else:
-            dofs_flipped = np.concatenate([self.x_ctrl[::-1], -self.y_ctrl[::-1]])
-            return CrossSectionFixedZetaCartesian(
-                zeta_index=self.zeta_index,
-                cs_dofs=dofs_flipped,
-                n_ctrl_pts=self.n_ctrl_pts,
-                z_sym=False
-            )
+__all__ = ['CrossSectionFixedZeta', 'PseudoAxis', 'SurfaceBSpline']
 
 class CrossSectionFixedZeta(Optimizable):
     r"""
@@ -209,10 +88,6 @@ class CrossSectionFixedZeta(Optimizable):
                 [True]*(n_pts) + [False]*(n_pts) + [nurbs]*(n_pts),
                 [0] * (n_pts) + (np.linspace(0, max_angle, n_pts+1)[:-1] - 0.5*np.linspace(0, max_angle, n_pts+1)[1]).tolist() + [0] * (n_pts),
                 [1] * (n_pts) + (np.linspace(0, max_angle, n_pts+1)[1:] - 0.5*np.linspace(0, max_angle, n_pts+1)[1]).tolist() + [1] * (n_pts)
-                # [0] * (n_pts) + np.linspace(0, max_angle, n_pts+1)[:-1].tolist() + [0] * (n_pts),
-                # [1] * (n_pts) + np.linspace(0, max_angle, n_pts+1)[1:].tolist() + [1] * (n_pts)
-                # [0] * (n_pts) + [n*max_angle/n_ctrl_pts for n in range(n_pts)] + [0] * (n_pts),
-                # [1] * (n_pts) + [(n+1)*max_angle/n_ctrl_pts for n in range(n_pts)] + [1] * (n_pts)
             )
             super().__init__(dofs=dofs)
         else:
@@ -222,11 +97,6 @@ class CrossSectionFixedZeta(Optimizable):
                 [True]*(n_pts) + [True]*(n_pts) + [False] + [nurbs]*(n_pts-1), # fixing one of the weights in the cross section
                 [0] * (n_pts) + (np.linspace(0, max_angle, n_pts+1)[:-1] - 0.5*np.linspace(0, max_angle, n_pts+1)[1]).tolist() + [0] * (n_pts),
                 [1] * (n_pts) + (np.linspace(0, max_angle, n_pts+1)[1:] - 0.5*np.linspace(0, max_angle, n_pts+1)[1]).tolist() + [1] * (n_pts)
-                
-                # [0] * (n_pts) + ((np.linspace(0, max_angle, n_pts+1)[:-1]).tolist() + 0.1*np.linspace(0, max_angle, n_pts+1)[1]).tolist() + [0] * (n_pts),
-                # [1] * (n_pts) + ((np.linspace(0, max_angle, n_pts+1)[1:]).tolist() - 0.1*np.linspace(0, max_angle, n_pts+1)[1]).tolist() + [1] * (n_pts)
-                # [0] * (n_pts) + (np.linspace(0, max_angle, n_pts, endpoint=False) - (0.5*max_angle)/(n_pts-1)).tolist() + [0] * (n_pts),
-                # [1] * (n_pts) + (np.linspace(0, max_angle, n_pts, endpoint=False) + (0.5*max_angle)/(n_pts-1)).tolist() + [1] * (n_pts)
             )
             super().__init__(dofs=dofs)     
             if z_sym:
@@ -589,12 +459,7 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
                     nurbs=nurbs
                 )
             elif cs_basis == 'cartesian':
-                cross_section = CrossSectionFixedZetaCartesian(
-                    zeta_index=i,
-                    n_ctrl_pts=points_per_cs,
-                    default_r=default_r,
-                    z_sym=((i == 0) or (i == n_cs-1)),
-                )
+                raise NotImplementedError('see dev branch')
             self.cs_list.append(cross_section)
 
         Optimizable.__init__(self, dofs=dofs, depends_on=[self.axis] + self.cs_list)
@@ -865,15 +730,11 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
             self, 
             u, 
             v,
-            basis = 'Cartesian'
         ):
         '''
         Evaluate the spline surface at (a set of) u, v pairs within a field period. 
         '''
-        if basis == "Cartesian":
-            point_list, w_list = self.get_xyz_full_device(return_w=True)
-        elif basis == "Cylindrical":
-            point_list = self.get_RPZ_full_device()
+        point_list, w_list = self.get_xyz_full_device(return_w=True)
 
         p_u = self.p_u
         p_v = self.p_v
@@ -911,109 +772,19 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         assert np.isclose(knots_v[n_v + p_v + 1], 2*np.pi), f"knots_v[n_v - p_v + 1] = {knots_v[n_v + p_v + 1]}"
         v_basis = b_p(knots_v, p_v, v)
 
-        if basis == "Cartesian":
-            trimmed_ctrl_pts_jim = control_points_jim[:n_v+p_v+1, :n_u+p_u+1, :]
-            trimmed_weights_ji = w_list_jim[:n_v+p_v+1, :n_u+p_u+1]
-            tp_basis = np.einsum('xj,xi->xji', v_basis, u_basis)
-            w_tp_basis = np.einsum('xji,ji->xji',tp_basis, trimmed_weights_ji)
-            summed_w_tp_basis = np.einsum('xji->x',w_tp_basis)
-            nurbs_tp_basis = np.einsum('xji,x->xji', w_tp_basis, 1/summed_w_tp_basis)
+        trimmed_ctrl_pts_jim = control_points_jim[:n_v+p_v+1, :n_u+p_u+1, :]
+        trimmed_weights_ji = w_list_jim[:n_v+p_v+1, :n_u+p_u+1]
+        tp_basis = np.einsum('xj,xi->xji', v_basis, u_basis)
+        w_tp_basis = np.einsum('xji,ji->xji',tp_basis, trimmed_weights_ji)
+        summed_w_tp_basis = np.einsum('xji->x',w_tp_basis)
+        nurbs_tp_basis = np.einsum('xji,x->xji', w_tp_basis, 1/summed_w_tp_basis)
 
-            surf = np.einsum('xji,jim->xm', nurbs_tp_basis, trimmed_ctrl_pts_jim)
-            x_surf = surf[:, 0]
-            y_surf = surf[:, 1]
-            z_surf = surf[:, 2]
+        surf = np.einsum('xji,jim->xm', nurbs_tp_basis, trimmed_ctrl_pts_jim)
+        x_surf = surf[:, 0]
+        y_surf = surf[:, 1]
+        z_surf = surf[:, 2]
 
-            return x_surf, y_surf, z_surf
-        
-        elif basis == "Cylindrical":
-            raise NotImplementedError
-            R_surf = np.zeros_like(v_basis[:, 0])
-            Phi_surf = np.zeros_like(v_basis[:, 0])
-            Z_surf = np.zeros_like(v_basis[:, 0])
-
-            for i in range(n_u):
-                for j in range(n_v):
-                    R_surf += control_points_jim[j, i, 0] * v_basis[:, j] * u_basis[:, i]
-                    Phi_surf += (control_points_jim[j, i, 1] * v_basis[:, j] * u_basis[:, i])%2*np.pi
-                    Z_surf += control_points_jim[j, i, 2] * v_basis[:, j] * u_basis[:, i]
-            return np.vstack((R_surf, Phi_surf, Z_surf))
-
-    def surf_derivative_callable(
-            self, 
-            u, 
-            v,
-            derivative = 'du',
-            basis = 'Cartesian'
-        ):
-        '''
-        Evaluate the spline surface at (a set of) u, v pairs. 
-        '''
-        raise NotImplementedError
-        if basis == "Cartesian":
-            point_list = self.get_xyz_full_device()
-        elif basis == "Cylindrical":
-            point_list = self.get_RPZ_full_device()
-
-        p_u = self.p_u
-        p_v = self.p_v
-
-        control_points_ijm = np.array(point_list)            
-
-        # u basis
-        control_points_ijm = np.concatenate([control_points_ijm, control_points_ijm[:, :p_u+1, :]], axis = 1)
-        n_u = control_points_ijm.shape[1] 
-        n_knots_u = n_u + p_u + 1
-
-        interval_u = (2 * np.pi) / (n_knots_u - 2*p_u - 2)
-        knots_u = np.arange(-p_u * interval_u, (n_knots_u - p_u) * interval_u, interval_u)
-
-        assert knots_u[n_u - p_u + 1] == 2 * np.pi
-        #u = np.linspace(knots_u[p_u], knots_u[n_u - p_u + 1], nu_sample)
-        
-        # v basis - closed
-        control_points_ijm = np.concatenate([control_points_ijm, control_points_ijm[:p_v+1, :, :]], axis = 0)
-        n_v = control_points_ijm.shape[0] 
-        n_knots_v = n_v + p_v + 1
-
-        interval_v = (2 * np.pi) / (n_knots_v - 2*p_v - 2)
-        knots_v = np.arange(-p_v * interval_v, (n_knots_v - p_v) * interval_v, interval_v)
-
-        assert knots_v[n_v - p_v + 1] == 2 * np.pi
-        #v = np.linspace(knots_v[p_v], knots_v[n_v - p_v + 1], nv_sample, endpoint = True) # TODO: change this part to work for one 1fp only
-        
-        if derivative == 'du':
-            u_basis = b_prime_pm1(knots_u, p_u, u)
-            v_basis = b_p(knots_v, p_v, v)
-        elif derivative == 'dv':
-            u_basis = b_p(knots_u, p_u, u)
-            v_basis = b_prime_pm1(knots_v, p_v, v)
-        else:
-            raise ValueError('derivative must be du or dv')
-
-        if basis == "Cartesian":
-            x_surf = np.zeros_like(v_basis[:, 0])
-            y_surf = np.zeros_like(v_basis[:, 0])
-            z_surf = np.zeros_like(v_basis[:, 0])
-
-            for i in range(n_u):
-                for j in range(n_v):
-                    x_surf += control_points_ijm[j, i, 0] * v_basis[:, j] * u_basis[:, i]
-                    y_surf += control_points_ijm[j, i, 1] * v_basis[:, j] * u_basis[:, i]
-                    z_surf += control_points_ijm[j, i, 2] * v_basis[:, j] * u_basis[:, i]
-            return x_surf, y_surf, z_surf
-        
-        elif basis == "Cylindrical":
-            R_surf = np.zeros_like(v_basis[:, 0])
-            Phi_surf = np.zeros_like(v_basis[:, 0])
-            Z_surf = np.zeros_like(v_basis[:, 0])
-
-            for i in range(n_u):
-                for j in range(n_v):
-                    R_surf += control_points_ijm[j, i, 0] * v_basis[:, j] * u_basis[:, i]
-                    Phi_surf += control_points_ijm[j, i, 1] * v_basis[:, j] * u_basis[:, i]
-                    Z_surf += control_points_ijm[j, i, 2] * v_basis[:, j] * u_basis[:, i]
-            return np.vstack((R_surf, Phi_surf%2*np.pi, Z_surf))
+        return x_surf, y_surf, z_surf
 
     def centroid_axis_callable(
             self,
@@ -1042,43 +813,6 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         z_centroid = np.zeros_like(a_basis[:, 0])
 
         for i in range(n_a+p_a+1):
-            x_centroid += centroids_im[i, 0] * a_basis[:, i]
-            y_centroid += centroids_im[i, 1] * a_basis[:, i]
-            z_centroid += centroids_im[i, 2] * a_basis[:, i]
-
-        return x_centroid, y_centroid, z_centroid
-
-    def centroid_axis_derivative_callable(
-            self,
-            a,
-        ):
-        raise NotImplementedError
-        xyz_list = self.get_xyz_centroids()
-        #print(f'centroids: {np.array(xyz_list).shape}')
-        p_a = self.p_v
-        centroids_im = np.array(xyz_list)
-
-        na = 50
-
-        # a basis
-        centroids_im = np.concatenate([centroids_im, centroids_im[:, :p_a+1]], axis = 0)
-        n_a = centroids_im.shape[0] 
-        n_knots_a = n_a + p_a + 1
-
-        interval_a = (2 * np.pi/self.nfp) / (n_knots_a - 2*p_a - 2)
-        knots_a = np.arange(-p_a * interval_a, (n_knots_a - p_a) * interval_a, interval_a)
-
-        # assert knots_a[p_a] == 0
-        # assert np.isclose(knots_a[n_a - p_a + 1], 2*np.pi/self.nfp), f'knots_a[n_a - p_a + 1] = {knots_a[n_a - p_a + 1]}, self.nfp = {self.nfp}'
-        #a = np.linspace(knots_a[p_a], knots_a[n_a - p_a + 1], na)
-        #print(a)
-        a_basis = b_prime_pm1(knots_a, p_a, a)
-
-        x_centroid = np.zeros_like(a_basis[:, 0])
-        y_centroid = np.zeros_like(a_basis[:, 0])
-        z_centroid = np.zeros_like(a_basis[:, 0])
-
-        for i in range(n_a):
             x_centroid += centroids_im[i, 0] * a_basis[:, i]
             y_centroid += centroids_im[i, 1] * a_basis[:, i]
             z_centroid += centroids_im[i, 2] * a_basis[:, i]
@@ -1581,13 +1315,7 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         zbs_in[:] *= 2
         zbs_in[N, 0] /= 2
 
-        if spec_cond:
-            #tic = time.perf_counter()
-            rbc, zbs = variational_spec_cond(rbc_in, zbs_in, self.M, self.N, self.nfp, **spec_cond_options)
-            #toc = time.perf_counter()
-            #print(f'Spectral condensation took {toc - tic:0.4f} seconds')
-        else:
-            rbc, zbs = rbc_in, zbs_in
+        rbc, zbs = rbc_in, zbs_in
 
         rbs = np.zeros_like(rbc)
         zbc = np.zeros_like(zbs)
@@ -1671,10 +1399,10 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         interp=False,
         M=None,
         N=None,
-        nu = 32,
-        nv = 32,
+        nu = 64,
+        nv = 64,
         nu_interp = 64,
-        nv_interp = 32,
+        nv_interp = 64,
         plot=False,
         collocation='arclength',
         spec_cond=True,
@@ -1717,6 +1445,11 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
                 else:
                     surf.set_rc(m, n, rbc[n + N, m])
                     surf.set_zs(m, n, zbs[n + N, m])
+
+        if spec_cond:
+            surf = surf.variational_spec_cond(
+                **spec_cond_options
+            )
 
         return surf
 
@@ -1884,10 +1617,6 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
                         lb.append(min_angle)
                         ub.append(max_angle)
 
-            
-        if self.cs_basis == 'cartesian':
-            raise NotImplementedError
-
         A = np.array(constraints_list)
         lb = np.array(lb)
         ub = np.array(ub)
@@ -1897,9 +1626,6 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
     def write_ub_constraints(self):
         '''
         Writing constraints in the form Ax <= b_ub
-        '''
-        '''
-        Return a tuple containing lb, ub, A, for inequality constraints
         '''
         dofs = self.dof_names
         indices_dict = dict(zip(dofs, range(len(self.dof_names))))
@@ -1946,20 +1672,6 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
                         constraints_list.append(np.copy(temp))
                         constraint_titles.append(f'- CrossSectionFixedZeta{i+1}:r_{j} < 0')
                         A_ub.append(0)
-                        # if i == 0:
-                        #     temp = np.zeros(len(dofs))
-                        #     temp[indices_dict[f'CrossSectionFixedZeta{i+1}:r_{j}']] = 1
-                        #     constraints_list.append(np.copy(temp))
-                        #     constraint_titles.append(f'CrossSectionFixedZeta{i+1}:r_{j} < 1.2')
-                        #     A_ub.append(1.2)
-                        # else:
-                        #     temp = np.zeros(len(dofs))
-                        #     temp[indices_dict[f'CrossSectionFixedZeta{i+1}:r_{j}']] = 1
-                        #     temp[indices_dict[f'PseudoAxis1:r_axis_{i}']] = -1
-                        #     constraints_list.append(np.copy(temp))
-                        #     constraint_titles.append(f'CrossSectionFixedZeta{i+1}:r_{j} - PseudoAxis1:r_axis_{i} < 0')
-                        #     A_ub.append(0)
-
 
             # thetas in cross section
             if self.cs_equispaced==False:
@@ -2048,189 +1760,6 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         self.local_x = dofs[axis_end:]
         return None
 
-def variational_spec_cond(
-        rbc,
-        zbs,
-        M,
-        N,
-        nfp,
-        p=4,
-        q=1,
-        plot=False,
-        ftol=1e-4,
-        Mtol=1.1,
-        shapetol=None,
-        niters=5000,
-        verbose=False,
-        cutoff=1e-6
-    ):
-    '''
-    Variational spectral condensation à la Hirshman, Meier 1985. 
-    '''
-
-    m_arr = np.arange(0, M+1)
-    n_arr = np.arange(-N, N+1)
-    ntheta = 32
-    nzeta = 32
-    t_1d = np.linspace(0,2*np.pi,num=ntheta)
-    z_1d = np.linspace(0,2*np.pi,num=nzeta)# + 2*np.pi/nfp
-    z_grid, t_grid = np.meshgrid(z_1d,t_1d)
-
-    # fourier basis functions
-    cosnmtz = np.array(
-        [[np.cos(m*t_grid - n*z_grid*nfp) for m in range(0, M+1)] for n in range(-N, N+1)],
-    )
-    sinnmtz = np.array(
-        [[np.sin(m*t_grid - n*z_grid*nfp) for m in range(0, M+1)] for n in range(-N, N+1)],
-    )
-
-    #print(f'cosnmtz.shape: {cosnmtz.shape}')
-
-    def x_t_y_t(
-            rbc,
-            zbs
-    ):
-        '''
-        Computes Fourier representation of derivative of the surface wrt. theta
-        '''
-        # coefficients of derivatives of the r, z wrt. theta
-        rnm_t = np.einsum('nm,m->nm', rbc, m_arr)
-        znm_t = np.einsum('nm,m->nm', zbs, m_arr)
-
-        x_t = np.einsum('nm,nmtz->tz', rnm_t, -sinnmtz)
-        y_t = np.einsum('nm,nmtz->tz', znm_t, cosnmtz)
-
-        return x_t, y_t
-
-    def hwM_pq(
-            rbc,
-            zbs,
-            p=p,
-            q=q
-    ):
-        num = np.einsum('m,nm->nm', m_arr**(p+q), rbc**2 + zbs**2)
-        denom = np.einsum('m,nm->nm', m_arr**(p), rbc**2 + zbs**2)
-        return np.sum(num)/np.sum(denom)
-    
-    def hw_I_callable(
-            rbc,
-            zbs,
-    ):
-        M_pq = hwM_pq(rbc, zbs)
-        f_m = (m_arr**p) * (m_arr**q - M_pq)
-        
-        xfm = np.einsum('nm,m->nm', rbc, f_m)
-        yfm = np.einsum('nm,m->nm', zbs, f_m)
-
-        X = np.einsum('nmtz,nm->tz', cosnmtz[:,1:,:,:], xfm[:,1:])
-        Y = np.einsum('nmtz,nm->tz', sinnmtz[:,1:,:,:], yfm[:,1:])
-
-        x_t, y_t = x_t_y_t(rbc, zbs)
-
-        return X*x_t + Y*y_t
-
-    def naive_spec_cond(
-            rbc_in,
-            zbs_in,
-            verbose=verbose
-        ):
-        '''
-        iterate R_mn, Z_mn as X_mn,[n+1] = X_mn,[n] + aδx_mn 
-        Includes a line-search for the step size a
-        '''
-        rbc = np.copy(rbc_in)
-        zbs = np.copy(zbs_in)
-        dtdz = ((2*np.pi)/(nzeta-1)) * ((2*np.pi)/(ntheta-1))
-        I = hw_I_callable(rbc, zbs)
-        integral_I2 = np.einsum('tz,tz',I**2,dtdz*np.ones_like(I))
-        niter = 0
-        flast = hwM_pq(rbc, zbs)
-        df = 1
-        if verbose:
-            print(f'∫I^2(t,z)dtdz: {integral_I2}')
-            print(f'Initial M: {flast}')
-
-        success=False
-
-        while success == False:
-            niter += 1
-            x_t, y_t = x_t_y_t(rbc, zbs)
-            x_mn_integrand = np.einsum('nmtz,tz->nmtz', cosnmtz,-I*x_t)
-            y_mn_integrand = np.einsum('nmtz,tz->nmtz', sinnmtz,-I*y_t)
-            drbc = np.einsum('nmtz,tz->nm',x_mn_integrand,dtdz*np.ones_like(I))
-            dzbs = np.einsum('nmtz,tz->nm',y_mn_integrand,dtdz*np.ones_like(I))
-
-            drbc[:N,0] = 0
-            dzbs[:N,0] = 0
-
-            def f(alpha, rbc, zbs, drbc, dzbs):
-                _rbc = np.copy(rbc)
-                _zbs = np.copy(zbs)
-                _rbc += alpha * drbc
-                _zbs += alpha * dzbs
-                return hwM_pq(_rbc, _zbs)
-
-            res = minimize_scalar(f, bracket = (-1e-4, 1e-4), args = (rbc, zbs, drbc, dzbs), method='golden', options={'disp':False})
-            alpha = res.x
-
-            rbc += alpha * drbc
-            zbs += alpha * dzbs
-            I = hw_I_callable(rbc, zbs)
-            integral_I2 = np.einsum('tz,tz',I**2,dtdz*np.ones_like(I))
-            fnew = hwM_pq(rbc, zbs)
-            df = np.abs(fnew - flast)
-            flast = fnew 
-
-            if hwM_pq(rbc, zbs) <= Mtol:
-                success = True
-                message = 'Terminated due to sufficiently low M'
-            if niter > niters:#5000:
-                success = True
-                message = 'Maxiter reached'
-            if df <= ftol:#1e-3:
-                success = True
-                message = 'dM < ftol reached'
-            if shapetol is not None:
-                shape_error_arr = shape_error_fourier(
-                                    rbc,
-                                    zbs,
-                                    rbc_in,
-                                    zbs_in,
-                                    nfp,
-                                    M,
-                                    N,
-                                    M,
-                                    N,
-                                )
-                shape_error = (np.average(np.abs(shape_error_arr)))
-                if shape_error >= shapetol:
-                    success = True
-                    message = f'Shape error {shapetol} reached'
-
-        if verbose:
-            print(message)
-            print(f'Final ∫I^2(t,z)dtdz: {integral_I2}')
-            print(f'Final M: {hwM_pq(rbc, zbs)}')
-
-        return rbc, zbs
-
-    rbc_f, zbs_f = naive_spec_cond(rbc, zbs)
-
-    rbc_f *= (np.abs(rbc_f) > cutoff)
-    zbs_f *= (np.abs(zbs_f) > cutoff)
-
-    if plot:
-        fig, ax = plt.subplots()
-        pwr_init = np.einsum('nm->m', rbc**2 + zbs**2)
-        pwr_final = np.einsum('nm->m', rbc_f**2 + zbs_f**2)
-        ax.semilogy(m_arr, pwr_init, label = 'equal arc length')
-        ax.semilogy(m_arr, pwr_final, label ='condensed')
-        ax.set_xlabel('m')
-        ax.set_ylabel('$\sum_n R_{mn}^2 + Z_{mn}^2$')
-        ax.legend()
-
-    return rbc_f, zbs_f 
-
 def vmec_from_surf(
         nfp,
         surf=None,
@@ -2288,19 +1817,11 @@ def vmec_from_surf(
     vmec.indata.piota_type = 'power_series'
     vmec.indata.pcurr_type = 'power_series'
 
-    # vmec.indata.raxis_cc = np.append(r_n, np.zeros(102-len(r_n),))
-    # vmec.indata.zaxis_cs = np.append(z_n, np.zeros(102-len(r_n),))
-    # vmec.in
-    # if surf is None:
-    #     pass
-    # else:
     vmec.boundary = surf
     vmec.set_indata()
     return vmec
 
 def alan_plot(rbc, rbs, zbc, zbs, ntheta, nzeta, M, N, nfp, ax=None, poincare=True):
-    # theta = np.linspace(0,2 * np.pi,num=ntheta,endpoint=True) 
-    # zeta = np.linspace(0, 2 * np.pi/nfp,num=nzeta,endpoint=True)
     if ax is None:
         fig = plt.figure("3D Surface Plot")
         fig.patch.set_facecolor('white')
@@ -2324,12 +1845,10 @@ def alan_plot(rbc, rbs, zbc, zbs, ntheta, nzeta, M, N, nfp, ax=None, poincare=Tr
         for i in range(rbc.shape[0]):
             for j in range(rbc.shape[1]):
                 if rbc[i,j] !=0 or zbs[i,j] != 0:
-                    #print(f"RBC({int(xn[i]):2d},{int(xm[j]):2d})={rbc[i,j]:24.15e}, ZBS({int(xn[i]):2d},{int(xm[j]):2d})={zbs[i,j]:24.15e}")
                     angle = xm[j]*theta2D - xn[i]*zeta2D*nfp
                     R = R + rbc[i,j]*np.cos(angle)#/(np.abs(i) + np.abs(j))
                     Z = Z + zbs[i,j]*np.sin(angle)#/(np.abs(i) + np.abs(j))
                 if rbs[i,j] !=0 or zbc[i,j]:
-                    #print(f"RBS({int(xn[i]):2d},{int(xm[j]):2d})={rbs[i,j]:24.15e}, ZBC({int(xn[i]):2d},{int(xm[j]):2d})={zbc[i,j]:24.15e}") 
                     angle = xm[j]*theta2D - xn[i]*zeta2D*nfp
                     R = R + rbs[i,j]*np.sin(angle)
                     Z = Z + zbc[i,j]*np.cos(angle)
@@ -2370,43 +1889,21 @@ def alan_plot(rbc, rbs, zbc, zbs, ntheta, nzeta, M, N, nfp, ax=None, poincare=Tr
     for i in range(rbc.shape[0]):
         for j in range(rbc.shape[1]):
             if rbc[i,j] !=0 or zbs[i,j] != 0:
-                #print(f"RBC({int(xn[i]):2d},{int(xm[j]):2d})={rbc[i,j]:24.15e}, ZBS({int(xn[i]):2d},{int(xm[j]):2d})={zbs[i,j]:24.15e}")
                 angle = xm[j]*theta2D - xn[i]*zeta2D*nfp
                 R = R + rbc[i,j]*np.cos(angle)#/(np.abs(i) + np.abs(j))
                 Z = Z + zbs[i,j]*np.sin(angle)#/(np.abs(i) + np.abs(j))
             if rbs[i,j] !=0 or zbc[i,j]:
-                #print(f"RBS({int(xn[i]):2d},{int(xm[j]):2d})={rbs[i,j]:24.15e}, ZBC({int(xn[i]):2d},{int(xm[j]):2d})={zbc[i,j]:24.15e}") 
                 angle = xm[j]*theta2D - xn[i]*zeta2D*nfp
                 R = R + rbs[i,j]*np.sin(angle)
                 Z = Z + zbc[i,j]*np.cos(angle)
     X = R * np.cos(zeta2D)
     Y = R * np.sin(zeta2D)
 
-    # fig = plt.figure("3D Surface Plot")
-    # fig.patch.set_facecolor('white')
-    # if ax is None:
-    #     ax = fig.add_subplot(projection='3d',azim=0, elev=90)
-
-    # ax.dist = 13
-
-    ax.plot_surface(X, Y, Z)#, rstride=1, cstride=1, antialiased=False, zorder=2)
-    #ax._axis3don = False
-
-    #ax.plot_surface(X, Y, Z)#, antialiased=False, zorder=2)
+    ax.plot_surface(X, Y, Z)
     ax.set_box_aspect((1, 1, 1))
     ax.set_ylim(-1, 1)
     ax.set_xlim(-1, 1)
     ax.set_zlim(-1, 1)
-    #plt.show()
-
-def rot_matrix_3d(theta):
-    return np.array(
-        [
-            [np.cos(theta), -np.sin(theta), 0],
-            [np.sin(theta), np.cos(theta), 0],
-            [0, 0, 1]
-        ]
-    )
 
 def rot_matrix_2d(theta):
     return np.array(
@@ -2459,193 +1956,23 @@ def b_p(t, p, x, i=None):
     else:
         return b[-1][:, i]
 
-def b_prime_pm1(t, p, x, i=None):
-    raise NotImplementedError #TODO: fix this 
-    '''
-    Compute the derivative of the B-spline basis function B_pi (which has order p-1)
-
-    ## Inputs:
-    t : knot vector
-    p : degree
-    x : point at which to evaluate
-    i : basis of interest (if None, returns all )
-
-    ## Outputs:
-    If i is None, an array of shape (x, k) is returned, which consists of the kth p-order B-Spline basis function computed on the array x. 
-    If i is an integer, an array of shape (x) is returned, which consists of the ith p-order B-Spline basis function computed on the array x. 
-    '''
-    b = []
-
-    # calculating splines for p - 1
-
-    for _p in range(0, p):
-        l = len(t)
-        if _p == 0:
-            x1d = x.copy()
-            t1d = t.copy()
-            t = np.outer(np.ones(len(x)), t)
-            x = np.expand_dims(x, 0)
-            b0 = ((x.T >= t[:, :-1]) & (x.T < t[:, 1:]))
-            b0[np.isclose(x1d, t1d[-1]), np.isclose(t1d[1:], t1d[-1])] = 1 # accounting for evaluation at rightmost knot
-            b.append(b0)
-        else: 
-            l_term_n = (x.T - t[:, :-_p-1])
-            l_term_d = (t[:, _p:-1] - t[:, :-_p-1])
-            l_term = b[-1][:, :-1]* np.divide(l_term_n, l_term_d, out=np.zeros_like(l_term_d), where=l_term_d != 0)
-
-            r_term_n = (t[:, _p+1:] - x.T)
-            r_term_d = (t[:, _p+1:] - t[:, 1:-_p])
-            r_term = b[-1][:, 1:]* np.divide(r_term_n, r_term_d, out=np.zeros_like(r_term_d), where=r_term_d != 0)
-
-            b.append(l_term + r_term)
-
-    # applying derivative formula
-
-    l_term_n = p
-    l_term_d = (t[:, p:-1] - t[:, :-p-1])
-    l_term = b[-1][:, :-1]* np.divide(l_term_n, l_term_d, out=np.zeros_like(l_term_d), where=l_term_d != 0)
-
-    r_term_n = p
-    r_term_d = (t[:, p+1:] - t[:, 1:-p])
-    r_term = b[-1][:, 1:]* np.divide(r_term_n, r_term_d, out=np.zeros_like(r_term_d), where=r_term_d != 0)
-
-    b.append(l_term - r_term)
-    
-    if i is None:
-        return b[-1]
-    else:
-        return b[-1][:, i]
-
-def any_to_uz_grid(
-        rbc,
-        zbs,
-        M,
-        N,
-        nfp,
-        nu=64,
-        nv=64,
-        plot=False,
-    ):
-
-    u_1d = np.linspace(0, 2*np.pi, nu, endpoint=True)
-    zeta_1d = np.linspace(0, 2*np.pi, nv, endpoint=True)        
-    zeta_grid, u_grid = np.meshgrid(zeta_1d, u_1d)
-    u_zeta_points = np.vstack((u_grid.flatten(), zeta_grid.flatten()))
-
-    zeta_eval, theta_eval = np.meshgrid(np.linspace(np.pi/nfp, 2*np.pi/nfp, nv, endpoint=True), np.linspace(0, 2*np.pi, nu, endpoint=True))  
-    eval_grid = np.vstack((theta_eval.flatten(), zeta_eval.flatten()))
-
-    cosnmuz = np.array(
-        [[np.cos(m*u_grid - n*(nfp*zeta_grid)) for m in range(0, M+1)] for n in range(-N, N+1)],
-    )
-    sinnmuz = np.array(
-        [[np.sin(m*u_grid - n*(nfp*zeta_grid)) for m in range(0, M+1)] for n in range(-N, N+1)],
-    )
-
-    R_surf = np.einsum('nm,nmuz->uz', rbc, cosnmuz)
-    z_surf = np.einsum('nm,nmuz->uz', zbs, sinnmuz)
-
-    R_uz_callable = CloughTocher2DInterpolator(
-        points=u_zeta_points.T,
-        values=R_surf.flatten(),
-    )
-    z_uz_callable = CloughTocher2DInterpolator(
-        points=u_zeta_points.T,
-        values=z_surf.flatten(),
-    )
-
-    R_on_uz_grid = R_uz_callable(eval_grid.T).reshape(nu, nv)
-    z_on_uz_grid = z_uz_callable(eval_grid.T).reshape(nu, nv)
-
-    if plot:
-        x_on_uz_grid = R_on_uz_grid * np.cos(zeta_eval)
-        y_on_uz_grid = R_on_uz_grid * np.sin(zeta_eval)
-        z_on_uz_grid = z_on_uz_grid
-        #for theta, i in enumerate(ulist):
-
-        # x_0 = R_0 * np.cos(zeta_1d_halfgrid)
-        # y_0 = R_0 * np.sin(zeta_1d_halfgrid)
-        fig3d, ax = plt.subplots(subplot_kw={"projection": "3d"})
-
-        # zeta_axis = zeta_1d_halfgrid
-        # axis = axis_zeta_callable(zeta_axis)
-        # R_c, z_c = axis[:, 0], axis[:, 1]
-        # x_c = R_c * np.cos(zeta_axis)
-        # y_c = R_c * np.sin(zeta_axis)
-
-        ax.scatter(x_on_uz_grid, y_on_uz_grid, z_on_uz_grid)
-        # ax.plot(x_0, y_0, z_0, 'r.')
-        # ax.plot(x_c, y_c, z_c)
-        ax.set_box_aspect((1, 1, 1))
-        ax.set_ylim(-1, 1)
-        ax.set_xlim(-1, 1)
-        ax.set_zlim(-1, 1)
-        plt.show()
-        
-    return R_on_uz_grid, z_on_uz_grid, eval_grid.T
-
-def shape_error_fourier(
-        rbc1,
-        zbs1,
-        rbc2,
-        zbs2,
-        nfp,
-        M1,
-        N1,
-        M2,
-        N2,
-        nu=64,
-        nv=64,
-        verbose=False,
-        plot=False,
-        as_scalar=True
-    ):
-
-    R_uz_1, z_uz_1, eval_grid = any_to_uz_grid(
-        rbc=rbc1,
-        zbs=zbs1,
-        M=M1,
-        N=N1,
-        nfp=nfp,
-        nu=nu,
-        nv=nv,
-        plot=plot
-    )
-
-    R_uz_2, z_uz_2, _ = any_to_uz_grid(
-        rbc=rbc2,
-        zbs=zbs2,
-        M=M2,
-        N=N2,
-        nfp=nfp,
-        nu=nu,
-        nv=nv,
-        plot=plot
-    )
-
-    j = []
-
-    for i, zeta in enumerate(eval_grid.T[1,:].reshape(nu, nv)):
-        coords1 = zip(R_uz_1[:-1,i], z_uz_1[:-1,i])
-        coords2 = zip(R_uz_2[:-1,i], z_uz_2[:-1,i])
-        poly1 = shapely.Polygon(coords1)
-        poly2 = shapely.Polygon(coords2)
-        j.append(shapely.intersection(poly1, poly2).area/shapely.union(poly1, poly2).area)
-        #print(shapely.intersection(poly1, poly2).area/shapely.union(poly1, poly2).area)
-    return np.log10(j)
-
-def print_dofs_nicely(surf, lb=None, ub=None):
-    if lb is None and ub is None:
-        dofs_lb_ub = list(zip(surf.x, surf.lower_bounds, surf.upper_bounds))
-    else:
-        dofs_lb_ub = list(zip(surf.x, lb, ub))
-    dofs_dict = dict(zip(surf.dof_names, dofs_lb_ub))
-    print("{:<30} {:<20} {:<20} {:<20}".format('dof','value','lower bound', 'upper bound'))
-    for k, v in dofs_dict.items():
-        val, lb, ub = v
-        print("{:<30} {:<20} {:<20} {:<20}".format(k, val, lb, ub))
-
 def vol_from_boundary(rbc, zbs, M, N, nu, nv, nfp):
+    '''
+    Compute volume enclosed by a boundary given with VMEC Fourier coefficients.
+    Uses a clever trick based on Gauss' identity:
+    ∫∫∫ div(A) dV = ∫∫ A . n dA
+    Choose some A whose divergence is unity, in this case (in cylindrical coordinates)
+    (0, 0, z). Then, 
+    V = ∫∫∫dV = ∫∫ zn_z dA. 
+    
+    :param rbc: RBC coefficients, given in (n,m) format
+    :param zbs: ZBS coefficients, given in (n,m) format
+    :param M: Max poloidal mode number
+    :param N: Max toroidal mode number
+    :param nu: Number of points to take in u for quadrature
+    :param nv: Number of points to take in v for quadrature
+    :param nfp: Number of field periods
+    '''
     u_1d = np.linspace(0, 2*np.pi, nu, endpoint=True)
     v_1d = np.linspace(0, 2*np.pi, nv, endpoint=True)        
     v_grid, u_grid = np.meshgrid(v_1d, u_1d)
@@ -2658,52 +1985,12 @@ def vol_from_boundary(rbc, zbs, M, N, nu, nv, nfp):
     m = np.array(
         [[m for m in range(0, M+1)] for n in range(-N, N+1)]
     )
-    n = np.array(
-        [[n for m in range(0, M+1)] for n in range(-N, N+1)]
-    )
 
     R_uz = np.einsum('nm,nmuz->uz', rbc, cosnmuz)
     Z_uz = np.einsum('nm,nmuz->uz', zbs, sinnmuz)
-
-    # x_on_uz_grid = R_uz * np.cos(v_grid)
-    # y_on_uz_grid = R_uz * np.sin(v_grid)
-    # z_on_uz_grid = Z_uz
-    # #for theta, i in enumerate(ulist):
-
-    # # x_0 = R_0 * np.cos(zeta_1d_halfgrid)
-    # # y_0 = R_0 * np.sin(zeta_1d_halfgrid)
-    # fig3d, ax = plt.subplots(subplot_kw={"projection": "3d"})
-
-    # # zeta_axis = zeta_1d_halfgrid
-    # # axis = axis_zeta_callable(zeta_axis)
-    # # R_c, z_c = axis[:, 0], axis[:, 1]
-    # # x_c = R_c * np.cos(zeta_axis)
-    # # y_c = R_c * np.sin(zeta_axis)
-
-    # ax.scatter(x_on_uz_grid, y_on_uz_grid, z_on_uz_grid)
-    # # ax.plot(x_0, y_0, z_0, 'r.')
-    # # ax.plot(x_c, y_c, z_c)
-    # ax.set_box_aspect((1, 1, 1))
-    # ax.set_ylim(-1, 1)
-    # ax.set_xlim(-1, 1)
-    # ax.set_zlim(-1, 1)
-    # plt.show()
-
     duR_uz = np.einsum('nm,nmuz->uz', -m*rbc, sinnmuz)
-    dvR_uz = np.einsum('nm,nmuz->uz', n*rbc, sinnmuz)
-    duZ_uz = np.einsum('nm,nmuz->uz', m*zbs, cosnmuz)
-    dvZ_uz = np.einsum('nm,nmuz->uz', -n*zbs, cosnmuz)
-
-    #sqrt_g = (duR_uz**2 + duZ_uz**2)*(dvR_uz**2 + R_uz**2 + dvZ_uz**2) - (duR_uz*dvR_uz + duZ_uz*dvZ_uz)**2
 
     integrand = Z_uz * R_uz * duR_uz
-
-    integrand_roll1 = np.roll(integrand, 1, 0)
-    integrand_roll2 = np.roll(integrand, 1, 1)
-    integrand_roll3 = np.roll(integrand_roll1, 1, 1)
-
-    # res = (u_1d[1]-u_1d[0])*(v_1d[1]-v_1d[0])*np.sum(((integrand + integrand_roll1 + integrand_roll2 + integrand_roll3)/4))
-
     res = (u_1d[1]-u_1d[0])*(v_1d[1]-v_1d[0])*np.sum(integrand)
 
     return res
