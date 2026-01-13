@@ -7,12 +7,12 @@ from ..util.mpi import MpiPartition
 import numpy as np
 from scipy.interpolate import CubicSpline, Akima1DInterpolator, CloughTocher2DInterpolator
 import matplotlib. pyplot as plt
+from matplotlib.gridspec import GridSpec
 from scipy.interpolate import griddata
 from scipy.optimize import fsolve, bisect
 from simsopt.util import MpiPartition
 
 import matplotlib
-matplotlib.use('QtAgg')
 
 mpi = MpiPartition()
 
@@ -997,8 +997,8 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
 
     def arclength_tz_interp(
             self,
-            nu = 32,
-            nv = 32,
+            nu = 64,
+            nv = 64,
             nu_interp = 64,
             nv_interp = 64,
             plot=False,
@@ -1321,8 +1321,50 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         zbc = np.zeros_like(zbs)
 
         if plot_ft:
-            alan_plot(rbc, rbs, zbc, zbs, nu, nv, self.M, self.N, self.nfp, ax=ft_ax, poincare=False)
-            # self.plot()
+            def boundary_poincare_plot(
+                    rbc,
+                    zbs,
+                    phi,
+                    N,
+                    M,
+                    nfp,
+                    ntheta=200,
+                    ):
+                xn = np.arange(-N,N+1,1)
+                xm = np.arange(0,M+1,1)
+
+                ntheta = 200
+                theta = np.linspace(0,2*np.pi,num=ntheta)
+
+                R = np.zeros((ntheta,1))
+                Z = np.zeros((ntheta,1))
+
+                for i in range(rbc.shape[0]):
+                    for j in range(rbc.shape[1]):
+                        if rbc[i,j] !=0 or zbs[i,j] != 0:
+                            angle = xm[j]*theta - xn[i]*phi*nfp
+                            R = R + rbc[i,j]*np.cos(angle)#/(np.abs(i) + np.abs(j))
+                            Z = Z + zbs[i,j]*np.sin(angle)#/(np.abs(i) + np.abs(j))
+                return R.flatten(), Z.flatten()
+
+            n_rows = 2
+            n_cols = 4
+            figsize = (14.5, 8.1)
+            fig_poincare, axes = plt.subplots(n_rows, n_cols, figsize = figsize, subplot_kw={'aspect': 'equal'})
+            axes = axes.flatten()
+            phi_array = np.linspace(0, np.pi/2, 5)
+            R_spline_plot, Z_spline_plot, _, _, = self.uniform_tz_interp(
+                    nu = 200,
+                    nv = 16,
+                    nv_interp = 64,
+                    nu_interp = 64,
+                    plot=False, 
+                )
+            for k, phi in enumerate(phi_array):
+                axes[k].plot(R_spline_plot[k, :], Z_spline_plot[k, :], 'k--', lw=1, label='Spline (ground truth)')
+                R_ft, Z_ft = boundary_poincare_plot(rbc, zbs, phi, self.N, self.M, self.nfp)
+                axes[k].plot(R_ft, Z_ft, lw=1, label='FT')
+                axes[k].legend()
         
         return rbc, zbs
   
@@ -1401,15 +1443,15 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         N=None,
         nu = 64,
         nv = 64,
-        nu_interp = 64,
-        nv_interp = 64,
+        nu_interp = 128,
+        nv_interp = 128,
         plot=False,
         collocation='arclength',
         spec_cond=True,
         spec_cond_options={
             'plot':False,
-            'ftol':3e-4,
-            'Mtol':1.5,
+            'ftol':1e-4,
+            'Mtol':1.1,
             'shapetol':0.01,
             'niters':400,
             'verbose':True,
@@ -1447,6 +1489,9 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
                     surf.set_zs(m, n, zbs[n + N, m])
 
         if spec_cond:
+            # surf.condense_spectrum(
+            #     verbose=False
+            # )
             surf = surf.variational_spec_cond(
                 **spec_cond_options
             )

@@ -1884,7 +1884,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             ax1.set_aspect('equal')
 
         surf_to_return = self.copy()
-        surf_to_return.rc, surf_to_return.zs = rbc_f, zbs_f 
+        surf_to_return.rc, surf_to_return.zs = rbc_f.T, zbs_f.T 
 
         return surf_to_return
 

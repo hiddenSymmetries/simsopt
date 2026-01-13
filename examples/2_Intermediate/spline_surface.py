@@ -4,7 +4,7 @@ import numpy as np
 from simsopt.util.mpi import MpiPartition, proc0_print, log
 from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
 from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.geo.splinesurface import PseudoAxisSurface, vmec_from_surf
+from simsopt.geo.surfacespline import SurfaceBSpline, vmec_from_surf
 from simsopt.solve.mpi import least_squares_mpi_solve, bounded_least_squares_mpi_solve
 from simsopt._core import Optimizable
 
@@ -155,7 +155,7 @@ class PASOpt(Optimizable):
         Optimizable.__init__(self, depends_on=[surf])
 
     def J_qa(self):
-        new_surf = PseudoAxisSurface(
+        new_surf = SurfaceBSpline(
             **self.spline_kwargs
         )
         new_surf.set_dofs_from_vec(self.x)
@@ -172,16 +172,18 @@ class PASOpt(Optimizable):
                 'ftol':1e-4,
                 'Mtol':1.1,
                 'shapetol':None,
-                'niters':5000,
+                'niters':2000,
                 'verbose':False,
-                'cutoff':1e-6
+                'cutoff':1e-5
             }
         )
 
         vmec = vmec_from_surf(
             self.surf.nfp,
             rz_surf,
-            ns=13, 
+            ns=13,
+            M=12, 
+            N=12,
             ftol=1e-8
         )
         vmec.run()
@@ -220,29 +222,31 @@ if __name__ == "__main__":
     parser.add_argument('--rel_step', type=float, help='rel_step for finite difference')
     parser.add_argument('--diff_method', type=str, help='method for finite difference')
     parser.add_argument('--cs_basis', type=str, help='basis of cross section dofs (polar/cartesian)')
+    parser.add_argument('--nurbs', type=bool, help='basis of cross section dofs (polar/cartesian)', action=argparse.BooleanOptionalAction)
 
     input_args = vars(parser.parse_args())
 
     default_args = {
         'axis_points':3,
-        'points_per_cs':6,
-        'n_cs':7,
+        'points_per_cs':4,
+        'n_cs':6,
         'nfp':2,
-        'M':6,
-        'N':6,
+        'M':12,
+        'N':12,
         'p_u':3,
         'p_v':3,
         'cs_equispaced':False,
         'cs_global_angle_free':False,
         'axis_angles_fixed':False,
-        'cs_basis':'polar'
+        'cs_basis':'polar',
+        'nurbs': True,
     }
 
     proc0_print(input_args)
     spline_kwargs = {key:input_args[key] if input_args[key] is not None else default_args[key] for key in default_args}
     proc0_print(f'spline_kwargs: {spline_kwargs}')
 
-    spline_surf = PseudoAxisSurface(
+    spline_surf = SurfaceBSpline(
         **spline_kwargs
     )
 
@@ -269,7 +273,7 @@ if __name__ == "__main__":
     default_optimizer_args = {
         'abs_step':1e-5,
         'rel_step':1e-8,
-        'diff_method':'centered',
+        'diff_method':'forward',
     }
 
     optimizer_args = {key:input_args[key] if (input_args[key]is not None) else default_optimizer_args[key] for key in default_optimizer_args}
