@@ -426,7 +426,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
         np.random.seed(1)
         stz_inits = np.random.uniform(size=(nparticles, 3))
-        vpar_inits = vpar*np.random.uniform(size=(nparticles, 1))
+        vpar_inits = vpar*np.random.uniform(size=(nparticles,))
         smin = 0.2
         smax = 0.6
         thetamin = 0
@@ -440,9 +440,9 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         bsh.set_points(stz_inits)
         modB_inits = bsh.modB()
         G_inits = bsh.G()
-        mu_inits = (Ekin/m - 0.5*vpar_inits**2)/modB_inits
+        mu_inits = (Ekin/m - 0.5*vpar_inits[:, None]**2)/modB_inits
         psip_inits = bsh.psip()
-        p_inits = vpar_inits*G_inits/modB_inits - q*psip_inits/m
+        p_inits = vpar_inits[:, None]*G_inits/modB_inits - q*psip_inits/m
 
         gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                      tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
@@ -494,7 +494,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         bsh.set_I0(0.5)
 
         stz_inits = np.random.uniform(size=(nparticles, 3))
-        vpar_inits = vpar*np.random.uniform(size=(nparticles, 1))
+        vpar_inits = vpar*np.random.uniform(size=(nparticles,))
         stz_inits[:, 0] = stz_inits[:, 0]*(smax-smin) + smin
         stz_inits[:, 1] = stz_inits[:, 1]*(thetamax-thetamin) + thetamin
         stz_inits[:, 2] = stz_inits[:, 2]*(zetamax-zetamin) + zetamin
@@ -503,10 +503,10 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         modB_inits = bsh.modB()[:, 0]
         G_inits = bsh.G()[:, 0]
         I_inits = bsh.I()[:, 0]
-        mu_inits = (Ekin/m - 0.5*vpar_inits[:, 0]**2)/modB_inits
+        mu_inits = (Ekin/m - 0.5*vpar_inits**2)/modB_inits
         psip_inits = bsh.psip()[:, 0]
         psi_inits = bsh.psi0*stz_inits[:, 0]
-        p_inits = vpar_inits[:, 0]*(G_inits + I_inits)/modB_inits + q*(psi_inits - psip_inits)/m
+        p_inits = vpar_inits*(G_inits + I_inits)/modB_inits + q*(psi_inits - psip_inits)/m
 
         gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                      tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_noK',
@@ -555,10 +555,10 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         modB_inits = bsh.modB()[:, 0]
         G_inits = bsh.G()[:, 0]
         I_inits = bsh.I()[:, 0]
-        mu_inits = (Ekin/m - 0.5*vpar_inits[:, 0]**2)/modB_inits
+        mu_inits = (Ekin/m - 0.5*vpar_inits**2)/modB_inits
         psip_inits = bsh.psip()[:, 0]
         psi_inits = bsh.psi0*stz_inits[:, 0]
-        p_inits = vpar_inits[:, 0]*(G_inits + I_inits)/modB_inits + q*(psi_inits - psip_inits)/m
+        p_inits = vpar_inits*(G_inits + I_inits)/modB_inits + q*(psi_inits - psip_inits)/m
 
         gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                      tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc',
@@ -634,7 +634,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
         np.random.seed(1)
         stz_inits = np.random.uniform(size=(1, 3))
-        vpar_inits = vpar*np.ones((1, 1))
+        vpar_inits = vpar*np.ones(1)
         smin = 0.2
         smax = 0.6
         thetamin = 0
@@ -708,7 +708,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         Nparticles = 100
         np.random.seed(1)
         stz_inits = np.random.uniform(size=(Nparticles, 3))
-        vpar_inits = vpar*np.random.uniform(size=(Nparticles, 1))
+        vpar_inits = vpar*np.random.uniform(size=(Nparticles,))
         smin = 0.4
         smax = 0.6
         thetamin = 0
@@ -752,7 +752,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         Nparticles = 10
         np.random.seed(1)
         stz_inits = np.random.uniform(size=(Nparticles, 3))
-        vpar_inits = vpar*np.ones((Nparticles, 1))
+        vpar_inits = vpar*np.ones(Nparticles)
         smin = 0.1
         smax = 0.2
         thetamin = 0
