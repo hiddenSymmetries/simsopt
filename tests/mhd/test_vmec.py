@@ -686,6 +686,52 @@ class VmecTests(unittest.TestCase):
                 vmec3 = Vmec(outfilename)
                 np.testing.assert_allclose(rmnc, vmec3.wout.rmnc, atol=1e-10)
 
+    def test_data_transfer_during_optimization(self):
+        """
+        This test confirms that the non-stellarator-symmetric boundary components of a non-stellarator-symmetric configuration are modified during a simple optimization.
+        """
+        def find_latest_file():
+            import re
+            
+            pattern = r'wout_LandremanSenguptaPlunk_section5p3_000_(\d+)\.nc'
+            
+            max_number = -1
+            latest_file = None
+            
+            for filename in os.listdir('.'):
+                match = re.match(pattern, filename)
+                if match:
+                    number = int(match.group(1))
+                    if number > max_number:
+                        max_number = number
+                        latest_file = filename
+            
+            return latest_file
+        
+        input_filename = os.path.join(TEST_DIR, 'input.LandremanSenguptaPlunk_section5p3')
+        wout_filename = os.path.join(TEST_DIR, 'wout_LandremanSenguptaPlunk_section5p3_reference.nc')
+        with ScratchDir("."):
+            vmec = Vmec(input_filename)
+            surf = vmec.boundary
+            
+            prob = LeastSquaresProblem.from_tuples([
+                (vmec.aspect,       6, 1e0),
+                (vmec.iota_edge, -0.5, 1e0),
+            ])
+            
+            surf.fix_all()
+            surf.fixed_range(mmin=0, mmax=1, nmin=-1, nmax=1, fixed=False)
+            surf.fix("rc(0,0)")
+            surf.fix("zc(0,0)")
+            
+            least_squares_serial_solve(prob, grad=True, bounds=prob.bounds)
+    
+            newfile = find_latest_file()
+            vmec1 = Vmec(wout_filename)
+            vmec2 = Vmec(newfile)
+            assert not np.allclose(vmec1.wout.rmns[:, -1], vmec2.wout.rmns[:, -1], atol=1e-10)
+            assert not np.allclose(vmec1.wout.zmnc[:, -1], vmec2.wout.zmnc[:, -1], atol=1e-10)
+
     def test_update_boundary(self):
         """Test that the VMEC is able to update the boundary correctly.
         Runs with very few iterations for quick CI.
