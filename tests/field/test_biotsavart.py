@@ -377,7 +377,8 @@ class Testing(unittest.TestCase):
             pts = np.concatenate((x, y, np.zeros((x.shape[1], 1))), axis=1) @ rot.T
             bs.set_points(pts)
             B = bs.B()
-            return np.sum(B*new_n[None, :], axis=1)*r
+            temp = np.sum(B*new_n[None, :], axis=1)*r
+            return temp[0]
 
         # int_r int_theta B int r dr dtheta
         from scipy import integrate
