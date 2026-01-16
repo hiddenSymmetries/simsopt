@@ -10,12 +10,16 @@ on:
   release:
     types: [published]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref == github.ref_protected && github.run_id || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-latest,  macos-13]
+        platform: [ubuntu-24.04, macos-15]
         python-version: ["3.9"]
 
     runs-on: ${{ matrix.platform }}

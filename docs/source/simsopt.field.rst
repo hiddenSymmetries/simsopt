@@ -28,6 +28,30 @@ simsopt.field.coil module
    :undoc-members:
    :show-inheritance:
 
+simsopt.field.coilset module
+----------------------------
+
+.. automodule:: simsopt.field.coilset
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.field.force module
+--------------------------
+
+.. automodule:: simsopt.field.force
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.field.magnetic\_axis\_helpers module
+--------------------------------------------
+
+.. automodule:: simsopt.field.magnetic_axis_helpers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.field.magneticfield module
 ----------------------------------
 
@@ -68,6 +92,14 @@ simsopt.field.sampling module
    :undoc-members:
    :show-inheritance:
 
+simsopt.field.selffield module
+------------------------------
+
+.. automodule:: simsopt.field.selffield
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.field.tracing module
 ----------------------------
 
@@ -76,3 +108,10 @@ simsopt.field.tracing module
    :undoc-members:
    :show-inheritance:
 
+simsopt.field.wireframefield module
+-----------------------------------
+
+.. automodule:: simsopt.field.wireframefield
+   :members:
+   :undoc-members:
+   :show-inheritance:

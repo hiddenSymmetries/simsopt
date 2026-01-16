@@ -15,9 +15,16 @@ on:
   pull_request:
     branches-ignore: [master]
 
+concurrency:
+  # Use github.run_id on main branch
+  # Use github.event.pull_request.number on pull requests, so it's unique per pull request
+  # Use github.ref on other branches, so it's unique per branch
+  group: ${{ github.workflow }}-${{ github.ref == github.ref_protected && github.run_id || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     env:
       OMPI_ALLOW_RUN_AS_ROOT: 1
@@ -26,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.9]
+        python-version: ["3.11"]
         test-type: [unit, integrated]
 
     steps:
@@ -93,10 +100,10 @@ jobs:
     - name: Install python dependencies
       run: |
         sudo apt-get install graphviz graphviz-dev
-        pip install numpy cmake scikit-build f90nml ninja wheel setuptools sympy qsc pyevtk matplotlib plotly networkx pygraphviz mpi4py py_spec h5py ground bentley_ottmann f90wrap
+        pip install numpy cmake scikit-build f90nml ninja wheel setuptools sympy qsc pyevtk matplotlib plotly networkx pygraphviz mpi4py h5py ground bentley_ottmann f90wrap
 
-    - name: Install pyoculus
-      run: pip install -v git+https://github.com/zhisong/pyoculus
+    # - name: Install pyoculus
+    #   run: pip install -v git+https://github.com/zhisong/pyoculus
 
     - name: Install booz_xform
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
@@ -104,40 +111,41 @@ jobs:
     - name: Install virtual_casing
       run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
 
-    # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
-    # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
-    # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
-    - name: Check out SPEC
-      uses: actions/checkout@v4
-      with:
-        repository: PrincetonUniversity/SPEC
-        path: SPEC
+    # 2025-11-28: Temporarily disabling SPEC due to github issue #561
+    # # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
+    # # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
+    # # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
+    # - name: Check out SPEC
+    #   uses: actions/checkout@v4
+    #   with:
+    #     repository: PrincetonUniversity/SPEC
+    #     path: SPEC
      
-    - name: ls -l again
-      run: |
-        ls -l
-        pwd
+    # - name: ls -l again
+    #   run: |
+    #     ls -l
+    #     pwd
 
-    - name: ls -l inside SPEC
-      run: |
-        cd SPEC
-        pwd
-        ls -l
+    # - name: ls -l inside SPEC
+    #   run: |
+    #     cd SPEC
+    #     pwd
+    #     ls -l
 
-    # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
-    - name: Install py_spec
-      run: |
-        pip install -r SPEC/Utilities/pythontools/requirements.txt
-        pip install -e SPEC/Utilities/pythontools
-        python -c "import py_spec; print('success')"
+    # # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
+    # - name: Install py_spec
+    #   run: |
+    #     pip install -r SPEC/Utilities/pythontools/requirements.txt
+    #     pip install -e SPEC/Utilities/pythontools
+    #     python -c "import py_spec; print('success')"
 
-    - name: Build SPEC python wrapper.
-      run: |
-        cd SPEC
-        pip install .
+    # - name: Build SPEC python wrapper.
+    #   run: |
+    #     cd SPEC
+    #     pip install .
 
-    - name: Try import spec
-      run: python -c "import spec.spec_f90wrapped as spec; print(spec.constants.version)"
+    # - name: Try import spec
+    #   run: python -c "import spec.spec_f90wrapped as spec; print(spec.constants.version)"
 
     - name: ls in /usr/lib/x86_64-linux-gnu
       run: ls -l /usr/lib/x86_64-linux-gnu
@@ -163,7 +171,8 @@ jobs:
 
     - name: Install simsopt package
       # run: env CMAKE_BUILD_TYPE=Debug pip install -v .[MPI,SPEC]
-      run: pip install -v ".[MPI,SPEC,VIS]"
+      # run: pip install -v ".[MPI,SPEC,VIS]"
+      run: pip install -v ".[MPI,VIS]"
 
     - name: Verify that importing simsopt does not automatically initialize MPI
       run: ./tests/verify_MPI_not_initialized.py
@@ -175,8 +184,8 @@ jobs:
         ./run_serial_examples
         ./run_parallel_examples
         ./run_vmec_examples
-        ./run_spec_examples
-        ./run_spec_vmec_examples
+        # ./run_spec_examples
+        # ./run_spec_vmec_examples
 
     - name: Install coverage dependencies
       if: contains(matrix.test-type, 'unit')
@@ -185,6 +194,7 @@ jobs:
     - name: Run tests on 1 process using coverage
       if: contains(matrix.test-type, 'unit')
       run: | 
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/configs
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/core
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/field
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/geo

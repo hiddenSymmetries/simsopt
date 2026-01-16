@@ -1,8 +1,8 @@
 from pathlib import Path
 
 import numpy as np
-from simsopt.configs import get_ncsx_data
-from simsopt.field import coils_via_symmetries, BiotSavart
+from simsopt.configs import get_data
+from simsopt.field import  BiotSavart
 from simsopt.geo import Volume, Area, ToroidalFlux, SurfaceXYZFourier, SurfaceRZFourier, SurfaceXYZTensorFourier, BoozerSurface, AspectRatio
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
@@ -84,10 +84,9 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exac
     if boozer_type == 'exact':
         assert weight_inv_modB == False
 
-    base_curves, base_currents, ma = get_ncsx_data()
-    coils = coils_via_symmetries(base_curves, base_currents, 3, True)
-    bs = BiotSavart(coils)
-    current_sum = sum(abs(c.current.get_value()) for c in coils)
+    base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
+    
+    current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
     G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi)) if optimize_G else None
 
     # currents need to be fixed if optimize_G is None
@@ -98,7 +97,6 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exac
     ## RESOLUTION DETAILS OF SURFACE ON WHICH WE OPTIMIZE FOR QA
     mpol = 6 if boozer_type == 'exact' else 3
     ntor = 6 if boozer_type == 'exact' else 3
-    nfp = 3
 
     if boozer_type == 'exact':
         phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
@@ -116,7 +114,7 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exac
         lab = Volume(s, nphi=nphi, ntheta=ntheta)
         lab_target = lab.J()
     elif label == "ToroidalFlux":
-        bs_tf = BiotSavart(coils)
+        bs_tf = BiotSavart(bs.coils)
         lab = ToroidalFlux(s, bs_tf, nphi=nphi, ntheta=ntheta)
         lab_target = lab.J()
     elif label == "Area":

@@ -100,7 +100,7 @@ class ProfileSpec(Profile):
         return self.local_full_x[lvol]
 
     def dfds(self, lvol):
-        """
+        r"""
         Returns the derivative of the profile w.r.t s accross interface. 
         The derivative is returned at the interface lvol, with
         the innermost interface being lvol=1. (Volume lvol is bounded

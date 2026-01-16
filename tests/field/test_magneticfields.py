@@ -17,21 +17,16 @@ except ImportError:
     pyevtk = None
 
 from simsopt._core.json import SIMSON, GSONDecoder, GSONEncoder
-from simsopt.configs import get_ncsx_data
-from simsopt.field import (
-    BiotSavart, CircularCoil, Coil, Current,
-    DipoleField, Dommaschk, InterpolatedField,
-    MagneticFieldSum, PoloidalField, Reiman,
-    ScalarPotentialRZMagneticField, ToroidalField,
-    coils_via_symmetries, MirrorModel
-)
+from simsopt.configs import get_data
+from simsopt.field import (BiotSavart, CircularCoil, Coil, Current,
+                           DipoleField, Dommaschk, InterpolatedField,
+                           MagneticFieldSum, PoloidalField, Reiman,
+                           ScalarPotentialRZMagneticField, ToroidalField,
+                           coils_via_symmetries, MirrorModel)
 from simsopt.objectives import SquaredFlux
-from simsopt.geo import (
-    CurveHelical, CurveRZFourier, CurveXYZFourier,
-    PermanentMagnetGrid, SurfaceRZFourier,
-    create_equally_spaced_curves
-)
-from simsopt.solve import relax_and_split
+from simsopt.geo import (CurveHelical, CurveRZFourier, CurveXYZFourier,
+                         PermanentMagnetGrid, SurfaceRZFourier, CurvePlanarFourier,
+                         JaxCurvePlanarFourier, create_equally_spaced_curves)
 from simsoptpp import dipole_field_Bn
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
@@ -96,9 +91,9 @@ class Testing(unittest.TestCase):
         points = np.asarray(npoints * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points += pointVar * (np.random.rand(*points.shape)-0.5)
         # Set up helical field
-        curves = [CurveHelical(101, 2, 5, 2, 1., 0.3) for i in range(2)]
-        curves[0].set_dofs(np.concatenate(([np.pi/2, 0], [0, 0])))
-        curves[1].set_dofs(np.concatenate(([0, 0], [0, 0])))
+        curves = [CurveHelical(101, 1, 5, 2, 1., 0.3) for i in range(2)]
+        curves[0].x = [np.pi / 2, 0, 0]
+        curves[1].x = [0, 0, 0]
         currents = [-2.1e5, 2.1e5]
         Bhelical = BiotSavart([
             Coil(curves[0], Current(currents[0])),
@@ -382,8 +377,154 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
         assert np.allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
+        
+        # use basic normal and verify CircularCoil against CurvePlanarFourier class
+        normal = [0, 0, 1]
+        alpha = np.arcsin(normal[1])
+        delta = np.arccos(normal[2] / np.cos(alpha))
+        center = [0, 0, 0]
+        order = 1
+        ppp = 300
+        curve = CurvePlanarFourier(order*ppp, order)
+        dofs = np.zeros(10)
+        dofs[0] = radius
+        dofs[1] = 0.0
+        dofs[2] = 0.0
+        dofs[3] = np.cos(alpha / 2.0) * np.cos(delta / 2.0)
+        dofs[4] = np.sin(alpha / 2.0) * np.cos(delta / 2.0)
+        dofs[5] = np.cos(alpha / 2.0) * np.sin(delta / 2.0)
+        dofs[6] = -np.sin(alpha / 2.0) * np.sin(delta / 2.0)
+        # Now specify the center
+        dofs[7] = center[0]
+        dofs[8] = center[1]
+        dofs[9] = center[2]
+        curve.set_dofs(dofs)
+        Bcircular = BiotSavart([Coil(curve, Current(current))])
+        curve2 = CurveRZFourier(300, 1, 1, True)
+        curve2.set_dofs([radius, 0, 0])
+        Bcircular2 = BiotSavart([Coil(curve, Current(current))])
+        Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
+        Bfield.set_points(points)
+        Bcircular.set_points(points)
+        Bcircular2.set_points(points)
+        dB1_by_dX = Bfield.dB_by_dX()
+        transpGradB1 = [dBdx.T for dBdx in dB1_by_dX]
+        np.testing.assert_allclose(Bfield.B(), Bcircular.B(), atol=1e-10,rtol=1e-10, err_msg="Bfield and analytic Bcircular should be identical")
+        np.testing.assert_allclose(Bfield.B(), Bcircular2.B(), atol=1e-10, rtol=1e-10, err_msg="Bfield and analytic Bcircular2 should be identical")
+        np.testing.assert_allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX(), atol=1e-10, rtol=1e-10, err_msg="Bfield and analytic Bcircular should have the same dB_by_dX")
+        np.testing.assert_allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX(), atol=1e-10, rtol=1e-10, err_msg="Bfield and analytic Bcircular2 should have the same dB_by_dX")
+        np.testing.assert_allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)), atol=1e-10, rtol=1e-10, err_msg="Divergence should be zero")  # divergence
+        np.testing.assert_allclose(dB1_by_dX, transpGradB1, atol=1e-10, rtol=1e-10, err_msg="Symmetry of the gradient should be preserved")  # symmetry of the gradient
+
+        # Repeat the above test with JaxCurvePlanarFourier
+        curve = JaxCurvePlanarFourier(order*ppp, order)
+        dofs = np.zeros(10)
+        dofs[0] = radius
+        dofs[1] = 0.0
+        dofs[2] = 0.0
+        dofs[3] = np.cos(alpha / 2.0) * np.cos(delta / 2.0)
+        dofs[4] = np.sin(alpha / 2.0) * np.cos(delta / 2.0)
+        dofs[5] = np.cos(alpha / 2.0) * np.sin(delta / 2.0)
+        dofs[6] = -np.sin(alpha / 2.0) * np.sin(delta / 2.0)
+        # Now specify the center
+        dofs[7] = center[0]
+        dofs[8] = center[1]
+        dofs[9] = center[2]
+        curve.set_dofs(dofs)
+        Bcircular = BiotSavart([Coil(curve, Current(current))])
+        curve2 = CurveRZFourier(300, 1, 1, True)
+        curve2.set_dofs([radius, 0, 0])
+        Bcircular2 = BiotSavart([Coil(curve, Current(current))])
+        Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
+        Bfield.set_points(points)
+        Bcircular.set_points(points)
+        Bcircular2.set_points(points)
+        dB1_by_dX = Bfield.dB_by_dX()
+        transpGradB1 = [dBdx.T for dBdx in dB1_by_dX]
+        np.testing.assert_allclose(Bfield.B(), Bcircular.B(), atol=1e-10, rtol=1e-10, err_msg="Bfield and analytic Bcircular should be identical")
+        np.testing.assert_allclose(Bfield.B(), Bcircular2.B(), atol=1e-10, rtol=1e-10, err_msg="Bfield and analytic Bcircular2 should be identical")
+        np.testing.assert_allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX(), atol=1e-10, rtol=1e-10, err_msg="Bfield and analytic Bcircular should have the same dB_by_dX")
+        np.testing.assert_allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX(), atol=1e-10, rtol=1e-10, err_msg="Bfield and analytic Bcircular2 should have the same dB_by_dX")
+        np.testing.assert_allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)), atol=1e-10, rtol=1e-10, err_msg="Divergence should be zero")  # divergence
+        np.testing.assert_allclose(dB1_by_dX, transpGradB1, atol=1e-10, rtol=1e-10, err_msg="Symmetry of the gradient should be preserved")  # symmetry of the gradient
+
+        # use random normal and verify against CurvePlanarFourier class
+        normal = np.random.rand(3)
+        normal = normal / np.sqrt(np.sum(normal ** 2, axis=-1))
+        alpha = np.arcsin(-normal[1])
+        delta = np.arccos(normal[2] / np.cos(alpha))
+        center = [0, 0, 0]
+        order = 1
+        ppp = 300
+        curve = CurvePlanarFourier(order*ppp, order)
+        dofs = np.zeros(10)
+        dofs[0] = radius
+        dofs[1] = 0.0
+        dofs[2] = 0.0
+        dofs[3] = np.cos(alpha / 2.0) * np.cos(delta / 2.0)
+        dofs[4] = np.sin(alpha / 2.0) * np.cos(delta / 2.0)
+        dofs[5] = np.cos(alpha / 2.0) * np.sin(delta / 2.0)
+        dofs[6] = -np.sin(alpha / 2.0) * np.sin(delta / 2.0)
+        # Now specify the center
+        dofs[7] = center[0]
+        dofs[8] = center[1]
+        dofs[9] = center[2]
+        curve.set_dofs(dofs)
+        Bcircular = BiotSavart([Coil(curve, Current(current))])
+        curve2 = CurveRZFourier(300, 1, 1, True)
+        curve2.set_dofs([radius, 0, 0])
+        Bcircular2 = BiotSavart([Coil(curve, Current(current))])
+        Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
+        Bfield.set_points(points)
+        Bcircular.set_points(points)
+        Bcircular2.set_points(points)
+        dB1_by_dX = Bfield.dB_by_dX()
+        transpGradB1 = [dBdx.T for dBdx in dB1_by_dX]
+        assert np.allclose(Bfield.B(), Bcircular.B())
+        assert np.allclose(Bfield.B(), Bcircular2.B())
+        assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
+        assert np.allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX())
+        assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
-        compare_gammas(Bfield, general_coil)
+
+        # use random normal and verify against CurvePlanarFourier class
+        normal = np.random.rand(3)
+        normal = normal / np.sqrt(np.sum(normal ** 2, axis=-1))
+        alpha = np.arcsin(-normal[1])
+        delta = np.arccos(normal[2] / np.cos(alpha))
+        center = [0, 0, 0]
+        order = 1
+        ppp = 300
+        curve = JaxCurvePlanarFourier(order*ppp, order)
+        dofs = np.zeros(10)
+        dofs[0] = radius
+        dofs[1] = 0.0
+        dofs[2] = 0.0
+        dofs[3] = np.cos(alpha / 2.0) * np.cos(delta / 2.0)
+        dofs[4] = np.sin(alpha / 2.0) * np.cos(delta / 2.0)
+        dofs[5] = np.cos(alpha / 2.0) * np.sin(delta / 2.0)
+        dofs[6] = -np.sin(alpha / 2.0) * np.sin(delta / 2.0)
+        # Now specify the center
+        dofs[7] = center[0]
+        dofs[8] = center[1]
+        dofs[9] = center[2]
+        curve.set_dofs(dofs)
+        Bcircular = BiotSavart([Coil(curve, Current(current))])
+        curve2 = CurveRZFourier(300, 1, 1, True)
+        curve2.set_dofs([radius, 0, 0])
+        Bcircular2 = BiotSavart([Coil(curve, Current(current))])
+        Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
+        Bfield.set_points(points)
+        Bcircular.set_points(points)
+        Bcircular2.set_points(points)
+        dB1_by_dX = Bfield.dB_by_dX()
+        transpGradB1 = [dBdx.T for dBdx in dB1_by_dX]
+        assert np.allclose(Bfield.B(), Bcircular.B())
+        assert np.allclose(Bfield.B(), Bcircular2.B())
+        assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
+        assert np.allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX())
+        assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
+        assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
 
         ## Test with results from coilpy
         radius = 1.2345
@@ -484,9 +625,9 @@ class Testing(unittest.TestCase):
         point = np.asarray([[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         field = [[-0.00101961, 0.20767292, -0.00224908]]
         derivative = [[[0.47545098, 0.01847397, 1.10223595], [0.01847426, -2.66700072, 0.01849548], [1.10237535, 0.01847085, 2.19154973]]]
-        curves = [CurveHelical(100, 2, 5, 2, 1., 0.3) for i in range(2)]
-        curves[0].set_dofs(np.concatenate(([0, 0], [0, 0])))
-        curves[1].set_dofs(np.concatenate(([np.pi/2, 0], [0, 0])))
+        curves = [CurveHelical(100, 1, 5, 2, 1., 0.3) for i in range(2)]
+        curves[0].x = [0, 0, 0]
+        curves[1].x =[np.pi / 2, 0, 0]
         currents = [-3.07e5, 3.07e5]
         Bhelical = BiotSavart([
             Coil(curves[0], Current(currents[0])),
@@ -896,10 +1037,7 @@ class Testing(unittest.TestCase):
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
 
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         btotal = bs + B0
         rmin = 1.5
         rmax = 1.7
@@ -934,10 +1072,7 @@ class Testing(unittest.TestCase):
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
 
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         btotal = bs + B0
         n = 12
         rmin = 1.5
@@ -977,10 +1112,7 @@ class Testing(unittest.TestCase):
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
 
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         btotal = bs + B0
         n = 8
         rmin = 1.5
@@ -1019,10 +1151,7 @@ class Testing(unittest.TestCase):
         B0test = 0.8
         B0 = ToroidalField(R0test, B0test)
 
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         old_err_1 = 1e6
         old_err_2 = 1e6
         btotal = bs + B0
@@ -1047,11 +1176,8 @@ class Testing(unittest.TestCase):
             old_err_2 = err_2
 
     def test_get_set_points_cyl_cart(self):
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
-
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
+        
         points_xyz = np.asarray([[0.5, 0.6, 0.7], [0.4, 0.1, 0.6]])
         points_rphiz = np.zeros_like(points_xyz)
         points_rphiz[:, 0] = np.linalg.norm(points_xyz[:, 0:2], axis=1)
@@ -1080,17 +1206,11 @@ class Testing(unittest.TestCase):
 
     @unittest.skipIf(pyevtk is None, "pyevtk not found")
     def test_to_vtk(self):
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         bs.to_vtk('/tmp/bfield')
 
     def subtest_to_mgrid(self, include_potential):
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
-        coils = coils_via_symmetries(curves, currents, nfp, True)
-        bs = BiotSavart(coils)
+        base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = Path(tmpdir) / "mgrid.bfield.nc"
             bs.to_mgrid(filename, nfp=nfp, include_potential=include_potential)

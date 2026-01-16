@@ -126,16 +126,16 @@ void Surface<Array>::scale(double scale) {
 }
 
 template<class Array>
-void Surface<Array>::extend_via_normal(double scale) {
+void Surface<Array>::_extend_via_normal_for_nonuniform_phi(double distance) {
     Array target_values = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
     auto gamma = this->gamma();
     auto n = this->normal();
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
             auto nij_norm = sqrt(n(i, j, 0)*n(i, j, 0) + n(i, j, 1)*n(i, j, 1) + n(i, j, 2)*n(i, j, 2));
-            target_values(i, j, 0) = gamma(i, j, 0) + scale * n(i, j, 0) / nij_norm;
-            target_values(i, j, 1) = gamma(i, j, 1) + scale * n(i, j, 1) / nij_norm;
-            target_values(i, j, 2) = gamma(i, j, 2) + scale * n(i, j, 2) / nij_norm;
+            target_values(i, j, 0) = gamma(i, j, 0) + distance * n(i, j, 0) / nij_norm;
+            target_values(i, j, 1) = gamma(i, j, 1) + distance * n(i, j, 1) / nij_norm;
+            target_values(i, j, 2) = gamma(i, j, 2) + distance * n(i, j, 2) / nij_norm;
         }
     }
     this->least_squares_fit(target_values);
