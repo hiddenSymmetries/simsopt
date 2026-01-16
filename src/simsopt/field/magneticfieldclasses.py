@@ -569,7 +569,6 @@ class CircularCoil(MagneticField):
         polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl)
 
 
-<<<<<<< HEAD
 class WindingSurfaceField(MagneticField):
     """
     Magnetic field object associated with a winding surface coil
@@ -623,8 +622,6 @@ class WindingSurfaceField(MagneticField):
         return field
 
 
-=======
->>>>>>> master
 class DipoleField(MagneticField):
     r"""
     Computes the MagneticField induced by N dipoles. The field is given by

@@ -73,22 +73,7 @@ if(DEFINED ENV{CONDA_PREFIX})
   message(STATUS "Conda prefix is $ENV{CONDA_PREFIX}")
 endif()
 
-# Extra flags to make homebrew or other Mac installation of openmp visible to cmake
-if(APPLE)
-    set(OpenMP_C "${CMAKE_C_COMPILER}")
-    set(OpenMP_C_FLAGS "-fopenmp" "-Wall" "-Wfloat-conversion" "-I$ENV{CONDA_PREFIX}/lib/clang/19.1.7/include")
-    set(OpenMP_C_LIB_NAMES "libomp")
-    set(OpenMP_CXX "${CMAKE_CXX_COMPILER}")
-    set(OpenMP_CXX_FLAGS "-fopenmp" "-Wall" "-Wfloat-conversion" "-I$ENV{CONDA_PREFIX}/lib/clang/19.1.7/include")
-    set(OpenMP_CXX_LIB_NAMES "libomp")
-    set(OpenMP_libomp_LIBRARY ${OpenMP_CXX_LIB_NAMES})
-    # set(OpenMP_libgomp_LIBRARY ${OpenMP_CXX_LIB_NAMES})
-    # set(OpenMP_libiomp5_LIBRARY ${OpenMP_CXX_LIB_NAMES})
-    # link_directories("/opt/homebrew/Cellar/libomp/20.1.0/lib/")
-    # target_link_directories(${PROJECT_NAME} PRIVATE )
-endif()
 find_package(OpenMP)
-
 find_package(Boost 1.76.0)
 if(Boost_FOUND)
     message(STATUS "Boost version is ${Boost_VERSION_STRING}")
@@ -148,38 +133,14 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/boozerradialinterpolant.cpp
     src/simsoptpp/wireframe_optimization.cpp
     )
-else()
-    pybind11_add_module(${PROJECT_NAME}
-        src/simsoptpp/python.cpp src/simsoptpp/python_surfaces.cpp src/simsoptpp/python_curves.cpp
-        src/simsoptpp/boozerresidual_py.cpp
-        src/simsoptpp/python_magneticfield.cpp src/simsoptpp/python_tracing.cpp src/simsoptpp/python_distance.cpp
-        src/simsoptpp/biot_savart_py.cpp
-        src/simsoptpp/biot_savart_vjp_py.cpp
-        src/simsoptpp/regular_grid_interpolant_3d_py.cpp
-        src/simsoptpp/curve.cpp src/simsoptpp/curverzfourier.cpp src/simsoptpp/curvexyzfourier.cpp src/simsoptpp/curveplanarfourier.cpp
-        src/simsoptpp/surface.cpp src/simsoptpp/surfacerzfourier.cpp src/simsoptpp/surfacexyzfourier.cpp
-        src/simsoptpp/integral_BdotN.cpp
-        src/simsoptpp/dipole_field.cpp src/simsoptpp/permanent_magnet_optimization.cpp
-        src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp 
-        src/simsoptpp/winding_surface.cpp
-        src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp
-        src/simsoptpp/boozerradialinterpolant.cpp src/simsoptpp/python_currentpotential.cpp
-        src/simsoptpp/currentpotential.cpp src/simsoptpp/currentpotentialfourier.cpp
-    )
-endif()
 
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON)
 
-if(OpenMP_CXX_FOUND)
-    target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
-    target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt-header-only OpenMP::OpenMP_CXX)
-else()
-    target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
-    target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt-header-only)
-endif()
+target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
+target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt-header-only)
 
 if(NOT Boost_FOUND)
     add_dependencies(${PROJECT_NAME} ${boost_target})
@@ -187,25 +148,18 @@ endif()
 set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-I${Boost_INCLUDE_DIRS}")
 # target_link_libraries(${PROJECT_NAME} PRIVATE pybind11::module Boost::headers)
 
-
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
+endif()
 
 add_executable(profiling EXCLUDE_FROM_ALL src/profiling/profiling.cpp src/simsoptpp/biot_savart_c.cpp src/simsoptpp/biot_savart_vjp_c.cpp src/simsoptpp/regular_grid_interpolant_3d_c.cpp)
 set_target_properties(profiling
     PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON)
-# target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
-# if(OpenMP_CXX_FOUND)
-#     target_include_directories(profiling PRIVATE  )
-#     endif()
-# target_link_libraries(profiling PRIVATE fmt::fmt-header-only)
-if(OpenMP_CXX_FOUND)
-    target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
-    target_link_libraries(profiling PRIVATE fmt::fmt-header-only OpenMP::OpenMP_CXX)
-else()
-    target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
-    target_link_libraries(profiling PRIVATE fmt::fmt-header-only)
-endif()
+target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
+target_link_libraries(profiling PRIVATE fmt::fmt-header-only)
+
 
 
 #get_cmake_property(_variableNames VARIABLES)

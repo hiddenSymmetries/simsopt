@@ -421,33 +421,6 @@ def get_hsx_data(Nt_coils=16, Nt_ma=10, ppp=10):
        Use :func:`get_data` instead:
        ``get_data('hsx', coil_order=..., magnetic_axis_order=..., points_per_period=...)``.
     """
-<<<<<<< HEAD
-    filename = THIS_DIR / 'HSX.dat'
-    curves = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
-    nfp = 4
-    currents = [Current(c) for c in [-1.500725500000000e+05, -1.500725500000000e+05, -1.500725500000000e+05, -1.500725500000000e+05, -1.500725500000000e+05, -1.500725500000000e+05]]
-    cR = [1.221168734647426701e+00, 2.069298947130969735e-01, 1.819037041932574511e-02, 4.787659822787012774e-05,
-          -3.394778038757981920e-05, 4.051690884402789139e-05, 1.066865447680375597e-05, -1.418831703321225589e-05,
-          2.041664078576817539e-05, 2.407340923216046553e-05, -1.281275289727263035e-05, -2.712941403326357315e-05,
-          1.828622086757983125e-06, 1.945955315401206440e-05, 1.409134021563425399e-05, 4.572199318143535127e-06,
-          3.136573559452139703e-07, -3.918158977823491866e-07, -2.204187636324686728e-07, -4.532041599796651056e-08,
-          2.878479243210971143e-08, 2.102768080992785704e-08, -1.267816940685333911e-08, -2.268541399245120326e-08,
-          -8.015316098897114283e-09, 6.401201778979550964e-09]
-    sZ = [1.670393448410154857e-01, 1.638250511845155272e-02, 1.656424673977177490e-04, -1.506417857585283353e-04,
-          8.367238367133577161e-05, -1.386982370447437845e-05, -7.536154112897463947e-06, -1.533108076767641072e-05,
-          -9.966838351213697000e-06, 2.561158318745738406e-05, -1.212668371257951164e-06, -1.476513099369021112e-05,
-          -3.716380502156798402e-06, 3.381104573944970371e-06, 2.605458694352088474e-06, 5.701177408478323677e-07,
-          -1.056254779440627595e-07, -1.112799365280694501e-07, -5.381768314066269919e-08, -1.484193645281248712e-08,
-          1.160936870766209295e-08, 1.466392841646290274e-08, 1.531935984912975004e-09, -6.857347022910395347e-09,
-          -4.082678667917087128e-09]
-
-    numpoints = Nt_ma*ppp+1 if ((Nt_ma*ppp) % 2 == 0) else Nt_ma*ppp
-    ma = CurveRZFourier(numpoints, Nt_ma, nfp, True)
-    ma.rc[:] = cR[0:(Nt_ma+1)]
-    ma.zs[:] = sZ[0:Nt_ma]
-    ma.x = ma.get_dofs()
-    return (curves, currents, ma)
-=======
     warnings.warn(
         "get_hsx_data is deprecated and will be removed in the next major release; "
         "please use get_data('hsx', coil_order=..., magnetic_axis_order=..., points_per_period=...) instead.",
@@ -461,7 +434,6 @@ def get_hsx_data(Nt_coils=16, Nt_ma=10, ppp=10):
         points_per_period=ppp,
     )
     return base_curves, base_currents, ma
->>>>>>> master
 
 
 def get_giuliani_data(Nt_coils=16, Nt_ma=10, ppp=10, length=18, nsurfaces=5):
@@ -519,38 +491,6 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
        Use :func:`get_data` instead:
        ``get_data('w7x', coil_order=..., magnetic_axis_order=..., points_per_period=...)``.
     """
-<<<<<<< HEAD
-    filename = THIS_DIR / "W7-X.dat"
-    curves = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
-    nfp = 5
-    amperes = 15000.0
-    # Non-planar coils have 108 turns. Planar coils have 36 turns.
-    turns = 108
-    currents = [Current(c) for c in [amperes * turns] * 5 + [0.0, 0.0]]
-    # The axis shape here is taken from a free-boundary VMEC
-    # calculation for the standard configuration at beta=0.
-    cR = [
-        5.56069066955626, 0.370739830964738, 0.0161526928867275,
-        0.0011820724983052, 3.43773868380292e-06, -4.71423775536881e-05,
-        -6.23133271265022e-05, 2.06622580616597e-06, -0.000113256675159501,
-        5.0296895894932e-07, 7.02308687052046e-05, 5.13479338167885e-05,
-        1.90731007856885e-05
-    ]
-    sZ = [
-        0, -0.308156954586225, -0.0186374002410851,
-        -0.000261743895528833, 5.78207516751575e-05, -0.000129121205314107,
-        3.08849630026052e-05, 1.95450172782866e-05, -8.32136392792337e-05,
-        6.19785500011441e-05, 1.36521157246782e-05, -1.46281683516623e-05,
-        -1.5142136543872e-06
-    ]
-
-    numpoints = Nt_ma * ppp+1 if ((Nt_ma * ppp) % 2 == 0) else Nt_ma * ppp
-    ma = CurveRZFourier(numpoints, Nt_ma, nfp, True)
-    ma.rc[:] = cR[0:(Nt_ma+1)]
-    ma.zs[:] = sZ[0:Nt_ma]
-    ma.x = ma.get_dofs()
-    return (curves, currents, ma)
-=======
     warnings.warn(
         "get_w7x_data is deprecated and will be removed in the next major release; "
         "please use get_data('w7x', coil_order=..., magnetic_axis_order=..., points_per_period=...) instead.",
@@ -564,4 +504,3 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
         points_per_period=ppp,
     )
     return base_curves, base_currents, ma
->>>>>>> master
