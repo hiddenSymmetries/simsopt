@@ -14,6 +14,7 @@ from pathlib import Path
 import time
 import numpy as np
 import matplotlib.pyplot as pl
+from simsopt.util import in_github_actions
 from simsopt.geo import SurfaceRZFourier, ToroidalWireframe
 from simsopt.solve import optimize_wireframe
 
@@ -99,5 +100,6 @@ print('  I_max [MA]     %12.4e' % (max_cur))
 
 # Save plots and visualization data to files
 wf.make_plot_2d(coordinates='degrees')
-pl.savefig(OUT_DIR + 'rcls_wireframe_curr2d.png')
 wf.to_vtk(OUT_DIR + 'rcls_wireframe')
+if not in_github_actions:
+    pl.savefig(OUT_DIR + 'rcls_wireframe_curr2d.png')
