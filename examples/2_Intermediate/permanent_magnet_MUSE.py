@@ -49,7 +49,7 @@ elif high_res_run:
     nphi = 64
     nIter_max = 25000
     nBacktracking = 200
-    max_nMagnets = 20000
+    max_nMagnets = 40000
     downsample = 1
 else:
     nphi = 16  # >= 64 for high-resolution runs
