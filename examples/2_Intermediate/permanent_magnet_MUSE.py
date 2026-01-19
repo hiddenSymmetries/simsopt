@@ -229,8 +229,11 @@ param_suffix = f"_bt{nBacktracking}_Nadj{nAdjacent}_nmax{max_nMagnets}"
 mm_suffix = ""
 if algorithm == "ArbVec_backtracking_macromag_py":
     kwargs['cube_dim'] = cube_dim
-    kwargs['mu_ea'] = 3.00 # Set ea and oa to 3.00 for AlNiCo Runs # but keep like this for Ndfeb and also for GB50UH
+    # Permeability; 
+    # Set mu_ea and mu_oa to 3.00 for AlNiCo Runs # but keep as (mu_ea=1.05, mu_oa=1.15) for Ndfeb and also for GB50UH
+    kwargs['mu_ea'] = 3.00 
     kwargs['mu_oa'] = 3.00
+    
     kwargs['use_coils'] = True
     kwargs['use_demag'] = True
     kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
