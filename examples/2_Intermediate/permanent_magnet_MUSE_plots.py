@@ -7,6 +7,11 @@ outdir = Path("output_permanent_magnet_GPMO_MUSE")
 save_dir = outdir / "plots"
 save_dir.mkdir(parents=True, exist_ok=True)
 
+# Snapshot Delta M
+# if set (e.g. 18000), compute ΔM using mhistory snapshot near this iteration K.
+# If None, compute ΔM from dipoles_final_*.npz (final state).
+m_history_delta_M_iter = 18000 #Iter to do snap at
+
 def parse_suffix(stem, prefix):
     if stem.startswith(prefix):
         return stem[len(prefix):]
@@ -63,6 +68,60 @@ def active_counts_from_mhistory_txt(path, eps=0.0, max_loadtxt_bytes=200 * 1024 
                 buf = []
 
     return counts
+
+def m_from_mhistory_txt_at_K(path, K_target, record_every):
+    """
+    Stream mhistory_*.txt and extract the dipole vectors at the history index
+    closest to iteration K_target (given record_every).
+    Returns:
+        M: (ndipoles, 3) array
+        K_snap: the actual iteration corresponding to the extracted history column
+        h_idx: history column index used (0-based)
+        H: total number of history columns
+    """
+    if K_target is None:
+        raise ValueError("K_target is None")
+
+    with open(path, "r") as f:
+        first = f.readline()
+        if not first:
+            raise ValueError(f"{path.name}: empty file")
+
+        v0 = np.fromstring(first, sep=" ")
+        H = v0.size
+        if H == 0:
+            raise ValueError(f"{path.name}: no columns detected")
+
+        # iterations used elsewhere are (i+1)*record_every, so map K_target -> i = round(K/record_every)-1
+        h_idx = int(np.round(float(K_target) / float(record_every))) - 1
+        if h_idx < 0:
+            h_idx = 0
+        if h_idx > H - 1:
+            h_idx = H - 1
+
+        K_snap = int((h_idx + 1) * record_every)
+
+        def pick(v):
+            if v.size != H:
+                raise ValueError(f"{path.name}: inconsistent column count (expected {H}, got {v.size}).")
+            return float(v[h_idx])
+
+        # stream triples of rows -> one dipole (x,y,z)
+        dipoles = []
+        buf_vals = [pick(v0)]
+
+        for line in f:
+            v = np.fromstring(line, sep=" ")
+            buf_vals.append(pick(v))
+            if len(buf_vals) == 3:
+                dipoles.append(buf_vals)
+                buf_vals = []
+
+        M = np.asarray(dipoles, dtype=float)
+        if M.ndim != 2 or M.shape[1] != 3:
+            raise ValueError(f"{path.name}: failed to parse (got shape {M.shape}).")
+
+    return M, K_snap, h_idx, H
 
 R2_files = sorted(outdir.glob("R2history_*.txt"))
 mh_files = sorted(outdir.glob("mhistory_*.txt"))
@@ -200,7 +259,7 @@ if R2_files:
     if r2_min is not None and r2_max is not None:
         ax1.set_ylim(r2_min * 0.8, r2_max * 1.2)
 
-    # combined legend placed ABOVE the plot (no overlap with either y-axis)
+    # combined legend placed ABOVE the plot
     h1, l1 = ax1.get_legend_handles_labels()
     h2, l2 = ax2.get_legend_handles_labels()
     fig.legend(
@@ -215,7 +274,6 @@ if R2_files:
         ncol=1,  # set to 2 if you want it more compact
     )
 
-    # leave room on top for the external legend
     fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.81])
 
     fname = save_dir / "Combined_MSE_history.png"
@@ -223,17 +281,66 @@ if R2_files:
     plt.close()
     print(f"Saved combined plot {fname}")
 
+# ----------------------------
+# ΔM histogram (FINAL npz OR mhistory snapshot at K=m_history_delta_M_iter)
+# ----------------------------
 npz_files = [f for f in outdir.glob("dipoles_final_*.npz") if not f.name.endswith("relax-and-split.npz")]
 print(npz_files)
+
+def find_r2_for_npz_suffix(R2_files, npz_suffix_tail):
+    # R2history files include K/nphi/ntheta prefix, but should END with the same tail as dipoles_final_*.npz
+    return next((r2 for r2 in R2_files if r2.stem.endswith(npz_suffix_tail)), None)
+
+def find_mhistory_for_r2_suffix(mh_files, r2_suffix):
+    # This is EXACTLY the same matching rule used in the MSE plot loop
+    return next((mh for mh in mh_files if parse_suffix(mh.stem, "mhistory_") == r2_suffix), None)
+
 if len(npz_files) >= 2:
+    # load final dipoles (fallback)
     data = {}
+    meta = {}  # store matched mhistory per key
     for f in npz_files:
-        key = f.stem.split("dipoles_final_")[-1]
+        key_tail = f.stem.split("dipoles_final_")[-1]  # e.g. "bt200_..._macromag_py"
         arr = np.load(f)
-        data[key] = arr["m"]
+        data[key_tail] = arr["m"]
+
+        # match to the SAME mhistory used in the combined MSE plot
+        r2_match = find_r2_for_npz_suffix(R2_files, key_tail)
+        r2_suffix = parse_suffix(r2_match.stem, "R2history_") if r2_match is not None else None
+        mh_match = find_mhistory_for_r2_suffix(mh_files, r2_suffix) if r2_suffix is not None else None
+
+        meta[key_tail] = dict(
+            npz=f,
+            r2=r2_match,
+            r2_suffix=r2_suffix,
+            mh=mh_match,
+        )
 
     if len(data) == 2:
-        (alg1, M1), (alg2, M2) = data.items()
+        (alg1, M1_final), (alg2, M2_final) = data.items()
+
+        M1, M2 = M1_final, M2_final
+        snap_info = "final (.npz)"
+
+        if m_history_delta_M_iter is not None:
+            mh1 = meta[alg1]["mh"]
+            mh2 = meta[alg2]["mh"]
+
+            if mh1 is not None and mh2 is not None and mh1.exists() and mh2.exists():
+                try:
+                    M1_snap, K1_snap, idx1, H1 = m_from_mhistory_txt_at_K(mh1, m_history_delta_M_iter, record_every)
+                    M2_snap, K2_snap, idx2, H2 = m_from_mhistory_txt_at_K(mh2, m_history_delta_M_iter, record_every)
+                    M1, M2 = M1_snap, M2_snap
+                    snap_info = f"at K(iter)={m_history_delta_M_iter}"
+                    print(f"[INFO] Using ΔM from {snap_info}")
+                    print(f"[INFO] mhistory files: {mh1.name}  AND  {mh2.name}")
+                except Exception as e:
+                    print(f"[WARN] Falling back to final .npz for ΔM (mhistory snapshot failed): {e}")
+            else:
+                print("[WARN] Falling back to final .npz for ΔM (missing mhistory match).")
+                print(f"       {alg1}: mh={None if mh1 is None else mh1.name}")
+                print(f"       {alg2}: mh={None if mh2 is None else mh2.name}")
+
         if M1.shape != M2.shape:
             raise ValueError(f"Shape mismatch: {alg1} {M1.shape}, {alg2} {M2.shape}")
 
@@ -286,6 +393,7 @@ if len(npz_files) >= 2:
             pct_total = 100.0 * counts / max(N_total, 1)
 
             print("\nΔM bucket breakdown:")
+            print(f"  snapshot: {snap_info}")
             print(f"  estimated M_rem: {Mrem_est:.6e} [A·m^2]")
             print(f"  total sites: {N_total}")
             print(f"  both-zero sites: {n_both_zero} ({100.0*n_both_zero/max(N_total,1):.2f}%)")
@@ -307,7 +415,7 @@ if len(npz_files) >= 2:
         plt.hist(diffs, bins=200, alpha=0.7)
         plt.xlabel(r"$|\Delta M| = \|M_i - M'_i\|_2$ [A·m$^2$]")
         plt.ylabel("Number of magnets")
-        plt.title("Histogram of |ΔM| (linear scale)")
+        plt.title(f"Histogram of |ΔM| (linear scale) — {snap_info}")
         plt.grid(True)
         fname_lin = save_dir / "Histogram_DeltaM_linear.png"
         plt.savefig(fname_lin, dpi=180)
@@ -318,7 +426,7 @@ if len(npz_files) >= 2:
         plt.hist(diffs, bins=200, alpha=0.7)
         plt.xlabel(r"$|\Delta M| = \|M_i - M'_i\|_2$ [A·m$^2$]")
         plt.ylabel("Number of magnets (log scale)")
-        plt.title("Histogram of |ΔM| (log scale)")
+        plt.title(f"Histogram of |ΔM| (log scale) — {snap_info}")
         plt.yscale("log")
         plt.grid(True)
         fname_log = save_dir / "Histogram_DeltaM_log.png"
