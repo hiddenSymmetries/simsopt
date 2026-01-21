@@ -1037,6 +1037,37 @@ class Integrator(Optimizable):
             raise ValueError("Input array must be of shape (3,) or (n,3)")
         
         return np.array([np.sqrt(array[:, 0]**2 + array[:, 1]**2), np.arctan2(array[:, 1], array[:, 0]), array[:, 2]]).T
+    
+    def find_fixed_point(self, guess_RZ, phi0=0, repetition_period=1, tol=1e-9, maxiter=100):
+        """
+        Find a fixed point of the field line mapping in R,Z coordinates
+        using a Newton-Raphson method. 
+
+        Args:
+            start_point_RZ: starting point in R,Z coordinates Array[R,Z]
+            phi0: toroidal angle of the starting point
+            delta_phi: angle to integrate over
+            tol: tolerance for convergence
+            maxiter: maximum number of iterations
+        Returns:
+            fixed_point: Array[R,Z] of the fixed point location
+        """
+        from scipy.optimize import root
+        delta_phi = repetition_period *2.0 * np.pi / self.nfp
+
+        def func_to_solve(x):
+            end_RZ = self.integrate_in_phi_cyl(x, delta_phi=delta_phi, return_cartesian=False)
+            return end_RZ - x
+
+        sol = root(func_to_solve, guess_RZ, tol=tol, options={'maxiter': maxiter, 
+          'factor': 1e-2}  # factor reduces overzealos steps that leave map domain
+          )
+        if not sol.success:
+            raise RuntimeError("Fixed point search did not converge: " + sol.message)
+        return np.copy(sol.x)
+
+
+
 
 
 class SimsoptFieldlineIntegrator(Integrator):
@@ -1504,8 +1535,263 @@ class ScipyFieldlineIntegrator(Integrator):
         """
         sol = solve_ivp(self._integration_fn_3d, [0, l_total], start_xyz, t_eval=np.linspace(0, l_total, n_points), method=self._integrator_type, rtol=self._integrator_args['rtol'], atol=self._integrator_args['atol'])
         return sol.y.T
+
+    def _integration_fn_tangentmap(self, t, y):
+        """
+        NEED TO FIX
+        Returns the right-hand side (RHS) of the ODE 
+        that integrates a field line and simulatneously evaluates the 
+        Jacobian of the field line map. 
+
+        The 
+
+        See [Smiet et al, 2025](https://doi.org/10.1063/5.0275878)
+        for more details. 
+
+        Args:
+            y (array): The current integrator state vector containing :math:`R, Z` and :math:`d\\textbf{RZ}/dRZ` matrix.
+        Returns:
+            array: 
+        """
+        if np.any(np.isnan(y)):
+            return np.ones_like(rz)*np.nan
+        rz = y[:2]
+        Jac_until_t = y[-4:].reshape(2, 2).T # 
+        rphiz = np.array([R, t, Z])
+        R, phi, Z = rphiz
+        dRdphi, dZdphi = self._integration_fn_cyl(t, rz)  # field line ODE
+        Bfield = self.field.B_cyl().flatten()
+        B_R, B_phi, B_Z = Bfield
+        B_contra_phi = B_phi / R
+
+        # Field points have been set the call above. We can now read derivatives. 
+        # These are only available in cartesian coordinates.  
+        # We need to convert. 
+        dB_by_dX = self.field.dB_by_dX().reshape(3,3)
+        # jacobian from cartesian to cylindrical
+        jac_to_contra = np.array(
+        [
+            [np.cos(phi),          np.sin(phi),     0],
+            [-np.sin(phi) / R,     np.cos(phi) / R, 0],
+            [0,                    0,               1],  
+        ]
+        )
+        # inverse  of that jacobian (direct evaluation faster than inversion here)
+        invjac = np.array(
+        [
+            [np.cos(phi), -np.sin(phi) * R,  0],
+            [np.sin(phi),  np.cos(phi) * R,  0],
+            [0,            0,                 1], 
+        ]
+        )
+        # Just the matrix transformation misses a christoffel correction due to the change of 
+        # the cylindrical coordinates along the integration (field line direction). 
+        christoffel_correction = np.array(
+        [
+            [0,              B_phi,       0],
+            [-B_phi / R**2, -B_R / R**2,  0],
+            [0,              0,           0],  
+        ]
+        )
+
+
+        dB_contra_by_dRphiZ = jac_to_contra @ dB_by_dX @ invjac + christoffel_correction # add the christoffel correction
+
+        # Matrix of the derivatives of (B^R/B^phi, B^Z/B^phi) with respect to (R, Z)
+        M00 = (
+            dB_contra_by_dRphiZ[0, 0] / B_contra_phi - B_R / B_contra_phi ** 2 * dB_contra_by_dRphiZ[1, 0]
+        )
+        M01 = (
+            dB_contra_by_dRphiZ[0, 2] / B_contra_phi - B_R / B_contra_phi ** 2 * dB_contra_by_dRphiZ[1, 2]
+        )
+        M10 = (
+            dB_contra_by_dRphiZ[2, 0] / B_contra_phi - B_Z / B_contra_phi ** 2 * dB_contra_by_dRphiZ[1, 0]
+        )
+        M11 = (
+            dB_contra_by_dRphiZ[2, 2] / B_contra_phi - B_Z / B_contra_phi ** 2 * dB_contra_by_dRphiZ[1, 2]
+        )
+        M = np.array([[M00, M01], [M10, M11]], dtype=np.float64)
+
+        dJac_dphi = M @ Jac_until_t
+
+        return np.array([dRdphi, dZdphi, dJac_dphi[0, 0], dJac_dphi[1, 0], dJac_dphi[0, 1], dJac_dphi[1, 1]])
+
+    def integrate_in_phi_tangentmap(self, start_RZ, start_phi=0, delta_phi=2*np.pi):
+        """
+        Integrate the field line and tangent map in phi from a starting R,Z location. 
+        Args:
+            start_RZ: starting point in cylindrical coordinates (R,Z)
+            start_phi: starting angle in phi
+            delta_phi: angle to integrate over
+
+        Returns:
+            array: the final state vector after integration
+        """
+        # Set up the initial state vector
+        y0 = np.zeros(6)
+        y0[:2] = start_RZ
+        y0[2:] = np.eye(2).flatten()
+
+        # Integrate the field line
+        sol = solve_ivp(self._integration_fn_tangentmap, [start_phi, start_phi + delta_phi], y0, method=self._integrator_type, rtol=self._integrator_args['rtol'], atol=self._integrator_args['atol'])
+        mapjac = sol.y[-4:, -1].reshape(2, 2).T
+        return mapjac
     
-    #TODO: add jacobian of integrand
+    def get_CurveXYZFourierSymmetries_from_fieldline(self, start_point_RZ, order=6, ntor=1, nfp=1, num_points=2000, find_fixed_point=False, max_RMS_error=None):
+        """
+        Given a starting point in R,Z coordinates, trace a field line for ntor times around the torus, and 
+        compute the coefficients of the best fitting CurveXYZFourierSymmetries of the resulting path. 
+        Args:
+            start_point_RZ: starting point in R,Z coordinates Array[R,Z]
+            phi0: toroidal angle of the starting point
+            order: the order of the Fourier series
+            ntor: number of toroidal transits to trace
+            np: the number of periods that the field line curve repeats itself before closing. (does NOT have to be the field's `nfp`!)
+            num_points: number of points along field lines for fit
+            find_fixed_point: if True, use a root method to find a fixed point before tracing
+            max_RMS_error: maximum root mean square error allowed for the fit. If the fit error is larger, an exception is raised.
+        Returns:
+            curve: CurveXYZFourierSymmetries object representing the best fit to the field line
+        """
+        from simsopt.geo import CurveXYZFourierSymmetries
+        phi0 = 0  # can only start at phi0 = 0 for stellarator symmetric fields
+
+        # test the inputs make sense: 
+        if order < num_points: 
+            raise ValueError("evaluate more points or reduce the order of the curve you are trying to find")
+        if self.stellsym is not True:
+            raise ValueError("Field must be stellarator symmetric to use this method")
+        #test if np and ntor make sense...
+
+        # Trace the field line
+        if find_fixed_point:
+            point = self.find_fixed_point(start_point_RZ, phi0=phi0)
+            logger.info(f"Found fixed point at R,Z = {point}")
+            logger.info(f"distance from guess = {np.linalg.norm(point - start_point_RZ)}")
+        else:
+            point = start_point_RZ
+
+        # The CurveXYZFourierSymmetries is parametrized by the coordinate theta. 
+        # To avoid confusion I call it vartheta.
+        varthetas = np.linspace(0, 2*np.pi*ntor, num_points, endpoint=False)
+
+        fieldline_xyz = self.integrate_cyl_planes(point, phi0=phi0, phis=varthetas, return_cartesian=True)
+        if fieldline_xyz.shape[0] != varthetas.shape[0]:
+            raise ValueError(f"Integration problem, not all angles could be integrated to")
+
+        xx, yy, zz = fieldline_xyz.T  # unpack each coordinate into 1d arrays
+        
+        alpha = 2 * np.pi * varthetas * ntor  # helper angle
+        cos_alpha = np.cos(alpha)
+        sin_alpha = np.sin(alpha)
+
+        x_hat = xx * cos_alpha + yy * sin_alpha
+        y_hat = -xx * sin_alpha + yy * cos_alpha
+
+        args = 2 * np.pi * nfp * np.outer(varthetas, np.arange(1, order + 1))
+        
+        # A_x: [1, cos(args)]
+        A_x = np.column_stack((np.ones_like(varthetas), np.cos(args)))
+        
+        # A_yz: [sin(args)]
+        A_yz = np.sin(args)
+        
+        # 3. Solve Least Squares
+        # rcond=None lets numpy handle singular value cutoffs automatically
+        xc, residuals_x, _, _ = np.linalg.lstsq(A_x, x_hat, rcond=None)[0]
+        ys, residuals_y, _, _ = np.linalg.lstsq(A_yz, y_hat, rcond=None)[0]
+        zs, residuals_z, _, _ = np.linalg.lstsq(A_yz, zz, rcond=None)[0]
+        curve_x = np.concatenate((xc, ys, zs))
+
+        total_ssr = residuals_x + residuals_y + residuals_z
+
+        N = len(xx)
+        rmse = np.sqrt(total_ssr / N)
+        logger.info(f"Fit RMS error for XYXFourierSymmetries coefficient fit: {rmse}")
+        if max_RMS_error is not None and rmse > max_RMS_error:
+            raise ObjectiveFailure(f"Fit RMS error {rmse} exceeds maximum allowed {max_RMS_error}")
+
+        curve = CurveXYZFourierSymmetries(quadpoints=100, order=order, nfp=np, stellsym=True, ntor=ntor, x0=curve_x)
+
+
+    def get_SurfaceRZFourier_from_fieldline_simple(self, start_point_RZ, phi0=0,  nphi=37, num_fieldlinetransits=37, ntor=6, mpol=6, max_RMS_error=None):
+        """
+        Given a starting point in R,Z coordinates, trace a field line for ntor times around the torus, and 
+        compute the coefficients of the best fitting SurfaceRZFourier of the resulting path. 
+        Args:
+            start_point_RZ: starting point in R,Z coordinates Array[R,Z]
+            phi0: toroidal angle of the starting point
+            nfp: number of field periods
+            nphi: number of toroidal modes in the surface
+            ntheta: number of poloidal modes in the surface
+            ntor: number of toroidal transits to trace
+            num_points: number of points along field lines for fit
+            find_fixed_point: if True, use a root method to find a fixed point before tracing
+            max_RMS_error: maximum root mean square error allowed for the fit. If the fit error is larger, an exception is raised.
+        """ 
+        from simsopt.geo import SurfaceRZFourier
+
+        if self.field.stellsym is not True:
+            raise ValueError("Surface fitting not yet implemented for non-stellarator-symmetric fields")
+        if nphi*num_fieldlinetransits < (2*ntor+1)*(mpol+1):
+            raise ValueError("Not enough field line points to fit the surface modes. Increase nphi or num_fieldlinetransits, or reduce mpol or ntor.")
+        nfp = self.nfp
+        phis_plane = phi0 + np.linspace(0, 2*np.pi*ntor, nphi*ntor, endpoint=False)
+        # Trace the field line
+        Rr, phis, Zz = self.integrate_cyl_planes(start_point_RZ, phis_plane, return_cartesian=False).T
+
+        # Identify unique phi planes to find local centers
+        # Rounding ensures float tolerance issues don't split planes
+        unique_phi_vals, inverse_inds = np.unique(phis.round(decimals=8), return_inverse=True)
+
+        thetas = np.zeros_like(Rr)  # to hold all theta values
+        for plane_idx, unique_phi in enumerate(unique_phi_vals):
+            mask = (inverse_inds == plane_idx)  # points in this plane
+            inds_in_plane = np.where(inverse_inds == plane_idx)[0]
+            R_center = np.mean(Rr[mask])
+            Z_center = np.mean(Zz[mask])
+            #theta with respect to the geometric center of the field line points in this plane. 
+            thetas[mask] = np.arctan2(Zz[mask] - Z_center, Rr[mask] - R_center)
+
+        # --- 2. Setup Output Containers ---
+        # Shape: (mpol+1, 2*ntor+1). n index is shifted by +ntor.
+        rc = np.zeros((mpol + 1, 2 * ntor + 1))
+        zs = np.zeros((mpol + 1, 2 * ntor + 1))
+        
+        # Generate all candidate (m, n) pairs
+        # m from 0..mpol, n from -ntor..ntor
+        m_grid, n_grid = np.mgrid[0:mpol+1, -ntor:ntor+1]
+        m_flat, n_flat = m_grid.flatten(), n_grid.flatten()
+        
+        # Filter for R (Cosine): Skip m=0, n<0
+        mask_r = ~((m_flat == 0) & (n_flat < 0))
+        m_r, n_r = m_flat[mask_r], n_flat[mask_r]
+        
+        # Filter for Z (Sine): Skip m=0, n<=0
+        mask_z = ~((m_flat == 0) & (n_flat <= 0))
+        m_z, n_z = m_flat[mask_z], n_flat[mask_z]
+
+        # Calculate angles for all points and all valid modes at once
+        # Outer product-like broadcasting: (N, 1) * (1, K) -> (N, K)
+        # angle_r shape: (N_points, N_r_modes)
+        angle_r = np.outer(thetas, m_r) - np.outer(phis * nfp, n_r)
+        angle_z = np.outer(thetas, m_z) - np.outer(phis * nfp, n_z)
+
+        # --- 4. Solve Linear Systems ---
+        
+        # System R: R = sum(rc * cos(angle))
+        A_r = np.cos(angle_r) 
+        sol_r, residuals_r, _, _ = np.linalg.lstsq(A_r, Rr, rcond=None)
+        
+        # System Z: Z = sum(zs * sin(angle))
+        A_z = np.sin(angle_z)
+        sol_z, residuals_z, _, _ = np.linalg.lstsq(A_z, Zz, rcond=None)
+
+        surface = SurfaceRZFourier(nfp=nfp, nphi=nphi, mpol=mpol, quadpoints=100)
+        surface.x = np.concatenate((sol_r, sol_z))
+
+        return surface
+
 
 class PoincarePlotter(Optimizable):
     """
