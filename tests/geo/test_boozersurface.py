@@ -9,6 +9,16 @@ from simsopt.geo.surfaceobjectives import ToroidalFlux, Area
 from simsopt.configs.zoo import get_data
 from .surface_test_helpers import get_surface, get_exact_surface, get_boozer_surface
 
+try:
+    from ground.base import get_context
+except ImportError:
+    get_context = None
+
+try:
+    from bentley_ottmann.planar import contour_self_intersects
+except ImportError:
+    contour_self_intersects = None
+
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
 stellsym_list = [True, False]
@@ -208,6 +218,8 @@ class BoozerSurfaceTests(unittest.TestCase):
             err_old = err
         print("###############################################################")
 
+    @unittest.skipIf(get_context is None or contour_self_intersects is None,
+                     "Libraries to check whether self-intersecting or not are missing")
     def test_boozer_surface_optimisation_convergence(self):
         """
         Test to verify the various optimization algorithms that compute
