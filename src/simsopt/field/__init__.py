@@ -10,6 +10,7 @@ from .tracing import *
 from .wireframefield import *
 from .selffield import *
 from .magnetic_axis_helpers import *
+from .field_topology_optimizables import *
 
 __all__ = (
     biotsavart.__all__
@@ -23,5 +24,6 @@ __all__ = (
     + tracing.__all__
     + wireframefield.__all__
     + selffield.__all__
-    + magnetic_axis_helpers.__all__
+    + magnetic_axis_helpers.__all__ 
+    + field_topology_optimizables.__all__,
 )

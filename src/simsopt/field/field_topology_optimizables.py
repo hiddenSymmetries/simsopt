@@ -19,8 +19,11 @@ from .._core import Optimizable
 from .._core.dev import SimsoptRequires
 from .._core.util import ObjectiveFailure
 from numpy.typing import NDArray
-from typing import Union, Iterable
+from typing import Union, Iterable, TYPE_CHECKING
 import itertools
+
+if TYPE_CHECKING:
+    from ..field import MagneticField, Integrator
 
 try:
     newpyoculus = int(str(pyoc_version).split('.')[0]) >= 1
@@ -28,30 +31,9 @@ except Exception:
     newpyoculus = False
 
 
-__all__ = ['PyOculusFixedPoint', 'TwoFixedPointDifference', 'ClinicConnection', 'SimpleFixedPoint_RZ', 'SimpleIntegrator', 'SimpleMapJac', 'SimpleEllipticity', 'SimpleResidue', 'SimpleTrace']
+__all__ = ['PyOculusFixedPoint', 'TwoFixedPointDifference', 'ClinicConnection', 'IntegratorFixedPoint', 'FDMapJac', 'FDEllipticity', 'FDResidue', 'FDTrace']
 
-def _rphiz_to_xyz(array: NDArray[np.float64]) -> NDArray[np.float64]:
-    """
-    Convert an array of R, phi, Z to x, y, z
-    """
-    if array.ndim == 1:
-        array2 = array[None, :]
-    else:
-        array2 = array[:, :]
-    return np.array([array2[:, 0]*np.cos(array2[:, 1]), array2[:, 0]*np.sin(array[:, 1]), array[:, 2]]).T
-
-def _xyz_to_rphiz(array: NDArray[np.float64]) -> NDArray[np.float64]:
-    """
-    Convert an array of x, y, z to R, phi, Z
-    """
-    if array.ndim == 1:
-        array2 = array[None, :]
-    else:
-        array2 = array[:, :]
-    return np.array([np.sqrt(array2[:, 0]**2 + array2[:, 1]**2), np.arctan2(array2[:, 1], array2[:, 0]), array2[:, 2]]).T
-
-
-def _ellipticity(matrix):
+def _ellipticity(jacobian_matrix):
     """
     return the ellipticity-like quantity of the calculated jacobian, as described
     by Greene 1968: https://doi.org/10.1063/1.1664639
@@ -59,32 +41,12 @@ def _ellipticity(matrix):
     when hyperbolic. Ellipticity of -1 correspoinds to perpendicular intersection of stable and unstable manifolds.
     TODO: check if indices are correct (though anser is invariant to index permutations)
     """
-    a = (matrix[0, 0] + matrix[1, 1])/2
-    b = (matrix[0, 0] - matrix[1, 1])/2
-    c = (matrix[0, 1] + matrix[1, 0])/2
-    d = (matrix[0, 1] - matrix[1, 0])/2
+    a = (jacobian_matrix[0, 0] + jacobian_matrix[1, 1])/2
+    b = (jacobian_matrix[0, 0] - jacobian_matrix[1, 1])/2
+    c = (jacobian_matrix[0, 1] + jacobian_matrix[1, 0])/2
+    d = (jacobian_matrix[0, 1] - jacobian_matrix[1, 0])/2
     return (1-a**2)/(b**2 + c**2 + d**2)
 
-class IndexableGenerator(object):
-
-    def __init__(self, it):
-        self.it = iter(it)
-        self.already_computed = []
-
-    def __iter__(self):
-        for elt in self.it:
-            self.already_computed.append(elt)
-            yield elt
-
-    def __getitem__(self, index):
-        try:
-            max_idx = index.stop
-        except AttributeError:
-            max_idx = index
-        n = max_idx - len(self.already_computed) + 1
-        if n > 0:
-            self.already_computed.extend(itertools.islice(self.it, n))
-        return self.already_computed[index]
 
 
 class PyOculusFixedPoint(Optimizable):
@@ -92,16 +54,17 @@ class PyOculusFixedPoint(Optimizable):
     A FixedPoint is a point in the Poincar\'e section of a magnetic field
     that maps to itself after n field periods.
     Pyoculus contains routines to efficiently locate fixed points, and calculate
-    their properties (residue, location, etc). This class provides an interface
+    their properties (residue, location, etc). This class provides an interface 
+    to those calculations. 
     """
 
-    @SimsoptRequires(newpyoculus, "This PyOculusFixedPoint class requres the additions by L. Rais in 1.0.0")
+    @SimsoptRequires(newpyoculus, "This PyOculusFixedPoint class requres the additions by L. Rais in version 1.0.0")
     def __init__(self,
-                 pyocmap: "pyoculus.maps.CylindricalBfieldSection",
+                 pyocmap: "CylindricalBfieldSection",
                  start_guess: Iterable[np.float64],
                  fp_order: int = 1,
-                 finder_args: dict = dict(), 
-                 parent_field: "simsopt.field.MagneticField" = None,
+                 finder_args: dict = dict(),
+                 parent_field: "MagneticField" = None,
                  with_axis: bool = False,
                  ):
         """
@@ -138,10 +101,10 @@ class PyOculusFixedPoint(Optimizable):
         self._refind_fp = False
 
     @classmethod
-    def from_field(cls,  
-                   field: "simsopt.field.MagneticField",
-                   nfp: int, 
-                   start_guess: NDArray[np.float64], 
+    def from_field(cls,
+                   field: "MagneticField",
+                   nfp: int,
+                   start_guess: NDArray[np.float64],
                    finder_args: dict = dict(),
                    fp_order: int = 1, 
                    phi0: float = 0., 
@@ -206,8 +169,6 @@ class PyOculusFixedPoint(Optimizable):
         triggers when targets are called and
         field has changed (recompute bell rung).
         Re-finds the fixed point (and axis if given).
-
-
         """
         try:
             self._fixed_point.find(self.fp_order, self._current_location, **self.finder_args)
@@ -352,7 +313,8 @@ class PyOculusFixedPoint(Optimizable):
     
 class TwoFixedPointDifference(Optimizable):
     """
-    An optimizable that is the distance between two fixed points.
+    The difference between two fixed points. Can also return Optimizables 
+    that give the distance between the two trajectories at other angles.
     """
     def __init__(self, fp1: PyOculusFixedPoint, fp2: PyOculusFixedPoint):
         """
@@ -370,8 +332,9 @@ class TwoFixedPointDifference(Optimizable):
     
     def other_angle_difference_optimizable(self, phi, desired_distance=0, penalize="above"):
         """
-        return an optimizable child object whose J function is the distance
-        between the location of the two fixed points at toroidal angle phi. 
+        Create an `Optimizable` object that evaluates the distance between the trajectories of
+        the two fixed points at a different toroidal angle `phi`. 
+        This is useful to constrain the two trajectories
         """
         _other_angle_location_difference = Optimizable(x0=np.asarray([]), depends_on=[self.fp1, self.fp2])
         if penalize == "above":
@@ -389,9 +352,12 @@ class TwoFixedPointDifference(Optimizable):
 @SimsoptRequires(newpyoculus, "This PyOculusFixedPoint class requres the additions by L. Rais in 1.0.0")
 class ClinicConnection(Optimizable):
     """
-    A ClinicConnection is a connection between two fixed points.
+    The ClinicConnection class allows calculation of the turnstile flux and
+    other properties of homo- and heteroclinic connections using the PyOculus library.
+
+    The fixed points must both be hyperbolic (topological index = -1)
     It is the Simsopt-binding to the pyoculus Manifold class.
-    It gives allows calculation of the turnstile flux, which is a measure
+    It allows calculation of the turnstile flux, which is a measure
     for stochastic transport.
 
     fixed points must be of the same map, etc!
@@ -434,6 +400,8 @@ class ClinicConnection(Optimizable):
                              "the map using x2=PyOculusFixedPoint(x1.map, ...)")
         if fp1.fp_order != fp2.fp_order:
             raise ValueError("Fixed points must have the same order (for now)")  # could be allowed in future pyoculus
+        if fp1._fixed_point.topological_index != -1 or fp2._fixed_point.topological_index != -1:
+            raise ValueError("Fixed points must be hyperbolic (negative topological index)")
         self.fp1 = fp1
         self.fp2 = fp2
         self._dir1 = dir1
@@ -472,7 +440,7 @@ class ClinicConnection(Optimizable):
         """
         if DoFs changed, trash all properties and refind fixed points.
         Do not perform expensive calculations, this is only
-        when properties are changed.
+        when properties are requested.
         """
         self._manifold.clinics.reset()  # remove found clinics
         self._manifold._stable_trajectory = None  # remove other properties
@@ -511,177 +479,68 @@ class ClinicConnection(Optimizable):
     def J(self):
         if self._need_to_reset:
             self.reset()
-        return np.abs(self._manifold.turnstile_areas).sum()
+        return np.abs(self._manifold.turnstile_areas).sum()/2
     
     def first_area(self):
         if self._need_to_reset:
             self.reset()
+        if len(self._manifold.turnstile_areas) < 1:
+            raise ObjectiveFailure("No turnstile areas found")
         return np.abs(self._manifold.turnstile_areas[0])
     
     def second_area(self):
         if self._need_to_reset:
             self.reset()
+        if len(self._manifold.turnstile_areas) < 2:
+            raise ObjectiveFailure("Less than two turnstile areas found")
         return np.abs(self._manifold.turnstile_areas[1])
     
     def third_area(self):
         if self._need_to_reset:
             self.reset()
+        if len(self._manifold.turnstile_areas) < 3:
+            raise ObjectiveFailure("Less than three turnstile areas found")
         return np.abs(self._manifold.turnstile_areas[2])
     
     def fourth_area(self):
         if self._need_to_reset:
             self.reset()
+        if len(self._manifold.turnstile_areas) < 4:
+            raise ObjectiveFailure("Less than four turnstile areas found")
         return np.abs(self._manifold.turnstile_areas[3])
 
     def fifth_area(self):
         if self._need_to_reset:
             self.reset()
+        if len(self._manifold.turnstile_areas) < 5:
+            raise ObjectiveFailure("Less than five turnstile areas found")
         return np.abs(self._manifold.turnstile_areas[4])
     
     def sixth_area(self):
         if self._need_to_reset:
             self.reset()
+        if len(self._manifold.turnstile_areas) < 6:
+            raise ObjectiveFailure("Less than six turnstile areas found")
         return np.abs(self._manifold.turnstile_areas[5])
 
-class SimpleIntegrator(Optimizable):
+class IntegratorFixedPoint(Optimizable):
     """
-    wrappers around a field to integrate trajectories with scipy's odeint.
-    Can be used to integrate towards an endpoint, or get points equally spaced in phi
-    along a field line.
-    """
+    The IntegratorFixedPoint class is a very robust and simple method of optimizing for a fixed point at a given location.
+    The cost is simply the diffference between the (R, Z) coordinates of the starting point, and 
+    the (R,Z) coordinates where the field line ends up after integration over `nfp` field periods.
 
-    def __init__(self, field, tol=1e-9):
-        self.field = field
-        self.TOL = tol
-        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[field])
-
-    def integration_fn(self, t, rz):
-        """
-        Integrand for simple field line following, ugly written to speed operations
-        dR/dphi = R*B_R/B_phi,
-        dZ/dphi = R*B_Z/B_phi
-        """
-        if np.any(np.isnan(rz)):
-            return np.ones_like(rz)*np.nan
-        R, Z = rz
-        rphiz = np.array([R, t, Z])
-        B = self.field.set_points_cyl(rphiz[None, :])
-        B = self.field.B_cyl().flatten()
-        B = B.flatten()
-        return np.array([R*B[0]/B[1], R*B[2]/B[1]])
-
-    @property
-    def event_function(self):
-        """
-        event function that stops integration when the field is gets close to a coil.
-        This is determined by the B_phi component getting smaller than 1e-3 the full field stength.
-        Not setting points cause event is only called
-        after function eval, so super fast.
-
-        Abs and subtraction because zero crossing is not
-        passed by integrator.
-        """
-        def _event(t, rz):
-            return np.abs(self.field.B_cyl().dot(np.array([0,1.,0.])/np.linalg.norm(self.field.B()))) - 1e-3  # B_phi = 0
-        _event.terminal = True
-        return _event
-
-    def integrate_in_phi_cyl(self, RZ_start, phi_start, phi_end):
-        """
-        Integrate the field line using scipy's odeint method
-        """
-        sol = solve_ivp(self.integration_fn, [phi_start, phi_end], RZ_start, events=self.event_function, method='RK45', rtol=self.TOL, atol=self.TOL)
-        if not sol.success:
-            return np.array(np.nan, np.nan)
-        return sol.y[:, -1]
-
-    def integrate_fieldlinepoints_RZ(self, RZ_start, phi_start, phi_end, n_points, endpoint=False, return_cartesian=False):
-        """
-        Integrate the field line using scipy's odeint method,
-        to get a string of RZ points equally spaced in phi.
-
-        Default returns cylindrical coordinates, can also
-        return cartesian coordinates.
-        """
-        sol = solve_ivp(self.integration_fn, [phi_start, phi_end], RZ_start, t_eval=np.linspace(phi_start, phi_end, n_points, endpoint=endpoint), events=self.event_function, method='RK45', rtol=self.TOL, atol=self.TOL)
-        if not sol.success:
-            raise ObjectiveFailure("Failed to integrate field line")
-        rphiz = np.array([sol.y[0, :], sol.t, sol.y[1, :]]).T
-        if return_cartesian:
-            return _rphiz_to_xyz(rphiz)
-        else:
-            return rphiz
-
-    def integrate_fieldlinepoints_xyz(self, xyz_start, phi_total, n_points, endpoint=False, return_cartesian=True):
-        """
-        integrate a fieldline for a given toroidal distance, giving the start point in xyz. 
-        """
-        rphiz_start = _xyz_to_rphiz(xyz_start)
-        RZ_start = rphiz_start[::2]
-        phi_start = rphiz_start[1]
-        phi_end = phi_start + phi_total
-        points = self.integrate_fieldlinepoints_RZ(RZ_start, phi_start, phi_end, n_points, endpoint=endpoint, return_cartesian=return_cartesian)
-        return points
-
-    def integration_function3d(self, t, xyz):
-        self.field.set_points(xyz[None,:])
-        B = self.field.B().flatten()
-        return B/np.linalg.norm(B)
-
-    def integrate_3d_fieldlinepoints_xyz(self, xyz_start, l_total, n_points):
-        """
-        integrate a fieldline for a given toroidal distance, return the points in xyz
-        """
-        sol = solve_ivp(self.integration_function3d, [0, l_total], xyz_start, t_eval=np.linspace(0, l_total, n_points),  method='RK45', rtol=self.TOL, atol=self.TOL)
-        return sol.y.T
-
-
-    def _return_fieldline_iterator(self, RZ_start, phi_start, phi_distance):
-        """
-        Calculate the next point in a field line
-        """
-        def _fieldline_iterator():
-            coords = RZ_start
-            while True:
-                coords = self.integrate_in_phi_cyl(coords, phi_start, phi_start + phi_distance)
-                yield coords
-        return IndexableGenerator(_fieldline_iterator())
-
-
-    def simple_poincare(self, RZ_starts, phi_plane, phi_distance, n_points):
-        """
-        Calculate the points in a Poincar\'e section
-        """
-        poincare_points = []
-        for RZ_start in RZ_starts:
-            try:
-                print(f"Integrating field line: {RZ_start}")
-                poincare_points.append(np.array(self._return_fieldline_iterator(RZ_start, phi_plane, phi_distance)[:n_points]))
-            except Exception as e:
-                print(f"Failed to integrate field line: {RZ_start} because: {e}")
-        return poincare_points
-
-
-
-
-
-
-
-class SimpleFixedPoint_RZ(Optimizable):
-    """
-    The SimpleFixedPoint class is a very robust and simple method of optimizing for a fixed point at a given location.
-    The cost is simply the distance that a field line is mapped away from its starting point after nfp field periods in an R,Z plane.
-
-    Whereas PyoculusFixedPoint requires a fixed point to exist before it can be optimized, (This fixed point, change its location),
-    this class can be used to generate a fixed point anywhere (This point in my section: make it a fixed point)
-    useful for cold starts or when the fixed point is not known.
+    This makes the IntegratorFixedPoint very reliable, as long as the field line integration does not error, it will 
+    return a quantity that can be optimized to zero. 
+    In contrast, the PyoculusFixedPoint will raise an ObjectiveFailure if the fixed point finder fails. 
+    This is useful for cold starts for example in a purely toroidal field or very chaotic field, 
+    there is no prior knowledge of the fixed point location.
 
     The axis is a fixed point of the 1-field-period map (and every multiple map as well).
     In an N nfp stellarator, a ntor/mpol island chain is a fixed point of mpol field periods.
     For example to try to put an x- or o-point of the 5/5 island chain at (R, Z) in the phi=0 plane:
     ```
-    [code to generate your field]
-    fp_at_RZ = SimpleFixedPoint(field, (R, Z), 5, 5, 0)
+    [code to generate a BiotSavart object]
+    fp_at_RZ = IntegratorFixedPoint(field, (R, Z), 5, 5, 0)
     prob= LeastSquaresProblem.from_tuples((fp_at_RZ.J(), 0, 1), ...[other objectives]))
     least_squares_serial_solve(prob)
     ```
@@ -693,7 +552,7 @@ class SimpleFixedPoint_RZ(Optimizable):
         Args:
             field: MagneticField object
             RZ: the R and Z-coordinate where a fixed point is required
-            nfp: Number of field period
+            nfp: Number of field periods of the fixed point
             phi0: Toroidal angle of the fixed point
         """
         self.RZ = RZ
@@ -705,7 +564,7 @@ class SimpleFixedPoint_RZ(Optimizable):
 
     def J(self):
         """
-        Calculate the distance from the target fixed point
+        Integrate the field line and return the distance form the starting point.
         """
         phi_end = self.phi0 + 2*np.pi*self.integration_nfp/self.field_nfp
         try:
@@ -716,12 +575,23 @@ class SimpleFixedPoint_RZ(Optimizable):
 
     # def dJ(self): can be made with integration of the derivatives
 
+    def mapjac(self):
+        """
+        Calculate the jacobian of the field line map at the fixed point
+        """
+        phi_end = self.phi0 + 2*np.pi*self.integration_nfp/self.field_nfp
+        try:
+            jac = self.integrator.integrate_in_phi_tangentmap(self.RZ, self.phi0, phi_end)[::2, ::2]  # only R,Z
+        except Exception as e:
+            raise ObjectiveFailure("Failed to integrate field line") from e
+        return jac
 
 
-class SimpleMapJac(SimpleIntegrator, Optimizable):
+
+class FDMapJac(Optimizable):
     """
-    The SimpleMapJac class is a simple method of calculating the jacobian of the field line map using finite differencing. 
-    The J() returns the trace of the jacobian, for residue-like optimisations (though if the point is not a fixed point, you might get strange results)
+    The FDMapJac uses finite-differences to evaluate the jacobian of the field line map. 
+    The J() returns the trace of the jacobian, for residue-like optimisations (though if the point is not a fixed point, you can get strange results)
 
     ```
 
@@ -797,8 +667,7 @@ class SimpleMapJac(SimpleIntegrator, Optimizable):
         return _ellipticity(self.mapjac)
 
 
-
-class SimpleEllipticity(Optimizable):
+class FDEllipticity(Optimizable):
     """
     Wrapper around SimpleMapJac to return the ellipticity of the map jacobian
     as described by Greene 1968: https://doi.org/10.1063/1.1664639
@@ -806,15 +675,15 @@ class SimpleEllipticity(Optimizable):
     The ellipticity is +1 for cirular elliptic fixed points, 0 when parabolic, and negative
     when hyperbolic. Ellipticity of -1 correspoinds to perpendicular intersection of stable and unstable manifolds.
     """
-    def __init__(self, simplemapjac: SimpleMapJac):
-        self.simplemapjac = simplemapjac
+    def __init__(self, simplemapjac: FDMapJac):
+        self.FDmapjac = simplemapjac
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[simplemapjac])
     
     def J(self):
-        return self.simplemapjac.ellipticity()
-    
+        return self.FDmapjac.ellipticity()
 
-class SimpleResidue(Optimizable):
+
+class FDResidue(Optimizable):
     """
     Wrapper around SimpleMapJac to return the Greenes residue of the map jacobian
     as described by Greene 1968: https://doi.org/10.1063/1.1664639
@@ -822,20 +691,20 @@ class SimpleResidue(Optimizable):
     for regular hyperbolic fixed points. 
     Negative residue can be elliptic or alternating hyperbolic. 
     """
-    def __init__(self, simplemapjac: SimpleMapJac):
-        self.simplemapjac = simplemapjac
-        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[simplemapjac])  
-    
-    def J(self):
-        return self.mapjac.residue()
-    
-class SimpleTrace(Optimizable):
-    """
-    Wrapper around SimpleMapJac to return the trace of the map jacobian
-    """
-    def __init__(self, simplemapjac: SimpleMapJac):
-        self.simplemapjac = simplemapjac
-        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[simplemapjac])  
+    def __init__(self, fdmapjac: FDMapJac):
+        self.fdmapjac = fdmapjac
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[fdmapjac])  
 
     def J(self):
-        return self.simplemapjac.J()  
+        return self.fdmapjac.residue()
+    
+class FDTrace(Optimizable):
+    """
+    Wrapper around FDMapJac to return the trace of the map jacobian
+    """
+    def __init__(self, fdmapjac: FDMapJac):
+        self.fdmapjac = fdmapjac
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[fdmapjac])  
+
+    def J(self):
+        return self.fdmapjac.J()  
