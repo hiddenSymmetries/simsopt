@@ -16,7 +16,6 @@ import unittest
 
 from simsopt.configs import get_data, download_ID_from_QUASR_database
 from simsopt.geo import CurveXYZFourier, SurfaceXYZTensorFourier
-from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.field.coil import ScaledCurrent, Coil
 from simsopt.field.biotsavart import BiotSavart
 

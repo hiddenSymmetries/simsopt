@@ -9,13 +9,20 @@ import numpy as np
 import tempfile
 import time
 
+try:
+    import requests
+    requests_available = True
+except ImportError:
+    requests_available = False
+
 from pathlib import Path
 THIS_DIR = (Path(__file__).parent).resolve()
 
 
 class QuasrTests(unittest.TestCase):
-    @patch("simsopt.configs.zoo.requests.get")
-    def test_QUASR_downloader(self, mock_get):
+    @unittest.skipIf(not requests_available, "requests library not installed")
+    @patch("simsopt.configs.zoo.requests")
+    def test_QUASR_downloader(self, mock_requests):
         """
         This unit test checks that the get_QUASR_data functionality works as expected.
         We download the device with ID=0000952 is downloaded correctly.  We also check that
@@ -33,7 +40,7 @@ class QuasrTests(unittest.TestCase):
         with open(THIS_DIR / '../test_files/serial0000952.json', "rb") as f:
             raw_bytes = f.read()
         mock_response.content = raw_bytes
-        mock_get.return_value = mock_response
+        mock_requests.get.return_value = mock_response
 
         true_surfaces, true_coils = load(THIS_DIR / '../test_files/serial0000952.json')
 
@@ -59,7 +66,7 @@ class QuasrTests(unittest.TestCase):
             base_curves, base_currents, ma, nfp, bs = get_data("quasr", 952, return_style='')
         
         # requests.get raises an exception
-        mock_response.side_effect = Exception("something went wrong")
+        mock_requests.get.side_effect = Exception("something went wrong")
         with self.assertRaises(Exception):
             base_curves, base_currents, ma, nfp, bs = get_data("quasr", 952, return_style='')
         
