@@ -12,6 +12,11 @@ from simsopt._core.json import GSONDecoder
 from simsopt._core import load
 import json
 
+try:
+    import requests
+except ImportError:
+    requests = None
+
 
 
 from pathlib import Path
@@ -28,7 +33,7 @@ __all__ = [
     "download_ID_from_QUASR_database"
 ]
 
-configurations = ["ncsx", "hsx", "giuliani", "w7x", "lhd_like", "QUASR"]
+configurations = ["ncsx", "hsx", "giuliani", "w7x", "lhd_like", "quasr"]
 
 def get_data(name, **kwargs):
     """
@@ -88,7 +93,7 @@ def get_data(name, **kwargs):
             -  ``numquadpoints_axis`` *(int, default=30)*  
                Number of quadrature points for the magnetic axis.
 
-            **QUASR**
+            **quasr**
 
             - ``QUASR_ID`` *(int)*
                The ID of the QUASR configuration you want to download
@@ -372,8 +377,8 @@ def get_data(name, **kwargs):
             6.833905523642707e-11,
             4.612346787214785e-13,
         ]
-    elif cfg == "QUASR":
-        """ Download a QUASR configuration from the database """
+    elif cfg == "quasr":
+        """ Download a quasr configuration from the database """
         try: 
             QUASR_ID = kwargs.pop("QUASR_ID")
         except:
@@ -382,7 +387,7 @@ def get_data(name, **kwargs):
         verbose   = kwargs.pop("verbose", False)
         attempt_axisfinding = kwargs.pop("attempt_axisfinding", False)
 
-        base_curves, base_currents, nfp, coils = download_ID_from_QUASR_database(QUASR_ID, return_style="simsopt", use_cache=use_cache, verbose=verbose)
+        base_curves, base_currents, nfp, coils = download_ID_from_QUASR_database(QUASR_ID, return_style="simsopt-style", use_cache=use_cache, verbose=verbose)
         bs = BiotSavart(coils)
 
         if attempt_axisfinding:
@@ -548,10 +553,11 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
     return base_curves, base_currents, ma
 
 
-def download_ID_from_QUASR_database(ID, return_style="simsopt", verbose=True, use_cache=True): 
+def download_ID_from_QUASR_database(ID, return_style="simsopt-style", verbose=True, use_cache=True): 
     """
     Download a configuration from the QUASR database.  Downloaded configuration files are cached in 
     [SIMSOPT_INSTALL_DIR]/src/simsopt/configs/QUASR_cache/
+    The cache is pruned to keep 100 files (~10MB) to avoid excessive disk usage.
 
     Args:
         ID (int): the ID of the configuration to download.  A pandas dataframe containing metadata on the devices, including all
@@ -568,10 +574,8 @@ def download_ID_from_QUASR_database(ID, return_style="simsopt", verbose=True, us
     """
     if return_style not in ['simsopt-style', 'quasr-style']:
         raise ValueError(f"invalid return_style: {return_style}, must be either simsopt-style or quasr-style")
-    
-    try: 
-        import requests
-    except Exception as e:
+
+    if requests is None: 
         raise ImportError("Requests package is needed for downloading QUASR configurations")
     
     id_str = f"{ID:07d}" # string to 7 digits
@@ -594,7 +598,6 @@ def download_ID_from_QUASR_database(ID, return_style="simsopt", verbose=True, us
             surfaces, coils = load(FILE_PATH)
             success = True
 
-
     if not success: 
         try:
             r = requests.get(url)
@@ -607,6 +610,12 @@ def download_ID_from_QUASR_database(ID, return_style="simsopt", verbose=True, us
             success = True
             
             if use_cache: 
+                # Ensure cache directory exists
+                cache_dir = FILE_PATH.parent
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Prune cache if necessary
+                _prune_cache(cache_dir, limit=100, verbose=verbose)
                 
                 with open(FILE_PATH, 'wb') as f:
                     f.write(r.content)
@@ -623,3 +632,28 @@ def download_ID_from_QUASR_database(ID, return_style="simsopt", verbose=True, us
         return base_curves, base_currents, nfp, coils
     elif return_style == 'quasr-style':
         return surfaces, coils
+
+
+def _prune_cache(cache_dir, limit=100, verbose=True):
+    """
+    Remove oldest files from cache directory if the number of files exceeds the limit.
+    
+    Args:
+        cache_dir: Path to the cache directory
+        limit: Maximum number of files to keep in cache
+        verbose: Whether to print pruning messages
+    """
+    cache_files = list(cache_dir.glob("*.json"))
+
+    if len(cache_files) <= limit:
+        return
+    
+    # Sort files by modification time (oldest first)
+    cache_files.sort(key=lambda f: f.stat().st_mtime)
+    
+    # Remove oldest files until we're under the limit
+    files_to_remove = len(cache_files) - limit
+    for f in cache_files[:files_to_remove]:
+        if verbose:
+            print(f"Pruning cache: removing {f.name}")
+        f.unlink()
