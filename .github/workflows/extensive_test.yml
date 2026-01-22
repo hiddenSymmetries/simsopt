@@ -122,7 +122,7 @@ jobs:
       run: |
            python -m pip install --upgrade pip setuptools wheel 2>&1
            sudo apt-get install graphviz graphviz-dev
-           python -m pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap
+           python -m pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap requests
 
     - name: Install booz_xform
       run: python -m pip install -v git+https://github.com/hiddenSymmetries/booz_xform
