@@ -8,8 +8,14 @@ from simsopt.field.coil import Coil
 from simsopt.field import coils_via_symmetries
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.curvexyzfouriersymmetries import CurveXYZFourierSymmetries
+from simsopt._core.json import GSONDecoder
+from simsopt._core import load
+import json
+
+
 
 from pathlib import Path
+import os
 THIS_DIR = (Path(__file__).parent).resolve()
 
 __all__ = [
@@ -19,9 +25,10 @@ __all__ = [
     "get_hsx_data",
     "get_giuliani_data",
     "get_w7x_data",
+    "download_ID_from_QUASR_database"
 ]
 
-configurations = ["ncsx", "hsx", "giuliani", "w7x", "lhd_like"]
+configurations = ["ncsx", "hsx", "giuliani", "w7x", "lhd_like", "QUASR"]
 
 def get_data(name, **kwargs):
     """
@@ -81,6 +88,15 @@ def get_data(name, **kwargs):
             -  ``numquadpoints_axis`` *(int, default=30)*  
                Number of quadrature points for the magnetic axis.
 
+            **QUASR**
+
+            - ``QUASR_ID`` *(int)*
+               The ID of the QUASR configuration you want to download
+            - ``use_cache`` *(bool, default=True)*
+               Whether to save the downloaded configuration (default in the installation
+               directory of simsopt)
+            - ``verbose`` *(bool, default=False)*
+               Whether to print out messages during download from the database
 
     Returns
     -------
@@ -171,7 +187,15 @@ def get_data(name, **kwargs):
         
         **Special Note:** For ``"lhd_like"``, the returned ``nfp`` (5) reflects the coil periodicity,
         while the magnetic axis uses ``nfp=10``.
+    
+    ``name="lhd_like"`` 
+        **Get the coils for a QUASR configuration.**
 
+        The QUASR database contains around 300,000 quasi-symmetric stellarator
+        vacuum fields with coils. 
+
+        Magnetic axes have not been generated for the database, and the returned `ma`
+        variable is set to `None`.
     """
     
     def add_default_args(kw_old, **kw_new):
@@ -348,6 +372,24 @@ def get_data(name, **kwargs):
             6.833905523642707e-11,
             4.612346787214785e-13,
         ]
+    elif cfg = "QUASR"
+        """ Download a QUASR configuration from the database """
+        try: 
+            QUASR_ID = kwargs.pop("QUASR_ID")
+        except:
+            raise ValueError("Must provide QUASR_ID to download a quasr configuration")
+        use_cache  = kwargs.pop("use_cache", True)
+        verbose   = kwargs.pop("verbose", False)
+        attempt_axisfinding = kwargs.pop("attempt_axisfinding", False)
+
+        base_curves, base_currents, nfp, coils = download_ID_from_QUASR_database(QUASR_ID, return_style="simsopt", use_cache=use_cache, verbose=verbose)
+        bs = BiotSavart(coils)
+
+        if attempt_axisfinding:
+            raise NotImplementedError("axis finding not yet implemented")
+        else: 
+            ma = None
+        return base_curves, base_currents, ma, nfp, bs
 
     else:
         raise ValueError(f"Unrecognized configuration name {name!r}; "
@@ -504,3 +546,80 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
         points_per_period=ppp,
     )
     return base_curves, base_currents, ma
+
+
+def download_ID_from_QUASR_database(ID, return_style="simsopt", verbose=True, use_cache=True): 
+    """
+    Download a configuration from the QUASR database.  Downloaded configuration files are cached in 
+    [SIMSOPT_INSTALL_DIR]/src/simsopt/configs/QUASR_cache/
+
+    Args:
+        ID (int): the ID of the configuration to download.  A pandas dataframe containing metadata on the devices, including all
+                  valid ID numbers is located at: https://quasr.flatironinstitute.org/QUASR.pkl
+                  The database is navigatable online at https://quasr.flatironinstitute.org/
+                  Alternatively, you can download the latest full set of devices from https://zenodo.org/doi/10.5281/zenodo.10050655
+
+        verbose (boolean): if true, additional caching and downloading status messages are printed, otherwise they are not.
+
+        use_cache (True): if true, the downloaded file will be saved to disk. The location will be in the 
+
+        returns: 
+            a list containing: [list of simsopt.geo.Coil objects, list of simsopt.field.Current objects]
+    """
+    if return_style not in ['simsopt-style', 'quasr-style']:
+        raise ValueError(f"invalid return_style: {return_style}, must be either simsopt-style or quasr-style")
+    
+    try: 
+        import requests
+    except Exception as e:
+        raise ImportError("Requests package is needed for downloading QUASR configurations")
+    
+    id_str = f"{ID:07d}" # string to 7 digits
+    url = f'https://quasr.flatironinstitute.org/simsopt_serials/{id_str[0:4]}/serial{id_str}.json'
+    success = False
+
+    if use_cache:
+        if os.access(THIS_DIR, os.W_OK):
+            FILE_PATH = THIS_DIR / 'QUASR_cache' / f'serial{id_str}.json' # write to cache in simsopt source dir
+        elif os.access(os.getcwd(), os.W_OK): 
+            FILE_PATH =  Path(os.getcwd()) / 'QUASR_cache'  / f"serial{id_str}.json" # create a local cache 
+        else: 
+            raise ValueError("could not find a writeable location, try again with kwarg use_cache=False")
+    
+        exists = os.path.exists(FILE_PATH)
+
+        if exists:
+            if verbose:
+                print(f"ID={id_str} is cached, loading...")
+            surfaces, coils = load(FILE_PATH)
+            success = True
+
+
+    if not success: 
+        try:
+            r = requests.get(url)
+        except Exception as e:
+            raise IOError(f"requests failure on ID {ID:07}") from e
+
+        if r.status_code == 200:
+            print(f"ID={ID:07} downloaded successfully")
+            surfaces, coils = json.loads(r.content, cls=GSONDecoder)
+            success = True
+            
+            if use_cache: 
+                
+                with open(FILE_PATH, 'wb') as f:
+                    f.write(r.content)
+        else:
+            raise ValueError(f"requests failure on ID {ID:07d}. Status code: {r.status_code}\n Check if the confituration exists")
+
+    if return_style == 'simsopt-style':
+        nfp = surfaces[0].nfp
+        nc_per_hp = len(coils) // nfp // (1 + surfaces[0].stellsym)
+        base_coils = coils[:nc_per_hp]
+
+        base_curves = [coil.curve for coil in base_coils]
+        base_currents = [coil.current for coil in base_coils]
+        return base_curves, base_currents, nfp, coils
+    elif return_style == 'quasr-style':
+        return surfaces, coils
