@@ -217,6 +217,10 @@ jobs:
     #    cd examples
     #    ./run_spec_vmec_examples
 
+    - name: Run QUASR integration tests
+      if: contains(matrix.test-type, 'integrated')
+      run: SIMSOPT_INTEGRATION_TESTS=1 python -m unittest -v tests.configs.test_quasr_integration
+
     - name: Install coverage dependencies
       if: contains(matrix.test-type, 'unit')
       run: python -m pip install coverage 
