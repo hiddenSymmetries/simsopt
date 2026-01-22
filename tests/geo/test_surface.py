@@ -32,7 +32,10 @@ logger = logging.getLogger(__name__)
 try:
     from ground.base import get_context
 except ImportError:
-    get_context = None
+    try:
+        from ground.context import get_context
+    except ImportError:
+        get_context = None
 
 try:
     from bentley_ottmann.planar import contour_self_intersects
