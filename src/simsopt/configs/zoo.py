@@ -372,7 +372,7 @@ def get_data(name, **kwargs):
             6.833905523642707e-11,
             4.612346787214785e-13,
         ]
-    elif cfg = "QUASR"
+    elif cfg == "QUASR":
         """ Download a QUASR configuration from the database """
         try: 
             QUASR_ID = kwargs.pop("QUASR_ID")
