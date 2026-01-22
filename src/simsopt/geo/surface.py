@@ -10,8 +10,11 @@ except ImportError:
 
 try:
     from ground.base import get_context
-except ImportError:
-    get_context = None
+except ImportError: # ground version 11 and newer changed the import path
+    try:
+        from ground.context import get_context
+    except ImportError:
+        get_context = None
 
 try:
     from bentley_ottmann.planar import contour_self_intersects
@@ -325,7 +328,7 @@ class Surface(Optimizable):
         raise NotImplementedError
 
     def cross_section(self, phi, thetas=None, tol=1e-13):
-        """
+        r"""
         Computes an array of points on the cross section with cylindrical angle :math:`\phi`, using the bisection method.
         The poloidal angles of the points on the cross section are given by ``thetas``. This function assumes that the surface
         intersection with the :math:`\phi`-plane is a single curve: the surface should only go once around the z-axis,
