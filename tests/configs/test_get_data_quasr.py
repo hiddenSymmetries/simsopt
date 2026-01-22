@@ -10,7 +10,7 @@ import tempfile
 import time
 
 try:
-    import requests
+    import requests  # noqa: F401
     requests_available = True
 except ImportError:
     requests_available = False
