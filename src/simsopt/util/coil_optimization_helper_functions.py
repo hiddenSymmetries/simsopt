@@ -130,7 +130,8 @@ def coil_optimization(s, bs, base_curves, curves, **kwargs):
         MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, \
         LinkingNumber
     from simsopt.objectives import QuadraticPenalty, SquaredFlux
-    from simsopt.field.force import LpCurveForce, regularization_circ
+    from simsopt.field.force import LpCurveForce
+    from simsopt.field.selffield import regularization_circ
 
     nphi = len(s.quadpoints_phi)
     ntheta = len(s.quadpoints_theta)
@@ -687,7 +688,8 @@ def vacuum_stage_II_optimization(
             order=order,
         )
 
-    from simsopt.field.force import coil_force, LpCurveForce, regularization_circ
+    from simsopt.field.force import coil_force, LpCurveForce
+    from simsopt.field.selffield import regularization_circ
 
     if UUID_init_from is None: # No previous optimization to initialize from
         base_curves = initial_base_curves(R0, R1, order, ncoils)
