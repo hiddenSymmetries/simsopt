@@ -14,7 +14,6 @@ on:
     tags-ignore: [v*]
   pull_request:
     branches-ignore: [master]
-    types: [opened, synchronize, reopened] 
 
 concurrency:
   # Use github.run_id on main branch
@@ -101,7 +100,7 @@ jobs:
     - name: Install python dependencies
       run: |
         sudo apt-get install graphviz graphviz-dev
-        pip install numpy cmake scikit-build f90nml ninja wheel setuptools sympy qsc pyevtk matplotlib plotly networkx pygraphviz mpi4py h5py ground bentley_ottmann f90wrap
+        pip install numpy cmake scikit-build f90nml ninja wheel setuptools sympy qsc pyevtk matplotlib plotly networkx pygraphviz mpi4py h5py ground bentley_ottmann f90wrap pandas paretoset
 
     # - name: Install pyoculus
     #   run: pip install -v git+https://github.com/zhisong/pyoculus

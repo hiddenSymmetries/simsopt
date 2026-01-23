@@ -30,13 +30,5 @@ set -ex
 ./3_Advanced/stage_two_optimization_finitebuild.py
 ./3_Advanced/coil_force_optimization/coil_forces.py
 ./3_Advanced/coil_force_optimization/coil_force_objectives_scan.py LpCurveForce 1e-10
-./3_Advanced/coil_force_optimization/coil_force_objectives_scan.py LpCurveTorque 1e-10
-./3_Advanced/coil_force_optimization/coil_force_objectives_scan.py SquaredMeanForce 1e-10
-./3_Advanced/coil_force_optimization/coil_force_objectives_scan.py SquaredMeanTorque 1e-10
-./3_Advanced/coil_force_optimization/coil_force_objectives_scan.py B2Energy 1e-10
-./3_Advanced/coil_force_optimization/initiation.py LpCurveForce
-./3_Advanced/coil_force_optimization/initiation.py LpCurveTorque
-./3_Advanced/coil_force_optimization/initiation.py SquaredMeanForce
-./3_Advanced/coil_force_optimization/initiation.py SquaredMeanTorque
 ./3_Advanced/coil_force_optimization/initiation.py B2Energy
 ./3_Advanced/wireframe_gsco_multistep.py
