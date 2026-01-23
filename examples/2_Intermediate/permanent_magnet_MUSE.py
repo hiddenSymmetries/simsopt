@@ -33,7 +33,6 @@ from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO
 from simsopt.util import FocusData, discretize_polarizations, polarization_axes, in_github_actions
 from simsopt.util.coil_optimization_helper_functions import \
-    make_Bnormal_plots, \
     calculate_modB_on_major_radius, \
     make_qfm
 from simsopt.util.permanent_magnet_helper_functions import \
@@ -53,8 +52,8 @@ else:
     nphi = 32  # >= 64 for high-resolution runs
     nIter_max = 50000
     nBacktracking = 200
-    max_nMagnets = 20000
-    downsample = 2
+    max_nMagnets = 5000
+    downsample = 10
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -93,7 +92,9 @@ s_plot = SurfaceRZFourier.from_focus(
 )
 
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
-make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
+bs.set_points(s_plot.gamma().reshape((-1, 3)))
+Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+s_plot.to_vtk(out_dir / "biot_savart_initial", extra_data={"B_N": Bnormal[:, :, None]})
 
 # Set up correct Bnormal from TF coils
 bs.set_points(s.gamma().reshape((-1, 3)))
@@ -191,24 +192,23 @@ dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
-save_plots = False
-if save_plots:
+if not in_github_actions:
     # Save the MSE history and history of the m vectors
     np.savetxt(
-        out_dir / f"mhistory_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}.txt",
-        m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory'] + 1)
+        out_dir / f"mhistory_K{nIter_max}_nphi{nphi}_ntheta{ntheta}.txt",
+        m_history.reshape(pm_opt.ndipoles * 3, nHistory + 2)
     )
     np.savetxt(
-        out_dir / f"R2history_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}.txt",
+        out_dir / f"R2history_K{nIter_max}_nphi{nphi}_ntheta{ntheta}.txt",
         R2_history
     )
     # Plot the SIMSOPT GPMO solution
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-    make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
+    s_plot.to_vtk(out_dir / "biot_savart_optimized", extra_data={"B_N": Bnormal[:, :, None]})
 
     # Look through the solutions as function of K and make plots
-    for k in range(0, kwargs["nhistory"] + 1, 50):
+    for k in range(0, nHistory + 2, 50):
         mk = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
         b_dipole = DipoleField(
             pm_opt.dipole_grid_xyz,
@@ -218,16 +218,15 @@ if save_plots:
             m_maxima=pm_opt.m_maxima,
         )
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-        K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
+        K_save = int(nIter_max / nHistory * k)
         b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}")
         print("Total fB = ", 0.5 * np.sum((pm_opt.A_obj @ mk - pm_opt.b_obj) ** 2))
         Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
         Bnormal_total = Bnormal + Bnormal_dipoles
 
         # For plotting Bn on the full torus surface at the end with just the dipole fields
-        make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}")
         pointData = {"B_N": Bnormal_total[:, :, None]}
-        s_plot.to_vtk(out_dir / "m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}", extra_data=pointData)
+        s_plot.to_vtk(out_dir / f"m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}", extra_data=pointData)
 
     # write solution to FAMUS-type file
     pm_opt.write_to_famus(out_dir)
@@ -287,7 +286,6 @@ from simsopt.util import in_github_actions, proc0_print, comm_world
 from simsopt.field import (InterpolatedField, SurfaceClassifier, particles_to_vtk,
                            compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data)
 sc_fieldline = SurfaceClassifier(s, h=0.03, p=2)
-sc_fieldline.to_vtk(out_dir + 'levelset', h=0.02)
 
 def trace_fieldlines(bfield, label):
     t1 = time.time()
@@ -305,8 +303,8 @@ def trace_fieldlines(bfield, label):
     t2 = time.time()
     proc0_print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
     if comm_world is None or comm_world.rank == 0:
-        particles_to_vtk(fieldlines_tys, out_dir + f'fieldlines_{label}')
-        plot_poincare_data(fieldlines_phi_hits, phis, out_dir + f'poincare_fieldline_{label}.png', dpi=150)
+        particles_to_vtk(fieldlines_tys, str(out_dir / f'fieldlines_{label}'))
+        plot_poincare_data(fieldlines_phi_hits, phis, str(out_dir / f'poincare_fieldline_{label}.png'), dpi=150)
 
 
 # uncomment this to run tracing using the biot savart field (very slow!)
@@ -354,4 +352,5 @@ trace_fieldlines(bsh, 'bsh')
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
-plt.show()
+if not in_github_actions:
+    plt.show()

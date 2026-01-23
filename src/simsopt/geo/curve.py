@@ -16,7 +16,7 @@ __all__ = ['Curve', 'JaxCurve', 'RotatedCurve', 'curves_to_vtk', 'create_equally
 
 @jit
 def centroid_pure(gamma, gammadash):
-    """
+    r"""
     This pure function is used in a Python+Jax implementation of formula for centroid.
 
     .. math::
@@ -30,7 +30,7 @@ def centroid_pure(gamma, gammadash):
 
 @jit
 def incremental_arclength_pure(d1gamma):
-    """
+    r"""
     This function is used in a Python+Jax implementation of the curve arc length formula.
 
     .. math::
@@ -47,7 +47,7 @@ incremental_arclength_vjp = jit(lambda d1gamma, v: vjp(lambda d1g: incremental_a
 
 @jit
 def kappa_pure(d1gamma, d2gamma):
-    """
+    r"""
     This function is used in a Python+Jax implementation of formula for curvature.
 
     .. math::
@@ -67,7 +67,7 @@ kappagrad1 = jit(lambda d1gamma, d2gamma: jacfwd(lambda d2g: kappa_pure(d1gamma,
 
 @jit
 def torsion_pure(d1gamma, d2gamma, d3gamma):
-    """
+    r"""
     This function is used in a Python+Jax implementation of formula for torsion.
 
     .. math::
@@ -454,7 +454,7 @@ class Curve(Optimizable):
         return dkappadash_by_dcoeff
 
     def centroid(self):
-        """ 
+        r""" 
         Compute the centroid of the curve
 
         .. math::
