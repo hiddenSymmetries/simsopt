@@ -4,7 +4,7 @@ import numpy as np
 import jax.numpy as jnp
 from jax import grad
 from .biotsavart import BiotSavart
-from .selffield import B_regularized_pure, B_regularized, B_regularized_circ, B_regularized_rect, regularization_circ, regularization_rect
+from .selffield import B_regularized_pure, B_regularized, B_regularized_circ, B_regularized_rect
 from ..geo.jit import jit
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
