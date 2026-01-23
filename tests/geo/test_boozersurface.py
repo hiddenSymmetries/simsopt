@@ -12,7 +12,10 @@ from .surface_test_helpers import get_surface, get_exact_surface, get_boozer_sur
 try:
     from ground.base import get_context
 except ImportError:
-    get_context = None
+    try:
+        from ground.context import get_context
+    except ImportError:
+        get_context = None
 
 try:
     from bentley_ottmann.planar import contour_self_intersects
