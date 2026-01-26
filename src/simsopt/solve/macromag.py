@@ -278,32 +278,7 @@ class MacroMag:
                 print(f"[INFO Macromag] Scaled Coil currents scaled by {current_scale}x")
 
         bs = BiotSavart(coils)
-
-        # TODO: find way to use this since currently causing to much extra cost...
-        #       CAUSE: of increased time: high res field.... I can turn down the resolution of self._interp_cfg but will reduce accuracy...
         
-        # cfg = self._interp_cfg
-        # pts = self.tiles.offset.copy()
-        # if cfg.get("extra_pts") is not None:
-        #     pts = np.vstack([pts, np.asarray(cfg["extra_pts"], dtype=np.float64)])
-
-        # R = np.linalg.norm(pts[:, :2], axis=1)
-        # z = pts[:, 2]
-        # rmin, rmax = float(R.min()), float(R.max())
-        # zmin, zmax = float(z.min()), float(z.max())
-        # rpad = max(1e-4, cfg["pad_frac"] * max(rmax - rmin, 1.0))
-        # zpad = max(1e-4, cfg["pad_frac"] * max(zmax - zmin, 1.0))
-
-        # rrange   = (max(0.0, rmin - rpad), rmax + rpad, cfg["nr"])
-        # phirange = (0.0, 2.0 * np.pi / max(1, cfg["nfp"]), cfg["nphi"])
-        # zrange   = (zmin - zpad, zmax + zpad, cfg["nz"])
-
-        # self.bs_interp = InterpolatedField(
-        #     bs, cfg["degree"], rrange, phirange, zrange,
-        #     True, nfp=cfg["nfp"], stellsym=cfg["stellsym"], skip=None
-        # )
-        
-        #Faster...(for now)
         self.bs_interp = bs
         
     def coil_field_at(self, pts):
@@ -454,7 +429,8 @@ class MacroMag:
         chi_diff = chi_parallel - chi_perp  # (n,)
         u_outer = np.einsum('ik,il->ikl', u, u, optimize=True)  # (n, 3, 3) - u_i * u_i^T
         
-        # TODO: Something wrong with the math here..
+        # Uniaxial susceptibility tensor in global coordinates:
+        #   χ_i = χ⊥ I + (χ∥ - χ⊥) (u_i u_iᵀ)
         chi_tensor = (chi_perp[:, None, None] * np.eye(3)[None, :, :] + 
                     chi_diff[:, None, None] * u_outer)  # (n, 3, 3)
 
@@ -472,15 +448,9 @@ class MacroMag:
             chi_new = chi_tensor[prev_n:, :, :] 
             chi_prev = chi_tensor[:prev_n, :, :]  # (prev_n, 3, 3)
 
-            # BUG: Mistake in hadammard here... 
-            # A[3*prev_n:, :3*prev_n] -= (chi_new[:, None, :, :] * N_new_rows).reshape(3*(n-prev_n), 3*prev_n)
-            
-            # A[:3*prev_n, 3*prev_n:] -= (chi_prev[:, None, :, :] * N_new_cols).reshape(3*prev_n, 3*(n-prev_n))
-            # # New diagonal block: interactions between new tiles and new tiles
-            # A[3*prev_n:, 3*prev_n:] -= (chi_new[:, None, :, :] * N_new_diag).reshape(3*(n-prev_n), 3*(n-prev_n))
-            
-            # FIX:
-            # # new rows vs old cols
+            # Assemble the off-diagonal demag blocks using a blockwise contraction:
+            # each 3×3 block is (χ_i @ N_ij). Use einsum (not elementwise multiplication).
+            # new rows vs old cols
             A[3*prev_n:, :3*prev_n] += np.einsum('iab,ijbc->iajc', chi_new, N_new_rows).reshape(3*(n-prev_n), 3*prev_n)
             # old rows vs new cols
             A[:3*prev_n, 3*prev_n:] += np.einsum('iab,ijbc->iajc', chi_prev, N_new_cols).reshape(3*prev_n, 3*(n-prev_n))
@@ -488,10 +458,7 @@ class MacroMag:
             A[3*prev_n:, 3*prev_n:] += np.einsum('iab,ijbc->iajc', chi_new, N_new_diag).reshape(3*(n-prev_n), 3*(n-prev_n))
 
         else:
-            # BUG: Mistake in hadammard here...
-            #A -= (chi_tensor[:, None, :, :] * N_new_rows).reshape(3*n, 3*n)
-            
-            # FIX:
+            # Full dense block assembly: A = I + χ N, with χ_i applied on each row block.
             A += np.einsum('iab,ijbc->iajc', chi_tensor, N_new_rows).reshape(3*n, 3*n)
             
         # t2 = time.time()
