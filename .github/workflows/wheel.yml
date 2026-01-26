@@ -34,7 +34,7 @@ jobs:
           #   CIBW_ARCHS_MACOS: "x86_64 arm64"
           #   # Skip python 3.8 and PyPy builds since there is are errors when building the
           #   # wheel in those cases:
-          CIBW_SKIP: cp38-* pp* *-manylinux_i686 *-musllinux*
+          CIBW_SKIP: cp38-* cp39-* pp* *-manylinux_i686 *-musllinux*
           #   CIBW_DEPENDENCY_VERSIONS: latest
 
       - uses: actions/upload-artifact@v4
@@ -44,7 +44,7 @@ jobs:
 
   build_sdist:
     name: Build source distribution
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -58,7 +58,7 @@ jobs:
 
   upload_pypi:
     needs: [build_wheels, build_sdist]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: pypi
     permissions:
       id-token: write
