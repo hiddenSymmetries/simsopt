@@ -110,7 +110,7 @@ class MacroMagTests(unittest.TestCase):
 
     def test_muse_reference_tensor_subset(self):
         """
-        Regression check against a fixed reference subset of the MUSE demag tensor.
+        Regression check against a fixed reference subset of the MUSE demag tensor computed via MAGTENSE.
 
         This avoids storing the full 9736×9736 tensor in the repository while still
         pinning a handful of representative demag blocks to known values.
