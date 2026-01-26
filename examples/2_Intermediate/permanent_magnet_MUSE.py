@@ -156,6 +156,16 @@ def _parse_args() -> argparse.Namespace:
         default=DEFAULT_OUTDIR,
         help="Output directory for artifacts.",
     )
+    p.add_argument(
+        "--no-save-plots",
+        action="store_true",
+        help="Disable optional diagnostic plots (default: enabled).",
+    )
+    p.add_argument(
+        "--vmec",
+        action="store_true",
+        help="Run a VMEC solve using the final field (default: disabled).",
+    )
     p.add_argument("--nphi", type=int, default=None, help="Override surface resolution (nphi=ntheta).")
     p.add_argument("--n-iter-max", type=int, default=None, help="Override maximum greedy iterations K.")
     p.add_argument("--n-backtracking", type=int, default=None, help="Override backtracking interval (0 disables).")
@@ -179,6 +189,9 @@ if args.list_materials:
     for name in sorted(MATERIALS.keys()):
         print(f"  - {name}")
     raise SystemExit(0)
+
+save_plots = not bool(args.no_save_plots)
+vmec_flag = bool(args.vmec)
 
 # Set parameters -- in CI we force a tiny configuration.
 if in_github_actions:
@@ -279,9 +292,6 @@ s_plot = SurfaceRZFourier.from_focus(
     quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta
 )
-
-# Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
-make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 
 # Set up correct Bnormal from TF coils
 bs.set_points(s.gamma().reshape((-1, 3)))
@@ -414,17 +424,19 @@ t2 = time.time()
 print('GPMO took t = ', t2 - t1, ' s')
 
 # plot the MSE history
-k_plot = getattr(pm_opt, "k_history", None)
-if k_plot is None or len(k_plot) != len(R2_history):
-    k_plot = np.arange(len(R2_history), dtype=int)
-plt.figure()
-plt.semilogy(k_plot, R2_history, label=r'$f_B$')
-plt.semilogy(k_plot, Bn_history, label=r'$<|Bn|>$')
-plt.grid(True)
-plt.xlabel('K')
-plt.ylabel('Metric values')
-plt.legend()
-plt.savefig(out_dir / 'GPMO_MSE_history.png')
+if save_plots:
+    k_plot = getattr(pm_opt, "k_history", None)
+    if k_plot is None or len(k_plot) != len(R2_history):
+        k_plot = np.arange(len(R2_history), dtype=int)
+    plt.figure()
+    plt.semilogy(k_plot, R2_history, label=r'$f_B$')
+    plt.semilogy(k_plot, Bn_history, label=r'$<|Bn|>$')
+    plt.grid(True)
+    plt.xlabel('K')
+    plt.ylabel('Metric values')
+    plt.legend()
+    plt.savefig(out_dir / 'GPMO_MSE_history.png')
+    plt.close()
 
 # Set final m to the minimum achieved during the optimization
 min_ind = np.argmin(R2_history)
@@ -442,43 +454,6 @@ M_max = B_max / mu0
 dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
-
-save_plots = True
-if save_plots:
-    # Plot the SIMSOPT GPMO solution
-    bs.set_points(s_plot.gamma().reshape((-1, 3)))
-    Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-    make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
-
-    # Only log and export the final iterate
-    k_final = m_history.shape[2] - 1
-    mk = m_history[:, :, k_final].reshape(pm_opt.ndipoles * 3)
-
-    b_dipole = DipoleField(
-        pm_opt.dipole_grid_xyz,
-        mk,
-        nfp=s.nfp,
-        coordinate_flag=pm_opt.coordinate_flag,
-        m_maxima=pm_opt.m_maxima,
-    )
-    b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-
-    K_save = int(kwargs['K'])  # nominal final iteration number
-    b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}{full_suffix}_{algorithm}", dx, dy, dz)
-
-    print("Total fB = ", 0.5 * np.sum((pm_opt.A_obj @ mk - pm_opt.b_obj) ** 2))
-
-    # Compute and export final Bnormal fields
-    Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
-    Bnormal_total = Bnormal + Bnormal_dipoles
-
-    # For plotting Bn on the full torus surface at the end with just the dipole fields
-    make_Bnormal_plots(b_dipole, s_plot, out_dir, f"only_m_optimized_K{K_save}_nphi{nphi}{full_suffix}_ntheta{ntheta}")
-    pointData = {"B_N": Bnormal_total[:, :, None]}
-    s_plot.to_vtk(out_dir / f"m_optimized_K{K_save}_nphi{nphi}{full_suffix}_ntheta{ntheta}", extra_data=pointData)
-
-    # write solution to FAMUS-type file
-    pm_opt.write_to_famus(out_dir)
 
 # Compute metrics with permanent magnet results
 dipoles_m = pm_opt.m.reshape(pm_opt.ndipoles, 3)
@@ -507,7 +482,6 @@ print('Total volume = ', total_volume)
 # Optionally make a QFM and pass it to VMEC
 # This is worthless unless plasma
 # surface is at least 64 x 64 resolution.
-vmec_flag = False
 if vmec_flag:
     from simsopt.mhd.vmec import Vmec
     from simsopt.util.mpi import MpiPartition
@@ -536,7 +510,10 @@ print('Total time = ', t_end - t_start)
 # plt.show()
 
 
-### Armin ouput inspection (temporary) additions
+### Complete output of key PM optimization files
+# Write solution to FAMUS-type file (kept outside the optional plotting block).
+pm_opt.write_to_famus(out_dir)
+
 b_final = DipoleField(
     pm_opt.dipole_grid_xyz,
     pm_opt.m,                        # flat (3N,) is fine;  or pm_opt.m.reshape(-1, 3)
@@ -674,6 +651,8 @@ run_doc = {
         "nhistory": int(kwargs["nhistory"]),
         "record_every": int(record_every),
         "history_every_requested": int(history_every),
+        "save_plots": bool(save_plots),
+        "vmec": bool(vmec_flag),
         "backtracking": int(kwargs.get("backtracking", 0)),
         "Nadjacent": int(kwargs.get("Nadjacent", 0)),
         "max_nMagnets": int(kwargs.get("max_nMagnets", 0)),
