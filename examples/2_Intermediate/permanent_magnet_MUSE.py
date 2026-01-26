@@ -21,11 +21,15 @@ For high-resolution and more realistic designs, please see the script files at
 https://github.com/akaptano/simsopt_permanent_magnet_advanced_scripts.git
 """
 
+import argparse
 import time
+import csv
+import datetime
 from pathlib import Path
 
 import numpy as np
 from matplotlib import pyplot as plt
+from ruamel.yaml import YAML
 
 from simsopt.field import BiotSavart, DipoleField
 from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
@@ -36,27 +40,189 @@ from simsopt.util.permanent_magnet_helper_functions import *
 
 t_start = time.time()
 
-high_res_run = True
+# ----------------------------
+# Run configuration presets
+# ----------------------------
 
-# Set some parameters -- if doing CI, lower the resolution
+# Material presets used in the paper / studies.
+# - B_max controls the per-site dipole moment cap m_max = (B_max/mu0) * V.
+# - mu_ea/mu_oa are the (relative) permeabilities along / perpendicular to easy axis.
+# - target_B0 controls coil current scaling (if scale_coils=True).
+MATERIALS = {
+    # Baseline MUSE NdFeB (close to an ideal permanent-magnet source).
+    "N52": {
+        "B_max": 1.465,   # Tesla
+        "mu_ea": 1.05,
+        "mu_oa": 1.15,
+        "scale_coils": False,
+        "target_B0": None,
+    },
+    # High-coercivity NdFeB grade for higher-field studies.
+    "GB50UH": {
+        "B_max": 1.410,   # Tesla
+        "mu_ea": 1.05,
+        "mu_oa": 1.15,
+        "scale_coils": True,
+        "target_B0": 0.5,  # Tesla
+    },
+    # Low-remanence material with deliberately stronger effective permeability.
+    "AlNiCo": {
+        "B_max": 0.72,    # Tesla
+        "mu_ea": 3.00,
+        "mu_oa": 3.00,
+        "scale_coils": True,
+        "target_B0": 0.05,  # Tesla
+    },
+}
+
+# Paper-style run presets (choose one).
+# You can run the same preset twice (GPMO vs GPMOmr) by only changing `algorithm`.
+RUN_PRESETS = {
+    # Baseline MUSE with backtracking (used in most paper figures).
+    "muse_bt": {
+        "material": "N52",
+        "nphi": 64,
+        "nIter_max": 25000,
+        "nBacktracking": 200,
+        "max_nMagnets": 40000,
+        "mm_refine_every": 50,
+        "downsample": 1,
+        "history_every": 1000,
+    },
+    # MUSE without backtracking (stage-two style run).
+    "muse_no_bt": {
+        "material": "N52",
+        "nphi": 64,
+        "nIter_max": 20000,
+        "nBacktracking": 0,
+        "max_nMagnets": 20000,
+        "mm_refine_every": 50,
+        "downsample": 1,
+        "history_every": 1000,
+    },
+    # High-field study.
+    "gb50uh": {
+        "material": "GB50UH",
+        "nphi": 64,
+        "nIter_max": 50000,
+        "nBacktracking": 200,
+        "max_nMagnets": 40000,
+        "mm_refine_every": 100,
+        "downsample": 1,
+        "history_every": 1000,
+    },
+    # Low-remanence / stronger coupling study.
+    "alnico": {
+        "material": "AlNiCo",
+        "nphi": 64,
+        "nIter_max": 25000,
+        "nBacktracking": 200,
+        "max_nMagnets": 40000,
+        "mm_refine_every": 50,
+        "downsample": 1,
+        "history_every": 1000,
+    },
+}
+
+DEFAULT_PRESET = "muse_bt"
+DEFAULT_ALGORITHM = "ArbVec_backtracking_macromag_py"
+DEFAULT_OUTDIR = Path("output_permanent_magnet_GPMO_MUSE")
+
+
+def _parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description="Run greedy permanent-magnet optimization (MUSE) and write run.yaml + runhistory.csv artifacts."
+    )
+    p.add_argument(
+        "--preset",
+        choices=sorted(RUN_PRESETS.keys()),
+        default=DEFAULT_PRESET,
+        help="Paper-style run preset (selects material + key numerical parameters).",
+    )
+    p.add_argument(
+        "--material",
+        choices=sorted(MATERIALS.keys()),
+        default=None,
+        help="Override preset material.",
+    )
+    p.add_argument(
+        "--algorithm",
+        default=DEFAULT_ALGORITHM,
+        help="GPMO algorithm string (e.g. ArbVec_backtracking or ArbVec_backtracking_macromag_py).",
+    )
+    p.add_argument(
+        "--outdir",
+        type=Path,
+        default=DEFAULT_OUTDIR,
+        help="Output directory for artifacts.",
+    )
+    p.add_argument("--nphi", type=int, default=None, help="Override surface resolution (nphi=ntheta).")
+    p.add_argument("--n-iter-max", type=int, default=None, help="Override maximum greedy iterations K.")
+    p.add_argument("--n-backtracking", type=int, default=None, help="Override backtracking interval (0 disables).")
+    p.add_argument("--max-n-magnets", type=int, default=None, help="Override maximum number of active magnets.")
+    p.add_argument("--mm-refine-every", type=int, default=None, help="Override macromag refinement interval k_mm.")
+    p.add_argument("--downsample", type=int, default=None, help="Override magnet-grid downsample factor.")
+    p.add_argument("--history-every", type=int, default=None, help="Override history logging period in K.")
+    p.add_argument("--list-presets", action="store_true", help="Print available presets and exit.")
+    p.add_argument("--list-materials", action="store_true", help="Print available materials and exit.")
+    return p.parse_args()
+
+
+args = _parse_args()
+if args.list_presets:
+    print("Available presets:")
+    for name in sorted(RUN_PRESETS.keys()):
+        print(f"  - {name}")
+    raise SystemExit(0)
+if args.list_materials:
+    print("Available materials:")
+    for name in sorted(MATERIALS.keys()):
+        print(f"  - {name}")
+    raise SystemExit(0)
+
+# Set parameters -- in CI we force a tiny configuration.
 if in_github_actions:
-    nphi = 2
-    nIter_max = 100
-    nBacktracking = 0
-    max_nMagnets = 20
-    downsample = 100  # downsample the FAMUS grid of magnets by this factor
-elif high_res_run:
-    nphi = 64
-    nIter_max = 25000
-    nBacktracking = 200
-    max_nMagnets = 40000
-    downsample = 1
+    preset = {
+        "material": "N52",
+        "nphi": 2,
+        "nIter_max": 100,
+        "nBacktracking": 0,
+        "max_nMagnets": 20,
+        "mm_refine_every": 10,
+        "downsample": 100,
+        "history_every": 10,
+    }
+    preset_name = "ci"
 else:
-    nphi = 16  # >= 64 for high-resolution runs
-    nIter_max = 35000
-    nBacktracking = 0
-    max_nMagnets = 35000
-    downsample = 1
+    preset_name = str(args.preset)
+    preset = dict(RUN_PRESETS[preset_name])
+
+if args.material is not None:
+    preset["material"] = str(args.material)
+if args.nphi is not None:
+    preset["nphi"] = int(args.nphi)
+if args.n_iter_max is not None:
+    preset["nIter_max"] = int(args.n_iter_max)
+if args.n_backtracking is not None:
+    preset["nBacktracking"] = int(args.n_backtracking)
+if args.max_n_magnets is not None:
+    preset["max_nMagnets"] = int(args.max_n_magnets)
+if args.mm_refine_every is not None:
+    preset["mm_refine_every"] = int(args.mm_refine_every)
+if args.downsample is not None:
+    preset["downsample"] = int(args.downsample)
+if args.history_every is not None:
+    preset["history_every"] = int(args.history_every)
+
+material_name = str(preset["material"])
+material = MATERIALS[material_name]
+
+nphi = int(preset["nphi"])
+nIter_max = int(preset["nIter_max"])
+nBacktracking = int(preset["nBacktracking"])
+max_nMagnets = int(preset["max_nMagnets"])
+downsample = int(preset["downsample"])
+history_every = int(preset["history_every"])
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -73,13 +239,13 @@ s_outer = SurfaceRZFourier.from_focus(surface_filename, range="half period", nph
 
 # Make the output directory -- warning, saved data can get big!
 # On NERSC, recommended to change this directory to point to SCRATCH!
-out_dir = Path("output_permanent_magnet_GPMO_MUSE")
+out_dir = Path(args.outdir)
 out_dir.mkdir(parents=True, exist_ok=True)
 
 # initialize the coils
 base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s, out_dir)
 
-scale_coils = True # Set to true when testing GB50UH or AiNiCo Magnet material due to different properties
+scale_coils = bool(material["scale_coils"])
 current_scale = 1
 if(scale_coils):
     from simsopt.field import Coil
@@ -88,8 +254,7 @@ if(scale_coils):
     B0 = calculate_modB_on_major_radius(bs2, s)   # Tesla (if geometry in meters, currents in Amps)
 
     # picking a target and scale currents linearly
-    #target_B0 = 0.5  # Tesla  -> for GB50UH Magnets
-    target_B0 = 0.05 # Tesla -> for AiNiCo Magnets
+    target_B0 = float(material["target_B0"])
     current_scale = target_B0 / B0
 
     coils = [Coil(c.curve, c.current * current_scale) for c in coils]
@@ -163,9 +328,7 @@ print('pol_vectors_shape = ', pol_vectors.shape)
 # m_maxima: Here we want keep cell volume fixed and rescale by material B_max (the logic here is same cube dimensions but different material)
 # This ensures the optimizer sees the correct dipole-moment cap for the chosen material.
 B_ref = 1.465  # reference B_max used when generating the MUSE .focus (FAMUS) grid 
-#B_max = 1.465 # MUSE MAGNET
-#B_max = 1.410  # Tesla, GB50UH
-B_max = 0.72  # Tesla, AiNiCo
+B_max = float(material["B_max"])
 mu0 = 4 * np.pi * 1e-7
 
 ox, oy, oz, Ic, M0s = np.loadtxt(
@@ -208,10 +371,11 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 # Python+Macromag
-algorithm = 'ArbVec_backtracking_macromag_py'  # Algorithm to use
-#algorithm = 'ArbVec_backtracking'  # Algorithm to use
+algorithm = str(args.algorithm)
 nAdjacent = 12  # How many magnets to consider "adjacent" to one another
-nHistory = nIter_max // 10 ## Saving every 1000 iterations...
+if history_every <= 0:
+    raise ValueError("history_every must be > 0")
+nHistory = max(1, int(nIter_max // history_every))
 thresh_angle = np.pi - (5 * np.pi / 180)  # The angle between two "adjacent" dipoles such that they should be removed
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
@@ -229,19 +393,18 @@ param_suffix = f"_bt{nBacktracking}_Nadj{nAdjacent}_nmax{max_nMagnets}"
 mm_suffix = ""
 if algorithm == "ArbVec_backtracking_macromag_py":
     kwargs['cube_dim'] = cube_dim
-    # Permeability; 
-    # Set mu_ea and mu_oa to 3.00 for AlNiCo Runs # but keep as (mu_ea=1.05, mu_oa=1.15) for Ndfeb and also for GB50UH
-    kwargs['mu_ea'] = 3.00 
-    kwargs['mu_oa'] = 3.00
+    kwargs['mu_ea'] = float(material["mu_ea"])
+    kwargs['mu_oa'] = float(material["mu_oa"])
     
     kwargs['use_coils'] = True
     kwargs['use_demag'] = True
     kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
-    kwargs['mm_refine_every'] = 50
+    kwargs['mm_refine_every'] = int(preset["mm_refine_every"])
     kwargs['current_scale'] = current_scale
     mm_suffix = f"_kmm{kwargs['mm_refine_every']}"
 
-full_suffix = param_suffix + mm_suffix
+mat_suffix = f"_mat{material_name}"
+full_suffix = mat_suffix + param_suffix + mm_suffix
 
 
 # Optimize the permanent magnets greedily
@@ -251,10 +414,12 @@ t2 = time.time()
 print('GPMO took t = ', t2 - t1, ' s')
 
 # plot the MSE history
-iterations = np.linspace(0, kwargs['max_nMagnets'], len(R2_history), endpoint=False)
+k_plot = getattr(pm_opt, "k_history", None)
+if k_plot is None or len(k_plot) != len(R2_history):
+    k_plot = np.arange(len(R2_history), dtype=int)
 plt.figure()
-plt.semilogy(iterations, R2_history, label=r'$f_B$')
-plt.semilogy(iterations, Bn_history, label=r'$<|Bn|>$')
+plt.semilogy(k_plot, R2_history, label=r'$f_B$')
+plt.semilogy(k_plot, Bn_history, label=r'$<|Bn|>$')
 plt.grid(True)
 plt.xlabel('K')
 plt.ylabel('Metric values')
@@ -280,21 +445,6 @@ print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
 save_plots = True
 if save_plots:
-    # Save the MSE history and history of the m vectors
-    H = m_history.shape[2]
-    np.savetxt(
-        out_dir / f"mhistory_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}{full_suffix}_{algorithm}.txt",
-        m_history.reshape(pm_opt.ndipoles * 3, H)
-    )
-    np.savetxt(
-        out_dir / f"R2history_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}{full_suffix}_{algorithm}.txt",
-        R2_history
-    )
-    np.savetxt(
-        out_dir / f"Bn_history_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}{full_suffix}_{algorithm}.txt",
-        Bn_history
-    )
-
     # Plot the SIMSOPT GPMO solution
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
@@ -456,3 +606,94 @@ np.savez(
     m_maxima=pm_opt.m_maxima,
 )
 print(f"[SIMSOPT] Saved dipoles_final{full_suffix}_{algorithm}.npz")
+
+# ----------------------------
+# Run artifacts: run.yaml + runhistory.csv (replaces legacy *.txt histories)
+# ----------------------------
+
+run_id = f"K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}_ds{downsample}{full_suffix}_{algorithm}"
+run_yaml = out_dir / f"run_{run_id}.yaml"
+run_csv = out_dir / f"runhistory_{run_id}.csv"
+
+record_every = max(1, int(kwargs["K"]) // int(kwargs["nhistory"]))
+k_hist = getattr(pm_opt, "k_history", None)
+if k_hist is None:
+    # Fallback: use the nominal schedule (may be off by 1 for some algorithms).
+    k_hist = list(range(len(R2_history)))
+
+n_active = getattr(pm_opt, "num_nonzeros", None)
+if n_active is None:
+    # Fallback: compute from the returned history tensor (in-memory only).
+    norm2 = np.sum(m_history * m_history, axis=1)  # (ndipoles, H)
+    n_active = np.count_nonzero(norm2 > 0, axis=0)[: len(R2_history)]
+
+rows = []
+for i in range(len(R2_history)):
+    rows.append(
+        {
+            "k": int(k_hist[i]),
+            "fB": float(R2_history[i]),
+            "absBn": float(Bn_history[i]),
+            "n_active": int(n_active[i]),
+        }
+    )
+
+with run_csv.open("w", newline="", encoding="utf-8") as f:
+    w = csv.DictWriter(f, fieldnames=["k", "fB", "absBn", "n_active"])
+    w.writeheader()
+    w.writerows(rows)
+
+yaml = YAML(typ="safe")
+yaml.default_flow_style = False
+run_doc = {
+    "schema_version": 1,
+    "created_utc": datetime.datetime.now(tz=datetime.timezone.utc).isoformat(timespec="seconds"),
+    "preset": preset_name,
+    "run_id": run_id,
+    "material": {
+        "name": material_name,
+        "B_ref_T": float(B_ref),
+        "B_max_T": float(B_max),
+        "mu_ea": float(material["mu_ea"]),
+        "mu_oa": float(material["mu_oa"]),
+    },
+    "coil_scaling": {
+        "enabled": bool(scale_coils),
+        "target_B0_T": None if not scale_coils else float(material["target_B0"]),
+        "current_scale": float(current_scale),
+    },
+    "grid": {
+        "focus_file": str(famus_filename),
+        "downsample": int(downsample),
+        "ndipoles": int(pm_opt.ndipoles),
+    },
+    "surface": {"nphi": int(nphi), "ntheta": int(ntheta)},
+    "algorithm": algorithm,
+    "params": {
+        "K": int(kwargs["K"]),
+        "nhistory": int(kwargs["nhistory"]),
+        "record_every": int(record_every),
+        "history_every_requested": int(history_every),
+        "backtracking": int(kwargs.get("backtracking", 0)),
+        "Nadjacent": int(kwargs.get("Nadjacent", 0)),
+        "max_nMagnets": int(kwargs.get("max_nMagnets", 0)),
+        "thresh_angle_rad": float(kwargs.get("thresh_angle", np.pi)),
+        "mm_refine_every": int(kwargs.get("mm_refine_every", 0)),
+        "use_coils": bool(kwargs.get("use_coils", False)),
+        "use_demag": bool(kwargs.get("use_demag", False)),
+        "coil_path": None if kwargs.get("coil_path", None) is None else str(kwargs.get("coil_path")),
+        "cube_dim_m": float(kwargs.get("cube_dim", cube_dim)),
+    },
+    "artifacts": {
+        "run_yaml": run_yaml.name,
+        "runhistory_csv": run_csv.name,
+        "dipoles_final_npz": f"dipoles_final{full_suffix}_{algorithm}.npz",
+        "dipoles_final_vtu": f"dipoles_final{full_suffix}_{algorithm}.vtu",
+        "surface_Bn_fields_vtp": f"surface_Bn_fields{full_suffix}_{algorithm}.vtp",
+    },
+}
+with run_yaml.open("w", encoding="utf-8") as f:
+    yaml.dump(run_doc, f)
+
+print(f"[SIMSOPT] Wrote {run_yaml}")
+print(f"[SIMSOPT] Wrote {run_csv}")
