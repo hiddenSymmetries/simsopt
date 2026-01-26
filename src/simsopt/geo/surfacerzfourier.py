@@ -1191,6 +1191,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         power=2,
         maxiter=None,
         method="SLSQP",
+        mpol_new=None,
+        ntor_new=None,
         epsilon=1e-3,
         Fourier_continuation=True,
         verbose=True,
@@ -1410,8 +1412,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         # lambda could in principle have different mpol and ntor than the original surface.
         # But it works reasonably well to use the same mpol and ntor:
-        mpol_for_lambda = mpol
-        ntor_for_lambda = ntor
+        mpol_for_lambda = mpol if mpol_new is None else mpol_new
+        ntor_for_lambda = ntor if ntor_new is None else ntor_new
         # surf_dummy is just a convenient way to get the m and n arrays for lambda
         surf_dummy = SurfaceRZFourier(
             nfp=nfp,

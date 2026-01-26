@@ -373,6 +373,7 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         axis_points=4, 
         points_per_cs=7,
         cs_equispaced=True,
+        rays_equispaced=True,
         axis_angles_fixed=False,
         cs_global_angle_free=False,
         n_cs=2,
@@ -405,7 +406,7 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         self.p_v = p_v
         self.axis_angles_fixed = axis_angles_fixed
         self.cs_basis = cs_basis
-        self.cs_equispaced = cs_equispaced
+        self.cs_equispaced = rays_equispaced
         self.cs_global_angle_free = cs_global_angle_free
         self.axis_points = axis_points
 
@@ -429,7 +430,7 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         dofs = DOFs(
             dofs,
             names,
-            [False]*n_cs + [cs_global_angle_free]*n_cs,
+            [cs_equispaced]*n_cs + [cs_global_angle_free]*n_cs,
             [(n-1)*max_angle/(n_cs-2) for n in range(n_cs)] + [-2*np.pi/points_per_cs] * n_cs,
             [(n)*max_angle/(n_cs-2) for n in range(n_cs)] + [2*np.pi/points_per_cs] * n_cs
         )
@@ -453,7 +454,7 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
                 cross_section = CrossSectionFixedZeta(
                     zeta_index=i,
                     n_ctrl_pts=points_per_cs,
-                    equispaced=cs_equispaced,
+                    equispaced=rays_equispaced,
                     default_r=default_r,
                     z_sym=((i == 0) or (i == n_cs-1)),
                     nurbs=nurbs
