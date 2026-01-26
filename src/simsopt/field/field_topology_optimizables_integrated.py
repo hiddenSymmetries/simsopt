@@ -14,7 +14,7 @@ from typing import Union, Iterable, TYPE_CHECKING
 if TYPE_CHECKING:
     from ..field import MagneticField, ScipyFieldlineIntegrator, Integrator
 
-__all__ = ['IntegratorFixedPoint', 'FDMapJac', 'FDEllipticity', 'FDResidue', 'FDTrace']
+__all__ = ['IntegratorFixedPoint', 'FDMapJac', 'FDEllipticity', 'FDResidue', 'FDTrace', 'ellipticity']
 
 
 def ellipticity(jacobian_matrix):

@@ -18,11 +18,12 @@ from .._core import Optimizable
 from .._core.dev import SimsoptRequires
 from .._core.util import ObjectiveFailure
 from numpy.typing import NDArray
+from .field_topology_optimizables_integrated import ellipticity
 from typing import Union, Iterable, TYPE_CHECKING
 import itertools
 
 if TYPE_CHECKING:
-    from ..field import MagneticField, ScipyFieldlineIntegrator, Integrator
+    from ..field import MagneticField
 
 try:
     newpyoculus = int(str(pyoc_version).split('.')[0]) >= 1
@@ -30,12 +31,21 @@ except Exception:
     newpyoculus = False
 
 
-__all__ = ['PyOculusFixedPoint', 'TwoFixedPointDifference', 'ClinicConnection', 'IntegratorFixedPoint', 'FDMapJac', 'FDEllipticity', 'FDResidue', 'FDTrace']
+__all__ = ['PyOculusFixedPoint',
+           'PyOculusFixedPointLocationTarget',
+           'PyOculusEllipticityTarget', 'PyOculusResidueTarget',
+           'PyOculusTraceTarget', 'PyOculusTraceInRangeTarget',
+           'PyOculusLocationAtOtherAngleTarget',
+           'PyOculusTwoFixedPointLocationDifference',
+           'ClinicConnection',
+          ]
+
+
 class PyOculusFixedPoint(Optimizable):
     """
     A FixedPoint is a point in the Poincar\'e section of a magnetic field
     that maps to itself after n field periods.
-    Pyoculus contains routines to efficiently locate fixed points, and calculate
+    PyOculus contains routines to efficiently locate fixed points, and calculate
     their properties (residue, location, etc). This class provides an interface 
     to those calculations. 
     """
@@ -72,6 +82,10 @@ class PyOculusFixedPoint(Optimizable):
         self._with_axis = with_axis
         self.start_guess = start_guess
         self.fp_order = fp_order
+        # set good default finder args if not given:
+        finder_args['method'] = finder_args.get('method', 'scipy.root')
+        if finder_args['method'] == 'scipy.root':
+            finder_args['options'] = finder_args.get('options', {'xtol':1e-10, 'factor':1e-2})
         self.finder_args = finder_args
 
         self._fixed_point = FixedPoint(self._pyocmap)  # create the fixed point
@@ -180,7 +194,10 @@ class PyOculusFixedPoint(Optimizable):
         if self._refind_fp:
             self.refind()
         RZ = self.loc_RZ()
-        return np.array(RZ[0]*np.cos(self.phi0), RZ[0]*np.sin(self.phi0), RZ[1])
+        return np.array([RZ[0]*np.cos(self._pyocmap.phi0), 
+                         RZ[0]*np.sin(self._pyocmap.phi0), 
+                         RZ[1]]
+                         )
 
     def R(self):
         return self.loc_RZ()[0]
@@ -229,16 +246,16 @@ class PyOculusFixedPoint(Optimizable):
         The ellipticity is +1 for cirular elliptic fixed points, 0 when parabolic, and negative
         when hyperbolic. Ellipticity of -1 correspoinds to perpendicular intersection of stable and unstable manifolds.
         """
-        return _ellipticity(self.jacobian())
+        return ellipticity(self.jacobian())
 
     
-class PyoculusFixedPointLocationTarget(Optimizable):
+class PyOculusFixedPointLocationTarget(Optimizable):
     """
     Optimizable that evaluates the distance between a PyOculusFixedPoint and a target location.
     """
     def __init__(self, fp: PyOculusFixedPoint, target_RZ: NDArray[np.float64]):
         """
-        Initialize a PyoculusFixedPointTargetLocation
+        Initialize a PyOculusFixedPointTargetLocation
         Args:
             fp: PyOculusFixedPoint object
             target_RZ: target location (R, Z)
@@ -251,9 +268,9 @@ class PyoculusFixedPointLocationTarget(Optimizable):
         return np.linalg.norm(self.fp.loc_RZ() - self.target_RZ)
 
 
-class PyoculusEllipticityTarget(Optimizable):
+class PyOculusEllipticityTarget(Optimizable):
     """
-    Optimizable that evaluates the difference between the PyoculusFixedPoint's ellipticity and a target ellipticity. 
+    Optimizable that evaluates the difference between the PyOculusFixedPoint's ellipticity and a target ellipticity. 
     The ellipticity of a fixed point is calculated from the map
     Jacobian, as described  by Greene 1968: 
     https://doi.org/10.1063/1.1664639
@@ -262,7 +279,7 @@ class PyoculusEllipticityTarget(Optimizable):
     """
     def __init__(self, fp: PyOculusFixedPoint, target_ellipticity: float = 0.0):
         """
-        Initialize a PyoculusFixedPointEllipticityTarget
+        Initialize a PyOculusFixedPointEllipticityTarget
         Args:
             fp: PyOculusFixedPoint object
             target_ellipticity: target ellipticity
@@ -274,13 +291,13 @@ class PyoculusEllipticityTarget(Optimizable):
     def J(self):
         return self.fp.ellipticity() - self.target_ellipticity
     
-class PyoculusResidueTarget(Optimizable):
+class PyOculusResidueTarget(Optimizable):
     """
     Optimizable that evaluates the Greenes residue of a PyOculusFixedPoint.
     """
     def __init__(self, fp: PyOculusFixedPoint, target_residue: float = 0):
         """
-        Initialize a PyoculusResidueTarget
+        Initialize a PyOculusResidueTarget
         Args:
             fp: PyOculusFixedPoint object
         """
@@ -291,13 +308,13 @@ class PyoculusResidueTarget(Optimizable):
     def J(self):
         return np.linalg.norm(self.fp.residue() - self.target_residue)
 
-class PyoculusTraceTarget(Optimizable):
+class PyOculusTraceTarget(Optimizable):
     """
     Optimizable that evaluates the trace of the map Jacobian of a PyOculusFixedPoint.
     """
     def __init__(self, fp: PyOculusFixedPoint, target_trace: float = 0, penalize="difference"):
         """
-        Initialize a PyoculusTraceOptimizable
+        Initialize a PyOculusTraceOptimizable
         Args:
             fp: PyOculusFixedPoint object
             target_trace: target trace value
@@ -316,13 +333,13 @@ class PyoculusTraceTarget(Optimizable):
         else:
             return self.fp.trace() - self.target_trace
 
-class PyoculusTraceInRangeTarget(Optimizable):
+class PyOculusTraceInRangeTarget(Optimizable):
     """
     Optimizable that evaluates a penalty on the trace of the map Jacobian of a PyOculusFixedPoint.
     """
     def __init__(self, fp: PyOculusFixedPoint, min_trace: float = -2, max_trace: float = 2):
         """
-        Initialize a PyoculusTraceInRangeTarget
+        Initialize a PyOculusTraceInRangeTarget
         Args:
             fp: PyOculusFixedPoint object
             min_trace: minimum acceptable trace value
@@ -337,14 +354,14 @@ class PyoculusTraceInRangeTarget(Optimizable):
         trace = self.fp.trace()
         return max(0, self.min_trace - trace) + max(0, trace - self.max_trace)
     
-class PyoculusLocationAtOtherAngleTarget(Optimizable):
+class PyOculusLocationAtOtherAngleTarget(Optimizable):
     """
     Optimizable that evaluates the distance between the location of a PyOculusFixedPoint
     at a different toroidal angle and a target location.
     """
     def __init__(self, fp: PyOculusFixedPoint, other_phi: float, target_RZ: NDArray[np.float64]):
         """
-        Initialize a PyoculusLocationAtOtherAngleTarget
+        Initialize a PyOculusLocationAtOtherAngleTarget
         Args:
             fp: PyOculusFixedPoint object
             other_phi: toroidal angle at which to evaluate the location
@@ -356,7 +373,7 @@ class PyoculusLocationAtOtherAngleTarget(Optimizable):
         self.target_RZ = target_RZ
 
     def J(self):
-        return np.linalg.norm(self.fp.loc_at_other_angle(self.phi) - self.target_RZ)
+        return np.linalg.norm(self.fp.loc_at_other_angle(self.other_phi) - self.target_RZ)
 
 
 class PyOculusTwoFixedPointLocationDifference(Optimizable):
@@ -377,6 +394,8 @@ class PyOculusTwoFixedPointLocationDifference(Optimizable):
         self.fp1 = fp1
         self.fp2 = fp2
         self.other_phi = other_phi
+        self.target_distance = target_distance
+        self.penalize = penalize
 
     def J(self):
         if self.other_phi == 0:

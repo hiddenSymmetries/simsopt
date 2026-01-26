@@ -43,6 +43,53 @@ def compute_gc_radius(m, vperp, q, absb):
 
     return m*vperp/(abs(q)*absb)
 
+def compute_xyz_fourier_coefficients_from_points(xyz_points: NDArray[np.float64], nfp: int, order:int, ntor:int = 1, varthetas: NDArray[np.float64] = None):
+    """
+    Computes the coefficients of the CurveXYZFourierSymmetries representation
+    that fits a set of points in 3D space. 
+    See the Obj:`CurveXYZFourierSymmetries` documentation for details on the representation. 
+
+    Args:
+        xyz_points: A (N, 3) array with the points in 3D space.
+        nfp: Number of field periods.
+        order: Order of the Fourier series. 
+        ntor: Number of toroidal modes.
+        if none, a linear spacing is assumed.
+
+    Returns:
+        A tuple (Rmn, Zmn, Xmn, Ymn) with the Fourier coefficients.
+    """
+    xx, yy, zz = xyz_points.T  # unpack each coordinate into 1d arrays
+
+    alpha = 2 * np.pi * varthetas * ntor  # helper angle
+    cos_alpha = np.cos(alpha)
+    sin_alpha = np.sin(alpha)
+
+    x_hat = xx * cos_alpha + yy * sin_alpha
+    y_hat = -xx * sin_alpha + yy * cos_alpha
+
+    args = 2 * np.pi * nfp * np.outer(varthetas, np.arange(1, order + 1))
+    
+    # A_x: [1, cos(args)]
+    A_x = np.column_stack((np.ones_like(varthetas), np.cos(args)))
+    
+    # A_yz: [sin(args)]
+    A_yz = np.sin(args)
+    
+    # 3. Solve Least Squares
+    # rcond=None lets numpy handle singular value cutoffs automatically
+    xc, residuals_x, _, _ = np.linalg.lstsq(A_x, x_hat, rcond=None)[0]
+    ys, residuals_y, _, _ = np.linalg.lstsq(A_yz, y_hat, rcond=None)[0]
+    zs, residuals_z, _, _ = np.linalg.lstsq(A_yz, zz, rcond=None)[0]
+
+    total_ssr = residuals_x + residuals_y + residuals_z
+
+    N = len(xx)
+    rmse = np.sqrt(total_ssr / N)
+    logger.info(f"Fit RMS error for XYXFourierSymmetries coefficient fit: {rmse}")
+    return xc, ys, zs, rmse
+
+
 
 def gc_to_fullorbit_initial_guesses(field, xyz_inits, speed_pars, speed_total, m, q, eta=0):
     """
@@ -1678,40 +1725,20 @@ class ScipyFieldlineIntegrator(Integrator):
         fieldline_xyz = self.integrate_cyl_planes(point, phi0=phi0, phis=varthetas, return_cartesian=True)
         if fieldline_xyz.shape[0] != varthetas.shape[0]:
             raise ValueError(f"Integration problem, not all angles could be integrated to")
-
-        xx, yy, zz = fieldline_xyz.T  # unpack each coordinate into 1d arrays
         
-        alpha = 2 * np.pi * varthetas * ntor  # helper angle
-        cos_alpha = np.cos(alpha)
-        sin_alpha = np.sin(alpha)
 
-        x_hat = xx * cos_alpha + yy * sin_alpha
-        y_hat = -xx * sin_alpha + yy * cos_alpha
 
-        args = 2 * np.pi * nfp * np.outer(varthetas, np.arange(1, order + 1))
         
-        # A_x: [1, cos(args)]
-        A_x = np.column_stack((np.ones_like(varthetas), np.cos(args)))
-        
-        # A_yz: [sin(args)]
-        A_yz = np.sin(args)
-        
-        # 3. Solve Least Squares
-        # rcond=None lets numpy handle singular value cutoffs automatically
-        xc, residuals_x, _, _ = np.linalg.lstsq(A_x, x_hat, rcond=None)[0]
-        ys, residuals_y, _, _ = np.linalg.lstsq(A_yz, y_hat, rcond=None)[0]
-        zs, residuals_z, _, _ = np.linalg.lstsq(A_yz, zz, rcond=None)[0]
-        curve_x = np.concatenate((xc, ys, zs))
-
-        total_ssr = residuals_x + residuals_y + residuals_z
-
-        N = len(xx)
-        rmse = np.sqrt(total_ssr / N)
-        logger.info(f"Fit RMS error for XYXFourierSymmetries coefficient fit: {rmse}")
         if max_RMS_error is not None and rmse > max_RMS_error:
             raise ObjectiveFailure(f"Fit RMS error {rmse} exceeds maximum allowed {max_RMS_error}")
+        
+        xc, ys, zs, rmse = compute_xyz_fourier_coefficients_from_points(fieldline_xyz, nfp=nfp, order=order, ntor=ntor, varthetas=varthetas)
 
-        curve = CurveXYZFourierSymmetries(quadpoints=100, order=order, nfp=np, stellsym=True, ntor=ntor, x0=curve_x)
+        curve_x = np.concatenate((xc, ys, zs))
+
+        curve = CurveXYZFourierSymmetries(quadpoints=100, order=order, nfp=nfp, stellsym=True, ntor=ntor, x0=curve_x)
+
+        return curve
 
 
     def get_SurfaceRZFourier_from_fieldline_simple(self, start_point_RZ, phi0=0,  nphi=37, num_fieldlinetransits=37, ntor=6, mpol=6, max_RMS_error=None):
