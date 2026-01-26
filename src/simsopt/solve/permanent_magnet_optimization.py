@@ -426,7 +426,6 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             normal_norms=Nnorms,
             **kwargs
         )
-        pm_opt.num_nonzeros = num_nonzeros[num_nonzeros != 0]
     elif algorithm == 'ArbVec_backtracking':  # GPMOb with arbitrary vectors
         if pm_opt.coordinate_flag != 'cartesian':
             raise ValueError('ArbVec_backtracking algorithm currently '
@@ -614,8 +613,52 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
     # rescale the m that have been saved every Nhistory iterations
     for i in range(m_history.shape[-1]):
         m_history[:, :, i] = m_history[:, :, i] * (mmax_vec.reshape(pm_opt.ndipoles, 3))
-    errors = algorithm_history[algorithm_history != 0]
-    Bn_errors = Bn_history[Bn_history != 0]
+
+    # History arrays are allocated with trailing zeros. Use the objective history
+    # as the authoritative mask so the returned arrays (and num_nonzeros, when
+    # available) stay aligned even if some entries could be exactly 0.
+    hist_mask = algorithm_history != 0
+    errors = algorithm_history[hist_mask]
+    Bn_errors = Bn_history[hist_mask]
+    if "num_nonzeros" in locals():
+        pm_opt.num_nonzeros = num_nonzeros[hist_mask]
+
+    # Provide an explicit iteration axis for plotting/logging.
+    # We define k as the number of greedy iterations completed so far:
+    #   - k = 0 corresponds to the initial state (no placements yet), when available.
+    #   - for loop indices k_loop starting at 0, we map to k = k_loop + 1.
+    #   - for loop indices starting at 1 (MacroMag variants), k is already 1-based.
+    #
+    # This avoids the ambiguity of inferring iteration counts from nhistory in post-processing.
+    if "K" in kwargs and "nhistory" in kwargs and errors.size > 0:
+        K = int(kwargs["K"])
+        nhistory = int(kwargs["nhistory"])
+        record_every = max(1, K // nhistory)
+        pm_opt.record_every = record_every
+
+        is_macromag_loop_1_based = algorithm in [
+            "ArbVec_backtracking_macromag_py",
+            "ArbVec_backtracking_fast_macromag_py",
+        ]
+        has_init_snapshot = algorithm.startswith("ArbVec_backtracking")
+
+        k_hist = []
+        if has_init_snapshot:
+            k_hist.append(0)
+
+        if is_macromag_loop_1_based:
+            # Records at k in [1..K] plus an init snapshot at 0.
+            for k in range(1, K + 1):
+                if (k % record_every) == 0 or k == K:
+                    k_hist.append(k)
+        else:
+            # Loop index k_loop in [0..K-1] -> k = k_loop + 1.
+            for k_loop in range(K):
+                if (k_loop % record_every) == 0 or k_loop == 0 or k_loop == K - 1:
+                    k_hist.append(k_loop + 1)
+
+        # Truncate to the returned number of recorded entries.
+        pm_opt.k_history = np.asarray(k_hist[: errors.size], dtype=int)
 
     # note m = m_proxy for GPMO because this is not using relax-and-split
     pm_opt.m = np.ravel(m)
