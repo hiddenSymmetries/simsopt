@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Post-processing for uncoupled GPMO AlNiCo magnets on MUSE grid.
 Computes magnet-magnet and magnet-coil coupling corrections,
@@ -33,7 +32,11 @@ surface_filename = TEST_DIR / "input.muse"
 coil_path = TEST_DIR / "muse_tf_coils.focus"
 
 npz_path = Path("output_permanent_magnet_GPMO_MUSE") / \
-           "dipoles_final_bt200_Nadj12_nmax20000_ArbVec_backtracking.npz"
+           "dipoles_final_matAlNiCo_bt200_Nadj12_nmax40000_GPMO.npz"
+# Backwards-compatible fallback for older outputs (pre-rename convention):
+if not npz_path.exists():
+    npz_path = Path("output_permanent_magnet_GPMO_MUSE") / \
+               "dipoles_final_bt200_Nadj12_nmax20000_ArbVec_backtracking.npz"
 
 # AlNiCo material parameters
 B_max = 0.72         # Tesla
