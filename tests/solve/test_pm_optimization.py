@@ -145,7 +145,7 @@ class Testing(unittest.TestCase):
             pol_vector_z[:, 2] = 1.0
             pol_vectors = np.transpose(np.array([pol_vector_x, pol_vector_y, pol_vector_z]), [1, 0, 2])
             pm_opt.pol_vectors = pol_vectors
-            errors2, Bn_errors2, m_history2 = GPMO(pm_opt, algorithm='ArbVec', **kwargs)
+            errors2, Bn_errors2, m_history2 = GPMO(pm_opt, algorithm='GPMO_ArbVec', **kwargs)
             m2 = pm_opt.m
             assert np.allclose(m1, m2)
             assert np.allclose(errors1, errors2)
@@ -161,17 +161,17 @@ class Testing(unittest.TestCase):
             assert np.allclose(m_history1, m_history3)
             kwargs['backtracking'] = 500
             kwargs['max_nMagnets'] = 1000
-            errors4, Bn_errors4, m_history4 = GPMO(pm_opt, algorithm='backtracking', **kwargs)
+            errors4, Bn_errors4, m_history4 = GPMO(pm_opt, algorithm='GPMO_Backtracking', **kwargs)
             m4 = pm_opt.m
             assert np.allclose(m1, m4)
             assert np.allclose(errors1, errors4)
             assert np.allclose(Bn_errors1, Bn_errors4)
             assert np.allclose(m_history1, m_history4)
 
-            # Note: ArbVec_backtracking history arrays contain one additional
-            # entry at the beginning for the initialized solution
+            # Note: GPMO history arrays contain one additional entry at the beginning
+            # for the initialized solution.
 
-            errors5, Bn_errors5, m_history5 = GPMO(pm_opt, algorithm='ArbVec_backtracking', **kwargs)
+            errors5, Bn_errors5, m_history5 = GPMO(pm_opt, algorithm='GPMO', **kwargs)
             m5 = pm_opt.m
             assert np.allclose(m1, m5)
             assert np.allclose(errors1, errors5[1:])
@@ -179,18 +179,18 @@ class Testing(unittest.TestCase):
             assert np.allclose(m_history1, m_history5[:, :, 1:])
             with self.assertRaises(ValueError):
                 pm_opt.coordinate_flag = 'cylindrical'
-                errors5, Bn_errors5, m_history5 = GPMO(pm_opt, algorithm='ArbVec_backtracking', **kwargs)
+                errors5, Bn_errors5, m_history5 = GPMO(pm_opt, algorithm='GPMO', **kwargs)
             with self.assertRaises(NotImplementedError):
                 errors5, Bn_errors5, m_history5 = GPMO(pm_opt, algorithm='random_name', **kwargs)
 
             kwargs['m_init'] = pm_opt.m.reshape([-1, 3])
             pm_opt.coordinate_flag = 'cartesian'
-            errors6, Bn_errors6, m_history6 = GPMO(pm_opt, algorithm='ArbVec_backtracking', **kwargs)
+            errors6, Bn_errors6, m_history6 = GPMO(pm_opt, algorithm='GPMO', **kwargs)
             # Note: when K = n_history, m_history[:,:,-1] will be zeros
             assert np.allclose(m_history5[:, :, -2], m_history6[:, :, 0])
             with self.assertRaises(ValueError):
                 kwargs['m_init'] = m_history6[:-1, :, -1]
-                errors6, Bn_errors6, m_history6 = GPMO(pm_opt, algorithm='ArbVec_backtracking', **kwargs)
+                errors6, Bn_errors6, m_history6 = GPMO(pm_opt, algorithm='GPMO', **kwargs)
 
     def _make_pm_opt_tiny(self, TEST_DIR, nphi=2, ntheta=2, dr=0.05, coff=0.05, poff=0.03, vmec_name='input.LandremanPaul2021_QA_lowres'):
         """
@@ -221,9 +221,9 @@ class Testing(unittest.TestCase):
         pm_opt.pol_vectors = np.transpose(np.array([pvx, pvy, pvz]), (1, 0, 2))
         return s, pm_opt
 
-    def test_arbvec_backtracking_py_matches_cpp(self):
+    def test_gpmo_py_matches_cpp(self):
         """
-        Verify the pure-Python ArbVec_backtracking implementation matches the C++/sopp backend.
+        Verify the pure-Python GPMO_py implementation matches the C++/sopp backend.
         """
         TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
         with ScratchDir("."):
@@ -240,24 +240,24 @@ class Testing(unittest.TestCase):
             kwargs['thresh_angle'] = np.pi
 
             # C++ backend
-            errors_cpp, Bn_cpp, m_hist_cpp = GPMO(pm_opt, algorithm='ArbVec_backtracking', **kwargs)
+            errors_cpp, Bn_cpp, m_hist_cpp = GPMO(pm_opt, algorithm='GPMO', **kwargs)
             m_cpp = pm_opt.m.copy()
 
             # Python backend, same init
             pm_opt.m = np.zeros_like(pm_opt.m)
-            errors_py, Bn_py, m_hist_py = GPMO(pm_opt, algorithm='ArbVec_backtracking_py', **kwargs)
+            errors_py, Bn_py, m_hist_py = GPMO(pm_opt, algorithm='GPMO_py', **kwargs)
             m_py = pm_opt.m.copy()
 
-            # Exact match (history for ArbVec_backtracking variants includes initial snapshot)
+            # Exact match (history for these variants includes initial snapshot)
             np.testing.assert_allclose(errors_py, errors_cpp, rtol=1e-12, atol=1e-12)
             np.testing.assert_allclose(Bn_py, Bn_cpp, rtol=1e-12, atol=1e-12)
             np.testing.assert_allclose(m_hist_py, m_hist_cpp, rtol=1e-12, atol=1e-12)
             np.testing.assert_allclose(m_py, m_cpp, rtol=1e-12, atol=1e-12)
 
 
-    def test_arbvec_backtracking_macromag_smoke(self):
+    def test_gpmomr_smoke(self):
         """
-        MacroMag-driven ArbVec_backtracking: massively downsampled test.
+        MacroMag-driven GPMOmr: massively downsampled test.
 
         Verifies:
         - The run completes on a tiny instance.
@@ -286,7 +286,7 @@ class Testing(unittest.TestCase):
             kwargs['verbose'] = False               
             kwargs['mm_refine_every'] = 1 
             kwargs['use_coils'] = False
-            errors_mm, Bn_mm, m_hist_mm = GPMO(pm_opt, algorithm='ArbVec_backtracking_macromag_py', **kwargs)
+            errors_mm, Bn_mm, m_hist_mm = GPMO(pm_opt, algorithm='GPMOmr', **kwargs)
             m_mm = pm_opt.m.copy()
 
             # Basic shape checks
@@ -320,7 +320,7 @@ class Testing(unittest.TestCase):
         """
         Consistency check:
         With cube side = 4 mm and mu_ea=mu_oa=1 (i.e. a isotropic case), MacroMag driven
-        ArbVec+backtracking must match the non-Macromag enhanced ArbVec+backtracking result,
+        GPMOmr must match the non-MacroMag GPMO result,
         provided we set the GPMO 'm_maxima' to the physical full-strength
         moment m_max = M_rem * V (with V = cube_dim^3).
         """
@@ -353,7 +353,7 @@ class Testing(unittest.TestCase):
                 'verbose': False,
             })
 
-            errors_ref, Bn_ref, m_hist_ref = GPMO(pm_opt, algorithm='ArbVec_backtracking', **base_kwargs)
+            errors_ref, Bn_ref, m_hist_ref = GPMO(pm_opt, algorithm='GPMO', **base_kwargs)
             m_ref = pm_opt.m.copy()
 
             pm_opt.m = np.zeros_like(pm_opt.m)
@@ -367,7 +367,7 @@ class Testing(unittest.TestCase):
                 'mm_refine_every': 1,   
                 'use_coils': False, 
             })
-            errors_mm, Bn_mm, m_hist_mm = GPMO(pm_opt, algorithm='ArbVec_backtracking_macromag_py', **mm_kwargs)
+            errors_mm, Bn_mm, m_hist_mm = GPMO(pm_opt, algorithm='GPMOmr', **mm_kwargs)
             m_mm = pm_opt.m.copy()
 
             np.testing.assert_allclose(errors_mm,errors_ref,rtol=1e-12, atol=1e-12)

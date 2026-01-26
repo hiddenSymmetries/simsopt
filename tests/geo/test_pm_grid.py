@@ -152,7 +152,7 @@ class PermanentMagnetGridTesting(unittest.TestCase):
             kwargs = initialize_default_kwargs('GPMO')
             kwargs['verbose'] = False
             with self.assertRaises(ValueError):
-                GPMO(pm_opt, algorithm='backtracking', **kwargs)
+                GPMO(pm_opt, algorithm='GPMO_Backtracking', **kwargs)
 
             with self.assertRaises(ValueError):
                 GPMO(pm_opt, algorithm='multi', **kwargs)
@@ -599,7 +599,7 @@ class PermanentMagnetGridTesting(unittest.TestCase):
         assert isinstance(kwargs, dict)
         kwargs = initialize_default_kwargs(algorithm='GPMO')
         assert isinstance(kwargs, dict)
-        kwargs = initialize_default_kwargs(algorithm='ArbVec_backtracking')
+        kwargs = initialize_default_kwargs(algorithm='GPMOmr')
         kwargs['verbose'] = False
         assert isinstance(kwargs, dict)
         assert kwargs['K'] == 1000

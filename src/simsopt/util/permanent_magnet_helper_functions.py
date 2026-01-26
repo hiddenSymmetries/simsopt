@@ -553,11 +553,11 @@ def initialize_default_kwargs(algorithm='RS'):
         algorithm: String denoting which algorithm is being used
           for permanent magnet optimization. Options are 'RS'
           (relax and split), 'GPMO' (greedy placement), 
-          'backtracking' (GPMO with backtracking), 
+          'GPMO_Backtracking' (GPMO with backtracking),
           'multi' (GPMO, placing multiple magnets each iteration),
-          'ArbVec' (GPMO with arbitrary dipole orientiations),
-          'ArbVec_backtracking' (GPMO with backtracking and 
-          arbitrary dipole orientations).
+          'GPMO_ArbVec' (GPMO with arbitrary dipole orientations),
+          'GPMOmr' (GPMO with macromagnetic refinement),
+          'GPMO_py' (testing-only pure-Python reference implementation).
 
     Returns:
         kwargs: Dictionary of keywords to pass to a permanent magnet 

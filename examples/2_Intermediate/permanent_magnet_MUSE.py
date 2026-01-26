@@ -125,7 +125,7 @@ RUN_PRESETS = {
 }
 
 DEFAULT_PRESET = "muse_bt"
-DEFAULT_ALGORITHM = "ArbVec_backtracking_macromag_py"
+DEFAULT_ALGORITHM = "GPMOmr"
 DEFAULT_OUTDIR = Path("output_permanent_magnet_GPMO_MUSE")
 
 
@@ -148,7 +148,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--algorithm",
         default=DEFAULT_ALGORITHM,
-        help="GPMO algorithm string (e.g. ArbVec_backtracking or ArbVec_backtracking_macromag_py).",
+        help="GPMO algorithm string (e.g. GPMO or GPMOmr).",
     )
     p.add_argument(
         "--outdir",
@@ -194,7 +194,7 @@ save_plots = not bool(args.no_save_plots)
 vmec_flag = bool(args.vmec)
 
 # Set parameters -- in CI we force a tiny configuration.
-if in_github_actions:
+if True:
     preset = {
         "material": "N52",
         "nphi": 2,
@@ -390,18 +390,18 @@ thresh_angle = np.pi - (5 * np.pi / 180)  # The angle between two "adjacent" dip
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
 kwargs['nhistory'] = nHistory
-if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking_macromag_py' or algorithm == 'ArbVec_backtracking':
+if algorithm in ("GPMO_Backtracking", "GPMO", "GPMO_py", "GPMOmr"):
     kwargs['backtracking'] = nBacktracking  # How often to perform the backtrackinig
     kwargs['Nadjacent'] = nAdjacent
     kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)
     kwargs['max_nMagnets'] = max_nMagnets
-    if algorithm == 'ArbVec_backtracking_macromag_py' or algorithm == 'ArbVec_backtracking':
+    if algorithm in ("GPMO", "GPMO_py", "GPMOmr"):
         kwargs['thresh_angle'] = thresh_angle
 
 # Macromag branch (GPMOmr)
 param_suffix = f"_bt{nBacktracking}_Nadj{nAdjacent}_nmax{max_nMagnets}"
 mm_suffix = ""
-if algorithm == "ArbVec_backtracking_macromag_py":
+if algorithm == "GPMOmr":
     kwargs['cube_dim'] = cube_dim
     kwargs['mu_ea'] = float(material["mu_ea"])
     kwargs['mu_oa'] = float(material["mu_oa"])
