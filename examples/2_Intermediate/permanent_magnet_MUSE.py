@@ -194,7 +194,7 @@ save_plots = not bool(args.no_save_plots)
 vmec_flag = bool(args.vmec)
 
 # Set parameters -- in CI we force a tiny configuration.
-if True:
+if in_github_actions:
     preset = {
         "material": "N52",
         "nphi": 2,
