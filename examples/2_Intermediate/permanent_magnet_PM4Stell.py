@@ -50,9 +50,8 @@ else:
 
 nphi = N
 ntheta = N
-algorithm = 'ArbVec_backtracking'
-#algorithm = 'ArbVec_backtracking_macromag_py' 
-#algorithm = 'ArbVec_backtracking_fast_macromag_py' 
+algorithm = 'GPMO'
+#algorithm = 'GPMOmr'
 nAdjacent = 10
 thresh_angle = np.pi  # / np.sqrt(2)
 nHistory = 10
@@ -160,17 +159,17 @@ pm_ncsx = PermanentMagnetGrid.geo_setup_from_famus(
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max
 kwargs['nhistory'] = nHistory
-if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking_macromag_py' or algorithm == 'ArbVec_backtracking' or algorithm == "ArbVec_backtracking_fast_macromag_py":
+if algorithm in ("GPMO_Backtracking", "GPMO", "GPMO_py", "GPMOmr"):
     kwargs['backtracking'] = nBacktracking
     kwargs['Nadjacent'] = nAdjacent
     kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_ncsx.dipole_grid_xyz)
-    if algorithm == 'ArbVec_backtracking' or algorithm == 'ArbVec_backtracking_macromag_py':
+    if algorithm in ("GPMO", "GPMO_py", "GPMOmr"):
         kwargs['thresh_angle'] = thresh_angle
         kwargs['max_nMagnets'] = max_nMagnets
         
         
 # Macromag branch
-if algorithm == "ArbVec_backtracking_macromag_py": 
+if algorithm == "GPMOmr":
     kwargs['cube_dim'] = 0.0296
     kwargs['mu_ea'] = 1.05
     kwargs['mu_oa'] = 1.15
@@ -178,31 +177,6 @@ if algorithm == "ArbVec_backtracking_macromag_py":
     kwargs['use_demag'] = True
     kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
     kwargs['mm_refine_every'] = 50
-    
-if algorithm == "ArbVec_backtracking_fast_macromag_py":
-    kwargs['cube_dim'] = 0.0296
-    kwargs['mu_ea'] = 1.05
-    kwargs['mu_oa'] = 1.15
-
-    # MacroMag toggles
-    kwargs['use_coils'] = True
-    kwargs['use_demag'] = True
-    kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
-
-    # How often to call MacroMag (every K iterations)
-    kwargs['mm_refine_every'] = 50
-
-    # FAST-specific knobs:
-    #   near-field radius and neighbor cap
-    kwargs['demag_radius'] = 4 * kwargs['cube_dim']    # or tune this
-    kwargs['max_demag_neighbors'] = 150                # cap neighbors per tile
-
-    # drop small χN blocks inside that radius
-    kwargs['demag_drop_tol'] = 1e-3                    # 0.0 for “no drop”
-
-    # Krylov solver controls
-    kwargs['krylov_tol'] = 1e-6
-    kwargs['krylov_it'] = 200
     
     
 t1 = time.time()

@@ -67,7 +67,7 @@ if R2_files:
         else:
             algo_label = R2_suffix
 
-        if (algo_label == "ArbVec_backtracking"):
+        if algo_label == "GPMO":
             plt.semilogy(iterations, R2_plot, label=fr'$f_B$ (GPMO (no coupling))')
             #plt.semilogy(iterations, Bn_plot, label=fr'$<|Bn|>$ (GPMO (no coupling))')
         else:
@@ -144,7 +144,8 @@ if len(npz_files) >= 2:
             (name1, arr1), (name2, arr2) = full_data.items()
 
             def is_coupled(name):
-                return "macromag" in name.lower()
+                name_l = name.lower()
+                return ("macromag" in name_l) or ("gpmomr" in name_l)
 
             # Identify uncoupled (classical GPMO ArbVec) vs coupled (MacroMag GPMO)
             if is_coupled(name1) == is_coupled(name2):
