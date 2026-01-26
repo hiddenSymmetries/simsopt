@@ -5,9 +5,6 @@ from .macromag import MacroMag, Tiles, assemble_blocks_subset
 
 import simsoptpp as sopp
 from .._core.types import RealArray
-from scipy.spatial import cKDTree
-
-from typing import Optional
 
 
 __all__ = ['relax_and_split', 'GPMO']
@@ -297,17 +294,19 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
                 the simple implementation of GPMO,
             multi:
                 GPMO, but placing multiple magnets per iteration,
-            backtracking:
-                backtrack every few hundred iterations to improve the
-                solution,
-            ArbVec:
-                the simple implementation of GPMO, but with arbitrary
-                oriented polarization vectors,
-            ArbVec_backtracking:
-                same as above but w/ backtracking.
+            GPMO_Backtracking:
+                basis-vector backtracking variant,
+            GPMO_ArbVec:
+                GPMO with arbitrary polarization vectors (no backtracking),
+            GPMO:
+                ArbVec GPMO with optional backtracking (set `backtracking=0` to disable),
+            GPMO_py:
+                pure-Python reference implementation of GPMO (testing-only),
+            GPMOmr:
+                GPMO with macromagnetic refinement (MacroMag); backtracking controlled by `backtracking`.
 
             Easiest algorithm to use is 'baseline' but most effective 
-            algorithm is 'ArbVec_backtracking'.
+            algorithm is 'GPMO' / 'GPMOmr'.
         kwargs:
             Keyword arguments for the GPMO algorithm and its variants.
             The following variables can be passed:
@@ -319,29 +318,29 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             Nadjacent: integer
                 Number of neighbor cells to consider 'adjacent' to one
                 another, for the purposes of placing multiple magnets or
-                doing backtracking. Not to be used with 'baseline' and 'ArbVec'.
+                doing backtracking. Not to be used with 'baseline' and 'GPMO_ArbVec'.
             dipole_grid_xyz: 2D numpy array, shape (ndipoles, 3).
                 XYZ coordinates of the permanent magnet locations. Needed for
                 figuring out which permanent magnets are adjacent to one another.
-                Not a keyword argument for 'baseline' and 'ArbVec'.
+                Not a keyword argument for 'baseline' and 'GPMO_ArbVec'.
             max_nMagnets: integer.
                 Maximum number of magnets to place before algorithm quits. Only
-                a keyword argument for 'backtracking' and 'ArbVec_backtracking'
-                since without any backtracking, this is the same parameter as 'K'.
+                a keyword argument for the backtracking-capable algorithms:
+                'GPMO_Backtracking', 'GPMO', 'GPMOmr', and 'GPMO_py'.
             backtracking: integer.
                 Every 'backtracking' iterations, a backtracking is performed to
                 remove suboptimal magnets. Only a keyword argument for
-                'backtracking' and 'ArbVec_backtracking' algorithms.
+                'GPMO_Backtracking', 'GPMO', 'GPMOmr', and 'GPMO_py'.
             thresh_angle: float.
                 If the angle between adjacent dipole moments > thresh_angle,
                 these dipoles are considered suboptimal and liable to removed
                 during a backtracking step. Only a keyword argument for
-                'ArbVec_backtracking' algorithm.
+                'GPMO', 'GPMOmr', and 'GPMO_py'.
             single_direction: int, must be = 0, 1, or 2.
                 Specify to only place magnets with orientations in a single
                 direction, e.g. only magnets pointed in the +- x direction.
-                Keyword argument only for 'baseline', 'multi', and 'backtracking'
-                since the 'ArbVec...' algorithms have local coordinate systems
+                Keyword argument only for 'baseline', 'multi', and 'GPMO_Backtracking'
+                since the ArbVec-based algorithms have local coordinate systems
                 and therefore can specify the same constraint and much more
                 via the 'pol_vectors' argument.
             reg_l2: float.
@@ -379,7 +378,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
     mmax_vec = contig(np.array([mmax, mmax, mmax]).T.reshape(pm_opt.ndipoles * 3))
     A_obj = pm_opt.A_obj * mmax_vec
 
-    if (algorithm != 'baseline' and algorithm != 'mutual_coherence' and algorithm != 'ArbVec') and 'dipole_grid_xyz' not in kwargs:
+    if (algorithm != 'baseline' and algorithm != 'mutual_coherence' and algorithm != 'GPMO_ArbVec') and 'dipole_grid_xyz' not in kwargs:
         raise ValueError('GPMO variants require dipole_grid_xyz to be defined.')
 
     # Set the L2 regularization if it is included in the kwargs
@@ -387,7 +386,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
 
     # check that algorithm can generate K binary dipoles if no backtracking done
     if "K" in kwargs:
-        if (algorithm not in ['backtracking', 'ArbVec_backtracking']) and kwargs["K"] > pm_opt.ndipoles:
+        if (algorithm not in ['GPMO_Backtracking', 'GPMO', 'GPMO_py', 'GPMOmr']) and kwargs["K"] > pm_opt.ndipoles:
             warnings.warn(
                 'Parameter K to GPMO algorithm is greater than the total number of dipole locations '
                 ' so the algorithm will set K = the total number and proceed.')
@@ -409,7 +408,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             normal_norms=Nnorms,
             **kwargs
         )
-    elif algorithm == 'ArbVec':  # GPMO with arbitrary polarization vectors
+    elif algorithm == 'GPMO_ArbVec':  # GPMO with arbitrary polarization vectors
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_ArbVec(
             A_obj=contig(A_obj.T),
             b_obj=contig(pm_opt.b_obj),
@@ -418,7 +417,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             pol_vectors=contig(pm_opt.pol_vectors),
             **kwargs
         )
-    elif algorithm == 'backtracking':  # GPMOb
+    elif algorithm == 'GPMO_Backtracking':  # GPMO with backtracking (basis-vector variant)
         algorithm_history, Bn_history, m_history, num_nonzeros, m = sopp.GPMO_backtracking(
             A_obj=contig(A_obj.T),
             b_obj=contig(pm_opt.b_obj),
@@ -426,9 +425,9 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             normal_norms=Nnorms,
             **kwargs
         )
-    elif algorithm == 'ArbVec_backtracking':  # GPMOb with arbitrary vectors
+    elif algorithm == 'GPMO':  # ArbVec GPMO with optional backtracking
         if pm_opt.coordinate_flag != 'cartesian':
-            raise ValueError('ArbVec_backtracking algorithm currently '
+            raise ValueError('GPMO algorithm currently '
                              'only supports dipole grids with \n'
                              'moment vectors in the Cartesian basis.')
         nGridPoints = int(A_obj.shape[1]/3)
@@ -455,9 +454,9 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
         )
         
 
-    elif algorithm == 'ArbVec_backtracking_py':  # Pure-Python mirror of GPMOb (ArbVec)
+    elif algorithm == 'GPMO_py':  # Pure-Python reference implementation (testing-only)
         if pm_opt.coordinate_flag != 'cartesian':
-            raise ValueError('ArbVec_backtracking algorithm currently '
+            raise ValueError('GPMO_py algorithm currently '
                              'only supports dipole grids with \n'
                              'moment vectors in the Cartesian basis.')
         nGridPoints = int(A_obj.shape[1]/3)
@@ -474,7 +473,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             kwargs.pop("m_init")
         else:
             kwargs["x_init"] = contig(np.zeros((nGridPoints, 3)))
-        algorithm_history, Bn_history, m_history, num_nonzeros, m = GPMO_ArbVec_backtracking_py(
+        algorithm_history, Bn_history, m_history, num_nonzeros, m = GPMO_py(
             A_obj=contig(A_obj.T),                 # Python port expects (3N, ngrid)
             b_obj=contig(pm_opt.b_obj),
             mmax=np.sqrt(reg_l2) * mmax_vec,
@@ -483,9 +482,9 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             **kwargs
         )
 
-    elif algorithm == 'ArbVec_backtracking_macromag_py':  # MacroMag-driven ArbVec backtracking
+    elif algorithm == 'GPMOmr':  # GPMO with macromagnetic refinement (MacroMag)
         if pm_opt.coordinate_flag != 'cartesian':
-            raise ValueError('ArbVec_backtracking algorithm currently '
+            raise ValueError('GPMOmr algorithm currently '
                              'only supports dipole grids with \n'
                              'moment vectors in the Cartesian basis.')
         nGridPoints = int(A_obj.shape[1]/3)
@@ -513,7 +512,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
         mm_refine_every = kwargs.pop('mm_refine_every', 20)
         current_scale = kwargs.pop('current_scale', 1)
             
-        algorithm_history, Bn_history, m_history, num_nonzeros, m = GPMO_ArbVec_backtracking_macromag_py(
+        algorithm_history, Bn_history, m_history, num_nonzeros, m = GPMOmr(
             A_obj=contig(A_obj.T),                 # MacroMag path also expects (3N, ngrid)
             b_obj=contig(pm_opt.b_obj),
             mmax=mmax_vec,
@@ -529,71 +528,6 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             current_scale=current_scale, 
             **kwargs
         )
-        
-        
-    elif algorithm == 'ArbVec_backtracking_fast_macromag_py':
-        if pm_opt.coordinate_flag != 'cartesian':
-            raise ValueError('ArbVec_backtracking_fast_macromag_py currently '
-                             'only supports dipole grids with moment vectors in the Cartesian basis.')
-        nGridPoints = int(A_obj.shape[1] / 3)
-        if "m_init" in kwargs.keys():
-            if kwargs["m_init"].shape[0] != nGridPoints:
-                raise ValueError('Initialization vector `m_init` must have '
-                                 'as many rows as there are dipoles in the grid')
-            elif kwargs["m_init"].shape[1] != 3:
-                raise ValueError('Initialization vector `m_init` must have '
-                                 'three columns')
-            kwargs["x_init"] = contig(kwargs["m_init"]
-                                      / (mmax_vec.reshape(pm_opt.ndipoles, 3)))
-            kwargs.pop("m_init")
-        else:
-            kwargs["x_init"] = contig(np.zeros((nGridPoints, 3)))
-
-        cube_dim = kwargs.pop('cube_dim', 0.004)
-        mu_ea = kwargs.pop('mu_ea', 1.0)
-        mu_oa = kwargs.pop('mu_oa', 1.0)
-        use_coils = kwargs.pop('use_coils', False)
-        use_demag = kwargs.pop('use_demag', True)
-        coil_path = kwargs.pop('coil_path', None)
-        mm_refine_every = kwargs.pop('mm_refine_every', 20)
-        current_scale = kwargs.pop('current_scale', 1.0)
-        demag_radius = kwargs.pop('demag_radius', None)
-        max_demag_neighbors = kwargs.pop('max_demag_neighbors', None)
-        demag_drop_tol = kwargs.pop('demag_drop_tol', 0.0)
-        krylov_tol = kwargs.pop('krylov_tol', 1e-6)
-        krylov_it = kwargs.pop('krylov_it', 200)
-
-        algorithm_history, Bn_history, m_history, num_nonzeros, m = GPMO_ArbVec_backtracking_fast_macromag_py(
-                A_obj=contig(A_obj.T),
-                b_obj=contig(pm_opt.b_obj),
-                mmax=mmax_vec,
-                normal_norms=Nnorms,
-                pol_vectors=contig(pm_opt.pol_vectors),
-                K=kwargs["K"],
-                verbose=kwargs.get("verbose", False),
-                nhistory=kwargs["nhistory"],
-                backtracking=kwargs.get("backtracking", 0),
-                dipole_grid_xyz=kwargs["dipole_grid_xyz"],
-                Nadjacent=kwargs["Nadjacent"],
-                thresh_angle=kwargs.get("thresh_angle", np.pi),
-                max_nMagnets=kwargs.get("max_nMagnets", pm_opt.ndipoles),
-                x_init=kwargs["x_init"],
-                cube_dim=cube_dim,
-                mu_ea=mu_ea,
-                mu_oa=mu_oa,
-                use_coils=use_coils,
-                use_demag=use_demag,
-                coil_path=coil_path,
-                mm_refine_every=mm_refine_every,
-                current_scale=current_scale,
-                demag_radius=demag_radius,
-                max_demag_neighbors=max_demag_neighbors,
-                demag_drop_tol=demag_drop_tol,
-                krylov_tol=krylov_tol,
-                krylov_it=krylov_it,
-            )
-
-        
     elif algorithm == 'multi':  # GPMOm
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_multi(
             A_obj=contig(A_obj.T),
@@ -636,11 +570,8 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
         record_every = max(1, K // nhistory)
         pm_opt.record_every = record_every
 
-        is_macromag_loop_1_based = algorithm in [
-            "ArbVec_backtracking_macromag_py",
-            "ArbVec_backtracking_fast_macromag_py",
-        ]
-        has_init_snapshot = algorithm.startswith("ArbVec_backtracking")
+        is_macromag_loop_1_based = algorithm == "GPMOmr"
+        has_init_snapshot = algorithm in ("GPMO", "GPMO_py", "GPMOmr")
 
         k_hist = []
         if has_init_snapshot:
@@ -775,7 +706,7 @@ def _initialize_GPMO_ArbVec_py(x_init, pol_vectors, x, x_vec, x_sign,
             .format(n_OutOfTol, n_initialized)
         )
 
-def GPMO_ArbVec_backtracking_py(
+def GPMO_py(
     A_obj: np.ndarray,
     b_obj: np.ndarray,
     mmax: np.ndarray,
@@ -791,10 +722,13 @@ def GPMO_ArbVec_backtracking_py(
     max_nMagnets: int,
     x_init: np.ndarray):
     """
-    Python implementation of the C++ version of the following
-    std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(...)
+    Testing-only pure-Python reference implementation of the ArbVec+backtracking GPMO algorithm.
+
+    This routine exists to validate consistency against the C++/simsoptpp backend
+    (`sopp.GPMO_ArbVec_backtracking`). It is not intended for production-scale runs.
+
     Returns:
-      (objective_history, Bn_history, m_history, num_nonzeros, x)
+        (objective_history, Bn_history, m_history, num_nonzeros, x)
     """
     # Shapes
     # A_obj was passed as (3N, ngrid) in Python caller; reshape to (N,3,ngrid)
@@ -977,7 +911,7 @@ def GPMO_ArbVec_backtracking_py(
     return objective_history, Bn_history, m_history, num_nonzeros, x
 
 
-def GPMO_ArbVec_backtracking_macromag_py(
+def GPMOmr(
     A_obj: np.ndarray,  # shape (3N, ngrid) == (A * mmax_vec)
     b_obj: np.ndarray,  # (ngrid,)
     mmax: np.ndarray,   # (3N,) scaling (used for normalization in objective eval)
@@ -1002,8 +936,10 @@ def GPMO_ArbVec_backtracking_macromag_py(
     current_scale: float = 1.0,
 ):
     """
-    Hybrid ArbVec GPMO + MacroMag:
-    Returns (objective_history, Bn_history, m_history, num_nonzeros, x)
+    GPMOmr: GPMO with macromagnetic refinement (MacroMag).
+
+    Returns:
+        (objective_history, Bn_history, m_history, num_nonzeros, x)
 
     Args:
         A_obj: (3N, ngrid)
@@ -1508,459 +1444,3 @@ def GPMO_ArbVec_backtracking_macromag_py(
     print(f"Time taken for GPMO: {t_gpmo} seconds")
 
     return objective_history, Bn_history, m_history, num_nonzeros, x_macro_flat.reshape(N, 3)
-
-
-def _neighbors_from_radius(
-    xyz: np.ndarray,
-    radius: float,
-    max_neighbors: Optional[int] = None,
-) -> np.ndarray:
-    """
-    Build a neighbor list for near-field demag based on a geometric radius.
-
-    For each point i, returns indices of all j with |x_i - x_j| <= radius.
-    Result is a (n, k_max) int array with -1 padding.
-
-    This is where the near/far split lives: increase `radius` (or max_neighbors)
-    to reduce demag truncation error; decrease them to speed things up.
-
-    Parameters
-    ----------
-    xyz : (n,3) array
-        Tile centers.
-    radius : float
-        Near-field cutoff distance.
-    max_neighbors : int or None
-        Optional cap on the number of neighbors stored per tile. If None,
-        use the maximum over all i.
-
-    Returns
-    -------
-    neighbors : (n, k_max) int array
-        neighbors[i, :] are local indices (0..n-1) or -1 for padding.
-    """
-    pts = np.asarray(xyz, dtype=np.float64, order="C")
-    n = pts.shape[0]
-
-    tree = cKDTree(pts)
-    # Each entry is a Python list of indices (including self)
-    lists = tree.query_ball_tree(tree, r=radius)
-
-    if len(lists) != n:
-        raise RuntimeError("cKDTree query_ball_tree returned inconsistent length.")
-
-    if max_neighbors is None:
-        k_max = max(len(lst) for lst in lists)
-    else:
-        k_max = max_neighbors
-
-    neighbors = -np.ones((n, k_max), dtype=np.int64)
-    for i, lst in enumerate(lists):
-        if max_neighbors is not None:
-            lst = lst[:max_neighbors]
-        if not lst:
-            continue
-        k = min(len(lst), k_max)
-        neighbors[i, :k] = np.asarray(lst[:k], dtype=np.int64)
-
-    return neighbors
-
-
-def GPMO_ArbVec_backtracking_fast_macromag_py(
-    A_obj: np.ndarray,                  # (3N, ngrid)
-    b_obj: np.ndarray,                  # (ngrid,)
-    mmax: np.ndarray,                   # (3N,)
-    normal_norms: np.ndarray,           # (ngrid,)
-    pol_vectors: np.ndarray,            # (N, nPolVecs, 3)
-    K: int,
-    verbose: bool,
-    nhistory: int,
-    backtracking: int,
-    dipole_grid_xyz: np.ndarray,        # (N,3) for adjacency / backtracking
-    Nadjacent: int,
-    thresh_angle: float,
-    max_nMagnets: int,
-    x_init: np.ndarray,
-    cube_dim: float = 0.004,
-    mu_ea: float = 1.0,
-    mu_oa: float = 1.0,
-    use_coils: bool = False,
-    use_demag: bool = True,             # kept for symmetry; if False we effectively set drop_tol=np.inf
-    coil_path:  Optional[str] = None,
-    mm_refine_every: int = 20,
-    current_scale: float = 1.0,
-    demag_radius:  Optional[float] = None,  # near-field cutoff in meters
-    max_demag_neighbors:  Optional[int] = None,
-    demag_drop_tol: float = 0.0,        # Frobenius norm threshold on χ_i N_ij blocks
-    krylov_tol: float = 1e-6,
-    krylov_it: int = 200,
-):
-    """
-    Fast ArbVec backtracking GPMO with MacroMag demag evaluated only on a
-    near-field neighborhood and assembled into a sparse system.
-
-    Compared to GPMO_ArbVec_backtracking_macromag_py, this variant:
-
-      * Never builds a dense (3nx3n) demag matrix.
-      * Uses MacroMag.direct_solve_neighbor_sparse with a neighbor list
-        constructed from a geometric radius (via cKDTree).
-      * Lets you tune the near/far split via `demag_radius` and `demag_drop_tol`.
-
-    The greedy *selection* step remains exactly the same ArbVec GPMO logic
-    as in the pure-C++ and pure-Python versions; MacroMag is only used in
-    the “refinement” steps every `mm_refine_every` iterations.
-
-    Returns:
-        (objective_history, Bn_history, m_history, num_nonzeros, x_macro)
-    """
-    import time
-
-    if use_coils and coil_path is None:
-        raise ValueError("use_coils=True but coil_path is None.")
-
-    # Basic shapes, same as other ArbVec variants
-    A_obj = np.asarray(A_obj, dtype=np.float64, order="C")
-    b_obj = np.asarray(b_obj, dtype=np.float64, order="C")
-    normal_norms = np.asarray(normal_norms, dtype=np.float64, order="C")
-    pol_vectors = np.asarray(pol_vectors, dtype=np.float64, order="C")
-    x_init = np.asarray(x_init, dtype=np.float64, order="C")
-    dipole_grid_xyz = np.asarray(dipole_grid_xyz, dtype=np.float64, order="C")
-    mmax = np.asarray(mmax, dtype=np.float64, order="C")
-
-    ngrid = A_obj.shape[1]
-    N = int(A_obj.shape[0] // 3)
-    assert 3 * N == A_obj.shape[0], "A_obj first dim must be 3*N"
-    A_obj_3x = A_obj.reshape(N, 3, ngrid)
-
-    nPolVecs = pol_vectors.shape[1]
-    NNp = N * nPolVecs
-    cos_thresh_angle = float(np.cos(thresh_angle))
-    vol = float(cube_dim**3)
-
-    # Precompute Gram blocks for fast ArbVec scoring
-    C_gram = np.einsum("jkg,jlg->jkl", A_obj_3x, A_obj_3x, optimize=True)
-
-    # Greedy solution containers
-    x = np.zeros((N, 3), dtype=np.float64)       # ArbVec decisions (unit vectors or 0)
-    x_vec = np.zeros(N, dtype=np.int32)          # chosen pol index
-    x_sign = np.zeros(N, dtype=np.int8)          # chosen sign (+1/-1/0)
-    Gamma_complement = np.ones((N,), dtype=bool) # True = not yet placed
-    gamma_inds: list[int] = []                   # list of placed global indices
-
-    # Histories
-    print_iter_ref = [0]
-    m_history = np.zeros((N, 3, nhistory + 2), dtype=np.float64)
-    objective_history = np.zeros((nhistory + 2,), dtype=np.float64)
-    Bn_history = np.zeros((nhistory + 2,), dtype=np.float64)
-    num_nonzeros = np.zeros((nhistory + 2,), dtype=np.int32)
-    num_nonzero_ref = [0]
-
-    if verbose:
-        print("Fast ArbVec backtracking GPMO with sparse MacroMag near-field demag")
-        print("Iteration ... |Am - b|^2 ... |Bn|")
-
-    # Geometry-based adjacency for backtracking
-    t1 = time.time()
-    Connect = None
-    if backtracking != 0:
-        Connect = _connectivity_matrix_py(dipole_grid_xyz, Nadjacent)
-    t2 = time.time()
-    if verbose:
-        print(f"Time taken for backtracking connectivity matrix: {t2 - t1:.2f} s")
-
-    # MacroMag geometry for all potential tiles
-    MM_CUBOID_FULL_DIMS = (cube_dim, cube_dim, cube_dim)
-    tiles_all = Tiles(N)
-    dims = np.array(MM_CUBOID_FULL_DIMS, dtype=np.float64)
-    for j in range(N):
-        tiles_all.offset = (dipole_grid_xyz[j], j)
-        tiles_all.size = (dims, j)
-        tiles_all.rot = ((0.0, 0.0, 0.0), j)
-        tiles_all.M_rem = (0.0, j)
-        tiles_all.mu_r_ea = (mu_ea, j)
-        tiles_all.mu_r_oa = (mu_oa, j)
-        tiles_all.u_ea = ((0.0, 0.0, 1.0), j)
-    mac_all = MacroMag(tiles_all)
-
-    # Optional coils
-    if use_coils and coil_path is not None:
-        mac_all.load_coils(coil_path, current_scale=current_scale)
-    Hcoil_all = np.zeros((N, 3))
-    if use_coils:
-        Hcoil_all = mac_all.coil_field_at(tiles_all.offset).astype(np.float64)
-
-    # Determine demag radius if not provided
-    if demag_radius is None:
-        demag_radius = 4.0 * cube_dim
-
-    # Helper: run MacroMag with sparse near-field demag on the *active* set
-    def _solve_subset_fast(active_idx: np.ndarray, ea_list: np.ndarray):
-        """
-        Solve MacroMag on the subset of indices `active_idx` using
-        near-field sparse demag, and return (R2, x_macro_flat, residual).
-        """
-        if active_idx.size == 0:
-            res0 = -b_obj
-            R2_ = 0.5 * float(np.dot(res0, res0))
-            x_macro_flat_ = np.zeros(3 * N, dtype=np.float64)
-            return R2_, x_macro_flat_, res0
-
-        active_idx = np.asarray(active_idx, dtype=np.int64)
-        n_active = active_idx.size
-
-        # Subset tiles
-        sub = Tiles(n_active)
-        sub.offset = tiles_all.offset[active_idx]
-        sub.size = np.tile(dims, (n_active, 1))
-        sub.rot = np.zeros((n_active, 3))
-        sub.mu_r_ea = np.full(n_active, mu_ea)
-        sub.mu_r_oa = np.full(n_active, mu_oa)
-        sub.M_rem = np.full(n_active, M_rem_value)
-
-        # easy axis from ArbVec decision (ea_list)
-        ea_norm = np.linalg.norm(ea_list, axis=1, keepdims=True)
-        ea_normed = ea_list / (ea_norm + 1e-30)
-        sub._u_ea = ea_normed  # avoid setter overhead
-
-        mac = MacroMag(sub, bs_interp=mac_all.bs_interp)
-
-        # Build neighbor list in *local* indexing (0..n_active-1)
-        neighbors_local = _neighbors_from_radius(
-            sub.offset,
-            radius=demag_radius,
-            max_neighbors=max_demag_neighbors,
-        )
-
-        # External field for subset
-        H_subset = Hcoil_all[active_idx] if use_coils else None
-
-        # If demag is disabled, just drop all demag blocks
-        local_drop_tol = demag_drop_tol
-        if not use_demag:
-            local_drop_tol = np.inf
-
-        mac, A_sparse = mac.direct_solve_neighbor_sparse(
-            neighbors=neighbors_local,
-            use_coils=use_coils,
-            krylov_tol=krylov_tol,
-            krylov_it=krylov_it,
-            print_progress=verbose,
-            x0=None,
-            H_a_override=H_subset,
-            drop_tol=local_drop_tol,
-        )
-
-        # Map back to full grid (zero elsewhere)
-        m_sub = mac.tiles.M * vol
-        m_full = np.zeros((N, 3), dtype=np.float64)
-        m_full[active_idx, :] = m_sub
-        m_full_vec = m_full.reshape(3 * N)
-
-        x_macro_flat = m_full_vec / mmax
-        res = A_obj.T @ x_macro_flat - b_obj
-        R2 = 0.5 * float(np.dot(res, res))
-        return R2, x_macro_flat, res
-
-    # Initial snapshot: no magnets
-    R2_0, x_macro_flat_0, res0 = _solve_subset_fast(
-        np.array([], dtype=np.int64),
-        np.zeros((0, 3), dtype=np.float64),
-    )
-    last_x_macro_flat = x_macro_flat_0.copy()
-
-    idx0 = print_iter_ref[0]
-    if idx0 < m_history.shape[2]:
-        m_history[:, :, idx0] = x_macro_flat_0.reshape(N, 3)
-        objective_history[idx0] = R2_0
-        Bn_history[idx0] = float(
-            np.sum(np.abs(res0) * np.sqrt(normal_norms))
-        ) / np.sqrt(float(ngrid))
-        num_nonzeros[idx0] = num_nonzero_ref[0]
-        print_iter_ref[0] += 1
-    if verbose:
-        print(f"0 ... {R2_0:.2e} ... 0.00e+00")
-
-    # Residual used for classical ArbVec scoring
-    Aij_mj_sum = A_obj.T @ x_macro_flat_0 - b_obj
-    R2s = np.full((2 * NNp,), 1e50, dtype=np.float64)
-
-    # Initialize from x_init
-    _initialize_GPMO_ArbVec_py(
-        x_init, pol_vectors, x, x_vec, x_sign,
-        A_obj_3x, Aij_mj_sum, R2s, Gamma_complement, num_nonzero_ref
-    )
-
-    t_start_gpmo = time.time()
-
-    for k in range(1, K + 1):
-        # Stop if magnet cap reached
-        if (num_nonzero_ref[0] >= N) or (num_nonzero_ref[0] >= max_nMagnets):
-            active = np.array(gamma_inds, dtype=np.int64)
-            ea_list = x[active] if active.size else np.zeros((0, 3))
-            R2_snap, x_macro_flat, res = _solve_subset_fast(active, ea_list)
-            last_x_macro_flat[:] = x_macro_flat
-
-            idx = print_iter_ref[0]
-            if idx < m_history.shape[2]:
-                m_history[:, :, idx] = x_macro_flat.reshape(N, 3)
-                objective_history[idx] = R2_snap
-                Bn_history[idx] = float(
-                    np.sum(np.abs(res) * np.sqrt(normal_norms))
-                ) / np.sqrt(float(ngrid))
-                num_nonzeros[idx] = num_nonzero_ref[0]
-                print_iter_ref[0] += 1
-
-            if verbose:
-                print(f"{k} ... {R2_snap:.2e} ... 0.00e+00")
-                print(
-                    f"Iteration = {k}, Number of nonzero dipoles = {num_nonzero_ref[0]}"
-                )
-            if num_nonzero_ref[0] >= N:
-                print("Stopping: all dipoles in grid are populated")
-            else:
-                print("Stopping: maximum number of nonzero magnets reached")
-            break
-
-        # Classical ArbVec greedy selection (vectorized)
-        NNp = N * nPolVecs
-        R2s[:] = 1e50
-        active_mask = Gamma_complement
-        active_indices = np.where(active_mask)[0]
-
-        if len(active_indices) > 0:
-            A_active = A_obj_3x[active_indices]                # (n_active, 3, ngrid)
-            pol_active = pol_vectors[active_indices]           # (n_active, nPolVecs, 3)
-            mmax_active = mmax[active_indices]                 # (n_active,)
-            C_active = C_gram[active_indices]                  # (n_active, 3, 3)
-
-            r = Aij_mj_sum
-            r2 = float(r @ r)
-
-            d = np.einsum("jkg,g->jk", A_active, r, optimize=True)
-            s = np.einsum("jpk,jk->jp", pol_active, d, optimize=True)
-            q = np.einsum("jpk,jkl,jpl->jp", pol_active, C_active, pol_active, optimize=True)
-
-            R2_plus = r2 + 2.0 * s + q + (mmax_active**2)[:, None]
-            R2_minus = r2 - 2.0 * s + q + (mmax_active**2)[:, None]
-
-            base = (active_indices * nPolVecs)[:, None] + np.arange(nPolVecs)[None, :]
-            pos_indices = base.ravel()
-            neg_indices = (NNp + base).ravel()
-
-            R2s[pos_indices] = R2_plus.ravel()
-            R2s[neg_indices] = R2_minus.ravel()
-
-        # Best (site, pol, sign)
-        skj = int(np.argmin(R2s))
-        sign_fac = -1.0 if skj >= NNp else +1.0
-        if skj >= NNp:
-            skj -= NNp
-        skjj = int(skj % nPolVecs)
-        j_best = int(skj // nPolVecs)
-
-        pv = pol_vectors[j_best, skjj, :]
-        x[j_best, :] = sign_fac * pv / (np.linalg.norm(pv) + 1e-30)
-        x_vec[j_best] = skjj
-        x_sign[j_best] = int(np.sign(sign_fac))
-        Gamma_complement[j_best] = False
-        gamma_inds.append(j_best)
-        num_nonzero_ref[0] += 1
-
-        Aij_mj_sum += sign_fac * (pv[:, None] * A_obj_3x[j_best]).sum(axis=0)
-
-        base = j_best * nPolVecs
-        R2s[base:base + nPolVecs] = 1e50
-        R2s[NNp + base:NNp + base + nPolVecs] = 1e50
-
-        # Backtracking step
-        if backtracking != 0 and Connect is not None:
-            if (k % backtracking) == 0:
-                removed = 0
-                for j in range(N):
-                    if Gamma_complement[j]:
-                        continue
-                    min_cos = 2.0
-                    cj_min = -1
-                    for jj in range(Connect.shape[1]):
-                        cj = int(Connect[j, jj])
-                        if Gamma_complement[cj]:
-                            continue
-                        cos_angle = float(np.dot(x[j, :], x[cj, :]))
-                        if cos_angle < min_cos:
-                            min_cos = cos_angle
-                            cj_min = cj
-                    if cj_min != -1 and (min_cos <= cos_thresh_angle):
-                        pv_j = pol_vectors[j, x_vec[j], :]
-                        pv_c = pol_vectors[cj_min, x_vec[cj_min], :]
-                        Aj = A_obj_3x[j]
-                        Ac = A_obj_3x[cj_min]
-                        Aij_mj_sum -= (
-                            float(x_sign[j]) * (pv_j[:, None] * Aj).sum(axis=0) +
-                            float(x_sign[cj_min]) * (pv_c[:, None] * Ac).sum(axis=0)
-                        )
-                        x[j, :] = 0.0; x[cj_min, :] = 0.0
-                        x_vec[j] = 0;  x_vec[cj_min] = 0
-                        x_sign[j] = 0; x_sign[cj_min] = 0
-                        Gamma_complement[j] = True
-                        Gamma_complement[cj_min] = True
-                        gamma_inds.remove(j)
-                        gamma_inds.remove(cj_min)
-                        num_nonzero_ref[0] -= 2
-                        removed += 1
-                if verbose:
-                    print(f"Backtracking: {removed} pairs removed")
-
-        # MacroMag refinement every mm_refine_every iterations
-        if (mm_refine_every > 0) and (k % mm_refine_every == 0):
-            active = np.array(gamma_inds, dtype=np.int64)
-            ea_list = x[active] if active.size else np.zeros((0, 3))
-            t1m = time.time()
-            R2_snap, x_macro_flat, res = _solve_subset_fast(active, ea_list)
-            t2m = time.time()
-            if verbose:
-                print(f"Iteration {k}: MacroMag near-field solve in {t2m - t1m:.2f} s")
-
-            last_x_macro_flat[:] = x_macro_flat
-            Aij_mj_sum = A_obj.T @ x_macro_flat - b_obj  # keep classical residual in sync
-
-            # Record progress (only if buffer not full)
-            idx = print_iter_ref[0]
-            recorded = False
-            if idx < m_history.shape[2]:
-                m_history[:, :, idx] = x_macro_flat.reshape(N, 3)
-                objective_history[idx] = R2_snap
-                Bn_history[idx] = float(
-                    np.sum(np.abs(res) * np.sqrt(normal_norms))
-                ) / np.sqrt(float(ngrid))
-                num_nonzeros[idx] = num_nonzero_ref[0]
-                print_iter_ref[0] += 1
-                recorded = True
-
-            if verbose:
-                print(f"{k} ... {R2_snap:.2e} ... 0.00e+00")
-                print(
-                    f"Iteration = {k}, Number of nonzero dipoles = {num_nonzero_ref[0]}"
-                )
-
-            # Stagnation check only if we actually recorded this snapshot
-            if recorded and print_iter_ref[0] > 3:
-                a = num_nonzeros[print_iter_ref[0] - 1]
-                b = num_nonzeros[print_iter_ref[0] - 2]
-                c = num_nonzeros[print_iter_ref[0] - 3]
-                if a == b == c:
-                    print(
-                        "Stopping: number of nonzero dipoles unchanged over three reporting cycles"
-                    )
-                    break
-
-    t_gpmo = time.time() - t_start_gpmo
-    if verbose:
-        print(f"Time taken for fast GPMO: {t_gpmo:.2f} s")
-
-    return (
-        objective_history,
-        Bn_history,
-        m_history,
-        num_nonzeros,
-        last_x_macro_flat.reshape(N, 3),
-    )
