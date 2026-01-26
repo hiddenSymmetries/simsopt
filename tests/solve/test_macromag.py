@@ -1,34 +1,42 @@
 import unittest
+import json
 import numpy as np
 from pathlib import Path
 import logging
+from typing import Optional
 
-from simsopt.solve.macromag import MacroMag, muse2tiles, Tiles
-from simsopt.solve.permanent_magnet_optimization import _neighbors_from_radius
+from simsopt.solve.macromag import MacroMag, muse2tiles, Tiles, assemble_blocks_subset
 
 logger = logging.getLogger(__name__)
 
 
-def make_trivial_tiles(n: int):
+def make_trivial_tiles(n: int, *, cube_dim: float = 1.0, offsets: Optional[np.ndarray] = None) -> Tiles:
     """
-    Create a trivial Tiles object with:
-      - all centers at the origin
-      - unit cube size
-      - easy axis along +z
-      - mu_r_ea = mu_r_oa = 1 (chi = 0)
-      - M_rem = [1, 2, ..., n]
+    Small synthetic Tiles instance for unit tests.
+
+    - Cubic prisms with the same size and rotation.
+    - Easy axis along +z.
+    - mu_r_ea = mu_r_oa = 1 (chi = 0).
+    - M_rem = [1, 2, ..., n].
     """
     tiles = Tiles(n)
-    tiles.center_pos = (0.0, 0)
-    tiles.dev_center = (0.0, 0)
-    tiles.size = (1.0, 0)
-    tiles.rot = (np.array([0.0, 0.0, 0.0]), 0)
+    tiles.tile_type = 2  # prism
 
+    if offsets is None:
+        offsets = np.zeros((n, 3), dtype=np.float64)
+    offsets = np.asarray(offsets, dtype=np.float64)
+    if offsets.shape != (n, 3):
+        raise ValueError(f"offsets must have shape ({n}, 3), got {offsets.shape}")
+
+    dims = np.array([cube_dim, cube_dim, cube_dim], dtype=np.float64)
     for i in range(n):
+        tiles.offset = (offsets[i], i)
+        tiles.size = (dims, i)
+        tiles.rot = ((0.0, 0.0, 0.0), i)
         tiles.M_rem = (float(i + 1), i)
         tiles.mu_r_ea = (1.0, i)
         tiles.mu_r_oa = (1.0, i)
-        tiles.u_ea = (np.array([0.0, 0.0, 1.0]), i)
+        tiles.u_ea = ((0.0, 0.0, 1.0), i)
     return tiles
 
 
@@ -37,57 +45,37 @@ class MacroMagTests(unittest.TestCase):
     def setUpClass(cls):
         base = Path(__file__).parent.parent / "test_files"
         cls.csv_path = base / "magtense_zot80_3d.csv"
-        cls.npz_path = base / "muse_tensor.npy"
-        cls.hfield_path = base / "muse_demag_field.npy"
-
-        # load reference demag tensor
-        arr = np.load(cls.npz_path, allow_pickle=False)
-        cls.demag_ref = (
-            arr["demag"].astype(np.float64)
-            if isinstance(arr, np.lib.npyio.NpzFile)
-            else arr.astype(np.float64)
-        )
-
-        # build tiles + MacroMag
-        tiles = muse2tiles(str(cls.csv_path), magnetization=1.1658e6)
-        cls.macro = MacroMag(tiles)
-
-        # also precompute our tensor once
-        cls.demag_test = cls.macro.fast_get_demag_tensor().astype(np.float64)
-        cls.demag_test[np.abs(cls.demag_test) < 1e-12] = 0.0
-        cls.pts = cls.macro.centres
+        cls.ref_subset_path = base / "muse_tensor_subset.json"
 
     # --- basic validation tests ---
 
-    def test_shape(self):
-        """Demag tensor shape should match reference."""
-        self.assertEqual(
-            self.demag_test.shape,
-            self.demag_ref.shape,
-            f"expected shape {self.demag_ref.shape}, got {self.demag_test.shape}",
-        )
+    def test_demag_tensor_small_cube_properties(self):
+        """
+        Demag tensor sanity checks on a tiny synthetic system.
 
-    def test_symmetry(self):
-        """N[i,j] == N[i,j].T for representative entries."""
-        for i, j in [(0, 0), (1, 1), (0, 1), (2, 3)]:
-            with self.subTest(i=i, j=j):
-                M = self.demag_test[i, j]
-                self.assertTrue(np.allclose(M, M.T, atol=0),
-                                f"N[{i},{j}] not symmetric")
+        For a cube, symmetry implies the self-demag block has equal diagonal
+        entries and trace(N_ii) = -1 (our convention returns -N in H_d = -N M).
+        """
+        offsets = np.array([[0.0, 0.0, 0.0], [0.02, 0.0, 0.0]], dtype=np.float64)
+        tiles = make_trivial_tiles(2, cube_dim=0.01, offsets=offsets)
+        macro = MacroMag(tiles)
 
-    def test_trace_invariant(self):
-        """Trace(N_ii) ≈ 1 for self-demag blocks."""
-        for i in range(min(5, self.demag_test.shape[0])):
-            tr = np.trace(self.demag_test[i, i])
-            self.assertAlmostEqual(abs(tr), 1.0, places=12,
-                                   msg=f"trace N[{i},{i}] = {tr}")
+        N = macro.fast_get_demag_tensor(cache=False)
+        self.assertEqual(N.shape, (2, 2, 3, 3))
 
-    def test_against_stored(self):
-        """Compare computed tensor against stored reference."""
-        diff = np.abs(self.demag_test - self.demag_ref)
-        max_err = diff.max()
-        self.assertLessEqual(max_err, 1e-9,
-                             f"max abs error {max_err:.2e} exceeds tol 1e-9")
+        # Symmetry: each 3×3 block is symmetric.
+        for i in range(2):
+            for j in range(2):
+                with self.subTest(i=i, j=j):
+                    np.testing.assert_allclose(N[i, j], N[i, j].T, atol=1e-14, rtol=0.0)
+
+        # Cube self-demag: equal diagonal, trace ~ -1, diag ~ -1/3.
+        diag = np.diag(N[0, 0])
+        self.assertAlmostEqual(float(np.trace(N[0, 0])), -1.0, places=10)
+        np.testing.assert_allclose(diag, (-1.0 / 3.0) * np.ones(3), atol=5e-6, rtol=0.0)
+
+        # Reciprocity for identical cubes in identical orientation: N_01 == N_10.
+        np.testing.assert_allclose(N[0, 1], N[1, 0], atol=1e-14, rtol=0.0)
 
     def test_direct_solve_magnitude_constant(self):
         """
@@ -97,10 +85,9 @@ class MacroMagTests(unittest.TestCase):
         tiles = make_trivial_tiles(4)
         macro = MacroMag(tiles)
 
-        pts = np.zeros((tiles.n, 3))
-        neighbors = _neighbors_from_radius(pts, radius=1.0, max_neighbors=None)
-
-        macro, _ = macro.solve(
+        # Any valid neighbors array is sufficient here: chi=0 short-circuits the solve.
+        neighbors = np.tile(np.arange(tiles.n, dtype=np.int64), (tiles.n, 1))
+        macro, A = macro.direct_solve_neighbor_sparse(
             neighbors=neighbors,
             use_coils=False,
             krylov_tol=1e-8,
@@ -110,6 +97,7 @@ class MacroMagTests(unittest.TestCase):
             H_a_override=None,
             drop_tol=0.0,
         )
+        self.assertIsNone(A)
 
         norms = np.linalg.norm(tiles.M, axis=1)
         expected = tiles.M_rem
@@ -119,6 +107,24 @@ class MacroMagTests(unittest.TestCase):
                     n_val, e_val, places=8,
                     msg=f"Tile {idx}: |M| = {n_val:.12f}, expected {e_val:.12f}"
                 )
+
+    def test_muse_reference_tensor_subset(self):
+        """
+        Regression check against a fixed reference subset of the MUSE demag tensor.
+
+        This avoids storing the full 9736×9736 tensor in the repository while still
+        pinning a handful of representative demag blocks to known values.
+        """
+        with open(self.ref_subset_path, "r", encoding="utf-8") as f:
+            ref = json.load(f)
+        idx = np.asarray(ref["indices"], dtype=np.int64)
+        ref_blocks = np.asarray(ref["blocks"], dtype=np.float64)
+
+        tiles = muse2tiles(str(self.csv_path), magnetization=1.1658e6)
+        macro = MacroMag(tiles)
+
+        blocks = assemble_blocks_subset(macro.centres, macro.half, macro.Rg2l, idx, idx)
+        np.testing.assert_allclose(blocks, ref_blocks, atol=1e-12, rtol=0.0)
 
     # minimal tests for Tiles API
 
