@@ -35,12 +35,11 @@ jobs:
       fail-fast: false
       matrix:
         test-type: [unit, integrated]
-        # 2025-11-28: Temporarily disabling SPEC tests in this workflow due to github issue #561
         python-version: ["3.10", "3.11", "3.12", "3.13"]
         include:
-            - python-version: "3.11"
+            - python-version: "3.13"
               test-type: unit
-            - python-version: "3.11"
+            - python-version: "3.13"
               test-type: integrated
 
     steps:
@@ -186,36 +185,15 @@ jobs:
         # python -m pip install -v git+https://github.com/zhisong/pyoculus
         # python -m pip install py_spec h5py
 
-
-    - name: Run serial examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated')
+    - name: Run examples as part of integrated tests
+      if: contains(matrix.test-type, 'integrated') 
       run: |
         cd examples
         ./run_serial_examples
-
-    - name: Run simple parallel examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated')
-      run: |
-        cd examples
         ./run_parallel_examples
-
-    # - name: Run spec examples as part of integrated tests
-    #  if: contains(matrix.test-type, 'integrated')
-    #  run: |
-    #    cd examples
-    #    ./run_spec_examples
-
-    - name: Run vmec examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated')
-      run: |
-        cd examples
+        # ./run_spec_examples
         ./run_vmec_examples
-
-    # - name: Run vmec and spec examples as part of integrated tests
-    #  if: contains(matrix.test-type, 'integrated')
-    #  run: |
-    #    cd examples
-    #    ./run_spec_vmec_examples
+        # ./run_spec_vmec_examples
 
     - name: Run QUASR integration tests
       if: contains(matrix.test-type, 'integrated')
@@ -254,7 +232,7 @@ jobs:
       if: contains(matrix.test-type, 'unit')
       uses: actions/upload-artifact@v4
       with:
-        name: gh-actions-parallel-coverage-${{ matrix.packages }}-${{ matrix.python-version }}
+        name: gh-actions-parallel-coverage-${{ matrix.python-version }}
         path: .coverage.*
         if-no-files-found: error
         include-hidden-files: true
@@ -267,7 +245,7 @@ jobs:
     - name: Set up Python 
       uses: actions/setup-python@v5
       with:
-        python-version: "3.11"
+        python-version: 3.13
 
     - name: Install coverage
       run: python -m pip install coverage
