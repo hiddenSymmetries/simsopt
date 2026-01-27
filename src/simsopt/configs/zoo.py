@@ -574,7 +574,7 @@ def download_ID_from_QUASR_database(ID, return_style="simsopt-style", verbose=Tr
 
         verbose (boolean): if true, additional caching and downloading status messages are printed, otherwise they are not.
 
-        use_cache (True): if true, the downloaded file will be saved to disk. The location will be in the 
+        use_cache (True): if true, the downloaded file will be saved to disk. The location will the in the simsopt installation directory if writeable, otherwise in the current working directory. If false, no caching is performed.
 
         returns: 
             a list containing: [list of simsopt.geo.Coil objects, list of simsopt.field.Current objects]
@@ -587,7 +587,7 @@ def download_ID_from_QUASR_database(ID, return_style="simsopt-style", verbose=Tr
     
     id_str = f"{ID:07d}" # string to 7 digits
     url = f'https://quasr.flatironinstitute.org/simsopt_serials/{id_str[0:4]}/serial{id_str}.json'
-    success = False
+    success = False  # flag for getting config.
 
     if use_cache:
         if os.access(THIS_DIR, os.W_OK):
@@ -595,39 +595,33 @@ def download_ID_from_QUASR_database(ID, return_style="simsopt-style", verbose=Tr
         elif os.access(os.getcwd(), os.W_OK): 
             FILE_PATH =  Path(os.getcwd()) / 'QUASR_cache'  / f"serial{id_str}.json" # create a local cache 
         else: 
-            raise ValueError("could not find a writeable location, try again with kwarg use_cache=False")
+            raise PermissionError("could not find a writeable location, try again with kwarg use_cache=False")
     
-        exists = os.path.exists(FILE_PATH)
-
-        if exists:
+        if os.path.exists(FILE_PATH):
             if verbose:
                 print(f"ID={id_str} is cached, loading...")
             surfaces, coils = load(FILE_PATH)
             success = True
 
-    if not success: 
-        try:
-            r = requests.get(url)
-        except Exception as e:
-            raise IOError(f"requests failure on ID {ID:07}") from e
-
-        if r.status_code == 200:
+    if not success: # reading cache not attempted or unsucessful
+        r = requests.get(url, timeout=10)
+        r.raise_for_status() # raise error if not 200 status
+        
+        if verbose:
             print(f"ID={ID:07} downloaded successfully")
-            surfaces, coils = json.loads(r.content, cls=GSONDecoder)
-            success = True
+        surfaces, coils = json.loads(r.content, cls=GSONDecoder)
+        success = True
+        
+        if use_cache: 
+            # Ensure cache directory exists
+            cache_dir = FILE_PATH.parent
+            cache_dir.mkdir(parents=True, exist_ok=True)
             
-            if use_cache: 
-                # Ensure cache directory exists
-                cache_dir = FILE_PATH.parent
-                cache_dir.mkdir(parents=True, exist_ok=True)
-                
-                # Prune cache if necessary
-                _prune_cache(cache_dir, limit=100, verbose=verbose)
-                
-                with open(FILE_PATH, 'wb') as f:
-                    f.write(r.content)
-        else:
-            raise ValueError(f"requests failure on ID {ID:07d}. Status code: {r.status_code}\n Check if the confituration exists")
+            # Prune cache if necessary
+            _prune_cache(cache_dir, limit=100, verbose=verbose)
+            
+            with open(FILE_PATH, 'wb') as f:
+                f.write(r.content)
 
     if return_style == 'simsopt-style':
         nfp = surfaces[0].nfp
@@ -641,14 +635,14 @@ def download_ID_from_QUASR_database(ID, return_style="simsopt-style", verbose=Tr
         return surfaces, coils
 
 
-def _prune_cache(cache_dir, limit=100, verbose=True):
+def _prune_cache(cache_dir, limit=100, verbose=False):
     """
     Remove oldest files from cache directory if the number of files exceeds the limit.
     
     Args:
-        cache_dir: Path to the cache directory
-        limit: Maximum number of files to keep in cache
-        verbose: Whether to print pruning messages
+        cache_dir(str/PathLike): Path to the cache directory
+        limit (int: default 100): Maximum number of files to keep in cache
+        verbose (bool, default=False) Whether to print pruning messages
     """
     cache_files = list(cache_dir.glob("*.json"))
 
@@ -662,5 +656,5 @@ def _prune_cache(cache_dir, limit=100, verbose=True):
     files_to_remove = len(cache_files) - limit
     for f in cache_files[:files_to_remove]:
         if verbose:
-            print(f"Pruning cache: removing {f.name}")
+            print(f"Pruning cache: removing {f.name}", flush=True)
         f.unlink()
