@@ -44,7 +44,7 @@ def get_data(name, **kwargs):
     ----------
     name : str
         Which configuration to load. Available values are:
-        ``"ncsx"``, ``"hsx"``, ``"giuliani"``, ``"w7x"``, ``"lhd_like"``.
+        ``"ncsx"``, ``"hsx"``, ``"giuliani"``, ``"w7x"``, ``"lhd_like"``, ``"quasr"``.
     kwargs : dict
         Configuration-specific parameters. See the sections below for details.
         
@@ -193,7 +193,7 @@ def get_data(name, **kwargs):
         **Special Note:** For ``"lhd_like"``, the returned ``nfp`` (5) reflects the coil periodicity,
         while the magnetic axis uses ``nfp=10``.
     
-    ``name="lhd_like"`` 
+    ``name="quasr"`` 
         **Get the coils for a QUASR configuration.**
 
         The QUASR database contains around 300,000 quasi-symmetric stellarator
@@ -385,15 +385,11 @@ def get_data(name, **kwargs):
             raise ValueError("Must provide QUASR_ID to download a quasr configuration")
         use_cache  = kwargs.pop("use_cache", True)
         verbose   = kwargs.pop("verbose", False)
-        attempt_axisfinding = kwargs.pop("attempt_axisfinding", False)
 
         base_curves, base_currents, nfp, coils = download_ID_from_QUASR_database(QUASR_ID, return_style="simsopt-style", use_cache=use_cache, verbose=verbose)
         bs = BiotSavart(coils)
 
-        if attempt_axisfinding:
-            raise NotImplementedError("axis finding not yet implemented")
-        else: 
-            ma = None
+        ma = None  # quasr configurations do not provide an axis object. finding can be attempted when cbs/fieldline_integrator branch is readu
         return base_curves, base_currents, ma, nfp, bs
 
     else:
@@ -560,10 +556,21 @@ def download_ID_from_QUASR_database(ID, return_style="simsopt-style", verbose=Tr
     The cache is pruned to keep 100 files (~10MB) to avoid excessive disk usage.
 
     Args:
-        ID (int): the ID of the configuration to download.  A pandas dataframe containing metadata on the devices, including all
+        ID (int): the ID of the configuration to download (leading zeros removed).  
+                  A pandas dataframe containing metadata on the devices, including all
                   valid ID numbers is located at: https://quasr.flatironinstitute.org/QUASR.pkl
                   The database is navigatable online at https://quasr.flatironinstitute.org/
                   Alternatively, you can download the latest full set of devices from https://zenodo.org/doi/10.5281/zenodo.10050655
+        
+        return_style (str): How to return the information either: 
+                             ``"quasr-style"``: two-element tuple containing ([SurfaceXYXTensorFourier], # surfaces
+                                                                              [Coil,]                    # all coils
+                                                                              )
+                             ``"simsopt-style"``: five-element tuple containing ([base_curves ],         # curves of coils in first field/half period
+                                                                                 [base_currents, ],      # currents of these coils
+                                                                                 [nfp, ],                # number of field periods
+                                                                                 [coils, ]               # all coils
+                                                                                )
 
         verbose (boolean): if true, additional caching and downloading status messages are printed, otherwise they are not.
 

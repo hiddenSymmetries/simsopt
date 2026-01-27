@@ -37,7 +37,7 @@ class QuasrIntegrationTests(unittest.TestCase):
     data in the expected format.
     """
 
-    def test_download_quasr_simsopt_style(self):
+    def test_download_quasr_in_simsopt_style(self):
         """
         Test downloading a configuration from QUASR in simsopt-style format.
         Uses ID=952 as a known good configuration.
@@ -61,7 +61,7 @@ class QuasrIntegrationTests(unittest.TestCase):
         self.assertGreater(nfp, 0)
         self.assertIsInstance(bs, BiotSavart)
 
-    def test_download_quasr_quasr_style(self):
+    def test_download_quasr_in_quasr_style(self):
         """
         Test downloading a configuration from QUASR in quasr-style format.
         Uses ID=952 as a known good configuration.

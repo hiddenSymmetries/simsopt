@@ -9,18 +9,12 @@ import numpy as np
 import tempfile
 import time
 
-try:
-    import requests  # noqa: F401
-    requests_available = True
-except ImportError:
-    requests_available = False
 
 from pathlib import Path
 THIS_DIR = (Path(__file__).parent).resolve()
 
 
 class QuasrTests(unittest.TestCase):
-    @unittest.skipIf(not requests_available, "requests library not installed")
     @patch("simsopt.configs.zoo.requests")
     def test_QUASR_downloader(self, mock_requests):
         """
