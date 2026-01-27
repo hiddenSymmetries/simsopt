@@ -15,6 +15,7 @@ The script computes diagnostics including:
 - VTK output files for visualization
 """
 
+import argparse
 from pathlib import Path
 import math
 import numpy as np
@@ -48,6 +49,26 @@ ntheta = nphi  # Number of poloidal grid points (set equal to nphi)
 # Note: NFP=1 is used since the grid from Towered MUSE setup is already set
 # (i.e., no repeating portion needs to be handled)
 nfp = 2
+
+
+# ============================================================================
+# CLI
+# ============================================================================
+
+def _parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="MUSE macromagnetic post-processing (fixed published grid).")
+    p.add_argument(
+        "--outdir",
+        type=Path,
+        default=Path("output_permanent_magnet_GPMO_MUSE/paper_runs/paper_00_postprocess_muse_grid"),
+        help="Output directory for VTK artifacts and logs.",
+    )
+    return p.parse_args()
+
+
+args = _parse_args()
+out_dir = args.outdir
+out_dir.mkdir(parents=True, exist_ok=True)
 
 
 # ============================================================================
@@ -354,8 +375,6 @@ extra_data = {
 }
 
 # Write VTK file for visualization
-out_dir = Path("output_permanent_magnet_GPMO_MUSE/MUSE_post_processing")
-out_dir.mkdir(parents=True, exist_ok=True)
 vtk_path = out_dir / "surface_Bn_delta_MUSE_post_processing"
 surf_bn.to_vtk(vtk_path, extra_data=extra_data)
 print(f"[SIMSOPT] Wrote {vtk_path}.vtp with fields: {', '.join(extra_data.keys())}")

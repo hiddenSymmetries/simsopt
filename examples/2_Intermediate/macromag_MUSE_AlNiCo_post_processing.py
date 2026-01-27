@@ -9,6 +9,7 @@ and writes normalized Δ(B·n)/|B| style fields to VTK for plotting.
 Author: Armin Ulrich
 """
 
+import argparse
 import math
 from pathlib import Path
 import numpy as np
@@ -31,12 +32,36 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 surface_filename = TEST_DIR / "input.muse"
 coil_path = TEST_DIR / "muse_tf_coils.focus"
 
-npz_path = Path("output_permanent_magnet_GPMO_MUSE") / \
-           "dipoles_final_matAlNiCo_bt200_Nadj12_nmax40000_GPMO.npz"
-# Backwards-compatible fallback for older outputs (pre-rename convention):
-if not npz_path.exists():
-    npz_path = Path("output_permanent_magnet_GPMO_MUSE") / \
-               "dipoles_final_bt200_Nadj12_nmax20000_ArbVec_backtracking.npz"
+def _parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="AlNiCo macromagnetic post-processing (uses dipoles_final_*.npz).")
+    p.add_argument(
+        "--npz-path",
+        type=Path,
+        default=None,
+        help="Path to `dipoles_final_*.npz` produced by `permanent_magnet_MUSE.py` (GPMO AlNiCo run).",
+    )
+    p.add_argument(
+        "--outdir",
+        type=Path,
+        default=Path("output_permanent_magnet_GPMO_MUSE/paper_runs/paper_04_alnico/postprocess"),
+        help="Output directory for post-processing artifacts.",
+    )
+    return p.parse_args()
+
+
+args = _parse_args()
+
+if args.npz_path is not None:
+    npz_path = args.npz_path
+else:
+    # Prefer the paper-run folder layout, but keep backwards-compatible fallbacks.
+    npz_candidates = [
+        Path("output_permanent_magnet_GPMO_MUSE/paper_runs/paper_04_alnico")
+        / "dipoles_final_matAlNiCo_bt200_Nadj12_nmax40000_GPMO.npz",
+        Path("output_permanent_magnet_GPMO_MUSE")
+        / "dipoles_final_matAlNiCo_bt200_Nadj12_nmax40000_GPMO.npz",
+    ]
+    npz_path = next((p for p in npz_candidates if p.exists()), npz_candidates[0])
 
 # AlNiCo material parameters
 B_max = 0.72         # Tesla
@@ -49,7 +74,7 @@ nphi = 64
 ntheta = nphi
 
 # Output directory
-out_dir = Path("output_permanent_magnet_GPMO_MUSE/MUSE_post_processing_AlNiCo")
+out_dir = args.outdir
 out_dir.mkdir(parents=True, exist_ok=True)
 
 # =====================================================================
