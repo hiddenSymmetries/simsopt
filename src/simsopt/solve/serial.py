@@ -12,6 +12,7 @@ from datetime import datetime
 from time import time
 from typing import Union, Callable
 import logging
+import warnings
 
 import numpy as np
 from scipy.optimize import least_squares, minimize
@@ -141,22 +142,30 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
         nevals += 1
         return residuals
 
+    if "bounds" in kwargs:
+        warnings.warn("The bounds argument has been deprecated and is being ignored, \
+                      please use prob.bounds instead.", DeprecationWarning, 2)
+        logger.info("The bounds argument has been deprecated and is being ignored, please use prob.bounds instead.")
+        kwargs.pop("bounds", None)
+
     logger.info("Beginning solve.")
     #if grad is None:
     #    grad = prob.dofs.grad_avail
 
     #if not 'verbose' in kwargs:
 
-    print('prob is ', prob)
+    logger.info('prob is {}'.format(prob))
     x0 = np.copy(prob.x)
     if grad:
         fd = FiniteDifference(prob.residuals, abs_step=abs_step,
                               rel_step=rel_step, diff_method=diff_method)
         logger.info("Using derivatives")
-        result = least_squares(objective, x0, verbose=2, jac=fd.jac, **kwargs)
+        result = least_squares(objective, x0, bounds=prob.bounds, 
+                               verbose=2, jac=fd.jac, **kwargs)
     else:
         logger.info("Using derivative-free method")
-        result = least_squares(objective, x0, verbose=2, **kwargs)
+        result = least_squares(objective, x0,bounds=prob.bounds, 
+                               verbose=2, **kwargs)
 
     datalogging_started = False
     objective_file.close()
@@ -248,6 +257,13 @@ def serial_solve(prob: Union[Optimizable, Callable],
         #    grad = prob.dofs.grad_avail
 
         #if not 'verbose' in kwargs:
+
+        if "bounds" in kwargs:
+            warnings.warn("The bounds argument has been deprecated and is being ignored, \
+                        please use prob.bounds instead.", DeprecationWarning, 2)
+        # Only specify the bounds argument if they are finite
+        if np.isfinite(prob.lower_bounds).any() or np.isfinite(prob.upper_bounds).any():
+            kwargs['bounds'] = prob.bounds
 
         logger.info("Beginning solve.")
         x0 = np.copy(prob.x)

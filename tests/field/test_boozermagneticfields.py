@@ -395,7 +395,7 @@ class TestingVmec(unittest.TestCase):
                 thetas_vmec = np.zeros((len(vmec.s_half_grid),))
                 for isurf in range(len(vmec.s_half_grid)):
                     opt = minimize(theta_diff, 0, args=(isurf))
-                    thetas_vmec[isurf] = opt.x
+                    thetas_vmec[isurf] = opt.x[0]
 
                 # Compute Z at theta_b = 0, zeta_b = pi/2  and compare with vmec result
                 Z0pi = np.sum(zmns_half * np.sin(vmec.wout.xm[:, None]*thetas_vmec[None, :]-vmec.wout.xn[:, None]*(np.pi/3-nu[None, :, 0]))

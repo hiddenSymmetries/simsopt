@@ -36,7 +36,12 @@ from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO
 from simsopt.util import FocusData, discretize_polarizations, polarization_axes, in_github_actions
-from simsopt.util.permanent_magnet_helper_functions import *
+from simsopt.util.coil_optimization_helper_functions import \
+    calculate_modB_on_major_radius, \
+    make_qfm
+from simsopt.util.permanent_magnet_helper_functions import \
+    initialize_default_kwargs, \
+    initialize_coils_for_pm_optimization
 
 t_start = time.time()
 
@@ -256,7 +261,7 @@ out_dir = Path(args.outdir)
 out_dir.mkdir(parents=True, exist_ok=True)
 
 # initialize the coils
-base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s, out_dir)
+base_curves, curves, coils = initialize_coils_for_pm_optimization('muse_famus', TEST_DIR, s, out_dir)
 
 scale_coils = bool(material["scale_coils"])
 current_scale = 1
@@ -504,6 +509,74 @@ if vmec_flag:
     equil = Vmec(vmec_input, mpi)
     equil.boundary = qfm_surf
     equil.run()
+
+from simsopt.util import in_github_actions, proc0_print, comm_world
+from simsopt.field import (InterpolatedField, SurfaceClassifier, particles_to_vtk,
+                           compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data)
+sc_fieldline = SurfaceClassifier(s, h=0.03, p=2)
+
+def trace_fieldlines(bfield, label):
+    t1 = time.time()
+    # Set initial grid of points for field line tracing, going from
+    # the magnetic axis to the surface. The actual plasma boundary is
+    # at R=1.300425, but the outermost initial point is a bit inward
+    # from that, R = 1.295, so the SurfaceClassifier does not think we
+    # have exited the surface
+    R0 = np.linspace(0.32, 0.36, nfieldlines)
+    Z0 = np.zeros(nfieldlines)
+    phis = [(i/4)*(2*np.pi/s.nfp) for i in range(4)]
+    fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
+        bfield, R0, Z0, tmax=tmax_fl, tol=1e-16, comm=comm_world,
+        phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
+    t2 = time.time()
+    proc0_print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
+    if comm_world is None or comm_world.rank == 0:
+        particles_to_vtk(fieldlines_tys, str(out_dir / f'fieldlines_{label}'))
+        plot_poincare_data(fieldlines_phi_hits, phis, str(out_dir / f'poincare_fieldline_{label}.png'), dpi=150)
+
+
+# uncomment this to run tracing using the biot savart field (very slow!)
+# trace_fieldlines(bs, 'bs')
+
+
+# Bounds for the interpolated magnetic field chosen so that the surface is
+# entirely contained in it
+nfieldlines = 30
+tmax_fl = 20000 
+degree = 2 
+n = 20
+rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
+zs = s.gamma()[:, :, 2]
+rrange = (np.min(rs), np.max(rs), n)
+phirange = (0, 2*np.pi/s.nfp, n*2)
+# exploit stellarator symmetry and only consider positive z values:
+zrange = (0, np.max(zs), n//2)
+
+
+def skip(rs, phis, zs):
+    # The RegularGrindInterpolant3D class allows us to specify a function that
+    # is used in order to figure out which cells to be skipped.  Internally,
+    # the class will evaluate this function on the nodes of the regular mesh,
+    # and if *all* of the eight corners are outside the domain, then the cell
+    # is skipped.  Since the surface may be curved in a way that for some
+    # cells, all mesh nodes are outside the surface, but the surface still
+    # intersects with a cell, we need to have a bit of buffer in the signed
+    # distance (essentially blowing up the surface a bit), to avoid ignoring
+    # cells that shouldn't be ignored
+    rphiz = np.asarray([rs, phis, zs]).T.copy()
+    dists = sc_fieldline.evaluate_rphiz(rphiz)
+    skip = list((dists < -0.05).flatten())
+    proc0_print("Skip", sum(skip), "cells out of", len(skip), flush=True)
+    return skip
+
+
+bsh = InterpolatedField(
+    bs, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=True, skip=skip
+)
+
+bsh.set_points(s.gamma().reshape((-1, 3)))
+Bh = bsh.B()
+trace_fieldlines(bsh, 'bsh')
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)

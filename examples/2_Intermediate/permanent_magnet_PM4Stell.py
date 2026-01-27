@@ -56,7 +56,7 @@ nAdjacent = 10
 thresh_angle = np.pi  # / np.sqrt(2)
 nHistory = 10
 angle = int(thresh_angle * 180 / np.pi)
-out_dir = Path("PM4Stell_angle{angle}_nb{nBacktracking)_na{nAdjacent}")
+out_dir = Path("PM4Stell") 
 out_dir.mkdir(parents=True, exist_ok=True)
 print('out directory = ', out_dir)
 
@@ -64,12 +64,6 @@ print('out directory = ', out_dir)
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 fname_plasma = TEST_DIR / 'c09r00_B_axis_half_tesla_PM4Stell.plasma'
 lcfs_ncsx = SurfaceRZFourier.from_focus(
-    fname_plasma, range='half period', nphi=nphi, ntheta=ntheta
-)
-s1 = SurfaceRZFourier.from_focus(
-    fname_plasma, range='half period', nphi=nphi, ntheta=ntheta
-)
-s2 = SurfaceRZFourier.from_focus(
     fname_plasma, range='half period', nphi=nphi, ntheta=ntheta
 )
 
@@ -108,7 +102,9 @@ bn_tfcoils = np.sum(
     axis=2
 )
 bn_total = bn_plasma + bn_tfcoils
-make_Bnormal_plots(bs_tfcoils, s_plot, out_dir, "biot_savart_initial")
+bs_tfcoils.set_points(s_plot.gamma().reshape((-1, 3)))
+Bnormal = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+s_plot.to_vtk(out_dir / "biot_savart_initial", extra_data={"B_N": Bnormal[:, :, None]})
 
 # Obtain data on the magnet arrangement
 fname_argmt = TEST_DIR / 'magpie_trial104b_PM4Stell.focus'
@@ -183,6 +179,10 @@ t1 = time.time()
 R2_history, Bn_history, m_history = GPMO(pm_ncsx, algorithm, **kwargs)
 dt = time.time() - t1
 print('GPMO took t = ', dt, ' s')
+# Print effective permanent magnet volume
+dipoles = pm_ncsx.m.reshape(pm_ncsx.ndipoles, 3)
+print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / pm_ncsx.m_maxima)
+print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
 # Save files
 if True:
@@ -196,7 +196,6 @@ if True:
     )
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
     b_dipole._toVTK(out_dir / "Dipole_Fields")
-    make_Bnormal_plots(bs_tfcoils + b_dipole, s_plot, out_dir, "biot_savart_optimized")
     Bnormal_coils = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_plasma = bnormal_obj_ncsx.bnormal_grid(qphi, ntheta, 'full torus')
@@ -210,6 +209,11 @@ if True:
     pointData = {"B_N": Bnormal_total[:, :, None]}
     s_plot.to_vtk(out_dir / "Bnormal_total", extra_data=pointData)
     pm_ncsx.write_to_famus(out_dir)
+    b_dipole.set_points(lcfs_ncsx.gamma().reshape((-1, 3)))
+    bs_tfcoils.set_points(lcfs_ncsx.gamma().reshape((-1, 3)))
+    Bnormal_plasma = bnormal_obj_ncsx.bnormal_grid(nphi, ntheta, 'half period')
+    f_B_sf = SquaredFlux(lcfs_ncsx, b_dipole + bs_tfcoils, -Bnormal_plasma).J()
+    print('f_B = ', f_B_sf) 
     np.savetxt(out_dir / 'R2_history.txt', R2_history)
     np.savetxt(out_dir / 'absBn_history.txt', Bn_history)
     nmags = m_history.shape[0]

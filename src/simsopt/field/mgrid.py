@@ -91,7 +91,7 @@ class MGrid():
         self.ap_arr = []
 
     def add_field_cylindrical(self, br, bp, bz, ar=None, ap=None, az=None, name=None):
-        '''
+        r'''
         This function saves the magnetic field :math:`B`, and (optionally) the vector potential :math:`A`, to the ``MGrid`` object.
         :math:`B` and :math:`A` are provided on a tensor product grid in cylindrical components :math:`(R, \phi, z)`.
 
@@ -143,7 +143,7 @@ class MGrid():
             filename (str): output file name.
         '''
 
-        with netcdf_file(filename, 'w', mmap=False) as ds:
+        with netcdf_file(filename, 'w', mmap=False, version=2) as ds:
 
             # set netcdf dimensions
             ds.createDimension('stringsize', 30)
@@ -225,7 +225,7 @@ class MGrid():
             MGrid: ``MGrid`` object with data from file.
         '''
 
-        with netcdf_file(filename, 'r', mmap=False) as f:
+        with netcdf_file(filename, 'r', mmap=False, version=2) as f:
 
             # load grid
             nr = f.variables['ir'].getValue()
