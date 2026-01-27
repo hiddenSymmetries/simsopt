@@ -37,6 +37,7 @@ MAT="N52"
 BT=0
 NADJ=12
 NMAX=20000
+HISTORY_EVERY=10
 
 BASE="K${K}_nphi${N}_ntheta${N}_ds${DS}_mat${MAT}_bt${BT}_Nadj${NADJ}_nmax${NMAX}"
 
@@ -47,19 +48,19 @@ RID_KMM50="${BASE}_kmm50_GPMOmr"
 
 run_if_missing "$OUTDIR/runhistory_${RID_GPMO}.csv" \
   "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE.py" \
-  --preset muse_no_bt --algorithm GPMO --outdir "$OUTDIR"
+  --preset muse_no_bt --algorithm GPMO --history-every "$HISTORY_EVERY" --outdir "$OUTDIR"
 
 run_if_missing "$OUTDIR/runhistory_${RID_KMM1}.csv" \
   "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE.py" \
-  --preset muse_no_bt --algorithm GPMOmr --mm-refine-every 1 --outdir "$OUTDIR"
+  --preset muse_no_bt --algorithm GPMOmr --mm-refine-every 1 --history-every "$HISTORY_EVERY" --outdir "$OUTDIR"
 
 run_if_missing "$OUTDIR/runhistory_${RID_KMM25}.csv" \
   "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE.py" \
-  --preset muse_no_bt --algorithm GPMOmr --mm-refine-every 25 --outdir "$OUTDIR"
+  --preset muse_no_bt --algorithm GPMOmr --mm-refine-every 25 --history-every "$HISTORY_EVERY" --outdir "$OUTDIR"
 
 run_if_missing "$OUTDIR/runhistory_${RID_KMM50}.csv" \
   "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE.py" \
-  --preset muse_no_bt --algorithm GPMOmr --mm-refine-every 50 --outdir "$OUTDIR"
+  --preset muse_no_bt --algorithm GPMOmr --mm-refine-every 50 --history-every "$HISTORY_EVERY" --outdir "$OUTDIR"
 
 # Plots
 run_if_missing "$OUTDIR/plots/Combined_MSE_history.png" \

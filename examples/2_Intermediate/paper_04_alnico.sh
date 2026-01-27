@@ -38,6 +38,7 @@ BT=200
 NADJ=12
 NMAX=40000
 KMM=50
+HISTORY_EVERY=10
 
 BASE="K${K}_nphi${N}_ntheta${N}_ds${DS}_mat${MAT}_bt${BT}_Nadj${NADJ}_nmax${NMAX}"
 RID_GPMO="${BASE}_GPMO"
@@ -45,11 +46,11 @@ RID_GPMOMR="${BASE}_kmm${KMM}_GPMOmr"
 
 run_if_missing "$OUTDIR/runhistory_${RID_GPMO}.csv" \
   "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE.py" \
-  --preset alnico --algorithm GPMO --outdir "$OUTDIR"
+  --preset alnico --algorithm GPMO --history-every "$HISTORY_EVERY" --outdir "$OUTDIR"
 
 run_if_missing "$OUTDIR/runhistory_${RID_GPMOMR}.csv" \
   "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE.py" \
-  --preset alnico --algorithm GPMOmr --mm-refine-every "$KMM" --outdir "$OUTDIR"
+  --preset alnico --algorithm GPMOmr --mm-refine-every "$KMM" --history-every "$HISTORY_EVERY" --outdir "$OUTDIR"
 
 # Plots (2 runs => mse + deltam)
 run_if_missing "$OUTDIR/plots/Combined_MSE_history.png" \
