@@ -269,8 +269,6 @@ class TestPyOculusFixedPoints(unittest.TestCase):
         Test that a whacky field configuration raises an ObjectiveFailure
         when trying to find a fixed point.
         """
-        # Modify the field by adding a circular coil that makes most field lines not pass around
-        
         fp = PyOculusFixedPoint.from_field(self.bs, 
                                             self.nfp, 
                                             start_guess=[6.2345, 0.0], 
@@ -278,7 +276,7 @@ class TestPyOculusFixedPoints(unittest.TestCase):
                                             phi0=0,
                                             axis=False,
                                             integration_args=self.integration_args)
-        # set the currents to lowiota so that 5fp fixed point search fails
+        # set the currents to high so that 5fp fixed point search fails
         start_currents = [curr.get_value() for curr in self.base_currents]
         coil_currents_high_iota = np.array([1, 1, 1, 1, 1, -0.23, -0.23, 0])
 
@@ -290,7 +288,7 @@ class TestPyOculusFixedPoints(unittest.TestCase):
             fp.loc_RZ()
         
         for i, current in enumerate(self.base_currents):
-            current.x = start_currents[i]  # Restore original current values    
+            current.x = np.atleast_1d(start_currents[i])  # Restore original current values    
 
 @unittest.skipUnless(newpyoculus, "pyOculus>=1.0.0 is required for this test")
 class TestPyOculusTargets(unittest.TestCase):
@@ -529,8 +527,8 @@ class TestClinicConnection(unittest.TestCase):
                                                start_guess=[5.],
                                                fp_order=5,
                                                phi0=0,
-                                               axis=False,
-                                               integration_args=self.integration_args)
+                                               axis=False)
+        self.fp2 = PyOculusFixedPoint(self.fp1._pyocmap, )
 
     def test_clinic_connection_placeholder(self):
         """

@@ -61,6 +61,14 @@ def compute_xyz_fourier_coefficients_from_points(xyz_points: NDArray[np.float64]
     """
     xx, yy, zz = xyz_points.T  # unpack each coordinate into 1d arrays
 
+    # Ensure system is overdetermined
+    n_points = len(xx)
+    n_unknowns_x = order + 1  # xc has order+1 coefficients
+    n_unknowns_yz = order     # ys and zs each have order coefficients
+    if n_points < n_unknowns_x:
+        raise ValueError(f"System is underdetermined: {n_points} points < {n_unknowns_x} unknowns for x. "
+                         "Increase the number of points or reduce the order.")
+
     alpha = 2 * np.pi * varthetas * ntor  # helper angle
     cos_alpha = np.cos(alpha)
     sin_alpha = np.sin(alpha)
@@ -76,17 +84,25 @@ def compute_xyz_fourier_coefficients_from_points(xyz_points: NDArray[np.float64]
     # A_yz: [sin(args)]
     A_yz = np.sin(args)
     
-    # 3. Solve Least Squares
-    # rcond=None lets numpy handle singular value cutoffs automatically
-    xc, residuals_x, _, _ = np.linalg.lstsq(A_x, x_hat, rcond=None)[0]
-    ys, residuals_y, _, _ = np.linalg.lstsq(A_yz, y_hat, rcond=None)[0]
-    zs, residuals_z, _, _ = np.linalg.lstsq(A_yz, zz, rcond=None)[0]
+    # Solve Least Squares (overdetermined system)
+    xc, residuals_x, _, _ = np.linalg.lstsq(A_x, x_hat, rcond=None)
+    ys, residuals_y, _, _ = np.linalg.lstsq(A_yz, y_hat, rcond=None)
+    zs, residuals_z, _, _ = np.linalg.lstsq(A_yz, zz, rcond=None)
 
-    total_ssr = residuals_x + residuals_y + residuals_z
+    # Check for rank deficiency (residuals are empty when matrix is rank-deficient)
+    if len(residuals_x) == 0 or len(residuals_y) == 0 or len(residuals_z) == 0:
+        raise ValueError(
+            "Design matrix is rank-deficient. This typically occurs when n_points "
+            "is a multiple of nfp*order, causing Nyquist aliasing where some Fourier "
+            "modes evaluate to zero at all sample points. Try using a number of points "
+            "that is coprime with nfp (e.g., a prime number)."
+        )
+
+    total_ssr = residuals_x[0] + residuals_y[0] + residuals_z[0]
 
     N = len(xx)
     rmse = np.sqrt(total_ssr / N)
-    logger.info(f"Fit RMS error for XYXFourierSymmetries coefficient fit: {rmse}")
+    logger.info(f"Fit RMS error for XYZFourierSymmetries coefficient fit: {rmse}")
     return xc, ys, zs, rmse
 
 
@@ -1085,7 +1101,7 @@ class Integrator(Optimizable):
         
         return np.array([np.sqrt(array[:, 0]**2 + array[:, 1]**2), np.arctan2(array[:, 1], array[:, 0]), array[:, 2]]).T
     
-    def find_fixed_point(self, guess_RZ, phi0=0, repetition_period=1, tol=1e-9, maxiter=100):
+    def find_fixed_point(self, guess_RZ, phi0=0, repetition_period=1, tol=1e-12):
         """
         Find a fixed point of the field line mapping in R,Z coordinates
         using a Newton-Raphson method. 
@@ -1095,7 +1111,6 @@ class Integrator(Optimizable):
             phi0: toroidal angle of the starting point
             delta_phi: angle to integrate over
             tol: tolerance for convergence
-            maxiter: maximum number of iterations
         Returns:
             fixed_point: Array[R,Z] of the fixed point location
         """
@@ -1106,7 +1121,7 @@ class Integrator(Optimizable):
             end_RZ = self.integrate_in_phi_cyl(x, delta_phi=delta_phi, return_cartesian=False)
             return end_RZ - x
 
-        sol = root(func_to_solve, guess_RZ, tol=tol, options={'maxiter': maxiter, 
+        sol = root(func_to_solve, guess_RZ, tol=tol, options={ 
           'factor': 1e-2}  # factor reduces overzealos steps that leave map domain
           )
         if not sol.success:
@@ -1704,7 +1719,7 @@ class ScipyFieldlineIntegrator(Integrator):
         phi0 = 0  # can only start at phi0 = 0 for stellarator symmetric fields
 
         # test the inputs make sense: 
-        if order < num_points: 
+        if order > num_points: 
             raise ValueError("evaluate more points or reduce the order of the curve you are trying to find")
         if self.stellsym is not True:
             raise ValueError("Field must be stellarator symmetric to use this method")
@@ -1718,58 +1733,64 @@ class ScipyFieldlineIntegrator(Integrator):
         else:
             point = start_point_RZ
 
-        # The CurveXYZFourierSymmetries is parametrized by the coordinate theta. 
+        # The CurveXYZFourierSymmetries is parametrized by the coordinate theta (in [0,1]). 
         # To avoid confusion I call it vartheta.
-        varthetas = np.linspace(0, 2*np.pi*ntor, num_points, endpoint=False)
+        # The integration needs toroidal angles (in radians) but the fitting needs vartheta in [0,1]
+        varthetas = np.linspace(0, 1, num_points, endpoint=False)  # parameter for curve fitting
+        phis = 2 * np.pi * ntor * varthetas  # toroidal angles for integration
 
-        fieldline_xyz = self.integrate_cyl_planes(point, phi0=phi0, phis=varthetas, return_cartesian=True)
+        status, fieldline_xyz = self.integrate_cyl_planes(point, phis, return_cartesian=True)
+        if status != 0:
+            raise ObjectiveFailure("Integration failed during field line tracing")
         if fieldline_xyz.shape[0] != varthetas.shape[0]:
             raise ValueError(f"Integration problem, not all angles could be integrated to")
         
-
-
+        xc, ys, zs, rmse = compute_xyz_fourier_coefficients_from_points(fieldline_xyz, nfp=nfp, order=order, ntor=ntor, varthetas=varthetas)
         
         if max_RMS_error is not None and rmse > max_RMS_error:
             raise ObjectiveFailure(f"Fit RMS error {rmse} exceeds maximum allowed {max_RMS_error}")
-        
-        xc, ys, zs, rmse = compute_xyz_fourier_coefficients_from_points(fieldline_xyz, nfp=nfp, order=order, ntor=ntor, varthetas=varthetas)
 
         curve_x = np.concatenate((xc, ys, zs))
 
-        curve = CurveXYZFourierSymmetries(quadpoints=100, order=order, nfp=nfp, stellsym=True, ntor=ntor, x0=curve_x)
+        curve = CurveXYZFourierSymmetries(quadpoints=1000, order=order, nfp=nfp, stellsym=True, ntor=ntor, x0=curve_x)
 
         return curve
 
 
-    def get_SurfaceRZFourier_from_fieldline_simple(self, start_point_RZ, phi0=0,  nphi=37, num_fieldlinetransits=37, ntor=6, mpol=6, max_RMS_error=None):
+    def get_SurfaceRZFourier_from_fieldline_simple(self, start_point_RZ, phi0=0, nphi=53, num_fieldlinetransits=31, ntor=6, mpol=6, regularization=1e-6, max_RMS_error=None):
         """
         Given a starting point in R,Z coordinates, trace a field line for ntor times around the torus, and 
         compute the coefficients of the best fitting SurfaceRZFourier of the resulting path. 
         Args:
             start_point_RZ: starting point in R,Z coordinates Array[R,Z]
             phi0: toroidal angle of the starting point
-            nfp: number of field periods
-            nphi: number of toroidal modes in the surface
-            ntheta: number of poloidal modes in the surface
-            ntor: number of toroidal transits to trace
-            num_points: number of points along field lines for fit
-            find_fixed_point: if True, use a root method to find a fixed point before tracing
+            nphi: number of phi planes to sample per toroidal transit
+            num_fieldlinetransits: number of toroidal transits to trace
+            ntor: maximum toroidal mode number for the surface
+            mpol: maximum poloidal mode number for the surface
+            regularization: Tikhonov regularization parameter for the least squares fit.
+                           Larger values improve numerical stability but may reduce accuracy.
             max_RMS_error: maximum root mean square error allowed for the fit. If the fit error is larger, an exception is raised.
         """ 
         from simsopt.geo import SurfaceRZFourier
 
-        if self.field.stellsym is not True:
+        if self.stellsym is not True:
             raise ValueError("Surface fitting not yet implemented for non-stellarator-symmetric fields")
         if nphi*num_fieldlinetransits < (2*ntor+1)*(mpol+1):
             raise ValueError("Not enough field line points to fit the surface modes. Increase nphi or num_fieldlinetransits, or reduce mpol or ntor.")
         nfp = self.nfp
-        phis_plane = phi0 + np.linspace(0, 2*np.pi*ntor, nphi*ntor, endpoint=False)
+        phis_plane = phi0 + np.linspace(0, 2*np.pi*num_fieldlinetransits, nphi*num_fieldlinetransits, endpoint=False)
         # Trace the field line
-        Rr, phis, Zz = self.integrate_cyl_planes(start_point_RZ, phis_plane, return_cartesian=False).T
+        status, rphiz = self.integrate_cyl_planes(start_point_RZ, phis_plane, return_cartesian=False)
+        if status != 0:
+            raise ObjectiveFailure("Integration failed during field line tracing")
+        Rr, phis, Zz = rphiz.T
 
         # Identify unique phi planes to find local centers
-        # Rounding ensures float tolerance issues don't split planes
-        unique_phi_vals, inverse_inds = np.unique(phis.round(decimals=8), return_inverse=True)
+        # We mod by 2*pi so that crossings at phi, phi+2*pi, phi+4*pi, etc.
+        # are treated as the same physical plane
+        phis_mod = np.mod(phis, 2*np.pi/nfp)
+        unique_phi_vals, inverse_inds = np.unique(phis_mod.round(decimals=8), return_inverse=True)
 
         thetas = np.zeros_like(Rr)  # to hold all theta values
         for plane_idx, unique_phi in enumerate(unique_phi_vals):
@@ -1801,21 +1822,42 @@ class ScipyFieldlineIntegrator(Integrator):
         # Calculate angles for all points and all valid modes at once
         # Outer product-like broadcasting: (N, 1) * (1, K) -> (N, K)
         # angle_r shape: (N_points, N_r_modes)
-        angle_r = np.outer(thetas, m_r) - np.outer(phis * nfp, n_r)
-        angle_z = np.outer(thetas, m_z) - np.outer(phis * nfp, n_z)
+        # Use phis_mod since the surface formula uses phi in [0, 2*pi]
+        angle_r = np.outer(thetas, m_r) - np.outer(phis_mod * nfp, n_r)
+        angle_z = np.outer(thetas, m_z) - np.outer(phis_mod * nfp, n_z)
 
-        # --- 4. Solve Linear Systems ---
+        # --- 4. Solve Linear Systems with Tikhonov Regularization ---
+        # Using ridge regression: (A'A + lambda*I) x = A'b
+        # This is equivalent to solving the augmented system:
+        # [A; sqrt(lambda)*I] x = [b; 0]
         
         # System R: R = sum(rc * cos(angle))
-        A_r = np.cos(angle_r) 
-        sol_r, residuals_r, _, _ = np.linalg.lstsq(A_r, Rr, rcond=None)
+        A_r = np.cos(angle_r)
+        n_modes_r = A_r.shape[1]
+        A_r_aug = np.vstack([A_r, np.sqrt(regularization) * np.eye(n_modes_r)])
+        b_r_aug = np.concatenate([Rr, np.zeros(n_modes_r)])
+        sol_r, _, _, _ = np.linalg.lstsq(A_r_aug, b_r_aug, rcond=None)
         
         # System Z: Z = sum(zs * sin(angle))
         A_z = np.sin(angle_z)
-        sol_z, residuals_z, _, _ = np.linalg.lstsq(A_z, Zz, rcond=None)
+        n_modes_z = A_z.shape[1]
+        A_z_aug = np.vstack([A_z, np.sqrt(regularization) * np.eye(n_modes_z)])
+        b_z_aug = np.concatenate([Zz, np.zeros(n_modes_z)])
+        sol_z, _, _, _ = np.linalg.lstsq(A_z_aug, b_z_aug, rcond=None)
 
-        surface = SurfaceRZFourier(nfp=nfp, nphi=nphi, mpol=mpol, quadpoints=100)
-        surface.x = np.concatenate((sol_r, sol_z))
+        # Map the solution vectors back into the 2D coefficient arrays
+        # m_r, n_r are the mode indices for each element of sol_r
+        # The n index in the array is shifted by +ntor (so n=-ntor is index 0)
+        for i, (m, n) in enumerate(zip(m_r, n_r)):
+            rc[m, n + ntor] = sol_r[i]
+        
+        for i, (m, n) in enumerate(zip(m_z, n_z)):
+            zs[m, n + ntor] = sol_z[i]
+
+        surface = SurfaceRZFourier(nfp=nfp, stellsym=True, mpol=mpol, ntor=ntor)
+        # Set the coefficients directly on the surface arrays
+        surface.rc[:] = rc
+        surface.zs[:] = zs
 
         return surface
 
