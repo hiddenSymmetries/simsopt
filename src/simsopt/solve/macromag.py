@@ -122,6 +122,30 @@ def _rotation_angle_xyz(R: np.ndarray) -> tuple[float, float, float]:
 
 @njit(inline='always')
 def _f_3D(a, b, c, x, y, z):
+    """
+    Auxiliary function for the analytical demagnetization tensor of a rectangular prism.
+
+    This term appears in the closed-form expressions for the diagonal demag
+    components via sums of ``atan(f)`` evaluated at signed corner combinations.
+
+    In the notation of the standard prism formulas (Newell/Aharoni), for half-dimensions
+    ``(a,b,c)`` and a local evaluation point ``(x,y,z)``, one contribution takes the form::
+
+        f(a,b,c,x,y,z) = (b - y)(c - z) / ((a - x) * r)
+        r = sqrt((a - x)^2 + (b - y)^2 + (c - z)^2)
+
+    The diagonal demag term is then assembled by a signed sum over the 8 corner
+    combinations (implemented in :func:`_prism_N_local_nb`)::
+
+        N_xx = (1 / 4π) * Σ_{s∈{±1}^3} atan( f(a,b,c, s_x x0, s_y y0, s_z z0) )
+
+    Args:
+        a, b, c: Half-dimensions of the prism in its local frame.
+        x, y, z: Evaluation point coordinates in the same local frame.
+
+    Returns:
+        Scalar value used inside ``atan`` for the N_xx expression.
+    """
     half_a, half_b, half_c = a, b, c
     eps_h, eps_l = 1.0001, 0.9999
 
@@ -139,6 +163,24 @@ def _f_3D(a, b, c, x, y, z):
 
 @njit(inline='always')
 def _g_3D(a, b, c, x, y, z):
+    """
+    Auxiliary function for the analytical demagnetization tensor of a rectangular prism.
+
+    Like :func:`_f_3D`, this term is used inside a signed sum of ``atan(g)``
+    contributions when evaluating the diagonal demag component N_yy.
+
+    Formula (local frame)::
+
+        g(a,b,c,x,y,z) = (a - x)(c - z) / ((b - y) * r)
+        r = sqrt((a - x)^2 + (b - y)^2 + (c - z)^2)
+
+    Args:
+        a, b, c: Half-dimensions of the prism in its local frame.
+        x, y, z: Evaluation point coordinates in the same local frame.
+
+    Returns:
+        Scalar value used inside ``atan`` for the N_yy expression.
+    """
     half_a, half_b, half_c = a, b, c
     eps_h, eps_l = 1.0001, 0.9999
 
@@ -157,6 +199,24 @@ def _g_3D(a, b, c, x, y, z):
 
 @njit(inline='always')
 def _h_3D(a, b, c, x, y, z):
+    """
+    Auxiliary function for the analytical demagnetization tensor of a rectangular prism.
+
+    Like :func:`_f_3D` and :func:`_g_3D`, this term is used inside a signed sum
+    of ``atan(h)`` contributions for the diagonal demag component N_zz.
+
+    Formula (local frame)::
+
+        h(a,b,c,x,y,z) = (a - x)(b - y) / ((c - z) * r)
+        r = sqrt((a - x)^2 + (b - y)^2 + (c - z)^2)
+
+    Args:
+        a, b, c: Half-dimensions of the prism in its local frame.
+        x, y, z: Evaluation point coordinates in the same local frame.
+
+    Returns:
+        Scalar value used inside ``atan`` for the N_zz expression.
+    """
     half_a, half_b, half_c = a, b, c
     eps_h, eps_l = 1.0001, 0.9999
 
@@ -174,22 +234,112 @@ def _h_3D(a, b, c, x, y, z):
     
 @njit(inline='always')
 def _FF_3D(a, b, c, x, y, z):
+    """
+    Log-kernel helper used for off-diagonal demagnetization tensor components.
+
+    In the closed-form prism demagnetization formulas (Newell/Aharoni style),
+    the off-diagonal entries are assembled from logarithms of products of
+    auxiliary functions evaluated at the 8 signed corner combinations. For the
+    ``N_xy`` entry, one such auxiliary function can be written (local frame)::
+
+        F(a,b,c,x,y,z) = (c - z) + r
+        r = sqrt((a - x)^2 + (b - y)^2 + (c - z)^2)
+
+    :func:`_prism_N_local_nb` forms the corresponding numerator/denominator
+    products and uses ``-1/(4π) * log(numerator/denominator)`` to obtain the
+    symmetric ``(x,y)`` off-diagonal block.
+
+    Args:
+        a, b, c: Half-dimensions of the prism in its local frame.
+        x, y, z: Evaluation point coordinates in the same local frame.
+
+    Returns:
+        Positive scalar used in ratios inside ``log`` terms for ``N_xy``.
+    """
     ha, hb, hc = a, b, c
     return (hc - z) + math.sqrt((ha - x)**2 + (hb - y)**2 + (hc - z)**2)
 
 @njit(inline='always')
 def _GG_3D(a, b, c, x, y, z):
+    """
+    Log-kernel helper used for off-diagonal demagnetization tensor components.
+
+    For the ``N_yz`` off-diagonal entry, a standard auxiliary function is
+    (local frame)::
+
+        G(a,b,c,x,y,z) = (a - x) + r
+        r = sqrt((a - x)^2 + (b - y)^2 + (c - z)^2)
+
+    :func:`_prism_N_local_nb` assembles ``N_yz`` via a signed product ratio and
+    ``-1/(4π) * log(·)``.
+
+    Args:
+        a, b, c: Half-dimensions of the prism in its local frame.
+        x, y, z: Evaluation point coordinates in the same local frame.
+
+    Returns:
+        Positive scalar used in ratios inside ``log`` terms for ``N_yz``.
+    """
     ha, hb, hc = a, b, c
     return (ha - x) + math.sqrt((ha - x)**2 + (hb - y)**2 + (hc - z)**2)
 
 @njit(inline='always')
 def _HH_3D(a, b, c, x, y, z):
+    """
+    Log-kernel helper used for off-diagonal demagnetization tensor components.
+
+    For the ``N_xz`` off-diagonal entry, a standard auxiliary function is
+    (local frame)::
+
+        H(a,b,c,x,y,z) = (b - y) + r
+        r = sqrt((a - x)^2 + (b - y)^2 + (c - z)^2)
+
+    :func:`_prism_N_local_nb` assembles ``N_xz`` via a signed product ratio and
+    ``-1/(4π) * log(·)``. See :func:`getF_limit` for the corresponding
+    numerator/denominator structure and the stabilized limit evaluation used
+    when the raw products underflow.
+
+    Args:
+        a, b, c: Half-dimensions of the prism in its local frame.
+        x, y, z: Evaluation point coordinates in the same local frame.
+
+    Returns:
+        Positive scalar used in ratios inside ``log`` terms for ``N_xz``.
+    """
     ha, hb, hc = a, b, c
     return (hb - y) + math.sqrt((ha - x)**2 + (hb - y)**2 + (hc - z)**2)
 
 
 @njit(inline='always')
 def getF_limit(a, b, c, x, y, z, func):
+    """
+    Numerically stable limit for the off-diagonal log-kernel ratio.
+
+    The off-diagonal demag components use terms of the form
+    ``log(numerator/denominator)``, where numerator and denominator are products
+    of the auxiliary functions evaluated at signed corner combinations. At some
+    symmetric points, numerator and/or denominator can underflow or become
+    exactly 0 in floating point. This helper computes the ratio using a small
+    symmetric perturbation and returns the averaged limit value.
+
+    Concretely, for a chosen off-diagonal kernel ``F`` (one of :func:`_FF_3D`,
+    :func:`_GG_3D`, :func:`_HH_3D`), we form the ratio::
+
+        ratio = Π F(+a,+b,+c, x,y,z) * F(-a,-b,+c, x,y,z) * F(+a,-b,-c, x,y,z) * F(-a,+b,-c, x,y,z)
+                -------------------------------------------------------------------------------------
+                Π F(+a,-b,+c, x,y,z) * F(-a,+b,+c, x,y,z) * F(+a,+b,-c, x,y,z) * F(-a,-b,-c, x,y,z)
+
+    and then use ``log(ratio)`` in the off-diagonal entry. When the raw products
+    become numerically 0, we evaluate this ratio at ``(x,y,z)*(1±ε)`` and average.
+
+    Args:
+        a, b, c: Half-dimensions of the prism in its local frame.
+        x, y, z: Evaluation point coordinates in the same local frame.
+        func: One of :func:`_FF_3D`, :func:`_GG_3D`, :func:`_HH_3D`.
+
+    Returns:
+        Scalar approximation to the ratio (numerator/denominator) in the limit.
+    """
     lim_h, lim_l = 1.0001, 0.9999
     xl, yl, zl = x * lim_l, y * lim_l, z * lim_l
     xh, yh, zh = x * lim_h, y * lim_h, z * lim_h
@@ -219,6 +369,38 @@ def getF_limit(a, b, c, x, y, z, func):
 
 @njit(cache=False)
 def _prism_N_local_nb(a, b, c, x0, y0, z0):
+    """
+    Demagnetization tensor for a uniformly magnetized rectangular prism (local frame).
+
+    This function evaluates the 3×3 demagnetization tensor block N_ij for a
+    rectangular prism with half-dimensions (a,b,c), for a target point located at
+    (x0,y0,z0) in the *prism's local coordinate system*.
+
+    The expressions are the standard closed-form Newell/Aharoni-style formulas:
+    diagonal entries are sums of ``atan`` terms; off-diagonals are ``log`` terms,
+    with special handling for near-singular ratios via :func:`getF_limit`.
+
+    In particular, with ``(x0,y0,z0)`` the local vector from source to target,
+    the implementation matches the common structure::
+
+        N_xx = (1 / 4π) * Σ atan( f(...) )
+        N_yy = (1 / 4π) * Σ atan( g(...) )
+        N_zz = (1 / 4π) * Σ atan( h(...) )
+
+        N_xy = -(1 / 4π) * log( ratio(F=FF_3D) )
+        N_yz = -(1 / 4π) * log( ratio(F=GG_3D) )
+        N_xz = -(1 / 4π) * log( ratio(F=HH_3D) )
+
+    where the sums/products are taken over signed corner combinations (see code).
+
+    Args:
+        a, b, c: Half-dimensions of the prism in its local frame.
+        x0, y0, z0: Relative vector from source centre to target centre in the same local frame.
+
+    Returns:
+        N: ndarray, shape (3, 3). The demag tensor block in local coordinates.
+           The returned sign convention matches the rest of this module (note the final ``return -N``).
+    """
     N = np.empty((3,3), dtype=np.float64)
     sum_f = sum_g = sum_h = 0.0
     for si in (1.0, -1.0):
@@ -258,6 +440,21 @@ def _prism_N_local_nb(a, b, c, x0, y0, z0):
 
 @njit(parallel=True, cache=False)
 def _assemble_tensor_local_nb(centres, half, Rg2l):
+    """
+    Assemble the full dense demag tensor for a tile set (Numba, local evaluation).
+
+    For each tile pair (i,j), compute the local-frame prism demag block N_ij
+    using :func:`_prism_N_local_nb`, after rotating the separation vector from
+    global coordinates into tile i's local frame.
+
+    Args:
+        centres: ndarray, shape (n, 3). Tile centre positions in global coordinates.
+        half: ndarray, shape (n, 3). Tile half-dimensions in local coordinates.
+        Rg2l: ndarray, shape (n, 3, 3). Global-to-local rotation matrices for each tile.
+
+    Returns:
+        Nloc: ndarray, shape (n, n, 3, 3). Dense demag tensor blocks.
+    """
     n = centres.shape[0]
     Nloc = np.zeros((n, n, 3, 3), dtype=np.float64)
     for i in prange(n):
@@ -278,6 +475,22 @@ def _assemble_tensor_local_nb(centres, half, Rg2l):
 
 @njit(parallel=True, cache=False)
 def assemble_blocks_subset(centres, half, Rg2l, I, J):
+    """
+    Assemble a subset of demag tensor blocks (Numba).
+
+    This helper returns the blocks N[I[ii], J[jj]] without forming the full
+    (n,n,3,3) tensor, which is useful for incremental/batched assembly.
+
+    Args:
+        centres: ndarray, shape (n, 3). Tile centre positions in global coordinates.
+        half: ndarray, shape (n, 3). Tile half-dimensions in local coordinates.
+        Rg2l: ndarray, shape (n, 3, 3). Global-to-local rotation matrices for each tile.
+        I: ndarray, shape (nI,). Target tile indices.
+        J: ndarray, shape (nJ,). Source tile indices.
+
+    Returns:
+        out: ndarray, shape (nI, nJ, 3, 3). Demag tensor blocks for the requested pairs.
+    """
     nI, nJ = I.shape[0], J.shape[0]
     out = np.empty((nI, nJ, 3, 3), np.float64)
     for ii in prange(nI):
