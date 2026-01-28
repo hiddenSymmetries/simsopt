@@ -295,18 +295,17 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             multi:
                 GPMO, but placing multiple magnets per iteration,
             GPMO_Backtracking:
-                basis-vector backtracking variant,
+                basis-vector backtracking variant (no ArbVec),
             GPMO_ArbVec:
-                GPMO with arbitrary polarization vectors (no backtracking),
+                ArbVec GPMO (no backtracking),
             GPMO:
-                ArbVec GPMO with optional backtracking (set `backtracking=0` to disable),
+                ArbVec GPMO; backtracking is controlled by the `backtracking` kwarg (set to 0 to disable),
             GPMO_py:
-                pure-Python reference implementation of GPMO (testing-only),
+                pure-Python implementation of GPMO (used by GPMOmr),
             GPMOmr:
-                GPMO with macromagnetic refinement (MacroMag); backtracking controlled by `backtracking`.
+                ArbVec GPMO with macromagnetic refinement (MacroMag); backtracking controlled by the `backtracking` kwarg
+                and macromag refinement cadence controlled by `mm_refine_every`.
 
-            Easiest algorithm to use is 'baseline' but most effective 
-            algorithm is 'GPMO' / 'GPMOmr'.
         kwargs:
             Keyword arguments for the GPMO algorithm and its variants.
             The following variables can be passed:
