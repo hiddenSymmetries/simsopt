@@ -1028,9 +1028,15 @@ def make_stage_II_pareto_plots(df: list, df_filtered: list, OUTPUT_DIR: str = ".
         data = get_field_values(df, field)
         data_filtered = get_field_values(df_filtered, field)
         
-        # Filter out NaN and infinite values
-        data = data[np.isfinite(data)]
-        data_filtered = data_filtered[np.isfinite(data_filtered)]
+        # Filter out NaN and infinite values - ensure we have numpy arrays
+        if len(data) > 0:
+            data = data[np.isfinite(data)]
+        else:
+            data = np.array([])
+        if len(data_filtered) > 0:
+            data_filtered = data_filtered[np.isfinite(data_filtered)]
+        else:
+            data_filtered = np.array([])
         
         # Skip plotting if no valid data
         if len(data) == 0:
@@ -1039,7 +1045,7 @@ def make_stage_II_pareto_plots(df: list, df_filtered: list, OUTPUT_DIR: str = ".
             plt.xlabel(field)
             return
         
-        if np.min(data) > 0:
+        if len(data) > 0 and np.min(data) > 0:
             bins = np.logspace(np.log10(data.min()), np.log10(data.max()), nbins)
         else:
             bins = nbins

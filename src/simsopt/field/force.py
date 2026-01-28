@@ -339,7 +339,7 @@ class B2Energy(Optimizable):
 
 
 def net_fluxes_pure(gammas, gammadashs, gammas2, gammadashs2, currents2, downsample):
-    """
+    r"""
     Calculate the net magnetic flux through a set of m coils with n quadrature points
     due to another set of m' coils with n' quadrature points.
 
@@ -400,7 +400,7 @@ def net_fluxes_pure(gammas, gammadashs, gammas2, gammadashs2, currents2, downsam
 
 
 def net_ext_fluxes_pure(gammadash, A_ext, downsample):
-    """
+    r"""
     Calculate the net magnetic flux through a coil with n quadrature points
     due to an external vector potential evaluated at those points.
 
@@ -544,7 +544,7 @@ class NetFluxes(Optimizable):
 
 def squared_mean_force_pure(gammas, gammas2, gammadashs, gammadashs2, currents,
                             currents2, downsample):
-    """
+    r"""
     Compute the squared mean force on a set of m coils with varying quadrature points 
     (downsampled to have the smallest number, denoted n, of quadrature points),
     due to themselves and another set of m' coils with varying quadrature points
