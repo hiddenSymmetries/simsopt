@@ -20,12 +20,11 @@ from ..geo.jit import jit
 
 Biot_savart_prefactor = constants.mu_0 / (4 * np.pi)
 
-__all__ = ['B_regularized_pure', 'B_regularized_circ', 'B_regularized_rect', 
-           'regularization_rect', 'regularization_circ']
+__all__ = ['B_regularized_pure', 'regularization_rect', 'regularization_circ']
 
 
 def _rectangular_xsection_k(a, b):
-    """Auxiliary function for regularization in rectangular conductor.
+    r"""Auxiliary function for regularization in rectangular conductor.
 
     .. math::
         k = \frac{4 b}{3 a} \arctan \left( \frac a b \right) + \frac{4 a}{3 b} \arctan \left( \frac b a \right) + \frac{b^2}{6 a^2} \log \left( \frac b a \right) + \frac{a^2}{6 b^2} \log \left( \frac a b \right) - \frac{a^4 - 6 a^2 b^2 + b^4}{6 a^2 b^2} \log \left( \frac a b + \frac b a \right)
@@ -45,7 +44,7 @@ def _rectangular_xsection_k(a, b):
 
 
 def _rectangular_xsection_delta(a, b):
-    """Auxiliary function for regularization in rectangular conductor.
+    r"""Auxiliary function for regularization in rectangular conductor.
 
     .. math::
         \delta = \exp \left( - \frac{25}{6} + K \right)
@@ -62,7 +61,7 @@ def _rectangular_xsection_delta(a, b):
 
 
 def regularization_circ(a):
-    """Regularization for a circular conductor.
+    r"""Regularization for a circular conductor.
 
     .. math::
         \delta = a^2 / \sqrt{e}
@@ -79,7 +78,7 @@ def regularization_circ(a):
 
 
 def regularization_rect(a, b):
-    """Regularization for a rectangular conductor.
+    r"""Regularization for a rectangular conductor.
 
     .. math::
         \delta = a b \exp \left( - \frac{25}{6} + K \right)
@@ -148,63 +147,3 @@ def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, reg
     return current * Biot_savart_prefactor * (analytic_term + integral_term)
 
 
-def B_regularized(coil):
-    """Calculate the regularized field on a coil following the Landreman and Hurwitz method
-    
-    Args:
-        coil (RegularizedCoil): The coil to compute the field on.
-    
-    Returns:
-        array (shape (n,3)): The regularized field on the coil.
-    """
-    return B_regularized_pure(
-        coil.curve.gamma(),
-        coil.curve.gammadash(),
-        coil.curve.gammadashdash(),
-        coil.curve.quadpoints,
-        coil._current.get_value(),
-        coil.regularization,
-    )
-
-
-def B_regularized_circ(coil, a):
-    """Calculate the regularized field on a coil with circular cross-section
-    
-    Args:
-        coil (Coil): The coil to compute the field on.
-        a (float): The radius of the circular cross-section.
-    
-    Returns:
-        array (shape (n,3)): The regularized field on the coil.
-    """
-    reg = regularization_circ(a)
-    return B_regularized_pure(
-        coil.curve.gamma(),
-        coil.curve.gammadash(),
-        coil.curve.gammadashdash(),
-        coil.curve.quadpoints,
-        coil.current.get_value(),
-        reg,
-    )
-
-
-def B_regularized_rect(coil, a, b):
-    """Calculate the regularized field on a coil with rectangular cross-section
-    
-    Args:
-        coil (Coil): The coil to compute the field on.
-        a (float): The width of the rectangular cross-section.
-        b (float): The height of the rectangular cross-section.
-    
-    Returns:
-        array (shape (n,3)): The regularized field on the coil.
-    """
-    reg = regularization_rect(a, b)
-    return B_regularized_pure(
-        coil.curve.gamma(),
-        coil.curve.gammadash(),
-        coil.curve.gammadashdash(),
-        coil.curve.quadpoints,
-        coil.current.get_value(),
-        reg,
-    )

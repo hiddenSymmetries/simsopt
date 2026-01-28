@@ -688,7 +688,7 @@ def vacuum_stage_II_optimization(
             order=order,
         )
 
-    from simsopt.field.force import coil_force, LpCurveForce
+    from simsopt.field.force import LpCurveForce
     from simsopt.field.selffield import regularization_circ
     from simsopt.field import RegularizedCoil
 
@@ -843,9 +843,9 @@ def vacuum_stage_II_optimization(
         regularization=reg_param
         ) for c in base_coils]
     ).J()
-    max_forces = [np.max(np.linalg.norm(coil_force(c_reg, coils), axis=1)) for c_reg in base_coils_reg]
-    min_forces = [np.min(np.linalg.norm(coil_force(c_reg, coils), axis=1)) for c_reg in base_coils_reg]
-    RMS_forces = [np.sqrt(np.mean(np.square(np.linalg.norm(coil_force(c_reg, coils), axis=1)))) for c_reg in base_coils_reg]
+    max_forces = [np.max(np.linalg.norm(c_reg.force(coils), axis=1)) for c_reg in base_coils_reg]
+    min_forces = [np.min(np.linalg.norm(c_reg.force(coils), axis=1)) for c_reg in base_coils_reg]
+    RMS_forces = [np.sqrt(np.mean(np.square(np.linalg.norm(c_reg.force(coils), axis=1)))) for c_reg in base_coils_reg]
     results = {
         "nfp": nfp,
         "ncoils": int(ncoils),

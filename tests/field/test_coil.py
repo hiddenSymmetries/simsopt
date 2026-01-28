@@ -365,7 +365,7 @@ class CoilFormatConvertTesting(unittest.TestCase):
                         for extra_data in [None, {}]:
                             curve = get_curve(curvetype, rotated=rotated, x=20)  # Give the curve more than 1 quadpoint
                             if coil_type == RegularizedCoil:
-                                coil = coil_type(curve, Current(1.0), regularization=regularization_circ(0.05))
+                                coil = coil_type(curve, Current(1.0), regularization_circ(0.05))
                             else:
                                 coil = coil_type(curve, Current(1.0))
                             filename = "test_coil"
