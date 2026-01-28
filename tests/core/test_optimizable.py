@@ -875,7 +875,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertEqual(len(test_obj.dof_names), 3)
         for name in test_obj.dof_names:
             self.assertTrue(comb_patt.match(name))
-        exc_patt = re.compile("OptClassWithParents\d+:val")
+        exc_patt = re.compile(r"OptClassWithParents\d+:val")
         for name in test_obj.dof_names:
             self.assertFalse(exc_patt.match(name))
 
@@ -883,14 +883,14 @@ class OptimizableTests(unittest.TestCase):
         self.assertEqual(len(test_obj.dof_names), 2)
         for name in test_obj.dof_names:
             self.assertTrue(comb_patt.match(name))
-        exc_patt = re.compile("Adder\d+:x1")
+        exc_patt = re.compile(r"Adder\d+:x1")
         for name in test_obj.dof_names:
             self.assertFalse(exc_patt.match(name))
 
         test_obj2 = OptClassWith2LevelParents(10, 20)
-        patt1 = "Adder\d+:x\d+"
-        patt2 = "OptClassWithParents\d+:val"
-        patt3 = "OptClassWith2LevelParents\d+:v\d"
+        patt1 = r"Adder\d+:x\d+"
+        patt2 = r"OptClassWithParents\d+:val"
+        patt3 = r"OptClassWith2LevelParents\d+:v\d"
         comb_patt = re.compile("|".join([patt1, patt2, patt3]))
         self.assertEqual(len(test_obj2.dof_names), 10)
         for name in test_obj2.dof_names:
@@ -900,7 +900,7 @@ class OptimizableTests(unittest.TestCase):
         self.assertEqual(len(test_obj2.dof_names), 9)
         for name in test_obj2.dof_names:
             self.assertTrue(comb_patt.match(name))
-        exc_patt = re.compile("OptClassWith2LevelParents\d+:v1")
+        exc_patt = re.compile(r"OptClassWith2LevelParents\d+:v1")
         for name in test_obj.dof_names:
             self.assertFalse(exc_patt.match(name))
 
@@ -921,9 +921,9 @@ class OptimizableTests(unittest.TestCase):
         self.assertEqual(len(test_obj2.full_dof_names), 10)
         test_obj2.fix(0)
         self.assertEqual(len(test_obj2.full_dof_names), 10)
-        patt1 = "Adder\d+:x\d+"
-        patt2 = "OptClassWithParents\d+:val"
-        patt3 = "OptClassWith2LevelParents\d+:v\d"
+        patt1 = r"Adder\d+:x\d+"
+        patt2 = r"OptClassWithParents\d+:val"
+        patt3 = r"OptClassWith2LevelParents\d+:v\d"
         comb_patt = re.compile("|".join([patt1, patt2, patt3]))
         for name in test_obj2.full_dof_names:
             self.assertTrue(comb_patt.match(name))
@@ -1427,15 +1427,15 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
         # to the proper subset of Optimizables when as_derivative=True
 
         optA = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
-                                        fixed=[False, False, True])
+                                  fixed=[False, False, True])
         optA_shared_dofs = OptClassSharedDOFs(dofs=optA.dofs)
-        
+
         optB = OptClassSharedDOFs(x0=[np.pi, 1, 1.21], names=["xx", "yy", "zz"],
-                                        fixed=[False, False, True])
+                                  fixed=[False, False, True])
         sum_opt = optA + optA_shared_dofs + optB
         deriv = sum_opt.dJ(partials=True)(sum_opt, as_derivative=True)
-        
-        # restrict to optA 
+
+        # restrict to optA
         np.testing.assert_allclose(deriv(optA), optA.dJ()*2, atol=1e-14)
         # restrict to optA_shared_dofs
         np.testing.assert_allclose(deriv(optA_shared_dofs), optA.dJ()*2, atol=1e-14)
@@ -1447,7 +1447,7 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
         # to another that things work as expected when some DOFs are fixed.
 
         opt = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
-                                        fixed=[False, False, True])
+                                 fixed=[False, False, True])
         deriv = opt.dJ(partials=True)(opt, as_derivative=True) + opt.dJ(partials=True)
         np.testing.assert_allclose(deriv(opt), opt.dJ()*2, atol=1e-14)
 

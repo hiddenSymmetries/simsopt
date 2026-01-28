@@ -68,7 +68,7 @@ Then we create the equilibrium object, starting from an input file::
 
   equil = Spec('2DOF_targetIotaAndVolume.sp')
 
-This file can be found in the ``examples/stellarator_benchmarks/inputs`` directory; you can prepend
+This file can be found in the :simsopt:`examples/stellarator_benchmarks/inputs` directory; you can prepend
 the path to the filename if needed.
 
 Next, we define the independent variables for the optimization, by
@@ -128,20 +128,21 @@ These numbers match the solution found using stellopt and VMEC in
 `stellopt_scenarios
 <https://github.com/landreman/stellopt_scenarios/tree/master/2DOF_vmecOnly_targetIotaAndVolume>`_
 
+.. _vmec_ex:
     
 VMEC version
 ------------
 
 To use VMEC instead of SPEC, the only essential change is to use a
-:obj:`simsopt.mhd.Vmec` object for the equilibrium instead of the
-Spec object.
+:obj:`~simsopt.mhd.Vmec` class for the equilibrium instead of the
+:obj:`~simsopt.mhd.Spec` class.
 
 Here we can also show how to add MPI to the example.  MPI can be used
 for parallelized finite-difference gradients, within each VMEC
 computation, or both at the same time.  To introduce MPI we first
 initialize an :obj:`simsopt.util.MpiPartition` object and choose
 the number of worker groups.  The instance is then passed as an
-argument to the Vmec object and to the
+argument to the :obj:`~simsopt.mhd.Vmec` object and to the
 :meth:`simsopt.solve.least_squares_mpi_solve` function.
 For more details about MPI, see :doc:`mpi`.
 
@@ -181,5 +182,4 @@ The complete example is then as follows::
   # Solve the minimization problem:
   least_squares_mpi_solve(prob, mpi, grad=True)
 
-The VMEC input file used here can be found in the ``examples``
-directory of the repository.
+The VMEC input file used here can be found at :example_file:`stellarator_benchmarks/2DOF_vmecOnly_targetIotaAndVolume.py`.

@@ -25,6 +25,7 @@ import matplotlib.pyplot as pl
 from simsopt.geo import SurfaceRZFourier, ToroidalWireframe
 from simsopt.geo import PortSet, CircularPort
 from simsopt.solve import optimize_wireframe
+from simsopt.util import in_github_actions
 
 # Set to True generate a 3d rendering with the mayavi package
 make_mayavi_plot = False
@@ -42,7 +43,7 @@ wf_surf_dist = 0.3
 port_phis = [np.pi/8, 3*np.pi/8]  # toroidal angles
 port_thetas = [np.pi/4, 7*np.pi/4]  # poloidal angles
 
-# Dimensions of each port 
+# Dimensions of each port
 port_ir = 0.1       # inner radius [m]
 port_thick = 0.005  # wall thickness [m]
 port_gap = 0.04     # minimum gap between port and wireframe segments [m]
@@ -72,8 +73,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # Load the geometry of the target plasma boundary
 plas_n_phi = 32
 plas_n_theta = 32
-surf_plas = SurfaceRZFourier.from_vmec_input(filename_equil, 
-                nphi=plas_n_phi, ntheta=plas_n_theta, range='half period')
+surf_plas = SurfaceRZFourier.from_vmec_input(filename_equil,
+                                             nphi=plas_n_phi, ntheta=plas_n_theta, range='half period')
 
 # Construct the wireframe on a toroidal surface
 surf_wf = SurfaceRZFourier.from_vmec_input(filename_equil)
@@ -85,10 +86,10 @@ ports = PortSet()
 for i in range(len(port_phis)):
     # For simplicity, adjust the angles to the positions of the nearest existing
     # quadrature points in the surf_wf class instance
-    phi_nearest = np.argmin(np.abs((0.5/np.pi)*port_phis[i] 
+    phi_nearest = np.argmin(np.abs((0.5/np.pi)*port_phis[i]
                                    - surf_wf.quadpoints_phi))
     for j in range(len(port_thetas)):
-        theta_nearest = np.argmin(np.abs((0.5/np.pi)*port_thetas[j] \
+        theta_nearest = np.argmin(np.abs((0.5/np.pi)*port_thetas[j]
                                          - surf_wf.quadpoints_theta))
         ox = surf_wf.gamma()[phi_nearest, theta_nearest, 0]
         oy = surf_wf.gamma()[phi_nearest, theta_nearest, 1]
@@ -96,8 +97,8 @@ for i in range(len(port_phis)):
         ax = surf_wf.normal()[phi_nearest, theta_nearest, 0]
         ay = surf_wf.normal()[phi_nearest, theta_nearest, 1]
         az = surf_wf.normal()[phi_nearest, theta_nearest, 2]
-        ports.add_ports([CircularPort(ox=ox, oy=oy, oz=oz, ax=ax, ay=ay, az=az,\
-            ir=port_ir, thick=port_thick, l0=port_l0, l1=port_l1)])
+        ports.add_ports([CircularPort(ox=ox, oy=oy, oz=oz, ax=ax, ay=ay, az=az,
+                                      ir=port_ir, thick=port_thick, l0=port_l0, l1=port_l1)])
 ports = ports.repeat_via_symmetries(surf_wf.nfp, True)
 
 # Constrain wireframe segments that collide with the ports
@@ -105,7 +106,7 @@ wf.constrain_colliding_segments(ports.collides, gap=port_gap)
 
 # Calculate the required net poloidal current and set it as a constraint
 mu0 = 4.0 * np.pi * 1e-7
-pol_cur = -2.0*np.pi*surf_plas.get_rc(0,0)*field_on_axis/mu0
+pol_cur = -2.0*np.pi*surf_plas.get_rc(0, 0)*field_on_axis/mu0
 wf.set_poloidal_current(pol_cur)
 
 # Set the optimization parameters
@@ -113,7 +114,7 @@ opt_params = {'reg_W': regularization_w}
 
 # Run the RCLS optimization
 t0 = time.time()
-res = optimize_wireframe(wf, 'rcls', opt_params, surf_plas=surf_plas, 
+res = optimize_wireframe(wf, 'rcls', opt_params, surf_plas=surf_plas,
                          verbose=False)
 t1 = time.time()
 delta_t = t1 - t0
@@ -122,7 +123,7 @@ delta_t = t1 - t0
 assert wf.check_constraints()
 
 # Post-processing
-res['wframe_field'].set_points(surf_plas.gamma().reshape((-1,3)))
+res['wframe_field'].set_points(surf_plas.gamma().reshape((-1, 3)))
 Bfield = res['wframe_field'].B().reshape((plas_n_phi, plas_n_theta, 3))
 Bnormal = np.sum(Bfield * surf_plas.unitnormal(), axis=2)
 modB = np.sqrt(np.sum(Bfield**2, axis=2))
@@ -136,7 +137,7 @@ ndof = wf.n_segments - wf.constraint_matrices()[0].shape[0]
 print('')
 print('Post-processing')
 print('---------------')
-print('  # dof          %12d'   % (ndof))
+print('  # dof          %12d' % (ndof))
 print('  opt time [s]   %12.3f' % (delta_t))
 print('  f_B [T^2m^2]   %12.4e' % (res['f_B']))
 print('  f_R [T^2m^2]   %12.4e' % (res['f_R']))
@@ -145,23 +146,23 @@ print('  I_max [MA]     %12.4e' % (max_cur))
 
 # Save plots and visualization data to files
 wf.make_plot_2d(quantity='nonzero currents', coordinates='degrees')
-pl.savefig(OUT_DIR + 'rcls_ports_wireframe_curr2d.png')
 wf.to_vtk(OUT_DIR + 'rcls_ports_wireframe')
 ports.to_vtk(OUT_DIR + 'rcls_ports_port_geometry')
+if not in_github_actions:
+    pl.savefig(OUT_DIR + 'rcls_ports_wireframe_curr2d.png')
 
 # Generate a 3D plot if desired
-if make_mayavi_plot:
+if make_mayavi_plot and not in_github_actions:
 
     from mayavi import mlab
     mlab.options.offscreen = True
 
-    mlab.figure(size=(1050,800), bgcolor=(1,1,1))
+    mlab.figure(size=(1050, 800), bgcolor=(1, 1, 1))
     wf.make_plot_3d(to_show='active')
     ports.plot()
-    surf_plas_plot = SurfaceRZFourier.from_vmec_input(filename_equil, 
-        nphi=plas_n_phi, ntheta=plas_n_theta, range='full torus')
-    surf_plas_plot.plot(engine='mayavi', show=False, close=True, 
-        wireframe=False, color=(1, 0.75, 1))
+    surf_plas_plot = SurfaceRZFourier.from_vmec_input(filename_equil,
+                                                      nphi=plas_n_phi, ntheta=plas_n_theta, range='full torus')
+    surf_plas_plot.plot(engine='mayavi', show=False, close=True,
+                        wireframe=False, color=(1, 0.75, 1))
     mlab.view(distance=5.5, focalpoint=(0, 0, -0.15))
     mlab.savefig(OUT_DIR + 'rcls_ports_wireframe_plot3d.png')
-

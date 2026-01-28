@@ -14,6 +14,7 @@ from pathlib import Path
 import time
 import numpy as np
 import matplotlib.pyplot as pl
+from simsopt.util import in_github_actions
 from simsopt.geo import SurfaceRZFourier, ToroidalWireframe
 from simsopt.solve import optimize_wireframe
 
@@ -49,8 +50,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # Load the geometry of the target plasma boundary
 plas_n_phi = 32
 plas_n_theta = 32
-surf_plas = SurfaceRZFourier.from_vmec_input(filename_equil, 
-                nphi=plas_n_phi, ntheta=plas_n_theta, range='half period')
+surf_plas = SurfaceRZFourier.from_vmec_input(filename_equil,
+                                             nphi=plas_n_phi, ntheta=plas_n_theta, range='half period')
 
 # Construct the wireframe on a toroidal surface
 surf_wf = SurfaceRZFourier.from_vmec_input(filename_equil)
@@ -59,7 +60,7 @@ wf = ToroidalWireframe(surf_wf, wf_n_phi, wf_n_theta)
 
 # Calculate the required net poloidal current and set it as a constraint
 mu0 = 4.0 * np.pi * 1e-7
-pol_cur = -2.0*np.pi*surf_plas.get_rc(0,0)*field_on_axis/mu0
+pol_cur = -2.0*np.pi*surf_plas.get_rc(0, 0)*field_on_axis/mu0
 wf.set_poloidal_current(pol_cur)
 
 # Set the optimization parameters
@@ -67,7 +68,7 @@ opt_params = {'reg_W': regularization_w}
 
 # Run the RCLS optimization
 t0 = time.time()
-res = optimize_wireframe(wf, 'rcls', opt_params, surf_plas=surf_plas, 
+res = optimize_wireframe(wf, 'rcls', opt_params, surf_plas=surf_plas,
                          verbose=False)
 t1 = time.time()
 delta_t = t1 - t0
@@ -76,7 +77,7 @@ delta_t = t1 - t0
 assert wf.check_constraints()
 
 # Post-processing
-res['wframe_field'].set_points(surf_plas.gamma().reshape((-1,3)))
+res['wframe_field'].set_points(surf_plas.gamma().reshape((-1, 3)))
 Bfield = res['wframe_field'].B().reshape((plas_n_phi, plas_n_theta, 3))
 Bnormal = np.sum(Bfield * surf_plas.unitnormal(), axis=2)
 modB = np.sqrt(np.sum(Bfield**2, axis=2))
@@ -90,7 +91,7 @@ ndof = wf.n_segments - wf.constraint_matrices()[0].shape[0]
 print('')
 print('Post-processing')
 print('---------------')
-print('  # dof          %12d'   % (ndof))
+print('  # dof          %12d' % (ndof))
 print('  opt time [s]   %12.3f' % (delta_t))
 print('  f_B [T^2m^2]   %12.4e' % (res['f_B']))
 print('  f_R [T^2m^2]   %12.4e' % (res['f_R']))
@@ -99,7 +100,6 @@ print('  I_max [MA]     %12.4e' % (max_cur))
 
 # Save plots and visualization data to files
 wf.make_plot_2d(coordinates='degrees')
-pl.savefig(OUT_DIR + 'rcls_wireframe_curr2d.png')
 wf.to_vtk(OUT_DIR + 'rcls_wireframe')
-
-
+if not in_github_actions:
+    pl.savefig(OUT_DIR + 'rcls_wireframe_curr2d.png')

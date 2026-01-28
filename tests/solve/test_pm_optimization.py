@@ -39,8 +39,8 @@ class Testing(unittest.TestCase):
         m0 = np.zeros((ndipoles, 3))
         b = np.random.rand(nquad)
         A = np.random.rand(nquad, ndipoles, 3)
-        ATA = np.tensordot(A, A, axes=([1, 1])) 
-        alpha = 2.0 / np.linalg.norm(ATA.reshape(nquad * 3, nquad * 3), ord=2) 
+        ATA = np.tensordot(A, A, axes=([1, 1]))
+        alpha = 2.0 / np.linalg.norm(ATA.reshape(nquad * 3, nquad * 3), ord=2)
         ATb = np.tensordot(A, b, axes=([0, 0]))
         with ScratchDir("."):
             MwPGP_hist, RS_hist, m_hist, dipoles = sopp.MwPGP_algorithm(
@@ -78,7 +78,7 @@ class Testing(unittest.TestCase):
 
         # optimize the currents in the TF coils
         with ScratchDir("."):
-            base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s)
+            base_curves, curves, coils = initialize_coils_for_pm_optimization('qa', TEST_DIR, s)
             bs = BiotSavart(coils)
             bs = coil_optimization(s, bs, base_curves, curves)
             bs.set_points(s.gamma().reshape((-1, 3)))

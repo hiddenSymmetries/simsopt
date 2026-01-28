@@ -13,6 +13,7 @@ except ImportError:
 
 __all__ = ['ToroidalWireframe', 'windowpane_wireframe']
 
+
 class ToroidalWireframe(object):
     """
     ``ToroidalWireframe`` is a wireframe grid whose nodes are placed on a
@@ -45,8 +46,8 @@ class ToroidalWireframe(object):
             raise ValueError('Surface must be a SurfaceRZFourier object')
 
         if not surface.stellsym:
-            raise ValueError('Surfaces without stellarator symmetry are not ' \
-                             + 'currently supported in the ToroidalWireframe ' \
+            raise ValueError('Surfaces without stellarator symmetry are not '
+                             + 'currently supported in the ToroidalWireframe '
                              + 'class')
 
         if not isinstance(n_theta, int) or not isinstance(n_phi, int):
@@ -54,24 +55,24 @@ class ToroidalWireframe(object):
 
         if n_theta % 2 or n_phi % 2:
             raise ValueError('n_phi and n_theta must be even.')
-        self.n_theta = n_theta 
+        self.n_theta = n_theta
         self.n_phi = n_phi
 
         # Check the constraint tolerances
         if (not np.isscalar(constraint_atol) and not constraint_atol > 0) \
-            or (not np.isscalar(constraint_rtol) and not constraint_rtol > 0):
+                or (not np.isscalar(constraint_rtol) and not constraint_rtol > 0):
             raise ValueError('constraint_atol must be a positive scalar')
         self.constraint_atol = constraint_atol
         self.constraint_rtol = constraint_rtol
-            
+
         # Make copy of surf with quadrature points according to n_theta, n_phi
         qpoints_phi = list(np.linspace(0, 0.5/surface.nfp, n_phi+1))
         qpoints_theta = list(np.linspace(0, 1., n_theta, endpoint=False))
         self.nfp = surface.nfp
-        self.surface = SurfaceRZFourier(nfp=surface.nfp, stellsym=True, \
-                                        mpol=surface.mpol, ntor=surface.ntor, \
-                                        quadpoints_phi=qpoints_phi, \
-                                        quadpoints_theta=qpoints_theta, \
+        self.surface = SurfaceRZFourier(nfp=surface.nfp, stellsym=True,
+                                        mpol=surface.mpol, ntor=surface.ntor,
+                                        quadpoints_phi=qpoints_phi,
+                                        quadpoints_theta=qpoints_theta,
                                         dofs=surface.dofs)
 
         # Determine the locations of the node points within a half period
@@ -97,19 +98,19 @@ class ToroidalWireframe(object):
 
             phi_rot = 2.0*i*np.pi/self.nfp
 
-            self.nodes[2*i]   = np.ascontiguousarray(np.zeros((self.n_nodes,3)))
-            self.nodes[2*i+1] = np.ascontiguousarray(np.zeros((self.n_nodes,3)))
+            self.nodes[2*i] = np.ascontiguousarray(np.zeros((self.n_nodes, 3)))
+            self.nodes[2*i+1] = np.ascontiguousarray(np.zeros((self.n_nodes, 3)))
 
             self.nodes[2*i][:, 0] = np.cos(phi_rot)*self.nodes[0][:, 0] - \
-                                    np.sin(phi_rot)*self.nodes[0][:, 1]
+                np.sin(phi_rot)*self.nodes[0][:, 1]
             self.nodes[2*i][:, 1] = np.sin(phi_rot)*self.nodes[0][:, 0] + \
-                                    np.cos(phi_rot)*self.nodes[0][:, 1]
+                np.cos(phi_rot)*self.nodes[0][:, 1]
             self.nodes[2*i][:, 2] = self.nodes[0][:, 2]
 
             self.nodes[2*i+1][:, 0] = np.cos(phi_rot)*self.nodes[1][:, 0] - \
-                                      np.sin(phi_rot)*self.nodes[1][:, 1]
+                np.sin(phi_rot)*self.nodes[1][:, 1]
             self.nodes[2*i+1][:, 1] = np.sin(phi_rot)*self.nodes[1][:, 0] + \
-                                      np.cos(phi_rot)*self.nodes[1][:, 1]
+                np.cos(phi_rot)*self.nodes[1][:, 1]
             self.nodes[2*i+1][:, 2] = self.nodes[1][:, 2]
 
             # Positive current direction reverses in reflected half-periods
@@ -121,17 +122,17 @@ class ToroidalWireframe(object):
         self.n_pol_segments = n_theta*n_phi
         self.n_segments = self.n_tor_segments + self.n_pol_segments
 
-        # Toroidal segments 
+        # Toroidal segments
         segments_tor = np.zeros((self.n_tor_segments, 2))
-        segments_tor[:,0] = \
+        segments_tor[:, 0] = \
             self.node_inds[:-1, :].reshape((self.n_tor_segments))
-        segments_tor[:,1] = \
-            self.node_inds[1:,  :].reshape((self.n_tor_segments))
+        segments_tor[:, 1] = \
+            self.node_inds[1:, :].reshape((self.n_tor_segments))
 
-        # Map nodes to index in the segment array of segment originating 
+        # Map nodes to index in the segment array of segment originating
         # from the respective node
         self.tor_segment_key = -np.ones(nodes_surf.shape[:2]).astype(np.int64)
-        self.tor_segment_key[:-1,:] = \
+        self.tor_segment_key[:-1, :] = \
             np.arange(self.n_tor_segments).reshape((n_phi, n_theta))
 
         # Poloidal segments (on symmetry planes, only include segments for z>0)
@@ -142,7 +143,7 @@ class ToroidalWireframe(object):
         segments_pol[:HalfNTheta, 0] = self.node_inds[0, :HalfNTheta]
         segments_pol[:HalfNTheta, 1] = self.node_inds[0, 1:HalfNTheta+1]
         self.pol_segment_key[0, :HalfNTheta] = np.arange(HalfNTheta) \
-                                               + self.n_tor_segments
+            + self.n_tor_segments
         for i in range(1, n_phi):
             polInd0 = HalfNTheta + (i-1)*n_theta
             polInd1 = polInd0 + n_theta
@@ -150,7 +151,7 @@ class ToroidalWireframe(object):
             segments_pol[polInd0:polInd1-1, 1] = self.node_inds[i, 1:]
             segments_pol[polInd1-1, 1] = self.node_inds[i, 0]
             self.pol_segment_key[i, :] = np.arange(polInd0, polInd1) \
-                                         + self.n_tor_segments
+                + self.n_tor_segments
 
         segments_pol[-HalfNTheta:, 0] = self.node_inds[-1, :HalfNTheta]
         segments_pol[-HalfNTheta:, 1] = self.node_inds[-1, 1:HalfNTheta+1]
@@ -160,7 +161,7 @@ class ToroidalWireframe(object):
 
         # Join the toroidal and poloidal segments into a single array
         self.segments = \
-            np.ascontiguousarray(np.zeros((self.n_segments,2)).astype(np.int64))
+            np.ascontiguousarray(np.zeros((self.n_segments, 2)).astype(np.int64))
         self.segments[:self.n_tor_segments, :] = segments_tor[:, :]
         self.segments[self.n_tor_segments:, :] = segments_pol[:, :]
 
@@ -172,7 +173,7 @@ class ToroidalWireframe(object):
         # Create a matrix listing which segments are connected to each node
         self.determine_connected_segments()
 
-        # Create a matrix listing which segments surround each cell 
+        # Create a matrix listing which segments surround each cell
         self.set_up_cell_key()
 
         # Add constraints to enforce continuity at each node
@@ -194,52 +195,52 @@ class ToroidalWireframe(object):
 
                 # First symmetry plane
                 if i == 0:
-                    ind_tor_in  = \
+                    ind_tor_in = \
                         self.tor_segment_key[i, (self.n_theta-j) % self.n_theta]
                     ind_tor_out = self.tor_segment_key[i, j]
                     if j == 0:
-                        ind_pol_in  = self.pol_segment_key[i, j]
+                        ind_pol_in = self.pol_segment_key[i, j]
                         ind_pol_out = self.pol_segment_key[i, j]
                     elif j < half_n_theta:
-                        ind_pol_in  = self.pol_segment_key[i, j-1]
+                        ind_pol_in = self.pol_segment_key[i, j-1]
                         ind_pol_out = self.pol_segment_key[i, j]
                     elif j == half_n_theta:
-                        ind_pol_in  = self.pol_segment_key[i, j-1]
+                        ind_pol_in = self.pol_segment_key[i, j-1]
                         ind_pol_out = self.pol_segment_key[i, j-1]
                     else:
-                        ind_pol_in  = self.pol_segment_key[i, self.n_theta-j]
+                        ind_pol_in = self.pol_segment_key[i, self.n_theta-j]
                         ind_pol_out = self.pol_segment_key[i, self.n_theta-j-1]
 
                 # Between the symmetry planes
                 elif i > 0 and i < self.n_phi:
-                    ind_tor_in  = self.tor_segment_key[i-1, j]
+                    ind_tor_in = self.tor_segment_key[i-1, j]
                     ind_tor_out = self.tor_segment_key[i, j]
                     if j == 0:
-                        ind_pol_in  = self.pol_segment_key[i, self.n_theta-1]
+                        ind_pol_in = self.pol_segment_key[i, self.n_theta-1]
                     else:
-                        ind_pol_in  = self.pol_segment_key[i, j-1]
+                        ind_pol_in = self.pol_segment_key[i, j-1]
                     ind_pol_out = self.pol_segment_key[i, j]
 
                 # Second symmetry plane
                 else:
-                    ind_tor_in  = self.tor_segment_key[i-1, j]
+                    ind_tor_in = self.tor_segment_key[i-1, j]
                     ind_tor_out = \
-                        self.tor_segment_key[i-1, 
+                        self.tor_segment_key[i-1,
                                              (self.n_theta-j) % self.n_theta]
                     if j == 0:
-                        ind_pol_in  = self.pol_segment_key[i, 0]
+                        ind_pol_in = self.pol_segment_key[i, 0]
                         ind_pol_out = self.pol_segment_key[i, 0]
                     elif j < half_n_theta:
-                        ind_pol_in  = self.pol_segment_key[i, j-1]
+                        ind_pol_in = self.pol_segment_key[i, j-1]
                         ind_pol_out = self.pol_segment_key[i, j]
                     elif j == half_n_theta:
-                        ind_pol_in  = self.pol_segment_key[i, j-1]
+                        ind_pol_in = self.pol_segment_key[i, j-1]
                         ind_pol_out = self.pol_segment_key[i, j-1]
                     else:
-                        ind_pol_in  = self.pol_segment_key[i, self.n_theta-j]
+                        ind_pol_in = self.pol_segment_key[i, self.n_theta-j]
                         ind_pol_out = self.pol_segment_key[i, self.n_theta-j-1]
 
-                self.connected_segments[self.node_inds[i,j]][:] = \
+                self.connected_segments[self.node_inds[i, j]][:] = \
                     [ind_tor_in, ind_pol_in, ind_tor_out, ind_pol_out]
 
     def set_up_cell_key(self):
@@ -292,7 +293,7 @@ class ToroidalWireframe(object):
                     if j < half_n_theta:
                         ind_pol2 = self.pol_segment_key[i+1, j]
                     else:
-                        ind_pol2 = self.pol_segment_key[i+1, 
+                        ind_pol2 = self.pol_segment_key[i+1,
                                                         self.n_theta - j - 1]
                     ind_tor3 = self.tor_segment_key[i, (j+1) % self.n_theta]
                     ind_pol4 = self.pol_segment_key[i, j]
@@ -340,12 +341,12 @@ class ToroidalWireframe(object):
             raise ValueError('Constraint %s already exists' % (name))
 
         if matrix_row.size != self.n_segments:
-            raise ValueError('matrix_row must have one element for every ' \
+            raise ValueError('matrix_row must have one element for every '
                              + 'segment in the wireframe')
 
         self.constraints[name] = \
-            {'type': constraint_type, \
-             'matrix_row': matrix_row, \
+            {'type': constraint_type,
+             'matrix_row': matrix_row,
              'constant': constant}
 
         if self.implicits_updated:
@@ -405,11 +406,11 @@ class ToroidalWireframe(object):
         seg_ind2b = self.n_segments - self.n_theta + 1
 
         matrix_row = np.zeros((1, self.n_segments))
-        matrix_row[0,seg_ind0] = 1
-        matrix_row[0,seg_ind1a:seg_ind2a:self.n_theta] = 1
-        matrix_row[0,seg_ind1b:seg_ind2b:self.n_theta] = 1
+        matrix_row[0, seg_ind0] = 1
+        matrix_row[0, seg_ind1a:seg_ind2a:self.n_theta] = 1
+        matrix_row[0, seg_ind1b:seg_ind2b:self.n_theta] = 1
 
-        self.add_constraint('poloidal_current', 'poloidal_current', \
+        self.add_constraint('poloidal_current', 'poloidal_current',
                             matrix_row, pol_current_sum)
 
     def remove_poloidal_current_constraint(self):
@@ -445,7 +446,7 @@ class ToroidalWireframe(object):
         Add constraint to require the total toroidal current through a poloidal
         cross-section to be a certain value (effectively requires a helical
         current distribution when combined with a poloidal current constraint).
- 
+
         Parameters
         ----------
             current: double
@@ -456,9 +457,9 @@ class ToroidalWireframe(object):
         """
 
         matrix_row = np.zeros((1, self.n_segments))
-        matrix_row[0,:self.n_theta] = 1
+        matrix_row[0, :self.n_theta] = 1
 
-        self.add_constraint('toroidal_current', 'toroidal_current', \
+        self.add_constraint('toroidal_current', 'toroidal_current',
                             matrix_row, current)
 
     def remove_toroidal_current_constraint(self):
@@ -511,7 +512,7 @@ class ToroidalWireframe(object):
             segments = np.array(segments)
 
         if np.any(segments < 0) or np.any(segments >= self.n_segments):
-            raise ValueError('Segment indices must be positive and less than ' \
+            raise ValueError('Segment indices must be positive and less than '
                              + ' the number of segments in the wireframe')
 
         if not implicit:
@@ -526,9 +527,9 @@ class ToroidalWireframe(object):
         for i in range(len(segments)):
 
             matrix_row = np.zeros((1, self.n_segments))
-            matrix_row[0,segments[i]] = 1
+            matrix_row[0, segments[i]] = 1
 
-            self.add_constraint(name + '_%d' % (segments[i]), name, \
+            self.add_constraint(name + '_%d' % (segments[i]), name,
                                 matrix_row, 0)
 
     def remove_segment_constraints(self, segments, implicit=False):
@@ -553,13 +554,13 @@ class ToroidalWireframe(object):
             segments = np.array(segments)
 
         if np.any(segments < 0) or np.any(segments >= self.n_segments):
-            raise ValueError('Segment indices must be positive and less than ' \
+            raise ValueError('Segment indices must be positive and less than '
                              ' the number of segments in the wireframe')
 
-        name = 'segment' if not implicit else 'implicit_segment'       
+        name = 'segment' if not implicit else 'implicit_segment'
 
         for i in range(len(segments)):
-    
+
             self.remove_constraint(name + '_%d' % (segments[i]))
 
     def set_segments_constrained(self, segments, implicit=False):
@@ -609,14 +610,14 @@ class ToroidalWireframe(object):
             raise ValueError('pts_per_seg must be at least 2')
 
         # Coordinates of the test points along each segment
-        pos = np.linspace(0.0, 1.0, pts_per_seg).reshape((pts_per_seg,1,1))
-        point0 = self.nodes[0][self.segments[:,0],:]
-        point1 = self.nodes[0][self.segments[:,1],:]
+        pos = np.linspace(0.0, 1.0, pts_per_seg).reshape((pts_per_seg, 1, 1))
+        point0 = self.nodes[0][self.segments[:, 0], :]
+        point1 = self.nodes[0][self.segments[:, 1], :]
         seg_vec = point1 - point0
         test_pts = point0 + pos*seg_vec
 
         # Check test points for collisions
-        coll = coll_func(test_pts[:,:,0], test_pts[:,:,1], test_pts[:,:,2], \
+        coll = coll_func(test_pts[:, :, 0], test_pts[:, :, 1], test_pts[:, :, 2],
                          **kwargs)
 
         # Identify the segments containing colliding points
@@ -634,7 +635,7 @@ class ToroidalWireframe(object):
         given grid dimension. For perfectly even spacing, the number of 
         breaks must be an integer factor of the wireframe grid's toroidal
         dimension (n_phi).
-        
+
         Parameters
         ----------
             n_breaks: integer
@@ -654,23 +655,23 @@ class ToroidalWireframe(object):
         if n_breaks >= 0.5*self.n_phi:
             raise ValueError('n_breaks must be < half of wireframe n_phi')
         if n_breaks*width > 0.5*self.n_phi:
-            raise ValueError('n_breaks*width must be <= half of ' \
+            raise ValueError('n_breaks*width must be <= half of '
                              + 'wireframe n_phi')
 
         # Check for existing toroidal current constraint
         if 'toroidal_current' in self.constraints:
             if self.constraints['toroidal_current']['constant'] == 0:
-                print('Note: existing constraint for zero net toroidal ' \
-                          + 'current is redundant\nand will be removed.')
+                print('Note: existing constraint for zero net toroidal '
+                      + 'current is redundant\nand will be removed.')
                 self.remove_constraint('toroidal_current')
             else:
-                raise ValueError('Toroidal breaks would conflict with ' \
-                          + 'existing nonzero toroidal\ncurrent constraint')
+                raise ValueError('Toroidal breaks would conflict with '
+                                 + 'existing nonzero toroidal\ncurrent constraint')
 
         # Indices in the toroidal dimension where breaks are to be centered
         tor_inds = \
-            np.ceil(np.linspace(0, self.n_phi, n_breaks, endpoint=False) \
-                                    + 0.5*self.n_phi/n_breaks)
+            np.ceil(np.linspace(0, self.n_phi, n_breaks, endpoint=False)
+                    + 0.5*self.n_phi/n_breaks)
 
         to_constrain = []
 
@@ -686,8 +687,8 @@ class ToroidalWireframe(object):
 
                 ipol0 = self.n_tor_segments + itor0 + int(0.5*self.n_theta)
                 ipol1 = ipol0 + self.n_theta*(width - 1)
-                assert(ipol0 >= self.n_tor_segments + int(0.5*self.n_theta))
-                assert(ipol1 <= self.n_segments - int(0.5*self.n_theta))
+                assert (ipol0 >= self.n_tor_segments + int(0.5*self.n_theta))
+                assert (ipol1 <= self.n_segments - int(0.5*self.n_theta))
 
                 to_constrain += list(np.arange(ipol0, ipol1).astype(np.int64))
 
@@ -709,7 +710,7 @@ class ToroidalWireframe(object):
             segments = np.array(segments)
 
         if np.any(segments < 0) or np.any(segments >= self.n_segments):
-            raise ValueError('Segment indices must be positive and less than ' \
+            raise ValueError('Segment indices must be positive and less than '
                              ' the number of segments in the wireframe')
 
         for i in range(len(segments)):
@@ -726,7 +727,7 @@ class ToroidalWireframe(object):
 
         for constr in list(self.constraints.keys()):
             if self.constraints[constr]['type'] == 'segment' \
-            or self.constraints[constr]['type'] == 'implicit_segment':
+                    or self.constraints[constr]['type'] == 'implicit_segment':
                 self.remove_constraint(constr)
 
     def update_implicit_constraints(self):
@@ -758,10 +759,10 @@ class ToroidalWireframe(object):
             implicits = np.where(node_sum == 1)[0]
             if len(implicits) > 0:
                 for node_ind in implicits:
-                    for seg_ind in self.connected_segments[node_ind,:]:
+                    for seg_ind in self.connected_segments[node_ind, :]:
                         if ('segment_%d' % (seg_ind) not in self.constraints) \
-                        and ('implicit_segment_%d' % (seg_ind) not in 
-                            self.constraints):
+                            and ('implicit_segment_%d' % (seg_ind) not in
+                                 self.constraints):
 
                             self.add_segment_constraints(seg_ind, implicit=True)
             else:
@@ -789,16 +790,16 @@ class ToroidalWireframe(object):
         -------
             segment_ids: list of integers
                 IDs of the constrained segments.
-        """  
+        """
 
         if update and not self.implicits_updated:
             self.update_implicit_constraints()
 
-        expl_keys = [key for key in self.constraints.keys() \
+        expl_keys = [key for key in self.constraints.keys()
                      if self.constraints[key]['type'] == 'segment']
         expl_ids = [int(key.split('_')[1]) for key in expl_keys]
 
-        impl_keys = [key for key in self.constraints.keys() \
+        impl_keys = [key for key in self.constraints.keys()
                      if self.constraints[key]['type'] == 'implicit_segment']
         impl_ids = [int(key.split('_')[2]) for key in impl_keys]
 
@@ -809,7 +810,7 @@ class ToroidalWireframe(object):
         elif include == 'all':
             return expl_ids + impl_ids
         else:
-            raise ValueError('Include must be \'all\', \'explicit\', ' \
+            raise ValueError('Include must be \'all\', \'explicit\', '
                              + 'or \'implicit\'')
 
     def unconstrained_segments(self, update=True):
@@ -850,25 +851,24 @@ class ToroidalWireframe(object):
                         continue
 
                 ind_tor_in, ind_pol_in, ind_tor_out, ind_pol_out = \
-                    list(self.connected_segments[self.node_inds[i,j]])
+                    list(self.connected_segments[self.node_inds[i, j]])
 
-                self.add_continuity_constraint(self.node_inds[i,j], \
-                    ind_tor_in, ind_pol_in, ind_tor_out, ind_pol_out)
+                self.add_continuity_constraint(self.node_inds[i, j],
+                                               ind_tor_in, ind_pol_in, ind_tor_out, ind_pol_out)
 
-    def add_continuity_constraint(self, node_ind, ind_tor_in, ind_pol_in, \
+    def add_continuity_constraint(self, node_ind, ind_tor_in, ind_pol_in,
                                   ind_tor_out, ind_pol_out):
 
         name = 'continuity_node_%d' % (node_ind)
 
         matrix_row = np.zeros((1, self.n_segments))
-        matrix_row[0, [ind_tor_in,  ind_pol_in ]] = -1
+        matrix_row[0, [ind_tor_in, ind_pol_in]] = -1
         matrix_row[0, [ind_tor_out, ind_pol_out]] = 1
-        
-        self.add_constraint(name, 'continuity', matrix_row, 0.0)
-        
 
-    def constraint_matrices(self, remove_redundancies=True, \
-                            remove_constrained_segments=False, \
+        self.add_constraint(name, 'continuity', matrix_row, 0.0)
+
+    def constraint_matrices(self, remove_redundancies=True,
+                            remove_constrained_segments=False,
                             assume_no_crossings=False):
         """
         Return the matrices for the system of equations that define the linear
@@ -939,26 +939,26 @@ class ToroidalWireframe(object):
 
         if remove_constrained_segments:
             # Identify all segment constraints
-            excluded.update([key for key in self.constraints \
-                if self.constraints[key]['type'] == 'segment' \
-                or self.constraints[key]['type'] == 'implicit_segment'])
-       
+            excluded.update([key for key in self.constraints
+                             if self.constraints[key]['type'] == 'segment'
+                             or self.constraints[key]['type'] == 'implicit_segment'])
+
         # Construct the matrix and RHS from non-excluded constraints
 
-        constraints_C = np.ascontiguousarray( \
-            np.concatenate([self.constraints[key]['matrix_row'] \
-                            for key in self.constraints \
+        constraints_C = np.ascontiguousarray(
+            np.concatenate([self.constraints[key]['matrix_row']
+                            for key in self.constraints
                             if key not in excluded], axis=0))
 
-        constraints_d = np.ascontiguousarray( \
+        constraints_d = np.ascontiguousarray(
             np.zeros((constraints_C.shape[0], 1)))
 
-        constraints_d[:] = [[self.constraints[key]['constant']] \
-             for key in self.constraints.keys() if key not in excluded]
+        constraints_d[:] = [[self.constraints[key]['constant']]
+                            for key in self.constraints.keys() if key not in excluded]
 
         if remove_constrained_segments:
 
-            return constraints_C[:,self.unconstrained_segments()], constraints_d
+            return constraints_C[:, self.unconstrained_segments()], constraints_d
 
         else:
 
@@ -982,9 +982,9 @@ class ToroidalWireframe(object):
             connected_nodes = np.sum(self.connected_segments == seg_ind, axis=1)
             node_sum += connected_nodes
 
-        # If all four connected segments are constrained, the continuity 
+        # If all four connected segments are constrained, the continuity
         # constraint is redundant
-        assert(np.sum(node_sum == 1) == 0)
+        assert (np.sum(node_sum == 1) == 0)
         node_inactive = node_sum == 0
 
         # If no crossings are assumed, remove one constraint per loop
@@ -995,7 +995,7 @@ class ToroidalWireframe(object):
             free_segs = set()
             for i in range(self.n_segments):
                 if 'segment_%d' % (i) not in self.constraints \
-                and 'implicit_segment_%d' % (i) not in self.constraints:
+                        and 'implicit_segment_%d' % (i) not in self.constraints:
                     free_segs.add(i)
 
             # Identify each loop
@@ -1005,7 +1005,7 @@ class ToroidalWireframe(object):
                 seg_0 = free_segs.pop()
 
                 seg_i = seg_0
-                nodes_i = self.segments[seg_i,:]
+                nodes_i = self.segments[seg_i, :]
                 constraint_lifted = False
 
                 # Find the segments in the loop using a graph search
@@ -1015,18 +1015,18 @@ class ToroidalWireframe(object):
                     # that some nodes on symmetry planes don't have constraints)
                     if not constraint_lifted:
                         if 'continuity_node_%d' % nodes_i[0] in \
-                        self.constraints:
+                                self.constraints:
                             redundant_for_loop[nodes_i[0]] = True
                             constraint_lifted = True
 
                     count = 0
-                    for seg in self.connected_segments[nodes_i[0],:]:
+                    for seg in self.connected_segments[nodes_i[0], :]:
                         if seg in free_segs:
                             seg_next = seg
                             free_segs.remove(seg)
                             count += 1
                     if count == 0:
-                        for seg in self.connected_segments[nodes_i[1],:]:
+                        for seg in self.connected_segments[nodes_i[1], :]:
                             if seg in free_segs:
                                 seg_next = seg
                                 free_segs.remove(seg)
@@ -1035,14 +1035,14 @@ class ToroidalWireframe(object):
                         loop_count += 1
                         break
                     if count > 1:
-                        raise RuntimeError('Closed loop assumption is ' \
-                            'invalid: %d connected segments found to seg %d' \
-                            % (count, seg_i))
+                        raise RuntimeError('Closed loop assumption is '
+                                           'invalid: %d connected segments found to seg %d'
+                                           % (count, seg_i))
                     seg_i = seg_next
-                    nodes_i = self.segments[seg_i,:]
+                    nodes_i = self.segments[seg_i, :]
 
         return np.where(np.logical_or(node_inactive, redundant_for_loop))[0]
-            
+
     def get_cell_key(self):
         """
         Returns a matrix of the segments that border every rectangular cell in 
@@ -1057,7 +1057,7 @@ class ToroidalWireframe(object):
             2       ind_pol2    ID of poloidal segment with higher toroidal angle
             3       ind_tor3    ID of toroidal segment with higher poloidal angle
             4       ind_pol4    ID of poloidal segment with lower toroidal angle
-        
+
         """
 
         return np.ascontiguousarray(self.cell_key)
@@ -1101,12 +1101,12 @@ class ToroidalWireframe(object):
             constr_cells += \
                 np.sum(self.cell_key == seg_ind, axis=1).reshape((-1))
 
-        if form=='indices':
+        if form == 'indices':
             return np.where(constr_cells == 0)[0]
-        elif form=='logical':
+        elif form == 'logical':
             return np.ascontiguousarray(constr_cells == 0)
         else:
-            raise ValueError('form parameter must be ''indices'' ' \
+            raise ValueError('form parameter must be ''indices'' '
                              + 'or ''logical''')
 
     def check_constraints(self, currents=None, atol=None, rtol=None):
@@ -1143,14 +1143,14 @@ class ToroidalWireframe(object):
         """
 
         # Construct a column vector with the currents
-        x = np.zeros((self.n_segments,1))
+        x = np.zeros((self.n_segments, 1))
         if currents is not None:
             if len(currents) != self.n_segments:
-                raise ValueError('currents array does not match number of ' \
+                raise ValueError('currents array does not match number of '
                                  + 'segments')
-            x[:,0] = currents.reshape((-1,1))[:,0]
+            x[:, 0] = currents.reshape((-1, 1))[:, 0]
         else:
-            x[:,0] = self.currents.reshape((-1,1))[:,0]
+            x[:, 0] = self.currents.reshape((-1, 1))[:, 0]
 
         # Check the constraint tolerances
         if atol is not None:
@@ -1164,7 +1164,6 @@ class ToroidalWireframe(object):
                 raise ValueError('rtol must be a positive scalar')
         else:
             rtol = self.constraint_rtol
-         
 
         # Set up the constraint matrices
         constraints_C_full, constraints_d_full = \
@@ -1182,13 +1181,13 @@ class ToroidalWireframe(object):
         else:
             return True
 
-    def add_tfcoil_currents(self, n_tf, current_per_coil, constraint_atol=None, 
+    def add_tfcoil_currents(self, n_tf, current_per_coil, constraint_atol=None,
                             constraint_rtol=None):
         """
         Adds current to certain poloidal segments in order to form a set of 
         planar TF coils. The loops will be spaced as evenly as possible within
         the wireframe.
-        
+
         Parameters
         ----------
             n_tf: integer
@@ -1208,8 +1207,8 @@ class ToroidalWireframe(object):
             raise ValueError('n_tf must not exceed the wireframe n_phi')
 
         # Indices in the toroidal dimension where current loops are to be added
-        tf_inds = np.ceil(np.linspace(0, self.n_phi, n_tf, endpoint=False) \
-                              + 0.5*self.n_phi/n_tf)
+        tf_inds = np.ceil(np.linspace(0, self.n_phi, n_tf, endpoint=False)
+                          + 0.5*self.n_phi/n_tf)
 
         tf_currents = np.zeros(self.n_segments)
 
@@ -1219,7 +1218,7 @@ class ToroidalWireframe(object):
                 ind0 = self.n_phi * self.n_theta
                 ind1 = ind0 + int(0.5 * self.n_theta)
             else:
-                ind0 = int((self.n_phi + 0.5) * self.n_theta \
+                ind0 = int((self.n_phi + 0.5) * self.n_theta
                            + (tf_inds[i] - 1) * self.n_theta)
                 ind1 = ind0 + self.n_theta
             tf_currents[ind0:ind1] = current_per_coil
@@ -1228,8 +1227,8 @@ class ToroidalWireframe(object):
         new_currents = tf_currents + self.currents
 
         # Check whether proposed new currents adhere to the constraints
-        valid = self.check_constraints(currents=new_currents, 
-                                       atol=constraint_atol, 
+        valid = self.check_constraints(currents=new_currents,
+                                       atol=constraint_atol,
                                        rtol=constraint_rtol)
 
         # Update currents with new values if they are within constraints
@@ -1238,9 +1237,9 @@ class ToroidalWireframe(object):
         else:
             raise ValueError('Constraints not met for desired currents')
 
-    @SimsoptRequires(linesToVTK is not None, \
+    @SimsoptRequires(linesToVTK is not None,
                      "to_vtk method requires pyevtk module")
-    def to_vtk(self, filename, extent='torus', extra_node_data=None, \
+    def to_vtk(self, filename, extent='torus', extra_node_data=None,
                extra_segment_data=None):
         """
         Export the wireframe data to a VTK file, which can be read with 
@@ -1277,14 +1276,14 @@ class ToroidalWireframe(object):
                 Data values to be associated with each segment.
         """
 
-        if extent=='half period':
+        if extent == 'half period':
             n_half_periods = 1
-        elif extent=='field period':
+        elif extent == 'field period':
             n_half_periods = 2
-        elif extent=='torus' or extent=='full torus':
+        elif extent == 'torus' or extent == 'full torus':
             n_half_periods = self.nfp * 2
         else:
-            raise ValueError('extent must be \'half period\', ' \
+            raise ValueError('extent must be \'half period\', '
                              + '\'field period\', or \'torus\'')
 
         pl_segments = np.zeros((n_half_periods*self.n_segments, 2, 3))
@@ -1292,36 +1291,35 @@ class ToroidalWireframe(object):
         pl_constr_segs = np.zeros((n_half_periods*self.n_segments))
         pl_constr_segs_exp = np.zeros((n_half_periods*self.n_segments))
         pl_constr_segs_imp = np.zeros((n_half_periods*self.n_segments))
-  
+
         for i in range(n_half_periods):
             ind0 = i*self.n_segments
             ind1 = (i+1)*self.n_segments
-            pl_segments[ind0:ind1,:,:] = self.nodes[i][:,:][self.segments[:,:]]
+            pl_segments[ind0:ind1, :, :] = self.nodes[i][:, :][self.segments[:, :]]
             pl_currents[ind0:ind1] = self.currents[:]
             pl_constr_segs[ind0:ind1][self.constrained_segments()] = 1
-            pl_constr_segs_exp[ind0:ind1][self.constrained_segments( \
-                                                   include='explicit')] = 1
-            pl_constr_segs_imp[ind0:ind1][self.constrained_segments( \
-                                                   include='implicit')] = 1
+            pl_constr_segs_exp[ind0:ind1][self.constrained_segments(
+                include='explicit')] = 1
+            pl_constr_segs_imp[ind0:ind1][self.constrained_segments(
+                include='implicit')] = 1
 
-        x = np.ascontiguousarray(pl_segments[:,:,0].reshape((-1)))
-        y = np.ascontiguousarray(pl_segments[:,:,1].reshape((-1)))
-        z = np.ascontiguousarray(pl_segments[:,:,2].reshape((-1)))
+        x = np.ascontiguousarray(pl_segments[:, :, 0].reshape((-1)))
+        y = np.ascontiguousarray(pl_segments[:, :, 1].reshape((-1)))
+        z = np.ascontiguousarray(pl_segments[:, :, 2].reshape((-1)))
 
-        segment_data = {'current': pl_currents.reshape((-1)), \
-                        'constrained': pl_constr_segs.reshape((-1)), \
-                        'constrained_exp': pl_constr_segs_exp.reshape((-1)), \
+        segment_data = {'current': pl_currents.reshape((-1)),
+                        'constrained': pl_constr_segs.reshape((-1)),
+                        'constrained_exp': pl_constr_segs_exp.reshape((-1)),
                         'constrained_imp': pl_constr_segs_imp.reshape((-1))}
 
         if extra_segment_data is not None:
             segment_data = {**segment_data, **extra_segment_data}
 
-        linesToVTK(filename, x, y, z, cellData=segment_data, \
+        linesToVTK(filename, x, y, z, cellData=segment_data,
                    pointData=extra_node_data)
-        
 
     def make_plot_3d(self, ax=None, engine='mayavi', extent='full torus',
-                     to_show='all', active_tol=1e-12, tube_radius=0.01, 
+                     to_show='all', active_tol=1e-12, tube_radius=0.01,
                      colormap=None, **kwargs):
         """
         Make a 3d plot of the wireframe grid.
@@ -1365,23 +1363,23 @@ class ToroidalWireframe(object):
                 is 'matplotlib'. 
         """
 
-        if extent=='half period':
+        if extent == 'half period':
             n_half_periods = 1
-        elif extent=='field period':
+        elif extent == 'field period':
             n_half_periods = 2
-        elif extent=='full torus':
+        elif extent == 'full torus':
             n_half_periods = self.nfp * 2
         else:
-            raise ValueError('extent must be \'half period\', ' \
+            raise ValueError('extent must be \'half period\', '
                              + '\'field period\', or \'full torus\'')
 
         pl_segments = np.zeros((n_half_periods*self.n_segments, 2, 3))
         pl_currents = np.zeros((n_half_periods*self.n_segments))
-   
+
         for i in range(n_half_periods):
             ind0 = i*self.n_segments
             ind1 = (i+1)*self.n_segments
-            pl_segments[ind0:ind1,:,:] = self.nodes[i][:,:][self.segments[:,:]]
+            pl_segments[ind0:ind1, :, :] = self.nodes[i][:, :][self.segments[:, :]]
             pl_currents[ind0:ind1] = self.currents[:]*1e-6
 
         if to_show == 'active':
@@ -1391,27 +1389,27 @@ class ToroidalWireframe(object):
         else:
             raise ValueError('Parameter show must be ''active'' or ''all''')
 
-        xmin = np.min(pl_segments[:,:,0], axis=(0,1))
-        xmax = np.max(pl_segments[:,:,0], axis=(0,1))
-        ymin = np.min(pl_segments[:,:,1], axis=(0,1))
-        ymax = np.max(pl_segments[:,:,1], axis=(0,1))
-        zmin = np.min(pl_segments[:,:,2], axis=(0,1))
-        zmax = np.max(pl_segments[:,:,2], axis=(0,1))
+        xmin = np.min(pl_segments[:, :, 0], axis=(0, 1))
+        xmax = np.max(pl_segments[:, :, 0], axis=(0, 1))
+        ymin = np.min(pl_segments[:, :, 1], axis=(0, 1))
+        ymax = np.max(pl_segments[:, :, 1], axis=(0, 1))
+        zmin = np.min(pl_segments[:, :, 2], axis=(0, 1))
+        zmax = np.max(pl_segments[:, :, 2], axis=(0, 1))
 
         if engine == 'mayavi':
 
             from mayavi import mlab
 
-            x = pl_segments[inds,:,0].reshape((-1))
-            y = pl_segments[inds,:,1].reshape((-1))
-            z = pl_segments[inds,:,2].reshape((-1))
-            s = np.ones((len(inds),2))
-            s[:,0] = pl_currents[inds]
-            s[:,1] = pl_currents[inds]
+            x = pl_segments[inds, :, 0].reshape((-1))
+            y = pl_segments[inds, :, 1].reshape((-1))
+            z = pl_segments[inds, :, 2].reshape((-1))
+            s = np.ones((len(inds), 2))
+            s[:, 0] = pl_currents[inds]
+            s[:, 1] = pl_currents[inds]
             s = s.reshape((-1))
 
             pts = mlab.pipeline.scalar_scatter(x, y, z, s)
-            connections = np.arange(2*len(inds)).reshape((-1,2))
+            connections = np.arange(2*len(inds)).reshape((-1, 2))
             pts.mlab_source.dataset.lines = connections
 
             tube = mlab.pipeline.tube(pts, tube_radius=tube_radius)
@@ -1420,7 +1418,7 @@ class ToroidalWireframe(object):
 
             # Define a colormap similar to matplotlib's "coolwarm"
             if colormap is None:
-                x_cmap = np.linspace(0,1,255).reshape((-1,1))
+                x_cmap = np.linspace(0, 1, 255).reshape((-1, 1))
                 alpha = np.ones(x_cmap.shape)
                 r_cmap = 1 - np.abs(3*x_cmap - 1.5)
                 g_cmap = 1 - np.abs(3*x_cmap - 1.5)
@@ -1434,8 +1432,8 @@ class ToroidalWireframe(object):
                 b_cmap[x_cmap < 0.25] = 2*x_cmap[x_cmap < 0.25] + 0.5
                 f = 0.9
                 cmap = 255 * \
-                    np.concatenate((f*r_cmap, f*g_cmap, f*b_cmap, alpha), \
-                                    axis=1)
+                    np.concatenate((f*r_cmap, f*g_cmap, f*b_cmap, alpha),
+                                   axis=1)
             else:
                 cmap = colormap
 
@@ -1451,34 +1449,34 @@ class ToroidalWireframe(object):
 
             import matplotlib.pylab as pl
             from mpl_toolkits.mplot3d.art3d import Line3DCollection
-    
-            lc = Line3DCollection(pl_segments[inds,:,:])
+
+            lc = Line3DCollection(pl_segments[inds, :, :])
             lc.set_array(pl_currents[inds])
             lc.set_clim(np.max(np.abs(self.currents*1e-6))*np.array([-1, 1]))
             lc.set_cmap('coolwarm')
-    
+
             if ax is None:
                 fig = pl.figure()
                 ax = fig.add_subplot(projection='3d')
-    
+
                 ax.set_xlim([xmin, xmax])
                 ax.set_ylim([ymin, ymax])
                 ax.set_zlim([zmin, zmax])
-    
+
                 ax.set_aspect('equal')
                 ax.set_xlabel('x')
                 ax.set_ylabel('y')
                 ax.set_zlabel('z')
                 cb = pl.colorbar(lc, ax=ax)
                 cb.set_label('Current [MA]')
-    
-            ax.add_collection(lc)
-    
-            return(ax)
 
-    def make_plot_2d(self, extent='half period', quantity='currents', 
+            ax.add_collection(lc)
+
+            return (ax)
+
+    def make_plot_2d(self, extent='half period', quantity='currents',
                      active_tol=1e-12, ax=None, add_colorbar=True,
-                     coordinates='indices',  **kwargs):
+                     coordinates='indices', **kwargs):
         """
         Make a 2d plot of the segments in the wireframe grid.
 
@@ -1525,70 +1523,68 @@ class ToroidalWireframe(object):
         import matplotlib.pyplot as pl
         from matplotlib.collections import LineCollection
 
-        if extent=='half period':
+        if extent == 'half period':
             n_half_periods = 1
-        elif extent=='field period':
+        elif extent == 'field period':
             n_half_periods = 2
-        elif extent=='torus' or extent=='full torus':
+        elif extent == 'torus' or extent == 'full torus':
             n_half_periods = self.nfp * 2
         else:
-            raise ValueError('extent must be \'half period\', ' \
+            raise ValueError('extent must be \'half period\', '
                              + '\'field period\', or \'torus\'')
 
-        pl_segments = np.zeros((n_half_periods*self.n_segments, 2, 2))
+        pl_segments = np.zeros((n_half_periods*self.n_segments, 2, 2), dtype=int)
         pl_quantity = np.zeros((n_half_periods*self.n_segments))
-   
-        # Calculate the toroidal and poloidal indices of each segment's 
+
+        # Calculate the toroidal and poloidal indices of each segment's
         # endpoints for plotting
         for i in range(n_half_periods):
             ind0 = i*self.n_segments
             ind1 = (i+1)*self.n_segments
             if i % 2 == 0:
-                pl_segments[ind0:ind1,0,0] = \
-                    i*self.n_phi + np.floor(self.segments[:,0]/self.n_theta)
-                pl_segments[ind0:ind1,0,1] = self.segments[:,0] % self.n_theta
-                pl_segments[ind0:ind1,1,0] = \
-                    i*self.n_phi + np.floor(self.segments[:,1]/self.n_theta)
-                pl_segments[ind0:ind1,1,1] = self.segments[:,1] % self.n_theta
+                pl_segments[ind0:ind1, 0, 0] = \
+                    i*self.n_phi + np.floor(self.segments[:, 0]/self.n_theta)
+                pl_segments[ind0:ind1, 0, 1] = self.segments[:, 0] % self.n_theta
+                pl_segments[ind0:ind1, 1, 0] = \
+                    i*self.n_phi + np.floor(self.segments[:, 1]/self.n_theta)
+                pl_segments[ind0:ind1, 1, 1] = self.segments[:, 1] % self.n_theta
 
                 loop_segs = np.where(
-                    np.logical_and(pl_segments[ind0:ind1,0,1] == self.n_theta-1,
-                                   pl_segments[ind0:ind1,1,1] == 0))
-                pl_segments[ind0+loop_segs[0],1,1] = self.n_theta
+                    np.logical_and(pl_segments[ind0:ind1, 0, 1] == self.n_theta-1,
+                                   pl_segments[ind0:ind1, 1, 1] == 0))
+                pl_segments[ind0+loop_segs[0], 1, 1] = self.n_theta
 
             else:
-                pl_segments[ind0:ind1,0,0] = \
-                    (i+1)*self.n_phi - np.floor(self.segments[:,0]/self.n_theta)
-                pl_segments[ind0:ind1,0,1] = \
-                    self.n_theta - (self.segments[:,0] % self.n_theta)
-                pl_segments[ind0:ind1,1,0] = \
-                    (i+1)*self.n_phi - np.floor(self.segments[:,1]/self.n_theta)
-                pl_segments[ind0:ind1,1,1] = \
-                    self.n_theta - (self.segments[:,1] % self.n_theta)
+                pl_segments[ind0:ind1, 0, 0] = \
+                    (i+1)*self.n_phi - np.floor(self.segments[:, 0]/self.n_theta)
+                pl_segments[ind0:ind1, 0, 1] = \
+                    self.n_theta - (self.segments[:, 0] % self.n_theta)
+                pl_segments[ind0:ind1, 1, 0] = \
+                    (i+1)*self.n_phi - np.floor(self.segments[:, 1]/self.n_theta)
+                pl_segments[ind0:ind1, 1, 1] = \
+                    self.n_theta - (self.segments[:, 1] % self.n_theta)
 
                 loop_segs = np.where(
-                    np.logical_and(pl_segments[ind0:ind1,0,1] == 1,
-                                   pl_segments[ind0:ind1,1,1] == self.n_theta))
-                pl_segments[ind0+loop_segs[0],1,1] = 0
+                    np.logical_and(pl_segments[ind0:ind1, 0, 1] == 1,
+                                   pl_segments[ind0:ind1, 1, 1] == self.n_theta))
+                pl_segments[ind0+loop_segs[0], 1, 1] = 0
 
-            if quantity=='currents' or quantity=='nonzero currents':
+            if quantity == 'currents' or quantity == 'nonzero currents':
                 pl_quantity[ind0:ind1] = self.currents[:]*1e-6
-            elif quantity=='constrained segments':
-                pl_quantity[ind0:ind1][self.constrained_segments( \
-                                                       include='explicit')] = 1
-                pl_quantity[ind0:ind1][self.constrained_segments( \
-                                                       include='implicit')] = -1
+            elif quantity == 'constrained segments':
+                pl_quantity[ind0:ind1][self.constrained_segments(
+                    include='explicit')] = 1
+                pl_quantity[ind0:ind1][self.constrained_segments(
+                    include='implicit')] = -1
             else:
                 raise ValueError('Unrecognized quantity for plotting')
 
-
-        if quantity=='nonzero currents':
+        if quantity == 'nonzero currents':
             inds_to_plot = np.where(np.abs(pl_quantity) > active_tol)[0]
         else:
             inds_to_plot = np.arange(len(pl_quantity))
 
-
-        if coordinates=='indices':
+        if coordinates == 'indices':
 
             lc = LineCollection(pl_segments[inds_to_plot], **kwargs)
 
@@ -1597,9 +1593,9 @@ class ToroidalWireframe(object):
             label_x = 'Toroidal index'
             label_y = 'Poloidal index'
 
-        elif coordinates=='radians' or coordinates=='degrees':
+        elif coordinates == 'radians' or coordinates == 'degrees':
 
-            if coordinates=='radians':
+            if coordinates == 'radians':
                 angle_factor = 2.*np.pi
                 label_x = r'$\phi_{wf}$ [rad]'
                 label_y = r'$\theta_{wf}$ [rad]'
@@ -1611,28 +1607,28 @@ class ToroidalWireframe(object):
             qp_phi = self.surface.quadpoints_phi
             qp_theta = self.surface.quadpoints_theta
 
-            phi_mod = qp_phi[(pl_segments[:,:,0] % self.n_phi).astype(int)]
+            phi_mod = qp_phi[(pl_segments[:, :, 0] % self.n_phi).astype(int)]
             theta_mod = \
-                qp_theta[(pl_segments[:,:,1] % self.n_theta).astype(int)]
-            phi_offs = (0.5/self.nfp)*np.floor(pl_segments[:,:,0]/self.n_phi)
-            theta_offs = np.floor(pl_segments[:,:,1]/self.n_theta)
+                qp_theta[(pl_segments[:, :, 1] % self.n_theta).astype(int)]
+            phi_offs = (0.5/self.nfp)*np.floor(pl_segments[:, :, 0]/self.n_phi)
+            theta_offs = np.floor(pl_segments[:, :, 1]/self.n_theta)
             pl_angles = np.zeros(pl_segments.shape)
-            pl_angles[:,:,0] = angle_factor * (phi_mod + phi_offs)
-            pl_angles[:,:,1] = angle_factor * (theta_mod + theta_offs)
+            pl_angles[:, :, 0] = angle_factor * (phi_mod + phi_offs)
+            pl_angles[:, :, 1] = angle_factor * (theta_mod + theta_offs)
 
             lc = LineCollection(pl_angles[inds_to_plot], **kwargs)
 
             delta_x = angle_factor * (qp_phi[1] - qp_phi[0])
             delta_y = angle_factor * (qp_theta[1] - qp_theta[0])
-            
+
         else:
 
             raise ValueError('Unrecognized value for `dimensions` parameter')
 
         lc.set_array(pl_quantity[inds_to_plot])
-        if quantity=='currents' or quantity=='nonzero currents':
+        if quantity == 'currents' or quantity == 'nonzero currents':
             lc.set_clim(np.max(np.abs(self.currents*1e-6))*np.array([-1, 1]))
-        elif quantity=='constrained segments':
+        elif quantity == 'constrained segments':
             lc.set_clim([-1, 1])
         lc.set_cmap('coolwarm')
 
@@ -1647,11 +1643,11 @@ class ToroidalWireframe(object):
         ax.set_ylabel(label_y)
         if add_colorbar:
             cb = pl.colorbar(lc, ax=ax)
-            if quantity=='currents' or quantity=='nonzero currents':
+            if quantity == 'currents' or quantity == 'nonzero currents':
                 cb.set_label('Current [MA]')
-            elif quantity=='constrained segments':
-                cb.set_label('1 = constrained; -1 = implicitly constrained; ' \
-                                 + '0 = free')
+            elif quantity == 'constrained segments':
+                cb.set_label('1 = constrained; -1 = implicitly constrained; '
+                             + '0 = free')
         else:
             cb = None
 
@@ -1684,28 +1680,28 @@ class ToroidalWireframe(object):
         from matplotlib.collections import PolyCollection
 
         vertices = np.zeros((self.n_theta*self.n_phi, 4, 2))
-        vertices[:,0,0] = \
-            np.floor(self.segments[self.cell_key[:,0],0]/self.n_theta)
-        vertices[:,1,0] = \
-            np.floor(self.segments[self.cell_key[:,0],1]/self.n_theta)
-        vertices[:,2,0] = \
-            np.floor(self.segments[self.cell_key[:,2],1]/self.n_theta)
-        vertices[:,3,0] = \
-            np.floor(self.segments[self.cell_key[:,2],0]/self.n_theta)
-        vertices[:,0,1] = \
-            self.segments[self.cell_key[:,0],0] % self.n_theta
-        vertices[:,1,1] = \
-            self.segments[self.cell_key[:,0],1] % self.n_theta
-        vertices[:,2,1] = \
-            self.segments[self.cell_key[:,2],1] % self.n_theta
-        vertices[:,3,1] = \
-            self.segments[self.cell_key[:,2],0] % self.n_theta
+        vertices[:, 0, 0] = \
+            np.floor(self.segments[self.cell_key[:, 0], 0]/self.n_theta)
+        vertices[:, 1, 0] = \
+            np.floor(self.segments[self.cell_key[:, 0], 1]/self.n_theta)
+        vertices[:, 2, 0] = \
+            np.floor(self.segments[self.cell_key[:, 2], 1]/self.n_theta)
+        vertices[:, 3, 0] = \
+            np.floor(self.segments[self.cell_key[:, 2], 0]/self.n_theta)
+        vertices[:, 0, 1] = \
+            self.segments[self.cell_key[:, 0], 0] % self.n_theta
+        vertices[:, 1, 1] = \
+            self.segments[self.cell_key[:, 0], 1] % self.n_theta
+        vertices[:, 2, 1] = \
+            self.segments[self.cell_key[:, 2], 1] % self.n_theta
+        vertices[:, 3, 1] = \
+            self.segments[self.cell_key[:, 2], 0] % self.n_theta
 
-        loop_segs = np.where(\
-            np.logical_and(vertices[:,0,1] == self.n_theta-1, \
-                           vertices[:,2,1] == 0))
-        vertices[loop_segs,2:,1] = self.n_theta
-        
+        loop_segs = np.where(
+            np.logical_and(vertices[:, 0, 1] == self.n_theta-1,
+                           vertices[:, 2, 1] == 0))
+        vertices[loop_segs, 2:, 1] = self.n_theta
+
         free_cell_ids = self.get_free_cells()
         all_values = np.zeros((self.cell_key.shape[0]))
 
@@ -1714,12 +1710,12 @@ class ToroidalWireframe(object):
         elif len(cell_values) == len(free_cell_ids):
             all_values[free_cell_ids] = np.reshape(cell_values, (-1))[:]
         else:
-            raise ValueError('Input cell_values doesn''t have the correct ' \
+            raise ValueError('Input cell_values doesn''t have the correct '
                              'number of elements')
 
         pc = PolyCollection(vertices)
         pc.set_array(all_values)
-        pc.set_edgecolor((0,0,0))
+        pc.set_edgecolor((0, 0, 0))
         pc.set_clim(np.max(np.abs(all_values))*np.array([-1, 1]))
         pc.set_cmap('coolwarm')
 
@@ -1733,15 +1729,15 @@ class ToroidalWireframe(object):
         ax.set_xlabel('Toroidal index')
         ax.set_ylabel('Poloidal index')
         cb = pl.colorbar(pc, ax=ax)
- 
+
         if value_label:
             cb.set_label(value_label)
 
         ax.add_collection(pc)
 
 
-def windowpane_wireframe(surface, n_coils_tor, n_coils_pol, size_tor, size_pol, 
-                         gap_tor, gap_pol, constraint_atol=1e-10, 
+def windowpane_wireframe(surface, n_coils_tor, n_coils_pol, size_tor, size_pol,
+                         gap_tor, gap_pol, constraint_atol=1e-10,
                          constraint_rtol=1e-10):
     """
     Create a ToroidalWireframe class instance with the current constrained to
@@ -1778,16 +1774,16 @@ def windowpane_wireframe(surface, n_coils_tor, n_coils_pol, size_tor, size_pol,
     if not isinstance(n_coils_tor, int) or not isinstance(n_coils_pol, int) or \
        not isinstance(size_tor, int) or not isinstance(size_pol, int) or \
        not isinstance(gap_tor, int) or not isinstance(gap_pol, int):
-        raise ValueError('n_coils_tor, n_coils_pol, size_tor, size_pol, ' \
+        raise ValueError('n_coils_tor, n_coils_pol, size_tor, size_pol, '
                          + 'gap_tor, and gap_pol must be integers')
 
     if size_tor % 2 or size_pol % 2 or gap_tor % 2 or gap_pol % 2:
         raise ValueError('size_[tor,pol] and gap_[tor,pol] must be even.')
 
-    n_phi   = n_coils_tor*(size_tor + gap_tor)
+    n_phi = n_coils_tor*(size_tor + gap_tor)
     n_theta = n_coils_pol*(size_pol + gap_pol)
 
-    wframe = ToroidalWireframe(surface, n_phi, n_theta, 
+    wframe = ToroidalWireframe(surface, n_phi, n_theta,
                                constraint_atol=constraint_atol,
                                constraint_rtol=constraint_rtol)
 
@@ -1815,12 +1811,12 @@ def windowpane_wireframe(surface, n_coils_tor, n_coils_pol, size_tor, size_pol,
 
         for j in range(0, n_coils_pol):
 
-            offs_left  = i*unit_offs + half_gap_tor*n_theta - int(0.5*n_theta) \
-                         + j*unit_pol + wframe.n_tor_segments
+            offs_left = i*unit_offs + half_gap_tor*n_theta - int(0.5*n_theta) \
+                + j*unit_pol + wframe.n_tor_segments
             offs_right = offs_left + size_tor*n_theta
 
             inds = np.arange(half_gap_pol, half_gap_pol+size_pol)
-            inds_left  = inds + offs_left
+            inds_left = inds + offs_left
             inds_right = inds + offs_right
 
             inds_coils = np.concatenate((inds_coils, inds_left, inds_right))
@@ -1828,7 +1824,7 @@ def windowpane_wireframe(surface, n_coils_tor, n_coils_pol, size_tor, size_pol,
     # Identify segments that do NOT constitute the coils
     unused_segs = np.full(wframe.n_segments, True)
     unused_segs[inds_coils] = False
-    
+
     # Constrain all segments that are not part of the coils
     wframe.set_segments_constrained(np.where(unused_segs)[0])
 

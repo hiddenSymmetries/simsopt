@@ -30,7 +30,7 @@ void init_tracing(py::module_ &m){
     py::class_<MinToroidalFluxStoppingCriterion, shared_ptr<MinToroidalFluxStoppingCriterion>, StoppingCriterion>(m, "MinToroidalFluxStoppingCriterion")
         .def(py::init<double>());
     py::class_<ToroidalTransitStoppingCriterion, shared_ptr<ToroidalTransitStoppingCriterion>, StoppingCriterion>(m, "ToroidalTransitStoppingCriterion")
-        .def(py::init<int,bool>());
+        .def(py::init<double,bool>());
     py::class_<LevelsetStoppingCriterion<PyTensor>, shared_ptr<LevelsetStoppingCriterion<PyTensor>>, StoppingCriterion>(m, "LevelsetStoppingCriterion")
         .def(py::init<shared_ptr<RegularGridInterpolant3D<PyTensor>>>());
 

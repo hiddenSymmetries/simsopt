@@ -4,14 +4,14 @@ import os
 import numpy as np
 from scipy.optimize import minimize
 
-from simsopt.configs import get_ncsx_data
-from simsopt.field import BiotSavart, coils_via_symmetries
+from simsopt.configs import get_data
+from simsopt.field import BiotSavart
 from simsopt.geo import SurfaceXYZTensorFourier, BoozerSurface, curves_to_vtk, boozer_surface_residual, \
     Volume, MajorRadius, CurveLength, NonQuasiSymmetricRatio, Iotas
 from simsopt.objectives import QuadraticPenalty
 from simsopt.util import in_github_actions
 
-"""
+r"""
 This example optimizes the NCSX coils and currents for QA on a single surface.  The objective is
 
     J = ( \int_S B_nonQA**2 dS )/(\int_S B_QA dS)
@@ -36,20 +36,19 @@ os.makedirs(OUT_DIR, exist_ok=True)
 print("Running 2_Intermediate/boozerQA.py")
 print("================================")
 
-base_curves, base_currents, ma = get_ncsx_data()
-coils = coils_via_symmetries(base_curves, base_currents, 3, True)
-curves = [c.curve for c in coils]
-bs = BiotSavart(coils)
-bs_tf = BiotSavart(coils)
-current_sum = sum(abs(c.current.get_value()) for c in coils)
+base_curves, base_currents, ma, nfp, bs  = get_data("ncsx")
+# bs.coils includes all coils after symmetry expansion (not just the base coils).
+# You can access them directly like this:
+all_curves = [c.curve for c in bs.coils]
+bs_tf = BiotSavart(bs.coils)
+current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
 G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
 ## COMPUTE THE INITIAL SURFACE ON WHICH WE WANT TO OPTIMIZE FOR QA##
 # Resolution details of surface on which we optimize for qa
-mpol = 6  
-ntor = 6  
+mpol = 6
+ntor = 6
 stellsym = True
-nfp = 3
 
 phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
 thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
@@ -71,19 +70,19 @@ res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=2
 out_res = boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)[0]
 print(f"NEWTON {res['success']}: iter={res['iter']}, iota={res['iota']:.3f}, vol={s.volume():.3f}, ||residual||={np.linalg.norm(out_res):.3e}")
 ## SET UP THE OPTIMIZATION PROBLEM AS A SUM OF OPTIMIZABLES ##
-bs_nonQS = BiotSavart(coils)
+bs_nonQS = BiotSavart(bs.coils)
 mr = MajorRadius(boozer_surface)
 ls = [CurveLength(c) for c in base_curves]
 
 J_major_radius = QuadraticPenalty(mr, mr.J(), 'identity')  # target major radius is that computed on the initial surface
 J_iotas = QuadraticPenalty(Iotas(boozer_surface), res['iota'], 'identity')  # target rotational transform is that computed on the initial surface
 J_nonQSRatio = NonQuasiSymmetricRatio(boozer_surface, bs_nonQS)
-Jls = QuadraticPenalty(sum(ls), float(sum(ls).J()), 'max') 
+Jls = QuadraticPenalty(sum(ls), float(sum(ls).J()), 'max')
 
 # sum the objectives together
 JF = J_nonQSRatio + J_iotas + J_major_radius + Jls
 
-curves_to_vtk(curves, OUT_DIR + "curves_init")
+curves_to_vtk(all_curves, OUT_DIR + "curves_init")
 boozer_surface.surface.to_vtk(OUT_DIR + "surf_init")
 
 # let's fix the coil current
@@ -144,7 +143,7 @@ print("""
 MAXITER = 50 if in_github_actions else 1e3
 
 res = minimize(fun, dofs, jac=True, method='BFGS', options={'maxiter': MAXITER}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + "curves_opt")
+curves_to_vtk(all_curves, OUT_DIR + "curves_opt")
 boozer_surface.surface.to_vtk(OUT_DIR + "surf_opt")
 
 print("End of 2_Intermediate/boozerQA.py")
