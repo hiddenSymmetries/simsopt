@@ -68,4 +68,4 @@ jobs:
         if: (github.event_name != 'pull_request')
         run: |         
           echo ${{ secrets.GITHUB_TOKEN }} | sudo -E singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
-          sudo -E singularity push simsopt.sif oras://ghcr.io/${GITHUB_REPOSITORY}:${tag}
+          sudo -E singularity push simsopt.sif oras://ghcr.io/hiddensymmetries/simsopt:${tag}
