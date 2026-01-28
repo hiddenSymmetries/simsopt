@@ -130,7 +130,8 @@ def coil_optimization(s, bs, base_curves, curves, **kwargs):
         MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, \
         LinkingNumber
     from simsopt.objectives import QuadraticPenalty, SquaredFlux
-    from simsopt.field.force import LpCurveForce, regularization_circ
+    from simsopt.field.force import LpCurveForce
+    from simsopt.field.selffield import regularization_circ
 
     nphi = len(s.quadpoints_phi)
     ntheta = len(s.quadpoints_theta)
@@ -687,7 +688,9 @@ def vacuum_stage_II_optimization(
             order=order,
         )
 
-    from simsopt.field.force import coil_force, LpCurveForce, regularization_circ
+    from simsopt.field.force import LpCurveForce
+    from simsopt.field.selffield import regularization_circ
+    from simsopt.field import RegularizedCoil
 
     if UUID_init_from is None: # No previous optimization to initialize from
         base_curves = initial_base_curves(R0, R1, order, ncoils)
@@ -831,14 +834,18 @@ def vacuum_stage_II_optimization(
     # SAVE DATA TO JSON
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     mean_AbsB = np.mean(bs.AbsB())
+    # Create RegularizedCoil objects for force calculations
+    reg_param = regularization_circ(0.05)
+    base_coils_reg = [RegularizedCoil(c.curve, c.current, reg_param) for c in base_coils]
+    
     lpcurveforce = sum([LpCurveForce(c, coils, p=2, 
         threshold=FORCE_THRESHOLD, 
-        regularization=regularization_circ(0.05)
+        regularization=reg_param
         ) for c in base_coils]
     ).J()
-    max_forces = [np.max(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
-    min_forces = [np.min(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
-    RMS_forces = [np.sqrt(np.mean(np.square(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)))) for c in base_coils]
+    max_forces = [np.max(np.linalg.norm(c_reg.force(coils), axis=1)) for c_reg in base_coils_reg]
+    min_forces = [np.min(np.linalg.norm(c_reg.force(coils), axis=1)) for c_reg in base_coils_reg]
+    RMS_forces = [np.sqrt(np.mean(np.square(np.linalg.norm(c_reg.force(coils), axis=1)))) for c_reg in base_coils_reg]
     results = {
         "nfp": nfp,
         "ncoils": int(ncoils),
@@ -996,13 +1003,28 @@ def make_stage_II_pareto_plots(df: list, df_filtered: list, OUTPUT_DIR: str = ".
             values = []
             for item in data_list:
                 val = item.get(field_name)
+                if val is None:
+                    # Field doesn't exist in this item, skip it (will be filtered out later)
+                    continue
                 if isinstance(val, list):
-                    val = val[0] if len(val) > 0 else 0
-                values.append(val)
-            return np.array(values)
+                    val = val[0] if len(val) > 0 else None
+                if val is not None:
+                    values.append(val)
+            return np.array(values) if values else np.array([])
         
         data = get_field_values(df, field)
         data_filtered = get_field_values(df_filtered, field)
+        
+        # Filter out NaN and infinite values
+        data = data[np.isfinite(data)]
+        data_filtered = data_filtered[np.isfinite(data_filtered)]
+        
+        # Skip plotting if no valid data
+        if len(data) == 0:
+            plt.text(0.5, 0.5, f'No valid data for {field}', 
+                    ha='center', va='center', transform=plt.gca().transAxes)
+            plt.xlabel(field)
+            return
         
         if np.min(data) > 0:
             bins = np.logspace(np.log10(data.min()), np.log10(data.max()), nbins)
