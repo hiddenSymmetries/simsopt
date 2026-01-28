@@ -5,13 +5,26 @@ the permanent magnets functionality in the SIMSOPT code.
 __all__ = [
            'initialize_coils_for_pm_optimization',
            'make_optimization_plots', 'run_Poincare_plots_with_permanent_magnets',
-           'initialize_default_kwargs'
+           'initialize_default_kwargs',
+           'read_focus_coils',
            ]
 
 import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib.animation as animation
 from pathlib import Path
+
+
+def read_focus_coils(filename):
+    """
+    Lightweight wrapper for :func:`simsopt.util.coil_optimization_helper_functions.read_focus_coils`.
+
+    This wrapper exists so modules that depend on permanent-magnet helpers can
+    import ``read_focus_coils`` without pulling in the full coil-optimization
+    helper module (which has heavier optional dependencies) at import time.
+    """
+    from simsopt.util.coil_optimization_helper_functions import read_focus_coils as _read_focus_coils
+    return _read_focus_coils(filename)
 
 def initialize_coils_for_pm_optimization(config_flag, TEST_DIR, s, out_dir=''):
     """
