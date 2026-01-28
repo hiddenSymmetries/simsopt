@@ -1,4 +1,3 @@
-from simsopt.mhd import VirtualCasing, Vmec
 from simsopt.field import VirtualCasingField
 from simsopt.geo import SurfaceRZFourier
 from pathlib import Path
