@@ -44,6 +44,7 @@ requirements:
     - sympy
     - f90nml
     - pyevtk
+    - numba
 
 about:
   home: https://github.com/hiddenSymmetries/simsopt

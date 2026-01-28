@@ -10,5 +10,4 @@ ruamel.yaml
 sympy
 f90nml
 pyevtk
-numba 
-coilpy
+numba

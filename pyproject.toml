@@ -62,7 +62,8 @@ dependencies = [
     "sympy",
     "f90nml",
     "pyevtk",
-    "matplotlib"
+    "matplotlib",
+    "numba"
 ]
 dynamic = ["version"]
 
