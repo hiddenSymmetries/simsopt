@@ -220,7 +220,8 @@ class Current(sopp.Current, CurrentBase):
 class ScaledCurrent(sopp.CurrentBase, CurrentBase):
     """
     Represents a current that is a scaled version of another current object 
-    (Scales :mod:`Current` by a factor.)
+    (Scales :mod:`Current` by a factor.). The 'scale' is not treated as a dof, so it is not optimized.
+    The scaled current has value I = scale * I_0 where `I_0` is the 'current_to_scale'.
 
     Used, for example, to flip currents for stellarator symmetric coils.
 
@@ -256,16 +257,6 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
             The current value of the current object.
         """
         return self.scale * self.current_to_scale.get_value()
-
-    def set_dofs(self, dofs):
-        """
-        Set the degrees of freedom for the current object.
-
-        Args:
-            dofs (array or scalar) : The degrees of freedom to set.
-        """
-        self.current_to_scale.set_dofs(dofs / self.scale)
-
 
 class CurrentSum(sopp.CurrentBase, CurrentBase):
     """
@@ -468,11 +459,16 @@ def coils_via_symmetries(curves, currents, nfp, stellsym, regularizations=None):
     ``Coil`` objects obtained by applying rotations and flipping corresponding
     to ``nfp`` fold rotational symmetry and optionally stellarator symmetry.
 
+    If regularizations are provided for the base curves, then RegularizedCoil objects are returned. This
+    is a coil class that carries around a regularization for a finite cross section, which is used 
+    for computing e.g. forces and torques on the coil. Format is e.g.
+    regularizations = [regularization_circ(0.05) for _ in range(ncoils)]
+
     Parameters
     ----------
-    curves (list) : list of Curve
+    curves (list, shape (n_coils,)) : list of Curve
         List of base curves.
-    currents (list) : list of Current
+    currents (list, shape (n_coils,)) : list of Current
         List of base current objects.
     nfp (int) : int
         Number of field periods (rotational symmetry).
@@ -483,8 +479,9 @@ def coils_via_symmetries(curves, currents, nfp, stellsym, regularizations=None):
 
     Returns
     -------
-    coils (list) : list of Coil
-        List of Coil objects with symmetries applied.
+    coils (list) : list of Coil or RegularizedCoil objects
+        List of Coil or RegularizedCoil objects with symmetries applied. If regularizations are provided, 
+        then RegularizedCoil objects are returned.
     """
 
     assert len(curves) == len(currents)

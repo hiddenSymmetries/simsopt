@@ -5,6 +5,7 @@ import jax.numpy as jnp
 from jax import grad
 from .biotsavart import BiotSavart
 from .selffield import B_regularized_pure, B_regularized, B_regularized_circ, B_regularized_rect
+from .coil import RegularizedCoil
 from ..geo.jit import jit
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
@@ -12,18 +13,32 @@ from .._core.derivative import derivative_dec
 Biot_savart_prefactor = constants.mu_0 / 4 / np.pi
 
 
-def coil_force(target_coil, source_coils, regularization=None):
-    """
+def coil_force(target_coil, source_coils):
+    r"""
     Compute the force per unit length on a coil from m other coils, in Newtons/meter. Note that BiotSavart objects
-    are created below, which can lead to growth of the number of optimizable graph dependencies.
+    are created below, which can lead to growth of the number of optimizable graph dependencies 
+    created by this function. The target_coil must be a RegularizedCoil object, while the
+    source_coils can be either Coil or RegularizedCoil objects.
+
+    .. math::
+        dF_i/d\ell = I_i \vec{t_i} \times (\vec{B_{self}} + \vec{B_{mutual}})
+
+    where :math:`\vec{t_i}` is the tangent vector to the ith coil curve,
+    :math:`\vec{B_{self}}` is the self-field of the ith coil,
+    :math:`\vec{B_{mutual}}` is the mutual field from the other coils.
+
     Args:
-        target_coil (Coil): Coil to compute the pointwise forces on.
-        source_coils (list of Coil, shape (m,)): List of coils contributing forces on the primary coil.
-        regularization (float, optional): Regularization parameter for self-force calculation. 
-            If None, uses B_regularized which requires target_coil to be a RegularizedCoil.
+        target_coil (RegularizedCoil): 
+            RegularizedCoil to compute the pointwise forces on.
+        source_coils (list of Coil or RegularizedCoil, shape (m,)): 
+            List of coils contributing forces on the primary coil. 
+            Can be a mix of Coil and RegularizedCoil objects.
     Returns:
-        array: Array of forces per unit length.
+        array (shape (n,3)): Array of forces per unit length along the coil curve.
     """
+    if not isinstance(target_coil, RegularizedCoil):
+        raise TypeError("coil_force requires target_coil to be a RegularizedCoil object, "
+                       f"but got {type(target_coil).__name__}")
     gammadash = target_coil.curve.gammadash()
     gammadash_norm = np.linalg.norm(gammadash, axis=1)[:, None]
     tangent = gammadash / gammadash_norm
@@ -31,30 +46,24 @@ def coil_force(target_coil, source_coils, regularization=None):
     mutual_field = BiotSavart(mutual_coils).set_points(target_coil.curve.gamma())
     B_mutual = mutual_field.B()
     mutualforce = np.cross(target_coil.current.get_value() * tangent, B_mutual)
-    if regularization is not None:
-        I = target_coil.current.get_value()
-        B_self = B_regularized_pure(
-            target_coil.curve.gamma(),
-            target_coil.curve.gammadash(),
-            target_coil.curve.gammadashdash(),
-            target_coil.curve.quadpoints,
-            I,
-            regularization
-        )
-        selfforce = _coil_force_pure(B_self, I, tangent)
-    else:
-        selfforce = self_force(target_coil)
+    selfforce = self_force(target_coil)
     return (selfforce + mutualforce)
 
 def coil_net_force(target_coil, source_coils):
-    """
+    r"""
     Compute the net forces on one coil from m other coils, in Newtons. This is
-    the integrated pointwise force per unit length on a coil curve.
+    the integrated pointwise force per unit length dF_i/d\ell on the ith coil curve.
+
+    .. math::
+        F_net = \int (dF_i/d\ell) d\ell
+
     Args:
-        target_coil (Coil): Coil to compute the net forces on.
-        source_coils (list of Coil, shape (m,)): List of coils contributing forces on the primary coil.
+        target_coil (RegularizedCoil): RegularizedCoil to compute the net forces on.
+        source_coils (list of Coil or RegularizedCoil, shape (m,)): 
+            List of coils contributing forces on the primary coil. 
+            Can be a mix of Coil and RegularizedCoil objects.
     Returns:
-        array: Array of net forces.
+        np.array (shape (3,)): Array of net forces.
     """
     Fi = coil_force(target_coil, source_coils)
     gammadash = target_coil.curve.gammadash()
@@ -63,8 +72,16 @@ def coil_net_force(target_coil, source_coils):
     return net_force
 
 def _coil_force_pure(B, I, t):
-    """
+    r"""
     Compute the pointwise Lorentz force per unit length on a coil with n quadrature points, in Newtons/meter. 
+
+    .. math::
+        dF/d\ell = I \vec{t} \times \vec{B}
+
+    where :math:`\vec{t}` is the tangent vector to the coil curve,
+    :math:`\vec{B}` is the magnetic field at the quadrature points,
+    :math:`I` is the coil current.
+
     Args:
         B (array, shape (n,3)): Array of magnetic field.
         I (float): Coil current.
@@ -76,31 +93,53 @@ def _coil_force_pure(B, I, t):
 
 
 def coil_torque(target_coil, source_coils):
-    """
+    r"""
     Compute the torques per unit length on a coil from m other coils in Newtons 
     (note that the force is per unit length, so the force has units of Newtons/meter 
     and the torques per unit length have units of Newtons).
+
+    .. math::
+        dT_i/d\ell = (\gamma_i - c_i) \times (dF_i/d\ell)
+
+    where :math:`\gamma_i` is the position vector of the ith coil curve, 
+    :math:`c_i` is the centroid of the ith coil curve,
+    :math:`dF_i/d\ell` is the pointwise force per unit length on the ith coil curve.
+
     Args:
-        target_coil (Coil): Coil to compute the pointwise torques on.
-        source_coils (list of Coil, shape (m,)): List of coils contributing torques on the primary coil.
+        target_coil (RegularizedCoil): RegularizedCoil to compute the pointwise torques on.
+        source_coils (list of Coil or RegularizedCoil, shape (m,)): 
+            List of coils contributing torques on the primary coil. 
+            Can be a mix of Coil and RegularizedCoil objects.
     Returns:
-        array: Array of torques.
+        np.array (shape (n,3)): Array of torques per unit length along the coil curve.
     """
+    if not isinstance(target_coil, RegularizedCoil):
+        raise TypeError("coil_torque requires target_coil to be a RegularizedCoil object, "
+                       f"but got {type(target_coil).__name__}")
     gamma = target_coil.curve.gamma()
     center = target_coil.curve.centroid()
     return np.cross(gamma - center, coil_force(target_coil, source_coils))
 
 
 def coil_net_torque(target_coil, source_coils):
-    """
+    r"""
     Compute the net torques on a coil from m other coils, in Newton-meters. This is
     the integrated pointwise torque per unit length on a coil curve.
+
+    .. math::
+        T_net = \int dT_i/d\ell d\ell
+
     Args:
-        target_coil (Coil): Coil to compute the net torques on.
-        source_coils (list of Coil, shape (m,)): List of coils contributing torques on the primary coil.
+        target_coil (RegularizedCoil): RegularizedCoil to compute the net torques on.
+        source_coils (list of Coil or RegularizedCoil, shape (m,)): 
+            List of coils contributing torques on the primary coil. 
+            Can be a mix of Coil and RegularizedCoil objects.
     Returns:
-        array: Array of net torques.
+        np.array (shape (3,)): Array of net torques.
     """
+    if not isinstance(target_coil, RegularizedCoil):
+        raise TypeError("coil_net_torque requires target_coil to be a RegularizedCoil object, "
+                       f"but got {type(target_coil).__name__}")
     Ti = coil_torque(target_coil, source_coils)
     gammadash = target_coil.curve.gammadash()
     gammadash_norm = np.linalg.norm(gammadash, axis=1)[:, None]
@@ -112,10 +151,13 @@ def self_force(target_coil):
     """
     Compute the self-force per unit length of a coil, in Newtons/meter.
     Args:
-        target_coil (Coil): Coil to compute the self-force per unit length on.
+        target_coil (RegularizedCoil): RegularizedCoil to compute the self-force per unit length on.
     Returns:
         array (shape (n,3)): Array of self-force per unit length.
     """
+    if not isinstance(target_coil, RegularizedCoil):
+        raise TypeError("self_force requires target_coil to be a RegularizedCoil object, "
+                       f"but got {type(target_coil).__name__}")
     I = target_coil.current.get_value()
     tangent = target_coil.curve.gammadash() / np.linalg.norm(target_coil.curve.gammadash(),
                                                       axis=1)[:, None]

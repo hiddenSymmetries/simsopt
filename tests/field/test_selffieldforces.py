@@ -12,12 +12,16 @@ from simsopt.geo import CurveXYZFourier
 from simsopt.field.selffield import (
     B_regularized_circ,
     B_regularized_rect,
-    rectangular_xsection_k,
-    rectangular_xsection_delta,
+    _rectangular_xsection_k,
+    _rectangular_xsection_delta,
     regularization_circ,
+    regularization_rect,
 )
 from simsopt.field.force import (
     coil_force,
+    coil_net_force,
+    coil_torque,
+    coil_net_torque,
     self_force_circ,
     self_force_rect,
     MeanSquaredForce,
@@ -35,14 +39,14 @@ class SpecialFunctionsTests(unittest.TestCase):
     def test_k_square(self):
         """Check value of k for a square cross-section."""
         truth = 2.556493222766492
-        np.testing.assert_allclose(rectangular_xsection_k(0.3, 0.3), truth)
-        np.testing.assert_allclose(rectangular_xsection_k(2.7, 2.7), truth)
+        np.testing.assert_allclose(_rectangular_xsection_k(0.3, 0.3), truth)
+        np.testing.assert_allclose(_rectangular_xsection_k(2.7, 2.7), truth)
 
     def test_delta_square(self):
         """Check value of delta for a square cross-section."""
         truth = 0.19985294779417703
-        np.testing.assert_allclose(rectangular_xsection_delta(0.3, 0.3), truth)
-        np.testing.assert_allclose(rectangular_xsection_delta(2.7, 2.7), truth)
+        np.testing.assert_allclose(_rectangular_xsection_delta(0.3, 0.3), truth)
+        np.testing.assert_allclose(_rectangular_xsection_delta(2.7, 2.7), truth)
 
     def test_symmetry(self):
         """k and delta should be unchanged if a and b are swapped."""
@@ -51,10 +55,10 @@ class SpecialFunctionsTests(unittest.TestCase):
             a = d * ratio
             b = d / ratio
             np.testing.assert_allclose(
-                rectangular_xsection_delta(a, b), rectangular_xsection_delta(b, a)
+                _rectangular_xsection_delta(a, b), _rectangular_xsection_delta(b, a)
             )
             np.testing.assert_allclose(
-                rectangular_xsection_k(a, b), rectangular_xsection_k(b, a)
+                _rectangular_xsection_k(a, b), _rectangular_xsection_k(b, a)
             )
 
     def test_limits(self):
@@ -66,14 +70,61 @@ class SpecialFunctionsTests(unittest.TestCase):
                 # a >> b
                 b = x
                 a = b * ratio
-                np.testing.assert_allclose(rectangular_xsection_k(a, b), (7.0 / 6) + np.log(a / b), rtol=1e-3)
-                np.testing.assert_allclose(rectangular_xsection_delta(a, b), a / (b * np.exp(3)), rtol=1e-3)
+                np.testing.assert_allclose(_rectangular_xsection_k(a, b), (7.0 / 6) + np.log(a / b), rtol=1e-3)
+                np.testing.assert_allclose(_rectangular_xsection_delta(a, b), a / (b * np.exp(3)), rtol=1e-3)
 
                 # b >> a
                 a = x
                 b = ratio * a
-                np.testing.assert_allclose(rectangular_xsection_k(a, b), (7.0 / 6) + np.log(b / a), rtol=1e-3)
-                np.testing.assert_allclose(rectangular_xsection_delta(a, b), b / (a * np.exp(3)), rtol=1e-3)
+                np.testing.assert_allclose(_rectangular_xsection_k(a, b), (7.0 / 6) + np.log(b / a), rtol=1e-3)
+                np.testing.assert_allclose(_rectangular_xsection_delta(a, b), b / (a * np.exp(3)), rtol=1e-3)
+
+    def test_regularization_circ(self):
+        """Test regularization_circ function."""
+        a = 0.01
+        reg_circ = regularization_circ(a)
+        expected = a**2 / np.sqrt(np.e)
+        np.testing.assert_allclose(reg_circ, expected, rtol=1e-10)
+        
+        # Test with different radius
+        a2 = 0.05
+        reg_circ2 = regularization_circ(a2)
+        expected2 = a2**2 / np.sqrt(np.e)
+        np.testing.assert_allclose(reg_circ2, expected2, rtol=1e-10)
+        
+        # Verify scaling: should scale as a^2
+        np.testing.assert_allclose(reg_circ2 / reg_circ, (a2 / a)**2, rtol=1e-10)
+
+    def test_regularization_rect(self):
+        """Test regularization_rect function."""
+        a = 0.01
+        b = 0.023
+        
+        # Test square cross-section
+        reg_rect_square = regularization_rect(a, a)
+        reg_circ_equiv = regularization_circ(a)
+        # For square, should be close to circular with same area
+        # (not exact, but should be similar order of magnitude)
+        assert reg_rect_square > 0
+        assert reg_circ_equiv > 0
+        
+        # Test rectangular cross-section
+        reg_rect = regularization_rect(a, b)
+        expected_delta = _rectangular_xsection_delta(a, b)
+        expected = a * b * expected_delta
+        np.testing.assert_allclose(reg_rect, expected, rtol=1e-10)
+        
+        # Test symmetry: should be same if a and b are swapped
+        reg_rect_swapped = regularization_rect(b, a)
+        np.testing.assert_allclose(reg_rect, reg_rect_swapped, rtol=1e-10)
+        
+        # Test with different dimensions
+        a2 = 0.02
+        b2 = 0.03
+        reg_rect2 = regularization_rect(a2, b2)
+        assert reg_rect2 > 0
+        # Should scale roughly with area
+        assert reg_rect2 > reg_rect  # Larger dimensions should give larger regularization
 
 
 class CoilForcesTest(unittest.TestCase):
@@ -90,7 +141,7 @@ class CoilForcesTest(unittest.TestCase):
         B_reg_analytic_circ = constants.mu_0 * I / (4 * np.pi * R0) * (np.log(8 * R0 / a) - 3 / 4)
         # Eq (98) in Landreman Hurwitz Antonsen:
         B_reg_analytic_rect = constants.mu_0 * I / (4 * np.pi * R0) * (
-            np.log(8 * R0 / np.sqrt(a * b)) + 13.0 / 12 - rectangular_xsection_k(a, b) / 2
+            np.log(8 * R0 / np.sqrt(a * b)) + 13.0 / 12 - _rectangular_xsection_k(a, b) / 2
         )
         force_analytic_circ = B_reg_analytic_circ * I
         force_analytic_rect = B_reg_analytic_rect * I
@@ -178,6 +229,111 @@ class CoilForcesTest(unittest.TestCase):
         F_x_test = self_force_rect(coil, a, b)[:, 0]
         np.testing.assert_allclose(F_x_benchmark, F_x_test, rtol=1e-9, atol=0)
 
+    def test_coil_force_requires_regularized_coil(self):
+        """Test that coil_force raises an error when given a Coil instead of RegularizedCoil"""
+        nfp = 3
+        ncoils = 4
+        I = 1.7e4
+
+        base_curves = create_equally_spaced_curves(ncoils, nfp, True)
+        base_currents = [Current(I) for j in range(ncoils)]
+        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+
+        # coil_force should raise a TypeError when given a regular Coil
+        with self.assertRaises(TypeError) as context:
+            coil_force(coils[0], coils)
+        self.assertIn("RegularizedCoil", str(context.exception))
+
+        with self.assertRaises(TypeError) as context:
+            coil_torque(coils[0], coils)
+        self.assertIn("RegularizedCoil", str(context.exception))
+
+        with self.assertRaises(TypeError) as context:
+            coil_net_force(coils[0], coils)
+        self.assertIn("RegularizedCoil", str(context.exception))
+
+        with self.assertRaises(TypeError) as context:
+            coil_net_torque(coils[0], coils)
+        self.assertIn("RegularizedCoil", str(context.exception))
+
+    def test_net_force_and_torque(self):
+        """Test coil_net_force and coil_net_torque functions."""
+        nfp = 3
+        ncoils = 4
+        I = 1.7e4
+        regularization = regularization_circ(0.05)
+
+        base_curves = create_equally_spaced_curves(ncoils, nfp, True)
+        base_currents = [Current(I) for j in range(ncoils)]
+        coils = coils_via_symmetries(base_curves, base_currents, nfp, True,
+                                     regularizations=[regularization] * ncoils)
+
+        # Test coil_net_force: should be the integral of pointwise forces
+        target_coil = coils[0]
+        source_coils = coils
+        
+        # Compute pointwise forces
+        pointwise_forces = coil_force(target_coil, source_coils)
+        
+        # Compute net force using the function
+        net_force = coil_net_force(target_coil, source_coils)
+        
+        # Compute net force manually by integrating pointwise forces
+        gammadash = target_coil.curve.gammadash()
+        gammadash_norm = np.linalg.norm(gammadash, axis=1)[:, None]
+        net_force_manual = np.sum(gammadash_norm * pointwise_forces, axis=0) / gammadash.shape[0]
+        
+        np.testing.assert_allclose(net_force, net_force_manual, rtol=1e-10,
+                                   err_msg="coil_net_force should match manual integration")
+        
+        # Test coil_net_torque: should be the integral of pointwise torques
+        pointwise_torques = coil_torque(target_coil, source_coils)
+        
+        # Compute net torque using the function
+        net_torque = coil_net_torque(target_coil, source_coils)
+        
+        # Compute net torque manually by integrating pointwise torques
+        net_torque_manual = np.sum(gammadash_norm * pointwise_torques, axis=0) / gammadash.shape[0]
+        
+        np.testing.assert_allclose(net_torque, net_torque_manual, rtol=1e-10,
+                                   err_msg="coil_net_torque should match manual integration")
+        
+        # Test with rectangular regularization
+        regularization_rect_val = regularization_rect(0.01, 0.023)
+        coils_rect = coils_via_symmetries(base_curves, base_currents, nfp, True,
+                                          regularizations=[regularization_rect_val] * ncoils)
+        
+        target_coil_rect = coils_rect[0]
+        source_coils_rect = coils_rect
+        
+        # Test coil_net_force with rectangular regularization: should be the integral of pointwise forces
+        pointwise_forces_rect = coil_force(target_coil_rect, source_coils_rect)
+        net_force_rect = coil_net_force(target_coil_rect, source_coils_rect)
+        
+        # Compute net force manually by integrating pointwise forces
+        gammadash_rect = target_coil_rect.curve.gammadash()
+        gammadash_norm_rect = np.linalg.norm(gammadash_rect, axis=1)[:, None]
+        net_force_manual_rect = np.sum(gammadash_norm_rect * pointwise_forces_rect, axis=0) / gammadash_rect.shape[0]
+        
+        np.testing.assert_allclose(net_force_rect, net_force_manual_rect, rtol=1e-10,
+                                   err_msg="coil_net_force with rectangular regularization should match manual integration")
+        
+        # Test coil_net_torque with rectangular regularization: should be the integral of pointwise torques
+        pointwise_torques_rect = coil_torque(target_coil_rect, source_coils_rect)
+        net_torque_rect = coil_net_torque(target_coil_rect, source_coils_rect)
+        
+        # Compute net torque manually by integrating pointwise torques
+        net_torque_manual_rect = np.sum(gammadash_norm_rect * pointwise_torques_rect, axis=0) / gammadash_rect.shape[0]
+        
+        np.testing.assert_allclose(net_torque_rect, net_torque_manual_rect, rtol=1e-10,
+                                   err_msg="coil_net_torque with rectangular regularization should match manual integration")
+        
+        # Net force and torque should be finite and reasonable
+        assert np.all(np.isfinite(net_force_rect))
+        assert np.all(np.isfinite(net_torque_rect))
+        assert np.linalg.norm(net_force_rect) > 0  # Should be non-zero for interacting coils
+        assert np.linalg.norm(net_torque_rect) > 0  # Should be non-zero for interacting coils
+
     def test_force_objectives(self):
         """Check whether objective function matches function for export"""
         nfp = 3
@@ -187,7 +343,8 @@ class CoilForcesTest(unittest.TestCase):
 
         base_curves = create_equally_spaced_curves(ncoils, nfp, True)
         base_currents = [Current(I) for j in range(ncoils)]
-        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+        coils = coils_via_symmetries(base_curves, base_currents, nfp, True, 
+                                     regularizations=[regularization] * ncoils)
 
         # Test LpCurveForce
 
@@ -198,7 +355,7 @@ class CoilForcesTest(unittest.TestCase):
         # Now compute the objective a different way, using the independent
         # coil_force function
         gammadash_norm = np.linalg.norm(coils[0].curve.gammadash(), axis=1)
-        force_norm = np.linalg.norm(coil_force(coils[0], coils, regularization), axis=1)
+        force_norm = np.linalg.norm(coil_force(coils[0], coils), axis=1)
         print("force_norm mean:", np.mean(force_norm), "max:", np.max(force_norm))
         objective_alt = (1 / p) * np.sum(np.maximum(force_norm - threshold, 0)**p * gammadash_norm)
 
@@ -211,7 +368,7 @@ class CoilForcesTest(unittest.TestCase):
 
         # Now compute the objective a different way, using the independent
         # coil_force function
-        force_norm = np.linalg.norm(coil_force(coils[0], coils, regularization), axis=1)
+        force_norm = np.linalg.norm(coil_force(coils[0], coils), axis=1)
         objective_alt = np.sum(force_norm**2 * gammadash_norm) / np.sum(gammadash_norm)
 
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
@@ -229,7 +386,8 @@ class CoilForcesTest(unittest.TestCase):
 
             base_curves = create_equally_spaced_curves(ncoils, nfp, True, order=2)
             base_currents = [Current(I) for j in range(ncoils)]
-            coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+            coils = coils_via_symmetries(base_curves, base_currents, nfp, True,
+                                         regularizations=[regularization] * ncoils)
 
             objective = objective_class(coils[0], coils, regularization)
             old_objective_value = objective.J()
@@ -262,8 +420,11 @@ class CoilForcesTest(unittest.TestCase):
         # actual coil shapes from the experiment, just a few nonzero dofs.
 
         base_curves, base_currents, axis, nfp, bs = get_data("ncsx", coil_order=2)
+        regularization = regularization_circ(0.05)
+        coils = coils_via_symmetries(base_curves, base_currents, nfp, True,
+                                     regularizations=[regularization] * len(base_curves))
         
-        J = MeanSquaredForce(bs.coils[0], bs.coils, regularization_circ(0.05))
+        J = MeanSquaredForce(coils[0], coils, regularization)
         dJ = J.dJ()
         deriv = np.sum(dJ * np.ones_like(J.x))
         dofs = J.x
@@ -287,8 +448,11 @@ class CoilForcesTest(unittest.TestCase):
         # actual coil shapes from the experiment, just a few nonzero dofs.
 
         base_curves, base_currents, axis, nfp, bs = get_data("ncsx", coil_order=2)
+        regularization = regularization_circ(0.05)
+        coils = coils_via_symmetries(base_curves, base_currents, nfp, True,
+                                     regularizations=[regularization] * len(base_curves))
         
-        J = LpCurveForce(bs.coils[0], bs.coils, regularization_circ(0.05), 2.5)
+        J = LpCurveForce(coils[0], coils, regularization, 2.5)
         dJ = J.dJ()
         deriv = np.sum(dJ * np.ones_like(J.x))
         dofs = J.x

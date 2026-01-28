@@ -21,12 +21,16 @@ from ..geo.jit import jit
 Biot_savart_prefactor = constants.mu_0 / (4 * np.pi)
 
 __all__ = ['B_regularized_pure', 'B_regularized_circ', 'B_regularized_rect', 
-           'regularization_rect', 'regularization_circ',
-           'rectangular_xsection_k', 'rectangular_xsection_delta']
+           'regularization_rect', 'regularization_circ']
 
 
-def rectangular_xsection_k(a, b):
-    """Auxiliary function for field in rectangular conductor
+def _rectangular_xsection_k(a, b):
+    """Auxiliary function for regularization in rectangular conductor.
+
+    .. math::
+        k = \frac{4 b}{3 a} \arctan \left( \frac a b \right) + \frac{4 a}{3 b} \arctan \left( \frac b a \right) + \frac{b^2}{6 a^2} \log \left( \frac b a \right) + \frac{a^2}{6 b^2} \log \left( \frac a b \right) - \frac{a^4 - 6 a^2 b^2 + b^4}{6 a^2 b^2} \log \left( \frac a b + \frac b a \right)
+
+    where a is the width of the rectangular conductor and b is the height.
     
     Args:
         a (float): The width of the rectangular conductor.
@@ -40,8 +44,12 @@ def rectangular_xsection_k(a, b):
         (a**4 - 6*a**2*b**2 + b**4)/(6*a**2*b**2)*jnp.log(a/b+b/a)
 
 
-def rectangular_xsection_delta(a, b):
-    """Auxiliary function for field in rectangular conductor
+def _rectangular_xsection_delta(a, b):
+    """Auxiliary function for regularization in rectangular conductor.
+
+    .. math::
+        \delta = \exp \left( - \frac{25}{6} + K \right)
+    where K is the auxiliary function defined above.
     
     Args:
         a (float): The width of the rectangular conductor.
@@ -50,12 +58,17 @@ def rectangular_xsection_delta(a, b):
     Returns:
         float: The regularization parameter.
     """
-    return jnp.exp(-25/6 + rectangular_xsection_k(a, b))
+    return jnp.exp(-25/6 + _rectangular_xsection_k(a, b))
 
 
 def regularization_circ(a):
-    """Regularization for a circular conductor
-    
+    """Regularization for a circular conductor.
+
+    .. math::
+        \delta = a^2 / \sqrt{e}
+    where e = 2.718... is the base of the natural logarithm
+    and a is the radius of the circular conductor.
+
     Args:
         a (float): The radius of the circular conductor.
 
@@ -66,7 +79,12 @@ def regularization_circ(a):
 
 
 def regularization_rect(a, b):
-    """Regularization for a rectangular conductor
+    """Regularization for a rectangular conductor.
+
+    .. math::
+        \delta = a b \exp \left( - \frac{25}{6} + K \right)
+    where K is the auxiliary function defined above,
+    a is the width of the rectangular conductor and b is the height.
 
     Args:
         a (float): The width of the rectangular conductor.
@@ -75,7 +93,7 @@ def regularization_rect(a, b):
     Returns:
         float: The regularization parameter.
     """
-    return a * b * rectangular_xsection_delta(a, b)
+    return a * b * _rectangular_xsection_delta(a, b)
 
 @jit
 def B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization):
