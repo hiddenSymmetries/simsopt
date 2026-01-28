@@ -67,5 +67,5 @@ jobs:
       - name: Login and Deploy Container
         if: (github.event_name != 'pull_request')
         run: |         
-          echo ${{ secrets.GITHUB_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
-          singularity push simsopt.sif oras://ghcr.io/${GITHUB_REPOSITORY}:${tag}
+          echo ${{ secrets.GITHUB_TOKEN }} | sudo -E singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
+          sudo -E singularity push simsopt.sif oras://ghcr.io/${GITHUB_REPOSITORY}:${tag}
