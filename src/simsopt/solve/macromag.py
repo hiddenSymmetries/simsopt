@@ -1,7 +1,6 @@
 from __future__ import annotations # Temporary fix for python compatibility
 import math
 import numpy as np
-from coilpy import rotation_angle
 from simsopt.field import Coil, BiotSavart, InterpolatedField
 from simsopt.util.permanent_magnet_helper_functions import read_focus_coils
 from scipy.constants import mu_0
@@ -17,6 +16,108 @@ __all__ = ["MacroMag"]
 
 _INV4PI  = 1.0 / (4.0 * math.pi)
 _MACHEPS = np.finfo(np.float64).eps
+
+
+def rotation_angle(R: np.ndarray, xyz: bool = False) -> tuple[float, float, float]:
+    """
+    Compute Euler angles from a 3×3 rotation matrix.
+
+    This function is a small, self-contained replacement for
+    ``coilpy.misc.rotation_angle``, included here to avoid an external runtime
+    dependency in the MacroMag pipeline.
+
+    Args:
+        R: Rotation matrix, shape (3, 3).
+        xyz: If True, interpret as the RxRyRz convention and return (alpha, beta, gamma)
+            about x/y/z. If False, use the RzRyRx convention (coilpy default).
+
+    Returns:
+        (alpha, beta, gamma) in radians.
+    """
+    R = np.asarray(R, dtype=float)
+    if R.shape != (3, 3):
+        raise ValueError(f"Expected R with shape (3,3), got {R.shape}")
+    if xyz:
+        return _rotation_angle_xyz(R)
+    return _rotation_angle_zyx(R)
+
+
+def _rotation_matrix(alpha: float, beta: float, gamma: float, *, xyz: bool = False) -> np.ndarray:
+    ca = math.cos(alpha)
+    sa = math.sin(alpha)
+    cb = math.cos(beta)
+    sb = math.sin(beta)
+    cc = math.cos(gamma)
+    sc = math.sin(gamma)
+    if xyz:
+        # Rx(alpha) Ry(beta) Rz(gamma)
+        return np.array(
+            [
+                [cb * cc, -cb * sc, sb],
+                [sa * sb * cc + ca * sc, -sa * sb * sc + ca * cc, -sa * cb],
+                [-ca * sb * cc + sa * sc, ca * sb * sc + sa * cc, ca * cb],
+            ],
+            dtype=float,
+        )
+    # Rz(alpha) Ry(beta) Rx(gamma)
+    return np.array(
+        [
+            [ca * cb, ca * sb * sc - sa * cc, ca * sb * cc + sa * sc],
+            [sa * cb, sa * sb * sc + ca * cc, sa * sb * cc - ca * sc],
+            [-sb, cb * sc, cb * cc],
+        ],
+        dtype=float,
+    )
+
+
+def _rotation_angle_zyx(R: np.ndarray) -> tuple[float, float, float]:
+    tol = 1e-8
+    # cos(beta) = 0 => beta=pi/2 or 3/2*pi; only alpha+/-gamma is determined
+    if abs(R[0, 0]) < tol and abs(R[1, 0]) < tol:
+        beta = math.asin(-R[2, 0])
+        alpha_pm_gamma = math.atan2(R[1, 2], R[0, 2])
+        alpha = 0.0
+        gamma = R[2, 0] * alpha_pm_gamma
+        return alpha, beta, gamma
+
+    beta = math.asin(-R[2, 0])
+    cb = math.cos(beta)
+    alpha = math.atan2(cb * R[1, 0], cb * R[0, 0])
+    sp = math.sin(alpha)
+    cp = math.cos(alpha)
+    gamma = math.atan2(sp * R[0, 2] - cp * R[1, 2], cp * R[1, 1] - sp * R[0, 1])
+
+    if not np.allclose(_rotation_matrix(alpha, beta, gamma, xyz=False), R):
+        beta = math.pi - math.asin(-R[2, 0])
+        cb = math.cos(beta)
+        alpha = math.atan2(cb * R[1, 0], cb * R[0, 0])
+        sp = math.sin(alpha)
+        cp = math.cos(alpha)
+        gamma = math.atan2(sp * R[0, 2] - cp * R[1, 2], cp * R[1, 1] - sp * R[0, 1])
+    return alpha, beta, gamma
+
+
+def _rotation_angle_xyz(R: np.ndarray) -> tuple[float, float, float]:
+    tol = 1e-8
+    # cos(beta) = 0 => beta=pi/2 or 3/2*pi; only alpha-gamma is determined
+    if abs(R[0, 0]) < tol and abs(R[0, 1]) < tol:
+        beta = math.asin(R[0, 2])
+        alpha_pm_gamma = math.atan2(R[1, 0], -R[2, 0])
+        alpha = 0.0
+        gamma = R[0, 2] * alpha_pm_gamma
+        return alpha, beta, gamma
+
+    beta = math.asin(R[0, 2])
+    cb = math.cos(beta)
+    alpha = math.atan2(-cb * R[1, 2], cb * R[2, 2])
+    gamma = math.atan2(-cb * R[0, 1], cb * R[0, 0])
+
+    if not np.allclose(_rotation_matrix(alpha, beta, gamma, xyz=True), R):
+        beta = math.pi - math.asin(R[0, 2])
+        cb = math.cos(beta)
+        alpha = math.atan2(-cb * R[1, 2], cb * R[2, 2])
+        gamma = math.atan2(-cb * R[0, 1], cb * R[0, 0])
+    return alpha, beta, gamma
 
 
 @njit(inline='always')
