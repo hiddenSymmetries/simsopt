@@ -1003,13 +1003,28 @@ def make_stage_II_pareto_plots(df: list, df_filtered: list, OUTPUT_DIR: str = ".
             values = []
             for item in data_list:
                 val = item.get(field_name)
+                if val is None:
+                    # Field doesn't exist in this item, skip it (will be filtered out later)
+                    continue
                 if isinstance(val, list):
-                    val = val[0] if len(val) > 0 else 0
-                values.append(val)
-            return np.array(values)
+                    val = val[0] if len(val) > 0 else None
+                if val is not None:
+                    values.append(val)
+            return np.array(values) if values else np.array([])
         
         data = get_field_values(df, field)
         data_filtered = get_field_values(df_filtered, field)
+        
+        # Filter out NaN and infinite values
+        data = data[np.isfinite(data)]
+        data_filtered = data_filtered[np.isfinite(data_filtered)]
+        
+        # Skip plotting if no valid data
+        if len(data) == 0:
+            plt.text(0.5, 0.5, f'No valid data for {field}', 
+                    ha='center', va='center', transform=plt.gca().transAxes)
+            plt.xlabel(field)
+            return
         
         if np.min(data) > 0:
             bins = np.logspace(np.log10(data.min()), np.log10(data.max()), nbins)
