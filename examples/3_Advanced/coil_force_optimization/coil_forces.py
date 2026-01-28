@@ -117,8 +117,7 @@ base_currents = [Current(1e5) for i in range(ncoils)]
 base_currents[0].fix_all()
 
 regularizations = [regularization_circ(0.05) for _ in range(ncoils)]
-coils = coils_via_symmetries(base_curves, base_currents, s.nfp, 
-                             True, regularizations)
+coils = coils_via_symmetries(base_curves, base_currents, s.nfp, s.stellsym, regularizations)
 base_coils = coils[:ncoils]
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))

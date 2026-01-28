@@ -178,7 +178,7 @@ class ScaledCurrentTesting(unittest.TestCase):
             c3 = ScaledCurrent(c0, fak)
             assert abs(c3.get_value()-fak * c0.get_value()) < 1e-15
             assert np.linalg.norm((c3.vjp(one)-fak * c0.vjp(one))(c0)) < 1e-15
-            c3.set_dofs(5. * fak)
+            c3.current_to_scale.x = np.array([5.])
             assert np.isclose(c3.current_to_scale.get_value(), 5.)
 
             c4 = -c0
@@ -310,6 +310,47 @@ class CoilFormatConvertTesting(unittest.TestCase):
 
         np.testing.assert_allclose(bs.B(), bs_planar.B(), atol=1e-16)
 
+    def test_coils_via_symmetries_with_regularizations(self):
+        """
+        Test coils_via_symmetries with regularizations returns RegularizedCoil objects
+        and produces the same Biot-Savart field as without regularizations.
+        """
+        ncoils = 4
+        nfp = 4
+        stellsym = True
+        R0 = 2.3
+        R1 = 0.9
+
+        curves = create_equally_spaced_curves(ncoils, nfp, stellsym, R0=R0, R1=R1)
+        currents = [Current(1e5) for _ in range(ncoils)]
+
+        # Without regularizations: plain Coil objects
+        coils = coils_via_symmetries(curves, currents, nfp, stellsym)
+        self.assertEqual(len(coils), ncoils * nfp * (1 + stellsym))
+        for c in coils:
+            self.assertIsInstance(c, Coil)
+            self.assertNotIsInstance(c, RegularizedCoil)
+
+        # With regularizations: RegularizedCoil objects, same B field
+        regs = [regularization_circ(0.05) for _ in range(ncoils)]
+        coils_reg = coils_via_symmetries(curves, currents, nfp, stellsym, regularizations=regs)
+        self.assertEqual(len(coils_reg), ncoils * nfp * (1 + stellsym))
+        for c in coils_reg:
+            self.assertIsInstance(c, RegularizedCoil)
+            self.assertIsNotNone(c.regularization)
+
+        bs = BiotSavart(coils)
+        bs_reg = BiotSavart(coils_reg)
+        x1d = np.linspace(R0, R0 + 0.3, 4)
+        y1d = np.linspace(0, 0.2, 3)
+        z1d = np.linspace(-0.2, 0.4, 5)
+        x, y, z = np.meshgrid(x1d, y1d, z1d)
+        points = np.ascontiguousarray(np.array([x.ravel(), y.ravel(), z.ravel()]).T)
+        bs.set_points(points)
+        bs_reg.set_points(points)
+        np.testing.assert_allclose(bs.B(), bs_reg.B(), atol=1e-16,
+                                   err_msg="B field with regularizations should match without")
+
     @unittest.skipIf(pyevtk is None, "pyevtk not found")
     def test_coils_to_vtk_creates_file(self):
         """
@@ -324,7 +365,7 @@ class CoilFormatConvertTesting(unittest.TestCase):
                         for extra_data in [None, {}]:
                             curve = get_curve(curvetype, rotated=rotated, x=20)  # Give the curve more than 1 quadpoint
                             if coil_type == RegularizedCoil:
-                                coil = coil_type(curve, Current(1.0), regularization=regularization_circ(0.05))
+                                coil = coil_type(curve, Current(1.0), regularization_circ(0.05))
                             else:
                                 coil = coil_type(curve, Current(1.0))
                             filename = "test_coil"

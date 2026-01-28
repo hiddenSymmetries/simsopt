@@ -23,8 +23,13 @@ Biot_savart_prefactor = constants.mu_0 / (4 * np.pi)
 __all__ = ['B_regularized_pure', 'regularization_rect', 'regularization_circ']
 
 
-def rectangular_xsection_k(a, b):
-    """Auxiliary function for field in rectangular conductor
+def _rectangular_xsection_k(a, b):
+    r"""Auxiliary function for regularization in rectangular conductor.
+
+    .. math::
+        k = \frac{4 b}{3 a} \arctan \left( \frac a b \right) + \frac{4 a}{3 b} \arctan \left( \frac b a \right) + \frac{b^2}{6 a^2} \log \left( \frac b a \right) + \frac{a^2}{6 b^2} \log \left( \frac a b \right) - \frac{a^4 - 6 a^2 b^2 + b^4}{6 a^2 b^2} \log \left( \frac a b + \frac b a \right)
+
+    where a is the width of the rectangular conductor and b is the height.
     
     Args:
         a (float): The width of the rectangular conductor.
@@ -38,8 +43,12 @@ def rectangular_xsection_k(a, b):
         (a**4 - 6*a**2*b**2 + b**4)/(6*a**2*b**2)*jnp.log(a/b+b/a)
 
 
-def rectangular_xsection_delta(a, b):
-    """Auxiliary function for field in rectangular conductor
+def _rectangular_xsection_delta(a, b):
+    r"""Auxiliary function for regularization in rectangular conductor.
+
+    .. math::
+        \delta = \exp \left( - \frac{25}{6} + K \right)
+    where K is the auxiliary function defined above.
     
     Args:
         a (float): The width of the rectangular conductor.
@@ -48,12 +57,17 @@ def rectangular_xsection_delta(a, b):
     Returns:
         float: The regularization parameter.
     """
-    return jnp.exp(-25/6 + rectangular_xsection_k(a, b))
+    return jnp.exp(-25/6 + _rectangular_xsection_k(a, b))
 
 
 def regularization_circ(a):
-    """Regularization for a circular conductor
-    
+    r"""Regularization for a circular conductor.
+
+    .. math::
+        \delta = a^2 / \sqrt{e}
+    where e = 2.718... is the base of the natural logarithm
+    and a is the radius of the circular conductor.
+
     Args:
         a (float): The radius of the circular conductor.
 
@@ -64,7 +78,12 @@ def regularization_circ(a):
 
 
 def regularization_rect(a, b):
-    """Regularization for a rectangular conductor
+    r"""Regularization for a rectangular conductor.
+
+    .. math::
+        \delta = a b \exp \left( - \frac{25}{6} + K \right)
+    where K is the auxiliary function defined above,
+    a is the width of the rectangular conductor and b is the height.
 
     Args:
         a (float): The width of the rectangular conductor.
@@ -73,7 +92,7 @@ def regularization_rect(a, b):
     Returns:
         float: The regularization parameter.
     """
-    return a * b * rectangular_xsection_delta(a, b)
+    return a * b * _rectangular_xsection_delta(a, b)
 
 @jit
 def B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization):
@@ -128,20 +147,3 @@ def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, reg
     return current * Biot_savart_prefactor * (analytic_term + integral_term)
 
 
-def B_regularized(coil):
-    """Calculate the regularized field on a coil following the Landreman and Hurwitz method
-    
-    Args:
-        coil (RegularizedCoil): The coil to compute the field on.
-    
-    Returns:
-        array (shape (n,3)): The regularized field on the coil.
-    """
-    return B_regularized_pure(
-        coil.curve.gamma(),
-        coil.curve.gammadash(),
-        coil.curve.gammadashdash(),
-        coil.curve.quadpoints,
-        coil._current.get_value(),
-        coil.regularization,
-    )

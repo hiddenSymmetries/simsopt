@@ -7,140 +7,23 @@ from jax import grad, vmap
 from jax.lax import cond
 from .biotsavart import BiotSavart
 from .coil import RegularizedCoil
-from .selffield import B_regularized_pure, B_regularized
+from .selffield import B_regularized_pure
 from ..geo.jit import jit
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
 Biot_savart_prefactor = constants.mu_0 / 4 / np.pi
 
 __all__ = [
-    "coil_force",
-    "self_force",
     "_coil_coil_inductances_pure",
     "_coil_coil_inductances_inv_pure",
     "_induced_currents_pure",
     "NetFluxes",
     "B2Energy",
-    "coil_net_force",
-    "coil_net_torque",
-    "coil_torque",
     "SquaredMeanForce",
     "LpCurveForce",
     "SquaredMeanTorque",
     "LpCurveTorque",
 ]
-
-
-def coil_force(target_coil, source_coils):
-    """
-    Compute the force per unit length on a coil from m other coils, in Newtons/meter. Note that BiotSavart objects
-    are created below, which can lead to growth of the number of optimizable graph dependencies.
-
-    Args:
-        target_coil (Coil): Coil to compute the pointwise forces on.
-        source_coils (list of Coil, shape (m,)): List of coils contributing forces on the primary coil.
-
-    Returns:
-        array: Array of forces per unit length.
-    """
-    gammadash = target_coil.curve.gammadash()
-    gammadash_norm = np.linalg.norm(gammadash, axis=1)[:, None]
-    tangent = gammadash / gammadash_norm
-    mutual_coils = [c for c in source_coils if c is not target_coil]
-    mutual_field = BiotSavart(mutual_coils).set_points(target_coil.curve.gamma())
-    B_mutual = mutual_field.B()
-    mutualforce = np.cross(target_coil.current.get_value() * tangent, B_mutual)
-    selfforce = self_force(target_coil)
-    return (selfforce + mutualforce)
-
-
-def coil_net_force(target_coil, source_coils):
-    """
-    Compute the net forces on one coil from m other coils, in Newtons. This is
-    the integrated pointwise force per unit length on a coil curve.
-
-    Args:
-        target_coil (Coil): Coil to compute the net forces on.
-        source_coils (list of Coil, shape (m,)): List of coils contributing forces on the primary coil.
-
-    Returns:
-        array: Array of net forces.
-    """
-    Fi = coil_force(target_coil, source_coils)
-    gammadash = target_coil.curve.gammadash()
-    gammadash_norm = np.linalg.norm(gammadash, axis=1)[:, None]
-    net_force = np.sum(gammadash_norm * Fi, axis=0) / gammadash.shape[0]
-    return net_force
-
-
-def coil_torque(target_coil, source_coils):
-    """
-    Compute the torques per unit length on a coil from m other coils in Newtons 
-    (note that the force is per unit length, so the force has units of Newtons/meter 
-    and the torques per unit length have units of Newtons).
-
-    Args:
-        target_coil (Coil): Coil to compute the pointwise torques on.
-        source_coils (list of Coil, shape (m,)): List of coils contributing torques on the primary coil.
-
-    Returns:
-        array: Array of torques.
-    """
-    gamma = target_coil.curve.gamma()
-    center = target_coil.curve.centroid()
-    return np.cross(gamma - center, coil_force(target_coil, source_coils))
-
-
-def coil_net_torque(target_coil, source_coils):
-    """
-    Compute the net torques on a coil from m other coils, in Newton-meters. This is
-    the integrated pointwise torque per unit length on a coil curve.
-
-    Args:
-        target_coil (Coil): Coil to compute the net torques on.
-        source_coils (list of Coil, shape (m,)): List of coils contributing torques on the primary coil.
-
-    Returns:
-        array: Array of net torques.
-    """
-    Ti = coil_torque(target_coil, source_coils)
-    gammadash = target_coil.curve.gammadash()
-    gammadash_norm = np.linalg.norm(gammadash, axis=1)[:, None]
-    net_torque = np.sum(gammadash_norm * Ti, axis=0) / gammadash.shape[0]
-    return net_torque
-
-
-def _coil_force_pure(B, I, t):
-    """
-    Compute the pointwise Lorentz force per unit length on a coil with n quadrature points, in Newtons/meter. 
-
-    Args:
-        B (array, shape (n,3)): Array of magnetic field.
-        I (float): Coil current.
-        t (array, shape (n,3)): Array of coil tangent vectors.
-
-    Returns:
-        array (shape (n,3)): Array of force per unit length.
-    """
-    return jnp.cross(I * t, B)
-
-
-def self_force(target_coil):
-    """
-    Compute the self-force per unit length of a coil, in Newtons/meter.
-
-    Args:
-        target_coil (Coil): Coil to compute the self-force per unit length on.
-
-    Returns:
-        array (shape (n,3)): Array of self-force per unit length.
-    """
-    I = target_coil.current.get_value()
-    tangent = target_coil.curve.gammadash() / np.linalg.norm(target_coil.curve.gammadash(),
-                                                      axis=1)[:, None]
-    B = B_regularized(target_coil)
-    return _coil_force_pure(B, I, tangent)
-
 
 def _coil_coil_inductances_pure(gammas, gammadashs, downsample, regularizations):
     r"""
@@ -319,7 +202,6 @@ def b2energy_pure(gammas, gammadashs, currents, downsample, regularizations):
     Pure function for minimizing the total vacuum magnetic field energy from a set of m coils
     which may have different numbers of quadrature points (but are downsampled to have 
     the same number, denoted n, of quadrature points).
-
     The function is
 
      .. math::
@@ -793,7 +675,7 @@ class SquaredMeanForce(Optimizable):
 
     Args:
         coils_to_target (list of Coil, shape (m,)): 
-            List of coils to use for computing MeanSquaredForce. 
+            List of coils to use for computing SquaredMeanForce. 
         source_coils (list of Coil, shape (m',)): 
             List of coils that provide forces on the first set of coils but that
             we do not care about optimizing their forces. 

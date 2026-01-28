@@ -698,9 +698,10 @@ def vacuum_stage_II_optimization(
             order=order,
         )
 
-    from simsopt.field.force import coil_force, LpCurveForce
+    from simsopt.field.force import LpCurveForce
     from simsopt.field.selffield import regularization_circ
-    from simsopt.field.coil import RegularizedCoil
+    from simsopt.field import RegularizedCoil
+    with_force = kwargs.get('with_force', False)
 
     if UUID_init_from is None: # No previous optimization to initialize from
         base_curves = initial_base_curves(R0, R1, order, ncoils)
@@ -716,7 +717,11 @@ def vacuum_stage_II_optimization(
         total_current.fix_all()
         base_currents += [total_current - sum(base_currents)]
 
-        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+        if with_force:
+            regularizations = [regularization_circ(0.05) for _ in range(ncoils)]
+            coils = coils_via_symmetries(base_curves, base_currents, nfp, True, regularizations=regularizations)
+        else:
+            coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
         base_coils = coils[:ncoils]
         curves = [c.curve for c in coils]
 
@@ -749,7 +754,6 @@ def vacuum_stage_II_optimization(
     FORCE_OBJ = kwargs.get('FORCE_OBJ', None)
     ARCLENGTH_WEIGHT = kwargs.get('ARCLENGTH_WEIGHT', 1e-2)
     dx = kwargs.get('dx', 0.05)
-    with_force = kwargs.get('with_force', False)
     debug = kwargs.get('debug', False)
     MAXITER = kwargs.get('MAXITER', 14000)
 
@@ -844,18 +848,17 @@ def vacuum_stage_II_optimization(
     # SAVE DATA TO JSON
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     mean_AbsB = np.mean(bs.AbsB())
-    # Convert coils to RegularizedCoil objects for force calculation
-    reg_base_coils_force = [RegularizedCoil(c.curve, c.current, regularization_circ(0.05)) if not isinstance(c, RegularizedCoil) else c for c in base_coils]
-    reg_coils_force = [RegularizedCoil(c.curve, c.current, regularization_circ(0.05)) if not isinstance(c, RegularizedCoil) else c for c in coils]
-    lpcurveforce = sum([LpCurveForce([reg_base_coils_force[i]], reg_coils_force, p=2, 
-        threshold=FORCE_THRESHOLD) for i in range(len(reg_base_coils_force))]
+    # Create RegularizedCoil objects for force calculations
+    reg_param = regularization_circ(0.05)
+    base_coils_reg = [RegularizedCoil(c.curve, c.current, reg_param) for c in base_coils]
+    
+    lpcurveforce = sum([LpCurveForce(c, coils, p=2, 
+        threshold=FORCE_THRESHOLD, 
+        ) for c in base_coils_reg]
     ).J()
-    # Convert coils to RegularizedCoil for force calculation
-    reg_base_coils_force_calc = [RegularizedCoil(c.curve, c.current, regularization_circ(0.05)) if not isinstance(c, RegularizedCoil) else c for c in base_coils]
-    reg_coils_force_calc = [RegularizedCoil(c.curve, c.current, regularization_circ(0.05)) if not isinstance(c, RegularizedCoil) else c for c in coils]
-    max_forces = [np.max(np.linalg.norm(coil_force(c, reg_coils_force_calc), axis=1)) for c in reg_base_coils_force_calc]
-    min_forces = [np.min(np.linalg.norm(coil_force(c, reg_coils_force_calc), axis=1)) for c in reg_base_coils_force_calc]
-    RMS_forces = [np.sqrt(np.mean(np.square(np.linalg.norm(coil_force(c, reg_coils_force_calc), axis=1)))) for c in reg_base_coils_force_calc]
+    max_forces = [np.max(np.linalg.norm(c_reg.force(coils), axis=1)) for c_reg in base_coils_reg]
+    min_forces = [np.min(np.linalg.norm(c_reg.force(coils), axis=1)) for c_reg in base_coils_reg]
+    RMS_forces = [np.sqrt(np.mean(np.square(np.linalg.norm(c_reg.force(coils), axis=1)))) for c_reg in base_coils_reg]
     results = {
         "nfp": nfp,
         "ncoils": int(ncoils),
@@ -1013,39 +1016,42 @@ def make_stage_II_pareto_plots(df: list, df_filtered: list, OUTPUT_DIR: str = ".
             values = []
             for item in data_list:
                 val = item.get(field_name)
+                if val is None:
+                    # Field doesn't exist in this item, skip it (will be filtered out later)
+                    continue
                 if isinstance(val, list):
-                    val = val[0] if len(val) > 0 else 0
-                values.append(val)
-            return np.array(values)
+                    val = val[0] if len(val) > 0 else None
+                if val is not None:
+                    values.append(val)
+            return np.array(values) if values else np.array([])
         
         data = get_field_values(df, field)
         data_filtered = get_field_values(df_filtered, field)
         
-        # Filter out NaN values for plotting
-        data_valid = data[~np.isnan(data)]
-        data_filtered_valid = data_filtered[~np.isnan(data_filtered)]
+        # Filter out NaN and infinite values
+        data = data[np.isfinite(data)]
+        data_filtered = data_filtered[np.isfinite(data_filtered)]
         
-        # Skip plotting if all values are NaN
-        if len(data_valid) == 0:
+        # Skip plotting if no valid data
+        if len(data) == 0:
             plt.text(0.5, 0.5, f'No valid data for {field}', 
-                    horizontalalignment='center', verticalalignment='center',
-                    transform=plt.gca().transAxes)
+                    ha='center', va='center', transform=plt.gca().transAxes)
             plt.xlabel(field)
             return
         
-        if np.min(data_valid) > 0:
-            bins = np.logspace(np.log10(data_valid.min()), np.log10(data_valid.max()), nbins)
+        if np.min(data) > 0:
+            bins = np.logspace(np.log10(data.min()), np.log10(data.max()), nbins)
         else:
             bins = nbins
-        _, bins, _ = plt.hist(data_valid, bins=bins, label="before filtering")
-        if len(data_filtered_valid) > 0:
-            plt.hist(data_filtered_valid, bins=bins, alpha=1, label="after filtering")
+        _, bins, _ = plt.hist(data, bins=bins, label="before filtering")
+        if len(data_filtered) > 0:
+            plt.hist(data_filtered, bins=bins, alpha=1, label="after filtering")
         plt.xlabel(field)
         plt.legend(loc=0, fontsize=6)
-        if len(data_valid) > 0:
-            mean_val = np.mean(data_valid)
-            min_val = data_valid.min()
-            max_val = data_valid.max()
+        if len(data) > 0:
+            mean_val = np.mean(data)
+            min_val = data.min()
+            max_val = data.max()
             if mean_val > 0:
                 plt.xlim(0, mean_val * 2)
             else:
@@ -1059,7 +1065,7 @@ def make_stage_II_pareto_plots(df: list, df_filtered: list, OUTPUT_DIR: str = ".
                 else:
                     plt.xlim(min_val - 0.1 * abs(min_val), 
                             max_val + 0.1 * abs(max_val))
-        if len(data_valid) > 0 and np.min(data_valid) > 0:
+        if len(data) > 0 and np.min(data) > 0:
             plt.xscale("log")
 
     fields = [
