@@ -690,6 +690,7 @@ def vacuum_stage_II_optimization(
 
     from simsopt.field.force import coil_force, LpCurveForce
     from simsopt.field.selffield import regularization_circ
+    from simsopt.field import RegularizedCoil
 
     if UUID_init_from is None: # No previous optimization to initialize from
         base_curves = initial_base_curves(R0, R1, order, ncoils)
@@ -833,14 +834,18 @@ def vacuum_stage_II_optimization(
     # SAVE DATA TO JSON
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     mean_AbsB = np.mean(bs.AbsB())
+    # Create RegularizedCoil objects for force calculations
+    reg_param = regularization_circ(0.05)
+    base_coils_reg = [RegularizedCoil(c.curve, c.current, reg_param) for c in base_coils]
+    
     lpcurveforce = sum([LpCurveForce(c, coils, p=2, 
         threshold=FORCE_THRESHOLD, 
-        regularization=regularization_circ(0.05)
+        regularization=reg_param
         ) for c in base_coils]
     ).J()
-    max_forces = [np.max(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
-    min_forces = [np.min(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
-    RMS_forces = [np.sqrt(np.mean(np.square(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)))) for c in base_coils]
+    max_forces = [np.max(np.linalg.norm(coil_force(c_reg, coils), axis=1)) for c_reg in base_coils_reg]
+    min_forces = [np.min(np.linalg.norm(coil_force(c_reg, coils), axis=1)) for c_reg in base_coils_reg]
+    RMS_forces = [np.sqrt(np.mean(np.square(np.linalg.norm(coil_force(c_reg, coils), axis=1)))) for c_reg in base_coils_reg]
     results = {
         "nfp": nfp,
         "ncoils": int(ncoils),
