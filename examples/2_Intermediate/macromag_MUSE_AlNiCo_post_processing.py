@@ -20,7 +20,6 @@ from simsopt.geo import SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
 from simsopt.util.permanent_magnet_helper_functions import (
     initialize_coils,
-    make_Bnormal_plots,
     calculate_modB_on_major_radius,
 )
 

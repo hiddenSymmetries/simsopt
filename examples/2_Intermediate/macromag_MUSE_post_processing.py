@@ -172,7 +172,7 @@ def check_stellarator_symmetry(centers, volumes, nfp=2, z_tol=1e-6, rel_tol=1e-3
     mask = dZ < z_tol
     if np.any(mask):
         vol_errZ = np.abs(volumes[mask] - volumes[idxZ[mask]]) / np.maximum(volumes[mask], 1e-20)
-        print(f"  midplane (Z->-Z) symmetry:")
+        print("  midplane (Z->-Z) symmetry:")
         print(f"    matched {mask.sum()} / {N} tiles within {z_tol:.1e} m")
         print(f"    mean |ΔV/V| = {vol_errZ.mean():.2e}")
         print(f"    max  |ΔV/V| = {vol_errZ.max():.2e}")
@@ -186,7 +186,7 @@ def check_stellarator_symmetry(centers, volumes, nfp=2, z_tol=1e-6, rel_tol=1e-3
     treeI = cKDTree(centers)
     dI, idxI = treeI.query(inv, k=1)
     vol_errI = np.abs(volumes - volumes[idxI]) / np.maximum(volumes, 1e-20)
-    print(f"  inversion (φ+π/nfp, Z->-Z) symmetry:")
+    print("  inversion (φ+π/nfp, Z->-Z) symmetry:")
     print(f"    mean |ΔV/V| = {vol_errI.mean():.2e}")
     print(f"    max  |ΔV/V| = {vol_errI.max():.2e}")
     print(f"    mean position mismatch = {dI.mean():.3e} m")
