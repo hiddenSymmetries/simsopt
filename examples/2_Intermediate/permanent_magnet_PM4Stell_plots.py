@@ -68,10 +68,10 @@ if R2_files:
             algo_label = R2_suffix
 
         if algo_label == "GPMO":
-            plt.semilogy(iterations, R2_plot, label=fr'$f_B$ (GPMO (no coupling))')
+            plt.semilogy(iterations, R2_plot, label=r'$f_B$ (GPMO (no coupling))')
             #plt.semilogy(iterations, Bn_plot, label=fr'$<|Bn|>$ (GPMO (no coupling))')
         else:
-            plt.semilogy(iterations, R2_plot, label=fr'$f_B$ (MacroMag GPMO)')
+            plt.semilogy(iterations, R2_plot, label=r'$f_B$ (MacroMag GPMO)')
             #plt.semilogy(iterations, Bn_plot, label=fr'$<|Bn|>$ (MacroMag GPMO)')
 
     plt.grid(True)
