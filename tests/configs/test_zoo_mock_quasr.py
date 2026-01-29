@@ -44,20 +44,25 @@ class QuasrTests(unittest.TestCase):
         np.testing.assert_allclose(base_curves[0].x, true_coils[0].curve.x)
         np.testing.assert_allclose(base_currents[0].get_value(), true_coils[0].current.get_value())
 
-        surfaces, coils = download_ID_from_QUASR_database(952, return_style='quasr-style')
+        surfaces, coils = download_ID_from_QUASR_database(952, return_style='quasr-style', verbose=True)
         assert isinstance(coils[0], Coil)
         assert isinstance(surfaces[0], SurfaceXYZTensorFourier)
         np.testing.assert_allclose(surfaces[0].x, true_surfaces[0].x)
         np.testing.assert_allclose(coils[0].x, true_coils[0].x)
-        
+
+        # invalid return style
+        with self.assertRaises(Exception):
+            surfaces, coils = download_ID_from_QUASR_database(952, return_style='invalid-style')
+
         # 404 means the file is not found
         mock_response.status_code = 404
         with self.assertRaises(Exception):
             base_curves, base_currents, ma, nfp, bs = get_data("quasr", 0)
-       
-        # wrong return style
+
+        # no id provided
         with self.assertRaises(Exception):
-            base_curves, base_currents, ma, nfp, bs = get_data("quasr", 952, return_style='')
+            base_curves, base_currents, ma, nfp, bs = get_data("quasr")
+
         
         # requests.get raises an exception
         mock_requests.get.side_effect = Exception("something went wrong")
@@ -69,6 +74,22 @@ class QuasrTests(unittest.TestCase):
             with patch("simsopt.configs.zoo.os.makedirs") as mock_makedirs:
                 mock_makedirs.side_effect = Exception("Failed to create directory")
                 base_curves, base_currents, ma, nfp, bs = get_data(953, return_style='quasr-style')
+
+        # reset mock for permission tests
+        mock_requests.get.side_effect = None
+        mock_requests.get.return_value = mock_response
+        mock_response.status_code = 200
+
+        # test fallback to cwd when THIS_DIR is not writable
+        with patch("simsopt.configs.zoo.os.access") as mock_access:
+            mock_access.side_effect = lambda path, mode: "QUASR_cache" not in str(path)
+            # should succeed by falling back to cwd
+            download_ID_from_QUASR_database(952, use_cache=True, verbose=False)
+
+        # test PermissionError when no writable location
+        with patch("simsopt.configs.zoo.os.access", return_value=False):
+            with self.assertRaises(PermissionError):
+                download_ID_from_QUASR_database(952, use_cache=True)
 
     def test_prune_cache(self):
         """
@@ -94,7 +115,7 @@ class QuasrTests(unittest.TestCase):
             self.assertEqual(len(files_before), 101)
             
             # Run prune with default limit of 100
-            _prune_cache(cache_dir, limit=100, verbose=False)
+            _prune_cache(cache_dir, limit=100, verbose=True) # hit the print line to satisfy coverage
             
             # Verify we now have 100 files
             files_after = list(cache_dir.glob("*.json"))
