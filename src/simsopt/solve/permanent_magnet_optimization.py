@@ -643,7 +643,6 @@ def _initialize_GPMO_ArbVec_py(x_init, pol_vectors, x, x_vec, x_sign,
     N = x.shape[0]
     nPolVecs = pol_vectors.shape[1]
     NNp = N * nPolVecs
-    ngrid = A_obj.shape[2]  # using A_obj reshaped as (N, 3, ngrid)
 
     n_initialized = 0
     n_OutOfTol = 0
@@ -965,7 +964,7 @@ def GPMOmr(
         current_scale: int
     """
     import time
-    if use_coils and coil_path == None: 
+    if use_coils and coil_path is None:
         raise ValueError("Use coils set to True but missing coil path; Please provide the correct focus coil path")
     
     print("use_coils mode =",use_coils)
@@ -1108,7 +1107,6 @@ def GPMOmr(
         
         n_prev = prev_active_idx.size if prev_active_idx is not None else 0
         n_active = active_idx.size
-        n_new = n_active - n_prev
         
         # Add new rows and columns from newly placed magnets
         t0_n_construction = time.time()
@@ -1195,7 +1193,6 @@ def GPMOmr(
 
     # Main greedy loop
     t_gpmo = time.time()
-    x0_prev = None
     
     for k in range(1, K + 1):
         # t_k = time.time()
@@ -1388,7 +1385,6 @@ def GPMOmr(
                 A_prev=A_prev_common,
                 prev_n=prev_n_for_call
             )
-            x0_prev = x_macro_flat.copy()
 
 
             # update caches for next iteration
