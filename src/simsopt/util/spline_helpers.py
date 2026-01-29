@@ -1,6 +1,6 @@
 import numpy as np
 from simsopt.mhd import Vmec
-from .mpi import mpi
+from ..util import mpi
 
 def vmec_from_surf(
         nfp,
