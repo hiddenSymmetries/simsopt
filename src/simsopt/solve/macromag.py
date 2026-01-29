@@ -8,7 +8,6 @@ from scipy.sparse.linalg import gmres
 from numba import njit, prange
 from pathlib import Path
 from typing import Optional
-import time
 from scipy.sparse import coo_matrix
 
 __all__ = ["MacroMag"]
@@ -43,6 +42,22 @@ def rotation_angle(R: np.ndarray, xyz: bool = False) -> tuple[float, float, floa
 
 
 def _rotation_matrix(alpha: float, beta: float, gamma: float, *, xyz: bool = False) -> np.ndarray:
+    """
+    Construct a 3×3 rotation matrix from Euler angles.
+
+    Parameters
+    ----------
+    alpha, beta, gamma : float
+        Euler angles in radians.
+    xyz : bool, optional
+        If True, use the Rx(alpha) Ry(beta) Rz(gamma) convention. If False, use
+        the Rz(alpha) Ry(beta) Rx(gamma) convention.
+
+    Returns
+    -------
+    ndarray, shape (3, 3)
+        Rotation matrix.
+    """
     ca = math.cos(alpha)
     sa = math.sin(alpha)
     cb = math.cos(beta)
@@ -71,6 +86,7 @@ def _rotation_matrix(alpha: float, beta: float, gamma: float, *, xyz: bool = Fal
 
 
 def _rotation_angle_zyx(R: np.ndarray) -> tuple[float, float, float]:
+    """Inverse of :func:`_rotation_matrix` for the Z–Y–X (RzRyRx) convention."""
     tol = 1e-8
     # cos(beta) = 0 => beta=pi/2 or 3/2*pi; only alpha+/-gamma is determined
     if abs(R[0, 0]) < tol and abs(R[1, 0]) < tol:
@@ -98,6 +114,7 @@ def _rotation_angle_zyx(R: np.ndarray) -> tuple[float, float, float]:
 
 
 def _rotation_angle_xyz(R: np.ndarray) -> tuple[float, float, float]:
+    """Inverse of :func:`_rotation_matrix` for the X–Y–Z (RxRyRz) convention."""
     tol = 1e-8
     # cos(beta) = 0 => beta=pi/2 or 3/2*pi; only alpha-gamma is determined
     if abs(R[0, 0]) < tol and abs(R[0, 1]) < tol:
@@ -437,6 +454,7 @@ def _prism_N_local_nb(a, b, c, x0, y0, z0):
     N[2,2] = _INV4PI * sum_h
 
     def _off_diag(func, idx1, idx2):
+        """Assemble a symmetric off-diagonal entry via log product ratios."""
         nom = ( func( +a, +b, +c, x0, y0, z0 )
             * func( -a, -b, +c, x0, y0, z0 )
             * func( +a, -b, -c, x0, y0, z0 )
@@ -541,6 +559,17 @@ class MacroMag:
     _MACHEPS = _MACHEPS
 
     def __init__(self, tiles, bs_interp: Optional[BiotSavart | InterpolatedField] = None):
+        """
+        Create a macromagnetics helper for a given tile set.
+
+        Parameters
+        ----------
+        tiles : Tiles
+            Tile container holding geometry and material parameters.
+        bs_interp : BiotSavart | InterpolatedField | None
+            Optional coil-field evaluator. If provided, it must support
+            ``set_points`` and ``B``.
+        """
         self.tiles = tiles
         self.n = tiles.n
         self.centres = tiles.offset.copy()
@@ -560,34 +589,54 @@ class MacroMag:
 
     @staticmethod
     def _f_3D(a, b, c, x, y, z):
+        """Public wrapper for the Numba helper :func:`_f_3D`."""
         return _f_3D(a, b, c, x, y, z)
 
     @staticmethod
     def _g_3D(a, b, c, x, y, z):
+        """Public wrapper for the Numba helper :func:`_g_3D`."""
         return _g_3D(a, b, c, x, y, z)
 
     @staticmethod
     def _h_3D(a, b, c, x, y, z):
+        """Public wrapper for the Numba helper :func:`_h_3D`."""
         return _h_3D(a, b, c, x, y, z)
 
     @staticmethod
     def _FF_3D(a, b, c, x, y, z):
+        """Public wrapper for the Numba helper :func:`_FF_3D`."""
         return _FF_3D(a, b, c, x, y, z)
 
     @staticmethod
     def _GG_3D(a, b, c, x, y, z):
+        """Public wrapper for the Numba helper :func:`_GG_3D`."""
         return _GG_3D(a, b, c, x, y, z)
 
     @staticmethod
     def _HH_3D(a, b, c, x, y, z):
+        """Public wrapper for the Numba helper :func:`_HH_3D`."""
         return _HH_3D(a, b, c, x, y, z)
 
     @staticmethod
     def _prism_N_local_nb(a, b, c, x0, y0, z0):
+        """Public wrapper for :func:`_prism_N_local_nb`."""
         return _prism_N_local_nb(a, b, c, x0, y0, z0)
 
     @staticmethod
     def get_rotation_matrices(phi_x, phi_y, phi_z):
+        """
+        Build global→local and local→global rotation matrices from Euler angles.
+
+        Parameters
+        ----------
+        phi_x, phi_y, phi_z : float
+            Rotation angles (radians) about x, y, z.
+
+        Returns
+        -------
+        (Rg2l, Rl2g) : tuple[ndarray, ndarray]
+            Rotation matrices mapping global→local and local→global.
+        """
         ax, ay, az = -phi_x, -phi_y, -phi_z
         RotX = np.array([[1,0,0],
                        [0,math.cos(ax),-math.sin(ax)],
@@ -604,6 +653,19 @@ class MacroMag:
         return Rg2l, Rl2g
     
     def fast_get_demag_tensor(self, cache: bool = True):
+        """
+        Assemble (or reuse) the dense demag operator tensor for the current tiles.
+
+        Parameters
+        ----------
+        cache : bool, optional
+            If True, reuse a cached full tensor when it matches the current tile count.
+
+        Returns
+        -------
+        ndarray, shape (n, n, 3, 3)
+            Dense demag operator blocks ``N_op`` such that ``H_demag = N_op @ M``.
+        """
         # Reuse a cached full tensor if it matches the current size
         if cache and hasattr(self, "_N_full") and self._N_full is not None and self._N_full.shape[:2] == (self.n, self.n):
             return self._N_full
@@ -640,6 +702,19 @@ class MacroMag:
         self.bs_interp = bs
         
     def coil_field_at(self, pts):
+        """
+        Evaluate the applied field H from coils at a set of points.
+
+        Parameters
+        ----------
+        pts : ndarray, shape (n_pts, 3)
+            Evaluation points in meters.
+
+        Returns
+        -------
+        ndarray, shape (n_pts, 3)
+            Applied field in A/m (computed from B via ``H = B / μ0``).
+        """
         if self.bs_interp is None:
             raise ValueError("Coils not loaded correctly")
         pts = np.ascontiguousarray(pts, dtype=np.float64)  
@@ -781,6 +856,7 @@ class MacroMag:
 
         # Define helper function to compute the coil field or override it
         def Hcoil_func(pts):
+            """Return applied field in A/m (override takes precedence over coils)."""
             if H_a_override is not None:
                 return H_a_override 
             else: 
@@ -860,8 +936,10 @@ class MacroMag:
             
             # Use a closure to track iteration number
             def make_gmres_callback():
+                """Build a stateful GMRES callback that prints iteration and residual norm."""
                 iteration = [0]  # Use list to make it mutable in closure
                 def gmres_callback(residual_norm):
+                    """GMRES callback printing the current preconditioned residual norm."""
                     iteration[0] += 1
                     print(f"GMRES iteration {iteration[0]}: residual norm = {residual_norm:.6e}")
                 return gmres_callback
@@ -961,6 +1039,7 @@ class MacroMag:
                 raise ValueError("H_a_override must have shape (n_tiles, 3).")
 
         def Hcoil_func(pts):
+            """Return applied field in A/m (override takes precedence over coils)."""
             if H_a_override is not None:
                 return H_a_override
             else:
@@ -1039,8 +1118,10 @@ class MacroMag:
         if print_progress:
             # Hook for detailed GMRES logging if you want it later
             def make_gmres_callback():
+                """Build a stateful GMRES callback for neighbor-sparse runs."""
                 it = [0]
                 def cb(res_norm):
+                    """GMRES callback printing the current preconditioned residual norm."""
                     it[0] += 1
                     print(f"[neighbor_sparse] GMRES it {it[0]}: ||r|| = {res_norm:.3e}")
                 return cb
@@ -1113,6 +1194,7 @@ class MacroMag:
                 raise ValueError("H_a_override must have shape (n_tiles, 3) in A/m.")
 
         def Hcoil_func(pts):
+            """Return applied field in A/m (override takes precedence over coils)."""
             if H_a_override is not None:
                 return H_a_override 
             else: 
@@ -1155,8 +1237,10 @@ class MacroMag:
                 A += np.einsum('iab,ijbc->iajc', chi_tensor, N_new_rows).reshape(3*n, 3*n)
         if print_progress and False:
             def make_gmres_callback():
+                """Build a stateful GMRES callback that prints iteration and residual norm."""
                 iteration = [0]
                 def gmres_callback(residual_norm):
+                    """GMRES callback printing the current preconditioned residual norm."""
                     iteration[0] += 1
                     print(f"GMRES iteration {iteration[0]}: residual norm = {residual_norm:.6e}")
                 return gmres_callback
@@ -1205,10 +1289,12 @@ class Tile:
     """
 
     def __init__(self, parent, index) -> None:
+        """Create a view into ``parent`` exposing tile ``index`` attributes."""
         self._parent = parent
         self._index = index
 
     def __getattr__(self, name) -> np.float64 | np.ndarray:
+        """Read-through accessor: index into parent arrays when appropriate."""
         # Get the attribute from the parent
         attr = getattr(self._parent, name)
         # If the attribute is a np.ndarray, return the element at our index
@@ -1218,6 +1304,7 @@ class Tile:
         return attr
 
     def __setattr__(self, name, value) -> None:
+        """Write-through accessor: assign into parent arrays when appropriate."""
         if name in ["_parent", "_index"]:
             # For these attributes, set them normally
             super().__setattr__(name, value)
@@ -1338,12 +1425,14 @@ class Tiles:
         self._sym_op = np.ones(shape=(self.n, 3), dtype=np.float64, order="F")
 
     def __str__(self) -> str:
+        """Return a human-readable summary of the tile offsets."""
         res = ""
         for i in range(self.n):
             res += f"Tile_{i} with coordinates {self.offset[i]}.\n"
         return res
 
     def __getitem__(self, index) -> Tile:
+        """Return a lightweight :class:`Tile` view for a single index."""
         if index < 0 or index >= self.n:
             idx_err = f"Index {index} out of bounds"
             raise IndexError(idx_err)
@@ -1351,18 +1440,30 @@ class Tiles:
 
     @property
     def n(self) -> int:
+        """Number of tiles in the container."""
         return self._n
 
     @n.setter
     def n(self, val: int) -> None:
+        """Set the number of tiles (initializes internal arrays on first use)."""
         self._n = val
 
     @property
     def center_pos(self) -> np.ndarray:
+        """Tile center positions, array of shape ``(n, 3)``."""
         return self._center_pos
 
     @center_pos.setter
     def center_pos(self, val) -> None:
+        """
+        Set tile center positions.
+
+        Accepted input forms:
+        - ``None``: no change.
+        - ``(vec, i)``: set a single tile ``i`` to the 3-vector ``vec``.
+        - a single length-3 vector: broadcast to all tiles.
+        - an array-like of shape ``(n, 3)``.
+        """
         if not hasattr(self, "_center_pos"):
             self._center_pos = np.zeros(shape=(self.n, 3), dtype=np.float64, order="F")
 
@@ -1377,10 +1478,12 @@ class Tiles:
 
     @property
     def dev_center(self) -> np.ndarray:
+        """Tile center deviations, array of shape ``(n, 3)``."""
         return self._dev_center
 
     @dev_center.setter
     def dev_center(self, val) -> None:
+        """Set tile center deviations (same input conventions as :meth:`center_pos`)."""
         if not hasattr(self, "_dev_center"):
             self._dev_center = np.zeros(shape=(self.n, 3), dtype=np.float64, order="F")
 
@@ -1395,10 +1498,12 @@ class Tiles:
 
     @property
     def size(self) -> np.ndarray:
+        """Tile sizes (edge lengths), array of shape ``(n, 3)``."""
         return self._size
 
     @size.setter
     def size(self, val) -> None:
+        """Set tile sizes (same input conventions as :meth:`center_pos`)."""
         if not hasattr(self, "_size"):
             self._size = np.zeros(shape=(self.n, 3), dtype=np.float64, order="F")
 
@@ -1413,10 +1518,20 @@ class Tiles:
 
     @property
     def vertices(self) -> np.ndarray:
+        """Tile vertices, array of shape ``(n, 3, 4)`` (four 3D vertices per tile)."""
         return self._vertices
 
     @vertices.setter
     def vertices(self, val) -> None:
+        """
+        Set tile vertices.
+
+        Accepted input forms:
+        - ``None``: no change.
+        - ``(verts, i)``: set a single tile ``i``.
+        - ``verts`` as (3,4) or (4,3): broadcast to all tiles.
+        - array-like of shape ``(n, 3, 4)`` or ``(n, 4, 3)``.
+        """
         if not hasattr(self, "_vertices"):
             self._vertices = np.zeros(shape=(self.n, 3, 4), dtype=np.float64, order="F")
 
@@ -1443,10 +1558,12 @@ class Tiles:
 
     @property
     def tile_type(self) -> np.ndarray:
+        """Tile geometry type codes (MagTense convention), shape ``(n,)``."""
         return self._tile_type
 
     @tile_type.setter
     def tile_type(self, val) -> None:
+        """Set tile geometry type codes (same input conventions as :meth:`center_pos`)."""
         if not hasattr(self, "_tile_type"):
             self._tile_type = np.ones(shape=(self.n), dtype=np.int32, order="F")
 
@@ -1461,10 +1578,12 @@ class Tiles:
 
     @property
     def offset(self) -> np.ndarray:
+        """Tile offsets (centres in global coordinates), array of shape ``(n, 3)``."""
         return self._offset
 
     @offset.setter
     def offset(self, val) -> None:
+        """Set tile offsets (same input conventions as :meth:`center_pos`)."""
         if not hasattr(self, "_offset"):
             self._offset = np.zeros(shape=(self.n, 3), dtype=np.float64, order="F")
 
@@ -1479,10 +1598,12 @@ class Tiles:
 
     @property
     def rot(self) -> np.ndarray:
+        """Tile rotation angles (radians), array of shape ``(n, 3)``."""
         return self._rot
 
     @rot.setter
     def rot(self, val) -> None:
+        """Set tile rotations (same input conventions as :meth:`center_pos`)."""
         if not hasattr(self, "_rot"):
             self._rot = np.zeros(shape=(self.n, 3), dtype=np.float64, order="F")
 
@@ -1508,10 +1629,12 @@ class Tiles:
 
     @property
     def M(self) -> np.ndarray:
+        """Tile magnetization vectors, array of shape ``(n, 3)`` (A/m)."""
         return self._M
 
     @M.setter
     def M(self, val) -> None:
+        """Set tile magnetization vectors (same input conventions as :meth:`center_pos`)."""
         if not hasattr(self, "_M"):
             self._M = np.zeros(shape=(self.n, 3), dtype=np.float64, order="F")
 
@@ -1528,10 +1651,12 @@ class Tiles:
 
     @property
     def u_ea(self) -> np.ndarray:
+        """Easy-axis unit vectors, array of shape ``(n, 3)``."""
         return self._u_ea
 
     @u_ea.setter
     def u_ea(self, val) -> None:
+        """Set easy-axis vectors (same input conventions as :meth:`center_pos`)."""
         if not hasattr(self, "_u_ea"):
             self._u_ea = np.zeros(shape=(self.n, 3), dtype=np.float64, order="F")
 
@@ -1566,10 +1691,12 @@ class Tiles:
 
     @property
     def u_oa1(self) -> np.ndarray:
+        """First orthogonal axis unit vectors, array of shape ``(n, 3)``."""
         return self._u_oa1
 
     @u_oa1.setter
     def u_oa1(self, val) -> None:
+        """Set first orthogonal axis vectors (same input conventions as :meth:`center_pos`)."""
         if not hasattr(self, "_u_oa1"):
             self._u_oa1 = np.zeros(shape=(self.n, 3), dtype=np.float64, order="F")
 
@@ -1586,10 +1713,12 @@ class Tiles:
 
     @property
     def u_oa2(self) -> np.ndarray:
+        """Second orthogonal axis unit vectors, array of shape ``(n, 3)``."""
         return self._u_oa2
 
     @u_oa2.setter
     def u_oa2(self, val) -> None:
+        """Set second orthogonal axis vectors (same input conventions as :meth:`center_pos`)."""
         if not hasattr(self, "_u_oa2"):
             self._u_oa2 = np.zeros(shape=(self.n, 3), dtype=np.float64, order="F")
 
@@ -1606,10 +1735,12 @@ class Tiles:
 
     @property
     def mu_r_ea(self) -> np.ndarray:
+        """Relative permeability along the easy axis, array of shape ``(n,)``."""
         return self._mu_r_ea
 
     @mu_r_ea.setter
     def mu_r_ea(self, val) -> None:
+        """Set easy-axis relative permeability (scalar or per-tile array)."""
         if not hasattr(self, "_mu_r_ea"):
             self._mu_r_ea = np.ones(shape=(self.n), dtype=np.float64, order="F")
 
@@ -1624,10 +1755,12 @@ class Tiles:
 
     @property
     def mu_r_oa(self) -> np.ndarray:
+        """Relative permeability orthogonal to the easy axis, array of shape ``(n,)``."""
         return self._mu_r_oa
 
     @mu_r_oa.setter
     def mu_r_oa(self, val) -> None:
+        """Set orthogonal relative permeability (scalar or per-tile array)."""
         if not hasattr(self, "_mu_r_oa"):
             self._mu_r_oa = np.ones(shape=(self.n), dtype=np.float64, order="F")
 
@@ -1642,11 +1775,13 @@ class Tiles:
 
     @property
     def M_rem(self) -> np.ndarray:
+        """Remanent magnetization magnitude(s), array of shape ``(n,)`` (A/m)."""
         return self._M_rem
 
     @M_rem.setter
     def M_rem(self, val) -> None:
-        if not hasattr(self, "_M_rem"): 
+        """Set remanent magnetization magnitude(s) (scalar or per-tile array)."""
+        if not hasattr(self, "_M_rem"):
             self._M_rem = np.zeros(shape=(self.n), dtype=np.float64, order="F")
 
         if val is None:
@@ -1660,10 +1795,12 @@ class Tiles:
 
     @property
     def color(self) -> np.ndarray:
+        """Tile RGB colors for visualization, array of shape ``(n, 3)``."""
         return self._color
 
     @color.setter
     def color(self, val) -> None:
+        """Set tile colors (same input conventions as :meth:`center_pos`)."""
         if not hasattr(self, "_color"):
             self._color = np.zeros(shape=(self.n, 3), dtype=np.float64, order="F")
 
@@ -1678,10 +1815,12 @@ class Tiles:
 
     @property
     def magnet_type(self) -> np.ndarray:
+        """Magnet material type codes, array of shape ``(n,)`` (MagTense convention)."""
         return self._magnet_type
 
     @magnet_type.setter
     def magnet_type(self, val) -> None:
+        """Set magnet type codes (scalar or per-tile array)."""
         if not hasattr(self, "_magnet_type"):
             self._magnet_type = np.ones(shape=(self.n), dtype=np.int32, order="F")
 
@@ -1696,10 +1835,12 @@ class Tiles:
 
     @property
     def stfcn_index(self) -> np.ndarray:
+        """State-function index array, shape ``(n,)`` (MagTense convention)."""
         return self._stfcn_index
 
     @stfcn_index.setter
     def stfcn_index(self, val) -> None:
+        """Set state-function index codes (scalar or per-tile array)."""
         if not hasattr(self, "_stfcn_index"):
             self._stfcn_index = np.ones(shape=(self.n), dtype=np.int32, order="F")
 
@@ -1714,10 +1855,12 @@ class Tiles:
 
     @property
     def incl_it(self) -> np.ndarray:
+        """Inclusion flags for iteration/solve, shape ``(n,)`` (1 include, 0 exclude)."""
         return self._incl_it
 
     @incl_it.setter
     def incl_it(self, val) -> None:
+        """Set inclusion flags (scalar or per-tile array)."""
         if not hasattr(self, "_incl_it"):
             self._incl_it = np.ones(shape=(self.n), dtype=np.int32, order="F")
 
@@ -1732,10 +1875,12 @@ class Tiles:
 
     @property
     def M_rel(self) -> np.ndarray:
+        """Relative change in magnetization from last iteration, shape ``(n,)``."""
         return self._M_rel
 
     @M_rel.setter
     def M_rel(self, val) -> None:
+        """Set relative magnetization-change values (scalar or per-tile array)."""
         if not hasattr(self, "_M_rel"):
             self._M_rel = np.zeros(shape=(self.n), dtype=np.float64, order="F")
 
@@ -1750,17 +1895,26 @@ class Tiles:
 
     @property
     def use_sym(self) -> np.ndarray:
+        """Symmetry-use flags, shape ``(n,)``."""
         return self._use_sym
 
     @property
     def sym_op(self) -> np.ndarray:
+        """Symmetry operator signs per tile and axis, shape ``(n, 3)``."""
         return self._sym_op
 
     def set_easy_axis(
         self, val: list | None = None, idx: int | None = None, seed: int = 42
     ) -> None:
         """
-        polar angle [0, pi], azimuth [0, 2*pi]
+        Set the easy axis from spherical angles.
+
+        If ``val`` is provided, it is interpreted as ``[polar_angle, azimuth]``
+        with polar angle in ``[0, π]`` and azimuth in ``[0, 2π]`` (radians). If
+        ``val`` is None, random angles are generated using ``seed``.
+
+        If ``idx`` is None, the operation is applied to all tiles. Otherwise,
+        only tile ``idx`` is updated.
         """
         if val is None:
             rng = np.random.default_rng(seed)
@@ -1779,6 +1933,7 @@ class Tiles:
             self._set_ea_i(i_val, idx)
 
     def _set_ea_i(self, val, i) -> None:
+        """Internal helper to set easy-axis and orthogonal axes for tile ``i``."""
         if isinstance(val, (int, float)):
             value_err = "Both spherical angles have to be set!"
             raise TypeError(value_err)
@@ -1816,6 +1971,7 @@ class Tiles:
             )
 
     def _add_tiles(self, n: int) -> None:
+        """Append space for ``n`` additional tiles to all internal arrays."""
         self._center_pos = np.append(
             self._center_pos,
             np.zeros(shape=(n, 3), dtype=np.float64, order="F"),
@@ -1888,6 +2044,16 @@ class Tiles:
         self._n += n
 
     def refine_prism(self, idx: int | float | list, mat: list) -> None:
+        """
+        Subdivide one or more prism tiles into a regular rectangular grid.
+
+        Parameters
+        ----------
+        idx : int | float | list
+            Tile index (or list of indices) to refine.
+        mat : list
+            Subdivision counts ``[nx, ny, nz]``.
+        """
         if isinstance(idx, (int, float)):
             self._refine_prism_i(idx, mat)
         else:
@@ -1895,6 +2061,7 @@ class Tiles:
                 self._refine_prism_i(i, mat)
 
     def _refine_prism_i(self, i: int | float, mat: list) -> None:
+        """Refine a single prism tile ``i`` into ``prod(mat)`` sub-prisms."""
         assert self.tile_type[i] == 2
         old_n = self.n
         self._add_tiles(np.prod(mat) - 1)
@@ -1938,8 +2105,26 @@ class Tiles:
 
 def get_rotmat(rot: np.ndarray) -> np.ndarray:
     """
-    G to L in local coordinate system
-    TODO: Check rotation from local to global: (1) Rot_X, (2) Rot_Y, (3) Rot_Z
+    Compute a 3×3 rotation matrix from x/y/z Euler angles.
+
+    This helper matches the convention used in CoilPy's
+    ``coilpy.magtense_interface.get_rotmat``: the returned matrix is formed as::
+
+        R = R_x(rot[0]) @ R_y(rot[1]) @ R_z(rot[2])
+
+    where each ``R_*`` is the right-handed active rotation about the indicated
+    axis. In the MagTense/CoilPy adapter code, this is used as a global-to-local
+    rotation in the tile's local coordinate system.
+
+    Parameters
+    ----------
+    rot : ndarray, shape (3,)
+        Rotation angles (radians) about x, y, z.
+
+    Returns
+    -------
+    ndarray, shape (3, 3)
+        Rotation matrix ``R`` assembled in x→y→z order.
     """
     rot_x = np.asarray(
         (
@@ -1967,10 +2152,35 @@ def get_rotmat(rot: np.ndarray) -> np.ndarray:
 
 def _euler_to_rot_axis(euler: np.ndarray) -> np.ndarray:
     """
-    Converting Euler angles to rotation axis.
-    For spheroids, the rotation axis has to be set rather than Euler angles.
-    Rotation in MagTense performed in local coordinate system:
-    Euler - (1) Rot_X_L, (2) Rot_Y_L', (3) Rot_Z_L''
+    Convert a direction vector to MagTense-style Euler angles for spheroids.
+
+    MagTense represents spheroid orientation via a *rotation axis* rather than
+    a full set of Euler angles. This helper maps a 3-vector ``euler`` (treated
+    as a direction/axis) to Euler angles ``(rot_x, rot_y, 0)`` consistent with
+    the local-coordinate rotation convention used in the MagTense interface.
+
+    The implementation follows the steps encoded below:
+
+    1) Rotate the axis by ``π/2`` about the y-axis:
+
+       ``ax = R_y(π/2) @ euler``
+
+    2) Compute yaw/pitch-like angles that align the local x-axis with ``ax``:
+
+       ``rot_x = -atan2(ax_y, ax_x)``
+       ``rot_y = arccos(ax_z / ||ax||) - π/2``
+
+    Returns ``[rot_x, rot_y, 0]``.
+
+    Parameters
+    ----------
+    euler : ndarray, shape (3,)
+        Input axis vector.
+
+    Returns
+    -------
+    ndarray, shape (3,)
+        Euler angles ``(rot_x, rot_y, rot_z)`` in radians, with ``rot_z = 0``.
     """
     # symm-axis of geometry points in the direction of z-axis of L
     # Rotates given rotation axis with pi/2 around y_L''
@@ -1993,35 +2203,6 @@ def _euler_to_rot_axis(euler: np.ndarray) -> np.ndarray:
     rot_y = np.arccos(ax[2] / np.sqrt(ax[0] ** 2 + ax[1] ** 2 + ax[2] ** 2)) - np.pi / 2
 
     return np.array([rot_x, rot_y, 0])
-
-
-def get_rotmat(rot: np.ndarray) -> np.ndarray:
-    """
-    G to L in local coordinate system
-    TODO: Check rotation from local to global: (1) Rot_X, (2) Rot_Y, (3) Rot_Z
-    """
-    rot_x = np.asarray(
-        (
-            [1, 0, 0],
-            [0, np.cos(rot[0]), -np.sin(rot[0])],
-            [0, np.sin(rot[0]), np.cos(rot[0])],
-        )
-    )
-    rot_y = np.asarray(
-        (
-            [np.cos(rot[1]), 0, np.sin(rot[1])],
-            [0, 1, 0],
-            [-np.sin(rot[1]), 0, np.cos(rot[1])],
-        )
-    )
-    rot_z = np.asarray(
-        (
-            [np.cos(rot[2]), -np.sin(rot[2]), 0],
-            [np.sin(rot[2]), np.cos(rot[2]), 0],
-            [0, 0, 1],
-        )
-    )
-    return rot_x @ rot_y @ rot_z
 
 """
 CoilPy‐derived muse2tiles → local Tiles adapter
