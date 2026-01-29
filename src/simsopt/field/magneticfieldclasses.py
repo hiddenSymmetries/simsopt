@@ -21,16 +21,29 @@ __all__ = ['VirtualCasingField','ToroidalField', 'PoloidalField', 'ScalarPotenti
            'MirrorModel']
 
 class VirtualCasingField(MagneticField):
+    """
+    Computes the magnetic field contribution from plasma currents using the 
+    virtual casing principle. Can evaluate the field at arbitrary points in space.
+    
+    Note: Evaluating exactly on the plasma surface can be slow or numerically 
+    unstable due to singular integrals. For on-surface evaluation, the class 
+    automatically uses precomputed values when the evaluation points match 
+    the target grid points within a tolerance.
+    """
+
+    # Tolerance for detecting on-surface points (in meters)
+    ON_SURFACE_TOL = 0.02
 
     @classmethod
-    def from_vmec(cls, vmec, src_nphi, src_ntheta=None, trgt_nphi=None, trgt_ntheta=None, use_stellsym=True, digits=6, filename="auto"):
+    def from_vmec(cls, vmec, src_nphi=80, src_ntheta=None, trgt_nphi=32, trgt_ntheta=32, use_stellsym=True, digits=6, filename="auto"):
         """
         Given a :obj:`~simsopt.mhd.vmec.Vmec` object, define MagneticField 
         for the contribution to the total magnetic field due to currents 
-        outside the plasma.
+        in the plasma.
 
         This function requires the python ``virtual_casing`` package to be
-        installed.
+        installed. Currently only supports calculation of B, no dB_dX or d2B_dXdX,
+        and no vector potential A.
 
         The argument ``src_nphi`` refers to the number of points around a half
         field period if stellarator symmetry is exploited, or a full field
@@ -126,26 +139,88 @@ class VirtualCasingField(MagneticField):
             src_nphi, src_ntheta,
             trgt_nphi, trgt_ntheta)
         
+        # Store target grid positions for on-surface detection
+        trgt_gamma = trgt_surf.gamma()
+        
         vc = cls()
         vc.vcasing = vcasing 
-        vc.B1d = B1d 
+        vc.B1d = B1d
+        vc.trgt_gamma = trgt_gamma  # Target grid positions (trgt_nphi, trgt_ntheta, 3)
+        vc._B_external_onsurf = None  # Lazy-computed B at target grid
+        vc.trgt_nphi = trgt_nphi
+        vc.trgt_ntheta = trgt_ntheta
 
         MagneticField.__init__(vc) # Need to think about DOFs here 
 
-        return vc 
+        return vc
+    
+    def _compute_onsurf_B(self):
+        """Lazily compute and cache the on-surface B field."""
+        if self._B_external_onsurf is None:
+            Bexternal1d_onsurf = np.array(self.vcasing.compute_external_B(self.B1d))
+            Bexternal3d_onsurf = np.zeros((self.trgt_nphi, self.trgt_ntheta, 3))
+            for jxyz in range(3):
+                Bexternal3d_onsurf[:, :, jxyz] = Bexternal1d_onsurf[
+                    jxyz * self.trgt_nphi * self.trgt_ntheta: 
+                    (jxyz + 1) * self.trgt_nphi * self.trgt_ntheta
+                ].reshape((self.trgt_nphi, self.trgt_ntheta), order='C')
+            self._B_external_onsurf = Bexternal3d_onsurf
+        return self._B_external_onsurf
+    
+    @property
+    def B_external_onsurf(self):
+        """On-surface B field (lazily computed on first access)."""
+        return self._compute_onsurf_B()
 
     def _B_impl(self, B):
-
         points = self.get_points_cart_ref()
-
+        n_points = len(points)
+        
+        # Check if points match the target grid (on-surface evaluation)
+        trgt_gamma_flat = self.trgt_gamma.reshape((-1, 3))
+        n_trgt = len(trgt_gamma_flat)
+        
+        # Check if all points are close to target grid points
+        if n_points == n_trgt:
+            # Compute distances between evaluation points and target grid
+            distances = np.linalg.norm(points - trgt_gamma_flat, axis=1)
+            max_distance = np.max(distances)
+            
+            if max_distance < self.ON_SURFACE_TOL:
+                # Points match target grid - use precomputed on-surface values
+                if max_distance > 1e-10:
+                    warnings.warn(
+                        f"Evaluation points are within {max_distance:.4f}m of the target surface grid. "
+                        f"Using precomputed on-surface B values. For off-surface evaluation, "
+                        f"move points at least {self.ON_SURFACE_TOL}m away from the surface.",
+                        UserWarning
+                    )
+                B[:] = self.B_external_onsurf.reshape((-1, 3))
+                return
+        
+        # Check if any points are dangerously close to the surface
+        # by computing minimum distance to any target grid point
+        min_distances = np.min(np.linalg.norm(
+            points[:, np.newaxis, :] - trgt_gamma_flat[np.newaxis, :, :], axis=2), axis=1)
+        close_points = min_distances < self.ON_SURFACE_TOL
+        
+        if np.any(close_points):
+            n_close = np.sum(close_points)
+            min_dist = np.min(min_distances[close_points])
+            warnings.warn(
+                f"{n_close} of {n_points} evaluation points are within {min_dist:.4f}m of the surface. "
+                f"This may cause slow computation or numerical issues due to singular integrals. "
+                f"Consider moving points at least {self.ON_SURFACE_TOL}m away from the surface, "
+                f"or using VirtualCasing for on-surface evaluation.",
+                UserWarning
+            )
+        
+        # Off-surface evaluation using compute_external_B_offsurf
         # Points need to be in order {x1, x2, ..., xn, y1, ..., z1, ..., zn}
         points1d = points.flatten(order='F')
-
         # Bexternal1d will be in order {Bx1, Bx2, ..., BxN, By1, ..., Bz1, ..., BzN}
-        # Bexternal1d = np.array(self.vcasing.compute_external_B(self.B1d))
         Bexternal1d = np.array(self.vcasing.compute_external_B_offsurf(self.B1d, points1d))
-
-        B[:] = Bexternal1d.reshape((len(points), 3),order='F')
+        B[:] = Bexternal1d.reshape((n_points, 3), order='F')
 
 class ToroidalField(MagneticField):
     """
