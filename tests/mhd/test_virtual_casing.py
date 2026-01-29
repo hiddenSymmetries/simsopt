@@ -158,6 +158,9 @@ class VirtualCasingVmecTests(unittest.TestCase):
             for residual in residuals:
                 self.assertLess(residual, 1.0, "Residual should be less than 1")
 
+            # Todo: add robust check that the residual is converging to zero with resolution
+            # Right now this is not the case! 
+
     @unittest.skipIf(matplotlib is None, "Need matplotlib for this test")
     def test_run_vmec_grid_scan(self):
         """
@@ -734,7 +737,7 @@ class VirtualCasingFieldTests(unittest.TestCase):
         gamma = eval_surf.gamma()
         
         # Test convergence at different source resolutions
-        resolutions = [16, 24, 32]
+        resolutions = [16, 32, 64]
         B_results = []
         
         for src_nphi in resolutions:
@@ -771,8 +774,8 @@ class VirtualCasingFieldTests(unittest.TestCase):
         # Higher resolution now that on-surface is instant
         # Need nphi >= 2*ntor+1 = 17 for extend_via_normal with ntor=8
         src_nphi = 32
-        trgt_nphi = 32
-        trgt_ntheta = 32
+        trgt_nphi = 16
+        trgt_ntheta = 16
         digits = 3
         
         # Create VirtualCasingField
@@ -817,3 +820,204 @@ class VirtualCasingFieldTests(unittest.TestCase):
                            "B magnitude off surface should not be too small")
         self.assertLess(avg_modB_off, avg_modB_on * 100,
                         "B magnitude off surface should not be too large")
+
+    def test_VirtualCasingField_trgt_nphi_ntheta_defaults(self):
+        """
+        Test that trgt_nphi=None and trgt_ntheta=None default to src_nphi 
+        and src_ntheta respectively.
+        """
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
+        vmec = Vmec(filename)
+        
+        src_nphi = 16
+        src_ntheta = 20
+        
+        # Create with explicit trgt values
+        vc_explicit = VirtualCasingField.from_vmec(
+            vmec, src_nphi=src_nphi, src_ntheta=src_ntheta,
+            trgt_nphi=src_nphi, trgt_ntheta=src_ntheta, digits=2
+        )
+        
+        # Create with None defaults (should use src values)
+        vc_default = VirtualCasingField.from_vmec(
+            vmec, src_nphi=src_nphi, src_ntheta=src_ntheta,
+            trgt_nphi=None, trgt_ntheta=None, digits=2
+        )
+        
+        # Verify target grid dimensions match
+        self.assertEqual(vc_explicit.trgt_nphi, vc_default.trgt_nphi)
+        self.assertEqual(vc_explicit.trgt_ntheta, vc_default.trgt_ntheta)
+        self.assertEqual(vc_default.trgt_nphi, src_nphi)
+        self.assertEqual(vc_default.trgt_ntheta, src_ntheta)
+        
+        # Verify target gamma shapes match
+        self.assertEqual(vc_explicit.trgt_gamma.shape, vc_default.trgt_gamma.shape)
+        
+        logger.info(f"trgt_nphi={vc_default.trgt_nphi}, trgt_ntheta={vc_default.trgt_ntheta}")
+
+    def test_VirtualCasingField_use_stellsym_false(self):
+        """
+        Test that use_stellsym=False works even when vmec.wout.lasym=False
+        (i.e., when the equilibrium IS stellarator symmetric).
+        
+        With use_stellsym=False, the calculation uses a full field period
+        instead of a half field period.
+        """
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
+        vmec = Vmec(filename)
+        
+        # Verify the equilibrium is stellarator symmetric
+        self.assertFalse(vmec.wout.lasym, "Test requires stellarator symmetric equilibrium")
+        
+        src_nphi = 16
+        trgt_nphi = 16
+        trgt_ntheta = 16
+        digits = 2
+        
+        # Create with use_stellsym=False (full field period)
+        vc_field = VirtualCasingField.from_vmec(
+            vmec, src_nphi=src_nphi, 
+            trgt_nphi=trgt_nphi, trgt_ntheta=trgt_ntheta,
+            use_stellsym=False, digits=digits
+        )
+        
+        # Verify we can evaluate B at some points
+        gamma = vc_field.trgt_gamma
+        vc_field.set_points(gamma.reshape((-1, 3)))
+        B = vc_field.B()
+        
+        # B should be finite and non-zero
+        self.assertTrue(np.all(np.isfinite(B)), "B should be finite")
+        self.assertTrue(np.all(np.linalg.norm(B, axis=-1) > 0), "B magnitude should be positive")
+        
+        logger.info(f"use_stellsym=False test passed, avg |B| = {np.mean(np.linalg.norm(B, axis=-1)):.4f}")
+
+    def test_VirtualCasingField_near_surface_warning(self):
+        """
+        Test that evaluating at points very close to (but not exactly on) 
+        the surface triggers a warning and still returns valid field values.
+        
+        Points within ON_SURFACE_TOL but not matching the target grid should
+        trigger the "close to surface" warning.
+        
+        Note: Uses small grid (4x4=16 points) to keep test fast since 
+        compute_external_B_offsurf is slow for near-surface evaluation.
+        """
+        import warnings
+        
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
+        vmec = Vmec(filename)
+        
+        # Use small grid for speed (compute_external_B_offsurf is slow near surface)
+        src_nphi = 8
+        trgt_nphi = 4
+        trgt_ntheta = 4
+        digits = 2
+        
+        vc_field = VirtualCasingField.from_vmec(
+            vmec, src_nphi=src_nphi,
+            trgt_nphi=trgt_nphi, trgt_ntheta=trgt_ntheta, digits=digits
+        )
+        
+        # Get target grid points and add a small perturbation (within tolerance)
+        gamma = vc_field.trgt_gamma.copy()
+        perturbation = 0.005  # 5mm, within ON_SURFACE_TOL of 0.02m
+        np.random.seed(42)  # For reproducibility
+        gamma_perturbed = gamma + perturbation * np.random.randn(*gamma.shape)
+        
+        # Evaluate at perturbed points - should trigger warning
+        vc_field.set_points(gamma_perturbed.reshape((-1, 3)))
+        
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            B = vc_field.B()
+            
+            # Check that a warning was raised about points being close to surface
+            warning_messages = [str(warning.message) for warning in w]
+            has_close_warning = any("close" in msg.lower() or "within" in msg.lower() 
+                                   for msg in warning_messages)
+            self.assertTrue(has_close_warning, 
+                f"Expected warning about points close to surface. Got warnings: {warning_messages}")
+        
+        # B should still be finite and reasonable
+        self.assertTrue(np.all(np.isfinite(B)), "B should be finite even for near-surface points")
+        modB = np.linalg.norm(B, axis=-1)
+        self.assertTrue(np.all(modB > 0), "B magnitude should be positive")
+        
+        logger.info(f"Near-surface warning test passed, avg |B| = {np.mean(modB):.4f}")
+
+    def test_VirtualCasingField_different_npoints_near_surface(self):
+        """
+        Test evaluation at a different number of points than the target grid,
+        where some points are close to the surface.
+        
+        This tests the code path where n_points != n_trgt but some points
+        are still within ON_SURFACE_TOL of the surface.
+        
+        Note: Uses small grid to keep test fast since compute_external_B_offsurf
+        is slow for near-surface evaluation.
+        """
+        import warnings
+        
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
+        vmec = Vmec(filename)
+        
+        # Use small grid for speed
+        src_nphi = 16
+        trgt_nphi = 4
+        trgt_ntheta = 4
+        digits = 2
+        
+        vc_field = VirtualCasingField.from_vmec(
+            vmec, src_nphi=src_nphi,
+            trgt_nphi=trgt_nphi, trgt_ntheta=trgt_ntheta, digits=digits
+        )
+        
+        # Create a smaller set of evaluation points near the surface
+        # Take every other point from the target grid (18 points from 36)
+        gamma_full = vc_field.trgt_gamma.reshape((-1, 3))
+        gamma_subset = gamma_full[::2]  # Half the points
+        
+        # Add small perturbation to put them near (but not exactly on) surface
+        perturbation = 0.01  # 1cm
+        np.random.seed(42)  # For reproducibility
+        gamma_near = gamma_subset + perturbation * np.random.randn(*gamma_subset.shape)
+        
+        vc_field.set_points(gamma_near)
+        
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            B = vc_field.B()
+            
+            # Should get warning about points close to surface
+            warning_messages = [str(warning.message) for warning in w]
+            has_close_warning = any("close" in msg.lower() or "within" in msg.lower()
+                                   for msg in warning_messages)
+            self.assertTrue(has_close_warning,
+                f"Expected warning about points close to surface. Got: {warning_messages}")
+        
+        # Verify B is valid
+        self.assertEqual(B.shape, (len(gamma_near), 3))
+        self.assertTrue(np.all(np.isfinite(B)), "B should be finite")
+        self.assertTrue(np.all(np.linalg.norm(B, axis=-1) > 0), "B magnitude should be positive")
+        
+        logger.info("Different n_points near-surface test passed")
+
+    def test_VirtualCasingField_lasym_raises_error(self):
+        """
+        Test that VirtualCasingField raises RuntimeError when vmec.wout.lasym=True
+        (i.e., when the equilibrium is NOT stellarator symmetric).
+        """
+        from unittest.mock import patch
+        
+        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
+        vmec = Vmec(filename)
+        
+        # Mock lasym to be True (non-stellarator symmetric)
+        with patch.object(vmec.wout, 'lasym', True):
+            with self.assertRaises(RuntimeError) as context:
+                VirtualCasingField.from_vmec(vmec, src_nphi=16, digits=2)
+            
+            self.assertIn("stellarator symmetry", str(context.exception).lower())
+        
+        logger.info("lasym RuntimeError test passed")

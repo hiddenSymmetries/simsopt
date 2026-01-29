@@ -176,51 +176,27 @@ class VirtualCasingField(MagneticField):
         points = self.get_points_cart_ref()
         n_points = len(points)
         
-        # Check if points match the target grid (on-surface evaluation)
+        # Get precomputed on-surface values and target grid
         trgt_gamma_flat = self.trgt_gamma.reshape((-1, 3))
-        n_trgt = len(trgt_gamma_flat)
+        B_onsurf_flat = self.B_external_onsurf.reshape((-1, 3))
         
-        # Check if all points are close to target grid points
-        if n_points == n_trgt:
-            # Compute distances between evaluation points and target grid
-            distances = np.linalg.norm(points - trgt_gamma_flat, axis=1)
-            max_distance = np.max(distances)
-            
-            if max_distance < self.ON_SURFACE_TOL:
-                # Points match target grid - use precomputed on-surface values
-                if max_distance > 1e-10:
-                    warnings.warn(
-                        f"Evaluation points are within {max_distance:.4f}m of the target surface grid. "
-                        f"Using precomputed on-surface B values. For off-surface evaluation, "
-                        f"move points at least {self.ON_SURFACE_TOL}m away from the surface.",
-                        UserWarning
-                    )
-                B[:] = self.B_external_onsurf.reshape((-1, 3))
-                return
+        # Find nearest grid point for each evaluation point
+        distances_to_grid = np.linalg.norm(
+            points[:, np.newaxis, :] - trgt_gamma_flat[np.newaxis, :, :], axis=2)
+        nearest_idx = np.argmin(distances_to_grid, axis=1)
+        min_dist = distances_to_grid[np.arange(n_points), nearest_idx]
         
-        # Check if any points are dangerously close to the surface
-        # by computing minimum distance to any target grid point
-        min_distances = np.min(np.linalg.norm(
-            points[:, np.newaxis, :] - trgt_gamma_flat[np.newaxis, :, :], axis=2), axis=1)
-        close_points = min_distances < self.ON_SURFACE_TOL
+        # Points within tolerance use precomputed values (nearest-neighbor)
+        close_mask = min_dist < self.ON_SURFACE_TOL
+        B[close_mask] = B_onsurf_flat[nearest_idx[close_mask]]
         
-        if np.any(close_points):
-            n_close = np.sum(close_points)
-            min_dist = np.min(min_distances[close_points])
-            warnings.warn(
-                f"{n_close} of {n_points} evaluation points are within {min_dist:.4f}m of the surface. "
-                f"This may cause slow computation or numerical issues due to singular integrals. "
-                f"Consider moving points at least {self.ON_SURFACE_TOL}m away from the surface, "
-                f"or using VirtualCasing for on-surface evaluation.",
-                UserWarning
-            )
-        
-        # Off-surface evaluation using compute_external_B_offsurf
-        # Points need to be in order {x1, x2, ..., xn, y1, ..., z1, ..., zn}
-        points1d = points.flatten(order='F')
-        # Bexternal1d will be in order {Bx1, Bx2, ..., BxN, By1, ..., Bz1, ..., BzN}
-        Bexternal1d = np.array(self.vcasing.compute_external_B_offsurf(self.B1d, points1d))
-        B[:] = Bexternal1d.reshape((n_points, 3), order='F')
+        # Points beyond tolerance use compute_external_B_offsurf
+        if not np.all(close_mask):
+            far_mask = ~close_mask
+            far_points = points[far_mask]
+            points1d = far_points.flatten(order='F')
+            Bext1d = np.array(self.vcasing.compute_external_B_offsurf(self.B1d, points1d))
+            B[far_mask] = Bext1d.reshape((-1, 3), order='F')
 
 class ToroidalField(MagneticField):
     """
