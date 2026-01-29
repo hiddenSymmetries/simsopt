@@ -139,6 +139,11 @@ def _f_3D(a, b, c, x, y, z):
 
         N_xx = (1 / 4π) * Σ_{s∈{±1}^3} atan( f(a,b,c, s_x x0, s_y y0, s_z z0) )
 
+    Notes
+    -----
+    If the denominator ``(a - x)`` is exactly zero in floating point, a small
+    symmetric perturbation is used to approximate the limiting value.
+
     Args:
         a, b, c: Half-dimensions of the prism in its local frame.
         x, y, z: Evaluation point coordinates in the same local frame.
@@ -173,6 +178,11 @@ def _g_3D(a, b, c, x, y, z):
 
         g(a,b,c,x,y,z) = (a - x)(c - z) / ((b - y) * r)
         r = sqrt((a - x)^2 + (b - y)^2 + (c - z)^2)
+
+    Notes
+    -----
+    If the denominator ``(b - y)`` is exactly zero in floating point, a small
+    symmetric perturbation is used to approximate the limiting value.
 
     Args:
         a, b, c: Half-dimensions of the prism in its local frame.
@@ -209,6 +219,11 @@ def _h_3D(a, b, c, x, y, z):
 
         h(a,b,c,x,y,z) = (a - x)(b - y) / ((c - z) * r)
         r = sqrt((a - x)^2 + (b - y)^2 + (c - z)^2)
+
+    Notes
+    -----
+    If the denominator ``(c - z)`` is exactly zero in floating point, a small
+    symmetric perturbation is used to approximate the limiting value.
 
     Args:
         a, b, c: Half-dimensions of the prism in its local frame.
@@ -320,7 +335,7 @@ def getF_limit(a, b, c, x, y, z, func):
     of the auxiliary functions evaluated at signed corner combinations. At some
     symmetric points, numerator and/or denominator can underflow or become
     exactly 0 in floating point. This helper computes the ratio using a small
-    symmetric perturbation and returns the averaged limit value.
+    symmetric perturbation and returns a stabilized approximation to the limit.
 
     Concretely, for a chosen off-diagonal kernel ``F`` (one of :func:`_FF_3D`,
     :func:`_GG_3D`, :func:`_HH_3D`), we form the ratio::
@@ -330,8 +345,10 @@ def getF_limit(a, b, c, x, y, z, func):
                 Π F(+a,-b,+c, x,y,z) * F(-a,+b,+c, x,y,z) * F(+a,+b,-c, x,y,z) * F(-a,-b,-c, x,y,z)
 
     and then use ``log(ratio)`` in the off-diagonal entry. When the raw products
-    become numerically 0, we evaluate this ratio at ``(x,y,z)*(1±ε)`` and average.
-
+    become numerically 0, we compute numerator/denominator at ``(x,y,z)*(1±ε)``
+    and return ``(nom_l + nom_h) / (denom_l + denom_h)`` as a stabilized
+    approximation to the limit.
+    
     Args:
         a, b, c: Half-dimensions of the prism in its local frame.
         x, y, z: Evaluation point coordinates in the same local frame.
@@ -398,8 +415,13 @@ def _prism_N_local_nb(a, b, c, x0, y0, z0):
         x0, y0, z0: Relative vector from source centre to target centre in the same local frame.
 
     Returns:
-        N: ndarray, shape (3, 3). The demag tensor block in local coordinates.
-           The returned sign convention matches the rest of this module (note the final ``return -N``).
+        N_op: ndarray, shape (3, 3). Demag *operator* block in local coordinates.
+
+        This module uses the convention that demagnetizing field is obtained by
+        a linear operator acting on magnetization, i.e. ``H_demag = N_op @ M``.
+        For the standard demag tensor ``N_std`` (Newell/Aharoni; ``tr(N_std)=1``
+        for a self-term), the operator is ``N_op = -N_std``. Consequently,
+        ``tr(N_op) = -1`` for self-terms.
     """
     N = np.empty((3,3), dtype=np.float64)
     sum_f = sum_g = sum_h = 0.0
@@ -453,7 +475,10 @@ def _assemble_tensor_local_nb(centres, half, Rg2l):
         Rg2l: ndarray, shape (n, 3, 3). Global-to-local rotation matrices for each tile.
 
     Returns:
-        Nloc: ndarray, shape (n, n, 3, 3). Dense demag tensor blocks.
+        Nloc: ndarray, shape (n, n, 3, 3). Dense demag operator blocks.
+
+        The returned blocks are the operator ``N_op`` from :func:`_prism_N_local_nb`,
+        i.e. they map magnetization to demagnetizing field: ``H_demag = N_op @ M``.
     """
     n = centres.shape[0]
     Nloc = np.zeros((n, n, 3, 3), dtype=np.float64)
@@ -489,7 +514,10 @@ def assemble_blocks_subset(centres, half, Rg2l, I, J):
         J: ndarray, shape (nJ,). Source tile indices.
 
     Returns:
-        out: ndarray, shape (nI, nJ, 3, 3). Demag tensor blocks for the requested pairs.
+        out: ndarray, shape (nI, nJ, 3, 3). Demag operator blocks for the requested pairs.
+
+        The returned blocks are the operator ``N_op`` from :func:`_prism_N_local_nb`,
+        i.e. they map magnetization to demagnetizing field: ``H_demag = N_op @ M``.
     """
     nI, nJ = I.shape[0], J.shape[0]
     out = np.empty((nI, nJ, 3, 3), np.float64)
@@ -512,7 +540,7 @@ class MacroMag:
     _INV4PI = _INV4PI
     _MACHEPS = _MACHEPS
 
-    def __init__(self, tiles, bs_interp: Optional[InterpolatedField] = None):
+    def __init__(self, tiles, bs_interp: Optional[BiotSavart | InterpolatedField] = None):
         self.tiles = tiles
         self.n = tiles.n
         self.centres = tiles.offset.copy()
@@ -583,8 +611,24 @@ class MacroMag:
         self._N_full = N
         return N
             
-    def load_coils(self, focus_file: Path, current_scale: Optional[int] = 1) -> None:
-        """Load coils and cache both BiotSavart and an InterpolatedField."""
+    def load_coils(self, focus_file: Path, current_scale: float = 1.0) -> None:
+        """
+        Load coils from a FOCUS file and store a field evaluator.
+
+        Parameters
+        ----------
+        focus_file : Path
+            Path to the FOCUS coil file.
+        current_scale : float, optional
+            Multiplicative factor applied to all coil currents.
+
+        Notes
+        -----
+        This method currently stores a :class:`~simsopt.field.BiotSavart` instance
+        in ``self.bs_interp`` (despite the attribute name). An
+        :class:`~simsopt.field.InterpolatedField` is not constructed unless you
+        explicitly wrap the field elsewhere.
+        """
         curves, currents, ncoils = read_focus_coils(str(focus_file))
         coils = [Coil(curves[i], currents[i]*current_scale) for i in range(ncoils)]
                 
@@ -613,6 +657,14 @@ class MacroMag:
         demag_tensor : ndarray of shape (n_tiles, n_pts, 3, 3)
             Precomputed local demagnetization tensor for each tile and point.
 
+            Notes
+            -----
+            This helper assumes the *standard* demag tensor convention ``N_std``
+            (Newell/Aharoni), for which the demagnetizing field is
+            ``H_demag = -N_std @ M``. Many routines in this module instead work
+            with the operator ``N_op = -N_std`` (so that ``H_demag = N_op @ M``);
+            if you pass such an operator here, you must account for the sign.
+
         Returns
         -------
         H : ndarray of shape (n_pts, 3)
@@ -634,7 +686,8 @@ class MacroMag:
         for i in range(n):
             # demag_local[i] is shape (n_pts,3,3)
             # multiply each (3×3) by the same M_loc[i] -> yields (n_pts,3)
-            H_loc = -np.einsum('pqr,r->pq', demag_tensor[i], M_loc[i]) # if demag_tensor is +N
+            # This uses the standard convention H = -N_std @ M.
+            H_loc = -np.einsum('pqr,r->pq', demag_tensor[i], M_loc[i])
             # rotate back to global
             H += (Rl2g[i] @ H_loc.T).T
 
@@ -651,34 +704,59 @@ class MacroMag:
         x0: np.ndarray | None = None,
         H_a_override: Optional[np.ndarray] = None,
         A_prev: np.ndarray | None = None,
-        prev_n: int = 0) -> "MacroMag":
+        prev_n: int = 0) -> tuple["MacroMag", Optional[np.ndarray]]:
         
         """
-        Run the Krylov‐based direct magstatics solve in place.
+        Solve for the tile magnetization using GMRES.
 
-        Args:
-            use_coils: bool, default False
-                Whether to use coils in the solve.
-            krylov_tol: float, default 1e-3
-                Tolerance for the Krylov solver.
-            krylov_it: int, default 200
-                Maximum number of iterations for the Krylov solver.
-            demag_tensor: np.ndarray | None, default None
-                Precomputed demagnetization tensor.
-            print_progress: bool, default False
-                Whether to print progress.
-            x0: np.ndarray | None, default None
-                Initial guess for the solution.
-            H_a_override: Optional[np.ndarray], default None
-                External magnetic field to override the coil field.
-            A_prev: np.ndarray | None, default None
-                Previous A matrix for incremental updates.
-            prev_n: int, default 0
-                Number of tiles in the previous A matrix.
+        This method solves a dense linear system of the form ``A M = b``, where
+        ``M`` is the stacked magnetization vector (length ``3*n_tiles``). The
+        system is assembled as::
 
-        Returns:
-            MacroMag: self
-        
+            A = I + χ N_op
+            b = M_rem u + χ H_a
+
+        where ``χ`` is the per-tile uniaxial susceptibility tensor in global
+        coordinates and ``N_op`` is the demagnetization *operator* produced by
+        :func:`_prism_N_local_nb` (i.e. ``H_demag = N_op @ M``).
+
+        Parameters
+        ----------
+        use_coils : bool
+            If True, include the coil field in the applied-field term (unless
+            ``H_a_override`` is provided).
+        krylov_tol : float
+            Relative tolerance passed to :func:`scipy.sparse.linalg.gmres` as ``rtol``.
+        krylov_it : int
+            Maximum number of GMRES iterations (``maxiter``).
+        N_new_rows, N_new_cols, N_new_diag :
+            Demag operator blocks used for assembly. Two modes are supported:
+
+            - Initial assembly (``prev_n == 0``): ``N_new_rows`` must be the full
+              dense tensor of shape ``(n, n, 3, 3)`` and ``A_prev`` is ignored.
+            - Incremental assembly (``prev_n > 0``): supply the new block rows/cols:
+              ``N_new_rows`` has shape ``(n-prev_n, prev_n, 3, 3)``,
+              ``N_new_cols`` has shape ``(prev_n, n-prev_n, 3, 3)``, and
+              ``N_new_diag`` has shape ``(n-prev_n, n-prev_n, 3, 3)``. ``A_prev``
+              must have shape ``(3*prev_n, 3*prev_n)``.
+        print_progress : bool
+            If True, print per-iteration residual norms from GMRES.
+        x0 : ndarray or None
+            Optional initial guess for GMRES (shape ``(3*n,)``).
+        H_a_override : ndarray or None
+            Optional applied field per tile in A/m (shape ``(n, 3)``). If provided,
+            it overrides coil evaluation even when ``use_coils=True``.
+        A_prev : ndarray or None
+            Previous system matrix for incremental assembly (shape ``(3*prev_n, 3*prev_n)``).
+        prev_n : int
+            Number of tiles represented by ``A_prev``.
+
+        Returns
+        -------
+        self : MacroMag
+            Updated object (``tiles.M`` is overwritten).
+        A : ndarray or None
+            Dense system matrix used in the solve, or None in trivial ``χ=0`` cases.
         """
         if prev_n == 0:
             if N_new_rows is None:
@@ -694,7 +772,7 @@ class MacroMag:
                 )
             
         if use_coils and (self.bs_interp is None) and (H_a_override is None):
-            raise ValueError("use_coils=True, but no coil interpolant is loaded and no H_a_override was provided.")
+            raise ValueError("use_coils=True, but no coil field evaluator is loaded and no H_a_override was provided.")
 
         if H_a_override is not None:
             H_a_override = np.asarray(H_a_override, dtype=np.float64, order="C") 
@@ -990,34 +1068,28 @@ class MacroMag:
         x0: np.ndarray | None = None,
         H_a_override: Optional[np.ndarray] = None,
         A_prev: np.ndarray | None = None,
-        prev_n: int = 0) -> "MacroMag":
+        prev_n: int = 0) -> tuple["MacroMag", Optional[np.ndarray]]:
         
         """
-        Run the Krylov‐based direct magstatics solve in place.
+        Variant of :meth:`direct_solve` with an explicit demag toggle.
 
-        Args:
-            use_coils: bool, default False
-                Whether to use coils in the solve.
-            krylov_tol: float, default 1e-3
-                Tolerance for the Krylov solver.
-            krylov_it: int, default 200
-                Maximum number of iterations for the Krylov solver.
-            demag_tensor: np.ndarray | None, default None
-                Precomputed demagnetization tensor.
-            print_progress: bool, default False
-                Whether to print progress.
-            x0: np.ndarray | None, default None
-                Initial guess for the solution.
-            H_a_override: Optional[np.ndarray], default None
-                External magnetic field to override the coil field.
-            A_prev: np.ndarray | None, default None
-                Previous A matrix for incremental updates.
-            prev_n: int, default 0
-                Number of tiles in the previous A matrix.
+        When ``use_demag=False``, the solve reduces to the local constitutive
+        response (no tile–tile coupling): ``A = I`` and ``M = b``.
 
-        Returns:
-            MacroMag: self
-        
+        Parameters
+        ----------
+        use_coils, krylov_tol, krylov_it, N_new_rows, N_new_cols, N_new_diag, print_progress,
+        x0, H_a_override, A_prev, prev_n :
+            Same meaning as in :meth:`direct_solve`.
+        use_demag : bool
+            If False, skip the demagnetization operator contribution.
+
+        Returns
+        -------
+        self : MacroMag
+            Updated object (``tiles.M`` is overwritten).
+        A : ndarray or None
+            Dense system matrix used in the solve, or None in trivial ``χ=0`` cases.
         """
         if use_demag and prev_n == 0:
             if N_new_rows is None:
@@ -1033,7 +1105,7 @@ class MacroMag:
                 )
             
         if use_coils and (self.bs_interp is None) and (H_a_override is None):
-            raise ValueError("use_coils=True, but no coil interpolant is loaded and no H_a_override was provided.")
+            raise ValueError("use_coils=True, but no coil field evaluator is loaded and no H_a_override was provided.")
 
         if H_a_override is not None:
             H_a_override = np.asarray(H_a_override, dtype=np.float64, order="C") 
@@ -1158,9 +1230,14 @@ class Tile:
 
 class Tiles:
     """
-    Input to Fortran derived type MagTile.
+    Container holding MagTense-style tile arrays.
 
-    Args:
+    This class is modeled after the MagTense ``MagTile`` Fortran derived type,
+    but implemented in pure Python/NumPy. The attributes below describe the
+    conceptual data structure; not all fields are exposed as constructor inputs.
+
+    Fields (MagTense-style)
+    -----------------------
         center_pos: r0, theta0, z0
         dev_center: dr, dtheta, dz
         size: a, b, c
@@ -1203,6 +1280,35 @@ class Tiles:
         color: list[float] | None = None,
         magnet_type: list[int] | None = None,
     ) -> None:
+        """
+        Construct a tile container with ``n`` elements.
+
+        Parameters
+        ----------
+        n : int
+            Number of tiles.
+        center_pos : list[float] or None
+            Tile center positions. May be a single 3-vector (broadcast) or an
+            array-like of shape ``(n, 3)``.
+        dev_center : list[float] or None
+            Tile center deviations. Same shape conventions as ``center_pos``.
+        size : list[float] or None
+            Tile sizes. Same shape conventions as ``center_pos``.
+        vertices : list[float] or None
+            Tile vertices. Same conventions as in :meth:`vertices` setter.
+        M_rem : float | list[float] | None
+            Remanent magnetization magnitude(s), in A/m.
+        easy_axis : list[float] | None
+            Easy-axis unit vector(s). If not provided, computed from ``mag_angle``.
+        mag_angle : list[float] | None
+            Euler angles used to define the easy axis when ``easy_axis`` is not given.
+        mu_r_ea, mu_r_oa : float | list[float] | None
+            Relative permeabilities along the easy axis and orthogonal directions.
+        tile_type : int | list[int] | None
+            Tile geometry type code.
+        offset, rot, color, magnet_type : list[...] | None
+            Additional MagTense-style metadata arrays.
+        """
         self.n = n
         self.center_pos = center_pos
         self.dev_center = dev_center
