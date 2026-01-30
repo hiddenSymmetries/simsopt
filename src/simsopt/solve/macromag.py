@@ -1,16 +1,38 @@
 from __future__ import annotations # Temporary fix for python compatibility
+import functools
 import math
 import numpy as np
 from simsopt.field import Coil, BiotSavart, InterpolatedField
 from simsopt.util.permanent_magnet_helper_functions import read_focus_coils
 from scipy.constants import mu_0
 from scipy.sparse.linalg import gmres
-from numba import njit, prange
 from pathlib import Path
 from typing import Optional
 from scipy.sparse import coo_matrix
 
 __all__ = ["MacroMag"]
+
+try:
+    from numba import njit, prange  # type: ignore
+    _HAS_NUMBA = True
+except ModuleNotFoundError:  # pragma: no cover
+    _HAS_NUMBA = False
+    # Numba is an optional dependency (used only for accelerating MacroMag).
+    # If it is not installed, we provide no-op fallbacks so functionality
+    # remains available (albeit much slower for large problems).
+    def njit(*args, **kwargs):  # type: ignore
+        """Fallback decorator that returns the function unchanged."""
+        if args and callable(args[0]) and len(args) == 1 and not kwargs:
+            return args[0]
+
+        def _decorator(fn):
+            return fn
+
+        return _decorator
+
+    def prange(*args, **kwargs):  # type: ignore
+        """Fallback for numba.prange using the built-in range."""
+        return range(*args)
 
 
 _INV4PI  = 1.0 / (4.0 * math.pi)
@@ -481,7 +503,7 @@ def _prism_N_local_nb(a, b, c, x0, y0, z0):
 @njit(parallel=True, cache=False)
 def _assemble_tensor_local_nb(centres, half, Rg2l):
     """
-    Assemble the full dense demag tensor for a tile set (Numba, local evaluation).
+    Assemble the full dense demag tensor for a tile set (Numba-accelerated when available).
 
     For each tile pair (i,j), compute the local-frame prism demag block N_ij
     using :func:`_prism_N_local_nb`, after rotating the separation vector from
@@ -519,7 +541,7 @@ def _assemble_tensor_local_nb(centres, half, Rg2l):
 @njit(parallel=True, cache=False)
 def assemble_blocks_subset(centres, half, Rg2l, I, J):
     """
-    Assemble a subset of demag tensor blocks (Numba).
+    Assemble a subset of demag tensor blocks (Numba-accelerated when available).
 
     This helper returns the blocks N[I[ii], J[jj]] without forming the full
     (n,n,3,3) tensor, which is useful for incremental/batched assembly.
@@ -552,6 +574,289 @@ def assemble_blocks_subset(centres, half, Rg2l, I, J):
             z = R[2,0]*dx + R[2,1]*dy + R[2,2]*dz
             out[ii,jj] = _prism_N_local_nb(a,b,c,x,y,z)
     return out
+
+
+def assemble_blocks_subset_jax(centres, half, Rg2l, I, J):
+    """
+    Assemble a subset of demag operator blocks using JAX (experimental).
+
+    This function is intended for validating a JAX implementation against the
+    reference NumPy/Numba implementation in :func:`assemble_blocks_subset`.
+    It returns the same demag *operator* convention used throughout this module:
+
+        ``H_demag = N_op @ M``
+
+    where ``N_op = -N_std`` for the standard Newell/Aharoni demag tensor.
+
+    Notes
+    -----
+    - This implementation is CPU-oriented and uses ``jax.jit``.
+    - It is sensitive to dtype: we enable ``jax_enable_x64`` and use float64 to
+      match the reference implementation.
+    - This is kept separate from the production code path until benchmarking
+      demonstrates a clear benefit for realistic workloads.
+
+    Parameters
+    ----------
+    centres, half, Rg2l : ndarray
+        Same meaning as :func:`assemble_blocks_subset`.
+    I, J : ndarray
+        Target/source tile indices.
+
+    Returns
+    -------
+    ndarray
+        Demag operator blocks, shape ``(len(I), len(J), 3, 3)``.
+    """
+    kernel = _get_assemble_blocks_subset_jax_kernel()
+    out = kernel(
+        np.asarray(centres, dtype=np.float64),
+        np.asarray(half, dtype=np.float64),
+        np.asarray(Rg2l, dtype=np.float64),
+        np.asarray(I, dtype=np.int64),
+        np.asarray(J, dtype=np.int64),
+    )
+    out.block_until_ready()
+    return np.asarray(out)
+
+
+@functools.lru_cache(maxsize=1)
+def _get_assemble_blocks_subset_jax_kernel():
+    """
+    Return a cached JAX-jitted kernel for demag block assembly.
+
+    The returned function has signature ``(centres, half, Rg2l, I, J)`` and
+    returns blocks with shape ``(len(I), len(J), 3, 3)``.
+
+    Notes
+    -----
+    JAX compilation is specialized to input shapes and dtypes. With this cached
+    kernel we avoid *re-creating* and *re-jitting* the Python function on every
+    call (which previously forced frequent recompilation), but new shapes for
+    ``I``/``J`` will still trigger XLA compilation.
+    """
+    import jax
+
+    # Ensure float64 in this module even if simsopt.geo is not imported.
+    jax.config.update("jax_enable_x64", True)
+    import jax.numpy as jnp
+
+    inv4pi = 1.0 / (4.0 * math.pi)
+    macheps = np.finfo(np.float64).eps
+
+    def _f_3D_jax(a, b, c, x, y, z):
+        eps_h, eps_l = 1.0001, 0.9999
+        dx = a - x
+        r = jnp.sqrt(dx * dx + (b - y) ** 2 + (c - z) ** 2)
+        val = (b - y) * (c - z) / (dx * r)
+
+        dxh = a - x * eps_h
+        dxl = a - x * eps_l
+        r_h = jnp.sqrt(dxh * dxh + (b - y) ** 2 + (c - z) ** 2)
+        r_l = jnp.sqrt(dxl * dxl + (b - y) ** 2 + (c - z) ** 2)
+        val_h = (b - y) * (c - z) / (dxh * r_h)
+        val_l = (b - y) * (c - z) / (dxl * r_l)
+        val_lim = 0.5 * (val_h + val_l)
+        return jnp.where(dx == 0.0, val_lim, val)
+
+    def _g_3D_jax(a, b, c, x, y, z):
+        eps_h, eps_l = 1.0001, 0.9999
+        dy = b - y
+        r = jnp.sqrt((a - x) ** 2 + dy * dy + (c - z) ** 2)
+        val = (a - x) * (c - z) / (dy * r)
+
+        dyh = b - y * eps_h
+        dyl = b - y * eps_l
+        r_h = jnp.sqrt((a - x) ** 2 + dyh * dyh + (c - z) ** 2)
+        r_l = jnp.sqrt((a - x) ** 2 + dyl * dyl + (c - z) ** 2)
+        val_h = (a - x) * (c - z) / (dyh * r_h)
+        val_l = (a - x) * (c - z) / (dyl * r_l)
+        val_lim = 0.5 * (val_h + val_l)
+        return jnp.where(dy == 0.0, val_lim, val)
+
+    def _h_3D_jax(a, b, c, x, y, z):
+        eps_h, eps_l = 1.0001, 0.9999
+        dz = c - z
+        r = jnp.sqrt((a - x) ** 2 + (b - y) ** 2 + dz * dz)
+        val = (a - x) * (b - y) / (dz * r)
+
+        dzh = c - z * eps_h
+        dzl = c - z * eps_l
+        r_h = jnp.sqrt((a - x) ** 2 + (b - y) ** 2 + dzh * dzh)
+        r_l = jnp.sqrt((a - x) ** 2 + (b - y) ** 2 + dzl * dzl)
+        val_h = (a - x) * (b - y) / (dzh * r_h)
+        val_l = (a - x) * (b - y) / (dzl * r_l)
+        val_lim = 0.5 * (val_h + val_l)
+        return jnp.where(dz == 0.0, val_lim, val)
+
+    def _FF_3D_jax(a, b, c, x, y, z):
+        return (c - z) + jnp.sqrt((a - x) ** 2 + (b - y) ** 2 + (c - z) ** 2)
+
+    def _GG_3D_jax(a, b, c, x, y, z):
+        return (a - x) + jnp.sqrt((a - x) ** 2 + (b - y) ** 2 + (c - z) ** 2)
+
+    def _HH_3D_jax(a, b, c, x, y, z):
+        return (b - y) + jnp.sqrt((a - x) ** 2 + (b - y) ** 2 + (c - z) ** 2)
+
+    def _getF_limit_jax(a, b, c, x, y, z, func):
+        lim_h, lim_l = 1.0001, 0.9999
+        xl, yl, zl = x * lim_l, y * lim_l, z * lim_l
+        xh, yh, zh = x * lim_h, y * lim_h, z * lim_h
+
+        nom_l = (
+            func(+a, +b, +c, xl, yl, zl)
+            * func(-a, -b, +c, xl, yl, zl)
+            * func(+a, -b, -c, xl, yl, zl)
+            * func(-a, +b, -c, xl, yl, zl)
+        )
+        denom_l = (
+            func(+a, -b, +c, xl, yl, zl)
+            * func(-a, +b, +c, xl, yl, zl)
+            * func(+a, +b, -c, xl, yl, zl)
+            * func(-a, -b, -c, xl, yl, zl)
+        )
+
+        nom_h = (
+            func(+a, +b, +c, xh, yh, zh)
+            * func(-a, -b, +c, xh, yh, zh)
+            * func(+a, -b, -c, xh, yh, zh)
+            * func(-a, +b, -c, xh, yh, zh)
+        )
+        denom_h = (
+            func(+a, -b, +c, xh, yh, zh)
+            * func(-a, +b, +c, xh, yh, zh)
+            * func(+a, +b, -c, xh, yh, zh)
+            * func(-a, -b, -c, xh, yh, zh)
+        )
+        return (nom_l + nom_h) / (denom_l + denom_h)
+
+    def prism_N_op_jax(a, b, c, x0, y0, z0):
+        # diagonal via signed corner combos
+        signs = jnp.array(
+            [
+                [1.0, 1.0, 1.0],
+                [1.0, 1.0, -1.0],
+                [1.0, -1.0, 1.0],
+                [1.0, -1.0, -1.0],
+                [-1.0, 1.0, 1.0],
+                [-1.0, 1.0, -1.0],
+                [-1.0, -1.0, 1.0],
+                [-1.0, -1.0, -1.0],
+            ],
+            dtype=jnp.float64,
+        )
+        xi = signs[:, 0, None, None] * x0[None, :, :]
+        yi = signs[:, 1, None, None] * y0[None, :, :]
+        zi = signs[:, 2, None, None] * z0[None, :, :]
+
+        a_ = a[None, :, None]
+        b_ = b[None, :, None]
+        c_ = c[None, :, None]
+
+        sum_f = jnp.sum(jnp.arctan(_f_3D_jax(a_, b_, c_, xi, yi, zi)), axis=0)
+        sum_g = jnp.sum(jnp.arctan(_g_3D_jax(a_, b_, c_, xi, yi, zi)), axis=0)
+        sum_h = jnp.sum(jnp.arctan(_h_3D_jax(a_, b_, c_, xi, yi, zi)), axis=0)
+
+        Nxx = inv4pi * sum_f
+        Nyy = inv4pi * sum_g
+        Nzz = inv4pi * sum_h
+
+        def off_diag(func):
+            a2 = a[:, None]
+            b2 = b[:, None]
+            c2 = c[:, None]
+            nom = (
+                func(+a2, +b2, +c2, x0, y0, z0)
+                * func(-a2, -b2, +c2, x0, y0, z0)
+                * func(+a2, -b2, -c2, x0, y0, z0)
+                * func(-a2, +b2, -c2, x0, y0, z0)
+            )
+            denom = (
+                func(+a2, -b2, +c2, x0, y0, z0)
+                * func(-a2, +b2, +c2, x0, y0, z0)
+                * func(+a2, +b2, -c2, x0, y0, z0)
+                * func(-a2, -b2, -c2, x0, y0, z0)
+            )
+            ratio_lim = _getF_limit_jax(a2, b2, c2, x0, y0, z0, func)
+            use_lim = (nom == 0.0) | (denom == 0.0)
+            ratio = jnp.where(use_lim, ratio_lim, nom / denom)
+            val = -inv4pi * jnp.log(ratio)
+            close = (denom != 0.0) & (jnp.abs((nom - denom) / denom) < 10.0 * macheps)
+            return jnp.where(close, 0.0, val)
+
+        Nxy = off_diag(_FF_3D_jax)
+        Nyz = off_diag(_GG_3D_jax)
+        Nxz = off_diag(_HH_3D_jax)
+
+        N = jnp.stack(
+            [
+                jnp.stack([Nxx, Nxy, Nxz], axis=-1),
+                jnp.stack([Nxy, Nyy, Nyz], axis=-1),
+                jnp.stack([Nxz, Nyz, Nzz], axis=-1),
+            ],
+            axis=-2,
+        )
+        return -N  # operator convention
+
+    def _kernel_impl(centres, half, Rg2l, I, J):
+        centres_I = centres[I]
+        centres_J = centres[J]
+        d = centres_I[:, None, :] - centres_J[None, :, :]  # (nI, nJ, 3)
+        R = Rg2l[I]  # (nI, 3, 3)
+        d_loc = jnp.einsum("iab,ijb->ija", R, d)  # (nI, nJ, 3)
+        x0 = d_loc[:, :, 0]
+        y0 = d_loc[:, :, 1]
+        z0 = d_loc[:, :, 2]
+        a = half[I][:, 0]
+        b = half[I][:, 1]
+        c = half[I][:, 2]
+        return prism_N_op_jax(a, b, c, x0, y0, z0)
+
+    return jax.jit(_kernel_impl)
+
+
+def assemble_blocks_subset_dispatch(centres, half, Rg2l, I, J, *, backend: str = "auto"):
+    """
+    Assemble a subset of demag operator blocks using a selected backend.
+
+    This dispatch helper exists primarily for validation and benchmarking of
+    the JAX implementation against the reference Numba implementation.
+
+    Parameters
+    ----------
+    centres, half, Rg2l : ndarray
+        Same meaning as :func:`assemble_blocks_subset`.
+    I, J : ndarray
+        Target/source tile indices.
+    backend : {"auto", "numba", "jax"}, optional
+        Backend selector:
+
+        - ``"auto"``: use Numba if available, else JAX.
+        - ``"numba"``: use :func:`assemble_blocks_subset`.
+        - ``"jax"``: use :func:`assemble_blocks_subset_jax`.
+
+    Returns
+    -------
+    ndarray
+        Demag operator blocks ``N_op`` with shape ``(len(I), len(J), 3, 3)`` such
+        that ``H_demag = N_op @ M``. This module uses ``N_op = -N_std`` relative
+        to the standard demagnetization tensor convention.
+    """
+    backend_norm = backend.strip().lower()
+    if backend_norm == "auto":
+        backend_norm = "numba" if _HAS_NUMBA else "jax"
+
+    if backend_norm == "numba":
+        return assemble_blocks_subset(centres, half, Rg2l, I, J)
+    if backend_norm == "jax":
+        return assemble_blocks_subset_jax(centres, half, Rg2l, I, J)
+
+    raise ValueError(
+        "Unknown backend for assemble_blocks_subset_dispatch: "
+        f"{backend!r}. Expected one of {{'auto', 'numba', 'jax'}}."
+    )
+
+
 class MacroMag:
     """Compute demag tensor for rectangular prisms."""
 
@@ -589,32 +894,32 @@ class MacroMag:
 
     @staticmethod
     def _f_3D(a, b, c, x, y, z):
-        """Public wrapper for the Numba helper :func:`_f_3D`."""
+        """Public wrapper for :func:`_f_3D` (Numba-accelerated when available)."""
         return _f_3D(a, b, c, x, y, z)
 
     @staticmethod
     def _g_3D(a, b, c, x, y, z):
-        """Public wrapper for the Numba helper :func:`_g_3D`."""
+        """Public wrapper for :func:`_g_3D` (Numba-accelerated when available)."""
         return _g_3D(a, b, c, x, y, z)
 
     @staticmethod
     def _h_3D(a, b, c, x, y, z):
-        """Public wrapper for the Numba helper :func:`_h_3D`."""
+        """Public wrapper for :func:`_h_3D` (Numba-accelerated when available)."""
         return _h_3D(a, b, c, x, y, z)
 
     @staticmethod
     def _FF_3D(a, b, c, x, y, z):
-        """Public wrapper for the Numba helper :func:`_FF_3D`."""
+        """Public wrapper for :func:`_FF_3D` (Numba-accelerated when available)."""
         return _FF_3D(a, b, c, x, y, z)
 
     @staticmethod
     def _GG_3D(a, b, c, x, y, z):
-        """Public wrapper for the Numba helper :func:`_GG_3D`."""
+        """Public wrapper for :func:`_GG_3D` (Numba-accelerated when available)."""
         return _GG_3D(a, b, c, x, y, z)
 
     @staticmethod
     def _HH_3D(a, b, c, x, y, z):
-        """Public wrapper for the Numba helper :func:`_HH_3D`."""
+        """Public wrapper for :func:`_HH_3D` (Numba-accelerated when available)."""
         return _HH_3D(a, b, c, x, y, z)
 
     @staticmethod
