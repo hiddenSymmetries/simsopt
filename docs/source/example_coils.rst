@@ -1,3 +1,5 @@
+.. _example_coils:
+
 Coil optimization
 =================
 
@@ -18,12 +20,12 @@ We then add several advanced features to the problem:
   which may help with engineering feasibility.
 - Taking into account coil perturbations via systematic and statistical
   errors using a stochastic optimization method similar to the example in
-  ``examples/2_Intermediate/stage_two_optimization_stochastic.py``.
+  :simsopt_file:`examples/2_Intermediate/stage_two_optimization_stochastic.py`.
 - Taking into account the presence of plasma current
   using the virtual casing principle, similar to the example
-  in ``examples/2_Intermediate/stage_two_optimization_finite_beta.py``.
+  in :simsopt_file:`examples/2_Intermediate/stage_two_optimization_finite_beta.py`.
 - Taking into account finite coil width using a multi-filament approach
-  similar to the example in ``examples/3_Advanced/stage_two_optimization_finite_build.py``.
+  similar to the example in :simsopt_file:`examples/3_Advanced/stage_two_optimization_finitebuild.py`.
 
 
 .. _minimal_stage2:
@@ -39,7 +41,7 @@ A minimal objective function (cost function) for coil optimization is
       + (\mathtt{LENGTH\_WEIGHT}) \left(L_* - \sum_j L_j\right)^2.
 
 This example can also be found in
-``examples/1_Simple/stage_two_optimization_minimal.py``.
+:simsopt_file:`examples/1_Simple/stage_two_optimization_minimal.py`.
 The first term in the right-hand-side term is the "quadratic flux", the area
 integral over the target plasma surface of the square of the magnetic
 field normal to the surface. If the coils exactly produce a flux
@@ -73,7 +75,7 @@ To solve this optimization problem in simsopt, we first import the necessary cla
   from simsopt.field import Current, coils_via_symmetries, BiotSavart
   from simsopt.objectives import SquaredFlux, QuadraticPenalty
 
-The target plasma surface is given in the VMEC input file ``tests/test_files/input.LandremanPaul2021_QA``.
+The target plasma surface is given in the VMEC input file :simsopt_file:`tests/test_files/input.LandremanPaul2021_QA`.
 We load the surface using:
 
 .. code-block::
@@ -363,7 +365,7 @@ However, better coils can be obtained if additional terms are included in the ob
 to control the coil curvature and coil-to-coil separation.
 A large number of other terms are available in :obj:`simsopt.geo` to include in the objective function,
 many of which are illustrated in
-``examples/2_Intermediate/stage_two_optimization.py``. Other available objective terms include
+:simsopt_file:`examples/2_Intermediate/stage_two_optimization.py`. Other available objective terms include
 
 - :obj:`~simsopt.geo.MeanSquaredCurvature`: Reduces the coil curvature evenly along the curve.
 - :obj:`~simsopt.geo.LpCurveCurvature`: Penalizes values of the coil curvature that exceed a threshold.
@@ -392,9 +394,9 @@ the goal is to find coils that generate a specific target
 normal field on a given surface. As we are still considering a vacuum
 field the target is just zero.
 The target equilibrium is the `precise QA configuration <https://doi.org/10.1103/PhysRevLett.128.035001>`_.
-The complete script can be found in ``examples/2_Intermediate/stage_two_optimization_stochastic.py``.
+The complete script can be found in :simsopt_file:`examples/2_Intermediate/stage_two_optimization_stochastic.py`.
 
-The objective function is similar to ``examples/2_Intermediate/stage_two_optimization.py``
+The objective function is similar to :simsopt_file:`examples/2_Intermediate/stage_two_optimization.py`
 but with a few modifications::
 
     J = (1/2) Mean(\int |B dot n|^2 ds)
@@ -482,7 +484,7 @@ in which there is current inside the plasma, which contributes significantly to
 the total magnetic field.Therefore, the
 target quantity :math:`\vec{B}_{external}\cdot \vec{n}` is no longer zero
 and a virtual casing calculation is used to find its value.
-The complete script can be found in ``examples/2_Intermediate/stage_two_finite_beta.py``.
+The complete script can be found in :simsopt_file:`examples/2_Intermediate/stage_two_optimization_finite_beta.py`.
 
 We use an objective function similar to :ref:`the first example <minimal_stage2>`
 with small modifications::
@@ -541,7 +543,7 @@ Finite Build Optimization
 
 In this final example, we perform a stage 2 optimization with
 finite build coils. The script for this case can be found in
-``examples/3_Advanced/stage_two_optimization_finite_build.py``.
+:simsopt_file:`examples/3_Advanced/stage_two_optimization_finite_build.py`.
 In particular, we use a multifilament approach that follows
 
 .. code-block::

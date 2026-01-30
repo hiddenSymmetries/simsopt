@@ -1,13 +1,20 @@
 import logging
+import time
 
 import numpy as np
 from scipy.io import netcdf_file
 from scipy.interpolate import interp1d
+from scipy.optimize import minimize, least_squares, NonlinearConstraint
 import f90nml
+import jax
+import jax.numpy as jnp
+import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
+import matplotlib.colors as mpl_colors
 
 import simsoptpp as sopp
 from .surface import Surface
-from .._core.optimizable import DOFs, Optimizable
+from .._core.optimizable import Optimizable
 from .._core.util import nested_lists_to_array
 from .._core.dev import SimsoptRequires
 
@@ -24,7 +31,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-__all__ = ['SurfaceRZFourier', 'SurfaceRZPseudospectral']
+__all__ = ['SurfaceRZFourier', 'SurfaceRZPseudospectral', 'plot_spectral_condensation']
 
 
 class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
@@ -631,17 +638,25 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
     def copy(self, **kwargs):
         """
-        Return a copy of the ``SurfaceRZFourier`` object, but with the specified
+        Return a copy of the ``SurfaceRZFourier`` object. 
+        A range of relevant parameters of the surface can be passed to this function
+        as keyword arguments in order to modify the properties of the returned copy. 
         attributes changed. Keyword arguments accepted:
 
-        - ``ntheta``: number of quadrature points in the theta direction
-        - ``nphi``: number of quadrature points in the phi direction
-        - ``mpol``: number of poloidal Fourier modes for the surface
-        - ``ntor``: number of toroidal Fourier modes for the surface
-        - ``nfp``: number of field periods
-        - ``stellsym``: whether the surface is stellarator-symmetric
-        - ``quadpoints_theta``: theta grid points
-        - ``quadpoints_phi``: phi grid points
+        Kwargs: 
+         ntheta (int): number of quadrature points in the theta direction
+         nphi (int): number of quadrature points in the phi direction
+         mpol (int): number of poloidal Fourier modes for the surface
+         ntor (int): number of toroidal Fourier modes for the surface
+         nfp (int): number of field periods
+         stellsym (bool): whether the surface is stellarator-symmetric
+         quadpoints_theta (NdArray[float]): theta grid points
+         quadpoints_phi (NdArray[float]): phi grid points
+         range (str): range of the gridpoints either 'full torus', 'field period' or 'half period'. Ignored if quadponts are provided.
+
+        Returns:
+            surf: A new SurfaceRZFourier object, with properties specified by kwargs changed.
+
 
         """
         otherntheta = self.quadpoints_theta.size
@@ -649,13 +664,13 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         ntheta = kwargs.pop("ntheta", otherntheta)
         nphi = kwargs.pop("nphi", othernphi)
-        grid_range = kwargs.pop("range", None)
         mpol = kwargs.pop("mpol", self.mpol)
         ntor = kwargs.pop("ntor", self.ntor)
         nfp = kwargs.pop("nfp", self.nfp)
         stellsym = kwargs.pop("stellsym", self.stellsym)
         quadpoints_theta = kwargs.pop("quadpoints_theta", None)
         quadpoints_phi = kwargs.pop("quadpoints_phi", None)
+        grid_range = kwargs.pop("range", None)
 
         # recalculate the quadpoints if necessary (grid_range is not stored in the
         # surface object, so assume that if it is given, the gridpoints should be
@@ -683,51 +698,37 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             else:
                 kwargs["quadpoints_phi"] = quadpoints_phi
         # create new surface in old resolution
-        surf = SurfaceRZFourier(mpol=self.mpol, ntor=self.ntor, nfp=nfp, stellsym=stellsym,
+        surf = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
                                 **kwargs)
-        surf.rc[:, :] = self.rc
-        surf.zs[:, :] = self.zs
-        if not self.stellsym:
-            surf.rs[:, :] = self.rs
-            surf.zc[:, :] = self.zc
-        # set to the requested resolution
-        surf.change_resolution(mpol, ntor)
+        surf.x[:] = 0 
+
+        # copy coefficients to the new surface
+        for m in range(0, min(mpol, self.mpol)+1):
+            this_nmax = min(ntor, self.ntor)
+            if m == 0:
+                this_nmin = 0
+            else: 
+                this_nmin = -this_nmax
+            for n in range(this_nmin, this_nmax+1):
+                surf.set_rc(m, n, self.get_rc(m, n))
+                surf.set_zs(m, n, self.get_zs(m, n))
+                if not surf.stellsym and not self.stellsym:
+                    surf.set_zc(m, n, self.get_zc(m, n))
+                    surf.set_rs(m, n, self.get_rs(m, n))
+
         surf.local_full_x = surf.get_dofs()
         return surf
 
     def change_resolution(self, mpol, ntor):
         """
-        Change the values of `mpol` and `ntor`. Any new Fourier amplitudes
-        will have a magnitude of zero.  Any previous nonzero Fourier
-        amplitudes that are not within the new range will be
-        discarded.
+        return a new surface with Fourier resolution mpol, ntor
+        Args: 
+            mpol: new poloidal mode number
+            ntor: new toroidal mode number
+        Returns: 
+            surf: A new SurfaceRZFourier object with the specified resolution.
         """
-        old_mpol = self.mpol
-        old_ntor = self.ntor
-        old_rc = self.rc
-        old_zs = self.zs
-        if not self.stellsym:
-            old_rs = self.rs
-            old_zc = self.zc
-        self.mpol = mpol
-        self.ntor = ntor
-        self.allocate()
-        if mpol < old_mpol or ntor < old_ntor:
-            self.invalidate_cache()
-
-        min_mpol = np.min((mpol, old_mpol))
-        min_ntor = np.min((ntor, old_ntor))
-        for m in range(min_mpol + 1):
-            for n in range(-min_ntor, min_ntor + 1):
-                self.rc[m, n + ntor] = old_rc[m, n + old_ntor]
-                self.zs[m, n + ntor] = old_zs[m, n + old_ntor]
-                if not self.stellsym:
-                    self.rs[m, n + ntor] = old_rs[m, n + old_ntor]
-                    self.zc[m, n + ntor] = old_zc[m, n + old_ntor]
-        self._make_mn()
-
-        # Update the dofs object
-        self.replace_dofs(DOFs(self.get_dofs(), self._make_names()))
+        return self.copy(mpol=mpol, ntor=ntor)
 
     def to_RZFourier(self):
         """
@@ -855,12 +856,14 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
     def darea(self):
         """
+        Derivative of the area with respect to the surface Fourier coefficients.
         Short hand for `Surface.darea_by_dcoeff()`
         """
         return self.darea_by_dcoeff()
 
     def dvolume(self):
         """
+        Derivative of the volume with respect to the surface Fourier coefficients.
         Short hand for `Surface.dvolume_by_dcoeff()`
         """
         return self.dvolume_by_dcoeff()
@@ -913,6 +916,9 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     def extend_via_normal(self, distance):
         """
         Extend the surface in the normal direction by a uniform distance.
+
+        *NOTE* this modifies the surface in place. use the surface copy
+        method if you want to keep the original surface.
 
         Args:
             distance: The distance to extend the surface.
@@ -1107,7 +1113,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         return scalars
 
     def make_rotating_ellipse(self, major_radius, minor_radius, elongation, torsion=0):
-        """
+        r"""
         Set the surface shape to be a rotating ellipse with the given
         parameters.
 
@@ -1142,10 +1148,846 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self.set_rc(1, 0, amplitude)
         self.set_zs(1, 0, amplitude)
 
+    def flip_z(self):
+        """
+        Flip the sign of the z coordinate. This will flip the sign of the
+        rotational transform of a plasma bounded by this surface. Note that vmec
+        requires θ to increase as you move from the outboard to inboard side
+        over the top of the surface. This z-flip transformation will reverse
+        that direction.
+        """
+        self.zs = -self.zs
+        if not self.stellsym:
+            self.zc = -self.zc
+        self.local_full_x = self.get_dofs()
+
+    def flip_phi(self):
+        """
+        Flip the sign of the toroidal angle ϕ, i.e. mirror-reflect the surface
+        about the x-z plane. This will reverse the sign of the rotational
+        transform of a plasma bounded by this surface, without reversing the
+        direction in which θ increases. This is the best way to flip the sign of
+        the rotational transform for a vmec calculation.
+        """
+        # Handle m=0 modes, where there are no modes with negative n.
+        # cos(-nϕ) → cos(nϕ) = cos(-nϕ)
+        # sin(-nϕ) → sin(nϕ) = -sin(-nϕ)
+        for n in range(1, self.ntor + 1):
+            self.zs[0, n + self.ntor] = -self.zs[0, n + self.ntor]
+            if not self.stellsym:
+                self.rs[0, n + self.ntor] = -self.rs[0, n + self.ntor]
+
+        # Handle m>0 modes: swap the positive and negative n modes
+        for m in range(1, self.mpol + 1):
+            for n in range(1, self.ntor + 1):
+                temp = self.rc[m, n + self.ntor]
+                self.rc[m, n + self.ntor] = self.rc[m, -n + self.ntor]
+                self.rc[m, -n + self.ntor] = temp
+
+                temp = self.zs[m, n + self.ntor]
+                self.zs[m, n + self.ntor] = self.zs[m, -n + self.ntor]
+                self.zs[m, -n + self.ntor] = temp
+
+                if not self.stellsym:
+                    temp = self.rs[m, n + self.ntor]
+                    self.rs[m, n + self.ntor] = self.rs[m, -n + self.ntor]
+                    self.rs[m, -n + self.ntor] = temp
+
+                    temp = self.zc[m, n + self.ntor]
+                    self.zc[m, n + self.ntor] = self.zc[m, -n + self.ntor]
+                    self.zc[m, -n + self.ntor] = temp
+
+        self.local_full_x = self.get_dofs()
+
+    def flip_theta(self):
+        """
+        Flip the direction in which the poloidal angle θ increases. The physical
+        shape of the surface in 3D will not change, only its parameterization.
+        Note that vmec requires θ to increase as you move from the outboard to
+        inboard side over the top of the surface. This transformation will
+        reverse that direction.
+        """
+        # We don't change the m=0 modes since they are independent of θ.
+        for m in range(1, self.mpol + 1):
+            # For m>0 modes with n=0:
+            # cos(mθ) → cos(-mθ) =  cos(mθ)
+            # sin(mθ) → sin(-mθ) = -sin(mθ)
+            # So, flip the sign of the sin terms
+            self.zs[m, self.ntor] = -self.zs[m, self.ntor]
+            if not self.stellsym:
+                self.rs[m, self.ntor] = -self.rs[m, self.ntor]
+
+            # For m>0 modes with nonzero n:
+            # cos(mθ-nϕ) → cos(-mθ-nϕ) =  cos(mθ+nϕ)
+            # sin(mθ-nϕ) → sin(-mθ-nϕ) = -sin(mθ+nϕ)
+            # So, swap the positive and negative n modes,
+            # with a sign flip for the sin terms only.
+            for n in range(1, self.ntor + 1):
+                temp = self.rc[m, n + self.ntor]
+                self.rc[m, n + self.ntor] = self.rc[m, -n + self.ntor]
+                self.rc[m, -n + self.ntor] = temp
+
+                temp = self.zs[m, n + self.ntor]
+                self.zs[m, n + self.ntor] = -self.zs[m, -n + self.ntor]
+                self.zs[m, -n + self.ntor] = -temp
+
+                if not self.stellsym:
+                    temp = self.rs[m, n + self.ntor]
+                    self.rs[m, n + self.ntor] = -self.rs[m, -n + self.ntor]
+                    self.rs[m, -n + self.ntor] = -temp
+
+                    temp = self.zc[m, n + self.ntor]
+                    self.zc[m, n + self.ntor] = self.zc[m, -n + self.ntor]
+                    self.zc[m, -n + self.ntor] = temp
+
+        self.local_full_x = self.get_dofs()
+
+    def rotate_half_field_period(self):
+        """
+        Rotate the surface toroidally by half a field period.
+
+        This operation is useful when you have a surface with the bean
+        cross-section at ϕ = π / nfp, and you want to rotate it so that the bean
+        is at ϕ = 0.
+        """
+        x = self.local_full_x
+        # Flip the sign of all modes with odd n:
+        odd_ns = (self.n % 2 == 1)
+        x[odd_ns] = -x[odd_ns]
+        self.local_full_x = x
+
+    def shift_theta_by_half(self):
+        """
+        Shift the origin of the poloidal angle θ by 1/2.
+
+        This operation is useful when you have a surface with θ=0 at the inboard
+        side instead of the usual outboard side.
+        """
+        x = self.local_full_x
+        # Flip the sign of all modes with odd m:
+        odd_ms = (self.m % 2 == 1)
+        x[odd_ms] = -x[odd_ms]
+        self.local_full_x = x
+
+
+    def spectral_width(self, power=2):
+        r"""
+        Compute the spectral width of the surface Fourier coefficients.
+
+        For this function, the spectral width is defined as:
+
+        .. math::
+            W = \frac{1}{2} \sum_{m,n} \left( \frac{ (r_{m,n}^c)^2 + (r_{m,n}^s)^2 + (z_{m,n}^c)^2 + (z_{m,n}^s)^2 }{ a^2 } \right) (m^2 + n^2)^{p}
+
+        where :math:`r_{m,n}^c`, :math:`r_{m,n}^s`, :math:`z_{m,n}^c`, and
+        :math:`z_{m,n}^s` are the Fourier coefficients of the surface shape,
+        :math:`a` is the minor radius of the surface, and :math:`p` is a
+        constant corresponding to the ``power`` argument.
+
+        This quantity is similar to the spectral width discussed in various
+        papers related to VMEC, such as Hirshman and Meier, Physics of Fluids
+        28, 1387 (1985). However the definition here is not exactly the same,
+        due to the 1/2 factor, different normalization, and inclusion of :math:`n`
+        in the weighting factor.
+
+        See also the method :func:`~simsopt.geo.SurfaceRZFourier.condense_spectrum`,
+        which minimizes this quantity by adjusting the poloidal angle.
+
+        Args:
+            power: The power to which to raise the Fourier coefficients
+                when computing the spectral width. Default is 2.
+
+        Returns:
+            The spectral width as a float.
+        """
+        return 0.5 * np.sum((self.x / self.minor_radius())**2 * (self.m**2 + self.n**2)**power)
+
+    def condense_spectrum(
+        self,
+        n_theta=None,
+        n_phi=None,
+        power=2,
+        maxiter=None,
+        method="SLSQP",
+        epsilon=1e-3,
+        Fourier_continuation=True,
+        verbose=True,
+    ):
+        r"""Apply spectral condensation so the Fourier amplitudes ``rc`` and ``zs`` decay
+        more rapidly with ``m`` and ``n``.
+
+        This function has similarities to the spectral condensation
+        used in VMEC, see e.g. Hirshman and Meier, Physics of Fluids 28, 1387
+        (1985), although the algorithm used here is different. The idea is to
+        reparameterize the poloidal angle so that the shape can be represented
+        with as few Fourier modes as possible.
+
+        Let :math:`\theta_1` be the original poloidal angle, and let
+        :math:`\theta_2` be a new poloidal angle with :math:`\theta_2 = \theta_1
+        + \lambda(\theta_1, \phi)` for some function :math:`\lambda`. This
+        routine optimizes :math:`\lambda` to minimize the spectral width while
+        preserving the surface shape in real space as well as possible. The
+        objective function minimized is the same function shown in the
+        documentation for :func:`~simsopt.geo.SurfaceRZFourier.spectral_width`.
+        At each iteration, i.e. for any specific choice of :math:`\lambda`,
+        updated values of ``rc`` and ``zs`` are computed by Fourier-transforming
+        points on the original surface, with the results used to evaluate the
+        objective. Gradients are evaluated using JAX. Optionally, a constrained
+        optimization method can be used to ensure that the maximum change to the
+        surface shape is below a specified fraction of the minor radius, given
+        by the ``epsilon`` argument.
+
+        If ``n_theta`` and ``n_phi`` are not specified, they default to ``3*mpol+1``
+        and ``3*ntor+1``, respectively.
+
+        The optimization algorithm is specified by ``method``. The recommended
+        settings are either ``SLSQP`` or ``trust-constr``. This argument accepts
+        any method supported by `scipy.optimize.minimize
+        <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html>`__
+        (``L-BFGS-B``, ``BFGS``, etc.) or any of the methods supported by
+        `scipy.optimize.least_squares
+        <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`__
+        (``trf``, ``dogleg``, or ``lm``). The constrained algorithms ``SLSQP``
+        or ``trust-constr`` are recommended to ensure that the surface shape
+        does not change too much. You can try the unconstrained algorithms,
+        which may be faster and result in a smaller spectral width, but not
+        always, and sometimes the surface shape will not be preserved well.
+        Based on experience, the least-squares methods achieve slightly lower
+        values of the spectral width, but take more time per iteration. Any of
+        the algorithms ``trf``, ``BFGS``, and ``lm`` are likely to work.
+
+        If ``maxiter`` is not specified, it defaults to 25 for the least-squares
+        methods, and 100 for other methods.
+
+        If ``Fourier_continuation`` is True, first the Fourier modes of
+        :math:`\lambda` with :math:`|m|` and :math:`|n|` up to 1 are optimized,
+        then modes with :math:`|m|` and :math:`|n|` up to 2, and so on. If
+        ``False``, all modes of :math:`\lambda` are optimized at once. Using
+        Fourier continuation generally results in better spectral condensation,
+        but it requires more time.
+
+        The degrees of freedom of the original surface are not modified.
+        Instead, a copy of the surface is returned with the new optimized
+        degrees of freedom.
+
+        Spectral condensation always results in some finite change to the
+        surface shape. Ideally this change is as small as possible. To measure
+        this change, the return value ``max_RZ_error`` gives the maximum
+        absolute change to ``R`` and ``Z`` on the :math:`\theta_1` grid points,
+        normalized to the minor radius. If this value is approximately equal to
+        ``epsilon`` for the constrained algorithms, or unacceptably large for
+        the unconstrained algorithms, you can use the
+        :func:`~simsopt.geo.SurfaceRZFourier.change_resolution` method to
+        increase ``mpol`` and ``ntor`` of the surface before calling
+        ``condense_spectrum``, so both the Fourier and grid resolutions used in
+        ``condense_spectrum`` are increased. You may then be able to call
+        :func:`~simsopt.geo.SurfaceRZFourier.change_resolution` again to reduce
+        ``mpol`` and ``ntor`` after the condensation.
+
+        The ``data`` dictionary that is returned contains information about
+        the optimization. The most noteworthy entries are ``max_RZ_error`` and
+        ``spectral_width_reduction``. The former indicates how well the surface
+        shape was preserved, and the latter indicates how much the spectral
+        width was reduced by the optimization.
+        
+        The function
+        :func:`~simsopt.geo.plot_spectral_condensation` is
+        useful for visualizing the results of spectral condensation.
+
+        Parameters
+        ----------
+            n_theta: int or None, optional
+                Number of theta grid points to use for fitting.
+            n_phi: int or None, optional
+                Number of phi grid points to use for fitting.
+            power: float, optional
+                Power to use in the spectral width objective function.
+            maxiter: int or None, optional
+                Maximum number of iterations for the optimization.
+            method: str or None, optional
+                Optimization method to use. See above for details.
+            epsilon: float, optional
+                Maximum allowed change to R and Z on the θ₁ grid points,
+                normalized to the minor radius. Only matters if
+                ``method=="SLSQP"`` or ``method=="trust-constr"``.
+            Fourier_continuation: bool, optional
+                If True, increase the Fourier resolution of λ in steps (slower).
+                If False, optimize all Fourier modes of λ at once (faster).
+            verbose: bool, optional
+                Whether to print progress messages.
+
+        Returns
+        -------
+            surface: SurfaceRZFourier
+                A new SurfaceRZFourier object with the condensed spectrum.
+            data: dict
+                A dictionary containing the following data from the
+                optimization:
+                
+                - "method" (str):
+                    The optimization algorithm used (value of the ``method`` argument).
+                - "maxiter" (int):
+                    The maximum number of iterations for the optimizer.
+                - "n_theta" (int):
+                    Number of theta grid points used for fitting.
+                - "n_phi" (int):
+                    Number of phi grid points used for fitting.
+                - "power" (float):
+                    The exponent used in the definition of spectral width.
+                - "epsilon" (float):
+                    The constraint tolerance on pointwise R and Z changes, normalized
+                    to the minor radius (only relevant for constrained optimizers).
+                - "Fourier_continuation" (bool):
+                    Whether Fourier continuation (progressively increasing mode count)
+                    was used.
+                - "initial_objective" (float):
+                    Value of the scalar objective (spectral width) before optimization.
+                - "final_objective" (float):
+                    Value of the scalar objective after the final optimization step.
+                - "spectral_width_reduction" (float):
+                    The ratio final_objective / initial_objective
+                - "max_RZ_error" (float):
+                    The maximum absolute change in R or Z on the θ₁ grid points,
+                    normalized by the minor radius, for the optimized
+                    poloidal angle.
+                - "m" (ndarray of int):
+                    The array of Fourier poloidal mode numbers used for the
+                    angle difference λ.
+                - "n" (ndarray of int):
+                    The array of Fourier toroidal mode numbers used for the
+                    angle difference λ.
+                - "lambda_mn" (ndarray of float):
+                    The optimized Fourier coefficients for the reparameterization
+                    function λ (sin coefficients only for the
+                    stellarator-symmetric case implemented here). These coefficients
+                    are in the same ordering as "m" and "n".
+                - "x_scale" (ndarray of float):
+                    The exponential spectral scaling applied to λ modes.
+                - "elapsed_time" (float):
+                    Wall-clock time in seconds spent in the condensation routine.
+                - "minor_radius" (float):
+                    The minor radius used to normalize R and Z errors and 
+                    the objective.
+                - "theta1_1d" (ndarray, shape (n_theta*n_phi,)):
+                    The flattened original poloidal angles (θ₁) corresponding to the
+                    quadrature points on the surface. Values are in
+                    radians in the interval [0, 2π).
+                - "phi_1d" (ndarray, shape (n_theta*n_phi,)):
+                    The flattened toroidal angles corresponding to the quadrature
+                    points on the surface. Values are in radians.
+                - "theta1_2d" (ndarray, shape (n_phi, n_theta)):
+                    The 2-D grid of original poloidal angles used to evaluate the
+                    surface (meshgrid of quadpoints_theta scaled by 2π).
+                - "phi_2d" (ndarray, shape (n_phi, n_theta)):
+                    The 2-D grid of toroidal angles used to evaluate the surface
+                    (meshgrid of quadpoints_phi scaled by 2π).
+                - "theta_optimized" (ndarray, shape (n_theta*n_phi,)):
+                    The optimized poloidal angles θ₂ = θ₁ + λ(θ₁, φ) evaluated at the
+                    quadrature points (flattened).
+                - "original_x" (ndarray):
+                    The Fourier amplitudes of the original surface prior to
+                    condensation.
+                - "condensed_x" (ndarray):
+                    The Fourier amplitudes of the surface after condensation.
+        """
+        if not self.stellsym:
+            raise NotImplementedError("condense_spectrum is only implemented for stellarator-symmetric surfaces")
+        
+        mpol = self.mpol
+        ntor = self.ntor
+        nfp = self.nfp
+        minor_radius = self.minor_radius()
+        if verbose:
+            print("minor radius before condensation:", minor_radius)
+        original_x = self.local_full_x.copy()
+
+        if n_theta is None:
+            n_theta = 3 * mpol + 1
+        if n_phi is None:
+            n_phi = 3 * ntor + 1
+
+        # Avoid error about finding dphi when n_phi=1:
+        n_phi = max(n_phi, 2)
+
+        method_is_lstsq = (method.lower() in ["trf", "lm", "dogleg"])
+        if maxiter is None:
+            if method_is_lstsq:
+                maxiter = 25
+            else:
+                maxiter = 100
+
+        # Make a copy of the surface with the desired grid resolution:
+        surf = self.copy(range="half period", nphi=n_phi, ntheta=n_theta)
+
+        # Index in .x where Rmnc and Zmns are separated:
+        n_Rmn = (len(surf.x) + 1) // 2
+        m_for_R = surf.m[:n_Rmn]
+        n_for_R = surf.n[:n_Rmn]
+        m_for_Z = surf.m[n_Rmn:]
+        n_for_Z = surf.n[n_Rmn:]
+
+        # lambda could in principle have different mpol and ntor than the original surface.
+        # But it works reasonably well to use the same mpol and ntor:
+        mpol_for_lambda = mpol
+        ntor_for_lambda = ntor
+        # surf_dummy is just a convenient way to get the m and n arrays for lambda
+        surf_dummy = SurfaceRZFourier(
+            nfp=nfp,
+            mpol=mpol_for_lambda,
+            ntor=ntor_for_lambda,
+        )
+        n_Rmn_for_lambda = (len(surf_dummy.x) + 1) // 2
+        m_for_lambda_full = surf_dummy.m[n_Rmn_for_lambda:]
+        n_for_lambda_full = surf_dummy.n[n_Rmn_for_lambda:]
+        max_mn_lambda = max(max(m_for_lambda_full), max(n_for_lambda_full))
+
+        def compute_x_scale(m_for_lambda, n_for_lambda):
+            # Exponential spectral scaling, which will be applied to lambda. See
+            # Jang, Conlin, & Landreman, (2025)
+            # https://arxiv.org/abs/2509.16320
+            x_scale = np.exp(-1.0 * np.sqrt(m_for_lambda**2 + n_for_lambda**2))
+            return x_scale
+
+        x_scale_full = compute_x_scale(m_for_lambda_full, n_for_lambda_full)
+
+        # Evaluate the surface shape on uniformly spaced points in theta1 and phi:
+        gamma = surf.gamma()
+        R = np.sqrt(gamma[:, :, 0]**2 + gamma[:, :, 1]**2)
+        Z = gamma[:, :, 2]
+        R_to_fit = R.flatten()
+        Z_to_fit = Z.flatten()
+
+        theta1_2d, phi_2d = np.meshgrid(2 * np.pi * surf.quadpoints_theta, 2 * np.pi * surf.quadpoints_phi)
+        assert theta1_2d.shape == (n_phi, n_theta)
+        phi_1d = phi_2d.flatten()
+        theta1_1d = theta1_2d.flatten()
+
+        def lambda_Fourier_to_grid(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            scaled_lambda_dofs = lambda_dofs * x_scale
+            lambd = jnp.sum(scaled_lambda_dofs[None, :] * jnp.sin(
+                m_for_lambda[None, :] * theta1_1d[:, None] - nfp * n_for_lambda[None, :] * phi_1d[:, None]
+            ), axis=1)
+            theta2_1d = theta1_1d + lambd
+            return theta2_1d
+        
+        # Same as compute_r2mn_and_z2mn, but also returns theta2_1d for use in computing R and Z errors
+        def _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            theta2_1d = lambda_Fourier_to_grid(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+
+            scaled_lambda_dofs = lambda_dofs * x_scale
+            d_theta2_d_theta1 = 1 + jnp.sum(scaled_lambda_dofs[None, :] * m_for_lambda[None, :] * jnp.cos(
+                m_for_lambda[None, :] * theta1_1d[:, None] - nfp * n_for_lambda[None, :] * phi_1d[:, None]
+            ), axis=1)
+            # Order of indices: (point index, mode index)
+            Rmnc_new = 2 * jnp.mean(d_theta2_d_theta1[:, None] * R_to_fit[:, None] * jnp.cos(
+                m_for_R[None, :] * theta2_1d[:, None] - nfp * n_for_R[None, :] * phi_1d[:, None]
+            ), axis=0)
+            Rmnc_new = Rmnc_new.at[0].set(Rmnc_new[0] * 0.5)
+            Zmns_new = 2 * jnp.mean(d_theta2_d_theta1[:, None] * Z_to_fit[:, None] * jnp.sin(
+                m_for_Z[None, :] * theta2_1d[:, None] - nfp * n_for_Z[None, :] * phi_1d[:, None]
+            ), axis=0)
+
+            return Rmnc_new, Zmns_new, theta2_1d
+        
+        def compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            Rmnc_new, Zmns_new, _ = _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            return jnp.concatenate([Rmnc_new, Zmns_new])
+
+        @jax.jit
+        def compute_RZ_errors(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            Rmnc_new, Zmns_new, theta2_1d = _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            R_new = jnp.sum(Rmnc_new[None, :] * jnp.cos(m_for_R[None, :] * theta2_1d[:, None] - nfp * n_for_R[None, :] * phi_1d[:, None]), axis=1)
+            Z_new = jnp.sum(Zmns_new[None, :] * jnp.sin(m_for_Z[None, :] * theta2_1d[:, None] - nfp * n_for_Z[None, :] * phi_1d[:, None]), axis=1)
+            # Scale errors so the constraints are at +/- 1:
+            R_error = (R_new - R_to_fit) / (minor_radius * epsilon)
+            Z_error = (Z_new - Z_to_fit) / (minor_radius * epsilon)
+            return jnp.concatenate([R_error, Z_error])
+
+        def compute_max_RZ_error(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            RZ_errors = compute_RZ_errors(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            max_error = np.max(np.abs(RZ_errors)) * epsilon
+            if verbose:
+                print(f"(Max error in fitting R or Z of points) / minor_radius: {max_error:.3e}", flush=True)
+            return max_error
+
+        @jax.jit
+        def residuals_func(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            """Objective function for spectral width."""
+            x = compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            residuals = (x / minor_radius) * (surf.m**2 + surf.n**2)**(power * 0.5)
+            # The first residual is always zero (since m=n=0) so there is no need to include it:
+            return residuals[1:]
+
+        @jax.jit
+        def scalar_objective(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            residuals = residuals_func(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            return 0.5 * jnp.sum(residuals**2)
+
+        iteration_counter = {"count": 0}
+
+        def scalar_objective_with_printing(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
+            obj_value = scalar_objective(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
+            iteration_counter["count"] += 1
+            obj_value_float = obj_value.astype(float)
+            print(f"Iteration {iteration_counter['count']:5}: objective = {obj_value_float:.6e}")
+            return obj_value
+
+        n_constraints = R_to_fit.size + Z_to_fit.size
+
+        jac_constraints = jax.jit(jax.jacfwd(compute_RZ_errors))
+
+        initial_objective = scalar_objective(
+            np.zeros_like(m_for_lambda_full),
+            m_for_lambda_full,
+            n_for_lambda_full,
+            x_scale_full,
+        )
+        start_time = time.time()
+
+        if Fourier_continuation:
+            mnmax_steps = np.arange(1, max_mn_lambda + 1)
+        else:
+            mnmax_steps = [max_mn_lambda]
+
+        previous_m_for_lambda = None
+        previous_n_for_lambda = None
+        lambda_dofs_optimized = None
+        # Fourier continuation loop:
+        for mnmax in mnmax_steps:
+            if Fourier_continuation and verbose:
+                line_width = 120
+                print("*" * line_width)
+                print(f"Beginning Fourier continuation step with mnmax = {mnmax}")
+                print("*" * line_width, flush=True)
+
+            # Select only lambda dofs with |m|, |n| <= mnmax:
+            indices_to_keep = np.where((np.abs(m_for_lambda_full) <= mnmax) & (np.abs(n_for_lambda_full) <= mnmax))[0]
+            m_for_lambda = m_for_lambda_full[indices_to_keep]
+            n_for_lambda = n_for_lambda_full[indices_to_keep]
+            x_scale = compute_x_scale(m_for_lambda, n_for_lambda)
+
+            lambda_dofs = np.zeros(len(m_for_lambda))
+            if Fourier_continuation and mnmax > 1:
+                # Copy lambda_dofs_optimized from the previous Fourier
+                # continuation step to the new set of dofs:
+                for j_new, (m_new, n_new) in enumerate(zip(m_for_lambda, n_for_lambda)):
+                    for j_old, (m_old, n_old) in enumerate(zip(previous_m_for_lambda, previous_n_for_lambda)):
+                        if (m_new == m_old) and (n_new == n_old):
+                            lambda_dofs[j_new] = lambda_dofs_optimized[j_old]
+
+            if method_is_lstsq:
+                jac_fn = jax.jit(jax.jacfwd(residuals_func))
+                if verbose:
+                    verbose_for_least_squares = 2
+                else:
+                    verbose_for_least_squares = 0
+
+                res = least_squares(
+                    residuals_func,
+                    lambda_dofs,
+                    jac=jac_fn,
+                    method=method,
+                    verbose=verbose_for_least_squares,
+                    max_nfev=maxiter,
+                    args=(m_for_lambda, n_for_lambda, x_scale)
+                )
+            elif method in ["SLSQP", "trust-constr"]:
+                # Constrained optimization methods:
+                constraints = NonlinearConstraint(
+                    lambda x: compute_RZ_errors(x, m_for_lambda, n_for_lambda, x_scale),
+                    -jnp.ones(n_constraints),  # Lower bounds
+                    jnp.ones(n_constraints),  # Upper bounds
+                    jac=lambda x: jac_constraints(x, m_for_lambda, n_for_lambda, x_scale),
+                )
+
+                options = {"maxiter": maxiter}
+                if verbose:
+                    if method == "trust-constr":
+                        options["verbose"] = 3
+                        objective_to_use = scalar_objective
+                    else:
+                        # SLSQP does not have a 'verbose' option
+                        objective_to_use = scalar_objective_with_printing
+                else:
+                    objective_to_use = scalar_objective
+
+                grad_objective = jax.jit(jax.grad(scalar_objective))
+                res = minimize(
+                    objective_to_use,
+                    lambda_dofs,
+                    jac=grad_objective,
+                    method=method,
+                    constraints=constraints,
+                    options=options,
+                    args=(m_for_lambda, n_for_lambda, x_scale)
+                )
+            else:
+                # Other non-least-squares methods:
+                grad_objective = jax.jit(jax.grad(scalar_objective))
+                if verbose:
+                    objective_to_use = scalar_objective_with_printing
+                else:
+                    objective_to_use = scalar_objective
+
+                res = minimize(
+                    objective_to_use,
+                    lambda_dofs,
+                    jac=grad_objective,
+                    method=method,
+                    options={"maxiter": maxiter, "disp": verbose},
+                    args=(m_for_lambda, n_for_lambda, x_scale)
+                )
+
+            lambda_dofs_optimized = res.x
+            previous_m_for_lambda = m_for_lambda
+            previous_n_for_lambda = n_for_lambda
+            max_RZ_error = compute_max_RZ_error(lambda_dofs_optimized, m_for_lambda, n_for_lambda, x_scale)
+
+        elapsed_time = time.time() - start_time
+        if verbose:
+            print(res)
+            print("Time taken (s):", elapsed_time, flush=True)
+
+        # Update surface with optimized parameters
+        lambda_dofs_optimized = res.x
+        theta_optimized = lambda_Fourier_to_grid(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+        final_objective = scalar_objective(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+        surf_to_return = self.copy()
+        surf_to_return.local_full_x = compute_r2mn_and_z2mn(lambda_dofs_optimized, m_for_lambda_full, n_for_lambda_full, x_scale_full)
+
+        data = {
+            "method": method,
+            "maxiter": maxiter,
+            "n_theta": n_theta,
+            "n_phi": n_phi,
+            "power": power,
+            "epsilon": epsilon,
+            "Fourier_continuation": Fourier_continuation,
+            "initial_objective": float(initial_objective),
+            "final_objective": float(final_objective),
+            "spectral_width_reduction": float(final_objective / initial_objective),
+            "max_RZ_error": float(max_RZ_error),
+            "m": m_for_lambda_full,
+            "n": n_for_lambda_full,
+            "lambda_mn": lambda_dofs_optimized,
+            "x_scale": x_scale_full,
+            "elapsed_time": elapsed_time,
+            "minor_radius": minor_radius,
+            "theta1_1d": theta1_1d,
+            "phi_1d": phi_1d,
+            "theta1_2d": theta1_2d,
+            "phi_2d": phi_2d,
+            "theta_optimized": theta_optimized,
+            "original_x": original_x,
+            "condensed_x": surf_to_return.local_full_x,
+        }
+        return surf_to_return, data
+
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,
                      'aspect-ratio': Surface.aspect_ratio}
 
+def plot_spectral_condensation(surf1, surf2, data, show=True):
+    """Plot results from :func:`~simsopt.geo.SurfaceRZFourier.condense_spectrum`.
+
+    Three figures are generated.
+
+    Figure 1 shows λ as a function of θ₁ at various ϕ values (left), and the
+    Fourier amplitudes of λ are plotted on the right.
+
+    Figure 2 shows the m- and n-dependence of rc and zs with respect to θ₁ and
+    θ₂ in two ways: heatmaps on the left, and a scatter plot on the right.
+
+    Figure 3 shows eight cross-sections of the surface, including points that
+    are uniformly spaced with respect to θ₁ and θ₂.
+
+    Parameters
+    ----------
+    surf1 : SurfaceRZFourier
+        The original surface before spectral condensation.
+    surf2 : SurfaceRZFourier
+        The condensed surface after spectral condensation.
+    data : dict
+        The data dictionary returned by :func:`~simsopt.geo.SurfaceRZFourier.condense_spectrum`.
+    show : bool, optional
+        Whether to call matplotlib's ``show()`` function. Default is True.    
+
+    Returns
+    -------
+    fig1, fig2, fig3
+        Matplotlib handles for the three figures
+    """
+    assert surf1.nfp == surf2.nfp
+    assert surf1.mpol == surf2.mpol
+    assert surf1.ntor == surf2.ntor
+    n_theta = data["n_theta"]
+    n_phi = data["n_phi"]
+    minor_radius = data["minor_radius"]
+    nfp = surf1.nfp
+    title_str = f"n_theta: {n_theta}, n_phi: {n_phi}, power: {data['power']}, method: {data['method']}, maxiter: {data['maxiter']}\n"
+
+    n_theta_points_for_plot = 20
+    decimate = 6
+
+    quadpoints_theta_for_plotting = np.linspace(0, 1, n_theta_points_for_plot * decimate + 1)
+    quadpoints_phi_for_plotting = np.linspace(0, 1 / nfp, 8, endpoint=False)
+    surf_theta1_for_plotting = SurfaceRZFourier(
+        mpol=surf1.mpol,
+        ntor=surf1.ntor,
+        nfp=nfp,
+        quadpoints_theta=quadpoints_theta_for_plotting,
+        quadpoints_phi=quadpoints_phi_for_plotting,
+    )
+    surf_theta1_for_plotting.local_full_x = surf1.local_full_x
+    surf_theta2_for_plotting = SurfaceRZFourier(
+        mpol=surf1.mpol,
+        ntor=surf1.ntor,
+        nfp=nfp,
+        quadpoints_theta=quadpoints_theta_for_plotting,
+        quadpoints_phi=quadpoints_phi_for_plotting,
+    )
+    surf_theta2_for_plotting.local_full_x = surf2.local_full_x
+
+    figsize = (14.5, 8.1)
+    fig1 = plt.figure(figsize=figsize)
+
+    n_rows = 1
+    n_cols = 2
+
+    plt.subplot(n_rows, n_cols, 1)
+    cmap = plt.get_cmap("jet")
+    for j_phi in range(n_phi):
+        color = cmap(float(j_phi) / n_phi)
+        plt.plot(
+            data["theta1_2d"][j_phi, :],
+            (data["theta_optimized"] - data["theta1_1d"]).reshape((n_phi, n_theta))[j_phi, :],
+            '.-',
+            color=color,
+        )
+
+    plt.xlabel('theta1')
+    plt.ylabel('lambda')
+
+    plt.subplot(n_rows, n_cols, 2)
+    plt.semilogy(
+        np.sqrt(data["m"]**2 + data["n"]**2),
+        np.abs(data["lambda_mn"] * data["x_scale"]),
+        '.g',
+    )
+    plt.xlabel('sqrt(m^2 + n^2)')
+    plt.ylabel('Mode amplitudes of lambda')
+    plt.ylim(1e-16, 2e1)
+
+    plt.tight_layout()
+
+    # Create a layout with the left half split into a 2x2 grid and a
+    # single subplot occupying the entire right half.
+    fig = plt.figure(figsize=figsize)
+    fig2 = fig
+    gs = GridSpec(2, 3, figure=fig, width_ratios=[1, 1, 2])
+
+    # Left half: 2x2 small subplots
+    axes_small = [
+        fig.add_subplot(gs[0, 0], aspect='equal'),
+        fig.add_subplot(gs[0, 1], aspect='equal'),
+        fig.add_subplot(gs[1, 0], aspect='equal'),
+        fig.add_subplot(gs[1, 1], aspect='equal'),
+    ]
+
+    colors = ["b", "r"]
+
+    for j_surf in range(2):
+        if j_surf == 0:
+            surf_to_plot = surf_theta1_for_plotting
+            short_name = "theta1"
+        else:
+            surf_to_plot = surf_theta2_for_plotting
+            short_name = "theta2"
+
+        for j_rz in range(2):
+            if j_rz == 0:
+                data_to_plot = surf_to_plot.rc
+                data_name = 'Rmnc'
+            else:
+                data_to_plot = surf_to_plot.zs
+                data_name = 'Zmns'
+
+            ax = axes_small[j_surf + j_rz * 2]
+            extent = (-surf_to_plot.ntor - 0.5, surf_to_plot.ntor + 0.5, surf_to_plot.mpol + 0.5, -0.5)
+            im = ax.imshow(np.abs(data_to_plot / minor_radius), extent=extent, norm=mpl_colors.LogNorm(vmin=1e-6, vmax=10))
+            fig.colorbar(im, ax=ax)
+            ax.set_title(data_name + " / minor_radius, " + short_name)
+            ax.set_xlabel('n / nfp')
+            ax.set_ylabel('m')
+
+    # Right half: one large subplot spanning both rows
+    ax_big = fig.add_subplot(gs[:, -1])
+
+    plt.semilogy(
+        np.sqrt(surf_theta1_for_plotting.m**2 + surf_theta1_for_plotting.n**2),
+        np.abs(surf_theta1_for_plotting.x / minor_radius),
+        '+',
+        color=colors[0],
+        label='theta1'
+    )
+    plt.semilogy(
+        np.sqrt(surf_theta2_for_plotting.m**2 + surf_theta2_for_plotting.n**2),
+        np.abs(surf_theta2_for_plotting.x / minor_radius),
+        'x',
+        color=colors[1],
+        label='theta2'
+    )
+    plt.legend(loc=0)
+    ax_big.set_xlabel('sqrt(m^2 + n^2)')
+    ax_big.set_ylabel('(rc or zs) / minor radius')
+    ax_big.set_ylim(1e-16, 2e1)
+
+    plt.suptitle(title_str, fontsize=12)
+    plt.tight_layout()
+
+    ##########################################################################################################
+    ##########################################################################################################
+
+    n_rows = 2
+    n_cols = 4
+    fig3, axes = plt.subplots(n_rows, n_cols, figsize=figsize, subplot_kw={'aspect': 'equal'})
+
+    axes = axes.flatten()
+
+    for j_phi in range(8):
+        for j_surf in range(2):
+            if j_surf == 0:
+                surf_to_plot = surf_theta1_for_plotting
+                linespec = '-'
+                marker = '+'
+                theta0_marker = 's'
+            else:
+                surf_to_plot = surf_theta2_for_plotting
+                linespec = ':'
+                marker = 'x'
+                theta0_marker = 'o'
+
+            gamma = surf_to_plot.gamma()
+            R = np.sqrt(gamma[:, :, 0]**2 + gamma[:, :, 1]**2)
+            Z = gamma[:, :, 2]
+            color = colors[j_surf]
+            axes[j_phi].plot(R[j_phi, :], Z[j_phi, :], linespec, color=color)
+            axes[j_phi].plot(R[j_phi, 0], Z[j_phi, 0], theta0_marker, color=color)
+            axes[j_phi].plot(R[j_phi, ::decimate], Z[j_phi, ::decimate], marker, color=color, label=f"theta{j_surf+1}")
+
+        axes[j_phi].set_title(f"phi = {j_phi/(8*nfp):.3f} * 2pi")
+        axes[j_phi].set_xlabel("R")
+        axes[j_phi].set_ylabel("Z")
+
+    axes[0].legend(loc=0)
+
+    plt.suptitle(title_str, fontsize=12)
+
+    plt.tight_layout()
+    if show:
+        plt.show()
+
+    return fig1, fig2, fig3
 
 class SurfaceRZPseudospectral(Optimizable):
     """
@@ -1400,10 +2242,8 @@ class SurfaceRZPseudospectral(Optimizable):
             mpol: The new maximum poloidal mode number.
             ntor: The new maximum toroidal mode number, divided by ``nfp``.
         """
-        # Map to Fourier space:
-        surf2 = self.to_RZFourier()
-        # Change the resolution in Fourier space, by truncating the modes or padding 0s:
-        surf2.change_resolution(mpol=mpol, ntor=ntor)
+        # Map to Fourier space and return a surface with changed resolution
+        surf2 = self.to_RZFourier().change_resolution(mpol=mpol, ntor=ntor)
         # Map from Fourier space back to real space:
         surf3 = SurfaceRZPseudospectral.from_RZFourier(surf2,
                                                        r_shift=self.r_shift,

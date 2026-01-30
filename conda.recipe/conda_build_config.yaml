@@ -1,11 +1,8 @@
-numpy:
-  - 1.23
-  - 1.24
 python:
-  - 3.9
   - 3.10
   - 3.11
+  - 3.12
+  - 3.13
 
 pin_run_as_build:
-  numpy: x.x
   python: x.x

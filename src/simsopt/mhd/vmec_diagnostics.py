@@ -6,12 +6,14 @@
 This module contains functions that can postprocess VMEC output.
 """
 
+import inspect
 import logging
-from typing import Union
+from typing import Union, Optional
 
 import numpy as np
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
 from scipy.optimize import newton
+import dataclasses
 
 from .vmec import Vmec
 from .._core.util import Struct
@@ -24,7 +26,7 @@ from ..geo.surfacerzfourier import SurfaceRZFourier
 logger = logging.getLogger(__name__)
 
 __all__ = ['QuasisymmetryRatioResidual', 'IotaTargetMetric', 'IotaWeighted',
-           'WellWeighted', 'vmec_splines', 'vmec_compute_geometry', 'vmec_fieldlines']
+           'WellWeighted', 'vmec_splines', 'vmec_compute_geometry', 'vmec_fieldlines', 'VmecGeometryResults']
 
 
 class QuasisymmetryRatioResidual(Optimizable):
@@ -115,7 +117,7 @@ class QuasisymmetryRatioResidual(Optimizable):
                  surfaces: Union[float, RealArray],
                  helicity_m: int = 1,
                  helicity_n: int = 0,
-                 weights: RealArray = None,
+                 weights: Optional[RealArray] = None,
                  ntheta: int = 63,
                  nphi: int = 64) -> None:
 
@@ -844,7 +846,366 @@ def vmec_splines(vmec):
     return results
 
 
-def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
+@dataclasses.dataclass
+class VmecGeometryResults:
+    """
+    A class to hold the output of the :func:`vmec_compute_geometry` and :func:`vmec_fieldlines` functions.
+
+    The arguments required of this class have been hidden in the Sphinx documentation, since they are
+    extensively long. See the code for vmec_compute_geometry for an example of initializing this class.
+
+    This data class contains geometric quantities computed from VMEC equilibria, including
+    magnetic quantities, coordinates, metric tensors, and various geometric coefficients
+    used in gyrokinetic simulations.
+    
+    Most of the arrays have shape ``(ns, ntheta, nphi)``, where ``ns``
+    is the number of flux surfaces, ``ntheta`` is the number of grid points
+    in VMEC's poloidal angle, and ``nphi`` is the number of grid points in
+    the standard toroidal angle. Note that all angles in this object have
+    period :math:`2\\pi`, not period 1.
+    
+    The value(s) of ``s`` provided as input need not coincide with the
+    full grid or half grid in VMEC, as spline interpolation will be
+    used radially.
+
+    The field line label coordinate :math:`\\alpha` is defined by:
+    
+    .. math::
+        \\alpha = \\theta_{\\text{pest}} - \\iota (\\phi - \\phi_{\\text{center}})
+    
+    The toroidal flux coordinate :math:`\\psi` is the toroidal flux divided by :math:`2\\pi`, so:
+    
+    .. math::
+        \\vec{B} = \\nabla\\psi\\times\\nabla\\theta_{\\text{pest}} + \\iota\\nabla\\phi\\times\\nabla\\psi = \\nabla\\psi\\times\\nabla\\alpha
+    
+    **Gyrokinetic Codes:**
+    
+    This class includes normalized quantities for gyrokinetic codes (``stella``, ``gs2``, ``GX``):
+    ``bmag``, ``gbdrift``, ``gbdrift0``, ``cvdrift``, ``cvdrift0``, ``gds2``, ``gds21``, ``gds22``,
+    ``gradpar_theta_pest``, and ``gradpar_phi``, along with normalization constants
+    ``L_reference`` and ``B_reference``.
+
+    All quantities use SI units unless noted otherwise.
+    """
+
+    ### Array Dimensions
+    ns: int
+    """Number of flux surfaces (s)."""
+    ntheta: int
+    """Number of grid points in the poloidal direction."""
+    nphi: int
+    """Number of grid points in the toroidal direction."""
+
+
+    ### Coordinates
+    s: np.ndarray
+    """Normalized toroidal flux (0 at axis, 1 at edge)."""
+    iota: np.ndarray
+    r"""The rotational transform :math:`\iota`. This array has shape ``(ns,)``"""
+    d_iota_d_s: np.ndarray
+    """Derivative of rotational transform with respect to s."""
+    d_pressure_d_s: np.ndarray
+    """Derivative of pressure with respect to s."""
+    shat: np.ndarray
+    r"""The magnetic shear :math:`\hat s= (x/q) (d q / d x)` where 
+    :math:`x = \mathrm{Aminor_p} \, \sqrt{s}` and :math:`q=1/\iota`. This array has shape ``(ns,)``"""
+    phi: np.ndarray
+    r"""The standard toroidal angle :math:`\phi`."""
+    theta_vmec: np.ndarray
+    r"""VMEC's poloidal angle :math:`\theta_{vmec}`."""
+    theta_pest: np.ndarray
+    r"""The straight-field-line angle :math:`\theta_{pest}` associated with :math:`\phi`."""
+    
+    ### Stream Function (Lambda)
+    d_lambda_d_s: np.ndarray
+    """Derivative of the stream function lambda with respect to s."""
+    d_lambda_d_theta_vmec: np.ndarray
+    """Derivative of the stream function lambda with respect to theta_vmec."""
+    d_lambda_d_phi: np.ndarray
+    """Derivative of the stream function lambda with respect to phi."""
+
+    ### Jacobian and Metric
+    sqrt_g_vmec: np.ndarray
+    """The Jacobian of the transformation from (s, theta_vmec, phi) to Cartesian."""
+    sqrt_g_vmec_alt: np.ndarray
+    """Alternate calculation of the Jacobian."""
+    
+    ### Magnetic Field Strength
+    modB: np.ndarray
+    """The magnetic field magnitude :math:`|B|`"""
+    d_B_d_s: np.ndarray
+    r"""Derivative of :math:`|B|` with respect to s. :math:`\partial |B| / \partial s`."""
+    d_B_d_theta_vmec: np.ndarray
+    r"""Derivative of :math:`|B|` with respect to theta_vmec. :math:`\partial |B| / \partial \theta_{\text{vmec}}`."""
+    d_B_d_phi: np.ndarray
+    r"""Derivative of :math:`|B|` with respect to phi. :math:`\partial |B| / \partial \phi`."""
+    ### Contravariant Magnetic Field
+    B_sup_theta_vmec: np.ndarray
+    r"""Contravariant poloidal component of B. :math:`\vec{B}\cdot\nabla\theta_{vmec}`"""
+    B_sup_theta_pest: np.ndarray
+    r"""Contravariant PEST poloidal component of B. :math:`\vec{B}\cdot\nabla\theta_{pest}`"""
+    B_sup_phi: np.ndarray
+    r"""Contravariant toroidal component of B.  :math:`\vec{B}\cdot\nabla\phi`."""
+    ### Covariant Magnetic Field
+    B_sub_s: np.ndarray
+    """Covariant radial component of B."""
+    B_sub_theta_vmec: np.ndarray
+    """Covariant poloidal component of B."""
+    B_sub_phi: np.ndarray
+    """Covariant toroidal component of B."""
+
+    edge_toroidal_flux_over_2pi: float
+    """Total toroidal flux at the edge divided by 2pi."""
+
+    ### Geometric Trigonometry
+    sinphi: np.ndarray
+    r""":math:`\sin(\phi)`"""
+    cosphi: np.ndarray
+    r""":math:`\cos(\phi)`"""
+
+    ### Geometric Derivatives (Cylindrical R, Z)
+    d2_R_d_phi2: np.ndarray
+    r""":math:`\partial^2 R / \partial \phi^2`"""
+    d2_R_d_theta_vmec2: np.ndarray
+    r""":math:`\partial^2 R / \partial \theta_{\text{vmec}}^2`"""
+    d2_R_d_theta_vmec_d_phi: np.ndarray
+    r""":math:`\partial^2 R / \partial \theta_{\text{vmec}} \partial \phi`"""
+    d2_R_d_s_d_theta_vmec: np.ndarray
+    r""":math:`\partial^2 R / \partial s \partial \theta_{\text{vmec}}`"""
+    d2_R_d_s_d_phi: np.ndarray
+    r""":math:`\partial^2 R / \partial s \partial \phi`"""
+    d2_Z_d_theta_vmec2: np.ndarray
+    r""":math:`\partial^2 Z / \partial \theta_{\text{vmec}}^2`"""
+    d2_Z_d_phi2: np.ndarray
+    r""":math:`\partial^2 Z / \partial \phi^2`"""
+    d2_Z_d_theta_vmec_d_phi: np.ndarray
+    r""":math:`\partial^2 Z / \partial \theta_{\text{vmec}} \partial \phi`"""
+    d2_Z_d_s_d_theta_vmec: np.ndarray
+    r""":math:`\partial^2 Z / \partial s \partial \theta_{\text{vmec}}`"""
+    d2_Z_d_s_d_phi: np.ndarray
+    r""":math:`\partial^2 Z / \partial s \partial \phi`"""
+
+    ### Derivatives of B Components
+    d_B_sup_phi_d_theta_vmec: np.ndarray
+    r""":math:`\partial B^\phi / \partial \theta_{\text{vmec}}`"""
+    d_B_sup_phi_d_phi: np.ndarray
+    r""":math:`\partial B^\phi / \partial \phi`"""
+    d_B_sup_theta_vmec_d_theta_vmec: np.ndarray
+    r""":math:`\partial B^{\theta_{\text{vmec}}} / \partial \theta_{\text{vmec}}`"""
+    d_B_sup_theta_vmec_d_phi: np.ndarray
+    r""":math:`\partial B^{\theta_{\text{vmec}}} / \partial \phi`"""
+    d_B_sup_theta_vmec_d_s: np.ndarray
+    r""":math:`\partial B^{\theta_{\text{vmec}}} / \partial s`"""
+    d_B_sup_phi_d_s: np.ndarray
+    r""":math:`\partial B^\phi / \partial s`"""
+
+    ### Cartesian Coordinates and First Derivatives
+    R: np.ndarray
+    """Cylindrical :math:`R` coordinate."""
+    d_R_d_s: np.ndarray
+    r"""Derivative of R with respect to s. :math:`\partial R / \partial s`"""
+    d_R_d_theta_vmec: np.ndarray
+    r"""Derivative of R with respect to theta_vmec. :math:`\partial R / \partial \theta_{\text{vmec}}`"""
+    d_R_d_phi: np.ndarray
+    r"""Derivative of R with respect to phi. :math:`\partial R / \partial \phi`"""
+    
+    X: np.ndarray
+    """Cartesian :math:`X` coordinate."""
+    Y: np.ndarray
+    """Cartesian :math:`Y` coordinate."""
+    Z: np.ndarray
+    """Cartesian :math:`Z` coordinate."""
+    
+    d_Z_d_s: np.ndarray
+    r""":math:`\partial Z / \partial s`"""
+    d_Z_d_theta_vmec: np.ndarray
+    r""":math:`\partial Z / \partial \theta_{\text{vmec}}`"""
+    d_Z_d_phi: np.ndarray
+    r""":math:`\partial Z / \partial \phi`"""
+    d_X_d_theta_vmec: np.ndarray
+    r""":math:`\partial X / \partial \theta_{\text{vmec}}`"""
+    d_X_d_phi: np.ndarray
+    r""":math:`\partial X / \partial \phi`"""
+    d_X_d_s: np.ndarray
+    r""":math:`\partial X / \partial s`"""
+    d_Y_d_theta_vmec: np.ndarray
+    r""":math:`\partial Y / \partial \theta_{\text{vmec}}`"""
+    d_Y_d_phi: np.ndarray
+    r""":math:`\partial Y / \partial \phi`"""
+    d_Y_d_s: np.ndarray
+    r""":math:`\partial Y / \partial s`"""
+
+    ### Derivatives of Flux coordinates, in Cartesian components
+    grad_s_X: np.ndarray
+    r"""X-component of grad s. :math:`\nabla s_X`"""
+    grad_s_Y: np.ndarray
+    r"""Y-component of grad s. :math:`\nabla s_Y`"""
+    grad_s_Z: np.ndarray
+    r"""Z-component of grad s. :math:`\nabla s_Z`"""
+    
+    grad_theta_vmec_X: np.ndarray
+    r"""X-component of grad theta_vmec. :math:`\nabla \theta_{\text{vmec},X}`"""
+    grad_theta_vmec_Y: np.ndarray
+    r"""Y-component of grad theta_vmec. :math:`\nabla \theta_{\text{vmec},Y}`"""
+    grad_theta_vmec_Z: np.ndarray
+    r"""Z-component of grad theta_vmec. :math:`\nabla \theta_{\text{vmec},Z}`"""
+    
+    grad_phi_X: np.ndarray
+    r"""X-component of grad phi (toroidal angle). :math:`\nabla \phi_X`"""
+    grad_phi_Y: np.ndarray
+    r"""Y-component of grad phi (toroidal angle). :math:`\nabla \phi_Y`"""
+    grad_phi_Z: np.ndarray
+    r"""Z-component of grad phi (toroidal angle). :math:`\nabla \phi_Z`"""
+    
+    grad_psi_X: np.ndarray
+    r"""X-component of grad psi (poloidal flux). :math:`\nabla \psi_X`"""
+    grad_psi_Y: np.ndarray
+    r"""Y-component of grad psi (poloidal flux). :math:`\nabla \psi_Y`"""
+    grad_psi_Z: np.ndarray
+    r"""Z-component of grad psi (poloidal flux). :math:`\nabla \psi_Z`"""
+    
+    grad_alpha_X: np.ndarray
+    r"""X-component of grad alpha (field line label).
+    :math:`\nabla \alpha = \nabla (\theta_{vmec} + \lambda - \iota * \phi)`
+    """
+    grad_alpha_Y: np.ndarray
+    r"""Y-component of grad alpha (field line label).
+    :math:`\nabla \alpha = \nabla (\theta_{vmec} + \lambda - \iota * \phi)`
+    """
+    grad_alpha_Z: np.ndarray
+    r"""Z-component of grad alpha (field line label).
+    :math:`\nabla \alpha = \nabla (\theta_{vmec} + \lambda - \iota * \phi)`
+    """
+    
+    grad_B_X: np.ndarray
+    r""":math:`\nabla |B|_X`"""
+    grad_B_Y: np.ndarray
+    r""":math:`\nabla |B|_Y`"""
+    grad_B_Z: np.ndarray
+    r""":math:`\nabla |B|_Z`"""
+    ### Magnetic Field Vector (Cartesian)
+    B_X: np.ndarray
+    """X-component of the total magnetic field B. :math:`B_X`"""
+    B_Y: np.ndarray
+    """Y-component of the total magnetic field B. :math:`B_Y`"""
+    B_Z: np.ndarray
+    """Z-component of the total magnetic field B. :math:`B_Z`"""
+    ### Dot Products / Geometric Factors
+    grad_s_dot_grad_s: np.ndarray
+    r"""Norm squared of grad s :math:`|\nabla s|^2 = \nabla s \cdot \nabla s`."""
+    B_cross_grad_s_dot_grad_alpha: np.ndarray
+    r""":math:`\vec{B}\times\nabla s\cdot\nabla\alpha`"""
+    B_cross_grad_s_dot_grad_alpha_alternate: np.ndarray
+    r""":math:`\vec{B}\times\nabla s\cdot\nabla\alpha` (alternate calculation)"""
+    B_cross_grad_B_dot_grad_alpha: np.ndarray
+    r""":math:`\vec{B}\times\nabla|B|\cdot\nabla\alpha`"""
+    B_cross_grad_B_dot_grad_alpha_alternate: np.ndarray
+    r""":math:`\vec{B}\times\nabla|B|\cdot\nabla\alpha` (alternate calculation)"""
+    B_cross_grad_B_dot_grad_psi: np.ndarray
+    r""":math:`\vec{B}\times\nabla|B|\cdot\nabla\psi`"""
+    B_cross_kappa_dot_grad_psi: np.ndarray
+    r""":math:`\vec{B}\times\vec{\kappa}\cdot\nabla\psi`"""
+    B_cross_kappa_dot_grad_alpha: np.ndarray
+    r""":math:`\vec{B}\times\vec{\kappa}\cdot\nabla\alpha` where
+    :math:`\vec{\kappa}=\vec{b}\cdot\nabla\vec{b}` is the curvature and :math:`\vec{b}=|B|^{-1}\vec{B}`"""
+    
+    grad_alpha_dot_grad_alpha: np.ndarray
+    r"""Norm squared of grad alpha.  :math:`|\nabla\alpha|^2 = \nabla\alpha\cdot\nabla\alpha`."""
+    
+    grad_alpha_dot_grad_psi: np.ndarray
+    r"""Dot product of grad alpha and grad psi.  :math:`\nabla\alpha\cdot\nabla\psi`."""
+    
+    grad_psi_dot_grad_psi: np.ndarray
+    r"""Norm squared of grad psi.   :math:`|\nabla\psi|^2 = \nabla\psi\cdot\nabla\psi`."""
+
+    # --- Reference Values ---
+    L_reference: float
+    r"""Reference length scale :math:`L_{\text{ref}}` used for normalization."""
+    B_reference: float
+    r"""Reference magnetic field strength :math:`B_{\text{ref}}` used for normalization."""
+    toroidal_flux_sign: float
+    """Sign of the toroidal flux (typically ±1)."""
+
+    # --- Gyrokinetic / Stability Terms ---
+    bmag: np.ndarray
+    r"""Normalized magnetic field strength :math:`|B| / B_{\text{ref}}`."""
+    
+    gradpar_theta_pest: np.ndarray
+    r"""Parallel gradient operator acting on theta_pest :math:`\nabla_{\parallel} \theta_{pest}`."""
+    
+    gradpar_phi: np.ndarray
+    r"""Parallel gradient operator acting on phi :math:`\nabla_{\parallel} \phi`."""
+    
+    gds2: np.ndarray
+    r"""Geometric coefficient :math:`|\nabla s|^2` (normalized)."""
+    
+    gds21: np.ndarray
+    r"""Geometric coefficient :math:`\nabla s \cdot \nabla \alpha` (normalized)."""
+    
+    gds22: np.ndarray
+    r"""Geometric coefficient :math:`|\nabla \alpha|^2` (normalized)."""
+    
+    gbdrift: np.ndarray
+    r"""Grad-B drift coefficient :math:`2 B_{\text{ref}} L_{\text{ref}}^2 (\vec{B} \times \nabla |B|) \cdot \nabla \alpha / |B|^3`."""
+    
+    gbdrift0: np.ndarray
+    r"""Alternate grad-B drift coefficient (used by certain gyrokinetic codes)."""
+    
+    cvdrift: np.ndarray
+    r"""Curvature drift coefficient :math:`2 B_{\text{ref}} L_{\text{ref}}^2 (\vec{B} \times \vec{\kappa}) \cdot \nabla \alpha / |B|^3`."""
+    
+    cvdrift0: np.ndarray
+    r"""Alternate curvature drift coefficient (used by certain gyrokinetic codes)."""
+
+    ### Quantities related to the grad \vec{B} tensor
+    # See Appendix C of Kappel et al, "The Magnetic Gradient Scale Length
+    # Explains Why Certain Plasmas Require Close External Magnetic Coils"
+    # Plasma Phys. Control. Fusion 66 (2024) 025018
+    # https://doi.org/10.1088/1361-6587/ad1a3e
+    grad_B__XX: np.ndarray
+    r""":math:`\partial B_X / \partial X`"""
+    grad_B__XY: np.ndarray
+    r""":math:`\partial B_X / \partial Y`"""
+    grad_B__XZ: np.ndarray
+    r""":math:`\partial B_X / \partial Z`"""
+    grad_B__YX: np.ndarray
+    r""":math:`\partial B_Y / \partial X`"""
+    grad_B__YY: np.ndarray
+    r""":math:`\partial B_Y / \partial Y`"""
+    grad_B__YZ: np.ndarray
+    r""":math:`\partial B_Y / \partial Z`"""
+    grad_B__ZX: np.ndarray
+    r""":math:`\partial B_Z / \partial X`"""
+    grad_B__ZY: np.ndarray
+    r""":math:`\partial B_Z / \partial Y`"""
+    grad_B__ZZ: np.ndarray
+    r""":math:`\partial B_Z / \partial Z`"""
+    
+    grad_B_double_dot_grad_B: np.ndarray
+    r"""Double contraction of grad B tensor :math:`\sum_{ij} (\partial B_i / \partial x_j)^2`."""
+    norm_grad_B: np.ndarray
+    r"""Norm of the gradient of magnetic field :math:`|\nabla \vec{B}| = \sqrt{\text{grad_B_double_dot_grad_B}}`."""
+    L_grad_B: np.ndarray
+    r"""Magnetic gradient scale length :math:`L_{\nabla B} = |B| / |\nabla \vec{B}|`, a proxy for the minimum coil-plasma distance, from Kappel et al, PPCF 66 025018 (2024)."""
+
+    ### Optional Coordinate Tracing Outputs
+    nalpha: Optional[int] = None
+    """Number of field line labels alpha. Only present if object was computed via field line tracing."""
+    nl: Optional[int] = None
+    """Number of points along each field line. Only present if object was computed via field line tracing."""
+    
+    alpha: Optional[np.ndarray] = None
+    """Field line label alpha values."""
+    theta1d: Optional[np.ndarray] = None
+    """1D array of theta points for coordinate-line tracing."""
+    phi1d: Optional[np.ndarray] = None
+    """1D array of phi points for coordinate-line tracing."""
+
+
+VmecGeometryResults.__signature__ = inspect.Signature()
+
+
+def vmec_compute_geometry(vs, s:RealArray, theta:RealArray, phi:RealArray, phi_center:float=0.0)->VmecGeometryResults:
     r"""
     Compute many geometric quantities of interest from a vmec configuration.
 
@@ -877,38 +1238,12 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     tensor-product grids.  Note that all angles in this function have
     period :math:`2\pi`, not period 1.
 
-    The output arrays are returned as attributes of the
-    returned object. Many intermediate quantities are included, such
-    as the Cartesian components of the covariant and contravariant
-    basis vectors. Some of the most useful of these output arrays are (all with SI units):
-
-    - ``phi``: The standard toroidal angle :math:`\phi`.
-    - ``theta_vmec``: VMEC's poloidal angle :math:`\theta_{vmec}`.
-    - ``theta_pest``: The straight-field-line angle :math:`\theta_{pest}` associated with :math:`\phi`.
-    - ``modB``: The magnetic field magnitude :math:`|B|`.
-    - ``B_sup_theta_vmec``: :math:`\vec{B}\cdot\nabla\theta_{vmec}`.
-    - ``B_sup_phi``: :math:`\vec{B}\cdot\nabla\phi`.
-    - ``B_cross_grad_B_dot_grad_alpha``: :math:`\vec{B}\times\nabla|B|\cdot\nabla\alpha`.
-    - ``B_cross_grad_B_dot_grad_psi``: :math:`\vec{B}\times\nabla|B|\cdot\nabla\psi`.
-    - ``B_cross_kappa_dot_grad_alpha``: :math:`\vec{B}\times\vec{\kappa}\cdot\nabla\alpha`,
-      where :math:`\vec{\kappa}=\vec{b}\cdot\nabla\vec{b}` is the curvature and :math:`\vec{b}=|B|^{-1}\vec{B}`.
-    - ``B_cross_kappa_dot_grad_psi``: :math:`\vec{B}\times\vec{\kappa}\cdot\nabla\psi`.
-    - ``grad_alpha_dot_grad_alpha``: :math:`|\nabla\alpha|^2 = \nabla\alpha\cdot\nabla\alpha`.
-    - ``grad_alpha_dot_grad_psi``: :math:`\nabla\alpha\cdot\nabla\psi`.
-    - ``grad_psi_dot_grad_psi``: :math:`|\nabla\psi|^2 = \nabla\psi\cdot\nabla\psi`.
-    - ``L_grad_B``: The scale length of the magnetic field, from Kappel et al, PPCF 66 025018 (2024).
-    - ``iota``: The rotational transform :math:`\iota`. This array has shape ``(ns,)``.
-    - ``shat``: The magnetic shear :math:`\hat s= (x/q) (d q / d x)` where 
-      :math:`x = \mathrm{Aminor_p} \, \sqrt{s}` and :math:`q=1/\iota`. This array has shape ``(ns,)``.
-
-    The following normalized versions of these quantities used in the
-    gyrokinetic codes ``stella``, ``gs2``, and ``GX`` are also
-    returned: ``bmag``, ``gbdrift``, ``gbdrift0``, ``cvdrift``,
-    ``cvdrift0``, ``gds2``, ``gds21``, and ``gds22``, along with
-    ``L_reference`` and ``B_reference``.  Instead of ``gradpar``, two
-    variants are returned, ``gradpar_theta_pest`` and ``gradpar_phi``,
-    corresponding to choosing either :math:`\theta_{pest}` or
-    :math:`\phi` as the parallel coordinate.
+    The geometric quantities computed include magnetic field components and derivatives,
+    metric tensor elements, Cartesian coordinates and basis vectors, geometric
+    coefficients for gyrokinetic codes (``stella``, ``gs2``, ``GX``), and the
+    magnetic gradient scale length :math:`L_{\nabla B}` from Kappel et al, PPCF 66 025018 (2024).
+    All output arrays are returned as attributes of a :class:`VmecGeometryResults` object
+    with detailed documentation for each quantity.
 
     The value(s) of ``s`` provided as input need not coincide with the
     full grid or half grid in VMEC, as spline interpolation will be
@@ -940,13 +1275,15 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
           ``(nphi,)`` or a 3d array of size ``(ns, ntheta, nphi)``.
         phi_center: :math:`\phi_{center}`, an optional shift to the toroidal angle
           in the definition of :math:`\alpha`.
+
+    Returns:
+        A :class:`VmecGeometryResults` object containing all computed geometric quantities.
+        See the documentation of :class:`VmecGeometryResults` for details on the available attributes.
     """
     # If given a Vmec object, convert it to vmec_splines:
     if isinstance(vs, Vmec):
         vs = vmec_splines(vs)
-    if not vs.stellsym:
-        raise NotImplementedError("vmec_compute_geometry() does not yet support non-stellarator-symmetric configurations.")
-
+    
     # Make sure s is an array:
     try:
         ns = len(s)
@@ -988,6 +1325,7 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
         phi = np.kron(np.ones((ns, ntheta, 1)), phi.reshape(1, 1, nphi))
 
     # Shorthand:
+    stellsym = vs.stellsym
     mnmax = vs.mnmax
     xm = vs.xm
     xn = vs.xn
@@ -1009,6 +1347,15 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     d_rmnc_d_s = np.zeros((ns, mnmax))
     d_zmns_d_s = np.zeros((ns, mnmax))
     d_lmns_d_s = np.zeros((ns, mnmax))
+    # stellsym
+    rmns = np.zeros((ns, mnmax))
+    zmnc = np.zeros((ns, mnmax))
+    lmnc = np.zeros((ns, mnmax))
+    d_rmns_d_s = np.zeros((ns, mnmax))
+    d_zmnc_d_s = np.zeros((ns, mnmax))
+    d_lmnc_d_s = np.zeros((ns, mnmax))
+    
+    
     for jmn in range(mnmax):
         rmnc[:, jmn] = vs.rmnc[jmn](s)
         zmns[:, jmn] = vs.zmns[jmn](s)
@@ -1016,7 +1363,16 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
         d_rmnc_d_s[:, jmn] = vs.d_rmnc_d_s[jmn](s)
         d_zmns_d_s[:, jmn] = vs.d_zmns_d_s[jmn](s)
         d_lmns_d_s[:, jmn] = vs.d_lmns_d_s[jmn](s)
+        if not stellsym:
+            rmns[:, jmn] = vs.rmns[jmn](s)
+            zmnc[:, jmn] = vs.zmnc[jmn](s)
+            lmnc[:, jmn] = vs.lmnc[jmn](s)
+            d_rmns_d_s[:, jmn] = vs.d_rmns_d_s[jmn](s)
+            d_zmnc_d_s[:, jmn] = vs.d_zmnc_d_s[jmn](s)
+            d_lmnc_d_s[:, jmn] = vs.d_lmnc_d_s[jmn](s)
+        
 
+        
     gmnc = np.zeros((ns, mnmax_nyq))
     bmnc = np.zeros((ns, mnmax_nyq))
     d_bmnc_d_s = np.zeros((ns, mnmax_nyq))
@@ -1027,6 +1383,17 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     bsubvmnc = np.zeros((ns, mnmax_nyq))
     d_bsupumnc_d_s = np.zeros((ns, mnmax_nyq))
     d_bsupvmnc_d_s = np.zeros((ns, mnmax_nyq))
+    # stellsym
+    gmns = np.zeros((ns, mnmax_nyq))
+    bmns = np.zeros((ns, mnmax_nyq))
+    d_bmns_d_s = np.zeros((ns, mnmax_nyq))
+    bsupumns = np.zeros((ns, mnmax_nyq))
+    bsupvmns = np.zeros((ns, mnmax_nyq))
+    bsubsmnc = np.zeros((ns, mnmax_nyq))
+    bsubumns = np.zeros((ns, mnmax_nyq))
+    bsubvmns = np.zeros((ns, mnmax_nyq))
+    d_bsupumns_d_s = np.zeros((ns, mnmax_nyq))
+    d_bsupvmns_d_s = np.zeros((ns, mnmax_nyq))
     for jmn in range(mnmax_nyq):
         gmnc[:, jmn] = vs.gmnc[jmn](s)
         bmnc[:, jmn] = vs.bmnc[jmn](s)
@@ -1038,7 +1405,19 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
         bsubvmnc[:, jmn] = vs.bsubvmnc[jmn](s)
         d_bsupumnc_d_s[:, jmn] = vs.d_bsupumnc_d_s[jmn](s)
         d_bsupvmnc_d_s[:, jmn] = vs.d_bsupvmnc_d_s[jmn](s)
+        if not stellsym:
+            gmns[:, jmn] = vs.gmns[jmn](s)
+            bmns[:, jmn] = vs.bmns[jmn](s)
+            d_bmns_d_s[:, jmn] = vs.d_bmns_d_s[jmn](s)
+            bsupumns[:, jmn] = vs.bsupumns[jmn](s)
+            bsupvmns[:, jmn] = vs.bsupvmns[jmn](s)
+            bsubsmnc[:, jmn] = vs.bsubsmnc[jmn](s)
+            bsubumns[:, jmn] = vs.bsubumns[jmn](s)
+            bsubvmns[:, jmn] = vs.bsubvmns[jmn](s)
+            d_bsupumns_d_s[:, jmn] = vs.d_bsupumns_d_s[jmn](s)
+            d_bsupvmns_d_s[:, jmn] = vs.d_bsupvmns_d_s[jmn](s)
 
+        
     # Now that we know theta_vmec, compute all the geometric quantities
     angle = xm[:, None, None, None] * theta_vmec[None, :, :, :] - xn[:, None, None, None] * phi[None, :, :, :]
     cosangle = np.cos(angle)
@@ -1055,30 +1434,30 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     n2sinangle = xn[:, None, None, None]**2 * sinangle
     # Order of indices in cosangle and sinangle: mn, s, theta, phi
     # Order of indices in rmnc, bmnc, etc: s, mn
-    R = np.einsum('ij,jikl->ikl', rmnc, cosangle)
-    d_R_d_s = np.einsum('ij,jikl->ikl', d_rmnc_d_s, cosangle)
-    d_R_d_theta_vmec = np.einsum('ij,jikl->ikl', -rmnc, msinangle)
-    d_R_d_phi = np.einsum('ij,jikl->ikl', rmnc, nsinangle)
-    d2_R_d_phi2 = np.einsum('ij,jikl->ikl', -rmnc, n2cosangle)
-    d2_R_d_theta_vmec2 = np.einsum('ij,jikl->ikl', -rmnc, m2cosangle)
-    d2_R_d_theta_vmec_d_phi = np.einsum('ij,jikl->ikl', rmnc, mncosangle)
-    d2_R_d_s_d_theta_vmec = np.einsum('ij,jikl->ikl', -d_rmnc_d_s, msinangle)
-    d2_R_d_s_d_phi = np.einsum('ij,jikl->ikl', d_rmnc_d_s, nsinangle)
+    R = np.einsum('ij,jikl->ikl', rmnc, cosangle) + np.einsum('ij,jikl->ikl', rmns, sinangle)
+    d_R_d_s = np.einsum('ij,jikl->ikl', d_rmnc_d_s, cosangle) + np.einsum('ij,jikl->ikl', d_rmns_d_s, sinangle)
+    d_R_d_theta_vmec = np.einsum('ij,jikl->ikl', -rmnc, msinangle) + np.einsum('ij,jikl->ikl', rmns, mcosangle)
+    d_R_d_phi = np.einsum('ij,jikl->ikl', rmnc, nsinangle) + np.einsum('ij,jikl->ikl', -rmns, ncosangle)
+    d2_R_d_phi2 = np.einsum('ij,jikl->ikl', -rmnc, n2cosangle) + np.einsum('ij,jikl->ikl', -rmns, n2sinangle)
+    d2_R_d_theta_vmec2 = np.einsum('ij,jikl->ikl', -rmnc, m2cosangle) + np.einsum('ij,jikl->ikl', -rmns, m2sinangle)
+    d2_R_d_theta_vmec_d_phi = np.einsum('ij,jikl->ikl', rmnc, mncosangle) + np.einsum('ij,jikl->ikl', rmns, mnsinangle)
+    d2_R_d_s_d_theta_vmec = np.einsum('ij,jikl->ikl', -d_rmnc_d_s, msinangle) + np.einsum('ij,jikl->ikl', d_rmns_d_s, mcosangle)
+    d2_R_d_s_d_phi = np.einsum('ij,jikl->ikl', d_rmnc_d_s, nsinangle) + np.einsum('ij,jikl->ikl', -d_rmns_d_s, ncosangle)
 
-    Z = np.einsum('ij,jikl->ikl', zmns, sinangle)
-    d_Z_d_s = np.einsum('ij,jikl->ikl', d_zmns_d_s, sinangle)
-    d_Z_d_theta_vmec = np.einsum('ij,jikl->ikl', zmns, mcosangle)
-    d_Z_d_phi = np.einsum('ij,jikl->ikl', -zmns, ncosangle)
-    d2_Z_d_theta_vmec2 = np.einsum('ij,jikl->ikl', -zmns, m2sinangle)
-    d2_Z_d_phi2 = np.einsum('ij,jikl->ikl', -zmns, n2sinangle)
-    d2_Z_d_theta_vmec_d_phi = np.einsum('ij,jikl->ikl', zmns, mnsinangle)
-    d2_Z_d_s_d_theta_vmec = np.einsum('ij,jikl->ikl', d_zmns_d_s, mcosangle)
-    d2_Z_d_s_d_phi = np.einsum('ij,jikl->ikl', -d_zmns_d_s, ncosangle)
+    Z = np.einsum('ij,jikl->ikl', zmns, sinangle) + np.einsum('ij,jikl->ikl', zmnc, cosangle)
+    d_Z_d_s = np.einsum('ij,jikl->ikl', d_zmns_d_s, sinangle) + np.einsum('ij,jikl->ikl', d_zmnc_d_s, cosangle)
+    d_Z_d_theta_vmec = np.einsum('ij,jikl->ikl', zmns, mcosangle) + np.einsum('ij,jikl->ikl', -zmnc, msinangle)
+    d_Z_d_phi = np.einsum('ij,jikl->ikl', -zmns, ncosangle) + np.einsum('ij,jikl->ikl', zmnc, nsinangle)
+    d2_Z_d_phi2 = np.einsum('ij,jikl->ikl', -zmns, n2sinangle) + np.einsum('ij,jikl->ikl', -zmnc, n2cosangle)
+    d2_Z_d_theta_vmec2 = np.einsum('ij,jikl->ikl', -zmns, m2sinangle) + np.einsum('ij,jikl->ikl', -zmnc, m2cosangle)
+    d2_Z_d_theta_vmec_d_phi = np.einsum('ij,jikl->ikl', zmns, mnsinangle) + np.einsum('ij,jikl->ikl', zmnc, mncosangle)
+    d2_Z_d_s_d_theta_vmec = np.einsum('ij,jikl->ikl', d_zmns_d_s, mcosangle) + np.einsum('ij,jikl->ikl', -d_zmnc_d_s, msinangle)
+    d2_Z_d_s_d_phi = np.einsum('ij,jikl->ikl', -d_zmns_d_s, ncosangle) + np.einsum('ij,jikl->ikl', d_zmnc_d_s, nsinangle)
 
-    lambd = np.einsum('ij,jikl->ikl', lmns, sinangle)
-    d_lambda_d_s = np.einsum('ij,jikl->ikl', d_lmns_d_s, sinangle)
-    d_lambda_d_theta_vmec = np.einsum('ij,jikl->ikl', lmns, mcosangle)
-    d_lambda_d_phi = np.einsum('ij,jikl->ikl', -lmns, ncosangle)
+    lambd = np.einsum('ij,jikl->ikl', lmns, sinangle) + np.einsum('ij,jikl->ikl', lmnc, cosangle)
+    d_lambda_d_s = np.einsum('ij,jikl->ikl', d_lmns_d_s, sinangle) +  np.einsum('ij,jikl->ikl', d_lmnc_d_s, cosangle)
+    d_lambda_d_theta_vmec = np.einsum('ij,jikl->ikl', lmns, mcosangle) +  + np.einsum('ij,jikl->ikl', -lmnc, msinangle)
+    d_lambda_d_phi = np.einsum('ij,jikl->ikl', -lmns, ncosangle) + np.einsum('ij,jikl->ikl', lmnc, nsinangle)
     theta_pest = theta_vmec + lambd
 
     # Now handle the Nyquist quantities:
@@ -1090,24 +1469,24 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     msinangle = xm_nyq[:, None, None, None] * sinangle
     nsinangle = xn_nyq[:, None, None, None] * sinangle
 
-    sqrt_g_vmec = np.einsum('ij,jikl->ikl', gmnc, cosangle)
-    modB = np.einsum('ij,jikl->ikl', bmnc, cosangle)
-    d_B_d_s = np.einsum('ij,jikl->ikl', d_bmnc_d_s, cosangle)
-    d_B_d_theta_vmec = np.einsum('ij,jikl->ikl', -bmnc, msinangle)
-    d_B_d_phi = np.einsum('ij,jikl->ikl', bmnc, nsinangle)
+    sqrt_g_vmec = np.einsum('ij,jikl->ikl', gmnc, cosangle) + np.einsum('ij,jikl->ikl', gmns, sinangle)
+    modB = np.einsum('ij,jikl->ikl', bmnc, cosangle) + np.einsum('ij,jikl->ikl', bmns, sinangle)
+    d_B_d_s = np.einsum('ij,jikl->ikl', d_bmnc_d_s, cosangle) +  np.einsum('ij,jikl->ikl', d_bmns_d_s, sinangle)
+    d_B_d_theta_vmec = np.einsum('ij,jikl->ikl', -bmnc, msinangle) + np.einsum('ij,jikl->ikl', bmns, mcosangle)
+    d_B_d_phi = np.einsum('ij,jikl->ikl', bmnc, nsinangle) + np.einsum('ij,jikl->ikl', -bmns, ncosangle)
 
-    B_sup_theta_vmec = np.einsum('ij,jikl->ikl', bsupumnc, cosangle)
-    B_sup_phi = np.einsum('ij,jikl->ikl', bsupvmnc, cosangle)
-    B_sub_s = np.einsum('ij,jikl->ikl', bsubsmns, sinangle)
-    B_sub_theta_vmec = np.einsum('ij,jikl->ikl', bsubumnc, cosangle)
-    B_sub_phi = np.einsum('ij,jikl->ikl', bsubvmnc, cosangle)
+    B_sup_theta_vmec = np.einsum('ij,jikl->ikl', bsupumnc, cosangle) + np.einsum('ij,jikl->ikl', bsupumns, sinangle)
+    B_sup_phi = np.einsum('ij,jikl->ikl', bsupvmnc, cosangle) + np.einsum('ij,jikl->ikl', bsupvmns, sinangle)
+    B_sub_s = np.einsum('ij,jikl->ikl', bsubsmns, sinangle) +  np.einsum('ij,jikl->ikl', bsubsmnc, cosangle)
+    B_sub_theta_vmec = np.einsum('ij,jikl->ikl', bsubumnc, cosangle) + np.einsum('ij,jikl->ikl', bsubumns, sinangle)
+    B_sub_phi = np.einsum('ij,jikl->ikl', bsubvmnc, cosangle) + np.einsum('ij,jikl->ikl', bsubvmns, sinangle)
     B_sup_theta_pest = iota[:, None, None] * B_sup_phi
-    d_B_sup_phi_d_theta_vmec = np.einsum('ij,jikl->ikl', -bsupvmnc, msinangle)
-    d_B_sup_phi_d_phi = np.einsum('ij,jikl->ikl', bsupvmnc, nsinangle)
-    d_B_sup_theta_vmec_d_theta_vmec = np.einsum('ij,jikl->ikl', -bsupumnc, msinangle)
-    d_B_sup_theta_vmec_d_phi = np.einsum('ij,jikl->ikl', bsupumnc, nsinangle)
-    d_B_sup_theta_vmec_d_s = np.einsum('ij,jikl->ikl', d_bsupumnc_d_s, cosangle)
-    d_B_sup_phi_d_s = np.einsum('ij,jikl->ikl', d_bsupvmnc_d_s, cosangle)
+    d_B_sup_phi_d_theta_vmec = np.einsum('ij,jikl->ikl', -bsupvmnc, msinangle) + np.einsum('ij,jikl->ikl', bsupvmns, mcosangle)
+    d_B_sup_phi_d_phi = np.einsum('ij,jikl->ikl', bsupvmnc, nsinangle) + np.einsum('ij,jikl->ikl', -bsupvmns, ncosangle)
+    d_B_sup_theta_vmec_d_theta_vmec = np.einsum('ij,jikl->ikl', -bsupumnc, msinangle) + np.einsum('ij,jikl->ikl', bsupumns, mcosangle)
+    d_B_sup_theta_vmec_d_phi = np.einsum('ij,jikl->ikl', bsupumnc, nsinangle) + np.einsum('ij,jikl->ikl', -bsupumns, ncosangle)
+    d_B_sup_theta_vmec_d_s = np.einsum('ij,jikl->ikl', d_bsupumnc_d_s, cosangle) + np.einsum('ij,jikl->ikl', d_bsupumns_d_s, sinangle)
+    d_B_sup_phi_d_s = np.einsum('ij,jikl->ikl', d_bsupvmnc_d_s, cosangle) + np.einsum('ij,jikl->ikl', d_bsupvmns_d_s, sinangle)
 
     sqrt_g_vmec_alt = R * (d_Z_d_s * d_R_d_theta_vmec - d_R_d_s * d_Z_d_theta_vmec)
 
@@ -1359,72 +1738,65 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     norm_grad_B = np.sqrt(grad_B_double_dot_grad_B)
     L_grad_B = modB * np.sqrt(2 / grad_B_double_dot_grad_B)
 
-    # Package results into a structure to return:
-    results = Struct()
-    variables = ['ns', 'ntheta', 'nphi', 's', 'iota', 'd_iota_d_s', 'd_pressure_d_s', 'shat',
-                 'theta_vmec', 'phi', 'theta_pest',
-                 'd_lambda_d_s', 'd_lambda_d_theta_vmec', 'd_lambda_d_phi', 'sqrt_g_vmec', 'sqrt_g_vmec_alt',
-                 'modB', 'd_B_d_s', 'd_B_d_theta_vmec', 'd_B_d_phi', 'B_sup_theta_vmec', 'B_sup_theta_pest', 'B_sup_phi',
-                 'B_sub_s', 'B_sub_theta_vmec', 'B_sub_phi', 'edge_toroidal_flux_over_2pi', 'sinphi', 'cosphi',
-                 'd2_R_d_phi2', 'd2_R_d_theta_vmec2', 'd2_R_d_theta_vmec_d_phi', 'd2_R_d_s_d_theta_vmec', 'd2_R_d_s_d_phi',
-                 'd2_Z_d_theta_vmec2', 'd2_Z_d_phi2', 'd2_Z_d_theta_vmec_d_phi', 'd2_Z_d_s_d_theta_vmec', 'd2_Z_d_s_d_phi',
-                 'd_B_sup_phi_d_theta_vmec', 'd_B_sup_phi_d_phi', 'd_B_sup_theta_vmec_d_theta_vmec',
-                 'd_B_sup_theta_vmec_d_phi', 'd_B_sup_theta_vmec_d_s', 'd_B_sup_phi_d_s',
-                 'R', 'd_R_d_s', 'd_R_d_theta_vmec', 'd_R_d_phi', 'X', 'Y', 'Z', 'd_Z_d_s', 'd_Z_d_theta_vmec', 'd_Z_d_phi',
-                 'd_X_d_theta_vmec', 'd_X_d_phi', 'd_X_d_s', 'd_Y_d_theta_vmec', 'd_Y_d_phi', 'd_Y_d_s',
-                 'grad_s_X', 'grad_s_Y', 'grad_s_Z', 'grad_theta_vmec_X', 'grad_theta_vmec_Y', 'grad_theta_vmec_Z',
-                 'grad_phi_X', 'grad_phi_Y', 'grad_phi_Z', 'grad_psi_X', 'grad_psi_Y', 'grad_psi_Z',
-                 'grad_alpha_X', 'grad_alpha_Y', 'grad_alpha_Z', 'grad_B_X', 'grad_B_Y', 'grad_B_Z',
-                 'B_X', 'B_Y', 'B_Z', "grad_s_dot_grad_s",
-                 'B_cross_grad_s_dot_grad_alpha', 'B_cross_grad_s_dot_grad_alpha_alternate',
-                 'B_cross_grad_B_dot_grad_alpha', 'B_cross_grad_B_dot_grad_alpha_alternate',
-                 'B_cross_grad_B_dot_grad_psi', 'B_cross_kappa_dot_grad_psi', 'B_cross_kappa_dot_grad_alpha',
-                 'grad_alpha_dot_grad_alpha', 'grad_alpha_dot_grad_psi', 'grad_psi_dot_grad_psi',
-                 'L_reference', 'B_reference', 'toroidal_flux_sign',
-                 'bmag', 'gradpar_theta_pest', 'gradpar_phi', 'gds2', 'gds21', 'gds22', 'gbdrift', 'gbdrift0', 'cvdrift', 'cvdrift0',
-                 'grad_B__XX', 'grad_B__XY', 'grad_B__XZ', 'grad_B__YX', 'grad_B__YY', 'grad_B__YZ', 'grad_B__ZX', 'grad_B__ZY', 'grad_B__ZZ',
-                 'grad_B_double_dot_grad_B', 'norm_grad_B', 'L_grad_B',
-                 ]
-    for v in variables:
-        results.__setattr__(v, eval(v))
+    results = VmecGeometryResults(
+        ns=ns, ntheta=ntheta, nphi=nphi, s=s, iota=iota, d_iota_d_s=d_iota_d_s, d_pressure_d_s=d_pressure_d_s, shat=shat,
+        theta_vmec=theta_vmec, phi=phi, theta_pest=theta_pest,
+        d_lambda_d_s=d_lambda_d_s, d_lambda_d_theta_vmec=d_lambda_d_theta_vmec, d_lambda_d_phi=d_lambda_d_phi, sqrt_g_vmec=sqrt_g_vmec, sqrt_g_vmec_alt=sqrt_g_vmec_alt,
+        modB=modB, d_B_d_s=d_B_d_s, d_B_d_theta_vmec=d_B_d_theta_vmec, d_B_d_phi=d_B_d_phi, B_sup_theta_vmec=B_sup_theta_vmec, B_sup_theta_pest=B_sup_theta_pest, B_sup_phi=B_sup_phi,
+        B_sub_s=B_sub_s, B_sub_theta_vmec=B_sub_theta_vmec, B_sub_phi=B_sub_phi, edge_toroidal_flux_over_2pi=edge_toroidal_flux_over_2pi, sinphi=sinphi, cosphi=cosphi,
+        d2_R_d_phi2=d2_R_d_phi2, d2_R_d_theta_vmec2=d2_R_d_theta_vmec2, d2_R_d_theta_vmec_d_phi=d2_R_d_theta_vmec_d_phi, d2_R_d_s_d_theta_vmec=d2_R_d_s_d_theta_vmec, d2_R_d_s_d_phi=d2_R_d_s_d_phi,
+        d2_Z_d_theta_vmec2=d2_Z_d_theta_vmec2, d2_Z_d_phi2=d2_Z_d_phi2, d2_Z_d_theta_vmec_d_phi=d2_Z_d_theta_vmec_d_phi, d2_Z_d_s_d_theta_vmec=d2_Z_d_s_d_theta_vmec, d2_Z_d_s_d_phi=d2_Z_d_s_d_phi,
+        d_B_sup_phi_d_theta_vmec=d_B_sup_phi_d_theta_vmec, d_B_sup_phi_d_phi=d_B_sup_phi_d_phi, d_B_sup_theta_vmec_d_theta_vmec=d_B_sup_theta_vmec_d_theta_vmec,
+        d_B_sup_theta_vmec_d_phi=d_B_sup_theta_vmec_d_phi, d_B_sup_theta_vmec_d_s=d_B_sup_theta_vmec_d_s, d_B_sup_phi_d_s=d_B_sup_phi_d_s,
+        R=R, d_R_d_s=d_R_d_s, d_R_d_theta_vmec=d_R_d_theta_vmec, d_R_d_phi=d_R_d_phi, X=X, Y=Y, Z=Z, d_Z_d_s=d_Z_d_s, d_Z_d_theta_vmec=d_Z_d_theta_vmec, d_Z_d_phi=d_Z_d_phi,
+        d_X_d_theta_vmec=d_X_d_theta_vmec, d_X_d_phi=d_X_d_phi, d_X_d_s=d_X_d_s, d_Y_d_theta_vmec=d_Y_d_theta_vmec, d_Y_d_phi=d_Y_d_phi, d_Y_d_s=d_Y_d_s,
+        grad_s_X=grad_s_X, grad_s_Y=grad_s_Y, grad_s_Z=grad_s_Z, grad_theta_vmec_X=grad_theta_vmec_X, grad_theta_vmec_Y=grad_theta_vmec_Y, grad_theta_vmec_Z=grad_theta_vmec_Z,
+        grad_phi_X=grad_phi_X, grad_phi_Y=grad_phi_Y, grad_phi_Z=grad_phi_Z, grad_psi_X=grad_psi_X, grad_psi_Y=grad_psi_Y, grad_psi_Z=grad_psi_Z,
+        grad_alpha_X=grad_alpha_X, grad_alpha_Y=grad_alpha_Y, grad_alpha_Z=grad_alpha_Z, grad_B_X=grad_B_X, grad_B_Y=grad_B_Y, grad_B_Z=grad_B_Z,
+        B_X=B_X, B_Y=B_Y, B_Z=B_Z, grad_s_dot_grad_s=grad_s_dot_grad_s,
+        B_cross_grad_s_dot_grad_alpha=B_cross_grad_s_dot_grad_alpha, B_cross_grad_s_dot_grad_alpha_alternate=B_cross_grad_s_dot_grad_alpha_alternate,
+        B_cross_grad_B_dot_grad_alpha=B_cross_grad_B_dot_grad_alpha, B_cross_grad_B_dot_grad_alpha_alternate=B_cross_grad_B_dot_grad_alpha_alternate,
+        B_cross_grad_B_dot_grad_psi=B_cross_grad_B_dot_grad_psi, B_cross_kappa_dot_grad_psi=B_cross_kappa_dot_grad_psi, B_cross_kappa_dot_grad_alpha=B_cross_kappa_dot_grad_alpha,
+        grad_alpha_dot_grad_alpha=grad_alpha_dot_grad_alpha, grad_alpha_dot_grad_psi=grad_alpha_dot_grad_psi, grad_psi_dot_grad_psi=grad_psi_dot_grad_psi,
+        L_reference=L_reference, B_reference=B_reference, toroidal_flux_sign=toroidal_flux_sign,
+        bmag=bmag, gradpar_theta_pest=gradpar_theta_pest, gradpar_phi=gradpar_phi, gds2=gds2, gds21=gds21, gds22=gds22, gbdrift=gbdrift, gbdrift0=gbdrift0, cvdrift=cvdrift, cvdrift0=cvdrift0,
+        grad_B__XX=grad_B__XX, grad_B__XY=grad_B__XY, grad_B__XZ=grad_B__XZ, grad_B__YX=grad_B__YX, grad_B__YY=grad_B__YY, grad_B__YZ=grad_B__YZ, grad_B__ZX=grad_B__ZX, grad_B__ZY=grad_B__ZY, grad_B__ZZ=grad_B__ZZ,
+        grad_B_double_dot_grad_B=grad_B_double_dot_grad_B, norm_grad_B=norm_grad_B, L_grad_B=L_grad_B,
+    )
 
     return results
 
 
-def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=False, show=True):
+def vmec_fieldlines(vs,
+                    s:Union[float,RealArray],
+                    alpha:Union[float,RealArray],
+                    theta1d:Optional[RealArray]=None,
+                    phi1d:Optional[RealArray]=None,
+                    phi_center:float=0.0,
+                    plot:bool=False,
+                    show:bool=True)-> VmecGeometryResults:
     r"""
-    Compute field lines in a vmec configuration, and compute many
-    geometric quantities of interest along the field lines. In
-    particular, this routine computes the geometric quantities that
-    enter the gyrokinetic equation.
+    Compute field lines in a VMEC configuration and evaluate geometric quantities along them.
 
-    One task performed by this function is to convert between
-    the poloidal angles :math:`\theta_{vmec}` and
-    :math:`\theta_{pest}`. The latter is the angle in which the field
-    lines are straight when used in combination with the standard
-    toroidal angle :math:`\phi`. Note that all angles in this function
-    have period :math:`2\pi`, not period 1.
+    This function traces field lines on specified flux surfaces and field line labels,
+    computing the same geometric quantities as :func:`vmec_compute_geometry`, including
+    those needed for gyrokinetic simulations. The key difference is that field lines are
+    followed in :math:`(\alpha, l)` coordinates rather than using a :math:`(\theta, \phi)` grid.
 
-    To specify the parallel extent of the field lines, you can provide
-    either a grid of :math:`\theta_{pest}` values or a grid of
-    :math:`\phi` values. If you specify both or neither, ``ValueError``
-    will be raised.
+    One task performed by this function is to convert between the poloidal angles
+    :math:`\theta_{vmec}` and :math:`\theta_{pest}`. The latter is the straight-field-line
+    angle that, combined with the toroidal angle :math:`\phi`, makes field lines straight.
+    Note that all angles have period :math:`2\pi`, not period 1.
 
-    The geometric quanties computed by this function are the same as for
-    :func:`vmec_compute_geometry()`. See the documentation of that
-    function for details.
+    To specify the parallel extent of the field lines, provide either a grid of
+    :math:`\theta_{pest}` values or a grid of :math:`\phi` values (but not both).
 
-    Most of the arrays that are returned by this function have shape
-    ``(ns, nalpha, nl)``, where ``ns`` is the number of flux surfaces,
-    ``nalpha`` is the number of field lines on each flux surface, and
-    ``nl`` is the number of grid points along each field line. In
-    other words, ``ns`` is the size of the input ``s`` array,
-    ``nalpha`` is the size of the input ``alpha`` array, and ``nl`` is
-    the size of the input ``theta1d`` or ``phi1d`` array. The output
-    arrays are returned as attributes of the returned object.
+    Most output arrays have shape ``(ns, nalpha, nl)``, where ``ns`` is the number of flux
+    surfaces, ``nalpha`` is the number of field lines per surface, and ``nl`` is the number
+    of grid points along each field line. All geometric quantities are returned as attributes
+    of a :class:`VmecGeometryResults` object with detailed documentation for each quantity.
 
-    The value(s) of ``s`` provided as input need not coincide with the
-    full grid or half grid in VMEC, as spline interpolation will be
+    The value(s) of ``s`` need not coincide with VMEC's grid, as spline interpolation is
     used radially.
 
     Example usage::
@@ -1460,19 +1832,11 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         vs = vmec_splines(vs)
 
     # Make sure s is an array:
-    try:
-        ns = len(s)
-    except:
-        s = [s]
-    s = np.array(s)
+    s = np.atleast_1d(s)
     ns = len(s)
 
     # Make sure alpha is an array
-    try:
-        nalpha = len(alpha)
-    except:
-        alpha = [alpha]
-    alpha = np.array(alpha)
+    alpha = np.atleast_1d(alpha)
     nalpha = len(alpha)
 
     if (theta1d is not None) and (phi1d is not None):
@@ -1530,11 +1894,12 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
 
     # Now that we have theta_vmec, compute all the geometric quantities:
     results = vmec_compute_geometry(vs, s, theta_vmec, phi, phi_center)
-
-    # Add a few more quantities to the results:
-    variables = ["nalpha", "nl", "alpha", "theta1d", "phi1d"]
-    for v in variables:
-        results.__setattr__(v, eval(v))
+    # Add a few more quantities to the results, that are specific to field lines:
+    results.nalpha = nalpha
+    results.nl = nl
+    results.alpha = alpha
+    results.theta1d = theta1d
+    results.phi1d = phi1d
 
     if plot:
         import matplotlib.pyplot as plt
@@ -1548,7 +1913,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         for j, variable in enumerate(variables):
             plt.subplot(nrows, ncols, j + 1)
             plt.plot(phi[0, 0, :], eval("results." + variable + '[0, 0, :]'))
-            plt.xlabel('Standard toroidal angle $\phi$')
+            plt.xlabel(r'Standard toroidal angle $\phi$')
             plt.title(variable)
 
         plt.figtext(0.5, 0.995, f's={s[0]}, alpha={alpha[0]}', ha='center', va='top')
