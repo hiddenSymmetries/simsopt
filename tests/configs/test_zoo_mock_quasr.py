@@ -87,7 +87,7 @@ class QuasrTests(unittest.TestCase):
                  patch("simsopt.configs.zoo.os.getcwd", return_value=tmpdir):
                 # First call (THIS_DIR) returns False, second call (cwd) returns True
                 mock_access.side_effect = [False, True]
-                download_ID_from_QUASR_database(952, use_cache=True, verbose=False)
+                download_ID_from_QUASR_database(952, use_cache=True, verbose=True)
                 # Verify os.access was called twice
                 self.assertEqual(mock_access.call_count, 2)
                 # Verify cache directory was created
@@ -103,6 +103,11 @@ class QuasrTests(unittest.TestCase):
         with patch("simsopt.configs.zoo.os.access", return_value=False):
             with self.assertRaises(PermissionError):
                 download_ID_from_QUASR_database(952, use_cache=True)
+
+        # test ImportError when requests is None (line 586)
+        with patch("simsopt.configs.zoo.requests", None):
+            with self.assertRaises(ImportError):
+                download_ID_from_QUASR_database(952)
 
     def test_prune_cache(self):
         """
