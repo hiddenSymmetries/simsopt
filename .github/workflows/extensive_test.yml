@@ -196,7 +196,7 @@ jobs:
         # ./run_spec_vmec_examples
 
     - name: Run QUASR integration tests
-      if: contains(matrix.test-type, 'integrated')
+      if: contains(matrix.test-type, 'integrated') && matrix.python-version == '3.13'
       run: |
         cd tests
         SIMSOPT_INTEGRATION_TESTS=1 python -m unittest -v configs.test_quasr_integration
