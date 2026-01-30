@@ -43,7 +43,7 @@ class VirtualCasingField(MagneticField):
     
     @classmethod
     def from_vmec(cls, vmec, src_nphi=80, src_ntheta=None, trgt_nphi=32, trgt_ntheta=32, 
-                  use_stellsym=True, digits=3, on_surface_tol=0.05, filename="auto"):
+                  use_stellsym=True, digits=3, on_surface_tol=0.01, filename="auto"):
         """
         Given a :obj:`~simsopt.mhd.vmec.Vmec` object, define MagneticField 
         for the contribution to the total magnetic field due to currents 
@@ -78,7 +78,7 @@ class VirtualCasingField(MagneticField):
               If unspecified, ``src_ntheta`` will be used.
             use_stellsym (bool, default=True): whether to exploit stellarator symmetry in the calculation.
             digits (int, default=3): Approximate number of digits of precision for the calculation.
-            on_surface_tol (float, default=0.05): Distance threshold (in meters) for using 
+            on_surface_tol (float, default=0.01): Distance threshold (in meters) for using 
               precomputed on-surface values instead of off-surface computation.
             filename (str, default="auto"): If not ``None``, the results of the virtual casing calculation
               will be saved in this file. For the default value of ``"auto"``, the
