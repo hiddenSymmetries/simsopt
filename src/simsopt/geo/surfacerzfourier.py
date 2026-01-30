@@ -14,7 +14,7 @@ import matplotlib.colors as mpl_colors
 
 import simsoptpp as sopp
 from .surface import Surface
-from ..objectives.jaccard import jaccard_index
+from ..objectives.polygonal_shape_errors import jaccard_index
 from .._core.optimizable import Optimizable
 from .._core.util import nested_lists_to_array
 from .._core.dev import SimsoptRequires
