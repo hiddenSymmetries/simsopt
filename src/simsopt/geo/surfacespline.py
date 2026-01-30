@@ -373,7 +373,7 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         axis_points=4, 
         points_per_cs=7,
         cs_equispaced=True,
-        rays_equispaced=True,
+        rays_equispaced=False,
         axis_angles_fixed=False,
         cs_global_angle_free=False,
         n_cs=2,

@@ -159,18 +159,24 @@ def pointwise_minimum_poly_distance(
     j = []
 
     # print(eval_grid.T[1,:].reshape(nu, nv)[0])
-
     for i, zeta in enumerate(eval_grid.T[1,:].reshape(nu, nv)[0]):
+        # fig, ax = plt.subplots()
         coords1 = list(zip(R_uz_1[:-1,i], z_uz_1[:-1,i]))
         coords2 = list(zip(R_uz_2[:-1,i], z_uz_2[:-1,i]))
         arg_polygon = shapely.Polygon(coords1)
+        # ax.plot(R_uz_1[:-1,i], z_uz_1[:-1,i])
+        # ax.plot(R_uz_2[:-1,i], z_uz_2[:-1,i])
+        #target_poly = shapely.Polygon(coords2)
         for coords in coords2:
-            point = shapely.Point(coords)
-            # print(point)
-            dist = shapely.distance(arg_polygon, point)
+            point = shapely.Point(coords[0], coords[1])
+            # ax.scatter(coords[0], coords[1])
+            #print(point)
+            dist = shapely.distance(arg_polygon.boundary, point)
             # print(f'dist: {dist}')
+            # ax.text(coords[0], coords[1], f'{dist}')
             j.append(dist)
-    print(f'j: {j}')
+        # plt.show()
+    #print(f'j: {j}')
     return j
 
 def frechet_distance(
@@ -215,7 +221,52 @@ def frechet_distance(
         coords2 = list(zip(R_uz_2[:-1,i], z_uz_2[:-1,i]))
         poly1 = shapely.Polygon(coords1)
         poly2 = shapely.Polygon(coords2)
-        j.append(shapely.frechet_distance(poly1, poly2))
+        j.append(shapely.frechet_distance(poly1.boundary, poly2.boundary))
+    return j
+
+def hausdorff_distance(
+        surf1,
+        surf2,
+        nu=64,
+        nv=64,
+        plot=False,
+    ):
+    '''
+    Compute the Jaccard index between two SurfaceRZFourier surfaces,
+    computed on `nv` toroidal cross-sections. The Jaccard index is the
+    ratio between the intersection and union of two different shapes.
+    The intersection and union are computed here using the `shapely`
+    package, and treats each toroidal cross-sections as an `nu`-gon. 
+    
+    :param surf1: SurfaceRZFourier for first surface
+    :param surf2: SurfaceRZFourier for second surface
+    :param nu: number of poloidal points at which to evaluate surfaces
+    :param nv: number of toroidal points at which to evaluate surfaces
+    :param plot: whether to plot surfaces as evaluated on grids
+    '''
+
+    R_uz_1, z_uz_1, eval_grid = any_to_uz_grid(
+        surf1,
+        nu=nu,
+        nv=nv,
+        plot=plot
+    )
+
+    R_uz_2, z_uz_2, _ = any_to_uz_grid(
+        surf2,
+        nu=nu,
+        nv=nv,
+        plot=plot
+    )
+
+    j = []
+
+    for i, zeta in enumerate(eval_grid.T[1,:].reshape(nu, nv)):
+        coords1 = list(zip(R_uz_1[:-1,i], z_uz_1[:-1,i]))
+        coords2 = list(zip(R_uz_2[:-1,i], z_uz_2[:-1,i]))
+        poly1 = shapely.Polygon(coords1)
+        poly2 = shapely.Polygon(coords2)
+        j.append(shapely.hausdorff_distance(poly1.boundary, poly2.boundary))
     return j
 
 def print_dofs_nicely(surf, lb=None, ub=None):
