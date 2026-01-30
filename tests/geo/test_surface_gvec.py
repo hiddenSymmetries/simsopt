@@ -2,12 +2,8 @@ import unittest
 from pathlib import Path
 
 import numpy as np
-from monty.tempfile import ScratchDir
 
-from simsopt import save, load
 from simsopt.geo.surfacegvec import SurfaceGVECFourier
-from simsopt.geo.surface import Surface
-from simsopt._core.optimizable import Optimizable
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
 

@@ -66,7 +66,7 @@ class Gvec(Optimizable):
         boundary: the prescribed plasma boundary.
         pressure: the prescribed pressure profile.
         iota: the prescribed (or initial) rotational transform profile.
-        current: the prescribed toroidal current profile. if None, GVEC will run in iota-constraint mode, otherwise it will run in current-constraint mode with the given iota as initial guess.
+        current: the prescribed toroidal current profile. if None, GVEC will run in prescribed-iota mode, otherwise it will run in prescribed-current mode with the given iota as initial guess.
         parameters: a dictionary of GVEC parameters.
         restart: ...
         delete_intermediates: whether to delete intermediate files after the run.
@@ -456,63 +456,17 @@ class Gvec(Optimizable):
         """Convert a simsopt.SurfaceRZFourier object into GVEC boundary parameters.
 
         The output parameters will include the (non-boundary) contents of the `append` dictionary, if provided.
-        ToDo: should this rather be part of the boundary object?
         """
         if isinstance(boundary, SurfaceScaled):
             boundary = boundary.surf
         if not isinstance(boundary, (SurfaceRZFourier, SurfaceGVECFourier)):
             boundary = boundary.to_RZFourier()
-
-        if append is None:
-            params = {}
-        else:
-            params = copy.deepcopy(append)
-
-        params["nfp"] = boundary.nfp
-        params["init_average_axis"] = True
-
-        # keep higher mn_max if set previously (e.g. for interior modes)
-        for key in ["X1", "X2", "LA"]:
-            m, n = params.get(f"{key}_mn_max", (0, 0))
-            params[f"{key}_mn_max"] = (max(boundary.mpol, m), max(boundary.ntor, n))
-
-        params["X1_sin_cos"] = "_cos_" if boundary.stellsym else "_sin_cos_"
-        params["X2_sin_cos"] = "_sin_" if boundary.stellsym else "_sin_cos_"
-
-        for Xi in ["X1", "X2"]:
-            for sincos in ["sin", "cos"]:
-                params[f"{Xi}_b_{sincos}"] = {}
         
-        if isinstance(boundary, SurfaceRZFourier):
-            for m in range(boundary.mpol + 1):
-                for n in range(-boundary.ntor, boundary.ntor + 1):
-                    if X1c := boundary.get_rc(m, n):
-                        params["X1_b_cos"][m, n] = X1c
-                    if not boundary.stellsym and (X1s := boundary.get_rs(m, n)):
-                        params["X1_b_sin"][m, n] = X1s
-                    if not boundary.stellsym and (X2c := boundary.get_zc(m, n)):
-                        params["X2_b_cos"][m, n] = X2c
-                    if X2s := boundary.get_zs(m, n):
-                        params["X2_b_sin"][m, n] = X2s
+        params = boundary.to_gvec_parameters()
 
-            # change counter-clockwise zeta (VMEC, RφZ) to clockwise zeta (GVEC, RZφ)
-            params = gvec.util.flip_boundary_zeta(params)
-        
-        elif isinstance(boundary, SurfaceGVECFourier):
-            for name in boundary.local_full_dof_names:
-                var, sincos, m, n = boundary.split_dof_name(name)
-                # only set non-zero modes
-                if value := boundary.get(name):
-                    params[f"{var}_b_{sincos}"][m, n] = value
+        if append is not None:
+            params = copy.deepcopy(append) | params
 
-        for Xi in ["X1", "X2"]:
-            for sincos in ["sin", "cos"]:
-                if len(params[f"{Xi}_b_{sincos}"]) == 0:
-                    del params[f"{Xi}_b_{sincos}"]
-
-        # ensure right-handed (X1,X2,zeta) / counter-clockwise theta
-        if not gvec.util.check_boundary_direction(params):
-            params = gvec.util.flip_boundary_theta(params)
         return params
 
     @staticmethod
@@ -523,58 +477,14 @@ class Gvec(Optimizable):
         while GVEC uses a (R,Z,phi) coordinate system. The toroidal angle therefore increases
         in the clockwise, rather than counter-clockwise direction, when viewed from above.
         """
-        if params["X1_mn_max"] != params["X2_mn_max"]:
-            raise NotImplementedError("X1_mn_max != X2_mn_max is not supported.")
-
-        nfp = params["nfp"]
-        M, N = params["X1_mn_max"]
-        stellsym = (
-            params.get("X1_sin_cos", "_cos_") == "_cos_"
-            and params.get("X2_sin_cos", "_sin_") == "_sin_"
-        )
 
         # RZphi with phi clockwise when viewed from above
         if params.get("which_hmap", 1) == 1:
-            boundary = SurfaceRZFourier(
-                nfp=nfp,
-                stellsym=stellsym,
-                mpol=M,
-                ntor=N,
-            )
-
-            # set default values to 0
-            boundary.set_rc(0, 0, 0.0)
-            boundary.set_rc(1, 0, 0.0)
-            boundary.set_zs(1, 0, 0.0)
-
-            params = gvec.util.flip_boundary_zeta(params)
-            if "cos" in params["X1_sin_cos"]:
-                for (m, n), value in params.get("X1_b_cos", {}).items():
-                    boundary.set_rc(m, n, value)
-            if "sin" in params["X1_sin_cos"]:
-                for (m, n), value in params.get("X1_b_sin", {}).items():
-                    boundary.set_rs(m, n, value)
-            if "cos" in params["X2_sin_cos"]:
-                for (m, n), value in params.get("X2_b_cos", {}).items():
-                    boundary.set_zc(m, n, value)
-            if "sin" in params["X2_sin_cos"]:
-                for (m, n), value in params.get("X2_b_sin", {}).items():
-                    boundary.set_zs(m, n, value)
+            boundary = SurfaceRZFourier.from_gvec_parameters(params)
         
         # generic boundary type: only contains boundary modes, cannot be evaluated
         else:
-            boundary = SurfaceGVECFourier(
-                nfp=nfp,
-                stellsym=stellsym,
-                mpol=M,
-                ntor=N,
-            )
-
-            for xi in ["X1", "X2"]:
-                for sincos in ["sin", "cos"]:
-                    sc = sincos[0]
-                    for (m, n), value in params.get(f"{xi}_b_{sincos}", {}).items():
-                        boundary.set(f"{xi}{sc}({m},{n})")
+            boundary = SurfaceGVECFourier.from_gvec_parameters(params)
 
         boundary.fix_all()
         return boundary

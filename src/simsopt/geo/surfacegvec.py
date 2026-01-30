@@ -4,7 +4,12 @@ import re
 import numpy as np
 
 from .._core.optimizable import Optimizable
+from .._core.dev import SimsoptRequires
 
+try:
+    import gvec
+except ImportError:
+    gvec = None
 
 logger = logging.getLogger(__name__)
 
@@ -134,3 +139,78 @@ class SurfaceGVECFourier(Optimizable):
                 for n in range(nmin, nmax + 1):
                     for var in vars:
                         fn(f"{var}({m},{n})")
+
+    @classmethod
+    @SimsoptRequires(gvec is not None, "from_gvec_parameters method requires the gvec package")
+    def from_gvec_parameters(cls, parameters: dict, **kwargs) -> 'SurfaceGVECFourier':
+        """
+        Create a surface from a GVEC parameter dictionary, which does not necessarily use cylindrical
+        coordinates. For cylindrical coordinates (``which_hmap=1``), use ``SurfaceRZFourier`` instead.
+
+        Args:
+            parameters: GVEC parameter dictionary.
+            **kwargs: additional keyword arguments to pass to the ``SurfaceGVECFourier`` constructor.
+        Returns:
+            SurfaceGVECFourier object.
+        """
+        nfp = parameters["nfp"]
+        M = max(parameters["X1_mn_max"][0], parameters["X2_mn_max"][0])
+        N = max(parameters["X1_nn_max"][1], parameters["X2_nn_max"][1])
+        stellsym = (
+            parameters.get("X1_sin_cos", "_cos_") == "_cos_"
+            and parameters.get("X2_sin_cos", "_sin_") == "_sin_"
+        )
+
+        self = cls(
+            nfp=nfp,
+            stellsym=stellsym,
+            mpol=M,
+            ntor=N,
+        )
+
+        for xi in ["X1", "X2"]:
+            for sincos in ["sin", "cos"]:
+                sc = sincos[0]
+                for (m, n), value in parameters.get(f"{xi}_b_{sincos}", {}).items():
+                    self.set(f"{xi}{sc}({m},{n})")
+
+        return self
+    
+    @SimsoptRequires(gvec is not None, "to_gvec_parameters method requires the gvec package")
+    def to_gvec_parameters(self) -> dict:
+        """
+        Generate a GVEC parameter dictionary representing this surface.
+
+        Returns:
+            GVEC parameter dictionary.
+        """
+        parameters = {}
+        parameters["nfp"] = self.nfp
+        parameters["init_average_axis"] = True
+
+        for key in ["X1", "X2", "LA"]:
+            parameters[f"{key}_mn_max"] = (self.mpol, self.ntor)
+
+        parameters["X1_sin_cos"] = "_cos_" if self.stellsym else "_sin_cos_"
+        parameters["X2_sin_cos"] = "_sin_" if self.stellsym else "_sin_cos_"
+        parameters["LA_sin_cos"] = "_sin_" if self.stellsym else "_sin_cos_"
+
+        if self.stellsym:
+            for key in ["X1_b_cos", "X2_b_sin"]:
+                parameters[key] = {}
+        else:
+            for Xi in ["X1", "X2"]:
+                for sincos in ["sin", "cos"]:
+                    parameters[f"{Xi}_b_{sincos}"] = {}
+
+        for name in self.local_full_dof_names:
+            var, sincos, m, n = self.split_dof_name(name)
+            # only set non-zero modes
+            if value := self.get(name):
+                parameters[f"{var}_b_{sincos}"][m, n] = value
+        
+        # ensure right-handed (X1,X2,zeta) / counter-clockwise theta
+        if not gvec.util.check_boundary_direction(parameters):
+            parameters = gvec.util.flip_boundary_theta(parameters)
+
+        return parameters
