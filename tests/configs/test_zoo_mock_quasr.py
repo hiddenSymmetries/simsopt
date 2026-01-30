@@ -80,13 +80,26 @@ class QuasrTests(unittest.TestCase):
         mock_requests.get.return_value = mock_response
         mock_response.status_code = 200
 
-        # test fallback to cwd when THIS_DIR is not writable
-        with patch("simsopt.configs.zoo.os.access") as mock_access:
-            mock_access.side_effect = lambda path, mode: "QUASR_cache" not in str(path)
-            # should succeed by falling back to cwd
-            download_ID_from_QUASR_database(952, use_cache=True, verbose=False)
+        # test fallback to cwd when THIS_DIR is not writable (line 596)
+        # Also verify that cache directory is created and file is written
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("simsopt.configs.zoo.os.access") as mock_access, \
+                 patch("simsopt.configs.zoo.os.getcwd", return_value=tmpdir):
+                # First call (THIS_DIR) returns False, second call (cwd) returns True
+                mock_access.side_effect = [False, True]
+                download_ID_from_QUASR_database(952, use_cache=True, verbose=False)
+                # Verify os.access was called twice
+                self.assertEqual(mock_access.call_count, 2)
+                # Verify cache directory was created
+                cache_dir = Path(tmpdir) / 'QUASR_cache'
+                self.assertTrue(cache_dir.exists())
+                self.assertTrue(cache_dir.is_dir())
+                # Verify JSON file was written
+                cache_files = list(cache_dir.glob("*.json"))
+                self.assertEqual(len(cache_files), 1)
+                self.assertEqual(cache_files[0].name, "serial0000952.json")
 
-        # test PermissionError when no writable location
+        # test PermissionError when no writable location (lines 597-598)
         with patch("simsopt.configs.zoo.os.access", return_value=False):
             with self.assertRaises(PermissionError):
                 download_ID_from_QUASR_database(952, use_cache=True)
