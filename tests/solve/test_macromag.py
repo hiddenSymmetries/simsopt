@@ -1,11 +1,18 @@
 import unittest
 import json
+import time
 import numpy as np
 from pathlib import Path
 import logging
 from typing import Optional
 
-from simsopt.solve.macromag import MacroMag, muse2tiles, Tiles, assemble_blocks_subset
+from simsopt.solve.macromag import (
+    MacroMag,
+    Tiles,
+    assemble_blocks_subset,
+    assemble_blocks_subset_dispatch,
+    muse2tiles,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +132,112 @@ class MacroMagTests(unittest.TestCase):
 
         blocks = assemble_blocks_subset(macro.centres, macro.half, macro.Rg2l, idx, idx)
         np.testing.assert_allclose(blocks, ref_blocks, atol=1e-12, rtol=0.0)
+
+    def test_muse_reference_tensor_subset_jax(self):
+        """
+        Validate the experimental JAX demag-block assembly against the same MAGTENSE reference subset.
+
+        This is intentionally the same numerical target as
+        :meth:`test_muse_reference_tensor_subset`, but routed through the JAX
+        backend to ensure the two implementations remain consistent.
+        """
+        with open(self.ref_subset_path, "r", encoding="utf-8") as f:
+            ref = json.load(f)
+        idx = np.asarray(ref["indices"], dtype=np.int64)
+        ref_blocks = np.asarray(ref["blocks"], dtype=np.float64)
+
+        tiles = muse2tiles(str(self.csv_path), magnetization=1.1658e6)
+        macro = MacroMag(tiles)
+
+        blocks = assemble_blocks_subset_dispatch(
+            macro.centres, macro.half, macro.Rg2l, idx, idx, backend="jax"
+        )
+        np.testing.assert_allclose(blocks, ref_blocks, atol=1e-12, rtol=0.0)
+
+    def test_assemble_blocks_subset_dispatch_benchmark(self):
+        """
+        Compare Numba vs JAX demag-block assembly for correctness and basic timing.
+
+        Notes
+        -----
+        Performance depends heavily on the machine and configuration (OpenMP/BLAS,
+        Numba thread settings, and JAX/XLA versions). This test prints a small
+        timing summary and the maximum absolute deviation between backends. For
+        more representative timings, run locally with a larger ``n``.
+        """
+        import os
+
+        import simsopt.solve.macromag as macromag
+
+        rng = np.random.default_rng(0)
+        n = 16
+        n_large = 64
+        offsets = rng.normal(scale=0.05, size=(n, 3))
+        tiles = make_trivial_tiles(n, cube_dim=0.01, offsets=offsets)
+        macro = MacroMag(tiles)
+
+        I = np.arange(n, dtype=np.int64)
+        J = np.arange(n, dtype=np.int64)
+
+        # Numba: first call includes compilation if numba is installed.
+        t0 = time.perf_counter()
+        blocks_numba = assemble_blocks_subset_dispatch(
+            macro.centres, macro.half, macro.Rg2l, I, J, backend="numba"
+        )
+        t1 = time.perf_counter()
+        _ = assemble_blocks_subset_dispatch(macro.centres, macro.half, macro.Rg2l, I, J, backend="numba")
+        t2 = time.perf_counter()
+
+        # JAX: first call includes XLA compilation.
+        t3 = time.perf_counter()
+        blocks_jax = assemble_blocks_subset_dispatch(
+            macro.centres, macro.half, macro.Rg2l, I, J, backend="jax"
+        )
+        t4 = time.perf_counter()
+        _ = assemble_blocks_subset_dispatch(macro.centres, macro.half, macro.Rg2l, I, J, backend="jax")
+        t5 = time.perf_counter()
+
+        max_abs = float(np.max(np.abs(blocks_numba - blocks_jax)))
+        denom = float(np.max(np.abs(blocks_numba)))
+        max_rel = max_abs / denom if denom > 0 else float("nan")
+
+        print(f"[bench] numba installed: {macromag._HAS_NUMBA}")
+        print(f"[bench] max abs(N_numba - N_jax): {max_abs:.3e}")
+        print(f"[bench] max rel(N_numba - N_jax): {max_rel:.3e}")
+        print(f"[bench] assemble_blocks_subset (numba) first call:  {t1 - t0:.3f} s")
+        print(f"[bench] assemble_blocks_subset (numba) second call: {t2 - t1:.3f} s")
+        print(f"[bench] assemble_blocks_subset (jax) first call:    {t4 - t3:.3f} s")
+        print(f"[bench] assemble_blocks_subset (jax) second call:   {t5 - t4:.3f} s")
+
+        np.testing.assert_allclose(blocks_jax, blocks_numba, atol=1e-12, rtol=0.0)
+
+        if os.environ.get("SIMSOPT_MACROMAG_BENCH_LARGE") == "1":
+            offsets_large = rng.normal(scale=0.05, size=(n_large, 3))
+            tiles_large = make_trivial_tiles(n_large, cube_dim=0.01, offsets=offsets_large)
+            macro_large = MacroMag(tiles_large)
+            I_large = np.arange(n_large, dtype=np.int64)
+            J_large = np.arange(n_large, dtype=np.int64)
+
+            # Warm up each backend once for the larger size, then time a second call.
+            _ = assemble_blocks_subset_dispatch(
+                macro_large.centres, macro_large.half, macro_large.Rg2l, I_large, J_large, backend="numba"
+            )
+            t6 = time.perf_counter()
+            _ = assemble_blocks_subset_dispatch(
+                macro_large.centres, macro_large.half, macro_large.Rg2l, I_large, J_large, backend="numba"
+            )
+            t7 = time.perf_counter()
+            _ = assemble_blocks_subset_dispatch(
+                macro_large.centres, macro_large.half, macro_large.Rg2l, I_large, J_large, backend="jax"
+            )
+            t8 = time.perf_counter()
+            _ = assemble_blocks_subset_dispatch(
+                macro_large.centres, macro_large.half, macro_large.Rg2l, I_large, J_large, backend="jax"
+            )
+            t9 = time.perf_counter()
+
+            print(f"[bench] (n={n_large}) assemble_blocks_subset (numba) second call: {t7 - t6:.3f} s")
+            print(f"[bench] (n={n_large}) assemble_blocks_subset (jax) second call:   {t9 - t8:.3f} s")
 
     # minimal tests for Tiles API
 
