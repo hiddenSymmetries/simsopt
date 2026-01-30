@@ -39,7 +39,7 @@ except ImportError as e:
 from simsopt._core.optimizable import Optimizable
 from simsopt._core.util import ObjectiveFailure
 from simsopt._core.types import RealArray
-from simsopt.geo import Surface, SurfaceRZFourier
+from simsopt.geo import Surface, SurfaceScaled, SurfaceRZFourier, SurfaceGVECFourier
 from simsopt.mhd.profiles import Profile, ProfilePolynomial, ProfileScaled
 
 __all__ = ["Gvec", "GVECQuantity"]
@@ -347,14 +347,6 @@ class Gvec(Optimizable):
         """
         Prepare DOFs as parameters for the GVEC input file as keyword arguments which can be passed to `run_stages`.
         """
-        if isinstance(self.boundary, SurfaceRZFourier):
-            boundary = self.boundary
-        else:
-            logger.debug(
-                f"Converting boundary from {self.boundary.__class__} to SurfaceRZFourier"
-            )
-            boundary = self.boundary.to_RZFourier()
-
         params = copy.deepcopy(self.parameters)
 
         # set paths to other files absolute
@@ -366,7 +358,15 @@ class Gvec(Optimizable):
             if key in params:
                 params[key] = str(Path(params[key]).resolve())
 
-        params = self.boundary_to_params(boundary, params)
+        params = self.boundary_to_params(self.boundary, params)
+
+        # non-RZphi coordinate frame
+        if params.get("which_hmap", 1) != 1 and not (
+            isinstance(self.boundary, SurfaceGVECFourier)
+            or (isinstance(self.boundary, SurfaceScaled) and isinstance(self.boundary.surf, SurfaceGVECFourier))
+        ):
+            raise TypeError(f"Non-RZphi coordinate frame (hmap={params.get('which_hmap')}) selected, but boundary is of type {type(self.boundary)}. "
+                            "Use SurfaceGVECFourier to represent generic boundary DoFs.")
 
         # perturb boundary when restarting
         if restart:
@@ -451,12 +451,18 @@ class Gvec(Optimizable):
 
     @staticmethod
     def boundary_to_params(
-        boundary: SurfaceRZFourier, append: Optional[Mapping] = None
+        boundary: Union[Surface, SurfaceScaled, SurfaceGVECFourier], append: Optional[Mapping] = None
     ) -> dict:
         """Convert a simsopt.SurfaceRZFourier object into GVEC boundary parameters.
 
         The output parameters will include the (non-boundary) contents of the `append` dictionary, if provided.
+        ToDo: should this rather be part of the boundary object?
         """
+        if isinstance(boundary, SurfaceScaled):
+            boundary = boundary.surf
+        if not isinstance(boundary, (SurfaceRZFourier, SurfaceGVECFourier)):
+            boundary = boundary.to_RZFourier()
+
         if append is None:
             params = {}
         else:
@@ -474,45 +480,49 @@ class Gvec(Optimizable):
         params["X2_sin_cos"] = "_sin_" if boundary.stellsym else "_sin_cos_"
 
         for Xi in ["X1", "X2"]:
-            for ab in ["a", "b"]:
-                for sincos in ["sin", "cos"]:
-                    params[f"{Xi}_{ab}_{sincos}"] = {}
-        for m in range(boundary.mpol + 1):
-            for n in range(-boundary.ntor, boundary.ntor + 1):
-                if X1c := boundary.get_rc(m, n):
-                    params["X1_b_cos"][m, n] = X1c
-                if not boundary.stellsym and (X1s := boundary.get_rs(m, n)):
-                    params["X1_b_sin"][m, n] = X1s
-                if not boundary.stellsym and (X2c := boundary.get_zc(m, n)):
-                    params["X2_b_cos"][m, n] = X2c
-                if X2s := boundary.get_zs(m, n):
-                    params["X2_b_sin"][m, n] = X2s
-        for Xi in ["X1", "X2"]:
-            for ab in ["a", "b"]:
-                for sincos in ["sin", "cos"]:
-                    if len(params[f"{Xi}_{ab}_{sincos}"]) == 0:
-                        del params[f"{Xi}_{ab}_{sincos}"]
+            for sincos in ["sin", "cos"]:
+                params[f"{Xi}_b_{sincos}"] = {}
+        
+        if isinstance(boundary, SurfaceRZFourier):
+            for m in range(boundary.mpol + 1):
+                for n in range(-boundary.ntor, boundary.ntor + 1):
+                    if X1c := boundary.get_rc(m, n):
+                        params["X1_b_cos"][m, n] = X1c
+                    if not boundary.stellsym and (X1s := boundary.get_rs(m, n)):
+                        params["X1_b_sin"][m, n] = X1s
+                    if not boundary.stellsym and (X2c := boundary.get_zc(m, n)):
+                        params["X2_b_cos"][m, n] = X2c
+                    if X2s := boundary.get_zs(m, n):
+                        params["X2_b_sin"][m, n] = X2s
 
-        # change (R,phi,Z) -> (R,Z,phi)
-        params = gvec.util.flip_boundary_zeta(params)
-        # ensure right-handed (R,Z,phi)
+            # change counter-clockwise zeta (VMEC, RφZ) to clockwise zeta (GVEC, RZφ)
+            params = gvec.util.flip_boundary_zeta(params)
+        
+        elif isinstance(boundary, SurfaceGVECFourier):
+            for name in boundary.local_full_dof_names:
+                var, sincos, m, n = boundary.split_dof_name(name)
+                # only set non-zero modes
+                if value := boundary.get(name):
+                    params[f"{var}_b_{sincos}"][m, n] = value
+
+        for Xi in ["X1", "X2"]:
+            for sincos in ["sin", "cos"]:
+                if len(params[f"{Xi}_b_{sincos}"]) == 0:
+                    del params[f"{Xi}_b_{sincos}"]
+
+        # ensure right-handed (X1,X2,zeta) / counter-clockwise theta
         if not gvec.util.check_boundary_direction(params):
             params = gvec.util.flip_boundary_theta(params)
         return params
 
     @staticmethod
-    def boundary_from_params(params: Mapping) -> SurfaceRZFourier:
+    def boundary_from_params(params: Mapping) -> Union[SurfaceRZFourier, SurfaceGVECFourier]:
         """Convert a dictionary of parameters to a simsopt.SurfaceRZFourier object.
 
         Note that simsopt assumes a (right-handed) (R,phi,Z) coordinate system,
         while GVEC uses a (R,Z,phi) coordinate system. The toroidal angle therefore increases
         in the clockwise, rather than counter-clockwise direction, when viewed from above.
         """
-        hmap = params.get("which_hmap", 1)
-        if hmap != 1:
-            logger.warning(
-                f"interpreting GVEC boundary with {hmap:=} as SurfaceRZFourier"
-            )
         if params["X1_mn_max"] != params["X2_mn_max"]:
             raise NotImplementedError("X1_mn_max != X2_mn_max is not supported.")
 
@@ -523,31 +533,48 @@ class Gvec(Optimizable):
             and params.get("X2_sin_cos", "_sin_") == "_sin_"
         )
 
-        boundary = SurfaceRZFourier(
-            nfp=nfp,
-            stellsym=stellsym,
-            mpol=M,
-            ntor=N,
-        )
+        # RZphi with phi clockwise when viewed from above
+        if params.get("which_hmap", 1) == 1:
+            boundary = SurfaceRZFourier(
+                nfp=nfp,
+                stellsym=stellsym,
+                mpol=M,
+                ntor=N,
+            )
 
-        # set default values to 0
-        boundary.set_rc(0, 0, 0.0)
-        boundary.set_rc(1, 0, 0.0)
-        boundary.set_zs(1, 0, 0.0)
+            # set default values to 0
+            boundary.set_rc(0, 0, 0.0)
+            boundary.set_rc(1, 0, 0.0)
+            boundary.set_zs(1, 0, 0.0)
 
-        params = gvec.util.flip_boundary_zeta(params)
-        if "cos" in params["X1_sin_cos"]:
-            for (m, n), value in params.get("X1_b_cos", {}).items():
-                boundary.set_rc(m, n, value)
-        if "sin" in params["X1_sin_cos"]:
-            for (m, n), value in params.get("X1_b_sin", {}).items():
-                boundary.set_rs(m, n, value)
-        if "cos" in params["X2_sin_cos"]:
-            for (m, n), value in params.get("X2_b_cos", {}).items():
-                boundary.set_zc(m, n, value)
-        if "sin" in params["X2_sin_cos"]:
-            for (m, n), value in params.get("X2_b_sin", {}).items():
-                boundary.set_zs(m, n, value)
+            params = gvec.util.flip_boundary_zeta(params)
+            if "cos" in params["X1_sin_cos"]:
+                for (m, n), value in params.get("X1_b_cos", {}).items():
+                    boundary.set_rc(m, n, value)
+            if "sin" in params["X1_sin_cos"]:
+                for (m, n), value in params.get("X1_b_sin", {}).items():
+                    boundary.set_rs(m, n, value)
+            if "cos" in params["X2_sin_cos"]:
+                for (m, n), value in params.get("X2_b_cos", {}).items():
+                    boundary.set_zc(m, n, value)
+            if "sin" in params["X2_sin_cos"]:
+                for (m, n), value in params.get("X2_b_sin", {}).items():
+                    boundary.set_zs(m, n, value)
+        
+        # generic boundary type: only contains boundary modes, cannot be evaluated
+        else:
+            boundary = SurfaceGVECFourier(
+                nfp=nfp,
+                stellsym=stellsym,
+                mpol=M,
+                ntor=N,
+            )
+
+            for xi in ["X1", "X2"]:
+                for sincos in ["sin", "cos"]:
+                    sc = sincos[0]
+                    for (m, n), value in params.get(f"{xi}_b_{sincos}", {}).items():
+                        boundary.set(f"{xi}{sc}({m},{n})")
 
         boundary.fix_all()
         return boundary
