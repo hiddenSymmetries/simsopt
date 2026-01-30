@@ -494,13 +494,11 @@ class JaxCurve(sopp.Curve, Curve):
 
         self.gammadash_pure = lambda x, q: jvp(lambda p: self.gamma_pure(x, p), (q,), (ones,))[1]
         self.gammadash_jax = jit(lambda x: self.gammadash_pure(x, points))
-        self.gammadash_impl_jax = jit(lambda x, p: self.gammadash_pure(x, p))
         self.dgammadash_by_dcoeff_jax = jit(jacfwd(self.gammadash_jax))
         self.dgammadash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadash_jax, x)[1](v)[0])
 
         self.gammadashdash_pure = lambda x, q: jvp(lambda p: self.gammadash_pure(x, p), (q,), (ones,))[1]
         self.gammadashdash_jax = jit(lambda x: self.gammadashdash_pure(x, points))
-        self.gammadashdash_impl_jax = jit(lambda x, p: self.gammadashdash_pure(x, p))
         self.dgammadashdash_by_dcoeff_jax = jit(jacfwd(self.gammadashdash_jax))
         self.dgammadashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdash_jax, x)[1](v)[0])
 
@@ -727,17 +725,6 @@ class RotatedCurve(sopp.Curve, Curve):
         This function returns the number of dofs associated to the curve.
         """
         return self.curve.num_dofs()
-    
-    def centroid(self):
-        """ 
-        Compute the centroid of the curve
-
-        .. math::
-            \mathbf{c} = \frac{1}{L} \int_0^L \mathbf{\gamma}(\phi) d\phi
-
-        where :math:`L` is the arclength of the curve.
-        """
-        return centroid_pure(self.gamma(), self.gammadash())
 
     def gamma_impl(self, gamma, quadpoints):
         r"""
