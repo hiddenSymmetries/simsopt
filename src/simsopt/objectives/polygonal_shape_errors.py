@@ -112,8 +112,8 @@ def jaccard_index(
     j = []
 
     for i, zeta in enumerate(eval_grid.T[1,:].reshape(nu, nv)):
-        coords1 = zip(R_uz_1[:-1,i], z_uz_1[:-1,i])
-        coords2 = zip(R_uz_2[:-1,i], z_uz_2[:-1,i])
+        coords1 = list(zip(R_uz_1[:-1,i], z_uz_1[:-1,i]))
+        coords2 = list(zip(R_uz_2[:-1,i], z_uz_2[:-1,i]))
         poly1 = shapely.Polygon(coords1)
         poly2 = shapely.Polygon(coords2)
         j.append(shapely.intersection(poly1, poly2).area/shapely.union(poly1, poly2).area)
@@ -122,8 +122,8 @@ def jaccard_index(
 def pointwise_minimum_poly_distance(
         surf1,
         target_surf,
-        nu=64,
-        nv=64,
+        nu=16,
+        nv=16,
         plot=False,
     ):
     '''
@@ -158,16 +158,19 @@ def pointwise_minimum_poly_distance(
 
     j = []
 
-    for i, zeta in enumerate(eval_grid.T[1,:].reshape(nu, nv)):
-        coords1 = zip(R_uz_1[:-1,i], z_uz_1[:-1,i])
-        coords2 = zip(R_uz_2[:-1,i], z_uz_2[:-1,i])
+    # print(eval_grid.T[1,:].reshape(nu, nv)[0])
+
+    for i, zeta in enumerate(eval_grid.T[1,:].reshape(nu, nv)[0]):
+        coords1 = list(zip(R_uz_1[:-1,i], z_uz_1[:-1,i]))
+        coords2 = list(zip(R_uz_2[:-1,i], z_uz_2[:-1,i]))
         arg_polygon = shapely.Polygon(coords1)
         for coords in coords2:
-            # print(f'coords: {coords}')
             point = shapely.Point(coords)
+            # print(point)
             dist = shapely.distance(arg_polygon, point)
             # print(f'dist: {dist}')
             j.append(dist)
+    print(f'j: {j}')
     return j
 
 def frechet_distance(
@@ -208,8 +211,8 @@ def frechet_distance(
     j = []
 
     for i, zeta in enumerate(eval_grid.T[1,:].reshape(nu, nv)):
-        coords1 = zip(R_uz_1[:-1,i], z_uz_1[:-1,i])
-        coords2 = zip(R_uz_2[:-1,i], z_uz_2[:-1,i])
+        coords1 = list(zip(R_uz_1[:-1,i], z_uz_1[:-1,i]))
+        coords2 = list(zip(R_uz_2[:-1,i], z_uz_2[:-1,i]))
         poly1 = shapely.Polygon(coords1)
         poly2 = shapely.Polygon(coords2)
         j.append(shapely.frechet_distance(poly1, poly2))
