@@ -121,7 +121,7 @@ def jaccard_index(
 
 def pointwise_minimum_poly_distance(
         surf1,
-        surf2,
+        target_surf,
         nu=64,
         nv=64,
         plot=False,
@@ -148,21 +148,25 @@ def pointwise_minimum_poly_distance(
     )
 
     R_uz_2, z_uz_2, _ = any_to_uz_grid(
-        surf2,
+        target_surf,
         nu=nu,
         nv=nv,
         plot=plot
     )
+
+    #plt.show()
 
     j = []
 
     for i, zeta in enumerate(eval_grid.T[1,:].reshape(nu, nv)):
         coords1 = zip(R_uz_1[:-1,i], z_uz_1[:-1,i])
         coords2 = zip(R_uz_2[:-1,i], z_uz_2[:-1,i])
-        target_shape = shapely.Polygon(coords2)
-        for coords in coords1:
+        arg_polygon = shapely.Polygon(coords1)
+        for coords in coords2:
+            # print(f'coords: {coords}')
             point = shapely.Point(coords)
-            dist = shapely.distance(point, target_shape)
+            dist = shapely.distance(arg_polygon, point)
+            # print(f'dist: {dist}')
             j.append(dist)
     return j
 
