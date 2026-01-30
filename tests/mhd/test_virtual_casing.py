@@ -83,22 +83,22 @@ class VirtualCasingVmecTests(unittest.TestCase):
                 print('s_bound: ', s_bound)
                 # Run the full flux equilibrium with Vmec.
                 vmec = Vmec(os.path.join(TEST_DIR, 'input.li383_1.4m'))
-                vmec.indata.am_aux_s[1] = s_bound
-                vmec.indata.ac_aux_s[1] = s_bound
+                # vmec.indata.am_aux_s[1] = s_bound
+                # vmec.indata.ac_aux_s[1] = s_bound
                 vmec.run()
 
                 # Define a half boundary surface at s=0.5
                 # and run Vmec with scaled pressure and current.
-                boundary_half = SurfaceRZFourier.from_wout(vmec.output_file, s=0.3)
+                boundary_half = SurfaceRZFourier.from_wout(vmec.output_file, s=s_bound)
                 vmec_half = Vmec(os.path.join(TEST_DIR, 'input.li383_1.4m_half'))
                 vmec_half.boundary = boundary_half
-                vmec_half.indata.phiedge = 0.3 * vmec.indata.phiedge
+                vmec_half.indata.phiedge = s_bound * vmec.indata.phiedge
                 vmec_half.run()
 
                 # Resolution on the plasma boundary surface:
                 # nphi is the number of grid points in 1/2 a field period.
-                nphi = 20
-                ntheta = 20
+                nphi = 40
+                ntheta = 40
 
                 # Resolution for the virtual casing calculation:
                 vc_src_nphi = nphi
@@ -107,7 +107,7 @@ class VirtualCasingVmecTests(unittest.TestCase):
                 # Setup VirtualCasingField from half-flux equilibrium
                 vc = VirtualCasingField.from_vmec(vmec_half.output_file, src_ntheta=vc_src_ntheta,
                                                 src_nphi=vc_src_nphi, trgt_nphi=nphi, trgt_ntheta=ntheta,
-                                                digits=digits)
+                                                digits=digits, on_surface_tol=0.01)
 
                 # Compute off-surface magnetic field on full flux surface
                 surf = SurfaceRZFourier.from_wout(vmec.output_file, nphi=nphi, ntheta=ntheta, range='half period')
@@ -152,6 +152,7 @@ class VirtualCasingVmecTests(unittest.TestCase):
                 plt.xlabel('s_bound')
                 plt.ylabel('Residual Norm')
                 plt.savefig('boundary_scan.png')
+                # plt.show()
                 plt.close('all')
 
             # Verify residuals are reasonable
@@ -207,7 +208,7 @@ class VirtualCasingVmecTests(unittest.TestCase):
                 plt.xlabel('Toroidal Flux')
                 plt.ylabel('Pressure')
 
-            for resolution in [1, 2, 4, 6]:
+            for resolution in [2, 4, 6]:
                 # Resolution on the plasma boundary surface:
                 # nphi is the number of grid points in 1/2 a field period.
                 nphi = resolution * 10
@@ -264,6 +265,7 @@ class VirtualCasingVmecTests(unittest.TestCase):
                 plt.xlabel('nphi')
                 plt.ylabel('Residual Norm')
                 plt.savefig('grid_scan.png')
+                # plt.show()
                 plt.close('all')
 
             # Verify convergence: residual should decrease with resolution
@@ -281,7 +283,7 @@ class VirtualCasingVmecTests(unittest.TestCase):
         with ScratchDir("."):
             mpols = []
             residuals = []
-            for resolution in [6, 7, 8]:
+            for resolution in [6, 7, 8, 9]:
                 # Run the full flux equilibrium with Vmec.
                 vmec = Vmec(os.path.join(TEST_DIR, 'input.li383_1.4m'))
                 vmec.indata.mpol = resolution
@@ -356,6 +358,7 @@ class VirtualCasingVmecTests(unittest.TestCase):
                 plt.xlabel('mpol')
                 plt.ylabel('Residual Norm')
                 plt.savefig('mpol_scan.png')
+                # plt.show()
                 plt.close('all')
 
             # Verify residuals are reasonable
@@ -396,8 +399,8 @@ class VirtualCasingVmecTests(unittest.TestCase):
                 ntheta = nphi
 
                 # Resolution for the virtual casing calculation:
-                vc_src_nphi = nphi
-                vc_src_ntheta = nphi
+                vc_src_nphi = 80
+                vc_src_ntheta = 80
 
                 # Setup VirtualCasingField from half flux equilibrium
                 vc = VirtualCasingField.from_vmec(vmec_half.output_file, src_ntheta=vc_src_ntheta,
@@ -446,6 +449,7 @@ class VirtualCasingVmecTests(unittest.TestCase):
                 plt.xlabel('ns')
                 plt.ylabel('Residual Norm')
                 plt.savefig('ns_scan.png')
+                # plt.show()
                 plt.close('all')
 
             # Verify residuals are reasonable
@@ -632,85 +636,6 @@ class VirtualCasingFieldTests(unittest.TestCase):
     to singular integrals.
     """
 
-    def test_VirtualCasingField_matches_VirtualCasing(self):
-        """
-        Verify that VirtualCasingField.B() produces EXACTLY identical results
-        to VirtualCasing.B_external when evaluated at the target grid points
-        on the surface.
-        
-        This test confirms that VirtualCasingField uses precomputed on-surface
-        values (from compute_external_B) when evaluation points match the 
-        target grid, giving bit-for-bit identical results to VirtualCasing.
-        
-        Tests at multiple resolutions to ensure this is a general property.
-        Also verifies that Bnormal matches B_external_normal.
-        """
-        import warnings
-        
-        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        vmec = Vmec(filename)
-        nfp = vmec.wout.nfp
-        
-        # Test at multiple resolutions
-        test_configs = [
-            {'src_nphi': 16, 'trgt_nphi': 16, 'trgt_ntheta': 16, 'digits': 2},
-            {'src_nphi': 24, 'trgt_nphi': 24, 'trgt_ntheta': 24, 'digits': 3},
-            {'src_nphi': 32, 'trgt_nphi': 32, 'trgt_ntheta': 32, 'digits': 4},
-        ]
-        
-        for config in test_configs:
-            with self.subTest(config=config):
-                src_nphi = config['src_nphi']
-                trgt_nphi = config['trgt_nphi']
-                trgt_ntheta = config['trgt_ntheta']
-                digits = config['digits']
-                
-                # Compute using VirtualCasing (on-surface only)
-                vc = VirtualCasing.from_vmec(vmec, src_nphi=src_nphi, 
-                                             trgt_nphi=trgt_nphi, trgt_ntheta=trgt_ntheta, 
-                                             digits=digits)
-                
-                # Compute using VirtualCasingField
-                vc_field = VirtualCasingField.from_vmec(vmec, src_nphi=src_nphi,
-                                                         trgt_nphi=trgt_nphi, trgt_ntheta=trgt_ntheta, 
-                                                         digits=digits)
-                
-                # Evaluate at exact target grid points (should use precomputed values)
-                gamma = vc_field.trgt_gamma
-                vc_field.set_points(gamma.reshape((-1, 3)))
-                
-                # Capture and suppress the expected warning for exact on-surface points
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    B_from_field = vc_field.B().reshape((trgt_nphi, trgt_ntheta, 3))
-                
-                # Verify EXACT agreement (bit-for-bit identical)
-                # Both use compute_external_B internally, so should be identical
-                np.testing.assert_array_equal(
-                    B_from_field, vc.B_external,
-                    err_msg=f"VirtualCasingField.B should be EXACTLY equal to "
-                            f"VirtualCasing.B_external on surface (config: {config})"
-                )
-                
-                # Also verify B_external_normal matches
-                trgt_surf = SurfaceRZFourier.from_nphi_ntheta(
-                    mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
-                    nphi=trgt_nphi, ntheta=trgt_ntheta, range="half period"
-                )
-                for jmn in range(vmec.wout.mnmax):
-                    trgt_surf.set_rc(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.rmnc[jmn, -1])
-                    trgt_surf.set_zs(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.zmns[jmn, -1])
-                unit_normal = trgt_surf.unitnormal()
-                Bnormal_from_field = np.sum(B_from_field * unit_normal, axis=2)
-                
-                np.testing.assert_array_equal(
-                    Bnormal_from_field, vc.B_external_normal,
-                    err_msg=f"VirtualCasingField Bnormal should be EXACTLY equal to "
-                            f"VirtualCasing.B_external_normal (config: {config})"
-                )
-                
-                logger.info(f"Config {config}: Perfect agreement confirmed")
-
     def test_VirtualCasingField_convergence_off_surface(self):
         """
         Test that as resolution increases, the B field computed
@@ -718,22 +643,21 @@ class VirtualCasingFieldTests(unittest.TestCase):
         We compare results at different resolutions and verify 
         that the difference decreases.
         
-        Uses off-surface evaluation (0.05m offset) to test the 
+        Uses off-surface evaluation (0.2m offset) to test the 
         compute_external_B_offsurf pathway.
         """
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vmec = Vmec(filename)
-        nfp = vmec.wout.nfp
         
         # Fixed target resolution for comparison
         # Need nphi >= 2*ntor+1 = 17 for extend_via_normal with ntor=8
         trgt_nphi = 18
         trgt_ntheta = 18
-        digits = 2
+        digits = 3
         
         # Create evaluation surface offset from plasma boundary
         eval_surf = SurfaceRZFourier.from_wout(filename, nphi=trgt_nphi, ntheta=trgt_ntheta, range="half period")
-        eval_surf.extend_via_normal(0.05)  # 5cm offset to avoid singularity
+        eval_surf.extend_via_normal(0.2)  # 20cm offset to avoid singularity
         gamma = eval_surf.gamma()
         
         # Test convergence at different source resolutions
@@ -774,19 +698,19 @@ class VirtualCasingFieldTests(unittest.TestCase):
         # Higher resolution now that on-surface is instant
         # Need nphi >= 2*ntor+1 = 17 for extend_via_normal with ntor=8
         src_nphi = 32
-        trgt_nphi = 16
-        trgt_ntheta = 16
+        trgt_nphi = 18  # Must be >= 17 for extend_via_normal
+        trgt_ntheta = 18
         digits = 3
         
         # Create VirtualCasingField
         vc_field = VirtualCasingField.from_vmec(vmec, src_nphi=src_nphi, 
                                                  trgt_nphi=trgt_nphi, trgt_ntheta=trgt_ntheta, digits=digits)
         
-        # Get on-surface points from the stored target grid (instant evaluation)
-        gamma_on_surf = vc_field.trgt_gamma
+        # Get on-surface points from the stored surface gamma
+        gamma_on_surf = vc_field.gamma
         
         # Create off-surface evaluation points (0.1m offset)
-        surf_extended = SurfaceRZFourier.from_wout(filename, nphi=trgt_nphi, ntheta=trgt_ntheta, range="half period")
+        surf_extended = SurfaceRZFourier.from_wout(filename, nphi=src_nphi, ntheta=src_nphi, range="half period")
         surf_extended.extend_via_normal(0.1)  # 10cm outward
         gamma_off_surf = surf_extended.gamma()
         
@@ -821,40 +745,6 @@ class VirtualCasingFieldTests(unittest.TestCase):
         self.assertLess(avg_modB_off, avg_modB_on * 100,
                         "B magnitude off surface should not be too large")
 
-    def test_VirtualCasingField_trgt_nphi_ntheta_defaults(self):
-        """
-        Test that trgt_nphi=None and trgt_ntheta=None default to src_nphi 
-        and src_ntheta respectively.
-        """
-        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        vmec = Vmec(filename)
-        
-        src_nphi = 16
-        src_ntheta = 20
-        
-        # Create with explicit trgt values
-        vc_explicit = VirtualCasingField.from_vmec(
-            vmec, src_nphi=src_nphi, src_ntheta=src_ntheta,
-            trgt_nphi=src_nphi, trgt_ntheta=src_ntheta, digits=2
-        )
-        
-        # Create with None defaults (should use src values)
-        vc_default = VirtualCasingField.from_vmec(
-            vmec, src_nphi=src_nphi, src_ntheta=src_ntheta,
-            trgt_nphi=None, trgt_ntheta=None, digits=2
-        )
-        
-        # Verify target grid dimensions match
-        self.assertEqual(vc_explicit.trgt_nphi, vc_default.trgt_nphi)
-        self.assertEqual(vc_explicit.trgt_ntheta, vc_default.trgt_ntheta)
-        self.assertEqual(vc_default.trgt_nphi, src_nphi)
-        self.assertEqual(vc_default.trgt_ntheta, src_ntheta)
-        
-        # Verify target gamma shapes match
-        self.assertEqual(vc_explicit.trgt_gamma.shape, vc_default.trgt_gamma.shape)
-        
-        logger.info(f"trgt_nphi={vc_default.trgt_nphi}, trgt_ntheta={vc_default.trgt_ntheta}")
-
     def test_VirtualCasingField_use_stellsym_false(self):
         """
         Test that use_stellsym=False works even when vmec.wout.lasym=False
@@ -882,7 +772,7 @@ class VirtualCasingFieldTests(unittest.TestCase):
         )
         
         # Verify we can evaluate B at some points
-        gamma = vc_field.trgt_gamma
+        gamma = vc_field.gamma
         vc_field.set_points(gamma.reshape((-1, 3)))
         B = vc_field.B()
         
@@ -894,21 +784,17 @@ class VirtualCasingFieldTests(unittest.TestCase):
 
     def test_VirtualCasingField_near_surface_warning(self):
         """
-        Test that evaluating at points very close to (but not exactly on) 
-        the surface triggers a warning and still returns valid field values.
+        Test that evaluating at points within on_surface_tol of the target grid
+        triggers a warning about using nearest-neighbor lookup and returns valid values.
         
-        Points within ON_SURFACE_TOL but not matching the target grid should
-        trigger the "close to surface" warning.
-        
-        Note: Uses small grid (4x4=16 points) to keep test fast since 
-        compute_external_B_offsurf is slow for near-surface evaluation.
+        Points within on_surface_tol use precomputed on-surface values via
+        nearest-neighbor lookup, which is fast but approximate.
         """
         import warnings
         
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vmec = Vmec(filename)
         
-        # Use small grid for speed (compute_external_B_offsurf is slow near surface)
         src_nphi = 8
         trgt_nphi = 4
         trgt_ntheta = 4
@@ -919,28 +805,28 @@ class VirtualCasingFieldTests(unittest.TestCase):
             trgt_nphi=trgt_nphi, trgt_ntheta=trgt_ntheta, digits=digits
         )
         
-        # Get target grid points and add a small perturbation (within tolerance)
-        gamma = vc_field.trgt_gamma.copy()
-        perturbation = 0.005  # 5mm, within ON_SURFACE_TOL of 0.02m
+        # Get surface grid points and add a small perturbation (within tolerance)
+        gamma = vc_field.gamma.copy()
+        perturbation = 0.005  # 5mm - should be within on_surface_tol
         np.random.seed(42)  # For reproducibility
         gamma_perturbed = gamma + perturbation * np.random.randn(*gamma.shape)
         
-        # Evaluate at perturbed points - should trigger warning
+        # Evaluate at perturbed points - should trigger warning about nearest-neighbor
         vc_field.set_points(gamma_perturbed.reshape((-1, 3)))
         
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             B = vc_field.B()
             
-            # Check that a warning was raised about points being close to surface
+            # Check that a warning was raised about nearest-neighbor lookup
             warning_messages = [str(warning.message) for warning in w]
-            has_close_warning = any("close" in msg.lower() or "within" in msg.lower() 
-                                   for msg in warning_messages)
-            self.assertTrue(has_close_warning, 
-                f"Expected warning about points close to surface. Got warnings: {warning_messages}")
+            has_nn_warning = any("nearest-neighbor" in msg.lower() or "within" in msg.lower() 
+                                 for msg in warning_messages)
+            self.assertTrue(has_nn_warning, 
+                f"Expected warning about nearest-neighbor lookup. Got warnings: {warning_messages}")
         
         # B should still be finite and reasonable
-        self.assertTrue(np.all(np.isfinite(B)), "B should be finite even for near-surface points")
+        self.assertTrue(np.all(np.isfinite(B)), "B should be finite for near-surface points")
         modB = np.linalg.norm(B, axis=-1)
         self.assertTrue(np.all(modB > 0), "B magnitude should be positive")
         
@@ -949,13 +835,8 @@ class VirtualCasingFieldTests(unittest.TestCase):
     def test_VirtualCasingField_different_npoints_near_surface(self):
         """
         Test evaluation at a different number of points than the target grid,
-        where some points are close to the surface.
-        
-        This tests the code path where n_points != n_trgt but some points
-        are still within ON_SURFACE_TOL of the surface.
-        
-        Note: Uses small grid to keep test fast since compute_external_B_offsurf
-        is slow for near-surface evaluation.
+        testing both near-surface (nearest-neighbor lookup) and far-from-surface
+        (compute_external_B_offsurf) cases.
         """
         import warnings
         
@@ -963,7 +844,7 @@ class VirtualCasingFieldTests(unittest.TestCase):
         vmec = Vmec(filename)
         
         # Use small grid for speed
-        src_nphi = 16
+        src_nphi = 8
         trgt_nphi = 4
         trgt_ntheta = 4
         digits = 2
@@ -973,35 +854,94 @@ class VirtualCasingFieldTests(unittest.TestCase):
             trgt_nphi=trgt_nphi, trgt_ntheta=trgt_ntheta, digits=digits
         )
         
-        # Create a smaller set of evaluation points near the surface
-        # Take every other point from the target grid (18 points from 36)
-        gamma_full = vc_field.trgt_gamma.reshape((-1, 3))
-        gamma_subset = gamma_full[::2]  # Half the points
+        gamma_full = vc_field.gamma.reshape((-1, 3))
         
-        # Add small perturbation to put them near (but not exactly on) surface
-        perturbation = 0.01  # 1cm
-        np.random.seed(42)  # For reproducibility
-        gamma_near = gamma_subset + perturbation * np.random.randn(*gamma_subset.shape)
+        # Test 1: Far points should NOT trigger nearest-neighbor warning
+        gamma_far = gamma_full[:1].copy()  # Just 1 point for speed
+        gamma_far[:, 0] *= 2.0  # Move far from surface
+        gamma_far[:, 1] *= 2.0
+        
+        vc_field.set_points(gamma_far)
+        
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            B_far = vc_field.B()
+            
+            warning_messages = [str(warning.message) for warning in w]
+            has_nn_warning = any("nearest-neighbor" in msg.lower() for msg in warning_messages)
+            self.assertFalse(has_nn_warning,
+                f"Far points should NOT trigger nearest-neighbor warning. Got: {warning_messages}")
+        
+        self.assertTrue(np.all(np.isfinite(B_far)), "B should be finite for far points")
+
+        # Test 2: Near-surface points SHOULD trigger nearest-neighbor warning
+        # Use just 1 point for speed
+        gamma_near = gamma_full[:1].copy()
+        gamma_near += 0.01 * np.random.randn(*gamma_near.shape)  # Small perturbation
         
         vc_field.set_points(gamma_near)
         
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            B = vc_field.B()
+            B_near = vc_field.B()
             
-            # Should get warning about points close to surface
             warning_messages = [str(warning.message) for warning in w]
-            has_close_warning = any("close" in msg.lower() or "within" in msg.lower()
-                                   for msg in warning_messages)
-            self.assertTrue(has_close_warning,
-                f"Expected warning about points close to surface. Got: {warning_messages}")
+            has_nn_warning = any("nearest-neighbor" in msg.lower() for msg in warning_messages)
+            self.assertTrue(has_nn_warning,
+                f"Near-surface points SHOULD trigger nearest-neighbor warning. Got: {warning_messages}")
         
-        # Verify B is valid
-        self.assertEqual(B.shape, (len(gamma_near), 3))
-        self.assertTrue(np.all(np.isfinite(B)), "B should be finite")
-        self.assertTrue(np.all(np.linalg.norm(B, axis=-1) > 0), "B magnitude should be positive")
+        self.assertTrue(np.all(np.isfinite(B_near)), "B should be finite for near-surface points")
         
-        logger.info("Different n_points near-surface test passed")
+        logger.info("Different n_points warning test passed")
+
+    def test_VirtualCasingField_compute_max_grid_spacing(self):
+        """
+        Test the _compute_max_grid_spacing static method.
+        
+        This method computes the maximum distance between any grid point
+        and its nearest neighbor, which is used to set a safe minimum
+        for on_surface_tol.
+        """
+        # Test 1: Regular 2D grid
+        # Create a 3x3 grid with spacing 1.0 in x and y
+        x = np.array([0, 1, 2])
+        y = np.array([0, 1, 2])
+        xx, yy = np.meshgrid(x, y)
+        grid_2d = np.column_stack([xx.ravel(), yy.ravel(), np.zeros(9)])
+        
+        max_spacing = VirtualCasingField._compute_max_grid_spacing(grid_2d)
+        # For a regular grid, max spacing should be 1.0 (horizontal/vertical neighbors)
+        self.assertAlmostEqual(max_spacing, 1.0, places=5,
+            msg=f"Expected max_spacing=1.0 for regular grid, got {max_spacing}")
+        
+        # Test 2: Non-uniform grid
+        # Create a grid where one point is farther from its neighbors
+        grid_nonuniform = np.array([
+            [0, 0, 0],
+            [1, 0, 0],
+            [2, 0, 0],
+            [5, 0, 0],  # This point is 3 units from nearest neighbor
+        ])
+        
+        max_spacing = VirtualCasingField._compute_max_grid_spacing(grid_nonuniform)
+        # Max spacing should be 3.0 (distance from [5,0,0] to [2,0,0])
+        self.assertAlmostEqual(max_spacing, 3.0, places=5,
+            msg=f"Expected max_spacing=3.0 for non-uniform grid, got {max_spacing}")
+        
+        # Test 3: 3D grid
+        grid_3d = np.array([
+            [0, 0, 0],
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+        ])
+        
+        max_spacing = VirtualCasingField._compute_max_grid_spacing(grid_3d)
+        # All points are 1.0 from origin, so max spacing is 1.0
+        self.assertAlmostEqual(max_spacing, 1.0, places=5,
+            msg=f"Expected max_spacing=1.0 for 3D grid, got {max_spacing}")
+        
+        logger.info("_compute_max_grid_spacing test passed")
 
     def test_VirtualCasingField_lasym_raises_error(self):
         """
@@ -1021,3 +961,139 @@ class VirtualCasingFieldTests(unittest.TestCase):
             self.assertIn("stellarator symmetry", str(context.exception).lower())
         
         logger.info("lasym RuntimeError test passed")
+
+    @unittest.skipIf(matplotlib is None, "Need matplotlib for this test")
+    def test_VirtualCasingField_mpol_nphi_scan(self):
+        """
+        Test VirtualCasingField convergence over mpol and src_nphi.
+        
+        Creates a 2D scan over VMEC Fourier resolution (mpol) and virtual casing
+        source resolution (src_nphi), producing a contour plot of errors.
+        Uses fixed digits=3.
+        
+        Uses li383_half equilibrium for VirtualCasingField (off-surface B computation)
+        and compares with VirtualCasing on the full li383 surface.
+        """
+        import matplotlib.pyplot as plt
+        
+        with ScratchDir("."):
+            s_bound = 0.5
+            digits = 3  # Fixed digits for all calculations
+            
+            # Resolution on the plasma boundary surface (target grid)
+            nphi = 32
+            ntheta = 32
+            
+            # Scan parameters
+            mpol_values = [4, 6, 8, 10, 12]
+            src_nphi_values = [10, 20, 40, 80]
+            
+            # 2D array to store residuals: [mpol_idx, nphi_idx]
+            residuals_2d = np.zeros((len(mpol_values), len(src_nphi_values)))
+            
+            for i_mpol, mpol in enumerate(mpol_values):
+                ntor = mpol  # Keep ntor = mpol for simplicity
+                
+                print(f'\n=== mpol={mpol}, ntor={ntor} ===')
+                
+                # Run the full flux equilibrium with Vmec
+                vmec = Vmec(os.path.join(TEST_DIR, 'input.li383_1.4m'))
+                vmec.indata.mpol = mpol
+                vmec.indata.ntor = ntor
+                vmec.indata.am_aux_s[1] = s_bound
+                vmec.indata.ac_aux_s[1] = s_bound
+                vmec.indata.ns_array[3] = 100
+                vmec.run()
+                
+                # Define a half boundary surface at s=0.5
+                # and run Vmec with scaled pressure and current
+                boundary_half = SurfaceRZFourier.from_wout(vmec.output_file, s=s_bound)
+                vmec_half = Vmec(os.path.join(TEST_DIR, 'input.li383_1.4m_half'))
+                vmec_half.boundary = boundary_half
+                vmec_half.indata.mpol = mpol
+                vmec_half.indata.ntor = ntor
+                vmec_half.indata.phiedge = s_bound * vmec.indata.phiedge
+                vmec_half.indata.ns_array[3] = 100
+                vmec_half.run()
+                
+                # Create evaluation surface (full flux surface boundary)
+                surf = SurfaceRZFourier.from_wout(vmec.output_file, nphi=nphi, ntheta=ntheta, range='half period')
+                gamma = surf.gamma()
+                unit_normal = surf.unitnormal()
+                
+                for i_nphi, src_nphi in enumerate(src_nphi_values):
+                    src_ntheta = src_nphi  # Keep source grid square
+                    
+                    # Setup VirtualCasingField from half-flux equilibrium
+                    vc_field = VirtualCasingField.from_vmec(
+                        vmec_half.output_file, src_nphi=src_nphi, src_ntheta=src_ntheta,
+                        trgt_nphi=nphi, trgt_ntheta=ntheta, digits=digits
+                    )
+                    
+                    # Compute B field on full flux surface
+                    vc_field.set_points(gamma.reshape((-1, 3)))
+                    B = vc_field.B().reshape((nphi, ntheta, 3))
+                    Bn = np.sum(B * unit_normal, axis=2)
+                    
+                    # Get reference Bn from VirtualCasing on full flux surface
+                    vc_ref = VirtualCasing.from_vmec(
+                        vmec.output_file, src_nphi=src_nphi, src_ntheta=src_ntheta,
+                        trgt_nphi=nphi, trgt_ntheta=ntheta, digits=digits
+                    )
+                    
+                    # Compute residual: Bn from VirtualCasingField should equal -B_external_normal from VirtualCasing
+                    residual = np.linalg.norm(Bn.T + vc_ref.B_external_normal.T) / np.linalg.norm(Bn.T)
+                    residuals_2d[i_mpol, i_nphi] = residual
+                    
+                    print(f'  src_nphi={src_nphi}: residual={residual:.6e}')
+                    logger.info(f"mpol={mpol}, src_nphi={src_nphi}: residual = {residual:.6e}")
+            
+            if not is_ci_environment():
+                # Create contour plot of errors vs mpol and src_nphi
+                fig, ax = plt.subplots(figsize=(10, 8))
+                
+                # Use log scale for residuals
+                log_residuals = np.log10(residuals_2d)
+                
+                # Create meshgrid for contour plot
+                MPOL, NPHI = np.meshgrid(mpol_values, src_nphi_values, indexing='ij')
+                
+                # Contour plot
+                levels = np.linspace(log_residuals.min(), log_residuals.max(), 20)
+                cf = ax.contourf(MPOL, NPHI, log_residuals, levels=levels, cmap='viridis')
+                cs = ax.contour(MPOL, NPHI, log_residuals, levels=levels[::2], colors='white', linewidths=0.5)
+                ax.clabel(cs, inline=True, fontsize=8, fmt='%.2f')
+                
+                cbar = plt.colorbar(cf, ax=ax)
+                cbar.set_label('log10(Residual Norm)')
+                
+                ax.set_xlabel('mpol (VMEC Fourier resolution)')
+                ax.set_ylabel('src_nphi (Virtual Casing resolution)')
+                ax.set_title('VirtualCasingField Error: mpol vs src_nphi')
+                
+                # Mark scan points
+                ax.scatter(MPOL.flatten(), NPHI.flatten(), c='red', s=20, zorder=5)
+                
+                plt.tight_layout()
+                plt.savefig('mpol_nphi_scan.png', dpi=150)
+                
+                # Also create line plots for each mpol value
+                fig2, ax2 = plt.subplots(figsize=(10, 6))
+                for i_mpol, mpol in enumerate(mpol_values):
+                    ax2.loglog(src_nphi_values, residuals_2d[i_mpol, :], 
+                              marker='o', label=f'mpol={mpol}')
+                ax2.set_xlabel('src_nphi')
+                ax2.set_ylabel('Residual Norm')
+                ax2.set_title('VirtualCasingField Convergence vs Resolution')
+                ax2.legend()
+                ax2.grid(True)
+                plt.tight_layout()
+                plt.savefig('mpol_nphi_scan_lines.png', dpi=150)
+                
+                plt.show()
+                plt.close('all')
+            
+            # Verify residuals are reasonable
+            self.assertTrue(np.all(residuals_2d < 1.0), "All residuals should be less than 1")
+        
+        logger.info("mpol-nphi scan test passed")

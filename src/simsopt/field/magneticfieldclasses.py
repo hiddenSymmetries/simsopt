@@ -25,17 +25,25 @@ class VirtualCasingField(MagneticField):
     Computes the magnetic field contribution from plasma currents using the 
     virtual casing principle. Can evaluate the field at arbitrary points in space.
     
-    Note: Evaluating exactly on the plasma surface can be slow or numerically 
-    unstable due to singular integrals. For on-surface evaluation, the class 
-    automatically uses precomputed values when the evaluation points match 
-    the target grid points within a tolerance.
+    For points close to the plasma surface (within ``on_surface_tol``), precomputed
+    on-surface values are used via nearest-neighbor lookup. For points far from the
+    surface, ``compute_external_B_offsurf`` is used.
+    
+    NOTE: Evaluating exactly on the plasma surface using ``compute_external_B_offsurf``
+    can be slow or numerically unstable due to singular integrals. The ``on_surface_tol``
+    parameter controls when to use the faster precomputed on-surface values. This may need
+    to be adjusted for different geometries or grid resolutions.
+    
+    Attributes:
+        on_surface_tol (float): Distance threshold (in meters) for using precomputed
+            on-surface values instead of off-surface computation.
+        gamma (ndarray): Source grid positions, shape (n_trgt, 3).
+        B_external_onsurf (ndarray): Precomputed B field at source grid, shape (n_trgt, 3).
     """
-
-    # Tolerance for detecting on-surface points (in meters)
-    ON_SURFACE_TOL = 0.02
-
+    
     @classmethod
-    def from_vmec(cls, vmec, src_nphi=80, src_ntheta=None, trgt_nphi=32, trgt_ntheta=32, use_stellsym=True, digits=6, filename="auto"):
+    def from_vmec(cls, vmec, src_nphi=80, src_ntheta=None, trgt_nphi=32, trgt_ntheta=32, 
+                  use_stellsym=True, digits=3, on_surface_tol=0.05, filename="auto"):
         """
         Given a :obj:`~simsopt.mhd.vmec.Vmec` object, define MagneticField 
         for the contribution to the total magnetic field due to currents 
@@ -59,18 +67,20 @@ class VirtualCasingField(MagneticField):
         Args:
             vmec: Either an instance of :obj:`simsopt.mhd.vmec.Vmec`, or the name of a
               Vmec ``input.*`` or ``wout*`` file.
-            src_nphi: Number of grid points toroidally for the input of the calculation.
-            src_ntheta: Number of grid points poloidally for the input of the calculation. If ``None``,
+            src_nphi (int, default=80): Number of grid points toroidally for the input of the calculation.
+            src_ntheta (int, default=None): Number of grid points poloidally for the input of the calculation. If ``None``,
               the number of grid points will be calculated automatically using
               :func:`simsopt.geo.surface.best_nphi_over_ntheta()` to minimize
               the grid anisotropy, given the specified ``nphi``.
-            trgt_nphi: Number of grid points toroidally for the output of the calculation.
+            trgt_nphi (int, default=32): Number of grid points toroidally for the output of the calculation.
               If unspecified, ``src_nphi`` will be used.
-            trgt_ntheta: Number of grid points poloidally for the output of the calculation.
+            trgt_ntheta (int, default=32): Number of grid points poloidally for the output of the calculation.
               If unspecified, ``src_ntheta`` will be used.
-            use_stellsym: whether to exploit stellarator symmetry in the calculation.
-            digits: Approximate number of digits of precision for the calculation.
-            filename: If not ``None``, the results of the virtual casing calculation
+            use_stellsym (bool, default=True): whether to exploit stellarator symmetry in the calculation.
+            digits (int, default=3): Approximate number of digits of precision for the calculation.
+            on_surface_tol (float, default=0.05): Distance threshold (in meters) for using 
+              precomputed on-surface values instead of off-surface computation.
+            filename (str, default="auto"): If not ``None``, the results of the virtual casing calculation
               will be saved in this file. For the default value of ``"auto"``, the
               filename will automatically be set to ``"vcasing_<extension>.nc"``
               where ``<extension>`` is the string associated with Vmec input and output
@@ -78,7 +88,6 @@ class VirtualCasingField(MagneticField):
         """
         import virtual_casing as vc_module
         from ..mhd.vmec import Vmec
-        from ..geo.surfacerzfourier import SurfaceRZFourier
         from ..geo.surface import best_nphi_over_ntheta
         from ..mhd.vmec_diagnostics import B_cartesian
         
@@ -102,35 +111,32 @@ class VirtualCasingField(MagneticField):
             ran = "half period"
         else:
             ran = "field period"
-        surf = SurfaceRZFourier.from_nphi_ntheta(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
-                                                 nphi=src_nphi, ntheta=src_ntheta, range=ran)
-        for jmn in range(vmec.wout.mnmax):
-            surf.set_rc(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.rmnc[jmn, -1])
-            surf.set_zs(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.zmns[jmn, -1])
+        surf = vmec.boundary.copy(
+            range=ran, 
+            nphi=src_nphi, 
+            ntheta=src_ntheta,  
+            mpol=vmec.wout.mpol, 
+            ntor=vmec.wout.ntor, 
+            nfp=nfp,
+            stellsym=stellsym
+        )
         Bxyz = B_cartesian(vmec, nphi=src_nphi, ntheta=src_ntheta, range=ran)
         gamma = surf.gamma()
-        logger.debug(f'gamma.shape: {gamma.shape}')
-        logger.debug(f'Bxyz[0].shape: {Bxyz[0].shape}')
 
         if trgt_nphi is None:
             trgt_nphi = src_nphi
         if trgt_ntheta is None:
             trgt_ntheta = src_ntheta
-        trgt_surf = SurfaceRZFourier.from_nphi_ntheta(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
-                                                      nphi=trgt_nphi, ntheta=trgt_ntheta, range=ran)
-        trgt_surf.x = surf.x
-
-        unit_normal = trgt_surf.unitnormal()
-        logger.debug(f'unit_normal.shape: {unit_normal.shape}')
 
         # virtual_casing wants all input arrays to be 1D. The order is
         # {x11, x12, ..., x1Np, x21, x22, ... , xNtNp, y11, ... , z11, ...}
         # where Nt is toroidal (not theta!) and Np is poloidal (not phi!)
-        gamma1d = np.zeros(src_nphi * src_ntheta * 3)
-        B1d = np.zeros(src_nphi * src_ntheta * 3)
+        src_res = src_nphi * src_ntheta
+        gamma1d = np.zeros(src_res * 3)
+        B1d = np.zeros(src_res * 3)
         for jxyz in range(3):
-            gamma1d[jxyz * src_nphi * src_ntheta: (jxyz + 1) * src_nphi * src_ntheta] = gamma[:, :, jxyz].flatten(order='C')
-            B1d[jxyz * src_nphi * src_ntheta: (jxyz + 1) * src_nphi * src_ntheta] = Bxyz[jxyz].flatten(order='C')
+            gamma1d[jxyz * src_res: (jxyz + 1) * src_res] = gamma[:, :, jxyz].flatten(order='C')
+            B1d[jxyz * src_res: (jxyz + 1) * src_res] = Bxyz[jxyz].flatten(order='C')
 
         vcasing = vc_module.VirtualCasing()
         vcasing.setup(
@@ -139,59 +145,135 @@ class VirtualCasingField(MagneticField):
             src_nphi, src_ntheta,
             trgt_nphi, trgt_ntheta)
         
-        # Store target grid positions for on-surface detection
-        trgt_gamma = trgt_surf.gamma()
+        # Create target surface for on-surface B field evaluation
+        # This surface has the resolution where B_external_onsurf is computed
+        trgt_surf = vmec.boundary.copy(
+            range=ran,
+            nphi=trgt_nphi,
+            ntheta=trgt_ntheta,
+            mpol=vmec.wout.mpol,
+            ntor=vmec.wout.ntor,
+            nfp=nfp,
+            stellsym=stellsym
+        )
+        trgt_gamma = trgt_surf.gamma().reshape(-1, 3)  # Shape: (trgt_nphi * trgt_ntheta, 3)
         
+        # Store source grid positions (for reference)
+        gamma = gamma.reshape(-1, 3)  # Shape: (src_nphi * src_ntheta, 3)
+        
+        # Precompute on-surface B field values using compute_external_B
+        Bexternal1d_onsurf = np.array(vcasing.compute_external_B(B1d))
+        n_trgt = trgt_nphi * trgt_ntheta
+        B_external_onsurf = np.zeros((n_trgt, 3))
+        for jxyz in range(3):
+            B_external_onsurf[:, jxyz] = Bexternal1d_onsurf[jxyz * n_trgt: (jxyz + 1) * n_trgt]
+        
+        # Initialize VirtualCasingField
         vc = cls()
         vc.vcasing = vcasing 
+        vc.surf = surf  # Source surface
+        vc.trgt_surf = trgt_surf  # Target surface (used for nearest-neighbor lookup)
         vc.B1d = B1d
-        vc.trgt_gamma = trgt_gamma  # Target grid positions (trgt_nphi, trgt_ntheta, 3)
-        vc._B_external_onsurf = None  # Lazy-computed B at target grid
+        vc.gamma = gamma  # Source grid (for reference)
+        vc.trgt_gamma = trgt_gamma  # Target grid (used for nearest-neighbor lookup)
         vc.trgt_nphi = trgt_nphi
         vc.trgt_ntheta = trgt_ntheta
-
-        MagneticField.__init__(vc) # Need to think about DOFs here 
-
+        vc.B_external_onsurf = B_external_onsurf
+        vc.on_surface_tol = on_surface_tol
+        MagneticField.__init__(vc)
         return vc
     
-    def _compute_onsurf_B(self):
-        """Lazily compute and cache the on-surface B field."""
-        if self._B_external_onsurf is None:
-            Bexternal1d_onsurf = np.array(self.vcasing.compute_external_B(self.B1d))
-            Bexternal3d_onsurf = np.zeros((self.trgt_nphi, self.trgt_ntheta, 3))
-            for jxyz in range(3):
-                Bexternal3d_onsurf[:, :, jxyz] = Bexternal1d_onsurf[
-                    jxyz * self.trgt_nphi * self.trgt_ntheta: 
-                    (jxyz + 1) * self.trgt_nphi * self.trgt_ntheta
-                ].reshape((self.trgt_nphi, self.trgt_ntheta), order='C')
-            self._B_external_onsurf = Bexternal3d_onsurf
-        return self._B_external_onsurf
+    @staticmethod
+    def _compute_max_grid_spacing(gamma):
+        """
+        Compute the maximum distance between adjacent grid points.
+        
+        This is used to set a safe minimum for on_surface_tol.
+        
+        Args:
+            gamma: Surface grid positions, shape (src_nphi * src_ntheta, 3).
+            
+        Returns:
+            float: Maximum distance between any point and its nearest neighbor.
+        """
+        from scipy.spatial import cKDTree
+        tree = cKDTree(gamma)
+        # Query for 2 nearest neighbors (first is self with distance 0)
+        distances, _ = tree.query(gamma, k=2)
+        # Return max of the nearest-neighbor distances (excluding self)
+        return np.max(distances[:, 1])
     
-    @property
-    def B_external_onsurf(self):
-        """On-surface B field (lazily computed on first access)."""
-        return self._compute_onsurf_B()
+    def get_close_mask(self, points=None):
+        """
+        Determine which evaluation points are close to the target grid points.
+        
+        Points within ``on_surface_tol`` of a target grid point are considered "close"
+        and will use precomputed on-surface values via nearest-neighbor lookup.
+        
+        Args:
+            points: Evaluation points, shape (n_points, 3). If None, uses current points.
+                
+        Returns:
+            tuple: (close_mask, distances, nearest_idx) where:
+                - close_mask: boolean array, True for points within on_surface_tol of grid
+                - distances: Euclidean distance to nearest grid point for each point
+                - nearest_idx: index of nearest grid point for each point
+        """
+        if points is None:
+            points = self.get_points_cart_ref()
+        
+        # Compute distance to each target grid point
+        distances_to_grid = np.linalg.norm(
+            points[:, np.newaxis, :] - self.trgt_gamma[np.newaxis, :, :], axis=2)
+        nearest_idx = np.argmin(distances_to_grid, axis=1)
+        distances = distances_to_grid[np.arange(len(points)), nearest_idx]
+        
+        # Use precomputed values if within on_surface_tol of a grid point
+        close_mask = distances < self.on_surface_tol
+        
+        return close_mask, distances, nearest_idx
+    
+    def _eval_close(self, B, close_mask, nearest_idx):
+        """
+        Evaluate B field for points close to the surface using precomputed values.
+        
+        Currently uses nearest-neighbor lookup. This method is isolated to allow
+        future implementation of interpolation schemes.
+        
+        Args:
+            B: Output array to fill, shape (n_points, 3).
+            close_mask: Boolean mask for close points.
+            nearest_idx: Index of nearest grid point for each point.
+        """
+        # Nearest-neighbor lookup from precomputed on-surface values
+        # Could be extended to use interpolation in the future
+        B[close_mask] = self.B_external_onsurf[nearest_idx[close_mask]]
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
         n_points = len(points)
         
-        # Get precomputed on-surface values and target grid
-        trgt_gamma_flat = self.trgt_gamma.reshape((-1, 3))
-        B_onsurf_flat = self.B_external_onsurf.reshape((-1, 3))
+        # Determine which points are close to the surface
+        close_mask, distances, nearest_idx = self.get_close_mask(points)
+        n_close = np.sum(close_mask)
+        n_far = n_points - n_close
         
-        # Find nearest grid point for each evaluation point
-        distances_to_grid = np.linalg.norm(
-            points[:, np.newaxis, :] - trgt_gamma_flat[np.newaxis, :, :], axis=2)
-        nearest_idx = np.argmin(distances_to_grid, axis=1)
-        min_dist = distances_to_grid[np.arange(n_points), nearest_idx]
+        # Evaluate close points using precomputed on-surface values
+        if n_close > 0:
+            self._eval_close(B, close_mask, nearest_idx)
+
+            # Warn about using nearest-neighbor approximation
+            max_close_dist = np.max(distances[close_mask])
+            if max_close_dist > 1e-10:  # Not exactly on grid
+                warnings.warn(
+                    f"{n_close} evaluation point(s) are within {self.on_surface_tol:.4f}m "
+                    f"of the target grid (max distance: {max_close_dist:.4f}m). "
+                    f"Using nearest-neighbor lookup from precomputed on-surface values.",
+                    stacklevel=3
+                )
         
-        # Points within tolerance use precomputed values (nearest-neighbor)
-        close_mask = min_dist < self.ON_SURFACE_TOL
-        B[close_mask] = B_onsurf_flat[nearest_idx[close_mask]]
-        
-        # Points beyond tolerance use compute_external_B_offsurf
-        if not np.all(close_mask):
+        # Evaluate far points using compute_external_B_offsurf
+        if n_far > 0:
             far_mask = ~close_mask
             far_points = points[far_mask]
             points1d = far_points.flatten(order='F')
