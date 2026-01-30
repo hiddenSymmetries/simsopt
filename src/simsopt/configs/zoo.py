@@ -8,19 +8,8 @@ from simsopt.field.coil import Coil
 from simsopt.field import coils_via_symmetries
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.curvexyzfouriersymmetries import CurveXYZFourierSymmetries
-from simsopt._core.json import GSONDecoder
-from simsopt._core import load
-import json
-
-try:
-    import requests
-except ImportError:
-    requests = None
-
-
 
 from pathlib import Path
-import os
 THIS_DIR = (Path(__file__).parent).resolve()
 
 __all__ = [
@@ -30,10 +19,9 @@ __all__ = [
     "get_hsx_data",
     "get_giuliani_data",
     "get_w7x_data",
-    "download_ID_from_QUASR_database"
 ]
 
-configurations = ["ncsx", "hsx", "giuliani", "w7x", "lhd_like", "quasr"]
+configurations = ["ncsx", "hsx", "giuliani", "w7x", "lhd_like"]
 
 def get_data(name, **kwargs):
     """
@@ -44,7 +32,7 @@ def get_data(name, **kwargs):
     ----------
     name : str
         Which configuration to load. Available values are:
-        ``"ncsx"``, ``"hsx"``, ``"giuliani"``, ``"w7x"``, ``"lhd_like"``, ``"quasr"``.
+        ``"ncsx"``, ``"hsx"``, ``"giuliani"``, ``"w7x"``, ``"lhd_like"``.
     kwargs : dict
         Configuration-specific parameters. See the sections below for details.
         
@@ -93,15 +81,6 @@ def get_data(name, **kwargs):
             -  ``numquadpoints_axis`` *(int, default=30)*  
                Number of quadrature points for the magnetic axis.
 
-            **quasr**
-
-            - ``QUASR_ID`` *(int)*
-               The ID of the QUASR configuration you want to download
-            - ``use_cache`` *(bool, default=True)*
-               Whether to save the downloaded configuration (default in the installation
-               directory of simsopt)
-            - ``verbose`` *(bool, default=False)*
-               Whether to print out messages during download from the database
 
     Returns
     -------
@@ -192,15 +171,7 @@ def get_data(name, **kwargs):
         
         **Special Note:** For ``"lhd_like"``, the returned ``nfp`` (5) reflects the coil periodicity,
         while the magnetic axis uses ``nfp=10``.
-    
-    ``name="quasr"`` 
-        **Get the coils for a QUASR configuration.**
 
-        The QUASR database contains around 300,000 quasi-symmetric stellarator
-        vacuum fields with coils. 
-
-        Magnetic axes have not been generated for the database, and the returned `ma`
-        variable is set to `None`.
     """
     
     def add_default_args(kw_old, **kw_new):
@@ -377,20 +348,6 @@ def get_data(name, **kwargs):
             6.833905523642707e-11,
             4.612346787214785e-13,
         ]
-    elif cfg == "quasr":
-        """ Download a quasr configuration from the database """
-        try: 
-            QUASR_ID = kwargs.pop("QUASR_ID")
-        except:
-            raise ValueError("Must provide QUASR_ID to download a quasr configuration")
-        use_cache  = kwargs.pop("use_cache", True)
-        verbose   = kwargs.pop("verbose", False)
-
-        base_curves, base_currents, nfp, coils = download_ID_from_QUASR_database(QUASR_ID, return_style="simsopt-style", use_cache=use_cache, verbose=verbose)
-        bs = BiotSavart(coils)
-
-        ma = None  # quasr configurations do not provide an axis object. finding can be attempted when cbs/fieldline_integrator branch is readu
-        return base_curves, base_currents, ma, nfp, bs
 
     else:
         raise ValueError(f"Unrecognized configuration name {name!r}; "
@@ -547,114 +504,3 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
         points_per_period=ppp,
     )
     return base_curves, base_currents, ma
-
-
-def download_ID_from_QUASR_database(ID, return_style="simsopt-style", verbose=True, use_cache=True): 
-    """
-    Download a configuration from the QUASR database.  Downloaded configuration files are cached in 
-    [SIMSOPT_INSTALL_DIR]/src/simsopt/configs/QUASR_cache/
-    The cache is pruned to keep 100 files (~10MB) to avoid excessive disk usage.
-
-    Args:
-        ID (int): the ID of the configuration to download (leading zeros removed).  
-                  A pandas dataframe containing metadata on the devices, including all
-                  valid ID numbers is located at: https://quasr.flatironinstitute.org/QUASR.pkl
-                  The database is navigatable online at https://quasr.flatironinstitute.org/
-                  Alternatively, you can download the latest full set of devices from https://zenodo.org/doi/10.5281/zenodo.10050655
-        
-        return_style (str): How to return the information either: 
-                             ``"quasr-style"``: two-element tuple containing ([SurfaceXYXTensorFourier], # surfaces
-                                                                              [Coil,]                    # all coils
-                                                                              )
-                             ``"simsopt-style"``: five-element tuple containing ([base_curves ],         # curves of coils in first field/half period
-                                                                                 [base_currents, ],      # currents of these coils
-                                                                                 [nfp, ],                # number of field periods
-                                                                                 [coils, ]               # all coils
-                                                                                )
-
-        verbose (boolean): if true, additional caching and downloading status messages are printed, otherwise they are not.
-
-        use_cache (True): if true, the downloaded file will be saved to disk. The location will the in the simsopt installation directory if writeable, otherwise in the current working directory. If false, no caching is performed.
-
-        returns: 
-            a list containing: [list of simsopt.geo.Coil objects, list of simsopt.field.Current objects]
-    """
-    if return_style not in ['simsopt-style', 'quasr-style']:
-        raise ValueError(f"invalid return_style: {return_style}, must be either simsopt-style or quasr-style")
-
-    if requests is None: 
-        raise ImportError("Requests package is needed for downloading QUASR configurations")
-    
-    id_str = f"{ID:07d}" # string to 7 digits
-    url = f'https://quasr.flatironinstitute.org/simsopt_serials/{id_str[0:4]}/serial{id_str}.json'
-    success = False  # flag for getting config.
-
-    if use_cache:
-        if os.access(THIS_DIR, os.W_OK):
-            FILE_PATH = THIS_DIR / 'QUASR_cache' / f'serial{id_str}.json' # write to cache in simsopt source dir
-        elif os.access(os.getcwd(), os.W_OK): 
-            FILE_PATH =  Path(os.getcwd()) / 'QUASR_cache'  / f"serial{id_str}.json" # create a local cache 
-        else: 
-            raise PermissionError("could not find a writeable location, try again with kwarg use_cache=False")
-    
-        if os.path.exists(FILE_PATH):
-            if verbose:
-                print(f"ID={id_str} is cached, loading...")
-            surfaces, coils = load(FILE_PATH)
-            success = True
-
-    if not success: # reading cache not attempted or unsucessful
-        r = requests.get(url, timeout=10)
-        r.raise_for_status() # raise error if not 200 status
-        
-        if verbose:
-            print(f"ID={ID:07} downloaded successfully")
-        surfaces, coils = json.loads(r.content, cls=GSONDecoder)
-        success = True
-        
-        if use_cache: 
-            # Ensure cache directory exists
-            cache_dir = FILE_PATH.parent
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Prune cache if necessary
-            _prune_cache(cache_dir, limit=100, verbose=verbose)
-            
-            with open(FILE_PATH, 'wb') as f:
-                f.write(r.content)
-
-    if return_style == 'simsopt-style':
-        nfp = surfaces[0].nfp
-        nc_per_hp = len(coils) // nfp // (1 + surfaces[0].stellsym)
-        base_coils = coils[:nc_per_hp]
-
-        base_curves = [coil.curve for coil in base_coils]
-        base_currents = [coil.current for coil in base_coils]
-        return base_curves, base_currents, nfp, coils
-    elif return_style == 'quasr-style':
-        return surfaces, coils
-
-
-def _prune_cache(cache_dir, limit=100, verbose=False):
-    """
-    Remove oldest files from cache directory if the number of files exceeds the limit.
-    
-    Args:
-        cache_dir(str/PathLike): Path to the cache directory
-        limit (int: default 100): Maximum number of files to keep in cache
-        verbose (bool, default=False) Whether to print pruning messages
-    """
-    cache_files = list(cache_dir.glob("*.json"))
-
-    if len(cache_files) <= limit:
-        return
-    
-    # Sort files by modification time (oldest first)
-    cache_files.sort(key=lambda f: f.stat().st_mtime)
-    
-    # Remove oldest files until we're under the limit
-    files_to_remove = len(cache_files) - limit
-    for f in cache_files[:files_to_remove]:
-        if verbose:
-            print(f"Pruning cache: removing {f.name}", flush=True)
-        f.unlink()
