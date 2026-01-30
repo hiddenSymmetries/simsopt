@@ -766,9 +766,9 @@ class VirtualCasingFieldTests(unittest.TestCase):
         # Verify the equilibrium is stellarator symmetric
         self.assertFalse(vmec.wout.lasym, "Test requires stellarator symmetric equilibrium")
         
-        src_nphi = 16
-        trgt_nphi = 16
-        trgt_ntheta = 16
+        src_nphi = 40
+        trgt_nphi = 18
+        trgt_ntheta = 18
         digits = 2
         
         # Create with use_stellsym=False (full field period)
@@ -779,7 +779,9 @@ class VirtualCasingFieldTests(unittest.TestCase):
         )
         
         # Verify we can evaluate B at some points
-        gamma = vc_field.gamma
+        surf = SurfaceRZFourier.from_wout(filename, nphi=src_nphi, ntheta=src_nphi, range="half period")
+        surf.extend_via_normal(0.5)
+        gamma = surf.gamma()
         vc_field.set_points(gamma.reshape((-1, 3)))
         B = vc_field.B()
         
