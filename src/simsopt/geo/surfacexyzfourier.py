@@ -161,6 +161,7 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
         """
         self._extend_via_normal_for_nonuniform_phi(distance)
 
+
     return_fn_map = {'area': sopp.SurfaceXYZFourier.area,
                      'volume': sopp.SurfaceXYZFourier.volume,
                      'aspect-ratio': Surface.aspect_ratio}

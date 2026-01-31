@@ -80,21 +80,6 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
         self.local_x = dofs
         sopp.CurvePlanarFourier.set_dofs(self, dofs)
 
-    def center(self, gamma, gammadash):
-        """
-        Compute the centroid of the curve.
-        
-        Args:
-            gamma: Array of curve points.
-            gammadash: Array of curve derivatives.
-            
-        Returns:
-            Array: Centroid of the curve.
-        """
-        arclength = jnp.linalg.norm(gammadash, axis=-1)
-        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / jnp.sum(arclength)
-        return barycenter
-
     def _make_names(self, order):
         """
         This function returns the names of the dofs associated to this object.

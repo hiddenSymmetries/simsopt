@@ -278,8 +278,6 @@ class CoilFormatConvertTesting(unittest.TestCase):
         compare_gamma = [coil.curve.gamma() for coil in compare_coils]
         np.testing.assert_allclose(gamma, compare_gamma)
 
-
-class PSCs(unittest.TestCase):
     def test_equally_spaced_planar_curves(self):
         """
         Test that equally spaced planar and non-planar coils produce the same Biot-Savart field.

@@ -359,6 +359,7 @@ class CircularCoil(MagneticField):
         self.Inorm = I*4e-7
         self.center = center
         self.normal = normal
+
         super().__init__(x0=self.get_dofs(), names=self._make_names(), external_dof_setter=CircularCoil.set_dofs_impl)
 
     def _make_names(self):

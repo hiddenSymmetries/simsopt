@@ -484,6 +484,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+
         # use random normal and verify against CurvePlanarFourier class
         normal = np.random.rand(3)
         normal = normal / np.sqrt(np.sum(normal ** 2, axis=-1))

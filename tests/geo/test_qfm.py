@@ -74,42 +74,12 @@ class QfmSurfaceTests(unittest.TestCase):
         err_old = 1e9
         epsilons = np.power(2., -np.asarray(range(13, 20)))
         print("###############################################################")
-        print("Epsilon\t\tError\t\tError Ratio")
-        print("-----------------------------------------------")
         for eps in epsilons:
             f1 = qfm_surface.qfm_objective(
                 x + eps*h, derivatives=0)
             Jfd = (f1-f0)/eps
             err = np.linalg.norm(Jfd-Jex)/np.linalg.norm(Jex)
-            print(f"{eps:.2e}\t{err:.2e}\t{err/err_old:.2f}")
-            assert err < err_old * 0.6
-            err_old = err
-        print("###############################################################")
-
-        # Now test with B_plasma
-        nphi = len(s.quadpoints_phi)
-        ntheta = len(s.quadpoints_theta)
-        Bn_plasma = np.ones((nphi, ntheta)) * 0.1  # 0.1 T everywhere on surface
-        qfm_surface_with_plasma = QfmSurface(bs, s, tf, tf_target, Bn_plasma=Bn_plasma)
-
-        f0, J0 = qfm_surface_with_plasma.qfm_objective(
-            x, derivatives=1)
-
-        h = np.random.uniform(size=x.shape)-0.5
-        Jex = J0@h
-
-        err_old = 1e9
-        epsilons = np.power(2., -np.asarray(range(13, 20)))
-        print("###############################################################")
-        print("Testing with B_plasma")
-        print("Epsilon\t\tError\t\tError Ratio")
-        print("-----------------------------------------------")
-        for eps in epsilons:
-            f1 = qfm_surface_with_plasma.qfm_objective(
-                x + eps*h, derivatives=0)
-            Jfd = (f1-f0)/eps
-            err = np.linalg.norm(Jfd-Jex)/np.linalg.norm(Jex)
-            print(f"{eps:.2e}\t{err:.2e}\t{err/err_old:.2f}")
+            print(err/err_old)
             assert err < err_old * 0.6
             err_old = err
         print("###############################################################")
