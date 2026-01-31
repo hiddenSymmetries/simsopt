@@ -12,7 +12,7 @@ from simsopt.field.force import LpCurveForce, \
     LpCurveTorque, \
     SquaredMeanTorque, \
     regularization_rect
-from simsopt.util import calculate_on_axis_B, save_coil_sets, \
+from simsopt.util import calculate_modB_on_major_radius, save_coil_sets, \
     generate_curves
 from simsopt.geo import (
     CurveLength, CurveCurveDistance,
@@ -94,7 +94,7 @@ base_coils = coils[:ncoils]
 bs = BiotSavart(coils)
 btot = bs + bs_TF
 
-calculate_on_axis_B(btot, s)
+calculate_modB_on_major_radius(btot, s)
 btot.set_points(s.gamma().reshape((-1, 3)))
 bs.set_points(s.gamma().reshape((-1, 3)))
 curves = [c.curve for c in coils]
@@ -264,7 +264,7 @@ pointData = {
 s_plot.to_vtk(outdir + "surf_optimized", extra_data=pointData)
 
 btot.set_points(s.gamma().reshape((-1, 3)))
-calculate_on_axis_B(btot, s)
+calculate_modB_on_major_radius(btot, s)
 
 t2 = time.time()
 print('Total time = ', t2 - t1)

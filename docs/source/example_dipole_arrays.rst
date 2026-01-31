@@ -254,7 +254,7 @@ a bit more functionality to import, since we need additional functions to comput
 and torques and many other terms in the objective function we will eventually construct::
   
   from simsopt.field import BiotSavart, Current, coils_via_symmetries, regularization_rect
-  from simsopt.util import calculate_on_axis_B, remove_inboard_dipoles, \
+  from simsopt.util import calculate_modB_on_major_radius, remove_inboard_dipoles, \
       remove_interlinking_dipoles_and_TFs, initialize_coils, \
       dipole_array_optimization_function, save_coil_sets
   from simsopt.geo import (
@@ -597,10 +597,10 @@ with self-consistently calculated currents at the beginning::
   psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
 
   # Calculate average, approximate on-axis B field strength
-  calculate_on_axis_B(psc_array.biot_savart_TF, s)
+  calculate_modB_on_major_radius(psc_array.biot_savart_TF, s)
   psc_array.biot_savart_TF.set_points(eval_points)
   btot = psc_array.biot_savart_total
-  calculate_on_axis_B(btot, s)
+  calculate_modB_on_major_radius(btot, s)
   coils = psc_array.coils
   base_coils = coils[:ncoils]
 

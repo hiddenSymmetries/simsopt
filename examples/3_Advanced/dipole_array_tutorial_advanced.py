@@ -93,8 +93,8 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 # to calculate self-forces, self-torques, or self-inductances.
 a = 0.2
 b = 0.2
+
 # initialize the coils
-from simsopt.field.selffield import regularization_rect
 ncoils_TF_init = 2  # SchuettHennebergQAnfp2 has 2 base coils
 regularization_TF = regularization_rect(a, b)
 regularizations_TF = [regularization_TF for _ in range(ncoils_TF_init)]
@@ -222,7 +222,11 @@ currents = [c.current.get_value() for c in coils]
 save_coil_sets(btot, OUT_DIR, "_initial")
 
 # Save the total Bfield errors on the plasma surface
-btot.set_points(s_plot.gamma().reshape((-1), axis=-1))[:, :, None]}
+btot.set_points(s_plot.gamma().reshape((-1, 3)))
+pointData = {
+    "B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
+    "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                       ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_initial", extra_data=pointData)
 btot.set_points(eval_points)
 
@@ -350,7 +354,11 @@ if passive_coil_array:
 save_coil_sets(btot, OUT_DIR, "_optimized")
 
 # Save optimized Bnormal errors on plasma surface
-btot.set_points(s_plot.gamma().reshape((-1), axis=-1))[:, :, None]}
+btot.set_points(s_plot.gamma().reshape((-1, 3)))
+pointData = {
+    "B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
+    "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                       ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_optimized", extra_data=pointData)
 btot.set_points(eval_points)
 calculate_modB_on_major_radius(btot, s)

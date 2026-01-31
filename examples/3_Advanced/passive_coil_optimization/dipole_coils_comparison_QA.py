@@ -12,7 +12,7 @@ from simsopt.field import regularization_rect, BiotSavart
 from simsopt.field.force import LpCurveForce, \
     SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque
-from simsopt.util import calculate_on_axis_B, align_dipoles_with_plasma, \
+from simsopt.util import calculate_modB_on_major_radius, align_dipoles_with_plasma, \
     remove_interlinking_dipoles_and_TFs, initialize_coils, save_coil_sets
 from simsopt.geo import (
     CurveLength, CurveCurveDistance,
@@ -170,7 +170,10 @@ else:
 
     base_coils = [coils[i] for i in inds]
     base_currents = [c.current for c in base_coils]
-    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+    # Use rectangular regularization for force/torque calculations
+    regularization = regularization_rect(aa, bb)
+    regularizations = [regularization for _ in range(len(base_curves))]
+    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True, regularizations=regularizations)
     bs = BiotSavart(coils)
     bs_TF = BiotSavart(coils_TF)
 
@@ -181,10 +184,10 @@ print('Num dipole coils = ', ncoils)
 eval_points = s.gamma().reshape(-1, 3)
 
 # Calculate average, approximate on-axis B field strength
-# calculate_on_axis_B(psc_array.biot_savart_TF, s)
+# calculate_modB_on_major_radius(psc_array.biot_savart_TF, s)
 # psc_array.biot_savart_TF.set_points(eval_points)
 # btot = psc_array.biot_savart_total
-# calculate_on_axis_B(btot, s)
+# calculate_modB_on_major_radius(btot, s)
 btot = bs + bs_TF
 btot.set_points(s.gamma().reshape((-1, 3)))
 
@@ -393,7 +396,7 @@ s_plot.to_vtk(OUT_DIR + "surf_PSC_optimized" + file_suffix, extra_data=pointData
 btot.set_points(s.gamma().reshape((-1, 3)))
 print('Max I = ', np.max(dipole_currents))
 print('Min I = ', np.min(dipole_currents))
-calculate_on_axis_B(btot, s)
+calculate_modB_on_major_radius(btot, s)
 
 t2 = time.time()
 print('Total time = ', t2 - t1)

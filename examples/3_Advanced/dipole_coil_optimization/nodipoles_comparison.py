@@ -7,18 +7,13 @@ from pathlib import Path
 import time
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field import BiotSavart
-from simsopt.field import regularization_rect
-from simsopt.field.force import coil_net_torques, coil_net_forces, LpCurveForce, \
-    SquaredMeanForce, \
-    SquaredMeanTorque, LpCurveTorque, pointData_forces_torques
-from simsopt.util import calculate_on_axis_B, initialize_coils
+from simsopt.field import BiotSavart, coils_to_vtk, regularization_rect
+from simsopt.field.force import LpCurveForce, SquaredMeanForce, SquaredMeanTorque, LpCurveTorque
+from simsopt.util import calculate_modB_on_major_radius, initialize_coils
 from simsopt.geo import (
     CurveLength, CurveCurveDistance,
     MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
     SurfaceRZFourier
-)
-from simsopt.field import coils_to_vtk
 )
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 
@@ -72,7 +67,7 @@ currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
 bs_TF = BiotSavart(coils_TF)
 
 # # Calculate average, approximate on-axis B field strength
-calculate_on_axis_B(bs_TF, s)
+calculate_modB_on_major_radius(bs_TF, s)
 
 # wire cross section for the TF coils is a square 20 cm x 20 cm
 # Only need this if make self forces and B2Energy nonzero in the objective!
@@ -80,7 +75,7 @@ a = 0.2
 b = 0.2
 nturns_TF = 200
 btot = bs_TF
-calculate_on_axis_B(btot, s)
+calculate_modB_on_major_radius(btot, s)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
 if config_flag[-2:] == 'QA':
@@ -274,7 +269,7 @@ pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnorm
 s_plot.to_vtk(OUT_DIR + "surf_optimized_" + config_flag, extra_data=pointData)
 
 btot.set_points(s.gamma().reshape((-1, 3)))
-calculate_on_axis_B(btot, s)
+calculate_modB_on_major_radius(btot, s)
 
 t2 = time.time()
 print('Total time = ', t2 - t1)
