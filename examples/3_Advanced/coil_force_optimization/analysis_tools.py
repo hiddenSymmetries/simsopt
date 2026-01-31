@@ -12,6 +12,7 @@ import seaborn as sns
 import shutil
 import simsopt
 import subprocess
+from pathlib import Path
 # import desc
 # from desc.grid import LinearGrid
 # from desc.geometry import FourierRZToroidalSurface
@@ -20,6 +21,9 @@ import subprocess
 from paretoset import paretoset
 from scipy.spatial.distance import cdist
 from simsopt._core.optimizable import load
+
+# Directory for test files
+TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 from simsopt.field import (BiotSavart,
                            InterpolatedField,
                            SurfaceClassifier,
@@ -376,10 +380,12 @@ def closest_approach(coils, φ_min=0, φ_max=2*π):
 
 
 def poincare(UUID, OUT_DIR='./output/QA/with-force-penalty/1/poincare/',
-             INPUT_FILE="./inputs/input.LandremanPaul2021_QA", phis=[0.0],
+             INPUT_FILE=None, phis=[0.0],
              nfieldlines=10, tmax_fl=20000, degree=4, R0_min=1.2125346,
              R0_max=1.295, interpolate=True, debug=False):
     """Compute Poincare plots."""
+    if INPUT_FILE is None:
+        INPUT_FILE = str(TEST_DIR / 'input.LandremanPaul2021_QA')
 
     # Directory for output
     if debug:
@@ -446,9 +452,11 @@ def poincare(UUID, OUT_DIR='./output/QA/with-force-penalty/1/poincare/',
 
 
 def poincare_with_target(UUID="6266c8d4bb25499b899d86e9e3dd2ee2", phi=0.1,
-                         INPUT_FILE="./inputs/input.LandremanPaul2021_QA", R0_max=1.295,
+                         INPUT_FILE=None, R0_max=1.295,
                          nfieldlines=10, tmax_fl=20000):
     """
+    if INPUT_FILE is None:
+        INPUT_FILE = str(TEST_DIR / 'input.LandremanPaul2021_QA')
     Checks that the target LCFS, QFM surface, and Poincaré plots all agree.
     """
 
@@ -473,9 +481,11 @@ def poincare_with_target(UUID="6266c8d4bb25499b899d86e9e3dd2ee2", phi=0.1,
     plt.ylabel('Z [m]')
 
 
-def qfm(UUID, INPUT_FILE="./inputs/input.LandremanPaul2021_QA", vol_frac=1.00):
+def qfm(UUID, INPUT_FILE=None, vol_frac=1.00):
     """Generated quadratic flux minimizing surfaces, adapted from
     https://github.com/hiddenSymmetries/simsopt/blob/master/examples/1_Simple/qfm.py"""
+    if INPUT_FILE is None:
+        INPUT_FILE = str(TEST_DIR / 'input.LandremanPaul2021_QA')
 
     # We start with an initial guess that is just the stage I LCFS
     s = SurfaceRZFourier.from_vmec_input(INPUT_FILE, range="full torus", nphi=32, ntheta=32)
@@ -615,10 +625,12 @@ def run_SIMPLE(UUID, trace_time=1e-1, s=0.3, n_test_part=1024, vmec_name="eq_sca
 ###############################################################################
 
 def check_poincare_and_qfm(UUID="6266c8d4bb25499b899d86e9e3dd2ee2", phi=0.1,
-                           INPUT_FILE="./inputs/input.LandremanPaul2021_QA"):
+                           INPUT_FILE=None):
     """
     Checks that the target LCFS, QFM surface, and Poincaré plots all agree.
     """
+    if INPUT_FILE is None:
+        INPUT_FILE = str(TEST_DIR / 'input.LandremanPaul2021_QA')
 
     def get_crosssection(s):
         cs = s.cross_section(phi)

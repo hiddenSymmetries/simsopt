@@ -5,6 +5,7 @@ import os
 import pandas as pd
 import time
 import uuid
+from pathlib import Path
 from scipy.optimize import minimize
 from simsopt._core.optimizable import load
 from simsopt.field import Current, coils_via_symmetries, BiotSavart
@@ -22,13 +23,18 @@ from simsopt.field.force import coil_force, coil_torque, coil_net_forces, coil_n
     LpCurveForce, B2Energy
 from simsopt.field.selffield import regularization_circ
 
+# Directory for test files
+TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
+
 
 def continuation(N=10000, dx=0.05,
                  INPUT_DIR="./output/QA/with-force-penalty/1/pareto/",
                  OUTPUT_DIR="./output/QA/with-force-penalty/2/optimizations/",
-                 INPUT_FILE="./inputs/input.LandremanPaul2021_QA",
+                 INPUT_FILE=None,
                  MAXITER=14000):
     """Performs a continuation method on a set of previous optimizations."""
+    if INPUT_FILE is None:
+        INPUT_FILE = str(TEST_DIR / 'input.LandremanPaul2021_QA')
     # Read in input optimizations
     results = glob.glob(f"{INPUT_DIR}*/results.json")
     df = pd.DataFrame()
@@ -100,10 +106,12 @@ def continuation(N=10000, dx=0.05,
 def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
                           FORCE_OBJ=LpCurveForce,
                           OUTPUT_DIR="./output/QA/with-force-penalty/1/optimizations/",
-                          INPUT_FILE="./inputs/input.LandremanPaul2021_QA",
+                          INPUT_FILE=None,
                           debug=False,
                           ncoils=5):
     """Performs a set of initial optimizations by scanning over parameters."""
+    if INPUT_FILE is None:
+        INPUT_FILE = str(TEST_DIR / 'input.LandremanPaul2021_QA')
     for i in range(N):
         # FIXED PARAMETERS
         ARCLENGTH_WEIGHT = 0.01
@@ -172,9 +180,11 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
 
 def initial_optimizations_QH(N=10000, with_force=True, MAXITER=14000,
                              OUTPUT_DIR="./output/QA/with-force-penalty/1/optimizations/",
-                             INPUT_FILE="./inputs/input.LandremanPaul2021_QH_magwell_R0=1",
+                             INPUT_FILE=None,
                              ncoils=3):
     """Performs a set of initial optimizations by scanning over parameters."""
+    if INPUT_FILE is None:
+        INPUT_FILE = str(TEST_DIR / 'input.LandremanPaul2021_QH_magwell_R0=1')
     for i in range(N):
         # FIXED PARAMETERS
         ARCLENGTH_WEIGHT = 0.01
@@ -229,7 +239,7 @@ def initial_optimizations_QH(N=10000, with_force=True, MAXITER=14000,
 
 def optimization(
         OUTPUT_DIR="./output/QA/with-force-penalty/2/optimizations/",
-        INPUT_FILE="./inputs/input.LandremanPaul2021_QA",
+        INPUT_FILE=None,
         R1=0.5,
         order=5,
         ncoils=5,
@@ -253,6 +263,8 @@ def optimization(
         debug=False,
         MAXITER=14000):
     """Performs a stage II force optimization based on specified criteria. """
+    if INPUT_FILE is None:
+        INPUT_FILE = str(TEST_DIR / 'input.LandremanPaul2021_QA')
     start_time = time.perf_counter()
 
     # Initialize the boundary magnetic surface:

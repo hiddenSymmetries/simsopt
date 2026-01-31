@@ -736,10 +736,13 @@ def coils_to_vtk(coils, filename, close=False, extra_data=None):
         print("Warning: coils_to_vtk will not save forces and torques for coils that "
               "do not have a model for their cross section. Please use the RegularizedCoil class.")
     else:    
+        # First, get forces/torques for all coils to determine actual point counts
+        # This handles cases where coils have different numbers of quadrature points
+        coil_forces_list = []
+        coil_torques_list = []
         net_forces = np.zeros((len(coils), 3))
         net_torques = np.zeros((len(coils), 3))
-        coil_forces = np.zeros((data.shape[0], 3))
-        coil_torques = np.zeros((data.shape[0], 3))
+        
         for i, c in enumerate(coils):
             # get the pointwise forces and torques for the current coil
             coil_force_temp = c.force(coils)
@@ -754,8 +757,28 @@ def coils_to_vtk(coils, filename, close=False, extra_data=None):
             if close:
                 coil_force_temp = np.vstack((coil_force_temp, coil_force_temp[0, :]))
                 coil_torque_temp = np.vstack((coil_torque_temp, coil_torque_temp[0, :]))
-            coil_forces[i * ppl[i]: (i + 1) * ppl[i], :] = coil_force_temp
-            coil_torques[i * ppl[i]: (i + 1) * ppl[i], :] = coil_torque_temp
+            
+            coil_forces_list.append(coil_force_temp)
+            coil_torques_list.append(coil_torque_temp)
+        
+        # Recalculate ppl based on actual force array shapes
+        ppl_actual = np.asarray([f.shape[0] for f in coil_forces_list])
+        
+        # Recalculate data array if point counts changed
+        if not np.array_equal(ppl, ppl_actual):
+            ppl = ppl_actual
+            data = np.concatenate([i*np.ones((ppl[i], )) for i in range(len(curves))])
+            # Recalculate current data with correct point counts
+            coil_data = np.zeros(data.shape)
+            for i in range(len(currents)):
+                coil_data[i * ppl[i]: (i + 1) * ppl[i]] = currents[i]
+            coil_data = np.ascontiguousarray(coil_data)
+            pointData['I'] = coil_data
+            pointData['I_mag'] = contig(np.abs(coil_data))
+        
+        # Now concatenate all forces and torques
+        coil_forces = np.vstack(coil_forces_list)
+        coil_torques = np.vstack(coil_torques_list)
 
         # copy force and torque data over to pointwise data on a coil curve
         coil_data = np.zeros((data.shape[0], 3))
