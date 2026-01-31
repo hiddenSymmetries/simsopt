@@ -320,12 +320,7 @@ FORCE_WEIGHT = Weight(0.0)  # 1e-34 Forces are in Newtons, and typical values ar
 FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
-# Force and Torque calculations spawn a bunch of spurious BiotSavart child objects -- erase them!
-for c in (coils + coils_TF):
-    c._children = set()
-
-btot.set_points(s_plot.gamma().reshape((-1, 3)))
+save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix)
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
@@ -495,9 +490,7 @@ bpsc = btot.Bfields[0]
 bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
 dipole_currents = [c.current.get_value() for c in bpsc.coils]
 psc_array.recompute_currents()
-save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
-
-btot.set_points(s_plot.gamma().reshape((-1, 3)))
+save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix)
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}

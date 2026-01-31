@@ -301,7 +301,11 @@ def optimization(
         total_current.fix_all()
         base_currents += [total_current - sum(base_currents)]
 
-        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+        # Use circular regularization for force/torque calculations
+        a_coil = 0.05
+        regularization = regularization_circ(a_coil)
+        regularizations = [regularization for _ in range(ncoils)]
+        coils = coils_via_symmetries(base_curves, base_currents, nfp, True, regularizations=regularizations)
         base_coils = coils[:ncoils]
         curves = [c.curve for c in coils]
 
@@ -407,7 +411,7 @@ def optimization(
     #     force = np.append(force, force[0])
     #     forces = np.concatenate([forces, force])
     # pointData_forces = {"F": forces}
-    # curves_to_vtk(curves, OUTPUT_DIR + "curves_opt", close=True, extra_point_data=pointData_forces)
+    # curves_to_vtk(curves, OUTPUT_DIR + "curves_opt", close=True, extra_data=pointData_forces)
 
     # bs_big = BiotSavart(coils)
     # bs_big.set_points(surf_big.gamma().reshape((-1, 3)))

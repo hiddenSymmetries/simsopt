@@ -134,7 +134,7 @@ def align_dipoles_with_plasma(plasma_surf, base_curves):
     return alphas, deltas
 
 
-def initialize_coils(s, TEST_DIR, configuration):
+def initialize_coils(s, TEST_DIR, configuration, regularizations=None):
     """
     Initializes appropriate coils for the Schuett-Henneberg 2-field-period QA,
     Landreman-Paul QA, Landreman-Paul QH, etc., usually for purposes
@@ -144,6 +144,7 @@ def initialize_coils(s, TEST_DIR, configuration):
         TEST_DIR: String denoting where to find the input files.
         s: plasma boundary surface.
         configuration: String denoting the stellarator name.
+        regularizations: Optional list of regularization values for RegularizedCoil objects.
     Returns:
         base_curves: List of CurveXYZ class objects.
         curves: List of Curve class objects.
@@ -186,7 +187,7 @@ def initialize_coils(s, TEST_DIR, configuration):
     total_current = Current(total_current)
     total_current.fix_all()
     base_currents += [total_current - sum(base_currents)]
-    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True, regularizations=regularizations)
     curves = [c.curve for c in coils]
     return base_curves, curves, coils, base_currents
 
@@ -304,9 +305,11 @@ def dipole_array_optimization_function(dofs, obj_dict, weight_dict, psc_array=No
     return J, grad
 
 
-def save_coil_sets(btot, OUT_DIR, file_suffix, a, b, nturns_TF, aa, bb, nturns, regularization=None):
+def save_coil_sets(btot, OUT_DIR, file_suffix):
     """
-    Save separate TF and dipole array coil sets for a dipole array solution.
+    Save TF and dipole array coil sets together for a dipole array solution.
+    Coils are saved together so that coils_to_vtk can compute forces and torques
+    from all coils together.
 
     Args:
         btot: BiotSavart object
@@ -315,52 +318,23 @@ def save_coil_sets(btot, OUT_DIR, file_suffix, a, b, nturns_TF, aa, bb, nturns, 
             The output directory.
         file_suffix: str
             The suffix for the output files.
-        a: float
-            The width (radius) of a rectangular (circular) cross section TF coil
-        b: float
-            The length (radius) of a rectangular (circular) cross section TF coil
-        nturns_TF: int
-            The number of turns in the TF coils.
-        a: float
-            The width (radius) of a rectangular (circular) cross section dipole coil
-        b: float
-            The length (radius) of a rectangular (circular) cross section dipole coil
-        nturns_TF: int
-            The number of turns in the dipole coils.
     """
-    from simsopt.field.force import pointData_forces_torques, coil_net_torques, coil_net_forces
-    from simsopt.geo import curves_to_vtk
-    from simsopt.field import regularization_rect
-    if regularization is None:
-        regularization = regularization_rect
+    from simsopt.field import coils_to_vtk
     bs = btot.Bfields[0]
     bs_TF = btot.Bfields[1]
     coils = bs.coils
     coils_TF = bs_TF.coils
     allcoils = coils + coils_TF
+    # Save all coils together so that coils_to_vtk computes forces and torques
+    # from all coils together
+    coils_to_vtk(
+        allcoils,
+        OUT_DIR + "coils" + file_suffix,
+        close=True,
+    )
     dipole_currents = [c.current.get_value() for c in coils]
-    curves_to_vtk(
-        [c.curve for c in bs.coils],
-        OUT_DIR + "dipole_curves" + file_suffix,
-        close=True,
-        extra_point_data=pointData_forces_torques(coils, allcoils, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
-        I=dipole_currents,
-        NetForces=coil_net_forces(coils, allcoils, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
-        NetTorques=coil_net_torques(coils, allcoils, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
-    )
-    curves_to_vtk(
-        [c.curve for c in bs_TF.coils],
-        OUT_DIR + "TF_curves" + file_suffix,
-        close=True,
-        extra_point_data=pointData_forces_torques(coils_TF, allcoils, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
-        I=[c.current.get_value() for c in coils_TF],
-        NetForces=coil_net_forces(coils_TF, allcoils, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-        NetTorques=coil_net_torques(coils_TF, allcoils, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-    )
     print('Max I = ', np.max(np.abs(dipole_currents)))
     print('Min I = ', np.min(np.abs(dipole_currents)))
-
-# These four functions are used to compute the rotation quaternion for the coil
 
 
 def quaternion_from_axis_angle(axis, theta):

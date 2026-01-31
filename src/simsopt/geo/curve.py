@@ -893,7 +893,7 @@ class RotatedCurve(sopp.Curve, Curve):
         return True if self.rotmat[2][2] == -1 else False
 
 
-def curves_to_vtk(curves, filename, close=False, extra_point_data=None, I=None, NetForces=None, NetTorques=None):
+def curves_to_vtk(curves, filename, close=False, extra_data=None):
     """
     Export a list of Curve objects in VTK format, so they can be
     viewed using Paraview. This function requires the python package ``pyevtk``,
@@ -903,10 +903,7 @@ def curves_to_vtk(curves, filename, close=False, extra_point_data=None, I=None, 
         curves: A python list of Curve objects.
         filename: Name of the file to write.
         close: Whether to draw the segment from the last quadrature point back to the first.
-        extra_point_data: A dictionary of additional point data to add to the VTK file.
-        I: A list of currents for the coils.
-        NetForces: A list of net forces for the coils.
-        NetTorques: A list of net torques for the coils.
+        extra_data: A dictionary of additional point data to add to the VTK file.
     """
     from pyevtk.hl import polyLinesToVTK
 
@@ -924,25 +921,8 @@ def curves_to_vtk(curves, filename, close=False, extra_point_data=None, I=None, 
         z = np.concatenate([c.gamma()[:, 2] for c in curves])
         ppl = np.asarray([c.gamma().shape[0] for c in curves])
     pointData = {}
-    if I is not None:
-        data = np.concatenate([I[i]*np.ones((ppl[i], )) for i in range(len(curves))])
-        pointData = {'I': data, 'I_mag': np.abs(data)}
-    if NetForces is not None:
-        # NetForces is a list/array of 3D vectors, shape (len(curves), 3)
-        # For each curve, repeat the force vector for each point on that curve
-        fx = np.concatenate([NetForces[i][0]*np.ones((ppl[i], )) for i in range(len(curves))])
-        fy = np.concatenate([NetForces[i][1]*np.ones((ppl[i], )) for i in range(len(curves))])
-        fz = np.concatenate([NetForces[i][2]*np.ones((ppl[i], )) for i in range(len(curves))])
-        pointData = {**pointData, 'NetForces': (fx, fy, fz)}
-    if NetTorques is not None:
-        # NetTorques is a list/array of 3D vectors, shape (len(curves), 3)
-        # For each curve, repeat the torque vector for each point on that curve
-        tx = np.concatenate([NetTorques[i][0]*np.ones((ppl[i], )) for i in range(len(curves))])
-        ty = np.concatenate([NetTorques[i][1]*np.ones((ppl[i], )) for i in range(len(curves))])
-        tz = np.concatenate([NetTorques[i][2]*np.ones((ppl[i], )) for i in range(len(curves))])
-        pointData = {**pointData, 'NetTorques': (tx, ty, tz)}
-    if extra_point_data is not None:
-        pointData = {**pointData, **extra_point_data}
+    if extra_data is not None:
+        pointData = {**pointData, **extra_data}
 
     polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData=pointData)
 

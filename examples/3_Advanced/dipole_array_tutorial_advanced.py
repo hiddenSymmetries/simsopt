@@ -88,8 +88,17 @@ s_plot = SurfaceRZFourier.from_vmec_input(
     quadpoints_theta=quadpoints_theta
 )
 
+# wire cross section for the TF coils is a square 20 cm x 20 cm
+# This cross-section is not reflected in optimization except
+# to calculate self-forces, self-torques, or self-inductances.
+a = 0.2
+b = 0.2
 # initialize the coils
-base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, 'SchuettHennebergQAnfp2')
+from simsopt.field.selffield import regularization_rect
+ncoils_TF_init = 2  # SchuettHennebergQAnfp2 has 2 base coils
+regularization_TF = regularization_rect(a, b)
+regularizations_TF = [regularization_TF for _ in range(ncoils_TF_init)]
+base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, 'SchuettHennebergQAnfp2', regularizations=regularizations_TF)
 num_TF_unique_coils = len(base_curves_TF)
 base_coils_TF = coils_TF[:num_TF_unique_coils]
 currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
@@ -100,12 +109,6 @@ bs_TF = BiotSavart(coils_TF)
 # # Calculate average, approximate on-axis B field strength
 print(s, bs_TF, base_curves_TF)
 calculate_modB_on_major_radius(bs_TF, s)
-
-# wire cross section for the TF coils is a square 20 cm x 20 cm
-# This cross-section is not reflected in optimization except
-# to calculate self-forces, self-torques, or self-inductances.
-a = 0.2
-b = 0.2
 nturns = 100
 nturns_TF = 200
 
@@ -198,7 +201,10 @@ else:
     base_currents = [Current(1.0) * 1e7 for i in range(ncoils)]
     if currents_fixed:
         [c.fix_all() for c in base_currents]
-    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+    # Use rectangular regularization for force/torque calculations
+    regularization = regularization_rect(aa, bb)
+    regularizations = [regularization for _ in range(ncoils)]
+    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True, regularizations=regularizations)
     base_coils = coils[:ncoils]
     bs = BiotSavart(coils)
 
@@ -211,14 +217,12 @@ btot.set_points(eval_points)
 curves = [c.curve for c in coils]
 currents = [c.current.get_value() for c in coils]
 
-# Save the TF and dipole coils separately, along with pointwise and net
-# forces and torques on the coils.def
-save_coil_sets(btot, OUT_DIR, "_initial", a, b, nturns_TF, aa, bb, nturns)
+# Save the TF and dipole coils together, along with pointwise and net
+# forces and torques on the coils (computed from all coils together)
+save_coil_sets(btot, OUT_DIR, "_initial")
 
 # Save the total Bfield errors on the plasma surface
-btot.set_points(s_plot.gamma().reshape((-1, 3)))
-pointData = {"B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+btot.set_points(s_plot.gamma().reshape((-1), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_initial", extra_data=pointData)
 btot.set_points(eval_points)
 
@@ -343,12 +347,10 @@ if passive_coil_array:
     psc_array.recompute_currents()
 
 # Save the optimized dipole and TF coils
-save_coil_sets(btot, OUT_DIR, "_optimized", a, b, nturns_TF, aa, bb, nturns)
+save_coil_sets(btot, OUT_DIR, "_optimized")
 
 # Save optimized Bnormal errors on plasma surface
-btot.set_points(s_plot.gamma().reshape((-1, 3)))
-pointData = {"B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+btot.set_points(s_plot.gamma().reshape((-1), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_optimized", extra_data=pointData)
 btot.set_points(eval_points)
 calculate_modB_on_major_radius(btot, s)

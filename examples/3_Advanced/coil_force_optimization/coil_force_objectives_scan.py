@@ -9,15 +9,16 @@ from pathlib import Path
 import shutil
 from scipy.optimize import minimize
 import numpy as np
-from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
+from simsopt.geo import create_equally_spaced_curves
+from simsopt.field import coils_to_vtk
 from simsopt.geo import SurfaceRZFourier
 from simsopt.field import Current, coils_via_symmetries
 from simsopt.objectives import SquaredFlux, Weight, QuadraticPenalty
 from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance,
                          MeanSquaredCurvature, LpCurveCurvature)
 from simsopt.field import BiotSavart
-from simsopt.field.force import coil_net_torques, coil_net_forces, LpCurveForce, \
-    SquaredMeanForce, SquaredMeanTorque, LpCurveTorque, B2Energy, NetFluxes, pointData_forces_torques
+from simsopt.field.force import LpCurveForce, \
+    SquaredMeanForce, SquaredMeanTorque, LpCurveTorque, B2Energy, NetFluxes
 from simsopt.field.selffield import regularization_circ
 
 
@@ -104,21 +105,19 @@ base_currents = [Current(1e5) for i in range(ncoils)]
 # of the currents:
 base_currents[0].fix_all()
 
-coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+a = 0.02
+regularization = regularization_circ(a)
+regularizations = [regularization for _ in range(ncoils)]
+coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True, regularizations=regularizations)
 base_coils = coils[:ncoils]
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
-a = 0.02
 a_list = np.ones(len(coils)) * a
 nturns = 100
 curves = [c.curve for c in coils]
-curves_to_vtk(
-    curves, OUT_DIR + "curves_init", close=True,
-    extra_point_data=pointData_forces_torques(coils, coils,
-                                              a_list, a_list, np.ones(len(coils)) * nturns),
-    NetForces=coil_net_forces(coils, coils, regularization_circ(np.ones(len(coils)) * a)),
-    NetTorques=coil_net_torques(coils, coils, regularization_circ(np.ones(len(coils)) * a))
+coils_to_vtk(
+    coils, OUT_DIR + "coils_init", close=True,
 )
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
@@ -232,12 +231,7 @@ dofs = JF.x
 print(f"Optimization with FORCE_WEIGHT={FORCE_WEIGHT.value} and LENGTH_WEIGHT={LENGTH_WEIGHT.value}")
 # print("INITIAL OPTIMIZATION")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': MAXITER}, tol=1e-12)
-curves_to_vtk(curves, OUT_DIR + "curves_opt", close=True,
-              extra_point_data=pointData_forces_torques(coils, coils,
-                                                        a_list, a_list, np.ones(len(coils)) * nturns),
-              NetForces=coil_net_forces(coils, coils, regularization_circ(a_list)),
-              NetTorques=coil_net_torques(coils, coils, regularization_circ(a_list))
-              )
+coils_to_vtk(coils, OUT_DIR + "coils_opt", close=True)
 
 pointData_surf = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData_surf)

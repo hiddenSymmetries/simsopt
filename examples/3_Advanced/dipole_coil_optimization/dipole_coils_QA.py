@@ -89,7 +89,11 @@ bb = 0.05
 
 if not continuation_run:
     # initialize the TF coils
-    base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, "LandremanPaulQA")
+    # Use rectangular regularization for force/torque calculations
+    ncoils_TF_init = 3  # LandremanPaulQA has 3 base coils
+    regularization_TF = regularization_rect(a, b)
+    regularizations_TF = [regularization_TF for _ in range(ncoils_TF_init)]
+    base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, "LandremanPaulQA", regularizations=regularizations_TF)
     num_TF_unique_coils = len(base_curves_TF)
     base_coils_TF = coils_TF[:num_TF_unique_coils]
     currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
@@ -127,7 +131,10 @@ if not continuation_run:
     # for i in range(ncoils):
     #     base_currents[i].fix_all()
 
-    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+    # Use rectangular regularization for force/torque calculations
+    regularization = regularization_rect(aa, bb)
+    regularizations = [regularization for _ in range(ncoils)]
+    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True, regularizations=regularizations)
     base_coils = coils[:ncoils]
 
     bs = BiotSavart(coils)
@@ -188,12 +195,7 @@ FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(1e-23)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 
-save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
-# Force and Torque calculations spawn a bunch of spurious BiotSavart child objects -- erase them!
-for c in (coils + coils_TF):
-    c._children = set()
-
-btot.set_points(s_plot.gamma().reshape((-1, 3)))
+save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix)
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
@@ -327,9 +329,7 @@ print("""
 
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-10)
-save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix, a, b, nturns_TF, aa, bb, nturns)
-
-btot.set_points(s_plot.gamma().reshape((-1, 3)))
+save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix)
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}

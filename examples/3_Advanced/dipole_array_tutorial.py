@@ -105,7 +105,7 @@ btot.set_points(s.gamma().reshape((-1, 3)))
 bs.set_points(s.gamma().reshape((-1, 3)))
 curves = [c.curve for c in coils]
 currents = [c.current.get_value() for c in coils]
-save_coil_sets(btot, outdir, "_initial", a, b, nturns_TF, aa, bb, nturns)
+save_coil_sets(btot, outdir, "_initial")
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {
     "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * n_plot, axis=2
@@ -177,8 +177,7 @@ print("""
 
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-10)
-save_coil_sets(btot, outdir, "_optimized", a, b, nturns_TF, aa, bb, nturns)
-
+save_coil_sets(btot, outdir, "_optimized")
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {
     "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * n_plot, axis=2

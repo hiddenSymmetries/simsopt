@@ -67,7 +67,10 @@ base_currents_TF = [(Current(total_current / ncoils_TF * 1e-7) * 1e7) for _ in r
 total_current = Current(total_current)
 total_current.fix_all()
 base_currents_TF += [total_current - sum(base_currents_TF)]
-coils_TF = coils_via_symmetries(base_tf_curves, base_currents_TF, s.nfp, True)
+# Use rectangular regularization for force/torque calculations
+regularization_TF = regularization_rect(a, b)
+regularizations_TF = [regularization_TF for _ in range(ncoils_TF)]
+coils_TF = coils_via_symmetries(base_tf_curves, base_currents_TF, s.nfp, True, regularizations=regularizations_TF)
 base_coils_TF = coils_TF[:ncoils_TF]
 curves_TF = [c.curve for c in coils_TF]
 bs_TF = BiotSavart(coils_TF)
@@ -82,7 +85,10 @@ base_wp_currents = [Current(1.0) * 1e6 for i in range(ncoils)]
 # for i in range(ncoils):
 #     base_currents[i].fix_all()
 
-coils = coils_via_symmetries(base_wp_curves, base_wp_currents, s.nfp, True)
+# Use rectangular regularization for force/torque calculations
+regularization_wp = regularization_rect(aa, bb)
+regularizations_wp = [regularization_wp for _ in range(ncoils)]
+coils = coils_via_symmetries(base_wp_curves, base_wp_currents, s.nfp, True, regularizations=regularizations_wp)
 base_coils = coils[:ncoils]
 
 bs = BiotSavart(coils)
@@ -112,12 +118,7 @@ FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 
-save_coil_sets(btot, outdir, "_initial", a, b, nturns_TF, aa, bb, nturns)
-# Force and Torque calculations spawn a bunch of spurious BiotSavart child objects -- erase them!
-for c in (coils + coils_TF):
-    c._children = set()
-
-btot.set_points(s_plot.gamma().reshape((-1, 3)))
+save_coil_sets(btot, outdir, "_initial")
 pointData = {
     "B_N_dipoles": np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
     "B_N_TF": np.sum(bs_TF.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
@@ -253,9 +254,7 @@ print("""
 MAXITER = 1000
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-10)
-save_coil_sets(btot, outdir, "_optimized", a, b, nturns_TF, aa, bb, nturns)
-
-btot.set_points(s_plot.gamma().reshape((-1, 3)))
+save_coil_sets(btot, outdir, "_optimized")
 pointData = {
     "B_N_dipoles": np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
     "B_N_TF": np.sum(bs_TF.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],

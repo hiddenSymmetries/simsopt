@@ -743,10 +743,11 @@ class CoilForcesTest(unittest.TestCase):
                                         base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym, numquadpoints=numquadpoints)
                                         base_curves2 = create_equally_spaced_curves(ncoils, nfp, stellsym, numquadpoints=numquadpoints)
                                         base_currents = [Current(I) for j in range(ncoils)]
-                                        coils = coils_via_symmetries(base_curves, base_currents, nfp, stellsym)
+                                        regularizations = [regularization for _ in range(ncoils)]
+                                        coils = coils_via_symmetries(base_curves, base_currents, nfp, stellsym, regularizations=regularizations)
                                         for ii in range(ncoils):
                                             base_curves2[ii].x = base_curves2[ii].x + np.ones(len(base_curves2[ii].x)) * 0.1
-                                        coils2 = coils_via_symmetries(base_curves2, base_currents, nfp, stellsym)
+                                        coils2 = coils_via_symmetries(base_curves2, base_currents, nfp, stellsym, regularizations=regularizations)
                                         regularization_list = [regularization for _ in coils]
                                         objectives = [
                                             sum([NetFluxes(coils[i], coils+coils2) for i in range(len(coils))]),
@@ -990,11 +991,12 @@ class CoilForcesTest(unittest.TestCase):
             print(f"\n--- Timing tests for ncoils = {ncoils} ---")
             base_curves = create_equally_spaced_curves(ncoils, nfp, True)
             base_currents = [Current(I) for j in range(ncoils)]
-            coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+            regularizations = [regularization for _ in range(ncoils)]
+            coils = coils_via_symmetries(base_curves, base_currents, nfp, True, regularizations=regularizations)
             base_curves2 = create_equally_spaced_curves(ncoils, nfp, True)
             for i in range(ncoils):
                 base_curves2[i].x = base_curves2[i].x + np.ones(len(base_curves2[i].x)) * 0.01
-            coils2 = coils_via_symmetries(base_curves2, base_currents, nfp, True)
+            coils2 = coils_via_symmetries(base_curves2, base_currents, nfp, True, regularizations=regularizations)
             regularization_list = [regularization for _ in coils]
 
             # Prepare objectives for each class
@@ -1173,7 +1175,9 @@ class CoilForcesTest(unittest.TestCase):
         ncoils = 4
         base_curves = create_equally_spaced_curves(ncoils, nfp, True)
         base_currents = [Current(I) for j in range(ncoils)]
-        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+        regularization_coil = regularization_circ(a)
+        regularizations = [regularization_coil for _ in range(ncoils)]
+        coils = coils_via_symmetries(base_curves, base_currents, nfp, True, regularizations=regularizations)
         
         # Test force method
         force_from_others = coil.force(coils)
@@ -1254,7 +1258,9 @@ class CoilForcesTest(unittest.TestCase):
         ncoils = 4
         base_curves = create_equally_spaced_curves(ncoils, nfp, True)
         base_currents = [Current(I) for j in range(ncoils)]
-        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+        regularization_coil = regularization_rect(a, b)
+        regularizations = [regularization_coil for _ in range(ncoils)]
+        coils = coils_via_symmetries(base_curves, base_currents, nfp, True, regularizations=regularizations)
         
         # Test force method
         force_from_others = coil.force(coils)

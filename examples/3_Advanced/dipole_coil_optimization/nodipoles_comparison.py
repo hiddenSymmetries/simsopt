@@ -16,7 +16,9 @@ from simsopt.util import calculate_on_axis_B, initialize_coils
 from simsopt.geo import (
     CurveLength, CurveCurveDistance,
     MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
-    SurfaceRZFourier, curves_to_vtk
+    SurfaceRZFourier
+)
+from simsopt.field import coils_to_vtk
 )
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 
@@ -55,7 +57,13 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 )
 
 # initialize the coils
-base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, config_flag)
+# Use rectangular regularization for force/torque calculations
+a = 0.2
+b = 0.2
+regularization = regularization_rect(a, b)
+ncoils_init = 2 if config_flag == 'SchuettHennebergQAnfp2' else (3 if config_flag[-2:] == 'QA' else 2)
+regularizations = [regularization for _ in range(ncoils_init)]
+base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, config_flag, regularizations=regularizations)
 num_TF_unique_coils = len(base_curves_TF)
 base_coils_TF = coils_TF[:num_TF_unique_coils]
 currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
@@ -120,14 +128,10 @@ TORQUE_WEIGHT2 = Weight(1e-22)  # Forces are in Newtons, and typical values are 
 OUT_DIR = ("./nodipoles_comparison/")
 os.makedirs(OUT_DIR, exist_ok=True)
 
-curves_to_vtk(
-    curves_TF,
-    OUT_DIR + "curves_TF_initial_" + config_flag,
+coils_to_vtk(
+    coils_TF,
+    OUT_DIR + "coils_TF_initial_" + config_flag,
     close=True,
-    extra_point_data=pointData_forces_torques(coils_TF, coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
-    I=currents_TF,
-    NetForces=coil_net_forces(coils_TF, coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-    NetTorques=coil_net_torques(coils_TF, coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF)
 )
 # Force and Torque calculations spawn a bunch of spurious BiotSavart child objects -- erase them!
 for c in (coils_TF):
@@ -257,14 +261,10 @@ print("""
 MAXITER = 600
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(
-    [c.curve for c in bs_TF.coils],
-    OUT_DIR + "curves_TF_optimized_" + config_flag,
+coils_to_vtk(
+    bs_TF.coils,
+    OUT_DIR + "coils_TF_optimized_" + config_flag,
     close=True,
-    extra_point_data=pointData_forces_torques(coils_TF, coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
-    I=[c.current.get_value() for c in bs_TF.coils],
-    NetForces=coil_net_forces(coils_TF, coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-    NetTorques=coil_net_torques(coils_TF, coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
 )
 
 btot.set_points(s_plot.gamma().reshape((-1, 3)))

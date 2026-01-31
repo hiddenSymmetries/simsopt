@@ -223,11 +223,10 @@ class TestDipoleArrayHelperFunctions(unittest.TestCase):
             btot.set_points(s.gamma().reshape(-1, 3))
 
             # Should not raise
-            save_coil_sets(btot, ".", "_test", 0.25, 0.25, 2, 0.1, 0.1, 2)
-            # Check that files were created
+            save_coil_sets(btot, ".", "_test")
+            # Check that files were created (now saves all coils together)
             files = list(Path(".").glob("*"))
-            self.assertTrue(any("dipole_curves" in f.name for f in files))
-            self.assertTrue(any("TF_curves" in f.name for f in files))
+            self.assertTrue(any("coils_test" in f.name for f in files))
 
             class DummyObj(Optimizable):
                 def J(self): return 1.0
@@ -237,12 +236,6 @@ class TestDipoleArrayHelperFunctions(unittest.TestCase):
 
             obj_dict = {
                 "btot": btot,
-                "s": s,
-                "base_curves_TF": tf_curves,
-                "JF": DummyObj(),
-                "Jf": DummyObj(),
-                "Jlength": DummyObj(),
-                "Jlength2": DummyObj(),
                 "Jcs": [DummyObj()],
                 "Jmscs": [DummyObj()],
                 "Jls": [DummyObj()],

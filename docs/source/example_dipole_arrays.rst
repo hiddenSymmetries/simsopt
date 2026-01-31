@@ -225,10 +225,7 @@ Finally, we can optimize the coils using the L-BFGS-B algorithm.::
                   options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-10)
 
   # Save the final coils
-  save_coil_sets(btot, outdir, "_optimized", a, b, nturns_TF, aa, bb, nturns)
-
-  # Save the final Bnormal errors on the plasma surface
-  btot.set_points(s_plot.gamma().reshape((-1, 3)))
+  save_coil_sets(btot, outdir, "_optimized")
   pointData = {
       "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * n_plot, axis=2
                           ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
@@ -556,10 +553,7 @@ all the weights and objective terms::
                 options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-20)
 
   # Save the optimized dipole and TF coils
-  save_coil_sets(btot, OUT_DIR, "_optimized", a, b, nturns_TF, aa, bb, nturns)
-
-  # Save optimized Bnormal errors on plasma surface
-  btot.set_points(s_plot.gamma().reshape((-1, 3)))
+  save_coil_sets(btot, OUT_DIR, "_optimized")
   pointData = {"B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                   ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
   s_plot.to_vtk(OUT_DIR + "surf_optimized", extra_data=pointData)
