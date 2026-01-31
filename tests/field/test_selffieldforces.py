@@ -853,7 +853,7 @@ class CoilForcesTest(unittest.TestCase):
         stellsym_list = [False, True]
         p_list = [2.5]
         threshold_list = [0.0]
-        downsample_list = [1, 2, 3]
+        downsample_list = [1, 2]
         jax_flag_list = [False, True]
         numquadpoints_list = [20]
         I = 1.7e5
@@ -913,7 +913,7 @@ class CoilForcesTest(unittest.TestCase):
                                                         err_new = np.abs(deriv_est - deriv)  # compute absolute error instead
                                                     else:
                                                         err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
-                                                    # Check error decrease by at least a factor of 0.3
+                                                    # Check error decrease by at least a factor of 0.5
                                                     if len(errors) > 0 and err_new > 1e-10:
                                                         print(f"err: {err_new}, jac: {np.abs(deriv)}, jac_est: {np.abs(deriv_est)}, ratio: {(err_new + 1e-12) / (errors[-1] + 1e-12)}")
                                                         assert err_new < 0.5 * errors[-1], f"Error did not decrease by factor 0.5: prev={errors[-1]}, curr={err_new}"

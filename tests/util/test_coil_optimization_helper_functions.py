@@ -595,6 +595,42 @@ class TestCoilOptimization(unittest.TestCase):
             fB_final = SquaredFlux(s, bs_optimized).J()
             self.assertLess(fB_final, fB_initial)
 
+            # Run optimization with minimal iterations
+            bs_optimized = coil_optimization(
+                s, bs, base_curves, curves,
+                MAXITER=5,
+                LENGTH_WEIGHT=1.0,
+                LENGTH_THRESHOLD=18.0 * R0,
+                CC_WEIGHT=1.0,
+                CC_THRESHOLD=0.1 * R0,
+                CS_WEIGHT=1e-2,
+                CS_THRESHOLD=0.15 * R0,
+                CURVATURE_WEIGHT=1e-6,
+                CURVATURE_THRESHOLD=0.1 * R0,
+                MSC_WEIGHT=1e-6,
+                MSC_THRESHOLD=0.1 * R0,
+                LINKING_NUMBER_WEIGHT=0.0,
+                FORCE_WEIGHT=1.0,
+                FORCE_THRESHOLD=1e4
+            )
+            
+            # Verify that optimization returns a BiotSavart object
+            self.assertIsInstance(bs_optimized, BiotSavart)
+            
+            # Verify that the coils are still present
+            self.assertEqual(len(bs_optimized.coils), len(coils))
+            
+            # Verify that the field can still be evaluated
+            bs_optimized.set_points(s.gamma().reshape((-1, 3)))
+            final_BdotN = np.mean(np.abs(np.sum(bs_optimized.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+            
+            # Field should be finite
+            self.assertTrue(np.isfinite(final_BdotN))
+
+            # fB should have decreased
+            fB_final = SquaredFlux(s, bs_optimized).J()
+            self.assertLess(fB_final, fB_initial)
+
             # Run optimization with minimal iterations without passing arguments
             bs_optimized = coil_optimization(
                 s, bs, base_curves, curves,
