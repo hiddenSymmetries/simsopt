@@ -114,7 +114,7 @@ base_coils_TF = coils_TF[:num_TF_unique_coils]
 currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
 
 # wire cross section for the TF coils is a square 20 cm x 20 cm
-# Only need this if make self forces and TVE nonzero in the objective!
+# Only need this if make self forces and B2Energy nonzero in the objective!
 a = 0.2
 b = 0.2
 nturns = 100

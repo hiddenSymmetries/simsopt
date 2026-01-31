@@ -17,7 +17,7 @@ from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance,
                          MeanSquaredCurvature, LpCurveCurvature)
 from simsopt.field import BiotSavart
 from simsopt.field.force import coil_net_torques, coil_net_forces, LpCurveForce, \
-    SquaredMeanForce, SquaredMeanTorque, LpCurveTorque, TVE, NetFluxes, pointData_forces_torques
+    SquaredMeanForce, SquaredMeanTorque, LpCurveTorque, B2Energy, NetFluxes, pointData_forces_torques
 from simsopt.field.selffield import regularization_circ
 
 
@@ -153,8 +153,8 @@ elif sys.argv[1] == 'LpCurveTorque':
         Jforce = LpCurveTorque(base_coils, coils, regularization_list, p=2, threshold=float(sys.argv[3]))
     except:
         Jforce = LpCurveTorque(base_coils, coils, regularization_list, p=2, threshold=0.0)
-elif sys.argv[1] == 'TVE':
-    Jforce = sum([TVE(c, coils, a=a) for c in base_coils])
+elif sys.argv[1] == 'B2Energy':
+    Jforce = sum([B2Energy(c, coils, a=a) for c in base_coils])
 elif sys.argv[1] == 'NetFluxes':
     Jforce = sum([NetFluxes(c, coils) for c in base_coils])
 else:

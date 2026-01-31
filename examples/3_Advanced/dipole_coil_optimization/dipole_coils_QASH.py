@@ -102,7 +102,7 @@ with open(os.path.join(OUT_DIR, 'B_external_normal_extended.json'), 'w') as f:
     json.dump({'B_external_normal_extended': vc2.B_external_normal_extended}, f, cls=NumpyEncoder)
 
 # wire cross section for the TF coils is a square 20 cm x 20 cm
-# Only need this if make self forces and TVE nonzero in the objective!
+# Only need this if make self forces and B2Energy nonzero in the objective!
 a = 0.2
 b = 0.2
 nturns = 100

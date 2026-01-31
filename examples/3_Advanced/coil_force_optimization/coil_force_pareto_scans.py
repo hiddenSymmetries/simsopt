@@ -8,7 +8,7 @@ from optimization_tools import *
 # import imageio
 import matplotlib.pyplot as plt
 
-INPUT_DIR = "./output/QA/TVE_fix/"
+INPUT_DIR = "./output/QA/B2Energy_fix/"
 df, df_filtered, df_pareto = get_dfs(INPUT_DIR=INPUT_DIR)
 success_plt(df, df_filtered).show()
 df, df_filtered, df_pareto = get_dfs(INPUT_DIR=INPUT_DIR)

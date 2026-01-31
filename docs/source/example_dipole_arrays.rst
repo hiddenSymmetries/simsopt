@@ -112,7 +112,7 @@ First, we initialize some values for the finite cross-section of the coils
 and the number of wire turns, for the purposes of calculating the forces at the end::
 
   # wire cross section for the TF coils is a square 25 cm x 25 cm
-  # Only need this if make self forces and TVE nonzero in the objective!
+  # Only need this if make self forces and B2Energy nonzero in the objective!
   a = 0.25
   b = 0.25
   nturns = 100
@@ -296,7 +296,7 @@ We now initialize some values for the finite cross-section of the coils
 and the number of wire turns, for the purposes of calculating the forces at the end::
 
   # wire cross section for the TF coils is a square 25 cm x 25 cm
-  # Only need this if make self forces and TVE nonzero in the objective!
+  # Only need this if make self forces and B2Energy nonzero in the objective!
   a = 0.2
   b = 0.2
   nturns = 100

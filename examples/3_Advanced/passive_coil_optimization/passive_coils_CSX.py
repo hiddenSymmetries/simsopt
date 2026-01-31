@@ -161,7 +161,7 @@ currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
 curves_to_vtk([c.curve for c in coils_TF], OUT_DIR + "curves_without_original_window_panes")
 
 # wire cross section for the TF coils is a square 20 cm x 20 cm
-# Only need this if make self forces and TVE nonzero in the objective!
+# Only need this if make self forces and B2Energy nonzero in the objective!
 a = 0.2
 b = 0.2
 nturns = 100

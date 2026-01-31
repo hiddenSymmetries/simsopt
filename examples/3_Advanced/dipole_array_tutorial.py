@@ -69,7 +69,7 @@ base_wp_curves, base_tf_curves = generate_curves(s, VV, outdir=outdir)
 ncoils = len(base_wp_curves)
 
 # wire cross section for the TF coils is a square 25 cm x 25 cm
-# Only need this if make self forces and TVE nonzero in the objective!
+# Only need this if make self forces and B2Energy nonzero in the objective!
 a = 0.25
 b = 0.25
 nturns = 100

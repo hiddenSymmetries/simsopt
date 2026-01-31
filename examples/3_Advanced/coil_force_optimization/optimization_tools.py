@@ -19,7 +19,7 @@ from simsopt.geo import (
     SurfaceRZFourier)
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
 from simsopt.field.force import coil_force, coil_torque, coil_net_forces, coil_net_torques, \
-    LpCurveForce, TVE
+    LpCurveForce, B2Energy
 from simsopt.field.selffield import regularization_circ
 
 
@@ -127,7 +127,7 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
 
         if with_force:
             # (1e-20, 1e-8) for Squared forces
-            # (1e-14, 1e-5) for Lpforces or TVE
+            # (1e-14, 1e-5) for Lpforces or B2Energy
             FORCE_WEIGHT = 10.0 ** rand(-13, -8)
         else:
             FORCE_WEIGHT = 0
@@ -423,7 +423,7 @@ def optimization(
 
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     mean_AbsB = np.mean(bs.AbsB())
-    tve = sum([TVE(c, coils, 0.05) for c in base_coils]).J()
+    tve = sum([B2Energy(c, coils, 0.05) for c in base_coils]).J()
     print('tve = ', tve, sum(Jforce).J())
     max_forces = [np.max(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
     min_forces = [np.min(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
