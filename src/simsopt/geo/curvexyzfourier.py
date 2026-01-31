@@ -75,15 +75,8 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         """
         This function sets the dofs associated to this object.
         """
-        print(np.shape(self.local_x), np.shape(dofs))
         self.local_x = dofs
         sopp.CurveXYZFourier.set_dofs(self, dofs)
-
-    def center(self, gamma, gammadash):
-        # Compute the centroid of the curve
-        arclength = jnp.linalg.norm(gammadash, axis=-1)
-        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / jnp.sum(arclength)
-        return barycenter
 
     @staticmethod
     def load_curves_from_file(filename, order=None, ppp=20, delimiter=','):
