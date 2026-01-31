@@ -138,7 +138,11 @@ pol_vectors[:, :, 0] = mag_data.pol_x
 pol_vectors[:, :, 1] = mag_data.pol_y
 pol_vectors[:, :, 2] = mag_data.pol_z
 
-kwargs_geo = {"pol_vectors": pol_vectors, "downsample": downsample}
+# Using m_maxima functionality to try out unrealistically strong magnets
+B_max = 5  # 5 Tesla!!!!
+mu0 = 4 * np.pi * 1e-7
+m_maxima = B_max / mu0
+kwargs_geo = {"pol_vectors": pol_vectors, "m_maxima": m_maxima, "downsample": downsample}
 
 # Initialize the permanent magnet grid from the PM4Stell arrangement
 pm_ncsx = PermanentMagnetGrid.geo_setup_from_famus(
