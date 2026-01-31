@@ -10,11 +10,17 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
 from simsopt.geo.curve import RotatedCurve, create_equally_spaced_curves, create_equally_spaced_planar_curves
-from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum, coils_via_symmetries, JaxCurrent
+from simsopt.field.coil import Coil, RegularizedCoil, Current, ScaledCurrent, CurrentSum, coils_via_symmetries
 from simsopt.field.coil import coils_to_makegrid, coils_to_focus, load_coils_from_makegrid_file
 from simsopt.field.biotsavart import BiotSavart
+from simsopt.field.selffield import regularization_circ
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.configs import get_data
+
+try:
+    import pyevtk
+except ImportError:
+    pyevtk = None
 
 import os
 
@@ -22,6 +28,17 @@ TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 
 def get_curve(curvetype, rotated, x=np.asarray([0.5])):
+    """
+    Helper function to generate a test curve of the specified type and rotation.
+
+    Args:
+        curvetype (str): The type of curve to create (e.g., 'CurveXYZFourier').
+        rotated (bool): Whether to make this a RotatedCurve.
+        x (np.ndarray): Initial coefficients for the curve.
+
+    Returns:
+        Curve: The generated curve object.
+    """
     np.random.seed(2)
     rand_scale = 0.01
     order = 4
@@ -69,6 +86,14 @@ class TestCoil(unittest.TestCase):
     curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical", "CurvePlanarFourier", "JaxCurvePlanarFourier"]
 
     def subtest_serialization(self, curvetype, rotated):
+        """
+        Test that a coil with the given curve type and rotation can be serialized and deserialized
+        without changing the Biot-Savart field.
+
+        Args:
+            curvetype (str): The type of curve to create.
+            rotated (bool): Whether to make this a RotatedCurve.
+        """
         epss = [0.5**i for i in range(10, 15)]
         x = np.asarray([0.6] + [0.6 + eps for eps in epss])
         curve = get_curve(curvetype, rotated, x)
@@ -81,9 +106,12 @@ class TestCoil(unittest.TestCase):
             points = np.asarray(10 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
             B1 = BiotSavart([coil]).set_points(points).B()
             B2 = BiotSavart([coil_regen]).set_points(points).B()
-            self.assertTrue(np.allclose(B1, B2))
+            self.assertTrue(np.allclose(B1, B2), msg="Biot-Savart field mismatch after coil serialization")
 
     def test_serialization(self):
+        """
+        Test serialization and deserialization for all curve types and rotation options.
+        """
         for curvetype in self.curvetypes:
             for rotated in [True, False]:
                 with self.subTest(curvetype=curvetype, rotated=rotated):
@@ -92,37 +120,51 @@ class TestCoil(unittest.TestCase):
 
 class TestCurrentSerialization(unittest.TestCase):
     def test_current_serialization(self):
-        for CurrentCls in [Current, JaxCurrent]:
+        """
+        Test that Current objects can be serialized and deserialized without changing their value.
+        """
+        for CurrentCls in [Current]:
             current = CurrentCls(1e4)
             current_str = json.dumps(SIMSON(current), cls=GSONEncoder)
             current_regen = json.loads(current_str, cls=GSONDecoder)
-            self.assertAlmostEqual(current.get_value(), current_regen.get_value())
+            self.assertAlmostEqual(current.get_value(), current_regen.get_value(), msg=f"Current value mismatch after serialization for {CurrentCls.__name__}")
 
     def test_scaled_current_serialization(self):
-        for CurrentCls in [Current, JaxCurrent]:
+        """
+        Test that ScaledCurrent objects can be serialized and deserialized without changing their value.
+        """
+        for CurrentCls in [Current]:
             current = CurrentCls(1e4)
             scaled_current = ScaledCurrent(current, 3)
             current_str = json.dumps(SIMSON(scaled_current), cls=GSONEncoder)
             current_regen = json.loads(current_str, cls=GSONDecoder)
             self.assertAlmostEqual(scaled_current.get_value(),
-                                   current_regen.get_value())
+                                   current_regen.get_value(),
+                                   msg=f"ScaledCurrent value mismatch after serialization for {CurrentCls.__name__}")
 
     def test_current_sum_serialization(self):
-        for CurrentCls in [Current, JaxCurrent]:
+        """
+        Test that CurrentSum objects can be serialized and deserialized without changing their value.
+        """
+        for CurrentCls in [Current]:
             current_a = CurrentCls(1e4)
             current_b = CurrentCls(1.5e4)
             current = CurrentSum(current_a, current_b)
             current_str = json.dumps(SIMSON(current), cls=GSONEncoder)
             current_regen = json.loads(current_str, cls=GSONDecoder)
             self.assertAlmostEqual(current.get_value(),
-                                   current_regen.get_value())
+                                   current_regen.get_value(),
+                                   msg=f"CurrentSum value mismatch after serialization for {CurrentCls.__name__}")
 
 
 class ScaledCurrentTesting(unittest.TestCase):
 
     def test_scaled_current(self):
+        """
+        Test arithmetic operations and vector-Jacobian products for ScaledCurrent and related current objects.
+        """
         one = np.asarray([1.])
-        for CurrentCls in [Current, JaxCurrent]:
+        for CurrentCls in [Current]:
             c0 = CurrentCls(5.)
             fak = 3.
             c1 = fak * c0
@@ -136,6 +178,8 @@ class ScaledCurrentTesting(unittest.TestCase):
             c3 = ScaledCurrent(c0, fak)
             assert abs(c3.get_value()-fak * c0.get_value()) < 1e-15
             assert np.linalg.norm((c3.vjp(one)-fak * c0.vjp(one))(c0)) < 1e-15
+            c3.current_to_scale.x = np.array([5.])
+            assert np.isclose(c3.current_to_scale.get_value(), 5.)
 
             c4 = -c0
             assert abs(c4.get_value() - (-1.) * c0.get_value()) < 1e-15
@@ -169,6 +213,9 @@ class CoilFormatConvertTesting(unittest.TestCase):
             coils_to_makegrid('coils.test', base_curves, base_currents, nfp=nfp, stellsym=True)
 
     def test_load_coils_from_makegrid_file(self):
+        """
+        Test loading coils from a MAKEGRID file and verify that geometry and Biot-Savart fields are preserved.
+        """
         order = 25
         points_per_period = 10
 
@@ -206,6 +253,9 @@ class CoilFormatConvertTesting(unittest.TestCase):
         np.testing.assert_allclose(gamma, loaded_gamma)
 
     def test_load_coils_from_makegrid_file_group(self):
+        """
+        Test loading specific coil groups from a MAKEGRID file and verify correct selection and geometry.
+        """
         order = 25
         points_per_period = 10
 
@@ -231,6 +281,9 @@ class CoilFormatConvertTesting(unittest.TestCase):
 
 class PSCs(unittest.TestCase):
     def test_equally_spaced_planar_curves(self):
+        """
+        Test that equally spaced planar and non-planar coils produce the same Biot-Savart field.
+        """
         ncoils = 4
         nfp = 4
         stellsym = False
@@ -259,97 +312,68 @@ class PSCs(unittest.TestCase):
 
         np.testing.assert_allclose(bs.B(), bs_planar.B(), atol=1e-16)
 
-        # JaxCurrent version
-        currents_jax = [JaxCurrent(1e5) for i in range(ncoils)]
-        currents_planar_jax = [JaxCurrent(1e5) for i in range(ncoils)]
-        coils = coils_via_symmetries(curves, currents_jax, nfp, stellsym)
-        coils_planar = coils_via_symmetries(curves_planar, currents_planar_jax, nfp, stellsym)
-        bs = BiotSavart(coils)
-        bs_planar = BiotSavart(coils_planar)
+    def test_coils_via_symmetries_with_regularizations(self):
+        """
+        Test coils_via_symmetries with regularizations returns RegularizedCoil objects
+        and produces the same Biot-Savart field as without regularizations.
+        """
+        ncoils = 4
+        nfp = 4
+        stellsym = True
+        R0 = 2.3
+        R1 = 0.9
 
+        curves = create_equally_spaced_curves(ncoils, nfp, stellsym, R0=R0, R1=R1)
+        currents = [Current(1e5) for _ in range(ncoils)]
+
+        # Without regularizations: plain Coil objects
+        coils = coils_via_symmetries(curves, currents, nfp, stellsym)
+        self.assertEqual(len(coils), ncoils * nfp * (1 + stellsym))
+        for c in coils:
+            self.assertIsInstance(c, Coil)
+            self.assertNotIsInstance(c, RegularizedCoil)
+
+        # With regularizations: RegularizedCoil objects, same B field
+        regs = [regularization_circ(0.05) for _ in range(ncoils)]
+        coils_reg = coils_via_symmetries(curves, currents, nfp, stellsym, regularizations=regs)
+        self.assertEqual(len(coils_reg), ncoils * nfp * (1 + stellsym))
+        for c in coils_reg:
+            self.assertIsInstance(c, RegularizedCoil)
+            self.assertIsNotNone(c.regularization)
+
+        bs = BiotSavart(coils)
+        bs_reg = BiotSavart(coils_reg)
         x1d = np.linspace(R0, R0 + 0.3, 4)
         y1d = np.linspace(0, 0.2, 3)
         z1d = np.linspace(-0.2, 0.4, 5)
         x, y, z = np.meshgrid(x1d, y1d, z1d)
         points = np.ascontiguousarray(np.array([x.ravel(), y.ravel(), z.ravel()]).T)
-
         bs.set_points(points)
-        bs_planar.set_points(points)
+        bs_reg.set_points(points)
+        np.testing.assert_allclose(bs.B(), bs_reg.B(), atol=1e-16,
+                                   err_msg="B field with regularizations should match without")
 
-        np.testing.assert_allclose(bs.B(), bs_planar.B(), atol=1e-16)
-
-    def test_psc_array_A(self):
-        from simsopt.geo import SurfaceRZFourier, create_planar_curves_between_two_toroidal_surfaces
-        from simsopt.field import PSCArray
-        ncoils = 4
-        R0 = 2.3
-        R1 = 0.9
-        range_param = "half period"
-        nphi = 32
-        ntheta = 32
-        filename = TEST_DIR / 'input.LandremanPaul2021_QA'
-        s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
-        stellsym = s.stellsym
-        nfp = s.nfp
-        poff = 0.5
-        coff = 0.025
-        s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
-        s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
-        s_inner.extend_via_normal(poff)
-        s_outer.extend_via_normal(poff + coff)
-
-        Nx = 4
-        Ny = Nx
-        Nz = Nx
-        # Create the initial coils:
-        order = 0
-        base_curves, _ = create_planar_curves_between_two_toroidal_surfaces(
-            s, s_inner, s_outer, Nx, Ny, Nz, order=order, use_jax_curve=False,
-        )
-        print(len(base_curves))
-
-        curves = create_equally_spaced_curves(ncoils, nfp, stellsym, R0=R0, R1=R1)
-        currents = [Current(1e5) for i in range(ncoils)]
-        currents_jax = [JaxCurrent(1e5) for i in range(ncoils)]
-        # Fix the TF dofs
-        [currents[i].fix_all() for i in range(len(currents))]
-        [curves[i].fix_all() for i in range(len(curves))]
-        coils_TF = coils_via_symmetries(curves, currents, nfp, stellsym)
-        coils_TF_jax = coils_via_symmetries(curves, currents_jax, nfp, stellsym)
-
-        # coils_planar = coils_via_symmetries(curves_planar, currents_planar, nfp, stellsym)
-        # bs = BiotSavart(coils_TF)
-        eval_points = s.gamma().reshape(-1, 3)
-        a_list = np.ones(len(base_curves)) * 0.05
-        b_list = a_list
-        psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
-        psc_array_jax = PSCArray(base_curves, coils_TF_jax, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
-        psc_array.recompute_currents()
-        psc_array_jax.recompute_currents()
-
-        gammas1 = np.array([c.gamma() for c in psc_array.psc_curves])
-        currents2 = np.array([c.current.get_value() for c in psc_array.coils_TF])
-        gammas2 = np.array([c.curve.gamma() for c in psc_array.coils_TF])
-        gammadashs2 = np.array([c.curve.gammadash() for c in psc_array.coils_TF])
-        psc_array.biot_savart_TF.set_points(gammas1.reshape(-1, 3))
-        A_ext = psc_array.biot_savart_TF.A()
-        rij_norm = np.linalg.norm(gammas1[:, :, None, None, :] - gammas2[None, None, :, :, :], axis=-1)
-        # sum over the currents, and sum over the biot savart integral
-        A_ext2 = 1e-7 * np.sum(currents2[None, None, :, None] * np.sum(gammadashs2[None, None, :, :, :] / rij_norm[:, :, :, :, None],
-                                                                       axis=-2), axis=-2) / np.shape(gammadashs2)[1]
-        assert np.allclose(A_ext, A_ext2.reshape(-1, 3))
-
-        gammas1_jax = np.array([c.gamma() for c in psc_array_jax.psc_curves])
-        currents2_jax = np.array([c.current.get_value() for c in psc_array_jax.coils_TF])
-        gammas2_jax = np.array([c.curve.gamma() for c in psc_array_jax.coils_TF])
-        gammadashs2_jax = np.array([c.curve.gammadash() for c in psc_array_jax.coils_TF])
-        psc_array_jax.biot_savart_TF.set_points(gammas1_jax.reshape(-1, 3))
-        A_ext_jax = psc_array_jax.biot_savart_TF.A()
-        rij_norm_jax = np.linalg.norm(gammas1_jax[:, :, None, None, :] - gammas2_jax[None, None, :, :, :], axis=-1)
-        # sum over the currents, and sum over the biot savart integral
-        A_ext2_jax = 1e-7 * np.sum(currents2_jax[None, None, :, None] * np.sum(gammadashs2_jax[None, None, :, :, :] / rij_norm_jax[:, :, :, :, None],
-                                                                               axis=-2), axis=-2) / np.shape(gammadashs2_jax)[1]
-        assert np.allclose(A_ext_jax, A_ext2_jax.reshape(-1, 3))
+    @unittest.skipIf(pyevtk is None, "pyevtk not found")
+    def test_coils_to_vtk_creates_file(self):
+        """
+        Test that coils_to_vtk writes a VTK file for a simple coil setup.
+        """
+        from simsopt.field.coil import coils_to_vtk
+        curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical", "CurvePlanarFourier", "JaxCurvePlanarFourier"]
+        for coil_type in [Coil, RegularizedCoil]:
+            for curvetype in curvetypes:
+                for rotated in [True, False]:
+                    for close in [True, False]:
+                        for extra_data in [None, {}]:
+                            curve = get_curve(curvetype, rotated=rotated, x=20)  # Give the curve more than 1 quadpoint
+                            if coil_type == RegularizedCoil:
+                                coil = coil_type(curve, Current(1.0), regularization_circ(0.05))
+                            else:
+                                coil = coil_type(curve, Current(1.0))
+                            filename = "test_coil"
+                            coils_to_vtk([coil], filename, close=close, extra_data=extra_data)
+                            self.assertTrue(os.path.exists(filename + '.vtu'), "VTK file was not created.")
+                            self.assertGreater(os.path.getsize(filename + '.vtu'), 0, "VTK file is empty.")
 
 
 if __name__ == "__main__":

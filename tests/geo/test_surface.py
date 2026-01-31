@@ -30,14 +30,17 @@ logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.DEBUG)
 
 try:
-    import ground
-except:
-    ground = None
+    from ground.base import get_context
+except ImportError:
+    try:
+        from ground.context import get_context
+    except ImportError:
+        get_context = None
 
 try:
-    import bentley_ottmann
-except:
-    bentley_ottmann = None
+    from bentley_ottmann.planar import contour_self_intersects
+except ImportError:
+    contour_self_intersects = None
 
 
 class QuadpointsTests(unittest.TestCase):
@@ -319,7 +322,7 @@ class ArclengthTests(unittest.TestCase):
 
         # Ensure Fourier resolution is high enough for the new theta coordinate
         # to represent the shape accurately:
-        plasma_surf.change_resolution(12, 12)
+        plasma_surf = plasma_surf.change_resolution(12, 12)
         plasma_surf.make_theta_uniform_arclength()
 
         specs2 = get_specs()
@@ -483,9 +486,8 @@ class isSelfIntersecting(unittest.TestCase):
     """
     Tests the self-intersection algorithm:
     """
-    @unittest.skipIf(ground is None or bentley_ottmann is None,
+    @unittest.skipIf(get_context is None or contour_self_intersects is None,
                      "Libraries to check whether self-intersecting or not are missing")
-
     def test_cross_section(self):
         """ Test the cross_section method for a surface that is not self-intersecting. """
         filename = os.path.join(TEST_DIR, 'serial2680021.json')
@@ -533,6 +535,8 @@ class isSelfIntersecting(unittest.TestCase):
         with self.assertRaises(Exception):
             _ = surface_rotated.cross_section(0., thetas='wrong')
 
+    @unittest.skipIf(get_context is None or contour_self_intersects is None,
+                     "Libraries to check whether self-intersecting or not are missing")
     def test_is_self_intersecting(self):
         # dofs results in a surface that is self-intersecting
         dofs = np.array([1., 0., 0., 0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1,

@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     env:
       OMPI_ALLOW_RUN_AS_ROOT: 1
