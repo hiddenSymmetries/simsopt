@@ -98,7 +98,7 @@ class TestCoil(unittest.TestCase):
         x = np.asarray([0.6] + [0.6 + eps for eps in epss])
         curve = get_curve(curvetype, rotated, x)
 
-        for current in (Current(1e4), JaxCurrent(1e4), ScaledCurrent(Current(1e4), 4)):
+        for current in (Current(1e4), ScaledCurrent(Current(1e4), 4)):
             coil = Coil(curve, current)
             coil_str = json.dumps(SIMSON(coil), cls=GSONEncoder)
             coil_regen = json.loads(coil_str, cls=GSONDecoder)

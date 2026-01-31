@@ -531,7 +531,7 @@ class CoilForcesTest(unittest.TestCase):
 
         p = 2.5
         threshold = 1.0e3
-        objective = float(LpCurveForce_deprecated(coils[0], coils, regularization, p=p, threshold=threshold).J())
+        objective = float(LpCurveForce(coils[0], coils, regularization, p=p, threshold=threshold).J())
 
         # Now compute the objective a different way, using the independent
         # coil_force function
@@ -543,22 +543,10 @@ class CoilForcesTest(unittest.TestCase):
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
         np.testing.assert_allclose(objective, objective_alt, rtol=1e-6)
 
-        # Test MeanSquaredForce_deprecated
-
-        objective = float(MeanSquaredForce_deprecated(coils[0], coils, regularization).J())
-
-        # Now compute the objective a different way, using the independent
-        # force method
-        force_norm = np.linalg.norm(coils[0].force(coils), axis=1)
-        objective_alt = np.sum(force_norm**2 * gammadash_norm) / np.sum(gammadash_norm)
-
-        print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
-        np.testing.assert_allclose(objective, objective_alt, rtol=1e-6)
-
-        # Test SquaredMeanForce_deprecated
+        # Test SquaredMeanForce
         p = 2.5
         threshold = 1.0e3
-        objective = float(SquaredMeanForce_deprecated(coils[0], coils).J())
+        objective = float(SquaredMeanForce(coils[0], coils).J())
 
         # Now compute the objective a different way, using the independent
         # force method
@@ -576,8 +564,8 @@ class CoilForcesTest(unittest.TestCase):
         objective2 = 0.0
         objective_mixed = 0.0
         for i in range(len(coils)):
-            objective += float(SquaredMeanForce_deprecated(coils[i], coils).J())
-            objective2 += float(SquaredMeanForce_deprecated(coils[i], coils, downsample=2).J())
+            objective += float(SquaredMeanForce(coils[i], coils).J())
+            objective2 += float(SquaredMeanForce(coils[i], coils, downsample=2).J())
             objective_mixed += float(SquaredMeanForce(coils[i], coils).J())
 
         print("objective:", objective, "mixed:", objective_mixed)
@@ -593,8 +581,8 @@ class CoilForcesTest(unittest.TestCase):
         objective_mixed = 0.0
         objective_mixed_downsampled = 0.0
         for i in range(len(coils)):
-            objective += float(LpCurveForce_deprecated(coils[i], coils, regularization, p=p, threshold=threshold).J())
-            objective2 += float(LpCurveForce_deprecated(coils[i], coils, regularization, p=p, threshold=threshold, downsample=2).J())
+            objective += float(LpCurveForce(coils[i], coils, regularization, p=p, threshold=threshold).J())
+            objective2 += float(LpCurveForce(coils[i], coils, regularization, p=p, threshold=threshold, downsample=2).J())
             objective_mixed += float(LpCurveForce(coils[i], coils, regularization, p=p, threshold=threshold).J())
             objective_mixed_downsampled += float(LpCurveForce(coils[i], coils, regularization, p=p, threshold=threshold, downsample=2).J())
             force_norm = np.linalg.norm(coils[i].force(coils), axis=1)
@@ -621,7 +609,7 @@ class CoilForcesTest(unittest.TestCase):
             x_new[3] += 0.1
             base_curves[i].x = x_new
 
-        objective = float(SquaredMeanTorque_deprecated(coils[0], coils).J())
+        objective = float(SquaredMeanTorque(coils[0], coils).J())
 
         # Now compute the objective a different way, using the independent
         # torque method
@@ -632,14 +620,14 @@ class CoilForcesTest(unittest.TestCase):
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
         np.testing.assert_allclose(objective, objective_alt, rtol=1e-2)
 
-        # Test SquaredMeanTorque_deprecated vs SquaredMeanTorque
+        # Test SquaredMeanTorque
         objective = 0.0
         objective2 = 0.0
         objective_alt = 0.0
         objective_mixed = 0.0
         for i in range(len(coils)):
-            objective += float(SquaredMeanTorque_deprecated(coils[i], coils).J())
-            objective2 += float(SquaredMeanTorque_deprecated(coils[i], coils, downsample=2).J())
+            objective += float(SquaredMeanTorque(coils[i], coils).J())
+            objective2 += float(SquaredMeanTorque(coils[i], coils, downsample=2).J())
             gammadash_norm = np.linalg.norm(coils[i].curve.gammadash(), axis=1)
             objective_alt += np.linalg.norm(np.sum(coils[i].torque(coils) * gammadash_norm[:, None], axis=0) / gammadash_norm.shape[0]) ** 2
             objective_mixed += float(SquaredMeanTorque(coils[i], coils).J())
@@ -659,8 +647,8 @@ class CoilForcesTest(unittest.TestCase):
         threshold = 0.0
         objective_mixed = 0.0
         for i in range(len(coils)):
-            objective += float(LpCurveTorque_deprecated(coils[i], coils, regularization, p=p, threshold=threshold).J())
-            objective2 += float(LpCurveTorque_deprecated(coils[i], coils, regularization, p=p, threshold=threshold, downsample=2).J())
+            objective += float(LpCurveTorque(coils[i], coils, regularization, p=p, threshold=threshold).J())
+            objective2 += float(LpCurveTorque(coils[i], coils, regularization, p=p, threshold=threshold, downsample=2).J())
             torque_norm = np.linalg.norm(coils[i].torque(coils), axis=1)
             gammadash_norm = np.linalg.norm(coils[i].curve.gammadash(), axis=1)
             objective_alt += (1 / p) * np.sum(np.maximum(torque_norm - threshold, 0)**p * gammadash_norm) / gammadash_norm.shape[0]
@@ -982,17 +970,13 @@ class CoilForcesTest(unittest.TestCase):
 
         # List of objective classes to test
         objective_classes = [
-            "LpCurveForce_deprecated (sum all)",
-            "LpCurveForce",
+            "LpCurveForce (sum all)",
             "LpCurveForce (one sum)",
-            "LpCurveTorque_deprecated (sum all)",
-            "LpCurveTorque",
+            "LpCurveTorque (sum all)",
             "LpCurveTorque (one sum)",
-            "SquaredMeanForce_deprecated (sum all)",
-            "SquaredMeanForce",
+            "SquaredMeanForce (sum all)",
             "SquaredMeanForce (one sum)",
-            "SquaredMeanTorque_deprecated (sum all)",
-            "SquaredMeanTorque",
+            "SquaredMeanTorque (sum all)",
             "SquaredMeanTorque (one sum)",
         ]
 
@@ -1017,16 +1001,12 @@ class CoilForcesTest(unittest.TestCase):
             # LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque: sum over all coils
             # Mixed objectives are faster if coils are split evenly into two groups
             objectives = [
-                sum([LpCurveForce_deprecated(c, coils, regularization, p=p, threshold=threshold, downsample=2) for c in coils]),
                 sum([LpCurveForce(c, coils, regularization, p=p, threshold=threshold, downsample=2) for c in coils]),
                 LpCurveForce(coils, coils2, regularization_list, p=p, threshold=threshold, downsample=2),
-                sum([LpCurveTorque_deprecated(c, coils, regularization, p=p, threshold=threshold, downsample=2) for c in coils]),
                 sum([LpCurveTorque(c, coils, regularization, p=p, threshold=threshold, downsample=2) for c in coils]),
                 LpCurveTorque(coils, coils2, regularization_list, p=p, threshold=threshold, downsample=2),
-                sum([SquaredMeanForce_deprecated(c, coils, downsample=2) for c in coils]),
                 sum([SquaredMeanForce(c, coils, downsample=2) for c in coils]),
                 SquaredMeanForce(coils, coils2, downsample=2),
-                sum([SquaredMeanTorque_deprecated(c, coils, downsample=2) for c in coils]),
                 sum([SquaredMeanTorque(c, coils, downsample=2) for c in coils]),
                 SquaredMeanTorque(coils, coils2, downsample=2),
             ]
@@ -1083,7 +1063,7 @@ class CoilForcesTest(unittest.TestCase):
         I = 1.7e4
         regularization = regularization_circ(0.05)
 
-        for objective_class in [MeanSquaredForce_deprecated, LpCurveForce_deprecated, LpCurveTorque_deprecated]:
+        for objective_class in [LpCurveForce, LpCurveTorque]:
 
             base_curves = create_equally_spaced_curves(ncoils, nfp, True, order=2)
             base_currents = [Current(I) for j in range(ncoils)]
@@ -1120,34 +1100,6 @@ class CoilForcesTest(unittest.TestCase):
             objective2 = objective_class(coils[0], coils, regularization)
             print("objective 1:", objective.J(), "objective 2:", objective2.J())
             np.testing.assert_allclose(objective.J(), objective2.J())
-
-    def test_meansquaredforces_taylor_test(self):
-        """Verify that dJ matches finite differences of J"""
-        # The Fourier spectrum of the NCSX coils is truncated - we don't need the
-        # actual coil shapes from the experiment, just a few nonzero dofs.
-
-        base_curves, base_currents, axis, nfp, bs = get_data("ncsx", coil_order=2)
-        regularization = regularization_circ(0.05)
-        coils = coils_via_symmetries(base_curves, base_currents, nfp, True,
-                                     regularizations=[regularization] * len(base_curves))
-        
-        J = MeanSquaredForce(coils[0], coils, regularization)
-        dJ = J.dJ()
-        deriv = np.sum(dJ * np.ones_like(J.x))
-        dofs = J.x
-        h = np.ones_like(dofs)
-        err = 100
-        for i in range(10, 17):
-            eps = 0.5**i
-            J.x = dofs + eps * h
-            Jp = J.J()
-            J.x = dofs - eps * h
-            Jm = J.J()
-            deriv_est = (Jp - Jm) / (2 * eps)
-            err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
-            # print("i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
-            np.testing.assert_array_less(err_new, 0.3 * err)
-            err = err_new
 
     def test_lpcurveforces_taylor_test(self):
         """Verify that dJ matches finite differences of J"""

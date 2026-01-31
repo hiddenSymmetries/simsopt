@@ -28,7 +28,6 @@ from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
 from simsopt.solve import GPMO
 from simsopt.util import in_github_actions
 from simsopt.util.permanent_magnet_helper_functions import *
-from simsopt.util import in_github_actions
 
 if in_github_actions:
     nphi = 2
