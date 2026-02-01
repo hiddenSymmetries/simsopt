@@ -1,7 +1,7 @@
 from .._core import Optimizable
 from .._core.optimizable import DOFs
 from ..geo import SurfaceRZFourier
-from ..mhd import Vmec
+# from ..mhd import Vmec
 from ..util.mpi import MpiPartition
 
 import numpy as np
@@ -998,10 +998,10 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
 
     def arclength_tz_interp(
             self,
-            nu = 64,
-            nv = 64,
-            nu_interp = 64,
-            nv_interp = 64,
+            nu = None,
+            nv = None,
+            nu_interp = None,
+            nv_interp = None,
             plot=False,
             ax=None,
             _fsolve=False,
@@ -1033,6 +1033,11 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
             making up the equal arclength grid
         """
         # Creating grid to interpolate u and v on 
+
+        nu = 2*self.nfp*16 if nu is None else nu 
+        nv = 2*self.nfp*16 if nv is None else nv 
+        nu_interp = 2*self.nfp*16 if nu_interp is None else nu_interp 
+        nv_interp = 2*self.nfp*16 if nv_interp is None else nv_interp 
 
         u = np.linspace(0, 2*np.pi, nu_interp, endpoint = True)
         v = np.linspace(0, 2*np.pi, nv_interp, endpoint = True)
@@ -1231,10 +1236,10 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
             z=None,
             zeta=None,
             theta=None,
-            nu=32,
-            nv=32,
-            nv_interp=32,
-            nu_interp=32,
+            nu=None,
+            nv=None,
+            nv_interp=None,
+            nu_interp=None,
             plot_ft=False,
             ft_ax=None,
             plot_intermediate=False,
@@ -1256,6 +1261,10 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         Performs Fourier transform from spline surface to Fourier
         coefficients for a VMEC surface. 
         """
+        nu = 2*self.nfp*16 if nu is None else nu 
+        nv = 2*self.nfp*16 if nv is None else nv 
+        nu_interp = 2*self.nfp*16 if nu_interp is None else nu_interp 
+        nv_interp = 2*self.nfp*16 if nv_interp is None else nv_interp 
         assert(nv%2==0), 'nv must be even'
 
         if np.any(R==None) or np.any(z==None) or np.any(zeta==None) or np.any(theta==None):
@@ -1442,10 +1451,10 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         interp=False,
         M=None,
         N=None,
-        nu = 64,
-        nv = 64,
-        nu_interp = 128,
-        nv_interp = 128,
+        nu = None,
+        nv = None,
+        nu_interp = None,
+        nv_interp = None,
         plot=False,
         collocation='arclength',
         spec_cond=True,
