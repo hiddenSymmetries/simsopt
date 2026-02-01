@@ -850,9 +850,8 @@ def vacuum_stage_II_optimization(
     reg_param = regularization_circ(0.05)
     base_coils_reg = [RegularizedCoil(c.curve, c.current, reg_param) for c in base_coils]
     
-    lpcurveforce = sum([LpCurveForce(c, coils, p=2, 
-        threshold=FORCE_THRESHOLD, 
-        regularization=reg_param
+    lpcurveforce = sum([LpCurveForce([c], coils, [reg_param], p=2, 
+        threshold=FORCE_THRESHOLD
         ) for c in base_coils]
     ).J()
     max_forces = [np.max(np.linalg.norm(c_reg.force(coils), axis=1)) for c_reg in base_coils_reg]

@@ -592,6 +592,40 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
         """
         return self.scale * self.current_to_scale.get_value()
 
+    def get_dofs(self):
+        """
+        Get the degrees of freedom for the scaled current.
+        Returns the scaled DOFs from the underlying current.
+
+        Returns:
+            Array of DOFs (scaled by the scale factor).
+        """
+        return np.array([self.scale * self.current_to_scale.get_dofs()[0]])
+
+    def set_dofs(self, dofs):
+        """
+        Set the degrees of freedom for the scaled current.
+        This sets the underlying current's DOFs by dividing by the scale factor.
+
+        Args:
+            dofs: Array-like object containing the DOF values (should be a single-element array
+                  or scalar representing the desired scaled current value).
+        """
+        dofs = np.asarray(dofs)
+        # Handle scalar (0-dimensional array) or 1-dimensional array
+        if dofs.ndim == 0:
+            # Scalar value
+            dof_value = float(dofs)
+        else:
+            # Array - ensure it has exactly one element
+            dofs = np.atleast_1d(dofs)
+            if len(dofs) != 1:
+                raise ValueError(f"ScaledCurrent.set_dofs expects a single DOF, got {len(dofs)}")
+            dof_value = float(dofs[0])
+        # Divide by scale to get the underlying current value
+        underlying_dofs = np.array([dof_value / self.scale])
+        self.current_to_scale.set_dofs(underlying_dofs)
+
 class CurrentSum(sopp.CurrentBase, CurrentBase):
     """
     Represents the sum of two :mod:`Current` objects.

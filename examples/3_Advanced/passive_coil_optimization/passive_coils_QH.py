@@ -189,6 +189,7 @@ OUT_DIR = ("./passive_coils_QH/")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix)
+btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
@@ -362,6 +363,7 @@ bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
 dipole_currents = [c.current.get_value() for c in bpsc.coils]
 psc_array.recompute_currents()
 save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix)
+btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}

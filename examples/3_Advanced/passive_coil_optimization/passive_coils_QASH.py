@@ -216,8 +216,7 @@ TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10
 TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 
 save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix)
-btot.Bfields[0].set_points(s_plot.gamma().reshape((-1, 3)))
-btot.Bfields[1].set_points(s_plot.gamma().reshape((-1, 3)))
+btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {
     "B_N1": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2))[:, :, None],
     "B_N2": (vc2.B_external_normal_extended)[:, :, None],
@@ -394,8 +393,8 @@ bpsc = btot.Bfields[0]
 bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
 dipole_currents = [c.current.get_value() for c in bpsc.coils]
 psc_array.recompute_currents()
-print(dipole_currents)
 save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix)
+btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {
     "B_N1": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2))[:, :, None],
     "B_N2": (vc2.B_external_normal_extended)[:, :, None],

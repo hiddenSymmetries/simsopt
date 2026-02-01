@@ -22,13 +22,13 @@ from pathlib import Path
 import time
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field import regularization_rect, PSCArray
+from simsopt.field import regularization_rect, PSCArray, coils_to_vtk
 from simsopt.field.force import LpCurveForce, SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque
-from simsopt.util import calculate_modB_on_major_radius, make_Bnormal_plots, in_github_actions
+from simsopt.util import calculate_modB_on_major_radius, in_github_actions
 from simsopt.geo import (
     CurveLength, CurveCurveDistance, MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
-    SurfaceRZFourier, curves_to_vtk, create_planar_curves_between_two_toroidal_surfaces
+    SurfaceRZFourier, create_planar_curves_between_two_toroidal_surfaces, CurvePlanarFourier
 )
 from simsopt.util import remove_inboard_dipoles, align_dipoles_with_plasma, save_coil_sets
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
@@ -133,8 +133,13 @@ if plot_coils:
     plt.show()
 
 # Plot the original coils that Antoine Baillod used
-make_Bnormal_plots(bsurf.biotsavart, s_plot, OUT_DIR, "biot_savart_with_original_window_panes")
-curves_to_vtk([c.curve for c in coils_TF], OUT_DIR + "curves_with_original_window_panes")
+bsurf.biotsavart.set_points(s_plot.gamma().reshape((-1, 3)))
+pointData = {"B_N": np.sum(bsurf.biotsavart.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
+             "B_N / B": (np.sum(bsurf.biotsavart.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                ) / np.linalg.norm(bsurf.biotsavart.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "biot_savart_with_original_window_panes" + file_suffix, extra_data=pointData)
+bsurf.biotsavart.set_points(s.gamma().reshape((-1, 3)))
+coils_to_vtk(bsurf.biotsavart.coils, OUT_DIR + "coils_with_original_window_panes" + file_suffix)
 
 # Subtract out the window-pane coils used in Antoines paper
 # Need to reinitialize all the coils with same number of quadpoints
@@ -158,7 +163,7 @@ base_curves_TF = [curves_TF[0]] + [curves_TF[2]]  # remove the window panes
 num_TF_unique_coils = len(base_curves_TF)
 base_coils_TF = [coils_TF[0]] + [coils_TF[2]]
 currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
-curves_to_vtk([c.curve for c in coils_TF], OUT_DIR + "curves_without_original_window_panes")
+coils_to_vtk(coils_TF, OUT_DIR + "curves_without_original_window_panes" + file_suffix)
 
 # wire cross section for the TF coils is a square 20 cm x 20 cm
 # Only need this if make self forces and B2Energy nonzero in the objective!
@@ -202,7 +207,6 @@ if continuation_run:
     # need to give the passive coil the same # of quadrature point as the interlinking coil
     # for various calculations (like coil-coil forces) to work easily
     # Also make it higher order so we can do shape optimization.
-    from simsopt.geo import CurvePlanarFourier
     curves_TF = [coil.curve for coil in coils_TF]
     order = 20
     c_new = CurvePlanarFourier(300, order, 2, True)
@@ -321,6 +325,7 @@ FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix)
+btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
@@ -491,6 +496,7 @@ bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
 dipole_currents = [c.current.get_value() for c in bpsc.coils]
 psc_array.recompute_currents()
 save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix)
+btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
