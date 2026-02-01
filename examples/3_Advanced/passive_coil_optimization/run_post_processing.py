@@ -37,7 +37,7 @@ elif str(sys.argv[1]) == 'QH':
     input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
     R0 = np.linspace(16.9, 17.8, nfieldlines)
 elif str(sys.argv[1]) == 'QASH':
-    input_name = 'input.schuetthenneberg_nfp2'
+    input_name = 'wout_schuett_henneberg_nfp2_QA.nc'
     R0 = np.linspace(4.5, 6.75, nfieldlines)
 elif str(sys.argv[1]) == 'CSX':
     input_name = 'wout_csx_wps_5.0.nc'
@@ -45,9 +45,9 @@ elif str(sys.argv[1]) == 'CSX':
 filename = TEST_DIR / input_name
 coils = load(input_dir + "psc_coils_continuation.json")
 coils_TF = load(input_dir + "TF_coils_continuation.json")
-if str(sys.argv[1]) != 'CSX':
+try:
     s = SurfaceRZFourier.from_vmec_input(filename, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
-else:
+except:
     s = SurfaceRZFourier.from_wout(filename, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
 curves = [c.curve for c in coils]
 base_curves = curves[:len(curves) // (s.nfp * 2)]

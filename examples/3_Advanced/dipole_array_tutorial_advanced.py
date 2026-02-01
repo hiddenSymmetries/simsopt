@@ -59,7 +59,7 @@ if in_github_actions:
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
-input_name = 'input.schuetthenneberg_nfp2'
+input_name = 'wout_schuett_henneberg_nfp2_QA.nc'
 filename = TEST_DIR / input_name
 
 # Whether to use active or passive coils
@@ -69,9 +69,9 @@ passive_coil_array = False
 range_param = "half period"
 poff = 1.5
 coff = 3.0
-s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
-s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
-s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
+s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=ntheta)
+s_inner = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
+s_outer = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 
 # Make the inner and outer surfaces by extending the plasma surface
 s_inner.extend_via_normal(poff)
@@ -82,7 +82,7 @@ qphi = nphi * 2
 qtheta = ntheta * 2
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
-s_plot = SurfaceRZFourier.from_vmec_input(
+s_plot = SurfaceRZFourier.from_wout(
     filename,
     quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta

@@ -39,7 +39,7 @@ else:
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
-input_name = 'wout_henneberg.nc'
+input_name = 'wout_schuett_henneberg_nfp2_QA.nc'
 filename = TEST_DIR / input_name
 
 # Directory for output
@@ -48,8 +48,6 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 # Initialize the boundary magnetic surface:
 range_param = "half period"
-vmec_file = 'wout_hybrid.nfp2.newProfiles.T0.14.n0.3e20.BandVscaled_000_001670_000_000000.nc'
-vmec_file = TEST_DIR / vmec_file
 
 # Virtual casing must not have been run yet.
 print('Running the virtual casing calculation')
@@ -58,7 +56,7 @@ vc_src_nphi = 128
 nphi = 64
 ntheta = 64
 vc = VirtualCasing.from_vmec(
-    vmec_file,
+    filename,
     src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi,
     trgt_nphi=nphi, trgt_ntheta=ntheta,
 )
@@ -99,7 +97,7 @@ s_plot = SurfaceRZFourier.from_wout(
     quadpoints_theta=quadpoints_theta
 )
 vc2 = VirtualCasing.from_vmec(
-    vmec_file, src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi,
+    filename, src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi,
     trgt_nphi=qphi // 4, trgt_ntheta=qtheta)
 
 with open(os.path.join(OUT_DIR, 'B_external_normal_extended.json'), 'w') as f:

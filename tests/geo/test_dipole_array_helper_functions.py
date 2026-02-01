@@ -116,12 +116,15 @@ class TestDipoleArrayHelperFunctions(unittest.TestCase):
         config_file_map = {
             'LandremanPaulQA': 'input.LandremanPaul2021_QA_reactorScale_lowres',
             'LandremanPaulQH': 'input.LandremanPaul2021_QH_reactorScale_lowres',
-            'SchuettHennebergQAnfp2': 'input.schuetthenneberg_nfp2'
+            'SchuettHennebergQAnfp2': 'wout_schuett_henneberg_nfp2_QA.nc'
         }
         with ScratchDir("."):
             for config, surf_file in config_file_map.items():
                 surf_path = (Path(__file__).parent / ".." / "test_files" / surf_file).resolve()
-                s = SurfaceRZFourier.from_vmec_input(surf_path, range="half period", nphi=nphi, ntheta=ntheta)
+                try:
+                    s = SurfaceRZFourier.from_vmec_input(surf_path, range="half period", nphi=nphi, ntheta=ntheta)
+                except:
+                    s = SurfaceRZFourier.from_wout(surf_path, range="half period", nphi=nphi, ntheta=ntheta)
                 base_curves, curves, coils, base_currents = initialize_coils(s, TEST_DIR, config)
                 self.assertTrue(len(base_curves) > 0)
                 self.assertTrue(len(curves) > 0)

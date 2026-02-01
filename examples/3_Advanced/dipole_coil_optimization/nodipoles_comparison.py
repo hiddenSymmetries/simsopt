@@ -28,24 +28,27 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files")
 
 if config_flag[-2:] == 'QA':
     input_name = 'input.LandremanPaul2021_QA_reactorScale_lowres'
+    load_func = SurfaceRZFourier.from_vmec_input
 elif config_flag[-2:] == 'QH':
     input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
+    load_func = SurfaceRZFourier.from_vmec_input
 elif config_flag == 'SchuettHennebergQAnfp2':
-    input_name = 'input.schuetthenneberg_nfp2'
+    input_name = 'wout_schuett_henneberg_nfp2_QA.nc'
+    load_func = SurfaceRZFourier.from_wout
 filename = TEST_DIR / input_name
 
 # Initialize the boundary magnetic surface:
 range_param = "half period"
 nphi = 32
 ntheta = 32
-s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
+s = load_func(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 qphi = nphi * 2
 qtheta = ntheta * 2
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
 
 # Make high resolution, full torus version of the plasma boundary for plotting
-s_plot = SurfaceRZFourier.from_vmec_input(
+s_plot = load_func(
     filename,
     quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta
