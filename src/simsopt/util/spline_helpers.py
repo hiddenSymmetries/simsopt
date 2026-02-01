@@ -1,6 +1,9 @@
 import numpy as np
 from simsopt.mhd import Vmec
-from ..util import mpi
+from simsopt.util.mpi import MpiPartition
+
+mpi = MpiPartition()
+mpi.write()
 
 def vmec_from_surf(
         nfp,
