@@ -598,6 +598,9 @@ def generate_windowpane_array(winding_surface, inboard_radius, wp_fil_spacing, h
         print(f'     Number of Toroidal Dipoles: {nwps_toroidal}')
         print(f'     Number of Poroidal Dipoles: {nwps_poloidal}')
     # Interpolate unit normal and gamma vectors of winding surface at location of windowpane centers
+    # Get the actual bounds of the interpolation grid to avoid out-of-bounds errors
+    phi_max = np.max(winding_surface.quadpoints_phi)
+    theta_max = np.max(winding_surface.quadpoints_theta)
     unitn_interpolators = [RegularGridInterpolator((winding_surface.quadpoints_phi, winding_surface.quadpoints_theta), winding_surface.unitnormal()[..., i], method='linear') for i in range(3)]
     gamma_interpolators = [RegularGridInterpolator((winding_surface.quadpoints_phi, winding_surface.quadpoints_theta), winding_surface.gamma()[..., i], method='linear') for i in range(3)]
     dgammadtheta_interpolators = [RegularGridInterpolator((winding_surface.quadpoints_phi, winding_surface.quadpoints_theta), winding_surface.gammadash2()[..., i], method='linear') for i in range(3)]
@@ -611,10 +614,13 @@ def generate_windowpane_array(winding_surface, inboard_radius, wp_fil_spacing, h
             # Calculate toroidal angle of center of coil
             dphi = (half_per_spacing/2 + Rtor) / (VV_R0 + r * np.cos(theta_coil))  # need to add buffer in phi for gaps in panels
             phi_coil = dphi + jj * (2 * Rtor + wp_fil_spacing) / (VV_R0 + r * np.cos(theta_coil))
+            # Normalize coordinates to [0, 1) for interpolation, clamping to grid bounds to avoid out-of-bounds errors
+            phi_norm = np.clip(phi_coil / (2 * np.pi), 0.0, phi_max)
+            theta_norm = np.clip(theta_coil / (2 * np.pi), 0.0, theta_max)
             # Interpolate coil center and rotation vectors
-            unitn_interp = np.stack([interp((phi_coil/(2*np.pi), theta_coil/(2*np.pi))) for interp in unitn_interpolators], axis=-1)
-            gamma_interp = np.stack([interp((phi_coil/(2*np.pi), theta_coil/(2*np.pi))) for interp in gamma_interpolators], axis=-1)
-            dgammadtheta_interp = np.stack([interp((phi_coil/(2*np.pi), theta_coil/(2*np.pi))) for interp in dgammadtheta_interpolators], axis=-1)
+            unitn_interp = np.stack([interp((phi_norm, theta_norm)) for interp in unitn_interpolators], axis=-1)
+            gamma_interp = np.stack([interp((phi_norm, theta_norm)) for interp in gamma_interpolators], axis=-1)
+            dgammadtheta_interp = np.stack([interp((phi_norm, theta_norm)) for interp in dgammadtheta_interpolators], axis=-1)
             curve = CurvePlanarFourier(numquadpoints, order)
             # dofs stored as: [rc(0), rc(1), ..., rc(order), rs(1), ..., rs(order), q0, qi, qj, qk, X, Y, Z]
             # Compute fourier coefficients for given super-ellipse

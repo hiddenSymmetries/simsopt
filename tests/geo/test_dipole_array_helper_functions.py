@@ -236,6 +236,12 @@ class TestDipoleArrayHelperFunctions(unittest.TestCase):
 
             obj_dict = {
                 "btot": btot,
+                "s": s,
+                "base_curves_TF": tf_curves,
+                "JF": DummyObj(),
+                "Jf": DummyObj(),
+                "Jlength": DummyObj(),
+                "Jlength2": DummyObj(),
                 "Jcs": [DummyObj()],
                 "Jmscs": [DummyObj()],
                 "Jls": [DummyObj()],

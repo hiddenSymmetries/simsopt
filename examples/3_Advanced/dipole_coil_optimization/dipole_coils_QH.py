@@ -195,6 +195,7 @@ FORCE_WEIGHT = Weight(1e-35)  # 1e-36 Forces are in Newtons, and typical values 
 TORQUE_WEIGHT2 = Weight(1e-22)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 
 save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix)
+btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
@@ -327,6 +328,7 @@ print("""
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-10)
 save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix)
+btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
              "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                 ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}

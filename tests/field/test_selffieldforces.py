@@ -362,7 +362,7 @@ class CoilForcesTest(unittest.TestCase):
             torque_z2 = coil_z2.torque([coil_z1, coil_z2])
             np.testing.assert_allclose(np.sum(torque_z1, axis=0), 0.0, atol=1e-8)
             np.testing.assert_allclose(np.sum(torque_z2, axis=0), 0.0, atol=1e-8)
-            np.testing.assert_allclose(curve3.center(curve3.gamma(), curve3.gammadash()), [0, 0, 5], atol=1e-10)
+            np.testing.assert_allclose(curve3.centroid(), [0, 0, 5], atol=1e-10)
 
     def test_force_convergence(self):
         """Check that the self-force is approximately independent of the number of quadrature points"""
@@ -1074,7 +1074,7 @@ class CoilForcesTest(unittest.TestCase):
 
             objective = objective_class(coils[0], coils, regularization)
             old_objective_value = objective.J()
-            biotsavart = BiotSavart(objective.othercoils)
+            biotsavart = BiotSavart(objective.allcoils2)
             old_biot_savart_points = biotsavart.get_points_cart()
             print(old_biot_savart_points)
 
@@ -1092,7 +1092,7 @@ class CoilForcesTest(unittest.TestCase):
 
             objective.x = objective.x + shift
             assert abs(objective.J() - old_objective_value) > 1e-6
-            biotsavart = BiotSavart(objective.othercoils)
+            biotsavart = BiotSavart(objective.allcoils2)
 
             # Don't understand the commented out test below --
             # the biot savart evaluation points actually

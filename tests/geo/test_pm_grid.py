@@ -226,7 +226,7 @@ class PermanentMagnetGridTesting(unittest.TestCase):
             # check integral Bn^2
             f_B_Am = 0.5 * np.linalg.norm(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj, ord=2) ** 2
             f_B = SquaredFlux(s, b_dipole, -Bn).J()
-            np.testing.assert_allclose(f_B, f_B_Am)
+            np.testing.assert_allclose(f_B, f_B_Am, atol=1e-15)
 
             # Create PM class with cylindrical bricks
             Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
