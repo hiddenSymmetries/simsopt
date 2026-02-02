@@ -556,7 +556,9 @@ def initial_vacuum_stage_II_optimizations(N=10000,
         MSC_THRESHOLD = np.random.uniform(4, 6)
         CS_THRESHOLD = np.random.uniform(0.166, 0.300)
         CC_THRESHOLD = np.random.uniform(0.083, 0.120)
-        FORCE_THRESHOLD = np.random.uniform(0, 5e+04)
+        # FORCE_THRESHOLD is now in MN/m or MN (previously was in N/m or N)
+        # Convert from old range [0, 5e+04] N/m to [0, 5e-2] MN/m
+        FORCE_THRESHOLD = np.random.uniform(0, 5e+04 / 1e6)  # Convert to MN/m or MN
         LENGTH_TARGET = np.random.uniform(4.9, 5.0)
         CURVATURE_WEIGHT = 10.0 ** np.random.uniform(-9, -5)
         CS_WEIGHT = 10.0 ** np.random.uniform(-1, 4)
@@ -571,7 +573,11 @@ def initial_vacuum_stage_II_optimizations(N=10000,
             MSC_WEIGHT = 10.0 ** np.random.uniform(-5, -1)
 
         if with_force:
-            FORCE_WEIGHT = 10.0 ** np.random.uniform(-14, -8)
+            # FORCE_WEIGHT needs to be scaled for objectives that now return MN/m or MN units
+            # For LpCurveForce/LpCurveTorque with p=2 or SquaredMeanForce/SquaredMeanTorque:
+            #   multiply old weights by 1e12 (since (1e6)^2 = 1e12)
+            # Old range was 10^(-14) to 10^(-8), scaled becomes 10^(-2) to 10^(4)
+            FORCE_WEIGHT = 10.0 ** np.random.uniform(-14, -8) * 1e12  # Scale for (MN/m)^2 or (MN)^2 units
         else:
             FORCE_WEIGHT = 0
 
@@ -749,8 +755,14 @@ def vacuum_stage_II_optimization(
     CC_WEIGHT = kwargs.get('CC_WEIGHT', 1e+03)
     CS_THRESHOLD = kwargs.get('CS_THRESHOLD', 0.166)
     CS_WEIGHT = kwargs.get('CS_WEIGHT', 1e+03)
-    FORCE_THRESHOLD = kwargs.get('FORCE_THRESHOLD', 2e+04)
-    FORCE_WEIGHT = kwargs.get('FORCE_WEIGHT', 1e-10)
+    # FORCE_THRESHOLD is now in MN/m or MN (previously was in N/m or N)
+    # Default was 2e+04 N/m, converted to 2e-2 MN/m
+    FORCE_THRESHOLD = kwargs.get('FORCE_THRESHOLD', 2e+04 / 1e6)  # Convert to MN/m or MN
+    # FORCE_WEIGHT needs to be scaled for objectives that now return MN/m or MN units
+    # For LpCurveForce/LpCurveTorque with p=2 or SquaredMeanForce/SquaredMeanTorque:
+    #   multiply old weights by 1e12 (since (1e6)^2 = 1e12)
+    # Default was 1e-10, scaled becomes 1e2
+    FORCE_WEIGHT = kwargs.get('FORCE_WEIGHT', 1e-10 * 1e12)  # Scale for (MN/m)^2 or (MN)^2 units
     FORCE_OBJ = kwargs.get('FORCE_OBJ', None)
     ARCLENGTH_WEIGHT = kwargs.get('ARCLENGTH_WEIGHT', 1e-2)
     dx = kwargs.get('dx', 0.05)

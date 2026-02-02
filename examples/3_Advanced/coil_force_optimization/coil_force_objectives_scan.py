@@ -54,7 +54,11 @@ if len(sys.argv) < 3:
     print("\nUsage: python coil_force_objectives_scan.py <ObjectiveType> <ForceWeight> [<Threshold>]")
     print("  <ObjectiveType>: SquaredMeanForce, SquaredMeanTorque, LpCurveForce, LpCurveTorque, B2Energy, NetFluxes")
     print("  <ForceWeight>: weight for the force/torque term (float)")
-    print("  <Threshold>: (optional) threshold for LpCurveForce/LpCurveTorque (float)")
+    print("                 Note: Objectives now return values in MN/m or MN units.")
+    print("                 For LpCurveForce/LpCurveTorque with p=2, multiply old weights by 1e12.")
+    print("                 For LpCurveForce/LpCurveTorque with p=4, multiply old weights by 1e24.")
+    print("                 For SquaredMeanForce/SquaredMeanTorque, multiply old weights by 1e12.")
+    print("  <Threshold>: (optional) threshold for LpCurveForce/LpCurveTorque in MN/m or MN (float)")
     print("\nExample: python coil_force_objectives_scan.py LpCurveForce 1e-3 0.0\n")
     sys.exit(1)
 
