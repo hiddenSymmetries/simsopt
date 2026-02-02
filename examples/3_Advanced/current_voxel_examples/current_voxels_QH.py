@@ -237,7 +237,6 @@ if post_processing:
     )
     bsh.set_points(s_plot.gamma().reshape((-1, 3)))
     bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
-    calculate_modB_on_major_radius(bsh, s_plot)
     Bh = bsh.B()
     B = bs_wv.B()
     print("Mean(|B|) on plasma surface =", np.mean(bs_wv.AbsB()))

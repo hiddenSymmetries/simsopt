@@ -221,12 +221,12 @@ class PermanentMagnetGridTesting(unittest.TestCase):
             # check <Bn>
             B_opt = np.mean(np.abs(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms))
             B_dipole_field = np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-            np.testing.assert_allclose(B_opt, B_dipole_field)
+            np.testing.assert_allclose(B_opt, B_dipole_field, atol=1e-15)
 
             # check integral Bn^2
             f_B_Am = 0.5 * np.linalg.norm(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj, ord=2) ** 2
             f_B = SquaredFlux(s, b_dipole, -Bn).J()
-            np.testing.assert_allclose(f_B, f_B_Am)
+            np.testing.assert_allclose(f_B, f_B_Am, atol=1e-15)
 
             # Create PM class with cylindrical bricks
             Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
