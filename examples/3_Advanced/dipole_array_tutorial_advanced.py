@@ -3,13 +3,16 @@
 r"""
 This example script runs joint optimization between a set of modular
 toroidal field (TF) coils and a set of dipole coils (a dipole array). 
-This procedure and various results are described in the following paper(s):
-    A. A. Kaptanoglu et al. 
-    Reactor-scale stellarators with force and torque minimized dipole coils
-    https://arxiv.org/abs/2412.13937
-    A. A. Kaptanoglu et al. 
-    Optimization of passive superconductors for shaping stellarator magnetic fields
-    https://arxiv.org/abs/2501.12468
+This procedure and various results are described in the following papers:
+
+A. A. Kaptanoglu, A. Wiedman, J. Halpern, S. Hurwitz, E. J. Paul, and M. Landreman,
+"Reactor-scale stellarators with force and torque minimized dipole coils,"
+Nuclear Fusion 65, 046029 (2025).
+https://iopscience.iop.org/article/10.1088/1741-4326/adc318/meta
+
+A. A. Kaptanoglu, M. Landreman, and M. C. Zarnstorff, "Optimization of passive 
+superconductors for shaping stellarator magnetic fields," Phys. Rev. E 111, 065202 (2025).
+https://journals.aps.org/pre/abstract/10.1103/PhysRevE.111.065202
 
 Both of these papers have corresponding Zenodo datasets:
 https://zenodo.org/records/14934093
@@ -54,8 +57,8 @@ MAXITER = 400
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:
     MAXITER = 10
-    nphi = 4
-    ntheta = 4
+    nphi = 32
+    ntheta = 32
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()

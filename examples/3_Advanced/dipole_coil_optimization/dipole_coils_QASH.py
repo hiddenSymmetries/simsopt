@@ -1,5 +1,20 @@
 #!/usr/bin/env python
 r"""
+This script demonstrates the use of the simsopt package to design dipole coil arrays
+jointly with TF coils, for a given plasma boundary.
+
+This work is based on:
+A. A. Kaptanoglu, A. Wiedman, J. Halpern, S. Hurwitz, E. J. Paul, and M. Landreman,
+"Reactor-scale stellarators with force and torque minimized dipole coils,"
+Nuclear Fusion 65, 046029 (2025).
+https://iopscience.iop.org/article/10.1088/1741-4326/adc318/meta
+
+The script uses the Schuett-Henneberg QA equilibrium from the VMEC test-suite.
+This equilibrium has nontrivial plasma current, so VirtualCasing is used. Note 
+that B_plasma is evaluated only on the plasma surface, so poincare plots and 
+other post-processing diagnostics cannot be used.
+
+The script also allows one to continue from a previous run (continuation_run = True).
 """
 
 import os
@@ -26,6 +41,7 @@ import json
 
 t1 = time.time()
 
+# Continue from a previous file
 continuation_run = False
 if continuation_run:
     file_suffix = "_continuation"
@@ -57,14 +73,11 @@ vc = VirtualCasing.from_vmec(
 )
 
 # Add these lines to save B_external_normal to JSON
-
-
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         return json.JSONEncoder.default(self, obj)
-
 
 with open(os.path.join(OUT_DIR, 'B_external_normal.json'), 'w') as f:
     json.dump({'B_external_normal': vc.B_external_normal}, f, cls=NumpyEncoder)
@@ -82,6 +95,7 @@ s_outer = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4,
 s_inner.extend_via_normal(poff)
 s_outer.extend_via_normal(poff + coff)
 
+# Make a high-res surface for plotting
 qphi = nphi * 4
 qtheta = ntheta * 4
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
@@ -98,18 +112,19 @@ vc2 = VirtualCasing.from_vmec(
 with open(os.path.join(OUT_DIR, 'B_external_normal_extended.json'), 'w') as f:
     json.dump({'B_external_normal_extended': vc2.B_external_normal_extended}, f, cls=NumpyEncoder)
 
-# wire cross section for the TF coils is a square 20 cm x 20 cm
+# Wire cross section for the TF coils is a square 20 cm x 20 cm
 # Only need this if make self forces and B2Energy nonzero in the objective!
 a = 0.2
 b = 0.2
 nturns = 100
 nturns_TF = 200
 
-# wire cross section for the dipole coils should be more like 5 cm x 5 cm
+# Wire cross section for the dipole coils should be more like 5 cm x 5 cm
 aa = 0.05
 bb = 0.05
 
 if continuation_run:
+    # Continue from a previous file
     btot = Optimizable.from_file(OUT_DIR + "biot_savart_optimized.json")
     bs = btot.Bfields[0]
     bs_TF = btot.Bfields[1]
@@ -128,7 +143,7 @@ if continuation_run:
     bs.set_points(s.gamma().reshape((-1, 3)))
     bs_TF.set_points(s.gamma().reshape((-1, 3)))
 else:
-    # initialize the coils
+    # Initialize the TF coils
     # Use rectangular regularization for force/torque calculations
     ncoils_TF_init = 2  # SchuettHennebergQAnfp2 has 2 base coils
     regularization_TF = regularization_rect(a, b)
@@ -138,16 +153,16 @@ else:
     base_coils_TF = coils_TF[:num_TF_unique_coils]
     currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
 
-    # # Set up BiotSavart fields
+    # Set up BiotSavart fields
     bs_TF = BiotSavart(coils_TF)
 
     # Calculate average, approximate on-axis B field strength
     calculate_modB_on_major_radius(bs_TF, s)
 
+    # Create the initial dipole coils
     Nx = 5
     Ny = Nx
     Nz = Nx
-    # Create the initial coils:
     base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
         s, s_inner, s_outer, Nx, Ny, Nz, order=order, use_jax_curve=False,
     )
@@ -187,27 +202,29 @@ b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 base_a_list = np.hstack((np.ones(len(base_coils)) * aa, np.ones(len(base_coils_TF)) * a))
 base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_TF)) * b))
 
+# Set weights and thresholds for the optimization
 LENGTH_WEIGHT = Weight(0.01)  # 0.001 for continuation run?
 LINK_WEIGHT = 1e4
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e1
-FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+# Weight for the Coil Coil forces term
+# Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT2 = Weight(0.0)
+TORQUE_WEIGHT = Weight(0.0)
 if continuation_run:
     LENGTH_TARGET = 75
     CC_THRESHOLD = 0.8
     CC_WEIGHT = 1
-    # Weight for the Coil Coil forces term
-    FORCE_WEIGHT = Weight(4e-33)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+    FORCE_WEIGHT = Weight(4e-33)
     TORQUE_WEIGHT2 = Weight(1e-23)
 else:
     LENGTH_TARGET = 85
     CC_THRESHOLD = 1.0
     CC_WEIGHT = 1e2
-    # Weight for the Coil Coil forces term
-    FORCE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-    TORQUE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+    FORCE_WEIGHT = Weight(0.0)
+    TORQUE_WEIGHT2 = Weight(0.0)
 
+# Save the initial coils
 save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix)
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
 print(np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2))
@@ -228,7 +245,6 @@ pointData = {
     "B_N / B": ((np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
                         ) - vc.B_external_normal) / np.linalg.norm(btot.B().reshape(nphi, ntheta, 3), axis=-1))[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_initial_unique", extra_data=pointData)
-# btot.set_points(s.gamma().reshape((-1, 3)))
 
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, btot, target=vc.B_external_normal)
@@ -237,15 +253,15 @@ Jls_TF = [CurveLength(c) for c in base_curves_TF]
 Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
 # Jlength2 = QuadraticPenalty(sum(Jls), LENGTH_TARGET2, "max")
 
-# coil-coil and coil-plasma distances should be between all coils
+# Coil-coil and coil-plasma distances should be between all coils
 Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD / 2.0, num_basecurves=len(coils + coils_TF))
 Jccdist2 = CurveCurveDistance(curves_TF, CC_THRESHOLD, num_basecurves=len(coils_TF))
 Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 
-# While the coil array is not moving around, they cannot
-# interlink.
+# While the coil array is not moving around, they cannot interlink each other
 linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 
+# Currently, all force terms involve all the coils
 all_coils = coils + coils_TF
 all_base_coils = base_coils + base_coils_TF
 regularization_list = [regularization_rect(aa, bb) for i in range(len(base_coils))] + \
@@ -263,6 +279,7 @@ MSC_WEIGHT = 1e-1
 Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
 Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 
+# Build the total objective function
 JF = Jf \
     + CC_WEIGHT * Jccdist \
     + CC_WEIGHT * Jccdist2 \
@@ -270,14 +287,13 @@ JF = Jf \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
     + LINK_WEIGHT * linkNum \
-    + LENGTH_WEIGHT * Jlength  # \
-# + LENGTH_WEIGHT2 * Jlength2
+    + LENGTH_WEIGHT * Jlength
 
 if FORCE_WEIGHT.value > 0.0:
-    JF += FORCE_WEIGHT.value * Jforce  # \
+    JF += FORCE_WEIGHT.value * Jforce
 
 if FORCE_WEIGHT2.value > 0.0:
-    JF += FORCE_WEIGHT2.value * Jforce2  # \
+    JF += FORCE_WEIGHT2.value * Jforce2
 
 if TORQUE_WEIGHT.value > 0.0:
     JF += TORQUE_WEIGHT * Jtorque
@@ -288,6 +304,7 @@ if TORQUE_WEIGHT2.value > 0.0:
 
 def fun(dofs):
     JF.x = dofs
+    # Begin normal calculations and print output
     J = JF.J()
     grad = JF.dJ()
     jf = Jf.J()
@@ -359,9 +376,12 @@ print("""
 ################################################################################
 """)
 
+# Perform the minimization
 MAXITER = 500
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-10)
+
+# Save the optimized coils
 save_coil_sets(btot, OUT_DIR, "_optimized" + file_suffix)
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {
@@ -383,7 +403,10 @@ s.to_vtk(OUT_DIR + "surf_optimized_unique", extra_data=pointData)
 
 calculate_modB_on_major_radius(btot, s)
 
+# Print the total time taken
 t2 = time.time()
 print('Total time = ', t2 - t1)
+
+# Save the optimized coils
 btot.save(OUT_DIR + "biot_savart_optimized" + file_suffix + ".json")
 print(OUT_DIR)

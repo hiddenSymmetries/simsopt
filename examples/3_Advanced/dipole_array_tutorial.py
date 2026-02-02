@@ -11,6 +11,12 @@ for a reactor-scale stellarator such as the one here, the optimization
 should include terms to reduce the forces and torques. You will find the solution
 can have intolerably large forces and torques without adding this into optimization.
 
+This work is based on:
+A. A. Kaptanoglu, A. Wiedman, J. Halpern, S. Hurwitz, E. J. Paul, and M. Landreman,
+"Reactor-scale stellarators with force and torque minimized dipole coils,"
+Nuclear Fusion 65, 046029 (2025).
+https://iopscience.iop.org/article/10.1088/1741-4326/adc318/meta
+
 File: dipole_array_tutorial.py
 Author: Jake Halpern, Alan Kaptanoglu
 Last Edit Date: 04/2025
@@ -41,8 +47,8 @@ MAXITER = 500
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:
     MAXITER = 10
-    nphi = 4
-    ntheta = 4
+    nphi = 32
+    ntheta = 32
 
 qphi = 2 * nphi
 qtheta = 2 * ntheta

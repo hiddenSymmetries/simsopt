@@ -3,6 +3,11 @@ r"""
 This script demonstrates the use of the simsopt package to design passive coils
 for a given plasma boundary. 
 
+This work is based on:
+A. A. Kaptanoglu, M. Landreman, and M. C. Zarnstorff, "Optimization of passive 
+superconductors for shaping stellarator magnetic fields," Phys. Rev. E 111, 065202 (2025).
+https://journals.aps.org/pre/abstract/10.1103/PhysRevE.111.065202
+
 The script uses the CSX plasma boundary obtained using the window panes (with best quasisymmetry reported in the paper)
 from Baillod et al. 2025 (https://iopscience.iop.org/article/10.1088/1741-4326/ada6dd/meta).
 
@@ -36,6 +41,7 @@ from simsopt import load
 
 t1 = time.time()
 
+# Continue from a previous file
 continuation_run = False
 nphi = 32
 ntheta = 32
@@ -43,15 +49,12 @@ if continuation_run:
     file_suffix = "_continuation"
     MAXITER = 4000
 else:
-    file_suffix = ""
-    MAXITER = 200
-
-# Set some parameters -- if doing CI, lower the resolution
-# but resolution must be large enough so that at least one dipole coil is initialized
-if in_github_actions:
-    MAXITER = 10
-    nphi = 8
-    ntheta = 8
+    if in_github_actions:
+        MAXITER = 10
+        file_suffix = "_ci"
+    else:
+        file_suffix = ""
+        MAXITER = 200
 
 # Directory for output
 OUT_DIR = ("./passive_coils_CSX/")
@@ -77,19 +80,18 @@ s_outer = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4,
 s_inner.extend_via_projected_normal(poff)
 s_outer.extend_via_projected_normal(poff + coff)
 
+# Make a high-res surface for plotting
 qphi = nphi * 2
 qtheta = ntheta * 2
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
-
-# Make high resolution, full torus version of the plasma boundary for plotting
 s_plot = SurfaceRZFourier.from_wout(
     filename,
     quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta
 )
 
-# initialize the TF coils from json file -- going to reoptimize the interlinking coils anyways
+# Initialize the TF coils from json file -- going to reoptimize the interlinking coils anyways
 bsurf = load(os.path.join(TEST_DIR / "boozer_surface_CSX_4.5.json"))
 coils_TF = bsurf.biotsavart._coils
 
@@ -229,11 +231,12 @@ if continuation_run:
     base_curves_TF = [curves_TF[0]] + [curves_TF[2]]
     base_curves = curves[:len(curves) // 4]
 else:
+    # Initialize the coils
     Nx = 4
     Ny = Nx
     Nz = Nx
     order = 0
-    # Create the initial coils:
+    # Create the initial dipole coils:
     base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
         s, s_inner, s_outer, Nx, Ny, Nz, order=order, use_jax_curve=False,
     )
@@ -276,10 +279,19 @@ ncoils = len(base_curves)
 a_list = np.ones(len(base_curves)) * aa
 b_list = np.ones(len(base_curves)) * aa
 print('Num dipole coils = ', ncoils)
+print('R0 = ', base_curves[0].x[0])
 
 # Initialize the PSCArray object
 eval_points = s.gamma().reshape(-1, 3)
-psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
+psc_array = PSCArray(
+    base_curves, 
+    coils_TF, 
+    eval_points,
+    a_list, 
+    b_list, 
+    nfp=s.nfp, 
+    stellsym=s.stellsym
+)
 
 # Calculate average, approximate on-axis B field strength
 calculate_modB_on_major_radius(psc_array.biot_savart_TF, s)
@@ -287,8 +299,6 @@ psc_array.biot_savart_TF.set_points(eval_points)
 btot = psc_array.biot_savart_total
 calculate_modB_on_major_radius(btot, s)
 btot.set_points(s.gamma().reshape((-1, 3)))
-
-# bs.set_points(s.gamma().reshape((-1, 3)))
 coils = psc_array.coils
 base_coils = coils[:ncoils]
 curves = [c.curve for c in coils]
@@ -297,6 +307,7 @@ currents = [c.current.get_value() for c in coils]
 a_list = np.hstack((np.ones(len(coils)) * aa, np.ones(len(coils_TF)) * a))
 b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 
+# Set weights and thresholds for the optimization
 LENGTH_WEIGHT = Weight(0.01)
 CURVATURE_THRESHOLD = 5
 MSC_THRESHOLD = 0.5
@@ -324,6 +335,8 @@ FORCE_WEIGHT = Weight(0.0)  # 1e-34 Forces are in Newtons, and typical values ar
 FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+
+# Save the initial coils
 save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix)
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
@@ -354,11 +367,11 @@ Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD / 2.0, num_basecur
 Jccdist2 = CurveCurveDistance(curves_TF, CC_THRESHOLD, num_basecurves=len(coils_TF))
 Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 
-# While the coil array is not moving around, they cannot
-# interlink.
+# While the coil array is not moving around, they cannot interlink each other
 linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 
-# Passive MUST be passed in the psc_array argument for the Jacobian to be correct!
+# Passive MUST be passed in the psc_array argument to the force and
+# torque terms for the Jacobian to be correct!
 all_base_coils = base_coils + base_coils_TF
 other_coils = [c for c in coils + coils_TF if c not in all_base_coils]  # all other coils
 regularization_list = [regularization_rect(aa, bb) for _ in base_coils] + [regularization_rect(a, b) for _ in base_coils_TF]
@@ -390,6 +403,7 @@ else:
 
 # Note that only Jf and the forces/torques depend on the PSC currents,
 # which is the tricky part of the Jacobian
+# Passive MUST be passed in the psc_array argument for the Jacobian to be correct!
 JF = Jf \
     + CS_WEIGHT * Jcsdist \
     + CC_WEIGHT * Jccdist \
@@ -414,11 +428,12 @@ if TORQUE_WEIGHT2.value > 0.0:
 
 def fun(dofs):
     JF.x = dofs
-    # absolutely essential line that updates the PSC currents even though they are not
-    # being directly optimized.
+    # absolutely essential line that updates the PSC currents 
+    # even though they are not being directly optimized.
     psc_array.recompute_currents()
     # absolutely essential line if the PSCs do not have any dofs
     btot.Bfields[0].invalidate_cache()
+    # Begin normal calculations and print output
     J = JF.J()
     grad = JF.dJ()
     jf = Jf.J()
