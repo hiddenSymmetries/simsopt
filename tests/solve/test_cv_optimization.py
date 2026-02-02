@@ -67,7 +67,7 @@ class Testing(unittest.TestCase):
         s_outer.extend_via_normal(poff + coff)
 
         # optimize the currents in the TF coils just so we have some external Bfields
-        base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s)
+        base_curves, curves, coils = initialize_coils_for_pm_optimization('qa', TEST_DIR, s)
         bs = BiotSavart(coils)
         bs = coil_optimization(s, bs, base_curves, curves)
         bs.set_points(s.gamma().reshape((-1, 3)))

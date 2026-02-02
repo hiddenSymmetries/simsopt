@@ -25,13 +25,17 @@ from simsopt.objectives import SquaredFlux
 from simsopt.field.magneticfieldclasses import CurrentVoxelsField
 from simsopt.geo import CurrentVoxelsGrid
 from simsopt.solve import relax_and_split_minres
-from simsopt.util.permanent_magnet_helper_functions import *
+from simsopt.util import make_curve_at_theta0, calculate_modB_on_major_radius
+from simsopt.util import in_github_actions
 import time
 t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
-nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+if in_github_actions:
+    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+else:
+    nphi = 64
 ntheta = nphi
 # coil_range = 'full torus'
 coil_range = 'half period'
@@ -154,7 +158,11 @@ Itarget_check = np.sum(current_voxels_grid.Bn_Itarget) / mu0 / len(current_voxel
 print('Itarget_check = ', Itarget_check)
 
 # Save Bnormal plots from the voxel fields
-make_Bnormal_plots(bs_current_voxels, s_plot, out_dir, f"biot_savart_current_voxels_{Nx}")
+calculate_modB_on_major_radius(bs_current_voxels, s_plot)
+bs_current_voxels.set_points(s_plot.gamma().reshape((-1, 3)))
+Bn_voxels = np.sum(bs_current_voxels.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+pointData = {"B_N": Bn_voxels[:, :, None]}
+s_plot.to_vtk(out_dir + "surf_voxels_full", extra_data=pointData)
 
 # Make a figure of algorithm progress
 plt.figure()
@@ -169,9 +177,6 @@ plt.legend()
 
 # Check the divergence-free constraints are well-satisfied
 # current_voxels_grid.check_fluxes()
-
-# Check the average |B| along the major radius
-calculate_modB_on_major_radius(bs_current_voxels, s)
 
 t_end = time.time()
 print('Total voxels time = ', t_end - t_start)

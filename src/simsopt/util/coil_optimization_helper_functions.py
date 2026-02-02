@@ -1340,18 +1340,19 @@ def make_filament_from_voxels(current_voxels_grid, final_threshold, truncate=Fal
     quadpoints = 2000
     coil = CurveXYZFourier(quadpoints, num_fourier)
     dofs = coil.dofs_matrix
-    dofs[0][0] = np.trapz(xyz_curve[:, 0], phi) / np.pi
+    # trapz is removed in favor of trapezoid as of numpy 2.0
+    dofs[0][0] = np.trapezoid(xyz_curve[:, 0], phi) / np.pi
 
     if truncate and abs(dofs[0][0]) < 1e-2:
         dofs[0][0] = 0.0
     for f in range(num_fourier):
         for i in range(3):
             if i == 0:
-                dofs[i][f * 2 + 2] = np.trapz(xyz_curve[:, i] * np.cos((f + 1) * phi), phi) / np.pi
+                dofs[i][f * 2 + 2] = np.trapezoid(xyz_curve[:, i] * np.cos((f + 1) * phi), phi) / np.pi
                 if truncate and abs(dofs[i][f * 2 + 2]) < 1e-2:
                     dofs[i][f * 2 + 2] = 0.0
             else:
-                dofs[i][f * 2 + 1] = np.trapz(xyz_curve[:, i] * np.sin((f + 1) * phi), phi) / np.pi
+                dofs[i][f * 2 + 1] = np.trapezoid(xyz_curve[:, i] * np.sin((f + 1) * phi), phi) / np.pi
                 if truncate and abs(dofs[i][f * 2 + 1]) < 1e-2:
                     dofs[i][f * 2 + 1] = 0.0
     coil.local_x = np.concatenate(dofs)

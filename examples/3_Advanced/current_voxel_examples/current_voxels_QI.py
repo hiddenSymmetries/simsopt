@@ -28,7 +28,7 @@ from simsopt.field import InterpolatedField, SurfaceClassifier
 from simsopt.field.magneticfieldclasses import CurrentVoxelsField
 from simsopt.geo import CurrentVoxelsGrid
 from simsopt.solve import relax_and_split_minres
-from simsopt.util.permanent_magnet_helper_functions import *
+from simsopt.util import make_curve_at_theta0, calculate_modB_on_major_radius, in_github_actions
 import time
 
 t_start = time.time()
@@ -87,8 +87,12 @@ s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period"
 s_inner.extend_via_projected_normal(poff)
 s_outer.extend_via_projected_normal(poff + coff)
 
-nx = 10
-Nx = 20
+if in_github_actions:
+    nx = 4
+    Nx = 8
+else:
+    nx = 10
+    Nx = 20
 Ny = Nx
 Nz = Nx 
 # Finally, initialize the current voxels 
@@ -104,8 +108,12 @@ wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
 t2 = time.time()
 print('WV grid initialization took time = ', t2 - t1, ' s')
 
-max_iter = 40  # 400
-rs_max_iter = 20  # 200  # 1
+if in_github_actions:
+    max_iter = 40
+    rs_max_iter = 20
+else:
+    max_iter = 400
+    rs_max_iter = 200
 nu = 1e2
 kappa = 1e-7
 l0_threshold = 2e4
@@ -161,7 +169,16 @@ print('Itarget_check = ', Itarget_check)
 print('Itarget second check = ', wv_grid.Itarget_matrix @ alpha_opt / mu0) 
 
 t1 = time.time()
-make_Bnormal_plots(bs_wv, s_plot, OUT_DIR, "biot_savart_current_voxels_Nx" + str(Nx))
+calculate_modB_on_major_radius(bs_wv, s_plot)
+bs_wv.set_points(s.gamma().reshape((-1, 3)))
+Bn_voxels = np.sum(bs_wv.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+pointData = {"B_N": Bn_voxels[:, :, None]}
+s.to_vtk(OUT_DIR + "surf_voxels_initial", extra_data=pointData)
+calculate_modB_on_major_radius(bs_wv, s_plot)
+bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
+Bn_voxels = np.sum(bs_wv.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+pointData = {"B_N": Bn_voxels[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_voxels_initial_full", extra_data=pointData)
 t2 = time.time()
 
 print('Time to plot Bnormal_wv = ', t2 - t1, ' s')
@@ -188,10 +205,15 @@ t2 = time.time()
 print('Time to check all the flux constraints = ', t2 - t1, ' s')
 
 calculate_modB_on_major_radius(bs_wv, s)
+bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
+Bn_voxels = np.sum(bs_wv.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+pointData = {"B_N": Bn_voxels[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_voxels_full", extra_data=pointData)
 
-post_processing = False
+post_processing = True
 if post_processing:
     from mpi4py import MPI
+    from simsopt.util import trace_fieldlines
     comm = MPI.COMM_WORLD
     t1 = time.time()
     bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
@@ -219,7 +241,7 @@ if post_processing:
     )
     bsh.set_points(s_plot.gamma().reshape((-1, 3)))
     bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
-    make_Bnormal_plots(bsh, s_plot, OUT_DIR, "biot_savart_interpolated")
+    calculate_modB_on_major_radius(bsh, s_plot)
     Bh = bsh.B()
     B = bs_wv.B()
     print("Mean(|B|) on plasma surface =", np.mean(bs_wv.AbsB()))
@@ -228,8 +250,8 @@ if post_processing:
     R0 = np.linspace(1.2125346, 1.295, nfieldlines)
     trace_fieldlines(bsh, 'current_voxels_QI_poincare', s_plot, comm, OUT_DIR, R0)
     t2 = time.time()
-print(OUT_DIR)
 
+print(OUT_DIR)
 t_end = time.time()
 print('Total time = ', t_end - t_start)
 print('f fB fI fK fC')

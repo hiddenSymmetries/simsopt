@@ -26,9 +26,8 @@ from simsopt.field import Coil, Current
 from simsopt.field.magneticfieldclasses import CurrentVoxelsField
 from simsopt.geo import CurrentVoxelsGrid
 from simsopt.solve import relax_and_split_minres 
-from simsopt.util.permanent_magnet_helper_functions import \
-    make_filament_from_voxels, make_Bnormal_plots, \
-    calculate_modB_on_major_radius
+from simsopt.util import \
+    make_filament_from_voxels, calculate_modB_on_major_radius, in_github_actions
 import time
 
 t_start = time.time()
@@ -87,13 +86,15 @@ print('WV grid initialization took time = ', t2 - t1, ' s')
 # Optimize the voxels without sparsity to generate an initial guess for the full optimization
 kappa = 1e-3  # Tikhonov regularization 
 kwargs = {"out_dir": out_dir, "kappa": kappa, "max_iter": 5000, "precondition": True}
-minres_dict = relax_and_split_minres( 
-    current_voxels_grid, **kwargs 
-)
+minres_dict = relax_and_split_minres(current_voxels_grid, **kwargs)
 
 # Optimize the voxels with the group sparsity term active
-max_iter = 100  # max number of MINRES iterations for each call 
-rs_max_iter = 100  # max number of relax-and-split iterations
+if in_github_actions:
+    max_iter = 20
+    rs_max_iter = 10
+else:
+    max_iter = 100  # max number of MINRES iterations for each call 
+    rs_max_iter = 100  # max number of relax-and-split iterations
 nu = 1e2  # stength of the "relaxation" loss term 
 l0_threshold = 1e4  # threshold for the group l0 loss term
 l0_thresholds = np.linspace(  # Sequence of increasing thresholds
@@ -104,9 +105,7 @@ kwargs['l0_thresholds'] = l0_thresholds
 kwargs['nu'] = nu
 kwargs['max_iter'] = max_iter
 kwargs['rs_max_iter'] = rs_max_iter
-minres_dict = relax_and_split_minres( 
-    current_voxels_grid, **kwargs 
-)
+minres_dict = relax_and_split_minres(current_voxels_grid, **kwargs)
 
 # Unpack final ouputs and save the solution to vtk
 alpha_opt = minres_dict['alpha_opt']
@@ -143,7 +142,11 @@ Itarget_check = np.sum(current_voxels_grid.Bn_Itarget) / mu0 / len(current_voxel
 print('Itarget_check = ', Itarget_check)
 
 # Save Bnormal plots from the voxel fields
-make_Bnormal_plots(bs_current_voxels, s_plot, out_dir, f"biot_savart_current_voxels_{Nx}")
+calculate_modB_on_major_radius(bs_current_voxels, s_plot)
+bs_current_voxels.set_points(s_plot.gamma().reshape((-1, 3)))
+Bn_voxels = np.sum(bs_current_voxels.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+pointData = {"B_N": Bn_voxels[:, :, None]}
+s_plot.to_vtk(out_dir + "surf_voxels_full", extra_data=pointData)
 
 # Make a figure of algorithm progress
 plt.figure()
@@ -275,6 +278,10 @@ def perform_filament_optimization(s, bs, curves, out_dir=out_dir):
     pointData = {"B_N": np.sum(bs.B().reshape(s.gamma().shape) * s.unitnormal(), axis=2)[:, :, None]}
     s.to_vtk(out_dir + "surf_opt", extra_data=pointData)
     calculate_modB_on_major_radius(bs, s)
+    bs.set_points(s_plot.gamma().reshape((-1, 3)))
+    Bn_filament = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+    pointData = {"B_N": Bn_filament[:, :, None]}
+    s_plot.to_vtk(out_dir + "surf_opt_full", extra_data=pointData)
     bs.save(out_dir + "biot_savart_opt.json")
 
 perform_filament_optimization(s, bs, curves, out_dir=out_dir)
