@@ -39,10 +39,11 @@ except ImportError as e:
 from simsopt._core.optimizable import Optimizable
 from simsopt._core.util import ObjectiveFailure
 from simsopt._core.types import RealArray
-from simsopt.geo import Surface, SurfaceScaled, SurfaceRZFourier, SurfaceGVECFourier
+from simsopt.geo import Surface, SurfaceScaled, SurfaceRZFourier
 from simsopt.mhd.profiles import Profile, ProfilePolynomial, ProfileScaled
+from simsopt.mhd.gvec_dofs import GVECSurfaceDoFs
 
-__all__ = ["Gvec", "GVECQuantity"]
+__all__ = ["Gvec", "GVECQuantity", "GVECSurfaceDoFs"]
 
 default_parameters = dict(
     ProjectName="SIMSOPT-GVEC",
@@ -362,11 +363,11 @@ class Gvec(Optimizable):
 
         # non-RZphi coordinate frame
         if params.get("which_hmap", 1) != 1 and not (
-            isinstance(self.boundary, SurfaceGVECFourier)
-            or (isinstance(self.boundary, SurfaceScaled) and isinstance(self.boundary.surf, SurfaceGVECFourier))
+            isinstance(self.boundary, GVECSurfaceDoFs)
+            or (isinstance(self.boundary, SurfaceScaled) and isinstance(self.boundary.surf, GVECSurfaceDoFs))
         ):
             raise TypeError(f"Non-RZphi coordinate frame (hmap={params.get('which_hmap')}) selected, but boundary is of type {type(self.boundary)}. "
-                            "Use SurfaceGVECFourier to represent generic boundary DoFs.")
+                            "Use GVECSurfaceDoFs to represent generic boundary DoFs.")
 
         # perturb boundary when restarting
         if restart:
@@ -451,7 +452,7 @@ class Gvec(Optimizable):
 
     @staticmethod
     def boundary_to_params(
-        boundary: Union[Surface, SurfaceScaled, SurfaceGVECFourier], append: Optional[Mapping] = None
+        boundary: Union[Surface, SurfaceScaled, GVECSurfaceDoFs], append: Optional[Mapping] = None
     ) -> dict:
         """Convert a simsopt.SurfaceRZFourier object into GVEC boundary parameters.
 
@@ -459,7 +460,7 @@ class Gvec(Optimizable):
         """
         if isinstance(boundary, SurfaceScaled):
             boundary = boundary.surf
-        if not isinstance(boundary, (SurfaceRZFourier, SurfaceGVECFourier)):
+        if not isinstance(boundary, (SurfaceRZFourier, GVECSurfaceDoFs)):
             boundary = boundary.to_RZFourier()
         
         params = boundary.to_gvec_parameters()
@@ -470,7 +471,7 @@ class Gvec(Optimizable):
         return params
 
     @staticmethod
-    def boundary_from_params(params: Mapping) -> Union[SurfaceRZFourier, SurfaceGVECFourier]:
+    def boundary_from_params(params: Mapping) -> Union[SurfaceRZFourier, GVECSurfaceDoFs]:
         """Convert a dictionary of parameters to a simsopt.SurfaceRZFourier object.
 
         Note that simsopt assumes a (right-handed) (R,phi,Z) coordinate system,
@@ -484,7 +485,7 @@ class Gvec(Optimizable):
         
         # generic boundary type: only contains boundary modes, cannot be evaluated
         else:
-            boundary = SurfaceGVECFourier.from_gvec_parameters(params)
+            boundary = GVECSurfaceDoFs.from_gvec_parameters(params)
 
         boundary.fix_all()
         return boundary

@@ -98,7 +98,7 @@ class GVECSurfaceDoFs(Optimizable):
         """
         if stellsym is None:
             stellsym = self.stellsym
-        surf = GVECSurfaceDoFs(mpol, ntor, nfp=self.nfp, stellsym=stellsym)
+        surf = self.__class__(mpol, ntor, nfp=self.nfp, stellsym=stellsym)
 
         # copy over the dofs that exist in both
         # new dofs are initialized to zero, extra dofs are discarded

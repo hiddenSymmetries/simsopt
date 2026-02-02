@@ -528,7 +528,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         Create a surface from a GVEC parameter dictionary. This assumes that the GVEC parameters
         represent a cylindrical surface (i.e. the default ``which_hmap=1``). For non-cylindrical
-        surfaces, use ``SurfaceGVECFourier`` instead.
+        surfaces, use ``GVECSurfaceDoFs`` instead.
 
         Note that GVEC uses a different convention for the toroidal angle (RZφ, φ clockwise)
         compared to VMEC and Simsopt (RφZ, φ counter-clockwise). This function changes the signs
@@ -543,7 +543,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         parameters = gvec.util.CaseInsensitiveDict(parameters)
 
         if parameters.get("which_hmap", 1) != 1:
-            raise ValueError(f"Given GVEC parameters use a non-cylindrical surface representation (which_hmap={parameters['which_hmap']}), cannot convert to SurfaceRZFourier, use SurfaceGVECFourier instead.")
+            raise ValueError(f"Given GVEC parameters use a non-cylindrical surface representation (which_hmap={parameters['which_hmap']}), cannot convert to SurfaceRZFourier, use GVECSurfaceDoFs instead.")
 
         nfp = parameters.get("nfp", 1)
         M = max(parameters["X1_mn_max"][0], parameters["X2_mn_max"][0])
