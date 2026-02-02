@@ -294,7 +294,7 @@ class Quasisymmetry(Optimizable):
         self.need_to_run_code = True
 
     def J(self) -> RealArray:
-        """
+        r"""
         Compute the quasisymmetry error on each flux surface ``s`` in ``self.s``.
         
         **MPI behavior:** when running under MPI, only group-leader ranks compute the error; all other ranks immediately return an empty array.

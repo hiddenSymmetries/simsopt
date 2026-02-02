@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   build-containers:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # container:
     #   image: quay.io/singularity/singularity:v3.9.3
     #   options: --security-opt seccomp=unconfined --security-opt systempaths=unconfined
@@ -35,9 +35,9 @@ jobs:
 
       - name: Check out code for the container build
         uses: actions/checkout@v4
-      - uses: eWaterCycle/setup-singularity@v7
+      - uses: eWaterCycle/setup-apptainer@v2
         with:
-          singularity-version: 3.8.3
+          apptainer-version: 1.4.1
 
       - name: Fetch all history for all tags and branches
         run: git fetch --prune --unshallow
@@ -67,5 +67,5 @@ jobs:
       - name: Login and Deploy Container
         if: (github.event_name != 'pull_request')
         run: |         
-          echo ${{ secrets.GITHUB_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
-          singularity push simsopt.sif oras://ghcr.io/${GITHUB_REPOSITORY}:${tag}
+          echo ${{ secrets.GITHUB_TOKEN }} | sudo -E singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
+          sudo -E singularity push simsopt.sif oras://ghcr.io/hiddensymmetries/simsopt:${tag}
