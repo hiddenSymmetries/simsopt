@@ -869,7 +869,7 @@ class CoilForcesTest(unittest.TestCase):
         nfp_list = [1, 2, 3]
         stellsym_list = [False, True]
         p_list = [2.5]
-        threshold_list = [0.0]
+        threshold_list = [0.0, 1e-3]
         downsample_list = [1, 2]
         jax_flag_list = [False, True]
         numquadpoints_list = [20]

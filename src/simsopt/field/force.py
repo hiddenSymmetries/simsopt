@@ -208,7 +208,7 @@ def b2energy_pure(gammas, gammadashs, currents, downsample, regularizations):
         J = \frac{1}{2}\sum_{i,j}I_iL_{ij}I_j
 
     where :math:`L_{ij}` is the coil inductance matrix (positive definite),
-    and :math:`I_i` is the current in the ith coil. The units of the objective function are Joules.
+    and :math:`I_i` is the current in the ith coil. The units of the objective function are MJ (megajoules).
 
     Args:
         gammas (array, shape (m,n,3)): 
@@ -231,14 +231,14 @@ def b2energy_pure(gammas, gammadashs, currents, downsample, regularizations):
             Array of regularizations coming from finite cross-section for all m coils.
 
     Returns:
-        float: Value of the objective function.
+        float: Value of the objective function in MJ (megajoules).
     """
     Ii_Ij = (currents[:, None] * currents[None, :])
     Lij = _coil_coil_inductances_pure(
         gammas, gammadashs, downsample, regularizations
     )
     U = 0.5 * (jnp.sum(Ii_Ij * Lij))
-    return U
+    return U / 1e6  # Convert from Joules to MJ
 
 
 class B2Energy(Optimizable):
@@ -251,7 +251,7 @@ class B2Energy(Optimizable):
         J = \frac{1}{2}\sum_{i,j}I_i L_{ij} I_j
 
     where :math:`L_{ij}` is the coil inductance matrix (positive definite),
-    and :math:`I_i` is the current in the ith coil. The units of the objective function are Joules.
+    and :math:`I_i` is the current in the ith coil. The units of the objective function are MJ (megajoules).
 
     Args:
         coils_to_target (list of Coil, shape (m,)): 
@@ -798,7 +798,7 @@ def lp_force_pure(
     gammas, gammas2, gammadashs, gammadashs2, gammadashdashs,
     quadpoints, currents, currents2, regularizations, p, threshold, downsample=1
 ):
-    """
+    r"""
     Computes the Lp force objective by summing over a set of m coils, 
     where each coil receives force from all coils (including itself and m' coils in a separate set).
     This version allows each coil to have its own quadrature points array.
@@ -1376,7 +1376,7 @@ class LpCurveTorque(Optimizable):
 
 
 def squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents, currents2, downsample):
-    """
+    r"""
     Compute the squared mean torque on a set of m coils with varying quadrature points 
     (downsampled to n quadrature points) due to themselves and another set of m' coils 
     with varying quadrature points (downsampled to n quadrature points).
