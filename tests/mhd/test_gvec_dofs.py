@@ -5,7 +5,13 @@ import numpy as np
 
 from simsopt.mhd.gvec_dofs import GVECSurfaceDoFs
 
+try:
+    import gvec
+except ImportError:
+    gvec = None
+
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
+GVEC_SURFACE_PARAMETERS_COMPARE = ["nfp", "X1_sin_cos", "X2_sin_cos", "X1_mn_max", "X2_mn_max", "X1_b_cos", "X2_b_sin"]
 
 
 class GVECSurfaceDoFsTests(unittest.TestCase):
@@ -76,6 +82,39 @@ class GVECSurfaceDoFsTests(unittest.TestCase):
         self.assertTrue(surf.is_fixed("X2s(2,1)"))
         self.assertFalse(surf.is_fixed("X1c(0,1)"))
         self.assertFalse(surf.is_fixed("X2s(1,-1)"))
+    
+    @unittest.skipIf(gvec is None, "gvec package not installed")
+    def test_from_gvec_parameters(self):
+        params0 = gvec.util.read_parameters(TEST_DIR / "parameter-LandremanPaul2021_QA.gvec.toml")
+        params1 = params0.serialize()
+        params2 = {key: params0[key] for key in GVEC_SURFACE_PARAMETERS_COMPARE}
+        self.assertIsInstance(params0, gvec.util.CaseInsensitiveDict)
+        self.assertIsInstance(params1, dict)
+
+        surf0 = GVECSurfaceDoFs.from_gvec_parameters(params0)
+        surf1 = GVECSurfaceDoFs.from_gvec_parameters(params1)
+        surf2 = GVECSurfaceDoFs.from_gvec_parameters(params2)
+        for surf in [surf0, surf1, surf2]:
+            self.assertEqual(surf.mpol, 15)
+            self.assertEqual(surf.ntor, 12)
+            self.assertAlmostEqual(surf.get("X1c(2,-3)"), 0.002023292416997494)
+            self.assertAlmostEqual(surf.get("X2s(3,1)"), -0.001194121521590374)
+
+        np.testing.assert_allclose(surf1.x, surf0.x)
+        np.testing.assert_allclose(surf2.x, surf0.x)
+
+    @unittest.skipIf(gvec is None, "gvec package not installed")
+    def test_to_gvec_parameters(self):
+        params0 = gvec.util.read_parameters(TEST_DIR / "parameter-LandremanPaul2021_QA.gvec.toml")
+
+        surf1 = GVECSurfaceDoFs.from_gvec_parameters(params0)
+        params1 = surf1.to_gvec_parameters()
+
+        for key in GVEC_SURFACE_PARAMETERS_COMPARE:
+            self.assertEqual(params1[key], params0[key])
+        self.assertTrue(params1["init_average_axis"])
+        self.assertTrue("LA_sin_cos" in params1)
+        self.assertTrue("LA_mn_max" in params1)
 
 
 if __name__ == "__main__":

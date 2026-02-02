@@ -547,7 +547,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         nfp = parameters.get("nfp", 1)
         M = max(parameters["X1_mn_max"][0], parameters["X2_mn_max"][0])
-        N = max(parameters["X1_nn_max"][1], parameters["X2_nn_max"][1])
+        N = max(parameters["X1_mn_max"][1], parameters["X2_mn_max"][1])
         stellsym = (
             parameters.get("X1_sin_cos", "_cos_") == "_cos_"
             and parameters.get("X2_sin_cos", "_sin_") == "_sin_"
@@ -602,7 +602,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         # keep higher mn_max if set previously (e.g. for interior modes)
         for key in ["X1", "X2", "LA"]:
-            parameters[f"{key}_mn_max"] = (self.mpol, self.ntor)
+            parameters[f"{key}_mn_max"] = [self.mpol, self.ntor]
 
         parameters["X1_sin_cos"] = "_cos_" if self.stellsym else "_sin_cos_"
         parameters["X2_sin_cos"] = "_sin_" if self.stellsym else "_sin_cos_"

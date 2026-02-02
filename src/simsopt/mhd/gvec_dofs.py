@@ -172,7 +172,7 @@ class GVECSurfaceDoFs(Optimizable):
         """
         nfp = parameters["nfp"]
         M = max(parameters["X1_mn_max"][0], parameters["X2_mn_max"][0])
-        N = max(parameters["X1_nn_max"][1], parameters["X2_nn_max"][1])
+        N = max(parameters["X1_mn_max"][1], parameters["X2_mn_max"][1])
         stellsym = (
             parameters.get("X1_sin_cos", "_cos_") == "_cos_"
             and parameters.get("X2_sin_cos", "_sin_") == "_sin_"
@@ -189,7 +189,7 @@ class GVECSurfaceDoFs(Optimizable):
             for sincos in ["sin", "cos"]:
                 sc = sincos[0]
                 for (m, n), value in parameters.get(f"{xi}_b_{sincos}", {}).items():
-                    self.set(f"{xi}{sc}({m},{n})")
+                    self.set(f"{xi}{sc}({m},{n})", value)
 
         return self
     
@@ -206,7 +206,7 @@ class GVECSurfaceDoFs(Optimizable):
         parameters["init_average_axis"] = True
 
         for key in ["X1", "X2", "LA"]:
-            parameters[f"{key}_mn_max"] = (self.mpol, self.ntor)
+            parameters[f"{key}_mn_max"] = [self.mpol, self.ntor]
 
         parameters["X1_sin_cos"] = "_cos_" if self.stellsym else "_sin_cos_"
         parameters["X2_sin_cos"] = "_sin_" if self.stellsym else "_sin_cos_"
