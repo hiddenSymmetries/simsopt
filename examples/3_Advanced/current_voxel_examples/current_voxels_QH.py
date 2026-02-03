@@ -242,8 +242,7 @@ if post_processing:
     print("Mean(|B|) on plasma surface =", np.mean(bs_wv.AbsB()))
     print("|B-Bh| on surface:", np.sort(np.abs(B-Bh).flatten()))
     nfieldlines = 2
-    R0 = np.linspace(s.get_rc(0, 0), s.get_rc(0, 0) + s.get_rc(1, 0) / 20.0, nfieldlines)
-    trace_fieldlines(bsh, 'poincare_QH', s_plot, comm, OUT_DIR, R0)
+    trace_fieldlines(bsh, 'poincare_QH', s_plot, comm, OUT_DIR, nfieldlines)
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)

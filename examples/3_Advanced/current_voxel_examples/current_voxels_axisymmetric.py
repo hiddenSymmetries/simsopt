@@ -248,8 +248,7 @@ if post_processing:
     print("Mean(|B|) on plasma surface =", np.mean(bs_wv.AbsB()))
     print("|B-Bh| on surface:", np.sort(np.abs(B-Bh).flatten()))
     nfieldlines = 10
-    R0 = np.linspace(6, 7.9, nfieldlines)
-    trace_fieldlines(bsh, 'current_voxels_axisymmetric_poincare', s_plot, None, OUT_DIR, R0)
+    trace_fieldlines(bsh, 'current_voxels_axisymmetric_poincare', s_plot, None, OUT_DIR, nfieldlines)
     t2 = time.time()
 
 print(OUT_DIR)
