@@ -210,7 +210,7 @@ Bn_voxels = np.sum(bs_wv.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), a
 pointData = {"B_N": Bn_voxels[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_voxels_full", extra_data=pointData)
 
-post_processing = True
+post_processing = False
 if post_processing:
     from mpi4py import MPI
     from simsopt.util import trace_fieldlines

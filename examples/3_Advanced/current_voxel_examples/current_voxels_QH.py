@@ -207,7 +207,7 @@ if l0_thresholds[-1] > 0:
 plt.grid(True)
 plt.legend()
 
-post_processing = True
+post_processing = False
 if post_processing:
     from simsopt.util import trace_fieldlines
     from mpi4py import MPI
