@@ -378,7 +378,7 @@ many of which are illustrated in
 - :obj:`~simsopt.field.LpCurveTorque`: Penalizes the pointwise Lorentz torque per unit length on each coil.
 - :obj:`~simsopt.field.SquaredMeanForce`: Penalizes the net (integrated) Lorentz force per unit length on each coil.
 - :obj:`~simsopt.field.SquaredMeanTorque`: Penalizes the net (integrated) Lorentz torque per unit length on each coil.
-- :obj:`~simsopt.field.B2_Energy`: Penalizes the total squared magnetic field energy from a set of coils.
+- :obj:`~simsopt.field.B2Energy`: Penalizes the total squared magnetic field energy from a set of coils.
 
 You can click on any of the links above in this section to see the precise definitions of these objective terms.
 
