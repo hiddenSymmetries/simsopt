@@ -88,6 +88,9 @@ class Gvec(Optimizable):
         keep_gvec_intermediates: Optional[Literal["all", "stages"]] = None,
         mpi: Optional[MpiPartition] = None,
     ):
+        if gvec is None:
+            raise RuntimeError("The Gvec Optimizable requires the 'gvec' package to be installed!")
+
         # init arguments which are not DoFs
         self.parameters = gvec.util.CaseInsensitiveDict(parameters)  # nested parameters
         self.delete_intermediates = delete_intermediates
@@ -176,6 +179,8 @@ class Gvec(Optimizable):
             current = self.profile_from_params(self.parameters["I_tor"])
         elif isinstance(current, float):
             current = ProfilePolynomial([current])
+        elif current is None and iota is None:
+            current = ProfilePolynomial([0.0])
         self._current = current
 
         # init Optimizable
@@ -218,8 +223,9 @@ class Gvec(Optimizable):
             self = cls.from_parameter_file(state.parameterfile, **kwargs)
         self._state = state
         self.run_required = False
+        self.run_successful = True
         return self
-
+    
     def recompute_bell(self, parent=None):
         """Set the recomputation flag"""
         logger.debug(
@@ -612,7 +618,14 @@ class Gvec(Optimizable):
             self.append_parent(self._current)
         self.run_required = True
 
-    # === RETURN FUNCTIONS - TO BE SIMILAR TO VMEC === #
+    # === RETURN FUNCTIONS - SIMILAR TO VMEC === #
+    # These functions provide some common optimization targets,
+    # compatible with the VMEC optimizable. It is recommended to
+    # use the more general 'GVECQuantity' optimizable instead.
+    # As 'return_functions' they are not 'Optimizable' objects.
+    # They all use 'self.state' which checks whether a run is required.
+    # Some deviations from the values returned by VMEC are expected,
+    # due to numerical differences and differently defined coordinate systems.
 
     def aspect(self):
         """Return the effective aspect ratio."""
@@ -635,12 +648,18 @@ class Gvec(Optimizable):
         return ev.iota.item()
 
     def mean_iota(self):
-        """Return the mean rotational transform."""
+        """Return the mean rotational transform.
+        
+        The average is taken with respect to the toroidal flux, i.e. $\\rho^2$.
+        """
         ev = self.state.evaluate("iota_avg2")
         return ev.iota_avg2.item()
 
     def mean_shear(self):
-        """Return the average magnetic shear."""
+        """Return the average magnetic shear.
+
+        The average is taken with respect to the toroidal flux, i.e. $\\rho^2$.
+        """
         ev = self.state.evaluate("shear_avg2")
         return ev.shear_avg2.item()
 
