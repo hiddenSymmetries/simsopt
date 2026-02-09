@@ -29,6 +29,37 @@ run_if_missing() {
   "$@"
 }
 
+# Like run_if_missing, but re-runs if any dependency is newer than the marker.
+# Usage: run_if_missing_or_stale <marker> <dep1> [dep2 ...] -- <command...>
+run_if_missing_or_stale() {
+  local marker="$1"; shift
+  local -a deps=()
+  while [[ $# -gt 0 && "$1" != "--" ]]; do
+    deps+=("$1")
+    shift
+  done
+  if [[ $# -eq 0 ]]; then
+    echo "run_if_missing_or_stale: missing -- separator" >&2
+    return 2
+  fi
+  shift  # consume --
+
+  if [[ -f "$marker" ]]; then
+    for dep in "${deps[@]}"; do
+      # If a dependency is missing or newer, treat output as stale.
+      if [[ ! -e "$dep" || "$dep" -nt "$marker" ]]; then
+        echo "[$(ts)] Run (stale): $*"
+        "$@"
+        return $?
+      fi
+    done
+    echo "[$(ts)] Skip (up-to-date): $marker"
+    return 0
+  fi
+
+  echo "[$(ts)] Run (missing): $*"
+  "$@"
+}
 # Preset: alnico (low-remanence / stronger coupling study)
 K=25000
 N=64
@@ -66,9 +97,12 @@ run_if_missing "$OUTDIR/plots/Histogram_DeltaM_log_GPMO_vs_GPMOmr.png" \
 NPZ_NAME="dipoles_final_matAlNiCo_bt200_Nadj12_nmax40000_GPMO.npz"
 POSTDIR="$OUTDIR/postprocess"
 mkdir -p "$POSTDIR"
-run_if_missing "$POSTDIR/surface_Bn_delta_AlNiCo.vtp" \
+run_if_missing_or_stale "$POSTDIR/surface_Bn_delta_AlNiCo.vts" \
+  "$SCRIPT_DIR/macromag_MUSE_AlNiCo_post_processing.py" \
+  "$OUTDIR/$NPZ_NAME" \
+  -- \
   "$PYTHON" "$SCRIPT_DIR/macromag_MUSE_AlNiCo_post_processing.py" \
-  --npz-path "$OUTDIR/$NPZ_NAME" \
-  --outdir "$POSTDIR"
+    --npz-path "$OUTDIR/$NPZ_NAME" \
+    --outdir "$POSTDIR"
 
 echo "[$(ts)] Done."
