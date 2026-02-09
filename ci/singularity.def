@@ -77,7 +77,7 @@ Stage: devel
     # /venv/bin/pip install git+https://github.com/zhisong/pyoculus
     /venv/bin/pip install vtk==9.2.6 pyqt5 matplotlib pyevtk plotly
     /venv/bin/pip install mayavi
-    /venv/bin/pip install ground bentley_ottmann
+    /venv/bin/pip install ground==9 bentley_ottmann==8
     /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
     /venv/bin/pip install  git+https://github.com/hiddenSymmetries/virtual-casing
     /venv/bin/pip install  git+https://github.com/rogeriojorge/pyQIC
