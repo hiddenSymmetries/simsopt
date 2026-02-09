@@ -20,6 +20,7 @@ set -ex
 ./2_Intermediate/stage_two_optimization_stochastic.py
 ./2_Intermediate/stage_two_optimization_finite_beta.py
 ./2_Intermediate/strain_optimization.py
+./2_Intermediate/winding_surface.py
 ./2_Intermediate/permanent_magnet_MUSE.py
 ./2_Intermediate/permanent_magnet_QA.py
 ./2_Intermediate/permanent_magnet_PM4Stell.py

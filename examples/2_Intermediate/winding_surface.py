@@ -5,6 +5,7 @@ from simsopt.field.magneticfieldclasses import WindingSurfaceField
 from simsopt.field import CurrentPotentialFourier, CurrentPotentialSolve
 from simsopt.geo import SurfaceRZFourier
 from simsoptpp import WindingSurfaceBn_REGCOIL
+from simsopt.util import in_github_actions
 from pathlib import Path
 import os
 import time
@@ -16,6 +17,14 @@ def make_Bnormal_plots(cpst, OUT_DIR, filename):
     """
         Plot Bnormal on the full torus plasma surface using the optimized
         CurrentPotentialFourier object (cpst).
+
+        Args:
+            cpst: CurrentPotentialSolve object
+            OUT_DIR: Output directory
+            filename: Filename for the output plots
+
+        Returns:
+            None
     """
 
     # redefine the plasma surface to the full torus
@@ -76,7 +85,7 @@ def run_scan():
             net_poloidal_current_amperes=cp.net_poloidal_current_amperes,
             net_toroidal_current_amperes=cp.net_toroidal_current_amperes,
             stellsym=True)
-        cpst = CurrentPotentialSolve(cp, cpst.plasma_surface, cpst.Bnormal_plasma, cpst.B_GI)
+        cpst = CurrentPotentialSolve(cp, cpst.plasma_surface, cpst.Bnormal_plasma)
 
         # define a number of geometric quantities from the plasma and coil surfaces
         s_coil = cpst.winding_surface
@@ -316,7 +325,7 @@ def run_target():
             net_poloidal_current_amperes=cp.net_poloidal_current_amperes,
             net_toroidal_current_amperes=cp.net_toroidal_current_amperes,
             stellsym=True)
-        cpst = CurrentPotentialSolve(cp, cpst.plasma_surface, cpst.Bnormal_plasma, cpst.B_GI)
+        cpst = CurrentPotentialSolve(cp, cpst.plasma_surface, cpst.Bnormal_plasma)
         s_coil = cpst.winding_surface
 
         nfp = s_coil.nfp
@@ -410,4 +419,5 @@ t1 = time.time()
 run_target()
 t2 = time.time()
 print('Total run time = ', t2 - t1)
-plt.show()
+if not in_github_actions:
+    plt.show()
