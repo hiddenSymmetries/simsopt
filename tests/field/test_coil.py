@@ -372,6 +372,5 @@ class CoilFormatConvertTesting(unittest.TestCase):
                             coils_to_vtk([coil], filename, close=close, extra_data=extra_data)
                             self.assertTrue(os.path.exists(filename + '.vtu'), "VTK file was not created.")
                             self.assertGreater(os.path.getsize(filename + '.vtu'), 0, "VTK file is empty.")
-
 if __name__ == "__main__":
     unittest.main()

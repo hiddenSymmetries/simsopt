@@ -31,8 +31,6 @@ from simsoptpp import dipole_field_Bn
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
-np.random.seed(100)
-
 
 class Testing(unittest.TestCase):
 
@@ -1272,18 +1270,14 @@ class Testing(unittest.TestCase):
         Bfield.set_points(points)
         B1 = Bfield.B()
         dB1 = Bfield.dB_by_dX()
-        B1_analytical = [
-            [-3.48663e-7, 0.000221744, -0.211538],
-            [-0.0000841262, -0.00164856, 0.85704]
-        ]
-        dB1_analytical = [
-            [[0.000246381, 3.87403e-7, 0.00110872],
-             [3.87403e-7, 6.0914e-10, -0.705127],
-             [-0.00110872, 0.705127, 0]],
-            [[-0.000681623, 0.0000347833, -0.035936],
-             [0.0000347833, -1.775e-6, -0.704212],
-             [0.035936, 0.704212, 0]]
-        ]
+        B1_analytical = [[-3.48663e-7, 0.000221744, -0.211538],
+                         [-0.0000841262, -0.00164856, 0.85704]]
+        dB1_analytical = [[[0.000246381, 3.87403e-7, 0.00110872],
+                           [3.87403e-7, 6.0914e-10, -0.705127],
+                           [-0.00110872, 0.705127, 0]],
+                          [[-0.000681623, 0.0000347833, -0.035936],
+                           [0.0000347833, -1.775e-6, -0.704212],
+                           [0.035936, 0.704212, 0]]]
         assert np.allclose(B1, B1_analytical)
         assert np.allclose(dB1, dB1_analytical)
 

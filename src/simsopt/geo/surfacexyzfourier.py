@@ -66,7 +66,6 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
 
         sopp.SurfaceXYZFourier.__init__(self, mpol, ntor, nfp, stellsym,
                                         quadpoints_phi, quadpoints_theta)
-        # sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
         self.xc[0, ntor] = 1.0
         self.xc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1

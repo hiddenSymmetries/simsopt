@@ -162,7 +162,7 @@ class SurfaceGarabedian(sopp.Surface, Surface):
         """
         Return a SurfaceRZFourier object with the identical shape.
 
-        For a derivation of the transformation here, see
+        For a derivation of the transformation here, see 
         https://terpconnect.umd.edu/~mattland/assets/notes/toroidal_surface_parameterizations.pdf
         """
         mpol = int(np.max((1, self.mmax - 1, 1 - self.mmin)))
