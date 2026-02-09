@@ -662,7 +662,7 @@ def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_crit
 
         [\dot x, \dot y, \dot z] = B(x, y, z)
 
-    The toroidal angle :math:`\phi` is initialized on the :math:`\phi = 0` plane.
+    Integration is initialized on the :math:`\phi = 0` plane.
 
     Args:
         field: the magnetic field :math:`B`
