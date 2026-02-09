@@ -217,8 +217,11 @@ m_mag_coil = M_mc * vol[:, None]
 # =====================================================================
 
 qphi_bn = 2 * nphi
-quad_phi = np.linspace(0.0, 1.0, qphi_bn, endpoint=False)
-quad_theta = np.linspace(0.0, 1.0, ntheta, endpoint=False)
+# Include the periodic endpoints so VTK exports (SurfaceRZFourier.to_vtk) are
+# watertight in both toroidal and poloidal directions. Without the duplicated
+# endpoint ring, the structured grid is an open strip that renders with a gap.
+quad_phi = np.linspace(0.0, 1.0, qphi_bn, endpoint=True)
+quad_theta = np.linspace(0.0, 1.0, ntheta, endpoint=True)
 
 surf_bn = SurfaceRZFourier.from_focus(
     surface_filename,
@@ -266,15 +269,15 @@ extra_delta = {
     "Bn_delta_norm":     as_field3(dBn_grid / Bref),
 }
 surf_bn.to_vtk(out_dir / "surface_Bn_delta_AlNiCo", extra_data=extra_delta)
-print(f"[SIMSOPT] Wrote {out_dir}/surface_Bn_delta_AlNiCo.vtp")
+print(f"[SIMSOPT] Wrote {out_dir}/surface_Bn_delta_AlNiCo.vts")
 
 # =====================================================================
 # f_B EVALUATION  (match pm_opt convention: unitnormal, metadata, arrays)
 # =====================================================================
 
 qphi = 2 * nphi
-quadpoints_phi   = np.linspace(0.0, 1.0, qphi,   endpoint=False)
-quadpoints_theta = np.linspace(0.0, 1.0, ntheta, endpoint=False)
+quadpoints_phi   = np.linspace(0.0, 1.0, qphi,   endpoint=True)
+quadpoints_theta = np.linspace(0.0, 1.0, ntheta, endpoint=True)
 
 s_plot = SurfaceRZFourier.from_focus(
     surface_filename,
