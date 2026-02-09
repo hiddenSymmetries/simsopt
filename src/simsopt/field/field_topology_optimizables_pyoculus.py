@@ -37,7 +37,8 @@ __all__ = ['PyOculusFixedPoint',
            'PyOculusTraceTarget', 'PyOculusTraceInRangeTarget',
            'PyOculusLocationAtOtherAngleTarget',
            'PyOculusTwoFixedPointLocationDifference',
-           'ClinicConnection',
+           'PyOculusClinicConnection',
+           'PyOculusTurnstileAreaTarget'
           ]
 
 
@@ -417,7 +418,7 @@ class PyOculusTwoFixedPointLocationDifference(Optimizable):
 
 
 @SimsoptRequires(newpyoculus, "This PyOculusFixedPoint class requres the additions by L. Rais in 1.0.0")
-class ClinicConnection(Optimizable):
+class PyOculusClinicConnection(Optimizable):
     """
     The ClinicConnection class allows calculation of the turnstile flux and
     other properties of homo- and heteroclinic connections using the PyOculus library.
@@ -432,11 +433,11 @@ class ClinicConnection(Optimizable):
     def __init__(self,
                  fp1: PyOculusFixedPoint,
                  fp2: PyOculusFixedPoint,
-                 dir1: NDArray = None,
-                 dir2: NDArray = None,
-                 first_stable=True,
-                 ns: int = 5,
-                 nu: int = 5,
+                 dir1: NDArray, 
+                 dir2: NDArray,
+                 first_stable,
+                 ns: int,
+                 nu: int,
                  order: int = 2,
                  stable_epsilons: Iterable = None,
                  unstable_epsilons: Iterable = None,
@@ -458,8 +459,9 @@ class ClinicConnection(Optimizable):
             order: number of homo/heteroclinic trajectories to find
             stable_epsilons: floats, len=order: The distance along the stable manifold to start with the heteroclinic point finding
             unstable_epsilons: floats, len=order: The distance along the unstable manifold to start with the heteroclinic point finding
-            nretry_clinicfinding: number of times to re-try the finding of each clinic if it field_topology_optimizables
+            nretry_clinicfinding: number of times to re-try the finding of each clinic if it fails
             nextratries_clinicfinding: number of extra attempts to find more clinics
+            clinicfinding_argument_dict: additional arguments to pass to the clinic finding algorithm
         """
         if fp1.map != fp2.map:
             raise ValueError("Fixed points must be of the same map. \n "
@@ -477,14 +479,25 @@ class ClinicConnection(Optimizable):
         self._order = order
         self._ns = ns
         self._nu = nu
-        self._stable_epsilons = stable_epsilons
-        self._unstable_epsilons = unstable_epsilons
         self._nretry_clinicfinding = nretry_clinicfinding
         self._nextratries_clinicfinding = nextratries_clinicfinding
+        clinicfinding_argument_dict['options'] = clinicfinding_argument_dict.get('options', {'factor':1e-2}) # good default values for the root finding in clinic finding, can be overridden by user
         self._clinicfinding_argument_dict = clinicfinding_argument_dict
         self._ERR = ERR
         self._manifold = Manifold(fp1._pyocmap, fp1._fixed_point, fp2._fixed_point, dir1, dir2, first_stable)
         self.set_true_directions()
+
+        if stable_epsilons is None or unstable_epsilons is None:  #need to find expsilons to get started:
+            self._manifold.find_clinic_single(1e-5, 1e-5, n_s=self._ns, n_u=self._nu, nretry=self._nretry_clinicfinding, reset_clinics=True, root_args=self._clinicfinding_argument_dict, ERR=self._ERR)
+            # now find the others using shift_in_stable. Not very reliable...
+            for shift_in_stable in np.linspace(0,1, self._order, endpoint=False)[1:]:
+                self._manifold.find_other_clinic(shift_in_stable=shift_in_stable, nretry=self._nretry_clinicfinding, root_args=self._clinicfinding_argument_dict, ERR=self._ERR)
+            self._stable_epsilons = self._manifold.clinics.stable_epsilons[:-1]
+            self._unstable_epsilons = self._manifold.clinics.unstable_epsilons[:-1]
+        else: 
+            self._stable_epsilons = stable_epsilons
+            self._unstable_epsilons = unstable_epsilons
+
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[fp1, fp2])
         self._need_to_reset = True
 
@@ -589,3 +602,16 @@ class ClinicConnection(Optimizable):
         if len(self._manifold.turnstile_areas) < 6:
             raise ObjectiveFailure("Less than six turnstile areas found")
         return np.abs(self._manifold.turnstile_areas[5])
+    
+
+class PyOculusTurnstileAreaTarget(Optimizable):
+    """
+    Target the turnstile area of a ClinicConnection
+    """
+    def __init__(self, clinic_connection: PyOculusClinicConnection, target_area: float = 0):
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[clinic_connection])
+        self.clinic_connection = clinic_connection
+        self.target_area = target_area
+
+    def J(self):
+        return np.abs(self.clinic_connection.J() - self.target_area)
