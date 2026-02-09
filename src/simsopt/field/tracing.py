@@ -1441,11 +1441,20 @@ class ScipyFieldlineIntegrator(Integrator):
         event function used to terminate integration in solve_ivp. 
         the method tests whether B_phi component is smaller than 1e-3 the full field stength.
         this occurs (hopefully) just before B_phi changes sign, which can be around coils. 
-        This function does not need an extra BiotSavart calculation, it reads it from cache. 
+        This function does not re-evaluate the biot-savart unless it has to, to prevent slow-down of 
+        the integration. 
         """
         def _event(t, rz):
+            """
+            test if B_phi is close to zero, indicating breakdown of the toroial ODE equations. 
+            will only call set_points_cyl if the point has changed since last call, prventing recompute
+            of the costly Biot-Savart integral. 
+            """
+            point = np.array([rz[0], t, rz[1]])[None, :]
+            if not np.allclose(self.field.get_points_cyl(), point):
+                self.field.set_points_cyl(point)
             return np.abs(self.field.B_cyl().dot(np.array([0, 1., 0.]) / np.linalg.norm(self.field.B()))) - 1e-3  # B_phi = 0
-        #_event.terminal = True
+        _event.terminal = True
         return _event
 
     def integrate_in_phi_cyl(self, start_RZ, start_phi=0, delta_phi=2*np.pi, return_cartesian=False):
