@@ -377,7 +377,7 @@ extra_data = {
 # Write VTK file for visualization
 vtk_path = out_dir / "surface_Bn_delta_MUSE_post_processing"
 surf_bn.to_vtk(vtk_path, extra_data=extra_data)
-print(f"[SIMSOPT] Wrote {vtk_path}.vtp with fields: {', '.join(extra_data.keys())}")
+print(f"[SIMSOPT] Wrote {vtk_path}.vts with fields: {', '.join(extra_data.keys())}")
 
 # ============================================================================
 # Statistics on unique half-period wedge
@@ -464,7 +464,7 @@ extra_error_data = {
 vtk_path_err = out_dir / "surface_Btotal_error_MUSE_post_processing"
 surf_bn.to_vtk(vtk_path_err, extra_data=extra_error_data)
 print(
-    f"[SIMSOPT] Wrote {vtk_path_err}.vtp with fields: "
+    f"[SIMSOPT] Wrote {vtk_path_err}.vts with fields: "
     f"{', '.join(extra_error_data.keys())}"
 )
 
