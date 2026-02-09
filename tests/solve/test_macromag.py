@@ -1,10 +1,17 @@
 import unittest
 import json
 import time
+import os
+import tempfile
 import numpy as np
 from pathlib import Path
 import logging
 from typing import Optional
+
+# Matplotlib is imported at module scope by parts of simsopt, but some CI / sandboxed
+# environments lack writable default cache directories. Pre-set a writable config
+# dir to avoid noisy warnings during import.
+os.environ.setdefault("MPLCONFIGDIR", tempfile.mkdtemp(prefix="mplconfig-simsopt-tests-"))
 
 from simsopt.solve.macromag import (
     MacroMag,
@@ -164,35 +171,77 @@ class MacroMagTests(unittest.TestCase):
         Numba thread settings, and JAX/XLA versions). This test prints a small
         timing summary and the maximum absolute deviation between backends. For
         more representative timings, run locally with a larger ``n``.
+
+        This test also writes a simple scaling plot of assembly time vs ``n`` to
+        help evaluate the Numba vs JAX tradeoff for larger optimization runs.
         """
-        import os
 
         import simsopt.solve.macromag as macromag
 
         rng = np.random.default_rng(0)
+        nJ = 128
+        n_values = [1000, 5000, 10000, 20000]
+
+        def _time_backend(n_tiles: int, *, backend: str) -> tuple[float, float]:
+            offsets = rng.normal(scale=0.05, size=(n_tiles, 3))
+            tiles = make_trivial_tiles(n_tiles, cube_dim=0.01, offsets=offsets)
+            macro = MacroMag(tiles)
+            I = np.arange(n_tiles, dtype=np.int64)
+            J = np.arange(min(n_tiles, nJ), dtype=np.int64)
+
+            t0 = time.perf_counter()
+            _ = assemble_blocks_subset_dispatch(macro.centres, macro.half, macro.Rg2l, I, J, backend=backend)
+            t1 = time.perf_counter()
+            _ = assemble_blocks_subset_dispatch(macro.centres, macro.half, macro.Rg2l, I, J, backend=backend)
+            t2 = time.perf_counter()
+            return (t1 - t0), (t2 - t1)
+
+        # Scaling timings: cold includes compilation for a new shape (JAX) or first-ever call (Numba).
+        numba_cold: list[float] = []
+        numba_warm: list[float] = []
+        jax_cold: list[float] = []
+        jax_warm: list[float] = []
+
+        print(f"[bench] numba installed: {macromag._HAS_NUMBA}")
+        for n_tiles in n_values:
+            if macromag._HAS_NUMBA:
+                t_without_precomp, t_with_precomp = _time_backend(n_tiles, backend="numba")
+                numba_cold.append(t_without_precomp)
+                numba_warm.append(t_with_precomp)
+                print(
+                    f"[bench] (n={n_tiles}, nJ={nJ}) "
+                    f"numba without_precomp={t_without_precomp:.3f}s "
+                    f"with_precomp={t_with_precomp:.3f}s"
+                )
+            else:
+                numba_cold.append(float("nan"))
+                numba_warm.append(float("nan"))
+
+            t_without_precomp, t_with_precomp = _time_backend(n_tiles, backend="jax")
+            jax_cold.append(t_without_precomp)
+            jax_warm.append(t_with_precomp)
+            print(
+                f"[bench] (n={n_tiles}, nJ={nJ}) "
+                f"jax without_precomp={t_without_precomp:.3f}s "
+                f"with_precomp={t_with_precomp:.3f}s"
+            )
+
+        # Small correctness + cold/warm sanity print (first call includes compilation).
         n = 16
-        n_large = 64
         offsets = rng.normal(scale=0.05, size=(n, 3))
         tiles = make_trivial_tiles(n, cube_dim=0.01, offsets=offsets)
         macro = MacroMag(tiles)
-
         I = np.arange(n, dtype=np.int64)
         J = np.arange(n, dtype=np.int64)
 
-        # Numba: first call includes compilation if numba is installed.
         t0 = time.perf_counter()
-        blocks_numba = assemble_blocks_subset_dispatch(
-            macro.centres, macro.half, macro.Rg2l, I, J, backend="numba"
-        )
+        blocks_numba = assemble_blocks_subset_dispatch(macro.centres, macro.half, macro.Rg2l, I, J, backend="numba")
         t1 = time.perf_counter()
         _ = assemble_blocks_subset_dispatch(macro.centres, macro.half, macro.Rg2l, I, J, backend="numba")
         t2 = time.perf_counter()
 
-        # JAX: first call includes XLA compilation.
         t3 = time.perf_counter()
-        blocks_jax = assemble_blocks_subset_dispatch(
-            macro.centres, macro.half, macro.Rg2l, I, J, backend="jax"
-        )
+        blocks_jax = assemble_blocks_subset_dispatch(macro.centres, macro.half, macro.Rg2l, I, J, backend="jax")
         t4 = time.perf_counter()
         _ = assemble_blocks_subset_dispatch(macro.centres, macro.half, macro.Rg2l, I, J, backend="jax")
         t5 = time.perf_counter()
@@ -201,7 +250,6 @@ class MacroMagTests(unittest.TestCase):
         denom = float(np.max(np.abs(blocks_numba)))
         max_rel = max_abs / denom if denom > 0 else float("nan")
 
-        print(f"[bench] numba installed: {macromag._HAS_NUMBA}")
         print(f"[bench] max abs(N_numba - N_jax): {max_abs:.3e}")
         print(f"[bench] max rel(N_numba - N_jax): {max_rel:.3e}")
         print(f"[bench] assemble_blocks_subset (numba) first call:  {t1 - t0:.3f} s")
@@ -211,33 +259,36 @@ class MacroMagTests(unittest.TestCase):
 
         np.testing.assert_allclose(blocks_jax, blocks_numba, atol=1e-12, rtol=0.0)
 
-        if os.environ.get("SIMSOPT_MACROMAG_BENCH_LARGE") == "1":
-            offsets_large = rng.normal(scale=0.05, size=(n_large, 3))
-            tiles_large = make_trivial_tiles(n_large, cube_dim=0.01, offsets=offsets_large)
-            macro_large = MacroMag(tiles_large)
-            I_large = np.arange(n_large, dtype=np.int64)
-            J_large = np.arange(n_large, dtype=np.int64)
+        # Plot scaling results. This is a diagnostic artifact only; do not assert on timings.
+        import matplotlib
 
-            # Warm up each backend once for the larger size, then time a second call.
-            _ = assemble_blocks_subset_dispatch(
-                macro_large.centres, macro_large.half, macro_large.Rg2l, I_large, J_large, backend="numba"
-            )
-            t6 = time.perf_counter()
-            _ = assemble_blocks_subset_dispatch(
-                macro_large.centres, macro_large.half, macro_large.Rg2l, I_large, J_large, backend="numba"
-            )
-            t7 = time.perf_counter()
-            _ = assemble_blocks_subset_dispatch(
-                macro_large.centres, macro_large.half, macro_large.Rg2l, I_large, J_large, backend="jax"
-            )
-            t8 = time.perf_counter()
-            _ = assemble_blocks_subset_dispatch(
-                macro_large.centres, macro_large.half, macro_large.Rg2l, I_large, J_large, backend="jax"
-            )
-            t9 = time.perf_counter()
+        matplotlib.use("Agg")
+        from matplotlib import pyplot as plt
 
-            print(f"[bench] (n={n_large}) assemble_blocks_subset (numba) second call: {t7 - t6:.3f} s")
-            print(f"[bench] (n={n_large}) assemble_blocks_subset (jax) second call:   {t9 - t8:.3f} s")
+        x = np.asarray(n_values, dtype=np.int64)
+        fig, ax = plt.subplots(figsize=(6.5, 4.0), constrained_layout=True)
+
+        ax.plot(x, jax_cold, marker="o", linestyle="--", label="JAX without precompilation")
+        ax.plot(x, jax_warm, marker="o", linestyle="-", label="JAX with precompilation")
+
+        if macromag._HAS_NUMBA:
+            ax.plot(x, numba_cold, marker="s", linestyle="--", label="Numba without precompilation")
+            ax.plot(x, numba_warm, marker="s", linestyle="-", label="Numba with precompilation")
+
+        ax.set_xscale("log")
+        ax.set_xticks(x)
+        ax.set_xticklabels([str(int(v)) for v in x])
+        ax.set_yscale("log")
+        ax.set_xlabel(r"$n = |I|$ (tiles)")
+        ax.set_ylabel("Wall time (s)")
+        ax.set_title(rf"Subset assembly: $|I|=n$, $|J|={nJ}$ (total blocks $=|I||J|$)")
+        ax.grid(True, which="both", linestyle=":", linewidth=0.5)
+        ax.legend(loc="best")
+
+        out_png = Path(tempfile.mkdtemp(prefix="macromag-bench-")) / "assemble_blocks_subset_scaling.png"
+        fig.savefig(out_png, dpi=200)
+        plt.close(fig)
+        print(f"[bench] wrote scaling plot: {out_png}")
 
     # minimal tests for Tiles API
 
