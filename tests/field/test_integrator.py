@@ -354,6 +354,8 @@ class TestIntegratorAgreement(unittest.TestCase):
         # Check: (a) each integrator hits the target axis point, (b) both agree with each other.
         # This is also a test of the configurations. 
         for name in configurations:
+            if name == 'quasr':
+                break   # do not clobber the external database, which also does not provide axes so this test cannot be performed
             with self.subTest(config=name):
                 base_curves, base_currents, ma, nfp, bs = get_data(name)
                 gamma = ma.gamma()

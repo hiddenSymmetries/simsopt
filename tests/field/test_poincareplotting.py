@@ -233,7 +233,7 @@ class TestPoincarePlotterFactory(unittest.TestCase):
         self.assertEqual(len(pp.res_phi_hits), start_points_RZ.shape[0])
         self.assertEqual(pp.res_phi_hits[0].shape[1], 5)
         # Ensure phis interpreted correctly (int -> equally spaced)
-        self.assertEqual(len(pp.plot_phis), 4)
+        self.assertEqual(len(pp.phis_for_plotting), 4)
         
         #set with array of phis
         phis_array = np.array([0, 0.1, 0.2])
