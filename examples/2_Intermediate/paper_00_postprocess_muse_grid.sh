@@ -29,7 +29,7 @@ run_if_missing() {
   "$@"
 }
 
-run_if_missing "$OUTDIR/surface_Bn_delta_MUSE_post_processing.vtp" \
+run_if_missing "$OUTDIR/surface_Bn_delta_MUSE_post_processing.vts" \
   "$PYTHON" "$SCRIPT_DIR/macromag_MUSE_post_processing.py" --outdir "$OUTDIR"
 
 echo "[$(ts)] Done."
