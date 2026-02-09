@@ -71,15 +71,69 @@ def _label_for_run(run_doc: Dict[str, Any]) -> str:
     parts = [alg]
     if mat:
         parts.append(f"mat={mat}")
-    if p.get("backtracking", 0):
-        parts.append(f"bt={p['backtracking']}")
-    if p.get("Nadjacent", 0):
-        parts.append(f"Nadj={p['Nadjacent']}")
-    if p.get("max_nMagnets", 0):
-        parts.append(f"nmax={p['max_nMagnets']}")
-    if p.get("mm_refine_every", 0):
-        parts.append(f"kmm={p['mm_refine_every']}")
+
+    K_max = p.get("K", None)
+    if K_max is not None:
+        parts.append(rf"$K_{{\mathrm{{max}}}}={int(K_max)}$")
+
+    bt = p.get("backtracking", None)
+    if bt is not None:
+        parts.append(f"bt={int(bt)}")
+
+    Nadj = p.get("Nadjacent", None)
+    if Nadj is not None:
+        parts.append(f"Nadj={int(Nadj)}")
+
+    kmm = p.get("mm_refine_every", 0) or 0
+    if int(kmm) > 0:
+        parts.append(rf"$k_{{\mathrm{{mm}}}}={int(kmm)}$")
     return r"$f_B$ (" + ", ".join(parts) + ")"
+
+
+def _label_for_mse(run_doc: Dict[str, Any], *, compact: bool) -> str:
+    """
+    Label used in the MSE-history plots.
+
+    For paper-style plots we prefer short labels (algorithm + key knobs) so the
+    legend remains readable.
+    """
+    alg = _human_algorithm(run_doc)
+    params = run_doc.get("params", {}) or {}
+
+    if not compact:
+        return _label_for_run(run_doc)
+
+    # Compact label still includes key knobs used to identify paper runs.
+    K_max = params.get("K", None)
+    bt = params.get("backtracking", None)
+    Nadj = params.get("Nadjacent", None)
+    kmm = params.get("mm_refine_every", 0) or 0
+
+    parts = [alg]
+    if K_max is not None:
+        parts.append(rf"$K_{{\mathrm{{max}}}}={int(K_max)}$")
+    if bt is not None:
+        parts.append(f"bt={int(bt)}")
+    if Nadj is not None:
+        parts.append(f"Nadj={int(Nadj)}")
+    if alg == "GPMOmr" and int(kmm) > 0:
+        parts.append(rf"$k_{{\mathrm{{mm}}}}={int(kmm)}$")
+
+    return r"$f_B$ (" + ", ".join(parts) + ")"
+
+
+def _color_cycle(n: int) -> List[str]:
+    cmap = plt.get_cmap("tab10")
+    return [cmap(i % 10) for i in range(n)]
+
+
+def _color_for_algorithm(alg: str) -> str:
+    # Paper-style: keep consistent colors across plots.
+    if alg == "GPMO":
+        return "tab:blue"
+    if alg == "GPMOmr":
+        return "tab:orange"
+    return "tab:gray"
 
 
 def _collect_runs(outdir: Path) -> List[Dict[str, Any]]:
@@ -104,26 +158,82 @@ def _select_runs(runs: List[Dict[str, Any]], patterns: Optional[List[str]]) -> L
     return out
 
 
-def plot_mse(runs: List[Dict[str, Any]], save_dir: Path, *, show_n_active: bool = True) -> None:
+def plot_mse(
+    runs: List[Dict[str, Any]],
+    save_dir: Path,
+    *,
+    show_n_active: bool = True,
+    distinct_n_active: bool = False,
+) -> None:
     if not runs:
         raise SystemExit("No runs found (expected runhistory_*.csv).")
+
+    is_scan = len(runs) > 2
+    scan_colors = _color_cycle(len(runs)) if is_scan else []
 
     fig, ax1 = plt.subplots(figsize=(5.5, 3.5))
     ax2 = ax1.twinx() if show_n_active else None
 
-    for r in runs:
+    for idx, r in enumerate(runs):
         run_doc = r["run"]
         hist = r["hist"]
-        st = _style_for_run(run_doc)
-        label = _label_for_run(run_doc)
 
-        (line_fb,) = ax1.semilogy(hist["k"], hist["fB"], label=label, **{k: v for k, v in st.items() if v is not None})
+        alg = _human_algorithm(run_doc)
+        label = _label_for_mse(run_doc, compact=True)
+
+        if is_scan:
+            # Paper run 01: multiple curves (kmm sweep). Use dashed lines and distinct colors.
+            line_style = "--"
+            color = scan_colors[idx]
+        else:
+            # Paper runs 02/03/04: two curves. Use solid lines and algorithm-coded colors.
+            line_style = "-"
+            color = _color_for_algorithm(alg)
+
+        (line_fb,) = ax1.semilogy(
+            hist["k"],
+            hist["fB"],
+            label=label,
+            linestyle=line_style,
+            color=color,
+        )
         if ax2 is not None:
+            if distinct_n_active:
+                # Optional: distinguish N_active curves even when they overlap heavily.
+                if alg == "GPMO":
+                    na_linestyle = "--"
+                    na_linewidth = 1.4
+                    na_marker = None
+                    na_markevery = None
+                    na_markersize = None
+                elif alg == "GPMOmr":
+                    na_linestyle = "-."
+                    na_linewidth = 1.0
+                    na_marker = "*"
+                    na_markevery = max(1, int(len(hist["k"]) / 20))
+                    na_markersize = 4
+                else:
+                    na_linestyle = "--"
+                    na_linewidth = 1.0
+                    na_marker = None
+                    na_markevery = None
+                    na_markersize = None
+            else:
+                # Default: keep N_active styling consistent across runs.
+                na_linestyle = "--"
+                na_linewidth = 1.0
+                na_marker = None
+                na_markevery = None
+                na_markersize = None
+
             ax2.plot(
                 hist["k"],
                 hist["n_active"],
-                linestyle=":",
-                linewidth=1.0,
+                linestyle=na_linestyle,
+                linewidth=na_linewidth,
+                marker=na_marker,
+                markevery=na_markevery,
+                markersize=na_markersize,
                 color=line_fb.get_color(),
                 label=rf"$N_{{\rm active}}$ ({_human_algorithm(run_doc)})",
             )
@@ -276,6 +386,11 @@ def main():
         help="Disable the secondary axis showing N_active on MSE plots.",
     )
     p.add_argument(
+        "--distinct-n-active",
+        action="store_true",
+        help="Use distinct line styles/markers for N_active curves (useful when curves overlap).",
+    )
+    p.add_argument(
         "--runs",
         nargs="*",
         default=None,
@@ -296,7 +411,12 @@ def main():
     runs = _select_runs(runs, args.runs)
 
     if args.mode in ("mse", "all"):
-        plot_mse(runs, save_dir, show_n_active=not args.no_n_active)
+        plot_mse(
+            runs,
+            save_dir,
+            show_n_active=not args.no_n_active,
+            distinct_n_active=args.distinct_n_active,
+        )
     if args.mode in ("deltam", "all"):
         if args.compare is None and len(runs) != 2:
             print(

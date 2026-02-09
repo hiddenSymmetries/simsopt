@@ -53,9 +53,11 @@ run_if_missing "$OUTDIR/runhistory_${RID_GPMOMR}.csv" \
   --preset gb50uh --algorithm GPMOmr --mm-refine-every "$KMM" --history-every "$HISTORY_EVERY" --outdir "$OUTDIR"
 
 # Plots (2 runs => mse + deltam)
-run_if_missing "$OUTDIR/plots/Combined_MSE_history.png" \
-  "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE_plots.py" \
-  --outdir "$OUTDIR" --mode mse
+echo "[$(ts)] Plot: Combined_MSE_history.png"
+"$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE_plots.py" \
+  --outdir "$OUTDIR" --mode mse \
+  --distinct-n-active \
+  --runs "$RID_GPMO" "$RID_GPMOMR"
 
 run_if_missing "$OUTDIR/plots/Histogram_DeltaM_log_GPMO_vs_GPMOmr.png" \
   "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE_plots.py" \
