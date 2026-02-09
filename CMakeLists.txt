@@ -135,6 +135,7 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/python_currentpotential.cpp
     src/simsoptpp/currentpotential.cpp 
     src/simsoptpp/currentpotentialfourier.cpp
+    src/simsoptpp/winding_surface.cpp
     )
 
 set_target_properties(${PROJECT_NAME}
