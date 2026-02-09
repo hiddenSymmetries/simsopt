@@ -1826,6 +1826,20 @@ def vmec_fieldlines(vs,
           be plotted, corresponding to the leading elements of ``s`` and ``alpha``.
         show: Only matters if ``plot==True``. Whether to call matplotlib's ``show()`` function
           after creating the plot.
+
+    Returns:
+        A :class:`VmecGeometryResults` object containing all computed geometric quantities
+        evaluated along the field lines on the :math:`\theta_{pest}` grid.
+
+        In addition to the standard attributes documented for
+        :class:`VmecGeometryResults`, this function adds the following
+        field-line-specific attributes:
+
+        - ``nalpha``: Number of field line labels.
+        - ``nl``: Number of grid points along each field line.
+        - ``alpha``: 1D array of field line labels used to construct the field lines.
+        - ``theta1d``: 1D array of :math:`\theta_{pest}` grid points (only if ``theta1d`` is provided).
+        - ``phi1d``: 1D array of :math:`\phi` grid points (only if ``phi1d`` is provided).
     """
     # If given a Vmec object, convert it to vmec_splines:
     if isinstance(vs, Vmec):
