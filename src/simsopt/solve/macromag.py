@@ -2,38 +2,16 @@ from __future__ import annotations # Temporary fix for python compatibility
 import functools
 import math
 import numpy as np
-from simsopt.field import Coil, BiotSavart, InterpolatedField
-from simsopt.util.permanent_magnet_helper_functions import read_focus_coils
 from scipy.constants import mu_0
 from scipy.sparse.linalg import gmres
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING, Union
 from scipy.sparse import coo_matrix
 
+if TYPE_CHECKING:  # pragma: no cover
+    from simsopt.field import BiotSavart, InterpolatedField
+
 __all__ = ["MacroMag"]
-
-try:
-    from numba import njit, prange  # type: ignore
-    _HAS_NUMBA = True
-except ModuleNotFoundError:  # pragma: no cover
-    _HAS_NUMBA = False
-    # Numba is an optional dependency (used only for accelerating MacroMag).
-    # If it is not installed, we provide no-op fallbacks so functionality
-    # remains available (albeit much slower for large problems).
-    def njit(*args, **kwargs):  # type: ignore
-        """Fallback decorator that returns the function unchanged."""
-        if args and callable(args[0]) and len(args) == 1 and not kwargs:
-            return args[0]
-
-        def _decorator(fn):
-            return fn
-
-        return _decorator
-
-    def prange(*args, **kwargs):  # type: ignore
-        """Fallback for numba.prange using the built-in range."""
-        return range(*args)
-
 
 _INV4PI  = 1.0 / (4.0 * math.pi)
 _MACHEPS = np.finfo(np.float64).eps
@@ -159,7 +137,6 @@ def _rotation_angle_xyz(R: np.ndarray) -> tuple[float, float, float]:
     return alpha, beta, gamma
 
 
-@njit(inline='always')
 def _f_3D(a, b, c, x, y, z):
     """
     Auxiliary function for the analytical demagnetization tensor of a rectangular prism.
@@ -205,7 +182,6 @@ def _f_3D(a, b, c, x, y, z):
         r = math.sqrt(dx*dx + (half_b - y)**2 + (half_c - z)**2)
         return (half_b - y)*(half_c - z)/(dx * r)
 
-@njit(inline='always')
 def _g_3D(a, b, c, x, y, z):
     """
     Auxiliary function for the analytical demagnetization tensor of a rectangular prism.
@@ -246,7 +222,6 @@ def _g_3D(a, b, c, x, y, z):
         return (half_a - x)*(half_c - z)/(dy * r)
 
 
-@njit(inline='always')
 def _h_3D(a, b, c, x, y, z):
     """
     Auxiliary function for the analytical demagnetization tensor of a rectangular prism.
@@ -286,7 +261,6 @@ def _h_3D(a, b, c, x, y, z):
         r = math.sqrt((half_a - x)**2 + (half_b - y)**2 + dz*dz)
         return (half_a - x)*(half_b - y)/(dz * r)
     
-@njit(inline='always')
 def _FF_3D(a, b, c, x, y, z):
     """
     Log-kernel helper used for off-diagonal demagnetization tensor components.
@@ -313,7 +287,6 @@ def _FF_3D(a, b, c, x, y, z):
     ha, hb, hc = a, b, c
     return (hc - z) + math.sqrt((ha - x)**2 + (hb - y)**2 + (hc - z)**2)
 
-@njit(inline='always')
 def _GG_3D(a, b, c, x, y, z):
     """
     Log-kernel helper used for off-diagonal demagnetization tensor components.
@@ -337,7 +310,6 @@ def _GG_3D(a, b, c, x, y, z):
     ha, hb, hc = a, b, c
     return (ha - x) + math.sqrt((ha - x)**2 + (hb - y)**2 + (hc - z)**2)
 
-@njit(inline='always')
 def _HH_3D(a, b, c, x, y, z):
     """
     Log-kernel helper used for off-diagonal demagnetization tensor components.
@@ -364,7 +336,6 @@ def _HH_3D(a, b, c, x, y, z):
     return (hb - y) + math.sqrt((ha - x)**2 + (hb - y)**2 + (hc - z)**2)
 
 
-@njit(inline='always')
 def getF_limit(a, b, c, x, y, z, func):
     """
     Numerically stable limit for the off-diagonal log-kernel ratio.
@@ -423,7 +394,6 @@ def getF_limit(a, b, c, x, y, z, func):
 
     return (nom_l + nom_h) / (denom_l + denom_h)
 
-@njit(cache=False)
 def _prism_N_local_nb(a, b, c, x0, y0, z0):
     """
     Demagnetization tensor for a uniformly magnetized rectangular prism (local frame).
@@ -500,128 +470,121 @@ def _prism_N_local_nb(a, b, c, x0, y0, z0):
 
     return -N
 
-@njit(parallel=True, cache=False)
-def _assemble_tensor_local_nb(centres, half, Rg2l):
-    """
-    Assemble the full dense demag tensor for a tile set (Numba-accelerated when available).
+_ASSEMBLE_BLOCKS_BATCH_I: tuple[int, ...] = (1, 8, 16, 32, 64, 128, 256)
+_ASSEMBLE_BLOCKS_BATCH_J: tuple[int, ...] = (1, 8, 16, 32, 64, 128, 256)
 
-    For each tile pair (i,j), compute the local-frame prism demag block N_ij
-    using :func:`_prism_N_local_nb`, after rotating the separation vector from
-    global coordinates into tile i's local frame.
 
-    Args:
-        centres: ndarray, shape (n, 3). Tile centre positions in global coordinates.
-        half: ndarray, shape (n, 3). Tile half-dimensions in local coordinates.
-        Rg2l: ndarray, shape (n, 3, 3). Global-to-local rotation matrices for each tile.
+def _pick_batch_size(n: int, candidates: tuple[int, ...]) -> int:
+    """Return the smallest candidate >= ``n`` (or the maximum candidate)."""
+    for c in candidates:
+        if n <= c:
+            return c
+    return candidates[-1]
 
-    Returns:
-        Nloc: ndarray, shape (n, n, 3, 3). Dense demag operator blocks.
 
-        The returned blocks are the operator ``N_op`` from :func:`_prism_N_local_nb`,
-        i.e. they map magnetization to demagnetizing field: ``H_demag = N_op @ M``.
-    """
-    n = centres.shape[0]
-    Nloc = np.zeros((n, n, 3, 3), dtype=np.float64)
-    for i in prange(n):
-        a, b, c = half[i]
-        Rgl = Rg2l[i]
-        for j in range(n):
-            # vector from source j to target i in global coords
-            dx = centres[i,0] - centres[j,0]
-            dy = centres[i,1] - centres[j,1]
-            dz = centres[i,2] - centres[j,2]
-            # rotate into local frame...
-            x_loc = Rgl[0,0]*dx + Rgl[0,1]*dy + Rgl[0,2]*dz
-            y_loc = Rgl[1,0]*dx + Rgl[1,1]*dy + Rgl[1,2]*dz
-            z_loc = Rgl[2,0]*dx + Rgl[2,1]*dy + Rgl[2,2]*dz
-            # exact local prism tensor
-            Nloc[i,j] = _prism_N_local_nb(a, b, c, x_loc, y_loc, z_loc)
-    return Nloc
-
-@njit(parallel=True, cache=False)
 def assemble_blocks_subset(centres, half, Rg2l, I, J):
     """
-    Assemble a subset of demag tensor blocks
+    Assemble a subset of demag operator blocks using JAX.
 
-    This helper returns the blocks N[I[ii], J[jj]] without forming the full
-    (n,n,3,3) tensor, which is useful for incremental/batched assembly.
-
-    Args:
-        centres: ndarray, shape (n, 3). Tile centre positions in global coordinates.
-        half: ndarray, shape (n, 3). Tile half-dimensions in local coordinates.
-        Rg2l: ndarray, shape (n, 3, 3). Global-to-local rotation matrices for each tile.
-        I: ndarray, shape (nI,). Target tile indices.
-        J: ndarray, shape (nJ,). Source tile indices.
-
-    Returns:
-        out: ndarray, shape (nI, nJ, 3, 3). Demag operator blocks for the requested pairs.
-
-        The returned blocks are the operator ``N_op`` from :func:`_prism_N_local_nb`,
-        i.e. they map magnetization to demagnetizing field: ``H_demag = N_op @ M``.
-    """
-    nI, nJ = I.shape[0], J.shape[0]
-    out = np.empty((nI, nJ, 3, 3), np.float64)
-    for ii in prange(nI):
-        i = I[ii]
-        a,b,c = half[i]
-        R = Rg2l[i]
-        cx,cy,cz = centres[i]
-        for jj in range(nJ):
-            j = J[jj]
-            dx = cx - centres[j,0]; dy = cy - centres[j,1]; dz = cz - centres[j,2]
-            x = R[0,0]*dx + R[0,1]*dy + R[0,2]*dz
-            y = R[1,0]*dx + R[1,1]*dy + R[1,2]*dz
-            z = R[2,0]*dx + R[2,1]*dy + R[2,2]*dz
-            out[ii,jj] = _prism_N_local_nb(a,b,c,x,y,z)
-    return out
-
-
-def assemble_blocks_subset_jax(centres, half, Rg2l, I, J):
-    """
-    Assemble a subset of demag operator blocks using JAX (experimental).
-
-    This function is intended for validating a JAX implementation against the
-    reference NumPy/Numba implementation in :func:`assemble_blocks_subset`.
-    It returns the same demag *operator* convention used throughout this module:
-
-        ``H_demag = N_op @ M``
-
-    where ``N_op = -N_std`` for the standard Newell/Aharoni demag tensor.
-
-    Notes
-    -----
-    - This implementation is CPU-oriented and uses ``jax.jit``.
-    - It is sensitive to dtype: we enable ``jax_enable_x64`` and use float64 to
-      match the reference implementation.
-    - This is kept separate from the production code path until benchmarking
-      demonstrates a clear benefit for realistic workloads.
+    This helper returns the blocks ``N_op[I[ii], J[jj]]`` without forming the
+    full dense ``(n, n, 3, 3)`` tensor. The implementation is JAX-jitted and
+    runs on CPU by default.
 
     Parameters
     ----------
-    centres, half, Rg2l : ndarray
-        Same meaning as :func:`assemble_blocks_subset`.
-    I, J : ndarray
-        Target/source tile indices.
+    centres : ndarray, shape (n, 3)
+        Tile centre positions in global coordinates.
+    half : ndarray, shape (n, 3)
+        Tile half-dimensions in local coordinates.
+    Rg2l : ndarray, shape (n, 3, 3)
+        Global-to-local rotation matrices for each tile.
+    I : ndarray, shape (nI,)
+        Target tile indices.
+    J : ndarray, shape (nJ,)
+        Source tile indices.
 
     Returns
     -------
-    ndarray
-        Demag operator blocks, shape ``(len(I), len(J), 3, 3)``.
+    ndarray, shape (nI, nJ, 3, 3)
+        Demag operator blocks for the requested pairs.
+
+        The returned blocks use the module-wide convention that the demagnetizing
+        field is obtained via ``H_demag = N_op @ M``. Relative to the standard
+        Newell/Aharoni demagnetization tensor ``N_std`` (for which
+        ``H_demag = -N_std @ M``), we return ``N_op = -N_std``.
+
+    Notes
+    -----
+    JAX compilation is specialized to array shapes. To reduce recompilation
+    overhead in optimization loops (where ``len(I)`` and ``len(J)`` can vary),
+    this function internally pads and batches the index sets so only a small
+    number of compiled shapes are exercised.
     """
-    kernel = _get_assemble_blocks_subset_jax_kernel()
-    out = kernel(
-        np.asarray(centres, dtype=np.float64),
-        np.asarray(half, dtype=np.float64),
-        np.asarray(Rg2l, dtype=np.float64),
-        np.asarray(I, dtype=np.int64),
-        np.asarray(J, dtype=np.int64),
-    )
-    out.block_until_ready()
-    return np.asarray(out)
+    I = np.asarray(I).ravel()
+    J = np.asarray(J).ravel()
+    if I.size == 0 or J.size == 0:
+        return np.empty((I.size, J.size, 3, 3), dtype=np.float64)
+
+    import jax
+
+    # simsopt.geo sets this globally, but MacroMag can be used without importing geo.
+    jax.config.update("jax_enable_x64", True)
+    import jax.numpy as jnp
+
+    centres_np = np.asarray(centres, dtype=np.float64, order="C")
+    half_np = np.asarray(half, dtype=np.float64, order="C")
+    Rg2l_np = np.asarray(Rg2l, dtype=np.float64, order="C")
+    I_np = np.asarray(I, dtype=np.int32, order="C")
+    J_np = np.asarray(J, dtype=np.int32, order="C")
+
+    centres_j = jax.device_put(centres_np)
+    half_j = jax.device_put(half_np)
+    Rg2l_j = jax.device_put(Rg2l_np)
+
+    nI = int(I_np.size)
+    nJ = int(J_np.size)
+
+    i_batch = _pick_batch_size(nI, _ASSEMBLE_BLOCKS_BATCH_I)
+    j_batch = _pick_batch_size(nJ, _ASSEMBLE_BLOCKS_BATCH_J)
+
+    out = np.empty((nI, nJ, 3, 3), dtype=np.float64)
+    kernel = _get_assemble_blocks_subset_kernel()
+
+    for i0 in range(0, nI, i_batch):
+        I_chunk = I_np[i0 : i0 + i_batch]
+        nIi = int(I_chunk.size)
+        if nIi < i_batch:
+            I_pad = np.empty((i_batch,), dtype=np.int32)
+            I_pad[:nIi] = I_chunk
+            I_pad[nIi:] = 0
+        else:
+            I_pad = I_chunk
+
+        I_pad_j = jnp.asarray(I_pad)
+
+        for j0 in range(0, nJ, j_batch):
+            J_chunk = J_np[j0 : j0 + j_batch]
+            nJj = int(J_chunk.size)
+            if nJj < j_batch:
+                J_pad = np.empty((j_batch,), dtype=np.int32)
+                J_pad[:nJj] = J_chunk
+                J_pad[nJj:] = 0
+            else:
+                J_pad = J_chunk
+
+            J_pad_j = jnp.asarray(J_pad)
+
+            blocks = kernel(centres_j, half_j, Rg2l_j, I_pad_j, J_pad_j)
+            blocks.block_until_ready()
+            blocks_np = np.asarray(blocks)
+
+            out[i0 : i0 + nIi, j0 : j0 + nJj] = blocks_np[:nIi, :nJj]
+
+    return out
 
 
 @functools.lru_cache(maxsize=1)
-def _get_assemble_blocks_subset_jax_kernel():
+def _get_assemble_blocks_subset_kernel():
     """
     Return a cached JAX-jitted kernel for demag block assembly.
 
@@ -630,14 +593,12 @@ def _get_assemble_blocks_subset_jax_kernel():
 
     Notes
     -----
-    JAX compilation is specialized to input shapes and dtypes. With this cached
-    kernel we avoid *re-creating* and *re-jitting* the Python function on every
-    call (which previously forced frequent recompilation), but new shapes for
-    ``I``/``J`` will still trigger XLA compilation.
+    JAX compilation is specialized to input shapes and dtypes. The returned
+    callable is jitted once at creation; compiled executables are cached by JAX
+    internally for each distinct input shape.
     """
     import jax
 
-    # Ensure float64 in this module even if simsopt.geo is not imported.
     jax.config.update("jax_enable_x64", True)
     import jax.numpy as jnp
 
@@ -815,55 +776,17 @@ def _get_assemble_blocks_subset_jax_kernel():
     return jax.jit(_kernel_impl)
 
 
-def assemble_blocks_subset_dispatch(centres, half, Rg2l, I, J, *, backend: str = "auto"):
-    """
-    Assemble a subset of demag operator blocks using a selected backend.
-
-    This dispatch helper exists primarily for validation and benchmarking of
-    the JAX implementation against the reference Numba implementation.
-
-    Parameters
-    ----------
-    centres, half, Rg2l : ndarray
-        Same meaning as :func:`assemble_blocks_subset`.
-    I, J : ndarray
-        Target/source tile indices.
-    backend : {"auto", "numba", "jax"}, optional
-        Backend selector:
-
-        - ``"auto"``: use Numba if available, else JAX.
-        - ``"numba"``: use :func:`assemble_blocks_subset`.
-        - ``"jax"``: use :func:`assemble_blocks_subset_jax`.
-
-    Returns
-    -------
-    ndarray
-        Demag operator blocks ``N_op`` with shape ``(len(I), len(J), 3, 3)`` such
-        that ``H_demag = N_op @ M``. This module uses ``N_op = -N_std`` relative
-        to the standard demagnetization tensor convention.
-    """
-    backend_norm = backend.strip().lower()
-    if backend_norm == "auto":
-        backend_norm = "numba" if _HAS_NUMBA else "jax"
-
-    if backend_norm == "numba":
-        return assemble_blocks_subset(centres, half, Rg2l, I, J)
-    if backend_norm == "jax":
-        return assemble_blocks_subset_jax(centres, half, Rg2l, I, J)
-
-    raise ValueError(
-        "Unknown backend for assemble_blocks_subset_dispatch: "
-        f"{backend!r}. Expected one of {{'auto', 'numba', 'jax'}}."
-    )
-
-
 class MacroMag:
     """Compute demag tensor for rectangular prisms."""
 
     _INV4PI = _INV4PI
     _MACHEPS = _MACHEPS
 
-    def __init__(self, tiles, bs_interp: Optional[BiotSavart | InterpolatedField] = None):
+    def __init__(
+        self,
+        tiles,
+        bs_interp: Optional[Union["BiotSavart", "InterpolatedField"]] = None,
+    ):
         """
         Create a macromagnetics helper for a given tile set.
 
@@ -894,32 +817,32 @@ class MacroMag:
 
     @staticmethod
     def _f_3D(a, b, c, x, y, z):
-        """Public wrapper for :func:`_f_3D` (Numba-accelerated when available)."""
+        """Public wrapper for :func:`_f_3D`."""
         return _f_3D(a, b, c, x, y, z)
 
     @staticmethod
     def _g_3D(a, b, c, x, y, z):
-        """Public wrapper for :func:`_g_3D` (Numba-accelerated when available)."""
+        """Public wrapper for :func:`_g_3D`."""
         return _g_3D(a, b, c, x, y, z)
 
     @staticmethod
     def _h_3D(a, b, c, x, y, z):
-        """Public wrapper for :func:`_h_3D` (Numba-accelerated when available)."""
+        """Public wrapper for :func:`_h_3D`."""
         return _h_3D(a, b, c, x, y, z)
 
     @staticmethod
     def _FF_3D(a, b, c, x, y, z):
-        """Public wrapper for :func:`_FF_3D` (Numba-accelerated when available)."""
+        """Public wrapper for :func:`_FF_3D`."""
         return _FF_3D(a, b, c, x, y, z)
 
     @staticmethod
     def _GG_3D(a, b, c, x, y, z):
-        """Public wrapper for :func:`_GG_3D` (Numba-accelerated when available)."""
+        """Public wrapper for :func:`_GG_3D`."""
         return _GG_3D(a, b, c, x, y, z)
 
     @staticmethod
     def _HH_3D(a, b, c, x, y, z):
-        """Public wrapper for :func:`_HH_3D` (Numba-accelerated when available)."""
+        """Public wrapper for :func:`_HH_3D`."""
         return _HH_3D(a, b, c, x, y, z)
 
     @staticmethod
@@ -974,7 +897,8 @@ class MacroMag:
         # Reuse a cached full tensor if it matches the current size
         if cache and hasattr(self, "_N_full") and self._N_full is not None and self._N_full.shape[:2] == (self.n, self.n):
             return self._N_full
-        N = _assemble_tensor_local_nb(self.centres, self.half, self.Rg2l)
+        idx = np.arange(self.n, dtype=np.int32)
+        N = assemble_blocks_subset(self.centres, self.half, self.Rg2l, idx, idx)
         self._N_full = N
         return N
             
@@ -996,6 +920,9 @@ class MacroMag:
         :class:`~simsopt.field.InterpolatedField` is not constructed unless you
         explicitly wrap the field elsewhere.
         """
+        from simsopt.field import BiotSavart, Coil
+        from simsopt.util.permanent_magnet_helper_functions import read_focus_coils
+
         curves, currents, ncoils = read_focus_coils(str(focus_file))
         coils = [Coil(curves[i], currents[i]*current_scale) for i in range(ncoils)]
                 
