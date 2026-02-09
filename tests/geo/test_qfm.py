@@ -26,10 +26,9 @@ class QfmSurfaceTests(unittest.TestCase):
 
         s = get_exact_surface()
         base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
-        bs_tf = BiotSavart(bs.coils)
 
         weight = 1.
-        tf = ToroidalFlux(s, bs_tf)
+        tf = ToroidalFlux(s, bs)
 
         # these data are obtained from `boozer` branch of pyplamsaopt
         tf_target = 0.41431152
@@ -54,12 +53,11 @@ class QfmSurfaceTests(unittest.TestCase):
     def subtest_qfm_objective_gradient(self, surfacetype, stellsym, config):
         np.random.seed(1)
         base_curves, base_currents, ma, nfp, bs = get_data(config)
-        bs_tf = BiotSavart(bs.coils)
 
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
 
-        tf = ToroidalFlux(s, bs_tf)
+        tf = ToroidalFlux(s, bs)
 
         tf_target = 0.1
         qfm_surface = QfmSurface(bs, s, tf, tf_target)
@@ -96,12 +94,11 @@ class QfmSurfaceTests(unittest.TestCase):
     def subtest_qfm_label_constraint_gradient(self, surfacetype, stellsym):
         np.random.seed(1)
         base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
-        bs_tf = BiotSavart(bs.coils)
 
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
 
-        tf = ToroidalFlux(s, bs_tf)
+        tf = ToroidalFlux(s, bs)
 
         tf_target = 0.1
         qfm_surface = QfmSurface(bs, s, tf, tf_target)
@@ -140,14 +137,13 @@ class QfmSurfaceTests(unittest.TestCase):
     def subtest_qfm_penalty_constraints_gradient(self, surfacetype, stellsym, config):
         np.random.seed(1)
         base_curves, base_currents, ma, nfp, bs = get_data(config)
-        bs_tf = BiotSavart(bs.coils)
 
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
 
         weight = 11.1232
 
-        tf = ToroidalFlux(s, bs_tf)
+        tf = ToroidalFlux(s, bs)
 
         tf_target = 0.1
         qfm_surface = QfmSurface(bs, s, tf, tf_target)
