@@ -126,29 +126,31 @@ else()
     message(STATUS "Boost include dirs are ${Boost_INCLUDE_DIRS}")
 endif()
 
-# add_subdirectory(thirdparty/pybind11)
 add_subdirectory(thirdparty/fmt EXCLUDE_FROM_ALL)
 set(XTENSOR_USE_OPENMP 0)
 set(XTENSOR_USE_TBB 0)
 
-if(OpenMP_CXX_FOUND)
-    pybind11_add_module(${PROJECT_NAME}
-        src/simsoptpp/python.cpp src/simsoptpp/python_surfaces.cpp src/simsoptpp/python_curves.cpp
-        src/simsoptpp/boozerresidual_py.cpp
-        src/simsoptpp/python_magneticfield.cpp src/simsoptpp/python_tracing.cpp src/simsoptpp/python_distance.cpp
-        src/simsoptpp/biot_savart_py.cpp
-        src/simsoptpp/biot_savart_vjp_py.cpp
-        src/simsoptpp/regular_grid_interpolant_3d_py.cpp
-        src/simsoptpp/curve.cpp src/simsoptpp/curverzfourier.cpp src/simsoptpp/curvexyzfourier.cpp src/simsoptpp/curveplanarfourier.cpp
-        src/simsoptpp/surface.cpp src/simsoptpp/surfacerzfourier.cpp src/simsoptpp/surfacexyzfourier.cpp
-        src/simsoptpp/integral_BdotN.cpp
-        src/simsoptpp/dipole_field.cpp src/simsoptpp/permanent_magnet_optimization.cpp
-        src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp 
-        src/simsoptpp/winding_surface.cpp
-        src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp
-        src/simsoptpp/boozerradialinterpolant.cpp src/simsoptpp/python_currentpotential.cpp
-        src/simsoptpp/currentpotential.cpp src/simsoptpp/currentpotentialfourier.cpp
-        src/simsoptpp/biest_call.cpp  # BIEST requires openmp!
+
+pybind11_add_module(${PROJECT_NAME}
+    src/simsoptpp/python.cpp src/simsoptpp/python_surfaces.cpp src/simsoptpp/python_curves.cpp
+    src/simsoptpp/boozerresidual_py.cpp
+    src/simsoptpp/python_magneticfield.cpp src/simsoptpp/python_tracing.cpp src/simsoptpp/python_distance.cpp
+    src/simsoptpp/biot_savart_py.cpp
+    src/simsoptpp/biot_savart_vjp_py.cpp
+    src/simsoptpp/regular_grid_interpolant_3d_py.cpp
+    src/simsoptpp/curve.cpp src/simsoptpp/curverzfourier.cpp src/simsoptpp/curvexyzfourier.cpp src/simsoptpp/curveplanarfourier.cpp
+    src/simsoptpp/surface.cpp src/simsoptpp/surfacerzfourier.cpp src/simsoptpp/surfacexyzfourier.cpp
+    src/simsoptpp/integral_BdotN.cpp
+    src/simsoptpp/dipole_field.cpp src/simsoptpp/permanent_magnet_optimization.cpp
+    src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp 
+    src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp 
+    src/simsoptpp/magneticfield_wireframe.cpp
+    src/simsoptpp/boozerradialinterpolant.cpp
+    src/simsoptpp/wireframe_optimization.cpp
+    src/simsoptpp/python_currentpotential.cpp
+    src/simsoptpp/currentpotential.cpp 
+    src/simsoptpp/currentpotentialfourier.cpp
+    src/simsoptpp/biest_call.cpp  # BIEST requires openmp!
     )
 else()
     pybind11_add_module(${PROJECT_NAME}

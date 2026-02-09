@@ -32,7 +32,7 @@ from .util import finite_difference_steps
 
 logger = logging.getLogger(__name__)
 
-__all__ = ['FiniteDifference']
+__all__ = ['FiniteDifference', 'MPIFiniteDifference']
 
 
 class FiniteDifference:

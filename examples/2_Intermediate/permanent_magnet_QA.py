@@ -37,11 +37,19 @@ from pathlib import Path
 import numpy as np
 
 from simsopt.field import BiotSavart, DipoleField
-from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
+from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import relax_and_split
 from simsopt.util import in_github_actions
-from simsopt.util.permanent_magnet_helper_functions import *
+from simsopt.util.coil_optimization_helper_functions import \
+    coil_optimization, \
+    calculate_modB_on_major_radius, \
+    make_qfm
+from simsopt.util.permanent_magnet_helper_functions import \
+    initialize_coils_for_pm_optimization, \
+    initialize_default_kwargs, \
+    make_optimization_plots
+
 
 t_start = time.time()
 
@@ -75,13 +83,14 @@ out_dir = Path("permanent_magnet_QA_output")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 # initialize the coils
-base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s, out_dir)
+base_curves, curves, coils = initialize_coils_for_pm_optimization('qa', TEST_DIR, s, out_dir)
+curves_to_vtk(curves, out_dir / "curves_init")
 
 # Set up BiotSavart fields
 bs = BiotSavart(coils)
 
 # Calculate average, approximate on-axis B field strength
-calculate_on_axis_B(bs, s)
+calculate_modB_on_major_radius(bs, s)
 
 # Make higher resolution surface for plotting Bnormal
 qphi = 2 * nphi
@@ -94,15 +103,17 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 )
 
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
-make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
+bs.set_points(s_plot.gamma().reshape((-1, 3)))
+Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+s_plot.to_vtk(out_dir / "biot_savart_initial", extra_data={"B_N": Bnormal[:, :, None]})
 
 # optimize the currents in the TF coils
-bs = coil_optimization(s, bs, base_curves, curves, out_dir)
+bs = coil_optimization(s, bs, base_curves, curves)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # check after-optimization average on-axis magnetic field strength
-calculate_on_axis_B(bs, s)
+calculate_modB_on_major_radius(bs, s)
 
 # Set up correct Bnormal from TF coils
 bs.set_points(s.gamma().reshape((-1, 3)))
@@ -193,7 +204,7 @@ print("Total fB (sparse) = ",
 
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
+s_plot.to_vtk(out_dir / "biot_savart_optimized", extra_data={"B_N": Bnormal[:, :, None]})
 Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
 Bnormal_total = Bnormal + Bnormal_dipoles
 Bnormal_dipoles_proxy = np.sum(b_dipole_proxy.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
@@ -206,8 +217,12 @@ print("Number of possible dipoles = ", pm_opt.ndipoles)
 print("% of dipoles that are nonzero = ", num_nonzero)
 
 # For plotting Bn on the full torus surface at the end with just the dipole fields
-make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized")
-make_Bnormal_plots(b_dipole_proxy, s_plot, out_dir, "only_m_proxy_optimized")
+b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
+Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
+s_plot.to_vtk(out_dir / "only_m_optimized", extra_data={"B_N": Bnormal_dipoles[:, :, None]})
+b_dipole_proxy.set_points(s_plot.gamma().reshape((-1, 3)))
+Bnormal_dipoles_proxy = np.sum(b_dipole_proxy.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
+s_plot.to_vtk(out_dir / "only_m_proxy_optimized", extra_data={"B_N": Bnormal_dipoles_proxy[:, :, None]})
 pointData = {"B_N": Bnormal_total[:, :, None]}
 s_plot.to_vtk(out_dir / "m_optimized", extra_data=pointData)
 pointData = {"B_N": Bnormal_total_proxy[:, :, None]}
@@ -219,6 +234,8 @@ print('f_B = ', f_B_sf)
 total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
 total_volume_sparse = np.sum(np.sqrt(np.sum(pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
 print('Total volume for m and m_proxy = ', total_volume, total_volume_sparse)
+
+# Initialize a DipoleField magnetic field object using the sparsified m solution
 b_dipole = DipoleField(
     pm_opt.dipole_grid_xyz,
     pm_opt.m_proxy,
@@ -248,16 +265,8 @@ if vmec_flag:
     t1 = time.time()
     Bfield = bs + b_dipole
     Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
-    Bfield_proxy.set_points(s_plot.gamma().reshape((-1, 3)))
     qfm_surf = make_qfm(s_plot, Bfield)
     qfm_surf = qfm_surf.surface
-
-    # repeat QFM calculation for the proxy solution
-    Bfield_proxy = bs + b_dipole_proxy
-    qfm_surf_proxy = make_qfm(s, Bfield_proxy)
-    qfm_surf_proxy = qfm_surf_proxy.surface
-    qfm_surf_proxy.plot()
-    qfm_surf_proxy = qfm_surf
     t2 = time.time()
     print("Making the two QFM surfaces took ", t2 - t1, " s")
 
@@ -268,12 +277,6 @@ if vmec_flag:
     vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA"
     equil = Vmec(vmec_input, mpi)
     equil.boundary = qfm_surf
-    equil.run()
-
-    ### Always use the QH VMEC file for the proxy solution and just change the boundary
-    vmec_input = "../../tests/test_files/input.LandremanPaul2021_QH_reactorScale_lowres"
-    equil = Vmec(vmec_input, mpi)
-    equil.boundary = qfm_surf_proxy
     equil.run()
 
 t_end = time.time()

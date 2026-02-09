@@ -751,17 +751,11 @@ class Spec(Optimizable):
         """
         Take a profile from the inputlist, and make it optimizable in 
         simsopt.
+
         Args:
-            longname: string, either 
-                - 'pressure'
-                - 'volume_current'
-                - 'interface_current'
-                - 'iota'
-                - 'oita'
-                - 'mu'
-                - 'pflux'
-                - 'tflux'
-                - 'helicity'
+            longname: string, one of ``"pressure"``, ``"volume_current"``, 
+                ``"interface_current"``, ``"iota"``, ``"oita"``, ``"mu"``, 
+                ``"pflux"``, ``"tflux"`` or ``"helicity"``.
         """
         profile_dict = {
             'pressure': {'specname': 'pressure', 'cumulative': False, 'length': self.nvol},
