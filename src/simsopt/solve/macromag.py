@@ -541,7 +541,7 @@ def _assemble_tensor_local_nb(centres, half, Rg2l):
 @njit(parallel=True, cache=False)
 def assemble_blocks_subset(centres, half, Rg2l, I, J):
     """
-    Assemble a subset of demag tensor blocks (Numba-accelerated when available).
+    Assemble a subset of demag tensor blocks
 
     This helper returns the blocks N[I[ii], J[jj]] without forming the full
     (n,n,3,3) tensor, which is useful for incremental/batched assembly.

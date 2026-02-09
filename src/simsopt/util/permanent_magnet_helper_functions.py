@@ -4,9 +4,11 @@ the permanent magnets functionality in the SIMSOPT code.
 """
 __all__ = [
            'initialize_coils_for_pm_optimization',
+           'initialize_coils',
            'make_optimization_plots', 'run_Poincare_plots_with_permanent_magnets',
            'initialize_default_kwargs',
            'read_focus_coils',
+           'calculate_modB_on_major_radius',
            ]
 
 import numpy as np
@@ -25,6 +27,20 @@ def read_focus_coils(filename):
     """
     from simsopt.util.coil_optimization_helper_functions import read_focus_coils as _read_focus_coils
     return _read_focus_coils(filename)
+
+
+def calculate_modB_on_major_radius(bs, s):
+    """
+    Lightweight wrapper for :func:`simsopt.util.coil_optimization_helper_functions.calculate_modB_on_major_radius`.
+
+    This wrapper keeps the permanent-magnet helper module self-contained for
+    downstream scripts that historically imported this utility from here.
+    """
+    from simsopt.util.coil_optimization_helper_functions import (
+        calculate_modB_on_major_radius as _calculate_modB_on_major_radius,
+    )
+    return _calculate_modB_on_major_radius(bs, s)
+
 
 def initialize_coils_for_pm_optimization(config_flag, TEST_DIR, s, out_dir=''):
     """
@@ -107,6 +123,18 @@ def initialize_coils_for_pm_optimization(config_flag, TEST_DIR, s, out_dir=''):
     curves = [c.curve for c in coils]
     curves_to_vtk(curves, out_dir / "curves_init")
     return base_curves, curves, coils
+
+
+def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
+    """
+    Backwards-compatible wrapper for :func:`initialize_coils_for_pm_optimization`.
+
+    Several older examples and post-processing scripts historically imported
+    ``initialize_coils`` from :mod:`simsopt.util.permanent_magnet_helper_functions`.
+    The canonical name is now :func:`initialize_coils_for_pm_optimization`, but we
+    keep this thin wrapper so downstream scripts continue to work unchanged.
+    """
+    return initialize_coils_for_pm_optimization(config_flag, TEST_DIR, s, out_dir)
 
 
 def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, out_dir=''):
