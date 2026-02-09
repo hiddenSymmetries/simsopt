@@ -3,7 +3,6 @@ from .._core.optimizable import DOFs, Optimizable
 import simsoptpp as sopp
 from simsopt.geo import SurfaceRZFourier
 from scipy.io import netcdf_file
-import warnings
 
 __all__ = ['CurrentPotentialFourier', 'CurrentPotential']
 
