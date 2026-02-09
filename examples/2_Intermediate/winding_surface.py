@@ -8,7 +8,6 @@ from simsoptpp import WindingSurfaceBn_REGCOIL
 from pathlib import Path
 import os
 import time
-from pyevtk.hl import pointsToVTK
 
 TEST_DIR = Path(__file__).parent / ".." / ".." / "tests" / "test_files"
 
@@ -84,7 +83,7 @@ def run_scan():
         s_plasma = cpst.plasma_surface
         normal_coil = s_coil.normal().reshape(-1, 3)
         normN = np.linalg.norm(normal_coil, axis=-1)
-        nfp = s_plasma.nfp
+        _nfp = s_plasma.nfp
         nphi = len(s_plasma.quadpoints_phi)
         ntheta = len(s_plasma.quadpoints_theta)
         points = s_plasma.gamma().reshape(-1, 3)

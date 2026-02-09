@@ -1,12 +1,29 @@
+"""
+QUADCOIL optimization solvers using JAX and optax.
 
+This module provides solvers for Quadratically Constrained Quadratic Programs
+(QCQPs) arising in the QUADCOIL current potential optimization framework.
+It includes unconstrained least-squares solvers, augmented Lagrangian
+constrained solvers, and implicit differentiation through the optimality
+conditions via the Cauchy Implicit Function Theorem.
+
+References:
+    - Optax L-BFGS documentation: https://optax.readthedocs.io/
+    - Augmented Lagrangian method: Bertsekas, *Constrained Optimization
+      and Lagrange Multiplier Methods*, 1982.
+    - Implicit differentiation: arXiv:1911.02590
+"""
+
+from __future__ import annotations
+
+from typing import Callable, Optional
+
+import jax
 import jax.numpy as jnp
 import optax
 import optax.tree_utils as otu
-from jax import jit, vmap, grad, jacrev, jvp
-import jax
+from jax import jit, grad, jacrev, jvp
 from jax.lax import while_loop, scan
-from functools import partial
-import numpy as np
 
 __all__ = [
     'run_opt_lbfgs', 'run_opt_bfgs', 'run_opt_optax', 'solve_quad_unconstrained',
@@ -25,28 +42,96 @@ __all__ = [
 # Wrapper for optax.lbfgs
 
 
-def run_opt_lbfgs(init_params, fun, max_iter, ftol, xtol, gtol): return \
-    run_opt_optax(init_params, fun, max_iter, ftol, xtol, gtol, opt=optax.lbfgs())
+def run_opt_lbfgs(
+    init_params: jax.Array,
+    fun: Callable[[jax.Array], float],
+    max_iter: int,
+    ftol: float,
+    xtol: float,
+    gtol: float,
+) -> jax.Array:
+    """Run QUADCOIL optimization using the optax L-BFGS optimizer.
 
-# Not robust. In here for backup purposes.
+    Thin wrapper around :func:`run_opt_optax` with ``opt=optax.lbfgs()``.
+
+    Args:
+        init_params: Initial parameter vector of shape ``(n,)``.
+        fun: Scalar objective function ``f(x) -> float`` to minimize.
+        max_iter: Maximum number of L-BFGS iterations.
+        ftol: Convergence tolerance on the change in objective value
+            ``|f_{k+1} - f_k|``.
+        xtol: Convergence tolerance on the parameter step size
+            ``||x_{k+1} - x_k||`` and update norm ``||u_{k+1} - u_k||``.
+        gtol: Convergence tolerance on the L2 norm of the gradient.
+
+    Returns:
+        Optimized parameter vector of shape ``(n,)``.
+    """
+    return run_opt_optax(init_params, fun, max_iter, ftol, xtol, gtol, opt=optax.lbfgs())
 
 
-def run_opt_bfgs(init_params, fun, max_iter, ftol, xtol, gtol):
+def run_opt_bfgs(
+    init_params: jax.Array,
+    fun: Callable[[jax.Array], float],
+    max_iter: int,
+    ftol: float,
+    xtol: float,
+    gtol: float,
+) -> jax.Array:
+    """Run QUADCOIL optimization using ``jax.scipy.optimize.minimize`` (BFGS).
+
+    .. warning::
+        This solver is not robust and is included only as a backup.
+        Prefer :func:`run_opt_lbfgs` for production use.
+
+    Args:
+        init_params: Initial parameter vector of shape ``(n,)``.
+        fun: Scalar objective function ``f(x) -> float`` to minimize.
+        max_iter: Maximum number of BFGS iterations.
+        ftol: Unused (kept for API compatibility with other optimizers).
+        xtol: Unused (kept for API compatibility with other optimizers).
+        gtol: Gradient tolerance passed to ``jax.scipy.optimize.minimize``.
+
+    Returns:
+        Optimized parameter vector of shape ``(n,)``.
+    """
     return jax.scipy.optimize.minimize(fun=fun, x0=init_params, method='BFGS', tol=gtol, options={'maxiter': max_iter, }).x
 
 
-def run_opt_optax(init_params, fun, max_iter, ftol, xtol, gtol, opt):
-    """
-    Run a QUADCOIL optimization using optax. 
+def run_opt_optax(
+    init_params: jax.Array,
+    fun: Callable[[jax.Array], float],
+    max_iter: int,
+    ftol: float,
+    xtol: float,
+    gtol: float,
+    opt: optax.GradientTransformation,
+) -> jax.Array:
+    """Run a QUADCOIL optimization using an arbitrary optax optimizer.
+
+    Uses ``jax.lax.while_loop`` for JIT-compatible iteration. The loop
+    terminates when *any* of the following conditions is met:
+
+    * The iteration count reaches *max_iter*.
+    * The L2 gradient norm drops below *gtol*.
+    * The parameter step ``||x_{k+1} - x_k||`` drops below *xtol*.
+    * The update step ``||u_{k+1} - u_k||`` drops below *xtol*.
+    * The objective change ``|f_{k+1} - f_k|`` drops below *ftol*.
 
     Args:
-        init_params: jax array containing initial parameters for optax.
-        fun: The function to optimize.
-        max_iter: Maximum number of iterations.
-        ftol: Tolerance for the function value.
-        xtol: Tolerance for the parameter change.
-        gtol: Tolerance for the gradient.
-        opt: optax optimizer (e.g. ADAM or BFGS).
+        init_params: Initial parameter vector of shape ``(n,)``.
+        fun: Scalar objective function ``f(x) -> float`` to minimize.
+        max_iter: Maximum number of optimizer iterations.
+        ftol: Convergence tolerance on the absolute change in objective value.
+        xtol: Convergence tolerance on the parameter step norm and
+            update step norm.
+        gtol: Convergence tolerance on the L2 norm of the gradient.
+        opt: An optax ``GradientTransformation`` optimizer instance,
+            e.g. ``optax.lbfgs()`` or ``optax.adam(1e-3)``.
+
+    Returns:
+        Optimized parameter vector of shape ``(n,)``, extracted from
+        the final optimizer state.
     """
     value_and_grad_fun = optax.value_and_grad_from_state(fun)
     # Carry is params, update, value, dx, du, df, state1
@@ -92,36 +177,67 @@ def run_opt_optax(init_params, fun, max_iter, ftol, xtol, gtol, opt):
     return (otu.tree_get(final_state, 'params'))
 
 
-def eval_quad_scaled(phi_scaled, A, b, c, current_scale):
-    """
-    Rescaling the objective (the quadratic in phi) by 
-    a scale factor making phi unit-free and order-1 is important
-    because otherwise the gradient may be too shallow.
-    We can't normalize A, b, c to ~1 but not do the same to Phi.
-    current_scale is very necessary - if the unit for 
-    phi is not removed, the gradients of this function 
-    may be too flat or steep.
+def eval_quad_scaled(
+    phi_scaled: jax.Array,
+    A: jax.Array,
+    b: jax.Array,
+    c: jax.Array,
+    current_scale: float | jax.Array,
+) -> jax.Array:
+    """Evaluate a scaled quadratic form ``phi^T A phi + b^T phi + c``.
+
+    The input ``phi_scaled`` is first divided by *current_scale* to
+    recover the physical current potential ``phi``. Rescaling is
+    critical because the physical units of ``phi`` can cause gradients
+    to be either too flat or too steep for the optimizer.
+
+    The relationship is::
+
+        phi = phi_scaled / current_scale
+        result = phi^T A phi + b^T phi + c
 
     Args:
-        phi_scaled: jax array containing the scaled parameters.
-        A: jax array containing the quadratic coefficients.
-        b: jax array containing the linear coefficients.
-        c: jax array containing the constant coefficients.
-        current_scale: jax array containing the current
+        phi_scaled: Scaled (dimensionless, order-1) parameter vector
+            of shape ``(n,)``.
+        A: Quadratic coefficient matrix of shape ``(n, n)`` (or
+            ``(n_constraints, n, n)`` for batched constraints).
+        b: Linear coefficient vector of shape ``(n,)`` (or
+            ``(n_constraints, n)``).
+        c: Constant scalar (or vector of shape ``(n_constraints,)``).
+        current_scale: Scaling factor such that
+            ``phi_scaled / current_scale`` yields the physical current
+            potential with proper units.
+
+    Returns:
+        Scalar value (or array for batched constraints) of the
+        quadratic form.
     """
     phi = phi_scaled / current_scale
     return ((A @ phi) @ phi + b @ phi + c)
 
 
 @jit
-def solve_quad_unconstrained(A, b, c):
-    """
-    Solve the unconstrained QUADCOIL problem.
+def solve_quad_unconstrained(
+    A: jax.Array,
+    b: jax.Array,
+    c: jax.Array,
+) -> tuple[jax.Array, jax.Array]:
+    """Solve the unconstrained QUADCOIL problem via least-squares.
+
+    Minimizes the quadratic ``x^T A x + b^T x + c`` by solving
+    the linear system ``2 A x = -b`` using ``jnp.linalg.lstsq``.
+    This is equivalent to the NESCOIL solution.
 
     Args:
-        A: jax array containing the quadratic coefficients.
-        b: jax array containing the linear coefficients.
-        c: jax array containing the constant coefficients.
+        A: Quadratic coefficient matrix of shape ``(n, n)``.
+        b: Linear coefficient vector of shape ``(n,)``.
+        c: Constant offset (scalar).
+
+    Returns:
+        A tuple ``(x, f)`` where:
+
+        - **x** -- Optimized parameter vector of shape ``(n,)``.
+        - **f** -- Scalar objective value at the optimum.
     """
     x, _, _, _ = jnp.linalg.lstsq(2 * A, -b)  # Solve the least-squares problem
     f = eval_quad_scaled(x, A, b, c, 1)  # rescale the objective
@@ -129,52 +245,79 @@ def solve_quad_unconstrained(A, b, c):
 
 
 def solve_constrained(
-    x_init,
-    f_obj,
-    run_opt,
+    x_init: jax.Array,
+    f_obj: Callable[[jax.Array], float],
+    run_opt: Callable,
     # No constraints by default
-    c_init=0.1,
-    lam_init=jnp.zeros(1, dtype=jnp.float32),
-    h_eq=lambda x: jnp.zeros(1, dtype=jnp.float32),
-    mu_init=jnp.zeros(1, dtype=jnp.float32),
-    g_ineq=lambda x: jnp.zeros(1, dtype=jnp.float32),
-    c_growth_rate=1.1,
-    tol_outer=1e-7,
-    ftol_inner=1e-7,
-    xtol_inner=1e-7,
-    gtol_inner=1e-7,
-    max_iter_inner=500,
-    max_iter_outer=20,
-    scan_mode=False,
-):
-    """
-    A simple augmented Lagrangian implementation for solving 
-    min f(x)
-        subject to 
-        h(x) = 0, g(x) <= 0
+    c_init: float = 0.1,
+    lam_init: jax.Array = jnp.zeros(1, dtype=jnp.float32),
+    h_eq: Callable[[jax.Array], jax.Array] = lambda x: jnp.zeros(1, dtype=jnp.float32),
+    mu_init: jax.Array = jnp.zeros(1, dtype=jnp.float32),
+    g_ineq: Callable[[jax.Array], jax.Array] = lambda x: jnp.zeros(1, dtype=jnp.float32),
+    c_growth_rate: float = 1.1,
+    tol_outer: float = 1e-7,
+    ftol_inner: float = 1e-7,
+    xtol_inner: float = 1e-7,
+    gtol_inner: float = 1e-7,
+    max_iter_inner: int = 500,
+    max_iter_outer: int = 20,
+    scan_mode: bool = False,
+) -> dict | tuple[dict, dict]:
+    """Solve a constrained optimization problem via the augmented Lagrangian method.
 
-    May want a temporary jit flag, because we want 
-    derivatives wrt f and g's contents too.
+    Solves::
+
+        min  f(x)
+        s.t. h(x) = 0   (equality constraints)
+             g(x) <= 0   (inequality constraints)
+
+    The outer loop updates the penalty parameter ``c`` and the Lagrange
+    multipliers ``lam`` (equality) and ``mu`` (inequality) using
+    first-order multiplier updates. Each inner iteration minimizes the
+    augmented Lagrangian sub-problem using the supplied optimizer.
+
+    When ``scan_mode=False`` (default), the outer loop uses
+    ``jax.lax.while_loop`` with convergence checking. When
+    ``scan_mode=True``, it uses ``jax.lax.scan`` for a fixed number
+    of iterations, which enables forward-mode differentiation and
+    records iteration history at the cost of no early stopping.
 
     Args:
-        x_init: jax array containing the initial parameters.
-        f_obj: jax function computing the objective function.
-        run_opt: jax function to run the optiization.
-        c_init: jax array containing the initial penalty parameter.
-        lam_init: jax array containing the initial Lagrange multipliers.
-        h_eq: jax array containing the equality constraints.
-        mu_init: jax array containing the initial Lagrange multipliers.
-        g_ineq: jax array containing the inequality constraints.
-        c_growth_rate: jax array containing the growth rate of the penalty parameter.
-        tol_outer: jax array containing the tolerance for the outer loop.
-        ftol_inner: jax array containing the tolerance for the inner loop.
-        xtol_inner: jax array containing the tolerance for the inner loop.
-        gtol_inner: jax array containing the tolerance for the inner loop.
-        max_iter_inner: jax array containing the maximum number of iterations for the inner loop.
-        max_iter_outer: jax array containing the maximum number of iterations for the outer loop.
-        scan_mode: jax array containing the scan mode flag. If true, uses jax.lax.scan 
-            instead of while_loop. Enables history and forward diff but disables 
-            convergence test.
+        x_init: Initial parameter vector of shape ``(n,)``.
+        f_obj: Scalar objective function ``f(x) -> float``.
+        run_opt: Optimizer callable with signature
+            ``run_opt(x0, fun, max_iter, ftol, xtol, gtol) -> x_opt``.
+        c_init: Initial penalty parameter for the augmented Lagrangian.
+        lam_init: Initial Lagrange multipliers for equality constraints,
+            shape ``(n_eq,)``. Defaults to a single zero (no constraints).
+        h_eq: Equality constraint function ``h(x) -> array(n_eq,)``.
+            The problem enforces ``h(x) = 0``.
+        mu_init: Initial Lagrange multipliers for inequality constraints,
+            shape ``(n_ineq,)``. Defaults to a single zero (no constraints).
+        g_ineq: Inequality constraint function ``g(x) -> array(n_ineq,)``.
+            The problem enforces ``g(x) <= 0``.
+        c_growth_rate: Factor by which the penalty parameter ``c`` is
+            multiplied after each outer iteration.
+        tol_outer: Convergence tolerance for the outer loop. The loop
+            terminates when all constraint violations are below this value.
+        ftol_inner: Objective change tolerance for each inner optimization.
+        xtol_inner: Parameter step tolerance for each inner optimization.
+        gtol_inner: Gradient norm tolerance for each inner optimization.
+        max_iter_inner: Maximum iterations for each inner sub-problem.
+        max_iter_outer: Maximum outer augmented Lagrangian iterations.
+        scan_mode: If ``True``, use ``jax.lax.scan`` instead of
+            ``while_loop``. Enables history tracking and forward-mode
+            differentiation but disables early convergence stopping.
+
+    Returns:
+        If ``scan_mode=False``:
+            A dict with keys ``'x_k'``, ``'f_k'``, ``'c_k'``,
+            ``'lam_k'``, ``'mu_k'``, ``'conv'``, ``'current_niter'``.
+
+        If ``scan_mode=True``:
+            A tuple ``(result, history)`` where *result* is the final
+            state dict and *history* is a dict of per-iteration arrays
+            with keys ``'conv'``, ``'x_k'``, ``'objective'``.
     """
 
     # Has shape n_cons_ineq
@@ -298,31 +441,70 @@ def solve_constrained(
 
 
 def intialize_quad(
-    A_f, b_f, c_f,
-    A_eq, b_eq, c_eq,
-    A_ineq, b_ineq, c_ineq,
-    x_scale,
-    x_memory=None
-):
-    """
-    Convert quadratic coefficients to callables.
-    reused later for reconstructing l_k as a 
-    function of both the current potential and 
-    plasma parameters. Also initializes lam and mu,
-    the two multipliers.
+    A_f: jax.Array,
+    b_f: jax.Array,
+    c_f: jax.Array,
+    A_eq: Optional[jax.Array],
+    b_eq: Optional[jax.Array],
+    c_eq: Optional[jax.Array],
+    A_ineq: Optional[jax.Array],
+    b_ineq: Optional[jax.Array],
+    c_ineq: Optional[jax.Array],
+    x_scale: float | jax.Array,
+    x_memory: Optional[jax.Array] = None,
+) -> tuple[
+    Callable[[jax.Array], jax.Array],
+    Callable[[jax.Array], jax.Array],
+    jax.Array,
+    Callable[[jax.Array], jax.Array],
+    jax.Array,
+]:
+    """Convert QCQP quadratic coefficients into callable functions.
+
+    Constructs the objective ``f_obj(x)``, equality constraint ``h_eq(x)``,
+    and inequality constraint ``g_ineq(x)`` as callables that evaluate
+    the corresponding quadratic forms using :func:`eval_quad_scaled`.
+    Also initializes the Lagrange multiplier vectors ``lam_init`` and
+    ``mu_init`` to zero vectors of the appropriate size.
+
+    When constraint coefficient arrays are ``None``, the corresponding
+    constraint function returns a zero scalar and the multiplier is a
+    single-element zero vector (i.e., no constraint is active).
 
     Args:
-        A_f: jax array containing the quadratic coefficients for the objective.
-        b_f: jax array containing the linear coefficients for the objective.
-        c_f: jax array containing the constant coefficients for the objective.
-        A_eq: jax array containing the quadratic coefficients for the equality constraints.
-        b_eq: jax array containing the linear coefficients for the equality constraints.
-        c_eq: jax array containing the constant coefficients for the equality constraints.
-        A_ineq: jax array containing the quadratic coefficients for the inequality constraints.
-        b_ineq: jax array containing the linear coefficients for the inequality constraints.
-        c_ineq: jax array containing the constant coefficients for the inequality constraints.
-        x_scale: jax array containing the scaling factor for the parameters.
-        x_memory: jax array containing the memory for the initial guess.
+        A_f: Quadratic coefficient matrix for the objective,
+            shape ``(n, n)``.
+        b_f: Linear coefficient vector for the objective,
+            shape ``(n,)``.
+        c_f: Constant offset for the objective (scalar).
+        A_eq: Quadratic coefficient matrices for equality constraints,
+            shape ``(n_eq, n, n)``, or ``None`` if no equality constraints.
+        b_eq: Linear coefficient vectors for equality constraints,
+            shape ``(n_eq, n)``, or ``None``.
+        c_eq: Constant offsets for equality constraints,
+            shape ``(n_eq,)``, or ``None``.
+        A_ineq: Quadratic coefficient matrices for inequality constraints,
+            shape ``(n_ineq, n, n)``, or ``None`` if no inequality constraints.
+        b_ineq: Linear coefficient vectors for inequality constraints,
+            shape ``(n_ineq, n)``, or ``None``.
+        c_ineq: Constant offsets for inequality constraints,
+            shape ``(n_ineq,)``, or ``None``.
+        x_scale: Scaling factor applied inside :func:`eval_quad_scaled`
+            to make the decision variable dimensionless.
+        x_memory: Unused. Reserved for future warm-start functionality.
+
+    Returns:
+        A tuple ``(f_obj, h_eq, lam_init, g_ineq, mu_init)`` where:
+
+        - **f_obj** -- Callable ``f_obj(x) -> scalar`` evaluating the objective.
+        - **h_eq** -- Callable ``h_eq(x) -> array(n_eq,)`` evaluating
+          equality constraints (``h(x) = 0`` at feasibility).
+        - **lam_init** -- Initial Lagrange multipliers for equality
+          constraints, shape ``(n_eq,)`` (zeros).
+        - **g_ineq** -- Callable ``g_ineq(x) -> array(n_ineq,)`` evaluating
+          inequality constraints (``g(x) <= 0`` at feasibility).
+        - **mu_init** -- Initial Lagrange multipliers for inequality
+          constraints, shape ``(n_ineq,)`` (zeros).
     """
     # Defining objective and constraint functions
     def f_obj(x): return eval_quad_scaled(x, A_f, b_f, c_f, x_scale)
@@ -343,53 +525,78 @@ def intialize_quad(
 
 
 def dfdy_from_qcqp(
-    y_to_qcqp_coefs,
-    f_metric_list,
-    y_params,
-    init_mode='zero',
-    x_init=None,
-    run_opt=run_opt_lbfgs,
-    **kwargs
-):
-    """
-    Differentiate the result of a nearly convex QCQP, wrt 
-    parameter "y_param" that determines:
-    A_f, b_f, c_f, (coeffs of the objective "f". Takes x WITH UNIT)
-    A_eq, b_eq, c_eq, (coeffs of the equality constraints. Takes x WITH UNIT)
-    A_ineq, b_ineq, c_ineq, (coeffs of the inequality constraints. Takes x WITH UNIT)
-    x_scale, (a scaling factor based on the UNIT OF x, so that x_with_unit * x_scale ~ 1.)
+    y_to_qcqp_coefs: Callable[[jax.Array], tuple],
+    f_metric_list: list[Callable[[jax.Array, jax.Array], float]],
+    y_params: jax.Array,
+    init_mode: str = 'zero',
+    x_init: Optional[jax.Array] = None,
+    run_opt: Callable = run_opt_lbfgs,
+    **kwargs,
+) -> tuple[jax.Array, list[tuple[jax.Array, jax.Array]], dict]:
+    """Differentiate the QCQP optimum with respect to external parameters.
 
-    Uses Cauchy Implicit Function Theorem.
+    Solves a (nearly convex) QCQP whose coefficients depend on an
+    external parameter vector ``y_params``, then computes the total
+    derivative ``df_i/dy`` for each metric function ``f_i`` in
+    *f_metric_list* using the **Cauchy Implicit Function Theorem**.
+
+    The QCQP has the form::
+
+        min  x^T A_f x + b_f^T x + c_f
+        s.t. x^T A_eq[j] x + b_eq[j]^T x + c_eq[j] = 0   for all j
+             x^T A_ineq[k] x + b_ineq[k]^T x + c_ineq[k] <= 0  for all k
+
+    where all coefficient matrices ``(A_f, b_f, c_f, ...)`` are
+    functions of ``y_params`` via the mapping *y_to_qcqp_coefs*.
+
+    The total derivative is computed as::
+
+        df/dy = nabla_x f * J(x*, y) + nabla_y f
+
+    where the Jacobian ``J = dx*/dy`` is obtained from the implicit
+    function theorem applied to the stationarity condition of the
+    augmented Lagrangian.
 
     Args:
-        y_to_qcqp_coefs: maps
-            maps y_params 
-            -> 
-            A_f, b_f, c_f,          # shape:         (n,n),         (n), 0
-            A_eq, b_eq, c_eq,       # shape: (n_eq,   n,n), (n_eq,   n), n_eq
-            A_ineq, b_ineq, c_ineq, # shape: (n_ineq, n,n), (n_ineq, n), n_ineq
-            x_scale                 # scalar
-            When there are no constraints present, use None.
+        y_to_qcqp_coefs: Callable mapping ``y_params`` to a tuple::
 
-        f_metric_list: list containing [f1, f2, ...] that maps
-            x_with_unit, y_params,  
-            -> 
-            scalar
+            (A_f, b_f, c_f,
+             A_eq, b_eq, c_eq,
+             A_ineq, b_ineq, c_ineq,
+             x_scale)
 
-        y_params: Location to evaluate at.
-        init_mode: Initial guess choice. Available options are 'zero' or 'unconstrained'. 
-        x_init: 
-        run_opt: Optimizer choice. Must have the signature (init_params, fun, max_iter, ftol, xtol, gtol)
-        **kwargs: Will be passed directly into solve_constrained.
+            Use ``None`` for constraint arrays when no constraints
+            are present.
+        f_metric_list: List of scalar metric functions, each with
+            signature ``f(x_with_unit, y_params) -> scalar``. These
+            are the quantities whose derivatives ``df/dy`` are computed.
+        y_params: External parameter vector at which to evaluate.
+        init_mode: Strategy for the initial guess of the inner QCQP:
 
-    Returns: (x, list)
-        x_with_unit:    The optimum of the QCQP, WITH UNIT
-        list: A list containing:
-            [
-                (f1, df1/dy),
-                (f2, df2/dy),
-                ...
-            ] 
+            - ``'zero'``: Start from the zero vector.
+            - ``'unconstrained'``: Start from the unconstrained
+              (NESCOIL) solution.
+            - ``'memory'``: Start from a user-supplied *x_init*.
+        x_init: Initial guess for ``'memory'`` mode (with physical
+            units). Required when ``init_mode='memory'``.
+        run_opt: Optimizer callable with signature
+            ``(x0, fun, max_iter, ftol, xtol, gtol) -> x_opt``.
+            Defaults to :func:`run_opt_lbfgs`.
+        **kwargs: Additional keyword arguments forwarded to
+            :func:`solve_constrained` (e.g. ``c_init``,
+            ``max_iter_inner``, ``tol_outer``).
+
+    Returns:
+        A tuple ``(x_with_unit, out_list, solve_results)`` where:
+
+        - **x_with_unit** -- Optimized current potential with physical
+          units, shape ``(n,)``.
+        - **out_list** -- List of ``(f_value, df_dy)`` tuples, one per
+          metric in *f_metric_list*. ``f_value`` is the scalar metric
+          evaluated at the optimum, and ``df_dy`` is its total
+          derivative with respect to ``y_params``.
+        - **solve_results** -- Dict of augmented Lagrangian solver
+          state (see :func:`solve_constrained`).
     """
     # Calculating quadratic coefficients
     (

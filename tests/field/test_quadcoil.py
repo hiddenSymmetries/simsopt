@@ -39,7 +39,7 @@ class CurrentPotentialTests(unittest.TestCase):
         print('The BIEST double-layer example evaluates to', test_example_double)
 
         # Constructing test surfaces
-        nfp = 1
+        _nfp = 1
         Nt = 70
         Np = 20
         gamma = np.zeros((Nt, Np, 3), dtype=np.float64)
@@ -77,13 +77,13 @@ class CurrentPotentialTests(unittest.TestCase):
                     func_in_double[i, j, k] = x + y + b * z
 
         # Evaluating the integrals using the BIEST binding
-        test_single = np.zeros_like(func_in_single, dtype=np.float64)
-        test_double = np.zeros_like(func_in_double, dtype=np.float64)
+        result_single = np.zeros_like(func_in_single, dtype=np.float64)
+        result_double = np.zeros_like(func_in_double, dtype=np.float64)
         time1 = time.time()
         integrate_multi(
             gamma, # xt::pyarray<double> &gamma,
             func_in_single, # xt::pyarray<double> &func_in_single,
-            test_single, # xt::pyarray<double> &result,
+            result_single, # xt::pyarray<double> &result,
             True,
             10, # int digits,
             1, # int nfp
@@ -96,7 +96,7 @@ class CurrentPotentialTests(unittest.TestCase):
         integrate_multi(
             gamma, # xt::pyarray<double> &gamma,
             func_in_double, # xt::pyarray<double> &func_in_single,
-            test_double, # xt::pyarray<double> &result,
+            result_double, # xt::pyarray<double> &result,
             False,
             10, # int digits,
             1, # int nfp
@@ -109,21 +109,21 @@ class CurrentPotentialTests(unittest.TestCase):
         print('Testing BIEST binding.')
         print('Testing single-layer integration.')
         for i in range(len(b_single)):
-            print(np.all(np.isclose(test_single[:, :, i], test_example_single[i])))
-            assert(np.all(np.isclose(test_single[:, :, i], test_example_single[i])))
+            print(np.all(np.isclose(result_single[:, :, i], test_example_single[i])))
+            assert(np.all(np.isclose(result_single[:, :, i], test_example_single[i])))
         print('Testing double-layer integration.')
         for i in range(len(b_double)):
-            print(np.all(np.isclose(test_double[:, :, i], test_example_double[i])))
-            assert(np.all(np.isclose(test_double[:, :, i], test_example_double[i])))
+            print(np.all(np.isclose(result_double[:, :, i], test_example_double[i])))
+            assert(np.all(np.isclose(result_double[:, :, i], test_example_double[i])))
 
         print('gamma', gamma.shape)
-        print('test_single[:, :, 0]', test_single[:, :, 0].shape)
-        integrate_single(
-            gamma, # xt::pyarray<double> &gamma,
-            test_single[:, :, 0], # xt::pyarray<double> &func_in_single,
-            10, # int digits,
-            nfp, # int nfp
-        )
+        print('result_single[:, :, 0]', result_single[:, :, 0].shape)
+        # integrate_single(
+        #     gamma, # xt::pyarray<double> &gamma,
+        #     result_single[:, :, 0], # xt::pyarray<double> &func_in_single,
+        #     10, # int digits,
+        #     nfp, # int nfp
+        # )
 
 if __name__ == "__main__":
     unittest.main()

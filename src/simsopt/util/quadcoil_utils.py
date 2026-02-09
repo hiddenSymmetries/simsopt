@@ -7,15 +7,12 @@ from scipy.interpolate import CubicSpline
 import os
 import subprocess
 import glob
-import numpy as np
 import matplotlib.pyplot as plt
 import itertools
 from scipy.fft import rfft
 from scipy import interpolate
-from scipy.io import netcdf_file
 from matplotlib import cm, colors
-from mpl_toolkits.mplot3d import Axes3D
-import itertools
+from simsopt.geo import SurfaceRZFourier
 try:
     from shapely.geometry import LineString, MultiPolygon
     from shapely.ops import unary_union, polygonize
@@ -937,7 +934,7 @@ def cvxpy_create_X(n_dof,):
     # us to exactly control y despite having no way
     # to constrain the Phi_i y terms.
     constraints += [
-        cvxpy.trace(utils.sdp_helper_get_elem(-1, -1, n_dof+1) @ X) == 1
+        cvxpy.trace(sdp_helper_get_elem(-1, -1, n_dof+1) @ X) == 1
     ]
     return (X, constraints)
 
@@ -1345,7 +1342,7 @@ def plot_comps(cp, comps, clim_lower, clim_upper):
     len_phi = len(cp.winding_surface.quadpoints_phi)//cp.winding_surface.nfp
     fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(9, 3))
     ax1 = axes[0]
-    pcolor1 = ax1.pcolor(
+    _pcolor1 = ax1.pcolor(
         cp.winding_surface.quadpoints_phi[:len_phi]*np.pi*2,
         cp.winding_surface.quadpoints_theta*np.pi*2,
         comps[:, :, 0],
@@ -1355,7 +1352,7 @@ def plot_comps(cp, comps, clim_lower, clim_upper):
     )
 
     ax2 = axes[1]
-    pcolor2 = ax2.pcolor(
+    _pcolor2 = ax2.pcolor(
         cp.winding_surface.quadpoints_phi[:len_phi]*np.pi*2,
         cp.winding_surface.quadpoints_theta*np.pi*2,
         comps[:, :, 1],
@@ -1376,7 +1373,7 @@ def plot_comps(cp, comps, clim_lower, clim_upper):
     fig.text(0.5, 0, r'Toroidal angle $\zeta$', ha='center')
     fig.text(0.08, 0.5, r'Poloidal angle $\theta$', va='center', rotation='vertical')
     cb_ax = fig.add_axes([0.91, 0.05, 0.01, 0.9])
-    cbar = fig.colorbar(pcolor3, cax=cb_ax, label=r'$(K\cdot\nabla K)_{R, \phi, Z} (A^2/m^3)$')
+    _cbar = fig.colorbar(pcolor3, cax=cb_ax, label=r'$(K\cdot\nabla K)_{R, \phi, Z} (A^2/m^3)$')
     plt.show()
     print('Max comp:', np.max(np.abs(comps)))
     print('Avg comp:', np.average(np.abs(comps)))

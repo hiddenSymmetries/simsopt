@@ -1,11 +1,9 @@
 import unittest
 from pathlib import Path
-import json
 
 import numpy as np
-from monty.json import MontyDecoder, MontyEncoder
 
-from simsopt.field import CurrentPotential, CurrentPotentialFourier
+from simsopt.field import CurrentPotentialFourier
 from simsopt.field import CurrentPotentialSolve
 from simsopt.geo import SurfaceRZFourier
 from scipy.io import netcdf_file
@@ -15,7 +13,7 @@ TEST_DIR = Path(__file__).parent / ".." / "test_files"
 stellsym_list = [True, False]
 
 try:
-    import pyevtk
+    import pyevtk  # noqa: F401
     pyevtk_found = True
 except ImportError:
     pyevtk_found = False
@@ -30,7 +28,7 @@ class CurrentPotentialTests(unittest.TestCase):
             cp.set_current_potential_from_regcoil(filename, -1)
             f = netcdf_file(filename, 'r')
             cp_regcoil = f.variables['single_valued_current_potential_mn'][()][-1, :]
-            xm_regcoil = f.variables['xm_potential'][()]
+            _xm_regcoil = f.variables['xm_potential'][()]
             stellsym = f.variables['symmetry_option'][()]
             if stellsym == 1:
                 stellsym = True
@@ -315,7 +313,7 @@ class CurrentPotentialFourierTests(unittest.TestCase):
                 filename (str): Path to the REGCOIL netcdf file
                 lambda_reg (float): Regularization parameter
             """
-            fB_target = 1e-2
+            _fB_target = 1e-2
             mpol = 4
             ntor = 4
             coil_ntheta_res = 1

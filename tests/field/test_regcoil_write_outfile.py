@@ -1,13 +1,6 @@
 import unittest
-from simsopt.geo import Surface, SurfaceRZFourier
-from matplotlib import pyplot as plt
 import numpy as np
-from simsoptpp import WindingSurfaceBn_REGCOIL
-from simsopt.field.magneticfieldclasses import WindingSurfaceField
-from simsopt.objectives import SquaredFlux
-from simsopt.geo import SurfaceRZFourier
-from simsopt.field import BiotSavart, CurrentPotential, CurrentPotentialFourier, CurrentPotentialSolve
-from scipy.special import ellipk, ellipe
+from simsopt.field import CurrentPotentialSolve
 from pathlib import Path
 from scipy.io import netcdf_file
 np.random.seed(100)
@@ -38,7 +31,7 @@ class Testing(unittest.TestCase):
                 nzeta_coil = f.variables['nzeta_coil'][()]
                 ntheta_coil = f.variables['ntheta_coil'][()]
                 nfp = f.variables['nfp'][()]
-                stellsym = f.variables['symmetry_option'][()]
+                _stellsym = f.variables['symmetry_option'][()]
                 ntheta_plasma = f.variables['ntheta_plasma'][()]
                 K2_regcoil = f.variables['K2'][()][ilambda, :, :]
                 lambda_regcoil = f.variables['lambda'][()][ilambda]
@@ -56,7 +49,7 @@ class Testing(unittest.TestCase):
                 f.close()
 
                 # Compare optimized dofs
-                cp = cpst.current_potential
+                _cp = cpst.current_potential
 
                 # when lambda -> infinity, the L1 and L2 regularized problems should agree
                 optimized_phi_mn_lasso, f_B_lasso, f_K_lasso, _, _ = cpst.solve_lasso(lam=lambda_regcoil)
@@ -91,7 +84,7 @@ class Testing(unittest.TestCase):
                 xm_plasma = f.variables['xm_plasma'][()]
                 xn_plasma = f.variables['xn_plasma'][()]
                 xm_coil = f.variables['xm_coil'][()]
-                xn_coil = f.variables['xn_coil'][()]
+                _xn_coil = f.variables['xn_coil'][()]
                 xm_potential = f.variables['xm_potential'][()]
                 xn_potential = f.variables['xn_potential'][()]
                 theta_coil = f.variables['theta_coil'][()]

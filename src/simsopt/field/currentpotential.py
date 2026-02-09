@@ -1,7 +1,7 @@
 import numpy as np
 from .._core.optimizable import DOFs, Optimizable
 import simsoptpp as sopp
-from simsopt.geo import Surface, SurfaceRZFourier
+from simsopt.geo import SurfaceRZFourier
 from scipy.io import netcdf_file
 
 __all__ = ['CurrentPotentialFourier', 'CurrentPotential']
@@ -270,8 +270,8 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         nfp = f.variables['nfp'][()]
         mpol_potential = f.variables['mpol_potential'][()]
         ntor_potential = f.variables['ntor_potential'][()]
-        xm_potential = f.variables['xm_potential'][()]
-        xn_potential = f.variables['xn_potential'][()]
+        _xm_potential = f.variables['xm_potential'][()]
+        _xn_potential = f.variables['xn_potential'][()]
         symmetry_option = f.variables['symmetry_option'][()]
         single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][ilambda, :]
         f.close()
@@ -306,8 +306,8 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         ntor_potential = f.variables['ntor_potential'][()]
         net_poloidal_current_amperes = f.variables['net_poloidal_current_Amperes'][()]
         net_toroidal_current_amperes = f.variables['net_toroidal_current_Amperes'][()]
-        xm_potential = f.variables['xm_potential'][()]
-        xn_potential = f.variables['xn_potential'][()]
+        _xm_potential = f.variables['xm_potential'][()]
+        _xn_potential = f.variables['xn_potential'][()]
         symmetry_option = f.variables['symmetry_option'][()]
         if symmetry_option == 1:
             stellsym = True
@@ -333,60 +333,24 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         f.close()
         mpol_coil = int(np.max(xm_coil))
         ntor_coil = int(np.max(xn_coil)/nfp)
-
-        # quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(
-        #                 ntheta=ntheta_coil, nphi=nzeta_coil, nfp=nfp, range='full torus')
-
         s_coil = SurfaceRZFourier(nfp=nfp, mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf)
         s_coil = s_coil.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_coil, nphi=nzeta_coil * nfp,
                                          mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf, range='full torus')
 
-        # s_coil = SurfaceRZFourier(nfp=nfp, mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf,
-        #         quadpoints_phi=quadpoints_phi,quadpoints_theta=quadpoints_theta)
         s_coil.set_dofs(0*s_coil.get_dofs())
 
-        # s_coil.rc = 0*s_coil.rc
-        # s_coil.zs = 0*s_coil.zs
         for im in range(len(xm_coil)):
             s_coil.set_rc(xm_coil[im], int(xn_coil[im]/nfp), rmnc_coil[im])
             s_coil.set_zs(xm_coil[im], int(xn_coil[im]/nfp), zmns_coil[im])
-            m = int(xm_coil[im])
-            n = int(xn_coil[im] / nfp)
-            # if (m == 0 and n<0):
-            #     s_coil.set_rc(m, -n, rmnc_coil[im])
-            #     s_coil.set_zs(m, -n, -zmns_coil[im])
-            # else:
-            #     s_coil.set_rc(m, n, rmnc_coil[im])
-            #     s_coil.set_zs(m, n, zmns_coil[im])
+            _m = int(xm_coil[im])
+            _n = int(xn_coil[im] / nfp)
+
             if not stellsym_surf:
                 s_coil.set_rs(xm_coil[im], int(xn_coil[im]/nfp), rmns_coil[im])
                 s_coil.set_zc(xm_coil[im], int(xn_coil[im]/nfp), zmnc_coil[im])
-                # if (m == 0 and n<0):
-                #     s_coil.set_rs(m, -n, -rmns_coil[im])
-                #     s_coil.set_zc(m, -n, zmnc_coil[im])
-                # else:
-                #     s_coil.set_rs(m, n, rmns_coil[im])
-                #     s_coil.set_zc(m, n, zmnc_coil[im])
+
 
         s_coil.local_full_x = s_coil.get_dofs()
-        # for im in range(len(xm_coil)):
-        #     m = int(xm_coil[im])
-        #     n = int(xn_coil[im] / nfp)
-        #     if (m == 0 and n<0):
-        #         s_coil.set_rc(m, -n, rmnc_coil[im])
-        #         s_coil.set_zs(m, -n, -zmns_coil[im])
-        #     else:
-        #         s_coil.set_rc(m, n, rmnc_coil[im])
-        #         s_coil.set_zs(m, n, zmns_coil[im])
-        #     if not stellsym_surf:
-        #         if (m == 0 and n<0):
-        #             s_coil.set_rs(m, -n, -rmns_coil[im])
-        #             s_coil.set_zc(m, -n, zmnc_coil[im])
-        #         else:
-        #             s_coil.set_rs(m, n, rmns_coil[im])
-        #             s_coil.set_zc(m, n, zmnc_coil[im])
-
-        # s_coil.local_full_x = s_coil.get_dofs()
 
         cp = cls(s_coil, mpol=mpol_potential, ntor=ntor_potential,
                  net_poloidal_current_amperes=net_poloidal_current_amperes,

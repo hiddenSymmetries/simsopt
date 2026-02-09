@@ -4,6 +4,7 @@ import numpy as np
 from simsopt.util import avg_order_of_magnitude, sin_or_cos, project_arr_cylindrical
 from functools import partial
 from jax import jit
+import jax.numpy as jnp
 
 try:
     # biest function -- biest requires openmp to run
@@ -1023,7 +1024,7 @@ def K2(
     'nfp',
     'stellsym',
 ])
-def K_theta(
+def K_theta(  # noqa: F811
         net_poloidal_current_amperes,
         quadpoints_phi,
         quadpoints_theta,
@@ -1387,7 +1388,7 @@ def self_force_cylindrical(cp, current_scale, normalize=True, skip_integral=Fals
     ))
     result_single = np.zeros_like(integrand_single_cylindrical_reshaped)
     result_double = np.zeros_like(integrand_double_cylindrical_reshaped)
-    if integrate_multi == None:
+    if integrate_multi is None:
         raise ImportError("BIEST not found. Please install BIEST (requires openmp).")
     integrate_multi(
         gamma_1fp,  # xt::pyarray<double> &gamma,
@@ -1444,7 +1445,7 @@ def self_force_cylindrical(cp, current_scale, normalize=True, skip_integral=Fals
     'nfp', 'cp_m', 'cp_n',
     'stellsym',
 ])
-def self_force_integrands_xyz(
+def self_force_integrands_xyz(  # noqa: F811
         normal,
         unitnormal,
         gammadash1,
@@ -1792,7 +1793,7 @@ def self_force_cylindrical_BIEST(
     ))
     result_single_concat = jnp.zeros_like(integrand_single_concat_cylindrical_reshaped)
     result_double_concat = jnp.zeros_like(integrand_double_concat_cylindrical_reshaped)
-    if integrate_multi == None:
+    if integrate_multi is None:
         raise ImportError("BIEST not found. Please install BIEST (requires openmp).")
     integrate_multi(
         gamma_1fp,  # xt::pyarray<double> &gamma,

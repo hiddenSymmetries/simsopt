@@ -1,5 +1,5 @@
 import unittest
-from simsopt.field.currentpotential import CurrentPotential, CurrentPotentialFourier
+from simsopt.field.currentpotential import CurrentPotentialFourier
 import numpy as np
 from simsopt.geo import SurfaceRZFourier
 

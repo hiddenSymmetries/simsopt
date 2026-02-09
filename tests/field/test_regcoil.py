@@ -1,12 +1,11 @@
 import unittest
-from simsopt.geo import Surface, SurfaceRZFourier
+from simsopt.geo import SurfaceRZFourier
 from matplotlib import pyplot as plt
 import numpy as np
 from simsoptpp import WindingSurfaceBn_REGCOIL
 from simsopt.field.magneticfieldclasses import WindingSurfaceField
 from simsopt.objectives import SquaredFlux
-from simsopt.geo import SurfaceRZFourier
-from simsopt.field import BiotSavart, CurrentPotential, CurrentPotentialFourier, CurrentPotentialSolve
+from simsopt.field import CurrentPotentialFourier, CurrentPotentialSolve
 from scipy.special import ellipk, ellipe
 from pathlib import Path
 from scipy.io import netcdf_file
@@ -45,7 +44,7 @@ class Testing(unittest.TestCase):
         # compute the Bfield from this current loop at some points
         Bfield = WindingSurfaceField(current_potential)
         N = 1000
-        phi = winding_surface.quadpoints_phi
+        _phi = winding_surface.quadpoints_phi
 
         # Check that the full expression is correct
         points = (np.random.rand(N, 3) - 0.5) * 10
@@ -53,7 +52,7 @@ class Testing(unittest.TestCase):
         B_predict = Bfield.B()
         dB_predict = Bfield.dB_by_dX()
         A_predict = Bfield.A()
-        dA_predict = Bfield.dA_by_dX()
+        _dA_predict = Bfield.dA_by_dX()
 
         # calculate the Bfield analytically in spherical coordinates
         mu_fac = 1e-7
@@ -223,18 +222,18 @@ class Testing(unittest.TestCase):
                 r_coil = f.variables['r_coil'][()]
                 nzeta_plasma = f.variables['nzeta_plasma'][()]
                 nzeta_coil = f.variables['nzeta_coil'][()]
-                ntheta_coil = f.variables['ntheta_coil'][()]
-                nfp = f.variables['nfp'][()]
-                ntheta_plasma = f.variables['ntheta_plasma'][()]
+                _ntheta_coil = f.variables['ntheta_coil'][()]
+                _nfp = f.variables['nfp'][()]
+                _ntheta_plasma = f.variables['ntheta_plasma'][()]
                 K2_regcoil = f.variables['K2'][()][ilambda, :, :]
                 lambda_regcoil = f.variables['lambda'][()][ilambda]
                 b_rhs_regcoil = f.variables['RHS_B'][()]
                 k_rhs_regcoil = f.variables['RHS_regularization'][()]
                 single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][ilambda, :]
-                xm_potential = f.variables['xm_potential'][()]
-                xn_potential = f.variables['xn_potential'][()]
-                theta_coil = f.variables['theta_coil'][()]
-                zeta_coil = f.variables['zeta_coil'][()]
+                _xm_potential = f.variables['xm_potential'][()]
+                _xn_potential = f.variables['xn_potential'][()]
+                _theta_coil = f.variables['theta_coil'][()]
+                _zeta_coil = f.variables['zeta_coil'][()]
                 f_B_regcoil = 0.5 * f.variables['chi2_B'][()][ilambda]
                 f_K_regcoil = 0.5 * f.variables['chi2_K'][()][ilambda]
                 norm_normal_plasma = f.variables['norm_normal_plasma'][()]
@@ -281,7 +280,7 @@ class Testing(unittest.TestCase):
                 points = s_plasma.gamma().reshape(-1, 3)
                 Bfield.set_points(points)
                 B = Bfield.B()
-                norm_normal = np.linalg.norm(s_plasma.normal(), axis=2) / (2 * np.pi * 2 * np.pi)
+                _norm_normal = np.linalg.norm(s_plasma.normal(), axis=2) / (2 * np.pi * 2 * np.pi)
                 normal = s_plasma.unitnormal().reshape(-1, 3)
                 B_GI_winding_surface = np.sum(B * normal, axis=1)
                 assert np.allclose(B_GI_winding_surface, np.ravel(Bnormal_from_net_coil_currents))
@@ -304,8 +303,8 @@ class Testing(unittest.TestCase):
                 Bfield_opt.set_points(s_plasma.gamma().reshape(-1, 3))
                 B = Bfield_opt.B()
                 normal = s_plasma.unitnormal().reshape(-1, 3)
-                Bn_opt = np.sum(B * normal, axis=1)
-                nfp = cpst.plasma_surface.nfp
+                _Bn_opt = np.sum(B * normal, axis=1)
+                _nfp = cpst.plasma_surface.nfp
                 nphi = len(cpst.plasma_surface.quadpoints_phi)
                 ntheta = len(cpst.plasma_surface.quadpoints_theta)
                 f_B_sq = SquaredFlux(
@@ -411,9 +410,9 @@ class Testing(unittest.TestCase):
             f_K_regcoil = 0.5 * f.variables['chi2_K'][()]
             b_rhs_regcoil = f.variables['RHS_B'][()]
             k_rhs_regcoil = f.variables['RHS_regularization'][()]
-            xm_potential = f.variables['xm_potential'][()]
-            xn_potential = f.variables['xn_potential'][()]
-            nfp = f.variables['nfp'][()]
+            _xm_potential = f.variables['xm_potential'][()]
+            _xn_potential = f.variables['xn_potential'][()]
+            _nfp = f.variables['nfp'][()]
             single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()]
             norm_normal_plasma = f.variables['norm_normal_plasma'][()]
             current_potential_thetazeta = f.variables['single_valued_current_potential_thetazeta'][()]
@@ -554,10 +553,10 @@ class Testing(unittest.TestCase):
                 # Check f_B from SquaredFlux and f_B from least-squares agree
                 Bfield_opt = WindingSurfaceField(cpst.current_potential)
                 Bfield_opt.set_points(s_plasma.gamma().reshape(-1, 3))
-                nfp = cpst.plasma_surface.nfp
+                _nfp = cpst.plasma_surface.nfp
                 nphi = len(cpst.plasma_surface.quadpoints_phi)
                 ntheta = len(cpst.plasma_surface.quadpoints_theta)
-                f_B_sq = SquaredFlux(
+                _f_B_sq = SquaredFlux(
                     s_plasma,
                     Bfield_opt,
                     -np.ascontiguousarray(cpst.Bnormal_plasma.reshape(nphi, ntheta))

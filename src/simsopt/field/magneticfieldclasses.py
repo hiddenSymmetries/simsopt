@@ -11,6 +11,7 @@ except ImportError:
     sympy_found = False
 
 import simsoptpp as sopp
+from monty.json import MontyDecoder
 from .magneticfield import MagneticField
 from .._core.json import GSONDecoder
 
