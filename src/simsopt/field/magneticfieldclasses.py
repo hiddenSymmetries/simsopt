@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = ['ToroidalField', 'PoloidalField', 'ScalarPotentialRZMagneticField',
            'CircularCoil', 'Dommaschk', 'Reiman', 'InterpolatedField', 'DipoleField',
-           'MirrorModel']
+           'MirrorModel', 'WindingSurfaceField']
 
 
 class ToroidalField(MagneticField):

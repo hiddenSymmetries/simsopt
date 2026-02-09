@@ -3,6 +3,7 @@ from .._core.optimizable import DOFs, Optimizable
 import simsoptpp as sopp
 from simsopt.geo import SurfaceRZFourier
 from scipy.io import netcdf_file
+import warnings
 
 __all__ = ['CurrentPotentialFourier', 'CurrentPotential']
 
@@ -68,7 +69,8 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
     def __init__(self, winding_surface, net_poloidal_current_amperes=1,
                  net_toroidal_current_amperes=0, nfp=None, stellsym=None,
                  mpol=None, ntor=None,
-                 quadpoints_phi=None, quadpoints_theta=None):
+                #  quadpoints_phi=None, quadpoints_theta=None
+                 ):
 
         if nfp is None:
             nfp = winding_surface.nfp
@@ -79,13 +81,22 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         if ntor is None:
             ntor = winding_surface.ntor
 
-        if quadpoints_theta is None:
-            quadpoints_theta = winding_surface.quadpoints_theta
-        if quadpoints_phi is None:
-            quadpoints_phi = winding_surface.quadpoints_phi
+        if np.max(winding_surface.quadpoints_phi)<=1/nfp:
+            raise AttributeError('winding_surface must contain all field periods.')
+
+        # quadpoints_phi or quadpoints_theta has to be the same as those 
+        # in the winding surface. Otherwise, it can cause issues during 
+        # CurrentPotential.K(), CurrentPotential.K_matrix and 
+        # in WindingSurfaceField.__init__().
+        # if quadpoints_theta is None:
+        #     quadpoints_theta = winding_surface.quadpoints_theta
+        # if quadpoints_phi is None:
+        #     quadpoints_phi = winding_surface.quadpoints_phi
 
         sopp.CurrentPotentialFourier.__init__(self, mpol, ntor, nfp, stellsym,
-                                              quadpoints_phi, quadpoints_theta, net_poloidal_current_amperes,
+                                            #   quadpoints_phi, quadpoints_theta, 
+                                              winding_surface.quadpoints_phi, winding_surface.quadpoints_theta, 
+                                              net_poloidal_current_amperes,
                                               net_toroidal_current_amperes)
 
         CurrentPotential.__init__(self, winding_surface, x0=self.get_dofs(),

@@ -74,7 +74,6 @@ if(DEFINED ENV{CONDA_PREFIX})
 endif()
 
 find_package(OpenMP)
-
 find_package(Boost 1.76.0)
 if(Boost_FOUND)
     message(STATUS "Boost version is ${Boost_VERSION_STRING}")
@@ -137,7 +136,6 @@ if(OpenMP_CXX_FOUND)
         src/simsoptpp/python_currentpotential.cpp
         src/simsoptpp/currentpotential.cpp 
         src/simsoptpp/currentpotentialfourier.cpp
-        src/simsoptpp/biest_call.cpp  # BIEST requires openmp!
         )
 else()
     pybind11_add_module(${PROJECT_NAME}
@@ -167,13 +165,8 @@ set_target_properties(${PROJECT_NAME}
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON)
 
-if(OpenMP_CXX_FOUND)
-    target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
-    target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt-header-only OpenMP::OpenMP_CXX)
-else()
-    target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
-    target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt-header-only)
-endif()
+target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
+target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt-header-only)
 
 if(NOT Boost_FOUND)
     add_dependencies(${PROJECT_NAME} ${boost_target})
@@ -181,25 +174,18 @@ endif()
 set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-I${Boost_INCLUDE_DIRS}")
 # target_link_libraries(${PROJECT_NAME} PRIVATE pybind11::module Boost::headers)
 
-
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
+endif()
 
 add_executable(profiling EXCLUDE_FROM_ALL src/profiling/profiling.cpp src/simsoptpp/biot_savart_c.cpp src/simsoptpp/biot_savart_vjp_c.cpp src/simsoptpp/regular_grid_interpolant_3d_c.cpp)
 set_target_properties(profiling
     PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON)
-# target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
-# if(OpenMP_CXX_FOUND)
-#     target_include_directories(profiling PRIVATE  )
-#     endif()
-# target_link_libraries(profiling PRIVATE fmt::fmt-header-only)
-if(OpenMP_CXX_FOUND)
-    target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
-    target_link_libraries(profiling PRIVATE fmt::fmt-header-only OpenMP::OpenMP_CXX)
-else()
-    target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
-    target_link_libraries(profiling PRIVATE fmt::fmt-header-only)
-endif()
+target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
+target_link_libraries(profiling PRIVATE fmt::fmt-header-only)
+
 
 
 #get_cmake_property(_variableNames VARIABLES)

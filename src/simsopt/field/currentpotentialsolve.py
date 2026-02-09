@@ -25,6 +25,10 @@ class CurrentPotentialSolve:
     """
 
     def __init__(self, cp, plasma_surface, Bnormal_plasma):
+        
+        if np.max(plasma_surface.quadpoints_phi)>=1/plasma_surface.nfp:
+            raise AttributeError('winding_surface must contain only one field period.')
+
         self.current_potential = cp
         self.winding_surface = self.current_potential.winding_surface
         self.ndofs = self.current_potential.num_dofs()

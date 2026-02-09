@@ -16,6 +16,3 @@
 [submodule "thirdparty/fmt"]
 	path = thirdparty/fmt
 	url = https://github.com/fmtlib/fmt.git
-[submodule "thirdparty/BIEST"]
-	path = thirdparty/BIEST
-	url = https://github.com/dmalhotra/BIEST.git

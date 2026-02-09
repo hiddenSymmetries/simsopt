@@ -10,9 +10,3 @@ ruamel.yaml
 sympy
 f90nml
 pyevtk
-cvxpy
-optax
-interpax
-lineax
-mosek
-pyvista
