@@ -154,7 +154,10 @@ else()
         src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp 
         src/simsoptpp/winding_surface.cpp
         src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp
-        src/simsoptpp/boozerradialinterpolant.cpp src/simsoptpp/python_currentpotential.cpp
+        src/simsoptpp/magneticfield_wireframe.cpp
+        src/simsoptpp/boozerradialinterpolant.cpp
+        src/simsoptpp/wireframe_optimization.cpp
+        src/simsoptpp/python_currentpotential.cpp
         src/simsoptpp/currentpotential.cpp src/simsoptpp/currentpotentialfourier.cpp
     )
 endif()

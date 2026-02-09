@@ -1,6 +1,9 @@
 # Import packages.
 import jax.numpy as jnp
-import cvxpy
+try:
+    import cvxpy
+except ImportError:
+    cvxpy = None
 import numpy as np
 from scipy.spatial import ConvexHull
 from scipy.interpolate import CubicSpline
@@ -12,7 +15,6 @@ import itertools
 from scipy.fft import rfft
 from scipy import interpolate
 from matplotlib import cm, colors
-from simsopt.geo import SurfaceRZFourier
 try:
     from shapely.geometry import LineString, MultiPolygon
     from shapely.ops import unary_union, polygonize
@@ -382,6 +384,7 @@ def gen_normal_winding_surface(source_surface, d_expand):
         d_expand: 
             The plasma-winding surface offset distance desired.
     """
+    from simsopt.geo import SurfaceRZFourier
     # Expanding plasma surface to winding surface
     len_phi = len(source_surface.quadpoints_phi)
     len_phi_full_fp = len_phi * source_surface.nfp

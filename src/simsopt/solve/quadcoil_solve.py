@@ -20,8 +20,12 @@ from typing import Callable, Optional
 
 import jax
 import jax.numpy as jnp
-import optax
-import optax.tree_utils as otu
+try:
+    import optax
+    import optax.tree_utils as otu
+except ImportError:
+    optax = None
+    otu = None
 from jax import jit, grad, jacrev, jvp
 from jax.lax import while_loop, scan
 
