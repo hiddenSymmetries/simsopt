@@ -7,6 +7,7 @@ from simsopt.field import CurrentPotentialFourier
 from simsopt.field import CurrentPotentialSolve
 from simsopt.geo import SurfaceRZFourier
 from scipy.io import netcdf_file
+from simsopt.util import in_github_actions
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
@@ -26,7 +27,7 @@ class CurrentPotentialTests(unittest.TestCase):
             filename = TEST_DIR / filename
             cp = CurrentPotentialFourier.from_netcdf(filename)
             cp.set_current_potential_from_regcoil(filename, -1)
-            f = netcdf_file(filename, 'r')
+            f = netcdf_file(filename, 'r', mmap=False)
             cp_regcoil = f.variables['single_valued_current_potential_mn'][()][-1, :]
             _xm_regcoil = f.variables['xm_potential'][()]
             stellsym = f.variables['symmetry_option'][()]
@@ -374,7 +375,8 @@ class CurrentPotentialFourierTests(unittest.TestCase):
         plt.ylabel(r'$\theta$')
         plt.xlabel(r'$\phi$')
         plt.title(r'$\Phi_{normal}$')
-        plt.show()
+        if not in_github_actions:
+            plt.show()
 
 
 if __name__ == "__main__":

@@ -275,7 +275,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
             ilambda: 0-based index for the lambda array, indicating which current
                 potential solution to use
         """
-        f = netcdf_file(filename, 'r')
+        f = netcdf_file(filename, 'r', mmap=False)
         nfp = f.variables['nfp'][()]
         mpol_potential = f.variables['mpol_potential'][()]
         ntor_potential = f.variables['ntor_potential'][()]
@@ -309,7 +309,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         Args:
             filename: Name of the ``regcoil_out.*.nc`` file to read.
         """
-        f = netcdf_file(filename, 'r')
+        f = netcdf_file(filename, 'r', mmap=False)
         nfp = f.variables['nfp'][()]
         mpol_potential = f.variables['mpol_potential'][()]
         ntor_potential = f.variables['ntor_potential'][()]

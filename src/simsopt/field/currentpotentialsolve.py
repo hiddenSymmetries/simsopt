@@ -99,7 +99,7 @@ class CurrentPotentialSolve:
         Args:
             filename: Name of the ``regcoil_out.*.nc`` file to read.
         """
-        f = netcdf_file(filename, 'r')
+        f = netcdf_file(filename, 'r', mmap=False)
         nfp = f.variables['nfp'][()]
         Bnormal_from_plasma_current = f.variables['Bnormal_from_plasma_current'][()]
         rmnc_plasma = f.variables['rmnc_plasma'][()]
@@ -246,11 +246,15 @@ class CurrentPotentialSolve:
         Bnormal_totals_l1 = []
         if len(self.ilambdas_l2) > 0:
             for i, ilambda in enumerate(self.ilambdas_l2):
-                Bnormal_regcoil_sv = sopp.WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, self.current_potential_l2[i], normal) * dtheta_coil * dzeta_coil
+                # current_potential_l2 stores 1 field period; tile to full torus for WindingSurfaceBn_REGCOIL
+                cp_full = np.tile(self.current_potential_l2[i], (nfp, 1))
+                Bnormal_regcoil_sv = sopp.WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, cp_full, normal) * dtheta_coil * dzeta_coil
                 Bnormal_totals.append((Bnormal_regcoil_sv + self.B_GI + self.Bnormal_plasma).reshape(self.ntheta_plasma, self.nzeta_plasma))
         if len(self.ilambdas_l1) > 0:
             for i, ilambda in enumerate(self.ilambdas_l1):
-                Bnormal_regcoil_sv = sopp.WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, self.current_potential_l1[i], normal) * dtheta_coil * dzeta_coil
+                # current_potential_l1 stores 1 field period; tile to full torus for WindingSurfaceBn_REGCOIL
+                cp_full = np.tile(self.current_potential_l1[i], (nfp, 1))
+                Bnormal_regcoil_sv = sopp.WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, cp_full, normal) * dtheta_coil * dzeta_coil
                 Bnormal_totals_l1.append((Bnormal_regcoil_sv + self.B_GI + self.Bnormal_plasma).reshape(self.ntheta_plasma, self.nzeta_plasma))
 
         vectors = ['Bnormal_from_plasma_current', 'Bnormal_from_net_coil_currents',
@@ -266,6 +270,7 @@ class CurrentPotentialSolve:
                    'current_potential',
                    'K2', 'lambda', 'chi2_B', 'chi2_K', 'Bnormal_total',
                    'single_valued_current_potential_mn_l1', 'single_valued_current_potential_thetazeta_l1',
+                   'current_potential_l1',
                    'K2_l1', 'lambda_l1', 'chi2_B_l1', 'chi2_K_l1', 'Bnormal_total_l1'
                    ]
 
@@ -316,8 +321,10 @@ class CurrentPotentialSolve:
                             RHS_B, self.K_rhs(), norm_normal_plasma, norm_normal_coil,
                             np.array(self.dofs_l2), np.array(self.current_potential_l2),
                             np.array(current_potential),
-                            np.array(self.K2s_l2)[:, :self.nzeta_coil // w.nfp, :], np.array(self.ilambdas_l2),
-                            2 * np.array(self.fBs_l2), 2 * np.array(self.fKs_l2), np.array(Bnormal_totals),
+                            np.array(self.K2s_l2)[:, :self.nzeta_coil // w.nfp, :], 
+                            np.array(self.ilambdas_l2),
+                            2 * np.array(self.fBs_l2), 2 * np.array(self.fKs_l2), 
+                            np.array(Bnormal_totals),
                             np.array(self.dofs_l1), np.array(self.current_potential_l1),
                             np.array(current_potential_l1),
                             np.array(self.K2s_l1)[:, :self.nzeta_coil // w.nfp, :], np.array(self.ilambdas_l1),

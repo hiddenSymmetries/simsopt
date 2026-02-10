@@ -76,7 +76,7 @@ class Testing(unittest.TestCase):
             Ay[i] = np.cos(phi_points[i]) * Aphi[i]
         A_analytic_elliptic = np.array([Ax, Ay, np.zeros(len(Aphi))]).T
 
-        assert np.allclose(A_predict, A_analytic_elliptic)
+        np.testing.assert_allclose(A_predict, A_analytic_elliptic, err_msg="A_predict != A_analytic (near-field elliptic)")
 
         # now check the Bfield and shape derivatives using the analytic
         # expressions that can be derived by hand or found here
@@ -98,7 +98,7 @@ class Testing(unittest.TestCase):
             Bz[i] = np.cos(theta_points[i]) * Br[i] - np.sin(theta_points[i]) * Btheta[i]
         B_analytic = np.array([Bx, By, Bz]).T
 
-        assert np.allclose(B_predict, B_analytic)
+        np.testing.assert_allclose(B_predict, B_analytic, err_msg="B_predict != B_analytic (near-field)")
 
         x = points[:, 0]
         y = points[:, 1]
@@ -119,7 +119,7 @@ class Testing(unittest.TestCase):
                                              [By_dx, By_dy, By_dz],
                                              [Bz_dx, Bz_dy, Bz_dz]]), [2, 0, 1])
 
-        assert np.allclose(dB_predict, dB_analytic, rtol=1e-2)
+        np.testing.assert_allclose(dB_predict, dB_analytic, rtol=1e-2, err_msg="dB_predict != dB_analytic")
 
         # Now check that the far-field looks like a dipole
         points = (np.random.rand(N, 3) + 1) * 1000
@@ -148,7 +148,7 @@ class Testing(unittest.TestCase):
             Ay[i] = np.cos(phi_points[i]) * Aphi[i]
         A_analytic_elliptic = np.array([Ax, Ay, np.zeros(len(Aphi))]).T
 
-        assert np.allclose(A_predict, A_analytic_elliptic)
+        np.testing.assert_allclose(A_predict, A_analytic_elliptic, err_msg="A_predict != A_analytic (far-field elliptic, pass 1)")
 
         # Now check that the far-field looks like a dipole
         points = (np.random.rand(N, 3) + 1) * 1000
@@ -180,7 +180,7 @@ class Testing(unittest.TestCase):
             Ay[i] = np.cos(phi_points[i]) * Aphi[i]
         A_analytic_elliptic = np.array([Ax, Ay, np.zeros(len(Aphi))]).T
 
-        assert np.allclose(A_predict, A_analytic_elliptic)
+        np.testing.assert_allclose(A_predict, A_analytic_elliptic, err_msg="A_predict != A_analytic (far-field elliptic, pass 2)")
 
         # double check with vector potential of a dipole
         Aphi = np.pi * mu_fac * np.sin(theta) / r ** 2
@@ -193,7 +193,7 @@ class Testing(unittest.TestCase):
             Ay[i] = np.cos(phi_points[i]) * Aphi[i]
         A_analytic = np.array([Ax, Ay, np.zeros(len(Aphi))]).T
 
-        assert np.allclose(A_predict, A_analytic)
+        np.testing.assert_allclose(A_predict, A_analytic, atol=1e-12, err_msg="A_predict != A_analytic (far-field dipole)")
 
     def test_regcoil_K_solve(self):
         """
@@ -214,7 +214,7 @@ class Testing(unittest.TestCase):
 
             for ilambda in range(1, 3):
                 # Load in big list of variables from REGCOIL to check agree with SIMSOPT
-                f = netcdf_file(filename, 'r')
+                f = netcdf_file(filename, 'r', mmap=False)
                 Bnormal_regcoil_total = f.variables['Bnormal_total'][()][ilambda, :, :]
                 Bnormal_from_plasma_current = f.variables['Bnormal_from_plasma_current'][()]
                 Bnormal_from_net_coil_currents = f.variables['Bnormal_from_net_coil_currents'][()]
@@ -242,11 +242,11 @@ class Testing(unittest.TestCase):
                 Bnormal_single_valued = Bnormal_regcoil_total - Bnormal_from_plasma_current - Bnormal_from_net_coil_currents
                 print('ilambda index = ', ilambda, lambda_regcoil)
 
-                assert np.allclose(b_rhs_regcoil, b_rhs_simsopt)
-                assert np.allclose(k_rhs, k_rhs_regcoil)
+                np.testing.assert_allclose(b_rhs_regcoil, b_rhs_simsopt, err_msg="b_rhs_regcoil != b_rhs_simsopt")
+                np.testing.assert_allclose(k_rhs, k_rhs_regcoil, err_msg="k_rhs != k_rhs_regcoil")
 
                 # Compare Bnormal from plasma
-                assert np.allclose(cpst.Bnormal_plasma, Bnormal_from_plasma_current.flatten())
+                np.testing.assert_allclose(cpst.Bnormal_plasma, Bnormal_from_plasma_current.flatten(), err_msg="Bnormal_plasma mismatch")
 
                 # Compare optimized dofs
                 cp = cpst.current_potential
@@ -254,25 +254,26 @@ class Testing(unittest.TestCase):
                 # when lambda -> infinity, the L1 and L2 regularized problems should agree
                 optimized_phi_mn_lasso, f_B_lasso, f_K_lasso, _, _ = cpst.solve_lasso(lam=lambda_regcoil)
                 optimized_phi_mn, f_B, f_K = cpst.solve_tikhonov(lam=lambda_regcoil)
-                assert np.allclose(single_valued_current_potential_mn, optimized_phi_mn)
+                np.testing.assert_allclose(single_valued_current_potential_mn, optimized_phi_mn, err_msg="single_valued_current_potential_mn != optimized_phi_mn (Tikhonov)")
                 print(optimized_phi_mn_lasso, optimized_phi_mn)
                 print(f_B, f_B_lasso, f_B_regcoil)
-                assert np.isclose(f_B, f_B_regcoil)
+                np.testing.assert_allclose(f_B, f_B_regcoil, err_msg="f_B (Tikhonov) != f_B_regcoil")
                 # assert np.isclose(f_K_lasso, f_K)
-                assert np.allclose(optimized_phi_mn_lasso, optimized_phi_mn)
+                np.testing.assert_allclose(optimized_phi_mn_lasso, optimized_phi_mn, err_msg="optimized_phi_mn_lasso != optimized_phi_mn")
 
                 # Compare plasma surface position
-                assert np.allclose(r_plasma[0:nzeta_plasma, :, :], s_plasma.gamma())
+                np.testing.assert_allclose(r_plasma[0:nzeta_plasma, :, :], s_plasma.gamma(), err_msg="plasma surface position mismatch")
 
                 # Compare plasma surface normal
-                assert np.allclose(
+                np.testing.assert_allclose(
                     norm_normal_plasma[0:nzeta_plasma, :],
-                    np.linalg.norm(s_plasma.normal(), axis=2) / (2 * np.pi * 2 * np.pi)
+                    np.linalg.norm(s_plasma.normal(), axis=2) / (2 * np.pi * 2 * np.pi),
+                    err_msg="plasma surface normal mismatch"
                 )
 
                 # Compare winding surface position
                 s_coil = cp.winding_surface
-                assert np.allclose(r_coil, s_coil.gamma())
+                np.testing.assert_allclose(r_coil, s_coil.gamma(), atol=1e-12, err_msg="winding surface position mismatch")
 
                 # Compare field from net coil currents
                 cp_GI = CurrentPotentialFourier.from_netcdf(filename)
@@ -283,8 +284,8 @@ class Testing(unittest.TestCase):
                 _norm_normal = np.linalg.norm(s_plasma.normal(), axis=2) / (2 * np.pi * 2 * np.pi)
                 normal = s_plasma.unitnormal().reshape(-1, 3)
                 B_GI_winding_surface = np.sum(B * normal, axis=1)
-                assert np.allclose(B_GI_winding_surface, np.ravel(Bnormal_from_net_coil_currents))
-                assert np.allclose(cpst.B_GI, np.ravel(Bnormal_from_net_coil_currents))
+                np.testing.assert_allclose(B_GI_winding_surface, np.ravel(Bnormal_from_net_coil_currents), atol=1e-12, err_msg="B_GI from WindingSurfaceField != Bnormal_from_net_coil_currents")
+                np.testing.assert_allclose(cpst.B_GI, np.ravel(Bnormal_from_net_coil_currents), atol=1e-12, err_msg="cpst.B_GI != Bnormal_from_net_coil_currents")
 
                 # Compare single-valued current potential
                 # Initialization not from netcdf
@@ -296,7 +297,7 @@ class Testing(unittest.TestCase):
                     ntor=cp_GI.ntor,  # critical line here
                 )
                 cp_no_GI.set_dofs(optimized_phi_mn)
-                assert np.allclose(cp_no_GI.Phi()[0:nzeta_coil, :], current_potential_thetazeta)
+                np.testing.assert_allclose(cp_no_GI.Phi()[0:nzeta_coil, :], current_potential_thetazeta, atol=1e-10, err_msg="single-valued current potential Phi mismatch")
 
                 # Check that f_B from SquaredFlux and f_B from least-squares agree
                 Bfield_opt = WindingSurfaceField(cp)
@@ -320,22 +321,22 @@ class Testing(unittest.TestCase):
                 # assert np.isclose(f_B, f_B_regcoil, rtol=1e-2)
 
                 # These should agree much better
-                assert np.isclose(f_B_regcoil, f_B_sq, rtol=1e-4)
+                np.testing.assert_allclose(f_B_regcoil, f_B_sq, rtol=1e-4, err_msg="f_B_regcoil != f_B from SquaredFlux")
 
                 # Compare current density
                 cp.set_dofs(optimized_phi_mn)
                 K = cp.K()
                 K2 = np.sum(K ** 2, axis=2)
                 K2_average = np.mean(K2, axis=(0, 1))
-                assert np.allclose(K2[0:nzeta_coil, :] / K2_average, K2_regcoil / K2_average)
+                np.testing.assert_allclose(K2[0:nzeta_coil, :] / K2_average, K2_regcoil / K2_average, atol=1e-10, err_msg="K2 mismatch")
 
                 # Compare values of f_K computed in three different ways
                 normal = s_coil.normal().reshape(-1, 3)
                 normN = np.linalg.norm(normal, axis=-1)
                 f_K_direct = 0.5 * np.sum(np.ravel(K2) * normN) / (normal.shape[0])
                 # print(f_K_regcoil, f_K_direct, f_K)
-                assert np.isclose(f_K_regcoil, f_K_direct)
-                assert np.isclose(f_K_regcoil, f_K)
+                np.testing.assert_allclose(f_K_regcoil, f_K_direct, atol=1e-10, err_msg="f_K_regcoil != f_K_direct")
+                np.testing.assert_allclose(f_K_regcoil, f_K, atol=1e-10, err_msg="f_K_regcoil != f_K (from solve)")
 
                 # Check normal field
                 Bfield_opt = WindingSurfaceField(cp)
@@ -344,8 +345,8 @@ class Testing(unittest.TestCase):
                 normal = s_plasma.unitnormal().reshape(-1, 3)
                 Bnormal = np.sum(B_opt*normal, axis=1).reshape(np.shape(s_plasma.gamma()[:, :, 0]))
                 Bnormal_regcoil = Bnormal_regcoil_total - Bnormal_from_plasma_current
-                self.assertAlmostEqual(np.sum(Bnormal), 0)
-                self.assertAlmostEqual(np.sum(Bnormal_regcoil), 0)
+                np.testing.assert_allclose(np.sum(Bnormal), 0, atol=1e-10, err_msg="sum(Bnormal) != 0")
+                np.testing.assert_allclose(np.sum(Bnormal_regcoil), 0, atol=1e-10, err_msg="sum(Bnormal_regcoil) != 0")
 
                 # B computed from inductance, i.e. equation A8 in REGCOIL paper
                 normal_plasma = s_plasma.normal().reshape(-1, 3)
@@ -368,18 +369,18 @@ class Testing(unittest.TestCase):
                 ws_points = s_coil.gamma().reshape(-1, 3)
                 ws_normal = s_coil.normal().reshape(-1, 3)
                 Bnormal_REGCOIL = WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, cp.Phi(), normal) * dtheta_coil * dzeta_coil
-                assert np.allclose(Bnormal_REGCOIL, np.ravel(Bnormal_single_valued))
+                np.testing.assert_allclose(Bnormal_REGCOIL, np.ravel(Bnormal_single_valued), atol=1e-10, err_msg="Bnormal_REGCOIL (C++) != Bnormal_single_valued")
                 normN = np.linalg.norm(normal, axis=-1)
                 res = (np.ravel(Bnormal_regcoil_total) ** 2) @ normN
                 f_B_manual = 0.5 * res / (nphi * ntheta)
-                assert np.isclose(f_B_regcoil, f_B_manual, rtol=1e-4)
+                np.testing.assert_allclose(f_B_regcoil, f_B_manual, rtol=1e-4, err_msg="f_B_regcoil != f_B_manual")
 
                 Bnormal_g += B_GI_winding_surface.reshape(np.shape(s_plasma.gamma()[:, :, 0]))
                 Bnormal_REGCOIL += B_GI_winding_surface
 
                 # Check that Bnormal calculations using the REGCOIL discretization all agree
-                assert np.allclose(np.ravel(Bnormal_g), Bnormal_REGCOIL)
-                assert np.allclose(np.ravel(Bnormal_g), np.ravel(Bnormal_regcoil))
+                np.testing.assert_allclose(np.ravel(Bnormal_g), Bnormal_REGCOIL, atol=1e-10, err_msg="Bnormal_g != Bnormal_REGCOIL")
+                np.testing.assert_allclose(np.ravel(Bnormal_g), np.ravel(Bnormal_regcoil), atol=1e-10, err_msg="Bnormal_g != Bnormal_regcoil")
 
                 # will be some substantial disagreement here because of the different discretizations,
                 # although it should improve with higher resolution
@@ -396,7 +397,7 @@ class Testing(unittest.TestCase):
 
             # Load big list of variables from REGCOIL to check against SIMSOPT implementation
             filename = TEST_DIR / filename
-            f = netcdf_file(filename, 'r')
+            f = netcdf_file(filename, 'r', mmap=False)
             Bnormal_regcoil_total = f.variables['Bnormal_total'][()]
             Bnormal_from_plasma_current = f.variables['Bnormal_from_plasma_current'][()]
             Bnormal_from_net_coil_currents = f.variables['Bnormal_from_net_coil_currents'][()]
@@ -424,16 +425,16 @@ class Testing(unittest.TestCase):
 
             b_rhs_simsopt, _ = cpst.B_matrix_and_rhs()
 
-            assert np.allclose(b_rhs_regcoil, b_rhs_simsopt)
+            np.testing.assert_allclose(b_rhs_regcoil, b_rhs_simsopt, err_msg=f"{filename}: b_rhs mismatch")
 
             k_rhs = cpst.K_rhs()
-            assert np.allclose(k_rhs, k_rhs_regcoil)
+            np.testing.assert_allclose(k_rhs, k_rhs_regcoil, err_msg=f"{filename}: k_rhs mismatch")
 
             # Compare plasma current
-            assert np.allclose(cpst.Bnormal_plasma, Bnormal_from_plasma_current.flatten())
+            np.testing.assert_allclose(cpst.Bnormal_plasma, Bnormal_from_plasma_current.flatten(), err_msg=f"{filename}: Bnormal_plasma mismatch")
 
             # Compare Bnormal from net coil currents
-            assert np.allclose(cpst.B_GI, np.ravel(Bnormal_from_net_coil_currents))
+            np.testing.assert_allclose(cpst.B_GI, np.ravel(Bnormal_from_net_coil_currents), err_msg=f"{filename}: B_GI mismatch")
 
             cp = cpst.current_potential
             s_plasma = cpst.plasma_surface
@@ -452,19 +453,19 @@ class Testing(unittest.TestCase):
             )
             s_plasma_full.set_dofs(s_plasma.get_dofs())
             # Compare plasma surface position
-            assert np.allclose(r_plasma, s_plasma_full.gamma())
+            np.testing.assert_allclose(r_plasma, s_plasma_full.gamma(), err_msg=f"{filename}: plasma surface position mismatch")
 
             # Compare plasma surface normal
             norm_normal_plasma_simsopt = np.linalg.norm(s_plasma_full.normal(), axis=-1)
-            assert np.allclose(norm_normal_plasma*2*np.pi*2*np.pi, norm_normal_plasma_simsopt[0:nzeta_plasma, :])
+            np.testing.assert_allclose(norm_normal_plasma*2*np.pi*2*np.pi, norm_normal_plasma_simsopt[0:nzeta_plasma, :], err_msg=f"{filename}: plasma surface normal mismatch")
 
             # Compare winding surface position
             s_coil = cp.winding_surface
-            assert np.allclose(r_coil, s_coil.gamma())
+            np.testing.assert_allclose(r_coil, s_coil.gamma(), err_msg=f"{filename}: winding surface position mismatch")
 
             # Compare winding surface normal
             norm_normal_coil_simsopt = np.linalg.norm(s_coil.normal(), axis=-1)
-            assert np.allclose(norm_normal_coil*2*np.pi*2*np.pi, norm_normal_coil_simsopt[0:nzeta_coil, :])
+            np.testing.assert_allclose(norm_normal_coil*2*np.pi*2*np.pi, norm_normal_coil_simsopt[0:nzeta_coil, :], err_msg=f"{filename}: winding surface normal mismatch")
 
             # Compare two different ways of computing K()
             K = cp.K().reshape(-1, 3)
@@ -475,7 +476,7 @@ class Testing(unittest.TestCase):
             normn = np.sqrt(np.sum(normal_vec**2, axis=-1))  # |N|
             K_2 = -(cpst.fj @ cp.get_dofs() - cpst.d) / \
                 (np.sqrt(dzeta_coil * dtheta_coil) * normn[:, None])
-            assert np.allclose(K, K_2)
+            np.testing.assert_allclose(K, K_2, err_msg=f"{filename}: K from cp.K() != K from matrix computation")
 
             # Compare field from net coil currents
             cp_GI = CurrentPotentialFourier.from_netcdf(filename)
@@ -485,7 +486,7 @@ class Testing(unittest.TestCase):
             B = Bfield.B()
             normal = s_plasma.unitnormal().reshape(-1, 3)
             B_GI_winding_surface = np.sum(B * normal, axis=1)
-            assert np.allclose(B_GI_winding_surface, np.ravel(Bnormal_from_net_coil_currents))
+            np.testing.assert_allclose(B_GI_winding_surface, np.ravel(Bnormal_from_net_coil_currents), err_msg=f"{filename}: B_GI from WindingSurfaceField mismatch")
             # Make sure single-valued part of current potential is working
             cp_no_GI = CurrentPotentialFourier.from_netcdf(filename)
             cp_no_GI.set_net_toroidal_current_amperes(0)
@@ -498,13 +499,13 @@ class Testing(unittest.TestCase):
                 cp.set_current_potential_from_regcoil(filename, i)
 
                 # Compare current potential Fourier harmonics
-                assert np.allclose(cp.get_dofs(), single_valued_current_potential_mn[i, :])
+                np.testing.assert_allclose(cp.get_dofs(), single_valued_current_potential_mn[i, :], err_msg=f"{filename} lambda[{i}]: current potential dofs mismatch")
 
                 # Compare current density
                 K = cp.K()
                 K2 = np.sum(K ** 2, axis=2)
                 K2_average = np.mean(K2, axis=(0, 1))
-                assert np.allclose(K2[0:nzeta_plasma, :] / K2_average, K2_regcoil[i, :, :] / K2_average)
+                np.testing.assert_allclose(K2[0:nzeta_plasma, :] / K2_average, K2_regcoil[i, :, :] / K2_average, err_msg=f"{filename} lambda[{i}]: K2 mismatch")
 
                 f_B_REGCOIL = f_B_regcoil[i]
                 f_K_REGCOIL = f_K_regcoil[i]
@@ -512,10 +513,10 @@ class Testing(unittest.TestCase):
                 cp_no_GI.set_current_potential_from_regcoil(filename, i)
 
                 # Compare single-valued current potential
-                assert np.allclose(cp_no_GI.Phi()[0:nzeta_plasma, :], current_potential_thetazeta[i, :, :])
+                np.testing.assert_allclose(cp_no_GI.Phi()[0:nzeta_plasma, :], current_potential_thetazeta[i, :, :], err_msg=f"{filename} lambda[{i}]: single-valued Phi mismatch")
 
                 f_K_direct = 0.5 * np.sum(K2 * norm_normal_coil_simsopt) / (norm_normal_coil_simsopt.shape[0]*norm_normal_coil_simsopt.shape[1])
-                self.assertAlmostEqual(f_K_direct/np.abs(f_K_REGCOIL), f_K_REGCOIL/np.abs(f_K_REGCOIL))
+                np.testing.assert_allclose(f_K_direct/np.abs(f_K_REGCOIL), f_K_REGCOIL/np.abs(f_K_REGCOIL), err_msg=f"{filename} lambda[{i}]: f_K_direct/|f_K_REGCOIL| != f_K_REGCOIL/|f_K_REGCOIL|, got {f_K_direct} vs {f_K_REGCOIL}")
 
                 normal = s_plasma.unitnormal().reshape(-1, 3)
                 norm_normal_plasma_simsopt = np.linalg.norm(s_plasma.normal(), axis=-1)
@@ -532,13 +533,13 @@ class Testing(unittest.TestCase):
                 Bnormal += cpst.B_GI
                 Bnormal = Bnormal.reshape(Bnormal_regcoil.shape)
 
-                assert np.allclose(Bnormal, Bnormal_regcoil)
+                np.testing.assert_allclose(Bnormal, Bnormal_regcoil, err_msg=f"{filename} lambda[{i}]: Bnormal (C++) mismatch")
 
                 # check Bnormal and Bnormal_regcoil integrate over the surface to zero
                 # This is only true in the stellarator symmetric case!
                 if s_plasma.stellsym:
-                    self.assertAlmostEqual(np.sum(Bnormal*norm_normal_plasma_simsopt), 0)
-                    self.assertAlmostEqual(np.sum(Bnormal_regcoil*norm_normal_plasma_simsopt[0:nzeta_plasma, :]), 0)
+                    np.testing.assert_allclose(np.sum(Bnormal*norm_normal_plasma_simsopt), 0, atol=1e-7, err_msg=f"{filename} lambda[{i}]: sum(Bnormal*norm) != 0")
+                    np.testing.assert_allclose(np.sum(Bnormal_regcoil*norm_normal_plasma_simsopt[0:nzeta_plasma, :]), 0, atol=1e-7, err_msg=f"{filename} lambda[{i}]: sum(Bnormal_regcoil*norm) != 0")
 
                 # Check that L1 optimization agrees if lambda = 0
                 if lambda_reg == 0.0:
@@ -546,9 +547,9 @@ class Testing(unittest.TestCase):
 
                 # Check the optimization in SIMSOPT is working
                 optimized_phi_mn, f_B, f_K = cpst.solve_tikhonov(lam=lambda_reg)
-                assert np.allclose(single_valued_current_potential_mn[i, :], optimized_phi_mn)
+                np.testing.assert_allclose(single_valued_current_potential_mn[i, :], optimized_phi_mn, err_msg=f"{filename} lambda[{i}]: Tikhonov optimized_phi_mn mismatch")
                 if lambda_reg == 0.0:
-                    assert np.isclose(f_B, f_B_lasso, rtol=1e-3)
+                    np.testing.assert_allclose(f_B, f_B_lasso, rtol=1e-3, err_msg=f"{filename} lambda[{i}]: f_B (Tikhonov) != f_B (Lasso) at lambda=0")
 
                 # Check f_B from SquaredFlux and f_B from least-squares agree
                 Bfield_opt = WindingSurfaceField(cpst.current_potential)
@@ -568,8 +569,8 @@ class Testing(unittest.TestCase):
                 # calculation must be used
                 #print(f_B, f_B_sq)
                 #assert np.isclose(f_B, f_B_sq, rtol=1e-1)
-                assert np.isclose(f_B, f_B_REGCOIL, rtol=1e-2)
-                assert np.isclose(f_K, f_K_REGCOIL, rtol=1e-2)
+                np.testing.assert_allclose(f_B, f_B_REGCOIL, rtol=1e-2, err_msg=f"{filename} lambda[{i}]: f_B != f_B_REGCOIL")
+                np.testing.assert_allclose(f_K, f_K_REGCOIL, rtol=1e-2, err_msg=f"{filename} lambda[{i}]: f_K != f_K_REGCOIL")
 
                 # check the REGCOIL Bnormal calculation in c++ """
                 points = s_plasma.gamma().reshape(-1, 3)
@@ -583,10 +584,10 @@ class Testing(unittest.TestCase):
                 normN = np.linalg.norm(normal, axis=-1)
                 res = (np.ravel(Bnormal_regcoil_total[i, :, :]) ** 2) @ normN
                 f_B_manual = 0.5 * res / (nphi * ntheta)
-                assert np.isclose(f_B_REGCOIL, f_B_manual, rtol=1e-4)
+                np.testing.assert_allclose(f_B_REGCOIL, f_B_manual, rtol=1e-4, err_msg=f"{filename} lambda[{i}]: f_B_REGCOIL != f_B_manual")
 
                 Bnormal_REGCOIL += B_GI_winding_surface
-                assert np.allclose(Bnormal_REGCOIL, np.ravel(Bnormal_regcoil))
+                np.testing.assert_allclose(Bnormal_REGCOIL, np.ravel(Bnormal_regcoil), err_msg=f"{filename} lambda[{i}]: Bnormal_REGCOIL (C++) != Bnormal_regcoil")
 
     def test_K_calculations(self):
         from simsopt import load
@@ -613,7 +614,7 @@ class Testing(unittest.TestCase):
             -198308.0580687
         ]))
         cpst = CurrentPotentialSolve(cp, plasma_surface, np.zeros(1024))
-        assert np.allclose(cpst.current_potential.get_dofs(), cp.get_dofs())
+        np.testing.assert_allclose(cpst.current_potential.get_dofs(), cp.get_dofs(), err_msg="CurrentPotentialSolve dofs != original cp dofs")
         # Pre-compute some important matrices
         cpst.B_matrix_and_rhs()
 
@@ -694,8 +695,8 @@ class Testing(unittest.TestCase):
         plt.colorbar()
         plt.show()
 
-        assert np.allclose(test_K_1, test_K_2)
-        assert np.allclose(test_K_1, test_K_3)
+        np.testing.assert_allclose(test_K_1, test_K_2, err_msg="K from analytic formula != K from matrix computation")
+        np.testing.assert_allclose(test_K_1, test_K_3, err_msg="K from analytic formula != K from cp.K()")
 
 
 if __name__ == "__main__":
