@@ -225,7 +225,7 @@ class CoilForcesTest(unittest.TestCase):
                 curve2.set_dofs(dofs2)
 
                 # Make circular coil with shared axis
-                curve3 = CurvePlanarFourier(N_quad * 2, 0)
+                curve3 = CurvePlanarFourier(N_quad, 0)
                 dofs3 = np.zeros(8)
                 dofs3[0] = R2
                 dofs3[1] = np.cos(alpha / 2.0) * np.cos(delta / 2.0)    
@@ -403,7 +403,7 @@ class CoilForcesTest(unittest.TestCase):
                 jax_curve_p.set_dofs(dofs)
                 jax_curve2_p = JaxCurvePlanarFourier(N_quad, 0)
                 jax_curve2_p.set_dofs(dofs2)
-                jax_curve3_p = JaxCurvePlanarFourier(N_quad * 2, 0)
+                jax_curve3_p = JaxCurvePlanarFourier(N_quad, 0)
                 jax_curve3_p.set_dofs(dofs3)
                 # Check JAX and non-JAX curves are equivalent
                 np.testing.assert_allclose(jax_curve_p.gamma(), curve.gamma(), rtol=1e-12, atol=1e-12)
@@ -800,52 +800,72 @@ class CoilForcesTest(unittest.TestCase):
         np.testing.assert_allclose(objective, objective3, rtol=1e-2)
 
     def test_force_and_torque_objectives_with_different_quadpoints(self):
-        """Check that force and torque objectives work with coils having different numbers of quadrature points."""
+        """Check that force and torque objectives work with two groups of coils having different numbers of quadrature points."""
         I = 1.7e4
-        # Create two coils with different numbers of quadrature points
-        curve1 = CurveXYZFourier(30, 1)
-        curve1.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 1.0
-        curve2 = CurveXYZFourier(50, 1)
-        curve2.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 1.2
-        curve3 = CurveXYZFourier(70, 1)
-        curve3.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 0.8
-        current1 = Current(I)
-        current2 = Current(I)
-        current3 = Current(I)
-        coil1 = RegularizedCoil(curve1, current1, regularization_circ(0.05))
-        coil2 = RegularizedCoil(curve2, current2, regularization_circ(0.05))
-        coil3 = RegularizedCoil(curve3, current3, regularization_circ(0.05))
-        coils = [coil1, coil2, coil3]
-        # LpCurveForce (threshold in MN/m)
-        threshold = 1e-3  # Threshold in MN/m (equivalent to 1.0e3 N/m)
-        val = LpCurveForce(coil1, coil2, p=2.5, threshold=threshold).J()
+        # Group A: two coils with 40 quadrature points
+        curve_a1 = CurveXYZFourier(40, 1)
+        curve_a1.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 1.0
+        curve_a2 = CurveXYZFourier(40, 1)
+        curve_a2.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 1.2
+        # Group B: two coils with 60 quadrature points
+        curve_b1 = CurveXYZFourier(60, 1)
+        curve_b1.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 0.8
+        curve_b2 = CurveXYZFourier(60, 1)
+        curve_b2.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 1.5
+        coil_a1 = RegularizedCoil(curve_a1, Current(I), regularization_circ(0.05))
+        coil_a2 = RegularizedCoil(curve_a2, Current(I), regularization_circ(0.05))
+        coil_b1 = RegularizedCoil(curve_b1, Current(I), regularization_circ(0.05))
+        coil_b2 = RegularizedCoil(curve_b2, Current(I), regularization_circ(0.05))
+        # LpCurveForce: target group A, source group B (different quadpoints between groups)
+        threshold = 1e-3  # Threshold in MN/m
+        val = LpCurveForce(coil_a1, coil_b1, p=2.5, threshold=threshold).J()
         self.assertTrue(np.isfinite(val))
-        val = LpCurveForce(coil1, [coil2, coil3], p=2.5, threshold=threshold).J()
+        val = LpCurveForce(coil_a1, [coil_b1, coil_b2], p=2.5, threshold=threshold).J()
         self.assertTrue(np.isfinite(val))
-        val = LpCurveForce(coil1, coils, p=2.5, threshold=threshold).J()
+        val = LpCurveForce([coil_a1, coil_a2], [coil_b1, coil_b2], p=2.5, threshold=threshold).J()
         self.assertTrue(np.isfinite(val))
-        # SquaredMeanForce
-        val = SquaredMeanForce(coil1, coil3).J()
+        # SquaredMeanForce: target group A, source group B
+        val = SquaredMeanForce(coil_a1, coil_b1).J()
         self.assertTrue(np.isfinite(val))
-        val = SquaredMeanForce([coil1, coil2], coil3).J()
+        val = SquaredMeanForce([coil_a1, coil_a2], coil_b1).J()
         self.assertTrue(np.isfinite(val))
-        val = SquaredMeanForce(coil1, coils).J()
+        val = SquaredMeanForce([coil_a1, coil_a2], [coil_b1, coil_b2]).J()
         self.assertTrue(np.isfinite(val))
-        # LpCurveTorque (threshold in MN)
-        threshold = 1e-3  # Threshold in MN (equivalent to 1.0e3 N)
-        val = LpCurveTorque(coil1, coils, p=2.5, threshold=threshold).J()
+        # LpCurveTorque: target group A, source group B
+        threshold = 1e-3  # Threshold in MN
+        val = LpCurveTorque(coil_a1, [coil_b1, coil_b2], p=2.5, threshold=threshold).J()
         self.assertTrue(np.isfinite(val))
-        val = LpCurveTorque([coil1, coil2], coils, p=2.5, threshold=threshold).J()
+        val = LpCurveTorque([coil_a1, coil_a2], [coil_b1, coil_b2], p=2.5, threshold=threshold).J()
         self.assertTrue(np.isfinite(val))
-        val = LpCurveTorque(coil3, coil1, p=2.5, threshold=threshold).J()
+        val = LpCurveTorque(coil_b1, coil_a1, p=2.5, threshold=threshold).J()
         self.assertTrue(np.isfinite(val))
-        # SquaredMeanTorque
-        val = SquaredMeanTorque(coil1, coils).J()
+        # SquaredMeanTorque: target group A, source group B
+        val = SquaredMeanTorque(coil_a1, [coil_b1, coil_b2]).J()
         self.assertTrue(np.isfinite(val))
-        val = SquaredMeanTorque(coil3, [coil1, coil2]).J()
+        val = SquaredMeanTorque(coil_b1, [coil_a1, coil_a2]).J()
         self.assertTrue(np.isfinite(val))
-        val = SquaredMeanTorque(coil3, coils).J()
+        val = SquaredMeanTorque([coil_a1, coil_a2], [coil_b1, coil_b2]).J()
         self.assertTrue(np.isfinite(val))
+
+        # Verify that mixing quadrature points within the same group raises ValueError
+        with self.assertRaises(ValueError):
+            LpCurveForce([coil_a1, coil_b1], coil_a2, p=2.5, threshold=1e-3)
+        with self.assertRaises(ValueError):
+            LpCurveForce(coil_a1, [coil_a2, coil_b1], p=2.5, threshold=1e-3)
+        with self.assertRaises(ValueError):
+            SquaredMeanForce([coil_a1, coil_b1], coil_a2)
+        with self.assertRaises(ValueError):
+            SquaredMeanForce(coil_a1, [coil_a2, coil_b1])
+        with self.assertRaises(ValueError):
+            LpCurveTorque([coil_a1, coil_b1], coil_a2, p=2.5, threshold=1e-3)
+        with self.assertRaises(ValueError):
+            LpCurveTorque(coil_a1, [coil_a2, coil_b1], p=2.5, threshold=1e-3)
+        with self.assertRaises(ValueError):
+            SquaredMeanTorque([coil_a1, coil_b1], coil_a2)
+        with self.assertRaises(ValueError):
+            SquaredMeanTorque(coil_a1, [coil_a2, coil_b1])
+        with self.assertRaises(ValueError):
+            B2Energy([coil_a1, coil_b1])
 
     def test_Taylor(self):
         """
