@@ -180,14 +180,14 @@ class PrincipalCurvatureTests(unittest.TestCase):
         s = get_surface(surfacetype, stellsym)
 
         pc = PrincipalCurvature(s, kappamax1=1, kappamax2=2.2, weight1=1, weight2=2.)
-        coeffs = s.get_dofs()
+        coeffs = s.x
 
         def f(dofs):
-            s.set_dofs(dofs)
+            s.x = dofs
             return pc.J()
 
         def df(dofs):
-            s.set_dofs(dofs)
+            s.x = dofs
             return pc.dJ()
 
         taylor_test1(f, df, coeffs, epsilons=np.power(2., -np.asarray(range(13, 22))))
@@ -229,15 +229,15 @@ class QfmTests(unittest.TestCase):
     def subtest_qfm1(self, surfacetype, stellsym):
         base_curves, base_currents, ma, nfp, bs = get_data("ncsx")
         s = get_surface(surfacetype, stellsym)
-        coeffs = s.get_dofs()
+        coeffs = s.x
         qfm = QfmResidual(s, bs)
 
         def f(dofs):
-            s.set_dofs(dofs)
+            s.x = dofs
             return qfm.J()
 
         def df(dofs):
-            s.set_dofs(dofs)
+            s.x = dofs
             return qfm.dJ_by_dsurfacecoefficients()
         taylor_test1(f, df, coeffs,
                      epsilons=np.power(2., -np.asarray(range(13, 22))))

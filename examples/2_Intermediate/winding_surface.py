@@ -1,3 +1,4 @@
+#! /usr/bin/env python3
 from matplotlib import pyplot as plt
 import numpy as np
 from simsopt.objectives import SquaredFlux
@@ -9,6 +10,11 @@ from simsopt.util import in_github_actions
 from pathlib import Path
 import os
 import time
+
+"""
+In this example, we optimize a winding surface coil optimization to generate a specific target normal field on a user-provided plasma boundary.
+We use the REGCOIL (Tikhonov regularization) and Lasso (L1 regularization) variants of the problem.
+"""
 
 TEST_DIR = Path(__file__).parent / ".." / ".." / "tests" / "test_files"
 

@@ -123,6 +123,7 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         self.R0nH[0] = 1.0
         self.bn[0] = 0.1
         self.set_rhomn(1, 0, 0.1)
+        
         if dofs is None:
             Surface.__init__(self, x0=self.get_dofs(), names=self._make_names(),
                              external_dof_setter=SurfaceHenneberg.set_dofs_impl)
