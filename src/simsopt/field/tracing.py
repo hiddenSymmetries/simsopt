@@ -9,7 +9,6 @@ import simsoptpp as sopp
 from .._core import Optimizable, ObjectiveFailure
 from .._core.util import parallel_loop_bounds
 from ..field.magneticfield import MagneticField
-from ..field.magneticfieldclasses import InterpolatedField
 from ..field.boozermagneticfield import BoozerMagneticField
 from ..field.sampling import draw_uniform_on_curve, draw_uniform_on_surface
 from ..geo.surface import SurfaceClassifier
@@ -732,12 +731,16 @@ def compute_fieldlines(field, R0, Z0, phi0 = 0, tmax=200, tol=1e-7, phis=[], sto
 
         [\dot x, \dot y, \dot z] = B(x, y, z)
 
+    Integration is initialized on the :math:`\phi = 0` plane.
+
     Args:
         field: the magnetic field :math:`B`
-        R0: list of radial components of initial points
-        Z0: list of vertical components of initial points
-        phi0: toroidal angle of initial points
-        tmax: for how long to trace. will do roughly ``|B|*tmax/(2*pi*r0)`` revolutions of the device
+        R0: list(float) of radial components of initial points
+        Z0: list(float) of vertical components of initial points
+        phi0: (float) toroidal angle of initial points
+               or list(float) of toroidal angles of initial points. If a single float is given, it is used for all initial points.
+        tmax: (float) longest allowable integration 'time'. will do roughly ``|B|*tmax/(2*pi*r0)`` revolutions of the device. 
+               most integrations will stop due to other conditions, such as reaching a desired toroidal angle or number of transits. 
         tol: tolerance for the adaptive ode solver
         phis: list of angles in [0, 2pi] for which intersection with the plane
               corresponding to that phi should be computed
@@ -761,6 +764,7 @@ def compute_fieldlines(field, R0, Z0, phi0 = 0, tmax=200, tol=1e-7, phis=[], sto
             was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
     """
     assert len(R0) == len(Z0)
+    assert isinstance(phi0, float) or len(phi0) == len(R0)
     nlines = len(R0)
     xyz_inits = np.zeros((nlines, 3))
     xyz_inits[:, 0] = np.cos(phi0) * np.asarray(R0)
@@ -1008,15 +1012,12 @@ class Integrator(Optimizable):
     Instances of the Integrator class implement a compute_poincare_hits method which interface with the PoincarePlotter class.
     Do not use this base class, use the SimsoptFieldlineIntegrator or ScipyFieldlineIntegrator depending on need.
     """
-    def __init__(self, field: MagneticField, comm=None, nfp=None, stellsym=False, R0=None, test_symmetries=True):
+    def __init__(self, field: MagneticField, comm=None, nfp=None, stellsym=False):
         """
         Args:
             field: the magnetic field to be used for the integration
             nfp: number of field periods
             stellsym: if True, the field is assumed to be stellarator symmetric
-            R0: major radius of the device. Used for testing symmetries of the field
-            test_symmetries: (bool): if True, test if the values of nfp and stellsym
-                are consistent with the field. If False, no test is performed.  
         """
         self.field = field
         self.comm = comm
@@ -1024,53 +1025,8 @@ class Integrator(Optimizable):
             self.nfp = 1
         else:
             self.nfp = nfp
-        if R0 is None:
-            logger.warning("R0 is not set, using default value of 1.")
-            self.R0 = 1
-        else:
-            self.R0 = R0
         self.stellsym = stellsym
-        self._test_symmetries = test_symmetries
-        if test_symmetries:
-            self.test_symmetries()
-        if isinstance(self.field, InterpolatedField):
-            self.interpolated = True
-        else:
-            self.interpolated = False
         Optimizable.__init__(self, depends_on=[field,])
-
-    def test_symmetries(self):
-        """
-        Test if the number of field periods and the 
-        stellarator symmetry setting are consistent
-        for the given field.
-        Raises: 
-            ValueError: if the field symmetries are not consistent
-                with the integrator settings.
-        """
-        rphiz_point = np.array([self.R0, 0.1, .1])[None, :]
-        rphiz_stellsym = np.array([self.R0, -0.1, -0.1])[None, :]
-        rphiz_periodicity = np.array([self.R0, 0.1+(2*np.pi/self.nfp), 0.1])[None, :]
-        self.field.set_points_cyl(rphiz_point)
-        test_field = np.copy(self.field.B_cyl())
-        self.field.set_points_cyl(rphiz_stellsym)
-        test_field_stellsym = np.copy(self.field.B_cyl())
-        self.field.set_points_cyl(rphiz_periodicity)
-        test_field_periodicity = np.copy(self.field.B_cyl())
-        stellsym_test = np.allclose(test_field, test_field_stellsym * np.array([-1, 1, 1]))
-        periodicity_test = np.allclose(test_field, test_field_periodicity)
-        if self.stellsym and not stellsym_test:
-            raise ValueError("The field is not stellarator symmetric, but the integrator is set to be.")
-        if not periodicity_test:
-            raise ValueError(f"The field does not adhere to the {self.nfp} field periods it is set to be.")
-        
-    def recompute_bell(self, parent=None):
-        if self.interpolated:
-            logger.warning("Integrator recompute bell was rung, indicating need to recompute interpolation. " \
-                           "Currently this is not implemented")
-        else:
-            pass
-
 
     @staticmethod
     def _rphiz_to_xyz(array: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -1147,19 +1103,16 @@ class SimsoptFieldlineIntegrator(Integrator):
         comm: MPI communicator to parallelize over
         nfp: number of field periods
         stellsym: if True, the field is assumed to be stellarator symmetric
-        R0: major radius of the device. Used for testing symmetries of the field
-        test_symmetries: (bool): if True, test if the values of nfp and stellsym
-            are consistent with the field. If False, no test is performed.
-        stopping_criteria: list of stopping criteria to be used during integration
+        stopping_criteria: list of StoppingCriterion objects, only used when generating data for Poincare plots.
         tol: tolerance for the adaptive ODE solver
         tmax: maximum time to integrate each field line
     """
 
-    def __init__(self, field: MagneticField, comm=None, nfp=None, stellsym=False, R0=None, test_symmetries=True, stopping_criteria=[], tol=1e-9, tmax=1e4):
+    def __init__(self, field: MagneticField, comm=None, nfp=None, stellsym=False, stopping_criteria=[], tol=1e-9, tmax=1e4):
         self.tol = tol
         self.stopping_criteria = stopping_criteria
         self.tmax = tmax
-        super().__init__(field, comm=comm, nfp=nfp, stellsym=stellsym, R0=R0, test_symmetries=test_symmetries)
+        super().__init__(field, comm=comm, nfp=nfp, stellsym=stellsym)
 
     def compute_poincare_hits(self, start_points_RZ, n_transits, phis=[], phi0=0):
         """
@@ -1186,18 +1139,31 @@ class SimsoptFieldlineIntegrator(Integrator):
             self.field, start_points_RZ[:, 0], start_points_RZ[:, 1], phi0=phi0, tmax=self.tmax, tol=self.tol,
             phis=phis, stopping_criteria=stopping_criteria, comm=self.comm)
 
-    def integrate_in_phi_cart(self, start_xyz, delta_phi=2*np.pi, return_cartesian=True):
+    def integrate_toroidally(self, start_point, delta_phi=2*np.pi, phi0=None, input_coordinates='cartesian', output_coordinates='cartesian'):
         """
         Integrate the field line in phi from xyz location start_xyz over an angle delta_phi using simsoptpp routines.  
 
         Args:
-            start_xyz: starting cartesian coordinates Array[x,y,z]
+            start_xyz: starting coordinates: if input_coordinates is 'cartesian', this should be Array[x,y,z], if 'cylindrical', Array[R,Z], and phi0 should also be provided.
             delta_phi: angle to integrate over
             return_cartesian: if True, return the cartesian coordinates of the end point, otherwise return only R,Z (phi_end assumed)
         Returns:
             end_point: Array[x,y,z] if return_cartesian is True, otherwise Array[R ,Z]
         """
-        start_phi = self._xyz_to_rphiz(start_xyz)[0, 1]
+        if input_coordinates not in ['cartesian', 'cylindrical']:
+            raise ValueError("input_coordinates must be either 'cartesian' or 'cylindrical'")
+        if output_coordinates not in ['cartesian', 'cylindrical']:
+            raise ValueError("output_coordinates must be either 'cartesian' or 'cylindrical'")
+        
+        if input_coordinates == 'cylindrical':
+            if phi0 is None:
+                raise ValueError("If input_coordinates is 'cylindrical', phi0 must be provided")
+            start_xyz = self._rphiz_to_xyz(np.array([start_point[0], phi0, start_point[1]]))[-1, :]  
+            start_phi = phi0
+        else:
+            start_phi = self._xyz_to_rphiz(start_point)[0, 1]
+            start_xyz = start_point
+
         phi_end = start_phi + delta_phi
         n_transits = int(np.abs(delta_phi)/(2.0*np.pi)) + 2
         self.field.set_points(start_xyz[None, :])
@@ -1217,28 +1183,12 @@ class SimsoptFieldlineIntegrator(Integrator):
             stopping_criteria=[ToroidalTransitStoppingCriterion(n_transits, False),]
             )
         xyz = np.array(res_phi_hits[-2][2:])  # second to last hit is the phi_end hit
-        if return_cartesian:  # return [x,y,z] array
+        if output_coordinates=='cartesian':  # return [x,y,z] array
             return xyz
         else:  # return [R,Z] array
-            return self._xyz_to_rphiz(xyz)[[0,2]]
+            return self._xyz_to_rphiz(xyz)[0,::2]
 
-    def integrate_in_phi_cyl(self, start_RZ, start_phi=0, delta_phi=2*np.pi, return_cartesian=True):
-        """
-        Integrate the field line giving the starting location in cylindrical coordinates.
-        Integrate the field line over an angle phi from the starting point given by cylindrical coordinates
-        Args: 
-            start_RZ: starting cylindrical coordinates Array[R,Z]
-            start_phi: starting toroidal angle
-            delta_phi: angle to integrate over
-            return_cartesian: if True, return the cartesian coordinates of the end point, otherwise return only R,Z
-        Returns:
-            end_point: Array[x,y,z] if return_cartesian is True, otherwise Array[R,Z]
-        """
-        start_xyz = self._rphiz_to_xyz(np.array([start_RZ[0], start_phi, start_RZ[1]]))[-1, :]  
-        return self.integrate_in_phi_cart(
-            start_xyz, delta_phi=delta_phi, return_cartesian=return_cartesian)
-
-    def integrate_fieldlinepoints_cart(self, start_xyz, n_transits=1, return_cartesian=True):
+    def integrate_fieldlinepoints(self, start_point, phi0=None, n_transits=1, input_coordinates='cartesian', output_coordinates='cartesian'):
         """
         Calculate a string of points along a field line starting at a location given by cartesian coordinates.
         The points are returned in the form of a numpy array of shape (npoints, 3). 
@@ -1255,6 +1205,17 @@ class SimsoptFieldlineIntegrator(Integrator):
         Returns:
             points: numpy array of shape (npoints, 3) containing the field line points, either in cartesian or cylindrical coordinates depending on return_cartesian.
         """
+        if input_coordinates not in ['cartesian', 'cylindrical']:
+            raise ValueError("input_coordinates must be either 'cartesian' or 'cylindrical'")
+        if output_coordinates not in ['cartesian', 'cylindrical']:
+            raise ValueError("output_coordinates must be either 'cartesian' or 'cylindrical'")
+        if input_coordinates == 'cylindrical':
+            if phi0 is None:
+                raise ValueError("If input_coordinates is 'cylindrical', phi0 must be provided")
+            start_xyz = self._rphiz_to_xyz(np.array([start_point[0], phi0, start_point[1]]))[-1, :]
+        else: 
+            start_xyz = start_point
+
         self.field.set_points(np.atleast_2d(start_xyz))
         # test direction of the field and switch if necessary, normalize to field strength at start
         Bstart = self.field.B_cyl()[0]
@@ -1269,33 +1230,12 @@ class SimsoptFieldlineIntegrator(Integrator):
             tmax=self.tmax, 
             tol=self.tol, 
             phis=[0,], 
-            stopping_criteria=[ToroidalTransitStoppingCriterion(n_transits, False),])
+            stopping_criteria=[ToroidalTransitStoppingCriterion(n_transits, False),])  # stop after n laps, this is a short fieldline segment, ignore other stopping criteria
         points_cart = np.array(res_tys)[:, 1:]
-        if return_cartesian:
+        if output_coordinates == 'cartesian':
             return points_cart
         else:
             return self._xyz_to_rphiz(points_cart)
-
-    def integrate_fieldlinepoints_cyl(self, start_RZ, start_phi, n_transits=1, return_cartesian=True):
-        """
-        Calculate a string of points along a field line starting at a location given by cartesian coordinates.
-        The points are returned in the form of a numpy array of shape (npoints, 3). 
-        If return_cartesian is True, the points are in cartesian coordinates (x,y,z), otherwise they are in (R, phi, Z). 
-
-        The SimsoptFieldLineIntegrator does not give control over the number of points, but relies
-        on the adaptive step size of the integrator. The number of points returned will depend on the field
-        complexity and the tolerance set for the integrator.
-        Args: 
-            start_RZ: starting cylindrical coordinates Array[R,Z]
-            start_phi: starting toroidal angle
-            n_transits: number of times to go around the device.
-            return_cartesian: if True, return the points in cartesian coordinates, otherwise return Cylindrical coordinates (default False).
-        Returns: 
-            points: numpy array of shape (npoints, 3) containing the field line points, either in cartesian or cylindrical coordinates depending on return_cartesian.
-        """
-        start_xyz = self._rphiz_to_xyz(np.array([start_RZ[0], start_phi, start_RZ[1]]))[-1, :]
-        return self.integrate_fieldlinepoints_cart(
-            start_xyz, n_transits=n_transits, return_cartesian=return_cartesian)
 
 
 class ScipyFieldlineIntegrator(Integrator):
@@ -1316,30 +1256,17 @@ class ScipyFieldlineIntegrator(Integrator):
     Three dimensional integration (such as in the SimsoptFieldlineIntegrator)
     can also be performed with the ``integrate_3d_fieldlinepoints`` method. 
     """
-    def __init__(self, field, comm=None, nfp=None, stellsym=False, R0=None, test_symmetries=True, integrator_type='RK45', integrator_args=dict()):
+    def __init__(self, field, comm=None, nfp=None, stellsym=False, integrator_type='RK45', integrator_args=dict()):
         """
         Args:
             field: the magnetic field to be used for the integration
             comm: MPI communicator to parallelize over
             nfp: number of field periods
             stellsym: if True, the field is assumed to be stellarator symmetric
-            R0: major radius of the device. Used for testing symmetries of the field
-            test_symmetries: (bool): if True, test if the values of nfp and stellsym
-                are consistent with the field. If False, no test is performed.  
             integrator_type: type of integrator to use (default 'dopri5')
             integrator_args: additional arguments to pass to the integrator given as a dictionary {parameter: value} (for example, {'rtol': 1e-6, 'atol':1e-9})
         """
-        # check if field is in positive B_phi direction at (R0,0,0)
-        if R0 is None:
-            logger.warning("R0 is not set, using default value of 1.")
-            R0 = 1.0
-        field.set_points_cyl(np.array([[R0, 0.0, 0.0]]))
-        B = field.B_cyl().flatten()
-        if B[1] < 0:
-            self.flip_B = True
-        else:
-            self.flip_B = False
-        super().__init__(field, comm, nfp, stellsym, R0, test_symmetries)
+        super().__init__(field, comm, nfp, stellsym)
         self._integrator_type = integrator_type
         self._integrator_args = integrator_args
         # update integrator args with defaults
@@ -1457,7 +1384,7 @@ class ScipyFieldlineIntegrator(Integrator):
         _event.terminal = True
         return _event
 
-    def integrate_in_phi_cyl(self, start_RZ, start_phi=0, delta_phi=2*np.pi, return_cartesian=False):
+    def integrate_toroidally(self, start_point, phi0=None, delta_phi=2*np.pi, input_coordinates='cartesian', output_coordinates='cartesian'):
         """
         Integrate along the field in the phi direction, returning the end location. 
         Integration starts from cylindrical coordinates (R,Z) at angle start_phi. 
@@ -1474,39 +1401,32 @@ class ScipyFieldlineIntegrator(Integrator):
         Returns:
             end_xyz or end_RZ depending on return_cartesian
         """
-        sol = solve_ivp(self.integration_fn_cyl, [start_phi, start_phi + delta_phi], start_RZ, events=self._event_function, method=self._integrator_type, rtol=self._integrator_args['rtol'], atol=self._integrator_args['atol'])
+        if input_coordinates not in ['cartesian', 'cylindrical']:
+            raise ValueError("input_coordinates must be either 'cartesian' or 'cylindrical'")
+        if output_coordinates not in ['cartesian', 'cylindrical']:
+            raise ValueError("output_coordinates must be either 'cartesian' or 'cylindrical'")
+
+        if input_coordinates == 'cartesian':
+            rphiz_start = self._xyz_to_rphiz(start_point)[-1]
+            start_RZ = rphiz_start[[0, 2]]
+            phi0 = rphiz_start[1]
+        else: 
+            if phi0 is None:
+                raise ValueError("If input_coordinates is 'cylindrical', phi0 must be provided")
+            start_RZ = start_point
+        sol = solve_ivp(self.integration_fn_cyl, [phi0, phi0 + delta_phi], start_RZ, events=self._event_function, method=self._integrator_type, rtol=self._integrator_args['rtol'], atol=self._integrator_args['atol'])
         if not sol.success:
             return np.array([np.nan, np.nan])
-        if return_cartesian:
-            rphiz = np.array([sol.y[0, -1], start_phi + delta_phi, sol.y[1, -1]])
+        if output_coordinates == 'cartesian':
+            rphiz = np.array([sol.y[0, -1], phi0 + delta_phi, sol.y[1, -1]])
             return self._rphiz_to_xyz(rphiz)[-1, :]
         else:
             return sol.y[:, -1] # final R,Z
     
-    def integrate_in_phi_cart(self, start_xyz, delta_phi=2*np.pi, return_cartesian=True):
-        """
-        Integrate along the field in the phi direction, starting from cartesian coordinates (x,y,z). 
-        Return only the end location after integrating over delta_phi.
-        The cylindrical field line ODE is given by: 
-        .. math::
-            \frac{dR}{d\phi} = R \frac{B_R}{B_\phi}, \\
-            \frac{dZ}{d\phi} = R \frac{B_Z}{B_\phi}.
-        Args:
-            start_xyz: starting point in cartesian coordinates (x,y,z)
-            delta_phi: angle to integrate over
-            return_cartesian: if True, return the cartesian coordinates of the end point, otherwise return only R,Z (phi_end assumed) 
-        returns: 
-            end_xyz or end_RZ depending on return_cartesian
-        """
-        rphiz_start = self._xyz_to_rphiz(start_xyz)[-1]
-        start_RZ = rphiz_start[[0, 2]]
-        start_phi = rphiz_start[1]
-        return self.integrate_in_phi_cyl(start_RZ, start_phi, delta_phi, return_cartesian=return_cartesian)
-    
     # def d_integration_by_dcoeff(self, start_RZ, start_phi, phi_end):
     # def d_
-
-    def integrate_cyl_planes(self, start_RZ, phis, return_cartesian=False):
+    
+    def integrate_cyl_planes(self, start_RZ, phis, output_coordinates="cylindrical"):
         """
         Integrate the field line using scipy odeint method, performing integration 
         of the cylindrical field line ODE given by: 
@@ -1517,7 +1437,8 @@ class ScipyFieldlineIntegrator(Integrator):
         
         Args:
             start_RZ: starting point in cylindrical coordinates (R,Z)
-            phis: list of angles in [0, 2pi] for which intersection with. 
+            phis: list of angles on which the solution should be evaluated. This should be in increasing order, and can span multiple toroidal turns.
+            output_coordinates: if 'cartesian', return the solution in cartesian coordinates, if 'cylindrical', return the solution in cylindrical coordinates (R,Z) with phi given by the phis input.
 
         returns: 
             status, rphiz: tuple cointaining
@@ -1526,16 +1447,18 @@ class ScipyFieldlineIntegrator(Integrator):
             OR:
             - xyz: the (x,y,z) coordinates of the field line if return_cartesian is True
         """
+        if output_coordinates not in ['cartesian', 'cylindrical']:
+            raise ValueError("output_coordinates must be either 'cartesian' or 'cylindrical'")
         sol = solve_ivp(self.integration_fn_cyl, [phis[0], phis[-1]], start_RZ, t_eval=phis, events=self._event_function, method=self._integrator_type, rtol=self._integrator_args['rtol'], atol=self._integrator_args['atol'])
         status = sol.status
         rphiz = np.array([sol.y[0, :], sol.t, sol.y[1, :]]).T
         
-        if return_cartesian:
+        if output_coordinates == 'cartesian':
             return status, self._rphiz_to_xyz(rphiz)
         else:
             return status, rphiz
 
-    def integrate_fieldlinepoints_cyl(self, start_RZ, start_phi, delta_phi, n_points, endpoint=False, return_cartesian=True):
+    def integrate_fieldlinepoints(self, start_point, delta_phi, n_points, phi0=None, endpoint=False, input_coordinates='cartesian', output_coordinates='cartesian'):
         """
         Calculate n_points along a field line starting at an R,Z location and starting angle in phi, for a 
         distance delta_phi. 
@@ -1545,32 +1468,32 @@ class ScipyFieldlineIntegrator(Integrator):
             delta_phi: angle to integrate over
             n_points: number of points to return along the field line
             endpoint: if True, include the end point in the returned points
-            return_cartesian: if True, return the points in cartesian coordinates, otherwise return Cylindrical coordinates (default False).
+            input_coordinates: if 'cartesian', the start point is given in cartesian coordinates, if 'cylindrical', the start point is given in cylindrical coordinates (R,Z), and phi0 should also be provided.
+            output_coordinates: if 'cartesian', return the points in cartesian coordinates, otherwise return Cylindrical coordinates (default False).
         Returns:
             points: a numpy array of shape (n_points, 3) containing the points along the field line
         """
-        phis = np.linspace(start_phi, start_phi+delta_phi, n_points, endpoint=endpoint)
-        status, points = self.integrate_cyl_planes(start_RZ, phis, return_cartesian=return_cartesian)
+        if input_coordinates not in ['cartesian', 'cylindrical']:
+            raise ValueError("input_coordinates must be either 'cartesian' or 'cylindrical'")
+        if output_coordinates not in ['cartesian', 'cylindrical']:
+            raise ValueError("output_coordinates must be either 'cartesian' or 'cylindrical'")
+       
+        if input_coordinates == 'cylindrical':
+            if phi0 is None:
+                raise ValueError("If input_coordinates is 'cylindrical', phi0 must be provided")
+            if len(start_point) != 2:
+                raise ValueError("If input_coordinates is 'cylindrical', start_point should be of the form [R,Z]")
+            start_RZ = start_point
+        
+        if input_coordinates == 'cartesian':
+            rphiz_start = self._xyz_to_rphiz(start_point)[-1]
+            start_RZ = rphiz_start[[0, 2]]
+            phi0 = rphiz_start[1]
+        
+        phis = np.linspace(phi0, phi0+delta_phi, n_points, endpoint=endpoint)
+        status, points = self.integrate_cyl_planes(start_RZ, phis, output_coordinates=output_coordinates)
         if status != 0:
             raise ObjectiveFailure("Integration failed")
-        return points
-
-    def integrate_fieldlinepoints_cart(self, start_xyz, delta_phi, n_points, endpoint=False, return_cartesian=True):
-        """
-        calculate a bunch of points along a fieldline for a given toroidal distance, giving the start point in xyz. 
-        Args: 
-            start_xyz: starting point in cartesian coordinates (x,y,z)
-            delta_phi: angle to integrate over
-            n_points: number of points to return along the field line
-            endpoint: if True, include the end point in the returned points
-            return_cartesian: if True, return the points in cartesian coordinates, otherwise return Cylindrical coordinates (default False).
-        Returns:
-            points: a numpy array of shape (n_points, 3) containing the points along the field line.
-        """
-        rphiz_start = self._xyz_to_rphiz(start_xyz)[-1]
-        start_RZ = rphiz_start[[0, 2]]
-        start_phi = rphiz_start[1]
-        points = self.integrate_fieldlinepoints_cyl(start_RZ, start_phi, delta_phi, n_points, endpoint=endpoint, return_cartesian=return_cartesian)
         return points
 
     def _integration_fn_3d(self, t, xyz):
@@ -1585,7 +1508,7 @@ class ScipyFieldlineIntegrator(Integrator):
         B = self.field.B().flatten()
         return B/np.linalg.norm(B)
 
-    def integrate_3d_fieldlinepoints_cart(self, start_xyz, l_total, n_points):
+    def integrate_3d_fieldlinepoints(self, start_xyz, l_total, n_points, phi0=None, input_coordinates='cartesian', output_coordinates='cartesian'):
         """
         integrate a fieldline in three dimensions for a given distance. 
         This solves the equations 
@@ -1604,8 +1527,20 @@ class ScipyFieldlineIntegrator(Integrator):
             points: a numpy array of shape (n_points, 3) containing the points along the field line
             The points are in cartesian coordinates (x,y,z).
         """
+        if input_coordinates not in ['cartesian', 'cylindrical']:
+            raise ValueError("input_coordinates must be either 'cartesian' or 'cylindrical'")
+        if output_coordinates not in ['cartesian', 'cylindrical']:
+            raise ValueError("output_coordinates must be either 'cartesian' or 'cylindrical'")
+        if input_coordinates == 'cylindrical':
+            if phi0 is None:
+                raise ValueError("If input_coordinates is 'cylindrical', phi0 must be provided")
+            start_xyz = self._rphiz_to_xyz(np.array([start_xyz[0], phi0, start_xyz[1]]))[-1, :]
+            
         sol = solve_ivp(self._integration_fn_3d, [0, l_total], start_xyz, t_eval=np.linspace(0, l_total, n_points), method=self._integrator_type, rtol=self._integrator_args['rtol'], atol=self._integrator_args['atol'])
-        return sol.y.T
+        if output_coordinates == 'cartesian':
+            return sol.y.T
+        else:
+            return self._xyz_to_rphiz(sol.y.T)
 
     def _integration_fn_tangentmap(self, t, y):
         """
@@ -2013,7 +1948,7 @@ class PoincarePlotter(Optimizable):
                   *OR* int: number of planes to compute, equally spaced in [0, 2pi/nfp].
             n_transits: number of toroidal transits to compute
             add_symmetry_planes: if true, we add planes that are identical through field periodicity, increasing the efficiency of the calculation.
-            stopping_criteria: list of StoppingCriterion objects to use during integration
+            stopping_criteria: list of StoppingCriterion objects that halt integration. Only used if integrator_type is 'simsopt'
             comm: MPI communicator for parallelization
             integrator_type: type of integrator to use ('simsopt' or 'scipy')
             **kwargs: additional arguments to pass to the integrator constructor
