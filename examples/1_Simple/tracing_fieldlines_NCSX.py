@@ -59,7 +59,7 @@ proc0_print("Mean(|B|) on axis =", np.mean(np.linalg.norm(bs.set_points(ma.gamma
 proc0_print("Mean(Axis radius) =", np.mean(np.linalg.norm(ma.gamma(), axis=1)))
 
 # create an integrator, that performs tasks like integrating field lines.
-integrator_bs = SimsoptFieldlineIntegrator(bs, comm=mpi.comm_world, nfp=nfp, R0=ma.gamma()[0, 0], stellsym=True, tmax=tmax_fl, tol=1e-9)
+integrator_bs = SimsoptFieldlineIntegrator(bs, comm=mpi.comm_world, nfp=nfp, stellsym=True, tmax=tmax_fl, tol=1e-9)
 
 # create a Poincare plotter object, which can compute and plot Poincare sections
 axis_RZ = ma.gamma()[0, 0:2]
@@ -139,7 +139,7 @@ B = bs.B()
 proc0_print("|B-Bh| on axis", np.sort(np.abs(B-Bh).flatten()))
 
 # The integrator accepts any MagneticField, also our faster InterpolatedField:
-integrator_bsh = SimsoptFieldlineIntegrator(bsh, comm=mpi.comm_world, nfp=nfp, R0=ma.gamma()[0, 0], stellsym=True)
+integrator_bsh = SimsoptFieldlineIntegrator(bsh, comm=mpi.comm_world, nfp=nfp, stellsym=True)
 # create a Poincare plotter object for the interpolated field
 poincare_bsh = PoincarePlotter(integrator_bsh, poincare_start_points, phis=4, n_transits=n_transits, add_symmetry_planes=True)
 
