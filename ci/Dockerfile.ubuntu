@@ -32,7 +32,8 @@ RUN /venv/bin/pip install -U pip
 # 2024-11-12 MJL: mpi4py < 4.0 in the next line is due to
 # https://github.com/hiddenSymmetries/simsopt/issues/455
 # Once NERSC gets Shifter working with mpi4py >= 4 we can remove this inequality
-RUN /venv/bin/python -m pip install numpy scipy jax jaxlib f90nml "mpi4py<4.0" jupyter notebook ipython qsc sympy scikit-build ninja "pybind11[global]<3.0" cmake f90wrap h5py
+# 2026-02-09 BKM: NERSC docs show mpi4py > 4. Removing the version constraint.
+RUN /venv/bin/python -m pip install numpy scipy jax jaxlib f90nml jupyter notebook ipython qsc sympy scikit-build ninja "pybind11[global]<3.0" cmake f90wrap h5py && CC=mpicc /venv/bin/pip install --no-cache-dir --no-binary=mpi4py mpi4py
 ENV PATH="/venv/bin:${PATH}"
 
 RUN \
