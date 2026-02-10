@@ -9,7 +9,6 @@ import simsoptpp as sopp
 from .._core import Optimizable, ObjectiveFailure
 from .._core.util import parallel_loop_bounds
 from ..field.magneticfield import MagneticField
-from ..field.magneticfieldclasses import InterpolatedField
 from ..field.boozermagneticfield import BoozerMagneticField
 from ..field.sampling import draw_uniform_on_curve, draw_uniform_on_surface
 from ..geo.surface import SurfaceClassifier
