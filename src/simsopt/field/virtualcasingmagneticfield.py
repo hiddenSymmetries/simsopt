@@ -11,6 +11,7 @@ import virtual_casing as vc_module
 from ..mhd.vmec import Vmec
 from ..geo.surface import best_nphi_over_ntheta
 from ..mhd.vmec_diagnostics import B_cartesian
+from .._core.optimizable import Optimizable
 
 
 
@@ -285,3 +286,20 @@ class VmecVirtualCasingField(VirtualCasingField):
     
     def __init__(self, vmec: Vmec);
         pass
+        #calculate vmec properties needed by virtual_casing
+        #self.get_vdata_from_vmec(vmec)
+        #super.__init__(properties)
+        #self.need_to_recompute_data = False
+        # Optimizable.__init__(parent=...)
+
+    def recompute_bell(self, parent=None):
+        self.need_to_recompute_data = True
+    
+    def recompute_data(self):
+    
+    @staticmethod
+    def get_vcdata_from_vmec(vmec, ntheta, nzeta):
+        """
+        """
+        pass
+
