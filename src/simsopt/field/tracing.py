@@ -674,7 +674,9 @@ def compute_fieldlines(field, R0, Z0, phi0 = 0, tmax=200, tol=1e-7, phis=[], sto
         R0: list(float) of radial components of initial points
         Z0: list(float) of vertical components of initial points
         phi0: (float) toroidal angle of initial points
-        tmax: (float) for how long to trace. will do roughly ``|B|*tmax/(2*pi*r0)`` revolutions of the device
+               or list(float) of toroidal angles of initial points. If a single float is given, it is used for all initial points.
+        tmax: (float) longest allowable integration 'time'. will do roughly ``|B|*tmax/(2*pi*r0)`` revolutions of the device. 
+               most integrations will stop due to other conditions, such as reaching a desired toroidal angle or number of transits. 
         tol: tolerance for the adaptive ode solver
         phis: list of angles in [0, 2pi] for which intersection with the plane
               corresponding to that phi should be computed
@@ -698,6 +700,7 @@ def compute_fieldlines(field, R0, Z0, phi0 = 0, tmax=200, tol=1e-7, phis=[], sto
             was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
     """
     assert len(R0) == len(Z0)
+    assert len(phi0) == 1 or len(phi0) == len(R0)
     nlines = len(R0)
     xyz_inits = np.zeros((nlines, 3))
     xyz_inits[:, 0] = np.cos(phi0) * np.asarray(R0)

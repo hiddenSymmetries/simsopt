@@ -3,7 +3,6 @@ import numpy as np
 
 from simsopt.field.magneticfieldclasses import ToroidalField
 from simsopt.field.tracing import Integrator, SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator
-from simsopt.field import BiotSavart, Coil
 from simsopt.configs.zoo import get_data, configurations
 from simsopt._core.util import ObjectiveFailure
 
@@ -324,7 +323,6 @@ class TestIntegratorAgreement(unittest.TestCase):
                 gamma = ma.gamma()
                 start_xyz = gamma[0, :]
                 target_xyz = gamma[-1, :]
-                R0 = Integrator._xyz_to_rphiz(start_xyz)[0][0]
 
                 # Compute phi start/end directly from endpoints
                 phi_start = np.arctan2(start_xyz[1], start_xyz[0])
