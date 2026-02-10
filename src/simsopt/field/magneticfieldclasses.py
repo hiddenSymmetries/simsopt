@@ -11,7 +11,6 @@ except ImportError:
     sympy_found = False
 
 import simsoptpp as sopp
-from monty.json import MontyDecoder
 from .magneticfield import MagneticField
 from .._core.json import GSONDecoder
 
@@ -579,16 +578,34 @@ class WindingSurfaceField(MagneticField):
         current_potential: CurrentPotential class object containing
             the winding surface and the surface current needed for
             fast computation of the magnetic field and vector potential.
+        ws_points: numpy array, shape (npoints, 3).
+            The points on the winding surface.
+        ws_normal: numpy array, shape (npoints, 3).
+            The normal vectors on the winding surface.
+        K: numpy array, shape (npoints, 3).
+            The K matrix on the winding surface.
+        nphi: int.
+            The number of phi points on the winding surface.
+        ntheta: int.
+            The number of theta points on the winding surface.
     """
 
-    def __init__(self, current_potential):
+    def __init__(self, current_potential=None, ws_points=None, ws_normal=None, K=None, nphi=None, ntheta=None):
         MagneticField.__init__(self)
-        self.current_potential = current_potential
-        self.ws_points = current_potential.winding_surface.gamma().reshape((-1, 3))
-        self.ws_normal = current_potential.winding_surface.normal().reshape((-1, 3))
-        self.K = current_potential.K().reshape((self.ws_points.shape[0], 3))
-        self.nphi = len(current_potential.winding_surface.quadpoints_phi)
-        self.ntheta = len(current_potential.winding_surface.quadpoints_theta)
+        if current_potential is not None:
+            self.current_potential = current_potential
+            self.ws_points = current_potential.winding_surface.gamma().reshape((-1, 3))
+            self.ws_normal = current_potential.winding_surface.normal().reshape((-1, 3))
+            self.K = current_potential.K().reshape((self.ws_points.shape[0], 3))
+            self.nphi = len(current_potential.winding_surface.quadpoints_phi)
+            self.ntheta = len(current_potential.winding_surface.quadpoints_theta)
+        else:
+            self.current_potential = None
+            self.ws_points = ws_points
+            self.ws_normal = ws_normal
+            self.K = K
+            self.nphi = nphi
+            self.ntheta = ntheta
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
@@ -606,19 +623,27 @@ class WindingSurfaceField(MagneticField):
         points = self.get_points_cart_ref()
         dA[:] = sopp.WindingSurfacedA(points, self.ws_points, self.ws_normal, self.K) / self.nphi / self.ntheta
 
-    def as_dict(self) -> dict:
-        d = {}
+    def as_dict(self, serial_objs_dict) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
         d["K"] = self.K
         d["ws_points"] = self.ws_points
         d["ws_normal"] = self.ws_normal
+        d["nphi"] = self.nphi
+        d["ntheta"] = self.ntheta
         d["points"] = self.get_points_cart()
         return d
 
     @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        field = cls(d["ws_points"], d["ws_normal"], d["K"])
-        xyz = decoder.process_decoded(d["points"])
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        field = cls(
+            ws_points=d["ws_points"],
+            ws_normal=d["ws_normal"],
+            K=d["K"],
+            nphi=d["nphi"],
+            ntheta=d["ntheta"]
+        )
+        decoder = GSONDecoder()
+        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
         field.set_points_cart(xyz)
         return field
 
