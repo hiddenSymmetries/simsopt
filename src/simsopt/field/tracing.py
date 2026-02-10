@@ -701,7 +701,7 @@ def compute_fieldlines(field, R0, Z0, phi0 = 0, tmax=200, tol=1e-7, phis=[], sto
             was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
     """
     assert len(R0) == len(Z0)
-    assert isinstance(phi0, float) or len(phi0) == len(R0)
+    assert isinstance(phi0, (float, int)) or len(phi0) == len(R0)
     nlines = len(R0)
     xyz_inits = np.zeros((nlines, 3))
     xyz_inits[:, 0] = np.cos(phi0) * np.asarray(R0)
