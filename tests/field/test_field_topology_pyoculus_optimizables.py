@@ -13,7 +13,7 @@ from simsopt.field import (PyOculusFixedPoint,
                            PyOculusTraceInRangeTarget,
                            PyOculusLocationAtOtherAngleTarget,
                            PyOculusTwoFixedPointLocationDifference,
-                           ClinicConnection)
+                           PyOculusClinicConnection)
 
 from simsopt._core import ObjectiveFailure
 from simsopt.field import CircularCoil

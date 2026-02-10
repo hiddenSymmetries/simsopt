@@ -204,7 +204,7 @@ class TestGetSurfaceRZFourierFromFieldlineSimple(unittest.TestCase):
         
         # Create an integrator
         cls.intg = ScipyFieldlineIntegrator(
-            bs, nfp=nfp, stellsym=True, R0=ma.gamma()[0][0],
+            bs, nfp=nfp, stellsym=True, 
             integrator_type='RK45', 
             integrator_args={'rtol': 1e-9, 'atol': 1e-11}
         )
@@ -300,7 +300,7 @@ class TestCurveXYZFourierSymmetriesFromFieldline(unittest.TestCase):
         
         # Create an integrator
         cls.intg = ScipyFieldlineIntegrator(
-            bs, nfp=nfp, stellsym=True, R0=ma.gamma()[0][0],
+            bs, nfp=nfp, stellsym=True,
             integrator_type='RK45',
             integrator_args={'rtol': 1e-9, 'atol': 1e-11}
         )
