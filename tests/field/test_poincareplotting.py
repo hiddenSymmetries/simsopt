@@ -24,7 +24,7 @@ class TestPoincarePlotterSimsopt(unittest.TestCase):
         self.Z0s = np.zeros_like(self.R0s)
         # integrators expect shape (nlines, 2) with columns (R,Z)
         self.start_points_RZ = np.column_stack([self.R0s, self.Z0s])
-        self.intg = SimsoptFieldlineIntegrator(self.field, nfp=1, stellsym=True, R0=self.R0, tmax=200.0, tol=1e-9)
+        self.intg = SimsoptFieldlineIntegrator(self.field, nfp=1, stellsym=True, tmax=200.0, tol=1e-9)
         self.pp = PoincarePlotter(self.intg, self.start_points_RZ, phis=4, n_transits=2, add_symmetry_planes=False)
 
     def test_res_properties_and_invariants(self):
@@ -129,7 +129,6 @@ class TestPoincarePlotterScipy(unittest.TestCase):
             self.field,
             nfp=1,
             stellsym=True,
-            R0=self.R0,
             integrator_type='RK45',
             integrator_args={'rtol': 1e-9, 'atol': 1e-11},
         )
@@ -258,7 +257,7 @@ class TestPoincarePlotterRealField(unittest.TestCase):
             [cls.R0 + 0.01, 0.0],
             [cls.R0 + 0.03, 0.0],
         ])
-        cls.intg = SimsoptFieldlineIntegrator(cls.field, nfp=nfp, stellsym=True, R0=cls.R0, tmax=50.0, tol=1e-7)
+        cls.intg = SimsoptFieldlineIntegrator(cls.field, nfp=nfp, stellsym=True, tmax=50.0, tol=1e-7)
         cls.pp = PoincarePlotter(cls.intg, cls.start_points_RZ, phis=cls.n_planes, n_transits=cls.n_transits, add_symmetry_planes=True)
 
     def test_basic_hits_exist(self):
@@ -296,7 +295,7 @@ class TestPoincarePlotter3DBackends(unittest.TestCase):
         cls.B0 = 0.8
         cls.field = ToroidalField(cls.R0, cls.B0)
         cls.start_points_RZ = np.array([[cls.R0 + 0.02, 0.0]])
-        cls.intg = SimsoptFieldlineIntegrator(cls.field, nfp=1, stellsym=True, R0=cls.R0, tmax=50.0, tol=1e-9)
+        cls.intg = SimsoptFieldlineIntegrator(cls.field, nfp=1, stellsym=True, tmax=50.0, tol=1e-9)
         cls.pp = PoincarePlotter(cls.intg, cls.start_points_RZ, phis=3, n_transits=1, add_symmetry_planes=False)
 
     def test_matplotlib_3d(self):
@@ -338,8 +337,8 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
             [cls.R0 + 0.01, 0.0],
             [cls.R0 + 0.02, 0.0],
         ])
-        cls.intg_sopp = SimsoptFieldlineIntegrator(cls.bs, nfp=nfp, stellsym=True, R0=cls.R0, tmax=40.0, tol=1e-7)
-        cls.intg_scipy = ScipyFieldlineIntegrator(cls.bs, nfp=nfp, stellsym=True, R0=cls.R0, integrator_type='RK45')
+        cls.intg_sopp = SimsoptFieldlineIntegrator(cls.bs, nfp=nfp, stellsym=True, tmax=40.0, tol=1e-7)
+        cls.intg_scipy = ScipyFieldlineIntegrator(cls.bs, nfp=nfp, stellsym=True, integrator_type='RK45')
 
     def test_save_and_load_with_dof_change(self):
         """
