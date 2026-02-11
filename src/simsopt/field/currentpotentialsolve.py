@@ -640,8 +640,14 @@ class CurrentPotentialSolve:
         d = np.ravel(d)
         nfp = self.plasma_surface.nfp
 
-        # Ak is non-square so pinv required. Careful with rcond parameter
-        Ak_inv = np.linalg.pinv(Ak_matrix, rcond=1e-10)
+        # Ak is non-square so pinv required. Careful with rcond parameter.
+        # SVD can fail on ill-conditioned matrices (e.g. at very low lambda); use
+        # scipy fallback which may handle edge cases better on some platforms.
+        try:
+            Ak_inv = np.linalg.pinv(Ak_matrix, rcond=1e-10)
+        except np.linalg.LinAlgError:
+            from scipy.linalg import pinv as scipy_pinv
+            Ak_inv = scipy_pinv(Ak_matrix, rcond=1e-8)
         A_new = A_matrix @ Ak_inv
         b_new = b_e - A_new @ d
         if TIMING:

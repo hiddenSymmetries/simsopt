@@ -646,93 +646,61 @@ class Testing(unittest.TestCase):
         test_K_2 = test_K_2.reshape(nzeta_coil, nzeta_coil // cp.nfp, 3)
 
         # Figure 1: Surface current density K (A/m) from three equivalent formulations.
-        # Row 1: K from analytic formula (Eq. A.13 REGCOIL: gammadash2*(Phidash1+G) - gammadash1*(Phidash2+I) / |N|).
+        # Row 1: K from analytic formula (Eq. A.13 REGCOIL).
         # Row 2: K from matrix computation (fj @ phi - d) / (sqrt(dzeta*dtheta) * |N|).
         # Row 3: K from cp.K() C++ implementation.
         # Columns: x, y, z components of K on (zeta, theta) winding surface grid.
-        plt.figure(1, figsize=(12, 10))
-        plt.suptitle(r'Surface current density $\mathbf{K}$ (A/m): comparison of three formulations',
-                     fontsize=12)
-        plt.subplot(3, 3, 1)
-        plt.pcolor(test_K_1[:, :, 0])
-        plt.colorbar()
-        plt.title(r'Analytic: $K_x$')
-        plt.ylabel(r'Analytic (Eq. A.13)')
-        plt.subplot(3, 3, 2)
-        plt.pcolor(test_K_1[:, :, 1])
-        plt.colorbar()
-        plt.title(r'Analytic: $K_y$')
-        plt.subplot(3, 3, 3)
-        plt.pcolor(test_K_1[:, :, 2])
-        plt.colorbar()
-        plt.title(r'Analytic: $K_z$')
-        plt.subplot(3, 3, 4)
-        plt.pcolor(test_K_2[:, :, 0])
-        plt.colorbar()
-        plt.title(r'Matrix: $K_x$')
-        plt.ylabel(r'Matrix (fj@phi-d)')
-        plt.subplot(3, 3, 5)
-        plt.pcolor(test_K_2[:, :, 1])
-        plt.colorbar()
-        plt.title(r'Matrix: $K_y$')
-        plt.subplot(3, 3, 6)
-        plt.pcolor(test_K_2[:, :, 2])
-        plt.colorbar()
-        plt.title(r'Matrix: $K_z$')
-        plt.subplot(3, 3, 7)
-        plt.pcolor(test_K_3[:, :, 0])
-        plt.colorbar()
-        plt.title(r'cp.K(): $K_x$')
-        plt.xlabel(r'$\theta$ (poloidal)')
-        plt.ylabel(r'cp.K() (C++)')
-        plt.subplot(3, 3, 8)
-        plt.pcolor(test_K_3[:, :, 1])
-        plt.colorbar()
-        plt.title(r'cp.K(): $K_y$')
-        plt.xlabel(r'$\theta$ (poloidal)')
-        plt.subplot(3, 3, 9)
-        plt.pcolor(test_K_3[:, :, 2])
-        plt.colorbar()
-        plt.title(r'cp.K(): $K_z$')
-        plt.xlabel(r'$\theta$ (poloidal)')
-        plt.tight_layout()
+        fig1, axes1 = plt.subplots(3, 3, figsize=(12, 10), squeeze=True)
+        fig1.suptitle(r'Surface current density $\mathbf{K}$ (A/m): comparison of three formulations',
+                      fontsize=12)
+        for j in range(3):
+            ax = axes1[0, j]
+            im = ax.pcolor(test_K_1[:, :, j])
+            fig1.colorbar(im, ax=ax)
+            ax.set_title(r'Analytic: $K_{}$'.format('xyz'[j]))
+            if j == 0:
+                ax.set_ylabel(r'Analytic (Eq. A.13)')
+        for j in range(3):
+            ax = axes1[1, j]
+            im = ax.pcolor(test_K_2[:, :, j])
+            fig1.colorbar(im, ax=ax)
+            ax.set_title(r'Matrix: $K_{}$'.format('xyz'[j]))
+            if j == 0:
+                ax.set_ylabel(r'Matrix (fj@phi-d)')
+        for j in range(3):
+            ax = axes1[2, j]
+            im = ax.pcolor(test_K_3[:, :, j])
+            fig1.colorbar(im, ax=ax)
+            ax.set_title(r'cp.K(): $K_{}$'.format('xyz'[j]))
+            ax.set_xlabel(r'$\theta$ (poloidal)')
+            if j == 0:
+                ax.set_ylabel(r'cp.K() (C++)')
+        fig1.tight_layout()
 
         # Figure 2: Differences between formulations (should be ~0 if implementations agree).
         # Row 1: analytic - cp.K() for x, y, z.
         # Row 2: matrix - cp.K() for x, y, z.
-        plt.figure(2, figsize=(12, 8))
-        plt.suptitle(r'Difference in $\mathbf{K}$: analytic vs cp.K() and matrix vs cp.K() '
-                     r'(should be ~0)', fontsize=12)
-        plt.subplot(2, 3, 1)
-        plt.pcolor(test_K_1[:, :, 0] - test_K_3[:, :, 0])
-        plt.colorbar()
-        plt.title(r'Analytic $-$ cp.K(): $K_x$')
-        plt.ylabel(r'Analytic $-$ cp.K()')
-        plt.subplot(2, 3, 2)
-        plt.pcolor(test_K_1[:, :, 1] - test_K_3[:, :, 1])
-        plt.colorbar()
-        plt.title(r'Analytic $-$ cp.K(): $K_y$')
-        plt.subplot(2, 3, 3)
-        plt.pcolor(test_K_1[:, :, 2] - test_K_3[:, :, 2])
-        plt.colorbar()
-        plt.title(r'Analytic $-$ cp.K(): $K_z$')
-        plt.subplot(2, 3, 4)
-        plt.pcolor(test_K_2[:, :, 0] - test_K_3[:, :, 0])
-        plt.colorbar()
-        plt.title(r'Matrix $-$ cp.K(): $K_x$')
-        plt.xlabel(r'$\theta$ (poloidal)')
-        plt.ylabel(r'Matrix $-$ cp.K()')
-        plt.subplot(2, 3, 5)
-        plt.pcolor(test_K_2[:, :, 1] - test_K_3[:, :, 1])
-        plt.colorbar()
-        plt.title(r'Matrix $-$ cp.K(): $K_y$')
-        plt.xlabel(r'$\theta$ (poloidal)')
-        plt.subplot(2, 3, 6)
-        plt.pcolor(test_K_2[:, :, 2] - test_K_3[:, :, 2])
-        plt.colorbar()
-        plt.title(r'Matrix $-$ cp.K(): $K_z$')
-        plt.xlabel(r'$\theta$ (poloidal)')
-        plt.tight_layout()
+        fig2, axes2 = plt.subplots(2, 3, figsize=(12, 8), squeeze=True)
+        fig2.suptitle(r'Difference in $\mathbf{K}$: analytic vs cp.K() and matrix vs cp.K() '
+                      r'(should be ~0)', fontsize=12)
+        # Row 0: analytic - cp.K()
+        for j, comp in enumerate(['$K_x$', '$K_y$', '$K_z$']):
+            ax = axes2[0, j]
+            im = ax.pcolor(test_K_1[:, :, j] - test_K_3[:, :, j])
+            fig2.colorbar(im, ax=ax)
+            ax.set_title(r'Analytic $-$ cp.K(): ' + comp)
+            if j == 0:
+                ax.set_ylabel(r'Analytic $-$ cp.K()')
+        # Row 1: matrix - cp.K()
+        for j, comp in enumerate(['$K_x$', '$K_y$', '$K_z$']):
+            ax = axes2[1, j]
+            im = ax.pcolor(test_K_2[:, :, j] - test_K_3[:, :, j])
+            fig2.colorbar(im, ax=ax)
+            ax.set_title(r'Matrix $-$ cp.K(): ' + comp)
+            ax.set_xlabel(r'$\theta$ (poloidal)')
+            if j == 0:
+                ax.set_ylabel(r'Matrix $-$ cp.K()')
+        fig2.tight_layout()
         if not in_github_actions:
             plt.show()
 
