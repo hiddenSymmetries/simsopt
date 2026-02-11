@@ -684,9 +684,10 @@ class GVECQuantity(Optimizable):
     This optimizable computes a specified quantity as a dependent optimizable from the GVEC equilibrium.
     """
 
-    def __init__(self, eq: Gvec, quantity: str, **kwargs):
+    def __init__(self, eq: Gvec, quantity: str, sfl: None | Literal["pest", "boozer"] = None, **kwargs):
         self.eq = eq
         self.quantity = quantity
+        self.sfl = sfl
         self.kwargs = kwargs
 
         super().__init__(depends_on=[eq])
@@ -699,12 +700,20 @@ class GVECQuantity(Optimizable):
         Returns:
             The evaluated quantity as an xarray.Dataset.
         """
-        return self.eq.state.evaluate(self.quantity, **self.kwargs)
+        if self.sfl is None:
+            return self.eq.state.evaluate(self.quantity, **self.kwargs)
+        else:
+            return self.eq.state.evaluate_sfl(self.quantity, sfl=self.sfl, **self.kwargs)
 
     def J(self) -> np.ndarray:
-        return self.ev[self.quantity].data
+        """Target function, returns a flattened array of the evaluated quantity."""
+        return self.ev[self.quantity].data.flatten()
+    
+    def rms(self) -> float:
+        """Root mean square of the evaluated quantity."""
+        return np.sqrt(np.mean(self.ev[self.quantity]**2)).item()
 
-    return_fn_map = {"J": J}
+    return_fn_map = {"J": J, "rms": rms}
 
 
 class Elongation(Optimizable):
