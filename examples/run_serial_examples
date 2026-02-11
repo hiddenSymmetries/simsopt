@@ -28,5 +28,5 @@ set -ex
 ./2_Intermediate/wireframe_gsco_modular.py
 ./2_Intermediate/wireframe_gsco_sector_saddle.py
 ./3_Advanced/stage_two_optimization_finitebuild.py
-./3_Advanced/coil_force_optimization/coil_forces.py
+./3_Advanced/coil_forces.py
 ./3_Advanced/wireframe_gsco_multistep.py

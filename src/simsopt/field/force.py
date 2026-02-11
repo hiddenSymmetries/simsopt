@@ -57,11 +57,8 @@ def _B_at_point_from_coil_set_pure(pt, gammas, gammadashs, currents, exclude_ind
     function calls and tens of seconds for ~64 coils). See `GitHub issue #487
     <https://github.com/hiddenSymmetries/simsopt/issues/487>`_.
 
-    The field is returned in "raw" form, i.e. without the :math:`\mu_0/(4\pi)` prefactor;
-    callers should multiply by ``1e-7`` when SI units (Tesla) are required.
-
     .. math::
-        B = \frac{1}{n_{pts}} \sum_{j \neq \mathrm{exclude}} I_j \int \frac{d\vec{\ell}_j \times (\vec{r} - \vec{r}_j)}{|\vec{r} - \vec{r}_j|^3}
+        B = \frac{\mu_0}{4\pi} \frac{1}{n_{pts}} \sum_{j \neq \mathrm{exclude}} I_j \int \frac{d\vec{\ell}_j \times (\vec{r} - \vec{r}_j)}{|\vec{r} - \vec{r}_j|^3}
 
     Args:
         pt: Array of shape (3,); evaluation point.
@@ -92,7 +89,7 @@ def _B_at_point_from_coil_set_pure(pt, gammas, gammadashs, currents, exclude_ind
         )
 
     B = jnp.sum(vmap(from_j)(jnp.arange(n)), axis=0)
-    return B / npts
+    return B / npts * 1e-7
 
 
 def _mutual_B_field_at_point_pure(
@@ -103,12 +100,25 @@ def _mutual_B_field_at_point_pure(
 ):
     r"""
     Compute the mutual magnetic field at a point on target coil i from all target coils
-    (excluding coil i) and all source coils.
+    (excluding coil i) and all source coils in Tesla.
 
     Used by :func:`squared_mean_force_pure`, :func:`lp_force_pure`, :func:`lp_torque_pure`,
-    and :func:`squared_mean_torque`. The result is in "raw" form (no :math:`\mu_0/(4\pi)`);
-    multiply by ``1e-7`` when SI units are needed. See :func:`_B_at_point_from_coil_set_pure`
+    and :func:`squared_mean_torque`. See :func:`_B_at_point_from_coil_set_pure`
     for why Biot-Savart is reimplemented here instead of using :class:`BiotSavart`.
+
+    Args:
+        i: Index of target coil.
+        pt: Array of shape (3,); evaluation point.
+        gammas_targets: Array of shape (m, n, 3); positions for m target coils with n quadrature points.
+        gammadashs_targets: Array of shape (m, n, 3); tangent vectors for m target coils with n quadrature points.
+        currents_targets: Array of shape (m,); currents for m target coils.
+        gammas_sources: Array of shape (m', n, 3); positions for m' source coils with n quadrature points.
+        gammadashs_sources: Array of shape (m', n, 3); tangent vectors for m' source coils with n quadrature points.
+        currents_sources: Array of shape (m',); currents for m' source coils.
+        eps: Small constant added to distances to avoid division by zero.
+
+    Returns:
+        Array of shape (3,); mutual magnetic field at point pt in Tesla.
     """
     B_targets = _B_at_point_from_coil_set_pure(
         pt, gammas_targets, gammadashs_targets, currents_targets, exclude_index=i, eps=eps
@@ -124,17 +134,25 @@ def _lorentz_force_density_pure(tangents, current, magnetic_field):
     return current * jnp.cross(tangents, magnetic_field)
 
 
-def _curve_barycenter_pure(gamma, gammadash):
-    """Compute arclength-weighted barycenter of a closed curve."""
-    arclength = jnp.linalg.norm(gammadash, axis=-1)
-    return jnp.sum(gamma * arclength[:, None], axis=0) / jnp.sum(arclength)
-
-
 def _prepare_target_source_inputs_pure(
     gammas_targets, gammadashs_targets, gammas_sources, gammadashs_sources,
     currents_targets, currents_sources, downsample
 ):
-    """Downsample and convert shared target/source inputs used by force/torque objectives."""
+    """
+    Downsample and convert shared target/source inputs used by force/torque objectives.
+    
+    Args:
+        gammas_targets: Array of shape (m, n, 3); positions for m target coils with n quadrature points.
+        gammadashs_targets: Array of shape (m, n, 3); tangent vectors for m target coils with n quadrature points.
+        gammas_sources: Array of shape (m', n, 3); positions for m' source coils with n quadrature points.
+        gammadashs_sources: Array of shape (m', n, 3); tangent vectors for m' source coils with n quadrature points.
+        currents_targets: Array of shape (m,); currents for m target coils.
+        currents_sources: Array of shape (m',); currents for m' source coils.
+        downsample: Factor by which to downsample the quadrature points.
+
+    Returns:
+        Tuple of arrays: (gammas_targets, gammadashs_targets, gammas_sources, gammadashs_sources, currents_targets, currents_sources).
+    """
     return (
         jnp.stack(gammas_targets)[:, ::downsample, :],
         jnp.stack(gammadashs_targets)[:, ::downsample, :],
@@ -150,7 +168,25 @@ def _prepare_regularized_target_source_inputs_pure(
     gammas_sources, gammadashs_sources, currents_targets, currents_sources,
     regularizations, downsample
 ):
-    """Downsample/convert inputs for regularized Lp force/torque objectives."""
+    """
+    Downsample/convert inputs for regularized Lp force/torque objectives. Just a wrapper around 
+    _prepare_target_source_inputs_pure that also prepares additional inputs for regularized coils.
+    
+    Args:
+        gammas_targets: Array of shape (m, n, 3); positions for m target coils with n quadrature points.
+        gammadashs_targets: Array of shape (m, n, 3); tangent vectors for m target coils with n quadrature points.
+        gammadashdashs_targets: Array of shape (m, n, 3); second derivatives of tangent vectors for m target coils with n quadrature points.
+        quadpoints: Array of shape (m, n); quadrature points for m target coils with n quadrature points.
+        gammas_sources: Array of shape (m', n, 3); positions for m' source coils with n quadrature points.
+        gammadashs_sources: Array of shape (m', n, 3); tangent vectors for m' source coils with n quadrature points.
+        currents_targets: Array of shape (m,); currents for m target coils.
+        currents_sources: Array of shape (m',); currents for m' source coils.
+        regularizations: Array of shape (m,); regularizations for m target coils.
+        downsample: Factor by which to downsample the quadrature points.
+
+    Returns:
+        Tuple of arrays: (gammas_targets, gammadashs_targets, gammadashdashs_targets, quadpoints, gammas_sources, gammadashs_sources, currents_targets, currents_sources, regularizations).
+    """
     gammas_targets, gammadashs_targets, gammas_sources, gammadashs_sources, currents_targets, currents_sources = (
         _prepare_target_source_inputs_pure(
             gammas_targets, gammadashs_targets, gammas_sources, gammadashs_sources,
@@ -170,7 +206,7 @@ def _prepare_regularized_target_source_inputs_pure(
     )
 
 
-def _coil_coil_inductances_pure(gammas, gammadashs, downsample, regularizations):
+def _coil_coil_inductances_pure(gammas, gammadashs, downsample, regularizations, eps=1e-10):
     r"""
     Compute the full inductance matrix for a set of coils, including both mutual and 
     self-inductances. All coils are assumed to have the same number of quadrature points, 
@@ -182,7 +218,7 @@ def _coil_coil_inductances_pure(gammas, gammadashs, downsample, regularizations)
 
         M = \frac{\mu_0}{4\pi} \iint \frac{d\vec{r}_A \cdot d\vec{r}_B}{|\vec{r}_A - \vec{r}_B|}
 
-    and the self-inductance (with regularization) for each coil is computed as:
+    and self-inductance of a regularized coil is computed as:
 
     .. math::
 
@@ -211,7 +247,7 @@ def _coil_coil_inductances_pure(gammas, gammadashs, downsample, regularizations)
             Array of regularizations coming from finite cross-section for all m coils. The choices
             for each coil are regularization_circ and regularization_rect, although each coil can 
             have different size and shape cross-sections in this list of regularization terms.
-
+        eps (float): Small constant to avoid division by zero for mutual inductance between coil_i and itself.
     Returns:
         array (shape (m,m)): Full inductance matrix Lij.
     """
@@ -220,7 +256,6 @@ def _coil_coil_inductances_pure(gammas, gammadashs, downsample, regularizations)
     N = gammas.shape[0]
 
     # Compute Lij, i != j
-    eps = 1e-10  # small constant to avoid division by zero for mutual inductance between coil_i and itself
     r_ij = gammas[None, :, None, :, :] - gammas[:, None, :, None, :] + eps
     rij_norm = jnp.linalg.norm(r_ij, axis=-1)
     gammadash_prod = jnp.sum(gammadashs[None, :, None, :, :] * gammadashs[:, None, :, None, :], axis=-1)
@@ -712,7 +747,7 @@ class NetFluxes(Optimizable):
 
 
 def squared_mean_force_pure(gammas_targets, gammas_sources, gammadashs_targets, gammadashs_sources, currents_targets,
-                            currents_sources, downsample):
+                            currents_sources, downsample, eps=1e-10):
     r"""
     Compute the squared mean force on a set of m coils with n quadrature points,
     due to themselves and another set of m' coils with n' quadrature points.
@@ -753,6 +788,7 @@ def squared_mean_force_pure(gammas_targets, gammas_sources, gammadashs_targets, 
             total number of quadrature points (since this will produce a nonuniform set of points). 
             This parameter is used to speed up expensive calculations during optimization, 
             while retaining higher accuracy for the other objectives. 
+        eps (float): Small constant to avoid division by zero for force between coil_i and itself.
     Returns:
         float: The squared mean force.
     """
@@ -765,7 +801,6 @@ def squared_mean_force_pure(gammas_targets, gammas_sources, gammadashs_targets, 
 
     n1 = gammas_targets.shape[0]
     npts1 = gammas_targets.shape[1]
-    eps = 1e-10  # small constant to avoid division by zero for force between coil_i and itself
 
     # Precompute tangents and norms
     gammadash_norms = jnp.linalg.norm(gammadashs_targets, axis=-1)[:, :, None]
@@ -786,11 +821,11 @@ def squared_mean_force_pure(gammas_targets, gammas_sources, gammadashs_targets, 
     mean_forces = vmap(mean_force_group1, in_axes=(0, 0, 0, 0, 0))(
         jnp.arange(n1), gammas_targets, tangents, gammadash_norms, currents_targets
     )
-    # mean_forces is computed without mu_0/(4*pi) factor in B_mutual, so we need to multiply by (mu_0/(4*pi))^2 = 1e-14
+    # already multiplied by (mu_0/(4*pi)) in _mutual_B_field_at_point_pure, 
+    # which gives a factor of (mu_0/(4*pi))^2 = 1e-14
     # Then convert from (N/m)^2 to (MN/m)^2 by dividing by (1e6)^2 = 1e12
-    # Net factor: 1e-14 / 1e12 = 1e-26  
     mean_forces_squared = jnp.sum(jnp.linalg.norm(mean_forces, axis=-1) ** 2)
-    return mean_forces_squared * 1e-26
+    return mean_forces_squared * 1e-12
 
 
 class SquaredMeanForce(Optimizable):
@@ -949,8 +984,19 @@ class SquaredMeanForce(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 def lp_force_pure(
-    gammas_targets, gammas_sources, gammadashs_targets, gammadashs_sources, gammadashdashs_targets,
-    quadpoints, currents_targets, currents_sources, regularizations, p, threshold, downsample=1
+    gammas_targets, 
+    gammas_sources, 
+    gammadashs_targets, 
+    gammadashs_sources, 
+    gammadashdashs_targets, 
+    quadpoints, 
+    currents_targets, 
+    currents_sources, 
+    regularizations, 
+    p, 
+    threshold, 
+    downsample,
+    eps=1e-10
 ):
     r"""
     Computes the Lp force objective by summing over a set of m coils, 
@@ -1006,7 +1052,7 @@ def lp_force_pure(
             total number of quadrature points (since this will produce a nonuniform set of points). 
             This parameter is used to speed up expensive calculations during optimization, 
             while retaining higher accuracy for the other objectives. 
-
+        eps (float): Small constant to avoid division by zero for force between coil_i and itself.
     Returns:
         float: The Lp force objective.
     """
@@ -1020,7 +1066,6 @@ def lp_force_pure(
 
     n1 = gammas_targets.shape[0]
     npts1 = gammas_targets.shape[1]
-    eps = 1e-10  # small constant to avoid division by zero for force between coil_i and itself
 
     # Precompute tangents and norms
     gammadash_norms = jnp.linalg.norm(gammadashs_targets, axis=-1)[:, :, None]
@@ -1039,7 +1084,7 @@ def lp_force_pure(
                 gammas_sources, gammadashs_sources, currents_sources,
                 eps
             )
-        )(gamma_i) * 1e-7
+        )(gamma_i)
         F = _lorentz_force_density_pure(tangent_i, current_i, B_mutual + B_self_i)
         # Force per unit length is in N/m, convert to MN/m
         return jnp.linalg.norm(F, axis=-1) / 1e6
@@ -1224,8 +1269,21 @@ class LpCurveForce(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
-def lp_torque_pure(gammas_targets, gammas_sources, gammadashs_targets, gammadashs_sources, gammadashdashs_targets,
-                   quadpoints, currents_targets, currents_sources, regularizations, p, threshold, downsample=1):
+def lp_torque_pure(
+    gammas_targets, 
+    gammas_sources, 
+    gammadashs_targets, 
+    gammadashs_sources, 
+    gammadashdashs_targets,
+    quadpoints, 
+    currents_targets, 
+    currents_sources, 
+    regularizations, 
+    p, 
+    threshold, 
+    downsample,
+    eps=1e-10
+):
     r"""
     Pure function for computing the Lp torque on a set of m coils with n quadrature points
     from themselves and another set of m' coils with n' quadrature points.
@@ -1269,10 +1327,11 @@ def lp_torque_pure(gammas_targets, gammas_sources, gammadashs_targets, gammadash
             total number of quadrature points (since this will produce a nonuniform set of points). 
             This parameter is used to speed up expensive calculations during optimization, 
             while retaining higher accuracy for the other objectives. 
-
+        eps (float): Small constant to avoid division by zero for torque between coil_i and itself.
     Returns:
         float: Value of the objective function.
     """
+    from simsopt.geo.curve import centroid_pure
     gammas_targets, gammadashs_targets, gammadashdashs_targets, quadpoints, gammas_sources, gammadashs_sources, currents_targets, currents_sources, regularizations = (
         _prepare_regularized_target_source_inputs_pure(
             gammas_targets, gammadashs_targets, gammadashdashs_targets, quadpoints,
@@ -1281,7 +1340,7 @@ def lp_torque_pure(gammas_targets, gammas_sources, gammadashs_targets, gammadash
         )
     )
 
-    centers = vmap(_curve_barycenter_pure, in_axes=(0, 0))(gammas_targets, gammadashs_targets)
+    centers = vmap(centroid_pure, in_axes=(0, 0))(gammas_targets, gammadashs_targets)
 
     # Precompute B_self for each coil
     B_self = vmap(B_regularized_pure, in_axes=(0, 0, 0, None, 0, 0))(
@@ -1292,7 +1351,6 @@ def lp_torque_pure(gammas_targets, gammas_sources, gammadashs_targets, gammadash
 
     n1 = gammas_targets.shape[0]
     npts1 = gammas_targets.shape[1]
-    eps = 1e-10  # small constant to avoid division by zero for torque between coil_i and itself
 
     def per_coil_obj_group1(i, gamma_i, center_i, tangent_i, B_self_i, current_i):
         def torque_at_point(idx):
@@ -1301,7 +1359,7 @@ def lp_torque_pure(gammas_targets, gammas_sources, gammadashs_targets, gammadash
                 gammas_targets, gammadashs_targets, currents_targets,
                 gammas_sources, gammadashs_sources, currents_sources,
                 eps
-            ) * 1e-7
+            )
             F = current_i * jnp.cross(tangent_i[idx], B_mutual + B_self_i[idx])
             tau = jnp.cross(gamma_i[idx] - center_i, F)
             # Torque per unit length is in N, convert to MN
@@ -1491,7 +1549,16 @@ class LpCurveTorque(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
-def squared_mean_torque(gammas_targets, gammas_sources, gammadashs_targets, gammadashs_sources, currents_targets, currents_sources, downsample):
+def squared_mean_torque(
+    gammas_targets, 
+    gammas_sources, 
+    gammadashs_targets, 
+    gammadashs_sources, 
+    currents_targets, 
+    currents_sources, 
+    downsample,
+    eps=1e-10
+):
     r"""
     Compute the squared mean torque on a set of m coils with n quadrature points 
     due to themselves and another set of m' coils with n' quadrature points.
@@ -1523,10 +1590,11 @@ def squared_mean_torque(gammas_targets, gammas_sources, gammadashs_targets, gamm
             total number of quadrature points (since this will produce a nonuniform set of points). 
             This parameter is used to speed up expensive calculations during optimization, 
             while retaining higher accuracy for the other objectives. 
-
+        eps (float): Small constant to avoid division by zero for torque between coil_i and itself.
     Returns:
         float: Value of the objective function.
     """
+    from simsopt.geo.curve import centroid_pure
     gammas_targets, gammadashs_targets, gammas_sources, gammadashs_sources, currents_targets, currents_sources = (
         _prepare_target_source_inputs_pure(
             gammas_targets, gammadashs_targets, gammas_sources, gammadashs_sources,
@@ -1536,9 +1604,8 @@ def squared_mean_torque(gammas_targets, gammas_sources, gammadashs_targets, gamm
 
     n1 = gammas_targets.shape[0]
     npts1 = gammas_targets.shape[1]
-    eps = 1e-10  # small constant to avoid division by zero for torque between coil_i and itself
 
-    centers = vmap(_curve_barycenter_pure, in_axes=(0, 0))(gammas_targets, gammadashs_targets)
+    centers = vmap(centroid_pure, in_axes=(0, 0))(gammas_targets, gammadashs_targets)
 
     def mean_torque_group1(i, gamma_i, gammadash_i, center_i, current_i):
         arclength = jnp.linalg.norm(gammadash_i, axis=-1)
@@ -1558,11 +1625,11 @@ def squared_mean_torque(gammas_targets, gammas_sources, gammadashs_targets, gamm
     mean_torques = vmap(mean_torque_group1, in_axes=(0, 0, 0, 0, 0))(
         jnp.arange(n1), gammas_targets, gammadashs_targets, centers, currents_targets
     )
-    # mean_torques is computed without mu_0/(4*pi) factor in B_mutual, so we need to multiply by (mu_0/(4*pi))^2 = 1e-14
+    # already multiplied by (mu_0/(4*pi)) in _mutual_B_field_at_point_pure, 
+    # which gives a factor of (mu_0/(4*pi))^2 = 1e-14
     # Then convert from (N)^2 to (MN)^2 by dividing by (1e6)^2 = 1e12
-    # Net factor: 1e-14 / 1e12 = 1e-26
     mean_torques_squared = jnp.sum(jnp.linalg.norm(mean_torques, axis=-1) ** 2)
-    return mean_torques_squared * 1e-26
+    return mean_torques_squared * 1e-12
 
 
 class SquaredMeanTorque(Optimizable):
