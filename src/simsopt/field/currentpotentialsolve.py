@@ -647,7 +647,7 @@ class CurrentPotentialSolve:
             Ak_inv = np.linalg.pinv(Ak_matrix, rcond=1e-10)
         except np.linalg.LinAlgError:
             from scipy.linalg import pinv as scipy_pinv
-            Ak_inv = scipy_pinv(Ak_matrix, rcond=1e-8)
+            Ak_inv = scipy_pinv(Ak_matrix, rtol=1e-8)
         A_new = A_matrix @ Ak_inv
         b_new = b_e - A_new @ d
         if TIMING:
