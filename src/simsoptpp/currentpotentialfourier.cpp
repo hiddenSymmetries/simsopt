@@ -3,6 +3,8 @@
 
 #define ANGLE_RECOMPUTE 5
 
+#if defined(USE_XSIMD)
+
 // template<template<class Array> class Surface, class Array>
 template<class Array>
 void CurrentPotentialFourier<Array>::Phi_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
@@ -53,6 +55,51 @@ void CurrentPotentialFourier<Array>::Phi_impl(Array& data, Array& quadpoints_phi
     }
 }
 
+#else
+
+template<class Array>
+void CurrentPotentialFourier<Array>::Phi_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    int numquadpoints_phi = quadpoints_phi.size();
+    int numquadpoints_theta = quadpoints_theta.size();
+    constexpr int simd_size = 1;
+#pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        for(int k2 = 0; k2 < numquadpoints_theta; k2 += simd_size) {
+            double theta = 2*M_PI * quadpoints_theta[k2];
+            double Phi = 0.;
+            double sin_nfpphi = sin(-nfp*phi);
+            double cos_nfpphi = cos(-nfp*phi);
+            for (int m = 0; m <= mpol; ++m) {
+                double sinterm, costerm;
+                for (int i = 0; i < 2*ntor+1; ++i) {
+                    int n  = i - ntor;
+                    if(i % ANGLE_RECOMPUTE == 0) {
+                        sinterm = sin(m*theta - n*nfp*phi);
+                        costerm = cos(m*theta - n*nfp*phi);
+                    }
+                    if (! (m == 0 && n <= 0)) {
+                        Phi += phis(m, i) * sinterm;
+                        if(!stellsym) {
+                            Phi += phic(m, i) * costerm;
+                        }
+                    }
+                    if(i % ANGLE_RECOMPUTE != ANGLE_RECOMPUTE - 1){
+                        double sinterm_old = sinterm;
+                        double costerm_old = costerm;
+                        sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
+                        costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
+                    }
+                }
+            }
+            data(k1, k2) = Phi;
+        }
+    }
+}
+
+#endif
+
+#if defined(USE_XSIMD)
 // template<template<class Array> class T, class Array>
 template<class Array>
 void CurrentPotentialFourier<Array>::Phidash1_impl(Array& data) {
@@ -101,6 +148,49 @@ void CurrentPotentialFourier<Array>::Phidash1_impl(Array& data) {
     }
 }
 
+#else
+
+template<class Array>
+void CurrentPotentialFourier<Array>::Phidash1_impl(Array& data) {
+    constexpr int simd_size = 1;
+#pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        for(int k2 = 0; k2 < numquadpoints_theta; k2 += simd_size) {
+            double theta = 2*M_PI * quadpoints_theta[k2];
+            double Phidash1 = 0.;
+            double sin_nfpphi = sin(-nfp*phi);
+            double cos_nfpphi = cos(-nfp*phi);
+            for (int m = 0; m <= mpol; ++m) {
+                double sinterm, costerm;
+                for (int i = 0; i < 2*ntor+1; ++i) {
+                    int n  = i - ntor;
+                    if(i % ANGLE_RECOMPUTE == 0) {
+                        sinterm = sin(m*theta - n*nfp*phi);
+                        costerm = cos(m*theta - n*nfp*phi);
+                    }
+                    if (! (m == 0 && n <= 0)) {
+                        Phidash1 += (-n*nfp) * phis(m, i) * costerm;
+                        if(!stellsym) {
+                            Phidash1 += - (-n*nfp) * phic(m, i) * sinterm;
+                        }
+                    }
+                    if(i % ANGLE_RECOMPUTE != ANGLE_RECOMPUTE - 1){
+                        double sinterm_old = sinterm;
+                        double costerm_old = costerm;
+                        sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
+                        costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
+                    }
+                }
+            }
+            data(k1, k2) = Phidash1 * 2*M_PI;
+        }
+    }
+}
+
+#endif
+
+#if defined(USE_XSIMD)
 // template<template<class Array> class Surface, class Array>
 // template<template<class Array> class T>
 template<class Array>
@@ -149,6 +239,48 @@ void CurrentPotentialFourier<Array>::Phidash2_impl(Array& data) {
         }
     }
 }
+
+#else
+
+template<class Array>
+void CurrentPotentialFourier<Array>::Phidash2_impl(Array& data) {
+    constexpr int simd_size = 1;
+#pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        for(int k2 = 0; k2 < numquadpoints_theta; k2 += simd_size) {
+            double theta = 2*M_PI * quadpoints_theta[k2];
+            double Phidash2 = 0.;
+            double sin_nfpphi = sin(-nfp*phi);
+            double cos_nfpphi = cos(-nfp*phi);
+            for (int m = 0; m <= mpol; ++m) {
+                double sinterm, costerm;
+                for (int i = 0; i < 2*ntor+1; ++i) {
+                    int n  = i - ntor;
+                    if(i % ANGLE_RECOMPUTE == 0) {
+                        sinterm = sin(m*theta - n*nfp*phi);
+                        costerm = cos(m*theta - n*nfp*phi);
+                    }
+                    if (! (m == 0 && n <= 0)) {
+                        Phidash2 += m * phis(m, i) * costerm;
+                        if(!stellsym) {
+                            Phidash2 += - m * phic(m, i) * sinterm;
+                        }
+                    }
+                    if(i % ANGLE_RECOMPUTE != ANGLE_RECOMPUTE - 1){
+                        double sinterm_old = sinterm;
+                        double costerm_old = costerm;
+                        sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
+                        costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
+                    }
+                }
+            }
+            data(k1, k2) = Phidash2 * 2*M_PI;
+        }
+    }
+}
+
+#endif
 
 template<class Array>
 void CurrentPotentialFourier<Array>::dPhidash2_by_dcoeff_impl(Array& data) {

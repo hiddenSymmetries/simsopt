@@ -52,6 +52,7 @@ Array WindingSurfaceBn_REGCOIL(Array& points, Array& ws_points, Array& ws_normal
     return Bn;
 }
 
+#if defined(USE_XSIMD)
 Array WindingSurfaceB(Array& points, Array& ws_points, Array& ws_normal, Array& K)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
@@ -113,6 +114,52 @@ Array WindingSurfaceB(Array& points, Array& ws_points, Array& ws_normal, Array& 
     return B;
 }
 
+#else
+
+Array WindingSurfaceB(Array& points, Array& ws_points, Array& ws_normal, Array& K)
+{
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(ws_points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("winding surface points needs to be in row-major storage order");
+    if(ws_normal.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("winding surface normal vector needs to be in row-major storage order");
+    if(K.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("surface_current needs to be in row-major storage order");
+
+    int num_points = points.shape(0);
+    int num_ws_points = ws_points.shape(0);
+    Array B = xt::zeros<double>({points.shape(0), points.shape(1)});
+    double fak = 1e-7;
+
+    #pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_points; ++i) {
+        double Bx = 0., By = 0., Bz = 0.;
+        double px = points(i, 0), py = points(i, 1), pz = points(i, 2);
+        for (int j = 0; j < num_ws_points; ++j) {
+            double xx = ws_points(j, 0), yy = ws_points(j, 1), zz = ws_points(j, 2);
+            double nx = ws_normal(j, 0), ny = ws_normal(j, 1), nz = ws_normal(j, 2);
+            double Kx = K(j, 0), Ky = K(j, 1), Kz = K(j, 2);
+            double rx = px - xx, ry = py - yy, rz = pz - zz;
+            double rmag2 = rx*rx + ry*ry + rz*rz;
+            double rmag_inv = 1.0 / std::sqrt(rmag2);
+            double rmag_inv_3 = rmag_inv * rmag_inv * rmag_inv;
+            double nmag = std::sqrt(nx*nx + ny*ny + nz*nz);
+            double Kcrx = Ky*rz - Kz*ry, Kcry = Kz*rx - Kx*rz, Kcrz = Kx*ry - Ky*rx;
+            Bx += nmag * Kcrx * rmag_inv_3;
+            By += nmag * Kcry * rmag_inv_3;
+            Bz += nmag * Kcrz * rmag_inv_3;
+        }
+        B(i, 0) = fak * Bx;
+        B(i, 1) = fak * By;
+        B(i, 2) = fak * Bz;
+    }
+    return B;
+}
+
+#endif
+
+#if defined(USE_XSIMD)
 Array WindingSurfacedB(Array& points, Array& ws_points, Array& ws_normal, Array& K)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
@@ -195,6 +242,70 @@ Array WindingSurfacedB(Array& points, Array& ws_points, Array& ws_normal, Array&
     return dB;
 }
 
+#else
+
+Array WindingSurfacedB(Array& points, Array& ws_points, Array& ws_normal, Array& K)
+{
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(ws_points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("winding surface points needs to be in row-major storage order");
+    if(ws_normal.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("winding surface normal vector needs to be in row-major storage order");
+    if(K.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("surface_current needs to be in row-major storage order");
+
+    int num_points = points.shape(0);
+    int num_ws_points = ws_points.shape(0);
+    Array dB = xt::zeros<double>({points.shape(0), points.shape(1), points.shape(1)});
+    double fak = 1e-7;
+
+    #pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_points; ++i) {
+        double dB11 = 0., dB12 = 0., dB13 = 0.;
+        double dB21 = 0., dB22 = 0., dB23 = 0.;
+        double dB31 = 0., dB32 = 0., dB33 = 0.;
+        double px = points(i, 0), py = points(i, 1), pz = points(i, 2);
+        for (int j = 0; j < num_ws_points; ++j) {
+            double xx = ws_points(j, 0), yy = ws_points(j, 1), zz = ws_points(j, 2);
+            double nx = ws_normal(j, 0), ny = ws_normal(j, 1), nz = ws_normal(j, 2);
+            double Kx = K(j, 0), Ky = K(j, 1), Kz = K(j, 2);
+            double rx = px - xx, ry = py - yy, rz = pz - zz;
+            double rmag2 = rx*rx + ry*ry + rz*rz;
+            double rmag_inv = 1.0 / std::sqrt(rmag2);
+            double rmag_inv_3 = rmag_inv * rmag_inv * rmag_inv;
+            double rmag_inv_5 = rmag_inv_3 * rmag_inv * rmag_inv;
+            double nmag = std::sqrt(nx*nx + ny*ny + nz*nz);
+            double Kcrx = Ky*rz - Kz*ry, Kcry = Kz*rx - Kx*rz, Kcrz = Kx*ry - Ky*rx;
+            double Kcrossex_y = Kz, Kcrossex_z = -Ky;
+            double Kcrossey_x = -Kz, Kcrossey_z = Kx;
+            double Kcrossez_x = Ky, Kcrossez_y = -Kx;
+            dB11 += nmag * (-3.0 * Kcrx * rmag_inv_5 * rx);
+            dB12 += nmag * (Kcrossex_y * rmag_inv_3 - 3.0 * Kcry * rmag_inv_5 * rx);
+            dB13 += nmag * (Kcrossex_z * rmag_inv_3 - 3.0 * Kcrz * rmag_inv_5 * rx);
+            dB21 += nmag * (Kcrossey_x * rmag_inv_3 - 3.0 * Kcrx * rmag_inv_5 * ry);
+            dB22 += nmag * (-3.0 * Kcry * rmag_inv_5 * ry);
+            dB23 += nmag * (Kcrossey_z * rmag_inv_3 - 3.0 * Kcrz * rmag_inv_5 * ry);
+            dB31 += nmag * (Kcrossez_x * rmag_inv_3 - 3.0 * Kcrx * rmag_inv_5 * rz);
+            dB32 += nmag * (Kcrossez_y * rmag_inv_3 - 3.0 * Kcry * rmag_inv_5 * rz);
+            dB33 += nmag * (-3.0 * Kcrz * rmag_inv_5 * rz);
+        }
+        dB(i, 0, 0) = fak * dB11;
+        dB(i, 0, 1) = fak * dB12;
+        dB(i, 0, 2) = fak * dB13;
+        dB(i, 1, 0) = fak * dB21;
+        dB(i, 1, 1) = fak * dB22;
+        dB(i, 1, 2) = fak * dB23;
+        dB(i, 2, 0) = fak * dB31;
+        dB(i, 2, 1) = fak * dB32;
+        dB(i, 2, 2) = fak * dB33;
+    }
+    return dB;
+}
+
+#endif
+
+#if defined(USE_XSIMD)
 Array WindingSurfaceA(Array& points, Array& ws_points, Array& ws_normal, Array& K)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
@@ -254,6 +365,50 @@ Array WindingSurfaceA(Array& points, Array& ws_points, Array& ws_normal, Array& 
     return A;
 }
 
+#else
+
+Array WindingSurfaceA(Array& points, Array& ws_points, Array& ws_normal, Array& K)
+{
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(ws_points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("winding surface points needs to be in row-major storage order");
+    if(ws_normal.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("winding surface normal vector needs to be in row-major storage order");
+    if(K.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("surface_current needs to be in row-major storage order");
+
+    int num_points = points.shape(0);
+    int num_ws_points = ws_points.shape(0);
+    Array A = xt::zeros<double>({points.shape(0), points.shape(1)});
+    double fak = 1e-7;
+
+    #pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_points; ++i) {
+        double Ax = 0., Ay = 0., Az = 0.;
+        double px = points(i, 0), py = points(i, 1), pz = points(i, 2);
+        for (int j = 0; j < num_ws_points; ++j) {
+            double xx = ws_points(j, 0), yy = ws_points(j, 1), zz = ws_points(j, 2);
+            double nx = ws_normal(j, 0), ny = ws_normal(j, 1), nz = ws_normal(j, 2);
+            double Kx = K(j, 0), Ky = K(j, 1), Kz = K(j, 2);
+            double rx = px - xx, ry = py - yy, rz = pz - zz;
+            double rmag2 = rx*rx + ry*ry + rz*rz;
+            double rmag_inv = 1.0 / std::sqrt(rmag2);
+            double nmag = std::sqrt(nx*nx + ny*ny + nz*nz);
+            Ax += nmag * Kx * rmag_inv;
+            Ay += nmag * Ky * rmag_inv;
+            Az += nmag * Kz * rmag_inv;
+        }
+        A(i, 0) = fak * Ax;
+        A(i, 1) = fak * Ay;
+        A(i, 2) = fak * Az;
+    }
+    return A;
+}
+
+#endif
+
+#if defined(USE_XSIMD)
 Array WindingSurfacedA(Array& points, Array& ws_points, Array& ws_normal, Array& K)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
@@ -327,6 +482,64 @@ Array WindingSurfacedA(Array& points, Array& ws_points, Array& ws_normal, Array&
     }
     return dA;
 }
+
+#else
+
+Array WindingSurfacedA(Array& points, Array& ws_points, Array& ws_normal, Array& K)
+{
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(ws_points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("winding surface points needs to be in row-major storage order");
+    if(ws_normal.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("winding surface normal vector needs to be in row-major storage order");
+    if(K.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("surface_current needs to be in row-major storage order");
+
+    int num_points = points.shape(0);
+    int num_ws_points = ws_points.shape(0);
+    Array dA = xt::zeros<double>({points.shape(0), points.shape(1), points.shape(1)});
+    double fak = 1e-7;
+
+    #pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_points; ++i) {
+        double dA11 = 0., dA12 = 0., dA13 = 0.;
+        double dA21 = 0., dA22 = 0., dA23 = 0.;
+        double dA31 = 0., dA32 = 0., dA33 = 0.;
+        double px = points(i, 0), py = points(i, 1), pz = points(i, 2);
+        for (int j = 0; j < num_ws_points; ++j) {
+            double xx = ws_points(j, 0), yy = ws_points(j, 1), zz = ws_points(j, 2);
+            double nx = ws_normal(j, 0), ny = ws_normal(j, 1), nz = ws_normal(j, 2);
+            double Kx = K(j, 0), Ky = K(j, 1), Kz = K(j, 2);
+            double rx = px - xx, ry = py - yy, rz = pz - zz;
+            double rmag2 = rx*rx + ry*ry + rz*rz;
+            double rmag_inv = 1.0 / std::sqrt(rmag2);
+            double rmag_inv_3 = rmag_inv * rmag_inv * rmag_inv;
+            double nmag = std::sqrt(nx*nx + ny*ny + nz*nz);
+            dA11 += -nmag * Kx * rx * rmag_inv_3;
+            dA12 += -nmag * Ky * rx * rmag_inv_3;
+            dA13 += -nmag * Kz * rx * rmag_inv_3;
+            dA21 += -nmag * Kx * ry * rmag_inv_3;
+            dA22 += -nmag * Ky * ry * rmag_inv_3;
+            dA23 += -nmag * Kz * ry * rmag_inv_3;
+            dA31 += -nmag * Kx * rz * rmag_inv_3;
+            dA32 += -nmag * Ky * rz * rmag_inv_3;
+            dA33 += -nmag * Kz * rz * rmag_inv_3;
+        }
+        dA(i, 0, 0) = fak * dA11;
+        dA(i, 0, 1) = fak * dA12;
+        dA(i, 0, 2) = fak * dA13;
+        dA(i, 1, 0) = fak * dA21;
+        dA(i, 1, 1) = fak * dA22;
+        dA(i, 1, 2) = fak * dA23;
+        dA(i, 2, 0) = fak * dA31;
+        dA(i, 2, 1) = fak * dA32;
+        dA(i, 2, 2) = fak * dA33;
+    }
+    return dA;
+}
+
+#endif
 
 // Calculate the geometric factor needed for the A^B term in winding surface optimization
 std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& points_coil, Array& normal_plasma, Array& normal_coil, bool stellsym, Array& zeta_coil, Array& theta_coil, int ndofs, Array& m, Array& n, int nfp)

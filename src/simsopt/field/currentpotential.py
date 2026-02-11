@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from typing import Optional, Union, List
 import numpy as np
 from .._core.optimizable import DOFs, Optimizable
 import simsoptpp as sopp
@@ -16,14 +19,14 @@ class CurrentPotential(Optimizable):
         winding_surface: SurfaceRZFourier object representing the coil surface.
     """
 
-    def set_points(self, points):
+    def set_points(self, points: np.ndarray) -> None:
         return self.set_points(points)
 
-    def __init__(self, winding_surface, **kwargs):
+    def __init__(self, winding_surface: SurfaceRZFourier, **kwargs) -> None:
         super().__init__(**kwargs)
         self.winding_surface = winding_surface
 
-    def K(self):
+    def K(self) -> np.ndarray:
         data = np.zeros((len(self.quadpoints_phi), len(self.quadpoints_theta), 3))
         dg1 = self.winding_surface.gammadash1()
         dg2 = self.winding_surface.gammadash2()
@@ -31,7 +34,7 @@ class CurrentPotential(Optimizable):
         self.K_impl_helper(data, dg1, dg2, normal)
         return data
 
-    def K_matrix(self):
+    def K_matrix(self) -> np.ndarray:
         data = np.zeros((len(self.num_dofs), len(self.num_dofs)))
         dg1 = self.winding_surface.gammadash1()
         dg2 = self.winding_surface.gammadash2()
@@ -39,7 +42,7 @@ class CurrentPotential(Optimizable):
         self.K_matrix_impl_helper(data, dg1, dg2, normal)
         return data
 
-    def num_dofs(self):
+    def num_dofs(self) -> int:
         return len(self.get_dofs())
 
 
@@ -65,11 +68,18 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
 
-    def __init__(self, winding_surface, net_poloidal_current_amperes=1,
-                 net_toroidal_current_amperes=0, nfp=None, stellsym=None,
-                 mpol=None, ntor=None,
-                 quadpoints_phi=None, quadpoints_theta=None
-                 ):
+    def __init__(
+        self,
+        winding_surface: SurfaceRZFourier,
+        net_poloidal_current_amperes: float = 1,
+        net_toroidal_current_amperes: float = 0,
+        nfp: Optional[int] = None,
+        stellsym: Optional[bool] = None,
+        mpol: Optional[int] = None,
+        ntor: Optional[int] = None,
+        quadpoints_phi: Optional[Union[np.ndarray, List[float]]] = None,
+        quadpoints_theta: Optional[Union[np.ndarray, List[float]]] = None,
+    ) -> None:
 
         if nfp is None:
             nfp = winding_surface.nfp
@@ -111,7 +121,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
             phi_secular * net_poloidal_current_amperes + theta_secular * net_toroidal_current_amperes
         )
 
-    def _make_names(self):
+    def _make_names(self) -> List[str]:
         if self.stellsym:
             names = self._make_names_helper('Phis')
         else:
@@ -119,7 +129,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
                 + self._make_names_helper('Phic')
         return names
 
-    def _make_names_helper(self, prefix):
+    def _make_names_helper(self, prefix: str) -> List[str]:
         names = []
 
         start = 1
@@ -128,10 +138,10 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
             names += [prefix + '(' + str(m) + ',' + str(n) + ')' for n in range(-self.ntor, self.ntor + 1)]
         return names
 
-    def get_dofs(self):
+    def get_dofs(self) -> np.ndarray:
         return np.asarray(sopp.CurrentPotentialFourier.get_dofs(self))
 
-    def change_resolution(self, mpol, ntor):
+    def change_resolution(self, mpol: int, ntor: int) -> None:
         """
         Modeled after SurfaceRZFourier
         Change the values of `mpol` and `ntor`. Any new Fourier amplitudes
@@ -166,7 +176,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         Optimizable._update_full_dof_size_indices(self)
         Optimizable.set_recompute_flag(self)
 
-    def get_phic(self, m, n):
+    def get_phic(self, m: int, n: int) -> float:
         """
         Return a particular `phic` parameter.
         """
@@ -176,14 +186,14 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         self._validate_mn(m, n)
         return self.phic[m, n + self.ntor]
 
-    def get_phis(self, m, n):
+    def get_phis(self, m: int, n: int) -> float:
         """
         Return a particular `phis` parameter.
         """
         self._validate_mn(m, n)
         return self.phis[m, n + self.ntor]
 
-    def set_phic(self, m, n, val):
+    def set_phic(self, m: int, n: int, val: float) -> None:
         """
         Set a particular `phic` Parameter.
         """
@@ -195,7 +205,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         self.local_full_x = self.get_dofs()
         self.invalidate_cache()
 
-    def set_phis(self, m, n, val):
+    def set_phis(self, m: int, n: int, val: float) -> None:
         """
         Set a particular `phis` Parameter.
         """
@@ -204,15 +214,17 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         self.local_full_x = self.get_dofs()
         self.invalidate_cache()
 
-    def set_net_toroidal_current_amperes(self, val):
+    def set_net_toroidal_current_amperes(self, val: float) -> None:
         self.net_toroidal_current_amperes = val
         self.invalidate_cache()
 
-    def set_net_poloidal_current_amperes(self, val):
+    def set_net_poloidal_current_amperes(self, val: float) -> None:
         self.net_poloidal_current_amperes = val
         self.invalidate_cache()
 
-    def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
+    def fixed_range(
+        self, mmin: int, mmax: int, nmin: int, nmax: int, fixed: bool = True
+    ) -> None:
         """
         Modeled after SurfaceRZFourier
         Set the 'fixed' property for a range of `m` and `n` values.
@@ -236,7 +248,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
                     if not self.stellsym:
                         fn(f'phic({m},{n})')
 
-    def _validate_mn(self, m, n):
+    def _validate_mn(self, m: int, n: int) -> None:
         """
         Copied from SurfaceRZFourier
         Check whether `m` and `n` are in the allowed range.
@@ -250,7 +262,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         if n < -self.ntor:
             raise IndexError('n must be >= -ntor')
 
-    def _make_mn(self):
+    def _make_mn(self) -> None:
         """
         Make the list of m and n values.
         """
@@ -302,7 +314,12 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         self.set_dofs(single_valued_current_potential_mn)
 
     @classmethod
-    def from_netcdf(cls, filename: str, coil_ntheta_res=1.0, coil_nzeta_res=1.0):
+    def from_netcdf(
+        cls,
+        filename: str,
+        coil_ntheta_res: float = 1.0,
+        coil_nzeta_res: float = 1.0,
+    ) -> "CurrentPotentialFourier":
         """
         Initialize a CurrentPotentialFourier object from a regcoil netcdf output file.
 

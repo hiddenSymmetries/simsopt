@@ -21,7 +21,6 @@ using std::logic_error;
 #include <Eigen/Dense>
 using std::shared_ptr;
 
-// template<template<class T> class Surface, class Array>
 template<class Array>
 class CurrentPotential {
     private:
@@ -108,9 +107,6 @@ class CurrentPotential {
         virtual void dPhidash1_by_dcoeff_impl(Array& data)  { throw logic_error("dPhidash1_by_dcoeff_impl was not implemented"); };
         virtual void dPhidash2_by_dcoeff_impl(Array& data)  { throw logic_error("dPhidash2_by_dcoeff_impl was not implemented"); };
 
-        // Array& K() {
-        //     return check_the_cache("K", {numquadpoints_phi, numquadpoints_theta, 3}, [this](Array& A) { return K_impl(A);});
-        // }
         Array& Phi() {
             return check_the_cache("Phi", {numquadpoints_phi, numquadpoints_theta}, [this](Array& A) { return Phi_impl(A, this->quadpoints_phi, this->quadpoints_theta);});
         }

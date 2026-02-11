@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from typing import Optional, Tuple, List, Union
 import numpy as np
 import os
 import time
@@ -28,7 +31,12 @@ class CurrentPotentialSolve:
         B_GI: Bnormal coming from the net coil currents.
     """
 
-    def __init__(self, cp, plasma_surface, Bnormal_plasma):
+    def __init__(
+        self,
+        cp: CurrentPotentialFourier,
+        plasma_surface: SurfaceRZFourier,
+        Bnormal_plasma: Union[np.ndarray, float],
+    ) -> None:
         
         if np.max(plasma_surface.quadpoints_phi)>=1/plasma_surface.nfp:
             raise AttributeError('winding_surface must contain only one field period.')
@@ -94,7 +102,14 @@ class CurrentPotentialSolve:
         )
 
     @classmethod
-    def from_netcdf(cls, filename: str, plasma_ntheta_res=1.0, plasma_nzeta_res=1.0, coil_ntheta_res=1.0, coil_nzeta_res=1.0):
+    def from_netcdf(
+        cls,
+        filename: str,
+        plasma_ntheta_res: float = 1.0,
+        plasma_nzeta_res: float = 1.0,
+        coil_ntheta_res: float = 1.0,
+        coil_nzeta_res: float = 1.0,
+    ) -> "CurrentPotentialSolve":
         """
         Initialize a CurrentPotentialSolve using a CurrentPotentialFourier
         from a regcoil netcdf output file. The single_valued_current_potential_mn
@@ -185,7 +200,7 @@ class CurrentPotentialSolve:
                 s_plasma.set_zc(xm_plasma[im], int(xn_plasma[im] / nfp), zmnc_plasma[im])
         return cls(cp, s_plasma, np.ravel(Bnormal_from_plasma_current))
 
-    def write_regcoil_out(self, filename: str):
+    def write_regcoil_out(self, filename: str) -> None:
         """
         Take optimized CurrentPotentialSolve class and save it to a regcoil-style
         outfile for backwards compatability with other stellarator codes.
@@ -375,7 +390,7 @@ class CurrentPotentialSolve:
 
         f.close()
 
-    def K_rhs_impl(self, K_rhs):
+    def K_rhs_impl(self, K_rhs: np.ndarray) -> None:
         """
         Implied function for the K rhs for the REGCOIL problem.
 
@@ -388,7 +403,7 @@ class CurrentPotentialSolve:
         self.current_potential.K_rhs_impl_helper(K_rhs, dg1, dg2, normal)
         K_rhs *= self.winding_surface.quadpoints_theta[1] * self.winding_surface.quadpoints_phi[1] / self.winding_surface.nfp
 
-    def K_rhs(self):
+    def K_rhs(self) -> np.ndarray:
         """
         Compute the K rhs for the REGCOIL problem.
 
@@ -402,7 +417,7 @@ class CurrentPotentialSolve:
         self.K_rhs_impl(K_rhs)
         return K_rhs
 
-    def K_matrix_impl(self, K_matrix):
+    def K_matrix_impl(self, K_matrix: np.ndarray) -> None:
         """
         Implied function for the K matrix for the REGCOIL problem.
 
@@ -415,7 +430,7 @@ class CurrentPotentialSolve:
         self.current_potential.K_matrix_impl_helper(K_matrix, dg1, dg2, normal)
         K_matrix *= self.winding_surface.quadpoints_theta[1] * self.winding_surface.quadpoints_phi[1] / self.winding_surface.nfp
 
-    def K_matrix(self):
+    def K_matrix(self) -> np.ndarray:
         """
         Compute the K matrix for the REGCOIL problem.
         
@@ -429,7 +444,7 @@ class CurrentPotentialSolve:
         self.K_matrix_impl(K_matrix)
         return K_matrix
 
-    def B_matrix_and_rhs(self):
+    def B_matrix_and_rhs(self) -> Tuple[np.ndarray, np.ndarray]:
         """
             Compute the matrices and right-hand-side corresponding the Bnormal part of
             the optimization, for both the Tikhonov and Lasso optimizations.
@@ -506,7 +521,11 @@ class CurrentPotentialSolve:
             print(f"        [B_matrix_and_rhs] winding_surface_field_K2_matrices: {time.perf_counter()-t0:.3f}s")
         return b_rhs, B_matrix
 
-    def solve_tikhonov(self, lam=0, record_history=True):
+    def solve_tikhonov(
+        self,
+        lam: float = 0,
+        record_history: bool = True,
+    ) -> Tuple[np.ndarray, float, float]:
         """
             Solve the REGCOIL problem -- winding surface optimization with
             the L2 norm. This is tested against REGCOIL runs extensively in
@@ -573,7 +592,12 @@ class CurrentPotentialSolve:
             self.K2s_l2.append(K2)
         return phi_mn_opt, f_B, f_K
 
-    def solve_lasso(self, lam=0, max_iter=1000, acceleration=True):
+    def solve_lasso(
+        self,
+        lam: float = 0,
+        max_iter: int = 1000,
+        acceleration: bool = True,
+    ) -> Tuple[np.ndarray, float, float, List[float], List[float]]:
         """
             Solve the Lasso problem -- winding surface optimization with
             the L1 norm, which should tend to allow stronger current
@@ -670,7 +694,15 @@ class CurrentPotentialSolve:
         self.K2s_l1.append(K2)
         return phi_mn_opt, f_B, f_K, fB_history, fK_history
 
-    def _FISTA(self, A, b, alpha=0.0, max_iter=1000, acceleration=True, xi0=None):
+    def _FISTA(
+        self,
+        A: np.ndarray,
+        b: np.ndarray,
+        alpha: float = 0.0,
+        max_iter: int = 1000,
+        acceleration: bool = True,
+        xi0: Optional[np.ndarray] = None,
+    ) -> Tuple[np.ndarray, List[np.ndarray]]:
         """
         This function uses Nesterov's accelerated proximal
         gradient descent algorithm to solve the Lasso
@@ -764,7 +796,7 @@ class CurrentPotentialSolve:
         xi = x_history[-1]
         return xi, x_history
 
-    def _prox_l1(self, x, threshold):
+    def _prox_l1(self, x: np.ndarray, threshold: float) -> np.ndarray:
         """
         Proximal operator for L1 regularization,
         which is often called soft-thresholding.

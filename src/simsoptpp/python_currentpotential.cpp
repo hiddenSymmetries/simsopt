@@ -12,7 +12,6 @@ using std::vector;
 #include "surface.h"
 #include "currentpotentialfourier.h"
 typedef CurrentPotentialFourier<PyArray> PyCurrentPotentialFourier;
-// typedef CurrentPotential<PyArray> PyCurrentPotential;
 
 template <class PyCurrentPotentialFourierBase = PyCurrentPotentialFourier> class PyCurrentPotentialFourierTrampoline : public PyCurrentPotentialTrampoline<PyCurrentPotentialFourierBase> {
     public:
@@ -37,15 +36,6 @@ template <class PyCurrentPotentialFourierBase = PyCurrentPotentialFourier> class
         void Phi_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
             PyCurrentPotentialFourierBase::Phi_impl(data, quadpoints_phi, quadpoints_theta);
         }
-
-        // void Phidash1_impl(PyArray& data) override {
-        //     PyCurrentPotentialFourierBase::Phidash1_impl(data);
-        // }
-        //
-        // void Phidash2_impl(PyArray& data) override {
-        //     PyCurrentPotentialFourierBase::Phidash2_impl(data);
-        // }
-
 };
 
 template <typename T, typename S> void register_common_currentpotential_methods(S &s) {
@@ -53,9 +43,7 @@ template <typename T, typename S> void register_common_currentpotential_methods(
      .def("K_impl_helper", &T::K_impl_helper)
      .def("K_matrix_impl_helper", &T::K_matrix_impl_helper)
      .def("K_rhs_impl_helper", &T::K_rhs_impl_helper)
-     // .def("K", pybind11::overload_cast<>(&T::K))
      .def("set_dofs_impl", &T::set_dofs_impl)
-     // .def("Phi_impl", &T::Phi_impl)
      .def("Phidash1", pybind11::overload_cast<>(&T::Phidash1))
      .def("Phidash2", pybind11::overload_cast<>(&T::Phidash2))
      .def("Phidash1_impl", &T::Phidash1_impl)

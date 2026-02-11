@@ -31,7 +31,4 @@ template <class CurrentPotentialBase = PyCurrentPotential> class PyCurrentPotent
         virtual void Phidash2_impl(PyArray& data) override {
             PYBIND11_OVERLOAD(void, CurrentPotentialBase, Phidash2_impl, data);
         }
-        // virtual void K_impl_helper(PyArray& data, PyArray& dg1, PyArray& dg2, PyArray& normal) override {
-        //     PYBIND11_OVERLOAD(void, CurrentPotentialBase, K_impl_helper, data, dg1, dg2, normal);
-        // }
 };

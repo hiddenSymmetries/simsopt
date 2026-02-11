@@ -112,7 +112,7 @@ def run_scan():
         contig = np.ascontiguousarray
 
         # Loop through wide range of regularization values
-        lambdas = np.logspace(-14, -10, 4)
+        lambdas = np.logspace(-20, -10, 5)
         fB_tikhonov = np.zeros(len(lambdas))
         fB_lasso = np.zeros(len(lambdas))
         fK_tikhonov = np.zeros(len(lambdas))
@@ -294,10 +294,6 @@ def run_scan():
                  Kmax_lasso, Kmean_lasso,
                  ]).T
         )
-        if not in_github_actions:
-            plt.show()
-        else:
-            plt.close()
 
 
 def run_target():
@@ -309,7 +305,7 @@ def run_target():
         like the fairest way to compare them.
     """
 
-    fB_target = 1e-2
+    fB_target = 1e-4
     mpol = 4
     ntor = 4
     coil_ntheta_res = 1
@@ -389,13 +385,25 @@ def run_target():
             print(i, lambda_reg, f_B)
             cp_opt = cpst.current_potential
 
+            # Always plot Lasso convergence (even if target not achieved) so user sees the figure
+            plt.figure(100, figsize=(10, 6))
+            lamstr = r'$\lambda$={0:.2e}'.format(lambda_reg)
+            color = f'C{i}'
+            plt.semilogy(fB_history, '-', color=color, linewidth=2,
+                         label=lamstr + r': $f_B$ — squared flux residual')
+            plt.semilogy(lambda_reg * np.array(fK_history), '--', color=color, linewidth=2,
+                         label=lamstr + r': $\lambda f_K$ — current density penalty')
+            plt.grid(True, alpha=0.5)
+            status = 'converged' if f_B < fB_target else 'did not converge'
+            plt.title(r'Winding surface Lasso optimization: $f_B$ and $\lambda f_K$ vs iteration '
+                     r'(target $f_B < {:.0e}$; {})'.format(fB_target, status), fontsize=12)
+            plt.xlabel('Iteration', fontsize=12)
+            plt.ylabel(r'Objective value (log scale)', fontsize=12)
+            plt.legend(fontsize=11, loc='upper right', framealpha=0.9)
+            plt.tight_layout()
+            plt.savefig(OUT_DIR + 'run_target_lasso_convergence.jpg', dpi=150, bbox_inches='tight')
+
             if f_B < fB_target:
-                plt.figure(100)
-                lamstr = r'$\lambda$={0:.2e}'.format(lambda_reg)
-                color = f'C{i}'
-                plt.semilogy(fB_history, '-', color=color, label=lamstr + r': $f_B$')
-                plt.semilogy(lambda_reg * np.array(fK_history), '--', color=color, label=lamstr + r': $\lambda f_K$')
-                plt.grid(True)
                 K = contig(cp_opt.K())
                 print('fB < fB_target has been achieved: ')
                 print('f_B from Lasso = ', f_B)
@@ -423,11 +431,9 @@ def run_target():
 
 # Run one of the functions and time it
 t1 = time.time()
-run_scan()
+# run_scan()
 run_target()
 t2 = time.time()
 print('Total run time = ', t2 - t1)
 if not in_github_actions:
     plt.show()
-else:
-    plt.close()

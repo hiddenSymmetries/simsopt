@@ -2,7 +2,6 @@
 
 #include "currentpotential.h"
 
-// template<template<class Array> class Surface, class Array>
 template<class Array>
 class CurrentPotentialFourier : public CurrentPotential<Array> {
 

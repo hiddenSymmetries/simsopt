@@ -578,15 +578,15 @@ class WindingSurfaceField(MagneticField):
         current_potential: CurrentPotential class object containing
             the winding surface and the surface current needed for
             fast computation of the magnetic field and vector potential.
-        ws_points: numpy array, shape (npoints, 3).
+        ws_points (optional, default None): numpy array, shape (npoints, 3).
             The points on the winding surface.
-        ws_normal: numpy array, shape (npoints, 3).
+        ws_normal (optional, default None): numpy array, shape (npoints, 3).
             The normal vectors on the winding surface.
-        K: numpy array, shape (npoints, 3).
+        K (optional, default None): numpy array, shape (npoints, 3).
             The K matrix on the winding surface.
-        nphi: int.
+        nphi (optional, default None): int.
             The number of phi points on the winding surface.
-        ntheta: int.
+        ntheta (optional, default None): int.
             The number of theta points on the winding surface.
     """
 
