@@ -1,17 +1,22 @@
+from typing import TYPE_CHECKING
 import warnings
 import logging
 
+from nptyping import NDArray
 import numpy as np
 from scipy.spatial import cKDTree
 
 from .magneticfield import MagneticField
 from .._core.json import GSONDecoder
 
-import virtual_casing as vc_module
+from virtual_casing import VirtualCasing
 from ..mhd.vmec import Vmec
 from ..geo.surface import best_nphi_over_ntheta
 from ..mhd.vmec_diagnostics import B_cartesian
 from .._core.optimizable import Optimizable
+
+if TYPE_CHECKING:
+    from simsopt.geo.surface import Surface
 
 
 
@@ -23,17 +28,16 @@ __all__ = ['VirtualCasingField',]
 
 class VirtualCasingField(MagneticField):
     """
-    Computes the magnetic field contribution from plasma currents using the 
-    virtual casing principle. Can evaluate the field at arbitrary points in space.
-    
-    For points close to the plasma surface (within ``on_surface_tol``), precomputed
-    on-surface values are used via nearest-neighbor lookup. For points far from the
-    surface, ``compute_external_B_offsurf`` is used.
-    
-    NOTE: Evaluating exactly on the plasma surface using ``compute_external_B_offsurf``
-    can be slow or numerically unstable due to singular integrals. The ``on_surface_tol``
-    parameter controls when to use the faster precomputed on-surface values. This may need
-    to be adjusted for different geometries or grid resolutions.
+    Calculates the magnetic field by currents inside or outside a toroidal surface using the virtual casing principle. 
+    The calculation is impemented using an efficient high-order 
+    singular quadrature scheme by Malhotra et al. (https://iopscience.iop.org/article/10.1088/1361-6587/ab57f4). 
+
+    The calculation requres a surface on which the total field is 
+    known, and can compute the field in a vacuum region on either side. 
+    For example currents inside can be modeled by using ``simsopt.mhd.vmec_diagnostics.B_cartesian()`` to evaluate the total field on the surface of a VMEC equilibrium. 
+
+    Alternatively, the currents in the coil can be projected onto the surface in a stage-two calculation. 
+
     
     Attributes:
         on_surface_tol (float): Distance threshold (in meters) for using precomputed
@@ -42,241 +46,88 @@ class VirtualCasingField(MagneticField):
         B_external_onsurf (ndarray): Precomputed B field at source grid, shape (n_trgt, 3).
     """
 
-    def __init__(self, digits, nfp, stellsym, src_nphi, src_ntheta, gamma1d, src_nphi, src_ntheta, trgt_nphi, trgt_ntheta)
-    
-    @classmethod
-    def from_vmec(cls, vmec, src_nphi=80, src_ntheta=None, trgt_nphi=32, trgt_ntheta=32, 
-                  use_stellsym=True, digits=3, on_surface_tol=0.01, filename="auto"):
+    def __init__(self, surf:'Surface', total_B_on_surf:'NDArray', digits:int = 7, src_nphi=None, src_ntheta=None, trgt_nphi=None, trgt_ntheta=None, max_upsampling = 10, currents_inside = True):
         """
-        Given a :obj:`~simsopt.mhd.vmec.Vmec` object, define MagneticField 
-        for the contribution to the total magnetic field due to currents 
-        in the plasma.
+        Initialize a plain VirtualCasingField
 
-        This function requires the python ``virtual_casing`` package to be
-        installed. Currently only supports calculation of B, no dB_dX or d2B_dXdX,
-        and no vector potential A.
-
-        The argument ``src_nphi`` refers to the number of points around a half
-        field period if stellarator symmetry is exploited, or a full field
-        period if not.
-
-        To set the grid resolutions ``src_nphi`` and ``src_ntheta``, it can be
-        convenient to use the function
-        :func:`simsopt.geo.surface.best_nphi_over_ntheta`. This is
-        done automatically if you omit the ``src_ntheta`` argument.
-
-        For now, this routine only works for stellarator symmetry.
-
-        Args:
-            vmec: Either an instance of :obj:`simsopt.mhd.vmec.Vmec`, or the name of a
-              Vmec ``input.*`` or ``wout*`` file.
-            src_nphi (int, default=80): Number of grid points toroidally for the input of the calculation.
-            src_ntheta (int, default=None): Number of grid points poloidally for the input of the calculation. If ``None``,
-              the number of grid points will be calculated automatically using
-              :func:`simsopt.geo.surface.best_nphi_over_ntheta()` to minimize
-              the grid anisotropy, given the specified ``nphi``.
-            trgt_nphi (int, default=32): Number of grid points toroidally for the output of the calculation.
-              If unspecified, ``src_nphi`` will be used.
-            trgt_ntheta (int, default=32): Number of grid points poloidally for the output of the calculation.
-              If unspecified, ``src_ntheta`` will be used.
-            use_stellsym (bool, default=True): whether to exploit stellarator symmetry in the calculation.
-            digits (int, default=3): Approximate number of digits of precision for the calculation.
-            on_surface_tol (float, default=0.01): Distance threshold (in meters) for using 
-              precomputed on-surface values instead of off-surface computation.
-            filename (str, default="auto"): If not ``None``, the results of the virtual casing calculation
-              will be saved in this file. For the default value of ``"auto"``, the
-              filename will automatically be set to ``"vcasing_<extension>.nc"``
-              where ``<extension>`` is the string associated with Vmec input and output
-              files, analogous to the Vmec output file ``"wout_<extension>.nc"``.
+        Args: 
+            surf: Surface on which the virtual casing integral is evaluated. 
+            total_B_on_surf: Total magnetic field evaluated on the source surface, shape (src_nphi * src_ntheta, 3), for example evaluated by simsopt.mhd.vmec_diagnostics.B_cartesian() on the source grid.
+            digits: Approximate number of digits of precision for the calculation.
+            src_nphi: Number of grid points toroidally for the input of the calculation. If None, taken from surf.
+            src_ntheta: Number of grid points poloidally for the input of the calculation. If None, taken from surf.
+            trgt_nphi: Number of grid points toroidally for the output of the calculation. If None, taken from src_nphi.
+            trgt_ntheta: Number of grid points poloidally for the output of the calculation. If None, taken from src_ntheta.
+            max_upsampling: Maximum upsampling factor for the quadrature scheme. Higher values may be needed for higher accuracy, but will increase computation time.
+            currents_inside: If True, compute the field from currents inside the surface. If False, compute the field from currents outside the surface. This determines which side of the surface is considered the "source" side for the virtual casing calculation.
         """
-        
-        if not isinstance(vmec, Vmec):
-            vmec = Vmec(vmec)
-
-        vmec.run()
-        nfp = vmec.wout.nfp
-        stellsym = (not bool(vmec.wout.lasym)) and use_stellsym
-        if vmec.wout.lasym:
-            raise RuntimeError('virtual casing presently only works for stellarator symmetry')
-
+        # input juggling for versatile calling
+        if src_nphi is None:
+            src_nphi = surf.nphi
         if src_ntheta is None:
-            src_ntheta = int((1+int(stellsym)) * nfp * src_nphi / best_nphi_over_ntheta(vmec.boundary))
-            logger.info(f'new src_ntheta: {src_ntheta}')
-
-        # The requested nphi and ntheta may not match the quadrature
-        # points in vmec.boundary, and the range may not be "full torus",
-        # so generate a SurfaceRZFourier with the desired resolution:
-        if stellsym:
-            ran = "half period"
-        else:
-            ran = "field period"
-        surf = vmec.boundary.copy(
-            range=ran, 
-            nphi=src_nphi, 
-            ntheta=src_ntheta,  
-            mpol=vmec.wout.mpol, 
-            ntor=vmec.wout.ntor, 
-            nfp=nfp,
-            stellsym=stellsym
-        )
-        Bxyz = B_cartesian(vmec, nphi=src_nphi, ntheta=src_ntheta, range=ran)
-        gamma = surf.gamma()
-
+            src_ntheta = surf.ntheta
         if trgt_nphi is None:
             trgt_nphi = src_nphi
         if trgt_ntheta is None:
             trgt_ntheta = src_ntheta
+        stellsym = surf.stellsym
+        nfp = surf.nfp
 
-        # virtual_casing wants all input arrays to be 1D. The order is
-        # {x11, x12, ..., x1Np, x21, x22, ... , xNtNp, y11, ... , z11, ...}
-        # where Nt is toroidal (not theta!) and Np is poloidal (not phi!)
-        src_res = src_nphi * src_ntheta
-        gamma1d = np.zeros(src_res * 3)
-        B1d = np.zeros(src_res * 3)
-        for jxyz in range(3):
-            gamma1d[jxyz * src_res: (jxyz + 1) * src_res] = gamma[:, :, jxyz].flatten(order='C')
-            B1d[jxyz * src_res: (jxyz + 1) * src_res] = Bxyz[jxyz].flatten(order='C')
+        surf_range = 'half period' if stellsym else 'field period'
+        self._surf = surf.copy(nphi=src_nphi, ntheta=src_ntheta, range=surf_range)  # secret, immutable copy
 
-        vcasing = vc_module.VirtualCasing()
-        vcasing.setup(
+        # store inputs for serialization
+        self._digits = digits
+        self._src_nphi = src_nphi
+        self._src_ntheta = src_ntheta
+        self._trgt_nphi = trgt_nphi
+        self._trgt_ntheta = trgt_ntheta
+        self._max_upsampling = max_upsampling
+
+
+        self._gamma1d = surf.gamma().reshape(-1, 3).flatten(order='C')  # Shape: (src_nphi * src_ntheta * 3,)
+        self._B1d = total_B_on_surf.reshape(-1, 3).flatten(order='C')  # Shape: (src_nphi * src_ntheta * 3,)
+
+        self.vcasing = VirtualCasing()
+        self.vcasing.setup(
             digits, nfp, stellsym,
-            src_nphi, src_ntheta, gamma1d,
+            src_nphi, src_ntheta, self._gamma1d,
             src_nphi, src_ntheta,
             trgt_nphi, trgt_ntheta)
-        
-        # Create target surface for on-surface B field evaluation
-        # This surface has the resolution where B_external_onsurf is computed
-        trgt_surf = vmec.boundary.copy(
-            range=ran,
-            nphi=trgt_nphi,
-            ntheta=trgt_ntheta,
-            mpol=vmec.wout.mpol,
-            ntor=vmec.wout.ntor,
-            nfp=nfp,
-            stellsym=stellsym
-        )
-        trgt_gamma = trgt_surf.gamma().reshape(-1, 3)  # Shape: (trgt_nphi * trgt_ntheta, 3)
-        
-        # Store source grid positions (for reference)
-        gamma = gamma.reshape(-1, 3)  # Shape: (src_nphi * src_ntheta, 3)
-        
-        # Precompute on-surface B field values using compute_external_B
-        Bexternal1d_onsurf = np.array(vcasing.compute_external_B(B1d))
-        n_trgt = trgt_nphi * trgt_ntheta
-        B_external_onsurf = np.zeros((n_trgt, 3))
-        for jxyz in range(3):
-            B_external_onsurf[:, jxyz] = Bexternal1d_onsurf[jxyz * n_trgt: (jxyz + 1) * n_trgt]
-        
-        # Initialize VirtualCasingField
-        vc = cls()
-        vc.vcasing = vcasing 
-        vc.surf = surf  # Source surface
-        vc.trgt_surf = trgt_surf  # Target surface (used for nearest-neighbor lookup)
-        vc.B1d = B1d
-        vc.gamma = gamma  # Source grid (for reference)
-        vc.trgt_gamma = trgt_gamma  # Target grid (used for nearest-neighbor lookup)
-        vc.trgt_nphi = trgt_nphi
-        vc.trgt_ntheta = trgt_ntheta
-        vc.B_external_onsurf = B_external_onsurf
-        vc.on_surface_tol = on_surface_tol
-        MagneticField.__init__(vc)
-        return vc
-    
-    @staticmethod
-    def _compute_max_grid_spacing(gamma):
-        """
-        Compute the maximum distance between adjacent grid points.
-        
-        This is used to set a safe minimum for on_surface_tol.
-        
-        Args:
-            gamma: Surface grid positions, shape (src_nphi * src_ntheta, 3).
-            
-        Returns:
-            float: Maximum distance between any point and its nearest neighbor.
-        """
-        tree = cKDTree(gamma)
-        # Query for 2 nearest neighbors (first is self with distance 0)
-        distances, _ = tree.query(gamma, k=2)
-        # Return max of the nearest-neighbor distances (excluding self)
-        return np.max(distances[:, 1])
-    
-    def get_close_mask(self, points=None):
-        """
-        Determine which evaluation points are close to the target grid points.
-        
-        Points within ``on_surface_tol`` of a target grid point are considered "close"
-        and will use precomputed on-surface values via nearest-neighbor lookup.
-        
-        Args:
-            points: Evaluation points, shape (n_points, 3). If None, uses current points.
-                
-        Returns:
-            tuple: (close_mask, distances, nearest_idx) where:
-                - close_mask: boolean array, True for points within on_surface_tol of grid
-                - distances: Euclidean distance to nearest grid point for each point
-                - nearest_idx: index of nearest grid point for each point
-        """
-        if points is None:
-            points = self.get_points_cart_ref()
-        
-        # Compute distance to each target grid point
-        distances_to_grid = np.linalg.norm(
-            points[:, np.newaxis, :] - self.trgt_gamma[np.newaxis, :, :], axis=2)
-        nearest_idx = np.argmin(distances_to_grid, axis=1)
-        distances = distances_to_grid[np.arange(len(points)), nearest_idx]
-        
-        # Use precomputed values if within on_surface_tol of a grid point
-        close_mask = distances < self.on_surface_tol
-        
-        return close_mask, distances, nearest_idx
-    
-    def _eval_close(self, B, close_mask, nearest_idx):
-        """
-        Evaluate B field for points close to the surface using precomputed values.
-        
-        Currently uses nearest-neighbor lookup. This method is isolated to allow
-        future implementation of interpolation schemes.
-        
-        Args:
-            B: Output array to fill, shape (n_points, 3).
-            close_mask: Boolean mask for close points.
-            nearest_idx: Index of nearest grid point for each point.
-        """
-        # Nearest-neighbor lookup from precomputed on-surface values
-        # Could be extended to use interpolation in the future
-        B[close_mask] = self.B_external_onsurf[nearest_idx[close_mask]]
 
+        onsurf_b_from_internal_currents = self.vcasing.compute_internal_B(self._B1d) 
+
+        if currents_inside is True:
+            self.eval_field = self.vcasing.compute_internal_B_offsurf
+            self.eval_grad_field = self.vcasing.compute_internal_B_offsurf_gradient
+        else: 
+            self.eval_field = self.vcasing.compute_external_B_offsurf
+            self.eval_grad_field = self.vcasing.compute_external_B_offsurf_gradient
+
+        super().__init__(self)
+    
     def _B_impl(self, B):
+        """
+        Evaluate the magnetic field at the points that have previously been set using ``self.set_points()``. This method is called by the parent class's ``B()`` method, which handles caching and interpolation."""
         points = self.get_points_cart_ref()
         n_points = len(points)
         
-        # Determine which points are close to the surface
-        close_mask, distances, nearest_idx = self.get_close_mask(points)
-        n_close = np.sum(close_mask)
-        n_far = n_points - n_close
+        points1d = points.flatten(order='F')
+        Bext1d = np.array(self.eval_field(self.B1d, points1d))
+        Bext = Bext1d.reshape(n_points, 3, order='F')
+        B[:] = Bext
+        return
+    
+    def _dB_by_dX_impl(self, dB_by_dX):
+        """
+        Evaluate the derivatives of the magnetic field at the points that have previously been set using ``self.set_points()``. This method is called by the parent class's ``dB_by_dX()`` method, which handles caching and interpolation."""
+        points = self.get_points_cart_ref()
+        n_points = len(points)
         
-        # Evaluate close points using precomputed on-surface values
-        if n_close > 0:
-            self._eval_close(B, close_mask, nearest_idx)
-
-            # Warn about using nearest-neighbor approximation
-            max_close_dist = np.max(distances[close_mask])
-            if max_close_dist > 1e-10:  # Not exactly on grid
-                warnings.warn(
-                    f"{n_close} evaluation point(s) are within {self.on_surface_tol:.4f}m "
-                    f"of the target grid (max distance: {max_close_dist:.4f}m). "
-                    f"Using nearest-neighbor lookup from precomputed on-surface values.",
-                    stacklevel=3
-                )
-        
-        # Evaluate far points using compute_external_B_offsurf
-        if n_far > 0:
-            far_mask = ~close_mask
-            far_points = points[far_mask]
-            points1d = far_points.flatten(order='F')
-            Bext1d = np.array(self.vcasing.compute_external_B_offsurf(self.B1d, points1d))
-            B[far_mask] = Bext1d.reshape((-1, 3), order='F')
+        points1d = points.flatten(order='F')
+        dB_by_dX_ext1d = np.array(self.eval_grad_field(self.B1d, points1d))
+        dB_by_dX_ext = dB_by_dX_ext1d.reshape(n_points, 3, 3, order='F')
+        dB_by_dX[:] = dB_by_dX_ext
 
 
 class VmecVirtualCasingField(VirtualCasingField):
