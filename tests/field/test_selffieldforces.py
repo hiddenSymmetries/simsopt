@@ -847,29 +847,7 @@ class CoilForcesTest(unittest.TestCase):
         val = SquaredMeanTorque([coil_a1, coil_a2], [coil_b1, coil_b2]).J()
         self.assertTrue(np.isfinite(val))
 
-        # Verify that mixing quadrature points within the same group raises ValueError
-        with self.assertRaises(ValueError):
-            LpCurveForce([coil_a1, coil_b1], coil_a2, p=2.5, threshold=1e-3)
-        with self.assertRaises(ValueError):
-            LpCurveForce(coil_a1, [coil_a2, coil_b1], p=2.5, threshold=1e-3)
-        with self.assertRaises(ValueError):
-            SquaredMeanForce([coil_a1, coil_b1], coil_a2)
-        with self.assertRaises(ValueError):
-            SquaredMeanForce(coil_a1, [coil_a2, coil_b1])
-        with self.assertRaises(ValueError):
-            LpCurveTorque([coil_a1, coil_b1], coil_a2, p=2.5, threshold=1e-3)
-        with self.assertRaises(ValueError):
-            LpCurveTorque(coil_a1, [coil_a2, coil_b1], p=2.5, threshold=1e-3)
-        with self.assertRaises(ValueError):
-            SquaredMeanTorque([coil_a1, coil_b1], coil_a2)
-        with self.assertRaises(ValueError):
-            SquaredMeanTorque(coil_a1, [coil_a2, coil_b1])
-        with self.assertRaises(ValueError):
-            B2Energy([coil_a1, coil_b1])
-
         # Verify that source_coils is required and must contain at least one coil not in target_coils
-        # with self.assertRaises(ValueError):
-        #     LpCurveForce(coil_a1, None, p=2.5, threshold=1e-3)
         with self.assertRaises(ValueError):
             LpCurveForce(coil_a1, [coil_a1], p=2.5, threshold=1e-3)
         with self.assertRaises(ValueError):
@@ -878,6 +856,88 @@ class CoilForcesTest(unittest.TestCase):
             LpCurveTorque(coil_a1, [coil_a1], p=2.5, threshold=1e-3)
         with self.assertRaises(ValueError):
             SquaredMeanTorque(coil_a1, [coil_a1])
+
+    def test_downsample_must_divide_quadpoints(self):
+        """Test that ValueError is raised when downsample does not evenly divide the number of quadrature points."""
+        I = 1.7e4
+        threshold = 1e-3
+        # 20 % 7 = 6 (bad), 21 % 7 = 0 (good)
+        curve_20 = CurveXYZFourier(20, 1)
+        curve_20.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 1.0
+        curve_21 = CurveXYZFourier(21, 1)
+        curve_21.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 1.0
+        curve_21b = CurveXYZFourier(21, 1)
+        curve_21b.x = np.array([0, 0, 1.1, 0, 1, 0, 0, 0., 0.]) * 1.0
+        coil_20 = RegularizedCoil(curve_20, Current(I), regularization_circ(0.05))
+        coil_21 = RegularizedCoil(curve_21, Current(I), regularization_circ(0.05))
+        coil_21b = RegularizedCoil(curve_21b, Current(I), regularization_circ(0.05))
+
+        # target_coils has bad downsample (20 % 7 != 0), source_coils is fine (21 % 7 = 0)
+        with self.assertRaises(ValueError):
+            B2Energy([coil_20], downsample=7)
+        with self.assertRaises(ValueError):
+            SquaredMeanForce(coil_20, [coil_21, coil_21b], downsample=7)
+        with self.assertRaises(ValueError):
+            LpCurveForce(coil_20, [coil_21, coil_21b], p=2.5, threshold=threshold, downsample=7)
+        with self.assertRaises(ValueError):
+            LpCurveTorque(coil_20, [coil_21, coil_21b], p=2.5, threshold=threshold, downsample=7)
+        with self.assertRaises(ValueError):
+            SquaredMeanTorque(coil_20, [coil_21, coil_21b], downsample=7)
+        with self.assertRaises(ValueError):
+            NetFluxes(coil_20, [coil_21], downsample=7)
+
+        # source_coils has bad downsample (20 % 7 != 0), target_coils is fine (21 % 7 = 0)
+        with self.assertRaises(ValueError):
+            SquaredMeanForce(coil_21, [coil_20, coil_21b], downsample=7)
+        with self.assertRaises(ValueError):
+            LpCurveForce(coil_21, [coil_20, coil_21b], p=2.5, threshold=threshold, downsample=7)
+        with self.assertRaises(ValueError):
+            LpCurveTorque(coil_21, [coil_20, coil_21b], p=2.5, threshold=threshold, downsample=7)
+        with self.assertRaises(ValueError):
+            SquaredMeanTorque(coil_21, [coil_20, coil_21b], downsample=7)
+        with self.assertRaises(ValueError):
+            NetFluxes(coil_21, [coil_20], downsample=7)
+
+    def test_mixed_quadpoints_in_coil_lists_raises(self):
+        """Test that ValueError is raised when target_coils or source_coils contains coils with different numbers of quadrature points."""
+        I = 1.7e4
+        # Group A: 40 quadpoints
+        curve_a1 = CurveXYZFourier(40, 1)
+        curve_a1.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 1.0
+        curve_a2 = CurveXYZFourier(40, 1)
+        curve_a2.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 1.2
+        # Group B: 60 quadpoints
+        curve_b1 = CurveXYZFourier(60, 1)
+        curve_b1.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 0.8
+        curve_b2 = CurveXYZFourier(60, 1)
+        curve_b2.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 1.5
+        coil_a1 = RegularizedCoil(curve_a1, Current(I), regularization_circ(0.05))
+        coil_a2 = RegularizedCoil(curve_a2, Current(I), regularization_circ(0.05))
+        coil_b1 = RegularizedCoil(curve_b1, Current(I), regularization_circ(0.05))
+        coil_b2 = RegularizedCoil(curve_b2, Current(I), regularization_circ(0.05))
+        threshold = 1e-3
+
+        # target_coils has mixed quadpoints (40 and 60)
+        with self.assertRaises(ValueError):
+            LpCurveForce([coil_a1, coil_b1], coil_a2, p=2.5, threshold=threshold)
+        with self.assertRaises(ValueError):
+            SquaredMeanForce([coil_a1, coil_b1], coil_a2)
+        with self.assertRaises(ValueError):
+            LpCurveTorque([coil_a1, coil_b1], coil_a2, p=2.5, threshold=threshold)
+        with self.assertRaises(ValueError):
+            SquaredMeanTorque([coil_a1, coil_b1], coil_a2)
+        with self.assertRaises(ValueError):
+            B2Energy([coil_a1, coil_b1])
+
+        # source_coils has mixed quadpoints (40 and 60)
+        with self.assertRaises(ValueError):
+            LpCurveForce(coil_a1, [coil_a2, coil_b1], p=2.5, threshold=threshold)
+        with self.assertRaises(ValueError):
+            SquaredMeanForce(coil_a1, [coil_a2, coil_b1])
+        with self.assertRaises(ValueError):
+            LpCurveTorque(coil_a1, [coil_a2, coil_b1], p=2.5, threshold=threshold)
+        with self.assertRaises(ValueError):
+            SquaredMeanTorque(coil_a1, [coil_a2, coil_b1])
 
     def test_Taylor(self):
         """
