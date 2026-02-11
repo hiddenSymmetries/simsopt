@@ -867,6 +867,18 @@ class CoilForcesTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             B2Energy([coil_a1, coil_b1])
 
+        # Verify that source_coils is required and must contain at least one coil not in target_coils
+        # with self.assertRaises(ValueError):
+        #     LpCurveForce(coil_a1, None, p=2.5, threshold=1e-3)
+        with self.assertRaises(ValueError):
+            LpCurveForce(coil_a1, [coil_a1], p=2.5, threshold=1e-3)
+        with self.assertRaises(ValueError):
+            SquaredMeanForce(coil_a1, [coil_a1, coil_a1])
+        with self.assertRaises(ValueError):
+            LpCurveTorque(coil_a1, [coil_a1], p=2.5, threshold=1e-3)
+        with self.assertRaises(ValueError):
+            SquaredMeanTorque(coil_a1, [coil_a1])
+
     def test_Taylor(self):
         """
         Perform Taylor tests for a variety of coil force and torque objectives to verify the correctness of their derivatives.
@@ -1106,6 +1118,10 @@ class CoilForcesTest(unittest.TestCase):
         # Create RegularizedCoil for comparison
         regularization = regularization_circ(0.05)
         reg_coil = RegularizedCoil(curve, current, regularization)
+        # Create a second coil for force/torque objectives (source_coils must have at least one coil not in target)
+        curve2 = CurveXYZFourier(20, 1)
+        curve2.x = np.array([0, 0, 1.1, 0, 1, 0, 0, 0., 0.]) * 1.0  # Slightly different from curve
+        reg_coil2 = RegularizedCoil(curve2, current, regularization)
         
         # Test that regular Coil objects raise ValueError for force/torque/energy objectives
         threshold = 1e-3
@@ -1127,12 +1143,12 @@ class CoilForcesTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             B2Energy([coil, reg_coil])
         
-        # Test that RegularizedCoil objects work fine
+        # Test that RegularizedCoil objects work fine (source_coils must have at least one coil not in target)
         try:
-            LpCurveForce(reg_coil, [reg_coil], p=2.5, threshold=threshold)
-            SquaredMeanForce(reg_coil, [reg_coil])
-            LpCurveTorque(reg_coil, [reg_coil], p=2.5, threshold=threshold)
-            SquaredMeanTorque(reg_coil, [reg_coil])
+            LpCurveForce(reg_coil, [reg_coil, reg_coil2], p=2.5, threshold=threshold)
+            SquaredMeanForce(reg_coil, [reg_coil, reg_coil2])
+            LpCurveTorque(reg_coil, [reg_coil, reg_coil2], p=2.5, threshold=threshold)
+            SquaredMeanTorque(reg_coil, [reg_coil, reg_coil2])
             B2Energy([reg_coil])
         except ValueError:
             self.fail("RegularizedCoil objects should not raise ValueError")
