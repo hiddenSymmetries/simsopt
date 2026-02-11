@@ -381,33 +381,49 @@ std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& p
             gij(i, j) = fak * G_i;
 	}
     }
+    // Precompute cos/sin: angle depends only on (j,k), not on plasma point i
+    int num_dofs_half = m.size();
+    Array sin_phi = xt::zeros<double>({num_dofs_half, num_coil});
+    Array cos_phi = xt::zeros<double>({num_dofs_half, num_coil});
+    #pragma omp parallel for schedule(static) collapse(2)
+    for (int j = 0; j < num_dofs_half; j++) {
+        for (int k = 0; k < num_coil; k++) {
+            double angle = 2 * M_PI * m(j) * theta_coil(k) - 2 * M_PI * n(j) * zeta_coil(k) * nfp;
+            sin_phi(j, k) = std::sin(angle);
+            cos_phi(j, k) = std::cos(angle);
+        }
+    }
     #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_plasma; i++) {
         // now take gij and loop over the dofs (Eq. A10 in REGCOIL paper)
-        for (int j = 0; j < m.size(); j++) {
+        for (int j = 0; j < num_dofs_half; j++) {
             for(int k = 0; k < num_coil; k++){
-		double angle = 2 * M_PI * m(j) * theta_coil(k) - 2 * M_PI * n(j) * zeta_coil(k) * nfp;
-	        double cphi = std::cos(angle);
-	        double sphi = std::sin(angle);
-		gj(i, j) += sphi * gij(i, k);
+		gj(i, j) += sin_phi(j, k) * gij(i, k);
                 if (!stellsym) {
-                    gj(i, j + m.size()) += cphi * gij(i, k);
+                    gj(i, j + num_dofs_half) += cos_phi(j, k) * gij(i, k);
                 }
 	    }
 	}
     }
 
+    // Precompute 1/n_norm for each plasma point (was computed ndofs^2 times per point)
+    Array n_norm_inv = xt::zeros<double>({num_plasma});
+    #pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_plasma; i++) {
+        double npx = normal_plasma(i, 0);
+        double npy = normal_plasma(i, 1);
+        double npz = normal_plasma(i, 2);
+        n_norm_inv(i) = 1.0 / std::sqrt(npx * npx + npy * npy + npz * npz);
+    }
+    // j outer for parallelization (each thread owns distinct Ajk rows)
     #pragma omp parallel for schedule(static)
     for(int j = 0; j < ndofs; j++) {
-	for(int k = 0; k < ndofs; k++) {
-	    for(int i = 0; i < num_plasma; i++) {
-                double npx = normal_plasma(i, 0);
-                double npy = normal_plasma(i, 1);
-                double npz = normal_plasma(i, 2);
-	        double n_norm = std::sqrt(npx * npx + npy * npy + npz * npz);
-                Ajk(j, k) += gj(i, j) * gj(i, k) / n_norm;
-	    }
-	}
+        for(int i = 0; i < num_plasma; i++) {
+            double n_inv = n_norm_inv(i);
+            for(int k = 0; k < ndofs; k++) {
+                Ajk(j, k) += gj(i, j) * gj(i, k) * n_inv;
+            }
+        }
     }
     return std::make_tuple(gj, Ajk);
 }

@@ -176,13 +176,10 @@ def run_scan():
 
             # Make plots of the history so we can see convergence was achieved
             plt.figure(100)
-            plt.semilogy(fB_history)
-            plt.grid(True)
-            plt.figure(101)
-            plt.semilogy(lambda_reg * np.array(fK_history), label='{0:.2e}'.format(lambda_reg))
-            plt.grid(True)
-            plt.figure(102)
-            plt.semilogy(fB_history + lambda_reg * np.array(fK_history), label='{0:.2e}'.format(lambda_reg))
+            lamstr = r'$\lambda$={0:.2e}'.format(lambda_reg)
+            color = f'C{i}'
+            plt.semilogy(fB_history, '-', color=color, label=lamstr + r': $f_B$')
+            plt.semilogy(lambda_reg * np.array(fK_history), '--', color=color, label=lamstr + r': $\lambda f_K$')
             plt.grid(True)
 
             # repeat computing the metrics we defined
@@ -222,15 +219,13 @@ def run_scan():
             ).J()
             print('f_B from plasma surface = ', f_B_sf)
 
-        # Finalize and save figures
+        # Finalize and save combined figure
         plt.figure(100)
-        plt.savefig(OUT_DIR + 'fB_history.jpg')
-        plt.figure(101)
-        plt.legend()
-        plt.savefig(OUT_DIR + 'fK_history.jpg')
-        plt.figure(102)
-        plt.legend()
-        plt.savefig(OUT_DIR + 'f_history.jpg')
+        plt.title(r'Lasso convergence: $f_B$ and $\lambda f_K$')
+        plt.xlabel('Iteration')
+        plt.ylabel('Value')
+        plt.legend(fontsize=14, ncol=2)
+        plt.savefig(OUT_DIR + 'fB_fK_f_history.jpg')
 
         # plot cost function results
         plt.figure(figsize=(14, 4))
@@ -246,6 +241,7 @@ def run_scan():
         plt.yscale('log')
         plt.grid(True)
         plt.xlabel(r'$\lambda$')
+        plt.ylabel(r'$f_B$, $f_K$/1e14, Total $f$')
         plt.legend()
         plt.subplot(1, 2, 2)
         plt.plot(lambdas, Kmean_tikhonov / 1e6, 'c', label='Kmean (MA) Tikhonov')
@@ -256,6 +252,7 @@ def run_scan():
         plt.yscale('log')
         plt.grid(True)
         plt.xlabel(r'$\lambda$')
+        plt.ylabel(r'$K$ (MA)')
         plt.legend()
         plt.savefig(OUT_DIR + file + '_lambda_scan.jpg')
 
@@ -384,15 +381,16 @@ def run_target():
         print('Now repeating for Lasso: ')
         for i, lambda_reg in enumerate(lambdas):
             # Solve the REGCOIL problem with the Lasso
-            optimized_phi_mn, f_B, _, fB_history, _ = cpst.solve_lasso(lam=lambda_reg, max_iter=5000, acceleration=True)
+            optimized_phi_mn, f_B, _, fB_history, fK_history = cpst.solve_lasso(lam=lambda_reg, max_iter=5000, acceleration=True)
             print(i, lambda_reg, f_B)
             cp_opt = cpst.current_potential
 
             if f_B < fB_target:
                 plt.figure(100)
-                plt.semilogy(fB_history)
-                plt.ylabel('fB')
-                plt.xlabel('Iterations')
+                lamstr = r'$\lambda$={0:.2e}'.format(lambda_reg)
+                color = f'C{i}'
+                plt.semilogy(fB_history, '-', color=color, label=lamstr + r': $f_B$')
+                plt.semilogy(lambda_reg * np.array(fK_history), '--', color=color, label=lamstr + r': $\lambda f_K$')
                 plt.grid(True)
                 K = contig(cp_opt.K())
                 print('fB < fB_target has been achieved: ')
@@ -421,7 +419,7 @@ def run_target():
 
 # Run one of the functions and time it
 t1 = time.time()
-# run_scan()
+run_scan()
 run_target()
 t2 = time.time()
 print('Total run time = ', t2 - t1)

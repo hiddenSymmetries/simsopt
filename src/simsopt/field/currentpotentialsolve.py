@@ -1,6 +1,10 @@
 import numpy as np
+import os
+import time
 import warnings
 from scipy.io import netcdf_file
+
+TIMING = os.environ.get('SIMSOPT_TIMING', '').lower() in ('1', 'true', 'yes')
 from scipy.interpolate import interp2d
 from simsopt.field.magneticfieldclasses import WindingSurfaceField
 from simsopt.geo import SurfaceRZFourier
@@ -98,6 +102,19 @@ class CurrentPotentialSolve:
 
         Args:
             filename: Name of the ``regcoil_out.*.nc`` file to read.
+            plasma_ntheta_res: The resolution of the plasma surface in the theta direction.
+            plasma_nzeta_res: The resolution of the plasma surface in the zeta direction.
+            coil_ntheta_res: The resolution of the coil surface in the theta direction.
+            coil_nzeta_res: The resolution of the coil surface in the zeta direction.
+
+        Returns:
+            cls: The CurrentPotentialSolve object.
+
+        Notes:
+            This function initializes a CurrentPotentialSolve object from a regcoil netcdf output file.
+            The CurrentPotentialFourier object is initialized from the file, and the Bnormal_from_plasma_current
+            is read from the file. The plasma surface is initialized from the file, and the coil surface is
+            initialized from the file. The CurrentPotentialSolve object is returned.
         """
         f = netcdf_file(filename, 'r', mmap=False)
         nfp = f.variables['nfp'][()]
@@ -359,6 +376,12 @@ class CurrentPotentialSolve:
         f.close()
 
     def K_rhs_impl(self, K_rhs):
+        """
+        Implied function for the K rhs for the REGCOIL problem.
+
+        Args:
+            K_rhs: The K rhs to be computed.
+        """
         dg1 = self.winding_surface.gammadash1()
         dg2 = self.winding_surface.gammadash2()
         normal = self.winding_surface.normal()
@@ -366,11 +389,26 @@ class CurrentPotentialSolve:
         K_rhs *= self.winding_surface.quadpoints_theta[1] * self.winding_surface.quadpoints_phi[1] / self.winding_surface.nfp
 
     def K_rhs(self):
+        """
+        Compute the K rhs for the REGCOIL problem.
+
+        Args:
+            None
+
+        Returns:
+            K_rhs: The K rhs for the REGCOIL problem.
+        """
         K_rhs = np.zeros((self.current_potential.num_dofs(),))
         self.K_rhs_impl(K_rhs)
         return K_rhs
 
     def K_matrix_impl(self, K_matrix):
+        """
+        Implied function for the K matrix for the REGCOIL problem.
+
+        Args:
+            K_matrix: The K matrix to be computed.
+        """
         dg1 = self.winding_surface.gammadash1()
         dg2 = self.winding_surface.gammadash2()
         normal = self.winding_surface.normal()
@@ -378,6 +416,15 @@ class CurrentPotentialSolve:
         K_matrix *= self.winding_surface.quadpoints_theta[1] * self.winding_surface.quadpoints_phi[1] / self.winding_surface.nfp
 
     def K_matrix(self):
+        """
+        Compute the K matrix for the REGCOIL problem.
+        
+        Args:
+            None
+
+        Returns:
+            K_matrix: The K matrix for the REGCOIL problem.
+        """
         K_matrix = np.zeros((self.current_potential.num_dofs(), self.current_potential.num_dofs()))
         self.K_matrix_impl(K_matrix)
         return K_matrix
@@ -387,6 +434,7 @@ class CurrentPotentialSolve:
             Compute the matrices and right-hand-side corresponding the Bnormal part of
             the optimization, for both the Tikhonov and Lasso optimizations.
         """
+        t0 = time.perf_counter() if TIMING else 0
         plasma_surface = self.plasma_surface
         normal = self.winding_surface.normal().reshape(-1, 3)
         Bnormal_plasma = self.Bnormal_plasma
@@ -397,6 +445,8 @@ class CurrentPotentialSolve:
         phi_mesh, theta_mesh = np.meshgrid(self.winding_surface.quadpoints_phi, theta, indexing='ij')
         zeta_coil = np.ravel(phi_mesh)
         theta_coil = np.ravel(theta_mesh)
+        if TIMING:
+            print(f"        [B_matrix_and_rhs] setup (gamma, normal, mesh): {time.perf_counter()-t0:.3f}s")
 
         if self.winding_surface.stellsym:
             ndofs_half = self.current_potential.num_dofs()
@@ -404,11 +454,15 @@ class CurrentPotentialSolve:
             ndofs_half = self.current_potential.num_dofs() // 2
 
         # Compute terms for the REGCOIL (L2) problem
+        t0 = time.perf_counter() if TIMING else 0
         contig = np.ascontiguousarray
         gj, B_matrix = sopp.winding_surface_field_Bn(contig(points_plasma), contig(points_coil), contig(normal_plasma), contig(normal), self.winding_surface.stellsym, contig(zeta_coil), contig(theta_coil), self.current_potential.num_dofs(), contig(self.current_potential.m[:ndofs_half]), contig(self.current_potential.n[:ndofs_half]), self.winding_surface.nfp)
+        if TIMING:
+            print(f"        [B_matrix_and_rhs] winding_surface_field_Bn: {time.perf_counter()-t0:.3f}s")
         B_GI = self.B_GI
 
         # set up RHS of optimization
+        t0 = time.perf_counter() if TIMING else 0
         b_rhs = - np.ravel(B_GI + Bnormal_plasma) @ gj
         dzeta_plasma = (plasma_surface.quadpoints_phi[1] - plasma_surface.quadpoints_phi[0])
         dtheta_plasma = (plasma_surface.quadpoints_theta[1] - plasma_surface.quadpoints_theta[0])
@@ -421,10 +475,15 @@ class CurrentPotentialSolve:
         normN = np.linalg.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1)
         self.gj = gj * np.sqrt(dzeta_plasma * dtheta_plasma * dzeta_coil ** 2 * dtheta_coil ** 2)
         self.b_e = - np.sqrt(normN * dzeta_plasma * dtheta_plasma) * (B_GI + Bnormal_plasma)
+        if TIMING:
+            print(f"        [B_matrix_and_rhs] RHS scaling: {time.perf_counter()-t0:.3f}s")
 
+        t0 = time.perf_counter() if TIMING else 0
         normN = np.linalg.norm(self.winding_surface.normal().reshape(-1, 3), axis=-1)
         dr_dzeta = self.winding_surface.gammadash1().reshape(-1, 3)
         dr_dtheta = self.winding_surface.gammadash2().reshape(-1, 3)
+        if TIMING:
+            print(f"        [B_matrix_and_rhs] gammadash1/2 (K2 prep): {time.perf_counter()-t0:.3f}s")
         G = self.current_potential.net_poloidal_current_amperes
         I = self.current_potential.net_toroidal_current_amperes
 
@@ -436,12 +495,15 @@ class CurrentPotentialSolve:
         contig = np.ascontiguousarray
 
         # Compute terms for the Lasso (L1) problem
+        t0 = time.perf_counter() if TIMING else 0
         d, fj = sopp.winding_surface_field_K2_matrices(
             contig(dr_dzeta), contig(dr_dtheta), contig(normal_coil), self.winding_surface.stellsym,
             contig(zeta_coil), contig(theta_coil), self.ndofs, contig(m), contig(n), nfp, G, I
         )
         self.fj = fj * 2 * np.pi * np.sqrt(dzeta_coil * dtheta_coil)
         self.d = d * 2 * np.pi * np.sqrt(dzeta_coil * dtheta_coil)
+        if TIMING:
+            print(f"        [B_matrix_and_rhs] winding_surface_field_K2_matrices: {time.perf_counter()-t0:.3f}s")
         return b_rhs, B_matrix
 
     def solve_tikhonov(self, lam=0, record_history=True):
@@ -449,13 +511,42 @@ class CurrentPotentialSolve:
             Solve the REGCOIL problem -- winding surface optimization with
             the L2 norm. This is tested against REGCOIL runs extensively in
             tests/field/test_regcoil.py.
+
+            Args:
+                lam: Regularization parameter for the Tikhonov regularization.
+                record_history: Whether to record the history of the optimization.
+
+            Returns:
+                phi_mn_opt: The optimized winding surface potential.
+                f_B: The value of the Bnormal loss term.
+                f_K: The value of the K loss term.
+
+            Notes:
+                This function solves the REGCOIL problem with Tikhonov regularization.
+                The regularization term is added to the Bnormal and K matrices to
+                prevent overfitting. The optimization is performed using a least-squares
+                solve. The history of the optimization is recorded if record_history is True.
+                The history is recorded in the ilambdas_l2, dofs_l2, current_potential_l2,
+                fBs_l2, and fKs_l2 lists.
         """
+        t0 = time.perf_counter() if TIMING else 0
         K_matrix = self.K_matrix()
+        if TIMING:
+            print(f"    [solve_tikhonov] K_matrix: {time.perf_counter()-t0:.3f}s")
+        t0 = time.perf_counter() if TIMING else 0
         K_rhs = self.K_rhs()
+        if TIMING:
+            print(f"    [solve_tikhonov] K_rhs: {time.perf_counter()-t0:.3f}s")
+        t0 = time.perf_counter() if TIMING else 0
         b_rhs, B_matrix = self.B_matrix_and_rhs()
+        if TIMING:
+            print(f"    [solve_tikhonov] B_matrix_and_rhs: {time.perf_counter()-t0:.3f}s")
 
         # least-squares solve
+        t0 = time.perf_counter() if TIMING else 0
         phi_mn_opt = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
+        if TIMING:
+            print(f"    [solve_tikhonov] linalg.solve: {time.perf_counter()-t0:.3f}s")
         self.current_potential.set_dofs(phi_mn_opt)
 
         # Get other matrices for direct computation of fB and fK loss terms
@@ -508,7 +599,11 @@ class CurrentPotentialSolve:
             an initial guess to the optimizers.
         """
         # Set up some matrices
+        t0 = time.perf_counter() if TIMING else 0
         _, _ = self.B_matrix_and_rhs()
+        if TIMING:
+            print(f"    [solve_lasso] B_matrix_and_rhs: {time.perf_counter()-t0:.3f}s")
+        t0 = time.perf_counter() if TIMING else 0
         normN = np.linalg.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1)
         ws_normN = np.linalg.norm(self.winding_surface.normal().reshape(-1, 3), axis=-1)
         A_matrix = self.gj
@@ -525,6 +620,8 @@ class CurrentPotentialSolve:
         Ak_inv = np.linalg.pinv(Ak_matrix, rcond=1e-10)
         A_new = A_matrix @ Ak_inv
         b_new = b_e - A_new @ d
+        if TIMING:
+            print(f"    [solve_lasso] A_matrix setup + pinv: {time.perf_counter()-t0:.3f}s")
         # print('Checking Ak_inv computed with pinv = ', Ak_inv)
 
         # rescale the l1 regularization
@@ -533,12 +630,18 @@ class CurrentPotentialSolve:
 
         # if alpha << 1, want to use initial guess from the Tikhonov solve,
         # which is exact since it comes from a matrix inverse.
+        t0 = time.perf_counter() if TIMING else 0
         phi0, _, _, = self.solve_tikhonov(lam=lam, record_history=False)
+        if TIMING:
+            print(f"    [solve_lasso] solve_tikhonov (initial guess): {time.perf_counter()-t0:.3f}s")
 
         # L1 norm here should already include the contributions from the winding surface discretization
         # and factor of 1 / ws_normN from the K, cancelling the factor of ws_normN from the surface
         z0 = np.ravel((Ak_matrix @ phi0 - d).reshape(-1, 3) * np.sqrt(ws_normN)[:, None])
+        t0 = time.perf_counter() if TIMING else 0
         z_opt, z_history = self._FISTA(A=A_new, b=b_new, alpha=l1_reg, max_iter=max_iter, acceleration=acceleration, xi0=z0)
+        if TIMING:
+            print(f"    [solve_lasso] _FISTA: {time.perf_counter()-t0:.3f}s")
         # z_opt = z_opt.reshape(-1, 3) # / ws_normN[:, None])
         # Need to put back in the 1 / ws_normN dependence in K
 
@@ -569,32 +672,57 @@ class CurrentPotentialSolve:
 
     def _FISTA(self, A, b, alpha=0.0, max_iter=1000, acceleration=True, xi0=None):
         """
-            This function uses Nesterov's accelerated proximal
-            gradient descent algorithm to solve the Lasso
-            (L1-regularized) winding surface problem. This is
-            usually called fast iterative soft-thresholding algorithm
-            (FISTA). If acceleration = False, it will use the ISTA
-            algorithm, which tends to converge much slower than FISTA
-            but is a true descent algorithm, unlike FISTA.
-        """
+        This function uses Nesterov's accelerated proximal
+        gradient descent algorithm to solve the Lasso
+        (L1-regularized) winding surface problem. This is
+        usually called fast iterative soft-thresholding algorithm
+        (FISTA). If acceleration = False, it will use the ISTA
+        algorithm, which tends to converge much slower than FISTA
+        but is a true descent algorithm, unlike FISTA. Here n = the
+        number of plasma quadrature points and 
+        m = the number of winding surface DOFs. The algorithm is:
 
-        # if abs(current_potential_{k+1} - current_potential_{k}) < tol
-        # for every element, then algorithm quits in this k-th iteration.
-        tol = 1e1
+        .. math::
+            x_{k+1} = \text{prox}_{\alpha \| \cdot \|_1}(x_k + \frac{1}{L} (b - A x_k))
+            x_0 = \text{prox}_{\alpha \| \cdot \|_1}(x_0)
+
+        Args:
+            A (shape (n, m)): The A matrix.
+            b (shape (n,)): The b vector.
+            alpha (float): The regularization parameter.
+            max_iter (int): The maximum number of iterations.
+            acceleration (bool): Whether to use acceleration.
+            xi0 (shape (m,)): The initial guess.
+
+        Returns:
+            z_opt: The optimized z vector.
+            z_history: The history of the z vector.
+        """
+        from scipy.sparse.linalg import svds
+
+        # Tolerance for algorithm to consider itself converged
+        tol = 1e-5
 
         # pre-compute/load some stuff so for loops (below) are faster
-        ATA = A.T @ A
-        ATb = A.T @ b
+        t0 = time.perf_counter() if TIMING else 0
+        AT = A.T
+        ATb = AT @ b
+        if TIMING:
+            print(f"      [_FISTA] AT/ATb: {time.perf_counter()-t0:.3f}s")
         prox = self._prox_l1
 
-        # An upper bound on the
-        # Lipshitz constant L of the least-squares loss term
-        # can be computed easily as largest eigenvalue of ATA
-        L = np.linalg.svd(ATA, compute_uv=False, hermitian=True)[0]
-
-        # SVD is slow for large problems so can use
-        # the upper bound on largest singular value from https://www.cs.yale.edu/homes/spielman/BAP/lect3.pdf
-        # L = np.sqrt(N) * np.max(np.linalg.norm(ATA, axis=0), axis=-1)
+        # L = largest eigenvalue of A^T A = (largest singular value of A)^2.
+        # svds uses iterative methods (ARPACK) with only A@v and A.T@v matvecs,
+        # avoiding O(n*m^2) cost of forming A^T A explicitly.
+        t0 = time.perf_counter() if TIMING else 0
+        try:
+            sigma_max = svds(A, k=1, which='LM', return_singular_vectors=False)[0]
+            L = sigma_max ** 2
+        except Exception:
+            ATA = AT @ A
+            L = np.max(np.sum(np.abs(ATA), axis=1))  # Gershgorin upper bound
+        if TIMING:
+            print(f"      [_FISTA] svds (Lipschitz): {time.perf_counter()-t0:.3f}s")
 
         # initial step size should be just smaller than 1 / L
         # which for most of these problems L ~ 1e-13 or smaller
@@ -608,24 +736,28 @@ class CurrentPotentialSolve:
         if acceleration:  # FISTA algorithm
             # first iteration do ISTA
             x_prev = xi0
-            x = prox(xi0 + ti * (ATb - ATA @ xi0), ti * alpha)
+            x = prox(xi0 + ti * (ATb - AT @ (A @ xi0)), ti * alpha)
             for i in range(1, max_iter):
                 vi = x + i / (i + 3) * (x - x_prev)
                 x_prev = x
                 # note l1 'threshold' is rescaled here
-                x = prox(vi + ti * (ATb - ATA @ vi), ti * alpha)
+                x = prox(vi + ti * (ATb - AT @ (A @ vi)), ti * alpha)
                 ti = (1 + np.sqrt(1 + 4 * ti ** 2)) / 2.0
                 if (i % 100) == 0:
                     x_history.append(x)
-                    if np.all(abs(x_history[-1] - x_history[-2]) < tol):
+                    if np.all(abs(x_history[-1] - x_history[-2]) / max(1e-10, np.mean(np.abs(x_history[-2]))) < tol):
+                        if TIMING:
+                            print(f"      [_FISTA] converged at iteration {i}")
                         break
-        else:  # ISTA algorithm
+            if TIMING:
+                print(f"      [_FISTA] iterations: {i+1}")
+        else:  # ISTA algorithm (forms ATA only when needed)
             alpha = ti * alpha  # ti does not vary in ISTA algorithm
-            ATA = ti * ATA
+            ATA = ti * (AT @ A)
             I_ATA = np.eye(ATA.shape[0]) - ATA
-            ATb = ti * ATb
+            ATb_scaled = ti * ATb
             for i in range(max_iter):
-                x_history.append(prox(ATb + I_ATA @ x_history[i], alpha))
+                x_history.append(prox(ATb_scaled + I_ATA @ x_history[i], alpha))
                 if (i % 100) == 0:
                     if np.all(abs(x_history[i + 1] - x_history[i]) < tol):
                         break
@@ -634,7 +766,17 @@ class CurrentPotentialSolve:
 
     def _prox_l1(self, x, threshold):
         """
-            Proximal operator for L1 regularization,
-            which is often called soft-thresholding.
+        Proximal operator for L1 regularization,
+        which is often called soft-thresholding.
+
+        .. math::
+            \text{prox}_{\lambda \| \cdot \|_1}(x) = \text{sign}(x) \max(0, |x| - \lambda)
+
+        Args:
+            x (shape (n,)): The x vector.
+            threshold (float): The threshold for the L1 regularization.
+
+        Returns:
+            prox_x (shape (n,)): The proximal operator of the L1 regularization.
         """
         return np.sign(x) * np.maximum(np.abs(x) - threshold, 0)
