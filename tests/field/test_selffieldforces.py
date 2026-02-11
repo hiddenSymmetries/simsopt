@@ -914,7 +914,6 @@ class CoilForcesTest(unittest.TestCase):
         coil_a1 = RegularizedCoil(curve_a1, Current(I), regularization_circ(0.05))
         coil_a2 = RegularizedCoil(curve_a2, Current(I), regularization_circ(0.05))
         coil_b1 = RegularizedCoil(curve_b1, Current(I), regularization_circ(0.05))
-        coil_b2 = RegularizedCoil(curve_b2, Current(I), regularization_circ(0.05))
         threshold = 1e-3
 
         # target_coils has mixed quadpoints (40 and 60)
