@@ -251,6 +251,7 @@ class Gvec(Optimizable):
 
     @property
     def logger(self):
+        """The gvec internal logger, separate from the simsopt logger."""
         return logging.getLogger("gvec")
 
     def run(self, force: bool = False) -> None:
@@ -522,7 +523,7 @@ class Gvec(Optimizable):
             return
         logging.debug(f"setting phiedge to {phiedge}")
         self._phiedge = phiedge
-        self.run_required = True
+        self.set_recompute_flag()
 
     @property
     def boundary(self) -> Surface:
@@ -542,7 +543,7 @@ class Gvec(Optimizable):
         self.remove_parent(self._boundary)
         self._boundary = boundary
         self.append_parent(self._boundary)
-        self.run_required = True
+        # self.set_recompute_flag()  # also called by append_parent()
 
     @property
     def pressure_profile(self) -> Profile:
@@ -559,7 +560,7 @@ class Gvec(Optimizable):
         self.remove_parent(self._pressure)
         self._pressure = pressure_profile
         self.append_parent(self._pressure)
-        self.run_required = True
+        # self.set_recompute_flag()  # called by append_parent()
 
     @property
     def iota_profile(self) -> Union[Profile, None]:
@@ -587,7 +588,7 @@ class Gvec(Optimizable):
         self._iota = iota_profile
         if iota_profile is not None:
             self.append_parent(self._iota)
-        self.run_required = True
+        # self.set_recompute_flag()  # called by append_parent()
 
     @property
     def current_profile(self) -> Union[Profile, None]:
@@ -616,7 +617,7 @@ class Gvec(Optimizable):
         self._current = current_profile
         if current_profile is not None:
             self.append_parent(self._current)
-        self.run_required = True
+        # self.set_recompute_flag()  # called by append_parent()
 
     # === RETURN FUNCTIONS - SIMILAR TO VMEC === #
     # These functions provide some common optimization targets,
@@ -722,6 +723,8 @@ class Elongation(Optimizable):
 
     Applying a PCA on the boundary points gives us the principal axes for the cross-section.
     We can then take the minimum and maximum values along the principal axes to get an estimate for the "length" and "width" of the cross-section.
+
+    With this definition, the values for elongation depend on the choice of cross-sections!
     """
 
     def __init__(self, eq: Gvec, zeta: Union[float, RealArray, Literal["int"]] = "int"):
