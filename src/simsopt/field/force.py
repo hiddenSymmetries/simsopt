@@ -13,7 +13,7 @@ Biot_savart_prefactor = constants.mu_0 / 4 / np.pi
 
 
 @jit
-def lp_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual, p, threshold):
+def lp_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization_target, B_mutual, p, threshold):
     r"""Pure function for minimizing the Lorentz force on a coil.
 
     The function is
@@ -25,7 +25,7 @@ def lp_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regulari
     and :math:`\ell` is arclength along the coil.
     """
 
-    B_self = B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization)
+    B_self = B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization_target)
     gammadash_norm = jnp.linalg.norm(gammadash, axis=1)[:, None]
     tangent = gammadash / gammadash_norm
     force = jnp.cross(current * tangent, B_self + B_mutual)
@@ -45,7 +45,7 @@ class LpCurveForce(Optimizable):
     and :math:`\ell` is arclength along the coil.
     """
 
-    def __init__(self, coil, allcoils, regularization, p=1.0, threshold=0.0):
+    def __init__(self, coil, allcoils, regularization_target, p=1.0, threshold=0.0):
         self.coil = coil
         self.allcoils = allcoils
         self.othercoils = [c for c in allcoils if c is not coil]
@@ -54,7 +54,7 @@ class LpCurveForce(Optimizable):
 
         self.J_jax = jit(
             lambda gamma, gammadash, gammadashdash, current, B_mutual:
-            lp_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual, p, threshold)
+            lp_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization_target, B_mutual, p, threshold)
         )
 
         self.dJ_dgamma = jit(
@@ -125,7 +125,7 @@ class LpCurveForce(Optimizable):
 
 
 @jit
-def mean_squared_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual):
+def mean_squared_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization_target, B_mutual):
     r"""Pure function for minimizing the Lorentz force on a coil.
 
     The function is
@@ -137,7 +137,7 @@ def mean_squared_force_pure(gamma, gammadash, gammadashdash, quadpoints, current
     along the coil.
     """
 
-    B_self = B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization)
+    B_self = B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization_target)
     gammadash_norm = jnp.linalg.norm(gammadash, axis=1)[:, None]
     tangent = gammadash / gammadash_norm
     force = jnp.cross(current * tangent, B_self + B_mutual)
@@ -157,7 +157,7 @@ class MeanSquaredForce(Optimizable):
     along the coil.
     """
 
-    def __init__(self, coil, allcoils, regularization):
+    def __init__(self, coil, allcoils, regularization_target):
         self.coil = coil
         self.allcoils = allcoils
         self.othercoils = [c for c in allcoils if c is not coil]
@@ -166,7 +166,7 @@ class MeanSquaredForce(Optimizable):
 
         self.J_jax = jit(
             lambda gamma, gammadash, gammadashdash, current, B_mutual:
-            mean_squared_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual)
+            mean_squared_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization_target, B_mutual)
         )
 
         self.dJ_dgamma = jit(

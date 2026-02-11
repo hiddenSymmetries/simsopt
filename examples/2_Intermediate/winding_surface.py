@@ -294,6 +294,10 @@ def run_scan():
                  Kmax_lasso, Kmean_lasso,
                  ]).T
         )
+        if not in_github_actions:
+            plt.show()
+        else:
+            plt.close()
 
 
 def run_target():
@@ -425,3 +429,5 @@ t2 = time.time()
 print('Total run time = ', t2 - t1)
 if not in_github_actions:
     plt.show()
+else:
+    plt.close()
