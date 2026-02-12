@@ -389,6 +389,55 @@ class CurrentPotentialFourierTests(unittest.TestCase):
             cp.set_current_potential_from_regcoil(TEST_DIR / 'regcoil_out.w7x_infty.nc', 0)
         self.assertIn('stellsym', str(cm.exception))
 
+    def test_fixed_range_fix(self):
+        """fixed_range with fixed=True fixes the specified modes."""
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=2, ntor=1, stellsym=True)
+        self.assertTrue(np.all(cp.local_dofs_free_status))
+        cp.fixed_range(mmin=1, mmax=2, nmin=-1, nmax=1, fixed=True)
+        # Phis(1,-1), Phis(1,0), Phis(1,1), Phis(2,-1), Phis(2,0), Phis(2,1) should be fixed
+        for name in ['Phis(1,-1)', 'Phis(1,0)', 'Phis(1,1)', 'Phis(2,-1)', 'Phis(2,0)', 'Phis(2,1)']:
+            idx = cp.local_full_dof_names.index(name)
+            self.assertFalse(cp.local_dofs_free_status[idx], msg=f"{name} should be fixed")
+        # Phis(0,1) should remain free
+        idx = cp.local_full_dof_names.index('Phis(0,1)')
+        self.assertTrue(cp.local_dofs_free_status[idx])
+
+    def test_fixed_range_unfix(self):
+        """fixed_range with fixed=False unfixes the specified modes."""
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=2, ntor=1, stellsym=True)
+        cp.fix_all()
+        cp.fixed_range(mmin=0, mmax=1, nmin=-1, nmax=1, fixed=False)
+        # Phis(0,1) and Phis(1,-1), Phis(1,0), Phis(1,1) should be unfixed
+        for name in ['Phis(0,1)', 'Phis(1,-1)', 'Phis(1,0)', 'Phis(1,1)']:
+            idx = cp.local_full_dof_names.index(name)
+            self.assertTrue(cp.local_dofs_free_status[idx], msg=f"{name} should be free")
+        # Phis(2,-1) should remain fixed
+        idx = cp.local_full_dof_names.index('Phis(2,-1)')
+        self.assertFalse(cp.local_dofs_free_status[idx])
+
+    def test_fixed_range_stellsym_false(self):
+        """fixed_range works for non-stellarator-symmetric (fixes both Phis and Phic)."""
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=1, ntor=1, stellsym=False)
+        cp.fixed_range(mmin=1, mmax=1, nmin=0, nmax=1, fixed=True)
+        for name in ['Phis(1,0)', 'Phis(1,1)', 'Phic(1,0)', 'Phic(1,1)']:
+            idx = cp.local_full_dof_names.index(name)
+            self.assertFalse(cp.local_dofs_free_status[idx], msg=f"{name} should be fixed")
+
+    def test_K_matrix(self):
+        """CurrentPotential.K_matrix returns symmetric matrix of correct shape."""
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=2, ntor=1, stellsym=True)
+        cp.set_dofs(np.random.rand(cp.num_dofs()) * 0.01)
+        K_mat = cp.K_matrix()
+        self.assertEqual(K_mat.shape, (cp.num_dofs(), cp.num_dofs()))
+        np.testing.assert_allclose(K_mat, K_mat.T, atol=1e-14, err_msg="K_matrix should be symmetric")
+        # K_matrix should be positive semi-definite (Gram matrix)
+        eigs = np.linalg.eigvalsh(K_mat)
+        self.assertTrue(np.all(eigs >= -1e-10), msg="K_matrix should be PSD")
+
     def test_target(self):
         """
         Test that the current potential solve works. Similar to winding_surface.py example.

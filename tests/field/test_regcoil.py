@@ -1,3 +1,4 @@
+import json
 import unittest
 import warnings
 from simsopt.geo import SurfaceRZFourier
@@ -8,6 +9,7 @@ from simsopt.field.magneticfieldclasses import WindingSurfaceField
 from simsopt.objectives import SquaredFlux
 from simsopt.field import CurrentPotentialFourier, CurrentPotentialSolve
 from simsopt.util import in_github_actions
+from simsopt._core.json import SIMSON, GSONEncoder, GSONDecoder
 from scipy.special import ellipk, ellipe
 from pathlib import Path
 from scipy.io import netcdf_file
@@ -622,6 +624,74 @@ class Testing(unittest.TestCase):
         self.assertEqual(len(b_rhs), cpst.ndofs)
         optimized_phi_mn, f_B, f_K = cpst.solve_tikhonov(lam=1e-6)
         self.assertEqual(len(optimized_phi_mn), cpst.ndofs)
+
+    def test_Bnormal_interpolation_plasma_nzeta_res(self):
+        """Cover plasma_nzeta_res > 1 branch (plasma_ntheta_res=1, plasma_nzeta_res=2)."""
+        filename = TEST_DIR / 'regcoil_out.w7x_infty.nc'
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            cpst = CurrentPotentialSolve.from_netcdf(
+                filename, plasma_ntheta_res=1.0, plasma_nzeta_res=2.0
+            )
+        self.assertEqual(len(cpst.Bnormal_plasma), cpst.nzeta_plasma * cpst.ntheta_plasma)
+        optimized_phi_mn, f_B, f_K = cpst.solve_tikhonov(lam=1e-6)
+        self.assertEqual(len(optimized_phi_mn), cpst.ndofs)
+
+    def test_CurrentPotentialSolve_Bnormal_plasma_shape_mismatch(self):
+        """CurrentPotentialSolve raises ValueError when Bnormal_plasma shape mismatches."""
+        cp = CurrentPotentialFourier.from_netcdf(TEST_DIR / 'regcoil_out.w7x_infty.nc')
+        s_plasma = SurfaceRZFourier(
+            nfp=cp.nfp, mpol=4, ntor=4, stellsym=True
+        ).from_nphi_ntheta(nfp=cp.nfp, ntheta=32, nphi=32, mpol=4, ntor=4, stellsym=True, range="field period")
+        # Bnormal with wrong size (e.g. 10 elements instead of 32*32)
+        bad_Bnormal = np.ones(10)
+        with self.assertRaises(ValueError) as cm:
+            CurrentPotentialSolve(cp, s_plasma, bad_Bnormal)
+        self.assertIn("shape", str(cm.exception).lower())
+
+    def test_WindingSurfaceField_as_dict_from_dict(self):
+        """Test WindingSurfaceField serialization via as_dict and from_dict.
+
+        Uses surfaces from winding_surface_test.json (created via set_dofs so _dofs
+        are in sync) since SurfaceRZFourier from from_netcdf uses set_rc/set_zs
+        which does not sync _dofs for serialization.
+        """
+        from simsopt import load
+        winding_surface, _ = load(TEST_DIR / 'winding_surface_test.json')
+        cp = CurrentPotentialFourier(
+            winding_surface, mpol=4, ntor=4,
+            net_poloidal_current_amperes=11884578.094260072,
+            net_toroidal_current_amperes=0,
+            stellsym=True)
+        cp.set_dofs(np.array([
+            235217.63668779, -700001.94517193, 1967024.36417348,
+            -1454861.01406576, -1021274.81793687, 1657892.17597651,
+            -784146.17389912, 136356.84602536, -670034.60060171,
+            194549.6432583, 1006169.72177152, -1677003.74430119,
+            1750470.54137804, 471941.14387043, -1183493.44552104,
+            1046707.62318593, -334620.59690486, 658491.14959397,
+            -1169799.54944824, -724954.843765, 1143998.37816758,
+            -2169655.54190455, -106677.43308896, 761983.72021537,
+            -986348.57384563, 532788.64040937, -600463.7957275,
+            1471477.22666607, 1009422.80860728, -2000273.40765417,
+            2179458.3105468, -55263.14222144, -315581.96056445,
+            587702.35409154, -637943.82177418, 609495.69135857,
+            -1050960.33686344, -970819.1808181, 1467168.09965404,
+            -198308.0580687
+        ]))
+        bfield = WindingSurfaceField(cp)
+        points = np.ascontiguousarray(np.random.RandomState(42).rand(20, 3) * 2)
+        bfield.set_points(points)
+        B_orig = bfield.B()
+        A_orig = bfield.A()
+
+        field_json_str = json.dumps(SIMSON(bfield), cls=GSONEncoder)
+        bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
+        bfield_regen.set_points(points)
+        np.testing.assert_allclose(bfield_regen.B(), B_orig, rtol=1e-3, atol=1e-12,
+                                   err_msg="WindingSurfaceField B() mismatch after load")
+        np.testing.assert_allclose(bfield_regen.A(), A_orig, rtol=1e-3, atol=1e-12,
+                                   err_msg="WindingSurfaceField A() mismatch after load")
 
     def test_K_calculations(self):
         from simsopt import load
