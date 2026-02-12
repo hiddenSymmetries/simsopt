@@ -35,7 +35,7 @@ class CurrentPotential(Optimizable):
         return data
 
     def K_matrix(self) -> np.ndarray:
-        data = np.zeros((len(self.num_dofs), len(self.num_dofs)))
+        data = np.zeros((self.num_dofs(), self.num_dofs()))
         dg1 = self.winding_surface.gammadash1()
         dg2 = self.winding_surface.gammadash2()
         normal = self.winding_surface.normal()
@@ -181,7 +181,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         Return a particular `phic` parameter.
         """
         if self.stellsym:
-            return ValueError(
+            raise ValueError(
                 'phic does not exist for this stellarator-symmetric current potential.')
         self._validate_mn(m, n)
         return self.phic[m, n + self.ntor]
@@ -198,7 +198,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         Set a particular `phic` Parameter.
         """
         if self.stellsym:
-            return ValueError(
+            raise ValueError(
                 'phic does not exist for this stellarator-symmetric current potential.')
         self._validate_mn(m, n)
         self.phic[m, n + self.ntor] = val

@@ -2,13 +2,9 @@ from __future__ import annotations
 
 from typing import Optional, Tuple, List, Union
 import numpy as np
-import os
-import time
 import warnings
 from scipy.io import netcdf_file
-
-TIMING = os.environ.get('SIMSOPT_TIMING', '').lower() in ('1', 'true', 'yes')
-from scipy.interpolate import interp2d
+from scipy.interpolate import RegularGridInterpolator
 from simsopt.field.magneticfieldclasses import WindingSurfaceField
 from simsopt.geo import SurfaceRZFourier
 from simsopt.field.currentpotential import CurrentPotentialFourier
@@ -177,19 +173,27 @@ class CurrentPotentialSolve:
                 "the Bnormal_from_plasma_current will be interpolated to the "
                 "high resolution grid, which may not be very accurate!"
             )
-            quadpoints_phi = np.linspace(0, 1 / ((int(stellsym_plasma_surf) + 1) * nfp), f.variables['nzeta_plasma'][()] + 1, endpoint=True)
-            quadpoints_theta = np.linspace(0, 1, f.variables['ntheta_plasma'][()] + 1, endpoint=True)
-            quadpoints_phi = quadpoints_phi[:-1]
-            quadpoints_theta = quadpoints_theta[:-1]
-            quadpoints_phi, quadpoints_theta = np.meshgrid(quadpoints_phi, quadpoints_theta, indexing='ij')
-            Bnormal_from_plasma_current = interp2d(
-                quadpoints_phi, quadpoints_theta, Bnormal_from_plasma_current,
-                kind='cubic'
+            # Source grid: REGCOIL file convention (matches Bnormal_from_plasma_current layout)
+            quadpoints_phi_1d = np.linspace(
+                0, 1 / ((int(stellsym_plasma_surf) + 1) * nfp),
+                f.variables['nzeta_plasma'][()] + 1, endpoint=True
+            )[:-1]
+            quadpoints_theta_1d = np.linspace(
+                0, 1, f.variables['ntheta_plasma'][()] + 1, endpoint=True
+            )[:-1]
+            Bnormal_interp = RegularGridInterpolator(
+                (quadpoints_phi_1d, quadpoints_theta_1d),
+                Bnormal_from_plasma_current,
+                method='cubic',
+                bounds_error=False,
+                fill_value=None
             )
-            Bnormal_from_plasma_current = Bnormal_from_plasma_current(
-                s_plasma.quadpoints_phi,
-                s_plasma.quadpoints_theta
+            phi_grid, theta_grid = np.meshgrid(
+                s_plasma.quadpoints_phi, s_plasma.quadpoints_theta, indexing='ij'
             )
+            Bnormal_from_plasma_current = Bnormal_interp(
+                np.column_stack([phi_grid.ravel(), theta_grid.ravel()])
+            ).reshape(phi_grid.shape)
         f.close()
         s_plasma.set_dofs(0 * s_plasma.get_dofs())
         for im in range(len(xm_plasma)):
@@ -449,7 +453,6 @@ class CurrentPotentialSolve:
             Compute the matrices and right-hand-side corresponding the Bnormal part of
             the optimization, for both the Tikhonov and Lasso optimizations.
         """
-        t0 = time.perf_counter() if TIMING else 0
         plasma_surface = self.plasma_surface
         normal = self.winding_surface.normal().reshape(-1, 3)
         Bnormal_plasma = self.Bnormal_plasma
@@ -460,8 +463,6 @@ class CurrentPotentialSolve:
         phi_mesh, theta_mesh = np.meshgrid(self.winding_surface.quadpoints_phi, theta, indexing='ij')
         zeta_coil = np.ravel(phi_mesh)
         theta_coil = np.ravel(theta_mesh)
-        if TIMING:
-            print(f"        [B_matrix_and_rhs] setup (gamma, normal, mesh): {time.perf_counter()-t0:.3f}s")
 
         if self.winding_surface.stellsym:
             ndofs_half = self.current_potential.num_dofs()
@@ -469,15 +470,11 @@ class CurrentPotentialSolve:
             ndofs_half = self.current_potential.num_dofs() // 2
 
         # Compute terms for the REGCOIL (L2) problem
-        t0 = time.perf_counter() if TIMING else 0
         contig = np.ascontiguousarray
         gj, B_matrix = sopp.winding_surface_field_Bn(contig(points_plasma), contig(points_coil), contig(normal_plasma), contig(normal), self.winding_surface.stellsym, contig(zeta_coil), contig(theta_coil), self.current_potential.num_dofs(), contig(self.current_potential.m[:ndofs_half]), contig(self.current_potential.n[:ndofs_half]), self.winding_surface.nfp)
-        if TIMING:
-            print(f"        [B_matrix_and_rhs] winding_surface_field_Bn: {time.perf_counter()-t0:.3f}s")
         B_GI = self.B_GI
 
         # set up RHS of optimization
-        t0 = time.perf_counter() if TIMING else 0
         b_rhs = - np.ravel(B_GI + Bnormal_plasma) @ gj
         dzeta_plasma = (plasma_surface.quadpoints_phi[1] - plasma_surface.quadpoints_phi[0])
         dtheta_plasma = (plasma_surface.quadpoints_theta[1] - plasma_surface.quadpoints_theta[0])
@@ -490,15 +487,10 @@ class CurrentPotentialSolve:
         normN = np.linalg.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1)
         self.gj = gj * np.sqrt(dzeta_plasma * dtheta_plasma * dzeta_coil ** 2 * dtheta_coil ** 2)
         self.b_e = - np.sqrt(normN * dzeta_plasma * dtheta_plasma) * (B_GI + Bnormal_plasma)
-        if TIMING:
-            print(f"        [B_matrix_and_rhs] RHS scaling: {time.perf_counter()-t0:.3f}s")
 
-        t0 = time.perf_counter() if TIMING else 0
         normN = np.linalg.norm(self.winding_surface.normal().reshape(-1, 3), axis=-1)
         dr_dzeta = self.winding_surface.gammadash1().reshape(-1, 3)
         dr_dtheta = self.winding_surface.gammadash2().reshape(-1, 3)
-        if TIMING:
-            print(f"        [B_matrix_and_rhs] gammadash1/2 (K2 prep): {time.perf_counter()-t0:.3f}s")
         G = self.current_potential.net_poloidal_current_amperes
         I = self.current_potential.net_toroidal_current_amperes
 
@@ -510,15 +502,12 @@ class CurrentPotentialSolve:
         contig = np.ascontiguousarray
 
         # Compute terms for the Lasso (L1) problem
-        t0 = time.perf_counter() if TIMING else 0
         d, fj = sopp.winding_surface_field_K2_matrices(
             contig(dr_dzeta), contig(dr_dtheta), contig(normal_coil), self.winding_surface.stellsym,
             contig(zeta_coil), contig(theta_coil), self.ndofs, contig(m), contig(n), nfp, G, I
         )
         self.fj = fj * 2 * np.pi * np.sqrt(dzeta_coil * dtheta_coil)
         self.d = d * 2 * np.pi * np.sqrt(dzeta_coil * dtheta_coil)
-        if TIMING:
-            print(f"        [B_matrix_and_rhs] winding_surface_field_K2_matrices: {time.perf_counter()-t0:.3f}s")
         return b_rhs, B_matrix
 
     def solve_tikhonov(
@@ -548,24 +537,12 @@ class CurrentPotentialSolve:
                 The history is recorded in the ilambdas_l2, dofs_l2, current_potential_l2,
                 fBs_l2, and fKs_l2 lists.
         """
-        t0 = time.perf_counter() if TIMING else 0
         K_matrix = self.K_matrix()
-        if TIMING:
-            print(f"    [solve_tikhonov] K_matrix: {time.perf_counter()-t0:.3f}s")
-        t0 = time.perf_counter() if TIMING else 0
         K_rhs = self.K_rhs()
-        if TIMING:
-            print(f"    [solve_tikhonov] K_rhs: {time.perf_counter()-t0:.3f}s")
-        t0 = time.perf_counter() if TIMING else 0
         b_rhs, B_matrix = self.B_matrix_and_rhs()
-        if TIMING:
-            print(f"    [solve_tikhonov] B_matrix_and_rhs: {time.perf_counter()-t0:.3f}s")
 
         # least-squares solve
-        t0 = time.perf_counter() if TIMING else 0
         phi_mn_opt = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
-        if TIMING:
-            print(f"    [solve_tikhonov] linalg.solve: {time.perf_counter()-t0:.3f}s")
         self.current_potential.set_dofs(phi_mn_opt)
 
         # Get other matrices for direct computation of fB and fK loss terms
@@ -623,11 +600,7 @@ class CurrentPotentialSolve:
             an initial guess to the optimizers.
         """
         # Set up some matrices
-        t0 = time.perf_counter() if TIMING else 0
         _, _ = self.B_matrix_and_rhs()
-        if TIMING:
-            print(f"    [solve_lasso] B_matrix_and_rhs: {time.perf_counter()-t0:.3f}s")
-        t0 = time.perf_counter() if TIMING else 0
         normN = np.linalg.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1)
         ws_normN = np.linalg.norm(self.winding_surface.normal().reshape(-1, 3), axis=-1)
         A_matrix = self.gj
@@ -650,9 +623,6 @@ class CurrentPotentialSolve:
             Ak_inv = scipy_pinv(Ak_matrix, rtol=1e-8)
         A_new = A_matrix @ Ak_inv
         b_new = b_e - A_new @ d
-        if TIMING:
-            print(f"    [solve_lasso] A_matrix setup + pinv: {time.perf_counter()-t0:.3f}s")
-        # print('Checking Ak_inv computed with pinv = ', Ak_inv)
 
         # rescale the l1 regularization
         l1_reg = lam
@@ -660,19 +630,12 @@ class CurrentPotentialSolve:
 
         # if alpha << 1, want to use initial guess from the Tikhonov solve,
         # which is exact since it comes from a matrix inverse.
-        t0 = time.perf_counter() if TIMING else 0
         phi0, _, _, = self.solve_tikhonov(lam=lam, record_history=False)
-        if TIMING:
-            print(f"    [solve_lasso] solve_tikhonov (initial guess): {time.perf_counter()-t0:.3f}s")
 
         # L1 norm here should already include the contributions from the winding surface discretization
         # and factor of 1 / ws_normN from the K, cancelling the factor of ws_normN from the surface
         z0 = np.ravel((Ak_matrix @ phi0 - d).reshape(-1, 3) * np.sqrt(ws_normN)[:, None])
-        t0 = time.perf_counter() if TIMING else 0
         z_opt, z_history = self._FISTA(A=A_new, b=b_new, alpha=l1_reg, max_iter=max_iter, acceleration=acceleration, xi0=z0)
-        if TIMING:
-            print(f"    [solve_lasso] _FISTA: {time.perf_counter()-t0:.3f}s")
-        # z_opt = z_opt.reshape(-1, 3) # / ws_normN[:, None])
         # Need to put back in the 1 / ws_normN dependence in K
 
         # Compute the history of values from the optimizer
@@ -742,25 +705,19 @@ class CurrentPotentialSolve:
         tol = 1e-5
 
         # pre-compute/load some stuff so for loops (below) are faster
-        t0 = time.perf_counter() if TIMING else 0
         AT = A.T
         ATb = AT @ b
-        if TIMING:
-            print(f"      [_FISTA] AT/ATb: {time.perf_counter()-t0:.3f}s")
         prox = self._prox_l1
 
         # L = largest eigenvalue of A^T A = (largest singular value of A)^2.
         # svds uses iterative methods (ARPACK) with only A@v and A.T@v matvecs,
         # avoiding O(n*m^2) cost of forming A^T A explicitly.
-        t0 = time.perf_counter() if TIMING else 0
         try:
             sigma_max = svds(A, k=1, which='LM', return_singular_vectors=False)[0]
             L = sigma_max ** 2
         except Exception:
             ATA = AT @ A
             L = np.max(np.sum(np.abs(ATA), axis=1))  # Gershgorin upper bound
-        if TIMING:
-            print(f"      [_FISTA] svds (Lipschitz): {time.perf_counter()-t0:.3f}s")
 
         # initial step size should be just smaller than 1 / L
         # which for most of these problems L ~ 1e-13 or smaller
@@ -784,20 +741,16 @@ class CurrentPotentialSolve:
                 if (i % 100) == 0:
                     x_history.append(x)
                     if np.all(abs(x_history[-1] - x_history[-2]) / max(1e-10, np.mean(np.abs(x_history[-2]))) < tol):
-                        if TIMING:
-                            print(f"      [_FISTA] converged at iteration {i}")
                         break
-            if TIMING:
-                print(f"      [_FISTA] iterations: {i+1}")
         else:  # ISTA algorithm (forms ATA only when needed)
             alpha = ti * alpha  # ti does not vary in ISTA algorithm
-            ATA = ti * (AT @ A)
-            I_ATA = np.eye(ATA.shape[0]) - ATA
+            AT_ti = ti * AT
+            # I_ATA = np.eye(ATA.shape[0]) - ATA
             ATb_scaled = ti * ATb
             for i in range(max_iter):
-                x_history.append(prox(ATb_scaled + I_ATA @ x_history[i], alpha))
+                x_history.append(prox(ATb_scaled + x_history[i] - (AT_ti @ (A @ x_history[i])), alpha))
                 if (i % 100) == 0:
-                    if np.all(abs(x_history[i + 1] - x_history[i]) < tol):
+                    if np.all(abs(x_history[i + 1] - x_history[i]) / max(1e-10, np.mean(np.abs(x_history[i]))) < tol):
                         break
         xi = x_history[-1]
         return xi, x_history
