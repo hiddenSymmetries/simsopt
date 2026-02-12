@@ -9,7 +9,9 @@ can compute the magnetic field at arbitrary points in space.
 
 This example requires that the python ``virtual_casing`` module is installed.
 """
-from simsopt.field import VirtualCasingField
+from simsopt.field import VmecVirtualCasingField
+from simsopt.mhd import Vmec
+from simsopt.configs import get_data
 from simsopt.geo import SurfaceRZFourier
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -17,8 +19,8 @@ import numpy as np
 
 # Resolution on the plasma boundary surface:
 # nphi is the number of grid points in 1/2 a field period.
-nphi = 32
-ntheta = 32
+nphi = 100
+ntheta = 100
 
 # Resolution for the virtual casing calculation:
 vc_src_nphi = 80
@@ -28,21 +30,20 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 filename = 'wout_W7-X_without_coil_ripple_beta0p05_d23p4_tm_reference.nc'
 vmec_file = TEST_DIR / filename
 
-vc = VirtualCasingField.from_vmec(vmec_file, 
-src_nphi=vc_src_nphi, trgt_nphi=nphi, trgt_ntheta=ntheta, digits=2)
+vmec = Vmec(vmec_file)
 
-# Get offset surface to evaluate magnetic field on 
-surf = SurfaceRZFourier.from_wout(vmec_file, nphi=nphi, ntheta=ntheta)
-surf.extend_via_normal(0.1)
+vc = VmecVirtualCasingField(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi, trgt_ntheta=ntheta, digits=7, max_upsampling=50)
+# Get offset surface to evaluate magnetic field on
+surf = vc.surf.copy(nphi=nphi, ntheta=ntheta, range='half period')
+surf.extend_via_normal(0.2)
 
-# eval_points = (np.random.rand(len(surf.gamma().reshape((-1, 3))), 3) - 0.5) * 1000
-# vc.set_points(eval_points)
-vc.set_points(surf.gamma().reshape((-1, 3)))
+vc.set_points(surf.gamma().reshape((-1, 3)), )
 B = vc.B() 
 
 modB = np.linalg.norm(B, axis=-1)
 modB = modB.reshape((nphi, ntheta))
 
+plt.ion()
 plt.figure()
 plt.contourf(surf.quadpoints_phi, surf.quadpoints_theta, modB.T, cmap='RdBu')
 plt.xlabel('phi')
