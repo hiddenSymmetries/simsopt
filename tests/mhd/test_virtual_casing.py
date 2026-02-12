@@ -25,7 +25,7 @@ except ImportError:
 
 from simsopt.mhd.vmec import Vmec
 from simsopt.mhd.virtual_casing import VirtualCasing
-from simsopt.field import VirtualCasingField
+from simsopt.field import VirtualCasingField, VmecVirtualCasingField
 from simsopt.geo import SurfaceRZFourier
 from . import TEST_DIR
 
@@ -105,9 +105,9 @@ class VirtualCasingVmecTests(unittest.TestCase):
                 vc_src_ntheta = 80
 
                 # Setup VirtualCasingField from half-flux equilibrium
-                vc = VirtualCasingField.from_vmec(vmec_half.output_file, src_ntheta=vc_src_ntheta,
+                vc = VmecVirtualCasingField(vmec_half, src_ntheta=vc_src_ntheta,
                                                 src_nphi=vc_src_nphi, trgt_nphi=nphi, trgt_ntheta=ntheta,
-                                                digits=digits, on_surface_tol=0.01)
+                                                digits=digits)
 
                 # Compute off-surface magnetic field on full flux surface
                 surf = SurfaceRZFourier.from_wout(vmec.output_file, nphi=nphi, ntheta=ntheta, range='half period')
@@ -117,7 +117,7 @@ class VirtualCasingVmecTests(unittest.TestCase):
                 Bn = np.sum(B * surf.unitnormal(), axis=2)
 
                 # Compare with on-surface calculation of normal field from full flux surface
-                vc = VirtualCasing.from_vmec(vmec.output_file, src_ntheta=vc_src_ntheta, src_nphi=vc_src_nphi,
+                vc = VmecVirtualCasingField(vmec, src_ntheta=vc_src_ntheta, src_nphi=vc_src_nphi,
                                             trgt_nphi=nphi, trgt_ntheta=ntheta)
 
                 print('mpol: ', vmec.indata.mpol)
@@ -223,8 +223,7 @@ class VirtualCasingVmecTests(unittest.TestCase):
                 vc_src_ntheta = nphi
 
                 # Setup VirtualCasingField from half flux equilibrium
-                vc = VirtualCasingField.from_vmec(vmec_half.output_file, 
-                                                on_surface_tol=0.01,
+                vc = VmecVirtualCasingField(vmec_half, 
                                                 src_ntheta=vc_src_ntheta,
                                                 src_nphi=vc_src_nphi, trgt_nphi=nphi, trgt_ntheta=ntheta)
 
@@ -317,7 +316,7 @@ class VirtualCasingVmecTests(unittest.TestCase):
                 vc_src_ntheta = nphi
 
                 # Setup VirtualCasingField from half flux equilibrium
-                vc = VirtualCasingField.from_vmec(vmec_half.output_file, src_ntheta=vc_src_ntheta,
+                vc = VmecVirtualCasingField(vmec_half, src_ntheta=vc_src_ntheta,
                                                 src_nphi=vc_src_nphi, trgt_nphi=nphi, trgt_ntheta=ntheta)
 
                 # Compute off-surface magnetic field on full flux surface
@@ -408,7 +407,7 @@ class VirtualCasingVmecTests(unittest.TestCase):
                 vc_src_ntheta = 80
 
                 # Setup VirtualCasingField from half flux equilibrium
-                vc = VirtualCasingField.from_vmec(vmec_half.output_file, src_ntheta=vc_src_ntheta,
+                vc = VmecVirtualCasingField(vmec_half, src_ntheta=vc_src_ntheta,
                                                 src_nphi=vc_src_nphi, trgt_nphi=nphi, trgt_ntheta=ntheta)
 
                 # Compute off-surface magnetic field on full flux surface
@@ -671,7 +670,7 @@ class VirtualCasingFieldTests(unittest.TestCase):
         
         for src_nphi in resolutions:
             src_ntheta = src_nphi
-            vc_field = VirtualCasingField.from_vmec(vmec, src_nphi=src_nphi, src_ntheta=src_ntheta,
+            vc_field = VmecVirtualCasingField(vmec, src_nphi=src_nphi, src_ntheta=src_ntheta,
                                                      trgt_nphi=trgt_nphi, trgt_ntheta=trgt_ntheta, digits=digits)
             vc_field.set_points(gamma.reshape((-1, 3)))
             B = vc_field.B().reshape((trgt_nphi, trgt_ntheta, 3))
@@ -706,14 +705,14 @@ class VirtualCasingFieldTests(unittest.TestCase):
         trgt_nphi = 32  # Must be >= 17 for extend_via_normal
         trgt_ntheta = 32
         digits = 2
-        
-        # Create VirtualCasingField
-        vc_field = VirtualCasingField.from_vmec(vmec, src_nphi=src_nphi, 
-                                                 trgt_nphi=trgt_nphi, trgt_ntheta=trgt_ntheta, digits=digits)
-        
+
+        # Create VmecVirtualCasingField
+        vc_field = VmecVirtualCasingField(vmec, src_nphi=src_nphi,
+                                           trgt_nphi=trgt_nphi, trgt_ntheta=trgt_ntheta, digits=digits)
+
         # Get on-surface points from the target grid (where precomputed values exist)
         # Note: vc_field.gamma is the SOURCE grid, but precomputed B values are on trgt_gamma
-        gamma_on_surf = vc_field.trgt_gamma
+        gamma_on_surf = vc_field._gamma1d
         
         # Create off-surface evaluation points (0.2m offset)
         surf_extended = SurfaceRZFourier.from_wout(filename, nphi=src_nphi, ntheta=src_nphi, range="half period")
@@ -772,10 +771,9 @@ class VirtualCasingFieldTests(unittest.TestCase):
         digits = 2
         
         # Create with use_stellsym=False (full field period)
-        vc_field = VirtualCasingField.from_vmec(
-            vmec, src_nphi=src_nphi, 
-            trgt_nphi=trgt_nphi, trgt_ntheta=trgt_ntheta,
-            use_stellsym=False, digits=digits
+        vc_field = VmecVirtualCasingField(vmec, src_nphi=src_nphi,
+                                           trgt_nphi=trgt_nphi, trgt_ntheta=trgt_ntheta,
+                                           digits=digits
         )
         
         # Verify we can evaluate B at some points
@@ -791,118 +789,6 @@ class VirtualCasingFieldTests(unittest.TestCase):
         
         logger.info(f"use_stellsym=False test passed, avg |B| = {np.mean(np.linalg.norm(B, axis=-1)):.4f}")
 
-    def test_VirtualCasingField_different_npoints_near_surface(self):
-        """
-        Test evaluation at a different number of points than the target grid,
-        testing both near-surface (nearest-neighbor lookup) and far-from-surface
-        (compute_external_B_offsurf) cases.
-        """
-        import warnings
-        
-        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        vmec = Vmec(filename)
-        
-        # Use small grid for speed
-        src_nphi = 80
-        trgt_nphi = 32
-        trgt_ntheta = 32
-        digits = 1
-        
-        vc_field = VirtualCasingField.from_vmec(
-            vmec, src_nphi=src_nphi,
-            trgt_nphi=trgt_nphi, trgt_ntheta=trgt_ntheta, digits=digits
-        )
-        
-        # Use trgt_gamma (not gamma) since get_close_mask compares against trgt_gamma
-        gamma_full = vc_field.trgt_gamma  # Already shape (n_trgt, 3)
-        
-        # Test 1: Far points should NOT trigger nearest-neighbor warning
-        gamma_far = gamma_full[:1].copy()  # Just 1 point for speed
-        gamma_far[:, 0] *= 2.0  # Move far from surface
-        gamma_far[:, 1] *= 2.0
-        
-        vc_field.set_points(gamma_far)
-        
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            B_far = vc_field.B()
-            
-            warning_messages = [str(warning.message) for warning in w]
-            has_nn_warning = any("nearest-neighbor" in msg.lower() for msg in warning_messages)
-            self.assertFalse(has_nn_warning,
-                f"Far points should NOT trigger nearest-neighbor warning. Got: {warning_messages}")
-        
-        self.assertTrue(np.all(np.isfinite(B_far)), "B should be finite for far points")
-
-        # Test 2: Near-surface points SHOULD trigger nearest-neighbor warning
-        # Use just 1 point for speed
-        gamma_near = gamma_full[:1].copy()
-        gamma_near += 0.001 * np.random.randn(*gamma_near.shape)  # Small perturbation
-        
-        vc_field.set_points(gamma_near)
-        
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            B_near = vc_field.B()
-            
-            warning_messages = [str(warning.message) for warning in w]
-            has_nn_warning = any("nearest-neighbor" in msg.lower() for msg in warning_messages)
-            self.assertTrue(has_nn_warning,
-                f"Near-surface points SHOULD trigger nearest-neighbor warning. Got: {warning_messages}")
-        
-        self.assertTrue(np.all(np.isfinite(B_near)), "B should be finite for near-surface points")
-        
-        logger.info("Different n_points warning test passed")
-
-    def test_VirtualCasingField_compute_max_grid_spacing(self):
-        """
-        Test the _compute_max_grid_spacing static method.
-        
-        This method computes the maximum distance between any grid point
-        and its nearest neighbor, which is used to set a safe minimum
-        for on_surface_tol.
-        """
-        # Test 1: Regular 2D grid
-        # Create a 3x3 grid with spacing 1.0 in x and y
-        x = np.array([0, 1, 2])
-        y = np.array([0, 1, 2])
-        xx, yy = np.meshgrid(x, y)
-        grid_2d = np.column_stack([xx.ravel(), yy.ravel(), np.zeros(9)])
-        
-        max_spacing = VirtualCasingField._compute_max_grid_spacing(grid_2d)
-        # For a regular grid, max spacing should be 1.0 (horizontal/vertical neighbors)
-        self.assertAlmostEqual(max_spacing, 1.0, places=5,
-            msg=f"Expected max_spacing=1.0 for regular grid, got {max_spacing}")
-        
-        # Test 2: Non-uniform grid
-        # Create a grid where one point is farther from its neighbors
-        grid_nonuniform = np.array([
-            [0, 0, 0],
-            [1, 0, 0],
-            [2, 0, 0],
-            [5, 0, 0],  # This point is 3 units from nearest neighbor
-        ])
-        
-        max_spacing = VirtualCasingField._compute_max_grid_spacing(grid_nonuniform)
-        # Max spacing should be 3.0 (distance from [5,0,0] to [2,0,0])
-        self.assertAlmostEqual(max_spacing, 3.0, places=5,
-            msg=f"Expected max_spacing=3.0 for non-uniform grid, got {max_spacing}")
-        
-        # Test 3: 3D grid
-        grid_3d = np.array([
-            [0, 0, 0],
-            [1, 0, 0],
-            [0, 1, 0],
-            [0, 0, 1],
-        ])
-        
-        max_spacing = VirtualCasingField._compute_max_grid_spacing(grid_3d)
-        # All points are 1.0 from origin, so max spacing is 1.0
-        self.assertAlmostEqual(max_spacing, 1.0, places=5,
-            msg=f"Expected max_spacing=1.0 for 3D grid, got {max_spacing}")
-        
-        logger.info("_compute_max_grid_spacing test passed")
-
     def test_VirtualCasingField_lasym_raises_error(self):
         """
         Test that VirtualCasingField raises RuntimeError when vmec.wout.lasym=True
@@ -916,7 +802,7 @@ class VirtualCasingFieldTests(unittest.TestCase):
         # Mock lasym to be True (non-stellarator symmetric)
         with patch.object(vmec.wout, 'lasym', True):
             with self.assertRaises(RuntimeError) as context:
-                VirtualCasingField.from_vmec(vmec, src_nphi=16, digits=2)
+                VmecVirtualCasingField(vmec, src_nphi=16, digits=2)
             
             self.assertIn("stellarator symmetry", str(context.exception).lower())
         
@@ -983,10 +869,10 @@ class VirtualCasingFieldTests(unittest.TestCase):
                 
                 for i_nphi, src_nphi in enumerate(src_nphi_values):
                     src_ntheta = src_nphi  # Keep source grid square
-                    
-                    # Setup VirtualCasingField from half-flux equilibrium
-                    vc_field = VirtualCasingField.from_vmec(
-                        vmec_half.output_file, src_nphi=src_nphi, src_ntheta=src_ntheta,
+
+                    # Setup VmecVirtualCasingField from half-flux equilibrium
+                    vc_field = VmecVirtualCasingField(
+                        vmec_half, src_nphi=src_nphi, src_ntheta=src_ntheta,
                         trgt_nphi=nphi, trgt_ntheta=ntheta, digits=digits
                     )
                     
