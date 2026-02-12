@@ -42,7 +42,7 @@ class VirtualCasingField(MagneticField):
 
     """
 
-    def __init__(self, surf: 'Surface', total_B_in_surf: 'NDArray', currents_inside=True, src_nphi=None, src_ntheta=None, trgt_nphi=None, trgt_ntheta=None, digits: int = 7, max_upsampling=10):
+    def __init__(self, surf: 'Surface', total_B_in_surf: 'NDArray', currents_inside=True, src_nphi=None, src_ntheta=None, trgt_nphi=None, trgt_ntheta=None, digits: int = 7, max_upsampling=1000):
         """
         Initialize a plain VirtualCasingField
 
@@ -121,8 +121,8 @@ class VirtualCasingField(MagneticField):
         self._onsurf_field = None # reset cached field on surface
         self.vcasing.setup(
             self._digits, self.nfp, self.stellsym,
-            self._src_ntheta, self._src_nphi, self._gamma1d,
-            self._src_ntheta, self._src_nphi,
+            self._src_nphi, self._src_ntheta, self._gamma1d,
+            self._src_nphi, self._src_ntheta,
             self._trgt_nphi, self._trgt_ntheta)
         self.need_to_recompute_data = False
     
@@ -173,6 +173,8 @@ class VmecVirtualCasingField(VirtualCasingField):
     """
     
     def __init__(self, vmec: Vmec, src_nphi=None, src_ntheta=None, trgt_nphi=None, trgt_ntheta=None, digits: int = 7, max_upsampling=10):
+        """
+         Initialize a VmecVirtualCasingField, which is a decorated VirtualCasingField that updates when the VMEC object (or its parents) change."""
         self._vmec = vmec
         tmp_surf = vmec.boundary
         this_range = 'half period' if tmp_surf.stellsym else 'field period'
@@ -195,6 +197,7 @@ class VmecVirtualCasingField(VirtualCasingField):
         """
         run if evaluation happens and parent (VMEC object) has changed
         """
+        self._vmec.run()
         # the boundary might have changed, so we update
         self.surf = self._vmec.boundary  # uses parent setter, updates gamma1d
         self.total_B_in_surf = self.B1d_from_vmec(self.vmec, src_nphi=self._src_nphi, src_ntheta=self._src_ntheta, surf_range=self.surf_range)  # parent setter
@@ -212,7 +215,7 @@ class VmecVirtualCasingField(VirtualCasingField):
     @staticmethod
     def B1d_from_vmec(vmec, src_nphi=None, src_ntheta=None, surf_range=None):
         """
-        Generate the 1D representation of the magnetic field from the VMEC object.
+        Generate the 1D representation of the magnetic field the way VirtualCasing expects. 
         """
         Bx, By, Bz = B_cartesian(vmec, nphi=src_nphi, ntheta=src_ntheta, range=surf_range)
         B1d = np.concatenate([Bx.flatten(order='C'),
