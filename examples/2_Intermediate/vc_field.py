@@ -22,8 +22,6 @@ import numpy as np
 nphi = 100
 ntheta = 100
 
-# Resolution for the virtual casing calculation:
-vc_src_nphi = 80
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -32,7 +30,7 @@ vmec_file = TEST_DIR / filename
 
 vmec = Vmec(vmec_file)
 
-vc = VmecVirtualCasingField(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi, trgt_ntheta=ntheta, digits=7, max_upsampling=50)
+vc = VmecVirtualCasingField(vmec, src_nphi=nphi, trgt_nphi=nphi, trgt_ntheta=ntheta, digits=7, max_upsampling=2000)
 # Get offset surface to evaluate magnetic field on
 surf = vc.surf.copy(nphi=nphi, ntheta=ntheta, range='half period')
 surf.extend_via_normal(0.2)
