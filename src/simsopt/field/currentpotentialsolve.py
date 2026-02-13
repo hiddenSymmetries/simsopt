@@ -86,6 +86,9 @@ class CurrentPotentialSolve:
         self.K2s_l1 = []
         self.fBs_l1 = []
         self.fKs_l1 = []
+        # Reference xm/xn_potential from source file (set by from_netcdf) for REGCOIL write
+        self._ref_xm_potential = None
+        self._ref_xn_potential = None
         warnings.warn(
             "Beware: the f_B (also called chi^2_B) computed from the "
             "CurrentPotentialSolve class will be slightly different than "
@@ -151,6 +154,8 @@ class CurrentPotentialSolve:
             stellsym_plasma_surf = True
 
         cp = CurrentPotentialFourier.from_netcdf(filename, coil_ntheta_res, coil_nzeta_res)
+        ref_xm_potential = f.variables['xm_potential'][()]
+        ref_xn_potential = f.variables['xn_potential'][()]
 
         s_plasma = SurfaceRZFourier(
             nfp=nfp,
@@ -202,7 +207,10 @@ class CurrentPotentialSolve:
             if not stellsym_plasma_surf:
                 s_plasma.set_rs(xm_plasma[im], int(xn_plasma[im] / nfp), rmns_plasma[im])
                 s_plasma.set_zc(xm_plasma[im], int(xn_plasma[im] / nfp), zmnc_plasma[im])
-        return cls(cp, s_plasma, np.ravel(Bnormal_from_plasma_current))
+        cps = cls(cp, s_plasma, np.ravel(Bnormal_from_plasma_current))
+        cps._ref_xm_potential = ref_xm_potential
+        cps._ref_xn_potential = ref_xn_potential
+        return cps
 
     def write_regcoil_out(self, filename: str) -> None:
         """
@@ -254,6 +262,12 @@ class CurrentPotentialSolve:
         # go through and compute all the rmnc, rmns for the coil surface
         xn_potential = self.current_potential.n * w.nfp
         xm_potential = self.current_potential.m
+        if self._ref_xm_potential is not None and self._ref_xn_potential is not None:
+            xm_potential = self._ref_xm_potential
+            xn_potential = self._ref_xn_potential
+        else:
+            xm_potential = xm_potential if self.current_potential.stellsym else xm_potential[:len(xm_potential) // 2]
+            xn_potential = xn_potential if self.current_potential.stellsym else xn_potential[:len(xn_potential) // 2]
         xn_coil = w.n * w.nfp
         xm_coil = w.m
         rmnc = np.zeros(len(xm_coil))
@@ -319,7 +333,7 @@ class CurrentPotentialSolve:
             nfp=s.nfp,
             mpol=s.mpol,
             ntor=s.ntor,
-            stellsym=True,
+            stellsym=s.stellsym,
             quadpoints_phi=quadpoints_phi,
             quadpoints_theta=quadpoints_theta
         )
@@ -347,9 +361,12 @@ class CurrentPotentialSolve:
                             self.B_GI.reshape(self.ntheta_plasma, self.nzeta_plasma),
                             rmnc_plasma, rmns_plasma, zmns_plasma, zmnc_plasma,
                             rmnc, rmns, zmns, zmnc,
-                            xm_plasma[:(len(xm_plasma)) // 2 + 1], xn_plasma[:(len(xm_plasma)) // 2 + 1],
-                            xm_coil[:(len(xm_coil)) // 2 + 1], xn_coil[:(len(xm_coil)) // 2 + 1],
-                            xm_potential, xn_potential,
+                            xm_plasma[:(len(xm_plasma) // 2) + 1 if s.stellsym else (len(xm_plasma) // 4) + 1],
+                            xn_plasma[:(len(xn_plasma) // 2) + 1 if s.stellsym else (len(xn_plasma) // 4) + 1],
+                            xm_coil[:(len(xm_coil) // 2) + 1 if w.stellsym else (len(xm_coil) // 4) + 1],
+                            xn_coil[:(len(xn_coil) // 2) + 1 if w.stellsym else (len(xn_coil) // 4) + 1],
+                            xm_potential,
+                            xn_potential,
                             sf.gamma(),
                             w.gamma(),
                             w.quadpoints_theta * 2 * np.pi,
