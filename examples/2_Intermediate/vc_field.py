@@ -19,8 +19,8 @@ import numpy as np
 
 # Resolution on the plasma boundary surface:
 # nphi is the number of grid points in 1/2 a field period.
-nphi = 100
-ntheta = 100
+nphi = 50
+ntheta = 50
 
 
 # File for the desired boundary magnetic surface:
@@ -30,7 +30,7 @@ vmec_file = TEST_DIR / filename
 
 vmec = Vmec(vmec_file)
 
-vc = VmecVirtualCasingField(vmec, src_nphi=nphi, trgt_nphi=nphi, trgt_ntheta=ntheta, digits=7, max_upsampling=2000)
+vc = VmecVirtualCasingField(vmec, src_nphi=nphi, src_ntheta=ntheta,  trgt_nphi=nphi//2, trgt_ntheta=ntheta//2, digits=5, max_upsampling=2000)
 # Get offset surface to evaluate magnetic field on
 surf = vc.surf.copy(nphi=nphi, ntheta=ntheta, range='half period')
 surf.extend_via_normal(0.2)
@@ -49,3 +49,5 @@ plt.ylabel('theta')
 plt.colorbar()
 plt.title("Virtual Casing Magnetic Field Magnitude")
 plt.show()
+
+vc.Bnormal_due_ext

@@ -105,43 +105,44 @@ class VirtualCasingVmecTests(unittest.TestCase):
                 vc_src_ntheta = 80
 
                 # Setup VirtualCasingField from half-flux equilibrium
-                vc = VmecVirtualCasingField(vmec_half, src_ntheta=vc_src_ntheta,
+                vc_half = VmecVirtualCasingField(vmec_half, src_ntheta=vc_src_ntheta,
                                                 src_nphi=vc_src_nphi, trgt_nphi=nphi, trgt_ntheta=ntheta,
                                                 digits=digits)
 
                 # Compute off-surface magnetic field on full flux surface
-                surf = SurfaceRZFourier.from_wout(vmec.output_file, nphi=nphi, ntheta=ntheta, range='half period')
+                surf_full = SurfaceRZFourier.from_wout(vmec.output_file, nphi=nphi, ntheta=ntheta, range='half period')
 
-                vc.set_points(surf.gamma().reshape((-1, 3)))
-                B = vc.B().reshape((nphi, ntheta, 3))
-                Bn = np.sum(B * surf.unitnormal(), axis=2)
+                vc_half.set_points(surf_full.gamma().reshape((-1, 3)))
+                B_half_on_full = vc_half.B().reshape((nphi, ntheta, 3))
+                Bn_half_on_full = np.sum(B_half_on_full * surf_full.unitnormal(), axis=2)
+
 
                 # Compare with on-surface calculation of normal field from full flux surface
-                vc = VmecVirtualCasingField(vmec, src_ntheta=vc_src_ntheta, src_nphi=vc_src_nphi,
+                vc_full = VmecVirtualCasingField(vmec, src_ntheta=vc_src_ntheta, src_nphi=vc_src_nphi,
                                             trgt_nphi=nphi, trgt_ntheta=ntheta)
 
                 print('mpol: ', vmec.indata.mpol)
-                print('residual: ', np.linalg.norm(Bn.T + vc.B_external_normal.T) / np.linalg.norm(Bn.T))
+                print('residual: ', np.linalg.norm(Bn_half_on_full.T - vc_full.Bnormal_due_int.T) / np.linalg.norm(Bn_half_on_full.T))
 
-                residuals.append(np.linalg.norm(Bn.T + vc.B_external_normal.T) / np.linalg.norm(Bn.T))
+                residuals.append(np.linalg.norm(Bn_half_on_full.T - vc_full.Bnormal_due_int.T) / np.linalg.norm(Bn_half_on_full.T))
 
             if not is_ci_environment():
                 plt.figure()
-                plt.contourf(surf.quadpoints_phi, surf.quadpoints_theta, Bn.T, cmap='RdBu')
+                plt.contourf(surf_full.quadpoints_phi, surf_full.quadpoints_theta, Bn_half_on_full.T, cmap='RdBu')
                 plt.xlabel('phi')
                 plt.ylabel('theta')
                 plt.colorbar()
                 plt.title("VirtualCasingField Bn")
 
                 plt.figure()
-                plt.contourf(surf.quadpoints_phi, surf.quadpoints_theta, -vc.B_external_normal.T, cmap='RdBu')
+                plt.contourf(surf_full.quadpoints_phi, surf_full.quadpoints_theta, -vc_full.B_external_normal.T, cmap='RdBu')
                 plt.xlabel('phi')
                 plt.ylabel('theta')
                 plt.colorbar()
                 plt.title("VirtualCasing Bn")
 
                 plt.figure()
-                plt.contourf(surf.quadpoints_phi, surf.quadpoints_theta, Bn.T + vc.B_external_normal.T, cmap='RdBu')
+                plt.contourf(surf_full.quadpoints_phi, surf_full.quadpoints_theta, Bn_half_on_full.T + vc_full.B_external_normal.T, cmap='RdBu')
                 plt.xlabel('phi')
                 plt.ylabel('theta')
                 plt.colorbar()
@@ -789,24 +790,7 @@ class VirtualCasingFieldTests(unittest.TestCase):
         
         logger.info(f"use_stellsym=False test passed, avg |B| = {np.mean(np.linalg.norm(B, axis=-1)):.4f}")
 
-    def test_VirtualCasingField_lasym_raises_error(self):
-        """
-        Test that VirtualCasingField raises RuntimeError when vmec.wout.lasym=True
-        (i.e., when the equilibrium is NOT stellarator symmetric).
-        """
-        from unittest.mock import patch
-        
-        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        vmec = Vmec(filename)
-        
-        # Mock lasym to be True (non-stellarator symmetric)
-        with patch.object(vmec.wout, 'lasym', True):
-            with self.assertRaises(RuntimeError) as context:
-                VmecVirtualCasingField(vmec, src_nphi=16, digits=2)
-            
-            self.assertIn("stellarator symmetry", str(context.exception).lower())
-        
-        logger.info("lasym RuntimeError test passed")
+### TEST non-stellsym  case too
 
     @unittest.skipIf(matplotlib is None, "Need matplotlib for this test")
     def test_VirtualCasingField_mpol_nphi_scan(self):
@@ -882,13 +866,12 @@ class VirtualCasingFieldTests(unittest.TestCase):
                     Bn = np.sum(B * unit_normal, axis=2)
                     
                     # Get reference Bn from VirtualCasing on full flux surface
-                    vc_ref = VirtualCasing.from_vmec(
-                        vmec.output_file, src_nphi=src_nphi, src_ntheta=src_ntheta,
+                    vc_ref = VmecVirtualCasingField(vmec, src_nphi=src_nphi, src_ntheta=src_ntheta,
                         trgt_nphi=nphi, trgt_ntheta=ntheta, digits=digits
                     )
                     
                     # Compute residual: Bn from VirtualCasingField should equal -B_external_normal from VirtualCasing
-                    residual = np.linalg.norm(Bn.T + vc_ref.B_external_normal.T) / np.linalg.norm(Bn.T)
+                    residual = np.linalg.norm(Bn.T + vc_ref.Bnormal_due_int.T) / np.linalg.norm(Bn.T)
                     residuals_2d[i_mpol, i_nphi] = residual
                     
                     print(f'  src_nphi={src_nphi}: residual={residual:.6e}')
