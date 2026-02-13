@@ -4,14 +4,12 @@ import logging
 
 from nptyping import NDArray
 import numpy as np
-from scipy.spatial import cKDTree
 
 from .magneticfield import MagneticField
-from .._core.json import GSONDecoder
 
 from virtual_casing import VirtualCasing
 from ..mhd.vmec import Vmec
-from ..geo.surface import best_nphi_over_ntheta
+#from ..geo.surface import best_nphi_over_ntheta
 from ..mhd.vmec_diagnostics import B_cartesian
 from .._core.optimizable import Optimizable
 
@@ -258,7 +256,6 @@ class VmecVirtualCasingField(VirtualCasingField):
          Initialize a VmecVirtualCasingField, which is a decorated VirtualCasingField that updates when the VMEC object (or its parents) change."""
         self._vmec = vmec
         tmp_surf = vmec.boundary
-        this_range = 'half period' if tmp_surf.stellsym else 'field period'
 
         super().__init__(surf=tmp_surf,
                          total_B_in_surf= None,

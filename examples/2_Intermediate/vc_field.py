@@ -11,8 +11,6 @@ This example requires that the python ``virtual_casing`` module is installed.
 """
 from simsopt.field import VmecVirtualCasingField
 from simsopt.mhd import Vmec
-from simsopt.configs import get_data
-from simsopt.geo import SurfaceRZFourier
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np

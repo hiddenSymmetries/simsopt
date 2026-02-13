@@ -122,9 +122,9 @@ class VirtualCasingVmecTests(unittest.TestCase):
                                             trgt_nphi=nphi, trgt_ntheta=ntheta)
 
                 print('mpol: ', vmec.indata.mpol)
-                print('residual: ', np.linalg.norm(Bn_half_on_full.T - vc_full.Bnormal_due_int.T) / np.linalg.norm(Bn_half_on_full.T))
+                print('residual: ', np.linalg.norm(Bn_half_on_full.T + vc_full.Bnormal_due_int.T) / np.linalg.norm(Bn_half_on_full.T))
 
-                residuals.append(np.linalg.norm(Bn_half_on_full.T - vc_full.Bnormal_due_int.T) / np.linalg.norm(Bn_half_on_full.T))
+                residuals.append(np.linalg.norm(Bn_half_on_full.T + vc_full.Bnormal_due_int.T) / np.linalg.norm(Bn_half_on_full.T))
 
             if not is_ci_environment():
                 plt.figure()
@@ -135,14 +135,14 @@ class VirtualCasingVmecTests(unittest.TestCase):
                 plt.title("VirtualCasingField Bn")
 
                 plt.figure()
-                plt.contourf(surf_full.quadpoints_phi, surf_full.quadpoints_theta, -vc_full.B_external_normal.T, cmap='RdBu')
+                plt.contourf(surf_full.quadpoints_phi, surf_full.quadpoints_theta, -vc_full.Bnormal_due_ext.T, cmap='RdBu')
                 plt.xlabel('phi')
                 plt.ylabel('theta')
                 plt.colorbar()
                 plt.title("VirtualCasing Bn")
 
                 plt.figure()
-                plt.contourf(surf_full.quadpoints_phi, surf_full.quadpoints_theta, Bn_half_on_full.T + vc_full.B_external_normal.T, cmap='RdBu')
+                plt.contourf(surf_full.quadpoints_phi, surf_full.quadpoints_theta, Bn_half_on_full.T + vc_full.Bnormal_due_ext.T, cmap='RdBu')
                 plt.xlabel('phi')
                 plt.ylabel('theta')
                 plt.colorbar()
