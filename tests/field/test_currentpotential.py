@@ -295,8 +295,152 @@ class CurrentPotentialFourierTests(unittest.TestCase):
         names2 = [f'({m},{n})' for m, n in zip(cp.m, cp.n)]
         self.assertEqual(names, names2)
 
+    def test_get_phic_raises_for_stellsym(self):
+        """get_phic raises ValueError when stellsym=True (phic does not exist)."""
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=2, ntor=1, stellsym=True)
+        with self.assertRaises(ValueError) as cm:
+            cp.get_phic(1, 0)
+        self.assertIn('phic does not exist', str(cm.exception))
+
+    def test_set_phic_raises_for_stellsym(self):
+        """set_phic raises ValueError when stellsym=True (phic does not exist)."""
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=2, ntor=1, stellsym=True)
+        with self.assertRaises(ValueError) as cm:
+            cp.set_phic(1, 0, 1.0)
+        self.assertIn('phic does not exist', str(cm.exception))
+
+    def test_validate_mn_raises_index_error_m_negative(self):
+        """_validate_mn raises IndexError when m < 0."""
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=2, ntor=1)
+        with self.assertRaises(IndexError) as cm:
+            cp.get_phis(-1, 0)
+        self.assertIn('m must be >= 0', str(cm.exception))
+
+    def test_validate_mn_raises_index_error_m_gt_mpol(self):
+        """_validate_mn raises IndexError when m > mpol."""
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=2, ntor=1)
+        with self.assertRaises(IndexError) as cm:
+            cp.get_phis(3, 0)
+        self.assertIn('m must be <= mpol', str(cm.exception))
+
+    def test_validate_mn_raises_index_error_n_gt_ntor(self):
+        """_validate_mn raises IndexError when n > ntor."""
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=2, ntor=1)
+        with self.assertRaises(IndexError) as cm:
+            cp.get_phis(1, 2)
+        self.assertIn('n must be <= ntor', str(cm.exception))
+
+    def test_validate_mn_raises_index_error_n_lt_ntor(self):
+        """_validate_mn raises IndexError when n < -ntor."""
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=2, ntor=1)
+        with self.assertRaises(IndexError) as cm:
+            cp.get_phis(1, -2)
+        self.assertIn('n must be >= -ntor', str(cm.exception))
+
+    def test_set_current_potential_from_regcoil_raises_incorrect_mpol(self):
+        """set_current_potential_from_regcoil raises ValueError for incorrect mpol."""
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=2, ntor=1)
+        filename = TEST_DIR / 'regcoil_out.w7x_infty.nc'
+        with self.assertRaises(ValueError) as cm:
+            cp.set_current_potential_from_regcoil(filename, 0)
+        self.assertIn('mpol_potential', str(cm.exception))
+
+    def test_set_current_potential_from_regcoil_raises_incorrect_ntor(self):
+        """set_current_potential_from_regcoil raises ValueError for incorrect ntor."""
+        f = netcdf_file(TEST_DIR / 'regcoil_out.w7x_infty.nc', 'r', mmap=False)
+        mpol = int(f.variables['mpol_potential'][()])
+        f.close()
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=mpol, ntor=0)
+        with self.assertRaises(ValueError) as cm:
+            cp.set_current_potential_from_regcoil(TEST_DIR / 'regcoil_out.w7x_infty.nc', 0)
+        self.assertIn('ntor_potential', str(cm.exception))
+
+    def test_set_current_potential_from_regcoil_raises_incorrect_nfp(self):
+        """set_current_potential_from_regcoil raises ValueError for incorrect nfp."""
+        f = netcdf_file(TEST_DIR / 'regcoil_out.w7x_infty.nc', 'r', mmap=False)
+        mpol = int(f.variables['mpol_potential'][()])
+        ntor = int(f.variables['ntor_potential'][()])
+        nfp_file = int(f.variables['nfp'][()])
+        f.close()
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=mpol, ntor=ntor, nfp=nfp_file + 1)
+        with self.assertRaises(ValueError) as cm:
+            cp.set_current_potential_from_regcoil(TEST_DIR / 'regcoil_out.w7x_infty.nc', 0)
+        self.assertIn('nfp', str(cm.exception))
+
+    def test_set_current_potential_from_regcoil_raises_incorrect_stellsym(self):
+        """set_current_potential_from_regcoil raises ValueError for incorrect stellsym."""
+        f = netcdf_file(TEST_DIR / 'regcoil_out.w7x_infty.nc', 'r', mmap=False)
+        mpol = int(f.variables['mpol_potential'][()])
+        ntor = int(f.variables['ntor_potential'][()])
+        nfp = int(f.variables['nfp'][()])
+        f.close()
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=mpol, ntor=ntor, nfp=nfp, stellsym=False)
+        with self.assertRaises(ValueError) as cm:
+            cp.set_current_potential_from_regcoil(TEST_DIR / 'regcoil_out.w7x_infty.nc', 0)
+        self.assertIn('stellsym', str(cm.exception))
+
+    def test_fixed_range_fix(self):
+        """fixed_range with fixed=True fixes the specified modes."""
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=2, ntor=1, stellsym=True)
+        self.assertTrue(np.all(cp.local_dofs_free_status))
+        cp.fixed_range(mmin=1, mmax=2, nmin=-1, nmax=1, fixed=True)
+        # Phis(1,-1), Phis(1,0), Phis(1,1), Phis(2,-1), Phis(2,0), Phis(2,1) should be fixed
+        for name in ['Phis(1,-1)', 'Phis(1,0)', 'Phis(1,1)', 'Phis(2,-1)', 'Phis(2,0)', 'Phis(2,1)']:
+            idx = cp.local_full_dof_names.index(name)
+            self.assertFalse(cp.local_dofs_free_status[idx], msg=f"{name} should be fixed")
+        # Phis(0,1) should remain free
+        idx = cp.local_full_dof_names.index('Phis(0,1)')
+        self.assertTrue(cp.local_dofs_free_status[idx])
+
+    def test_fixed_range_unfix(self):
+        """fixed_range with fixed=False unfixes the specified modes."""
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=2, ntor=1, stellsym=True)
+        cp.fix_all()
+        cp.fixed_range(mmin=0, mmax=1, nmin=-1, nmax=1, fixed=False)
+        # Phis(0,1) and Phis(1,-1), Phis(1,0), Phis(1,1) should be unfixed
+        for name in ['Phis(0,1)', 'Phis(1,-1)', 'Phis(1,0)', 'Phis(1,1)']:
+            idx = cp.local_full_dof_names.index(name)
+            self.assertTrue(cp.local_dofs_free_status[idx], msg=f"{name} should be free")
+        # Phis(2,-1) should remain fixed
+        idx = cp.local_full_dof_names.index('Phis(2,-1)')
+        self.assertFalse(cp.local_dofs_free_status[idx])
+
+    def test_fixed_range_stellsym_false(self):
+        """fixed_range works for non-stellarator-symmetric (fixes both Phis and Phic)."""
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=1, ntor=1, stellsym=False)
+        cp.fixed_range(mmin=1, mmax=1, nmin=0, nmax=1, fixed=True)
+        for name in ['Phis(1,0)', 'Phis(1,1)', 'Phic(1,0)', 'Phic(1,1)']:
+            idx = cp.local_full_dof_names.index(name)
+            self.assertFalse(cp.local_dofs_free_status[idx], msg=f"{name} should be fixed")
+
+    def test_K_matrix(self):
+        """CurrentPotential.K_matrix returns symmetric matrix of correct shape."""
+        s = SurfaceRZFourier()
+        cp = CurrentPotentialFourier(s, mpol=2, ntor=1, stellsym=True)
+        cp.set_dofs(np.random.rand(cp.num_dofs()) * 0.01)
+        K_mat = cp.K_matrix()
+        self.assertEqual(K_mat.shape, (cp.num_dofs(), cp.num_dofs()))
+        np.testing.assert_allclose(K_mat, K_mat.T, atol=1e-14, err_msg="K_matrix should be symmetric")
+        # K_matrix should be positive semi-definite (Gram matrix)
+        eigs = np.linalg.eigvalsh(K_mat)
+        self.assertTrue(np.all(eigs >= -1e-10), msg="K_matrix should be PSD")
+
     def test_target(self):
         """
+        Test that the current potential solve works. Similar to winding_surface.py example.
         """
         from matplotlib import pyplot as plt
         def run_target_test(
@@ -341,7 +485,7 @@ class CurrentPotentialFourierTests(unittest.TestCase):
             return(cp_opt, cp, cpst, optimized_phi_mn, f_B)
 
 
-        cp_opt, cp, cpst, optimized_phi_mn, f_B = run_target_test(lambda_reg=0.1)
+        cp_opt, _, _, _, _ = run_target_test(lambda_reg=0.1)
 
         theta_study1d, phi_study1d = cp_opt.quadpoints_theta, cp_opt.quadpoints_phi
         theta_study2d, phi_study2d = np.meshgrid(theta_study1d, phi_study1d)

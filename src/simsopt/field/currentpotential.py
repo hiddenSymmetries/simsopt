@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional, Union, List
 import numpy as np
 from .._core.optimizable import DOFs, Optimizable
+from .._core.json import GSONDecoder
 import simsoptpp as sopp
 from simsopt.geo import SurfaceRZFourier
 from scipy.io import netcdf_file
@@ -15,18 +16,23 @@ class CurrentPotential(Optimizable):
     Current Potential base object, not necessarily assuming
     that the current potential will be represented by a
     Fourier expansion in the toroidal and poloidal modes.
+
     Args:
         winding_surface: SurfaceRZFourier object representing the coil surface.
+        kwargs: Additional keyword arguments passed to the Optimizable base class.
     """
-
-    def set_points(self, points: np.ndarray) -> None:
-        return self.set_points(points)
 
     def __init__(self, winding_surface: SurfaceRZFourier, **kwargs) -> None:
         super().__init__(**kwargs)
         self.winding_surface = winding_surface
 
     def K(self) -> np.ndarray:
+        """
+        Get the K vector of the CurrentPotential object.
+
+        Returns:
+            np.ndarray: The K vector of the CurrentPotential object.
+        """
         data = np.zeros((len(self.quadpoints_phi), len(self.quadpoints_theta), 3))
         dg1 = self.winding_surface.gammadash1()
         dg2 = self.winding_surface.gammadash2()
@@ -35,7 +41,13 @@ class CurrentPotential(Optimizable):
         return data
 
     def K_matrix(self) -> np.ndarray:
-        data = np.zeros((len(self.num_dofs), len(self.num_dofs)))
+        """
+        Get the K matrix of the CurrentPotential object.
+
+        Returns:
+            np.ndarray: The K matrix of the CurrentPotential object.
+        """
+        data = np.zeros((self.num_dofs(), self.num_dofs()))
         dg1 = self.winding_surface.gammadash1()
         dg2 = self.winding_surface.gammadash2()
         normal = self.winding_surface.normal()
@@ -43,6 +55,12 @@ class CurrentPotential(Optimizable):
         return data
 
     def num_dofs(self) -> int:
+        """
+        Get the number of dofs of the CurrentPotential object.
+
+        Returns:
+            int: The number of dofs of the CurrentPotential object.
+        """
         return len(self.get_dofs())
 
 
@@ -122,6 +140,12 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         )
 
     def _make_names(self) -> List[str]:
+        """
+        Create the dof names for the CurrentPotentialFourier object.
+
+        Returns:
+            List[str]: The names of the coefficients.
+        """
         if self.stellsym:
             names = self._make_names_helper('Phis')
         else:
@@ -130,6 +154,15 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         return names
 
     def _make_names_helper(self, prefix: str) -> List[str]:
+        """
+        Helper function for _make_names() method to format the strings.
+
+        Args:
+            prefix: The prefix for the name of the coefficients.
+
+        Returns:
+            List[str]: The names of the coefficients.
+        """
         names = []
 
         start = 1
@@ -139,6 +172,12 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         return names
 
     def get_dofs(self) -> np.ndarray:
+        """
+        Get the dofs of the CurrentPotentialFourier object.
+
+        Returns:
+            np.ndarray: The dofs of the CurrentPotentialFourier object.
+        """
         return np.asarray(sopp.CurrentPotentialFourier.get_dofs(self))
 
     def change_resolution(self, mpol: int, ntor: int) -> None:
@@ -148,6 +187,10 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         will have a magnitude of zero.  Any previous nonzero Fourier
         amplitudes that are not within the new range will be
         discarded.
+
+        Args:
+            mpol: New poloidal mode number.
+            ntor: New toroidal mode number.
         """
         old_mpol = self.mpol
         old_ntor = self.ntor
@@ -179,9 +222,17 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
     def get_phic(self, m: int, n: int) -> float:
         """
         Return a particular `phic` parameter.
+
+        Args:
+            m: Poloidal mode number.
+            n: Toroidal mode number.
+
+        Raises:
+            ValueError: If `stellsym` is True (phic does not exist for this stellarator-symmetric current potential).
+            IndexError: If `m` is less than 0, `m` is greater than `mpol`, `n` is greater than `ntor`, or `n` is less than -`ntor`.
         """
         if self.stellsym:
-            return ValueError(
+            raise ValueError(
                 'phic does not exist for this stellarator-symmetric current potential.')
         self._validate_mn(m, n)
         return self.phic[m, n + self.ntor]
@@ -189,6 +240,13 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
     def get_phis(self, m: int, n: int) -> float:
         """
         Return a particular `phis` parameter.
+
+        Args:
+            m: Poloidal mode number.
+            n: Toroidal mode number.
+
+        Raises:
+            IndexError: If `m` is less than 0, `m` is greater than `mpol`, `n` is greater than `ntor`, or `n` is less than -`ntor`.
         """
         self._validate_mn(m, n)
         return self.phis[m, n + self.ntor]
@@ -196,9 +254,18 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
     def set_phic(self, m: int, n: int, val: float) -> None:
         """
         Set a particular `phic` Parameter.
+
+        Args:
+            m: Poloidal mode number.
+            n: Toroidal mode number.
+            val: Value to set the `phic` parameter to.
+
+        Raises:
+            ValueError: If `stellsym` is True (phic does not exist for this stellarator-symmetric current potential).
+            IndexError: If `m` is less than 0, `m` is greater than `mpol`, `n` is greater than `ntor`, or `n` is less than -`ntor`.
         """
         if self.stellsym:
-            return ValueError(
+            raise ValueError(
                 'phic does not exist for this stellarator-symmetric current potential.')
         self._validate_mn(m, n)
         self.phic[m, n + self.ntor] = val
@@ -208,6 +275,14 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
     def set_phis(self, m: int, n: int, val: float) -> None:
         """
         Set a particular `phis` Parameter.
+
+        Args:
+            m: Poloidal mode number.
+            n: Toroidal mode number.
+            val: Value to set the `phis` parameter to.
+
+        Raises:
+            IndexError: If `m` is less than 0, `m` is greater than `mpol`, `n` is greater than `ntor`, or `n` is less than -`ntor`.
         """
         self._validate_mn(m, n)
         self.phis[m, n + self.ntor] = val
@@ -215,10 +290,22 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         self.invalidate_cache()
 
     def set_net_toroidal_current_amperes(self, val: float) -> None:
+        """
+        Set the net toroidal current in Amperes.
+
+        Args:
+            val: Value to set the net toroidal current to.
+        """
         self.net_toroidal_current_amperes = val
         self.invalidate_cache()
 
-    def set_net_poloidal_current_amperes(self, val: float) -> None:
+    def set_net_poloidal_current_amperes(self, val: float) -> None: 
+        """
+        Set the net poloidal current in Amperes.
+
+        Args:
+            val: Value to set the net poloidal current to.
+        """
         self.net_poloidal_current_amperes = val
         self.invalidate_cache()
 
@@ -234,6 +321,16 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         the value of the `fixed` parameter. Note that `mmax` and `nmax`
         are included (unlike the upper bound in python's range(min,
         max).)
+
+        Args:
+            mmin: Minimum poloidal mode number.
+            mmax: Maximum poloidal mode number.
+            nmin: Minimum toroidal mode number.
+            nmax: Maximum toroidal mode number.
+            fixed: Whether to fix the modes.
+
+        Raises:
+            IndexError: If `mmin` is less than 0, `mmax` is greater than `mpol`, `nmin` is less than -`ntor`, or `nmax` is greater than `ntor`.
         """
         # TODO: This will be slow because free dof indices are evaluated all
         # TODO: the time in the loop
@@ -244,14 +341,21 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
                 this_nmin = 1
             for n in range(this_nmin, nmax + 1):
                 if m > 0 or n != 0:
-                    fn(f'phis({m},{n})')
+                    fn(f'Phis({m},{n})')
                     if not self.stellsym:
-                        fn(f'phic({m},{n})')
+                        fn(f'Phic({m},{n})')
 
     def _validate_mn(self, m: int, n: int) -> None:
         """
         Copied from SurfaceRZFourier
         Check whether `m` and `n` are in the allowed range.
+
+        Args:
+            m: Poloidal mode number.
+            n: Toroidal mode number.
+
+        Raises:
+            IndexError: If `m` is less than 0, `m` is greater than `mpol`, `n` is greater than `ntor`, or `n` is less than -`ntor`.
         """
         if m < 0:
             raise IndexError('m must be >= 0')
@@ -313,6 +417,12 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
 
         self.set_dofs(single_valued_current_potential_mn)
 
+    def as_dict(self, serial_objs_dict=None) -> dict:
+        """Sync Python _dofs with C++ state before serialization (set_dofs is C++-only)."""
+        if len(self.local_full_x):
+            self.local_full_x = self.get_dofs()
+        return super().as_dict(serial_objs_dict)
+
     @classmethod
     def from_netcdf(
         cls,
@@ -325,6 +435,11 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
 
         Args:
             filename: Name of the ``regcoil_out.*.nc`` file to read.
+            coil_ntheta_res: The resolution of the coil surface in the theta direction.
+            coil_nzeta_res: The resolution of the coil surface in the zeta direction.
+
+        Returns:
+            cls: The CurrentPotentialFourier object.
         """
         f = netcdf_file(filename, 'r', mmap=False)
         nfp = f.variables['nfp'][()]
@@ -384,3 +499,20 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
                  stellsym=stellsym)
 
         return cp
+
+    @classmethod
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        """
+        Reconstruct CurrentPotentialFourier from serialized dict.
+        Excludes dofs from __init__ and sets them after construction.
+        """
+        decoder = GSONDecoder()
+        init_kwargs = dict(d)
+        dofs_raw = init_kwargs.pop("dofs", None)
+        decoded = {k: decoder.process_decoded(v, serial_objs_dict, recon_objs)
+                  for k, v in init_kwargs.items()}
+        obj = cls(**decoded)
+        if dofs_raw is not None:
+            dofs = decoder.process_decoded(dofs_raw, serial_objs_dict, recon_objs)
+            obj.set_dofs(np.asarray(dofs.full_x))
+        return obj
