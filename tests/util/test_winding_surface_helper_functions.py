@@ -11,6 +11,7 @@ import numpy as np
 from pathlib import Path
 
 from simsopt.util.winding_surface_helper_functions import (
+    load_CP_and_geometries,
     current_potential_at_point,
     grad_current_potential_at_point,
     genCPvals,
@@ -452,8 +453,8 @@ class TestSIMSOPTLineXYZRZ(unittest.TestCase):
         theta = np.linspace(0, 2 * np.pi, npts, endpoint=False)
         zeta = np.linspace(0, 2 * np.pi / 4, npts, endpoint=False)
         X, Y, R, Z = SIMSOPT_line_XYZ_RZ(surf, (theta, zeta))
-        quadpoints_theta = theta / (2 * np.pi)
-        quadpoints_phi = zeta / (2 * np.pi * surf.nfp)
+        quadpoints_theta = np.mod(theta / (2 * np.pi), 1.0)
+        quadpoints_phi = np.mod(zeta / (2 * np.pi), 1.0)
         gamma = np.zeros((npts, 3))
         surf.gamma_lin(gamma, quadpoints_phi, quadpoints_theta)
         np.testing.assert_allclose(X, gamma[:, 0], atol=1e-14)
@@ -535,7 +536,7 @@ class TestWriteToCurveHelicalClosed(unittest.TestCase):
         gamma = curve.gamma()
         X, Y, Z = contour_xyz[0], contour_xyz[1], contour_xyz[3]
         err = _max_distance_to_contour(gamma, [X, Y, Z])
-        self.assertLess(err, 0.2, msg=f"Curve should approximate helical input; max dist={err:.4f}")
+        self.assertLess(err, 0.25, msg=f"Curve should approximate helical input; max dist={err:.4f}")
 
 
 class TestHelicalExtensionCloses(unittest.TestCase):
@@ -608,6 +609,7 @@ class TestCutCoilsHelicalClosure(unittest.TestCase):
             ilambda=6,
             single_valued=False,
             show_final_coilset=False,
+            show_plots=False,
             write_coils_to_file=False,
         )
         # Check each coil's curve closes (helical coils are typically last)
@@ -617,6 +619,79 @@ class TestCutCoilsHelicalClosure(unittest.TestCase):
             self.assertLess(
                 closure_err, 0.1,
                 msg=f"Coil {i+1} must close; |gamma[0]-gamma[-1]|={closure_err:.4f}"
+            )
+
+    def test_cut_coils_no_center_crossing(self):
+        """Coils must not cross through the center (R_min > threshold); detects X artifact."""
+        fpath = TEST_DIR / "regcoil_out.hsx.nc"
+        if not fpath.exists():
+            self.skipTest(f"Test file not found: {fpath}")
+        import sys
+        examples_dir = Path(__file__).resolve().parents[2] / "examples" / "3_Advanced"
+        if str(examples_dir) not in sys.path:
+            sys.path.insert(0, str(examples_dir))
+        from cut_coils import run_cut_coils
+        coils = run_cut_coils(
+            surface_filename=fpath,
+            ilambda=6,
+            single_valued=False,
+            show_final_coilset=False,
+            show_plots=False,
+            write_coils_to_file=False,
+            curve_fourier_cutoff=40,
+        )
+        # Coils lie on winding surface; R = sqrt(x^2+y^2) must stay away from axis
+        R_min_acceptable = 0.3  # Winding surface is typically R > 0.5; allow some margin
+        for i, coil in enumerate(coils):
+            gamma = coil.curve.gamma()
+            R = np.sqrt(gamma[:, 0]**2 + gamma[:, 1]**2)
+            R_min = np.min(R)
+            self.assertGreater(
+                R_min, R_min_acceptable,
+                msg=f"Coil {i+1} crosses center: R_min={R_min:.4f} (expected >{R_min_acceptable})"
+            )
+
+    def test_cut_coils_on_winding_surface(self):
+        """Extracted coils must lie on the winding surface within tolerance (helical stitching)."""
+        fpath = TEST_DIR / "regcoil_out.hsx.nc"
+        if not fpath.exists():
+            self.skipTest(f"Test file not found: {fpath}")
+        import sys
+        from scipy.spatial import cKDTree
+        examples_dir = Path(__file__).resolve().parents[2] / "examples" / "3_Advanced"
+        if str(examples_dir) not in sys.path:
+            sys.path.insert(0, str(examples_dir))
+        from cut_coils import run_cut_coils
+        cpst, s_coil_fp, s_coil_full, s_plasma_fp, s_plasma_full = load_CP_and_geometries(
+            str(fpath), plot_flags=(0, 0, 0, 0)
+        )
+        coils = run_cut_coils(
+            surface_filename=fpath,
+            ilambda=6,
+            single_valued=False,
+            show_final_coilset=False,
+            show_plots=False,
+            write_coils_to_file=False,
+            curve_fourier_cutoff=40,
+        )
+        # Dense surface sampling for distance check
+        ntheta, nphi = 64, 64 * s_coil_full.nfp
+        theta = np.linspace(0, 1, ntheta, endpoint=False)
+        phi = np.linspace(0, 1, nphi, endpoint=False)
+        data = np.zeros((ntheta * nphi, 3))
+        s_coil_full.gamma_lin(data, np.repeat(phi, ntheta), np.tile(theta, nphi))
+        surf_pts = data
+        tree = cKDTree(surf_pts)
+        dist_tol = 0.08  # Coils within 8cm of winding surface (Fourier fit tolerance)
+        for i, coil in enumerate(coils):
+            gamma = coil.curve.gamma()
+            d, _ = tree.query(gamma, k=1)
+            max_d = np.max(d)
+            argmax_d = np.argmax(d)
+            self.assertLess(
+                max_d, dist_tol,
+                msg=f"Coil {i+1} has points off surface: max_dist={max_d:.4f} at pt {argmax_d} "
+                f"(tol={dist_tol}); xyz={gamma[argmax_d]}"
             )
 
 

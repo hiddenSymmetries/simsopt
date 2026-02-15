@@ -930,11 +930,11 @@ def SIMSOPT_line_XYZ_RZ(surf, coords: tuple) -> tuple:
     coords_the, coords_ze = np.asarray(coords[0]), np.asarray(coords[1])
     # Surface quadpoints are in [0, 1); physical angles = 2π * quadpoints
     # theta (poloidal): quadpoints_theta = theta / (2π)
-    # phi (toroidal): for full-torus surface, phi_phys = 2π*nfp*quadpoints_phi
-    #     so quadpoints_phi = zeta / (2π*nfp)
-    nfp = surf.nfp
-    quadpoints_theta = coords_the / (2 * np.pi)
-    quadpoints_phi = coords_ze / (2 * np.pi * nfp)
+    # phi (toroidal): SurfaceRZFourier uses phi_phys = 2π * quadpoints_phi (one turn = 2π)
+    #     so quadpoints_phi = zeta / (2π). zeta in [0, 2π] maps to full torus.
+    #     Wrap into [0, 1) for closing points with zeta > 2π.
+    quadpoints_theta = np.mod(coords_the / (2 * np.pi), 1.0)
+    quadpoints_phi = np.mod(coords_ze / (2 * np.pi), 1.0)
     data = np.zeros((len(coords_the), 3))
     surf.gamma_lin(data, quadpoints_phi, quadpoints_theta)
     XX = data[:, 0]
@@ -1043,6 +1043,7 @@ def writeToCurve(
     fourier_trunc: int,
     plotting_args: tuple = (0,),
     winding_surface=None,
+    fix_stellarator_symmetry: bool = None,
 ):
     """
     Convert a (θ, ζ) contour to a simsopt CurveXYZFourier.
@@ -1053,6 +1054,9 @@ def writeToCurve(
         fourier_trunc: Number of Fourier modes.
         plotting_args: (plot_comparison,).
         winding_surface: If contour_xyz empty, compute from this surface.
+        fix_stellarator_symmetry: If True, fix xs, yc, zc so the curve stays
+            stellarator-symmetric during optimization. If None, auto-detect for
+            helical contours (3D closed but not θζ closed).
 
     Returns:
         CurveXYZFourier instance.
@@ -1065,39 +1069,51 @@ def writeToCurve(
         X, Y, R, Z = SIMSOPT_line_XYZ_RZ(winding_surface, [contour_theta, contour_zeta])
         contour_xyz = [X, Y, R, Z]
     X, Y, R, Z = contour_xyz
-    # Arc-length parametrization along the 3D contour (not theta-zeta space)
     XYZ = np.column_stack([X, Y, Z])
+
+    # Arc-length parametrization along the 3D contour (not theta-zeta space)
     ds = np.sqrt(np.sum(np.diff(XYZ, axis=0)**2, axis=1))
-    # Treat as closed if (θ,ζ) closes OR if 3D closes (helical coils close in 3D but not in θ,ζ)
+    ds_sum = np.sum(ds) + 1e-12
     closed_theta_zeta = np.allclose(contour[0], contour[-1])
-    closed_3d = np.linalg.norm(XYZ[-1] - XYZ[0]) < 1e-6 * (np.sum(ds) + 1e-12)
+    closed_3d = np.linalg.norm(XYZ[-1] - XYZ[0]) < 1e-6 * ds_sum
+
     if closed_theta_zeta or closed_3d:
         ds = np.append(ds, np.linalg.norm(XYZ[-1] - XYZ[0]))
     else:
         ds = np.append(ds, 0)
     S = np.cumsum(ds)
     S = S / S[-1] if S[-1] > 0 else np.linspace(0, 1, len(S), endpoint=False)
-    nPts = len(S)
-    # Resample to uniform arc-length spacing (FFT assumes uniform sampling)
+    # Enforce periodicity for closed curves (smooth closure for Fourier fit)
+    if closed_theta_zeta or closed_3d:
+        XYZ = np.asarray(XYZ, dtype=float)
+        XYZ[-1] = XYZ[0]
+    # Resample to uniform arc-length spacing for least-squares fit
     from scipy.interpolate import interp1d
-    s_uniform = np.linspace(0, 1, nPts, endpoint=False)
-    X = interp1d(S, X, kind='linear', fill_value='extrapolate')(s_uniform)
-    Y = interp1d(S, Y, kind='linear', fill_value='extrapolate')(s_uniform)
-    Z = interp1d(S, Z, kind='linear', fill_value='extrapolate')(s_uniform)
-    Wc_X, Ws_X, eM, _ = get1DFourierSinCosComps(numT=nPts, signal=X, plot=(0, 0), forward=True, trunc=fourier_trunc)
-    Wc_Y, Ws_Y, _, _ = get1DFourierSinCosComps(numT=nPts, signal=Y, plot=(0, 0), forward=True, trunc=fourier_trunc)
-    Wc_Z, Ws_Z, _, _ = get1DFourierSinCosComps(numT=nPts, signal=Z, plot=(0, 0), forward=True, trunc=fourier_trunc)
-    coeffs_X = splice_curve_fourier_coeffs(Ws_X, Wc_X)
-    coeffs_Y = splice_curve_fourier_coeffs(Ws_Y, Wc_Y)
-    coeffs_Z = splice_curve_fourier_coeffs(Ws_Z, Wc_Z)
-    curve_coeffs = np.hstack([coeffs_X, coeffs_Y, coeffs_Z])
-    Sp = np.linspace(0, 1, 4 * len(contour_theta))
-    ORD = getCurveOrder(Sp, len(curve_coeffs), False)
-    curve = CurveXYZFourier(quadpoints=Sp, order=ORD)
-    curve.set_dofs(curve_coeffs)
+    n_quad = max(4 * len(contour_theta), 128)
+    s_uniform = np.linspace(0, 1, n_quad, endpoint=False)
+    target_xyz = np.column_stack([
+        interp1d(S, XYZ[:, 0], kind='linear', fill_value='extrapolate')(s_uniform),
+        interp1d(S, XYZ[:, 1], kind='linear', fill_value='extrapolate')(s_uniform),
+        interp1d(S, XYZ[:, 2], kind='linear', fill_value='extrapolate')(s_uniform),
+    ])
+    quadpoints = list(s_uniform)
+    curve = CurveXYZFourier(quadpoints, fourier_trunc)
+    curve.least_squares_fit(target_xyz)
+    ORD = fourier_trunc
+
+    # For helical coils: fix stellarator-symmetric coefficients (xs, yc, zc)
+    if fix_stellarator_symmetry is None:
+        fix_stellarator_symmetry = closed_3d and not closed_theta_zeta
+    if fix_stellarator_symmetry:
+        for m in range(1, ORD + 1):
+            curve.fix(f'xs({m})')
+        for m in range(ORD + 1):
+            curve.fix(f'yc({m})')
+            curve.fix(f'zc({m})')
+
     if plotting_args[0]:
         ax = curve.plot(show=False)
-        ax.plot(X, Y, Z, marker='', color='r', markersize=10)
+        ax.plot(target_xyz[:, 0], target_xyz[:, 1], target_xyz[:, 2], marker='', color='r', markersize=10)
         XYZcurve = curve.gamma()
         ax.plot(XYZcurve[:, 0], XYZcurve[:, 1], XYZcurve[:, 2], marker='', color='k', markersize=10, linestyle='--')
         plt.show()
