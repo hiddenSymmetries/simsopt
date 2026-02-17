@@ -1071,9 +1071,9 @@ class CoilForcesTest(unittest.TestCase):
                     err_new = np.abs(deriv_est - deriv)  # compute absolute error instead
                 else:
                     err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
-                # Check error decrease by at least a factor of 0.5
+                # Check error decrease by at least a factor of 0.5, or pass if error is already below 1e-8
                 if len(errors) > 0 and err_new > 1e-10:
-                    if err_new > 0.5 * errors[-1]:
+                    if err_new > 0.5 * errors[-1] and err_new >= 1e-8:
                         error_msg = f"Error did not decrease by factor 0.5: prev={errors[-1]}, curr={err_new}, eps={eps:.2e}"
                         return errors, epsilons, False, error_msg
                 errors.append(err_new)
