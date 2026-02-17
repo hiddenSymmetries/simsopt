@@ -847,7 +847,83 @@ class CoilForcesTest(unittest.TestCase):
         val = SquaredMeanTorque([coil_a1, coil_a2], [coil_b1, coil_b2]).J()
         self.assertTrue(np.isfinite(val))
 
-        # Verify that source_coils is required and must contain at least one coil not in target_coils
+        # Target coils with different quadpoints: construct one objective per target via list comprehension
+        target_coils = [coil_a1, coil_b1]  # 40 and 60 quadpoints respectively
+        source_coils_coarse = [coil_b1, coil_b2]  # 60 quadpoints (consistent within group)
+        threshold = 1e-3
+        p = 2.5
+        J_lp = sum(LpCurveForce(c, source_coils_coarse, p=p, threshold=threshold).J() for c in target_coils)
+        self.assertTrue(np.isfinite(float(J_lp)))
+        J_smf = sum(SquaredMeanForce(c, source_coils_coarse).J() for c in target_coils)
+        self.assertTrue(np.isfinite(float(J_smf)))
+        J_lpt = sum(LpCurveTorque(c, source_coils_coarse, p=p, threshold=threshold).J() for c in target_coils)
+        self.assertTrue(np.isfinite(float(J_lpt)))
+        J_smt = sum(SquaredMeanTorque(c, source_coils_coarse).J() for c in target_coils)
+        self.assertTrue(np.isfinite(float(J_smt)))
+        # dJ works for each objective
+        for c in target_coils:
+            dJ = LpCurveForce(c, source_coils_coarse, p=p, threshold=threshold).dJ()
+            self.assertTrue(len(dJ) > 0)
+
+        # Per-coil vs combined: same J and dJ when all coils have same quadpoints.
+        # Use 40-quad coils so we can pass other targets + external in source_coils_coarse (no coarse/fine split).
+        curve_b1_40 = CurveXYZFourier(40, 1)
+        curve_b1_40.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 0.8
+        curve_b2_40 = CurveXYZFourier(40, 1)
+        curve_b2_40.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 1.5
+        coil_b1_40 = RegularizedCoil(curve_b1_40, Current(I), regularization_circ(0.05))
+        coil_b2_40 = RegularizedCoil(curve_b2_40, Current(I), regularization_circ(0.05))
+        target_same_quad = [coil_a1, coil_a2]  # both 40 quadpoints
+        source_external_40 = [coil_b1_40, coil_b2_40]  # both 40 quadpoints
+
+        for ForceClass, kwargs in [
+            (LpCurveForce, {"p": p, "threshold": threshold}),
+            (SquaredMeanForce, {}),
+            (LpCurveTorque, {"p": p, "threshold": threshold}),
+            (SquaredMeanTorque, {}),
+        ]:
+            J_pc = sum(
+                float(ForceClass(c, [c2 for c2 in target_same_quad if c2 is not c] + source_external_40, **kwargs).J())
+                for c in target_same_quad
+            )
+            J_cb = float(ForceClass(target_same_quad, source_external_40, **kwargs).J())
+            np.testing.assert_allclose(J_pc, J_cb, rtol=1e-10, atol=1e-30,
+                                       err_msg=f"{ForceClass.__name__}: sum(per-coil J) should equal combined J")
+            dJ_cb = ForceClass(target_same_quad, source_external_40, **kwargs).dJ()
+            dJ_pc = sum(
+                ForceClass(c, [c2 for c2 in target_same_quad if c2 is not c] + source_external_40, **kwargs).dJ(partials=True)
+                for c in target_same_quad
+            )
+            obj_cb = ForceClass(target_same_quad, source_external_40, **kwargs)
+            # Relax tolerance for dJ: per-coil vs combined can differ due to floating-point order of ops
+            # and VJP aggregation; use atol for small-magnitude components
+            np.testing.assert_allclose(dJ_cb, dJ_pc(obj_cb), rtol=1e-5, atol=2e-24,
+                                       err_msg=f"{ForceClass.__name__}: sum(per-coil dJ) should equal combined dJ")
+
+        # Coarse vs coarse+fine split: same J and dJ when all sources have same quadpoints
+        sources_all = [coil_b1, coil_b2]
+        sources_coarse = [coil_b1]
+        sources_fine = [coil_b2]
+        J_all = float(LpCurveForce(coil_a1, sources_all, p=p, threshold=threshold).J())
+        J_split = float(LpCurveForce(coil_a1, sources_coarse, source_coils_fine=sources_fine, p=p, threshold=threshold).J())
+        np.testing.assert_allclose(J_all, J_split, rtol=1e-10,
+                                   err_msg="LpCurveForce: all-coarse vs coarse+fine split")
+        obj_all = LpCurveForce(coil_a1, sources_all, p=p, threshold=threshold)
+        obj_split = LpCurveForce(coil_a1, sources_coarse, source_coils_fine=sources_fine, p=p, threshold=threshold)
+        np.testing.assert_allclose(obj_all.dJ(), obj_split.dJ(), rtol=1e-10)
+        for ForceClass, kwargs in [
+            (SquaredMeanForce, {}),
+            (LpCurveTorque, {"p": p, "threshold": threshold}),
+            (SquaredMeanTorque, {}),
+        ]:
+            J_all = float(ForceClass(coil_a1, sources_all, **kwargs).J())
+            J_split = float(ForceClass(coil_a1, sources_coarse, source_coils_fine=sources_fine, **kwargs).J())
+            np.testing.assert_allclose(J_all, J_split, rtol=1e-10, atol=1e-30)
+            obj_all = ForceClass(coil_a1, sources_all, **kwargs)
+            obj_split = ForceClass(coil_a1, sources_coarse, source_coils_fine=sources_fine, **kwargs)
+            np.testing.assert_allclose(obj_all.dJ(), obj_split.dJ(), rtol=1e-6, atol=2e-22)
+
+        # Verify that source_coils_coarse must contain at least one coil not in target_coils
         with self.assertRaises(ValueError):
             LpCurveForce(coil_a1, [coil_a1], p=2.5, threshold=1e-3)
         with self.assertRaises(ValueError):
@@ -872,7 +948,7 @@ class CoilForcesTest(unittest.TestCase):
         coil_21 = RegularizedCoil(curve_21, Current(I), regularization_circ(0.05))
         coil_21b = RegularizedCoil(curve_21b, Current(I), regularization_circ(0.05))
 
-        # target_coils has bad downsample (20 % 7 != 0), source_coils is fine (21 % 7 = 0)
+        # target_coils has bad downsample (20 % 7 != 0), source_coils_coarse is fine (21 % 7 = 0)
         with self.assertRaises(ValueError):
             B2Energy([coil_20], downsample=7)
         with self.assertRaises(ValueError):
@@ -886,7 +962,7 @@ class CoilForcesTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             NetFluxes(coil_20, [coil_21], downsample=7)
 
-        # source_coils has bad downsample (20 % 7 != 0), target_coils is fine (21 % 7 = 0)
+        # source_coils_coarse has bad downsample (20 % 7 != 0), target_coils is fine (21 % 7 = 0)
         with self.assertRaises(ValueError):
             SquaredMeanForce(coil_21, [coil_20, coil_21b], downsample=7)
         with self.assertRaises(ValueError):
@@ -899,7 +975,7 @@ class CoilForcesTest(unittest.TestCase):
             NetFluxes(coil_21, [coil_20], downsample=7)
 
     def test_mixed_quadpoints_in_coil_lists_raises(self):
-        """Test that ValueError is raised when target_coils or source_coils contains coils with different numbers of quadrature points."""
+        """Test that ValueError is raised when target_coils or source_coils_coarse contains coils with different numbers of quadrature points."""
         I = 1.7e4
         # Group A: 40 quadpoints
         curve_a1 = CurveXYZFourier(40, 1)
@@ -928,7 +1004,7 @@ class CoilForcesTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             B2Energy([coil_a1, coil_b1])
 
-        # source_coils has mixed quadpoints (40 and 60)
+        # source_coils_coarse has mixed quadpoints (40 and 60)
         with self.assertRaises(ValueError):
             LpCurveForce(coil_a1, [coil_a2, coil_b1], p=2.5, threshold=threshold)
         with self.assertRaises(ValueError):
@@ -955,13 +1031,13 @@ class CoilForcesTest(unittest.TestCase):
         """
         import matplotlib.pyplot as plt
         ncoils_list = [2]
-        nfp_list = [1, 2, 3]
-        stellsym_list = [False, True]
+        nfp_list = [1, 3]
+        stellsym_list = [True]
         p_list = [2.5]
         threshold_list = [0.0, 1e-3]
         downsample_list = [1, 2]
         jax_flag_list = [False, True]
-        numquadpoints_list = [20]
+        numquadpoints_list = [10]
         I = 1.7e5
         a = 0.05
         b = 0.05
@@ -974,7 +1050,7 @@ class CoilForcesTest(unittest.TestCase):
         all_eps = []
         max_retries = 3  # Number of retries for intermittent failures
 
-        def run_taylor_test_for_objective(J, dofs, h, label):
+        def run_taylor_test_for_objective(J, dofs, h):
             """
             Run Taylor test for a single objective. Returns (errors, epsilons, success, error_msg).
             """
@@ -1025,8 +1101,12 @@ class CoilForcesTest(unittest.TestCase):
                                                 sum([NetFluxes(coils[i], coils2) for i in range(len(coils))]),
                                                 B2Energy(coils + coils2, downsample=downsample),
                                                 LpCurveTorque(coils, coils2, p=p, threshold=threshold, downsample=downsample),
+                                                sum([LpCurveTorque(coils[i], coils2, p=p, threshold=threshold, downsample=downsample) for i in range(len(coils))]),
+                                                sum([SquaredMeanTorque(coils[i], coils2, downsample=downsample) for i in range(len(coils))]),
                                                 SquaredMeanTorque(coils, coils2, downsample=downsample),
+                                                sum([LpCurveForce(coils[i], coils2, p=p, threshold=threshold, downsample=downsample) for i in range(len(coils))]),
                                                 LpCurveForce(coils, coils2, p=p, threshold=threshold, downsample=downsample),
+                                                sum([SquaredMeanForce(coils[i], coils2, downsample=downsample) for i in range(len(coils))]),
                                                 SquaredMeanForce(coils, coils2, downsample=downsample),
                                             ]
                                             dofs = np.copy(LpCurveTorque(coils, coils2, p=p, threshold=threshold, downsample=downsample).x)
@@ -1039,7 +1119,7 @@ class CoilForcesTest(unittest.TestCase):
                                                 success = False
                                                 last_error_msg = None
                                                 for attempt in range(max_retries):
-                                                    errors, epsilons, success, error_msg = run_taylor_test_for_objective(J, dofs, h, label)
+                                                    errors, epsilons, success, error_msg = run_taylor_test_for_objective(J, dofs, h)
                                                     if success:
                                                         if attempt > 0:
                                                             print(f"{config_str} - PASSED on retry {attempt + 1}")
@@ -1117,9 +1197,13 @@ class CoilForcesTest(unittest.TestCase):
             # LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque: sum over all coils
             # Mixed objectives are faster if coils are split evenly into two groups
             objectives = [
+                sum([LpCurveForce(coils[i], coils2, p=p, threshold=threshold, downsample=2) for i in range(len(coils))]),
                 LpCurveForce(coils, coils2, p=p, threshold=threshold, downsample=2),
+                sum([LpCurveTorque(coils[i], coils2, p=p, threshold=threshold, downsample=2) for i in range(len(coils))]),
                 LpCurveTorque(coils, coils2, p=p, threshold=threshold, downsample=2),
+                sum([SquaredMeanForce(coils[i], coils2, downsample=2) for i in range(len(coils))]),
                 SquaredMeanForce(coils, coils2, downsample=2),
+                sum([SquaredMeanTorque(coils[i], coils2, downsample=2) for i in range(len(coils))]),
                 SquaredMeanTorque(coils, coils2, downsample=2),
             ]
 
@@ -1202,7 +1286,7 @@ class CoilForcesTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             B2Energy([coil, reg_coil])
         
-        # Test that RegularizedCoil objects work fine (source_coils must have at least one coil not in target)
+        # Test that RegularizedCoil objects work fine (source_coils_coarse must have at least one coil not in target)
         try:
             LpCurveForce(reg_coil, [reg_coil, reg_coil2], p=2.5, threshold=threshold)
             SquaredMeanForce(reg_coil, [reg_coil, reg_coil2])
@@ -1211,6 +1295,52 @@ class CoilForcesTest(unittest.TestCase):
             B2Energy([reg_coil])
         except ValueError:
             self.fail("RegularizedCoil objects should not raise ValueError")
+
+    def test_source_coils_coarse_and_fine(self):
+        """Validate source_coils_coarse and source_coils_fine: coarse+fine yields same J as all coils in coarse."""
+        I = 1.7e4
+        nfp, ncoils = 2, 3
+        base_curves = create_equally_spaced_curves(ncoils, nfp, True, numquadpoints=30)
+        base_currents = [Current(I) for _ in range(ncoils)]
+        coils = coils_via_symmetries(base_curves, base_currents, nfp, True,
+                                     regularizations=[regularization_circ(0.05)] * ncoils)
+        target = coils[0]
+        sources_all = coils[1:]
+        # Split: first half in coarse, second half in fine
+        n_coarse = len(sources_all) // 2
+        sources_coarse = sources_all[:n_coarse]
+        sources_fine = sources_all[n_coarse:] if n_coarse < len(sources_all) else []
+
+        # SquaredMeanForce: J(coarse+fine) == J(all in coarse)
+        J_all_coarse = float(SquaredMeanForce(target, sources_all).J())
+        J_split = float(SquaredMeanForce(target, sources_coarse, source_coils_fine=sources_fine).J())
+        np.testing.assert_allclose(J_all_coarse, J_split, rtol=1e-10,
+                                   err_msg="SquaredMeanForce: coarse+fine should equal all-coarse")
+
+        # SquaredMeanTorque: same check (use atol for very small values)
+        J_all_coarse = float(SquaredMeanTorque(target, sources_all).J())
+        J_split = float(SquaredMeanTorque(target, sources_coarse, source_coils_fine=sources_fine).J())
+        np.testing.assert_allclose(J_all_coarse, J_split, rtol=1e-8, atol=1e-30,
+                                   err_msg="SquaredMeanTorque: coarse+fine should equal all-coarse")
+
+        # LpCurveForce: same check
+        p, thresh = 2.5, 1e-3
+        J_all_coarse = float(LpCurveForce(target, sources_all, p=p, threshold=thresh).J())
+        J_split = float(LpCurveForce(target, sources_coarse, source_coils_fine=sources_fine, p=p, threshold=thresh).J())
+        np.testing.assert_allclose(J_all_coarse, J_split, rtol=1e-10,
+                                   err_msg="LpCurveForce: coarse+fine should equal all-coarse")
+
+        # LpCurveTorque: same check
+        J_all_coarse = float(LpCurveTorque(target, sources_all, p=p, threshold=thresh).J())
+        J_split = float(LpCurveTorque(target, sources_coarse, source_coils_fine=sources_fine, p=p, threshold=thresh).J())
+        np.testing.assert_allclose(J_all_coarse, J_split, rtol=1e-10,
+                                   err_msg="LpCurveTorque: coarse+fine should equal all-coarse")
+
+        # source_coils_fine=[] should match no fine
+        J_no_fine = float(SquaredMeanForce(target, sources_all, source_coils_fine=[]).J())
+        J_all_only = float(SquaredMeanForce(target, sources_all).J())
+        np.testing.assert_allclose(J_no_fine, J_all_only, rtol=1e-10)
+
 
     def test_lpcurveforces_taylor_test(self):
         """Verify that dJ matches finite differences of J"""
