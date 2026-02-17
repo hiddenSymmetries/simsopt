@@ -50,15 +50,15 @@ if os.path.exists(OUT_DIR):
     shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
 
-nphi = 64
-ntheta = 64
-MAXITER = 400
+nphi = 32
+ntheta = 32
+MAXITER = 100
 
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:
     MAXITER = 10
-    nphi = 32
-    ntheta = 32
+    nphi = 16
+    ntheta = 16
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -112,8 +112,6 @@ bs_TF = BiotSavart(coils_TF)
 # # Calculate average, approximate on-axis B field strength
 print(s, bs_TF, base_curves_TF)
 calculate_modB_on_major_radius(bs_TF, s)
-nturns = 100
-nturns_TF = 200
 
 # wire cross section for the dipole coils should be more like 10 cm x 10 cm
 aa = 0.1
@@ -207,7 +205,7 @@ else:
     # Use rectangular regularization for force/torque calculations
     regularization = regularization_rect(aa, bb)
     regularizations = [regularization for _ in range(ncoils)]
-    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True, regularizations=regularizations)
+    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, s.stellsym, regularizations=regularizations)
     base_coils = coils[:ncoils]
     bs = BiotSavart(coils)
 
@@ -268,19 +266,22 @@ Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 # Force and torque terms
 all_coils = coils + coils_TF
 all_base_coils = base_coils + base_coils_TF
-FORCE_WEIGHT = 1e-18
+FORCE_WEIGHT = 1e-6
 FORCE_WEIGHT2 = 0.0
 TORQUE_WEIGHT = 0.0
 TORQUE_WEIGHT2 = 0.0
-regularization_list = [regularization_rect(aa, bb) for i in range(len(base_coils))] + \
-    [regularization_rect(a, b) for i in range(len(base_coils_TF))]
-# Only compute the force and torque on the unique set of coils, otherwise
-# you are doing too much work. Also downsample the coil quadrature points
-# by a factor of 2 to save compute.
-Jforce = LpCurveForce(all_base_coils, all_coils, regularization_list, downsample=2)
-Jforce2 = SquaredMeanForce(all_base_coils, all_coils, downsample=2)
-Jtorque = LpCurveTorque(all_base_coils, all_coils, regularization_list, downsample=2)
-Jtorque2 = SquaredMeanTorque(all_base_coils, all_coils, downsample=2)
+
+# source_coils_coarse are for coils that do not have many quadrature points.
+# source_coils_fine are for coils that have many quadrature points.
+# target_coils must all have the same number of quadrature points, so need to split up the coils into two sets.
+Jforce = LpCurveForce(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2) \
+    + LpCurveForce(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2)
+Jforce2 = SquaredMeanForce(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2) \
+    + SquaredMeanForce(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2)
+Jtorque = LpCurveTorque(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2) \
+    + LpCurveTorque(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2)
+Jtorque2 = SquaredMeanTorque(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2) \
+    + SquaredMeanTorque(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2)
 
 JF = Jf \
     + CC_WEIGHT * Jccdist \

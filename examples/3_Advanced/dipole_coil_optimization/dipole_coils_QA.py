@@ -90,8 +90,6 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 # Only need this if make self forces and B2Energy nonzero in the objective!
 a = 0.2
 b = 0.2
-nturns = 100
-nturns_TF = 200
 
 # Wire cross section for the dipole coils should be more like 5 cm x 5 cm
 aa = 0.05
@@ -199,10 +197,12 @@ else:
 
 # Weight for the Coil Coil forces term
 # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-FORCE_WEIGHT = Weight(1e-34)  # 1e-34
+FORCE_WEIGHT = Weight(1e-12)  # 1e-34 * 1e24 = 1e-12 because MN units and using p = 4
 FORCE_WEIGHT2 = Weight(0.0)
 TORQUE_WEIGHT = Weight(0.0)
-TORQUE_WEIGHT2 = Weight(1e-23)  # 1e-22
+TORQUE_WEIGHT2 = Weight(1e-11)  # 1e-23 * 1e12 because MN units and using p = 2
+FORCE_THRESHOLD = 40  # in MN/m
+TORQUE_THRESHOLD = 40  # in MN
 
 # Save the initial coils
 save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix)
@@ -234,10 +234,14 @@ all_coils = coils + coils_TF
 all_base_coils = base_coils + base_coils_TF
 regularization_list = [regularization_rect(aa, bb) for i in range(len(base_coils))] + \
     [regularization_rect(a, b) for i in range(len(base_coils_TF))]
-Jforce = LpCurveForce(all_base_coils, all_coils, regularization_list, p=4, threshold=4e5 * 100, downsample=2)
-Jforce2 = SquaredMeanForce(all_base_coils, all_coils, downsample=1)
-Jtorque = LpCurveTorque(all_base_coils, all_coils, regularization_list, p=2, threshold=4e5 * 100, downsample=2)
-Jtorque2 = SquaredMeanTorque(all_base_coils, all_coils, downsample=1)
+Jforce = LpCurveForce(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF, p=4, threshold=FORCE_THRESHOLD, downsample=2) \
+    + LpCurveForce(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF, p=4, threshold=FORCE_THRESHOLD, downsample=2)
+Jforce2 = SquaredMeanForce(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=1) \
+    + SquaredMeanForce(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=1)
+Jtorque = LpCurveTorque(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF, p=2, threshold=TORQUE_THRESHOLD, downsample=2) \
+    + LpCurveTorque(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF, p=2, threshold=TORQUE_THRESHOLD, downsample=2)
+Jtorque2 = SquaredMeanTorque(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=1) \
+    + SquaredMeanTorque(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=1)
 
 CURVATURE_THRESHOLD = 0.5
 MSC_THRESHOLD = 0.05

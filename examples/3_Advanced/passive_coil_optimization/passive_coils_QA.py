@@ -14,11 +14,8 @@ from pathlib import Path
 import time
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field import regularization_rect, PSCArray
-from simsopt.field.force import LpCurveForce, \
-    SquaredMeanForce, \
-    LpCurveTorque, \
-    SquaredMeanTorque
+from simsopt.field import PSCArray, regularization_rect
+from simsopt.field.force import LpCurveForce, SquaredMeanForce, LpCurveTorque, SquaredMeanTorque
 from simsopt.util import calculate_modB_on_major_radius, align_dipoles_with_plasma, \
     remove_interlinking_dipoles_and_TFs, initialize_coils, save_coil_sets, in_github_actions
 from simsopt.geo import (
@@ -40,6 +37,8 @@ if continuation_run:
 else:
     if in_github_actions:
         MAXITER = 10
+        nphi = 8
+        ntheta = 8
         file_suffix = '_ci'
     else:
         MAXITER = 600
@@ -80,8 +79,6 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 # Only need this if make self forces and B2Energy nonzero in the objective!
 a = 0.2
 b = 0.2
-nturns = 100
-nturns_TF = 200
 
 # wire cross section for the dipole coils should be more like 5 cm x 5 cm
 aa = 0.06
@@ -94,7 +91,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 if not continuation_run:
     # Initialize the coils
     # Initialize the TF coils
-    base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, 'LandremanPaulQA')
+    regularization_TF = regularization_rect(a, b)
+    base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, 'LandremanPaulQA', regularization=regularization_TF)
     num_TF_unique_coils = len(base_curves_TF)
     base_coils_TF = coils_TF[:num_TF_unique_coils]
     currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
@@ -170,8 +168,6 @@ else:
             base_curves[i].unfix(f'rs({j})')
 
 ncoils = len(base_curves)
-a_list = np.ones(len(base_curves)) * aa
-b_list = np.ones(len(base_curves)) * aa
 print('Num dipole coils = ', ncoils)
 print('R0 = ', base_curves[0].x[0])
 
@@ -181,8 +177,7 @@ psc_array = PSCArray(
     base_curves, 
     coils_TF, 
     eval_points,
-    a_list, 
-    b_list, 
+    regularizations=[regularization_rect(aa, bb) for _ in base_curves],
     nfp=s.nfp, 
     stellsym=s.stellsym
 )
@@ -199,8 +194,6 @@ coils = psc_array.coils
 base_coils = coils[:ncoils]
 curves = [c.curve for c in coils]
 currents = [c.current.get_value() for c in coils]
-a_list = np.hstack((np.ones(len(coils)) * aa, np.ones(len(coils_TF)) * a))
-b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 
 # Set weights and thresholds for the optimization
 LENGTH_TARGET2 = 100
@@ -216,10 +209,10 @@ CC_WEIGHT = 1
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(0)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-FORCE_WEIGHT2 = Weight(0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT = Weight(0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(0) # 1e-10
+FORCE_WEIGHT2 = Weight(0)
+TORQUE_WEIGHT = Weight(0)
+TORQUE_WEIGHT2 = Weight(0) # 1e-10 
 
 # Save the initial coils
 save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix)
@@ -258,27 +251,16 @@ linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 
 # Passive MUST be passed in the psc_array argument to the force and
 # torque terms for the Jacobian to be correct!
-all_base_coils = base_coils + base_coils_TF
-other_coils = [c for c in coils + coils_TF if c not in all_base_coils]  # all other coils
-regularization_list = [regularization_rect(aa, bb) for _ in base_coils] + [regularization_rect(a, b) for _ in base_coils_TF]
-Jforce = LpCurveForce(all_base_coils, other_coils,
-                      regularization_list,
-                      p=4, downsample=2,
-                      psc_array=psc_array
-                      )
-Jforce2 = SquaredMeanForce(all_base_coils, other_coils,
-                           psc_array=psc_array,
-                           downsample=2
-                           )
-Jtorque = LpCurveTorque(all_base_coils, other_coils,
-                        regularization_list,
-                        p=2, downsample=2,
-                        psc_array=psc_array
-                        )
-Jtorque2 = SquaredMeanTorque(all_base_coils, other_coils,
-                             psc_array=psc_array,
-                             downsample=2
-                             )
+FORCE_THRESHOLD = 0.0
+TORQUE_THRESHOLD = 0.0
+Jforce = LpCurveForce(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF, p=4, threshold=FORCE_THRESHOLD, downsample=2, psc_array=psc_array) \
+    + LpCurveForce(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF, p=4, threshold=FORCE_THRESHOLD, downsample=2)
+Jforce2 = SquaredMeanForce(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2, psc_array=psc_array) \
+    + SquaredMeanForce(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2)
+Jtorque = LpCurveTorque(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF, p=2, threshold=TORQUE_THRESHOLD, downsample=2, psc_array=psc_array) \
+    + LpCurveTorque(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF, p=2, threshold=TORQUE_THRESHOLD, downsample=2)
+Jtorque2 = SquaredMeanTorque(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2, psc_array=psc_array) \
+    + SquaredMeanTorque(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2)
 
 CURVATURE_THRESHOLD = 0.5
 MSC_THRESHOLD = 0.06

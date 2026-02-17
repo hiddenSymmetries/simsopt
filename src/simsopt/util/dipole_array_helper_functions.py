@@ -134,17 +134,16 @@ def align_dipoles_with_plasma(plasma_surf, base_curves):
     return alphas, deltas
 
 
-def initialize_coils(s, TEST_DIR, configuration, regularizations=None):
+def initialize_coils(s, configuration, regularization):
     """
     Initializes appropriate coils for the Schuett-Henneberg 2-field-period QA,
     Landreman-Paul QA, Landreman-Paul QH, etc., usually for purposes
     of finding a dipole coil array solution. 
 
     Args:
-        TEST_DIR: String denoting where to find the input files.
         s: plasma boundary surface.
         configuration: String denoting the stellarator name.
-        regularizations: Optional list of regularization values for RegularizedCoil objects.
+        regularization: Regularization object for RegularizedCoil objects.
     Returns:
         base_curves: List of CurveXYZ class objects.
         curves: List of Curve class objects.
@@ -187,7 +186,7 @@ def initialize_coils(s, TEST_DIR, configuration, regularizations=None):
     total_current = Current(total_current)
     total_current.fix_all()
     base_currents += [total_current - sum(base_currents)]
-    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True, regularizations=regularizations)
+    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, s.stellsym, regularizations=[regularization for _ in range(ncoils)])
     curves = [c.curve for c in coils]
     return base_curves, curves, coils, base_currents
 
@@ -320,21 +319,11 @@ def save_coil_sets(btot, OUT_DIR, file_suffix):
             The suffix for the output files.
     """
     from simsopt.field import coils_to_vtk
-    bs = btot.Bfields[0]
-    bs_TF = btot.Bfields[1]
-    coils = bs.coils
-    coils_TF = bs_TF.coils
-    allcoils = coils + coils_TF
-    # Save all coils together so that coils_to_vtk computes forces and torques
-    # from all coils together
     coils_to_vtk(
-        allcoils,
+        btot.Bfields[0].coils + btot.Bfields[1].coils,
         OUT_DIR + "coils" + file_suffix,
         close=True,
     )
-    dipole_currents = [c.current.get_value() for c in coils]
-    print('Max I = ', np.max(np.abs(dipole_currents)))
-    print('Min I = ', np.min(np.abs(dipole_currents)))
 
 
 def quaternion_from_axis_angle(axis, theta):
@@ -656,6 +645,8 @@ def generate_tf_array(winding_surface, ntf, TF_R0, TF_a, TF_b, fixed_geo_tfs=Fal
         TF_a: minor radius of the TF coils (in R direction)
         TF_b: minor radius of the TF coils (in Z direction)
         fixed_geo_tfs: whether to fix the geometric degrees of freedom of the TF coils
+        planar_tfs: whether to use planar TF coils
+        order: order of the Fourier series for the TF coils
         numquadpoints: number of quadrature points representing each coil
     Returns:
         base_tf_curves: list of initialized curves (half field period)
@@ -683,21 +674,41 @@ def generate_tf_array(winding_surface, ntf, TF_R0, TF_a, TF_b, fixed_geo_tfs=Fal
 def generate_curves(surf, VV, planar_tfs=False, outdir='',
                     inboard_radius=0.8, wp_fil_spacing=0.75, half_per_spacing=0.75, wp_n=2,
                     numquadpoints=32, order=12, verbose=True,
-                    fixed_geo_tfs=False, tf_init_fac=2,
+                    fixed_geo_tfs=False, tf_init_fac=4,
                     ntf=3,
                     ):
     """
     Generate the curves for the winding surface and TF coils.
 
     Args:
-        VV: SurfaceRZFourier object
-            The winding surface to put the dipole coils on.
         surf: SurfaceRZFourier object   
             The plasma boundary surface.
+        VV: SurfaceRZFourier object
+            The vacuum vessel surface to put the dipole coils on.
         planar_tfs: bool
             Whether to use planar TF coils.
         outdir: str
             The output directory for the generated curves.
+        inboard_radius: float
+            The radius of the inboard midplane of the dipole coils.
+        wp_fil_spacing: float
+            The spacing between the filaments of the dipole coils.
+        half_per_spacing: float
+            The spacing between the half period segments of the dipole coils.
+        wp_n: float
+            The value of n for the superellipse.
+        numquadpoints: int
+            The number of quadrature points for the dipole coils.
+        order: int
+            The order of the Fourier series for the dipole coils.
+        verbose: bool
+            Whether to print verbose output.
+        fixed_geo_tfs: bool
+            Whether to fix the geometric degrees of freedom of the TF coils.
+        tf_init_fac: float
+            The factor by which to scale the TF coils.
+        ntf: int
+            The number of TF coils per half field period.
     """
     from simsopt.geo import curves_to_vtk
 
@@ -714,9 +725,9 @@ def generate_curves(surf, VV, planar_tfs=False, outdir='',
     # generate TFs of the class CurvePlanarEllipticalCylindrical (fixed_geo_TFs=False)
     base_tf_curves = generate_tf_array(winding_surface=VV,
                                        ntf=ntf,  # 3 TF coils
-                                       TF_R0=surf.get_rc(0, 0),
-                                       TF_a=surf.get_rc(1, 0) * tf_init_fac,
-                                       TF_b=surf.get_rc(1, 0) * tf_init_fac,
+                                       TF_R0=surf.major_radius(),
+                                       TF_a=surf.minor_radius() * tf_init_fac,
+                                       TF_b=surf.minor_radius() * tf_init_fac,
                                        fixed_geo_tfs=fixed_geo_tfs,
                                        planar_tfs=planar_tfs,
                                        order=order,

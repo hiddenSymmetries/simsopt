@@ -17,38 +17,35 @@ A. A. Kaptanoglu, A. Wiedman, J. Halpern, S. Hurwitz, E. J. Paul, and M. Landrem
 Nuclear Fusion 65, 046029 (2025).
 https://iopscience.iop.org/article/10.1088/1741-4326/adc318/meta
 
-File: dipole_array_tutorial.py
-Author: Jake Halpern, Alan Kaptanoglu
-Last Edit Date: 04/2025
+A. A. Kaptanoglu, M. Landreman, and M. C. Zarnstorff, "Optimization of passive 
+superconductors for shaping stellarator magnetic fields," Phys. Rev. E 111, 065202 (2025).
+https://journals.aps.org/pre/abstract/10.1103/PhysRevE.111.065202
+
 Description: This script shows how to set up planar non-encircling coils tangent to an 
              axisymmetric winding surface and planar toroidal field coils that can be 
-             shifted and tilted radially 
-             
+             shifted and tilted radially.          
 """
 
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field import BiotSavart, Current, coils_via_symmetries
+from simsopt.field import BiotSavart, Current, coils_via_symmetries, regularization_rect
 from simsopt.util import calculate_modB_on_major_radius, save_coil_sets, generate_curves, in_github_actions
-from simsopt.geo import (
-    CurveLength, CurveCurveDistance,
-    SurfaceRZFourier
-)
+from simsopt.geo import CurveLength, CurveCurveDistance, SurfaceRZFourier
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 import os
 
 outdir = './dipole_array_tutorial/'
 os.makedirs(outdir, exist_ok=True)
-nphi = 32
-ntheta = 32
-MAXITER = 500
+nphi = 16
+ntheta = 16
+MAXITER = 100
 
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:
     MAXITER = 10
-    nphi = 32
-    ntheta = 32
+    nphi = 16
+    ntheta = 16
 
 qphi = 2 * nphi
 qtheta = 2 * ntheta
@@ -78,8 +75,6 @@ ncoils = len(base_wp_curves)
 # Only need this if make self forces and B2Energy nonzero in the objective!
 a = 0.25
 b = 0.25
-nturns = 100
-nturns_TF = 200
 
 # wire cross section for the dipole coils should be at least 10 cm x 10 cm
 aa = 0.1
@@ -92,7 +87,9 @@ base_currents_TF = [(Current(total_current / ncoils_TF * 1e-7) * 1e7) for _ in r
 total_current = Current(total_current)
 total_current.fix_all()
 base_currents_TF += [total_current - sum(base_currents_TF)]
-coils_TF = coils_via_symmetries(base_tf_curves, base_currents_TF, s.nfp, True)
+regularization_TF = regularization_rect(a, b)
+regularizations_TF = [regularization_TF for _ in range(ncoils_TF)]
+coils_TF = coils_via_symmetries(base_tf_curves, base_currents_TF, s.nfp, s.stellsym, regularizations=regularizations_TF)
 base_coils_TF = coils_TF[:ncoils_TF]
 curves_TF = [c.curve for c in coils_TF]
 bs_TF = BiotSavart(coils_TF)
@@ -100,9 +97,10 @@ bs_TF = BiotSavart(coils_TF)
 # Fix the window pane curve dofs
 [c.fix_all() for c in base_wp_curves]
 base_wp_currents = [Current(1.0) * 1e6 for i in range(ncoils)]
-coils = coils_via_symmetries(base_wp_curves, base_wp_currents, s.nfp, True)
+regularization_wp = regularization_rect(aa, bb)
+regularizations_wp = [regularization_wp for _ in range(ncoils)]
+coils = coils_via_symmetries(base_wp_curves, base_wp_currents, s.nfp, s.stellsym, regularizations=regularizations_wp)
 base_coils = coils[:ncoils]
-
 bs = BiotSavart(coils)
 btot = bs + bs_TF
 

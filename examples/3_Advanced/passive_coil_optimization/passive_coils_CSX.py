@@ -27,7 +27,7 @@ from pathlib import Path
 import time
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field import regularization_rect, PSCArray, coils_to_vtk
+from simsopt.field import regularization_rect, PSCArray, coils_to_vtk, RegularizedCoil
 from simsopt.field.force import LpCurveForce, SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque
 from simsopt.util import calculate_modB_on_major_radius, in_github_actions
@@ -51,6 +51,8 @@ if continuation_run:
 else:
     if in_github_actions:
         MAXITER = 10
+        nphi = 8
+        ntheta = 8
         file_suffix = "_ci"
     else:
         file_suffix = ""
@@ -94,6 +96,13 @@ s_plot = SurfaceRZFourier.from_wout(
 # Initialize the TF coils from json file -- going to reoptimize the interlinking coils anyways
 bsurf = load(os.path.join(TEST_DIR / "boozer_surface_CSX_4.5.json"))
 coils_TF = bsurf.biotsavart._coils
+# wire cross section for the TF coils is a square 20 cm x 20 cm
+a = 0.2
+b = 0.2
+coils_temp = []
+for coil in coils_TF:
+    coils_temp.append(RegularizedCoil(coil.curve, coil.current, regularization_rect(a, b)))
+coils_TF = coils_temp
 
 # Plot original coils
 plot_coils = False
@@ -146,7 +155,6 @@ coils_to_vtk(bsurf.biotsavart.coils, OUT_DIR + "coils_with_original_window_panes
 # Subtract out the window-pane coils used in Antoines paper
 # Need to reinitialize all the coils with same number of quadpoints
 from simsopt.geo import CurveXYZFourier, RotatedCurve
-from simsopt.field import Coil
 curves_TF = [coil.curve for coil in coils_TF]
 c1 = CurveXYZFourier(200, 15)
 for name in c1.local_dof_names:
@@ -156,8 +164,8 @@ for name in c1.local_dof_names:
         c1.fix(name)
 c1.x = coils_TF[0].curve.x
 c2 = RotatedCurve(c1, np.pi, True)
-coil1 = Coil(c1, coils_TF[0].current)
-coil2 = Coil(c2, coils_TF[1].current)
+coil1 = RegularizedCoil(c1, coils_TF[0].current, regularization_rect(a, b))
+coil2 = RegularizedCoil(c2, coils_TF[1].current, regularization_rect(a, b))
 coils_TF = [coil1, coil2, coils_TF[2], coils_TF[3]]
 currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
 curves_TF = [coil.curve for coil in coils_TF]
@@ -166,13 +174,6 @@ num_TF_unique_coils = len(base_curves_TF)
 base_coils_TF = [coils_TF[0]] + [coils_TF[2]]
 currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
 coils_to_vtk(coils_TF, OUT_DIR + "curves_without_original_window_panes" + file_suffix)
-
-# wire cross section for the TF coils is a square 20 cm x 20 cm
-# Only need this if make self forces and B2Energy nonzero in the objective!
-a = 0.2
-b = 0.2
-nturns = 100
-nturns_TF = 200
 
 # wire cross section for the dipole coils should be more like 6 cm x 6 cm
 aa = 0.06
@@ -188,13 +189,11 @@ if continuation_run:
     base_curves_TF = [curves_TF[0]] + [curves_TF[2]]
     base_coils_TF = [coils_TF[0]] + [coils_TF[2]]
     ncoils = len(base_curves)
-    a_list = np.ones(len(base_curves)) * aa
-    b_list = np.ones(len(base_curves)) * aa
     print(base_curves[0].order)
 
     # Initialize the PSCArray object
     eval_points = s.gamma().reshape(-1, 3)
-    psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
+    psc_array = PSCArray(base_curves, coils_TF, eval_points, regularizations=[regularization_rect(aa, bb) for _ in base_curves], nfp=s.nfp, stellsym=s.stellsym)
     coils = psc_array.coils
     coils_TF = psc_array.coils_TF
     print([c.current.get_value() for c in coils])
@@ -222,7 +221,7 @@ if continuation_run:
     [c.current.unfix_all() for c in base_coils_TF]
 
     # Reinitialize the PSCArray object with one less passive coil after the truncation above
-    psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
+    psc_array = PSCArray(base_curves, coils_TF, eval_points, regularizations=[regularization_rect(aa, bb) for _ in base_curves], nfp=s.nfp, stellsym=s.stellsym)
     coils = psc_array.coils
     coils_TF = psc_array.coils_TF
     curves = [c.curve for c in coils]
@@ -276,8 +275,6 @@ else:
         # base_curves[i].fix('Z')
 
 ncoils = len(base_curves)
-a_list = np.ones(len(base_curves)) * aa
-b_list = np.ones(len(base_curves)) * aa
 print('Num dipole coils = ', ncoils)
 print('R0 = ', base_curves[0].x[0])
 
@@ -287,8 +284,7 @@ psc_array = PSCArray(
     base_curves, 
     coils_TF, 
     eval_points,
-    a_list, 
-    b_list, 
+    regularizations=[regularization_rect(aa, bb) for _ in base_curves],
     nfp=s.nfp, 
     stellsym=s.stellsym
 )
@@ -304,8 +300,6 @@ base_coils = coils[:ncoils]
 curves = [c.curve for c in coils]
 base_curves = curves[:ncoils]
 currents = [c.current.get_value() for c in coils]
-a_list = np.hstack((np.ones(len(coils)) * aa, np.ones(len(coils_TF)) * a))
-b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 
 # Set weights and thresholds for the optimization
 LENGTH_WEIGHT = Weight(0.01)
@@ -331,10 +325,10 @@ else:
     CS_WEIGHT = 1
 
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(0.0)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(0.0)  # 1e-10 
+FORCE_WEIGHT2 = Weight(0.0)  
+TORQUE_WEIGHT = Weight(0.0)  
+TORQUE_WEIGHT2 = Weight(0.0)  # 1e-10
 
 # Save the initial coils
 save_coil_sets(btot, OUT_DIR, "_initial" + file_suffix)
@@ -372,31 +366,36 @@ linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 
 # Passive MUST be passed in the psc_array argument to the force and
 # torque terms for the Jacobian to be correct!
-all_base_coils = base_coils + base_coils_TF
-other_coils = [c for c in coils + coils_TF if c not in all_base_coils]  # all other coils
-regularization_list = [regularization_rect(aa, bb) for _ in base_coils] + [regularization_rect(a, b) for _ in base_coils_TF]
-Jforce = LpCurveForce(all_base_coils, other_coils,
-                      regularization_list,
-                      p=4, downsample=2,
+FORCE_THRESHOLD = 0.0
+TORQUE_THRESHOLD = 0.0
+Jforce = LpCurveForce(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF,
+                      p=4, threshold=FORCE_THRESHOLD, downsample=2,
                       psc_array=psc_array
+                      ) + LpCurveForce(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF,
+                      p=4, threshold=FORCE_THRESHOLD, downsample=2,
                       )
-Jforce2 = SquaredMeanForce(all_base_coils, other_coils,
+Jforce2 = SquaredMeanForce(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF,
                            psc_array=psc_array,
                            downsample=2
+                           ) + SquaredMeanForce(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF,
+                           downsample=2
                            )
-Jtorque = LpCurveTorque(all_base_coils, other_coils,
-                        regularization_list,
-                        p=2, downsample=2,
+Jtorque = LpCurveTorque(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF,
+                        p=2, threshold=TORQUE_THRESHOLD, downsample=2,
                         psc_array=psc_array
+                        ) + LpCurveTorque(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF,
+                        p=2, threshold=TORQUE_THRESHOLD, downsample=2,
                         )
-Jtorque2 = SquaredMeanTorque(all_base_coils, other_coils,
+Jtorque2 = SquaredMeanTorque(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF,
                              psc_array=psc_array,
+                             downsample=2
+                             ) + SquaredMeanTorque(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF,
                              downsample=2
                              )
 
 if continuation_run:
-    Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in all_base_coils]
-    Jmscs = [MeanSquaredCurvature(c.curve) for c in all_base_coils]
+    Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils + base_coils_TF]
+    Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils + base_coils_TF]
 else:
     Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
     Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]

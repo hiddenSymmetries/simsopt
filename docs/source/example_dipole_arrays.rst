@@ -7,9 +7,16 @@ coils and a typically larger set of dipole (window-pane) coils. The idea is prim
 to reduce the complexity of the TF coils by using the dipole array. We also show
 how forces and torques can be included in the optimization.
 
-The approach employed here follows the work in two recent papers: `Reactor-scale stellarators with force and torque minimized dipole coils
-<https://arxiv.org/abs/2412.13937>`__ and `Optimization of passive superconductors for shaping stellarator magnetic fields
-<https://arxiv.org/abs/2501.12468>`__.
+The approach employed here follows the work in two recent papers:
+
+A. A. Kaptanoglu, A. Wiedman, J. Halpern, S. Hurwitz, E. J. Paul, and M. Landreman,
+"Reactor-scale stellarators with force and torque minimized dipole coils,"
+Nuclear Fusion 65, 046029 (2025).
+https://iopscience.iop.org/article/10.1088/1741-4326/adc318/meta
+
+A. A. Kaptanoglu, M. Landreman, and M. C. Zarnstorff, "Optimization of passive 
+superconductors for shaping stellarator magnetic fields," Phys. Rev. E 111, 065202 (2025).
+https://journals.aps.org/pre/abstract/10.1103/PhysRevE.111.065202
 
 Both of these papers have corresponding Zenodo datasets:
 https://zenodo.org/records/14934093
@@ -26,9 +33,6 @@ Advanced scripts for dipole array optimization can be found in the following fol
   ``examples/3_Advanced/dipole_coil_optimization/``.
 - Many more examples on passive dipole array optimization can be found in
   ``examples/3_Advanced/passive_coil_optimization/``.
-- Files for performing a large-scale scan of coil optimization (to run 1000's of coil optimizations)
-  can be found in
-  ``examples/3_Advanced/coil_force_optimization/``.
 
 .. _minimal_dipole_array_example:
 
@@ -108,15 +112,12 @@ the dipole coil center locations are constrained to lie on.
   base_wp_curves, base_tf_curves = generate_curves(s, VV, outdir=outdir)
 
 We still need to initialize proper coils, rather than just the base curves.
-First, we initialize some values for the finite cross-section of the coils 
-and the number of wire turns, for the purposes of calculating the forces at the end::
+First, we initialize some values for the finite cross-section of the coils:
 
   # wire cross section for the TF coils is a square 25 cm x 25 cm
   # Only need this if make self forces and B2Energy nonzero in the objective!
   a = 0.25
   b = 0.25
-  nturns = 100
-  nturns_TF = 200
 
   # wire cross section for the dipole coils should be at least 10 cm x 10 cm
   aa = 0.1
@@ -134,7 +135,9 @@ by ``coils_via_symmetries``::
   base_currents_TF += [total_current - sum(base_currents_TF)]
 
   # Create the TF coils
-  coils_TF = coils_via_symmetries(base_tf_curves, base_currents_TF, s.nfp, True)
+  regularization_TF = regularization_rect(a, b)
+  regularizations_TF = [regularization_TF for _ in range(ncoils_TF)]
+  coils_TF = coils_via_symmetries(base_tf_curves, base_currents_TF, s.nfp, s.stellsym, regularizations=regularizations_TF)
   base_coils_TF = coils_TF[:ncoils_TF]
   curves_TF = [c.curve for c in coils_TF]
 
@@ -151,7 +154,9 @@ of the dipole curve objects, so that they are not free to move around.::
   base_wp_currents = [Current(1.0) * 1e6 for i in range(ncoils)]
 
   # Create the dipole coils
-  coils = coils_via_symmetries(base_wp_curves, base_wp_currents, s.nfp, True)
+  regularization_wp = regularization_rect(aa, bb)
+  regularizations_wp = [regularization_wp for _ in range(ncoils)]
+  coils = coils_via_symmetries(base_wp_curves, base_wp_currents, s.nfp, s.stellsym, regularizations=regularizations_wp)
   base_coils = coils[:ncoils]
 
   # Create the dipole BiotSavart object 
@@ -289,15 +294,12 @@ dipole coils.
   s_inner.extend_via_normal(poff)
   s_outer.extend_via_normal(poff + coff)
 
-We now initialize some values for the finite cross-section of the coils 
-and the number of wire turns, for the purposes of calculating the forces at the end::
+We now initialize some values for the finite cross-section of the coils:
 
   # wire cross section for the TF coils is a square 25 cm x 25 cm
   # Only need this if make self forces and B2Energy nonzero in the objective!
   a = 0.2
   b = 0.2
-  nturns = 100
-  nturns_TF = 200
 
   # wire cross section for the dipole coils should be at least 10 cm x 10 cm
   aa = 0.1
@@ -395,7 +397,9 @@ about this script requires that the dipole coils are planar, or that the dipole 
       [c.fix_all() for c in base_currents]
 
   # Create the dipole coils and the BiotSavart object
-  coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+  regularization = regularization_rect(aa, bb)
+  regularizations = [regularization for _ in range(ncoils)]
+  coils = coils_via_symmetries(base_curves, base_currents, s.nfp, s.stellsym, regularizations=regularizations)
   base_coils = coils[:ncoils]
   bs = BiotSavart(coils)
   
@@ -470,15 +474,18 @@ the following terms:
   FORCE_WEIGHT2 = 0.0
   TORQUE_WEIGHT = 0.0
   TORQUE_WEIGHT2 = 0.0
-  regularization_list = [regularization_rect(aa, bb) for i in range(len(base_coils))] + \
-        [regularization_rect(a, b) for i in range(len(base_coils_TF))]
-  # Only compute the force and torque on the unique set of coils, otherwise
-  # you are doing too much work. Also downsample the coil quadrature points
-  # by a factor of 2 to save compute.
-  Jforce = LpCurveForce(all_base_coils, all_coils, regularization_list, downsample=2)
-  Jforce2 = SquaredMeanForce(all_base_coils, all_coils, downsample=2)
-  Jtorque = LpCurveTorque(all_base_coils, all_coils, regularization_list, downsample=2)
-  Jtorque2 = SquaredMeanTorque(all_base_coils, all_coils, downsample=2)
+
+  # source_coils_coarse are for coils that do not have many quadrature points.
+  # source_coils_fine are for coils that have many quadrature points.
+  # target_coils must all have the same number of quadrature points, so need to split up the coils into two sets.
+  Jforce = LpCurveForce(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2) \
+    + LpCurveForce(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2)
+  Jforce2 = SquaredMeanForce(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2) \
+    + SquaredMeanForce(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2)
+  Jtorque = LpCurveTorque(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2) \
+    + LpCurveTorque(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2)
+  Jtorque2 = SquaredMeanTorque(base_coils_TF, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2) \
+    + SquaredMeanTorque(base_coils, source_coils_coarse=coils, source_coils_fine=coils_TF, downsample=2)
 
   # Define the overall objective function
   JF = Jf \
@@ -566,7 +573,7 @@ which produces the following final results in Paraview.
 We can see that the forces are right at the material tolerances. 
 We now reoptimize, changing some parameters listed below to improve the forces and the accuracy of the solution::
 
-  FORCE_WEIGHT = 1e-18
+  FORCE_WEIGHT = 1e-6
   shape_fixed = False
   order = 2
   coff = 3.0
@@ -607,7 +614,7 @@ with self-consistently calculated currents at the beginning::
 Note lastly that the whole point is that the currents in the dipole coils are not degrees of freedom in the optimization,
 but are instead calculated self-consistently. So ``currents_fixed`` is no longer used as a flag. We use the parameters::
 
-  FORCE_WEIGHT = 1e-18
+  FORCE_WEIGHT = 1e-6
   shape_fixed = False
   order = 2
   coff = 3.0

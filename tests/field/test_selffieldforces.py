@@ -1195,20 +1195,17 @@ class CoilForcesTest(unittest.TestCase):
                                             base_currents_TF[i].fix_all()
                                         coils_TF = coils_via_symmetries(base_curves_TF, base_currents_TF, nfp, stellsym)
                                         base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym, R0=0.5, R1=0.1)
-                                        a_list = np.ones(len(base_curves)) * a
-                                        b_list = a_list
-                                        psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=nfp, stellsym=stellsym)
+                                        psc_array = PSCArray(base_curves, coils_TF, eval_points, regularizations=[regularization] * ncoils, nfp=nfp, stellsym=stellsym)
                                         coils = psc_array.coils
                                         coils_TF = psc_array.coils_TF
                                         btot = psc_array.biot_savart_total
                                         btot.set_points(eval_points)
-                                        regularization_list = [regularization for _ in coils]
                                         objectives = [
                                             SquaredFlux(s, btot),
-                                            LpCurveTorque(coils, coils_TF, regularization_list,
+                                            LpCurveTorque(coils, coils_TF,
                                                           p=p, threshold=threshold, psc_array=psc_array, downsample=downsample),
                                             SquaredMeanTorque(coils, coils_TF, psc_array=psc_array, downsample=downsample),
-                                            LpCurveForce(coils, coils_TF, regularization_list,
+                                            LpCurveForce(coils, coils_TF,
                                                          p=p, threshold=threshold, psc_array=psc_array, downsample=downsample),
                                             SquaredMeanForce(coils, coils_TF, psc_array=psc_array, downsample=downsample),
                                         ]
@@ -1259,63 +1256,63 @@ class CoilForcesTest(unittest.TestCase):
             for ncoils in ncoils_list:
                 for nfp in nfp_list:
                     for stellsym in stellsym_list:
-                        base_curves_TF = create_equally_spaced_curves(ncoils, nfp, stellsym)
-                        base_currents_TF = [Current(I) for j in range(ncoils)]
-                        for i in range(ncoils):
-                            base_currents_TF[i].fix_all()
-                        coils_TF = coils_via_symmetries(base_curves_TF, base_currents_TF, nfp, stellsym)
-                        base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym, R0=0.5, R1=0.1)
-                        a_list = np.ones(len(base_curves)) * a
-                        b_list = a_list
-                        psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=nfp, stellsym=stellsym)
-                        coils = psc_array.coils
-                        coils_TF = psc_array.coils_TF
-                        objectives = [
-                            B2Energy(coils[0], coils[1:], a=a, psc_array=psc_array),
-                        ]
-                        dofs = np.copy(B2Energy(coils[0], coils[1:], a=a, psc_array=psc_array).x)
-                        h = np.ones_like(dofs)
-                        for J in objectives:
-                            print(f"ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}, objective={type(J).__name__}")
-                            J.x = dofs
-                            psc_array.recompute_currents()
-                            dJ = J.dJ()
-                            deriv = np.sum(dJ * np.ones_like(J.x))
-                            errors = []
-                            epsilons = []
-                            label = f"{type(J).__name__}, ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}"
-                            for i in range(11, 18):
-                                eps = 0.5**i
-                                J.x = dofs + eps * h
+                        for reg_name, reg_func in regularization_types:
+                            regularization = reg_func()
+                            base_curves_TF = create_equally_spaced_curves(ncoils, nfp, stellsym)
+                            base_currents_TF = [Current(I) for j in range(ncoils)]
+                            for i in range(ncoils):
+                                base_currents_TF[i].fix_all()
+                            coils_TF = coils_via_symmetries(base_curves_TF, base_currents_TF, nfp, stellsym)
+                            base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym, R0=0.5, R1=0.1)
+                            psc_array = PSCArray(base_curves, coils_TF, eval_points, regularizations=[regularization] * ncoils, nfp=nfp, stellsym=stellsym)
+                            coils = psc_array.coils
+                            coils_TF = psc_array.coils_TF
+                            objectives = [
+                                B2Energy(coils[0], coils[1:], a=a, psc_array=psc_array),
+                            ]
+                            dofs = np.copy(B2Energy(coils[0], coils[1:], a=a, psc_array=psc_array).x)
+                            h = np.ones_like(dofs)
+                            for J in objectives:
+                                print(f"ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}, objective={type(J).__name__}")
+                                J.x = dofs
                                 psc_array.recompute_currents()
-                                Jp = J.J()
-                                J.x = dofs - eps * h
-                                psc_array.recompute_currents()
-                                Jm = J.J()
-                                deriv_est = (Jp - Jm) / (2 * eps)
-                                if np.abs(deriv) < 1e-8:
-                                    err_new = np.abs(deriv_est - deriv)
-                                else:
-                                    err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
-                                errors.append(err_new)
-                                epsilons.append(eps)
-                                if len(errors) > 1 and err_new > 1e-10:
-                                    ratio = (err_new + 1e-12) / (errors[-2] + 1e-12)
-                                    print(f"err: {err_new}, eps: {eps}, ratio: {ratio}")
-                            # Check convergence: use median to be robust to occasional spikes
-                            # Note: downsample=2 with stellsym=False can cause numerical instability due to subsampling
-                            # so we use a more lenient threshold for this case
-                            if len(errors) > 2:
-                                ratios = [(errors[i] + 1e-12) / (errors[i-1] + 1e-12) for i in range(1, len(errors)) if errors[i-1] > 1e-10]
-                                if len(ratios) > 0:
-                                    median_ratio = np.median(ratios)
-                                    # More lenient threshold for problematic combinations (PSC tests don't have downsample/stellsym vars, use default)
-                                    threshold = 1.5  # More lenient for PSC tests which can be more unstable
-                                    assert median_ratio < threshold, f"Median convergence ratio {median_ratio:.4f} too large (threshold={threshold}). Individual ratios: {ratios}"
-                                # If ratios list is empty, errors converged very quickly (all < 1e-10), which is good
-                            all_errors.append(errors)
-                            all_labels.append(label)
-                            all_eps.append(epsilons)
+                                dJ = J.dJ()
+                                deriv = np.sum(dJ * np.ones_like(J.x))
+                                errors = []
+                                epsilons = []
+                                label = f"{type(J).__name__}, ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}"
+                                for i in range(11, 18):
+                                    eps = 0.5**i
+                                    J.x = dofs + eps * h
+                                    psc_array.recompute_currents()
+                                    Jp = J.J()
+                                    J.x = dofs - eps * h
+                                    psc_array.recompute_currents()
+                                    Jm = J.J()
+                                    deriv_est = (Jp - Jm) / (2 * eps)
+                                    if np.abs(deriv) < 1e-8:
+                                        err_new = np.abs(deriv_est - deriv)
+                                    else:
+                                        err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
+                                    errors.append(err_new)
+                                    epsilons.append(eps)
+                                    if len(errors) > 1 and err_new > 1e-10:
+                                        ratio = (err_new + 1e-12) / (errors[-2] + 1e-12)
+                                        print(f"err: {err_new}, eps: {eps}, ratio: {ratio}")
+                                # Check convergence: use median to be robust to occasional spikes
+                                # Note: downsample=2 with stellsym=False can cause numerical instability due to subsampling
+                                # so we use a more lenient threshold for this case
+                                if len(errors) > 2:
+                                    ratios = [(errors[i] + 1e-12) / (errors[i-1] + 1e-12) for i in range(1, len(errors)) if errors[i-1] > 1e-10]
+                                    if len(ratios) > 0:
+                                        median_ratio = np.median(ratios)
+                                        # More lenient threshold for problematic combinations (PSC tests don't have downsample/stellsym vars, use default)
+                                        threshold = 1.5  # More lenient for PSC tests which can be more unstable
+                                        assert median_ratio < threshold, f"Median convergence ratio {median_ratio:.4f} too large (threshold={threshold}). Individual ratios: {ratios}"
+                                    # If ratios list is empty, errors converged very quickly (all < 1e-10), which is good
+                                all_errors.append(errors)
+                                all_labels.append(label)
+                                all_eps.append(epsilons)
         # Plot all errors
         plt.figure(figsize=(14, 8))
         for errors, label, epsilons in zip(all_errors, all_labels, all_eps):

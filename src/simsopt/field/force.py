@@ -939,9 +939,12 @@ class SquaredMeanForce(Optimizable):
             total number of quadrature points (since this will produce a nonuniform set of points). 
             This parameter is used to speed up expensive calculations during optimization, 
             while retaining higher accuracy for the other objectives. 
+        psc_array (PSCArray, optional): 
+            PSCArray object for passive coil optimization. If provided, target_coils should be
+            the passive coils and the current derivatives use the PSC Jacobian. Default: None.
     """
 
-    def __init__(self, target_coils, source_coils_coarse, source_coils_fine=None, downsample: int = 1):
+    def __init__(self, target_coils, source_coils_coarse, source_coils_fine=None, downsample: int = 1, psc_array=None):
         if not isinstance(target_coils, list):
             target_coils = [target_coils]
         if not isinstance(source_coils_coarse, list):
@@ -957,6 +960,7 @@ class SquaredMeanForce(Optimizable):
             raise ValueError("source_coils_coarse and source_coils_fine must together contain at least one coil not in target_coils.")
         self.source_coils_fine = [c for c in self.source_coils_fine if c not in self.source_coils_coarse]
         self.source_coils = self.source_coils_coarse + self.source_coils_fine
+        self.psc_array = psc_array
 
         # Check that the coils in each list of coils (target_coils, source_coils_coarse, source_coils_fine) 
         # all have the same number of quadrature points and that the downsample factor is a valid
@@ -1046,7 +1050,10 @@ class SquaredMeanForce(Optimizable):
         dJ_dgammadash_fine = self.dJ_dgammadash_sources_fine(*args)
         dJ_dcurrent_fine = self.dJ_dcurrent_sources_fine(*args)
 
-        vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent_targets[i]])) for i, c in enumerate(self.target_coils)])
+        if self.psc_array is not None:
+            vjp = self.psc_array.vjp_setup(np.array(dJ_dcurrent_targets))
+        else:
+            vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent_targets[i]])) for i, c in enumerate(self.target_coils)])
         dJ = (
             sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma_targets[i]) for i, c in enumerate(self.target_coils)])
             + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash_targets[i]) for i, c in enumerate(self.target_coils)])
@@ -1254,9 +1261,12 @@ class LpCurveForce(Optimizable):
             total number of quadrature points (since this will produce a nonuniform set of points). 
             This parameter is used to speed up expensive calculations during optimization, 
             while retaining higher accuracy for the other objectives. 
+        psc_array (PSCArray, optional): 
+            PSCArray object for passive coil optimization. If provided, target_coils should be
+            the passive coils and the current derivatives use the PSC Jacobian. Default: None.
     """
 
-    def __init__(self, target_coils, source_coils_coarse, source_coils_fine=None, p: float = 2.0, threshold: float = 0.0, downsample: int = 1):
+    def __init__(self, target_coils, source_coils_coarse, source_coils_fine=None, p: float = 2.0, threshold: float = 0.0, downsample: int = 1, psc_array=None):
         if not isinstance(target_coils, list):
             target_coils = [target_coils]
         if not isinstance(source_coils_coarse, list):
@@ -1275,6 +1285,7 @@ class LpCurveForce(Optimizable):
             raise ValueError("source_coils_coarse and source_coils_fine must together contain at least one coil not in target_coils.")
         self.source_coils_fine = [c for c in self.source_coils_fine if c not in self.source_coils_coarse]
         self.source_coils = self.source_coils_coarse + self.source_coils_fine
+        self.psc_array = psc_array
 
         # Check that the coils in each list of coils (target_coils, source_coils_coarse, source_coils_fine) 
         # all have the same number of quadrature points and that the downsample factor is a valid
@@ -1366,7 +1377,10 @@ class LpCurveForce(Optimizable):
         dJ_dgammadash_fine = self.dJ_dgammadash_fine(*args)
         dJ_dcurrent_fine = self.dJ_dcurrent_fine(*args)
 
-        vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent_targets[i]])) for i, c in enumerate(self.target_coils)])
+        if self.psc_array is not None:
+            vjp = self.psc_array.vjp_setup(np.array(dJ_dcurrent_targets))
+        else:
+            vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent_targets[i]])) for i, c in enumerate(self.target_coils)])
         dJ = (
             sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma_targets[i]) for i, c in enumerate(self.target_coils)])
             + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash_targets[i]) for i, c in enumerate(self.target_coils)])
@@ -1570,9 +1584,12 @@ class LpCurveTorque(Optimizable):
             total number of quadrature points (since this will produce a nonuniform set of points). 
             This parameter is used to speed up expensive calculations during optimization, 
             while retaining higher accuracy for the other objectives. 
+        psc_array (PSCArray, optional): 
+            PSCArray object for passive coil optimization. If provided, target_coils should be
+            the passive coils and the current derivatives use the PSC Jacobian. Default: None.
     """
 
-    def __init__(self, target_coils, source_coils_coarse, source_coils_fine=None, p: float = 2.0, threshold: float = 0.0, downsample: int = 1):
+    def __init__(self, target_coils, source_coils_coarse, source_coils_fine=None, p: float = 2.0, threshold: float = 0.0, downsample: int = 1, psc_array=None):
         if not isinstance(target_coils, list):
             target_coils = [target_coils]
         if not isinstance(source_coils_coarse, list):
@@ -1591,6 +1608,7 @@ class LpCurveTorque(Optimizable):
             raise ValueError("source_coils_coarse and source_coils_fine must together contain at least one coil not in target_coils.")
         self.source_coils_fine = [c for c in self.source_coils_fine if c not in self.source_coils_coarse]
         self.source_coils = self.source_coils_coarse + self.source_coils_fine
+        self.psc_array = psc_array
 
         # Check that the coils in each list of coils (target_coils, source_coils_coarse, source_coils_fine) 
         # all have the same number of quadrature points and that the downsample factor is a valid
@@ -1682,7 +1700,10 @@ class LpCurveTorque(Optimizable):
         dJ_dgammadash_fine = self.dJ_dgammadash_fine(*args)
         dJ_dcurrent_fine = self.dJ_dcurrent_fine(*args)
 
-        vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent_targets[i]])) for i, c in enumerate(self.target_coils)])
+        if self.psc_array is not None:
+            vjp = self.psc_array.vjp_setup(np.array(dJ_dcurrent_targets))
+        else:
+            vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent_targets[i]])) for i, c in enumerate(self.target_coils)])
         dJ = (
             sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma_targets[i]) for i, c in enumerate(self.target_coils)])
             + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash_targets[i]) for i, c in enumerate(self.target_coils)])
@@ -1860,12 +1881,12 @@ class SquaredMeanTorque(Optimizable):
             total number of quadrature points (since this will produce a nonuniform set of points). 
             This parameter is used to speed up expensive calculations during optimization, 
             while retaining higher accuracy for the other objectives. 
-
-    Returns:
-        float: Value of the objective function.
+        psc_array (PSCArray, optional): 
+            PSCArray object for passive coil optimization. If provided, target_coils should be
+            the passive coils and the current derivatives use the PSC Jacobian. Default: None.
     """
 
-    def __init__(self, target_coils, source_coils_coarse, source_coils_fine=None, downsample: int = 1):
+    def __init__(self, target_coils, source_coils_coarse, source_coils_fine=None, downsample: int = 1, psc_array=None):
         if not isinstance(target_coils, list):
             target_coils = [target_coils]
         if not isinstance(source_coils_coarse, list):
@@ -1881,6 +1902,7 @@ class SquaredMeanTorque(Optimizable):
             raise ValueError("source_coils_coarse and source_coils_fine must together contain at least one coil not in target_coils.")
         self.source_coils_fine = [c for c in self.source_coils_fine if c not in self.source_coils_coarse]
         self.source_coils = self.source_coils_coarse + self.source_coils_fine
+        self.psc_array = psc_array
 
         # Check that the coils in each list of coils (target_coils, source_coils_coarse, source_coils_fine) 
         # all have the same number of quadrature points and that the downsample factor is a valid
@@ -1970,7 +1992,10 @@ class SquaredMeanTorque(Optimizable):
         dJ_dgammadash_fine = self.dJ_dgammadash_fine(*args)
         dJ_dcurrent_fine = self.dJ_dcurrent_fine(*args)
 
-        vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent_targets[i]])) for i, c in enumerate(self.target_coils)])
+        if self.psc_array is not None:
+            vjp = self.psc_array.vjp_setup(np.array(dJ_dcurrent_targets))
+        else:
+            vjp = sum([c.current.vjp(jnp.asarray([dJ_dcurrent_targets[i]])) for i, c in enumerate(self.target_coils)])
         dJ = (
             sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgamma_targets[i]) for i, c in enumerate(self.target_coils)])
             + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadash_targets[i]) for i, c in enumerate(self.target_coils)])
