@@ -26,7 +26,6 @@ if TYPE_CHECKING:
 
 __all__ = [
     'current_potential_at_point',
-    'grad_current_potential_at_point',
     'genCPvals',
     'genKvals',
     'load_regcoil_data',
@@ -37,35 +36,18 @@ __all__ = [
     'minDist',
     'chooseContours_matching_coilType',
     'sortLevels',
-    'points_in_polygon',
     'map_data_to_more_periods',
     'map_data_to_more_periods_3x1',
     'ID_and_cut_contour_types',
-    'ID_mod_hel',
     'ID_halfway_contour',
     'compute_baseline_WP_currents',
     'check_and_compute_nested_WP_currents',
-    'real_space',
     'SIMSOPT_line_XYZ_RZ',
     'REGCOIL_line_XYZ_RZ',
     'writeToCurve',
     'writeToCurve_helical',
-    'gen_parametrization',
-    'splice_curve_fourier_coeffs',
-    'get1DFourierSinCosComps',
-    'getCurveOrder',
     'set_axes_equal',
-    'box_field_period',
-    'ClosePlot',
-    'open_writeto_file',
-    'close_writeto_file',
     'writeContourToFile',
-    'read_surface',
-    'curves_to_vtk_w_pointdata',
-    'load_surface_dofs_properly',
-    'load_coils_from_json',
-    'removearray',
-    'generate_sunflower',
     'make_onclick',
     'make_onpick',
     'make_on_key',
@@ -108,7 +90,7 @@ def current_potential_at_point(x: np.ndarray, args: tuple) -> float:
     return float(phi[0]) if isinstance(phi, np.ndarray) else float(phi)
 
 
-def grad_current_potential_at_point(x: np.ndarray, args: tuple) -> float:
+def _grad_current_potential_at_point(x: np.ndarray, args: tuple) -> float:
     """
     Evaluate |∇φ| (magnitude of current potential gradient) at (θ, ζ).
 
@@ -200,9 +182,9 @@ def genKvals(
     foo_NSV = np.zeros((nT, nZ))
     for i in range(nT):
         for j in range(nZ):
-            foo[i, j] = grad_current_potential_at_point([thetas[i], zetas[j]], args)
-            foo_SV[i, j] = grad_current_potential_at_point([thetas[i], zetas[j]], args_SV)
-            foo_NSV[i, j] = grad_current_potential_at_point([thetas[i], zetas[j]], args_NSV)
+            foo[i, j] = _grad_current_potential_at_point([thetas[i], zetas[j]], args)
+            foo_SV[i, j] = _grad_current_potential_at_point([thetas[i], zetas[j]], args_SV)
+            foo_NSV[i, j] = _grad_current_potential_at_point([thetas[i], zetas[j]], args_NSV)
     return (thetas, zetas, foo.T, foo_SV.T, foo_NSV.T, ARGS)
 
 
@@ -364,6 +346,46 @@ def load_from_CP_object(
     ]
 
 
+def _load_surface_dofs_properly(s, s_new):
+    """
+    Copy surface Fourier coefficients from s to s_new with correct indexing.
+
+    Handles the mapping between full-torus and field-period surface
+    representations (quadpoint ordering differs).
+
+    Args:
+        s: Source SurfaceRZFourier (full torus).
+        s_new: Target SurfaceRZFourier (field period).
+
+    Returns:
+        s_new with DOFs set from s.
+    """
+    xm_coil = s.m
+    xn_coil = s.n
+    s_new.set_dofs(0 * s.get_dofs())
+    rc_ = s.rc.copy()
+    rc_[0, :] = rc_[0, ::-1]
+    rs_ = s.rs.copy()
+    rs_[0, :] = rs_[0, ::-1]
+    zc_ = s.zc.copy()
+    zc_[0, :] = zc_[0, ::-1]
+    zs_ = s.zs.copy()
+    zs_[0, :] = zs_[0, ::-1]
+    for im in range(len(xm_coil)):
+        m = xm_coil[im]
+        n = xn_coil[im]
+        rc = rc_[m, n + s.ntor]
+        rs = rs_[m, n + s.ntor]
+        zc = zc_[m, n + s.ntor]
+        zs = zs_[m, n + s.ntor]
+        s_new.set_rc(xm_coil[im], xn_coil[im], rc)
+        s_new.set_zs(xm_coil[im], xn_coil[im], zs)
+        if not s.stellsym:
+            s_new.set_rs(xm_coil[im], xn_coil[im], rs)
+            s_new.set_zc(xm_coil[im], xn_coil[im], zc)
+    return s_new
+
+
 def load_CP_and_geometries(
     filename: str,
     plot_flags: tuple = (0, 0, 0, 0),
@@ -434,7 +456,7 @@ def load_CP_and_geometries(
     s_coil_fp.set_dofs(s_coil_full.x)
 
     if loadDOFsProperly:
-        s_coil_fp = load_surface_dofs_properly(s=s_coil_full, s_new=s_coil_fp)
+        s_coil_fp = _load_surface_dofs_properly(s=s_coil_full, s_new=s_coil_fp)
 
     if plot_flags[0]:
         plot([s_coil_fp], alpha=0.5)
@@ -484,8 +506,17 @@ def minDist(pt: np.ndarray, line: np.ndarray) -> float:
     return float(np.min(dists))
 
 
-def removearray(L: list, arr: np.ndarray) -> None:
-    """Remove the first list element that equals arr (by value)."""
+def _removearray(L: list, arr: np.ndarray) -> None:
+    """
+    Remove the first list element that equals arr (by value).
+
+    Args:
+        L: List of arrays (modified in place).
+        arr: Array to remove (matched by np.array_equal).
+
+    Raises:
+        ValueError: If arr is not found in L.
+    """
     for ind in range(len(L)):
         if np.array_equal(L[ind], arr):
             L.pop(ind)
@@ -494,7 +525,16 @@ def removearray(L: list, arr: np.ndarray) -> None:
 
 
 def sortLevels(levels: list, points: list) -> tuple:
-    """Sort levels and points by level value (ascending)."""
+    """
+    Sort levels and points by level value (ascending).
+
+    Args:
+        levels: List of contour level values.
+        points: List of (θ, ζ) points corresponding to each level.
+
+    Returns:
+        Tuple of (levels_sorted, points_sorted) with same lengths as inputs.
+    """
     indexing = np.argsort(levels)
     levels = [levels[i] for i in indexing]
     points = [np.asarray(points[i]) for i in indexing]
@@ -527,7 +567,7 @@ def chooseContours_matching_coilType(lines: list, ctype: str) -> list:
     return ret
 
 
-def points_in_polygon(
+def _points_in_polygon(
     coords: tuple,
     zdata,
     polygon: np.ndarray,
@@ -621,7 +661,7 @@ def map_data_to_more_periods_3x1(
     return (xN, yN, ret)
 
 
-def ID_mod_hel(contours: list, tol: float = 0.05) -> tuple:
+def _ID_mod_hel(contours: list, tol: float = 0.05) -> tuple:
     """
     Classify open contours as modular (1), helical (2), or vacuum-field (3).
 
@@ -676,7 +716,7 @@ def ID_and_cut_contour_types(contours: list) -> tuple:
             type_array.append(1)
     Open_contours = [contours[i] for i in lineInt]
     Closed_contours = [contours[i] for i in surfInt]
-    names, idcs = ID_mod_hel(Open_contours)
+    names, idcs = _ID_mod_hel(Open_contours)
     for i in range(len(Open_contours)):
         type_array[lineInt[i]] = idcs[i]
     return (Open_contours, Closed_contours, type_array)
@@ -723,7 +763,7 @@ def ID_halfway_contour(
         paths = _contour_paths(CS, 0)
         halfway_contours.append(paths[0])
     if not do_plot:
-        ClosePlot(plt)
+        plt.close()
     else:
         ax.figure.canvas.draw()
         plt.show()
@@ -760,7 +800,7 @@ def compute_baseline_WP_currents(
     for cont in closed_contours:
         t = np.linspace(np.min(cont[:, 0]), np.max(cont[:, 0]), res)
         z = np.linspace(np.min(cont[:, 1]), np.max(cont[:, 1]), res)
-        i1_ret, i2_ret, BOOL = points_in_polygon([t, z], None, cont)
+        i1_ret, i2_ret, BOOL = _points_in_polygon([t, z], None, cont)
         coordinates = np.vstack([t[i1_ret], z[i2_ret]]).T
         COORDS.append(coordinates)
         func_vals = [current_potential_at_point(pt, args) for pt in coordinates]
@@ -848,7 +888,7 @@ def check_and_compute_nested_WP_currents(
 # Geometry and curve conversion
 # =============================================================================
 
-def real_space(
+def _real_space(
     nharmonics: int,
     coeff_array: np.ndarray,
     polAng: np.ndarray,
@@ -892,7 +932,18 @@ def REGCOIL_line_XYZ_RZ(
     polAng: np.ndarray,
     torAng: np.ndarray,
 ) -> tuple:
-    """Map (θ, ζ) to (X, Y, R, Z) using REGCOIL coefficient format."""
+    """
+    Map (θ, ζ) to (X, Y, R, Z) using REGCOIL coefficient format.
+
+    Args:
+        nharmonics: Number of Fourier modes.
+        coeff_array: Coefficient array (REGCOIL format: n, m, rc, rs, zs, zc).
+        polAng: Poloidal angles θ.
+        torAng: Toroidal angles ζ.
+
+    Returns:
+        (X, Y, R, Z) Cartesian and cylindrical coordinates.
+    """
     nn = len(torAng)
     RR = np.zeros(nn)
     ZZ = np.zeros(nn)
@@ -942,99 +993,6 @@ def SIMSOPT_line_XYZ_RZ(surf, coords: tuple) -> tuple:
     RR = np.sqrt(XX**2 + YY**2)
     ZZ = data[:, 2]
     return (XX, YY, RR, ZZ)
-
-
-def gen_parametrization(xdata: np.ndarray) -> np.ndarray:
-    """Arc-length parametrization s from cumulative |dx|."""
-    ds = np.abs(np.diff(xdata))
-    ds = np.insert(ds, 0, 0)
-    s = np.cumsum(ds)
-    return s
-
-
-def splice_curve_fourier_coeffs(Ws: np.ndarray, Wc: np.ndarray) -> np.ndarray:
-    """Interleave cos and sin coefficients for CurveXYZFourier (stellarator-symmetric)."""
-    coeffs = np.empty(Ws.size + Wc.size - 1, dtype=Ws.dtype)
-    coeffs[0::2] = Wc
-    coeffs[1::2] = Ws[1:]
-    return coeffs
-
-
-def get1DFourierSinCosComps(
-    numT: int,
-    signal: np.ndarray,
-    plot: tuple,
-    forward: bool,
-    trunc: int,
-) -> list:
-    """
-    FFT-based Fourier (cos, sin) decomposition of a 1D signal.
-
-    Args:
-        numT: Number of sample points.
-        signal: 1D signal.
-        plot: (plot_error, plot_recreation).
-        forward: Unused (legacy).
-        trunc: Number of modes to keep (-1 for all).
-
-    Returns:
-        [Amat, Bmat, eM, recreation].
-    """
-    from scipy.fftpack import fft, fftfreq, fftshift
-
-    pi = np.pi
-    T = np.linspace(0, 2 * pi, numT, endpoint=False)
-    signal2 = signal
-    signal2_fft2 = fft(signal2)
-    dT = T[1] - T[0]
-    wavenumT = fftfreq(numT, dT)
-    m = 2 * pi * wavenumT
-    M = m.copy()
-    power2 = np.sqrt(np.real(signal2_fft2)**2 + np.imag(signal2_fft2)**2) / (numT / 2)
-    phase2 = np.arctan2(np.imag(signal2_fft2), np.real(signal2_fft2))
-    Amps = power2
-    varphi = -phase2
-    A = Amps * np.cos(varphi)
-    B = Amps * np.sin(varphi)
-    Ash = fftshift(A)
-    Bsh = fftshift(B)
-    Msh = fftshift(M)
-    Amat = Ash[numT // 2:]
-    Bmat = Bsh[numT // 2:]
-    eM = Msh[numT // 2:]
-    Amat[0] /= 2
-    Bmat[0] /= 2
-    if trunc != -1:
-        trunc = int(trunc)
-        Amat = Amat[:trunc]
-        Bmat = Bmat[:trunc]
-        eM = eM[:trunc]
-    recreation = np.zeros(len(signal), dtype=float)
-    for i in range(numT):
-        recreation[i] = np.sum(Amat * np.cos(eM * T[i]) + Bmat * np.sin(eM * T[i]))
-    if plot[0] or plot[1]:
-        plt.figure()
-        plt.plot(T, np.abs(signal2 - recreation))
-        plt.plot(T, np.abs(signal2))
-        plt.show()
-    return [Amat, Bmat, eM, recreation]
-
-
-def getCurveOrder(xdata: np.ndarray, number_coeffs: int, verb: bool = False) -> int:
-    """Find CurveXYZFourier order that matches given number of DOFs."""
-    from simsopt.geo import CurveXYZFourier
-    for i in range(100):
-        curve = CurveXYZFourier(quadpoints=xdata, order=i)
-        if verb:
-            print('ORD', i, len(curve.x))
-        if len(curve.x) == number_coeffs:
-            return i
-        if i > len(curve.x):
-            print('Cannot match order! Check number of dofs passed to curve.')
-            return -1
-    if verb:
-        print('NO MATCHING CURVE ORDER!')
-    return -1
 
 
 def writeToCurve(
@@ -1235,6 +1193,9 @@ def set_axes_equal(ax) -> None:
     Make 3D axes have equal scale (spheres appear spherical).
 
     Workaround for matplotlib's set_aspect('equal') not working in 3D.
+
+    Args:
+        ax: Matplotlib 3D axes instance.
     """
     x_limits = ax.get_xlim3d()
     y_limits = ax.get_ylim3d()
@@ -1251,48 +1212,20 @@ def set_axes_equal(ax) -> None:
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 
-def box_field_period(ax, lims: list, ret: bool = False):
-    """Draw a dashed box on ax for the field period [x1,y1] or [x0,x1,y0,y1]."""
-    if len(lims) == 2:
-        x0, y0 = 0, 0
-        x1, y1 = lims
-    else:
-        x0, x1, y0, y1 = lims
-    ax.plot([x0, x1], [y0, y0], color='k', linestyle='--', linewidth=3)
-    ax.plot([x0, x1], [y1, y1], color='k', linestyle='--', linewidth=3)
-    ax.plot([x0, x0], [y0, y1], color='k', linestyle='--', linewidth=3)
-    ax.plot([x1, x1], [y0, y1], color='k', linestyle='--', linewidth=3)
-    if ret:
-        return np.vstack([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]])
-
-
 def _contour_paths(cdata, level_idx: int = 0) -> list:
-    """Get contour path vertices (matplotlib version-agnostic)."""
+    """
+    Get contour path vertices (matplotlib version-agnostic).
+
+    Args:
+        cdata: Matplotlib contour object (ContourSet).
+        level_idx: Index of the contour level.
+
+    Returns:
+        List of Nx2 arrays, one per contour path at that level.
+    """
     if hasattr(cdata, 'allsegs') and level_idx < len(cdata.allsegs):
         return list(cdata.allsegs[level_idx])
     return [p.vertices for p in cdata.collections[level_idx].get_paths()]
-
-
-def ClosePlot(plt_module) -> None:
-    """Close figure without blocking."""
-    plt_module.show(block=False)
-    plt_module.pause(0.0001)
-    plt_module.close()
-
-
-def open_writeto_file(filename: str, nfp: np.ndarray):
-    """Open a coil output file (legacy format) and write header."""
-    f = open(filename, 'w')
-    f.write('periods ' + str(nfp[0]) + '\n')
-    f.write('begin filament\n')
-    f.write('mirror NIL\n')
-    return f
-
-
-def close_writeto_file(filehandler) -> None:
-    """Close coil output file."""
-    filehandler.write('END \n')
-    filehandler.close()
 
 
 def writeContourToFile(
@@ -1301,137 +1234,39 @@ def writeContourToFile(
     level: float,
     args: tuple,
 ) -> None:
-    """Write one contour to a coil file (legacy format)."""
+    """
+    Write one contour to a coil file (legacy format).
+
+    Args:
+        file: Open file handle for writing.
+        contour: Nx2 (θ, ζ) contour points.
+        level: Contour level value.
+        args: (mtotal, surface_array, ctype) for REGCOIL-style conversion.
+    """
     mtotal, surface_array, ctype = args
     contour_theta = contour[:, 0]
     contour_zeta = contour[:, 1]
-    X, Y, R, Z = real_space(mtotal, surface_array, contour_theta, contour_zeta)
+    X, Y, R, Z = _real_space(mtotal, surface_array, contour_theta, contour_zeta)
     for ii in range(len(X) - 1):
         file.write(f'{X[ii]:23.15E} {Y[ii]:23.15E} {Z[ii]:23.15E} {level:23.15E}\n')
     file.write(f'{X[0]:23.15E} {Y[0]:23.15E} {Z[0]:23.15E} {0.0:23.15E} 1 {ctype}\n')
 
 
-def read_surface(file_name: str) -> tuple:
-    """Read REGCOIL-style surface from nescin file. Returns (nharmonics, coeff_array)."""
-    with open(file_name, 'r') as fo:
-        fo.readline()
-        nharmonics = int(fo.readline().split()[0])
-        fo.readline()
-        fo.readline()
-        read_array = np.zeros((nharmonics, 6))
-        for i in range(nharmonics):
-            element = fo.readline().split()
-            for j in range(6):
-                read_array[i, j] = float(element[j])
-    return (nharmonics, read_array)
-
-
-def curves_to_vtk_w_pointdata(
-    curves: list,
-    filename: str,
-    close: bool = False,
-    pointData: list = None,
-) -> None:
-    """
-    Export curves to VTK with optional point data (e.g. currents).
-
-    Requires pyevtk.
-    """
-    from pyevtk.hl import polyLinesToVTK
-
-    def wrap(data):
-        return np.concatenate([data, [data[0]]])
-
-    if close:
-        x = np.concatenate([wrap(c.gamma()[:, 0]) for c in curves])
-        y = np.concatenate([wrap(c.gamma()[:, 1]) for c in curves])
-        z = np.concatenate([wrap(c.gamma()[:, 2]) for c in curves])
-        ppl = np.asarray([c.gamma().shape[0] + 1 for c in curves])
-    else:
-        x = np.concatenate([c.gamma()[:, 0] for c in curves])
-        y = np.concatenate([c.gamma()[:, 1] for c in curves])
-        z = np.concatenate([c.gamma()[:, 2] for c in curves])
-        ppl = np.asarray([c.gamma().shape[0] for c in curves])
-    if pointData is not None:
-        data = np.concatenate([pointData[i] * np.ones((ppl[i],)) for i in range(len(curves))])
-        polyLinesToVTK(filename, x, y, z, pointsPerLine=ppl, pointData={"Currents": data})
-    else:
-        polyLinesToVTK(filename, x, y, z, pointsPerLine=ppl)
-
-
-def load_surface_dofs_properly(s, s_new):
-    """Copy surface Fourier coefficients with correct (m,n) indexing."""
-    xm_coil = s.m
-    xn_coil = s.n
-    s_new.set_dofs(0 * s.get_dofs())
-    rc_ = s.rc.copy()
-    rc_[0, :] = rc_[0, ::-1]
-    rs_ = s.rs.copy()
-    rs_[0, :] = rs_[0, ::-1]
-    zc_ = s.zc.copy()
-    zc_[0, :] = zc_[0, ::-1]
-    zs_ = s.zs.copy()
-    zs_[0, :] = zs_[0, ::-1]
-    for im in range(len(xm_coil)):
-        m = xm_coil[im]
-        n = xn_coil[im]
-        rc = rc_[m, n + s.ntor]
-        rs = rs_[m, n + s.ntor]
-        zc = zc_[m, n + s.ntor]
-        zs = zs_[m, n + s.ntor]
-        s_new.set_rc(xm_coil[im], xn_coil[im], rc)
-        s_new.set_zs(xm_coil[im], xn_coil[im], zs)
-        if not s.stellsym:
-            s_new.set_rs(xm_coil[im], xn_coil[im], rs)
-            s_new.set_zc(xm_coil[im], xn_coil[im], zc)
-    return s_new
-
-
-def load_coils_from_json(file: str, do_plot: bool = False) -> tuple:
-    """Load coils from a JSON file (simsopt save format). Returns (Curves, Currents, Coils)."""
-    import json
-    from simsopt.geo import CurveXYZFourier, plot
-    from simsopt.field import Current, Coil
-
-    with open(file) as f:
-        data = json.load(f)
-    Curves = []
-    Currents = []
-    for i in range(len(data)):
-        x0 = data[i]['curve']['x0']
-        order = data[i]['curve']['order']
-        quap = data[i]['curve']['quadpoints']
-        II = data[i]['current']['current']
-        newCurve = CurveXYZFourier(quap, order)
-        newCurve.x = x0
-        Curves.append(newCurve)
-        Currents.append(Current(II))
-    Coils = [Coil(curv, curr) for (curv, curr) in zip(Curves, Currents)]
-    if do_plot:
-        fig = plt.figure()
-        ax = fig.gca(projection='3d')
-        ax.set_title(file, fontsize=10)
-        plot(Coils, engine="matplotlib", ax=ax, close=True, show=True, linewidth=3.5)
-        plt.show()
-    return (Curves, Currents, Coils)
-
-
-def generate_sunflower(number: int, radius: float, plot: bool = False) -> np.ndarray:
-    """Generate sunflower (Fibonacci) point distribution in a disk. Returns 2xN array."""
-    a = radius
-    golden = (1 + 5**0.5) / 2
-    _theta = (2 * np.pi / (golden**2)) * np.arange(number)
-    c = a / np.sqrt(number)
-    _r = c * np.sqrt(np.arange(number))
-    Sunflower = np.zeros((2, number))
-    Sunflower[0, :] = _r * np.cos(_theta)
-    Sunflower[1, :] = _r * np.sin(_theta)
-    return Sunflower
-
-
 # Interactive contour selection callbacks (used by CutCoils example)
 def make_onclick(ax, args, contours, theta_coil, zeta_coil, current_potential):
-    """Factory for double-click contour selection callback."""
+    """
+    Factory for double-click contour selection callback.
+
+    Args:
+        ax: Matplotlib axes.
+        args: Current potential args.
+        contours: List to append selected contour to.
+        theta_coil, zeta_coil: 1D grids for contour plot.
+        current_potential: 2D current potential array.
+
+    Returns:
+        Callback function for connect('button_press_event').
+    """
 
     def onclick(event):
         if event.dblclick:
@@ -1454,7 +1289,15 @@ def make_onclick(ax, args, contours, theta_coil, zeta_coil, current_potential):
 
 
 def make_onpick(contours):
-    """Factory for pick event (store picked artist)."""
+    """
+    Factory for pick event (store picked artist).
+
+    Args:
+        contours: Unused; kept for API compatibility with make_on_key.
+
+    Returns:
+        Callback function for connect('pick_event').
+    """
 
     def onpick(event):
         plt.gca().picked_object = event.artist
@@ -1463,14 +1306,22 @@ def make_onpick(contours):
 
 
 def make_on_key(contours):
-    """Factory for key press (delete picked contour)."""
+    """
+    Factory for key press (delete picked contour).
+
+    Args:
+        contours: List of contours; removes the picked contour on 'delete' key.
+
+    Returns:
+        Callback function for connect('key_press_event').
+    """
 
     def on_key(event):
         if event.key == 'delete':
             ax = plt.gca()
             if hasattr(ax, 'picked_object') and ax.picked_object is not None:
                 arr = ax.picked_object.get_xydata()
-                removearray(contours, arr)
+                _removearray(contours, arr)
                 ax.picked_object.remove()
                 ax.picked_object = None
                 ax.figure.canvas.draw()

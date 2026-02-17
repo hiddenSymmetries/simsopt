@@ -11,36 +11,41 @@ import numpy as np
 from pathlib import Path
 
 from simsopt.util.winding_surface_helper_functions import (
+    load_from_CP_object,
+    load_simsopt_regcoil_data,
     load_CP_and_geometries,
     current_potential_at_point,
-    grad_current_potential_at_point,
+    _grad_current_potential_at_point,
     genCPvals,
     genKvals,
     is_periodic_lines,
     minDist,
     sortLevels,
     chooseContours_matching_coilType,
-    points_in_polygon,
+    _points_in_polygon,
     map_data_to_more_periods,
     map_data_to_more_periods_3x1,
-    ID_mod_hel,
+    _ID_mod_hel,
     ID_and_cut_contour_types,
-    removearray,
-    gen_parametrization,
-    splice_curve_fourier_coeffs,
-    get1DFourierSinCosComps,
-    getCurveOrder,
+    ID_halfway_contour,
+    _removearray,
     compute_baseline_WP_currents,
     check_and_compute_nested_WP_currents,
-    real_space,
+    _real_space,
     REGCOIL_line_XYZ_RZ,
     SIMSOPT_line_XYZ_RZ,
     writeToCurve,
     writeToCurve_helical,
-    generate_sunflower,
-    box_field_period,
     load_regcoil_data,
+    set_axes_equal,
+    writeContourToFile,
+    _load_surface_dofs_properly,
+    make_onclick,
+    make_onpick,
+    make_on_key,
 )
+# Import private function for testing fallback path
+from simsopt.util.winding_surface_helper_functions import _contour_paths
 
 TEST_DIR = Path(__file__).resolve().parent.parent / "test_files"
 
@@ -86,18 +91,18 @@ class TestCurrentPotentialAtPoint(unittest.TestCase):
 
 
 class TestGradCurrentPotentialAtPoint(unittest.TestCase):
-    """Tests for grad_current_potential_at_point."""
+    """Tests for _grad_current_potential_at_point."""
 
     def test_constant_potential_zero_grad(self):
         """Constant potential has zero gradient."""
         args = (0, 0, np.array([0]), np.array([0]), np.array([0.0]), np.array([0.0]), np.array([4]))
-        val = grad_current_potential_at_point(np.array([0.5, 0.3]), args)
+        val = _grad_current_potential_at_point(np.array([0.5, 0.3]), args)
         self.assertAlmostEqual(val, 0.0)
 
     def test_returns_positive(self):
         """|∇φ| is non-negative."""
         args = _make_args()
-        val = grad_current_potential_at_point(np.array([0.5, 0.3]), args)
+        val = _grad_current_potential_at_point(np.array([0.5, 0.3]), args)
         self.assertGreaterEqual(val, 0)
 
 
@@ -217,9 +222,18 @@ class TestChooseContoursMatchingCoilType(unittest.TestCase):
         self.assertEqual(len(result), 1)
         np.testing.assert_array_almost_equal(result[0], open_)
 
+    def test_hel_returns_only_open(self):
+        """ctype='hel' returns only open contours (same as mod)."""
+        closed = np.array([[0, 0], [1, 0], [0, 0]])
+        open_ = np.array([[0, 0], [1, 1]])
+        lines = [closed, open_]
+        result = chooseContours_matching_coilType(lines, 'hel')
+        self.assertEqual(len(result), 1)
+        np.testing.assert_array_almost_equal(result[0], open_)
+
 
 class TestPointsInPolygon(unittest.TestCase):
-    """Tests for points_in_polygon."""
+    """Tests for _points_in_polygon."""
 
     def test_triangle_contains_inside(self):
         """Points inside triangle are identified."""
@@ -227,7 +241,7 @@ class TestPointsInPolygon(unittest.TestCase):
         polygon = np.array([[0, 0], [1, 0], [0.5, 1], [0, 0]])
         t = np.linspace(0, 1, 5)
         z = np.linspace(0, 1, 5)
-        i1, i2, BOOL = points_in_polygon((t, z), None, polygon)
+        i1, i2, BOOL = _points_in_polygon((t, z), None, polygon)
         # Center (0.5, 0.33) should be inside
         self.assertGreater(np.sum(BOOL), 0)
 
@@ -236,7 +250,7 @@ class TestPointsInPolygon(unittest.TestCase):
         polygon = np.array([[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]])
         t = np.linspace(0.1, 0.9, 3)
         z = np.linspace(0.1, 0.9, 3)
-        i1, i2, BOOL = points_in_polygon((t, z), None, polygon)
+        i1, i2, BOOL = _points_in_polygon((t, z), None, polygon)
         self.assertEqual(len(i1), np.sum(BOOL))
         self.assertEqual(len(i2), np.sum(BOOL))
 
@@ -268,22 +282,30 @@ class TestMapDataToMorePeriods(unittest.TestCase):
 
 
 class TestIDModHel(unittest.TestCase):
-    """Tests for ID_mod_hel."""
+    """Tests for _ID_mod_hel."""
 
     def test_modular_contour(self):
         """Contour with same cos(θ) and ζ at ends is modular."""
         # Start (0, 0), end (2π, 0) -> cos(0)=cos(2π)=1, zeta same
         contour = np.array([[0, 0], [np.pi, 0.5], [2 * np.pi, 0]])
-        names, ints = ID_mod_hel([contour], tol=0.1)
+        names, ints = _ID_mod_hel([contour], tol=0.1)
         self.assertEqual(names[0], 'mod')
         self.assertEqual(ints[0], 1)
 
     def test_helical_contour(self):
         """Contour with θ spanning 2π is helical."""
         contour = np.array([[0, 0], [np.pi, 0.25], [2 * np.pi, 0.5]])
-        names, ints = ID_mod_hel([contour], tol=0.05)
+        names, ints = _ID_mod_hel([contour], tol=0.05)
         self.assertEqual(names[0], 'hel')
         self.assertEqual(ints[0], 2)
+
+    def test_vacuum_field_contour(self):
+        """Contour with neither mod nor hel endpoints is vacuum-field (vf)."""
+        # θ spans ~π, ζ differs; neither cos(θ) match nor |θ0-θf|≈2π
+        contour = np.array([[0, 0], [np.pi / 2, 0.5], [np.pi, 1.0]])
+        names, ints = _ID_mod_hel([contour], tol=0.05)
+        self.assertEqual(names[0], 'vf')
+        self.assertEqual(ints[0], 3)
 
 
 class TestIDAndCutContourTypes(unittest.TestCase):
@@ -300,15 +322,48 @@ class TestIDAndCutContourTypes(unittest.TestCase):
         self.assertIn(types[1], (1, 2, 3))
 
 
+class TestIDHalfwayContour(unittest.TestCase):
+    """Tests for ID_halfway_contour."""
+
+    def test_halfway_contours_between_open(self):
+        """Halfway contours are found between consecutive open contours."""
+        args = _make_args()
+        theta = np.linspace(0, 2 * np.pi, 20, endpoint=False)
+        zeta = np.linspace(0, 2 * np.pi / 4, 15, endpoint=False)
+        _, _, cpd, _, _, _ = genCPvals((0, 2 * np.pi), (0, 2 * np.pi / 4), (20, 15), args)
+        c1 = np.array([[0.5, 0.3], [1.5, 0.4]])
+        c2 = np.array([[1.0, 0.5], [2.0, 0.6]])
+        contours = [c1, c2]
+        data = (theta, zeta, cpd)
+        halfway = ID_halfway_contour(contours, data, do_plot=False, args=args)
+        self.assertEqual(len(halfway), 1)
+        self.assertGreater(len(halfway[0]), 0)
+
+    def test_halfway_contours_do_plot_true(self):
+        """ID_halfway_contour with do_plot=True sets up axes and returns contours."""
+        from unittest.mock import patch
+        args = _make_args()
+        theta = np.linspace(0, 2 * np.pi, 20, endpoint=False)
+        zeta = np.linspace(0, 2 * np.pi / 4, 15, endpoint=False)
+        _, _, cpd, _, _, _ = genCPvals((0, 2 * np.pi), (0, 2 * np.pi / 4), (20, 15), args)
+        c1 = np.array([[0.5, 0.3], [1.5, 0.4]])
+        c2 = np.array([[1.0, 0.5], [2.0, 0.6]])
+        contours = [c1, c2]
+        data = (theta, zeta, cpd)
+        with patch('simsopt.util.winding_surface_helper_functions.plt.show'):
+            halfway = ID_halfway_contour(contours, data, do_plot=True, args=args)
+        self.assertEqual(len(halfway), 1)
+
+
 class TestRemoveArray(unittest.TestCase):
-    """Tests for removearray."""
+    """Tests for _removearray."""
 
     def test_remove_existing(self):
         """Removing existing array modifies list in place."""
         a = np.array([1, 2])
         b = np.array([3, 4])
         L = [a, b]
-        removearray(L, a)
+        _removearray(L, a)
         self.assertEqual(len(L), 1)
         np.testing.assert_array_equal(L[0], b)
 
@@ -316,63 +371,7 @@ class TestRemoveArray(unittest.TestCase):
         """Removing non-existent array raises ValueError."""
         L = [np.array([1, 2])]
         with self.assertRaises(ValueError):
-            removearray(L, np.array([9, 9]))
-
-
-class TestGenParametrization(unittest.TestCase):
-    """Tests for gen_parametrization."""
-
-    def test_cumulative_length(self):
-        """Output is cumulative sum of |dx|."""
-        x = np.array([0, 1, 2, 5])
-        s = gen_parametrization(x)
-        self.assertAlmostEqual(s[0], 0)
-        self.assertAlmostEqual(s[1], 1)
-        self.assertAlmostEqual(s[2], 2)
-        self.assertAlmostEqual(s[3], 5)
-
-
-class TestSpliceCurveFourierCoeffs(unittest.TestCase):
-    """Tests for splice_curve_fourier_coeffs."""
-
-    def test_output_length(self):
-        """Output length is len(Ws)+len(Wc)-1."""
-        Ws = np.array([0, 0.1, 0.2])
-        Wc = np.array([1.0, 0.5, 0.3])
-        coeffs = splice_curve_fourier_coeffs(Ws, Wc)
-        self.assertEqual(len(coeffs), 3 + 3 - 1)
-
-    def test_interleaving(self):
-        """Cos and sin are interleaved correctly."""
-        Ws = np.array([0, 1, 2])
-        Wc = np.array([10, 20, 30])
-        coeffs = splice_curve_fourier_coeffs(Ws, Wc)
-        self.assertEqual(coeffs[0], 10)
-        self.assertEqual(coeffs[1], 1)
-        self.assertEqual(coeffs[2], 20)
-
-
-class TestGet1DFourierSinCosComps(unittest.TestCase):
-    """Tests for get1DFourierSinCosComps."""
-
-    def test_reproduces_signal(self):
-        """Recreation matches original for simple signal."""
-        n = 32
-        t = np.linspace(0, 2 * np.pi, n, endpoint=False)
-        signal = np.cos(t) + 0.5 * np.sin(2 * t)
-        Amat, Bmat, eM, recreation = get1DFourierSinCosComps(
-            numT=n, signal=signal, plot=(0, 0), forward=True, trunc=5
-        )
-        np.testing.assert_allclose(recreation, signal, atol=1e-10)
-
-    def test_trunc_affects_modes(self):
-        """Truncation limits number of modes."""
-        n = 64
-        signal = np.cos(np.linspace(0, 2 * np.pi, n, endpoint=False))
-        A1, B1, eM1, _ = get1DFourierSinCosComps(n, signal, (0, 0), True, trunc=3)
-        A2, B2, eM2, _ = get1DFourierSinCosComps(n, signal, (0, 0), True, trunc=10)
-        self.assertEqual(len(A1), 3)
-        self.assertEqual(len(A2), 10)
+            _removearray(L, np.array([9, 9]))
 
 
 class TestComputeBaselineWPCurrents(unittest.TestCase):
@@ -385,6 +384,15 @@ class TestComputeBaselineWPCurrents(unittest.TestCase):
         wp_currents, max_vals, func_vals = compute_baseline_WP_currents([contour], args, plot=False)
         self.assertEqual(len(wp_currents), 1)
         self.assertGreater(wp_currents[0], 0)
+
+    def test_single_contour_plot_true(self):
+        """compute_baseline_WP_currents with plot=True runs without error."""
+        from unittest.mock import patch
+        args = _make_args()
+        contour = np.array([[0.5, 0.5], [1.5, 0.5], [1.5, 1.5], [0.5, 1.5], [0.5, 0.5]])
+        with patch('simsopt.util.winding_surface_helper_functions.plt.show'):
+            wp_currents, _, _ = compute_baseline_WP_currents([contour], args, plot=True)
+        self.assertEqual(len(wp_currents), 1)
 
 
 class TestCheckAndComputeNestedWPCurrents(unittest.TestCase):
@@ -399,9 +407,35 @@ class TestCheckAndComputeNestedWPCurrents(unittest.TestCase):
         result, nested, fv, nc = check_and_compute_nested_WP_currents([c1, c2], wp, args, plot=False)
         np.testing.assert_array_almost_equal(result, wp)
 
+    def test_nested_contours(self):
+        """Nested contours get adjusted currents from potential difference."""
+        args = _make_args()
+        # Outer square contains inner square
+        outer = np.array([[0.0, 0.0], [3.0, 0.0], [3.0, 3.0], [0.0, 3.0], [0.0, 0.0]])
+        inner = np.array([[1.0, 1.0], [2.0, 1.0], [2.0, 2.0], [1.0, 2.0], [1.0, 1.0]])
+        wp = [1.0, 1.0]  # Will be overwritten for outer
+        result, nested, fv, nc = check_and_compute_nested_WP_currents([outer, inner], wp, args, plot=False)
+        self.assertIsNotNone(nested)
+        self.assertTrue(nested[0, 1])  # outer contains inner
+        self.assertEqual(len(result), 2)
+
+    def test_nested_contours_plot_true(self):
+        """check_and_compute_nested_WP_currents with plot=True runs without error."""
+        from unittest.mock import patch
+        args = _make_args()
+        outer = np.array([[0.0, 0.0], [3.0, 0.0], [3.0, 3.0], [0.0, 3.0], [0.0, 0.0]])
+        inner = np.array([[1.0, 1.0], [2.0, 1.0], [2.0, 2.0], [1.0, 2.0], [1.0, 1.0]])
+        wp = [1.0, 1.0]
+        with patch('simsopt.util.winding_surface_helper_functions.plt.show'):
+            result, nested, _, _ = check_and_compute_nested_WP_currents(
+                [outer, inner], wp, args, plot=True
+            )
+        self.assertEqual(len(result), 2)
+        self.assertTrue(nested[0, 1])
+
 
 class TestRealSpace(unittest.TestCase):
-    """Tests for real_space (REGCOIL format)."""
+    """Tests for _real_space (REGCOIL format)."""
 
     def test_circular_cross_section(self):
         """Simple m=0, n=0 mode gives circular R."""
@@ -411,7 +445,7 @@ class TestRealSpace(unittest.TestCase):
         coeff_array = np.array([[0, 0, 1.0, 0, 0, 0]])  # R=1, Z=0
         polAng = np.array([0, np.pi / 2, np.pi])
         torAng = np.array([0, 0, 0])
-        X, Y, R, Z = real_space(nharmonics, coeff_array, polAng, torAng)
+        X, Y, R, Z = _real_space(nharmonics, coeff_array, polAng, torAng)
         np.testing.assert_allclose(R, [1, 1, 1])
         np.testing.assert_allclose(Z, [0, 0, 0])
 
@@ -480,6 +514,24 @@ class TestWriteToCurve(unittest.TestCase):
         self.assertGreater(np.max(np.linalg.norm(gamma, axis=1)), 0.5)
         self.assertLess(np.max(np.linalg.norm(gamma, axis=1)), 2.0)
 
+    def test_writeToCurve_plotting_and_fix_stellarator_symmetry(self):
+        """writeToCurve with plotting_args=(1,) and fix_stellarator_symmetry=True."""
+        from simsopt.geo import SurfaceRZFourier
+        from unittest.mock import patch
+        surf = SurfaceRZFourier(nfp=4, mpol=2, ntor=2, stellsym=True)
+        n_pts = 50
+        t = np.linspace(0, 2 * np.pi, n_pts, endpoint=False)
+        theta, zeta = t, t  # Helical: closes in 3D
+        contour = np.column_stack([theta, zeta])
+        contour_xyz = SIMSOPT_line_XYZ_RZ(surf, [theta, zeta])
+        with patch('simsopt.util.winding_surface_helper_functions.plt.show'):
+            curve = writeToCurve(
+                contour, contour_xyz, fourier_trunc=10,
+                plotting_args=(1,), fix_stellarator_symmetry=True
+            )
+        gamma = curve.gamma()
+        self.assertEqual(gamma.shape[1], 3)
+
 
 def _max_distance_to_contour(points, contour_xyz):
     """Max distance from any point to nearest point on contour (one-sided Hausdorff)."""
@@ -516,6 +568,30 @@ class TestWriteToCurveHelical(unittest.TestCase):
         )
         self.assertGreater(np.max(np.linalg.norm(gamma, axis=1)), 0.5)
         self.assertLess(np.max(np.linalg.norm(gamma, axis=1)), 2.0)
+
+    def test_writeToCurve_helical_ntor_nfp_not_coprime_raises(self):
+        """writeToCurve_helical raises when ntor and nfp are not coprime."""
+        n = 20
+        contour_xyz = [
+            np.ones(n), np.zeros(n), np.ones(n), np.zeros(n)
+        ]
+        with self.assertRaises(ValueError) as cm:
+            writeToCurve_helical(contour_xyz, fourier_order=4, nfp=4, ntor=2)
+        self.assertIn("coprime", str(cm.exception))
+
+    def test_writeToCurve_helical_open_contour(self):
+        """writeToCurve_helical handles open (non-closing) contour."""
+        n_pts = 50
+        phi = np.linspace(0, 1.5 * np.pi, n_pts, endpoint=False)  # Not full circle
+        R0, a = 1.0, 0.3
+        R = R0 + a * np.cos(phi)
+        X = R * np.cos(phi)
+        Y = R * np.sin(phi)
+        Z = a * np.sin(phi)
+        contour_xyz = [X, Y, R, Z]
+        curve = writeToCurve_helical(contour_xyz, fourier_order=6, nfp=4, stellsym=True, ntor=1)
+        gamma = curve.gamma()
+        self.assertEqual(gamma.shape[1], 3)
 
 
 class TestWriteToCurveHelicalClosed(unittest.TestCase):
@@ -695,42 +771,152 @@ class TestCutCoilsHelicalClosure(unittest.TestCase):
             )
 
 
-class TestGetCurveOrder(unittest.TestCase):
-    """Tests for getCurveOrder."""
+class TestLoadSimsoptRegcoilData(unittest.TestCase):
+    """Tests for load_simsopt_regcoil_data."""
 
-    def test_matches_order(self):
-        """getCurveOrder finds order that matches DOF count."""
-        xdata = np.linspace(0, 1, 64, endpoint=False)
-        # CurveXYZFourier order N has 3*(1 + 2*N) DOFs for stellsym
-        order = getCurveOrder(xdata, 15, verb=False)
-        self.assertGreaterEqual(order, 0)
+    def test_load_simsopt_regcoil_file(self):
+        """load_simsopt_regcoil_data loads simsopt-regcoil format."""
+        from unittest.mock import MagicMock, patch
+
+        def _mock_var(val):
+            m = MagicMock()
+            m.__getitem__ = MagicMock(return_value=val)
+            return m
+
+        mock_f = MagicMock()
+        mock_f.__enter__ = MagicMock(return_value=mock_f)
+        mock_f.__exit__ = MagicMock(return_value=False)
+        mock_f.variables = {
+            'nfp': _mock_var(4),
+            'ntheta_coil': _mock_var(32),
+            'nzeta_coil': _mock_var(16),
+            'theta_coil': _mock_var(np.linspace(0, 2*np.pi, 32, endpoint=False)),
+            'zeta_coil': _mock_var(np.linspace(0, 2*np.pi/4, 16, endpoint=False)),
+            'r_coil': _mock_var(np.ones(32*16)),
+            'xm_coil': _mock_var(np.array([0, 1])),
+            'xn_coil': _mock_var(np.array([0, 1])*4),
+            'xm_potential': _mock_var(np.array([0, 1])),
+            'xn_potential': _mock_var(np.array([0, 1])*4),
+            'net_poloidal_current_amperes': _mock_var(np.array([0.0])),
+            'net_toroidal_current_amperes': _mock_var(np.array([0.0])),
+            'single_valued_current_potential_mn': _mock_var(np.zeros((1, 2))),
+            'single_valued_current_potential_thetazeta': _mock_var(np.zeros((1, 16, 32))),
+            'lambda': _mock_var(np.array([1e-10])),
+            'K2': _mock_var(np.zeros((1, 16, 32))),
+            'chi2_B': _mock_var(np.array([0.1])),
+            'chi2_K': _mock_var(np.array([0.01])),
+        }
+        with patch('simsopt.util.winding_surface_helper_functions.netcdf_file', return_value=mock_f):
+            data = load_simsopt_regcoil_data('/fake/path.nc', sparse=False)
+        self.assertEqual(len(data), 19)
+        self.assertEqual(data[0], 32)
+        self.assertEqual(data[1], 16)
+
+    def test_load_simsopt_regcoil_sparse(self):
+        """load_simsopt_regcoil_data with sparse=True loads L1 variables."""
+        from unittest.mock import MagicMock, patch
+
+        def _mock_var(val):
+            m = MagicMock()
+            m.__getitem__ = MagicMock(return_value=val)
+            return m
+
+        mock_f = MagicMock()
+        mock_f.__enter__ = MagicMock(return_value=mock_f)
+        mock_f.__exit__ = MagicMock(return_value=False)
+        mock_f.variables = {
+            'nfp': _mock_var(4), 'ntheta_coil': _mock_var(16), 'nzeta_coil': _mock_var(8),
+            'theta_coil': _mock_var(np.linspace(0, 2*np.pi, 16, endpoint=False)),
+            'zeta_coil': _mock_var(np.linspace(0, 2*np.pi/4, 8, endpoint=False)),
+            'r_coil': _mock_var(np.ones(128)), 'xm_coil': _mock_var(np.array([0, 1])),
+            'xn_coil': _mock_var(np.array([0, 1])*4), 'xm_potential': _mock_var(np.array([0, 1])),
+            'xn_potential': _mock_var(np.array([0, 1])*4),
+            'net_poloidal_current_amperes': _mock_var(np.array([0.0])),
+            'net_toroidal_current_amperes': _mock_var(np.array([0.0])),
+            'single_valued_current_potential_mn_l1': _mock_var(np.zeros((1, 2))),
+            'single_valued_current_potential_thetazeta_l1': _mock_var(np.zeros((1, 8, 16))),
+            'lambda': _mock_var(np.array([1e-10])), 'K2_l1': _mock_var(np.zeros((1, 8, 16))),
+            'chi2_B_l1': _mock_var(np.array([0.1])), 'chi2_K_l1': _mock_var(np.array([0.01])),
+        }
+        with patch('simsopt.util.winding_surface_helper_functions.netcdf_file', return_value=mock_f):
+            data = load_simsopt_regcoil_data('/fake/path.nc', sparse=True)
+        self.assertEqual(len(data), 19)
+        self.assertEqual(data[0], 16)
 
 
-class TestGenerateSunflower(unittest.TestCase):
-    """Tests for generate_sunflower."""
+class TestLoadFromCPObject(unittest.TestCase):
+    """Tests for load_from_CP_object."""
 
-    def test_shape(self):
-        """Output is 2 x N."""
-        pts = generate_sunflower(10, 1.0, False)
-        self.assertEqual(pts.shape, (2, 10))
+    def test_load_from_CP_object_use_l2(self):
+        """load_from_CP_object with use_l1=False returns L2 data."""
+        fpath = TEST_DIR / "regcoil_out.w7x_infty.nc"
+        if not fpath.exists():
+            fpath = TEST_DIR / "regcoil_out.hsx.nc"
+        if not fpath.exists():
+            self.skipTest("No regcoil test file found")
+        from simsopt.field import CurrentPotentialSolve
+        cpst = CurrentPotentialSolve.from_netcdf(fpath, 1.0, 1.0, 1.0, 1.0)
+        data = load_from_CP_object(cpst, use_l1=False)
+        self.assertEqual(len(data), 19)
+        ntheta, nzeta = data[0], data[1]
+        self.assertGreater(ntheta, 0)
+        self.assertGreater(nzeta, 0)
 
-    def test_radius(self):
-        """Points lie within radius."""
-        pts = generate_sunflower(100, 2.0, False)
-        r = np.sqrt(pts[0, :]**2 + pts[1, :]**2)
-        self.assertLessEqual(np.max(r), 2.0 + 1e-6)
+    def test_load_from_CP_object_use_l1(self):
+        """load_from_CP_object with use_l1=True returns L1 data when available."""
+        fpath = TEST_DIR / "regcoil_out.w7x_infty.nc"
+        if not fpath.exists():
+            fpath = TEST_DIR / "regcoil_out.hsx.nc"
+        if not fpath.exists():
+            self.skipTest("No regcoil test file found")
+        from simsopt.field import CurrentPotentialSolve
+        cpst = CurrentPotentialSolve.from_netcdf(fpath, 1.0, 1.0, 1.0, 1.0)
+        if not hasattr(cpst, 'dofs_l1') or cpst.dofs_l1 is None:
+            self.skipTest("CP object has no L1 solution")
+        data = load_from_CP_object(cpst, use_l1=True)
+        self.assertEqual(len(data), 19)
 
 
-class TestBoxFieldPeriod(unittest.TestCase):
-    """Tests for box_field_period."""
+class TestLoadCPAndGeometries(unittest.TestCase):
+    """Tests for load_CP_and_geometries."""
 
-    def test_returns_box_when_ret_true(self):
-        """When ret=True, returns corner coordinates."""
-        import matplotlib.pyplot as plt
-        fig, ax = plt.subplots()
-        box = box_field_period(ax, [1, 1], ret=True)
-        plt.close()
-        self.assertEqual(box.shape, (5, 2))
+    def test_load_CP_and_geometries_loadDOFsProperly_false(self):
+        """load_CP_and_geometries with loadDOFsProperly=False skips DOF copy."""
+        fpath = TEST_DIR / "regcoil_out.w7x_infty.nc"
+        if not fpath.exists():
+            fpath = TEST_DIR / "regcoil_out.hsx.nc"
+        if not fpath.exists():
+            self.skipTest("No regcoil test file found")
+        result = load_CP_and_geometries(str(fpath), plot_flags=(0, 0, 0, 0), loadDOFsProperly=False)
+        self.assertEqual(len(result), 5)
+        cpst, s_coil_fp, s_coil_full, s_plasma_fp, s_plasma_full = result
+        self.assertIsNotNone(cpst)
+        self.assertIsNotNone(s_coil_fp)
+
+    def test_load_CP_and_geometries_loadDOFsProperly_true(self):
+        """load_CP_and_geometries with loadDOFsProperly=True copies surface DOFs."""
+        fpath = TEST_DIR / "regcoil_out.w7x_infty.nc"
+        if not fpath.exists():
+            fpath = TEST_DIR / "regcoil_out.hsx.nc"
+        if not fpath.exists():
+            self.skipTest("No regcoil test file found")
+        result = load_CP_and_geometries(str(fpath), plot_flags=(0, 0, 0, 0), loadDOFsProperly=True)
+        self.assertEqual(len(result), 5)
+        cpst, s_coil_fp, s_coil_full, s_plasma_fp, s_plasma_full = result
+        self.assertIsNotNone(s_coil_fp)
+
+    def test_load_CP_and_geometries_with_plot_flags(self):
+        """load_CP_and_geometries with plot_flags calls plot (mocked)."""
+        fpath = TEST_DIR / "regcoil_out.w7x_infty.nc"
+        if not fpath.exists():
+            fpath = TEST_DIR / "regcoil_out.hsx.nc"
+        if not fpath.exists():
+            self.skipTest("No regcoil test file found")
+        from unittest.mock import patch
+        with patch('simsopt.geo.plot') as mock_plot:
+            result = load_CP_and_geometries(str(fpath), plot_flags=(1, 1, 1, 1))
+        self.assertEqual(len(result), 5)
+        mock_plot.assert_called()
 
 
 class TestLoadRegcoilData(unittest.TestCase):
@@ -750,6 +936,176 @@ class TestLoadRegcoilData(unittest.TestCase):
         self.assertEqual(len(zeta), nzeta)
         lambdas, chi2_B, chi2_K, K2 = data[15:19]
         self.assertGreater(len(lambdas), 0)
+
+
+class TestSetAxesEqual(unittest.TestCase):
+    """Tests for set_axes_equal."""
+
+    def test_set_axes_equal_3d(self):
+        """set_axes_equal adjusts 3D axes to equal scale."""
+        import matplotlib.pyplot as plt
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+        ax.plot([0, 1], [0, 1], [0, 1])
+        set_axes_equal(ax)
+        xlim = ax.get_xlim3d()
+        ylim = ax.get_ylim3d()
+        zlim = ax.get_zlim3d()
+        xr = abs(xlim[1] - xlim[0])
+        yr = abs(ylim[1] - ylim[0])
+        zr = abs(zlim[1] - zlim[0])
+        self.assertAlmostEqual(xr, yr)
+        self.assertAlmostEqual(yr, zr)
+        plt.close()
+
+
+class TestContourPaths(unittest.TestCase):
+    """Tests for _contour_paths (matplotlib version-agnostic)."""
+
+    def test_contour_paths_allsegs(self):
+        """_contour_paths returns paths from contour object."""
+        import matplotlib.pyplot as plt
+        x = np.linspace(0, 2 * np.pi, 20)
+        y = np.linspace(0, 2 * np.pi / 4, 15)
+        z = np.outer(np.sin(y), np.cos(x))
+        cs = plt.contour(x, y, z, levels=[0])
+        paths = _contour_paths(cs, 0)
+        self.assertIsInstance(paths, list)
+        if len(paths) > 0:
+            self.assertIsInstance(paths[0], np.ndarray)
+        plt.close()
+
+    def test_contour_paths_fallback_collections(self):
+        """_contour_paths uses collections.get_paths when allsegs not available."""
+        from unittest.mock import MagicMock
+        mock_path = MagicMock()
+        mock_path.vertices = np.array([[0, 0], [1, 1]])
+        mock_collection = MagicMock()
+        mock_collection.get_paths.return_value = [mock_path]
+        mock_cdata = type('CData', (), {'collections': [mock_collection]})()
+        paths = _contour_paths(mock_cdata, 0)
+        self.assertEqual(len(paths), 1)
+        np.testing.assert_array_equal(paths[0], np.array([[0, 0], [1, 1]]))
+
+
+class TestWriteContourToFile(unittest.TestCase):
+    """Tests for writeContourToFile."""
+
+    def test_write_contour_to_file(self):
+        """writeContourToFile writes contour in legacy format."""
+        import tempfile
+        nharmonics = 1
+        coeff_array = np.array([[0, 0, 1.0, 0, 0, 0]])
+        args = (nharmonics, coeff_array, 'wp')
+        contour = np.array([[0, 0], [np.pi / 2, 0], [np.pi, 0], [0, 0]])
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.dat', delete=False) as tmp:
+            tmpname = tmp.name
+        try:
+            with open(tmpname, 'w') as f:
+                writeContourToFile(f, contour, 1.0, args)
+            with open(tmpname) as rf:
+                lines = rf.readlines()
+            self.assertGreater(len(lines), 0)
+        finally:
+            import os
+            if os.path.exists(tmpname):
+                os.unlink(tmpname)
+
+
+class TestLoadSurfaceDofsProperly(unittest.TestCase):
+    """Tests for _load_surface_dofs_properly."""
+
+    def test_load_surface_dofs_properly(self):
+        """_load_surface_dofs_properly copies surface DOFs and returns s_new."""
+        from simsopt.geo import SurfaceRZFourier
+        s = SurfaceRZFourier(nfp=4, mpol=2, ntor=2, stellsym=True)
+        dofs = s.get_dofs()
+        s.set_dofs(np.random.randn(len(dofs)) * 0.01)
+        s_new = SurfaceRZFourier(nfp=4, mpol=2, ntor=2, stellsym=True)
+        s_new = s_new.from_nphi_ntheta(nfp=4, ntheta=8, nphi=16, mpol=2, ntor=2, stellsym=True, range='field period')
+        result = _load_surface_dofs_properly(s, s_new)
+        self.assertIsNotNone(result)
+        self.assertIs(result, s_new)
+        # Result should have non-zero DOFs where s has them (at least rc, zs)
+        self.assertTrue(np.any(result.get_dofs() != 0))
+
+
+class TestMakeOnclickOnpickOnKey(unittest.TestCase):
+    """Tests for make_onclick, make_onpick, make_on_key."""
+
+    def test_make_onclick_returns_callable(self):
+        """make_onclick returns a callable."""
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        args = _make_args()
+        contours = []
+        theta = np.linspace(0, 2 * np.pi, 10, endpoint=False)
+        zeta = np.linspace(0, 2 * np.pi / 4, 8, endpoint=False)
+        _, _, cp, _, _, _ = genCPvals((0, 2 * np.pi), (0, 2 * np.pi / 4), (10, 8), args)
+        handler = make_onclick(ax, args, contours, theta, zeta, cp)
+        self.assertTrue(callable(handler))
+        plt.close()
+
+    def test_make_onpick_returns_callable(self):
+        """make_onpick returns a callable."""
+        contours = []
+        handler = make_onpick(contours)
+        self.assertTrue(callable(handler))
+
+    def test_make_on_key_returns_callable(self):
+        """make_on_key returns a callable."""
+        contours = []
+        handler = make_on_key(contours)
+        self.assertTrue(callable(handler))
+
+    def test_make_onclick_dblclick_appends_contour(self):
+        """make_onclick on dblclick finds contour and appends to list."""
+        import matplotlib.pyplot as plt
+        from unittest.mock import MagicMock
+        fig, ax = plt.subplots()
+        args = _make_args()
+        contours = []
+        theta = np.linspace(0, 2 * np.pi, 15, endpoint=False)
+        zeta = np.linspace(0, 2 * np.pi / 4, 10, endpoint=False)
+        _, _, cp, _, _, _ = genCPvals((0, 2 * np.pi), (0, 2 * np.pi / 4), (15, 10), args)
+        handler = make_onclick(ax, args, contours, theta, zeta, cp)
+        event = MagicMock()
+        event.dblclick = True
+        event.xdata, event.ydata = 1.0, 0.3
+        handler(event)
+        self.assertGreater(len(contours), 0)
+        self.assertEqual(contours[0].shape[1], 2)
+        plt.close()
+
+    def test_make_onpick_sets_picked_object(self):
+        """make_onpick stores picked artist on axes."""
+        import matplotlib.pyplot as plt
+        from unittest.mock import MagicMock
+        fig, ax = plt.subplots()
+        ax.plot([0, 1], [0, 1])
+        handler = make_onpick([])
+        event = MagicMock()
+        event.artist = ax.lines[0]
+        handler(event)
+        self.assertIs(plt.gca().picked_object, event.artist)
+        plt.close()
+
+    def test_make_on_key_delete_removes_picked(self):
+        """make_on_key on 'delete' removes picked contour from list."""
+        import matplotlib.pyplot as plt
+        from unittest.mock import MagicMock
+        fig, ax = plt.subplots()
+        line_data = np.array([[0.5, 0.3], [1.0, 0.4]])
+        line, = ax.plot(line_data[:, 0], line_data[:, 1])
+        contours = [line_data.copy()]
+        handler = make_on_key(contours)
+        ax.picked_object = line
+        event = MagicMock()
+        event.key = 'delete'
+        handler(event)
+        self.assertEqual(len(contours), 0)
+        self.assertIsNone(ax.picked_object)
+        plt.close()
 
 
 if __name__ == "__main__":
