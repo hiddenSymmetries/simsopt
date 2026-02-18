@@ -31,3 +31,4 @@ set -ex
 ./3_Advanced/stage_two_optimization_finitebuild.py
 ./3_Advanced/coil_forces.py
 ./3_Advanced/wireframe_gsco_multistep.py
+./2_Intermediate/winding_surface_advanced.py

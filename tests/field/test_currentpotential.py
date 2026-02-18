@@ -523,5 +523,56 @@ class CurrentPotentialFourierTests(unittest.TestCase):
             plt.show()
 
 
+class CurrentPotentialTaylorTests(unittest.TestCase):
+    cptypes = ["CurrentPotentialFourier"]
+
+    def subtest_currentpotential_phi_derivative(self, cptype, stellsym):
+        epss = [0.5**i for i in range(10, 15)]
+        phis = np.asarray([0.6] + [0.6 + eps for eps in epss])
+        cp = get_currentpotential(cptype, stellsym, phis=phis)
+
+        f0 = cp.Phi()[0, 0]
+        deriv = cp.Phidash1()[0, 0]
+        err_old = 1e6
+        for i in range(len(epss)):
+            fh = cp.Phi()[i+1, 0]
+            deriv_est = (fh-f0)/epss[i]
+            err = np.linalg.norm(deriv_est-deriv)
+            assert err < 0.55 * err_old
+            err_old = err
+
+    def test_currentpotential_phi_derivative(self):
+        """
+        Taylor test to verify that the surface tangent in the phi direction
+        """
+        for cptype in self.cptypes:
+            for stellsym in [True, False]:
+                with self.subTest(cptype=cptype, stellsym=stellsym):
+                    self.subtest_currentpotential_phi_derivative(cptype, stellsym)
+
+    def subtest_currentpotential_theta_derivative(self, cptype, stellsym):
+        epss = [0.5**i for i in range(10, 15)]
+        thetas = np.asarray([0.6] + [0.6 + eps for eps in epss])
+        cp = get_currentpotential(cptype, stellsym, thetas=thetas)
+        f0 = cp.Phi()[0, 0]
+        deriv = cp.Phidash2()[0, 0]
+        err_old = 1e6
+        for i in range(len(epss)):
+            fh = cp.Phi()[0, i+1]
+            deriv_est = (fh-f0)/epss[i]
+            err = np.linalg.norm(deriv_est-deriv)
+            assert err < 0.55 * err_old
+            err_old = err
+
+    def test_currentpotential_theta_derivative(self):
+        """
+        Taylor test to verify that the surface tangent in the theta direction
+        """
+        for cptype in self.cptypes:
+            for stellsym in [True, False]:
+                with self.subTest(cptype=cptype, stellsym=stellsym):
+                    self.subtest_currentpotential_theta_derivative(cptype, stellsym)
+
+
 if __name__ == "__main__":
     unittest.main()
