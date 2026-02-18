@@ -22,11 +22,11 @@ Usage
 -----
 From the simsopt root directory:
 
-    python examples/3_Advanced/cut_coils.py --surface regcoil_out.hsx.nc
+    python winding_surface_advanced.py --surface regcoil_out.hsx.nc
 
 With custom options:
 
-    python examples/3_Advanced/cut_coils.py \\
+    python winding_surface_advanced.py \\
         --surface /path/to/simsopt_regcoil_out.nc \\
         --ilambda 2 \\
         --points "0.5,1.0" "1.0,0.5" \\
@@ -34,7 +34,7 @@ With custom options:
 
 For interactive mode (double-click to select contours):
 
-    python examples/3_Advanced/cut_coils.py --surface file.nc --interactive
+    python winding_surface_advanced.py --surface file.nc --interactive
 
 Requirements
 ------------
@@ -59,6 +59,7 @@ from simsopt.field.magneticfieldclasses import WindingSurfaceField
 from simsopt.geo import plot
 from simsopt.geo.curveobjectives import CurveLength
 from simsopt.util import (
+    in_github_actions,
     load_simsopt_regcoil_data,
     load_regcoil_data,
     load_CP_and_geometries,
@@ -103,7 +104,7 @@ def run_cut_coils(
     num_of_contours: int = 100,
     ntheta: int = 128,
     nzeta: int = 128,
-    single_valued: bool = True,
+    single_valued: bool = False,
     coil_type: str = "free",
     points: list = None,
     levels: list = None,
@@ -266,7 +267,7 @@ def run_cut_coils(
         _ = fig.canvas.mpl_connect("button_press_event", make_onclick(ax, args, contours, theta_coil, zeta_coil, current_potential_))
         fig.canvas.mpl_connect("pick_event", make_onpick(contours))
         fig.canvas.mpl_connect("key_press_event", make_on_key(contours))
-        (plt.show() if show_plots else plt.close("all"))
+        (plt.show() if show_plots and not in_github_actions else plt.close("all"))
     else:
         if points is not None:
             Pts = [np.array(pt) for pt in points]
@@ -323,7 +324,7 @@ def run_cut_coils(
             ax.plot(icoil[:, 0], icoil[:, 1], linestyle="--", color="r", picker=True, linewidth=1)
         fig.canvas.mpl_connect("pick_event", make_onpick(contours))
         fig.canvas.mpl_connect("key_press_event", make_on_key(contours))
-        (plt.show() if show_plots else plt.close("all"))
+        (plt.show() if show_plots and not in_github_actions else plt.close("all"))
 
     if len(contours) == 0:
         print("No contours selected. Exiting.")
@@ -566,7 +567,7 @@ def run_cut_coils(
         Plot.extend(curves)
         ax = plot(Plot, ax=ax, alpha=1, color="b", close=True)
         set_axes_equal(ax)
-        (plt.show() if show_plots else plt.close("all"))
+        (plt.show() if show_plots and not in_github_actions else plt.close("all"))
 
     if write_coils_to_file:
         coils_path = output_path / "coils.json"
@@ -621,7 +622,7 @@ def main():
     )
     parser.add_argument(
         "--no-sv",
-        action="store_true",
+        action="store_false",
         help="Use full (multi-valued) current potential with net toroidal/poloidal currents.",
     )
     parser.add_argument(
