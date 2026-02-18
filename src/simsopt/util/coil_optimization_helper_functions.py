@@ -1077,9 +1077,6 @@ def make_stage_II_pareto_plots(df: list, df_filtered: list, OUTPUT_DIR: str = ".
                 if min_val == max_val:
                     if min_val == 0:
                         plt.xlim(-0.1, 0.1)
-                    else:
-                        plt.xlim(min_val - 0.1 * abs(min_val), 
-                                max_val + 0.1 * abs(max_val))
                 else:
                     plt.xlim(min_val - 0.1 * abs(min_val), 
                             max_val + 0.1 * abs(max_val))
