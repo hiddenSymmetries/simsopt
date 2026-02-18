@@ -9,9 +9,11 @@ rm -f spec0*.sp*
 rm -f residuals_2*
 rm -f objective_2*
 rm -f simsopt_2*
+rm -f jac_log_2*
 rm -f QH-residues_0*.sp*
 rm -f 1DOF_Garabedian_0*.sp*
 rm -f *.sp.end
 rm -f *.sp.h5
 rm -f threed*
 rm -f parvmecinfo.txt
+rm -rf gvec_*

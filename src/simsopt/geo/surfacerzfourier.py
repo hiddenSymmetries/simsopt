@@ -24,6 +24,11 @@ try:
 except ImportError:
     Qsc = None
 
+try:
+    import gvec
+except ImportError:
+    gvec = None
+
 logger = logging.getLogger(__name__)
 
 __all__ = ['SurfaceRZFourier', 'SurfaceRZPseudospectral', 'plot_spectral_condensation']
@@ -516,6 +521,120 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         surf.local_full_x = surf.get_dofs()
         return surf
+    
+    @classmethod
+    @SimsoptRequires(gvec is not None, "from_gvec_parameters method requires the gvec package")
+    def from_gvec_parameters(cls, parameters: dict, **kwargs) -> 'SurfaceRZFourier':
+        """
+        Create a surface from a GVEC parameter dictionary. This assumes that the GVEC parameters
+        represent a cylindrical surface (i.e. the default ``which_hmap=1``). For non-cylindrical
+        surfaces, use ``GVECSurfaceDoFs`` instead.
+
+        Note that GVEC uses a different convention for the toroidal angle (RZφ, φ clockwise)
+        compared to VMEC and Simsopt (RφZ, φ counter-clockwise). This function changes the signs
+        of the toroidal coefficients accordingly.
+
+        Args:
+            parameters: GVEC parameter dictionary.
+            **kwargs: additional keyword arguments to pass to the ``SurfaceRZFourier`` constructor.
+        Returns:
+            SurfaceRZFourier object.
+        """
+        parameters = gvec.util.CaseInsensitiveDict(parameters)
+
+        if parameters.get("which_hmap", 1) != 1:
+            raise ValueError(f"Given GVEC parameters use a non-cylindrical surface representation (which_hmap={parameters['which_hmap']}), cannot convert to SurfaceRZFourier, use GVECSurfaceDoFs instead.")
+
+        nfp = parameters.get("nfp", 1)
+        M = max(parameters["X1_mn_max"][0], parameters["X2_mn_max"][0])
+        N = max(parameters["X1_mn_max"][1], parameters["X2_mn_max"][1])
+        stellsym = (
+            parameters.get("X1_sin_cos", "_cos_") == "_cos_"
+            and parameters.get("X2_sin_cos", "_sin_") == "_sin_"
+        )
+
+        self = cls(
+            nfp=nfp,
+            stellsym=stellsym,
+            mpol=M,
+            ntor=N,
+            **kwargs,
+        )
+
+        # set default values to 0
+        self.set_rc(0, 0, 0.0)
+        self.set_rc(1, 0, 0.0)
+        self.set_zs(1, 0, 0.0)
+
+        # change counter-clockwise zeta (VMEC, RφZ) to clockwise zeta (GVEC, RZφ)
+        parameters = gvec.util.flip_boundary_zeta(parameters)
+
+        if "cos" in parameters["X1_sin_cos"]:
+            for (m, n), value in parameters.get("X1_b_cos", {}).items():
+                self.set_rc(m, n, value)
+        if "sin" in parameters["X1_sin_cos"]:
+            for (m, n), value in parameters.get("X1_b_sin", {}).items():
+                self.set_rs(m, n, value)
+        if "cos" in parameters["X2_sin_cos"]:
+            for (m, n), value in parameters.get("X2_b_cos", {}).items():
+                self.set_zc(m, n, value)
+        if "sin" in parameters["X2_sin_cos"]:
+            for (m, n), value in parameters.get("X2_b_sin", {}).items():
+                self.set_zs(m, n, value)
+        
+        return self
+    
+    @SimsoptRequires(gvec is not None, "to_gvec_parameters method requires the gvec package")
+    def to_gvec_parameters(self) -> dict:
+        """
+        Generate a GVEC parameter dictionary representing this surface.
+
+        Note that GVEC uses a different convention for the toroidal angle (RZφ, φ clockwise)
+        compared to VMEC and Simsopt (RφZ, φ counter-clockwise). This function changes the signs
+        of the toroidal coefficients accordingly.
+
+        Returns:
+            GVEC parameter dictionary.
+        """
+        parameters = {}
+        parameters["nfp"] = self.nfp
+        parameters["init_average_axis"] = True
+
+        # keep higher mn_max if set previously (e.g. for interior modes)
+        for key in ["X1", "X2", "LA"]:
+            parameters[f"{key}_mn_max"] = [self.mpol, self.ntor]
+
+        parameters["X1_sin_cos"] = "_cos_" if self.stellsym else "_sin_cos_"
+        parameters["X2_sin_cos"] = "_sin_" if self.stellsym else "_sin_cos_"
+        parameters["LA_sin_cos"] = "_sin_" if self.stellsym else "_sin_cos_"
+
+        if self.stellsym:
+            for key in ["X1_b_cos", "X2_b_sin"]:
+                parameters[key] = {}
+        else:
+            for Xi in ["X1", "X2"]:
+                for sincos in ["sin", "cos"]:
+                    parameters[f"{Xi}_b_{sincos}"] = {}
+        
+        for m in range(self.mpol + 1):
+            for n in range(-self.ntor, self.ntor + 1):
+                if X1c := self.get_rc(m, n):
+                    parameters["X1_b_cos"][m, n] = X1c
+                if not self.stellsym and (X1s := self.get_rs(m, n)):
+                    parameters["X1_b_sin"][m, n] = X1s
+                if not self.stellsym and (X2c := self.get_zc(m, n)):
+                    parameters["X2_b_cos"][m, n] = X2c
+                if X2s := self.get_zs(m, n):
+                    parameters["X2_b_sin"][m, n] = X2s
+
+        # change counter-clockwise zeta (VMEC, RφZ) to clockwise zeta (GVEC, RZφ)
+        parameters = gvec.util.flip_boundary_zeta(parameters)
+        
+        # ensure right-handed (X1,X2,zeta) / counter-clockwise theta
+        if not gvec.util.check_boundary_direction(parameters):
+            parameters = gvec.util.flip_boundary_theta(parameters)
+
+        return parameters
 
     def copy(self, **kwargs):
         """
