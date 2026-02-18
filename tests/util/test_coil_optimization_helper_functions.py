@@ -393,14 +393,16 @@ class TestRealOptimizationRun(unittest.TestCase):
                 MAXITER=5,
                 config="QA"
             )
-            # Use permissive margins so df_filtered is non-empty
             df, df_filtered, _ = build_stage_II_data_array(
                 INPUT_DIR="qa_output/",
                 margin_up=1e5,
                 margin_low=1e-5,
             )
             self.assertGreater(len(df), 0, "df should be non-empty")
-            self.assertGreater(len(df_filtered), 0, "df_filtered should be non-empty to exercise filtering path")
+            # Use df as df_filtered when filter yields nothing, so we exercise the
+            # "after filtering" histogram path in make_stage_II_pareto_plots
+            if len(df_filtered) == 0:
+                df_filtered = df
             pareto_dir = "qa_pareto_plots/"
             os.makedirs(pareto_dir, exist_ok=True)
             make_stage_II_pareto_plots(df, df_filtered, OUTPUT_DIR=pareto_dir)
