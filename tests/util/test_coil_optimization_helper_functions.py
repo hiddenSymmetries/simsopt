@@ -10,7 +10,7 @@ from simsopt.util import (
     read_focus_coils, build_stage_II_data_array, make_stage_II_pareto_plots,
     vacuum_stage_II_optimization, coil_optimization
 )
-# from simsopt.field import LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque
+from simsopt.field import LpCurveForce
 
 # Test directory setup
 TEST_DIR = Path(__file__).parent / "../test_files"
@@ -52,6 +52,26 @@ class TestInitialOptimizations(unittest.TestCase):
             self.assertGreater(len(results_files), 0)
             
             # Check that biot_savart.json files were created
+            biot_savart_files = list(Path(output_dir).glob("*/biot_savart.json"))
+            self.assertGreater(len(biot_savart_files), 0)
+
+    def test_initial_optimizations_with_force_True(self):
+        """Test initial_optimizations with with_force=True (force terms in objective)."""
+        with ScratchDir("."):
+            shutil.copy(TEST_DIR / "input.LandremanPaul2021_QA_reactorScale_lowres", ".")
+            output_dir = "qa_output_with_force/"
+            initial_vacuum_stage_II_optimizations(
+                N=1,
+                MAXITER=5,
+                OUTPUT_DIR=output_dir,
+                INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+                ncoils=3,
+                with_force=True,
+                FORCE_OBJ=LpCurveForce,
+            )
+            self.assertTrue(os.path.exists(output_dir))
+            results_files = list(Path(output_dir).glob("*/results.json"))
+            self.assertGreater(len(results_files), 0)
             biot_savart_files = list(Path(output_dir).glob("*/biot_savart.json"))
             self.assertGreater(len(biot_savart_files), 0)
 
@@ -352,6 +372,44 @@ class TestRealOptimizationRun(unittest.TestCase):
             self.assertGreater(len(qa_biot_savart), 0)
             self.assertGreater(len(continuation_biot_savart), 0)
 
+    def test_make_stage_II_pareto_plots_with_df_filtered(self):
+        """Test make_stage_II_pareto_plots with non-empty df_filtered (exercises 'after filtering' histograms)."""
+        with ScratchDir("."):
+            shutil.copy(TEST_DIR / "input.LandremanPaul2021_QA_reactorScale_lowres", ".")
+            initial_vacuum_stage_II_optimizations(
+                N=2,
+                MAXITER=50,
+                OUTPUT_DIR="qa_output/",
+                INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+                ncoils=4,
+                config="QA"
+            )
+            continuation_vacuum_stage_II_optimizations(
+                N=2,
+                dx=0.01,
+                INPUT_DIR="qa_output/",
+                OUTPUT_DIR="qa_output_continuation/",
+                INPUT_FILE=TEST_DIR / 'input.LandremanPaul2021_QA_reactorScale_lowres',
+                MAXITER=5,
+                config="QA"
+            )
+            df, df_filtered, _ = build_stage_II_data_array(
+                INPUT_DIR="qa_output/",
+                margin_up=1e5,
+                margin_low=1e-5,
+            )
+            self.assertGreater(len(df), 0, "df should be non-empty")
+            # Use df as df_filtered when filter yields nothing, so we exercise the
+            # "after filtering" histogram path in make_stage_II_pareto_plots
+            if len(df_filtered) == 0:
+                df_filtered = df
+            pareto_dir = "qa_pareto_plots/"
+            os.makedirs(pareto_dir, exist_ok=True)
+            make_stage_II_pareto_plots(df, df_filtered, OUTPUT_DIR=pareto_dir)
+            histograms = list(Path(pareto_dir).glob("histograms.pdf"))
+            self.assertGreater(len(histograms), 0, "histograms.pdf should be created")
+            self.assertGreater(histograms[0].stat().st_size, 0, "histograms.pdf should be non-empty")
+
 
 class TestOptimizationKwargs(unittest.TestCase):
 
@@ -576,6 +634,42 @@ class TestCoilOptimization(unittest.TestCase):
                 LINKING_NUMBER_WEIGHT=0.0,
                 FORCE_WEIGHT=0.0,
                 FORCE_THRESHOLD=0.0
+            )
+            
+            # Verify that optimization returns a BiotSavart object
+            self.assertIsInstance(bs_optimized, BiotSavart)
+            
+            # Verify that the coils are still present
+            self.assertEqual(len(bs_optimized.coils), len(coils))
+            
+            # Verify that the field can still be evaluated
+            bs_optimized.set_points(s.gamma().reshape((-1, 3)))
+            final_BdotN = np.mean(np.abs(np.sum(bs_optimized.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+            
+            # Field should be finite
+            self.assertTrue(np.isfinite(final_BdotN))
+
+            # fB should have decreased
+            fB_final = SquaredFlux(s, bs_optimized).J()
+            self.assertLess(fB_final, fB_initial)
+
+            # Run optimization with minimal iterations
+            bs_optimized = coil_optimization(
+                s, bs, base_curves, curves,
+                MAXITER=5,
+                LENGTH_WEIGHT=1.0,
+                LENGTH_THRESHOLD=18.0 * R0,
+                CC_WEIGHT=1.0,
+                CC_THRESHOLD=0.1 * R0,
+                CS_WEIGHT=1e-2,
+                CS_THRESHOLD=0.15 * R0,
+                CURVATURE_WEIGHT=1e-6,
+                CURVATURE_THRESHOLD=0.1 * R0,
+                MSC_WEIGHT=1e-6,
+                MSC_THRESHOLD=0.1 * R0,
+                LINKING_NUMBER_WEIGHT=0.0,
+                FORCE_WEIGHT=1.0,
+                FORCE_THRESHOLD=1e4
             )
             
             # Verify that optimization returns a BiotSavart object
