@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Optional, Dict, Any
+
 import numpy as np
 from pyevtk.hl import pointsToVTK, unstructuredGridToVTK
 from pyevtk.vtk import VtkVoxel
@@ -8,32 +12,29 @@ from scipy.sparse import lil_matrix
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
 
-__all__ = ['CurrentVoxelsGrid']
+__all__ = ["CurrentVoxelsGrid"]
 
 contig = np.ascontiguousarray
 
 
 def _voxels_to_vtk(
-    filename,
-    points,
-    cellData=None,
-    pointData=None,
-    fieldData=None,
-):
+    filename: str,
+    points: np.ndarray,
+    cellData: Optional[Dict[str, Any]] = None,
+    pointData: Optional[Dict[str, Any]] = None,
+    fieldData: Optional[Dict[str, Any]] = None,
+) -> None:
     """
     Write a VTK file showing the individual voxel cubes.
 
     Args:
-    -------
-    filename: Name of the file to write.
-    points: Array of size ``(nvoxels, nquadpoints, 3)``
-        Here, ``nvoxels`` is the number of voxels.
-        The last array dimension corresponds to Cartesian coordinates.
-        The max and min over the ``nquadpoints`` dimension will be used to
-        define the max and min coordinates of each voxel.
-    cellData: Data for each voxel to pass to ``pyevtk.hl.unstructuredGridToVTK``.
-    pointData: Data for each voxel's vertices to pass to ``pyevtk.hl.unstructuredGridToVTK``.
-    fieldData: Data for each voxel to pass to ``pyevtk.hl.unstructuredGridToVTK``.
+        filename: Name of the file to write (without extension).
+        points: Array of shape ``(nvoxels, nquadpoints, 3)``. The last dimension
+            corresponds to Cartesian coordinates (x, y, z). The min/max over
+            the ``nquadpoints`` dimension defines each voxel's bounding box.
+        cellData: Per-voxel data passed to ``pyevtk.hl.unstructuredGridToVTK``.
+        pointData: Per-vertex data passed to ``pyevtk.hl.unstructuredGridToVTK``.
+        fieldData: Field-level data passed to ``pyevtk.hl.unstructuredGridToVTK``.
     """
     # Some references Matt L. used while writing this function:
     # https://vtk.org/doc/nightly/html/classvtkVoxel.html
@@ -58,15 +59,15 @@ def _voxels_to_vtk(
     z = np.zeros(8 * nvoxels)
 
     for j in range(nvoxels):
-        x[8 * j: 8 * (j + 1)] = (
+        x[8 * j : 8 * (j + 1)] = (
             np.min(points[j, :, 0])
             + (np.max(points[j, :, 0]) - np.min(points[j, :, 0])) * base_x
         )
-        y[8 * j: 8 * (j + 1)] = (
+        y[8 * j : 8 * (j + 1)] = (
             np.min(points[j, :, 1])
             + (np.max(points[j, :, 1]) - np.min(points[j, :, 1])) * base_y
         )
-        z[8 * j: 8 * (j + 1)] = (
+        z[8 * j : 8 * (j + 1)] = (
             np.min(points[j, :, 2])
             + (np.max(points[j, :, 2]) - np.min(points[j, :, 2])) * base_z
         )
@@ -89,28 +90,23 @@ class CurrentVoxelsGrid:
     r"""
     ``CurrentVoxelsGrid`` is a class for setting up the grid,
     needed to perform finite-build coil optimization for stellarators
-    using the method outlined in Kaptanoglu & Langlois & Landreman 2023. This 
+    using the method outlined in Kaptanoglu & Langlois & Landreman 2023. This
     class reuses some of the functionality used for the PermanentMagnetGrid
     class. It takes as input two toroidal surfaces specified as SurfaceRZFourier
-    objects, and initializes a set of points 
+    objects, and initializes a set of points
     between these surfaces.
 
     Args:
-    -----------
-    plasma_boundary: Surface class object 
-        Representing the plasma boundary surface. Gets converted
-        into SurfaceRZFourier object for ease of use.
-    inner_toroidal_surface: Surface class object 
-        Representing the inner toroidal surface of the volume.
-        Gets converted into SurfaceRZFourier object for 
-        ease of use.
-    outer_toroidal_surface: Surface object representing
-        the outer toroidal surface of the volume. Typically 
-        want this to have same quadrature points as the inner
-        surface for a functional grid setup. 
-        Gets converted into SurfaceRZFourier object for 
-        ease of use.
-    kwargs: The following are valid keyword arguments.
+        plasma_boundary: Surface class object representing the plasma boundary
+            surface. Gets converted into SurfaceRZFourier object for ease of use.
+        inner_toroidal_surface: Surface class object representing the inner
+            toroidal surface of the volume. Gets converted into SurfaceRZFourier
+            object for ease of use.
+        outer_toroidal_surface: Surface object representing the outer toroidal
+            surface of the volume. Typically want same quadrature points as the
+            inner surface for a functional grid setup. Gets converted into
+            SurfaceRZFourier object for ease of use.
+        kwargs: The following are valid keyword arguments.
         Bn: 2D numpy array, shape (ntheta_quadpoints, nphi_quadpoints)
             Magnetic field (coils and plasma) at the plasma
             boundary. Typically this will be the optimized plasma
@@ -121,58 +117,72 @@ class CurrentVoxelsGrid:
             Magnetic field (coils and plasma) along the toroidal
             curve (gamma) used for avoiding the trivial solution.
             Defaults to all zeros.
-        Itarget: float 
+        Itarget: float
             Target current I in mega-amperes to flow through the toroidal
             curve (gamma) used for avoiding the trivial solution. Defaults
             to 0.5 MA, which is approximately suitable for a 1-meter device
-            with average B = 0.1 Tesla on axis. 
+            with average B = 0.1 Tesla on axis.
         Itarget_curve: Curve class object
             Initialized Curve object representing the toroidal
             curve (gamma) used for avoiding the trivial solution. Defaults
             to using the plasma boundary at theta = 0.
-        Nx: Number of X points in current voxels grid. Defaults to 10. 
-        Ny: Number of Y points in current voxels grid. Defaults to 10.
-        Ny: Number of Z points in current voxels grid. Defaults to 10.
+        Nx : int
+            Number of X points in current voxels grid. Defaults to 10.
+        Ny : int
+            Number of Y points in current voxels grid. Defaults to 10.
+        Nz : int
+            Number of Z points in current voxels grid. Defaults to 10.
         nx: Number of X points in each individual voxel (for integrating Biot Savart). Defaults to 6.
-        ny: Number of Y points in each individual voxel (for integrating Biot Savart). Defaults to 6. 
-        nz: Number of Z points in each individual voxel (for integrating Biot Savart). Defaults to 6. 
+        ny: Number of Y points in each individual voxel (for integrating Biot Savart). Defaults to 6.
+        nz: Number of Z points in each individual voxel (for integrating Biot Savart). Defaults to 6.
     """
+
     from simsopt.geo import Surface
 
     def __init__(
-        self, plasma_boundary: Surface,
-        inner_toroidal_surface: Surface, 
-        outer_toroidal_surface: Surface,
-        **kwargs,
-    ):
-        from ..util import make_curve_at_theta0 
+        self,
+        plasma_boundary: "Surface",
+        inner_toroidal_surface: "Surface",
+        outer_toroidal_surface: "Surface",
+        **kwargs: Any,
+    ) -> None:
+        from ..util import make_curve_at_theta0
+
         self.plasma_boundary = plasma_boundary.to_RZFourier()
         self.inner_toroidal_surface = inner_toroidal_surface.to_RZFourier()
         self.outer_toroidal_surface = outer_toroidal_surface.to_RZFourier()
-        Nx = kwargs.pop("Nx", 10)
-        Ny = kwargs.pop("Ny", 10)
-        Nz = kwargs.pop("Nz", 10)
-        nx = kwargs.pop("nx", 6)
-        ny = kwargs.pop("ny", 6)
-        nz = kwargs.pop("nz", 6)
+        Nx: int = int(kwargs.pop("Nx", 10))
+        Ny: int = int(kwargs.pop("Ny", 10))
+        Nz: int = int(kwargs.pop("Nz", 10))
+        nx: int = int(kwargs.pop("nx", 6))
+        ny: int = int(kwargs.pop("ny", 6))
+        nz: int = int(kwargs.pop("nz", 6))
         if Nx <= 0 or Ny <= 0 or Nz <= 0 or nx <= 0 or ny <= 0 or nz <= 0:
-            raise ValueError('Nx, Ny, Nz, nx, ny, nz should be positive integers')
+            raise ValueError("Nx, Ny, Nz, nx, ny, nz should be positive integers")
 
-        Bn = kwargs.pop("Bn", np.zeros(self.plasma_boundary.gamma().shape[:2]))
-        Bn = np.array(Bn)
-        if (len(Bn.shape) != 2) or (Bn.shape != self.plasma_boundary.gamma().shape[:2]): 
-            raise ValueError('Normal magnetic field surface data is incorrect shape.')
+        Bn: np.ndarray = np.asarray(
+            kwargs.pop("Bn", np.zeros(self.plasma_boundary.gamma().shape[:2]))
+        )
+        if (len(Bn.shape) != 2) or (Bn.shape != self.plasma_boundary.gamma().shape[:2]):
+            raise ValueError("Normal magnetic field surface data is incorrect shape.")
         self.Bn = Bn
-        self.Itarget = kwargs.pop("Itarget", 0.5e6)
+        self.Itarget: float = float(kwargs.pop("Itarget", 0.5e6))
         self.Itarget_curve = kwargs.pop("Itarget_curve", None)
         if self.Itarget_curve is None:
-            numquadpoints = len(self.plasma_boundary.quadpoints_phi)  # * plasma_boundary.nfp
-            self.Itarget_curve = make_curve_at_theta0(self.plasma_boundary, numquadpoints)
+            numquadpoints = len(
+                self.plasma_boundary.quadpoints_phi
+            )  # * plasma_boundary.nfp
+            self.Itarget_curve = make_curve_at_theta0(
+                self.plasma_boundary, numquadpoints
+            )
 
-        Bn_Itarget = kwargs.pop("Bn_Itarget", np.zeros(self.Itarget_curve.gamma().shape[0]))
-        Bn_Itarget = np.array(Bn_Itarget)
-        if (len(Bn_Itarget.shape) != 1) or (Bn_Itarget.shape[0] != self.Itarget_curve.gamma().shape[0]): 
-            raise ValueError('Normal magnetic field curve data is incorrect shape.')
+        Bn_Itarget: np.ndarray = np.asarray(
+            kwargs.pop("Bn_Itarget", np.zeros(self.Itarget_curve.gamma().shape[0]))
+        )
+        if (len(Bn_Itarget.shape) != 1) or (
+            Bn_Itarget.shape[0] != self.Itarget_curve.gamma().shape[0]
+        ):
+            raise ValueError("Normal magnetic field curve data is incorrect shape.")
         self.Bn_Itarget = Bn_Itarget
         self.nx = nx
         self.ny = ny
@@ -184,11 +194,11 @@ class CurrentVoxelsGrid:
 
         if self.plasma_boundary.nfp == 2 or self.plasma_boundary.nfp == 4:
             if self.plasma_boundary.stellsym:
-                self.coil_range = 'half period'
+                self.coil_range = "half period"
             else:
-                self.coil_range = 'full period'
+                self.coil_range = "full period"
         else:
-            self.coil_range = 'full torus'
+            self.coil_range = "full torus"
         self.phi = self.plasma_boundary.quadpoints_phi
         self.nphi = len(self.phi)
         self.theta = self.plasma_boundary.quadpoints_theta
@@ -202,14 +212,21 @@ class CurrentVoxelsGrid:
         # Have the uniform grid, now need to loop through and eliminate cells.
         t1 = time.time()
         final_grid = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
-            contig(self.normal_inner.reshape(-1, 3)), contig(self.normal_outer.reshape(-1, 3)),
-            contig(self.XYZ_uniform), contig(self.xyz_inner), contig(self.xyz_outer),
+            contig(self.normal_inner.reshape(-1, 3)),
+            contig(self.normal_outer.reshape(-1, 3)),
+            contig(self.XYZ_uniform),
+            contig(self.xyz_inner),
+            contig(self.xyz_outer),
         )
         # remove all the grid elements that were omitted
         inds = np.ravel(np.logical_not(np.all(final_grid == 0.0, axis=-1)))
         self.XYZ_flat = final_grid[inds, :]
         t2 = time.time()
-        print("Took t = ", t2 - t1, " s to perform the total grid cell elimination process.")
+        print(
+            "Took t = ",
+            t2 - t1,
+            " s to perform the total grid cell elimination process.",
+        )
 
         self.N_grid = self.XYZ_flat.shape[0]
         self.alphas = np.random.rand(self.n_functions * self.N_grid)
@@ -226,10 +243,10 @@ class CurrentVoxelsGrid:
         t2 = time.time()
         print("Took t = ", t2 - t1, " s to setup geo factor.")
 
-    def _setup_uniform_grid(self):
+    def _setup_uniform_grid(self) -> None:
         """
-        Initializes a uniform grid in cartesian coordinates and sets
-        some important grid variables for later.
+        Initialize a uniform grid in Cartesian coordinates and set
+        grid variables (xyz_inner, xyz_outer, XYZ_uniform, dx, dy, dz).
         """
         # Get (X, Y, Z) coordinates of the inner and outer toroidal boundaries
         xyz_inner = self.inner_toroidal_surface.gamma()
@@ -272,19 +289,25 @@ class CurrentVoxelsGrid:
         self.dz = 2 * z_max / (Nz - 1)
 
         # Extra work below so that the stitching with the symmetries is done in
-        # such a way that the reflected cells are still dx and dy away from 
-        # the old cells. 
-        if self.coil_range != 'full torus':
-            X = np.linspace(self.dx / 2.0, (x_max - x_min) + self.dx / 2.0, Nx, endpoint=True)
-            Y = np.linspace(self.dy / 2.0, (y_max - y_min) + self.dy / 2.0, Ny, endpoint=True)
+        # such a way that the reflected cells are still dx and dy away from
+        # the old cells.
+        if self.coil_range != "full torus":
+            X = np.linspace(
+                self.dx / 2.0, (x_max - x_min) + self.dx / 2.0, Nx, endpoint=True
+            )
+            Y = np.linspace(
+                self.dy / 2.0, (y_max - y_min) + self.dy / 2.0, Ny, endpoint=True
+            )
         else:
             X = np.linspace(x_min, x_max, Nx, endpoint=True)
             Y = np.linspace(y_min, y_max, Ny, endpoint=True)
         Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
 
         # Make 3D mesh
-        X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
-        self.XYZ_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3)
+        X, Y, Z = np.meshgrid(X, Y, Z, indexing="ij")
+        self.XYZ_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(
+            Nx * Ny * Nz, 3
+        )
 
         # Extra work for nfp = 4 to chop off half of the originally nfp = 2 uniform grid
         if self.plasma_boundary.nfp == 4:
@@ -294,19 +317,19 @@ class CurrentVoxelsGrid:
                     for k in range(Nz):
                         if X[i, j, k] < Y[i, j, k]:
                             inds.append(int(i * Ny * Nz + j * Nz + k))
-            good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds) 
+            good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds)
             self.XYZ_uniform = self.XYZ_uniform[good_inds, :]
 
-    def to_vtk_before_solve(self, vtkname, plot_quadrature_points=False):
+    def to_vtk_before_solve(
+        self, vtkname: str, plot_quadrature_points: bool = False
+    ) -> None:
         """
-        Write voxel geometry data into a VTK file.
+        Write voxel geometry data into VTK files before optimization.
 
         Args:
-        -------
-        vtkname (str): VTK filename, will be appended with .vts or .vtu.
-        dim (tuple, optional): Dimension information if saved as structured grids. Defaults to (1).
-        plot_quadrature_points (bool, optional): Boolean flag to plot the full quadrature grid. 
-          Defaults to False because this can make enormous vtk files. 
+            vtkname: Base VTK filename (extensions like .vtu are appended automatically).
+            plot_quadrature_points: If True, also write the full quadrature grid
+                (can produce large files). Defaults to False.
         """
 
         nfp = self.plasma_boundary.nfp
@@ -340,69 +363,106 @@ class CurrentVoxelsGrid:
                 phi0 = (2 * np.pi / nfp) * fp
 
                 # get new dipoles locations by flipping the y and z components, then rotating by phi0
-                ox_full[index:index + n] = ox * np.cos(phi0) - oy * np.sin(phi0) * stell
-                oy_full[index:index + n] = ox * np.sin(phi0) + oy * np.cos(phi0) * stell
-                oz_full[index:index + n] = oz * stell
-                XYZ_integration_full[index:index + n, :, 0] = self.XYZ_integration[:, :, 0] * np.cos(phi0) - self.XYZ_integration[:, :, 1] * np.sin(phi0) * stell
-                XYZ_integration_full[index:index + n, :, 1] = self.XYZ_integration[:, :, 0] * np.sin(phi0) + self.XYZ_integration[:, :, 1] * np.cos(phi0) * stell
-                XYZ_integration_full[index:index + n, :, 2] = self.XYZ_integration[:, :, 2] * stell
+                ox_full[index : index + n] = (
+                    ox * np.cos(phi0) - oy * np.sin(phi0) * stell
+                )
+                oy_full[index : index + n] = (
+                    ox * np.sin(phi0) + oy * np.cos(phi0) * stell
+                )
+                oz_full[index : index + n] = oz * stell
+                XYZ_integration_full[index : index + n, :, 0] = (
+                    self.XYZ_integration[:, :, 0] * np.cos(phi0)
+                    - self.XYZ_integration[:, :, 1] * np.sin(phi0) * stell
+                )
+                XYZ_integration_full[index : index + n, :, 1] = (
+                    self.XYZ_integration[:, :, 0] * np.sin(phi0)
+                    + self.XYZ_integration[:, :, 1] * np.cos(phi0) * stell
+                )
+                XYZ_integration_full[index : index + n, :, 2] = (
+                    self.XYZ_integration[:, :, 2] * stell
+                )
 
                 index += n
 
         self.XYZ_integration_full = XYZ_integration_full
+        pointsToVTK(vtkname, contig(ox_full), contig(oy_full), contig(oz_full))
         pointsToVTK(
-            vtkname, contig(ox_full), contig(oy_full), contig(oz_full)
-        )
-        pointsToVTK(
-            vtkname + '_uniform',
+            vtkname + "_uniform",
             contig(self.XYZ_uniform[:, 0]),
             contig(self.XYZ_uniform[:, 1]),
-            contig(self.XYZ_uniform[:, 2])
+            contig(self.XYZ_uniform[:, 2]),
         )
-        Phi = self.Phi.reshape(self.n_functions, self.N_grid, self.nx * self.ny * self.nz, 3)
+        Phi = self.Phi.reshape(
+            self.n_functions, self.N_grid, self.nx * self.ny * self.nz, 3
+        )
         data = {
-            "Phi0": (contig(Phi[0, :, :, 0].flatten()), contig(Phi[0, :, :, 1].flatten()), contig(Phi[0, :, :, 2].flatten())),
-            "Phi1": (contig(Phi[1, :, :, 0].flatten()), contig(Phi[1, :, :, 1].flatten()), contig(Phi[1, :, :, 2].flatten())),
-            "Phi2": (contig(Phi[2, :, :, 0].flatten()), contig(Phi[2, :, :, 1].flatten()), contig(Phi[2, :, :, 2].flatten())),
-            "Phi3": (contig(Phi[3, :, :, 0].flatten()), contig(Phi[3, :, :, 1].flatten()), contig(Phi[3, :, :, 2].flatten())),
-            "Phi4": (contig(Phi[4, :, :, 0].flatten()), contig(Phi[4, :, :, 1].flatten()), contig(Phi[4, :, :, 2].flatten())),
+            "Phi0": (
+                contig(Phi[0, :, :, 0].flatten()),
+                contig(Phi[0, :, :, 1].flatten()),
+                contig(Phi[0, :, :, 2].flatten()),
+            ),
+            "Phi1": (
+                contig(Phi[1, :, :, 0].flatten()),
+                contig(Phi[1, :, :, 1].flatten()),
+                contig(Phi[1, :, :, 2].flatten()),
+            ),
+            "Phi2": (
+                contig(Phi[2, :, :, 0].flatten()),
+                contig(Phi[2, :, :, 1].flatten()),
+                contig(Phi[2, :, :, 2].flatten()),
+            ),
+            "Phi3": (
+                contig(Phi[3, :, :, 0].flatten()),
+                contig(Phi[3, :, :, 1].flatten()),
+                contig(Phi[3, :, :, 2].flatten()),
+            ),
+            "Phi4": (
+                contig(Phi[4, :, :, 0].flatten()),
+                contig(Phi[4, :, :, 1].flatten()),
+                contig(Phi[4, :, :, 2].flatten()),
+            ),
         }
         if plot_quadrature_points:
             pointsToVTK(
-                vtkname + '_quadrature',
+                vtkname + "_quadrature",
                 contig(self.XYZ_integration[:, :, 0].flatten()),
                 contig(self.XYZ_integration[:, :, 1].flatten()),
                 contig(self.XYZ_integration[:, :, 2].flatten()),
-                data=data
+                data=data,
             )
             pointsToVTK(
-                vtkname + '_quadrature_full',
+                vtkname + "_quadrature_full",
                 contig(XYZ_integration_full[:, :, 0].flatten()),
                 contig(XYZ_integration_full[:, :, 1].flatten()),
                 contig(XYZ_integration_full[:, :, 2].flatten()),
             )
-        _voxels_to_vtk(vtkname + '_voxels', self.XYZ_integration)
-        _voxels_to_vtk(vtkname + '_voxels_full', XYZ_integration_full)
+        _voxels_to_vtk(vtkname + "_voxels", self.XYZ_integration)
+        _voxels_to_vtk(vtkname + "_voxels_full", XYZ_integration_full)
         print("Max quadrature x:", np.max(self.XYZ_integration[:, :, 0]))
         print("Min quadrature x:", np.min(self.XYZ_integration[:, :, 0]))
         print("Max quadrature z:", np.max(self.XYZ_integration[:, :, 2]))
         print("Min quadrature z:", np.min(self.XYZ_integration[:, :, 2]))
 
-    def to_vtk_after_solve(self, vtkname, plot_quadrature_points=False):
+    def to_vtk_after_solve(
+        self,
+        vtkname: str,
+        plot_quadrature_points: bool = False,
+        quiver_savepath: Optional[str] = None,
+    ) -> None:
         """
-        Write dipole data into a VTK file (stolen from Caoxiang's CoilPy code).
+        Write optimized current density and related data into VTK files.
 
         Args:
-        -------
-        vtkname (str): VTK filename, will be appended with .vts or .vtu.
-        dim (tuple, optional): Dimension information if saved as structured grids. Defaults to (1).
-        plot_quadrature_points (bool, optional): Boolean flag to plot the full quadrature grid. 
-          Defaults to False because this can make enormous vtk files.
+            vtkname: Base VTK filename (extensions are appended automatically).
+            plot_quadrature_points: If True, write the full quadrature grid with
+                J vectors (large files). Defaults to False.
+            quiver_savepath: If given, save a 3D quiver plot of the sparse current
+                density J to this path.
         """
 
         nfp = self.plasma_boundary.nfp
         stellsym = self.plasma_boundary.stellsym
-        n = self.N_grid 
+        n = self.N_grid
         if stellsym:
             stell_list = [1, -1]
             nsym = nfp * 2
@@ -430,7 +490,7 @@ class CurrentVoxelsGrid:
         dJz_dz = -(Jvec[:, :, :, 1:, 2] - Jvec[:, :, :, :-1, 2]) / self.dz
         divJ = dJx_dx[:, :, :-1, :-1] + dJy_dy[:, :-1, :, :-1] + dJz_dz[:, :-1, :-1, :]
         divJ = np.sum(np.sum(np.sum(divJ, axis=1), axis=1), axis=1)
-        print('divJ max = ', np.max(np.abs(divJ)), divJ.shape)
+        print("divJ max = ", np.max(np.abs(divJ)), divJ.shape)
 
         Jx = Jvec_avg[:, 0]
         Jy = Jvec_avg[:, 1]
@@ -458,26 +518,42 @@ class CurrentVoxelsGrid:
                 phi0 = (2 * np.pi / nfp) * fp
 
                 # get new dipoles locations by flipping the y and z components, then rotating by phi0
-                ox_full[index:index + n] = ox * np.cos(phi0) - oy * np.sin(phi0) * stell
-                oy_full[index:index + n] = ox * np.sin(phi0) + oy * np.cos(phi0) * stell
-                oz_full[index:index + n] = oz * stell
+                ox_full[index : index + n] = (
+                    ox * np.cos(phi0) - oy * np.sin(phi0) * stell
+                )
+                oy_full[index : index + n] = (
+                    ox * np.sin(phi0) + oy * np.cos(phi0) * stell
+                )
+                oz_full[index : index + n] = oz * stell
 
                 # get new dipole vectors by flipping the x component, then rotating by phi0
-                Jvec_full_internal[index:index + n, :, :, :, 0] = Jvec[:, :, :, :, 0] * np.cos(phi0) * stell - Jvec[:, :, :, :, 1] * np.sin(phi0)
-                Jvec_full_internal[index:index + n, :, :, :, 1] = Jvec[:, :, :, :, 0] * np.sin(phi0) * stell + Jvec[:, :, :, :, 1] * np.cos(phi0)
-                Jvec_full_internal[index:index + n, :, :, :, 2] = Jvec[:, :, :, :, 2]
+                Jvec_full_internal[index : index + n, :, :, :, 0] = Jvec[
+                    :, :, :, :, 0
+                ] * np.cos(phi0) * stell - Jvec[:, :, :, :, 1] * np.sin(phi0)
+                Jvec_full_internal[index : index + n, :, :, :, 1] = Jvec[
+                    :, :, :, :, 0
+                ] * np.sin(phi0) * stell + Jvec[:, :, :, :, 1] * np.cos(phi0)
+                Jvec_full_internal[index : index + n, :, :, :, 2] = Jvec[:, :, :, :, 2]
 
-                Jvec_full[index:index + n, 0] = Jx * np.cos(phi0) * stell - Jy * np.sin(phi0)
-                Jvec_full[index:index + n, 1] = Jx * np.sin(phi0) * stell + Jy * np.cos(phi0)
-                Jvec_full[index:index + n, 2] = Jz
+                Jvec_full[index : index + n, 0] = Jx * np.cos(
+                    phi0
+                ) * stell - Jy * np.sin(phi0)
+                Jvec_full[index : index + n, 1] = Jx * np.sin(
+                    phi0
+                ) * stell + Jy * np.cos(phi0)
+                Jvec_full[index : index + n, 2] = Jz
 
-                Jvec_full_sp[index:index + n, 0] = Jx_sp * np.cos(phi0) * stell - Jy_sp * np.sin(phi0)
-                Jvec_full_sp[index:index + n, 1] = Jx_sp * np.sin(phi0) * stell + Jy_sp * np.cos(phi0)
-                Jvec_full_sp[index:index + n, 2] = Jz_sp
+                Jvec_full_sp[index : index + n, 0] = Jx_sp * np.cos(
+                    phi0
+                ) * stell - Jy_sp * np.sin(phi0)
+                Jvec_full_sp[index : index + n, 1] = Jx_sp * np.sin(
+                    phi0
+                ) * stell + Jy_sp * np.cos(phi0)
+                Jvec_full_sp[index : index + n, 2] = Jz_sp
 
                 index += n
 
-        Jvec_normalization = 1.0 / np.sum(Jvec_full ** 2, axis=-1)
+        Jvec_normalization = 1.0 / np.sum(Jvec_full**2, axis=-1)
         # Jvec_normalization_sp = 1.0 / np.sum(Jvec_full_sp ** 2, axis=-1)
 
         # Save all the data to a vtk file which can be visualized nicely with ParaView
@@ -489,93 +565,147 @@ class CurrentVoxelsGrid:
         Jy_sp = Jvec_full_sp[:, 1]
         Jz_sp = Jvec_full_sp[:, 2]
 
-        Jvec_xmin = np.mean(np.mean(Jvec_full_internal[:, 0, :, :, :], axis=-2), axis=-2)
-        Jvec_xmax = np.mean(np.mean(Jvec_full_internal[:, -1, :, :, :], axis=-2), axis=-2)
-        Jvec_ymin = np.mean(np.mean(Jvec_full_internal[:, :, 0, :, :], axis=-2), axis=-2)
-        Jvec_ymax = np.mean(np.mean(Jvec_full_internal[:, :, -1, :, :], axis=-2), axis=-2)
-        Jvec_zmin = np.mean(np.mean(Jvec_full_internal[:, :, :, 0, :], axis=-2), axis=-2)
-        Jvec_zmax = np.mean(np.mean(Jvec_full_internal[:, :, :, -1, :], axis=-2), axis=-2)
+        Jvec_xmin = np.mean(
+            np.mean(Jvec_full_internal[:, 0, :, :, :], axis=-2), axis=-2
+        )
+        Jvec_xmax = np.mean(
+            np.mean(Jvec_full_internal[:, -1, :, :, :], axis=-2), axis=-2
+        )
+        Jvec_ymin = np.mean(
+            np.mean(Jvec_full_internal[:, :, 0, :, :], axis=-2), axis=-2
+        )
+        Jvec_ymax = np.mean(
+            np.mean(Jvec_full_internal[:, :, -1, :, :], axis=-2), axis=-2
+        )
+        Jvec_zmin = np.mean(
+            np.mean(Jvec_full_internal[:, :, :, 0, :], axis=-2), axis=-2
+        )
+        Jvec_zmax = np.mean(
+            np.mean(Jvec_full_internal[:, :, :, -1, :], axis=-2), axis=-2
+        )
 
         Jvec = Jvec_full_internal.reshape(n * nsym, self.nx, self.ny, self.nz, 3)
         dJx_dx = -(Jvec[:, 1:, :, :, 0] - Jvec[:, :-1, :, :, 0]) / self.dx
         dJy_dy = -(Jvec[:, :, 1:, :, 1] - Jvec[:, :, :-1, :, 1]) / self.dy
         dJz_dz = -(Jvec[:, :, :, 1:, 2] - Jvec[:, :, :, :-1, 2]) / self.dz
-        divJ_total = dJx_dx[:, :, :-1, :-1] + dJy_dy[:, :-1, :, :-1] + dJz_dz[:, :-1, :-1, :]
+        divJ_total = (
+            dJx_dx[:, :, :-1, :-1] + dJy_dy[:, :-1, :, :-1] + dJz_dz[:, :-1, :-1, :]
+        )
         divJ_total = np.sum(np.sum(np.sum(divJ_total, axis=1), axis=1), axis=1)
 
-        data = {"J": (contig(Jx), contig(Jy), contig(Jz)), 
-                "J_normalized": 
-                (contig(Jx / Jvec_normalization), 
-                 contig(Jy / Jvec_normalization), 
-                 contig(Jz / Jvec_normalization)),
-                "J_sparse": (contig(Jx_sp), contig(Jy_sp), contig(Jz_sp)), 
-                "Jvec_xmin": (contig(Jvec_xmin[:, 0]), contig(Jvec_xmin[:, 1]), contig(Jvec_xmin[:, 2])), 
-                "Jvec_xmax": (contig(Jvec_xmax[:, 0]), contig(Jvec_xmax[:, 1]), contig(Jvec_xmax[:, 2])), 
-                "Jvec_ymin": (contig(Jvec_ymin[:, 0]), contig(Jvec_ymin[:, 1]), contig(Jvec_ymin[:, 2])), 
-                "Jvec_ymax": (contig(Jvec_ymax[:, 0]), contig(Jvec_ymax[:, 1]), contig(Jvec_ymax[:, 2])), 
-                "Jvec_zmin": (contig(Jvec_zmin[:, 0]), contig(Jvec_zmin[:, 1]), contig(Jvec_zmin[:, 2])), 
-                "Jvec_zmax": (contig(Jvec_zmax[:, 0]), contig(Jvec_zmax[:, 1]), contig(Jvec_zmax[:, 2])), 
-                } 
+        data = {
+            "J": (contig(Jx), contig(Jy), contig(Jz)),
+            "J_normalized": (
+                contig(Jx / Jvec_normalization),
+                contig(Jy / Jvec_normalization),
+                contig(Jz / Jvec_normalization),
+            ),
+            "J_sparse": (contig(Jx_sp), contig(Jy_sp), contig(Jz_sp)),
+            "Jvec_xmin": (
+                contig(Jvec_xmin[:, 0]),
+                contig(Jvec_xmin[:, 1]),
+                contig(Jvec_xmin[:, 2]),
+            ),
+            "Jvec_xmax": (
+                contig(Jvec_xmax[:, 0]),
+                contig(Jvec_xmax[:, 1]),
+                contig(Jvec_xmax[:, 2]),
+            ),
+            "Jvec_ymin": (
+                contig(Jvec_ymin[:, 0]),
+                contig(Jvec_ymin[:, 1]),
+                contig(Jvec_ymin[:, 2]),
+            ),
+            "Jvec_ymax": (
+                contig(Jvec_ymax[:, 0]),
+                contig(Jvec_ymax[:, 1]),
+                contig(Jvec_ymax[:, 2]),
+            ),
+            "Jvec_zmin": (
+                contig(Jvec_zmin[:, 0]),
+                contig(Jvec_zmin[:, 1]),
+                contig(Jvec_zmin[:, 2]),
+            ),
+            "Jvec_zmax": (
+                contig(Jvec_zmax[:, 0]),
+                contig(Jvec_zmax[:, 1]),
+                contig(Jvec_zmax[:, 2]),
+            ),
+        }
         pointsToVTK(
             vtkname, contig(ox_full), contig(oy_full), contig(oz_full), data=data
         )
-        data = {"divJ": (contig(divJ)), "num_constraints_per_cell": self.num_constraints_per_cell,
-                "flux_factor0": np.sum(self.flux_factor[0, :, :] * alphas.T, axis=-1), 
-                "flux_factor1": np.sum(self.flux_factor[1, :, :] * alphas.T, axis=-1), 
-                "flux_factor2": np.sum(self.flux_factor[2, :, :] * alphas.T, axis=-1), 
-                "flux_factor3": np.sum(self.flux_factor[3, :, :] * alphas.T, axis=-1), 
-                "flux_factor4": np.sum(self.flux_factor[4, :, :] * alphas.T, axis=-1), 
-                "flux_factor5": np.sum(self.flux_factor[5, :, :] * alphas.T, axis=-1),
-                "index": np.arange(n)} 
+        data = {
+            "divJ": (contig(divJ)),
+            "num_constraints_per_cell": self.num_constraints_per_cell,
+            "flux_factor0": np.sum(self.flux_factor[0, :, :] * alphas.T, axis=-1),
+            "flux_factor1": np.sum(self.flux_factor[1, :, :] * alphas.T, axis=-1),
+            "flux_factor2": np.sum(self.flux_factor[2, :, :] * alphas.T, axis=-1),
+            "flux_factor3": np.sum(self.flux_factor[3, :, :] * alphas.T, axis=-1),
+            "flux_factor4": np.sum(self.flux_factor[4, :, :] * alphas.T, axis=-1),
+            "flux_factor5": np.sum(self.flux_factor[5, :, :] * alphas.T, axis=-1),
+            "index": np.arange(n),
+        }
+        pointsToVTK(vtkname + "_divJ", contig(ox), contig(oy), contig(oz), data=data)
         pointsToVTK(
-            vtkname + '_divJ', contig(ox), contig(oy), contig(oz), data=data
-        )
-        pointsToVTK(
-            vtkname + '_uniform', 
+            vtkname + "_uniform",
             contig(self.XYZ_uniform[:, 0]),
             contig(self.XYZ_uniform[:, 1]),
-            contig(self.XYZ_uniform[:, 2])
+            contig(self.XYZ_uniform[:, 2]),
         )
-        Jvec_full_internal = np.reshape(Jvec_full_internal, (n * nsym, self.nx * self.ny * self.nz, 3))
-        if plot_quadrature_points: 
+        Jvec_full_internal = np.reshape(
+            Jvec_full_internal, (n * nsym, self.nx * self.ny * self.nz, 3)
+        )
+        if plot_quadrature_points:
             data = {
-                "Jvec": (contig(Jvec_full_internal[:, :, 0].flatten()), 
-                         contig(Jvec_full_internal[:, :, 1].flatten()),
-                         contig(Jvec_full_internal[:, :, 2].flatten())
-                         )
+                "Jvec": (
+                    contig(Jvec_full_internal[:, :, 0].flatten()),
+                    contig(Jvec_full_internal[:, :, 1].flatten()),
+                    contig(Jvec_full_internal[:, :, 2].flatten()),
+                )
             }
             pointsToVTK(
-                vtkname + '_quadrature_full_solution',
+                vtkname + "_quadrature_full_solution",
                 contig(self.XYZ_integration_full[:, :, 0].flatten()),
                 contig(self.XYZ_integration_full[:, :, 1].flatten()),
                 contig(self.XYZ_integration_full[:, :, 2].flatten()),
-                data=data
+                data=data,
             )
 
         # Make a rough quiver plot for immediate user viewing of the solution
         fig = plt.figure(700, figsize=(12, 12))
-        ax = fig.add_subplot(projection='3d')
+        ax = fig.add_subplot(projection="3d")
         colors = np.linalg.norm(Jvec_full_sp, axis=-1)
-        inds = (colors > 1)
-        colors = np.concatenate((colors, np.repeat(colors, 2))) 
-        q = ax.quiver(ox_full[inds], oy_full[inds], oz_full[inds], 
-                      Jvec_full_sp[inds, 0], Jvec_full_sp[inds, 1], Jvec_full_sp[inds, 2], 
-                      length=0.4, normalize=True, cmap='Reds', norm=LogNorm(vmin=1, vmax=np.max(colors)))
-        inds = (colors > 1)
+        inds = colors > 1
+        q = ax.quiver(
+            ox_full[inds],
+            oy_full[inds],
+            oz_full[inds],
+            Jvec_full_sp[inds, 0],
+            Jvec_full_sp[inds, 1],
+            Jvec_full_sp[inds, 2],
+            length=0.4,
+            normalize=True,
+            cmap="Reds",
+            norm=LogNorm(vmin=1, vmax=np.max(colors[inds]) if np.any(inds) else 1),
+        )
         q.set_array(colors[inds])
-        fig.colorbar(q)
+        cbar = fig.colorbar(q, ax=ax, shrink=0.6)
+        cbar.set_label(r"$|J|$ (A/m²)", fontsize=10)
+        ax.set_xlabel("x (m)")
+        ax.set_ylabel("y (m)")
+        ax.set_zlabel("z (m)")
+        ax.set_title("Sparse current density J (thresholded voxels)")
+        if quiver_savepath is not None:
+            plt.savefig(quiver_savepath, dpi=150)
 
-    def _setup_polynomial_basis(self):
+    def _setup_polynomial_basis(self) -> None:
         """
-        Evaluate the basis of divergence-free polynomials
-        at a given set of points. For now,
-        the basis is hard-coded as a set of linear polynomials.
-        The basis, Phi, is shape (num_basis_functions, N_grid, nx * ny * nz, 3)
-        where N_grid is the number of cells in the current voxels,
-        nx, ny, and nz, are the number of points to evaluate the 
-        function WITHIN a cell, and num_basis_functions is hard-coded
-        to 5 for now while we use a linear basis of polynomials that conserve
-        local flux jumps across cell interfaces. 
+        Evaluate the divergence-free polynomial basis at quadrature points.
+
+        The basis is a set of 5 linear polynomials that conserve local flux
+        jumps across cell interfaces. Sets ``self.Phi`` of shape
+        ``(n_functions, N_grid, nx*ny*nz, 3)`` and ``self.XYZ_integration``.
         """
         dx = self.dx
         dy = self.dy
@@ -595,36 +725,46 @@ class CurrentVoxelsGrid:
         yrange = np.zeros((n, ny))
         zrange = np.zeros((n, nz))
         for i in range(n):
-            xrange[i, :] = np.linspace(
-                x_leftpoints[i], 
-                x_leftpoints[i] + dx,
-                nx,
-                endpoint=True
-            ) - dx / 2.0
-            yrange[i, :] = np.linspace(
-                y_leftpoints[i], 
-                y_leftpoints[i] + dy,
-                ny,
-                endpoint=True
-            ) - dy / 2.0
-            zrange[i, :] = np.linspace(
-                z_leftpoints[i], 
-                z_leftpoints[i] + dz,
-                nz,
-                endpoint=True
-            ) - dz / 2.0
-        Phi = np.zeros((self.n_functions, n, nx, ny, nz, 3)) 
+            xrange[i, :] = (
+                np.linspace(x_leftpoints[i], x_leftpoints[i] + dx, nx, endpoint=True)
+                - dx / 2.0
+            )
+            yrange[i, :] = (
+                np.linspace(y_leftpoints[i], y_leftpoints[i] + dy, ny, endpoint=True)
+                - dy / 2.0
+            )
+            zrange[i, :] = (
+                np.linspace(z_leftpoints[i], z_leftpoints[i] + dz, nz, endpoint=True)
+                - dz / 2.0
+            )
+        Phi = np.zeros((self.n_functions, n, nx, ny, nz, 3))
         zeros = np.zeros((n, nx, ny, nz))
         ones = np.ones((n, nx, ny, nz))
         # Shift all the basis functions by their midpoints in every cell
-        Phi[0, :, :, :, :, :] = np.transpose(np.array([ones, zeros, zeros]), axes=[1, 2, 3, 4, 0])
-        Phi[1, :, :, :, :, :] = np.transpose(np.array([zeros, ones, zeros]), axes=[1, 2, 3, 4, 0])
-        Phi[2, :, :, :, :, :] = np.transpose(np.array([zeros, zeros, ones]), axes=[1, 2, 3, 4, 0])
-        xrange_extend = (xrange - x_leftpoints[:, np.newaxis])[:, :, np.newaxis, np.newaxis] * ones
-        yrange_extend = (yrange - y_leftpoints[:, np.newaxis])[:, np.newaxis, :, np.newaxis] * ones
-        zrange_extend = (zrange - z_leftpoints[:, np.newaxis])[:, np.newaxis, np.newaxis, :] * ones
-        Phi[3, :, :, :, :, :] = np.transpose(np.array([xrange_extend, -yrange_extend, zeros]), axes=[1, 2, 3, 4, 0]) / np.cbrt(dx * dy * dz)
-        Phi[4, :, :, :, :, :] = np.transpose(np.array([xrange_extend, zeros, -zrange_extend]), axes=[1, 2, 3, 4, 0]) / np.cbrt(dx * dy * dz)
+        Phi[0, :, :, :, :, :] = np.transpose(
+            np.array([ones, zeros, zeros]), axes=[1, 2, 3, 4, 0]
+        )
+        Phi[1, :, :, :, :, :] = np.transpose(
+            np.array([zeros, ones, zeros]), axes=[1, 2, 3, 4, 0]
+        )
+        Phi[2, :, :, :, :, :] = np.transpose(
+            np.array([zeros, zeros, ones]), axes=[1, 2, 3, 4, 0]
+        )
+        xrange_extend = (xrange - x_leftpoints[:, np.newaxis])[
+            :, :, np.newaxis, np.newaxis
+        ] * ones
+        yrange_extend = (yrange - y_leftpoints[:, np.newaxis])[
+            :, np.newaxis, :, np.newaxis
+        ] * ones
+        zrange_extend = (zrange - z_leftpoints[:, np.newaxis])[
+            :, np.newaxis, np.newaxis, :
+        ] * ones
+        Phi[3, :, :, :, :, :] = np.transpose(
+            np.array([xrange_extend, -yrange_extend, zeros]), axes=[1, 2, 3, 4, 0]
+        ) / np.cbrt(dx * dy * dz)
+        Phi[4, :, :, :, :, :] = np.transpose(
+            np.array([xrange_extend, zeros, -zrange_extend]), axes=[1, 2, 3, 4, 0]
+        ) / np.cbrt(dx * dy * dz)
 
         # Flatten the indices corresponding to the integration points in each voxel
         self.Phi = Phi.reshape(self.n_functions, n, nx * ny * nz, 3)
@@ -633,18 +773,20 @@ class CurrentVoxelsGrid:
         XYZ_integration = np.zeros((n, nx * ny * nz, 3))
         for i in range(n):
             X_n, Y_n, Z_n = np.meshgrid(
-                xrange[i, :], yrange[i, :], zrange[i, :], 
-                indexing='ij'
+                xrange[i, :], yrange[i, :], zrange[i, :], indexing="ij"
             )
-            XYZ_integration[i, :, :] = np.transpose(np.array([X_n, Y_n, Z_n]), [1, 2, 3, 0]).reshape(nx * ny * nz, 3) 
+            XYZ_integration[i, :, :] = np.transpose(
+                np.array([X_n, Y_n, Z_n]), [1, 2, 3, 0]
+            ).reshape(nx * ny * nz, 3)
         self.XYZ_integration = XYZ_integration
 
-    def _construct_geo_factor(self):
+    def _construct_geo_factor(self) -> None:
         """
-        Main geometrical setup function. The grid of voxels is now defined so this 
-        function goes through and calculations the various inductance and optimization
-        related matrices we need. Calculates the hardest part of this problem -- 
-        getting the constraint matrix correct with the symmetries.
+        Build B_matrix, Itarget_matrix, flux_factor, and constraint matrix C.
+
+        Computes the Biot–Savart coupling from voxels to plasma boundary and
+        Itarget curve, the flux-jump factors for divergence-free constraints,
+        and the sparse constraint matrix for the relax-and-split solver.
         """
         from ..solve import compute_J
 
@@ -658,7 +800,7 @@ class CurrentVoxelsGrid:
         # Begin computation of the coil fields with all the symmetries
         nfp = self.plasma_boundary.nfp
         stellsym = self.plasma_boundary.stellsym
-        if self.coil_range == 'full torus':
+        if self.coil_range == "full torus":
             stell_list = [1]
             nfp = 1
             # nsym = nfp
@@ -701,79 +843,105 @@ class CurrentVoxelsGrid:
                 oz_full = oz * stell
 
                 # get new dipole vectors by flipping the x component, then rotating by phi0
-                Phivec_x = Phi[:, :, :, 0] * np.cos(phi0) * stell - Phi[:, :, :, 1] * np.sin(phi0)
-                Phivec_y = Phi[:, :, :, 0] * np.sin(phi0) * stell + Phi[:, :, :, 1] * np.cos(phi0)
+                Phivec_x = Phi[:, :, :, 0] * np.cos(phi0) * stell - Phi[
+                    :, :, :, 1
+                ] * np.sin(phi0)
+                Phivec_y = Phi[:, :, :, 0] * np.sin(phi0) * stell + Phi[
+                    :, :, :, 1
+                ] * np.cos(phi0)
                 Phivec_z = Phi[:, :, :, 2]
 
-                int_points = np.transpose(np.array([ox_full, oy_full, oz_full]), [1, 2, 0])
-                Phivec_transpose = np.transpose(np.array([Phivec_x, Phivec_y, Phivec_z]), [2, 3, 1, 0])
+                int_points = np.transpose(
+                    np.array([ox_full, oy_full, oz_full]), [1, 2, 0]
+                )
+                Phivec_transpose = np.transpose(
+                    np.array([Phivec_x, Phivec_y, Phivec_z]), [2, 3, 1, 0]
+                )
 
                 geo_factor += sopp.current_voxels_field_Bext(
-                    points, 
-                    contig(int_points), 
+                    points,
+                    contig(int_points),
                     contig(Phivec_transpose),
-                    plasma_unitnormal
+                    plasma_unitnormal,
                 )
                 Itarget_matrix += sopp.current_voxels_field_Bext(
-                    points_curve, 
-                    contig(int_points), 
+                    points_curve,
+                    contig(int_points),
                     contig(Phivec_transpose),
-                    contig(curve_dl)
+                    contig(curve_dl),
                 )
         t2 = time.time()
-        print('Computing full coil surface grid took t = ', t2 - t1, ' s')
+        print("Computing full coil surface grid took t = ", t2 - t1, " s")
 
         t1 = time.time()
         alphas = self.alphas.reshape(n, self.n_functions)
         compute_J(self, alphas, alphas)
         t2 = time.time()
-        print('Computing J took t = ', t2 - t1, ' s')
+        print("Computing J took t = ", t2 - t1, " s")
         t1 = time.time()
 
-        # Delta x from intra-cell integration is self.dx (uniform grid spacing) divided 
+        # Delta x from intra-cell integration is self.dx (uniform grid spacing) divided
         # by self.nx (number of points within a cell)
-        coil_integration_factor = self.dx * self.dy * self.dz / (self.nx * self.ny * self.nz)
-        self.grid_scaling = coil_integration_factor
-        self.B_matrix = (geo_factor * np.sqrt(N_quadrature_inv) * coil_integration_factor).reshape(
-            geo_factor.shape[0], self.N_grid * self.n_functions
+        coil_integration_factor = (
+            self.dx * self.dy * self.dz / (self.nx * self.ny * self.nz)
         )
+        self.grid_scaling = coil_integration_factor
+        self.B_matrix = (
+            geo_factor * np.sqrt(N_quadrature_inv) * coil_integration_factor
+        ).reshape(geo_factor.shape[0], self.N_grid * self.n_functions)
         b_rhs = np.ravel(self.Bn * np.sqrt(N_quadrature_inv))
         for i in range(self.B_matrix.shape[0]):
             self.B_matrix[i, :] *= np.sqrt(normN[i])
             b_rhs[i] *= np.sqrt(normN[i])
 
-        self.b_rhs = -b_rhs  # minus sign because ||B_{coil,N} + B_{0,N}||_2^2 -> ||A * alpha - b||_2^2
+        self.b_rhs = (
+            -b_rhs
+        )  # minus sign because ||B_{coil,N} + B_{0,N}||_2^2 -> ||A * alpha - b||_2^2
 
-        self.Itarget_matrix = nphi_loop_inv * coil_integration_factor * Itarget_matrix.reshape(
-            points_curve.shape[0], n * num_basis
+        self.Itarget_matrix = (
+            nphi_loop_inv
+            * coil_integration_factor
+            * Itarget_matrix.reshape(points_curve.shape[0], n * num_basis)
         )
         self.Itarget_matrix = np.sum(self.Itarget_matrix, axis=0)
         self.Itarget_rhs = self.Bn_Itarget * nphi_loop_inv
         self.Itarget_rhs = np.sum(self.Itarget_rhs) + 4 * np.pi * 1e-7 * self.Itarget
         flux_factor, self.connection_list = sopp.current_voxels_flux_jumps(
             coil_points,
-            contig(self.Phi.reshape(self.n_functions, self.N_grid, self.nx, self.ny, self.nz, 3)), 
+            contig(
+                self.Phi.reshape(
+                    self.n_functions, self.N_grid, self.nx, self.ny, self.nz, 3
+                )
+            ),
             self.dx,
-            self.dy, 
-            self.dz
+            self.dy,
+            self.dz,
         )
         t2 = time.time()
-        print('Computing the flux factors took t = ', t2 - t1, ' s')
+        print("Computing the flux factors took t = ", t2 - t1, " s")
 
         # need to normalize flux_factor by 1/nx ** 2 (assuming uniform grid!)
-        flux_factor *= 1 / (self.nx ** 2)
+        flux_factor *= 1 / (self.nx**2)
         t1 = time.time()
 
         # Find the coil boundary points at phi = pi / 2
         minus_x_indices = []
         if nfp == 2:
-            minus_x_indices = np.ravel(np.where(np.all(self.connection_list[:, :, 1] < 0, axis=-1)))
-            x0_indices = np.ravel(np.where(np.isclose(coil_points[:, 0], 0.0, atol=self.dx)))
+            minus_x_indices = np.ravel(
+                np.where(np.all(self.connection_list[:, :, 1] < 0, axis=-1))
+            )
+            x0_indices = np.ravel(
+                np.where(np.isclose(coil_points[:, 0], 0.0, atol=self.dx))
+            )
             minus_x_indices = np.intersect1d(minus_x_indices, x0_indices)
         # Find the coil boundary points at phi = pi / 4
         elif nfp == 4:
-            minus_x_indices = np.ravel(np.where(np.all(self.connection_list[:, :, 1] < 0, axis=-1)))
-            plus_y_indices = np.ravel(np.where(np.all(self.connection_list[:, :, 2] < 0, axis=-1)))
+            minus_x_indices = np.ravel(
+                np.where(np.all(self.connection_list[:, :, 1] < 0, axis=-1))
+            )
+            plus_y_indices = np.ravel(
+                np.where(np.all(self.connection_list[:, :, 2] < 0, axis=-1))
+            )
             minus_x_indices = np.intersect1d(minus_x_indices, plus_y_indices)
 
         z_flipped_inds_x = []
@@ -785,17 +953,25 @@ class CurrentVoxelsGrid:
             oy = coil_points[x_ind, 1]
             oz = coil_points[x_ind, 2] * stell
             z_flipped_point = np.array([ox, oy, oz]).T
-            z_flipped = np.ravel(np.where(np.all(np.isclose(coil_points, z_flipped_point), axis=-1)))
+            z_flipped = np.ravel(
+                np.where(np.all(np.isclose(coil_points, z_flipped_point), axis=-1))
+            )
             if len(z_flipped) > 0:
                 z_flipped_inds_x.append(z_flipped[0])
                 x_inds.append(x_ind)
         self.x_inds = x_inds
 
         # Find the coil boundary points at phi = 0
-        minus_y_indices = np.ravel(np.where(np.all(self.connection_list[:, :, 3] < 0, axis=-1)))
-        y0_indices = np.ravel(np.where(np.isclose(coil_points[:, 1], 0.0, atol=self.dy)))
+        minus_y_indices = np.ravel(
+            np.where(np.all(self.connection_list[:, :, 3] < 0, axis=-1))
+        )
+        y0_indices = np.ravel(
+            np.where(np.isclose(coil_points[:, 1], 0.0, atol=self.dy))
+        )
         if len(y0_indices) == 0:
-            y0_indices = np.ravel(np.where(np.isclose(coil_points[:, 1], 0.0, atol=self.dy * 2)))
+            y0_indices = np.ravel(
+                np.where(np.isclose(coil_points[:, 1], 0.0, atol=self.dy * 2))
+            )
         minus_y_indices = np.intersect1d(minus_y_indices, y0_indices)
         z_flipped_inds_y = []
 
@@ -805,17 +981,19 @@ class CurrentVoxelsGrid:
             oy = coil_points[y_ind, 1]
             oz = coil_points[y_ind, 2]
             z_flipped_point = np.array([ox, oy, -oz]).T
-            z_flipped = np.ravel(np.where(np.all(np.isclose(coil_points, z_flipped_point), axis=-1)))
+            z_flipped = np.ravel(
+                np.where(np.all(np.isclose(coil_points, z_flipped_point), axis=-1))
+            )
             if len(z_flipped) > 0:
                 z_flipped_inds_y.append(z_flipped[0])
                 y_inds.append(y_ind)
-        self.y_inds = y_inds 
+        self.y_inds = y_inds
         self.z_flip_x = z_flipped_inds_x
         self.z_flip_y = z_flipped_inds_y
 
         # count the number of constraints
         n_constraints = 0
-        for i in range(self.N_grid):            
+        for i in range(self.N_grid):
             # Loop through every cell and check the cell in + nx, + ny, or + nz direction
             if np.any(self.connection_list[i, :, 0] >= 0):
                 n_constraints += 1
@@ -826,7 +1004,7 @@ class CurrentVoxelsGrid:
             if np.any(self.connection_list[i, :, 4] >= 0):
                 n_constraints += 1
 
-            # Loop through cells and check if does not have a neighboring cell in the - nx, - ny, or - nz direction 
+            # Loop through cells and check if does not have a neighboring cell in the - nx, - ny, or - nz direction
             if np.all(self.connection_list[i, :, 1] < 0):
                 n_constraints += 1
             if np.all(self.connection_list[i, :, 3] < 0):
@@ -834,7 +1012,7 @@ class CurrentVoxelsGrid:
             if np.all(self.connection_list[i, :, 5] < 0):
                 n_constraints += 1
 
-            # Loop through cells and check if does not have a neighboring cell in the +x, +y, or +z direction 
+            # Loop through cells and check if does not have a neighboring cell in the +x, +y, or +z direction
             if np.all(self.connection_list[i, :, 0] < 0):
                 n_constraints += 1
             if np.all(self.connection_list[i, :, 2] < 0):
@@ -842,7 +1020,7 @@ class CurrentVoxelsGrid:
             if np.all(self.connection_list[i, :, 4] < 0):
                 n_constraints += 1
 
-        print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
+        print("Number of constraints = ", n_constraints, ", 6N = ", 6 * self.N_grid)
 
         num_basis = self.n_functions
         N = self.N_grid * num_basis
@@ -852,8 +1030,8 @@ class CurrentVoxelsGrid:
         q = 0
         qq = 0
         qqq = 0
-        print('Ngrid = ', self.N_grid)
-        for i in range(self.N_grid):        
+        print("Ngrid = ", self.N_grid)
+        for i in range(self.N_grid):
             ind = np.ravel(np.where(self.connection_list[i, :, 0] >= 0))
             k_ind = self.connection_list[i, ind, 0]
             ind = np.ravel(np.where(self.connection_list[i, :, 1] >= 0))
@@ -870,126 +1048,127 @@ class CurrentVoxelsGrid:
             if np.any(self.connection_list[i, :, 0] >= 0):
                 ind = np.ravel(np.where(self.connection_list[i, :, 0] >= 0))[0]
                 k_ind = self.connection_list[i, ind, 0]
-                flux_constraint_matrix[i_constraint, 
-                                       i * num_basis:(i + 1) * num_basis
-                                       ] = flux_factor[0, i, :]
-                flux_constraint_matrix[i_constraint, 
-                                       k_ind * num_basis:(k_ind + 1) * num_basis
-                                       ] = flux_factor[1, k_ind, :]
+                flux_constraint_matrix[
+                    i_constraint, i * num_basis : (i + 1) * num_basis
+                ] = flux_factor[0, i, :]
+                flux_constraint_matrix[
+                    i_constraint, k_ind * num_basis : (k_ind + 1) * num_basis
+                ] = flux_factor[1, k_ind, :]
                 i_constraint += 1
             if np.any(self.connection_list[i, :, 2] >= 0):
                 ind = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))[0]
                 k_ind = self.connection_list[i, ind, 2]
-                flux_constraint_matrix[i_constraint, 
-                                       i * num_basis:(i + 1) * num_basis
-                                       ] = flux_factor[2, i, :]
-                flux_constraint_matrix[i_constraint, 
-                                       k_ind * num_basis:(k_ind + 1) * num_basis
-                                       ] = flux_factor[3, k_ind, :]
+                flux_constraint_matrix[
+                    i_constraint, i * num_basis : (i + 1) * num_basis
+                ] = flux_factor[2, i, :]
+                flux_constraint_matrix[
+                    i_constraint, k_ind * num_basis : (k_ind + 1) * num_basis
+                ] = flux_factor[3, k_ind, :]
                 i_constraint += 1
             if np.any(self.connection_list[i, :, 4] >= 0):
                 ind = np.ravel(np.where(self.connection_list[i, :, 4] >= 0))[0]
                 k_ind = self.connection_list[i, ind, 4]
-                flux_constraint_matrix[i_constraint, 
-                                       i * num_basis:(i + 1) * num_basis
-                                       ] = flux_factor[4, i, :]
-                flux_constraint_matrix[i_constraint, 
-                                       k_ind * num_basis:(k_ind + 1) * num_basis
-                                       ] = flux_factor[5, k_ind, :]
+                flux_constraint_matrix[
+                    i_constraint, i * num_basis : (i + 1) * num_basis
+                ] = flux_factor[4, i, :]
+                flux_constraint_matrix[
+                    i_constraint, k_ind * num_basis : (k_ind + 1) * num_basis
+                ] = flux_factor[5, k_ind, :]
                 i_constraint += 1
 
-            # Loop through cells and check if does not have a cell in the - nx, - ny, or - nz direction 
-            # Special case for Nfp = 2, -x direction and -y direction 
+            # Loop through cells and check if does not have a cell in the - nx, - ny, or - nz direction
+            # Special case for Nfp = 2, -x direction and -y direction
             # where the half-period boundary is stitched together
             if np.all(self.connection_list[i, :, 1] < 0):
                 # ind = np.ravel(np.where(self.connection_list[i, :, 0] >= 0))
-                if (i in x_inds) and (self.coil_range != 'full torus'):
-                    flux_constraint_matrix[i_constraint, 
-                                           i * num_basis:(i + 1) * num_basis
-                                           ] = flux_factor[1, i, :]
+                if (i in x_inds) and (self.coil_range != "full torus"):
+                    flux_constraint_matrix[
+                        i_constraint, i * num_basis : (i + 1) * num_basis
+                    ] = flux_factor[1, i, :]
                     k_ind = z_flipped_inds_x[q]
-                    flux_constraint_matrix[i_constraint, 
-                                           k_ind * num_basis:(k_ind + 1) * num_basis
-                                           ] = -flux_factor[1, k_ind, :]
+                    flux_constraint_matrix[
+                        i_constraint, k_ind * num_basis : (k_ind + 1) * num_basis
+                    ] = -flux_factor[1, k_ind, :]
                     q = q + 1
                 else:
                     # If not at the phi = pi / 2 boundary, zero out the -x flux
-                    # If it is at phi = pi / 2 boundary, but there is no 
+                    # If it is at phi = pi / 2 boundary, but there is no
                     # adjacent cell at both +- x, just zero out the flux again
-                    flux_constraint_matrix[i_constraint, 
-                                           i * num_basis:(i + 1) * num_basis
-                                           ] = flux_factor[1, i, :]
+                    flux_constraint_matrix[
+                        i_constraint, i * num_basis : (i + 1) * num_basis
+                    ] = flux_factor[1, i, :]
                 i_constraint += 1
             if np.all(self.connection_list[i, :, 3] < 0):
                 # ind = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))
-                if (i in y_inds) and (self.coil_range != 'full torus'):
-                    flux_constraint_matrix[i_constraint, 
-                                           i * num_basis:(i + 1) * num_basis
-                                           ] = flux_factor[3, i, :]
+                if (i in y_inds) and (self.coil_range != "full torus"):
+                    flux_constraint_matrix[
+                        i_constraint, i * num_basis : (i + 1) * num_basis
+                    ] = flux_factor[3, i, :]
                     k_ind = z_flipped_inds_y[qq]
-                    flux_constraint_matrix[i_constraint, 
-                                           k_ind * num_basis:(k_ind + 1) * num_basis
-                                           ] = -flux_factor[3, k_ind, :]  
+                    flux_constraint_matrix[
+                        i_constraint, k_ind * num_basis : (k_ind + 1) * num_basis
+                    ] = -flux_factor[3, k_ind, :]
                     qq = qq + 1
                 else:
                     # If not at the phi = 0 boundary, zero out the -y flux
-                    # If it is at phi = 0 boundary, but there is no 
+                    # If it is at phi = 0 boundary, but there is no
                     # adjacent cell at both +- y, just zero out the flux again
-                    flux_constraint_matrix[i_constraint, 
-                                           i * num_basis:(i + 1) * num_basis
-                                           ] = flux_factor[3, i, :]
+                    flux_constraint_matrix[
+                        i_constraint, i * num_basis : (i + 1) * num_basis
+                    ] = flux_factor[3, i, :]
                 i_constraint += 1
             if np.all(self.connection_list[i, :, 5] < 0):
-                flux_constraint_matrix[i_constraint, 
-                                       i * num_basis:(i + 1) * num_basis
-                                       ] = flux_factor[5, i, :]
+                flux_constraint_matrix[
+                    i_constraint, i * num_basis : (i + 1) * num_basis
+                ] = flux_factor[5, i, :]
                 i_constraint += 1
-            # Loop through cells and check if does not have a cell in the + nx, + ny, or + nz direction 
+            # Loop through cells and check if does not have a cell in the + nx, + ny, or + nz direction
             # Special case for Nfp = 4, +y direction
             # where the half-period boundary is stitched together
             if np.all(self.connection_list[i, :, 0] < 0):
-                flux_constraint_matrix[i_constraint, 
-                                       i * num_basis:(i + 1) * num_basis
-                                       ] = flux_factor[0, i, :]
+                flux_constraint_matrix[
+                    i_constraint, i * num_basis : (i + 1) * num_basis
+                ] = flux_factor[0, i, :]
                 i_constraint += 1
             if np.all(self.connection_list[i, :, 2] < 0):
-                if (i in x_inds) and (self.coil_range != 'full torus') and nfp != 2:
-                    flux_constraint_matrix[i_constraint, 
-                                           i * num_basis:(i + 1) * num_basis
-                                           ] = flux_factor[2, i, :]
+                if (i in x_inds) and (self.coil_range != "full torus") and nfp != 2:
+                    flux_constraint_matrix[
+                        i_constraint, i * num_basis : (i + 1) * num_basis
+                    ] = flux_factor[2, i, :]
                     k_ind = z_flipped_inds_x[qqq]
-                    flux_constraint_matrix[i_constraint, 
-                                           k_ind * num_basis:(k_ind + 1) * num_basis
-                                           ] = -flux_factor[2, k_ind, :]
+                    flux_constraint_matrix[
+                        i_constraint, k_ind * num_basis : (k_ind + 1) * num_basis
+                    ] = -flux_factor[2, k_ind, :]
                     qqq = qqq + 1
                 else:
-                    flux_constraint_matrix[i_constraint, 
-                                           i * num_basis:(i + 1) * num_basis
-                                           ] = flux_factor[2, i, :]
+                    flux_constraint_matrix[
+                        i_constraint, i * num_basis : (i + 1) * num_basis
+                    ] = flux_factor[2, i, :]
                 i_constraint += 1
             if np.all(self.connection_list[i, :, 4] < 0):
-                flux_constraint_matrix[i_constraint, 
-                                       i * num_basis:(i + 1) * num_basis
-                                       ] = flux_factor[4, i, :]
+                flux_constraint_matrix[
+                    i_constraint, i * num_basis : (i + 1) * num_basis
+                ] = flux_factor[4, i, :]
                 i_constraint += 1
 
         connect_list_zeros = np.copy(self.connection_list)
         connect_list_zeros[connect_list_zeros >= 0] = 1
         connect_list_zeros[self.connection_list == -1] = 0
-        self.num_constraints_per_cell = np.sum(np.sum(connect_list_zeros, axis=-1), axis=-1)
+        self.num_constraints_per_cell = np.sum(
+            np.sum(connect_list_zeros, axis=-1), axis=-1
+        )
         self.flux_factor = flux_factor
         self.C = flux_constraint_matrix.tocsc()
 
         t2 = time.time()
-        print('Time to make the flux jump constraint matrix = ', t2 - t1, ' s')
+        print("Time to make the flux jump constraint matrix = ", t2 - t1, " s")
 
-    def check_fluxes(self):
+    def check_fluxes(self) -> None:
         """
-        Post-optimization test function to check that the fluxes between
-        adjacent cells match to a reasonable tolerance (i.e. there is 
-        some flux mismatch in the Amps level, while the overall fluxes
-        are in the MA level). If the constraints were applied correctly
-        in the optimization, this function should run no problem.
+        Verify that fluxes between adjacent voxels match (divergence-free check).
+
+        Asserts that flux jumps across cell interfaces are within tolerance.
+        Raises if constraints were not satisfied during optimization.
         """
         Phi = self.Phi
         n = Phi.shape[1]
@@ -1026,15 +1205,27 @@ class CurrentVoxelsGrid:
                 if j < 2:
                     for l in range(Ny):
                         for m in range(Nz):
-                            flux[i, j] += nx * Jvec[i, x_ind, l, m, 0] + ny * Jvec[i, x_ind, l, m, 1] + nz * Jvec[i, x_ind, l, m, 2]
+                            flux[i, j] += (
+                                nx * Jvec[i, x_ind, l, m, 0]
+                                + ny * Jvec[i, x_ind, l, m, 1]
+                                + nz * Jvec[i, x_ind, l, m, 2]
+                            )
                 elif j < 4:
                     for l in range(Nx):
                         for m in range(Nz):
-                            flux[i, j] += nx * Jvec[i, l, y_ind, m, 0] + ny * Jvec[i, l, y_ind, m, 1] + nz * Jvec[i, l, y_ind, m, 2]
+                            flux[i, j] += (
+                                nx * Jvec[i, l, y_ind, m, 0]
+                                + ny * Jvec[i, l, y_ind, m, 1]
+                                + nz * Jvec[i, l, y_ind, m, 2]
+                            )
                 else:
                     for l in range(Nx):
                         for m in range(Ny):
-                            flux[i, j] += nx * Jvec[i, l, m, z_ind, 0] + ny * Jvec[i, l, m, z_ind, 1] + nz * Jvec[i, l, m, z_ind, 2]
+                            flux[i, j] += (
+                                nx * Jvec[i, l, m, z_ind, 0]
+                                + ny * Jvec[i, l, m, z_ind, 1]
+                                + nz * Jvec[i, l, m, z_ind, 2]
+                            )
 
         # Compare fluxes across adjacent cells
         flux_max = 1e4  # flag any disagreements in the 10 kilo-Amperes range
@@ -1042,13 +1233,33 @@ class CurrentVoxelsGrid:
         qq = 0
         for i in range(n):
             for j in range(6):
-                if (i in self.x_inds) and (j == 1) and (self.coil_range != 'full torus'):
+                if (
+                    (i in self.x_inds)
+                    and (j == 1)
+                    and (self.coil_range != "full torus")
+                ):
                     k_ind = self.z_flip_x[q]
-                    np.testing.assert_allclose(flux[i, 1], flux[k_ind, 1], atol=flux_max, rtol=1e-3, err_msg=f'Fluxes do not match, flux1 = {flux[i, 1]}, flux2 = {flux[k_ind, 2]}')
+                    np.testing.assert_allclose(
+                        flux[i, 1],
+                        flux[k_ind, 1],
+                        atol=flux_max,
+                        rtol=1e-3,
+                        err_msg=f"Fluxes do not match, flux1 = {flux[i, 1]}, flux2 = {flux[k_ind, 2]}",
+                    )
                     q += 1
-                elif (i in self.y_inds) and (j == 3) and (self.coil_range != 'full torus'):
+                elif (
+                    (i in self.y_inds)
+                    and (j == 3)
+                    and (self.coil_range != "full torus")
+                ):
                     k_ind = self.z_flip_y[qq]
-                    np.testing.assert_allclose(flux[i, 3], flux[k_ind, 3], atol=flux_max, rtol=1e-3, err_msg=f'Fluxes do not match, flux3 = {flux[i, 3]}, flux4 = {flux[k_ind, 4]}')
+                    np.testing.assert_allclose(
+                        flux[i, 3],
+                        flux[k_ind, 3],
+                        atol=flux_max,
+                        rtol=1e-3,
+                        err_msg=f"Fluxes do not match, flux3 = {flux[i, 3]}, flux4 = {flux[k_ind, 4]}",
+                    )
                     qq += 1
                 elif np.any(self.connection_list[i, :, j] >= 0):
                     inds = np.ravel(np.where(self.connection_list[i, :, j] >= 0))
@@ -1058,11 +1269,25 @@ class CurrentVoxelsGrid:
                             j_ind = j + 1
                         else:
                             j_ind = j - 1
-                        if not np.isclose(flux[i, j], -flux[k_ind, j_ind], atol=flux_max, rtol=1e-1):
-                            print(i, j, k_ind, j_ind, ind, flux[i, j], flux[k_ind, j_ind])
-                        np.testing.assert_allclose(flux[i, j], -flux[k_ind, j_ind], atol=flux_max, rtol=1e-1, err_msg=f'Fluxes do not match, {flux[i, j]}, {-flux[k_ind, j_ind]}')
+                        if not np.isclose(
+                            flux[i, j], -flux[k_ind, j_ind], atol=flux_max, rtol=1e-1
+                        ):
+                            print(
+                                i, j, k_ind, j_ind, ind, flux[i, j], flux[k_ind, j_ind]
+                            )
+                        np.testing.assert_allclose(
+                            flux[i, j],
+                            -flux[k_ind, j_ind],
+                            atol=flux_max,
+                            rtol=1e-1,
+                            err_msg=f"Fluxes do not match, {flux[i, j]}, {-flux[k_ind, j_ind]}",
+                        )
                 else:
                     if not np.isclose(flux[i, j], 0.0, atol=flux_max):
                         print(i, j, flux[i, j])
-                    np.testing.assert_allclose(flux[i, j], 0.0, atol=flux_max, err_msg=f'Fluxes do not match, |{flux[i, j]} - flux_max| != 0.0')
-
+                    np.testing.assert_allclose(
+                        flux[i, j],
+                        0.0,
+                        atol=flux_max,
+                        err_msg=f"Fluxes do not match, |{flux[i, j]} - flux_max| != 0.0",
+                    )
