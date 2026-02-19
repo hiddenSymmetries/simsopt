@@ -28,6 +28,14 @@ simsopt.solve.serial module
    :undoc-members:
    :show-inheritance:
 
+simsopt.solve.current\_voxels\_optimization module
+--------------------------------------------------
+
+.. automodule:: simsopt.solve.current_voxels_optimization
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.solve.wireframe\_optimization module
 --------------------------------------------
 

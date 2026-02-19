@@ -9,6 +9,23 @@ Topology optimization for inverse magnetostatics as sparse regression:
 Application to electromagnetic coils for stellarators.
 Computer Methods in Applied Mechanics and Engineering, 418, 116504.
 
+The script performs the following steps:
+
+1. **Voxel optimization**: Discretizes the current into a grid of voxels between
+   inner and outer toroidal surfaces, then optimizes the voxel currents via
+   relax-and-split with group sparsity (L0) to match the target B·n on the
+   plasma boundary while enforcing divergence-free current.
+
+2. **Filament extraction**: Extracts a single helical filament curve from the
+   optimized voxel solution using ``make_filament_from_voxels``, which fits
+   the nonzero voxel centers to a ``CurveXYZFourierSymmetries`` representation.
+
+3. **Filamentary coil optimization**: Optimizes the extracted filament to
+   minimize squared flux on the plasma surface, with penalties on length,
+   curvature, mean-squared curvature, and coil-to-surface distance. The
+   filament is treated as one helical coil wrapping the full torus (not
+   expanded via symmetries).
+
 The script should be run as:
     mpirun -n 1 python current_voxels_QA.py
 or
@@ -21,9 +38,15 @@ import os
 from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
-from simsopt.geo import SurfaceRZFourier, curves_to_vtk, CurrentVoxelsGrid
+from simsopt.geo import SurfaceRZFourier, CurrentVoxelsGrid
 from simsopt.objectives import SquaredFlux
-from simsopt.field import Coil, Current, BiotSavart, CurrentVoxelsField
+from simsopt.field import (
+    Current,
+    BiotSavart,
+    CurrentVoxelsField,
+    RegularizedCoil,
+    coils_to_vtk,
+)
 from simsopt.solve import relax_and_split_minres
 from simsopt.util import (
     make_filament_from_voxels,
@@ -46,8 +69,8 @@ if in_github_actions:
     nphi = 16
     ntheta = nphi
 else:
-    max_iter = 100  # max number of MINRES iterations for each call
-    rs_max_iter = 100  # max number of relax-and-split iterations
+    max_iter = 50  # max number of MINRES iterations for each call
+    rs_max_iter = 50  # max number of relax-and-split iterations
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -91,7 +114,17 @@ current_voxels_grid = CurrentVoxelsGrid(s, s_inner, s_outer, **kwargs)
 
 # Save vtks of the Itarget_curve, inner and outer toroidal surfaces (used to generate
 # the volume of current voxels), and current voxel grid.
-curves_to_vtk([current_voxels_grid.Itarget_curve], out_dir + "Itarget_curve")
+reg_param = 0.01  # regularization for finite-build cross section
+coils_to_vtk(
+    [
+        RegularizedCoil(
+            current_voxels_grid.Itarget_curve,
+            Current(current_voxels_grid.Itarget),
+            reg_param,
+        )
+    ],
+    out_dir + "Itarget_curve",
+)
 current_voxels_grid.inner_toroidal_surface.to_vtk(out_dir + "inner")
 current_voxels_grid.outer_toroidal_surface.to_vtk(out_dir + "outer")
 current_voxels_grid.to_vtk_before_solve(out_dir + "grid_before_solve_Nx" + str(Nx))
@@ -159,9 +192,7 @@ Itarget_check = (
 print("Itarget_check = ", Itarget_check)
 
 # Save Bnormal plots from the voxel fields
-calculate_modB_on_major_radius(
-    bs_current_voxels, s_plot, plot=True, savepath=out_dir + "modB_on_major_radius.png"
-)
+calculate_modB_on_major_radius(bs_current_voxels, s_plot)
 bs_current_voxels.set_points(s_plot.gamma().reshape((-1, 3)))
 Bn_voxels = np.sum(
     bs_current_voxels.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2
@@ -184,7 +215,8 @@ plt.xlabel("Relax-and-split iteration")
 plt.ylabel("Loss term value")
 plt.title("Current voxels optimization progress")
 plt.grid(True)
-plt.legend(loc="best", fontsize=8)
+plt.legend(loc="best", fontsize=10, ncol=2)
+plt.ylim(1e-10, 1e5)
 plt.tight_layout()
 plt.savefig(out_dir + "optimization_progress.png", dpi=150)
 
@@ -192,7 +224,7 @@ plt.savefig(out_dir + "optimization_progress.png", dpi=150)
 current_voxels_grid.check_fluxes()
 
 # Check the average |B| along the major radius (plasma surface)
-calculate_modB_on_major_radius(bs_current_voxels, s, plot=True)
+calculate_modB_on_major_radius(bs_current_voxels, s)
 
 t_end = time.time()
 print("Total voxels time = ", t_end - t_start)
@@ -203,12 +235,12 @@ print(f0[-1], fB[-1], fI[-1], fK[-1], fC[-1])
 filament_curve = make_filament_from_voxels(
     current_voxels_grid, l0_thresholds[-1], num_fourier=30
 )
-curves = [filament_curve]
-curves_to_vtk(curves, out_dir + "filament_curve")
 current = Current(current_voxels_grid.Itarget / 2.0)
 current.fix_all()
-coil = [Coil(filament_curve, current)]
-bs = BiotSavart(coil)
+# Filament is one helical coil wrapping the full torus; do NOT expand via symmetries
+coils = [RegularizedCoil(filament_curve, current, reg_param)]
+coils_to_vtk(coils, out_dir + "extracted_filament_curve")
+bs = BiotSavart(coils)
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {
     "B_N": np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)[
@@ -222,8 +254,9 @@ s_plot.to_vtk(out_dir + "surf_filament_initial", extra_data=pointData)
 def perform_filament_optimization(
     s: "SurfaceRZFourier",
     bs: "BiotSavart",
-    curves: list,
+    coils: list,
     out_dir: str = out_dir,
+    **kwargs,
 ) -> None:
     from scipy.optimize import minimize
     from simsopt.geo import (
@@ -232,11 +265,11 @@ def perform_filament_optimization(
         MeanSquaredCurvature,
         LpCurveCurvature,
         CurveSurfaceDistance,
-        LpCurveTorsion,
     )
     from simsopt.objectives import Weight, QuadraticPenalty, SquaredFlux
 
     out_dir = kwargs.pop("out_dir", "")
+    curves = [c.curve for c in coils]
 
     # Weight on the curve lengths in the objective function
     LENGTH_WEIGHT = Weight(kwargs.pop("length_weight", 1e-7))
@@ -251,12 +284,11 @@ def perform_filament_optimization(
 
     # Threshold and weight for the curvature penalty in the objective function:
     CURVATURE_THRESHOLD = kwargs.pop("curvature_threshold", 0.1)
-    CURVATURE_WEIGHT = kwargs.pop("curvature_weight", 1e-12)
-    TORSION_WEIGHT = kwargs.pop("torsion_weight", 1e-12)
+    CURVATURE_WEIGHT = kwargs.pop("curvature_weight", 1e-6)
 
     # Threshold and weight for the mean squared curvature penalty in the objective function:
     MSC_THRESHOLD = kwargs.pop("msc_threshold", 0.1)
-    MSC_WEIGHT = kwargs.pop("msc_weight", 1e-14)
+    MSC_WEIGHT = kwargs.pop("msc_weight", 1e-6)
 
     # Define the individual terms objective function:
     Jf = SquaredFlux(s, bs)
@@ -265,7 +297,6 @@ def perform_filament_optimization(
         Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=len(curves))
     Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
     Jcs = [LpCurveCurvature(curve, 2, CURVATURE_THRESHOLD) for curve in curves]
-    Jts = [LpCurveTorsion(curve, 2, CURVATURE_THRESHOLD) for curve in curves]
     Jmscs = [MeanSquaredCurvature(curve) for curve in curves]
 
     # Form the total objective function
@@ -274,7 +305,6 @@ def perform_filament_optimization(
         + LENGTH_WEIGHT * sum(Jls)
         + CS_WEIGHT * Jcsdist
         + CURVATURE_WEIGHT * sum(Jcs)
-        + TORSION_WEIGHT * sum(Jts)
         + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs)
     )
 
@@ -298,6 +328,15 @@ def perform_filament_optimization(
             outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
         outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
         print(outstr)
+        valuestr = f"J={J:.2e}, Jf={jf:.2e}"
+        valuestr += f", LenObj={(LENGTH_WEIGHT * sum(Jls)).J():.2e}"
+        valuestr += f", C-S-SepObj={(CS_WEIGHT * Jcsdist).J():.2e}"
+        valuestr += f", CurvatureObj={(CURVATURE_WEIGHT * sum(Jcs)).J():.2e}"
+        valuestr += f", MeanSquaredCurvatureObj={(MSC_WEIGHT * sum(Jmscs)).J():.2e}"
+        if len(curves) > 1:
+            valuestr += f", C-C-SepObj={(CC_WEIGHT * Jccdist).J():.2e}"
+        valuestr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+        print(valuestr)
         return J, grad
 
     print("""
@@ -330,7 +369,7 @@ def perform_filament_optimization(
         options={"maxiter": MAXITER, "maxcor": 200},
         tol=1e-15,
     )
-    curves_to_vtk(curves, out_dir + "curves_opt")
+    coils_to_vtk(coils, out_dir + "curves_opt")
     pointData = {
         "B_N": np.sum(bs.B().reshape(s.gamma().shape) * s.unitnormal(), axis=2)[
             :, :, None
@@ -347,5 +386,5 @@ def perform_filament_optimization(
     bs.save(out_dir + "biot_savart_opt.json")
 
 
-perform_filament_optimization(s, bs, curves, out_dir=out_dir)
+perform_filament_optimization(s, bs, coils, out_dir=out_dir)
 plt.show()

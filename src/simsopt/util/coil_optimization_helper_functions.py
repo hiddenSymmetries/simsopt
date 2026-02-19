@@ -8,8 +8,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from simsopt.geo import CurveXYZFourier
     from simsopt.geo.current_voxels_grid import CurrentVoxelsGrid
+    from simsopt.geo.curvexyzfouriersymmetries import CurveXYZFourierSymmetries
 
 __all__ = [
     "read_focus_coils",
@@ -1430,12 +1430,66 @@ def make_filament_from_voxels(
     final_threshold: float,
     truncate: bool = False,
     num_fourier: int = 16,
-) -> "CurveXYZFourier":
+) -> CurveXYZFourierSymmetries:
     """
     Build a filamentary curve from an optimized current voxel solution.
 
-    Fits the nonzero voxel centers with a Fourier series. Assumes the solution
-    is curve-like (sparse, path-connected).
+    Converts nonzero voxel centers into a smooth filament represented as a
+    CurveXYZFourierSymmetries, so stellarator and field-period symmetry are
+    enforced by construction during optimization. Assumes the solution is
+    curve-like (sparse, path-connected).
+
+    Algorithm
+    ---------
+    1. **Extract nonzero voxels**
+       Retain voxels whose current magnitude (L2 norm of alphas) exceeds
+       ``final_threshold``. Use their XYZ centers as the raw curve points.
+
+    2. **Apply symmetries to form full curve**
+       The grid typically covers only the fundamental domain (1/nfp of the
+       torus, and half for stellarator symmetry). Replicate points via
+       discrete rotational symmetry (nfp) and stellarator symmetry (φ → φ+π,
+       (x,y,z) → (-x,-y,z)) to obtain the full closed curve.
+
+    3. **Uniqueness in toroidal angle**
+       Use ``np.unique`` on φ = arctan2(y, x) to keep one point per unique
+       toroidal angle, removing duplicates from symmetry replication.
+
+    4. **Smoothing**
+       Apply a moving-average filter along each coordinate (x, y, z) with
+       window size ``min(10, max(1, n_pts//2))`` to reduce noise. This
+       shortens the point sequence.
+
+    5. **Stitch to close the curve**
+       If stellarator-symmetric and enough points remain (n ≥ n_extra), take
+       ``n_extra = min(6, max(1, n//2))`` points from the middle, reflect them
+       by stellarator symmetry, and prepend/append to close the curve
+       smoothly. This compensates for points lost at the boundaries during
+       smoothing.
+
+    6. **Parameterization**
+       Compute φ = arctan2(y, x), sort points by φ, shift φ into [0, 2π], and
+       define θ = φ/(2π) ∈ [0, 1] as the curve parameter for one full coil.
+
+    7. **Rotating-frame coordinates (x̂, ŷ, ẑ)**
+       For CurveXYZFourierSymmetries, coordinates are expressed in a frame
+       that rotates with φ:
+         x̂ = x cos(φ) + y sin(φ)
+         ŷ = -x sin(φ) + y cos(φ)
+         ẑ = z
+       This separates the toroidal wrapping from the coil shape.
+
+    8. **Fourier fit**
+       Fit Fourier coefficients to (x̂, ŷ, ẑ) vs θ using trapezoidal
+       integration. For stellarator symmetry: x̂ uses cos only, ŷ and ẑ use
+       sin only. For non-stellarator-symmetric: full cos/sin for each.
+       Harmonics use 2π nfp m θ. If ``truncate`` is True, coefficients with
+       |coef| < 1e-2 are zeroed.
+
+    9. **Output**
+       Return a CurveXYZFourierSymmetries instance with the fitted
+       coefficients. Symmetry is built into the representation, so the curve
+       obeys stellarator and nfp symmetry by construction.
 
     Parameters
     ----------
@@ -1444,16 +1498,24 @@ def make_filament_from_voxels(
     final_threshold : float
         Largest L0 threshold used; voxels with norm > this are retained.
     truncate : bool, optional
-        Whether to truncate small Fourier coefficients. Defaults to False.
+        Whether to truncate small Fourier coefficients (|coef| < 1e-2).
+        Defaults to False.
     num_fourier : int, optional
         Number of Fourier modes per coordinate. Defaults to 16.
 
     Returns
     -------
-    CurveXYZFourier
-        Filament curve approximating the voxel current path.
+    CurveXYZFourierSymmetries
+        Filament curve approximating the voxel current path, with symmetry
+        enforced by construction.
+
+    Raises
+    ------
+    ValueError
+        If fewer than 2 points remain after smoothing (e.g., too few nonzero
+        voxels above threshold).
     """
-    from simsopt.geo import CurveXYZFourier
+    from simsopt.geo import CurveXYZFourierSymmetries
 
     # Find where voxels are nonzero
     alphas = current_voxels_grid.alphas.reshape(
@@ -1485,9 +1547,10 @@ def make_filament_from_voxels(
             index += n
 
     # number of fourier modes to use for the fourier expansion in each coordinate
-    _ = plt.figure().add_subplot(projection="3d")
+    fig1 = plt.figure(figsize=(10, 8))
+    ax1 = fig1.add_subplot(projection="3d")
     xyz_curve = xyz_total
-    plt.plot(xyz_curve[:, 0], xyz_curve[:, 1], xyz_curve[:, 2])
+    ax1.plot(xyz_curve[:, 0], xyz_curve[:, 1], xyz_curve[:, 2], "b-", label="Full (symmetries)")
 
     # Let's assume curve is unique w/ respect to theta or phi
     # in the 1 / 2 * nfp part of the surface
@@ -1495,82 +1558,126 @@ def make_filament_from_voxels(
         np.arctan2(xyz_curve[:, 1], xyz_curve[:, 0]), return_index=True
     )
     xyz_curve = xyz_curve[unique_inds, :]
-    plt.plot(xyz_curve[:, 0], xyz_curve[:, 1], xyz_curve[:, 2])
+    ax1.plot(xyz_curve[:, 0], xyz_curve[:, 1], xyz_curve[:, 2], "g--", label="Unique φ")
 
     def moving_average(x, w):
+        w = max(1, min(w, len(x) - 1))  # ensure valid output
         return np.convolve(x, np.ones(w), "valid") / w
 
-    x_curve = moving_average(xyz_curve[:, 0], 10)
-    y_curve = moving_average(xyz_curve[:, 1], 10)
-    z_curve = moving_average(xyz_curve[:, 2], 10)
+    w_smooth = min(10, max(1, len(xyz_curve) // 2))
+    x_curve = moving_average(xyz_curve[:, 0], w_smooth)
+    y_curve = moving_average(xyz_curve[:, 1], w_smooth)
+    z_curve = moving_average(xyz_curve[:, 2], w_smooth)
 
     # Stitch together missing points lost during the moving average
     xn = len(x_curve)
-    extra_x = -x_curve[xn // 2 : xn // 2 + 6]
-    extra_y = -y_curve[xn // 2 : xn // 2 + 6]
-    extra_z = z_curve[xn // 2 : xn // 2 + 6]
-    x_curve = np.concatenate((extra_x, x_curve))
-    y_curve = np.concatenate((extra_y, y_curve))
-    z_curve = np.concatenate((extra_z, z_curve))
-    x_curve = np.append(x_curve, np.flip(extra_x))
-    y_curve = np.append(y_curve, -np.flip(extra_y))
-    z_curve = np.append(z_curve, -np.flip(extra_z))
+    n_extra = min(6, max(1, xn // 2))
+    if xn >= n_extra:
+        extra_x = -x_curve[xn // 2 : xn // 2 + n_extra]
+        extra_y = -y_curve[xn // 2 : xn // 2 + n_extra]
+        extra_z = z_curve[xn // 2 : xn // 2 + n_extra]
+        x_curve = np.concatenate((extra_x, x_curve))
+        y_curve = np.concatenate((extra_y, y_curve))
+        z_curve = np.concatenate((extra_z, z_curve))
+        x_curve = np.append(x_curve, np.flip(extra_x))
+        y_curve = np.append(y_curve, -np.flip(extra_y))
+        z_curve = np.append(z_curve, -np.flip(extra_z))
     xyz_curve = np.transpose([x_curve, y_curve, z_curve])
-    plt.plot(xyz_curve[:, 0], xyz_curve[:, 1], xyz_curve[:, 2])
 
-    # get phi and reorder it from -pi to pi (sometimes arctan returns different quadrant)
+    if len(xyz_curve) < 2:
+        raise ValueError(
+            "make_filament_from_voxels: too few points after smoothing. "
+            "Need more nonzero voxels above threshold."
+        )
+    ax1.plot(xyz_curve[:, 0], xyz_curve[:, 1], xyz_curve[:, 2], "r-", lw=2, label="Smoothed")
+    ax1.set_xlabel("x (m)")
+    ax1.set_ylabel("y (m)")
+    ax1.set_zlabel("z (m)")
+    ax1.set_title("Filament from voxels: nonzero voxel centers")
+    ax1.legend(loc="best")
+
+    # get phi and reorder so theta = phi/(2*pi) in [0, 1] for CurveXYZFourierSymmetries
     phi = np.arctan2(xyz_curve[:, 1], xyz_curve[:, 0])
     phi_inds = np.argsort(phi)
-    phi = phi[phi_inds] + np.pi
+    phi = phi[phi_inds] + np.pi  # phi in [0, 2*pi]
     xyz_curve = xyz_curve[phi_inds, :]
-    plt.figure()
-    plt.plot(phi, xyz_curve[:, 0])
-    plt.plot(phi, xyz_curve[:, 1])
-    plt.plot(phi, xyz_curve[:, 2])
-    # plt.show()
+    theta = phi / (2 * np.pi)  # theta in [0, 1] for one full coil
 
-    # Initialize CurveXYZFourier object
+    fig2, ax2 = plt.subplots(figsize=(8, 5))
+    ax2.plot(phi, xyz_curve[:, 0], "r-", label="x")
+    ax2.plot(phi, xyz_curve[:, 1], "g-", label="y")
+    ax2.plot(phi, xyz_curve[:, 2], "b-", label="z")
+    ax2.set_xlabel(r"Toroidal angle $\varphi$ (rad)")
+    ax2.set_ylabel("Coordinate (m)")
+    ax2.set_title("Filament coordinates vs φ (for Fourier fit)")
+    ax2.legend(loc="best")
+    ax2.grid(True)
+
+    # Convert (x,y,z) to (xhat, yhat, zhat) for CurveXYZFourierSymmetries
+    # x = xhat*cos(phi) - yhat*sin(phi), y = xhat*sin(phi) + yhat*cos(phi), z = zhat
+    xhat = xyz_curve[:, 0] * np.cos(phi) + xyz_curve[:, 1] * np.sin(phi)
+    yhat = -xyz_curve[:, 0] * np.sin(phi) + xyz_curve[:, 1] * np.cos(phi)
+    zhat = xyz_curve[:, 2]
+
+    # Fit Fourier coefficients for CurveXYZFourierSymmetries (symmetry built in)
+    order = min(num_fourier, 16)  # CurveXYZFourierSymmetries typically uses smaller order
     quadpoints = 2000
-    coil = CurveXYZFourier(quadpoints, num_fourier)
-    dofs = coil.dofs_matrix
-    # trapz is removed in favor of trapezoid as of numpy 2.0
-    dofs[0][0] = np.trapezoid(xyz_curve[:, 0], phi) / np.pi
+    coil = CurveXYZFourierSymmetries(quadpoints, order, nfp, stellsym, ntor=1)
 
-    if truncate and abs(dofs[0][0]) < 1e-2:
-        dofs[0][0] = 0.0
-    for f in range(num_fourier):
-        for i in range(3):
-            if i == 0:
-                dofs[i][f * 2 + 2] = (
-                    np.trapezoid(xyz_curve[:, i] * np.cos((f + 1) * phi), phi) / np.pi
-                )
-                if truncate and abs(dofs[i][f * 2 + 2]) < 1e-2:
-                    dofs[i][f * 2 + 2] = 0.0
-            else:
-                dofs[i][f * 2 + 1] = (
-                    np.trapezoid(xyz_curve[:, i] * np.sin((f + 1) * phi), phi) / np.pi
-                )
-                if truncate and abs(dofs[i][f * 2 + 1]) < 1e-2:
-                    dofs[i][f * 2 + 1] = 0.0
-    coil.local_x = np.concatenate(dofs)
+    # trapezoid added in NumPy 2.0; use trapz for older versions
+    trapz_fn = getattr(np, "trapezoid", np.trapz)
 
-    # now make the stellarator symmetry fixed in the optimization
-    for f in range(num_fourier):
-        coil.fix(f"xs({f + 1})")
-    for f in range(num_fourier + 1):
-        coil.fix(f"yc({f})")
-        coil.fix(f"zc({f})")
+    if stellsym:
+        # xhat = xc0 + sum_m xc_m cos(2*pi*nfp*m*theta), m=1..order
+        # yhat = sum_m ys_m sin(2*pi*nfp*m*theta)
+        # zhat = sum_m zs_m sin(2*pi*nfp*m*theta)
+        xc = np.zeros(order + 1)
+        ys = np.zeros(order)
+        zs = np.zeros(order)
 
-    # attempt to fix all the non-nfp-symmetric coefficients to zero during optimiziation
-    for f in range(num_fourier * 2 + 1):
-        for i in range(3):
-            if i == 0:
-                if np.isclose(dofs[i][f], 0.0) and (f % 2) == 0 and (f // 2) % 2 == 0:
-                    coil.fix(f"xc({f // 2})")
-            elif i == 1:
-                if np.isclose(dofs[i][f], 0.0) and (f % 2) != 0 and (f // 2) % 2 != 0:
-                    coil.fix(f"ys({f // 2 + 1})")
-            if i == 2:
-                if np.isclose(dofs[i][f], 0.0) and (f % 2) != 0:
-                    coil.fix(f"zs({f // 2 + 1})")
+        xc[0] = trapz_fn(xhat, theta)
+        if truncate and abs(xc[0]) < 1e-2:
+            xc[0] = 0.0
+        for m in range(1, order + 1):
+            xc[m] = 2 * trapz_fn(xhat * np.cos(2 * np.pi * nfp * m * theta), theta)
+            if truncate and abs(xc[m]) < 1e-2:
+                xc[m] = 0.0
+        for m in range(1, order + 1):
+            ys[m - 1] = 2 * trapz_fn(yhat * np.sin(2 * np.pi * nfp * m * theta), theta)
+            if truncate and abs(ys[m - 1]) < 1e-2:
+                ys[m - 1] = 0.0
+        for m in range(1, order + 1):
+            zs[m - 1] = 2 * trapz_fn(zhat * np.sin(2 * np.pi * nfp * m * theta), theta)
+            if truncate and abs(zs[m - 1]) < 1e-2:
+                zs[m - 1] = 0.0
+
+        coil.local_x = np.concatenate([xc, ys, zs])
+    else:
+        # Non-stellarator-symmetric: full Fourier for xhat, yhat, zhat
+        xc = np.zeros(order + 1)
+        xs = np.zeros(order)
+        yc = np.zeros(order + 1)
+        ys = np.zeros(order)
+        zc = np.zeros(order + 1)
+        zs = np.zeros(order)
+
+        xc[0] = trapz_fn(xhat, theta)
+        for m in range(1, order + 1):
+            xc[m] = 2 * trapz_fn(xhat * np.cos(2 * np.pi * nfp * m * theta), theta)
+            xs[m - 1] = 2 * trapz_fn(xhat * np.sin(2 * np.pi * nfp * m * theta), theta)
+        yc[0] = trapz_fn(yhat, theta)
+        for m in range(1, order + 1):
+            yc[m] = 2 * trapz_fn(yhat * np.cos(2 * np.pi * nfp * m * theta), theta)
+            ys[m - 1] = 2 * trapz_fn(yhat * np.sin(2 * np.pi * nfp * m * theta), theta)
+        zc[0] = trapz_fn(zhat, theta)
+        for m in range(1, order + 1):
+            zc[m] = 2 * trapz_fn(zhat * np.cos(2 * np.pi * nfp * m * theta), theta)
+            zs[m - 1] = 2 * trapz_fn(zhat * np.sin(2 * np.pi * nfp * m * theta), theta)
+
+        if truncate:
+            for arr in [xc, xs, yc, ys, zc, zs]:
+                arr[np.abs(arr) < 1e-2] = 0.0
+
+        coil.local_x = np.concatenate([xc, xs, yc, ys, zc, zs])
+
     return coil

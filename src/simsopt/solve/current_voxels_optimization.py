@@ -80,11 +80,37 @@ def relax_and_split_minres(
     current_voxels: "CurrentVoxelsGrid",
     **kwargs: Any,
 ) -> Dict[str, Union[np.ndarray, float]]:
-    """
+    r"""
     Solve the current voxel optimization via relax-and-split with MINRES.
 
-    The convex subproblem is solved with (optionally preconditioned) MINRES;
-    the nonconvex group L0 term is handled by hard thresholding (prox).
+    Following Kaptanoglu, Langlois & Landreman (2024), the optimization problem is
+    (Eq. 13):
+
+    .. math::
+        \min_{\boldsymbol{\alpha}} \;
+        f_B(\boldsymbol{\alpha}) + \kappa f_K(\boldsymbol{\alpha})
+        + \sigma f_I(\boldsymbol{\alpha}) + \lambda \|\boldsymbol{\alpha}\|_0^G
+        \quad \text{s.t.} \quad \boldsymbol{C}\boldsymbol{\alpha} = \mathbf{0}
+
+    where :math:`f_B \equiv \frac{1}{2}\|\boldsymbol{A}\boldsymbol{\alpha}-\boldsymbol{b}\|_2^2`
+    (Bnormal matching), :math:`f_K \equiv \frac{1}{2D}\|\boldsymbol{\alpha}\|_2^2` (Tikhonov),
+    :math:`f_I \equiv \frac{1}{2}\|\boldsymbol{A}_I\boldsymbol{\alpha}-\boldsymbol{b}_I\|_2^2`
+    (Itarget), and :math:`\|\cdot\|_0^G` is the non-overlapping group :math:`\ell_0` norm.
+    Relax-and-split (Eq. 14) introduces a proxy :math:`\boldsymbol{\beta}`:
+
+    .. math::
+        \min_{\boldsymbol{\beta}} \left\{
+        \min_{\boldsymbol{\alpha}} \left\{
+        \frac{\|\boldsymbol{A}\boldsymbol{\alpha}-\boldsymbol{b}\|_2^2}{2}
+        + \frac{\|\boldsymbol{\alpha}-\boldsymbol{\beta}\|_2^2}{2\nu}
+        \right\} + \lambda\|\boldsymbol{\beta}\|_0^G
+        \right\}
+        \quad \text{s.t.} \quad \boldsymbol{C}\boldsymbol{\alpha} = \mathbf{0}
+
+    The algorithm alternates (Eqs. 15–16): solve the convex :math:`\boldsymbol{\alpha}`
+    subproblem with MINRES, then update :math:`\boldsymbol{\beta}` via the group
+    :math:`\ell_0` proximal (hard thresholding). The implementation includes
+    :math:`\kappa` and :math:`\sigma` in the :math:`\boldsymbol{\alpha}` subproblem.
 
     Parameters
     ----------

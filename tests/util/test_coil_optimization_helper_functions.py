@@ -8,7 +8,7 @@ from monty.tempfile import ScratchDir
 from simsopt.util import (
     initial_vacuum_stage_II_optimizations, continuation_vacuum_stage_II_optimizations,
     read_focus_coils, build_stage_II_data_array, make_stage_II_pareto_plots,
-    vacuum_stage_II_optimization, coil_optimization
+    vacuum_stage_II_optimization, coil_optimization, make_filament_from_voxels,
 )
 # from simsopt.field import LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque
 
@@ -604,6 +604,119 @@ class TestCoilOptimization(unittest.TestCase):
             # Verify that points are set correctly
             points = s.gamma().reshape((-1, 3))
             np.testing.assert_allclose(bs_optimized.get_points_cart_ref(), points, atol=1e-8)
+
+
+def _make_mock_grid(xyz, nfp, stellsym, alphas=None):
+    """Create mock CurrentVoxelsGrid for testing."""
+    n_pts = xyz.shape[0]
+    if alphas is None:
+        alphas = np.ones((n_pts, 1))
+
+    class MockPlasmaBoundary:
+        pass
+
+    mock_pb = MockPlasmaBoundary()
+    mock_pb.nfp = nfp
+    mock_pb.stellsym = stellsym
+
+    class MockGrid:
+        pass
+
+    mock_grid = MockGrid()
+    mock_grid.N_grid = n_pts
+    mock_grid.n_functions = 1
+    mock_grid.alphas = alphas
+    mock_grid.XYZ_flat = xyz
+    mock_grid.plasma_boundary = mock_pb
+    return mock_grid
+
+
+class TestMakeFilamentFromVoxels(unittest.TestCase):
+
+    def test_make_filament_returns_curve_with_symmetries(self):
+        """Test that make_filament_from_voxels returns CurveXYZFourierSymmetries."""
+        from simsopt.geo import CurveXYZFourierSymmetries
+
+        nfp, stellsym = 2, True
+        n_pts = 50
+        phi_pts = np.linspace(0, 2 * np.pi / nfp, n_pts, endpoint=False)
+        R0, r_minor = 1.0, 0.3
+        x = (R0 + r_minor * np.cos(phi_pts * nfp)) * np.cos(phi_pts)
+        y = (R0 + r_minor * np.cos(phi_pts * nfp)) * np.sin(phi_pts)
+        z = r_minor * np.sin(phi_pts * nfp)
+        xyz = np.column_stack([x, y, z])
+
+        mock_grid = _make_mock_grid(xyz, nfp, stellsym)
+        curve = make_filament_from_voxels(mock_grid, 0.5, num_fourier=8)
+
+        self.assertIsInstance(curve, CurveXYZFourierSymmetries)
+        self.assertEqual(curve.nfp, nfp)
+        self.assertEqual(curve.stellsym, stellsym)
+        gamma = curve.gamma()
+        self.assertEqual(gamma.shape[1], 3)
+        self.assertTrue(np.all(np.isfinite(gamma)), "gamma must not contain NaN or Inf")
+
+    def test_make_filament_no_nan_in_gamma(self):
+        """Test that gamma() never contains NaN for various inputs."""
+
+        for n_pts in [10, 20, 50]:
+            nfp, stellsym = 2, True
+            phi_pts = np.linspace(0, 2 * np.pi / nfp, n_pts, endpoint=False)
+            R0, r_minor = 1.0, 0.3
+            x = (R0 + r_minor * np.cos(phi_pts * nfp)) * np.cos(phi_pts)
+            y = (R0 + r_minor * np.cos(phi_pts * nfp)) * np.sin(phi_pts)
+            z = r_minor * np.sin(phi_pts * nfp)
+            xyz = np.column_stack([x, y, z])
+
+            mock_grid = _make_mock_grid(xyz, nfp, stellsym)
+            curve = make_filament_from_voxels(mock_grid, 0.5, num_fourier=8)
+            gamma = curve.gamma()
+            self.assertTrue(np.all(np.isfinite(gamma)), f"n_pts={n_pts}: gamma has NaN/Inf")
+
+    def test_make_filament_non_stellarator_symmetric(self):
+        """Test with stellsym=False."""
+
+        nfp, stellsym = 1, False
+        n_pts = 30
+        phi_pts = np.linspace(0, 2 * np.pi, n_pts, endpoint=False)
+        R0, r_minor = 1.0, 0.3
+        x = (R0 + r_minor * np.cos(phi_pts)) * np.cos(phi_pts)
+        y = (R0 + r_minor * np.cos(phi_pts)) * np.sin(phi_pts)
+        z = r_minor * np.sin(phi_pts)
+        xyz = np.column_stack([x, y, z])
+
+        mock_grid = _make_mock_grid(xyz, nfp, stellsym)
+        curve = make_filament_from_voxels(mock_grid, 0.5, num_fourier=6)
+        gamma = curve.gamma()
+        self.assertTrue(np.all(np.isfinite(gamma)))
+        self.assertFalse(curve.stellsym)
+
+    def test_make_filament_no_nonzero_voxels_raises(self):
+        """Test that no voxels above threshold raises ValueError."""
+        nfp, stellsym = 2, True
+        xyz = np.array([[1.0, 0.0, 0.0], [0.9, 0.1, 0.0]])
+        # All alphas below threshold -> zero nonzero voxels -> too few points
+        alphas = np.ones((2, 1)) * 0.1  # below threshold 0.5
+        mock_grid = _make_mock_grid(xyz, nfp, stellsym, alphas=alphas)
+        with self.assertRaises(ValueError):
+            make_filament_from_voxels(mock_grid, 0.5, num_fourier=4)
+
+    def test_make_filament_truncate_option(self):
+        """Test truncate=True produces valid curve."""
+
+        nfp, stellsym = 2, True
+        n_pts = 40
+        phi_pts = np.linspace(0, 2 * np.pi / nfp, n_pts, endpoint=False)
+        R0, r_minor = 1.0, 0.3
+        xyz = np.column_stack([
+            (R0 + r_minor * np.cos(phi_pts * nfp)) * np.cos(phi_pts),
+            (R0 + r_minor * np.cos(phi_pts * nfp)) * np.sin(phi_pts),
+            r_minor * np.sin(phi_pts * nfp),
+        ])
+        mock_grid = _make_mock_grid(xyz, nfp, stellsym)
+        curve = make_filament_from_voxels(mock_grid, 0.5, truncate=True, num_fourier=8)
+        gamma = curve.gamma()
+        self.assertTrue(np.all(np.isfinite(gamma)))
 
 
 if __name__ == "__main__":
