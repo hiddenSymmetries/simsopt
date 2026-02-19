@@ -430,7 +430,7 @@ def load_CP_and_geometries(
     s_plasma_fp = cpst.plasma_surface
 
     s_plasma_full = SurfaceRZFourier(
-        nfp=s_plasma_fp.nfp, stellsym=True, mpol=s_plasma_fp.mpol, ntor=s_plasma_fp.ntor
+        nfp=s_plasma_fp.nfp, stellsym=s_plasma_fp.stellsym, mpol=s_plasma_fp.mpol, ntor=s_plasma_fp.ntor
     )
     s_plasma_full = s_plasma_full.from_nphi_ntheta(
         nfp=s_plasma_fp.nfp,
@@ -438,19 +438,19 @@ def load_CP_and_geometries(
         nphi=len(s_plasma_fp.quadpoints_phi) * s_plasma_fp.nfp,
         mpol=s_plasma_fp.mpol,
         ntor=s_plasma_fp.ntor,
-        stellsym=True,
+        stellsym=s_plasma_fp.stellsym,
         range='full torus',
     )
     s_plasma_full.set_dofs(s_plasma_fp.x)
 
-    s_coil_fp = SurfaceRZFourier(nfp=s_coil_full.nfp, stellsym=True, mpol=s_coil_full.mpol, ntor=s_coil_full.ntor)
+    s_coil_fp = SurfaceRZFourier(nfp=s_coil_full.nfp, stellsym=s_coil_full.stellsym, mpol=s_coil_full.mpol, ntor=s_coil_full.ntor)
     s_coil_fp = s_coil_fp.from_nphi_ntheta(
         nfp=s_coil_full.nfp,
         ntheta=len(s_coil_full.quadpoints_theta),
-        nphi=len(s_coil_full.quadpoints_phi) // 4,
+        nphi=len(s_coil_full.quadpoints_phi) // s_coil_full.nfp,
         mpol=s_coil_full.mpol,
         ntor=s_coil_full.ntor,
-        stellsym=True,
+        stellsym=s_coil_full.stellsym,
         range='field period',
     )
     s_coil_fp.set_dofs(s_coil_full.x)
