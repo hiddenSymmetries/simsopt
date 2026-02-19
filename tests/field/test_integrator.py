@@ -60,6 +60,20 @@ class TestIntegratorsCoordinateHandling(unittest.TestCase):
                 intg.integrate_toroidally(start_xyz, delta_phi=np.pi/2, input_coordinates='cartesian', output_coordinates='invalid')
             with self.assertRaises(ValueError):
                 intg.integrate_toroidally(start_RZ, phi0=None, delta_phi=np.pi/2, input_coordinates='cylindrical', output_coordinates='cartesian')
+        
+        for intg in [self.simsopt_intg, self.scipy_intg]:
+            with self.assertRaises(ValueError):
+                intg.integrate_fieldlinepoints(start_xyz, delta_phi=np.pi/2, input_coordinates='invalid', output_coordinates='cartesian')
+            with self.assertRaises(ValueError):
+                intg.integrate_fieldlinepoints(start_xyz, delta_phi=np.pi/2, input_coordinates='cartesian', output_coordinates='invalid')
+            with self.assertRaises(ValueError):
+                intg.integrate_fieldlinepoints(start_RZ, phi0=None, delta_phi=np.pi/2, input_coordinates='cylindrical', output_coordinates='cartesian')
+        with self.assertRaises(ValueError): 
+            self.scipy_intg.integrate_3d_fieldlinepoints(start_xyz, l_total=1.0, n_points=10, input_coordinates='invalid', output_coordinates='cartesian')
+        with self.assertRaises(ValueError):
+            self.scipy_intg.integrate_3d_fieldlinepoints(start_xyz, l_total=1.0, n_points=10, input_coordinates='cartesian', output_coordinates='invalid')
+        with self.assertRaises(ValueError):
+            self.scipy_intg.integrate_3d_fieldlinepoints(start_RZ, l_total=1.0, phi0=None, n_points=10, input_coordinates='cylindrical', output_coordinates='cartesian')
 
 class TestSimsoptFieldlineIntegrator(unittest.TestCase):
     def setUp(self):
@@ -72,7 +86,7 @@ class TestSimsoptFieldlineIntegrator(unittest.TestCase):
     def test_poincare_hits_basic(self):
         # Two starting radii on midplane
         RZ = np.array([[self.R0 + 0.05, 0.0], [self.R0 + 0.10, 0.0]])
-        phis = np.linspace(0, 2*np.pi, 8, endpoint=False)
+        phis = np.linspace(0.1, 2*np.pi, 8, endpoint=False)
         res_tys, res_phi_hits = self.intg.compute_poincare_hits(RZ, n_transits=3, phis=phis, phi0=0.0)
         # For a purely toroidal field: Z stays 0, R stays constant; and we visit planes cyclically
         for i, hits in enumerate(res_phi_hits):
@@ -240,8 +254,8 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
         recon_xyz = Integrator._rphiz_to_xyz(np.array([end_RZ[0], phi_start + delta_phi, end_RZ[1]])[None, :])[0]
         self.assertTrue(np.allclose(recon_xyz, expected, atol=1e-6))
 
-    def compare_cart_cyl_rotation(self, start_RZ, start_phi, delta_phi):
-        # Helper to compare cylindrical and cartesian integration paths
+    def test_compare_cart_cyl_rotation(self, start_RZ, start_phi, delta_phi):
+        #compare cylindrical and cartesian integration paths
         end_xyz_from_cyl = self.intg.integrate_toroidally(start_RZ, start_phi, delta_phi, input_coordinates='cylindrical', output_coordinates='cartesian')
         start_xyz = Integrator._rphiz_to_xyz(np.array([start_RZ[0], start_phi, start_RZ[1]]))[0]
         end_xyz_from_cart = self.intg.integrate_toroidally(start_xyz, delta_phi, input_coordinates='cartesian', output_coordinates='cartesian')

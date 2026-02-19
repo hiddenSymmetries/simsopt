@@ -1288,8 +1288,8 @@ class ScipyFieldlineIntegrator(Integrator):
         Integration starts from cylindrical coordinates (R,Z) at angle start_phi. 
         The cylindrical field line ODE is given by: 
         .. math::
-            \frac{dR}{d\phi} = R \frac{B_R}{B_\phi}, \\
-            \frac{dZ}{d\phi} = R \frac{B_Z}{B_\phi}.
+            \\frac{dR}{d\phi} = R \\frac{B_R}{B_\phi}, \\
+            \\frac{dZ}{d\phi} = R \\frac{B_Z}{B_\phi}.
 
         Args:
             start_RZ: starting point in cylindrical coordinates (R,Z)
