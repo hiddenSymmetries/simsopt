@@ -42,6 +42,25 @@ class TestIntegratorBase(unittest.TestCase):
         with self.assertRaises(ValueError):
             Integrator._rphiz_to_xyz(np.random.random(2))  # Invalid input
 
+class TestIntegratorsCoordinateHandling(unittest.TestCase):
+    def setUp(self):
+        self.R0 = 1.2
+        self.B0 = 1.0
+        self.field = ToroidalField(self.R0, self.B0)
+        self.simsopt_intg = SimsoptFieldlineIntegrator(self.field, nfp=1)
+        self.scipy_intg = ScipyFieldlineIntegrator(self.field, nfp=1)
+
+    def test_invalid_coordinate_inputs(self):
+        start_xyz = np.array([self.R0, 0.0, 0.0])
+        start_RZ = np.array([self.R0, 0.0])
+        phi0 = 0.0
+        for intg in [self.simsopt_intg, self.scipy_intg]:
+            with self.assertRaises(ValueError):
+                intg.integrate_toroidally(start_xyz, delta_phi=np.pi/2, input_coordinates='invalid', output_coordinates='cartesian')
+            with self.assertRaises(ValueError):
+                intg.integrate_toroidally(start_xyz, delta_phi=np.pi/2, input_coordinates='cartesian', output_coordinates='invalid')
+            with self.assertRaises(ValueError):
+                intg.integrate_toroidally(start_RZ, phi0=None, delta_phi=np.pi/2, input_coordinates='cylindrical', output_coordinates='cartesian')
 
 class TestSimsoptFieldlineIntegrator(unittest.TestCase):
     def setUp(self):
@@ -271,6 +290,9 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
         r = np.sqrt(pts[:, 0]**2 + pts[:, 1]**2)
         self.assertTrue(np.allclose(r, self.R0, atol=1e-6))
         self.assertTrue(np.allclose(pts[:, 2], 0.0, atol=1e-9))
+
+        start_RZ = start_xyz[:2]
+        pts = self.intg.integrate_3d_fieldlinepoints(start_RZ, l_total=l_total, phi0=0, n_points=40, input_coordinates='cylindrical', output_coordinates='cylindrical')
 
     def test_lost_poincare(self):
         # integration should fail if toroidal field returns nans. Overload B_cyl to simulate this.
