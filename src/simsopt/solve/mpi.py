@@ -264,6 +264,194 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
     prob.x = x
 
 
+def bounded_least_squares_mpi_solve(prob: LeastSquaresProblem,
+                            mpi: MpiPartition,
+                            grad: bool = False,
+                            abs_step: float = 1.0e-7,
+                            rel_step: float = 0.0,
+                            bounds = None,
+                            diff_method: str = "forward",
+                            save_residuals: bool = False,
+                            x0=None,
+                            **kwargs):
+    """
+    Solve a nonlinear-least-squares minimization problem using
+    MPI. All MPI processes (including group leaders and workers)
+    should call this function.
+
+    Args:
+        prob: Optimizable object defining the objective function(s) and
+             parameter space.
+        mpi: A MpiPartition object, storing the information about how
+             the pool of MPI processes is divided into worker groups.
+        grad: Whether to use a gradient-based optimization algorithm, as
+             opposed to a gradient-free algorithm. If unspecified, a
+             a gradient-free algorithm
+             will be used by default. If you set ``grad=True``
+             finite-difference gradients will be used.
+        abs_step: Absolute step size for finite difference jac evaluation
+        rel_step: Relative step size for finite difference jac evaluation
+        diff_method: Differentiation strategy. Options are "centered", and
+             "forward". If ``centered``, centered finite differences will
+             be used. If ``forward``, one-sided finite differences will
+             be used. Else, error is raised.
+        save_residuals: Whether to save the residuals at each iteration.
+             This may be useful for debugging, although the file can become large.
+        kwargs: Any arguments to pass to
+                `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
+                For instance, you can supply ``max_nfev=100`` to set
+                the maximum number of function evaluations (not counting
+                finite-difference gradient evaluations) to 100. Or, you
+                can supply ``method`` to choose the optimization algorithm.
+    """
+    if MPI is None:
+        raise RuntimeError(
+            "least_squares_mpi_solve requires the mpi4py package.")
+    logger.info("Beginning solve.")
+
+    x = np.copy(prob.x)  # For use in Bcast later.
+
+    objective_file = None
+    residuals_file = None
+    datalog_started = False
+    nevals = 0
+    start_time = time()
+
+    def _f_proc0(x):
+        """
+        This function is used for least_squares_mpi_solve.  It is similar
+        to LeastSquaresProblem.f(), except this version is called only by
+        proc 0 while workers are in the worker loop.
+        """
+        logger.debug("Entering _f_proc0")
+        mpi.mobilize_workers(CALCULATE_F)
+        # Send workers the state vector:
+        mpi.comm_groups.bcast(x, root=0)
+        logger.debug("Past bcast in _f_proc0")
+
+        try:
+            unweighted_residuals = prob.unweighted_residuals(x)
+            logger.debug(f"unweighted residuals in _f_proc0:\n {unweighted_residuals}")
+            residuals = prob.residuals()
+            logger.debug(f"residuals in _f_proc0:\n {residuals}")
+        except:
+            unweighted_residuals = np.full(prob.parent_return_fns_no, 1.0e12)
+            residuals = np.full(prob.parent_return_fns_no, 1.0e12)
+            logger.info("Exception caught during function evaluation.")
+
+        objective_val = prob.objective()
+
+        nonlocal datalog_started, objective_file, residuals_file, nevals
+
+        # Since the number of terms is not known until the first
+        # evaluation of the objective function, we cannot write the
+        # header of the output file until this first evaluation is
+        # done.
+        if not datalog_started:
+            # Initialize log file
+            datalog_started = True
+            datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            objective_file = open(f"objective_{datestr}.dat", 'w')
+            objective_file.write(f"Problem type:\nleast_squares\nnparams:\n{prob.dof_size}\n")
+            objective_file.write("function_evaluation,seconds")
+
+            for j in range(prob.dof_size):
+                objective_file.write(f",x({j})")
+            objective_file.write(",objective_function\n")
+
+            if save_residuals:
+                residuals_file = open(f"residuals_{datestr}.dat", 'w')
+                residuals_file.write(f"Problem type:\nleast_squares\nnparams:\n{prob.dof_size}\n")
+                residuals_file.write("function_evaluation,seconds")
+
+                for j in range(prob.dof_size):
+                    residuals_file.write(f",x({j})")
+                residuals_file.write(",objective_function")
+                for j in range(len(residuals)):
+                    residuals_file.write(f",F({j})")
+                residuals_file.write("\n")
+
+        del_t = time() - start_time
+        objective_file.write(f"{nevals:6d},{del_t:12.4e}")
+        for xj in x:
+            objective_file.write(f",{xj:24.16e}")
+        objective_file.write(f",{objective_val:24.16e}\n")
+        objective_file.flush()
+
+        if save_residuals:
+            residuals_file.write(f"{nevals:6d},{del_t:12.4e}")
+            for xj in x:
+                residuals_file.write(f",{xj:24.16e}")
+            residuals_file.write(f",{objective_val:24.16e}")
+            for fj in unweighted_residuals:
+                residuals_file.write(f",{fj:24.16e}")
+            residuals_file.write("\n")
+            residuals_file.flush()
+
+        nevals += 1
+        logger.debug(f"residuals are {residuals}")
+        return residuals
+
+    # For MPI finite difference gradient, get the worker and leader action from
+    # MPIFiniteDifference
+    if grad:
+        with MPIFiniteDifference(prob.residuals, mpi, abs_step=abs_step,
+                                 rel_step=rel_step, diff_method=diff_method) as fd:
+            if mpi.proc0_world:
+                # proc0_world does this block, running the optimization.
+                if x0 is None:
+                    x0 = np.copy(prob.x)
+                    logger.info('Using prob.x as initial condition')
+                else:
+                    logger.info('Using supplied initial condition')
+
+                logger.info("Using finite difference method implemented in "
+                            "SIMSOPT for evaluating gradient")
+                # try:
+                if bounds is None:
+                    bounds = prob.bounds
+                    logger.info('Using prob.bounds')
+                else:
+                    logger.info('Using supplied bounds. ')
+                result = least_squares(_f_proc0, x0, jac=fd.jac, bounds = bounds, verbose=2,
+                                        **kwargs)
+                with open('result.npy', 'wb') as f:
+                    np.save(f, result)
+                # except:
+                #     print("Failure on proc0_world")
+
+    else:
+        leaders_action = lambda mpi, data: None
+        workers_action = lambda mpi, data: _mpi_workers_task(mpi, prob)
+        # Send group leaders and workers into their respective loops:
+        mpi.apart(leaders_action, workers_action)
+
+        if mpi.proc0_world:
+            # proc0_world does this block, running the optimization.
+            x0 = np.copy(prob.x)
+            logger.info("Using derivative-free method")
+            result = least_squares(_f_proc0, x0, verbose=2, **kwargs)
+
+        # Stop loops for workers and group leaders:
+        mpi.together()
+
+    if mpi.proc0_world:
+        x = result.x
+
+        if objective_file is not None:
+            objective_file.close()
+        if save_residuals and residuals_file is not None:
+            residuals_file.close()
+
+    datalog_started = False
+    logger.info("Completed solve.")
+
+    # Finally, make sure all procs get the optimal state vector.
+    mpi.comm_world.Bcast(x)
+    logger.debug(f'After Bcast, x={x}')
+    # Set Parameters to their values for the optimum
+    prob.x = x
+
 def _constrained_mpi_workers_task(mpi: MpiPartition,
                                   prob: Optimizable,
                                   data: int):

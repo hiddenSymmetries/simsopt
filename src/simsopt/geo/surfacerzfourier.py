@@ -4,7 +4,7 @@ import time
 import numpy as np
 from scipy.io import netcdf_file
 from scipy.interpolate import interp1d
-from scipy.optimize import minimize, least_squares, NonlinearConstraint
+from scipy.optimize import minimize, minimize_scalar, least_squares, NonlinearConstraint
 import f90nml
 import jax
 import jax.numpy as jnp
@@ -14,6 +14,7 @@ import matplotlib.colors as mpl_colors
 
 import simsoptpp as sopp
 from .surface import Surface
+from ..objectives.polygonal_shape_errors import jaccard_index
 from .._core.optimizable import Optimizable
 from .._core.util import nested_lists_to_array
 from .._core.dev import SimsoptRequires
@@ -1190,6 +1191,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         power=2,
         maxiter=None,
         method="SLSQP",
+        mpol_new=None,
+        ntor_new=None,
         epsilon=1e-3,
         Fourier_continuation=True,
         verbose=True,
@@ -1409,8 +1412,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         # lambda could in principle have different mpol and ntor than the original surface.
         # But it works reasonably well to use the same mpol and ntor:
-        mpol_for_lambda = mpol
-        ntor_for_lambda = ntor
+        mpol_for_lambda = mpol if mpol_new is None else mpol_new
+        ntor_for_lambda = ntor if ntor_new is None else ntor_new
         # surf_dummy is just a convenient way to get the m and n arrays for lambda
         surf_dummy = SurfaceRZFourier(
             nfp=nfp,
@@ -1667,6 +1670,225 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,
                      'aspect-ratio': Surface.aspect_ratio}
+
+    def variational_spec_cond(
+            self,
+            p=4,
+            q=1,
+            plot=False,
+            ftol=1e-4,
+            Mtol=1.1,
+            shapetol=None,
+            niters=5000,
+            verbose=False,
+            cutoff=1e-6
+        ):
+        '''
+        Variational spectral condensation à la Hirshman, Meier 1985. 
+        '''
+        M = self.mpol
+        N = self.ntor
+        nfp = self.nfp
+
+        m_arr = np.arange(0, M+1)
+        n_arr = np.arange(-N, N+1)
+        ntheta = 32
+        nzeta = 32
+        t_1d = np.linspace(0,2*np.pi,num=ntheta)
+        z_1d = np.linspace(0,2*np.pi,num=nzeta)# + 2*np.pi/nfp
+        z_grid, t_grid = np.meshgrid(z_1d,t_1d)
+
+        # fourier basis functions
+        cosnmtz = np.array(
+            [[np.cos(m*t_grid - n*z_grid*nfp) for m in range(0, M+1)] for n in range(-N, N+1)],
+        )
+        sinnmtz = np.array(
+            [[np.sin(m*t_grid - n*z_grid*nfp) for m in range(0, M+1)] for n in range(-N, N+1)],
+        )
+
+        def x_t_y_t(
+                rbc,
+                zbs
+        ):
+            '''
+            Computes Fourier representation of derivative of the surface wrt. theta
+            '''
+            # coefficients of derivatives of the r, z wrt. theta
+            rnm_t = np.einsum('nm,m->nm', rbc, m_arr)
+            znm_t = np.einsum('nm,m->nm', zbs, m_arr)
+
+            x_t = np.einsum('nm,nmtz->tz', rnm_t, -sinnmtz)
+            y_t = np.einsum('nm,nmtz->tz', znm_t, cosnmtz)
+
+            return x_t, y_t
+
+        def hwM_pq(
+                rbc,
+                zbs,
+                p=p,
+                q=q
+        ):
+            num = np.einsum('m,nm->nm', m_arr**(p+q), rbc**2 + zbs**2)
+            denom = np.einsum('m,nm->nm', m_arr**(p), rbc**2 + zbs**2)
+            return np.sum(num)/np.sum(denom)
+        
+        def hw_I_callable(
+                rbc,
+                zbs,
+        ):
+            M_pq = hwM_pq(rbc, zbs)
+            f_m = (m_arr**p) * (m_arr**q - M_pq)
+            
+            xfm = np.einsum('nm,m->nm', rbc, f_m)
+            yfm = np.einsum('nm,m->nm', zbs, f_m)
+
+            X = np.einsum('nmtz,nm->tz', cosnmtz[:,1:,:,:], xfm[:,1:])
+            Y = np.einsum('nmtz,nm->tz', sinnmtz[:,1:,:,:], yfm[:,1:])
+
+            x_t, y_t = x_t_y_t(rbc, zbs)
+
+            return X*x_t + Y*y_t
+
+        def naive_spec_cond(
+                surf,
+                verbose=verbose
+            ):
+            '''
+            iterate R_mn, Z_mn as X_mn,[n+1] = X_mn,[n] + aδx_mn 
+            Includes a line-search for the step size a
+            '''
+            newsurf = surf.copy()
+            rbc = newsurf.rc.T
+            zbs = newsurf.zs.T
+
+            dtdz = ((2*np.pi)/(nzeta-1)) * ((2*np.pi)/(ntheta-1))
+            I = hw_I_callable(rbc, zbs)
+            integral_I2 = np.einsum('tz,tz',I**2,dtdz*np.ones_like(I))
+            niter = 0
+            flast = hwM_pq(rbc, zbs)
+            df = 1
+            if verbose:
+                print(f'∫I^2(t,z)dtdz: {integral_I2}')
+                print(f'Initial M: {flast}')
+
+            success=False
+
+            while success == False:
+                niter += 1
+                x_t, y_t = x_t_y_t(rbc, zbs)
+                x_mn_integrand = np.einsum('nmtz,tz->nmtz', cosnmtz,-I*x_t)
+                y_mn_integrand = np.einsum('nmtz,tz->nmtz', sinnmtz,-I*y_t)
+                drbc = np.einsum('nmtz,tz->nm',x_mn_integrand,dtdz*np.ones_like(I))
+                dzbs = np.einsum('nmtz,tz->nm',y_mn_integrand,dtdz*np.ones_like(I))
+
+                drbc[:N,0] = 0
+                dzbs[:N,0] = 0
+
+                def f(alpha, rbc, zbs, drbc, dzbs):
+                    _rbc = np.copy(rbc)
+                    _zbs = np.copy(zbs)
+                    _rbc += alpha * drbc
+                    _zbs += alpha * dzbs
+                    return hwM_pq(_rbc, _zbs)
+
+                res = minimize_scalar(f, bracket = (-1e-4, 1e-4), args = (rbc, zbs, drbc, dzbs), method='golden', options={'disp':False})
+                alpha = res.x
+
+                rbc += alpha * drbc
+                zbs += alpha * dzbs
+
+                newsurf.rc = rbc.T
+                newsurf.zs = zbs.T
+
+                I = hw_I_callable(rbc, zbs)
+                integral_I2 = np.einsum('tz,tz',I**2,dtdz*np.ones_like(I))
+                fnew = hwM_pq(rbc, zbs)
+                df = np.abs(fnew - flast)
+                flast = fnew 
+
+                if hwM_pq(rbc, zbs) <= Mtol:
+                    success = True
+                    message = 'Terminated due to sufficiently low M'
+                if niter > niters:#5000:
+                    success = True
+                    message = 'Maxiter reached'
+                if df <= ftol:#1e-3:
+                    success = True
+                    message = 'dM < ftol reached'
+                if shapetol is not None:
+                    shape_error_arr = jaccard_index(
+                                        newsurf, 
+                                        surf
+                                    )
+                    shape_error = (np.average(np.abs(shape_error_arr)))
+                    if shape_error >= shapetol:
+                        success = True
+                        message = f'Shape error {shapetol} reached'
+
+            if verbose:
+                print(message)
+                print(f'Final ∫I^2(t,z)dtdz: {integral_I2}')
+                print(f'Final M: {hwM_pq(rbc, zbs)}')
+
+            return newsurf, rbc, zbs
+
+        surf_to_return, rbc_f, zbs_f = naive_spec_cond(self)
+
+        rbc_f *= (np.abs(rbc_f) > cutoff)
+        zbs_f *= (np.abs(zbs_f) > cutoff)
+
+        if plot:
+            def boundary_poincare_plot(
+                    surf,
+                    phi,
+                    ntheta=200,
+                    ):
+                M, N, nfp = surf.mpol, surf.ntor, surf.nfp
+                rbc, zbs = surf.rc.T, surf.zs.T
+                xn = np.arange(-N,N+1,1)
+                xm = np.arange(0,M+1,1)
+
+                ntheta = 200
+                theta = np.linspace(0,2*np.pi,num=ntheta)
+
+                R = np.zeros((ntheta,1))
+                Z = np.zeros((ntheta,1))
+
+                for i in range(rbc.shape[0]):
+                    for j in range(rbc.shape[1]):
+                        if rbc[i,j] !=0 or zbs[i,j] != 0:
+                            angle = xm[j]*theta - xn[i]*phi*nfp
+                            R = R + rbc[i,j]*np.cos(angle)#/(np.abs(i) + np.abs(j))
+                            Z = Z + zbs[i,j]*np.sin(angle)#/(np.abs(i) + np.abs(j))
+                return R.flatten(), Z.flatten()
+        
+            fig, ax = plt.subplots()
+            pwr_init = np.einsum('nm->m', self.rc.T**2 + self.zs.T**2)
+            pwr_final = np.einsum('nm->m', rbc_f**2 + zbs_f**2)
+            ax.semilogy(m_arr, pwr_init, label = 'equal arc length')
+            ax.semilogy(m_arr, pwr_final, label ='condensed')
+            ax.set_xlabel('m')
+            ax.set_ylabel('$\sum_n R_{mn}^2 + Z_{mn}^2$')
+            ax.legend()
+
+            fig1, ax1 = plt.subplots()
+            phi_array = np.linspace(np.pi/2, np.pi, 5)
+            for phi in phi_array[:-1]:
+                R_init, Z_init = boundary_poincare_plot(self, phi)
+                R_cond, Z_cond = boundary_poincare_plot(surf_to_return, phi)
+                ax1.plot(R_init, Z_init, color='r')
+                ax1.plot(R_cond, Z_cond, color='b')
+            R_init, Z_init = boundary_poincare_plot(self, phi_array[-1])
+            R_cond, Z_cond = boundary_poincare_plot(surf_to_return, phi_array[-1])
+            ax1.plot(R_init, Z_init, color='r', label='initial')
+            ax1.plot(R_cond, Z_cond, color='b', label='condensed')
+            ax1.legend()
+            ax1.set_aspect('equal')
+
+        surf_to_return = self.copy()
+        surf_to_return.rc, surf_to_return.zs = rbc_f.T, zbs_f.T 
+
+        return surf_to_return
 
 def plot_spectral_condensation(surf1, surf2, data, show=True):
     """Plot results from :func:`~simsopt.geo.SurfaceRZFourier.condense_spectrum`.
