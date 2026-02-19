@@ -1356,7 +1356,7 @@ class ScipyFieldlineIntegrator(Integrator):
         else:
             return status, rphiz
 
-    def integrate_fieldlinepoints(self, start_point, delta_phi, n_points, phi0=None, endpoint=False, input_coordinates='cartesian', output_coordinates='cartesian'):
+    def integrate_fieldlinepoints(self, start_point, delta_phi=2*np.pi, n_points=50, phi0=None, endpoint=False, input_coordinates='cartesian', output_coordinates='cartesian'):
         """
         Calculate n_points along a field line starting at an R,Z location and starting angle in phi, for a 
         distance delta_phi. 
