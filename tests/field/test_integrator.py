@@ -53,7 +53,6 @@ class TestIntegratorsCoordinateHandling(unittest.TestCase):
     def test_invalid_coordinate_inputs(self):
         start_xyz = np.array([self.R0, 0.0, 0.0])
         start_RZ = np.array([self.R0, 0.0])
-        phi0 = 0.0
         for intg in [self.simsopt_intg, self.scipy_intg]:
             with self.assertRaises(ValueError):
                 intg.integrate_toroidally(start_xyz, delta_phi=np.pi/2, input_coordinates='invalid', output_coordinates='cartesian')
