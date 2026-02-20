@@ -70,28 +70,30 @@ NADJ=12
 NMAX=40000
 KMM=50
 HISTORY_EVERY=10
+SNAP_K=18000
 
 BASE="K${K}_nphi${N}_ntheta${N}_ds${DS}_mat${MAT}_bt${BT}_Nadj${NADJ}_nmax${NMAX}"
 RID_GPMO="${BASE}_GPMO"
 RID_GPMOMR="${BASE}_kmm${KMM}_GPMOmr"
 
-run_if_missing "$OUTDIR/runhistory_${RID_GPMO}.csv" \
+run_if_missing "$OUTDIR/dipoles_snapshot_K${SNAP_K}_mat${MAT}_bt${BT}_Nadj${NADJ}_nmax${NMAX}_GPMO.npz" \
   "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE.py" \
-  --preset alnico --algorithm GPMO --history-every "$HISTORY_EVERY" --outdir "$OUTDIR"
+  --preset alnico --algorithm GPMO --history-every "$HISTORY_EVERY" --snapshot-k "$SNAP_K" --outdir "$OUTDIR"
 
-run_if_missing "$OUTDIR/runhistory_${RID_GPMOMR}.csv" \
+run_if_missing "$OUTDIR/dipoles_snapshot_K${SNAP_K}_mat${MAT}_bt${BT}_Nadj${NADJ}_nmax${NMAX}_kmm${KMM}_GPMOmr.npz" \
   "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE.py" \
-  --preset alnico --algorithm GPMOmr --mm-refine-every "$KMM" --history-every "$HISTORY_EVERY" --outdir "$OUTDIR"
+  --preset alnico --algorithm GPMOmr --mm-refine-every "$KMM" --history-every "$HISTORY_EVERY" --snapshot-k "$SNAP_K" --outdir "$OUTDIR"
 
 # Plots (2 runs => mse + deltam)
 echo "[$(ts)] Plot: Combined_MSE_history.png"
 "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE_plots.py" \
   --outdir "$OUTDIR" --mode mse \
+  --mark-k "$SNAP_K" \
   --runs "$RID_GPMO" "$RID_GPMOMR"
 
-run_if_missing "$OUTDIR/plots/Histogram_DeltaM_log_GPMO_vs_GPMOmr.png" \
-  "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE_plots.py" \
-  --outdir "$OUTDIR" --mode deltam --compare "$RID_GPMO" "$RID_GPMOMR"
+echo "[$(ts)] Plot: Histogram_DeltaM_log_GPMO_vs_GPMOmr_K${SNAP_K}.png"
+"$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE_plots.py" \
+  --outdir "$OUTDIR" --mode deltam --deltam-k "$SNAP_K" --compare "$RID_GPMO" "$RID_GPMOMR"
 
 # Post-processing (integrated here since it relies on the AlNiCo run outputs).
 NPZ_NAME="dipoles_final_matAlNiCo_bt200_Nadj12_nmax40000_GPMO.npz"

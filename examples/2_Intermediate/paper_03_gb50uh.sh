@@ -59,8 +59,8 @@ echo "[$(ts)] Plot: Combined_MSE_history.png"
   --distinct-n-active \
   --runs "$RID_GPMO" "$RID_GPMOMR"
 
-run_if_missing "$OUTDIR/plots/Histogram_DeltaM_log_GPMO_vs_GPMOmr.png" \
-  "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE_plots.py" \
+echo "[$(ts)] Plot: Histogram_DeltaM_log_GPMO_vs_GPMOmr.png"
+"$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE_plots.py" \
   --outdir "$OUTDIR" --mode deltam --compare "$RID_GPMO" "$RID_GPMOMR"
 
 echo "[$(ts)] Done."

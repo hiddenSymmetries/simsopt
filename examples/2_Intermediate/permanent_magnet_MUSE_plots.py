@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter, MultipleLocator
 from ruamel.yaml import YAML
 
 
@@ -164,6 +165,7 @@ def plot_mse(
     *,
     show_n_active: bool = True,
     distinct_n_active: bool = False,
+    mark_k: Optional[List[int]] = None,
 ) -> None:
     if not runs:
         raise SystemExit("No runs found (expected runhistory_*.csv).")
@@ -244,6 +246,66 @@ def plot_mse(
     if ax2 is not None:
         ax2.set_ylabel(r"Number of active magnets")
 
+    # Keep x-axis readable for paper runs:
+    # - show major ticks on a coarse interval
+    # - always label as full integers (e.g. 25000, not 25k)
+    k_max = 0
+    for r in runs:
+        run_doc = r.get("run", {}) or {}
+        params = run_doc.get("params", {}) or {}
+
+        K_param = params.get("K", None)
+        if K_param is not None:
+            k_max = max(k_max, int(K_param))
+            continue
+
+        k_arr = r["hist"].get("k", None)
+        if k_arr is None or len(k_arr) == 0:
+            continue
+        k_max = max(k_max, int(np.max(k_arr)))
+
+    # Match the paper plotting convention:
+    # - K=20000  -> ticks every 2500
+    # - K=25000  -> ticks every 5000
+    # - K>=40000 -> ticks every 10000
+    if k_max >= 40000:
+        k_step = 10000
+    elif k_max >= 25000:
+        k_step = 5000
+    elif k_max >= 20000:
+        k_step = 2500
+    elif k_max >= 8000:
+        k_step = 2000
+    elif k_max >= 2000:
+        k_step = 500
+    else:
+        k_step = max(1, int(round(k_max / 5))) if k_max > 0 else 1
+
+    ax1.xaxis.set_major_locator(MultipleLocator(k_step))
+
+    def _fmt_k(x: float, _pos: int) -> str:
+        xi = int(round(x))
+        return str(xi)
+
+    ax1.xaxis.set_major_formatter(FuncFormatter(_fmt_k))
+    ax1.set_xlim(left=0)
+
+    if mark_k:
+        for k in mark_k:
+            ax1.axvline(int(k), linestyle=":", linewidth=1.0, color="k", alpha=0.7)
+        k0 = int(mark_k[0])
+        ax1.text(
+            k0,
+            0.96,
+            f"ΔM snapshot\nK={k0}",
+            rotation=90,
+            va="top",
+            ha="right",
+            transform=ax1.get_xaxis_transform(),
+            fontsize=7,
+            color="k",
+        )
+
     if ax2 is None:
         ax1.legend(fontsize=8, frameon=True, facecolor="white", edgecolor="black", loc="best")
         fig.tight_layout()
@@ -280,28 +342,126 @@ def _load_final_m_from_run(outdir: Path, run_doc: Dict[str, Any]) -> Optional[np
     arr = np.load(npz_path)
     return arr["m"]
 
+def _load_snapshot_m_from_run(
+    outdir: Path,
+    run_doc: Dict[str, Any],
+    k_target: int,
+) -> Tuple[np.ndarray, Optional[int]]:
+    artifacts = run_doc.get("artifacts", {}) or {}
+    alg = _human_algorithm(run_doc)
+
+    entries = artifacts.get("dipoles_snapshots", None)
+    if isinstance(entries, list):
+        for e in entries:
+            if not isinstance(e, dict):
+                continue
+            try:
+                kt = int(e.get("k_target", -1))
+            except Exception:
+                continue
+            if kt != int(k_target):
+                continue
+
+            npz_name = e.get("dipoles_npz", None)
+            if npz_name:
+                npz_path = outdir / str(npz_name)
+                if not npz_path.exists():
+                    raise SystemExit(f"Missing snapshot NPZ: {npz_path}")
+                arr = np.load(npz_path)
+                m = arr["m"]
+                k_used = None
+                if "k_used" in arr:
+                    k_used = int(arr["k_used"])
+                else:
+                    try:
+                        k_used = int(e.get("k_used", None))
+                    except Exception:
+                        k_used = None
+                return m, k_used
+
+    # Fallback: locate snapshot by filename pattern in the run directory.
+    # This is useful if the run.yaml is older but snapshot files exist.
+    matches = sorted(outdir.glob(f"dipoles_snapshot_K{k_target}*_{alg}.npz"))
+    if len(matches) == 1:
+        arr = np.load(matches[0])
+        m = arr["m"]
+        k_used = int(arr["k_used"]) if "k_used" in arr else None
+        return m, k_used
+
+    raise SystemExit(
+        f"Missing dipole snapshot for K={k_target} in run artifacts for {alg}. "
+        f"Re-run the optimization with `permanent_magnet_MUSE.py --snapshot-k {k_target}`."
+    )
+
 
 def _choose_two_runs_for_compare(
     runs: List[Dict[str, Any]],
     outdir: Path,
     patterns: Optional[List[str]],
-) -> Tuple[Dict[str, Any], Dict[str, Any], np.ndarray, np.ndarray]:
+    *,
+    deltam_k: Optional[int] = None,
+) -> Tuple[Dict[str, Any], Dict[str, Any], np.ndarray, np.ndarray, Optional[int], Optional[int]]:
     sel = _select_runs(runs, patterns)
     if len(sel) != 2:
         raise SystemExit(f"Need exactly 2 runs to compare; found {len(sel)}.")
     r1, r2 = sel
-    m1 = _load_final_m_from_run(outdir, r1["run"])
-    m2 = _load_final_m_from_run(outdir, r2["run"])
-    if m1 is None or m2 is None:
-        raise SystemExit("Missing dipoles_final_*.npz for one of the selected runs.")
+    if deltam_k is None:
+        m1 = _load_final_m_from_run(outdir, r1["run"])
+        m2 = _load_final_m_from_run(outdir, r2["run"])
+        k_used1 = None
+        k_used2 = None
+        if m1 is None or m2 is None:
+            raise SystemExit("Missing dipoles_final_*.npz for one of the selected runs.")
+    else:
+        m1, k_used1 = _load_snapshot_m_from_run(outdir, r1["run"], int(deltam_k))
+        m2, k_used2 = _load_snapshot_m_from_run(outdir, r2["run"], int(deltam_k))
     if m1.shape != m2.shape:
         raise SystemExit(f"Shape mismatch: {m1.shape} vs {m2.shape}")
-    return r1, r2, m1, m2
+    return r1, r2, m1, m2, k_used1, k_used2
 
 
-def plot_delta_m(runs: List[Dict[str, Any]], outdir: Path, save_dir: Path, compare: Optional[List[str]]) -> None:
-    r1, r2, M1, M2 = _choose_two_runs_for_compare(runs, outdir, compare)
+def plot_delta_m(
+    runs: List[Dict[str, Any]],
+    outdir: Path,
+    save_dir: Path,
+    compare: Optional[List[str]],
+    *,
+    deltam_k: Optional[int] = None,
+) -> None:
+    r1, r2, M1, M2, k_used1, k_used2 = _choose_two_runs_for_compare(runs, outdir, compare, deltam_k=deltam_k)
     tag = f"{_human_algorithm(r1['run'])}_vs_{_human_algorithm(r2['run'])}"
+    alg1 = _human_algorithm(r1["run"])
+    alg2 = _human_algorithm(r2["run"])
+
+    if deltam_k is not None:
+        title_tag = f"{alg1} vs {alg2} @ K={int(deltam_k)}"
+        if k_used1 is not None or k_used2 is not None:
+            print(
+                f"[INFO] ΔM snapshot K_target={int(deltam_k)}: "
+                f"{alg1} uses K={k_used1 if k_used1 is not None else 'unknown'}, "
+                f"{alg2} uses K={k_used2 if k_used2 is not None else 'unknown'}."
+            )
+    else:
+        def _best_k(hist: Dict[str, np.ndarray]) -> Optional[int]:
+            k = hist.get("k", None)
+            fB = hist.get("fB", None)
+            if k is None or fB is None:
+                return None
+            if len(k) == 0 or len(fB) == 0:
+                return None
+            n = min(len(k), len(fB))
+            idx = int(np.argmin(fB[:n]))
+            return int(k[idx])
+
+        k1 = _best_k(r1.get("hist", {}) or {})
+        k2 = _best_k(r2.get("hist", {}) or {})
+        if k1 is not None and k2 is not None:
+            if k1 == k2:
+                title_tag = f"{alg1} vs {alg2} @ K={k1}"
+            else:
+                title_tag = f"{alg1} @ K={k1} vs {alg2} @ K={k2}"
+        else:
+            title_tag = tag.replace("_vs_", " vs ")
 
     diffs_raw: List[float] = []
     one_only_vals: List[float] = []
@@ -355,9 +515,10 @@ def plot_delta_m(runs: List[Dict[str, Any]], outdir: Path, save_dir: Path, compa
     plt.hist(diffs, bins=200, alpha=0.7)
     plt.xlabel(r"$|\Delta M| = \|M_i - M'_i\|_2$ [A·m$^2$]")
     plt.ylabel("Number of magnets")
-    plt.title(f"Histogram of |ΔM| (linear) — {tag}")
+    plt.title(f"Histogram of |ΔM| (linear) — {title_tag}")
     plt.grid(True)
-    fname_lin = save_dir / f"Histogram_DeltaM_linear_{tag}.png"
+    snap_suffix = f"_K{int(deltam_k)}" if deltam_k is not None else ""
+    fname_lin = save_dir / f"Histogram_DeltaM_linear_{tag}{snap_suffix}.png"
     plt.savefig(fname_lin, dpi=180)
     plt.close()
     print(f"Saved {fname_lin}")
@@ -366,10 +527,10 @@ def plot_delta_m(runs: List[Dict[str, Any]], outdir: Path, save_dir: Path, compa
     plt.hist(diffs, bins=200, alpha=0.7)
     plt.xlabel(r"$|\Delta M| = \|M_i - M'_i\|_2$ [A·m$^2$]")
     plt.ylabel("Number of magnets (log scale)")
-    plt.title(f"Histogram of |ΔM| (log) — {tag}")
+    plt.title(f"Histogram of |ΔM| (log) — {title_tag}")
     plt.yscale("log")
     plt.grid(True)
-    fname_log = save_dir / f"Histogram_DeltaM_log_{tag}.png"
+    fname_log = save_dir / f"Histogram_DeltaM_log_{tag}{snap_suffix}.png"
     plt.savefig(fname_log, dpi=180)
     plt.close()
     print(f"Saved {fname_log}")
@@ -402,6 +563,22 @@ def main():
         default=None,
         help="For --mode deltam: 2 substrings selecting the two runs to compare.",
     )
+    p.add_argument(
+        "--deltam-k",
+        type=int,
+        default=None,
+        help=(
+            "For --mode deltam: use saved dipole snapshot(s) at this target K "
+            "(requires runs generated with `permanent_magnet_MUSE.py --snapshot-k K`)."
+        ),
+    )
+    p.add_argument(
+        "--mark-k",
+        type=int,
+        nargs="+",
+        default=None,
+        help="For --mode mse: draw vertical marker line(s) at the given K value(s).",
+    )
     args = p.parse_args()
 
     outdir = args.outdir
@@ -416,6 +593,7 @@ def main():
             save_dir,
             show_n_active=not args.no_n_active,
             distinct_n_active=args.distinct_n_active,
+            mark_k=args.mark_k,
         )
     if args.mode in ("deltam", "all"):
         if args.compare is None and len(runs) != 2:
@@ -424,7 +602,7 @@ def main():
                 "Use `--compare <substr1> <substr2>` to select two runs."
             )
         else:
-            plot_delta_m(runs, outdir, save_dir, args.compare)
+            plot_delta_m(runs, outdir, save_dir, args.compare, deltam_k=args.deltam_k)
 
 
 if __name__ == "__main__":

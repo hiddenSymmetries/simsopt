@@ -69,8 +69,8 @@ echo "[$(ts)] Plot: Combined_MSE_history.png"
   --runs "$RID_GPMO" "$RID_KMM1" "$RID_KMM25" "$RID_KMM50"
 
 # One representative ΔM comparison (paper default uses kmm=50)
-run_if_missing "$OUTDIR/plots/Histogram_DeltaM_log_GPMO_vs_GPMOmr.png" \
-  "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE_plots.py" \
+echo "[$(ts)] Plot: Histogram_DeltaM_log_GPMO_vs_GPMOmr.png"
+"$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE_plots.py" \
   --outdir "$OUTDIR" --mode deltam --compare "$RID_GPMO" "$RID_KMM50"
 
 echo "[$(ts)] Done."
