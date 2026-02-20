@@ -47,7 +47,6 @@ from simsopt.util import (
     initialize_coils_for_pm_optimization,
     build_polarization_vectors_from_focus_data,
     compute_m_maxima_and_cube_dim_from_focus_file,
-    run_gpmo_optimization_on_muse_grid,
 )
 
 t_start = time.time()
