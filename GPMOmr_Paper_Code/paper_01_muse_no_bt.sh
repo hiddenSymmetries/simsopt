@@ -2,12 +2,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 PYTHON="${PYTHON:-python}"
 export PYTHONPATH="$REPO_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 
 cd "$SCRIPT_DIR"
+
+MUSE_SCRIPT="$REPO_ROOT/examples/2_Intermediate/permanent_magnet_MUSE.py"
+PLOTS_SCRIPT="$REPO_ROOT/examples/2_Intermediate/permanent_magnet_MUSE_plots.py"
 
 OUTBASE="$SCRIPT_DIR/output_permanent_magnet_GPMO_MUSE"
 RUNROOT="$OUTBASE/paper_runs"
@@ -47,30 +50,30 @@ RID_KMM25="${BASE}_kmm25_GPMOmr"
 RID_KMM50="${BASE}_kmm50_GPMOmr"
 
 run_if_missing "$OUTDIR/runhistory_${RID_GPMO}.csv" \
-  "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE.py" \
+  "$PYTHON" "$MUSE_SCRIPT" \
   --preset muse_no_bt --algorithm GPMO --history-every "$HISTORY_EVERY" --outdir "$OUTDIR"
 
 run_if_missing "$OUTDIR/runhistory_${RID_KMM1}.csv" \
-  "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE.py" \
+  "$PYTHON" "$MUSE_SCRIPT" \
   --preset muse_no_bt --algorithm GPMOmr --mm-refine-every 1 --history-every "$HISTORY_EVERY" --outdir "$OUTDIR"
 
 run_if_missing "$OUTDIR/runhistory_${RID_KMM25}.csv" \
-  "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE.py" \
+  "$PYTHON" "$MUSE_SCRIPT" \
   --preset muse_no_bt --algorithm GPMOmr --mm-refine-every 25 --history-every "$HISTORY_EVERY" --outdir "$OUTDIR"
 
 run_if_missing "$OUTDIR/runhistory_${RID_KMM50}.csv" \
-  "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE.py" \
+  "$PYTHON" "$MUSE_SCRIPT" \
   --preset muse_no_bt --algorithm GPMOmr --mm-refine-every 50 --history-every "$HISTORY_EVERY" --outdir "$OUTDIR"
 
 # Plots
 echo "[$(ts)] Plot: Combined_MSE_history.png"
-"$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE_plots.py" \
+"$PYTHON" "$PLOTS_SCRIPT" \
   --outdir "$OUTDIR" --mode mse --no-n-active \
   --runs "$RID_GPMO" "$RID_KMM1" "$RID_KMM25" "$RID_KMM50"
 
 # One representative ΔM comparison (paper default uses kmm=50)
 echo "[$(ts)] Plot: Histogram_DeltaM_log_GPMO_vs_GPMOmr.png"
-"$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE_plots.py" \
+"$PYTHON" "$PLOTS_SCRIPT" \
   --outdir "$OUTDIR" --mode deltam --compare "$RID_GPMO" "$RID_KMM50"
 
 echo "[$(ts)] Done."

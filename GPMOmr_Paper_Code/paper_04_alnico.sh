@@ -2,12 +2,16 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 PYTHON="${PYTHON:-python}"
 export PYTHONPATH="$REPO_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 
 cd "$SCRIPT_DIR"
+
+MUSE_SCRIPT="$REPO_ROOT/examples/2_Intermediate/permanent_magnet_MUSE.py"
+PLOTS_SCRIPT="$REPO_ROOT/examples/2_Intermediate/permanent_magnet_MUSE_plots.py"
+POST_SCRIPT="$REPO_ROOT/examples/2_Intermediate/macromag_MUSE_AlNiCo_post_processing.py"
 
 OUTBASE="$SCRIPT_DIR/output_permanent_magnet_GPMO_MUSE"
 RUNROOT="$OUTBASE/paper_runs"
@@ -77,22 +81,22 @@ RID_GPMO="${BASE}_GPMO"
 RID_GPMOMR="${BASE}_kmm${KMM}_GPMOmr"
 
 run_if_missing "$OUTDIR/dipoles_snapshot_K${SNAP_K}_mat${MAT}_bt${BT}_Nadj${NADJ}_nmax${NMAX}_GPMO.npz" \
-  "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE.py" \
+  "$PYTHON" "$MUSE_SCRIPT" \
   --preset alnico --algorithm GPMO --history-every "$HISTORY_EVERY" --snapshot-k "$SNAP_K" --outdir "$OUTDIR"
 
 run_if_missing "$OUTDIR/dipoles_snapshot_K${SNAP_K}_mat${MAT}_bt${BT}_Nadj${NADJ}_nmax${NMAX}_kmm${KMM}_GPMOmr.npz" \
-  "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE.py" \
+  "$PYTHON" "$MUSE_SCRIPT" \
   --preset alnico --algorithm GPMOmr --mm-refine-every "$KMM" --history-every "$HISTORY_EVERY" --snapshot-k "$SNAP_K" --outdir "$OUTDIR"
 
 # Plots (2 runs => mse + deltam)
 echo "[$(ts)] Plot: Combined_MSE_history.png"
-"$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE_plots.py" \
+"$PYTHON" "$PLOTS_SCRIPT" \
   --outdir "$OUTDIR" --mode mse \
   --mark-k "$SNAP_K" \
   --runs "$RID_GPMO" "$RID_GPMOMR"
 
 echo "[$(ts)] Plot: Histogram_DeltaM_log_GPMO_vs_GPMOmr_K${SNAP_K}.png"
-"$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE_plots.py" \
+"$PYTHON" "$PLOTS_SCRIPT" \
   --outdir "$OUTDIR" --mode deltam --deltam-k "$SNAP_K" --compare "$RID_GPMO" "$RID_GPMOMR"
 
 # Post-processing (integrated here since it relies on the AlNiCo run outputs).
@@ -100,10 +104,10 @@ NPZ_NAME="dipoles_final_matAlNiCo_bt200_Nadj12_nmax40000_GPMO.npz"
 POSTDIR="$OUTDIR/postprocess"
 mkdir -p "$POSTDIR"
 run_if_missing_or_stale "$POSTDIR/surface_Bn_delta_AlNiCo.vts" \
-  "$SCRIPT_DIR/macromag_MUSE_AlNiCo_post_processing.py" \
+  "$POST_SCRIPT" \
   "$OUTDIR/$NPZ_NAME" \
   -- \
-  "$PYTHON" "$SCRIPT_DIR/macromag_MUSE_AlNiCo_post_processing.py" \
+  "$PYTHON" "$POST_SCRIPT" \
     --npz-path "$OUTDIR/$NPZ_NAME" \
     --outdir "$POSTDIR"
 

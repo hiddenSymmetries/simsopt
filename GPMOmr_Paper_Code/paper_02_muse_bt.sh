@@ -2,12 +2,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 PYTHON="${PYTHON:-python}"
 export PYTHONPATH="$REPO_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 
 cd "$SCRIPT_DIR"
+
+MUSE_SCRIPT="$REPO_ROOT/examples/2_Intermediate/permanent_magnet_MUSE.py"
+PLOTS_SCRIPT="$REPO_ROOT/examples/2_Intermediate/permanent_magnet_MUSE_plots.py"
 
 OUTBASE="$SCRIPT_DIR/output_permanent_magnet_GPMO_MUSE"
 RUNROOT="$OUTBASE/paper_runs"
@@ -45,21 +48,21 @@ RID_GPMO="${BASE}_GPMO"
 RID_GPMOMR="${BASE}_kmm${KMM}_GPMOmr"
 
 run_if_missing "$OUTDIR/runhistory_${RID_GPMO}.csv" \
-  "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE.py" \
+  "$PYTHON" "$MUSE_SCRIPT" \
   --preset muse_bt --algorithm GPMO --history-every "$HISTORY_EVERY" --outdir "$OUTDIR"
 
 run_if_missing "$OUTDIR/runhistory_${RID_GPMOMR}.csv" \
-  "$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE.py" \
+  "$PYTHON" "$MUSE_SCRIPT" \
   --preset muse_bt --algorithm GPMOmr --mm-refine-every "$KMM" --history-every "$HISTORY_EVERY" --outdir "$OUTDIR"
 
 # Plots (2 runs => mse + deltam)
 echo "[$(ts)] Plot: Combined_MSE_history.png"
-	"$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE_plots.py" \
+	"$PYTHON" "$PLOTS_SCRIPT" \
 		--outdir "$OUTDIR" --mode mse \
 		--runs "$RID_GPMO" "$RID_GPMOMR"
 
 echo "[$(ts)] Plot: Histogram_DeltaM_log_GPMO_vs_GPMOmr.png"
-"$PYTHON" "$SCRIPT_DIR/permanent_magnet_MUSE_plots.py" \
+"$PYTHON" "$PLOTS_SCRIPT" \
   --outdir "$OUTDIR" --mode deltam --compare "$RID_GPMO" "$RID_GPMOMR"
 
 echo "[$(ts)] Done."
