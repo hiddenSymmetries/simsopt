@@ -178,6 +178,16 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--mm-refine-every", type=int, default=None, help="Override macromag refinement interval k_mm.")
     p.add_argument("--downsample", type=int, default=None, help="Override magnet-grid downsample factor.")
     p.add_argument("--history-every", type=int, default=None, help="Override history logging period in K.")
+    p.add_argument(
+        "--snapshot-k",
+        type=int,
+        action="append",
+        default=[],
+        help=(
+            "Optionally save additional dipole-moment snapshots at the requested greedy iteration K. "
+            "May be provided multiple times, e.g. `--snapshot-k 18000 --snapshot-k 25000`."
+        ),
+    )
     p.add_argument("--list-presets", action="store_true", help="Print available presets and exit.")
     p.add_argument("--list-materials", action="store_true", help="Print available materials and exit.")
     return p.parse_args()
@@ -288,15 +298,11 @@ bs = BiotSavart(coils)
 # Calculate average, approximate on-axis B field strength
 calculate_modB_on_major_radius(bs, s)
 
-# Make higher resolution surface for plotting Bnormal
-qphi = 2 * nphi
-quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
-quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
-s_plot = SurfaceRZFourier.from_focus(
-    surface_filename,
-    quadpoints_phi=quadpoints_phi,
-    quadpoints_theta=quadpoints_theta
-)
+# Surface for final metric reporting / optional VMEC handoff.
+# Use the same discretization as the optimization surface so the reported f_B
+# matches the runhistory CSV (and the paper convention nphi = ntheta = 64).
+qphi = nphi
+s_plot = s
 
 # Set up correct Bnormal from TF coils
 bs.set_points(s.gamma().reshape((-1, 3)))
@@ -466,9 +472,8 @@ num_nonzero = np.count_nonzero(np.sum(dipoles_m ** 2, axis=-1)) / pm_opt.ndipole
 print("Number of possible dipoles = ", pm_opt.ndipoles)
 print("% of dipoles that are nonzero = ", num_nonzero)
 
-# Print optimized f_B and other metrics
-### Note this will only agree with the optimization in the high-resolution
-### limit where nphi ~ ntheta >= 64!
+# Print optimized f_B and other metrics (on the same surface discretization used
+# during optimization).
 b_dipole = DipoleField(
     pm_opt.dipole_grid_xyz,
     pm_opt.m,
@@ -693,6 +698,36 @@ with run_csv.open("w", newline="", encoding="utf-8") as f:
     w.writeheader()
     w.writerows(rows)
 
+snapshot_entries = []
+snapshot_targets = [int(k) for k in (args.snapshot_k or [])]
+snapshot_targets = sorted(set(snapshot_targets))
+if snapshot_targets:
+    k_hist_arr = np.asarray(k_hist[: len(R2_history)], dtype=int)
+    if m_history.shape[2] < len(k_hist_arr):
+        raise RuntimeError(
+            f"m_history length mismatch: m_history.shape[2]={m_history.shape[2]} < len(k_hist)={len(k_hist_arr)}"
+        )
+    for k_target in snapshot_targets:
+        idx_le = np.where(k_hist_arr <= int(k_target))[0]
+        idx_used = int(idx_le[-1]) if len(idx_le) else 0
+        k_used = int(k_hist_arr[idx_used])
+
+        snap_name = f"dipoles_snapshot_K{k_target}{full_suffix}_{algorithm}.npz"
+        snap_path = out_dir / snap_name
+        print(f"[INFO] Snapshot request K={k_target} -> using recorded K={k_used} (index {idx_used})")
+        np.savez(
+            snap_path,
+            xyz=pm_opt.dipole_grid_xyz,
+            m=m_history[:, :, idx_used],
+            nfp=s.nfp,
+            coordinate_flag=pm_opt.coordinate_flag,
+            m_maxima=pm_opt.m_maxima,
+            k_target=np.int64(k_target),
+            k_used=np.int64(k_used),
+        )
+        print(f"[SIMSOPT] Saved {snap_path}")
+        snapshot_entries.append({"k_target": int(k_target), "k_used": int(k_used), "dipoles_npz": snap_name})
+
 yaml = YAML(typ="safe")
 yaml.default_flow_style = False
 run_doc = {
@@ -742,6 +777,7 @@ run_doc = {
         "dipoles_final_npz": f"dipoles_final{full_suffix}_{algorithm}.npz",
         "dipoles_final_vtu": f"dipoles_final{full_suffix}_{algorithm}.vtu",
         "surface_Bn_fields_vtp": f"surface_Bn_fields{full_suffix}_{algorithm}.vtp",
+        "dipoles_snapshots": snapshot_entries,
     },
 }
 with run_yaml.open("w", encoding="utf-8") as f:
