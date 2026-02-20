@@ -417,81 +417,46 @@ To make the connection to the example scripts explicit, the core setup pattern i
 Post-processing a MUSE run
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The script :simsopt_file:`examples/2_Intermediate/permanent_magnet_MUSE.py` writes a
-set of run artifacts into the output directory specified by ``--outdir``. The key files are:
+The example script :simsopt_file:`examples/2_Intermediate/permanent_magnet_MUSE.py` runs a
+low‑resolution MUSE case twice in sequence: first with ``algorithm="GPMO"`` and then with
+``algorithm="GPMOmr"`` using the same surface discretization, downsampled magnet grid, and
+backtracking settings. This makes the two runs directly comparable, since they differ only in
+the macromagnetic refinement step. When the script finishes, it writes a compact set of run
+artifacts into ``examples/2_Intermediate/output_permanent_magnet_GPMO_MUSE/example_lowres_compare``.
+That folder includes a ``runhistory_*.csv`` with the objective history, a ``run_*.yaml`` with the
+parameters, and final magnet grids in both ``.npz`` and ``.vtu`` formats for visualization.
 
-- ``run_<run_id>.yaml``: run metadata (parameters used, plus filenames of the artifacts).
-- ``runhistory_<run_id>.csv``: a tabular history of the optimization with columns
-  ``k`` (iteration), ``fB`` (objective), ``absBn`` (surface-averaged :math:`|B_n|` metric),
-  and ``n_active`` (number of active magnets).
-- ``dipoles_final*.vtu``: final magnet solution for visualization in Paraview.
-- ``surface_Bn_fields*.vtp``: surface fields for visualization (includes
-  ``Bn_total``, ``Bn_coils``, ``Bn_magnets``, and ``Bn_error``).
-- ``dipoles_final*.npz``: final dipole moments and grid information (used for Delta M comparisons).
+The first figure below is a placeholder for the GPMO grid output from this example run.
+It should be a top‑down render of the ``dipoles_final_*.vtu`` file, using the same visualization
+style as the earlier GPMO example images in this tutorial.
 
-For post-processing and paper-style plots, the companion script
-:simsopt_file:`examples/2_Intermediate/permanent_magnet_MUSE_plots.py` reads the YAML/CSV (and, for Delta M,
-the final ``.npz``) and generates:
-
-- MSE-history plots (``--mode mse``): semilog plots of ``fB(k)`` and optionally ``n_active(k)``.
-- Delta M histograms (``--mode deltam``): compares two runs and histograms
-  :math:`|\Delta M| = \|M_i - M'_i\|_2` over the union of active sites.
-
-Because the solutions are discrete (full-strength magnets with a finite set of orientations),
-the Delta M distribution often clusters near 0, near one-magnet differences (approximately :math:`M_{rem}`),
-and near multi-axis differences (approximately :math:`\sqrt{2} M_{rem}` and approximately :math:`2 M_{rem}`).
-The plots script estimates :math:`M_{rem}` from sites that are active in exactly one of the runs
-and prints a simple bucket breakdown to help interpret how the two solutions differ.
-
-Example usage::
-
-  python examples/2_Intermediate/permanent_magnet_MUSE_plots.py --outdir <OUTDIR> --mode mse
-  python examples/2_Intermediate/permanent_magnet_MUSE_plots.py --outdir <OUTDIR> --mode deltam \
-      --compare <run_substr_1> <run_substr_2>
-
-A coarse MUSE GPMO vs GPMOmr run (low-res surface)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The wrapper script :simsopt_file:`examples/2_Intermediate/muse_coupling_coarse.sh` runs the MUSE
-example twice, once with ``algorithm="GPMO"`` and once with ``algorithm="GPMOmr"``, writing all
-artifacts into the directory ``examples/2_Intermediate/output_permanent_magnet_GPMO_MUSE/doc_muse_coupling_coarse``.
-
-The surface resolution in this run is intentionally low (``nphi=ntheta=16``). As surface objects carry
-a grid of quadrature points at which geometry and fields are evaluated, reducing ``nphi`` and ``ntheta``
-reduces the cost of evaluating surface integrals and diagnostics, while still retaining the structure of
-the full workflow. At the same time, the magnet grid itself is not downsampled (``downsample=1``), so the
-placement decisions are made on the full MUSE FAMUS grid rather than a toy subset.
-
-The greedy loop is run for up to ``K_max=25000`` iterations, but the number of active magnets is capped by
-``max_nMagnets=20000``. Backtracking is enabled with ``backtracking=200``, meaning that every 200 greedy
-iterations the algorithm pauses placement and searches for nearby, strongly opposing dipole pairs (using the
-adjacency information specified by ``Nadjacent``), removes such pairs, and then continues placing magnets.
-For the coupling-aware run, macromagnetic refinement is performed every ``mm_refine_every=50`` greedy iterations.
-This cadence controls how often MacroMag is used to refine the magnetization of the current active set in the presence
-of coupling (demagnetization and finite permeability effects, and optionally coils), before the optimization continues.
-
-The script also writes ``dipoles_final*.vtu`` and ``surface_Bn_fields*.vtp`` files, which can be inspected in Paraview.
-For the surface-field output, the visualization surface is constructed using quadrature-point arrays that include the endpoint
-(``endpoint=True``), so that the sampled data explicitly includes the periodic seam point; this makes simple 1D slices around the
-surface appear as closed loops without manual stitching.
-
-Run the wrapper script with::
-
-  bash examples/2_Intermediate/muse_coupling_coarse.sh
-
-The combined history plot is shown below. It compares the objective history ``fB`` for the two runs and,
-on the secondary axis, the number of active magnets. In this coarse setting, the absolute values are not
-intended to be fully converged; instead, the goal is to make the effect of coupling-aware refinement visible
-in the overall trajectory of ``fB`` and in the evolution of the active set.
-
-.. image:: muse_coupling_coarse_Combined_MSE_history.png
+.. image:: muse_example_GPMO_grid.png
    :width: 450
 
-The next figure shows a top-down view of the final dipole solution from the ``GPMOmr`` run. This image is produced in
-Paraview by visualizing the corresponding ``dipoles_final*.vtu`` file and rendering the dipole vectors (e.g. using glyphs
-colored by ``m_normalized``). Even at low surface resolution, the resulting dipole pattern provides a useful qualitative
-check that the solution is not dominated by obvious local cancellations, which is precisely what backtracking and
-macromagnetic refinement are designed to mitigate.
+Post-processing the MUSE grid
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. image:: muse_coupling_coarse_dipoles_topdown_GPMOmr.png
+The MUSE grid and surface inputs used by the example live in ``tests/test_files``:
+``magtense_zot80_3d.csv`` defines the magnet positions, ``zot80.focus`` provides the FAMUS
+grid metadata, and ``input.muse`` contains the plasma boundary surface used for
+computing :math:`B_n` and :math:`f_B`. The post‑processing script
+:simsopt_file:`examples/2_Intermediate/macromag_MUSE_post_processing.py` loads those
+reference files, builds a MacroMag model, and evaluates how magnet‑magnet and
+magnet‑coil coupling perturb the surface‑normal field. It then writes VTK surface data
+and generates diagnostic summaries, which is useful for checking how coupling alters
+the effective boundary error relative to the uncoupled GPMO result.
+
+The next figure is the surface‑normal error diagnostic produced by that post‑processing
+workflow. It is a representative plot of the surface :math:`B_n` error field and shows
+the spatial structure of the coupling‑induced change rather than a single scalar metric.
+
+.. image:: MUSE_postprocessing_bn_error.png
+   :width: 450
+
+Finally, the GPMOmr run produces a coupled magnet grid in the same format as the GPMO
+output. The following placeholder is intended for the GPMOmr grid render that corresponds
+to the example run above, again using the same visualization style and orientation as the
+GPMO grid image so the difference in the final arrangement is easy to compare visually.
+
+.. image:: muse_example_GPMOmr_grid.png
    :width: 450
