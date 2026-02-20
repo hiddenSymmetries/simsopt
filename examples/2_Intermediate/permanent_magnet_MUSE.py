@@ -116,7 +116,7 @@ default_out_dir = (
 if in_github_actions:
     preset = {
         "material": "N52",
-        "nphi": 2,
+        "nphi": 8,
         "nIter_max": 100,
         "nBacktracking": 0,
         "max_nMagnets": 20,
