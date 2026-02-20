@@ -50,8 +50,7 @@ else:
 
 nphi = N
 ntheta = N
-algorithm = 'GPMO'
-#algorithm = 'GPMOmr'
+algorithm = 'GPMO' # Or GPMOmr
 nAdjacent = 10
 thresh_angle = np.pi  # / np.sqrt(2)
 nHistory = 10
@@ -121,19 +120,20 @@ pol_axes_f = pol_axes_f[:ntype_f, :]
 pol_type_f = pol_type_f[:ntype_f]
 pol_axes = np.concatenate((pol_axes, pol_axes_f), axis=0)
 pol_type = np.concatenate((pol_type, pol_type_f))
-## Demarcation
-# pol_axes_fe_ftri, pol_type_fe_ftri = polarization_axes(['fe_ftri'])
-# ntype_fe_ftri = int(len(pol_type_fe_ftri)/2)
-# pol_axes_fe_ftri = pol_axes_fe_ftri[:ntype_fe_ftri, :]
-# pol_type_fe_ftri = pol_type_fe_ftri[:ntype_fe_ftri] + 1
-# pol_axes = np.concatenate((pol_axes, pol_axes_fe_ftri), axis=0)
-# pol_type = np.concatenate((pol_type, pol_type_fe_ftri))
-# pol_axes_fc_ftri, pol_type_fc_ftri = polarization_axes(['fc_ftri'])
-# ntype_fc_ftri = int(len(pol_type_fc_ftri)/2)
-# pol_axes_fc_ftri = pol_axes_fc_ftri[:ntype_fc_ftri, :]
-# pol_type_fc_ftri = pol_type_fc_ftri[:ntype_fc_ftri] + 2
-# pol_axes = np.concatenate((pol_axes, pol_axes_fc_ftri), axis=0)
-# pol_type = np.concatenate((pol_type, pol_type_fc_ftri))
+
+# When optimizing with GPMOmr, its adviced to disable the pole-orientation block below to reduce computational cost.
+pol_axes_fe_ftri, pol_type_fe_ftri = polarization_axes(['fe_ftri'])
+ntype_fe_ftri = int(len(pol_type_fe_ftri)/2)
+pol_axes_fe_ftri = pol_axes_fe_ftri[:ntype_fe_ftri, :]
+pol_type_fe_ftri = pol_type_fe_ftri[:ntype_fe_ftri] + 1
+pol_axes = np.concatenate((pol_axes, pol_axes_fe_ftri), axis=0)
+pol_type = np.concatenate((pol_type, pol_type_fe_ftri))
+pol_axes_fc_ftri, pol_type_fc_ftri = polarization_axes(['fc_ftri'])
+ntype_fc_ftri = int(len(pol_type_fc_ftri)/2)
+pol_axes_fc_ftri = pol_axes_fc_ftri[:ntype_fc_ftri, :]
+pol_type_fc_ftri = pol_type_fc_ftri[:ntype_fc_ftri] + 2
+pol_axes = np.concatenate((pol_axes, pol_axes_fc_ftri), axis=0)
+pol_type = np.concatenate((pol_type, pol_type_fc_ftri))
 
 # Read in the phi coordinates and set the pol_vectors
 ophi = orientation_phi(fname_corn)[:nMagnets_tot]
