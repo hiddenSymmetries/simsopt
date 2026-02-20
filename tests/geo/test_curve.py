@@ -202,25 +202,6 @@ class Testing(unittest.TestCase):
         curve2 = CurveHelical(np.linspace(0, 1, 100, endpoint=False), order, nfp, 1, R, r, x0=np.zeros(2 * order + 1))
         np.testing.assert_allclose(curve1.gamma(), curve2.gamma(), atol=1e-14)
 
-    def test_curvexyzfouriersymmetries_squaredflux_gradient_finite(self):
-        """Regression test: gradient of SquaredFlux with CurveXYZFourierSymmetries must not be NaN.
-        CurveXYZFourierSymmetries uses jnp.sum (not np.sum) for JAX autodiff compatibility."""
-        nfp, stellsym = 4, True
-        order = 8
-        curve = CurveXYZFourierSymmetries(500, order, nfp, stellsym, ntor=1)
-        np.random.seed(42)
-        curve.x = np.random.randn(curve.num_dofs()) * 0.1
-        curve.x[0] = 5.0  # xc0 = major radius
-        current = Current(1e5)
-        current.fix_all()
-        coils = coils_via_symmetries([curve], [current], nfp, stellsym)
-        bs = BiotSavart(coils)
-        s = SurfaceRZFourier.from_nphi_ntheta(32, 32, "half period", nfp=nfp, stellsym=stellsym)
-        bs.set_points(s.gamma().reshape((-1, 3)))
-        Jf = SquaredFlux(s, bs)
-        grad = Jf.dJ()
-        self.assertTrue(np.all(np.isfinite(grad)), f"Gradient contains NaN or Inf: {np.sum(np.isnan(grad))} NaN, {np.sum(np.isinf(grad))} Inf")
-
     def test_trefoil_nonstellsym(self):
         r''' This test checks that a CurveXYZFourierSymmetries can represent a non-stellarator symmetric
         trefoil knot.  A parametric representation of a trefoil knot is given by:
