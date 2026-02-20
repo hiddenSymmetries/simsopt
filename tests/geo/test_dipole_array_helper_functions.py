@@ -11,7 +11,7 @@ from simsopt.util.dipole_array_helper_functions import (
     generate_even_arc_angles, generate_windowpane_array, generate_tf_array
 )
 from simsopt.geo import SurfaceRZFourier
-from simsopt.field import Current, coils_via_symmetries, BiotSavart
+from simsopt.field import Current, coils_via_symmetries, BiotSavart, regularization_rect
 from simsopt.geo import CurvePlanarFourier
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
@@ -118,6 +118,7 @@ class TestDipoleArrayHelperFunctions(unittest.TestCase):
             'LandremanPaulQH': 'input.LandremanPaul2021_QH_reactorScale_lowres',
             'SchuettHennebergQAnfp2': 'wout_schuett_henneberg_nfp2_QA.nc'
         }
+        regularization = regularization_rect(0.2, 0.2)
         with ScratchDir("."):
             for config, surf_file in config_file_map.items():
                 surf_path = (Path(__file__).parent / ".." / "test_files" / surf_file).resolve()
@@ -125,7 +126,7 @@ class TestDipoleArrayHelperFunctions(unittest.TestCase):
                     s = SurfaceRZFourier.from_vmec_input(surf_path, range="half period", nphi=nphi, ntheta=ntheta)
                 except:
                     s = SurfaceRZFourier.from_wout(surf_path, range="half period", nphi=nphi, ntheta=ntheta)
-                base_curves, curves, coils, base_currents = initialize_coils(s, TEST_DIR, config)
+                base_curves, curves, coils, base_currents = initialize_coils(s, config, regularization)
                 self.assertTrue(len(base_curves) > 0)
                 self.assertTrue(len(curves) > 0)
                 self.assertTrue(len(coils) > 0)
@@ -142,7 +143,7 @@ class TestDipoleArrayHelperFunctions(unittest.TestCase):
                 self.assertTrue(np.isclose(B_magnitude, 5.7, atol=1), f"B at major radius for {config} is {B_magnitude}, expected ~5.7 T")
             # Test for error on unknown configuration
             with self.assertRaises(ValueError):
-                initialize_coils(s, TEST_DIR, 'not_a_real_config')
+                initialize_coils(s, 'not_a_real_config', regularization)
 
     def test_generate_even_arc_angles(self):
         a, b, ntheta = 2.0, 1.0, 10

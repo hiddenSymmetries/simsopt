@@ -101,8 +101,7 @@ if not continuation_run:
     # Use rectangular regularization for force/torque calculations
     ncoils_TF_init = 2  # LandremanPaulQH has 2 base coils
     regularization_TF = regularization_rect(a, b)
-    regularizations_TF = [regularization_TF for _ in range(ncoils_TF_init)]
-    base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, "LandremanPaulQH", regularizations=regularizations_TF)
+    base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, "LandremanPaulQH", regularization_TF)
     num_TF_unique_coils = len(base_curves_TF)
     print('Ncoils = ', num_TF_unique_coils)
     base_coils_TF = coils_TF[:num_TF_unique_coils]

@@ -100,8 +100,7 @@ b = 0.2
 # initialize the coils
 ncoils_TF_init = 2  # SchuettHennebergQAnfp2 has 2 base coils
 regularization_TF = regularization_rect(a, b)
-regularizations_TF = [regularization_TF for _ in range(ncoils_TF_init)]
-base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, TEST_DIR, 'SchuettHennebergQAnfp2', regularizations=regularizations_TF)
+base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils(s, 'SchuettHennebergQAnfp2', regularization_TF)
 num_TF_unique_coils = len(base_curves_TF)
 base_coils_TF = coils_TF[:num_TF_unique_coils]
 currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
