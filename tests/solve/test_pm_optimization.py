@@ -195,6 +195,19 @@ class Testing(unittest.TestCase):
     def _make_pm_opt_tiny(self, TEST_DIR, nphi=2, ntheta=2, dr=0.05, coff=0.05, poff=0.03, vmec_name='input.LandremanPaul2021_QA_lowres'):
         """
         Tiny helper to build a very small problem instance quickly.
+
+        Args:
+            TEST_DIR: Path to the test directory.
+            nphi: Number of phi points.
+            ntheta: Number of theta points.
+            dr: Radial extent of the PM grid.
+            coff: Offset from the plasma surface for the inner surface.
+            poff: Offset from the plasma surface for the outer surface.
+            vmec_name: Name of the VMEC input file.
+
+        Returns:
+            s: SurfaceRZFourier object.
+            pm_opt: PermanentMagnetGrid object.
         """
         surface_filename = TEST_DIR / vmec_name
         s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
@@ -203,7 +216,7 @@ class Testing(unittest.TestCase):
         s_inner.extend_via_projected_normal(poff)
         s_outer.extend_via_projected_normal(poff + coff)
 
-        base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s)
+        base_curves, curves, coils = initialize_coils_for_pm_optimization('qa', TEST_DIR, s)
         bs = BiotSavart(coils)
         bs = coil_optimization(s, bs, base_curves, curves)
         bs.set_points(s.gamma().reshape((-1, 3)))

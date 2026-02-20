@@ -1,6 +1,8 @@
 from __future__ import annotations # Temporary fix for python compatibility
 import functools
 import math
+import os
+import sys
 import numpy as np
 from scipy.constants import mu_0
 from scipy.sparse.linalg import gmres
@@ -482,13 +484,43 @@ def _pick_batch_size(n: int, candidates: tuple[int, ...]) -> int:
     return candidates[-1]
 
 
+def _assemble_blocks_subset_numpy(centres, half, Rg2l, I, J):
+    """
+    Pure NumPy implementation of demag block assembly.
+
+    Matches the JAX kernel logic exactly. Used when SIMSOPT_MACROMAG_USE_NUMPY=1
+    to avoid JAX heap corruption on macOS (CPU fusion compiler).
+    """
+    centres = np.asarray(centres, dtype=np.float64)
+    half = np.asarray(half, dtype=np.float64)
+    Rg2l = np.asarray(Rg2l, dtype=np.float64)
+    I = np.asarray(I).ravel()
+    J = np.asarray(J).ravel()
+    nI, nJ = I.size, J.size
+
+    centres_I = centres[I]
+    centres_J = centres[J]
+    d = centres_I[:, None, :] - centres_J[None, :, :]
+    R = Rg2l[I]
+    d_loc = np.einsum("iab,ijb->ija", R, d)
+
+    out = np.empty((nI, nJ, 3, 3), dtype=np.float64)
+    for ii in range(nI):
+        a, b, c = half[I[ii], 0], half[I[ii], 1], half[I[ii], 2]
+        for jj in range(nJ):
+            x0, y0, z0 = d_loc[ii, jj, 0], d_loc[ii, jj, 1], d_loc[ii, jj, 2]
+            out[ii, jj] = _prism_N_local_nb(a, b, c, x0, y0, z0)
+    return out
+
+
 def assemble_blocks_subset(centres, half, Rg2l, I, J):
     """
-    Assemble a subset of demag operator blocks using JAX.
+    Assemble a subset of demag operator blocks.
 
     This helper returns the blocks ``N_op[I[ii], J[jj]]`` without forming the
-    full dense ``(n, n, 3, 3)`` tensor. The implementation is JAX-jitted and
-    runs on CPU by default.
+    full dense ``(n, n, 3, 3)`` tensor. Uses NumPy when
+    ``SIMSOPT_MACROMAG_USE_NUMPY=1`` (avoids JAX heap corruption on macOS);
+    otherwise uses JAX-jitted kernel.
 
     Parameters
     ----------
@@ -515,18 +547,25 @@ def assemble_blocks_subset(centres, half, Rg2l, I, J):
 
     Notes
     -----
-    JAX compilation is specialized to array shapes. To reduce recompilation
-    overhead in optimization loops (where ``len(I)`` and ``len(J)`` can vary),
-    this function internally pads and batches the index sets so only a small
-    number of compiled shapes are exercised.
+    Set ``SIMSOPT_MACROMAG_USE_NUMPY=1`` to use the pure NumPy backend (slower
+    but avoids JAX CPU fusion compiler heap corruption on macOS).
     """
     I = np.asarray(I).ravel()
     J = np.asarray(J).ravel()
     if I.size == 0 or J.size == 0:
         return np.empty((I.size, J.size, 3, 3), dtype=np.float64)
 
+    use_numpy = os.environ.get("SIMSOPT_MACROMAG_USE_NUMPY", "").lower() in ("1", "true", "yes")
+    use_jax = os.environ.get("SIMSOPT_MACROMAG_USE_JAX", "").lower() in ("1", "true", "yes")
+    if not use_numpy and not use_jax and sys.platform == "darwin":
+        use_numpy = True  # Avoid JAX CPU fusion compiler heap corruption on macOS
+    if use_numpy:
+        return _assemble_blocks_subset_numpy(centres, half, Rg2l, I, J)
+
     import jax
 
+    # Force CPU to avoid Metal-related heap corruption on macOS (see e.g. JAX issue #20750).
+    jax.config.update("jax_platform_name", "cpu")
     # simsopt.geo sets this globally, but MacroMag can be used without importing geo.
     jax.config.update("jax_enable_x64", True)
     import jax.numpy as jnp
