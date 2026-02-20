@@ -315,6 +315,88 @@ class Testing(unittest.TestCase):
             if init_R2 > tiny_tol:
                 self.assertGreaterEqual(nonzero, 1)
             self.assertLessEqual(nonzero, kwargs['max_nMagnets'])
+
+    def test_gpmomr_final_fb_matches_recompute(self):
+        """
+        Regression test for GPMOmr logging/return consistency:
+
+        - Run a very small GPMOmr instance that stops early via max_nMagnets.
+        - Verify the logged final f_B equals recomputing f_B from the returned pm_opt.m
+          on the same objective grid (pm_opt.A_obj / pm_opt.b_obj).
+
+        This guards against mismatches between the last recorded objective and the
+        final magnetization state returned by the solver.
+        """
+        TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+        with ScratchDir("."):
+            nphi = 8
+            ntheta = 8
+            dr = 0.05
+            coff = 0.06
+            poff = 0.03
+
+            surface_filename = TEST_DIR / "input.LandremanPaul2021_QA_lowres"
+            s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s_inner = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s_inner.extend_via_projected_normal(poff)
+            s_outer.extend_via_projected_normal(poff + coff)
+
+            # Avoid expensive coil setup; any deterministic Bnormal is sufficient for this consistency check.
+            rng = np.random.default_rng(1)
+            Bnormal = rng.standard_normal((nphi, ntheta))
+
+            pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                s, Bnormal, s_inner, s_outer, **{"dr": dr}
+            )
+            setup_initial_condition(pm_opt, np.zeros(pm_opt.ndipoles * 3))
+
+            # Deterministic Cartesian {x,y,z} polarization set so the greedy path is repeatable.
+            ndip = pm_opt.ndipoles
+            pvx = np.zeros((ndip, 3)); pvx[:, 0] = 1.0
+            pvy = np.zeros((ndip, 3)); pvy[:, 1] = 1.0
+            pvz = np.zeros((ndip, 3)); pvz[:, 2] = 1.0
+            pm_opt.pol_vectors = np.transpose(np.array([pvx, pvy, pvz]), (1, 0, 2))
+
+            max_nMagnets = 20
+            kwargs = initialize_default_kwargs("GPMO")
+            kwargs.update({
+                "K": 30,  # > max_nMagnets so we trigger the early-stop final snapshot
+                "nhistory": 5,
+                "Nadjacent": 1,
+                "dipole_grid_xyz": np.ascontiguousarray(pm_opt.dipole_grid_xyz),
+                "backtracking": 0,
+                "max_nMagnets": max_nMagnets,
+                "thresh_angle": np.pi,
+                "verbose": False,  # rely on the forced early-stop snapshot for logging
+                "mm_refine_every": 5,  # keep it cheap, but ensures caches exist
+                "use_coils": False,
+            })
+
+            errors, _, _ = GPMO(pm_opt, algorithm="GPMOmr", **kwargs)
+            self.assertGreater(len(errors), 0)
+
+            # k_history should reflect the actual early-stop iteration, not a nominal schedule.
+            self.assertTrue(hasattr(pm_opt, "k_history"))
+            self.assertEqual(len(pm_opt.k_history), len(errors))
+            self.assertEqual(int(pm_opt.k_history[-1]), max_nMagnets + 1)
+
+            # num_nonzeros should report the active count at the final snapshot.
+            self.assertTrue(hasattr(pm_opt, "num_nonzeros"))
+            self.assertEqual(int(pm_opt.num_nonzeros[-1]), max_nMagnets)
+
+            # Recompute f_B from the returned dipole moments on the same grid:
+            # f_B = 0.5 * ||A m - b||^2 (matches the objective used in the greedy routines).
+            res = pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj
+            fb_recomputed = 0.5 * float(res @ res)
+            fb_logged = float(errors[-1])
+
+            np.testing.assert_allclose(
+                fb_logged,
+                fb_recomputed,
+                rtol=1e-12,
+                atol=max(1e-12, 1e-12 * max(1.0, abs(fb_recomputed))),
+            )
             
     def test_macromag_finite_mu_consistency(self):
         """
