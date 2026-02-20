@@ -72,7 +72,7 @@ def perform_filament_optimization(
         LpCurveCurvature,
         CurveSurfaceDistance,
     )
-    from simsopt.objectives import Weight, QuadraticPenalty, SquaredFlux
+    from simsopt.objectives import Weight, QuadraticPenalty
 
     out_dir = kwargs.pop("out_dir", out_dir)
     curves = [c.curve for c in coils]
@@ -136,7 +136,7 @@ def perform_filament_optimization(
 
     bs.set_points(s.gamma().reshape((-1, 3)))
     MAXITER = kwargs.pop("max_iter", 500)
-    res = minimize(
+    _ = minimize(
         fun,
         JF.x,
         jac=True,
