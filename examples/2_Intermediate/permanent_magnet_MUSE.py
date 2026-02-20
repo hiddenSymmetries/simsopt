@@ -33,7 +33,6 @@ please use the paper-specific scripts available at:
   https://github.com/armulrich/simsopt/tree/GPMOmr_paper_code
 """
 
-import argparse
 import time
 import csv
 import datetime
@@ -96,20 +95,47 @@ MATERIALS = {
 # Example run configuration
 # ----------------------------
 
-material_name = "N52"
-material = MATERIALS[material_name]
-
 # Preset controlling *both* runs (GPMO then GPMOmr) so the results are directly comparable.
-preset = {
-    "nphi": 8,
-    "nIter_max": 5000,
-    "nBacktracking": 200,
-    "max_nMagnets": 5000,
-    "downsample": 3,
-    "history_every": 200,
-    "mm_refine_every": 50,
-    "Nadjacent": 12,
+RUN_PRESETS = {
+    "example_lowres_compare": {
+        "material": "N52",
+        "nphi": 8,
+        "nIter_max": 2500,
+        "nBacktracking": 200,
+        "max_nMagnets": 5000,
+        "downsample": 6,
+        "history_every": 200,
+        "mm_refine_every": 50,
+        "Nadjacent": 12,
+    },
 }
+DEFAULT_PRESET = "example_lowres_compare"
+
+# Output directory (kept inside examples so it's easy to find when learning).
+default_out_dir = (
+    Path(__file__).resolve().parent / "output_permanent_magnet_GPMO_MUSE" / "example_lowres_compare"
+)
+
+# Set parameters -- in CI we force a tiny configuration.
+if in_github_actions:
+    preset = {
+        "material": "N52",
+        "nphi": 2,
+        "nIter_max": 100,
+        "nBacktracking": 0,
+        "max_nMagnets": 20,
+        "mm_refine_every": 10,
+        "downsample": 100,
+        "history_every": 10,
+        "Nadjacent": 12,
+    }
+    preset_name = "ci"
+else:
+    preset_name = DEFAULT_PRESET
+    preset = dict(RUN_PRESETS[preset_name])
+
+material_name = str(preset["material"])
+material = MATERIALS[material_name]
 
 # Keep these assignments explicit: this makes it obvious what settings were used
 # when the script is copied into other workflows.
@@ -134,9 +160,6 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 famus_filename = TEST_DIR / "zot80.focus"
 surface_filename = TEST_DIR / input_name
 coil_path = TEST_DIR / "muse_tf_coils.focus"
-
-# Output directory (kept inside examples so it's easy to find when learning).
-default_out_dir = Path(__file__).resolve().parent / "output_permanent_magnet_GPMO_MUSE" / "example_lowres_compare"
 
 
 def ts() -> str:
@@ -355,11 +378,7 @@ def run_one(
     print(f"[INFO] Wrote {npz_path}")
 
 
-p = argparse.ArgumentParser(description="Low-resolution GPMO vs GPMOmr comparison on MUSE grid.")
-p.add_argument("--outdir", type=Path, default=default_out_dir, help="Output directory.")
-args = p.parse_args()
-
-out_dir = Path(args.outdir)
+out_dir = Path(default_out_dir)
 out_dir.mkdir(parents=True, exist_ok=True)
 
 mag_data = FocusData(famus_filename, downsample=downsample)
