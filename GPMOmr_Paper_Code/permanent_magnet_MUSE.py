@@ -38,6 +38,7 @@ import time
 import csv
 import datetime
 from pathlib import Path
+import sys
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -56,6 +57,13 @@ from simsopt.util.permanent_magnet_helper_functions import \
     initialize_coils_for_pm_optimization
 
 t_start = time.time()
+
+# Resolve repo root when running from `GPMOmr_Paper_Code/` and ensure `simsopt`
+# is importable even if the caller didn't set PYTHONPATH.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SRC_DIR = REPO_ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
 # ----------------------------
 # Run configuration presets
@@ -270,7 +278,7 @@ dx = dy = dz = dr
 input_name = 'input.muse'
 
 # Read in the plasma equilibrium file
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (REPO_ROOT / "tests" / "test_files").resolve()
 famus_filename = TEST_DIR / 'zot80.focus'
 surface_filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
@@ -522,7 +530,7 @@ if vmec_flag:
     t1 = time.time()
 
     ### Always use the QA VMEC file and just change the boundary
-    vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA"
+    vmec_input = str(TEST_DIR / "input.LandremanPaul2021_QA")
     equil = Vmec(vmec_input, mpi)
     equil.boundary = qfm_surf
     equil.run()

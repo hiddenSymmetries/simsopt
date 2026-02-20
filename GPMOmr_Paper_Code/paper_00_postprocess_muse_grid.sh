@@ -10,6 +10,7 @@ export PYTHONPATH="$REPO_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 cd "$SCRIPT_DIR"
 
 POST_SCRIPT="$REPO_ROOT/examples/2_Intermediate/macromag_MUSE_post_processing.py"
+POST_SCRIPT="$SCRIPT_DIR/macromag_MUSE_post_processing.py"
 
 OUTBASE="$SCRIPT_DIR/output_permanent_magnet_GPMO_MUSE"
 RUNROOT="$OUTBASE/paper_runs"

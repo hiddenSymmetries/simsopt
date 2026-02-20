@@ -12,6 +12,7 @@ Author: Armin Ulrich
 import argparse
 import math
 from pathlib import Path
+import sys
 import numpy as np
 
 from simsopt.field import BiotSavart, DipoleField, Coil
@@ -27,7 +28,12 @@ from simsopt.util.permanent_magnet_helper_functions import (
 # CONFIGURATION
 # =====================================================================
 
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SRC_DIR = REPO_ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+TEST_DIR = (REPO_ROOT / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / "input.muse"
 coil_path = TEST_DIR / "muse_tf_coils.focus"
 

@@ -9,8 +9,8 @@ export PYTHONPATH="$REPO_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 
 cd "$SCRIPT_DIR"
 
-MUSE_SCRIPT="$REPO_ROOT/examples/2_Intermediate/permanent_magnet_MUSE.py"
-PLOTS_SCRIPT="$REPO_ROOT/examples/2_Intermediate/permanent_magnet_MUSE_plots.py"
+MUSE_SCRIPT="$SCRIPT_DIR/permanent_magnet_MUSE.py"
+PLOTS_SCRIPT="$SCRIPT_DIR/permanent_magnet_MUSE_plots.py"
 
 OUTBASE="$SCRIPT_DIR/output_permanent_magnet_GPMO_MUSE"
 RUNROOT="$OUTBASE/paper_runs"
