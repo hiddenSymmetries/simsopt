@@ -11,8 +11,9 @@ from .._core.derivative import Derivative
 from .jit import jit
 from .plotting import fix_matplotlib_3d
 
-__all__ = ['Curve', 'JaxCurve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves',
-           'create_equally_spaced_planar_curves', 'create_planar_curves_between_two_toroidal_surfaces']
+__all__ = ['Curve', 'JaxCurve', 'RotatedCurve', 'TranslatedCurve', 'curves_to_vtk',
+           'create_equally_spaced_curves', 'create_equally_spaced_planar_curves',
+           'create_planar_curves_between_two_toroidal_surfaces']
 
 @jit
 def centroid_pure(gamma, gammadash):
@@ -883,6 +884,66 @@ class RotatedCurve(sopp.Curve, Curve):
     @property
     def flip(self):
         return True if self.rotmat[2][2] == -1 else False
+
+
+class TranslatedCurve(sopp.Curve, Curve):
+    """
+    Curve wrapper that translates (shifts) the underlying curve by a constant offset.
+    Used to align a coil centered at the origin with a device whose symmetry axis
+    is offset (e.g. plasma surface centroid not at origin).
+    """
+
+    def __init__(self, curve, offset):
+        self.curve = curve
+        sopp.Curve.__init__(self, curve.quadpoints)
+        Curve.__init__(self, depends_on=[curve])
+        self._offset = np.asarray(offset, dtype=float)
+
+    def get_dofs(self):
+        return np.array([])
+
+    def set_dofs_impl(self, d):
+        pass
+
+    def num_dofs(self):
+        return self.curve.num_dofs()
+
+    def gamma_impl(self, gamma, quadpoints):
+        self.curve.gamma_impl(gamma, quadpoints)
+        gamma += self._offset
+
+    def gammadash_impl(self, gammadash):
+        gammadash[:] = self.curve.gammadash()
+
+    def gammadashdash_impl(self, gammadashdash):
+        gammadashdash[:] = self.curve.gammadashdash()
+
+    def gammadashdashdash_impl(self, gammadashdashdash):
+        gammadashdashdash[:] = self.curve.gammadashdashdash()
+
+    def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
+        dgamma_by_dcoeff[:] = self.curve.dgamma_by_dcoeff()
+
+    def dgammadash_by_dcoeff_impl(self, dgammadash_by_dcoeff):
+        dgammadash_by_dcoeff[:] = self.curve.dgammadash_by_dcoeff()
+
+    def dgammadashdash_by_dcoeff_impl(self, dgammadashdash_by_dcoeff):
+        dgammadashdash_by_dcoeff[:] = self.curve.dgammadashdash_by_dcoeff()
+
+    def dgammadashdashdash_by_dcoeff_impl(self, dgammadashdashdash_by_dcoeff):
+        dgammadashdashdash_by_dcoeff[:] = self.curve.dgammadashdashdash_by_dcoeff()
+
+    def dgamma_by_dcoeff_vjp(self, v):
+        return self.curve.dgamma_by_dcoeff_vjp(v)
+
+    def dgammadash_by_dcoeff_vjp(self, v):
+        return self.curve.dgammadash_by_dcoeff_vjp(v)
+
+    def dgammadashdash_by_dcoeff_vjp(self, v):
+        return self.curve.dgammadashdash_by_dcoeff_vjp(v)
+
+    def dgammadashdashdash_by_dcoeff_vjp(self, v):
+        return self.curve.dgammadashdashdash_by_dcoeff_vjp(v)
 
 
 def curves_to_vtk(curves, filename, close=False, extra_data=None):

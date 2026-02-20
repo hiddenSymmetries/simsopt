@@ -1491,26 +1491,23 @@ def make_filament_from_voxels(
        coefficients. Symmetry is built into the representation, so the curve
        obeys stellarator and nfp symmetry by construction.
 
-    Parameters
-    ----------
-    current_voxels_grid : CurrentVoxelsGrid
-        Optimized voxel grid (must have alphas and XYZ_flat set).
-    final_threshold : float
-        Largest L0 threshold used; voxels with norm > this are retained.
-    truncate : bool, optional
-        Whether to truncate small Fourier coefficients (|coef| < 1e-2).
-        Defaults to False.
-    num_fourier : int, optional
-        Number of Fourier modes per coordinate. Defaults to 16.
+    Args:
+        current_voxels_grid : CurrentVoxelsGrid
+            Optimized voxel grid (must have alphas and XYZ_flat set).
+        final_threshold : float
+            Largest L0 threshold used; voxels with norm > this are retained.
+        truncate : bool, optional
+            Whether to truncate small Fourier coefficients (|coef| < 1e-2).
+            Defaults to False.
+        num_fourier : int, optional
+            Number of Fourier modes per coordinate. Defaults to 16.
 
-    Returns
-    -------
-    CurveXYZFourierSymmetries
-        Filament curve approximating the voxel current path, with symmetry
-        enforced by construction.
+    Returns:
+        CurveXYZFourierSymmetries
+            Filament curve approximating the voxel current path, with symmetry
+            enforced by construction.
 
-    Raises
-    ------
+    Raises:
     ValueError
         If fewer than 2 points remain after smoothing (e.g., too few nonzero
         voxels above threshold).
