@@ -511,7 +511,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
         mm_refine_every = kwargs.pop('mm_refine_every', 20)
         current_scale = kwargs.pop('current_scale', 1)
             
-        algorithm_history, Bn_history, m_history, num_nonzeros, m = GPMOmr(
+        algorithm_history, Bn_history, m_history, num_nonzeros, m, k_history = GPMOmr(
             A_obj=contig(A_obj.T),                 # MacroMag path also expects (3N, ngrid)
             b_obj=contig(pm_opt.b_obj),
             mmax=mmax_vec,
@@ -556,6 +556,9 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
     if "num_nonzeros" in locals():
         pm_opt.num_nonzeros = num_nonzeros[hist_mask]
 
+    if "k_history" in locals():
+        pm_opt.k_history = np.asarray(k_history[hist_mask], dtype=int)
+
     # Provide an explicit iteration axis for plotting/logging.
     # We define k as the number of greedy iterations completed so far:
     #   - k = 0 corresponds to the initial state (no placements yet), when available.
@@ -563,7 +566,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
     #   - for loop indices starting at 1 (MacroMag variants), k is already 1-based.
     #
     # This avoids the ambiguity of inferring iteration counts from nhistory in post-processing.
-    if "K" in kwargs and "nhistory" in kwargs and errors.size > 0:
+    if "k_history" not in locals() and "K" in kwargs and "nhistory" in kwargs and errors.size > 0:
         K = int(kwargs["K"])
         nhistory = int(kwargs["nhistory"])
         record_every = max(1, K // nhistory)
@@ -1002,6 +1005,7 @@ def GPMOmr(
     m_history = np.zeros((N, 3, nhistory + 2), dtype=np.float64)
     objective_history = np.zeros((nhistory + 2,), dtype=np.float64)
     Bn_history = np.zeros((nhistory + 2,), dtype=np.float64)
+    k_history = np.zeros((nhistory + 2,), dtype=np.int32)
     num_nonzeros = np.zeros((nhistory + 2,), dtype=np.int32)
     last_x_macro_flat = np.zeros(3 * N, dtype=np.float64)
     num_nonzero_ref = [0]
@@ -1176,6 +1180,7 @@ def GPMOmr(
     m_history[:, :, idx0] = x_macro_flat_0.reshape(N, 3)
     objective_history[idx0] = R2_0
     Bn_history[idx0] = float(np.sum(np.abs(res0) * np.sqrt(normal_norms))) / np.sqrt(float(ngrid))
+    k_history[idx0] = 0
     num_nonzeros[idx0] = num_nonzero_ref[0]
     if verbose:
         print(f"0 ... {R2_0:.2e} ... 0.00e+00 ")
@@ -1194,6 +1199,63 @@ def GPMOmr(
     # Main greedy loop
     t_gpmo = time.time()
     
+    def _prepare_cached_macromag_call(active_idx: np.ndarray):
+        """
+        Prepare (active_ordered, ea_list, A_prev_common, prev_active_for_call, prev_n_for_call)
+        so the incremental MacroMag assembly remains aligned with the cached A_sub_prev block.
+
+        The incremental path in `solve_subset_and_score` assumes that the first `prev_n_for_call`
+        entries of `active_ordered` correspond (in the same order) to `prev_active_for_call`,
+        and that `A_prev_common` is the dense system matrix for exactly that ordered survivor set.
+        """
+        active_idx = np.asarray(active_idx, dtype=np.int64).ravel()
+        if active_idx.size == 0:
+            return (
+                active_idx,
+                np.zeros((0, 3), dtype=np.float64),
+                None,
+                None,
+                0,
+            )
+
+        if prev_active_indices is not None and A_sub_prev is not None and prev_n > 0:
+            # intersection in "old" order to keep A_prev alignment
+            common = np.intersect1d(prev_active_indices, active_idx, assume_unique=True)
+
+            # indices of 'common' in the old order (prev_active_indices)
+            old_pos = {idx: i for i, idx in enumerate(prev_active_indices)}
+            common_in_prev_order = np.array(sorted(common, key=lambda v: old_pos[v]), dtype=np.int64)
+
+            # anything new (not in 'common')
+            is_new = ~np.isin(active_idx, common_in_prev_order)
+            new_only = active_idx[is_new]
+
+            # assemble the order: [survivors in old order] + [new ones]
+            active_ordered = (
+                np.concatenate([common_in_prev_order, new_only]) if new_only.size else common_in_prev_order
+            )
+
+            def _expand3(idx_1d: np.ndarray) -> np.ndarray:
+                base = (3 * idx_1d).reshape(-1, 1)
+                return (base + np.array([0, 1, 2])).reshape(-1)
+
+            # positions of survivors inside the previous active list
+            iprev = np.array([old_pos[v] for v in common_in_prev_order], dtype=np.int64)
+            iprev3 = _expand3(iprev)
+
+            # A_prev_common is the cached block for the survivors (aligned to their old order)
+            A_prev_common = A_sub_prev[np.ix_(iprev3, iprev3)]
+            prev_active_for_call = common_in_prev_order
+            prev_n_for_call = len(common_in_prev_order)
+
+            # easy axis list in the same order we pass to MacroMag
+            ea_list = x[active_ordered]
+            return active_ordered, ea_list, A_prev_common, prev_active_for_call, prev_n_for_call
+
+        active_ordered = active_idx
+        ea_list = x[active_ordered]
+        return active_ordered, ea_list, None, None, 0
+
     for k in range(1, K + 1):
         # t_k = time.time()
         
@@ -1204,22 +1266,28 @@ def GPMOmr(
         # t1_magtens = time.time()   
         if (num_nonzero_ref[0] >= N) or (num_nonzero_ref[0] >= max_nMagnets):
             # record final snapshot (ALWAYS on early stop, like reference)
-            active = np.where(~Gamma_complement)[0]
-            # active = Gamma
-            ea_list = x[active] if active.size else np.zeros((0, 3))
+            # IMPORTANT: keep the active ordering aligned with the cached A_sub_prev block,
+            # otherwise the incremental assembly uses the wrong "old" ordering and produces
+            # a spurious final objective (often seen as a jump in f_B near termination).
+            active = np.array(gamma_inds, dtype=np.int64)
+            active_ordered, ea_list, A_prev_common, prev_active_for_call, prev_n_for_call = _prepare_cached_macromag_call(active)
             
             # One final solve before commiting set
-            R2_snap, x_macro_flat, _, res, _ = solve_subset_and_score(active, ea_list, 
-                                                                      #x0_prev, removing since causes error with backtrakcing
-                                                                        prev_active_idx=prev_active_indices,
-                                                                        A_prev=A_sub_prev, prev_n=prev_n
-                                                                    )
+            R2_snap, x_macro_flat, _, res, _ = solve_subset_and_score(
+                active_ordered,
+                ea_list,
+                # x0_prev, removing since causes error with backtracking
+                prev_active_idx=prev_active_for_call,
+                A_prev=A_prev_common,
+                prev_n=prev_n_for_call,
+            )
                                                                     
             last_x_macro_flat[:] = x_macro_flat
             idx = print_iter_ref[0]
             m_history[:, :, idx] = x_macro_flat.reshape(N, 3)
             objective_history[idx] = R2_snap
             Bn_history[idx] = float(np.sum(np.abs(res) * np.sqrt(normal_norms))) / np.sqrt(float(ngrid))
+            k_history[idx] = int(k)
             num_nonzeros[idx] = num_nonzero_ref[0]
             if verbose:
                 print(f"{k} ... {R2_snap:.2e} ... 0.00e+00 ")
@@ -1338,46 +1406,7 @@ def GPMOmr(
         if (k % mm_refine_every) == 0:
             t1_macromag = time.time()
             active = np.array(gamma_inds, dtype=np.int64)
-
-
-            if prev_active_indices is not None and A_sub_prev is not None and prev_n > 0:
-                # intersection in "old" order to keep A_prev alignment
-                common = np.intersect1d(prev_active_indices, active, assume_unique=True)
-
-                # indices of 'common' in the old order (prev_active_indices)
-                old_pos = {idx: i for i, idx in enumerate(prev_active_indices)}
-                common_in_prev_order = np.array(sorted(common, key=lambda v: old_pos[v]), dtype=np.int64)
-
-                # anything new (not in 'common')
-                is_new = ~np.isin(active, common_in_prev_order)
-                new_only = active[is_new]
-
-                # assemble the order: [survivors in old order] + [new ones]
-                active_ordered = np.concatenate([common_in_prev_order, new_only]) if new_only.size else common_in_prev_order
-
-                # build the aligned cached block for survivors only
-                # helper to expand dipole indices -> 3x dof indices
-                def _expand3(idx_1d: np.ndarray) -> np.ndarray:
-                    base = (3 * idx_1d).reshape(-1, 1)
-                    return (base + np.array([0, 1, 2])).reshape(-1)
-
-                # positions of survivors inside the previous active list
-                iprev = np.array([old_pos[v] for v in common_in_prev_order], dtype=np.int64)
-                iprev3 = _expand3(iprev)
-
-                # A_prev_common is the cached block for the survivors (aligned to their old order)
-                A_prev_common = A_sub_prev[np.ix_(iprev3, iprev3)]
-                prev_active_for_call = common_in_prev_order
-                prev_n_for_call = len(common_in_prev_order)
-
-                # easy axis list in the same order we pass to MacroMag
-                ea_list = x[active_ordered]
-            else:
-                active_ordered = active
-                ea_list = x[active_ordered]
-                A_prev_common = None
-                prev_active_for_call = None
-                prev_n_for_call = 0
+            active_ordered, ea_list, A_prev_common, prev_active_for_call, prev_n_for_call = _prepare_cached_macromag_call(active)
 
             R2_snap, x_macro_flat, _, Aij_mj_sum, A_sub = solve_subset_and_score(
                 active_ordered, ea_list,
@@ -1418,6 +1447,7 @@ def GPMOmr(
             m_history[:, :, idx] = x_macro_flat.reshape(N, 3)
             objective_history[idx] = R2_snap
             Bn_history[idx] = float(np.sum(np.abs(Aij_mj_sum) * np.sqrt(normal_norms))) / np.sqrt(float(ngrid))
+            k_history[idx] = int(k)
             num_nonzeros[idx] = num_nonzero_ref[0]
             print(f"{k} ... {R2_snap:.2e} ... 0.00e+00 ")
             print(f"Iteration = {k}, Number of nonzero dipoles = {num_nonzero_ref[0]}")
@@ -1438,4 +1468,4 @@ def GPMOmr(
     t_gpmo = time.time() - t_gpmo
     print(f"Time taken for GPMO: {t_gpmo} seconds")
 
-    return objective_history, Bn_history, m_history, num_nonzeros, x_macro_flat.reshape(N, 3)
+    return objective_history, Bn_history, m_history, num_nonzeros, x_macro_flat.reshape(N, 3), k_history
