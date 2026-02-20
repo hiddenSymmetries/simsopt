@@ -1053,25 +1053,45 @@ def GPMOmr(
     if use_coils:
         Hcoil_all = mac_all.coil_field_at(tiles_all.offset).astype(np.float64)
     
-    def solve_subset_and_score(active_idx: np.ndarray, ea_list: np.ndarray, x0_prev = None, 
-                              prev_active_idx: np.ndarray = None, A_prev: np.ndarray = None, prev_n: int = 0):
+    def solve_subset_and_score(
+        active_idx: np.ndarray,
+        ea_list: np.ndarray,
+        *,
+        prev_active_idx: np.ndarray | None = None,
+        A_prev: np.ndarray | None = None,
+        prev_n: int = 0,
+    ):
         """
-        Solve the subset of tiles and score the residual.
+        Solve the subset of active tiles via MacroMag and score the residual.
+
+        Builds a MacroMag instance for the active tiles, assembles the demagnetization
+        blocks (N_new_rows, N_new_cols, N_new_diag) for incremental assembly when
+        prev_n > 0, calls direct_solve to compute the coupled magnetization, then
+        evaluates the squared flux residual 0.5 * ||A @ x_macro - b||^2.
 
         Args:
-            active_idx: np.ndarray, shape (n_active,), indices of the active tiles
-            ea_list: np.ndarray, shape (n_active, 3), easy axes of the active tiles
-            x0_prev: np.ndarray, shape (3 * n_active,), previous solution
-            prev_active_idx: np.ndarray, shape (n_prev,), previous active indices
-            A_prev: np.ndarray, shape (n_prev, n_prev, 3, 3), previous A matrix
+            active_idx: ndarray, shape (n_active,). Indices of the active tiles in the
+                full grid. Must be ordered so that the first prev_n entries match
+                prev_active_idx (for incremental assembly).
+            ea_list: ndarray, shape (n_active, 3). Easy-axis vectors for each active
+                tile (used for magnetization direction).
+            prev_active_idx: ndarray, shape (n_prev,), optional. Indices of the previous
+                active set (survivors). Required when prev_n > 0 for incremental N-block
+                assembly.
+            A_prev: ndarray, shape (3*n_prev, 3*n_prev), optional. Dense system matrix
+                for the previous survivor set in flattened (3*N) indexing. Used by
+                direct_solve for incremental assembly.
+            prev_n: int, optional. Number of previous survivors.
 
         Returns:
-            R2: float, score
-            x_macro_flat: np.ndarray, shape (3 * n_active,), macro magnetization
-            mac.tiles.M: np.ndarray, shape (n_active, 3), macro magnetization
-            res: np.ndarray, shape (3 * n_active,), residual
-            N_sub: np.ndarray, shape (n_active, n_active, 3, 3), current submatrix
-
+            R2: float. Squared flux residual 0.5 * ||A @ x_macro - b||^2.
+            x_macro_flat: ndarray, shape (3*N,). Macro magnetization vector for the
+                full grid, normalized by mmax.
+            m_sub_flat: ndarray, shape (3*n_active,). Macro magnetization for the
+                active tiles only (raveled).
+            res: ndarray, shape (ngrid,). Residual vector A.T @ x_macro_flat - b_obj.
+            A_sub: ndarray, shape (3*n_active, 3*n_active), or None. Dense system
+                matrix for the active set (for caching in next iteration).
         """
         # If no active tiles, return 0 score and empty solution
         if active_idx.size == 0:
@@ -1144,14 +1164,13 @@ def GPMOmr(
             
         # Perform the magtense coupling direct solve
         mac, A_sub = mac.direct_solve(
-            use_coils=use_coils, 
-            N_new_rows=N_new_rows, 
-            N_new_cols=N_new_cols, 
-            N_new_diag=N_new_diag, 
-            #x0=x0_prev, Commenting our since can cause issue when backtrackng
-            H_a_override=Hcoil_all[active_idx], 
-            A_prev=A_prev, 
-            prev_n=prev_n
+            use_coils=use_coils,
+            N_new_rows=N_new_rows,
+            N_new_cols=N_new_cols,
+            N_new_diag=N_new_diag,
+            H_a_override=Hcoil_all[active_idx],
+            A_prev=A_prev,
+            prev_n=prev_n,
         )
         
         # Get the macro magnetization for the subset of tiles
@@ -1201,12 +1220,31 @@ def GPMOmr(
     
     def _prepare_cached_macromag_call(active_idx: np.ndarray):
         """
-        Prepare (active_ordered, ea_list, A_prev_common, prev_active_for_call, prev_n_for_call)
-        so the incremental MacroMag assembly remains aligned with the cached A_sub_prev block.
+        Prepare arguments for incremental MacroMag assembly.
 
-        The incremental path in `solve_subset_and_score` assumes that the first `prev_n_for_call`
-        entries of `active_ordered` correspond (in the same order) to `prev_active_for_call`,
-        and that `A_prev_common` is the dense system matrix for exactly that ordered survivor set.
+        When the active set changes (new magnets added, or backtracking removes some),
+        the incremental path in solve_subset_and_score requires:
+        (1) active_ordered: [survivors in old order] + [new magnets]
+        (2) A_prev_common: dense block for survivors only, aligned to that order
+        (3) prev_active_for_call, prev_n_for_call: survivor indices and count
+
+        This function computes the intersection of the current active set with the
+        previous one, orders survivors by their position in the previous list, and
+        extracts the corresponding block from A_sub_prev.
+
+        Args:
+            active_idx: ndarray, shape (n_active,). Current active tile indices
+                (from gamma_inds).
+
+        Returns:
+            active_ordered: ndarray, shape (n_active,). Active indices ordered as
+                [survivors in prev order] + [new].
+            ea_list: ndarray, shape (n_active, 3). Easy-axis vectors for active_ordered.
+            A_prev_common: ndarray, shape (3*n_prev, 3*n_prev), or None. Dense block
+                for survivors; None if no previous solve.
+            prev_active_for_call: ndarray, shape (n_prev,), or None. Survivor indices
+                in old order.
+            prev_n_for_call: int. Number of survivors.
         """
         active_idx = np.asarray(active_idx, dtype=np.int64).ravel()
         if active_idx.size == 0:
@@ -1236,6 +1274,7 @@ def GPMOmr(
             )
 
             def _expand3(idx_1d: np.ndarray) -> np.ndarray:
+                """Expand tile indices to flattened (3*N) indices: i -> [3i, 3i+1, 3i+2]."""
                 base = (3 * idx_1d).reshape(-1, 1)
                 return (base + np.array([0, 1, 2])).reshape(-1)
 
@@ -1276,7 +1315,6 @@ def GPMOmr(
             R2_snap, x_macro_flat, _, res, _ = solve_subset_and_score(
                 active_ordered,
                 ea_list,
-                # x0_prev, removing since causes error with backtracking
                 prev_active_idx=prev_active_for_call,
                 A_prev=A_prev_common,
                 prev_n=prev_n_for_call,

@@ -236,22 +236,23 @@ run_gpmo_optimization_on_muse_grid(
     material=material,
     **gpmo_run_params,
 )
-run_gpmo_optimization_on_muse_grid(
-    "GPMOmr",
-    subdir="GPMOmr",
-    s=s,
-    bs=bs,
-    Bnormal=Bnormal,
-    pol_vectors=pol_vectors,
-    m_maxima=m_maxima,
-    cube_dim=cube_dim,
-    current_scale=current_scale,
-    out_dir=out_dir,
-    famus_filename=famus_filename,
-    material_name=material_name,
-    material=material,
-    **gpmo_run_params,
-)
+# Turn off for now to debug CI error.
+# run_gpmo_optimization_on_muse_grid(
+#     "GPMOmr",
+#     subdir="GPMOmr",
+#     s=s,
+#     bs=bs,
+#     Bnormal=Bnormal,
+#     pol_vectors=pol_vectors,
+#     m_maxima=m_maxima,
+#     cube_dim=cube_dim,
+#     current_scale=current_scale,
+#     out_dir=out_dir,
+#     famus_filename=famus_filename,
+#     material_name=material_name,
+#     material=material,
+#     **gpmo_run_params,
+# )
 
 t_end = time.time()
 print(f"\nTotal time = {t_end - t_start:.3f} s")

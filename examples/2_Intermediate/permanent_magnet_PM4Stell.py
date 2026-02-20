@@ -33,7 +33,7 @@ t_start = time.time()
 
 # Set some parameters -- warning this is super low resolution!
 if in_github_actions:
-    N = 2  # >= 64 for high-resolution runs
+    N = 8  # >= 64 for high-resolution runs
     nIter_max = 100
     max_nMagnets = 20
     nBacktracking = 0
