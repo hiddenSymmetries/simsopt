@@ -95,7 +95,7 @@ MATERIALS = {
 RUN_PRESETS = {
     "example_lowres_compare": {
         "material": "N52",
-        "nphi": 8,
+        "nphi": 16,
         "nIter_max": 2500,
         "nBacktracking": 200,
         "max_nMagnets": 5000,
