@@ -259,10 +259,10 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
         start_RZ = np.array([self.R0, 0.0])
         start_phi = np.pi/6
         delta_phi = np.pi/3
-        end_xyz_from_cyl = self.intg.integrate_toroidally(start_RZ, start_phi, delta_phi, input_coordinates='cylindrical', output_coordinates='cartesian')
+        end_xyz_from_cyl = self.intg.integrate_toroidally(start_RZ, phi0=start_phi, delta_phi=delta_phi, input_coordinates='cylindrical', output_coordinates='cartesian')
         start_xyz = Integrator._rphiz_to_xyz(np.array([start_RZ[0], start_phi, start_RZ[1]]))[0]
-        end_xyz_from_cart = self.intg.integrate_toroidally(start_xyz, delta_phi, input_coordinates='cartesian', output_coordinates='cartesian')
-        self.assertTrue(np.allclose(end_xyz_from_cyl, end_xyz_from_cart, atol=1e-6))
+        end_xyz_from_cart = self.intg.integrate_toroidally(start_xyz, phi0=None, delta_phi=delta_phi, input_coordinates='cartesian', output_coordinates='cartesian')
+        self.assertTrue(np.allclose(end_xyz_from_cyl, end_xyz_from_cart, atol=1e-8))
 
     def test_integrate_cyl_planes_and_fieldlinepoints(self):
         # Evaluate at specific phis and via fieldlinepoints helpers
