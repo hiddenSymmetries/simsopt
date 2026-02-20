@@ -27,27 +27,28 @@ from simsopt.solve import GPMO
 from simsopt.objectives import SquaredFlux
 from simsopt.util import initialize_default_kwargs
 from simsopt.util import FocusPlasmaBnormal, FocusData, read_focus_coils, in_github_actions
-from simsopt.util.polarization_project import (polarization_axes, orientation_phi,
-                                               discretize_polarizations)
+from simsopt.util import polarization_axes, orientation_phi, discretize_polarizations
 
 t_start = time.time()
 
 # Set some parameters -- warning this is super low resolution!
 if in_github_actions:
-    N = 2  # >= 64 for high-resolution runs
+    N = 8  # >= 64 for high-resolution runs
     nIter_max = 100
     max_nMagnets = 20
+    nBacktracking = 0
     downsample = 100  # drastically downsample the grid if running CI
 else:
     N = 16  # >= 64 for high-resolution runs
-    nIter_max = 2000
-    max_nMagnets = 1000
+    nIter_max = 3500
+    max_nMagnets = 3500
+    nBacktracking = 0
     downsample = 10
+    
 
 nphi = N
 ntheta = N
-algorithm = 'ArbVec_backtracking'
-nBacktracking = 200
+algorithm = 'GPMO' # Or GPMOmr
 nAdjacent = 10
 thresh_angle = np.pi  # / np.sqrt(2)
 nHistory = 10
@@ -117,6 +118,8 @@ pol_axes_f = pol_axes_f[:ntype_f, :]
 pol_type_f = pol_type_f[:ntype_f]
 pol_axes = np.concatenate((pol_axes, pol_axes_f), axis=0)
 pol_type = np.concatenate((pol_type, pol_type_f))
+
+# When optimizing with GPMOmr, its adviced to disable the pole-orientation block below to reduce computational cost.
 pol_axes_fe_ftri, pol_type_fe_ftri = polarization_axes(['fe_ftri'])
 ntype_fe_ftri = int(len(pol_type_fe_ftri)/2)
 pol_axes_fe_ftri = pol_axes_fe_ftri[:ntype_fe_ftri, :]
@@ -138,11 +141,8 @@ pol_vectors[:, :, 0] = mag_data.pol_x
 pol_vectors[:, :, 1] = mag_data.pol_y
 pol_vectors[:, :, 2] = mag_data.pol_z
 
-# Using m_maxima functionality to try out unrealistically strong magnets
-B_max = 5  # 5 Tesla!!!!
-mu0 = 4 * np.pi * 1e-7
-m_maxima = B_max / mu0
-kwargs_geo = {"pol_vectors": pol_vectors, "m_maxima": m_maxima, "downsample": downsample}
+# Not settnig M_max such that pm_ncsx generates this using default args
+kwargs_geo = {"pol_vectors": pol_vectors, "downsample": downsample}
 
 # Initialize the permanent magnet grid from the PM4Stell arrangement
 pm_ncsx = PermanentMagnetGrid.geo_setup_from_famus(
@@ -153,13 +153,26 @@ pm_ncsx = PermanentMagnetGrid.geo_setup_from_famus(
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max
 kwargs['nhistory'] = nHistory
-if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
+if algorithm in ("GPMO_Backtracking", "GPMO", "GPMO_py", "GPMOmr"):
     kwargs['backtracking'] = nBacktracking
     kwargs['Nadjacent'] = nAdjacent
     kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_ncsx.dipole_grid_xyz)
-    if algorithm == 'ArbVec_backtracking':
+    if algorithm in ("GPMO", "GPMO_py", "GPMOmr"):
         kwargs['thresh_angle'] = thresh_angle
         kwargs['max_nMagnets'] = max_nMagnets
+        
+        
+# Macromag branch
+if algorithm == "GPMOmr":
+    kwargs['cube_dim'] = 0.0296
+    kwargs['mu_ea'] = 1.05
+    kwargs['mu_oa'] = 1.15
+    kwargs['use_coils'] = True
+    kwargs['use_demag'] = True
+    kwargs['coil_path'] = TEST_DIR / 'muse_tf_coils.focus'
+    kwargs['mm_refine_every'] = 50
+    
+    
 t1 = time.time()
 R2_history, Bn_history, m_history = GPMO(pm_ncsx, algorithm, **kwargs)
 dt = time.time() - t1
@@ -170,7 +183,12 @@ print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, a
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
 # Save files
-if not in_github_actions:
+if True:
+    # Magnet dimensions for VTK output (cube_dim from m_maxima for FAMUS grid)
+    B_max = 1.465
+    mu0 = 4 * np.pi * 1e-7
+    cube_dim = (np.mean(pm_ncsx.m_maxima) * mu0 / B_max) ** (1.0 / 3.0)
+    dx = dy = dz = cube_dim
     # Make BiotSavart object from the dipoles and plot solution
     b_dipole = DipoleField(
         pm_ncsx.dipole_grid_xyz,
@@ -180,7 +198,7 @@ if not in_github_actions:
         m_maxima=pm_ncsx.m_maxima,
     )
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-    b_dipole._toVTK(out_dir / "Dipole_Fields")
+    b_dipole._toVTK(out_dir / "Dipole_Fields", dx, dy, dz)
     Bnormal_coils = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_plasma = bnormal_obj_ncsx.bnormal_grid(qphi, ntheta, 'full torus')
@@ -204,7 +222,7 @@ if not in_github_actions:
     nmags = m_history.shape[0]
     nhist = m_history.shape[2]
     m_history_2d = m_history.reshape((nmags*m_history.shape[1], nhist))
-    np.savetxt(out_dir / f'm_history_nmags={nmags}_nhist={nhist}.txt', m_history_2d)
+    np.savetxt(out_dir / f"m_history_nmags={nmags}_nhist={nhist}.txt", m_history_2d)
 t_end = time.time()
 print('Script took in total t = ', t_end - t_start, ' s')
 
@@ -216,5 +234,155 @@ plt.grid(True)
 plt.xlabel('K')
 plt.ylabel('Metric values')
 plt.legend()
-if not in_github_actions:
-    plt.show()
+# plt.show()
+
+# Armin's Output
+
+B_max = 1.465
+mu0 = 4 * np.pi * 1e-7
+M_max = B_max / mu0
+dipoles = pm_ncsx.m.reshape(pm_ncsx.ndipoles, 3)
+print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
+print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
+
+save_plots = True
+if save_plots:
+    # Save the MSE history and history of the m vectors
+    H = m_history.shape[2]
+    np.savetxt(
+        out_dir / f"mhistory_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}_{algorithm}.txt",
+        m_history.reshape(pm_ncsx.ndipoles * 3, H)
+    )
+    np.savetxt(
+        out_dir / f"R2history_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}_{algorithm}.txt",
+        R2_history
+    )
+    np.savetxt(out_dir / f"Bn_history_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}_{algorithm}.txt", Bn_history)
+
+    # Plot the SIMSOPT solution
+    bs_tfcoils.set_points(s_plot.gamma().reshape((-1, 3)))
+    Bnormal = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+    Bn = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+    pointData = {"B_N": Bn[:, :, None]}
+    s_plot.to_vtk(out_dir / "biot_savart_optimized", extra_data=pointData)
+
+    # Look through the solutions as function of K and make plots
+    for k in range(0, kwargs["nhistory"] + 1, 50):
+        mk = m_history[:, :, k].reshape(pm_ncsx.ndipoles * 3)
+        b_dipole = DipoleField(
+            pm_ncsx.dipole_grid_xyz,
+            mk,
+            nfp=lcfs_ncsx.nfp,
+            coordinate_flag=pm_ncsx.coordinate_flag,
+            m_maxima=pm_ncsx.m_maxima,
+        )
+        b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
+        K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
+        b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}_{algorithm}", dx, dy, dz)
+        print("Total fB = ", 0.5 * np.sum((pm_ncsx.A_obj @ mk - pm_ncsx.b_obj) ** 2))
+        Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
+        Bnormal_total = Bnormal + Bnormal_dipoles
+
+        # For plotting Bn on the full torus surface at the end with just the dipole fields
+        pointData = {"B_N": Bnormal_dipoles[:, :, None]}
+        s_plot.to_vtk(out_dir / "Bnormal_dipoles_K{K_save}_nphi{nphi}_ntheta{ntheta}", extra_data=pointData)
+        pointData = {"B_N": Bnormal_total[:, :, None]}
+        s_plot.to_vtk(out_dir / "m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}", extra_data=pointData)
+
+    # write solution to FAMUS-type file
+    pm_ncsx.write_to_famus(out_dir)
+
+# Compute metrics with permanent magnet results
+dipoles_m = pm_ncsx.m.reshape(pm_ncsx.ndipoles, 3)
+num_nonzero = np.count_nonzero(np.sum(dipoles_m ** 2, axis=-1)) / pm_ncsx.ndipoles * 100
+print("Number of possible dipoles = ", pm_ncsx.ndipoles)
+print("% of dipoles that are nonzero = ", num_nonzero)
+
+# Print optimized f_B and other metrics
+### Note this will only agree with the optimization in the high-resolution
+### limit where nphi ~ ntheta >= 64!
+b_dipole = DipoleField(
+    pm_ncsx.dipole_grid_xyz,
+    pm_ncsx.m,
+    nfp=lcfs_ncsx.nfp,
+    coordinate_flag=pm_ncsx.coordinate_flag,
+    m_maxima=pm_ncsx.m_maxima,
+)
+b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
+bs_tfcoils.set_points(s_plot.gamma().reshape((-1, 3)))
+Bnormal = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+f_B_sf = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
+print('f_B = ', f_B_sf)
+total_volume = np.sum(np.sqrt(np.sum(pm_ncsx.m.reshape(pm_ncsx.ndipoles, 3) ** 2, axis=-1))) * lcfs_ncsx.nfp * 2 * mu0 / B_max
+print('Total volume = ', total_volume)
+
+
+b_final = DipoleField(
+    pm_ncsx.dipole_grid_xyz,
+    pm_ncsx.m,                        # flat (3N,) is fine; or pm_ncsx.m.reshape(-1, 3)
+    nfp=s_plot.nfp,
+    coordinate_flag=pm_ncsx.coordinate_flag,
+    m_maxima=pm_ncsx.m_maxima         # enables normalized |m| in the VTK
+)
+
+# Magnet dimensions for VTK (B_max, mu0 defined above)
+cube_dim_final = (np.mean(pm_ncsx.m_maxima) * mu0 / B_max) ** (1.0 / 3.0)
+dx = dy = dz = cube_dim_final
+b_final._toVTK(out_dir / f"dipoles_final_{algorithm}", dx, dy, dz)
+print(f"[SIMSOPT] Wrote dipoles_final_{algorithm}.vtu")
+
+# --- add B·n output ---
+min_res = 164
+qphi_view   = max(2 * nphi,   min_res)
+qtheta_view = max(2 * ntheta, min_res)
+quad_phi    = np.linspace(0, 1, qphi_view,   endpoint=False)
+quad_theta  = np.linspace(0, 1, qtheta_view, endpoint=False)
+
+s_view = SurfaceRZFourier.from_focus(
+    fname_plasma,
+    quadpoints_phi=quad_phi,
+    quadpoints_theta=quad_theta
+)
+
+# Evaluate fields on that surface
+pts = s_view.gamma().reshape((-1, 3))
+bs_tfcoils.set_points(pts)
+b_final.set_points(pts)
+
+# Compute B·n components
+n_hat    = s_view.unitnormal().reshape(qphi_view, qtheta_view, 3)
+B_coils  = bs_tfcoils.B().reshape(qphi_view, qtheta_view, 3)
+B_mags   = b_final.B().reshape(qphi_view, qtheta_view, 3)
+
+Bn_coils   = np.sum(B_coils * n_hat, axis=2)
+Bn_magnets = np.sum(B_mags  * n_hat, axis=2)
+Bn_target  = -Bn_coils
+Bn_total   = Bn_coils + Bn_magnets
+Bn_error   = Bn_magnets - Bn_target
+Bn_error_abs = np.abs(Bn_error)
+
+def as_field3(a2):
+    return np.ascontiguousarray(a2, dtype=np.float64)[:, :, None]
+
+extra_data = {
+    "Bn_total":     as_field3(Bn_total),
+    "Bn_coils":     as_field3(Bn_coils),
+    "Bn_magnets":   as_field3(Bn_magnets),
+    "Bn_target":    as_field3(Bn_target),
+    "Bn_error":     as_field3(Bn_error),
+    "Bn_error_abs": as_field3(Bn_error_abs),
+}
+
+surface_fname = out_dir / f"surface_Bn_fields_{algorithm}"
+s_view.to_vtk(surface_fname, extra_data=extra_data)
+print(f"[SIMSOPT] Wrote {surface_fname}.vtp")
+
+np.savez(
+    out_dir / f"dipoles_final_{algorithm}.npz",
+    xyz=pm_ncsx.dipole_grid_xyz,
+    m=pm_ncsx.m.reshape(pm_ncsx.ndipoles, 3),
+    nfp=s_plot.nfp,
+    coordinate_flag=pm_ncsx.coordinate_flag,
+    m_maxima=pm_ncsx.m_maxima,
+)
+print(f"[SIMSOPT] Saved dipoles_final_{algorithm}.npz")

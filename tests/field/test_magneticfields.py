@@ -768,9 +768,9 @@ class Testing(unittest.TestCase):
         gradA = np.array(Bfield.dA_by_dX())
         assert np.allclose(gradA, Ndipoles * 1e-7 * np.array([[0.76151796, -0.151597, -0.0176294], [-0.92722, -0.444219, 0.3349286], [0.1657024, 0.5958156, -0.31730]]), atol=1e-4)
 
-        # Save to vtk
+        # Save to vtk (dx, dy, dz needed for 3D voxel output)
         with ScratchDir("."):
-            Bfield._toVTK('test')
+            Bfield._toVTK('test', 0.1, 0.1, 0.1)
 
     def test_DipoleField_multiple_points_multiple_dipoles(self):
         Ndipoles = 101

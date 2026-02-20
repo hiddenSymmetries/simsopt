@@ -41,13 +41,8 @@ from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import relax_and_split
 from simsopt.util import in_github_actions
-from simsopt.util.coil_optimization_helper_functions import \
-    coil_optimization, \
-    calculate_modB_on_major_radius, \
-    make_qfm
-from simsopt.util.permanent_magnet_helper_functions import \
-    initialize_coils_for_pm_optimization, \
-    initialize_default_kwargs, \
+from simsopt.util import coil_optimization, calculate_modB_on_major_radius, make_qfm
+from simsopt.util import initialize_coils_for_pm_optimization, initialize_default_kwargs, \
     make_optimization_plots
 
 
@@ -185,7 +180,9 @@ b_dipole_proxy = DipoleField(
     m_maxima=pm_opt.m_maxima,
 )
 b_dipole_proxy.set_points(s_plot.gamma().reshape((-1, 3)))
-b_dipole_proxy._toVTK(out_dir / "Dipole_Fields_Sparse")
+# For cylindrical grid: dr in radial, dz in z; use dr for all dimensions as approximation
+dx = dy = dz = pm_opt.dr
+b_dipole_proxy._toVTK(out_dir / "Dipole_Fields_Sparse", dx, dy, dz)
 b_dipole = DipoleField(
     pm_opt.dipole_grid_xyz,
     pm_opt.m,
@@ -194,7 +191,7 @@ b_dipole = DipoleField(
     m_maxima=pm_opt.m_maxima
 )
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-b_dipole._toVTK(out_dir / "Dipole_Fields")
+b_dipole._toVTK(out_dir / "Dipole_Fields", dx, dy, dz)
 
 # Print optimized metrics
 print("Total fB = ",
