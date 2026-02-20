@@ -15,7 +15,6 @@ The script computes diagnostics including:
 - VTK output files for visualization
 """
 
-import argparse
 from pathlib import Path
 import math
 import numpy as np
@@ -52,22 +51,11 @@ nfp = 2
 
 
 # ============================================================================
-# CLI
+# Output directory (aligned with examples/2_Intermediate/permanent_magnet_MUSE.py)
 # ============================================================================
 
-def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="MUSE macromagnetic post-processing (fixed published grid).")
-    p.add_argument(
-        "--outdir",
-        type=Path,
-        default=Path("output_permanent_magnet_GPMO_MUSE/paper_runs/paper_00_postprocess_muse_grid"),
-        help="Output directory for VTK artifacts and logs.",
-    )
-    return p.parse_args()
-
-
-args = _parse_args()
-out_dir = args.outdir
+out_base = Path(__file__).resolve().parent / "output_permanent_magnet_GPMO_MUSE" / "example_lowres_compare"
+out_dir = out_base / "postprocess_muse_grid"
 out_dir.mkdir(parents=True, exist_ok=True)
 
 
