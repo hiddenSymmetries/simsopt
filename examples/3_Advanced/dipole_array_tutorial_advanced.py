@@ -57,8 +57,6 @@ MAXITER = 100
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:
     MAXITER = 10
-    nphi = 16
-    ntheta = 16
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
