@@ -250,7 +250,7 @@ nphi_grid, ntheta_grid = qphi_bn, ntheta
 Bn_unc_grid = Bn_unc.reshape(nphi_grid, ntheta_grid)
 Bn_mc_grid  = Bn_mc.reshape(nphi_grid, ntheta_grid)
 
-# Δ(B·n) = unc - fully coupled
+# Compute Δ(B·n) as uncoupled minus coupled.
 dBn_grid = (Bn_unc_grid - Bn_mc_grid)
 dBn = dBn_grid.ravel()
 
@@ -265,7 +265,7 @@ print(f"[Normalized] <Δ(B·n)>_unique / {target_B0:.3e} T = {mean_u / Bref:.6e}
 extra_delta = {
     "Bn_unc":            as_field3(Bn_unc_grid),
     "Bn_mc":             as_field3(Bn_mc_grid),
-    "Bn_delta":          as_field3(dBn_grid),                 # unc - mc
+    "Bn_delta":          as_field3(dBn_grid),
     "Bn_delta_norm":     as_field3(dBn_grid / Bref),
 }
 surf_bn.to_vtk(out_dir / "surface_Bn_delta_AlNiCo", extra_data=extra_delta)
