@@ -39,7 +39,6 @@ import datetime
 from pathlib import Path
 
 import numpy as np
-from matplotlib import pyplot as plt
 from ruamel.yaml import YAML
 
 from simsopt.field import BiotSavart, DipoleField
@@ -48,8 +47,7 @@ from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO
 from simsopt.util import FocusData, discretize_polarizations, polarization_axes, in_github_actions
 from simsopt.util.coil_optimization_helper_functions import \
-    calculate_modB_on_major_radius, \
-    make_qfm
+    calculate_modB_on_major_radius
 from simsopt.util.permanent_magnet_helper_functions import \
     initialize_default_kwargs, \
     initialize_coils_for_pm_optimization
