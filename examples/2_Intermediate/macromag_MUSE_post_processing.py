@@ -22,15 +22,23 @@ The script reports diagnostics including:
 - VTK outputs for visualization
 """
 
-from pathlib import Path
 import math
+from pathlib import Path
+
 import numpy as np
 
-from simsopt.field import DipoleField, BiotSavart
-from simsopt.solve.macromag import muse2tiles, MacroMag
+from simsopt.field import BiotSavart, DipoleField
 from simsopt.geo import SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
-from simsopt.util.permanent_magnet_helper_functions import *
+from simsopt.solve.macromag import MacroMag, muse2tiles
+from simsopt.util.permanent_magnet_helper_functions import (
+    check_magnet_volume_stellarator_symmetry,
+    compute_angle_between_vectors_degrees,
+    compute_normal_field_component_from_dipoles,
+    initialize_coils_for_pm_optimization,
+    print_bnormal_error_summary_statistics,
+    reshape_to_vtk_field_format,
+)
 
 
 # ============================================================================
@@ -67,130 +75,6 @@ out_dir.mkdir(parents=True, exist_ok=True)
 
 
 # ============================================================================
-# Helper functions
-# ============================================================================
-
-def unit(v, eps=1e-30):
-    """
-    Normalize vectors to unit length.
-    
-    Args:
-        v: Array of shape (N, 3) containing vectors to normalize
-        eps: Small epsilon to prevent division by zero
-        
-    Returns:
-        Normalized vectors of same shape as input
-    """
-    return v / (np.linalg.norm(v, axis=1, keepdims=True) + eps)
-
-
-def angle_deg(a, b, eps=1e-30):
-    """
-    Compute the angle in degrees between two sets of vectors.
-    
-    Args:
-        a: Array of shape (N, 3) containing first set of vectors
-        b: Array of shape (N, 3) containing second set of vectors
-        eps: Small epsilon for numerical stability
-        
-    Returns:
-        Array of shape (N,) containing angles in degrees
-    """
-    an, bn = unit(a, eps), unit(b, eps)
-    c = np.clip(np.sum(an * bn, axis=1), -1.0, 1.0)  # Dot product, clipped for arccos
-    return np.degrees(np.arccos(c))
-
-
-def Bn_from_dipoles(centers, moments, pts, normals):
-    """
-    Compute the normal component of magnetic field (B·n) at evaluation points
-    due to dipole moments.
-    
-    Args:
-        centers: Array of shape (N, 3) containing dipole center positions
-        moments: Array of shape (N, 3) containing dipole moments (m = M * V)
-        pts: Array of shape (M, 3) containing evaluation point positions
-        normals: Array of shape (M, 3) containing surface normal vectors at pts
-        
-    Returns:
-        Array of shape (M,) containing B·n at each evaluation point
-    """
-    dip = DipoleField(centers, moments, nfp=1, stellsym=False, coordinate_flag="cartesian")
-    dip.set_points(pts)
-    B = dip.B()  # Magnetic field at evaluation points
-    return np.sum(B * normals, axis=1)  # Dot product: B·n
-
-
-# ============================================================================
-# Symmetry diagnostics for magnet volumes
-# ============================================================================
-
-def check_stellarator_symmetry(centers, volumes, nfp=2, z_tol=1e-6, rel_tol=1e-3):
-    """
-    Check whether the magnet volumes obey stellarator, midplane, and inversion symmetries.
-
-    Args:
-        centers : (N,3) array of magnet center coordinates [x,y,z]
-        volumes : (N,) array of magnet volumes
-        nfp      : integer, number of field periods
-        z_tol    : tolerance [m] for matching midplane symmetry in z
-        rel_tol  : relative tolerance for volume equality
-    """
-    from scipy.spatial.transform import Rotation as R
-
-    N = len(volumes)
-    phi_period = 2 * np.pi / nfp
-
-    print("\n[Symmetry check] --- Magnet volume symmetries ---")
-
-    # Toroidal (nfp) periodicity test
-    rot = R.from_euler("z", phi_period).as_matrix()
-    rotated = (rot @ centers.T).T
-
-    # For each magnet, find nearest partner in rotated set
-    from scipy.spatial import cKDTree
-    tree = cKDTree(centers)
-    dists, idx = tree.query(rotated, k=1)
-
-    vol_err = np.abs(volumes - volumes[idx]) / np.maximum(volumes, 1e-20)
-    print(f"  nfp={nfp} toroidal symmetry:")
-    print(f"    mean |ΔV/V| = {vol_err.mean():.2e}")
-    print(f"    max  |ΔV/V| = {vol_err.max():.2e}")
-    print(f"    mean position mismatch = {dists.mean():.3e} m")
-    print(f"    max  position mismatch = {dists.max():.3e} m")
-
-    # Midplane (pancake) Z -> -Z symmetry
-    flipped = centers.copy()
-    flipped[:, 2] *= -1
-    treeZ = cKDTree(centers)
-    dZ, idxZ = treeZ.query(flipped, k=1)
-    mask = dZ < z_tol
-    if np.any(mask):
-        vol_errZ = np.abs(volumes[mask] - volumes[idxZ[mask]]) / np.maximum(volumes[mask], 1e-20)
-        print("  midplane (Z->-Z) symmetry:")
-        print(f"    matched {mask.sum()} / {N} tiles within {z_tol:.1e} m")
-        print(f"    mean |ΔV/V| = {vol_errZ.mean():.2e}")
-        print(f"    max  |ΔV/V| = {vol_errZ.max():.2e}")
-    else:
-        print("  midplane symmetry: no matching pairs found within tolerance")
-
-    # Combined inversion (R,φ,Z)->(R,φ+π/nfp,-Z)
-    rot_half = R.from_euler("z", phi_period / 2).as_matrix()
-    inv = (rot_half @ centers.T).T
-    inv[:, 2] *= -1
-    treeI = cKDTree(centers)
-    dI, idxI = treeI.query(inv, k=1)
-    vol_errI = np.abs(volumes - volumes[idxI]) / np.maximum(volumes, 1e-20)
-    print("  inversion (φ+π/nfp, Z->-Z) symmetry:")
-    print(f"    mean |ΔV/V| = {vol_errI.mean():.2e}")
-    print(f"    max  |ΔV/V| = {vol_errI.max():.2e}")
-    print(f"    mean position mismatch = {dI.mean():.3e} m")
-    print(f"    max  position mismatch = {dI.max():.3e} m")
-
-    print("-------------------------------------------------------------\n")
-
-
-# ============================================================================
 # Load and initialize magnet tiles
 # ============================================================================
 
@@ -209,8 +93,8 @@ vol = np.prod(full_sizes, axis=1)  # Volume = dx * dy * dz for each tile
 print(f"minimum volume: {vol.min()}")
 print(f"maximum volume: {vol.max()}")
 
-# Check if tiles satisfy stellerator symmetry
-check_stellarator_symmetry(tiles.offset, vol, nfp=nfp)
+# Check if tiles satisfy stellarator symmetry
+check_magnet_volume_stellarator_symmetry(tiles.offset, vol, nfp=nfp)
 
 # Per tile box sizes for VTK glyphs (used for visualization)
 dx_tile = full_sizes[:, 0]  # x-dimension of each tile
@@ -258,8 +142,8 @@ M_mc = tiles.M.copy()  # Store the fully coupled magnetization
 # ============================================================================
 
 # Compute tilt angles: how much the magnetization vector deviates from easy axis
-theta_mm = angle_deg(M_mm, tiles.u_ea)  # Tilt for magnet-magnet coupling case
-theta_mc = angle_deg(M_mc, tiles.u_ea)  # Tilt for full coupling case
+theta_mm = compute_angle_between_vectors_degrees(M_mm, tiles.u_ea)
+theta_mc = compute_angle_between_vectors_degrees(M_mc, tiles.u_ea)
 
 # Compute magnetization magnitudes
 mag0 = np.linalg.norm(M0, axis=1)  # Uncoupled magnetization magnitude
@@ -318,10 +202,15 @@ m_mag_only = M_mm * vol[:, None]  # Magnet-magnet coupled dipole moments
 m_mag_coil = M_mc * vol[:, None]  # Fully coupled dipole moments
 
 # Compute B·n (normal component of magnetic field) from magnets only
-# This is the field contribution from permanent magnets (no coils)
-Bn_uncoupled = Bn_from_dipoles(centers, m_uncoupled, PTS_BN, NORM_BN)
-Bn_mag_only = Bn_from_dipoles(centers, m_mag_only, PTS_BN, NORM_BN)
-Bn_mag_coil = Bn_from_dipoles(centers, m_mag_coil, PTS_BN, NORM_BN)
+Bn_uncoupled = compute_normal_field_component_from_dipoles(
+    centers, m_uncoupled, PTS_BN, NORM_BN
+)
+Bn_mag_only = compute_normal_field_component_from_dipoles(
+    centers, m_mag_only, PTS_BN, NORM_BN
+)
+Bn_mag_coil = compute_normal_field_component_from_dipoles(
+    centers, m_mag_coil, PTS_BN, NORM_BN
+)
 
 # Compute relative change between uncoupled and fully coupled cases
 # The 0.15 value is a normalization factor (likely a typical B·n scale)
@@ -335,20 +224,6 @@ print(f"max(||ΔBn||/0.15) = {rel:.2%}")
 change_Bn = Bn_uncoupled - Bn_mag_coil  # Change: uncoupled - fully coupled
 
 
-def as_field3(a2):
-    """
-    Convert 2D array to 3D array with singleton third dimension.
-    Required for VTK field data format.
-    
-    Args:
-        a2: 2D array of shape (nphi, ntheta)
-        
-    Returns:
-        3D array of shape (nphi, ntheta, 1)
-    """
-    return np.ascontiguousarray(a2, dtype=np.float64)[:, :, None]
-
-
 # Reshape B·n arrays from 1D to 2D grid for visualization and analysis
 Bn_uncoupled_grid = Bn_uncoupled.reshape(nphi_grid, ntheta_grid)
 Bn_mag_only_grid = Bn_mag_only.reshape(nphi_grid, ntheta_grid)
@@ -359,14 +234,13 @@ dBn_grid = change_Bn.reshape(nphi_grid, ntheta_grid)
 dBn_abs = np.abs(dBn_grid)  # Absolute value of change
 
 # Prepare data for VTK output
-# These fields will be visualized on the plasma surface
 extra_data = {
-    "Bn_pre": as_field3(Bn_uncoupled_grid),  # B·n before coupling (uncoupled)
-    "Bn_post": as_field3(Bn_mag_coil_grid),  # B·n after full coupling
-    "Bn_mag_only": as_field3(Bn_mag_only_grid),  # B·n with magnet-magnet coupling only
-    "Bn_delta_mag_only": as_field3(Bn_mag_only_grid - Bn_uncoupled_grid),  # Change in B·n (magnet-magnet coupling only - uncoupled)
-    "Bn_delta": as_field3(dBn_grid),  # Change in B·n (uncoupled - fully coupled)
-    "Bn_abs_delta": as_field3(dBn_abs),  # Absolute value of change
+    "Bn_pre": reshape_to_vtk_field_format(Bn_uncoupled_grid),
+    "Bn_post": reshape_to_vtk_field_format(Bn_mag_coil_grid),
+    "Bn_mag_only": reshape_to_vtk_field_format(Bn_mag_only_grid),
+    "Bn_delta_mag_only": reshape_to_vtk_field_format(Bn_mag_only_grid - Bn_uncoupled_grid),
+    "Bn_delta": reshape_to_vtk_field_format(dBn_grid),
+    "Bn_abs_delta": reshape_to_vtk_field_format(dBn_abs),
 }
 
 # Write VTK file for visualization
@@ -424,7 +298,9 @@ s_half = SurfaceRZFourier.from_focus(
 )
 
 # Initialize coils for Biot-Savart field computation
-base_curves, curves, coils = initialize_coils("muse_famus", TEST_DIR, s_half, out_dir)
+base_curves, curves, coils = initialize_coils_for_pm_optimization(
+    "muse_famus", TEST_DIR, s_half, out_dir
+)
 bs = BiotSavart(coils)  # Biot-Savart field from coils
 
 # Compute coil field normal component on the full-torus surface
@@ -446,13 +322,13 @@ Btotal_mc_abs = np.abs(Btotal_mc_grid)
 
 # Prepare total B·n error data for VTK output
 extra_error_data = {
-    "Btotal_unc": as_field3(Btotal_unc_grid),  # Total B·n (uncoupled magnets)
-    "Btotal_mm": as_field3(Btotal_mm_grid),  # Total B·n (magnet-magnet coupling)
-    "Btotal_mc": as_field3(Btotal_mc_grid),  # Total B·n (full coupling)
-    "Btotal_unc_abs": as_field3(Btotal_unc_abs),  # |Total B·n| (uncoupled)
-    "Btotal_mm_abs": as_field3(Btotal_mm_abs),  # |Total B·n| (magnet-magnet)
-    "Btotal_mc_abs": as_field3(Btotal_mc_abs),  # |Total B·n| (full coupling)
-    "Bn_coils": as_field3(Bnormal_coils_bn),  # B·n from coils
+    "Btotal_unc": reshape_to_vtk_field_format(Btotal_unc_grid),
+    "Btotal_mm": reshape_to_vtk_field_format(Btotal_mm_grid),
+    "Btotal_mc": reshape_to_vtk_field_format(Btotal_mc_grid),
+    "Btotal_unc_abs": reshape_to_vtk_field_format(Btotal_unc_abs),
+    "Btotal_mm_abs": reshape_to_vtk_field_format(Btotal_mm_abs),
+    "Btotal_mc_abs": reshape_to_vtk_field_format(Btotal_mc_abs),
+    "Bn_coils": reshape_to_vtk_field_format(Bnormal_coils_bn),
 }
 
 # Write VTK file with total B·n error fields
@@ -473,24 +349,10 @@ Btotal_mm_unique = Btotal_mm_grid[:nphi_unique, :].ravel()
 Btotal_mc_unique = Btotal_mc_grid[:nphi_unique, :].ravel()
 
 
-def summarize_error(name, arr):
-    """
-    Print summary statistics for B·n error.
-    
-    Args:
-        name: Descriptive name for the case being summarized
-        arr: Array of B·n error values
-    """
-    print(f"\n{name} total B·n error (unique half period wedge)")
-    print(f"mean = {arr.mean():.12e}")
-    print(f"max  = {np.abs(arr).max():.12e}")
-    print(f"rms  = {math.sqrt(np.mean(arr ** 2)):.12e}")
-
-
 # Print error statistics for each coupling case
-summarize_error("Uncoupled", Btotal_unc_unique)
-summarize_error("Magnet-magnet only", Btotal_mm_unique)
-summarize_error("Magnet-magnet + coil", Btotal_mc_unique)
+print_bnormal_error_summary_statistics("Uncoupled", Btotal_unc_unique)
+print_bnormal_error_summary_statistics("Magnet-magnet only", Btotal_mm_unique)
+print_bnormal_error_summary_statistics("Magnet-magnet + coil", Btotal_mc_unique)
 
 # ============================================================================
 # Compute f_B objective function
@@ -505,9 +367,6 @@ s_plot = SurfaceRZFourier.from_focus(
     quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta,
 )
-
-# Generate Bnormal plots from unoptimized coils
-make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 
 # Set evaluation points and compute coil field normal component
 bs.set_points(s_plot.gamma().reshape((-1, 3)))

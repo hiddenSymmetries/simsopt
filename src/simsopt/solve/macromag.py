@@ -921,7 +921,7 @@ class MacroMag:
         explicitly wrap the field elsewhere.
         """
         from simsopt.field import BiotSavart, Coil
-        from simsopt.util.permanent_magnet_helper_functions import read_focus_coils
+        from simsopt.util.coil_optimization_helper_functions import read_focus_coils
 
         curves, currents, ncoils = read_focus_coils(str(focus_file))
         coils = [Coil(curves[i], currents[i]*current_scale) for i in range(ncoils)]
