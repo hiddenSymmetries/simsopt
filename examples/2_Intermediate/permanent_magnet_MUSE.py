@@ -8,6 +8,14 @@ algorithm is described in the following paper:
     Greedy permanent magnet optimization,
     Nuclear Fusion 63, 036016 (2023)
 
+This script includes the GPMOmr extension, which incorporates 
+implementation components from:
+
+  A. Ulrich, M. Haberle, and A. A. Kaptanoglu,
+  “Permanent magnet optimization of stellarators with coupling from finite
+  permeability and demagnetization effects.” 2025. arXiv:2512.14997
+
+
 The script should be run as:
     mpirun -n 1 python permanent_magnet_MUSE.py
 on a cluster machine but
@@ -19,6 +27,10 @@ are available to OpenMP, e.g. through setting OMP_NUM_THREADS).
 
 For high-resolution and more realistic designs, please see the script files at
 https://github.com/akaptano/simsopt_permanent_magnet_advanced_scripts.git
+
+For higher-resolution and more realistic GPMOmr designs, 
+please use the paper-specific scripts available at:
+  https://github.com/armulrich/simsopt/tree/GPMOmr_paper_code
 """
 
 import argparse
