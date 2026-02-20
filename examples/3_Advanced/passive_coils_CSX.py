@@ -63,7 +63,7 @@ OUT_DIR = ("./passive_coils_CSX/")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # File for the desired boundary magnetic surface:
-TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 
 # Get the plasma surface corresponding to the CSX plasma obtained using the
 # window panes (with best quasisymmetry reported in the paper)

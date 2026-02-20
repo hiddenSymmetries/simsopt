@@ -35,6 +35,18 @@ from simsopt import load
 from simsopt.mhd import VirtualCasing
 import json
 
+
+def symmetrize_B_external_normal(B_external_normal, nfp):
+    """
+    Extend B_external_normal from half period to full torus using stellarator symmetry.
+    Returns array of shape (trgt_nphi * nfp * 2, trgt_ntheta) matching B_external_normal_extended.
+    """
+    B_with_last_point = np.hstack((B_external_normal, B_external_normal[:, [0]]))
+    B_with_last_point = np.vstack((B_with_last_point, -np.flip(np.flip(B_with_last_point, axis=0), axis=1)[0]))
+    flipped_B = -np.flip(np.flip(B_with_last_point, axis=0), axis=1)
+    return np.concatenate([np.concatenate((B_external_normal, flipped_B[:-1, :-1])) for _ in range(nfp)])
+
+
 t1 = time.time()
 
 # Number of Fourier modes describing each Cartesian component of each coil:
@@ -55,7 +67,7 @@ else:
         file_suffix = ""
 
 # File for the desired boundary magnetic surface:
-TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 input_name = 'wout_schuett_henneberg_nfp2_QA.nc'
 filename = TEST_DIR / input_name
 
@@ -83,7 +95,6 @@ if in_github_actions:
     vc.nfp = dummy_surf.nfp
     vc.B_external_normal = np.zeros((nphi, ntheta))
     vc.trgt_surf = dummy_surf
-    vc.trgt_surf_full = dummy_surf
 else:
     print('Running the virtual casing calculation')
     # Resolution for the virtual casing calculation:
@@ -135,17 +146,15 @@ if in_github_actions:
     # Create a dummy VirtualCasing object with zeros
     trgt_nphi = qphi // 4
     trgt_ntheta = qtheta
-    dummy_surf2_trgt = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=trgt_nphi, ntheta=trgt_ntheta)
-    dummy_surf2_full = SurfaceRZFourier.from_wout(filename, range='full torus', nphi=trgt_nphi * dummy_surf2_trgt.nfp * 2, ntheta=trgt_ntheta)
+    vc2_trgt_surf = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=trgt_nphi, ntheta=trgt_ntheta)
     vc2 = VirtualCasing()
     vc2.src_nphi = vc_src_nphi
     vc2.src_ntheta = vc_src_nphi
     vc2.trgt_nphi = trgt_nphi
     vc2.trgt_ntheta = trgt_ntheta
-    vc2.nfp = dummy_surf2_trgt.nfp
-    # B_external_normal_extended shape: (trgt_nphi * nfp * 2, trgt_ntheta)
-    vc2.B_external_normal_extended = np.zeros((vc2.trgt_nphi * vc2.nfp * 2, vc2.trgt_ntheta))
-    vc2.trgt_surf_full = dummy_surf2_full
+    vc2.nfp = vc2_trgt_surf.nfp
+    vc2.B_external_normal = np.zeros((trgt_nphi, trgt_ntheta))
+    vc2.B_external_normal_extended = symmetrize_B_external_normal(vc2.B_external_normal, vc2.nfp)
 else:
     vc2 = VirtualCasing.from_vmec(
         filename, src_nphi=vc_src_nphi, src_ntheta=vc_src_nphi,
@@ -154,7 +163,13 @@ else:
 with open(os.path.join(OUT_DIR, 'B_external_normal_extended.json'), 'w') as f:
     json.dump({'B_external_normal_extended': vc2.B_external_normal_extended}, f, cls=NumpyEncoder)
 
-s_plot = vc2.trgt_surf_full
+# Full-torus surface for plotting: create from half-period surface with appropriate grid
+s_plot = SurfaceRZFourier.from_wout(
+    filename,
+    range='full torus',
+    nphi=vc2.trgt_nphi * vc2.nfp * 2,
+    ntheta=vc2.trgt_ntheta
+)
 
 # initialize the coils
 a = 0.2
