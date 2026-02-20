@@ -1,18 +1,25 @@
 """
 Post-processing script for MUSE permanent magnet analysis.
 
-This script analyzes the effect of magnet-magnet and magnet-coil coupling
-on permanent magnet configurations. It compares three cases:
-(i) Uncoupled magnets (original MUSE solution)
-(ii) Magnet-magnet coupling only (no coil coupling)
-(iii) Full coupling (magnet-magnet + magnet-coil)
+This script applies the macromagnetic refinement introduced in:
 
-The script computes diagnostics including:
+  A. Ulrich, M. Haberle, and A. A. Kaptanoglu,
+  “Permanent magnet optimization of stellarators with coupling from finite
+  permeability and demagnetization effects.” 2025. arXiv:2512.14997
+
+to quantify the impact of magnet coupling on the MUSE permanent magnet grid.
+
+It evaluates the effect of magnet–magnet and magnet–coil coupling by comparing:
+(i) Uncoupled magnets (original MUSE solution)
+(ii) Magnet–magnet coupling only (no coil coupling)
+(iii) Full coupling (magnet–magnet + magnet–coil)
+
+The script reports diagnostics including:
 - Magnetization tilt angles and magnitude changes
-- B·n (magnetic field normal component) on plasma surface
-- Total B·n error (coils + magnets)
+- Surface B·n (magnetic field normal component) on the plasma boundary
+- Total surface B·n error (coils + magnets)
 - f_B objective function values
-- VTK output files for visualization
+- VTK outputs for visualization
 """
 
 import argparse

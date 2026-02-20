@@ -30,7 +30,7 @@ https://github.com/akaptano/simsopt_permanent_magnet_advanced_scripts.git
 
 For higher-resolution and more realistic GPMOmr designs, 
 please use the paper-specific scripts available at:
-  https://github.com/armulrich/simsopt/tree/GPMOmr_paper_code
+  https://github.com/armulrich/simsopt/tree/gpmomr_paper_code
 """
 
 import argparse
