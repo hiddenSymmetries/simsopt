@@ -1621,8 +1621,11 @@ def make_filament_from_voxels(
     quadpoints = 2000
     coil = CurveXYZFourierSymmetries(quadpoints, order, nfp, stellsym, ntor=1)
 
-    # trapezoid added in NumPy 2.0; use trapz for older versions
-    trapz_fn = getattr(np, "trapezoid", np.trapz)
+    # trapezoid in NumPy 1.22+; trapz removed in NumPy 2.0
+    try:
+        trapz_fn = np.trapezoid
+    except AttributeError:
+        trapz_fn = np.trapz
 
     if stellsym:
         # xhat = xc0 + sum_m xc_m cos(2*pi*nfp*m*theta), m=1..order
