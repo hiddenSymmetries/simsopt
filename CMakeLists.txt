@@ -132,6 +132,10 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/magneticfield_wireframe.cpp
     src/simsoptpp/boozerradialinterpolant.cpp
     src/simsoptpp/wireframe_optimization.cpp
+    src/simsoptpp/python_currentpotential.cpp
+    src/simsoptpp/currentpotential.cpp 
+    src/simsoptpp/currentpotentialfourier.cpp
+    src/simsoptpp/winding_surface.cpp
     )
 
 set_target_properties(${PROJECT_NAME}

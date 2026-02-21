@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = ['ToroidalField', 'PoloidalField', 'ScalarPotentialRZMagneticField',
            'CircularCoil', 'Dommaschk', 'Reiman', 'InterpolatedField', 'DipoleField',
-           'MirrorModel']
+           'MirrorModel', 'WindingSurfaceField']
 
 
 class ToroidalField(MagneticField):
@@ -567,6 +567,63 @@ class CircularCoil(MagneticField):
             ppl = np.asarray([self.gamma().shape[0]])
 
         polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl)
+
+
+class WindingSurfaceField(MagneticField):
+    """
+    Magnetic field object associated with a winding surface coil
+    optimization with a surface potential.
+
+    Args:
+        current_potential: CurrentPotential class object containing
+            the winding surface and the surface current needed for
+            fast computation of the magnetic field and vector potential.
+    """
+
+    def __init__(self, current_potential):
+        MagneticField.__init__(self, depends_on=[current_potential])
+        self.current_potential = current_potential
+        self.ws_points = current_potential.winding_surface.gamma().reshape((-1, 3))
+        self.ws_normal = current_potential.winding_surface.normal().reshape((-1, 3))
+        self.K = current_potential.K().reshape((self.ws_points.shape[0], 3))
+        self.nphi = len(current_potential.winding_surface.quadpoints_phi)
+        self.ntheta = len(current_potential.winding_surface.quadpoints_theta)
+
+    def _B_impl(self, B):
+        points = self.get_points_cart_ref()
+        B[:] = sopp.WindingSurfaceB(points, self.ws_points, self.ws_normal, self.K) / self.nphi / self.ntheta
+
+    def _A_impl(self, A):
+        points = self.get_points_cart_ref()
+        A[:] = sopp.WindingSurfaceA(points, self.ws_points, self.ws_normal, self.K) / self.nphi / self.ntheta
+
+    def _dB_by_dX_impl(self, dB):
+        points = self.get_points_cart_ref()
+        dB[:] = sopp.WindingSurfacedB(points, self.ws_points, self.ws_normal, self.K) / self.nphi / self.ntheta
+
+    def _dA_by_dX_impl(self, dA):
+        points = self.get_points_cart_ref()
+        dA[:] = sopp.WindingSurfacedA(points, self.ws_points, self.ws_normal, self.K) / self.nphi / self.ntheta
+
+    def as_dict(self, serial_objs_dict) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
+        name = getattr(self.current_potential, "name", str(id(self.current_potential)))
+        if name not in serial_objs_dict:
+            serial_objs_dict[name] = self.current_potential.as_dict(serial_objs_dict)
+        d["current_potential"] = {"$type": "ref", "value": name}
+        d["points"] = self.get_points_cart()
+        return d
+
+    @classmethod
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        decoder = GSONDecoder()
+        current_potential = decoder.process_decoded(
+            d["current_potential"], serial_objs_dict, recon_objs
+        )
+        field = cls(current_potential)
+        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
+        field.set_points_cart(xyz)
+        return field
 
 
 class DipoleField(MagneticField):
