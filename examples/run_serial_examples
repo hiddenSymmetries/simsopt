@@ -31,7 +31,6 @@ set -ex
 ./3_Advanced/stage_two_optimization_finitebuild.py
 ./3_Advanced/coil_forces.py
 ./3_Advanced/wireframe_gsco_multistep.py
-# winding_surface_advanced.py (cut coils) with different plasma boundaries and options
 ./3_Advanced/winding_surface_advanced.py --surface regcoil_out.hsx.nc
 ./3_Advanced/winding_surface_advanced.py --surface regcoil_out.w7x.nc --ilambda 0
 ./3_Advanced/winding_surface_advanced.py --surface regcoil_out.near_axis.nc --points "0.5,0.5" "1.0,0.3"
