@@ -12,8 +12,8 @@ from simsopt.util import (
 )
 from simsopt.field import LpCurveForce
 
-# Test directory setup
-TEST_DIR = Path(__file__).parent / "../test_files"
+# Test directory setup - resolve to absolute path for use when package may be installed
+TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 OUTPUT_DIR = Path(__file__).parent / "test_output"
 
 
@@ -39,48 +39,45 @@ class TestConfigValidation(unittest.TestCase):
         self.assertIn("Invalid configuration", str(cm.exception))
 
     def test_initial_optimizations_QA_default_paths(self):
-        """QA config with OUTPUT_DIR=None and INPUT_FILE=None uses defaults."""
+        """QA config with OUTPUT_DIR=None uses default output path."""
         with ScratchDir("."):
-            shutil.copy(TEST_DIR / "input.LandremanPaul2021_QA", ".")
             initial_vacuum_stage_II_optimizations(
                 N=1,
                 MAXITER=5,
                 ncoils=3,
                 config="QA",
                 OUTPUT_DIR=None,
-                INPUT_FILE=None,
+                INPUT_FILE=str(TEST_DIR / "input.LandremanPaul2021_QA"),
             )
             self.assertTrue(Path("./output/QA/optimizations").exists())
             results_files = list(Path("./output/QA/optimizations").glob("*/results.json"))
             self.assertGreater(len(results_files), 0)
 
     def test_initial_optimizations_QH_default_paths(self):
-        """QH config with OUTPUT_DIR=None and INPUT_FILE=None uses defaults."""
+        """QH config with OUTPUT_DIR=None uses default output path."""
         with ScratchDir("."):
-            shutil.copy(TEST_DIR / "input.LandremanPaul2021_QH_magwell_R0=1", ".")
             initial_vacuum_stage_II_optimizations(
                 N=1,
                 MAXITER=5,
                 ncoils=3,
                 config="QH",
                 OUTPUT_DIR=None,
-                INPUT_FILE=None,
+                INPUT_FILE=str(TEST_DIR / "input.LandremanPaul2021_QH_reactorScale_lowres"),
             )
             self.assertTrue(Path("./output/QH/optimizations").exists())
             results_files = list(Path("./output/QH/optimizations").glob("*/results.json"))
             self.assertGreater(len(results_files), 0)
 
     def test_continuation_QA_default_paths(self):
-        """Continuation QA with default INPUT_DIR, OUTPUT_DIR, INPUT_FILE."""
+        """Continuation QA with default INPUT_DIR, OUTPUT_DIR uses default paths."""
         with ScratchDir("."):
-            shutil.copy(TEST_DIR / "input.LandremanPaul2021_QA", ".")
             initial_vacuum_stage_II_optimizations(
                 N=1,
                 MAXITER=5,
                 ncoils=3,
                 config="QA",
                 OUTPUT_DIR=None,
-                INPUT_FILE=None,
+                INPUT_FILE=str(TEST_DIR / "input.LandremanPaul2021_QA"),
             )
             continuation_vacuum_stage_II_optimizations(
                 N=1,
@@ -89,7 +86,7 @@ class TestConfigValidation(unittest.TestCase):
                 config="QA",
                 INPUT_DIR=None,
                 OUTPUT_DIR=None,
-                INPUT_FILE=None,
+                INPUT_FILE=str(TEST_DIR / "input.LandremanPaul2021_QA"),
             )
             self.assertTrue(Path("./output/QA/optimizations/continuation").exists())
             results_files = list(
@@ -98,16 +95,15 @@ class TestConfigValidation(unittest.TestCase):
             self.assertGreater(len(results_files), 0)
 
     def test_continuation_QH_default_paths(self):
-        """Continuation QH with default INPUT_DIR, OUTPUT_DIR, INPUT_FILE."""
+        """Continuation QH with default INPUT_DIR, OUTPUT_DIR uses default paths."""
         with ScratchDir("."):
-            shutil.copy(TEST_DIR / "input.LandremanPaul2021_QH_magwell_R0=1", ".")
             initial_vacuum_stage_II_optimizations(
                 N=1,
                 MAXITER=5,
                 ncoils=3,
                 config="QH",
                 OUTPUT_DIR=None,
-                INPUT_FILE=None,
+                INPUT_FILE=str(TEST_DIR / "input.LandremanPaul2021_QH_reactorScale_lowres"),
             )
             continuation_vacuum_stage_II_optimizations(
                 N=1,
@@ -116,7 +112,7 @@ class TestConfigValidation(unittest.TestCase):
                 config="QH",
                 INPUT_DIR=None,
                 OUTPUT_DIR=None,
-                INPUT_FILE=None,
+                INPUT_FILE=str(TEST_DIR / "input.LandremanPaul2021_QH_reactorScale_lowres"),
             )
             self.assertTrue(Path("./output/QH/optimizations/continuation").exists())
             results_files = list(
@@ -125,13 +121,12 @@ class TestConfigValidation(unittest.TestCase):
             self.assertGreater(len(results_files), 0)
 
     def test_vacuum_stage_II_optimization_QA_default_paths(self):
-        """vacuum_stage_II_optimization QA with OUTPUT_DIR=None, INPUT_FILE=None."""
+        """vacuum_stage_II_optimization QA with OUTPUT_DIR=None uses default path."""
         with ScratchDir("."):
-            shutil.copy(TEST_DIR / "input.LandremanPaul2021_QA", ".")
             results = vacuum_stage_II_optimization(
                 config="QA",
                 OUTPUT_DIR=None,
-                INPUT_FILE=None,
+                INPUT_FILE=str(TEST_DIR / "input.LandremanPaul2021_QA"),
                 R1=0.5,
                 ncoils=3,
                 MAXITER=5,
@@ -140,13 +135,12 @@ class TestConfigValidation(unittest.TestCase):
             self.assertIn("UUID", results)
 
     def test_vacuum_stage_II_optimization_QH_default_paths(self):
-        """vacuum_stage_II_optimization QH with OUTPUT_DIR=None, INPUT_FILE=None."""
+        """vacuum_stage_II_optimization QH with OUTPUT_DIR=None uses default path."""
         with ScratchDir("."):
-            shutil.copy(TEST_DIR / "input.LandremanPaul2021_QH_magwell_R0=1", ".")
             results = vacuum_stage_II_optimization(
                 config="QH",
                 OUTPUT_DIR=None,
-                INPUT_FILE=None,
+                INPUT_FILE=str(TEST_DIR / "input.LandremanPaul2021_QH_reactorScale_lowres"),
                 R1=0.5,
                 ncoils=3,
                 MAXITER=5,
