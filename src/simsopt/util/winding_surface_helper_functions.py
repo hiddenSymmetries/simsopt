@@ -21,6 +21,9 @@ from __future__ import annotations
 
 __all__ = ["run_cut_coils"]
 
+from pathlib import Path
+from typing import Any, Callable, List, Optional, Tuple, Union
+
 import numpy as np
 from matplotlib import path
 from matplotlib import pyplot as plt
@@ -32,7 +35,9 @@ from scipy.io import netcdf_file
 # =============================================================================
 
 
-def _current_potential_at_point(x: np.ndarray, args: tuple) -> float:
+def _current_potential_at_point(
+    x: Union[np.ndarray, List[float]], args: Tuple[Any, ...]
+) -> float:
     """
     Evaluate the current potential φ at a point (θ, ζ) in flux coordinates.
 
@@ -58,7 +63,9 @@ def _current_potential_at_point(x: np.ndarray, args: tuple) -> float:
     return float(phi[0]) if isinstance(phi, np.ndarray) else float(phi)
 
 
-def _grad_current_potential_at_point(x: np.ndarray, args: tuple) -> float:
+def _grad_current_potential_at_point(
+    x: Union[np.ndarray, List[float]], args: Tuple[Any, ...]
+) -> float:
     """
     Evaluate |∇φ| (magnitude of current potential gradient) at (θ, ζ).
 
@@ -95,11 +102,11 @@ def _grad_current_potential_at_point(x: np.ndarray, args: tuple) -> float:
 
 
 def _genCPvals(
-    thetaVals: tuple,
-    zetaVals: tuple,
-    numbers: tuple,
-    args: tuple,
-) -> tuple:
+    thetaVals: Tuple[float, float],
+    zetaVals: Tuple[float, float],
+    numbers: Tuple[int, int],
+    args: Tuple[Any, ...],
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, Tuple[Any, ...]]:
     """
     Compute current potential on a (θ, ζ) grid.
 
@@ -133,11 +140,11 @@ def _genCPvals(
 
 
 def _genKvals(
-    thetaVals: tuple,
-    zetaVals: tuple,
-    numbers: tuple,
-    args: tuple,
-) -> tuple:
+    thetaVals: Tuple[float, float],
+    zetaVals: Tuple[float, float],
+    numbers: Tuple[int, int],
+    args: Tuple[Any, ...],
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, Tuple[Any, ...]]:
     """
     Compute |∇φ| on a (θ, ζ) grid.
 
@@ -177,7 +184,7 @@ def _genKvals(
 # =============================================================================
 
 
-def _load_regcoil_data(regcoilName: str) -> list:
+def _load_regcoil_data(regcoilName: str) -> List[Any]:
     """
     Load current potential data from a legacy REGCOIL NetCDF file.
 
@@ -237,7 +244,7 @@ def _load_regcoil_data(regcoilName: str) -> list:
     ]
 
 
-def _load_simsopt_regcoil_data(regcoilName: str, sparse: bool = False) -> list:
+def _load_simsopt_regcoil_data(regcoilName: str, sparse: bool = False) -> List[Any]:
     """
     Load current potential data from a simsopt-regcoil NetCDF file.
 
@@ -310,7 +317,7 @@ def _load_simsopt_regcoil_data(regcoilName: str, sparse: bool = False) -> list:
     ]
 
 
-def _load_surface_dofs_properly(s, s_new):
+def _load_surface_dofs_properly(s: Any, s_new: Any) -> Any:
     """
     Copy surface Fourier coefficients from s to s_new with correct indexing.
 
@@ -352,11 +359,11 @@ def _load_surface_dofs_properly(s, s_new):
 
 def _load_CP_and_geometries(
     filename: str,
-    plot_flags: tuple = (0, 0, 0, 0),
-    plasma_resolution_mult: tuple = (1.0, 1.0),
-    wsurf_resolution_mult: tuple = (1.0, 1.0),
+    plot_flags: Tuple[int, int, int, int] = (0, 0, 0, 0),
+    plasma_resolution_mult: Tuple[float, float] = (1.0, 1.0),
+    wsurf_resolution_mult: Tuple[float, float] = (1.0, 1.0),
     loadDOFsProperly: bool = True,
-) -> list:
+) -> List[Any]:
     """
     Load CurrentPotentialSolve and plasma/winding surfaces from a simsopt-regcoil NetCDF.
 
@@ -479,7 +486,7 @@ def minDist(pt: np.ndarray, line: np.ndarray) -> float:
     return float(np.min(dists))
 
 
-def _removearray(L: list, arr: np.ndarray) -> None:
+def _removearray(L: List[np.ndarray], arr: np.ndarray) -> None:
     """
     Remove the first list element that equals arr (by value).
 
@@ -489,6 +496,9 @@ def _removearray(L: list, arr: np.ndarray) -> None:
 
     Raises:
         ValueError: If arr is not found in L.
+
+    Returns:
+        None. Modifies L in place.
     """
     for ind in range(len(L)):
         if np.array_equal(L[ind], arr):
@@ -497,7 +507,7 @@ def _removearray(L: list, arr: np.ndarray) -> None:
     raise ValueError("array not found in list.")
 
 
-def sortLevels(levels: list, points: list) -> tuple:
+def sortLevels(levels: List[float], points: List[Any]) -> Tuple[List[float], List[np.ndarray]]:
     """
     Sort levels and points by level value (ascending).
 
@@ -514,7 +524,7 @@ def sortLevels(levels: list, points: list) -> tuple:
     return (levels, points)
 
 
-def chooseContours_matching_coilType(lines: list, ctype: str) -> list:
+def chooseContours_matching_coilType(lines: List[np.ndarray], ctype: str) -> List[np.ndarray]:
     """
     Filter contours by coil type: 'free' (all), 'wp' (closed), 'mod'/'hel' (open).
 
@@ -541,16 +551,14 @@ def chooseContours_matching_coilType(lines: list, ctype: str) -> list:
 
 
 def _points_in_polygon(
-    coords: tuple,
-    zdata,
+    coords: Tuple[np.ndarray, np.ndarray],
     polygon: np.ndarray,
-) -> tuple:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Find grid points inside a polygon.
 
     Args:
         coords: (t_values, z_values) 1D arrays defining the grid.
-        zdata: Unused (legacy parameter for API compatibility).
         polygon: Nx2 array of vertices defining the polygon (θ, ζ or x, y).
 
     Returns:
@@ -572,12 +580,13 @@ def _points_in_polygon(
     return (i1_ret, i2_ret, BOOL)
 
 
-def map_data_full_torus_3x3(
+def _map_data_full_torus_3x3(
     xdata: np.ndarray,
     ydata: np.ndarray,
     zdata: np.ndarray,
-    args: tuple,
-) -> tuple:
+    Ip: float,
+    It: float,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Tile full-torus (θ, ζ ∈ [0, 2π]) SV data 3×3 and add secular (NSV) contribution.
 
@@ -585,14 +594,15 @@ def map_data_full_torus_3x3(
     Tiles with period 2π in both θ and ζ (not 2π/nfp).
 
     Args:
-        xdata, ydata: 1D θ and ζ arrays.
+        xdata: 1D array of poloidal angles θ.
+        ydata: 1D array of toroidal angles ζ.
         zdata: 2D single-valued current potential on the base grid.
-        args: (Ip, It, xm, xn, phi_cos, phi_sin, nfp).
+        Ip: Net poloidal current (for secular term).
+        It: Net toroidal current (for secular term NSV = (It/2π)θ + (Ip/2π)ζ).
 
     Returns:
-        (xN, yN, ret) extended grid and data.
+        Tuple (xN, yN, ret) of extended grid and data.
     """
-    Ip, It, xm_potential, xn_potential, phi_cos, phi_sin, nfp = args
     xf = 2 * np.pi
     yf = 2 * np.pi
     xN = np.hstack([xdata - xf, xdata, xdata + xf])
@@ -603,12 +613,13 @@ def map_data_full_torus_3x3(
     return (xN, yN, z0_tiled + NSV)
 
 
-def map_data_full_torus_3x1(
+def _map_data_full_torus_3x1(
     xdata: np.ndarray,
     ydata: np.ndarray,
     zdata: np.ndarray,
-    args: tuple,
-) -> tuple:
+    Ip: float,
+    It: float,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Tile full-torus data 3×1 in ζ (period 2π) for halfway-contour extraction.
 
@@ -616,14 +627,15 @@ def map_data_full_torus_3x1(
     current potential when finding halfway contours between open contours.
 
     Args:
-        xdata, ydata: 1D θ and ζ arrays.
+        xdata: 1D array of poloidal angles θ.
+        ydata: 1D array of toroidal angles ζ.
         zdata: 2D single-valued current potential on the base grid.
-        args: (Ip, It, xm, xn, phi_cos, phi_sin, nfp).
+        Ip: Net poloidal current (for secular term).
+        It: Net toroidal current (for secular term NSV = (It/2π)θ + (Ip/2π)ζ).
 
     Returns:
-        (xN, yN, ret) extended grid and data.
+        Tuple (xN, yN, ret) of extended grid and data.
     """
-    Ip, It, xm_potential, xn_potential, phi_cos, phi_sin, nfp = args
     xN = xdata
     yf = 2 * np.pi
     yN = np.hstack([ydata - yf, ydata, ydata + yf])
@@ -633,7 +645,9 @@ def map_data_full_torus_3x1(
     return (xN, yN, z0_tiled + NSV)
 
 
-def tile_helical_contours(contours: list, types_contours: list, nfp: int) -> None:
+def _tile_helical_contours(
+    contours: List[np.ndarray], types_contours: List[int], nfp: int
+) -> None:
     """
     Tile helical contours (type 2 or 3) nfp times to span full torus.
 
@@ -645,6 +659,9 @@ def tile_helical_contours(contours: list, types_contours: list, nfp: int) -> Non
         contours: List of contour arrays (modified in place).
         types_contours: Contour type codes (1=modular, 2/3=helical).
         nfp: Number of field periods.
+
+    Returns:
+        None. Modifies contours in place.
     """
     d_zeta = 2 * np.pi / nfp
     for i in range(len(contours)):
@@ -659,13 +676,15 @@ def tile_helical_contours(contours: list, types_contours: list, nfp: int) -> Non
             contours[i] = Contour
 
 
-def _ID_mod_hel(contours: list, tol: float = 0.05) -> tuple:
+def _ID_mod_hel(
+    contours: List[np.ndarray], tol: float = 0.05
+) -> Tuple[List[str], List[int]]:
     """
     Classify open contours as modular (1), helical (2), or vacuum-field (3).
 
     Args:
-        contours: List of contour arrays.
-        tol: Tolerance for cos(θ) and ζ matching.
+        contours: List of open contour arrays (Nx2 θ, ζ).
+        tol: Tolerance for cos(θ) and ζ matching at contour endpoints.
 
     Returns:
         (names, ints) e.g. (['mod','hel'], [1,2]).
@@ -691,12 +710,14 @@ def _ID_mod_hel(contours: list, tol: float = 0.05) -> tuple:
     return (ret, ints)
 
 
-def ID_and_cut_contour_types(contours: list) -> tuple:
+def ID_and_cut_contour_types(
+    contours: List[np.ndarray],
+) -> Tuple[List[np.ndarray], List[np.ndarray], List[int]]:
     """
     Classify contours as closed (type 0) or open, and sub-classify open as mod(1)/hel(2)/vf(3).
 
     Args:
-        contours: List of contour arrays.
+        contours: List of contour arrays (each Nx2 θ, ζ).
 
     Returns:
         (open_contours, closed_contours, type_array).
@@ -721,19 +742,19 @@ def ID_and_cut_contour_types(contours: list) -> tuple:
 
 
 def ID_halfway_contour(
-    contours: list,
-    data: tuple,
+    contours: List[np.ndarray],
+    data: Tuple[np.ndarray, np.ndarray, np.ndarray],
     do_plot: bool,
-    args: tuple,
-) -> list:
+    args: Tuple[Any, ...],
+) -> List[np.ndarray]:
     """
     Find "halfway" contours between consecutive open contours for current integration.
 
     Args:
-        contours: List of open contour arrays.
-        data: (theta, zeta, current_potential) on extended grid.
+        contours: List of open contour arrays (Nx2 θ, ζ).
+        data: Tuple (theta, zeta, current_potential) on extended grid.
         do_plot: Whether to show debug plot.
-        args: Current potential args.
+        args: Tuple (Ip, It, xm, xn, phi_cos, phi_sin, nfp) for potential evaluation.
 
     Returns:
         List of halfway contour arrays.
@@ -770,16 +791,11 @@ def ID_halfway_contour(
     return halfway_contours
 
 
-# =============================================================================
-# Current computation
-# =============================================================================
-
-
 def compute_baseline_WP_currents(
-    closed_contours: list,
-    args: tuple,
+    closed_contours: List[np.ndarray],
+    args: Tuple[Any, ...],
     plot: bool = False,
-) -> tuple:
+) -> Tuple[List[float], List[Any], List[float]]:
     """
     Compute currents for window-pane (closed) contours from potential difference.
 
@@ -787,8 +803,8 @@ def compute_baseline_WP_currents(
     to estimate the current enclosed.
 
     Args:
-        closed_contours: List of closed contour arrays.
-        args: Current potential args.
+        closed_contours: List of closed contour arrays (Nx2 θ, ζ).
+        args: Tuple (Ip, It, xm, xn, phi_cos, phi_sin, nfp) for potential evaluation.
         plot: Whether to plot sampling points.
 
     Returns:
@@ -801,7 +817,7 @@ def compute_baseline_WP_currents(
     for cont in closed_contours:
         t = np.linspace(np.min(cont[:, 0]), np.max(cont[:, 0]), res)
         z = np.linspace(np.min(cont[:, 1]), np.max(cont[:, 1]), res)
-        i1_ret, i2_ret, BOOL = _points_in_polygon([t, z], None, cont)
+        i1_ret, i2_ret, BOOL = _points_in_polygon([t, z], cont)
         coordinates = np.vstack([t[i1_ret], z[i2_ret]]).T
         COORDS.append(coordinates)
         func_vals = [_current_potential_at_point(pt, args) for pt in coordinates]
@@ -851,18 +867,18 @@ def compute_baseline_WP_currents(
 
 
 def check_and_compute_nested_WP_currents(
-    closed_contours: list,
-    wp_currents: list,
-    args: tuple,
+    closed_contours: List[np.ndarray],
+    wp_currents: List[float],
+    args: Tuple[Any, ...],
     plot: bool = False,
-) -> tuple:
+) -> Tuple[List[float], Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
     """
     Adjust window-pane currents when contours are nested (one inside another).
 
     Args:
-        closed_contours: List of closed contours.
-        wp_currents: Initial current estimates.
-        args: Current potential args.
+        closed_contours: List of closed contour arrays (Nx2 θ, ζ).
+        wp_currents: Initial current estimates (one per contour).
+        args: Tuple (Ip, It, xm, xn, phi_cos, phi_sin, nfp) for potential evaluation.
         plot: Whether to plot.
 
     Returns:
@@ -920,12 +936,9 @@ def check_and_compute_nested_WP_currents(
     return (wp_currents, nested_BOOL, func_vals, numContsContained)
 
 
-# =============================================================================
-# Geometry and curve conversion
-# =============================================================================
-
-
-def _SIMSOPT_line_XYZ_RZ(surf, coords: tuple) -> tuple:
+def _SIMSOPT_line_XYZ_RZ(
+    surf: Any, coords: Tuple[np.ndarray, np.ndarray]
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Map (θ, ζ) to (X, Y, R, Z) on a simsopt SurfaceRZFourier.
 
@@ -958,12 +971,12 @@ def _SIMSOPT_line_XYZ_RZ(surf, coords: tuple) -> tuple:
 
 def _writeToCurve(
     contour: np.ndarray,
-    contour_xyz: list,
+    contour_xyz: List[Any],
     fourier_trunc: int,
-    plotting_args: tuple = (0,),
-    winding_surface=None,
-    fix_stellarator_symmetry: bool = None,
-):
+    plotting_args: Tuple[int, ...] = (0,),
+    winding_surface: Optional[Any] = None,
+    fix_stellarator_symmetry: Optional[bool] = None,
+) -> Any:
     """
     Convert a (θ, ζ) contour to a simsopt CurveXYZFourier.
 
@@ -1059,12 +1072,7 @@ def _writeToCurve(
     return curve
 
 
-# =============================================================================
-# Plotting and I/O
-# =============================================================================
-
-
-def set_axes_equal(ax) -> None:
+def set_axes_equal(ax: Any) -> None:
     """
     Make 3D axes have equal scale (spheres appear spherical).
 
@@ -1072,6 +1080,9 @@ def set_axes_equal(ax) -> None:
 
     Args:
         ax: Matplotlib 3D axes instance.
+
+    Returns:
+        None. Modifies ax in place.
     """
     x_limits = ax.get_xlim3d()
     y_limits = ax.get_ylim3d()
@@ -1088,7 +1099,7 @@ def set_axes_equal(ax) -> None:
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 
-def _contour_paths(cdata, level_idx: int = 0) -> list:
+def _contour_paths(cdata: Any, level_idx: int = 0) -> List[np.ndarray]:
     """
     Get contour path vertices (matplotlib version-agnostic).
 
@@ -1105,15 +1116,23 @@ def _contour_paths(cdata, level_idx: int = 0) -> list:
 
 
 # Interactive contour selection callbacks (used by CutCoils example)
-def _make_onclick(ax, args, contours, theta_coil, zeta_coil, current_potential):
+def _make_onclick(
+    ax: Any,
+    args: Tuple[Any, ...],
+    contours: List[np.ndarray],
+    theta_coil: np.ndarray,
+    zeta_coil: np.ndarray,
+    current_potential: np.ndarray,
+) -> Callable[..., None]:
     """
     Factory for double-click contour selection callback.
 
     Args:
-        ax: Matplotlib axes.
-        args: Current potential args.
-        contours: List to append selected contour to.
-        theta_coil, zeta_coil: 1D grids for contour plot.
+        ax: Matplotlib axes instance.
+        args: Tuple (Ip, It, xm, xn, phi_cos, phi_sin, nfp) for potential evaluation.
+        contours: List to append selected contour to (modified in place).
+        theta_coil: 1D array of poloidal angles for the contour grid.
+        zeta_coil: 1D array of toroidal angles for the contour grid.
         current_potential: 2D current potential array.
 
     Returns:
@@ -1146,7 +1165,7 @@ def _make_onclick(ax, args, contours, theta_coil, zeta_coil, current_potential):
     return onclick
 
 
-def _make_onpick(contours):
+def _make_onpick(contours: List[np.ndarray]) -> Callable[..., None]:
     """
     Factory for pick event (store picked artist).
 
@@ -1163,7 +1182,7 @@ def _make_onpick(contours):
     return onpick
 
 
-def _make_on_key(contours):
+def _make_on_key(contours: List[np.ndarray]) -> Callable[..., None]:
     """
     Factory for key press (delete picked contour).
 
@@ -1187,24 +1206,33 @@ def _make_on_key(contours):
     return on_key
 
 
-def _contour_paths(cdata, i: int) -> list:
-    """Get contour path vertices from contour set (matplotlib version-agnostic)."""
+def _contour_paths(cdata: Any, i: int) -> List[np.ndarray]:
+    """
+    Get contour path vertices from contour set (matplotlib version-agnostic).
+
+    Args:
+        cdata: Matplotlib QuadContourSet or contour object.
+        i: Index of the contour level.
+
+    Returns:
+        List of Nx2 arrays, one per contour path at that level.
+    """
     if hasattr(cdata, "allsegs") and i < len(cdata.allsegs):
         return list(cdata.allsegs[i])
     return [p.vertices for p in cdata.collections[i].get_paths()]
 
 
 def _run_cut_coils_select_contours_non_interactive(
-    theta_coil,
-    zeta_coil,
-    current_potential_,
-    args,
-    coil_type,
-    points,
-    levels,
-    contours_per_period,
-    ax,
-):
+    theta_coil: np.ndarray,
+    zeta_coil: np.ndarray,
+    current_potential_: np.ndarray,
+    args: Tuple[Any, ...],
+    coil_type: str,
+    points: Optional[List[List[float]]],
+    levels: Optional[List[float]],
+    contours_per_period: Optional[int],
+    ax: Any,
+) -> List[np.ndarray]:
     """
     Select coil contours non-interactively from the current potential.
 
@@ -1228,7 +1256,7 @@ def _run_cut_coils_select_contours_non_interactive(
         points: Optional list of [θ, ζ] points; None to use levels or default.
         levels: Optional list of contour level values; None to use contours_per_period.
         contours_per_period: Optional int; None to use default points.
-        ax: Matplotlib axes to plot contours on.
+        ax: Matplotlib axes instance to plot contours on.
 
     Returns:
         List of contour arrays, each Nx2 (θ, ζ) in radians.
@@ -1308,13 +1336,13 @@ def _run_cut_coils_select_contours_non_interactive(
 
 
 def _run_cut_coils_refine_contours_3x3(
-    contours,
-    theta_coil,
-    zeta_coil,
-    current_potential_SV,
-    args,
-    nfp_val,
-):
+    contours: List[np.ndarray],
+    theta_coil: np.ndarray,
+    zeta_coil: np.ndarray,
+    current_potential_SV: np.ndarray,
+    args: Tuple[Any, ...],
+    nfp_val: int,
+) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray], List[int]]:
     """
     Refine contours using a 3×3 periodic extension for proper marching-squares extraction.
 
@@ -1343,8 +1371,9 @@ def _run_cut_coils_refine_contours_3x3(
         Tuple (contours, open_contours, closed_contours, types_contours) where
         types_contours[i] is 0 (closed), 1 (modular), 2 (helical), or 3 (vacuum-field).
     """
-    theta_coil_3x3, zeta_coil_3x3, current_potential_3x3 = map_data_full_torus_3x3(
-        theta_coil, zeta_coil, current_potential_SV, args
+    Ip, It = args[0], args[1]
+    theta_coil_3x3, zeta_coil_3x3, current_potential_3x3 = _map_data_full_torus_3x3(
+        theta_coil, zeta_coil, current_potential_SV, Ip, It
     )
     Pts = [contour[0, :] for contour in contours]
     LvlsTemp = [_current_potential_at_point(pt, args) for pt in Pts]
@@ -1421,14 +1450,14 @@ def _run_cut_coils_refine_contours_3x3(
 
 
 def _run_cut_coils_compute_NWP_currents(
-    open_contours,
-    single_valued,
-    totalCurrent,
-    theta_coil,
-    zeta_coil,
-    current_potential_SV,
-    args,
-):
+    open_contours: List[np.ndarray],
+    single_valued: bool,
+    totalCurrent: float,
+    theta_coil: np.ndarray,
+    zeta_coil: np.ndarray,
+    current_potential_SV: np.ndarray,
+    args: Tuple[Any, ...],
+) -> List[float]:
     """
     Compute currents for non-window-pane (open) contours.
 
@@ -1473,8 +1502,9 @@ def _run_cut_coils_compute_NWP_currents(
         inv_sort = np.argsort(sort_idx)
         return list(NWP_currents[inv_sort])
 
-    theta_3x1, zeta_3x1, current_potential_3x1 = map_data_full_torus_3x1(
-        theta_coil, zeta_coil, current_potential_SV, args
+    Ip, It = args[0], args[1]
+    theta_3x1, zeta_3x1, current_potential_3x1 = _map_data_full_torus_3x1(
+        theta_coil, zeta_coil, current_potential_SV, Ip, It
     )
     open_Pts = [contour[0, :] for contour in open_contours]
     pt_offset = np.array([0, 2 * np.pi])
@@ -1506,16 +1536,16 @@ def _run_cut_coils_compute_NWP_currents(
 
 
 def run_cut_coils(
-    surface_filename,
+    surface_filename: Union[str, Path],
     ilambda: int = -1,
     num_of_contours: int = 100,
     ntheta: int = 128,
     nzeta: int = 128,
     single_valued: bool = False,
     coil_type: str = "free",
-    points: list = None,
-    levels: list = None,
-    contours_per_period: int = None,
+    points: Optional[List[List[float]]] = None,
+    levels: Optional[List[float]] = None,
+    contours_per_period: Optional[int] = None,
     interactive: bool = False,
     curve_fourier_cutoff: int = 20,
     map_to_full_torus: bool = True,
@@ -1524,54 +1554,34 @@ def run_cut_coils(
     show_final_coilset: bool = True,
     show_plots: bool = True,
     write_coils_to_file: bool = False,
-    output_path=None,
-):
+    output_path: Optional[Union[str, Path]] = None,
+) -> List[Any]:
     """
     Run the cut coils workflow to extract coils from a current potential.
 
-    Parameters
-    ----------
-    surface_filename : Path or str
-        Path to the REGCOIL or simsopt-regcoil NetCDF file.
-    ilambda : int
-        Index of regularization parameter to use (0-based).
-    num_of_contours : int
-        Number of contour levels for visualization.
-    ntheta, nzeta : int
-        Grid resolution for contour computation.
-    single_valued : bool
-        If True, use single-valued current potential (zero net currents).
-    coil_type : str
-        'free' (all), 'wp' (window-pane only), 'mod' or 'hel' (open only).
-    points : list of [theta, zeta]
-        (θ, ζ) points on desired contours. Overrides levels and contours_per_period.
-    levels : list of float
-        Contour level values. Overrides contours_per_period.
-    contours_per_period : int
-        Number of contours to distribute per field period.
-    interactive : bool
-        If True, use double-click to select contours; press Delete to remove.
-    show_plots : bool
-        If True, display contour and coil plots; if False, close figures (for testing).
-    curve_fourier_cutoff : int
-        Fourier mode cutoff for curve representation.
-    map_to_full_torus : bool
-        If True, use nfp symmetry to map coils to full torus.
-    modular_coils_via_symmetries : bool
-        If True, duplicate modular/WP coils via stellarator symmetry.
-    helical_coils_via_symmetries : bool
-        If True, also duplicate helical coils via symmetry.
-    show_final_coilset : bool
-        If True, show 3D plot of final coils.
-    write_coils_to_file : bool
-        If True, save coils to JSON.
-    output_path : Path, optional
-        Output directory for all outputs (VTK, JSON). Default: winding_surface_<surface_filename_stem>/
+    Args:
+        surface_filename: Path to the REGCOIL or simsopt-regcoil NetCDF file.
+        ilambda: Index of regularization parameter to use (0-based).
+        num_of_contours: Number of contour levels for visualization.
+        ntheta: Grid resolution in poloidal direction.
+        nzeta: Grid resolution in toroidal direction.
+        single_valued: If True, use single-valued current potential (zero net currents).
+        coil_type: 'free' (all), 'wp' (window-pane only), 'mod' or 'hel' (open only).
+        points: Optional list of [θ, ζ] points on desired contours. Overrides levels.
+        levels: Optional list of contour level values. Overrides contours_per_period.
+        contours_per_period: Optional number of contours to distribute per field period.
+        interactive: If True, use double-click to select contours; press Delete to remove.
+        curve_fourier_cutoff: Fourier mode cutoff for curve representation.
+        map_to_full_torus: If True, use nfp symmetry to map coils to full torus.
+        modular_coils_via_symmetries: If True, duplicate modular/WP coils via stellarator symmetry.
+        helical_coils_via_symmetries: If True, also duplicate helical coils via symmetry.
+        show_final_coilset: If True, show 3D plot of final coils.
+        show_plots: If True, display contour and coil plots; if False, close figures.
+        write_coils_to_file: If True, save coils to JSON.
+        output_path: Output directory for VTK, JSON. Default: winding_surface_<stem>/.
 
-    Returns
-    -------
-    coils : list of Coil
-        The extracted coil objects.
+    Returns:
+        List of extracted Coil objects.
     """
     from pathlib import Path
     from simsopt.field import (
@@ -1588,7 +1598,7 @@ def run_cut_coils(
     from simsopt.util import in_github_actions
 
     surface_filename = Path(surface_filename)
-    output_path = output_path or Path(f"winding_surface_{surface_filename.stem}")
+    output_path = Path(output_path) if output_path is not None else Path(f"winding_surface_{surface_filename.stem}")
     output_path.mkdir(parents=True, exist_ok=True)
 
     # Load current potential data (auto-detect format)
@@ -1747,7 +1757,7 @@ def run_cut_coils(
     )
 
     # Tile helical contours (type 2 or 3) nfp times to span full torus.
-    tile_helical_contours(contours, types_contours, nfp_val)
+    _tile_helical_contours(contours, types_contours, nfp_val)
 
     # Map to Cartesian
     contours_xyz = []

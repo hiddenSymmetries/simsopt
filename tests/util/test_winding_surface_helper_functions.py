@@ -36,6 +36,9 @@ from simsopt.util.winding_surface_helper_functions import (
     _make_onclick,
     _make_onpick,
     _make_on_key,
+    _map_data_full_torus_3x1,
+    _run_cut_coils_compute_NWP_currents,
+    _run_cut_coils_select_contours_non_interactive,
 )
 # Import private function for testing fallback path
 from simsopt.util.winding_surface_helper_functions import _contour_paths
@@ -234,7 +237,7 @@ class TestPointsInPolygon(unittest.TestCase):
         polygon = np.array([[0, 0], [1, 0], [0.5, 1], [0, 0]])
         t = np.linspace(0, 1, 5)
         z = np.linspace(0, 1, 5)
-        i1, i2, BOOL = _points_in_polygon((t, z), None, polygon)
+        i1, i2, BOOL = _points_in_polygon((t, z), polygon)
         # Center (0.5, 0.33) should be inside
         self.assertGreater(np.sum(BOOL), 0)
 
@@ -243,7 +246,7 @@ class TestPointsInPolygon(unittest.TestCase):
         polygon = np.array([[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]])
         t = np.linspace(0.1, 0.9, 3)
         z = np.linspace(0.1, 0.9, 3)
-        i1, i2, BOOL = _points_in_polygon((t, z), None, polygon)
+        i1, i2, BOOL = _points_in_polygon((t, z), polygon)
         self.assertEqual(len(i1), np.sum(BOOL))
         self.assertEqual(len(i2), np.sum(BOOL))
 
@@ -644,6 +647,83 @@ class TestCutCoilsHelicalClosure(unittest.TestCase):
             )
 
 
+class TestRunCutCoilsFlags(unittest.TestCase):
+    """Tests for run_cut_coils with different flags: show_final_coilset, write_coils_to_file."""
+
+    def test_run_cut_coils_show_final_coilset_true(self):
+        """run_cut_coils with show_final_coilset=True runs without error."""
+        fpath = TEST_DIR / "regcoil_out.hsx.nc"
+        if not fpath.exists():
+            self.skipTest(f"Test file not found: {fpath}")
+        from simsopt.util import run_cut_coils
+        coils = run_cut_coils(
+            surface_filename=fpath,
+            ilambda=6,
+            single_valued=False,
+            show_final_coilset=True,
+            show_plots=False,
+            write_coils_to_file=False,
+        )
+        self.assertGreater(len(coils), 0)
+
+    def test_run_cut_coils_write_coils_to_file_true(self):
+        """run_cut_coils with write_coils_to_file=True creates coils.json."""
+        from monty.tempfile import ScratchDir
+        fpath = TEST_DIR / "regcoil_out.hsx.nc"
+        if not fpath.exists():
+            self.skipTest(f"Test file not found: {fpath}")
+        from simsopt.util import run_cut_coils
+        with ScratchDir("."):
+            run_cut_coils(
+                surface_filename=str(fpath),
+                ilambda=6,
+                single_valued=False,
+                show_final_coilset=False,
+                show_plots=False,
+                write_coils_to_file=True,
+                output_path="cut_coils_output",
+            )
+            coils_path = Path("cut_coils_output") / "coils.json"
+            self.assertTrue(coils_path.exists(), f"Expected {coils_path} to exist")
+            self.assertGreater(coils_path.stat().st_size, 0)
+
+    def test_run_cut_coils_both_flags_true(self):
+        """run_cut_coils with show_final_coilset=True and write_coils_to_file=True."""
+        from monty.tempfile import ScratchDir
+        fpath = TEST_DIR / "regcoil_out.hsx.nc"
+        if not fpath.exists():
+            self.skipTest(f"Test file not found: {fpath}")
+        from simsopt.util import run_cut_coils
+        with ScratchDir("."):
+            coils = run_cut_coils(
+                surface_filename=str(fpath),
+                ilambda=6,
+                single_valued=False,
+                show_final_coilset=True,
+                show_plots=False,
+                write_coils_to_file=True,
+                output_path="cut_coils_output",
+            )
+            self.assertGreater(len(coils), 0)
+            self.assertTrue((Path("cut_coils_output") / "coils.json").exists())
+
+    def test_run_cut_coils_single_valued_true(self):
+        """run_cut_coils with single_valued=True exercises _map_data_full_torus_3x1 path."""
+        fpath = TEST_DIR / "regcoil_out.hsx.nc"
+        if not fpath.exists():
+            self.skipTest(f"Test file not found: {fpath}")
+        from simsopt.util import run_cut_coils
+        coils = run_cut_coils(
+            surface_filename=fpath,
+            ilambda=6,
+            single_valued=True,
+            show_final_coilset=False,
+            show_plots=False,
+            write_coils_to_file=False,
+        )
+        self.assertGreaterEqual(len(coils), 0)
+
+
 class TestLoadSimsoptRegcoilData(unittest.TestCase):
     """Tests for load_simsopt_regcoil_data."""
 
@@ -826,6 +906,138 @@ class TestContourPaths(unittest.TestCase):
         paths = _contour_paths(mock_cdata, 0)
         self.assertEqual(len(paths), 1)
         np.testing.assert_array_equal(paths[0], np.array([[0, 0], [1, 1]]))
+
+
+class TestMapDataFullTorus3x1(unittest.TestCase):
+    """Tests for _map_data_full_torus_3x1."""
+
+    def test_output_shapes(self):
+        """_map_data_full_torus_3x1 returns extended grid with 3x1 tiling in zeta."""
+        xdata = np.linspace(0, 2 * np.pi, 8, endpoint=False)
+        ydata = np.linspace(0, 2 * np.pi / 4, 4, endpoint=False)
+        zdata = np.outer(np.sin(ydata), np.cos(xdata))
+        xN, yN, ret = _map_data_full_torus_3x1(xdata, ydata, zdata, Ip=0, It=0)
+        self.assertEqual(len(xN), len(xdata))
+        self.assertEqual(len(yN), 3 * len(ydata))
+        self.assertEqual(ret.shape, (3 * len(ydata), len(xdata)))
+
+    def test_secular_term_added(self):
+        """With Ip, It non-zero, secular term is added (data differs from tiled zdata)."""
+        xdata = np.linspace(0, 2 * np.pi, 4, endpoint=False)
+        ydata = np.linspace(0, 2 * np.pi / 4, 2, endpoint=False)
+        zdata = np.zeros((2, 4))
+        xN, yN, ret = _map_data_full_torus_3x1(xdata, ydata, zdata, Ip=2 * np.pi, It=4 * np.pi)
+        # With NSV = (It/2π)*θ + (Ip/2π)*ζ, ret should be non-zero
+        self.assertTrue(np.any(ret != 0))
+
+
+class TestRunCutCoilsComputeNWPCurrents(unittest.TestCase):
+    """Tests for _run_cut_coils_compute_NWP_currents."""
+
+    def test_empty_open_contours(self):
+        """Empty open_contours returns empty list."""
+        args = _make_args()
+        theta = np.linspace(0, 2 * np.pi, 8, endpoint=False)
+        zeta = np.linspace(0, 2 * np.pi / 4, 4, endpoint=False)
+        _, _, cp_sv, _, _, _ = _genCPvals((0, 2 * np.pi), (0, 2 * np.pi / 4), (8, 4), args)
+        result = _run_cut_coils_compute_NWP_currents(
+            [], True, 1.0, theta, zeta, cp_sv, args
+        )
+        self.assertEqual(result, [])
+
+    def test_single_open_contour(self):
+        """Single open contour returns [totalCurrent]."""
+        args = _make_args()
+        theta = np.linspace(0, 2 * np.pi, 8, endpoint=False)
+        zeta = np.linspace(0, 2 * np.pi / 4, 4, endpoint=False)
+        _, _, cp_sv, _, _, _ = _genCPvals((0, 2 * np.pi), (0, 2 * np.pi / 4), (8, 4), args)
+        contour = np.array([[0.5, 0.3], [1.5, 0.4]])
+        result = _run_cut_coils_compute_NWP_currents(
+            [contour], True, 10.0, theta, zeta, cp_sv, args
+        )
+        self.assertEqual(len(result), 1)
+        self.assertAlmostEqual(result[0], 10.0)
+
+
+    def test_multi_open_contours_multi_valued(self):
+        """Multiple open contours with single_valued=False uses level diff."""
+        args = _make_args(Ip=2 * np.pi, It=4 * np.pi)
+        theta = np.linspace(0, 2 * np.pi, 20, endpoint=False)
+        zeta = np.linspace(0, 2 * np.pi / 4, 15, endpoint=False)
+        _, _, cp_full, _, _, _ = _genCPvals((0, 2 * np.pi), (0, 2 * np.pi / 4), (20, 15), args)
+        c1 = np.array([[0.5, 0.3], [1.5, 0.4]])
+        c2 = np.array([[1.0, 0.5], [2.0, 0.6]])
+        result = _run_cut_coils_compute_NWP_currents(
+            [c1, c2], False, 1.0, theta, zeta, cp_full, args
+        )
+        self.assertEqual(len(result), 2)
+        self.assertAlmostEqual(sum(result), 1.0)
+
+
+class TestRunCutCoilsSelectContoursNonInteractive(unittest.TestCase):
+    """Tests for _run_cut_coils_select_contours_non_interactive."""
+
+    def test_select_by_points(self):
+        """Selection by points returns contours near those points."""
+        import matplotlib.pyplot as plt
+        args = _make_args()
+        theta = np.linspace(0, 2 * np.pi, 20, endpoint=False)
+        zeta = np.linspace(0, 2 * np.pi / 4, 15, endpoint=False)
+        _, _, cp, _, _, _ = _genCPvals((0, 2 * np.pi), (0, 2 * np.pi / 4), (20, 15), args)
+        fig, ax = plt.subplots()
+        points = [[1.0, 0.5], [2.0, 0.8]]
+        contours = _run_cut_coils_select_contours_non_interactive(
+            theta, zeta, cp, args, "free", points=points, levels=None,
+            contours_per_period=None, ax=ax
+        )
+        self.assertGreater(len(contours), 0)
+        plt.close("all")
+
+    def test_select_by_levels(self):
+        """Selection by levels returns contours at those levels."""
+        import matplotlib.pyplot as plt
+        args = _make_args()
+        theta = np.linspace(0, 2 * np.pi, 20, endpoint=False)
+        zeta = np.linspace(0, 2 * np.pi / 4, 15, endpoint=False)
+        _, _, cp, _, _, _ = _genCPvals((0, 2 * np.pi), (0, 2 * np.pi / 4), (20, 15), args)
+        fig, ax = plt.subplots()
+        levels = [np.min(cp) + 0.2 * (np.max(cp) - np.min(cp))]
+        contours = _run_cut_coils_select_contours_non_interactive(
+            theta, zeta, cp, args, "free", points=None, levels=levels,
+            contours_per_period=None, ax=ax
+        )
+        self.assertGreaterEqual(len(contours), 0)
+        plt.close("all")
+
+    def test_select_by_contours_per_period(self):
+        """Selection by contours_per_period distributes contours."""
+        import matplotlib.pyplot as plt
+        args = _make_args()
+        theta = np.linspace(0, 2 * np.pi, 20, endpoint=False)
+        zeta = np.linspace(0, 2 * np.pi / 4, 15, endpoint=False)
+        _, _, cp, _, _, _ = _genCPvals((0, 2 * np.pi), (0, 2 * np.pi / 4), (20, 15), args)
+        fig, ax = plt.subplots()
+        contours = _run_cut_coils_select_contours_non_interactive(
+            theta, zeta, cp, args, "free", points=None, levels=None,
+            contours_per_period=3, ax=ax
+        )
+        self.assertGreaterEqual(len(contours), 0)
+        plt.close("all")
+
+    def test_select_default_points(self):
+        """Default (no points/levels/contours_per_period) uses demo points."""
+        import matplotlib.pyplot as plt
+        args = _make_args()
+        theta = np.linspace(0, 2 * np.pi, 20, endpoint=False)
+        zeta = np.linspace(0, 2 * np.pi / 4, 15, endpoint=False)
+        _, _, cp, _, _, _ = _genCPvals((0, 2 * np.pi), (0, 2 * np.pi / 4), (20, 15), args)
+        fig, ax = plt.subplots()
+        contours = _run_cut_coils_select_contours_non_interactive(
+            theta, zeta, cp, args, "free", points=None, levels=None,
+            contours_per_period=None, ax=ax
+        )
+        self.assertEqual(len(contours), 3)
+        plt.close("all")
 
 
 class TestLoadSurfaceDofsProperly(unittest.TestCase):
