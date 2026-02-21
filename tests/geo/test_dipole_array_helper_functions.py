@@ -12,7 +12,7 @@ from simsopt.util.dipole_array_helper_functions import (
 )
 from simsopt.geo import SurfaceRZFourier
 from simsopt.field import Current, coils_via_symmetries, BiotSavart, regularization_rect
-from simsopt.geo import CurvePlanarFourier
+from simsopt.geo import CurvePlanarFourier, CurvePlanarEllipticalCylindrical
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 filename = TEST_DIR / 'input.LandremanPaul2021_QA'
@@ -110,6 +110,24 @@ class TestDipoleArrayHelperFunctions(unittest.TestCase):
             alphas, deltas = align_dipoles_with_plasma(s, base_wp_curves)
             self.assertEqual(alphas.shape, (len(base_wp_curves),))
             self.assertEqual(deltas.shape, (len(base_wp_curves),))
+
+    def test_generate_curves_planar_tfs(self):
+        """Test generate_curves with planar_tfs=True uses CurvePlanarEllipticalCylindrical TFs."""
+        nphi, ntheta = 16, 16
+        with ScratchDir("."):
+            s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            VV = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            VV.extend_via_projected_normal(0.5)
+            base_wp_curves, base_tf_curves = generate_curves(
+                s, VV, planar_tfs=True, outdir="",
+                inboard_radius=0.2, wp_fil_spacing=0.1, half_per_spacing=0.1
+            )
+            self.assertTrue(len(base_wp_curves) > 0)
+            self.assertTrue(len(base_tf_curves) > 0)
+            for c in base_tf_curves:
+                self.assertIsInstance(c, CurvePlanarEllipticalCylindrical)
+                self.assertFalse(c.is_fixed('R0'), "R0 should be unfixed for planar_tfs=True")
+                self.assertFalse(c.is_fixed('r_rotation'), "r_rotation should be unfixed for planar_tfs=True")
 
     def test_initialize_coils(self):
         nphi, ntheta = 8, 8
