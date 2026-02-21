@@ -35,7 +35,7 @@ from simsopt.objectives import SquaredFlux, Weight, QuadraticPenalty
 from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance,
                          MeanSquaredCurvature, LpCurveCurvature)
 from simsopt.field import BiotSavart
-from simsopt.field.force import LpCurveForce
+from simsopt.field.force import LpCurveForce, B2Energy
 from simsopt.field.selffield import regularization_circ
 from simsopt.util import in_github_actions, calculate_modB_on_major_radius
 
@@ -79,8 +79,9 @@ CURVATURE_WEIGHT = 1e-6
 MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
-# Weight for forces
-FORCE_WEIGHT = Weight(1e-26)
+# Weight for forces and total vacuum energy
+FORCE_WEIGHT = Weight(1e-2)  # (MN/m)^4 units
+B2Energy_WEIGHT = Weight(1e-4)  
 
 # Number of iterations to perform:
 MAXITER = 50 if in_github_actions else 400
@@ -137,7 +138,8 @@ Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
-Jforce = [LpCurveForce(c, coils, regularization_circ(0.05), p=4) for c in base_coils]
+Jforce = LpCurveForce(base_coils, coils, p=4)
+J_b2energy = B2Energy(coils)
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
@@ -148,7 +150,8 @@ JF = Jf \
     + CS_WEIGHT * Jcsdist \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
-    + FORCE_WEIGHT * sum(Jforce) \
+    + FORCE_WEIGHT * Jforce \
+    + B2Energy_WEIGHT * J_b2energy
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -181,7 +184,8 @@ def fun(dofs):
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.2f}"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
-    outstr += f", F={sum(J.J() for J in Jforce):.2e}"
+    outstr += f", F={Jforce.J():.2e}"
+    outstr += f", B2Energy={J_b2energy.J():.2e}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
     return J, grad
@@ -242,7 +246,7 @@ outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
 cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
 kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
 msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
-jforce_string = f"{sum(J.J() for J in Jforce):.2e}"
+jforce_string = f"{Jforce.J():.2e}"
 outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}], Jforce=[{jforce_string}]"
 outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
 outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
