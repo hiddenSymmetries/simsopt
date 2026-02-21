@@ -8,7 +8,7 @@ from monty.tempfile import ScratchDir
 from simsopt.util import (
     initial_vacuum_stage_II_optimizations, continuation_vacuum_stage_II_optimizations,
     read_focus_coils, build_stage_II_data_array, make_stage_II_pareto_plots,
-    vacuum_stage_II_optimization, coil_optimization,
+    vacuum_stage_II_optimization, coil_optimization
 )
 # from simsopt.field import LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque
 

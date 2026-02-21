@@ -22,7 +22,6 @@ from simsopt.field.coil import coils_to_makegrid
 from simsopt.geo import CurveLength, CurveCurveDistance
 from math import gcd
 from simsopt.geo import SurfaceRZFourier
-from simsopt.objectives import SquaredFlux
 from pathlib import Path
 from monty.tempfile import ScratchDir
 

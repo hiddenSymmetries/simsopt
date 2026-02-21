@@ -1074,6 +1074,10 @@ class CurrentVoxelsField(MagneticField):
         MagneticField.__init__(self)
         self.N_grid = integration_points.shape[0]
         self.grid_scaling = grid_scaling
+        self._J = np.asarray(J)
+        self._integration_points = np.asarray(integration_points)
+        self._nfp = nfp
+        self._stellsym = stellsym
         Jx = J[:, :, 0]
         Jy = J[:, :, 1]
         Jz = J[:, :, 2]
@@ -1169,12 +1173,14 @@ class CurrentVoxelsField(MagneticField):
 
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
-        field = cls(
-            np.array(d["J"]["data"]),
-            np.array(d["integration_points"]["data"]),
-            d["grid_scaling"],
-        )
         decoder = GSONDecoder()
+        J = decoder.process_decoded(d["J"], serial_objs_dict, recon_objs)
+        integration_points = decoder.process_decoded(
+            d["integration_points"], serial_objs_dict, recon_objs
+        )
+        nfp = d.get("nfp", 1)
+        stellsym = d.get("stellsym", False)
+        field = cls(J, integration_points, d["grid_scaling"], nfp=nfp, stellsym=stellsym)
         xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
         field.set_points_cart(xyz)
         return field

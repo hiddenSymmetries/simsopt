@@ -17,6 +17,7 @@ TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 filename_QA = TEST_DIR / 'input.LandremanPaul2021_QA'
 filename_QH = TEST_DIR / 'input.20210406-01-002-nfp4_QH_000_000240'
 filename_tokamak = TEST_DIR / 'input.circular_tokamak'
+filename_non_stellsym = TEST_DIR / 'input.basic_non_stellsym'
 
 
 class Testing(unittest.TestCase):
@@ -241,6 +242,55 @@ class Testing(unittest.TestCase):
                 coil = [Coil(curve, current)]
                 bs = BiotSavart(coil)
                 bs.set_points(s.gamma().reshape((-1, 3)))
+
+    def test_make_filament_from_voxels_non_stellsym(self):
+        """
+        Test make_filament_from_voxels with a non-stellarator symmetric
+        (stellsym=False) configuration. Verifies that the returned curve
+        has stellsym=False and can be used to build a BiotSavart field.
+        """
+        import matplotlib.pyplot as plt
+        with ScratchDir("."):
+            nphi = 16
+            ntheta = nphi
+            s = SurfaceRZFourier.from_vmec_input(
+                filename_non_stellsym,
+                range="full torus",
+                nphi=nphi,
+                ntheta=ntheta,
+            )
+            self.assertFalse(s.stellsym, "Surface should be non-stellarator symmetric")
+            s1 = SurfaceRZFourier.from_vmec_input(
+                filename_non_stellsym,
+                range="full torus",
+                nphi=nphi * 4,
+                ntheta=ntheta * 4,
+            )
+            s2 = SurfaceRZFourier.from_vmec_input(
+                filename_non_stellsym,
+                range="full torus",
+                nphi=nphi * 4,
+                ntheta=ntheta * 4,
+            )
+            s1.extend_via_normal(0.1)
+            s2.extend_via_normal(0.4)
+            cv_opt = CurrentVoxelsGrid(s, s1, s2)
+            kwargs = {"l0_thresholds": [1e5]}
+            _ = relax_and_split_minres(cv_opt, **kwargs)
+            curve = make_filament_from_voxels(cv_opt, 1e5, num_fourier=16)
+            plt.close("all")
+            self.assertFalse(curve.stellsym, "Filament curve should be non-stellarator symmetric")
+            self.assertEqual(curve.nfp, s.nfp)
+            gamma = curve.gamma()
+            self.assertGreater(len(gamma), 0)
+            self.assertEqual(gamma.shape[1], 3)
+            current = Current(cv_opt.Itarget)
+            current.fix_all()
+            coil = [Coil(curve, current)]
+            bs = BiotSavart(coil)
+            bs.set_points(s.gamma().reshape((-1, 3)))
+            B = bs.B()
+            self.assertTrue(np.all(np.isfinite(B)))
 
 
 if __name__ == "__main__":

@@ -374,7 +374,7 @@ def make_qfm(s, Bfield, n_iters=200):
     return qfm_surface
 
 
-def calculate_modB_on_major_radius(bs, s, plot=False, savepath=None):
+def calculate_modB_on_major_radius(bs, s):
     """
     Check the average magnetic field strength along the major radius
     (m=n=0 mode of a SurfaceRZFourier object)
@@ -384,8 +384,6 @@ def calculate_modB_on_major_radius(bs, s, plot=False, savepath=None):
     Args:
         bs (BiotSavart): MagneticField or BiotSavart class object.
         s (SurfaceRZFourier): plasma boundary surface.
-        plot (bool): If True, create a figure of |B| vs toroidal angle φ.
-        savepath (str, optional): If given, save the |B|(φ) figure to this path.
 
     Returns:
         B0avg (float): Average magnetic field strength along
@@ -405,26 +403,6 @@ def calculate_modB_on_major_radius(bs, s, plot=False, savepath=None):
     B0avg = np.mean(B0)
     print("Bmag at R = ", R0, ", Z = 0: ", B0)
     print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg)
-
-    if plot or savepath is not None:
-        fig, ax = plt.subplots(figsize=(8, 5))
-        ax.plot(phi, B0, "b-", linewidth=1.5)
-        ax.axhline(
-            B0avg,
-            color="r",
-            linestyle="--",
-            label=rf"$\langle B \rangle$ = {B0avg:.4f} T",
-        )
-        ax.set_xlabel(r"Toroidal angle $\varphi$ (rad)")
-        ax.set_ylabel(r"$|B|$ (T)")
-        ax.set_title(rf"$|B|$ on major radius R = {R0:.3f} m, Z = 0")
-        ax.legend()
-        ax.grid(True)
-        plt.tight_layout()
-        if savepath is not None:
-            plt.savefig(savepath, dpi=150)
-        # Figure remains in pyplot state for display when script calls plt.show()
-
     return B0avg
 
 

@@ -1364,5 +1364,56 @@ class Testing(unittest.TestCase):
         bs_wv.dA_by_dX()
         np.testing.assert_allclose(bs_wv.A(), bs_dipole.A(), atol=1e-15, err_msg='A fields do not match, A1 = {bs_wv.A()}, A2 = {bs_dipole.A()}')
 
+    def test_currentvoxels_field_as_dict_from_dict(self):
+        """Test as_dict and from_dict serialization for CurrentVoxelsField."""
+        n = 1
+        nx = 4
+        ny = nx
+        nz = nx
+        J = np.zeros((n, nx ** 3, 3))
+        J[:, :, 2] = 1e6
+        voxel_location = np.zeros((1, 3))
+        voxel_location[0, 1] = 20
+        dx = 0.1
+        dy = dx
+        dz = dx
+        grid_scaling = dx ** 3 / nx ** 3
+        xrange = np.linspace(0, dx, nx, endpoint=True) - dx / 2.0
+        yrange = np.linspace(20, 20 + dy, ny, endpoint=True) - dy / 2.0
+        zrange = np.linspace(0, dz, nz, endpoint=True) - dz / 2.0
+        X_n, Y_n, Z_n = np.meshgrid(xrange, yrange, zrange, indexing='ij')
+        XYZ_integration = np.transpose(
+            np.array([X_n, Y_n, Z_n]), [1, 2, 3, 0]
+        ).reshape(nx ** 3, 3)
+        XYZ_integration = np.broadcast_to(
+            XYZ_integration[np.newaxis, :, :], (n, nx ** 3, 3)
+        ).copy()
+
+        bs = CurrentVoxelsField(
+            J, XYZ_integration, grid_scaling, nfp=1, stellsym=False
+        )
+        points = np.random.rand(10, 3)
+        bs.set_points(points)
+
+        # Test as_dict -> from_dict round-trip
+        serial_objs_dict = {}
+        d = bs.as_dict(serial_objs_dict=serial_objs_dict)
+        self.assertIn("J", d)
+        self.assertIn("integration_points", d)
+        self.assertIn("grid_scaling", d)
+        self.assertIn("points", d)
+
+        bs_regen = CurrentVoxelsField.from_dict(
+            d, serial_objs_dict=serial_objs_dict, recon_objs=[]
+        )
+        np.testing.assert_allclose(bs.B(), bs_regen.B(), atol=1e-14)
+        np.testing.assert_allclose(bs.A(), bs_regen.A(), atol=1e-14)
+
+        # Test full JSON round-trip
+        field_json_str = json.dumps(SIMSON(bs), cls=GSONEncoder)
+        bs_regen_json = json.loads(field_json_str, cls=GSONDecoder)
+        np.testing.assert_allclose(bs.B(), bs_regen_json.B(), atol=1e-14)
+        np.testing.assert_allclose(bs.A(), bs_regen_json.A(), atol=1e-14)
+
 if __name__ == "__main__":
     unittest.main()
