@@ -8,7 +8,7 @@ Stage: devel
     libfabric-dev libfabric-bin  \
     libhwloc-dev libpmix-dev libevent-dev \
     libopenblas-dev libfftw3-dev libhdf5-dev libhdf5-serial-dev libnetcdf-dev libnetcdff-dev libgl1-mesa-dev \
-    python3-dev python3-pip python3-venv libxrender1
+    python3-dev python3-pip python3-venv libxrender1 libxcursor-dev
 
 
 %post
@@ -76,8 +76,8 @@ Stage: devel
 
     # /venv/bin/pip install git+https://github.com/zhisong/pyoculus
     /venv/bin/pip install vtk==9.2.6 pyqt5 matplotlib pyevtk plotly
-    /venv/bin/pip install mayavi
-    /venv/bin/pip install ground bentley_ottmann
+    /venv/bin/pip install mayavi==4.8.3 --no-build-isolation
+    /venv/bin/pip install ground==9 bentley_ottmann==8
     /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
     /venv/bin/pip install  git+https://github.com/hiddenSymmetries/virtual-casing
     /venv/bin/pip install  git+https://github.com/rogeriojorge/pyQIC
