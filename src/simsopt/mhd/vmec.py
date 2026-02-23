@@ -963,3 +963,80 @@ class Vmec(Optimizable):
     return_fn_map = {'aspect': aspect, 'volume': volume, 'iota_axis': iota_axis,
                      'iota_edge': iota_edge, 'mean_iota': mean_iota,
                      'mean_shear': mean_shear, 'vacuum_well': vacuum_well}
+
+    @classmethod
+    def vmec_from_surf(
+            cls,
+            nfp,
+            mpi: Optional[MpiPartition] = None,
+            surf=None,
+            M = 12,
+            N = 12,
+            ns=13,
+            ntheta=32,
+            nzeta=32,
+            ftol=1e-7,
+            phiedge = 1,
+            verbose=False,
+            niter=3000
+        ):
+        '''
+        Very easily generate a VMEC object with any desired
+        indata from any optimizable object with a
+        `to_RZFourier` method. 
+        
+        Args:
+            filename: Name of a VMEC ``input.<extension>`` file or ``wout_<extension>.nc``
+            output file to use for loading the
+            initial parameters. If ``None``, default parameters will be used.
+            mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which
+            the worker groups will be used for VMEC calculations. If ``None``,
+            each MPI process will run VMEC independently.
+            keep_all_files: If ``False``, all ``wout`` output files will be deleted
+            except for the first and most recent ones from worker group 0. If
+            ``True``, all ``wout`` files will be kept.
+            verbose: Whether to print to stdout when running vmec.
+        '''
+        # runtime params
+        cls = Vmec(mpi = mpi, verbose=verbose)
+        # N=6
+        # r_n, z_n = surf.centroid_axis_fourier_coeffs(N=6)
+        # r_n = r_n[N:]
+        # z_n = z_n[N:]
+
+        cls.indata.delt = 9e-1
+        # vmec.indata.niter = 2000
+        # vmec.indata.nstep = 1e2
+        cls.indata.tcon0 = 2
+        cls.indata.ns_array = np.append(np.array([ns]), np.zeros(99,))
+        cls.indata.niter_array = np.append(np.array([niter]), -1*np.ones(99,))
+        cls.indata.ftol_array = np.append(np.array([ftol]), np.zeros(99,))
+        cls.indata.precon_type = 'none'
+        cls.indata.prec2d_threshold = 1e-19
+        # grid params
+        cls.indata.lasym = 0
+        cls.indata.nfp = nfp
+        cls.indata.mpol = M
+        cls.indata.ntor = N
+        cls.indata.ntheta = ntheta
+        cls.indata.nzeta = nzeta
+        cls.indata.phiedge = phiedge
+        # free bdry params
+        cls.indata.lfreeb = 0
+        cls.indata.nvacskip = 6
+        # pressure params
+        cls.indata.gamma = 0
+        cls.indata.bloat = 1
+        cls.indata.spres_ped = 1
+        cls.indata.pres_scale = 1
+        cls.indata.pmass_type = 'power_series'
+        cls.indata.am = 0
+        # current/iota params
+        cls.indata.curtor = 0
+        cls.indata.ncurr = 1
+        cls.indata.piota_type = 'power_series'
+        cls.indata.pcurr_type = 'power_series'
+
+        cls.boundary = surf
+        cls.set_indata()
+        return cls

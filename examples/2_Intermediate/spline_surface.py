@@ -4,7 +4,7 @@ import numpy as np
 from simsopt.util.mpi import MpiPartition, proc0_print, log
 from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
 from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.geo.surfacespline import SurfaceBSpline, vmec_from_surf
+from simsopt.geo.surfacespline import SurfaceBSpline
 from simsopt.solve.mpi import least_squares_mpi_solve, bounded_least_squares_mpi_solve
 from simsopt._core import Optimizable
 
@@ -178,9 +178,10 @@ class PASOpt(Optimizable):
             }
         )
 
-        vmec = vmec_from_surf(
-            self.surf.nfp,
-            rz_surf,
+        vmec = Vmec.vmec_from_surf(
+            nfp=self.surf.nfp,
+            surf=rz_surf,
+            mpi=mpi,
             ns=13,
             M=12, 
             N=12,
@@ -213,7 +214,8 @@ if __name__ == "__main__":
     parser.add_argument('--N', type=int, help = 'max toroidal mode number')
     parser.add_argument('--p_u', type=int, help='degree of spline in poloidal direction')
     parser.add_argument('--p_v', type=int, help='degree of spline in toroidal direction')
-    parser.add_argument('--cs_equispaced', type=bool, help = 'boolean, whether the dofs are equispaced or not', action=argparse.BooleanOptionalAction)
+    parser.add_argument('--cs_equispaced', type=bool, help = 'boolean, whether the cross sections are equispaced in phi not', action=argparse.BooleanOptionalAction)
+    parser.add_argument('--rays_equispaced', type=bool, help = 'boolean, whether the rays in all cross-sections are equispaced in polar angle or not', action=argparse.BooleanOptionalAction)
     parser.add_argument('--axis_angles_fixed', type=bool, help = 'boolean, whether the axis angle dofs are fixed', action=argparse.BooleanOptionalAction)
     parser.add_argument('--cs_global_angle_free', type=bool, help = 'boolean, whether there is a dof for the rotation of an entire cross section', action=argparse.BooleanOptionalAction)
     parser.add_argument('--r', type=int, help='random number seed')
@@ -223,6 +225,7 @@ if __name__ == "__main__":
     parser.add_argument('--diff_method', type=str, help='method for finite difference')
     parser.add_argument('--cs_basis', type=str, help='basis of cross section dofs (polar/cartesian)')
     parser.add_argument('--nurbs', type=bool, help='basis of cross section dofs (polar/cartesian)', action=argparse.BooleanOptionalAction)
+    parser.add_argument('--default_r', type=float, help='minor radius of initial condition')
 
     input_args = vars(parser.parse_args())
 
@@ -231,11 +234,12 @@ if __name__ == "__main__":
         'points_per_cs':4,
         'n_cs':6,
         'nfp':2,
-        'M':12,
-        'N':12,
+        'M':9,
+        'N':4,
         'p_u':3,
         'p_v':3,
         'cs_equispaced':False,
+        'rays_equispaced':False,
         'cs_global_angle_free':False,
         'axis_angles_fixed':False,
         'cs_basis':'polar',
