@@ -723,6 +723,25 @@ class TestRunCutCoilsFlags(unittest.TestCase):
         )
         self.assertGreaterEqual(len(coils), 0)
 
+    def test_run_cut_coils_interactive_true(self):
+        """run_cut_coils with interactive=True runs without error (returns [] when no contours selected)."""
+        fpath = TEST_DIR / "regcoil_out.hsx.nc"
+        if not fpath.exists():
+            self.skipTest(f"Test file not found: {fpath}")
+        import matplotlib
+        matplotlib.use("Agg")
+        from simsopt.util import run_cut_coils
+        coils = run_cut_coils(
+            surface_filename=fpath,
+            ilambda=6,
+            interactive=True,
+            show_final_coilset=False,
+            show_plots=False,
+            write_coils_to_file=False,
+        )
+        # In non-interactive CI, no contours are selected so returns []
+        self.assertIsInstance(coils, list)
+
 
 class TestLoadSimsoptRegcoilData(unittest.TestCase):
     """Tests for load_simsopt_regcoil_data."""
@@ -972,6 +991,24 @@ class TestRunCutCoilsComputeNWPCurrents(unittest.TestCase):
         )
         self.assertEqual(len(result), 2)
         self.assertAlmostEqual(sum(result), 1.0)
+
+    def test_multi_open_contours_single_valued(self):
+        """Multiple open contours with single_valued=True uses halfway-contour method."""
+        import matplotlib
+        matplotlib.use("Agg")
+        args = _make_args(Ip=2 * np.pi, It=4 * np.pi)
+        theta = np.linspace(0, 2 * np.pi, 30, endpoint=False)
+        zeta = np.linspace(0, 2 * np.pi / 4, 20, endpoint=False)
+        _, _, cp_sv, _, _, _ = _genCPvals((0, 2 * np.pi), (0, 2 * np.pi / 4), (30, 20), args)
+        c1 = np.array([[0.5, 0.3], [1.5, 0.4]])
+        c2 = np.array([[1.5, 0.5], [2.5, 0.6]])
+        c3 = np.array([[2.5, 0.7], [3.5, 0.8]])
+        result = _run_cut_coils_compute_NWP_currents(
+            [c1, c2, c3], True, 1.0, theta, zeta, cp_sv, args
+        )
+        self.assertEqual(len(result), 3)
+        for r in result:
+            self.assertGreater(r, 0, "Each contour current should be positive")
 
 
 class TestRunCutCoilsSelectContoursNonInteractive(unittest.TestCase):
