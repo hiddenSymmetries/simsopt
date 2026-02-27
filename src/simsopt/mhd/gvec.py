@@ -89,7 +89,9 @@ class Gvec(Optimizable):
         mpi: Optional[MpiPartition] = None,
     ):
         if gvec is None:
-            raise RuntimeError("The Gvec Optimizable requires the 'gvec' package to be installed!")
+            raise RuntimeError(
+                "The Gvec Optimizable requires the 'gvec' package to be installed!"
+            )
 
         # init arguments which are not DoFs
         self.parameters = gvec.util.CaseInsensitiveDict(parameters)  # nested parameters
@@ -115,19 +117,13 @@ class Gvec(Optimizable):
         # number of times GVEC has been run (0-indexed, this MPI-process only)
         self.run_count: int = -1
         # flag for caching e.g. set after changing parameters
-        self.run_required: bool = (
-            True  
-        )
+        self.run_required: bool = True
         # flag for whether the last run was successful
-        self.run_successful: bool = (
-            False  
-        )
+        self.run_successful: bool = False
         # state object representing the GVEC equilibrium
-        self._state: State | None = None  
+        self._state: State | None = None
         # the gvec run object, used to access the state & diagnostics
-        self._runobj: gvec.Run = (
-            None  
-        )
+        self._runobj: gvec.Run = None
         self.rundir: Path | None = None
         self._rundir_deletion_list: list = []
 
@@ -231,7 +227,7 @@ class Gvec(Optimizable):
         self.run_successful = True
         self.rundir = rundir
         return self
-    
+
     def recompute_bell(self, parent=None):
         """Set the recomputation flag"""
         logger.debug(
@@ -339,7 +335,10 @@ class Gvec(Optimizable):
 
         self.run_successful = True
         self._state = self._runobj.state
-        if self.delete_intermediates and not (self.restart == "first" and self.rundir in [Path("gvec_000"), Path("gvec-000-000")]):
+        if self.delete_intermediates and not (
+            self.restart == "first"
+            and self.rundir in [Path("gvec_000"), Path("gvec-000-000")]
+        ):
             self._rundir_deletion_list.append(self.rundir)
         logger.debug(f"GVEC finished in {self._runobj.GVEC_iter_used} iterations")
 
@@ -365,16 +364,23 @@ class Gvec(Optimizable):
                 params[key] = str(Path(params[key]).resolve())
 
         params = self.boundary_to_params(self.boundary, params)
-        if not any(key in params for key in ["X1_a_cos", "X1_a_sin", "X2_a_cos", "X2_a_sin"]):
+        if not any(
+            key in params for key in ["X1_a_cos", "X1_a_sin", "X2_a_cos", "X2_a_sin"]
+        ):
             params["init_average_axis"] = True
 
         # non-RZphi coordinate frame
         if params.get("which_hmap", 1) != 1 and not (
             isinstance(self.boundary, GVECSurfaceDoFs)
-            or (isinstance(self.boundary, SurfaceScaled) and isinstance(self.boundary.surf, GVECSurfaceDoFs))
+            or (
+                isinstance(self.boundary, SurfaceScaled)
+                and isinstance(self.boundary.surf, GVECSurfaceDoFs)
+            )
         ):
-            raise TypeError(f"Non-RZphi coordinate frame (hmap={params.get('which_hmap')}) selected, but boundary is of type {type(self.boundary)}. "
-                            "Use GVECSurfaceDoFs to represent generic boundary DoFs.")
+            raise TypeError(
+                f"Non-RZphi coordinate frame (hmap={params.get('which_hmap')}) selected, but boundary is of type {type(self.boundary)}. "
+                "Use GVECSurfaceDoFs to represent generic boundary DoFs."
+            )
 
         # perturb boundary when restarting
         if restart:
@@ -459,7 +465,8 @@ class Gvec(Optimizable):
 
     @staticmethod
     def boundary_to_params(
-        boundary: Union[Surface, SurfaceScaled, GVECSurfaceDoFs], append: Optional[Mapping] = None
+        boundary: Union[Surface, SurfaceScaled, GVECSurfaceDoFs],
+        append: Optional[Mapping] = None,
     ) -> dict:
         """Convert a simsopt.SurfaceRZFourier object into GVEC boundary parameters.
 
@@ -469,7 +476,7 @@ class Gvec(Optimizable):
             boundary = boundary.surf
         if not isinstance(boundary, (SurfaceRZFourier, GVECSurfaceDoFs)):
             boundary = boundary.to_RZFourier()
-        
+
         params = boundary.to_gvec_parameters()
 
         if append is not None:
@@ -478,7 +485,9 @@ class Gvec(Optimizable):
         return params
 
     @staticmethod
-    def boundary_from_params(params: Mapping) -> Union[SurfaceRZFourier, GVECSurfaceDoFs]:
+    def boundary_from_params(
+        params: Mapping,
+    ) -> Union[SurfaceRZFourier, GVECSurfaceDoFs]:
         """Convert a dictionary of parameters to a simsopt.SurfaceRZFourier object.
 
         Note that simsopt assumes a (right-handed) (R,phi,Z) coordinate system,
@@ -489,7 +498,7 @@ class Gvec(Optimizable):
         # RZphi with phi clockwise when viewed from above
         if params.get("which_hmap", 1) == 1:
             boundary = SurfaceRZFourier.from_gvec_parameters(params)
-        
+
         # generic boundary type: only contains boundary modes, cannot be evaluated
         else:
             boundary = GVECSurfaceDoFs.from_gvec_parameters(params)
@@ -510,7 +519,7 @@ class Gvec(Optimizable):
         """
         self.run()
         return self._state
-    
+
     # === INPUT VARIABLES === #
 
     @property
@@ -652,7 +661,7 @@ class Gvec(Optimizable):
 
     def mean_iota(self):
         """Return the mean rotational transform.
-        
+
         The average is taken with respect to the toroidal flux, i.e. $\\rho^2$.
         """
         ev = self.state.evaluate("iota_avg2")
@@ -687,7 +696,13 @@ class GVECQuantity(Optimizable):
     This optimizable computes a specified quantity as a dependent optimizable from the GVEC equilibrium.
     """
 
-    def __init__(self, eq: Gvec, quantity: str, sfl: None | Literal["pest", "boozer"] = None, **kwargs):
+    def __init__(
+        self,
+        eq: Gvec,
+        quantity: str,
+        sfl: None | Literal["pest", "boozer"] = None,
+        **kwargs,
+    ):
         self.eq = eq
         self.quantity = quantity
         self.sfl = sfl
@@ -706,15 +721,17 @@ class GVECQuantity(Optimizable):
         if self.sfl is None:
             return self.eq.state.evaluate(self.quantity, **self.kwargs)
         else:
-            return self.eq.state.evaluate_sfl(self.quantity, sfl=self.sfl, **self.kwargs)
+            return self.eq.state.evaluate_sfl(
+                self.quantity, sfl=self.sfl, **self.kwargs
+            )
 
     def J(self) -> np.ndarray:
         """Target function, returns a flattened array of the evaluated quantity."""
         return self.ev[self.quantity].data.flatten()
-    
+
     def rms(self) -> float:
         """Root mean square of the evaluated quantity."""
-        return np.sqrt(np.mean(self.ev[self.quantity]**2)).item()
+        return np.sqrt(np.mean(self.ev[self.quantity] ** 2)).item()
 
     return_fn_map = {"J": J, "rms": rms}
 
