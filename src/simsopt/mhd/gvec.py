@@ -112,19 +112,24 @@ class Gvec(Optimizable):
             )
 
         # auxiliary attributes
-        self.run_count: int = (
-            -1
-        )  # number of times GVEC has been run (0-indexed, this MPI-process only)
+        # number of times GVEC has been run (0-indexed, this MPI-process only)
+        self.run_count: int = -1
+        # flag for caching e.g. set after changing parameters
         self.run_required: bool = (
-            True  # flag for caching e.g. set after changing parameters
+            True  
         )
+        # flag for whether the last run was successful
         self.run_successful: bool = (
-            False  # flag for whether the last run was successful
+            False  
         )
-        self._state: State = None  # state object representing the GVEC equilibrium
+        # state object representing the GVEC equilibrium
+        self._state: State | None = None  
+        # the gvec run object, used to access the state & diagnostics
         self._runobj: gvec.Run = (
-            None  # the gvec run object, used to access the state & diagnostics
+            None  
         )
+        self.rundir: Path | None = None
+        self._rundir_deletion_list: list = []
 
         # init MPI
         if MPI:
@@ -224,6 +229,7 @@ class Gvec(Optimizable):
         self._state = state
         self.run_required = False
         self.run_successful = True
+        self.rundir = rundir
         return self
     
     def recompute_bell(self, parent=None):
@@ -272,10 +278,6 @@ class Gvec(Optimizable):
         logger.debug(f"preparing to run GVEC run number {self.run_count}")
 
         # create run directory
-        if self.run_successful:
-            previous_rundir = self.rundir
-        else:
-            previous_rundir = None
         self.rundir = Path(f"gvec{self._mpi_id}-{self.run_count:03d}")
         if self.rundir.exists():
             logger.warning(f"run directory {self.rundir} already exists, replacing")
@@ -332,24 +334,20 @@ class Gvec(Optimizable):
         except RuntimeError as e:
             logger.error(f"GVEC failed with: {e}")
             if not self.keep_failures:
-                shutil.rmtree(self.rundir)
+                self._rundir_deletion_list.append(self.rundir)
             raise ObjectiveFailure("Run GVEC failed.") from e
 
         self.run_successful = True
         self._state = self._runobj.state
+        if self.delete_intermediates and not (self.restart == "first" and self.rundir in [Path("gvec_000"), Path("gvec-000-000")]):
+            self._rundir_deletion_list.append(self.rundir)
         logger.debug(f"GVEC finished in {self._runobj.GVEC_iter_used} iterations")
 
-        # remove previous rundir
-        if (
-            self.delete_intermediates
-            and previous_rundir
-            and (
-                self.restart != "first"
-                or previous_rundir not in [Path("gvec-000"), Path("gvec_000-000")]
-            )
-        ):
-            logger.debug("deleting output from previous run")
-            shutil.rmtree(previous_rundir)
+        # remove old rundirs
+        while self._rundir_deletion_list[0] != self.rundir:
+            rundir = self._rundir_deletion_list.pop()
+            logger.debug(f"deleting {rundir}")
+            shutil.rmtree(rundir)
 
     def prepare_parameters(self, restart: Union[State, None] = None) -> Mapping:
         """
@@ -367,6 +365,8 @@ class Gvec(Optimizable):
                 params[key] = str(Path(params[key]).resolve())
 
         params = self.boundary_to_params(self.boundary, params)
+        if not any(key in params for key in ["X1_a_cos", "X1_a_sin", "X2_a_cos", "X2_a_sin"]):
+            params["init_average_axis"] = True
 
         # non-RZphi coordinate frame
         if params.get("which_hmap", 1) != 1 and not (
@@ -505,10 +505,12 @@ class Gvec(Optimizable):
         using the same accuracy and discretization as used during the minimization.
 
         As this is not a number, this is not a 'return function' in the usual sense.
+
+        Indirectly raises an ObjectiveFailure if GVEC fails to run.
         """
         self.run()
         return self._state
-
+    
     # === INPUT VARIABLES === #
 
     @property

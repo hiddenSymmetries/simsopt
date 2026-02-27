@@ -2,10 +2,11 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+from monty.tempfile import ScratchDir
 
 from simsopt._core.optimizable import Optimizable
 from simsopt.geo import Surface, SurfaceRZFourier
-from simsopt.mhd.profiles import Profile, ProfileScaled, ProfilePolynomial
+from simsopt.mhd.profiles import Profile, ProfileScaled, ProfilePolynomial, ProfileSpline
 from simsopt.mhd.gvec import Gvec, GVECSurfaceDoFs
 
 try:
@@ -46,6 +47,7 @@ class GvecTests(unittest.TestCase):
             self.assertIsInstance(eq.current_profile, Profile)
     
     def check_consistency(self, eq):
+        """assert that eq is internally consistent"""
         # check consistency: phiedge
         #   In GVEC the input 'phiedge' is the flux through the cross-section,
         #   but the 'Phi' profile refers to the component of the vector potential.
@@ -77,7 +79,7 @@ class GvecTests(unittest.TestCase):
             np.testing.assert_allclose(eq.boundary.gamma(), boundary)
     
     def check_return_functions(self, eq):
-        # check that the return functions work and return a float
+        """check that the return functions work and return a float"""
         run_count0 = eq.run_count
         self.assertFalse(eq.run_required)
 
@@ -168,3 +170,37 @@ class GvecTests(unittest.TestCase):
         self.assertEqual(eq.parameters["sgrid"]["nElems"], 5)
         self.assertEqual(eq.parameters["X1X2_deg"], 5)
         self.assertEqual(eq.parameters["LA_deg"], 5)
+    
+    def test_run_from_rundir(self):
+        eq = Gvec.from_rundir(TEST_DIR / "gvec-W7-X_standard_configuration")
+        self.check_Optimizable(eq)
+        self.assertFalse(eq.run_required)
+        self.assertTrue(eq.run_successful)
+        self.check_consistency(eq)
+        self.check_return_functions(eq)
+
+        eq.parameters["totalIter"] = 10
+        eq.run(force=True)
+        self.assertFalse(eq.run_required)
+        self.assertTrue(eq.run_successful)
+    
+    def test_set_pressure_profile(self):
+        s_spline = np.linspace(0, 1, 5)
+        profiles = [
+            ProfilePolynomial(1.0e4 * np.array([1, 1, -2.0])),
+            ProfileScaled(ProfilePolynomial([1, 1, -2.0]), 1.5e4),
+            ProfileSpline(s_spline, 1.0e4 * (2.0 + 0.6 * s_spline - 1.5 * s_spline ** 2)),
+        ]
+        pressure_on_axis = [1.0e4, 1.5e4, 2.0e4]
+
+        for profile, p0 in zip(profiles, pressure_on_axis):
+            with ScratchDir("."), self.subTest(profile=profile):
+                eq = Gvec.from_parameter_file(TEST_DIR / "parameter-LandremanPaul2021_QA_lowres.gvec.toml")
+                eq.pressure_profile = profile
+                self.assertTrue(eq.run_required)
+                eq.run()
+                self.assertTrue(eq.run_successful)
+                self.check_consistency(eq)
+                self.check_return_functions(eq)
+                p_axis = eq.state.evaluate("p", rho=0.0).p.item()
+                self.assertAlmostEqual(p_axis, p0)

@@ -203,7 +203,6 @@ class GVECSurfaceDoFs(Optimizable):
         """
         parameters = {}
         parameters["nfp"] = self.nfp
-        parameters["init_average_axis"] = True
 
         for key in ["X1", "X2", "LA"]:
             parameters[f"{key}_mn_max"] = (self.mpol, self.ntor)
