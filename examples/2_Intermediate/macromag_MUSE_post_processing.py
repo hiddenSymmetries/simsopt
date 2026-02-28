@@ -444,9 +444,9 @@ vtk_coupled = out_dir / "dipoles_coupled"
 
 # Write voxel VTK files with per-tile box sizes
 # Each magnet is represented as a box with its actual physical dimensions
-b_dipole_uncoupled._toVTK_boxes_per_tile(vtk_uncoupled, dx_tile, dy_tile, dz_tile)
-b_dipole_mag_only._toVTK_boxes_per_tile(vtk_mag_only, dx_tile, dy_tile, dz_tile)
-b_dipole_mag_coil._toVTK_boxes_per_tile(vtk_coupled, dx_tile, dy_tile, dz_tile)
+b_dipole_uncoupled.toVTK_magnet_boxes(vtk_uncoupled, dx_tile, dy_tile, dz_tile)
+b_dipole_mag_only.toVTK_magnet_boxes(vtk_mag_only, dx_tile, dy_tile, dz_tile)
+b_dipole_mag_coil.toVTK_magnet_boxes(vtk_coupled, dx_tile, dy_tile, dz_tile)
 
 print(f"[SIMSOPT] Wrote {vtk_uncoupled}.vtu for uncoupled magnets")
 print(f"[SIMSOPT] Wrote {vtk_mag_only}.vtu for magnets with magnet magnet coupling only")

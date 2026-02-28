@@ -1,4 +1,5 @@
 import logging
+from typing import Union
 
 import numpy as np
 import warnings
@@ -640,7 +641,7 @@ class DipoleField(MagneticField):
         the dipoles) correctly returns contributions from all the dipoles from symmetries.
         """
         # Store the base / unique dipole grid (half-period, as passed in)
-        # This is what _toVTK(..., dx, dy, dz) expects for the "_geometry_unique" output.
+        # This is what toVTK_magnet_boxes(..., dx, dy, dz) expects for the "_geometry_unique" output.
         self.dipole_grid_unique = np.ascontiguousarray(dipole_grid)
 
         # Read in the required fields from pm_opt object
@@ -888,10 +889,38 @@ class DipoleField(MagneticField):
             fieldData=None,
         )
         
-    def _toVTK_boxes_per_tile(self, vtkname, dx, dy, dz):
+    def toVTK_magnet_boxes(
+        self,
+        vtkname,
+        dx: Union[float, np.ndarray],
+        dy: Union[float, np.ndarray],
+        dz: Union[float, np.ndarray],
+    ) -> None:
         """
-        Write dipole data and voxel boxes into VTK files using per tile sizes.
-        Accepts dx, dy, dz as scalars or arrays of length ndipoles or ndipoles_unique.
+        Write permanent magnet dipole data to VTK files, with each magnet represented
+        as a rectangular box (voxel) using its actual physical dimensions.
+
+        This produces visualization files suitable for ParaView, showing magnets as
+        3D boxes rather than points. Each magnet is drawn as a voxel centered at
+        its dipole position with half-extents (dx/2, dy/2, dz/2) in each Cartesian
+        direction.
+
+        Writes three outputs per base name ``vtkname``:
+        - ``vtkname.vtu``: Point cloud of dipole centers with magnetization vectors
+        - ``vtkname_geometry.vtu``: Unstructured grid of voxels for full symmetry grid
+        - ``vtkname_geometry_unique.vtu``: Voxels for unique/half-period grid only
+
+        Args:
+            vtkname: Base filename for VTK output (e.g. path or string). Extensions
+                .vtu are appended automatically.
+            dx: Extent of each magnet in x. Scalar for uniform size, or array of shape
+                (ndipoles_full,) or (ndipoles_unique,) for per-magnet sizes.
+            dy: Extent of each magnet in y. Same convention as dx.
+            dz: Extent of each magnet in z. Same convention as dx.
+
+        Raises:
+            ValueError: If array sizes for dx, dy, dz do not match ndipoles_full or
+                ndipoles_unique.
         """
         # Full symmetry extended grid
         ox = np.ascontiguousarray(self.dipole_grid[:, 0])

@@ -198,7 +198,7 @@ if True:
         m_maxima=pm_ncsx.m_maxima,
     )
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-    b_dipole._toVTK(out_dir / "Dipole_Fields", dx, dy, dz)
+    b_dipole.toVTK_magnet_boxes(out_dir / "Dipole_Fields", dx, dy, dz)
     Bnormal_coils = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_plasma = bnormal_obj_ncsx.bnormal_grid(qphi, ntheta, 'full torus')
@@ -278,7 +278,7 @@ if save_plots:
         )
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
         K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
-        b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}_{algorithm}", dx, dy, dz)
+        b_dipole.toVTK_magnet_boxes(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}_{algorithm}", dx, dy, dz)
         print("Total fB = ", 0.5 * np.sum((pm_ncsx.A_obj @ mk - pm_ncsx.b_obj) ** 2))
         Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
         Bnormal_total = Bnormal + Bnormal_dipoles
@@ -328,7 +328,7 @@ b_final = DipoleField(
 # Magnet dimensions for VTK (B_max, mu0 defined above)
 cube_dim_final = (np.mean(pm_ncsx.m_maxima) * mu0 / B_max) ** (1.0 / 3.0)
 dx = dy = dz = cube_dim_final
-b_final._toVTK(out_dir / f"dipoles_final_{algorithm}", dx, dy, dz)
+b_final.toVTK_magnet_boxes(out_dir / f"dipoles_final_{algorithm}", dx, dy, dz)
 print(f"[SIMSOPT] Wrote dipoles_final_{algorithm}.vtu")
 
 # --- add B·n output ---
