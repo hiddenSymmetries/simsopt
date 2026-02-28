@@ -1656,21 +1656,6 @@ def GPMOmr(
             t2_macromag = time.time()
             print(f"Iteration {k}: Time in macromag call: {t2_macromag - t1_macromag} seconds")
 
-            # if k == 500:
-            #     mm_refine_every = 100
-
-            # if k == 1000:
-            #     mm_refine_every = 500
-
-            # if k == 4000:
-            #     mm_refine_every = 1000
-
-
-        # print(f"x0_prev_partial: {np.shape(x0_prev_partial)}")
-        # print(f"x0_prev: {np.shape(x0_prev)}")
-        # print(f"x0_prev_norm: {np.linalg.norm(x0_prev)}")
-        # print(f"x0_prev_partial_norm: {np.linalg.norm(x0_prev_partial)}")
-
         # Store current active indices for next iteration
         # prev_active_indices = active.copy()
 

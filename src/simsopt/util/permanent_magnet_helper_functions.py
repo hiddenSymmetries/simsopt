@@ -1,35 +1,115 @@
 """
-This module contains the a number of useful functions for using 
-the permanent magnets functionality in the SIMSOPT code.
+Utility functions for permanent magnet optimization in SIMSOPT.
 """
 __all__ = [
-           'initialize_coils_for_pm_optimization',
-           'make_optimization_plots', 'run_Poincare_plots_with_permanent_magnets',
-           'initialize_default_kwargs',
-           'get_utc_timestamp_iso',
-           'write_gpmo_run_history_csv',
-           'write_gpmo_run_metadata_yaml',
-           'build_polarization_vectors_from_focus_data',
-           'compute_m_maxima_and_cube_dim_from_focus_file',
-           'compute_final_squared_flux',
-           'run_gpmo_optimization_on_muse_grid',
-           'normalize_vectors_to_unit_length',
-           'compute_angle_between_vectors_degrees',
-           'compute_normal_field_component_from_dipoles',
-           'check_magnet_volume_stellarator_symmetry',
-           'reshape_to_vtk_field_format',
-           'print_bnormal_error_summary_statistics',
-           ]
+    'GPMORunConfig',
+    'initialize_coils_for_pm_optimization',
+    'make_optimization_plots',
+    'run_Poincare_plots_with_permanent_magnets',
+    'initialize_default_kwargs',
+    'get_utc_timestamp_iso',
+    'write_gpmo_run_history_csv',
+    'write_gpmo_run_metadata_yaml',
+    'build_polarization_vectors_from_focus_data',
+    'compute_m_maxima_and_cube_dim_from_focus_file',
+    'compute_final_squared_flux',
+    'run_gpmo_optimization_on_muse_grid',
+    'normalize_vectors_to_unit_length',
+    'compute_angle_between_vectors_degrees',
+    'compute_normal_field_component_from_dipoles',
+    'check_magnet_volume_stellarator_symmetry',
+    'reshape_to_vtk_field_format',
+    'print_bnormal_error_summary_statistics',
+]
 
 import csv
 import datetime
-import numpy as np
+from dataclasses import dataclass, field
 from pathlib import Path
+import numpy as np
 
 try:
     from ruamel.yaml import YAML
 except ImportError:
     YAML = None
+
+
+@dataclass
+class GPMORunConfig:
+    """Structured configuration for a GPMO / GPMOmr optimization run.
+
+    Bundles grid, optimisation, material, and path parameters that were
+    previously passed as 20+ individual keyword arguments to
+    :func:`run_gpmo_optimization_on_muse_grid`.
+
+    Attributes
+    ----------
+    downsample : int
+        Grid downsampling factor applied to the FAMUS file.
+    dr : float
+        Radial extent of cylindrical magnet bricks (m).
+    dx, dy, dz : float
+        Magnet dimensions for VTK output (m).
+    nphi, ntheta : int
+        Toroidal / poloidal resolution of the plasma surface.
+    nIter_max : int
+        Maximum number of GPMO greedy iterations (``K``).
+    nHistory : int
+        Number of history snapshots to record.
+    history_every : int
+        Record a snapshot every *history_every* iterations.
+    nBacktracking : int
+        Run backtracking every *nBacktracking* iterations (0 = off).
+    Nadjacent : int
+        Number of neighbours per dipole for backtracking.
+    max_nMagnets : int
+        Stop placing magnets once this count is reached.
+    thresh_angle : float
+        Adjacent dipole pairs with mutual angle > *thresh_angle* (rad)
+        are removed during backtracking.
+    mm_refine_every : int
+        GPMOmr: run MacroMag refinement every N iterations.
+    coil_path : Path or None
+        Path to the coil ``.focus`` file (needed by GPMOmr).
+    test_dir : Path or None
+        Root test-files directory.
+    surface_filename : Path or None
+        Plasma surface input path.
+    material_name : str
+        Material preset name (e.g. ``'N52'``).
+    material : dict
+        Material property dict (``B_max``, ``mu_ea``, ``mu_oa``, …).
+    """
+
+    # Grid parameters
+    downsample: int = 1
+    dr: float = 0.01
+    dx: float = 0.01
+    dy: float = 0.01
+    dz: float = 0.01
+
+    # Surface resolution
+    nphi: int = 16
+    ntheta: int = 16
+
+    # Optimisation parameters
+    nIter_max: int = 1000
+    nHistory: int = 100
+    history_every: int = 10
+    nBacktracking: int = 0
+    Nadjacent: int = 12
+    max_nMagnets: int = 5000
+    thresh_angle: float = np.pi - (5 * np.pi / 180)
+    mm_refine_every: int = 20
+
+    # Paths
+    coil_path: Path | None = None
+    test_dir: Path | None = None
+    surface_filename: Path | None = None
+
+    # Material
+    material_name: str = "N52"
+    material: dict = field(default_factory=dict)
 
 
 def get_utc_timestamp_iso() -> str:
@@ -259,65 +339,44 @@ def run_gpmo_optimization_on_muse_grid(
     current_scale: float,
     out_dir: Path,
     famus_filename: Path,
-    material_name: str,
-    material: dict,
-    downsample: int,
-    dr: float,
-    nIter_max: int,
-    nHistory: int,
-    history_every: int,
-    nBacktracking: int,
-    Nadjacent: int,
-    max_nMagnets: int,
-    thresh_angle: float,
-    mm_refine_every: int,
-    nphi: int,
-    ntheta: int,
-    coil_path: Path,
-    test_dir: Path,
-    surface_filename: Path,
-    dx: float,
-    dy: float,
-    dz: float,
+    config: GPMORunConfig,
 ) -> None:
-    """
-    Run one GPMO or GPMOmr optimization on the MUSE grid and write outputs.
+    """Run one GPMO or GPMOmr optimization on the MUSE grid and write outputs.
 
     Sets up the permanent magnet grid from the FAMUS file, runs GPMO or GPMOmr,
     and writes run history CSV, run metadata YAML, final dipoles NPZ, FAMUS file,
     and VTK visualization.
 
-    Args:
-        algorithm: 'GPMO' or 'GPMOmr'.
-        subdir: Subdirectory name under out_dir for this run (e.g. 'GPMO', 'GPMOmr').
-        s: SurfaceRZFourier plasma boundary.
-        bs: BiotSavart field from coils.
-        Bnormal: 2D array (nphi, ntheta) of target -B·n from coils.
-        pol_vectors: Polarization vectors from build_polarization_vectors_from_focus_data.
-        m_maxima: Per-magnet maximum dipole moments from compute_m_maxima_and_cube_dim_from_focus_file.
-        cube_dim: Cube dimension for GPMOmr and VTK.
-        current_scale: Coil current scaling factor.
-        out_dir: Base output directory.
-        famus_filename: Path to .focus FAMUS grid file.
-        material_name: Material preset name (e.g. 'N52').
-        material: Material dict (B_max, mu_ea, mu_oa, etc.).
-        downsample: Grid downsampling factor.
-        dr: Radial extent of cylindrical magnet bricks (m).
-        nIter_max: Maximum GPMO iterations (K).
-        nHistory: Number of history snapshots.
-        history_every: Save history every N iterations.
-        nBacktracking: Backtracking iterations.
-        Nadjacent: Number of adjacent magnets for backtracking.
-        max_nMagnets: Maximum number of magnets to place.
-        thresh_angle: Threshold angle (rad) for magnet removal.
-        mm_refine_every: GPMOmr refinement interval (0 for GPMO).
-        nphi: Surface phi resolution.
-        ntheta: Surface theta resolution.
-        coil_path: Path to coil .focus file (for GPMOmr).
-        test_dir: Test files directory.
-        surface_filename: Plasma surface input path.
-        dx, dy, dz: Magnet dimensions for VTK output (m).
+    Parameters
+    ----------
+    algorithm : str
+        ``'GPMO'`` or ``'GPMOmr'``.
+    subdir : str
+        Subdirectory name under *out_dir* for this run.
+    s : SurfaceRZFourier
+        Plasma boundary surface.
+    bs : BiotSavart
+        Coil field evaluator.
+    Bnormal : ndarray, shape ``(nphi, ntheta)``
+        Target :math:`-\\mathbf{B}\\cdot\\hat{n}` from coils.
+    pol_vectors : ndarray
+        Polarization vectors from :func:`build_polarization_vectors_from_focus_data`.
+    m_maxima : ndarray
+        Per-magnet maximum dipole moments.
+    cube_dim : float
+        Cube dimension for GPMOmr.
+    current_scale : float
+        Coil current scaling factor.
+    out_dir : Path
+        Base output directory.
+    famus_filename : Path
+        Path to ``.focus`` FAMUS grid file.
+    config : GPMORunConfig
+        All grid, optimisation, material, and path parameters bundled
+        in a single dataclass.
     """
+    c = config
+
     from simsopt.field import DipoleField
     from simsopt.geo import PermanentMagnetGrid
     from simsopt.solve import GPMO
@@ -325,62 +384,73 @@ def run_gpmo_optimization_on_muse_grid(
     out_subdir = out_dir / subdir
     out_subdir.mkdir(parents=True, exist_ok=True)
 
-    kwargs_grid = {"pol_vectors": pol_vectors, "downsample": downsample, "dr": dr, "m_maxima": m_maxima}
+    kwargs_grid = {
+        "pol_vectors": pol_vectors,
+        "downsample": c.downsample,
+        "dr": c.dr,
+        "m_maxima": m_maxima,
+    }
     pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs_grid)
     print(f"[INFO] Number of available dipoles = {pm_opt.ndipoles}")
 
     kwargs = initialize_default_kwargs("GPMO")
-    kwargs["K"] = int(nIter_max)
-    kwargs["nhistory"] = int(nHistory)
-    kwargs["backtracking"] = int(nBacktracking)
-    kwargs["Nadjacent"] = int(Nadjacent)
+    kwargs["K"] = c.nIter_max
+    kwargs["nhistory"] = c.nHistory
+    kwargs["backtracking"] = c.nBacktracking
+    kwargs["Nadjacent"] = c.Nadjacent
     kwargs["dipole_grid_xyz"] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)
-    kwargs["max_nMagnets"] = int(max_nMagnets)
-    kwargs["thresh_angle"] = float(thresh_angle)
+    kwargs["max_nMagnets"] = c.max_nMagnets
+    kwargs["thresh_angle"] = c.thresh_angle
 
     if algorithm == "GPMOmr":
         kwargs["cube_dim"] = float(cube_dim)
-        kwargs["mu_ea"] = float(material["mu_ea"])
-        kwargs["mu_oa"] = float(material["mu_oa"])
+        kwargs["mu_ea"] = float(c.material.get("mu_ea", 1.0))
+        kwargs["mu_oa"] = float(c.material.get("mu_oa", 1.0))
         kwargs["use_coils"] = True
         kwargs["use_demag"] = True
-        kwargs["coil_path"] = coil_path
-        kwargs["mm_refine_every"] = int(mm_refine_every)
+        kwargs["coil_path"] = c.coil_path
+        kwargs["mm_refine_every"] = c.mm_refine_every
         kwargs["current_scale"] = float(current_scale)
 
     print(
-        f"\n[{get_utc_timestamp_iso()}] Run: {algorithm} (nphi={nphi}, downsample={downsample}, "
-        f"K={nIter_max}, max_nMagnets={max_nMagnets})"
+        f"\n[{get_utc_timestamp_iso()}] Run: {algorithm} "
+        f"(nphi={c.nphi}, downsample={c.downsample}, "
+        f"K={c.nIter_max}, max_nMagnets={c.max_nMagnets})"
     )
     fB_hist, absBn_hist, _m_history = GPMO(pm_opt, algorithm=algorithm, **kwargs)
 
-    run_id = f"lowres_nphi{nphi}_ds{downsample}_mat{material_name}_K{nIter_max}_nmax{max_nMagnets}_{algorithm}"
+    run_id = (
+        f"lowres_nphi{c.nphi}_ds{c.downsample}_mat{c.material_name}"
+        f"_K{c.nIter_max}_nmax{c.max_nMagnets}_{algorithm}"
+    )
     run_csv = write_gpmo_run_history_csv(out_subdir, run_id, pm_opt, fB_hist, absBn_hist)
 
-    fB_final = compute_final_squared_flux(s_plot=s, bs=bs, pm_opt=pm_opt, nphi=nphi, ntheta=ntheta)
+    fB_final = compute_final_squared_flux(
+        s_plot=s, bs=bs, pm_opt=pm_opt, nphi=c.nphi, ntheta=c.ntheta,
+    )
     fB_last_hist = float(fB_hist[-1]) if len(fB_hist) else float("nan")
     print(f"[INFO] f_B (last history)   = {fB_last_hist:.16e}")
     print(f"[INFO] f_B (recomputed)    = {fB_final:.16e}")
 
     run_params = {
-        "nphi": nphi,
-        "ntheta": ntheta,
-        "downsample": downsample,
-        "dr": dr,
-        "K": nIter_max,
-        "nhistory": nHistory,
-        "history_every": history_every,
-        "backtracking": nBacktracking,
-        "Nadjacent": Nadjacent,
-        "max_nMagnets": max_nMagnets,
-        "thresh_angle": float(thresh_angle),
-        "mm_refine_every": mm_refine_every if algorithm == "GPMOmr" else 0,
+        "nphi": c.nphi,
+        "ntheta": c.ntheta,
+        "downsample": c.downsample,
+        "dr": c.dr,
+        "K": c.nIter_max,
+        "nhistory": c.nHistory,
+        "history_every": c.history_every,
+        "backtracking": c.nBacktracking,
+        "Nadjacent": c.Nadjacent,
+        "max_nMagnets": c.max_nMagnets,
+        "thresh_angle": c.thresh_angle,
+        "mm_refine_every": c.mm_refine_every if algorithm == "GPMOmr" else 0,
     }
     paths = {
-        "test_dir": str(test_dir),
+        "test_dir": str(c.test_dir),
         "famus_filename": str(famus_filename),
-        "surface_filename": str(surface_filename),
-        "coil_path": str(coil_path),
+        "surface_filename": str(c.surface_filename),
+        "coil_path": str(c.coil_path),
     }
 
     yaml_path = write_gpmo_run_metadata_yaml(
@@ -389,8 +459,8 @@ def run_gpmo_optimization_on_muse_grid(
         algorithm=algorithm,
         current_scale=current_scale,
         metrics={"fB_last_history": fB_last_hist, "fB_recomputed": fB_final},
-        material_name=material_name,
-        material=material,
+        material_name=c.material_name,
+        material=c.material,
         run_params=run_params,
         paths=paths,
     )
@@ -413,7 +483,7 @@ def run_gpmo_optimization_on_muse_grid(
         coordinate_flag=pm_opt.coordinate_flag,
         m_maxima=pm_opt.m_maxima,
     )
-    b_final.toVTK_magnet_boxes(out_subdir / f"dipoles_final_{run_id}", dx, dy, dz)
+    b_final.toVTK_magnet_boxes(out_subdir / f"dipoles_final_{run_id}", c.dx, c.dy, c.dz)
 
     print(f"[INFO] Wrote {run_csv}")
     print(f"[INFO] Wrote {yaml_path}")

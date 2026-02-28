@@ -15,6 +15,7 @@ from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
 from simsopt.solve import GPMO
 from simsopt.util import (
     FocusData,
+    GPMORunConfig,
     build_polarization_vectors_from_focus_data,
     check_magnet_volume_stellarator_symmetry,
     compute_angle_between_vectors_degrees,
@@ -204,143 +205,82 @@ class TestComputeFinalSquaredFlux(unittest.TestCase):
 class TestRunGpmoOptimizationOnMuseGrid(unittest.TestCase):
     """Integration test for run_gpmo_optimization_on_muse_grid."""
 
-    def test_runs_gpmo_and_writes_outputs(self):
-        nphi = 2
-        ntheta = 2
+    def _make_test_fixtures(self, nphi=2, ntheta=2, downsample=100):
+        """Build surface, coils, Bnormal, pol_vectors, m_maxima, cube_dim."""
         s = SurfaceRZFourier.from_focus(
             TEST_DIR / "input.muse", range="half period", nphi=nphi, ntheta=ntheta
         )
-        base_curves, curves, coils = initialize_coils_for_pm_optimization(
-            "muse_famus", TEST_DIR, s
-        )
+        _, _, coils = initialize_coils_for_pm_optimization("muse_famus", TEST_DIR, s)
         bs = BiotSavart(coils)
         bs.set_points(s.gamma().reshape((-1, 3)))
         Bnormal = np.sum(
             bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
         )
-        mag_data = FocusData(TEST_DIR / "zot80.focus", downsample=100)
+        mag_data = FocusData(TEST_DIR / "zot80.focus", downsample=downsample)
         pol_vectors = build_polarization_vectors_from_focus_data(mag_data)
         m_maxima, cube_dim = compute_m_maxima_and_cube_dim_from_focus_file(
-            TEST_DIR / "zot80.focus", downsample=100, B_max=1.465
+            TEST_DIR / "zot80.focus", downsample=downsample, B_max=1.465
         )
-        material = {"B_max": 1.465, "mu_ea": 1.05, "mu_oa": 1.15}
-        gpmo_run_params = {
-            "downsample": 100,
-            "dr": 0.01,
-            "nIter_max": 5,
-            "nHistory": 5,
-            "history_every": 1,
-            "nBacktracking": 0,
-            "Nadjacent": 12,
-            "max_nMagnets": 5,
-            "thresh_angle": 3.0,
-            "mm_refine_every": 0,
-            "nphi": nphi,
-            "ntheta": ntheta,
-            "coil_path": TEST_DIR / "muse_tf_coils.focus",
-            "test_dir": TEST_DIR,
-            "surface_filename": TEST_DIR / "input.muse",
-            "dx": 0.01,
-            "dy": 0.01,
-            "dz": 0.01,
-        }
+        return s, bs, Bnormal, pol_vectors, m_maxima, cube_dim
 
+    def test_runs_gpmo_and_writes_outputs(self):
+        nphi = ntheta = 2
+        s, bs, Bnormal, pol_vectors, m_maxima, cube_dim = self._make_test_fixtures(nphi, ntheta)
+        config = GPMORunConfig(
+            downsample=100, dr=0.01, dx=0.01, dy=0.01, dz=0.01,
+            nphi=nphi, ntheta=ntheta,
+            nIter_max=5, nHistory=5, history_every=1,
+            nBacktracking=0, Nadjacent=12, max_nMagnets=5,
+            thresh_angle=3.0, mm_refine_every=0,
+            coil_path=TEST_DIR / "muse_tf_coils.focus",
+            test_dir=TEST_DIR, surface_filename=TEST_DIR / "input.muse",
+            material_name="N52",
+            material={"B_max": 1.465, "mu_ea": 1.05, "mu_oa": 1.15},
+        )
         with ScratchDir("."):
             out_dir = Path("gpmo_test_output")
             run_gpmo_optimization_on_muse_grid(
-                "GPMO",
-                subdir="GPMO",
-                s=s,
-                bs=bs,
-                Bnormal=Bnormal,
-                pol_vectors=pol_vectors,
-                m_maxima=m_maxima,
-                cube_dim=cube_dim,
-                current_scale=1.0,
-                out_dir=out_dir,
-                famus_filename=TEST_DIR / "zot80.focus",
-                material_name="N52",
-                material=material,
-                **gpmo_run_params,
+                "GPMO", subdir="GPMO", s=s, bs=bs, Bnormal=Bnormal,
+                pol_vectors=pol_vectors, m_maxima=m_maxima, cube_dim=cube_dim,
+                current_scale=1.0, out_dir=out_dir,
+                famus_filename=TEST_DIR / "zot80.focus", config=config,
             )
             run_subdir = out_dir / "GPMO"
             self.assertTrue(run_subdir.exists())
-            csv_files = list(run_subdir.glob("runhistory_*.csv"))
-            self.assertGreater(len(csv_files), 0)
-            npz_files = list(run_subdir.glob("dipoles_final_*.npz"))
-            self.assertGreater(len(npz_files), 0)
+            self.assertGreater(len(list(run_subdir.glob("runhistory_*.csv"))), 0)
+            self.assertGreater(len(list(run_subdir.glob("dipoles_final_*.npz"))), 0)
 
     def test_runs_gpmomr_and_writes_outputs(self):
         """Integration test for run_gpmo_optimization_on_muse_grid with GPMOmr algorithm."""
-        nphi = 2
-        ntheta = 2
-        s = SurfaceRZFourier.from_focus(
-            TEST_DIR / "input.muse", range="half period", nphi=nphi, ntheta=ntheta
+        nphi = ntheta = 2
+        s, bs, Bnormal, pol_vectors, m_maxima, cube_dim = self._make_test_fixtures(nphi, ntheta)
+        config = GPMORunConfig(
+            downsample=100, dr=0.01, dx=0.01, dy=0.01, dz=0.01,
+            nphi=nphi, ntheta=ntheta,
+            nIter_max=5, nHistory=5, history_every=1,
+            nBacktracking=0, Nadjacent=12, max_nMagnets=5,
+            thresh_angle=3.0, mm_refine_every=2,
+            coil_path=TEST_DIR / "muse_tf_coils.focus",
+            test_dir=TEST_DIR, surface_filename=TEST_DIR / "input.muse",
+            material_name="N52",
+            material={"B_max": 1.465, "mu_ea": 1.05, "mu_oa": 1.15},
         )
-        base_curves, curves, coils = initialize_coils_for_pm_optimization(
-            "muse_famus", TEST_DIR, s
-        )
-        bs = BiotSavart(coils)
-        bs.set_points(s.gamma().reshape((-1, 3)))
-        Bnormal = np.sum(
-            bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
-        )
-        mag_data = FocusData(TEST_DIR / "zot80.focus", downsample=100)
-        pol_vectors = build_polarization_vectors_from_focus_data(mag_data)
-        m_maxima, cube_dim = compute_m_maxima_and_cube_dim_from_focus_file(
-            TEST_DIR / "zot80.focus", downsample=100, B_max=1.465
-        )
-        material = {"B_max": 1.465, "mu_ea": 1.05, "mu_oa": 1.15}
-        gpmo_run_params = {
-            "downsample": 100,
-            "dr": 0.01,
-            "nIter_max": 5,
-            "nHistory": 5,
-            "history_every": 1,
-            "nBacktracking": 0,
-            "Nadjacent": 12,
-            "max_nMagnets": 5,
-            "thresh_angle": 3.0,
-            "mm_refine_every": 2,
-            "nphi": nphi,
-            "ntheta": ntheta,
-            "coil_path": TEST_DIR / "muse_tf_coils.focus",
-            "test_dir": TEST_DIR,
-            "surface_filename": TEST_DIR / "input.muse",
-            "dx": 0.01,
-            "dy": 0.01,
-            "dz": 0.01,
-        }
-
         with ScratchDir("."):
             out_dir = Path("gpmo_test_output")
             run_gpmo_optimization_on_muse_grid(
-                "GPMOmr",
-                subdir="GPMOmr",
-                s=s,
-                bs=bs,
-                Bnormal=Bnormal,
-                pol_vectors=pol_vectors,
-                m_maxima=m_maxima,
-                cube_dim=cube_dim,
-                current_scale=1.0,
-                out_dir=out_dir,
-                famus_filename=TEST_DIR / "zot80.focus",
-                material_name="N52",
-                material=material,
-                **gpmo_run_params,
+                "GPMOmr", subdir="GPMOmr", s=s, bs=bs, Bnormal=Bnormal,
+                pol_vectors=pol_vectors, m_maxima=m_maxima, cube_dim=cube_dim,
+                current_scale=1.0, out_dir=out_dir,
+                famus_filename=TEST_DIR / "zot80.focus", config=config,
             )
             run_subdir = out_dir / "GPMOmr"
             self.assertTrue(run_subdir.exists())
-            csv_files = list(run_subdir.glob("runhistory_*.csv"))
-            self.assertGreater(len(csv_files), 0)
-            npz_files = list(run_subdir.glob("dipoles_final_*.npz"))
-            self.assertGreater(len(npz_files), 0)
+            self.assertGreater(len(list(run_subdir.glob("runhistory_*.csv"))), 0)
+            self.assertGreater(len(list(run_subdir.glob("dipoles_final_*.npz"))), 0)
             yaml_files = list(run_subdir.glob("run_*.yaml"))
             self.assertGreater(len(yaml_files), 0)
             for yf in yaml_files:
-                content = yf.read_text()
-                self.assertIn("GPMOmr", content)
+                self.assertIn("GPMOmr", yf.read_text())
 
 
 class TestComputeNormalFieldComponentFromDipoles(unittest.TestCase):
