@@ -34,6 +34,8 @@ are available to OpenMP, e.g. through setting OMP_NUM_THREADS).
 import time
 from pathlib import Path
 
+import dataclasses
+
 import numpy as np
 
 from simsopt.field import BiotSavart, DipoleField
@@ -45,10 +47,11 @@ from simsopt.util.coil_optimization_helper_functions import \
     coil_optimization, \
     calculate_modB_on_major_radius, \
     make_qfm
-from simsopt.util.permanent_magnet_helper_functions import \
-    initialize_coils_for_pm_optimization, \
-    initialize_default_kwargs, \
-    make_optimization_plots
+from simsopt.util.permanent_magnet_helper_functions import (
+    RSParams,
+    initialize_coils_for_pm_optimization,
+    make_optimization_plots,
+)
 
 
 t_start = time.time()
@@ -132,11 +135,12 @@ nu = 1e10  # how strongly to make proxy variable w close to values in m
 reg_l0, _, _, nu = pm_opt.rescale_for_opt(reg_l0, 0.0, 0.0, nu)
 
 # Set some hyperparameters for the optimization
-kwargs = initialize_default_kwargs()
-kwargs['nu'] = nu  # Strength of the "relaxation" part of relax-and-split
-kwargs['max_iter'] = 10  # Number of iterations to take in a convex step
-kwargs['max_iter_RS'] = 10  # Number of total iterations of the relax-and-split algorithm
-kwargs['reg_l0'] = reg_l0
+rs_params = RSParams(
+    nu=nu,
+    max_iter=10,
+    max_iter_RS=10,
+    reg_l0=reg_l0,
+)
 
 # Optimize the permanent magnets. This actually solves
 # 2 full relax-and-split problems, and uses the result of each
@@ -149,8 +153,8 @@ total_RS_history = []
 for i in range(2):
     print('Relax-and-split iteration ', i, ', L0 threshold = ', reg_l0)
     reg_l0_scaled = reg_l0 * (i + 1) / 2.0
-    kwargs['reg_l0'] = reg_l0_scaled
-    RS_history, m_history, m_proxy_history = relax_and_split(pm_opt, m0=m0, **kwargs)
+    rs_iter_params = dataclasses.replace(rs_params, reg_l0=reg_l0_scaled)
+    RS_history, m_history, m_proxy_history = relax_and_split(pm_opt, m0=m0, params=rs_iter_params)
     total_RS_history.append(RS_history)
     total_m_history.append(m_history)
     total_mproxy_history.append(m_proxy_history)

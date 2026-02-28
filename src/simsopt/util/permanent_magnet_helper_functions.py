@@ -3,6 +3,10 @@ Utility functions for permanent magnet optimization in SIMSOPT.
 """
 __all__ = [
     'GPMORunConfig',
+    'GPMOParams',
+    'GPMOBacktrackParams',
+    'GPMOMacroMagParams',
+    'RSParams',
     'initialize_coils_for_pm_optimization',
     'make_optimization_plots',
     'run_Poincare_plots_with_permanent_magnets',
@@ -110,6 +114,161 @@ class GPMORunConfig:
     # Material
     material_name: str = "N52"
     material: dict = field(default_factory=dict)
+
+
+@dataclass
+class GPMOParams:
+    """Parameters common to all GPMO algorithm variants.
+
+    This is the base configuration for the greedy permanent-magnet
+    optimiser.  Variants that require backtracking or macromagnetic
+    refinement extend this class (see :class:`GPMOBacktrackParams` and
+    :class:`GPMOMacroMagParams`).
+
+    Attributes
+    ----------
+    K : int
+        Maximum number of greedy iterations.
+    nhistory : int
+        Record loss/solution snapshots every *nhistory* iterations.
+    verbose : bool
+        Print progress every *nhistory* iterations and record history.
+    reg_l2 : float
+        L2 regularisation penalty applied via the ``mmax`` scaling.
+    single_direction : int
+        Restrict magnet orientations to a single Cartesian axis
+        (0 = x, 1 = y, 2 = z, -1 = no restriction).  Only used by
+        ``baseline``, ``multi``, and ``GPMO_Backtracking``.
+    """
+
+    K: int = 1000
+    nhistory: int = 500
+    verbose: bool = True
+    reg_l2: float = 0.0
+    single_direction: int = -1
+
+
+@dataclass
+class GPMOBacktrackParams(GPMOParams):
+    """GPMO parameters for backtracking-capable variants.
+
+    Extends :class:`GPMOParams` with fields consumed by algorithms
+    ``GPMO``, ``GPMO_py``, ``GPMO_Backtracking``, and ``GPMOmr``.
+
+    Attributes
+    ----------
+    backtracking : int
+        Perform a backtracking sweep every *backtracking* iterations
+        (0 disables backtracking).
+    dipole_grid_xyz : ndarray or None
+        Dipole-centre coordinates, shape ``(N, 3)``.  Required for
+        computing adjacency.
+    Nadjacent : int
+        Number of nearest neighbours per dipole used in backtracking.
+    max_nMagnets : int
+        Early-stop limit: halt once this many magnets have been placed.
+    thresh_angle : float
+        Adjacent dipole pairs whose mutual angle exceeds this value
+        (radians) are candidates for removal during backtracking.
+    m_init : ndarray or None
+        Optional initial dipole-moment array, shape ``(N, 3)``.
+        Converted to the normalised ``x_init`` internally.
+    """
+
+    backtracking: int = 100
+    dipole_grid_xyz: np.ndarray | None = None
+    Nadjacent: int = 7
+    max_nMagnets: int = 5000
+    thresh_angle: float = np.pi
+    m_init: np.ndarray | None = None
+
+
+@dataclass
+class GPMOMacroMagParams(GPMOBacktrackParams):
+    """GPMO parameters for the macromagnetic-refinement variant (GPMOmr).
+
+    Extends :class:`GPMOBacktrackParams` with fields specific to the
+    ``GPMOmr`` algorithm, which periodically solves the full
+    macromagnetic equilibrium to account for finite-permeability
+    coupling and demagnetisation effects.
+
+    Attributes
+    ----------
+    cube_dim : float
+        Side length of the cubic magnet tiles (m).
+    mu_ea : float
+        Relative permeability along the easy axis.
+    mu_oa : float
+        Relative permeability along the hard (off-easy) axes.
+    use_coils : bool
+        Include the external coil field in the macromagnetic solve.
+    use_demag : bool
+        Include the demagnetisation tensor in the macromagnetic solve.
+    coil_path : Path or None
+        Path to the FOCUS-format coil file.
+    mm_refine_every : int
+        Run macromagnetic refinement every *mm_refine_every* greedy
+        iterations.
+    current_scale : float
+        Multiplicative scaling factor for coil currents.
+    """
+
+    cube_dim: float = 0.004
+    mu_ea: float = 1.0
+    mu_oa: float = 1.0
+    use_coils: bool = False
+    use_demag: bool = True
+    coil_path: Path | None = None
+    mm_refine_every: int = 20
+    current_scale: float = 1.0
+
+
+@dataclass
+class RSParams:
+    """Parameters for the relax-and-split permanent-magnet optimiser.
+
+    Bundles all keyword arguments consumed by
+    :func:`~simsopt.solve.permanent_magnet_optimization.relax_and_split`.
+
+    Attributes
+    ----------
+    nu : float
+        Hyperparameter weighting the relaxation term.  Set ``nu >> 1``
+        to reduce the influence of non-convexity.
+    max_iter : int
+        Maximum iterations for the convex sub-problem (MwPGP).
+    reg_l0 : float
+        L0 (sparsity) regularisation strength.  Mutually exclusive
+        with *reg_l1*.
+    reg_l1 : float
+        L1 regularisation strength.  Mutually exclusive with *reg_l0*.
+    alpha : float
+        Step-size parameter for MwPGP (usually set automatically).
+    min_fb : float
+        Minimum objective value below which the algorithm stops early.
+    epsilon : float
+        Convergence tolerance for MwPGP.
+    epsilon_RS : float
+        Convergence tolerance for the outer relax-and-split loop.
+    max_iter_RS : int
+        Maximum outer relax-and-split iterations.
+    reg_l2 : float
+        L2 regularisation penalty.
+    verbose : bool
+        Print loss-term breakdown at each iteration.
+    """
+
+    nu: float = 1e100
+    max_iter: int = 100
+    reg_l0: float = 0.0
+    reg_l1: float = 0.0
+    alpha: float = 0.0
+    min_fb: float = 0.0
+    epsilon: float = 1e-3
+    epsilon_RS: float = 1e-3
+    max_iter_RS: int = 2
+    reg_l2: float = 0.0
+    verbose: bool = True
 
 
 def get_utc_timestamp_iso() -> str:
@@ -393,31 +552,42 @@ def run_gpmo_optimization_on_muse_grid(
     pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs_grid)
     print(f"[INFO] Number of available dipoles = {pm_opt.ndipoles}")
 
-    kwargs = initialize_default_kwargs("GPMO")
-    kwargs["K"] = c.nIter_max
-    kwargs["nhistory"] = c.nHistory
-    kwargs["backtracking"] = c.nBacktracking
-    kwargs["Nadjacent"] = c.Nadjacent
-    kwargs["dipole_grid_xyz"] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)
-    kwargs["max_nMagnets"] = c.max_nMagnets
-    kwargs["thresh_angle"] = c.thresh_angle
-
+    dipole_xyz = np.ascontiguousarray(pm_opt.dipole_grid_xyz)
     if algorithm == "GPMOmr":
-        kwargs["cube_dim"] = float(cube_dim)
-        kwargs["mu_ea"] = float(c.material.get("mu_ea", 1.0))
-        kwargs["mu_oa"] = float(c.material.get("mu_oa", 1.0))
-        kwargs["use_coils"] = True
-        kwargs["use_demag"] = True
-        kwargs["coil_path"] = c.coil_path
-        kwargs["mm_refine_every"] = c.mm_refine_every
-        kwargs["current_scale"] = float(current_scale)
+        gpmo_params: GPMOParams = GPMOMacroMagParams(
+            K=c.nIter_max,
+            nhistory=c.nHistory,
+            backtracking=c.nBacktracking,
+            Nadjacent=c.Nadjacent,
+            dipole_grid_xyz=dipole_xyz,
+            max_nMagnets=c.max_nMagnets,
+            thresh_angle=c.thresh_angle,
+            cube_dim=float(cube_dim),
+            mu_ea=float(c.material.get("mu_ea", 1.0)),
+            mu_oa=float(c.material.get("mu_oa", 1.0)),
+            use_coils=True,
+            use_demag=True,
+            coil_path=c.coil_path,
+            mm_refine_every=c.mm_refine_every,
+            current_scale=float(current_scale),
+        )
+    else:
+        gpmo_params = GPMOBacktrackParams(
+            K=c.nIter_max,
+            nhistory=c.nHistory,
+            backtracking=c.nBacktracking,
+            Nadjacent=c.Nadjacent,
+            dipole_grid_xyz=dipole_xyz,
+            max_nMagnets=c.max_nMagnets,
+            thresh_angle=c.thresh_angle,
+        )
 
     print(
         f"\n[{get_utc_timestamp_iso()}] Run: {algorithm} "
         f"(nphi={c.nphi}, downsample={c.downsample}, "
         f"K={c.nIter_max}, max_nMagnets={c.max_nMagnets})"
     )
-    fB_hist, absBn_hist, _m_history = GPMO(pm_opt, algorithm=algorithm, **kwargs)
+    fB_hist, absBn_hist, _m_history = GPMO(pm_opt, algorithm=algorithm, params=gpmo_params)
 
     run_id = (
         f"lowres_nphi{c.nphi}_ds{c.downsample}_mat{c.material_name}"
@@ -882,38 +1052,46 @@ def run_Poincare_plots_with_permanent_magnets(s_plot, bs, b_dipole, comm, filena
     trace_fieldlines(bsh, 'bsh_PMs_' + filename_poincare, s_plot, comm, out_dir)
 
 def initialize_default_kwargs(algorithm='RS'):
-    """
-    Keywords to the permanent magnet optimizers are now passed
-    by the kwargs dictionary. Default dictionaries are initialized
-    here.
+    """Return a default keyword-argument dict for a PM optimiser.
+
+    .. deprecated::
+        Use :class:`GPMOParams` / :class:`GPMOBacktrackParams` /
+        :class:`GPMOMacroMagParams` / :class:`RSParams` instead.
 
     Args:
-        algorithm: String denoting which algorithm is being used
-          for permanent magnet optimization. Options are 'RS'
-          (relax and split), 'GPMO' (greedy placement), 
-          'GPMO_Backtracking' (GPMO with backtracking),
-          'multi' (GPMO, placing multiple magnets each iteration),
-          'GPMO_ArbVec' (GPMO with arbitrary dipole orientations),
-          'GPMOmr' (GPMO with macromagnetic refinement),
-          'GPMO_py' (testing-only pure-Python reference implementation).
+        algorithm: ``'RS'``, ``'GPMO'``, ``'GPMO_Backtracking'``, etc.
 
     Returns:
-        kwargs: Dictionary of keywords to pass to a permanent magnet 
-          optimizer.
+        dict: Default keyword arguments for the chosen algorithm.
     """
+    import dataclasses as _dc
+    import warnings as _w
 
-    kwargs = {}
-    kwargs['verbose'] = True   # print out errors every few iterations
+    _w.warn(
+        "initialize_default_kwargs() is deprecated. "
+        "Use GPMOParams / GPMOBacktrackParams / GPMOMacroMagParams / "
+        "RSParams dataclasses instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
     if algorithm == 'RS':
-        kwargs['nu'] = 1e100  # Strength of the "relaxation" part of relax-and-split
-        kwargs['max_iter'] = 100  # Number of iterations to take in a convex step
+        return _dc.asdict(RSParams())
+    if 'GPMO' in algorithm or 'ArbVec' in algorithm:
+        return _dc.asdict(GPMOParams())
+    # Fallback for unknown algorithms
+    kwargs = {}
+    kwargs['verbose'] = True
+    if algorithm == 'RS':
+        kwargs['nu'] = 1e100
+        kwargs['max_iter'] = 100
         kwargs['reg_l0'] = 0.0
         kwargs['reg_l1'] = 0.0
         kwargs['alpha'] = 0.0
         kwargs['min_fb'] = 0.0
         kwargs['epsilon'] = 1e-3
         kwargs['epsilon_RS'] = 1e-3
-        kwargs['max_iter_RS'] = 2  # Number of total iterations of the relax-and-split algorithm
+        kwargs['max_iter_RS'] = 2
         kwargs['reg_l2'] = 0.0
     elif 'GPMO' in algorithm or 'ArbVec' in algorithm:
         kwargs['K'] = 1000

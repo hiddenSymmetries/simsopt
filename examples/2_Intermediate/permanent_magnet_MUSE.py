@@ -35,9 +35,10 @@ from simsopt.util import FocusData, discretize_polarizations, polarization_axes,
 from simsopt.util.coil_optimization_helper_functions import \
     calculate_modB_on_major_radius, \
     make_qfm
-from simsopt.util.permanent_magnet_helper_functions import \
-    initialize_default_kwargs, \
-    initialize_coils_for_pm_optimization
+from simsopt.util.permanent_magnet_helper_functions import (
+    GPMOBacktrackParams,
+    initialize_coils_for_pm_optimization,
+)
 
 t_start = time.time()
 
@@ -152,25 +153,24 @@ algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 1  # How many magnets to consider "adjacent" to one another
 nHistory = 20  # How often to save the algorithm progress
 thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
-kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
-kwargs['nhistory'] = nHistory
-if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
-    kwargs['backtracking'] = nBacktracking  # How often to perform the backtrackinig
-    kwargs['Nadjacent'] = nAdjacent
-    kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)
-    kwargs['max_nMagnets'] = max_nMagnets
-    if algorithm == 'ArbVec_backtracking':
-        kwargs['thresh_angle'] = thresh_angle
+gpmo_params = GPMOBacktrackParams(
+    K=nIter_max,
+    nhistory=nHistory,
+    backtracking=nBacktracking,
+    Nadjacent=nAdjacent,
+    dipole_grid_xyz=np.ascontiguousarray(pm_opt.dipole_grid_xyz),
+    max_nMagnets=max_nMagnets,
+    thresh_angle=thresh_angle,
+)
 
 # Optimize the permanent magnets greedily
 t1 = time.time()
-R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
+R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, params=gpmo_params)
 t2 = time.time()
 print('GPMO took t = ', t2 - t1, ' s')
 
 # plot the MSE history
-iterations = np.linspace(0, kwargs['max_nMagnets'], len(R2_history), endpoint=False)
+iterations = np.linspace(0, gpmo_params.max_nMagnets, len(R2_history), endpoint=False)
 plt.figure()
 plt.semilogy(iterations, R2_history, label=r'$f_B$')
 plt.semilogy(iterations, Bn_history, label=r'$<|Bn|>$')

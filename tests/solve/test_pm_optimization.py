@@ -1,3 +1,4 @@
+import dataclasses
 from pathlib import Path
 import unittest
 
@@ -14,6 +15,12 @@ from simsopt.solve.permanent_magnet_optimization import (
 )
 from simsopt.solve import relax_and_split, GPMO
 from simsopt.util import *
+from simsopt.util import (
+    GPMOBacktrackParams,
+    GPMOMacroMagParams,
+    GPMOParams,
+    RSParams,
+)
 from simsopt.geo import SurfaceRZFourier, PermanentMagnetGrid
 from simsopt.field import BiotSavart
 
@@ -102,12 +109,8 @@ class Testing(unittest.TestCase):
             reg_l0, _, _, nu = pm_opt.rescale_for_opt(reg_l0, 0.0, 0.0, nu)
 
             # Set some hyperparameters for the optimization
-            kwargs = initialize_default_kwargs()
-            kwargs['nu'] = nu  # Strength of the "relaxation" part of relax-and-split
-            kwargs['max_iter'] = 40  # Number of iterations to take in a convex step
-            kwargs['max_iter_RS'] = 20  # Number of total iterations of the relax-and-split algorithm
-            kwargs['reg_l0'] = reg_l0
-            relax_and_split(pm_opt, **kwargs)
+            rs_params = RSParams(nu=nu, max_iter=40, max_iter_RS=20, reg_l0=reg_l0)
+            relax_and_split(pm_opt, params=rs_params)
             w = pm_opt.m_proxy[~np.isclose(pm_opt.m_proxy, 0.0)]
             assert np.all(np.abs(w) >= reg_l0 * pm_opt.m_maxima[0])
 
@@ -119,27 +122,20 @@ class Testing(unittest.TestCase):
             reg_l0, _, _, nu = pm_opt.rescale_for_opt(reg_l0, 0.0, 0.0, nu)
 
             # Set some hyperparameters for the optimization
-            kwargs = initialize_default_kwargs()
-            kwargs['nu'] = nu  # Strength of the "relaxation" part of relax-and-split
-            kwargs['reg_l0'] = reg_l0
-            relax_and_split(pm_opt, **kwargs)
+            rs_params2 = RSParams(nu=nu, reg_l0=reg_l0)
+            relax_and_split(pm_opt, params=rs_params2)
             w = pm_opt.m_proxy[~np.isclose(pm_opt.m_proxy, 0.0)]
             assert np.all(np.abs(w) >= reg_l0 * pm_opt.m_maxima[0])
-            kwargs['reg_l1'] = reg_l0
             with self.assertRaises(ValueError):
-                relax_and_split(pm_opt, **kwargs)
-            kwargs['reg_l0'] = 0.0
-            kwargs['epsilon_RS'] = 1e5
-            relax_and_split(pm_opt, **kwargs)
+                relax_and_split(pm_opt, params=dataclasses.replace(rs_params2, reg_l1=reg_l0))
+            relax_and_split(pm_opt, params=dataclasses.replace(rs_params2, reg_l0=0.0, reg_l1=reg_l0, epsilon_RS=1e5))
 
             # Test that all the GPMO variants return the same solutions
             # in various limits.
-            kwargs = initialize_default_kwargs('GPMO')
+            base_gpmo = GPMOParams(K=10, nhistory=10)
             with self.assertRaises(ValueError):
-                GPMO(pm_opt, algorithm='baseline', **kwargs)
-            kwargs['nhistory'] = 10
-            kwargs['K'] = 10
-            errors1, Bn_errors1, m_history1 = GPMO(pm_opt, algorithm='baseline', **kwargs)
+                GPMO(pm_opt, algorithm='baseline', params=GPMOParams(nhistory=500))
+            errors1, Bn_errors1, m_history1 = GPMO(pm_opt, algorithm='baseline', params=base_gpmo)
             m1 = pm_opt.m
             ndipoles = pm_opt.ndipoles
             pol_vector_x = np.zeros((ndipoles, 3))
@@ -150,23 +146,24 @@ class Testing(unittest.TestCase):
             pol_vector_z[:, 2] = 1.0
             pol_vectors = np.transpose(np.array([pol_vector_x, pol_vector_y, pol_vector_z]), [1, 0, 2])
             pm_opt.pol_vectors = pol_vectors
-            errors2, Bn_errors2, m_history2 = GPMO(pm_opt, algorithm='GPMO_ArbVec', **kwargs)
+            errors2, Bn_errors2, m_history2 = GPMO(pm_opt, algorithm='GPMO_ArbVec', params=base_gpmo)
             m2 = pm_opt.m
             assert np.allclose(m1, m2)
             assert np.allclose(errors1, errors2)
             assert np.allclose(Bn_errors1, Bn_errors2)
             assert np.allclose(m_history1, m_history2)
-            kwargs['Nadjacent'] = 1
-            kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-            errors3, Bn_errors3, m_history3 = GPMO(pm_opt, algorithm='multi', **kwargs)
+            bt_gpmo = GPMOBacktrackParams(
+                K=10, nhistory=10, Nadjacent=1,
+                dipole_grid_xyz=pm_opt.dipole_grid_xyz,
+                backtracking=500, max_nMagnets=1000,
+            )
+            errors3, Bn_errors3, m_history3 = GPMO(pm_opt, algorithm='multi', params=bt_gpmo)
             m3 = pm_opt.m
             assert np.allclose(m1, m3)
             assert np.allclose(errors1, errors3)
             assert np.allclose(Bn_errors1, Bn_errors3)
             assert np.allclose(m_history1, m_history3)
-            kwargs['backtracking'] = 500
-            kwargs['max_nMagnets'] = 1000
-            errors4, Bn_errors4, m_history4 = GPMO(pm_opt, algorithm='GPMO_Backtracking', **kwargs)
+            errors4, Bn_errors4, m_history4 = GPMO(pm_opt, algorithm='GPMO_Backtracking', params=bt_gpmo)
             m4 = pm_opt.m
             assert np.allclose(m1, m4)
             assert np.allclose(errors1, errors4)
@@ -176,7 +173,7 @@ class Testing(unittest.TestCase):
             # Note: GPMO history arrays contain one additional entry at the beginning
             # for the initialized solution.
 
-            errors5, Bn_errors5, m_history5 = GPMO(pm_opt, algorithm='GPMO', **kwargs)
+            errors5, Bn_errors5, m_history5 = GPMO(pm_opt, algorithm='GPMO', params=bt_gpmo)
             m5 = pm_opt.m
             assert np.allclose(m1, m5)
             assert np.allclose(errors1, errors5[1:])
@@ -184,18 +181,18 @@ class Testing(unittest.TestCase):
             assert np.allclose(m_history1, m_history5[:, :, 1:])
             with self.assertRaises(ValueError):
                 pm_opt.coordinate_flag = 'cylindrical'
-                errors5, Bn_errors5, m_history5 = GPMO(pm_opt, algorithm='GPMO', **kwargs)
+                GPMO(pm_opt, algorithm='GPMO', params=bt_gpmo)
             with self.assertRaises(NotImplementedError):
-                errors5, Bn_errors5, m_history5 = GPMO(pm_opt, algorithm='random_name', **kwargs)
+                GPMO(pm_opt, algorithm='random_name', params=bt_gpmo)
 
-            kwargs['m_init'] = pm_opt.m.reshape([-1, 3])
             pm_opt.coordinate_flag = 'cartesian'
-            errors6, Bn_errors6, m_history6 = GPMO(pm_opt, algorithm='GPMO', **kwargs)
+            bt_init = dataclasses.replace(bt_gpmo, m_init=pm_opt.m.reshape([-1, 3]))
+            errors6, Bn_errors6, m_history6 = GPMO(pm_opt, algorithm='GPMO', params=bt_init)
             # Note: when K = n_history, m_history[:,:,-1] will be zeros
             assert np.allclose(m_history5[:, :, -2], m_history6[:, :, 0])
             with self.assertRaises(ValueError):
-                kwargs['m_init'] = m_history6[:-1, :, -1]
-                errors6, Bn_errors6, m_history6 = GPMO(pm_opt, algorithm='GPMO', **kwargs)
+                bt_bad = dataclasses.replace(bt_gpmo, m_init=m_history6[:-1, :, -1])
+                GPMO(pm_opt, algorithm='GPMO', params=bt_bad)
 
     def _make_pm_opt_tiny(self, TEST_DIR, nphi=2, ntheta=2, dr=0.05, coff=0.05, poff=0.03, vmec_name='input.LandremanPaul2021_QA_lowres'):
         """
@@ -247,23 +244,19 @@ class Testing(unittest.TestCase):
         with ScratchDir("."):
             _, pm_opt = self._make_pm_opt_tiny(TEST_DIR, nphi=4, ntheta=4, dr=0.05, coff=0.06, poff=0.03)
 
-            # Shared kwargs (small problem so it runs fast)
-            kwargs = initialize_default_kwargs('GPMO')
-            kwargs['nhistory'] = 5
-            kwargs['K'] = 20
-            kwargs['Nadjacent'] = 1
-            kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-            kwargs['backtracking'] = 10
-            kwargs['max_nMagnets'] = 30
-            kwargs['thresh_angle'] = np.pi
+            bt = GPMOBacktrackParams(
+                K=20, nhistory=5, Nadjacent=1,
+                dipole_grid_xyz=pm_opt.dipole_grid_xyz,
+                backtracking=10, max_nMagnets=30, thresh_angle=np.pi,
+            )
 
             # C++ backend
-            errors_cpp, Bn_cpp, m_hist_cpp = GPMO(pm_opt, algorithm='GPMO', **kwargs)
+            errors_cpp, Bn_cpp, m_hist_cpp = GPMO(pm_opt, algorithm='GPMO', params=bt)
             m_cpp = pm_opt.m.copy()
 
             # Python backend, same init
             pm_opt.m = np.zeros_like(pm_opt.m)
-            errors_py, Bn_py, m_hist_py = GPMO(pm_opt, algorithm='GPMO_py', **kwargs)
+            errors_py, Bn_py, m_hist_py = GPMO(pm_opt, algorithm='GPMO_py', params=bt)
             m_py = pm_opt.m.copy()
 
             # Exact match (history for these variants includes initial snapshot)
@@ -327,24 +320,17 @@ class Testing(unittest.TestCase):
             )
             ndip = pm_opt.ndipoles
 
-            kwargs_base = {
-                "nhistory": 10,
-                "K": 30,
-                "Nadjacent": 4,
-                "dipole_grid_xyz": pm_opt.dipole_grid_xyz,
-                "backtracking": 2,
-                "max_nMagnets": ndip,
-                "verbose": False,
-            }
-            kwargs_base.update(initialize_default_kwargs('GPMO'))
+            bt_base = GPMOBacktrackParams(
+                K=30, nhistory=10, Nadjacent=4,
+                dipole_grid_xyz=pm_opt.dipole_grid_xyz,
+                backtracking=2, max_nMagnets=ndip, verbose=False,
+            )
 
-            kwargs_lo = dict(kwargs_base, thresh_angle=0.4)
-            errors_lo, _, _ = GPMO(pm_opt, algorithm='GPMO_py', **kwargs_lo)
+            errors_lo, _, _ = GPMO(pm_opt, algorithm='GPMO_py', params=dataclasses.replace(bt_base, thresh_angle=0.4))
             nonzero_lo = np.count_nonzero(np.linalg.norm(pm_opt.m.reshape(-1, 3), axis=1))
 
             pm_opt.m = np.zeros_like(pm_opt.m)
-            kwargs_hi = dict(kwargs_base, thresh_angle=np.pi)
-            errors_hi, _, _ = GPMO(pm_opt, algorithm='GPMO_py', **kwargs_hi)
+            errors_hi, _, _ = GPMO(pm_opt, algorithm='GPMO_py', params=dataclasses.replace(bt_base, thresh_angle=np.pi))
             nonzero_hi = np.count_nonzero(np.linalg.norm(pm_opt.m.reshape(-1, 3), axis=1))
 
             self.assertLess(nonzero_lo, nonzero_hi, msg="Small thresh_angle should remove more magnets")
@@ -358,21 +344,18 @@ class Testing(unittest.TestCase):
                 TEST_DIR, nphi=6, ntheta=6, dr=0.04, coff=0.07, poff=0.04
             )
 
-            kwargs = initialize_default_kwargs('GPMO')
-            kwargs['nhistory'] = 8
-            kwargs['K'] = 25
-            kwargs['Nadjacent'] = 3
-            kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-            kwargs['backtracking'] = 5
-            kwargs['max_nMagnets'] = 20
-            kwargs['thresh_angle'] = np.pi
-            kwargs['verbose'] = False
+            bt = GPMOBacktrackParams(
+                K=25, nhistory=8, Nadjacent=3,
+                dipole_grid_xyz=pm_opt.dipole_grid_xyz,
+                backtracking=5, max_nMagnets=20,
+                thresh_angle=np.pi, verbose=False,
+            )
 
-            errors_cpp, _, _ = GPMO(pm_opt, algorithm='GPMO', **kwargs)
+            errors_cpp, _, _ = GPMO(pm_opt, algorithm='GPMO', params=bt)
             m_cpp = pm_opt.m.copy()
 
             pm_opt.m = np.zeros_like(pm_opt.m)
-            errors_py, _, _ = GPMO(pm_opt, algorithm='GPMO_py', **kwargs)
+            errors_py, _, _ = GPMO(pm_opt, algorithm='GPMO_py', params=bt)
             m_py = pm_opt.m.copy()
 
             np.testing.assert_allclose(m_py, m_cpp, rtol=1e-11, atol=1e-11)
@@ -405,25 +388,21 @@ class Testing(unittest.TestCase):
             _, pm_opt = self._make_pm_opt_tiny(
                 TEST_DIR, nphi=2, ntheta=2, dr=0.08, coff=0.08, poff=0.04
             )
-            kwargs = initialize_default_kwargs('GPMO')
-            kwargs['nhistory'] = 3
-            kwargs['K'] = 8
-            kwargs['Nadjacent'] = 1
-            kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-            kwargs['backtracking'] = 4
-            kwargs['max_nMagnets'] = 4
-            kwargs['thresh_angle'] = np.pi
-            kwargs['m_init'] = np.zeros((pm_opt.ndipoles, 3))
-            kwargs['verbose'] = False               
-            kwargs['mm_refine_every'] = 1 
-            kwargs['use_coils'] = False
-            errors_mm, Bn_mm, m_hist_mm = GPMO(pm_opt, algorithm='GPMOmr', **kwargs)
+            mm_params = GPMOMacroMagParams(
+                K=8, nhistory=3, Nadjacent=1,
+                dipole_grid_xyz=pm_opt.dipole_grid_xyz,
+                backtracking=4, max_nMagnets=4,
+                thresh_angle=np.pi,
+                m_init=np.zeros((pm_opt.ndipoles, 3)),
+                verbose=False, mm_refine_every=1, use_coils=False,
+            )
+            errors_mm, Bn_mm, m_hist_mm = GPMO(pm_opt, algorithm='GPMOmr', params=mm_params)
             m_mm = pm_opt.m.copy()
 
             # Basic shape checks
             self.assertEqual(m_hist_mm.shape[0], pm_opt.ndipoles)
             self.assertEqual(m_hist_mm.shape[1], 3)
-            self.assertGreaterEqual(m_hist_mm.shape[2], kwargs['nhistory'] + 1)  # includes initial snapshot
+            self.assertGreaterEqual(m_hist_mm.shape[2], mm_params.nhistory + 1)  # includes initial snapshot
 
             # Initial objective equals 0.5||b||^2 (since m=0)
             b = pm_opt.b_obj
@@ -445,7 +424,7 @@ class Testing(unittest.TestCase):
             nonzero = np.count_nonzero(np.linalg.norm(m_mm.reshape(-1, 3), axis=1))
             if init_R2 > tiny_tol:
                 self.assertGreaterEqual(nonzero, 1)
-            self.assertLessEqual(nonzero, kwargs['max_nMagnets'])
+            self.assertLessEqual(nonzero, mm_params.max_nMagnets)
 
     def test_gpmomr_final_fb_matches_recompute(self):
         """
@@ -490,21 +469,15 @@ class Testing(unittest.TestCase):
             pm_opt.pol_vectors = np.transpose(np.array([pvx, pvy, pvz]), (1, 0, 2))
 
             max_nMagnets = 20
-            kwargs = initialize_default_kwargs("GPMO")
-            kwargs.update({
-                "K": 30,  # > max_nMagnets so we trigger the early-stop final snapshot
-                "nhistory": 5,
-                "Nadjacent": 1,
-                "dipole_grid_xyz": np.ascontiguousarray(pm_opt.dipole_grid_xyz),
-                "backtracking": 0,
-                "max_nMagnets": max_nMagnets,
-                "thresh_angle": np.pi,
-                "verbose": False,  # rely on the forced early-stop snapshot for logging
-                "mm_refine_every": 5,  # keep it cheap, but ensures caches exist
-                "use_coils": False,
-            })
+            mm_params = GPMOMacroMagParams(
+                K=30, nhistory=5, Nadjacent=1,
+                dipole_grid_xyz=np.ascontiguousarray(pm_opt.dipole_grid_xyz),
+                backtracking=0, max_nMagnets=max_nMagnets,
+                thresh_angle=np.pi, verbose=False,
+                mm_refine_every=5, use_coils=False,
+            )
 
-            errors, _, _ = GPMO(pm_opt, algorithm="GPMOmr", **kwargs)
+            errors, _, _ = GPMO(pm_opt, algorithm="GPMOmr", params=mm_params)
             self.assertGreater(len(errors), 0)
 
             # k_history should reflect the actual early-stop iteration, not a nominal schedule.
@@ -553,34 +526,30 @@ class Testing(unittest.TestCase):
             # Force GPMO to use this exact full-strength magnitude at every site
             pm_opt.m_maxima[:] = m_max
 
-            base_kwargs = initialize_default_kwargs('GPMO')
-            base_kwargs.update({
-                'nhistory': 6,
-                'K': 24,
-                'Nadjacent': 1,
-                'dipole_grid_xyz': pm_opt.dipole_grid_xyz,
-                'backtracking': 6,
-                'max_nMagnets': 30,
-                'thresh_angle': np.pi,
-                'm_init': np.zeros((pm_opt.ndipoles, 3)),
-                'verbose': False,
-            })
+            bt_base = GPMOBacktrackParams(
+                K=24, nhistory=6, Nadjacent=1,
+                dipole_grid_xyz=pm_opt.dipole_grid_xyz,
+                backtracking=6, max_nMagnets=30,
+                thresh_angle=np.pi,
+                m_init=np.zeros((pm_opt.ndipoles, 3)),
+                verbose=False,
+            )
 
-            errors_ref, Bn_ref, m_hist_ref = GPMO(pm_opt, algorithm='GPMO', **base_kwargs)
+            errors_ref, Bn_ref, m_hist_ref = GPMO(pm_opt, algorithm='GPMO', params=bt_base)
             m_ref = pm_opt.m.copy()
 
             pm_opt.m = np.zeros_like(pm_opt.m)
             pm_opt.m_proxy = np.zeros_like(pm_opt.m)
 
-            mm_kwargs = dict(base_kwargs)
-            mm_kwargs.update({
-                'cube_dim': cube_dim,
-                'mu_ea': 1.0,
-                'mu_oa': 1.0,
-                'mm_refine_every': 1,   
-                'use_coils': False, 
-            })
-            errors_mm, Bn_mm, m_hist_mm = GPMO(pm_opt, algorithm='GPMOmr', **mm_kwargs)
+            mm_params = GPMOMacroMagParams(
+                **{k: v for k, v in dataclasses.asdict(bt_base).items()
+                   if k not in ('dipole_grid_xyz', 'm_init')},
+                dipole_grid_xyz=bt_base.dipole_grid_xyz,
+                m_init=bt_base.m_init,
+                cube_dim=cube_dim, mu_ea=1.0, mu_oa=1.0,
+                mm_refine_every=1, use_coils=False,
+            )
+            errors_mm, Bn_mm, m_hist_mm = GPMO(pm_opt, algorithm='GPMOmr', params=mm_params)
             m_mm = pm_opt.m.copy()
 
             np.testing.assert_allclose(errors_mm,errors_ref,rtol=1e-12, atol=1e-12)
@@ -728,36 +697,28 @@ class Testing(unittest.TestCase):
             )
             ndip = pm_opt.ndipoles
 
-            kwargs_base = {
-                "nhistory": 10,
-                "K": 30,
-                "Nadjacent": 4,
-                "dipole_grid_xyz": pm_opt.dipole_grid_xyz,
-                "backtracking": 2,
-                "max_nMagnets": ndip,
-                "verbose": False,
-            }
-            kwargs_base.update(initialize_default_kwargs('GPMO'))
+            bt_base = GPMOBacktrackParams(
+                K=30, nhistory=10, Nadjacent=4,
+                dipole_grid_xyz=pm_opt.dipole_grid_xyz,
+                backtracking=2, max_nMagnets=ndip, verbose=False,
+            )
 
             # No removal: thresh_angle = pi
-            kwargs_pi = dict(kwargs_base, thresh_angle=np.pi)
-            GPMO(pm_opt, algorithm='GPMO_py', **kwargs_pi)
+            GPMO(pm_opt, algorithm='GPMO_py', params=dataclasses.replace(bt_base, thresh_angle=np.pi))
             nonzero_pi = np.count_nonzero(
                 np.linalg.norm(pm_opt.m.reshape(-1, 3), axis=1)
             )
 
             # Aggressive removal: thresh_angle = 0.4
             pm_opt.m = np.zeros_like(pm_opt.m)
-            kwargs_lo = dict(kwargs_base, thresh_angle=0.4)
-            GPMO(pm_opt, algorithm='GPMO_py', **kwargs_lo)
+            GPMO(pm_opt, algorithm='GPMO_py', params=dataclasses.replace(bt_base, thresh_angle=0.4))
             nonzero_lo = np.count_nonzero(
                 np.linalg.norm(pm_opt.m.reshape(-1, 3), axis=1)
             )
 
             # Intermediate: thresh_angle = 2.0 (large enough to cause some removal)
             pm_opt.m = np.zeros_like(pm_opt.m)
-            kwargs_mid = dict(kwargs_base, thresh_angle=2.0)
-            GPMO(pm_opt, algorithm='GPMO_py', **kwargs_mid)
+            GPMO(pm_opt, algorithm='GPMO_py', params=dataclasses.replace(bt_base, thresh_angle=2.0))
             nonzero_mid = np.count_nonzero(
                 np.linalg.norm(pm_opt.m.reshape(-1, 3), axis=1)
             )
@@ -783,21 +744,18 @@ class Testing(unittest.TestCase):
                 TEST_DIR, nphi=4, ntheta=4, dr=0.05, coff=0.06, poff=0.03
             )
 
-            kwargs = initialize_default_kwargs('GPMO')
-            kwargs['nhistory'] = 6
-            kwargs['K'] = 20
-            kwargs['Nadjacent'] = 2
-            kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-            kwargs['backtracking'] = 5
-            kwargs['max_nMagnets'] = 20
-            kwargs['thresh_angle'] = np.pi
-            kwargs['verbose'] = False
+            bt = GPMOBacktrackParams(
+                K=20, nhistory=6, Nadjacent=2,
+                dipole_grid_xyz=pm_opt.dipole_grid_xyz,
+                backtracking=5, max_nMagnets=20,
+                thresh_angle=np.pi, verbose=False,
+            )
 
-            errors_cpp, Bn_cpp, m_hist_cpp = GPMO(pm_opt, algorithm='GPMO', **kwargs)
+            errors_cpp, Bn_cpp, m_hist_cpp = GPMO(pm_opt, algorithm='GPMO', params=bt)
             m_cpp = pm_opt.m.copy()
 
             pm_opt.m = np.zeros_like(pm_opt.m)
-            errors_py, Bn_py, m_hist_py = GPMO(pm_opt, algorithm='GPMO_py', **kwargs)
+            errors_py, Bn_py, m_hist_py = GPMO(pm_opt, algorithm='GPMO_py', params=bt)
             m_py = pm_opt.m.copy()
 
             np.testing.assert_allclose(errors_py, errors_cpp, rtol=1e-11, atol=1e-11)
@@ -814,21 +772,18 @@ class Testing(unittest.TestCase):
                 TEST_DIR, nphi=4, ntheta=4, dr=0.05, coff=0.06, poff=0.03
             )
 
-            kwargs = initialize_default_kwargs('GPMO')
-            kwargs['nhistory'] = 5
-            kwargs['K'] = 18
-            kwargs['Nadjacent'] = 4
-            kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-            kwargs['backtracking'] = 6
-            kwargs['max_nMagnets'] = 25
-            kwargs['thresh_angle'] = np.pi
-            kwargs['verbose'] = False
+            bt = GPMOBacktrackParams(
+                K=18, nhistory=5, Nadjacent=4,
+                dipole_grid_xyz=pm_opt.dipole_grid_xyz,
+                backtracking=6, max_nMagnets=25,
+                thresh_angle=np.pi, verbose=False,
+            )
 
-            errors_cpp, _, _ = GPMO(pm_opt, algorithm='GPMO', **kwargs)
+            errors_cpp, _, _ = GPMO(pm_opt, algorithm='GPMO', params=bt)
             m_cpp = pm_opt.m.copy()
 
             pm_opt.m = np.zeros_like(pm_opt.m)
-            errors_py, _, _ = GPMO(pm_opt, algorithm='GPMO_py', **kwargs)
+            errors_py, _, _ = GPMO(pm_opt, algorithm='GPMO_py', params=bt)
             m_py = pm_opt.m.copy()
 
             np.testing.assert_allclose(errors_py, errors_cpp, rtol=1e-11, atol=1e-11)
@@ -882,24 +837,21 @@ class Testing(unittest.TestCase):
                 TEST_DIR, nphi=4, ntheta=4, dr=0.05, coff=0.06, poff=0.03
             )
 
-            kwargs = initialize_default_kwargs('GPMO')
-            kwargs['nhistory'] = 5
-            kwargs['K'] = 20
-            kwargs['Nadjacent'] = 2
-            kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz
-            kwargs['backtracking'] = 5
-            kwargs['max_nMagnets'] = 20
-            kwargs['thresh_angle'] = np.pi
-            kwargs['verbose'] = False
+            bt = GPMOBacktrackParams(
+                K=20, nhistory=5, Nadjacent=2,
+                dipole_grid_xyz=pm_opt.dipole_grid_xyz,
+                backtracking=5, max_nMagnets=20,
+                thresh_angle=np.pi, verbose=False,
+            )
 
             t0 = time.perf_counter()
-            GPMO(pm_opt, algorithm='GPMO', **kwargs)
+            GPMO(pm_opt, algorithm='GPMO', params=bt)
             t_cpp = time.perf_counter() - t0
 
             pm_opt.m = np.zeros_like(pm_opt.m)
 
             t0 = time.perf_counter()
-            GPMO(pm_opt, algorithm='GPMO_py', **kwargs)
+            GPMO(pm_opt, algorithm='GPMO_py', params=bt)
             t_py = time.perf_counter() - t0
 
             self.assertLess(

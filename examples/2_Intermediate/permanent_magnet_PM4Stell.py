@@ -25,7 +25,7 @@ from simsopt.field import BiotSavart, DipoleField, Coil
 from simsopt.geo import SurfaceRZFourier, PermanentMagnetGrid
 from simsopt.solve import GPMO
 from simsopt.objectives import SquaredFlux
-from simsopt.util import initialize_default_kwargs
+from simsopt.util import GPMOBacktrackParams
 from simsopt.util import FocusPlasmaBnormal, FocusData, read_focus_coils, in_github_actions
 from simsopt.util.polarization_project import (polarization_axes, orientation_phi,
                                                discretize_polarizations)
@@ -150,18 +150,17 @@ pm_ncsx = PermanentMagnetGrid.geo_setup_from_famus(
 )
 
 # Optimize with the GPMO algorithm
-kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = nIter_max
-kwargs['nhistory'] = nHistory
-if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
-    kwargs['backtracking'] = nBacktracking
-    kwargs['Nadjacent'] = nAdjacent
-    kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_ncsx.dipole_grid_xyz)
-    if algorithm == 'ArbVec_backtracking':
-        kwargs['thresh_angle'] = thresh_angle
-        kwargs['max_nMagnets'] = max_nMagnets
+gpmo_params = GPMOBacktrackParams(
+    K=nIter_max,
+    nhistory=nHistory,
+    backtracking=nBacktracking,
+    Nadjacent=nAdjacent,
+    dipole_grid_xyz=np.ascontiguousarray(pm_ncsx.dipole_grid_xyz),
+    max_nMagnets=max_nMagnets,
+    thresh_angle=thresh_angle,
+)
 t1 = time.time()
-R2_history, Bn_history, m_history = GPMO(pm_ncsx, algorithm, **kwargs)
+R2_history, Bn_history, m_history = GPMO(pm_ncsx, algorithm, params=gpmo_params)
 dt = time.time() - t1
 print('GPMO took t = ', dt, ' s')
 # Print effective permanent magnet volume

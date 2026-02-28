@@ -1,6 +1,7 @@
 """Permanent magnet optimization algorithms: relax-and-split, GPMO, GPMOmr."""
 from __future__ import annotations
 
+import dataclasses
 import time
 import warnings
 from typing import TYPE_CHECKING, Optional
@@ -10,6 +11,12 @@ from .macromag import MacroMag, Tiles, assemble_blocks_subset
 
 import simsoptpp as sopp
 from .._core.types import RealArray
+from ..util.permanent_magnet_helper_functions import (
+    GPMOBacktrackParams,
+    GPMOMacroMagParams,
+    GPMOParams,
+    RSParams,
+)
 
 if TYPE_CHECKING:
     from simsopt.geo import PermanentMagnetGrid
@@ -160,6 +167,7 @@ def setup_initial_condition(
 def relax_and_split(
     pm_opt: PermanentMagnetGrid,
     m0: RealArray | None = None,
+    params: RSParams | None = None,
     **kwargs,
 ) -> tuple[list[float], list[np.ndarray], list[np.ndarray]]:
     r"""
@@ -194,36 +202,10 @@ def relax_and_split(
             hypersurface spanned by the L2 ball constraints. Note that if
             algorithm is being used properly, the end result should be
             independent of the choice of initial condition.
-        kwargs: Keyword arguments to pass to the algorithm. The following
-            arguments can be passed to the MwPGP algorithm:
-
-            epsilon:
-                Error tolerance for the convex part of the algorithm (MwPGP).
-            nu:
-                Hyperparameter used for the relax-and-split
-                least-squares. Set nu >> 1 to reduce the
-                importance of nonconvexity in the problem.
-            reg_l0:
-                Regularization value for the L0 nonconvex term in the
-                optimization. This value is automatically scaled based on
-                the max dipole moment values, so that reg_l0 = 1 corresponds
-                to reg_l0 = np.max(m_maxima). It follows that users should
-                choose reg_l0 in [0, 1].
-            reg_l1:
-                Regularization value for the L1 nonsmooth term in the
-                optimization,
-            reg_l2:
-                Regularization value for any convex regularizers in the
-                optimization problem, such as the often-used L2 norm.
-            max_iter_MwPGP:
-                Maximum iterations to perform during a run of the convex
-                part of the relax-and-split algorithm (MwPGP).
-            max_iter_RS:
-                Maximum iterations to perform of the overall relax-and-split
-                algorithm. Therefore, also the number of times that MwPGP is
-                called, and the number of times a prox is computed.
-            verbose:
-                Prints out all the loss term errors separately.
+        params: Typed parameter dataclass.  When provided, *params*
+            takes precedence over any remaining *kwargs*.
+        kwargs: **Deprecated.**  Legacy keyword arguments; prefer
+            *params*.
 
     Returns:
         A tuple of optimization loss, solution at each step, and sparse solution.
@@ -240,6 +222,16 @@ def relax_and_split(
             sub-problem is solved.
 
     """
+    if params is not None:
+        kwargs = dataclasses.asdict(params)
+    elif kwargs:
+        warnings.warn(
+            "Passing bare **kwargs to relax_and_split() is deprecated. "
+            "Use an RSParams dataclass via the 'params' argument instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     # change to row-major order for the C++ code
     # A_obj = np.ascontiguousarray(pm_opt.A_obj)
     ATb = np.ascontiguousarray(np.reshape(pm_opt.ATb, (pm_opt.ndipoles, 3)))
@@ -337,6 +329,7 @@ def relax_and_split(
 def GPMO(
     pm_opt: PermanentMagnetGrid,
     algorithm: str = 'baseline',
+    params: GPMOParams | None = None,
     **kwargs,
 ) -> tuple[list[float], list[float], list[np.ndarray]]:
     r"""
@@ -354,7 +347,7 @@ def GPMO(
 
     Args:
         pm_opt: The grid of permanent magnets to optimize.
-            PermanentMagnetGrid instance
+            PermanentMagnetGrid instance.
         algorithm:
             The type of greedy algorithm to use. Options are
 
@@ -367,72 +360,75 @@ def GPMO(
             GPMO_ArbVec:
                 ArbVec GPMO (no backtracking),
             GPMO:
-                ArbVec GPMO; backtracking is controlled by the `backtracking` kwarg (set to 0 to disable),
+                ArbVec GPMO; backtracking is controlled by the
+                ``backtracking`` field (set to 0 to disable),
             GPMO_py:
                 pure-Python implementation of GPMO (used by GPMOmr),
             GPMOmr:
-                ArbVec GPMO with macromagnetic refinement (MacroMag); backtracking controlled by the `backtracking` kwarg
-                and macromag refinement cadence controlled by `mm_refine_every`.
+                ArbVec GPMO with macromagnetic refinement (MacroMag);
+                backtracking controlled by ``backtracking`` and
+                macromag refinement cadence by ``mm_refine_every``.
 
+        params:
+            Typed parameter dataclass.  Pass :class:`GPMOParams` for
+            ``baseline`` / ``multi`` / ``GPMO_ArbVec``,
+            :class:`GPMOBacktrackParams` for ``GPMO`` / ``GPMO_py`` /
+            ``GPMO_Backtracking``, or :class:`GPMOMacroMagParams` for
+            ``GPMOmr``.  When provided, *params* takes precedence over
+            any remaining *kwargs*.
         kwargs:
-            Keyword arguments for the GPMO algorithm and its variants.
-            The following variables can be passed:
-
-            K: integer
-                Maximum number of GPMO iterations to run.
-            nhistory: integer
-                Every 'nhistory' iterations, the loss terms are recorded.
-            Nadjacent: integer
-                Number of neighbor cells to consider 'adjacent' to one
-                another, for the purposes of placing multiple magnets or
-                doing backtracking. Not to be used with 'baseline' and 'GPMO_ArbVec'.
-            dipole_grid_xyz: 2D numpy array, shape (ndipoles, 3).
-                XYZ coordinates of the permanent magnet locations. Needed for
-                figuring out which permanent magnets are adjacent to one another.
-                Not a keyword argument for 'baseline' and 'GPMO_ArbVec'.
-            max_nMagnets: integer.
-                Maximum number of magnets to place before algorithm quits. Only
-                a keyword argument for the backtracking-capable algorithms:
-                'GPMO_Backtracking', 'GPMO', 'GPMOmr', and 'GPMO_py'.
-            backtracking: integer.
-                Every 'backtracking' iterations, a backtracking is performed to
-                remove suboptimal magnets. Only a keyword argument for
-                'GPMO_Backtracking', 'GPMO', 'GPMOmr', and 'GPMO_py'.
-            thresh_angle: float.
-                If the angle between adjacent dipole moments > thresh_angle,
-                these dipoles are considered suboptimal and liable to removed
-                during a backtracking step. Only a keyword argument for
-                'GPMO', 'GPMOmr', and 'GPMO_py'.
-            single_direction: int, must be = 0, 1, or 2.
-                Specify to only place magnets with orientations in a single
-                direction, e.g. only magnets pointed in the +- x direction.
-                Keyword argument only for 'baseline', 'multi', and 'GPMO_Backtracking'
-                since the ArbVec-based algorithms have local coordinate systems
-                and therefore can specify the same constraint and much more
-                via the 'pol_vectors' argument.
-            reg_l2: float.
-                L2 regularization value, applied through the mmax argument in
-                the GPMO algorithm. See the paper for how this works.
-            verbose: bool.
-                If True, print out the algorithm progress every 'nhistory'
-                iterations. Also needed to record the algorithm history.
+            **Deprecated.**  Legacy keyword arguments; prefer *params*.
 
     Returns:
         Tuple of (errors, Bn_errors, m_history)
 
         errors:
-            Total optimization loss values, recorded every 'nhistory'
+            Total optimization loss values, recorded every *nhistory*
             iterations.
         Bn_errors:
-            :math:`|Bn|` errors, recorded every 'nhistory' iterations.
+            :math:`|Bn|` errors, recorded every *nhistory* iterations.
         m_history:
-            Solution for the permanent magnets, recorded after 'nhistory'
-            iterations.
-
+            Solution for the permanent magnets, recorded after
+            *nhistory* iterations.
     """
     if not hasattr(pm_opt, "A_obj"):
         raise ValueError("The PermanentMagnetClass needs to use geo_setup() or "
                          "geo_setup_from_famus() before calling optimization routines.")
+
+    # --- resolve params vs legacy **kwargs into a working dict ---------------
+    if params is not None:
+        _d: dict = {}
+        _d["K"] = params.K
+        _d["nhistory"] = params.nhistory
+        _d["verbose"] = params.verbose
+        _d["single_direction"] = params.single_direction
+        if isinstance(params, GPMOBacktrackParams):
+            _d["backtracking"] = params.backtracking
+            _d["Nadjacent"] = params.Nadjacent
+            _d["max_nMagnets"] = params.max_nMagnets
+            _d["thresh_angle"] = params.thresh_angle
+            if params.dipole_grid_xyz is not None:
+                _d["dipole_grid_xyz"] = params.dipole_grid_xyz
+            if params.m_init is not None:
+                _d["m_init"] = params.m_init
+        if isinstance(params, GPMOMacroMagParams):
+            _d["cube_dim"] = params.cube_dim
+            _d["mu_ea"] = params.mu_ea
+            _d["mu_oa"] = params.mu_oa
+            _d["use_coils"] = params.use_coils
+            _d["use_demag"] = params.use_demag
+            _d["coil_path"] = params.coil_path
+            _d["mm_refine_every"] = params.mm_refine_every
+            _d["current_scale"] = params.current_scale
+        kwargs = _d
+    elif kwargs:
+        warnings.warn(
+            "Passing bare **kwargs to GPMO() is deprecated. "
+            "Use a GPMOParams / GPMOBacktrackParams / GPMOMacroMagParams "
+            "dataclass via the 'params' argument instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     # Begin the various algorithms
     errors = []
@@ -473,24 +469,38 @@ def GPMO(
 
     # --- algorithm dispatch helpers (closures over the shared locals) ------
 
+    def _pick(keys: set[str]) -> dict:
+        """Return a filtered copy of *kwargs* containing only *keys*."""
+        return {k: kwargs[k] for k in keys if k in kwargs}
+
+    _BASELINE_KEYS = {"K", "verbose", "nhistory", "single_direction"}
+    _ARBVEC_KEYS = {"K", "verbose", "nhistory"}
+    _BACKTRACK_KEYS = {"K", "verbose", "nhistory", "backtracking", "dipole_grid_xyz",
+                       "single_direction", "Nadjacent", "max_nMagnets"}
+    _ARBVEC_BT_KEYS = {"K", "verbose", "nhistory", "backtracking", "dipole_grid_xyz",
+                       "Nadjacent", "thresh_angle", "max_nMagnets", "x_init"}
+    _MULTI_KEYS = {"K", "verbose", "nhistory", "dipole_grid_xyz",
+                   "single_direction", "Nadjacent"}
+
     def _run_baseline():
         ah, bh, mh, m_ = sopp.GPMO_baseline(
             A_obj=A_obj_T, b_obj=b_obj_c, mmax=mmax_reg,
-            normal_norms=Nnorms, **kwargs,
+            normal_norms=Nnorms, **_pick(_BASELINE_KEYS),
         )
         return ah, bh, mh, m_, None, None
 
     def _run_arbvec():
         ah, bh, mh, m_ = sopp.GPMO_ArbVec(
             A_obj=A_obj_T, b_obj=b_obj_c, mmax=mmax_reg,
-            normal_norms=Nnorms, pol_vectors=pol_vec_c, **kwargs,
+            normal_norms=Nnorms, pol_vectors=pol_vec_c,
+            **_pick(_ARBVEC_KEYS),
         )
         return ah, bh, mh, m_, None, None
 
     def _run_backtracking():
         ah, bh, mh, nn, m_ = sopp.GPMO_backtracking(
             A_obj=A_obj_T, b_obj=b_obj_c, mmax=mmax_reg,
-            normal_norms=Nnorms, **kwargs,
+            normal_norms=Nnorms, **_pick(_BACKTRACK_KEYS),
         )
         return ah, bh, mh, m_, nn, None
 
@@ -499,44 +509,63 @@ def GPMO(
         _prepare_x_init(kwargs, nGridPoints, mmax_vec, pm_opt.ndipoles)
         ah, bh, mh, nn, m_ = sopp.GPMO_ArbVec_backtracking(
             A_obj=A_obj_T, b_obj=b_obj_c, mmax=mmax_reg,
-            normal_norms=Nnorms, pol_vectors=pol_vec_c, **kwargs,
+            normal_norms=Nnorms, pol_vectors=pol_vec_c,
+            **_pick(_ARBVEC_BT_KEYS),
         )
         return ah, bh, mh, m_, nn, None
 
     def _run_gpmo_py():
         _require_cartesian(pm_opt, 'GPMO_py')
         _prepare_x_init(kwargs, nGridPoints, mmax_vec, pm_opt.ndipoles)
+        py_params = GPMOBacktrackParams(
+            K=kwargs["K"],
+            nhistory=kwargs["nhistory"],
+            verbose=kwargs.get("verbose", True),
+            backtracking=kwargs.get("backtracking", 0),
+            dipole_grid_xyz=kwargs["dipole_grid_xyz"],
+            Nadjacent=kwargs.get("Nadjacent", 7),
+            thresh_angle=kwargs.get("thresh_angle", np.pi),
+            max_nMagnets=kwargs.get("max_nMagnets", 5000),
+            m_init=kwargs.get("x_init", np.zeros((pm_opt.ndipoles, 3))),
+        )
         ah, bh, mh, nn, m_ = GPMO_py(
             A_obj=A_obj_T, b_obj=b_obj_c, mmax=mmax_reg,
-            normal_norms=Nnorms, pol_vectors=pol_vec_c, **kwargs,
+            normal_norms=Nnorms, pol_vectors=pol_vec_c, params=py_params,
         )
         return ah, bh, mh, m_, nn, None
 
     def _run_gpmomr():
         _require_cartesian(pm_opt, 'GPMOmr')
         _prepare_x_init(kwargs, nGridPoints, mmax_vec, pm_opt.ndipoles)
-        cube_dim = kwargs.pop('cube_dim', 0.004)
-        mu_ea = kwargs.pop('mu_ea', 1.0)
-        mu_oa = kwargs.pop('mu_oa', 1.0)
-        use_coils = kwargs.pop('use_coils', False)
-        use_demag = kwargs.pop('use_demag', True)
-        coil_path = kwargs.pop('coil_path', None)
-        mm_refine_every = kwargs.pop('mm_refine_every', 20)
-        current_scale = kwargs.pop('current_scale', 1)
+        mm_params = GPMOMacroMagParams(
+            K=kwargs["K"],
+            nhistory=kwargs["nhistory"],
+            verbose=kwargs.get("verbose", True),
+            backtracking=kwargs.get("backtracking", 0),
+            dipole_grid_xyz=kwargs["dipole_grid_xyz"],
+            Nadjacent=kwargs.get("Nadjacent", 7),
+            thresh_angle=kwargs.get("thresh_angle", np.pi),
+            max_nMagnets=kwargs.get("max_nMagnets", 5000),
+            m_init=kwargs.get("x_init", np.zeros((pm_opt.ndipoles, 3))),
+            cube_dim=kwargs.pop("cube_dim", 0.004),
+            mu_ea=kwargs.pop("mu_ea", 1.0),
+            mu_oa=kwargs.pop("mu_oa", 1.0),
+            use_coils=kwargs.pop("use_coils", False),
+            use_demag=kwargs.pop("use_demag", True),
+            coil_path=kwargs.pop("coil_path", None),
+            mm_refine_every=kwargs.pop("mm_refine_every", 20),
+            current_scale=kwargs.pop("current_scale", 1),
+        )
         ah, bh, mh, nn, m_, kh = GPMOmr(
             A_obj=A_obj_T, b_obj=b_obj_c, mmax=mmax_vec,
-            normal_norms=Nnorms, pol_vectors=pol_vec_c,
-            cube_dim=cube_dim, mu_ea=mu_ea, mu_oa=mu_oa,
-            use_coils=use_coils, use_demag=use_demag,
-            coil_path=coil_path, mm_refine_every=mm_refine_every,
-            current_scale=current_scale, **kwargs,
+            normal_norms=Nnorms, pol_vectors=pol_vec_c, params=mm_params,
         )
         return ah, bh, mh, m_, nn, kh
 
     def _run_multi():
         ah, bh, mh, m_ = sopp.GPMO_multi(
             A_obj=A_obj_T, b_obj=b_obj_c, mmax=mmax_reg,
-            normal_norms=Nnorms, **kwargs,
+            normal_norms=Nnorms, **_pick(_MULTI_KEYS),
         )
         return ah, bh, mh, m_, None, None
 
@@ -779,15 +808,7 @@ def GPMO_py(
     mmax: np.ndarray,
     normal_norms: np.ndarray,
     pol_vectors: np.ndarray,
-    K: int,
-    verbose: bool,
-    nhistory: int,
-    backtracking: int,
-    dipole_grid_xyz: np.ndarray,
-    Nadjacent: int,
-    thresh_angle: float,
-    max_nMagnets: int,
-    x_init: np.ndarray,
+    params: GPMOBacktrackParams,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     r"""
     Pure-Python reference implementation of the ArbVec+backtracking GPMO algorithm.
@@ -822,25 +843,10 @@ def GPMO_py(
             :math:`|B_n|` error.
         pol_vectors: Allowable polarization directions per site,
             shape ``(N, nPolVecs, 3)``.  Each row is a unit vector.
-        K: Maximum number of greedy iterations to perform.
-        verbose: If True, print progress and record history snapshots.
-        nhistory: Number of history snapshots to record (excluding the
-            initialization snapshot).
-        backtracking: Cadence (in iterations) of the backtracking step.
-            Set to 0 to disable backtracking entirely.
-        dipole_grid_xyz: Physical coordinates of the dipole sites,
-            shape ``(N, 3)``.  Used to build the adjacency/connectivity
-            matrix for backtracking.
-        Nadjacent: Number of nearest neighbours (including self) used
-            when constructing the connectivity matrix.
-        thresh_angle: Angle threshold (radians) for backtracking removal.
-            Adjacent dipole pairs whose mutual angle exceeds this value
-            (i.e. ``cos(angle) <= cos(thresh_angle)``) are removed.
-            Setting ``thresh_angle = pi`` effectively disables removal.
-        max_nMagnets: Early-stop limit on the number of placed magnets.
-        x_init: Initial dipole moments, shape ``(N, 3)``.  Non-zero rows
-            are snapped to the nearest allowable polarization direction
-            before the greedy loop begins.
+        params: Backtracking parameters including ``K``, ``nhistory``,
+            ``verbose``, ``backtracking``, ``dipole_grid_xyz``,
+            ``Nadjacent``, ``thresh_angle``, ``max_nMagnets``, and
+            ``m_init`` (used as ``x_init``).
 
     Returns:
         A 5-tuple ``(objective_history, Bn_history, m_history,
@@ -856,6 +862,16 @@ def GPMO_py(
           shape ``(nhistory + 2,)``.
         - **x** — final dipole solution, shape ``(N, 3)``.
     """
+    K = params.K
+    verbose = params.verbose
+    nhistory = params.nhistory
+    backtracking = params.backtracking
+    Nadjacent = params.Nadjacent
+    thresh_angle = params.thresh_angle
+    max_nMagnets = params.max_nMagnets
+    x_init = params.m_init
+    dipole_grid_xyz = params.dipole_grid_xyz
+
     # Shapes
     # A_obj was passed as (3N, ngrid) in Python caller; reshape to (N,3,ngrid)
     A_obj = np.asarray(A_obj, dtype=np.float64, order="C")
@@ -1113,23 +1129,7 @@ def GPMOmr(
     mmax: np.ndarray,
     normal_norms: np.ndarray,
     pol_vectors: np.ndarray,
-    K: int,
-    verbose: bool,
-    nhistory: int,
-    backtracking: int,
-    dipole_grid_xyz: np.ndarray,
-    Nadjacent: int,
-    thresh_angle: float,
-    max_nMagnets: int,
-    x_init: np.ndarray,
-    cube_dim: float = 0.004,
-    mu_ea: float = 1.00,
-    mu_oa: float = 1.00,
-    use_coils: bool = False,
-    use_demag: bool = True,
-    coil_path: str | None = None,
-    mm_refine_every: int = 20,
-    current_scale: float = 1.0,
+    params: GPMOMacroMagParams,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     r"""
     GPMO with macromagnetic refinement (GPMOmr).
@@ -1168,45 +1168,35 @@ def GPMOmr(
             shape ``(ngrid,)``.
         pol_vectors: Allowable polarization directions per site,
             shape ``(N, nPolVecs, 3)``.
-        K: Maximum number of greedy iterations.
-        verbose: If True, print progress every *nhistory* iterations.
-        nhistory: Number of history snapshots to record.
-        backtracking: Cadence of the backtracking step (0 to disable).
-        dipole_grid_xyz: Physical coordinates of the dipole sites,
-            shape ``(N, 3)``.
-        Nadjacent: Number of nearest neighbours used for the
-            connectivity matrix (including self).
-        thresh_angle: Angle threshold (radians) for backtracking
-            removal.  :math:`\pi` effectively disables removal.
-        max_nMagnets: Early-stop limit on the number of placed magnets.
-        x_init: Initial dipole moments, shape ``(N, 3)``.
-        cube_dim: Side length of each cubic magnet tile (metres).
-            Defaults to 0.004 (4 mm).
-        mu_ea: Relative permeability along the easy axis
-            (:math:`\mu_{\parallel}`).  Set to 1.0 together with
-            *mu_oa* = 1.0 to recover standard (non-MacroMag) GPMO.
-        mu_oa: Relative permeability along the two hard axes
-            (:math:`\mu_{\perp}`).
-        use_coils: If True, include external coil fields
-            (:math:`\mathbf{H}_a`) from a FOCUS coils file during the
-            MacroMag solve.
-        use_demag: If True (default), include the demagnetization
-            tensor :math:`\underline{\underline{N}}_{ij}` in the solve.
-        coil_path: Path to a FOCUS-format coils file.  Required when
-            *use_coils* is True.
-        mm_refine_every: Run the MacroMag refinement every this many
-            greedy iterations.  Defaults to 20.
-        current_scale: Scaling factor applied to coil currents when
-            loading from a FOCUS coils file.
+        params: :class:`GPMOMacroMagParams` containing all algorithm,
+            backtracking, and macromagnetic-refinement parameters.
 
     Returns:
-        A 5-tuple ``(objective_history, Bn_history, m_history,
-        num_nonzeros, x)`` with the same semantics as
-        :func:`GPMO_py`.
+        A 6-tuple ``(objective_history, Bn_history, m_history,
+        num_nonzeros, x, k_history)`` with the same semantics as
+        :func:`GPMO_py` plus *k_history*.
 
     Raises:
         ValueError: If *use_coils* is True but *coil_path* is None.
     """
+    K = params.K
+    verbose = params.verbose
+    nhistory = params.nhistory
+    backtracking = params.backtracking
+    Nadjacent = params.Nadjacent
+    thresh_angle = params.thresh_angle
+    max_nMagnets = params.max_nMagnets
+    x_init = params.m_init
+    dipole_grid_xyz = params.dipole_grid_xyz
+    cube_dim = params.cube_dim
+    mu_ea = params.mu_ea
+    mu_oa = params.mu_oa
+    use_coils = params.use_coils
+    use_demag = params.use_demag
+    coil_path = params.coil_path
+    mm_refine_every = params.mm_refine_every
+    current_scale = params.current_scale
+
     if use_coils and coil_path is None:
         raise ValueError("Use coils set to True but missing coil path; Please provide the correct focus coil path")
 
