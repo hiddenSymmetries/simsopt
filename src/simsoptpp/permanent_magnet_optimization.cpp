@@ -5,6 +5,7 @@
 #include "xtensor/xsort.hpp"
 #include "xtensor/xview.hpp"
 #include <functional>
+#include <stdexcept>
 #include <vector>
 #include <math.h>
 
@@ -379,11 +380,18 @@ Array connectivity_matrix(Array& dipole_grid_xyz, int Nadjacent)
 // two nearby, oppositely oriented magnets. 
 std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, int backtracking, Array& dipole_grid_xyz, int single_direction, int Nadjacent, int max_nMagnets)
 {
+    if (nhistory <= 0) {
+        throw std::invalid_argument("nhistory must be positive.");
+    }
+    if (backtracking < 0) {
+        throw std::invalid_argument("backtracking must be non-negative (use 0 to disable).");
+    }
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);
     int N3 = 3 * N;
     int print_iter = 0;
     int skj_inds;
+    const int print_every = std::max(1, int(K / nhistory));
 
     Array x = xt::zeros<double>({N, 3});
 
@@ -483,7 +491,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 	}
 
 	// backtrack by removing adjacent dipoles that are equal and opposite
-	if ((k >= backtracking) and ((k % backtracking) == 0)) {
+	if ((backtracking > 0) && (k >= backtracking) && ((k % backtracking) == 0)) {
 	    // Loop over all dipoles placed so far
             int wyrm_sum = 0;
 	    for (int j = 0; j < k; j++) {
@@ -537,7 +545,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 	    }            
 	}
 
-	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
+	if (verbose && (((k % print_every) == 0) || k == 0 || k == K - 1)) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", k, num_nonzero);
 
@@ -732,13 +740,24 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
     Array& dipole_grid_xyz, int Nadjacent, double thresh_angle, 
     int max_nMagnets, Array& x_init)
 {
+    if (nhistory <= 0) {
+        throw std::invalid_argument("nhistory must be positive.");
+    }
+    if (backtracking < 0) {
+        throw std::invalid_argument("backtracking must be non-negative (use 0 to disable).");
+    }
     int ngrid = A_obj.shape(1);
     int nPolVecs = pol_vectors.shape(1);
+    if (nPolVecs <= 0) {
+        throw std::invalid_argument(
+            "pol_vectors must have at least one polarization vector (shape[1] > 0).");
+    }
     int N = int(A_obj.shape(0) / 3);
     int N3 = 3 * N;
     int NNp = nPolVecs * N;
     int print_iter = 0;
     double cos_thresh_angle = cos(thresh_angle);
+    const int print_every = std::max(1, int(K / nhistory));
 
     Array x = xt::zeros<double>({N, 3});
     vector<int> x_vec(N);
@@ -858,7 +877,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
         num_nonzero += 1;
 
         // Backtrack by removing adjacent dipoles that are equal and opposite
-        if ((k % backtracking) == 0) {
+        if ((backtracking > 0) && ((k % backtracking) == 0)) {
 
             int wyrm_sum = 0;
 
@@ -938,7 +957,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
             printf("Backtracking: %d wyrms removed\n", wyrm_sum);
         }
 
-	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
+	if (verbose && (((k % print_every) == 0) || k == 0 || k == K - 1)) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, 
                        Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", 
