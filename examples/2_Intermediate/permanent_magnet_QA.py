@@ -189,7 +189,10 @@ b_dipole_proxy = DipoleField(
     m_maxima=pm_opt.m_maxima,
 )
 b_dipole_proxy.set_points(s_plot.gamma().reshape((-1, 3)))
-b_dipole_proxy._toVTK(out_dir / "Dipole_Fields_Sparse")
+# Magnet dimensions for VTK: cylindrical grid uses dr (radial) and dz (axial)
+b_dipole_proxy.toVTK_magnet_boxes(
+    out_dir / "Dipole_Fields_Sparse", pm_opt.dr, pm_opt.dr, pm_opt.dz
+)
 b_dipole = DipoleField(
     pm_opt.dipole_grid_xyz,
     pm_opt.m,
@@ -198,7 +201,9 @@ b_dipole = DipoleField(
     m_maxima=pm_opt.m_maxima
 )
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-b_dipole._toVTK(out_dir / "Dipole_Fields")
+b_dipole.toVTK_magnet_boxes(
+    out_dir / "Dipole_Fields", pm_opt.dr, pm_opt.dr, pm_opt.dz
+)
 
 # Print optimized metrics
 print("Total fB = ",

@@ -149,7 +149,7 @@ pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
-algorithm = 'ArbVec_backtracking'  # Algorithm to use
+algorithm = 'GPMO'  # ArbVec + backtracking (uses sopp.GPMO_ArbVec_backtracking)
 nAdjacent = 1  # How many magnets to consider "adjacent" to one another
 nHistory = 20  # How often to save the algorithm progress
 thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
@@ -219,7 +219,11 @@ if not in_github_actions:
         )
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
         K_save = int(nIter_max / nHistory * k)
-        b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}")
+        # Magnet dimensions for VTK: use dr for all axes (FAMUS grid from geo_setup_from_famus)
+        b_dipole.toVTK_magnet_boxes(
+            out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}",
+            dr, dr, dr,
+        )
         print("Total fB = ", 0.5 * np.sum((pm_opt.A_obj @ mk - pm_opt.b_obj) ** 2))
         Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
         Bnormal_total = Bnormal + Bnormal_dipoles
