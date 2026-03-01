@@ -653,7 +653,7 @@ def run_gpmo_optimization_on_muse_grid(
         coordinate_flag=pm_opt.coordinate_flag,
         m_maxima=pm_opt.m_maxima,
     )
-    b_final._toVTK(out_subdir / f"dipoles_final_{run_id}", c.dx, c.dy, c.dz)
+    b_final.toVTK_magnet_boxes(out_subdir / f"dipoles_final_{run_id}", c.dx, c.dy, c.dz)
 
     print(f"[INFO] Wrote {run_csv}")
     print(f"[INFO] Wrote {yaml_path}")

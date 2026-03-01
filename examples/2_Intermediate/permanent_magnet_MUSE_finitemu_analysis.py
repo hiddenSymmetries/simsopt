@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Post-processing script for MUSE permanent magnet analysis.
 
