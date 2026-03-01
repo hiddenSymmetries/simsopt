@@ -7,7 +7,7 @@ import warnings
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
-from .macromag import MacroMag, Tiles, assemble_blocks_subset
+from .macromagnetics import MacroMag, Tiles, assemble_blocks_subset
 
 import simsoptpp as sopp
 from .._core.types import RealArray

@@ -30,7 +30,7 @@ import numpy as np
 from simsopt.field import BiotSavart, DipoleField
 from simsopt.geo import SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
-from simsopt.solve.macromag import MacroMag, muse2tiles
+from simsopt.solve.macromagnetics import MacroMag, muse2tiles
 from simsopt.util.permanent_magnet_helper_functions import (
     check_magnet_volume_stellarator_symmetry,
     compute_angle_between_vectors_degrees,
@@ -39,7 +39,7 @@ from simsopt.util.permanent_magnet_helper_functions import (
     print_bnormal_error_summary_statistics,
     reshape_to_vtk_field_format,
 )
-
+from simsopt.util import in_github_actions
 
 # ============================================================================
 # Configuration and file paths
@@ -56,8 +56,12 @@ mu_ea = 1.05  # Relative permeability along easy axis
 mu_oa = 1.15  # Relative permeability along orthogonal axis
 
 # High resolution for smooth surface plots
-nphi = 1024  # Number of toroidal grid points
+nphi = 128  # Number of toroidal grid points
 ntheta = nphi  # Number of poloidal grid points (set equal to nphi)
+
+if in_github_actions:
+    nphi = 8
+    ntheta = 8
 
 # Number of field periods for MUSE
 # Note: NFP=1 is used since the grid from Towered MUSE setup is already set

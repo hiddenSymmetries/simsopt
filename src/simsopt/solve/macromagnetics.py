@@ -25,12 +25,31 @@ _EPS_LOW: float = 0.9999
 # Tolerance for rotation angle gimbal-lock detection
 _ROTATION_TOL: float = 1e-8
 
-# Default GMRES settings
-_DEFAULT_KRYLOV_TOL: float = 1e-6
-_DEFAULT_KRYLOV_IT: int = 20
-
 # Small epsilon to prevent division-by-zero when normalizing
 _NORMALIZATION_EPS: float = 1e-30
+
+
+def _axis_rotation(axis: int, theta: float) -> np.ndarray:
+    """Single-axis rotation matrix: axis 0=x, 1=y, 2=z.
+
+    Parameters
+    ----------
+    axis : int
+        Axis index: 0=x, 1=y, 2=z.
+    theta : float
+        Rotation angle in radians.
+
+    Returns
+    -------
+    np.ndarray
+        (3, 3) rotation matrix.
+    """
+    c, s = math.cos(theta), math.sin(theta)
+    if axis == 0:
+        return np.array([[1, 0, 0], [0, c, -s], [0, s, c]], dtype=float)
+    if axis == 1:
+        return np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]], dtype=float)
+    return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]], dtype=float)
 
 
 def rotation_angle(R: np.ndarray, xyz: bool = False) -> tuple[float, float, float]:
@@ -78,31 +97,9 @@ def _rotation_matrix(alpha: float, beta: float, gamma: float, *, xyz: bool = Fal
     ndarray, shape (3, 3)
         Rotation matrix.
     """
-    ca = math.cos(alpha)
-    sa = math.sin(alpha)
-    cb = math.cos(beta)
-    sb = math.sin(beta)
-    cc = math.cos(gamma)
-    sc = math.sin(gamma)
     if xyz:
-        # Rx(alpha) Ry(beta) Rz(gamma)
-        return np.array(
-            [
-                [cb * cc, -cb * sc, sb],
-                [sa * sb * cc + ca * sc, -sa * sb * sc + ca * cc, -sa * cb],
-                [-ca * sb * cc + sa * sc, ca * sb * sc + sa * cc, ca * cb],
-            ],
-            dtype=float,
-        )
-    # Rz(alpha) Ry(beta) Rx(gamma)
-    return np.array(
-        [
-            [ca * cb, ca * sb * sc - sa * cc, ca * sb * cc + sa * sc],
-            [sa * cb, sa * sb * sc + ca * cc, sa * sb * cc - ca * sc],
-            [-sb, cb * sc, cb * cc],
-        ],
-        dtype=float,
-    )
+        return _axis_rotation(0, alpha) @ _axis_rotation(1, beta) @ _axis_rotation(2, gamma)
+    return _axis_rotation(2, alpha) @ _axis_rotation(1, beta) @ _axis_rotation(0, gamma)
 
 
 def _rotation_angle_zyx(R: np.ndarray) -> tuple[float, float, float]:
@@ -181,215 +178,82 @@ def _rotation_angle_xyz(R: np.ndarray) -> tuple[float, float, float]:
     return alpha, beta, gamma
 
 
-def _f_3D(a: float, b: float, c: float, x: float, y: float, z: float) -> float:
+def _diag_kernel_3d(
+    a: float, b: float, c: float,
+    x: float, y: float, z: float,
+    axis: int,
+) -> float:
     r"""
-    Auxiliary function for the diagonal :math:`N_{xx}` demagnetization tensor component.
+    Parameterized diagonal demag kernel for :math:`N_{xx}`, :math:`N_{yy}`, :math:`N_{zz}`.
 
-    For a uniformly magnetized rectangular prism with half-dimensions
-    :math:`(a, b, c)` and evaluation point :math:`(x, y, z)`, this function
-    evaluates the kernel that appears inside the :math:`\arctan` sum for the
-    diagonal :math:`N_{xx}` component (Newell/Aharoni formulas):
+    Returns :math:`\frac{\text{num}}{\text{denom}\,r}` where
+    :math:`r = \sqrt{(a-x)^2 + (b-y)^2 + (c-z)^2}`.
+    For axis 0 (N_xx): denom = (a-x), num = (b-y)(c-z).
+    For axis 1 (N_yy): denom = (b-y), num = (a-x)(c-z).
+    For axis 2 (N_zz): denom = (c-z), num = (a-x)(b-y).
+    When the denominator is zero, a symmetric perturbation gives the limit.
 
-    .. math::
+    Parameters
+    ----------
+    a, b, c : float
+        Half-extents of source prism (local coords).
+    x, y, z : float
+        Observation point (local coords).
+    axis : int
+        0=x, 1=y, 2=z (selects diagonal component).
 
-        f(a,b,c,x,y,z) = \frac{(b - y)(c - z)}{(a - x)\,r},
-        \qquad r = \sqrt{(a-x)^2 + (b-y)^2 + (c-z)^2}.
-
-    The diagonal component is then assembled by a signed sum over the eight
-    corner combinations (see :func:`_prism_N_local_nb`):
-
-    .. math::
-
-        N_{xx} = \frac{1}{4\pi}
-        \sum_{s \in \{{\pm 1}\}^3}
-        \arctan\!\bigl(f(a,b,c,\;s_x x_0,\;s_y y_0,\;s_z z_0)\bigr).
-
-    Notes
-    -----
-    If the denominator :math:`(a - x)` is exactly zero in floating point, a
-    small symmetric perturbation is used to approximate the limiting value.
-
-    Args:
-        a, b, c: Half-dimensions of the prism in its local frame.
-        x, y, z: Evaluation point coordinates in the same local frame.
-
-    Returns:
-        Scalar value used inside :math:`\arctan` for the :math:`N_{xx}` entry.
+    Returns
+    -------
+    float
+        Kernel value scaled by :math:`1/(4\pi)` in the full tensor.
     """
     half_a, half_b, half_c = a, b, c
     eps_h, eps_l = _EPS_HIGH, _EPS_LOW
+    d0 = half_a - x
+    d1 = half_b - y
+    d2 = half_c - z
+    denom = (d0, d1, d2)[axis]
+    num = (d0, d1, d2)[(axis + 1) % 3] * (d0, d1, d2)[(axis + 2) % 3]
 
-    dx = half_a - x
-    if dx == 0.0:
-        dxh, dxl = half_a - x*eps_h, half_a - x*eps_l
-        r_h = math.sqrt(dxh*dxh + (half_b - y)**2 + (half_c - z)**2)
-        r_l = math.sqrt(dxl*dxl + (half_b - y)**2 + (half_c - z)**2)
-        val_h = (half_b - y)*(half_c - z)/(dxh * r_h)
-        val_l = (half_b - y)*(half_c - z)/(dxl * r_l)
-        return 0.5*(val_h + val_l)
-    else:
-        r = math.sqrt(dx*dx + (half_b - y)**2 + (half_c - z)**2)
-        return (half_b - y)*(half_c - z)/(dx * r)
+    if denom == 0.0:
+        coord_scale = (half_a, half_b, half_c)[axis]
+        coord_val = (x, y, z)[axis]
+        denom_h = coord_scale - coord_val * eps_h
+        denom_l = coord_scale - coord_val * eps_l
+        r_h = math.sqrt(
+            denom_h**2 + d1*d1 + d2*d2 if axis == 0 else
+            d0*d0 + denom_h**2 + d2*d2 if axis == 1 else
+            d0*d0 + d1*d1 + denom_h**2,
+        )
+        r_l = math.sqrt(
+            denom_l**2 + d1*d1 + d2*d2 if axis == 0 else
+            d0*d0 + denom_l**2 + d2*d2 if axis == 1 else
+            d0*d0 + d1*d1 + denom_l**2,
+        )
+        val_h = num / (denom_h * r_h)
+        val_l = num / (denom_l * r_l)
+        return 0.5 * (val_h + val_l)
+    r = math.sqrt(d0*d0 + d1*d1 + d2*d2)
+    return num / (denom * r)
 
-def _g_3D(a: float, b: float, c: float, x: float, y: float, z: float) -> float:
+
+def _log_kernel_3d(
+    a: float, b: float, c: float,
+    x: float, y: float, z: float,
+    axis: int,
+) -> float:
     r"""
-    Auxiliary function for the diagonal :math:`N_{yy}` demagnetization tensor component.
+    Parameterized log-kernel helper for off-diagonal demagnetization components.
 
-    Like :func:`_f_3D`, this kernel appears inside the :math:`\arctan` sum for
-    :math:`N_{yy}`:
-
-    .. math::
-
-        g(a,b,c,x,y,z) = \frac{(a - x)(c - z)}{(b - y)\,r},
-        \qquad r = \sqrt{(a-x)^2 + (b-y)^2 + (c-z)^2}.
-
-    Notes
-    -----
-    If the denominator :math:`(b - y)` is exactly zero in floating point, a
-    small symmetric perturbation is used to approximate the limiting value.
-
-    Args:
-        a, b, c: Half-dimensions of the prism in its local frame.
-        x, y, z: Evaluation point coordinates in the same local frame.
-
-    Returns:
-        Scalar value used inside :math:`\arctan` for the :math:`N_{yy}` entry.
+    Returns :math:`(\text{offset}_\text{axis}) + r` where
+    :math:`r = \sqrt{(a-x)^2 + (b-y)^2 + (c-z)^2}` and offset is:
+    - axis=0: :math:`(a-x)` (for :math:`N_{yz}`)
+    - axis=1: :math:`(b-y)` (for :math:`N_{xz}`)
+    - axis=2: :math:`(c-z)` (for :math:`N_{xy}`)
     """
-    half_a, half_b, half_c = a, b, c
-    eps_h, eps_l = _EPS_HIGH, _EPS_LOW
-
-    dy = half_b - y
-    if dy == 0.0:
-        dyh, dyl = half_b - y*eps_h, half_b - y*eps_l
-        r_h = math.sqrt((half_a - x)**2 + dyh*dyh + (half_c - z)**2)
-        r_l = math.sqrt((half_a - x)**2 + dyl*dyl + (half_c - z)**2)
-        val_h = (half_a - x)*(half_c - z)/(dyh * r_h)
-        val_l = (half_a - x)*(half_c - z)/(dyl * r_l)
-        return 0.5*(val_h + val_l)
-    else:
-        r = math.sqrt((half_a - x)**2 + dy*dy + (half_c - z)**2)
-        return (half_a - x)*(half_c - z)/(dy * r)
-
-
-def _h_3D(a: float, b: float, c: float, x: float, y: float, z: float) -> float:
-    r"""
-    Auxiliary function for the diagonal :math:`N_{zz}` demagnetization tensor component.
-
-    Like :func:`_f_3D` and :func:`_g_3D`, this kernel appears inside the
-    :math:`\arctan` sum for :math:`N_{zz}`:
-
-    .. math::
-
-        h(a,b,c,x,y,z) = \frac{(a - x)(b - y)}{(c - z)\,r},
-        \qquad r = \sqrt{(a-x)^2 + (b-y)^2 + (c-z)^2}.
-
-    Notes
-    -----
-    If the denominator :math:`(c - z)` is exactly zero in floating point, a
-    small symmetric perturbation is used to approximate the limiting value.
-
-    Args:
-        a, b, c: Half-dimensions of the prism in its local frame.
-        x, y, z: Evaluation point coordinates in the same local frame.
-
-    Returns:
-        Scalar value used inside :math:`\arctan` for the :math:`N_{zz}` entry.
-    """
-    half_a, half_b, half_c = a, b, c
-    eps_h, eps_l = _EPS_HIGH, _EPS_LOW
-
-    dz = half_c - z
-    if dz == 0.0:
-        dzh, dzl = half_c - z*eps_h, half_c - z*eps_l
-        r_h = math.sqrt((half_a - x)**2 + (half_b - y)**2 + dzh*dzh)
-        r_l = math.sqrt((half_a - x)**2 + (half_b - y)**2 + dzl*dzl)
-        val_h = (half_a - x)*(half_b - y)/(dzh * r_h)
-        val_l = (half_a - x)*(half_b - y)/(dzl * r_l)
-        return 0.5*(val_h + val_l)
-    else:
-        r = math.sqrt((half_a - x)**2 + (half_b - y)**2 + dz*dz)
-        return (half_a - x)*(half_b - y)/(dz * r)
-
-def _FF_3D(a: float, b: float, c: float, x: float, y: float, z: float) -> float:
-    r"""
-    Log-kernel helper for the off-diagonal :math:`N_{xy}` demagnetization component.
-
-    The off-diagonal demag entries use :math:`\ln`-ratio terms assembled from
-    auxiliary functions evaluated at the eight signed corner combinations.  For
-    :math:`N_{xy}` the auxiliary function is
-
-    .. math::
-
-        F(a,b,c,x,y,z) = (c - z) + r,
-        \qquad r = \sqrt{(a-x)^2 + (b-y)^2 + (c-z)^2},
-
-    and the off-diagonal entry is
-
-    .. math::
-
-        N_{xy} = -\frac{1}{4\pi}
-        \ln\!\Bigl(\frac{\text{numerator}}{\text{denominator}}\Bigr),
-
-    where the numerator and denominator are specific signed products of
-    :math:`F` (see :func:`_prism_N_local_nb`).
-
-    Args:
-        a, b, c: Half-dimensions of the prism in its local frame.
-        x, y, z: Evaluation point coordinates in the same local frame.
-
-    Returns:
-        Positive scalar used in ratios inside :math:`\ln` terms for
-        :math:`N_{xy}`.
-    """
-    ha, hb, hc = a, b, c
-    return (hc - z) + math.sqrt((ha - x)**2 + (hb - y)**2 + (hc - z)**2)
-
-def _GG_3D(a: float, b: float, c: float, x: float, y: float, z: float) -> float:
-    r"""
-    Log-kernel helper for the off-diagonal :math:`N_{yz}` demagnetization component.
-
-    For :math:`N_{yz}` the auxiliary function is
-
-    .. math::
-
-        G(a,b,c,x,y,z) = (a - x) + r,
-        \qquad r = \sqrt{(a-x)^2 + (b-y)^2 + (c-z)^2}.
-
-    Args:
-        a, b, c: Half-dimensions of the prism in its local frame.
-        x, y, z: Evaluation point coordinates in the same local frame.
-
-    Returns:
-        Positive scalar used in ratios inside :math:`\ln` terms for
-        :math:`N_{yz}`.
-    """
-    ha, hb, hc = a, b, c
-    return (ha - x) + math.sqrt((ha - x)**2 + (hb - y)**2 + (hc - z)**2)
-
-def _HH_3D(a: float, b: float, c: float, x: float, y: float, z: float) -> float:
-    r"""
-    Log-kernel helper for the off-diagonal :math:`N_{xz}` demagnetization component.
-
-    For :math:`N_{xz}` the auxiliary function is
-
-    .. math::
-
-        H(a,b,c,x,y,z) = (b - y) + r,
-        \qquad r = \sqrt{(a-x)^2 + (b-y)^2 + (c-z)^2}.
-
-    See :func:`getF_limit` for the stabilized limit evaluation used when the
-    raw products underflow.
-
-    Args:
-        a, b, c: Half-dimensions of the prism in its local frame.
-        x, y, z: Evaluation point coordinates in the same local frame.
-
-    Returns:
-        Positive scalar used in ratios inside :math:`\ln` terms for
-        :math:`N_{xz}`.
-    """
-    ha, hb, hc = a, b, c
-    return (hb - y) + math.sqrt((ha - x)**2 + (hb - y)**2 + (hc - z)**2)
+    r = math.sqrt((a - x)**2 + (b - y)**2 + (c - z)**2)
+    offsets = ((a - x), (b - y), (c - z))
+    return offsets[axis] + r
 
 
 def getF_limit(
@@ -422,7 +286,8 @@ def getF_limit(
     Args:
         a, b, c: Half-dimensions of the prism in its local frame.
         x, y, z: Evaluation point coordinates in the same local frame.
-        func: One of :func:`_FF_3D`, :func:`_GG_3D`, :func:`_HH_3D`.
+        func: Callable ``(a,b,c,x,y,z) -> float``, e.g.
+        ``functools.partial(_log_kernel_3d, axis=k)`` for k in {0,1,2}.
 
     Returns:
         Scalar approximation to the ratio (numerator/denominator) in the limit.
@@ -478,8 +343,7 @@ def _prism_N_local_nb(
             \ln\!\Bigl(\frac{\text{num}(F)}{\text{den}(F)}\Bigr),
 
     with analogous expressions for the remaining components (see
-    :func:`_f_3D`, :func:`_g_3D`, :func:`_h_3D`, :func:`_FF_3D`,
-    :func:`_GG_3D`, :func:`_HH_3D`).  Near-singular ratios are handled
+    :func:`_diag_kernel_3d`, :func:`_log_kernel_3d`).  Near-singular ratios are handled
     via :func:`getF_limit`.
 
     Args:
@@ -503,15 +367,27 @@ def _prism_N_local_nb(
         for sj in (1.0, -1.0):
             for sk in (1.0, -1.0):
                 xi, yi, zi = si*x0, sj*y0, sk*z0
-                sum_f += math.atan(_f_3D(a, b, c, xi, yi, zi))
-                sum_g += math.atan(_g_3D(a, b, c, xi, yi, zi))
-                sum_h += math.atan(_h_3D(a, b, c, xi, yi, zi))
+                sum_f += math.atan(_diag_kernel_3d(a, b, c, xi, yi, zi, axis=0))
+                sum_g += math.atan(_diag_kernel_3d(a, b, c, xi, yi, zi, axis=1))
+                sum_h += math.atan(_diag_kernel_3d(a, b, c, xi, yi, zi, axis=2))
     N[0,0] = _INV4PI * sum_f
     N[1,1] = _INV4PI * sum_g
     N[2,2] = _INV4PI * sum_h
 
-    def _off_diag(func, idx1, idx2):
-        """Assemble a symmetric off-diagonal entry via log product ratios."""
+    def _off_diag(func, idx1: int, idx2: int) -> None:
+        """
+        Assemble symmetric off-diagonal entry N[idx1,idx2] via log product ratios.
+
+        Uses the product of auxiliary kernel func at signed corner combinations;
+        see getF_limit for the ratio formula and singularity handling.
+
+        Parameters
+        ----------
+        func : callable
+            Auxiliary kernel function (a, b, c, x0, y0, z0) -> float.
+        idx1, idx2 : int
+            Indices into N for the symmetric off-diagonal entry.
+        """
         nom = ( func( +a, +b, +c, x0, y0, z0 )
             * func( -a, -b, +c, x0, y0, z0 )
             * func( +a, -b, -c, x0, y0, z0 )
@@ -529,9 +405,9 @@ def _prism_N_local_nb(
             val = 0.0
         N[idx1, idx2] = N[idx2, idx1] = val
 
-    _off_diag(_FF_3D, 0, 1)
-    _off_diag(_GG_3D, 1, 2)
-    _off_diag(_HH_3D, 0, 2)
+    _off_diag(functools.partial(_log_kernel_3d, axis=2), 0, 1)  # N_xy
+    _off_diag(functools.partial(_log_kernel_3d, axis=0), 1, 2)  # N_yz
+    _off_diag(functools.partial(_log_kernel_3d, axis=1), 0, 2)  # N_xz
 
     return -N
 
@@ -557,6 +433,36 @@ def _pick_batch_size(n: int, candidates: tuple[int, ...]) -> int:
         if n <= c:
             return c
     return candidates[-1]
+
+
+def _pad_to_batch(chunk: np.ndarray, batch_size: int) -> tuple[np.ndarray, int]:
+    """
+    Pad a 1D index chunk to batch_size for JAX kernel input.
+
+    The JAX demag assembly kernel expects fixed-shape inputs. When the last
+    batch is smaller than batch_size, this helper pads it with zeros.
+
+    Parameters
+    ----------
+    chunk : ndarray, shape (n,)
+        Index chunk to pad (dtype int32).
+    batch_size : int
+        Target size; chunk is zero-padded if n < batch_size.
+
+    Returns
+    -------
+    padded : ndarray, shape (batch_size,)
+        Padded array (or original if n >= batch_size).
+    n_actual : int
+        Original chunk size.
+    """
+    n = int(chunk.size)
+    if n < batch_size:
+        out = np.empty((batch_size,), dtype=np.int32)
+        out[:n] = chunk
+        out[n:] = 0
+        return out, n
+    return np.asarray(chunk), n
 
 
 def _assemble_blocks_subset_numpy(
@@ -688,27 +594,11 @@ def assemble_blocks_subset(
     kernel = _get_assemble_blocks_subset_kernel()
 
     for i0 in range(0, nI, i_batch):
-        I_chunk = I_np[i0 : i0 + i_batch]
-        nIi = int(I_chunk.size)
-        if nIi < i_batch:
-            I_pad = np.empty((i_batch,), dtype=np.int32)
-            I_pad[:nIi] = I_chunk
-            I_pad[nIi:] = 0
-        else:
-            I_pad = I_chunk
-
+        I_pad, nIi = _pad_to_batch(I_np[i0 : i0 + i_batch], i_batch)
         I_pad_j = jnp.asarray(I_pad)
 
         for j0 in range(0, nJ, j_batch):
-            J_chunk = J_np[j0 : j0 + j_batch]
-            nJj = int(J_chunk.size)
-            if nJj < j_batch:
-                J_pad = np.empty((j_batch,), dtype=np.int32)
-                J_pad[:nJj] = J_chunk
-                J_pad[nJj:] = 0
-            else:
-                J_pad = J_chunk
-
+            J_pad, nJj = _pad_to_batch(J_np[j0 : j0 + j_batch], j_batch)
             J_pad_j = jnp.asarray(J_pad)
 
             blocks = kernel(centres_j, half_j, Rg2l_j, I_pad_j, J_pad_j)
@@ -739,77 +629,67 @@ def _get_assemble_blocks_subset_kernel():
     jax.config.update("jax_enable_x64", True)
     import jax.numpy as jnp
 
-    inv4pi = 1.0 / (4.0 * math.pi)
-    macheps = np.finfo(np.float64).eps
-
     # -- JAX-traceable replicas of the scalar demag helpers ----------------
-    # These mirror the module-level _f_3D, _g_3D, … but use jnp operations
+    # These mirror the module-level _diag_kernel_3d / _log_kernel_3d but use jnp operations
     # so they can be traced/compiled by JAX.  They are vectorised over
     # batched (nI, nJ) tile-pair arrays and use jnp.where instead of Python
     # if/else to remain compatible with jit.
 
-    def _f_3D_jax(a, b, c, x, y, z):
-        """JAX-traceable replica of :func:`_f_3D` (N_xx kernel)."""
+    def _diag_kernel_3d_jax(a, b, c, x, y, z, axis):
+        """JAX-traceable N_xx/N_yy/N_zz kernel; axis 0=x, 1=y, 2=z.
+
+        Parameters
+        ----------
+        a, b, c : JAX array
+            Half-extents of source prism (local coords).
+        x, y, z : JAX array
+            Observation point (local coords).
+        axis : int
+            0=x (N_xx), 1=y (N_yy), 2=z (N_zz).
+
+        Returns
+        -------
+        JAX array
+            Kernel value (unscaled; multiply by 1/(4π) for full tensor).
+        """
         eps_h, eps_l = _EPS_HIGH, _EPS_LOW
-        dx = a - x
-        r = jnp.sqrt(dx * dx + (b - y) ** 2 + (c - z) ** 2)
-        val = (b - y) * (c - z) / (dx * r)
+        d0, d1, d2 = a - x, b - y, c - z
+        denom = (d0, d1, d2)[axis]
+        num = (d0, d1, d2)[(axis + 1) % 3] * (d0, d1, d2)[(axis + 2) % 3]
+        sq = d0 * d0 + d1 * d1 + d2 * d2
+        r = jnp.sqrt(sq)
+        val = num / (denom * r)
 
-        dxh = a - x * eps_h
-        dxl = a - x * eps_l
-        r_h = jnp.sqrt(dxh * dxh + (b - y) ** 2 + (c - z) ** 2)
-        r_l = jnp.sqrt(dxl * dxl + (b - y) ** 2 + (c - z) ** 2)
-        val_h = (b - y) * (c - z) / (dxh * r_h)
-        val_l = (b - y) * (c - z) / (dxl * r_l)
-        val_lim = 0.5 * (val_h + val_l)
-        return jnp.where(dx == 0.0, val_lim, val)
+        coord_scale = (a, b, c)[axis]
+        coord_val = (x, y, z)[axis]
+        denom_h = coord_scale - coord_val * eps_h
+        denom_l = coord_scale - coord_val * eps_l
+        r_h = jnp.sqrt(sq - denom * denom + denom_h * denom_h)
+        r_l = jnp.sqrt(sq - denom * denom + denom_l * denom_l)
+        val_lim = 0.5 * (num / (denom_h * r_h) + num / (denom_l * r_l))
+        return jnp.where(denom == 0.0, val_lim, val)
 
-    def _g_3D_jax(a, b, c, x, y, z):
-        """JAX-traceable replica of :func:`_g_3D` (N_yy kernel)."""
-        eps_h, eps_l = _EPS_HIGH, _EPS_LOW
-        dy = b - y
-        r = jnp.sqrt((a - x) ** 2 + dy * dy + (c - z) ** 2)
-        val = (a - x) * (c - z) / (dy * r)
-
-        dyh = b - y * eps_h
-        dyl = b - y * eps_l
-        r_h = jnp.sqrt((a - x) ** 2 + dyh * dyh + (c - z) ** 2)
-        r_l = jnp.sqrt((a - x) ** 2 + dyl * dyl + (c - z) ** 2)
-        val_h = (a - x) * (c - z) / (dyh * r_h)
-        val_l = (a - x) * (c - z) / (dyl * r_l)
-        val_lim = 0.5 * (val_h + val_l)
-        return jnp.where(dy == 0.0, val_lim, val)
-
-    def _h_3D_jax(a, b, c, x, y, z):
-        """JAX-traceable replica of :func:`_h_3D` (N_zz kernel)."""
-        eps_h, eps_l = _EPS_HIGH, _EPS_LOW
-        dz = c - z
-        r = jnp.sqrt((a - x) ** 2 + (b - y) ** 2 + dz * dz)
-        val = (a - x) * (b - y) / (dz * r)
-
-        dzh = c - z * eps_h
-        dzl = c - z * eps_l
-        r_h = jnp.sqrt((a - x) ** 2 + (b - y) ** 2 + dzh * dzh)
-        r_l = jnp.sqrt((a - x) ** 2 + (b - y) ** 2 + dzl * dzl)
-        val_h = (a - x) * (b - y) / (dzh * r_h)
-        val_l = (a - x) * (b - y) / (dzl * r_l)
-        val_lim = 0.5 * (val_h + val_l)
-        return jnp.where(dz == 0.0, val_lim, val)
-
-    def _FF_3D_jax(a, b, c, x, y, z):
-        """JAX-traceable replica of :func:`_FF_3D` (N_xy log-kernel)."""
-        return (c - z) + jnp.sqrt((a - x) ** 2 + (b - y) ** 2 + (c - z) ** 2)
-
-    def _GG_3D_jax(a, b, c, x, y, z):
-        """JAX-traceable replica of :func:`_GG_3D` (N_yz log-kernel)."""
-        return (a - x) + jnp.sqrt((a - x) ** 2 + (b - y) ** 2 + (c - z) ** 2)
-
-    def _HH_3D_jax(a, b, c, x, y, z):
-        """JAX-traceable replica of :func:`_HH_3D` (N_xz log-kernel)."""
-        return (b - y) + jnp.sqrt((a - x) ** 2 + (b - y) ** 2 + (c - z) ** 2)
+    def _log_kernel_3d_jax(a, b, c, x, y, z, axis):
+        """JAX-traceable N_xy/N_yz/N_xz log-kernel; axis 0=x, 1=y, 2=z."""
+        offsets = (a - x, b - y, c - z)
+        r = jnp.sqrt((a - x) ** 2 + (b - y) ** 2 + (c - z) ** 2)
+        return offsets[axis] + r
 
     def _getF_limit_jax(a, b, c, x, y, z, func):
-        """JAX-traceable replica of :func:`getF_limit`."""
+        """JAX-traceable replica of :func:`getF_limit` for singularity handling.
+
+        Parameters
+        ----------
+        a, b, c, x, y, z : JAX array
+            Prism half-extents and evaluation point.
+        func : callable
+            Log-kernel callable, e.g. ``functools.partial(_log_kernel_3d_jax, axis=k)``.
+
+        Returns
+        -------
+        JAX array
+            Stabilized ratio (nom_l + nom_h) / (denom_l + denom_h).
+        """
         lim_h, lim_l = _EPS_HIGH, _EPS_LOW
         xl, yl, zl = x * lim_l, y * lim_l, z * lim_l
         xh, yh, zh = x * lim_h, y * lim_h, z * lim_h
@@ -842,7 +722,20 @@ def _get_assemble_blocks_subset_kernel():
         return (nom_l + nom_h) / (denom_l + denom_h)
 
     def prism_N_op_jax(a, b, c, x0, y0, z0):
-        """JAX-traceable, vectorised replica of :func:`_prism_N_local_nb`."""
+        """JAX-traceable, vectorised replica of :func:`_prism_N_local_nb`.
+
+        Parameters
+        ----------
+        a, b, c : JAX array
+            Half-extents (nI, nJ) or broadcastable.
+        x0, y0, z0 : JAX array
+            Relative vector components (nI, nJ) from source to target.
+
+        Returns
+        -------
+        JAX array, shape (nI, nJ, 3, 3)
+            Demag operator blocks (convention H_demag = N_op @ M).
+        """
         # diagonal via signed corner combos
         signs = jnp.array(
             [
@@ -865,15 +758,16 @@ def _get_assemble_blocks_subset_kernel():
         b_ = b[None, :, None]
         c_ = c[None, :, None]
 
-        sum_f = jnp.sum(jnp.arctan(_f_3D_jax(a_, b_, c_, xi, yi, zi)), axis=0)
-        sum_g = jnp.sum(jnp.arctan(_g_3D_jax(a_, b_, c_, xi, yi, zi)), axis=0)
-        sum_h = jnp.sum(jnp.arctan(_h_3D_jax(a_, b_, c_, xi, yi, zi)), axis=0)
+        sum_f = jnp.sum(jnp.arctan(_diag_kernel_3d_jax(a_, b_, c_, xi, yi, zi, 0)), axis=0)
+        sum_g = jnp.sum(jnp.arctan(_diag_kernel_3d_jax(a_, b_, c_, xi, yi, zi, 1)), axis=0)
+        sum_h = jnp.sum(jnp.arctan(_diag_kernel_3d_jax(a_, b_, c_, xi, yi, zi, 2)), axis=0)
 
-        Nxx = inv4pi * sum_f
-        Nyy = inv4pi * sum_g
-        Nzz = inv4pi * sum_h
+        Nxx = _INV4PI * sum_f
+        Nyy = _INV4PI * sum_g
+        Nzz = _INV4PI * sum_h
 
         def off_diag(func):
+            """JAX-traceable off-diagonal component via log product ratio; func takes (a,b,c,x,y,z)."""
             a2 = a[:, None]
             b2 = b[:, None]
             c2 = c[:, None]
@@ -892,13 +786,13 @@ def _get_assemble_blocks_subset_kernel():
             ratio_lim = _getF_limit_jax(a2, b2, c2, x0, y0, z0, func)
             use_lim = (nom == 0.0) | (denom == 0.0)
             ratio = jnp.where(use_lim, ratio_lim, nom / denom)
-            val = -inv4pi * jnp.log(ratio)
-            close = (denom != 0.0) & (jnp.abs((nom - denom) / denom) < 10.0 * macheps)
+            val = -_INV4PI * jnp.log(ratio)
+            close = (denom != 0.0) & (jnp.abs((nom - denom) / denom) < 10.0 * _MACHEPS)
             return jnp.where(close, 0.0, val)
 
-        Nxy = off_diag(_FF_3D_jax)
-        Nyz = off_diag(_GG_3D_jax)
-        Nxz = off_diag(_HH_3D_jax)
+        Nxy = off_diag(functools.partial(_log_kernel_3d_jax, axis=2))
+        Nyz = off_diag(functools.partial(_log_kernel_3d_jax, axis=0))
+        Nxz = off_diag(functools.partial(_log_kernel_3d_jax, axis=1))
 
         N = jnp.stack(
             [
@@ -911,7 +805,24 @@ def _get_assemble_blocks_subset_kernel():
         return -N  # operator convention
 
     def _kernel_impl(centres, half, Rg2l, I, J):
-        """Compute demag blocks for tile pairs (I, J); returns ``(nI, nJ, 3, 3)``."""
+        """Compute demag blocks for tile pairs (I, J); returns ``(nI, nJ, 3, 3)``.
+
+        Parameters
+        ----------
+        centres : ndarray, shape (n, 3)
+            Tile centre coordinates in global frame.
+        half : ndarray, shape (n, 3)
+            Half-extents of each tile.
+        Rg2l : ndarray, shape (n, 3, 3)
+            Global-to-local rotation matrices per tile.
+        I, J : ndarray, 1D
+            Row and column tile indices (batched).
+
+        Returns
+        -------
+        ndarray, shape (nI, nJ, 3, 3)
+            Demag operator blocks for pairs (I[i], J[j]).
+        """
         centres_I = centres[I]
         centres_J = centres[J]
         d = centres_I[:, None, :] - centres_J[None, :, :]  # (nI, nJ, 3)
@@ -1016,51 +927,9 @@ class MacroMag:
         self.half    = (tiles.size * 0.5).astype(np.float64)
         self.Rg2l    = np.zeros((self.n, 3, 3), dtype=np.float64)
         self.bs_interp = bs_interp
-        self._interp_cfg = dict(
-            degree=3,   # interpolant degree
-            nr=12, nphi=2, nz=12,
-            pad_frac=0.05,
-            nfp=1, stellsym=False,
-            extra_pts=None,
-        )
 
         for k in range(self.n):
             self.Rg2l[k], _ = MacroMag.get_rotation_matrices(*tiles.rot[k])
-
-    @staticmethod
-    def _f_3D(a: float, b: float, c: float, x: float, y: float, z: float) -> float:
-        """Static wrapper; see module-level :func:`_f_3D`."""
-        return _f_3D(a, b, c, x, y, z)
-
-    @staticmethod
-    def _g_3D(a: float, b: float, c: float, x: float, y: float, z: float) -> float:
-        """Static wrapper; see module-level :func:`_g_3D`."""
-        return _g_3D(a, b, c, x, y, z)
-
-    @staticmethod
-    def _h_3D(a: float, b: float, c: float, x: float, y: float, z: float) -> float:
-        """Static wrapper; see module-level :func:`_h_3D`."""
-        return _h_3D(a, b, c, x, y, z)
-
-    @staticmethod
-    def _FF_3D(a: float, b: float, c: float, x: float, y: float, z: float) -> float:
-        """Static wrapper; see module-level :func:`_FF_3D`."""
-        return _FF_3D(a, b, c, x, y, z)
-
-    @staticmethod
-    def _GG_3D(a: float, b: float, c: float, x: float, y: float, z: float) -> float:
-        """Static wrapper; see module-level :func:`_GG_3D`."""
-        return _GG_3D(a, b, c, x, y, z)
-
-    @staticmethod
-    def _HH_3D(a: float, b: float, c: float, x: float, y: float, z: float) -> float:
-        """Static wrapper; see module-level :func:`_HH_3D`."""
-        return _HH_3D(a, b, c, x, y, z)
-
-    @staticmethod
-    def _prism_N_local_nb(a: float, b: float, c: float, x0: float, y0: float, z0: float) -> np.ndarray:
-        """Static wrapper; see module-level :func:`_prism_N_local_nb`."""
-        return _prism_N_local_nb(a, b, c, x0, y0, z0)
 
     @staticmethod
     def get_rotation_matrices(phi_x: float, phi_y: float, phi_z: float) -> tuple[np.ndarray, np.ndarray]:
@@ -1221,7 +1090,20 @@ class MacroMag:
         use_coils: bool,
         H_a_override: np.ndarray | None,
     ) -> np.ndarray | None:
-        """Validate coil/Ha inputs and return a cleaned ``H_a_override``."""
+        """Validate coil/Ha inputs and return a cleaned ``H_a_override``.
+
+        Parameters
+        ----------
+        use_coils : bool
+            If True, require coil field or H_a_override; raises ValueError if neither.
+        H_a_override : ndarray | None
+            Optional applied field per tile (n_tiles, 3) in A/m.
+
+        Returns
+        -------
+        ndarray | None
+            Validated H_a_override (C-contiguous float64) or None.
+        """
         if use_coils and (self.bs_interp is None) and (H_a_override is None):
             raise ValueError(
                 "use_coils=True, but no coil field evaluator is loaded "
@@ -1238,7 +1120,20 @@ class MacroMag:
         use_coils: bool,
         H_a_override: np.ndarray | None,
     ) -> np.ndarray:
-        """Return the applied field at tile centres, shape ``(n, 3)``."""
+        """Return the applied field at tile centres, shape ``(n, 3)``.
+
+        Parameters
+        ----------
+        use_coils : bool
+            If True and H_a_override is None, evaluate coil field at tile centres.
+        H_a_override : ndarray | None
+            If not None, overrides coil evaluation and is returned directly.
+
+        Returns
+        -------
+        ndarray, shape (n, 3)
+            Applied field in A/m at each tile centre.
+        """
         if H_a_override is not None:
             return H_a_override.astype(np.float64)
         if use_coils:
@@ -1251,6 +1146,18 @@ class MacroMag:
         H_a: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         r"""Compute susceptibility tensors and RHS vector.
+
+        Builds the per-tile anisotropic susceptibility
+        :math:`\boldsymbol{\chi}_i = \chi_\perp I + (\chi_\parallel - \chi_\perp)
+        \hat{\mathbf{u}}_i \hat{\mathbf{u}}_i^\top` and the RHS
+        :math:`\mathbf{b} = M_{\text{rem}}\hat{\mathbf{u}} + \boldsymbol{\chi}\mathbf{H}_a`.
+
+        Parameters
+        ----------
+        tiles : Tiles
+            Tile container with u_ea, M_rem, mu_r_ea, mu_r_oa.
+        H_a : ndarray, shape (n, 3)
+            Applied field at each tile centre (A/m).
 
         Returns
         -------
@@ -1282,14 +1189,67 @@ class MacroMag:
 
     @staticmethod
     def _make_gmres_callback(prefix: str = "") -> callable:
-        """Build a stateful GMRES callback that prints iteration and residual norm."""
+        """Build a stateful GMRES callback that prints iteration and residual norm.
+
+        Parameters
+        ----------
+        prefix : str, optional
+            Optional label prepended to each printed line.
+
+        Returns
+        -------
+        callable
+            Callback suitable for ``scipy.sparse.linalg.gmres`` with
+            ``callback_type='pr_norm'``.
+        """
         iteration = [0]
         tag = f"[{prefix}] " if prefix else ""
 
         def _callback(residual_norm: float) -> None:
+            """GMRES pr_norm callback: print iteration count and residual."""
             iteration[0] += 1
             print(f"{tag}GMRES iteration {iteration[0]}: residual norm = {residual_norm:.6e}")
         return _callback
+
+    def _run_gmres_and_assign(
+        self,
+        A,
+        b: np.ndarray,
+        tiles: "Tiles",
+        krylov_tol: float,
+        krylov_it: int,
+        x0: np.ndarray | None,
+        print_progress: bool,
+        label: str,
+    ) -> None:
+        """Run GMRES on A@x=b, assign solution to tiles.M, and optionally print convergence.
+
+        Parameters
+        ----------
+        A : ndarray or sparse matrix
+            System matrix (3n × 3n).
+        b : ndarray, shape (3*n,)
+            RHS vector.
+        tiles : Tiles
+            Tile container; ``tiles.M`` is overwritten with the solution.
+        krylov_tol : float
+            Relative tolerance for GMRES (rtol).
+        krylov_it : int
+            Maximum GMRES iterations.
+        x0 : ndarray | None
+            Optional initial guess (3*n,).
+        print_progress : bool
+            If True, register callback to print residual norms.
+        label : str
+            Label for progress messages and convergence warnings.
+        """
+        gmres_kw: dict = dict(rtol=krylov_tol, maxiter=krylov_it, x0=x0)
+        if print_progress:
+            gmres_kw.update(callback=self._make_gmres_callback(label), callback_type='pr_norm')
+        x, info = gmres(A, b, **gmres_kw)
+        if info != 0:
+            print(f"[MacroMag] {label} GMRES did not fully converge, info = {info}")
+        tiles.M = x.reshape(tiles.n, 3)
 
     def _check_trivial_chi(
         self,
@@ -1305,8 +1265,38 @@ class MacroMag:
                 return True
         return False
 
+    def _prepare_solve(
+        self,
+        use_coils: bool,
+        H_a_override: np.ndarray | None,
+    ) -> tuple["Tiles", int, np.ndarray, np.ndarray] | None:
+        """Validate coils/Ha, compute chi and RHS; return (tiles, n, chi_tensor, b) or None if trivial.
+
+        Parameters
+        ----------
+        use_coils : bool
+            If True, require coil field availability (or H_a_override).
+        H_a_override : ndarray | None
+            Optional applied field overriding coil evaluation.
+
+        Returns
+        -------
+        tuple | None
+            (tiles, n, chi_tensor, b) for assembly, or None if χ=0 and no external field.
+        """
+        H_a_override = self._validate_coils_and_Ha(use_coils, H_a_override)
+        tiles = self.tiles
+        n = tiles.n
+        chi_tensor, chi_parallel, chi_perp, _, b = self._compute_chi_and_rhs(
+            tiles, self._get_applied_field(use_coils, H_a_override),
+        )
+        if self._check_trivial_chi(chi_parallel, chi_perp, use_coils, H_a_override):
+            return None
+        return (tiles, n, chi_tensor, b)
+
     def direct_solve(self,
         use_coils: bool = False,
+        use_demag: bool = True,
         krylov_tol: float = 1e-6,
         krylov_it: int = 20,
         N_new_rows: np.ndarray = None,
@@ -1342,6 +1332,9 @@ class MacroMag:
         use_coils : bool
             If True, include the coil field in the applied-field term (unless
             ``H_a_override`` is provided).
+        use_demag : bool
+            If True (default), include the demagnetization operator. If False, solve
+            reduces to local constitutive response (no tile–tile coupling).
         krylov_tol : float
             Relative tolerance passed to :func:`scipy.sparse.linalg.gmres` as ``rtol``.
         krylov_it : int
@@ -1375,49 +1368,44 @@ class MacroMag:
         A : ndarray or None
             Dense system matrix used in the solve, or None in trivial ``χ=0`` cases.
         """
-        if prev_n == 0:
-            if N_new_rows is None:
-                raise ValueError(
-                    "direct_solve requires N_new_rows (full demag tensor) for the initial pass "
-                    "when prev_n == 0."
-                )
-        else:
-            if N_new_rows is None or N_new_cols is None or N_new_diag is None:
-                raise ValueError(
-                    "direct_solve requires N_new_rows, N_new_cols, and N_new_diag for incremental "
-                    "updates when prev_n > 0."
-                )
+        if use_demag:
+            if prev_n == 0:
+                if N_new_rows is None:
+                    raise ValueError(
+                        "direct_solve requires N_new_rows (full demag tensor) for the initial pass "
+                        "when prev_n == 0."
+                    )
+            else:
+                if N_new_rows is None or N_new_cols is None or N_new_diag is None:
+                    raise ValueError(
+                        "direct_solve requires N_new_rows, N_new_cols, and N_new_diag for incremental "
+                        "updates when prev_n > 0."
+                    )
 
-        H_a_override = self._validate_coils_and_Ha(use_coils, H_a_override)
-        tiles = self.tiles
-        n = tiles.n
-
-        chi_tensor, chi_parallel, chi_perp, _, b = self._compute_chi_and_rhs(
-            tiles, self._get_applied_field(use_coils, H_a_override),
-        )
-        if self._check_trivial_chi(chi_parallel, chi_perp, use_coils, H_a_override):
+        prepared = self._prepare_solve(use_coils, H_a_override)
+        if prepared is None:
             return self, None
+        tiles, n, chi_tensor, b = prepared
 
         A = np.zeros((3 * n, 3 * n))
-        A[:3 * prev_n, :3 * prev_n] = A_prev
+        if prev_n > 0:
+            A[:3 * prev_n, :3 * prev_n] = A_prev
         for i in range(prev_n, n):
             A[3 * i:3 * i + 3, 3 * i:3 * i + 3] = np.eye(3)
 
-        if prev_n > 0:
-            chi_new = chi_tensor[prev_n:]
-            chi_prev = chi_tensor[:prev_n]
-            A[3 * prev_n:, :3 * prev_n] += np.einsum('iab,ijbc->iajc', chi_new, N_new_rows).reshape(3 * (n - prev_n), 3 * prev_n)
-            A[:3 * prev_n, 3 * prev_n:] += np.einsum('iab,ijbc->iajc', chi_prev, N_new_cols).reshape(3 * prev_n, 3 * (n - prev_n))
-            A[3 * prev_n:, 3 * prev_n:] += np.einsum('iab,ijbc->iajc', chi_new, N_new_diag).reshape(3 * (n - prev_n), 3 * (n - prev_n))
-        else:
-            A += np.einsum('iab,ijbc->iajc', chi_tensor, N_new_rows).reshape(3 * n, 3 * n)
+        if use_demag:
+            if prev_n > 0:
+                chi_new = chi_tensor[prev_n:]
+                chi_prev = chi_tensor[:prev_n]
+                A[3 * prev_n:, :3 * prev_n] += np.einsum('iab,ijbc->iajc', chi_new, N_new_rows).reshape(3 * (n - prev_n), 3 * prev_n)
+                A[:3 * prev_n, 3 * prev_n:] += np.einsum('iab,ijbc->iajc', chi_prev, N_new_cols).reshape(3 * prev_n, 3 * (n - prev_n))
+                A[3 * prev_n:, 3 * prev_n:] += np.einsum('iab,ijbc->iajc', chi_new, N_new_diag).reshape(3 * (n - prev_n), 3 * (n - prev_n))
+            else:
+                A += np.einsum('iab,ijbc->iajc', chi_tensor, N_new_rows).reshape(3 * n, 3 * n)
 
-        gmres_kw: dict = dict(rtol=krylov_tol, maxiter=krylov_it, x0=x0)
-        if print_progress:
-            gmres_kw.update(callback=self._make_gmres_callback("direct_solve"), callback_type='pr_norm')
-        x, info = gmres(A, b, **gmres_kw)
-
-        tiles.M = x.reshape(n, 3)
+        self._run_gmres_and_assign(
+            A, b, tiles, krylov_tol, krylov_it, x0, print_progress, "direct_solve",
+        )
         return self, A
 
     def direct_solve_neighbor_sparse(
@@ -1471,22 +1459,17 @@ class MacroMag:
             self with updated tiles.M, and the sparse A used in the solve.
         """
         neighbors = np.asarray(neighbors, dtype=np.int64)
-        n = self.tiles.n
+
+        prepared = self._prepare_solve(use_coils, H_a_override)
+        if prepared is None:
+            return self, None
+        tiles, n, chi_tensor, b = prepared
 
         if neighbors.shape[0] != n:
             raise ValueError(
                 f"neighbors must have shape (n, k) with n={n}, "
                 f"got {neighbors.shape}"
             )
-
-        H_a_override = self._validate_coils_and_Ha(use_coils, H_a_override)
-        tiles = self.tiles
-
-        chi_tensor, chi_parallel, chi_perp, _, b = self._compute_chi_and_rhs(
-            tiles, self._get_applied_field(use_coils, H_a_override),
-        )
-        if self._check_trivial_chi(chi_parallel, chi_perp, use_coils, H_a_override):
-            return self, None
 
         # Build sparse A in COO format: A = I + χ N_near
         rows = []
@@ -1540,100 +1523,10 @@ class MacroMag:
             shape=(3 * n, 3 * n),
         ).tocsr()
 
-        gmres_kw: dict = dict(rtol=krylov_tol, maxiter=krylov_it, x0=x0)
-        if print_progress:
-            gmres_kw.update(callback=self._make_gmres_callback("neighbor_sparse"), callback_type='pr_norm')
-        x, info = gmres(A_sparse, b, **gmres_kw)
-
-        if info != 0:
-            print(f"[MacroMag] direct_solve_neighbor_sparse GMRES did not fully converge, info = {info}")
-
-        tiles.M = x.reshape(n, 3)
-        return self, A_sparse
-
-
-
-    def direct_solve_toggle(self,
-        use_coils: bool = False,
-        use_demag: bool = True,
-        krylov_tol: float = 1e-6,
-        krylov_it: int = 20,
-        N_new_rows: np.ndarray = None,
-        N_new_cols: np.ndarray | None = None,
-        N_new_diag: np.ndarray | None = None,
-        print_progress: bool = False,
-        x0: np.ndarray | None = None,
-        H_a_override: Optional[np.ndarray] = None,
-        A_prev: np.ndarray | None = None,
-        prev_n: int = 0) -> tuple["MacroMag", Optional[np.ndarray]]:
-
-        """
-        Variant of :meth:`direct_solve` with an explicit demag toggle.
-
-        When ``use_demag=False``, the solve reduces to the local constitutive
-        response (no tile–tile coupling): ``A = I`` and ``M = b``.
-
-        Parameters
-        ----------
-        use_coils, krylov_tol, krylov_it, N_new_rows, N_new_cols, N_new_diag, print_progress,
-        x0, H_a_override, A_prev, prev_n :
-            Same meaning as in :meth:`direct_solve`.
-        use_demag : bool
-            If False, skip the demagnetization operator contribution.
-
-        Returns
-        -------
-        self : MacroMag
-            Updated object (``tiles.M`` is overwritten).
-        A : ndarray or None
-            Dense system matrix used in the solve, or None in trivial ``χ=0`` cases.
-        """
-        if use_demag and prev_n == 0:
-            if N_new_rows is None:
-                raise ValueError(
-                    "direct_solve requires N_new_rows (full demag tensor) for the initial pass "
-                    "when prev_n == 0."
-                )
-        elif use_demag and prev_n > 0:
-            if N_new_rows is None or N_new_cols is None or N_new_diag is None:
-                raise ValueError(
-                    "direct_solve requires N_new_rows, N_new_cols, and N_new_diag for incremental "
-                    "updates when prev_n > 0."
-                )
-
-        H_a_override = self._validate_coils_and_Ha(use_coils, H_a_override)
-        tiles = self.tiles
-        n = tiles.n
-
-        chi_tensor, chi_parallel, chi_perp, _, b = self._compute_chi_and_rhs(
-            tiles, self._get_applied_field(use_coils, H_a_override),
+        self._run_gmres_and_assign(
+            A_sparse, b, tiles, krylov_tol, krylov_it, x0, print_progress, "neighbor_sparse",
         )
-        if self._check_trivial_chi(chi_parallel, chi_perp, use_coils, H_a_override):
-            return self, None
-
-        A = np.zeros((3 * n, 3 * n))
-        A[:3 * prev_n, :3 * prev_n] = A_prev
-        for i in range(prev_n, n):
-            A[3 * i:3 * i + 3, 3 * i:3 * i + 3] = np.eye(3)
-
-        if use_demag:
-            if prev_n > 0:
-                chi_new = chi_tensor[prev_n:]
-                chi_prev = chi_tensor[:prev_n]
-                A[3 * prev_n:, :3 * prev_n] += np.einsum('iab,ijbc->iajc', chi_new, N_new_rows).reshape(3 * (n - prev_n), 3 * prev_n)
-                A[:3 * prev_n, 3 * prev_n:] += np.einsum('iab,ijbc->iajc', chi_prev, N_new_cols).reshape(3 * prev_n, 3 * (n - prev_n))
-                A[3 * prev_n:, 3 * prev_n:] += np.einsum('iab,ijbc->iajc', chi_new, N_new_diag).reshape(3 * (n - prev_n), 3 * (n - prev_n))
-            else:
-                A += np.einsum('iab,ijbc->iajc', chi_tensor, N_new_rows).reshape(3 * n, 3 * n)
-
-        gmres_kw: dict = dict(rtol=krylov_tol, maxiter=krylov_it, x0=x0)
-        if print_progress:
-            gmres_kw.update(callback=self._make_gmres_callback("direct_solve_toggle"), callback_type='pr_norm')
-        x, info = gmres(A, b, **gmres_kw)
-
-        tiles.M = x.reshape(n, 3)
-        return self, A
-
+        return self, A_sparse
 
 
 
@@ -1678,7 +1571,18 @@ class Tile:
         self._index = index
 
     def __getattr__(self, name) -> np.float64 | np.ndarray:
-        """Read-through accessor: index into parent arrays when appropriate."""
+        """Read-through accessor: index into parent arrays when appropriate.
+
+        Parameters
+        ----------
+        name : str
+            Attribute name (e.g. center_pos, size, M).
+
+        Returns
+        -------
+        np.float64 | np.ndarray
+            Scalar or array slice for this tile's index.
+        """
         # Get the attribute from the parent
         attr = getattr(self._parent, name)
         # If the attribute is a np.ndarray, return the element at our index
@@ -1697,6 +1601,38 @@ class Tile:
             attr = getattr(self._parent, name)
             if isinstance(attr, np.ndarray):
                 attr[self._index] = value
+
+
+# Specs for Tiles._add_tiles: (attr_name, shape_suffix, dtype, fill_value)
+_TILE_ARRAY_SPECS: tuple[tuple[str, tuple[int, ...], type, float | int], ...] = (
+    ("_center_pos", (3,), np.float64, 0),
+    ("_dev_center", (3,), np.float64, 0),
+    ("_size", (3,), np.float64, 0),
+    ("_vertices", (3, 4), np.float64, 0),
+    ("_M", (3,), np.float64, 0),
+    ("_u_ea", (3,), np.float64, 0),
+    ("_u_oa1", (3,), np.float64, 0),
+    ("_u_oa2", (3,), np.float64, 0),
+    ("_mu_r_ea", (), np.float64, 1),
+    ("_mu_r_oa", (), np.float64, 1),
+    ("_M_rem", (), np.float64, 0),
+    ("_tile_type", (), np.int32, 1),
+    ("_offset", (3,), np.float64, 0),
+    ("_rot", (3,), np.float64, 0),
+    ("_color", (3,), np.float64, 0),
+    ("_magnet_type", (), np.int32, 1),
+    ("_stfcn_index", (), np.int32, 1),
+    ("_incl_it", (), np.int32, 1),
+    ("_use_sym", (), np.int32, 0),
+    ("_sym_op", (3,), np.float64, 1),
+    ("_M_rel", (), np.float64, 0),
+)
+
+# Attributes copied from parent to child when refining a prism tile
+_REFINE_COPY_ATTRS: tuple[str, ...] = (
+    "_M", "_M_rel", "_color", "_magnet_type", "_mu_r_ea", "_mu_r_oa",
+    "_rot", "_tile_type", "_u_ea", "_u_oa1", "_u_oa2", "_incl_it",
+)
 
 
 class Tiles:
@@ -1813,14 +1749,31 @@ class Tiles:
         self._sym_op = np.ones(shape=(self.n, 3), dtype=np.float64, order="F")
 
     def __str__(self) -> str:
-        """Return a human-readable summary of the tile offsets."""
+        """Return a human-readable summary of the tile offsets.
+
+        Returns
+        -------
+        str
+            Multi-line string with offset info per tile.
+        """
         res = ""
         for i in range(self.n):
             res += f"Tile_{i} with coordinates {self.offset[i]}.\n"
         return res
 
     def __getitem__(self, index: int) -> Tile:
-        """Return a lightweight :class:`Tile` view for a single index."""
+        """Return a lightweight :class:`Tile` view for a single index.
+
+        Parameters
+        ----------
+        index : int
+            Tile index, 0 <= index < n.
+
+        Returns
+        -------
+        Tile
+            Proxy view into this tile's attributes.
+        """
         if index < 0 or index >= self.n:
             idx_err = f"Index {index} out of bounds"
             raise IndexError(idx_err)
@@ -1847,6 +1800,15 @@ class Tiles:
         Handles the four standard input forms: ``None`` (no-op),
         ``(vec, i)`` tuple (single tile), scalar-like vector (broadcast),
         or full ``(n, 3)`` array.
+
+        Parameters
+        ----------
+        attr_name : str
+            Internal attribute name (e.g. ``"_M"``, ``"_center_pos"``).
+        val : None | tuple | array-like
+            Value to set; see above for accepted forms.
+        dtype : type, optional
+            NumPy dtype for the stored array.
         """
         if not hasattr(self, attr_name):
             setattr(self, attr_name, np.zeros((self.n, 3), dtype=dtype, order="F"))
@@ -1859,6 +1821,49 @@ class Tiles:
             getattr(self, attr_name)[:] = np.asarray(val)
         elif len(val) == self.n:
             setattr(self, attr_name, np.asarray(val, dtype=dtype))
+
+    def _set_1d_array(
+        self,
+        attr_name: str,
+        val,
+        default_val: float | int = 0,
+        dtype: type = np.float64,
+    ) -> None:
+        """Generic setter for ``(n,)``-shaped tile arrays.
+
+        Handles the four standard input forms: ``None`` (no-op),
+        ``(scalar, i)`` tuple (single tile), scalar (broadcast),
+        or full ``(n,)`` array.
+
+        Parameters
+        ----------
+        attr_name : str
+            Internal attribute name (e.g. ``"_mu_r_ea"``, ``"_tile_type"``).
+        val : None | tuple | scalar | array-like
+            Value to set; see above for accepted forms.
+        default_val : float | int, optional
+            Fill value when initializing a new array.
+        dtype : type, optional
+            NumPy dtype for the stored array.
+        """
+        if not hasattr(self, attr_name):
+            setattr(
+                self,
+                attr_name,
+                np.full((self.n,), default_val, dtype=dtype, order="F"),
+            )
+        if val is None:
+            return
+        if isinstance(val, tuple):
+            getattr(self, attr_name)[val[1]] = val[0]
+        elif isinstance(val, (int, float)):
+            setattr(
+                self,
+                attr_name,
+                np.full((self.n,), val, dtype=dtype, order="F"),
+            )
+        elif len(val) == self.n:
+            setattr(self, attr_name, np.asarray(val, dtype=dtype, order="F"))
 
     @property
     def center_pos(self) -> np.ndarray:
@@ -1938,17 +1943,7 @@ class Tiles:
     @tile_type.setter
     def tile_type(self, val) -> None:
         """Set tile geometry type codes (same input conventions as :meth:`center_pos`)."""
-        if not hasattr(self, "_tile_type"):
-            self._tile_type = np.ones(shape=(self.n), dtype=np.int32, order="F")
-
-        if val is None:
-            return
-        elif isinstance(val, tuple):
-            self._tile_type[val[1]] = val[0]
-        elif isinstance(val, (int, float)):
-            self._tile_type = np.asarray([val for _ in range(self.n)], dtype=np.int32)
-        elif len(val) == self.n:
-            self._tile_type = np.asarray(val, dtype=np.int32)
+        self._set_1d_array("_tile_type", val, default_val=1, dtype=np.int32)
 
     @property
     def offset(self) -> np.ndarray:
@@ -1999,19 +1994,7 @@ class Tiles:
     @M.setter
     def M(self, val) -> None:
         """Set tile magnetization vectors (same input conventions as :meth:`center_pos`)."""
-        if not hasattr(self, "_M"):
-            self._M = np.zeros(shape=(self.n, 3), dtype=np.float64, order="F")
-
-        if val is None:
-            return
-        elif isinstance(val, tuple):
-            self._M[val[1]] = val[0]
-        elif isinstance(val[0], (int, float)):
-            assert len(val) == 3
-            self._M = np.asarray([val for _ in range(self.n)])
-        elif len(val) == self.n:
-            assert len(val[0]) == 3
-            self._M = np.asarray(val)
+        self._set_nx3_array("_M", val)
 
     @property
     def u_ea(self) -> np.ndarray:
@@ -2083,19 +2066,7 @@ class Tiles:
     @u_oa2.setter
     def u_oa2(self, val) -> None:
         """Set second orthogonal axis vectors (same input conventions as :meth:`center_pos`)."""
-        if not hasattr(self, "_u_oa2"):
-            self._u_oa2 = np.zeros(shape=(self.n, 3), dtype=np.float64, order="F")
-
-        if val is None:
-            return
-        elif isinstance(val, tuple):
-            self._u_oa2[val[1]] = val[0]
-        elif isinstance(val[0], (int, float)):
-            assert len(val) == 3
-            self._u_oa2 = np.asarray([val for _ in range(self.n)])
-        elif len(val) == self.n:
-            assert len(val[0]) == 3
-            self._u_oa2 = np.asarray(val)
+        self._set_nx3_array("_u_oa2", val)
 
     @property
     def mu_r_ea(self) -> np.ndarray:
@@ -2105,17 +2076,7 @@ class Tiles:
     @mu_r_ea.setter
     def mu_r_ea(self, val) -> None:
         """Set easy-axis relative permeability (scalar or per-tile array)."""
-        if not hasattr(self, "_mu_r_ea"):
-            self._mu_r_ea = np.ones(shape=(self.n), dtype=np.float64, order="F")
-
-        if val is None:
-            return
-        elif isinstance(val, tuple):
-            self._mu_r_ea[val[1]] = val[0]
-        elif isinstance(val, (int, float)):
-            self._mu_r_ea = np.asarray([val for _ in range(self.n)])
-        elif len(val) == self.n:
-            self._mu_r_ea = np.asarray(val)
+        self._set_1d_array("_mu_r_ea", val, default_val=1, dtype=np.float64)
 
     @property
     def mu_r_oa(self) -> np.ndarray:
@@ -2125,17 +2086,7 @@ class Tiles:
     @mu_r_oa.setter
     def mu_r_oa(self, val) -> None:
         """Set orthogonal relative permeability (scalar or per-tile array)."""
-        if not hasattr(self, "_mu_r_oa"):
-            self._mu_r_oa = np.ones(shape=(self.n), dtype=np.float64, order="F")
-
-        if val is None:
-            return
-        elif isinstance(val, tuple):
-            self._mu_r_oa[val[1]] = val[0]
-        elif isinstance(val, (int, float)):
-            self._mu_r_oa = np.asarray([val for _ in range(self.n)])
-        elif len(val) == self.n:
-            self._mu_r_oa = np.asarray(val)
+        self._set_1d_array("_mu_r_oa", val, default_val=1, dtype=np.float64)
 
     @property
     def M_rem(self) -> np.ndarray:
@@ -2145,17 +2096,7 @@ class Tiles:
     @M_rem.setter
     def M_rem(self, val) -> None:
         """Set remanent magnetization magnitude(s) (scalar or per-tile array)."""
-        if not hasattr(self, "_M_rem"):
-            self._M_rem = np.zeros(shape=(self.n), dtype=np.float64, order="F")
-
-        if val is None:
-            return
-        elif isinstance(val, tuple):
-            self._M_rem[val[1]] = val[0]
-        elif isinstance(val, (int, float)):
-            self._M_rem = np.asarray([val for _ in range(self.n)])
-        elif len(val) == self.n:
-            self._M_rem = np.asarray(val)
+        self._set_1d_array("_M_rem", val, default_val=0, dtype=np.float64)
 
     @property
     def color(self) -> np.ndarray:
@@ -2165,17 +2106,7 @@ class Tiles:
     @color.setter
     def color(self, val) -> None:
         """Set tile colors (same input conventions as :meth:`center_pos`)."""
-        if not hasattr(self, "_color"):
-            self._color = np.zeros(shape=(self.n, 3), dtype=np.float64, order="F")
-
-        if val is None:
-            return
-        elif isinstance(val, tuple):
-            self._color[val[1]] = np.asarray(val[0])
-        elif isinstance(val[0], (int, float)):
-            self._color[:] = np.asarray(val)
-        elif len(val) == self.n:
-            self._color = np.asarray(val)
+        self._set_nx3_array("_color", val)
 
     @property
     def magnet_type(self) -> np.ndarray:
@@ -2185,17 +2116,7 @@ class Tiles:
     @magnet_type.setter
     def magnet_type(self, val) -> None:
         """Set magnet type codes (scalar or per-tile array)."""
-        if not hasattr(self, "_magnet_type"):
-            self._magnet_type = np.ones(shape=(self.n), dtype=np.int32, order="F")
-
-        if val is None:
-            return
-        elif isinstance(val, tuple):
-            self._magnet_type[val[1]] = val[0]
-        elif isinstance(val, (int, float)):
-            self._magnet_type = np.asarray([val for _ in range(self.n)])
-        elif len(val) == self.n:
-            self._magnet_type = np.asarray(val)
+        self._set_1d_array("_magnet_type", val, default_val=1, dtype=np.int32)
 
     @property
     def stfcn_index(self) -> np.ndarray:
@@ -2205,17 +2126,7 @@ class Tiles:
     @stfcn_index.setter
     def stfcn_index(self, val) -> None:
         """Set state-function index codes (scalar or per-tile array)."""
-        if not hasattr(self, "_stfcn_index"):
-            self._stfcn_index = np.ones(shape=(self.n), dtype=np.int32, order="F")
-
-        if val is None:
-            return
-        elif isinstance(val, tuple):
-            self._stfcn_index[val[1]] = val[0]
-        elif isinstance(val, (int, float)):
-            self._stfcn_index = np.asarray([val for _ in range(self.n)])
-        elif len(val) == self.n:
-            self._stfcn_index = np.asarray(val)
+        self._set_1d_array("_stfcn_index", val, default_val=1, dtype=np.int32)
 
     @property
     def incl_it(self) -> np.ndarray:
@@ -2225,17 +2136,7 @@ class Tiles:
     @incl_it.setter
     def incl_it(self, val) -> None:
         """Set inclusion flags (scalar or per-tile array)."""
-        if not hasattr(self, "_incl_it"):
-            self._incl_it = np.ones(shape=(self.n), dtype=np.int32, order="F")
-
-        if val is None:
-            return
-        elif isinstance(val, tuple):
-            self._incl_it[val[1]] = val[0]
-        elif isinstance(val, (int, float)):
-            self._incl_it = np.asarray([val for _ in range(self.n)])
-        elif len(val) == self.n:
-            self._incl_it = np.asarray(val)
+        self._set_1d_array("_incl_it", val, default_val=1, dtype=np.int32)
 
     @property
     def M_rel(self) -> np.ndarray:
@@ -2245,17 +2146,7 @@ class Tiles:
     @M_rel.setter
     def M_rel(self, val) -> None:
         """Set relative magnetization-change values (scalar or per-tile array)."""
-        if not hasattr(self, "_M_rel"):
-            self._M_rel = np.zeros(shape=(self.n), dtype=np.float64, order="F")
-
-        if val is None:
-            return
-        elif isinstance(val, tuple):
-            self._M_rel[val[1]] = val[0]
-        elif isinstance(val, (int, float)):
-            self._M_rel = [val for _ in range(self.n)]
-        elif len(val) == self.n:
-            self._M_rel = val
+        self._set_1d_array("_M_rel", val, default_val=0, dtype=np.float64)
 
     @property
     def use_sym(self) -> np.ndarray:
@@ -2344,76 +2235,17 @@ class Tiles:
             )
 
     def _add_tiles(self, n: int) -> None:
-        """Append space for ``n`` additional tiles to all internal arrays."""
-        self._center_pos = np.append(
-            self._center_pos,
-            np.zeros(shape=(n, 3), dtype=np.float64, order="F"),
-            axis=0,
-        )
-        self._dev_center = np.append(
-            self._dev_center,
-            np.zeros(shape=(n, 3), dtype=np.float64, order="F"),
-            axis=0,
-        )
-        self._size = np.append(
-            self._size, np.zeros(shape=(n, 3), dtype=np.float64, order="F"), axis=0
-        )
-        self._vertices = np.append(
-            self._vertices,
-            np.zeros(shape=(n, 3, 4), dtype=np.float64, order="F"),
-            axis=0,
-        )
-        self._M = np.append(
-            self._M, np.zeros(shape=(n, 3), dtype=np.float64, order="F"), axis=0
-        )
-        self._u_ea = np.append(
-            self._u_ea, np.zeros(shape=(n, 3), dtype=np.float64, order="F"), axis=0
-        )
-        self._u_oa1 = np.append(
-            self._u_oa1, np.zeros(shape=(n, 3), dtype=np.float64, order="F"), axis=0
-        )
-        self._u_oa2 = np.append(
-            self._u_oa2, np.zeros(shape=(n, 3), dtype=np.float64, order="F"), axis=0
-        )
-        self._mu_r_ea = np.append(
-            self._mu_r_ea, np.ones(shape=(n), dtype=np.float64, order="F"), axis=0
-        )
-        self._mu_r_oa = np.append(
-            self._mu_r_oa, np.ones(shape=(n), dtype=np.float64, order="F"), axis=0
-        )
-        self._M_rem = np.append(
-            self._M_rem, np.zeros(shape=(n), dtype=np.float64, order="F"), axis=0
-        )
-        self._tile_type = np.append(
-            self._tile_type, np.ones(n, dtype=np.int32, order="F"), axis=0
-        )
-        self._offset = np.append(
-            self._offset, np.zeros(shape=(n, 3), dtype=np.float64, order="F"), axis=0
-        )
-        self._rot = np.append(
-            self._rot, np.zeros(shape=(n, 3), dtype=np.float64, order="F"), axis=0
-        )
-        self._color = np.append(
-            self._color, np.zeros(shape=(n, 3), dtype=np.float64, order="F"), axis=0
-        )
-        self._magnet_type = np.append(
-            self._magnet_type, np.ones(n, dtype=np.int32, order="F"), axis=0
-        )
-        self._stfcn_index = np.append(
-            self._stfcn_index, np.ones(shape=(n), dtype=np.int32, order="F"), axis=0
-        )
-        self._incl_it = np.append(
-            self._incl_it, np.ones(shape=(n), dtype=np.int32, order="F"), axis=0
-        )
-        self._use_sym = np.append(
-            self._use_sym, np.zeros(shape=(n), dtype=np.int32, order="F"), axis=0
-        )
-        self._sym_op = np.append(
-            self._sym_op, np.ones(shape=(n, 3), dtype=np.float64, order="F"), axis=0
-        )
-        self._M_rel = np.append(
-            self._M_rel, np.zeros(shape=(n), dtype=np.float64, order="F"), axis=0
-        )
+        """Append space for ``n`` additional tiles to all internal arrays.
+
+        Parameters
+        ----------
+        n : int
+            Number of tiles to append. Each array in _TILE_ARRAY_SPECS is extended.
+        """
+        for attr, shape, dtype, fill in _TILE_ARRAY_SPECS:
+            old = getattr(self, attr)
+            new = np.full((n,) + shape, fill, dtype=dtype, order="F")
+            setattr(self, attr, np.append(old, new, axis=0))
         self._n += n
 
     def refine_prism(self, idx: int | float | list, mat: list) -> None:
@@ -2434,7 +2266,15 @@ class Tiles:
                 self._refine_prism_i(i, mat)
 
     def _refine_prism_i(self, i: int | float, mat: list) -> None:
-        """Refine a single prism tile ``i`` into ``prod(mat)`` sub-prisms."""
+        """Refine a single prism tile ``i`` into ``prod(mat)`` sub-prisms.
+
+        Parameters
+        ----------
+        i : int | float
+            Index of the prism tile to refine (must have tile_type == 2).
+        mat : list of 3 int
+            Subdivision counts ``[nx, ny, nz]`` along the local axes.
+        """
         assert self.tile_type[i] == 2
         old_n = self.n
         self._add_tiles(np.prod(mat) - 1)
@@ -2460,19 +2300,10 @@ class Tiles:
                         self._size[i] = self.size[i] / mat
                     else:
                         self._size[idx] = self.size[i] / mat
-                        self._M[idx] = self.M[i]
-                        self._M_rel[idx] = self.M_rel[i]
-                        self._color[idx] = self.color[i]
-                        self._magnet_type[idx] = self.magnet_type[i]
-                        self._mu_r_ea[idx] = self.mu_r_ea[i]
-                        self._mu_r_oa[idx] = self.mu_r_oa[i]
-                        self._rot[idx] = self.rot[i]
-                        self._tile_type[idx] = self.tile_type[i]
-                        self._u_ea[idx] = self.u_ea[i]
-                        self._u_oa1[idx] = self.u_oa1[i]
-                        self._u_oa2[idx] = self.u_oa2[i]
+                        for attr in _REFINE_COPY_ATTRS:
+                            arr = getattr(self, attr)
+                            arr[idx] = arr[i]
                         self._offset[idx] = ver_cube[cube_idx]
-                        self._incl_it[idx] = self.incl_it[i]
 
 
 
@@ -2496,31 +2327,10 @@ def get_rotmat(rot: np.ndarray) -> np.ndarray:
 
     Returns
     -------
-    ndarray, shape (3, 3)
+        ndarray, shape (3, 3)
         Rotation matrix ``R`` assembled in x→y→z order.
     """
-    rot_x = np.asarray(
-        (
-            [1, 0, 0],
-            [0, np.cos(rot[0]), -np.sin(rot[0])],
-            [0, np.sin(rot[0]), np.cos(rot[0])],
-        )
-    )
-    rot_y = np.asarray(
-        (
-            [np.cos(rot[1]), 0, np.sin(rot[1])],
-            [0, 1, 0],
-            [-np.sin(rot[1]), 0, np.cos(rot[1])],
-        )
-    )
-    rot_z = np.asarray(
-        (
-            [np.cos(rot[2]), -np.sin(rot[2]), 0],
-            [np.sin(rot[2]), np.cos(rot[2]), 0],
-            [0, 0, 1],
-        )
-    )
-    return rot_x @ rot_y @ rot_z
+    return _axis_rotation(0, rot[0]) @ _axis_rotation(1, rot[1]) @ _axis_rotation(2, rot[2])
 
 
 def _euler_to_rot_axis(euler: np.ndarray) -> np.ndarray:
@@ -2558,15 +2368,7 @@ def _euler_to_rot_axis(euler: np.ndarray) -> np.ndarray:
     # symm-axis of geometry points in the direction of z-axis of L
     # Rotates given rotation axis with pi/2 around y_L''
     # Moves x-axis of L'' to z-axis
-    # ax[0] = ax[2], ax[1] = ax[1], ax[2] = -ax[0]
-    R_y = np.array(
-        [
-            [np.cos(np.pi / 2), 0, np.sin(np.pi / 2)],
-            [0, 1, 0],
-            [-np.sin(np.pi / 2), 0, np.cos(np.pi / 2)],
-        ]
-    )
-    ax = np.dot(R_y, np.asarray(euler).T)
+    ax = _axis_rotation(1, np.pi / 2) @ np.asarray(euler)
 
     # Calculate the spherical coordinates: yaw and pitch
     # x_L'' has to match ax
@@ -2596,6 +2398,7 @@ def muse2tiles(
     muse_file: Union[str, Path],
     mu: tuple[float, float] = (1.05, 1.05),
     magnetization: float = 1.16e6,
+    verbose: bool = True,
     **kwargs,
 ) -> Tiles:
     """Convert a MUSE-exported CSV file into magnet tiles for MacroMag.
@@ -2607,6 +2410,7 @@ def muse2tiles(
         muse_file: Path to the MUSE CSV file.
         mu: (mu_ea, mu_oa) relative permeabilities. Defaults to (1.05, 1.05).
         magnetization: Remanent magnetization [A/m]. Defaults to 1.16e6.
+        verbose: If True, print the number of magnets identified.
         **kwargs: Passed to build_prism.
 
     Returns:
@@ -2615,7 +2419,8 @@ def muse2tiles(
 
     data = np.loadtxt(muse_file, skiprows=1, delimiter=",")
     nmag = len(data)
-    print(f"{nmag} magnets are identified in {muse_file!r}.")
+    if verbose:
+        print(f"{nmag} magnets are identified in {muse_file!r}.")
 
     center = np.zeros((nmag, 3))
     rot    = np.zeros((nmag, 3))
