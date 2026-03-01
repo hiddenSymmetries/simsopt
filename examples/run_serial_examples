@@ -30,3 +30,8 @@ set -ex
 ./3_Advanced/stage_two_optimization_finitebuild.py
 ./3_Advanced/coil_forces.py
 ./3_Advanced/wireframe_gsco_multistep.py
+./3_Advanced/wireframe_gsco_multistep.py
+./3_Advanced/dipole_array_tutorial.py
+./3_Advanced/dipole_array_tutorial_advanced.py
+./3_Advanced/passive_coils_QASH.py
+./3_Advanced/passive_coils_CSX.py
