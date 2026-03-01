@@ -19,6 +19,7 @@ except ImportError:
 from simsopt._core.json import SIMSON, GSONDecoder, GSONEncoder
 from simsopt.configs import get_data
 from simsopt.field import (BiotSavart, CircularCoil, Coil, Current,
+                           CurrentVoxelsField,
                            DipoleField, Dommaschk, InterpolatedField,
                            MagneticFieldSum, PoloidalField, Reiman,
                            ScalarPotentialRZMagneticField, ToroidalField,
@@ -1281,6 +1282,138 @@ class Testing(unittest.TestCase):
         assert np.allclose(B1, B1_analytical)
         assert np.allclose(dB1, dB1_analytical)
 
+    def test_currentvoxels_field(self):
+        n = 1
+        nx = 10
+        ny = nx
+        nz = nx
+        J = np.zeros((n, nx ** 3, 3))
+        J[:, :, 0] = 1e6
+        voxel_location = np.zeros((1, 3)) 
+        voxel_location[0, 1] = 20  # far away in y direction
+        dx = 0.1
+        dy = dx
+        dz = dx
+        grid_scaling = dx ** 3 / nx ** 3
+        x_leftpoints = [0]
+        y_leftpoints = [20] 
+        z_leftpoints = [0] 
+        xrange = np.zeros((n, nx))
+        yrange = np.zeros((n, ny))
+        zrange = np.zeros((n, nz))
+        for i in range(n):
+            xrange[i, :] = np.linspace(
+                x_leftpoints[i], 
+                x_leftpoints[i] + dx,
+                nx,
+                endpoint=True
+            ) - dx / 2.0
+            yrange[i, :] = np.linspace(
+                y_leftpoints[i], 
+                y_leftpoints[i] + dy,
+                ny,
+                endpoint=True
+            ) - dy / 2.0
+            zrange[i, :] = np.linspace(
+                z_leftpoints[i], 
+                z_leftpoints[i] + dz,
+                nz,
+                endpoint=True
+            ) - dz / 2.0
+        # build up array of the integration points
+        XYZ_integration = np.zeros((n, nx ** 3, 3))
+        for i in range(n):
+            X_n, Y_n, Z_n = np.meshgrid(
+                xrange[i, :], yrange[i, :], zrange[i, :], 
+                indexing='ij'
+            )
+            XYZ_integration[i, :, :] = np.transpose(np.array([X_n, Y_n, Z_n]), [1, 2, 3, 0]).reshape(nx ** 3, 3) 
+        bs_wv = CurrentVoxelsField(J, XYZ_integration, grid_scaling, nfp=1, stellsym=False)
+        points = np.zeros((10, 3))
+        bs_wv.set_points(points)
+
+        # now compute the equivalent dipole field
+        m = np.zeros((1, 3))
+        # m[0, 0] = 1
+        # m[0, 1] = 1
+        m[0, 2] = 1
+        m *= 2 * dx ** 2 * 1e6
+        print(dx, m, grid_scaling)
+        bs_dipole = DipoleField(
+            voxel_location,
+            m,
+            stellsym=False,
+            coordinate_flag='cartesian'
+        )
+        bs_dipole.set_points(points)
+
+        # Do it yourself in python
+        Bi = np.zeros((10, 3))
+        for i in range(points.shape[0]):
+            for j in range(XYZ_integration.shape[1]):
+                r_minus_rprime = points[i] - XYZ_integration[0, j, :]
+                Jcrossr = np.cross(J[0, j, :], r_minus_rprime)
+                rmag3 = np.linalg.norm(r_minus_rprime, axis=-1) ** 3
+                Bi[i, :] += Jcrossr / rmag3
+            Bi[i, :] *= grid_scaling * 1e-7
+        np.testing.assert_allclose(bs_wv.B(), bs_dipole.B(), atol=1e-15, err_msg='Bfields do not match, B1 = {bs_wv.B()}, B2 = {bs_dipole.B()}')
+        np.testing.assert_allclose(bs_wv.B(), Bi, atol=1e-15, err_msg='Bfields do not match, B1 = {bs_wv.B()}, B2 = {Bi}')
+        # No idea how to test the derivatives right now, since I think they should disagree
+        # with the dipole ones, which are symmetric, while the voxel ones are not.
+        bs_wv.dB_by_dX()
+        bs_wv.dA_by_dX()
+        np.testing.assert_allclose(bs_wv.A(), bs_dipole.A(), atol=1e-15, err_msg='A fields do not match, A1 = {bs_wv.A()}, A2 = {bs_dipole.A()}')
+
+    def test_currentvoxels_field_as_dict_from_dict(self):
+        """Test as_dict and from_dict serialization for CurrentVoxelsField."""
+        n = 1
+        nx = 4
+        ny = nx
+        nz = nx
+        J = np.zeros((n, nx ** 3, 3))
+        J[:, :, 2] = 1e6
+        voxel_location = np.zeros((1, 3))
+        voxel_location[0, 1] = 20
+        dx = 0.1
+        dy = dx
+        dz = dx
+        grid_scaling = dx ** 3 / nx ** 3
+        xrange = np.linspace(0, dx, nx, endpoint=True) - dx / 2.0
+        yrange = np.linspace(20, 20 + dy, ny, endpoint=True) - dy / 2.0
+        zrange = np.linspace(0, dz, nz, endpoint=True) - dz / 2.0
+        X_n, Y_n, Z_n = np.meshgrid(xrange, yrange, zrange, indexing='ij')
+        XYZ_integration = np.transpose(
+            np.array([X_n, Y_n, Z_n]), [1, 2, 3, 0]
+        ).reshape(nx ** 3, 3)
+        XYZ_integration = np.broadcast_to(
+            XYZ_integration[np.newaxis, :, :], (n, nx ** 3, 3)
+        ).copy()
+
+        bs = CurrentVoxelsField(
+            J, XYZ_integration, grid_scaling, nfp=1, stellsym=False
+        )
+        points = np.random.rand(10, 3)
+        bs.set_points(points)
+
+        # Test as_dict -> from_dict round-trip
+        serial_objs_dict = {}
+        d = bs.as_dict(serial_objs_dict=serial_objs_dict)
+        self.assertIn("J", d)
+        self.assertIn("integration_points", d)
+        self.assertIn("grid_scaling", d)
+        self.assertIn("points", d)
+
+        bs_regen = CurrentVoxelsField.from_dict(
+            d, serial_objs_dict=serial_objs_dict, recon_objs=[]
+        )
+        np.testing.assert_allclose(bs.B(), bs_regen.B(), atol=1e-14)
+        np.testing.assert_allclose(bs.A(), bs_regen.A(), atol=1e-14)
+
+        # Test full JSON round-trip
+        field_json_str = json.dumps(SIMSON(bs), cls=GSONEncoder)
+        bs_regen_json = json.loads(field_json_str, cls=GSONDecoder)
+        np.testing.assert_allclose(bs.B(), bs_regen_json.B(), atol=1e-14)
+        np.testing.assert_allclose(bs.A(), bs_regen_json.A(), atol=1e-14)
 
 if __name__ == "__main__":
     unittest.main()
