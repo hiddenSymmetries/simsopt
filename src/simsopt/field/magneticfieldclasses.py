@@ -641,7 +641,7 @@ class DipoleField(MagneticField):
         the dipoles) correctly returns contributions from all the dipoles from symmetries.
         """
         # Store the base / unique dipole grid (half-period, as passed in)
-        # This is what toVTK_magnet_boxes(..., dx, dy, dz) expects for the "_geometry_unique" output.
+        # This is what _toVTK(..., dx, dy, dz) expects for the "_geometry_unique" output.
         self.dipole_grid_unique = np.ascontiguousarray(dipole_grid)
 
         # Read in the required fields from pm_opt object
@@ -723,204 +723,29 @@ class DipoleField(MagneticField):
         self.m_vec = contig(m_vec)
         self.m_maxima = contig(m_max)
 
-    def _toVTK(self, vtkname):
-        """
-            Write dipole data into a VTK file (acknowledgements to Caoxiang's CoilPy code).
-
-        Args:
-            vtkname (str): VTK filename, will be appended with .vts or .vtu.
-        """
-
-        # get the coordinates
-        ox = np.ascontiguousarray(self.dipole_grid[:, 0])
-        oy = np.ascontiguousarray(self.dipole_grid[:, 1])
-        oz = np.ascontiguousarray(self.dipole_grid[:, 2])
-        ophi = np.arctan2(oy, ox)
-        otheta = np.arctan2(oz, np.sqrt(ox ** 2 + oy ** 2) - self.R0)
-
-        # define the m vectors and the normalized m vectors
-        # in Cartesian, cylindrical, and simple toroidal coordinates.
-        mx = np.ascontiguousarray(self.m_vec[:, 0])
-        my = np.ascontiguousarray(self.m_vec[:, 1])
-        mz = np.ascontiguousarray(self.m_vec[:, 2])
-        mx_normalized = np.ascontiguousarray(mx / self.m_maxima)
-        my_normalized = np.ascontiguousarray(my / self.m_maxima)
-        mz_normalized = np.ascontiguousarray(mz / self.m_maxima)
-        mr = np.ascontiguousarray(mx * np.cos(ophi) + my * np.sin(ophi))
-        mrminor = np.ascontiguousarray(mx * np.cos(ophi) * np.cos(otheta) + my * np.sin(ophi) * np.cos(otheta) + np.sin(otheta) * mz)
-        mphi = np.ascontiguousarray(-mx * np.sin(ophi) + my * np.cos(ophi))
-        mtheta = np.ascontiguousarray(-mx * np.cos(ophi) * np.sin(otheta) - my * np.sin(ophi) * np.sin(otheta) + np.cos(otheta) * mz)
-        mr_normalized = np.ascontiguousarray(mr / self.m_maxima)
-        mrminor_normalized = np.ascontiguousarray(mrminor / self.m_maxima)
-        mphi_normalized = np.ascontiguousarray(mphi / self.m_maxima)
-        mtheta_normalized = np.ascontiguousarray(mtheta / self.m_maxima)
-
-        # Save all the data to a vtk file which can be visualized nicely with ParaView
-        data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized), "m_rphiz": (mr, mphi, mz), "m_rphiz_normalized": (mr_normalized, mphi_normalized, mz_normalized), "m_rphitheta": (mrminor, mphi, mtheta), "m_rphitheta_normalized": (mrminor_normalized, mphi_normalized, mtheta_normalized)}
-        from pyevtk.hl import pointsToVTK
-        pointsToVTK(str(vtkname), ox, oy, oz, data=data)
-
-    def _toVTK(self, vtkname, dx, dy, dz):
-        """
-            Write dipole data into a VTK file (acknowledgements to Caoxiang's CoilPy code).
-        Args:
-            vtkname (str): VTK filename, will be appended with .vts or .vtu.
-        """
-        # get the coordinates
-        ox = np.ascontiguousarray(self.dipole_grid[:, 0])
-        oy = np.ascontiguousarray(self.dipole_grid[:, 1])
-        oz = np.ascontiguousarray(self.dipole_grid[:, 2])
-        ophi = np.arctan2(oy, ox)
-        otheta = np.arctan2(oz, np.sqrt(ox ** 2 + oy ** 2) - self.R0)
-        # define the m vectors and the normalized m vectors
-        # in Cartesian, cylindrical, and simple toroidal coordinates.
-        mx = np.ascontiguousarray(self.m_vec[:, 0])
-        my = np.ascontiguousarray(self.m_vec[:, 1])
-        mz = np.ascontiguousarray(self.m_vec[:, 2])
-        mx_normalized = np.ascontiguousarray(mx / self.m_maxima)
-        my_normalized = np.ascontiguousarray(my / self.m_maxima)
-        mz_normalized = np.ascontiguousarray(mz / self.m_maxima)
-        mr = np.ascontiguousarray(mx * np.cos(ophi) + my * np.sin(ophi))
-        mrminor = np.ascontiguousarray(mx * np.cos(ophi) * np.cos(otheta) + my * np.sin(ophi) * np.cos(otheta) + np.sin(otheta) * mz)
-        mphi = np.ascontiguousarray(-mx * np.sin(ophi) + my * np.cos(ophi))
-        mtheta = np.ascontiguousarray(-mx * np.cos(ophi) * np.sin(otheta) - my * np.sin(ophi) * np.sin(otheta) + np.cos(otheta) * mz)
-        mr_normalized = np.ascontiguousarray(mr / self.m_maxima)
-        mrminor_normalized = np.ascontiguousarray(mrminor / self.m_maxima)
-        mphi_normalized = np.ascontiguousarray(mphi / self.m_maxima)
-        mtheta_normalized = np.ascontiguousarray(mtheta / self.m_maxima)
-        # Save all the data to a vtk file which can be visualized nicely with ParaView
-        data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized), "m_rphiz": (mr, mphi, mz), "m_rphiz_normalized": (mr_normalized, mphi_normalized, mz_normalized), "m_rphitheta": (mrminor, mphi, mtheta), "m_rphitheta_normalized": (mrminor_normalized, mphi_normalized, mtheta_normalized)}
-        from pyevtk.hl import pointsToVTK, unstructuredGridToVTK
-        pointsToVTK(str(vtkname), ox, oy, oz, data=data)
-        from pyevtk.vtk import VtkVoxel
-        # Now save as magnets in 3D
-        nmagnets = self.dipole_grid.shape[0]
-        points = np.zeros((nmagnets, 2, 3))
-        points[:, 0, 0] = ox - dx / 2.0
-        points[:, 1, 0] = ox + dx / 2.0
-        points[:, 0, 1] = oy - dy / 2.0
-        points[:, 1, 1] = oy + dy / 2.0
-        points[:, 0, 2] = oz - dz / 2.0
-        points[:, 1, 2] = oz + dz / 2.0
-        cell_types = np.empty(nmagnets, dtype="uint8")
-        cell_types[:] = VtkVoxel.tid
-        connectivity = np.arange(8 * nmagnets, dtype=np.int64)
-        offsets = (np.arange(nmagnets, dtype=np.int64) + 1) * 8
-        base_x = np.array([0, 1, 0, 1, 0, 1, 0, 1])
-        base_y = np.array([0, 0, 1, 1, 0, 0, 1, 1])
-        base_z = np.array([0, 0, 0, 0, 1, 1, 1, 1])
-        x = np.zeros(8 * nmagnets)
-        y = np.zeros(8 * nmagnets)
-        z = np.zeros(8 * nmagnets)
-        for j in range(nmagnets):
-            x[8 * j: 8 * (j + 1)] = (
-                np.min(points[j, :, 0])
-                + (np.max(points[j, :, 0]) - np.min(points[j, :, 0])) * base_x
-            )
-            y[8 * j: 8 * (j + 1)] = (
-                np.min(points[j, :, 1])
-                + (np.max(points[j, :, 1]) - np.min(points[j, :, 1])) * base_y
-            )
-            z[8 * j: 8 * (j + 1)] = (
-                np.min(points[j, :, 2])
-                + (np.max(points[j, :, 2]) - np.min(points[j, :, 2])) * base_z
-            )
-        unstructuredGridToVTK(
-            str(vtkname) + "_geometry",
-            x,
-            y,
-            z,
-            connectivity,
-            offsets,
-            cell_types,
-            cellData=data,  # Could add the Bfield inside each magnet here!
-            pointData=None,
-            fieldData=None,
-        )
-        # Repeat for unique part of the grid
-        nmagnets = self.dipole_grid_unique.shape[0]
-        points = np.zeros((nmagnets, 2, 3))
-        ox = self.dipole_grid_unique[:, 0]
-        oy = self.dipole_grid_unique[:, 1]
-        oz = self.dipole_grid_unique[:, 2]
-        points[:, 0, 0] = ox - dx / 2.0
-        points[:, 1, 0] = ox + dx / 2.0
-        points[:, 0, 1] = oy - dy / 2.0
-        points[:, 1, 1] = oy + dy / 2.0
-        points[:, 0, 2] = oz - dz / 2.0
-        points[:, 1, 2] = oz + dz / 2.0
-        cell_types = np.empty(nmagnets, dtype="uint8")
-        cell_types[:] = VtkVoxel.tid
-        connectivity = np.arange(8 * nmagnets, dtype=np.int64)
-        offsets = (np.arange(nmagnets, dtype=np.int64) + 1) * 8
-        base_x = np.array([0, 1, 0, 1, 0, 1, 0, 1])
-        base_y = np.array([0, 0, 1, 1, 0, 0, 1, 1])
-        base_z = np.array([0, 0, 0, 0, 1, 1, 1, 1])
-        x = np.zeros(8 * nmagnets)
-        y = np.zeros(8 * nmagnets)
-        z = np.zeros(8 * nmagnets)
-        for j in range(nmagnets):
-            x[8 * j: 8 * (j + 1)] = (
-                np.min(points[j, :, 0])
-                + (np.max(points[j, :, 0]) - np.min(points[j, :, 0])) * base_x
-            )
-            y[8 * j: 8 * (j + 1)] = (
-                np.min(points[j, :, 1])
-                + (np.max(points[j, :, 1]) - np.min(points[j, :, 1])) * base_y
-            )
-            z[8 * j: 8 * (j + 1)] = (
-                np.min(points[j, :, 2])
-                + (np.max(points[j, :, 2]) - np.min(points[j, :, 2])) * base_z
-            )
-        data = {"m": (mx[:nmagnets], my[:nmagnets], mz[:nmagnets]), \
-                "m_normalized": (mx_normalized[:nmagnets], my_normalized[:nmagnets], mz_normalized[:nmagnets]), \
-                 "m_rphiz": (mr[:nmagnets], mphi[:nmagnets], mz[:nmagnets]), \
-                    "m_rphiz_normalized": (mr_normalized[:nmagnets], mphi_normalized[:nmagnets], mz_normalized[:nmagnets])}
-        unstructuredGridToVTK(
-            str(vtkname) + "_geometry_unique",
-            x,
-            y,
-            z,
-            connectivity,
-            offsets,
-            cell_types,
-            cellData=data,  # Could add the Bfield inside each magnet here!
-            pointData=None,
-            fieldData=None,
-        )
-        
-    def toVTK_magnet_boxes(
+    def _toVTK(
         self,
         vtkname,
-        dx: Union[float, np.ndarray],
-        dy: Union[float, np.ndarray],
-        dz: Union[float, np.ndarray],
+        dx: Union[float, np.ndarray, None] = None,
+        dy: Union[float, np.ndarray, None] = None,
+        dz: Union[float, np.ndarray, None] = None,
     ) -> None:
         """
-        Write permanent magnet dipole data to VTK files, with each magnet represented
-        as a rectangular box (voxel) using its actual physical dimensions.
+        Write dipole data into a VTK file (acknowledgements to Caoxiang's CoilPy code).
 
-        This produces visualization files suitable for ParaView, showing magnets as
-        3D boxes rather than points. Each magnet is drawn as a voxel centered at
-        its dipole position with half-extents (dx/2, dy/2, dz/2) in each Cartesian
-        direction.
-
-        Writes three outputs per base name ``vtkname``:
-        - ``vtkname.vtu``: Point cloud of dipole centers with magnetization vectors
-        - ``vtkname_geometry.vtu``: Unstructured grid of voxels for full symmetry grid
-        - ``vtkname_geometry_unique.vtu``: Voxels for unique/half-period grid only
+        When dx, dy, dz are omitted, writes only a point cloud (vtkname.vtu).
+        When all three are provided, also writes voxel geometry files (_geometry.vtu,
+        _geometry_unique.vtu) with each magnet represented as a 3D box.
 
         Args:
-            vtkname: Base filename for VTK output (e.g. path or string). Extensions
-                .vtu are appended automatically.
-            dx: Extent of each magnet in x. Scalar for uniform size, or array of shape
-                (ndipoles_full,) or (ndipoles_unique,) for per-magnet sizes.
-            dy: Extent of each magnet in y. Same convention as dx.
-            dz: Extent of each magnet in z. Same convention as dx.
+            vtkname: Base filename for VTK output. Extensions .vtu are appended automatically.
+            dx: Optional. Extent of each magnet in x. Scalar or array for per-magnet sizes.
+            dy: Optional. Extent of each magnet in y. Same convention as dx.
+            dz: Optional. Extent of each magnet in z. Same convention as dx.
 
         Raises:
             ValueError: If array sizes for dx, dy, dz do not match ndipoles_full or
-                ndipoles_unique.
+                ndipoles_unique when dimensions are provided.
         """
         # Full symmetry extended grid
         ox = np.ascontiguousarray(self.dipole_grid[:, 0])
@@ -968,6 +793,9 @@ class DipoleField(MagneticField):
 
         # Save dipole centers as points
         pointsToVTK(str(vtkname), ox, oy, oz, data=data)
+
+        if dx is None or dy is None or dz is None:
+            return
 
         # Symmetry bookkeeping
         ndip_full = self.dipole_grid.shape[0]

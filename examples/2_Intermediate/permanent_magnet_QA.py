@@ -190,7 +190,7 @@ b_dipole_proxy = DipoleField(
 )
 b_dipole_proxy.set_points(s_plot.gamma().reshape((-1, 3)))
 # Magnet dimensions for VTK: cylindrical grid uses dr (radial) and dz (axial)
-b_dipole_proxy.toVTK_magnet_boxes(
+b_dipole_proxy._toVTK(
     out_dir / "Dipole_Fields_Sparse", pm_opt.dr, pm_opt.dr, pm_opt.dz
 )
 b_dipole = DipoleField(
@@ -201,7 +201,7 @@ b_dipole = DipoleField(
     m_maxima=pm_opt.m_maxima
 )
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-b_dipole.toVTK_magnet_boxes(
+b_dipole._toVTK(
     out_dir / "Dipole_Fields", pm_opt.dr, pm_opt.dr, pm_opt.dz
 )
 

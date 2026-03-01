@@ -220,7 +220,7 @@ if not in_github_actions:
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
         K_save = int(nIter_max / nHistory * k)
         # Magnet dimensions for VTK: use dr for all axes (FAMUS grid from geo_setup_from_famus)
-        b_dipole.toVTK_magnet_boxes(
+        b_dipole._toVTK(
             out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}",
             dr, dr, dr,
         )

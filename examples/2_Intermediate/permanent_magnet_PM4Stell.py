@@ -184,7 +184,7 @@ if not in_github_actions:
         m_maxima=pm_ncsx.m_maxima,
     )
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-    b_dipole.toVTK_magnet_boxes(out_dir / "Dipole_Fields", dr_pm, dr_pm, dr_pm)
+    b_dipole._toVTK(out_dir / "Dipole_Fields", dr_pm, dr_pm, dr_pm)
     Bnormal_coils = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_plasma = bnormal_obj_ncsx.bnormal_grid(qphi, ntheta, 'full torus')

@@ -770,23 +770,29 @@ class Testing(unittest.TestCase):
 
         # Save to vtk (dx, dy, dz needed for 3D voxel output)
         with ScratchDir("."):
-            Bfield.toVTK_magnet_boxes('test', 0.1, 0.1, 0.1)
+            Bfield._toVTK('test', 0.1, 0.1, 0.1)
 
     @unittest.skipIf(pyevtk is None, "pyevtk not found")
-    def test_DipoleField_toVTK_magnet_boxes(self):
-        """Test toVTK_magnet_boxes with scalar and array dimension inputs."""
+    def test_DipoleField_toVTK(self):
+        """Test _toVTK with optional dimensions: point-cloud-only and full voxel output."""
         Ndipoles = 10
         m = np.ravel(np.outer(np.ones(Ndipoles), np.array([0.5, 0.5, 0.5])))
         m_loc = np.outer(np.ones(Ndipoles), np.array([0.1, -0.1, 1]))
         m_maxima = np.ones(Ndipoles) * np.sqrt(3)
 
         with ScratchDir("."):
-            # Test 1: scalar dx, dy, dz
             Bfield = DipoleField(
                 m_loc, m, stellsym=False, coordinate_flag='cartesian',
                 m_maxima=m_maxima
             )
-            Bfield.toVTK_magnet_boxes('boxes_scalar', 0.05, 0.06, 0.07)
+            # Test 0: optional dims - point cloud only, no geometry files
+            Bfield._toVTK('pointcloud_only')
+            self.assertTrue(Path('pointcloud_only.vtu').exists())
+            self.assertFalse(Path('pointcloud_only_geometry.vtu').exists())
+            self.assertFalse(Path('pointcloud_only_geometry_unique.vtu').exists())
+
+            # Test 1: scalar dx, dy, dz
+            Bfield._toVTK('boxes_scalar', 0.05, 0.06, 0.07)
             for suffix in ['', '_geometry', '_geometry_unique']:
                 self.assertTrue(
                     Path('boxes_scalar' + suffix + '.vtu').exists(),
@@ -797,7 +803,7 @@ class Testing(unittest.TestCase):
             dx_arr = 0.03 + 0.01 * np.arange(Ndipoles, dtype=float)
             dy_arr = 0.04 + 0.01 * np.arange(Ndipoles, dtype=float)
             dz_arr = 0.05 + 0.01 * np.arange(Ndipoles, dtype=float)
-            Bfield.toVTK_magnet_boxes('boxes_array', dx_arr, dy_arr, dz_arr)
+            Bfield._toVTK('boxes_array', dx_arr, dy_arr, dz_arr)
             self.assertTrue(Path('boxes_array_geometry.vtu').exists())
 
             # Test 3: stellarator symmetric with ndipoles_unique array
@@ -811,14 +817,14 @@ class Testing(unittest.TestCase):
             dx_unique = np.full(ndip_unique, 0.08)
             dy_unique = np.full(ndip_unique, 0.09)
             dz_unique = np.full(ndip_unique, 0.10)
-            Bfield_sym.toVTK_magnet_boxes('boxes_unique', dx_unique, dy_unique, dz_unique)
+            Bfield_sym._toVTK('boxes_unique', dx_unique, dy_unique, dz_unique)
             self.assertTrue(Path('boxes_unique_geometry.vtu').exists())
             self.assertTrue(Path('boxes_unique_geometry_unique.vtu').exists())
 
             # Test 4: wrong array size raises ValueError
             wrong_dx = np.array([0.1, 0.2])  # length 2, expect Ndipoles=10
             with self.assertRaises(ValueError) as ctx:
-                Bfield.toVTK_magnet_boxes('fail', wrong_dx, 0.1, 0.1)
+                Bfield._toVTK('fail', wrong_dx, 0.1, 0.1)
             self.assertIn("Size array must be scalar", str(ctx.exception))
 
     def test_DipoleField_multiple_points_multiple_dipoles(self):
