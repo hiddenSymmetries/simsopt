@@ -129,7 +129,7 @@ def coil_optimization(s, bs, base_curves, curves, **kwargs):
         + CURVATURE_WEIGHT * sum([LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]) \
         + MSC_WEIGHT * sum([QuadraticPenalty(MeanSquaredCurvature(c), MSC_THRESHOLD) for c in base_curves]) \
         + LINKING_NUMBER_WEIGHT * LinkingNumber(curves) \
-        + FORCE_WEIGHT * sum([LpCurveForce(c, coils, regularization_circ(0.03 * R0), p=2, threshold=FORCE_THRESHOLD) for c in base_curves])
+        + FORCE_WEIGHT * Jforce
 
     Args:
         s (Surface): Surface representing the plasma boundary
@@ -169,6 +169,7 @@ def coil_optimization(s, bs, base_curves, curves, **kwargs):
     from simsopt.objectives import QuadraticPenalty, SquaredFlux
     from simsopt.field.force import LpCurveForce
     from simsopt.field.selffield import regularization_circ
+    from simsopt.field.coil import RegularizedCoil
 
     nphi = len(s.quadpoints_phi)
     ntheta = len(s.quadpoints_theta)
@@ -214,24 +215,24 @@ def coil_optimization(s, bs, base_curves, curves, **kwargs):
     Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
     linking_number = LinkingNumber(curves)
     # Hard-coded finite widths below -- 3 cm width for 1m device, ~ 30 cm width for 10m device
-    Jforce = [
-        LpCurveForce(
-            c, coils, regularization_circ(0.03 * R0), p=2, threshold=FORCE_THRESHOLD
-        )
-        for c in base_coils
-    ]
+    # Convert coils to RegularizedCoil objects for force calculation if FORCE_WEIGHT > 0
+    if FORCE_WEIGHT > 0:
+        reg_base_coils = [RegularizedCoil(c.curve, c.current, regularization_circ(0.03 * R0)) if not isinstance(c, RegularizedCoil) else c for c in base_coils]
+        reg_coils = [RegularizedCoil(c.curve, c.current, regularization_circ(0.03 * R0)) if not isinstance(c, RegularizedCoil) else c for c in coils]
+        Jforce = sum([LpCurveForce([reg_base_coils[i]], reg_coils, p=2, threshold=FORCE_THRESHOLD) for i in range(len(reg_base_coils))])
+    else:
+        Jforce = None
 
     # Form the total objective function.
-    JF = (
-        Jf
-        + LENGTH_WEIGHT * QuadraticPenalty(sum(Jls), LENGTH_THRESHOLD, "max")
-        + CC_WEIGHT * Jccdist
-        + CS_WEIGHT * Jcsdist
-        + CURVATURE_WEIGHT * sum(Jcs)
-        + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs)
+    JF = Jf \
+        + LENGTH_WEIGHT * QuadraticPenalty(sum(Jls), LENGTH_THRESHOLD, "max") \
+        + CC_WEIGHT * Jccdist \
+        + CS_WEIGHT * Jcsdist \
+        + CURVATURE_WEIGHT * sum(Jcs) \
+        + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs) \
         + LINKING_NUMBER_WEIGHT * linking_number
-        + FORCE_WEIGHT * sum(Jforce)
-    )
+    if FORCE_WEIGHT > 0:
+        JF = JF + FORCE_WEIGHT * Jforce
 
     def fun(dofs):
         """Function for coil optimization grabbed from stage_two_optimization.py"""
@@ -249,7 +250,8 @@ def coil_optimization(s, bs, base_curves, curves, **kwargs):
         outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
         outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
         outstr += f", Linking Number={linking_number.J():.1f}"
-        outstr += f", Force={sum(Jforce).J():.1f}"
+        if Jforce is not None:
+            outstr += f", Force={Jforce.J():.1f}"
         outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
         print(outstr)
         valuestr = f"J={J:.2e}, Jf={jf:.2e}"
@@ -258,10 +260,9 @@ def coil_optimization(s, bs, base_curves, curves, **kwargs):
         valuestr += f", csObj={CS_WEIGHT * Jcsdist.J():.2e}"
         valuestr += f", curvatureObj={CURVATURE_WEIGHT * sum(Jcs).J():.2e}"
         valuestr += f", mscObj={MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs).J():.2e}"
-        valuestr += (
-            f", linkingNumberObj={LINKING_NUMBER_WEIGHT * linking_number.J():.2e}"
-        )
-        valuestr += f", forceObj={FORCE_WEIGHT * sum(Jforce).J():.2e}"
+        valuestr += f", linkingNumberObj={LINKING_NUMBER_WEIGHT * linking_number.J():.2e}"
+        if Jforce is not None:
+            valuestr += f", forceObj={FORCE_WEIGHT * Jforce.J():.2e}"
         print(valuestr)
         return J, grad
 
@@ -636,7 +637,9 @@ def initial_vacuum_stage_II_optimizations(
         MSC_THRESHOLD = np.random.uniform(4, 6)
         CS_THRESHOLD = np.random.uniform(0.166, 0.300)
         CC_THRESHOLD = np.random.uniform(0.083, 0.120)
-        FORCE_THRESHOLD = np.random.uniform(0, 5e04)
+        # FORCE_THRESHOLD is now in MN/m or MN (previously was in N/m or N)
+        # Convert from old range [0, 5e+04] N/m to [0, 5e-2] MN/m
+        FORCE_THRESHOLD = np.random.uniform(0, 5e+04 / 1e6)  # Convert to MN/m or MN
         LENGTH_TARGET = np.random.uniform(4.9, 5.0)
         CURVATURE_WEIGHT = 10.0 ** np.random.uniform(-9, -5)
         CS_WEIGHT = 10.0 ** np.random.uniform(-1, 4)
@@ -651,7 +654,11 @@ def initial_vacuum_stage_II_optimizations(
             MSC_WEIGHT = 10.0 ** np.random.uniform(-5, -1)
 
         if with_force:
-            FORCE_WEIGHT = 10.0 ** np.random.uniform(-14, -8)
+            # FORCE_WEIGHT needs to be scaled for objectives that now return MN/m or MN units
+            # For LpCurveForce/LpCurveTorque with p=2 or SquaredMeanForce/SquaredMeanTorque:
+            #   multiply old weights by 1e12 (since (1e6)^2 = 1e12)
+            # Old range was 10^(-14) to 10^(-8), scaled becomes 10^(-2) to 10^(4)
+            FORCE_WEIGHT = 10.0 ** np.random.uniform(-14, -8) * 1e12  # Scale for (MN/m)^2 or (MN)^2 units
         else:
             FORCE_WEIGHT = 0
 
@@ -787,6 +794,7 @@ def vacuum_stage_II_optimization(
     from simsopt.field.force import LpCurveForce
     from simsopt.field.selffield import regularization_circ
     from simsopt.field import RegularizedCoil
+    with_force = kwargs.get('with_force', False)
 
     if UUID_init_from is None:  # No previous optimization to initialize from
         base_curves = initial_base_curves(R0, R1, order, ncoils)
@@ -804,7 +812,11 @@ def vacuum_stage_II_optimization(
         total_current.fix_all()
         base_currents += [total_current - sum(base_currents)]
 
-        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+        if with_force:
+            regularizations = [regularization_circ(0.05) for _ in range(ncoils)]
+            coils = coils_via_symmetries(base_curves, base_currents, nfp, True, regularizations=regularizations)
+        else:
+            coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
         base_coils = coils[:ncoils]
         curves = [c.curve for c in coils]
 
@@ -822,24 +834,29 @@ def vacuum_stage_II_optimization(
         bs.set_points(s.gamma().reshape((-1, 3)))
 
     # Define the individual terms objective function:
-    LENGTH_TARGET = kwargs.get("LENGTH_TARGET", 5.00)
-    LENGTH_WEIGHT = kwargs.get("LENGTH_WEIGHT", 1e-03)
-    CURVATURE_THRESHOLD = kwargs.get("CURVATURE_THRESHOLD", 12.0)
-    CURVATURE_WEIGHT = kwargs.get("CURVATURE_WEIGHT", 1e-08)
-    MSC_THRESHOLD = kwargs.get("MSC_THRESHOLD", 5.00)
-    MSC_WEIGHT = kwargs.get("MSC_WEIGHT", 1e-04)
-    CC_THRESHOLD = kwargs.get("CC_THRESHOLD", 0.083)
-    CC_WEIGHT = kwargs.get("CC_WEIGHT", 1e03)
-    CS_THRESHOLD = kwargs.get("CS_THRESHOLD", 0.166)
-    CS_WEIGHT = kwargs.get("CS_WEIGHT", 1e03)
-    FORCE_THRESHOLD = kwargs.get("FORCE_THRESHOLD", 2e04)
-    FORCE_WEIGHT = kwargs.get("FORCE_WEIGHT", 1e-10)
-    FORCE_OBJ = kwargs.get("FORCE_OBJ", None)
-    ARCLENGTH_WEIGHT = kwargs.get("ARCLENGTH_WEIGHT", 1e-2)
-    dx = kwargs.get("dx", 0.05)
-    with_force = kwargs.get("with_force", False)
-    debug = kwargs.get("debug", False)
-    MAXITER = kwargs.get("MAXITER", 14000)
+    LENGTH_TARGET = kwargs.get('LENGTH_TARGET', 5.00)
+    LENGTH_WEIGHT = kwargs.get('LENGTH_WEIGHT', 1e-03)
+    CURVATURE_THRESHOLD = kwargs.get('CURVATURE_THRESHOLD', 12.0)
+    CURVATURE_WEIGHT = kwargs.get('CURVATURE_WEIGHT', 1e-08)
+    MSC_THRESHOLD = kwargs.get('MSC_THRESHOLD', 5.00)
+    MSC_WEIGHT = kwargs.get('MSC_WEIGHT', 1e-04)
+    CC_THRESHOLD = kwargs.get('CC_THRESHOLD', 0.083)
+    CC_WEIGHT = kwargs.get('CC_WEIGHT', 1e+03)
+    CS_THRESHOLD = kwargs.get('CS_THRESHOLD', 0.166)
+    CS_WEIGHT = kwargs.get('CS_WEIGHT', 1e+03)
+    # FORCE_THRESHOLD is now in MN/m or MN (previously was in N/m or N)
+    # Default was 2e+04 N/m, converted to 2e-2 MN/m
+    FORCE_THRESHOLD = kwargs.get('FORCE_THRESHOLD', 2e+04 / 1e6)  # Convert to MN/m or MN
+    # FORCE_WEIGHT needs to be scaled for objectives that now return MN/m or MN units
+    # For LpCurveForce/LpCurveTorque with p=2 or SquaredMeanForce/SquaredMeanTorque:
+    #   multiply old weights by 1e12 (since (1e6)^2 = 1e12)
+    # Default was 1e-10, scaled becomes 1e2
+    FORCE_WEIGHT = kwargs.get('FORCE_WEIGHT', 1e-10 * 1e12)  # Scale for (MN/m)^2 or (MN)^2 units
+    FORCE_OBJ = kwargs.get('FORCE_OBJ', None)
+    ARCLENGTH_WEIGHT = kwargs.get('ARCLENGTH_WEIGHT', 1e-2)
+    dx = kwargs.get('dx', 0.05)
+    debug = kwargs.get('debug', False)
+    MAXITER = kwargs.get('MAXITER', 14000)
 
     Jf = SquaredFlux(s, bs)
     Jls = [CurveLength(c) for c in base_curves]
@@ -955,17 +972,11 @@ def vacuum_stage_II_optimization(
     mean_AbsB = np.mean(bs.AbsB())
     # Create RegularizedCoil objects for force calculations
     reg_param = regularization_circ(0.05)
-    base_coils_reg = [
-        RegularizedCoil(c.curve, c.current, reg_param) for c in base_coils
-    ]
-
-    lpcurveforce = sum(
-        [
-            LpCurveForce(
-                c, coils, p=2, threshold=FORCE_THRESHOLD, regularization=reg_param
-            )
-            for c in base_coils
-        ]
+    base_coils_reg = [RegularizedCoil(c.curve, c.current, reg_param) for c in base_coils]
+    
+    lpcurveforce = sum([LpCurveForce(c, coils, p=2, 
+        threshold=FORCE_THRESHOLD, 
+        ) for c in base_coils_reg]
     ).J()
     max_forces = [
         np.max(np.linalg.norm(c_reg.force(coils), axis=1)) for c_reg in base_coils_reg
@@ -1149,11 +1160,17 @@ def make_stage_II_pareto_plots(df: list, df_filtered: list, OUTPUT_DIR: str = ".
 
         data = get_field_values(df, field)
         data_filtered = get_field_values(df_filtered, field)
-
-        # Filter out NaN and infinite values
-        data = data[np.isfinite(data)]
-        data_filtered = data_filtered[np.isfinite(data_filtered)]
-
+        
+        # Filter out NaN and infinite values - ensure we have numpy arrays
+        if len(data) > 0:
+            data = data[np.isfinite(data)]
+        else:
+            data = np.array([])
+        if len(data_filtered) > 0:
+            data_filtered = data_filtered[np.isfinite(data_filtered)]
+        else:
+            data_filtered = np.array([])
+        
         # Skip plotting if no valid data
         if len(data) == 0:
             plt.text(
@@ -1166,17 +1183,31 @@ def make_stage_II_pareto_plots(df: list, df_filtered: list, OUTPUT_DIR: str = ".
             )
             plt.xlabel(field)
             return
-
-        if np.min(data) > 0:
+        
+        if len(data) > 0 and np.min(data) > 0:
             bins = np.logspace(np.log10(data.min()), np.log10(data.max()), nbins)
         else:
             bins = nbins
         _, bins, _ = plt.hist(data, bins=bins, label="before filtering")
-        plt.hist(data_filtered, bins=bins, alpha=1, label="after filtering")
+        if len(data_filtered) > 0:
+            plt.hist(data_filtered, bins=bins, alpha=1, label="after filtering")
         plt.xlabel(field)
         plt.legend(loc=0, fontsize=6)
-        plt.xlim(0, np.mean(data) * 2)
-        if np.min(data) > 0:
+        if len(data) > 0:
+            mean_val = np.mean(data)
+            min_val = data.min()
+            max_val = data.max()
+            if mean_val > 0:
+                plt.xlim(0, mean_val * 2)
+            else:
+                # Handle case where min == max
+                if min_val == max_val:
+                    if min_val == 0:
+                        plt.xlim(-0.1, 0.1)
+                else:
+                    plt.xlim(min_val - 0.1 * abs(min_val), 
+                            max_val + 0.1 * abs(max_val))
+        if len(data) > 0 and np.min(data) > 0:
             plt.xscale("log")
 
     fields = [
