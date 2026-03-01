@@ -20,6 +20,7 @@ set -ex
 ./2_Intermediate/stage_two_optimization_stochastic.py
 ./2_Intermediate/stage_two_optimization_finite_beta.py
 ./2_Intermediate/strain_optimization.py
+./2_Intermediate/winding_surface.py
 ./2_Intermediate/permanent_magnet_MUSE.py
 ./2_Intermediate/permanent_magnet_QA.py
 ./2_Intermediate/permanent_magnet_PM4Stell.py
@@ -30,3 +31,7 @@ set -ex
 ./3_Advanced/stage_two_optimization_finitebuild.py
 ./3_Advanced/coil_forces.py
 ./3_Advanced/wireframe_gsco_multistep.py
+./3_Advanced/winding_surface_advanced.py --surface regcoil_out.hsx.nc
+./3_Advanced/winding_surface_advanced.py --surface regcoil_out.w7x.nc --ilambda 0
+./3_Advanced/winding_surface_advanced.py --surface regcoil_out.near_axis.nc --points "0.5,0.5" "1.0,0.3"
+./3_Advanced/winding_surface_advanced.py --surface regcoil_out.near_axis_asym.nc --no-sv --output winding_surface_near_axis_asym
