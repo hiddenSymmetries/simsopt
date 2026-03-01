@@ -30,7 +30,8 @@ import numpy as np
 from simsopt.field import BiotSavart, DipoleField
 from simsopt.geo import SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
-from simsopt.solve.macromagnetics import MacroMag, muse2tiles
+from simsopt.solve.macromagnetics import MacroMag, SolverParams, muse2tiles
+from simsopt.solve.permanent_magnet_optimization import _connectivity_matrix_py
 from simsopt.util.permanent_magnet_helper_functions import (
     check_magnet_volume_stellarator_symmetry,
     compute_angle_between_vectors_degrees,
@@ -55,8 +56,8 @@ coil_path = TEST_DIR / "muse_tf_coils.focus"  # FOCUS format coil file
 mu_ea = 1.05  # Relative permeability along easy axis
 mu_oa = 1.15  # Relative permeability along orthogonal axis
 
-# High resolution for smooth surface plots
-nphi = 128  # Number of toroidal grid points
+# Medium resolution for smooth surface plots
+nphi = 64  # Number of toroidal grid points
 ntheta = nphi  # Number of poloidal grid points (set equal to nphi)
 
 if in_github_actions:
@@ -94,8 +95,8 @@ M0 = tiles.M_rem[:, None] * tiles.u_ea
 # Full physical dimensions and volumes of each magnet tile
 full_sizes = tiles.size  # Shape: (N, 3) - [dx, dy, dz] for each tile
 vol = np.prod(full_sizes, axis=1)  # Volume = dx * dy * dz for each tile
-print(f"minimum volume: {vol.min()}")
-print(f"maximum volume: {vol.max()}")
+print(f"minimum volume: {vol.min():.2e}")
+print(f"maximum volume: {vol.max():.2e}")
 
 # Check if tiles satisfy stellarator symmetry
 check_magnet_volume_stellarator_symmetry(tiles.offset, vol, nfp=nfp)
@@ -109,35 +110,33 @@ dz_tile = full_sizes[:, 2]  # z-dimension of each tile
 mac = MacroMag(tiles)
 mac.load_coils(coil_path)  # Load coil geometry for magnet-coil coupling
 
-# Compute full demagnetization tensor
-# Note: The negative sign accounts for the demagnetizing field direction
-# This tensor describes how each magnet affects all other magnets
-N_full = -mac.fast_get_demag_tensor(cache=True)
+# Build neighbor list for near-field demag approximation.
+# NOTE: direct_solve_neighbor_sparse is an approximation: the full demagnetization
+# tensor is generally dense (each tile couples to all others), but we truncate to
+# only the Nadjacent nearest tiles per dipole. This reduces assembly from O(N^2)
+# to O(k*N) blocks and yields a sparse system, at the cost of neglecting far-field
+# coupling. For grids with ~50+ neighbors per tile, results are often acceptable
+# for analysis; increase Nadjacent for higher accuracy at the cost of runtime.
+Nadjacent = 100
+neighbors = _connectivity_matrix_py(tiles.offset, Nadjacent)
 
 # ============================================================================
-# Solve for coupled magnetizations
+# Solve for coupled magnetizations (near-field approximation)
 # ============================================================================
 
 # Case (ii): Magnet-magnet coupling only (no coil coupling)
-# This solves for the magnetization accounting for how magnets affect each other,
-# but ignores the effect of coils on the magnets
-mac, A_mm = mac.direct_solve(
-    use_coils=False,  # Don't include coil coupling
-    N_new_rows=N_full,  # Use full demagnetization tensor
-    print_progress=False,
-    A_prev=None,  # No previous solution matrix
+# Solves for magnetization with demag truncated to nearest neighbors.
+mac, A_mm = mac.direct_solve_neighbor_sparse(
+    neighbors=neighbors,
+    params=SolverParams(use_coils=False, print_progress=True, krylov_it=200, krylov_tol=1e-10),
 )
 M_mm = tiles.M.copy()  # Store the magnet-magnet coupled magnetization
 
 # Case (iii): Full coupling (magnet-magnet + magnet-coil)
-# This solves for the magnetization accounting for both:
-# - How magnets affect each other (demagnetization)
-# - How coils affect the magnets (coil field coupling)
-mac, A_full = mac.direct_solve(
-    use_coils=True,  # Include coil coupling
-    N_new_rows=N_full,  # Use full demagnetization tensor
-    print_progress=False,
-    A_prev=None,  # No previous solution matrix
+# Solves for magnetization with both demag (neighbors) and coil field coupling.
+mac, A_full = mac.direct_solve_neighbor_sparse(
+    neighbors=neighbors,
+    params=SolverParams(use_coils=True, print_progress=True, krylov_it=200, krylov_tol=1e-10),
 )
 M_mc = tiles.M.copy()  # Store the fully coupled magnetization
 
@@ -158,19 +157,28 @@ mag_mc = np.linalg.norm(M_mc, axis=1)  # Fully coupled magnitude
 dmag_mm = mag_mm - mag0  # Change for magnet-magnet coupling
 dmag_mc = mag_mc - mag0  # Change for full coupling
 
+# Relative ΔM (normalized by M_rem per tile)
+M_rem = tiles.M_rem
+rel_dmag_mm = np.abs(dmag_mm) / (M_rem + 1e-30)
+rel_dmag_mc = np.abs(dmag_mc) / (M_rem + 1e-30)
+
 # Print statistics comparing coupled vs uncoupled magnetizations
 print("\nTilt and magnitude changes relative to uncoupled M0")
 print("Magnet magnet coupling only (no coil coupling):")
-print(f"mean Δθ [deg] = {theta_mm.mean():.12f}")
-print(f"max  Δθ [deg] = {theta_mm.max():.12f}")
-print(f"mean Δ|M| [A/m] = {np.abs(dmag_mm).mean():.12f}")
-print(f"max  Δ|M| [A/m] = {np.abs(dmag_mm).max():.12f}")
+print(f"mean Δθ [deg] = {theta_mm.mean():.2e}")
+print(f"max  Δθ [deg] = {theta_mm.max():.2e}")
+print(f"mean Δ|M| [A/m] = {np.abs(dmag_mm).mean():.2e}")
+print(f"max  Δ|M| [A/m] = {np.abs(dmag_mm).max():.2e}")
+print(f"mean Δ|M|/M_rem = {100 * rel_dmag_mm.mean():.2f}%")
+print(f"max  Δ|M|/M_rem = {100 * rel_dmag_mm.max():.2f}%")
 
 print("\nMagnet magnet and coil coupling:")
-print(f"mean Δθ [deg] = {theta_mc.mean():.12f}")
-print(f"max  Δθ [deg] = {theta_mc.max():.12f}")
-print(f"mean Δ|M| [A/m] = {np.abs(dmag_mc).mean():.12f}")
-print(f"max  Δ|M| [A/m] = {np.abs(dmag_mc).max():.12f}")
+print(f"mean Δθ [deg] = {theta_mc.mean():.2e}")
+print(f"max  Δθ [deg] = {theta_mc.max():.2e}")
+print(f"mean Δ|M| [A/m] = {np.abs(dmag_mc).mean():.2e}")
+print(f"max  Δ|M| [A/m] = {np.abs(dmag_mc).max():.2e}")
+print(f"mean Δ|M|/M_rem = {100 * rel_dmag_mc.mean():.2f}%")
+print(f"max  Δ|M|/M_rem = {100 * rel_dmag_mc.max():.2f}%")
 
 
 # ============================================================================
@@ -216,16 +224,25 @@ Bn_mag_coil = compute_normal_field_component_from_dipoles(
     centers, m_mag_coil, PTS_BN, NORM_BN
 )
 
-# Compute relative change between uncoupled and fully coupled cases
-# The 0.15 value is a normalization factor (likely a typical B·n scale)
-delta_Bn = Bn_mag_coil - Bn_uncoupled  # Change: fully coupled - uncoupled
-rel = (np.abs(delta_Bn) / 0.15).max()
-print("\nRelative error between uncoupled and fully coupled magnet fields")
-print(f"max(||ΔBn||/0.15) = {rel:.2%}")
+# B field on axis [T] for normalizing ΔBn
+B_axis = 0.15
 
-# Also compute the reverse difference for statistics
-# This represents how much the uncoupled solution differs from the coupled one
-change_Bn = Bn_uncoupled - Bn_mag_coil  # Change: uncoupled - fully coupled
+# Compute relative ΔBn (normalized by B_axis) between uncoupled and coupled cases
+delta_Bn_mm = Bn_mag_only - Bn_uncoupled  # Magnet-magnet coupling only
+delta_Bn_mc = Bn_mag_coil - Bn_uncoupled  # Fully coupled
+rel_dBn_mm = np.abs(delta_Bn_mm) / B_axis
+rel_dBn_mc = np.abs(delta_Bn_mc) / B_axis
+
+print("\nRelative ΔBn (ΔBn/B_axis, B_axis = 0.15 T) between uncoupled and coupled magnet fields")
+print("Magnet magnet coupling only (no coil coupling):")
+print(f"mean |ΔBn|/B_axis = {100 * rel_dBn_mm.mean():.2f}%")
+print(f"max  |ΔBn|/B_axis = {100 * rel_dBn_mm.max():.2f}%")
+print("\nMagnet magnet and coil coupling:")
+print(f"mean |ΔBn|/B_axis = {100 * rel_dBn_mc.mean():.2f}%")
+print(f"max  |ΔBn|/B_axis = {100 * rel_dBn_mc.max():.2f}%")
+
+# Change: uncoupled - fully coupled (used for VTK and downstream statistics)
+change_Bn = Bn_uncoupled - Bn_mag_coil
 
 
 # Reshape B·n arrays from 1D to 2D grid for visualization and analysis
@@ -268,9 +285,9 @@ change_Bn_unique = change_Bn_grid[:nphi_unique, :].ravel()
 
 # Print statistics on the unique half-period wedge
 print("\nΔ(B·n) summary (unique half period wedge, uncoupled minus fully coupled)")
-print(f"mean = {change_Bn_unique.mean():.12e}")
-print(f"max  = {np.abs(change_Bn_unique).max():.12e}")
-print(f"rms  = {math.sqrt(np.mean(change_Bn_unique ** 2)):.12e}")
+print(f"mean = {change_Bn_unique.mean():.2e}")
+print(f"max  = {np.abs(change_Bn_unique).max():.2e}")
+print(f"rms  = {math.sqrt(np.mean(change_Bn_unique ** 2)):.2e}")
 
 # ============================================================================
 # f_B objective function evaluation
@@ -291,8 +308,8 @@ M_max = B_max / mu0
 # Maximum dipole moments [A·m²] for each tile
 # Used to normalize the f_B objective function
 m_maxima = vol * M_max
-print(f"Global max m_maxima = {m_maxima.max():.3e}")
-print(f"Global min m_maxima = {m_maxima.min():.3e}")
+print(f"Global max m_maxima = {m_maxima.max():.2e}")
+print(f"Global min m_maxima = {m_maxima.min():.2e}")
 
 # Load plasma surface for f_B evaluation (half-period wedge)
 input_name = "input.muse"
@@ -422,20 +439,20 @@ fB_mag_coil = SquaredFlux(s_plot, b_dipole_mag_coil, -Bnormal).J()
 # Print f_B values for each case
 print("\nf_B on Nphi = Ntheta = ", nphi)
 print("case (i) MUSE solution without coupling:")
-print(f"f_B (uncoupled M0)                 = {fB_uncoupled:.12e}")
+print(f"f_B (uncoupled M0)                 = {fB_uncoupled:.2e}")
 print("\ncase (ii) magnet magnet coupling only (no coil coupling in macromag solve):")
-print(f"f_B (magnet magnet only)           = {fB_mag_only:.12e}")
+print(f"f_B (magnet magnet only)           = {fB_mag_only:.2e}")
 print("\ncase (iii) magnet magnet and coil coupling:")
-print(f"f_B (magnet magnet + coil)         = {fB_mag_coil:.12e}")
+print(f"f_B (magnet magnet + coil)         = {fB_mag_coil:.2e}")
 
 # Compute relative change in f_B
 # Positive values indicate improvement (lower f_B is better)
-rel_change_mag_only = (fB_uncoupled - fB_mag_only) / fB_uncoupled * 100.0
-rel_change_mag_coil = (fB_uncoupled - fB_mag_coil) / fB_uncoupled * 100.0
+rel_change_mag_only = (fB_uncoupled - fB_mag_only) / fB_uncoupled
+rel_change_mag_coil = (fB_uncoupled - fB_mag_coil) / fB_uncoupled
 
 print("\nRelative change in f_B compared to uncoupled M0")
-print(f"magnet magnet only          = {rel_change_mag_only:.2f}%")
-print(f"magnet magnet + coil        = {rel_change_mag_coil:.2f}%")
+print(f"magnet magnet only          = {rel_change_mag_only:.2%}")
+print(f"magnet magnet + coil        = {rel_change_mag_coil:.2%}")
 
 # ============================================================================
 # Write VTK files for visualization

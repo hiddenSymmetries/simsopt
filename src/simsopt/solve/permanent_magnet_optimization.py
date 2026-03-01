@@ -7,7 +7,7 @@ import warnings
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
-from .macromagnetics import MacroMag, Tiles, assemble_blocks_subset
+from .macromagnetics import MacroMag, SolverParams, Tiles, assemble_blocks_subset
 
 import simsoptpp as sopp
 from .._core.types import RealArray
@@ -1392,14 +1392,14 @@ def GPMOmr(
         print(f"Iteration {k}: Time in N block assembly: {t1_n_construction - t0_n_construction} seconds")
 
         # Perform the magtense coupling direct solve
+        params = SolverParams(use_coils=use_coils, H_a_override=Hcoil_all[active_idx])
         mac, A_sub = mac.direct_solve(
-            use_coils=use_coils,
             N_new_rows=N_new_rows,
             N_new_cols=N_new_cols,
             N_new_diag=N_new_diag,
-            H_a_override=Hcoil_all[active_idx],
             A_prev=A_prev,
             prev_n=prev_n,
+            params=params,
         )
 
         # Get the macro magnetization for the subset of tiles

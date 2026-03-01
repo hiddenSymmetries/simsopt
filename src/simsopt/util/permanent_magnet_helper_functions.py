@@ -832,9 +832,9 @@ def print_bnormal_error_summary_statistics(
     import math
 
     print(f"\n{case_name} total B·n error (unique half period wedge)")
-    print(f"mean = {bnormal_error.mean():.12e}")
-    print(f"max  = {np.abs(bnormal_error).max():.12e}")
-    print(f"rms  = {math.sqrt(np.mean(bnormal_error ** 2)):.12e}")
+    print(f"mean = {bnormal_error.mean():.2e}")
+    print(f"max  = {np.abs(bnormal_error).max():.2e}")
+    print(f"rms  = {math.sqrt(np.mean(bnormal_error ** 2)):.2e}")
 
 
 def initialize_coils_for_pm_optimization(config_flag, TEST_DIR, s, out_dir=''):

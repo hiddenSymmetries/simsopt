@@ -3,17 +3,18 @@ import functools
 import math
 import os
 import sys
+from dataclasses import dataclass
 import numpy as np
 from scipy.constants import mu_0
-from scipy.sparse.linalg import gmres
+from scipy.sparse.linalg import LinearOperator, gmres
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union
 from scipy.sparse import coo_matrix
 
 if TYPE_CHECKING:  # pragma: no cover
     from simsopt.field import BiotSavart, InterpolatedField
 
-__all__ = ["MacroMag", "Tiles", "assemble_blocks_subset", "muse2tiles", "build_prism", "rotation_angle", "get_rotmat"]
+__all__ = ["MacroMag", "Tiles", "SolverParams", "assemble_blocks_subset", "muse2tiles", "build_prism", "rotation_angle", "get_rotmat"]
 
 _INV4PI  = 1.0 / (4.0 * math.pi)
 _MACHEPS = np.finfo(np.float64).eps
@@ -27,6 +28,21 @@ _ROTATION_TOL: float = 1e-8
 
 # Small epsilon to prevent division-by-zero when normalizing
 _NORMALIZATION_EPS: float = 1e-30
+
+
+@dataclass
+class SolverParams:
+    """Parameters for macro magnetic direct solvers (direct_solve, direct_solve_neighbor_sparse)."""
+
+    use_coils: bool = False
+    use_demag: bool = True
+    matrix_free: bool = False
+    drop_tol: float = 0.0
+    krylov_tol: float = 1e-6
+    krylov_it: int = 200
+    print_progress: bool = False
+    x0: np.ndarray | None = None
+    H_a_override: np.ndarray | None = None
 
 
 def _axis_rotation(axis: int, theta: float) -> np.ndarray:
@@ -319,12 +335,189 @@ def getF_limit(
 
     return (nom_l + nom_h) / (denom_l + denom_h)
 
+def _prism_N_local_vectorized(
+    a: np.ndarray,
+    b: np.ndarray,
+    c: np.ndarray,
+    x0: np.ndarray,
+    y0: np.ndarray,
+    z0: np.ndarray,
+) -> np.ndarray:
+    r"""
+    Fully vectorized computation of demagnetization tensor blocks for uniformly
+    magnetized rectangular prisms.
+
+    Replicates the logic of :func:`_prism_N_local_nb` exactly using NumPy
+    vectorization, enabling element-wise comparison for validation.
+
+    Parameters
+    ----------
+    a, b, c : ndarray, shape (nI,) or broadcastable to (nI, nJ)
+        Half-dimensions of source prisms in local coordinates. Typically
+        ``a = half[I, 0][:, None]``, etc., so they broadcast to (nI, nJ).
+    x0, y0, z0 : ndarray, shape (nI, nJ)
+        Relative vector components from source centre to target centre
+        in the local frame (from ``d_loc[:, :, 0/1/2]``).
+
+    Returns
+    -------
+    ndarray, shape (nI, nJ, 3, 3)
+        Demag operator blocks in local coordinates. Same convention as
+        :func:`_prism_N_local_nb`: :math:`\mathbf{H}_d = N_{\mathrm{op}}
+        \mathbf{M}` with :math:`N_{\mathrm{op}} = -N_{\mathrm{std}}`.
+
+    Notes
+    -----
+    Matches :func:`_prism_N_local_nb` exactly for element-wise comparison:
+    diagonal entries use the 8 sign combinations :math:`(\pm 1)^3` over
+    :math:`(x_0, y_0, z_0)` with the vectorized :math:`\arctan` of
+    :func:`_diag_kernel_3d`; off-diagonal entries use the log-ratio of
+    products of :func:`_log_kernel_3d` at the signed corner combinations,
+    with ``getF_limit``-style perturbation for singular cases.
+    """
+    a = np.asarray(a, dtype=np.float64)
+    b = np.asarray(b, dtype=np.float64)
+    c = np.asarray(c, dtype=np.float64)
+    x0 = np.asarray(x0, dtype=np.float64)
+    y0 = np.asarray(y0, dtype=np.float64)
+    z0 = np.asarray(z0, dtype=np.float64)
+
+    # Ensure a,b,c broadcast to (nI, nJ) with x0,y0,z0
+    nI, nJ = x0.shape
+    a = np.broadcast_to(a, (nI, nJ))
+    b = np.broadcast_to(b, (nI, nJ))
+    c = np.broadcast_to(c, (nI, nJ))
+
+    eps_h, eps_l = _EPS_HIGH, _EPS_LOW
+    eps = np.finfo(np.float64).eps
+
+    # 8 sign combinations (sx, sy, sz) in {1,-1}^3
+    signs = np.array(
+        [
+            [1.0, 1.0, 1.0],
+            [1.0, 1.0, -1.0],
+            [1.0, -1.0, 1.0],
+            [1.0, -1.0, -1.0],
+            [-1.0, 1.0, 1.0],
+            [-1.0, 1.0, -1.0],
+            [-1.0, -1.0, 1.0],
+            [-1.0, -1.0, -1.0],
+        ],
+        dtype=np.float64,
+    )
+    # (8, nI, nJ)
+    xi = signs[:, 0, None, None] * x0[None, :, :]
+    yi = signs[:, 1, None, None] * y0[None, :, :]
+    zi = signs[:, 2, None, None] * z0[None, :, :]
+    # a,b,c as (1, nI, nJ) for broadcasting
+    a_ = a[None, :, :]
+    b_ = b[None, :, :]
+    c_ = c[None, :, :]
+
+    # Precompute d0, d1, d2, sq, r once (shared by all three diagonal components)
+    d0 = a_ - xi
+    d1 = b_ - yi
+    d2 = c_ - zi
+    sq = d0 * d0 + d1 * d1 + d2 * d2
+    r = np.sqrt(sq)
+
+    def _diag_kernel_from_precomputed(axis: int):
+        denom = (d0, d1, d2)[axis]
+        num = (d0, d1, d2)[(axis + 1) % 3] * (d0, d1, d2)[(axis + 2) % 3]
+        coord_scale = (a_, b_, c_)[axis]
+        coord_val = (xi, yi, zi)[axis]
+        denom_h = coord_scale - coord_val * eps_h
+        denom_l = coord_scale - coord_val * eps_l
+        r_h = np.sqrt(np.maximum(sq - denom * denom + denom_h * denom_h, eps))
+        r_l = np.sqrt(np.maximum(sq - denom * denom + denom_l * denom_l, eps))
+        val_lim = 0.5 * (num / (denom_h * r_h) + num / (denom_l * r_l))
+        val = num / (denom * r)
+        return np.where(np.abs(denom) < eps, val_lim, val)
+
+    sum_f = np.sum(np.arctan(_diag_kernel_from_precomputed(0)), axis=0)
+    sum_g = np.sum(np.arctan(_diag_kernel_from_precomputed(1)), axis=0)
+    sum_h = np.sum(np.arctan(_diag_kernel_from_precomputed(2)), axis=0)
+
+    Nxx = _INV4PI * sum_f
+    Nyy = _INV4PI * sum_g
+    Nzz = _INV4PI * sum_h
+
+    def _log_kernel_3d_vec(a_arr, b_arr, c_arr, x_arr, y_arr, z_arr, axis: int):
+        r = np.sqrt((a_arr - x_arr) ** 2 + (b_arr - y_arr) ** 2 + (c_arr - z_arr) ** 2)
+        offsets = (a_arr - x_arr, b_arr - y_arr, c_arr - z_arr)
+        return offsets[axis] + r
+
+    def _getF_limit_vec(a_arr, b_arr, c_arr, x_arr, y_arr, z_arr, axis: int):
+        xl, yl, zl = x_arr * eps_l, y_arr * eps_l, z_arr * eps_l
+        xh, yh, zh = x_arr * eps_h, y_arr * eps_h, z_arr * eps_h
+        func = lambda aa, bb, cc, xx, yy, zz: _log_kernel_3d_vec(aa, bb, cc, xx, yy, zz, axis)
+        nom_l = (
+            func(+a, +b, +c, xl, yl, zl)
+            * func(-a, -b, +c, xl, yl, zl)
+            * func(+a, -b, -c, xl, yl, zl)
+            * func(-a, +b, -c, xl, yl, zl)
+        )
+        denom_l = (
+            func(+a, -b, +c, xl, yl, zl)
+            * func(-a, +b, +c, xl, yl, zl)
+            * func(+a, +b, -c, xl, yl, zl)
+            * func(-a, -b, -c, xl, yl, zl)
+        )
+        nom_h = (
+            func(+a, +b, +c, xh, yh, zh)
+            * func(-a, -b, +c, xh, yh, zh)
+            * func(+a, -b, -c, xh, yh, zh)
+            * func(-a, +b, -c, xh, yh, zh)
+        )
+        denom_h = (
+            func(+a, -b, +c, xh, yh, zh)
+            * func(-a, +b, +c, xh, yh, zh)
+            * func(+a, +b, -c, xh, yh, zh)
+            * func(-a, -b, -c, xh, yh, zh)
+        )
+        return (nom_l + nom_h) / (denom_l + denom_h + eps)
+
+    def _off_diag_vec(axis: int):
+        nom = (
+            _log_kernel_3d_vec(+a, +b, +c, x0, y0, z0, axis)
+            * _log_kernel_3d_vec(-a, -b, +c, x0, y0, z0, axis)
+            * _log_kernel_3d_vec(+a, -b, -c, x0, y0, z0, axis)
+            * _log_kernel_3d_vec(-a, +b, -c, x0, y0, z0, axis)
+        )
+        denom = (
+            _log_kernel_3d_vec(+a, -b, +c, x0, y0, z0, axis)
+            * _log_kernel_3d_vec(-a, +b, +c, x0, y0, z0, axis)
+            * _log_kernel_3d_vec(+a, +b, -c, x0, y0, z0, axis)
+            * _log_kernel_3d_vec(-a, -b, -c, x0, y0, z0, axis)
+        )
+        use_lim = (nom == 0.0) | (denom == 0.0)
+        ratio_lim = _getF_limit_vec(a, b, c, x0, y0, z0, axis)
+        ratio = np.where(use_lim, ratio_lim, nom / denom)
+        val = -_INV4PI * np.log(np.maximum(ratio, eps))
+        close = (denom != 0.0) & (np.abs((nom - denom) / (denom + eps)) < 10.0 * _MACHEPS)
+        return np.where(close, 0.0, val)
+
+    Nxy = _off_diag_vec(2)
+    Nyz = _off_diag_vec(0)
+    Nxz = _off_diag_vec(1)
+
+    N = np.stack(
+        [
+            np.stack([Nxx, Nxy, Nxz], axis=-1),
+            np.stack([Nxy, Nyy, Nyz], axis=-1),
+            np.stack([Nxz, Nyz, Nzz], axis=-1),
+        ],
+        axis=-2,
+    )
+    return -N
+
+
 def _prism_N_local_nb(
     a: float, b: float, c: float,
     x0: float, y0: float, z0: float,
 ) -> np.ndarray:
     r"""
-    Demagnetization tensor for a uniformly magnetized rectangular prism.
+    Scalar demagnetization tensor for a uniformly magnetized rectangular prism.
 
     Evaluates the :math:`3 \times 3` demagnetization tensor block
     :math:`\underline{\underline{N}}_{ij}` for a rectangular prism with
@@ -360,6 +553,11 @@ def _prism_N_local_nb(
         :math:`-\underline{\underline{N}}_{\text{std}}` (Newell/Aharoni).
         Consequently :math:`\operatorname{tr}(N_{\text{op}}) = -1` for
         self-terms.
+
+    Notes:
+        Production demag assembly uses :func:`_prism_N_local_vectorized` for
+        batch evaluation. This scalar version is retained as the reference
+        implementation for validation and unit tests.
     """
     N = np.empty((3,3), dtype=np.float64)
     sum_f = sum_g = sum_h = 0.0
@@ -411,8 +609,8 @@ def _prism_N_local_nb(
 
     return -N
 
-_ASSEMBLE_BLOCKS_BATCH_I: tuple[int, ...] = (1, 8, 16, 32, 64, 128, 256)
-_ASSEMBLE_BLOCKS_BATCH_J: tuple[int, ...] = (1, 8, 16, 32, 64, 128, 256)
+_ASSEMBLE_BLOCKS_BATCH_I: tuple[int, ...] = (1, 8, 16, 32, 64, 128, 256, 512, 1024, 2048)
+_ASSEMBLE_BLOCKS_BATCH_J: tuple[int, ...] = (1, 8, 16, 32, 64, 128, 256, 512, 1024, 2048)
 
 
 def _pick_batch_size(n: int, candidates: tuple[int, ...]) -> int:
@@ -494,21 +692,65 @@ def _assemble_blocks_subset_numpy(
     Rg2l = np.asarray(Rg2l, dtype=np.float64)
     I = np.asarray(I).ravel()
     J = np.asarray(J).ravel()
-    nI, nJ = I.size, J.size
 
     centres_I = centres[I]
     centres_J = centres[J]
-    d = centres_I[:, None, :] - centres_J[None, :, :]
-    R = Rg2l[I]
-    d_loc = np.einsum("iab,ijb->ija", R, d)
+    d = centres_I[:, None, :] - centres_J[None, :, :]  # (nI, nJ, 3)
+    # Newell prism formula requires SOURCE tile's frame (J), not target (I)
+    R = Rg2l[J]  # (nJ, 3, 3)
+    d_loc = np.einsum("jab,ijb->ija", R, d)  # displacement in source frame
 
-    out = np.empty((nI, nJ, 3, 3), dtype=np.float64)
-    for ii in range(nI):
-        a, b, c = half[I[ii], 0], half[I[ii], 1], half[I[ii], 2]
-        for jj in range(nJ):
-            x0, y0, z0 = d_loc[ii, jj, 0], d_loc[ii, jj, 1], d_loc[ii, jj, 2]
-            out[ii, jj] = _prism_N_local_nb(a, b, c, x0, y0, z0)
+    a = half[J, 0][None, :]  # source half-dims, broadcast to (nI, nJ)
+    b = half[J, 1][None, :]
+    c = half[J, 2][None, :]
+    x0 = d_loc[:, :, 0]
+    y0 = d_loc[:, :, 1]
+    z0 = d_loc[:, :, 2]
+    out_local = _prism_N_local_vectorized(a, b, c, x0, y0, z0)
+    # N_local is in source frame; rotate to global: N_global = Rl2g @ N_local @ Rg2l
+    Rl2g = np.transpose(Rg2l, (0, 2, 1))
+    out = np.einsum("jab,ijbc,jcd->ijad", Rl2g[J], out_local, Rg2l[J])
     return out
+
+
+def _assemble_blocks_pairs(
+    centres: np.ndarray,
+    half: np.ndarray,
+    Rg2l: np.ndarray,
+    I: np.ndarray,
+    J: np.ndarray,
+) -> np.ndarray:
+    """
+    Compute demag blocks for paired indices only: N(I[k], J[k]) for each k.
+
+    Returns shape (m, 3, 3) where m = len(I) = len(J). Avoids the O(m^2) work
+    of assemble_blocks_subset when only the diagonal blocks are needed.
+    """
+    I = np.asarray(I).ravel()
+    J = np.asarray(J).ravel()
+    if I.size != J.size:
+        raise ValueError("I and J must have the same length for paired assembly")
+    m = I.size
+    if m == 0:
+        return np.empty((0, 3, 3), dtype=np.float64)
+
+    centres_I = centres[I]
+    centres_J = centres[J]
+    d = centres_I - centres_J  # (m, 3)
+    # Newell prism formula requires SOURCE tile's frame (J), not target (I)
+    R = Rg2l[J]  # (m, 3, 3)
+    d_loc = np.einsum("nab,nb->na", R, d, optimize=True)
+    a = half[J, 0:1]
+    b = half[J, 1:2]
+    c = half[J, 2:3]
+    x0 = d_loc[:, 0:1]
+    y0 = d_loc[:, 1:2]
+    z0 = d_loc[:, 2:3]
+    blocks_local = _prism_N_local_vectorized(a, b, c, x0, y0, z0)[:, 0, :, :]
+    # N_local is in source frame; rotate to global: N_global = Rl2g @ N_local @ Rg2l
+    Rl2g = np.transpose(Rg2l, (0, 2, 1))
+    blocks = np.einsum("kab,kbc,kcd->kad", Rl2g[J], blocks_local, Rg2l[J])
+    return blocks
 
 
 def assemble_blocks_subset(
@@ -551,8 +793,10 @@ def assemble_blocks_subset(
 
     Notes
     -----
-    Set ``SIMSOPT_MACROMAG_USE_NUMPY=1`` to use the pure NumPy backend (slower
-    but avoids JAX CPU fusion compiler heap corruption on macOS).
+    By default on macOS, the NumPy backend is used to avoid JAX heap corruption.
+    simsopt sets ``XLA_FLAGS=--xla_disable_hlo_passes=fusion`` at import time to
+    stabilize the JAX backend; set ``SIMSOPT_MACROMAG_USE_JAX=1`` to use it on macOS.
+    Set ``SIMSOPT_MACROMAG_USE_NUMPY=1`` to force the pure NumPy backend (slower).
     """
     I = np.asarray(I).ravel()
     J = np.asarray(J).ravel()
@@ -653,21 +897,22 @@ def _get_assemble_blocks_subset_kernel():
             Kernel value (unscaled; multiply by 1/(4π) for full tensor).
         """
         eps_h, eps_l = _EPS_HIGH, _EPS_LOW
+        eps = _MACHEPS
         d0, d1, d2 = a - x, b - y, c - z
         denom = (d0, d1, d2)[axis]
         num = (d0, d1, d2)[(axis + 1) % 3] * (d0, d1, d2)[(axis + 2) % 3]
         sq = d0 * d0 + d1 * d1 + d2 * d2
-        r = jnp.sqrt(sq)
+        r = jnp.sqrt(jnp.maximum(sq, eps))
         val = num / (denom * r)
 
         coord_scale = (a, b, c)[axis]
         coord_val = (x, y, z)[axis]
         denom_h = coord_scale - coord_val * eps_h
         denom_l = coord_scale - coord_val * eps_l
-        r_h = jnp.sqrt(sq - denom * denom + denom_h * denom_h)
-        r_l = jnp.sqrt(sq - denom * denom + denom_l * denom_l)
+        r_h = jnp.sqrt(jnp.maximum(sq - denom * denom + denom_h * denom_h, eps))
+        r_l = jnp.sqrt(jnp.maximum(sq - denom * denom + denom_l * denom_l, eps))
         val_lim = 0.5 * (num / (denom_h * r_h) + num / (denom_l * r_l))
-        return jnp.where(denom == 0.0, val_lim, val)
+        return jnp.where(jnp.abs(denom) < eps, val_lim, val)
 
     def _log_kernel_3d_jax(a, b, c, x, y, z, axis):
         """JAX-traceable N_xy/N_yz/N_xz log-kernel; axis 0=x, 1=y, 2=z."""
@@ -719,7 +964,7 @@ def _get_assemble_blocks_subset_kernel():
             * func(+a, +b, -c, xh, yh, zh)
             * func(-a, -b, -c, xh, yh, zh)
         )
-        return (nom_l + nom_h) / (denom_l + denom_h)
+        return (nom_l + nom_h) / (denom_l + denom_h + _MACHEPS)
 
     def prism_N_op_jax(a, b, c, x0, y0, z0):
         """JAX-traceable, vectorised replica of :func:`_prism_N_local_nb`.
@@ -786,7 +1031,7 @@ def _get_assemble_blocks_subset_kernel():
             ratio_lim = _getF_limit_jax(a2, b2, c2, x0, y0, z0, func)
             use_lim = (nom == 0.0) | (denom == 0.0)
             ratio = jnp.where(use_lim, ratio_lim, nom / denom)
-            val = -_INV4PI * jnp.log(ratio)
+            val = -_INV4PI * jnp.log(jnp.maximum(ratio, _MACHEPS))
             close = (denom != 0.0) & (jnp.abs((nom - denom) / denom) < 10.0 * _MACHEPS)
             return jnp.where(close, 0.0, val)
 
@@ -826,15 +1071,20 @@ def _get_assemble_blocks_subset_kernel():
         centres_I = centres[I]
         centres_J = centres[J]
         d = centres_I[:, None, :] - centres_J[None, :, :]  # (nI, nJ, 3)
-        R = Rg2l[I]  # (nI, 3, 3)
-        d_loc = jnp.einsum("iab,ijb->ija", R, d)  # (nI, nJ, 3)
+        # Newell prism formula requires SOURCE tile's frame (J), not target (I)
+        R = Rg2l[J]  # (nJ, 3, 3)
+        d_loc = jnp.einsum("jab,ijb->ija", R, d)  # displacement in source frame
         x0 = d_loc[:, :, 0]
         y0 = d_loc[:, :, 1]
         z0 = d_loc[:, :, 2]
-        a = half[I][:, 0]
-        b = half[I][:, 1]
-        c = half[I][:, 2]
-        return prism_N_op_jax(a, b, c, x0, y0, z0)
+        a = half[J, 0][None, :]  # source half-dims, broadcast to (nI, nJ)
+        b = half[J, 1][None, :]
+        c = half[J, 2][None, :]
+        out_local = prism_N_op_jax(a, b, c, x0, y0, z0)
+        # N_local is in source frame; rotate to global: N_global = Rl2g @ N_local @ Rg2l
+        Rl2g = jnp.transpose(Rg2l, (0, 2, 1))
+        out = jnp.einsum("jab,ijbc,jcd->ijad", Rl2g[J], out_local, Rg2l[J])
+        return out
 
     return jax.jit(_kernel_impl)
 
@@ -908,7 +1158,7 @@ class MacroMag:
     def __init__(
         self,
         tiles,
-        bs_interp: Optional[Union["BiotSavart", "InterpolatedField"]] = None,
+        bs_interp: ("BiotSavart" | "InterpolatedField") | None = None,
     ):
         """
         Create a macromagnetics helper for a given tile set.
@@ -928,8 +1178,52 @@ class MacroMag:
         self.Rg2l    = np.zeros((self.n, 3, 3), dtype=np.float64)
         self.bs_interp = bs_interp
 
-        for k in range(self.n):
-            self.Rg2l[k], _ = MacroMag.get_rotation_matrices(*tiles.rot[k])
+        self.Rg2l, _ = MacroMag._get_rotation_matrices_batch(tiles.rot)
+
+    @staticmethod
+    def _get_rotation_matrices_batch(rot_angles: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Build global→local and local→global rotation matrices from Euler angles (batched).
+
+        Parameters
+        ----------
+        rot_angles : ndarray, shape (n, 3)
+            Rotation angles (radians) about x, y, z for each tile.
+
+        Returns
+        -------
+        (Rg2l, Rl2g) : tuple[ndarray, ndarray]
+            Rg2l, Rl2g each of shape (n, 3, 3).
+        """
+        rot_angles = np.asarray(rot_angles, dtype=np.float64)
+        ax = -rot_angles[:, 0]
+        ay = -rot_angles[:, 1]
+        az = -rot_angles[:, 2]
+        n = rot_angles.shape[0]
+        cx, sx = np.cos(ax), np.sin(ax)
+        cy, sy = np.cos(ay), np.sin(ay)
+        cz, sz = np.cos(az), np.sin(az)
+        RotX = np.zeros((n, 3, 3), dtype=np.float64)
+        RotX[:, 0, 0] = 1
+        RotX[:, 1, 1] = cx
+        RotX[:, 1, 2] = -sx
+        RotX[:, 2, 1] = sx
+        RotX[:, 2, 2] = cx
+        RotY = np.zeros((n, 3, 3), dtype=np.float64)
+        RotY[:, 0, 0] = cy
+        RotY[:, 0, 2] = sy
+        RotY[:, 1, 1] = 1
+        RotY[:, 2, 0] = -sy
+        RotY[:, 2, 2] = cy
+        RotZ = np.zeros((n, 3, 3), dtype=np.float64)
+        RotZ[:, 0, 0] = cz
+        RotZ[:, 0, 1] = -sz
+        RotZ[:, 1, 0] = sz
+        RotZ[:, 1, 1] = cz
+        RotZ[:, 2, 2] = 1
+        Rg2l = RotZ @ RotY @ RotX
+        Rl2g = np.transpose(Rg2l, (0, 2, 1))
+        return Rg2l, Rl2g
 
     @staticmethod
     def get_rotation_matrices(phi_x: float, phi_y: float, phi_z: float) -> tuple[np.ndarray, np.ndarray]:
@@ -965,6 +1259,10 @@ class MacroMag:
         """
         Assemble (or reuse) the dense demag operator tensor for the current tiles.
 
+        For translation-invariant grids (all tiles have identical half-dimensions
+        and rotation), uses a cache of unique displacement blocks to reduce
+        assembly from O(N²) to O(n_unique) block evaluations.
+
         Parameters
         ----------
         cache : bool, optional
@@ -974,16 +1272,81 @@ class MacroMag:
         -------
         ndarray, shape (n, n, 3, 3)
             Dense demag operator blocks ``N_op`` such that ``H_demag = N_op @ M``.
+
+        Notes
+        -----
+        The cache is keyed only on tile count (n). If tile positions, sizes, or
+        rotations change after a cached call, the caller must use ``cache=False``
+        to force recomputation; otherwise stale (incorrect) results may be returned.
         """
         # Reuse a cached full tensor if it matches the current size
         if cache and hasattr(self, "_N_full") and self._N_full is not None and self._N_full.shape[:2] == (self.n, self.n):
             return self._N_full
-        idx = np.arange(self.n, dtype=np.int32)
-        N = assemble_blocks_subset(self.centres, self.half, self.Rg2l, idx, idx)
+        N = self._assemble_demag_tensor()
         self._N_full = N
         return N
 
-    def load_coils(self, focus_file: Path, current_scale: float = 1.0) -> None:
+    def _assemble_demag_tensor(self) -> np.ndarray:
+        """
+        Assemble the full demag tensor, using translation-invariant optimization when applicable.
+
+        When all tiles have identical half-dimensions and global-to-local
+        rotation matrices, the block N(i,j) depends only on the displacement
+        centre[i] - centre[j] in the shared local frame. This permits computing
+        only one block per unique displacement, then scattering to the full
+        (n, n, 3, 3) tensor. For regular Cartesian grids this reduces work
+        from O(N²) to roughly O(N) block evaluations.
+
+        The full demagnetization tensor is generally dense (each tile couples
+        to all others). This method produces the exact dense tensor; for sparse
+        approximations, see :meth:`direct_solve_neighbor_sparse`.
+
+        Returns
+        -------
+        ndarray, shape (n, n, 3, 3)
+            Dense demag operator blocks.
+        """
+        half = self.half
+        Rg2l = self.Rg2l
+        centres = self.centres
+        n = self.n
+
+        # Check translation invariance: all half and Rg2l identical
+        half_ref = half[0]
+        R_ref = Rg2l[0]
+        tol = 1e-12
+        uniform_half = np.allclose(half, half_ref, atol=tol, rtol=tol)
+        uniform_rot = np.allclose(Rg2l, R_ref, atol=tol, rtol=tol)
+
+        if uniform_half and uniform_rot:
+            # Displacements in shared local frame: d_loc = R_ref @ (centre[i] - centre[j])
+            d_loc = np.einsum(
+                "ab,ijb->ija",
+                R_ref,
+                centres[:, None, :] - centres[None, :, :],
+                optimize=True,
+            )  # (n, n, 3)
+            # Round to identify unique displacements (avoids float noise)
+            d_flat = np.round(d_loc.reshape(-1, 3), 10)
+            _, inv = np.unique(d_flat, axis=0, return_inverse=True)
+            inv = inv.reshape(n, n)
+            # Canonical (i, j) for each unique displacement k: first (i,j) with inv[i,j]==k.
+            # Vectorized via return_index from np.unique on flattened inv.
+            flat_inv = inv.ravel()
+            _, first_flat = np.unique(flat_inv, return_index=True)
+            I_canon = (first_flat // n).astype(np.int32)
+            J_canon = (first_flat % n).astype(np.int32)
+            # Compute only diagonal blocks (one per unique displacement) to avoid O(n_unique^2) work.
+            blocks_unique = _assemble_blocks_pairs(centres, half, Rg2l, I_canon, J_canon)
+            # Scatter to full tensor
+            N = blocks_unique[inv]  # (n, n, 3, 3)
+            return N
+
+        # General case: full assembly
+        idx = np.arange(n, dtype=np.int32)
+        return assemble_blocks_subset(centres, half, Rg2l, idx, idx)
+
+    def load_coils(self, focus_file: str | Path, current_scale: float = 1.0) -> None:
         """
         Load coils from a FOCUS file and store a field evaluator.
 
@@ -1058,26 +1421,10 @@ class MacroMag:
         H : ndarray of shape (n_pts, 3)
             Demagnetizing field (A/m) at each evaluation point in global frame.
         """
-
-        n, n_pts = self.tiles.n, pts.shape[0]
-        H = np.zeros((n_pts,3), dtype=np.float64)
-
-        # Precompute rotations and local M once
-        Rg2l = np.zeros((n,3,3), dtype=np.float64)
-        Rl2g = np.zeros((n,3,3), dtype=np.float64)
-        M_loc = np.zeros((n,3), dtype=np.float64)
-        for i in range(n):
-            Rg2l[i], Rl2g[i] = self.get_rotation_matrices(*self.tiles.rot[i])
-            M_loc[i] = Rg2l[i] @ self.tiles.M[i]
-
-        # Now accumulate H
-        for i in range(n):
-            # demag_local[i] is shape (n_pts,3,3)
-            # multiply each (3×3) by the same M_loc[i] -> yields (n_pts,3)
-            # This uses the standard convention H = -N_std @ M.
-            H_loc = -np.einsum('pqr,r->pq', demag_tensor[i], M_loc[i])
-            # rotate back to global
-            H += (Rl2g[i] @ H_loc.T).T
+        Rl2g = self.Rg2l.transpose(0, 2, 1)
+        M_loc = np.einsum('ijk,ik->ij', self.Rg2l, self.tiles.M)
+        H_loc = -np.einsum('ipqr,ir->ipq', demag_tensor, M_loc)
+        H = np.einsum('iab,ipb->pa', Rl2g, H_loc)
 
         return H
 
@@ -1216,11 +1563,9 @@ class MacroMag:
         A,
         b: np.ndarray,
         tiles: "Tiles",
-        krylov_tol: float,
-        krylov_it: int,
-        x0: np.ndarray | None,
-        print_progress: bool,
+        params: "SolverParams",
         label: str,
+        restart: int | None = None,
     ) -> None:
         """Run GMRES on A@x=b, assign solution to tiles.M, and optionally print convergence.
 
@@ -1232,19 +1577,20 @@ class MacroMag:
             RHS vector.
         tiles : Tiles
             Tile container; ``tiles.M`` is overwritten with the solution.
-        krylov_tol : float
-            Relative tolerance for GMRES (rtol).
-        krylov_it : int
-            Maximum GMRES iterations.
-        x0 : ndarray | None
-            Optional initial guess (3*n,).
-        print_progress : bool
-            If True, register callback to print residual norms.
+        params : SolverParams
+            Solver parameters; krylov_tol, krylov_it, x0, print_progress are used.
         label : str
             Label for progress messages and convergence warnings.
+        restart : int | None
+            GMRES restart parameter. If None, defaults to 50 when params.krylov_it > 50
+            to limit memory growth; otherwise no restart.
         """
-        gmres_kw: dict = dict(rtol=krylov_tol, maxiter=krylov_it, x0=x0)
-        if print_progress:
+        gmres_kw: dict = dict(rtol=params.krylov_tol, maxiter=params.krylov_it, x0=params.x0)
+        if restart is not None:
+            gmres_kw["restart"] = restart
+        elif params.krylov_it > 50:
+            gmres_kw["restart"] = 50
+        if params.print_progress:
             gmres_kw.update(callback=self._make_gmres_callback(label), callback_type='pr_norm')
         x, info = gmres(A, b, **gmres_kw)
         if info != 0:
@@ -1267,46 +1613,38 @@ class MacroMag:
 
     def _prepare_solve(
         self,
-        use_coils: bool,
-        H_a_override: np.ndarray | None,
+        params: "SolverParams",
     ) -> tuple["Tiles", int, np.ndarray, np.ndarray] | None:
         """Validate coils/Ha, compute chi and RHS; return (tiles, n, chi_tensor, b) or None if trivial.
 
         Parameters
         ----------
-        use_coils : bool
-            If True, require coil field availability (or H_a_override).
-        H_a_override : ndarray | None
-            Optional applied field overriding coil evaluation.
+        params : SolverParams
+            Solver parameters; use_coils and H_a_override are used for validation and RHS.
 
         Returns
         -------
         tuple | None
             (tiles, n, chi_tensor, b) for assembly, or None if χ=0 and no external field.
         """
-        H_a_override = self._validate_coils_and_Ha(use_coils, H_a_override)
+        H_a_override = self._validate_coils_and_Ha(params.use_coils, params.H_a_override)
         tiles = self.tiles
         n = tiles.n
         chi_tensor, chi_parallel, chi_perp, _, b = self._compute_chi_and_rhs(
-            tiles, self._get_applied_field(use_coils, H_a_override),
+            tiles, self._get_applied_field(params.use_coils, H_a_override),
         )
-        if self._check_trivial_chi(chi_parallel, chi_perp, use_coils, H_a_override):
+        if self._check_trivial_chi(chi_parallel, chi_perp, params.use_coils, H_a_override):
             return None
         return (tiles, n, chi_tensor, b)
 
     def direct_solve(self,
-        use_coils: bool = False,
-        use_demag: bool = True,
-        krylov_tol: float = 1e-6,
-        krylov_it: int = 20,
-        N_new_rows: np.ndarray = None,
+        N_new_rows: np.ndarray | None = None,
         N_new_cols: np.ndarray | None = None,
         N_new_diag: np.ndarray | None = None,
-        print_progress: bool = False,
-        x0: np.ndarray | None = None,
-        H_a_override: Optional[np.ndarray] = None,
         A_prev: np.ndarray | None = None,
-        prev_n: int = 0) -> tuple["MacroMag", Optional[np.ndarray]]:
+        prev_n: int = 0,
+        params: SolverParams | None = None,
+    ) -> tuple["MacroMag", np.ndarray | None]:
 
         r"""
         Solve for the equilibrium tile magnetization via GMRES.
@@ -1329,16 +1667,6 @@ class MacroMag:
 
         Parameters
         ----------
-        use_coils : bool
-            If True, include the coil field in the applied-field term (unless
-            ``H_a_override`` is provided).
-        use_demag : bool
-            If True (default), include the demagnetization operator. If False, solve
-            reduces to local constitutive response (no tile–tile coupling).
-        krylov_tol : float
-            Relative tolerance passed to :func:`scipy.sparse.linalg.gmres` as ``rtol``.
-        krylov_it : int
-            Maximum number of GMRES iterations (``maxiter``).
         N_new_rows, N_new_cols, N_new_diag :
             Demag operator blocks used for assembly. Two modes are supported:
 
@@ -1349,17 +1677,14 @@ class MacroMag:
               ``N_new_cols`` has shape ``(prev_n, n-prev_n, 3, 3)``, and
               ``N_new_diag`` has shape ``(n-prev_n, n-prev_n, 3, 3)``. ``A_prev``
               must have shape ``(3*prev_n, 3*prev_n)``.
-        print_progress : bool
-            If True, print per-iteration residual norms from GMRES.
-        x0 : ndarray or None
-            Optional initial guess for GMRES (shape ``(3*n,)``).
-        H_a_override : ndarray or None
-            Optional applied field per tile in A/m (shape ``(n, 3)``). If provided,
-            it overrides coil evaluation even when ``use_coils=True``.
         A_prev : ndarray or None
             Previous system matrix for incremental assembly (shape ``(3*prev_n, 3*prev_n)``).
         prev_n : int
             Number of tiles represented by ``A_prev``.
+        params : SolverParams or None
+            Solver parameters (use_coils, use_demag, krylov_tol, krylov_it,
+            print_progress, x0, H_a_override, matrix_free). If None, uses
+            :class:`SolverParams` defaults.
 
         Returns
         -------
@@ -1368,7 +1693,9 @@ class MacroMag:
         A : ndarray or None
             Dense system matrix used in the solve, or None in trivial ``χ=0`` cases.
         """
-        if use_demag:
+        params = params or SolverParams()
+
+        if params.use_demag:
             if prev_n == 0:
                 if N_new_rows is None:
                     raise ValueError(
@@ -1382,18 +1709,40 @@ class MacroMag:
                         "updates when prev_n > 0."
                     )
 
-        prepared = self._prepare_solve(use_coils, H_a_override)
+        prepared = self._prepare_solve(params)
         if prepared is None:
             return self, None
         tiles, n, chi_tensor, b = prepared
 
+        use_matrix_free = params.matrix_free and prev_n == 0 and params.use_demag and N_new_rows is not None
+
+        if use_matrix_free:
+            # Matrix-free GMRES: A @ v = v + χ @ (N @ v) without materializing A.
+            # Saves O((3n)^2) memory; matvec is O(n^2) via einsum.
+            N_full = np.asarray(N_new_rows, dtype=np.float64)
+            chi_tensor_ref = np.asarray(chi_tensor, dtype=np.float64)
+
+            def _matvec(v: np.ndarray) -> np.ndarray:
+                M = v.reshape(n, 3)
+                NM = np.einsum('ijbc,jc->ib', N_full, M, optimize=True)
+                chiNM = np.einsum('iab,ib->ia', chi_tensor_ref, NM, optimize=True)
+                return v + chiNM.ravel()
+
+            A_op = LinearOperator(
+                shape=(3 * n, 3 * n),
+                matvec=_matvec,
+                dtype=np.float64,
+            )
+            self._run_gmres_and_assign(A_op, b, tiles, params, "direct_solve")
+            return self, None
+
         A = np.zeros((3 * n, 3 * n))
         if prev_n > 0:
             A[:3 * prev_n, :3 * prev_n] = A_prev
-        for i in range(prev_n, n):
-            A[3 * i:3 * i + 3, 3 * i:3 * i + 3] = np.eye(3)
+        diag_idx = np.arange(3 * prev_n, 3 * n)
+        A[diag_idx, diag_idx] = 1.0
 
-        if use_demag:
+        if params.use_demag:
             if prev_n > 0:
                 chi_new = chi_tensor[prev_n:]
                 chi_prev = chi_tensor[:prev_n]
@@ -1403,35 +1752,30 @@ class MacroMag:
             else:
                 A += np.einsum('iab,ijbc->iajc', chi_tensor, N_new_rows).reshape(3 * n, 3 * n)
 
-        self._run_gmres_and_assign(
-            A, b, tiles, krylov_tol, krylov_it, x0, print_progress, "direct_solve",
-        )
+        self._run_gmres_and_assign(A, b, tiles, params, "direct_solve")
         return self, A
 
     def direct_solve_neighbor_sparse(
         self,
         neighbors: np.ndarray,
-        use_coils: bool = False,
-        krylov_tol: float = 1e-6,
-        krylov_it: int = 200,
-        print_progress: bool = False,
-        x0: np.ndarray | None = None,
-        H_a_override: Optional[np.ndarray] = None,
-        drop_tol: float = 0.0,):
+        params: SolverParams | None = None,
+    ):
         """
-        Sparse near-field demag solve.
+        Sparse near-field demag solve (approximation).
 
-        This builds A as a sparse 3n×3n matrix using only the demag couplings
-        specified in `neighbors`, instead of the dense all-to-all demag tensor.
+        **Approximation note:** The full demagnetization tensor is generally
+        dense: each tile couples to all others. This method truncates to only
+        the tile pairs listed in `neighbors`, discarding far-field coupling.
+        Results approximate the exact :meth:`direct_solve`; accuracy improves
+        with larger neighbor counts (e.g. 50–100) at increased cost.
 
-        Mathematically, we are solving
+        Builds A as a sparse 3n×3n matrix:
 
             (I + χ N_near) M = M_rem u + χ H_a
 
-        where N_near is the demag operator truncated to the pairs (i,j)
-        listed in `neighbors`. The far-field tail is discarded, with a
-        controllable Frobenius-norm threshold `drop_tol` on the 3×3 blocks
-        χ_i @ N_ij.
+        where N_near is the demag operator truncated to pairs (i,j) in
+        `neighbors`. Optional `drop_tol` drops blocks χ_i @ N_ij with small
+        Frobenius norm.
 
         Parameters
         ----------
@@ -1439,28 +1783,27 @@ class MacroMag:
             neighbors[i, :] are local tile indices j (0 ≤ j < n) that
             couple to tile i via demag. Entries < 0 are ignored.
             It is recommended that i itself is included in neighbors[i, :].
-        use_coils : bool
-            If True, use the coil field (or H_a_override) as in direct_solve.
-        krylov_tol, krylov_it :
-            GMRES settings.
-        print_progress : bool
-            If True, print GMRES status.
-        x0 : ndarray or None
-            Optional initial guess for GMRES (length 3n).
-        H_a_override : ndarray or None, shape (n, 3)
-            External field at each tile. If not None, overrides coil field.
-        drop_tol : float
-            If > 0, any 3×3 block χ_i @ N_ij with Frobenius norm < drop_tol
-            is dropped (far-field truncation).
+        params : SolverParams or None
+            Solver parameters (use_coils, drop_tol, krylov_tol, krylov_it,
+            print_progress, x0, H_a_override). If None, uses
+            :class:`SolverParams` defaults. ``drop_tol``: if > 0, blocks
+            χ_i @ N_ij with Frobenius norm < drop_tol are dropped.
 
         Returns
         -------
         self, A_sparse
             self with updated tiles.M, and the sparse A used in the solve.
+
+        Notes
+        -----
+        Demag blocks are assembled in a single batch call to
+        :func:`assemble_blocks_subset` (one kernel call instead of n), which
+        reduces overhead especially when using the JAX backend.
         """
         neighbors = np.asarray(neighbors, dtype=np.int64)
+        params = params or SolverParams()
 
-        prepared = self._prepare_solve(use_coils, H_a_override)
+        prepared = self._prepare_solve(params)
         if prepared is None:
             return self, None
         tiles, n, chi_tensor, b = prepared
@@ -1471,61 +1814,76 @@ class MacroMag:
                 f"got {neighbors.shape}"
             )
 
-        # Build sparse A in COO format: A = I + χ N_near
-        rows = []
-        cols = []
-        data = []
+        # Build flat index arrays for batch assembly (vectorized)
+        mask = neighbors >= 0
+        row_idx = np.broadcast_to(np.arange(n, dtype=np.int64)[:, None], neighbors.shape)
+        all_I = row_idx[mask]
+        all_J = neighbors[mask].astype(np.int64)
 
-        # Identity blocks
-        for i in range(n):
-            base = 3 * i
-            for a in range(3):
-                rows.append(base + a)
-                cols.append(base + a)
-                data.append(1.0)
+        if all_I.size == 0:
+            # No neighbor pairs: A = I
+            nnz = 3 * n
+            rows = np.arange(3 * n, dtype=np.int64)
+            cols = np.arange(3 * n, dtype=np.int64)
+            data = np.ones(3 * n, dtype=np.float64)
+        else:
+            n_pairs = all_I.size
 
-        # Near-field demag blocks
-        for i in range(n):
-            nbrs = neighbors[i]
-            nbrs = nbrs[nbrs >= 0]
-            if nbrs.size == 0:
-                continue
+            # Compute only the diagonal blocks N(all_I[k], all_J[k]); avoids O(n_pairs^2) work.
+            diag_blocks = _assemble_blocks_pairs(
+                self.centres, self.half, self.Rg2l, all_I, all_J
+            )
 
-            I = np.array([i], dtype=np.int64)
-            J = np.asarray(nbrs, dtype=np.int64)
-            # assemble_blocks_subset returns -N (because H_d = -N M), match direct_solve convention
-            N_row = assemble_blocks_subset(self.centres, self.half, self.Rg2l, I, J)[0]
-            # N_row has shape (len(J), 3, 3)
+            # chi_i @ N_ij for each pair (vectorized)
+            chi_all = chi_tensor[all_I]  # (n_pairs, 3, 3)
+            blocks_chiN = np.einsum("iab,ibc->iac", chi_all, diag_blocks)
 
-            chi_i = chi_tensor[i]  # (3,3)
-            base_i = 3 * i
+            # Frobenius norm and drop_tol filter
+            norms = np.linalg.norm(blocks_chiN.reshape(n_pairs, -1), axis=1)
+            if params.drop_tol > 0.0:
+                keep_mask = norms >= params.drop_tol
+            else:
+                keep_mask = np.ones(n_pairs, dtype=bool)
 
-            for idx_j, j in enumerate(J):
-                Nij = N_row[idx_j]  # (3,3)
-                block = chi_i @ Nij  # (3,3)
+            n_kept = int(np.sum(keep_mask))
+            nnz = 3 * n + 9 * n_kept
 
-                if drop_tol > 0.0:
-                    # Frobenius norm threshold
-                    if np.linalg.norm(block) < drop_tol:
-                        continue
+            # Preallocate COO arrays
+            rows = np.empty(nnz, dtype=np.int64)
+            cols = np.empty(nnz, dtype=np.int64)
+            data = np.empty(nnz, dtype=np.float64)
 
-                base_j = 3 * j
-                for a in range(3):
-                    for c in range(3):
-                        rows.append(base_i + a)
-                        cols.append(base_j + c)
-                        data.append(block[a, c])
+            # Identity blocks
+            id_rows = np.arange(3 * n)
+            rows[: 3 * n] = id_rows
+            cols[: 3 * n] = id_rows
+            data[: 3 * n] = 1.0
+
+            # Vectorized block insertion for demag
+            if n_kept > 0:
+                i_kept = all_I[keep_mask]
+                j_kept = all_J[keep_mask]
+                blocks_kept = blocks_chiN[keep_mask]  # (n_kept, 3, 3)
+
+                row_off = np.array([0, 0, 0, 1, 1, 1, 2, 2, 2])
+                col_off = np.array([0, 1, 2, 0, 1, 2, 0, 1, 2])
+                base_i = 3 * i_kept[:, None]
+                base_j = 3 * j_kept[:, None]
+                demag_rows = (base_i + row_off).ravel()
+                demag_cols = (base_j + col_off).ravel()
+                demag_data = blocks_kept.reshape(-1, 9).ravel()
+
+                start = 3 * n
+                rows[start : start + 9 * n_kept] = demag_rows
+                cols[start : start + 9 * n_kept] = demag_cols
+                data[start : start + 9 * n_kept] = demag_data
 
         A_sparse = coo_matrix(
-            (np.asarray(data, dtype=np.float64),
-             (np.asarray(rows, dtype=np.int64),
-              np.asarray(cols, dtype=np.int64))),
+            (data, (rows, cols)),
             shape=(3 * n, 3 * n),
         ).tocsr()
 
-        self._run_gmres_and_assign(
-            A_sparse, b, tiles, krylov_tol, krylov_it, x0, print_progress, "neighbor_sparse",
-        )
+        self._run_gmres_and_assign(A_sparse, b, tiles, params, "neighbor_sparse")
         return self, A_sparse
 
 
@@ -1974,6 +2332,17 @@ class Tiles:
                 if self.tile_type[val[1]] == 7
                 else np.asarray(val[0])
             )
+        elif isinstance(val, np.ndarray) and val.ndim == 2 and val.shape == (self.n, 3):
+            # Bulk assign for full (n, 3) array
+            if np.any(self.tile_type == 7):
+                for i in range(self.n):
+                    self._rot[i] = (
+                        _euler_to_rot_axis(val[i])
+                        if self.tile_type[i] == 7
+                        else val[i]
+                    )
+            else:
+                self._rot[:] = np.asarray(val, dtype=np.float64)
         elif isinstance(val[0], (list, np.ndarray)):
             for i in range(self.n):
                 self._rot[i] = (
@@ -2245,7 +2614,7 @@ class Tiles:
         for attr, shape, dtype, fill in _TILE_ARRAY_SPECS:
             old = getattr(self, attr)
             new = np.full((n,) + shape, fill, dtype=dtype, order="F")
-            setattr(self, attr, np.append(old, new, axis=0))
+            setattr(self, attr, np.concatenate([old, new], axis=0))
         self._n += n
 
     def refine_prism(self, idx: int | float | list, mat: list) -> None:
@@ -2422,32 +2791,32 @@ def muse2tiles(
     if verbose:
         print(f"{nmag} magnets are identified in {muse_file!r}.")
 
-    center = np.zeros((nmag, 3))
-    rot    = np.zeros((nmag, 3))
-    lwh    = np.zeros((nmag, 3))
-    ang    = np.zeros((nmag, 2))
-    mu_arr = np.repeat([mu], nmag, axis=0)
-    Br     = np.zeros(nmag)
+    # Vectorized parsing of position, size, and magnetization angles
+    center = data[:, 0:3]
+    lwh = data[:, 3:6]
+    n1 = data[:, 6:9]
+    n2 = data[:, 9:12]
+    n3 = data[:, 12:15]
+    mxyz = data[:, 15:18]
 
+    # Magnetization angles (theta, phi): mt = acos(z/|m|), mp = atan2(y, x)
+    m_norm = np.linalg.norm(mxyz, axis=1, keepdims=True)
+    ang = np.column_stack([
+        np.arccos(np.clip(mxyz[:, 2] / (m_norm.ravel() + 1e-12), -1, 1)),
+        np.arctan2(mxyz[:, 1], mxyz[:, 0]),
+    ])
+
+    # Euler angles from normalized basis: rotation_angle expects single 3x3 matrix
+    n1_norm = n1 / np.linalg.norm(n1, axis=1, keepdims=True)
+    n2_norm = n2 / np.linalg.norm(n2, axis=1, keepdims=True)
+    n3_norm = n3 / np.linalg.norm(n3, axis=1, keepdims=True)
+    rot = np.zeros((nmag, 3))
     for i in range(nmag):
-        center[i] = data[i, 0:3]
-        lwh[i]    = data[i, 3:6]
-        n1, n2, n3 = data[i, 6:9], data[i, 9:12], data[i, 12:15]
+        rot_mat = np.vstack([n1_norm[i], n2_norm[i], n3_norm[i]]).T
+        rot[i] = rotation_angle(rot_mat, xyz=True)
 
-        # build normalized basis → Euler angles
-        rot_mat = np.vstack([
-            n1 / np.linalg.norm(n1),
-            n2 / np.linalg.norm(n2),
-            n3 / np.linalg.norm(n3),
-        ])
-        rot[i] = rotation_angle(rot_mat.T, xyz=True)
-
-        # magnetization angles
-        mxyz = data[i, 15:18]
-        mp   = math.atan2(mxyz[1], mxyz[0])
-        mt   = math.acos(mxyz[2] / np.linalg.norm(mxyz))
-        ang[i, 0:2] = [mt, mp]
-        Br[i] = magnetization
+    mu_arr = np.repeat([mu], nmag, axis=0)
+    Br = np.full(nmag, magnetization)
 
     return build_prism(lwh, center, rot, ang, mu_arr, Br)
 
@@ -2486,19 +2855,30 @@ def build_prism(
     rem       = np.atleast_1d(remanence)
 
     prism = Tiles(nmag)
+    prism.tile_type = 2  # all prisms
 
-    # set broadcast properties
-    prism.tile_type = 2         # all prisms
+    # Bulk array assignment (Tiles setters accept full (n,) or (n, 3) arrays)
+    prism.size = lwh
+    prism.offset = center
+    prism.rot = rot
+    prism.M_rem = rem
+    prism.mu_r_ea = mu[:, 0]
+    prism.mu_r_oa = mu[:, 1]
 
-    for i in range(nmag):
-        # tuple‐setter form writes into the i-th row of each array
-        prism.size     = (lwh[i],i)
-        prism.offset   = (center[i],i)
-        prism.rot      = (rot[i],i)
-        prism.M_rem    = (rem[i],i)
-        prism.mu_r_ea  = (mu[i,0],i)
-        prism.mu_r_oa  = (mu[i,1],i)
-        prism.set_easy_axis(val=mag_angle[i], idx=i)
-        prism.color    = ([0, 0, (i+1)/nmag], i)
+    # Easy axis from spherical angles (theta, phi) -> unit vector
+    polar, azimuth = mag_angle[:, 0], mag_angle[:, 1]
+    u_ea = np.column_stack([
+        np.sin(polar) * np.cos(azimuth),
+        np.sin(polar) * np.sin(azimuth),
+        np.cos(polar),
+    ])
+    prism.u_ea = u_ea
+
+    # Color: blue gradient [0, 0, (i+1)/n]
+    prism.color = np.column_stack([
+        np.zeros(nmag),
+        np.zeros(nmag),
+        (np.arange(nmag, dtype=np.float64) + 1) / nmag,
+    ])
 
     return prism

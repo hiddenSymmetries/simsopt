@@ -86,7 +86,7 @@ RUN_PRESETS = {
         "nIter_max": 2500,
         "nBacktracking": 200,
         "max_nMagnets": 5000,
-        "downsample": 6,
+        "downsample": 10,
         "history_every": 200,
         "mm_refine_every": 50,
         "Nadjacent": 12,
