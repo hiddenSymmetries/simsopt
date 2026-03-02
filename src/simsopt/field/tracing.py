@@ -1390,8 +1390,8 @@ class ScipyFieldlineIntegrator(Integrator):
         Integration starts from cylindrical coordinates (R,Z) at angle start_phi. 
         The cylindrical field line ODE is given by: 
         .. math::
-            \frac{dR}{d\phi} = R \frac{B_R}{B_\phi}, \\
-            \frac{dZ}{d\phi} = R \frac{B_Z}{B_\phi}.
+            \\frac{dR}{d\phi} = R \\frac{B_R}{B_\phi}, \\
+            \\frac{dZ}{d\phi} = R \\frac{B_Z}{B_\phi}.
 
         Args:
             start_RZ: starting point in cylindrical coordinates (R,Z)
@@ -1458,7 +1458,7 @@ class ScipyFieldlineIntegrator(Integrator):
         else:
             return status, rphiz
 
-    def integrate_fieldlinepoints(self, start_point, delta_phi, n_points, phi0=None, endpoint=False, input_coordinates='cartesian', output_coordinates='cartesian'):
+    def integrate_fieldlinepoints(self, start_point, delta_phi=2*np.pi, n_points=50, phi0=None, endpoint=False, input_coordinates='cartesian', output_coordinates='cartesian'):
         """
         Calculate n_points along a field line starting at an R,Z location and starting angle in phi, for a 
         distance delta_phi. 

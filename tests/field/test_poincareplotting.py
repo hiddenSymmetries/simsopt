@@ -71,7 +71,7 @@ class TestPoincarePlotterSimsopt(unittest.TestCase):
         except Exception:
             pass
         # Single plane by index
-        fig, ax = self.pp.plot_poincare_plane_idx(0)
+        fig, ax = self.pp.plot_poincare_plane_idx(0, color='blue')
         self.assertIsNotNone(fig)
         self.assertIsNotNone(ax)
         # Single plane by value using existing phi to avoid modifying internal array
@@ -199,7 +199,7 @@ class TestPoincarePlotterScipy(unittest.TestCase):
         num_planes = self.pp.phis.shape[0]
 
         _ = self.pp.res_phi_hits
-        self.pp._res_phi_hits[-1][-1,1] = -1  #simulate a lost particle
+        self.pp._res_phi_hits[-1][-1,1] = -2  #simulate a lost particle
         # Simple plots
         fig1, ax1 = self.pp.plot_poincare_single(self.pp.phis[0], include_symmetry_planes=False, mark_lost=True)
         self.assertIsNotNone(fig1)
@@ -236,8 +236,12 @@ class TestPoincarePlotterFactory(unittest.TestCase):
         
         #set with array of phis
         phis_array = np.array([0, 0.1, 0.2])
-        pp2 = PoincarePlotter.from_field(field, start_points_RZ, phis=phis_array, n_transits=2, add_symmetry_planes=False)
+        pp2 = PoincarePlotter.from_field(field, start_points_RZ, phis=phis_array, integrator_type='scipy', n_transits=2, add_symmetry_planes=False)
         self.assertTrue(np.array_equal(pp2.phis[:3], phis_array))
+
+        with self.assertRaises(ValueError):
+            PoincarePlotter.from_field(field, start_points_RZ, n_transits=2, add_symmetry_planes=False, integrator_type='unknown')
+
 
 
 class TestPoincarePlotterRealField(unittest.TestCase):

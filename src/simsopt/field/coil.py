@@ -22,10 +22,9 @@ class Coil(sopp.Coil, Optimizable):
     This class combines a :class:`~simsopt.geo.curve.Curve` and a :class:`Current` object, and 
     is used as input for :class:`~simsopt.field.biotsavart.BiotSavart` field calculations. 
 
-    Parameters
-    ----------
-    curve (simsopt.geo.curve.Curve) : The geometric curve describing the coil shape.
-    current (Current) : The current object describing the electric current in the coil.
+    Args:
+        curve (simsopt.geo.curve.Curve) : The geometric curve describing the coil shape.
+        current (Current) : The current object describing the electric current in the coil.
     """
 
     def __init__(self, curve, current):
@@ -36,18 +35,20 @@ class Coil(sopp.Coil, Optimizable):
 
     def vjp(self, v_gamma, v_gammadash, v_current):
         r"""
-        Compute the Jacobian-vector product of the coil.
+        Compute the vector-Jacobian product,
 
         .. math::
-            \frac{\partial \mathbf{B}}{\partial \mathbf{x}} = \frac{\partial \mathbf{B}}{\partial \mathbf{\gamma}} \frac{\partial \mathbf{\gamma}}{\partial \mathbf{x}} + \frac{\partial \mathbf{B}}{\partial \mathbf{\gammadash}} \frac{\partial \mathbf{\gammadash}}{\partial \mathbf{x}} + \frac{\partial \mathbf{B}}{\partial \mathbf{I}} \frac{\partial \mathbf{I}}{\partial \mathbf{x}}
+            \frac{\partial \mathbf{\gamma}}{\partial \mathbf{x}}^T \mathbf{v}_\gamma + \frac{\partial \mathbf{\gamma'}}{\partial \mathbf{x}}^T \mathbf{v}_{\gamma'} + \frac{\partial \mathbf{I}}{\partial \mathbf{x}}^T \mathbf{v}_I
+
+        where :math:`\mathbf{x}` are the degrees of freedom of the coil.
 
         Args:
-            v_gamma (array) : The vector to multiply the Jacobian with.
-            v_gammadash (array) : The vector to multiply the Jacobian with.
-            v_current (array) : The vector to multiply the Jacobian with.
+            v_gamma (array, shape (n, 3)) : Vector w.r.t. :math:`\gamma`; same shape as curve gamma.
+            v_gammadash (array, shape (n, 3)) : Vector w.r.t. :math:`\gamma'`; same shape as curve gammadash.
+            v_current (array, shape (1,)) : Vector w.r.t. coil current (scalar).
 
         Returns:
-            The Jacobian-vector product of the coil.
+            The vector-Jacobian product of the coil.
         """
         return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
             + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) \
@@ -70,11 +71,10 @@ class RegularizedCoil(Coil):
     A coil with a model for its cross section. This cross section is used to compute the
     forces and torques on the coil.
     
-    Parameters
-    ----------
-    curve (simsopt.geo.curve.Curve) : The geometric curve describing the coil shape.
-    current (Current) : The current object describing the electric current in the coil.
-    regularization (float) : The regularization parameter for the coil cross section.
+    Args:
+        curve (simsopt.geo.curve.Curve) : The geometric curve describing the coil shape.
+        current (Current) : The current object describing the electric current in the coil.
+        regularization (float) : The regularization parameter for the coil cross section.
     """
     def __init__(self, curve, current, regularization):
         self.regularization = regularization
@@ -105,9 +105,8 @@ class RegularizedCoil(Coil):
     def B_regularized(self):
         """Calculate the regularized field on this coil following the Landreman and Hurwitz method.
         
-        Returns
-        -------
-        array (shape (n,3)): The regularized field on the coil.
+        Returns:
+            array (shape (n,3)): The regularized field on the coil.
         """
         from .selffield import B_regularized_pure
         return B_regularized_pure(
@@ -123,9 +122,8 @@ class RegularizedCoil(Coil):
         """
         Compute the self-force per unit length of this coil, in Newtons/meter.
         
-        Returns
-        -------
-        array (shape (n,3)): Array of self-force per unit length.
+        Returns:
+            array (shape (n,3)): Array of self-force per unit length.
         """
         I = self.current.get_value()
         gammadash = self.curve.gammadash()
@@ -235,11 +233,10 @@ class CircularRegularizedCoil(RegularizedCoil):
     A coil with a circular cross section. The regularization parameter is computed
     from the radius during initialization.
     
-    Parameters
-    ----------
-    curve (simsopt.geo.curve.Curve) : The geometric curve describing the coil shape.
-    current (Current) : The current object describing the electric current in the coil.
-    a (float) : The radius of the circular cross-section.
+    Args:
+        curve (simsopt.geo.curve.Curve) : The geometric curve describing the coil shape.
+        current (Current) : The current object describing the electric current in the coil.
+        a (float) : The radius of the circular cross-section.
     """
     def __init__(self, curve, current, a):
         from .selffield import regularization_circ
@@ -253,12 +250,11 @@ class RectangularRegularizedCoil(RegularizedCoil):
     A coil with a rectangular cross section. The regularization parameter is computed
     from the width and height during initialization.
     
-    Parameters
-    ----------
-    curve (simsopt.geo.curve.Curve) : The geometric curve describing the coil shape.
-    current (Current) : The current object describing the electric current in the coil.
-    a (float) : The width of the rectangular cross-section.
-    b (float) : The height of the rectangular cross-section.
+    Args:
+        curve (simsopt.geo.curve.Curve) : The geometric curve describing the coil shape.
+        current (Current) : The current object describing the electric current in the coil.
+        a (float) : The width of the rectangular cross-section.
+        b (float) : The height of the rectangular cross-section.
     """
     def __init__(self, curve, current, a, b):
         from .selffield import regularization_rect
@@ -385,7 +381,7 @@ class Current(sopp.Current, CurrentBase):
         Compute the Jacobian-vector product of the current function.
 
         Args:
-            v_current (array) : The vector to multiply the Jacobian with.
+            v_current (array, shape (1,)) : The vector to multiply the Jacobian with.
 
         Returns:
             The Jacobian-vector product of the current function.
@@ -428,7 +424,7 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
         Compute the Jacobian-vector product of the current function.
 
         Args:
-            v_current (array) : The vector to multiply the Jacobian with.
+            v_current (array, shape (1,)) : The vector to multiply the Jacobian with.
 
         Returns:
             The Jacobian-vector product of the current function.
@@ -450,10 +446,9 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
 
     Used to enforce current constraints or combine currents in optimization.
 
-    Parameters
-    ----------
-    current_a (CurrentBase) : First current object.
-    current_b (CurrentBase) : Second current object.
+    Args:
+        current_a (CurrentBase) : First current object.
+        current_b (CurrentBase) : Second current object.
     """
 
     def __init__(self, current_a, current_b):
@@ -467,7 +462,7 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
         Compute the Jacobian-vector product of the current function.
 
         Args:
-            v_current (array) : The vector to multiply the Jacobian with.
+            v_current (array, shape (1,)) : The vector to multiply the Jacobian with.
 
         Returns:
             The Jacobian-vector product of the current function.
@@ -493,15 +488,13 @@ def apply_symmetries_to_curves(base_curves, nfp, stellsym):
     applying rotations and flipping corresponding to ``nfp`` fold rotational
     symmetry and optionally stellarator symmetry.
 
-    Parameters
-    ----------
-    base_curves (list) : List of base curves to replicate.
-    nfp (int) : Number of field periods (rotational symmetry).
-    stellsym (bool) : Whether to apply stellarator symmetry (flipping).
+    Args:
+        base_curves (list) : List of base curves to replicate.
+        nfp (int) : Number of field periods (rotational symmetry).
+        stellsym (bool) : Whether to apply stellarator symmetry (flipping).
 
-    Returns
-    -------
-    curves (list) : List of curves with symmetries applied.
+    Returns:
+        curves (list) : List of curves with symmetries applied.
     """
     flip_list = [False, True] if stellsym else [False]
     curves = []
@@ -524,19 +517,13 @@ def apply_symmetries_to_currents(base_currents, nfp, stellsym):
     :mod:`Current` objects obtained by copying (for ``nfp`` rotations) and
     sign-flipping (optionally for stellarator symmetry).
 
-    Parameters
-    ----------
-    base_currents : list of Current
-        List of base current objects to replicate.
-    nfp : int
-        Number of field periods (rotational symmetry).
-    stellsym : bool
-        Whether to apply stellarator symmetry (sign flip).
+    Args:
+        base_currents (list of Current) : List of base current objects to replicate.
+        nfp (int) : Number of field periods (rotational symmetry).
+        stellsym (bool) : Whether to apply stellarator symmetry (sign flip).
 
-    Returns
-    -------
-    currents : list of Current
-        List of current objects with symmetries applied.
+    Returns:
+        currents (list of Current) : List of current objects with symmetries applied.
     """
     flip_list = [False, True] if stellsym else [False]
     currents = []
@@ -649,24 +636,15 @@ def coils_via_symmetries(curves, currents, nfp, stellsym, regularizations=None):
     for computing e.g. forces and torques on the coil. Format is e.g.
     regularizations = [regularization_circ(0.05) for _ in range(ncoils)]
 
-    Parameters
-    ----------
-    curves (list, shape (n_coils,)) : list of Curve
-        List of base curves.
-    currents (list, shape (n_coils,)) : list of Current
-        List of base current objects.
-    nfp (int) : int
-        Number of field periods (rotational symmetry).
-    stellsym (bool) : bool
-        Whether to apply stellarator symmetry.
-    regularizations (np.array, shape (n_coils,), optional):
-        The regularization objects for the coils representing the finite coil cross section.
+    Args:
+        curves (list, shape (n_coils,)) : List of base curves.
+        currents (list, shape (n_coils,)) : List of base current objects.
+        nfp (int) : Number of field periods (rotational symmetry).
+        stellsym (bool) : Whether to apply stellarator symmetry.
+        regularizations (np.array, shape (n_coils,), optional): The regularization objects for the coils representing the finite coil cross section.
 
-    Returns
-    -------
-    coils (list) : list of Coil or RegularizedCoil objects
-        List of Coil or RegularizedCoil objects with symmetries applied. If regularizations are provided, 
-        then RegularizedCoil objects are returned.
+    Returns:
+        coils (list) : List of Coil or RegularizedCoil objects with symmetries applied. If regularizations are provided, then RegularizedCoil objects are returned.
     """
 
     assert len(curves) == len(currents)
@@ -689,20 +667,14 @@ def load_coils_from_makegrid_file(filename, order, ppp=20, group_names=None):
     The format is described at
     https://princetonuniversity.github.io/STELLOPT/MAKEGRID
 
-    Parameters
-    ----------
-    filename (str):
-        Path to the MAKEGRID input file.
-    order (int):
-        Maximum mode number in the Fourier expansion.
-    ppp (int, optional):
-        Points per period for quadrature (default: 20).
-    group_names (list of str or str or None, optional):
-        If provided, only load coils in these groups.
+    Args:
+        filename (str) : Path to the MAKEGRID input file.
+        order (int) : Maximum mode number in the Fourier expansion.
+        ppp (int, optional) : Points per period for quadrature (default: 20).
+        group_names (list of str or str or None, optional) : If provided, only load coils in these groups.
 
-    Returns
-    -------
-    coils (list) : List of Coil objects loaded from the file.
+    Returns:
+        coils (list) : List of Coil objects loaded from the file.
     """
 
     if isinstance(group_names, str):
@@ -741,20 +713,13 @@ def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=F
     The output can be used by MAKEGRID and FOCUS. The format is described at
     https://princetonuniversity.github.io/STELLOPT/MAKEGRID
 
-    Parameters
-    ----------
-    filename (str):
-        Name of the file to write.
-    curves (list) : list of Curve objects.
-        List of Curve objects.
-    currents (list) : list of Current objects.
-        List of current objects.
-    groups (list or None, optional):
-        Coil current group. Coils in the same group are assembled together.
-    nfp (int, optional):
-        Number of field periods (default: 1).
-    stellsym (bool, optional):
-        Whether to apply stellarator symmetry (default: False).
+    Args:
+        filename (str): Name of the file to write.
+        curves (list) : list of Curve objects.
+        currents (list) : list of Current objects.
+        groups (list or None, optional): Coil current group. Coils in the same group are assembled together.
+        nfp (int, optional): Number of field periods (default: 1).
+        stellsym (bool, optional): Whether to apply stellarator symmetry (default: False).
     """
 
     assert len(curves) == len(currents)
@@ -795,22 +760,14 @@ def coils_to_focus(filename, curves, currents, nfp=1, stellsym=False, Ifree=Fals
     The output can be used by FOCUS. The format is described at
     https://princetonuniversity.github.io/FOCUS/rdcoils.pdf
 
-    Parameters
-    ----------
-    filename (str):
-        Name of the file to write.
-    curves (list) : list of CurveXYZFourier
-        List of CurveXYZFourier objects.
-    currents (list) : list of Current
-        List of current objects.
-    nfp (int, optional):
-        Number of field periods (default: 1).
-    stellsym (bool, optional):
-        Whether to apply stellarator symmetry (default: False).
-    Ifree (bool, optional):
-        Whether the coil current is free (default: False).
-    Lfree (bool, optional):
-        Whether the coil geometry is free (default: False).
+    Args:
+        filename (str) : Name of the file to write.
+        curves (list) : list of CurveXYZFourier objects.
+        currents (list) : list of Current objects.
+        nfp (int, optional) : Number of field periods (default: 1).
+        stellsym (bool, optional) : Whether to apply stellarator symmetry (default: False).
+        Ifree (bool, optional) : Whether the coil current is free (default: False).
+        Lfree (bool, optional) : Whether the coil geometry is free (default: False).
     """
     from simsopt.geo import CurveLength
 
