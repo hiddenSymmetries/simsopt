@@ -1031,11 +1031,11 @@ class CoilForcesTest(unittest.TestCase):
         """
         import matplotlib.pyplot as plt
         ncoils_list = [2]
-        nfp_list = [3]
+        nfp_list = [1, 3]
         stellsym_list = [True]
         p_list = [2.5]
-        threshold_list = [1e-3]
-        downsample_list = [2]
+        threshold_list = [0.0, 1e-3]
+        downsample_list = [1, 2]
         jax_flag_list = [False, True]
         numquadpoints_list = [10]
         I = 1.7e5
