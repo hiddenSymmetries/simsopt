@@ -999,9 +999,9 @@ def _get_assemble_blocks_subset_kernel():
         yi = signs[:, 1, None, None] * y0[None, :, :]
         zi = signs[:, 2, None, None] * z0[None, :, :]
 
-        a_ = a[None, :, None]
-        b_ = b[None, :, None]
-        c_ = c[None, :, None]
+        a_ = a[None, :, :]
+        b_ = b[None, :, :]
+        c_ = c[None, :, :]
 
         sum_f = jnp.sum(jnp.arctan(_diag_kernel_3d_jax(a_, b_, c_, xi, yi, zi, 0)), axis=0)
         sum_g = jnp.sum(jnp.arctan(_diag_kernel_3d_jax(a_, b_, c_, xi, yi, zi, 1)), axis=0)
@@ -1013,9 +1013,9 @@ def _get_assemble_blocks_subset_kernel():
 
         def off_diag(func):
             """JAX-traceable off-diagonal component via log product ratio; func takes (a,b,c,x,y,z)."""
-            a2 = a[:, None]
-            b2 = b[:, None]
-            c2 = c[:, None]
+            a2 = a[None, :, :]
+            b2 = b[None, :, :]
+            c2 = c[None, :, :]
             nom = (
                 func(+a2, +b2, +c2, x0, y0, z0)
                 * func(-a2, -b2, +c2, x0, y0, z0)
@@ -1033,7 +1033,9 @@ def _get_assemble_blocks_subset_kernel():
             ratio = jnp.where(use_lim, ratio_lim, nom / denom)
             val = -_INV4PI * jnp.log(jnp.maximum(ratio, _MACHEPS))
             close = (denom != 0.0) & (jnp.abs((nom - denom) / denom) < 10.0 * _MACHEPS)
-            return jnp.where(close, 0.0, val)
+            out = jnp.where(close, 0.0, val)
+            # Squeeze leading dim from (1, nI, nJ) to match diagonal (nI, nJ)
+            return jnp.squeeze(out, axis=0)
 
         Nxy = off_diag(functools.partial(_log_kernel_3d_jax, axis=2))
         Nyz = off_diag(functools.partial(_log_kernel_3d_jax, axis=0))

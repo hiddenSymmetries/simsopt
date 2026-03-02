@@ -582,6 +582,17 @@ class MacroMagTests(unittest.TestCase):
         blocks = assemble_blocks_subset(centres, half, Rg2l, I, J)
         self.assertEqual(blocks.shape, (0, 0, 3, 3))
 
+    def test_assemble_blocks_subset_rectangular(self):
+        """Assemble blocks for nI != nJ (batched case in GPMOmr)."""
+        rng = np.random.default_rng(42)
+        centres = rng.random((50, 3))
+        half = np.ones((50, 3)) * 0.01
+        Rg2l = np.tile(np.eye(3), (50, 1, 1))
+        I = np.array([0, 1, 2])  # nI=3
+        J = np.arange(20)  # nJ=20
+        blocks = assemble_blocks_subset(centres, half, Rg2l, I, J)
+        self.assertEqual(blocks.shape, (3, 20, 3, 3))
+
     @unittest.skipIf(in_github_actions, "Nadjacent convergence test too slow for CI")
     def test_nadjacent_convergence_on_muse_full_grid(self):
         """
