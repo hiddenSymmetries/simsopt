@@ -316,7 +316,7 @@ class Testing(unittest.TestCase):
         TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
         with ScratchDir("."):
             _, pm_opt = self._make_pm_opt_tiny(
-                TEST_DIR, nphi=4, ntheta=4, dr=0.05, coff=0.06, poff=0.03
+                TEST_DIR, nphi=6, ntheta=6, dr=0.04, coff=0.07, poff=0.04
             )
             ndip = pm_opt.ndipoles
 
