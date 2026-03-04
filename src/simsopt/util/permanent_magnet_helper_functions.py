@@ -1,6 +1,8 @@
 """
 Utility functions for permanent magnet optimization in SIMSOPT.
 """
+from __future__ import annotations
+
 __all__ = [
     'GPMORunConfig',
     'GPMOParams',
