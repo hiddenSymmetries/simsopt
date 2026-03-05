@@ -1031,6 +1031,15 @@ class CoilForcesTest(unittest.TestCase):
         A test passes if the Taylor error decreases rapidly (ideally quadratically) as the step size shrinks, confirming the correctness of the gradient implementation for all tested objectives and configurations.
         """
         import matplotlib.pyplot as plt
+        from simsopt.geo.config import parameters as geo_parameters
+
+        # GitHub Actions runners can be memory-constrained; JAX/XLA compilation
+        # for these objectives may OOM and segfault. Disabling JIT in CI/CD to avoid
+        # heavy LLVM compilation while still exercising the math/derivatives...
+        if in_github_actions:
+            _old_jit = geo_parameters.get("jit", True)
+            geo_parameters["jit"] = False
+            self.addCleanup(lambda: geo_parameters.__setitem__("jit", _old_jit))
         ncoils_list = [2]
         a = 0.05
         b = 0.05
