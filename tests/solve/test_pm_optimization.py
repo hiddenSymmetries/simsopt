@@ -1,6 +1,7 @@
 import dataclasses
 from pathlib import Path
 import unittest
+from unittest import mock
 
 import numpy as np
 from monty.tempfile import ScratchDir
@@ -859,6 +860,117 @@ class Testing(unittest.TestCase):
                 msg=f"C++ GPMO ({t_cpp:.4f}s) should be faster than "
                     f"Python GPMO_py ({t_py:.4f}s)"
             )
+
+class TestSolveLazyLoading(unittest.TestCase):
+    def test_getattr_loads_macromagnetics(self):
+        import simsopt.solve as solve
+
+        self.assertEqual(solve.MacroMag.__name__, "MacroMag")
+        self.assertEqual(solve.Tiles.__name__, "Tiles")
+        self.assertEqual(solve.GPMO.__name__, "GPMO")
+        self.assertEqual(solve.relax_and_split.__name__, "relax_and_split")
+
+    def test_getattr_unknown_raises(self):
+        import simsopt.solve as solve
+
+        with self.assertRaises(AttributeError):
+            getattr(solve, "__definitely_not_a_real_symbol__")
+
+
+class _DummyPlasmaBoundary:
+    def __init__(self, ngrid: int):
+        self._normal = np.ones((ngrid, 3), dtype=float)
+
+    def normal(self):
+        return self._normal
+
+
+class _DummyPmOpt:
+    def __init__(self, *, ndipoles: int = 10, ngrid: int = 4):
+        self.ndipoles = int(ndipoles)
+        self.coordinate_flag = "cartesian"
+        self.m_maxima = np.ones(self.ndipoles, dtype=float)
+        self.A_obj = np.zeros((ngrid, 3 * self.ndipoles), dtype=float)
+        self.b_obj = np.zeros(ngrid, dtype=float)
+        self.pol_vectors = np.zeros((self.ndipoles, 1, 3), dtype=float)
+        self.pol_vectors[:, 0, 0] = 1.0
+        self.plasma_boundary = _DummyPlasmaBoundary(ngrid)
+
+
+class TestPmOptimizationPatchCoverage(unittest.TestCase):
+    def test_relax_and_split_warns_on_kwargs(self):
+        class DummyPmOpt:
+            pass
+
+        with self.assertWarns(DeprecationWarning):
+            with self.assertRaises(AttributeError):
+                relax_and_split(DummyPmOpt(), nu=1.0)
+
+    def test_gpmo_warns_and_reconstructs_k_history_for_baseline(self):
+        import simsopt.solve.permanent_magnet_optimization as pmo
+
+        pm_opt = _DummyPmOpt(ndipoles=10, ngrid=4)
+
+        def fake_gpmo_baseline(*args, **kwargs):
+            nrec = 3
+            objective_history = np.array([1.0, 2.0, 0.0], dtype=float)
+            Bn_history = np.array([0.1, 0.2, 0.0], dtype=float)
+            m_history = np.zeros((pm_opt.ndipoles, 3, nrec), dtype=float)
+            m = np.zeros((pm_opt.ndipoles, 3), dtype=float)
+            return objective_history, Bn_history, m_history, m
+
+        with mock.patch.object(pmo.sopp, "GPMO_baseline", side_effect=fake_gpmo_baseline):
+            with self.assertWarns(DeprecationWarning):
+                errors, _, _ = pmo.GPMO(
+                    pm_opt,
+                    algorithm="baseline",
+                    K=5,
+                    nhistory=2,
+                    verbose=False,
+                    single_direction=-1,
+                )
+
+        self.assertTrue(hasattr(pm_opt, "record_every"))
+        self.assertEqual(int(pm_opt.record_every), 2)
+        self.assertTrue(hasattr(pm_opt, "k_history"))
+        np.testing.assert_array_equal(pm_opt.k_history, np.array([1, 3], dtype=int))
+        self.assertEqual(len(pm_opt.k_history), len(errors))
+
+    def test_gpmo_reconstructs_k_history_for_gpmomr_when_missing(self):
+        import simsopt.solve.permanent_magnet_optimization as pmo
+
+        pm_opt = _DummyPmOpt(ndipoles=10, ngrid=4)
+
+        def fake_gpmomr(*args, **kwargs):
+            nrec = 3
+            objective_history = np.array([1.0, 2.0, 0.0], dtype=float)
+            Bn_history = np.array([0.1, 0.2, 0.0], dtype=float)
+            m_history = np.zeros((pm_opt.ndipoles, 3, nrec), dtype=float)
+            num_nonzeros = np.array([1, 2, 0], dtype=int)
+            x = np.zeros((pm_opt.ndipoles, 3), dtype=float)
+            k_history = None
+            return objective_history, Bn_history, m_history, num_nonzeros, x, k_history
+
+        mm_params = GPMOMacroMagParams(
+            K=5,
+            nhistory=2,
+            verbose=False,
+            backtracking=0,
+            dipole_grid_xyz=np.zeros((pm_opt.ndipoles, 3), dtype=float),
+            mm_refine_every=5,
+            use_coils=False,
+        )
+
+        with mock.patch.object(pmo, "GPMOmr", side_effect=fake_gpmomr):
+            errors, _, _ = pmo.GPMO(pm_opt, algorithm="GPMOmr", params=mm_params)
+
+        self.assertTrue(hasattr(pm_opt, "record_every"))
+        self.assertEqual(int(pm_opt.record_every), 2)
+        self.assertTrue(hasattr(pm_opt, "k_history"))
+        np.testing.assert_array_equal(pm_opt.k_history, np.array([0, 2], dtype=int))
+        self.assertEqual(len(pm_opt.k_history), len(errors))
+        self.assertTrue(hasattr(pm_opt, "num_nonzeros"))
+        np.testing.assert_array_equal(pm_opt.num_nonzeros, np.array([1, 2], dtype=int))
 
 
 if __name__ == "__main__":

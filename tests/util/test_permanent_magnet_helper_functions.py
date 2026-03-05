@@ -6,6 +6,7 @@ import io
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 from monty.tempfile import ScratchDir
@@ -127,6 +128,27 @@ class TestWriteGpmoRunMetadataYaml(unittest.TestCase):
             self.assertIn("run_id: test_run_yaml", content)
             self.assertIn("algorithm: GPMO", content)
             self.assertIn("N52", content)
+
+    def test_raises_if_yaml_dependency_missing(self):
+        import simsopt.util.permanent_magnet_helper_functions as pmhf
+
+        with ScratchDir("."):
+            out_dir = Path("test_output")
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+            with mock.patch.object(pmhf, "YAML", None):
+                with self.assertRaises(ImportError):
+                    pmhf.write_gpmo_run_metadata_yaml(
+                        out_dir,
+                        "test_run_yaml_missing_dep",
+                        algorithm="GPMO",
+                        current_scale=1.0,
+                        metrics={},
+                        material_name="N52",
+                        material={},
+                        run_params={},
+                        paths={},
+                    )
 
 
 class TestBuildPolarizationVectorsFromFocusData(unittest.TestCase):
@@ -467,3 +489,20 @@ class TestComputeAngleBetweenVectorsDegrees(unittest.TestCase):
         b = np.random.rand(5, 3)
         angles = compute_angle_between_vectors_degrees(a, b)
         self.assertEqual(angles.shape, (5,))
+
+
+class TestInitializeDefaultKwargs(unittest.TestCase):
+    """Tests for initialize_default_kwargs."""
+
+    def test_rs_branch_returns_rsparams_dict(self):
+        with self.assertWarns(DeprecationWarning):
+            kwargs = initialize_default_kwargs("RS")
+        self.assertIsInstance(kwargs, dict)
+        self.assertIn("nu", kwargs)
+        self.assertIn("max_iter", kwargs)
+        self.assertIn("epsilon_RS", kwargs)
+
+    def test_unknown_algorithm_falls_back(self):
+        with self.assertWarns(DeprecationWarning):
+            kwargs = initialize_default_kwargs("totally_unknown_algorithm")
+        self.assertEqual(kwargs, {"verbose": True})
