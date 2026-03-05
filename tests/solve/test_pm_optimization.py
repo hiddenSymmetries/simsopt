@@ -972,6 +972,276 @@ class TestPmOptimizationPatchCoverage(unittest.TestCase):
         self.assertTrue(hasattr(pm_opt, "num_nonzeros"))
         np.testing.assert_array_equal(pm_opt.num_nonzeros, np.array([1, 2], dtype=int))
 
+    def test_initialize_GPMO_ArbVec_py_prefers_null_when_closer(self):
+        """Cover the branch where a nonzero init is closer to 0 than to any allowed pol vector."""
+        N, nPolVecs, ngrid = 1, 1, 3
+        pol_vectors = np.zeros((N, nPolVecs, 3), dtype=np.float64)
+        pol_vectors[:, 0, :] = [1.0, 0.0, 0.0]
+
+        x_init = np.array([[0.1, 0.0, 0.0]], dtype=np.float64)  # closer to 0 than to ±pol_vectors
+
+        rng = np.random.default_rng(0)
+        A_obj = rng.standard_normal((N, 3, ngrid)).astype(np.float64)
+        b_obj = rng.standard_normal(ngrid).astype(np.float64)
+
+        x = np.zeros((N, 3), dtype=np.float64)
+        x_vec = np.zeros(N, dtype=np.int32)
+        x_sign = np.zeros(N, dtype=np.int8)
+        Aij_mj_sum = -b_obj.copy()
+        R2s = np.full(2 * N * nPolVecs, 1e50, dtype=np.float64)
+        Gamma_complement = np.ones(N, dtype=bool)
+        num_nonzero_ref = [0]
+
+        _initialize_GPMO_ArbVec_py(
+            x_init, pol_vectors, x, x_vec, x_sign,
+            A_obj, Aij_mj_sum, R2s, Gamma_complement, num_nonzero_ref,
+        )
+
+        self.assertEqual(num_nonzero_ref[0], 0)
+        np.testing.assert_allclose(x, 0.0)
+        np.testing.assert_array_equal(Gamma_complement, True)
+        np.testing.assert_allclose(Aij_mj_sum, -b_obj, atol=1e-14)
+        np.testing.assert_allclose(R2s, 1e50)
+
+    def test_gpmo_py_rejects_m_init_with_wrong_columns(self):
+        """Trigger the ValueError branch in _prepare_x_init for bad m_init shape."""
+        import simsopt.solve.permanent_magnet_optimization as pmo
+
+        pm_opt = _DummyPmOpt(ndipoles=4, ngrid=3)
+        bt = GPMOBacktrackParams(
+            K=2,
+            nhistory=1,
+            verbose=False,
+            backtracking=0,
+            dipole_grid_xyz=np.zeros((pm_opt.ndipoles, 3), dtype=float),
+            m_init=np.zeros((pm_opt.ndipoles, 2), dtype=float),
+        )
+
+        with self.assertRaisesRegex(ValueError, "three columns"):
+            pmo.GPMO(pm_opt, algorithm="GPMO_py", params=bt)
+
+    def test_gpmo_py_stagnation_break_triggers_with_constant_nonzero_count(self):
+        """Cover the verbose stagnation stop in GPMO_py (print_iter_ref > 10 and a==b==c)."""
+        import contextlib
+        import io
+        import simsopt.solve.permanent_magnet_optimization as pmo
+
+        N = 20
+        ngrid = 2
+        nPolVecs = 1
+        A_obj = np.zeros((3 * N, ngrid), dtype=np.float64)
+        b_obj = np.zeros((ngrid,), dtype=np.float64)
+        mmax = np.ones((N,), dtype=np.float64)
+        normal_norms = np.ones((ngrid,), dtype=np.float64)
+        pol_vectors = np.zeros((N, nPolVecs, 3), dtype=np.float64)
+        pol_vectors[:, 0, 0] = 1.0
+        xyz = np.zeros((N, 3), dtype=np.float64)
+        xyz[:, 0] = np.arange(N, dtype=np.float64)
+
+        params = GPMOBacktrackParams(
+            K=12,
+            nhistory=100,  # K//nhistory -> 0 => record every iter
+            verbose=True,
+            backtracking=1,
+            Nadjacent=1,
+            dipole_grid_xyz=xyz,
+            max_nMagnets=10**9,
+            m_init=np.zeros((N, 3), dtype=np.float64),
+        )
+
+        def fake_backtracking_step(*args, **kwargs):
+            # Keep the reported nonzero count constant so the stagnation check triggers.
+            num_nonzero_ref = args[10]
+            num_nonzero_ref[0] = 1
+            return 0
+
+        buf = io.StringIO()
+        with mock.patch.object(pmo, "_backtracking_step", side_effect=fake_backtracking_step):
+            with contextlib.redirect_stdout(buf):
+                pmo.GPMO_py(A_obj, b_obj, mmax, normal_norms, pol_vectors, params)
+
+        self.assertIn(
+            "Stopping iterations: number of nonzero dipoles unchanged over three backtracking cycles",
+            buf.getvalue(),
+        )
+
+    def test_gpmo_py_stop_message_all_populated(self):
+        """Cover the magnet-limit stop message for num_nonzero_ref >= N."""
+        import contextlib
+        import io
+        import simsopt.solve.permanent_magnet_optimization as pmo
+
+        N = 1
+        ngrid = 1
+        pol_vectors = np.zeros((N, 1, 3), dtype=np.float64)
+        pol_vectors[:, 0, 0] = 1.0
+        params = GPMOBacktrackParams(
+            K=3,
+            nhistory=1,
+            verbose=False,
+            backtracking=0,
+            Nadjacent=1,
+            dipole_grid_xyz=np.zeros((N, 3), dtype=np.float64),
+            max_nMagnets=999,
+            m_init=np.zeros((N, 3), dtype=np.float64),
+        )
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            pmo.GPMO_py(
+                np.zeros((3 * N, ngrid), dtype=np.float64),
+                np.zeros((ngrid,), dtype=np.float64),
+                np.ones((N,), dtype=np.float64),
+                np.ones((ngrid,), dtype=np.float64),
+                pol_vectors,
+                params,
+            )
+
+        self.assertIn("Stopping iterations: all dipoles in grid are populated", buf.getvalue())
+
+    def test_gpmo_py_stop_message_max_magnets_reached(self):
+        """Cover the magnet-limit stop message for num_nonzero_ref >= max_nMagnets but < N."""
+        import contextlib
+        import io
+        import simsopt.solve.permanent_magnet_optimization as pmo
+
+        N = 5
+        ngrid = 1
+        pol_vectors = np.zeros((N, 1, 3), dtype=np.float64)
+        pol_vectors[:, 0, 0] = 1.0
+        params = GPMOBacktrackParams(
+            K=3,
+            nhistory=1,
+            verbose=False,
+            backtracking=0,
+            Nadjacent=1,
+            dipole_grid_xyz=np.zeros((N, 3), dtype=np.float64),
+            max_nMagnets=1,
+            m_init=np.zeros((N, 3), dtype=np.float64),
+        )
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            pmo.GPMO_py(
+                np.zeros((3 * N, ngrid), dtype=np.float64),
+                np.zeros((ngrid,), dtype=np.float64),
+                np.ones((N,), dtype=np.float64),
+                np.ones((ngrid,), dtype=np.float64),
+                pol_vectors,
+                params,
+            )
+
+        self.assertIn("Stopping iterations: maximum number of nonzero magnets reached", buf.getvalue())
+
+    def test_gpmomr_raises_if_use_coils_true_without_coil_path(self):
+        import simsopt.solve.permanent_magnet_optimization as pmo
+
+        N = 2
+        params = GPMOMacroMagParams(
+            K=1,
+            nhistory=1,
+            verbose=False,
+            backtracking=0,
+            dipole_grid_xyz=np.zeros((N, 3), dtype=np.float64),
+            max_nMagnets=1,
+            use_coils=True,
+            coil_path=None,
+            m_init=np.zeros((N, 3), dtype=np.float64),
+        )
+
+        with self.assertRaises(ValueError):
+            pmo.GPMOmr(
+                np.zeros((3 * N, 1), dtype=np.float64),
+                np.zeros((1,), dtype=np.float64),
+                np.ones((3 * N,), dtype=np.float64),
+                np.ones((1,), dtype=np.float64),
+                np.zeros((N, 1, 3), dtype=np.float64),
+                params,
+            )
+
+    def test_gpmomr_early_stop_hits_empty_active_paths(self):
+        """Hit the empty-active branches in solve_subset_and_score and _prepare_cached_macromag_call."""
+        import contextlib
+        import io
+        import simsopt.solve.permanent_magnet_optimization as pmo
+
+        N = 2
+        ngrid = 1
+        pol_vectors = np.zeros((N, 1, 3), dtype=np.float64)
+        pol_vectors[:, 0, 0] = 1.0
+        params = GPMOMacroMagParams(
+            K=1,
+            nhistory=1,
+            verbose=False,
+            backtracking=0,
+            dipole_grid_xyz=np.zeros((N, 3), dtype=np.float64),
+            max_nMagnets=0,  # triggers early-stop before any magnets are placed
+            mm_refine_every=100,
+            use_coils=False,
+            m_init=np.zeros((N, 3), dtype=np.float64),
+        )
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            pmo.GPMOmr(
+                np.zeros((3 * N, ngrid), dtype=np.float64),
+                np.zeros((ngrid,), dtype=np.float64),
+                np.ones((3 * N,), dtype=np.float64),
+                np.ones((ngrid,), dtype=np.float64),
+                pol_vectors,
+                params,
+            )
+
+        self.assertIn("Stopping iterations: maximum number of nonzero magnets reached", buf.getvalue())
+
+    def test_gpmomr_stagnation_stop_triggers(self):
+        """Cover the GPMOmr stagnation stop (print_iter_ref > 3 and a==b==c)."""
+        import contextlib
+        import io
+        import simsopt.solve.permanent_magnet_optimization as pmo
+
+        N = 10
+        ngrid = 1
+        pol_vectors = np.zeros((N, 1, 3), dtype=np.float64)
+        pol_vectors[:, 0, 0] = 1.0
+        xyz = np.zeros((N, 3), dtype=np.float64)
+        xyz[:, 0] = np.arange(N, dtype=np.float64)
+
+        params = GPMOMacroMagParams(
+            K=5,
+            nhistory=100,  # record every iter
+            verbose=True,
+            backtracking=1,
+            Nadjacent=1,
+            dipole_grid_xyz=xyz,
+            max_nMagnets=10**9,
+            mm_refine_every=1000,  # avoid MacroMag direct solve
+            use_coils=False,
+            m_init=np.zeros((N, 3), dtype=np.float64),
+        )
+
+        def fake_backtracking_step(*args, **kwargs):
+            num_nonzero_ref = args[10]
+            num_nonzero_ref[0] = 0
+            return 0
+
+        buf = io.StringIO()
+        with mock.patch.object(pmo, "_backtracking_step", side_effect=fake_backtracking_step):
+            with contextlib.redirect_stdout(buf):
+                pmo.GPMOmr(
+                    np.zeros((3 * N, ngrid), dtype=np.float64),
+                    np.zeros((ngrid,), dtype=np.float64),
+                    np.ones((3 * N,), dtype=np.float64),
+                    np.ones((ngrid,), dtype=np.float64),
+                    pol_vectors,
+                    params,
+                )
+
+        self.assertIn(
+            "Stopping: number of nonzero dipoles unchanged over three reporting cycles",
+            buf.getvalue(),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

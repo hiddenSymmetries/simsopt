@@ -1078,10 +1078,17 @@ def initialize_default_kwargs(algorithm='RS'):
     )
 
     if algorithm == 'RS':
-        return _dc.asdict(RSParams())
+        try:
+            return _dc.asdict(RSParams())
+        except Exception:
+            pass
     if 'GPMO' in algorithm or 'ArbVec' in algorithm:
-        return _dc.asdict(GPMOParams())
-    # Fallback for unknown algorithms
+        try:
+            return _dc.asdict(GPMOParams())
+        except Exception:
+            pass
+
+    # Legacy fallback / unknown algorithms
     kwargs = {}
     kwargs['verbose'] = True
     if algorithm == 'RS':

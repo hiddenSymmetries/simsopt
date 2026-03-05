@@ -150,6 +150,39 @@ class TestWriteGpmoRunMetadataYaml(unittest.TestCase):
                         paths={},
                     )
 
+    def test_module_import_sets_yaml_none_when_ruamel_missing(self):
+        """
+        Cover the module-level ImportError path:
+        try: from ruamel.yaml import YAML
+        except ImportError: YAML = None
+        """
+        import builtins
+        import simsopt.util.permanent_magnet_helper_functions as pmhf
+
+        module_path = Path(pmhf.__file__)
+        module_name = "simsopt.util._pmhf_no_yaml_test"
+
+        spec = importlib.util.spec_from_file_location(module_name, module_path)
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+
+        orig_import = builtins.__import__
+
+        def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name.startswith("ruamel"):
+                raise ImportError("blocked for test")
+            return orig_import(name, globals, locals, fromlist, level)
+
+        try:
+            sys.modules[module_name] = module
+            with mock.patch.object(builtins, "__import__", side_effect=fake_import):
+                spec.loader.exec_module(module)
+        finally:
+            sys.modules.pop(module_name, None)
+
+        self.assertIsNone(module.YAML)
+
 
 class TestBuildPolarizationVectorsFromFocusData(unittest.TestCase):
     """Tests for build_polarization_vectors_from_focus_data."""
@@ -506,3 +539,26 @@ class TestInitializeDefaultKwargs(unittest.TestCase):
         with self.assertWarns(DeprecationWarning):
             kwargs = initialize_default_kwargs("totally_unknown_algorithm")
         self.assertEqual(kwargs, {"verbose": True})
+
+    def test_rs_legacy_fallback_used_if_asdict_fails(self):
+        # Force the try/except path so the legacy fallback block is executed.
+        with mock.patch("dataclasses.asdict", side_effect=RuntimeError("boom")):
+            with self.assertWarns(DeprecationWarning):
+                kwargs = initialize_default_kwargs("RS")
+        self.assertEqual(kwargs["verbose"], True)
+        self.assertEqual(kwargs["nu"], 1e100)
+        self.assertEqual(kwargs["max_iter"], 100)
+        self.assertEqual(kwargs["reg_l0"], 0.0)
+        self.assertEqual(kwargs["reg_l1"], 0.0)
+        self.assertEqual(kwargs["alpha"], 0.0)
+        self.assertEqual(kwargs["min_fb"], 0.0)
+        self.assertEqual(kwargs["epsilon"], 1e-3)
+        self.assertEqual(kwargs["epsilon_RS"], 1e-3)
+        self.assertEqual(kwargs["max_iter_RS"], 2)
+        self.assertEqual(kwargs["reg_l2"], 0.0)
+
+    def test_gpmo_legacy_fallback_used_if_asdict_fails(self):
+        with mock.patch("dataclasses.asdict", side_effect=RuntimeError("boom")):
+            with self.assertWarns(DeprecationWarning):
+                kwargs = initialize_default_kwargs("GPMO")
+        self.assertEqual(kwargs, {"verbose": True, "K": 1000, "reg_l2": 0.0, "nhistory": 500})
