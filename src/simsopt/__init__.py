@@ -4,6 +4,14 @@
 # Follow the same logic in the sub-packages.
 # ===================END ATTENTION=============================================
 
+# Set XLA flags before JAX is loaded (geo, field use JAX).
+# Disabling fusion avoids heap corruption in macromagnetics demagnetization tensor assembly
+# on macOS and Linux (JAX CPU fusion compiler). Must be set before first JAX import.
+import os as _os
+_xf = _os.environ.get("XLA_FLAGS", "")
+if "xla_disable_hlo_passes" not in _xf:
+    _os.environ["XLA_FLAGS"] = (_xf + " --xla_disable_hlo_passes=fusion").strip()
+
 # Two ways of achieving the above-mentioned objective
 # Use "from xyz import XYZ" style
 # Define __all__ dunder at module and subpackage level. Then you could do
