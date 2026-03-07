@@ -19,18 +19,20 @@ if __name__ == "__main__":
     batch_size = nranks
 
     spline_kwargs = {
-        'axis_points': 3,
-        'points_per_cs': 4,
-        'n_cs': 4,
-        'nfp': 2,
-        'M': 8,
-        'N': 8,
-        'p_u': 3,
-        'p_v': 3,
-        'cs_equispaced': False,
-        'cs_global_angle_free': False,
-        'axis_angles_fixed': False,
-        'cs_basis': 'polar'
+        'axis_points':3,
+        'points_per_cs':5,
+        'n_cs':4,
+        'nfp':2,
+        'M':6,
+        'N':6,
+        'p_u':3,
+        'p_v':3,
+        'cs_equispaced': True,
+        'rays_equispaced': False,
+        'cs_global_angle_free':False,
+        'axis_angles_fixed':True,
+        'cs_basis':'polar',
+        'nurbs': False,
     }
 
     dof_list, ub, lb = write_doflist_maxlist_minlist(spline_kwargs)

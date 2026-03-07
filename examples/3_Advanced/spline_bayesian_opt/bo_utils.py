@@ -3,6 +3,7 @@ import numpy as np
 from simsopt.mhd import Vmec
 from simsopt.util.mpi import MpiPartition
 import fnmatch
+import matplotlib.pyplot as plt
 
 mpi = MpiPartition()
 mpi.write()
@@ -55,25 +56,6 @@ def from_unit_cube(x, lb, ub):
     assert np.all(lb < ub) and lb.ndim == 1 and ub.ndim == 1, f'lb: {lb}, ub: {ub}' #and x.ndim == 2
     xx = x * (ub - lb) + lb
     return xx
-
-def vmec_from_dofs_dict(
-        new_dof_dict,
-        spline_kwargs
-    ):
-    '''
-    Generate VMEC input file given a dictionary with boundary modes
-    '''
-    surf = SurfaceBSpline(
-        **spline_kwargs
-    )
-    #print(surf.dof_names)
-    # x = [new_dof_dict[key] for key in surf.dof_names]
-    # print(new_dof_dict.values())
-    x = np.fromiter(new_dof_dict.values(), dtype=np.float64)
-    surf.x = np.array(x)
-    # runtime params
-    vmec = Vmec.vmec_from_surf(surf.nfp, surf)
-    return vmec
 
 def is_valid_vmec(vmec):
     try:

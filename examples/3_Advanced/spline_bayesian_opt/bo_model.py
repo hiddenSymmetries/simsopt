@@ -114,7 +114,7 @@ class VanillaBO(GlobalOptimizer):
 
     def _fitting_loop(self, batch_size):
         print(f'Current best: {self.y_history.max()}')
-        print(f'at {self.X_history[np.argmax(self.y_history)]}')
+        print(f'at {from_unit_cube(self.X_history[np.argmax(self.y_history)], self.lb, self.ub)}')
         # bounds = torch.tensor(np.vstack([self.lb, self.ub]))
         gp = SingleTaskGP(
             train_X = self.X_history, 

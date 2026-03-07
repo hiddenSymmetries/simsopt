@@ -5,7 +5,7 @@ from simsopt.mhd import Vmec
 from bo_utils import from_unit_cube
 import matplotlib.pyplot as plt
 from mpi4py import MPI
-
+from simsopt.util.mpi import MpiPartition
 from simsopt._core.types import RealArray
 from typing import Union
 import numpy as np
@@ -16,10 +16,10 @@ comm = MPI.COMM_WORLD
 size = comm.Get_size()
 rank = comm.Get_rank()
 
-INVALID_PENALTY = np.array([-2])
+INVALID_PENALTY = np.array([-100])
 from bo_utils import from_unit_cube
 
-from mpi4py import MPI
+mpi = MpiPartition()
 
 def parallel_batch_target(candidates, spline_kwargs, lb, ub, stopp):
     stopp[0]=comm.bcast(stopp[0], root=0)
@@ -41,6 +41,8 @@ def target(X, spline_kwargs, lb, ub):
     )
     assert len(surf.x) == len(dofs), f'len(surf.x): {len(surf.x)}, len(dofs): {len(dofs)}'
     surf.set_dofs_from_vec(np.array(dofs))
+    # surf.plot()
+    # plt.show()
 
     try:
         rz_surf = surf.to_RZFourier(
@@ -65,10 +67,15 @@ def target(X, spline_kwargs, lb, ub):
         # surf.plot()
         # plt.show()
         vmec = Vmec.vmec_from_surf(
-            nfp=surf.nfp,
+            nfp=rz_surf.nfp,
             surf=rz_surf,
-            ns=13
+            mpi=mpi,
+            ns=13,
+            M=12, 
+            N=12,
+            ftol=1e-7
         )
+        # rz_surf.plot()
         vmec.run()
 
         #qa
@@ -82,9 +89,10 @@ def target(X, spline_kwargs, lb, ub):
 
         residuals = np.array([ar_penalty] + [iota_edge_penalty] + [iota_axis_penalty])
         residuals = np.concatenate((residuals, qs_penalty, qs_s1))
-        res = -np.log10(0.5*np.sum(residuals**2))
-        ressq = np.nan_to_num(res, nan=INVALID_PENALTY, posinf=INVALID_PENALTY, neginf=INVALID_PENALTY)
-        return np.maximum(ressq, INVALID_PENALTY)
+        #res = -np.log10(0.5*np.sum(residuals**2))
+        res = -0.5*np.sum(residuals**2)
+        resnn = np.nan_to_num(res, nan=INVALID_PENALTY, posinf=INVALID_PENALTY, neginf=INVALID_PENALTY)
+        return np.maximum(resnn, INVALID_PENALTY)
     except Exception as e:
         print(f'Failed with exception {e}, appending invalid penalty')
         #surf.plot()
