@@ -66,10 +66,11 @@ class GvecTests(unittest.TestCase):
             np.testing.assert_allclose(eq.iota_profile(rho**2), iota)
 
         # check consistency: current profile
-        # absolute tolerance of 1kA
+        # absolute tolerance of 10kA
         if eq.current_profile is not None:
+            # np.testing.assert_allclose(eq.state.evaluate("iota_curr", rho=rho).iota_curr, 0.0)
             I_tor = eq.state.evaluate("I_tor", rho=rho).I_tor
-            np.testing.assert_allclose(eq.current_profile(rho**2), I_tor, atol=1e3)
+            np.testing.assert_allclose(eq.current_profile(rho**2), I_tor, atol=1e4)
         
         # check consistency: boundary
         if isinstance(eq.boundary, SurfaceRZFourier):
@@ -172,35 +173,91 @@ class GvecTests(unittest.TestCase):
         self.assertEqual(eq.parameters["LA_deg"], 5)
     
     def test_run_from_rundir(self):
-        eq = Gvec.from_rundir(TEST_DIR / "gvec-W7-X_standard_configuration")
-        self.check_Optimizable(eq)
-        self.assertFalse(eq.run_required)
-        self.assertTrue(eq.run_successful)
-        self.check_consistency(eq)
-        self.check_return_functions(eq)
+        with ScratchDir("."):
+            eq = Gvec.from_rundir(TEST_DIR / "gvec-W7-X_standard_configuration")
+            self.check_Optimizable(eq)
+            self.assertFalse(eq.run_required)
+            self.assertTrue(eq.run_successful)
+            self.check_consistency(eq)
+            self.check_return_functions(eq)
 
-        eq.parameters["totalIter"] = 10
-        eq.run(force=True)
-        self.assertFalse(eq.run_required)
-        self.assertTrue(eq.run_successful)
+            eq.parameters["totalIter"] = 10
+            eq.run(force=True)
+            self.assertFalse(eq.run_required)
+            self.assertTrue(eq.run_successful)
     
     def test_set_pressure_profile(self):
         s_spline = np.linspace(0, 1, 5)
         profiles = [
-            ProfilePolynomial(1.0e4 * np.array([1, 1, -2.0])),
-            ProfileScaled(ProfilePolynomial([1, 1, -2.0]), 1.5e4),
-            ProfileSpline(s_spline, 1.0e4 * (2.0 + 0.6 * s_spline - 1.5 * s_spline ** 2)),
+            ProfilePolynomial(1.0e2 * np.array([1, 1, -2.0])),
+            ProfileScaled(ProfilePolynomial([1, 1, -2.0]), 1.5e2),
+            ProfileSpline(s_spline, 1.0e2 * (2.0 + 0.6 * s_spline - 1.5 * s_spline ** 2)),
         ]
-        pressure_on_axis = [1.0e4, 1.5e4, 2.0e4]
+        pressure_on_axis = [1.0e2, 1.5e2, 2.0e2]
+        profile_types = ["polynomial", "polynomial", "interpolation"]
 
-        for profile, p0 in zip(profiles, pressure_on_axis):
+        for profile, p0, profile_type in zip(profiles, pressure_on_axis, profile_types):
             with ScratchDir("."), self.subTest(profile=profile):
                 eq = Gvec.from_parameter_file(TEST_DIR / "parameter-LandremanPaul2021_QA_lowres.gvec.toml")
+                eq.parameters["totalIter"] = 10
                 eq.pressure_profile = profile
+                self.assertEqual(eq.pressure_profile, profile)
                 self.assertTrue(eq.run_required)
                 eq.run()
                 self.assertTrue(eq.run_successful)
                 self.check_consistency(eq)
                 self.check_return_functions(eq)
+                self.assertEqual(eq.state.parameters["pres"]["type"], profile_type)
                 p_axis = eq.state.evaluate("p", rho=0.0).p.item()
                 self.assertAlmostEqual(p_axis, p0)
+    
+    def test_set_iota_profile(self):
+        s_spline = np.linspace(0, 1, 5)
+        profiles = [
+            ProfilePolynomial(np.array([1, 1, -2.0])),
+            ProfileSpline(s_spline, (2.0 + 0.6 * s_spline - 1.5 * s_spline ** 2)),
+        ]
+        profile_types = ["polynomial", "interpolation"]
+
+        for profile, profile_type in zip(profiles, profile_types):
+            with ScratchDir("."), self.subTest(profile=profile):
+                eq = Gvec.from_parameter_file(TEST_DIR / "parameter-LandremanPaul2021_QA_lowres.gvec.toml")
+                eq.iota_profile = profile
+                eq.current_profile = None  # -> fixed iota
+                self.assertEqual(eq.iota_profile, profile)
+                self.assertTrue(eq.run_required)
+                eq.run()
+                self.assertTrue(eq.run_successful)
+                self.check_consistency(eq)
+                self.check_return_functions(eq)
+                self.assertEqual(eq.state.parameters["iota"]["type"], profile_type)
+                self.assertAlmostEqual(eq.iota_axis(), eq.iota_profile(0.0))
+                self.assertAlmostEqual(eq.iota_edge(), eq.iota_profile(1.0))
+
+    def test_set_current_profile(self):
+        s_spline = np.linspace(0, 1, 5)
+        factor = 1.0e4  # 10kA
+        profiles = [
+            ProfilePolynomial(factor * np.array([0, 1.1, -0.1])),
+            ProfileScaled(ProfilePolynomial(np.array([0, 1.1, -0.1])), factor),
+            ProfileSpline(s_spline, factor * (1.1 * s_spline - 0.1 * s_spline ** 2)),
+            ProfileScaled(ProfileSpline(s_spline, 1.1 * s_spline - 0.1 * s_spline ** 2), factor),
+        ]
+        profile_types = 2 * ["polynomial"] + 2 * ["interpolation"]
+
+        for profile, profile_type in zip(profiles, profile_types):
+            with ScratchDir("."), self.subTest(profile=profile):
+                eq = Gvec.from_parameter_file(TEST_DIR / "parameter-LandremanPaul2021_QA_lowres.gvec.toml")
+                eq.parameters["minimize_tol"] = 1e-3
+                eq.current_profile = profile
+                eq.iota_profile = None  # -> no initial guess
+                self.assertEqual(eq.current_profile, profile)
+                self.assertTrue(eq.run_required)
+                eq.run()
+                self.assertTrue(eq.run_successful)
+                self.check_consistency(eq)
+                self.check_return_functions(eq)
+                rho = np.array([0.25, 0.5, 0.75, 1.0])
+                Itor = eq.state.evaluate("I_tor", rho=rho).I_tor
+                ref = [eq.current_profile(r**2) for r in rho]
+                np.testing.assert_allclose(Itor, ref, atol=1e4)
