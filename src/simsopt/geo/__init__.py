@@ -1,5 +1,7 @@
 import jax
 jax.config.update("jax_enable_x64", True)
+import jax
+jax.config.update("jax_enable_x64", True)
 from .config import *
 
 from .curve import *
@@ -7,8 +9,10 @@ from .curvehelical import *
 from .curverzfourier import *
 from .curvexyzfourier import *
 from .curvexyzfouriersymmetries import *
+from .curvexyzfouriersymmetries import *
 from .curveperturbed import *
 from .curveobjectives import *
+from .curvecwsfourier import *
 from .curveplanarfourier import *
 from .framedcurve import *
 from .finitebuild import *
@@ -30,9 +34,12 @@ from .ports import *
 from .permanent_magnet_grid import *
 
 __all__ = (curve.__all__ + curvehelical.__all__ +
+           curvecwsfourier.__all__ +
            curverzfourier.__all__ + curvexyzfourier.__all__ +
            curvexyzfouriersymmetries.__all__ +
+           curvexyzfouriersymmetries.__all__ +
            curveperturbed.__all__ + curveobjectives.__all__ +
+           curveplanarfourier.__all__ +
            curveplanarfourier.__all__ +
            finitebuild.__all__ + plotting.__all__ +
            boozersurface.__all__ + qfmsurface.__all__ +
