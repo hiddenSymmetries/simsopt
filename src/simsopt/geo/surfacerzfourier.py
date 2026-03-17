@@ -598,6 +598,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         parameters = {}
         parameters["nfp"] = self.nfp
+        parameters["init_average_axis"] = True
 
         # keep higher mn_max if set previously (e.g. for interior modes)
         for key in ["X1", "X2", "LA"]:
