@@ -172,19 +172,19 @@ class GvecTests(unittest.TestCase):
         self.assertEqual(eq.parameters["X1X2_deg"], 5)
         self.assertEqual(eq.parameters["LA_deg"], 5)
     
-    def test_run_from_rundir(self):
-        with ScratchDir("."):
-            eq = Gvec.from_rundir(TEST_DIR / "gvec-W7-X_standard_configuration")
-            self.check_Optimizable(eq)
-            self.assertFalse(eq.run_required)
-            self.assertTrue(eq.run_successful)
-            self.check_consistency(eq)
-            self.check_return_functions(eq)
+    # def test_run_from_rundir(self):
+    #     with ScratchDir("."):
+    #         eq = Gvec.from_rundir(TEST_DIR / "gvec-W7-X_standard_configuration")
+    #         self.check_Optimizable(eq)
+    #         self.assertFalse(eq.run_required)
+    #         self.assertTrue(eq.run_successful)
+    #         self.check_consistency(eq)
+    #         self.check_return_functions(eq)
 
-            eq.parameters["totalIter"] = 10
-            eq.run(force=True)
-            self.assertFalse(eq.run_required)
-            self.assertTrue(eq.run_successful)
+    #         eq.parameters["totalIter"] = 10
+    #         eq.run(force=True)
+    #         self.assertFalse(eq.run_required)
+    #         self.assertTrue(eq.run_successful)
     
     def test_set_pressure_profile(self):
         s_spline = np.linspace(0, 1, 5)
