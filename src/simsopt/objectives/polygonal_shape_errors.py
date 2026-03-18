@@ -26,6 +26,7 @@ def any_to_uz_grid(
     M = surf.mpol
     N = surf.ntor
     nfp = surf.nfp
+    # nfp=1
 
     u_1d = np.linspace(0, 2*np.pi, nu, endpoint=True)
     zeta_1d = np.linspace(0, 2*np.pi, nv, endpoint=True)        
@@ -80,6 +81,7 @@ def jaccard_index(
         nu=64,
         nv=64,
         plot=False,
+        log=False
     ):
     '''
     Compute the Jaccard index between two SurfaceRZFourier surfaces,
@@ -117,7 +119,10 @@ def jaccard_index(
         poly1 = shapely.Polygon(coords1)
         poly2 = shapely.Polygon(coords2)
         j.append(shapely.intersection(poly1, poly2).area/shapely.union(poly1, poly2).area)
-    return np.log10(j)
+    if log:
+        return np.log10(j)
+    else:
+        return np.array(j)-1
 
 def pointwise_minimum_poly_distance(
         surf1,
@@ -177,6 +182,7 @@ def pointwise_minimum_poly_distance(
             j.append(dist)
         # plt.show()
     #print(f'j: {j}')
+    j=np.array(j)
     return j
 
 def frechet_distance(
@@ -187,7 +193,7 @@ def frechet_distance(
         plot=False,
     ):
     '''
-    Compute the Jaccard index between two SurfaceRZFourier surfaces,
+    Compute the Frechet distance between two SurfaceRZFourier surfaces,
     computed on `nv` toroidal cross-sections. The Jaccard index is the
     ratio between the intersection and union of two different shapes.
     The intersection and union are computed here using the `shapely`

@@ -94,7 +94,7 @@ class CrossSectionFixedZeta(Optimizable):
             dofs = DOFs(
                 cs_dofs,
                 names,
-                [True]*(n_pts) + [True]*(n_pts) + [False] + [nurbs]*(n_pts-1), # fixing one of the weights in the cross section
+                [True]*(n_pts) + [True]*(n_pts) + [nurbs]*(n_pts-1) + [False], # fixing one of the weights in the cross section
                 [0] * (n_pts) + (np.linspace(0, max_angle, n_pts+1)[:-1] - 0.5*np.linspace(0, max_angle, n_pts+1)[1]).tolist() + [0] * (n_pts),
                 [1] * (n_pts) + (np.linspace(0, max_angle, n_pts+1)[1:] - 0.5*np.linspace(0, max_angle, n_pts+1)[1]).tolist() + [1] * (n_pts)
             )
@@ -218,13 +218,13 @@ class PseudoAxis(Optimizable):
             names,
             [True]*len(r_ctrl) + [True]*len(z_ctrl) + [not axis_angles_fixed]*len(zeta_ctrl),
             [0.3] * len(r_ctrl) + [-1] * len(z_ctrl) + (np.linspace(0, max_angle, len(zeta_ctrl)) - (0.5*max_angle)/(len(zeta_ctrl)-1)).tolist(),
-            [1.6] * len(r_ctrl) + [1] * len(z_ctrl) + (np.linspace(0, max_angle, len(zeta_ctrl)) + (0.5*max_angle)/(len(zeta_ctrl)-1)).tolist(), 
+            [2.5] * len(r_ctrl) + [1] * len(z_ctrl) + (np.linspace(0, max_angle, len(zeta_ctrl)) + (0.5*max_angle)/(len(zeta_ctrl)-1)).tolist(), 
         )
 
         dofs.set('r_axis_0', 1)
         dofs.set('z_axis_0', 0)
         dofs.set('zeta_axis_0', 0)
-        dofs.fix('r_axis_0')
+        #dofs.fix('r_axis_0')
         dofs.fix('z_axis_0')
         dofs.fix('zeta_axis_0')
         if stellsym:
@@ -1950,7 +1950,7 @@ def b_p(t, p, x, i=None):
     else:
         return b[-1][:, i]
 
-def vol_from_boundary(rbc, zbs, M, N, nu, nv, nfp):
+def vol_from_boundary(surf: SurfaceRZFourier, nu, nv):
     '''
     Compute volume enclosed by a boundary given with VMEC Fourier coefficients.
     Uses a clever trick based on Gauss' identity:
@@ -1967,6 +1967,12 @@ def vol_from_boundary(rbc, zbs, M, N, nu, nv, nfp):
     :param nv: Number of points to take in v for quadrature
     :param nfp: Number of field periods
     '''
+    rbc = surf.rc.T
+    zbs = surf.zs.T
+    M = surf.mpol
+    N = surf.ntor
+    nfp = surf.nfp
+
     u_1d = np.linspace(0, 2*np.pi, nu, endpoint=True)
     v_1d = np.linspace(0, 2*np.pi, nv, endpoint=True)        
     v_grid, u_grid = np.meshgrid(v_1d, u_1d)

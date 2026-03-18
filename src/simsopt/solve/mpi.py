@@ -222,13 +222,13 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
                 x0 = np.copy(prob.x)
                 logger.info("Using finite difference method implemented in "
                             "SIMSOPT for evaluating gradient")
-                try:
-                    result = least_squares(_f_proc0, x0, bounds=prob.bounds, 
-                                           jac=fd.jac, verbose=2, **kwargs)
-                except:
-                    logger.error("Failure on proc0_world")
-                    result = Struct()
-                    result.x = x0
+            #try:
+                result = least_squares(_f_proc0, x0, bounds=prob.bounds, 
+                                        jac=fd.jac, verbose=2, **kwargs)
+            #except:
+                # logger.error("Failure on proc0_world")
+                # result = Struct()
+                # result.x = x0
 
     else:
         def leaders_action(mpi, data): return None
