@@ -182,7 +182,7 @@ jobs:
       run: |
         python -m pip install -v .
         python -m pip install --no-binary=mpi4py mpi4py
-        # python -m pip install -v git+https://github.com/zhisong/pyoculus
+        # python -m pip install -v git+https://github.com/pyoculus/pyoculus
         # python -m pip install py_spec h5py
 
     - name: Run examples as part of integrated tests
