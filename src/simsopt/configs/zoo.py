@@ -25,7 +25,7 @@ THIS_DIR = (Path(__file__).parent).resolve()
 
 __all__ = [
     "get_data", 
-    "configurations", 
+    "configurations",
     "get_ncsx_data",
     "get_hsx_data",
     "get_giuliani_data",
@@ -33,7 +33,7 @@ __all__ = [
     "download_ID_from_QUASR_database"
 ]
 
-configurations = ["ncsx", "hsx", "giuliani", "w7x", "lhd_like", "quasr"]
+configurations = ["ncsx", "hsx", "giuliani", "w7x", "lhd_like", "quasr", "STAR_Lite-A_low", "STAR_Lite-A_medium", "STAR_Lite-A_high"]
 
 def get_data(name, **kwargs):
     """
@@ -108,9 +108,9 @@ def get_data(name, **kwargs):
     tuple
         *5-element tuple* ``(base_curves, base_currents, ma, nfp, bs)``, where:
 
-        base_curves : list of :class:`CurveXYZFourier` 
+        base_curves : list of :class:`CurveXYZFourier`, or `RotatedCurve` 
             The curves representing the unique coils of the configuration (excluding symmetry copies). Fidelity and number of degrees-of-freedom are determined by ``coil_order`` and ``points_per_period``.
-        base_currents : list of :class:`Current`
+        base_currents : list of :class:`Current`, or `ScaledCurrent`
             Corresponding coil currents.
         ma : :class:`CurveRZFourier`
             The magnetic axis, of order ``magnetic_axis_order``.
@@ -201,6 +201,16 @@ def get_data(name, **kwargs):
 
         Magnetic axes have not been generated for the database, and the returned `ma`
         variable is set to `None`.
+
+    ``name="STAR_Lite-A_low", "STAR_Lite-A_medium", "STAR_Lite-A_high"`` 
+        **Get the coils for STAR_Lite-A in the low, medium, and high rotational transform configurations.**
+        
+        Design A for STAR_Lite ("STAR_Lite-A") varies the current ratios, while fixing the coil geometry to
+        attain different rotational transform profiles. The low, medium, and high iota configurations have
+        on-axis rotational transform 0.20, 0.23, 0.30.  All configurations also feature an unpaired X point.
+
+        See the following reference for more information:
+        ADD ARXIV LINK
     """
     
     def add_default_args(kw_old, **kw_new):
@@ -211,7 +221,7 @@ def get_data(name, **kwargs):
     ma = None
     nfp = None # will be assigned in every branch
     cfg = name.lower()
-
+    
     if cfg == "ncsx":
         """Get a configuration that corresponds to the modular coils of the NCSX experiment (circular coils are not included)."""
         add_default_args(kwargs, coil_order=25, magnetic_axis_order=10, points_per_period=10)
@@ -390,6 +400,27 @@ def get_data(name, **kwargs):
         bs = BiotSavart(coils)
 
         ma = None  # quasr configurations do not provide an axis object. finding can be attempted when cbs/fieldline_integrator branch is readu
+        return base_curves, base_currents, ma, nfp, bs
+
+    elif cfg.startswith("star_lite-a"):
+        [boozer_surfaces, iota_Gs, axis_curves, xpoint_curves] = load(THIS_DIR / 'STAR_Lite-A.json')
+        
+        # select the low, medium or high iota configuration
+        if cfg.endswith("low"): # on axis iota=0.20
+            configID = 1
+        elif cfg.endswith("medium"): # on axis iota=0.23
+            configID = 0
+        elif cfg.endswith("high"): # on axis iota=0.30
+            configID = 2
+
+        bs = boozer_surfaces[configID].biotsavart
+        coils = bs.coils
+        
+        base_curves = [coils[0].curve, coils[4].curve] #L-coil, T coil
+        base_currents = [coils[0].current, coils[4].current]
+        
+        nfp = 2
+        ma = axis_curves[configID]
         return base_curves, base_currents, ma, nfp, bs
 
     else:
