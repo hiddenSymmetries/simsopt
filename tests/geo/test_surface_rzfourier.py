@@ -1,7 +1,6 @@
 import unittest
 from pathlib import Path
 
-from qsc import Qsc
 import numpy as np
 from monty.tempfile import ScratchDir
 from scipy.special import jv as bessel_J
@@ -17,9 +16,20 @@ try:
 except ImportError:
     vmec = None
 
+try:
+    import gvec
+except ImportError:
+    gvec = None
+
+try:
+    from qsc import Qsc
+except ImportError:
+    Qsc = None
+
 from simsopt.mhd import Vmec
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
+GVEC_SURFACE_PARAMETERS_COMPARE = ["nfp", "X1_sin_cos", "X2_sin_cos", "X1_mn_max", "X2_mn_max", "X1_b_cos", "X2_b_sin"]
 
 stellsym_list = [True, False]
 
@@ -395,6 +405,40 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s.area(), true_area, places=4)
         self.assertAlmostEqual(s.volume(), true_volume, places=3)
 
+    @unittest.skipIf(gvec is None, "gvec package not installed")
+    def test_from_gvec_parameters(self):
+        params0 = gvec.util.read_parameters(TEST_DIR / "parameter-LandremanPaul2021_QA.gvec.toml")
+        params1 = params0.serialize()
+        params2 = {key: params0[key] for key in GVEC_SURFACE_PARAMETERS_COMPARE}
+        self.assertIsInstance(params0, gvec.util.CaseInsensitiveDict)
+        self.assertIsInstance(params1, dict)
+
+        surf0 = SurfaceRZFourier.from_gvec_parameters(params0)
+        surf1 = SurfaceRZFourier.from_gvec_parameters(params1)
+        surf2 = SurfaceRZFourier.from_gvec_parameters(params2)
+        for surf in [surf0, surf1, surf2]:
+            self.assertEqual(surf.mpol, 15)
+            self.assertEqual(surf.ntor, 12)
+            # Note the sign change (n → -n)
+            self.assertAlmostEqual(surf.get("rc(2,3)"), 0.002023292416997494)
+            self.assertAlmostEqual(surf.get("zs(3,-1)"), -0.001194121521590374)
+
+        np.testing.assert_allclose(surf1.x, surf0.x)
+        np.testing.assert_allclose(surf2.x, surf0.x)
+
+    @unittest.skipIf(gvec is None, "gvec package not installed")
+    def test_to_gvec_parameters(self):
+        params0 = gvec.util.read_parameters(TEST_DIR / "parameter-LandremanPaul2021_QA.gvec.toml")
+
+        surf1 = SurfaceRZFourier.from_gvec_parameters(params0)
+        params1 = surf1.to_gvec_parameters()
+
+        for key in GVEC_SURFACE_PARAMETERS_COMPARE:
+            self.assertEqual(params1[key], params0[key])
+        self.assertTrue(params1["init_average_axis"])
+        self.assertTrue("LA_sin_cos" in params1)
+        self.assertTrue("LA_mn_max" in params1)
+
     def test_extend_via_normal(self):
         """
         Extend a surface using extend_via_normal(), and confirm that the
@@ -468,6 +512,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         regcoil_surf = SurfaceRZFourier.from_nescoil_input(nescin_filename, "current", range="field period", ntheta=21, nphi=20)
         np.testing.assert_allclose(coil_surf_test.gamma(), regcoil_surf.gamma(), rtol=2e-4)
 
+    @unittest.skipIf(Qsc is None, "pyQSC is not installed")
     def test_from_pyQSC(self):
         """
         Try reading in a near-axis pyQSC equilibrium.
