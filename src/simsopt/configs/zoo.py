@@ -44,7 +44,7 @@ def get_data(name, **kwargs):
     ----------
     name : str
         Which configuration to load. Available values are:
-        ``"ncsx"``, ``"hsx"``, ``"giuliani"``, ``"w7x"``, ``"lhd_like"``, ``"quasr"``.
+        ``"ncsx"``, ``"hsx"``, ``"giuliani"``, ``"w7x"``, ``"lhd_like"``, ``"quasr"``, ``"STAR_Lite-A_low"``, ``"STAR_Lite-A_medium"``, ``"STAR_Lite-A_high"``
     kwargs : dict
         Configuration-specific parameters. See the sections below for details.
         
