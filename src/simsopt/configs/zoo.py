@@ -210,7 +210,8 @@ def get_data(name, **kwargs):
         on-axis rotational transform 0.20, 0.23, 0.30.  All configurations also feature an unpaired X point.
 
         See the following reference for more information:
-        ADD ARXIV LINK
+        Harrer, G. F., Giuliani, A., Padidar, M., Davies, R., Naik, S., & Lowe, C. (2026). STAR_Lite: A stellarator designed to experimentally validate non-resonant divertors. arXiv. 
+        https://arxiv.org/abs/2603.18265
     """
     
     def add_default_args(kw_old, **kw_new):
@@ -412,7 +413,7 @@ def get_data(name, **kwargs):
             configID = 0
         elif cfg.endswith("high"): # on axis iota=0.30
             configID = 2
-
+        
         bs = boozer_surfaces[configID].biotsavart
         coils = bs.coils
         
