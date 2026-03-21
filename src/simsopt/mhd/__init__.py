@@ -8,7 +8,10 @@ from .vmec_diagnostics import *
 from .profiles import *
 from .bootstrap import *
 from .boozer import *
+from .vmec_jax import *
+from .boozer_jax import *
 from .spec import *
 
 __all__ = (vmec.__all__ + virtual_casing.__all__ + vmec_diagnostics.__all__ +
-           profiles.__all__ + bootstrap.__all__ + boozer.__all__ + spec.__all__)
+           profiles.__all__ + bootstrap.__all__ + boozer.__all__ +
+           vmec_jax.__all__ + boozer_jax.__all__ + spec.__all__)
