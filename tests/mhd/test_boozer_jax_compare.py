@@ -5,6 +5,7 @@ import pytest
 
 pytest.importorskip("vmec_jax")
 pytest.importorskip("booz_xform_jax")
+pytest.importorskip("booz_xform")
 
 try:
     import vmec as vmec_mod  # noqa: F401
