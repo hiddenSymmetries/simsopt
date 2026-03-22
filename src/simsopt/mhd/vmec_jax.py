@@ -590,11 +590,13 @@ class VmecJax:
                 state = _solve("gd")
             else:
                 raise
-        # Reuse the last converged state as the next solve's starting point.
-        # The fixed-boundary solver enforces the new edge coefficients
-        # independently, so this is a safe warm start for nearby x values and
-        # avoids restarting every evaluation from the original boundary guess.
-        self._context.st_guess = state
+        # Reuse the last converged state as the next solve's starting point for
+        # ordinary concrete evaluations. Avoid mutating the warm-start state
+        # during traced/JAX-transformed solves, which would make subsequent
+        # objective calls history-dependent and can leak traced values into the
+        # Python wrapper state.
+        if x_key is not None:
+            self._context.st_guess = state
         if x_key is not None:
             self._cached_x = x_key
             self._cached_state = state
