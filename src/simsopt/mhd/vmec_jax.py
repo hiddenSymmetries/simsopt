@@ -276,6 +276,17 @@ class VmecJax:
             default=1e-13,
             cast=float,
         )
+        self._step_size = 5e-3
+        self._history_size = 8
+        self._jacobian_penalty = 1e3
+        self._preconditioner_override = None
+        self._precond_exponent = 1.0
+        self._precond_radial_alpha_override = None
+        self._implicit_cg_max_iter = 60
+        self._implicit_cg_tol = 1e-10
+        self._implicit_damping = 1e-5
+        self._implicit_converge_tol = None
+        self._implicit_zero_unconverged = False
         self._reset_caches()
 
     def _reset_caches(self) -> None:
@@ -370,6 +381,17 @@ class VmecJax:
         grad_tol: float | None = None,
         solver: str | None = None,
         warm_start_iters: int | None = None,
+        step_size: float | None = None,
+        history_size: int | None = None,
+        jacobian_penalty: float | None = None,
+        preconditioner: str | None = None,
+        precond_exponent: float | None = None,
+        precond_radial_alpha: float | None = None,
+        implicit_cg_max_iter: int | None = None,
+        implicit_cg_tol: float | None = None,
+        implicit_damping: float | None = None,
+        implicit_converge_tol: float | None = None,
+        implicit_zero_unconverged: bool | None = None,
     ) -> None:
         if max_iter is not None:
             max_iter = int(max_iter)
@@ -391,6 +413,61 @@ class VmecJax:
             if warm_start_iters != self._warm_start_iters:
                 self._warm_start_iters = warm_start_iters
                 self._invalidate_runtime()
+        if step_size is not None:
+            step_size = float(step_size)
+            if step_size != self._step_size:
+                self._step_size = step_size
+                self._reset_caches()
+        if history_size is not None:
+            history_size = int(history_size)
+            if history_size != self._history_size:
+                self._history_size = history_size
+                self._reset_caches()
+        if jacobian_penalty is not None:
+            jacobian_penalty = float(jacobian_penalty)
+            if jacobian_penalty != self._jacobian_penalty:
+                self._jacobian_penalty = jacobian_penalty
+                self._reset_caches()
+        if preconditioner is not None:
+            preconditioner = str(preconditioner).strip().lower()
+            if preconditioner != self._preconditioner_override:
+                self._preconditioner_override = preconditioner
+                self._reset_caches()
+        if precond_exponent is not None:
+            precond_exponent = float(precond_exponent)
+            if precond_exponent != self._precond_exponent:
+                self._precond_exponent = precond_exponent
+                self._reset_caches()
+        if precond_radial_alpha is not None:
+            precond_radial_alpha = float(precond_radial_alpha)
+            if precond_radial_alpha != self._precond_radial_alpha_override:
+                self._precond_radial_alpha_override = precond_radial_alpha
+                self._reset_caches()
+        if implicit_cg_max_iter is not None:
+            implicit_cg_max_iter = int(implicit_cg_max_iter)
+            if implicit_cg_max_iter != self._implicit_cg_max_iter:
+                self._implicit_cg_max_iter = implicit_cg_max_iter
+                self._reset_caches()
+        if implicit_cg_tol is not None:
+            implicit_cg_tol = float(implicit_cg_tol)
+            if implicit_cg_tol != self._implicit_cg_tol:
+                self._implicit_cg_tol = implicit_cg_tol
+                self._reset_caches()
+        if implicit_damping is not None:
+            implicit_damping = float(implicit_damping)
+            if implicit_damping != self._implicit_damping:
+                self._implicit_damping = implicit_damping
+                self._reset_caches()
+        if implicit_converge_tol is not None:
+            implicit_converge_tol = float(implicit_converge_tol)
+            if implicit_converge_tol != self._implicit_converge_tol:
+                self._implicit_converge_tol = implicit_converge_tol
+                self._reset_caches()
+        if implicit_zero_unconverged is not None:
+            implicit_zero_unconverged = bool(implicit_zero_unconverged)
+            if implicit_zero_unconverged != self._implicit_zero_unconverged:
+                self._implicit_zero_unconverged = implicit_zero_unconverged
+                self._reset_caches()
 
     def _x_cache_key(self, x_free) -> tuple[float, ...]:
         try:
@@ -420,7 +497,11 @@ class VmecJax:
         edge_Zcos = jnp.asarray(boundary.Z_cos)
         edge_Zsin = jnp.asarray(boundary.Z_sin)
 
-        implicit_opts = ImplicitFixedBoundaryOptions(cg_max_iter=60, cg_tol=1e-10, damping=1e-5)
+        implicit_opts = ImplicitFixedBoundaryOptions(
+            cg_max_iter=int(self._implicit_cg_max_iter),
+            cg_tol=float(self._implicit_cg_tol),
+            damping=float(self._implicit_damping),
+        )
         step_size = float(self._indata_raw.get_float("DELT", 1.0))
 
         def _solve(solver: str):
@@ -461,8 +542,12 @@ class VmecJax:
                     use_scan=False,
                 )
                 return res.state
-            preconditioner = "mode_diag+radial_tridi" if solver == "lbfgs" else "none"
-            precond_radial_alpha = 0.5 if solver == "lbfgs" else 0.0
+            preconditioner = self._preconditioner_override
+            if preconditioner is None:
+                preconditioner = "mode_diag+radial_tridi" if solver == "lbfgs" else "none"
+            precond_radial_alpha = self._precond_radial_alpha_override
+            if precond_radial_alpha is None:
+                precond_radial_alpha = 0.5 if solver == "lbfgs" else 0.0
             return solve_fixed_boundary_state_implicit(
                 self._context.st_guess,
                 self._static,
@@ -472,18 +557,22 @@ class VmecJax:
                 lamscale=self._lamscale,
                 pressure=self._pressure,
                 gamma=float(self._indata_raw.get_float("GAMMA", 0.0)),
-                jacobian_penalty=1e3,
+                jacobian_penalty=float(self._jacobian_penalty),
                 solver=solver,
                 max_iter=int(self._max_iter),
-                step_size=5e-3,
-                history_size=8,
+                step_size=float(self._step_size),
+                history_size=int(self._history_size),
                 grad_tol=float(self._grad_tol),
                 preconditioner=preconditioner,
-                precond_exponent=1.0,
+                precond_exponent=float(self._precond_exponent),
                 precond_radial_alpha=precond_radial_alpha,
                 implicit=implicit_opts,
-                implicit_converge_tol=max(float(self._grad_tol), 1e-6),
-                implicit_zero_unconverged=False,
+                implicit_converge_tol=(
+                    float(self._implicit_converge_tol)
+                    if self._implicit_converge_tol is not None
+                    else float(self._grad_tol)
+                ),
+                implicit_zero_unconverged=bool(self._implicit_zero_unconverged),
                 edge_Rcos=edge_Rcos,
                 edge_Rsin=edge_Rsin,
                 edge_Zcos=edge_Zcos,

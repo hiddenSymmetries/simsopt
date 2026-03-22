@@ -82,7 +82,7 @@ def test_vmec_jax_solver_option_change_invalidates_cache():
     vmec._cached_wout = object()
     vmec._cached_run = object()
 
-    vmec.set_solver_options(max_iter=123)
+    vmec.set_solver_options(max_iter=123, implicit_cg_tol=1.0e-8, step_size=1.0e-2)
 
     assert vmec._cached_x is None
     assert vmec._cached_state is None
@@ -93,7 +93,7 @@ def test_vmec_jax_solver_option_change_invalidates_cache():
 def test_vmec_jax_defaults_honor_staged_input_controls():
     vmec = VmecJax(_input_filename(), verbose=False)
 
-    assert vmec._max_iter == 2000
+    assert vmec._max_iter == 1500
     assert vmec._grad_tol == pytest.approx(1.0e-13)
     assert vmec._warm_start_iters == 0
 

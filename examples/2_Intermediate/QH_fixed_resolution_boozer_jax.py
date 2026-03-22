@@ -27,6 +27,17 @@ parser.add_argument("--no-jit", action="store_true", help="Disable JIT (default 
 parser.add_argument("--warm-start-iters", type=int, default=0, help="Optional explicit VMEC warm-start LBFGS iterations.")
 parser.add_argument("--vmec-max-iter", type=int, default=None, help="Override VMEC iteration budget.")
 parser.add_argument("--vmec-grad-tol", type=float, default=None, help="Override VMEC residual tolerance.")
+parser.add_argument("--vmec-step-size", type=float, default=None, help="Override the JAX fixed-boundary step size.")
+parser.add_argument("--vmec-history-size", type=int, default=None, help="Override the JAX L-BFGS history size.")
+parser.add_argument("--vmec-jacobian-penalty", type=float, default=None, help="Override the JAX Jacobian-sign penalty weight.")
+parser.add_argument("--vmec-preconditioner", type=str, default=None, help="Override the JAX preconditioner name.")
+parser.add_argument("--vmec-precond-exponent", type=float, default=None, help="Override the JAX preconditioner exponent.")
+parser.add_argument("--vmec-precond-radial-alpha", type=float, default=None, help="Override the JAX radial preconditioner strength.")
+parser.add_argument("--vmec-implicit-cg-max-iter", type=int, default=None, help="Override the implicit CG iteration budget.")
+parser.add_argument("--vmec-implicit-cg-tol", type=float, default=None, help="Override the implicit CG tolerance.")
+parser.add_argument("--vmec-implicit-damping", type=float, default=None, help="Override the implicit VJP damping.")
+parser.add_argument("--vmec-implicit-converge-tol", type=float, default=None, help="Override the implicit solve convergence threshold.")
+parser.add_argument("--vmec-implicit-zero-unconverged", action="store_true", help="Zero implicit gradients when the inner solve is unconverged.")
 parser.add_argument(
     "--solver",
     default="residual",
@@ -74,6 +85,28 @@ if args.vmec_max_iter is not None:
     vmec_opts["max_iter"] = int(args.vmec_max_iter)
 if args.vmec_grad_tol is not None:
     vmec_opts["grad_tol"] = float(args.vmec_grad_tol)
+if args.vmec_step_size is not None:
+    vmec_opts["step_size"] = float(args.vmec_step_size)
+if args.vmec_history_size is not None:
+    vmec_opts["history_size"] = int(args.vmec_history_size)
+if args.vmec_jacobian_penalty is not None:
+    vmec_opts["jacobian_penalty"] = float(args.vmec_jacobian_penalty)
+if args.vmec_preconditioner is not None:
+    vmec_opts["preconditioner"] = str(args.vmec_preconditioner)
+if args.vmec_precond_exponent is not None:
+    vmec_opts["precond_exponent"] = float(args.vmec_precond_exponent)
+if args.vmec_precond_radial_alpha is not None:
+    vmec_opts["precond_radial_alpha"] = float(args.vmec_precond_radial_alpha)
+if args.vmec_implicit_cg_max_iter is not None:
+    vmec_opts["implicit_cg_max_iter"] = int(args.vmec_implicit_cg_max_iter)
+if args.vmec_implicit_cg_tol is not None:
+    vmec_opts["implicit_cg_tol"] = float(args.vmec_implicit_cg_tol)
+if args.vmec_implicit_damping is not None:
+    vmec_opts["implicit_damping"] = float(args.vmec_implicit_damping)
+if args.vmec_implicit_converge_tol is not None:
+    vmec_opts["implicit_converge_tol"] = float(args.vmec_implicit_converge_tol)
+if args.vmec_implicit_zero_unconverged:
+    vmec_opts["implicit_zero_unconverged"] = True
 vmec.set_solver_options(**vmec_opts)
 vmec.indata.mpol = max_mode + 2
 vmec.indata.ntor = vmec.indata.mpol
