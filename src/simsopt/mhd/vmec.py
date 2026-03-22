@@ -743,13 +743,11 @@ class Vmec(Optimizable):
                 os.remove(mercier_file)
             except FileNotFoundError:
                 logger.debug(f'Tried to delete the file {mercier_file} but it was not found')
-                raise
 
             try:
                 os.remove(jxbout_file)
             except FileNotFoundError:
                 logger.debug(f'Tried to delete the file {jxbout_file} but it was not found')
-                raise
 
             try:
                 os.remove("fort.9")

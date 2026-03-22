@@ -8,6 +8,7 @@ Boozer coordinates, and an optimization target for quasisymmetry.
 """
 
 import logging
+import os
 from typing import Union, Iterable
 
 import numpy as np
@@ -52,7 +53,8 @@ class Boozer(Optimizable):
                  equil: Vmec,
                  mpol: int = 32,
                  ntor: int = 32,
-                 verbose: bool = False) -> None:
+                 verbose: bool = False,
+                 use_wout_file: bool = False) -> None:
         """
         Constructor
         """
@@ -64,11 +66,11 @@ class Boozer(Optimizable):
         self.equil = equil
         self.mpol = mpol
         self.ntor = ntor
-        self.bx = booz_xform.Booz_xform()
-        self.bx.verbose = verbose
+        self.bx = None
         self.s = set()
         self.need_to_run_code = True
         self._calls = 0  # For testing, keep track of how many times we call bx.run()
+        self.use_wout_file = bool(use_wout_file)
 
         # We may at some point want to allow booz_xform to use a
         # different partitioning of the MPI processors compared to the
@@ -78,6 +80,9 @@ class Boozer(Optimizable):
         self.mpi = None
         if equil is not None:
             self.mpi = equil.mpi
+        if (self.mpi is None) or self.mpi.proc0_groups:
+            self.bx = booz_xform.Booz_xform()
+            self.bx.verbose = verbose
         if equil is not None:
             super().__init__(depends_on=[equil])
         else:
@@ -123,7 +128,21 @@ class Boozer(Optimizable):
 
         if isinstance(self.equil, Vmec):
             #partake in parallel VMEC job
+            use_wout_file = self.use_wout_file or ((self.mpi is not None) and (self.mpi.ngroups > 1))
+            delete_wout_after = False
+            if use_wout_file and (not self.equil.keep_all_files):
+                # Keep the per-group wout file long enough for booz_xform to read it.
+                self.equil.keep_all_files = True
+                delete_wout_after = True
             self.equil.run()
+
+            # booz_xform itself is serial here. Non-leader ranks only
+            # participate in the VMEC solve and do not need local Boozer data,
+            # since downstream objectives skip non-leaders.
+            if (self.mpi is not None) and (not self.mpi.proc0_groups):
+                logger.info("This proc is skipping booz_xform since it is not a group leader.")
+                self.need_to_run_code = False
+                return
 
             wout = self.equil.wout  # Shorthand
 
@@ -165,66 +184,74 @@ class Boozer(Optimizable):
                 self.s_to_index[ss] = compute_surfs.index(s_to_index_all_surfs[ss])
             logger.info("s_to_index={}".format(self.s_to_index))
 
-            # Transfer data in memory from VMEC to booz_xform
-            self.bx.asym = bool(wout.lasym)
-            self.bx.nfp = wout.nfp
-
-            self.bx.mpol = wout.mpol
-            self.bx.ntor = wout.ntor
-            self.bx.mnmax = wout.mnmax
-            self.bx.xm = wout.xm
-            self.bx.xn = wout.xn
-            logger.info(f'mnmax: {wout.mnmax} len(xm): {len(wout.xm)} len(xn): {len(wout.xn)}')
-            logger.info(f'mnmax_nyq: {wout.mnmax_nyq} len(xm_nyq): {len(wout.xm_nyq)} len(xn_nyq): {len(wout.xn_nyq)}')
-            assert len(wout.xm) == wout.mnmax
-            assert len(wout.xn) == wout.mnmax
-            assert len(self.bx.xm) == self.bx.mnmax
-            assert len(self.bx.xn) == self.bx.mnmax
-
-            self.bx.mpol_nyq = int(wout.xm_nyq[-1])
-            self.bx.ntor_nyq = int(wout.xn_nyq[-1] / wout.nfp)
-            self.bx.mnmax_nyq = wout.mnmax_nyq
-            self.bx.xm_nyq = wout.xm_nyq
-            self.bx.xn_nyq = wout.xn_nyq
-            assert len(wout.xm_nyq) == wout.mnmax_nyq
-            assert len(wout.xn_nyq) == wout.mnmax_nyq
-            assert len(self.bx.xm_nyq) == self.bx.mnmax_nyq
-            assert len(self.bx.xn_nyq) == self.bx.mnmax_nyq
-
-            if wout.lasym:
-                rmns = wout.rmns
-                zmnc = wout.zmnc
-                lmnc = wout.lmnc
-                bmns = wout.bmns
-                bsubumns = wout.bsubumns
-                bsubvmns = wout.bsubvmns
+            if use_wout_file:
+                self.bx.read_wout(self.equil.output_file)
+                if delete_wout_after:
+                    try:
+                        os.remove(self.equil.output_file)
+                    except FileNotFoundError:
+                        logger.debug(f'Tried to delete the file {self.equil.output_file} but it was not found')
             else:
-                # For stellarator-symmetric configs, the asymmetric
-                # arrays have not been initialized.
-                arr = np.array([[]])
-                rmns = arr
-                zmnc = arr
-                lmnc = arr
-                bmns = arr
-                bsubumns = arr
-                bsubvmns = arr
+                # Transfer data in memory from VMEC to booz_xform.
+                self.bx.asym = bool(wout.lasym)
+                self.bx.nfp = wout.nfp
 
-            # For quantities that depend on radius, booz_xform handles
-            # interpolation and discarding the rows of zeros:
-            self.bx.init_from_vmec(wout.ns,
-                                   wout.iotas,
-                                   wout.rmnc,
-                                   rmns,
-                                   zmnc,
-                                   wout.zmns,
-                                   lmnc,
-                                   wout.lmns,
-                                   wout.bmnc,
-                                   bmns,
-                                   wout.bsubumnc,
-                                   bsubumns,
-                                   wout.bsubvmnc,
-                                   bsubvmns)
+                self.bx.mpol = wout.mpol
+                self.bx.ntor = wout.ntor
+                self.bx.mnmax = wout.mnmax
+                self.bx.xm = wout.xm
+                self.bx.xn = wout.xn
+                logger.info(f'mnmax: {wout.mnmax} len(xm): {len(wout.xm)} len(xn): {len(wout.xn)}')
+                logger.info(f'mnmax_nyq: {wout.mnmax_nyq} len(xm_nyq): {len(wout.xm_nyq)} len(xn_nyq): {len(wout.xn_nyq)}')
+                assert len(wout.xm) == wout.mnmax
+                assert len(wout.xn) == wout.mnmax
+                assert len(self.bx.xm) == self.bx.mnmax
+                assert len(self.bx.xn) == self.bx.mnmax
+
+                self.bx.mpol_nyq = int(wout.xm_nyq[-1])
+                self.bx.ntor_nyq = int(wout.xn_nyq[-1] / wout.nfp)
+                self.bx.mnmax_nyq = wout.mnmax_nyq
+                self.bx.xm_nyq = wout.xm_nyq
+                self.bx.xn_nyq = wout.xn_nyq
+                assert len(wout.xm_nyq) == wout.mnmax_nyq
+                assert len(wout.xn_nyq) == wout.mnmax_nyq
+                assert len(self.bx.xm_nyq) == self.bx.mnmax_nyq
+                assert len(self.bx.xn_nyq) == self.bx.mnmax_nyq
+
+                if wout.lasym:
+                    rmns = wout.rmns
+                    zmnc = wout.zmnc
+                    lmnc = wout.lmnc
+                    bmns = wout.bmns
+                    bsubumns = wout.bsubumns
+                    bsubvmns = wout.bsubvmns
+                else:
+                    # For stellarator-symmetric configs, the asymmetric
+                    # arrays have not been initialized.
+                    arr = np.array([[]])
+                    rmns = arr
+                    zmnc = arr
+                    lmnc = arr
+                    bmns = arr
+                    bsubumns = arr
+                    bsubvmns = arr
+
+                # For quantities that depend on radius, booz_xform handles
+                # interpolation and discarding the rows of zeros:
+                self.bx.init_from_vmec(wout.ns,
+                                       wout.iotas,
+                                       wout.rmnc,
+                                       rmns,
+                                       zmnc,
+                                       wout.zmns,
+                                       lmnc,
+                                       wout.lmns,
+                                       wout.bmnc,
+                                       bmns,
+                                       wout.bsubumnc,
+                                       bsubumns,
+                                       wout.bsubvmnc,
+                                       bsubvmns)
             self.bx.compute_surfs = compute_surfs
             self.bx.mboz = self.mpol
             self.bx.nboz = self.ntor

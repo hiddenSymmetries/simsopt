@@ -24,6 +24,9 @@ max_nfev = 10
 parser = argparse.ArgumentParser()
 parser.add_argument("--fast", action="store_true", help="Reduce VMEC iterations for quick verification.")
 parser.add_argument("--no-jit", action="store_true", help="Disable JIT (default is to JIT everything).")
+parser.add_argument("--warm-start-iters", type=int, default=0, help="Optional explicit VMEC warm-start LBFGS iterations.")
+parser.add_argument("--vmec-max-iter", type=int, default=None, help="Override VMEC iteration budget.")
+parser.add_argument("--vmec-grad-tol", type=float, default=None, help="Override VMEC residual tolerance.")
 parser.add_argument(
     "--solver",
     default="residual",
@@ -63,9 +66,15 @@ vmec = VmecJax(filename, verbose=False)
 top_level_jit = not args.no_jit
 if args.aspect_mode == "equilibrium" or jacobian_mode != "jax":
     top_level_jit = False
-vmec.set_solver_options(solver=args.solver)
+vmec_opts = {"solver": args.solver, "warm_start_iters": int(args.warm_start_iters)}
 if args.fast:
-    vmec.set_solver_options(max_iter=500, warm_start_iters=0, grad_tol=1e-3)
+    vmec_opts["max_iter"] = 500
+    vmec_opts["grad_tol"] = 1e-3
+if args.vmec_max_iter is not None:
+    vmec_opts["max_iter"] = int(args.vmec_max_iter)
+if args.vmec_grad_tol is not None:
+    vmec_opts["grad_tol"] = float(args.vmec_grad_tol)
+vmec.set_solver_options(**vmec_opts)
 vmec.indata.mpol = max_mode + 2
 vmec.indata.ntor = vmec.indata.mpol
 

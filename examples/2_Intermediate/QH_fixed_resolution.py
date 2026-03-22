@@ -13,8 +13,8 @@ throughout the volume.
 Run this example with mpirun -n 2 python QH_fixed_resolution.py
 """
 
-max_nfev = 10  # Maximum number of function evaluations
-max_mode = 1  # Maximum poloidal and toroidal mode numbers to vary
+max_nfev = 20  # Maximum number of function evaluations
+max_mode = 3  # Maximum poloidal and toroidal mode numbers to vary
 
 # This problem has 8 degrees of freedom, so we can use 8 + 1 = 9
 # concurrent function evaluations for 1-sided finite difference
@@ -22,11 +22,13 @@ max_mode = 1  # Maximum poloidal and toroidal mode numbers to vary
 proc0_print("Running 2_Intermediate/QH_fixed_resolution.py")
 proc0_print("=============================================")
 
-mpi = MpiPartition(2)
+mpi = MpiPartition()
 
 # For forming filenames for vmec, pathlib sometimes does not work, so use os.path.join instead.
 filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp4_QH_warm_start')
 vmec = Vmec(filename, mpi=mpi, verbose=False)
+vmec.indata.mpol = max_mode + 2
+vmec.indata.ntor = vmec.indata.mpol
 
 # Define parameter space:
 surf = vmec.boundary

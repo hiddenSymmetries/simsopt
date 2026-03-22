@@ -90,6 +90,14 @@ def test_vmec_jax_solver_option_change_invalidates_cache():
     assert vmec._cached_run is None
 
 
+def test_vmec_jax_defaults_honor_staged_input_controls():
+    vmec = VmecJax(_input_filename(), verbose=False)
+
+    assert vmec._max_iter == 2000
+    assert vmec._grad_tol == pytest.approx(1.0e-13)
+    assert vmec._warm_start_iters == 0
+
+
 def test_vmec_jax_wrapper_keeps_unconstrained_boundary_coefficients():
     vmec = VmecJax(_input_filename(), verbose=False)
     vmec.indata.mpol = 3
@@ -135,6 +143,21 @@ def test_vmec_jax_wrapper_initial_guess_has_correct_qh_iota_sign():
 
     iota = np.asarray(prof_out["iota"])
     assert iota[1] < 0.0
+
+
+def test_vmec_jax_context_uses_plain_initial_guess_by_default():
+    vmec = VmecJax(_input_filename(), verbose=False)
+    vmec.indata.mpol = 3
+    vmec.indata.ntor = 3
+
+    static = vmec.get_static()
+    boundary = vmec.boundary._boundary0
+    expected = vj.initial_guess_from_boundary(static, boundary, vmec._indata_raw, vmec_project=True)
+    context = vmec.get_context()
+
+    np.testing.assert_allclose(np.asarray(context.st_guess.Rcos), np.asarray(expected.Rcos))
+    np.testing.assert_allclose(np.asarray(context.st_guess.Zsin), np.asarray(expected.Zsin))
+    np.testing.assert_allclose(np.asarray(context.st_guess.Lsin), np.asarray(expected.Lsin))
 
 
 def test_vmec_jax_wout_exposes_mode_count_metadata():

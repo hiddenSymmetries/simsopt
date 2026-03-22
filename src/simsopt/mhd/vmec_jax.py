@@ -54,6 +54,37 @@ def _parse_name(name: str) -> tuple[str, int, int]:
     return m.group(1).lower(), int(m.group(2)), int(m.group(3))
 
 
+def _as_list_like(value):
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return value
+    if isinstance(value, tuple):
+        return list(value)
+    if isinstance(value, np.ndarray):
+        return list(np.asarray(value).reshape(-1).tolist())
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        return [value]
+    try:
+        return list(value)
+    except Exception:
+        return None
+
+
+def _last_input_value(indata, *, array_key: str, scalar_key: str, default, cast):
+    values = _as_list_like(indata.get(array_key, None))
+    if values:
+        try:
+            return cast(values[-1])
+        except Exception:
+            pass
+    getter_name = "get_int" if cast is int else "get_float"
+    getter = getattr(indata, getter_name, None)
+    if callable(getter):
+        return cast(getter(scalar_key, default))
+    return cast(indata.get(scalar_key, default))
+
+
 class JaxBoundary:
     """
     Minimal boundary DOF wrapper to mimic SurfaceRZFourier methods used in examples.
@@ -202,7 +233,7 @@ class VmecJax:
     in the SIMSOPT examples. It is intended for JAX autodiff workflows.
     """
 
-    def __init__(self, filename: str, *, verbose: bool = False) -> None:
+    def __init__(self, filename: str, *, verbose: bool = False, warm_start_iters: int = 0) -> None:
         _require_vmec_jax()
         try:
             cache_helper = getattr(getattr(vj, "driver", None), "_maybe_enable_compilation_cache", None)
@@ -212,7 +243,7 @@ class VmecJax:
             pass
         self.filename = filename
         self.verbose = bool(verbose)
-        self._warm_start_iters = 20
+        self._warm_start_iters = max(0, int(warm_start_iters))
         self._load_config()
 
     def _load_config(self) -> None:
@@ -231,8 +262,20 @@ class VmecJax:
         self._static_dirty = True
         self._context_dirty = True
         self._solver = "residual"
-        self._max_iter = int(self._indata_raw.get_int("NITER", 50))
-        self._grad_tol = float(self._indata_raw.get_float("FTOL", 1e-10))
+        self._max_iter = _last_input_value(
+            self._indata_raw,
+            array_key="NITER_ARRAY",
+            scalar_key="NITER",
+            default=50,
+            cast=int,
+        )
+        self._grad_tol = _last_input_value(
+            self._indata_raw,
+            array_key="FTOL_ARRAY",
+            scalar_key="FTOL",
+            default=1e-13,
+            cast=float,
+        )
         self._reset_caches()
 
     def _reset_caches(self) -> None:
