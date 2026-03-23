@@ -108,9 +108,9 @@ def create_simsopt_x_scale(dof_names, alpha=1.6, min_scale=1e-6):
         x_scale[idx] = scale
     return x_scale
 
-
 # Configure quasisymmetry objective:
-qs = QuasisymmetryJax(BoozerJax(vmec, mpol=16, ntor=16, jit=not args.no_jit, source="state"),
+boozer_source = "wout" if args.aspect_mode == "equilibrium" else "state"
+qs = QuasisymmetryJax(BoozerJax(vmec, mpol=16, ntor=16, jit=not args.no_jit, source=boozer_source),
                       0.5,  # Radius to target
                       1, 1)  # (M, N) you want in |B|
 
@@ -143,14 +143,19 @@ if top_level_jit:
         residuals_jit = jax.jit(residuals)
         _ = residuals_jit(jnp.asarray(x0)).block_until_ready()
     except Exception as exc:
-        raise RuntimeError(
-            f"JIT failed ({type(exc).__name__}: {exc}). "
-            "Use --no-jit to run without compilation."
-        ) from exc
+        top_level_jit = False
+        residuals_jit = residuals
+        proc0_print(
+            f"Top-level JIT disabled after {type(exc).__name__}: {exc}. "
+            "Continuing with the compiled Boozer kernels only."
+        )
 
 proc0_print("Evaluating initial quasisymmetry objective...")
 t_qs0 = time.perf_counter()
-qs_initial = np.sum(np.asarray(qs.J(jnp.asarray(x0))) ** 2)
+if args.aspect_mode == "equilibrium":
+    qs_initial = np.sum(np.asarray(qs.J_from_wout(vmec.get_wout(jnp.asarray(x0)))) ** 2)
+else:
+    qs_initial = np.sum(np.asarray(qs.J(jnp.asarray(x0))) ** 2)
 proc0_print(f"Quasisymmetry objective (sum of squares) before optimization: {qs_initial}")
 if args.timings:
     proc0_print(f"Initial QS evaluation time: {time.perf_counter() - t_qs0:.3f}s")
@@ -176,7 +181,7 @@ surf.set_free_params(x_opt)
 
 qs_final = np.sum(np.asarray(qs.J(jnp.asarray(x_opt))) ** 2)
 
-final_aspect = vmec.aspect_equilibrium(x_opt) if args.aspect_mode == "equilibrium" else vmec.aspect(x_opt)
+final_aspect = vmec.aspect_equilibrium(x_opt) if args.aspect_mode == "equilibrium" else float(np.asarray(vmec.aspect_jax(jnp.asarray(x_opt))))
 proc0_print(f"Final aspect ratio is {final_aspect}")
 proc0_print(f"Quasisymmetry objective (sum of squares) after optimization: {qs_final}")
 

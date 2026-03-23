@@ -191,6 +191,21 @@ def test_vmec_jax_aspect_jax_is_jittable_for_qh_setup():
     assert np.isfinite(float(np.asarray(aspect)))
 
 
+def test_vmec_jax_aspect_matches_vmec_interface():
+    vmec = VmecJax(_input_filename(), verbose=False)
+    vmec.indata.mpol = 3
+    vmec.indata.ntor = 3
+    vmec.set_solver_options(solver="vmec2000", warm_start_iters=0, max_iter=100, grad_tol=1.0e-3)
+
+    surf = vmec.boundary
+    surf.fix_all()
+    surf.fixed_range(mmin=0, mmax=1, nmin=-1, nmax=1, fixed=False)
+    surf.fix("rc(0,0)")
+    x0 = surf.get_free_params()
+
+    assert vmec.aspect(x0) == pytest.approx(vmec.aspect_equilibrium(x0))
+
+
 def test_vmec_jax_wout_exposes_mode_count_metadata():
     vmec = VmecJax(_input_filename(), verbose=False)
     vmec.indata.mpol = 3

@@ -749,10 +749,8 @@ class VmecJax:
         return float(self.get_wout(jnp.asarray(x_free)).aspect)
 
     def aspect(self, x_free=None):
-        """Return the lightweight boundary aspect ratio used by classic examples."""
-        if x_free is None:
-            x_free = self.boundary.get_free_params()
-        return float(self.aspect_jax(jnp.asarray(x_free)))
+        """Return the plasma aspect ratio, matching :class:`simsopt.mhd.Vmec`."""
+        return self.aspect_equilibrium(x_free)
 
     def get_static(self):
         """Expose the cached vmec_jax static data structure."""
