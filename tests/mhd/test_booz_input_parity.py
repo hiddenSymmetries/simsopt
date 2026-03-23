@@ -60,3 +60,6 @@ def test_booz_input_uses_equilibrium_iota_for_current_driven_case():
     )
 
     np.testing.assert_allclose(np.asarray(inputs.iota), np.asarray(wout.iotas)[1:], rtol=1e-10, atol=1e-12)
+    np.testing.assert_allclose(np.asarray(inputs.lmns), np.asarray(wout.lmns)[1:, :], rtol=1e-10, atol=1e-12)
+    np.testing.assert_allclose(np.asarray(inputs.bsubumnc), np.asarray(wout.bsubumnc)[1:, :], rtol=5e-3, atol=5e-3)
+    np.testing.assert_allclose(np.asarray(inputs.bsubvmnc), np.asarray(wout.bsubvmnc)[1:, :], rtol=5e-3, atol=5e-3)
