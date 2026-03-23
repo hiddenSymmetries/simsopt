@@ -74,7 +74,8 @@ def _reference_case():
 
 
 @pytest.mark.skipif(vmec_mod is None, reason="vmec not installed")
-def test_reference_state_recomputes_current_driven_iota_exactly():
+def test_reference_state_recomputes_current_driven_iota_exactly(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     case = _reference_case()
     _flux_out, prof_out = _final_flux_profiles_from_state(
         indata=case["indata"],
@@ -95,7 +96,8 @@ def test_reference_state_recomputes_current_driven_iota_exactly():
 
 
 @pytest.mark.skipif(vmec_mod is None, reason="vmec not installed")
-def test_initial_qh_mismatch_is_geometry_dominated_not_lambda_dominated():
+def test_initial_qh_mismatch_is_geometry_dominated_not_lambda_dominated(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     case = _reference_case()
     state0 = case["state0"]
     state_ref = case["state_ref"]
@@ -143,7 +145,8 @@ def test_initial_qh_mismatch_is_geometry_dominated_not_lambda_dominated():
 
 
 @pytest.mark.skipif(vmec_mod is None, reason="vmec not installed")
-def test_initial_qh_iota_has_wrong_sign_before_residual_iterations():
+def test_initial_qh_iota_has_wrong_sign_before_residual_iterations(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     case = _reference_case()
     _flux_out, prof_out = _final_flux_profiles_from_state(
         indata=case["indata"],

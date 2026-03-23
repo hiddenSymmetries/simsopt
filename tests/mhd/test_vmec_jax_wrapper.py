@@ -3,6 +3,7 @@ import os
 import numpy as np
 
 import pytest
+import jax
 
 vj = pytest.importorskip("vmec_jax")
 
@@ -159,6 +160,35 @@ def test_vmec_jax_context_uses_plain_initial_guess_by_default():
     np.testing.assert_allclose(np.asarray(context.st_guess.Rcos), np.asarray(expected.Rcos))
     np.testing.assert_allclose(np.asarray(context.st_guess.Zsin), np.asarray(expected.Zsin))
     np.testing.assert_allclose(np.asarray(context.st_guess.Lsin), np.asarray(expected.Lsin))
+
+
+def test_vmec_jax_solver_option_change_resets_warm_start_seed():
+    vmec = VmecJax(_input_filename(), verbose=False)
+    vmec.indata.mpol = 3
+    vmec.indata.ntor = 3
+
+    context = vmec.get_context()
+    seed_before = np.asarray(context.st_guess.Rcos)
+    context.st_guess = vj.initial_guess_from_boundary(vmec.get_static(), vmec.boundary._boundary0, vmec._indata_raw, vmec_project=False)
+
+    vmec.set_solver_options(max_iter=123)
+
+    np.testing.assert_allclose(np.asarray(vmec.get_context().st_guess.Rcos), seed_before)
+
+
+def test_vmec_jax_aspect_jax_is_jittable_for_qh_setup():
+    vmec = VmecJax(_input_filename(), verbose=False)
+    vmec.indata.mpol = 3
+    vmec.indata.ntor = 3
+
+    surf = vmec.boundary
+    surf.fix_all()
+    surf.fixed_range(mmin=0, mmax=1, nmin=-1, nmax=1, fixed=False)
+    surf.fix("rc(0,0)")
+    x0 = jax.numpy.asarray(surf.get_free_params())
+
+    aspect = jax.jit(vmec.aspect_jax)(x0)
+    assert np.isfinite(float(np.asarray(aspect)))
 
 
 def test_vmec_jax_wout_exposes_mode_count_metadata():

@@ -38,6 +38,18 @@ else:
 __all__ = ["VmecJax", "JaxBoundary"]
 
 
+def _clone_state(state):
+    return vj.VMECState(
+        layout=state.layout,
+        Rcos=jnp.asarray(state.Rcos),
+        Rsin=jnp.asarray(state.Rsin),
+        Zcos=jnp.asarray(state.Zcos),
+        Zsin=jnp.asarray(state.Zsin),
+        Lcos=jnp.asarray(state.Lcos),
+        Lsin=jnp.asarray(state.Lsin),
+    )
+
+
 def _require_vmec_jax():
     if vj is None or has_jax is None or not has_jax():
         raise ImportError(
@@ -318,7 +330,8 @@ class VmecJax:
         self._signgs = None
         self._static_dirty = True
         self._context_dirty = True
-        self._solver = "residual"
+        self._context_seed_guess = None
+        self._solver = "vmec2000"
         self._max_iter = _last_input_value(
             self._indata_raw,
             array_key="NITER_ARRAY",
@@ -334,6 +347,7 @@ class VmecJax:
             cast=float,
         )
         self._step_size = 5e-3
+        self._step_size_override = None
         self._history_size = 8
         self._jacobian_penalty = 1e3
         self._preconditioner_override = None
@@ -346,14 +360,17 @@ class VmecJax:
         self._implicit_zero_unconverged = False
         self._reset_caches()
 
-    def _reset_caches(self) -> None:
+    def _reset_caches(self, *, reset_warm_start: bool = False) -> None:
         self._cached_x = None
         self._cached_state = None
         self._cached_wout = None
         self._cached_run = None
+        if reset_warm_start and self._context is not None and self._context_seed_guess is not None:
+            self._context.st_guess = _clone_state(self._context_seed_guess)
 
     def _invalidate_runtime(self) -> None:
         self._context_dirty = True
+        self._context_seed_guess = None
         self._reset_caches()
 
     def _update_cfg(self, *, mpol: int, ntor: int) -> None:
@@ -425,6 +442,7 @@ class VmecJax:
             pressure=pressure,
             booz_inputs=None,
         )
+        self._context_seed_guess = _clone_state(st_guess)
         self._phipf = jnp.asarray(flux.phipf)
         self._chipf = jnp.asarray(flux.chipf)
         self._lamscale = jnp.asarray(flux.lamscale)
@@ -455,17 +473,17 @@ class VmecJax:
             max_iter = int(max_iter)
             if max_iter != self._max_iter:
                 self._max_iter = max_iter
-                self._reset_caches()
+                self._reset_caches(reset_warm_start=True)
         if grad_tol is not None:
             grad_tol = float(grad_tol)
             if grad_tol != self._grad_tol:
                 self._grad_tol = grad_tol
-                self._reset_caches()
+                self._reset_caches(reset_warm_start=True)
         if solver is not None:
             solver = str(solver).strip().lower()
             if solver != self._solver:
                 self._solver = solver
-                self._reset_caches()
+                self._reset_caches(reset_warm_start=True)
         if warm_start_iters is not None:
             warm_start_iters = int(warm_start_iters)
             if warm_start_iters != self._warm_start_iters:
@@ -473,59 +491,60 @@ class VmecJax:
                 self._invalidate_runtime()
         if step_size is not None:
             step_size = float(step_size)
-            if step_size != self._step_size:
+            if step_size != self._step_size or step_size != self._step_size_override:
                 self._step_size = step_size
-                self._reset_caches()
+                self._step_size_override = step_size
+                self._reset_caches(reset_warm_start=True)
         if history_size is not None:
             history_size = int(history_size)
             if history_size != self._history_size:
                 self._history_size = history_size
-                self._reset_caches()
+                self._reset_caches(reset_warm_start=True)
         if jacobian_penalty is not None:
             jacobian_penalty = float(jacobian_penalty)
             if jacobian_penalty != self._jacobian_penalty:
                 self._jacobian_penalty = jacobian_penalty
-                self._reset_caches()
+                self._reset_caches(reset_warm_start=True)
         if preconditioner is not None:
             preconditioner = str(preconditioner).strip().lower()
             if preconditioner != self._preconditioner_override:
                 self._preconditioner_override = preconditioner
-                self._reset_caches()
+                self._reset_caches(reset_warm_start=True)
         if precond_exponent is not None:
             precond_exponent = float(precond_exponent)
             if precond_exponent != self._precond_exponent:
                 self._precond_exponent = precond_exponent
-                self._reset_caches()
+                self._reset_caches(reset_warm_start=True)
         if precond_radial_alpha is not None:
             precond_radial_alpha = float(precond_radial_alpha)
             if precond_radial_alpha != self._precond_radial_alpha_override:
                 self._precond_radial_alpha_override = precond_radial_alpha
-                self._reset_caches()
+                self._reset_caches(reset_warm_start=True)
         if implicit_cg_max_iter is not None:
             implicit_cg_max_iter = int(implicit_cg_max_iter)
             if implicit_cg_max_iter != self._implicit_cg_max_iter:
                 self._implicit_cg_max_iter = implicit_cg_max_iter
-                self._reset_caches()
+                self._reset_caches(reset_warm_start=True)
         if implicit_cg_tol is not None:
             implicit_cg_tol = float(implicit_cg_tol)
             if implicit_cg_tol != self._implicit_cg_tol:
                 self._implicit_cg_tol = implicit_cg_tol
-                self._reset_caches()
+                self._reset_caches(reset_warm_start=True)
         if implicit_damping is not None:
             implicit_damping = float(implicit_damping)
             if implicit_damping != self._implicit_damping:
                 self._implicit_damping = implicit_damping
-                self._reset_caches()
+                self._reset_caches(reset_warm_start=True)
         if implicit_converge_tol is not None:
             implicit_converge_tol = float(implicit_converge_tol)
             if implicit_converge_tol != self._implicit_converge_tol:
                 self._implicit_converge_tol = implicit_converge_tol
-                self._reset_caches()
+                self._reset_caches(reset_warm_start=True)
         if implicit_zero_unconverged is not None:
             implicit_zero_unconverged = bool(implicit_zero_unconverged)
             if implicit_zero_unconverged != self._implicit_zero_unconverged:
                 self._implicit_zero_unconverged = implicit_zero_unconverged
-                self._reset_caches()
+                self._reset_caches(reset_warm_start=True)
 
     def _x_cache_key(self, x_free) -> tuple[float, ...]:
         try:
@@ -560,7 +579,11 @@ class VmecJax:
             cg_tol=float(self._implicit_cg_tol),
             damping=float(self._implicit_damping),
         )
-        step_size = float(self._indata_raw.get_float("DELT", 1.0))
+        residual_step_size = (
+            float(self._step_size_override)
+            if self._step_size_override is not None
+            else float(self._indata_raw.get_float("DELT", 1.0))
+        )
 
         def _solve(solver: str):
             if solver in ("residual", "vmec2000"):
@@ -571,7 +594,7 @@ class VmecJax:
                         indata=self._indata_raw,
                         signgs=self._signgs,
                         max_iter=int(self._max_iter),
-                        step_size=step_size,
+                        step_size=residual_step_size,
                         ftol=float(self._grad_tol),
                         implicit=implicit_opts,
                         edge_Rcos=edge_Rcos,
@@ -587,8 +610,9 @@ class VmecJax:
                     self._static,
                     indata=self._indata_raw,
                     signgs=int(signgs0),
+                    ftol=float(self._grad_tol),
                     max_iter=int(self._max_iter),
-                    step_size=step_size,
+                    step_size=residual_step_size,
                     vmec2000_control=True,
                     reference_mode=True,
                     backtracking=True,

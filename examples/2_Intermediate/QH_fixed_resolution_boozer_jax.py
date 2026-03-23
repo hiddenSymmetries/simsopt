@@ -40,7 +40,7 @@ parser.add_argument("--vmec-implicit-converge-tol", type=float, default=None, he
 parser.add_argument("--vmec-implicit-zero-unconverged", action="store_true", help="Zero implicit gradients when the inner solve is unconverged.")
 parser.add_argument(
     "--solver",
-    default="residual",
+    default="vmec2000",
     choices=["residual", "initial", "gd", "lbfgs", "vmec2000"],
     help="VMEC-JAX solver mode. 'residual' matches the VMEC residual iteration.",
 )
@@ -52,7 +52,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--aspect-mode",
-    default="boundary",
+    default="equilibrium",
     choices=["boundary", "equilibrium"],
     help="Use the fast boundary aspect or the slower equilibrium aspect for the target.",
 )
@@ -137,7 +137,7 @@ def create_simsopt_x_scale(dof_names, alpha=1.6, min_scale=1e-6):
 
 
 # Configure quasisymmetry objective:
-qs = QuasisymmetryJax(BoozerJax(vmec, mpol=16, ntor=16, jit=True),
+qs = QuasisymmetryJax(BoozerJax(vmec, mpol=16, ntor=16, jit=not args.no_jit, source="state"),
                       0.5,  # Radius to target
                       1, 1)  # (M, N) you want in |B|
 

@@ -26,7 +26,8 @@ from simsopt.mhd import Vmec
 
 
 @pytest.mark.skipif(vmec_mod is None or vj is None, reason="vmec/vmec_jax not installed")
-def test_booz_input_uses_equilibrium_iota_for_current_driven_case():
+def test_booz_input_uses_equilibrium_iota_for_current_driven_case(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     filename = os.path.join(
         os.path.dirname(__file__),
         "..",

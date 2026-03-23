@@ -18,7 +18,8 @@ from simsopt.mhd import Vmec, Boozer, Quasisymmetry, VmecJax, BoozerJax, Quasisy
 
 
 @pytest.mark.skipif(vmec_mod is None, reason="vmec not installed")
-def test_qs_jax_vs_vmec():
+def test_qs_jax_vs_vmec(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     filename = os.path.join(
         os.path.dirname(__file__),
         "..",
