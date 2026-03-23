@@ -117,10 +117,13 @@ qs = QuasisymmetryJax(BoozerJax(vmec, mpol=16, ntor=16, jit=not args.no_jit, sou
 
 def residuals(x_free):
     if args.aspect_mode == "equilibrium":
-        aspect = jnp.asarray(vmec.aspect_equilibrium(x_free))
+        wout = vmec.get_wout(x_free)
+        aspect = jnp.asarray(wout.aspect)
+        qs_res = qs.J_from_wout(wout)
     else:
+        state = vmec._solve_state(x_free)
         aspect = vmec.aspect_jax(x_free)
-    qs_res = qs.J(x_free)
+        qs_res = qs.J_from_state(state)
     return jnp.concatenate([jnp.array([aspect - 7.0]), qs_res])
 
 
@@ -132,7 +135,10 @@ if args.timings:
 
 residuals_jit = residuals
 if top_level_jit:
-    qs.prepare(jnp.asarray(x0))
+    if args.aspect_mode == "equilibrium":
+        qs.prepare_from_wout(vmec.get_wout(jnp.asarray(x0)))
+    else:
+        qs.prepare(jnp.asarray(x0))
     try:
         residuals_jit = jax.jit(residuals)
         _ = residuals_jit(jnp.asarray(x0)).block_until_ready()

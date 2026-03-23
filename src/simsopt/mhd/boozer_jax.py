@@ -182,6 +182,24 @@ class BoozerJax:
         else:
             self._inputs_fn = _run
 
+    def _inputs_from_state(self, state):
+        """Convert a solved VMEC-JAX state into BoozerJax inputs."""
+        static = self.vmec.get_static()
+        indata = self.vmec._indata_raw
+        inputs_sig = (
+            int(static.cfg.mpol),
+            int(static.cfg.ntor),
+            int(static.cfg.ntheta),
+            int(static.cfg.nzeta),
+            int(static.cfg.nfp),
+            bool(static.cfg.lasym),
+            int(self.vmec._signgs),
+        )
+        if self._inputs_fn is None or self._inputs_sig != inputs_sig:
+            self._build_inputs_fn(static, indata)
+            self._inputs_sig = inputs_sig
+        return self._inputs_fn(state)
+
     def _inputs_from_wout(self, wout):
         """Convert a VMEC-style ``wout`` object into BoozerJax inputs."""
         kwargs = {}
@@ -205,36 +223,10 @@ class BoozerJax:
             **kwargs,
         )
 
-    def run_jax(self, x_free: jnp.ndarray):
-        """Evaluate Boozer spectra for the current parameter vector."""
-        x_key = self._x_cache_key(x_free)
-        if x_key is not None and self._cached_x == x_key and self._cached_out is not None:
-            return self._cached_out
+    def _run_from_inputs(self, inputs, *, lasym: bool):
+        """Evaluate Boozer spectra from precomputed Boozer-input arrays."""
         static = self.vmec.get_static()
-        indata = self.vmec._indata_raw
-        use_wout = self.source in ("auto", "wout") and x_key is not None and hasattr(self.vmec, "get_wout")
-        if use_wout:
-            try:
-                inputs = self._inputs_from_wout(self.vmec.get_wout(x_free))
-            except Exception:
-                use_wout = False
-        if not use_wout:
-            state = self.vmec._solve_state(x_free)
-            inputs_sig = (
-                int(static.cfg.mpol),
-                int(static.cfg.ntor),
-                int(static.cfg.ntheta),
-                int(static.cfg.nzeta),
-                int(static.cfg.nfp),
-                bool(static.cfg.lasym),
-                int(self.vmec._signgs),
-            )
-            if self._inputs_fn is None or self._inputs_sig != inputs_sig:
-                self._build_inputs_fn(static, indata)
-                self._inputs_sig = inputs_sig
-            inputs = self._inputs_fn(state)
 
-        # Determine surface indices on the half grid.
         if self._compute_surfs is None:
             compute_surfs, s_used = vj.optimization.surface_indices_from_static(static, self.s)
             self._compute_surfs = compute_surfs
@@ -242,20 +234,45 @@ class BoozerJax:
             self.s_used = {s: float(s_used[i]) for i, s in enumerate(self.s)}
             self.s_to_index = {s: int(i) for i, s in enumerate(self.s)}
 
-        constants_sig = (int(self.mpol), int(self.ntor), bool(static.cfg.lasym))
+        constants_sig = (int(self.mpol), int(self.ntor), bool(lasym))
         if self._constants is None or self._constants_sig != constants_sig:
             self._constants, self._grids = prepare_booz_xform_constants_from_inputs(
                 inputs=inputs,
                 mboz=int(self.mpol),
                 nboz=int(self.ntor),
-                asym=bool(static.cfg.lasym),
+                asym=bool(lasym),
             )
             self._constants_sig = constants_sig
             self._booz_fn = None
 
         if self._booz_fn is None:
             self._build_booz_fn()
-        out = self._booz_fn(inputs)
+        return self._booz_fn(inputs)
+
+    def run_state_jax(self, state):
+        """Evaluate Boozer spectra from an already-solved VMEC-JAX state."""
+        static = self.vmec.get_static()
+        inputs = self._inputs_from_state(state)
+        return self._run_from_inputs(inputs, lasym=bool(static.cfg.lasym))
+
+    def run_wout_jax(self, wout):
+        """Evaluate Boozer spectra from a precomputed VMEC-style ``wout`` object."""
+        inputs = self._inputs_from_wout(wout)
+        return self._run_from_inputs(inputs, lasym=bool(getattr(wout, "lasym", False)))
+
+    def run_jax(self, x_free: jnp.ndarray):
+        """Evaluate Boozer spectra for the current parameter vector."""
+        x_key = self._x_cache_key(x_free)
+        if x_key is not None and self._cached_x == x_key and self._cached_out is not None:
+            return self._cached_out
+        use_wout = self.source in ("auto", "wout") and x_key is not None and hasattr(self.vmec, "get_wout")
+        if use_wout:
+            try:
+                out = self.run_wout_jax(self.vmec.get_wout(x_free))
+            except Exception:
+                use_wout = False
+        if not use_wout:
+            out = self.run_state_jax(self.vmec._solve_state(x_free))
         if x_key is not None:
             self._cached_x = x_key
             self._cached_out = out
@@ -298,6 +315,16 @@ class QuasisymmetryJax:
         out = self.boozer.run_jax(x_free)
         self._ensure_indices(out)
 
+    def prepare_from_state(self, state) -> None:
+        """Populate cached indices using a precomputed VMEC-JAX state."""
+        out = self.boozer.run_state_jax(state)
+        self._ensure_indices(out)
+
+    def prepare_from_wout(self, wout) -> None:
+        """Populate cached indices using a precomputed VMEC-style ``wout``."""
+        out = self.boozer.run_wout_jax(wout)
+        self._ensure_indices(out)
+
     def _ensure_indices(self, out) -> None:
         """Cache surface and mode indices needed by the QS residual."""
         if self._s_array is None:
@@ -326,10 +353,8 @@ class QuasisymmetryJax:
         self._sym_idx = jnp.asarray(np.nonzero(symmetric)[0], dtype=jnp.int32)
         self._nonsym_idx = jnp.asarray(np.nonzero(nonsymmetric)[0], dtype=jnp.int32)
 
-    def J(self, x_free: jnp.ndarray) -> jnp.ndarray:
-        """Return the quasisymmetry residual vector for the free parameters."""
-        out = self.boozer.run_jax(x_free)
-
+    def _residual_from_output(self, out) -> jnp.ndarray:
+        """Assemble the QS residual vector from Boozer transform output."""
         bmnc_b = jnp.asarray(out["bmnc_b"])  # (ns_sel, mnboz)
         if self._nonsym_idx is None:
             if isinstance(out["bmnc_b"], jax.core.Tracer):
@@ -362,3 +387,15 @@ class QuasisymmetryJax:
             out = jnp.linalg.norm(jnp.take(bmnc, self._nonsym_idx, axis=1), axis=1)
             return out.reshape(-1)
         raise ValueError("Unrecognized value for weight in Quasisymmetry")
+
+    def J(self, x_free: jnp.ndarray) -> jnp.ndarray:
+        """Return the quasisymmetry residual vector for the free parameters."""
+        return self._residual_from_output(self.boozer.run_jax(x_free))
+
+    def J_from_state(self, state) -> jnp.ndarray:
+        """Return the quasisymmetry residual using an already-solved state."""
+        return self._residual_from_output(self.boozer.run_state_jax(state))
+
+    def J_from_wout(self, wout) -> jnp.ndarray:
+        """Return the quasisymmetry residual using a precomputed ``wout``."""
+        return self._residual_from_output(self.boozer.run_wout_jax(wout))
