@@ -22,11 +22,14 @@ import numpy as np
 try:
     import vmec_jax as vj
     from vmec_jax._compat import jax, jnp, has_jax
+    from vmec_jax.boundary import boundary_from_input_convention, boundary_input_from_indata
 except Exception as exc:  # pragma: no cover - optional dependency
     vj = None
     jax = None
     jnp = None
     has_jax = None
+    boundary_from_input_convention = None
+    boundary_input_from_indata = None
     _import_error = exc
 else:
     _import_error = None
@@ -85,17 +88,59 @@ def _last_input_value(indata, *, array_key: str, scalar_key: str, default, cast)
     return cast(indata.get(scalar_key, default))
 
 
+def _surface_rzfourier_mode_is_valid(kind: str, m: int, n: int, *, lasym: bool) -> bool:
+    """Mirror the SurfaceRZFourier coefficient set used by SIMSOPT.
+
+    VMEC-JAX stores all four Fourier coefficient families on the boundary
+    object, but SIMSOPT's SurfaceRZFourier only exposes the structurally
+    valid subset:
+    - no negative-n modes for m=0,
+    - no sine coefficients at (m=0, n=0),
+    - `lasym=False` surfaces expose only rc/zs.
+    """
+    kind = str(kind).lower()
+    if m == 0 and n < 0:
+        return False
+    if (m == 0) and (n == 0) and kind in ("rs", "zs"):
+        return False
+    if not bool(lasym) and kind in ("rs", "zc"):
+        return False
+    return kind in ("rc", "rs", "zc", "zs")
+
+
+def _surface_rzfourier_spec_sort_key(spec, *, lasym: bool):
+    kind_order = ("rc", "rs", "zc", "zs") if bool(lasym) else ("rc", "zs")
+    kind_rank = kind_order.index(str(spec.kind).lower())
+    m = int(spec.m)
+    n = int(spec.n)
+    if m == 0:
+        n_key = n
+    else:
+        n_key = n + 100000
+    return (kind_rank, m, n_key)
+
+
 class JaxBoundary:
     """
     Minimal boundary DOF wrapper to mimic SurfaceRZFourier methods used in examples.
     """
 
-    def __init__(self, boundary, modes, *, include: Sequence[str] = ("rc", "zs", "rs", "zc")) -> None:
+    def __init__(
+        self,
+        boundary,
+        boundary_input,
+        modes,
+        *,
+        lasym: bool,
+        include: Sequence[str] = ("rc", "zs", "rs", "zc"),
+    ) -> None:
         _require_vmec_jax()
         self._boundary0 = boundary
+        self._boundary_input0 = boundary_input
         self._modes = modes
-        self._specs = vj.optimization.boundary_param_specs(
-            boundary,
+        self._lasym = bool(lasym)
+        specs = vj.optimization.boundary_param_specs(
+            boundary_input,
             modes,
             max_mode=None,
             min_coeff=0.0,
@@ -103,8 +148,14 @@ class JaxBoundary:
             fix=(),
             include_axis=True,
         )
+        self._specs = [
+            spec
+            for spec in specs
+            if _surface_rzfourier_mode_is_valid(spec.kind, int(spec.m), int(spec.n), lasym=bool(lasym))
+        ]
+        self._specs.sort(key=lambda spec: _surface_rzfourier_spec_sort_key(spec, lasym=bool(lasym)))
         self._names = [_format_name(s.kind, s.m, s.n) for s in self._specs]
-        self._base = np.array([self._get_coeff(boundary, s) for s in self._specs], dtype=float)
+        self._base = np.array([self._get_coeff(boundary_input, s) for s in self._specs], dtype=float)
         self._x = self._base.copy()
         self._free = np.ones_like(self._x, dtype=bool)
 
@@ -183,7 +234,13 @@ class JaxBoundary:
     def apply_params(self, x_full: jnp.ndarray):
         # Convert full params into boundary coefficients (JAX-friendly).
         delta = jnp.asarray(x_full) - jnp.asarray(self._base)
-        return vj.optimization.apply_boundary_params(self._boundary0, self._specs, delta)
+        boundary_input = vj.optimization.apply_boundary_params(self._boundary_input0, self._specs, delta)
+        return boundary_from_input_convention(
+            boundary_input,
+            self._modes,
+            lasym=self._lasym,
+            apply_m1_constraint=False,
+        )
 
 
 class _InDataProxy:
@@ -313,8 +370,9 @@ class VmecJax:
         # initial-guess and residual paths apply the VMEC m=1 constraint
         # internally; pre-constraining here mixes the m=1, n=+/-1 pair twice and
         # corrupts the low-order geometry before the solve starts.
+        boundary_input0 = boundary_input_from_indata(self._indata_raw, self._static.modes)
         boundary0 = vj.boundary_from_indata(self._indata_raw, self._static.modes, apply_m1_constraint=False)
-        self._boundary = JaxBoundary(boundary0, self._static.modes)
+        self._boundary = JaxBoundary(boundary0, boundary_input0, self._static.modes, lasym=bool(self._cfg.lasym))
         if old_boundary is not None:
             old_names = {name: i for i, name in enumerate(old_boundary.dof_names)}
             x_full = self._boundary.x

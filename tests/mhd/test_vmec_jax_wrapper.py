@@ -12,6 +12,7 @@ except Exception:
     vmec_mod = None
 
 from simsopt.mhd import VmecJax
+from simsopt.mhd import Vmec
 
 
 def _input_filename():
@@ -178,3 +179,26 @@ def test_vmec_jax_wout_exposes_mode_count_metadata():
     assert int(wout.mnmax_nyq) == len(np.asarray(wout.xm_nyq))
     assert int(wout.mpol_nyq) == int(np.max(np.asarray(wout.xm_nyq)))
     assert int(wout.ntor_nyq) == int(np.max(np.abs(np.asarray(wout.xn_nyq) // int(wout.nfp))))
+
+
+@pytest.mark.skipif(vmec_mod is None, reason="vmec not installed")
+def test_vmec_jax_boundary_free_modes_match_vmec_for_stellsym_qh_setup():
+    vmec_ref = Vmec(_input_filename(), verbose=False)
+    vmec_ref.indata.mpol = 3
+    vmec_ref.indata.ntor = 3
+    surf_ref = vmec_ref.boundary
+    surf_ref.fix_all()
+    surf_ref.fixed_range(mmin=0, mmax=1, nmin=-1, nmax=1, fixed=False)
+    surf_ref.fix("rc(0,0)")
+    free_ref = [name.split(":", 1)[-1] for name in surf_ref.dof_names]
+
+    vmec = VmecJax(_input_filename(), verbose=False)
+    vmec.indata.mpol = 3
+    vmec.indata.ntor = 3
+    surf = vmec.boundary
+    surf.fix_all()
+    surf.fixed_range(mmin=0, mmax=1, nmin=-1, nmax=1, fixed=False)
+    surf.fix("rc(0,0)")
+    free = [name for name, is_free in zip(surf.dof_names, surf.free) if is_free]
+
+    assert free == free_ref
