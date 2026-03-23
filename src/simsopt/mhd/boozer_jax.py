@@ -85,6 +85,8 @@ class BoozerJax:
         self._grids = None
         self._constants_sig = None
         self._booz_fn = None
+        self._inputs_fn = None
+        self._inputs_sig = None
         self._cached_x = None
         self._cached_out = None
 
@@ -100,6 +102,8 @@ class BoozerJax:
         self._grids = None
         self._constants_sig = None
         self._booz_fn = None
+        self._inputs_fn = None
+        self._inputs_sig = None
         self._cached_x = None
         self._cached_out = None
 
@@ -124,6 +128,45 @@ class BoozerJax:
             self._booz_fn = jax.jit(_run)
         else:
             self._booz_fn = _run
+
+    def _build_inputs_fn(self, static, indata):
+        from vmec_jax.modes import nyquist_mode_table_from_grid
+        from vmec_jax.vmec_tomnsp import vmec_trig_tables
+
+        nyq_modes = nyquist_mode_table_from_grid(
+            mpol=int(static.cfg.mpol),
+            ntor=int(static.cfg.ntor),
+            ntheta=int(static.cfg.ntheta),
+            nzeta=int(static.cfg.nzeta),
+        )
+        nyq_m = np.asarray(nyq_modes.m)
+        nyq_n = np.asarray(nyq_modes.n)
+        mmax = int(np.max(nyq_m)) if nyq_m.size else 0
+        nmax = int(np.max(np.abs(nyq_n))) if nyq_n.size else 0
+        trig = vmec_trig_tables(
+            ntheta=int(static.cfg.ntheta),
+            nzeta=int(static.cfg.nzeta),
+            nfp=int(static.cfg.nfp),
+            mmax=mmax,
+            nmax=nmax,
+            lasym=bool(static.cfg.lasym),
+            dtype=jnp.float64,
+            cache=True,
+        )
+
+        def _run(state):
+            return vj.optimization.booz_xform_inputs_from_state(
+                state=state,
+                static=static,
+                indata=indata,
+                signgs=self.vmec._signgs,
+                trig=trig,
+            )
+
+        if self.jit:
+            self._inputs_fn = jax.jit(_run)
+        else:
+            self._inputs_fn = _run
 
     def _inputs_from_wout(self, wout):
         kwargs = {}
@@ -161,12 +204,19 @@ class BoozerJax:
                 use_wout = False
         if not use_wout:
             state = self.vmec._solve_state(x_free)
-            inputs = vj.optimization.booz_xform_inputs_from_state(
-                state=state,
-                static=static,
-                indata=indata,
-                signgs=self.vmec._signgs,
+            inputs_sig = (
+                int(static.cfg.mpol),
+                int(static.cfg.ntor),
+                int(static.cfg.ntheta),
+                int(static.cfg.nzeta),
+                int(static.cfg.nfp),
+                bool(static.cfg.lasym),
+                int(self.vmec._signgs),
             )
+            if self._inputs_fn is None or self._inputs_sig != inputs_sig:
+                self._build_inputs_fn(static, indata)
+                self._inputs_sig = inputs_sig
+            inputs = self._inputs_fn(state)
 
         # Determine surface indices on the half grid.
         if self._compute_surfs is None:
