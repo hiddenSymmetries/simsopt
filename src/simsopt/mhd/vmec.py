@@ -742,11 +742,14 @@ class Vmec(Optimizable):
             try:
                 os.remove(mercier_file)
             except FileNotFoundError:
+                # A downstream consumer may already have cleaned this file up,
+                # and that should not make the VMEC run fail.
                 logger.debug(f'Tried to delete the file {mercier_file} but it was not found')
 
             try:
                 os.remove(jxbout_file)
             except FileNotFoundError:
+                # Same logic as above: cleanup should stay best-effort.
                 logger.debug(f'Tried to delete the file {jxbout_file} but it was not found')
 
             try:

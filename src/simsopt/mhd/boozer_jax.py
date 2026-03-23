@@ -46,6 +46,7 @@ __all__ = ["BoozerJax", "QuasisymmetryJax"]
 
 
 def _require_jax():
+    """Validate that the optional JAX Boozer stack is importable."""
     if vj is None or has_jax is None or not has_jax():
         raise ImportError(
             "BoozerJax requires vmec_jax and JAX. "
@@ -59,6 +60,15 @@ def _require_jax():
 
 
 class BoozerJax:
+    """JAX-backed Boozer transform helper for VMEC-JAX equilibria.
+
+    This wrapper mirrors the subset of :class:`simsopt.mhd.Boozer` needed by
+    the quasisymmetry examples. It owns the Boozer surface registry, prepares
+    static transform constants, and converts either a VMEC-JAX state or a
+    VMEC-style ``wout`` object into the input bundle expected by
+    :mod:`booz_xform_jax`.
+    """
+
     def __init__(
         self,
         vmec,
@@ -91,6 +101,7 @@ class BoozerJax:
         self._cached_out = None
 
     def register(self, s: Union[float, Iterable[float]]) -> None:
+        """Register one or more normalized toroidal-flux surfaces."""
         try:
             ss = list(s)  # type: ignore[arg-type]
         except Exception:
@@ -108,6 +119,7 @@ class BoozerJax:
         self._cached_out = None
 
     def _x_cache_key(self, x_free) -> tuple[float, ...]:
+        """Return a hashable cache key for concrete parameter vectors."""
         try:
             arr = np.asarray(x_free, dtype=float).reshape(-1)
         except Exception:
@@ -115,6 +127,7 @@ class BoozerJax:
         return tuple(arr.tolist())
 
     def _build_booz_fn(self):
+        """Construct the compiled Boozer transform kernel for current settings."""
         def _run(inputs):
             return booz_xform_from_inputs(
                 inputs=inputs,
@@ -130,6 +143,7 @@ class BoozerJax:
             self._booz_fn = _run
 
     def _build_inputs_fn(self, static, indata):
+        """Build the state-to-Boozer adapter, reusing Nyquist trig tables."""
         from vmec_jax.modes import nyquist_mode_table_from_grid
         from vmec_jax.vmec_tomnsp import vmec_trig_tables
 
@@ -169,6 +183,7 @@ class BoozerJax:
             self._inputs_fn = _run
 
     def _inputs_from_wout(self, wout):
+        """Convert a VMEC-style ``wout`` object into BoozerJax inputs."""
         kwargs = {}
         if bool(getattr(wout, "lasym", False)):
             kwargs["bmns"] = jnp.asarray(getattr(wout, "bmns"))
@@ -191,6 +206,7 @@ class BoozerJax:
         )
 
     def run_jax(self, x_free: jnp.ndarray):
+        """Evaluate Boozer spectra for the current parameter vector."""
         x_key = self._x_cache_key(x_free)
         if x_key is not None and self._cached_x == x_key and self._cached_out is not None:
             return self._cached_out
@@ -247,6 +263,8 @@ class BoozerJax:
 
 
 class QuasisymmetryJax:
+    """Quasisymmetry residual built on top of :class:`BoozerJax`."""
+
     def __init__(
         self,
         boozer: BoozerJax,
@@ -281,6 +299,7 @@ class QuasisymmetryJax:
         self._ensure_indices(out)
 
     def _ensure_indices(self, out) -> None:
+        """Cache surface and mode indices needed by the QS residual."""
         if self._s_array is None:
             bmnc_b = jnp.asarray(out["bmnc_b"])
             self._s_array = jnp.asarray(self.s, dtype=bmnc_b.dtype)
@@ -308,6 +327,7 @@ class QuasisymmetryJax:
         self._nonsym_idx = jnp.asarray(np.nonzero(nonsymmetric)[0], dtype=jnp.int32)
 
     def J(self, x_free: jnp.ndarray) -> jnp.ndarray:
+        """Return the quasisymmetry residual vector for the free parameters."""
         out = self.boozer.run_jax(x_free)
 
         bmnc_b = jnp.asarray(out["bmnc_b"])  # (ns_sel, mnboz)

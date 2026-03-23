@@ -40,6 +40,7 @@ __all__ = ["least_squares_jax_solve"]
 
 
 def _require_jax():
+    """Raise a helpful error when the optional JAX dependency is unavailable."""
     if jax is None or jnp is None:
         raise ImportError(
             "least_squares_jax_solve requires JAX. "
@@ -48,6 +49,7 @@ def _require_jax():
 
 
 def _normalize_scale(x0, x_scale):
+    """Return a nonzero parameter scaling vector in solver coordinates."""
     if x_scale is None:
         return jnp.ones_like(x0)
     scale = jnp.asarray(x_scale, dtype=x0.dtype)
@@ -68,22 +70,48 @@ def least_squares_jax_solve(
     verbose: int = 1,
     jac: str | Callable | None = None,
 ) -> Dict[str, object]:
-    """
-    Solve a nonlinear least squares problem using JAX autodiff.
+    """Solve a nonlinear least-squares problem with JAX derivatives.
 
-    Args:
-        residual_fun: Function that maps parameters -> residual vector.
-        x0: Initial parameter vector.
-        method: "scipy" (scipy least_squares), "lbfgs" (requires jaxopt),
-            or "gradient_descent".
-        max_nfev: Maximum objective evaluations.
-        gtol: Gradient norm tolerance for termination.
-        step_size: Step size for gradient descent fallback.
-        x_scale: Optional parameter scaling array (like scipy).
-        verbose: Verbosity level. 0 disables per-iter prints.
-        jac: For ``method="scipy"``, either ``None``/``"jax"`` to use a JAX
-            Jacobian, or any scipy-supported finite-difference string such as
-            ``"2-point"``.
+    The function is intentionally lightweight: it accepts a residual callback
+    defined in terms of the physical parameter vector ``x`` and dispatches to
+    one of three backends:
+
+    - ``method="scipy"`` uses :func:`scipy.optimize.least_squares`, with either
+      a JAX Jacobian or SciPy finite differences.
+    - ``method="lbfgs"`` uses :mod:`jaxopt` when available.
+    - ``method="gradient_descent"`` runs a simple JAX-native fallback loop.
+
+    Parameters
+    ----------
+    residual_fun:
+        Callable returning the residual vector for a given parameter vector.
+    x0:
+        Initial parameter vector in physical coordinates.
+    method:
+        Solver backend name.
+    max_nfev:
+        Maximum number of residual or objective evaluations.
+    gtol:
+        Termination tolerance applied to the gradient norm, and passed through
+        to SciPy's ``xtol`` / ``ftol`` / ``gtol`` for consistency.
+    step_size:
+        Gradient-descent step size when using the fallback backend.
+    x_scale:
+        Optional parameter scaling, matching the role of ``x_scale`` in
+        :func:`scipy.optimize.least_squares`.
+    jit:
+        Whether to JIT-compile the residual / Jacobian path where supported.
+    verbose:
+        Verbosity level. ``0`` disables backend progress printing.
+    jac:
+        For ``method="scipy"``, either ``None`` / ``"jax"`` for a JAX Jacobian
+        or any SciPy finite-difference keyword such as ``"2-point"``.
+
+    Returns
+    -------
+    dict
+        Dictionary containing the optimized parameters, success flag, cost,
+        gradient, and evaluation count.
     """
     _require_jax()
 

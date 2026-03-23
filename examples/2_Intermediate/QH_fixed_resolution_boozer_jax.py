@@ -16,54 +16,57 @@ import jax.numpy as jnp
 
 """
 Optimize for quasi-helical symmetry (M=1, N=1) at a given radius using JAX.
+
+This example intentionally exposes only the main workflow knobs. If you want to
+experiment with lower-level VMEC-JAX solver settings, edit the
+``build_vmec_options()`` helper below instead of extending the command line.
 """
 
-max_mode = 1
-max_nfev = 10
+MAX_MODE = 1
+DEFAULT_MAX_NFEV = 10
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--fast", action="store_true", help="Reduce VMEC iterations for quick verification.")
-parser.add_argument("--no-jit", action="store_true", help="Disable JIT (default is to JIT everything).")
-parser.add_argument("--warm-start-iters", type=int, default=0, help="Optional explicit VMEC warm-start LBFGS iterations.")
-parser.add_argument("--vmec-max-iter", type=int, default=None, help="Override VMEC iteration budget.")
-parser.add_argument("--vmec-grad-tol", type=float, default=None, help="Override VMEC residual tolerance.")
-parser.add_argument("--vmec-step-size", type=float, default=None, help="Override the JAX fixed-boundary step size.")
-parser.add_argument("--vmec-history-size", type=int, default=None, help="Override the JAX L-BFGS history size.")
-parser.add_argument("--vmec-jacobian-penalty", type=float, default=None, help="Override the JAX Jacobian-sign penalty weight.")
-parser.add_argument("--vmec-preconditioner", type=str, default=None, help="Override the JAX preconditioner name.")
-parser.add_argument("--vmec-precond-exponent", type=float, default=None, help="Override the JAX preconditioner exponent.")
-parser.add_argument("--vmec-precond-radial-alpha", type=float, default=None, help="Override the JAX radial preconditioner strength.")
-parser.add_argument("--vmec-implicit-cg-max-iter", type=int, default=None, help="Override the implicit CG iteration budget.")
-parser.add_argument("--vmec-implicit-cg-tol", type=float, default=None, help="Override the implicit CG tolerance.")
-parser.add_argument("--vmec-implicit-damping", type=float, default=None, help="Override the implicit VJP damping.")
-parser.add_argument("--vmec-implicit-converge-tol", type=float, default=None, help="Override the implicit solve convergence threshold.")
-parser.add_argument("--vmec-implicit-zero-unconverged", action="store_true", help="Zero implicit gradients when the inner solve is unconverged.")
-parser.add_argument(
-    "--solver",
-    default="vmec2000",
-    choices=["residual", "initial", "gd", "lbfgs", "vmec2000"],
-    help="VMEC-JAX solver mode. 'residual' matches the VMEC residual iteration.",
-)
-parser.add_argument(
-    "--method",
-    default="scipy",
-    choices=["scipy", "lbfgs", "gradient_descent"],
-    help="Outer least-squares solver.",
-)
-parser.add_argument(
-    "--aspect-mode",
-    default="equilibrium",
-    choices=["boundary", "equilibrium"],
-    help="Use the fast boundary aspect or the slower equilibrium aspect for the target.",
-)
-parser.add_argument(
-    "--jacobian",
-    default="jax",
-    choices=["jax", "2-point", "3-point"],
-    help="Jacobian mode for scipy least-squares.",
-)
-parser.add_argument("--timings", action="store_true", help="Print startup timings.")
-args = parser.parse_args()
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--fast", action="store_true", help="Reduce VMEC iterations for quick verification.")
+    parser.add_argument("--no-jit", action="store_true", help="Disable JIT on the objective path.")
+    parser.add_argument("--timings", action="store_true", help="Print startup and solve timings.")
+    parser.add_argument("--warm-start-iters", type=int, default=0, help="Optional explicit VMEC warm-start LBFGS iterations.")
+    parser.add_argument("--max-nfev", type=int, default=DEFAULT_MAX_NFEV, help="Outer least-squares evaluation budget.")
+    parser.add_argument(
+        "--solver",
+        default="vmec2000",
+        choices=["residual", "initial", "gd", "lbfgs", "vmec2000"],
+        help="VMEC-JAX solve mode used for each objective evaluation.",
+    )
+    parser.add_argument(
+        "--method",
+        default="scipy",
+        choices=["scipy", "lbfgs", "gradient_descent"],
+        help="Outer least-squares backend.",
+    )
+    parser.add_argument(
+        "--aspect-mode",
+        default="equilibrium",
+        choices=["boundary", "equilibrium"],
+        help="Use the fast boundary aspect or the slower equilibrium aspect target.",
+    )
+    parser.add_argument(
+        "--jacobian",
+        default="jax",
+        choices=["jax", "2-point", "3-point"],
+        help="Jacobian mode for SciPy least-squares.",
+    )
+    return parser.parse_args()
+
+
+def build_vmec_options(args):
+    opts = {"solver": args.solver, "warm_start_iters": int(args.warm_start_iters)}
+    if args.fast:
+        opts.update(max_iter=500, grad_tol=1e-3)
+    return opts
+
+args = parse_args()
 jacobian_mode = args.jacobian
 if args.no_jit and jacobian_mode == "jax":
     jacobian_mode = "2-point"
@@ -77,44 +80,14 @@ vmec = VmecJax(filename, verbose=False)
 top_level_jit = not args.no_jit
 if args.aspect_mode == "equilibrium" or jacobian_mode != "jax":
     top_level_jit = False
-vmec_opts = {"solver": args.solver, "warm_start_iters": int(args.warm_start_iters)}
-if args.fast:
-    vmec_opts["max_iter"] = 500
-    vmec_opts["grad_tol"] = 1e-3
-if args.vmec_max_iter is not None:
-    vmec_opts["max_iter"] = int(args.vmec_max_iter)
-if args.vmec_grad_tol is not None:
-    vmec_opts["grad_tol"] = float(args.vmec_grad_tol)
-if args.vmec_step_size is not None:
-    vmec_opts["step_size"] = float(args.vmec_step_size)
-if args.vmec_history_size is not None:
-    vmec_opts["history_size"] = int(args.vmec_history_size)
-if args.vmec_jacobian_penalty is not None:
-    vmec_opts["jacobian_penalty"] = float(args.vmec_jacobian_penalty)
-if args.vmec_preconditioner is not None:
-    vmec_opts["preconditioner"] = str(args.vmec_preconditioner)
-if args.vmec_precond_exponent is not None:
-    vmec_opts["precond_exponent"] = float(args.vmec_precond_exponent)
-if args.vmec_precond_radial_alpha is not None:
-    vmec_opts["precond_radial_alpha"] = float(args.vmec_precond_radial_alpha)
-if args.vmec_implicit_cg_max_iter is not None:
-    vmec_opts["implicit_cg_max_iter"] = int(args.vmec_implicit_cg_max_iter)
-if args.vmec_implicit_cg_tol is not None:
-    vmec_opts["implicit_cg_tol"] = float(args.vmec_implicit_cg_tol)
-if args.vmec_implicit_damping is not None:
-    vmec_opts["implicit_damping"] = float(args.vmec_implicit_damping)
-if args.vmec_implicit_converge_tol is not None:
-    vmec_opts["implicit_converge_tol"] = float(args.vmec_implicit_converge_tol)
-if args.vmec_implicit_zero_unconverged:
-    vmec_opts["implicit_zero_unconverged"] = True
-vmec.set_solver_options(**vmec_opts)
-vmec.indata.mpol = max_mode + 2
+vmec.set_solver_options(**build_vmec_options(args))
+vmec.indata.mpol = MAX_MODE + 2
 vmec.indata.ntor = vmec.indata.mpol
 
 # Define parameter space:
 surf = vmec.boundary
 surf.fix_all()
-surf.fixed_range(mmin=0, mmax=max_mode, nmin=-max_mode, nmax=max_mode, fixed=False)
+surf.fixed_range(mmin=0, mmax=MAX_MODE, nmin=-MAX_MODE, nmax=MAX_MODE, fixed=False)
 surf.fix("rc(0,0)")  # Major radius
 
 
@@ -182,7 +155,7 @@ result = least_squares_jax_solve(
     lambda x: residuals_jit(x),
     x0,
     method=args.method,
-    max_nfev=max_nfev,
+    max_nfev=args.max_nfev,
     gtol=1e-7,
     x_scale=x_scale,
     step_size=1e-2,

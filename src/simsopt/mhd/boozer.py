@@ -56,7 +56,12 @@ class Boozer(Optimizable):
                  verbose: bool = False,
                  use_wout_file: bool = False) -> None:
         """
-        Constructor
+        Constructor.
+
+        ``use_wout_file`` exists to support MPI layouts in which VMEC is run in
+        worker groups but ``booz_xform`` itself is only executed on the group
+        leaders. In that setting, reading the group-local ``wout`` file is more
+        robust than trying to hand off the in-memory VMEC arrays directly.
         """
         if booz_xform is None:
             raise RuntimeError(
@@ -127,7 +132,9 @@ class Boozer(Optimizable):
         logger.info("Preparing to run Boozer transformation. Registry:{}".format(s))
 
         if isinstance(self.equil, Vmec):
-            #partake in parallel VMEC job
+            # When VMEC is partitioned into multiple worker groups, each leader
+            # gets its own ``wout`` file. Let booz_xform read that file directly
+            # instead of depending on in-memory transfer from a different rank.
             use_wout_file = self.use_wout_file or ((self.mpi is not None) and (self.mpi.ngroups > 1))
             delete_wout_after = False
             if use_wout_file and (not self.equil.keep_all_files):

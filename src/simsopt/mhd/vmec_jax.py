@@ -39,6 +39,7 @@ __all__ = ["VmecJax", "JaxBoundary"]
 
 
 def _clone_state(state):
+    """Return a JAX-friendly copy of a VMEC-JAX state object."""
     return vj.VMECState(
         layout=state.layout,
         Rcos=jnp.asarray(state.Rcos),
@@ -51,6 +52,7 @@ def _clone_state(state):
 
 
 def _require_vmec_jax():
+    """Validate that vmec_jax and JAX are available."""
     if vj is None or has_jax is None or not has_jax():
         raise ImportError(
             "VmecJax requires vmec_jax and JAX. "
@@ -133,9 +135,7 @@ def _surface_rzfourier_spec_sort_key(spec, *, lasym: bool):
 
 
 class JaxBoundary:
-    """
-    Minimal boundary DOF wrapper to mimic SurfaceRZFourier methods used in examples.
-    """
+    """Boundary DOF wrapper mirroring the SurfaceRZFourier interface used by examples."""
 
     def __init__(
         self,
@@ -184,27 +184,34 @@ class JaxBoundary:
 
     @property
     def dof_names(self) -> list[str]:
+        """Return the ordered coefficient names exposed to SIMSOPT."""
         return list(self._names)
 
     @property
     def x(self) -> np.ndarray:
+        """Return the full coefficient vector in input convention."""
         return self._x.copy()
 
     @property
     def free(self) -> np.ndarray:
+        """Return a boolean mask marking active optimization variables."""
         return self._free.copy()
 
     def fix_all(self) -> None:
+        """Mark every boundary coefficient as fixed."""
         self._free[:] = False
 
     def unfix_all(self) -> None:
+        """Mark every boundary coefficient as free."""
         self._free[:] = True
 
     def fix(self, name: str) -> None:
+        """Fix a single coefficient by name."""
         idx = self._names.index(name)
         self._free[idx] = False
 
     def unfix(self, name: str) -> None:
+        """Unfix a single coefficient by name."""
         idx = self._names.index(name)
         self._free[idx] = True
 
@@ -217,26 +224,30 @@ class JaxBoundary:
         nmax: int,
         fixed: bool = True,
     ) -> None:
+        """Apply a free/fixed setting over a rectangular Fourier mode window."""
         for i, name in enumerate(self._names):
             kind, m, n = _parse_name(name)
             if mmin <= m <= mmax and nmin <= n <= nmax:
                 self._free[i] = not fixed
 
     def set_full_params(self, x_full: np.ndarray) -> None:
+        """Replace the complete coefficient vector."""
         if x_full.shape[0] != self._x.shape[0]:
             raise ValueError("x_full has wrong length")
         self._x[:] = np.asarray(x_full, dtype=float)
 
     def get_free_params(self) -> np.ndarray:
+        """Return only the currently free parameters."""
         return self._x[self._free]
 
     def set_free_params(self, x_free: np.ndarray) -> None:
+        """Update the active optimization variables in-place."""
         if x_free.shape[0] != int(np.sum(self._free)):
             raise ValueError("x_free has wrong length")
         self._x[self._free] = np.asarray(x_free, dtype=float)
 
     def expand_free(self, x_free: jnp.ndarray) -> jnp.ndarray:
-        # Expand free params into the full parameter vector (JAX-friendly).
+        """Expand free parameters into the full coefficient vector."""
         x_full = jnp.asarray(self._x)
         if int(np.sum(self._free)) == 0:
             return x_full
@@ -244,7 +255,7 @@ class JaxBoundary:
         return x_full.at[free_idx].set(jnp.asarray(x_free))
 
     def apply_params(self, x_full: jnp.ndarray):
-        # Convert full params into boundary coefficients (JAX-friendly).
+        """Apply a full parameter vector and return vmec_jax solver coefficients."""
         delta = jnp.asarray(x_full) - jnp.asarray(self._base)
         boundary_input = vj.optimization.apply_boundary_params(self._boundary_input0, self._specs, delta)
         return boundary_from_input_convention(
@@ -316,6 +327,7 @@ class VmecJax:
         self._load_config()
 
     def _load_config(self) -> None:
+        """Load the VMEC input file and initialize wrapper defaults."""
         cfg, indata = vj.load_config(self.filename)
         self._cfg = cfg
         self._indata_raw = indata
@@ -361,6 +373,7 @@ class VmecJax:
         self._reset_caches()
 
     def _reset_caches(self, *, reset_warm_start: bool = False) -> None:
+        """Clear cached solve/wout results and optionally reset the warm-start seed."""
         self._cached_x = None
         self._cached_state = None
         self._cached_wout = None
@@ -369,16 +382,19 @@ class VmecJax:
             self._context.st_guess = _clone_state(self._context_seed_guess)
 
     def _invalidate_runtime(self) -> None:
+        """Invalidate stateful runtime caches that depend on static setup."""
         self._context_dirty = True
         self._context_seed_guess = None
         self._reset_caches()
 
     def _update_cfg(self, *, mpol: int, ntor: int) -> None:
+        """Change the active resolution and invalidate dependent state."""
         self._cfg = replace(self._cfg, mpol=int(mpol), ntor=int(ntor))
         self._static_dirty = True
         self._invalidate_runtime()
 
     def _ensure_static(self) -> None:
+        """Build static VMEC-JAX structures and the boundary wrapper lazily."""
         if not self._static_dirty and self._static is not None and self._boundary is not None:
             return
         old_boundary = self._boundary
@@ -406,6 +422,7 @@ class VmecJax:
         self._invalidate_runtime()
 
     def _ensure_context(self) -> None:
+        """Build the warm-start context and profile data for subsequent solves."""
         self._ensure_static()
         if not self._context_dirty and self._context is not None:
             return
@@ -469,6 +486,7 @@ class VmecJax:
         implicit_converge_tol: float | None = None,
         implicit_zero_unconverged: bool | None = None,
     ) -> None:
+        """Update VMEC-JAX solver controls used by this wrapper."""
         if max_iter is not None:
             max_iter = int(max_iter)
             if max_iter != self._max_iter:
@@ -547,6 +565,7 @@ class VmecJax:
                 self._reset_caches(reset_warm_start=True)
 
     def _x_cache_key(self, x_free) -> tuple[float, ...]:
+        """Return a hashable cache key for concrete parameter vectors."""
         try:
             arr = np.asarray(x_free, dtype=float).reshape(-1)
         except Exception:
@@ -554,6 +573,7 @@ class VmecJax:
         return tuple(arr.tolist())
 
     def _solve_state(self, x_free: jnp.ndarray):
+        """Solve the fixed-boundary equilibrium and return the VMEC-JAX state."""
         from vmec_jax.implicit import (
             ImplicitFixedBoundaryOptions,
             solve_fixed_boundary_state_implicit,
@@ -687,6 +707,7 @@ class VmecJax:
         return state
 
     def get_run(self, x_free):
+        """Return a :class:`vmec_jax.driver.FixedBoundaryRun` for the current point."""
         state = self._solve_state(x_free)
         if self._cached_run is not None and self._cached_state is state:
             return self._cached_run
@@ -706,6 +727,7 @@ class VmecJax:
         return run
 
     def get_wout(self, x_free):
+        """Return a VMEC-style ``wout`` object for the current point."""
         run = self.get_run(x_free)
         if self._cached_wout is not None and self._cached_run is run:
             return self._cached_wout
@@ -715,29 +737,35 @@ class VmecJax:
         return wout
 
     def aspect_jax(self, x_free: jnp.ndarray):
+        """Return the fast boundary-only aspect-ratio surrogate."""
         self._ensure_static()
         boundary = self.boundary.apply_params(self.boundary.expand_free(x_free))
         return vj.boundary_aspect_ratio_from_static(boundary, self._static)
 
     def aspect_equilibrium(self, x_free=None):
+        """Return the equilibrium aspect ratio derived from the solved ``wout``."""
         if x_free is None:
             x_free = self.boundary.get_free_params()
         return float(self.get_wout(jnp.asarray(x_free)).aspect)
 
     def aspect(self, x_free=None):
+        """Return the lightweight boundary aspect ratio used by classic examples."""
         if x_free is None:
             x_free = self.boundary.get_free_params()
         return float(self.aspect_jax(jnp.asarray(x_free)))
 
     def get_static(self):
+        """Expose the cached vmec_jax static data structure."""
         self._ensure_static()
         return self._static
 
     def get_context(self):
+        """Expose the cached warm-start/profile context."""
         self._ensure_context()
         return self._context
 
     @property
     def boundary(self):
+        """Return the mutable boundary wrapper for this VMEC-JAX instance."""
         self._ensure_static()
         return self._boundary
