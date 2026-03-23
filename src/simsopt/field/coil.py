@@ -559,6 +559,7 @@ def coils_to_vtk(coils, filename, close=False, extra_data=None):
         ppl = np.asarray([c.gamma().shape[0]+1 for c in curves])
     else:
         ppl = np.asarray([c.gamma().shape[0] for c in curves])
+    ppl_cumsum = np.concatenate([[0], np.cumsum(ppl)])
 
     # get the current data, which is the same at every point on a given coil
     contig = np.ascontiguousarray
@@ -566,7 +567,7 @@ def coils_to_vtk(coils, filename, close=False, extra_data=None):
     data = np.concatenate([i*np.ones((ppl[i], )) for i in range(len(curves))])
     coil_data = np.zeros(data.shape)
     for i in range(len(currents)):
-        coil_data[i * ppl[i]: (i + 1) * ppl[i]] = currents[i]
+        coil_data[ppl_cumsum[i]:ppl_cumsum[i+1]] = currents[i]
     coil_data = np.ascontiguousarray(coil_data)
     pointData['I'] = coil_data
     pointData['I_mag'] = contig(np.abs(coil_data))
@@ -593,20 +594,20 @@ def coils_to_vtk(coils, filename, close=False, extra_data=None):
             if close:
                 coil_force_temp = np.vstack((coil_force_temp, coil_force_temp[0, :]))
                 coil_torque_temp = np.vstack((coil_torque_temp, coil_torque_temp[0, :]))
-            coil_forces[i * ppl[i]: (i + 1) * ppl[i], :] = coil_force_temp
-            coil_torques[i * ppl[i]: (i + 1) * ppl[i], :] = coil_torque_temp
+            coil_forces[ppl_cumsum[i]:ppl_cumsum[i+1], :] = coil_force_temp
+            coil_torques[ppl_cumsum[i]:ppl_cumsum[i+1], :] = coil_torque_temp
 
         # copy force and torque data over to pointwise data on a coil curve
         coil_data = np.zeros((data.shape[0], 3))
         for i in range(len(coils)):
-            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = net_forces[i, :]
+            coil_data[ppl_cumsum[i]:ppl_cumsum[i+1], :] = net_forces[i, :]
         coil_data = np.ascontiguousarray(coil_data)
         pointData['NetForces'] = (contig(coil_data[:, 0]),
                                     contig(coil_data[:, 1]),
                                     contig(coil_data[:, 2]))
         coil_data = np.zeros((data.shape[0], 3))
         for i in range(len(coils)):
-            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = net_torques[i, :]
+            coil_data[ppl_cumsum[i]:ppl_cumsum[i+1], :] = net_torques[i, :]
         coil_data = np.ascontiguousarray(coil_data)
 
         # Add pointwise force and torque data to the dictionary
