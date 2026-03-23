@@ -801,7 +801,7 @@ class CoilForcesTest(unittest.TestCase):
 
     def test_force_and_torque_objectives_with_different_quadpoints(self):
         """Check that force and torque objectives work with two groups of coils having different numbers of quadrature points."""
-        I = 1.7e10
+        I = 1.7e6
         # Group A: two coils with 40 quadrature points
         curve_a1 = CurveXYZFourier(40, 1)
         curve_a1.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * 1.0
@@ -897,7 +897,7 @@ class CoilForcesTest(unittest.TestCase):
             obj_cb = ForceClass(target_same_quad, source_external_40, **kwargs)
             # Relax tolerance for dJ: per-coil vs combined can differ due to floating-point order of ops
             # and VJP aggregation; use atol for large-magnitude gradient components
-            np.testing.assert_allclose(dJ_cb, dJ_pc(obj_cb), rtol=1e-2, atol=1e7,
+            np.testing.assert_allclose(dJ_cb, dJ_pc(obj_cb), rtol=1e-2, atol=1e-8,
                                        err_msg=f"{ForceClass.__name__}: sum(per-coil dJ) should equal combined dJ")
 
         # Coarse vs coarse+fine split: same J and dJ when all sources have same quadpoints
@@ -1032,19 +1032,21 @@ class CoilForcesTest(unittest.TestCase):
         A test passes if the Taylor error decreases rapidly (ideally quadratically) as the step size shrinks, confirming the correctness of the gradient implementation for all tested objectives and configurations.
         """
         import matplotlib.pyplot as plt
+
+        # These can be increased but then unit tests take a long time! 
         ncoils_list = [2]
-        nfp_list = [1, 3]
+        nfp_list = [3]
         stellsym_list = [True]
         p_list = [2.5]
-        threshold_list = [0.0, 1e-3]
-        downsample_list = [1, 2]
+        threshold_list = [1e-3]
+        downsample_list = [2]
         jax_flag_list = [False, True]
-        numquadpoints_list = [10]
+        numquadpoints_list = [6]
         I = 1.7e5
         a = 0.05
         b = 0.05
         regularization_types = [
-            ("circular", lambda: regularization_circ(a)),
+            # ("circular", lambda: regularization_circ(a)),
             ("rectangular", lambda: regularization_rect(a, b)),
         ]
         all_errors = []

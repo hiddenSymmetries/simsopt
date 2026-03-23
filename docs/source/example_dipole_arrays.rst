@@ -27,12 +27,6 @@ namely, how to set up the optimization problem in the minimal example
 ``examples/3_Advanced/dipole_array_tutorial.py``. A more advanced tutorial 
 can be found in the script 
 ``examples/3_Advanced/dipole_array_tutorial_advanced.py``.
-Advanced scripts for dipole array optimization can be found in the following folders:
-
-- Many more examples on dipole array optimization can be found in
-  ``examples/3_Advanced/dipole_coil_optimization/``.
-- Many more examples on passive dipole array optimization can be found in
-  ``examples/3_Advanced/passive_coil_optimization/``.
 
 .. _minimal_dipole_array_example:
 
@@ -51,7 +45,7 @@ field normal to the surface. If the magnets exactly produce a flux
 surface of the target shape, this term will vanish. We will assume here that
 :math:`B_{plasma} = 0` for simplicity. 
 
-Notice that, unlike in normal stage-2 coil optimization, :math:`B_{TF}` must be nonzero.
+Notice that :math:`B_{TF}` must be nonzero.
 This is because dipole coils cannot produce a net toroidal flux, i.e. 
 cannot provide a free current through the torus hole, so that
 application of Ampere's law along a toroidal curve gives zero. In other words, in
@@ -65,40 +59,17 @@ ignore finite plasma currents in this configuration (which require a virtual cas
 and assume that the configuration is in vacuum. The goal of the optimization is to 
 find a set of dipole coils that decreases the complexity of the TF coils.
 
-To solve this optimization problem in simsopt, we first import the necessary classes::
-  
-  from simsopt.field import BiotSavart
-  from simsopt.geo import SurfaceRZFourier
-  from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
-
-The target plasma surface is given in the wout input file ``tests/test_files/input.LandremanPaul2021_QA_reactorScale_lowres``.
-We load the surface with low-resolution using:
-
-.. code-block::
-
-  nphi = 16
-  ntheta = 16
-  filename = "tests/test_files/input.LandremanPaul2021_QA_reactorScale_lowres"
-  s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-
-You can adjust the directory in ``"filename"`` as appropriate for your
-system. As surface objects carry a grid of "quadrature points" at
-which the position vector is evaluated we may want these points to
-cover different ranges of the toroidal angle. For this problem with
-stellarator symmetry and field-period symmetry, we need only consider
-half of a field period in order to evaluate integrals over the entire
-surface. For this reason, the ``range`` parameter of the surface is
-set to ``"half period"`` here. Possible options in general are ``"full
-torus"``, ``"field period"`` and ``"half period"``, but ``"half
-period"`` is significantly more efficient than the other options for
-this problem. The nphi and ntheta parameters should be ~ 64 or so for a high-resolution run.
-
-We will now omit more of these normal details regarding stage-2 coil optimization 
+We will omit the normal details regarding stage-2 coil optimization 
 (see the Coil Optimization tutorial for more details). We now focus on the dipole-array relevant parts. 
 
-We next set the initial curves for the coils. There is a predefined function
-that sets up the TF curves and the dipole curves, given a "winding surface" where 
-the dipole coil center locations are constrained to lie on. 
+Generating base curves
+------------------------
+
+The purpose of this step is to **initialize dipole coils conformal to a winding surface**: a toroidal ``SurfaceRZFourier`` (usually the plasma boundary extended to a standoff vacuum vessel) that the windowpane dipoles are built to follow, rather than placing dipoles in free space.
+
+:func:`~simsopt.util.generate_curves` takes that winding surface ``VV`` plus the plasma boundary ``surf``, and produces **half-field-period** base curves for the windowpane array (via ``generate_windowpane_array`` on ``VV``) and for TF coils (via ``generate_tf_array``, sized from ``surf``). The return pair ``(base_wp_curves, base_tf_curves)`` is then passed to ``coils_via_symmetries``. Optional VTK export and all tuning parameters are documented in the function docstring.
+
+The minimal script builds ``VV`` and calls ``generate_curves`` as follows:
 
 .. code-block::
 
@@ -112,13 +83,13 @@ the dipole coil center locations are constrained to lie on.
   base_wp_curves, base_tf_curves = generate_curves(s, VV, outdir=outdir)
 
 We still need to initialize proper coils, rather than just the base curves.
-First, we initialize some values for the finite cross-section of the coils:
+First, we set the finite cross-section sizes (used for regularization when self-forces are included):
+
+.. code-block:: python
 
   # wire cross section for the TF coils is a square 25 cm x 25 cm
-  # Only need this if make self forces and B2Energy nonzero in the objective!
   a = 0.25
   b = 0.25
-
   # wire cross section for the dipole coils should be at least 10 cm x 10 cm
   aa = 0.1
   bb = 0.1
@@ -145,7 +116,9 @@ by ``coils_via_symmetries``::
   bs_TF = BiotSavart(coils_TF)
 
 Finally, we do the same for the dipole coils. We also fix the spatial degrees of freedom 
-of the dipole curve objects, so that they are not free to move around.::
+of the dipole curve objects, so that they are not free to move around.
+
+::
 
   # Fix the window pane curve dofs
   [c.fix_all() for c in base_wp_curves]
@@ -165,21 +138,21 @@ of the dipole curve objects, so that they are not free to move around.::
   # Make a total BiotSavart object containing both the TF and dipole coils
   btot = bs + bs_TF
 
-The initial coils and plasma surface are plotted in vtk files, which can be viewed in Paraview.
 One can see that the forces on the TF coils are already beyond the typical material limits 
 of ~ 1 MN/m. 
 
 .. image:: DipoleArrayInitial.png
    :width: 600 
 
-We now initialize the objective function. The objective function is a sum of
+We now initialize the objective function. In ``dipole_array_tutorial.py`` it is a sum of
 the following terms:
 
-- The squared flux objective, which is the main objective function
-- The curve length objective, which penalizes the length of the TF coils
-- The curve-curve distance objective, which penalizes the distance between all pairs of coils
+- The squared flux objective (main term)
+- A quadratic penalty on the total length of the **TF** coils (relative to a target)
+- A curve–curve distance term between **TF** coils only (via ``CurveCurveDistance`` on ``curves_TF``)
 
 ::
+
 
   # Define the individual terms in the objective function
   LENGTH_WEIGHT = Weight(0.01)
@@ -190,53 +163,16 @@ the following terms:
   Jls_TF = [CurveLength(c) for c in base_tf_curves]
   Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
   Jccdist = CurveCurveDistance(
-      curves_TF, CC_THRESHOLD, 
+      curves_TF, CC_THRESHOLD,
       num_basecurves=len(coils_TF)
-  )  # Only penalizing the TF coil-coil distances
+  )
   JF = Jf \
       + CC_WEIGHT * Jccdist \
       + LENGTH_WEIGHT * Jlength
 
-We define a function that returns the objective value and gradient,
-through the following definition, which also allows us to print 
-out the progress::
+Optimization, logging, VTK export of the optimized surface, and optional Taylor tests are implemented in ``dipole_array_tutorial.py``.
 
-  def fun(dofs):
-    JF.x = dofs
-    J = JF.J()
-    grad = JF.dJ()
-    jf = Jf.J()
-    length_val = LENGTH_WEIGHT.value * Jlength.J()
-    cc_val = CC_WEIGHT * Jccdist.J()
-    BdotN_over_B = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
-                            ) / np.mean(btot.AbsB())
-    outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
-    valuestr = f"J={J:.2e}, Jf={jf:.2e}"
-    cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
-    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls_TF):.2f}"
-    valuestr += f", LenObj={length_val:.2e}"
-    valuestr += f", ccObj={cc_val:.2e}"
-    outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}"
-    outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
-    print(outstr)
-    print(valuestr)
-    return J, grad
-
-Finally, we can optimize the coils using the L-BFGS-B algorithm.::
-  
-  MAXITER = 1000
-  # Run the optimization
-  res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
-                  options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-10)
-
-  # Save the final coils
-  save_coil_sets(btot, outdir, "_optimized")
-  pointData = {
-      "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * n_plot, axis=2
-                          ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-  s_plot.to_vtk(outdir + "surf_optimized", extra_data=pointData)
-
-which produces the following final results in Paraview.
+The result is illustrated below (Paraview).
 
 .. image:: DipoleArrayFinal.png
    :width: 600 
@@ -254,56 +190,22 @@ ignore the large finite plasma currents in this configuration (which require a v
 and assume that the configuration is in vacuum. The goal of the optimization is to 
 find a set of dipole coils that decreases the complexity of the TF coils.
 
-To solve this optimization problem in simsopt, we first import the necessary classes. There is quite 
-a bit more functionality to import, since we need additional functions to compute the forces 
-and torques and many other terms in the objective function we will eventually construct::
-  
-  from simsopt.field import BiotSavart, Current, coils_via_symmetries, regularization_rect
-  from simsopt.util import calculate_modB_on_major_radius, remove_inboard_dipoles, \
-      remove_interlinking_dipoles_and_TFs, initialize_coils, \
-      dipole_array_optimization_function, save_coil_sets
-  from simsopt.geo import (
-      CurveLength, CurveCurveDistance,
-      MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
-      SurfaceRZFourier, create_planar_curves_between_two_toroidal_surfaces
-  )
-  from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
-  from simsopt.field.force import LpCurveForce, SquaredMeanForce, \
-      SquaredMeanTorque, LpCurveTorque
-
-The target plasma surface is given in the wout input file ``tests/test_files/input.SchuettHennebergQAnfp2``.
-We load the surface with medium-resolution. We also initialize inner and outer toroidal surfaces 
-by extending the plasma surface. The inner and outer surfaces are used to define 
-a uniform grid between the inner and outer surfaces, which is used to initialize the 
-dipole coils.
+The advanced script builds inner and outer toroidal surfaces by extending the plasma boundary; those surfaces bound the region where planar dipole coils are placed on a grid.
 
 .. code-block::
 
-  nphi = 32
-  ntheta = 32
-  filename = "tests/test_files/input.SchuettHennebergQAnfp2"
-  s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-
-  # Initialize s_inner and s_outer toroidal surfaces by extending the plasma surface
+  from pathlib import Path
+  TEST_DIR = Path(__file__).parent / ".." / ".." / "tests" / "test_files"
+  input_name = "wout_schuett_henneberg_nfp2_QA.nc"
+  filename = TEST_DIR / input_name
+  range_param = "half period"
   poff = 1.5
-  coff = 1.5
-  s_inner = SurfaceRZFourier.from_vmec_input(
-    filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
-  s_outer = SurfaceRZFourier.from_vmec_input(
-    filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
+  coff = 3.0
+  s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=ntheta)
+  s_inner = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
+  s_outer = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
   s_inner.extend_via_normal(poff)
   s_outer.extend_via_normal(poff + coff)
-
-We now initialize some values for the finite cross-section of the coils:
-
-  # wire cross section for the TF coils is a square 25 cm x 25 cm
-  # Only need this if make self forces and B2Energy nonzero in the objective!
-  a = 0.2
-  b = 0.2
-
-  # wire cross section for the dipole coils should be at least 10 cm x 10 cm
-  aa = 0.1
-  bb = 0.1
 
 We next set the initial toroidal field coils by calling a function that generates 
 some plausible coils for a few predefined plasma configurations.
@@ -320,97 +222,20 @@ some plausible coils for a few predefined plasma configurations.
   # Set up BiotSavart fields
   bs_TF = BiotSavart(coils_TF)
 
-Next we initialize planar dipole coils in the array by initializing them with centers on a uniform grid 
-defined between an inner and outer toroidal surface. ``Nx`` controls the resolution on this grid,
-``order`` controls the maximum Fourier mode in the representation of the planar coils. Given that grid,
-we then go through and remove any unwanted dipole coils. For this very compact plasma configuration,
-we remove any dipole coils that are on the inboard side of the plasma. We also remove any dipole coils
-that are interlinked with the TF coils. Lastly, we optionally fix the shape and spatial degrees of freedom
-of the dipole coils. In this case, we let the dipole coil centers and orientations change, but the shapes
-of the coils are fixed. The dipole currents can also change. 
-Note that nothing
-about this script requires that the dipole coils are planar, or that the dipole coils are fixed::
+Next we initialize **planar** dipole coils on a uniform grid between ``s_inner`` and ``s_outer``.
+In ``dipole_array_tutorial_advanced.py``, ``Nx``, ``Ny``, ``Nz`` set the grid size; ``order`` sets the
+Fourier content of each planar coil. The script then drops inboard dipoles (``remove_inboard_dipoles``)
+and dipoles that interlink TF coils (``remove_interlinking_dipoles_and_TFs``), aligns normals toward the
+plasma (``align_dipoles_with_plasma``), and sets each coil’s orientation using **quaternion** DOFs
+``q0``, ``qi``, ``qj``, ``qk`` (not the legacy ``x0``, ``x1``, … naming). Shape DOFs use ``rc(j)`` / ``rs(j)``;
+centers use ``X``, ``Y``, ``Z``. Flags ``shape_fixed``, ``spatially_fixed``, and ``currents_fixed`` control
+which of those are optimized.
 
-  # Number of Fourier modes describing each Cartesian component of each coil:
-  order = 0
+The script builds ``eval_points = s.gamma().reshape(-1, 3)``, then either:
 
-  # Whether to fix the shapes, spatial locations/orientations, and currents of the dipole coils
-  shape_fixed = True
-  spatially_fixed = False
-  currents_fixed = False
+- **Active dipoles:** fixed currents or free ``Current`` objects, ``coils_via_symmetries``, ``btot = BiotSavart(coils) + bs_TF``, or
+- **Passive dipoles:** a ``PSCArray`` couples dipole coils to the TF ``BiotSavart`` so induced currents are computed self-consistently; ``btot`` is taken from ``psc_array.biot_savart_total``.
 
-  # Create the initial dipole coils:
-  Nx = 4
-  Ny = Nx
-  Nz = Nx
-  base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-      s, s_inner, s_outer, Nx, Ny, Nz, order=order,
-  )
-
-  # Remove dipoles that are on the inboard side, since this plasma is very compact.
-  base_curves = remove_inboard_dipoles(s, base_curves)
-
-  # Remove dipoles that are initialized interlinked with the TF coils.
-  base_curves = remove_interlinking_dipoles_and_TFs(base_curves, base_curves_TF)
-
-  # Get the angles of the dipole coils corresponding to their normal vectors
-  # being aligned to point towards the nearest point on the plasma surface
-  alphas, deltas = align_dipoles_with_plasma(s, base_curves)
-
-  # print out total number of dipole coils remaining
-  ncoils = len(base_curves)
-  print('Ncoils = ', ncoils)
-
-  # Fix the dipole coil locations, shapes, and orientations, so that
-  # only degree of freedom for each dipole is how much current it has
-  for i in range(len(base_curves)):
-      
-      # Set curve orientations to be aligned with the plasma surface
-      alpha2 = alphas[i] / 2.0
-      delta2 = deltas[i] / 2.0
-      calpha2 = np.cos(alpha2)
-      salpha2 = np.sin(alpha2)
-      cdelta2 = np.cos(delta2)
-      sdelta2 = np.sin(delta2)
-      base_curves[i].set('x' + str(2 * order + 1), calpha2 * cdelta2)
-      base_curves[i].set('x' + str(2 * order + 2), salpha2 * cdelta2)
-      base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
-      base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
-
-      if shape_fixed:
-          # Fix shape of each coil
-          for j in range(2 * order + 1):
-              base_curves[i].fix('x' + str(j))
-
-      if spatially_fixed:
-          # Fix the orientation of each coil
-          base_curves[i].fix('x' + str(2 * order + 2))
-          base_curves[i].fix('x' + str(2 * order + 3))
-          base_curves[i].fix('x' + str(2 * order + 4))
-          # Fix center points of each coil
-          base_curves[i].fix('x' + str(2 * order + 5))
-          base_curves[i].fix('x' + str(2 * order + 6))
-          base_curves[i].fix('x' + str(2 * order + 7))
-
-  # Set the initial currents in the dipole coils
-  base_currents = [Current(1.0) * 1e7 for i in range(ncoils)]
-  if currents_fixed:
-      [c.fix_all() for c in base_currents]
-
-  # Create the dipole coils and the BiotSavart object
-  regularization = regularization_rect(aa, bb)
-  regularizations = [regularization for _ in range(ncoils)]
-  coils = coils_via_symmetries(base_curves, base_currents, s.nfp, s.stellsym, regularizations=regularizations)
-  base_coils = coils[:ncoils]
-  bs = BiotSavart(coils)
-  
-  # Create the total Bfield object from both the TF and dipole coils
-  btot = bs + bs_TF
-  btot.set_points(s.gamma().reshape((-1, 3)))
-  curves = [c.curve for c in coils]
-  currents = [c.current.get_value() for c in coils]
-
-The initial coils and plasma surface are plotted in vtk files, which can be viewed in Paraview.
 One can see that the forces on the TF coils are already beyond the typical material limits 
 of ~ 1 MN/m. Note that the dipole coils are all circular and on the outboard side of the plasma, and
 facing the plasma surface. 
@@ -418,49 +243,39 @@ facing the plasma surface.
 .. image:: AdvancedDipoleArrayInitial.png
    :width: 600 
 
-We now initialize the objective function. The objective function is a sum of
-the following terms:
+We now initialize the objective function. In ``dipole_array_tutorial_advanced.py`` it includes:
 
-- The squared flux objective, which is the main objective function
-- The curve length objective, which penalizes the length of the TF coils
-- The curve-curve distance objective, which penalizes the distance between TF coils
-- Another curve-curve distance objective, which more weakly penalizes the distance between all pairs of coils
-- The linking number objective, which penalizes the linking number between all pairs of coils.
-- The curve-surface distance objective, which penalizes the distance between the TF coils and the plasma surface (the dipole coils are spatially fixed, so they cannot move around)
-- The curvature objective, which penalizes the curvature of the TF coils (again the dipole coils are spatially fixed)
-- The mean squared curvature objective, which penalizes the mean squared curvature of the TF coils
-- The force and torque objectives, which penalize the forces and torques on the coils. This can be the pointwise forces along the coil or the net force on the coil.
+- Squared flux on the plasma surface
+- Penalties on total TF length and (if dipole shapes are free) total dipole length
+- Two coil–coil distance terms: a tighter threshold on **all** coils (``curves + curves_TF``) and a TF-only term
+- Coil–surface clearance for **all** coils relative to the plasma (``CurveSurfaceDistance(curves + curves_TF, ...)``)
+- Linking number between **all** coils
+- TF curvature and mean-squared-curvature penalties
+- Optional ``LpCurveForce`` / ``SquaredMeanForce`` / torque objectives. In the script, ``FORCE_WEIGHT = 1e-6`` turns on ``LpCurveForce``.
 
 ::
 
-  # Define the objective function weights
+  # Define the objective function weights (see script for exact numbers)
   LENGTH_WEIGHT = Weight(0.01)
   LENGTH_WEIGHT2 = Weight(0.01)
-  LENGTH_TARGET = 85  # Target length of the TF coils
-  LINK_WEIGHT = 1e4   # Very large weight of the linking number term to avoid interlinking
-  CC_THRESHOLD = 1.0  # 1m threshold for the coil-coil distance term
+  LENGTH_TARGET = 85
+  LINK_WEIGHT = 1e4
+  CC_THRESHOLD = 0.8
   CC_WEIGHT = 1e2
-  CS_THRESHOLD = 1.5  # 1.5m threshold for the coil-surface distance term
+  CS_THRESHOLD = 1.3
   CS_WEIGHT = 1e1
 
-  # Define the individual terms objective function:
   Jf = SquaredFlux(s, btot)
   Jls = [CurveLength(c) for c in base_curves]
   Jls_TF = [CurveLength(c) for c in base_curves_TF]
   Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
   Jlength2 = QuadraticPenalty(sum(Jls), LENGTH_TARGET, "max")
 
-  # coil-coil distances between just TF coils, or between all coils
   Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD / 2.0, num_basecurves=len(allcoils))
   Jccdist2 = CurveCurveDistance(curves_TF, CC_THRESHOLD, num_basecurves=len(coils_TF))
-
-  # coil-surface distance for the TF coils, since the dipole coils are fixed
-  Jcsdist = CurveSurfaceDistance(curves_TF, s, CS_THRESHOLD)
-
-  # While the coil array is not moving around, two dipole coils cannot interlink.
+  Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
   linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 
-  # Curvature terms on the TF coils
   CURVATURE_THRESHOLD = 0.5
   MSC_THRESHOLD = 0.05
   CURVATURE_WEIGHT = 1e-2
@@ -468,10 +283,7 @@ the following terms:
   Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
   Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 
-  # Force and torque terms
-  all_coils = coils + coils_TF
-  all_base_coils = base_coils + base_coils_TF
-  FORCE_WEIGHT = 0.0
+  FORCE_WEIGHT = 1e-6
   FORCE_WEIGHT2 = 0.0
   TORQUE_WEIGHT = 0.0
   TORQUE_WEIGHT2 = 0.0
@@ -515,88 +327,27 @@ the following terms:
   if TORQUE_WEIGHT2 > 0.0:
       JF += TORQUE_WEIGHT2 * Jtorque2
 
-Finally, we can optimize the coils using the L-BFGS-B algorithm and a predefined function call that takes 
-all the weights and objective terms::
-  
-  # Define dictionary of objectives and weights to pass to dipole array optimization wrapper
-  obj_dict = {
-    "JF": JF,
-    "Jf": Jf,
-    "Jlength": Jlength,
-    "Jlength2": Jlength2,
-    "Jls": Jls,
-    "Jls_TF": Jls_TF,
-    "Jcs": Jcs,
-    "Jmscs": Jmscs,
-    "Jccdist": Jccdist,
-    "Jccdist2": Jccdist2,
-    "Jcsdist": Jcsdist,
-    "linkNum": linkNum,
-    "Jforce": Jforce,
-    "Jforce2": Jforce2,
-    "Jtorque": Jtorque,
-    "Jtorque2": Jtorque2,
-    "btot": btot,
-    "s": s,
-    "base_curves_TF": base_curves_TF,
-  }
-  weight_dict = {
-      "length_weight": LENGTH_WEIGHT.value,
-      "curvature_weight": CURVATURE_WEIGHT,
-      "msc_weight": MSC_WEIGHT,
-      "msc_threshold": MSC_THRESHOLD,
-      "cc_weight": CC_WEIGHT,
-      "cs_weight": CS_WEIGHT,
-      "link_weight": LINK_WEIGHT,
-      "force_weight": FORCE_WEIGHT,
-      "torque_weight": TORQUE_WEIGHT,
-      "net_force_weight": FORCE_WEIGHT2,
-      "net_torque_weight": TORQUE_WEIGHT2,
-  }
+The script passes the assembled objectives and weights into :func:`~simsopt.util.dipole_array_optimization_function` for use with ``scipy.optimize.minimize`` (L-BFGS-B): that wrapper evaluates ``JF``, applies optional logging/penalties, and handles passive-coil recomputation when a ``PSCArray`` is present. See ``dipole_array_tutorial_advanced.py`` for ``obj_dict`` / ``weight_dict`` construction, ``minimize`` options, ``save_coil_sets``, and VTK export of ``B_N`` and ``B_N / B``.
 
-  # Run the optimization
-  dofs = JF.x
-  MAXITER = 500
-  res = minimize(dipole_array_optimization_function, dofs, args=(obj_dict, weight_dict), jac=True, method='L-BFGS-B',
-                options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-20)
-
-  # Save the optimized dipole and TF coils
-  save_coil_sets(btot, OUT_DIR, "_optimized")
-  pointData = {"B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                  ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-  s_plot.to_vtk(OUT_DIR + "surf_optimized", extra_data=pointData)
-
-which produces the following final results in Paraview.
+The optimized configuration is illustrated below (Paraview).
 
 .. image:: AdvancedDipoleArrayFinal.png
    :width: 600 
 
-We can see that the forces are right at the material tolerances. 
-We now reoptimize, changing some parameters listed below to improve the forces and the accuracy of the solution::
-
-  FORCE_WEIGHT = 1e-6
-  shape_fixed = False
-  order = 2
-  coff = 3.0
-  nphi = 64
-  ntheta = 64
-
-which produces a solution with comparable solution accuracy, but lower forces and using fewer dipoles.
-Moreover, one of the dipole coils is providing very little current, so it could be removed before another 
-round of optimization.
-
-.. image:: ModifiedDipoleArrayFinal.png
-   :width: 600 
-
 Passive coil array optimization
 -------------------------------------------
-In this tutorial, we repeat the previous example, but we use a passive coil array, where the currents 
-in the dipole coils are induced by the TF coils. This requires a lot of complicated changes in the optimization,
-but we have hidden this from the user interface. So only a few minor changes are needed to switch out 
-active dipole coils for passive dipole coils in this script, and they can be turned on by flipping the flag 
-``passive_coil_array`` to ``True``. The dipole coil array is initialized in exactly the same way. 
-The primary change is that a PSCArray object is called for initializing the passive dipole coils
-with self-consistently calculated currents at the beginning::
+
+Passive superconducting coils that are cooled into the superconducting state before the TF coils are energized
+will have induced currents that maintain zero magnetic flux through the loop. This is a way to generate
+MA-scale dipole coils without energizing them.
+
+For passive dipole arrays, the script uses ``PSCArray`` so induced
+currents in passive conductors are consistent with the TF field. The dipole geometry and screening setup match
+the active case, but the **active** branch that creates ``Current`` objects and ``BiotSavart(coils)`` is skipped.
+
+The PSCArray block in the script matches the following structure:
+
+::
 
   # Initialize the PSCArray object
   ncoils = len(base_curves)
@@ -604,7 +355,6 @@ with self-consistently calculated currents at the beginning::
   b_list = np.ones(len(base_curves)) * aa
   psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
 
-  # Calculate average, approximate on-axis B field strength
   calculate_modB_on_major_radius(psc_array.biot_savart_TF, s)
   psc_array.biot_savart_TF.set_points(eval_points)
   btot = psc_array.biot_savart_total
@@ -612,8 +362,12 @@ with self-consistently calculated currents at the beginning::
   coils = psc_array.coils
   base_coils = coils[:ncoils]
 
-Note lastly that the whole point is that the currents in the dipole coils are not degrees of freedom in the optimization,
-but are instead calculated self-consistently. So ``currents_fixed`` is no longer used as a flag. We use the parameters::
+Dipole currents are then **not** independent DOFs; the same objective wrapper and ``minimize`` call apply
+(with ``psc_array`` passed through). ``currents_fixed`` applies only to the active branch.
+
+Example parameters used when discussing the passive run (see script):
+
+.. code-block:: text
 
   FORCE_WEIGHT = 1e-6
   shape_fixed = False
@@ -622,7 +376,7 @@ but are instead calculated self-consistently. So ``currents_fixed`` is no longer
   nphi = 32
   ntheta = 32
 
-After optimization, we obtain the following result in Paraview.
+After optimization, we obtain a result similar to the following in Paraview.
 
 .. image:: PassiveArrayFinal.png
    :width: 600 
@@ -630,4 +384,4 @@ After optimization, we obtain the following result in Paraview.
 The max solution errors are actually a bit better than the active dipole array, and the forces on the TF coils are
 very similar. The passive array solution has managed to outperform the active array solution by using the fact 
 that the optimization gives a lot of leeway for the dipole coils to get larger. Larger dipole coil size
-increases the size of the induced currents in the passive coils. 
+increases the size of the induced currents in the passive coils.

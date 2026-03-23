@@ -88,6 +88,7 @@ optimization.  Others include `STELLOPT
    example_quasisymmetry
    example_islands
    example_coils
+   example_dipole_arrays
    example_single_stage
    example_permanent_magnets
    example_wireframe
