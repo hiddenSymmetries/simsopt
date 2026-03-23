@@ -236,17 +236,17 @@ PyArray dipole_forces_from_A_F(const PyArray& moments, const Array3D& A_F) {
     return forces;
 }
 
-// Computes the squared 2-norm (sum of squares) of an array
-// double two_norm_squared(const PyArray& array) {
-//     double sum = 0.0;
-//     double* array_ptr = const_cast<double*>(&(array(0)));
+ //Computes the squared 2-norm (sum of squares) of an array
+ double two_norm_squared(const PyArray& array) {
+     double sum = 0.0;
+     double* array_ptr = const_cast<double*>(&(array(0)));
     
-//     #pragma omp parallel for reduction(+:sum)
-//     for (int i = 0; i < array.size(); ++i) {
-//         sum += array_ptr[i] * array_ptr[i];
-//     }
-//     return sum;
-// }
+     #pragma omp parallel for reduction(+:sum)
+     for (int i = 0; i < array.size(); ++i) {
+         sum += array_ptr[i] * array_ptr[i];
+     }
+     return sum;
+ }
 
 // Iterative_Forces(moments, forces, j_index, dipole_grid_xyz, sign = positive)
 // moments: (N, 3) array of the dipole moments

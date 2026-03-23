@@ -1350,7 +1350,7 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
 // Run the GPMO algorithm for solving 
 // the permanent magnet optimization problem with force calculations.
 // The A matrix should be rescaled by m_maxima since we are assuming all ones in m.
-std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, Array& dipole_grid_flat, int K, bool verbose, int nhistory, int single_direction, double force_weight) 
+std::tuple<Array, Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, Array& dipole_grid_flat, int K, bool verbose, int nhistory, int single_direction, double force_weight) 
 {
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);
@@ -1392,7 +1392,7 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
     double* mmax_ptr = &(mmax(0));
 
     // Initialize forces array for force calculations
-    Array current_forces = xt::zeros<double>({6 * N});
+    Array current_forces = xt::zeros<double>({3 * N});
     double* x_ptr = &(x(0));
     double* current_forces_ptr = &(current_forces(0));
     double* positions_ptr = &(dipole_grid_flat(0));
@@ -1420,6 +1420,11 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
         //#pragma omp parallel for schedule(static) 
         for (int j = 0; j < N3; ++j) {
             if (Gamma_ptr[j]) {
+                // Reset the temp force arrays back to the baseline current_forces
+                for (int i = 0; i < 3 * N; ++i) {
+                    temp_forces_plus_ptr[i] = current_forces_ptr[i];
+                    temp_forces_minus_ptr[i] = current_forces_ptr[i];
+                }
                 // Set up variables for j's moment and position
                 int dipole_idx = j / 3;
                 int j_plus0 = 3 * dipole_idx;
@@ -1546,15 +1551,15 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
                     // Subtract force from magnet m's force vector in temp_forces_minus
                     temp_forces_minus_ptr[m3] -= force_on_m0;
                     temp_forces_minus_ptr[m3_plus1] -= force_on_m1;
-                    temp_forces_minus_ptr[m3_plus2] -= force_on_m1;
+                    temp_forces_minus_ptr[m3_plus2] -= force_on_m2;
                     
                     // Subtract force from magnet j's force vector in temp_forces_plus (Newton's 3rd law)
-                    temp_forces_plus_ptr[j] -= force_on_m0;
+                    temp_forces_plus_ptr[j_plus0] -= force_on_m0;
                     temp_forces_plus_ptr[j_plus1] -= force_on_m1;
                     temp_forces_plus_ptr[j_plus2] -= force_on_m2;
                     
                     // Add force to magnet j's force vector in temp_forces_minus (Newton's 3rd law)
-                    temp_forces_minus_ptr[j] += force_on_m0;
+                    temp_forces_minus_ptr[j_plus0] += force_on_m0;
                     temp_forces_minus_ptr[j_plus1] += force_on_m1;
                     temp_forces_minus_ptr[j_plus2] += force_on_m2;
                 }
@@ -1608,24 +1613,18 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
             int m3 = 3 * m;
             int m3_plus1 = m3 + 1;
             int m3_plus2 = m3 + 2;
-            int m3_N3 = m3 + N3;
-            int m3_N3_plus1 = m3_N3 + 1;
-            int m3_N3_plus2 = m3_N3 + 2;
             
             double r0 = positions_ptr[m3];
             double r1 = positions_ptr[m3_plus1];
             double r2 = positions_ptr[m3_plus2];
-            double x1 = x_ptr[m3];
-            double x2 = x_ptr[m3_plus1];
-            double x3 = x_ptr[m3_plus2];
+            double x0 = x_ptr[m3];
+            double x1 = x_ptr[m3_plus1];
+            double x2 = x_ptr[m3_plus2];
             
             // Set up variables for skj[k]'s moment and position
             int skj_k_3 = 3 * skj[k];
             int skj_k_3_plus1 = skj_k_3 + 1;
             int skj_k_3_plus2 = skj_k_3 + 2;
-            int skj_k_N3 = skj_k_3 + N3;
-            int skj_k_N3_plus1 = skj_k_N3 + 1;
-            int skj_k_N3_plus2 = skj_k_N3 + 2;
             
             // Get position vector for magnet skj[k]
             double skj_pos[3] = {positions_ptr[skj_k_3], positions_ptr[skj_k_3_plus1], positions_ptr[skj_k_3_plus2]};
@@ -1663,20 +1662,20 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
             double force_on_m2 = 0.0;
 
             // Component 0 (x) - uses A_tildeF indices for x-component of force (j=0)
-                    force_on_m0 = x1 * (3.0 * r0 - r0_r0_r0_5) * moment_skj[0] +
-                                    x1 * (r1 - r0_r0_r1_5) * moment_skj[1] +
-                                    x1 * (r2 - r0_r0_r2_5) * moment_skj[2] +
-                                    x2 * (r1 - r0_r0_r1_5) * moment_skj[0] +
-                                    x2 * (r0 - r0_r1_r1_5) * moment_skj[1] +
-                                    x2 * (-r0_r1_r2_5) * moment_skj[2] +
-                                    x3 * (r2 - r0_r0_r2_5) * moment_skj[0] +
-                                    x3 * (-r0_r1_r2_5) * moment_skj[1] +
-                                    x3 * (r0 - r0_r2_r2_5) * moment_skj[2];
-            
-            // Component 1 (y) - uses A_tildeF indices for y-component of force (j=1)
-                    force_on_m1 = x1 * (r1 - r0_r0_r1_5) * moment_skj[0] +
+                    force_on_m0 = x0 * (3.0 * r0 - r0_r0_r0_5) * moment_skj[0] +
+                                    x0 * (r1 - r0_r0_r1_5) * moment_skj[1] +
+                                    x0 * (r2 - r0_r0_r2_5) * moment_skj[2] +
+                                    x1 * (r1 - r0_r0_r1_5) * moment_skj[0] +
                                     x1 * (r0 - r0_r1_r1_5) * moment_skj[1] +
                                     x1 * (-r0_r1_r2_5) * moment_skj[2] +
+                                    x2 * (r2 - r0_r0_r2_5) * moment_skj[0] +
+                                    x2 * (-r0_r1_r2_5) * moment_skj[1] +
+                                    x2 * (r0 - r0_r2_r2_5) * moment_skj[2];
+            
+            // Component 1 (y) - uses A_tildeF indices for y-component of force (j=1)
+                    force_on_m1 = x0 * (r1 - r0_r0_r1_5) * moment_skj[0] +
+                                    x0 * (r0 - r0_r1_r1_5) * moment_skj[1] +
+                                    x0 * (-r0_r1_r2_5) * moment_skj[2] +
                                     x1 * (r0 - r0_r1_r1_5) * moment_skj[0] +
                                     x1 * (3.0 * r1 - r1_r1_r1_5) * moment_skj[1] +
                                     x1 * (r2 - r1_r1_r2_5) * moment_skj[2] +
@@ -1685,9 +1684,9 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
                                     x2 * (r1 - r1_r2_r2_5) * moment_skj[2];
             
             // Component 2 (z) - uses A_tildeF indices for z-component of force (j=2)
-                    force_on_m2 = x1 * (r2 - r0_r0_r2_5) * moment_skj[0] +
-                                    x1 * (-r0_r1_r2_5) * moment_skj[1] +
-                                    x1 * (r0 - r0_r2_r2_5) * moment_skj[2] +
+                    force_on_m2 = x0 * (r2 - r0_r0_r2_5) * moment_skj[0] +
+                                    x0 * (-r0_r1_r2_5) * moment_skj[1] +
+                                    x0 * (r0 - r0_r2_r2_5) * moment_skj[2] +
                                     x1 * (-r0_r1_r2_5) * moment_skj[0] +
                                     x1 * (r2 - r1_r1_r2_5) * moment_skj[1] +
                                     x1 * (r1 - r1_r2_r2_5) * moment_skj[2] +
@@ -1742,17 +1741,5 @@ std::tuple<Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b_obj, A
                 print_GPMO(k, ngrid, print_iter, x_2D, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr, force_penalty);
         }
     }
-    return std::make_tuple(objective_history, Bn_history, m_history, x_2D);
-}
-
-// Computes the squared 2-norm (sum of squares) of an array
-double two_norm_squared(const Array& array) {
-    double sum = 0.0;
-    double* array_ptr = const_cast<double*>(&(array(0)));
-    
-    #pragma omp parallel for reduction(+:sum)
-    for (int i = 0; i < array.size(); ++i) {
-        sum += array_ptr[i] * array_ptr[i];
-    }
-    return sum;
+    return std::make_tuple(objective_history, Bn_history, m_history, x_2D, current_forces);
 }

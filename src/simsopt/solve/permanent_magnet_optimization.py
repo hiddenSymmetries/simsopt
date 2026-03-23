@@ -417,7 +417,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
         dipole_grid_xyz = kwargs.pop('dipole_grid_xyz')  # Remove dipole_grid_xyz from kwargs to avoid passing it to other parameters
         # Flatten dipole_grid_xyz into a 1D array of length 3N
         dipole_grid_flat = contig(dipole_grid_xyz.ravel())
-        algorithm_history, Bn_history, m_history, m = sopp.GPMO_Forces(
+        algorithm_history, Bn_history, m_history, m, current_forces = sopp.GPMO_Forces(
             A_obj=contig(A_obj.T),
             b_obj=contig(pm_opt.b_obj),
             mmax=np.sqrt(reg_l2)*mmax_vec,
@@ -495,4 +495,5 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
     # note m = m_proxy for GPMO because this is not using relax-and-split
     pm_opt.m = np.ravel(m)
     pm_opt.m_proxy = pm_opt.m
+    pm_opt.current_forces = current_forces
     return errors, Bn_errors, m_history
