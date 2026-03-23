@@ -305,38 +305,6 @@ class TestRunGpmoOptimizationOnMuseGrid(unittest.TestCase):
             self.assertGreater(len(list(run_subdir.glob("runhistory_*.csv"))), 0)
             self.assertGreater(len(list(run_subdir.glob("dipoles_final_*.npz"))), 0)
 
-    def test_runs_gpmomr_and_writes_outputs(self):
-        """Integration test for run_gpmo_optimization_on_muse_grid with GPMOmr algorithm."""
-        nphi = ntheta = 2
-        s, bs, Bnormal, pol_vectors, m_maxima, cube_dim = self._make_test_fixtures(nphi, ntheta)
-        config = GPMORunConfig(
-            downsample=100, dr=0.01, dx=0.01, dy=0.01, dz=0.01,
-            nphi=nphi, ntheta=ntheta,
-            nIter_max=5, nHistory=5, history_every=1,
-            nBacktracking=0, Nadjacent=12, max_nMagnets=5,
-            thresh_angle=3.0, mm_refine_every=2,
-            coil_path=TEST_DIR / "muse_tf_coils.focus",
-            test_dir=TEST_DIR, surface_filename=TEST_DIR / "input.muse",
-            material_name="N52",
-            material={"B_max": 1.465, "mu_ea": 1.05, "mu_oa": 1.15},
-        )
-        with ScratchDir("."):
-            out_dir = Path("gpmo_test_output")
-            run_gpmo_optimization_on_muse_grid(
-                "GPMOmr", subdir="GPMOmr", s=s, bs=bs, Bnormal=Bnormal,
-                pol_vectors=pol_vectors, m_maxima=m_maxima, cube_dim=cube_dim,
-                current_scale=1.0, out_dir=out_dir,
-                famus_filename=TEST_DIR / "zot80.focus", config=config,
-            )
-            run_subdir = out_dir / "GPMOmr"
-            self.assertTrue(run_subdir.exists())
-            self.assertGreater(len(list(run_subdir.glob("runhistory_*.csv"))), 0)
-            self.assertGreater(len(list(run_subdir.glob("dipoles_final_*.npz"))), 0)
-            yaml_files = list(run_subdir.glob("run_*.yaml"))
-            self.assertGreater(len(yaml_files), 0)
-            for yf in yaml_files:
-                self.assertIn("GPMOmr", yf.read_text())
-
 
 class TestComputeNormalFieldComponentFromDipoles(unittest.TestCase):
     """Tests for compute_normal_field_component_from_dipoles."""

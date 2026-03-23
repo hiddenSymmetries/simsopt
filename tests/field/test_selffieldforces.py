@@ -21,7 +21,6 @@ from simsopt.field import (
 )
 from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.configs import get_data
-from simsopt.util import in_github_actions
 from simsopt.geo import CurveXYZFourier, JaxCurveXYZFourier, CurvePlanarFourier, JaxCurvePlanarFourier
 from simsopt.field.selffield import (
     _rectangular_xsection_k,
@@ -1031,36 +1030,21 @@ class CoilForcesTest(unittest.TestCase):
         A test passes if the Taylor error decreases rapidly (ideally quadratically) as the step size shrinks, confirming the correctness of the gradient implementation for all tested objectives and configurations.
         """
         import matplotlib.pyplot as plt
-        from simsopt.geo.config import parameters as geo_parameters
-
-        # GitHub Actions runners can be memory-constrained; JAX/XLA compilation
-        # for these objectives may OOM and segfault. Disabling JIT in CI/CD to avoid
-        # heavy LLVM compilation while still exercising the math/derivatives...
-        if in_github_actions:
-            _old_jit = geo_parameters.get("jit", True)
-            geo_parameters["jit"] = False
-            self.addCleanup(lambda: geo_parameters.__setitem__("jit", _old_jit))
         ncoils_list = [2]
+        nfp_list = [1, 3]
+        stellsym_list = [True]
+        p_list = [2.5]
+        threshold_list = [0.0, 1e-3]
+        downsample_list = [1, 2]
+        jax_flag_list = [False, True]
+        numquadpoints_list = [10]
+        I = 1.7e5
         a = 0.05
         b = 0.05
-        if in_github_actions:
-            nfp_list = [3]
-            threshold_list = [1e-3]
-            downsample_list = [2]
-            jax_flag_list = [False]
-        else:
-            nfp_list = [1, 3]
-            threshold_list = [0.0, 1e-3]
-            downsample_list = [1, 2]
-            jax_flag_list = [False, True]
         regularization_types = [
             ("circular", lambda: regularization_circ(a)),
             ("rectangular", lambda: regularization_rect(a, b)),
         ]
-        stellsym_list = [True]
-        p_list = [2.5]
-        numquadpoints_list = [10]
-        I = 1.7e5
         all_errors = []
         all_labels = []
         all_eps = []
@@ -1167,7 +1151,6 @@ class CoilForcesTest(unittest.TestCase):
         plt.tight_layout()
         plt.savefig('taylor_errors.png')
 
-    @unittest.skipIf(in_github_actions, "Timing test; skip in CI to avoid JAX flakiness and long runtime")
     def test_objectives_time(self):
         import time
         import matplotlib.pyplot as plt
@@ -1317,8 +1300,7 @@ class CoilForcesTest(unittest.TestCase):
         """Validate source_coils_coarse and source_coils_fine: coarse+fine yields same J as all coils in coarse."""
         I = 1.7e4
         nfp, ncoils = 2, 3
-        numquadpoints = 10 if in_github_actions else 30
-        base_curves = create_equally_spaced_curves(ncoils, nfp, True, numquadpoints=numquadpoints)
+        base_curves = create_equally_spaced_curves(ncoils, nfp, True, numquadpoints=30)
         base_currents = [Current(I) for _ in range(ncoils)]
         coils = coils_via_symmetries(base_curves, base_currents, nfp, True,
                                      regularizations=[regularization_circ(0.05)] * ncoils)

@@ -1,13 +1,11 @@
-"""Permanent magnet optimization algorithms: relax-and-split, GPMO, GPMOmr."""
+"""Permanent magnet optimization algorithms: relax-and-split, GPMO."""
 from __future__ import annotations
 
 import dataclasses
-import time
 import warnings
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
-from .macromagnetics import MacroMag, SolverParams, Tiles, assemble_blocks_subset
 
 import simsoptpp as sopp
 from .._core.types import RealArray
@@ -363,18 +361,13 @@ def GPMO(
                 ArbVec GPMO; backtracking is controlled by the
                 ``backtracking`` field (set to 0 to disable),
             GPMO_py:
-                pure-Python implementation of GPMO (used by GPMOmr),
-            GPMOmr:
-                ArbVec GPMO with macromagnetic refinement (MacroMag);
-                backtracking controlled by ``backtracking`` and
-                macromag refinement cadence by ``mm_refine_every``.
+                pure-Python implementation of GPMO,
 
         params:
             Typed parameter dataclass.  Pass :class:`GPMOParams` for
             ``baseline`` / ``multi`` / ``GPMO_ArbVec``,
             :class:`GPMOBacktrackParams` for ``GPMO`` / ``GPMO_py`` /
-            ``GPMO_Backtracking``, or :class:`GPMOMacroMagParams` for
-            ``GPMOmr``.  When provided, *params* takes precedence over
+            ``GPMO_Backtracking``.  When provided, *params* takes precedence over
             any remaining *kwargs*.
         kwargs:
             **Deprecated.**  Legacy keyword arguments; prefer *params*.
@@ -449,7 +442,7 @@ def GPMO(
 
     # check that algorithm can generate K binary dipoles if no backtracking done
     if "K" in kwargs:
-        if (algorithm not in ['GPMO_Backtracking', 'GPMO', 'GPMO_py', 'GPMOmr']) and kwargs["K"] > pm_opt.ndipoles:
+        if (algorithm not in ['GPMO_Backtracking', 'GPMO', 'GPMO_py']) and kwargs["K"] > pm_opt.ndipoles:
             warnings.warn(
                 'Parameter K to GPMO algorithm is greater than the total number of dipole locations '
                 ' so the algorithm will set K = the total number and proceed.')
@@ -534,34 +527,6 @@ def GPMO(
         )
         return ah, bh, mh, m_, nn, None
 
-    def _run_gpmomr():
-        _require_cartesian(pm_opt, 'GPMOmr')
-        _prepare_x_init(kwargs, nGridPoints, mmax_vec, pm_opt.ndipoles)
-        mm_params = GPMOMacroMagParams(
-            K=kwargs["K"],
-            nhistory=kwargs["nhistory"],
-            verbose=kwargs.get("verbose", True),
-            backtracking=kwargs.get("backtracking", 0),
-            dipole_grid_xyz=kwargs["dipole_grid_xyz"],
-            Nadjacent=kwargs.get("Nadjacent", 7),
-            thresh_angle=kwargs.get("thresh_angle", np.pi),
-            max_nMagnets=kwargs.get("max_nMagnets", 5000),
-            m_init=kwargs.get("x_init", np.zeros((pm_opt.ndipoles, 3))),
-            cube_dim=kwargs.pop("cube_dim", 0.004),
-            mu_ea=kwargs.pop("mu_ea", 1.0),
-            mu_oa=kwargs.pop("mu_oa", 1.0),
-            use_coils=kwargs.pop("use_coils", False),
-            use_demag=kwargs.pop("use_demag", True),
-            coil_path=kwargs.pop("coil_path", None),
-            mm_refine_every=kwargs.pop("mm_refine_every", 20),
-            current_scale=kwargs.pop("current_scale", 1),
-        )
-        ah, bh, mh, nn, m_, kh = GPMOmr(
-            A_obj=A_obj_T, b_obj=b_obj_c, mmax=mmax_vec,
-            normal_norms=Nnorms, pol_vectors=pol_vec_c, params=mm_params,
-        )
-        return ah, bh, mh, m_, nn, kh
-
     def _run_multi():
         ah, bh, mh, m_ = sopp.GPMO_multi(
             A_obj=A_obj_T, b_obj=b_obj_c, mmax=mmax_reg,
@@ -575,7 +540,6 @@ def GPMO(
         'GPMO_Backtracking': _run_backtracking,
         'GPMO': _run_gpmo,
         'GPMO_py': _run_gpmo_py,
-        'GPMOmr': _run_gpmomr,
         'multi': _run_multi,
     }
 
@@ -616,23 +580,15 @@ def GPMO(
         record_every = max(1, K // nhistory)
         pm_opt.record_every = record_every
 
-        is_macromag_loop_1_based = algorithm == "GPMOmr"
-        has_init_snapshot = algorithm in ("GPMO", "GPMO_py", "GPMOmr")
+        has_init_snapshot = algorithm in ("GPMO", "GPMO_py")
 
         k_hist = []
         if has_init_snapshot:
             k_hist.append(0)
 
-        if is_macromag_loop_1_based:
-            # Records at k in [1..K] plus an init snapshot at 0.
-            for k in range(1, K + 1):
-                if (k % record_every) == 0 or k == K:
-                    k_hist.append(k)
-        else:
-            # Loop index k_loop in [0..K-1] -> k = k_loop + 1.
-            for k_loop in range(K):
-                if (k_loop % record_every) == 0 or k_loop == 0 or k_loop == K - 1:
-                    k_hist.append(k_loop + 1)
+        for k_loop in range(K):
+            if (k_loop % record_every) == 0 or k_loop == 0 or k_loop == K - 1:
+                k_hist.append(k_loop + 1)
 
         # Truncate to the returned number of recorded entries.
         pm_opt.k_history = np.asarray(k_hist[: errors.size], dtype=int)
@@ -1121,555 +1077,3 @@ def _backtracking_step(
     if verbose:
         print(f"Backtracking: {removed} pairs removed")
     return removed
-
-
-def GPMOmr(
-    A_obj: np.ndarray,
-    b_obj: np.ndarray,
-    mmax: np.ndarray,
-    normal_norms: np.ndarray,
-    pol_vectors: np.ndarray,
-    params: GPMOMacroMagParams,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    r"""
-    GPMO with macromagnetic refinement (GPMOmr).
-
-    Extends :func:`GPMO_py` by periodically solving the full
-    macromagnetic equilibrium problem via :class:`MacroMag`, as
-    described in `Ulrich, Haberle & Kaptanoglu (2025)
-    <https://arxiv.org/abs/2512.14997>`_.  After each greedy
-    placement/backtracking cycle, the solver updates dipole moments
-    to account for finite-permeability coupling through the global
-    linear system
-
-    .. math::
-
-        \bigl[\delta_{ij}\,\mathbf{I}_3
-        + \boldsymbol{\chi}_i\,\underline{\underline{N}}_{ij}\bigr]
-        \,\mathbf{M}_j
-        = M_{\text{rem}}\,\hat{\mathbf{u}}_i
-        + \boldsymbol{\chi}_i\,\mathbf{H}_a,
-
-    where :math:`\underline{\underline{N}}_{ij}` is the demagnetization
-    tensor and :math:`\boldsymbol{\chi}_i` the anisotropic susceptibility
-    tensor of tile *i*.  The corrected magnetisations are then
-    substituted back into the greedy surface-flux objective
-
-    .. math::
-
-        f_B = \tfrac{1}{2}\,\|A\,\mathbf{m} - \mathbf{b}\|_2^2.
-
-    Args:
-        A_obj: Sensitivity matrix pre-multiplied by ``mmax_vec``,
-            shape ``(3*N, ngrid)``.
-        b_obj: Target normal-field vector, shape ``(ngrid,)``.
-        mmax: Per-component maximum dipole strengths, shape ``(3*N,)``.
-        normal_norms: Surface-normal magnitudes at each grid point,
-            shape ``(ngrid,)``.
-        pol_vectors: Allowable polarization directions per site,
-            shape ``(N, nPolVecs, 3)``.
-        params: :class:`GPMOMacroMagParams` containing all algorithm,
-            backtracking, and macromagnetic-refinement parameters.
-
-    Returns:
-        A 6-tuple ``(objective_history, Bn_history, m_history,
-        num_nonzeros, x, k_history)`` with the same semantics as
-        :func:`GPMO_py` plus *k_history*.
-
-    Raises:
-        ValueError: If *use_coils* is True but *coil_path* is None.
-    """
-    K = params.K
-    verbose = params.verbose
-    nhistory = params.nhistory
-    backtracking = params.backtracking
-    Nadjacent = params.Nadjacent
-    thresh_angle = params.thresh_angle
-    max_nMagnets = params.max_nMagnets
-    x_init = params.m_init
-    dipole_grid_xyz = params.dipole_grid_xyz
-    cube_dim = params.cube_dim
-    mu_ea = params.mu_ea
-    mu_oa = params.mu_oa
-    use_coils = params.use_coils
-    use_demag = params.use_demag
-    coil_path = params.coil_path
-    mm_refine_every = params.mm_refine_every
-    current_scale = params.current_scale
-
-    if use_coils and coil_path is None:
-        raise ValueError("Use coils set to True but missing coil path; Please provide the correct focus coil path")
-
-    print("use_coils mode =",use_coils)
-    print("use_demag mode =",use_demag)
-
-    # Convert to numpy arrays
-    A_obj = np.asarray(A_obj, dtype=np.float64, order="C")
-    b_obj = np.asarray(b_obj, dtype=np.float64, order="C")
-    normal_norms = np.asarray(normal_norms, dtype=np.float64, order="C")
-    pol_vectors = np.asarray(pol_vectors, dtype=np.float64, order="C")
-    x_init = np.asarray(x_init, dtype=np.float64, order="C")
-    dipole_grid_xyz = np.asarray(dipole_grid_xyz, dtype=np.float64, order="C")
-    mmax = np.asarray(mmax, dtype=np.float64, order="C")
-
-    # Define constants
-    ngrid = A_obj.shape[1]
-    N = int(A_obj.shape[0] // 3)
-    assert 3 * N == A_obj.shape[0], "A_obj first dim must be 3*N"
-    A_obj_3x = A_obj.reshape(N, 3, ngrid)
-    C_gram = np.einsum('jkg,jlg->jkl', A_obj_3x, A_obj_3x, optimize=True)
-    nPolVecs = int(pol_vectors.shape[1])
-    cos_thresh_angle = float(np.cos(thresh_angle))
-    print_iter_ref = [0]
-
-    # Define dipole moment solution vectors
-    x = np.zeros((N, 3), dtype=np.float64)
-    x_vec = np.zeros(N, dtype=np.int32)
-    x_sign = np.zeros(N, dtype=np.int8)
-
-    # Define set of admissible dipole positions
-    Gamma_complement = np.ones((N,), dtype=bool)
-    gamma_inds = []
-
-    # Define history of dipole moments, objective values, and number of nonzero dipoles
-    m_history = np.zeros((N, 3, nhistory + 2), dtype=np.float64)
-    objective_history = np.zeros((nhistory + 2,), dtype=np.float64)
-    Bn_history = np.zeros((nhistory + 2,), dtype=np.float64)
-    k_history = np.zeros((nhistory + 2,), dtype=np.int32)
-    num_nonzeros = np.zeros((nhistory + 2,), dtype=np.int32)
-    last_x_macro_flat = np.zeros(3 * N, dtype=np.float64)
-    num_nonzero_ref = [0]
-
-    if verbose:
-        print("Hybrid GPMO (ArbVec score) with MacroMag-on-winner evaluation")
-        print("Iteration ... |Am - b|^2 ... lam*|m|^2")
-
-    # Define connectivity matrix
-    t1 = time.time()
-    Connect = None
-    if backtracking != 0:
-        Connect = _connectivity_matrix_py(dipole_grid_xyz, Nadjacent)
-    t2 = time.time()
-    print(f"Time taken for connectivity matrix: {t2 - t1} seconds")
-
-    # Define MacroMag tiles
-    MM_CUBOID_FULL_DIMS = (cube_dim, cube_dim, cube_dim)
-    vol = float(np.prod(MM_CUBOID_FULL_DIMS))
-    tiles_all = Tiles(N)
-    dims = np.array(MM_CUBOID_FULL_DIMS, dtype=np.float64)
-    for j in range(N):
-        tiles_all.offset = (dipole_grid_xyz[j], j)
-        tiles_all.size = (dims, j)
-        tiles_all.rot = ((0.0, 0.0, 0.0), j)
-        tiles_all.M_rem = (0.0, j)
-        tiles_all.mu_r_ea = (mu_ea, j)
-        tiles_all.mu_r_oa = (mu_oa, j)
-        tiles_all.u_ea = ((0.0, 0.0, 1.0), j)
-    mac_all = MacroMag(tiles_all)
-
-    # Load coils if requested
-    if use_coils and coil_path is not None:
-        mac_all.load_coils(coil_path, current_scale=current_scale)  # sets mac_all._bs_coil
-
-    # Precompute demagnetization tensor
-    # Sign convention: assemble_blocks_subset returns -N (since H_d = -N M).
-    # Flipping sign is applied at each incremental assembly step.
-    # Note: rotated magnets would require revisiting the local-vs-global
-    # tensor convention here.
-
-    # Precompute coil field if requested
-    Hcoil_all = np.zeros((N, 3))
-    if use_coils:
-        Hcoil_all = mac_all.coil_field_at(tiles_all.offset).astype(np.float64)
-
-    def solve_subset_and_score(
-        active_idx: np.ndarray,
-        ea_list: np.ndarray,
-        *,
-        prev_active_idx: np.ndarray | None = None,
-        A_prev: np.ndarray | None = None,
-        prev_n: int = 0,
-    ):
-        """
-        Solve the subset of active tiles via MacroMag and score the residual.
-
-        Builds a MacroMag instance for the active tiles, assembles the demagnetization
-        blocks (N_new_rows, N_new_cols, N_new_diag) for incremental assembly when
-        prev_n > 0, calls direct_solve to compute the coupled magnetization, then
-        evaluates the squared flux residual 0.5 * ||A @ x_macro - b||^2.
-
-        Args:
-            active_idx: ndarray, shape (n_active,). Indices of the active tiles in the
-                full grid. Must be ordered so that the first prev_n entries match
-                prev_active_idx (for incremental assembly).
-            ea_list: ndarray, shape (n_active, 3). Easy-axis vectors for each active
-                tile (used for magnetization direction).
-            prev_active_idx: ndarray, shape (n_prev,), optional. Indices of the previous
-                active set (survivors). Required when prev_n > 0 for incremental N-block
-                assembly.
-            A_prev: ndarray, shape (3*n_prev, 3*n_prev), optional. Dense system matrix
-                for the previous survivor set in flattened (3*N) indexing. Used by
-                direct_solve for incremental assembly.
-            prev_n: int, optional. Number of previous survivors.
-
-        Returns:
-            R2: float. Squared flux residual 0.5 * ||A @ x_macro - b||^2.
-            x_macro_flat: ndarray, shape (3*N,). Macro magnetization vector for the
-                full grid, normalized by mmax.
-            m_sub_flat: ndarray, shape (3*n_active,). Macro magnetization for the
-                active tiles only (raveled).
-            res: ndarray, shape (ngrid,). Residual vector A.T @ x_macro_flat - b_obj.
-            A_sub: ndarray, shape (3*n_active, 3*n_active), or None. Dense system
-                matrix for the active set (for caching in next iteration).
-        """
-        # If no active tiles, return 0 score and empty solution
-        if active_idx.size == 0:
-            res0 = -b_obj
-            return 0.5 * float(np.dot(res0, res0)), np.zeros(3 * N), np.zeros((0, 3)), res0, None
-
-        # Create a subset of tiles using vectorized operations
-        sub = Tiles(active_idx.size)
-
-        # Vectorized property setting
-        n_active = active_idx.size
-
-        # Set offsets for all active tiles at once
-        sub.offset = tiles_all.offset[active_idx]
-
-        # Set size for all active tiles (broadcast dims to all tiles)
-        sub.size = np.tile(dims, (n_active, 1))
-
-        # Set rotation for all active tiles (all zeros)
-        sub.rot = np.zeros((n_active, 3))
-
-        # Set permeability for all active tiles (broadcast scalar values)
-        sub.mu_r_ea = np.full(n_active, mu_ea)
-        sub.mu_r_oa = np.full(n_active, mu_oa)
-
-        # Set remanent magnetization for all active tiles
-        M_rem_inferred = mmax[active_idx] / vol
-        sub.M_rem = M_rem_inferred
-
-        # Set easy axes for all active tiles (vectorized normalization)
-        # Avoid triggering the u_ea setter which calls M setter for each tile
-        ea_norms = np.linalg.norm(ea_list, axis=1, keepdims=True)
-        ea_normalized = ea_list / (ea_norms + _NORMALIZATION_EPS)
-        sub._u_ea = ea_normalized  # Direct assignment to avoid setter overhead
-
-        mac = MacroMag(sub, bs_interp=mac_all.bs_interp) #Taking already built interpolanet field to avod reloading...
-
-        n_prev = prev_active_idx.size if prev_active_idx is not None else 0
-        n_active = active_idx.size
-
-        # Add new rows and columns from newly placed magnets
-        t0_n_construction = time.time()
-        if n_prev > 0:
-            new_indices = active_idx[n_prev:]
-            old_indices = active_idx[:n_prev]
-            # assemble_blocks_subset returns -N (because H_d = -N M); flip sign to get +N
-            N_new_rows = -assemble_blocks_subset(
-                mac_all.centres, mac_all.half, mac_all.Rg2l,
-                new_indices.astype(np.int64), old_indices.astype(np.int64)
-            )
-            N_new_cols = -assemble_blocks_subset(
-                mac_all.centres, mac_all.half, mac_all.Rg2l,
-                old_indices.astype(np.int64), new_indices.astype(np.int64)
-            )
-            N_new_diag = -assemble_blocks_subset(
-                mac_all.centres, mac_all.half, mac_all.Rg2l,
-                new_indices.astype(np.int64), new_indices.astype(np.int64)
-            )
-        else:
-            # initial pass: only rows are needed by direct_solve(prev_n == 0)
-            N_new_rows = -assemble_blocks_subset(
-                mac_all.centres, mac_all.half, mac_all.Rg2l,
-                active_idx.astype(np.int64), active_idx.astype(np.int64)
-            )
-            N_new_cols = None
-            N_new_diag = None
-
-        t1_n_construction = time.time()
-        print(f"Iteration {k}: Time in N block assembly: {t1_n_construction - t0_n_construction} seconds")
-
-        # Perform the magtense coupling direct solve
-        params = SolverParams(use_coils=use_coils, H_a_override=Hcoil_all[active_idx])
-        mac, A_sub = mac.direct_solve(
-            N_new_rows=N_new_rows,
-            N_new_cols=N_new_cols,
-            N_new_diag=N_new_diag,
-            A_prev=A_prev,
-            prev_n=prev_n,
-            params=params,
-        )
-
-        # Get the macro magnetization for the subset of tiles
-        m_sub = mac.tiles.M * vol
-        m_full = np.zeros((N, 3))
-        m_full[active_idx, :] = m_sub
-        m_full_vec = m_full.reshape(3 * N)
-        x_macro_flat = m_full_vec / mmax
-        res = A_obj.T @ x_macro_flat - b_obj
-        R2 = 0.5 * float(np.dot(res, res))
-        return R2, x_macro_flat, np.ravel(mac.tiles.M), res, A_sub
-
-    active0 = np.where(~Gamma_complement)[0]
-    ea0 = np.zeros((active0.size, 3))
-    R2_0, x_macro_flat_0, _, res0, A_sub_0 = solve_subset_and_score(active0, ea0)
-    last_x_macro_flat[:] = x_macro_flat_0
-
-    x_macro_flat = x_macro_flat_0
-    R2_snap = R2_0
-    A_sub_prev = A_sub_0
-    prev_active_indices = active0
-    prev_n = active0.size
-
-    # record init
-    idx0 = print_iter_ref[0]
-    m_history[:, :, idx0] = x_macro_flat_0.reshape(N, 3)
-    objective_history[idx0] = R2_0
-    Bn_history[idx0] = float(np.sum(np.abs(res0) * np.sqrt(normal_norms))) / np.sqrt(float(ngrid))
-    k_history[idx0] = 0
-    num_nonzeros[idx0] = num_nonzero_ref[0]
-    if verbose:
-        print(f"0 ... {R2_0:.2e} ... 0.00e+00 ")
-    print_iter_ref[0] += 1
-
-    # Running residual for ArbVec scoring (classical)
-    Aij_mj_sum = (A_obj.T @ x_macro_flat_0) - b_obj
-    R2s = np.full((2 * N * nPolVecs,), _UNAVAILABLE_R2, dtype=np.float64)
-
-    # Initialize from x_init (may place some dipoles)
-    _initialize_GPMO_ArbVec_py(
-        x_init, pol_vectors, x, x_vec, x_sign,
-        A_obj_3x, Aij_mj_sum, R2s, Gamma_complement, num_nonzero_ref
-    )
-
-    # Main greedy loop
-    t_gpmo = time.time()
-
-    def _prepare_cached_macromag_call(active_idx: np.ndarray):
-        """
-        Prepare arguments for incremental MacroMag assembly.
-
-        When the active set changes (new magnets added, or backtracking removes some),
-        the incremental path in solve_subset_and_score requires:
-        (1) active_ordered: [survivors in old order] + [new magnets]
-        (2) A_prev_common: dense block for survivors only, aligned to that order
-        (3) prev_active_for_call, prev_n_for_call: survivor indices and count
-
-        This function computes the intersection of the current active set with the
-        previous one, orders survivors by their position in the previous list, and
-        extracts the corresponding block from A_sub_prev.
-
-        Args:
-            active_idx: ndarray, shape (n_active,). Current active tile indices
-                (from gamma_inds).
-
-        Returns:
-            active_ordered: ndarray, shape (n_active,). Active indices ordered as
-                [survivors in prev order] + [new].
-            ea_list: ndarray, shape (n_active, 3). Easy-axis vectors for active_ordered.
-            A_prev_common: ndarray, shape (3*n_prev, 3*n_prev), or None. Dense block
-                for survivors; None if no previous solve.
-            prev_active_for_call: ndarray, shape (n_prev,), or None. Survivor indices
-                in old order.
-            prev_n_for_call: int. Number of survivors.
-        """
-        active_idx = np.asarray(active_idx, dtype=np.int64).ravel()
-        if active_idx.size == 0:
-            return (
-                active_idx,
-                np.zeros((0, 3), dtype=np.float64),
-                None,
-                None,
-                0,
-            )
-
-        if prev_active_indices is not None and A_sub_prev is not None and prev_n > 0:
-            # intersection in "old" order to keep A_prev alignment
-            common = np.intersect1d(prev_active_indices, active_idx, assume_unique=True)
-
-            # indices of 'common' in the old order (prev_active_indices)
-            old_pos = {idx: i for i, idx in enumerate(prev_active_indices)}
-            common_in_prev_order = np.array(sorted(common, key=lambda v: old_pos[v]), dtype=np.int64)
-
-            # anything new (not in 'common')
-            is_new = ~np.isin(active_idx, common_in_prev_order)
-            new_only = active_idx[is_new]
-
-            # assemble the order: [survivors in old order] + [new ones]
-            active_ordered = (
-                np.concatenate([common_in_prev_order, new_only]) if new_only.size else common_in_prev_order
-            )
-
-            # positions of survivors inside the previous active list
-            iprev = np.array([old_pos[v] for v in common_in_prev_order], dtype=np.int64)
-            iprev3 = _expand3(iprev)
-
-            # A_prev_common is the cached block for the survivors (aligned to their old order)
-            A_prev_common = A_sub_prev[np.ix_(iprev3, iprev3)]
-            prev_active_for_call = common_in_prev_order
-            prev_n_for_call = len(common_in_prev_order)
-
-            # easy axis list in the same order we pass to MacroMag
-            ea_list = x[active_ordered]
-            return active_ordered, ea_list, A_prev_common, prev_active_for_call, prev_n_for_call
-
-        active_ordered = active_idx
-        ea_list = x[active_ordered]
-        return active_ordered, ea_list, None, None, 0
-
-    for k in range(1, K + 1):
-
-        # Stop if filled or hit magnet cap
-        # t1_magtens = time.time()
-        if (num_nonzero_ref[0] >= N) or (num_nonzero_ref[0] >= max_nMagnets):
-            # record final snapshot (ALWAYS on early stop, like reference)
-            # IMPORTANT: keep the active ordering aligned with the cached A_sub_prev block,
-            # otherwise the incremental assembly uses the wrong "old" ordering and produces
-            # a spurious final objective (often seen as a jump in f_B near termination).
-            active = np.array(gamma_inds, dtype=np.int64)
-            active_ordered, ea_list, A_prev_common, prev_active_for_call, prev_n_for_call = _prepare_cached_macromag_call(active)
-
-            # One final solve before commiting set
-            R2_snap, x_macro_flat, _, res, _ = solve_subset_and_score(
-                active_ordered,
-                ea_list,
-                prev_active_idx=prev_active_for_call,
-                A_prev=A_prev_common,
-                prev_n=prev_n_for_call,
-            )
-
-            last_x_macro_flat[:] = x_macro_flat
-            idx = print_iter_ref[0]
-            m_history[:, :, idx] = x_macro_flat.reshape(N, 3)
-            objective_history[idx] = R2_snap
-            Bn_history[idx] = float(np.sum(np.abs(res) * np.sqrt(normal_norms))) / np.sqrt(float(ngrid))
-            k_history[idx] = int(k)
-            num_nonzeros[idx] = num_nonzero_ref[0]
-            if verbose:
-                print(f"{k} ... {R2_snap:.2e} ... 0.00e+00 ")
-                print(f"Iteration = {k}, Number of nonzero dipoles = {num_nonzero_ref[0]}")
-            print_iter_ref[0] += 1
-            print("Stopping iterations: maximum number of nonzero magnets reached " if (num_nonzero_ref[0] >= max_nMagnets) else "Stopping iterations: all dipoles in grid are populated")
-            break
-
-        NNp = N * nPolVecs
-        # Vectorized version of the loop over j
-        # Initialize R2s with large values for occupied positions
-        R2s[:] = _UNAVAILABLE_R2
-
-        # Find active (unoccupied) positions
-        active_mask = Gamma_complement
-        active_indices = np.where(active_mask)[0]
-
-        if len(active_indices) > 0:
-            A_active   = A_obj_3x[active_indices]              # (n_active, 3, ngrid)
-            pol_active = pol_vectors[active_indices]           # (n_active, nPolVecs, 3)
-            mmax_active = mmax[active_indices]                 # (n_active,)
-            C_active   = C_gram[active_indices]                # (n_active, 3, 3)
-
-            r = Aij_mj_sum                                     # (ngrid,)
-            r2 = float(r @ r)                                  # ||r||^2 scalar
-
-            # d_jk = <A_jk, r> for k in {x,y,z}, shape (n_active,3)
-            d = np.einsum('jkg,g->jk', A_active, r, optimize=True)
-
-            # s = r·(A p) = p·d, shape (n_active, nPolVecs)
-            s = np.einsum('jpk,jk->jp', pol_active, d, optimize=True)
-
-            # q = ||A p||^2 = p^T C p, shape (n_active, nPolVecs)
-            q = np.einsum('jpk,jkl,jpl->jp', pol_active, C_active, pol_active, optimize=True)
-
-            # R2_plus  = ||r + A p||^2 = r2 + 2*s + q
-            # R2_minus = ||r - A p||^2 = r2 - 2*s + q
-            R2_plus  = r2 + 2.0*s + q + (mmax_active**2)[:, None]
-            R2_minus = r2 - 2.0*s + q + (mmax_active**2)[:, None]
-
-            # Scatter into flat R2s
-            base = (active_indices * nPolVecs)[:, None] + np.arange(nPolVecs)[None, :]
-            pos_indices = base.ravel()
-            neg_indices = (NNp + base).ravel()
-
-            R2s[pos_indices] = R2_plus.ravel()
-            R2s[neg_indices] = R2_minus.ravel()
-
-
-        # Best (site, pol, sign)
-        skj = int(np.argmin(R2s))
-        sign_fac = -1.0 if skj >= NNp else +1.0
-        if skj >= NNp: skj -= NNp
-        skjj = int(skj % nPolVecs)
-        j_best = int(skj // nPolVecs)
-
-        # Commit in classical state
-        pv = pol_vectors[j_best, skjj, :]
-        x[j_best, :] = sign_fac * pv / (np.linalg.norm(pv) + _NORMALIZATION_EPS)
-        x_vec[j_best] = skjj
-        x_sign[j_best] = int(np.sign(sign_fac))
-        Gamma_complement[j_best] = False
-        gamma_inds.append(j_best)
-        num_nonzero_ref[0] += 1
-        Aij_mj_sum += sign_fac * (pv[:, None] * A_obj_3x[j_best]).sum(axis=0)
-        base = j_best * nPolVecs
-        R2s[base:base + nPolVecs] = _UNAVAILABLE_R2
-        R2s[NNp + base:NNp + base + nPolVecs] = _UNAVAILABLE_R2
-
-        # Backtracking
-        if backtracking != 0 and (k % backtracking) == 0:
-            _backtracking_step(
-                N, Connect, cos_thresh_angle,
-                x, x_vec, x_sign, Gamma_complement,
-                pol_vectors, A_obj_3x, Aij_mj_sum, num_nonzero_ref,
-                gamma_inds=gamma_inds, verbose=verbose,
-            )
-
-        # Probably only need to run MacroMag for the committed set ONLY every couple dozen iterations
-        if (k % mm_refine_every) == 0:
-            t1_macromag = time.time()
-            active = np.array(gamma_inds, dtype=np.int64)
-            active_ordered, ea_list, A_prev_common, prev_active_for_call, prev_n_for_call = _prepare_cached_macromag_call(active)
-
-            R2_snap, x_macro_flat, _, Aij_mj_sum, A_sub = solve_subset_and_score(
-                active_ordered, ea_list,
-                prev_active_idx=prev_active_for_call,
-                A_prev=A_prev_common,
-                prev_n=prev_n_for_call
-            )
-
-
-            # update caches for next iteration
-            A_sub_prev = A_sub
-            prev_active_indices = active_ordered
-            prev_n = len(active_ordered)
-
-            t2_macromag = time.time()
-            print(f"Iteration {k}: Time in macromag call: {t2_macromag - t1_macromag} seconds")
-
-        # Store current active indices for next iteration
-        # prev_active_indices = active.copy()
-
-        if verbose and (((k % max(1, K // nhistory)) == 0) or (k == K)):
-            idx = print_iter_ref[0]
-            m_history[:, :, idx] = x_macro_flat.reshape(N, 3)
-            objective_history[idx] = R2_snap
-            Bn_history[idx] = float(np.sum(np.abs(Aij_mj_sum) * np.sqrt(normal_norms))) / np.sqrt(float(ngrid))
-            k_history[idx] = int(k)
-            num_nonzeros[idx] = num_nonzero_ref[0]
-            print(f"{k} ... {R2_snap:.2e} ... 0.00e+00 ")
-            print(f"Iteration = {k}, Number of nonzero dipoles = {num_nonzero_ref[0]}")
-            print_iter_ref[0] += 1
-
-        # Stagnation stop (match reference: no forced recording here)
-        if print_iter_ref[0] > 3:
-            a = num_nonzeros[print_iter_ref[0] - 1]
-            b = num_nonzeros[print_iter_ref[0] - 2]
-            c = num_nonzeros[print_iter_ref[0] - 3]
-            if a == b == c:
-                print("Stopping: number of nonzero dipoles unchanged over three reporting cycles")
-                break
-
-    t_gpmo = time.time() - t_gpmo
-    print(f"Time taken for GPMO: {t_gpmo} seconds")
-
-    return objective_history, Bn_history, m_history, num_nonzeros, x_macro_flat.reshape(N, 3), k_history
