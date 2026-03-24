@@ -742,11 +742,20 @@ class VmecJax:
         boundary = self.boundary.apply_params(self.boundary.expand_free(x_free))
         return vj.boundary_aspect_ratio_from_static(boundary, self._static)
 
+    def aspect_equilibrium_from_state_jax(self, state):
+        """Return the equilibrium aspect ratio for an already-solved state."""
+        return vj.equilibrium_aspect_ratio_from_state(state=state, static=self.get_static())
+
+    def aspect_equilibrium_jax(self, x_free: jnp.ndarray):
+        """Return the equilibrium aspect ratio directly from the solved state."""
+        state = self._solve_state(x_free)
+        return self.aspect_equilibrium_from_state_jax(state)
+
     def aspect_equilibrium(self, x_free=None):
         """Return the equilibrium aspect ratio derived from the solved ``wout``."""
         if x_free is None:
             x_free = self.boundary.get_free_params()
-        return float(self.get_wout(jnp.asarray(x_free)).aspect)
+        return float(np.asarray(self.aspect_equilibrium_jax(jnp.asarray(x_free))))
 
     def aspect(self, x_free=None):
         """Return the plasma aspect ratio, matching :class:`simsopt.mhd.Vmec`."""

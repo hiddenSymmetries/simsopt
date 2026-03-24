@@ -109,17 +109,18 @@ def create_simsopt_x_scale(dof_names, alpha=1.6, min_scale=1e-6):
     return x_scale
 
 # Configure quasisymmetry objective:
-boozer_source = "wout" if args.aspect_mode == "equilibrium" else "state"
-qs = QuasisymmetryJax(BoozerJax(vmec, mpol=16, ntor=16, jit=not args.no_jit, source=boozer_source),
+# Keep the optimization path on the solved state so the equilibrium aspect and
+# Boozer residual share the same solve and stay differentiable.
+qs = QuasisymmetryJax(BoozerJax(vmec, mpol=16, ntor=16, jit=not args.no_jit, source="state"),
                       0.5,  # Radius to target
                       1, 1)  # (M, N) you want in |B|
 
 
 def residuals(x_free):
     if args.aspect_mode == "equilibrium":
-        wout = vmec.get_wout(x_free)
-        aspect = jnp.asarray(wout.aspect)
-        qs_res = qs.J_from_wout(wout)
+        state = vmec._solve_state(x_free)
+        aspect = vmec.aspect_equilibrium_from_state_jax(state)
+        qs_res = qs.J_from_state(state)
     else:
         state = vmec._solve_state(x_free)
         aspect = vmec.aspect_jax(x_free)
@@ -136,7 +137,7 @@ if args.timings:
 residuals_jit = residuals
 if top_level_jit:
     if args.aspect_mode == "equilibrium":
-        qs.prepare_from_wout(vmec.get_wout(jnp.asarray(x0)))
+        qs.prepare_from_state(vmec._solve_state(jnp.asarray(x0)))
     else:
         qs.prepare(jnp.asarray(x0))
     try:
@@ -153,7 +154,8 @@ if top_level_jit:
 proc0_print("Evaluating initial quasisymmetry objective...")
 t_qs0 = time.perf_counter()
 if args.aspect_mode == "equilibrium":
-    qs_initial = np.sum(np.asarray(qs.J_from_wout(vmec.get_wout(jnp.asarray(x0)))) ** 2)
+    state0 = vmec._solve_state(jnp.asarray(x0))
+    qs_initial = np.sum(np.asarray(qs.J_from_state(state0)) ** 2)
 else:
     qs_initial = np.sum(np.asarray(qs.J(jnp.asarray(x0))) ** 2)
 proc0_print(f"Quasisymmetry objective (sum of squares) before optimization: {qs_initial}")
