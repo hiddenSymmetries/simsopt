@@ -1,11 +1,15 @@
 import os
+import tempfile
+import unittest
+from contextlib import contextmanager
 
 import numpy as np
-
-import pytest
 import jax
 
-vj = pytest.importorskip("vmec_jax")
+try:
+    import vmec_jax as vj
+except Exception as exc:
+    raise unittest.SkipTest(f"vmec_jax not installed: {exc}")
 
 try:
     import vmec as vmec_mod  # noqa: F401
@@ -14,6 +18,18 @@ except Exception:
 
 from simsopt.mhd import VmecJax
 from simsopt.mhd import Vmec
+
+
+@contextmanager
+def _temporary_cwd():
+    """Run a test inside a temporary working directory."""
+    cwd = os.getcwd()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.chdir(tmpdir)
+        try:
+            yield tmpdir
+        finally:
+            os.chdir(cwd)
 
 
 def _input_filename():
@@ -70,7 +86,7 @@ def test_vmec_jax_resolution_change_preserves_matching_dofs():
 
     idx = surf2.dof_names.index("rc(0,1)")
     assert surf2.free[idx] == free_before[surf.dof_names.index("rc(0,1)")]
-    assert surf2.x[idx] == pytest.approx(x_before[surf.dof_names.index("rc(0,1)")])
+    np.testing.assert_allclose(surf2.x[idx], x_before[surf.dof_names.index("rc(0,1)")])
 
 
 def test_vmec_jax_solver_option_change_invalidates_cache():
@@ -96,7 +112,7 @@ def test_vmec_jax_defaults_honor_staged_input_controls():
     vmec = VmecJax(_input_filename(), verbose=False)
 
     assert vmec._max_iter == 1500
-    assert vmec._grad_tol == pytest.approx(1.0e-13)
+    np.testing.assert_allclose(vmec._grad_tol, 1.0e-13)
     assert vmec._warm_start_iters == 0
 
 
@@ -116,7 +132,7 @@ def test_vmec_jax_wrapper_keeps_unconstrained_boundary_coefficients():
     assert not np.allclose(np.asarray(boundary.Z_sin), np.asarray(boundary_wrong.Z_sin))
 
 
-@pytest.mark.skipif(vmec_mod is None, reason="vmec not installed")
+@unittest.skipIf(vmec_mod is None, "vmec not installed")
 def test_vmec_jax_wrapper_initial_guess_has_correct_qh_iota_sign():
     from vmec_jax.driver import _final_flux_profiles_from_state
 
@@ -203,7 +219,7 @@ def test_vmec_jax_aspect_matches_vmec_interface():
     surf.fix("rc(0,0)")
     x0 = surf.get_free_params()
 
-    assert vmec.aspect(x0) == pytest.approx(vmec.aspect_equilibrium(x0))
+    np.testing.assert_allclose(vmec.aspect(x0), vmec.aspect_equilibrium(x0))
 
 
 def test_vmec_jax_equilibrium_aspect_jax_matches_wout():
@@ -244,7 +260,7 @@ def test_vmec_jax_wout_exposes_mode_count_metadata():
     assert int(wout.ntor_nyq) == int(np.max(np.abs(np.asarray(wout.xn_nyq) // int(wout.nfp))))
 
 
-@pytest.mark.skipif(vmec_mod is None, reason="vmec not installed")
+@unittest.skipIf(vmec_mod is None, "vmec not installed")
 def test_vmec_jax_boundary_free_modes_match_vmec_for_stellsym_qh_setup():
     vmec_ref = Vmec(_input_filename(), verbose=False)
     vmec_ref.indata.mpol = 3
