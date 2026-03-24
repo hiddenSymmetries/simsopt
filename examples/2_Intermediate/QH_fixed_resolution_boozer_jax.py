@@ -78,7 +78,7 @@ t_start = time.perf_counter()
 filename = os.path.join(os.path.dirname(__file__), "inputs", "input.nfp4_QH_warm_start")
 vmec = VmecJax(filename, verbose=False)
 top_level_jit = not args.no_jit
-if args.aspect_mode == "equilibrium" or jacobian_mode != "jax":
+if jacobian_mode != "jax":
     top_level_jit = False
 vmec.set_solver_options(**build_vmec_options(args))
 vmec.indata.mpol = MAX_MODE + 2
@@ -172,7 +172,7 @@ result = least_squares_jax_solve(
     gtol=1e-7,
     x_scale=x_scale,
     step_size=1e-2,
-    jit=top_level_jit and jacobian_mode == "jax" and args.aspect_mode != "equilibrium",
+    jit=top_level_jit and jacobian_mode == "jax",
     jac=jacobian_mode if args.method == "scipy" else None,
 )
 if args.timings:

@@ -599,6 +599,15 @@ class VmecJax:
             cg_tol=float(self._implicit_cg_tol),
             damping=float(self._implicit_damping),
         )
+        state0_host = vj.VMECState(
+            layout=self._context.st_guess.layout,
+            Rcos=np.asarray(self._context.st_guess.Rcos),
+            Rsin=np.asarray(self._context.st_guess.Rsin),
+            Zcos=np.asarray(self._context.st_guess.Zcos),
+            Zsin=np.asarray(self._context.st_guess.Zsin),
+            Lcos=np.asarray(self._context.st_guess.Lcos),
+            Lsin=np.asarray(self._context.st_guess.Lsin),
+        )
         residual_step_size = (
             float(self._step_size_override)
             if self._step_size_override is not None
@@ -613,6 +622,7 @@ class VmecJax:
                         self._static,
                         indata=self._indata_raw,
                         signgs=self._signgs,
+                        state0_host=state0_host,
                         max_iter=int(self._max_iter),
                         step_size=residual_step_size,
                         ftol=float(self._grad_tol),
