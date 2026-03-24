@@ -139,6 +139,55 @@ def _surface_rzfourier_spec_sort_key(spec, *, lasym: bool):
     return (kind_rank, m, n_key)
 
 
+def _vmec_wrout_nyquist_cos_coeffs_jax(*, f, modes, trig):
+    """Return wrout-style Nyquist cosine coefficients using JAX arrays.
+
+    This mirrors ``vmec_jax.wout._vmec_wrout_nyquist_cos_coeffs`` closely but
+    avoids NumPy conversions so it can be used inside traced optimization
+    loops.
+    """
+    f = jnp.asarray(f)
+    if f.ndim != 3:
+        raise ValueError(f"Expected f with shape (ns, ntheta, nzeta), got {f.shape}")
+
+    m = jnp.asarray(modes.m, dtype=jnp.int32)
+    n = jnp.asarray(modes.n, dtype=jnp.int32)
+    if int(m.shape[0]) == 0:
+        return jnp.zeros((int(f.shape[0]), 0), dtype=f.dtype)
+
+    nt2 = int(trig.ntheta2)
+    if int(f.shape[1]) < nt2:
+        raise ValueError("Input theta grid is smaller than VMEC ntheta2")
+    f = f[:, :nt2, :]
+
+    cosmui = jnp.asarray(trig.cosmui, dtype=f.dtype)[:nt2, :]
+    sinmui = jnp.asarray(trig.sinmui, dtype=f.dtype)[:nt2, :]
+    cosnv = jnp.asarray(trig.cosnv, dtype=f.dtype)
+    sinnv = jnp.asarray(trig.sinnv, dtype=f.dtype)
+
+    mnyq = int(cosmui.shape[1] - 1)
+    if mnyq > 0:
+        cosmui = cosmui.at[:, mnyq].multiply(jnp.asarray(0.5, dtype=f.dtype))
+    nnyq = int(cosnv.shape[1] - 1)
+    if nnyq > 0:
+        cosnv = cosnv.at[:, nnyq].multiply(jnp.asarray(0.5, dtype=f.dtype))
+
+    f_theta_cos = jnp.einsum("sik,im->smk", f, cosmui, optimize=True)
+    f_theta_sin = jnp.einsum("sik,im->smk", f, sinmui, optimize=True)
+    cos_zeta = jnp.einsum("smk,kn->smn", f_theta_cos, cosnv, optimize=True)
+    sin_zeta = jnp.einsum("smk,kn->smn", f_theta_sin, sinnv, optimize=True)
+
+    n_abs = jnp.abs(n)
+    sgn = jnp.where(n < 0, -1.0, 1.0).astype(f.dtype)
+    coeff = cos_zeta[:, m, n_abs] + sgn[None, :] * sin_zeta[:, m, n_abs]
+
+    mscale = jnp.asarray(trig.mscale, dtype=f.dtype)
+    nscale = jnp.asarray(trig.nscale, dtype=f.dtype)
+    dmult = mscale[m] * nscale[n_abs] * jnp.asarray(0.5 / float(getattr(trig, "r0scale", 1.0)) ** 2, dtype=f.dtype)
+    dmult = jnp.where((m == 0) | (n == 0), 2.0 * dmult, dmult)
+    return coeff * dmult[None, :]
+
+
 class JaxBoundary:
     """Boundary DOF wrapper mirroring the SurfaceRZFourier interface used by examples."""
 
@@ -764,6 +813,170 @@ class VmecJax:
         if self._x_cache_key(x_free) is not None:
             self._cached_wout = wout
         return wout
+
+    def get_wout_from_state(self, state):
+        """Return a VMEC-style ``wout`` object for an already solved state."""
+        self._ensure_context()
+        run = vj.FixedBoundaryRun(
+            cfg=self._cfg,
+            indata=self._indata_raw,
+            static=self.get_static(),
+            state=state,
+            result=None,
+            flux=self._context.flux,
+            profiles={},
+            signgs=self._signgs,
+        )
+        return vj.wout_from_fixed_boundary_run(run, include_fsq=False, fast_bcovar=True)
+
+    def quasisymmetry_diagnostics_from_state_jax(self, state):
+        """Build the VMEC-only QS channels directly from a solved state.
+
+        This helper mirrors the subset of ``wout`` synthesis needed by
+        :class:`simsopt.mhd.QuasisymmetryRatioResidual`, but keeps the data on
+        the JAX side instead of materializing a Python ``wout`` object. The
+        returned namespace contains the Nyquist Fourier coefficients and 1D
+        profiles needed to evaluate the VMEC-only quasisymmetry residual.
+        """
+        self._ensure_context()
+
+        from vmec_jax.booz_input import _filter_bsubuv_jxbforce_parity_jax
+        from vmec_jax.driver import _final_flux_profiles_from_state
+        from vmec_jax.energy import _iotaf_from_iotas
+        from vmec_jax.integrals import cumrect_s_halfmesh
+        from vmec_jax.modes import nyquist_mode_table_from_grid
+        from vmec_jax.vmec_bcovar import vmec_bcovar_half_mesh_from_wout
+        from vmec_jax.vmec_lforbal import currents_from_bcovar
+        from vmec_jax.vmec_tomnsp import vmec_trig_tables
+
+        static = self.get_static()
+        context = self.get_context()
+        flux, prof = _final_flux_profiles_from_state(
+            indata=self._indata_raw,
+            static_in=static,
+            state=state,
+            signgs=self._signgs,
+            flux_local=context.flux,
+            prof_local={"pressure": context.pressure},
+            pressure_local=context.pressure,
+        )
+
+        s_full = jnp.asarray(static.s)
+        pres = jnp.asarray(prof.get("pressure", context.pressure))
+        if int(pres.shape[0]) > 0:
+            pres = pres.at[0].set(0.0)
+
+        iotas = prof.get("iota", None)
+        if iotas is None:
+            phips = jnp.asarray(flux.phips)
+            chipf = jnp.asarray(flux.chipf)
+            chips = jnp.concatenate([chipf[:1], 0.5 * (chipf[1:] + chipf[:-1])], axis=0)
+            safe_phips = jnp.where(phips != 0.0, phips, 1.0)
+            iotas = jnp.where(phips != 0.0, chips / safe_phips, 0.0)
+        iotas = jnp.asarray(iotas)
+        if int(iotas.shape[0]) > 0:
+            iotas = iotas.at[0].set(0.0)
+        iotaf = jnp.asarray(prof.get("iotaf", _iotaf_from_iotas(iotas, lrfp=bool(self._indata_raw.get_bool("LRFP", False)))))
+
+        wout_like = SimpleNamespace(
+            phipf=jnp.asarray(flux.phipf),
+            chipf=jnp.asarray(flux.chipf),
+            phips=jnp.asarray(flux.phips),
+            iotas=iotas,
+            iotaf=iotaf,
+            nfp=int(self._cfg.nfp),
+            mpol=int(self._cfg.mpol),
+            ntor=int(self._cfg.ntor),
+            lasym=bool(self._cfg.lasym),
+            signgs=int(self._signgs),
+            ncurr=int(self._indata_raw.get_int("NCURR", 0)),
+            lcurrent=bool(int(self._indata_raw.get_int("NCURR", 0)) == 1),
+            flux_is_internal=True,
+        )
+
+        nyq_modes = nyquist_mode_table_from_grid(
+            mpol=int(self._cfg.mpol),
+            ntor=int(self._cfg.ntor),
+            ntheta=int(self._cfg.ntheta),
+            nzeta=int(self._cfg.nzeta),
+        )
+        mmax_nyq = int(np.max(np.asarray(nyq_modes.m))) if int(nyq_modes.K) > 0 else 0
+        nmax_nyq = int(np.max(np.abs(np.asarray(nyq_modes.n)))) if int(nyq_modes.K) > 0 else 0
+        trig = vmec_trig_tables(
+            ntheta=int(self._cfg.ntheta),
+            nzeta=int(self._cfg.nzeta),
+            nfp=int(self._cfg.nfp),
+            mmax=max(int(self._cfg.mpol) - 1, mmax_nyq),
+            nmax=max(int(self._cfg.ntor), nmax_nyq),
+            lasym=bool(self._cfg.lasym),
+            dtype=jnp.asarray(state.Rcos).dtype,
+        )
+
+        bc = vmec_bcovar_half_mesh_from_wout(
+            state=state,
+            static=static,
+            wout=wout_like,
+            pres=pres,
+            use_wout_bsup=False,
+            use_wout_bsub_for_lambda=False,
+            use_wout_bmag_for_bsq=False,
+            use_vmec_synthesis=True,
+            trig=trig,
+        )
+        buco, bvco, _, _ = currents_from_bcovar(bc=bc, trig=trig, wout=wout_like, s=s_full)
+
+        bsq = jnp.asarray(bc.bsq)
+        bmod = jnp.sqrt(jnp.maximum(2.0 * (bsq - pres[:, None, None]), 0.0))
+        bsubu = jnp.asarray(bc.bsubu)
+        bsubv = jnp.asarray(bc.bsubv)
+        if not bool(self._cfg.lasym):
+            pshalf = jnp.sqrt(jnp.maximum(0.5 * (s_full[1:] + s_full[:-1]), 0.0))
+            pshalf = jnp.concatenate([pshalf[:1], pshalf], axis=0)
+            if int(pshalf.shape[0]) > 1:
+                pshalf = pshalf.at[0].set(pshalf[1])
+            pshalf = pshalf[:, None, None]
+            bsubu, bsubv = _filter_bsubuv_jxbforce_parity_jax(
+                bsubu_even=bsubu,
+                bsubu_odd=pshalf * bsubu,
+                bsubv_even=bsubv,
+                bsubv_odd=pshalf * bsubv,
+                trig=trig,
+                mmax_force=max(int(self._cfg.mpol) - 1, 0),
+                nmax_force=int(self._cfg.ntor),
+                s=s_full,
+            )
+
+        gmnc = _vmec_wrout_nyquist_cos_coeffs_jax(f=jnp.asarray(bc.jac.sqrtg), modes=nyq_modes, trig=trig)
+        bmnc = _vmec_wrout_nyquist_cos_coeffs_jax(f=bmod, modes=nyq_modes, trig=trig)
+        bsubumnc = _vmec_wrout_nyquist_cos_coeffs_jax(f=bsubu, modes=nyq_modes, trig=trig)
+        bsubvmnc = _vmec_wrout_nyquist_cos_coeffs_jax(f=bsubv, modes=nyq_modes, trig=trig)
+        bsupumnc = _vmec_wrout_nyquist_cos_coeffs_jax(f=jnp.asarray(bc.bsupu), modes=nyq_modes, trig=trig)
+        bsupvmnc = _vmec_wrout_nyquist_cos_coeffs_jax(f=jnp.asarray(bc.bsupv), modes=nyq_modes, trig=trig)
+
+        if not bool(self._cfg.lasym):
+            mask_bsub = (jnp.asarray(nyq_modes.m) >= int(self._cfg.mpol)) | (
+                jnp.abs(jnp.asarray(nyq_modes.n)) > int(self._cfg.ntor)
+            )
+            bsubumnc = jnp.where(mask_bsub[None, :], 0.0, jnp.asarray(bsubumnc))
+            bsubvmnc = jnp.where(mask_bsub[None, :], 0.0, jnp.asarray(bsubvmnc))
+
+        phi = cumrect_s_halfmesh(jnp.asarray(flux.phipf) * float(2.0 * np.pi * self._signgs), s_full)
+        return SimpleNamespace(
+            lasym=bool(self._cfg.lasym),
+            nfp=int(self._cfg.nfp),
+            iotas=iotas,
+            buco=jnp.asarray(buco),
+            bvco=jnp.asarray(bvco),
+            gmnc=jnp.asarray(gmnc),
+            bmnc=jnp.asarray(bmnc),
+            bsubumnc=jnp.asarray(bsubumnc),
+            bsubvmnc=jnp.asarray(bsubvmnc),
+            bsupumnc=jnp.asarray(bsupumnc),
+            bsupvmnc=jnp.asarray(bsupvmnc),
+            xm_nyq=jnp.asarray(nyq_modes.m, dtype=jnp.float64),
+            xn_nyq=jnp.asarray(nyq_modes.n * int(self._cfg.nfp), dtype=jnp.float64),
+            phi=jnp.asarray(phi),
+        )
 
     def aspect_jax(self, x_free: jnp.ndarray):
         """Return the fast boundary-only aspect-ratio surrogate."""

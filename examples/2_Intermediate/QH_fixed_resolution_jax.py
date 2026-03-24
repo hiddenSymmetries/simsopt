@@ -7,32 +7,31 @@ import time
 import numpy as np
 import jax.numpy as jnp
 
-from simsopt.mhd import VmecJax, BoozerJax, QuasisymmetryJax
+from simsopt.mhd import VmecJax, QuasisymmetryRatioResidualJax
 from simsopt.solve import least_squares_jax_solve
 from simsopt.util import proc0_print
 
 """
-Optimize for quasi-helical symmetry (M=1, N=1) at a given radius using JAX.
+Optimize a VMEC-JAX equilibrium for quasi-helical symmetry (M=1, N=1)
+throughout the volume, using the VMEC-only quasisymmetry diagnostic.
 """
 
-MAX_MODE = 1
-MAX_NFEV = 10
+MAX_MODE = 3
+MAX_NFEV = 20
 PRINT_TIMINGS = True
 
-# Native JAX fixed-boundary solve by default. Change to "lbfgs" for the other
-# fast native path or to "vmec2000" for the slower parity-friendly reference
-# solve that more closely follows the original VMEC2000 trajectory.
+# Native JAX fixed-boundary solve. Change to "lbfgs" for the other fast native
+# path, or to "vmec2000" for the slower parity-friendly reference solve that
+# more closely tracks the original VMEC2000 equilibrium history.
 VMEC_SOLVER = "gd"
 VMEC_MAX_ITER = 500
 VMEC_GRAD_TOL = 1e-3
 
-# Native outer optimizer by default. Change to "lbfgs" for a line-search
-# variant, or to "scipy" if you want the least-squares backend to mirror the
-# classical SIMSOPT driver more closely.
-OUTER_METHOD = "gradient_descent"
-OUTER_STEP_SIZE = 1e-5
-
-ASPECT_MODE = "equilibrium"
+# The VMEC-only QS objective is stiffer than the Boozer-based variant, so use
+# a JAX-native L-BFGS outer loop by default. Change to "gradient_descent" if
+# you want the simplest fully native fallback path instead.
+OUTER_METHOD = "lbfgs"
+OUTER_STEP_SIZE = 1e-6
 
 
 def create_simsopt_x_scale(dof_names, alpha=1.6, min_scale=1e-6):
@@ -54,8 +53,8 @@ def create_simsopt_x_scale(dof_names, alpha=1.6, min_scale=1e-6):
     return x_scale
 
 
-proc0_print("Running 2_Intermediate/QH_fixed_resolution_boozer_jax.py")
-proc0_print("========================================================")
+proc0_print("Running 2_Intermediate/QH_fixed_resolution_jax.py")
+proc0_print("==================================================")
 
 t_start = time.perf_counter()
 filename = os.path.join(os.path.dirname(__file__), "inputs", "input.nfp4_QH_warm_start")
@@ -76,22 +75,18 @@ surf.fix("rc(0,0)")
 
 proc0_print("Parameter space:", surf.dof_names)
 
-
-qs = QuasisymmetryJax(
-    BoozerJax(vmec, mpol=16, ntor=16, jit=True, source="state"),
-    0.5,
-    1,
-    1,
+qs = QuasisymmetryRatioResidualJax(
+    vmec,
+    np.arange(0, 1.01, 0.1),
+    helicity_m=1,
+    helicity_n=-1,
 )
 
 
 def residuals(x_free):
     state = vmec._solve_state(x_free)
-    if ASPECT_MODE == "equilibrium":
-        aspect = vmec.aspect_equilibrium_from_state_jax(state)
-    else:
-        aspect = vmec.aspect_jax(x_free)
-    qs_res = qs.J_from_state(state)
+    aspect = vmec.aspect_equilibrium_from_state_jax(state)
+    qs_res = qs.residuals_from_state(state)
     return jnp.concatenate([jnp.array([aspect - 7.0]), qs_res])
 
 
@@ -105,10 +100,12 @@ if PRINT_TIMINGS:
 proc0_print("Evaluating initial quasisymmetry objective...")
 t_qs0 = time.perf_counter()
 state0 = vmec._solve_state(jnp.asarray(x0))
-qs_initial = np.sum(np.asarray(qs.J_from_state(state0)) ** 2)
+qs_initial = float(np.asarray(qs.total_from_state(state0)))
 if PRINT_TIMINGS:
     proc0_print(f"Initial QS evaluation time: {time.perf_counter() - t_qs0:.3f}s")
-proc0_print(f"Quasisymmetry objective (sum of squares) before optimization: {qs_initial}")
+
+proc0_print(f"Quasisymmetry objective before optimization: {qs_initial}")
+proc0_print(f"Total objective before optimization: {float(np.sum(np.asarray(residuals(jnp.asarray(x0))) ** 2))}")
 
 t_solve = time.perf_counter()
 result = least_squares_jax_solve(
@@ -118,26 +115,22 @@ result = least_squares_jax_solve(
     max_nfev=MAX_NFEV,
     gtol=1e-7,
     x_scale=x_scale,
-    step_size=OUTER_STEP_SIZE,
+    step_size=OUTER_STEP_SIZE if OUTER_METHOD == "gradient_descent" else 1e-2,
     jit=False,
-    jac="jax" if OUTER_METHOD == "scipy" else None,
 )
 if PRINT_TIMINGS:
     proc0_print(f"Outer solve time: {time.perf_counter() - t_solve:.3f}s")
 
 x_opt = result["x"]
 surf.set_free_params(x_opt)
-
 state_opt = vmec._solve_state(jnp.asarray(x_opt))
-qs_final = np.sum(np.asarray(qs.J_from_state(state_opt)) ** 2)
-final_aspect = (
-    vmec.aspect_equilibrium(x_opt)
-    if ASPECT_MODE == "equilibrium"
-    else float(np.asarray(vmec.aspect_jax(jnp.asarray(x_opt))))
-)
+qs_final = float(np.asarray(qs.total_from_state(state_opt)))
+aspect_final = float(np.asarray(vmec.aspect_equilibrium_from_state_jax(state_opt)))
+total_final = float(np.sum(np.asarray(qs.residuals_from_state(state_opt)) ** 2) + (aspect_final - 7.0) ** 2)
 
-proc0_print(f"Final aspect ratio is {final_aspect}")
-proc0_print(f"Quasisymmetry objective (sum of squares) after optimization: {qs_final}")
+proc0_print(f"Final aspect ratio: {aspect_final}")
+proc0_print(f"Quasisymmetry objective after optimization: {qs_final}")
+proc0_print(f"Total objective after optimization: {total_final}")
 
-proc0_print("End of 2_Intermediate/QH_fixed_resolution_boozer_jax.py")
-proc0_print("========================================================")
+proc0_print("End of 2_Intermediate/QH_fixed_resolution_jax.py")
+proc0_print("================================================")
