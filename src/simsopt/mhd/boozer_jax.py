@@ -79,6 +79,7 @@ class BoozerJax:
         jit: bool = True,
         source: str = "auto",
     ) -> None:
+        """Initialize the Boozer helper for one VMEC-style equilibrium source."""
         _require_jax()
         self.vmec = vmec
         self.mpol = int(mpol)
@@ -291,6 +292,7 @@ class QuasisymmetryJax:
         normalization: str = "B00",
         weight: str = "even",
     ) -> None:
+        """Create a Boozer-space quasisymmetry residual on selected surfaces."""
         _require_jax()
         self.boozer = boozer
         self.helicity_m = int(helicity_m)

@@ -61,10 +61,12 @@ def _require_vmec_jax():
 
 
 def _format_name(kind: str, m: int, n: int) -> str:
+    """Format a boundary coefficient name in SurfaceRZFourier style."""
     return f"{kind}({m},{n})"
 
 
 def _parse_name(name: str) -> tuple[str, int, int]:
+    """Parse a SurfaceRZFourier-style coefficient name into components."""
     m = re.match(r"([a-zA-Z]+)\(([-\d]+),([-\d]+)\)", name.replace(" ", ""))
     if not m:
         raise ValueError(f"Unrecognized boundary dof name: {name}")
@@ -72,6 +74,7 @@ def _parse_name(name: str) -> tuple[str, int, int]:
 
 
 def _as_list_like(value):
+    """Normalize scalar or array-like VMEC input values into a Python list."""
     if value is None:
         return None
     if isinstance(value, list):
@@ -89,6 +92,7 @@ def _as_list_like(value):
 
 
 def _last_input_value(indata, *, array_key: str, scalar_key: str, default, cast):
+    """Return the last staged VMEC input value, falling back to the scalar key."""
     values = _as_list_like(indata.get(array_key, None))
     if values:
         try:
@@ -123,6 +127,7 @@ def _surface_rzfourier_mode_is_valid(kind: str, m: int, n: int, *, lasym: bool) 
 
 
 def _surface_rzfourier_spec_sort_key(spec, *, lasym: bool):
+    """Sort coefficients in the same order used by SurfaceRZFourier."""
     kind_order = ("rc", "rs", "zc", "zs") if bool(lasym) else ("rc", "zs")
     kind_rank = kind_order.index(str(spec.kind).lower())
     m = int(spec.m)
@@ -146,6 +151,7 @@ class JaxBoundary:
         lasym: bool,
         include: Sequence[str] = ("rc", "zs", "rs", "zc"),
     ) -> None:
+        """Wrap vmec_jax boundary coefficients with a SurfaceRZFourier-like API."""
         _require_vmec_jax()
         self._boundary0 = boundary
         self._boundary_input0 = boundary_input
@@ -172,6 +178,7 @@ class JaxBoundary:
         self._free = np.ones_like(self._x, dtype=bool)
 
     def _get_coeff(self, boundary, spec):
+        """Read one Fourier coefficient from a vmec_jax boundary object."""
         if spec.kind == "rc":
             return float(boundary.R_cos[spec.index])
         if spec.kind == "rs":
@@ -267,7 +274,10 @@ class JaxBoundary:
 
 
 class _InDataProxy:
+    """Proxy exposing the small subset of VMEC indata used by SIMSOPT."""
+
     def __init__(self, parent, cfg, indata):
+        """Create a mutable view that keeps the wrapper config in sync."""
         self._parent = parent
         self._cfg = cfg
         self._indata = indata
@@ -276,32 +286,40 @@ class _InDataProxy:
 
     @property
     def mpol(self) -> int:
+        """Return the active poloidal truncation used by the wrapper."""
         return self._mpol
 
     @mpol.setter
     def mpol(self, val: int) -> None:
+        """Update the active poloidal truncation and rebuild dependent state."""
         self._mpol = int(val)
         self._parent._update_cfg(mpol=self._mpol, ntor=self._ntor)
 
     @property
     def ntor(self) -> int:
+        """Return the active toroidal truncation used by the wrapper."""
         return self._ntor
 
     @ntor.setter
     def ntor(self, val: int) -> None:
+        """Update the active toroidal truncation and rebuild dependent state."""
         self._ntor = int(val)
         self._parent._update_cfg(mpol=self._mpol, ntor=self._ntor)
 
     def get_int(self, key: str, default=None):
+        """Delegate integer lookups to the underlying indata object."""
         return self._indata.get_int(key, default)
 
     def get_float(self, key: str, default=None):
+        """Delegate float lookups to the underlying indata object."""
         return self._indata.get_float(key, default)
 
     def get_bool(self, key: str, default=None):
+        """Delegate boolean lookups to the underlying indata object."""
         return self._indata.get_bool(key, default)
 
     def get(self, key: str, default=None):
+        """Delegate generic lookups to the underlying indata object."""
         return self._indata.get(key, default)
 
 
@@ -314,6 +332,7 @@ class VmecJax:
     """
 
     def __init__(self, filename: str, *, verbose: bool = False, warm_start_iters: int = 0) -> None:
+        """Load a VMEC input file and initialize the JAX-backed wrapper."""
         _require_vmec_jax()
         try:
             cache_helper = getattr(getattr(vj, "driver", None), "_maybe_enable_compilation_cache", None)
