@@ -12,7 +12,7 @@ gradient-descent fallback is used.
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict
 
 import numpy as np
 

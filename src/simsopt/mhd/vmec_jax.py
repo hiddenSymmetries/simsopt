@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import re
-from typing import Iterable, Sequence
+from typing import Sequence
 from types import SimpleNamespace
 
 import numpy as np
