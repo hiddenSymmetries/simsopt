@@ -80,6 +80,13 @@ vmec = VmecJax(filename, verbose=False)
 top_level_jit = not args.no_jit
 if jacobian_mode != "jax":
     top_level_jit = False
+# The vmec2000-backed equilibrium path already uses compiled inner kernels, but
+# the full outer residual still crosses host callbacks for the solve itself.
+# Top-level XLA compilation of that composite function has very high cold-start
+# cost and does not pay off for the short QH example runs, so keep autodiff
+# enabled while avoiding the extra whole-function JIT in this mode.
+if args.solver == "vmec2000":
+    top_level_jit = False
 vmec.set_solver_options(**build_vmec_options(args))
 vmec.indata.mpol = MAX_MODE + 2
 vmec.indata.ntor = vmec.indata.mpol
