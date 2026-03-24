@@ -1404,8 +1404,6 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b
     int j_update = 1;
     if (single_direction >= 0) j_update = 3;
     
-    // rescale force_weight by mu0_factor
-    force_weight *= mu0_factor;
 
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
@@ -1543,25 +1541,25 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b
                     force_on_m1 *= r_fifth_inv;
                     force_on_m2 *= r_fifth_inv;
 
-                    // Add force to magnet m's force vector in temp_forces_plus
-                    temp_forces_plus_ptr[m3] += force_on_m0;
-                    temp_forces_plus_ptr[m3_plus1] += force_on_m1;
-                    temp_forces_plus_ptr[m3_plus2] += force_on_m2;
-                    
+                    // Add force to magnet m's force vector in temp_forces_plus (scaled to physical units)
+                    temp_forces_plus_ptr[m3] += mu0_factor * force_on_m0;
+                    temp_forces_plus_ptr[m3_plus1] += mu0_factor * force_on_m1;
+                    temp_forces_plus_ptr[m3_plus2] += mu0_factor * force_on_m2;
+
                     // Subtract force from magnet m's force vector in temp_forces_minus
-                    temp_forces_minus_ptr[m3] -= force_on_m0;
-                    temp_forces_minus_ptr[m3_plus1] -= force_on_m1;
-                    temp_forces_minus_ptr[m3_plus2] -= force_on_m2;
-                    
+                    temp_forces_minus_ptr[m3] -= mu0_factor * force_on_m0;
+                    temp_forces_minus_ptr[m3_plus1] -= mu0_factor * force_on_m1;
+                    temp_forces_minus_ptr[m3_plus2] -= mu0_factor * force_on_m2;
+
                     // Subtract force from magnet j's force vector in temp_forces_plus (Newton's 3rd law)
-                    temp_forces_plus_ptr[j_plus0] -= force_on_m0;
-                    temp_forces_plus_ptr[j_plus1] -= force_on_m1;
-                    temp_forces_plus_ptr[j_plus2] -= force_on_m2;
-                    
+                    temp_forces_plus_ptr[j_plus0] -= mu0_factor * force_on_m0;
+                    temp_forces_plus_ptr[j_plus1] -= mu0_factor * force_on_m1;
+                    temp_forces_plus_ptr[j_plus2] -= mu0_factor * force_on_m2;
+
                     // Add force to magnet j's force vector in temp_forces_minus (Newton's 3rd law)
-                    temp_forces_minus_ptr[j_plus0] += force_on_m0;
-                    temp_forces_minus_ptr[j_plus1] += force_on_m1;
-                    temp_forces_minus_ptr[j_plus2] += force_on_m2;
+                    temp_forces_minus_ptr[j_plus0] += mu0_factor * force_on_m0;
+                    temp_forces_minus_ptr[j_plus1] += mu0_factor * force_on_m1;
+                    temp_forces_minus_ptr[j_plus2] += mu0_factor * force_on_m2;
                 }
                 
                 // Compute the two norm squared of temp_forces_plus and use it to calculate the positive R2 value
@@ -1699,16 +1697,16 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b
             force_on_m1 *= r_fifth_inv;
             force_on_m2 *= r_fifth_inv;
 
-            // Add this force to the current_forces indices for m
-            current_forces_ptr[m3] += force_on_m0;
-            current_forces_ptr[m3_plus1] += force_on_m1;
-            current_forces_ptr[m3_plus2] += force_on_m2;
+            // Add this force to the current_forces indices for m (scaled to physical units)
+            current_forces_ptr[m3] += mu0_factor * force_on_m0;
+            current_forces_ptr[m3_plus1] += mu0_factor * force_on_m1;
+            current_forces_ptr[m3_plus2] += mu0_factor * force_on_m2;
             // Subtract this force from the current_forces indices for skj[k] (Newton's 3rd law)
-            current_forces_ptr[skj_k_3] -= force_on_m0;
-            current_forces_ptr[skj_k_3_plus1] -= force_on_m1;
-            current_forces_ptr[skj_k_3_plus2] -= force_on_m2;
+            current_forces_ptr[skj_k_3] -= mu0_factor * force_on_m0;
+            current_forces_ptr[skj_k_3_plus1] -= mu0_factor * force_on_m1;
+            current_forces_ptr[skj_k_3_plus2] -= mu0_factor * force_on_m2;
         }
-        
+
 
         double force_penalty = force_weight * two_norm_squared(current_forces);
         
