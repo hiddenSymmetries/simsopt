@@ -9,8 +9,6 @@ __all__ = [
            ]
 
 import numpy as np
-from matplotlib import pyplot as plt
-import matplotlib.animation as animation
 from pathlib import Path
 
 def initialize_coils_for_pm_optimization(config_flag, TEST_DIR, s, out_dir=''):
@@ -110,6 +108,9 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, out_
         pm_opt: PermanentMagnetGrid class object that was optimized.
         out_dir: Path or string for the output directory for saved files.
     """
+    from matplotlib import pyplot as plt
+    import matplotlib.animation as animation
+    
     out_dir = Path(out_dir)
 
     # Make plot of the relax-and-split convergence

@@ -1,5 +1,6 @@
 import unittest
 import json
+from unittest.mock import patch
 
 import numpy as np
 from monty.tempfile import ScratchDir
@@ -372,6 +373,46 @@ class CoilFormatConvertTesting(unittest.TestCase):
                             coils_to_vtk([coil], filename, close=close, extra_data=extra_data)
                             self.assertTrue(os.path.exists(filename + '.vtu'), "VTK file was not created.")
                             self.assertGreater(os.path.getsize(filename + '.vtu'), 0, "VTK file is empty.")
+
+    def test_coils_to_vtk_variable_points_per_coil(self):
+        """
+        Per-point current ``I`` must use cumulative coil lengths when quad counts differ.
+
+        ``coils_to_vtk`` concatenates coil points; indexing by ``i * ppl[i]`` would be wrong
+        for unequal ``ppl``. This checks the assembled ``extra_data`` passed to
+        ``curves_to_vtk`` (no VTK I/O; no pyevtk required).
+        """
+        from simsopt.field.coil import coils_to_vtk
+
+        def make_xyz_curve(nquad: int) -> CurveXYZFourier:
+            order = 4
+            curve = CurveXYZFourier(nquad, order)
+            dofs = np.zeros((curve.dof_size,))
+            dofs[1] = 1.0
+            dofs[2 * order + 3] = 1.0
+            dofs[4 * order + 3] = 1.0
+            np.random.seed(42)
+            curve.x = dofs + 0.01 * np.random.randn(curve.dof_size)
+            return curve
+
+        n1, n2 = 8, 24
+        i_a, i_b = 3.14, 2.71
+        coils = [
+            Coil(make_xyz_curve(n1), Current(i_a)),
+            Coil(make_xyz_curve(n2), Current(i_b)),
+        ]
+
+        with patch("simsopt.geo.curve.curves_to_vtk") as mock_vtk:
+            for close in (False, True):
+                mock_vtk.reset_mock()
+                coils_to_vtk(coils, "unused", close=close)
+                extra = mock_vtk.call_args.kwargs["extra_data"]
+                I = extra["I"]
+                p0 = n1 + (1 if close else 0)
+                p1 = n2 + (1 if close else 0)
+                self.assertEqual(I.shape[0], p0 + p1)
+                np.testing.assert_allclose(I[:p0], i_a, err_msg=f"close={close} first coil")
+                np.testing.assert_allclose(I[p0 : p0 + p1], i_b, err_msg=f"close={close} second coil")
 
 
 if __name__ == "__main__":

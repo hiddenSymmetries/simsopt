@@ -10,11 +10,8 @@ except ImportError:
 
 try:
     from ground.base import get_context
-except ImportError: # ground version 11 and newer changed the import path
-    try:
-        from ground.context import get_context
-    except ImportError:
-        get_context = None
+except ImportError:
+    get_context = None
 
 try:
     from bentley_ottmann.planar import contour_self_intersects
