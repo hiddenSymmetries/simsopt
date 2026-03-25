@@ -343,8 +343,8 @@ class Gvec(Optimizable):
         logger.debug(f"GVEC finished in {self._runobj.GVEC_iter_used} iterations")
 
         # remove old rundirs
-        while self._rundir_deletion_list[0] != self.rundir:
-            rundir = self._rundir_deletion_list.pop()
+        while self._rundir_deletion_list and self._rundir_deletion_list[0] != self.rundir:
+            rundir = self._rundir_deletion_list.pop(0)
             logger.debug(f"deleting {rundir}")
             shutil.rmtree(rundir)
 
