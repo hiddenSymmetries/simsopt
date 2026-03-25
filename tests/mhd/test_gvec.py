@@ -78,6 +78,9 @@ class GvecTests(unittest.TestCase):
             zeta = -eq.boundary.quadpoints_phi * 2 * np.pi
             boundary = eq.state.evaluate("pos", rho=1.0, theta=theta, zeta=zeta)["pos"].squeeze().transpose("tor", "pol", "xyz")
             np.testing.assert_allclose(eq.boundary.gamma(), boundary)
+
+            volume = eq.state.evaluate("V").V.item()
+            self.assertAlmostEqual(eq.boundary.volume(), volume)
     
     def check_return_functions(self, eq):
         """check that the return functions work and return a float"""
@@ -172,19 +175,21 @@ class GvecTests(unittest.TestCase):
         self.assertEqual(eq.parameters["X1X2_deg"], 5)
         self.assertEqual(eq.parameters["LA_deg"], 5)
     
-    # def test_run_from_rundir(self):
-    #     with ScratchDir("."):
-    #         eq = Gvec.from_rundir(TEST_DIR / "gvec-W7-X_standard_configuration")
-    #         self.check_Optimizable(eq)
-    #         self.assertFalse(eq.run_required)
-    #         self.assertTrue(eq.run_successful)
-    #         self.check_consistency(eq)
-    #         self.check_return_functions(eq)
+    def test_run_from_rundir(self):
+        with ScratchDir("."):
+            eq = Gvec.from_rundir(TEST_DIR / "gvec-W7-X_standard_configuration")
+            self.check_Optimizable(eq)
+            self.assertFalse(eq.run_required)
+            self.assertTrue(eq.run_successful)
+            self.check_consistency(eq)
+            self.check_return_functions(eq)
 
-    #         eq.parameters["totalIter"] = 10
-    #         eq.run(force=True)
-    #         self.assertFalse(eq.run_required)
-    #         self.assertTrue(eq.run_successful)
+            eq.parameters["minimize_tol"] = 1e-3
+            eq.run(force=True)
+            self.assertFalse(eq.run_required)
+            self.assertTrue(eq.run_successful)
+            self.check_consistency(eq)
+            self.check_return_functions(eq)
     
     def test_set_pressure_profile(self):
         s_spline = np.linspace(0, 1, 5)
