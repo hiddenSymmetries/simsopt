@@ -112,7 +112,7 @@ class GVECSurfaceDoFsTests(unittest.TestCase):
 
         for key in GVEC_SURFACE_PARAMETERS_COMPARE:
             self.assertEqual(params1[key], params0[key])
-        self.assertFalse(params1["init_average_axis"])
+        self.assertNotIn("init_average_axis", params1)
         self.assertTrue("LA_sin_cos" in params1)
         self.assertTrue("LA_mn_max" in params1)
 

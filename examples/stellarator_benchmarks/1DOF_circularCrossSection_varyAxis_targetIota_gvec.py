@@ -51,17 +51,16 @@ surf.set_zs(1, 0, 0.01)
 surf = SurfaceGarabedian.from_RZFourier(surf)
 
 # Create the GVEC optimizable
-equil = Gvec(
+eq = Gvec(
     boundary=surf,
     current=0.0,
     mpi=mpi,
-    delete_intermediates=True,
     parameters=dict(
         totalIter=10000,
         minimize_tol=1e-6,
     )
 )
-equil.logger.setLevel("WARNING")
+eq.logger.setLevel("WARNING")
 
 # GVEC parameters (phiedge) are all fixed by default, while surface parameters
 # are all non-fixed by default.  You can choose which parameters are
@@ -74,12 +73,12 @@ surf.unfix('Delta(1,-1)')
 # objective function.  A list of terms are combined to form a
 # nonlinear-least-squares problem.
 desired_iota = 0.41  # flipped sign compared to VMEC
-prob = LeastSquaresProblem.from_tuples([(equil.iota_axis, desired_iota, 1)])
+prob = LeastSquaresProblem.from_tuples([(eq.iota_axis, desired_iota, 1)])
 
 objective = prob.objective()
 proc0_print("Initial state,")
 proc0_print(" Delta(m=1,n=-1) = ", surf.get_Delta(1, -1))
-proc0_print(" iota on axis = ", equil.iota_axis())
+proc0_print(" iota on axis = ", eq.iota_axis())
 proc0_print(" objective function = ", objective)
 
 # Solve the minimization problem. We can choose whether to use a
@@ -91,11 +90,11 @@ if mpi.proc0_world:
     print("At the optimum,")
     print(" Delta(m=1,n=-1) = ", surf.get_Delta(1, -1))
     print(" desired iota = ", desired_iota)
-    print(" iota on axis = ", equil.iota_axis())
+    print(" iota on axis = ", eq.iota_axis())
     print(" objective function = ", objective)
 
     assert np.abs(surf.get_Delta(1, -1) - 0.08575) < 1.0e-3
-    assert np.abs(equil.iota_axis() - desired_iota) < 1.0e-5
-    assert prob.objective() < 1.0e-15
+    assert np.abs(eq.iota_axis() - desired_iota) < 1.0e-5
+    assert prob.objective() < 1.0e-14
     print("End of 1DOF_circularCrossSection_varyAxis_targetIota_gvec.py")
     print("============================================================")

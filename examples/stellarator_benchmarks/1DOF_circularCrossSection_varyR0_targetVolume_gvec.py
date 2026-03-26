@@ -47,13 +47,13 @@ surf.set_rc(1, 0, 0.1)
 surf.set_zs(1, 0, 0.1)
 
 # Create the GVEC optimizable
-equil = Gvec(
+eq = Gvec(
     boundary=surf,
     iota=0.0,
     mpi=mpi,
     delete_intermediates=True,
 )
-equil.logger.setLevel("WARNING")
+eq.logger.setLevel("WARNING")
 # alternatively a GVEC optimizable can also be created with Gvec.from_parameter_file()
 
 # GVEC parameters (phiedge) are all fixed by default, while surface parameters
@@ -66,7 +66,7 @@ surf.unfix('rc(0,0)')
 # term in a least-squares objective function.  A list of terms are
 # combined to form a nonlinear-least-squares problem.
 desired_volume = 0.15
-prob = LeastSquaresProblem.from_tuples([(equil.volume, desired_volume, 1)])
+prob = LeastSquaresProblem.from_tuples([(eq.volume, desired_volume, 1)])
 
 # Solve the minimization problem. We can choose whether to use a
 # derivative-free or derivative-based algorithm.
@@ -76,12 +76,12 @@ least_squares_mpi_solve(prob, mpi, grad=True)
 objective = prob.objective()
 proc0_print("At the optimum,")
 proc0_print(" rc(m=0,n=0) = ", surf.get_rc(0, 0))
-proc0_print(" volume, according to GVEC    = ", equil.volume())
+proc0_print(" volume, according to GVEC    = ", eq.volume())
 proc0_print(" volume, according to Surface = ", surf.volume())
 proc0_print(" objective function = ", objective)
 
 assert np.abs(surf.get_rc(0, 0) - 0.7599088773175) < 1.0e-5
-assert np.abs(equil.volume() - 0.15) < 1.0e-6
+assert np.abs(eq.volume() - 0.15) < 1.0e-6
 assert np.abs(surf.volume() - 0.15) < 1.0e-6
 assert prob.objective() < 1.0e-15
 proc0_print("End of 1DOF_circularCrossSection_varyR0_targetVolume_gvec.py")
