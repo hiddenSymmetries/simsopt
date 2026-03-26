@@ -180,7 +180,7 @@ jobs:
 
     - name: Install simsopt package
       run: |
-        python -m pip install -v .
+        python -m pip install -v ".[GVEC]"
         python -m pip install --no-binary=mpi4py mpi4py
         # python -m pip install -v git+https://github.com/zhisong/pyoculus
         # python -m pip install py_spec h5py
@@ -194,6 +194,7 @@ jobs:
         # ./run_spec_examples
         ./run_vmec_examples
         # ./run_spec_vmec_examples
+        ./run_gvec_examples
 
     - name: Run QUASR integration tests
       if: contains(matrix.test-type, 'integrated') && matrix.python-version == '3.13'
