@@ -933,26 +933,23 @@ def _setup_uniform_grid_in_bounding_box(s_outer, Nx, Ny, Nz, Nmin_factor=2.01):
 
     This function is typically used to initialize candidate coil center locations for planar 
     coil optimization. 
-    It computes a uniform grid in the bounding box from the min and max points of the toroidal surface 
-    s_outer (typically generated using s.extend_via_normal() or similar function). Then it:
-    1. Generates a uniform grid for a set of circular coils by:
-        (a) X = np.linspace(dx / 2.0 + x_min, x_max - dx / 2.0, Nx, endpoint=True)
-        (b) Y = np.linspace(dy / 2.0 + y_min, y_max - dy / 2.0, Ny, endpoint=True)
-        (c) Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
-        (d) Computes the radius R of the coils by taking the minimum spacing of the grid and dividing by Nmin_factor:
-            dx = X[1] - X[0]
-            dy = Y[1] - Y[0]
-            dz = Z[1] - Z[0]
-            Nmin = min(dx, min(dy, dz))
-            R = Nmin / Nmin_factor
-            - As long as Nmin_factor > 2, then the coils cannot overlap.
-        (e) Removes points too close to the unique sector [0, pi / nfp] (or [0, 2pi / nfp] 
-            for stellsym = False) to avoid overlap after symmetry operations. To guarantee that 
-            the symmetrized coils do not overlap, we remove points according to the following logic:
-            - Compute the coil curve in the x-y plane.
-            - Compute the angle of every point on the coil curve.
-            - Remove points where the angle is greater than phi0 or less than 0.
-            - This guarantees that the symmetrized coils do not overlap.
+    It computes a uniform grid in the bounding box from the min and max points of the toroidal surface
+    ``s_outer`` (typically generated using ``s.extend_via_normal()`` or a similar function). Then it:
+
+    1. Generates a uniform Cartesian grid of candidate coil centers.
+    2. Sets the circular-coil radius from the minimum grid spacing:
+
+       .. code-block:: text
+
+          dx = X[1] - X[0]
+          dy = Y[1] - Y[0]
+          dz = Z[1] - Z[0]
+          Nmin = min(dx, dy, dz)
+          R = Nmin / Nmin_factor
+
+       As long as ``Nmin_factor > 2``, the initialized circles cannot overlap.
+
+    3. Removes points too close to the unique toroidal sector so the symmetrized coils do not overlap.
 
     Parameters
     ----------
@@ -1095,7 +1092,6 @@ def create_planar_curves_between_two_toroidal_surfaces(
     Returns:
         curves : list
             List of CurvePlanarFourier or JaxCurvePlanarFourier objects.
-        all_curves : list
     """
     from simsopt.geo import CurvePlanarFourier, JaxCurvePlanarFourier
     from simsopt.field import apply_symmetries_to_curves

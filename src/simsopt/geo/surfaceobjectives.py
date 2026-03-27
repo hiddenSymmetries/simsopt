@@ -928,6 +928,8 @@ def _squash_right_branch(branch):
 def _stretch_left_branch(phi_values, branch, pmax=50, pmin=15):
     phi_values = np.asarray(phi_values, dtype=float)
     branch = np.asarray(branch, dtype=float)
+    if phi_values.size < 2 or phi_values[-1] == phi_values[0]:
+        return np.zeros_like(branch)
     x_values = (phi_values - phi_values[0]) / (phi_values[-1] - phi_values[0])
     left_half = x_values < 0.5
     r1 = 1 - branch[0]
@@ -939,6 +941,8 @@ def _stretch_left_branch(phi_values, branch, pmax=50, pmin=15):
 def _stretch_right_branch(phi_values, branch, pmax=50, pmin=15):
     phi_values = np.asarray(phi_values, dtype=float)
     branch = np.asarray(branch, dtype=float)
+    if phi_values.size < 2 or phi_values[-1] == phi_values[0]:
+        return np.zeros_like(branch)
     x_values = (phi_values - phi_values[0]) / (phi_values[-1] - phi_values[0])
     left_half = x_values < 0.5
     r1 = 1 - branch[-1]
@@ -950,6 +954,13 @@ def _stretch_right_branch(phi_values, branch, pmax=50, pmin=15):
 def _get_branches(phi_values, branch, level, maximum, minimum):
     phi_values = np.asarray(phi_values, dtype=float)
     branch = np.asarray(branch, dtype=float)
+
+    if phi_values.size == 0:
+        return 0.0, 0.0, 0.0, 0.0
+    if phi_values.size == 1 or branch.size == 1:
+        phi_single = float(phi_values[0])
+        return phi_single, phi_single, 0.0, 0.0
+
     differences = branch - level
     sign_products = differences[:-1] * differences[1:]
     indices = np.where(sign_products < 0)[0]
@@ -968,6 +979,33 @@ def _get_branches(phi_values, branch, level, maximum, minimum):
             if indices[index] != indices[index - 1] + 1:
                 indices = [indices[index - 1], indices[-1]]
                 break
+
+    if len(indices) < 2:
+        if len(indices) == 1:
+            index = int(indices[0])
+            delta_y = branch[index] - branch[index + 1]
+            delta_x = phi_values[index] - phi_values[index + 1]
+            slope = delta_y / delta_x if delta_x != 0 else 0.0
+            if slope != 0:
+                intercept = branch[index] - slope * phi_values[index]
+                phi_hit = float((level - intercept) / slope)
+            else:
+                phi_hit = float(phi_values[index])
+            return phi_hit, phi_hit, 0.0, 0.0
+
+        equal_hits = np.where(np.isclose(branch, level, rtol=0.0, atol=1e-14))[0]
+        if equal_hits.size >= 2:
+            first = int(equal_hits[0])
+            last = int(equal_hits[-1])
+            return phi_values[first], phi_values[last], 0.0, 0.0
+        if equal_hits.size == 1:
+            hit = int(equal_hits[0])
+            phi_hit = float(phi_values[hit])
+            return phi_hit, phi_hit, 0.0, 0.0
+
+        index_minimum = int(np.argmin(np.abs(differences)))
+        phi_hit = float(phi_values[index_minimum])
+        return phi_hit, phi_hit, 0.0, 0.0
 
     if len(indices) > 2:
         indices = [indices[0], indices[-1]]

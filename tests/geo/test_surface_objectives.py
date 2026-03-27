@@ -4,6 +4,22 @@ import os
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SRC_ROOT = REPO_ROOT / "src"
+filtered_meta_path = []
+for finder in sys.meta_path:
+    known_source_files = getattr(finder, "known_source_files", None)
+    if isinstance(known_source_files, dict):
+        simsopt_init = known_source_files.get("simsopt")
+        if isinstance(simsopt_init, str) and not simsopt_init.startswith(str(REPO_ROOT)):
+            continue
+    filtered_meta_path.append(finder)
+sys.meta_path[:] = filtered_meta_path
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux, QfmResidual, parameter_derivatives, Volume, PrincipalCurvature, MajorRadius, Iotas, NonQuasiSymmetricRatio, NonQuasiIsodynamicRatio, BoozerResidual
 from simsopt.configs.zoo import get_data
@@ -413,6 +429,8 @@ class BoozerQIExampleTests(unittest.TestCase):
             "SIMSOPT_BOOZER_QI_NBJ": "5",
             "SIMSOPT_BOOZER_QI_NPHI_OUT": "21",
         })
+        pythonpath = env.get("PYTHONPATH")
+        env["PYTHONPATH"] = os.path.join(repo_root, "src") if not pythonpath else os.path.join(repo_root, "src") + os.pathsep + pythonpath
 
         with tempfile.TemporaryDirectory() as tmpdir:
             env["SIMSOPT_BOOZER_QI_OUT_DIR"] = tmpdir

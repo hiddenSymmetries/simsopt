@@ -365,11 +365,12 @@ def _coil_coil_inductances_inv_pure(gammas, gammadashs, downsample, regularizati
 
 
 def _induced_currents_pure(gammas_targets, gammadashs_targets, gammas_sources, gammadashs_sources, currents_sources, downsample, regularizations):
-    """
+    r"""
     Pure function for computing the induced currents in a set of m passive coils with n quadrature points
     due to a set of m' source coils with n' quadrature points (and themselves). 
 
     .. math::
+
         I = -L^{-1} \Psi
 
     where :math:`L` is the coil inductance matrix, :math:`\Psi` is the net flux through 
@@ -1427,7 +1428,7 @@ def lp_torque_pure(
     The units of the objective function are therefore (MN)^p.
     :math:`d\ell_i` is the arclength along the ith coil,
     :math:`L_i` is the total coil length,
-    and :math:`T_0 ` is a threshold torque per unit length at the ith coil.
+    and :math:`T_0` is a threshold torque per unit length at the ith coil.
 
     Args:
         gammas_targets (array, shape (m,n,3)): Array of target coil positions.

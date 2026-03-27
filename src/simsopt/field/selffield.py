@@ -47,7 +47,9 @@ def _rectangular_xsection_delta(a, b):
     r"""Auxiliary function for regularization in rectangular conductor.
 
     .. math::
+
         \delta = \exp \left( - \frac{25}{6} + K \right)
+
     where K is the auxiliary function defined above.
     
     Args:
@@ -64,7 +66,9 @@ def regularization_circ(a):
     r"""Regularization for a circular conductor.
 
     .. math::
+
         \delta = a^2 / \sqrt{e}
+
     where e = 2.718... is the base of the natural logarithm
     and a is the radius of the circular conductor.
 
@@ -81,7 +85,9 @@ def regularization_rect(a, b):
     r"""Regularization for a rectangular conductor.
 
     .. math::
+
         \delta = a b \exp \left( - \frac{25}{6} + K \right)
+
     where K is the auxiliary function defined above,
     a is the width of the rectangular conductor and b is the height.
 

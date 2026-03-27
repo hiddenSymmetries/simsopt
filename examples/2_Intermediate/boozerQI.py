@@ -1,7 +1,22 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SRC_ROOT = REPO_ROOT / "src"
+filtered_meta_path = []
+for finder in sys.meta_path:
+    known_source_files = getattr(finder, "known_source_files", None)
+    if isinstance(known_source_files, dict):
+        simsopt_init = known_source_files.get("simsopt")
+        if isinstance(simsopt_init, str) and not simsopt_init.startswith(str(REPO_ROOT)):
+            continue
+    filtered_meta_path.append(finder)
+sys.meta_path[:] = filtered_meta_path
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
 import numpy as np
 from scipy.optimize import minimize

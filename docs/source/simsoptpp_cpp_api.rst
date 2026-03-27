@@ -99,12 +99,6 @@ Fields
 .. doxygenfile:: magneticfield_wireframe.h
    :project: simsoptpp
 
-.. doxygenfile:: integral_BdotN.h
-   :project: simsoptpp
-
-.. doxygenfile:: integral_BdotN.h
-   :project: simsoptpp
-
 .. doxygenfile:: wireframe_field_impl.h
    :project: simsoptpp
 
