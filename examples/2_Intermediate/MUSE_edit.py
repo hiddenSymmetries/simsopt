@@ -48,8 +48,8 @@ if in_github_actions:
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
     nphi = 16  # >= 64 for high-resolution runs
-    nIter_max = 50
-    downsample = 8
+    nIter_max = 10000
+    downsample = 2
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -105,13 +105,14 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 # Flatten dipole grid positions into 1D array
 dipole_grid_flat = pm_opt.dipole_grid_xyz.reshape(-1)
 
+'''
 # Build A_F tensor using cpp function
 print('Building A_F tensor...')
 t_A_F_start = time.time()
 A_F = sopp.build_A_F_tensor(dipole_grid_flat)
 t_A_F_end = time.time()
 print(f'A_F tensor construction took {t_A_F_end - t_A_F_start:.3f} seconds')
-
+'''
 
 
 # Set some hyperparameters for the optimization
@@ -150,19 +151,19 @@ print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
 current_forces = pm_opt.current_forces
 current_forces_2norm_squared = sopp.two_norm_squared(current_forces)
-af_forces = sopp.dipole_forces_from_A_F(pm_opt.m, A_F)
+#af_forces = sopp.dipole_forces_from_A_F(pm_opt.m, A_F)
 mu0_factor = (3.0 * 4.0 * np.pi * 1e-7) / (4.0 * np.pi)
-af_forces_2norm_squared = sopp.two_norm_squared(af_forces)
+#af_forces_2norm_squared = sopp.two_norm_squared(af_forces)
 net_forces, net_torques = pm_opt.force_torque_calc(dipoles)
 net_forces_2norm_squared = sopp.two_norm_squared(net_forces.ravel())
 print("mmax_fourth = ", pm_opt.m_maxima[0] ** 4)
 
 #Calc two norm from force_torque_calc method
-print("Force norm from force_torque_calc method = ", kwargs['force_weight'] * net_forces_2norm_squared) 
+#print("Force norm from force_torque_calc method = ", kwargs['force_weight'] * net_forces_2norm_squared) 
 print("Force norm from force_torque_calc method rescaled (To match optimization)= ", kwargs['force_weight'] * net_forces_2norm_squared / pm_opt.m_maxima[0] ** 4) 
 #Calc two norm from A_F Matrix method
-print("Force norm from AF method = ", kwargs['force_weight'] * af_forces_2norm_squared ) 
-print("Force norm from AF method rescaled (To match optimization)= ", kwargs['force_weight'] * af_forces_2norm_squared / pm_opt.m_maxima[0] ** 4) 
+#print("Force norm from AF method = ", kwargs['force_weight'] * af_forces_2norm_squared ) 
+#print("Force norm from AF method rescaled (To match optimization)= ", kwargs['force_weight'] * af_forces_2norm_squared / pm_opt.m_maxima[0] ** 4) 
 #Calc two norm from optimization method (have GPMO_forces return current_forces array and calculate two norm of that array)
 print("Force norm from from opt result = ", kwargs['force_weight'] * current_forces_2norm_squared) 
 

@@ -1408,21 +1408,15 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_Forces(Array& A_obj, Array& b
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
         
-        // Create temp_forces_plus and temp_forces_minus from current_forces
-        Array temp_forces_plus = current_forces; // Copy current forces for positive orientation
-        Array temp_forces_minus = current_forces; // Copy current forces for negative orientation
-        double* temp_forces_plus_ptr = &(temp_forces_plus(0));
-        double* temp_forces_minus_ptr = &(temp_forces_minus(0));
-        
         // Loop over all possible magnet positions j
-        //#pragma omp parallel for schedule(static) 
+        #pragma omp parallel for schedule(static)
         for (int j = 0; j < N3; ++j) {
             if (Gamma_ptr[j]) {
-                // Reset the temp force arrays back to the baseline current_forces
-                for (int i = 0; i < 3 * N; ++i) {
-                    temp_forces_plus_ptr[i] = current_forces_ptr[i];
-                    temp_forces_minus_ptr[i] = current_forces_ptr[i];
-                }
+                // Each thread gets its own private temp force arrays, initialized from current_forces
+                std::vector<double> temp_forces_plus_local(current_forces_ptr, current_forces_ptr + 3 * N);
+                std::vector<double> temp_forces_minus_local(current_forces_ptr, current_forces_ptr + 3 * N);
+                double* temp_forces_plus_ptr = temp_forces_plus_local.data();
+                double* temp_forces_minus_ptr = temp_forces_minus_local.data();
                 // Set up variables for j's moment and position
                 int dipole_idx = j / 3;
                 int j_plus0 = 3 * dipole_idx;
