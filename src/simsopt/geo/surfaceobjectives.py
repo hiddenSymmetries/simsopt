@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.interpolate import UnivariateSpline
 
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
@@ -10,7 +11,7 @@ from ..objectives.utilities import forward_backward
 
 __all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
            'QfmResidual', 'boozer_surface_residual', 'Iotas',
-           'MajorRadius', 'NonQuasiSymmetricRatio', 'BoozerResidual',
+           'MajorRadius', 'NonQuasiSymmetricRatio', 'NonQuasiIsodynamicRatio', 'BoozerResidual',
            'AspectRatio']
 
 
@@ -876,6 +877,363 @@ class NonQuasiSymmetricRatio(Optimizable):
         ddenom_by_dc = np.mean(0.5*dS_dc * B_QS[..., None]**2 + dS[..., None] * B_QS[..., None] * B_QS_dc, axis=(0, 1))
         dJ_by_dc = (denom * dnum_by_dc - num * ddenom_by_dc) / denom**2
         return dJ_by_dc
+
+
+def _make_qi_aux_surface(in_surface, sDIM):
+    phis = np.linspace(0, 1/in_surface.nfp, 2*sDIM, endpoint=False)
+    thetas = np.linspace(0, 1., 2*sDIM, endpoint=False)
+    return SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym,
+                                   nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas,
+                                   dofs=in_surface.dofs)
+
+
+def _normalize_modB_global(values, epsilon=1e-15):
+    values = np.asarray(values, dtype=float)
+    minimum = np.min(values)
+    maximum = np.max(values)
+    scale = max(maximum - minimum, epsilon)
+    return (values - minimum) / scale, minimum, maximum, scale
+
+
+def _squash_left_branch(branch):
+    branch = np.asarray(branch, dtype=float).copy()
+    index_max = np.argmax(branch)
+    branch[:index_max] = branch[index_max]
+    for index in range(len(branch) - 1):
+        if branch[index] <= branch[index + 1]:
+            index_final = len(branch) - 1
+            for follower in range(index + 1, len(branch)):
+                if branch[follower] < branch[index]:
+                    index_final = follower
+                    break
+            branch[index:index_final] = branch[index]
+    return branch
+
+
+def _squash_right_branch(branch):
+    branch = np.asarray(branch, dtype=float).copy()
+    index_max = np.argmax(branch)
+    branch[index_max:] = branch[index_max]
+    for index in range(len(branch) - 1, 1, -1):
+        if branch[index - 1] >= branch[index]:
+            index_final = 0
+            for follower in range(index - 1, 1, -1):
+                if branch[follower] < branch[index]:
+                    index_final = follower
+                    break
+            branch[index_final + 1:index] = branch[index]
+    return branch
+
+
+def _stretch_left_branch(phi_values, branch, pmax=50, pmin=15):
+    phi_values = np.asarray(phi_values, dtype=float)
+    branch = np.asarray(branch, dtype=float)
+    x_values = (phi_values - phi_values[0]) / (phi_values[-1] - phi_values[0])
+    left_half = x_values < 0.5
+    r1 = 1 - branch[0]
+    r2 = -branch[-1]
+    cosine_term = ((np.cos(2 * np.pi * x_values) + 1) / 2)
+    return left_half * r1 * cosine_term**pmax + (~left_half) * r2 * cosine_term**pmin
+
+
+def _stretch_right_branch(phi_values, branch, pmax=50, pmin=15):
+    phi_values = np.asarray(phi_values, dtype=float)
+    branch = np.asarray(branch, dtype=float)
+    x_values = (phi_values - phi_values[0]) / (phi_values[-1] - phi_values[0])
+    left_half = x_values < 0.5
+    r1 = 1 - branch[-1]
+    r2 = -branch[0]
+    cosine_term = ((np.cos(2 * np.pi * x_values) + 1) / 2)
+    return left_half * r2 * cosine_term**pmin + (~left_half) * r1 * cosine_term**pmax
+
+
+def _get_branches(phi_values, branch, level, maximum, minimum):
+    phi_values = np.asarray(phi_values, dtype=float)
+    branch = np.asarray(branch, dtype=float)
+    differences = branch - level
+    sign_products = differences[:-1] * differences[1:]
+    indices = np.where(sign_products < 0)[0]
+    indices = np.sort(indices)
+
+    if level == minimum or level < minimum:
+        index_minimum = int(np.argmin(branch))
+        phi_minimum = phi_values[index_minimum]
+        return phi_minimum, phi_minimum, float(index_minimum), float(index_minimum)
+    if level == maximum or level > maximum:
+        return phi_values[0], phi_values[-1], 0.0, float(len(branch) - 1)
+
+    if len(indices) < 2:
+        indices = np.where(sign_products <= 0)[0]
+        for index in range(1, len(indices)):
+            if indices[index] != indices[index - 1] + 1:
+                indices = [indices[index - 1], indices[-1]]
+                break
+
+    if len(indices) > 2:
+        indices = [indices[0], indices[-1]]
+
+    index_1 = int(indices[0])
+    index_2 = int(indices[1])
+
+    delta_y_1 = branch[index_1] - branch[index_1 + 1]
+    delta_x_1 = phi_values[index_1] - phi_values[index_1 + 1]
+    slope_1 = delta_y_1 / delta_x_1
+    intercept_1 = branch[index_1] - slope_1 * phi_values[index_1]
+    phi_1 = (level - intercept_1) / slope_1 if slope_1 != 0 else phi_values[index_1]
+
+    delta_y_2 = branch[index_2] - branch[index_2 + 1]
+    delta_x_2 = phi_values[index_2] - phi_values[index_2 + 1]
+    slope_2 = delta_y_2 / delta_x_2
+    intercept_2 = branch[index_2] - slope_2 * phi_values[index_2]
+    phi_2 = (level - intercept_2) / slope_2 if slope_2 != 0 else phi_values[index_2 + 1]
+
+    return phi_1, phi_2, slope_1, slope_2
+
+
+def _repair_shifted_qi_branches(left_branch, right_branch):
+    left_branch = np.asarray(left_branch, dtype=float).copy()
+    right_branch = np.asarray(right_branch, dtype=float).copy()
+    count = len(left_branch)
+    for index in range(count - 1):
+        if left_branch[index + 1] - left_branch[index] < 0:
+            right_branch[-index - 2] = right_branch[-index - 2] + (left_branch[index] - left_branch[index + 1] + 1e-12)
+            left_branch[index + 1] = left_branch[index] + 1e-12
+        if right_branch[-index - 1] - right_branch[-index - 2] < 0:
+            left_branch[index + 1] = left_branch[index + 1] + (right_branch[-index - 1] - right_branch[-index - 2] - 1e-12)
+            right_branch[-index - 2] = right_branch[-index - 1] - 1e-12
+    return left_branch, right_branch
+
+
+def _qi_objective_single_surface(target_values, source_values, nalpha, nphi_out):
+    target_values = np.asarray(target_values, dtype=float)
+    source_values = np.asarray(source_values, dtype=float)
+    residual = (target_values - source_values) / np.sqrt(nalpha * nphi_out)
+    return float(np.dot(residual.reshape((-1,)), residual.reshape((-1,))))
+
+
+def _periodic_bilinear_interpolate(values, period_phi, phi_query, theta_query):
+    values = np.asarray(values, dtype=float)
+    nphi, ntheta = values.shape
+    dphi = period_phi / nphi
+    dtheta = 1.0 / ntheta
+
+    phi_index = np.mod(phi_query / dphi, nphi)
+    theta_index = np.mod(theta_query / dtheta, ntheta)
+
+    phi_index_0 = np.floor(phi_index).astype(int)
+    theta_index_0 = np.floor(theta_index).astype(int)
+    phi_index_1 = (phi_index_0 + 1) % nphi
+    theta_index_1 = (theta_index_0 + 1) % ntheta
+
+    phi_weight = phi_index - phi_index_0
+    theta_weight = theta_index - theta_index_0
+
+    val00 = values[phi_index_0, theta_index_0]
+    val01 = values[phi_index_0, theta_index_1]
+    val10 = values[phi_index_1, theta_index_0]
+    val11 = values[phi_index_1, theta_index_1]
+
+    return ((1 - phi_weight) * (1 - theta_weight) * val00
+            + (1 - phi_weight) * theta_weight * val01
+            + phi_weight * (1 - theta_weight) * val10
+            + phi_weight * theta_weight * val11)
+
+
+def _make_qi_sampling_grid(surface, nphi, nalpha, phi_shift):
+    field_period = 2 * np.pi / surface.nfp
+    if phi_shift is None:
+        phi_shift = 0.0
+    phi_values = np.linspace(phi_shift, phi_shift + field_period, nphi)
+    alpha_values = np.linspace(0.0, 2 * np.pi, nalpha, endpoint=False)
+    return phi_values, alpha_values
+
+
+def _sample_modB_on_boozer_lines(modB_grid, surface, phi_values, alpha_values, iota, phi_shift):
+    field_period_normalized = 1.0 / surface.nfp
+    phi_normalized = np.mod(phi_values / (2 * np.pi), field_period_normalized)
+    sampled = np.zeros((phi_values.size, alpha_values.size))
+    for index, alpha in enumerate(alpha_values):
+        theta_physical = alpha + iota * (phi_values - phi_shift)
+        theta_normalized = np.mod(theta_physical / (2 * np.pi), 1.0)
+        sampled[:, index] = _periodic_bilinear_interpolate(modB_grid, field_period_normalized, phi_normalized, theta_normalized)
+    return sampled
+
+
+def _build_template_well(phi_values, branch_values, bounce_levels):
+    index_minimum = int(np.argmin(branch_values))
+    left_branch = branch_values[:index_minimum + 1].copy()
+    right_branch = branch_values[index_minimum:].copy()
+    left_phi = phi_values[:index_minimum + 1].copy()
+    right_phi = phi_values[index_minimum:].copy()
+
+    left_branch = _squash_left_branch(left_branch)
+    right_branch = _squash_right_branch(right_branch)
+
+    left_branch = left_branch + _stretch_left_branch(left_phi, left_branch)
+    right_branch = right_branch + _stretch_right_branch(right_phi, right_branch)
+    left_branch = left_branch[:-1]
+    template_values = np.concatenate((left_branch, right_branch))
+
+    weight_spline = UnivariateSpline(phi_values, np.abs(branch_values - template_values)**2, k=1, s=0)
+    weight_raw = (phi_values[-1] - phi_values[0]) / weight_spline.integral(phi_values[0], phi_values[-1])
+
+    bounce_distances = np.zeros((bounce_levels.size,))
+    branch_locations = np.zeros((2 * bounce_levels.size - 1,))
+    for index, level in enumerate(bounce_levels):
+        phi_1, phi_2, _, _ = _get_branches(phi_values, template_values, level, 1.0, 0.0)
+        bounce_distances[index] = phi_2 - phi_1
+        branch_locations[bounce_levels.size - index - 1] = phi_1
+        branch_locations[bounce_levels.size + index - 1] = phi_2
+
+    return template_values, weight_raw, bounce_distances, branch_locations
+
+
+def _make_shuffled_target_values(phi_values, branch_values, bounce_levels, branch_locations, mean_bounce_distances):
+    bounce_delta = (branch_values - mean_bounce_distances) / 2
+    left_branch = branch_locations[:bounce_levels.size].copy()
+    right_branch = branch_locations[bounce_levels.size - 1:].copy()
+    left_branch = left_branch + np.flip(bounce_delta)
+    right_branch = right_branch - bounce_delta
+    left_branch, right_branch = _repair_shifted_qi_branches(left_branch, right_branch)
+
+    shifted_locations = np.concatenate((left_branch, right_branch[1:]))
+    target_levels = np.concatenate((np.flip(bounce_levels), bounce_levels[1:]))
+    try:
+        spline = UnivariateSpline(shifted_locations, target_levels, k=1, s=0)
+    except Exception:
+        left_branch, right_branch = _repair_shifted_qi_branches(left_branch, right_branch)
+        shifted_locations = np.concatenate((left_branch, right_branch[1:]))
+        spline = UnivariateSpline(shifted_locations, target_levels, k=1, s=0)
+    return spline(phi_values)
+
+
+def _qi_residual_vector_single_surface(modB_lines, phi_values, nBj, nphi_out):
+    normalized, _, _, _ = _normalize_modB_global(modB_lines)
+    nphi, nalpha = normalized.shape
+    bounce_levels = np.linspace(0.0, 1.0, nBj)
+    template_values = np.zeros_like(normalized)
+    raw_weights = np.zeros((nalpha,))
+    bounce_distances = np.zeros((nalpha, nBj))
+    branch_locations = np.zeros((nalpha, 2 * nBj - 1))
+
+    for index in range(nalpha):
+        template_values[:, index], raw_weights[index], bounce_distances[index, :], branch_locations[index, :] = _build_template_well(phi_values, normalized[:, index], bounce_levels)
+
+    normalized_weights = raw_weights / np.sum(raw_weights)
+    mean_bounce_distances = np.sum(bounce_distances * normalized_weights[:, None], axis=0)
+    phi_out = np.linspace(phi_values[0], phi_values[-1], nphi_out)
+    residuals = np.zeros((nalpha, nphi_out))
+
+    for index in range(nalpha):
+        original_spline = UnivariateSpline(phi_values, normalized[:, index], k=1, s=0)
+        target_values = _make_shuffled_target_values(phi_out, bounce_distances[index, :], bounce_levels,
+                                                     branch_locations[index, :], mean_bounce_distances)
+        residuals[index, :] = (target_values - original_spline(phi_out)) / np.sqrt(nalpha * nphi_out)
+
+    return residuals.reshape((-1,))
+
+
+class NonQuasiIsodynamicRatio(Optimizable):
+    r"""
+    Milestone-1 quasi-isodynamic objective on a Boozer surface.
+
+    The current implementation ports the legacy single-surface well-shuffling residual
+    to a BoozerSurface auxiliary grid and defines the scalar objective as the squared norm
+    of the normalized residual vector.
+    """
+
+    def __init__(self, boozer_surface, bs, sDIM=20, nphi=151, nalpha=31, nBj=51, nphi_out=2000, phi_shift=None, smoothing=None):
+        assert type(boozer_surface.surface) is SurfaceXYZTensorFourier
+
+        Optimizable.__init__(self, depends_on=[boozer_surface])
+        self.boozer_surface = boozer_surface
+        self.in_surface = boozer_surface.surface
+        self.surface = _make_qi_aux_surface(self.in_surface, sDIM)
+        self.biotsavart = bs
+        self.nphi = nphi
+        self.nalpha = nalpha
+        self.nBj = nBj
+        self.nphi_out = nphi_out
+        self.phi_shift = phi_shift
+        self.smoothing = smoothing
+        self.fd_rel_step = 1e-6
+        self.fd_abs_step = 1e-8
+        self.recompute_bell()
+
+    def recompute_bell(self, parent=None):
+        self._J = None
+        self._dJ = None
+
+    def J(self):
+        if self._J is None:
+            self.compute()
+        return self._J
+
+    @derivative_dec
+    def dJ(self):
+        if self._dJ is None:
+            if self._J is None:
+                self._J = self._objective_value_from_current_state()
+            self._dJ = self._finite_difference_gradient()
+        return Derivative({self.biotsavart: self._dJ})
+
+    def _ensure_current_boozer_surface(self):
+        if self.boozer_surface.need_to_run_code:
+            res = self.boozer_surface.res
+            self.boozer_surface.run_code(res['iota'], G=res['G'])
+        return self.boozer_surface.res.get('success', True)
+
+    def _objective_value_from_current_state(self):
+        success = self._ensure_current_boozer_surface()
+        if not success:
+            return 1e6
+
+        self.surface.set_dofs(self.in_surface.get_dofs())
+        self.biotsavart.set_points(self.surface.gamma().reshape((-1, 3)))
+        nphi_aux = self.surface.quadpoints_phi.size
+        ntheta_aux = self.surface.quadpoints_theta.size
+        B = self.biotsavart.B().reshape((nphi_aux, ntheta_aux, 3))
+        modB = np.sqrt(np.sum(B**2, axis=2))
+
+        phi_shift = self.phi_shift
+        if phi_shift is None:
+            phi_shift = 2 * np.pi * self.surface.quadpoints_phi[np.argmax(np.max(modB, axis=1))]
+
+        phi_values, alpha_values = _make_qi_sampling_grid(self.surface, self.nphi, self.nalpha, phi_shift)
+        modB_lines = _sample_modB_on_boozer_lines(modB, self.surface, phi_values, alpha_values,
+                                                  self.boozer_surface.res['iota'], phi_shift)
+        residual = _qi_residual_vector_single_surface(modB_lines, phi_values, self.nBj, self.nphi_out)
+        return float(np.dot(residual, residual))
+
+    def _finite_difference_gradient(self):
+        base_x = self.biotsavart.x.copy()
+        gradient = np.zeros_like(base_x)
+
+        for index in range(base_x.size):
+            step = self.fd_abs_step + self.fd_rel_step * max(1.0, abs(base_x[index]))
+
+            x_plus = base_x.copy()
+            x_plus[index] += step
+            self.biotsavart.x = x_plus
+            self.boozer_surface.need_to_run_code = True
+            j_plus = self._objective_value_from_current_state()
+
+            x_minus = base_x.copy()
+            x_minus[index] -= step
+            self.biotsavart.x = x_minus
+            self.boozer_surface.need_to_run_code = True
+            j_minus = self._objective_value_from_current_state()
+
+            gradient[index] = (j_plus - j_minus) / (2 * step)
+
+        self.biotsavart.x = base_x
+        self.boozer_surface.need_to_run_code = True
+        self._J = self._objective_value_from_current_state()
+        return gradient
+
+    def compute(self):
+        self._J = self._objective_value_from_current_state()
+        self._dJ = None
 
 
 class Iotas(Optimizable):
