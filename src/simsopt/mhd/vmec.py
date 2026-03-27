@@ -393,6 +393,9 @@ class Vmec(Optimizable):
     def boundary(self, boundary):
         if boundary is not self._boundary:
             logging.debug('Replacing surface in boundary setter')
+            #TODO: should mpol and ntor be updated to match the new boundary?
+            if boundary.nfp != self.boundary.nfp:
+                raise ValueError('Trying to assign a new boundary to VMEC object, but the new boundary has an nfp diffrent from the one in the VMEC object.')
             self.remove_parent(self._boundary)
             self._boundary = boundary
             self.append_parent(boundary)
@@ -875,6 +878,8 @@ class Vmec(Optimizable):
         Look through the rbc and zbs data in fortran to determine the
         largest m and n for which rbc or zbs is nonzero.
         """
+        self.set_indata()  # needed in case the boundary has changed
+
         max_m = 0
         max_n = 0
         for m in range(1, 101):
