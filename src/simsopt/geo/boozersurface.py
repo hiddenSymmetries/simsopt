@@ -3,11 +3,502 @@ from scipy.linalg import lu
 from scipy.optimize import minimize, least_squares
 import simsoptpp as sopp
 
-from .surfaceobjectives import boozer_surface_residual, boozer_surface_dexactresidual_dcoils_dcurrents_vjp, boozer_surface_dlsqgrad_dcoils_vjp
+from .surfaceobjectives import boozer_surface_residual, boozer_surface_dexactresidual_dcoils_dcurrents_vjp, boozer_surface_dlsqgrad_dcoils_vjp, finite_beta_boozer_residual, finite_beta_boozer_residual_dsurface, finite_beta_boozer_residual_dparameters
 from .._core.optimizable import Optimizable
 from functools import partial
 
-__all__ = ['BoozerSurface']
+__all__ = ['BoozerSurface', 'FiniteBetaBoozerSurface']
+
+
+class FiniteBetaBoozerSurface(Optimizable):
+    r"""
+    Entry point for the upcoming finite-beta Boozer-surface workflow.
+
+    The finite-beta formulation extends the vacuum Boozer-surface solve with a
+    pressure-jump model, an internal current scalar ``I``, and a sheet-current
+    potential ``Phi`` on the target surface. The full residual assembly and solve
+    are introduced incrementally, so this class presently provides the validated
+    constructor-level API, option handling, and pressure-jump resolution logic
+    needed by the later implementation phases.
+
+    Args:
+        biotsavart (:obj:`~simsopt.field.BiotSavart`): Coil field used to seed the
+            finite-beta solve.
+        surface (:obj:`~simsopt.geo.SurfaceXYZFourier`,
+            :obj:`~simsopt.geo.SurfaceXYZTensorFourier`): Target surface.
+        label (:obj:`~simsopt._core.optimizable.Optimizable`): Surface label
+            evaluator, e.g. :obj:`~simsopt.geo.Volume` or
+            :obj:`~simsopt.geo.Area`.
+        targetlabel (float): Target value of the label on the surface.
+        pressure_jump (float or callable, optional): Pressure jump on the target
+            surface. If callable, it may accept either no arguments or the
+            surface object and must return a scalar.
+        virtual_casing (optional): Virtual-casing helper or cached data object to
+            be consumed by the finite-beta solve.
+        constraint_weight (float, optional): Residual weight used by the planned
+            least-squares solve.
+        options (dict, optional): Solver options for the finite-beta workflow.
+    """
+
+    def __init__(self, biotsavart, surface, label, targetlabel,
+                 pressure_jump=None, virtual_casing=None,
+                 constraint_weight=1.0, options=None):
+        depends_on = [biotsavart] if biotsavart is not None else []
+        super().__init__(depends_on=depends_on)
+
+        from simsopt.geo import SurfaceXYZFourier, SurfaceXYZTensorFourier
+        if not isinstance(surface, SurfaceXYZTensorFourier) and not isinstance(surface, SurfaceXYZFourier):
+            raise Exception("The input surface must be a SurfaceXYZTensorFourier or SurfaceXYZFourier.")
+
+        self.biotsavart = biotsavart
+        self.surface = surface
+        self.label = label
+        self.targetlabel = targetlabel
+        self.pressure_jump = pressure_jump
+        self.virtual_casing = virtual_casing
+        self.constraint_weight = constraint_weight
+        self.solve_type = 'ls'
+        self.need_to_run_code = True
+        self.res = None
+
+        if options is None:
+            options = {}
+        if 'verbose' not in options:
+            options['verbose'] = True
+        if 'newton_tol' not in options:
+            options['newton_tol'] = 1e-11
+        if 'newton_maxiter' not in options:
+            options['newton_maxiter'] = 40
+        if 'weight_inv_modB' not in options:
+            options['weight_inv_modB'] = True
+        self.options = options
+
+    def _default_G(self):
+        if self.biotsavart is None:
+            return 0.0
+        return 2. * np.pi * np.sum([np.abs(c.current.get_value()) for c in self.biotsavart.coils]) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+
+    def _normalize_current_potential(self, current_potential=None):
+        shape = self.surface.gamma().shape[:2]
+        if current_potential is None:
+            potential = np.zeros(shape)
+        else:
+            potential = np.asarray(current_potential, dtype=float)
+            if potential.shape != shape:
+                raise ValueError(f"current_potential must have shape {shape}.")
+            potential = potential.copy()
+        potential -= potential[0, 0]
+        return potential
+
+    def _pack_state(self, iota, G, I, current_potential,
+                    optimize_iota, optimize_G, optimize_I, optimize_current_potential,
+                    optimize_surface=False, surface_dofs=None):
+        x0 = []
+        if optimize_surface:
+            x0.extend(surface_dofs)
+        if optimize_iota:
+            x0.append(float(iota))
+        if optimize_G:
+            x0.append(float(G))
+        if optimize_I:
+            x0.append(float(I))
+        if optimize_current_potential:
+            x0.extend(current_potential.reshape((-1,))[1:])
+        return np.asarray(x0, dtype=float)
+
+    def _unpack_state(self, vector, iota, G, I, current_potential,
+                      optimize_iota, optimize_G, optimize_I, optimize_current_potential,
+                      optimize_surface=False, nsurfdofs=0):
+        cursor = 0
+        surface_dofs_val = None
+        iota_val = float(iota)
+        G_val = float(G)
+        I_val = float(I)
+        current_potential_val = current_potential.copy()
+
+        if optimize_surface:
+            surface_dofs_val = np.asarray(vector[cursor:cursor + nsurfdofs], dtype=float)
+            cursor += nsurfdofs
+
+        if optimize_iota:
+            iota_val = float(vector[cursor])
+            cursor += 1
+        if optimize_G:
+            G_val = float(vector[cursor])
+            cursor += 1
+        if optimize_I:
+            I_val = float(vector[cursor])
+            cursor += 1
+        if optimize_current_potential:
+            flattened = current_potential_val.reshape((-1,))
+            flattened[1:] = vector[cursor:cursor + flattened.size - 1]
+            cursor += flattened.size - 1
+            current_potential_val = flattened.reshape(current_potential_val.shape)
+        current_potential_val -= current_potential_val[0, 0]
+
+        return surface_dofs_val, iota_val, G_val, I_val, current_potential_val
+
+    def _weighted_residual_vector(self, blocks):
+        weights = self.options.get('block_weights', {})
+        return np.concatenate([
+            weights.get('boozer', 1.0) * blocks['boozer'].reshape((-1,)),
+            weights.get('normal', 1.0) * blocks['normal'].reshape((-1,)),
+            weights.get('pressure', 1.0) * blocks['pressure'].reshape((-1,)),
+            weights.get('jump', 1.0) * blocks['jump'].reshape((-1,)),
+        ])
+
+    def _weighted_parameter_jacobian(self, jacobian):
+        weights = self.options.get('block_weights', {})
+        nphi, ntheta = self.surface.gamma().shape[:2]
+        row_sizes = [
+            ('boozer', nphi * ntheta * 3),
+            ('normal', nphi * ntheta),
+            ('pressure', nphi * ntheta),
+            ('jump', nphi * ntheta * 3),
+        ]
+        pieces = []
+        cursor = 0
+        for name, size in row_sizes:
+            pieces.append(weights.get(name, 1.0) * jacobian[cursor:cursor + size, :])
+            cursor += size
+        return np.concatenate(pieces, axis=0)
+
+    def _weighted_surface_jacobian(self, jacobian):
+        return self._weighted_parameter_jacobian(jacobian)
+
+    def recompute_bell(self, parent=None):
+        self.need_to_run_code = True
+
+    def resolve_pressure_jump(self):
+        """
+        Evaluate the configured pressure jump as a finite scalar.
+        """
+        if self.pressure_jump is None:
+            return None
+
+        if callable(self.pressure_jump):
+            try:
+                value = self.pressure_jump(self.surface)
+            except TypeError:
+                value = self.pressure_jump()
+        else:
+            value = self.pressure_jump
+
+        value = float(value)
+        if not np.isfinite(value):
+            raise ValueError("pressure_jump must evaluate to a finite scalar.")
+        return value
+
+    def resolve_field_components(self, B_in=None, B_out=None):
+        """
+        Return interior and exterior magnetic fields on the surface grid.
+
+        Explicit arrays take precedence. If they are omitted and a virtual casing
+        object with ``B_total`` and ``B_external`` is attached, those arrays are
+        used. Otherwise, the Biot-Savart field is used on both sides, giving the
+        vacuum limit.
+        """
+        if (B_in is None) != (B_out is None):
+            raise ValueError("B_in and B_out must be provided together.")
+
+        expected_shape = self.surface.gamma().shape
+        if callable(B_in) or callable(B_out):
+            if not callable(B_in) or not callable(B_out):
+                raise ValueError("B_in and B_out must either both be callables or both be arrays.")
+            B_in = np.asarray(B_in(self.surface))
+            B_out = np.asarray(B_out(self.surface))
+            if B_in.shape != expected_shape or B_out.shape != expected_shape:
+                raise ValueError(f"Callable B_in and B_out must return arrays with shape {expected_shape}.")
+            return B_in, B_out
+
+        if B_in is not None:
+            B_in = np.asarray(B_in)
+            B_out = np.asarray(B_out)
+            if B_in.shape != expected_shape or B_out.shape != expected_shape:
+                raise ValueError(f"B_in and B_out must have shape {expected_shape}.")
+            return B_in, B_out
+
+        vc = self.virtual_casing
+        if vc is not None and hasattr(vc, 'B_total') and hasattr(vc, 'B_external'):
+            B_total = np.asarray(vc.B_total)
+            B_external = np.asarray(vc.B_external)
+            if B_total.shape != expected_shape or B_external.shape != expected_shape:
+                raise ValueError(
+                    f"virtual_casing.B_total and virtual_casing.B_external must have shape {expected_shape}."
+                )
+            return B_total - B_external, B_external
+
+        if self.biotsavart is None:
+            raise ValueError("biotsavart is required when explicit fields or virtual_casing data are not provided.")
+
+        x = self.surface.gamma().reshape((-1, 3))
+        self.biotsavart.set_points(x)
+        self.biotsavart.compute(0)
+        B = self.biotsavart.B().reshape(expected_shape)
+        return B, B
+
+    def residual_blocks(self, iota, G, I=0.0, pressure_jump=None,
+                        current_potential=None, current_potential_derivatives=None,
+                        B_in=None, B_out=None):
+        resolved_pressure_jump = self.resolve_pressure_jump() if pressure_jump is None else pressure_jump
+        if resolved_pressure_jump is None:
+            resolved_pressure_jump = 0.0
+
+        resolved_B_in, resolved_B_out = self.resolve_field_components(B_in=B_in, B_out=B_out)
+        return finite_beta_boozer_residual(
+            self.surface,
+            iota,
+            G,
+            resolved_B_in,
+            resolved_B_out,
+            I=I,
+            pressure_jump=resolved_pressure_jump,
+            current_potential=current_potential,
+            current_potential_derivatives=current_potential_derivatives,
+        )
+
+    def residual_parameter_jacobian(self, iota, G, I=0.0,
+                                    B_in=None, B_out=None,
+                                    optimize_iota=True, optimize_G=False,
+                                    optimize_I=True, optimize_current_potential=True):
+        resolved_B_in, resolved_B_out = self.resolve_field_components(B_in=B_in, B_out=B_out)
+        derivatives = finite_beta_boozer_residual_dparameters(
+            self.surface,
+            iota,
+            G,
+            resolved_B_in,
+            resolved_B_out,
+            I=I,
+        )
+
+        columns = []
+        if optimize_iota:
+            columns.append(derivatives['iota'][:, None])
+        if optimize_G:
+            columns.append(derivatives['G'][:, None])
+        if optimize_I:
+            columns.append(derivatives['I'][:, None])
+        if optimize_current_potential:
+            columns.append(derivatives['current_potential'][:, 1:])
+
+        if len(columns) == 0:
+            reference = self.residual_blocks(iota=iota, G=G, I=I, B_in=resolved_B_in, B_out=resolved_B_out)
+            return np.zeros((self._weighted_residual_vector(reference['blocks']).size, 0))
+
+        return self._weighted_parameter_jacobian(np.concatenate(columns, axis=1))
+
+    def residual_surface_jacobian(self, iota, G, I=0.0,
+                                  current_potential=None,
+                                  current_potential_derivatives=None,
+                                  B_in=None, B_out=None):
+        resolved_B_in, resolved_B_out = self.resolve_field_components(B_in=B_in, B_out=B_out)
+        derivatives = finite_beta_boozer_residual_dsurface(
+            self.surface,
+            iota,
+            G,
+            resolved_B_in,
+            resolved_B_out,
+            I=I,
+            current_potential=current_potential,
+            current_potential_derivatives=current_potential_derivatives,
+        )
+        return self._weighted_surface_jacobian(derivatives['residual'])
+
+    def _surface_constraint_residual(self):
+        label_residual = float(self.constraint_weight) * (self.label.J() - self.targetlabel)
+        anchor_residual = self.surface.gamma()[0, 0, 2]
+        return np.asarray([label_residual, anchor_residual])
+
+    def _surface_constraint_jacobian(self):
+        label_jacobian = float(self.constraint_weight) * self.label.dJ(partials=True)(self.surface)
+        anchor_jacobian = self.surface.dgamma_by_dcoeff()[0, 0, 2, :]
+        return np.vstack([label_jacobian, anchor_jacobian])
+
+    def run_code(self, iota, G=None, I=0.0, current_potential=None,
+                 B_in=None, B_out=None, optimize_iota=True,
+                 optimize_G=False, optimize_I=True,
+                 optimize_current_potential=True, optimize_surface=False):
+        """
+        Run a finite-beta least-squares solve.
+
+        The current implementation optimizes Boozer parameters and the
+        sheet-current potential on the existing surface quadrature grid. Surface
+        geometry can also be optimized when either fixed field samples are
+        supplied on that grid or the field providers can be reevaluated on the
+        moved surface.
+        """
+        if G is None:
+            G = self._default_G()
+
+        surface_dofs0 = self.surface.x.copy()
+        vc = self.virtual_casing
+        explicit_fields = (B_in is not None and B_out is not None and not callable(B_in) and not callable(B_out))
+        callable_fields = callable(B_in) and callable(B_out)
+        virtual_casing_fields = (
+            B_in is None and B_out is None and vc is not None
+            and hasattr(vc, 'B_total') and hasattr(vc, 'B_external')
+        )
+        biotsavart_fields = B_in is None and B_out is None and not virtual_casing_fields and self.biotsavart is not None
+        analytic_surface_jacobian = optimize_surface and (explicit_fields or virtual_casing_fields)
+
+        if optimize_surface and not (explicit_fields or callable_fields or virtual_casing_fields or biotsavart_fields):
+            raise ValueError(
+                "optimize_surface requires explicit fixed fields, virtual_casing data, callable B_in/B_out providers, or a biotsavart object."
+            )
+
+        if optimize_surface and not analytic_surface_jacobian:
+            resolved_B_in = None
+            resolved_B_out = None
+        else:
+            resolved_B_in, resolved_B_out = self.resolve_field_components(B_in=B_in, B_out=B_out)
+        current_potential0 = self._normalize_current_potential(current_potential)
+        x0 = self._pack_state(iota, G, I, current_potential0,
+                              optimize_iota, optimize_G, optimize_I, optimize_current_potential,
+                              optimize_surface=optimize_surface, surface_dofs=surface_dofs0)
+
+        if x0.size == 0:
+            result = self.residual_blocks(iota=iota, G=G, I=I,
+                                          current_potential=current_potential0,
+                                          B_in=resolved_B_in, B_out=resolved_B_out)
+            residual = self._weighted_residual_vector(result['blocks'])
+            self.res = {
+                'success': True,
+                'iter': 0,
+                'iota': float(iota),
+                'G': float(G),
+                'I': float(I),
+                'current_potential': current_potential0,
+                'residual': residual,
+                'residual_norm': np.linalg.norm(residual),
+                'block_norms': {name: np.linalg.norm(values) for name, values in result['blocks'].items()},
+                'message': 'No free variables selected.',
+            }
+            self.need_to_run_code = False
+            return self.res
+
+        def objective(vector):
+            surface_dofs_val, iota_val, G_val, I_val, current_potential_val = self._unpack_state(
+                vector, iota, G, I, current_potential0,
+                optimize_iota, optimize_G, optimize_I, optimize_current_potential,
+                optimize_surface=optimize_surface, nsurfdofs=surface_dofs0.size,
+            )
+            if optimize_surface:
+                self.surface.x = surface_dofs_val
+                if analytic_surface_jacobian:
+                    resolved_B_in_local = resolved_B_in
+                    resolved_B_out_local = resolved_B_out
+                else:
+                    resolved_B_in_local, resolved_B_out_local = self.resolve_field_components(B_in=B_in, B_out=B_out)
+            else:
+                resolved_B_in_local = resolved_B_in
+                resolved_B_out_local = resolved_B_out
+            result = self.residual_blocks(
+                iota=iota_val,
+                G=G_val,
+                I=I_val,
+                current_potential=current_potential_val,
+                B_in=resolved_B_in_local,
+                B_out=resolved_B_out_local,
+            )
+            residual = self._weighted_residual_vector(result['blocks'])
+            if optimize_surface:
+                residual = np.concatenate([residual, self._surface_constraint_residual()])
+            return residual
+
+        def jacobian(vector):
+            surface_dofs_val, iota_val, G_val, I_val, current_potential_val = self._unpack_state(
+                vector, iota, G, I, current_potential0,
+                optimize_iota, optimize_G, optimize_I, optimize_current_potential,
+                optimize_surface=optimize_surface, nsurfdofs=surface_dofs0.size,
+            )
+            if optimize_surface:
+                self.surface.x = surface_dofs_val
+
+            parameter_jacobian = self.residual_parameter_jacobian(
+                iota=iota_val,
+                G=G_val,
+                I=I_val,
+                B_in=resolved_B_in,
+                B_out=resolved_B_out,
+                optimize_iota=optimize_iota,
+                optimize_G=optimize_G,
+                optimize_I=optimize_I,
+                optimize_current_potential=optimize_current_potential,
+            )
+
+            if not optimize_surface:
+                return parameter_jacobian
+
+            surface_jacobian = self.residual_surface_jacobian(
+                iota=iota_val,
+                G=G_val,
+                I=I_val,
+                current_potential=current_potential_val,
+                B_in=resolved_B_in,
+                B_out=resolved_B_out,
+            )
+            constraint_jacobian = self._surface_constraint_jacobian()
+
+            if parameter_jacobian.shape[1] == 0:
+                residual_jacobian = surface_jacobian
+                full_constraint_jacobian = constraint_jacobian
+            else:
+                residual_jacobian = np.concatenate([surface_jacobian, parameter_jacobian], axis=1)
+                full_constraint_jacobian = np.concatenate(
+                    [constraint_jacobian, np.zeros((constraint_jacobian.shape[0], parameter_jacobian.shape[1]))],
+                    axis=1,
+                )
+            return np.concatenate([residual_jacobian, full_constraint_jacobian], axis=0)
+
+        tol = self.options.get('ls_tol', self.options.get('newton_tol', 1e-11))
+        max_nfev = self.options.get('ls_max_nfev', 100)
+        lsq = least_squares(
+            objective,
+            x0,
+            jac=jacobian if (not optimize_surface or analytic_surface_jacobian) else '2-point',
+            method=self.options.get('ls_method', 'trf'),
+            ftol=tol,
+            xtol=tol,
+            gtol=tol,
+            max_nfev=max_nfev,
+            verbose=2 if self.options.get('verbose', True) else 0,
+        )
+
+        surface_dofs_val, iota_val, G_val, I_val, current_potential_val = self._unpack_state(
+            lsq.x, iota, G, I, current_potential0,
+            optimize_iota, optimize_G, optimize_I, optimize_current_potential,
+            optimize_surface=optimize_surface, nsurfdofs=surface_dofs0.size,
+        )
+        if optimize_surface:
+            self.surface.x = surface_dofs_val
+        result = self.residual_blocks(
+            iota=iota_val,
+            G=G_val,
+            I=I_val,
+            current_potential=current_potential_val,
+            B_in=B_in if optimize_surface else resolved_B_in,
+            B_out=B_out if optimize_surface else resolved_B_out,
+        )
+        residual = self._weighted_residual_vector(result['blocks'])
+        if optimize_surface:
+            residual = np.concatenate([residual, self._surface_constraint_residual()])
+
+        self.res = {
+            'success': bool(lsq.success),
+            'iter': int(lsq.nfev),
+            'surface': self.surface,
+            'iota': iota_val,
+            'G': G_val,
+            'I': I_val,
+            'current_potential': current_potential_val,
+            'residual': residual,
+            'residual_norm': np.linalg.norm(residual),
+            'block_norms': {name: np.linalg.norm(values) for name, values in result['blocks'].items()},
+            'message': lsq.message,
+            'least_squares_result': lsq,
+        }
+        self.need_to_run_code = False
+        return self.res
 
 
 class BoozerSurface(Optimizable):

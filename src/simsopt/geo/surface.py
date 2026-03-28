@@ -1,4 +1,5 @@
 import abc
+import math
 
 import numpy as np
 from scipy import interpolate
@@ -11,7 +12,13 @@ except ImportError:
 try:
     from ground.base import get_context
 except ImportError:
-    get_context = None
+    try:
+        from ground.context import Context
+    except ImportError:
+        get_context = None
+    else:
+        def get_context():
+            return Context(coordinate_factory=float, sqrt=math.sqrt)
 
 try:
     from bentley_ottmann.planar import contour_self_intersects
@@ -463,7 +470,10 @@ class Surface(Optimizable):
         context = get_context()
         Point, Contour = context.point_cls, context.contour_cls
         contour = Contour([Point(R[i], Z[i]) for i in range(cs.shape[0])])
-        return contour_self_intersects(contour)
+        try:
+            return contour_self_intersects(contour, context=context)
+        except TypeError:
+            return contour_self_intersects(contour)
 
     def aspect_ratio(self):
         r"""
