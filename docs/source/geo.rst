@@ -164,6 +164,13 @@ A number of objective functions related to surfaces are available in :obj:`simso
 - :obj:`~simsopt.geo.ToroidalFlux`: computes the flux through a toroidal cross section of a :obj:`~simsopt.geo.Surface`.
 - :obj:`~simsopt.geo.PrincipalCurvature`: computes a metric which penalizes large values of the principal curvatures of a given :obj:`~simsopt.geo.Surface`.
 
+For Boozer-surface workflows, Simsopt provides both the established vacuum
+:obj:`~simsopt.geo.BoozerSurface` class and the staged finite-beta
+:obj:`~simsopt.geo.FiniteBetaBoozerSurface` class. The finite-beta path adds
+pressure-balance and jump-condition residuals together with a surface-current
+potential solve. A tutorial for this workflow is available in
+:doc:`example_boozer_finitebeta`.
+
 The value of the quantity and its derivative with respect to the surface dofs can be obtained by calling e.g., :obj:`ToroidalFlux.J() <simsopt.geo.ToroidalFlux.J>` and :obj:`ToroidalFlux.dJ_by_dsurfacecoefficients() <simsopt.geo.ToroidalFlux.dJ_by_dsurfacecoefficients>`.
 
 

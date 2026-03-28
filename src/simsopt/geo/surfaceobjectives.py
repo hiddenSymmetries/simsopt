@@ -9,9 +9,321 @@ from .surfacexyztensorfourier import SurfaceXYZTensorFourier
 from ..objectives.utilities import forward_backward
 
 __all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
-           'QfmResidual', 'boozer_surface_residual', 'Iotas',
-           'MajorRadius', 'NonQuasiSymmetricRatio', 'BoozerResidual',
-           'AspectRatio']
+           'QfmResidual', 'boozer_surface_residual', 'finite_beta_sheet_current',
+           'finite_beta_boozer_residual', 'finite_beta_boozer_residual_dsurface', 'finite_beta_boozer_residual_dparameters', 'surface_field_nonquasisymmetric_ratio', 'Iotas', 'MajorRadius',
+           'NonQuasiSymmetricRatio', 'BoozerResidual', 'AspectRatio']
+
+
+MU0 = 4 * np.pi * 1e-7
+
+
+def _as_surface_field_array(surface, values, name, trailing_shape):
+    array = np.asarray(values)
+    expected_shape = surface.gamma().shape[:2] + trailing_shape
+    if array.shape != expected_shape:
+        raise ValueError(f"{name} must have shape {expected_shape}, got {array.shape}.")
+    return array
+
+
+def _periodic_spacing(points, period=None):
+    points = np.asarray(points, dtype=float)
+    if points.ndim != 1 or points.size < 2:
+        raise ValueError("Periodic derivatives require at least 2 quadrature points.")
+
+    diffs = np.diff(points)
+    if period is None:
+        period = points[-1] - points[0] + diffs[0]
+    if not np.allclose(diffs, diffs[0]):
+        raise ValueError("Only uniformly spaced quadrature grids are supported for current-potential finite differences.")
+    return float(diffs[0]), float(period)
+
+
+def _periodic_central_difference(values, spacing, axis):
+    return (np.roll(values, -1, axis=axis) - np.roll(values, 1, axis=axis)) / (2 * spacing)
+
+
+def _periodic_central_difference_matrix(length, spacing):
+    identity = np.eye(length)
+    return (np.roll(identity, -1, axis=0) - np.roll(identity, 1, axis=0)) / (2 * spacing)
+
+
+def _surface_potential_derivatives(surface, current_potential):
+    potential = _as_surface_field_array(surface, current_potential, 'current_potential', tuple())
+    dphi, _ = _periodic_spacing(surface.quadpoints_phi)
+    dtheta, _ = _periodic_spacing(surface.quadpoints_theta, period=1.0)
+    return (
+        _periodic_central_difference(potential, dphi, axis=0),
+        _periodic_central_difference(potential, dtheta, axis=1),
+    )
+
+
+def _surface_unitnormal_derivatives(surface):
+    normal = surface.normal()
+    dnormal_dc = surface.dnormal_by_dcoeff()
+    norm_normal = np.linalg.norm(normal, axis=2)
+    dnorm_normal_dc = np.sum(normal[:, :, :, None] * dnormal_dc, axis=2) / norm_normal[:, :, None]
+    dunitnormal_dc = dnormal_dc / norm_normal[:, :, None, None] - \
+        normal[:, :, :, None] * dnorm_normal_dc[:, :, None, :] / norm_normal[:, :, None, None]**2
+    return normal, norm_normal, dnormal_dc, dnorm_normal_dc, dunitnormal_dc
+
+
+def finite_beta_sheet_current(surface, current_potential=None, current_potential_derivatives=None):
+    r"""
+    Compute the surface sheet current
+
+    .. math::
+        \mathbf K = \hat{\mathbf n} \times \nabla \Phi
+
+    on the quadrature grid of ``surface``.
+
+    The sheet-current potential can be supplied either directly as values on the
+    surface quadrature grid, or as a pair of derivatives
+    ``(dPhi_dvarphi, dPhi_dtheta)`` on that same grid. If neither is supplied, a
+    zero sheet current is returned.
+    """
+    x = surface.gamma()
+    xphi = surface.gammadash1()
+    xtheta = surface.gammadash2()
+    normal = surface.normal()
+    norm_normal = np.linalg.norm(normal, axis=2)
+
+    if current_potential is None and current_potential_derivatives is None:
+        return np.zeros_like(x)
+
+    if current_potential_derivatives is None:
+        dphi_potential, dtheta_potential = _surface_potential_derivatives(surface, current_potential)
+    else:
+        if len(current_potential_derivatives) != 2:
+            raise ValueError("current_potential_derivatives must be a pair (dPhi_dvarphi, dPhi_dtheta).")
+        dphi_potential = _as_surface_field_array(surface, current_potential_derivatives[0], 'dPhi_dvarphi', tuple())
+        dtheta_potential = _as_surface_field_array(surface, current_potential_derivatives[1], 'dPhi_dtheta', tuple())
+
+    return (dphi_potential[:, :, None] * xtheta - dtheta_potential[:, :, None] * xphi) / norm_normal[:, :, None]
+
+
+def finite_beta_boozer_residual(surface, iota, G, B_in, B_out, I=0.0,
+                                pressure_jump=0.0, current_potential=None,
+                                current_potential_derivatives=None, mu0=MU0):
+    r"""
+    Assemble the finite-beta Boozer residual blocks on a surface grid.
+
+    The returned dictionary contains the flattened stacked residual and each
+    individual residual block:
+
+    .. math::
+        (G + \iota I) B_\text{in} - |B_\text{in}|^2 (x_\varphi + \iota x_\theta)
+
+    .. math::
+        B_\text{out} \cdot \hat{n}
+
+    .. math::
+        |B_\text{out}|^2 - |B_\text{in}|^2 - 2 \mu_0 \Delta p
+
+    .. math::
+        \mu_0 K - \hat{n} \times (B_\text{out} - B_\text{in})
+    """
+    B_in = _as_surface_field_array(surface, B_in, 'B_in', (3,))
+    B_out = _as_surface_field_array(surface, B_out, 'B_out', (3,))
+
+    xphi = surface.gammadash1()
+    xtheta = surface.gammadash2()
+    unit_normal = surface.unitnormal()
+    tang = xphi + iota * xtheta
+
+    B_in_sq = np.sum(B_in**2, axis=2)
+    B_out_sq = np.sum(B_out**2, axis=2)
+    sheet_current = finite_beta_sheet_current(
+        surface,
+        current_potential=current_potential,
+        current_potential_derivatives=current_potential_derivatives,
+    )
+
+    boozer = (G + iota * I) * B_in - B_in_sq[:, :, None] * tang
+    normal = np.sum(B_out * unit_normal, axis=2)
+    pressure = B_out_sq - B_in_sq - 2.0 * mu0 * float(pressure_jump)
+    jump = mu0 * sheet_current - np.cross(unit_normal, B_out - B_in)
+
+    blocks = {
+        'boozer': boozer,
+        'normal': normal,
+        'pressure': pressure,
+        'jump': jump,
+        'sheet_current': sheet_current,
+    }
+    residual = np.concatenate([
+        boozer.reshape((-1,)),
+        normal.reshape((-1,)),
+        pressure.reshape((-1,)),
+        jump.reshape((-1,)),
+    ])
+    return {
+        'residual': residual,
+        'blocks': blocks,
+    }
+
+
+def finite_beta_boozer_residual_dsurface(surface, iota, G, B_in, B_out, I=0.0,
+                                         current_potential=None,
+                                         current_potential_derivatives=None,
+                                         mu0=MU0):
+    r"""
+    Derivatives of the finite-beta residual with respect to the surface dofs.
+
+    The field samples ``B_in`` and ``B_out`` are treated as fixed values on the
+    current surface quadrature grid. This covers the fixed-field residual
+    assembly used by the staged finite-beta workflow. Field-provider shape
+    derivatives are intentionally out of scope here.
+    """
+    B_in = _as_surface_field_array(surface, B_in, 'B_in', (3,))
+    B_out = _as_surface_field_array(surface, B_out, 'B_out', (3,))
+
+    xphi = surface.gammadash1()
+    xtheta = surface.gammadash2()
+    dxphi_dc = surface.dgammadash1_by_dcoeff()
+    dxtheta_dc = surface.dgammadash2_by_dcoeff()
+    _, norm_normal, _, dnorm_normal_dc, dunitnormal_dc = _surface_unitnormal_derivatives(surface)
+
+    if current_potential is None and current_potential_derivatives is None:
+        dphi_potential = np.zeros(surface.gamma().shape[:2])
+        dtheta_potential = np.zeros(surface.gamma().shape[:2])
+    elif current_potential_derivatives is None:
+        dphi_potential, dtheta_potential = _surface_potential_derivatives(surface, current_potential)
+    else:
+        if len(current_potential_derivatives) != 2:
+            raise ValueError("current_potential_derivatives must be a pair (dPhi_dvarphi, dPhi_dtheta).")
+        dphi_potential = _as_surface_field_array(surface, current_potential_derivatives[0], 'dPhi_dvarphi', tuple())
+        dtheta_potential = _as_surface_field_array(surface, current_potential_derivatives[1], 'dPhi_dtheta', tuple())
+
+    B_in_sq = np.sum(B_in**2, axis=2)
+    delta_B = B_out - B_in
+    sheet_current_numerator = dphi_potential[:, :, None] * xtheta - dtheta_potential[:, :, None] * xphi
+
+    dboozer_dc = -B_in_sq[:, :, None, None] * (dxphi_dc + iota * dxtheta_dc)
+    dnormal_dc = np.sum(B_out[:, :, :, None] * dunitnormal_dc, axis=2)
+    dpressure_dc = np.zeros(dnormal_dc.shape)
+    dsheet_current_dc = (dphi_potential[:, :, None, None] * dxtheta_dc - dtheta_potential[:, :, None, None] * dxphi_dc) / norm_normal[:, :, None, None] - \
+        sheet_current_numerator[:, :, :, None] * dnorm_normal_dc[:, :, None, :] / norm_normal[:, :, None, None]**2
+
+    dunitnormal_dc_moved = np.moveaxis(dunitnormal_dc, -1, 2)
+    djump_dc = mu0 * dsheet_current_dc - np.moveaxis(
+        np.cross(dunitnormal_dc_moved, delta_B[:, :, None, :]),
+        2,
+        -1,
+    )
+
+    residual = np.concatenate([
+        dboozer_dc.reshape((-1, dboozer_dc.shape[-1])),
+        dnormal_dc.reshape((-1, dnormal_dc.shape[-1])),
+        dpressure_dc.reshape((-1, dpressure_dc.shape[-1])),
+        djump_dc.reshape((-1, djump_dc.shape[-1])),
+    ], axis=0)
+    return {
+        'residual': residual,
+        'blocks': {
+            'boozer': dboozer_dc,
+            'normal': dnormal_dc,
+            'pressure': dpressure_dc,
+            'jump': djump_dc,
+            'sheet_current': dsheet_current_dc,
+        },
+    }
+
+
+def finite_beta_boozer_residual_dparameters(surface, iota, G, B_in, B_out, I=0.0,
+                                            mu0=MU0):
+    r"""
+    Derivatives of the fixed-surface finite-beta residual with respect to the
+    scalar parameters ``iota``, ``G``, ``I``, and the current-potential values
+    on the surface grid.
+    """
+    B_in = _as_surface_field_array(surface, B_in, 'B_in', (3,))
+    B_out = _as_surface_field_array(surface, B_out, 'B_out', (3,))
+
+    xphi = surface.gammadash1()
+    xtheta = surface.gammadash2()
+    normal = surface.normal()
+    norm_normal = np.linalg.norm(normal, axis=2)
+    nphi, ntheta = B_in.shape[:2]
+    npts = nphi * ntheta
+
+    B_in_sq = np.sum(B_in**2, axis=2)
+    zeros_scalar = np.zeros((nphi, ntheta))
+    zeros_vector = np.zeros((nphi, ntheta, 3))
+
+    dboozer_diota = I * B_in - B_in_sq[:, :, None] * xtheta
+    dboozer_dG = B_in
+    dboozer_dI = iota * B_in
+
+    dresidual_diota = np.concatenate([
+        dboozer_diota.reshape((-1,)),
+        zeros_scalar.reshape((-1,)),
+        zeros_scalar.reshape((-1,)),
+        zeros_vector.reshape((-1,)),
+    ])
+    dresidual_dG = np.concatenate([
+        dboozer_dG.reshape((-1,)),
+        zeros_scalar.reshape((-1,)),
+        zeros_scalar.reshape((-1,)),
+        zeros_vector.reshape((-1,)),
+    ])
+    dresidual_dI = np.concatenate([
+        dboozer_dI.reshape((-1,)),
+        zeros_scalar.reshape((-1,)),
+        zeros_scalar.reshape((-1,)),
+        zeros_vector.reshape((-1,)),
+    ])
+
+    dphi_spacing, _ = _periodic_spacing(surface.quadpoints_phi)
+    dtheta_spacing, _ = _periodic_spacing(surface.quadpoints_theta, period=1.0)
+    dphi_matrix = np.kron(_periodic_central_difference_matrix(nphi, dphi_spacing), np.eye(ntheta))
+    dtheta_matrix = np.kron(np.eye(nphi), _periodic_central_difference_matrix(ntheta, dtheta_spacing))
+
+    xphi_flat = xphi.reshape((npts, 3))
+    xtheta_flat = xtheta.reshape((npts, 3))
+    norm_normal_flat = norm_normal.reshape((npts,))
+
+    dsheet_current_dpotential = (
+        dphi_matrix[:, None, :] * xtheta_flat[:, :, None]
+        - dtheta_matrix[:, None, :] * xphi_flat[:, :, None]
+    ) / norm_normal_flat[:, None, None]
+    djump_dpotential = mu0 * dsheet_current_dpotential
+
+    jacobian_potential = np.concatenate([
+        np.zeros((npts * 3, npts)),
+        np.zeros((npts, npts)),
+        np.zeros((npts, npts)),
+        djump_dpotential.reshape((npts * 3, npts)),
+    ], axis=0)
+
+    return {
+        'iota': dresidual_diota,
+        'G': dresidual_dG,
+        'I': dresidual_dI,
+        'current_potential': jacobian_potential,
+    }
+
+
+def surface_field_nonquasisymmetric_ratio(surface, field, quasi_poloidal=False):
+    r"""
+    Compute the non-quasisymmetric ratio for a magnetic field sampled on a surface grid.
+
+    Args:
+        surface: Surface carrying the quadrature grid and area element.
+        field: Array of shape ``surface.gamma().shape`` containing the magnetic field.
+        quasi_poloidal: If ``True``, compute the quasi-poloidal variant; otherwise
+            compute the quasi-axisymmetric variant.
+    """
+    field = _as_surface_field_array(surface, field, 'field', (3,))
+    axis = 1 if quasi_poloidal else 0
+
+    modB = np.linalg.norm(field, axis=2)
+    dS = np.linalg.norm(surface.normal(), axis=2)
+    B_qs = np.mean(modB * dS, axis=axis) / np.mean(dS, axis=axis)
+    if axis == 0:
+        B_qs = B_qs[None, :]
+    else:
+        B_qs = B_qs[:, None]
+    return np.mean(dS * (modB - B_qs)**2) / np.mean(dS * B_qs**2)
 
 
 class AspectRatio(Optimizable):
@@ -757,20 +1069,7 @@ class NonQuasiSymmetricRatio(Optimizable):
 
         B = self.biotsavart.B()
         B = B.reshape((nphi, ntheta, 3))
-        modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
-
-        nor = surface.normal()
-        dS = np.sqrt(nor[:, :, 0]**2 + nor[:, :, 1]**2 + nor[:, :, 2]**2)
-
-        B_QS = np.mean(modB * dS, axis=axis) / np.mean(dS, axis=axis)
-
-        if axis == 0:
-            B_QS = B_QS[None, :]
-        else:
-            B_QS = B_QS[:, None]
-
-        B_nonQS = modB - B_QS
-        self._J = np.mean(dS * B_nonQS**2) / np.mean(dS * B_QS**2)
+        self._J = surface_field_nonquasisymmetric_ratio(surface, B, quasi_poloidal=(axis == 1))
 
         booz_surf = self.boozer_surface
         iota = booz_surf.res['iota']

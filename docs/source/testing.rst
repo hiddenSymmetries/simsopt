@@ -43,6 +43,10 @@ processors.
 
 The tests make use of data files in the :simsopt:`tests/test_files` directory.
 
+Some geometry-related tests, including the Boozer surface regression tests,
+also require the optional ``ground`` and ``bentley-ottmann`` python packages
+for self-intersection checks.
+
 Modular testing
 ***************
 
@@ -76,6 +80,29 @@ Parallel Testing
     pytest -n <NUMBER_OF_CORES>
 
 from the ``tests`` directory, where ``<NUMBER_OF_CORES>`` is the number of CPU cores of the machine.
+
+
+Targeted Boozer validation
+**************************
+
+When working on Boozer surface functionality, it is useful to first verify
+that your editable install points at the repository you are modifying:
+
+.. code-block::
+
+    python -c "import pathlib, simsopt; print(pathlib.Path(simsopt.__file__).resolve())"
+
+The printed path should point into your local checkout under ``src/simsopt``.
+
+After that, two targeted regression commands that are useful during development are
+
+.. code-block::
+
+    python -m pytest tests/geo/test_boozersurface.py -q
+    python -m pytest tests/geo/test_finitebeta_boozersurface.py -q
+
+The first command exercises the legacy Boozer surface regression coverage, and the
+second focuses on the finite-beta Boozer surface workflow.
 
 
 Longer examples

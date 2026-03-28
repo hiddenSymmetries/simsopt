@@ -86,6 +86,7 @@ optimization.  Others include `STELLOPT
    example_vmec
    example_vmec_only
    example_quasisymmetry
+  example_boozer_finitebeta
    example_islands
    example_coils
    example_single_stage

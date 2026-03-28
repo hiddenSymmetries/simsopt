@@ -40,6 +40,9 @@ Also,
       properties of existing ``wout`` output files.
 - For computing Boozer coordinates:
     * `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_
+- For geometry self-intersection checks used by some surface and Boozer tests:
+    * `ground <https://pypi.org/project/ground/>`_
+    * `bentley-ottmann <https://pypi.org/project/bentley-ottmann/>`_
 - For SPEC support:
     * `py_spec <https://github.com/PrincetonUniversity/SPEC/tree/master/Utilities/pythontools>`_
     * `pyoculus <https://github.com/zhisong/pyoculus>`_

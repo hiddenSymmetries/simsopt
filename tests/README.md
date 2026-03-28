@@ -24,6 +24,24 @@ In this fashion, we can run only a single unit test: `python -m unittest geo.tes
 See the [python unittest documentation](https://docs.python.org/3/library/unittest.html) for more options.
 
 
+### Optional geometry dependencies
+
+Some geometry-related tests, including the Boozer surface regression tests, require the optional `ground` and `bentley-ottmann` packages for self-intersection checks.
+
+
+### Targeted Boozer validation
+
+If you are working from an editable install, first confirm that Python imports `simsopt` from the checkout you intend to test:
+
+`python -c "import pathlib, simsopt; print(pathlib.Path(simsopt.__file__).resolve())"`
+
+Then two useful targeted regression commands from the repository root are:
+
+`python -m pytest tests/geo/test_boozersurface.py -q`
+
+`python -m pytest tests/geo/test_finitebeta_boozersurface.py -q`
+
+
 ### Parallel testing with pytest
 
 Requires installing pytest along with pytest-xdist or pytest-parallel.  Install either of them with pip. With pytest-xdist, run `pytest -n <N> geo` to run all tests in the `geo` folder in parallel. For pytest-parallel, use `pytest --workers <N> geo`. Here <N> is the number of cores you want to use. In place of a specific number for <N>, use `auto` to automatically use all the avaialable cores in the machine.
