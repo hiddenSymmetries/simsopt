@@ -23,6 +23,10 @@ Examples where SIMSOPT specifically optimizes for an objective function associat
 
 ### boozer
 How to compute surfaces in Boozer coordinates for a magnetic field induced by coils.
+### boozerQA
+Optimize NCSX coils for quasi-axisymmetry on a single Boozer surface using a Biot-Savart field.
+### boozerQI
+Optimize NCSX coils for the milestone-1 quasi-isodynamic Boozer objective using the well-shuffling residual.
 ### eliminate_magnetic_islands
 Show how the shape of a boundary magnetic
 surface can be adjusted to eliminate magnetic islands inside it,

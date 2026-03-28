@@ -583,33 +583,36 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
 
 def download_ID_from_QUASR_database(ID, return_style="simsopt-style", verbose=True, use_cache=True): 
     """
-    Download a configuration from the QUASR database.  Downloaded configuration files are cached in 
-    [SIMSOPT_INSTALL_DIR]/src/simsopt/configs/QUASR_cache/
-    The cache is pruned to keep 100 files (~10MB) to avoid excessive disk usage.
+    Download a configuration from the QUASR database.
 
-    Args:
-        ID (int): the ID of the configuration to download (leading zeros removed).  
-                  A pandas dataframe containing metadata on the devices, including all
-                  valid ID numbers is located at: https://quasr.flatironinstitute.org/QUASR.pkl
-                  The database is navigatable online at https://quasr.flatironinstitute.org/
-                  Alternatively, you can download the latest full set of devices from https://zenodo.org/doi/10.5281/zenodo.10050655
-        
-        return_style (str): How to return the information either: 
-                             ``"quasr-style"``: two-element tuple containing ([SurfaceXYXTensorFourier], # surfaces
-                                                                              [Coil,]                    # all coils
-                                                                              )
-                             ``"simsopt-style"``: five-element tuple containing ([base_curves ],         # curves of coils in first field/half period
-                                                                                 [base_currents, ],      # currents of these coils
-                                                                                 [nfp, ],                # number of field periods
-                                                                                 [coils, ]               # all coils
-                                                                                )
+    Downloaded configuration files are cached in
+    ``[SIMSOPT_INSTALL_DIR]/src/simsopt/configs/QUASR_cache/``. The cache is
+    pruned to keep 100 files, roughly 10 MB, to avoid excessive disk usage.
 
-        verbose (boolean): if true, additional caching and downloading status messages are printed, otherwise they are not.
+    Parameters
+    ----------
+    ID : int
+        ID of the configuration to download, with leading zeros removed.
+        Metadata containing valid IDs is available at
+        ``https://quasr.flatironinstitute.org/QUASR.pkl``. The database can be
+        browsed at ``https://quasr.flatironinstitute.org/``. A full archive is
+        also available at ``https://zenodo.org/doi/10.5281/zenodo.10050655``.
+    return_style : str, optional
+        Return format. ``"quasr-style"`` returns ``(surfaces, coils)``.
+        ``"simsopt-style"`` returns
+        ``(base_curves, base_currents, nfp, coils)``.
+    verbose : bool, optional
+        If ``True``, print cache and download status messages.
+    use_cache : bool, optional
+        If ``True``, save the downloaded file to disk. The cache is stored in
+        the simsopt installation directory if writable, otherwise in the
+        current working directory. If ``False``, no caching is performed.
 
-        use_cache (True): if true, the downloaded file will be saved to disk. The location will the in the simsopt installation directory if writeable, otherwise in the current working directory. If false, no caching is performed.
-
-        returns: 
-            a list containing: [list of simsopt.geo.Coil objects, list of simsopt.field.Current objects]
+    Returns
+    -------
+    tuple
+        Either ``(surfaces, coils)`` or ``(base_curves, base_currents, nfp,
+        coils)``, depending on ``return_style``.
     """
     if return_style not in ['simsopt-style', 'quasr-style']:
         raise ValueError(f"invalid return_style: {return_style}, must be either simsopt-style or quasr-style")

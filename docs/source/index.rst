@@ -82,10 +82,11 @@ optimization.  Others include `STELLOPT
 .. toctree::
    :maxdepth: 3
    :caption: Tutorials
-   
+
    example_vmec
    example_vmec_only
    example_quasisymmetry
+   example_quasiisodynamic
    example_islands
    example_coils
    example_single_stage
@@ -98,7 +99,8 @@ optimization.  Others include `STELLOPT
    :caption: API Reference
 
    simsopt
-   simsoptpp_cpp_api
+  simsopt_user
+  simsoptpp_cpp_api
 
 .. toctree::
    :maxdepth: 3

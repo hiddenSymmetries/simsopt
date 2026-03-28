@@ -365,11 +365,12 @@ def _coil_coil_inductances_inv_pure(gammas, gammadashs, downsample, regularizati
 
 
 def _induced_currents_pure(gammas_targets, gammadashs_targets, gammas_sources, gammadashs_sources, currents_sources, downsample, regularizations):
-    """
+    r"""
     Pure function for computing the induced currents in a set of m passive coils with n quadrature points
     due to a set of m' source coils with n' quadrature points (and themselves). 
 
     .. math::
+
         I = -L^{-1} \Psi
 
     where :math:`L` is the coil inductance matrix, :math:`\Psi` is the net flux through 
@@ -1204,56 +1205,57 @@ def lp_force_pure(
 
 class LpCurveForce(Optimizable):
     r"""
-    Optimizable class to minimize the total Lp-Lorentz force density (force per unit length) integrated. 
-    Force density on a coil is computed on each coil in a set of m target coils, using the self-force from
-    the coil itself, the force from the other m - 1 target coils and the force from a set of m' source coils.
-    If source_coils_coarse and target_coils have coils in common, they are removed during initialization of this class,
-    to avoid double counting forces. A typical use case has the target_coils as the unique base_coils 
-    in a stellarator optimization, and source_coils_coarse are all the coils after applying symmetries. 
-    Typical initialization is LpCurveForce(base_coils, coils).
+    Optimizable class that minimizes an :math:`L_p` Lorentz-force density objective.
+
+    Force density is evaluated on each coil in a target set using three possible
+    contributions: self-force, force from the other target coils, and force from
+    one or two source-coil sets. If ``source_coils_coarse`` overlaps with
+    ``target_coils``, the overlapping coils are removed during initialization to
+    avoid double counting.
+
+    A typical use case sets ``target_coils`` to the unique base coils in a
+    stellarator optimization and uses all symmetry-expanded coils as
+    ``source_coils_coarse``.
 
     The objective function is
 
     .. math::
-        J = \frac{1}{p}\sum_i\frac{1}{L_i}\left(\int \text{max}(|d\vec{F}/d\ell_i| - F_0 , 0)^p d\ell_i\right)
 
-    where :math:`\frac{d\vec{F}_i}{d\ell_i}` is the Lorentz force per unit length, 
-    in units of MN/m, where MN = meganewtons. The units of the objective function are therefore (MN/m)^p.
-    :math:`d\ell_i` is the arclength along the ith coil,
-    :math:`L_i` is the total coil length,
-    and :math:`F_0 ` is a threshold force at the ith coil.
+        J = \frac{1}{p}\sum_i\frac{1}{L_i}\left(\int \max\left(|d\vec{F}/d\ell_i| - F_0, 0\right)^p d\ell_i\right)
 
-    This class assumes there are two (or three) distinct lists of coils,
-    which may have different finite-build parameters and/or different numbers of quadrature points. 
-    In order to avoid buildup of optimizable 
-    dependencies, it directly computes the BiotSavart law terms, instead of relying on the existing
-    C++ code that computes BiotSavart related terms. Within each list of coils, 
-    all coils must have the same number of quadrature points. The source_coils_coarse and source_coils_fine lists
-    allows one to optimize e.g. the torque on target_coils from a set of dipole coils 
-    (with barely any quadrature points) and a set of TF coils (with many quadrature points).
+    Here :math:`d\vec{F}_i / d\ell_i` is the Lorentz force per unit length in
+    units of MN/m, :math:`d\ell_i` is arclength along coil :math:`i`,
+    :math:`L_i` is the total coil length, and :math:`F_0` is the threshold
+    force for that coil. The objective therefore has units of
+    :math:`(\mathrm{MN}/\mathrm{m})^p`.
 
-    Args:
-        target_coils (list of RegularizedCoil, shape (m,)): 
-            List of coils on which the LpCurveForce is computed.
-        source_coils_coarse (list of Coil or RegularizedCoil, shape (m',)): 
-            Coarse-resolution source coils that provide forces on the target_coils.
-            Forces are not computed on the source_coils.
-        source_coils_fine (list of Coil or RegularizedCoil, optional): 
-            Fine-resolution source coils, used in addition to coarse. Default: []. This functionality
-            is provided for when there are two sets of source coils with very different numbers of
-            quadrature points. This occurs e.g. when optimizing TF coils and dipole coils.
-        p (float): Power of the objective function.
-        threshold (float): Threshold force per unit length in units of MN/m (meganewtons per meter).
-        downsample (int): 
-            Factor by which to downsample the quadrature points 
-            by skipping through the array by a factor of ``downsample``,
-            e.g. curve.gamma()[::downsample, :]. 
-            Setting this parameter to a value larger than 1 will speed up the calculation,
-            which may be useful if the set of coils is large, though it may introduce
-            inaccuracy if ``downsample`` is set too large, or not a multiple of the 
-            total number of quadrature points (since this will produce a nonuniform set of points). 
-            This parameter is used to speed up expensive calculations during optimization, 
-            while retaining higher accuracy for the other objectives. 
+    This class assumes there are two or three distinct coil lists, possibly with
+    different finite-build parameters and different quadrature resolutions.
+    To avoid a large optimizable-dependency graph, it computes the Biot-Savart
+    contributions directly rather than relying on the existing C++
+    :class:`BiotSavart` implementation. Within each list, all coils must have
+    the same number of quadrature points.
+
+    Parameters
+    ----------
+    target_coils : list of RegularizedCoil
+        Coils on which the force objective is evaluated.
+    source_coils_coarse : list of Coil or RegularizedCoil
+        Coarse-resolution source coils that contribute force to the target
+        coils. Forces are not evaluated on the source coils themselves.
+    source_coils_fine : list of Coil or RegularizedCoil, optional
+        Additional fine-resolution source coils. This is useful when combining
+        source coils with very different quadrature counts, such as TF coils and
+        dipole coils.
+    p : float, optional
+        Power used in the :math:`L_p` objective.
+    threshold : float, optional
+        Threshold force per unit length in MN/m.
+    downsample : int, optional
+        Downsampling factor used to subsample the quadrature points, for
+        example ``curve.gamma()[::downsample, :]``. Values larger than one can
+        speed up optimization but may reduce accuracy if the factor is too
+        large or does not divide the original quadrature count evenly.
     """
 
     def __init__(self, target_coils, source_coils_coarse, source_coils_fine=None, p: float = 2.0, threshold: float = 0.0, downsample: int = 1):
@@ -1426,7 +1428,7 @@ def lp_torque_pure(
     The units of the objective function are therefore (MN)^p.
     :math:`d\ell_i` is the arclength along the ith coil,
     :math:`L_i` is the total coil length,
-    and :math:`T_0 ` is a threshold torque per unit length at the ith coil.
+    and :math:`T_0` is a threshold torque per unit length at the ith coil.
 
     Args:
         gammas_targets (array, shape (m,n,3)): Array of target coil positions.
