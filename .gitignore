@@ -54,6 +54,10 @@ spec*.sp.h5
 # examples
 examples/VMEC/
 examples/*.log
+examples/2_Intermediate/input.*_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]
+examples/2_Intermediate/input.*_final
+examples/2_Intermediate/jac_log_*.dat
+/input.*_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]
 
 # Sphinx related files
 docs/build/
@@ -69,4 +73,3 @@ tests/boundary*
 
 # Version file
 src/simsopt/_version.py
-
