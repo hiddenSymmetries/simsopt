@@ -183,6 +183,8 @@ def main():
         {
             "method": outer_method,
             "step_size": outer_step_size,
+            "vmec_max_iter": int(vmec._max_iter),
+            "vmec_grad_tol": float(vmec._grad_tol),
             "jit": bool(args.jit),
             "adjoint_mode": args.adjoint_mode,
             "stateless_evaluations": bool(args.stateless_evaluations),
