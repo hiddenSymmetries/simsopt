@@ -19,6 +19,7 @@ DEFAULT_MAX_NFEV = 20
 DEFAULT_MAX_MODE = 1
 DEFAULT_OUTER_METHOD = "auto"
 DEFAULT_OUTER_STEP_SIZE = None
+DEFAULT_JIT = True
 
 # Keep the top-level controls close to QH_fixed_resolution.py.
 DEFAULT_USE_RESOLUTION_CONTINUATION = True
@@ -104,7 +105,7 @@ def parse_args():
     parser.add_argument("--no-resolution-continuation", action="store_true")
     parser.add_argument("--timings", action="store_true")
     parser.add_argument("--profile", action="store_true")
-    parser.add_argument("--jit", action="store_true")
+    parser.add_argument("--jit", action=argparse.BooleanOptionalAction, default=DEFAULT_JIT)
     parser.add_argument("--adjoint-mode", choices=["lineax", "auto"], default=DEFAULT_ADJOINT_MODE)
     parser.add_argument("--stateless-evaluations", action="store_true")
     parser.add_argument("--wall-clock-budget", type=float, default=DEFAULT_WALL_CLOCK_BUDGET)
