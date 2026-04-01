@@ -15,7 +15,7 @@ Optimize a VMEC-JAX equilibrium for quasi-helical symmetry (M=1, N=1)
 throughout the volume, using autodiff and the VMEC-only quasisymmetry diagnostic.
 """
 
-DEFAULT_MAX_NFEV = 20
+DEFAULT_MAX_NFEV = 10
 DEFAULT_MAX_MODE = 1
 DEFAULT_OUTER_METHOD = "auto"
 DEFAULT_OUTER_STEP_SIZE = None
@@ -63,7 +63,8 @@ def configure_vmec_surface(vmec, max_mode):
 
 
 def resolve_reference_setup(vmec, *, reference_name, max_mode, iota_target_override=None):
-    ref = dict(REFERENCE_CONFIGS[str(reference_name).strip().lower()])
+    reference_key = str(reference_name).strip().lower()
+    ref = dict(REFERENCE_CONFIGS[reference_key])
     surf = configure_vmec_surface(vmec, max_mode)
     x0 = np.asarray(surf.get_free_params(), dtype=float)
     state0 = vmec._solve_state(x0)
@@ -71,14 +72,12 @@ def resolve_reference_setup(vmec, *, reference_name, max_mode, iota_target_overr
     mean_iota_target = ref["mean_iota_target"]
     if iota_target_override is not None:
         mean_iota_target = float(iota_target_override)
-    elif mean_iota_target is None:
-        mean_iota_target = float(np.asarray(vmec.mean_iota_from_state_jax(state0)))
-
     objective_tuples = [
         ("aspect", float(ref["aspect_target"]), 1.0),
         ("qs", 0.0, 1.0),
-        ("mean_iota", float(mean_iota_target), 1.0),
     ]
+    if reference_key != "qh" and mean_iota_target is not None:
+        objective_tuples.append(("mean_iota", float(mean_iota_target), 1.0))
     return {
         "reference_name": str(reference_name).strip().lower(),
         "label": ref["label"],

@@ -13,8 +13,8 @@ throughout the volume.
 Run this example with mpirun -n 2 python QH_fixed_resolution.py
 """
 
-max_nfev = 20  # Maximum number of function evaluations
-max_mode = 3  # Maximum poloidal and toroidal mode numbers to vary
+max_nfev = 10  # Maximum number of function evaluations
+max_mode = 1  # Maximum poloidal and toroidal mode numbers to vary
 
 # This problem has 8 degrees of freedom, so we can use 8 + 1 = 9
 # concurrent function evaluations for 1-sided finite difference
@@ -54,8 +54,8 @@ prob.objective()
 proc0_print("Quasisymmetry objective before optimization:", qs.total())
 proc0_print("Total objective before optimization:", prob.objective())
 
-# To keep this example fast, we stop after the first max_nfev function
-# evaluation. For a "real" optimization, increase this value.
+# To keep this example fast, we stop after a small number of function
+# evaluations. For a "real" optimization, increase this value.
 least_squares_mpi_solve(prob, mpi, grad=True, rel_step=1e-5, abs_step=1e-8, max_nfev=max_nfev)
 
 # Make sure all procs participate in computing the objective:
