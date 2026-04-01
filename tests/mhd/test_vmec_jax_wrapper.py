@@ -239,6 +239,25 @@ def test_vmec_jax_equilibrium_aspect_jax_matches_wout():
     np.testing.assert_allclose(np.asarray(aspect_jax), np.asarray(aspect_wout), rtol=1e-10, atol=1e-10)
 
 
+def test_vmec_jax_mean_iota_from_state_matches_wout():
+    vmec = VmecJax(_input_filename(), verbose=False)
+    vmec.indata.mpol = 3
+    vmec.indata.ntor = 3
+    vmec.set_solver_options(solver="vmec2000", warm_start_iters=0, max_iter=100, grad_tol=1.0e-3)
+
+    surf = vmec.boundary
+    surf.fix_all()
+    surf.fixed_range(mmin=0, mmax=1, nmin=-1, nmax=1, fixed=False)
+    surf.fix("rc(0,0)")
+    x0 = jax.numpy.asarray(surf.get_free_params())
+
+    state = vmec._solve_state(x0)
+    mean_iota_jax = vmec.mean_iota_from_state_jax(state)
+    iotas_wout = np.asarray(vmec.get_wout(x0).iotas)
+    mean_iota_wout = 0.0 if iotas_wout.size <= 1 else float(np.mean(iotas_wout[1:]))
+    np.testing.assert_allclose(np.asarray(mean_iota_jax), mean_iota_wout, rtol=1e-10, atol=1e-10)
+
+
 
 def test_vmec_jax_wout_exposes_mode_count_metadata():
     vmec = VmecJax(_input_filename(), verbose=False)

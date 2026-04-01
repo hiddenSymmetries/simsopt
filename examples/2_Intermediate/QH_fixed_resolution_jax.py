@@ -1,136 +1,235 @@
 #!/usr/bin/env python
 
+import argparse
 import os
-import re
 import time
 
 import numpy as np
-import jax.numpy as jnp
 
-from simsopt.mhd import VmecJax, QuasisymmetryRatioResidualJax
-from simsopt.solve import least_squares_jax_solve
+from simsopt.mhd import VmecJax
+from simsopt.solve import build_vmec_objective_stage, run_continuation_jax_solve
 from simsopt.util import proc0_print
 
 """
 Optimize a VMEC-JAX equilibrium for quasi-helical symmetry (M=1, N=1)
-throughout the volume, using the VMEC-only quasisymmetry diagnostic.
+throughout the volume, using autodiff and the VMEC-only quasisymmetry diagnostic.
 """
 
-MAX_MODE = 3
-MAX_NFEV = 20
-PRINT_TIMINGS = True
+DEFAULT_MAX_NFEV = 20
+DEFAULT_MAX_MODE = 1
+DEFAULT_OUTER_METHOD = "auto"
+DEFAULT_OUTER_STEP_SIZE = None
 
-# Native JAX fixed-boundary solve. Change to "lbfgs" for the other fast native
-# path, or to "vmec2000" for the slower parity-friendly reference solve that
-# more closely tracks the original VMEC2000 equilibrium history.
-VMEC_SOLVER = "gd"
-VMEC_MAX_ITER = 500
-VMEC_GRAD_TOL = 1e-3
+# Keep the top-level controls close to QH_fixed_resolution.py.
+DEFAULT_USE_RESOLUTION_CONTINUATION = True
+DEFAULT_ADJOINT_MODE = "lineax"
+DEFAULT_STATELESS_EVALUATIONS = False
+DEFAULT_WALL_CLOCK_BUDGET = 0.0
 
-# The VMEC-only QS objective is stiffer than the Boozer-based variant, so use
-# a JAX-native L-BFGS outer loop by default. Change to "gradient_descent" if
-# you want the simplest fully native fallback path instead.
-OUTER_METHOD = "lbfgs"
-OUTER_STEP_SIZE = 1e-6
-
-
-def create_simsopt_x_scale(dof_names, alpha=1.6, min_scale=1e-6):
-    """Create the mode-weighted parameter scaling used by the SIMSOPT examples."""
-    x_scale = np.ones(len(dof_names))
-    pattern = r"[rz][cs]\((\d+),(-?\d+)\)"
-    modes = []
-    mode_indices = []
-    for i, name in enumerate(dof_names):
-        m = re.search(pattern, name)
-        modes.append([int(m.group(1)), int(m.group(2))])
-        mode_indices.append(i)
-    modes = np.array(modes)
-    mode_level = np.max(np.abs(modes), axis=1)
-    x_scale = np.exp(-alpha * mode_level) / np.exp(-alpha)
-    mode_scales = np.maximum(x_scale, min_scale)
-    for idx, scale in zip(mode_indices, mode_scales):
-        x_scale[idx] = scale
-    return x_scale
+REFERENCE_CONFIGS = {
+    "qh": {
+        "label": "QH",
+        "input": "input.nfp4_QH_warm_start",
+        "helicity_m": 1,
+        "helicity_n": -1,
+        "aspect_target": 7.0,
+        "mean_iota_target": None,
+        "default_method": "gradient_descent",
+        "default_step_size": 5e-7,
+    },
+    "qa": {
+        "label": "QA",
+        "input": "input.nfp2_QA",
+        "helicity_m": 1,
+        "helicity_n": 0,
+        "aspect_target": 2.0,
+        "mean_iota_target": 0.44,
+        "default_method": "truncated_gauss_newton",
+        "default_step_size": 1.0,
+    },
+}
 
 
-proc0_print("Running 2_Intermediate/QH_fixed_resolution_jax.py")
-proc0_print("==================================================")
+def configure_vmec_surface(vmec, max_mode):
+    vmec.indata.mpol = int(max_mode) + 2
+    vmec.indata.ntor = vmec.indata.mpol
 
-t_start = time.perf_counter()
-filename = os.path.join(os.path.dirname(__file__), "inputs", "input.nfp4_QH_warm_start")
-vmec = VmecJax(filename, verbose=False)
-vmec.set_solver_options(
-    solver=VMEC_SOLVER,
-    warm_start_iters=0,
-    max_iter=VMEC_MAX_ITER,
-    grad_tol=VMEC_GRAD_TOL,
-)
-vmec.indata.mpol = MAX_MODE + 2
-vmec.indata.ntor = vmec.indata.mpol
-
-surf = vmec.boundary
-surf.fix_all()
-surf.fixed_range(mmin=0, mmax=MAX_MODE, nmin=-MAX_MODE, nmax=MAX_MODE, fixed=False)
-surf.fix("rc(0,0)")
-
-proc0_print("Parameter space:", surf.dof_names)
-
-qs = QuasisymmetryRatioResidualJax(
-    vmec,
-    np.arange(0, 1.01, 0.1),
-    helicity_m=1,
-    helicity_n=-1,
-)
+    surf = vmec.boundary
+    surf.fix_all()
+    surf.fixed_range(mmin=0, mmax=int(max_mode), nmin=-int(max_mode), nmax=int(max_mode), fixed=False)
+    surf.fix("rc(0,0)")
+    return surf
 
 
-def residuals(x_free):
-    state = vmec._solve_state(x_free)
-    aspect = vmec.aspect_equilibrium_from_state_jax(state)
-    qs_res = qs.residuals_from_state(state)
-    return jnp.concatenate([jnp.array([aspect - 7.0]), qs_res])
+def resolve_reference_setup(vmec, *, reference_name, max_mode, iota_target_override=None):
+    ref = dict(REFERENCE_CONFIGS[str(reference_name).strip().lower()])
+    surf = configure_vmec_surface(vmec, max_mode)
+    x0 = np.asarray(surf.get_free_params(), dtype=float)
+    state0 = vmec._solve_state(x0)
+
+    mean_iota_target = ref["mean_iota_target"]
+    if iota_target_override is not None:
+        mean_iota_target = float(iota_target_override)
+    elif mean_iota_target is None:
+        mean_iota_target = float(np.asarray(vmec.mean_iota_from_state_jax(state0)))
+
+    objective_tuples = [
+        ("aspect", float(ref["aspect_target"]), 1.0),
+        ("qs", 0.0, 1.0),
+        ("mean_iota", float(mean_iota_target), 1.0),
+    ]
+    return {
+        "reference_name": str(reference_name).strip().lower(),
+        "label": ref["label"],
+        "input": ref["input"],
+        "helicity_m": int(ref["helicity_m"]),
+        "helicity_n": int(ref["helicity_n"]),
+        "objective_tuples": objective_tuples,
+        "state0": state0,
+        "surf": surf,
+    }
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--max-nfev", type=int, default=DEFAULT_MAX_NFEV)
+    parser.add_argument("--max-mode", type=int, default=DEFAULT_MAX_MODE)
+    parser.add_argument("--reference", choices=sorted(REFERENCE_CONFIGS), default="qh")
+    parser.add_argument("--iota-target", type=float, default=None)
+    parser.add_argument(
+        "--method",
+        choices=["auto", "gradient_descent", "gauss_newton", "truncated_gauss_newton", "trust_region", "levenberg_marquardt", "scipy", "lbfgs"],
+        default=DEFAULT_OUTER_METHOD,
+    )
+    parser.add_argument("--step-size", type=float, default=DEFAULT_OUTER_STEP_SIZE)
+    parser.add_argument("--no-resolution-continuation", action="store_true")
+    parser.add_argument("--timings", action="store_true")
+    parser.add_argument("--profile", action="store_true")
+    parser.add_argument("--jit", action="store_true")
+    parser.add_argument("--adjoint-mode", choices=["lineax", "auto"], default=DEFAULT_ADJOINT_MODE)
+    parser.add_argument("--stateless-evaluations", action="store_true")
+    parser.add_argument("--wall-clock-budget", type=float, default=DEFAULT_WALL_CLOCK_BUDGET)
+    return parser.parse_args()
 
 
-x0 = surf.get_free_params()
-free_names = [name for name, free in zip(surf.dof_names, surf.free) if free]
-x_scale = create_simsopt_x_scale(free_names, alpha=1.2, min_scale=1e-9)
+def main():
+    args = parse_args()
+    max_nfev = int(args.max_nfev)
+    max_mode = int(args.max_mode)
+    use_resolution_continuation = DEFAULT_USE_RESOLUTION_CONTINUATION and not args.no_resolution_continuation
+    reference_name = str(args.reference).strip().lower()
+    reference = REFERENCE_CONFIGS[reference_name]
+    outer_method = reference["default_method"] if str(args.method).strip().lower() == "auto" else str(args.method).strip().lower()
+    outer_step_size = float(reference["default_step_size"] if args.step_size is None else args.step_size)
 
-if PRINT_TIMINGS:
-    proc0_print(f"Startup setup time: {time.perf_counter() - t_start:.3f}s")
+    proc0_print("Running 2_Intermediate/QH_fixed_resolution_jax.py")
+    proc0_print("==================================================")
 
-proc0_print("Evaluating initial quasisymmetry objective...")
-t_qs0 = time.perf_counter()
-state0 = vmec._solve_state(jnp.asarray(x0))
-qs_initial = float(np.asarray(qs.total_from_state(state0)))
-if PRINT_TIMINGS:
-    proc0_print(f"Initial QS evaluation time: {time.perf_counter() - t_qs0:.3f}s")
+    filename = os.path.join(os.path.dirname(__file__), "inputs", reference["input"])
+    vmec = VmecJax(filename, verbose=False)
+    vmec.use_residual_autodiff_defaults(
+        outer_method=outer_method,
+        residual_adjoint_mode=args.adjoint_mode,
+        stateless_evaluations=args.stateless_evaluations,
+    )
 
-proc0_print(f"Quasisymmetry objective before optimization: {qs_initial}")
-proc0_print(f"Total objective before optimization: {float(np.sum(np.asarray(residuals(jnp.asarray(x0))) ** 2))}")
+    setup = resolve_reference_setup(
+        vmec,
+        reference_name=reference_name,
+        max_mode=max_mode,
+        iota_target_override=args.iota_target,
+    )
+    objective_tuples = setup["objective_tuples"]
+    initial_state = setup["state0"]
 
-t_solve = time.perf_counter()
-result = least_squares_jax_solve(
-    residuals,
-    x0,
-    method=OUTER_METHOD,
-    max_nfev=MAX_NFEV,
-    gtol=1e-7,
-    x_scale=x_scale,
-    step_size=OUTER_STEP_SIZE if OUTER_METHOD == "gradient_descent" else 1e-2,
-    jit=False,
-)
-if PRINT_TIMINGS:
-    proc0_print(f"Outer solve time: {time.perf_counter() - t_solve:.3f}s")
+    if use_resolution_continuation and max_mode > 1:
+        continuation_modes = list(range(1, max_mode + 1))
+    else:
+        continuation_modes = [max_mode]
 
-x_opt = result["x"]
-surf.set_free_params(x_opt)
-state_opt = vmec._solve_state(jnp.asarray(x_opt))
-qs_final = float(np.asarray(qs.total_from_state(state_opt)))
-aspect_final = float(np.asarray(vmec.aspect_equilibrium_from_state_jax(state_opt)))
-total_final = float(np.sum(np.asarray(qs.residuals_from_state(state_opt)) ** 2) + (aspect_final - 7.0) ** 2)
+    surfaces = np.arange(0, 1.01, 0.1)
 
-proc0_print(f"Final aspect ratio: {aspect_final}")
-proc0_print(f"Quasisymmetry objective after optimization: {qs_final}")
-proc0_print(f"Total objective after optimization: {total_final}")
+    def stage_builder(stage_max_mode):
+        return build_vmec_objective_stage(
+            vmec,
+            max_mode=stage_max_mode,
+            objective_tuples=objective_tuples,
+            surfaces=surfaces,
+            helicity_m=setup["helicity_m"],
+            helicity_n=setup["helicity_n"],
+            x_scale_alpha=1.2,
+            x_scale_min=1e-9,
+        )
 
-proc0_print("End of 2_Intermediate/QH_fixed_resolution_jax.py")
-proc0_print("================================================")
+    stage = stage_builder(max_mode)
+    surf = stage.extras["surf"]
+    qs = stage.extras["qs"]
+
+    proc0_print("Parameter space:", stage.free_names)
+    proc0_print("Objectives:", objective_tuples)
+    proc0_print(
+        "Reference setup:",
+        {
+            "reference": setup["label"],
+            "input": reference["input"],
+            "helicity": (setup["helicity_m"], setup["helicity_n"]),
+            "max_mode": int(max_mode),
+            "vmec_mpol": int(max_mode) + 2,
+            "vmec_ntor": int(max_mode) + 2,
+        },
+    )
+    proc0_print("Continuation modes:", continuation_modes)
+    proc0_print(
+        "Solver settings:",
+        {
+            "method": outer_method,
+            "step_size": outer_step_size,
+            "jit": bool(args.jit),
+            "adjoint_mode": args.adjoint_mode,
+            "stateless_evaluations": bool(args.stateless_evaluations),
+            "wall_clock_budget_s": float(args.wall_clock_budget),
+        },
+    )
+
+    if qs is not None:
+        proc0_print("Quasisymmetry objective before optimization:", float(np.asarray(qs.total_from_state(initial_state))))
+    proc0_print("Initial aspect ratio:", float(np.asarray(vmec.aspect_equilibrium_from_state_jax(initial_state))))
+    proc0_print("Initial mean iota:", float(np.asarray(vmec.mean_iota_from_state_jax(initial_state))))
+    proc0_print("Total objective before optimization:", float(np.sum(np.asarray(stage.residuals(stage.x0)) ** 2)))
+
+    solve_start = time.perf_counter()
+    solve_result = run_continuation_jax_solve(
+        stage_builder,
+        continuation_modes,
+        method=outer_method,
+        max_nfev=max_nfev,
+        gtol=1e-7,
+        step_size=outer_step_size,
+        jit=args.jit,
+        verbose=1,
+        jac="jax" if outer_method == "scipy" else None,
+        profile=args.profile,
+        wall_clock_limit_s=args.wall_clock_budget if float(args.wall_clock_budget) > 0.0 else None,
+    )
+    solve_elapsed = time.perf_counter() - solve_start
+
+    surf.set_free_params(solve_result["result"]["x"])
+    state_opt = vmec._solve_state(solve_result["result"]["x"])
+
+    proc0_print("Final aspect ratio:", float(np.asarray(vmec.aspect_equilibrium_from_state_jax(state_opt))))
+    if qs is not None:
+        proc0_print("Quasisymmetry objective after optimization:", float(np.asarray(qs.total_from_state(state_opt))))
+    if any(str(name).strip().lower() in ("mean_iota", "iota") for name, _, _ in objective_tuples):
+        proc0_print("Mean iota after optimization:", float(np.asarray(vmec.mean_iota_from_state_jax(state_opt))))
+    proc0_print("Total objective after optimization:", float(np.sum(np.asarray(stage.residuals(solve_result["result"]["x"])) ** 2)))
+    proc0_print("Result summary:", {key: solve_result["result"].get(key) for key in ("success", "status", "nfev")})
+    if args.profile:
+        proc0_print("Solver profile:", solve_result["result"].get("profile"))
+    if args.timings:
+        proc0_print("Solve wall time [s]:", solve_elapsed)
+
+    proc0_print("End of 2_Intermediate/QH_fixed_resolution_jax.py")
+    proc0_print("================================================")
+
+
+if __name__ == "__main__":
+    main()

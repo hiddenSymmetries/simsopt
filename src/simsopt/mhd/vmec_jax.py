@@ -438,6 +438,9 @@ class VmecJax:
         self._implicit_damping = 1e-5
         self._implicit_converge_tol = None
         self._implicit_zero_unconverged = False
+        self._residual_adjoint_mode = "auto"
+        self._residual_tangent_mode = "opaque"
+        self._stateless_evaluations = False
         self._reset_caches()
 
     def _reset_caches(self, *, reset_warm_start: bool = False) -> None:
@@ -553,6 +556,9 @@ class VmecJax:
         implicit_damping: float | None = None,
         implicit_converge_tol: float | None = None,
         implicit_zero_unconverged: bool | None = None,
+        residual_adjoint_mode: str | None = None,
+        residual_tangent_mode: str | None = None,
+        stateless_evaluations: bool | None = None,
     ) -> None:
         """Update VMEC-JAX solver controls used by this wrapper."""
         if max_iter is not None:
@@ -631,6 +637,38 @@ class VmecJax:
             if implicit_zero_unconverged != self._implicit_zero_unconverged:
                 self._implicit_zero_unconverged = implicit_zero_unconverged
                 self._reset_caches(reset_warm_start=True)
+        if residual_adjoint_mode is not None:
+            residual_adjoint_mode = str(residual_adjoint_mode).strip().lower()
+            if residual_adjoint_mode != self._residual_adjoint_mode:
+                self._residual_adjoint_mode = residual_adjoint_mode
+                self._reset_caches(reset_warm_start=True)
+        if residual_tangent_mode is not None:
+            residual_tangent_mode = str(residual_tangent_mode).strip().lower()
+            if residual_tangent_mode != self._residual_tangent_mode:
+                self._residual_tangent_mode = residual_tangent_mode
+                self._reset_caches(reset_warm_start=True)
+        if stateless_evaluations is not None:
+            stateless_evaluations = bool(stateless_evaluations)
+            if stateless_evaluations != self._stateless_evaluations:
+                self._stateless_evaluations = stateless_evaluations
+                self._reset_caches(reset_warm_start=True)
+
+    def use_residual_autodiff_defaults(
+        self,
+        *,
+        outer_method: str | None = None,
+        residual_adjoint_mode: str = "lineax",
+        stateless_evaluations: bool = False,
+    ) -> None:
+        """Apply wrapper defaults that worked best for the fixed-resolution JAX examples."""
+        method = None if outer_method is None else str(outer_method).strip().lower()
+        tangent_method = "linearize" if method in ("gauss_newton", "trust_region", "levenberg_marquardt", "scipy") else "opaque"
+        self.set_solver_options(
+            solver="vmec2000",
+            residual_adjoint_mode=residual_adjoint_mode,
+            residual_tangent_mode=tangent_method,
+            stateless_evaluations=stateless_evaluations,
+        )
 
     def _x_cache_key(self, x_free) -> tuple[float, ...]:
         """Return a hashable cache key for concrete parameter vectors."""
@@ -650,8 +688,13 @@ class VmecJax:
         from vmec_jax.solve import solve_fixed_boundary_residual_iter
         self._ensure_context()
         x_key = self._x_cache_key(x_free)
-        if x_key is not None and self._cached_x == x_key and self._cached_state is not None:
+        use_stateful_cache = x_key is not None and not self._stateless_evaluations
+        if use_stateful_cache and self._cached_x == x_key and self._cached_state is not None:
             return self._cached_state
+
+        seed_state = self._context.st_guess
+        if self._stateless_evaluations and self._context_seed_guess is not None:
+            seed_state = _clone_state(self._context_seed_guess)
 
         x_full = self.boundary.expand_free(x_free)
         boundary = self.boundary.apply_params(x_full)
@@ -666,27 +709,37 @@ class VmecJax:
             cg_max_iter=int(self._implicit_cg_max_iter),
             cg_tol=float(self._implicit_cg_tol),
             damping=float(self._implicit_damping),
+            residual_adjoint_mode=str(self._residual_adjoint_mode),
+            residual_tangent_mode=str(self._residual_tangent_mode),
         )
         state0_host = vj.VMECState(
-            layout=self._context.st_guess.layout,
-            Rcos=np.asarray(self._context.st_guess.Rcos),
-            Rsin=np.asarray(self._context.st_guess.Rsin),
-            Zcos=np.asarray(self._context.st_guess.Zcos),
-            Zsin=np.asarray(self._context.st_guess.Zsin),
-            Lcos=np.asarray(self._context.st_guess.Lcos),
-            Lsin=np.asarray(self._context.st_guess.Lsin),
+            layout=seed_state.layout,
+            Rcos=np.asarray(seed_state.Rcos),
+            Rsin=np.asarray(seed_state.Rsin),
+            Zcos=np.asarray(seed_state.Zcos),
+            Zsin=np.asarray(seed_state.Zsin),
+            Lcos=np.asarray(seed_state.Lcos),
+            Lsin=np.asarray(seed_state.Lsin),
         )
         residual_step_size = (
             float(self._step_size_override)
             if self._step_size_override is not None
             else float(self._indata_raw.get_float("DELT", 1.0))
         )
+        solver = self._solver
+        use_residual_implicit_wrapper = (
+            solver in ("residual", "vmec2000")
+            and (
+                str(self._residual_adjoint_mode) != "auto"
+                or str(self._residual_tangent_mode) != "opaque"
+            )
+        )
 
         def _solve(solver: str):
             if solver in ("residual", "vmec2000"):
-                if x_key is None:
+                if x_key is None or use_residual_implicit_wrapper:
                     return solve_fixed_boundary_state_implicit_vmec_residual(
-                        self._context.st_guess,
+                        seed_state,
                         self._static,
                         indata=self._indata_raw,
                         signgs=self._signgs,
@@ -729,7 +782,7 @@ class VmecJax:
             if precond_radial_alpha is None:
                 precond_radial_alpha = 0.5 if solver == "lbfgs" else 0.0
             return solve_fixed_boundary_state_implicit(
-                self._context.st_guess,
+                seed_state,
                 self._static,
                 phipf=self._phipf,
                 chipf=self._chipf,
@@ -759,7 +812,6 @@ class VmecJax:
                 edge_Zsin=edge_Zsin,
             )
 
-        solver = self._solver
         if solver == "initial":
             return vj.initial_guess_from_boundary(self._static, boundary, self._indata_raw, vmec_project=False)
         try:
@@ -775,9 +827,9 @@ class VmecJax:
         # during traced/JAX-transformed solves, which would make subsequent
         # objective calls history-dependent and can leak traced values into the
         # Python wrapper state.
-        if x_key is not None:
+        if use_stateful_cache:
             self._context.st_guess = state
-        if x_key is not None:
+        if use_stateful_cache:
             self._cached_x = x_key
             self._cached_state = state
             self._cached_wout = None
@@ -1002,6 +1054,30 @@ class VmecJax:
     def aspect(self, x_free=None):
         """Return the plasma aspect ratio, matching :class:`simsopt.mhd.Vmec`."""
         return self.aspect_equilibrium(x_free)
+
+    def mean_iota_from_state_jax(self, state):
+        """Return the mean rotational transform, matching :class:`simsopt.mhd.Vmec`."""
+        _chips, iotas, _iotaf = vj.equilibrium_iota_profiles_from_state(
+            state=state,
+            static=self.get_static(),
+            indata=self._indata_raw,
+            signgs=self._signgs,
+        )
+        iotas = jnp.asarray(iotas)
+        if int(iotas.shape[0]) <= 1:
+            return jnp.asarray(0.0, dtype=iotas.dtype)
+        return jnp.mean(iotas[1:])
+
+    def mean_iota_jax(self, x_free: jnp.ndarray):
+        """Return the mean rotational transform directly from a solved state."""
+        state = self._solve_state(x_free)
+        return self.mean_iota_from_state_jax(state)
+
+    def mean_iota(self, x_free=None):
+        """Return the mean rotational transform in the same style as :class:`simsopt.mhd.Vmec`."""
+        if x_free is None:
+            x_free = self.boundary.get_free_params()
+        return float(np.asarray(self.mean_iota_jax(jnp.asarray(x_free))))
 
     def get_static(self):
         """Expose the cached vmec_jax static data structure."""
