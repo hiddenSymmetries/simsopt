@@ -765,7 +765,7 @@ class VmecJax:
                     max_iter=int(self._max_iter),
                     step_size=residual_step_size,
                     vmec2000_control=True,
-                    reference_mode=True,
+                    reference_mode=False,
                     backtracking=True,
                     limit_dt_from_force=True,
                     limit_update_rms=True,

@@ -18,6 +18,7 @@ except Exception:
 
 from simsopt.mhd import VmecJax
 from simsopt.mhd import Vmec
+from simsopt.solve import build_vmec_objective_stage
 
 
 @contextmanager
@@ -205,6 +206,33 @@ def test_vmec_jax_aspect_jax_is_jittable_for_qh_setup():
 
     aspect = jax.jit(vmec.aspect_jax)(x0)
     assert np.isfinite(float(np.asarray(aspect)))
+
+
+def test_vmec_jax_qh_start_objective_matches_converged_control_path():
+    vmec = VmecJax(_input_filename(), verbose=False)
+    vmec.indata.mpol = 3
+    vmec.indata.ntor = 3
+
+    surf = vmec.boundary
+    surf.fix_all()
+    surf.fixed_range(mmin=0, mmax=1, nmin=-1, nmax=1, fixed=False)
+    surf.fix("rc(0,0)")
+
+    stage = build_vmec_objective_stage(
+        vmec,
+        max_mode=1,
+        objective_tuples=[("aspect", 7.0, 1.0), ("qs", 0.0, 1.0)],
+        surfaces=np.arange(0, 1.01, 0.1),
+        helicity_m=1,
+        helicity_n=-1,
+        x_scale_alpha=1.2,
+        x_scale_min=1e-9,
+    )
+    x0 = jax.numpy.asarray(stage.x0, dtype=jax.numpy.float64)
+    residual = np.asarray(stage.residuals(x0))
+    objective = float(np.sum(residual * residual))
+
+    np.testing.assert_allclose(objective, 0.2983122217172473, rtol=0.0, atol=1.0e-12)
 
 
 def test_vmec_jax_aspect_matches_vmec_interface():
