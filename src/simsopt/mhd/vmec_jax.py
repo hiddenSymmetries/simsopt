@@ -978,7 +978,14 @@ class VmecJax:
         buco, bvco, _, _ = currents_from_bcovar(bc=bc, trig=trig, wout=wout_like, s=s_full)
 
         bsq = jnp.asarray(bc.bsq)
-        bmod = jnp.sqrt(jnp.maximum(2.0 * (bsq - pres[:, None, None]), 0.0))
+        # Keep |B| differentiable where the pressure-corrected magnitude lands
+        # exactly on zero. This only changes exact-zero values by machine tiny,
+        # but avoids undefined reverse-mode sensitivities in the QS diagnostic.
+        bmod_sq = jnp.maximum(
+            2.0 * (bsq - pres[:, None, None]),
+            jnp.asarray(jnp.finfo(bsq.dtype).tiny, dtype=bsq.dtype),
+        )
+        bmod = jnp.sqrt(bmod_sq)
         bsubu = jnp.asarray(bc.bsubu)
         bsubv = jnp.asarray(bc.bsubv)
         if not bool(self._cfg.lasym):

@@ -219,8 +219,16 @@ def quasisymmetry_ratio_residual_from_wout_jax(
     dtheta = theta1d[1] - theta1d[0]
     dphi = phi1d[1] - phi1d[0]
     sqrtg_abs = jnp.abs(sqrtg)
+    # The QS residual scales like sqrt(|sqrt(g)|). At the magnetic axis this can
+    # hit exactly zero, which makes reverse-mode sensitivities undefined even
+    # though the residual value itself is finite. Keep a tiny positive floor so
+    # the traced objective remains differentiable at the axis surface.
+    sqrtg_abs_safe = jnp.maximum(
+        sqrtg_abs,
+        jnp.asarray(jnp.finfo(sqrtg.dtype).tiny, dtype=sqrtg.dtype),
+    )
     modB_safe = jnp.maximum(jnp.abs(modB), jnp.asarray(jnp.finfo(modB.dtype).tiny, dtype=modB.dtype))
-    V_prime = nfp * dtheta * dphi * jnp.sum(sqrtg_abs, axis=(1, 2))
+    V_prime = nfp * dtheta * dphi * jnp.sum(sqrtg_abs_safe, axis=(1, 2))
 
     nn = helicity_n * nfp
     prefactor = jnp.sqrt(
@@ -229,7 +237,7 @@ def quasisymmetry_ratio_residual_from_wout_jax(
         * dtheta
         * dphi
         / V_prime[:, None, None]
-        * sqrtg_abs
+        * sqrtg_abs_safe
     )
     residuals3d = prefactor * (
         B_cross_grad_B_dot_grad_psi * (nn - iota[:, None, None] * helicity_m)

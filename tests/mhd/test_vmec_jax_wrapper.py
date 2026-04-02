@@ -16,6 +16,9 @@ try:
 except Exception:
     vmec_mod = None
 
+from vmec_jax.implicit import _pack_stellsym_feasible_state, _stellsym_feasible_indices
+from vmec_jax.solve import _mask_grad_for_constraints, _mode00_index
+
 from simsopt.mhd import VmecJax
 from simsopt.mhd import Vmec
 from simsopt.solve import build_vmec_objective_stage
@@ -233,6 +236,43 @@ def test_vmec_jax_qh_start_objective_matches_converged_control_path():
     objective = float(np.sum(residual * residual))
 
     np.testing.assert_allclose(objective, 0.2983122217172473, rtol=0.0, atol=1.0e-12)
+
+
+def test_vmec_jax_qh_qs_state_gradient_is_finite():
+    vmec = VmecJax(_input_filename(), verbose=False)
+    vmec.indata.mpol = 3
+    vmec.indata.ntor = 3
+
+    surf = vmec.boundary
+    surf.fix_all()
+    surf.fixed_range(mmin=0, mmax=1, nmin=-1, nmax=1, fixed=False)
+    surf.fix("rc(0,0)")
+
+    stage = build_vmec_objective_stage(
+        vmec,
+        max_mode=1,
+        objective_tuples=[("aspect", 7.0, 1.0), ("qs", 0.0, 1.0)],
+        surfaces=np.arange(0, 1.01, 0.1),
+        helicity_m=1,
+        helicity_n=-1,
+        x_scale_alpha=1.2,
+        x_scale_min=1e-9,
+    )
+    state = vmec._solve_state(jax.numpy.asarray(stage.x0, dtype=jax.numpy.float64))
+    qs = stage.extras["qs"]
+    static = vmec.get_static()
+    idx00 = int(_mode00_index(static.modes))
+    rz_idx, lam_idx, _ns, _K = _stellsym_feasible_indices(static, idx00=idx00, mask_lambda_axis=True)
+
+    def qs_objective(state):
+        residual = jax.numpy.asarray(qs.residuals_from_state(state), dtype=jax.numpy.float64)
+        return 0.5 * jax.numpy.sum(residual * residual)
+
+    grad = jax.grad(qs_objective)(state)
+    grad = _mask_grad_for_constraints(grad, static, idx00=idx00, mask_lambda_axis=True)
+    packed = np.asarray(_pack_stellsym_feasible_state(grad, rz_idx=rz_idx, lam_idx=lam_idx))
+
+    assert np.all(np.isfinite(packed))
 
 
 def test_vmec_jax_aspect_matches_vmec_interface():
