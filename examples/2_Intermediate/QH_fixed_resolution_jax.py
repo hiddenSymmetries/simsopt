@@ -22,7 +22,6 @@ Run this example with:
 DEFAULT_MAX_NFEV = 10
 DEFAULT_MAX_MODE = 1
 DEFAULT_JIT = True
-DEFAULT_ADJOINT_MODE = "lineax"
 DEFAULT_STATELESS_EVALUATIONS = False
 DEFAULT_WALL_CLOCK_BUDGET = 0.0
 
@@ -36,6 +35,7 @@ REFERENCE_CONFIGS = {
         "mean_iota_target": None,
         "default_method": "gradient_descent",
         "default_step_size": 5e-7,
+        "default_adjoint_mode": "chunked",
     },
     "qa": {
         "label": "QA",
@@ -46,6 +46,7 @@ REFERENCE_CONFIGS = {
         "mean_iota_target": 0.44,
         "default_method": "truncated_gauss_newton",
         "default_step_size": 1.0,
+        "default_adjoint_mode": "lineax",
     },
 }
 
@@ -74,7 +75,7 @@ def parse_args():
     parser.add_argument("--timings", action="store_true")
     parser.add_argument("--profile", action="store_true")
     parser.add_argument("--jit", action=argparse.BooleanOptionalAction, default=DEFAULT_JIT)
-    parser.add_argument("--adjoint-mode", choices=["lineax", "auto"], default=DEFAULT_ADJOINT_MODE)
+    parser.add_argument("--adjoint-mode", choices=["lineax", "auto", "chunked", "dense"], default=None)
     parser.add_argument("--stateless-evaluations", action="store_true")
     parser.add_argument("--wall-clock-budget", type=float, default=DEFAULT_WALL_CLOCK_BUDGET)
     return parser.parse_args()
@@ -121,6 +122,7 @@ def main():
     max_mode = int(args.max_mode)
     outer_method = ref["default_method"] if str(args.method).strip().lower() == "auto" else str(args.method).strip().lower()
     outer_step_size = float(ref["default_step_size"] if args.step_size is None else args.step_size)
+    adjoint_mode = ref["default_adjoint_mode"] if args.adjoint_mode is None else str(args.adjoint_mode).strip().lower()
     objective_tuples = objective_tuples_for_reference(reference_key, iota_target_override=args.iota_target)
 
     proc0_print("Running 2_Intermediate/QH_fixed_resolution_jax.py")
@@ -130,7 +132,7 @@ def main():
     vmec = VmecJax(filename, verbose=False)
     vmec.use_residual_autodiff_defaults(
         outer_method=outer_method,
-        residual_adjoint_mode=args.adjoint_mode,
+        residual_adjoint_mode=adjoint_mode,
         stateless_evaluations=args.stateless_evaluations,
     )
 
@@ -165,7 +167,7 @@ def main():
             "vmec_max_iter": int(vmec._max_iter),
             "vmec_grad_tol": float(vmec._grad_tol),
             "jit": bool(args.jit),
-            "adjoint_mode": args.adjoint_mode,
+            "adjoint_mode": adjoint_mode,
             "stateless_evaluations": bool(args.stateless_evaluations),
             "wall_clock_budget_s": float(args.wall_clock_budget),
         },
