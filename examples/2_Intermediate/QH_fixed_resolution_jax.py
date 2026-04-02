@@ -21,7 +21,6 @@ Run this example with:
 
 DEFAULT_MAX_NFEV = 10
 DEFAULT_MAX_MODE = 1
-DEFAULT_JIT = True
 DEFAULT_STATELESS_EVALUATIONS = False
 DEFAULT_WALL_CLOCK_BUDGET = 0.0
 
@@ -34,8 +33,9 @@ REFERENCE_CONFIGS = {
         "aspect_target": 7.0,
         "mean_iota_target": None,
         "default_method": "gradient_descent",
-        "default_step_size": 5e-7,
+        "default_step_size": 5e-5,
         "default_adjoint_mode": "chunked",
+        "default_jit": False,
     },
     "qa": {
         "label": "QA",
@@ -47,6 +47,7 @@ REFERENCE_CONFIGS = {
         "default_method": "truncated_gauss_newton",
         "default_step_size": 1.0,
         "default_adjoint_mode": "lineax",
+        "default_jit": True,
     },
 }
 
@@ -74,7 +75,7 @@ def parse_args():
     parser.add_argument("--step-size", type=float, default=None)
     parser.add_argument("--timings", action="store_true")
     parser.add_argument("--profile", action="store_true")
-    parser.add_argument("--jit", action=argparse.BooleanOptionalAction, default=DEFAULT_JIT)
+    parser.add_argument("--jit", action=argparse.BooleanOptionalAction, default=None)
     parser.add_argument("--adjoint-mode", choices=["lineax", "auto", "chunked", "dense"], default=None)
     parser.add_argument("--stateless-evaluations", action="store_true")
     parser.add_argument("--wall-clock-budget", type=float, default=DEFAULT_WALL_CLOCK_BUDGET)
@@ -123,6 +124,7 @@ def main():
     outer_method = ref["default_method"] if str(args.method).strip().lower() == "auto" else str(args.method).strip().lower()
     outer_step_size = float(ref["default_step_size"] if args.step_size is None else args.step_size)
     adjoint_mode = ref["default_adjoint_mode"] if args.adjoint_mode is None else str(args.adjoint_mode).strip().lower()
+    use_jit = bool(ref["default_jit"]) if args.jit is None else bool(args.jit)
     objective_tuples = objective_tuples_for_reference(reference_key, iota_target_override=args.iota_target)
 
     proc0_print("Running 2_Intermediate/QH_fixed_resolution_jax.py")
@@ -166,7 +168,7 @@ def main():
             "step_size": outer_step_size,
             "vmec_max_iter": int(vmec._max_iter),
             "vmec_grad_tol": float(vmec._grad_tol),
-            "jit": bool(args.jit),
+            "jit": use_jit,
             "adjoint_mode": adjoint_mode,
             "stateless_evaluations": bool(args.stateless_evaluations),
             "wall_clock_budget_s": float(args.wall_clock_budget),
@@ -188,7 +190,7 @@ def main():
         gtol=1e-7,
         step_size=outer_step_size,
         x_scale=stage.x_scale,
-        jit=bool(args.jit),
+        jit=use_jit,
         verbose=1,
         jac="jax" if outer_method == "scipy" else None,
         profile=bool(args.profile),
