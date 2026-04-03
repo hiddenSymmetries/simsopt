@@ -44,7 +44,7 @@ class Boozer(Optimizable):
     the ``run()`` method is called, the Boozer transformation is carried
     out on all these surfaces. The registry can be cleared at any time
     by setting the the ``s`` attribute to ``set()``, i.e. ``Boozer(...).s = set()``.
-    The registry can be updated with ``Boozer(...).regiser(surfaces)``
+    The registry can be updated with ``Boozer(...).register(surfaces)``
 
     Args:
         equil (:obj:`simsopt.mhd.vmec.Vmec`): Object on which the Boozer transformation
