@@ -14,7 +14,7 @@ import matplotlib.colors as mpl_colors
 
 import simsoptpp as sopp
 from .surface import Surface
-from ..objectives.polygonal_shape_errors import jaccard_index
+from ..objectives.polygonal_shape_errors import pointwise_minimum_poly_distance
 from .._core.optimizable import Optimizable
 from .._core.util import nested_lists_to_array
 from .._core.dev import SimsoptRequires
@@ -1816,7 +1816,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                     success = True
                     message = 'dM < ftol reached'
                 if shapetol is not None:
-                    shape_error_arr = jaccard_index(
+                    shape_error_arr = pointwise_minimum_poly_distance(
                                         newsurf, 
                                         surf
                                     )

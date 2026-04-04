@@ -7,12 +7,14 @@ from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.geo.surfacespline import SurfaceBSpline
 from simsopt.solve.mpi import least_squares_mpi_solve, bounded_least_squares_mpi_solve
 from simsopt._core import Optimizable
+from simsopt.util.spline_helpers import print_dofs_nicely
 
 from simsopt._core.types import RealArray
 from typing import Union
 import numpy as np
 from simsopt.mhd.vmec import Vmec
 from scipy.interpolate import interp1d
+import fnmatch
 
 def alan_QuasisymmetryRatioResidual(vmec: Vmec,
                  surfaces: Union[float, RealArray],
@@ -146,7 +148,32 @@ import matplotlib.pyplot as plt
 mpi = MpiPartition()
 mpi.write()
 
-# log()
+def set_bounds(
+        surf: SurfaceBSpline
+    ):
+
+    doflist = surf.dof_names
+    
+    lb = np.copy(surf.lower_bounds)
+    ub = np.copy(surf.upper_bounds)
+
+    cs_r_indices = [fnmatch.fnmatch(dof, 'CrossSectionFixedZeta*r*') for dof in surf.dof_names]
+    r_axis_indices = [fnmatch.fnmatch(dof, 'PseudoAxis*r_axis*') for dof in surf.dof_names]
+    z_axis_indices = [fnmatch.fnmatch(dof, 'PseudoAxis*z_axis*') for dof in surf.dof_names]
+    
+    lb[cs_r_indices] = 0.01
+    ub[cs_r_indices] = 0.8
+
+    lb[r_axis_indices] = 0.7
+    ub[r_axis_indices] = 2.2
+
+    lb[z_axis_indices] = -0.5
+    ub[z_axis_indices] = 0.5
+
+    surf.lower_bounds = lb
+    surf.upper_bounds = ub
+
+    return surf
 
 class PASOpt(Optimizable):
     def __init__(self, surf, spline_kwargs):
@@ -155,53 +182,79 @@ class PASOpt(Optimizable):
         Optimizable.__init__(self, depends_on=[surf])
 
     def J_qa(self):
-        new_surf = SurfaceBSpline(
-            **self.spline_kwargs
-        )
-        new_surf.set_dofs_from_vec(self.x)
-        # new_surf.x = self.x
-        rz_surf = new_surf.to_RZFourier(
-            nu=64,
-            nv=64,
-            nv_interp=128,
-            nu_interp=128,
-            collocation='arclength',
-            plot=False,
-            spec_cond_options={
-                'plot':False,
-                'ftol':1e-4,
-                'Mtol':1.1,
-                'shapetol':None,
-                'niters':2000,
-                'verbose':False,
-                'cutoff':1e-5
-            }
-        )
+        try:
+            new_surf = SurfaceBSpline(
+                **self.spline_kwargs
+            )
+            new_surf.axis.fix('r_axis_0')
+            new_surf.set_dofs_from_vec(self.x)
+            # new_surf.x = self.x
+            rz_surf = new_surf.to_RZFourier(
+                nu=64,
+                nv=64,
+                nv_interp=128,
+                nu_interp=128,
+                collocation='arclength',
+                plot=False,
+                spec_cond_options={
+                    'plot':False,
+                    'ftol':1e-4,
+                    'Mtol':1.1,
+                    'shapetol':None,
+                    'niters':2000,
+                    'verbose':False,
+                    'cutoff':1e-5
+                }
+            )
 
-        vmec = Vmec.vmec_from_surf(
-            nfp=self.surf.nfp,
-            surf=rz_surf,
-            mpi=mpi,
-            ns=13,
-            M=12, 
-            N=12,
-            ftol=1e-8
-        )
-        vmec.run()
+            vmec = Vmec.vmec_from_surf(
+                nfp=self.surf.nfp,
+                surf=rz_surf,
+                mpi=mpi,
+                ns=13,
+                M=12, 
+                N=12,
+                ftol=1e-7
+            )
+            vmec.run()
 
-        #qa
-        ar_penalty = ar_target(vmec, 6)
-        # iota_penalty = np.sqrt(10)*iota_target(vmec, 0.42)
-        qs_penalty = alan_QuasisymmetryRatioResidual(vmec, np.linspace(0.02, 1, 20), 1, 0)
+            #qa
+            ar_penalty = ar_target(vmec, 6)
+            qs_penalty = alan_QuasisymmetryRatioResidual(vmec, np.linspace(0.02, 1, 20), 1, 0)
 
-        qs_s1 = np.sqrt(5)*alan_QuasisymmetryRatioResidual(vmec, np.arange(1.0, 1.1, 0.1), 1, 0)
-        iota_edge_penalty = np.sqrt(10)*(vmec.iota_edge() - 0.42)
-        iota_axis_penalty = np.sqrt(10)*(vmec.iota_axis () - 0.42)
+            qs_s1 = np.sqrt(5)*alan_QuasisymmetryRatioResidual(vmec, np.arange(1.0, 1.1, 0.1), 1, 0)
+            iota_edge_penalty = np.sqrt(10)*(vmec.iota_edge() - 0.42)
+            iota_axis_penalty = np.sqrt(10)*(vmec.iota_axis () - 0.42)
 
-        residuals = np.array([ar_penalty] + [iota_edge_penalty] + [iota_axis_penalty])
-        residuals = np.concatenate((residuals, qs_penalty, qs_s1))
-        res = np.sum(residuals**2)
-        return residuals
+            residuals = np.array([ar_penalty] + [iota_edge_penalty] + [iota_axis_penalty])
+            residuals = np.concatenate((residuals, qs_penalty, qs_s1))
+            res = np.sum(residuals**2)
+            return residuals
+        except:
+            new_surf = SurfaceBSpline(
+                **self.spline_kwargs
+            )
+            new_surf.axis.fix('r_axis_0')
+            new_surf.set_dofs_from_vec(self.x)
+            # new_surf.x = self.x
+            rz_surf = new_surf.to_RZFourier(
+                nu=64,
+                nv=64,
+                nv_interp=128,
+                nu_interp=128,
+                collocation='arclength',
+                plot=False,
+                spec_cond_options={
+                    'plot':False,
+                    'ftol':1e-4,
+                    'Mtol':1.1,
+                    'shapetol':None,
+                    'niters':2000,
+                    'verbose':False,
+                    'cutoff':1e-5
+                }
+            )
+            rz_surf.plot(engine='plotly')
 
 if __name__ == "__main__":
 
@@ -230,20 +283,20 @@ if __name__ == "__main__":
     input_args = vars(parser.parse_args())
 
     default_args = {
-        'axis_points':3,
-        'points_per_cs':4,
-        'n_cs':6,
-        'nfp':2,
-        'M':9,
-        'N':4,
-        'p_u':3,
-        'p_v':3,
-        'cs_equispaced':False,
-        'rays_equispaced':False,
-        'cs_global_angle_free':False,
-        'axis_angles_fixed':False,
-        'cs_basis':'polar',
-        'nurbs': True,
+    'axis_points':3,
+    'points_per_cs':4,
+    'n_cs':5,
+    'nfp':2,
+    'M':9,
+    'N':4,
+    'p_u':3,
+    'p_v':3,
+    'cs_equispaced':True,
+    'rays_equispaced':False,
+    'cs_global_angle_free':False,
+    'axis_angles_fixed':True,
+    'cs_basis':'polar',
+    'nurbs': False,
     }
 
     proc0_print(input_args)
@@ -251,20 +304,18 @@ if __name__ == "__main__":
     proc0_print(f'spline_kwargs: {spline_kwargs}')
 
     spline_surf = SurfaceBSpline(
-        **spline_kwargs
+        **spline_kwargs,
+        default_r=0.4
     )
+    print_dofs_nicely(spline_surf)
+
+    spline_surf.axis.fix('r_axis_0')
 
     # spline_surf.plot()
     # plt.show()
 
-    # rng for initial surface if applicable
+    set_bounds(spline_surf)
 
-    if input_args['r'] is not None:
-        np.random.seed(input_args['r']) 
-        new_x = np.random.uniform(spline_surf.lower_bounds, spline_surf.upper_bounds)
-        spline_surf.x = new_x
-
-       
     myopt = PASOpt(spline_surf, spline_kwargs)
 
     prob = LeastSquaresProblem.from_tuples([
@@ -275,7 +326,7 @@ if __name__ == "__main__":
     proc0_print(f'initial: {repr(spline_surf.x)}, ndofs = {len(spline_surf.x)}')
 
     default_optimizer_args = {
-        'abs_step':1e-5,
+        'abs_step':1e-4,
         'rel_step':1e-8,
         'diff_method':'forward',
     }

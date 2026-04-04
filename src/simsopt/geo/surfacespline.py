@@ -94,7 +94,8 @@ class CrossSectionFixedZeta(Optimizable):
             dofs = DOFs(
                 cs_dofs,
                 names,
-                [True]*(n_pts) + [True]*(n_pts) + [nurbs]*(n_pts-1) + [False], # fixing one of the weights in the cross section
+                # [True]*(n_pts) + [True]*(n_pts) + [nurbs]*(n_pts-1) + [False], # fixing one of the angles, weights in the cross section
+                [True]*(n_pts) + [False] + [True]*(n_pts-1) + [nurbs]*(n_pts-1) + [False], # fixing one of the angles, weights in the cross section
                 [0] * (n_pts) + (np.linspace(0, max_angle, n_pts+1)[:-1] - 0.5*np.linspace(0, max_angle, n_pts+1)[1]).tolist() + [0] * (n_pts),
                 [1] * (n_pts) + (np.linspace(0, max_angle, n_pts+1)[1:] - 0.5*np.linspace(0, max_angle, n_pts+1)[1]).tolist() + [1] * (n_pts)
             )
@@ -156,20 +157,22 @@ class CrossSectionFixedZeta(Optimizable):
             return self
         else:
             r_flipped = np.insert(self.r_ctrl[:0:-1], 0, self.r_ctrl[0])
-            ws_flipped = self.w_ctrl[:0:-1]
+            ws_flipped = np.insert(self.w_ctrl[:0:-1], 0, self.w_ctrl[0])
             theta_flipped = 2*np.pi - np.insert(self.theta_ctrl[:0:-1], 0, self.theta_ctrl[0])
-            if self.nurbs:
-                dofs_flipped = np.concatenate((r_flipped, theta_flipped, ws_flipped))
-            else:
-                dofs_flipped = np.concatenate((r_flipped, theta_flipped))
-            # print(f'flipped dofs: {dofs_flipped}')
+            dofs_flipped = np.concatenate((r_flipped, theta_flipped, ws_flipped))
+            fixed_list = [self.is_fixed(key) for key in self.local_full_dof_names]
+            self.unfix_all()
             flipped_cs = CrossSectionFixedZeta(
                 zeta_index=self.zeta_index,
                 n_ctrl_pts=self.n_ctrl_pts,
                 z_sym=False,
                 nurbs=self.nurbs
             )
+            flipped_cs.unfix_all()
             flipped_cs.x = dofs_flipped
+            for key in fixed_list:
+                flipped_cs.fix(key)
+                self.fix(key) 
             return flipped_cs
 
 class PseudoAxis(Optimizable):
@@ -1500,7 +1503,9 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
 
         if spec_cond:
             # surf.condense_spectrum(
-            #     verbose=False
+            #     verbose=False,
+            #     method='trf',
+            #     Fourier_continuation=False
             # )
             surf = surf.variational_spec_cond(
                 **spec_cond_options
