@@ -50,6 +50,7 @@ Print only on MPI process 0. This function works also if MPI is not found.
 
 
 def proc0_print(*args, **kwargs):
+    kwargs.setdefault("flush", True)
     if MPI is None:
         print(*args, **kwargs)
     else:

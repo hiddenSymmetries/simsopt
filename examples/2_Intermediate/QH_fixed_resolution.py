@@ -22,11 +22,13 @@ max_mode = 1  # Maximum poloidal and toroidal mode numbers to vary
 proc0_print("Running 2_Intermediate/QH_fixed_resolution.py")
 proc0_print("=============================================")
 
-mpi = MpiPartition(2)
+mpi = MpiPartition()
 
 # For forming filenames for vmec, pathlib sometimes does not work, so use os.path.join instead.
 filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp4_QH_warm_start')
 vmec = Vmec(filename, mpi=mpi, verbose=False)
+vmec.indata.mpol = max_mode + 2
+vmec.indata.ntor = vmec.indata.mpol
 
 # Define parameter space:
 surf = vmec.boundary
@@ -52,8 +54,8 @@ prob.objective()
 proc0_print("Quasisymmetry objective before optimization:", qs.total())
 proc0_print("Total objective before optimization:", prob.objective())
 
-# To keep this example fast, we stop after the first max_nfev function
-# evaluation. For a "real" optimization, increase this value.
+# To keep this example fast, we stop after a small number of function
+# evaluations. For a "real" optimization, increase this value.
 least_squares_mpi_solve(prob, mpi, grad=True, rel_step=1e-5, abs_step=1e-8, max_nfev=max_nfev)
 
 # Make sure all procs participate in computing the objective:
