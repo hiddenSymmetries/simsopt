@@ -38,6 +38,14 @@ else:
 __all__ = ["VmecJax", "JaxBoundary"]
 
 
+_OUTER_OPTIMIZATION_PROFILES = {
+    "qh": {
+        "residual_adjoint_mode": "chunked",
+        "stateless_evaluations": False,
+    },
+}
+
+
 def _clone_state(state):
     """Return a JAX-friendly copy of a VMEC-JAX state object."""
     return vj.VMECState(
@@ -186,6 +194,19 @@ def _vmec_wrout_nyquist_cos_coeffs_jax(*, f, modes, trig):
     dmult = mscale[m] * nscale[n_abs] * jnp.asarray(0.5 / float(getattr(trig, "r0scale", 1.0)) ** 2, dtype=f.dtype)
     dmult = jnp.where((m == 0) | (n == 0), 2.0 * dmult, dmult)
     return coeff * dmult[None, :]
+
+
+def _outer_optimization_profile(name: str | None) -> dict:
+    """Return a copy of a named wrapper preset for outer optimization."""
+    if name is None:
+        return {}
+    key = str(name).strip().lower()
+    if key in ("", "none"):
+        return {}
+    try:
+        return dict(_OUTER_OPTIMIZATION_PROFILES[key])
+    except KeyError as exc:
+        raise ValueError(f"Unknown VmecJax optimization profile: {name}") from exc
 
 
 class JaxBoundary:
@@ -657,17 +678,27 @@ class VmecJax:
         self,
         *,
         outer_method: str | None = None,
-        residual_adjoint_mode: str = "lineax",
-        stateless_evaluations: bool = False,
+        residual_adjoint_mode: str | None = None,
+        stateless_evaluations: bool | None = None,
+        optimization_profile: str | None = None,
     ) -> None:
         """Apply wrapper defaults that worked best for the fixed-resolution JAX examples."""
+        profile = _outer_optimization_profile(optimization_profile)
         method = None if outer_method is None else str(outer_method).strip().lower()
         tangent_method = "linearize" if method in ("gauss_newton", "trust_region", "levenberg_marquardt", "scipy") else "opaque"
+        adjoint_mode = profile.get("residual_adjoint_mode", "lineax") if residual_adjoint_mode is None else str(residual_adjoint_mode).strip().lower()
+        stateful = profile.get("stateless_evaluations", False) if stateless_evaluations is None else bool(stateless_evaluations)
+        solver_options = {
+            "solver": "vmec2000",
+            "residual_adjoint_mode": adjoint_mode,
+            "residual_tangent_mode": tangent_method,
+            "stateless_evaluations": stateful,
+        }
+        for key in ("max_iter", "grad_tol", "implicit_cg_max_iter", "implicit_cg_tol", "implicit_damping"):
+            if key in profile:
+                solver_options[key] = profile[key]
         self.set_solver_options(
-            solver="vmec2000",
-            residual_adjoint_mode=residual_adjoint_mode,
-            residual_tangent_mode=tangent_method,
-            stateless_evaluations=stateless_evaluations,
+            **solver_options,
         )
 
     def _x_cache_key(self, x_free) -> tuple[float, ...]:

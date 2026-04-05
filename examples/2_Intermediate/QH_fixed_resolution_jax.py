@@ -36,6 +36,8 @@ REFERENCE_CONFIGS = {
         "default_step_size": 5e-5,
         "default_adjoint_mode": "chunked",
         "default_jit": False,
+        "default_stateless_evaluations": False,
+        "optimization_profile": None,
     },
     "qa": {
         "label": "QA",
@@ -48,6 +50,8 @@ REFERENCE_CONFIGS = {
         "default_step_size": 1.0,
         "default_adjoint_mode": "lineax",
         "default_jit": True,
+        "default_stateless_evaluations": False,
+        "optimization_profile": None,
     },
 }
 
@@ -77,7 +81,12 @@ def parse_args():
     parser.add_argument("--profile", action="store_true")
     parser.add_argument("--jit", action=argparse.BooleanOptionalAction, default=None)
     parser.add_argument("--adjoint-mode", choices=["lineax", "auto", "chunked", "dense"], default=None)
-    parser.add_argument("--stateless-evaluations", action="store_true")
+    parser.add_argument("--stateless-evaluations", action=argparse.BooleanOptionalAction, default=None)
+    parser.add_argument("--optimization-profile", choices=["none", "qh"], default=None)
+    parser.add_argument("--vmec-max-iter", type=int, default=None)
+    parser.add_argument("--vmec-grad-tol", type=float, default=None)
+    parser.add_argument("--implicit-cg-max-iter", type=int, default=None)
+    parser.add_argument("--implicit-cg-tol", type=float, default=None)
     parser.add_argument("--wall-clock-budget", type=float, default=DEFAULT_WALL_CLOCK_BUDGET)
     return parser.parse_args()
 
@@ -123,8 +132,20 @@ def main():
     max_mode = int(args.max_mode)
     outer_method = ref["default_method"] if str(args.method).strip().lower() == "auto" else str(args.method).strip().lower()
     outer_step_size = float(ref["default_step_size"] if args.step_size is None else args.step_size)
-    adjoint_mode = ref["default_adjoint_mode"] if args.adjoint_mode is None else str(args.adjoint_mode).strip().lower()
     use_jit = bool(ref["default_jit"]) if args.jit is None else bool(args.jit)
+    optimization_profile = ref.get("optimization_profile") if args.optimization_profile is None else args.optimization_profile
+    if optimization_profile == "none":
+        optimization_profile = None
+    adjoint_mode = None
+    if optimization_profile is None or args.adjoint_mode is not None:
+        adjoint_mode = ref["default_adjoint_mode"] if args.adjoint_mode is None else str(args.adjoint_mode).strip().lower()
+    use_stateless_evaluations = None
+    if optimization_profile is None or args.stateless_evaluations is not None:
+        use_stateless_evaluations = (
+            bool(ref.get("default_stateless_evaluations", DEFAULT_STATELESS_EVALUATIONS))
+            if args.stateless_evaluations is None
+            else bool(args.stateless_evaluations)
+        )
     objective_tuples = objective_tuples_for_reference(reference_key, iota_target_override=args.iota_target)
 
     proc0_print("Running 2_Intermediate/QH_fixed_resolution_jax.py")
@@ -135,7 +156,14 @@ def main():
     vmec.use_residual_autodiff_defaults(
         outer_method=outer_method,
         residual_adjoint_mode=adjoint_mode,
-        stateless_evaluations=args.stateless_evaluations,
+        stateless_evaluations=use_stateless_evaluations,
+        optimization_profile=optimization_profile,
+    )
+    vmec.set_solver_options(
+        max_iter=args.vmec_max_iter,
+        grad_tol=args.vmec_grad_tol,
+        implicit_cg_max_iter=args.implicit_cg_max_iter,
+        implicit_cg_tol=args.implicit_cg_tol,
     )
 
     stage = build_stage(
@@ -168,9 +196,12 @@ def main():
             "step_size": outer_step_size,
             "vmec_max_iter": int(vmec._max_iter),
             "vmec_grad_tol": float(vmec._grad_tol),
+            "implicit_cg_max_iter": int(vmec._implicit_cg_max_iter),
+            "implicit_cg_tol": float(vmec._implicit_cg_tol),
+            "optimization_profile": optimization_profile,
             "jit": use_jit,
-            "adjoint_mode": adjoint_mode,
-            "stateless_evaluations": bool(args.stateless_evaluations),
+            "adjoint_mode": vmec._residual_adjoint_mode,
+            "stateless_evaluations": bool(vmec._stateless_evaluations),
             "wall_clock_budget_s": float(args.wall_clock_budget),
         },
     )

@@ -120,6 +120,22 @@ def test_vmec_jax_defaults_honor_staged_input_controls():
     assert vmec._warm_start_iters == 0
 
 
+def test_vmec_jax_qh_profile_applies_outer_optimization_defaults():
+    vmec = VmecJax(_input_filename(), verbose=False)
+
+    vmec.use_residual_autodiff_defaults(
+        outer_method="gradient_descent",
+        optimization_profile="qh",
+    )
+
+    assert vmec._solver == "vmec2000"
+    assert vmec._max_iter == 1500
+    np.testing.assert_allclose(vmec._grad_tol, 1.0e-13)
+    assert vmec._residual_adjoint_mode == "chunked"
+    assert vmec._residual_tangent_mode == "opaque"
+    assert not vmec._stateless_evaluations
+
+
 def test_vmec_jax_wrapper_keeps_unconstrained_boundary_coefficients():
     vmec = VmecJax(_input_filename(), verbose=False)
     vmec.indata.mpol = 3
