@@ -1516,9 +1516,6 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
             options = spec_cond_options if spec_cond_options is not None else default_options
             surf.condense_spectrum(
                 **options
-                verbose=False,
-                method='trf',
-                Fourier_continuation=False
             )
 
         return surf
