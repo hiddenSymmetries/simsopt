@@ -1460,16 +1460,8 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         nv_interp = None,
         plot=False,
         collocation='arclength',
-        spec_cond=True,
-        spec_cond_options={
-            'plot':False,
-            'ftol':1e-4,
-            'Mtol':1.1,
-            'shapetol':0.01,
-            'niters':400,
-            'verbose':True,
-            'cutoff':1e-6
-        }
+        spec_cond='variational',
+        spec_cond_options=None
     ):
         # print('to_RZFourier called')
         if M==None and N==None:
@@ -1501,14 +1493,32 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
                     surf.set_rc(m, n, rbc[n + N, m])
                     surf.set_zs(m, n, zbs[n + N, m])
 
-        if spec_cond:
-            # surf.condense_spectrum(
-            #     verbose=False,
-            #     method='trf',
-            #     Fourier_continuation=False
-            # )
+        if spec_cond is 'variational':
+            default_options = {
+                'plot':False,
+                'ftol':1e-4,
+                'Mtol':1.1,
+                'shapetol':0.01,
+                'niters':400,
+                'verbose':True,
+                'cutoff':1e-6
+            }
+            options = spec_cond_options if spec_cond_options is not None else default_options
             surf = surf.variational_spec_cond(
-                **spec_cond_options
+                **options
+            )
+        elif spec_cond is 'direct':
+            default_options = {
+                'verbose':False,
+                'method':'trf',
+                'Fourier_continuation':False
+            }
+            options = spec_cond_options if spec_cond_options is not None else default_options
+            surf.condense_spectrum(
+                **options
+                verbose=False,
+                method='trf',
+                Fourier_continuation=False
             )
 
         return surf
