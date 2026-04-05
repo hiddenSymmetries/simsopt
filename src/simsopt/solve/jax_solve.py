@@ -467,7 +467,7 @@ def least_squares_jax_solve(
     nfev = 0
     grad = jnp.zeros_like(y0)
     y = y0
-    cost = objective_y(y)
+    cost = jnp.asarray(0.0, dtype=y0.dtype)
     step_description = None
 
     if method in ("scipy", "least_squares"):
@@ -518,7 +518,8 @@ def least_squares_jax_solve(
 
     elif method == "gradient_descent":
         y = y0
-        cost = objective_y(y)
+        if int(max_nfev) <= 0 or _deadline_exhausted(deadline):
+            cost = objective_y(y)
         for iteration in range(int(max_nfev)):
             if _deadline_exhausted(deadline):
                 wall_clock_exhausted = True
