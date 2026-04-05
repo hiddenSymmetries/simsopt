@@ -36,7 +36,7 @@ __all__ = ['Boozer', 'Quasisymmetry']
 
 class Boozer(Optimizable):
     """
-    This class handles the transformation to Boozer coordinates; the ``booz_xform``
+    Compute Boozer coordinates for a Vmec equilibrium. The ``booz_xform``
     package is required.
     
     A Boozer instance maintains a set ``s``, which is a registry of the
