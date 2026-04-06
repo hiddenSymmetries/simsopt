@@ -35,9 +35,9 @@ REFERENCE_CONFIGS = {
         "default_method": "gradient_descent",
         "default_step_size": 5e-5,
         "default_adjoint_mode": "chunked",
-        "default_jit": False,
+        "default_jit": True,
         "default_stateless_evaluations": False,
-        "optimization_profile": None,
+        "optimization_profile": "qh",
     },
     "qa": {
         "label": "QA",

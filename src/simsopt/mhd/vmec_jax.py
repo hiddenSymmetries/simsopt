@@ -461,6 +461,7 @@ class VmecJax:
         self._implicit_zero_unconverged = False
         self._residual_adjoint_mode = "auto"
         self._residual_tangent_mode = "opaque"
+        self._residual_forward_mode = "callback"
         self._stateless_evaluations = False
         self._reset_caches()
 
@@ -579,6 +580,7 @@ class VmecJax:
         implicit_zero_unconverged: bool | None = None,
         residual_adjoint_mode: str | None = None,
         residual_tangent_mode: str | None = None,
+        residual_forward_mode: str | None = None,
         stateless_evaluations: bool | None = None,
     ) -> None:
         """Update VMEC-JAX solver controls used by this wrapper."""
@@ -668,6 +670,11 @@ class VmecJax:
             if residual_tangent_mode != self._residual_tangent_mode:
                 self._residual_tangent_mode = residual_tangent_mode
                 self._reset_caches(reset_warm_start=True)
+        if residual_forward_mode is not None:
+            residual_forward_mode = str(residual_forward_mode).strip().lower()
+            if residual_forward_mode != self._residual_forward_mode:
+                self._residual_forward_mode = residual_forward_mode
+                self._reset_caches(reset_warm_start=True)
         if stateless_evaluations is not None:
             stateless_evaluations = bool(stateless_evaluations)
             if stateless_evaluations != self._stateless_evaluations:
@@ -692,6 +699,7 @@ class VmecJax:
             "solver": "vmec2000",
             "residual_adjoint_mode": adjoint_mode,
             "residual_tangent_mode": tangent_method,
+            "residual_forward_mode": "callback",
             "stateless_evaluations": stateful,
         }
         for key in ("max_iter", "grad_tol", "implicit_cg_max_iter", "implicit_cg_tol", "implicit_damping"):
@@ -742,6 +750,7 @@ class VmecJax:
             damping=float(self._implicit_damping),
             residual_adjoint_mode=str(self._residual_adjoint_mode),
             residual_tangent_mode=str(self._residual_tangent_mode),
+            residual_forward_mode=str(self._residual_forward_mode),
         )
         state0_host = vj.VMECState(
             layout=seed_state.layout,

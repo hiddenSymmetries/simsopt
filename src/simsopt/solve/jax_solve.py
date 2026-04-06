@@ -88,6 +88,17 @@ def _safe_float(value) -> float:
     return float(np.asarray(arr).reshape(-1)[0])
 
 
+def _safe_int(value) -> int:
+    arr = _sync_numpy(value)
+    if arr.shape == ():
+        return int(arr)
+    return int(np.asarray(arr).reshape(-1)[0])
+
+
+def _tree_select(cond, true_value, false_value):
+    return jax.tree_util.tree_map(lambda a, b: jnp.where(cond, a, b), true_value, false_value)
+
+
 def _make_profile(enabled: bool):
     if not enabled:
         return None
@@ -344,6 +355,10 @@ def build_vmec_objective_stage(
             helicity_n=int(helicity_n),
         )
 
+    ensure_context = getattr(vmec, "_ensure_context", None)
+    if callable(ensure_context):
+        ensure_context()
+
     def residuals(x_free):
         x_free = jnp.asarray(x_free, dtype=jnp.float64)
         state = vmec._solve_state(x_free)
@@ -438,28 +453,94 @@ def least_squares_jax_solve(
     def profiled_value_and_grad(y):
         return _profiled_call(profile_data, "value_and_grad_calls", "value_and_grad_wall_s", value_and_grad_y, y)
 
+    max_backtracking_trials = 12
+    trial_ids = jnp.arange(int(max_backtracking_trials), dtype=jnp.int32)
+
+    def _accept_by_backtracking_raw(y_in, cost_in, grad_in, direction_in, initial_step_in, c1_in):
+        dtype = y_in.dtype
+        step_norm_sq = jnp.dot(grad_in, direction_in)
+        initial_step_arr = jnp.asarray(initial_step_in, dtype=dtype)
+        c1_arr = jnp.asarray(c1_in, dtype=dtype)
+        init = (
+            y_in,
+            cost_in,
+            jnp.asarray(-1, dtype=jnp.int32),
+            y_in,
+            cost_in,
+            jnp.asarray(-1, dtype=jnp.int32),
+            jnp.asarray(False),
+            jnp.asarray(0, dtype=jnp.int32),
+        )
+
+        def body(carry, trial):
+            best_y, best_cost, best_idx, accepted_y, accepted_cost, accepted_idx, accepted, eval_count = carry
+
+            def skip(_):
+                return carry, jnp.asarray(0, dtype=jnp.int32)
+
+            def run_trial(_):
+                alpha = initial_step_arr * jnp.power(jnp.asarray(0.5, dtype=dtype), trial.astype(dtype))
+                trial_y = y_in + alpha * direction_in
+                trial_cost = objective_y_raw(trial_y)
+                improved = trial_cost < best_cost
+                new_best_y = _tree_select(improved, trial_y, best_y)
+                new_best_cost = jnp.where(improved, trial_cost, best_cost)
+                new_best_idx = jnp.where(improved, trial, best_idx)
+                armijo = trial_cost <= cost_in + c1_arr * alpha * step_norm_sq
+                take_trial = jnp.logical_and(~accepted, armijo)
+                new_accepted_y = _tree_select(take_trial, trial_y, accepted_y)
+                new_accepted_cost = jnp.where(take_trial, trial_cost, accepted_cost)
+                new_accepted_idx = jnp.where(take_trial, trial, accepted_idx)
+                new_accepted = jnp.logical_or(accepted, armijo)
+                new_carry = (
+                    new_best_y,
+                    new_best_cost,
+                    new_best_idx,
+                    new_accepted_y,
+                    new_accepted_cost,
+                    new_accepted_idx,
+                    new_accepted,
+                    eval_count + jnp.asarray(1, dtype=jnp.int32),
+                )
+                return new_carry, jnp.asarray(1, dtype=jnp.int32)
+
+            return jax.lax.cond(accepted, skip, run_trial, operand=None)
+
+        final_carry, _ = jax.lax.scan(body, init, trial_ids)
+        best_y, best_cost, best_idx, accepted_y, accepted_cost, accepted_idx, accepted, eval_count = final_carry
+        best_improves = best_cost < cost_in
+        result_y = _tree_select(accepted, accepted_y, best_y)
+        result_cost = jnp.where(accepted, accepted_cost, best_cost)
+        result_idx = jnp.where(accepted, accepted_idx, best_idx)
+        return result_y, result_cost, result_idx, jnp.logical_or(accepted, best_improves), eval_count
+
+    accept_by_backtracking_impl = jax.jit(_accept_by_backtracking_raw) if jit else _accept_by_backtracking_raw
+
     def accept_by_backtracking(y, cost, grad, direction, *, initial_step=1.0, c1=1e-4, max_trials=12):
-        step_norm_sq = float(jnp.dot(grad, direction))
-        best_y = y
-        best_cost = cost
-        best_step_label = "none"
-        for trial in range(int(max_trials)):
-            if _deadline_exhausted(deadline):
-                break
-            alpha = float(initial_step) * (0.5 ** trial)
-            trial_y = y + alpha * direction
-            start = time.perf_counter()
-            trial_cost = objective_y(trial_y)
-            if profile_data is not None:
-                profile_data["line_search_calls"] += 1
-                profile_data["line_search_wall_s"] += time.perf_counter() - start
-            if float(trial_cost) < float(best_cost):
-                best_y = trial_y
-                best_cost = trial_cost
-                best_step_label = f"bt_{trial}" if trial else "full"
-            if float(trial_cost) <= float(cost) + c1 * alpha * step_norm_sq:
-                return best_y, best_cost, best_step_label, True
-        return best_y, best_cost, best_step_label, float(best_cost) < float(cost)
+        if int(max_trials) != int(max_backtracking_trials):
+            raise ValueError(f"accept_by_backtracking currently requires max_trials={max_backtracking_trials}")
+        start = time.perf_counter()
+        y_next, cost_next, trial_idx, accepted, eval_count = accept_by_backtracking_impl(
+            y,
+            jnp.asarray(cost, dtype=y.dtype),
+            grad,
+            direction,
+            jnp.asarray(float(initial_step), dtype=y.dtype),
+            jnp.asarray(float(c1), dtype=y.dtype),
+        )
+        _block_until_ready(cost_next)
+        if profile_data is not None:
+            profile_data["line_search_calls"] += _safe_int(eval_count)
+            profile_data["line_search_wall_s"] += time.perf_counter() - start
+        accepted_bool = bool(_safe_int(accepted))
+        trial_idx_int = _safe_int(trial_idx)
+        if trial_idx_int < 0:
+            step_label = "none"
+        elif trial_idx_int == 0:
+            step_label = "full"
+        else:
+            step_label = f"bt_{trial_idx_int}"
+        return y_next, cost_next, step_label, accepted_bool
 
     status = 0
     success = False
