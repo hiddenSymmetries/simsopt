@@ -59,6 +59,10 @@ def _clone_state(state):
     )
 
 
+def _is_traced_value(value) -> bool:
+    return jax is not None and isinstance(value, jax.core.Tracer)
+
+
 def _require_vmec_jax():
     """Validate that vmec_jax and JAX are available."""
     if vj is None or has_jax is None or not has_jax():
@@ -1002,6 +1006,7 @@ class VmecJax:
             nmax=max(int(self._cfg.ntor), nmax_nyq),
             lasym=bool(self._cfg.lasym),
             dtype=jnp.asarray(state.Rcos).dtype,
+            cache=not _is_traced_value(state.Rcos),
         )
 
         bc = vmec_bcovar_half_mesh_from_wout(

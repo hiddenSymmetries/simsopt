@@ -1,5 +1,9 @@
+import os
+
 import jax
-jax.config.update('jax_platform_name', 'cpu')
+
+if os.getenv("JAX_PLATFORM_NAME", "") == "" and os.getenv("JAX_PLATFORMS", "") == "":
+    jax.config.update('jax_platform_name', 'cpu')
 from jax import jit as jaxjit
 from .config import parameters
 
