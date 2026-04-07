@@ -1,5 +1,6 @@
 #include "surfacerzfourier.h"
 #include "simdhelpers.h"
+#include "xtensor/xeval.hpp"
 
 // Optimization notes:
 // We use two "tricks" in this part of the code to speed up some of the functions.
@@ -748,7 +749,7 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
             }
         }
     }
-    return res * (2*M_PI);
+    return xt::eval(res * (2*M_PI));
 }
 
 #else
@@ -825,7 +826,7 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
             }
         }
     }
-    return res * (2*M_PI);
+    return xt::eval(res * (2*M_PI));
 }
 
 #endif
@@ -1070,7 +1071,7 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
             }
         }
     }
-    return res * (2*M_PI);
+    return xt::eval(res * (2*M_PI));
 }
 
 #else
@@ -1147,7 +1148,7 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
             }
         }
     }
-    return res * (2*M_PI);
+    return xt::eval(res * (2*M_PI));
 }
 
 #endif
