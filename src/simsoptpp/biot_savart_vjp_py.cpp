@@ -1,5 +1,6 @@
 #include "biot_savart_vjp_impl.h"
 #include "biot_savart_vjp_py.h"
+#include "xtensor/xeval.hpp"
 
 void biot_savart_vjp(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<double>& currents, Array& v, Array& vgrad, vector<Array>& dgamma_by_dcoeffs, vector<Array>& d2gamma_by_dphidcoeffs, vector<Array>& res_B, vector<Array>& res_dB){
     auto pointsx = AlignedPaddedVec(points.shape(0), 0);
@@ -28,6 +29,10 @@ void biot_savart_vjp(Array& points, vector<Array>& gammas, vector<Array>& dgamma
             res_grad_gamma[i] = xt::zeros<double>({num_points, 3});
             res_grad_dgamma_by_dphi[i] = xt::zeros<double>({num_points, 3});
         }
+        xt::eval(res_gamma[i]);
+        xt::eval(res_dgamma_by_dphi[i]);
+        xt::eval(res_grad_gamma[i]);
+        xt::eval(res_grad_dgamma_by_dphi[i]);
     }
     Array dummy = Array();
 
@@ -60,6 +65,8 @@ void biot_savart_vjp(Array& points, vector<Array>& gammas, vector<Array>& dgamma
         res_B[i] = res_B[i] * fak;
         if(compute_dB)
             res_dB[i] = res_dB[i] * fak;
+        xt::eval(res_B[i]);
+        xt::eval(res_dB[i]);
     }
 }
 
@@ -95,6 +102,10 @@ void biot_savart_vjp_graph(Array& points, vector<Array>& gammas, vector<Array>& 
             res_grad_gamma[i] = res_grad_gamma[i] * fak;
             res_grad_dgamma_by_dphi[i] = res_grad_dgamma_by_dphi[i] * fak;
         }
+        xt::eval(res_gamma[i]);
+        xt::eval(res_dgamma_by_dphi[i]);
+        xt::eval(res_grad_gamma[i]);
+        xt::eval(res_grad_dgamma_by_dphi[i]);
     }
 }
 
@@ -130,5 +141,7 @@ void biot_savart_vector_potential_vjp_graph(Array& points, vector<Array>& gammas
             res_grad_gamma[i] = res_grad_gamma[i] * fak;
             res_grad_dgamma_by_dphi[i] = res_grad_dgamma_by_dphi[i] * fak;
         }
+        xt::eval(res_grad_gamma[i]);
+        xt::eval(res_grad_dgamma_by_dphi[i]);
     }
 }
