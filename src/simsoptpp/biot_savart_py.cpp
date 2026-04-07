@@ -1,5 +1,6 @@
 #include "biot_savart_impl.h"
 #include "biot_savart_py.h"
+#include "xtensor/xeval.hpp"
 
 void biot_savart(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<Array>& B, vector<Array>& dB_by_dX, vector<Array>& d2B_by_dXdX) {
     auto pointsx = AlignedPaddedVec(points.shape(0), 0);
@@ -50,5 +51,5 @@ Array biot_savart_B(Array& points, vector<Array>& gammas, vector<Array>& dgamma_
     for (int i = 0; i < num_coils; ++i) {
         B = B + currents[i] * Bs[i];
     }
-    return B;
+    return xt::eval(B);
 }
