@@ -388,7 +388,8 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         default_r=0.5,
         stellsym=True,
         cs_basis='polar',
-        nurbs=False
+        nurbs=False,
+        dofs=None
     ):
         '''
         axis_points: number of points for the axis spline
@@ -418,30 +419,31 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         self.cs_basis=cs_basis
         self.nurbs=nurbs
 
-        # create equidistant points in zeta
-        cs_zeta = np.linspace(0, max_angle, n_cs)
-        # all angles zero
-        cs_angles = np.zeros(n_cs)
+        if dofs is None:
+            # create equidistant points in zeta
+            cs_zeta = np.linspace(0, max_angle, n_cs)
+            # all angles zero
+            cs_angles = np.zeros(n_cs)
 
-        self.cs_zeta = cs_zeta
-        self.cs_angles = cs_angles
+            self.cs_zeta = cs_zeta
+            self.cs_angles = cs_angles
 
-        cs_dofs = np.array([None] * n_cs)
+            cs_dofs = np.array([None] * n_cs)
 
-        if stellsym & np.all(cs_dofs != None):
-            assert len(cs_dofs[0]) == 2*((points_per_cs//2) + 1)
-            assert len(cs_dofs[-1]) == 2*((points_per_cs//2) + 1)
+            if stellsym & np.all(cs_dofs != None):
+                assert len(cs_dofs[0]) == 2*((points_per_cs//2) + 1)
+                assert len(cs_dofs[-1]) == 2*((points_per_cs//2) + 1)
 
-        dofs = np.append(self.cs_zeta, self.cs_angles)
+            dofs = np.append(self.cs_zeta, self.cs_angles)
 
-        names = [f'cs_zeta{i}' for i in range(n_cs)] + [f'cs_angle{i}' for i in range(n_cs)]
-        dofs = DOFs(
-            dofs,
-            names,
-            [not cs_equispaced]*n_cs + [cs_global_angle_free]*n_cs,
-            [(n-1)*max_angle/(n_cs-2) for n in range(n_cs)] + [-2*np.pi/points_per_cs] * n_cs,
-            [(n)*max_angle/(n_cs-2) for n in range(n_cs)] + [2*np.pi/points_per_cs] * n_cs
-        )
+            names = [f'cs_zeta{i}' for i in range(n_cs)] + [f'cs_angle{i}' for i in range(n_cs)]
+            dofs = DOFs(
+                dofs,
+                names,
+                [not cs_equispaced]*n_cs + [cs_global_angle_free]*n_cs,
+                [(n-1)*max_angle/(n_cs-2) for n in range(n_cs)] + [-2*np.pi/points_per_cs] * n_cs,
+                [(n)*max_angle/(n_cs-2) for n in range(n_cs)] + [2*np.pi/points_per_cs] * n_cs
+            )
 
         dofs.fix('cs_angle0')
         dofs.fix(f'cs_angle{n_cs-1}')
