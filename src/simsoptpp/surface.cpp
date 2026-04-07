@@ -528,7 +528,7 @@ void Surface<Array>::darea_by_dcoeff_impl(Array& data) {
             darea_by_dn(i, j, 2) = n(i, j, 2)/norm;
         }
     }
-    darea_by_dn *= 1./ (numquadpoints_phi*numquadpoints_theta);
+    darea_by_dn = darea_by_dn * 1./ (numquadpoints_phi*numquadpoints_theta);
     Array temp = dnormal_by_dcoeff_vjp(darea_by_dn);
     for (int m = 0; m < ndofs; ++m) {
         data(m) = temp(m);
@@ -563,7 +563,7 @@ Array Surface<Array>::dnormal_by_dcoeff_vjp(Array& v) {
 
 template<class Array>
 void Surface<Array>::d2area_by_dcoeffdcoeff_impl(Array& data) {
-    data *= 0.;
+    data.fill(0.);
     double norm, dnorm_dcoeffn;
     auto nor = this->normal();
     auto dnor_dc = this->dnormal_by_dcoeff();
@@ -589,7 +589,7 @@ void Surface<Array>::d2area_by_dcoeffdcoeff_impl(Array& data) {
             }
         }
     }
-    data *= 1./ (numquadpoints_phi*numquadpoints_theta);
+    data = data * (1./ (numquadpoints_phi*numquadpoints_theta));
 }
 
 
@@ -638,8 +638,8 @@ void Surface<Array>::dvolume_by_dcoeff_impl(Array& data) {
             dvolume_by_dx(i, j, 2) = (1./3) * n(i, j, 2);
         }
     }
-    dvolume_by_dn *= 1./(numquadpoints_phi*numquadpoints_theta);
-    dvolume_by_dx *= 1./(numquadpoints_phi*numquadpoints_theta);
+    dvolume_by_dn = dvolume_by_dn * 1./(numquadpoints_phi*numquadpoints_theta);
+    dvolume_by_dx = dvolume_by_dx * 1./(numquadpoints_phi*numquadpoints_theta);
     Array temp = dnormal_by_dcoeff_vjp(dvolume_by_dn) + dgamma_by_dcoeff_vjp(dvolume_by_dx);
     for (int m = 0; m < ndofs; ++m) {
         data(m) = temp(m);
@@ -653,7 +653,7 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
     // this vectorized version of d2volume_by_dcoeffdcoeff computes the second derivative of
     // the surface normal on the fly, which alleviates memory requirements.
     constexpr int simd_size = xsimd::simd_type<double>::size;
-    data *= 0.;
+    data.fill(0.);
     auto nor = this->normal();
     auto xyz = this->gamma();
     auto dxyz_dc = this->dgamma_by_dcoeff();
@@ -773,14 +773,14 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
             }
         }
     }
-    data *= 1./ (numquadpoints_phi*numquadpoints_theta);
+    data = data * (1./ (numquadpoints_phi*numquadpoints_theta));
 }
 
 #else
 
 template<class Array>
 void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
-    data *= 0.;
+    data.fill(0.);
     auto nor = this->normal();
     auto dnor_dc = this->dnormal_by_dcoeff();
     auto d2nor_dcdc = this->d2normal_by_dcoeffdcoeff(); // uses a lot of memory for moderate surface complexity
@@ -801,7 +801,7 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
             }
         }
     }
-    data *= 1./ (numquadpoints_phi*numquadpoints_theta);
+    data = data * (1./ (numquadpoints_phi*numquadpoints_theta));
 }
 
 #endif

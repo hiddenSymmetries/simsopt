@@ -89,7 +89,7 @@ void WireframeField<T, Array, IntArray>::compute(int derivatives) {
             if(derivatives == 0){
                 wireframe_field_kernel<Array, 0>(pointsx, pointsy, pointsz, 
                     node0, node1, Bij, dummyjac, dummyhess);
-                Bi += seg_signs[j] * Bij;
+                Bi = Bi + seg_signs[j] * Bij;
 
             } else {
     
@@ -98,8 +98,8 @@ void WireframeField<T, Array, IntArray>::compute(int derivatives) {
                                      fmt::format("dB_{}", i), {npoints, 3, 3});
                     wireframe_field_kernel<Array, 1>(pointsx, pointsy, pointsz, 
                         node0, node1, Bij, dBij, dummyhess);
-                    Bi += seg_signs[j] * Bij;
-                    dBi += seg_signs[j] * dBij;
+                    Bi = Bi + seg_signs[j] * Bij;
+                    dBi = dBi + seg_signs[j] * dBij;
 
                 } else {
     

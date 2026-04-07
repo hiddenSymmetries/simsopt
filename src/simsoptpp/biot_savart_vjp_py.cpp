@@ -57,9 +57,9 @@ void biot_savart_vjp(Array& points, vector<Array>& gammas, vector<Array>& dgamma
             }
         }
         double fak = (currents[i] * 1e-7/gammas[i].shape(0));
-        res_B[i] *= fak;
+        res_B[i] = res_B[i] * fak;
         if(compute_dB)
-            res_dB[i] *= fak;
+            res_dB[i] = res_dB[i] * fak;
     }
 }
 
@@ -89,11 +89,11 @@ void biot_savart_vjp_graph(Array& points, vector<Array>& gammas, vector<Array>& 
                     dummy, dummy, dummy);
 
         double fak = (currents[i] * 1e-7/gammas[i].shape(0));
-        res_gamma[i] *= fak;
-        res_dgamma_by_dphi[i] *= fak;
+        res_gamma[i] = res_gamma[i] * fak;
+        res_dgamma_by_dphi[i] = res_dgamma_by_dphi[i] * fak;
         if(compute_dB) {
-            res_grad_gamma[i] *= fak;
-            res_grad_dgamma_by_dphi[i] *= fak;
+            res_grad_gamma[i] = res_grad_gamma[i] * fak;
+            res_grad_dgamma_by_dphi[i] = res_grad_dgamma_by_dphi[i] * fak;
         }
     }
 }
@@ -124,11 +124,11 @@ void biot_savart_vector_potential_vjp_graph(Array& points, vector<Array>& gammas
                     dummy, dummy, dummy);
 
         double fak = (currents[i] * 1e-7/gammas[i].shape(0));
-        res_gamma[i] *= fak;
-        res_dgamma_by_dphi[i] *= fak;
+        res_gamma[i] = res_gamma[i] * fak;
+        res_dgamma_by_dphi[i] = res_dgamma_by_dphi[i] * fak;
         if(compute_dA) {
-            res_grad_gamma[i] *= fak;
-            res_grad_dgamma_by_dphi[i] *= fak;
+            res_grad_gamma[i] = res_grad_gamma[i] * fak;
+            res_grad_dgamma_by_dphi[i] = res_grad_dgamma_by_dphi[i] * fak;
         }
     }
 }

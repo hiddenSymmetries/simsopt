@@ -15,7 +15,7 @@ template<class Array>
 void CurvePlanarFourier<Array>::gamma_impl(Array& data, Array& quadpoints) {
     double sinphi, cosphi, siniphi, cosiphi;
     int numquadpoints = quadpoints.size();
-    data *= 0;
+    data.fill(0);
     Array q_norm = q * inv_magnitude();
 
     for (int k = 0; k < numquadpoints; ++k) {
@@ -45,7 +45,7 @@ void CurvePlanarFourier<Array>::gamma_impl(Array& data, Array& quadpoints) {
 
 template<class Array>
 void CurvePlanarFourier<Array>::gammadash_impl(Array& data) {
-    data *= 0;
+    data.fill(0);
 
     double inv_sqrt_s = inv_magnitude();
     Array q_norm = q * inv_sqrt_s;
@@ -67,7 +67,7 @@ void CurvePlanarFourier<Array>::gammadash_impl(Array& data) {
         }
     }
         
-    data *= (2*M_PI);
+    data = data * (2*M_PI);
     for (int m = 0; m < numquadpoints; ++m) {
         double i = data(m, 0);
         double j = data(m, 1);
@@ -83,7 +83,7 @@ void CurvePlanarFourier<Array>::gammadash_impl(Array& data) {
 
 template<class Array>
 void CurvePlanarFourier<Array>::gammadashdash_impl(Array& data) {
-    data *= 0;
+    data.fill(0);
 
     Array q_norm = q * inv_magnitude();
 
@@ -103,7 +103,7 @@ void CurvePlanarFourier<Array>::gammadashdash_impl(Array& data) {
                 + rs[i-1] * (-(i*i+1)*siniphi*sinphi + 2*(i)*cosiphi*cosphi);
         }
     }
-    data *= 2*M_PI*2*M_PI;
+    data = data * (2*M_PI*2*M_PI);
     for (int m = 0; m < numquadpoints; ++m) {
         double i = data(m, 0);
         double j = data(m, 1);
@@ -119,7 +119,7 @@ void CurvePlanarFourier<Array>::gammadashdash_impl(Array& data) {
 
 template<class Array>
 void CurvePlanarFourier<Array>::gammadashdashdash_impl(Array& data) {
-    data *= 0;
+    data.fill(0);
 
     Array q_norm = q * inv_magnitude();
 
@@ -150,7 +150,7 @@ void CurvePlanarFourier<Array>::gammadashdashdash_impl(Array& data) {
                     );
         }
     }
-    data *= 2*M_PI*2*M_PI*2*M_PI;
+    data = data * (2*M_PI*2*M_PI*2*M_PI);
     for (int m = 0; m < numquadpoints; ++m) {
         double i = data(m, 0);
         double j = data(m, 1);
@@ -166,7 +166,7 @@ void CurvePlanarFourier<Array>::gammadashdashdash_impl(Array& data) {
 
 template<class Array>
 void CurvePlanarFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
-    data *= 0;
+    data.fill(0);
     
     Array q_norm = q * inv_magnitude();
 
@@ -289,7 +289,7 @@ void CurvePlanarFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
 
 template<class Array>
 void CurvePlanarFourier<Array>::dgammadash_by_dcoeff_impl(Array& data) {
-    data *= 0;
+    data.fill(0);
 
     Array q_norm = q * inv_magnitude();
 
@@ -420,7 +420,7 @@ void CurvePlanarFourier<Array>::dgammadash_by_dcoeff_impl(Array& data) {
 
 template<class Array>
 void CurvePlanarFourier<Array>::dgammadashdash_by_dcoeff_impl(Array& data) {
-    data *= 0;
+    data.fill(0);
 
     Array q_norm = q * inv_magnitude();
 
@@ -551,7 +551,7 @@ void CurvePlanarFourier<Array>::dgammadashdash_by_dcoeff_impl(Array& data) {
 
 template<class Array>
 void CurvePlanarFourier<Array>::dgammadashdashdash_by_dcoeff_impl(Array& data) {
-    data *= 0;
+    data.fill(0);
 
     Array q_norm = q * inv_magnitude();
 

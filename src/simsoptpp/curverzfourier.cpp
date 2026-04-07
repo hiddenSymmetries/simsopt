@@ -4,7 +4,7 @@
 template<class Array>
 void CurveRZFourier<Array>::gamma_impl(Array& data, Array& quadpoints) {
     int numquadpoints = quadpoints.size();
-    data *= 0;
+    data.fill(0);
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         for (int i = 0; i < order+1; ++i) {
@@ -31,7 +31,7 @@ void CurveRZFourier<Array>::gamma_impl(Array& data, Array& quadpoints) {
 
 template<class Array>
 void CurveRZFourier<Array>::gammadash_impl(Array& data) {
-    data *= 0;
+    data.fill(0);
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         for (int i = 0; i < order+1; ++i) {
@@ -54,12 +54,12 @@ void CurveRZFourier<Array>::gammadash_impl(Array& data) {
             }
         }
     }
-    data *= (2*M_PI);
+    data = data * (2*M_PI);
 }
 
 template<class Array>
 void CurveRZFourier<Array>::gammadashdash_impl(Array& data) {
-    data *= 0;
+    data.fill(0);
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         for (int i = 0; i < order+1; ++i) {
@@ -82,12 +82,12 @@ void CurveRZFourier<Array>::gammadashdash_impl(Array& data) {
             }
         }
     }
-    data *= 2*M_PI*2*M_PI;
+    data = data * (2*M_PI*2*M_PI);
 }
 
 template<class Array>
 void CurveRZFourier<Array>::gammadashdashdash_impl(Array& data) {
-    data *= 0;
+    data.fill(0);
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         for (int i = 0; i < order+1; ++i) {
@@ -122,7 +122,7 @@ void CurveRZFourier<Array>::gammadashdashdash_impl(Array& data) {
             }
         }
     }
-    data *= 2*M_PI*2*M_PI*2*M_PI;
+    data = data * (2*M_PI*2*M_PI*2*M_PI);
 }
 
 template<class Array>
@@ -178,7 +178,7 @@ void CurveRZFourier<Array>::dgammadash_by_dcoeff_impl(Array& data) {
             counter++;
         }
     }
-    data *= (2*M_PI);
+    data = data * (2*M_PI);
 }
 
 template<class Array>
@@ -207,7 +207,7 @@ void CurveRZFourier<Array>::dgammadashdash_by_dcoeff_impl(Array& data) {
             counter++;
         }
     }
-    data *= 2*M_PI*2*M_PI;
+    data = data * (2*M_PI*2*M_PI);
 }
 
 template<class Array>
@@ -249,7 +249,7 @@ void CurveRZFourier<Array>::dgammadashdashdash_by_dcoeff_impl(Array& data) {
             counter++;
         }
     }
-    data *= 2*M_PI*2*M_PI*2*M_PI;
+    data = data * (2*M_PI*2*M_PI*2*M_PI);
 }
 
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings

@@ -748,8 +748,7 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
             }
         }
     }
-    res *= 2*M_PI;
-    return res;
+    return res * (2*M_PI);
 }
 
 #else
@@ -826,8 +825,7 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
             }
         }
     }
-    res *= 2*M_PI;
-    return res;
+    return res * (2*M_PI);
 }
 
 #endif
@@ -1072,8 +1070,7 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
             }
         }
     }
-    res *= 2*M_PI;
-    return res;
+    return res * (2*M_PI);
 }
 
 #else
@@ -1150,8 +1147,7 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
             }
         }
     }
-    res *= 2*M_PI;
-    return res;
+    return res * (2*M_PI);
 }
 
 #endif
