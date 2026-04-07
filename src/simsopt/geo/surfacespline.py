@@ -400,18 +400,23 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         else:
             raise NotImplementedError
             max_angle = 2 * np.pi
-        self.M = M
-        self.N = N
-        self.nfp = nfp
-        self.n_cs = n_cs
-        self.points_per_cs = points_per_cs
-        self.p_u = p_u
-        self.p_v = p_v
-        self.axis_angles_fixed = axis_angles_fixed
-        self.cs_basis = cs_basis
-        self.cs_equispaced = rays_equispaced
-        self.cs_global_angle_free = cs_global_angle_free
+
         self.axis_points = axis_points
+        self.points_per_cs = points_per_cs
+        self.cs_equispaced = cs_equispaced
+        self.rays_equispaced = rays_equispaced
+        self.axis_angles_fixed = axis_angles_fixed
+        self.cs_global_angle_free = cs_global_angle_free
+        self.n_cs = n_cs
+        self.nfp = nfp
+        self.M=M
+        self.N=N
+        self.p_u=p_u
+        self.p_v=p_v
+        self.default_r=default_r
+        self.stellsym=stellsym
+        self.cs_basis=cs_basis
+        self.nurbs=nurbs
 
         # create equidistant points in zeta
         cs_zeta = np.linspace(0, max_angle, n_cs)
