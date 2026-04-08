@@ -624,8 +624,8 @@ def write_inner_continuation_history(name, continuation_history):
     rows = np.asarray([
         [
             row["pressure_jump"],
-            row["nfev"],
-            row["cost"],
+            row.get("nfev", row.get("iter", np.nan)),
+            row.get("cost", row.get("weighted_residual_norm", np.nan)),
             row.get("weighted_residual_norm", np.nan),
             row.get("raw_residual_norm", np.nan),
             row.get("coil_match_norm", np.nan),
@@ -821,6 +821,279 @@ def write_history_outputs(history, initial_residual_norm):
     print(f"Saved optimization history plot to {png_path}")
 
 
+def compute_biotsavart_field(surface, biotsavart):
+    x = surface.gamma().reshape((-1, 3))
+    biotsavart.set_points(x)
+    biotsavart.compute(0)
+    return biotsavart.B().reshape(surface.gamma().shape)
+
+
+def resolve_target_pressure_jump_from_coils(surface, biotsavart, target_plasma_beta):
+    B_coils = compute_biotsavart_field(surface, biotsavart)
+    reference_magnetic_pressure = mean_surface_magnetic_pressure(surface, B_coils)
+    pressure_jump = float(target_plasma_beta * reference_magnetic_pressure)
+    return pressure_jump, float(reference_magnetic_pressure), B_coils
+
+
+def run_direct_self_consistent_continuation(
+    finite_beta,
+    field_provider,
+    iota,
+    G,
+    I,
+    current_potential,
+    pressure_jump,
+    optimize_surface,
+    continuation_steps,
+):
+    continuation_steps = max(1, int(continuation_steps))
+    if continuation_steps == 1 or abs(pressure_jump) == 0.0:
+        pressure_schedule = np.asarray([float(pressure_jump)])
+    else:
+        pressure_schedule = np.linspace(0.0, float(pressure_jump), continuation_steps)
+
+    result = None
+    current_iota = float(iota)
+    current_G = float(G)
+    current_I = float(I)
+    current_potential_local = np.asarray(current_potential).copy()
+    stage_history = []
+    for step_pressure in pressure_schedule:
+        finite_beta.pressure_jump = float(step_pressure)
+        result = finite_beta.run_code(
+            iota=current_iota,
+            G=current_G,
+            I=current_I,
+            current_potential=current_potential_local,
+            field_provider=field_provider,
+            optimize_G=False,
+            optimize_surface=optimize_surface,
+        )
+        current_iota = float(result['iota'])
+        current_G = float(result['G'])
+        current_I = float(result['I'])
+        current_potential_local = np.asarray(result['current_potential']).copy()
+        stage_history.append({
+            'pressure_jump': float(step_pressure),
+            'success': bool(result['success']),
+            'nfev': int(result['iter']),
+            'weighted_residual_norm': float(result['residual_norm']),
+            'iota': float(result['iota']),
+            'G': float(result['G']),
+            'I': float(result['I']),
+        })
+
+    result = dict(result)
+    result['continuation_history'] = stage_history
+    finite_beta.pressure_jump = float(pressure_jump)
+    return result
+
+
+def write_scalar_summary(name, summary):
+    csv_path = Path(OUT_DIR) / f"{name}.csv"
+    with csv_path.open("w", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["metric", "value"])
+        for key, value in summary.items():
+            if isinstance(value, (float, np.floating)):
+                writer.writerow([key, f"{float(value):.16e}"])
+            else:
+                writer.writerow([key, value])
+    print(f"Saved scalar summary CSV to {csv_path}")
+
+
+def write_direct_outer_history(history):
+    if len(history) == 0:
+        return
+
+    history_array = np.asarray(history, dtype=float)
+    csv_path = Path(OUT_DIR) / "boozerQA_finitebeta_direct_outer_history.csv"
+    header = (
+        "eval,J,J_nonqs,J_res,J_iota,J_mr,J_beta,J_surface_reg,weighted_residual_norm,iota,major_radius,"
+        "target_plasma_beta,achieved_plasma_beta,reference_magnetic_pressure,pressure_jump,"
+        "boozer_norm,normal_norm,pressure_norm,jump_norm,sheet_current_norm"
+    )
+    np.savetxt(csv_path, history_array, delimiter=",", header=header, comments="")
+    print(f"Saved direct outer QA history CSV to {csv_path}")
+
+    if plt is None:
+        return
+
+    fig, axes = plt.subplots(4, 1, figsize=(8, 14), constrained_layout=True)
+    axes[0].semilogy(history_array[:, 0], np.maximum(history_array[:, 1], 1e-30), linewidth=2, label="J")
+    axes[0].semilogy(history_array[:, 0], np.maximum(history_array[:, 2], 1e-30), linewidth=2, label="nonQS")
+    axes[0].semilogy(history_array[:, 0], np.maximum(history_array[:, 3], 1e-30), linewidth=2, label="residual penalty")
+    axes[0].semilogy(history_array[:, 0], np.maximum(history_array[:, 6], 1e-30), linewidth=2, label="beta penalty")
+    axes[0].legend()
+    axes[0].grid(True, alpha=0.3)
+    axes[0].set_ylabel("objective terms")
+
+    axes[1].semilogy(history_array[:, 0], np.maximum(history_array[:, 8], 1e-30), linewidth=2, label="weighted residual")
+    axes[1].semilogy(history_array[:, 0], np.maximum(history_array[:, 15], 1e-30), linewidth=2, label="boozer")
+    axes[1].semilogy(history_array[:, 0], np.maximum(history_array[:, 17], 1e-30), linewidth=2, label="pressure")
+    axes[1].legend()
+    axes[1].grid(True, alpha=0.3)
+    axes[1].set_ylabel("residual norms")
+
+    axes[2].plot(history_array[:, 0], history_array[:, 9], linewidth=2, label="iota")
+    axes[2].plot(history_array[:, 0], history_array[:, 10], linewidth=2, label="major radius")
+    axes[2].grid(True, alpha=0.3)
+    axes[2].legend()
+    axes[2].set_ylabel("state")
+
+    axes[3].plot(history_array[:, 0], history_array[:, 11], linewidth=2, linestyle="--", label="target beta")
+    axes[3].plot(history_array[:, 0], history_array[:, 12], linewidth=2, label="achieved beta")
+    axes[3].grid(True, alpha=0.3)
+    axes[3].legend()
+    axes[3].set_xlabel("outer evaluation")
+    axes[3].set_ylabel("beta")
+
+    png_path = Path(OUT_DIR) / "boozerQA_finitebeta_direct_outer_history.png"
+    fig.savefig(png_path, dpi=160)
+    plt.close(fig)
+    print(f"Saved direct outer QA history plot to {png_path}")
+
+
+def collect_vmec_beta_summary(vmec):
+    beta_summary = {}
+    for name in dir(vmec.wout):
+        if "beta" not in name.lower():
+            continue
+        value = getattr(vmec.wout, name)
+        if np.isscalar(value):
+            beta_summary[name] = float(value)
+    if len(beta_summary) == 0:
+        for name in ("wb", "wp"):
+            if hasattr(vmec.wout, name):
+                value = getattr(vmec.wout, name)
+                if np.isscalar(value):
+                    beta_summary[name] = float(value)
+    return beta_summary
+
+
+def write_vmec_benchmark_outputs(name, direct_field, vmec_field, summary):
+    write_scalar_summary(name + "_summary", summary)
+    if plt is None:
+        return
+
+    direct_modB = np.linalg.norm(direct_field, axis=2)
+    vmec_modB = np.linalg.norm(vmec_field, axis=2)
+    modB_diff = vmec_modB - direct_modB
+    rel_diff = modB_diff / np.maximum(direct_modB, 1e-30)
+
+    fig, axes = plt.subplots(2, 2, figsize=(10, 8), constrained_layout=True)
+    datasets = [
+        (direct_modB, "Direct |B|"),
+        (vmec_modB, "VMEC |B|"),
+        (modB_diff, "VMEC - direct |B|"),
+        (rel_diff, "(VMEC - direct) / direct |B|"),
+    ]
+    for ax, (data, title) in zip(axes.flatten(), datasets):
+        im = ax.imshow(data.T, origin="lower", aspect="auto")
+        ax.set_title(title)
+        ax.set_xlabel("phi index")
+        ax.set_ylabel("theta index")
+        fig.colorbar(im, ax=ax, shrink=0.82)
+
+    png_path = Path(OUT_DIR) / f"{name}.png"
+    fig.savefig(png_path, dpi=180)
+    plt.close(fig)
+    print(f"Saved VMEC benchmark plot to {png_path}")
+
+
+def export_and_benchmark_vmec_from_surface(
+    surface,
+    direct_field,
+    target_plasma_beta,
+    reference_magnetic_pressure,
+    pressure_jump,
+    nphi_benchmark,
+    ntheta_benchmark,
+):
+    from simsopt.mhd.profiles import ProfilePolynomial
+    from simsopt.mhd.vmec import Vmec
+    from simsopt.mhd.vmec_diagnostics import B_cartesian
+
+    boundary_rz = surface.to_RZFourier()
+    vmec_input_name = os.environ.get(
+        "SIMSOPT_FINITE_BETA_VMEC_INPUT_NAME",
+        "input.boozerQA_finitebeta_direct_beta3",
+    )
+    vmec_input_path = Path(OUT_DIR) / vmec_input_name
+
+    def configure_vmec_equilibrium(vmec_obj, axis_pressure_value, phiedge_value):
+        vmec_obj.boundary = boundary_rz
+        vmec_obj.indata.lfreeb = False
+        vmec_obj.indata.mpol = int(boundary_rz.mpol)
+        vmec_obj.indata.ntor = int(boundary_rz.ntor)
+        vmec_obj.indata.phiedge = float(phiedge_value)
+        vmec_obj.indata.delt = float(os.environ.get("SIMSOPT_FINITE_BETA_VMEC_DELT", str(vmec_obj.indata.delt)))
+        vmec_obj.indata.niter = int(os.environ.get("SIMSOPT_FINITE_BETA_VMEC_NITER", str(vmec_obj.indata.niter)))
+        vmec_obj.indata.nstep = int(os.environ.get("SIMSOPT_FINITE_BETA_VMEC_NSTEP", str(vmec_obj.indata.nstep)))
+        vmec_obj.indata.ns_array[:] = 0
+        vmec_obj.indata.niter_array[:] = 0
+        vmec_obj.indata.ftol_array[:] = -1.0
+        ns_schedule = [int(value.strip()) for value in os.environ.get("SIMSOPT_FINITE_BETA_VMEC_NS_ARRAY", "13,25,49").split(",") if value.strip()]
+        niter_schedule = [int(value.strip()) for value in os.environ.get("SIMSOPT_FINITE_BETA_VMEC_NITER_ARRAY", "400,1200,4000").split(",") if value.strip()]
+        ftol_schedule = [float(value.strip()) for value in os.environ.get("SIMSOPT_FINITE_BETA_VMEC_FTOL_ARRAY", "1e-8,1e-10,1e-12").split(",") if value.strip()]
+        stage_count = min(len(ns_schedule), len(niter_schedule), len(ftol_schedule), vmec_obj.indata.ns_array.size)
+        for idx in range(stage_count):
+            vmec_obj.indata.ns_array[idx] = ns_schedule[idx]
+            vmec_obj.indata.niter_array[idx] = niter_schedule[idx]
+            vmec_obj.indata.ftol_array[idx] = ftol_schedule[idx]
+        vmec_obj.pressure_profile = ProfilePolynomial([float(axis_pressure_value), -float(axis_pressure_value)])
+
+    def build_boundary_surface(vmec_obj):
+        boundary = SurfaceRZFourier.from_nphi_ntheta(
+            mpol=vmec_obj.wout.mpol,
+            ntor=vmec_obj.wout.ntor,
+            nfp=vmec_obj.wout.nfp,
+            stellsym=not bool(vmec_obj.wout.lasym),
+            nphi=nphi_benchmark,
+            ntheta=ntheta_benchmark,
+            range="field period",
+        )
+        boundary.x = vmec_obj.boundary.x
+        return boundary
+
+    calibration_vmec = Vmec(None, verbose=False, nphi=max(nphi_benchmark, 32), ntheta=max(ntheta_benchmark, 32), range_surface="field period")
+    configure_vmec_equilibrium(calibration_vmec, axis_pressure_value=0.0, phiedge_value=1.0)
+    calibration_vmec.run()
+    Bx_cal, By_cal, Bz_cal = B_cartesian(calibration_vmec, nphi=nphi_benchmark, ntheta=ntheta_benchmark, range="field period")
+    calibration_field = np.stack((Bx_cal, By_cal, Bz_cal), axis=2)
+    calibration_boundary = build_boundary_surface(calibration_vmec)
+    calibration_magnetic_pressure = mean_surface_magnetic_pressure(calibration_boundary, calibration_field)
+    phiedge_scale = float(np.sqrt(reference_magnetic_pressure / max(calibration_magnetic_pressure, 1e-30)))
+
+    axis_pressure = float(max(2.0 * target_plasma_beta * reference_magnetic_pressure, 0.0))
+    vmec = Vmec(None, verbose=False, nphi=max(nphi_benchmark, 32), ntheta=max(ntheta_benchmark, 32), range_surface="field period")
+    configure_vmec_equilibrium(vmec, axis_pressure_value=axis_pressure, phiedge_value=phiedge_scale)
+    vmec.write_input(str(vmec_input_path))
+    print(f"Wrote VMEC input to {vmec_input_path}")
+
+    vmec_run = Vmec(str(vmec_input_path), verbose=False, nphi=max(nphi_benchmark, 32), ntheta=max(ntheta_benchmark, 32), range_surface="field period")
+    vmec_run.run()
+    Bx, By, Bz = B_cartesian(vmec_run, nphi=nphi_benchmark, ntheta=ntheta_benchmark, range="field period")
+    vmec_field = np.stack((Bx, By, Bz), axis=2)
+    boundary_vmec = build_boundary_surface(vmec_run)
+    beta_summary = collect_vmec_beta_summary(vmec_run)
+    benchmark_summary = {
+        'target_plasma_beta': float(target_plasma_beta),
+        'direct_pressure_jump': float(pressure_jump),
+        'vmec_axis_pressure': float(axis_pressure),
+        'vmec_phiedge': float(phiedge_scale),
+        'vmec_reference_magnetic_pressure': float(mean_surface_magnetic_pressure(boundary_vmec, vmec_field)),
+        'direct_nonqs': float(surface_field_nonquasisymmetric_ratio(surface, direct_field)),
+        'vmec_nonqs': float(surface_field_nonquasisymmetric_ratio(boundary_vmec, vmec_field)),
+        'direct_vs_vmec_rel_field_diff': float(np.linalg.norm(vmec_field - direct_field) / max(np.linalg.norm(direct_field), 1e-30)),
+        'vmec_iota_edge': float(vmec_run.iota_edge()),
+        'vmec_volume': float(vmec_run.volume()),
+    }
+    benchmark_summary.update(beta_summary)
+    write_vmec_benchmark_outputs("boozerQA_finitebeta_direct_vmec_benchmark", direct_field, vmec_field, benchmark_summary)
+    return benchmark_summary, vmec_input_path
+
+
 if mode == "self-consistent":
     print("Using direct no-VC self-consistent finite-beta case")
     print(
@@ -850,6 +1123,13 @@ if mode == "self-consistent":
     surface.fit_to_curve(ma, 0.1, flip_theta=True)
     optimize_surface = os.environ.get("SIMSOPT_FINITE_BETA_OPTIMIZE_SURFACE", "1").strip().lower() in ("1", "true", "yes", "on")
     continuation_steps = int(os.environ.get("SIMSOPT_FINITE_BETA_SELFCONSISTENT_CONTINUATION_STEPS", "4"))
+    do_outer_qa = os.environ.get("SIMSOPT_FINITE_BETA_OUTER_QA", "0").strip().lower() in ("1", "true", "yes", "on")
+    qa_dof_count = int(os.environ.get("SIMSOPT_FINITE_BETA_QA_DOF_COUNT", "12"))
+    direct_qa_continuation_steps = int(os.environ.get("SIMSOPT_FINITE_BETA_SELFCONSISTENT_QA_CONTINUATION_STEPS", "2"))
+    residual_penalty_weight = float(os.environ.get("SIMSOPT_FINITE_BETA_QA_RESIDUAL_WEIGHT", "1.0"))
+    beta_penalty_weight = float(os.environ.get("SIMSOPT_FINITE_BETA_QA_BETA_WEIGHT", "10.0"))
+    surface_reg_weight = float(os.environ.get("SIMSOPT_FINITE_BETA_QA_SURFACE_REG_WEIGHT", "1e-2"))
+    export_vmec = os.environ.get("SIMSOPT_FINITE_BETA_EXPORT_VMEC", "0").strip().lower() in ("1", "true", "yes", "on")
     field_provider = SurfaceCurrentFieldProvider(
         offset_distance=float(os.environ["SIMSOPT_FINITE_BETA_SELFCONSISTENT_OFFSET"]) if "SIMSOPT_FINITE_BETA_SELFCONSISTENT_OFFSET" in os.environ else None,
         offset_scale=float(os.environ.get("SIMSOPT_FINITE_BETA_SELFCONSISTENT_OFFSET_SCALE", "0.25")),
@@ -864,10 +1144,7 @@ if mode == "self-consistent":
     surface.x = seed_surface.surface.x.copy()
     print(f"Vacuum seed: success={seed['success']}, iota={seed['iota']:.6e}, G={seed['G']:.6e}")
 
-    x = surface.gamma().reshape((-1, 3))
-    bs.set_points(x)
-    bs.compute(0)
-    B_vacuum = bs.B().reshape(surface.gamma().shape)
+    B_vacuum = compute_biotsavart_field(surface, bs)
     pressure_jump, plasma_beta, reference_magnetic_pressure = resolve_pressure_jump_input(surface, B_vacuum)
     continuation_steps = max(1, continuation_steps if abs(pressure_jump) > 0.0 else 1)
     print(
@@ -932,15 +1209,16 @@ if mode == "self-consistent":
     current_I = 0.0
     current_potential = initial_potential
     for step_index, step_pressure in enumerate(continuation_pressures, start=1):
-        finite_beta.pressure_jump = float(step_pressure)
-        result = finite_beta.run_code(
+        result = run_direct_self_consistent_continuation(
+            finite_beta,
+            field_provider,
             iota=current_iota,
             G=current_G,
             I=current_I,
             current_potential=current_potential,
-            field_provider=field_provider,
-            optimize_G=False,
+            pressure_jump=step_pressure,
             optimize_surface=optimize_surface,
+            continuation_steps=1,
         )
         current_iota = result['iota']
         current_G = result['G']
@@ -950,6 +1228,120 @@ if mode == "self-consistent":
             f"Continuation step {step_index}/{len(continuation_pressures)}: pressure_jump={step_pressure:.6e}, "
             f"success={result['success']}, iota={result['iota']:.6e}, I={result['I']:.6e}, ||r||={result['residual_norm']:.6e}"
         )
+
+    if do_outer_qa and qa_maxiter > 0:
+        surface_dofs0 = surface.x.copy()
+        qa_dof_count = min(max(1, qa_dof_count), surface_dofs0.size)
+        subset_idx = np.arange(qa_dof_count)
+        outer_history = []
+        iota_ref = float(result['iota'])
+        mr_ref = float(surface.major_radius())
+
+        def outer_fun(subset_dofs):
+            full_dofs = surface_dofs0.copy()
+            full_dofs[subset_idx] = subset_dofs
+            surface.x = full_dofs
+
+            target_pressure_jump, current_reference_magnetic_pressure, _ = resolve_target_pressure_jump_from_coils(
+                surface,
+                bs,
+                plasma_beta,
+            )
+            solved_result = run_direct_self_consistent_continuation(
+                finite_beta,
+                field_provider,
+                iota=finite_beta.res['iota'],
+                G=finite_beta.res['G'],
+                I=finite_beta.res['I'],
+                current_potential=finite_beta.res['current_potential'],
+                pressure_jump=target_pressure_jump,
+                optimize_surface=False,
+                continuation_steps=direct_qa_continuation_steps,
+            )
+            solved_blocks = finite_beta.residual_blocks(
+                iota=solved_result['iota'],
+                G=solved_result['G'],
+                I=solved_result['I'],
+                current_potential=solved_result['current_potential'],
+                field_provider=field_provider,
+                pressure_jump=target_pressure_jump,
+            )
+            B_in_local, _ = finite_beta.resolve_field_components(
+                field_provider=field_provider,
+                iota=solved_result['iota'],
+                G=solved_result['G'],
+                I=solved_result['I'],
+                current_potential=solved_result['current_potential'],
+            )
+            J_nonqs = surface_field_nonquasisymmetric_ratio(surface, B_in_local)
+            J_res = 0.5 * residual_penalty_weight * solved_result['residual_norm']**2
+            J_iota = 0.5 * (solved_result['iota'] - iota_ref)**2
+            J_mr = 0.5 * (surface.major_radius() - mr_ref)**2
+            actual_beta = achieved_plasma_beta(surface, B_in_local, target_pressure_jump)
+            J_beta = 0.5 * beta_penalty_weight * (actual_beta - plasma_beta)**2
+            J_surface_reg = 0.5 * surface_reg_weight * np.sum((subset_dofs - surface_dofs0[subset_idx])**2)
+            J = J_nonqs + J_res + J_iota + J_mr + J_beta + J_surface_reg
+
+            outer_history.append([
+                len(outer_history) + 1,
+                J,
+                J_nonqs,
+                J_res,
+                J_iota,
+                J_mr,
+                J_beta,
+                J_surface_reg,
+                solved_result['residual_norm'],
+                solved_result['iota'],
+                surface.major_radius(),
+                plasma_beta,
+                actual_beta,
+                current_reference_magnetic_pressure,
+                target_pressure_jump,
+                np.linalg.norm(solved_blocks['blocks']['boozer']),
+                np.linalg.norm(solved_blocks['blocks']['normal']),
+                np.linalg.norm(solved_blocks['blocks']['pressure']),
+                np.linalg.norm(solved_blocks['blocks']['jump']),
+                np.linalg.norm(solved_blocks['blocks']['sheet_current']),
+            ])
+            print(
+                f"Direct-QA eval #{len(outer_history)}: J={J:.6e}, nonQS={J_nonqs:.6e}, beta={actual_beta:.6%}, "
+                f"res={solved_result['residual_norm']:.6e}, iota={solved_result['iota']:.6e}, "
+                f"mr={surface.major_radius():.6e}, pressure_jump={target_pressure_jump:.6e}"
+            )
+            return J
+
+        print(
+            f"Running reduced direct outer QA optimization on {qa_dof_count} surface dofs "
+            f"with maxiter={qa_maxiter}"
+        )
+        opt_result = minimize(
+            outer_fun,
+            surface_dofs0[subset_idx],
+            method="L-BFGS-B",
+            options={"maxiter": qa_maxiter, "maxfun": max(40, qa_maxiter * (qa_dof_count + 1))},
+        )
+        print(
+            f"Outer direct QA optimization: success={opt_result.success}, status={opt_result.status}, "
+            f"nit={opt_result.nit}, nfev={opt_result.nfev}, final_J={opt_result.fun:.6e}"
+        )
+
+        surface_dofs_opt = surface_dofs0.copy()
+        surface_dofs_opt[subset_idx] = opt_result.x
+        surface.x = surface_dofs_opt
+        pressure_jump, reference_magnetic_pressure, _ = resolve_target_pressure_jump_from_coils(surface, bs, plasma_beta)
+        result = run_direct_self_consistent_continuation(
+            finite_beta,
+            field_provider,
+            iota=finite_beta.res['iota'],
+            G=finite_beta.res['G'],
+            I=finite_beta.res['I'],
+            current_potential=finite_beta.res['current_potential'],
+            pressure_jump=pressure_jump,
+            optimize_surface=False,
+            continuation_steps=max(continuation_steps, direct_qa_continuation_steps),
+        )
+        write_direct_outer_history(outer_history)
 
     solved = finite_beta.residual_blocks(
         iota=result['iota'],
@@ -972,6 +1364,7 @@ if mode == "self-consistent":
         f"achieved plasma_beta={achieved_plasma_beta(surface, B_in, finite_beta.pressure_jump):.6%}, "
         f"||B_out-B_in||={np.linalg.norm(B_out - B_in):.6e}"
     )
+    write_inner_continuation_history("boozerQA_finitebeta_direct_inner_continuation", result.get("continuation_history", []))
     if write_closure_diagnostics:
         final_closure = finite_beta.frozen_state_closure_diagnostics(
             iota=result['iota'],
@@ -996,6 +1389,23 @@ if mode == "self-consistent":
     write_curves_vtk("curves_opt", all_curves)
     write_surface_vtk("surf_opt", surface)
     write_residual_vtk(surface, solved)
+    if export_vmec:
+        benchmark_summary, vmec_input_path = export_and_benchmark_vmec_from_surface(
+            surface,
+            B_in,
+            target_plasma_beta=plasma_beta,
+            reference_magnetic_pressure=reference_magnetic_pressure,
+            pressure_jump=finite_beta.pressure_jump,
+            nphi_benchmark=surface.quadpoints_phi.size,
+            ntheta_benchmark=surface.quadpoints_theta.size,
+        )
+        print(
+            f"VMEC benchmark: input={vmec_input_path.name}, rel field diff={benchmark_summary['direct_vs_vmec_rel_field_diff']:.6e}, "
+            f"VMEC nonQS={benchmark_summary['vmec_nonqs']:.6e}, iota_edge={benchmark_summary['vmec_iota_edge']:.6e}"
+        )
+        beta_keys = [key for key in benchmark_summary if 'beta' in key.lower() and key not in ('target_plasma_beta',)]
+        if len(beta_keys) > 0:
+            print("VMEC beta summary: " + ", ".join(f"{key}={benchmark_summary[key]:.6e}" for key in beta_keys))
     print(f"Saved final reference curves to {Path(OUT_DIR) / 'curves_opt.vtu'}")
     print(f"Saved final surface to {Path(OUT_DIR) / 'surf_opt.vts'}")
     print("Direct no-VC self-consistent finite-beta solve complete.")
