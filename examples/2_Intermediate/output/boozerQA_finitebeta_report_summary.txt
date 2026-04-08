@@ -1,0 +1,14 @@
+Outer QA history
+  evaluations: 666
+  initial J: 3.6385184358900795e-03
+  best J: 1.3259302615650891e-05
+  best iota: -3.0999999999999384e-01
+  best major radius: 1.4700721555019449e+00
+
+Pressure scan
+  samples: 3
+  final pressure jump: 4.0000000000000002e-04
+  final beta jump: 4.6057034962055276e-10
+  final iota: -4.2677197835560571e-01
+  final lambda_current: 1.3884116533526081e+01
+  final nonqs: 8.6263040474189888e-05

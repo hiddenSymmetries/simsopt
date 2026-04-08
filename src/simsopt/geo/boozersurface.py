@@ -3,11 +3,207 @@ from scipy.linalg import lu
 from scipy.optimize import minimize, least_squares
 import simsoptpp as sopp
 
-from .surfaceobjectives import boozer_surface_residual, boozer_surface_dexactresidual_dcoils_dcurrents_vjp, boozer_surface_dlsqgrad_dcoils_vjp, finite_beta_boozer_residual, finite_beta_boozer_residual_dsurface, finite_beta_boozer_residual_dparameters
+from .surfaceobjectives import boozer_surface_residual, boozer_surface_dexactresidual_dcoils_dcurrents_vjp, boozer_surface_dlsqgrad_dcoils_vjp, MU0, finite_beta_boozer_residual, finite_beta_boozer_residual_dsurface, finite_beta_boozer_residual_dparameters, finite_beta_boozer_surface_field, finite_beta_sheet_current, finite_beta_virtual_casing_residual
 from .._core.optimizable import Optimizable
 from functools import partial
 
-__all__ = ['BoozerSurface', 'FiniteBetaBoozerSurface']
+__all__ = ['BoozerSurface', 'FiniteBetaFieldProvider', 'SurfaceCurrentFieldProvider', 'FiniteBetaBoozerSurface']
+
+
+class FiniteBetaFieldProvider:
+    """
+    Base class for finite-beta magnetic-field providers.
+
+    Providers can reevaluate the interface fields from the current nonlinear
+    state, enabling no-VC closures that depend on the evolving surface current.
+    """
+
+    depends_on_state = True
+
+    def evaluate(self, surface, iota, G, I, current_potential,
+                 biotsavart=None, finite_beta_surface=None):
+        raise NotImplementedError()
+
+
+class SurfaceCurrentFieldProvider(FiniteBetaFieldProvider):
+    r"""
+    Evaluate the exterior finite-beta interface field from a surface-current
+    Biot-Savart model while keeping the interior field on the Boozer branch.
+
+    The interior field is taken directly from the single-surface Boozer model,
+    so the scalar state variables ``iota``, ``G``, and ``I`` immediately affect
+    ``B_in``. The exterior field is obtained from the coil field plus a direct
+    principal-value boundary integral of the sheet current and the exact
+    one-sided jump
+
+    .. math::
+        B_\text{out} - B_\text{in} = \mu_0 K \times \hat n.
+
+    The coil field is evaluated directly on the interface, since it is
+    continuous across the surface.
+    """
+
+    depends_on_state = True
+
+    def __init__(self, offset_distance=None, offset_scale=0.25,
+                 min_offset=1e-5, chunk_size=None, include_biotsavart=True):
+        self.offset_distance = offset_distance
+        self.offset_scale = float(offset_scale)
+        self.min_offset = float(min_offset)
+        self.chunk_size = chunk_size
+        self.include_biotsavart = bool(include_biotsavart)
+
+    def _quadrature_weights(self, surface):
+        if len(surface.quadpoints_phi) < 2 or len(surface.quadpoints_theta) < 2:
+            raise ValueError('SurfaceCurrentFieldProvider requires at least 2 quadrature points in each direction.')
+
+        dphi = np.diff(surface.quadpoints_phi)
+        dtheta = np.diff(surface.quadpoints_theta)
+        if not np.allclose(dphi, dphi[0]):
+            raise ValueError('SurfaceCurrentFieldProvider requires a uniformly spaced toroidal quadrature grid.')
+        if not np.allclose(dtheta, dtheta[0]):
+            raise ValueError('SurfaceCurrentFieldProvider requires a uniformly spaced poloidal quadrature grid.')
+
+        return np.linalg.norm(surface.normal(), axis=2) * float(dphi[0]) * float(dtheta[0])
+
+    def _effective_offset(self, surface):
+        if self.offset_distance is not None:
+            return float(self.offset_distance)
+
+        gamma = surface.gamma()
+        phi_spacing = np.mean(np.linalg.norm(np.roll(gamma, -1, axis=0) - gamma, axis=2))
+        theta_spacing = np.mean(np.linalg.norm(np.roll(gamma, -1, axis=1) - gamma, axis=2))
+        spacing = min(float(phi_spacing), float(theta_spacing))
+        if not np.isfinite(spacing) or spacing <= 0.0:
+            spacing = 1.0
+        return max(self.min_offset, self.offset_scale * spacing)
+
+    def _sheet_field(self, source_points, sheet_current, weights, evaluation_points):
+        factor = MU0 / (4.0 * np.pi)
+        target_count = evaluation_points.shape[0]
+        source_points = source_points.reshape((-1, 3))
+        sheet_current = sheet_current.reshape((-1, 3))
+        weights = weights.reshape((-1,))
+
+        if self.chunk_size is None or self.chunk_size <= 0:
+            chunk_size = target_count
+        else:
+            chunk_size = int(self.chunk_size)
+
+        result = np.zeros((target_count, 3))
+        for start in range(0, target_count, chunk_size):
+            stop = min(start + chunk_size, target_count)
+            delta = evaluation_points[start:stop, None, :] - source_points[None, :, :]
+            distance_sq = np.sum(delta**2, axis=2)
+            distance_sq = np.maximum(distance_sq, 1e-30)
+            distance_cubed = distance_sq * np.sqrt(distance_sq)
+            kernel = np.cross(sheet_current[None, :, :], delta, axis=2) / distance_cubed[:, :, None]
+            result[start:stop, :] = factor * np.sum(kernel * weights[None, :, None], axis=1)
+        return result
+
+    def _principal_value_sheet_field(self, source_points, sheet_current, weights,
+                                     evaluation_points, self_source_indices=None):
+        factor = MU0 / (4.0 * np.pi)
+        target_count = evaluation_points.shape[0]
+        source_points = source_points.reshape((-1, 3))
+        sheet_current = sheet_current.reshape((-1, 3))
+        weights = weights.reshape((-1,))
+
+        if self.chunk_size is None or self.chunk_size <= 0:
+            chunk_size = target_count
+        else:
+            chunk_size = int(self.chunk_size)
+
+        result = np.zeros((target_count, 3))
+        for start in range(0, target_count, chunk_size):
+            stop = min(start + chunk_size, target_count)
+            delta = evaluation_points[start:stop, None, :] - source_points[None, :, :]
+            distance_sq = np.sum(delta**2, axis=2)
+            if self_source_indices is not None:
+                local_self = np.asarray(self_source_indices[start:stop], dtype=int)
+                distance_sq[np.arange(stop - start), local_self] = np.inf
+            distance_sq = np.maximum(distance_sq, 1e-30)
+            distance_cubed = distance_sq * np.sqrt(distance_sq)
+            kernel = np.cross(sheet_current[None, :, :], delta, axis=2) / distance_cubed[:, :, None]
+            result[start:stop, :] = factor * np.sum(kernel * weights[None, :, None], axis=1)
+        return result
+
+    def _symmetry_matrix(self, angle, flip):
+        rotmat = np.asarray(
+            [[np.cos(angle), -np.sin(angle), 0.0],
+             [np.sin(angle),  np.cos(angle), 0.0],
+             [0.0,            0.0,           1.0]],
+            dtype=float,
+        ).T
+        if flip:
+            rotmat = rotmat @ np.asarray(
+                [[1.0, 0.0, 0.0],
+                 [0.0, -1.0, 0.0],
+                 [0.0, 0.0, -1.0]],
+                dtype=float,
+            )
+        return rotmat
+
+    def _expand_sheet_sources(self, surface, source_points, sheet_current, weights):
+        nfp = int(getattr(surface, 'nfp', 1))
+
+        expanded_points = []
+        expanded_currents = []
+        expanded_weights = []
+
+        for k in range(nfp):
+            angle = 2.0 * np.pi * k / nfp
+            rotmat = self._symmetry_matrix(angle, False)
+            transformed_points = source_points @ rotmat
+            transformed_current = sheet_current @ rotmat
+            expanded_points.append(transformed_points)
+            expanded_currents.append(transformed_current)
+            expanded_weights.append(weights)
+
+        return (
+            np.concatenate(expanded_points, axis=0),
+            np.concatenate(expanded_currents, axis=0),
+            np.concatenate(expanded_weights, axis=0),
+        )
+
+    def _coil_field(self, biotsavart, points, shape):
+        if biotsavart is None or not self.include_biotsavart:
+            return np.zeros(shape)
+
+        biotsavart.set_points(points)
+        biotsavart.compute(0)
+        return biotsavart.B().reshape(shape)
+
+    def evaluate(self, surface, iota, G, I, current_potential,
+                 biotsavart=None, finite_beta_surface=None):
+        del finite_beta_surface
+
+        potential = np.zeros(surface.gamma().shape[:2]) if current_potential is None else np.asarray(current_potential, dtype=float)
+        if potential.shape != surface.gamma().shape[:2]:
+            raise ValueError(f'current_potential must have shape {surface.gamma().shape[:2]}.')
+
+        gamma = surface.gamma()
+        unitnormal = surface.unitnormal()
+        weights = self._quadrature_weights(surface)
+        sheet_current = finite_beta_sheet_current(surface, current_potential=potential)
+        source_points, source_sheet_current, source_weights = self._expand_sheet_sources(
+            surface,
+            gamma.reshape((-1, 3)),
+            sheet_current.reshape((-1, 3)),
+            weights.reshape((-1,)),
+        )
+        B_sheet_pv = self._principal_value_sheet_field(
+            source_points,
+            source_sheet_current,
+            source_weights,
+            gamma.reshape((-1, 3)),
+            self_source_indices=np.arange(gamma.shape[0] * gamma.shape[1]),
+        ).reshape(gamma.shape)
+        half_jump = 0.5 * MU0 * np.cross(sheet_current, unitnormal)
+        coil_field = self._coil_field(biotsavart, gamma.reshape((-1, 3)), gamma.shape)
+        B_in = finite_beta_boozer_surface_field(surface, iota=iota, G=G, I=I)
+        B_out = coil_field + B_sheet_pv + half_jump
+        return B_in, B_out
 
 
 class FiniteBetaBoozerSurface(Optimizable):
@@ -166,6 +362,216 @@ class FiniteBetaBoozerSurface(Optimizable):
     def _weighted_surface_jacobian(self, jacobian):
         return self._weighted_parameter_jacobian(jacobian)
 
+    def _vc_block_weights(self, pressure_jump=0.0, B_coils=None):
+        weights = self.options.get('vc_block_weights')
+        if weights is not None:
+            return {
+                'coil_match': float(weights.get('coil_match', 1.0)),
+                'normal': float(weights.get('normal', 1.0)),
+                'pressure': float(weights.get('pressure', 1.0)),
+            }
+
+        if B_coils is None:
+            B_scale = 1.0
+        else:
+            B_scale = np.sqrt(np.mean(np.sum(np.asarray(B_coils)**2, axis=2)))
+            B_scale = max(float(B_scale), 1e-12)
+
+        pressure_scale = max(B_scale**2, 2.0 * MU0 * abs(float(pressure_jump)), 1e-12)
+        return {
+            'coil_match': 1.0 / B_scale,
+            'normal': 1.0 / B_scale,
+            'pressure': 1.0 / pressure_scale,
+        }
+
+    def _weighted_vc_residual_vector(self, blocks, pressure_jump=0.0, B_coils=None):
+        weights = self._vc_block_weights(pressure_jump=pressure_jump, B_coils=B_coils)
+        return np.concatenate([
+            weights['coil_match'] * blocks['coil_match'].reshape((-1,)),
+            weights['normal'] * blocks['normal'].reshape((-1,)),
+            weights['pressure'] * blocks['pressure'].reshape((-1,)),
+        ])
+
+    def _weighted_vc_parameter_jacobian(self, jacobian_blocks, pressure_jump=0.0, B_coils=None):
+        weights = self._vc_block_weights(pressure_jump=pressure_jump, B_coils=B_coils)
+        return np.concatenate([
+            weights['coil_match'] * jacobian_blocks['coil_match'].reshape((-1, jacobian_blocks['coil_match'].shape[-1])),
+            weights['normal'] * jacobian_blocks['normal'].reshape((-1, jacobian_blocks['normal'].shape[-1])),
+            weights['pressure'] * jacobian_blocks['pressure'].reshape((-1, jacobian_blocks['pressure'].shape[-1])),
+        ], axis=0)
+
+    def single_surface_vc_parameter_jacobian(self, iota, G=None, I=0.0, lambda_current=None,
+                                             pressure_jump=None, B_coils=None, vc_digits=None,
+                                             optimize_iota=True, optimize_lambda_current=True,
+                                             virtual_casing=None, B_total=None, B_external=None):
+        from ..mhd.virtual_casing import VirtualCasing
+
+        if G is None:
+            G = self._default_G()
+        if lambda_current is None:
+            lambda_current = float(G) + float(iota) * float(I)
+        if pressure_jump is None:
+            pressure_jump = self.resolve_pressure_jump()
+        if pressure_jump is None:
+            pressure_jump = 0.0
+        if vc_digits is None:
+            vc_digits = self.options.get('vc_digits', 6)
+
+        if B_coils is None:
+            if self.biotsavart is None:
+                raise ValueError('biotsavart is required for the single-surface virtual-casing Jacobian.')
+            x = self.surface.gamma().reshape((-1, 3))
+            self.biotsavart.set_points(x)
+            self.biotsavart.compute(0)
+            B_coils = self.biotsavart.B().reshape(self.surface.gamma().shape)
+        else:
+            B_coils = np.asarray(B_coils)
+
+        xphi = self.surface.gammadash1()
+        xtheta = self.surface.gammadash2()
+        tang = xphi + float(iota) * xtheta
+        tang_norm_sq = np.sum(tang**2, axis=2)
+        tang_dot_xtheta = np.sum(tang * xtheta, axis=2)
+
+        if B_total is None:
+            B_total = finite_beta_boozer_surface_field(
+                self.surface,
+                iota=iota,
+                lambda_current=lambda_current,
+            )
+        if virtual_casing is None:
+            vc = VirtualCasing.from_surface(self.surface, B_total, digits=vc_digits)
+        else:
+            vc = virtual_casing
+        if B_external is None:
+            B_external = vc.B_external
+        unit_normal = self.surface.unitnormal()
+
+        dB_total_diota = float(lambda_current) * (
+            xtheta / tang_norm_sq[:, :, None]
+            - 2.0 * tang * tang_dot_xtheta[:, :, None] / tang_norm_sq[:, :, None]**2
+        )
+        dB_total_dlambda = tang / tang_norm_sq[:, :, None]
+
+        columns = []
+        names = []
+
+        if optimize_iota:
+            dB_external_diota = vc.compute_external_B(dB_total_diota)
+            columns.append((dB_total_diota, dB_external_diota))
+            names.append('iota')
+        if optimize_lambda_current:
+            dB_external_dlambda = vc.compute_external_B(dB_total_dlambda)
+            columns.append((dB_total_dlambda, dB_external_dlambda))
+            names.append('lambda_current')
+
+        if len(columns) == 0:
+            reference = self.self_consistent_single_surface_residual(
+                iota=iota,
+                G=G,
+                I=I,
+                lambda_current=lambda_current,
+                pressure_jump=pressure_jump,
+                B_coils=B_coils,
+                vc_digits=vc_digits,
+            )
+            return np.zeros((self._weighted_vc_residual_vector(reference['blocks'], pressure_jump=pressure_jump, B_coils=B_coils).size, 0))
+
+        jacobian_blocks = {'coil_match': [], 'normal': [], 'pressure': []}
+        B_total_sq = np.sum(B_total**2, axis=2)
+        B_external_sq = np.sum(B_external**2, axis=2)
+        _ = (B_total_sq, B_external_sq)
+        for dB_total, dB_external in columns:
+            jacobian_blocks['coil_match'].append(dB_external)
+            jacobian_blocks['normal'].append(np.sum(dB_external * unit_normal, axis=2))
+            jacobian_blocks['pressure'].append(
+                2.0 * np.sum(B_external * dB_external, axis=2)
+                - 2.0 * np.sum(B_total * dB_total, axis=2)
+            )
+
+        stacked = {
+            'coil_match': np.stack(jacobian_blocks['coil_match'], axis=-1),
+            'normal': np.stack(jacobian_blocks['normal'], axis=-1),
+            'pressure': np.stack(jacobian_blocks['pressure'], axis=-1),
+        }
+        return self._weighted_vc_parameter_jacobian(stacked, pressure_jump=pressure_jump, B_coils=B_coils)
+
+    def single_surface_vc_surface_jacobian(self, iota, G=None, I=0.0, lambda_current=None,
+                                           pressure_jump=None, B_coils=None, vc_digits=None,
+                                           baseline_result=None, baseline_weighted_residual=None,
+                                           fd_rel_step=None):
+        """
+        Approximate the weighted VC residual Jacobian with respect to the surface
+        dofs while keeping the exact parameter columns for ``iota`` and
+        ``lambda_current`` available separately.
+
+        The underlying virtual-casing extension does not expose derivatives of
+        the operator with respect to the source surface geometry, so this method
+        computes a structured forward-difference surface block around the current
+        geometry. Using this block together with exact scalar-parameter columns
+        is significantly more informative than a full black-box finite-difference
+        Jacobian on all variables.
+        """
+        if G is None:
+            G = self._default_G()
+        if lambda_current is None:
+            lambda_current = float(G) + float(iota) * float(I)
+        if pressure_jump is None:
+            pressure_jump = self.resolve_pressure_jump()
+        if pressure_jump is None:
+            pressure_jump = 0.0
+        if vc_digits is None:
+            vc_digits = self.options.get('vc_digits', 6)
+        if fd_rel_step is None:
+            fd_rel_step = self.options.get('vc_surface_fd_rel_step', 1e-7)
+
+        surface_dofs0 = self.surface.x.copy()
+        if baseline_result is None:
+            baseline_result = self.self_consistent_single_surface_residual(
+                iota=iota,
+                G=G,
+                I=I,
+                lambda_current=lambda_current,
+                pressure_jump=pressure_jump,
+                B_coils=B_coils,
+                vc_digits=vc_digits,
+            )
+        if baseline_weighted_residual is None:
+            baseline_weighted_residual = self._weighted_vc_residual_vector(
+                baseline_result['blocks'],
+                pressure_jump=pressure_jump,
+                B_coils=baseline_result['B_coils'],
+            )
+
+        jacobian = np.zeros((baseline_weighted_residual.size, surface_dofs0.size))
+        steps = np.maximum(np.abs(surface_dofs0), 1.0) * float(fd_rel_step)
+        steps = np.where(steps > 0.0, steps, float(fd_rel_step))
+
+        try:
+            for idx, step in enumerate(steps):
+                perturbed = surface_dofs0.copy()
+                perturbed[idx] += step
+                self.surface.x = perturbed
+                perturbed_result = self.self_consistent_single_surface_residual(
+                    iota=iota,
+                    G=G,
+                    I=I,
+                    lambda_current=lambda_current,
+                    pressure_jump=pressure_jump,
+                    B_coils=B_coils,
+                    vc_digits=vc_digits,
+                )
+                perturbed_weighted = self._weighted_vc_residual_vector(
+                    perturbed_result['blocks'],
+                    pressure_jump=pressure_jump,
+                    B_coils=perturbed_result['B_coils'],
+                )
+                jacobian[:, idx] = (perturbed_weighted - baseline_weighted_residual) / step
+        finally:
+            self.surface.x = surface_dofs0
+
+        return jacobian
+
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
 
@@ -189,7 +595,39 @@ class FiniteBetaBoozerSurface(Optimizable):
             raise ValueError("pressure_jump must evaluate to a finite scalar.")
         return value
 
-    def resolve_field_components(self, B_in=None, B_out=None):
+    def _field_provider_depends_on_state(self, field_provider):
+        return field_provider is not None and bool(getattr(field_provider, 'depends_on_state', True))
+
+    def _evaluate_field_provider(self, field_provider, iota, G, I, current_potential):
+        if hasattr(field_provider, 'evaluate'):
+            fields = field_provider.evaluate(
+                self.surface,
+                iota=iota,
+                G=G,
+                I=I,
+                current_potential=current_potential,
+                biotsavart=self.biotsavart,
+                finite_beta_surface=self,
+            )
+        elif callable(field_provider):
+            fields = field_provider(
+                self.surface,
+                iota=iota,
+                G=G,
+                I=I,
+                current_potential=current_potential,
+                biotsavart=self.biotsavart,
+                finite_beta_surface=self,
+            )
+        else:
+            raise ValueError('field_provider must be callable or implement an evaluate(...) method.')
+
+        if not isinstance(fields, (tuple, list)) or len(fields) != 2:
+            raise ValueError('field_provider must return a pair (B_in, B_out).')
+        return np.asarray(fields[0]), np.asarray(fields[1])
+
+    def resolve_field_components(self, B_in=None, B_out=None, field_provider=None,
+                                 iota=None, G=None, I=0.0, current_potential=None):
         """
         Return interior and exterior magnetic fields on the surface grid.
 
@@ -198,10 +636,21 @@ class FiniteBetaBoozerSurface(Optimizable):
         used. Otherwise, the Biot-Savart field is used on both sides, giving the
         vacuum limit.
         """
+        if field_provider is not None and (B_in is not None or B_out is not None):
+            raise ValueError('field_provider cannot be combined with explicit B_in/B_out inputs.')
+
         if (B_in is None) != (B_out is None):
             raise ValueError("B_in and B_out must be provided together.")
 
         expected_shape = self.surface.gamma().shape
+        if field_provider is not None:
+            if iota is None or G is None:
+                raise ValueError('field_provider evaluation requires iota and G.')
+            B_in_eval, B_out_eval = self._evaluate_field_provider(field_provider, iota, G, I, current_potential)
+            if B_in_eval.shape != expected_shape or B_out_eval.shape != expected_shape:
+                raise ValueError(f'field_provider must return arrays with shape {expected_shape}.')
+            return B_in_eval, B_out_eval
+
         if callable(B_in) or callable(B_out):
             if not callable(B_in) or not callable(B_out):
                 raise ValueError("B_in and B_out must either both be callables or both be arrays.")
@@ -239,12 +688,20 @@ class FiniteBetaBoozerSurface(Optimizable):
 
     def residual_blocks(self, iota, G, I=0.0, pressure_jump=None,
                         current_potential=None, current_potential_derivatives=None,
-                        B_in=None, B_out=None):
+                        B_in=None, B_out=None, field_provider=None):
         resolved_pressure_jump = self.resolve_pressure_jump() if pressure_jump is None else pressure_jump
         if resolved_pressure_jump is None:
             resolved_pressure_jump = 0.0
 
-        resolved_B_in, resolved_B_out = self.resolve_field_components(B_in=B_in, B_out=B_out)
+        resolved_B_in, resolved_B_out = self.resolve_field_components(
+            B_in=B_in,
+            B_out=B_out,
+            field_provider=field_provider,
+            iota=iota,
+            G=G,
+            I=I,
+            current_potential=current_potential,
+        )
         return finite_beta_boozer_residual(
             self.surface,
             iota,
@@ -258,10 +715,20 @@ class FiniteBetaBoozerSurface(Optimizable):
         )
 
     def residual_parameter_jacobian(self, iota, G, I=0.0,
-                                    B_in=None, B_out=None,
+                                    B_in=None, B_out=None, field_provider=None,
                                     optimize_iota=True, optimize_G=False,
                                     optimize_I=True, optimize_current_potential=True):
-        resolved_B_in, resolved_B_out = self.resolve_field_components(B_in=B_in, B_out=B_out)
+        if self._field_provider_depends_on_state(field_provider):
+            raise ValueError('Analytic parameter Jacobians are not available for state-dependent field providers.')
+
+        resolved_B_in, resolved_B_out = self.resolve_field_components(
+            B_in=B_in,
+            B_out=B_out,
+            field_provider=field_provider,
+            iota=iota,
+            G=G,
+            I=I,
+        )
         derivatives = finite_beta_boozer_residual_dparameters(
             self.surface,
             iota,
@@ -290,8 +757,19 @@ class FiniteBetaBoozerSurface(Optimizable):
     def residual_surface_jacobian(self, iota, G, I=0.0,
                                   current_potential=None,
                                   current_potential_derivatives=None,
-                                  B_in=None, B_out=None):
-        resolved_B_in, resolved_B_out = self.resolve_field_components(B_in=B_in, B_out=B_out)
+                                  B_in=None, B_out=None, field_provider=None):
+        if self._field_provider_depends_on_state(field_provider):
+            raise ValueError('Analytic surface Jacobians are not available for state-dependent field providers.')
+
+        resolved_B_in, resolved_B_out = self.resolve_field_components(
+            B_in=B_in,
+            B_out=B_out,
+            field_provider=field_provider,
+            iota=iota,
+            G=G,
+            I=I,
+            current_potential=current_potential,
+        )
         derivatives = finite_beta_boozer_residual_dsurface(
             self.surface,
             iota,
@@ -304,6 +782,171 @@ class FiniteBetaBoozerSurface(Optimizable):
         )
         return self._weighted_surface_jacobian(derivatives['residual'])
 
+    def self_consistent_single_surface_residual(self, iota, G=None, I=0.0, lambda_current=None,
+                                                pressure_jump=None, B_coils=None, vc_digits=6):
+        """
+        Evaluate the single-surface VC-closed finite-beta interface residual.
+
+        This helper is "self-consistent" only in the limited sense that the
+        total Boozer field and the exterior field inferred by the virtual-casing
+        operator are solved on the same surface. It is not a pure no-operator
+        finite-beta closure.
+        """
+        from ..mhd.virtual_casing import VirtualCasing
+
+        if G is None:
+            G = self._default_G()
+        if pressure_jump is None:
+            pressure_jump = self.resolve_pressure_jump()
+        if pressure_jump is None:
+            pressure_jump = 0.0
+
+        if B_coils is None:
+            if self.biotsavart is None:
+                raise ValueError('biotsavart is required for the single-surface virtual-casing closure.')
+            x = self.surface.gamma().reshape((-1, 3))
+            self.biotsavart.set_points(x)
+            self.biotsavart.compute(0)
+            B_coils = self.biotsavart.B().reshape(self.surface.gamma().shape)
+        else:
+            B_coils = np.asarray(B_coils)
+
+        B_total = finite_beta_boozer_surface_field(
+            self.surface,
+            iota=iota,
+            G=G,
+            I=I,
+            lambda_current=lambda_current,
+        )
+        vc = VirtualCasing.from_surface(
+            self.surface,
+            B_total,
+            digits=vc_digits,
+        )
+        result = finite_beta_virtual_casing_residual(
+            self.surface,
+            iota=iota,
+            lambda_current=(float(G) + float(iota) * float(I)) if lambda_current is None else float(lambda_current),
+            B_external=vc.B_external,
+            B_coils=B_coils,
+            pressure_jump=pressure_jump,
+        )
+        result['B_coils'] = B_coils
+        result['virtual_casing'] = vc
+        return result
+
+    def frozen_state_closure_diagnostics(self, iota, G=None, I=0.0, lambda_current=None,
+                                         current_potential=None, field_provider=None,
+                                         pressure_jump=None, B_coils=None, vc_digits=6):
+        """
+        Compare the direct field-provider closure and the full virtual-casing
+        closure on the same frozen surface state.
+        """
+        from ..mhd.virtual_casing import VirtualCasing
+
+        if field_provider is None:
+            raise ValueError('frozen_state_closure_diagnostics requires a field_provider.')
+
+        if G is None:
+            G = self._default_G()
+        if lambda_current is None:
+            lambda_current = float(G) + float(iota) * float(I)
+        if pressure_jump is None:
+            pressure_jump = self.resolve_pressure_jump()
+        if pressure_jump is None:
+            pressure_jump = 0.0
+
+        current_potential = self._normalize_current_potential(current_potential)
+        expected_shape = self.surface.gamma().shape
+
+        if B_coils is None:
+            if self.biotsavart is None:
+                raise ValueError('biotsavart is required when B_coils is not supplied.')
+            x = self.surface.gamma().reshape((-1, 3))
+            self.biotsavart.set_points(x)
+            self.biotsavart.compute(0)
+            B_coils = self.biotsavart.B().reshape(expected_shape)
+        else:
+            B_coils = np.asarray(B_coils)
+            if B_coils.shape != expected_shape:
+                raise ValueError(f'B_coils must have shape {expected_shape}.')
+
+        direct_residual = self.residual_blocks(
+            iota=iota,
+            G=G,
+            I=I,
+            pressure_jump=pressure_jump,
+            current_potential=current_potential,
+            field_provider=field_provider,
+        )
+        B_in_direct, B_out_direct = self.resolve_field_components(
+            field_provider=field_provider,
+            iota=iota,
+            G=G,
+            I=I,
+            current_potential=current_potential,
+        )
+        direct_vc_style = finite_beta_virtual_casing_residual(
+            self.surface,
+            iota=iota,
+            lambda_current=lambda_current,
+            B_external=B_out_direct,
+            B_coils=B_coils,
+            pressure_jump=pressure_jump,
+        )
+
+        vc = VirtualCasing.from_surface(self.surface, B_in_direct, digits=vc_digits)
+        vc_result = finite_beta_virtual_casing_residual(
+            self.surface,
+            iota=iota,
+            lambda_current=lambda_current,
+            B_external=vc.B_external,
+            B_coils=B_coils,
+            pressure_jump=pressure_jump,
+        )
+        vc_result['virtual_casing'] = vc
+
+        direct_coil_match = direct_vc_style['blocks']['coil_match']
+        vc_coil_match = vc_result['blocks']['coil_match']
+        direct_normal = direct_vc_style['blocks']['normal']
+        vc_normal = vc_result['blocks']['normal']
+        direct_pressure = direct_vc_style['blocks']['pressure']
+        vc_pressure = vc_result['blocks']['pressure']
+        direct_sheet_current = direct_vc_style['blocks']['sheet_current']
+        vc_sheet_current = vc_result['blocks']['sheet_current']
+        B_external_difference = B_out_direct - vc.B_external
+        normal_difference = np.sum(B_external_difference * self.surface.unitnormal(), axis=2)
+
+        def relative_norm(delta, reference):
+            return float(np.linalg.norm(delta) / max(float(np.linalg.norm(reference)), 1e-30))
+
+        return {
+            'pressure_jump': float(pressure_jump),
+            'lambda_current': float(lambda_current),
+            'B_coils': B_coils,
+            'direct': {
+                'B_in': B_in_direct,
+                'B_external': B_out_direct,
+                'residual_blocks': direct_residual['blocks'],
+                'vc_style': direct_vc_style,
+                'current_potential': current_potential,
+            },
+            'virtual_casing': vc_result,
+            'differences': {
+                'B_external': B_external_difference,
+                'B_external_normal': normal_difference,
+                'coil_match': direct_coil_match - vc_coil_match,
+                'normal': direct_normal - vc_normal,
+                'pressure': direct_pressure - vc_pressure,
+                'sheet_current': direct_sheet_current - vc_sheet_current,
+                'B_external_rel_norm': relative_norm(B_external_difference, vc.B_external),
+                'coil_match_rel_norm': relative_norm(direct_coil_match - vc_coil_match, vc_coil_match),
+                'normal_rel_norm': relative_norm(direct_normal - vc_normal, vc_normal),
+                'pressure_rel_norm': relative_norm(direct_pressure - vc_pressure, vc_pressure),
+                'sheet_current_rel_norm': relative_norm(direct_sheet_current - vc_sheet_current, vc_sheet_current),
+            },
+        }
+
     def _surface_constraint_residual(self):
         label_residual = float(self.constraint_weight) * (self.label.J() - self.targetlabel)
         anchor_residual = self.surface.gamma()[0, 0, 2]
@@ -315,7 +958,7 @@ class FiniteBetaBoozerSurface(Optimizable):
         return np.vstack([label_jacobian, anchor_jacobian])
 
     def run_code(self, iota, G=None, I=0.0, current_potential=None,
-                 B_in=None, B_out=None, optimize_iota=True,
+                 B_in=None, B_out=None, field_provider=None, optimize_iota=True,
                  optimize_G=False, optimize_I=True,
                  optimize_current_potential=True, optimize_surface=False):
         """
@@ -330,10 +973,13 @@ class FiniteBetaBoozerSurface(Optimizable):
         if G is None:
             G = self._default_G()
 
+        current_potential0 = self._normalize_current_potential(current_potential)
         surface_dofs0 = self.surface.x.copy()
         vc = self.virtual_casing
         explicit_fields = (B_in is not None and B_out is not None and not callable(B_in) and not callable(B_out))
         callable_fields = callable(B_in) and callable(B_out)
+        provider_fields = field_provider is not None
+        state_dependent_fields = self._field_provider_depends_on_state(field_provider)
         virtual_casing_fields = (
             B_in is None and B_out is None and vc is not None
             and hasattr(vc, 'B_total') and hasattr(vc, 'B_external')
@@ -341,25 +987,38 @@ class FiniteBetaBoozerSurface(Optimizable):
         biotsavart_fields = B_in is None and B_out is None and not virtual_casing_fields and self.biotsavart is not None
         analytic_surface_jacobian = optimize_surface and (explicit_fields or virtual_casing_fields)
 
-        if optimize_surface and not (explicit_fields or callable_fields or virtual_casing_fields or biotsavart_fields):
+        if optimize_surface and not (explicit_fields or callable_fields or provider_fields or virtual_casing_fields or biotsavart_fields):
             raise ValueError(
-                "optimize_surface requires explicit fixed fields, virtual_casing data, callable B_in/B_out providers, or a biotsavart object."
+                "optimize_surface requires explicit fixed fields, virtual_casing data, callable B_in/B_out providers, a field_provider, or a biotsavart object."
             )
 
         if optimize_surface and not analytic_surface_jacobian:
             resolved_B_in = None
             resolved_B_out = None
         else:
-            resolved_B_in, resolved_B_out = self.resolve_field_components(B_in=B_in, B_out=B_out)
-        current_potential0 = self._normalize_current_potential(current_potential)
+            resolved_B_in, resolved_B_out = self.resolve_field_components(
+                B_in=B_in,
+                B_out=B_out,
+                field_provider=field_provider,
+                iota=iota,
+                G=G,
+                I=I,
+                current_potential=current_potential0,
+            )
         x0 = self._pack_state(iota, G, I, current_potential0,
                               optimize_iota, optimize_G, optimize_I, optimize_current_potential,
                               optimize_surface=optimize_surface, surface_dofs=surface_dofs0)
 
         if x0.size == 0:
-            result = self.residual_blocks(iota=iota, G=G, I=I,
-                                          current_potential=current_potential0,
-                                          B_in=resolved_B_in, B_out=resolved_B_out)
+            result = self.residual_blocks(
+                iota=iota,
+                G=G,
+                I=I,
+                current_potential=current_potential0,
+                B_in=resolved_B_in,
+                B_out=resolved_B_out,
+                field_provider=None if resolved_B_in is not None else field_provider,
+            )
             residual = self._weighted_residual_vector(result['blocks'])
             self.res = {
                 'success': True,
@@ -388,7 +1047,23 @@ class FiniteBetaBoozerSurface(Optimizable):
                     resolved_B_in_local = resolved_B_in
                     resolved_B_out_local = resolved_B_out
                 else:
-                    resolved_B_in_local, resolved_B_out_local = self.resolve_field_components(B_in=B_in, B_out=B_out)
+                    resolved_B_in_local, resolved_B_out_local = self.resolve_field_components(
+                        B_in=B_in,
+                        B_out=B_out,
+                        field_provider=field_provider,
+                        iota=iota_val,
+                        G=G_val,
+                        I=I_val,
+                        current_potential=current_potential_val,
+                    )
+            elif state_dependent_fields:
+                resolved_B_in_local, resolved_B_out_local = self.resolve_field_components(
+                    field_provider=field_provider,
+                    iota=iota_val,
+                    G=G_val,
+                    I=I_val,
+                    current_potential=current_potential_val,
+                )
             else:
                 resolved_B_in_local = resolved_B_in
                 resolved_B_out_local = resolved_B_out
@@ -420,6 +1095,7 @@ class FiniteBetaBoozerSurface(Optimizable):
                 I=I_val,
                 B_in=resolved_B_in,
                 B_out=resolved_B_out,
+                field_provider=field_provider,
                 optimize_iota=optimize_iota,
                 optimize_G=optimize_G,
                 optimize_I=optimize_I,
@@ -436,6 +1112,7 @@ class FiniteBetaBoozerSurface(Optimizable):
                 current_potential=current_potential_val,
                 B_in=resolved_B_in,
                 B_out=resolved_B_out,
+                field_provider=field_provider,
             )
             constraint_jacobian = self._surface_constraint_jacobian()
 
@@ -452,10 +1129,11 @@ class FiniteBetaBoozerSurface(Optimizable):
 
         tol = self.options.get('ls_tol', self.options.get('newton_tol', 1e-11))
         max_nfev = self.options.get('ls_max_nfev', 100)
+        use_analytic_jacobian = (not state_dependent_fields) and (not optimize_surface or analytic_surface_jacobian)
         lsq = least_squares(
             objective,
             x0,
-            jac=jacobian if (not optimize_surface or analytic_surface_jacobian) else '2-point',
+            jac=jacobian if use_analytic_jacobian else '2-point',
             method=self.options.get('ls_method', 'trf'),
             ftol=tol,
             xtol=tol,
@@ -471,14 +1149,23 @@ class FiniteBetaBoozerSurface(Optimizable):
         )
         if optimize_surface:
             self.surface.x = surface_dofs_val
-        result = self.residual_blocks(
-            iota=iota_val,
-            G=G_val,
-            I=I_val,
-            current_potential=current_potential_val,
-            B_in=B_in if optimize_surface else resolved_B_in,
-            B_out=B_out if optimize_surface else resolved_B_out,
-        )
+        if field_provider is not None and (optimize_surface or state_dependent_fields):
+            result = self.residual_blocks(
+                iota=iota_val,
+                G=G_val,
+                I=I_val,
+                current_potential=current_potential_val,
+                field_provider=field_provider,
+            )
+        else:
+            result = self.residual_blocks(
+                iota=iota_val,
+                G=G_val,
+                I=I_val,
+                current_potential=current_potential_val,
+                B_in=B_in if optimize_surface else resolved_B_in,
+                B_out=B_out if optimize_surface else resolved_B_out,
+            )
         residual = self._weighted_residual_vector(result['blocks'])
         if optimize_surface:
             residual = np.concatenate([residual, self._surface_constraint_residual()])
@@ -496,6 +1183,272 @@ class FiniteBetaBoozerSurface(Optimizable):
             'block_norms': {name: np.linalg.norm(values) for name, values in result['blocks'].items()},
             'message': lsq.message,
             'least_squares_result': lsq,
+        }
+        self.need_to_run_code = False
+        return self.res
+
+    def run_code_single_surface_vc(self, iota, G=None, I=0.0,
+                                   optimize_iota=True, optimize_lambda_current=True,
+                                   optimize_surface=False):
+        """
+        Solve the single-surface VC-closed finite-beta validation problem.
+
+        The surface field is generated from the Boozer relation itself, the
+        virtual-casing operator extracts the contribution due to currents outside
+        the surface, and that exterior field is matched to the coil field on the
+        same surface. This is a practical no-VMEC surrogate, not a pure no-VC
+        self-consistent finite-beta closure.
+        """
+        if self.biotsavart is None:
+            raise ValueError('run_code_single_surface_vc requires a biotsavart object.')
+
+        if G is None:
+            G = self._default_G()
+
+        target_pressure_jump = self.resolve_pressure_jump()
+        if target_pressure_jump is None:
+            target_pressure_jump = 0.0
+
+        surface_dofs0 = self.surface.x.copy()
+        lambda0 = float(G) + float(iota) * float(I)
+        x0 = []
+        if optimize_surface:
+            x0.extend(surface_dofs0)
+        if optimize_iota:
+            x0.append(float(iota))
+        if optimize_lambda_current:
+            x0.append(float(lambda0))
+        x0 = np.asarray(x0, dtype=float)
+
+        def unpack(vector):
+            cursor = 0
+            surface_dofs_val = None
+            iota_val = float(iota)
+            lambda_val = float(lambda0)
+            if optimize_surface:
+                surface_dofs_val = np.asarray(vector[cursor:cursor + surface_dofs0.size], dtype=float)
+                cursor += surface_dofs0.size
+            if optimize_iota:
+                iota_val = float(vector[cursor])
+                cursor += 1
+            if optimize_lambda_current:
+                lambda_val = float(vector[cursor])
+            return surface_dofs_val, iota_val, lambda_val
+
+        evaluation_cache = {
+            'vector': None,
+            'pressure_jump': None,
+            'result': None,
+            'weighted_residual': None,
+            'full_residual': None,
+        }
+
+        def evaluate(vector, pressure_jump_value):
+            surface_dofs_val, iota_val, lambda_val = unpack(vector)
+            if (
+                evaluation_cache['vector'] is not None
+                and np.array_equal(evaluation_cache['vector'], vector)
+                and evaluation_cache['pressure_jump'] == float(pressure_jump_value)
+            ):
+                return evaluation_cache
+
+            if optimize_surface:
+                self.surface.x = surface_dofs_val
+            result = self.self_consistent_single_surface_residual(
+                iota=iota_val,
+                G=G,
+                lambda_current=lambda_val,
+                pressure_jump=pressure_jump_value,
+                vc_digits=self.options.get('vc_digits', 6),
+            )
+            weighted_residual = self._weighted_vc_residual_vector(
+                result['blocks'],
+                pressure_jump=pressure_jump_value,
+                B_coils=result['B_coils'],
+            )
+            if optimize_surface:
+                full_residual = np.concatenate([weighted_residual, self._surface_constraint_residual()])
+            else:
+                full_residual = weighted_residual
+            evaluation_cache.update({
+                'vector': vector.copy(),
+                'pressure_jump': float(pressure_jump_value),
+                'result': result,
+                'weighted_residual': weighted_residual,
+                'full_residual': full_residual,
+            })
+            return evaluation_cache
+
+        def objective(vector, pressure_jump_value):
+            return evaluate(vector, pressure_jump_value)['full_residual']
+
+        def jacobian(vector, pressure_jump_value):
+            surface_dofs_val, iota_val, lambda_val = unpack(vector)
+            cached = evaluate(vector, pressure_jump_value)
+            if optimize_surface:
+                self.surface.x = surface_dofs_val
+            parameter_jacobian = self.single_surface_vc_parameter_jacobian(
+                iota=iota_val,
+                G=G,
+                lambda_current=lambda_val,
+                pressure_jump=pressure_jump_value,
+                B_coils=cached['result']['B_coils'],
+                vc_digits=self.options.get('vc_digits', 6),
+                optimize_iota=optimize_iota,
+                optimize_lambda_current=optimize_lambda_current,
+                virtual_casing=cached['result']['virtual_casing'],
+                B_total=cached['result']['B_total'],
+                B_external=cached['result']['B_external'],
+            )
+            if not optimize_surface:
+                return parameter_jacobian
+
+            surface_jacobian = self.single_surface_vc_surface_jacobian(
+                iota=iota_val,
+                G=G,
+                lambda_current=lambda_val,
+                pressure_jump=pressure_jump_value,
+                B_coils=cached['result']['B_coils'],
+                vc_digits=self.options.get('vc_digits', 6),
+                baseline_result=cached['result'],
+                baseline_weighted_residual=cached['weighted_residual'],
+            )
+            constraint_jacobian = self._surface_constraint_jacobian()
+
+            if parameter_jacobian.shape[1] == 0:
+                residual_jacobian = surface_jacobian
+                full_constraint_jacobian = constraint_jacobian
+            else:
+                residual_jacobian = np.concatenate([surface_jacobian, parameter_jacobian], axis=1)
+                full_constraint_jacobian = np.concatenate(
+                    [constraint_jacobian, np.zeros((constraint_jacobian.shape[0], parameter_jacobian.shape[1]))],
+                    axis=1,
+                )
+            return np.concatenate([residual_jacobian, full_constraint_jacobian], axis=0)
+
+        continuation_steps = int(self.options.get('vc_pressure_continuation_steps', 1 if abs(target_pressure_jump) == 0.0 else 4))
+        continuation_steps = max(1, continuation_steps)
+        pressure_schedule = np.linspace(0.0, float(target_pressure_jump), continuation_steps)
+        if continuation_steps == 1:
+            pressure_schedule = np.asarray([float(target_pressure_jump)])
+
+        if x0.size == 0:
+            result = self.self_consistent_single_surface_residual(
+                iota=iota,
+                G=G,
+                lambda_current=lambda0,
+                pressure_jump=target_pressure_jump,
+                vc_digits=self.options.get('vc_digits', 6),
+            )
+            residual = self._weighted_vc_residual_vector(
+                result['blocks'],
+                pressure_jump=target_pressure_jump,
+                B_coils=result['B_coils'],
+            )
+            self.res = {
+                'success': True,
+                'iter': 0,
+                'surface': self.surface,
+                'iota': float(iota),
+                'G': float(G),
+                'I': float(I),
+                'lambda_current': float(lambda0),
+                'B_total': result['B_total'],
+                'B_external': result['B_external'],
+                'B_coils': result['B_coils'],
+                'virtual_casing': result['virtual_casing'],
+                'residual': residual,
+                'residual_norm': np.linalg.norm(residual),
+                'raw_residual': result['residual'],
+                'raw_residual_norm': np.linalg.norm(result['residual']),
+                'block_norms': {name: np.linalg.norm(values) for name, values in result['blocks'].items()},
+                'message': 'No free variables selected.',
+                'continuation_history': [],
+            }
+            self.need_to_run_code = False
+            return self.res
+
+        tol = self.options.get('ls_tol', self.options.get('newton_tol', 1e-11))
+        max_nfev = self.options.get('ls_max_nfev', 100)
+        lsq = None
+        stage_history = []
+        current_x = x0.copy()
+        for pressure_jump_value in pressure_schedule:
+            if optimize_surface and not self.options.get('vc_surface_hybrid_jacobian', True):
+                jac = '2-point'
+            else:
+                jac = lambda vector, pressure_jump_value=pressure_jump_value: jacobian(vector, pressure_jump_value)
+
+            lsq = least_squares(
+                lambda vector, pressure_jump_value=pressure_jump_value: objective(vector, pressure_jump_value),
+                current_x,
+                jac=jac,
+                method=self.options.get('ls_method', 'trf'),
+                x_scale=self.options.get('vc_x_scale', 'jac'),
+                ftol=tol,
+                xtol=tol,
+                gtol=tol,
+                max_nfev=max_nfev,
+                verbose=2 if self.options.get('verbose', True) else 0,
+            )
+            current_x = lsq.x.copy()
+            stage_eval = evaluate(current_x, pressure_jump_value)
+            stage_history.append({
+                'pressure_jump': float(pressure_jump_value),
+                'success': bool(lsq.success),
+                'nfev': int(lsq.nfev),
+                'cost': float(lsq.cost),
+                'message': lsq.message,
+                'weighted_residual_norm': float(np.linalg.norm(stage_eval['weighted_residual'])),
+                'raw_residual_norm': float(np.linalg.norm(stage_eval['result']['residual'])),
+                'coil_match_norm': float(np.linalg.norm(stage_eval['result']['blocks']['coil_match'])),
+                'normal_norm': float(np.linalg.norm(stage_eval['result']['blocks']['normal'])),
+                'pressure_norm': float(np.linalg.norm(stage_eval['result']['blocks']['pressure'])),
+            })
+
+        surface_dofs_val, iota_val, lambda_val = unpack(current_x)
+        if optimize_surface:
+            self.surface.x = surface_dofs_val
+        result = self.self_consistent_single_surface_residual(
+            iota=iota_val,
+            G=G,
+            lambda_current=lambda_val,
+            pressure_jump=target_pressure_jump,
+            vc_digits=self.options.get('vc_digits', 6),
+        )
+        residual = self._weighted_vc_residual_vector(
+            result['blocks'],
+            pressure_jump=target_pressure_jump,
+            B_coils=result['B_coils'],
+        )
+        if optimize_surface:
+            residual = np.concatenate([residual, self._surface_constraint_residual()])
+
+        if abs(iota_val) > 1e-12:
+            I_val = (lambda_val - float(G)) / iota_val
+        else:
+            I_val = 0.0
+
+        self.res = {
+            'success': bool(lsq.success),
+            'iter': int(lsq.nfev),
+            'surface': self.surface,
+            'iota': iota_val,
+            'G': float(G),
+            'I': I_val,
+            'lambda_current': lambda_val,
+            'B_total': result['B_total'],
+            'B_external': result['B_external'],
+            'B_coils': result['B_coils'],
+            'virtual_casing': result['virtual_casing'],
+            'residual': residual,
+            'residual_norm': np.linalg.norm(residual),
+            'raw_residual': result['residual'],
+            'raw_residual_norm': np.linalg.norm(result['residual']),
+            'block_norms': {name: np.linalg.norm(values) for name, values in result['blocks'].items()},
+            'message': lsq.message,
+            'least_squares_result': lsq,
+            'continuation_history': stage_history,
         }
         self.need_to_run_code = False
         return self.res

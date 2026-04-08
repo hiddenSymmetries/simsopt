@@ -10,7 +10,7 @@ from ..objectives.utilities import forward_backward
 
 __all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
            'QfmResidual', 'boozer_surface_residual', 'finite_beta_sheet_current',
-           'finite_beta_boozer_residual', 'finite_beta_boozer_residual_dsurface', 'finite_beta_boozer_residual_dparameters', 'surface_field_nonquasisymmetric_ratio', 'Iotas', 'MajorRadius',
+           'finite_beta_boozer_residual', 'finite_beta_boozer_residual_dsurface', 'finite_beta_boozer_residual_dparameters', 'finite_beta_boozer_surface_field', 'finite_beta_virtual_casing_residual', 'surface_field_nonquasisymmetric_ratio', 'Iotas', 'MajorRadius',
            'NonQuasiSymmetricRatio', 'BoozerResidual', 'AspectRatio']
 
 
@@ -99,6 +99,75 @@ def finite_beta_sheet_current(surface, current_potential=None, current_potential
         dtheta_potential = _as_surface_field_array(surface, current_potential_derivatives[1], 'dPhi_dtheta', tuple())
 
     return (dphi_potential[:, :, None] * xtheta - dtheta_potential[:, :, None] * xphi) / norm_normal[:, :, None]
+
+
+def finite_beta_boozer_surface_field(surface, iota, G=0.0, I=0.0, lambda_current=None):
+    r"""
+    Construct the single-surface Boozer magnetic field on the surface grid.
+
+    The finite-beta single-surface closure only determines the combination
+
+    .. math::
+        \,\Lambda = G + \iota I.
+
+    Given ``Lambda`` and a surface, the Boozer field is obtained pointwise from
+
+    .. math::
+        \mathbf B = \frac{\Lambda}{|\mathbf x_\varphi + \iota \mathbf x_\theta|^2}
+        (\mathbf x_\varphi + \iota \mathbf x_\theta).
+    """
+    if lambda_current is None:
+        lambda_current = float(G) + float(iota) * float(I)
+
+    tang = surface.gammadash1() + float(iota) * surface.gammadash2()
+    tang_norm_sq = np.sum(tang**2, axis=2)
+    return (float(lambda_current) / tang_norm_sq)[:, :, None] * tang
+
+
+def finite_beta_virtual_casing_residual(surface, iota, lambda_current, B_external, B_coils,
+                                        pressure_jump=0.0, mu0=MU0):
+    r"""
+    Assemble the single-surface virtual-casing-closed finite-beta residual.
+
+    Unknowns are the surface, ``iota``, and the Boozer current combination
+
+    .. math::
+        \Lambda = G + \iota I,
+
+    while the interior Boozer field is constructed explicitly from the surface.
+    The virtual-casing operator provides the field due to currents outside the
+    surface, which is then matched to the coil field.
+    """
+    B_external = _as_surface_field_array(surface, B_external, 'B_external', (3,))
+    B_coils = _as_surface_field_array(surface, B_coils, 'B_coils', (3,))
+    B_total = finite_beta_boozer_surface_field(surface, iota=iota, lambda_current=lambda_current)
+
+    unit_normal = surface.unitnormal()
+    B_total_sq = np.sum(B_total**2, axis=2)
+    B_external_sq = np.sum(B_external**2, axis=2)
+    coil_match = B_external - B_coils
+    normal = np.sum(B_external * unit_normal, axis=2)
+    pressure = B_external_sq - B_total_sq - 2.0 * mu0 * float(pressure_jump)
+    sheet_current = np.cross(unit_normal, B_external - B_total) / mu0
+
+    blocks = {
+        'coil_match': coil_match,
+        'normal': normal,
+        'pressure': pressure,
+        'sheet_current': sheet_current,
+    }
+    residual = np.concatenate([
+        coil_match.reshape((-1,)),
+        normal.reshape((-1,)),
+        pressure.reshape((-1,)),
+    ])
+    return {
+        'residual': residual,
+        'blocks': blocks,
+        'B_total': B_total,
+        'B_external': B_external,
+        'lambda_current': float(lambda_current),
+    }
 
 
 def finite_beta_boozer_residual(surface, iota, G, B_in, B_out, I=0.0,

@@ -20,14 +20,19 @@ from datetime import datetime
 import numpy as np
 from scipy.io import netcdf_file
 
-from .vmec_diagnostics import B_cartesian
-from .vmec import Vmec
 from ..geo.surfacerzfourier import SurfaceRZFourier
 from ..geo.surface import best_nphi_over_ntheta
 
 logger = logging.getLogger(__name__)
 
 __all__ = ['VirtualCasing']
+
+
+def _load_vmec_helpers():
+    from .vmec import Vmec
+    from .vmec_diagnostics import B_cartesian
+
+    return Vmec, B_cartesian
 
 
 class VirtualCasing:
@@ -120,6 +125,181 @@ class VirtualCasing:
     resampling is required.
     """
 
+    @staticmethod
+    def _flatten_xyz_block_order(array3d):
+        array3d = np.asarray(array3d)
+        if array3d.ndim != 3 or array3d.shape[2] != 3:
+            raise ValueError('Expected an array with shape (nphi, ntheta, 3).')
+
+        nphi, ntheta, _ = array3d.shape
+        flattened = np.zeros(nphi * ntheta * 3)
+        for jxyz in range(3):
+            start = jxyz * nphi * ntheta
+            stop = (jxyz + 1) * nphi * ntheta
+            flattened[start:stop] = array3d[:, :, jxyz].flatten(order='C')
+        return flattened
+
+    @staticmethod
+    def _unflatten_xyz_block_order(flattened, nphi, ntheta):
+        flattened = np.asarray(flattened)
+        array3d = np.zeros((nphi, ntheta, 3))
+        for jxyz in range(3):
+            start = jxyz * nphi * ntheta
+            stop = (jxyz + 1) * nphi * ntheta
+            array3d[:, :, jxyz] = flattened[start:stop].reshape((nphi, ntheta), order='C')
+        return array3d
+
+    def _ensure_operator(self):
+        if hasattr(self, '_vcasing_operator') and self._vcasing_operator is not None:
+            return self._vcasing_operator
+
+        import virtual_casing as vc_module
+
+        if not hasattr(self, 'gamma') or self.gamma is None:
+            raise ValueError('Virtual-casing geometry is not available on this object.')
+        if not hasattr(self, 'nfp'):
+            raise ValueError('Virtual-casing field-period information is not available on this object.')
+
+        use_stellsym = bool(getattr(self, '_use_stellsym', False))
+        gamma1d = self._flatten_xyz_block_order(self.gamma)
+        vcasing = vc_module.VirtualCasing()
+        vcasing.setup(
+            int(getattr(self, '_digits', 6)),
+            int(self.nfp),
+            use_stellsym,
+            int(self.src_nphi),
+            int(self.src_ntheta),
+            gamma1d,
+            int(self.src_nphi),
+            int(self.src_ntheta),
+            int(self.trgt_nphi),
+            int(self.trgt_ntheta),
+        )
+        self._vcasing_operator = vcasing
+        return vcasing
+
+    def compute_external_B(self, B_total):
+        """
+        Apply the already-configured virtual-casing operator to a new total field
+        sampled on the same source surface grid.
+        """
+        B_total = np.asarray(B_total)
+        expected_shape = (self.src_nphi, self.src_ntheta, 3)
+        if B_total.shape != expected_shape:
+            raise ValueError(f'B_total must have shape {expected_shape}.')
+
+        vcasing = self._ensure_operator()
+        B1d = self._flatten_xyz_block_order(B_total)
+        Bexternal1d = np.asarray(vcasing.compute_external_B(B1d))
+        return self._unflatten_xyz_block_order(Bexternal1d, self.trgt_nphi, self.trgt_ntheta)
+
+    @classmethod
+    def from_surface(cls, surface, B_total, trgt_nphi=None, trgt_ntheta=None, digits=6, use_stellsym=None):
+        """
+        Run the virtual-casing operator directly from a surface and the total
+        magnetic field sampled on that surface.
+
+        This method is the surface-only counterpart to :func:`from_vmec`. It is
+        intended for single-surface formulations in which the total field on the
+        target surface is already known or parameterized, and one wants the
+        corresponding contribution due to currents outside the surface.
+
+        Args:
+            surface: Any simsopt surface object with ``gamma()``, ``unitnormal()``,
+                ``quadpoints_phi``, ``quadpoints_theta``, ``nfp``, and ``stellsym``.
+            B_total: Array of shape ``surface.gamma().shape`` containing the total
+                magnetic field vector sampled on the source surface grid.
+            trgt_nphi: Toroidal resolution for the returned external field. If not
+                provided, the source resolution is used.
+            trgt_ntheta: Poloidal resolution for the returned external field. If not
+                provided, the source resolution is used.
+            digits: Requested numerical accuracy passed to the underlying
+                ``virtual_casing`` extension.
+            use_stellsym: Whether to tell the underlying operator to use a half-
+                period stellarator-symmetric representation. If omitted, a safe
+                heuristic is used that falls back to the full field-period mode
+                whenever the source grid starts at ``phi=0``.
+        """
+        import virtual_casing as vc_module
+
+        gamma = np.asarray(surface.gamma())
+        B_total = np.asarray(B_total)
+        if gamma.shape != B_total.shape or gamma.ndim != 3 or gamma.shape[2] != 3:
+            raise ValueError(f'B_total must have shape {gamma.shape}.')
+
+        src_nphi = len(surface.quadpoints_phi)
+        src_ntheta = len(surface.quadpoints_theta)
+        if trgt_nphi is None:
+            trgt_nphi = src_nphi
+        if trgt_ntheta is None:
+            trgt_ntheta = src_ntheta
+
+        if use_stellsym is None:
+            expected_half_period_shift = 1.0 / (2.0 * surface.nfp * src_nphi)
+            use_stellsym = bool(
+                getattr(surface, 'stellsym', False)
+                and np.isclose(surface.quadpoints_phi[0], expected_half_period_shift)
+            )
+
+        gamma1d = cls._flatten_xyz_block_order(gamma)
+        B1d = cls._flatten_xyz_block_order(B_total)
+
+        vcasing = vc_module.VirtualCasing()
+        vcasing.setup(
+            digits,
+            surface.nfp,
+            bool(use_stellsym),
+            src_nphi,
+            src_ntheta,
+            gamma1d,
+            src_nphi,
+            src_ntheta,
+            trgt_nphi,
+            trgt_ntheta,
+        )
+        Bexternal1d = np.array(vcasing.compute_external_B(B1d))
+        Bexternal3d = cls._unflatten_xyz_block_order(Bexternal1d, trgt_nphi, trgt_ntheta)
+
+        if trgt_nphi != src_nphi or trgt_ntheta != src_ntheta:
+            trgt_surface = surface.__class__.from_nphi_ntheta(
+                mpol=surface.mpol,
+                ntor=surface.ntor,
+                nfp=surface.nfp,
+                stellsym=surface.stellsym,
+                nphi=trgt_nphi,
+                ntheta=trgt_ntheta,
+                range='half period' if use_stellsym else 'field period',
+            )
+            trgt_surface.x = surface.x
+            unit_normal = trgt_surface.unitnormal()
+            trgt_phi = trgt_surface.quadpoints_phi
+            trgt_theta = trgt_surface.quadpoints_theta
+        else:
+            unit_normal = surface.unitnormal()
+            trgt_phi = surface.quadpoints_phi
+            trgt_theta = surface.quadpoints_theta
+
+        vc = cls()
+        vc.src_ntheta = src_ntheta
+        vc.src_nphi = src_nphi
+        vc.src_theta = np.asarray(surface.quadpoints_theta)
+        vc.src_phi = np.asarray(surface.quadpoints_phi)
+        vc.trgt_ntheta = trgt_ntheta
+        vc.trgt_nphi = trgt_nphi
+        vc.trgt_theta = np.asarray(trgt_theta)
+        vc.trgt_phi = np.asarray(trgt_phi)
+        vc.nfp = surface.nfp
+        vc.gamma = gamma
+        vc.B_total = B_total
+        vc.unit_normal = unit_normal
+        vc.B_external = Bexternal3d
+        vc.B_external_normal = np.sum(Bexternal3d * unit_normal, axis=2)
+        vc.B_external_normal_extended = None
+        vc._vcasing_operator = vcasing
+        vc._use_stellsym = bool(use_stellsym)
+        vc._digits = int(digits)
+        return vc
+
     @classmethod
     def from_vmec(cls, vmec, src_nphi, src_ntheta=None, trgt_nphi=None, trgt_ntheta=None, use_stellsym=True, digits=6, filename="auto"):
         """
@@ -161,6 +341,8 @@ class VirtualCasing:
               files, analogous to the Vmec output file ``"wout_<extension>.nc"``.
         """
         import virtual_casing as vc_module
+
+        Vmec, B_cartesian = _load_vmec_helpers()
 
         if not isinstance(vmec, Vmec):
             vmec = Vmec(vmec)

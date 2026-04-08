@@ -11,14 +11,25 @@ except ImportError as e:
     MPI = None
     logger.debug(str(e))
 
-if MPI is not None:
-    try:
-        from simsopt.mhd.vmec import Vmec
-        from simsopt.mhd.boozer import Boozer
-    except ImportError as e:
-        Vmec = None
-        Boozer = None
-        logger.debug(str(e))
+Vmec = None
+Boozer = None
+
+
+def _load_equilibrium_types():
+    global Vmec, Boozer
+
+    if MPI is None:
+        return Vmec, Boozer
+    if Vmec is None or Boozer is None:
+        try:
+            from simsopt.mhd.vmec import Vmec as vmec_type
+            from simsopt.mhd.boozer import Boozer as boozer_type
+        except ImportError as e:
+            logger.debug(str(e))
+        else:
+            Vmec = vmec_type
+            Boozer = boozer_type
+    return Vmec, Boozer
 
 __all__ = ['BoozerMagneticField', 'BoozerAnalytic', 'BoozerRadialInterpolant',
            'InterpolatedBoozerField']
@@ -341,12 +352,14 @@ class BoozerRadialInterpolant(BoozerMagneticField):
     def __init__(self, equil, order, mpol=32, ntor=32, N=None, enforce_vacuum=False, rescale=False,
                  ns_delete=0, no_K=False):
 
-        if isinstance(equil, Vmec):
+        vmec_type, boozer_type = _load_equilibrium_types()
+
+        if vmec_type is not None and isinstance(equil, vmec_type):
             equil.run()
-            self.booz = Boozer(equil, mpol, ntor)
+            self.booz = boozer_type(equil, mpol, ntor)
             self.booz.register(self.booz.equil.s_half_grid)
             self.booz.run()
-        elif isinstance(equil, Boozer):
+        elif boozer_type is not None and isinstance(equil, boozer_type):
             self.booz = equil
             # Determine if radial grid for Boozer needs to be updated
 
@@ -363,6 +376,8 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             # Run booz_xform if needed
             if self.booz.need_to_run_code:
                 self.booz.run()
+        else:
+            raise TypeError("equil must be a Vmec or Boozer instance")
 
         self.stellsym = not self.booz.bx.asym
         self.order = order
