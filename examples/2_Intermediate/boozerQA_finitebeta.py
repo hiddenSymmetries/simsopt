@@ -1001,9 +1001,46 @@ def write_vmec_benchmark_outputs(name, direct_field, vmec_field, summary):
     print(f"Saved VMEC benchmark plot to {png_path}")
 
 
+def apply_field_alignment(field, phi_shift=0, theta_shift=0, flip_phi=False, flip_theta=False):
+    aligned = np.asarray(field)
+    if flip_phi:
+        aligned = np.flip(aligned, axis=0)
+    if flip_theta:
+        aligned = np.flip(aligned, axis=1)
+    aligned = np.roll(aligned, int(phi_shift), axis=0)
+    aligned = np.roll(aligned, int(theta_shift), axis=1)
+    return aligned
+
+
+def find_best_field_alignment(reference_field, candidate_field):
+    reference = np.asarray(reference_field)
+    candidate = np.asarray(candidate_field)
+    best = None
+    for flip_phi in (False, True):
+        for flip_theta in (False, True):
+            transformed = apply_field_alignment(candidate, flip_phi=flip_phi, flip_theta=flip_theta)
+            for phi_shift in range(reference.shape[0]):
+                shifted_phi = np.roll(transformed, phi_shift, axis=0)
+                for theta_shift in range(reference.shape[1]):
+                    aligned = np.roll(shifted_phi, theta_shift, axis=1)
+                    rel_diff = float(np.linalg.norm(aligned - reference) / max(np.linalg.norm(reference), 1e-30))
+                    if best is None or rel_diff < best["rel_diff"]:
+                        best = {
+                            "aligned_field": aligned.copy(),
+                            "rel_diff": rel_diff,
+                            "phi_shift": int(phi_shift),
+                            "theta_shift": int(theta_shift),
+                            "flip_phi": bool(flip_phi),
+                            "flip_theta": bool(flip_theta),
+                        }
+    return best
+
+
 def export_and_benchmark_vmec_from_surface(
     surface,
     direct_field,
+    direct_iota,
+    direct_I,
     target_plasma_beta,
     reference_magnetic_pressure,
     pressure_jump,
@@ -1021,7 +1058,15 @@ def export_and_benchmark_vmec_from_surface(
     )
     vmec_input_path = Path(OUT_DIR) / vmec_input_name
 
-    def configure_vmec_equilibrium(vmec_obj, axis_pressure_value, phiedge_value):
+    constraint_mode = os.environ.get(
+        "SIMSOPT_FINITE_BETA_VMEC_CONSTRAINT_MODE",
+        "iota",
+    ).strip().lower()
+    if constraint_mode not in ("current", "iota", "none"):
+        raise ValueError("SIMSOPT_FINITE_BETA_VMEC_CONSTRAINT_MODE must be one of: current, iota, none")
+    direct_toroidal_current = float((2.0 * np.pi / MU0) * float(direct_I))
+
+    def configure_vmec_equilibrium(vmec_obj, axis_pressure_value, phiedge_value, direct_iota_value):
         vmec_obj.boundary = boundary_rz
         vmec_obj.indata.lfreeb = False
         vmec_obj.indata.mpol = int(boundary_rz.mpol)
@@ -1042,6 +1087,16 @@ def export_and_benchmark_vmec_from_surface(
             vmec_obj.indata.niter_array[idx] = niter_schedule[idx]
             vmec_obj.indata.ftol_array[idx] = ftol_schedule[idx]
         vmec_obj.pressure_profile = ProfilePolynomial([float(axis_pressure_value), -float(axis_pressure_value)])
+        vmec_obj.current_profile = None
+        vmec_obj.iota_profile = None
+        if constraint_mode == "iota":
+            vmec_obj.indata.ncurr = 0
+            vmec_obj.indata.piota_type = "power_series"
+            vmec_obj.iota_profile = ProfilePolynomial([float(direct_iota_value)])
+        elif constraint_mode == "current":
+            vmec_obj.indata.ncurr = 1
+            vmec_obj.indata.pcurr_type = "power_series"
+            vmec_obj.current_profile = ProfilePolynomial([float(direct_toroidal_current)])
 
     def build_boundary_surface(vmec_obj):
         boundary = SurfaceRZFourier.from_nphi_ntheta(
@@ -1057,7 +1112,7 @@ def export_and_benchmark_vmec_from_surface(
         return boundary
 
     calibration_vmec = Vmec(None, verbose=False, nphi=max(nphi_benchmark, 32), ntheta=max(ntheta_benchmark, 32), range_surface="field period")
-    configure_vmec_equilibrium(calibration_vmec, axis_pressure_value=0.0, phiedge_value=1.0)
+    configure_vmec_equilibrium(calibration_vmec, axis_pressure_value=0.0, phiedge_value=1.0, direct_iota_value=direct_iota)
     calibration_vmec.run()
     Bx_cal, By_cal, Bz_cal = B_cartesian(calibration_vmec, nphi=nphi_benchmark, ntheta=ntheta_benchmark, range="field period")
     calibration_field = np.stack((Bx_cal, By_cal, Bz_cal), axis=2)
@@ -1067,7 +1122,7 @@ def export_and_benchmark_vmec_from_surface(
 
     axis_pressure = float(max(2.0 * target_plasma_beta * reference_magnetic_pressure, 0.0))
     vmec = Vmec(None, verbose=False, nphi=max(nphi_benchmark, 32), ntheta=max(ntheta_benchmark, 32), range_surface="field period")
-    configure_vmec_equilibrium(vmec, axis_pressure_value=axis_pressure, phiedge_value=phiedge_scale)
+    configure_vmec_equilibrium(vmec, axis_pressure_value=axis_pressure, phiedge_value=phiedge_scale, direct_iota_value=direct_iota)
     vmec.write_input(str(vmec_input_path))
     print(f"Wrote VMEC input to {vmec_input_path}")
 
@@ -1075,22 +1130,37 @@ def export_and_benchmark_vmec_from_surface(
     vmec_run.run()
     Bx, By, Bz = B_cartesian(vmec_run, nphi=nphi_benchmark, ntheta=ntheta_benchmark, range="field period")
     vmec_field = np.stack((Bx, By, Bz), axis=2)
+    best_alignment = find_best_field_alignment(direct_field, vmec_field)
+    aligned_vmec_field = best_alignment["aligned_field"]
     boundary_vmec = build_boundary_surface(vmec_run)
     beta_summary = collect_vmec_beta_summary(vmec_run)
     benchmark_summary = {
         'target_plasma_beta': float(target_plasma_beta),
         'direct_pressure_jump': float(pressure_jump),
+        'direct_iota': float(direct_iota),
+        'direct_I': float(direct_I),
+        'direct_toroidal_current': float(direct_toroidal_current),
+        'vmec_constraint_mode': constraint_mode,
         'vmec_axis_pressure': float(axis_pressure),
         'vmec_phiedge': float(phiedge_scale),
         'vmec_reference_magnetic_pressure': float(mean_surface_magnetic_pressure(boundary_vmec, vmec_field)),
         'direct_nonqs': float(surface_field_nonquasisymmetric_ratio(surface, direct_field)),
         'vmec_nonqs': float(surface_field_nonquasisymmetric_ratio(boundary_vmec, vmec_field)),
         'direct_vs_vmec_rel_field_diff': float(np.linalg.norm(vmec_field - direct_field) / max(np.linalg.norm(direct_field), 1e-30)),
+        'direct_vs_vmec_rel_field_diff_aligned': float(best_alignment['rel_diff']),
+        'vmec_alignment_phi_shift': int(best_alignment['phi_shift']),
+        'vmec_alignment_theta_shift': int(best_alignment['theta_shift']),
+        'vmec_alignment_flip_phi': int(best_alignment['flip_phi']),
+        'vmec_alignment_flip_theta': int(best_alignment['flip_theta']),
+        'vmec_iota_axis': float(vmec_run.iota_axis()),
         'vmec_iota_edge': float(vmec_run.iota_edge()),
+        'vmec_mean_iota': float(vmec_run.mean_iota()),
+        'vmec_toroidal_current': float(vmec_run.wout.ctor),
+        'vmec_toroidal_current_rel_error': float((float(vmec_run.wout.ctor) - direct_toroidal_current) / max(abs(direct_toroidal_current), 1e-30)),
         'vmec_volume': float(vmec_run.volume()),
     }
     benchmark_summary.update(beta_summary)
-    write_vmec_benchmark_outputs("boozerQA_finitebeta_direct_vmec_benchmark", direct_field, vmec_field, benchmark_summary)
+    write_vmec_benchmark_outputs("boozerQA_finitebeta_direct_vmec_benchmark", direct_field, aligned_vmec_field, benchmark_summary)
     return benchmark_summary, vmec_input_path
 
 
@@ -1393,6 +1463,8 @@ if mode == "self-consistent":
         benchmark_summary, vmec_input_path = export_and_benchmark_vmec_from_surface(
             surface,
             B_in,
+            direct_iota=result['iota'],
+            direct_I=result['I'],
             target_plasma_beta=plasma_beta,
             reference_magnetic_pressure=reference_magnetic_pressure,
             pressure_jump=finite_beta.pressure_jump,
@@ -1400,8 +1472,10 @@ if mode == "self-consistent":
             ntheta_benchmark=surface.quadpoints_theta.size,
         )
         print(
-            f"VMEC benchmark: input={vmec_input_path.name}, rel field diff={benchmark_summary['direct_vs_vmec_rel_field_diff']:.6e}, "
-            f"VMEC nonQS={benchmark_summary['vmec_nonqs']:.6e}, iota_edge={benchmark_summary['vmec_iota_edge']:.6e}"
+            f"VMEC benchmark: input={vmec_input_path.name}, raw rel field diff={benchmark_summary['direct_vs_vmec_rel_field_diff']:.6e}, "
+            f"aligned rel field diff={benchmark_summary['direct_vs_vmec_rel_field_diff_aligned']:.6e}, "
+            f"VMEC nonQS={benchmark_summary['vmec_nonqs']:.6e}, iota_edge={benchmark_summary['vmec_iota_edge']:.6e}, "
+            f"toroidal current={benchmark_summary['vmec_toroidal_current']:.6e} A"
         )
         beta_keys = [key for key in benchmark_summary if 'beta' in key.lower() and key not in ('target_plasma_beta',)]
         if len(beta_keys) > 0:
