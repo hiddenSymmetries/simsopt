@@ -74,7 +74,7 @@ Stage: devel
     cd .. && \
     rm -rf VMEC2000
 
-    # /venv/bin/pip install git+https://github.com/zhisong/pyoculus
+    # /venv/bin/pip install git+https://github.com/pyoculus/pyoculus
     /venv/bin/pip install vtk==9.2.6 pyqt5 matplotlib pyevtk plotly
     /venv/bin/pip install mayavi==4.8.3 --no-build-isolation
     /venv/bin/pip install ground==9 bentley_ottmann==8

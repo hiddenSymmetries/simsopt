@@ -42,7 +42,7 @@ Also,
     * `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_
 - For SPEC support:
     * `py_spec <https://github.com/PrincetonUniversity/SPEC/tree/master/Utilities/pythontools>`_
-    * `pyoculus <https://github.com/zhisong/pyoculus>`_
+    * `pyoculus <https://github.com/pyoculus/pyoculus>`_
     * `h5py <https://github.com/h5py/h5py>`_
 
 For requirements of separate physics modules like VMEC, see the
