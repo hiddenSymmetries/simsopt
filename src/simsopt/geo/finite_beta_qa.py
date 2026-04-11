@@ -101,7 +101,7 @@ def _configure_runtime(config):
     closure_vc_digits = int(config.closure_vc_digits)
 
 
-def stellsym_exact_grid(requested_nphi, requested_ntheta, min_ntor=3, min_mpol=3):
+def stellsym_exact_grid(requested_nphi, requested_ntheta, nfp, min_ntor=3, min_mpol=3):
     ntor = max(min_ntor, (int(requested_nphi) - 1) // 2)
     mpol = max(min_mpol, (int(requested_ntheta) - 1) // 2)
     quadpoints_phi = np.linspace(0, 1 / nfp, 2 * ntor + 1, endpoint=False)
@@ -1579,7 +1579,7 @@ def _run_selected_mode():
             current.fix_all()
         current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
         G0 = 2.0 * np.pi * current_sum * (4 * np.pi * 10 ** (-7) / (2 * np.pi))
-        mpol, ntor, phis, thetas = stellsym_exact_grid(nphi, ntheta)
+        mpol, ntor, phis, thetas = stellsym_exact_grid(nphi, ntheta, nfp)
         print(
             f"Using Boozer-exact seed grid nphi={len(phis)}, ntheta={len(thetas)}, "
             f"mpol={mpol}, ntor={ntor}"
@@ -1941,7 +1941,7 @@ def _run_selected_mode():
             current.fix_all()
         current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
         G0 = 2.0 * np.pi * current_sum * (4 * np.pi * 10 ** (-7) / (2 * np.pi))
-        mpol, ntor, phis, thetas = stellsym_exact_grid(nphi, ntheta)
+        mpol, ntor, phis, thetas = stellsym_exact_grid(nphi, ntheta, nfp)
         print(
             f"Using Boozer-exact seed grid nphi={len(phis)}, ntheta={len(thetas)}, "
             f"mpol={mpol}, ntor={ntor}"

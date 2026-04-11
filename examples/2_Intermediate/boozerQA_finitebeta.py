@@ -322,7 +322,7 @@ def fun(dofs):
     if not inner['success']:
         # Inner solve failed: restore previous surface and state, return large J.
         s.x = sdofs_prev
-        print(f"  inner solve FAILED — reverting to previous surface.  J=1e3")
+        print("  inner solve FAILED — reverting to previous surface.  J=1e3")
         return 1e3
 
     # Update mutable state with the new converged solution.
@@ -400,7 +400,7 @@ B_in_final, B_out_final = finite_beta.resolve_field_components(
 nonqs_final = surface_field_nonquasisymmetric_ratio(s, B_in_final)
 beta_final  = pressure_jump_final / max(ref_final, 1e-30)
 
-print(f"\nFinal state:")
+print("\nFinal state:")
 print(f"  success       = {final_res['success']}")
 print(f"  iota          = {final_res['iota']:.6f}  (vacuum: {seed['iota']:.6f})")
 print(f"  nonQS ratio   = {nonqs_final:.6e}")
