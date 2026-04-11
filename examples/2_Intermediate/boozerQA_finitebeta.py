@@ -29,7 +29,7 @@ This script is the finite-beta counterpart to boozerQA.py.  It teaches how to:
   6. Define an outer objective function J that penalises Boozer
      non-quasisymmetry, iota drift, major-radius drift, achieved-beta error,
      finite-beta residual, and surface-shape regularisation.
-  7. Run the outer optimisation with scipy L-BFGS-B.
+    7. Run the outer optimisation with scipy Powell (no finite-difference gradient calls).
   8. Save initial and final coil/surface VTK files.
   9. Optionally export the optimised plasma boundary as a VMEC input file
      (iota-constrained, zero net current — the standard stellarator convention)
@@ -41,6 +41,13 @@ Key finite-beta physics:
   [B_tan] = μ₀ K (Rankine–Hugoniot) and simultaneously enforces Boozer
   coordinates and pressure balance [B²]/(2μ₀) = Δp on the plasma boundary.
   For a stellarator (zero net enclosed current) we set I = 0 and optimise G.
+
+Numerical note on derivatives:
+    Inner least-squares solves are executed on frozen explicit field samples
+    (B_in, B_out), so FiniteBetaBoozerSurface uses analytic Jacobians for the
+    finite-beta residual instead of the state-dependent finite-difference
+    fallback. A short Picard loop refreshes the frozen fields to recover
+    self-consistency.
 
 Reference: arXiv:2203.03753 (doi:10.1017/S0022377822000563)
 """
@@ -88,6 +95,10 @@ CONTINUATION_STEPS = 4 if not in_github_actions else 2
 # Max function evaluations per Levenberg–Marquardt inner iteration step.
 LS_MAX_NFEV = 50
 
+# Fixed-point iterations used to recover self-consistency while preserving
+# analytic Jacobians in each inner least-squares solve.
+PICARD_ITERS = 3
+
 # ===========================================================================
 ## OUTER QA OPTIMISATION
 # ===========================================================================
@@ -95,7 +106,7 @@ LS_MAX_NFEV = 50
 # Larger values → richer shape space but higher cost.
 QA_DOF_COUNT = 12
 
-# Maximum BFGS iterations (scipy uses finite-difference gradients here).
+# Maximum outer optimisation iterations.
 QA_MAXITER = 50 if not in_github_actions else 3
 
 # Penalty weights in the outer objective J.  Tuning these controls the
@@ -246,13 +257,35 @@ K    = np.zeros(s.gamma().shape[:2])     # sheet-current potential [nphi × nthe
 
 for step, p in enumerate(np.linspace(0.0, pressure_jump, CONTINUATION_STEPS), start=1):
     finite_beta.pressure_jump = p
-    res = finite_beta.run_code(
-        iota=iota, G=G, I=I, current_potential=K,
-        field_provider=field_provider,
-        optimize_G=ZERO_TOROIDAL_CURRENT,     # free G (stellarator: fixed I=0)
-        optimize_I=not ZERO_TOROIDAL_CURRENT, # free I (tokamak mode)
-        optimize_surface=False,               # hold the surface shape fixed here
-    )
+    res = None
+    for _ in range(PICARD_ITERS):
+        B_in_guess, B_out_guess = finite_beta.resolve_field_components(
+            field_provider=field_provider,
+            iota=iota,
+            G=G,
+            I=I,
+            current_potential=K,
+        )
+        # Frozen-field inner solve uses analytic residual Jacobians.
+        res = finite_beta.run_code(
+            iota=iota,
+            G=G,
+            I=I,
+            current_potential=K,
+            B_in=B_in_guess,
+            B_out=B_out_guess,
+            optimize_G=ZERO_TOROIDAL_CURRENT,     # free G (stellarator: fixed I=0)
+            optimize_I=not ZERO_TOROIDAL_CURRENT, # free I (tokamak mode)
+            optimize_surface=False,               # hold the surface shape fixed here
+        )
+        if not res['success']:
+            break
+        iota = res['iota']
+        G = res['G']
+        I = res['I']
+        K = np.asarray(res['current_potential']).copy()
+    if res is None:
+        raise RuntimeError('Continuation step failed before starting the inner solve.')
     iota = res['iota']
     G    = res['G']
     I    = res['I']
@@ -310,14 +343,43 @@ def fun(dofs):
     p_new  = PLASMA_BETA * ref_new
     finite_beta.pressure_jump = p_new
 
-    # Inner self-consistent finite-beta solve.
-    inner = finite_beta.run_code(
-        iota=iota_prev, G=G_prev, I=I_prev, current_potential=K_prev,
-        field_provider=field_provider,
-        optimize_G=ZERO_TOROIDAL_CURRENT,
-        optimize_I=not ZERO_TOROIDAL_CURRENT,
-        optimize_surface=False,
-    )
+    # Inner finite-beta solve using analytic Jacobians on frozen fields,
+    # wrapped in a Picard fixed-point loop for self-consistency.
+    inner = None
+    iota_tmp = iota_prev
+    G_tmp = G_prev
+    I_tmp = I_prev
+    K_tmp = K_prev.copy()
+    for _ in range(PICARD_ITERS):
+        B_in_guess, B_out_guess = finite_beta.resolve_field_components(
+            field_provider=field_provider,
+            iota=iota_tmp,
+            G=G_tmp,
+            I=I_tmp,
+            current_potential=K_tmp,
+        )
+        inner = finite_beta.run_code(
+            iota=iota_tmp,
+            G=G_tmp,
+            I=I_tmp,
+            current_potential=K_tmp,
+            B_in=B_in_guess,
+            B_out=B_out_guess,
+            optimize_G=ZERO_TOROIDAL_CURRENT,
+            optimize_I=not ZERO_TOROIDAL_CURRENT,
+            optimize_surface=False,
+        )
+        if not inner['success']:
+            break
+        iota_tmp = float(inner['iota'])
+        G_tmp = float(inner['G'])
+        I_tmp = float(inner['I'])
+        K_tmp = np.asarray(inner['current_potential']).copy()
+
+    if inner is None:
+        s.x = sdofs_prev
+        print("  inner solve FAILED — reverting to previous surface.  J=1e3")
+        return 1e3
 
     if not inner['success']:
         # Inner solve failed: restore previous surface and state, return large J.
@@ -354,11 +416,11 @@ def fun(dofs):
     return J
 
 
-print(f"Optimising {QA_DOF_COUNT} surface DOFs with L-BFGS-B, maxiter={QA_MAXITER}")
+print(f"Optimising {QA_DOF_COUNT} surface DOFs with Powell, maxiter={QA_MAXITER}")
 
 dofs0 = surface_dofs0[:QA_DOF_COUNT]
 result_opt = minimize(
-    fun, dofs0, method='L-BFGS-B',
+    fun, dofs0, method='Powell',
     options={'maxiter': QA_MAXITER,
              'maxfun': max(40, QA_MAXITER * (QA_DOF_COUNT + 1))})
 
@@ -383,13 +445,39 @@ ref_final   = float(np.sum(np.sum(B_vac_final**2, axis=2) * dA_final)
 pressure_jump_final       = PLASMA_BETA * ref_final
 finite_beta.pressure_jump = pressure_jump_final
 
-final_res = finite_beta.run_code(
-    iota=state['iota'], G=state['G'], I=state['I'], current_potential=state['K'],
-    field_provider=field_provider,
-    optimize_G=ZERO_TOROIDAL_CURRENT,
-    optimize_I=not ZERO_TOROIDAL_CURRENT,
-    optimize_surface=False,
-)
+final_res = None
+iota_tmp = float(state['iota'])
+G_tmp = float(state['G'])
+I_tmp = float(state['I'])
+K_tmp = np.asarray(state['K']).copy()
+for _ in range(PICARD_ITERS):
+    B_in_guess, B_out_guess = finite_beta.resolve_field_components(
+        field_provider=field_provider,
+        iota=iota_tmp,
+        G=G_tmp,
+        I=I_tmp,
+        current_potential=K_tmp,
+    )
+    final_res = finite_beta.run_code(
+        iota=iota_tmp,
+        G=G_tmp,
+        I=I_tmp,
+        current_potential=K_tmp,
+        B_in=B_in_guess,
+        B_out=B_out_guess,
+        optimize_G=ZERO_TOROIDAL_CURRENT,
+        optimize_I=not ZERO_TOROIDAL_CURRENT,
+        optimize_surface=False,
+    )
+    if not final_res['success']:
+        break
+    iota_tmp = float(final_res['iota'])
+    G_tmp = float(final_res['G'])
+    I_tmp = float(final_res['I'])
+    K_tmp = np.asarray(final_res['current_potential']).copy()
+
+if final_res is None:
+    raise RuntimeError('Final finite-beta solve failed before starting the inner solve.')
 
 B_in_final, B_out_final = finite_beta.resolve_field_components(
     field_provider=field_provider,
@@ -432,92 +520,95 @@ print(f"Saved final surface → {OUT_DIR}surf_opt.vts")
 # this with a short unit-flux vacuum run.
 
 if EXPORT_VMEC:
-    from simsopt.mhd.vmec import Vmec
-    from simsopt.mhd.profiles import ProfilePolynomial
-    from simsopt.mhd.vmec_diagnostics import B_cartesian
+    try:
+        from simsopt.mhd.vmec import Vmec
+        from simsopt.mhd.profiles import ProfilePolynomial
+        from simsopt.mhd.vmec_diagnostics import B_cartesian
 
-    # Convert the optimised XYZ-tensor-Fourier surface to the RZFourier
-    # representation required by VMEC.
-    boundary_rz = s.to_RZFourier()
+        # Convert the optimised XYZ-tensor-Fourier surface to the RZFourier
+        # representation required by VMEC.
+        boundary_rz = s.to_RZFourier()
 
-    # ── Step 1: calibrate phiedge with a unit-flux vacuum run ──────────────
-    # Run VMEC at phiedge=1 with zero pressure, read back <|B|²/(2μ₀)> at the
-    # boundary, and scale so it matches the direct-closure <|B|²/(2μ₀)>.
-    vmec_cal = Vmec(None, verbose=False,
+        # ── Step 1: calibrate phiedge with a unit-flux vacuum run ──────────
+        # Run VMEC at phiedge=1 with zero pressure, read back <|B|²/(2μ₀)> at the
+        # boundary, and scale so it matches the direct-closure <|B|²/(2μ₀)>.
+        vmec_cal = Vmec(None, verbose=False,
+                        nphi=len(phis), ntheta=len(thetas),
+                        range_surface="field period")
+        vmec_cal.boundary = boundary_rz
+        vmec_cal.indata.mpol = int(boundary_rz.mpol)
+        vmec_cal.indata.ntor = int(boundary_rz.ntor)
+        vmec_cal.indata.lfreeb = False
+        vmec_cal.indata.ns_array[:]    = 0
+        vmec_cal.indata.niter_array[:] = 0
+        vmec_cal.indata.ftol_array[:]  = -1.0
+        for i, (ns, nit, ft) in enumerate(zip(VMEC_NS, VMEC_NITER, VMEC_FTOL)):
+            vmec_cal.indata.ns_array[i]    = ns
+            vmec_cal.indata.niter_array[i] = nit
+            vmec_cal.indata.ftol_array[i]  = ft
+        # Iota-constrained (NCURR=0): prescribe iota, set net toroidal current = 0.
+        vmec_cal.indata.ncurr  = 0
+        vmec_cal.indata.curtor = 0.0
+        vmec_cal.indata.phiedge = 1.0
+        vmec_cal.pressure_profile = ProfilePolynomial([0.0])
+        vmec_cal.iota_profile     = ProfilePolynomial([final_res['iota']])
+        vmec_cal.run()
+
+        Bx_c, By_c, Bz_c = B_cartesian(vmec_cal, nphi=len(phis), ntheta=len(thetas),
+                                        range="field period")
+        B_cal   = np.stack([Bx_c, By_c, Bz_c], axis=2)
+        dA_cal  = np.linalg.norm(vmec_cal.boundary.normal(), axis=2)
+        ref_cal = float(np.sum(np.sum(B_cal**2, axis=2) * dA_cal)
+                        / (2.0 * MU0 * np.maximum(np.sum(dA_cal), 1e-30)))
+        phiedge = float(np.sqrt(ref_final / max(ref_cal, 1e-30)))
+        print(f"\nVMEC phiedge calibration: phiedge = {phiedge:.6f} Wb")
+
+        # ── Step 2: run the finite-beta equilibrium ─────────────────────────
+        # Pressure profile:  p(s) = p₀ (1 − s).
+        # For VMEC, a parabolic p(s) profile with axis value p₀ gives
+        # β ≈ p₀ / <B²/(2μ₀)> (normalised by the volume-averaged field).
+        # Use 2× the surface reference pressure to account for the profile factor.
+        p_axis = 2.0 * PLASMA_BETA * ref_final
+
+        vmec = Vmec(None, verbose=False,
                     nphi=len(phis), ntheta=len(thetas),
                     range_surface="field period")
-    vmec_cal.boundary = boundary_rz
-    vmec_cal.indata.mpol = int(boundary_rz.mpol)
-    vmec_cal.indata.ntor = int(boundary_rz.ntor)
-    vmec_cal.indata.lfreeb = False
-    vmec_cal.indata.ns_array[:]    = 0
-    vmec_cal.indata.niter_array[:] = 0
-    vmec_cal.indata.ftol_array[:]  = -1.0
-    for i, (ns, nit, ft) in enumerate(zip(VMEC_NS, VMEC_NITER, VMEC_FTOL)):
-        vmec_cal.indata.ns_array[i]    = ns
-        vmec_cal.indata.niter_array[i] = nit
-        vmec_cal.indata.ftol_array[i]  = ft
-    # Iota-constrained (NCURR=0): prescribe iota, set net toroidal current = 0.
-    vmec_cal.indata.ncurr  = 0
-    vmec_cal.indata.curtor = 0.0
-    vmec_cal.indata.phiedge = 1.0
-    vmec_cal.pressure_profile = ProfilePolynomial([0.0])
-    vmec_cal.iota_profile     = ProfilePolynomial([final_res['iota']])
-    vmec_cal.run()
+        vmec.boundary = boundary_rz
+        vmec.indata.mpol = int(boundary_rz.mpol)
+        vmec.indata.ntor = int(boundary_rz.ntor)
+        vmec.indata.lfreeb = False
+        vmec.indata.ns_array[:]    = 0
+        vmec.indata.niter_array[:] = 0
+        vmec.indata.ftol_array[:]  = -1.0
+        for i, (ns, nit, ft) in enumerate(zip(VMEC_NS, VMEC_NITER, VMEC_FTOL)):
+            vmec.indata.ns_array[i]    = ns
+            vmec.indata.niter_array[i] = nit
+            vmec.indata.ftol_array[i]  = ft
+        vmec.indata.ncurr  = 0
+        vmec.indata.curtor = 0.0
+        vmec.indata.phiedge  = phiedge
+        vmec.pressure_profile = ProfilePolynomial([p_axis, -p_axis])
+        vmec.iota_profile     = ProfilePolynomial([final_res['iota']])
+        vmec.run()
 
-    Bx_c, By_c, Bz_c = B_cartesian(vmec_cal, nphi=len(phis), ntheta=len(thetas),
-                                    range="field period")
-    B_cal   = np.stack([Bx_c, By_c, Bz_c], axis=2)
-    dA_cal  = np.linalg.norm(vmec_cal.boundary.normal(), axis=2)
-    ref_cal = float(np.sum(np.sum(B_cal**2, axis=2) * dA_cal)
-                    / (2.0 * MU0 * np.maximum(np.sum(dA_cal), 1e-30)))
-    phiedge = float(np.sqrt(ref_final / max(ref_cal, 1e-30)))
-    print(f"\nVMEC phiedge calibration: phiedge = {phiedge:.6f} Wb")
+        vmec_input_path = Path(OUT_DIR) / "input.boozerQA_finitebeta"
+        vmec.write_input(str(vmec_input_path))
+        print(f"VMEC input written      → {vmec_input_path}")
+        print(f"  VMEC iota_edge = {vmec.iota_edge():.6f}  (direct: {final_res['iota']:.6f})")
+        print(f"  VMEC mean_iota = {vmec.mean_iota():.6f}")
 
-    # ── Step 2: run the finite-beta equilibrium ─────────────────────────────
-    # Pressure profile:  p(s) = p₀ (1 − s).
-    # For VMEC, a parabolic p(s) profile with axis value p₀ gives
-    # β ≈ p₀ / <B²/(2μ₀)> (normalised by the volume-averaged field).
-    # Use 2× the surface reference pressure to account for the profile factor.
-    p_axis = 2.0 * PLASMA_BETA * ref_final
-
-    vmec = Vmec(None, verbose=False,
-                nphi=len(phis), ntheta=len(thetas),
-                range_surface="field period")
-    vmec.boundary = boundary_rz
-    vmec.indata.mpol = int(boundary_rz.mpol)
-    vmec.indata.ntor = int(boundary_rz.ntor)
-    vmec.indata.lfreeb = False
-    vmec.indata.ns_array[:]    = 0
-    vmec.indata.niter_array[:] = 0
-    vmec.indata.ftol_array[:]  = -1.0
-    for i, (ns, nit, ft) in enumerate(zip(VMEC_NS, VMEC_NITER, VMEC_FTOL)):
-        vmec.indata.ns_array[i]    = ns
-        vmec.indata.niter_array[i] = nit
-        vmec.indata.ftol_array[i]  = ft
-    vmec.indata.ncurr  = 0
-    vmec.indata.curtor = 0.0
-    vmec.indata.phiedge  = phiedge
-    vmec.pressure_profile = ProfilePolynomial([p_axis, -p_axis])
-    vmec.iota_profile     = ProfilePolynomial([final_res['iota']])
-    vmec.run()
-
-    vmec_input_path = Path(OUT_DIR) / "input.boozerQA_finitebeta"
-    vmec.write_input(str(vmec_input_path))
-    print(f"VMEC input written      → {vmec_input_path}")
-    print(f"  VMEC iota_edge = {vmec.iota_edge():.6f}  (direct: {final_res['iota']:.6f})")
-    print(f"  VMEC mean_iota = {vmec.mean_iota():.6f}")
-
-    # ── Step 3: compare boundary field magnitudes ───────────────────────────
-    Bx_v, By_v, Bz_v = B_cartesian(vmec, nphi=len(phis), ntheta=len(thetas),
-                                    range="field period")
-    B_vmec   = np.stack([Bx_v, By_v, Bz_v], axis=2)
-    modB_dir = np.linalg.norm(B_in_final, axis=2)
-    modB_vmec = np.linalg.norm(B_vmec, axis=2)
-    rel_diff  = (float(np.linalg.norm(modB_vmec - modB_dir))
-                 / max(float(np.linalg.norm(modB_dir)), 1e-30))
-    print(f"  |B| rel diff (direct vs VMEC) = {rel_diff:.6e}")
-    print("  (Use ParaView to visualise input.boozerQA_finitebeta and surf_opt.vts.)")
+        # ── Step 3: compare boundary field magnitudes ───────────────────────
+        Bx_v, By_v, Bz_v = B_cartesian(vmec, nphi=len(phis), ntheta=len(thetas),
+                                        range="field period")
+        B_vmec   = np.stack([Bx_v, By_v, Bz_v], axis=2)
+        modB_dir = np.linalg.norm(B_in_final, axis=2)
+        modB_vmec = np.linalg.norm(B_vmec, axis=2)
+        rel_diff  = (float(np.linalg.norm(modB_vmec - modB_dir))
+                     / max(float(np.linalg.norm(modB_dir)), 1e-30))
+        print(f"  |B| rel diff (direct vs VMEC) = {rel_diff:.6e}")
+        print("  (Use ParaView to visualise input.boozerQA_finitebeta and surf_opt.vts.)")
+    except Exception as exc:
+        print(f"\nVMEC export skipped: {exc}")
 
 print("\nEnd of 2_Intermediate/boozerQA_finitebeta.py")
 print("==============================================" )

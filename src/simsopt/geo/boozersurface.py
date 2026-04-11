@@ -643,38 +643,82 @@ class FiniteBetaBoozerSurface(Optimizable):
             raise ValueError("B_in and B_out must be provided together.")
 
         expected_shape = self.surface.gamma().shape
+
+        def _coerce_field_shape(field, field_name):
+            arr = np.asarray(field)
+            if arr.shape == expected_shape:
+                return arr
+
+            expected_size = int(np.prod(expected_shape))
+            if arr.size == expected_size:
+                return arr.reshape(expected_shape)
+
+            # Accept full/half-period-compatible grids and sample uniformly.
+            if arr.ndim == 3 and arr.shape[-1] == expected_shape[-1]:
+                if arr.shape[1] == expected_shape[1] and arr.shape[0] % expected_shape[0] == 0:
+                    step = arr.shape[0] // expected_shape[0]
+                    sampled = arr[::step, :, :]
+                    if sampled.shape == expected_shape:
+                        return sampled
+                if arr.shape[0] == expected_shape[0] and arr.shape[1] % expected_shape[1] == 0:
+                    step = arr.shape[1] // expected_shape[1]
+                    sampled = arr[:, ::step, :]
+                    if sampled.shape == expected_shape:
+                        return sampled
+
+                # Generic periodic resampling fallback for equivalent grids.
+                src_nphi, src_ntheta, src_ncomp = arr.shape
+                dst_nphi, dst_ntheta, dst_ncomp = expected_shape
+                if src_ncomp == dst_ncomp:
+                    phi_src = np.linspace(0.0, 1.0, src_nphi, endpoint=False)
+                    phi_dst = np.linspace(0.0, 1.0, dst_nphi, endpoint=False)
+                    theta_src = np.linspace(0.0, 1.0, src_ntheta, endpoint=False)
+                    theta_dst = np.linspace(0.0, 1.0, dst_ntheta, endpoint=False)
+                    resampled = np.zeros(expected_shape)
+                    for comp in range(dst_ncomp):
+                        phi_interp = np.zeros((dst_nphi, src_ntheta))
+                        for jtheta in range(src_ntheta):
+                            phi_interp[:, jtheta] = np.interp(
+                                phi_dst,
+                                phi_src,
+                                arr[:, jtheta, comp],
+                                period=1.0,
+                            )
+                        for iphi in range(dst_nphi):
+                            resampled[iphi, :, comp] = np.interp(
+                                theta_dst,
+                                theta_src,
+                                phi_interp[iphi, :],
+                                period=1.0,
+                            )
+                    return resampled
+
+            raise ValueError(f"{field_name} must have shape {expected_shape}.")
+
         if field_provider is not None:
             if iota is None or G is None:
                 raise ValueError('field_provider evaluation requires iota and G.')
             B_in_eval, B_out_eval = self._evaluate_field_provider(field_provider, iota, G, I, current_potential)
-            if B_in_eval.shape != expected_shape or B_out_eval.shape != expected_shape:
-                raise ValueError(f'field_provider must return arrays with shape {expected_shape}.')
+            B_in_eval = _coerce_field_shape(B_in_eval, 'field_provider B_in')
+            B_out_eval = _coerce_field_shape(B_out_eval, 'field_provider B_out')
             return B_in_eval, B_out_eval
 
         if callable(B_in) or callable(B_out):
             if not callable(B_in) or not callable(B_out):
                 raise ValueError("B_in and B_out must either both be callables or both be arrays.")
-            B_in = np.asarray(B_in(self.surface))
-            B_out = np.asarray(B_out(self.surface))
-            if B_in.shape != expected_shape or B_out.shape != expected_shape:
-                raise ValueError(f"Callable B_in and B_out must return arrays with shape {expected_shape}.")
+            B_in = _coerce_field_shape(B_in(self.surface), 'callable B_in')
+            B_out = _coerce_field_shape(B_out(self.surface), 'callable B_out')
             return B_in, B_out
 
         if B_in is not None:
-            B_in = np.asarray(B_in)
-            B_out = np.asarray(B_out)
-            if B_in.shape != expected_shape or B_out.shape != expected_shape:
-                raise ValueError(f"B_in and B_out must have shape {expected_shape}.")
+            B_in = _coerce_field_shape(B_in, 'B_in')
+            B_out = _coerce_field_shape(B_out, 'B_out')
             return B_in, B_out
 
         vc = self.virtual_casing
         if vc is not None and hasattr(vc, 'B_total') and hasattr(vc, 'B_external'):
-            B_total = np.asarray(vc.B_total)
-            B_external = np.asarray(vc.B_external)
-            if B_total.shape != expected_shape or B_external.shape != expected_shape:
-                raise ValueError(
-                    f"virtual_casing.B_total and virtual_casing.B_external must have shape {expected_shape}."
-                )
+            B_total = _coerce_field_shape(vc.B_total, 'virtual_casing.B_total')
+            B_external = _coerce_field_shape(vc.B_external, 'virtual_casing.B_external')
             return B_total - B_external, B_external
 
         if self.biotsavart is None:
