@@ -911,11 +911,15 @@ def _rmf_normals_from_gamma_gammadash(gamma, gammadash):
     # angle_corr is the signed angle (around t[-1]) needed to rotate n_final
     # towards n0.  Positive or negative is chosen so that the rotation
     # reduces the gap.
-    raw_angle = jnp.arccos(jnp.clip(jnp.dot(n_final, n0), -1., 1.))
+    # Use atan2 instead of arccos for a numerically stable gradient when
+    # n_final ≈ n0 (arccos gradient diverges at ±1).
+    cross_nf_n0 = jnp.cross(n_final, n0)
+    raw_angle = jnp.arctan2(jnp.linalg.norm(cross_nf_n0), jnp.dot(n_final, n0))
     R_test = _angle_axis_rotation_matrix(t[-1], raw_angle)
     test_n = R_test @ n_final
+    cross_test = jnp.cross(test_n, n0)
     angle_corr = jnp.where(
-        jnp.arccos(jnp.clip(jnp.dot(test_n, n0), -1., 1.)) < raw_angle,
+        jnp.arctan2(jnp.linalg.norm(cross_test), jnp.dot(test_n, n0)) < raw_angle,
         raw_angle,
         -raw_angle,
     )
