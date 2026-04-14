@@ -102,8 +102,6 @@ def main():
     surf.fixed_range(mmin=0, mmax=max_mode, nmin=-max_mode, nmax=max_mode, fixed=False)
     surf.fix("rc(0,0)")
 
-    proc0_print("Parameter space:", surf.dof_names)
-
     # Configure quasisymmetry objective:
     stage = build_vmec_objective_stage(
         vmec,
@@ -115,6 +113,7 @@ def main():
         x_scale_alpha=1.2,
         x_scale_min=1e-9,
     )
+    proc0_print("Parameter space:", stage.free_names)
     qs = stage.extras["qs"]
     solve_jit = bool(args.jit)
     if (

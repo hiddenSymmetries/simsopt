@@ -178,15 +178,15 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
 
 ## Current constraints
 
-- The new backend is currently a reverse-mode (`custom_vjp`) path.
-- That means `jacfwd` is the wrong consumer for it; use reverse-mode gradients or
-  `jac="reverse"` in the outer least-squares solver.
-- The example now exposes that choice explicitly.
-- The current wrapper implementation uses a small Python payload cache in the
-  custom VJP backward pass so JAX does not need to treat the checkpoint tape as
-  a traceable value.
-- The reverse-Jacobian SciPy path should currently be treated as `jit=False`
-  only. The example forces that combination for the discrete-adjoint backend.
+- The new backend is now a forward-mode (`custom_jvp`) path because the QH
+  benchmark has `n=8` controls and `m ~ 4.4e4` residual components, so
+  forward Jacobian columns are the correct scaling.
+- The production SciPy consumer should therefore use `jac="jax"` /
+  `jacfwd`, not `jac="reverse"`.
+- `jit=False` remains the safe default on this path until the traced residual
+  solver is fully cleaned up. A traced `np.asarray(...)` precompute in the
+  VMEC residual path was identified as a concrete JIT blocker and is now being
+  removed incrementally.
 
 ## Activity log
 
@@ -203,3 +203,21 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
   - Small end-to-end script smoke no longer fails immediately on the old
     `TracerArrayConversionError`, but the full SciPy QH smoke is still too slow
     even at tiny inner budgets, so runtime policy is still unresolved.
+  - Measured the actual scaling mismatch for the first wrapper implementation:
+    reverse-mode scalar objective gradients were viable, but full residual
+    Jacobians were the wrong shape/cost for QH (`m >> n`).
+  - Switched the wrapper discrete-adjoint backend from `custom_vjp` to
+    `custom_jvp` and removed the Python payload-cache workaround.
+  - Added forward tape-JVP helpers in `vmec_jax` and confirmed the wrapper
+    exact-QH aspect directional-derivative gate still matches finite
+    differences after the switch.
+  - Revalidated that `jax.jacfwd(stage.residuals)` works on the new backend and
+    returns a finite `(44353, 8)` Jacobian on the QH microcase.
+  - Re-ran a small SciPy QH smoke on the new forward path
+    (`max_nfev=2`, `vmec_max_iter=1`, `jac='jax'`, discrete adjoint) and saw
+    real least-squares progress:
+    - total objective `1.901008100532871 -> 0.5052581847050714`,
+    - wall time about `23.18 s`.
+  - Identified the next concrete runtime blocker for the production path:
+    `jit=True` still fails in the traced residual solver due to NumPy-only
+    precompute code inside `vmec_jax.solve`.
