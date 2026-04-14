@@ -30,6 +30,17 @@ For `simsopt`, that means the main work should stay small:
 - expose a clean QH example,
 - keep the benchmark apples-to-apples with the classic script.
 
+Important reality on this clean branch:
+
+- clean `simsopt` mainline does **not** yet contain:
+  - `src/simsopt/mhd/vmec_jax.py`,
+  - `src/simsopt/mhd/vmec_diagnostics_jax.py`,
+  - `src/simsopt/solve/jax_solve.py`,
+  - `examples/2_Intermediate/QH_fixed_resolution_jax.py`.
+
+So this branch is not just an example edit. It needs a staged reintroduction of
+the JAX consumer layer once the new backend in `vmec_jax` is trustworthy.
+
 ## Required benchmark
 
 - classic script: `examples/2_Intermediate/QH_fixed_resolution.py`
@@ -43,12 +54,33 @@ For `simsopt`, that means the main work should stay small:
 
 ## Planned changes
 
+### 0. Reintroduce the minimum JAX consumer surface
+
+- [ ] Port the minimum required files from the previous experimental branch, not
+  the whole branch history.
+- [ ] Keep the first port narrow:
+  - `src/simsopt/mhd/vmec_jax.py`
+  - `src/simsopt/mhd/vmec_diagnostics_jax.py`
+  - `src/simsopt/solve/jax_solve.py`
+  - exports / imports needed to surface them
+  - focused tests only
+- [ ] Do this only after `vmec_jax` reaches derivative Gate 4C.
+
+Acceptance:
+
+- clean `simsopt` can import the JAX wrapper and run a one-evaluation QH script.
+
 ### 1. Wrapper surface area
 
 - [ ] Add an explicit `VmecJax` derivative backend option for the new discrete-adjoint
   residual path.
 - [ ] Keep wrapper defaults conservative until the new backend is validated.
 - [ ] Make backend selection explicit in the QH example output.
+
+Acceptance:
+
+- backend selection is user-visible and test-covered,
+- the legacy implicit path is not silently selected by accident.
 
 ### 2. QH example cleanup
 
@@ -61,6 +93,12 @@ For `simsopt`, that means the main work should stay small:
 - [ ] Avoid branchy QA/QH scaffolding in the QH example itself.
 - [ ] Avoid hidden finite-difference Jacobian fallbacks.
 
+Acceptance:
+
+- the example reads like the classic QH script with a JAX-backed VMEC object
+  substituted for the classic VMEC object,
+- the derivative backend used is explicit in script output.
+
 ### 3. Solver choice
 
 - [ ] Re-test least-squares methods only after the new backend is correct.
@@ -68,11 +106,55 @@ For `simsopt`, that means the main work should stay small:
   Jacobian is trustworthy.
 - [ ] Keep `gradient_descent` as a diagnostic only, not the target path.
 
+Acceptance:
+
+- no production default depends on a hand-tuned finite step size,
+- the selected solver is justified by short benchmark data rather than guesswork.
+
 ### 4. Regression coverage
 
 - [ ] Add a wrapper-level regression confirming the QH start objective and finite
   gradients on the new backend.
 - [ ] Add a small QH derivative smoke test from the public `VmecJax` API.
+
+Acceptance:
+
+- wrapper regressions fail early if the backend becomes non-finite, changes the
+  QH start state, or silently regresses derivative quality.
+
+## Benchmarks and gates
+
+### Consumer-side gates
+
+- Gate S0: import and one-evaluation smoke test for the reintroduced wrapper.
+- Gate S1: exact QH start objective matches the intended converged forward path.
+- Gate S2: public-API directional derivative agrees with finite differences on
+  the exact QH start point.
+- Gate S3: `max_nfev=1` runtime and correctness benchmark.
+- Gate S4: `max_nfev=2` apples-to-apples QH benchmark.
+- Gate S5: `max_nfev=10` apples-to-apples QH benchmark.
+
+### Required runtime metrics
+
+For every benchmark script run, record:
+
+- total wall time,
+- solver method,
+- derivative backend,
+- objective/Jacobian call counts,
+- wall time per objective/Jacobian call,
+- final total objective,
+- final QS objective,
+- final aspect.
+
+### Required file-level benchmark targets
+
+- `src/simsopt/mhd/vmec_jax.py`
+  - wrapper overhead and caching overhead.
+- `src/simsopt/mhd/vmec_diagnostics_jax.py`
+  - QS residual evaluation cost and derivative smoke checks.
+- `src/simsopt/solve/jax_solve.py`
+  - solver bookkeeping overhead independent of VMEC solve cost.
 
 ## Acceptance
 
@@ -85,6 +167,7 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
 
 ## Immediate next tasks
 
-- [ ] Wait for the new `vmec_jax` backend interface to exist.
-- [ ] Wire it into `VmecJax`.
-- [ ] Replace the current QH example defaults with the new backend once validated.
+- [ ] Identify the minimal donor file set from the previous `simsopt_qh` branch.
+- [ ] Defer porting until `vmec_jax` derivative Gate 4C is met.
+- [ ] Once the backend is ready, wire it into `VmecJax` with explicit backend
+  selection and benchmark reporting.
