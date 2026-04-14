@@ -463,6 +463,10 @@ def least_squares_jax_solve(
         jac_residual_y = jax.jacfwd(residuals_y_raw)
         if jit:
             jac_residual_y = jax.jit(jac_residual_y)
+    elif jac_mode in ("reverse", "rev", "jacrev"):
+        jac_residual_y = jax.jacrev(residuals_y_raw)
+        if jit:
+            jac_residual_y = jax.jit(jac_residual_y)
     elif jac_mode in ("fd", "finite_difference", "finite-difference", "2-point", "3-point"):
         fd_method = "forward" if jac_mode == "2-point" else "centered"
 
@@ -604,7 +608,9 @@ def least_squares_jax_solve(
             res = _scipy_least_squares(
                 residuals_numpy,
                 np.asarray(y0),
-                jac=jac_numpy if jac_scipy in ("jax", "auto", "fd", "finite_difference", "finite-difference", "2-point", "3-point") else jac_scipy,
+                jac=jac_numpy
+                if jac_scipy in ("jax", "auto", "reverse", "rev", "jacrev", "fd", "finite_difference", "finite-difference", "2-point", "3-point")
+                else jac_scipy,
                 max_nfev=int(max_nfev),
                 xtol=float(gtol),
                 ftol=float(gtol),

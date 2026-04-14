@@ -136,6 +136,12 @@ def test_vmec_jax_qh_profile_applies_outer_optimization_defaults():
     assert not vmec._stateless_evaluations
 
 
+def test_vmec_jax_can_select_discrete_adjoint_backend():
+    vmec = VmecJax(_input_filename(), verbose=False)
+    vmec.set_solver_options(residual_derivative_backend="discrete_adjoint")
+    assert vmec._residual_derivative_backend == "discrete_adjoint"
+
+
 def test_vmec_jax_wrapper_keeps_unconstrained_boundary_coefficients():
     vmec = VmecJax(_input_filename(), verbose=False)
     vmec.indata.mpol = 3
@@ -289,6 +295,38 @@ def test_vmec_jax_qh_qs_state_gradient_is_finite():
     packed = np.asarray(_pack_stellsym_feasible_state(grad, rz_idx=rz_idx, lam_idx=lam_idx))
 
     assert np.all(np.isfinite(packed))
+
+
+def test_vmec_jax_discrete_backend_aspect_directional_derivative_matches_fd():
+    vmec = VmecJax(_input_filename(), verbose=False)
+    vmec.indata.mpol = 3
+    vmec.indata.ntor = 3
+    vmec.set_solver_options(
+        solver="vmec2000",
+        max_iter=1,
+        grad_tol=1.0e-13,
+        residual_derivative_backend="discrete_adjoint",
+    )
+
+    surf = vmec.boundary
+    surf.fix_all()
+    surf.fixed_range(mmin=0, mmax=1, nmin=-1, nmax=1, fixed=False)
+    surf.fix("rc(0,0)")
+    x0 = jax.numpy.asarray(surf.get_free_params(), dtype=jax.numpy.float64)
+    direction = jax.numpy.zeros_like(x0).at[0].set(1.0)
+
+    def aspect_fn(x):
+        return vmec.aspect_equilibrium_jax(x)
+
+    grad = jax.grad(aspect_fn)(x0)
+    ad = float(np.asarray(jax.numpy.dot(grad, direction)))
+    eps = 1.0e-5
+    fd = (
+        float(np.asarray(aspect_fn(x0 + eps * direction)))
+        - float(np.asarray(aspect_fn(x0 - eps * direction)))
+    ) / (2.0 * eps)
+
+    np.testing.assert_allclose(ad, fd, rtol=1.0e-5, atol=1.0e-8)
 
 
 def test_vmec_jax_aspect_matches_vmec_interface():

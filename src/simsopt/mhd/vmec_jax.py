@@ -13,6 +13,7 @@ implemented on top of `vmec_jax` with implicit differentiation.
 from __future__ import annotations
 
 from dataclasses import replace
+from itertools import count
 import re
 from typing import Sequence
 from types import SimpleNamespace
@@ -36,6 +37,10 @@ else:
 
 
 __all__ = ["VmecJax", "JaxBoundary"]
+
+
+_DISCRETE_ADJOINT_PAYLOADS: dict[int, dict] = {}
+_DISCRETE_ADJOINT_PAYLOAD_IDS = count()
 
 
 _OUTER_OPTIMIZATION_PROFILES = {
@@ -211,6 +216,16 @@ def _outer_optimization_profile(name: str | None) -> dict:
         return dict(_OUTER_OPTIMIZATION_PROFILES[key])
     except KeyError as exc:
         raise ValueError(f"Unknown VmecJax optimization profile: {name}") from exc
+
+
+def _store_discrete_adjoint_payload(payload: dict) -> int:
+    token = next(_DISCRETE_ADJOINT_PAYLOAD_IDS)
+    _DISCRETE_ADJOINT_PAYLOADS[token] = payload
+    if len(_DISCRETE_ADJOINT_PAYLOADS) > 32:
+        oldest = min(_DISCRETE_ADJOINT_PAYLOADS)
+        if oldest != token:
+            _DISCRETE_ADJOINT_PAYLOADS.pop(oldest, None)
+    return token
 
 
 class JaxBoundary:
@@ -463,6 +478,7 @@ class VmecJax:
         self._implicit_damping = 1e-5
         self._implicit_converge_tol = None
         self._implicit_zero_unconverged = False
+        self._residual_derivative_backend = "implicit"
         self._residual_adjoint_mode = "auto"
         self._residual_tangent_mode = "opaque"
         self._stateless_evaluations = False
@@ -581,6 +597,7 @@ class VmecJax:
         implicit_damping: float | None = None,
         implicit_converge_tol: float | None = None,
         implicit_zero_unconverged: bool | None = None,
+        residual_derivative_backend: str | None = None,
         residual_adjoint_mode: str | None = None,
         residual_tangent_mode: str | None = None,
         stateless_evaluations: bool | None = None,
@@ -662,6 +679,15 @@ class VmecJax:
             if implicit_zero_unconverged != self._implicit_zero_unconverged:
                 self._implicit_zero_unconverged = implicit_zero_unconverged
                 self._reset_caches(reset_warm_start=True)
+        if residual_derivative_backend is not None:
+            residual_derivative_backend = str(residual_derivative_backend).strip().lower()
+            if residual_derivative_backend not in ("implicit", "discrete_adjoint"):
+                raise ValueError(
+                    "residual_derivative_backend must be 'implicit' or 'discrete_adjoint'"
+                )
+            if residual_derivative_backend != self._residual_derivative_backend:
+                self._residual_derivative_backend = residual_derivative_backend
+                self._reset_caches(reset_warm_start=True)
         if residual_adjoint_mode is not None:
             residual_adjoint_mode = str(residual_adjoint_mode).strip().lower()
             if residual_adjoint_mode != self._residual_adjoint_mode:
@@ -710,6 +736,112 @@ class VmecJax:
         self.set_solver_options(
             **solver_options,
         )
+
+    def _solve_state_discrete_adjoint_residual(self, x_free: jnp.ndarray, *, step_size: float):
+        """Solve the residual iteration with a discrete-adjoint VJP over x_free."""
+        self._ensure_context()
+        static = self._static
+        boundary_wrapper = self.boundary
+        indata = self._indata_raw
+        base_full = jnp.asarray(boundary_wrapper._base)
+        specs = tuple(boundary_wrapper._specs)
+        lasym = bool(self._cfg.lasym)
+        max_iter = int(self._max_iter)
+        ftol = float(self._grad_tol)
+        modes = boundary_wrapper._modes
+        layout = self._context.st_guess.layout
+
+        def _initial_state_packed(xf, *, axis_override=None):
+            x_full = boundary_wrapper.expand_free(xf)
+            delta_full = jnp.asarray(x_full) - base_full
+            boundary_input = vj.apply_boundary_params(boundary_wrapper._boundary_input0, specs, delta_full)
+            boundary = boundary_from_input_convention(
+                boundary_input,
+                modes,
+                lasym=lasym,
+                apply_m1_constraint=False,
+            )
+            state = vj.initial_guess_from_boundary(
+                static,
+                boundary,
+                indata,
+                vmec_project=True,
+                axis_override=axis_override,
+            )
+            return jnp.asarray(vj.pack_state(state))
+
+        def _forward_payload(xf):
+            x0 = jnp.asarray(_initial_state_packed(xf), dtype=jnp.float64)
+            state0 = vj.unpack_state(x0, layout)
+            axis_override = vj.extract_axis_override_from_state(state0, static)
+            signgs0 = int(self._signgs)
+            solver_kwargs = dict(
+                indata=indata,
+                signgs=signgs0,
+                ftol=ftol,
+                step_size=float(step_size),
+                vmec2000_control=True,
+                reference_mode=False,
+                backtracking=True,
+                limit_dt_from_force=True,
+                limit_update_rms=True,
+                verbose=False,
+                verbose_vmec2000_table=False,
+                jit_forces="auto",
+                use_scan=False,
+                light_history=True,
+                resume_state_mode="full",
+            )
+            tape = vj.build_residual_checkpoint_tape(
+                state0,
+                static,
+                max_iter=max_iter,
+                solver_kwargs=solver_kwargs,
+                indata=indata,
+                signgs=signgs0,
+                ftol=ftol,
+                step_size=float(step_size),
+                light_history=True,
+                resume_state_mode="full",
+            )
+            if int(tape.packed_states.shape[0]) > 0:
+                packed_final = jnp.asarray(tape.packed_states[-1], dtype=x0.dtype)
+            else:
+                packed_final = x0
+            token = _store_discrete_adjoint_payload(
+                {"tape": tape, "axis_override": axis_override, "x_free": jnp.asarray(xf)}
+            )
+            return packed_final, token
+
+        @jax.custom_vjp
+        def _packed_state_from_xfree(xf):
+            packed_final, _ = _forward_payload(xf)
+            return packed_final
+
+        def _packed_state_from_xfree_fwd(xf):
+            return _forward_payload(xf)
+
+        def _packed_state_from_xfree_bwd(token, cotangent):
+            token = int(token)
+            res = _DISCRETE_ADJOINT_PAYLOADS[token]
+            state_cotangent = vj.checkpoint_tape_state_vjp(
+                tape=res["tape"],
+                static=static,
+                final_cotangent=jnp.asarray(cotangent),
+                rebuild_preconditioner=True,
+            )
+
+            def _frozen_initial_state(xf):
+                return _initial_state_packed(xf, axis_override=res["axis_override"])
+
+            _, vjp_fun = jax.vjp(_frozen_initial_state, res["x_free"])
+            grad_x = vjp_fun(jnp.asarray(state_cotangent))[0]
+            _DISCRETE_ADJOINT_PAYLOADS.pop(token, None)
+            return (grad_x,)
+
+        _packed_state_from_xfree.defvjp(_packed_state_from_xfree_fwd, _packed_state_from_xfree_bwd)
+        packed_state = _packed_state_from_xfree(jnp.asarray(x_free))
+        return vj.unpack_state(packed_state, layout)
 
     def _x_cache_key(self, x_free) -> tuple[float, ...]:
         """Return a hashable cache key for concrete parameter vectors."""
@@ -768,8 +900,12 @@ class VmecJax:
             else float(self._indata_raw.get_float("DELT", 1.0))
         )
         solver = self._solver
+        use_residual_discrete_adjoint = (
+            solver in ("residual", "vmec2000") and self._residual_derivative_backend == "discrete_adjoint"
+        )
         use_residual_implicit_wrapper = (
             solver in ("residual", "vmec2000")
+            and not use_residual_discrete_adjoint
             and (
                 str(self._residual_adjoint_mode) != "auto"
                 or str(self._residual_tangent_mode) != "opaque"
@@ -778,6 +914,11 @@ class VmecJax:
 
         def _solve(solver: str):
             if solver in ("residual", "vmec2000"):
+                if use_residual_discrete_adjoint:
+                    return self._solve_state_discrete_adjoint_residual(
+                        x_free,
+                        step_size=residual_step_size,
+                    )
                 if x_key is None or use_residual_implicit_wrapper:
                     return solve_fixed_boundary_state_implicit_vmec_residual(
                         seed_state,

@@ -61,3 +61,21 @@ def test_least_squares_jax_solve_scipy_numeric_jacobian():
     )
 
     np.testing.assert_allclose(result["x"], np.array([3.0, -4.0]), atol=1e-8)
+
+
+def test_least_squares_jax_solve_scipy_reverse_jacobian():
+    def residual(x):
+        return jnp.array([x[0] - 3.0, x[1] + 4.0])
+
+    result = least_squares_jax_solve(
+        residual,
+        np.array([0.0, 0.0]),
+        method="scipy",
+        max_nfev=20,
+        gtol=1e-10,
+        jit=False,
+        jac="reverse",
+        verbose=0,
+    )
+
+    np.testing.assert_allclose(result["x"], np.array([3.0, -4.0]), atol=1e-8)

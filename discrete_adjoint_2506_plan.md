@@ -165,9 +165,41 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
 - reaches objective quality in the same ballpark as the classic script,
 - is competitive enough in runtime to justify the JAX path.
 
-## Immediate next tasks
+## Current status
 
-- [ ] Identify the minimal donor file set from the previous `simsopt_qh` branch.
-- [ ] Defer porting until `vmec_jax` derivative Gate 4C is met.
-- [ ] Once the backend is ready, wire it into `VmecJax` with explicit backend
-  selection and benchmark reporting.
+- [x] Port the minimum consumer layer from the earlier `simsopt_qh` branch.
+- [x] Add an explicit `VmecJax` backend selector for the new residual
+  discrete-adjoint path.
+- [x] Add a first public wrapper derivative gate on the exact QH setup.
+- [x] Add explicit reverse-Jacobian support to `least_squares_jax_solve`.
+- [x] Expose backend / Jacobian mode in `QH_fixed_resolution_jax.py`.
+- [ ] Benchmark the new path on the exact apples-to-apples QH run.
+- [ ] Decide the production outer-solver policy for the discrete-adjoint backend.
+
+## Current constraints
+
+- The new backend is currently a reverse-mode (`custom_vjp`) path.
+- That means `jacfwd` is the wrong consumer for it; use reverse-mode gradients or
+  `jac="reverse"` in the outer least-squares solver.
+- The example now exposes that choice explicitly.
+- The current wrapper implementation uses a small Python payload cache in the
+  custom VJP backward pass so JAX does not need to treat the checkpoint tape as
+  a traceable value.
+- The reverse-Jacobian SciPy path should currently be treated as `jit=False`
+  only. The example forces that combination for the discrete-adjoint backend.
+
+## Activity log
+
+- 2026-04-14:
+  - Added `residual_derivative_backend` to `VmecJax` and wired a narrow
+    discrete-adjoint residual solve path into `_solve_state(...)`.
+  - The new wrapper path uses the validated `vmec_jax` checkpoint tape reverse
+    helper plus a frozen-axis initial-state VJP over SIMSOPT's free boundary DOFs.
+  - Added wrapper regressions covering backend selection and an exact QH aspect
+    directional derivative against finite differences.
+  - Added `jac="reverse"` / `jacrev` support to `least_squares_jax_solve`.
+  - Exposed `--jac` and `--residual-derivative-backend` in
+    `examples/2_Intermediate/QH_fixed_resolution_jax.py`.
+  - Small end-to-end script smoke no longer fails immediately on the old
+    `TracerArrayConversionError`, but the full SciPy QH smoke is still too slow
+    even at tiny inner budgets, so runtime policy is still unresolved.

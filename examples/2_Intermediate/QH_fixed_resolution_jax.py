@@ -24,6 +24,8 @@ DEFAULT_METHOD = "gradient_descent"
 DEFAULT_STEP_SIZE = 5e-5
 DEFAULT_JIT = True
 DEFAULT_ADJOINT_MODE = "chunked"
+DEFAULT_JAC = "jax"
+DEFAULT_RESIDUAL_DERIVATIVE_BACKEND = "implicit"
 
 
 def parse_args():
@@ -45,6 +47,12 @@ def parse_args():
     )
     parser.add_argument("--step-size", type=float, default=DEFAULT_STEP_SIZE)
     parser.add_argument("--adjoint-mode", choices=["lineax", "auto", "chunked", "dense"], default=DEFAULT_ADJOINT_MODE)
+    parser.add_argument("--jac", choices=["jax", "reverse", "2-point", "3-point"], default=DEFAULT_JAC)
+    parser.add_argument(
+        "--residual-derivative-backend",
+        choices=["implicit", "discrete_adjoint"],
+        default=DEFAULT_RESIDUAL_DERIVATIVE_BACKEND,
+    )
     parser.add_argument("--jit", action=argparse.BooleanOptionalAction, default=DEFAULT_JIT)
     parser.add_argument("--stateless-evaluations", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--timings", action="store_true")
@@ -66,6 +74,7 @@ def main():
     max_mode = int(args.max_mode)
     max_nfev = int(args.max_nfev)
     method = str(args.method).strip().lower()
+    jac_mode = str(args.jac).strip().lower()
 
     proc0_print("Running 2_Intermediate/QH_fixed_resolution_jax.py")
     proc0_print("==================================================")
@@ -85,6 +94,7 @@ def main():
         grad_tol=args.vmec_grad_tol,
         implicit_cg_max_iter=args.implicit_cg_max_iter,
         implicit_cg_tol=args.implicit_cg_tol,
+        residual_derivative_backend=str(args.residual_derivative_backend).strip().lower(),
     )
 
     surf = vmec.boundary
@@ -103,6 +113,13 @@ def main():
         x_scale_min=1e-9,
     )
     qs = stage.extras["qs"]
+    solve_jit = bool(args.jit)
+    if (
+        method == "scipy"
+        and jac_mode in ("reverse", "rev", "jacrev")
+        and str(vmec._residual_derivative_backend) == "discrete_adjoint"
+    ):
+        solve_jit = False
 
     proc0_print("Parameter space:", stage.free_names)
     initial_state = vmec._solve_state(stage.x0)
@@ -116,7 +133,9 @@ def main():
             "vmec_grad_tol": float(vmec._grad_tol),
             "implicit_cg_max_iter": int(vmec._implicit_cg_max_iter),
             "implicit_cg_tol": float(vmec._implicit_cg_tol),
-            "jit": bool(args.jit),
+            "jit": solve_jit,
+            "jac": jac_mode,
+            "residual_derivative_backend": str(vmec._residual_derivative_backend),
             "adjoint_mode": str(vmec._residual_adjoint_mode),
             "stateless_evaluations": bool(vmec._stateless_evaluations),
         },
@@ -135,9 +154,9 @@ def main():
         gtol=1e-7,
         step_size=float(args.step_size),
         x_scale=stage.x_scale,
-        jit=bool(args.jit),
+        jit=solve_jit,
         verbose=1,
-        jac="jax" if method == "scipy" else None,
+        jac=jac_mode if method == "scipy" else None,
         profile=bool(args.profile),
     )
     solve_elapsed = time.perf_counter() - solve_start
