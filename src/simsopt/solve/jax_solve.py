@@ -405,9 +405,20 @@ def build_vmec_objective_stage(
         return residuals_from_state(state)
 
     if getattr(vmec, "_residual_derivative_backend", None) == "discrete_adjoint":
+        residual_step_size = (
+            float(vmec._step_size_override)
+            if getattr(vmec, "_step_size_override", None) is not None
+            else float(vmec._indata_raw.get_float("DELT", 1.0))
+        )
+
+        def scipy_residuals(x_free):
+            state = vmec._solve_state_residual_forward(x_free, step_size=residual_step_size)
+            return np.asarray(residuals_from_state(state), dtype=float)
+
         def scipy_jacobian(x_free):
             return vmec._discrete_adjoint_residual_jacobian(x_free, residuals_from_state)
 
+        residuals.scipy_residuals = scipy_residuals
         residuals.scipy_jacobian = scipy_jacobian
 
     return VmecObjectiveStage(
@@ -607,7 +618,10 @@ def least_squares_jax_solve(
         else:
             jac_scipy = jac_mode
             scipy_jacobian_override = getattr(residual_fun, "scipy_jacobian", None)
+            scipy_residuals_override = getattr(residual_fun, "scipy_residuals", None)
             def residuals_numpy(y_np):
+                if callable(scipy_residuals_override):
+                    return np.asarray(scipy_residuals_override(jnp.asarray(y_np, dtype=y0.dtype) * scale))
                 return np.asarray(residuals_y_raw(jnp.asarray(y_np)))
 
             def jac_numpy(y_np):

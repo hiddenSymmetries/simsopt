@@ -896,6 +896,36 @@ class VmecJax:
             columns.append(np.asarray(col, dtype=float))
         return np.stack(columns, axis=1)
 
+    def _solve_state_residual_forward(self, x_free, *, step_size: float):
+        from vmec_jax.solve import solve_fixed_boundary_residual_iter
+
+        self._ensure_context()
+        boundary = self.boundary.apply_params(self.boundary.expand_free(x_free))
+        st0 = vj.initial_guess_from_boundary(self._static, boundary, self._indata_raw, vmec_project=True)
+        geom0 = vj.eval_geom(st0, self._static)
+        signgs0 = vj.signgs_from_sqrtg(np.asarray(geom0.sqrtg), axis_index=1)
+        res = solve_fixed_boundary_residual_iter(
+            st0,
+            self._static,
+            indata=self._indata_raw,
+            signgs=int(signgs0),
+            ftol=float(self._grad_tol),
+            max_iter=int(self._max_iter),
+            step_size=float(step_size),
+            vmec2000_control=True,
+            reference_mode=False,
+            backtracking=True,
+            limit_dt_from_force=True,
+            limit_update_rms=True,
+            verbose=False,
+            verbose_vmec2000_table=False,
+            jit_forces="auto",
+            use_scan=False,
+            light_history=True,
+            resume_state_mode="full",
+        )
+        return _clone_state(res.state)
+
     def _x_cache_key(self, x_free) -> tuple[float, ...]:
         """Return a hashable cache key for concrete parameter vectors."""
         try:

@@ -235,3 +235,15 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
     depends on tracing the VMEC solve, and the 2-evaluation run improved to:
     - total objective `1.901008100532871 -> 0.5052581847050319`,
     - wall time about `18.26 s`.
+  - Split the production SciPy path again so residual values and Jacobians no
+    longer pay the same solver cost on the discrete backend:
+    - residual values now use a plain forward residual solve without building
+      the discrete-adjoint tape,
+    - Jacobians still use the concrete tape-column autodiff path.
+  - Revalidated the same wrapper and solver regressions after the split.
+  - Re-ran the same QH microcase with the split residual/Jacobian path:
+    - total objective `1.901008100532871 -> 0.5052581847050319`,
+    - wall time `17.7149871670008 s`.
+  - This confirms the next exact benchmark bottleneck is the plain forward
+    VMEC residual solve, not Jacobian tracing/plumbing in the outer SciPy
+    path.
