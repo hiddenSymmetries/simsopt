@@ -20,7 +20,7 @@ Run this example with:
 
 DEFAULT_MAX_NFEV = 10
 DEFAULT_MAX_MODE = 1
-DEFAULT_METHOD = "gradient_descent"
+DEFAULT_METHOD = "gauss_newton"
 DEFAULT_STEP_SIZE = 5e-5
 DEFAULT_JIT = True
 DEFAULT_ADJOINT_MODE = "chunked"
@@ -116,8 +116,10 @@ def main():
             "vmec_grad_tol": float(vmec._grad_tol),
             "implicit_cg_max_iter": int(vmec._implicit_cg_max_iter),
             "implicit_cg_tol": float(vmec._implicit_cg_tol),
+            "implicit_damping": float(vmec._implicit_damping),
             "jit": bool(args.jit),
             "adjoint_mode": str(vmec._residual_adjoint_mode),
+            "tangent_mode": str(vmec._residual_tangent_mode),
             "stateless_evaluations": bool(vmec._stateless_evaluations),
         },
     )

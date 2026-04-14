@@ -133,6 +133,22 @@ def test_vmec_jax_qh_profile_applies_outer_optimization_defaults():
     np.testing.assert_allclose(vmec._grad_tol, 1.0e-13)
     assert vmec._residual_adjoint_mode == "chunked"
     assert vmec._residual_tangent_mode == "opaque"
+    np.testing.assert_allclose(vmec._implicit_damping, 1.0e-6)
+    assert not vmec._stateless_evaluations
+
+
+def test_vmec_jax_qh_profile_uses_chunked_tangents_for_gauss_newton():
+    vmec = VmecJax(_input_filename(), verbose=False)
+
+    vmec.use_residual_autodiff_defaults(
+        outer_method="gauss_newton",
+        optimization_profile="qh",
+    )
+
+    assert vmec._solver == "vmec2000"
+    assert vmec._residual_adjoint_mode == "chunked"
+    assert vmec._residual_tangent_mode == "chunked"
+    np.testing.assert_allclose(vmec._implicit_damping, 1.0e-6)
     assert not vmec._stateless_evaluations
 
 

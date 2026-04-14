@@ -41,6 +41,8 @@ __all__ = ["VmecJax", "JaxBoundary"]
 _OUTER_OPTIMIZATION_PROFILES = {
     "qh": {
         "residual_adjoint_mode": "chunked",
+        "residual_tangent_mode": "chunked",
+        "implicit_damping": 1e-6,
         "stateless_evaluations": False,
     },
 }
@@ -689,13 +691,17 @@ class VmecJax:
         """Apply wrapper defaults that worked best for the fixed-resolution JAX examples."""
         profile = _outer_optimization_profile(optimization_profile)
         method = None if outer_method is None else str(outer_method).strip().lower()
-        tangent_method = "linearize" if method in (
+        uses_forward_tangents = method in (
             "gauss_newton",
             "trust_region",
             "levenberg_marquardt",
             "truncated_gauss_newton",
             "scipy",
-        ) else "opaque"
+        )
+        if uses_forward_tangents:
+            tangent_method = profile.get("residual_tangent_mode", "linearize")
+        else:
+            tangent_method = "opaque"
         adjoint_mode = profile.get("residual_adjoint_mode", "lineax") if residual_adjoint_mode is None else str(residual_adjoint_mode).strip().lower()
         stateful = profile.get("stateless_evaluations", False) if stateless_evaluations is None else bool(stateless_evaluations)
         solver_options = {
