@@ -664,6 +664,7 @@ def least_squares_jax_solve(
     elif method == "gauss_newton":
         y = y0
         cost = objective_y(y)
+        initial_step_gn = 1.0
         for iteration in range(int(max_nfev)):
             if _deadline_exhausted(deadline):
                 wall_clock_exhausted = True
@@ -686,9 +687,24 @@ def least_squares_jax_solve(
             step_np, *_ = np.linalg.lstsq(J_np, -residual_np, rcond=None)
             direction = jnp.asarray(step_np, dtype=y.dtype)
             cost_current = jnp.asarray(0.5 * np.dot(residual_np, residual_np), dtype=y.dtype)
-            y_trial, cost_trial, step_description, accepted = accept_by_backtracking(y, cost_current, grad, direction)
+            y_trial, cost_trial, step_description, accepted = accept_by_backtracking(
+                y,
+                cost_current,
+                grad,
+                direction,
+                initial_step=float(initial_step_gn),
+            )
             if not accepted:
                 break
+            if step_description == "full":
+                initial_step_gn = float(initial_step_gn)
+            elif isinstance(step_description, str) and step_description.startswith("bt_"):
+                try:
+                    backtracks = int(step_description.split("_", 1)[1])
+                except Exception:
+                    backtracks = None
+                if backtracks is not None:
+                    initial_step_gn = float(initial_step_gn) * (0.5 ** backtracks)
             y = y_trial
             cost = cost_trial
     elif method == "trust_region":

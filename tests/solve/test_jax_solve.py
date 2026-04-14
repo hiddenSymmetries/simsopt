@@ -45,6 +45,23 @@ def test_least_squares_jax_solve_gradient_descent_avoids_redundant_startup_objec
     assert result["profile"]["objective_calls"] == 0
 
 
+def test_least_squares_jax_solve_gauss_newton_quadratic():
+    def residual(x):
+        return jnp.array([x[0] - 2.0, 2.0 * x[1] + 1.0])
+
+    result = least_squares_jax_solve(
+        residual,
+        np.array([0.0, 0.0]),
+        method="gauss_newton",
+        max_nfev=5,
+        gtol=1e-12,
+        jit=False,
+        verbose=0,
+    )
+
+    np.testing.assert_allclose(result["x"], np.array([2.0, -0.5]), atol=1e-10)
+
+
 def test_least_squares_jax_solve_scipy_numeric_jacobian():
     def residual(x):
         return jnp.array([x[0] - 3.0, x[1] + 4.0])
