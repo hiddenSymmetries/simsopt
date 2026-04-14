@@ -881,20 +881,18 @@ class VmecJax:
         def _residuals_from_packed(x):
             return residuals_from_state(vj.unpack_state(x, layout))
 
-        eye = np.eye(int(x_free.size), dtype=float)
-        columns = []
-        for i in range(int(x_free.size)):
-            direction = jnp.asarray(eye[i], dtype=x_free.dtype)
-            _, packed_tangent0 = jax.jvp(_frozen_initial_state, (x_free,), (direction,))
-            packed_tangent = vj.checkpoint_tape_state_jvp(
-                tape=payload["tape"],
-                static=static,
-                initial_tangent=packed_tangent0,
-                rebuild_preconditioner=True,
-            )
-            col = jax.jvp(_residuals_from_packed, (packed_final,), (packed_tangent,))[1]
-            columns.append(np.asarray(col, dtype=float))
-        return np.stack(columns, axis=1)
+        directions = jnp.asarray(np.eye(int(x_free.size), dtype=float), dtype=x_free.dtype)
+        _, initial_state_linear = jax.linearize(_frozen_initial_state, x_free)
+        packed_tangents0 = jax.vmap(initial_state_linear)(directions)
+        packed_tangents = vj.checkpoint_tape_state_jvp_columns(
+            tape=payload["tape"],
+            static=static,
+            initial_tangents=packed_tangents0,
+            rebuild_preconditioner=True,
+        )
+        _, residual_linear = jax.linearize(_residuals_from_packed, packed_final)
+        columns = jax.vmap(residual_linear)(packed_tangents)
+        return np.asarray(columns, dtype=float).T
 
     def _solve_state_residual_forward(self, x_free, *, step_size: float):
         from vmec_jax.solve import solve_fixed_boundary_residual_iter

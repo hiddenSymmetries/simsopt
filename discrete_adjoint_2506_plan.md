@@ -256,3 +256,21 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
     objective before optimization`, and `Total objective before optimization`
     quickly on the exact QH setup instead of stalling in a tape-building
     `_solve_state(...)` call before the solve begins.
+  - Reworked the concrete discrete-adjoint Jacobian builder so it no longer
+    retraces the same linear maps for each of the 8 control directions:
+    - linearize the frozen projected-initial-state map once,
+    - propagate all 8 packed-state tangents through the replay tape together,
+    - linearize the residuals-from-state map once and apply it to the packed
+      tangent block.
+  - Revalidated the simsopt wrapper/solver regressions after that batching
+    refactor, and revalidated the matching exact-QH batched tape-JVP gate in
+    `vmec_jax`.
+  - Measured the exact QH start-point split on the production path after the
+    batching refactor:
+    - concrete residual evaluation is about `12.27 s` in one run and
+      `13.57 s` in a rerun,
+    - the concrete 8-column Jacobian build still dominates wall time by a wide
+      margin and remains well above one minute.
+  - This changes the runtime diagnosis again: the outer Python loop over
+    columns is no longer the main cost. The next performance target is inside
+    the tape-column propagation / exact replay Jacobian path itself.
