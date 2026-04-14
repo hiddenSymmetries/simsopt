@@ -12,20 +12,18 @@ from simsopt.util import proc0_print
 
 """
 Optimize a VMEC-JAX equilibrium for quasi-helical symmetry (M=1, N=1)
-throughout the volume using autodiff through vmec_jax.
-
-Run this example with:
-  python QH_fixed_resolution_jax.py
+throughout the volume.
+Run this example with python QH_fixed_resolution_jax.py
 """
 
 DEFAULT_MAX_NFEV = 10
 DEFAULT_MAX_MODE = 1
-DEFAULT_METHOD = "gradient_descent"
-DEFAULT_STEP_SIZE = 5e-5
-DEFAULT_JIT = True
-DEFAULT_ADJOINT_MODE = "chunked"
+DEFAULT_METHOD = "scipy"
 DEFAULT_JAC = "jax"
-DEFAULT_RESIDUAL_DERIVATIVE_BACKEND = "implicit"
+DEFAULT_RESIDUAL_DERIVATIVE_BACKEND = "discrete_adjoint"
+DEFAULT_JIT = False
+DEFAULT_STEP_SIZE = 5e-5
+DEFAULT_ADJOINT_MODE = "chunked"
 
 
 def parse_args():
@@ -77,8 +75,9 @@ def main():
     jac_mode = str(args.jac).strip().lower()
 
     proc0_print("Running 2_Intermediate/QH_fixed_resolution_jax.py")
-    proc0_print("==================================================")
+    proc0_print("=================================================")
 
+    # For forming filenames for VMEC, pathlib sometimes does not work, so use os.path.join instead.
     filename = os.path.join(os.path.dirname(__file__), "inputs", "input.nfp4_QH_warm_start")
     vmec = VmecJax(filename, verbose=False)
     vmec.indata.mpol = max_mode + 2
@@ -97,11 +96,15 @@ def main():
         residual_derivative_backend=str(args.residual_derivative_backend).strip().lower(),
     )
 
+    # Define parameter space:
     surf = vmec.boundary
     surf.fix_all()
     surf.fixed_range(mmin=0, mmax=max_mode, nmin=-max_mode, nmax=max_mode, fixed=False)
     surf.fix("rc(0,0)")
 
+    proc0_print("Parameter space:", surf.dof_names)
+
+    # Configure quasisymmetry objective:
     stage = build_vmec_objective_stage(
         vmec,
         max_mode=max_mode,
@@ -121,30 +124,28 @@ def main():
     ):
         solve_jit = False
 
-    proc0_print("Parameter space:", stage.free_names)
     initial_state = vmec._solve_state(stage.x0)
 
     proc0_print(
         "Solver settings:",
         {
             "method": method,
-            "step_size": float(args.step_size),
+            "jac": jac_mode,
+            "residual_derivative_backend": str(vmec._residual_derivative_backend),
             "vmec_max_iter": int(vmec._max_iter),
             "vmec_grad_tol": float(vmec._grad_tol),
             "implicit_cg_max_iter": int(vmec._implicit_cg_max_iter),
             "implicit_cg_tol": float(vmec._implicit_cg_tol),
             "jit": solve_jit,
-            "jac": jac_mode,
-            "residual_derivative_backend": str(vmec._residual_derivative_backend),
             "adjoint_mode": str(vmec._residual_adjoint_mode),
             "stateless_evaluations": bool(vmec._stateless_evaluations),
         },
     )
 
     proc0_print("Quasisymmetry objective before optimization:", float(np.asarray(qs.total_from_state(initial_state))))
-    proc0_print("Initial aspect ratio:", float(np.asarray(vmec.aspect_equilibrium_from_state_jax(initial_state))))
     proc0_print("Total objective before optimization:", objective_value(stage, stage.x0))
 
+    # To keep this example fast, we stop after max_nfev function evaluations.
     solve_start = time.perf_counter()
     result = least_squares_jax_solve(
         stage.residuals,
@@ -174,7 +175,7 @@ def main():
         proc0_print("Solve wall time [s]:", solve_elapsed)
 
     proc0_print("End of 2_Intermediate/QH_fixed_resolution_jax.py")
-    proc0_print("================================================")
+    proc0_print("===============================================")
 
 
 if __name__ == "__main__":

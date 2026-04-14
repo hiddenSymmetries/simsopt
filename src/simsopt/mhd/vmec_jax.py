@@ -13,7 +13,6 @@ implemented on top of `vmec_jax` with implicit differentiation.
 from __future__ import annotations
 
 from dataclasses import replace
-from itertools import count
 import re
 from typing import Sequence
 from types import SimpleNamespace
@@ -37,10 +36,6 @@ else:
 
 
 __all__ = ["VmecJax", "JaxBoundary"]
-
-
-_DISCRETE_ADJOINT_PAYLOADS: dict[int, dict] = {}
-_DISCRETE_ADJOINT_PAYLOAD_IDS = count()
 
 
 _OUTER_OPTIMIZATION_PROFILES = {
@@ -216,16 +211,6 @@ def _outer_optimization_profile(name: str | None) -> dict:
         return dict(_OUTER_OPTIMIZATION_PROFILES[key])
     except KeyError as exc:
         raise ValueError(f"Unknown VmecJax optimization profile: {name}") from exc
-
-
-def _store_discrete_adjoint_payload(payload: dict) -> int:
-    token = next(_DISCRETE_ADJOINT_PAYLOAD_IDS)
-    _DISCRETE_ADJOINT_PAYLOADS[token] = payload
-    if len(_DISCRETE_ADJOINT_PAYLOADS) > 32:
-        oldest = min(_DISCRETE_ADJOINT_PAYLOADS)
-        if oldest != token:
-            _DISCRETE_ADJOINT_PAYLOADS.pop(oldest, None)
-    return token
 
 
 class JaxBoundary:
@@ -808,38 +793,35 @@ class VmecJax:
                 packed_final = jnp.asarray(tape.packed_states[-1], dtype=x0.dtype)
             else:
                 packed_final = x0
-            token = _store_discrete_adjoint_payload(
-                {"tape": tape, "axis_override": axis_override, "x_free": jnp.asarray(xf)}
-            )
-            return packed_final, token
+            return packed_final, {"tape": tape, "axis_override": axis_override}
 
-        @jax.custom_vjp
+        @jax.custom_jvp
         def _packed_state_from_xfree(xf):
-            packed_final, _ = _forward_payload(xf)
+            packed_final, _payload = _forward_payload(xf)
             return packed_final
 
-        def _packed_state_from_xfree_fwd(xf):
-            return _forward_payload(xf)
+        @_packed_state_from_xfree.defjvp
+        def _packed_state_from_xfree_jvp(primals, tangents):
+            (xf,) = primals
+            (xf_tangent,) = tangents
+            packed_final, payload = _forward_payload(xf)
 
-        def _packed_state_from_xfree_bwd(token, cotangent):
-            token = int(token)
-            res = _DISCRETE_ADJOINT_PAYLOADS[token]
-            state_cotangent = vj.checkpoint_tape_state_vjp(
-                tape=res["tape"],
+            def _frozen_initial_state(x):
+                return _initial_state_packed(x, axis_override=payload["axis_override"])
+
+            _packed0, packed_tangent0 = jax.jvp(
+                _frozen_initial_state,
+                (jnp.asarray(xf),),
+                (jnp.asarray(xf_tangent),),
+            )
+            packed_tangent = vj.checkpoint_tape_state_jvp(
+                tape=payload["tape"],
                 static=static,
-                final_cotangent=jnp.asarray(cotangent),
+                initial_tangent=packed_tangent0,
                 rebuild_preconditioner=True,
             )
+            return packed_final, packed_tangent
 
-            def _frozen_initial_state(xf):
-                return _initial_state_packed(xf, axis_override=res["axis_override"])
-
-            _, vjp_fun = jax.vjp(_frozen_initial_state, res["x_free"])
-            grad_x = vjp_fun(jnp.asarray(state_cotangent))[0]
-            _DISCRETE_ADJOINT_PAYLOADS.pop(token, None)
-            return (grad_x,)
-
-        _packed_state_from_xfree.defvjp(_packed_state_from_xfree_fwd, _packed_state_from_xfree_bwd)
         packed_state = _packed_state_from_xfree(jnp.asarray(x_free))
         return vj.unpack_state(packed_state, layout)
 
