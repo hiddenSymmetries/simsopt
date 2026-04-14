@@ -221,3 +221,17 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
   - Identified the next concrete runtime blocker for the production path:
     `jit=True` still fails in the traced residual solver due to NumPy-only
     precompute code inside `vmec_jax.solve`.
+  - Switched the production SciPy path away from traced `jacfwd(stage.residuals)`
+    and onto a concrete Jacobian callable built from the discrete-adjoint tape
+    columns in `VmecJax`.
+  - `build_vmec_objective_stage(...)` now attaches a discrete-backend
+    `scipy_jacobian` override, and `least_squares_jax_solve(...)` consumes it
+    when `jac='jax'`.
+  - That keeps the outer optimizer on an autodiff/adjoint Jacobian while
+    avoiding traced execution of the VMEC residual solver entirely.
+  - Revalidated the wrapper and solver regressions after this refactor.
+  - Re-ran the same QH microcase with `--jit` still enabled; because the
+    SciPy Jacobian now comes from the concrete tape-column path, it no longer
+    depends on tracing the VMEC solve, and the 2-evaluation run improved to:
+    - total objective `1.901008100532871 -> 0.5052581847050319`,
+    - wall time about `18.26 s`.

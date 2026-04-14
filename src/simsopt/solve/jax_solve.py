@@ -378,9 +378,7 @@ def build_vmec_objective_stage(
     if callable(ensure_context):
         ensure_context()
 
-    def residuals(x_free):
-        x_free = jnp.asarray(x_free, dtype=jnp.float64)
-        state = vmec._solve_state(x_free)
+    def residuals_from_state(state):
         blocks = []
         for name, target, weight in objective_tuples:
             key = str(name).strip().lower()
@@ -400,6 +398,17 @@ def build_vmec_objective_stage(
         if not blocks:
             return jnp.zeros((0,), dtype=jnp.float64)
         return jnp.concatenate(blocks)
+
+    def residuals(x_free):
+        x_free = jnp.asarray(x_free, dtype=jnp.float64)
+        state = vmec._solve_state(x_free)
+        return residuals_from_state(state)
+
+    if getattr(vmec, "_residual_derivative_backend", None) == "discrete_adjoint":
+        def scipy_jacobian(x_free):
+            return vmec._discrete_adjoint_residual_jacobian(x_free, residuals_from_state)
+
+        residuals.scipy_jacobian = scipy_jacobian
 
     return VmecObjectiveStage(
         x0=x0,
@@ -597,10 +606,14 @@ def least_squares_jax_solve(
                 raise ImportError("scipy is required for method='scipy'.")
         else:
             jac_scipy = jac_mode
+            scipy_jacobian_override = getattr(residual_fun, "scipy_jacobian", None)
             def residuals_numpy(y_np):
                 return np.asarray(residuals_y_raw(jnp.asarray(y_np)))
 
             def jac_numpy(y_np):
+                if callable(scipy_jacobian_override) and jac_scipy in ("jax", "auto"):
+                    J = scipy_jacobian_override(jnp.asarray(y_np, dtype=y0.dtype) * scale)
+                    return np.asarray(J) * np.asarray(scale, dtype=float)[None, :]
                 J = jac_residual_y(jnp.asarray(y_np, dtype=y0.dtype))
                 return np.asarray(J)
 

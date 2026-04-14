@@ -722,7 +722,7 @@ class VmecJax:
             **solver_options,
         )
 
-    def _solve_state_discrete_adjoint_residual(self, x_free: jnp.ndarray, *, step_size: float):
+    def _solve_state_discrete_adjoint_residual(self, x_free: jnp.ndarray, *, step_size: float, return_payload: bool = False):
         """Solve the residual iteration with a discrete-adjoint VJP over x_free."""
         self._ensure_context()
         static = self._static
@@ -822,8 +822,79 @@ class VmecJax:
             )
             return packed_final, packed_tangent
 
+        if return_payload:
+            packed_state, payload = _forward_payload(jnp.asarray(x_free))
+            return vj.unpack_state(packed_state, layout), payload
+
         packed_state = _packed_state_from_xfree(jnp.asarray(x_free))
         return vj.unpack_state(packed_state, layout)
+
+    def _discrete_adjoint_residual_jacobian(self, x_free, residuals_from_state):
+        self._ensure_context()
+        x_free = jnp.asarray(x_free, dtype=jnp.float64)
+        if self._residual_derivative_backend != "discrete_adjoint":
+            raise ValueError("Concrete discrete-adjoint Jacobian requested for a non-discrete backend.")
+
+        residual_step_size = (
+            float(self._step_size_override)
+            if self._step_size_override is not None
+            else float(self._indata_raw.get_float("DELT", 1.0))
+        )
+        state, payload = self._solve_state_discrete_adjoint_residual(
+            x_free,
+            step_size=residual_step_size,
+            return_payload=True,
+        )
+
+        static = self._static
+        boundary_wrapper = self.boundary
+        indata = self._indata_raw
+        base_full = jnp.asarray(boundary_wrapper._base)
+        specs = tuple(boundary_wrapper._specs)
+        modes = boundary_wrapper._modes
+        lasym = bool(self._cfg.lasym)
+        layout = state.layout
+        packed_final = jnp.asarray(vj.pack_state(state), dtype=jnp.float64)
+
+        def _initial_state_packed(xf, *, axis_override=None):
+            x_full = boundary_wrapper.expand_free(xf)
+            delta_full = jnp.asarray(x_full) - base_full
+            boundary_input = vj.apply_boundary_params(boundary_wrapper._boundary_input0, specs, delta_full)
+            boundary = boundary_from_input_convention(
+                boundary_input,
+                modes,
+                lasym=lasym,
+                apply_m1_constraint=False,
+            )
+            state0 = vj.initial_guess_from_boundary(
+                static,
+                boundary,
+                indata,
+                vmec_project=True,
+                axis_override=axis_override,
+            )
+            return jnp.asarray(vj.pack_state(state0), dtype=jnp.float64)
+
+        def _frozen_initial_state(x):
+            return _initial_state_packed(x, axis_override=payload["axis_override"])
+
+        def _residuals_from_packed(x):
+            return residuals_from_state(vj.unpack_state(x, layout))
+
+        eye = np.eye(int(x_free.size), dtype=float)
+        columns = []
+        for i in range(int(x_free.size)):
+            direction = jnp.asarray(eye[i], dtype=x_free.dtype)
+            _, packed_tangent0 = jax.jvp(_frozen_initial_state, (x_free,), (direction,))
+            packed_tangent = vj.checkpoint_tape_state_jvp(
+                tape=payload["tape"],
+                static=static,
+                initial_tangent=packed_tangent0,
+                rebuild_preconditioner=True,
+            )
+            col = jax.jvp(_residuals_from_packed, (packed_final,), (packed_tangent,))[1]
+            columns.append(np.asarray(col, dtype=float))
+        return np.stack(columns, axis=1)
 
     def _x_cache_key(self, x_free) -> tuple[float, ...]:
         """Return a hashable cache key for concrete parameter vectors."""
