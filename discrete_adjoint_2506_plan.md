@@ -247,3 +247,12 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
   - This confirms the next exact benchmark bottleneck is the plain forward
     VMEC residual solve, not Jacobian tracing/plumbing in the outer SciPy
     path.
+  - Cleaned up `examples/2_Intermediate/QH_fixed_resolution_jax.py` so its
+    pre/post reporting path now uses the same concrete forward solve and
+    concrete residual callable as the production SciPy residual path when the
+    discrete backend is active.
+  - That removes a large amount of wasted work from the exact benchmark shell
+    runtime: the script now reaches `Solver settings`, `Quasisymmetry
+    objective before optimization`, and `Total objective before optimization`
+    quickly on the exact QH setup instead of stalling in a tape-building
+    `_solve_state(...)` call before the solve begins.

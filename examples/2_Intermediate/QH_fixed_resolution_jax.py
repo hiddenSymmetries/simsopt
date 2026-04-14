@@ -63,8 +63,23 @@ def parse_args():
 
 
 def objective_value(stage, x):
-    residual = np.asarray(stage.residuals(x), dtype=float)
+    scipy_residuals = getattr(stage.residuals, "scipy_residuals", None)
+    if callable(scipy_residuals):
+        residual = np.asarray(scipy_residuals(x), dtype=float)
+    else:
+        residual = np.asarray(stage.residuals(x), dtype=float)
     return float(np.dot(residual, residual))
+
+
+def solve_state_for_report(vmec, x):
+    if str(getattr(vmec, "_residual_derivative_backend", "")) == "discrete_adjoint":
+        step_size = (
+            float(vmec._step_size_override)
+            if getattr(vmec, "_step_size_override", None) is not None
+            else float(vmec._indata_raw.get_float("DELT", 1.0))
+        )
+        return vmec._solve_state_residual_forward(x, step_size=step_size)
+    return vmec._solve_state(x)
 
 
 def main():
@@ -123,7 +138,7 @@ def main():
     ):
         solve_jit = False
 
-    initial_state = vmec._solve_state(stage.x0)
+    initial_state = solve_state_for_report(vmec, stage.x0)
 
     proc0_print(
         "Solver settings:",
@@ -162,7 +177,7 @@ def main():
     solve_elapsed = time.perf_counter() - solve_start
 
     surf.set_free_params(result["x"])
-    state_opt = vmec._solve_state(result["x"])
+    state_opt = solve_state_for_report(vmec, result["x"])
 
     proc0_print("Final aspect ratio:", float(np.asarray(vmec.aspect_equilibrium_from_state_jax(state_opt))))
     proc0_print("Quasisymmetry objective after optimization:", float(np.asarray(qs.total_from_state(state_opt))))
