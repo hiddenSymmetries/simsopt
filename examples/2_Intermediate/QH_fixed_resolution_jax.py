@@ -71,6 +71,13 @@ def objective_value(stage, x):
     return float(np.dot(residual, residual))
 
 
+def objective_value_from_state(vmec, qs, state):
+    aspect_residual = np.asarray([vmec.aspect_equilibrium_from_state_jax(state) - 7.0], dtype=float)
+    qs_residual = np.asarray(qs.residuals_from_state(state), dtype=float)
+    residual = np.concatenate((aspect_residual, qs_residual))
+    return float(np.dot(residual, residual))
+
+
 def solve_state_for_report(vmec, x):
     if str(getattr(vmec, "_residual_derivative_backend", "")) == "discrete_adjoint":
         step_size = (
@@ -157,7 +164,7 @@ def main():
     )
 
     proc0_print("Quasisymmetry objective before optimization:", float(np.asarray(qs.total_from_state(initial_state))))
-    proc0_print("Total objective before optimization:", objective_value(stage, stage.x0))
+    proc0_print("Total objective before optimization:", objective_value_from_state(vmec, qs, initial_state))
 
     # To keep this example fast, we stop after max_nfev function evaluations.
     solve_start = time.perf_counter()
@@ -181,7 +188,7 @@ def main():
 
     proc0_print("Final aspect ratio:", float(np.asarray(vmec.aspect_equilibrium_from_state_jax(state_opt))))
     proc0_print("Quasisymmetry objective after optimization:", float(np.asarray(qs.total_from_state(state_opt))))
-    proc0_print("Total objective after optimization:", objective_value(stage, result["x"]))
+    proc0_print("Total objective after optimization:", objective_value_from_state(vmec, qs, state_opt))
     proc0_print("Result summary:", {key: result.get(key) for key in ("success", "status", "nfev")})
     if args.profile:
         proc0_print("Solver profile:", result.get("profile"))

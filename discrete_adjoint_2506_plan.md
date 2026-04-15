@@ -300,3 +300,13 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
       --residual-derivative-backend discrete_adjoint --jit`
     - total objective still `1.901008100532871 -> 0.505258184704556`,
     - solve wall time dropped again from about `16.93 s` to `5.14 s`.
+  - Cleaned up the example benchmark script itself to stop doing duplicate
+    forward solves just for reporting:
+    - before: solve state for QS/aspect reporting, then solve again through
+      `stage.residuals`/`scipy_residuals` to compute total objective,
+    - now: compute the total objective directly from the already-available
+      state using aspect + QS residuals.
+  - This does not change the numerical results, but it removes redundant shell
+    benchmark overhead at the start and end of the script, which matters on the
+    exact full-inner-solve QH benchmark because those extra forward solves are
+    expensive.
