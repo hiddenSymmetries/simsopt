@@ -418,3 +418,30 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
     - `x0a`: solve about `7.89 s`, jac about `4.14 s`
     - `x0b`: solve about `5.77 s`, jac about `3.32 s`
     - `x1`: solve about `5.65 s`, jac about `3.49 s`
+  - After the replay scan-runner cache landed in `vmec_jax`, reran the exact
+    full-inner apples-to-apples QH benchmark again:
+    - `QH_fixed_resolution_jax.py --max-mode 1 --max-nfev 10 --timings
+      --method scipy --jac jax --residual-derivative-backend discrete_adjoint
+      --jit`
+      now finishes with the same final objective
+      `0.25740827662357`, but solve wall improves again to about `97.79 s`
+      and shell real time to about `126.34 s`.
+  - Exact `max_mode=1`, `max_nfev=3` JAX benchmark on the same path:
+    - final total objective `0.2581125330463535`
+    - final QS objective `0.2565631893138016`
+    - final aspect `7.039361703882731`
+    - solve wall about `30.89 s`
+    - shell real about `55.97 s`
+  - Compared against the local classic reference at the same early-stop point:
+    - classic `max_mode=1`, `max_nfev=3` reaches cost `1.0803e-01`, so total
+      objective is already about `0.21606`;
+    - the current JAX exact path is still materially worse at `0.25811`.
+  - Exact `max_mode=2`, `max_nfev=3` JAX benchmark:
+    - final total objective `0.30024580360290376` (no improvement)
+    - solve wall about `97.98 s`
+    - shell real about `130.74 s`
+  - Compared against the local classic `max_mode=2`, `max_nfev=3` reference:
+    - classic reaches cost `5.1158e-02`, so total objective is already about
+      `0.102316`;
+    - the current JAX exact path is still far slower and does not move off the
+      starting point by 3 function evaluations.
