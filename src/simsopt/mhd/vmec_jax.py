@@ -830,7 +830,7 @@ class VmecJax:
         packed_state = _packed_state_from_xfree(jnp.asarray(x_free))
         return vj.unpack_state(packed_state, layout)
 
-    def _discrete_adjoint_residual_jacobian(self, x_free, residuals_from_state):
+    def _discrete_adjoint_residual_jacobian(self, x_free, residuals_from_state, *, state=None, payload=None):
         self._ensure_context()
         x_free = jnp.asarray(x_free, dtype=jnp.float64)
         if self._residual_derivative_backend != "discrete_adjoint":
@@ -841,11 +841,12 @@ class VmecJax:
             if self._step_size_override is not None
             else float(self._indata_raw.get_float("DELT", 1.0))
         )
-        state, payload = self._solve_state_discrete_adjoint_residual(
-            x_free,
-            step_size=residual_step_size,
-            return_payload=True,
-        )
+        if state is None or payload is None:
+            state, payload = self._solve_state_discrete_adjoint_residual(
+                x_free,
+                step_size=residual_step_size,
+                return_payload=True,
+            )
 
         static = self._static
         boundary_wrapper = self.boundary

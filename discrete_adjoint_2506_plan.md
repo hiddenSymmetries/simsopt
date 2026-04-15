@@ -324,9 +324,39 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
       --residual-derivative-backend discrete_adjoint --jit`
     - total objective `9.168100000000209 -> 5.205846451699488`,
     - solve wall time about `8.58 s`.
+  - Added a narrower runtime fix in the SciPy callback pair for the discrete
+    backend:
+    - residual and Jacobian callbacks now share the same exact
+      discrete-adjoint solve payload when SciPy evaluates both at the same
+      parameter vector,
+    - the Jacobian builder accepts an already-solved state/tape payload instead
+      of always rebuilding it.
+  - Added a wrapper regression that proves `scipy_residuals(x0)` followed by
+    `scipy_jacobian(x0)` only calls
+    `_solve_state_discrete_adjoint_residual(...)` once on the exact same point.
+  - Sequential microcase reruns on the new callback-reuse path:
+    - QH:
+      `QH_fixed_resolution_jax.py --max-mode 1 --max-nfev 2 --vmec-max-iter 1
+      --timings --method scipy --jac jax
+      --residual-derivative-backend discrete_adjoint --jit`
+      still gives total objective `1.901008100532871 -> 0.505258184704556`,
+      and solve wall time dropped again from about `5.14 s` to about `4.10 s`.
+    - QA:
+      `QA_fixed_resolution_jax.py --max-mode 1 --max-nfev 2 --vmec-max-iter 1
+      --timings --method scipy --jac jax
+      --residual-derivative-backend discrete_adjoint --jit`
+      still gives total objective `9.168100000000209 -> 5.205846451699488`,
+      and solve wall time dropped from about `8.58 s` to about `4.51 s`.
   - QA exact full-inner run on the same wrapper path is still heavy before the
     first SciPy iteration, so QA does not automatically bypass the current
     wrapper/Jacobian bottleneck.
+  - Re-probed the exact full-inner QH path after the callback reuse fix with:
+    - `QH_fixed_resolution_jax.py --max-mode 1 --max-nfev 1 --timings
+      --method scipy --jac jax --residual-derivative-backend discrete_adjoint
+      --jit`
+    - the run still exited before the first SciPy iteration completed, so this
+      fix materially improved the short compiled path but did not yet stabilize
+      the full-inner benchmark regime.
   - Built a fresh mainline comparison environment:
     - cloned `vmec_jax` main to `/Users/rogeriojorge/local/vmec_jax_main_fresh`,
     - installed it in an isolated venv with system site packages.
