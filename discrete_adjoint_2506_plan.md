@@ -445,3 +445,18 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
       `0.102316`;
     - the current JAX exact path is still far slower and does not move off the
       starting point by 3 function evaluations.
+  - Ran a stricter derivative audit on the exact `max_mode=1`, `max_iter=1`
+    production path and isolated the earlier AD-vs-FD discrepancy:
+    - the discrete-adjoint Jacobian column does **not** match central FD of the
+      plain `scipy_residuals(x)` callback;
+    - but it **does** match central FD almost exactly when the residual is
+      finite-differenced through the same frozen-axis local map that the
+      discrete-adjoint path actually linearizes.
+  - On the benchmark QH start point, direction `e0`:
+    - plain residual callback FD gives objective-direction about `8.52594`;
+    - discrete-adjoint AD gives about `33.67235`;
+    - frozen-axis local residual FD gives about `33.67455`.
+  - This means the live production derivative gap is now understood as a model
+    mismatch in the initialization branch (`axis_override` refreshed at each
+    perturbed point in the value callback versus frozen in the local Jacobian),
+    not a corruption in the replay/tape linearization itself.

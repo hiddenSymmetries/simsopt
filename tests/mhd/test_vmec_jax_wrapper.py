@@ -18,6 +18,7 @@ except Exception:
 
 from vmec_jax.implicit import _pack_stellsym_feasible_state, _stellsym_feasible_indices
 from vmec_jax.solve import _mask_grad_for_constraints, _mode00_index
+from vmec_jax.boundary import boundary_from_input_convention
 
 from simsopt.mhd import VmecJax
 from simsopt.mhd import Vmec
@@ -375,6 +376,132 @@ def test_vmec_jax_discrete_backend_reuses_exact_solve_between_residual_and_jacob
     assert residual.ndim == 1
     assert jacobian.shape[0] == residual.shape[0]
     assert jacobian.shape[1] == x0.size
+
+
+def test_vmec_jax_discrete_backend_qh_jacobian_matches_frozen_axis_fd():
+    if os.environ.get("RUN_SLOW", "") != "1":
+        raise unittest.SkipTest("Set RUN_SLOW=1 to run slow discrete-adjoint QH checks")
+
+    vmec = VmecJax(_input_filename(), verbose=False)
+    vmec.indata.mpol = 3
+    vmec.indata.ntor = 3
+    vmec.set_solver_options(
+        solver="vmec2000",
+        max_iter=1,
+        grad_tol=1.0e-13,
+        residual_derivative_backend="discrete_adjoint",
+    )
+    vmec.use_residual_autodiff_defaults(
+        outer_method="scipy",
+        residual_adjoint_mode="chunked",
+        stateless_evaluations=False,
+        optimization_profile="qh",
+    )
+
+    stage = build_vmec_objective_stage(
+        vmec,
+        max_mode=1,
+        objective_tuples=[("aspect", 7.0, 1.0), ("qs", 0.0, 1.0)],
+        surfaces=np.arange(0, 1.01, 0.1),
+        helicity_m=1,
+        helicity_n=-1,
+        x_scale_alpha=1.2,
+        x_scale_min=1e-9,
+    )
+    x0 = np.asarray(stage.x0, dtype=float)
+    residual0 = np.asarray(stage.residuals.scipy_residuals(x0), dtype=float)
+    jacobian = np.asarray(stage.residuals.scipy_jacobian(x0), dtype=float)
+
+    state0, payload0 = vmec._solve_state_discrete_adjoint_residual(
+        x0,
+        step_size=float(vmec._indata_raw.get_float("DELT", 1.0)),
+        return_payload=True,
+    )
+    axis_override = payload0["axis_override"]
+
+    static = vmec._static
+    boundary_wrapper = vmec.boundary
+    indata = vmec._indata_raw
+    base_full = np.asarray(boundary_wrapper._base)
+    specs = tuple(boundary_wrapper._specs)
+    modes = boundary_wrapper._modes
+    lasym = bool(vmec._cfg.lasym)
+    layout = state0.layout
+    step_size = float(vmec._indata_raw.get_float("DELT", 1.0))
+    qs = stage.extras["qs"]
+
+    def initial_state_packed(x_free, *, axis_override_local=None):
+        x_full = boundary_wrapper.expand_free(x_free)
+        delta_full = np.asarray(x_full) - base_full
+        boundary_input = vj.apply_boundary_params(boundary_wrapper._boundary_input0, specs, delta_full)
+        boundary = boundary_from_input_convention(
+            boundary_input,
+            modes,
+            lasym=lasym,
+            apply_m1_constraint=False,
+        )
+        state = vj.initial_guess_from_boundary(
+            static,
+            boundary,
+            indata,
+            vmec_project=True,
+            axis_override=axis_override_local,
+        )
+        return np.asarray(vj.pack_state(state), dtype=float)
+
+    def solve_frozen_axis(x_free):
+        packed0 = initial_state_packed(x_free, axis_override_local=axis_override)
+        state_init = vj.unpack_state(packed0, layout)
+        tape = vj.build_residual_checkpoint_tape_direct(
+            state_init,
+            static,
+            max_iter=int(vmec._max_iter),
+            solver_kwargs=dict(
+                indata=indata,
+                signgs=int(vmec._signgs),
+                ftol=float(vmec._grad_tol),
+                step_size=step_size,
+                vmec2000_control=True,
+                reference_mode=False,
+                backtracking=True,
+                limit_dt_from_force=True,
+                limit_update_rms=True,
+                verbose=False,
+                verbose_vmec2000_table=False,
+                jit_forces="auto",
+                use_scan=False,
+                light_history=True,
+                resume_state_mode="full",
+            ),
+            indata=indata,
+            signgs=int(vmec._signgs),
+            ftol=float(vmec._grad_tol),
+            step_size=step_size,
+            light_history=True,
+            store_trace=False,
+        )
+        return vj.unpack_state(np.asarray(tape.final_packed_state, dtype=float), layout)
+
+    def frozen_axis_residuals(x_free):
+        state = solve_frozen_axis(x_free)
+        aspect_residual = np.asarray([vmec.aspect_equilibrium_from_state_jax(state) - 7.0], dtype=float)
+        qs_residual = np.asarray(qs.residuals_from_state(state), dtype=float)
+        return np.concatenate((aspect_residual, qs_residual))
+
+    eps = 1.0e-6
+    direction = np.zeros_like(x0)
+    direction[0] = 1.0
+    residual_plus = frozen_axis_residuals(x0 + eps * direction)
+    residual_minus = frozen_axis_residuals(x0 - eps * direction)
+    fd_column = (residual_plus - residual_minus) / (2.0 * eps)
+
+    rel_column_error = np.linalg.norm(jacobian[:, 0] - fd_column) / max(np.linalg.norm(fd_column), 1.0e-30)
+    assert rel_column_error < 5.0e-4
+    assert float(np.max(np.abs(jacobian[:, 0] - fd_column))) < 1.0e-3
+
+    ad_objective_direction = float(2.0 * residual0.dot(jacobian[:, 0]))
+    fd_objective_direction = float(2.0 * residual0.dot(fd_column))
+    np.testing.assert_allclose(ad_objective_direction, fd_objective_direction, rtol=5.0e-4, atol=1.0e-5)
 
 
 def test_vmec_jax_aspect_matches_vmec_interface():
