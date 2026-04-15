@@ -778,7 +778,7 @@ class VmecJax:
                 light_history=True,
                 resume_state_mode="full",
             )
-            tape = vj.build_residual_checkpoint_tape(
+            tape = vj.build_residual_checkpoint_tape_direct(
                 state0,
                 static,
                 max_iter=max_iter,
@@ -788,12 +788,9 @@ class VmecJax:
                 ftol=ftol,
                 step_size=float(step_size),
                 light_history=True,
-                resume_state_mode="full",
+                store_trace=False,
             )
-            if int(tape.packed_states.shape[0]) > 0:
-                packed_final = jnp.asarray(tape.packed_states[-1], dtype=x0.dtype)
-            else:
-                packed_final = x0
+            packed_final = jnp.asarray(tape.final_packed_state, dtype=x0.dtype)
             return packed_final, {"tape": tape, "axis_override": axis_override}
 
         @jax.custom_jvp

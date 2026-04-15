@@ -357,6 +357,27 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
     - the run still exited before the first SciPy iteration completed, so this
       fix materially improved the short compiled path but did not yet stabilize
       the full-inner benchmark regime.
+  - Switched the production discrete-adjoint wrapper off the replay-built tape
+    and onto a new direct full-solve tape path from `vmec_jax`, so the exact
+    Jacobian payload is built from one residual solve with full
+    `adjoint_step_trace` history instead of hundreds of `max_iter=1` replay
+    solves.
+  - On the exact full-inner QH benchmark path this removes the compile storm
+    that previously happened before SciPy iteration 0. The exact run now gets
+    through real SciPy iterations:
+    - `QH_fixed_resolution_jax.py --max-mode 1 --max-nfev 1 --timings
+      --method scipy --jac jax --residual-derivative-backend discrete_adjoint
+      --jit`
+      now reaches and completes iteration 0 with solve wall time about
+      `16.58 s`.
+    - `QH_fixed_resolution_jax.py --max-mode 1 --max-nfev 2 --timings
+      --method scipy --jac jax --residual-derivative-backend discrete_adjoint
+      --jit`
+      now completes two exact full-inner evaluations with:
+      - total objective `0.2983122217180416 -> 0.2651202937448159`,
+      - QS objective `0.24335963941459998`,
+      - aspect `7.147514929177409`,
+      - solve wall time about `29.73 s`.
   - Built a fresh mainline comparison environment:
     - cloned `vmec_jax` main to `/Users/rogeriojorge/local/vmec_jax_main_fresh`,
     - installed it in an isolated venv with system site packages.
