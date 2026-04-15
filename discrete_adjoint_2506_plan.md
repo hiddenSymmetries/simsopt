@@ -274,3 +274,29 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
   - This changes the runtime diagnosis again: the outer Python loop over
     columns is no longer the main cost. The next performance target is inside
     the tape-column propagation / exact replay Jacobian path itself.
+  - Re-measured the exact QH start-point concrete Jacobian path directly on the
+    current branch at `vmec_max_iter=1` and found a different dominant term:
+    - solve/tape build about `2.42 s`,
+    - frozen initial-state linearization about `2.10 s`,
+    - replay column propagation about `1.30 s`,
+    - residual-side linearization about `9.42 s`,
+    - total concrete Jacobian build about `15.24 s`.
+  - Based on that measurement, shifted the next optimization into the wrapper's
+    pure-JAX blocks rather than the replay tape itself.
+  - Added a cache of JIT-compiled helper functions inside
+    `VmecJax._discrete_adjoint_residual_jacobian(...)` for:
+    - frozen initial-state tangent columns,
+    - residual tangent columns.
+  - The residual-side JIT initially exposed a traced NumPy path in the
+    Boozer/QS diagnostics on the `vmec_jax` side; after that blocker was fixed,
+    the cached residual block became usable.
+  - With those cached helper blocks active, the repeated exact-QH concrete
+    Jacobian on the same start point dropped to about `1.17 s` for a
+    `(44353, 8)` Jacobian after the first compilation, with zero numerical
+    difference between repeated calls.
+  - Re-ran the same production QH microcase:
+    - `QH_fixed_resolution_jax.py --max-mode 1 --max-nfev 2 --vmec-max-iter 1
+      --timings --method scipy --jac jax
+      --residual-derivative-backend discrete_adjoint --jit`
+    - total objective still `1.901008100532871 -> 0.505258184704556`,
+    - solve wall time dropped again from about `16.93 s` to `5.14 s`.

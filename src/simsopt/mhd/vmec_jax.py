@@ -475,6 +475,7 @@ class VmecJax:
         self._cached_state = None
         self._cached_wout = None
         self._cached_run = None
+        self._discrete_jacobian_helper_cache = {}
         if reset_warm_start and self._context is not None and self._context_seed_guess is not None:
             self._context.st_guess = _clone_state(self._context_seed_guess)
 
@@ -881,17 +882,46 @@ class VmecJax:
         def _residuals_from_packed(x):
             return residuals_from_state(vj.unpack_state(x, layout))
 
+        cache_key = (
+            id(residuals_from_state),
+            int(x_free.size),
+            int(layout.size),
+            int(len(payload["tape"].step_traces)),
+        )
+        helper_cache = self._discrete_jacobian_helper_cache.get(cache_key)
+        if helper_cache is None:
+            @jax.jit
+            def _initial_tangent_columns(xf, axis_override, directions):
+                _, initial_state_linear = jax.linearize(
+                    lambda x: _initial_state_packed(x, axis_override=axis_override),
+                    xf,
+                )
+                return jax.vmap(initial_state_linear)(directions)
+
+            @jax.jit
+            def _residual_tangent_columns(packed_state, packed_tangents):
+                _, residual_linear = jax.linearize(_residuals_from_packed, packed_state)
+                return jax.vmap(residual_linear)(packed_tangents)
+
+            helper_cache = {
+                "initial_tangent_columns": _initial_tangent_columns,
+                "residual_tangent_columns": _residual_tangent_columns,
+            }
+            self._discrete_jacobian_helper_cache[cache_key] = helper_cache
+
         directions = jnp.asarray(np.eye(int(x_free.size), dtype=float), dtype=x_free.dtype)
-        _, initial_state_linear = jax.linearize(_frozen_initial_state, x_free)
-        packed_tangents0 = jax.vmap(initial_state_linear)(directions)
+        packed_tangents0 = helper_cache["initial_tangent_columns"](
+            x_free,
+            payload["axis_override"],
+            directions,
+        )
         packed_tangents = vj.checkpoint_tape_state_jvp_columns(
             tape=payload["tape"],
             static=static,
             initial_tangents=packed_tangents0,
             rebuild_preconditioner=True,
         )
-        _, residual_linear = jax.linearize(_residuals_from_packed, packed_final)
-        columns = jax.vmap(residual_linear)(packed_tangents)
+        columns = helper_cache["residual_tangent_columns"](packed_final, packed_tangents)
         return np.asarray(columns, dtype=float).T
 
     def _solve_state_residual_forward(self, x_free, *, step_size: float):
