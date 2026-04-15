@@ -396,3 +396,25 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
       regression,
     - the remaining heaviness is in the higher-level `simsopt`
       objective/Jacobian path used before the first SciPy iteration.
+  - After the stacked-trace cache refactor landed in `vmec_jax`, reran the
+    exact full-inner apples-to-apples QH benchmark:
+    - `QH_fixed_resolution_jax.py --max-mode 1 --max-nfev 10 --timings
+      --method scipy --jac jax --residual-derivative-backend discrete_adjoint
+      --jit`
+      now finishes with the same final objective
+      `0.25740827662370214`, but solve wall time improves from about
+      `136.70 s` to about `103.92 s` and shell real time improves from about
+      `167.41 s` to about `133.02 s`.
+  - Probed exact callback compile churn on `x0`, repeated `x0`, and nearby
+    `x1`, and found one remaining avoidable `simsopt` helper-cache miss:
+    `_initial_tangent_columns` and `_residual_tangent_columns` were
+    recompiling when the tape length changed, even though those helpers do not
+    depend on step count.
+  - Removed `len(payload["tape"].step_traces)` from the helper-cache key in
+    `VmecJax._discrete_adjoint_residual_jacobian(...)`.
+  - After that change, compile logging shows each of
+    `_initial_tangent_columns` and `_residual_tangent_columns` compiles only
+    once across `x0/x0/x1`, while the nearby exact callback timings improve to:
+    - `x0a`: solve about `7.89 s`, jac about `4.14 s`
+    - `x0b`: solve about `5.77 s`, jac about `3.32 s`
+    - `x1`: solve about `5.65 s`, jac about `3.49 s`

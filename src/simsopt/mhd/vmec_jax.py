@@ -884,7 +884,6 @@ class VmecJax:
             id(residuals_from_state),
             int(x_free.size),
             int(layout.size),
-            int(len(payload["tape"].step_traces)),
         )
         helper_cache = self._discrete_jacobian_helper_cache.get(cache_key)
         if helper_cache is None:
