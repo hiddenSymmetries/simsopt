@@ -310,3 +310,38 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
     benchmark overhead at the start and end of the script, which matters on the
     exact full-inner-solve QH benchmark because those extra forward solves are
     expensive.
+  - Added a new QA-side experiment script,
+    `examples/2_Intermediate/QA_fixed_resolution_jax.py`, mirroring the
+    cleaned fixed-resolution JAX example structure but targeting:
+    - input `input.nfp2_QA`,
+    - max_mode `1`,
+    - QA helicity `(m, n) = (1, 0)`,
+    - objective tuples `(aspect, 2.0, 1.0)`,
+      `(mean_iota, 0.41, 1.0)`, `(qs, 0.0, 1.0)`.
+  - QA smoke result on the current discrete-adjoint `simsopt` path:
+    - `QA_fixed_resolution_jax.py --max-mode 1 --max-nfev 2 --vmec-max-iter 1
+      --timings --method scipy --jac jax
+      --residual-derivative-backend discrete_adjoint --jit`
+    - total objective `9.168100000000209 -> 5.205846451699488`,
+    - solve wall time about `8.58 s`.
+  - QA exact full-inner run on the same wrapper path is still heavy before the
+    first SciPy iteration, so QA does not automatically bypass the current
+    wrapper/Jacobian bottleneck.
+  - Built a fresh mainline comparison environment:
+    - cloned `vmec_jax` main to `/Users/rogeriojorge/local/vmec_jax_main_fresh`,
+    - installed it in an isolated venv with system site packages.
+  - Direct fixed-boundary forward solves on main vs the discrete-adjoint branch
+    are effectively identical, which rules out a low-level `vmec_jax` runtime
+    regression as the primary cause of the current slowdown. Measured parity:
+    - QA, `max_iter=1`: branch `2.454 s`, main `2.429 s`
+    - QA, `max_iter=20`: branch `0.334 s`, main `0.326 s`
+    - QH, `max_iter=1`: branch `1.963 s`, main `1.912 s`
+    - QH, `max_iter=20`: branch `0.238 s`, main `0.228 s`
+  - Full QA forward solve parity on main vs branch is also essentially exact:
+    - both converge in `113` iterations with `fsqz_last ≈ 4.39e-12`,
+    - branch `3.733 s`, main `3.622 s`.
+  - That shifts the current diagnosis again:
+    - the `vmec_jax` core forward solver is not the source of the major
+      regression,
+    - the remaining heaviness is in the higher-level `simsopt`
+      objective/Jacobian path used before the first SciPy iteration.
