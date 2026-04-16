@@ -514,3 +514,21 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
   - Added a slow wrapper regression that locks the full-inner (`max_iter=20`)
     QH frozen-axis Jacobian against central FD on the production
     discrete-adjoint backend.
+  - The production wrapper is no longer using the old frozen-axis
+    initial-state surrogate. After fixing the traced moving-axis
+    `initial_guess_from_boundary(...)` path in `vmec_jax`, the exact
+    discrete-adjoint backend now linearizes the true moving-axis initial-state
+    map on the user-facing QH objective path.
+  - The replay tangent transport is also no longer linearized around a drifting
+    replayed scan. It now composes the dynamic one-step map at the stored
+    primal carry of each accepted step, which materially tightened the exact
+    QH Jacobian audit on the real wrapper path.
+  - Updated slow wrapper gates now lock:
+    - exact QH start-point moving-axis Jacobian vs central FD at `max_iter=1`
+    - exact QH start-point moving-axis Jacobian vs central FD at `max_iter=20`
+  - Current exact full-inner start-point audit on the production path:
+    - moving-axis `max_iter=20` relative column error about `2.25e-3`
+    - objective-direction mismatch about `1.1e-2` relative
+    - that is materially better than the earlier full-inner moving-axis drift,
+      but still leaves some headroom before calling the derivative issue fully
+      closed at longer horizons / later accepted iterates.

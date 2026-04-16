@@ -804,11 +804,8 @@ class VmecJax:
             (xf_tangent,) = tangents
             packed_final, payload = _forward_payload(xf)
 
-            def _frozen_initial_state(x):
-                return _initial_state_packed(x, axis_override=payload["axis_override"])
-
             _packed0, packed_tangent0 = jax.jvp(
-                _frozen_initial_state,
+                _initial_state_packed,
                 (jnp.asarray(xf),),
                 (jnp.asarray(xf_tangent),),
             )
@@ -874,9 +871,6 @@ class VmecJax:
             )
             return jnp.asarray(vj.pack_state(state0), dtype=jnp.float64)
 
-        def _frozen_initial_state(x):
-            return _initial_state_packed(x, axis_override=payload["axis_override"])
-
         def _residuals_from_packed(x):
             return residuals_from_state(vj.unpack_state(x, layout))
 
@@ -888,9 +882,9 @@ class VmecJax:
         helper_cache = self._discrete_jacobian_helper_cache.get(cache_key)
         if helper_cache is None:
             @jax.jit
-            def _initial_tangent_columns(xf, axis_override, directions):
+            def _initial_tangent_columns(xf, directions):
                 _, initial_state_linear = jax.linearize(
-                    lambda x: _initial_state_packed(x, axis_override=axis_override),
+                    _initial_state_packed,
                     xf,
                 )
                 return jax.vmap(initial_state_linear)(directions)
@@ -909,7 +903,6 @@ class VmecJax:
         directions = jnp.asarray(np.eye(int(x_free.size), dtype=float), dtype=x_free.dtype)
         packed_tangents0 = helper_cache["initial_tangent_columns"](
             x_free,
-            payload["axis_override"],
             directions,
         )
         packed_tangents = vj.checkpoint_tape_state_jvp_columns(

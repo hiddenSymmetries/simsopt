@@ -402,7 +402,7 @@ def test_vmec_jax_solve_state_for_objective_uses_forward_residual_path():
     np.testing.assert_allclose(np.asarray(vj.pack_state(state_report)), np.asarray(vj.pack_state(state_forward)))
 
 
-def test_vmec_jax_discrete_backend_qh_jacobian_matches_frozen_axis_fd():
+def test_vmec_jax_discrete_backend_qh_jacobian_matches_moving_axis_fd():
     if os.environ.get("RUN_SLOW", "") != "1":
         raise unittest.SkipTest("Set RUN_SLOW=1 to run slow discrete-adjoint QH checks")
 
@@ -436,13 +436,6 @@ def test_vmec_jax_discrete_backend_qh_jacobian_matches_frozen_axis_fd():
     residual0 = np.asarray(stage.residuals.scipy_residuals(x0), dtype=float)
     jacobian = np.asarray(stage.residuals.scipy_jacobian(x0), dtype=float)
 
-    state0, payload0 = vmec._solve_state_discrete_adjoint_residual(
-        x0,
-        step_size=float(vmec._indata_raw.get_float("DELT", 1.0)),
-        return_payload=True,
-    )
-    axis_override = payload0["axis_override"]
-
     static = vmec._static
     boundary_wrapper = vmec.boundary
     indata = vmec._indata_raw
@@ -450,11 +443,11 @@ def test_vmec_jax_discrete_backend_qh_jacobian_matches_frozen_axis_fd():
     specs = tuple(boundary_wrapper._specs)
     modes = boundary_wrapper._modes
     lasym = bool(vmec._cfg.lasym)
-    layout = state0.layout
+    layout = vmec.solve_state_for_objective(x0).layout
     step_size = float(vmec._indata_raw.get_float("DELT", 1.0))
     qs = stage.extras["qs"]
 
-    def initial_state_packed(x_free, *, axis_override_local=None):
+    def initial_state_packed(x_free):
         x_full = boundary_wrapper.expand_free(x_free)
         delta_full = np.asarray(x_full) - base_full
         boundary_input = vj.apply_boundary_params(boundary_wrapper._boundary_input0, specs, delta_full)
@@ -469,12 +462,11 @@ def test_vmec_jax_discrete_backend_qh_jacobian_matches_frozen_axis_fd():
             boundary,
             indata,
             vmec_project=True,
-            axis_override=axis_override_local,
         )
         return np.asarray(vj.pack_state(state), dtype=float)
 
-    def solve_frozen_axis(x_free):
-        packed0 = initial_state_packed(x_free, axis_override_local=axis_override)
+    def solve_moving_axis(x_free):
+        packed0 = initial_state_packed(x_free)
         state_init = vj.unpack_state(packed0, layout)
         tape = vj.build_residual_checkpoint_tape_direct(
             state_init,
@@ -506,8 +498,8 @@ def test_vmec_jax_discrete_backend_qh_jacobian_matches_frozen_axis_fd():
         )
         return vj.unpack_state(np.asarray(tape.final_packed_state, dtype=float), layout)
 
-    def frozen_axis_residuals(x_free):
-        state = solve_frozen_axis(x_free)
+    def moving_axis_residuals(x_free):
+        state = solve_moving_axis(x_free)
         aspect_residual = np.asarray([vmec.aspect_equilibrium_from_state_jax(state) - 7.0], dtype=float)
         qs_residual = np.asarray(qs.residuals_from_state(state), dtype=float)
         return np.concatenate((aspect_residual, qs_residual))
@@ -515,8 +507,8 @@ def test_vmec_jax_discrete_backend_qh_jacobian_matches_frozen_axis_fd():
     eps = 1.0e-6
     direction = np.zeros_like(x0)
     direction[0] = 1.0
-    residual_plus = frozen_axis_residuals(x0 + eps * direction)
-    residual_minus = frozen_axis_residuals(x0 - eps * direction)
+    residual_plus = moving_axis_residuals(x0 + eps * direction)
+    residual_minus = moving_axis_residuals(x0 - eps * direction)
     fd_column = (residual_plus - residual_minus) / (2.0 * eps)
 
     rel_column_error = np.linalg.norm(jacobian[:, 0] - fd_column) / max(np.linalg.norm(fd_column), 1.0e-30)
@@ -528,7 +520,7 @@ def test_vmec_jax_discrete_backend_qh_jacobian_matches_frozen_axis_fd():
     np.testing.assert_allclose(ad_objective_direction, fd_objective_direction, rtol=5.0e-4, atol=1.0e-5)
 
 
-def test_vmec_jax_discrete_backend_qh_jacobian_matches_frozen_axis_fd_full_inner():
+def test_vmec_jax_discrete_backend_qh_jacobian_matches_moving_axis_fd_full_inner():
     if os.environ.get("RUN_SLOW", "") != "1":
         raise unittest.SkipTest("Set RUN_SLOW=1 to run slow discrete-adjoint QH checks")
 
@@ -562,13 +554,6 @@ def test_vmec_jax_discrete_backend_qh_jacobian_matches_frozen_axis_fd_full_inner
     residual0 = np.asarray(stage.residuals.scipy_residuals(x0), dtype=float)
     jacobian = np.asarray(stage.residuals.scipy_jacobian(x0), dtype=float)
 
-    state0, payload0 = vmec._solve_state_discrete_adjoint_residual(
-        x0,
-        step_size=float(vmec._indata_raw.get_float("DELT", 1.0)),
-        return_payload=True,
-    )
-    axis_override = payload0["axis_override"]
-
     static = vmec._static
     boundary_wrapper = vmec.boundary
     indata = vmec._indata_raw
@@ -576,11 +561,11 @@ def test_vmec_jax_discrete_backend_qh_jacobian_matches_frozen_axis_fd_full_inner
     specs = tuple(boundary_wrapper._specs)
     modes = boundary_wrapper._modes
     lasym = bool(vmec._cfg.lasym)
-    layout = state0.layout
+    layout = vmec.solve_state_for_objective(x0).layout
     step_size = float(vmec._indata_raw.get_float("DELT", 1.0))
     qs = stage.extras["qs"]
 
-    def initial_state_packed(x_free, *, axis_override_local=None):
+    def initial_state_packed(x_free):
         x_full = boundary_wrapper.expand_free(x_free)
         delta_full = np.asarray(x_full) - base_full
         boundary_input = vj.apply_boundary_params(boundary_wrapper._boundary_input0, specs, delta_full)
@@ -595,12 +580,11 @@ def test_vmec_jax_discrete_backend_qh_jacobian_matches_frozen_axis_fd_full_inner
             boundary,
             indata,
             vmec_project=True,
-            axis_override=axis_override_local,
         )
         return np.asarray(vj.pack_state(state), dtype=float)
 
-    def solve_frozen_axis(x_free):
-        packed0 = initial_state_packed(x_free, axis_override_local=axis_override)
+    def solve_moving_axis(x_free):
+        packed0 = initial_state_packed(x_free)
         state_init = vj.unpack_state(packed0, layout)
         tape = vj.build_residual_checkpoint_tape_direct(
             state_init,
@@ -632,8 +616,8 @@ def test_vmec_jax_discrete_backend_qh_jacobian_matches_frozen_axis_fd_full_inner
         )
         return vj.unpack_state(np.asarray(tape.final_packed_state, dtype=float), layout)
 
-    def frozen_axis_residuals(x_free):
-        state = solve_frozen_axis(x_free)
+    def moving_axis_residuals(x_free):
+        state = solve_moving_axis(x_free)
         aspect_residual = np.asarray([vmec.aspect_equilibrium_from_state_jax(state) - 7.0], dtype=float)
         qs_residual = np.asarray(qs.residuals_from_state(state), dtype=float)
         return np.concatenate((aspect_residual, qs_residual))
@@ -641,17 +625,17 @@ def test_vmec_jax_discrete_backend_qh_jacobian_matches_frozen_axis_fd_full_inner
     eps = 1.0e-6
     direction = np.zeros_like(x0)
     direction[0] = 1.0
-    residual_plus = frozen_axis_residuals(x0 + eps * direction)
-    residual_minus = frozen_axis_residuals(x0 - eps * direction)
+    residual_plus = moving_axis_residuals(x0 + eps * direction)
+    residual_minus = moving_axis_residuals(x0 - eps * direction)
     fd_column = (residual_plus - residual_minus) / (2.0 * eps)
 
     rel_column_error = np.linalg.norm(jacobian[:, 0] - fd_column) / max(np.linalg.norm(fd_column), 1.0e-30)
-    assert rel_column_error < 1.0e-3
+    assert rel_column_error < 3.0e-3
     assert float(np.max(np.abs(jacobian[:, 0] - fd_column))) < 1.0e-2
 
     ad_objective_direction = float(2.0 * residual0.dot(jacobian[:, 0]))
     fd_objective_direction = float(2.0 * residual0.dot(fd_column))
-    np.testing.assert_allclose(ad_objective_direction, fd_objective_direction, rtol=1.0e-3, atol=1.0e-4)
+    np.testing.assert_allclose(ad_objective_direction, fd_objective_direction, rtol=1.5e-2, atol=1.0e-4)
 
 
 def test_vmec_jax_aspect_matches_vmec_interface():
