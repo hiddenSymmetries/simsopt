@@ -485,3 +485,32 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
     `force_scale` vary every step with the residual history, while the replay
     Jacobian still treats those scalars as frozen trace data from the base
     trajectory.
+  - Full carry-aware replay landed on the vmec_jax branch and removed the
+    long-horizon QH Jacobian drift on the production exact path.
+  - Exact frozen-axis directional audit on the benchmark wrapper path now gives:
+    - `max_iter=1`: relative column error about `3.0e-8`
+    - `max_iter=10`: about `1.5e-6`
+    - `max_iter=20`: about `2.6e-5`
+    - `max_iter=50`: about `1.15e-3`
+  - Exact `max_mode=1`, `max_nfev=3` benchmark improved materially:
+    - final total objective `0.25541676622646603`
+    - final QS objective `0.2541757712576408`
+    - final aspect `7.035227758498451`
+    - solve wall about `41.99 s`
+  - Exact `max_mode=1`, `max_nfev=10` benchmark after the carry fix:
+    - final total objective `0.22719939587753907`
+    - final QS objective `0.22499609902383344`
+    - final aspect `7.046939289020027`
+    - solve wall about `129.20 s`
+    - this is much closer to the classic `0.21378863910867005`, though still
+      slower than the classic `24.75 s`.
+  - Exact `max_mode=2`, `max_nfev=3` benchmark is no longer stalled:
+    - final total objective `0.12191948331868585`
+    - final QS objective `0.11793999150722417`
+    - final aspect `7.063083213388838`
+    - solve wall about `51.55 s`
+    - compared with the local classic reference at about `0.102316`, this is
+      now qualitatively competitive in objective reduction, though still slower.
+  - Added a slow wrapper regression that locks the full-inner (`max_iter=20`)
+    QH frozen-axis Jacobian against central FD on the production
+    discrete-adjoint backend.
