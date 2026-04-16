@@ -951,6 +951,29 @@ class VmecJax:
         )
         return _clone_state(res.state)
 
+    def solve_state_for_objective(self, x_free=None):
+        """Return a solved state for objective reporting on the current wrapper path.
+
+        For the discrete-adjoint residual backend, the optimization Jacobian is
+        built from a locally frozen replay model, but user-facing objective
+        reports should still evaluate the actual forward residual solve. For all
+        other modes we can report directly from ``_solve_state(...)``.
+        """
+        if x_free is None:
+            x_free = self.boundary.get_free_params()
+        x_free = jnp.asarray(x_free, dtype=jnp.float64)
+        if (
+            str(self._residual_derivative_backend) == "discrete_adjoint"
+            and str(self._solver).strip().lower() in ("residual", "vmec2000")
+        ):
+            residual_step_size = (
+                float(self._step_size_override)
+                if self._step_size_override is not None
+                else float(self._indata_raw.get_float("DELT", 1.0))
+            )
+            return self._solve_state_residual_forward(x_free, step_size=residual_step_size)
+        return self._solve_state(x_free)
+
     def _x_cache_key(self, x_free) -> tuple[float, ...]:
         """Return a hashable cache key for concrete parameter vectors."""
         try:

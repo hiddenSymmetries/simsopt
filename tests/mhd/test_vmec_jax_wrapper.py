@@ -378,6 +378,30 @@ def test_vmec_jax_discrete_backend_reuses_exact_solve_between_residual_and_jacob
     assert jacobian.shape[1] == x0.size
 
 
+def test_vmec_jax_solve_state_for_objective_uses_forward_residual_path():
+    vmec = VmecJax(_input_filename(), verbose=False)
+    vmec.indata.mpol = 3
+    vmec.indata.ntor = 3
+    vmec.set_solver_options(
+        solver="vmec2000",
+        max_iter=1,
+        grad_tol=1.0e-13,
+        residual_derivative_backend="discrete_adjoint",
+    )
+
+    surf = vmec.boundary
+    surf.fix_all()
+    surf.fixed_range(mmin=0, mmax=1, nmin=-1, nmax=1, fixed=False)
+    surf.fix("rc(0,0)")
+    x0 = jax.numpy.asarray(surf.get_free_params(), dtype=jax.numpy.float64)
+    step_size = float(vmec._indata_raw.get_float("DELT", 1.0))
+
+    state_report = vmec.solve_state_for_objective(x0)
+    state_forward = vmec._solve_state_residual_forward(x0, step_size=step_size)
+
+    np.testing.assert_allclose(np.asarray(vj.pack_state(state_report)), np.asarray(vj.pack_state(state_forward)))
+
+
 def test_vmec_jax_discrete_backend_qh_jacobian_matches_frozen_axis_fd():
     if os.environ.get("RUN_SLOW", "") != "1":
         raise unittest.SkipTest("Set RUN_SLOW=1 to run slow discrete-adjoint QH checks")

@@ -465,6 +465,7 @@ def build_vmec_objective_stage(
         extras={
             "surf": surf,
             "qs": qs,
+            "residuals_from_state": residuals_from_state,
             "objective_tuples": list(objective_tuples),
             "surfaces": np.asarray(surfaces, dtype=float),
             "max_mode": int(max_mode),
