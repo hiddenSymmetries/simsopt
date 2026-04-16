@@ -460,3 +460,28 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
     mismatch in the initialization branch (`axis_override` refreshed at each
     perturbed point in the value callback versus frozen in the local Jacobian),
     not a corruption in the replay/tape linearization itself.
+  - Follow-up full-inner audit changed that diagnosis for the production path:
+    at the exact full-inner benchmark (`max_iter=1500`), moving-axis FD and
+    frozen-axis FD are nearly identical at both `x0` and the first accepted
+    SciPy point `x1`, and both disagree with the production Jacobian.
+  - On the exact benchmark path:
+    - at `x0`, direction `e0`: AD objective-direction about `-3.4527`, moving
+      and frozen FD both about `-1.03`;
+    - at `x1`, direction `e0`: AD about `-5.5086`, moving and frozen FD both
+      about `-2.964`;
+    - along the local GN direction, the same pattern holds.
+  - A frozen-axis iteration sweep then showed the replay Jacobian is good only
+    on short tapes and drifts progressively with tape length:
+    - `max_iter=1`: relative frozen-axis column error about `3.1e-4`
+    - `max_iter=10`: about `1.5e-2`
+    - `max_iter=20`: about `6.5e-2`
+    - `max_iter=50`: about `5.7e-1`
+    - `max_iter=100`: about `4.85`
+  - The exact QH `max_iter=100` step trace shows all 100 steps are still
+    `momentum_accept` with no restarts, so the drift is not caused by restart
+    branches.
+  - The remaining live hypothesis is now solver-control carry:
+    `time_step` itself stays fixed, but `dt_eff`, `b1`, `fac`, and
+    `force_scale` vary every step with the residual history, while the replay
+    Jacobian still treats those scalars as frozen trace data from the base
+    trajectory.
