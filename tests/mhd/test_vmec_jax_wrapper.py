@@ -638,6 +638,70 @@ def test_vmec_jax_discrete_backend_qh_jacobian_matches_moving_axis_fd_full_inner
     np.testing.assert_allclose(ad_objective_direction, fd_objective_direction, rtol=1.5e-2, atol=1.0e-4)
 
 
+def test_vmec_jax_discrete_backend_qh_jacobian_matches_moving_axis_fd_after_restart_point():
+    if os.environ.get("RUN_SLOW", "") != "1":
+        raise unittest.SkipTest("Set RUN_SLOW=1 to run slow discrete-adjoint QH checks")
+
+    vmec = VmecJax(_input_filename(), verbose=False)
+    vmec.indata.mpol = 3
+    vmec.indata.ntor = 3
+    vmec.set_solver_options(
+        solver="vmec2000",
+        max_iter=1500,
+        grad_tol=1.0e-13,
+        residual_derivative_backend="discrete_adjoint",
+    )
+    vmec.use_residual_autodiff_defaults(
+        outer_method="scipy",
+        residual_adjoint_mode="chunked",
+        stateless_evaluations=False,
+        optimization_profile="qh",
+    )
+
+    stage = build_vmec_objective_stage(
+        vmec,
+        max_mode=1,
+        objective_tuples=[("aspect", 7.0, 1.0), ("qs", 0.0, 1.0)],
+        surfaces=np.arange(0, 1.01, 0.1),
+        helicity_m=1,
+        helicity_n=-1,
+        x_scale_alpha=1.2,
+        x_scale_min=1e-9,
+    )
+    # Challenging late-iteration point from the exact 10-evaluation QH benchmark.
+    x = np.asarray(
+        [
+            0.13131474,
+            -0.07482285,
+            0.16300289,
+            -0.00986183,
+            0.12673185,
+            0.09467063,
+            0.16613359,
+            -0.01292121,
+        ],
+        dtype=float,
+    )
+    residual = np.asarray(stage.residuals.scipy_residuals(x), dtype=float)
+    jacobian = np.asarray(stage.residuals.scipy_jacobian(x), dtype=float)
+
+    eps = 1.0e-6
+    for idx in range(4):
+        direction = np.zeros_like(x)
+        direction[idx] = 1.0
+        residual_plus = np.asarray(stage.residuals.scipy_residuals(x + eps * direction), dtype=float)
+        residual_minus = np.asarray(stage.residuals.scipy_residuals(x - eps * direction), dtype=float)
+        fd_column = (residual_plus - residual_minus) / (2.0 * eps)
+
+        rel_column_error = np.linalg.norm(jacobian[:, idx] - fd_column) / max(np.linalg.norm(fd_column), 1.0e-30)
+        assert rel_column_error < 3.0e-2
+        assert float(np.max(np.abs(jacobian[:, idx] - fd_column))) < 3.0e-2
+
+        ad_objective_direction = float(2.0 * residual.dot(jacobian[:, idx]))
+        fd_objective_direction = float(2.0 * residual.dot(fd_column))
+        np.testing.assert_allclose(ad_objective_direction, fd_objective_direction, rtol=3.0e-2, atol=1.0e-4)
+
+
 def test_vmec_jax_aspect_matches_vmec_interface():
     vmec = VmecJax(_input_filename(), verbose=False)
     vmec.indata.mpol = 3

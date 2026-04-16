@@ -789,6 +789,7 @@ class VmecJax:
                 step_size=float(step_size),
                 light_history=True,
                 store_trace=False,
+                store_full_step_traces=False,
             )
             packed_final = jnp.asarray(tape.final_packed_state, dtype=x0.dtype)
             return packed_final, {"tape": tape, "axis_override": axis_override}

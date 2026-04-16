@@ -532,3 +532,41 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
     - that is materially better than the earlier full-inner moving-axis drift,
       but still leaves some headroom before calling the derivative issue fully
       closed at longer horizons / later accepted iterates.
+  - Exact callback RSS profiling on the benchmark QH wrapper path now shows:
+    - cold exact residual at `x0`: about `11.65 s`, RSS `+3.00 GB`
+    - cold exact Jacobian at `x0`: about `6.93 s`, RSS `+0.44 GB`
+    - warm exact residual at nearby `x1`: about `6.02 s`, RSS `+2.36 GB`
+    - warm exact Jacobian at nearby `x1`: about `5.15 s`, RSS `+0.14 GB`
+    - so the remaining large memory growth is dominated by the exact forward
+      solve path and executable retention, not by the replay Jacobian alone.
+  - The first lean exact-tape pass reduced runtime and peak RSS materially, but
+    it also exposed that the late-iteration Jacobian was still catastrophically
+    wrong whenever the tape contained even one restart step; SciPy optimality
+    blew up again there.
+  - Exact late-point audit on the benchmark QH final iterate before the mixed
+    replay fix gave objective-direction errors of order `1e19` on columns
+    `0..3`.
+  - After the mixed replay fix on the vmec_jax branch, the same final-point
+    audit now gives:
+    - column `0`: objective-direction relative error about `9.9e-3`
+    - column `1`: about `2.6e-2`
+    - column `2`: about `1.0e-5`
+    - column `3`: about `2.9e-2`
+    - so the late-iteration Jacobian blow-up is fixed.
+  - Exact `max_mode=1`, `max_nfev=3` benchmark on the current branch state:
+    - final total objective `0.26052325878767574`
+    - final QS objective `0.2596812636714725`
+    - final aspect `7.029017152103597`
+    - solve wall about `36.10 s`
+    - peak RSS about `17.48 GB`
+  - Exact `max_mode=1`, `max_nfev=10` benchmark on the current branch state:
+    - final total objective `0.24174600728278778`
+    - final QS objective `0.24061022810764002`
+    - final aspect `7.0337013230474374`
+    - solve wall about `138.55 s`
+    - peak RSS about `23.47 GB`
+    - first-order optimality now stays finite at about `6.62e-1`, which is a
+      major behavioral improvement over the earlier `~1e19` blow-up
+  - This branch state is now derivative-stable at late iterates, but runtime is
+    still not competitive with classic QH and the final objective is still
+    above the earlier best branch result and above the classic reference.
