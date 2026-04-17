@@ -597,3 +597,5 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
   - Next PR-facing step is no longer another derivative rewrite. It is a
     forward-path/runtime pass aimed at executable retention and exact residual
     solve cost, with the new comparison harness kept as the acceptance gate.
+  - Draft PR opened for the simsopt-side branch state:
+    https://github.com/hiddenSymmetries/simsopt/pull/621
