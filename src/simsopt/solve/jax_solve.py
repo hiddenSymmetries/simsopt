@@ -454,8 +454,19 @@ def build_vmec_objective_stage(
             _clear_scipy_callback_cache()
             return vmec._discrete_adjoint_residual_jacobian(x_free, residuals_from_state)
 
+        def scipy_state_payload(x_free):
+            x_key = vmec._x_cache_key(x_free)
+            if x_key is None or scipy_callback_cache["x_key"] != x_key or scipy_callback_cache["state"] is None:
+                _solve_exact_payload(x_free)
+            return (
+                scipy_callback_cache["state"],
+                scipy_callback_cache["payload"],
+                scipy_callback_cache["residual"],
+            )
+
         residuals.scipy_residuals = scipy_residuals
         residuals.scipy_jacobian = scipy_jacobian
+        residuals.scipy_state_payload = scipy_state_payload
 
     return VmecObjectiveStage(
         x0=x0,

@@ -570,3 +570,30 @@ This branch is successful only if the resulting `QH_fixed_resolution_jax.py`:
   - This branch state is now derivative-stable at late iterates, but runtime is
     still not competitive with classic QH and the final objective is still
     above the earlier best branch result and above the classic reference.
+  - Stable direct comparison set generated on 2026-04-16 with the new
+    `tools/diagnostics/qh_classic_vs_jax_compare.py` harness and plots written
+    to `/Users/rogeriojorge/local/tests/qh_compare_outputs_ship`:
+    - classic `max_mode=1`, `max_nfev<=20`, 300 s cap:
+      final total `0.2137756193963573`, QS `0.21146713337229725`,
+      aspect `7.04804670669319`, elapsed `71.23 s`, peak RSS `0.49 GB`
+    - classic `max_mode=2`, `max_nfev<=20`, 300 s cap:
+      final total `0.005563975632258551`, QS `0.0055639710182783944`,
+      aspect `7.000067926284435`, elapsed `265.12 s`, peak RSS `0.49 GB`
+    - JAX exact `max_mode=1`, `max_nfev<=20`, 90 s cap:
+      final total `0.24902495986882436`, QS `0.24799228342758917`,
+      aspect `7.032135283431692`, elapsed `109.40 s`, peak RSS `14.93 GB`
+    - JAX exact `max_mode=2`, `max_nfev<=20`, 90 s cap:
+      final total `0.22622233073571194`, QS `0.22572926013411204`,
+      aspect `7.022205193122329`, elapsed `123.32 s`, peak RSS `16.91 GB`
+  - Interpretation of that stable comparison set:
+    - the forward exact JAX path is still the blocker, not the late-iterate
+      derivative catastrophe we already fixed;
+    - at both `max_mode=1` and `max_mode=2`, classic is still materially
+      ahead in both objective reduction and memory footprint within the first
+      90-120 seconds;
+    - mode 2 remains the clearest shipping blocker because classic reaches
+      `O(1e-3)` total objective while JAX is still at `O(1e-1)` in the same
+      broad runtime envelope.
+  - Next PR-facing step is no longer another derivative rewrite. It is a
+    forward-path/runtime pass aimed at executable retention and exact residual
+    solve cost, with the new comparison harness kept as the acceptance gate.
