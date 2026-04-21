@@ -9,10 +9,10 @@ algorithm is described in the following paper:
     Nuclear Fusion 63, 036016 (2023)
 
 The script should be run as:
-    mpirun -n 1 python permanent_magnet_MUSE.py
+    mpirun -n 1 python MUSE_edit.py
 on a cluster machine but
-    python permanent_magnet_MUSE.py
-is sufficient on other machines. Note that this code does not use MPI, but is
+    python MUSE_edit.py
+is sufficient on other machines. Optional: ``--force_weight FLOAT`` (default 1.0). Note that this code does not use MPI, but is
 parallelized via OpenMP and XSIMD, so will run substantially
 faster on multi-core machines (make sure that all the cores
 are available to OpenMP, e.g. through setting OMP_NUM_THREADS).
@@ -21,6 +21,7 @@ For high-resolution and more realistic designs, please see the script files at
 https://github.com/akaptano/simsopt_permanent_magnet_advanced_scripts.git
 """
 
+import argparse
 import time
 from pathlib import Path
 
@@ -37,6 +38,16 @@ from simsopt.util import FocusData, discretize_polarizations, polarization_axes,
 from simsopt.util.permanent_magnet_helper_functions import *
 # from pyevtk.hl import polyLinesToVTK, pointsToVTK
 
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument(
+    "--force_weight",
+    type=float,
+    default=1.0,
+    help="Weight for the force term in GPMO (default: 1.0).",
+)
+args = parser.parse_args()
+force_weight = args.force_weight
+
 t_start = time.time()
 
 # Set some parameters -- if doing CI, lower the resolution
@@ -47,9 +58,9 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
-    nphi = 16  # >= 64 for high-resolution runs
-    nIter_max = 10000
-    downsample = 2
+    nphi = 32  # >= 64 for high-resolution runs
+    nIter_max = 2501
+    downsample = 8
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -65,7 +76,7 @@ s_outer = SurfaceRZFourier.from_focus(surface_filename, range="half period", nph
 
 # Make the output directory -- warning, saved data can get big!
 # On NERSC, recommended to change this directory to point to SCRATCH!
-out_dir = Path("output_permanent_magnet_GPMO_MUSE")
+out_dir = Path("ForceScan_Output")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 # initialize the coils
@@ -114,13 +125,12 @@ t_A_F_end = time.time()
 print(f'A_F tensor construction took {t_A_F_end - t_A_F_start:.3f} seconds')
 '''
 
-
 # Set some hyperparameters for the optimization
 algorithm = 'Forces'  # Algorithm to use
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
 kwargs['nhistory'] = nIter_max
-kwargs['force_weight'] = 1
+kwargs['force_weight'] = force_weight
 kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # Add dipole grid positions for the Forces algorithm
 
 # Optimize the permanent magnets greedily
@@ -158,14 +168,20 @@ net_forces, net_torques = pm_opt.force_torque_calc(dipoles)
 net_forces_2norm_squared = sopp.two_norm_squared(net_forces.ravel())
 print("mmax_fourth = ", pm_opt.m_maxima[0] ** 4)
 
+def format_sci_2(value):
+    return f"{value:.2e}".replace("e+0", "e").replace("e-0", "e-").replace("e+", "e")
+
 #Calc two norm from force_torque_calc method
 #print("Force norm from force_torque_calc method = ", kwargs['force_weight'] * net_forces_2norm_squared) 
-print("Force norm from force_torque_calc method rescaled (To match optimization)= ", kwargs['force_weight'] * net_forces_2norm_squared / pm_opt.m_maxima[0] ** 4) 
+print(
+    "Force norm from force_torque_calc method rescaled (To match optimization)= ",
+    format_sci_2(net_forces_2norm_squared / pm_opt.m_maxima[0] ** 4),
+)
 #Calc two norm from A_F Matrix method
 #print("Force norm from AF method = ", kwargs['force_weight'] * af_forces_2norm_squared ) 
 #print("Force norm from AF method rescaled (To match optimization)= ", kwargs['force_weight'] * af_forces_2norm_squared / pm_opt.m_maxima[0] ** 4) 
 #Calc two norm from optimization method (have GPMO_forces return current_forces array and calculate two norm of that array)
-print("Force norm from from opt result = ", kwargs['force_weight'] * current_forces_2norm_squared) 
+print("Force norm from from opt result = ", format_sci_2(current_forces_2norm_squared)) 
 
 
 
@@ -183,10 +199,10 @@ if save_plots:
     # Plot the SIMSOPT GPMO solution
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-    make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
+    make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized_forceweight{force_weight}")
     #print(m_history.shape)
     # Look through the solutions as function of K and make plots
-    for k in range(0, m_history.shape[-1], 100):
+    for k in range(0, m_history.shape[-1], 500):
         mk = m_history[:, :, k]
                
         mk_flat = mk.flatten()
@@ -206,14 +222,14 @@ if save_plots:
 
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
         K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
-        b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}")
+        b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}_forceweight{force_weight}")
         Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
         normal_total = Bnormal + Bnormal_dipoles
 
         # For plotting Bn on the full torus surface at the end with just the dipole fields
-        make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}")
+        make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}_forceweight{force_weight}")
         pointData = {"B_N": normal_total[:, :, None]}
-        s_plot.to_vtk(out_dir / "m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}", extra_data=pointData)
+        s_plot.to_vtk(out_dir / "m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}_forceweight{force_weight}", extra_data=pointData)
         
     # write solution to FAMUS-type file
     pm_opt.write_to_famus(out_dir)
