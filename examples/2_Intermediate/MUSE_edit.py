@@ -199,7 +199,7 @@ if save_plots:
     # Plot the SIMSOPT GPMO solution
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-    make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized_forceweight{force_weight}")
+    make_Bnormal_plots(bs, s_plot, out_dir, f"biot_savart_optimized_forceweight{force_weight}")
     #print(m_history.shape)
     # Look through the solutions as function of K and make plots
     for k in range(0, m_history.shape[-1], 500):
