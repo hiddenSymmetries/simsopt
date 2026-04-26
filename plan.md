@@ -718,9 +718,23 @@ implementation demonstrates a concrete gap. Expected candidates:
   `tests/mhd/test_vmec_jax.py`.
 - Re-ran `python -m pytest tests/mhd/test_vmec_jax.py -q`
   (`7 passed`, two warnings from NumPy/JAX internals).
+- Added the first Simsopt `BoozerJax` and `QuasisymmetryJax` wrapper slice:
+  - Optional `booz_xform_jax` import and `simsopt.mhd` export.
+  - Simsopt-style surface registry and cache invalidation.
+  - In-memory transfer from legacy `Vmec.wout` or `VmecJax.wout` to
+    `booz_xform_jax.Booz_xform`.
+  - Reuse of the existing quasisymmetry residual semantics through a JAX-named
+    objective class.
+- Added `tests/mhd/test_boozer_jax.py`:
+  - registry behavior without the legacy `booz_xform` package,
+  - comparison with `tests/test_files/boozmn_li383_low_res.nc`,
+  - parity between legacy `Vmec` loaded-wout input and `VmecJax` loaded-wout
+    input.
+- Ran:
+  - `python -m pytest tests/mhd/test_boozer_jax.py -q` (`3 passed`)
+  - `python -m pytest tests/mhd/test_boozer.py -q` (`5 skipped`)
 
 ## Immediate next actions
 
-- After `VmecJax` wout compatibility works, implement `BoozerJax` on loaded
-  wout data because that is the shortest parity loop against existing boozmn
-  references.
+- Add direct `vmec_jax` quasisymmetry-ratio diagnostics in Simsopt and compare
+  with the current `QuasisymmetryRatioResidual` implementation.
