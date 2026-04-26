@@ -1,0 +1,706 @@
+# JAX finite-beta single-stage Simsopt integration plan
+
+Date: 2026-04-25
+
+Local Simsopt branch: `plan/jax-finite-beta-single-stage`
+
+This file is intentionally uncommitted. It is both the implementation plan and
+the running log for integrating `vmec_jax`, `booz_xform_jax`, and
+`virtual_casing_jax` into Simsopt for finite-beta, single-stage optimization.
+
+## Current checkout state
+
+- `simsopt`: cloned to `/Users/rogerio/local/simsopt_jax`
+  - Remote: `https://github.com/hiddensymmetries/simsopt.git`
+  - Branch: `plan/jax-finite-beta-single-stage`
+  - Base commit inspected: `1b0cc3a9`
+- `vmec_jax`: cloned to `/Users/rogerio/local/vmec_jax_simsopt`
+  - Remote: `https://github.com/uwplasma/vmec_jax.git`
+  - Branch: `main`
+  - Commit inspected: `42155e0`
+- `booz_xform_jax`: cloned to `/Users/rogerio/local/booz_xform_jax_simsopt`
+  - Remote: `https://github.com/uwplasma/booz_xform_jax.git`
+  - Branch: `main`
+  - Commit inspected: `e29fce7`
+- `virtual_casing_jax`: cloned to `/Users/rogerio/local/virtual_casing_jax_simsopt`
+  - Remote: `https://github.com/uwplasma/virtual_casing_jax.git`
+  - Branch: `main`
+  - Commit inspected: `a4a4b5b`
+
+## High-level goal
+
+Add JAX-backed MHD wrappers to Simsopt that can eventually replace the current
+VMEC2000, BOOZ_XFORM, and virtual-casing integrations while preserving Simsopt's
+public workflow:
+
+- `Optimizable`-style wrappers with Simsopt dependency graph semantics.
+- VMEC input and `wout` compatibility where users and tests expect it.
+- Existing diagnostics such as aspect ratio, volume, iota, magnetic shear,
+  external current, vacuum well, quasisymmetry residuals, Boozer spectra, and
+  virtual-casing fields.
+- Existing coil classes, Biot-Savart machinery, squared-flux objectives, and
+  coil regularization terms remain in Simsopt.
+- JAX autodiff replaces finite-difference VMEC/Boozer/virtual-casing derivative
+  paths in the new examples and optimization workflows.
+- Parity and regression tests compare old non-JAX wrappers and new JAX wrappers
+  at every layer before the old implementations are considered replaceable.
+
+## Source and literature context
+
+Simsopt style and workflow references inspected locally:
+
+- `src/simsopt/mhd/vmec.py`
+- `src/simsopt/mhd/boozer.py`
+- `src/simsopt/mhd/virtual_casing.py`
+- `src/simsopt/mhd/vmec_diagnostics.py`
+- `tests/mhd/test_vmec.py`
+- `tests/mhd/test_boozer.py`
+- `tests/mhd/test_virtual_casing.py`
+- `examples/2_Intermediate/QH_fixed_resolution.py`
+- `examples/2_Intermediate/QH_fixed_resolution_boozer.py`
+- `examples/2_Intermediate/B_external_normal.py`
+- `examples/2_Intermediate/stage_two_optimization_finite_beta.py`
+- `examples/3_Advanced/single_stage_optimization.py`
+- `examples/3_Advanced/single_stage_optimization_finite_beta.py`
+- Git history for the MHD wrappers and single-stage examples.
+
+Upstream JAX source references inspected locally:
+
+- `vmec_jax/api.py`, `driver.py`, `optimization.py`, `quasisymmetry.py`,
+  `booz_input.py`, `wout.py`, `free_boundary.py`, and docs on discrete adjoints,
+  Simsopt comparison, validation, and optimization.
+- `booz_xform_jax/core.py`, `jax_api.py`, `vmec.py`, tests, examples, and docs.
+- `virtual_casing_jax/virtual_casing.py`, `functional.py`,
+  `simsopt_virtual_casing.py`, tests, examples, and docs.
+
+Online references reviewed:
+
+- Simsopt JOSS paper: https://joss.theoj.org/papers/10.21105/joss.03525
+- Simsopt single-stage documentation:
+  https://simsopt.readthedocs.io/v1.9.1/example_single_stage.html
+- Single-stage stellarator optimization paper:
+  https://arxiv.org/abs/2302.10622
+- Virtual-casing singular quadrature paper:
+  https://arxiv.org/abs/1909.07417
+- Boozer coordinates primary reference:
+  https://www.osti.gov/biblio/6063300
+- VMEC numerical-equilibrium context:
+  https://www.cambridge.org/core/journals/journal-of-plasma-physics/article/an-adjointbased-method-for-optimising-mhd-equilibria-against-the-infiniten-ideal-ballooning-mode/D7DC9ACDA1C77ED15FB12615F890B9A2
+- JAX autodiff cookbook:
+  https://docs.jax.dev/en/latest/notebooks/autodiff_cookbook.html
+- `vmec_jax` README and docs:
+  https://github.com/uwplasma/vmec_jax
+- `booz_xform_jax` README and docs:
+  https://github.com/uwplasma/booz_xform_jax
+
+## Simsopt conventions to preserve
+
+- MHD wrappers live under `src/simsopt/mhd` and are exported from
+  `src/simsopt/mhd/__init__.py`.
+- Optional external codes are imported in guarded `try` blocks, with
+  `logger.debug(str(e))` on import failure and clear `RuntimeError` messages
+  when a user tries to instantiate an unavailable wrapper.
+- Wrappers should use `Optimizable` dependencies, `need_to_run_code`, and
+  `recompute_bell()` so changes to boundary/profile dofs invalidate cached
+  calculations.
+- The current `Vmec` owns dofs `phiedge`, `curtor`, and `pres_scale`; the
+  boundary surface owns boundary dofs. `VmecJax` should preserve this split.
+- Existing examples are executable scripts with user parameters near the top,
+  not command-line argument parsers. The new examples should follow that style.
+- Tests are primarily `unittest` under `tests/<area>`, with optional-dependency
+  `skipIf` guards and shared data in `tests/test_files`.
+- Existing wrappers expose in-memory attributes after a run, especially
+  `vmec.wout`, `Boozer.bx`, and `VirtualCasing.B_external_normal`. The JAX
+  wrappers should expose the same high-value attributes where possible.
+- Existing history favors incremental compatibility patches, parity tests, and
+  optional external-code handling rather than broad refactors.
+
+## Important upstream capability map
+
+### `vmec_jax`
+
+Useful existing pieces:
+
+- Public drivers: `run_fixed_boundary()`, `run_free_boundary()`,
+  `wout_from_fixed_boundary_run()`, and `write_wout_from_fixed_boundary_run()`.
+- Public I/O: `read_indata`, `write_indata`, `load_input`, `load_wout`,
+  `read_wout`, `state_from_wout`.
+- Boundary helpers: `boundary_input_from_indata`, `boundary_from_input_convention`,
+  `boundary_from_indata`, `apply_boundary_params`, `boundary_param_specs`.
+- Optimization helpers: `FixedBoundaryExactOptimizer`,
+  `make_qs_residuals_fn`, `make_qh_residuals_fn`, `create_x_scale`.
+- Direct QS diagnostics: `quasisymmetry_ratio_residual_from_state()`.
+- `booz_xform_inputs_from_state()` for a direct VMEC-to-Boozer pipeline.
+- Discrete-adjoint support with checkpoint replay, JVP/VJP paths, JIT caches,
+  and no VMEC2000 subprocess.
+
+Integration implications:
+
+- Prefer in-memory `WoutData` objects over temporary `wout_*.nc` files.
+- `VmecJax.run()` should cache the `FixedBoundaryRun`, solved state, and
+  `WoutData`, then expose a Simsopt-like `wout` view.
+- The `VmecJax` wrapper needs a small compatibility layer for the old `Struct`
+  style expected by Simsopt tests and wrappers.
+- A public helper may be needed upstream to make exact objective/Jacobian
+  construction less tied to the standalone examples.
+
+### `booz_xform_jax`
+
+Useful existing pieces:
+
+- Legacy-compatible class `Booz_xform`.
+- `read_wout()`, `read_wout_data()`, `init_from_vmec()`, `write_boozmn()`.
+- `run()` that populates legacy-style attributes.
+- `run_jax()` and `booz_xform_jax_impl()` for JIT/differentiable workflows.
+- Streamed and vectorized Fourier modes selected by
+  `BOOZ_XFORM_JAX_FOURIER_MODE`.
+
+Integration implications:
+
+- `BoozerJax` can mirror Simsopt's `Boozer` registry and surface-index mapping,
+  then feed `VmecJax.wout` directly into `Booz_xform.read_wout_data()`.
+- `QuasisymmetryJax` should preserve the old `Quasisymmetry` options:
+  `normalization="B00"`, `normalization="symmetric"`, `weight="even"`,
+  `weight="stellopt"`, and `weight="stellopt_ornl"`.
+- For optimization, a lower-level functional path should avoid object mutation
+  and use surface-major JAX arrays from `run_jax()` or `booz_xform_jax_impl()`.
+
+### `virtual_casing_jax`
+
+Useful existing pieces:
+
+- `VirtualCasingJAX.setup()`, `compute_external_B()`,
+  `compute_external_gradB()`, off-surface field/GradB functions, batch methods,
+  and JIT wrappers.
+- Functional API in `functional.py` for differentiating through surface
+  coordinates and field data.
+- `compute_external_B_autodiff()` with a custom JVP tied to computed GradB.
+- A Simsopt-compatible `VirtualCasing` adapter already exists in
+  `simsopt_virtual_casing.py`.
+
+Integration implications:
+
+- The existing adapter is valuable but still uses Simsopt's current `Vmec` and
+  `B_cartesian()` path. In Simsopt, it should become `VirtualCasingJax` and
+  accept both `VmecJax` and legacy `Vmec`/`wout` inputs where possible.
+- The first Simsopt integration can reuse the adapter for parity. The second
+  step should replace its VMEC-side field construction with `vmec_jax` state,
+  geometry, and field helpers so finite-beta single-stage derivatives can flow
+  through VMEC and virtual casing.
+
+## Proposed Simsopt API
+
+Add new names first, without changing existing imports:
+
+- `simsopt.mhd.VmecJax`
+- `simsopt.mhd.BoozerJax`
+- `simsopt.mhd.QuasisymmetryJax`
+- `simsopt.mhd.QuasisymmetryRatioResidualJax`
+- `simsopt.mhd.VirtualCasingJax`
+
+Keep the existing names unchanged initially:
+
+- `Vmec`
+- `Boozer`
+- `Quasisymmetry`
+- `QuasisymmetryRatioResidual`
+- `VirtualCasing`
+
+After parity and downstream example coverage are mature, consider aliasing or
+runtime backend selection, for example `Vmec(..., backend="jax")`, but do not
+start there. A side-by-side API makes tests, examples, and user migration much
+cleaner.
+
+## Implementation workstreams
+
+### 1. Development environment
+
+Planned integration environment:
+
+1. Create one Simsopt integration virtual environment at
+   `/Users/rogerio/local/simsopt_jax/.venv`.
+2. Install the three JAX repositories in editable mode into that environment:
+   `/Users/rogerio/local/vmec_jax_simsopt`,
+   `/Users/rogerio/local/booz_xform_jax_simsopt`, and
+   `/Users/rogerio/local/virtual_casing_jax_simsopt`.
+3. Install Simsopt editable from `/Users/rogerio/local/simsopt_jax`.
+4. Keep isolated upstream test environments optional unless upstream package
+   tests need incompatible dependency pins.
+
+Open dependency issue:
+
+- Simsopt currently declares Python `>=3.8`, while the JAX packages require
+  Python `>=3.9` or `>=3.10`. The new JAX wrappers should probably live behind
+  an optional extra such as `JAX_MHD = ["vmec-jax", "booz_xform_jax",
+  "virtual_casing_jax", "netCDF4"]` and skip cleanly on older Pythons.
+
+### 2. `VmecJax` wrapper
+
+Files to add or modify:
+
+- Add `src/simsopt/mhd/vmec_jax.py`.
+- Update `src/simsopt/mhd/__init__.py`.
+- Add tests in `tests/mhd/test_vmec_jax.py`.
+- Add docs under `docs/source/simsopt.mhd.rst` and MHD user docs.
+
+Core behavior:
+
+- Constructor accepts the same important arguments as `Vmec`:
+  `filename=None`, `keep_all_files=False`, `verbose=True`, `ntheta=50`,
+  `nphi=50`, and `range_surface="full torus"`.
+- `mpi` should be accepted for API compatibility, but initial JAX execution can
+  run on each process or proc0 with broadcast only after a clear design choice.
+- Input files:
+  - Load VMEC namelists through `vmec_jax.read_indata` or public wrappers.
+  - Initialize `SurfaceRZFourier` from boundary coefficients.
+  - Preserve `indata` access for resolution, profiles, and scalar parameters.
+- Wout files:
+  - Load through `vmec_jax.read_wout`.
+  - Initialize boundary from `wout` data.
+  - Mark object not runnable from a `wout`, matching current `Vmec` behavior.
+- Dofs:
+  - Own `phiedge`, `curtor`, `pres_scale`.
+  - Depend on `boundary`.
+  - Support `get_dofs()`, `set_dofs()`, profile setters, and cache invalidation.
+- Run path:
+  - Convert Simsopt boundary/profile state into `vmec_jax` input/boundary data.
+  - Call `vmec_jax.run_fixed_boundary()` or `run_free_boundary()` based on
+    `LFREEB`.
+  - Cache `run`, `state`, and a Simsopt-compatible `wout` object.
+  - Support `write_input()` and `get_input()` with VMEC-style namelist output.
+- Diagnostics to implement at parity with `Vmec`:
+  - `aspect()`
+  - `volume()`
+  - `iota_axis()`
+  - `iota_edge()`
+  - `mean_iota()`
+  - `mean_shear()`
+  - `external_current()`
+  - `vacuum_well()`
+  - `__repr__()`
+
+Derivative behavior:
+
+- Expose direct residual/Jacobian helpers for least-squares optimization, using
+  `vmec_jax.FixedBoundaryExactOptimizer` or a thinner upstream API.
+- Avoid having Simsopt silently finite-difference `VmecJax` objectives in the
+  new examples. The examples should call exact residual/Jacobian functions.
+- Add Taylor tests comparing exact gradients to finite differences on small
+  problems.
+
+Likely upstream needs in `vmec_jax`:
+
+- Stable public conversion helpers between VMEC input convention and Simsopt
+  `SurfaceRZFourier`.
+- Public helpers for `external_current`, `vacuum_well`, and any fields missing
+  from `WoutData` parity.
+- A stable, documented optimizer API for "given boundary params, return
+  residuals and exact Jacobian" without copying large chunks from examples.
+
+### 3. `QuasisymmetryRatioResidualJax`
+
+Files to add or modify:
+
+- Add to `src/simsopt/mhd/vmec_jax.py` or a small separate module
+  `src/simsopt/mhd/vmec_jax_diagnostics.py`.
+- Add tests in `tests/mhd/test_vmec_jax.py` or
+  `tests/mhd/test_vmec_jax_diagnostics.py`.
+
+Behavior:
+
+- Mirror current `QuasisymmetryRatioResidual` constructor and methods where
+  practical:
+  - `vmec`
+  - `surfaces`
+  - `helicity_m`
+  - `helicity_n`
+  - weights/residuals/total/profile behavior
+- Under the hood, use `vmec_jax.quasisymmetry_ratio_residual_from_state()`.
+- Handle helicity sign and field-period conventions explicitly in docstrings
+  and tests. `vmec_jax` docs note field-period-unit conventions; Simsopt
+  conventions must be preserved at the public Simsopt layer.
+- Provide exact `dJ()` for scalar totals and exact residual Jacobians for
+  least-squares workflows.
+
+### 4. `BoozerJax` and `QuasisymmetryJax`
+
+Files to add or modify:
+
+- Add `src/simsopt/mhd/boozer_jax.py`.
+- Update `src/simsopt/mhd/__init__.py`.
+- Add `tests/mhd/test_boozer_jax.py`.
+
+Behavior:
+
+- Mirror current `Boozer`:
+  - `BoozerJax(equil, mpol=32, ntor=32, verbose=False)`
+  - `s` registry as a `set`
+  - `register()`
+  - `run()`
+  - `s_used`
+  - `s_to_index`
+  - `need_to_run_code`
+  - `_calls` test counter
+- For `equil`:
+  - Support `VmecJax` first.
+  - Consider supporting legacy `Vmec` and `wout` for parity tests by using
+    `read_wout_data()` or `read_wout()`.
+- Map requested `s` values to VMEC half-grid indices identically to current
+  `Boozer`.
+- Use `booz_xform_jax.Booz_xform.read_wout_data(equil.wout)` where possible.
+- Preserve `bx` attributes expected by tests and downstream code:
+  `bmnc_b`, `xm_b`, `xn_b`, `compute_surfs`, and related spectra.
+- `QuasisymmetryJax` mirrors `Quasisymmetry.J()` behavior and normalization.
+
+Derivative behavior:
+
+- Use `booz_xform_jax.run_jax()` or `booz_xform_jax.jax_api` for exact
+  derivatives in new Boozer optimization examples.
+- Keep the object-style `run()` for diagnostics and compatibility.
+
+Likely upstream needs in `booz_xform_jax`:
+
+- Optional `run_jax(populate=True)` or helper to populate legacy attributes from
+  the JAX-native output without rerunning.
+- A documented way to build Boozer inputs directly from `vmec_jax` state via
+  `vmec_jax.booz_xform_inputs_from_state()` and
+  `booz_xform_jax.prepare_booz_xform_constants_from_inputs()`.
+
+### 5. `VirtualCasingJax`
+
+Files to add or modify:
+
+- Add `src/simsopt/mhd/virtual_casing_jax.py`.
+- Update `src/simsopt/mhd/__init__.py`.
+- Add `tests/mhd/test_virtual_casing_jax.py`.
+
+Behavior:
+
+- Mirror current `VirtualCasing`:
+  - `from_vmec()`
+  - `save()`
+  - `load()`
+  - `plot()`
+  - `src_*` and `trgt_*` grid attributes
+  - `gamma`
+  - `B_total`
+  - `unit_normal`
+  - `B_external`
+  - `B_external_normal`
+  - `B_external_normal_extended`
+- Reuse the existing adapter in
+  `/Users/rogerio/local/virtual_casing_jax_simsopt/virtual_casing_jax/simsopt_virtual_casing.py`
+  as the first implementation template.
+- Initial parity route:
+  - Support legacy `Vmec` and wout inputs using the current Simsopt
+    `B_cartesian()` path, but JAX backend for the integral equation.
+- Full JAX route:
+  - Support `VmecJax` by deriving `gamma`, normals, and total field from the
+    `vmec_jax` state/wout without VMEC2000 or Simsopt finite differences.
+  - Use `VirtualCasingJAX` or `virtual_casing_jax.functional` so derivatives
+    can flow through the surface and field data.
+
+Derivative behavior:
+
+- For finite-beta single-stage optimization, the important derivative is the
+  derivative of the stage-two target `B_external_normal` with respect to VMEC
+  surface/field variables. Plan to expose a function returning target and VJP
+  or exact Jacobian blocks that can be composed with coil derivatives.
+- Use `compute_external_gradB()` and `compute_external_B_autodiff()` for
+  geometry derivatives where applicable.
+- Compare exact JAX derivatives to finite differences on small grids.
+
+Likely upstream needs in `virtual_casing_jax`:
+
+- A public pure function that accepts Simsopt/JAX surface coordinates,
+  `B_total`, and target-grid geometry and returns `B_external_normal` in the
+  Simsopt `(nphi, ntheta)` convention.
+- Shape-derivative examples/tests for `B_external_normal`, not only off-surface
+  `B_external`.
+- Clear API for half-period vs full-field-period conventions and source/target
+  axis ordering.
+
+### 6. Examples to add
+
+All new examples should follow the existing Simsopt example style:
+
+- User parameters at the top.
+- Same input files and output directory conventions as the non-JAX examples.
+- `proc0_print` for MPI-like examples.
+- No hidden command-line argument parser unless the original example had one.
+- Small defaults suitable for CI or quick smoke tests.
+
+Add:
+
+1. `examples/2_Intermediate/QH_fixed_resolution_jax.py`
+   - Follows `QH_fixed_resolution.py`.
+   - Uses `VmecJax` and `QuasisymmetryRatioResidualJax`.
+   - Uses exact autodiff/discrete-adjoint derivatives from `vmec_jax`, not
+     `least_squares_mpi_solve(..., grad=True)` finite differences.
+   - Reads `examples/2_Intermediate/inputs/input.nfp4_QH_warm_start`.
+
+2. `examples/2_Intermediate/QH_fixed_resolution_boozer_jax.py`
+   - Follows `QH_fixed_resolution_boozer.py`.
+   - Uses `VmecJax`, `BoozerJax`, and `QuasisymmetryJax`.
+   - Uses autodiff through `vmec_jax` and `booz_xform_jax`.
+
+3. `examples/2_Intermediate/B_external_normal_jax.py`
+   - Follows `B_external_normal.py`.
+   - Uses `VirtualCasingJax`.
+   - Preserves save/load demonstration and printed array snippet.
+
+4. `examples/2_Intermediate/stage_two_optimization_finite_beta_jax.py`
+   - Follows `stage_two_optimization_finite_beta.py`.
+   - Uses `VirtualCasingJax` and optionally `VmecJax` for target generation.
+   - Keeps all coil functionality in Simsopt.
+   - Uses the same W7-X/QH reference data and current-sign logic.
+
+5. `examples/3_Advanced/single_stage_optimization_jax.py`
+   - Follows `single_stage_optimization.py`.
+   - Replaces VMEC finite-difference surface gradients with exact
+     `vmec_jax` derivative blocks.
+   - Keeps analytic/mixed coil-surface derivative terms already in Simsopt.
+
+6. `examples/3_Advanced/single_stage_optimization_finite_beta_jax.py`
+   - Follows `single_stage_optimization_finite_beta.py`.
+   - Uses `VmecJax` and `VirtualCasingJax`.
+   - Replaces finite-difference surface gradient of `fun_J` with JAX autodiff
+     through VMEC and virtual casing.
+   - Retains the initial stage-two coil optimization to match the published
+     single-stage workflow.
+
+Note: the user mentioned `state_two_optimization_jax.pt`; this appears to mean
+the existing stage-two finite-beta workflow and/or the
+`virtual_casing_jax/examples/simsopt_stage_two_optimization_finite_beta.py`
+template.
+
+### 7. Tests and validation
+
+New tests:
+
+- `tests/mhd/test_vmec_jax.py`
+  - Optional import skips for `vmec_jax`.
+  - Initialization from input and wout.
+  - Boundary coefficient parity with `SurfaceRZFourier`.
+  - Dof get/set and cache invalidation.
+  - `aspect`, `volume`, iota metrics, `mean_shear`, `external_current`,
+    and `vacuum_well` parity against current `Vmec` on existing test files.
+  - Exact derivative/Taylor tests on small fixed-boundary problems.
+
+- `tests/mhd/test_boozer_jax.py`
+  - Registry behavior identical to `Boozer`.
+  - `s_to_index` and `compute_surfs` parity.
+  - Circular tokamak and li383 Boozer spectra parity against existing
+    `boozmn_*` references and/or current `Boozer`.
+  - `QuasisymmetryJax` residual parity for QA, QP, QH, normalization, and
+    weight options.
+  - JAX functional derivative check for a small Boozer objective.
+
+- `tests/mhd/test_virtual_casing_jax.py`
+  - `from_vmec()` input, wout, and object initialization.
+  - Save/load parity for all public attributes.
+  - BNORM benchmark parity.
+  - Vacuum case where `B_external` approximately equals `B_total` and normal
+    component is approximately zero.
+  - Stellarator-symmetry and full-field-period parity.
+  - JAX derivative check on small grids.
+
+- Example smoke tests, either in existing example test infrastructure or a new
+  lightweight test file:
+  - Each new example imports and executes with reduced iteration counts.
+  - Avoid writing large artifacts outside temp directories in CI.
+
+Validation matrix:
+
+- Old `Vmec` vs `VmecJax`:
+  - fixed-boundary low-resolution inputs,
+  - wout-loaded diagnostics,
+  - free-boundary cases where `vmec_jax` support is mature.
+- Old `Boozer` vs `BoozerJax`:
+  - circular tokamak,
+  - li383,
+  - asymmetric cases.
+- Old `VirtualCasing` vs `VirtualCasingJax`:
+  - BNORM reference,
+  - vacuum reference,
+  - stellsym/full-period agreement.
+- Finite-beta workflows:
+  - initial objective parity,
+  - first derivative parity/Taylor tests,
+  - short optimization trajectory sanity checks.
+
+Performance gates:
+
+- Always distinguish cold JIT compile time from warm repeated-solve time.
+- Enable JAX x64 in tests to match VMEC/BOOZ/virtual-casing double precision.
+- Exercise JIT cache reuse for repeated solve/transform/integral calls.
+- Track wall time and memory for representative max-mode 1 and 2 examples.
+
+## Open design decisions
+
+1. Dependency policy:
+   - Use an optional Simsopt extra for the JAX MHD stack first.
+   - Decide later whether replacement of VMEC2000 makes these dependencies
+     required.
+
+2. MPI policy:
+   - Current Simsopt VMEC runs use `MpiPartition` and parallel finite
+     differences. JAX exact derivatives reduce the need for multi-process
+     finite differencing, but examples still use `proc0_print` and some MPI
+     plumbing. Decide whether `VmecJax` runs on every rank, proc0 plus
+     broadcast, or supports both.
+
+3. Wout compatibility:
+   - Prefer in-memory `WoutData`, but some downstream code expects mutable
+     attributes with SciPy NetCDF transposition conventions. A small
+     compatibility adapter is safer than changing callers.
+
+4. Objective API:
+   - Existing Simsopt least-squares wrappers are finite-difference oriented for
+     black-box functions. New exact-JAX examples may need a narrow
+     `residual_and_jacobian` utility rather than forcing exact derivatives into
+     old finite-difference paths.
+
+5. Virtual-casing shape derivatives:
+   - The full finite-beta single-stage objective requires differentiating the
+     target field as the VMEC surface changes. This is the highest-risk part
+     and should be built on small-grid derivative tests before examples depend
+     on it.
+
+6. Long-term replacement strategy:
+   - Keep new classes side by side until parity and examples are robust.
+   - Then add backend selection or aliases.
+   - Only remove/replace old wrappers once downstream examples, docs, and tests
+     are passing with JAX backends.
+
+## Risks and mitigations
+
+- Risk: JAX package Python requirements exceed Simsopt's current lower bound.
+  - Mitigation: optional extra and import skips; document Python requirement.
+
+- Risk: VMEC2000 parity differs for edge cases, free-boundary inputs, `lasym`,
+  pressure/current profile modes, or output fields.
+  - Mitigation: parity test matrix before using wrappers in examples.
+
+- Risk: JIT compilation dominates short examples.
+  - Mitigation: distinguish cold/warm timings, use persistent JIT cache, keep
+    CI examples tiny.
+
+- Risk: Object mutation in Simsopt wrappers conflicts with JAX functional
+  transformations.
+  - Mitigation: keep compatibility wrappers object-oriented, but build exact
+    derivative paths from functional helper APIs.
+
+- Risk: `VirtualCasingJax` target derivatives are not yet exposed in the exact
+  Simsopt convention.
+  - Mitigation: upstream a pure functional normal-field API and test against
+    finite differences before the finite-beta single-stage example.
+
+- Risk: Axis/sign conventions differ among VMEC, Simsopt, Boozer, BNORM, and
+  virtual casing.
+  - Mitigation: explicit sign-convention tests for helicity, current sign, and
+    `B_external_normal` symmetry.
+
+## Likely upstream PRs
+
+Open branches and PRs in the JAX repositories only when the Simsopt wrapper
+implementation demonstrates a concrete gap. Expected candidates:
+
+- `vmec_jax`
+  - Public Simsopt conversion helpers.
+  - Public exact residual/Jacobian builder for Simsopt-style objectives.
+  - Missing wout fields or diagnostics needed by Simsopt parity.
+
+- `booz_xform_jax`
+  - Direct `BoozXformInputs` pipeline from `vmec_jax` state.
+  - Populate legacy attributes from `run_jax()` output.
+  - Additional parity tests for Simsopt-specific surface registration.
+
+- `virtual_casing_jax`
+  - Pure functional `B_external_normal` API in Simsopt axis order.
+  - Shape derivative/JVP tests for on-surface normal field.
+  - Cleaner import path for the Simsopt-compatible adapter.
+
+## Step-by-step execution plan
+
+1. Environment setup and smoke imports.
+   - Create and install the integration venv.
+   - Run import smoke tests for all four checkouts.
+   - Run selected upstream JAX package tests that do not require large assets.
+
+2. Add `VmecJax` skeleton.
+   - Imports, constructor, boundary conversion, wout loading, dofs, and
+     diagnostics from loaded wout.
+   - Tests for initialization and diagnostics from existing wout files.
+
+3. Add runnable fixed-boundary `VmecJax`.
+   - Input file run path through `vmec_jax`.
+   - Wout compatibility adapter.
+   - Parity tests vs old `Vmec` on low-resolution fixed-boundary cases.
+
+4. Add exact `QuasisymmetryRatioResidualJax`.
+   - Residual parity.
+   - Total/profile parity where applicable.
+   - Taylor tests for exact derivatives.
+
+5. Add `BoozerJax` and `QuasisymmetryJax`.
+   - Object compatibility first.
+   - Functional derivative path second.
+   - Parity against boozmn references and old `Boozer`.
+
+6. Add `VirtualCasingJax`.
+   - Port existing adapter into Simsopt style.
+   - Add save/load/plot parity.
+   - Add full JAX VMEC-side data path.
+   - Add derivative tests.
+
+7. Add intermediate examples.
+   - `QH_fixed_resolution_jax.py`
+   - `QH_fixed_resolution_boozer_jax.py`
+   - `B_external_normal_jax.py`
+   - `stage_two_optimization_finite_beta_jax.py`
+
+8. Add advanced examples.
+   - `single_stage_optimization_jax.py`
+   - `single_stage_optimization_finite_beta_jax.py`
+
+9. Full validation.
+   - Unit tests for new wrappers.
+   - Selected old-vs-new parity tests.
+   - Example smoke tests.
+   - Warm performance comparisons.
+
+10. Upstream cleanup PRs.
+    - Open branches/PRs in `vmec_jax`, `booz_xform_jax`, and/or
+      `virtual_casing_jax` for concrete API gaps found during integration.
+
+## Running log
+
+### 2026-04-25
+
+- Cloned fresh upstream repositories to the requested paths.
+- Created local Simsopt branch `plan/jax-finite-beta-single-stage`.
+- Inspected existing Simsopt MHD wrappers, tests, examples, docs, and relevant
+  git history.
+- Inspected `vmec_jax`, `booz_xform_jax`, and `virtual_casing_jax` APIs, tests,
+  examples, and docs.
+- Reviewed online Simsopt, single-stage optimization, virtual-casing,
+  Boozer-coordinate, VMEC, and JAX autodiff references.
+- Added this uncommitted `plan.md` file.
+- Created `/Users/rogerio/local/simsopt_jax/.venv` with Python 3.13.7.
+- Installed editable checkouts of `vmec_jax`, `booz_xform_jax`,
+  `virtual_casing_jax`, and `simsopt` into that venv.
+- Ran import smoke test successfully:
+  - `simsopt 1.10.7.dev402+g1b0cc3a96`
+  - `vmec_jax` imported successfully; package has no `__version__`.
+  - `booz_xform_jax 0.1.0`
+  - `virtual_casing_jax` imported successfully; package has no `__version__`.
+
+## Immediate next actions
+
+- Start with `VmecJax` loaded-wout compatibility and tests. This gives a
+  stable diagnostic/wout surface before tackling runnable solves and exact
+  derivatives.
+- After `VmecJax` wout compatibility works, implement `BoozerJax` on loaded
+  wout data because that is the shortest parity loop against existing boozmn
+  references.
