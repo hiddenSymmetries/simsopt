@@ -792,3 +792,29 @@ implementation demonstrates a concrete gap. Expected candidates:
     format.
 - Ran syntax checks:
   - `python -m py_compile examples/2_Intermediate/QH_fixed_resolution_jax.py examples/2_Intermediate/QH_fixed_resolution_boozer_jax.py examples/2_Intermediate/B_external_normal_jax.py`
+
+## Implementation log - example slice 2
+
+- Added `examples/2_Intermediate/stage_two_optimization_finite_beta_jax.py`:
+  - follows `stage_two_optimization_finite_beta.py`,
+  - keeps all coil geometry/current objects and derivatives in Simsopt,
+  - replaces the finite-beta target-field calculation with
+    `VirtualCasingJax`,
+  - uses `VmecJax` for the total-current diagnostic from the target wout.
+- Added `examples/3_Advanced/single_stage_optimization_jax.py`:
+  - follows `single_stage_optimization.py`,
+  - keeps the Simsopt coil objective and mixed coil-surface derivative term,
+  - swaps in `VmecJax` and `QuasisymmetryRatioResidualJax` for the stage-I
+    equilibrium and QS objective.
+- Added `examples/3_Advanced/single_stage_optimization_finite_beta_jax.py`:
+  - follows `single_stage_optimization_finite_beta.py`,
+  - keeps the Simsopt coil objective and coil derivatives,
+  - swaps in `VmecJax`, `QuasisymmetryRatioResidualJax`, and
+    `VirtualCasingJax`,
+  - recomputes the virtual-casing target through the JAX path when surface
+    degrees of freedom change.
+- Ran syntax checks:
+  - `python -m py_compile examples/2_Intermediate/stage_two_optimization_finite_beta_jax.py examples/3_Advanced/single_stage_optimization_jax.py examples/3_Advanced/single_stage_optimization_finite_beta_jax.py`
+- Re-ran focused JAX wrapper tests after the example additions:
+  - `python -m pytest tests/mhd/test_vmec_jax.py tests/mhd/test_boozer_jax.py tests/mhd/test_vmec_diagnostics_jax.py tests/mhd/test_virtual_casing_jax.py -q`
+    (`16 passed`, one vmec_jax/JAX deprecation warning)
