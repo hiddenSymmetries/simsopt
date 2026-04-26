@@ -1035,3 +1035,34 @@ implementation demonstrates a concrete gap. Expected candidates:
     derivatives column-by-column.
   - Add a short optimization regression comparing the first finite-beta
     objective and gradient against the current finite-difference path.
+
+## Implementation log - virtual-casing surface-Jacobian assembly
+
+- Inspected `examples/3_Advanced/single_stage_optimization_finite_beta_jax.py`
+  against the non-JAX finite-beta example and the vacuum
+  `single_stage_optimization_jax.py` exact-gradient implementation.
+- Confirmed that the finite-beta JAX example still mirrors the original
+  whole-objective `MPIFiniteDifference` path for surface variables. This is
+  plan-aligned as a temporary compatibility step, but it is now the main
+  derivative replacement target.
+- Added `B_external_normal_jacobian_from_surface(...)` in
+  `src/simsopt/mhd/virtual_casing_jax.py`.
+  - It uses `surface.dgamma_by_dcoeff()` and
+    `surface.dunitnormal_by_dcoeff()` to assemble the surface-coefficient
+    columns of the virtual-casing target derivative.
+  - It accepts optional `B_total_tangents` columns so VMEC-JAX field-state
+    tangents can be inserted without changing the projection logic.
+  - It currently assumes the virtual-casing source and target grids are the
+    same surface quadrature grid, which matches the finite-beta JAX example.
+- Added a Taylor test on a small `SurfaceRZFourier` that checks the assembled
+  `B_external_normal` Jacobian against finite differences while perturbing
+  source geometry, total field, and target normal.
+- This completes the first Simsopt-side composition of the upstream
+  virtual-casing JVP with Simsopt surface derivative machinery.
+- Next steps:
+  - Obtain or build VMEC-JAX tangent columns for `B_total` on the target
+    surface.
+  - Use those `B_total_tangents` in
+    `B_external_normal_jacobian_from_surface(...)`.
+  - Add the resulting target derivative to the finite-beta `SquaredFlux`
+    surface gradient and compare against `MPIFiniteDifference`.

@@ -36,6 +36,7 @@ __all__ = [
     "VirtualCasingJax",
     "B_external_normal_from_data",
     "B_external_normal_jvp_from_data",
+    "B_external_normal_jacobian_from_surface",
 ]
 
 
@@ -343,6 +344,100 @@ def B_external_normal_jvp_from_data(
 
     Bnormal, dBnormal = jax.jvp(normal_field, (X, B0), (dX, dB0))
     return np.asarray(Bnormal), np.asarray(dBnormal)
+
+
+def B_external_normal_jacobian_from_surface(
+    surface,
+    B_total,
+    nfp=None,
+    stellsym=None,
+    digits=6,
+    quad_nphi=None,
+    quad_ntheta=None,
+    patch_dim0=None,
+    chunk_size="auto",
+    target_chunk_size="auto",
+    pou_dtype=None,
+    patch_dtype=None,
+    interp_block_size="auto",
+    remat=None,
+    B_total_tangents=None,
+    free_only=True,
+):
+    """
+    Return ``B_external_normal`` and its Jacobian with respect to a surface.
+
+    The source and target grids are the quadrature grid of ``surface``.
+    ``B_total_tangents`` may be supplied with shape
+    ``(nphi, ntheta, 3, ndof)`` to include the VMEC-field contribution for
+    each returned surface column.
+    """
+    if nfp is None:
+        nfp = surface.nfp
+    if stellsym is None:
+        stellsym = getattr(surface, "stellsym", True)
+
+    gamma = surface.gamma()
+    unit_normal = surface.unitnormal()
+    B_total = _validate_grid("B_total", B_total, gamma.shape)
+    functional, X, B0, kwargs = _prepare_normal_field_call(
+        gamma,
+        B_total,
+        nfp,
+        stellsym,
+        digits,
+        gamma.shape[0],
+        gamma.shape[1],
+        quad_nphi,
+        quad_ntheta,
+        patch_dim0,
+    )
+    jax, jnp = _require_jax()
+
+    dgamma = surface.dgamma_by_dcoeff()
+    dunit_normal = surface.dunitnormal_by_dcoeff()
+    if free_only:
+        columns = np.where(surface.dofs_free_status)[0]
+    else:
+        columns = np.arange(dgamma.shape[-1])
+    ncols = len(columns)
+
+    if B_total_tangents is None:
+        B_total_tangents = np.zeros(gamma.shape + (ncols,))
+    else:
+        B_total_tangents = np.asarray(B_total_tangents)
+        expected_shape = gamma.shape + (ncols,)
+        if B_total_tangents.shape != expected_shape:
+            raise ValueError(f"B_total_tangents must have shape {expected_shape}")
+
+    def external_field(x, b0):
+        return functional.compute_external_B_functional(
+            x,
+            b0,
+            chunk_size=chunk_size,
+            target_chunk_size=target_chunk_size,
+            pou_dtype=pou_dtype,
+            patch_dtype=patch_dtype,
+            interp_block_size=interp_block_size,
+            remat=remat,
+            **kwargs,
+        )
+
+    Bnormal = None
+    jacobian = np.zeros(gamma.shape[:2] + (ncols,))
+    for j, col in enumerate(columns):
+        dX = jnp.asarray(_soa_from_3d(dgamma[:, :, :, col]))
+        dB0 = jnp.asarray(_soa_from_3d(B_total_tangents[:, :, :, j]))
+        Bexternal, dBexternal = jax.jvp(external_field, (X, B0), (dX, dB0))
+        Bexternal = _3d_from_soa(np.asarray(Bexternal))
+        dBexternal = _3d_from_soa(np.asarray(dBexternal))
+        if Bnormal is None:
+            Bnormal = np.sum(Bexternal * unit_normal, axis=2)
+        jacobian[:, :, j] = np.sum(
+            dBexternal * unit_normal + Bexternal * dunit_normal[:, :, :, col],
+            axis=2,
+        )
+    return Bnormal, jacobian
 
 
 class VirtualCasingJax(_VirtualCasingBase):

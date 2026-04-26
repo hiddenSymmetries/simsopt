@@ -16,11 +16,13 @@ except ImportError:
 
 from simsopt.mhd import (
     B_external_normal_from_data,
+    B_external_normal_jacobian_from_surface,
     B_external_normal_jvp_from_data,
     VirtualCasingJax,
     Vmec,
     VmecJax,
 )
+from simsopt.geo import SurfaceRZFourier
 
 from . import TEST_DIR
 
@@ -186,6 +188,75 @@ class VirtualCasingJaxTests(unittest.TestCase):
         jvp = np.sum(2 * Bnormal * dBnormal)
 
         np.testing.assert_allclose(jvp, fd, rtol=5e-3, atol=1e-6)
+
+    @unittest.skipIf(
+        compute_external_B_normal_functional is None,
+        "virtual_casing_jax functional normal-field API not found",
+    )
+    def test_normal_field_jacobian_from_surface(self):
+        surf = SurfaceRZFourier.from_nphi_ntheta(
+            mpol=1,
+            ntor=0,
+            nfp=1,
+            nphi=5,
+            ntheta=4,
+            range="field period",
+        )
+        surf.set_rc(0, 0, 2.0)
+        surf.set_rc(1, 0, 0.3)
+        surf.set_zs(1, 0, 0.3)
+        surf.fix("rc(0,0)")
+        gamma = surf.gamma()
+        B_total = 0.02 * gamma + 0.05
+        B_total_tangents = np.zeros(gamma.shape + (len(surf.x),))
+        B_total_tangents[:, :, :, 0] = 0.01 * gamma
+        B_total_tangents[:, :, :, 1] = -0.02
+
+        Bnormal, jacobian = B_external_normal_jacobian_from_surface(
+            surf,
+            B_total,
+            nfp=1,
+            stellsym=False,
+            digits=4,
+            B_total_tangents=B_total_tangents,
+        )
+        direction = np.asarray([0.2, -0.1])
+        dBnormal = np.tensordot(jacobian, direction, axes=([2], [0]))
+        dB_total = np.tensordot(B_total_tangents, direction, axes=([3], [0]))
+
+        x0 = np.copy(surf.x)
+        eps = 1e-5
+        surf.x = x0 + eps * direction
+        Bnormal_plus = B_external_normal_from_data(
+            surf.gamma(),
+            B_total + eps * dB_total,
+            1,
+            False,
+            digits=4,
+            unit_normal=surf.unitnormal(),
+        )
+        surf.x = x0 - eps * direction
+        Bnormal_minus = B_external_normal_from_data(
+            surf.gamma(),
+            B_total - eps * dB_total,
+            1,
+            False,
+            digits=4,
+            unit_normal=surf.unitnormal(),
+        )
+        surf.x = x0
+
+        fd = (Bnormal_plus - Bnormal_minus) / (2 * eps)
+        Bnormal_reference = B_external_normal_from_data(
+            surf.gamma(),
+            B_total,
+            1,
+            False,
+            digits=4,
+            unit_normal=surf.unitnormal(),
+        )
+        np.testing.assert_allclose(Bnormal, Bnormal_reference)
+        np.testing.assert_allclose(dBnormal, fd, rtol=5e-3, atol=1e-6)
 
 
 if __name__ == "__main__":
