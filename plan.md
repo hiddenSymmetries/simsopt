@@ -976,3 +976,29 @@ implementation demonstrates a concrete gap. Expected candidates:
   - `python -m py_compile examples/3_Advanced/single_stage_optimization_jax.py`
   - `python -m pytest tests/mhd/test_jax_examples.py -q`
     (`2 passed`, six subtests, one vmec_jax/JAX deprecation warning)
+
+## Upstream log - virtual-casing normal-field JVP API
+
+- Investigated `virtual_casing_jax` for the finite-beta shape-derivative
+  blocker in `single_stage_optimization_finite_beta_jax.py`.
+- Found that the existing functional API differentiates off-surface fields
+  with respect to surface coordinates, but there was no direct on-surface
+  `B_external_normal` functional helper.
+- Added upstream branch `simsopt-normal-field-functional` in
+  `virtual_casing_jax` with:
+  - `target_surface_normal(...)`,
+  - `compute_external_B_normal_functional(...)`,
+  - projection parity tests,
+  - a forward-mode JVP Taylor test for the on-surface normal field.
+- Confirmed that forward-mode JVPs through the on-surface singular quadrature
+  are finite and match finite differences on the small test geometry.
+- Also found that reverse-mode gradients through the same singular quadrature
+  currently produce NaNs, so the Simsopt finite-beta exact path should use JVP
+  columns for now rather than reverse-mode gradients.
+- Ran upstream:
+  - `python -m pytest tests/test_functional_api.py -q` (`4 passed`)
+- Opened upstream PR:
+  - https://github.com/uwplasma/virtual_casing_jax/pull/1
+- Updated the Simsopt documentation page to reference this upstream API as the
+  next required piece for replacing the finite-beta whole-objective finite
+  differences.

@@ -165,8 +165,10 @@ API coverage, longer optimization regression runs, performance tuning,
 and upstreaming any API additions needed in the JAX packages. The
 finite-beta single-stage example still uses the existing whole-objective
 finite-difference pattern for the virtual-casing target shape derivative;
-making that path exact requires an exposed JAX derivative of
-``B_external_normal`` with respect to VMEC boundary coefficients. The
+making that path exact requires composing VMEC-JAX state tangents with a
+JAX derivative of ``B_external_normal``. An upstream
+``virtual_casing_jax`` pull request now exposes a functional normal-field
+API with surface-coordinate JVP coverage for this purpose. The
 vectorized Boozer backend currently requires an upstream
 ``booz_xform_jax`` API addition that returns ``gmnc_b``; without that
 field, ``BoozerJax`` falls back to the compatibility execution path.
