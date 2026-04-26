@@ -16,6 +16,7 @@ from typing import Optional
 
 import numpy as np
 from scipy.io import netcdf_file
+from scipy.integrate import quad
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,17 @@ def _store_indata_value(value):
     if isinstance(value, np.generic):
         return value.item()
     return value
+
+
+def _profile_type(indata, name, default):
+    value = indata.get(name, default)
+    if isinstance(value, bytes):
+        value = value.decode()
+    return str(value).strip().lower()
+
+
+def _set_indata_array(indata, name, values):
+    indata.scalars[name.upper()] = np.asarray(values).tolist()
 
 
 class _VmecJaxInData:
@@ -349,6 +361,44 @@ class VmecJax(Optimizable):
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
 
+    def set_profile(self, longname, shortname, letter):
+        """
+        Set a pressure, current, or iota profile from a Simsopt profile object.
+        """
+        profile = self.__getattribute__(longname + "_profile")
+        if profile is None:
+            return
+
+        n = self.__getattribute__("n_" + longname)
+        vmec_profile_type = _profile_type(self.indata.raw, "p" + shortname + "_type", "power_series")
+        if vmec_profile_type.startswith("power_series"):
+            nodes, _ = np.polynomial.legendre.leggauss(n)
+            x = nodes * 0.5 + 0.5
+            y = profile(x)
+            poly = np.polynomial.polynomial.Polynomial.fit(x, y, n - 1, domain=[0, 1]).convert().coef
+            logger.debug(
+                "Setting vmec_jax " + longname + f" profile using power series. x: {x} y: {y} poly: {poly}"
+            )
+            _set_indata_array(self.indata.raw, "a" + letter, poly)
+
+        elif (
+            vmec_profile_type.startswith("cubic_spline")
+            or vmec_profile_type.startswith("akima_spline")
+            or vmec_profile_type.startswith("line_segment")
+        ):
+            x = np.linspace(0, 1, n)
+            y = profile(x)
+            logger.debug("Setting vmec_jax " + longname + f" profile using splines. x: {x} y: {y}")
+            _set_indata_array(self.indata.raw, "a" + letter + "_aux_s", x)
+            _set_indata_array(self.indata.raw, "a" + letter + "_aux_f", y)
+
+        else:
+            raise RuntimeError(
+                "To use a simsopt Profile class with vmec_jax, vmec profile type must be "
+                "power_series, cubic_spline, akima_spline, or line_segment. For current "
+                "profiles, _i or _ip can be appended."
+            )
+
     def set_indata(self):
         """
         Transfer Simsopt surface data to the vmec_jax namelist data.
@@ -382,6 +432,27 @@ class VmecJax(Optimizable):
                 if lasym:
                     _set_sparse_coeff(indata.indexed["RBS"], n, m, boundary_RZFourier.get_rs(m, n))
                     _set_sparse_coeff(indata.indexed["ZBC"], n, m, boundary_RZFourier.get_zc(m, n))
+
+        self.set_profile("pressure", "mass", "m")
+        self.set_profile("current", "curr", "c")
+        self.set_profile("iota", "iota", "i")
+        if self.pressure_profile is not None:
+            self.indata.pres_scale = 1.0
+        if self.current_profile is not None:
+            current_type = _profile_type(
+                self.indata.raw, "pcurr_type", _profile_type(self.indata.raw, "pc_type", "power_series")
+            )
+            if current_type in [
+                "power_series",
+                "gauss_trunc",
+                "two_power",
+                "cubic_spline_ip",
+                "akima_spline_ip",
+            ]:
+                integral, _ = quad(self.current_profile, 0, 1)
+                self.indata.curtor = integral
+            else:
+                self.indata.curtor = self.current_profile(1.0)
 
         return boundary_RZFourier
 
@@ -542,6 +613,9 @@ class VmecJax(Optimizable):
         """
         Return the largest boundary mode implied by the input data.
         """
+        if not self.runnable:
+            return (int(self.wout.mpol), int(self.wout.ntor))
+
         max_m = int(self.indata.mpol)
         max_n = int(self.indata.ntor)
         for key in ("RBC", "RBS", "ZBC", "ZBS"):

@@ -864,3 +864,21 @@ implementation demonstrates a concrete gap. Expected candidates:
 - Virtual-casing quadrature references:
   - https://arxiv.org/abs/1909.07417
   - https://arxiv.org/abs/2404.02799
+
+## Implementation log - VmecJax compatibility slice
+
+- Compared the existing `Vmec` public method surface with `VmecJax`.
+- Added Simsopt `Profile` object support to `VmecJax`:
+  - `pressure_profile`, `current_profile`, and `iota_profile` are converted
+    into VMEC/JAX namelist arrays before writing or running,
+  - power-series and spline-like profile types follow the same workflow as the
+    existing `Vmec` wrapper,
+  - current-profile `curtor` is updated from the integrated profile when the
+    profile specifies current derivative form.
+- Made `VmecJax.get_max_mn()` safe for objects initialized from a `wout` file.
+- Added tests covering profile transfer and `wout`-initialized `get_max_mn()`.
+- Ran:
+  - `python -m pytest tests/mhd/test_vmec_jax.py -q`
+    (`9 passed`, one vmec_jax/JAX deprecation warning)
+  - `python -m pytest tests/mhd/test_vmec_jax.py tests/mhd/test_boozer_jax.py tests/mhd/test_vmec_diagnostics_jax.py tests/mhd/test_virtual_casing_jax.py -q`
+    (`18 passed`, one vmec_jax/JAX deprecation warning)

@@ -10,6 +10,7 @@ except ImportError:
     vmec_jax = None
 
 from simsopt.mhd import Vmec, VmecJax
+from simsopt.mhd.profiles import ProfilePolynomial
 
 from . import TEST_DIR
 
@@ -41,6 +42,11 @@ class VmecJaxInitializedFromWout(unittest.TestCase):
         vmec = Vmec(filename)
         vmec_j = VmecJax(filename)
         np.testing.assert_allclose(vmec_j.external_current(), vmec.external_current())
+
+    def test_get_max_mn_from_wout(self):
+        filename = os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc")
+        vmec_j = VmecJax(filename)
+        self.assertEqual(vmec_j.get_max_mn(), (vmec_j.wout.mpol, vmec_j.wout.ntor))
 
     def test_error_on_rerun(self):
         filename = os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc")
@@ -85,6 +91,24 @@ class VmecJaxInitializedFromInput(unittest.TestCase):
         text = vmec_j.get_input()
         self.assertIn("RBC(0,1)", text)
         self.assertIn("2.5000000000000000E-01", text)
+
+    def test_profile_objects_update_indata(self):
+        filename = os.path.join(TEST_DIR, "input.li383_low_res")
+        vmec_j = VmecJax(filename)
+        vmec_j.n_pressure = 3
+        vmec_j.pressure_profile = ProfilePolynomial([3.0, 2.0, -1.0])
+        vmec_j.n_current = 2
+        vmec_j.current_profile = ProfilePolynomial([2.0, 0.0])
+        vmec_j.n_iota = 2
+        vmec_j.iota_profile = ProfilePolynomial([0.6, 0.1])
+
+        vmec_j.set_indata()
+
+        np.testing.assert_allclose(np.asarray(vmec_j.indata.get("AM")), [3.0, 2.0, -1.0])
+        np.testing.assert_allclose(np.asarray(vmec_j.indata.get("AC")), [2.0, 0.0], atol=1e-12)
+        np.testing.assert_allclose(np.asarray(vmec_j.indata.get("AI")), [0.6, 0.1], atol=1e-12)
+        self.assertEqual(vmec_j.indata.pres_scale, 1.0)
+        self.assertAlmostEqual(vmec_j.indata.curtor, 2.0)
 
     def test_run_low_res_matches_reference(self):
         input_file = os.path.join(TEST_DIR, "input.li383_low_res")
