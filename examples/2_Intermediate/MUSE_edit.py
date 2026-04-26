@@ -42,7 +42,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
     "--force_weight",
     type=float,
-    default=1.0,
+    default=0,
     help="Weight for the force term in GPMO (default: 1.0).",
 )
 args = parser.parse_args()
@@ -59,8 +59,8 @@ if in_github_actions:
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
     nphi = 32  # >= 64 for high-resolution runs
-    nIter_max = 2501
-    downsample = 8
+    nIter_max = 5001
+    downsample = 4
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -199,7 +199,7 @@ if save_plots:
     # Plot the SIMSOPT GPMO solution
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-    make_Bnormal_plots(bs, s_plot, out_dir, f"biot_savart_optimized_forceweight{force_weight}")
+    make_Bnormal_plots(bs, s_plot, out_dir, f"biot_savart_optimized_downsample{downsample}_forceweight{force_weight}")
     #print(m_history.shape)
     # Look through the solutions as function of K and make plots
     for k in range(0, m_history.shape[-1], 500):
@@ -222,14 +222,14 @@ if save_plots:
 
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
         K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
-        b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}_forceweight{force_weight}")
+        b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_downsample{downsample}_nphi{nphi}_ntheta{ntheta}_forceweight{force_weight}")
         Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
         normal_total = Bnormal + Bnormal_dipoles
 
         # For plotting Bn on the full torus surface at the end with just the dipole fields
-        make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}_forceweight{force_weight}")
+        make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized_K{K_save}_downsample{downsample}_nphi{nphi}_ntheta{ntheta}_forceweight{force_weight}")
         pointData = {"B_N": normal_total[:, :, None]}
-        s_plot.to_vtk(out_dir / "m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}_forceweight{force_weight}", extra_data=pointData)
+        s_plot.to_vtk(out_dir / "m_optimized_K{K_save}_downsample{downsample}_nphi{nphi}_ntheta{ntheta}_forceweight{force_weight}", extra_data=pointData)
         
     # write solution to FAMUS-type file
     pm_opt.write_to_famus(out_dir)
