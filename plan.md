@@ -708,11 +708,19 @@ implementation demonstrates a concrete gap. Expected candidates:
     (`6 passed`, one NumPy binary-size runtime warning)
   - `python -m pytest tests/mhd/test_vmec.py -q`
     (`6 passed, 14 skipped`)
+- Exercised `VmecJax.run()` on `tests/test_files/input.li383_low_res`
+  against `wout_li383_low_res_reference.nc`:
+  - aspect relative error: `1.0e-15`
+  - volume relative error: `6.0e-16`
+  - mean-iota absolute error: `9.0e-4`
+  - residuals: `fsqr=9.8e-14`, `fsqz=1.9e-14`, `fsql=7.1e-15`
+- Promoted this low-resolution solve comparison into
+  `tests/mhd/test_vmec_jax.py`.
+- Re-ran `python -m pytest tests/mhd/test_vmec_jax.py -q`
+  (`7 passed`, two warnings from NumPy/JAX internals).
 
 ## Immediate next actions
 
-- Exercise `VmecJax.run()` on a very low-resolution fixed-boundary input and
-  compare selected diagnostics against the bundled VMEC2000 reference.
 - After `VmecJax` wout compatibility works, implement `BoozerJax` on loaded
   wout data because that is the shortest parity loop against existing boozmn
   references.

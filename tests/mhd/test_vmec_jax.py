@@ -1,4 +1,5 @@
 import os
+from tempfile import TemporaryDirectory
 import unittest
 
 import numpy as np
@@ -84,3 +85,22 @@ class VmecJaxInitializedFromInput(unittest.TestCase):
         text = vmec_j.get_input()
         self.assertIn("RBC(0,1)", text)
         self.assertIn("2.5000000000000000E-01", text)
+
+    def test_run_low_res_matches_reference(self):
+        input_file = os.path.join(TEST_DIR, "input.li383_low_res")
+        reference = Vmec(os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc"))
+        with TemporaryDirectory() as tmp:
+            cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                vmec_j = VmecJax(input_file, verbose=False, keep_all_files=True)
+                vmec_j.run()
+            finally:
+                os.chdir(cwd)
+
+        self.assertLess(vmec_j.wout.fsqr, 1e-10)
+        self.assertLess(vmec_j.wout.fsqz, 1e-10)
+        self.assertLess(vmec_j.wout.fsql, 1e-10)
+        np.testing.assert_allclose(vmec_j.aspect(), reference.aspect(), rtol=1e-12)
+        np.testing.assert_allclose(vmec_j.volume(), reference.volume(), rtol=1e-12)
+        np.testing.assert_allclose(vmec_j.mean_iota(), reference.mean_iota(), atol=2e-3)
