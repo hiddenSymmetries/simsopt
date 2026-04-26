@@ -818,3 +818,49 @@ implementation demonstrates a concrete gap. Expected candidates:
 - Re-ran focused JAX wrapper tests after the example additions:
   - `python -m pytest tests/mhd/test_vmec_jax.py tests/mhd/test_boozer_jax.py tests/mhd/test_vmec_diagnostics_jax.py tests/mhd/test_virtual_casing_jax.py -q`
     (`16 passed`, one vmec_jax/JAX deprecation warning)
+
+## Validation plots and end-to-end smoke checks
+
+- Generated comparison plots under `results/jax_mhd_integration/`:
+  - `vmec_jax_vs_reference.png`: LI383 low-resolution iota profile and scalar
+    diagnostics comparing a fresh `VmecJax` solve with the existing VMEC2000
+    reference wout.
+  - `boozer_jax_vs_reference.png`: LI383 edge Boozer spectrum comparing
+    `BoozerJax` with the existing `boozmn_li383_low_res.nc` reference.
+  - `virtual_casing_jax_normal_field.png`: vacuum-equilibrium
+    `VirtualCasingJax` normal-field check.
+  - `metrics.json`: scalar metrics used in the plots.
+- Plot metrics:
+  - LI383 aspect: reference `4.354967596750808`, JAX
+    `4.354967596750813`.
+  - LI383 volume: reference `2.9813872701632924`, JAX
+    `2.9813872701632906`.
+  - LI383 mean iota: reference `0.5544911906253179`, JAX
+    `0.5535895178061357`.
+  - Fresh JAX residuals: `fsqr=9.765e-14`, `fsqz=1.861e-14`,
+    `fsql=7.144e-15`.
+  - Boozer edge-spectrum max absolute error against the reference boozmn file:
+    `7.073e-16`.
+  - Vacuum virtual-casing max `|B_external_normal|`: `3.709e-3`.
+- Ran the smallest end-to-end exact optimization example:
+  - `python examples/2_Intermediate/QH_fixed_resolution_boozer_jax.py`
+  - completed successfully with `max_nfev=1`;
+  - initial/final QS objective `0.0017286553289639218` as expected for a
+    one-evaluation smoke test;
+  - final aspect ratio `7.000345969477066`.
+
+## Online references checked
+
+- Simsopt repository and documentation:
+  - https://github.com/hiddenSymmetries/simsopt
+  - https://simsopt.readthedocs.io/v1.9.1/example_single_stage.html
+- `vmec_jax` README and exact-discrete-adjoint optimization notes:
+  - https://github.com/uwplasma/vmec_jax
+  - https://raw.githubusercontent.com/uwplasma/vmec_jax/main/README.md
+- `booz_xform_jax` repository:
+  - https://github.com/uwplasma/booz_xform_jax
+- Single-stage stellarator optimization paper:
+  - https://arxiv.org/abs/2302.10622
+- Virtual-casing quadrature references:
+  - https://arxiv.org/abs/1909.07417
+  - https://arxiv.org/abs/2404.02799
