@@ -695,12 +695,24 @@ implementation demonstrates a concrete gap. Expected candidates:
   - `vmec_jax` imported successfully; package has no `__version__`.
   - `booz_xform_jax 0.1.0`
   - `virtual_casing_jax` imported successfully; package has no `__version__`.
+- Added the first Simsopt `VmecJax` wrapper slice:
+  - Optional `vmec_jax` import and `simsopt.mhd` export.
+  - Input-file initialization without MPI or VMEC2000.
+  - Attribute-style `indata` view for common VMEC scalar dofs.
+  - Boundary transfer from `SurfaceRZFourier` into vmec_jax namelist data.
+  - Loaded-`wout` compatibility with existing Simsopt diagnostics.
+  - Runnable fixed-boundary path through `vmec_jax.run_fixed_boundary()`.
+- Added focused parity tests in `tests/mhd/test_vmec_jax.py`.
+- Installed `pytest` in the integration venv and ran:
+  - `python -m pytest tests/mhd/test_vmec_jax.py -q`
+    (`6 passed`, one NumPy binary-size runtime warning)
+  - `python -m pytest tests/mhd/test_vmec.py -q`
+    (`6 passed, 14 skipped`)
 
 ## Immediate next actions
 
-- Start with `VmecJax` loaded-wout compatibility and tests. This gives a
-  stable diagnostic/wout surface before tackling runnable solves and exact
-  derivatives.
+- Exercise `VmecJax.run()` on a very low-resolution fixed-boundary input and
+  compare selected diagnostics against the bundled VMEC2000 reference.
 - After `VmecJax` wout compatibility works, implement `BoozerJax` on loaded
   wout data because that is the shortest parity loop against existing boozmn
   references.

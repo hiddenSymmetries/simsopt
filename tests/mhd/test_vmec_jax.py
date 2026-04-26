@@ -1,0 +1,86 @@
+import os
+import unittest
+
+import numpy as np
+
+try:
+    import vmec_jax
+except ImportError:
+    vmec_jax = None
+
+from simsopt.mhd import Vmec, VmecJax
+
+from . import TEST_DIR
+
+
+@unittest.skipIf(vmec_jax is None, "vmec_jax not found")
+class VmecJaxInitializedFromWout(unittest.TestCase):
+    def test_diagnostics_match_vmec(self):
+        filename = os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc")
+        vmec = Vmec(filename)
+        vmec_j = VmecJax(filename)
+
+        self.assertEqual(vmec_j.wout.ns, vmec.wout.ns)
+        self.assertEqual(vmec_j.wout.nfp, vmec.wout.nfp)
+        np.testing.assert_allclose(vmec_j.wout.rmnc, vmec.wout.rmnc)
+        np.testing.assert_allclose(vmec_j.wout.zmns, vmec.wout.zmns)
+        np.testing.assert_allclose(vmec_j.aspect(), vmec.aspect())
+        np.testing.assert_allclose(vmec_j.volume(), vmec.volume())
+        np.testing.assert_allclose(vmec_j.iota_axis(), vmec.iota_axis())
+        np.testing.assert_allclose(vmec_j.iota_edge(), vmec.iota_edge())
+        np.testing.assert_allclose(vmec_j.mean_iota(), vmec.mean_iota())
+        np.testing.assert_allclose(vmec_j.mean_shear(), vmec.mean_shear())
+        np.testing.assert_allclose(vmec_j.vacuum_well(), vmec.vacuum_well())
+
+    def test_external_current_matches_vmec(self):
+        filename = os.path.join(
+            TEST_DIR,
+            "wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc",
+        )
+        vmec = Vmec(filename)
+        vmec_j = VmecJax(filename)
+        np.testing.assert_allclose(vmec_j.external_current(), vmec.external_current())
+
+    def test_error_on_rerun(self):
+        filename = os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc")
+        vmec_j = VmecJax(filename)
+        _ = vmec_j.mean_iota()
+        vmec_j.boundary.set_rc(1, 0, 2.0)
+        with self.assertRaises(RuntimeError):
+            vmec_j.mean_iota()
+
+
+@unittest.skipIf(vmec_jax is None, "vmec_jax not found")
+class VmecJaxInitializedFromInput(unittest.TestCase):
+    def test_init_from_file(self):
+        filename = os.path.join(TEST_DIR, "input.li383_low_res")
+        vmec_j = VmecJax(filename)
+
+        self.assertEqual(vmec_j.indata.nfp, 3)
+        self.assertEqual(vmec_j.indata.mpol, 4)
+        self.assertEqual(vmec_j.indata.ntor, 3)
+        self.assertEqual(vmec_j.boundary.mpol, 4)
+        self.assertEqual(vmec_j.boundary.ntor, 3)
+        self.assertAlmostEqual(vmec_j.boundary.get_rc(0, 0), 1.3782)
+        self.assertAlmostEqual(vmec_j.boundary.get_zs(1, 0), 4.6465e-01)
+        self.assertAlmostEqual(vmec_j.boundary.get_zs(1, 1), 1.6516e-01)
+        self.assertEqual(vmec_j.indata.ncurr, 1)
+        self.assertFalse(vmec_j.free_boundary)
+        self.assertTrue(vmec_j.need_to_run_code)
+
+    def test_set_dofs_updates_indata(self):
+        filename = os.path.join(TEST_DIR, "input.li383_low_res")
+        vmec_j = VmecJax(filename)
+        vmec_j.set_dofs([0.4, 2.0, 3.0])
+        self.assertEqual(vmec_j.indata.phiedge, 0.4)
+        self.assertEqual(vmec_j.indata.curtor, 2.0)
+        self.assertEqual(vmec_j.indata.pres_scale, 3.0)
+        self.assertTrue(vmec_j.need_to_run_code)
+
+    def test_write_input_uses_boundary_dofs(self):
+        filename = os.path.join(TEST_DIR, "input.li383_low_res")
+        vmec_j = VmecJax(filename)
+        vmec_j.boundary.set_rc(1, 0, 0.25)
+        text = vmec_j.get_input()
+        self.assertIn("RBC(0,1)", text)
+        self.assertIn("2.5000000000000000E-01", text)
