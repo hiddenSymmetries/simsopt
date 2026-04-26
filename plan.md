@@ -910,3 +910,19 @@ implementation demonstrates a concrete gap. Expected candidates:
 - Rebuilt the docs after adding API coverage:
   - `python -m sphinx -b html docs/source docs/build/html`
     (`build succeeded`, with existing project documentation warnings)
+
+## Testing log - requested JAX examples
+
+- Added `tests/mhd/test_jax_examples.py`.
+- The test compiles all requested JAX example scripts:
+  - `B_external_normal_jax.py`
+  - `QH_fixed_resolution_jax.py`
+  - `QH_fixed_resolution_boozer_jax.py`
+  - `stage_two_optimization_finite_beta_jax.py`
+  - `single_stage_optimization_jax.py`
+  - `single_stage_optimization_finite_beta_jax.py`
+- Ran:
+  - `python -m pytest tests/mhd/test_jax_examples.py -q`
+    (`1 passed`, six subtests)
+  - `python -m pytest tests/mhd/test_jax_examples.py tests/mhd/test_vmec_jax.py tests/mhd/test_boozer_jax.py tests/mhd/test_vmec_diagnostics_jax.py tests/mhd/test_virtual_casing_jax.py -q`
+    (`19 passed`, six subtests, one vmec_jax/JAX deprecation warning)
