@@ -20,6 +20,14 @@ simsopt.mhd.boozer module
    :undoc-members:
    :show-inheritance:
 
+simsopt.mhd.boozer\_jax module
+------------------------------
+
+.. automodule:: simsopt.mhd.boozer_jax
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.mhd.profiles module
 ---------------------------
 
@@ -44,6 +52,14 @@ simsopt.mhd.virtual\_casing module
    :undoc-members:
    :show-inheritance:
 
+simsopt.mhd.virtual\_casing\_jax module
+---------------------------------------
+
+.. automodule:: simsopt.mhd.virtual_casing_jax
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.mhd.vmec module
 -----------------------
 
@@ -52,10 +68,26 @@ simsopt.mhd.vmec module
    :undoc-members:
    :show-inheritance:
 
+simsopt.mhd.vmec\_jax module
+----------------------------
+
+.. automodule:: simsopt.mhd.vmec_jax
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.mhd.vmec\_diagnostics module
 ------------------------------------
 
 .. automodule:: simsopt.mhd.vmec_diagnostics
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.mhd.vmec\_diagnostics\_jax module
+-----------------------------------------
+
+.. automodule:: simsopt.mhd.vmec_diagnostics_jax
    :members:
    :undoc-members:
    :show-inheritance:

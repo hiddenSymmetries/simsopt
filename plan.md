@@ -901,3 +901,12 @@ implementation demonstrates a concrete gap. Expected candidates:
   ran:
   - `python -m sphinx -b html docs/source docs/build/html`
     (`build succeeded`, with existing project documentation warnings)
+- Added the new JAX MHD modules to `docs/source/simsopt.mhd.rst` so the API
+  reference covers:
+  - `simsopt.mhd.vmec_jax`
+  - `simsopt.mhd.boozer_jax`
+  - `simsopt.mhd.vmec_diagnostics_jax`
+  - `simsopt.mhd.virtual_casing_jax`
+- Rebuilt the docs after adding API coverage:
+  - `python -m sphinx -b html docs/source docs/build/html`
+    (`build succeeded`, with existing project documentation warnings)
