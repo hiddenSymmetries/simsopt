@@ -767,3 +767,28 @@ implementation demonstrates a concrete gap. Expected candidates:
 
 - Start adding JAX versions of the requested intermediate examples, beginning
   with `QH_fixed_resolution_jax.py` and `QH_fixed_resolution_boozer_jax.py`.
+
+## Implementation log - example slice 1
+
+- Added `examples/2_Intermediate/QH_fixed_resolution_jax.py`:
+  - follows the original fixed-resolution QH example structure with top-level
+    parameters and the same warm-start input file,
+  - uses `vmec_jax.FixedBoundaryExactOptimizer`,
+  - uses the vmec_jax exact discrete-adjoint Jacobian rather than finite
+    differences,
+  - saves `input.QH_fixed_resolution_jax_final`.
+- Added `examples/2_Intermediate/QH_fixed_resolution_boozer_jax.py`:
+  - follows the original Boozer-targeted QH example,
+  - builds `vmec_jax -> booz_xform_jax` residuals in memory,
+  - differentiates the VMEC solve with the exact discrete-adjoint path and the
+    Boozer residual with JAX autodiff,
+  - uses the existing Simsopt `Quasisymmetry` convention for nonsymmetric
+    Boozer modes normalized by B00,
+  - saves `input.QH_fixed_resolution_boozer_jax_final`.
+- Added `examples/2_Intermediate/B_external_normal_jax.py`:
+  - follows `B_external_normal.py`,
+  - swaps in `VirtualCasingJax`,
+  - demonstrates save/load compatibility with the existing virtual-casing file
+    format.
+- Ran syntax checks:
+  - `python -m py_compile examples/2_Intermediate/QH_fixed_resolution_jax.py examples/2_Intermediate/QH_fixed_resolution_boozer_jax.py examples/2_Intermediate/B_external_normal_jax.py`
