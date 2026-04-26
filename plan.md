@@ -882,3 +882,22 @@ implementation demonstrates a concrete gap. Expected candidates:
     (`9 passed`, one vmec_jax/JAX deprecation warning)
   - `python -m pytest tests/mhd/test_vmec_jax.py tests/mhd/test_boozer_jax.py tests/mhd/test_vmec_diagnostics_jax.py tests/mhd/test_virtual_casing_jax.py -q`
     (`18 passed`, one vmec_jax/JAX deprecation warning)
+
+## Documentation log - JAX MHD integration page
+
+- Added `docs/source/example_jax_mhd.rst` and linked it from the Tutorials
+  toctree in `docs/source/index.rst`.
+- Copied the generated validation plots into the documentation tree:
+  - `docs/source/jax_mhd_vmec_jax_vs_reference.png`
+  - `docs/source/jax_mhd_boozer_jax_vs_reference.png`
+  - `docs/source/jax_mhd_virtual_casing_jax_normal_field.png`
+- The page documents:
+  - the new JAX wrapper interfaces,
+  - the requested JAX examples,
+  - validation metrics and plots,
+  - the focused JAX MHD test command,
+  - current limitations and remaining work.
+- Installed the documented Sphinx dependencies into the integration venv and
+  ran:
+  - `python -m sphinx -b html docs/source docs/build/html`
+    (`build succeeded`, with existing project documentation warnings)

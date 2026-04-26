@@ -89,6 +89,7 @@ optimization.  Others include `STELLOPT
    example_islands
    example_coils
    example_single_stage
+   example_jax_mhd
    example_permanent_magnets
    example_wireframe
 
