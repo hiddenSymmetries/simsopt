@@ -733,8 +733,24 @@ implementation demonstrates a concrete gap. Expected candidates:
 - Ran:
   - `python -m pytest tests/mhd/test_boozer_jax.py -q` (`3 passed`)
   - `python -m pytest tests/mhd/test_boozer.py -q` (`5 skipped`)
+- Added `QuasisymmetryRatioResidualJax` in Simsopt:
+  - Same `compute()`, `residuals()`, `profile()`, and `total()` workflow as
+    the existing VMEC-only quasisymmetry metric.
+  - Delegates to `vmec_jax.quasisymmetry_ratio_residual_from_wout`.
+  - Matches the existing Simsopt implementation at roundoff for loaded-wout
+    Li383 test cases.
+- Found an upstream `vmec_jax` API gap: intermediate diagnostic arrays were
+  computed but not returned by `quasisymmetry_ratio_residual_from_wout`.
+- Opened `vmec_jax` branch `simsopt-qs-diagnostics`, committed the diagnostic
+  return fields, and opened PR https://github.com/uwplasma/vmec_jax/pull/8.
+- Ran upstream `vmec_jax` test:
+  - `python -m pytest tests/test_quasisymmetry.py -q`
+    (`3 passed, 1 skipped`, two warnings from JAX/NumPy internals)
+- Added `tests/mhd/test_vmec_diagnostics_jax.py` and ran:
+  - `python -m pytest tests/mhd/test_vmec_diagnostics_jax.py -q`
+    (`3 passed`)
 
 ## Immediate next actions
 
-- Add direct `vmec_jax` quasisymmetry-ratio diagnostics in Simsopt and compare
-  with the current `QuasisymmetryRatioResidual` implementation.
+- Add the `VirtualCasingJax` Simsopt wrapper and parity tests around the
+  existing virtual-casing examples and reference files.
