@@ -953,3 +953,26 @@ implementation demonstrates a concrete gap. Expected candidates:
   - `python -m pytest tests/mhd/test_boozer_jax.py -q` (`3 passed`)
   - `python -m pytest tests/mhd/test_jax_examples.py tests/mhd/test_vmec_jax.py tests/mhd/test_boozer_jax.py tests/mhd/test_vmec_diagnostics_jax.py tests/mhd/test_virtual_casing_jax.py -q`
     (`19 passed`, six subtests, one vmec_jax/JAX deprecation warning)
+
+## Implementation log - exact single-stage stage-I gradient
+
+- Updated `examples/3_Advanced/single_stage_optimization_jax.py` so the
+  stage-I VMEC/QS objective uses
+  `vmec_jax.FixedBoundaryExactOptimizer.objective_and_gradient_fun()` instead
+  of `MPIFiniteDifference`.
+- Added an explicit mapping from Simsopt `SurfaceRZFourier` free-DOF names to
+  `vmec_jax` boundary parameter specs. The exact gradient is returned in
+  `vmec_jax` parameter order and scattered back into the Simsopt surface DOF
+  order before adding the existing mixed Biot-Savart surface derivative.
+- Left coils, coil regularization derivatives, and the mixed
+  squared-flux/surface derivative in native Simsopt code, matching the original
+  single-stage workflow.
+- Added a regression check that the exact-stage parameter specs for
+  `input.nfp4_QH_warm_start` match the active Simsopt surface DOFs.
+- Updated the documentation page to state which advanced example now uses the
+  exact stage-I gradient and to mark the remaining finite-beta virtual-casing
+  shape-derivative gap explicitly.
+- Ran:
+  - `python -m py_compile examples/3_Advanced/single_stage_optimization_jax.py`
+  - `python -m pytest tests/mhd/test_jax_examples.py -q`
+    (`2 passed`, six subtests, one vmec_jax/JAX deprecation warning)

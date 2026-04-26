@@ -74,8 +74,11 @@ The JAX examples are direct counterparts of existing SIMSOPT examples:
   virtual-casing target to ``VirtualCasingJax``.
 * :simsopt_file:`examples/3_Advanced/single_stage_optimization_jax.py`
   follows :simsopt_file:`examples/3_Advanced/single_stage_optimization.py`.
-  It uses ``VmecJax`` and ``QuasisymmetryRatioResidualJax`` for the
-  stage-I objective while keeping the native SIMSOPT coil objective.
+  It uses ``VmecJax`` and ``QuasisymmetryRatioResidualJax`` for diagnostics,
+  and evaluates the stage-I objective gradient through
+  ``vmec_jax.FixedBoundaryExactOptimizer`` rather than MPI finite
+  differences, while keeping the native SIMSOPT coil objective and mixed
+  Biot-Savart surface derivative.
 * :simsopt_file:`examples/3_Advanced/single_stage_optimization_finite_beta_jax.py`
   follows :simsopt_file:`examples/3_Advanced/single_stage_optimization_finite_beta.py`.
   It uses ``VmecJax``, ``QuasisymmetryRatioResidualJax``, and
@@ -160,6 +163,10 @@ fixed-boundary VMEC-JAX solves, MHD diagnostics, Boozer spectra,
 virtual casing, and example parity. Remaining work includes broader
 API coverage, longer optimization regression runs, performance tuning,
 and upstreaming any API additions needed in the JAX packages. The
+finite-beta single-stage example still uses the existing whole-objective
+finite-difference pattern for the virtual-casing target shape derivative;
+making that path exact requires an exposed JAX derivative of
+``B_external_normal`` with respect to VMEC boundary coefficients. The
 vectorized Boozer backend currently requires an upstream
 ``booz_xform_jax`` API addition that returns ``gmnc_b``; without that
 field, ``BoozerJax`` falls back to the compatibility execution path.
