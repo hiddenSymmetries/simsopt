@@ -926,3 +926,30 @@ implementation demonstrates a concrete gap. Expected candidates:
     (`1 passed`, six subtests)
   - `python -m pytest tests/mhd/test_jax_examples.py tests/mhd/test_vmec_jax.py tests/mhd/test_boozer_jax.py tests/mhd/test_vmec_diagnostics_jax.py tests/mhd/test_virtual_casing_jax.py -q`
     (`19 passed`, six subtests, one vmec_jax/JAX deprecation warning)
+
+## Implementation log - vectorized BoozerJax backend
+
+- Updated `BoozerJax.run()` to prefer `booz_xform_jax.Booz_xform.run_jax()`
+  for stellarator-symmetric equilibria and populate the same Booz_xform
+  attributes consumed by `QuasisymmetryJax`.
+- Kept the compatibility `run()` path for asymmetric equilibria until the
+  vectorized upstream JAX API returns all asymmetric sine spectra.
+- Found an upstream `booz_xform_jax` API gap: the vectorized JAX kernel
+  computes `gmnc_b` but did not return it.
+- Opened `booz_xform_jax` branch `simsopt-run-jax-output`, committed
+  `Return gmnc_b from JAX API`, and opened
+  https://github.com/uwplasma/booz_xform_jax/pull/1.
+- Ran upstream:
+  - `python -m pytest tests/test_jax_api.py -q` (`3 passed`)
+- Added a Simsopt test assertion that `BoozerJax` used the vectorized JAX
+  output path for the stellsym LI383 case.
+- Added a compatibility guard in `BoozerJax`: if the installed upstream
+  `run_jax()` API lacks `gmnc_b`, the wrapper logs a warning and falls back
+  to the attribute-populating `run()` path instead of failing with a
+  `KeyError`.
+- Updated the Simsopt JAX MHD documentation page to tie the Boozer plot to
+  the vectorized backend and document the `gmnc_b` upstream API requirement.
+- Ran:
+  - `python -m pytest tests/mhd/test_boozer_jax.py -q` (`3 passed`)
+  - `python -m pytest tests/mhd/test_jax_examples.py tests/mhd/test_vmec_jax.py tests/mhd/test_boozer_jax.py tests/mhd/test_vmec_diagnostics_jax.py tests/mhd/test_virtual_casing_jax.py -q`
+    (`19 passed`, six subtests, one vmec_jax/JAX deprecation warning)

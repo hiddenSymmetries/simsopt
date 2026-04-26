@@ -159,6 +159,20 @@ class BoozerJax(Optimizable):
         self.bx.mboz = self.mpol
         self.bx.nboz = self.ntor
 
+    def _populate_booz_xform_from_jax_output(self, out, compute_surfs):
+        self.bx.xm_b = np.asarray(out["ixm_b"])
+        self.bx.xn_b = np.asarray(out["ixn_b"])
+        self.bx.mnboz = len(self.bx.xm_b)
+        self.bx.bmnc_b = np.asarray(out["bmnc_b"]).T
+        self.bx.rmnc_b = np.asarray(out["rmnc_b"]).T
+        self.bx.zmns_b = np.asarray(out["zmns_b"]).T
+        self.bx.numns_b = -np.asarray(out["pmns_b"]).T
+        self.bx.gmnc_b = np.asarray(out["gmnc_b"]).T
+        self.bx.Boozer_I = np.asarray(out["buco_b"])
+        self.bx.Boozer_G = np.asarray(out["bvco_b"])
+        self.bx.s_b = np.asarray(self.bx.s_in)[compute_surfs]
+        self.bx._last_jax_output = out
+
     def run(self):
         """
         Run booz_xform_jax on all registered surfaces.
@@ -176,7 +190,18 @@ class BoozerJax(Optimizable):
         self._init_booz_xform_from_wout(compute_surfs)
 
         logger.info("About to call booz_xform_jax.Booz_xform.run().")
-        self.bx.run()
+        if bool(self.bx.asym):
+            self.bx.run()
+        else:
+            out = self.bx.run_jax()
+            if "gmnc_b" in out:
+                self._populate_booz_xform_from_jax_output(out, compute_surfs)
+            else:
+                logger.warning(
+                    "booz_xform_jax.Booz_xform.run_jax() did not return gmnc_b; "
+                    "falling back to the compatibility run() path."
+                )
+                self.bx.run()
         self._calls += 1
         logger.info("Returned from calling booz_xform_jax.Booz_xform.run().")
         self.need_to_run_code = False

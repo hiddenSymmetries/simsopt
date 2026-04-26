@@ -32,6 +32,7 @@ class BoozerJaxTests(unittest.TestCase):
         q = QuasisymmetryJax(b, [0.0, 1.0], 1, 0)
         _ = q.J()
 
+        self.assertTrue(hasattr(b.bx, "_last_jax_output"))
         np.testing.assert_allclose(b.bx.compute_surfs, [0, 14])
         self.assertEqual(b.s_to_index, {0.0: 0, 1.0: 1})
 

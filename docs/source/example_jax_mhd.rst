@@ -27,7 +27,10 @@ with a ``Jax`` suffix:
   loaded ``wout`` files, scalar diagnostics, boundary degrees of freedom,
   and pressure/current/iota profile objects.
 * :python:`BoozerJax` mirrors :python:`Boozer` surface registration and
-  computes Boozer spectra through ``booz_xform_jax``.
+  computes Boozer spectra through ``booz_xform_jax``. For
+  stellarator-symmetric equilibria it uses the vectorized JAX backend
+  when the installed ``booz_xform_jax`` API provides the complete
+  ``boozmn`` output fields.
 * :python:`QuasisymmetryJax` mirrors the existing Boozer-spectrum
   quasisymmetry objective.
 * :python:`QuasisymmetryRatioResidualJax` mirrors
@@ -108,7 +111,10 @@ Boozer-JAX spectrum compared with the existing ``boozmn`` reference:
    :width: 95%
 
 The maximum absolute error in the LI383 edge ``bmnc_b`` spectrum is
-``7.073e-16`` for this comparison.
+``7.073e-16`` for this comparison. This plot is generated from the
+stellarator-symmetric path that exercises the vectorized
+``booz_xform_jax`` backend and then populates the standard
+``Booz_xform`` attributes used by SIMSOPT diagnostics.
 
 Virtual-casing JAX normal field for a vacuum reference equilibrium:
 
@@ -141,8 +147,9 @@ Run the focused tests with:
         tests/mhd/test_vmec_diagnostics_jax.py \
         tests/mhd/test_virtual_casing_jax.py -q
 
-At the time this page was added, the focused suite passed with
-``18 passed`` and one upstream JAX deprecation warning.
+At the time this page was updated, the focused suite plus example
+compilation tests passed with ``19 passed``, six example subtests, and
+one upstream JAX deprecation warning.
 
 Current limitations
 -------------------
@@ -152,4 +159,7 @@ every legacy workflow. The current implementation is focused on
 fixed-boundary VMEC-JAX solves, MHD diagnostics, Boozer spectra,
 virtual casing, and example parity. Remaining work includes broader
 API coverage, longer optimization regression runs, performance tuning,
-and upstreaming any API additions needed in the JAX packages.
+and upstreaming any API additions needed in the JAX packages. The
+vectorized Boozer backend currently requires an upstream
+``booz_xform_jax`` API addition that returns ``gmnc_b``; without that
+field, ``BoozerJax`` falls back to the compatibility execution path.
