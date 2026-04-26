@@ -5,6 +5,7 @@
 from .vmec import *
 from .vmec_jax import *
 from .virtual_casing import *
+from .virtual_casing_jax import *
 from .vmec_diagnostics import *
 from .vmec_diagnostics_jax import *
 from .profiles import *
@@ -13,6 +14,7 @@ from .boozer import *
 from .boozer_jax import *
 from .spec import *
 
-__all__ = (vmec.__all__ + vmec_jax.__all__ + virtual_casing.__all__ + vmec_diagnostics.__all__ +
+__all__ = (vmec.__all__ + vmec_jax.__all__ + virtual_casing.__all__ +
+           virtual_casing_jax.__all__ + vmec_diagnostics.__all__ +
            vmec_diagnostics_jax.__all__ + profiles.__all__ + bootstrap.__all__ +
            boozer.__all__ + boozer_jax.__all__ + spec.__all__)

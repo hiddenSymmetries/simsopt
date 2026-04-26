@@ -749,8 +749,21 @@ implementation demonstrates a concrete gap. Expected candidates:
 - Added `tests/mhd/test_vmec_diagnostics_jax.py` and ran:
   - `python -m pytest tests/mhd/test_vmec_diagnostics_jax.py -q`
     (`3 passed`)
+- Added `VirtualCasingJax` in Simsopt:
+  - Uses `virtual_casing_jax.VirtualCasingJAX` for the integral solve.
+  - Accepts `VmecJax`, legacy `Vmec` loaded-wout objects, or file paths
+    converted through `VmecJax`.
+  - Preserves the existing `VirtualCasing` attributes and inherited
+    save/load/plot behavior.
+- Added `tests/mhd/test_virtual_casing_jax.py`:
+  - legacy `Vmec` wout and `VmecJax` wout parity,
+  - small-grid vacuum normal-field check,
+  - save/load round trip.
+- Ran:
+  - `python -m pytest tests/mhd/test_virtual_casing_jax.py -q` (`3 passed`)
+  - `python -m pytest tests/mhd/test_virtual_casing.py -q` (`6 skipped`)
 
 ## Immediate next actions
 
-- Add the `VirtualCasingJax` Simsopt wrapper and parity tests around the
-  existing virtual-casing examples and reference files.
+- Start adding JAX versions of the requested intermediate examples, beginning
+  with `QH_fixed_resolution_jax.py` and `QH_fixed_resolution_boozer_jax.py`.
