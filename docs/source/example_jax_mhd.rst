@@ -39,6 +39,12 @@ with a ``Jax`` suffix:
 * :python:`VirtualCasingJax` mirrors :python:`VirtualCasing`, preserving
   the saved NetCDF format and the :python:`B_external_normal` field used
   by stage-II and finite-beta coil objectives.
+* :python:`B_external_normal_from_data` and
+  :python:`B_external_normal_jvp_from_data` expose the functional
+  ``virtual_casing_jax`` normal-field path in SIMSOPT array convention.
+  The JVP helper accepts explicit target normals and target-normal
+  tangents so finite-beta workflows can preserve the same projection used
+  by :python:`VirtualCasingJax` and :python:`SquaredFlux`.
 
 The core wrappers are available from :python:`simsopt.mhd`, for example:
 
@@ -50,6 +56,7 @@ The core wrappers are available from :python:`simsopt.mhd`, for example:
         QuasisymmetryJax,
         QuasisymmetryRatioResidualJax,
         VirtualCasingJax,
+        B_external_normal_jvp_from_data,
     )
 
 Examples
@@ -139,6 +146,8 @@ The focused JAX MHD test suite currently covers:
 * VMEC-side quasisymmetry residual parity with the existing
   :python:`QuasisymmetryRatioResidual`,
 * ``VirtualCasingJax`` parity, vacuum-field checks, and save/load.
+* functional ``B_external_normal`` parity with ``VirtualCasingJax`` and a
+  forward-mode JVP Taylor check for the virtual-casing target projection.
 
 Run the focused tests with:
 
@@ -151,7 +160,7 @@ Run the focused tests with:
         tests/mhd/test_virtual_casing_jax.py -q
 
 At the time this page was updated, the focused suite plus example
-compilation tests passed with ``19 passed``, six example subtests, and
+compilation tests passed with ``22 passed``, six example subtests, and
 one upstream JAX deprecation warning.
 
 Current limitations
@@ -165,10 +174,11 @@ API coverage, longer optimization regression runs, performance tuning,
 and upstreaming any API additions needed in the JAX packages. The
 finite-beta single-stage example still uses the existing whole-objective
 finite-difference pattern for the virtual-casing target shape derivative;
-making that path exact requires composing VMEC-JAX state tangents with a
-JAX derivative of ``B_external_normal``. An upstream
-``virtual_casing_jax`` pull request now exposes a functional normal-field
-API with surface-coordinate JVP coverage for this purpose. The
-vectorized Boozer backend currently requires an upstream
+making that path exact requires composing VMEC-JAX state tangents with
+the new SIMSOPT ``B_external_normal_jvp_from_data`` helper and the
+existing SIMSOPT surface-normal derivative machinery. An upstream
+``virtual_casing_jax`` pull request exposes the functional normal-field
+API used by this helper. The vectorized Boozer backend currently requires
+an upstream
 ``booz_xform_jax`` API addition that returns ``gmnc_b``; without that
 field, ``BoozerJax`` falls back to the compatibility execution path.

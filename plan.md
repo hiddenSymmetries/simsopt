@@ -1002,3 +1002,36 @@ implementation demonstrates a concrete gap. Expected candidates:
 - Updated the Simsopt documentation page to reference this upstream API as the
   next required piece for replacing the finite-beta whole-objective finite
   differences.
+
+## Implementation log - Simsopt virtual-casing normal-field JVP bridge
+
+- Revisited the full implementation state against this plan. The side-by-side
+  wrappers, diagnostics, requested JAX examples, validation plots, docs, and
+  upstream PRs are in place. The remaining highest-value workstream is still
+  the finite-beta single-stage derivative path.
+- Added Simsopt-level helpers in `src/simsopt/mhd/virtual_casing_jax.py`:
+  - `B_external_normal_from_data(...)`
+  - `B_external_normal_jvp_from_data(...)`
+- These helpers expose the upstream functional `virtual_casing_jax` API in
+  Simsopt array convention, with optional explicit `unit_normal` and
+  `tangent_unit_normal` inputs. This is important because the existing
+  `VirtualCasingJax.from_vmec()` projection uses the Simsopt target-surface
+  normal, which is not identical to the upstream functional target normal on
+  the half-period grid.
+- Added tests showing:
+  - `B_external_normal_from_data(..., unit_normal=vc.unit_normal)` reproduces
+    the `VirtualCasingJax.from_vmec()` stored `B_external_normal`.
+  - `B_external_normal_jvp_from_data(...)` matches finite differences for a
+    scalar normal-field objective, including perturbations to source geometry,
+    total field, and target normal.
+- This keeps the plan on track: the new helper is the first Simsopt-owned
+  derivative bridge needed before replacing the finite-beta example's
+  whole-objective `MPIFiniteDifference` path.
+- Immediate next steps:
+  - Compose `B_external_normal_jvp_from_data(...)` with Simsopt surface normal
+    derivatives and VMEC-JAX state/field tangents.
+  - Replace the virtual-casing target part of
+    `single_stage_optimization_finite_beta_jax.py` with exact directional
+    derivatives column-by-column.
+  - Add a short optimization regression comparing the first finite-beta
+    objective and gradient against the current finite-difference path.
