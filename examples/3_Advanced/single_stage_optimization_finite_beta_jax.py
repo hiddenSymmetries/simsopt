@@ -19,7 +19,6 @@ from scipy.optimize import minimize
 import vmec_jax as vj
 from vmec_jax._compat import enable_x64
 
-from simsopt._core.derivative import Derivative
 from simsopt._core.util import ObjectiveFailure
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.geo import (
@@ -37,6 +36,7 @@ from simsopt.mhd import (
     VmecJax,
     QuasisymmetryRatioResidualJax,
     VirtualCasingJax,
+    local_squared_flux_surface_gradient,
 )
 from simsopt.objectives import QuadraticPenalty, SquaredFlux
 from simsopt.util import MpiPartition, comm_world, proc0_print
@@ -218,39 +218,6 @@ def _build_exact_stage1_and_target_objectives():
     return stage1_objective_and_gradient, target_and_jacobian
 
 
-def _squared_flux_surface_gradient(target_jacobian):
-    n = surf.normal()
-    absn = np.linalg.norm(n, axis=2)
-    Bcoil = bs.B().reshape(n.shape)
-    dB_by_dX = bs.dB_by_dX().reshape((nphi_VMEC, ntheta_VMEC, 3, 3))
-    unitn = n * (1. / absn)[:, :, None]
-    Bcoil_n = np.sum(Bcoil * unitn, axis=2)
-    B_n = Bcoil_n - Jf.target
-    mod_Bcoil = np.linalg.norm(Bcoil, axis=2)
-    assert Jf.definition == "local"
-    dJdx = B_n[:, :, None] * np.sum(
-        dB_by_dX * (
-            n / mod_Bcoil[:, :, None]**2
-            - (absn * B_n / mod_Bcoil**4)[:, :, None] * Bcoil
-        )[:, :, None, :],
-        axis=3,
-    )
-    dJdN = (B_n / mod_Bcoil**2)[:, :, None] * (
-        Bcoil - (Bcoil_n / absn)[:, :, None] * n
-    )
-    dJdN += 0.5 * (B_n**2 / (mod_Bcoil**2 * absn))[:, :, None] * n
-    deriv = (
-        surf.dnormal_by_dcoeff_vjp(dJdN / absn.size)
-        + surf.dgamma_by_dcoeff_vjp(dJdx / absn.size)
-    )
-    target_dJ = np.tensordot(
-        -B_n * absn / mod_Bcoil**2 / absn.size,
-        target_jacobian,
-        axes=([0, 1], [0, 1]),
-    )
-    return Derivative({surf: deriv})(surf) + target_dJ
-
-
 def fun(dofss, stage1_objective_and_gradient, target_and_jacobian, info={'Nfeval': 0}):
     info['Nfeval'] += 1
     os.chdir(vmec_results_path)
@@ -277,7 +244,12 @@ def fun(dofss, stage1_objective_and_gradient, target_and_jacobian, info={'Nfeval
         grad_with_respect_to_coils = coils_objective_weight * coils_dJ
         grad_with_respect_to_surface = (
             prob_dJ
-            + coils_objective_weight * _squared_flux_surface_gradient(target_jacobian)
+            + coils_objective_weight * local_squared_flux_surface_gradient(
+                surf,
+                bs,
+                Jf.target,
+                target_jacobian,
+            )
         )
 
     JF.fix_all()

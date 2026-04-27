@@ -21,6 +21,7 @@ from simsopt.mhd import (
     VirtualCasingJax,
     Vmec,
     VmecJax,
+    local_squared_flux_surface_gradient,
 )
 from simsopt.geo import SurfaceRZFourier
 
@@ -257,6 +258,113 @@ class VirtualCasingJaxTests(unittest.TestCase):
         )
         np.testing.assert_allclose(Bnormal, Bnormal_reference)
         np.testing.assert_allclose(dBnormal, fd, rtol=5e-3, atol=1e-6)
+
+    @unittest.skipIf(
+        compute_external_B_normal_functional is None,
+        "virtual_casing_jax functional normal-field API not found",
+    )
+    def test_local_squared_flux_surface_gradient_with_target_jacobian(self):
+        class LinearField:
+            def __init__(self):
+                self.matrix = np.asarray(
+                    [
+                        [0.07, -0.02, 0.03],
+                        [0.01, 0.05, -0.04],
+                        [-0.02, 0.03, 0.06],
+                    ]
+                )
+                self.offset = np.asarray([0.4, -0.2, 0.3])
+                self.points = None
+
+            def set_points(self, points):
+                self.points = np.asarray(points)
+
+            def B(self):
+                return self.points @ self.matrix.T + self.offset
+
+            def dB_by_dX(self):
+                return np.broadcast_to(
+                    self.matrix,
+                    (self.points.shape[0], 3, 3),
+                ).copy()
+
+        surf = SurfaceRZFourier.from_nphi_ntheta(
+            mpol=1,
+            ntor=0,
+            nfp=1,
+            nphi=5,
+            ntheta=4,
+            range="field period",
+        )
+        surf.set_rc(0, 0, 2.0)
+        surf.set_rc(1, 0, 0.3)
+        surf.set_zs(1, 0, 0.3)
+        surf.fix("rc(0,0)")
+        gamma = surf.gamma()
+        B_total = 0.02 * gamma + 0.05
+        B_total_tangents = np.zeros(gamma.shape + (len(surf.x),))
+        B_total_tangents[:, :, :, 0] = 0.01 * gamma
+        B_total_tangents[:, :, :, 1] = -0.02
+
+        target, target_jacobian = B_external_normal_jacobian_from_surface(
+            surf,
+            B_total,
+            nfp=1,
+            stellsym=False,
+            digits=4,
+            B_total_tangents=B_total_tangents,
+        )
+        field = LinearField()
+        grad = local_squared_flux_surface_gradient(
+            surf,
+            field,
+            target,
+            target_jacobian,
+        )
+
+        def objective(target_arg):
+            n = surf.normal()
+            absn = np.linalg.norm(n, axis=2)
+            unitn = n * (1.0 / absn)[:, :, None]
+            field.set_points(surf.gamma().reshape((-1, 3)))
+            Bcoil = field.B().reshape(n.shape)
+            B_n = np.sum(Bcoil * unitn, axis=2) - target_arg
+            mod_Bcoil = np.linalg.norm(Bcoil, axis=2)
+            return 0.5 * np.mean(B_n**2 * absn / mod_Bcoil**2)
+
+        direction = np.asarray([0.2, -0.1])
+        dB_total = np.tensordot(B_total_tangents, direction, axes=([3], [0]))
+        x0 = np.copy(surf.x)
+        eps = 1e-5
+        surf.x = x0 + eps * direction
+        target_plus = B_external_normal_from_data(
+            surf.gamma(),
+            B_total + eps * dB_total,
+            1,
+            False,
+            digits=4,
+            unit_normal=surf.unitnormal(),
+        )
+        J_plus = objective(target_plus)
+        surf.x = x0 - eps * direction
+        target_minus = B_external_normal_from_data(
+            surf.gamma(),
+            B_total - eps * dB_total,
+            1,
+            False,
+            digits=4,
+            unit_normal=surf.unitnormal(),
+        )
+        J_minus = objective(target_minus)
+        surf.x = x0
+
+        finite_difference = (J_plus - J_minus) / (2 * eps)
+        np.testing.assert_allclose(
+            np.dot(grad, direction),
+            finite_difference,
+            rtol=5e-3,
+            atol=1e-8,
+        )
 
 
 if __name__ == "__main__":

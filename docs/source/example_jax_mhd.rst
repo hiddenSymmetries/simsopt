@@ -51,6 +51,9 @@ with a ``Jax`` suffix:
   ``virtual_casing_jax`` normal-field path in SIMSOPT array convention,
   and :python:`B_external_normal_jacobian_from_surface` composes that JVP
   with SIMSOPT surface-coordinate and surface-normal derivatives.
+* :python:`local_squared_flux_surface_gradient` evaluates the local
+  :python:`SquaredFlux` surface gradient with an optional virtual-casing
+  target Jacobian, which is the finite-beta single-stage derivative term.
 
 The core wrappers are available from :python:`simsopt.mhd`, for example:
 
@@ -66,6 +69,7 @@ The core wrappers are available from :python:`simsopt.mhd`, for example:
         VirtualCasingJax,
         B_external_normal_jvp_from_data,
         B_external_normal_jacobian_from_surface,
+        local_squared_flux_surface_gradient,
     )
 
 Examples
@@ -177,6 +181,8 @@ The focused JAX MHD test suite currently covers:
   tangent terms.
 * VMEC-JAX boundary Cartesian-field tangent columns against the
   ``FixedBoundaryExactOptimizer`` exact Jacobian convention.
+* the reduced finite-beta local ``SquaredFlux`` surface gradient, including
+  the virtual-casing target Jacobian, against a central finite difference.
 
 Run the focused tests with:
 
@@ -189,7 +195,7 @@ Run the focused tests with:
         tests/mhd/test_virtual_casing_jax.py -q
 
 At the time this page was updated, the focused suite plus example
-compilation tests passed with ``25 passed``, six example subtests, and
+compilation tests passed with ``26 passed``, six example subtests, and
 one upstream JAX deprecation warning.
 
 Current limitations

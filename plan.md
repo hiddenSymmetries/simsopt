@@ -1127,6 +1127,16 @@ implementation demonstrates a concrete gap. Expected candidates:
     `B_external_normal_jacobian_from_surface(...)`.
   - Added the resulting target derivative to the local `SquaredFlux` surface
     gradient while keeping native Simsopt coil objects and coil derivatives.
+- Factored the finite-beta local `SquaredFlux` surface derivative into
+  `local_squared_flux_surface_gradient(...)` in
+  `src/simsopt/mhd/virtual_casing_jax.py`.
+  - It includes the surface geometry derivative and the optional
+    virtual-casing target Jacobian contribution.
+  - `single_stage_optimization_finite_beta_jax.py` now calls this shared
+    helper instead of carrying a local copy of the formula.
+  - Added a reduced finite-beta smoke test comparing the helper's directional
+    derivative against a central finite difference of the recomputed
+    virtual-casing target and local squared-flux objective.
 - Updated the JAX MHD documentation page to describe the new tangent helper and
   the finite-beta exact target-gradient path.
 - Generated a documentation validation plot:
@@ -1157,12 +1167,11 @@ implementation demonstrates a concrete gap. Expected candidates:
   - `cd /Users/rogerio/local/vmec_jax_simsopt && ../simsopt_jax/.venv/bin/python -m pytest tests/test_boundary_field.py tests/test_booz_input.py tests/test_step4_field_cartesian.py tests/test_vmec_bcovar_smoke.py -q`
     (`6 passed`, `1 skipped`, one upstream JAX warning)
   - `python -m pytest tests/mhd/test_jax_examples.py tests/mhd/test_vmec_jax.py tests/mhd/test_boozer_jax.py tests/mhd/test_vmec_diagnostics_jax.py tests/mhd/test_virtual_casing_jax.py -q`
-    (`25 passed`, six example subtests, one upstream JAX warning)
+    (`26 passed`, six example subtests, one upstream JAX warning)
   - `python -m sphinx -b html docs/source docs/build/html`
     (build succeeded with 28 pre-existing C++ API documentation warnings)
 - Immediate next steps:
-  - Build an end-to-end reduced finite-beta objective-gradient smoke test that
-    exercises the exact target-gradient path without running the full advanced
-    optimization script.
-  - Re-run the full focused Simsopt JAX MHD suite after committing the upstream
-    public VMEC-JAX tangent API and pushing both branches.
+  - Commit and push the Simsopt helper/test/doc follow-up.
+  - Run a short one-iteration reduced finite-beta optimization callback profile
+    to identify the dominant cost between VMEC-JAX tape replay and
+    virtual-casing JVP columns.

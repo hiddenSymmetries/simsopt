@@ -29,6 +29,7 @@ from .virtual_casing import VirtualCasing as _VirtualCasingBase
 from .vmec import Vmec
 from .vmec_jax import B_cartesian_jax, VmecJax
 from .vmec_diagnostics import B_cartesian
+from .._core.derivative import Derivative
 from ..geo.surface import best_nphi_over_ntheta
 from ..geo.surfacerzfourier import SurfaceRZFourier
 
@@ -37,6 +38,7 @@ __all__ = [
     "B_external_normal_from_data",
     "B_external_normal_jvp_from_data",
     "B_external_normal_jacobian_from_surface",
+    "local_squared_flux_surface_gradient",
 ]
 
 
@@ -438,6 +440,62 @@ def B_external_normal_jacobian_from_surface(
             axis=2,
         )
     return Bnormal, jacobian
+
+
+def local_squared_flux_surface_gradient(
+    surface,
+    field,
+    target,
+    target_jacobian=None,
+):
+    """
+    Return the surface gradient of local ``SquaredFlux``.
+
+    ``target_jacobian`` should have shape ``(nphi, ntheta, ndof)`` and gives
+    the derivative of ``target`` with respect to the free surface
+    coefficients. If omitted, the target is treated as fixed.
+    """
+    n = surface.normal()
+    absn = np.linalg.norm(n, axis=2)
+    unitn = n * (1.0 / absn)[:, :, None]
+    field.set_points(surface.gamma().reshape((-1, 3)))
+    Bcoil = field.B().reshape(n.shape)
+    dB_by_dX = field.dB_by_dX().reshape(n.shape + (3,))
+    target = np.asarray(target)
+    if target.shape != n.shape[:2]:
+        raise ValueError(f"target must have shape {n.shape[:2]}")
+    if target_jacobian is None:
+        target_jacobian = np.zeros(n.shape[:2] + (len(surface.x),))
+    else:
+        target_jacobian = np.asarray(target_jacobian)
+        expected_shape = n.shape[:2] + (len(surface.x),)
+        if target_jacobian.shape != expected_shape:
+            raise ValueError(f"target_jacobian must have shape {expected_shape}")
+
+    Bcoil_n = np.sum(Bcoil * unitn, axis=2)
+    B_n = Bcoil_n - target
+    mod_Bcoil = np.linalg.norm(Bcoil, axis=2)
+    dJdx = B_n[:, :, None] * np.sum(
+        dB_by_dX * (
+            n / mod_Bcoil[:, :, None]**2
+            - (absn * B_n / mod_Bcoil**4)[:, :, None] * Bcoil
+        )[:, :, None, :],
+        axis=3,
+    )
+    dJdN = (B_n / mod_Bcoil**2)[:, :, None] * (
+        Bcoil - (Bcoil_n / absn)[:, :, None] * n
+    )
+    dJdN += 0.5 * (B_n**2 / (mod_Bcoil**2 * absn))[:, :, None] * n
+    deriv = (
+        surface.dnormal_by_dcoeff_vjp(dJdN / absn.size)
+        + surface.dgamma_by_dcoeff_vjp(dJdx / absn.size)
+    )
+    target_dJ = np.tensordot(
+        -B_n * absn / mod_Bcoil**2 / absn.size,
+        target_jacobian,
+        axes=([0, 1], [0, 1]),
+    )
+    return Derivative({surface: deriv})(surface) + target_dJ
 
 
 class VirtualCasingJax(_VirtualCasingBase):
