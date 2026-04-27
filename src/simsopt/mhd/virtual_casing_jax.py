@@ -27,7 +27,7 @@ except ImportError as e:
 
 from .virtual_casing import VirtualCasing as _VirtualCasingBase
 from .vmec import Vmec
-from .vmec_jax import VmecJax
+from .vmec_jax import B_cartesian_jax, VmecJax
 from .vmec_diagnostics import B_cartesian
 from ..geo.surface import best_nphi_over_ntheta
 from ..geo.surfacerzfourier import SurfaceRZFourier
@@ -497,7 +497,10 @@ class VirtualCasingJax(_VirtualCasingBase):
             surf.set_rc(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.rmnc[jmn, -1])
             surf.set_zs(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.zmns[jmn, -1])
 
-        Bxyz = B_cartesian(vmec, nphi=src_nphi, ntheta=src_ntheta, range=ran)
+        if isinstance(vmec, VmecJax):
+            Bxyz = B_cartesian_jax(vmec, nphi=src_nphi, ntheta=src_ntheta, range=ran)
+        else:
+            Bxyz = B_cartesian(vmec, nphi=src_nphi, ntheta=src_ntheta, range=ran)
         gamma = surf.gamma()
 
         if trgt_nphi is None:

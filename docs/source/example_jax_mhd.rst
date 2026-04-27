@@ -26,6 +26,10 @@ with a ``Jax`` suffix:
 * :python:`VmecJax` mirrors :python:`Vmec` for fixed-boundary solves,
   loaded ``wout`` files, scalar diagnostics, boundary degrees of freedom,
   and pressure/current/iota profile objects.
+* :python:`B_cartesian_jax` mirrors
+  :python:`simsopt.mhd.vmec_diagnostics.B_cartesian` for ``VmecJax``
+  objects and uses the upstream ``vmec_jax.b_cartesian_from_state``
+  boundary-field helper.
 * :python:`BoozerJax` mirrors :python:`Boozer` surface registration and
   computes Boozer spectra through ``booz_xform_jax``. For
   stellarator-symmetric equilibria it uses the vectorized JAX backend
@@ -51,6 +55,7 @@ The core wrappers are available from :python:`simsopt.mhd`, for example:
 
     from simsopt.mhd import (
         VmecJax,
+        B_cartesian_jax,
         BoozerJax,
         QuasisymmetryJax,
         QuasisymmetryRatioResidualJax,
@@ -163,7 +168,7 @@ Run the focused tests with:
         tests/mhd/test_virtual_casing_jax.py -q
 
 At the time this page was updated, the focused suite plus example
-compilation tests passed with ``23 passed``, six example subtests, and
+compilation tests passed with ``24 passed``, six example subtests, and
 one upstream JAX deprecation warning.
 
 Current limitations
@@ -178,9 +183,11 @@ and upstreaming any API additions needed in the JAX packages. The
 finite-beta single-stage example still uses the existing whole-objective
 finite-difference pattern for the virtual-casing target shape derivative;
 making that path exact requires composing VMEC-JAX state tangents with
-the new SIMSOPT ``B_external_normal_jacobian_from_surface`` helper. An upstream
-``virtual_casing_jax`` pull request exposes the functional normal-field
-API used by this helper. The vectorized Boozer backend currently requires
-an upstream
+the new SIMSOPT ``B_external_normal_jacobian_from_surface`` helper. An
+upstream ``vmec_jax`` pull request now exposes the boundary
+Cartesian-field helper needed for those VMEC-JAX field tangent columns,
+and an upstream ``virtual_casing_jax`` pull request exposes the
+functional normal-field API used by the SIMSOPT JVP helper. The
+vectorized Boozer backend currently requires an upstream
 ``booz_xform_jax`` API addition that returns ``gmnc_b``; without that
 field, ``BoozerJax`` falls back to the compatibility execution path.

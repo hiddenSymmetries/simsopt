@@ -1066,3 +1066,38 @@ implementation demonstrates a concrete gap. Expected candidates:
     `B_external_normal_jacobian_from_surface(...)`.
   - Add the resulting target derivative to the finite-beta `SquaredFlux`
     surface gradient and compare against `MPIFiniteDifference`.
+
+## Implementation log - VMEC-JAX boundary field parity and Simsopt wiring
+
+- Found a concrete upstream parity gap while trying to route
+  `VirtualCasingJax.from_vmec(VmecJax(...))` through the new VMEC-JAX
+  boundary-field helper:
+  - the initial helper evaluated the last half-mesh `bsup` slice directly,
+  - Simsopt's legacy `B_cartesian(...)` uses VMEC's boundary extrapolation
+    `1.5 * edge - 0.5 * previous`.
+- Updated the VMEC-JAX upstream branch and open PR:
+  - https://github.com/uwplasma/vmec_jax/pull/8
+  - Added `b_cartesian_from_state(...)` with public API exports and tests.
+  - Added boundary extrapolation for the selected outer surface.
+  - Verified the helper matches Simsopt's legacy `B_cartesian(...)` vector
+    field to roundoff on a loaded-wout QA low-resolution grid.
+- Added Simsopt `B_cartesian_jax(...)` and `VmecJax.B_cartesian(...)`.
+  - The function mirrors the legacy `B_cartesian(...)` grid arguments and
+    return convention.
+  - Loaded-wout calls use the stored-wout `bsup` parity path.
+  - Runnable `VmecJax` calls use the solved VMEC-JAX state/input path by
+    default, keeping the value path aligned with the future tangent path.
+- Updated `VirtualCasingJax.from_vmec(...)` so a `VmecJax` input obtains
+  `B_total` through `B_cartesian_jax(...)` rather than the legacy VMEC
+  diagnostic.
+- Added regression coverage:
+  - `B_cartesian_jax(...)` and `VmecJax.B_cartesian(...)` match legacy
+    `B_cartesian(...)` for a loaded-wout QA low-resolution case.
+  - `VirtualCasingJax.from_vmec(VmecJax(...))` still matches the legacy
+    `Vmec` path after the routing change.
+- This keeps us on the plan:
+  - completed the value-path replacement of `B_cartesian` for `VmecJax`,
+  - upstreamed the parity fix required for safe replacement,
+  - left the remaining derivative target as VMEC-JAX state tangent columns
+    for `B_total`, then insertion into
+    `B_external_normal_jacobian_from_surface(...)`.

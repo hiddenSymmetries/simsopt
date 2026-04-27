@@ -9,7 +9,7 @@ This module provides a Simsopt wrapper for the vmec_jax equilibrium code.
 import logging
 import os
 import os.path
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -28,9 +28,10 @@ except ImportError as e:
 
 from .._core.optimizable import Optimizable
 from .._core.util import Struct, ObjectiveFailure
+from ..geo.surface import Surface
 from ..geo.surfacerzfourier import SurfaceRZFourier
 
-__all__ = ["VmecJax"]
+__all__ = ["VmecJax", "B_cartesian_jax"]
 
 
 _INDATA_DEFAULTS = {
@@ -168,6 +169,105 @@ def _surface_from_indata(indata, ntheta, nphi, range_surface):
 
     surf.local_full_x = surf.get_dofs()
     return surf
+
+
+def _grid_points_for_b_cartesian(vmec, quadpoints_phi, quadpoints_theta, range, nphi, ntheta):
+    if nphi is None and quadpoints_phi is None:
+        phi1D = vmec.boundary.quadpoints_phi
+    elif quadpoints_phi is None:
+        phi1D = Surface.get_phi_quadpoints(range=range, nphi=nphi, nfp=vmec.wout.nfp)
+    else:
+        phi1D = quadpoints_phi
+
+    if ntheta is None and quadpoints_theta is None:
+        theta1D = vmec.boundary.quadpoints_theta
+    elif quadpoints_theta is None:
+        theta1D = Surface.get_theta_quadpoints(ntheta=ntheta)
+    else:
+        theta1D = quadpoints_theta
+
+    return np.asarray(phi1D), np.asarray(theta1D)
+
+
+def _wout_config(wout, nphi, ntheta):
+    from vmec_jax.config import VMECConfig
+
+    return VMECConfig(
+        mpol=int(wout.mpol),
+        ntor=int(wout.ntor),
+        ns=int(wout.ns),
+        nfp=int(wout.nfp),
+        lasym=bool(wout.lasym),
+        lthreed=bool(int(wout.ntor) > 0),
+        lconm1=True,
+        ntheta=int(ntheta),
+        nzeta=int(nphi),
+    )
+
+
+def B_cartesian_jax(vmec, quadpoints_phi=None, quadpoints_theta=None,
+                    range=Surface.RANGE_FULL_TORUS, nphi=None, ntheta=None,
+                    use_wout_bsup=None):
+    r"""
+    Compute Cartesian magnetic field components on a ``VmecJax`` boundary.
+
+    This function mirrors :func:`simsopt.mhd.vmec_diagnostics.B_cartesian`,
+    but evaluates the field using ``vmec_jax.b_cartesian_from_state``. The
+    return value is the same ``(Bx, By, Bz)`` tuple of arrays with shape
+    ``(nphi, ntheta)``.
+    """
+    _require_vmec_jax()
+    if not isinstance(vmec, VmecJax):
+        vmec = VmecJax(vmec)
+    if not hasattr(vmec_jax_mod, "b_cartesian_from_state"):
+        raise RuntimeError(
+            "B_cartesian_jax requires a vmec_jax version with "
+            "b_cartesian_from_state."
+        )
+
+    vmec.run()
+    if vmec.wout.lasym:
+        raise RuntimeError("B_cartesian_jax presently only works for stellarator symmetry")
+
+    phi1D, theta1D = _grid_points_for_b_cartesian(
+        vmec, quadpoints_phi, quadpoints_theta, range, nphi, ntheta
+    )
+    from vmec_jax.grids import AngleGrid
+    from vmec_jax.static import build_static
+    from vmec_jax.wout import state_from_wout
+
+    nfp = int(vmec.wout.nfp)
+    grid = AngleGrid(
+        theta=theta1D * (2 * np.pi),
+        zeta=phi1D * (2 * np.pi * nfp),
+        nfp=nfp,
+    )
+
+    if use_wout_bsup is None:
+        use_wout_bsup = not vmec.runnable
+
+    if vmec.runnable and vmec._run is not None and not use_wout_bsup:
+        cfg = replace(vmec._run.cfg, ntheta=len(theta1D), nzeta=len(phi1D))
+        static = build_static(cfg, grid=grid)
+        B = vmec_jax_mod.b_cartesian_from_state(
+            vmec._run.state,
+            static,
+            indata=vmec._run.indata,
+            signgs=vmec._run.signgs,
+        )
+    else:
+        cfg = _wout_config(vmec._wout_jax, len(phi1D), len(theta1D))
+        static = build_static(cfg, grid=grid)
+        state = state_from_wout(vmec._wout_jax)
+        B = vmec_jax_mod.b_cartesian_from_state(
+            state,
+            static,
+            wout=vmec._wout_jax,
+            use_wout_bsup=True,
+        )
+
+    B = np.transpose(np.asarray(B), (1, 0, 2))
+    return B[:, :, 0], B[:, :, 1], B[:, :, 2]
 
 
 def _set_sparse_coeff(coeffs, n, m, value):
@@ -559,6 +659,22 @@ class VmecJax(Optimizable):
         self.ds = self.s_full_grid[1] - self.s_full_grid[0]
         self.s_half_grid = self.s_full_grid[1:] - 0.5 * self.ds
         return ierr
+
+    def B_cartesian(self, quadpoints_phi=None, quadpoints_theta=None,
+                    range=Surface.RANGE_FULL_TORUS, nphi=None, ntheta=None,
+                    use_wout_bsup=None):
+        """
+        Compute Cartesian magnetic field components on the boundary.
+        """
+        return B_cartesian_jax(
+            self,
+            quadpoints_phi=quadpoints_phi,
+            quadpoints_theta=quadpoints_theta,
+            range=range,
+            nphi=nphi,
+            ntheta=ntheta,
+            use_wout_bsup=use_wout_bsup,
+        )
 
     def update_mpi(self, new_mpi):
         """

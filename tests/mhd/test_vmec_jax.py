@@ -9,7 +9,8 @@ try:
 except ImportError:
     vmec_jax = None
 
-from simsopt.mhd import Vmec, VmecJax
+from simsopt.mhd import B_cartesian_jax, Vmec, VmecJax
+from simsopt.mhd.vmec_diagnostics import B_cartesian
 from simsopt.mhd.profiles import ProfilePolynomial
 
 from . import TEST_DIR
@@ -47,6 +48,18 @@ class VmecJaxInitializedFromWout(unittest.TestCase):
         filename = os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc")
         vmec_j = VmecJax(filename)
         self.assertEqual(vmec_j.get_max_mn(), (vmec_j.wout.mpol, vmec_j.wout.ntor))
+
+    def test_B_cartesian_jax_matches_vmec_diagnostic(self):
+        filename = os.path.join(TEST_DIR, "wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc")
+        vmec = Vmec(filename)
+        vmec_j = VmecJax(filename)
+
+        B_ref = np.asarray(B_cartesian(vmec, nphi=6, ntheta=7, range="half period"))
+        B_jax = np.asarray(B_cartesian_jax(vmec_j, nphi=6, ntheta=7, range="half period"))
+        B_method = np.asarray(vmec_j.B_cartesian(nphi=6, ntheta=7, range="half period"))
+
+        np.testing.assert_allclose(B_jax, B_ref, rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(B_method, B_ref, rtol=1e-12, atol=1e-12)
 
     def test_error_on_rerun(self):
         filename = os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc")
