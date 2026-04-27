@@ -16,9 +16,10 @@ from pathlib import Path
 
 import numpy as np
 from scipy.optimize import minimize
+import vmec_jax as vj
+from vmec_jax._compat import enable_x64
 
-from simsopt import make_optimizable
-from simsopt._core.finite_difference import MPIFiniteDifference
+from simsopt._core.derivative import Derivative
 from simsopt._core.util import ObjectiveFailure
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.geo import (
@@ -30,8 +31,14 @@ from simsopt.geo import (
     create_equally_spaced_curves,
     curves_to_vtk,
 )
-from simsopt.mhd import VmecJax, QuasisymmetryRatioResidualJax, VirtualCasingJax
-from simsopt.objectives import LeastSquaresProblem, QuadraticPenalty, SquaredFlux
+from simsopt.mhd import (
+    B_cartesian_jax_tangent_columns,
+    B_external_normal_jacobian_from_surface,
+    VmecJax,
+    QuasisymmetryRatioResidualJax,
+    VirtualCasingJax,
+)
+from simsopt.objectives import QuadraticPenalty, SquaredFlux
 from simsopt.util import MpiPartition, comm_world, proc0_print
 
 
@@ -55,12 +62,9 @@ vc_src_nphi = ntheta_VMEC
 nmodes_coils = 7
 coils_objective_weight = 1e+3
 aspect_ratio_weight = 1
-diff_method = "forward"
 R0 = 1.0
 R1 = 0.6
 quasisymmetry_target_surfaces = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
-finite_difference_abs_step = 1e-7
-finite_difference_rel_step = 0
 JACOBIAN_THRESHOLD = 100
 LENGTH_CON_WEIGHT = 0.1
 LENGTH_WEIGHT = 1e-8
@@ -81,6 +85,7 @@ if comm_world.rank == 0:
     os.makedirs(coils_results_path, exist_ok=True)
 
 proc0_print(f' Using vmec input file {vmec_input_filename}')
+enable_x64(True)
 vmec = VmecJax(vmec_input_filename, mpi=mpi, verbose=vmec_verbose, nphi=nphi_VMEC, ntheta=ntheta_VMEC, range_surface='half period')
 surf = vmec.boundary
 
@@ -136,30 +141,131 @@ def fun_coils(dofss, info):
     return J, grad
 
 
-def fun_J(prob, coils_prob):
-    global previous_surf_dofs
-    J_stage_1 = prob.objective()
-    if np.any(previous_surf_dofs != prob.x):
-        previous_surf_dofs = prob.x
-        try:
-            vc = VirtualCasingJax.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC, filename=None)
-            Jf.target = vc.B_external_normal
-        except ObjectiveFailure:
-            pass
-
-    bs.set_points(surf.gamma().reshape((-1, 3)))
-    J_stage_2 = coils_objective_weight * coils_prob.J()
-    return J_stage_1 + J_stage_2
+def _vmec_jax_spec_label_from_simsopt_dof(name):
+    local_name = name.split(":")[-1]
+    coeff, indices = local_name.split("(")
+    m_str, n_str = indices.rstrip(")").split(",")
+    return f"{coeff}{int(m_str)}{int(n_str)}"
 
 
-def fun(dofss, prob_jacobian, info={'Nfeval': 0}):
+def _build_exact_stage1_and_target_objectives():
+    cfg, indata = vj.load_config(vmec_input_filename)
+    static = vj.build_static(cfg)
+    boundary = vj.boundary_from_indata(indata, static.modes)
+    specs = vj.boundary_param_specs(
+        boundary,
+        static.modes,
+        max_mode=max_mode,
+        min_coeff=0.0,
+        include=("rc", "zs"),
+        fix=("rc00",),
+    )
+    residuals_fn = vj.make_qh_residuals_fn(
+        static,
+        indata,
+        helicity_m=1,
+        helicity_n=-1,
+        target_aspect=aspect_ratio_target,
+        surfaces=quasisymmetry_target_surfaces,
+        aspect_weight=np.sqrt(aspect_ratio_weight),
+    )
+    exact_opt = vj.FixedBoundaryExactOptimizer(
+        static,
+        indata,
+        boundary,
+        specs,
+        residuals_fn,
+    )
+
+    surf_label_to_index = {
+        _vmec_jax_spec_label_from_simsopt_dof(name): i
+        for i, name in enumerate(surf.dof_names)
+    }
+    missing = [spec.name for spec in specs if spec.name not in surf_label_to_index]
+    if missing:
+        raise ValueError(f"Exact VMEC-JAX specs are not active SIMSOPT surface dofs: {missing}")
+
+    spec_to_surf = np.asarray([surf_label_to_index[spec.name] for spec in specs], dtype=int)
+    surf_x0 = np.copy(surf.x)
+
+    def surface_params(surface_x):
+        surface_x = np.asarray(surface_x, dtype=float)
+        return surface_x[spec_to_surf] - surf_x0[spec_to_surf]
+
+    def stage1_objective_and_gradient(surface_x):
+        params = surface_params(surface_x)
+        cost, grad_params = exact_opt.objective_and_gradient_fun(params)
+        grad_surface = np.zeros(number_vmec_dofs)
+        grad_surface[spec_to_surf] = 2.0 * grad_params
+        return 2.0 * cost, grad_surface
+
+    def target_and_jacobian(surface_x):
+        params = surface_params(surface_x)
+        B_total, B_param_tangents = B_cartesian_jax_tangent_columns(
+            exact_opt,
+            params,
+            quadpoints_phi=surf.quadpoints_phi,
+            quadpoints_theta=surf.quadpoints_theta,
+        )
+        B_total_tangents = np.zeros(surf.gamma().shape + (number_vmec_dofs,))
+        B_total_tangents[:, :, :, spec_to_surf] = B_param_tangents
+        return B_external_normal_jacobian_from_surface(
+            surf,
+            B_total,
+            B_total_tangents=B_total_tangents,
+        )
+
+    return stage1_objective_and_gradient, target_and_jacobian
+
+
+def _squared_flux_surface_gradient(target_jacobian):
+    n = surf.normal()
+    absn = np.linalg.norm(n, axis=2)
+    Bcoil = bs.B().reshape(n.shape)
+    dB_by_dX = bs.dB_by_dX().reshape((nphi_VMEC, ntheta_VMEC, 3, 3))
+    unitn = n * (1. / absn)[:, :, None]
+    Bcoil_n = np.sum(Bcoil * unitn, axis=2)
+    B_n = Bcoil_n - Jf.target
+    mod_Bcoil = np.linalg.norm(Bcoil, axis=2)
+    assert Jf.definition == "local"
+    dJdx = B_n[:, :, None] * np.sum(
+        dB_by_dX * (
+            n / mod_Bcoil[:, :, None]**2
+            - (absn * B_n / mod_Bcoil**4)[:, :, None] * Bcoil
+        )[:, :, None, :],
+        axis=3,
+    )
+    dJdN = (B_n / mod_Bcoil**2)[:, :, None] * (
+        Bcoil - (Bcoil_n / absn)[:, :, None] * n
+    )
+    dJdN += 0.5 * (B_n**2 / (mod_Bcoil**2 * absn))[:, :, None] * n
+    deriv = (
+        surf.dnormal_by_dcoeff_vjp(dJdN / absn.size)
+        + surf.dgamma_by_dcoeff_vjp(dJdx / absn.size)
+    )
+    target_dJ = np.tensordot(
+        -B_n * absn / mod_Bcoil**2 / absn.size,
+        target_jacobian,
+        axes=([0, 1], [0, 1]),
+    )
+    return Derivative({surf: deriv})(surf) + target_dJ
+
+
+def fun(dofss, stage1_objective_and_gradient, target_and_jacobian, info={'Nfeval': 0}):
     info['Nfeval'] += 1
     os.chdir(vmec_results_path)
-    prob.x = dofss[-number_vmec_dofs:]
+    vmec.x = dofss[-number_vmec_dofs:]
     coil_dofs = dofss[:-number_vmec_dofs]
     JF.full_unfix(free_coil_dofs)
     JF.x = coil_dofs
-    J = fun_J(prob, JF)
+    bs.set_points(surf.gamma().reshape((-1, 3)))
+    try:
+        Jf.target, target_jacobian = target_and_jacobian(vmec.x)
+        J_stage_1, prob_dJ = stage1_objective_and_gradient(vmec.x)
+        J_stage_2 = coils_objective_weight * JF.J()
+        J = J_stage_1 + J_stage_2
+    except ObjectiveFailure:
+        J = JACOBIAN_THRESHOLD
     if J > JACOBIAN_THRESHOLD or isnan(J):
         proc0_print(f"fun#{info['Nfeval']}: Exception caught during function evaluation with J={J}. Returning J={JACOBIAN_THRESHOLD}")
         J = JACOBIAN_THRESHOLD
@@ -169,8 +275,10 @@ def fun(dofss, prob_jacobian, info={'Nfeval': 0}):
         proc0_print(f"fun#{info['Nfeval']}: Objective function = {J:.4f}")
         coils_dJ = JF.dJ()
         grad_with_respect_to_coils = coils_objective_weight * coils_dJ
-        JF.fix_all()
-        grad_with_respect_to_surface = prob_jacobian.jac(prob.x)[0]
+        grad_with_respect_to_surface = (
+            prob_dJ
+            + coils_objective_weight * _squared_flux_surface_gradient(target_jacobian)
+        )
 
     JF.fix_all()
     grad = np.concatenate((grad_with_respect_to_coils, grad_with_respect_to_surface))
@@ -182,9 +290,7 @@ surf.fixed_range(mmin=0, mmax=max_mode, nmin=-max_mode, nmax=max_mode, fixed=Fal
 surf.fix("rc(0,0)")
 number_vmec_dofs = int(len(surf.x))
 qs = QuasisymmetryRatioResidualJax(vmec, quasisymmetry_target_surfaces, helicity_m=1, helicity_n=-1)
-objective_tuple = [(vmec.aspect, aspect_ratio_target, aspect_ratio_weight), (qs.residuals, 0, 1)]
-prob = LeastSquaresProblem.from_tuples(objective_tuple)
-previous_surf_dofs = prob.x
+stage1_objective_and_gradient, target_and_jacobian = _build_exact_stage1_and_target_objectives()
 dofs = np.concatenate((JF.x, vmec.x))
 bs.set_points(surf.gamma().reshape((-1, 3)))
 vc = VirtualCasingJax.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC, filename=None)
@@ -206,17 +312,29 @@ if comm_world.rank == 0:
 proc0_print(f'  Performing single stage optimization with ~{MAXITER_single_stage} iterations')
 dofs[:-number_vmec_dofs] = res.x
 JF.x = dofs[:-number_vmec_dofs]
-mpi.comm_world.Bcast(dofs, root=0)
-opt = make_optimizable(fun_J, prob, JF)
 free_coil_dofs = JF.dofs_free_status
 JF.fix_all()
-
-with MPIFiniteDifference(opt.J, mpi, diff_method=diff_method, abs_step=finite_difference_abs_step, rel_step=finite_difference_rel_step) as prob_jacobian:
-    if mpi.proc0_world:
-        res = minimize(fun, dofs, args=(prob_jacobian, {'Nfeval': 0}), jac=True, method='BFGS', options={'maxiter': MAXITER_single_stage}, tol=1e-9)
+mpi.comm_world.Bcast(dofs, root=0)
+if mpi.proc0_world:
+    res = minimize(
+        fun,
+        dofs,
+        args=(stage1_objective_and_gradient, target_and_jacobian, {'Nfeval': 0}),
+        jac=True,
+        method='BFGS',
+        options={'maxiter': MAXITER_single_stage},
+        tol=1e-9,
+    )
+    dofs = res.x
+mpi.comm_world.Bcast(dofs, root=0)
+JF.full_unfix(free_coil_dofs)
+JF.x = dofs[:-number_vmec_dofs]
+vmec.x = dofs[-number_vmec_dofs:]
+bs.set_points(surf.gamma().reshape((-1, 3)))
+Jf.target, _ = target_and_jacobian(vmec.x)
 
 Bbs = bs.B().reshape((nphi_VMEC, ntheta_VMEC, 3))
-BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2) - vc.B_external_normal
+BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2) - Jf.target
 if comm_world.rank == 0:
     curves_to_vtk(curves, os.path.join(coils_results_path, "curves_opt"))
     pointData = {"B_N": BdotN_surf[:, :, None]}

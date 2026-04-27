@@ -1,4 +1,5 @@
 import os
+from dataclasses import replace
 from tempfile import TemporaryDirectory
 import unittest
 
@@ -9,9 +10,10 @@ try:
 except ImportError:
     vmec_jax = None
 
-from simsopt.mhd import B_cartesian_jax, Vmec, VmecJax
+from simsopt.mhd import B_cartesian_jax, B_cartesian_jax_tangent_columns, Vmec, VmecJax
 from simsopt.mhd.vmec_diagnostics import B_cartesian
 from simsopt.mhd.profiles import ProfilePolynomial
+from simsopt.geo.surface import Surface
 
 from . import TEST_DIR
 
@@ -141,3 +143,81 @@ class VmecJaxInitializedFromInput(unittest.TestCase):
         np.testing.assert_allclose(vmec_j.aspect(), reference.aspect(), rtol=1e-12)
         np.testing.assert_allclose(vmec_j.volume(), reference.volume(), rtol=1e-12)
         np.testing.assert_allclose(vmec_j.mean_iota(), reference.mean_iota(), atol=2e-3)
+
+    @unittest.skipIf(
+        not hasattr(vmec_jax, "FixedBoundaryExactOptimizer")
+        or not hasattr(vmec_jax, "b_cartesian_from_state"),
+        "vmec_jax exact tangent helpers not found",
+    )
+    def test_B_cartesian_tangent_columns_match_exact_jacobian(self):
+        from vmec_jax._compat import enable_x64, jnp
+        from vmec_jax.grids import AngleGrid
+        from vmec_jax.static import build_static
+
+        enable_x64(True)
+        input_file = os.path.join(TEST_DIR, "input.li383_low_res")
+        cfg, indata = vmec_jax.load_config(input_file)
+        static = vmec_jax.build_static(cfg)
+        boundary = vmec_jax.boundary_from_indata(indata, static.modes)
+        specs = vmec_jax.boundary_param_specs(
+            boundary,
+            static.modes,
+            max_mode=1,
+            min_coeff=0.0,
+            include=("rc", "zs"),
+            fix=("rc00",),
+        )[:2]
+        params = np.zeros(len(specs))
+        nphi = 4
+        ntheta = 5
+        phi = np.asarray(
+            Surface.get_phi_quadpoints(
+                range="half period", nphi=nphi, nfp=static.cfg.nfp
+            )
+        )
+        theta = np.asarray(Surface.get_theta_quadpoints(ntheta=ntheta))
+        grid = AngleGrid(
+            theta=theta * (2 * np.pi),
+            zeta=phi * (2 * np.pi * static.cfg.nfp),
+            nfp=static.cfg.nfp,
+        )
+        field_static = build_static(
+            replace(static.cfg, ntheta=ntheta, nzeta=nphi),
+            grid=grid,
+        )
+
+        def residuals_fn(state):
+            B = vmec_jax.b_cartesian_from_state(
+                state,
+                field_static,
+                indata=indata,
+                signgs=exact_opt._signgs,
+            )
+            return jnp.ravel(B)
+
+        exact_opt = vmec_jax.FixedBoundaryExactOptimizer(
+            static,
+            indata,
+            boundary,
+            specs,
+            residuals_fn,
+            inner_max_iter=2,
+            inner_ftol=1e-5,
+        )
+        B, B_tangents = B_cartesian_jax_tangent_columns(
+            exact_opt,
+            params,
+            quadpoints_phi=phi,
+            quadpoints_theta=theta,
+        )
+        residuals = exact_opt.residual_fun(params)
+        jacobian = exact_opt.jacobian_fun(params)
+        B_flat = np.transpose(B, (1, 0, 2)).reshape(-1)
+        tangent_jacobian = np.transpose(B_tangents, (1, 0, 2, 3)).reshape(
+            (-1, len(specs))
+        )
+
+        np.testing.assert_allclose(B_flat, residuals, rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(
+            tangent_jacobian, jacobian, rtol=1e-12, atol=1e-12
+        )

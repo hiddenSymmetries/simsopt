@@ -30,6 +30,9 @@ with a ``Jax`` suffix:
   :python:`simsopt.mhd.vmec_diagnostics.B_cartesian` for ``VmecJax``
   objects and uses the upstream ``vmec_jax.b_cartesian_from_state``
   boundary-field helper.
+* :python:`B_cartesian_jax_tangent_columns` evaluates the same boundary
+  field together with exact VMEC-JAX accepted-point tangent columns from
+  ``vmec_jax.FixedBoundaryExactOptimizer``.
 * :python:`BoozerJax` mirrors :python:`Boozer` surface registration and
   computes Boozer spectra through ``booz_xform_jax``. For
   stellarator-symmetric equilibria it uses the vectorized JAX backend
@@ -56,6 +59,7 @@ The core wrappers are available from :python:`simsopt.mhd`, for example:
     from simsopt.mhd import (
         VmecJax,
         B_cartesian_jax,
+        B_cartesian_jax_tangent_columns,
         BoozerJax,
         QuasisymmetryJax,
         QuasisymmetryRatioResidualJax,
@@ -94,7 +98,11 @@ The JAX examples are direct counterparts of existing SIMSOPT examples:
 * :simsopt_file:`examples/3_Advanced/single_stage_optimization_finite_beta_jax.py`
   follows :simsopt_file:`examples/3_Advanced/single_stage_optimization_finite_beta.py`.
   It uses ``VmecJax``, ``QuasisymmetryRatioResidualJax``, and
-  ``VirtualCasingJax``.
+  ``VirtualCasingJax``. Its single-stage surface gradient uses VMEC-JAX
+  exact stage-I derivatives and composes VMEC-JAX boundary-field tangent
+  columns with the SIMSOPT
+  :python:`B_external_normal_jacobian_from_surface` helper instead of a
+  whole-objective finite-difference wrapper.
 
 Validation plots
 ----------------
@@ -140,6 +148,17 @@ Virtual-casing JAX normal field for a vacuum reference equilibrium:
 For the vacuum check, the maximum absolute value of
 ``B_external_normal`` is ``3.709e-3`` on the small test grid.
 
+Finite-beta virtual-casing target derivative assembled from the SIMSOPT
+surface Jacobian compared with a central finite difference:
+
+.. image:: jax_mhd_finite_beta_target_jacobian.png
+   :alt: Exact virtual-casing target derivative compared with finite difference.
+   :width: 95%
+
+For this reduced-grid derivative check, the maximum absolute difference
+between the assembled JVP and the central finite difference is
+``1.390e-10``.
+
 Testing
 -------
 
@@ -156,6 +175,8 @@ The focused JAX MHD test suite currently covers:
 * surface-coefficient Jacobian assembly for ``B_external_normal``,
   including source geometry, total-field tangent, and target-normal
   tangent terms.
+* VMEC-JAX boundary Cartesian-field tangent columns against the
+  ``FixedBoundaryExactOptimizer`` exact Jacobian convention.
 
 Run the focused tests with:
 
@@ -168,7 +189,7 @@ Run the focused tests with:
         tests/mhd/test_virtual_casing_jax.py -q
 
 At the time this page was updated, the focused suite plus example
-compilation tests passed with ``24 passed``, six example subtests, and
+compilation tests passed with ``25 passed``, six example subtests, and
 one upstream JAX deprecation warning.
 
 Current limitations
@@ -180,14 +201,14 @@ fixed-boundary VMEC-JAX solves, MHD diagnostics, Boozer spectra,
 virtual casing, and example parity. Remaining work includes broader
 API coverage, longer optimization regression runs, performance tuning,
 and upstreaming any API additions needed in the JAX packages. The
-finite-beta single-stage example still uses the existing whole-objective
-finite-difference pattern for the virtual-casing target shape derivative;
-making that path exact requires composing VMEC-JAX state tangents with
-the new SIMSOPT ``B_external_normal_jacobian_from_surface`` helper. An
-upstream ``vmec_jax`` pull request now exposes the boundary
-Cartesian-field helper needed for those VMEC-JAX field tangent columns,
-and an upstream ``virtual_casing_jax`` pull request exposes the
-functional normal-field API used by the SIMSOPT JVP helper. The
-vectorized Boozer backend currently requires an upstream
+finite-beta single-stage example now has an exact JAX derivative path for
+the virtual-casing target, but it still needs longer optimization
+regression runs and performance profiling before it should replace the
+legacy production example. An upstream ``vmec_jax`` pull request now
+exposes both the boundary Cartesian-field helper and an exact optimizer
+field-tangent API used for those VMEC-JAX field tangent columns. An
+upstream ``virtual_casing_jax`` pull request exposes the functional
+normal-field API used by the SIMSOPT JVP helper. The vectorized Boozer
+backend currently requires an upstream
 ``booz_xform_jax`` API addition that returns ``gmnc_b``; without that
 field, ``BoozerJax`` falls back to the compatibility execution path.

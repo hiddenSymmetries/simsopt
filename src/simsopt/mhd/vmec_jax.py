@@ -31,7 +31,7 @@ from .._core.util import Struct, ObjectiveFailure
 from ..geo.surface import Surface
 from ..geo.surfacerzfourier import SurfaceRZFourier
 
-__all__ = ["VmecJax", "B_cartesian_jax"]
+__all__ = ["VmecJax", "B_cartesian_jax", "B_cartesian_jax_tangent_columns"]
 
 
 _INDATA_DEFAULTS = {
@@ -268,6 +268,156 @@ def B_cartesian_jax(vmec, quadpoints_phi=None, quadpoints_theta=None,
 
     B = np.transpose(np.asarray(B), (1, 0, 2))
     return B[:, :, 0], B[:, :, 1], B[:, :, 2]
+
+
+def _grid_points_for_exact_optimizer(exact_optimizer, quadpoints_phi, quadpoints_theta,
+                                     range, nphi, ntheta):
+    nfp = int(exact_optimizer._static.cfg.nfp)
+    if quadpoints_phi is None:
+        if nphi is None:
+            nphi = int(exact_optimizer._static.cfg.nzeta)
+        phi1D = Surface.get_phi_quadpoints(range=range, nphi=nphi, nfp=nfp)
+    else:
+        phi1D = quadpoints_phi
+
+    if quadpoints_theta is None:
+        if ntheta is None:
+            ntheta = int(exact_optimizer._static.cfg.ntheta)
+        theta1D = Surface.get_theta_quadpoints(ntheta=ntheta)
+    else:
+        theta1D = quadpoints_theta
+
+    return np.asarray(phi1D), np.asarray(theta1D)
+
+
+def B_cartesian_jax_tangent_columns(
+    exact_optimizer,
+    params,
+    quadpoints_phi=None,
+    quadpoints_theta=None,
+    range=Surface.RANGE_FULL_TORUS,
+    nphi=None,
+    ntheta=None,
+):
+    r"""
+    Return the VMEC-JAX boundary field and exact tangent columns.
+
+    ``exact_optimizer`` should be a ``vmec_jax.FixedBoundaryExactOptimizer``.
+    The returned field has shape ``(nphi, ntheta, 3)`` and the tangent array
+    has shape ``(nphi, ntheta, 3, nparams)``. The tangent columns use the same
+    accepted-point tape replay and frozen-axis initial-state convention as the
+    optimizer's exact Jacobian.
+    """
+    _require_vmec_jax()
+    if not hasattr(exact_optimizer, "_static"):
+        raise TypeError(
+            "B_cartesian_jax_tangent_columns requires a vmec_jax "
+            "FixedBoundaryExactOptimizer-like object."
+        )
+    if not hasattr(vmec_jax_mod, "b_cartesian_from_state"):
+        raise RuntimeError(
+            "B_cartesian_jax_tangent_columns requires a vmec_jax version with "
+            "b_cartesian_from_state."
+        )
+
+    from vmec_jax._compat import jnp
+    from vmec_jax.grids import AngleGrid
+    from vmec_jax.static import build_static
+
+    params = jnp.asarray(np.asarray(params, dtype=float), dtype=jnp.float64)
+    phi1D, theta1D = _grid_points_for_exact_optimizer(
+        exact_optimizer, quadpoints_phi, quadpoints_theta, range, nphi, ntheta
+    )
+    nfp = int(exact_optimizer._static.cfg.nfp)
+    grid = AngleGrid(
+        theta=theta1D * (2 * np.pi),
+        zeta=phi1D * (2 * np.pi * nfp),
+        nfp=nfp,
+    )
+    cfg = replace(exact_optimizer._static.cfg, ntheta=len(theta1D), nzeta=len(phi1D))
+    field_static = build_static(cfg, grid=grid)
+
+    if hasattr(exact_optimizer, "b_cartesian_tangent_columns_fun"):
+        B, tangents = exact_optimizer.b_cartesian_tangent_columns_fun(
+            params,
+            field_static,
+        )
+        B = np.transpose(np.asarray(B), (1, 0, 2))
+        tangents = np.transpose(np.asarray(tangents), (1, 0, 2, 3))
+        return B, tangents
+
+    required = [
+        "_solve_exact_with_tape",
+        "_boundary_from_params",
+        "_indata",
+        "_layout",
+        "_signgs",
+    ]
+    if any(not hasattr(exact_optimizer, name) for name in required):
+        raise TypeError(
+            "B_cartesian_jax_tangent_columns requires a vmec_jax "
+            "FixedBoundaryExactOptimizer-like object."
+        )
+
+    from vmec_jax._compat import jax
+    from vmec_jax.discrete_adjoint import checkpoint_tape_state_jvp_columns
+    from vmec_jax.init_guess import initial_guess_from_boundary
+    from vmec_jax.state import pack_state, unpack_state
+
+    state, payload = exact_optimizer._solve_exact_with_tape(
+        params, return_payload=True
+    )
+    packed_final = jnp.asarray(pack_state(state), dtype=jnp.float64)
+
+    def _field_from_packed(packed):
+        state_arg = unpack_state(packed, exact_optimizer._layout)
+        B = vmec_jax_mod.b_cartesian_from_state(
+            state_arg,
+            field_static,
+            indata=exact_optimizer._indata,
+            signgs=exact_optimizer._signgs,
+        )
+        return jnp.ravel(B)
+
+    Bflat, field_linear = jax.linearize(_field_from_packed, packed_final)
+    if int(params.size) == 0:
+        tangent_columns = jnp.zeros((0, Bflat.size), dtype=Bflat.dtype)
+    else:
+        tape = payload["tape"]
+        axis_override = {
+            key: jnp.asarray(value, dtype=params.dtype)
+            for key, value in payload["axis_override"].items()
+        }
+
+        def _initial_state_packed(p):
+            boundary = exact_optimizer._boundary_from_params(p)
+            state0 = initial_guess_from_boundary(
+                exact_optimizer._static,
+                boundary,
+                exact_optimizer._indata,
+                vmec_project=True,
+                axis_override=axis_override,
+            )
+            return jnp.asarray(pack_state(state0), dtype=jnp.float64)
+
+        directions = jnp.eye(int(params.size), dtype=params.dtype)
+        _, initial_state_linear = jax.linearize(_initial_state_packed, params)
+        initial_tangents = jax.vmap(initial_state_linear)(directions)
+        final_tangents = checkpoint_tape_state_jvp_columns(
+            tape=tape,
+            static=exact_optimizer._static,
+            initial_tangents=initial_tangents,
+            rebuild_preconditioner=True,
+        )
+        tangent_columns = jax.vmap(field_linear)(final_tangents)
+
+    B = np.asarray(Bflat).reshape((len(theta1D), len(phi1D), 3))
+    B = np.transpose(B, (1, 0, 2))
+    tangents = np.asarray(tangent_columns).reshape(
+        (int(params.size), len(theta1D), len(phi1D), 3)
+    )
+    tangents = np.transpose(tangents, (2, 1, 3, 0))
+    return B, tangents
 
 
 def _set_sparse_coeff(coeffs, n, m, value):

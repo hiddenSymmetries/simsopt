@@ -1101,3 +1101,68 @@ implementation demonstrates a concrete gap. Expected candidates:
   - left the remaining derivative target as VMEC-JAX state tangent columns
     for `B_total`, then insertion into
     `B_external_normal_jacobian_from_surface(...)`.
+
+## Implementation log - finite-beta exact target-gradient path
+
+- Added `B_cartesian_jax_tangent_columns(...)` in
+  `src/simsopt/mhd/vmec_jax.py`.
+  - It accepts a `vmec_jax.FixedBoundaryExactOptimizer`, parameter vector, and
+    a Simsopt grid.
+  - It returns the VMEC-JAX boundary Cartesian field with shape
+    `(nphi, ntheta, 3)` and exact accepted-point tangent columns with shape
+    `(nphi, ntheta, 3, nparams)`.
+  - The tangent convention matches VMEC-JAX's exact optimizer Jacobian:
+    accepted-point tape replay plus the frozen-axis initial-state derivative
+    used by `FixedBoundaryExactOptimizer.jacobian_fun(...)`.
+- Added a focused Simsopt regression that builds a VMEC-JAX exact optimizer
+  whose residual is exactly the boundary Cartesian field, then verifies
+  `B_cartesian_jax_tangent_columns(...)` reproduces both the residual vector
+  and exact Jacobian columns.
+- Updated
+  `examples/3_Advanced/single_stage_optimization_finite_beta_jax.py`:
+  - Removed the whole-objective `MPIFiniteDifference` surface-gradient path.
+  - Added the same exact VMEC-JAX stage-I optimizer pattern used by the vacuum
+    JAX single-stage example.
+  - Composed VMEC-JAX `B_total` tangent columns with
+    `B_external_normal_jacobian_from_surface(...)`.
+  - Added the resulting target derivative to the local `SquaredFlux` surface
+    gradient while keeping native Simsopt coil objects and coil derivatives.
+- Updated the JAX MHD documentation page to describe the new tangent helper and
+  the finite-beta exact target-gradient path.
+- Generated a documentation validation plot:
+  - `docs/source/jax_mhd_finite_beta_target_jacobian.png`
+  - It compares the exact assembled virtual-casing target derivative against a
+    central finite difference on a reduced grid.
+  - Maximum absolute derivative error in the plot data:
+    `1.390e-10`.
+- Upstreamed the remaining VMEC-JAX API gap on the existing
+  `simsopt-qs-diagnostics` branch:
+  - Added `FixedBoundaryExactOptimizer.state_tangent_columns_fun(...)`.
+  - Added `FixedBoundaryExactOptimizer.b_cartesian_tangent_columns_fun(...)`.
+  - Added upstream regression coverage in `tests/test_boundary_field.py`.
+  - Updated Simsopt `B_cartesian_jax_tangent_columns(...)` to prefer the new
+    public VMEC-JAX method and keep the private replay only as compatibility
+    fallback for older local installs.
+  - Commit pushed to the open VMEC-JAX PR:
+    `98f9585 Expose exact boundary field tangent columns`.
+  - PR #8 comment posted:
+    https://github.com/uwplasma/vmec_jax/pull/8#issuecomment-4327126375
+- Focused checks run:
+  - `python -m pytest tests/mhd/test_jax_examples.py -q`
+    (`2 passed`, six example subtests, one upstream JAX warning)
+  - `python -m pytest tests/mhd/test_vmec_jax.py::VmecJaxInitializedFromInput::test_B_cartesian_tangent_columns_match_exact_jacobian tests/mhd/test_virtual_casing_jax.py -q`
+    (`7 passed`, one upstream JAX warning)
+  - `cd /Users/rogerio/local/vmec_jax_simsopt && ../simsopt_jax/.venv/bin/python -m pytest tests/test_boundary_field.py -q`
+    (`3 passed`, one upstream JAX warning)
+  - `cd /Users/rogerio/local/vmec_jax_simsopt && ../simsopt_jax/.venv/bin/python -m pytest tests/test_boundary_field.py tests/test_booz_input.py tests/test_step4_field_cartesian.py tests/test_vmec_bcovar_smoke.py -q`
+    (`6 passed`, `1 skipped`, one upstream JAX warning)
+  - `python -m pytest tests/mhd/test_jax_examples.py tests/mhd/test_vmec_jax.py tests/mhd/test_boozer_jax.py tests/mhd/test_vmec_diagnostics_jax.py tests/mhd/test_virtual_casing_jax.py -q`
+    (`25 passed`, six example subtests, one upstream JAX warning)
+  - `python -m sphinx -b html docs/source docs/build/html`
+    (build succeeded with 28 pre-existing C++ API documentation warnings)
+- Immediate next steps:
+  - Build an end-to-end reduced finite-beta objective-gradient smoke test that
+    exercises the exact target-gradient path without running the full advanced
+    optimization script.
+  - Re-run the full focused Simsopt JAX MHD suite after committing the upstream
+    public VMEC-JAX tangent API and pushing both branches.
