@@ -175,8 +175,9 @@ def _prepare_normal_field_call(
     return functional, X, B0, kwargs
 
 
-def _cached_external_B_jvp_columns(functional, jax, kwargs, options, shapes):
+def _cached_external_B_columns(functional, jax, kwargs, options, shapes, function_name):
     key = (
+        function_name,
         kwargs["digits"],
         kwargs["nfp"],
         kwargs["half_period"],
@@ -203,7 +204,7 @@ def _cached_external_B_jvp_columns(functional, jax, kwargs, options, shapes):
         return fn
 
     def _impl(x, b0, x_tangents, b0_tangents):
-        return functional.compute_external_B_jvp_columns_functional(
+        return getattr(functional, function_name)(
             x,
             b0,
             x_tangents,
@@ -220,6 +221,28 @@ def _cached_external_B_jvp_columns(functional, jax, kwargs, options, shapes):
     fn = jax.jit(_impl)
     _B_EXTERNAL_JVP_COLUMNS_CACHE[key] = fn
     return fn
+
+
+def _cached_external_B_jvp_columns(functional, jax, kwargs, options, shapes):
+    return _cached_external_B_columns(
+        functional,
+        jax,
+        kwargs,
+        options,
+        shapes,
+        "compute_external_B_jvp_columns_functional",
+    )
+
+
+def _cached_external_B_normal_jvp_columns(functional, jax, kwargs, options, shapes):
+    return _cached_external_B_columns(
+        functional,
+        jax,
+        kwargs,
+        options,
+        shapes,
+        "compute_external_B_normal_jvp_columns_functional",
+    )
 
 
 def B_external_normal_from_data(
@@ -429,7 +452,6 @@ def B_external_normal_jacobian_from_surface(
         stellsym = getattr(surface, "stellsym", True)
 
     gamma = surface.gamma()
-    unit_normal = surface.unitnormal()
     B_total = _validate_grid("B_total", B_total, gamma.shape)
     functional, X, B0, kwargs = _prepare_normal_field_call(
         gamma,
@@ -446,7 +468,6 @@ def B_external_normal_jacobian_from_surface(
     jax, jnp = _require_jax()
 
     dgamma = surface.dgamma_by_dcoeff()
-    dunit_normal = surface.dunitnormal_by_dcoeff()
     if free_only:
         columns = np.where(surface.dofs_free_status)[0]
     else:
@@ -460,6 +481,44 @@ def B_external_normal_jacobian_from_surface(
         expected_shape = gamma.shape + (ncols,)
         if B_total_tangents.shape != expected_shape:
             raise ValueError(f"B_total_tangents must have shape {expected_shape}")
+
+    X_tangents = np.transpose(dgamma[:, :, :, columns], (3, 2, 0, 1))
+    B0_tangents = np.transpose(B_total_tangents, (3, 2, 0, 1))
+    options = {
+        "chunk_size": chunk_size,
+        "target_chunk_size": target_chunk_size,
+        "pou_dtype": pou_dtype,
+        "patch_dtype": patch_dtype,
+        "interp_block_size": interp_block_size,
+        "remat": remat,
+    }
+    shapes = (
+        tuple(np.shape(X)),
+        tuple(np.shape(B0)),
+        tuple(np.shape(X_tangents)),
+        tuple(np.shape(B0_tangents)),
+        str(np.asarray(gamma).dtype),
+        str(np.asarray(B_total).dtype),
+    )
+    if hasattr(functional, "compute_external_B_normal_jvp_columns_functional"):
+        normal_jvp_columns = _cached_external_B_normal_jvp_columns(
+            functional,
+            jax,
+            kwargs,
+            options,
+            shapes,
+        )
+        Bnormal, columns_normal = normal_jvp_columns(
+            X,
+            B0,
+            jnp.asarray(X_tangents),
+            jnp.asarray(B0_tangents),
+        )
+        jacobian = np.transpose(np.asarray(columns_normal), (1, 2, 0))
+        return np.asarray(Bnormal), jacobian
+
+    unit_normal = surface.unitnormal()
+    dunit_normal = surface.dunitnormal_by_dcoeff()
 
     def external_field(x, b0):
         return functional.compute_external_B_functional(
@@ -475,24 +534,6 @@ def B_external_normal_jacobian_from_surface(
         )
 
     if hasattr(functional, "compute_external_B_jvp_columns_functional"):
-        X_tangents = np.transpose(dgamma[:, :, :, columns], (3, 2, 0, 1))
-        B0_tangents = np.transpose(B_total_tangents, (3, 2, 0, 1))
-        options = {
-            "chunk_size": chunk_size,
-            "target_chunk_size": target_chunk_size,
-            "pou_dtype": pou_dtype,
-            "patch_dtype": patch_dtype,
-            "interp_block_size": interp_block_size,
-            "remat": remat,
-        }
-        shapes = (
-            tuple(np.shape(X)),
-            tuple(np.shape(B0)),
-            tuple(np.shape(X_tangents)),
-            tuple(np.shape(B0_tangents)),
-            str(np.asarray(gamma).dtype),
-            str(np.asarray(B_total).dtype),
-        )
         jvp_columns = _cached_external_B_jvp_columns(
             functional,
             jax,

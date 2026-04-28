@@ -176,7 +176,10 @@ parameters, and the cached batched virtual-casing JVP-column path. Updating
 small B-field target grids unblocked reduces the warm virtual-casing
 target-Jacobian step from about ``10.0`` seconds to about ``5.3`` seconds in
 this reduced case, while preserving agreement at the ``1e-12`` level in the
-JVP columns. The virtual-casing target-Jacobian assembly remains the dominant
+JVP columns. Routing SIMSOPT through the upstream scalar normal-field
+JVP-column helper reduces the same public helper to about ``3.6`` seconds and
+keeps the target Jacobian within ``3e-13`` of the previous projected-vector
+path. The virtual-casing target-Jacobian assembly remains the dominant
 component, but the remaining cost is now concentrated in the geometry-tangent
 singular correction rather than VMEC-JAX boundary-field replay.
 
