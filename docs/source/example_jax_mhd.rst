@@ -163,6 +163,19 @@ For this reduced-grid derivative check, the maximum absolute difference
 between the assembled JVP and the central finite difference is
 ``1.390e-10``.
 
+A reduced finite-beta single-stage component profile shows where the
+remaining wall time is concentrated in the exact JAX surface-gradient path:
+
+.. image:: jax_mhd_finite_beta_component_profile.png
+   :alt: Reduced finite-beta JAX single-stage component wall-time profile.
+   :width: 95%
+
+This profile uses a ``12 x 12`` target grid and 8 active VMEC-JAX boundary
+parameters. The warm next-point callback shows that the VMEC boundary-field
+tangent columns and stage-I exact gradient are much cheaper after compilation,
+while the virtual-casing target-Jacobian assembly remains the dominant
+component.
+
 Testing
 -------
 
@@ -189,6 +202,7 @@ Run the focused tests with:
 .. code-block:: bash
 
     python -m pytest \
+        tests/mhd/test_jax_examples.py \
         tests/mhd/test_vmec_jax.py \
         tests/mhd/test_boozer_jax.py \
         tests/mhd/test_vmec_diagnostics_jax.py \
