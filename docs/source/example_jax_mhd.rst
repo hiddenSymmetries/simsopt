@@ -171,10 +171,14 @@ remaining wall time is concentrated in the exact JAX surface-gradient path:
    :width: 95%
 
 This profile uses a ``12 x 12`` target grid, 8 active VMEC-JAX boundary
-parameters, and the cached batched virtual-casing JVP-column path. The warm
-next-point callback shows that the VMEC boundary-field tangent columns and
-stage-I exact gradient are much cheaper after compilation, while the
-virtual-casing target-Jacobian assembly remains the dominant component.
+parameters, and the cached batched virtual-casing JVP-column path. Updating
+``virtual_casing_jax`` so its CPU ``target_chunk_size="auto"`` heuristic leaves
+small B-field target grids unblocked reduces the warm virtual-casing
+target-Jacobian step from about ``10.0`` seconds to about ``5.3`` seconds in
+this reduced case, while preserving agreement at the ``1e-12`` level in the
+JVP columns. The virtual-casing target-Jacobian assembly remains the dominant
+component, but the remaining cost is now concentrated in the geometry-tangent
+singular correction rather than VMEC-JAX boundary-field replay.
 
 Testing
 -------
