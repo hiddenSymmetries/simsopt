@@ -41,6 +41,8 @@ __all__ = [
     "local_squared_flux_surface_gradient",
 ]
 
+_B_EXTERNAL_JVP_COLUMNS_CACHE = {}
+
 
 def _soa_from_3d(arr3d):
     return np.transpose(arr3d, (2, 0, 1))
@@ -171,6 +173,53 @@ def _prepare_normal_field_call(
         orient=setup.orient,
     )
     return functional, X, B0, kwargs
+
+
+def _cached_external_B_jvp_columns(functional, jax, kwargs, options, shapes):
+    key = (
+        kwargs["digits"],
+        kwargs["nfp"],
+        kwargs["half_period"],
+        kwargs["surf_nt"],
+        kwargs["surf_np"],
+        kwargs["src_nt"],
+        kwargs["src_np"],
+        kwargs["trg_nt"],
+        kwargs["trg_np"],
+        kwargs["quad_nt"],
+        kwargs["quad_np"],
+        kwargs["patch_dim0"],
+        float(kwargs["orient"]),
+        options["chunk_size"],
+        options["target_chunk_size"],
+        str(options["pou_dtype"]),
+        str(options["patch_dtype"]),
+        options["interp_block_size"],
+        options["remat"],
+        shapes,
+    )
+    fn = _B_EXTERNAL_JVP_COLUMNS_CACHE.get(key)
+    if fn is not None:
+        return fn
+
+    def _impl(x, b0, x_tangents, b0_tangents):
+        return functional.compute_external_B_jvp_columns_functional(
+            x,
+            b0,
+            x_tangents,
+            b0_tangents,
+            chunk_size=options["chunk_size"],
+            target_chunk_size=options["target_chunk_size"],
+            pou_dtype=options["pou_dtype"],
+            patch_dtype=options["patch_dtype"],
+            interp_block_size=options["interp_block_size"],
+            remat=options["remat"],
+            **kwargs,
+        )
+
+    fn = jax.jit(_impl)
+    _B_EXTERNAL_JVP_COLUMNS_CACHE[key] = fn
+    return fn
 
 
 def B_external_normal_from_data(
@@ -424,6 +473,48 @@ def B_external_normal_jacobian_from_surface(
             remat=remat,
             **kwargs,
         )
+
+    if hasattr(functional, "compute_external_B_jvp_columns_functional"):
+        X_tangents = np.transpose(dgamma[:, :, :, columns], (3, 2, 0, 1))
+        B0_tangents = np.transpose(B_total_tangents, (3, 2, 0, 1))
+        options = {
+            "chunk_size": chunk_size,
+            "target_chunk_size": target_chunk_size,
+            "pou_dtype": pou_dtype,
+            "patch_dtype": patch_dtype,
+            "interp_block_size": interp_block_size,
+            "remat": remat,
+        }
+        shapes = (
+            tuple(np.shape(X)),
+            tuple(np.shape(B0)),
+            tuple(np.shape(X_tangents)),
+            tuple(np.shape(B0_tangents)),
+            str(np.asarray(gamma).dtype),
+            str(np.asarray(B_total).dtype),
+        )
+        jvp_columns = _cached_external_B_jvp_columns(
+            functional,
+            jax,
+            kwargs,
+            options,
+            shapes,
+        )
+        Bexternal, dBexternal = jvp_columns(
+            X,
+            B0,
+            jnp.asarray(X_tangents),
+            jnp.asarray(B0_tangents),
+        )
+        Bexternal = _3d_from_soa(np.asarray(Bexternal))
+        dBexternal = np.transpose(np.asarray(dBexternal), (2, 3, 1, 0))
+        Bnormal = np.sum(Bexternal * unit_normal, axis=2)
+        jacobian = np.sum(
+            dBexternal * unit_normal[:, :, :, None]
+            + Bexternal[:, :, :, None] * dunit_normal[:, :, :, columns],
+            axis=2,
+        )
+        return Bnormal, jacobian
 
     Bnormal = None
     jacobian = np.zeros(gamma.shape[:2] + (ncols,))

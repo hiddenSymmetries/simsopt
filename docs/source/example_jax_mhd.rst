@@ -170,11 +170,11 @@ remaining wall time is concentrated in the exact JAX surface-gradient path:
    :alt: Reduced finite-beta JAX single-stage component wall-time profile.
    :width: 95%
 
-This profile uses a ``12 x 12`` target grid and 8 active VMEC-JAX boundary
-parameters. The warm next-point callback shows that the VMEC boundary-field
-tangent columns and stage-I exact gradient are much cheaper after compilation,
-while the virtual-casing target-Jacobian assembly remains the dominant
-component.
+This profile uses a ``12 x 12`` target grid, 8 active VMEC-JAX boundary
+parameters, and the cached batched virtual-casing JVP-column path. The warm
+next-point callback shows that the VMEC boundary-field tangent columns and
+stage-I exact gradient are much cheaper after compilation, while the
+virtual-casing target-Jacobian assembly remains the dominant component.
 
 Testing
 -------
