@@ -236,16 +236,16 @@ Reduced finite-beta benchmark artifacts from
    :alt: Reduced finite-beta JAX benchmark B-normal field.
    :width: 95%
 
-These benchmark plots use the bounded local command path with
-``SIMSOPT_JAX_SINGLE_STAGE_CHECK_ONLY=true``, a ``12 x 12`` VMEC and
-virtual-casing grid, two stage-II iterations, one exact single-stage
-objective/gradient evaluation, and ``SIMSOPT_JAX_INNER_MAX_ITER=5``.
-The ``max_mode=1`` run completed locally in ``26.69`` seconds, reduced
-the squared-flux objective from ``0.4282`` to ``0.05224``, and evaluated
-the finite-beta single-stage objective and gradient with
-``J=61.2873`` and ``|grad|=1.7263e3``. The same benchmark with
-``max_mode=2`` completed in ``77.99`` seconds and gave
-``|grad|=2.1707e3``.
+These benchmark plots use the bounded local command path with a ``12 x 12``
+VMEC and virtual-casing grid, two stage-II iterations, one guarded BFGS
+single-stage iteration, ``SIMSOPT_JAX_INNER_MAX_ITER=5``, and
+``SIMSOPT_JAX_MAX_MODE=2``. The final guarded-BFGS benchmark completed
+locally in ``174.80`` seconds. The stage-II coil solve reduced the
+squared-flux term from ``0.42816`` to ``0.05579``. The single-stage
+objective then evaluated ``J=61.2873`` with ``|grad|=2.1707e3``, rejected
+one unsafe line-search trial through the step guard, and accepted finite
+objective evaluations ``61.2626`` and ``55.7930``. The final squared flux
+was ``0.046679``.
 
 Legacy finite-beta parity
 -------------------------
