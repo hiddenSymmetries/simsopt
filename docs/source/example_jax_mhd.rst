@@ -129,7 +129,11 @@ The JAX examples are direct counterparts of existing SIMSOPT examples:
   optionally override ``SIMSOPT_JAX_MAXITER_STAGE_2``,
   ``SIMSOPT_JAX_MAXITER_SINGLE_STAGE``, ``SIMSOPT_JAX_NPHI_VMEC``,
   ``SIMSOPT_JAX_NTHETA_VMEC``, ``SIMSOPT_JAX_MAX_MODE``, or
-  ``SIMSOPT_JAX_OUTPUT_DIR``. The finite-beta example writes
+  ``SIMSOPT_JAX_OUTPUT_DIR``. Set
+  ``SIMSOPT_JAX_SINGLE_STAGE_CHECK_ONLY=true`` to run a bounded local
+  benchmark that evaluates the exact finite-beta single-stage objective and
+  gradient without entering the optimizer line search. The finite-beta
+  example writes
   ``stage2_history.txt``, ``single_stage_history.txt``, and
   the plots ``Bnormal_finite_beta_jax.png`` and
   ``finite_beta_history_jax.png`` in the output directory so reduced
@@ -216,6 +220,28 @@ virtual-casing target-Jacobian assembly remains the dominant component, but
 the remaining cost is now concentrated in the geometry-tangent singular
 correction rather than VMEC-JAX boundary-field replay or SIMSOPT compatibility
 code.
+
+Reduced finite-beta benchmark artifacts from
+``single_stage_optimization_finite_beta_jax.py``:
+
+.. image:: jax_mhd_finite_beta_benchmark_history.png
+   :alt: Reduced finite-beta JAX benchmark objective history.
+   :width: 95%
+
+.. image:: jax_mhd_finite_beta_benchmark_bnormal.png
+   :alt: Reduced finite-beta JAX benchmark B-normal field.
+   :width: 95%
+
+These benchmark plots use the bounded local command path with
+``SIMSOPT_JAX_SINGLE_STAGE_CHECK_ONLY=true``, a ``12 x 12`` VMEC and
+virtual-casing grid, two stage-II iterations, one exact single-stage
+objective/gradient evaluation, and ``SIMSOPT_JAX_INNER_MAX_ITER=5``.
+The ``max_mode=1`` run completed locally in ``26.69`` seconds, reduced
+the squared-flux objective from ``0.4282`` to ``0.05224``, and evaluated
+the finite-beta single-stage objective and gradient with
+``J=61.2873`` and ``|grad|=1.7263e3``. The same benchmark with
+``max_mode=2`` completed in ``77.99`` seconds and gave
+``|grad|=2.1707e3``.
 
 Legacy finite-beta parity
 -------------------------

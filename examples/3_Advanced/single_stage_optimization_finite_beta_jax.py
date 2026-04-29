@@ -86,6 +86,10 @@ quick_run = in_github_actions or _env_flag("SIMSOPT_JAX_QUICK")
 MAXITER_stage_2 = _env_int("SIMSOPT_JAX_MAXITER_STAGE_2", 1 if quick_run else 10)
 MAXITER_single_stage = _env_int("SIMSOPT_JAX_MAXITER_SINGLE_STAGE", 1 if quick_run else 10)
 max_mode = _env_int("SIMSOPT_JAX_MAX_MODE", 1)
+single_stage_check_only = (
+    in_github_actions
+    or _env_flag("SIMSOPT_JAX_SINGLE_STAGE_CHECK_ONLY")
+)
 vmec_input_filename = os.path.join(parent_path, 'inputs', 'input.QH_finitebeta')
 ncoils = 3
 aspect_ratio_target = 7.0
@@ -417,14 +421,18 @@ free_coil_dofs = JF.dofs_free_status
 JF.fix_all()
 mpi.comm_world.Bcast(dofs, root=0)
 if mpi.proc0_world:
-    if in_github_actions:
+    if single_stage_check_only:
         J_check, grad_check = fun(
             dofs,
             stage1_objective_and_gradient,
             target_and_jacobian,
             {'Nfeval': 0},
         )
-        proc0_print(f"CI single-stage check: J={J_check:.4f}, |grad|={np.linalg.norm(grad_check):.4e}")
+        label = "CI" if in_github_actions else "Benchmark"
+        proc0_print(
+            f"{label} single-stage check: J={J_check:.4f}, "
+            f"|grad|={np.linalg.norm(grad_check):.4e}"
+        )
     else:
         res = minimize(
             fun,
