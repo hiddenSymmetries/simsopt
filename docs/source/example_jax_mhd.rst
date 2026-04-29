@@ -190,6 +190,39 @@ the remaining cost is now concentrated in the geometry-tangent singular
 correction rather than VMEC-JAX boundary-field replay or SIMSOPT compatibility
 code.
 
+Legacy finite-beta parity
+-------------------------
+
+A reduced ``input.QH_finitebeta`` comparison was also run in a separate
+Python 3.12 environment with the legacy VMEC2000 and virtual-casing Python
+extensions installed. The same ``12 x 12`` target grid was used for the
+legacy and JAX calculations.
+
+.. image:: jax_mhd_legacy_parity.png
+   :alt: Reduced finite-beta legacy VMEC and JAX parity checks.
+   :width: 95%
+
+The scalar VMEC diagnostics agree to roundoff for the finite-beta input:
+aspect differs by ``3.8e-15`` relatively, mean iota by ``2.0e-14``, and
+external current by ``1.4e-13``. The reduced three-surface
+quasisymmetry objective differs by ``2.1e-6`` relatively. On the same
+legacy VMEC field, ``VirtualCasingJax`` and legacy virtual-casing
+``B_external_normal`` differ by ``3.0e-4`` in relative L2 norm; comparing
+the full ``VmecJax -> VirtualCasingJax`` path to the legacy
+``Vmec -> VirtualCasing`` path gives ``2.5e-3`` relative L2 difference.
+
+For the finite-beta objective with the full VMEC-JAX inner solve, the
+legacy finite-difference objective and the JAX objective agree to about
+``1.5e-7`` relatively at the initial surface and coil state. The exact
+JAX finite-beta surface gradient was also checked against a central
+finite difference of the JAX target/objective path, giving a ``5.7e-4``
+relative directional mismatch. The legacy finite-difference surface
+gradient and the exact JAX gradient are not identical: at this reduced
+resolution the relative L2 difference is about ``2.6e-1``. This means
+the JAX single-stage optimizer should be expected to follow a different
+surface trajectory from the legacy finite-difference example even when
+the scalar objective values agree.
+
 Testing
 -------
 
