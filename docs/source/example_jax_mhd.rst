@@ -17,6 +17,25 @@ The coil objects, Biot-Savart calculations, coil regularization terms,
 and coil derivatives remain the native SIMSOPT implementations. The JAX
 wrappers replace only the MHD equilibrium and MHD postprocessing pieces.
 
+Installation notes
+------------------
+
+SIMSOPT already depends on ``jax`` and ``jaxlib``. To run these wrappers from
+source, install the upstream JAX MHD packages in the same environment:
+
+.. code-block:: bash
+
+    pip install git+https://github.com/uwplasma/vmec_jax
+    pip install git+https://github.com/uwplasma/booz_xform_jax
+
+The finite-beta virtual-casing examples and tests also require
+``virtual_casing_jax``. That repository is currently private, so install it
+from an authenticated checkout or GitHub credentialed environment:
+
+.. code-block:: bash
+
+    pip install git+https://github.com/uwplasma/virtual_casing_jax
+
 Implemented interfaces
 ----------------------
 
