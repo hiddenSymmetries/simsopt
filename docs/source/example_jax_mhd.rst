@@ -29,8 +29,7 @@ source, install the upstream JAX MHD packages in the same environment:
     pip install git+https://github.com/uwplasma/booz_xform_jax
 
 The finite-beta virtual-casing examples and tests also require
-``virtual_casing_jax``. That repository is currently private, so install it
-from an authenticated checkout or GitHub credentialed environment:
+``virtual_casing_jax``:
 
 .. code-block:: bash
 
@@ -282,10 +281,9 @@ Run the focused tests with:
 
 At the time this page was updated, the focused suite plus example
 compilation tests passed with ``27 passed``, six example subtests, and
-one upstream JAX deprecation warning. Public CI installs ``vmec_jax`` and
-``booz_xform_jax`` directly. Since ``virtual_casing_jax`` is currently a
-private upstream repository, public CI attempts that install but lets the
-virtual-casing-specific JAX tests skip when credentials are not available.
+one upstream JAX deprecation warning. Public CI installs ``vmec_jax``,
+``booz_xform_jax``, and ``virtual_casing_jax`` directly from the upstream
+GitHub repositories, so the virtual-casing JAX tests run in public CI.
 
 The legacy VMEC2000 comparison is opt-in because it requires local legacy
 ``vmec`` and ``virtual_casing`` Python extensions. In an environment with
