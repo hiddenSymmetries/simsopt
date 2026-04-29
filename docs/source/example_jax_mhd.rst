@@ -226,16 +226,12 @@ This is an integration milestone, not yet a complete replacement for
 every legacy workflow. The current implementation is focused on
 fixed-boundary VMEC-JAX solves, MHD diagnostics, Boozer spectra,
 virtual casing, and example parity. Remaining work includes broader
-API coverage, longer optimization regression runs, performance tuning,
-and upstreaming any API additions needed in the JAX packages. The
-finite-beta single-stage example now has an exact JAX derivative path for
-the virtual-casing target, but it still needs longer optimization
-regression runs and performance profiling before it should replace the
-legacy production example. An upstream ``vmec_jax`` pull request now
-exposes both the boundary Cartesian-field helper and an exact optimizer
-field-tangent API used for those VMEC-JAX field tangent columns. An
-upstream ``virtual_casing_jax`` pull request exposes the functional
-normal-field API used by the SIMSOPT JVP helper. The vectorized Boozer
-backend currently requires an upstream
-``booz_xform_jax`` API addition that returns ``gmnc_b``; without that
-field, ``BoozerJax`` falls back to the compatibility execution path.
+API coverage, longer optimization regression runs, and performance
+tuning. The finite-beta single-stage example now has an exact JAX
+derivative path for the virtual-casing target, but it still needs longer
+optimization regression runs and performance profiling before it should
+replace the legacy production example. The upstream ``vmec_jax``,
+``virtual_casing_jax``, and ``booz_xform_jax`` API additions needed by
+these wrappers have been merged, so the wrappers now call those JAX APIs
+directly instead of carrying compatibility copies of the derivative
+assembly.

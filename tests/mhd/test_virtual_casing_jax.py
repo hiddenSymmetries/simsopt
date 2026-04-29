@@ -10,9 +10,13 @@ except ImportError:
     virtual_casing_jax = None
 
 try:
-    from virtual_casing_jax.functional import compute_external_B_normal_functional
+    from virtual_casing_jax.functional import (
+        compute_external_B_normal_functional,
+        compute_external_B_normal_jvp_columns_functional,
+    )
 except ImportError:
     compute_external_B_normal_functional = None
+    compute_external_B_normal_jvp_columns_functional = None
 
 from simsopt.mhd import (
     B_external_normal_from_data,
@@ -191,7 +195,7 @@ class VirtualCasingJaxTests(unittest.TestCase):
         np.testing.assert_allclose(jvp, fd, rtol=5e-3, atol=1e-6)
 
     @unittest.skipIf(
-        compute_external_B_normal_functional is None,
+        compute_external_B_normal_jvp_columns_functional is None,
         "virtual_casing_jax functional normal-field API not found",
     )
     def test_normal_field_jacobian_from_surface(self):
@@ -260,7 +264,7 @@ class VirtualCasingJaxTests(unittest.TestCase):
         np.testing.assert_allclose(dBnormal, fd, rtol=5e-3, atol=1e-6)
 
     @unittest.skipIf(
-        compute_external_B_normal_functional is None,
+        compute_external_B_normal_jvp_columns_functional is None,
         "virtual_casing_jax functional normal-field API not found",
     )
     def test_local_squared_flux_surface_gradient_with_target_jacobian(self):

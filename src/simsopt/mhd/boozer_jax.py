@@ -164,10 +164,15 @@ class BoozerJax(Optimizable):
         self.bx.xn_b = np.asarray(out["ixn_b"])
         self.bx.mnboz = len(self.bx.xm_b)
         self.bx.bmnc_b = np.asarray(out["bmnc_b"]).T
+        self.bx.bmns_b = np.asarray(out["bmns_b"]).T
         self.bx.rmnc_b = np.asarray(out["rmnc_b"]).T
+        self.bx.rmns_b = np.asarray(out["rmns_b"]).T
+        self.bx.zmnc_b = np.asarray(out["zmnc_b"]).T
         self.bx.zmns_b = np.asarray(out["zmns_b"]).T
+        self.bx.numnc_b = -np.asarray(out["pmnc_b"]).T
         self.bx.numns_b = -np.asarray(out["pmns_b"]).T
         self.bx.gmnc_b = np.asarray(out["gmnc_b"]).T
+        self.bx.gmns_b = np.asarray(out["gmns_b"]).T
         self.bx.Boozer_I = np.asarray(out["buco_b"])
         self.bx.Boozer_G = np.asarray(out["bvco_b"])
         self.bx.s_b = np.asarray(self.bx.s_in)[compute_surfs]
@@ -189,21 +194,11 @@ class BoozerJax(Optimizable):
         compute_surfs = self._prepare_surface_indices(s)
         self._init_booz_xform_from_wout(compute_surfs)
 
-        logger.info("About to call booz_xform_jax.Booz_xform.run().")
-        if bool(self.bx.asym):
-            self.bx.run()
-        else:
-            out = self.bx.run_jax()
-            if "gmnc_b" in out:
-                self._populate_booz_xform_from_jax_output(out, compute_surfs)
-            else:
-                logger.warning(
-                    "booz_xform_jax.Booz_xform.run_jax() did not return gmnc_b; "
-                    "falling back to the compatibility run() path."
-                )
-                self.bx.run()
+        logger.info("About to call booz_xform_jax.Booz_xform.run_jax().")
+        out = self.bx.run_jax()
+        self._populate_booz_xform_from_jax_output(out, compute_surfs)
         self._calls += 1
-        logger.info("Returned from calling booz_xform_jax.Booz_xform.run().")
+        logger.info("Returned from calling booz_xform_jax.Booz_xform.run_jax().")
         self.need_to_run_code = False
 
 

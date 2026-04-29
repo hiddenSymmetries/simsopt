@@ -71,6 +71,7 @@ def _require_functional_api():
         "prepare_functional_setup",
         "compute_external_B_functional",
         "compute_external_B_normal_functional",
+        "compute_external_B_normal_jvp_columns_functional",
     ]
     for name in required:
         if not hasattr(virtual_casing_jax_functional, name):
@@ -221,17 +222,6 @@ def _cached_external_B_columns(functional, jax, kwargs, options, shapes, functio
     fn = jax.jit(_impl)
     _B_EXTERNAL_JVP_COLUMNS_CACHE[key] = fn
     return fn
-
-
-def _cached_external_B_jvp_columns(functional, jax, kwargs, options, shapes):
-    return _cached_external_B_columns(
-        functional,
-        jax,
-        kwargs,
-        options,
-        shapes,
-        "compute_external_B_jvp_columns_functional",
-    )
 
 
 def _cached_external_B_normal_jvp_columns(functional, jax, kwargs, options, shapes):
@@ -500,78 +490,21 @@ def B_external_normal_jacobian_from_surface(
         str(np.asarray(gamma).dtype),
         str(np.asarray(B_total).dtype),
     )
-    if hasattr(functional, "compute_external_B_normal_jvp_columns_functional"):
-        normal_jvp_columns = _cached_external_B_normal_jvp_columns(
-            functional,
-            jax,
-            kwargs,
-            options,
-            shapes,
-        )
-        Bnormal, columns_normal = normal_jvp_columns(
-            X,
-            B0,
-            jnp.asarray(X_tangents),
-            jnp.asarray(B0_tangents),
-        )
-        jacobian = np.transpose(np.asarray(columns_normal), (1, 2, 0))
-        return np.asarray(Bnormal), jacobian
-
-    unit_normal = surface.unitnormal()
-    dunit_normal = surface.dunitnormal_by_dcoeff()
-
-    def external_field(x, b0):
-        return functional.compute_external_B_functional(
-            x,
-            b0,
-            chunk_size=chunk_size,
-            target_chunk_size=target_chunk_size,
-            pou_dtype=pou_dtype,
-            patch_dtype=patch_dtype,
-            interp_block_size=interp_block_size,
-            remat=remat,
-            **kwargs,
-        )
-
-    if hasattr(functional, "compute_external_B_jvp_columns_functional"):
-        jvp_columns = _cached_external_B_jvp_columns(
-            functional,
-            jax,
-            kwargs,
-            options,
-            shapes,
-        )
-        Bexternal, dBexternal = jvp_columns(
-            X,
-            B0,
-            jnp.asarray(X_tangents),
-            jnp.asarray(B0_tangents),
-        )
-        Bexternal = _3d_from_soa(np.asarray(Bexternal))
-        dBexternal = np.transpose(np.asarray(dBexternal), (2, 3, 1, 0))
-        Bnormal = np.sum(Bexternal * unit_normal, axis=2)
-        jacobian = np.sum(
-            dBexternal * unit_normal[:, :, :, None]
-            + Bexternal[:, :, :, None] * dunit_normal[:, :, :, columns],
-            axis=2,
-        )
-        return Bnormal, jacobian
-
-    Bnormal = None
-    jacobian = np.zeros(gamma.shape[:2] + (ncols,))
-    for j, col in enumerate(columns):
-        dX = jnp.asarray(_soa_from_3d(dgamma[:, :, :, col]))
-        dB0 = jnp.asarray(_soa_from_3d(B_total_tangents[:, :, :, j]))
-        Bexternal, dBexternal = jax.jvp(external_field, (X, B0), (dX, dB0))
-        Bexternal = _3d_from_soa(np.asarray(Bexternal))
-        dBexternal = _3d_from_soa(np.asarray(dBexternal))
-        if Bnormal is None:
-            Bnormal = np.sum(Bexternal * unit_normal, axis=2)
-        jacobian[:, :, j] = np.sum(
-            dBexternal * unit_normal + Bexternal * dunit_normal[:, :, :, col],
-            axis=2,
-        )
-    return Bnormal, jacobian
+    normal_jvp_columns = _cached_external_B_normal_jvp_columns(
+        functional,
+        jax,
+        kwargs,
+        options,
+        shapes,
+    )
+    Bnormal, columns_normal = normal_jvp_columns(
+        X,
+        B0,
+        jnp.asarray(X_tangents),
+        jnp.asarray(B0_tangents),
+    )
+    jacobian = np.transpose(np.asarray(columns_normal), (1, 2, 0))
+    return np.asarray(Bnormal), jacobian
 
 
 def local_squared_flux_surface_gradient(
