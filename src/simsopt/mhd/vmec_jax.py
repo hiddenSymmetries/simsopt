@@ -33,8 +33,10 @@ from ..geo.surfacerzfourier import SurfaceRZFourier
 
 __all__ = [
     "VmecJax",
+    "AspectRatioJax",
     "B_cartesian_jax",
     "B_cartesian_jax_tangent_columns",
+    "VmecJaxLeastSquaresProblem",
     "make_vmec_jax_residuals_from_terms",
 ]
 
@@ -126,12 +128,175 @@ class _VmecJaxInData:
         self._indata.scalars[name.upper()] = _store_indata_value(value)
 
 
+class AspectRatioJax(Optimizable):
+    """
+    Aspect-ratio objective for VMEC-JAX workflows.
+
+    Args:
+        vmec: Optional equilibrium object. If supplied, :meth:`J` evaluates the
+            aspect ratio through the usual SIMSOPT-style zero-argument method.
+    """
+
+    def __init__(self, vmec=None):
+        self.vmec = vmec
+        super().__init__(depends_on=[] if vmec is None else [vmec])
+
+    def J(self):
+        """
+        Return the aspect ratio from the associated equilibrium.
+        """
+        if self.vmec is None:
+            raise RuntimeError("AspectRatioJax.J requires a VMEC object.")
+        return self.vmec.aspect()
+
+    def value_from_state(self, static):
+        """
+        Return a JAX-compatible aspect-ratio function of a solved VMEC state.
+        """
+        _require_vmec_jax()
+        from vmec_jax.wout import equilibrium_aspect_ratio_from_state
+
+        def aspect_from_state(state):
+            return equilibrium_aspect_ratio_from_state(state=state, static=static)
+
+        aspect_from_state._n_non_qs = 1
+        return aspect_from_state
+
+
 def _require_vmec_jax():
     if vmec_jax_mod is None:
         raise RuntimeError(
             "VmecJax requires the vmec_jax package. Install vmec_jax to use "
             "the JAX-backed VMEC wrapper."
         )
+
+
+class VmecJaxLeastSquaresProblem:
+    """
+    JAX-state least-squares objective for ``FixedBoundaryExactOptimizer``.
+
+    This class mirrors the tuple-based construction of
+    :class:`simsopt.objectives.LeastSquaresProblem`, but its functions accept a
+    solved VMEC-JAX state instead of reading zero-argument SIMSOPT objects.
+
+    Args:
+        goals: Target values.
+        weights: Least-squares weights.
+        funcs_in: JAX-compatible functions of a solved VMEC state.
+    """
+
+    def __init__(self, goals, weights, funcs_in):
+        _require_vmec_jax()
+        if np.isscalar(goals):
+            goals = [goals]
+        if np.isscalar(weights):
+            weights = [weights]
+        self.goals = tuple(goals)
+        self.weights = tuple(weights)
+        self.funcs_in = tuple(funcs_in)
+        if len(self.funcs_in) == 0:
+            raise ValueError("at least one VMEC-JAX objective term is required")
+        if not (
+            len(self.goals) == len(self.weights) == len(self.funcs_in)
+        ):
+            raise ValueError("goals, weights, and funcs_in must have the same length")
+        if np.any(np.asarray(self.weights) < 0):
+            raise ValueError("Weight cannot be negative")
+        self.residuals_from_state = self._make_residuals_from_state()
+
+    @classmethod
+    def from_tuples(cls, tuples):
+        """
+        Construct a VMEC-JAX least-squares problem from ``(func, goal, weight)``.
+        """
+        tuples = tuple(tuples)
+        if len(tuples) == 0:
+            raise ValueError("at least one VMEC-JAX objective term is required")
+        funcs_in, goals, weights = zip(*tuples)
+        return cls(goals, weights, funcs_in)
+
+    def _term_residual(self, state, func, goal, weight):
+        from vmec_jax._compat import jnp
+
+        value = jnp.ravel(jnp.asarray(func(state), dtype=jnp.float64))
+        goal = jnp.asarray(goal, dtype=jnp.float64)
+        if goal.ndim > 0:
+            goal = jnp.ravel(goal)
+        return jnp.sqrt(jnp.asarray(weight, dtype=jnp.float64)) * (value - goal)
+
+    def _make_residuals_from_state(self):
+        from vmec_jax._compat import jnp
+
+        def residuals_from_state(state):
+            parts = [
+                self._term_residual(state, func, goal, weight)
+                for func, goal, weight in zip(
+                    self.funcs_in, self.goals, self.weights
+                )
+            ]
+            return jnp.concatenate(parts)
+
+        residuals_from_state._n_non_qs = sum(
+            int(getattr(func, "_n_non_qs", 0)) for func in self.funcs_in
+        )
+        if any(hasattr(func, "_qs_total_from_state") for func in self.funcs_in):
+            residuals_from_state._qs_total_from_state = self._qs_total_from_state
+        residuals_from_state._state_cotangent_operator_from_packed = (
+            self._state_cotangent_operator_from_packed
+        )
+        return residuals_from_state
+
+    def objective_from_state(self, state):
+        """
+        Return the least-squares objective for a solved VMEC state.
+        """
+        from vmec_jax._compat import jnp
+
+        residuals = self.residuals_from_state(state)
+        return jnp.vdot(residuals, residuals)
+
+    def _qs_total_from_state(self, state):
+        total = 0.0
+        for func, weight in zip(self.funcs_in, self.weights):
+            qs_total = getattr(func, "_qs_total_from_state", None)
+            if qs_total is not None:
+                total = total + float(weight) * qs_total(state)
+        return total
+
+    def _state_cotangent_operator_from_packed(self, packed_state, layout):
+        from vmec_jax._compat import jax, jnp
+        from vmec_jax.state import unpack_state
+
+        packed_state = jnp.asarray(packed_state, dtype=jnp.float64)
+        blocks = []
+        offset = 0
+
+        for func, goal, weight in zip(self.funcs_in, self.goals, self.weights):
+            def _term_from_packed(packed, func=func, goal=goal, weight=weight):
+                state = unpack_state(packed, layout)
+                return self._term_residual(state, func, goal, weight)
+
+            term_value, term_vjp = jax.vjp(_term_from_packed, packed_state)
+            size = int(term_value.size)
+            blocks.append((slice(offset, offset + size), term_vjp))
+            offset += size
+
+        def _apply(residual_cotangent):
+            residual_cotangent = jnp.asarray(
+                residual_cotangent, dtype=jnp.float64
+            ).reshape(-1)
+            total = jnp.zeros_like(packed_state)
+            for selector, vjp_fun in blocks:
+                cot = residual_cotangent[selector]
+                total = total + jax.lax.cond(
+                    jnp.any(cot != 0.0),
+                    lambda cot_block: vjp_fun(cot_block)[0],
+                    lambda cot_block: jnp.zeros_like(packed_state),
+                    cot,
+                )
+            return total
+
+        return _apply
 
 
 def make_vmec_jax_residuals_from_terms(
@@ -146,24 +311,27 @@ def make_vmec_jax_residuals_from_terms(
     solved VMEC-JAX state and returning a residual array. The returned callable
     is suitable for ``vmec_jax.FixedBoundaryExactOptimizer``.
     """
-    _require_vmec_jax()
-    from vmec_jax._compat import jnp
-
     terms = tuple(terms)
     if len(terms) == 0:
         raise ValueError("at least one VMEC-JAX residual term is required")
-    if len(terms) == 1 and n_non_qs is None and qs_total_from_state is None:
-        return terms[0]
-
-    def residuals_from_state(state):
-        return jnp.concatenate([jnp.ravel(term(state)) for term in terms])
-
+    if len(terms) == 1:
+        residuals_from_state = terms[0]
+        if n_non_qs is not None:
+            residuals_from_state._n_non_qs = int(n_non_qs)
+        if qs_total_from_state is not None:
+            residuals_from_state._qs_total_from_state = qs_total_from_state
+        return residuals_from_state
     if n_non_qs is None:
         n_non_qs = sum(int(getattr(term, "_n_non_qs", 0)) for term in terms)
-    residuals_from_state._n_non_qs = int(n_non_qs)
+    problem = VmecJaxLeastSquaresProblem(
+        np.zeros(len(terms)),
+        np.ones(len(terms)),
+        terms,
+    )
+    problem.residuals_from_state._n_non_qs = int(n_non_qs)
     if qs_total_from_state is not None:
-        residuals_from_state._qs_total_from_state = qs_total_from_state
-    return residuals_from_state
+        problem.residuals_from_state._qs_total_from_state = qs_total_from_state
+    return problem.residuals_from_state
 
 
 def _filename_kind(filename):

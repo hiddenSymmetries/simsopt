@@ -14,10 +14,12 @@ except ImportError:
     vmec_jax = None
 
 from simsopt.mhd import (
+    AspectRatioJax,
     B_cartesian_jax,
     B_cartesian_jax_tangent_columns,
     Vmec,
     VmecJax,
+    VmecJaxLeastSquaresProblem,
     make_vmec_jax_residuals_from_terms,
 )
 from simsopt.mhd.vmec_diagnostics import B_cartesian
@@ -58,6 +60,62 @@ class VmecJaxInitializedFromWout(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "at least one VMEC-JAX"):
             make_vmec_jax_residuals_from_terms([])
+
+    def test_vmec_jax_least_squares_problem_from_tuples(self):
+        from vmec_jax._compat import jnp
+
+        def aspect_like(state):
+            return jnp.asarray(state.value, dtype=jnp.float64)
+
+        def vector_like(state):
+            return jnp.asarray([state.value, 2.0 * state.value], dtype=jnp.float64)
+
+        aspect_like._n_non_qs = 1
+        vector_like._qs_total_from_state = lambda state: jnp.sum(vector_like(state) ** 2)
+        problem = VmecJaxLeastSquaresProblem.from_tuples([
+            (aspect_like, 1.0, 4.0),
+            (vector_like, 0.0, 0.25),
+        ])
+        residuals = problem.residuals_from_state(SimpleNamespace(value=3.0))
+        np.testing.assert_allclose(np.asarray(residuals), [4.0, 1.5, 3.0])
+        self.assertEqual(
+            float(problem.objective_from_state(SimpleNamespace(value=3.0))),
+            27.25,
+        )
+        self.assertEqual(problem.residuals_from_state._n_non_qs, 1)
+        self.assertEqual(
+            float(
+                problem.residuals_from_state._qs_total_from_state(
+                    SimpleNamespace(value=2.0)
+                )
+            ),
+            5.0,
+        )
+        direct_problem = VmecJaxLeastSquaresProblem(1.0, 4.0, [aspect_like])
+        np.testing.assert_allclose(
+            np.asarray(direct_problem.residuals_from_state(SimpleNamespace(value=3.0))),
+            [4.0],
+        )
+        with self.assertRaisesRegex(ValueError, "Weight cannot be negative"):
+            VmecJaxLeastSquaresProblem.from_tuples([(aspect_like, 1.0, -1.0)])
+
+    def test_aspect_ratio_jax_value_from_state_matches_vmec(self):
+        from vmec_jax.static import build_static
+        from vmec_jax.wout import state_from_wout
+
+        filename = os.path.join(TEST_DIR, "wout_LandremanPaul2021_QA_lowres.nc")
+        vmec = VmecJax(filename, nphi=8, ntheta=8, verbose=False)
+        static = build_static(vmec_jax_module._wout_config(vmec._wout_jax, 8, 8))
+        state = state_from_wout(vmec._wout_jax)
+        aspect = AspectRatioJax(vmec)
+        np.testing.assert_allclose(
+            np.asarray(aspect.value_from_state(static)(state)),
+            vmec.aspect(),
+            rtol=1e-5,
+        )
+        self.assertEqual(aspect.J(), vmec.aspect())
+        with self.assertRaisesRegex(RuntimeError, "requires a VMEC object"):
+            AspectRatioJax().J()
 
     def test_diagnostics_match_vmec(self):
         filename = os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc")

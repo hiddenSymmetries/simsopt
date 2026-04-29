@@ -74,6 +74,39 @@ class QuasisymmetryRatioResidualJaxTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "weights must have the same length"):
             QuasisymmetryRatioResidualJax(vmec, [0.3, 0.6], weights=[1.0])
 
+    def test_residuals_from_state_matches_wrapper_result(self):
+        from vmec_jax.static import build_static
+        from vmec_jax.wout import state_from_wout
+        import simsopt.mhd.vmec_jax as vmec_jax_module
+
+        vmec = VmecJax(
+            os.path.join(TEST_DIR, "wout_LandremanPaul2021_QA_lowres.nc"),
+            nphi=8,
+            ntheta=8,
+            verbose=False,
+        )
+        _cfg, indata = vmec_jax.load_config(
+            os.path.join(TEST_DIR, "input.LandremanPaul2021_QA_lowres")
+        )
+        static = build_static(vmec_jax_module._wout_config(vmec._wout_jax, 8, 8))
+        state = state_from_wout(vmec._wout_jax)
+        qs = QuasisymmetryRatioResidualJax(
+            vmec,
+            [0.5],
+            helicity_m=1,
+            helicity_n=0,
+            ntheta=17,
+            nphi=18,
+        )
+        residuals_from_state = qs.residuals_from_state(
+            static,
+            indata,
+            signgs=getattr(vmec._wout_jax, "signgs", 1),
+        )
+        residuals = np.asarray(residuals_from_state(state))
+        self.assertEqual(residuals.shape, qs.residuals().shape)
+        self.assertTrue(np.all(np.isfinite(residuals)))
+
 
 if __name__ == "__main__":
     unittest.main()

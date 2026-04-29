@@ -51,9 +51,11 @@ with a ``Jax`` suffix:
 * :python:`B_cartesian_jax_tangent_columns` evaluates the same boundary
   field together with exact VMEC-JAX accepted-point tangent columns from
   ``vmec_jax.FixedBoundaryExactOptimizer``.
-* :python:`make_vmec_jax_residuals_from_terms` combines user-provided
-  VMEC-JAX residual callables into the residual function consumed by
-  ``vmec_jax.FixedBoundaryExactOptimizer``.
+* :python:`AspectRatioJax` exposes aspect ratio as an individual objective
+  term for VMEC-JAX exact optimization.
+* :python:`VmecJaxLeastSquaresProblem` mirrors the tuple workflow of
+  :python:`LeastSquaresProblem.from_tuples`, but the functions are
+  JAX-compatible callables of a solved VMEC state.
 * :python:`BoozerJax` mirrors :python:`Boozer` surface registration and
   computes Boozer spectra through ``booz_xform_jax``. For
   stellarator-symmetric equilibria it uses the vectorized JAX backend
@@ -61,6 +63,8 @@ with a ``Jax`` suffix:
   ``boozmn`` output fields.
 * :python:`QuasisymmetryJax` mirrors the existing Boozer-spectrum
   quasisymmetry objective.
+* :python:`BoozerQuasisymmetryResidualJax` exposes a differentiable
+  Boozer-spectrum quasisymmetry residual for VMEC-JAX exact optimization.
 * :python:`QuasisymmetryRatioResidualJax` mirrors
   :python:`QuasisymmetryRatioResidual` and delegates the VMEC-side
   quasisymmetry metric to ``vmec_jax``.
@@ -84,9 +88,12 @@ The core wrappers are available from :python:`simsopt.mhd`, for example:
         VmecJax,
         B_cartesian_jax,
         B_cartesian_jax_tangent_columns,
+        AspectRatioJax,
         BoozerJax,
+        BoozerQuasisymmetryResidualJax,
         QuasisymmetryJax,
         QuasisymmetryRatioResidualJax,
+        VmecJaxLeastSquaresProblem,
         VirtualCasingJax,
         B_external_normal_jvp_from_data,
         B_external_normal_jacobian_from_surface,
@@ -101,14 +108,15 @@ The JAX examples are direct counterparts of existing SIMSOPT examples:
 * :simsopt_file:`examples/2_Intermediate/QH_fixed_resolution_jax.py`
   follows :simsopt_file:`examples/2_Intermediate/QH_fixed_resolution.py`.
   It uses ``vmec_jax`` exact discrete-adjoint derivatives instead of
-  finite differences and exposes the exact objective through
-  ``make_stage1_residual_terms``.
+  finite differences. The objective is built from separate
+  ``AspectRatioJax`` and ``QuasisymmetryRatioResidualJax`` terms using
+  ``VmecJaxLeastSquaresProblem.from_tuples``.
 * :simsopt_file:`examples/2_Intermediate/QH_fixed_resolution_boozer_jax.py`
   follows :simsopt_file:`examples/2_Intermediate/QH_fixed_resolution_boozer.py`.
   It computes nonsymmetric normalized Boozer ``|B|`` harmonics through
   ``vmec_jax -> booz_xform_jax`` and differentiates the residual with JAX.
-  The aspect and Boozer-spectrum terms are assembled as replaceable residual
-  callables.
+  The aspect and ``BoozerQuasisymmetryResidualJax`` terms are separate
+  entries in the ``VmecJaxLeastSquaresProblem.from_tuples`` list.
 * :simsopt_file:`examples/2_Intermediate/B_external_normal_jax.py`
   follows :simsopt_file:`examples/2_Intermediate/B_external_normal.py`.
   It uses ``VirtualCasingJax`` and demonstrates saved-file compatibility.
@@ -123,9 +131,8 @@ The JAX examples are direct counterparts of existing SIMSOPT examples:
   ``vmec_jax.FixedBoundaryExactOptimizer`` rather than MPI finite
   differences, while keeping the native SIMSOPT coil objective and mixed
   Biot-Savart surface derivative. The stage-I exact objective is assembled
-  in ``make_stage1_residual_terms`` as user-editable VMEC-JAX residual
-  callables, so users can replace the default aspect-ratio/quasisymmetry
-  terms without changing the optimizer plumbing.
+  from separate aspect-ratio and quasisymmetry terms using
+  ``VmecJaxLeastSquaresProblem.from_tuples``.
 * :simsopt_file:`examples/3_Advanced/single_stage_optimization_finite_beta_jax.py`
   follows :simsopt_file:`examples/3_Advanced/single_stage_optimization_finite_beta.py`.
   It uses ``VmecJax``, ``QuasisymmetryRatioResidualJax``, and
@@ -133,9 +140,8 @@ The JAX examples are direct counterparts of existing SIMSOPT examples:
   exact stage-I derivatives and composes VMEC-JAX boundary-field tangent
   columns with the SIMSOPT
   :python:`B_external_normal_jacobian_from_surface` helper instead of a
-  whole-objective finite-difference wrapper. It uses the same
-  ``make_stage1_residual_terms`` pattern for user-defined exact VMEC
-  objective terms.
+  whole-objective finite-difference wrapper. It uses the same tuple-based
+  objective construction for user-defined exact VMEC objective terms.
   For bounded local regression runs, set ``SIMSOPT_JAX_QUICK=true`` and
   optionally override ``SIMSOPT_JAX_MAXITER_STAGE_2``,
   ``SIMSOPT_JAX_MAXITER_SINGLE_STAGE``, ``SIMSOPT_JAX_NPHI_VMEC``,

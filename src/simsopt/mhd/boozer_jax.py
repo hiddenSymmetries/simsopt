@@ -23,7 +23,7 @@ from .boozer import Quasisymmetry
 from .._core.optimizable import Optimizable
 from .._core.descriptor import Integer
 
-__all__ = ["BoozerJax", "QuasisymmetryJax"]
+__all__ = ["BoozerJax", "QuasisymmetryJax", "BoozerQuasisymmetryResidualJax"]
 
 
 class BoozerJax(Optimizable):
@@ -206,3 +206,183 @@ class QuasisymmetryJax(Quasisymmetry):
     """
     Quasisymmetry objective evaluated from a :class:`BoozerJax` spectrum.
     """
+
+
+class BoozerQuasisymmetryResidualJax(Optimizable):
+    """
+    Differentiable Boozer-spectrum quasisymmetry residual for VMEC-JAX states.
+
+    This objective is intended for ``vmec_jax.FixedBoundaryExactOptimizer``.
+    It keeps the Boozer residual modular, so it can be combined with other
+    VMEC-JAX objective terms through ``VmecJaxLeastSquaresProblem``.
+
+    Args:
+        surfaces: Normalized toroidal flux surfaces.
+        helicity_m: Desired poloidal helicity.
+        helicity_n: Desired toroidal helicity divided by ``nfp``.
+        mboz: Number of Boozer poloidal Fourier modes.
+        nboz: Number of Boozer toroidal Fourier modes.
+        normalization: Boozer-spectrum normalization, ``"B00"`` or
+            ``"symmetric"``.
+        weight: Residual weighting, matching :class:`Quasisymmetry`.
+    """
+
+    def __init__(
+        self,
+        surfaces: Union[float, Iterable[float]],
+        helicity_m: int,
+        helicity_n: int,
+        mboz: int = 8,
+        nboz: int = 8,
+        normalization: str = "B00",
+        weight: str = "even",
+    ) -> None:
+        if booz_xform_jax is None:
+            raise RuntimeError(
+                "To use a BoozerQuasisymmetryResidualJax object, the "
+                "booz_xform_jax package must be installed."
+            )
+        try:
+            self.surfaces = list(surfaces)
+        except TypeError:
+            self.surfaces = [surfaces]
+        for surface in self.surfaces:
+            if surface < 0 or surface > 1:
+                raise ValueError("surfaces must lie in the interval [0, 1]")
+        if helicity_m not in (0, 1):
+            raise ValueError("m for quasisymmetry should be 0 or 1.")
+        if normalization not in ("B00", "symmetric"):
+            raise ValueError("normalization must be 'B00' or 'symmetric'")
+        if weight not in ("even", "stellopt", "stellopt_ornl"):
+            raise ValueError("Unrecognized value for weight in Quasisymmetry")
+
+        self.helicity_m = helicity_m
+        self.helicity_n = helicity_n
+        self.mboz = mboz
+        self.nboz = nboz
+        self.normalization = normalization
+        self.weight = weight
+        super().__init__(depends_on=[])
+
+    def surface_indices(self, static):
+        """
+        Return the VMEC-JAX half-grid indices and surfaces used.
+        """
+        import vmec_jax as vmec_jax_mod
+
+        return vmec_jax_mod.surface_indices_from_static(static, self.surfaces)
+
+    def residuals_from_state(self, static, indata, signgs=None, flux=None):
+        """
+        Return a JAX-compatible residual function of a solved VMEC state.
+        """
+        from booz_xform_jax.jax_api import booz_xform_jax_impl
+        from booz_xform_jax.jax_api import prepare_booz_xform_constants_from_inputs
+        import vmec_jax as vmec_jax_mod
+        from vmec_jax._compat import jax, jnp
+
+        if signgs is None:
+            boundary = vmec_jax_mod.boundary_from_indata(indata, static.modes)
+            state0 = vmec_jax_mod.initial_guess_from_boundary(
+                static, boundary, indata, vmec_project=True
+            )
+            geom = vmec_jax_mod.eval_geom(state0, static)
+            signgs = int(
+                vmec_jax_mod.signgs_from_sqrtg(
+                    np.asarray(geom.sqrtg), axis_index=1
+                )
+            )
+        else:
+            boundary = None
+            state0 = None
+
+        if flux is None:
+            flux = vmec_jax_mod.flux_profiles_from_indata(
+                indata, static.s, signgs=signgs
+            )
+        if state0 is None:
+            boundary = vmec_jax_mod.boundary_from_indata(indata, static.modes)
+            state0 = vmec_jax_mod.initial_guess_from_boundary(
+                static, boundary, indata, vmec_project=True
+            )
+
+        initial_inputs = vmec_jax_mod.booz_xform_inputs_from_state(
+            state=state0,
+            static=static,
+            indata=indata,
+            signgs=signgs,
+            flux=flux,
+        )
+        constants, grids = prepare_booz_xform_constants_from_inputs(
+            inputs=initial_inputs,
+            mboz=self.mboz,
+            nboz=self.nboz,
+            asym=bool(static.cfg.lasym),
+        )
+        surface_indices, surfaces_used = self.surface_indices(static)
+        surface_indices = jnp.asarray(surface_indices, dtype=jnp.int32)
+        surfaces_used = jnp.asarray(surfaces_used, dtype=jnp.float64)
+
+        xm_b = np.asarray(grids.xm_b, dtype=int)
+        xn_b = np.asarray(grids.xn_b, dtype=int) / int(static.cfg.nfp)
+        if self.helicity_n == 0:
+            symmetric = xn_b == 0
+        elif self.helicity_m == 0:
+            symmetric = xm_b == 0
+        else:
+            symmetric = xm_b * self.helicity_n + xn_b * self.helicity_m == 0
+        nonsymmetric_indices = jnp.asarray(
+            np.nonzero(np.logical_not(symmetric))[0], dtype=jnp.int32
+        )
+        symmetric_indices = jnp.asarray(np.nonzero(symmetric)[0], dtype=jnp.int32)
+        booz_fn = jax.jit(booz_xform_jax_impl, static_argnames=("constants",))
+
+        def qs_residuals_from_state(state):
+            inputs = vmec_jax_mod.booz_xform_inputs_from_state(
+                state=state,
+                static=static,
+                indata=indata,
+                signgs=signgs,
+                flux=flux,
+            )
+            out = booz_fn(
+                rmnc=inputs.rmnc,
+                zmns=inputs.zmns,
+                lmns=inputs.lmns,
+                bmnc=inputs.bmnc,
+                bsubumnc=inputs.bsubumnc,
+                bsubvmnc=inputs.bsubvmnc,
+                iota=inputs.iota,
+                xm=inputs.xm,
+                xn=inputs.xn,
+                xm_nyq=inputs.xm_nyq,
+                xn_nyq=inputs.xn_nyq,
+                constants=constants,
+                grids=grids,
+                bmns=inputs.bmns,
+                bsubumns=inputs.bsubumns,
+                bsubvmns=inputs.bsubvmns,
+                surface_indices=surface_indices,
+            )
+            bmnc_b = out["bmnc_b"]
+            if self.normalization == "B00":
+                bnorm = bmnc_b[:, 0:1]
+            else:
+                symmetric_b = jnp.take(bmnc_b, symmetric_indices, axis=1)
+                bnorm = jnp.sqrt(jnp.sum(symmetric_b * symmetric_b, axis=1))
+                bnorm = bnorm[:, None]
+            bnorm = jnp.where(jnp.abs(bnorm) > 0.0, bnorm, 1.0)
+            nonsymmetric_b = jnp.take(bmnc_b / bnorm, nonsymmetric_indices, axis=1)
+            if self.weight == "stellopt":
+                nonsymmetric_b = nonsymmetric_b / (surfaces_used[:, None] ** 2)
+            elif self.weight == "stellopt_ornl":
+                nonsymmetric_b = jnp.sqrt(jnp.sum(nonsymmetric_b ** 2, axis=1))
+            return jnp.ravel(nonsymmetric_b)
+
+        def qs_total_from_state(state):
+            residuals = qs_residuals_from_state(state)
+            return jnp.sum(residuals * residuals)
+
+        qs_residuals_from_state._n_non_qs = 0
+        qs_residuals_from_state._qs_total_from_state = qs_total_from_state
+        return qs_residuals_from_state

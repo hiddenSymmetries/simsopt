@@ -11,7 +11,13 @@ try:
 except ImportError:
     booz_xform_jax = None
 
-from simsopt.mhd import BoozerJax, QuasisymmetryJax, Vmec, VmecJax
+from simsopt.mhd import (
+    BoozerJax,
+    BoozerQuasisymmetryResidualJax,
+    QuasisymmetryJax,
+    Vmec,
+    VmecJax,
+)
 
 from . import TEST_DIR
 
@@ -95,6 +101,35 @@ class BoozerJaxTests(unittest.TestCase):
         np.testing.assert_allclose(b_jax_wout.bx.bmnc_b, b_old_wout.bx.bmnc_b)
         np.testing.assert_allclose(b_jax_wout.bx.xm_b, b_old_wout.bx.xm_b)
         np.testing.assert_allclose(b_jax_wout.bx.xn_b, b_old_wout.bx.xn_b)
+
+    def test_state_residual_is_finite_and_tracks_qs_total(self):
+        import vmec_jax
+
+        cfg, indata = vmec_jax.load_config(
+            os.path.join(TEST_DIR, "input.LandremanPaul2021_QA_lowres")
+        )
+        static = vmec_jax.build_static(cfg)
+        boundary = vmec_jax.boundary_from_indata(indata, static.modes)
+        state = vmec_jax.initial_guess_from_boundary(
+            static, boundary, indata, vmec_project=True
+        )
+        qs = BoozerQuasisymmetryResidualJax(
+            surfaces=[0.5],
+            helicity_m=1,
+            helicity_n=0,
+            mboz=4,
+            nboz=4,
+        )
+        residuals_from_state = qs.residuals_from_state(static, indata)
+        residuals = np.asarray(residuals_from_state(state))
+
+        self.assertGreater(residuals.size, 0)
+        self.assertTrue(np.all(np.isfinite(residuals)))
+        self.assertEqual(residuals_from_state._n_non_qs, 0)
+        np.testing.assert_allclose(
+            float(residuals_from_state._qs_total_from_state(state)),
+            float(np.dot(residuals, residuals)),
+        )
 
 
 if __name__ == "__main__":

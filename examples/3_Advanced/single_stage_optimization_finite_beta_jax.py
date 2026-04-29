@@ -31,12 +31,13 @@ from simsopt.geo import (
     curves_to_vtk,
 )
 from simsopt.mhd import (
+    AspectRatioJax,
     B_cartesian_jax_tangent_columns,
     B_external_normal_jacobian_from_surface,
     VmecJax,
     QuasisymmetryRatioResidualJax,
     VirtualCasingJax,
-    make_vmec_jax_residuals_from_terms,
+    VmecJaxLeastSquaresProblem,
     local_squared_flux_surface_gradient,
 )
 from simsopt.objectives import QuadraticPenalty, SquaredFlux
@@ -216,36 +217,6 @@ def _vmec_jax_spec_label_from_simsopt_dof(name):
     return f"{coeff}{int(m_str)}{int(n_str)}"
 
 
-def make_stage1_residual_terms(static, indata):
-    """
-    Construct the VMEC residual terms for the exact stage-I objective.
-
-    Users can add or replace entries here with any JAX-compatible callable
-    ``term(state) -> residual_vector``. The default keeps the optimized
-    vmec_jax quasisymmetry factory, so the exact adjoint path is unchanged.
-    """
-    return [
-        vj.make_qs_residuals_fn(
-            static,
-            indata,
-            helicity_m=1,
-            helicity_n=-1,
-            target_aspect=aspect_ratio_target,
-            surfaces=quasisymmetry_target_surfaces,
-            aspect_weight=np.sqrt(aspect_ratio_weight),
-        )
-    ]
-
-
-def make_stage1_residuals_fn(static, indata):
-    """
-    Return the callable consumed by ``FixedBoundaryExactOptimizer``.
-    """
-    return make_vmec_jax_residuals_from_terms(
-        make_stage1_residual_terms(static, indata)
-    )
-
-
 def _build_exact_stage1_and_target_objectives():
     cfg, indata = vj.load_config(vmec_input_filename)
     static = vj.build_static(cfg)
@@ -258,13 +229,26 @@ def _build_exact_stage1_and_target_objectives():
         include=("rc", "zs"),
         fix=("rc00",),
     )
-    residuals_fn = make_stage1_residuals_fn(static, indata)
+    aspect = AspectRatioJax(vmec)
+    quasisymmetry = QuasisymmetryRatioResidualJax(
+        vmec,
+        quasisymmetry_target_surfaces,
+        helicity_m=1,
+        helicity_n=-1,
+    )
+    # This is the JAX-state analog of LeastSquaresProblem.from_tuples.
+    # Each tuple is (objective function, target, weight).
+    objective_tuple = [
+        (aspect.value_from_state(static), aspect_ratio_target, aspect_ratio_weight),
+        (quasisymmetry.residuals_from_state(static, indata), 0.0, 1.0),
+    ]
+    stage1_objective = VmecJaxLeastSquaresProblem.from_tuples(objective_tuple)
     exact_opt = vj.FixedBoundaryExactOptimizer(
         static,
         indata,
         boundary,
         specs,
-        residuals_fn,
+        stage1_objective.residuals_from_state,
         inner_max_iter=vmec_jax_inner_max_iter,
         inner_ftol=vmec_jax_inner_ftol,
     )

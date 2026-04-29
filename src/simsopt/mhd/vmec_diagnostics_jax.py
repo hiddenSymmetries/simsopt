@@ -37,6 +37,8 @@ class QuasisymmetryRatioResidualJax(Optimizable):
 
     Args:
         vmec: Equilibrium object with a ``run()`` method and ``wout`` data.
+          May be ``None`` when the object is used only to build a VMEC-JAX
+          state function for exact optimization.
         surfaces: Flux surfaces on which the residual is evaluated.
         helicity_m: Desired poloidal helicity.
         helicity_n: Desired toroidal helicity divided by ``nfp``.
@@ -47,8 +49,8 @@ class QuasisymmetryRatioResidualJax(Optimizable):
 
     def __init__(
         self,
-        vmec,
-        surfaces: Union[float, RealArray],
+        vmec=None,
+        surfaces: Union[float, RealArray] = None,
         helicity_m: int = 1,
         helicity_n: int = 0,
         weights: Optional[RealArray] = None,
@@ -65,6 +67,8 @@ class QuasisymmetryRatioResidualJax(Optimizable):
         self.nphi = nphi
         self.helicity_m = helicity_m
         self.helicity_n = helicity_n
+        if surfaces is None:
+            raise TypeError("surfaces must be supplied")
 
         try:
             self.surfaces = list(surfaces)
@@ -77,12 +81,17 @@ class QuasisymmetryRatioResidualJax(Optimizable):
             self.weights = weights
         if len(self.weights) != len(self.surfaces):
             raise ValueError("weights must have the same length as surfaces")
-        super().__init__(depends_on=[vmec])
+        super().__init__(depends_on=[] if vmec is None else [vmec])
 
     def compute_jax(self):
         """
         Return the raw ``vmec_jax`` result dictionary.
         """
+        if self.vmec is None:
+            raise RuntimeError(
+                "compute_jax requires a VMEC object. Use residuals_from_state "
+                "for VMEC-JAX exact optimization."
+            )
         self.vmec.run()
         return vmec_jax_mod.quasisymmetry_ratio_residual_from_wout(
             self.vmec.wout,
@@ -126,3 +135,56 @@ class QuasisymmetryRatioResidualJax(Optimizable):
         Return the scalar quasisymmetry metric.
         """
         return self.compute().total
+
+    def residuals_from_state(self, static, indata, signgs=None):
+        """
+        Return a JAX-compatible residual function of a solved VMEC state.
+        """
+        if signgs is None:
+            try:
+                boundary = vmec_jax_mod.boundary_from_indata(indata, static.modes)
+                state0 = vmec_jax_mod.initial_guess_from_boundary(
+                    static, boundary, indata
+                )
+                geom = vmec_jax_mod.eval_geom(state0, static)
+                signgs = int(
+                    vmec_jax_mod.signgs_from_sqrtg(
+                        np.asarray(geom.sqrtg), axis_index=1
+                    )
+                )
+            except Exception:
+                signgs = 1
+
+        def qs_residuals_from_state(state):
+            data = vmec_jax_mod.quasisymmetry_ratio_residual_from_state(
+                state=state,
+                static=static,
+                indata=indata,
+                signgs=int(signgs),
+                surfaces=self.surfaces,
+                helicity_m=self.helicity_m,
+                helicity_n=self.helicity_n,
+                weights=self.weights,
+                ntheta=self.ntheta,
+                nphi=self.nphi,
+            )
+            return data["residuals1d"]
+
+        def qs_total_from_state(state):
+            data = vmec_jax_mod.quasisymmetry_ratio_residual_from_state(
+                state=state,
+                static=static,
+                indata=indata,
+                signgs=int(signgs),
+                surfaces=self.surfaces,
+                helicity_m=self.helicity_m,
+                helicity_n=self.helicity_n,
+                weights=self.weights,
+                ntheta=self.ntheta,
+                nphi=self.nphi,
+            )
+            return data["total"]
+
+        qs_residuals_from_state._n_non_qs = 0
+        qs_residuals_from_state._qs_total_from_state = qs_total_from_state
+        return qs_residuals_from_state
