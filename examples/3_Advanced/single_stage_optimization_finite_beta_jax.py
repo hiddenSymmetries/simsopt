@@ -64,8 +64,27 @@ comm_world = mpi.comm_world
 parent_path = str(Path(__file__).parent.resolve())
 os.chdir(parent_path)
 
-MAXITER_stage_2 = 1 if in_github_actions else 10
-MAXITER_single_stage = 1 if in_github_actions else 10
+
+def _env_flag(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.lower() in ["1", "true", "yes", "on"]
+
+
+def _env_int(name, default):
+    value = os.environ.get(name)
+    return default if value is None else int(value)
+
+
+def _env_float(name, default):
+    value = os.environ.get(name)
+    return default if value is None else float(value)
+
+
+quick_run = in_github_actions or _env_flag("SIMSOPT_JAX_QUICK")
+MAXITER_stage_2 = _env_int("SIMSOPT_JAX_MAXITER_STAGE_2", 1 if quick_run else 10)
+MAXITER_single_stage = _env_int("SIMSOPT_JAX_MAXITER_SINGLE_STAGE", 1 if quick_run else 10)
 max_mode = 1
 vmec_input_filename = os.path.join(parent_path, 'inputs', 'input.QH_finitebeta')
 ncoils = 3
@@ -74,19 +93,23 @@ CC_THRESHOLD = 0.08
 LENGTH_THRESHOLD = 3.3
 CURVATURE_THRESHOLD = 7
 MSC_THRESHOLD = 10
-nphi_VMEC = 12 if in_github_actions else 34
-ntheta_VMEC = 12 if in_github_actions else 34
-vc_src_nphi = ntheta_VMEC
+nphi_VMEC = _env_int("SIMSOPT_JAX_NPHI_VMEC", 12 if quick_run else 34)
+ntheta_VMEC = _env_int("SIMSOPT_JAX_NTHETA_VMEC", 12 if quick_run else 34)
+vc_src_nphi = _env_int("SIMSOPT_JAX_VC_SRC_NPHI", ntheta_VMEC)
 nmodes_coils = 7
-coil_numquadpoints = 64 if in_github_actions else 128
-vmec_jax_inner_max_iter = 3 if in_github_actions else None
-vmec_jax_inner_ftol = 1e-6 if in_github_actions else None
+coil_numquadpoints = _env_int("SIMSOPT_JAX_COIL_NUMQUADPOINTS", 64 if quick_run else 128)
+vmec_jax_inner_max_iter = os.environ.get("SIMSOPT_JAX_INNER_MAX_ITER")
+vmec_jax_inner_max_iter = 3 if quick_run and vmec_jax_inner_max_iter is None else vmec_jax_inner_max_iter
+vmec_jax_inner_max_iter = None if vmec_jax_inner_max_iter is None else int(vmec_jax_inner_max_iter)
+vmec_jax_inner_ftol = os.environ.get("SIMSOPT_JAX_INNER_FTOL")
+vmec_jax_inner_ftol = 1e-6 if quick_run and vmec_jax_inner_ftol is None else vmec_jax_inner_ftol
+vmec_jax_inner_ftol = None if vmec_jax_inner_ftol is None else float(vmec_jax_inner_ftol)
 coils_objective_weight = 1e+3
 aspect_ratio_weight = 1
 R0 = 1.0
 R1 = 0.6
 quasisymmetry_target_surfaces = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
-JACOBIAN_THRESHOLD = 1e6 if in_github_actions else 100
+JACOBIAN_THRESHOLD = _env_float("SIMSOPT_JAX_JACOBIAN_THRESHOLD", 1e6 if quick_run else 100)
 LENGTH_CON_WEIGHT = 0.1
 LENGTH_WEIGHT = 1e-8
 CC_WEIGHT = 1e+0
@@ -94,7 +117,7 @@ CURVATURE_WEIGHT = 1e-3
 MSC_WEIGHT = 1e-3
 ARCLENGTH_WEIGHT = 1e-9
 
-directory = 'optimization_QH_finitebeta_jax'
+directory = os.environ.get("SIMSOPT_JAX_OUTPUT_DIR", 'optimization_QH_finitebeta_jax')
 vmec_verbose = False
 this_path = os.path.join(parent_path, directory)
 os.makedirs(this_path, exist_ok=True)

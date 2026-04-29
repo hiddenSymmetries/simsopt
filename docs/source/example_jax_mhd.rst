@@ -126,6 +126,10 @@ The JAX examples are direct counterparts of existing SIMSOPT examples:
   columns with the SIMSOPT
   :python:`B_external_normal_jacobian_from_surface` helper instead of a
   whole-objective finite-difference wrapper.
+  For bounded local regression runs, set ``SIMSOPT_JAX_QUICK=true`` and
+  optionally override ``SIMSOPT_JAX_MAXITER_STAGE_2``,
+  ``SIMSOPT_JAX_MAXITER_SINGLE_STAGE``, ``SIMSOPT_JAX_NPHI_VMEC``,
+  ``SIMSOPT_JAX_NTHETA_VMEC``, or ``SIMSOPT_JAX_OUTPUT_DIR``.
 
 Validation plots
 ----------------
