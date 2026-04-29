@@ -33,7 +33,7 @@ The finite-beta virtual-casing examples and tests also require
 
 .. code-block:: bash
 
-    pip install git+https://github.com/uwplasma/virtual_casing_jax
+    pip install virtual-casing-jax
 
 Implemented interfaces
 ----------------------
@@ -315,10 +315,11 @@ Run the focused tests with:
         tests/mhd/test_virtual_casing_jax.py -q
 
 At the time this page was updated, the focused suite plus example
-compilation tests passed with ``27 passed``, six example subtests, and
-one upstream JAX deprecation warning. Public CI installs ``vmec_jax``,
-``booz_xform_jax``, and ``virtual_casing_jax`` directly from the upstream
-GitHub repositories, so the virtual-casing JAX tests run in public CI.
+compilation tests passed with ``44 passed``, six example subtests, and
+one upstream JAX deprecation warning. Public CI installs ``vmec_jax`` and
+``booz_xform_jax`` directly from the upstream GitHub repositories and
+installs ``virtual-casing-jax`` from PyPI, so the virtual-casing JAX tests
+run in public CI from a released package.
 
 The legacy VMEC2000 comparison is opt-in because it requires local legacy
 ``vmec`` and ``virtual_casing`` Python extensions. In an environment with
