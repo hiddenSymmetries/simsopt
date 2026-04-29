@@ -1,11 +1,20 @@
 import os
 import py_compile
+import shutil
+import subprocess
+import sys
+import time
 import unittest
 
 try:
     import vmec_jax
 except ImportError:
     vmec_jax = None
+
+try:
+    import virtual_casing_jax
+except ImportError:
+    virtual_casing_jax = None
 
 try:
     from simsopt.mhd import VmecJax
@@ -30,6 +39,50 @@ class JaxExamplesTests(unittest.TestCase):
         for example in EXAMPLES:
             with self.subTest(example=example):
                 py_compile.compile(os.path.join(ROOT, example), doraise=True)
+
+    @unittest.skipIf(
+        vmec_jax is None or virtual_casing_jax is None,
+        "vmec_jax or virtual_casing_jax not found",
+    )
+    def test_single_stage_finite_beta_jax_ci_smoke(self):
+        example = os.path.join(
+            ROOT,
+            "examples",
+            "3_Advanced",
+            "single_stage_optimization_finite_beta_jax.py",
+        )
+        output_dir = os.path.join(
+            ROOT,
+            "examples",
+            "3_Advanced",
+            "optimization_QH_finitebeta_jax",
+        )
+        shutil.rmtree(output_dir, ignore_errors=True)
+        env = os.environ.copy()
+        env["CI"] = "true"
+        env["MPLBACKEND"] = "Agg"
+        start = time.perf_counter()
+        try:
+            result = subprocess.run(
+                [sys.executable, example],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+        finally:
+            shutil.rmtree(output_dir, ignore_errors=True)
+        elapsed = time.perf_counter() - start
+        if result.returncode != 0:
+            self.fail(
+                "single_stage_optimization_finite_beta_jax.py failed\n"
+                f"stdout:\n{result.stdout}\n"
+                f"stderr:\n{result.stderr}"
+            )
+        self.assertIn("CI single-stage check:", result.stdout)
+        self.assertNotIn("Exception caught", result.stdout)
+        self.assertLess(elapsed, 60.0)
 
     @unittest.skipIf(vmec_jax is None or VmecJax is None, "vmec_jax not found")
     def test_single_stage_exact_specs_match_surface_dofs(self):

@@ -179,9 +179,16 @@ this reduced case, while preserving agreement at the ``1e-12`` level in the
 JVP columns. Routing SIMSOPT through the upstream scalar normal-field
 JVP-column helper reduces the same public helper to about ``3.6`` seconds and
 keeps the target Jacobian within ``3e-13`` of the previous projected-vector
-path. The virtual-casing target-Jacobian assembly remains the dominant
-component, but the remaining cost is now concentrated in the geometry-tangent
-singular correction rather than VMEC-JAX boundary-field replay.
+path. After merging the upstream JAX APIs and removing the SIMSOPT fallback
+assembly, the same reduced profile is essentially unchanged: the warm
+post-merge medians are about ``0.48`` seconds for VMEC-JAX boundary-field
+tangent columns, ``3.72`` seconds for the virtual-casing target Jacobian,
+``0.80`` seconds for the stage-I exact objective and gradient, and
+sub-millisecond for the local flux surface-gradient contraction. The
+virtual-casing target-Jacobian assembly remains the dominant component, but
+the remaining cost is now concentrated in the geometry-tangent singular
+correction rather than VMEC-JAX boundary-field replay or SIMSOPT compatibility
+code.
 
 Testing
 -------
