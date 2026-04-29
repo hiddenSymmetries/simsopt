@@ -13,7 +13,13 @@ try:
 except ImportError:
     vmec_jax = None
 
-from simsopt.mhd import B_cartesian_jax, B_cartesian_jax_tangent_columns, Vmec, VmecJax
+from simsopt.mhd import (
+    B_cartesian_jax,
+    B_cartesian_jax_tangent_columns,
+    Vmec,
+    VmecJax,
+    make_vmec_jax_residuals_from_terms,
+)
 from simsopt.mhd.vmec_diagnostics import B_cartesian
 from simsopt.mhd.profiles import ProfilePolynomial, ProfileSpline
 from simsopt.geo.surface import Surface
@@ -25,6 +31,34 @@ from . import TEST_DIR
 
 @unittest.skipIf(vmec_jax is None, "vmec_jax not found")
 class VmecJaxInitializedFromWout(unittest.TestCase):
+    def test_make_vmec_jax_residuals_from_terms(self):
+        from vmec_jax._compat import jnp
+
+        def term1(state):
+            return jnp.asarray([state.value], dtype=jnp.float64)
+
+        def term2(state):
+            return jnp.asarray([[2.0 * state.value]], dtype=jnp.float64)
+
+        self.assertIs(make_vmec_jax_residuals_from_terms([term1]), term1)
+
+        residuals = make_vmec_jax_residuals_from_terms(
+            [term1, term2],
+            n_non_qs=1,
+            qs_total_from_state=lambda state: state.value,
+        )
+        np.testing.assert_allclose(
+            np.asarray(residuals(SimpleNamespace(value=3.0))),
+            [3.0, 6.0],
+        )
+        self.assertEqual(residuals._n_non_qs, 1)
+        self.assertEqual(
+            residuals._qs_total_from_state(SimpleNamespace(value=4.0)),
+            4.0,
+        )
+        with self.assertRaisesRegex(ValueError, "at least one VMEC-JAX"):
+            make_vmec_jax_residuals_from_terms([])
+
     def test_diagnostics_match_vmec(self):
         filename = os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc")
         vmec = Vmec(filename)

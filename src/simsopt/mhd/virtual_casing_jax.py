@@ -8,6 +8,7 @@ This module provides a Simsopt wrapper for virtual_casing_jax.
 
 import logging
 import os
+from collections import OrderedDict
 
 import numpy as np
 
@@ -38,10 +39,34 @@ __all__ = [
     "B_external_normal_from_data",
     "B_external_normal_jvp_from_data",
     "B_external_normal_jacobian_from_surface",
+    "clear_virtual_casing_jax_cache",
     "local_squared_flux_surface_gradient",
 ]
 
-_B_EXTERNAL_JVP_COLUMNS_CACHE = {}
+_B_EXTERNAL_JVP_COLUMNS_CACHE = OrderedDict()
+_B_EXTERNAL_JVP_COLUMNS_CACHE_DEFAULT_MAXSIZE = 16
+
+
+def _cache_maxsize():
+    try:
+        return max(
+            0,
+            int(
+                os.environ.get(
+                    "SIMSOPT_VIRTUAL_CASING_JAX_CACHE_SIZE",
+                    _B_EXTERNAL_JVP_COLUMNS_CACHE_DEFAULT_MAXSIZE,
+                )
+            ),
+        )
+    except ValueError:
+        return _B_EXTERNAL_JVP_COLUMNS_CACHE_DEFAULT_MAXSIZE
+
+
+def clear_virtual_casing_jax_cache():
+    """
+    Clear cached compiled virtual-casing-JAX tangent helpers.
+    """
+    _B_EXTERNAL_JVP_COLUMNS_CACHE.clear()
 
 
 def _soa_from_3d(arr3d):
@@ -202,6 +227,7 @@ def _cached_external_B_columns(functional, jax, kwargs, options, shapes, functio
     )
     fn = _B_EXTERNAL_JVP_COLUMNS_CACHE.get(key)
     if fn is not None:
+        _B_EXTERNAL_JVP_COLUMNS_CACHE.move_to_end(key)
         return fn
 
     def _impl(x, b0, x_tangents, b0_tangents):
@@ -220,7 +246,13 @@ def _cached_external_B_columns(functional, jax, kwargs, options, shapes, functio
         )
 
     fn = jax.jit(_impl)
+    maxsize = _cache_maxsize()
+    if maxsize <= 0:
+        return fn
     _B_EXTERNAL_JVP_COLUMNS_CACHE[key] = fn
+    _B_EXTERNAL_JVP_COLUMNS_CACHE.move_to_end(key)
+    while len(_B_EXTERNAL_JVP_COLUMNS_CACHE) > maxsize:
+        _B_EXTERNAL_JVP_COLUMNS_CACHE.popitem(last=False)
     return fn
 
 

@@ -113,8 +113,8 @@ jobs:
 
     - name: Install public JAX MHD packages
       run: |
-        pip install -v git+https://github.com/uwplasma/vmec_jax
-        pip install -v git+https://github.com/uwplasma/booz_xform_jax
+        pip install -v git+https://github.com/uwplasma/vmec_jax@e236ba559961daf3b788f00b2443d0fa8cb6ec87
+        pip install -v git+https://github.com/uwplasma/booz_xform_jax@809443cad9efc02cd354188aefd1735bc1b4bb4c
         pip install -v "virtual-casing-jax>=0.0.2"
 
     # 2025-11-28: Temporarily disabling SPEC due to github issue #561

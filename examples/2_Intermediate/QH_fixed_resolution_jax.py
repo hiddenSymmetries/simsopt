@@ -6,6 +6,8 @@ import numpy as np
 import vmec_jax as vj
 from vmec_jax._compat import enable_x64
 
+from simsopt.mhd import make_vmec_jax_residuals_from_terms
+
 """
 Optimize a VMEC-JAX equilibrium for quasi-helical symmetry (M=1, N=-1)
 throughout the volume.
@@ -45,15 +47,35 @@ params0 = np.zeros(len(specs))
 
 print("Parameter space:", vj.boundary_param_names(specs))
 
-# Configure quasisymmetry objective:
-residuals_fn = vj.make_qh_residuals_fn(
-    static,
-    indata,
-    helicity_m=helicity_m,
-    helicity_n=helicity_n,
-    target_aspect=target_aspect,
-    surfaces=surfaces,
-)
+
+def make_stage1_residual_terms():
+    """
+    Construct the VMEC residual terms for the exact objective.
+
+    Users can add or replace entries here with any JAX-compatible callable
+    ``term(state) -> residual_vector``. The default keeps the optimized
+    vmec_jax quasisymmetry factory, so the exact adjoint path is unchanged.
+    """
+    return [
+        vj.make_qs_residuals_fn(
+            static,
+            indata,
+            helicity_m=helicity_m,
+            helicity_n=helicity_n,
+            target_aspect=target_aspect,
+            surfaces=surfaces,
+        )
+    ]
+
+
+def make_stage1_residuals_fn():
+    """
+    Return the callable consumed by ``FixedBoundaryExactOptimizer``.
+    """
+    return make_vmec_jax_residuals_from_terms(make_stage1_residual_terms())
+
+
+residuals_fn = make_stage1_residuals_fn()
 
 opt = vj.FixedBoundaryExactOptimizer(
     static,

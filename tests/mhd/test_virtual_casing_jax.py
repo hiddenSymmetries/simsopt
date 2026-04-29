@@ -29,6 +29,7 @@ from simsopt.mhd import (
     VirtualCasingJax,
     Vmec,
     VmecJax,
+    clear_virtual_casing_jax_cache,
     local_squared_flux_surface_gradient,
 )
 from simsopt.geo import SurfaceRZFourier
@@ -584,6 +585,66 @@ class VirtualCasingJaxTests(unittest.TestCase):
                 target,
                 np.zeros(target.shape + (1,)),
             )
+
+    def test_jvp_column_cache_is_bounded_and_clearable(self):
+        class DummyJax:
+            def jit(self, fn):
+                return fn
+
+        options = {
+            "chunk_size": "auto",
+            "target_chunk_size": "auto",
+            "pou_dtype": None,
+            "patch_dtype": None,
+            "interp_block_size": "auto",
+            "remat": None,
+        }
+        kwargs = {
+            "digits": 4,
+            "nfp": 1,
+            "half_period": False,
+            "surf_nt": 5,
+            "surf_np": 4,
+            "src_nt": 5,
+            "src_np": 4,
+            "trg_nt": 5,
+            "trg_np": 4,
+            "quad_nt": 5,
+            "quad_np": 4,
+            "patch_dim0": 1,
+            "orient": 1.0,
+        }
+        old_cache_size = os.environ.get("SIMSOPT_VIRTUAL_CASING_JAX_CACHE_SIZE")
+        try:
+            os.environ["SIMSOPT_VIRTUAL_CASING_JAX_CACHE_SIZE"] = "2"
+            clear_virtual_casing_jax_cache()
+            for digits in range(4, 7):
+                call_kwargs = dict(kwargs)
+                call_kwargs["digits"] = digits
+                virtual_casing_jax_module._cached_external_B_columns(
+                    SimpleNamespace(),
+                    DummyJax(),
+                    call_kwargs,
+                    options,
+                    ((3, 5, 4),),
+                    "unused_function",
+                )
+            self.assertLessEqual(
+                len(virtual_casing_jax_module._B_EXTERNAL_JVP_COLUMNS_CACHE),
+                2,
+            )
+
+            clear_virtual_casing_jax_cache()
+            self.assertEqual(
+                len(virtual_casing_jax_module._B_EXTERNAL_JVP_COLUMNS_CACHE),
+                0,
+            )
+        finally:
+            if old_cache_size is None:
+                os.environ.pop("SIMSOPT_VIRTUAL_CASING_JAX_CACHE_SIZE", None)
+            else:
+                os.environ["SIMSOPT_VIRTUAL_CASING_JAX_CACHE_SIZE"] = old_cache_size
+            clear_virtual_casing_jax_cache()
 
     def test_from_vmec_defaults_auto_filename_and_error_paths(self):
         filename = os.path.join(TEST_DIR, "wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc")

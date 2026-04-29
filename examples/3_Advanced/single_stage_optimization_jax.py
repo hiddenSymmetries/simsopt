@@ -29,7 +29,11 @@ from simsopt.geo import (
     create_equally_spaced_curves,
     curves_to_vtk,
 )
-from simsopt.mhd import VmecJax, QuasisymmetryRatioResidualJax
+from simsopt.mhd import (
+    VmecJax,
+    QuasisymmetryRatioResidualJax,
+    make_vmec_jax_residuals_from_terms,
+)
 from simsopt.objectives import QuadraticPenalty, SquaredFlux
 from simsopt.util import MpiPartition, comm_world, proc0_print
 
@@ -134,6 +138,36 @@ def _vmec_jax_spec_label_from_simsopt_dof(name):
     return f"{coeff}{int(m_str)}{int(n_str)}"
 
 
+def make_stage1_residual_terms(static, indata):
+    """
+    Construct the VMEC residual terms for the exact stage-I objective.
+
+    Users can add or replace entries here with any JAX-compatible callable
+    ``term(state) -> residual_vector``. The default keeps the optimized
+    vmec_jax quasisymmetry factory, so the exact adjoint path is unchanged.
+    """
+    return [
+        vj.make_qs_residuals_fn(
+            static,
+            indata,
+            helicity_m=1,
+            helicity_n=-1,
+            target_aspect=aspect_ratio_target,
+            surfaces=quasisymmetry_target_surfaces,
+            aspect_weight=np.sqrt(aspect_ratio_weight),
+        )
+    ]
+
+
+def make_stage1_residuals_fn(static, indata):
+    """
+    Return the callable consumed by ``FixedBoundaryExactOptimizer``.
+    """
+    return make_vmec_jax_residuals_from_terms(
+        make_stage1_residual_terms(static, indata)
+    )
+
+
 def _build_exact_stage1_objective():
     cfg, indata = vj.load_config(vmec_input_filename)
     static = vj.build_static(cfg)
@@ -146,15 +180,7 @@ def _build_exact_stage1_objective():
         include=("rc", "zs"),
         fix=("rc00",),
     )
-    residuals_fn = vj.make_qh_residuals_fn(
-        static,
-        indata,
-        helicity_m=1,
-        helicity_n=-1,
-        target_aspect=aspect_ratio_target,
-        surfaces=quasisymmetry_target_surfaces,
-        aspect_weight=np.sqrt(aspect_ratio_weight),
-    )
+    residuals_fn = make_stage1_residuals_fn(static, indata)
     exact_opt = vj.FixedBoundaryExactOptimizer(
         static,
         indata,

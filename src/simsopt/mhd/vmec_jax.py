@@ -31,7 +31,12 @@ from .._core.util import Struct, ObjectiveFailure
 from ..geo.surface import Surface
 from ..geo.surfacerzfourier import SurfaceRZFourier
 
-__all__ = ["VmecJax", "B_cartesian_jax", "B_cartesian_jax_tangent_columns"]
+__all__ = [
+    "VmecJax",
+    "B_cartesian_jax",
+    "B_cartesian_jax_tangent_columns",
+    "make_vmec_jax_residuals_from_terms",
+]
 
 
 _INDATA_DEFAULTS = {
@@ -127,6 +132,38 @@ def _require_vmec_jax():
             "VmecJax requires the vmec_jax package. Install vmec_jax to use "
             "the JAX-backed VMEC wrapper."
         )
+
+
+def make_vmec_jax_residuals_from_terms(
+    terms,
+    n_non_qs=None,
+    qs_total_from_state=None,
+):
+    """
+    Combine VMEC-JAX residual terms into a single residual function.
+
+    Each entry in ``terms`` must be a JAX-compatible callable accepting a
+    solved VMEC-JAX state and returning a residual array. The returned callable
+    is suitable for ``vmec_jax.FixedBoundaryExactOptimizer``.
+    """
+    _require_vmec_jax()
+    from vmec_jax._compat import jnp
+
+    terms = tuple(terms)
+    if len(terms) == 0:
+        raise ValueError("at least one VMEC-JAX residual term is required")
+    if len(terms) == 1 and n_non_qs is None and qs_total_from_state is None:
+        return terms[0]
+
+    def residuals_from_state(state):
+        return jnp.concatenate([jnp.ravel(term(state)) for term in terms])
+
+    if n_non_qs is None:
+        n_non_qs = sum(int(getattr(term, "_n_non_qs", 0)) for term in terms)
+    residuals_from_state._n_non_qs = int(n_non_qs)
+    if qs_total_from_state is not None:
+        residuals_from_state._qs_total_from_state = qs_total_from_state
+    return residuals_from_state
 
 
 def _filename_kind(filename):

@@ -69,6 +69,11 @@ class QuasisymmetryRatioResidualJaxTests(unittest.TestCase):
             / results.sqrtg,
         )
 
+    def test_weights_must_match_surfaces(self):
+        vmec = VmecJax(os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc"))
+        with self.assertRaisesRegex(ValueError, "weights must have the same length"):
+            QuasisymmetryRatioResidualJax(vmec, [0.3, 0.6], weights=[1.0])
+
 
 if __name__ == "__main__":
     unittest.main()

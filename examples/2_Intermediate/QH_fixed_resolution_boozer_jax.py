@@ -12,6 +12,8 @@ from vmec_jax.geom import eval_geom
 from vmec_jax.init_guess import initial_guess_from_boundary
 from vmec_jax.wout import equilibrium_aspect_ratio_from_state
 
+from simsopt.mhd import make_vmec_jax_residuals_from_terms
+
 """
 Optimize for quasi-helical symmetry (M=1, N=1) at a given radius.
 
@@ -111,16 +113,37 @@ def _qs_residuals_from_state(state):
     return jnp.take(bmnc_b / b00, nonsymmetric_indices)
 
 
-def residuals_from_state(state):
+def _aspect_residuals_from_state(state):
     aspect = equilibrium_aspect_ratio_from_state(state=state, static=static)
-    aspect_residual = jnp.asarray([aspect - target_aspect], dtype=jnp.float64)
-    return jnp.concatenate([aspect_residual, _qs_residuals_from_state(state)])
+    return jnp.asarray([aspect - target_aspect], dtype=jnp.float64)
 
 
-residuals_from_state._n_non_qs = 1
-residuals_from_state._qs_total_from_state = (
-    lambda state: jnp.sum(_qs_residuals_from_state(state) ** 2)
-)
+def make_stage1_residual_terms():
+    """
+    Construct the VMEC/Boozer residual terms for the exact objective.
+
+    Users can add or replace entries here with any JAX-compatible callable
+    ``term(state) -> residual_vector``. The default includes aspect ratio and
+    nonsymmetric Boozer-spectrum terms.
+    """
+    return [_aspect_residuals_from_state, _qs_residuals_from_state]
+
+
+def make_stage1_residuals_fn():
+    """
+    Return the callable consumed by ``FixedBoundaryExactOptimizer``.
+    """
+    terms = make_stage1_residual_terms()
+    return make_vmec_jax_residuals_from_terms(
+        terms,
+        n_non_qs=1,
+        qs_total_from_state=lambda state: jnp.sum(
+            _qs_residuals_from_state(state) ** 2
+        ),
+    )
+
+
+residuals_from_state = make_stage1_residuals_fn()
 
 opt = vj.FixedBoundaryExactOptimizer(
     static,

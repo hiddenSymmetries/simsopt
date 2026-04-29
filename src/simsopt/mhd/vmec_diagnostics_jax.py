@@ -75,7 +75,8 @@ class QuasisymmetryRatioResidualJax(Optimizable):
             self.weights = np.ones(len(self.surfaces))
         else:
             self.weights = weights
-        assert len(self.weights) == len(self.surfaces)
+        if len(self.weights) != len(self.surfaces):
+            raise ValueError("weights must have the same length as surfaces")
         super().__init__(depends_on=[vmec])
 
     def compute_jax(self):
