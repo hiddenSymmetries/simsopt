@@ -114,6 +114,13 @@ R0 = 1.0
 R1 = 0.6
 quasisymmetry_target_surfaces = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
 JACOBIAN_THRESHOLD = _env_float("SIMSOPT_JAX_JACOBIAN_THRESHOLD", 1e6 if quick_run else 100)
+BFGS_MAX_SURFACE_STEP = _env_float("SIMSOPT_JAX_BFGS_MAX_SURFACE_STEP", 0.05 if quick_run else 0.1)
+BFGS_MAX_COIL_STEP = _env_float("SIMSOPT_JAX_BFGS_MAX_COIL_STEP", 1.0 if quick_run else 2.0)
+BFGS_GUARD_WEIGHT = _env_float("SIMSOPT_JAX_BFGS_GUARD_WEIGHT", JACOBIAN_THRESHOLD)
+BFGS_INITIAL_INVERSE_HESSIAN_SCALE = _env_float(
+    "SIMSOPT_JAX_BFGS_INITIAL_INVERSE_HESSIAN_SCALE",
+    1e-4 if quick_run else 1e-3,
+)
 LENGTH_CON_WEIGHT = 0.1
 LENGTH_WEIGHT = 1e-8
 CC_WEIGHT = 1e+0
@@ -134,6 +141,7 @@ if comm_world.rank == 0:
 
 stage2_history = []
 single_stage_history = []
+single_stage_reference_dofs = None
 
 proc0_print(f' Using vmec input file {vmec_input_filename}')
 enable_x64(True)
@@ -281,6 +289,21 @@ def _build_exact_stage1_and_target_objectives():
 
 def fun(dofss, stage1_objective_and_gradient, target_and_jacobian, info={'Nfeval': 0}):
     info['Nfeval'] += 1
+    if single_stage_reference_dofs is not None:
+        guard = _single_stage_step_guard(dofss)
+        if guard is not None:
+            J, grad = guard
+            proc0_print(f"fun#{info['Nfeval']}: Step guard active, returning J={J:.4e}")
+            if mpi.proc0_world:
+                single_stage_history.append((
+                    info['Nfeval'],
+                    J,
+                    np.linalg.norm(grad),
+                    np.linalg.norm(grad[:-number_vmec_dofs]),
+                    np.linalg.norm(grad[-number_vmec_dofs:]),
+                ))
+            return J, grad
+
     os.chdir(vmec_results_path)
     vmec.x = dofss[-number_vmec_dofs:]
     coil_dofs = dofss[:-number_vmec_dofs]
@@ -323,6 +346,36 @@ def fun(dofss, stage1_objective_and_gradient, target_and_jacobian, info={'Nfeval
             np.linalg.norm(grad_with_respect_to_coils),
             np.linalg.norm(grad_with_respect_to_surface),
         ))
+    return J, grad
+
+
+def _single_stage_step_guard(dofss):
+    delta = np.asarray(dofss, dtype=float) - single_stage_reference_dofs
+    coil_delta = delta[:-number_vmec_dofs]
+    surface_delta = delta[-number_vmec_dofs:]
+    surface_abs = np.abs(surface_delta)
+    surface_max = np.max(surface_abs) if len(surface_abs) else 0.0
+    coil_norm = np.linalg.norm(coil_delta)
+    surface_excess = max(0.0, surface_max - BFGS_MAX_SURFACE_STEP)
+    coil_excess = max(0.0, coil_norm - BFGS_MAX_COIL_STEP)
+    if surface_excess == 0.0 and coil_excess == 0.0:
+        return None
+
+    surface_ratio = surface_excess / BFGS_MAX_SURFACE_STEP
+    coil_ratio = coil_excess / BFGS_MAX_COIL_STEP
+    J = JACOBIAN_THRESHOLD + BFGS_GUARD_WEIGHT * (surface_ratio**2 + coil_ratio**2)
+    grad = np.zeros_like(delta)
+    if surface_excess > 0.0:
+        idx = int(np.argmax(surface_abs))
+        grad[-number_vmec_dofs + idx] = (
+            2.0 * BFGS_GUARD_WEIGHT * surface_ratio
+            * np.sign(surface_delta[idx]) / BFGS_MAX_SURFACE_STEP
+        )
+    if coil_excess > 0.0 and coil_norm > 0.0:
+        grad[:-number_vmec_dofs] = (
+            2.0 * BFGS_GUARD_WEIGHT * coil_ratio
+            * coil_delta / (BFGS_MAX_COIL_STEP * coil_norm)
+        )
     return J, grad
 
 
@@ -420,6 +473,7 @@ JF.x = dofs[:-number_vmec_dofs]
 free_coil_dofs = JF.dofs_free_status
 JF.fix_all()
 mpi.comm_world.Bcast(dofs, root=0)
+single_stage_reference_dofs = np.copy(dofs)
 if mpi.proc0_world:
     if single_stage_check_only:
         J_check, grad_check = fun(
@@ -434,13 +488,19 @@ if mpi.proc0_world:
             f"|grad|={np.linalg.norm(grad_check):.4e}"
         )
     else:
+        bfgs_options = {'maxiter': MAXITER_single_stage}
+        if BFGS_INITIAL_INVERSE_HESSIAN_SCALE > 0.0:
+            bfgs_options['hess_inv0'] = (
+                BFGS_INITIAL_INVERSE_HESSIAN_SCALE
+                * np.eye(len(dofs))
+            )
         res = minimize(
             fun,
             dofs,
             args=(stage1_objective_and_gradient, target_and_jacobian, {'Nfeval': 0}),
             jac=True,
             method='BFGS',
-            options={'maxiter': MAXITER_single_stage},
+            options=bfgs_options,
             tol=1e-9,
         )
         dofs = res.x

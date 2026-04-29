@@ -129,7 +129,11 @@ The JAX examples are direct counterparts of existing SIMSOPT examples:
   optionally override ``SIMSOPT_JAX_MAXITER_STAGE_2``,
   ``SIMSOPT_JAX_MAXITER_SINGLE_STAGE``, ``SIMSOPT_JAX_NPHI_VMEC``,
   ``SIMSOPT_JAX_NTHETA_VMEC``, ``SIMSOPT_JAX_MAX_MODE``, or
-  ``SIMSOPT_JAX_OUTPUT_DIR``. Set
+  ``SIMSOPT_JAX_OUTPUT_DIR``. The non-CI BFGS path includes a local step
+  guard controlled by ``SIMSOPT_JAX_BFGS_MAX_SURFACE_STEP`` and
+  ``SIMSOPT_JAX_BFGS_MAX_COIL_STEP`` so line-search trials outside the
+  reduced VMEC-JAX validity region return a smooth penalty instead of
+  entering the MHD solve. Set
   ``SIMSOPT_JAX_SINGLE_STAGE_CHECK_ONLY=true`` to run a bounded local
   benchmark that evaluates the exact finite-beta single-stage objective and
   gradient without entering the optimizer line search. The finite-beta
