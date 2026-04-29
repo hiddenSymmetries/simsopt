@@ -39,15 +39,33 @@ from simsopt.mhd import (
     local_squared_flux_surface_gradient,
 )
 from simsopt.objectives import QuadraticPenalty, SquaredFlux
-from simsopt.util import MpiPartition, comm_world, proc0_print
+from simsopt.util import MpiPartition, in_github_actions, proc0_print
 
 
-mpi = MpiPartition()
+class _SerialComm:
+    rank = 0
+
+    def Bcast(self, *args, **kwargs):
+        return None
+
+
+class _SerialMpiPartition:
+    proc0_world = True
+    comm_world = _SerialComm()
+
+
+try:
+    mpi = MpiPartition()
+except RuntimeError as e:
+    if "mpi4py is not installed" not in str(e):
+        raise
+    mpi = _SerialMpiPartition()
+comm_world = mpi.comm_world
 parent_path = str(Path(__file__).parent.resolve())
 os.chdir(parent_path)
 
-MAXITER_stage_2 = 10
-MAXITER_single_stage = 10
+MAXITER_stage_2 = 1 if in_github_actions else 10
+MAXITER_single_stage = 1 if in_github_actions else 10
 max_mode = 1
 vmec_input_filename = os.path.join(parent_path, 'inputs', 'input.QH_finitebeta')
 ncoils = 3
@@ -56,16 +74,19 @@ CC_THRESHOLD = 0.08
 LENGTH_THRESHOLD = 3.3
 CURVATURE_THRESHOLD = 7
 MSC_THRESHOLD = 10
-nphi_VMEC = 34
-ntheta_VMEC = 34
+nphi_VMEC = 12 if in_github_actions else 34
+ntheta_VMEC = 12 if in_github_actions else 34
 vc_src_nphi = ntheta_VMEC
 nmodes_coils = 7
+coil_numquadpoints = 64 if in_github_actions else 128
+vmec_jax_inner_max_iter = 3 if in_github_actions else None
+vmec_jax_inner_ftol = 1e-6 if in_github_actions else None
 coils_objective_weight = 1e+3
 aspect_ratio_weight = 1
 R0 = 1.0
 R1 = 0.6
 quasisymmetry_target_surfaces = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
-JACOBIAN_THRESHOLD = 100
+JACOBIAN_THRESHOLD = 1e6 if in_github_actions else 100
 LENGTH_CON_WEIGHT = 0.1
 LENGTH_WEIGHT = 1e-8
 CC_WEIGHT = 1e+0
@@ -92,7 +113,7 @@ surf = vmec.boundary
 vc = VirtualCasingJax.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC, filename=None)
 total_current_vmec = vmec.external_current() / (2 * surf.nfp)
 
-base_curves = create_equally_spaced_curves(ncoils, surf.nfp, stellsym=True, R0=R0, R1=R1, order=nmodes_coils, numquadpoints=128)
+base_curves = create_equally_spaced_curves(ncoils, surf.nfp, stellsym=True, R0=R0, R1=R1, order=nmodes_coils, numquadpoints=coil_numquadpoints)
 base_currents = [Current(total_current_vmec / ncoils * 1e-5) * 1e5 for _ in range(ncoils-1)]
 total_current = Current(total_current_vmec)
 total_current.fix_all()
@@ -175,6 +196,8 @@ def _build_exact_stage1_and_target_objectives():
         boundary,
         specs,
         residuals_fn,
+        inner_max_iter=vmec_jax_inner_max_iter,
+        inner_ftol=vmec_jax_inner_ftol,
     )
 
     surf_label_to_index = {
@@ -288,16 +311,25 @@ free_coil_dofs = JF.dofs_free_status
 JF.fix_all()
 mpi.comm_world.Bcast(dofs, root=0)
 if mpi.proc0_world:
-    res = minimize(
-        fun,
-        dofs,
-        args=(stage1_objective_and_gradient, target_and_jacobian, {'Nfeval': 0}),
-        jac=True,
-        method='BFGS',
-        options={'maxiter': MAXITER_single_stage},
-        tol=1e-9,
-    )
-    dofs = res.x
+    if in_github_actions:
+        J_check, grad_check = fun(
+            dofs,
+            stage1_objective_and_gradient,
+            target_and_jacobian,
+            {'Nfeval': 0},
+        )
+        proc0_print(f"CI single-stage check: J={J_check:.4f}, |grad|={np.linalg.norm(grad_check):.4e}")
+    else:
+        res = minimize(
+            fun,
+            dofs,
+            args=(stage1_objective_and_gradient, target_and_jacobian, {'Nfeval': 0}),
+            jac=True,
+            method='BFGS',
+            options={'maxiter': MAXITER_single_stage},
+            tol=1e-9,
+        )
+        dofs = res.x
 mpi.comm_world.Bcast(dofs, root=0)
 JF.full_unfix(free_coil_dofs)
 JF.x = dofs[:-number_vmec_dofs]
