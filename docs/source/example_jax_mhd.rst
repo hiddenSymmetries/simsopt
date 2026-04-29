@@ -256,8 +256,11 @@ Run the focused tests with:
         tests/mhd/test_virtual_casing_jax.py -q
 
 At the time this page was updated, the focused suite plus example
-compilation tests passed with ``26 passed``, six example subtests, and
-one upstream JAX deprecation warning.
+compilation tests passed with ``27 passed``, six example subtests, and
+one upstream JAX deprecation warning. Public CI installs ``vmec_jax`` and
+``booz_xform_jax`` directly. Since ``virtual_casing_jax`` is currently a
+private upstream repository, public CI attempts that install but lets the
+virtual-casing-specific JAX tests skip when credentials are not available.
 
 Current limitations
 -------------------

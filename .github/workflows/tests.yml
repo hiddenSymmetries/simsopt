@@ -111,11 +111,16 @@ jobs:
     - name: Install virtual_casing
       run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
 
-    - name: Install JAX MHD packages
+    - name: Install public JAX MHD packages
       run: |
         pip install -v git+https://github.com/uwplasma/vmec_jax
         pip install -v git+https://github.com/uwplasma/booz_xform_jax
-        pip install -v git+https://github.com/uwplasma/virtual_casing_jax
+
+    - name: Try installing private virtual_casing_jax
+      run: |
+        if ! pip install -v git+https://github.com/uwplasma/virtual_casing_jax; then
+          echo "::warning::virtual_casing_jax is private or unavailable; virtual-casing JAX tests will be skipped."
+        fi
 
     # 2025-11-28: Temporarily disabling SPEC due to github issue #561
     # # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
