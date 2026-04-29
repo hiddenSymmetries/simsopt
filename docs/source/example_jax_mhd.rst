@@ -228,7 +228,9 @@ legacy and JAX calculations.
 The scalar VMEC diagnostics agree to roundoff for the finite-beta input:
 aspect differs by ``3.8e-15`` relatively, mean iota by ``2.0e-14``, and
 external current by ``1.4e-13``. The reduced three-surface
-quasisymmetry objective differs by ``2.1e-6`` relatively. On the same
+quasisymmetry objective with the example's target helicity
+``helicity_n=-1`` differs by ``6.6e-6`` relatively; the corresponding
+``helicity_n=+1`` convention check differs by ``2.1e-6``. On the same
 legacy VMEC field, ``VirtualCasingJax`` and legacy virtual-casing
 ``B_external_normal`` differ by ``3.0e-4`` in relative L2 norm; comparing
 the full ``VmecJax -> VirtualCasingJax`` path to the legacy
@@ -284,6 +286,14 @@ one upstream JAX deprecation warning. Public CI installs ``vmec_jax`` and
 ``booz_xform_jax`` directly. Since ``virtual_casing_jax`` is currently a
 private upstream repository, public CI attempts that install but lets the
 virtual-casing-specific JAX tests skip when credentials are not available.
+
+The legacy VMEC2000 comparison is opt-in because it requires local legacy
+``vmec`` and ``virtual_casing`` Python extensions. In an environment with
+those dependencies, run:
+
+.. code-block:: console
+
+    SIMSOPT_RUN_LEGACY_VMEC_JAX_COMPARISON=1 JAX_ENABLE_X64=1 python -m pytest tests/mhd/test_vmec_jax_legacy_comparison.py -q
 
 Current limitations
 -------------------
