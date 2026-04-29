@@ -1,9 +1,12 @@
 import os
 from dataclasses import replace
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 
 import numpy as np
+
+import simsopt.mhd.vmec_jax as vmec_jax_module
 
 try:
     import vmec_jax
@@ -12,8 +15,10 @@ except ImportError:
 
 from simsopt.mhd import B_cartesian_jax, B_cartesian_jax_tangent_columns, Vmec, VmecJax
 from simsopt.mhd.vmec_diagnostics import B_cartesian
-from simsopt.mhd.profiles import ProfilePolynomial
+from simsopt.mhd.profiles import ProfilePolynomial, ProfileSpline
 from simsopt.geo.surface import Surface
+from simsopt.geo import SurfaceRZFourier
+from simsopt._core.util import ObjectiveFailure
 
 from . import TEST_DIR
 
@@ -63,6 +68,55 @@ class VmecJaxInitializedFromWout(unittest.TestCase):
         np.testing.assert_allclose(B_jax, B_ref, rtol=1e-12, atol=1e-12)
         np.testing.assert_allclose(B_method, B_ref, rtol=1e-12, atol=1e-12)
 
+    def test_B_cartesian_jax_path_input_grid_defaults_and_lasym_error(self):
+        filename = os.path.join(TEST_DIR, "wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc")
+        B_from_path = np.asarray(
+            B_cartesian_jax(
+                filename,
+                quadpoints_phi=np.linspace(0.0, 0.5, 4, endpoint=False),
+                quadpoints_theta=np.linspace(0.0, 1.0, 5, endpoint=False),
+            )
+        )
+        self.assertEqual(B_from_path.shape, (3, 4, 5))
+
+        vmec_j = VmecJax(filename, nphi=4, ntheta=5, range_surface="half period")
+        B_from_boundary_grid = np.asarray(B_cartesian_jax(vmec_j))
+        self.assertEqual(B_from_boundary_grid.shape, (3, 4, 5))
+
+        vmec_j.wout.lasym = True
+        with self.assertRaisesRegex(RuntimeError, "stellarator symmetry"):
+            B_cartesian_jax(vmec_j, nphi=4, ntheta=5)
+
+    def test_wout_guards_mpi_repr_and_missing_file_fallback(self):
+        filename = os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc")
+        vmec_j = VmecJax(filename)
+
+        with self.assertRaisesRegex(RuntimeError, "initialized from a wout file"):
+            vmec_j.set_indata()
+        vmec_j.update_mpi("serial")
+        self.assertEqual(vmec_j.mpi, "serial")
+        self.assertIn("nfp=", repr(vmec_j))
+
+        fallback = object.__new__(VmecJax)
+        fallback.output_file = os.path.join(TEST_DIR, "missing_wout_for_jax_test.nc")
+        fallback._wout_jax = SimpleNamespace(
+            ns=3,
+            nfp=2,
+            mpol=2,
+            ntor=1,
+            lasym=np.bool_(False),
+            volume_p=7.0,
+            iotas=np.asarray([0.0, 0.3, 0.6]),
+            matrix=np.arange(6).reshape((2, 3)),
+        )
+        VmecJax.load_wout(fallback)
+
+        self.assertFalse(fallback.wout.lasym)
+        self.assertEqual(fallback.wout.volume, 7.0)
+        self.assertEqual(fallback.wout.ier_flag, 0)
+        self.assertEqual(fallback.wout.matrix.shape, (3, 2))
+        np.testing.assert_allclose(fallback.s_half_grid, [0.25, 0.75])
+
     def test_error_on_rerun(self):
         filename = os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc")
         vmec_j = VmecJax(filename)
@@ -74,6 +128,40 @@ class VmecJaxInitializedFromWout(unittest.TestCase):
 
 @unittest.skipIf(vmec_jax is None, "vmec_jax not found")
 class VmecJaxInitializedFromInput(unittest.TestCase):
+    def test_defaults_invalid_filename_indata_adapter_and_dependency_guard(self):
+        default_vmec = VmecJax(None, verbose=False, nphi=5, ntheta=6)
+        self.assertTrue(default_vmec.runnable)
+
+        with self.assertRaisesRegex(ValueError, "Invalid filename"):
+            VmecJax("equilibrium.nc")
+
+        filename = os.path.join(TEST_DIR, "input.li383_low_res")
+        vmec_j = VmecJax(filename)
+        vmec_j.indata.scalars["LIST_VALUE"] = [1.0, 2.0]
+        np.testing.assert_allclose(vmec_j.indata.list_value, [1.0, 2.0])
+        vmec_j.indata.array_value = np.asarray([3.0, 4.0])
+        self.assertEqual(vmec_j.indata.raw.scalars["ARRAY_VALUE"], [3.0, 4.0])
+        vmec_j.indata.scalar_value = np.float64(2.5)
+        self.assertEqual(vmec_j.indata.raw.scalars["SCALAR_VALUE"], 2.5)
+        vmec_j.indata._local_note = "stored on adapter"
+        self.assertEqual(vmec_j.indata._local_note, "stored on adapter")
+        self.assertIs(vmec_j.indata.raw, vmec_j.indata._indata)
+        self.assertIs(vmec_j.indata.indexed, vmec_j.indata.raw.indexed)
+        self.assertIs(vmec_j.indata.scalars, vmec_j.indata.raw.scalars)
+        self.assertEqual(vmec_j.indata.get_int("NFP"), 3)
+        self.assertFalse(vmec_j.indata.get_bool("LASYM"))
+        self.assertAlmostEqual(vmec_j.indata.get_float("PHIEDGE"), vmec_j.indata.phiedge)
+        with self.assertRaises(AttributeError):
+            _ = vmec_j.indata.this_does_not_exist
+
+        old_vmec_jax = vmec_jax_module.vmec_jax_mod
+        try:
+            vmec_jax_module.vmec_jax_mod = None
+            with self.assertRaisesRegex(RuntimeError, "requires the vmec_jax package"):
+                VmecJax(filename)
+        finally:
+            vmec_jax_module.vmec_jax_mod = old_vmec_jax
+
     def test_init_from_file(self):
         filename = os.path.join(TEST_DIR, "input.li383_low_res")
         vmec_j = VmecJax(filename)
@@ -125,6 +213,129 @@ class VmecJaxInitializedFromInput(unittest.TestCase):
         self.assertEqual(vmec_j.indata.pres_scale, 1.0)
         self.assertAlmostEqual(vmec_j.indata.curtor, 2.0)
 
+    def test_spline_profile_types_and_invalid_profile_type(self):
+        filename = os.path.join(TEST_DIR, "input.li383_low_res")
+        vmec_j = VmecJax(filename)
+        pressure_profile = ProfileSpline(
+            np.asarray([0.0, 0.5, 1.0]),
+            np.asarray([1.0, 2.0, 4.0]),
+            degree=1,
+        )
+        current_profile = ProfileSpline(
+            np.asarray([0.0, 0.5, 1.0]),
+            np.asarray([1.0, 2.0, 4.0]),
+            degree=1,
+        )
+        iota_profile = ProfileSpline(
+            np.asarray([0.0, 0.5, 1.0]),
+            np.asarray([1.0, 2.0, 4.0]),
+            degree=1,
+        )
+        vmec_j.n_pressure = 3
+        vmec_j.n_current = 3
+        vmec_j.n_iota = 3
+        vmec_j.pressure_profile = pressure_profile
+        vmec_j.current_profile = current_profile
+        vmec_j.iota_profile = iota_profile
+        vmec_j.indata.raw.scalars["PMASS_TYPE"] = "cubic_spline"
+        vmec_j.indata.raw.scalars["PCURR_TYPE"] = "line_segment"
+        vmec_j.indata.raw.scalars["PIOTA_TYPE"] = b"akima_spline"
+
+        vmec_j.set_indata()
+
+        np.testing.assert_allclose(vmec_j.indata.raw.scalars["AM_AUX_S"], [0.0, 0.5, 1.0])
+        np.testing.assert_allclose(vmec_j.indata.raw.scalars["AC_AUX_F"], [1.0, 2.0, 4.0])
+        np.testing.assert_allclose(vmec_j.indata.raw.scalars["AI_AUX_S"], [0.0, 0.5, 1.0])
+        self.assertAlmostEqual(vmec_j.indata.curtor, current_profile(1.0))
+
+        vmec_j.pressure_profile = ProfilePolynomial([1.0])
+        vmec_j.current_profile = ProfilePolynomial([1.0])
+        vmec_j.iota_profile = ProfilePolynomial([0.4])
+        self.assertIsInstance(vmec_j.pressure_profile, ProfilePolynomial)
+        self.assertIsInstance(vmec_j.current_profile, ProfilePolynomial)
+        self.assertIsInstance(vmec_j.iota_profile, ProfilePolynomial)
+
+        vmec_j.indata.raw.scalars["PMASS_TYPE"] = "unsupported"
+        with self.assertRaisesRegex(RuntimeError, "power_series"):
+            vmec_j.set_profile("pressure", "mass", "m")
+
+    def test_boundary_setter_asymmetric_surface_and_get_max_mn(self):
+        filename = os.path.join(TEST_DIR, "input.li383_low_res")
+        vmec_j = VmecJax(filename)
+        boundary = SurfaceRZFourier.from_nphi_ntheta(
+            nfp=3,
+            stellsym=False,
+            mpol=1,
+            ntor=1,
+            nphi=5,
+            ntheta=6,
+            range="field period",
+        )
+        boundary.set_rc(0, 0, 1.4)
+        boundary.set_zs(1, 0, 0.2)
+        boundary.set_rs(1, 0, 0.03)
+        boundary.set_zc(1, 0, -0.04)
+        vmec_j.boundary = boundary
+
+        vmec_j.set_indata()
+
+        self.assertTrue(vmec_j.need_to_run_code)
+        self.assertTrue(vmec_j.indata.raw.scalars["LASYM"])
+        self.assertIn("RBS", vmec_j.indata.raw.indexed)
+        self.assertIn("ZBC", vmec_j.indata.raw.indexed)
+        self.assertIn((0, 1), vmec_j.indata.raw.indexed["RBS"])
+        self.assertIn((0, 1), vmec_j.indata.raw.indexed["ZBC"])
+
+        vmec_j.indata.raw.indexed["RBC"][(5, 4)] = 0.01
+        self.assertEqual(vmec_j.get_max_mn(), (4, 5))
+        self.assertIn("nfp=3", repr(vmec_j))
+
+    def test_asymmetric_surface_from_indata(self):
+        class FakeInData:
+            indexed = {
+                "RBC": {(0, 0): 1.5},
+                "ZBS": {(0, 1): 0.2},
+                "RBS": {(0, 1): 0.03},
+                "ZBC": {(0, 1): -0.04},
+            }
+
+            def get_int(self, name, default=0):
+                return {"NFP": 2, "MPOL": 1, "NTOR": 0}.get(name, default)
+
+            def get_bool(self, name, default=False):
+                return True if name == "LASYM" else default
+
+        surf = vmec_jax_module._surface_from_indata(
+            FakeInData(),
+            ntheta=5,
+            nphi=6,
+            range_surface="field period",
+        )
+
+        self.assertFalse(surf.stellsym)
+        self.assertAlmostEqual(surf.get_rs(1, 0), 0.03)
+        self.assertAlmostEqual(surf.get_zc(1, 0), -0.04)
+
+    def test_run_failure_is_wrapped_as_objective_failure(self):
+        filename = os.path.join(TEST_DIR, "input.li383_low_res")
+        old_run_fixed_boundary = vmec_jax_module.vmec_jax_mod.run_fixed_boundary
+        try:
+            def fail_run(*args, **kwargs):
+                raise RuntimeError("forced failure")
+
+            vmec_jax_module.vmec_jax_mod.run_fixed_boundary = fail_run
+            with TemporaryDirectory() as tmp:
+                cwd = os.getcwd()
+                try:
+                    os.chdir(tmp)
+                    vmec_j = VmecJax(filename, verbose=False)
+                    with self.assertRaises(ObjectiveFailure):
+                        vmec_j.run()
+                finally:
+                    os.chdir(cwd)
+        finally:
+            vmec_jax_module.vmec_jax_mod.run_fixed_boundary = old_run_fixed_boundary
+
     def test_run_low_res_matches_reference(self):
         input_file = os.path.join(TEST_DIR, "input.li383_low_res")
         reference = Vmec(os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc"))
@@ -143,6 +354,30 @@ class VmecJaxInitializedFromInput(unittest.TestCase):
         np.testing.assert_allclose(vmec_j.aspect(), reference.aspect(), rtol=1e-12)
         np.testing.assert_allclose(vmec_j.volume(), reference.volume(), rtol=1e-12)
         np.testing.assert_allclose(vmec_j.mean_iota(), reference.mean_iota(), atol=2e-3)
+        B_from_state = np.asarray(
+            B_cartesian_jax(
+                vmec_j,
+                nphi=4,
+                ntheta=5,
+                range="half period",
+                use_wout_bsup=False,
+            )
+        )
+        self.assertEqual(B_from_state.shape, (3, 4, 5))
+
+    def test_B_cartesian_tangent_columns_guard_errors(self):
+        with self.assertRaisesRegex(TypeError, "FixedBoundaryExactOptimizer"):
+            B_cartesian_jax_tangent_columns(object(), [])
+
+        if hasattr(vmec_jax, "b_cartesian_from_state"):
+            input_file = os.path.join(TEST_DIR, "input.li383_low_res")
+            cfg, _ = vmec_jax.load_config(input_file)
+            static = vmec_jax.build_static(cfg)
+            with self.assertRaisesRegex(RuntimeError, "b_cartesian_tangent_columns_fun"):
+                B_cartesian_jax_tangent_columns(
+                    SimpleNamespace(_static=static),
+                    [],
+                )
 
     @unittest.skipIf(
         not hasattr(vmec_jax, "FixedBoundaryExactOptimizer")
