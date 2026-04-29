@@ -355,6 +355,36 @@ def _save_bnormal_plot(filename, fields):
     plt.close(fig)
 
 
+def _save_history_plot(filename):
+    if comm_world.rank != 0 or (not stage2_history and not single_stage_history):
+        return
+    try:
+        import matplotlib
+        matplotlib.use("Agg", force=True)
+        import matplotlib.pyplot as plt
+    except ImportError:
+        return
+
+    fig, axes = plt.subplots(1, 2, figsize=(8.5, 3.4), constrained_layout=True)
+    if stage2_history:
+        data = np.asarray(stage2_history)
+        axes[0].semilogy(data[:, 0], data[:, 1], "o-", label="total")
+        axes[0].semilogy(data[:, 0], data[:, 2], "s-", label="squared flux")
+        axes[0].set_title("stage 2")
+        axes[0].set_xlabel("evaluation")
+        axes[0].set_ylabel("objective")
+        axes[0].legend()
+    if single_stage_history:
+        data = np.asarray(single_stage_history)
+        axes[1].semilogy(data[:, 0], data[:, 1], "o-", label="objective")
+        axes[1].semilogy(data[:, 0], data[:, 2], "s-", label="gradient norm")
+        axes[1].set_title("single stage")
+        axes[1].set_xlabel("evaluation")
+        axes[1].legend()
+    fig.savefig(os.path.join(this_path, filename), dpi=150)
+    plt.close(fig)
+
+
 surf.fix_all()
 surf.fixed_range(mmin=0, mmax=max_mode, nmin=-max_mode, nmax=max_mode, fixed=False)
 surf.fix("rc(0,0)")
@@ -427,6 +457,7 @@ _save_bnormal_plot(
     "Bnormal_finite_beta_jax.png",
     [("initial", BdotN_init), ("after stage 2", BdotN_stage2), ("optimized", BdotN_surf)],
 )
+_save_history_plot("finite_beta_history_jax.png")
 proc0_print(f"Aspect ratio after optimization: {vmec.aspect()}")
 proc0_print(f"Mean iota after optimization: {vmec.mean_iota()}")
 proc0_print(f"Quasisymmetry objective after optimization: {qs.total()}")

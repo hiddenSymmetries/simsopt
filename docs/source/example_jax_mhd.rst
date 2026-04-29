@@ -131,7 +131,8 @@ The JAX examples are direct counterparts of existing SIMSOPT examples:
   ``SIMSOPT_JAX_NTHETA_VMEC``, ``SIMSOPT_JAX_MAX_MODE``, or
   ``SIMSOPT_JAX_OUTPUT_DIR``. The finite-beta example writes
   ``stage2_history.txt``, ``single_stage_history.txt``, and
-  ``Bnormal_finite_beta_jax.png`` in the output directory so reduced
+  the plots ``Bnormal_finite_beta_jax.png`` and
+  ``finite_beta_history_jax.png`` in the output directory so reduced
   production-like benchmark runs leave auditable artifacts.
 
 Validation plots
