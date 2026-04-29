@@ -1,5 +1,6 @@
 import os
 import py_compile
+import re
 import shutil
 import subprocess
 import sys
@@ -82,6 +83,17 @@ class JaxExamplesTests(unittest.TestCase):
             )
         self.assertIn("CI single-stage check:", result.stdout)
         self.assertNotIn("Exception caught", result.stdout)
+        match = re.search(
+            r"CI single-stage check: J=([0-9.eE+-]+), \|grad\|=([0-9.eE+-]+)",
+            result.stdout,
+        )
+        self.assertIsNotNone(match)
+        objective = float(match.group(1))
+        gradient_norm = float(match.group(2))
+        self.assertGreater(objective, 200.0)
+        self.assertLess(objective, 350.0)
+        self.assertGreater(gradient_norm, 1.0e3)
+        self.assertLess(gradient_norm, 5.0e3)
         self.assertLess(elapsed, 60.0)
 
     @unittest.skipIf(vmec_jax is None or VmecJax is None, "vmec_jax not found")
