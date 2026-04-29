@@ -128,7 +128,11 @@ The JAX examples are direct counterparts of existing SIMSOPT examples:
   For bounded local regression runs, set ``SIMSOPT_JAX_QUICK=true`` and
   optionally override ``SIMSOPT_JAX_MAXITER_STAGE_2``,
   ``SIMSOPT_JAX_MAXITER_SINGLE_STAGE``, ``SIMSOPT_JAX_NPHI_VMEC``,
-  ``SIMSOPT_JAX_NTHETA_VMEC``, or ``SIMSOPT_JAX_OUTPUT_DIR``.
+  ``SIMSOPT_JAX_NTHETA_VMEC``, ``SIMSOPT_JAX_MAX_MODE``, or
+  ``SIMSOPT_JAX_OUTPUT_DIR``. The finite-beta example writes
+  ``stage2_history.txt``, ``single_stage_history.txt``, and
+  ``Bnormal_finite_beta_jax.png`` in the output directory so reduced
+  production-like benchmark runs leave auditable artifacts.
 
 Validation plots
 ----------------

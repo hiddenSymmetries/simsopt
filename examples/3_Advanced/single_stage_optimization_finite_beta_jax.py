@@ -85,7 +85,7 @@ def _env_float(name, default):
 quick_run = in_github_actions or _env_flag("SIMSOPT_JAX_QUICK")
 MAXITER_stage_2 = _env_int("SIMSOPT_JAX_MAXITER_STAGE_2", 1 if quick_run else 10)
 MAXITER_single_stage = _env_int("SIMSOPT_JAX_MAXITER_SINGLE_STAGE", 1 if quick_run else 10)
-max_mode = 1
+max_mode = _env_int("SIMSOPT_JAX_MAX_MODE", 1)
 vmec_input_filename = os.path.join(parent_path, 'inputs', 'input.QH_finitebeta')
 ncoils = 3
 aspect_ratio_target = 7.0
@@ -128,6 +128,9 @@ if comm_world.rank == 0:
     os.makedirs(vmec_results_path, exist_ok=True)
     os.makedirs(coils_results_path, exist_ok=True)
 
+stage2_history = []
+single_stage_history = []
+
 proc0_print(f' Using vmec input file {vmec_input_filename}')
 enable_x64(True)
 vmec = VmecJax(vmec_input_filename, mpi=mpi, verbose=vmec_verbose, nphi=nphi_VMEC, ntheta=ntheta_VMEC, range_surface='half period')
@@ -148,6 +151,7 @@ bs = BiotSavart(coils)
 bs.set_points(surf.gamma().reshape((-1, 3)))
 Bbs = bs.B().reshape((nphi_VMEC, ntheta_VMEC, 3))
 BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2) - vc.B_external_normal
+BdotN_init = np.copy(BdotN_surf)
 if comm_world.rank == 0:
     curves_to_vtk(curves, os.path.join(coils_results_path, "curves_init"))
     pointData = {"B_N": BdotN_surf[:, :, None]}
@@ -179,6 +183,13 @@ def fun_coils(dofss, info):
         jf = Jf.J()
         Bbs = bs.B().reshape((nphi_VMEC, ntheta_VMEC, 3))
         BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2) - Jf.target
+        stage2_history.append((
+            info['Nfeval'],
+            J,
+            jf,
+            np.linalg.norm(grad),
+            np.mean(np.abs(BdotN_surf)),
+        ))
         outstr = f"fun_coils#{info['Nfeval']} - J={J:.1e}, Jf={jf:.1e}, mean(B.n)={np.mean(np.abs(BdotN_surf)):.1e}"
         outstr += f", |grad coils|={np.linalg.norm(grad):.1e}, C-C-Sep={Jccdist.shortest_distance():.2f}"
         print(outstr)
@@ -300,7 +311,48 @@ def fun(dofss, stage1_objective_and_gradient, target_and_jacobian, info={'Nfeval
 
     JF.fix_all()
     grad = np.concatenate((grad_with_respect_to_coils, grad_with_respect_to_surface))
+    if mpi.proc0_world:
+        single_stage_history.append((
+            info['Nfeval'],
+            J,
+            np.linalg.norm(grad),
+            np.linalg.norm(grad_with_respect_to_coils),
+            np.linalg.norm(grad_with_respect_to_surface),
+        ))
     return J, grad
+
+
+def _save_history(filename, header, rows):
+    if comm_world.rank == 0 and rows:
+        np.savetxt(os.path.join(this_path, filename), np.asarray(rows), header=header)
+
+
+def _save_bnormal_plot(filename, fields):
+    if comm_world.rank != 0:
+        return
+    try:
+        import matplotlib
+        matplotlib.use("Agg", force=True)
+        import matplotlib.pyplot as plt
+    except ImportError:
+        return
+
+    vmax = max(float(np.max(np.abs(field))) for _, field in fields)
+    vmax = max(vmax, 1e-16)
+    fig, axes = plt.subplots(
+        1, len(fields),
+        figsize=(4.2 * len(fields), 3.4),
+        constrained_layout=True,
+    )
+    axes = np.atleast_1d(axes)
+    for ax, (label, field) in zip(axes, fields):
+        im = ax.imshow(field.T, origin="lower", aspect="auto", cmap="RdBu_r", vmin=-vmax, vmax=vmax)
+        ax.set_title(label)
+        ax.set_xlabel("phi index")
+        ax.set_ylabel("theta index")
+    fig.colorbar(im, ax=axes, shrink=0.85, label="B dot n")
+    fig.savefig(os.path.join(this_path, filename), dpi=150)
+    plt.close(fig)
 
 
 surf.fix_all()
@@ -323,6 +375,7 @@ res = minimize(fun_coils, dofs[:-number_vmec_dofs], jac=True, args=({'Nfeval': 0
 bs.set_points(surf.gamma().reshape((-1, 3)))
 Bbs = bs.B().reshape((nphi_VMEC, ntheta_VMEC, 3))
 BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2) - vc.B_external_normal
+BdotN_stage2 = np.copy(BdotN_surf)
 if comm_world.rank == 0:
     curves_to_vtk(curves, os.path.join(coils_results_path, "curves_after_stage2"))
     pointData = {"B_N": BdotN_surf[:, :, None]}
@@ -368,6 +421,12 @@ if comm_world.rank == 0:
     surf.to_vtk(os.path.join(coils_results_path, "surf_opt"), extra_data=pointData)
 bs.save(os.path.join(coils_results_path, "biot_savart_opt.json"))
 vmec.write_input(os.path.join(this_path, 'input.final'))
+_save_history("stage2_history.txt", "eval J Jf grad_norm mean_abs_BdotN", stage2_history)
+_save_history("single_stage_history.txt", "eval J grad_norm coil_grad_norm surface_grad_norm", single_stage_history)
+_save_bnormal_plot(
+    "Bnormal_finite_beta_jax.png",
+    [("initial", BdotN_init), ("after stage 2", BdotN_stage2), ("optimized", BdotN_surf)],
+)
 proc0_print(f"Aspect ratio after optimization: {vmec.aspect()}")
 proc0_print(f"Mean iota after optimization: {vmec.mean_iota()}")
 proc0_print(f"Quasisymmetry objective after optimization: {qs.total()}")
