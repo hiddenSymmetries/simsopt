@@ -171,6 +171,22 @@ def _require_vmec_jax():
         )
 
 
+def _vmec_jax_initial_state_and_signgs(static, indata, vmec_project=False):
+    """
+    Return the VMEC-JAX initial state and Jacobian sign for an input deck.
+    """
+    _require_vmec_jax()
+    boundary = vmec_jax_mod.boundary_from_indata(indata, static.modes)
+    state0 = vmec_jax_mod.initial_guess_from_boundary(
+        static, boundary, indata, vmec_project=vmec_project
+    )
+    geom = vmec_jax_mod.eval_geom(state0, static)
+    signgs = int(
+        vmec_jax_mod.signgs_from_sqrtg(np.asarray(geom.sqrtg), axis_index=1)
+    )
+    return state0, signgs
+
+
 class VmecJaxLeastSquaresProblem:
     """
     JAX-state least-squares objective for ``FixedBoundaryExactOptimizer``.

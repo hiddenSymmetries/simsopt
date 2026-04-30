@@ -22,6 +22,7 @@ except ImportError as e:
 from .._core.optimizable import Optimizable
 from .._core.types import RealArray
 from .._core.util import Struct
+from .vmec_jax import _vmec_jax_initial_state_and_signgs
 
 __all__ = ["QuasisymmetryRatioResidualJax"]
 
@@ -141,19 +142,7 @@ class QuasisymmetryRatioResidualJax(Optimizable):
         Return a JAX-compatible residual function of a solved VMEC state.
         """
         if signgs is None:
-            try:
-                boundary = vmec_jax_mod.boundary_from_indata(indata, static.modes)
-                state0 = vmec_jax_mod.initial_guess_from_boundary(
-                    static, boundary, indata
-                )
-                geom = vmec_jax_mod.eval_geom(state0, static)
-                signgs = int(
-                    vmec_jax_mod.signgs_from_sqrtg(
-                        np.asarray(geom.sqrtg), axis_index=1
-                    )
-                )
-            except Exception:
-                signgs = 1
+            _state0, signgs = _vmec_jax_initial_state_and_signgs(static, indata)
 
         def qs_residuals_from_state(state):
             data = vmec_jax_mod.quasisymmetry_ratio_residual_from_state(

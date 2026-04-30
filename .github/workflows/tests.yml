@@ -113,7 +113,7 @@ jobs:
 
     - name: Install public JAX MHD packages
       run: |
-        pip install -v git+https://github.com/uwplasma/vmec_jax@e236ba559961daf3b788f00b2443d0fa8cb6ec87
+        pip install -v git+https://github.com/uwplasma/vmec_jax@4e16b40e6d3215745e992cd3cc24c6c136c047db
         pip install -v git+https://github.com/uwplasma/booz_xform_jax@809443cad9efc02cd354188aefd1735bc1b4bb4c
         pip install -v "virtual-casing-jax>=0.0.2"
 

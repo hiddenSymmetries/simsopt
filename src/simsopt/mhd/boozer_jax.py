@@ -20,6 +20,7 @@ except ImportError as e:
     logger.debug(str(e))
 
 from .boozer import Quasisymmetry
+from .vmec_jax import _vmec_jax_initial_state_and_signgs
 from .._core.optimizable import Optimizable
 from .._core.descriptor import Integer
 
@@ -281,29 +282,15 @@ class BoozerQuasisymmetryResidualJax(Optimizable):
         import vmec_jax as vmec_jax_mod
         from vmec_jax._compat import jax, jnp
 
+        state0, inferred_signgs = _vmec_jax_initial_state_and_signgs(
+            static, indata, vmec_project=True
+        )
         if signgs is None:
-            boundary = vmec_jax_mod.boundary_from_indata(indata, static.modes)
-            state0 = vmec_jax_mod.initial_guess_from_boundary(
-                static, boundary, indata, vmec_project=True
-            )
-            geom = vmec_jax_mod.eval_geom(state0, static)
-            signgs = int(
-                vmec_jax_mod.signgs_from_sqrtg(
-                    np.asarray(geom.sqrtg), axis_index=1
-                )
-            )
-        else:
-            boundary = None
-            state0 = None
+            signgs = inferred_signgs
 
         if flux is None:
             flux = vmec_jax_mod.flux_profiles_from_indata(
                 indata, static.s, signgs=signgs
-            )
-        if state0 is None:
-            boundary = vmec_jax_mod.boundary_from_indata(indata, static.modes)
-            state0 = vmec_jax_mod.initial_guess_from_boundary(
-                static, boundary, indata, vmec_project=True
             )
 
         initial_inputs = vmec_jax_mod.booz_xform_inputs_from_state(
