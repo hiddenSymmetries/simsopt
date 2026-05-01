@@ -9,6 +9,8 @@ from .profiles import *
 from .bootstrap import *
 from .boozer import *
 from .spec import *
+from .vacuum_adjoint_qs import *
 
 __all__ = (vmec.__all__ + virtual_casing.__all__ + vmec_diagnostics.__all__ +
-           profiles.__all__ + bootstrap.__all__ + boozer.__all__ + spec.__all__)
+           profiles.__all__ + bootstrap.__all__ + boozer.__all__ + spec.__all__
+           + vacuum_adjoint_qs.__all__)
