@@ -16,7 +16,7 @@ from constellaration.geometry.surface_utils_desc import (
 )
 from constellaration.geometry.surface_rz_fourier import to_simsopt, from_simsopt
 
-from typing import Protocol, runtime_checkable, Any
+from typing import Protocol, runtime_checkable, Any, Optional
 from desc.equilibrium import Equilibrium as DescEquilibrium
 from desc.geometry import FourierRZToroidalSurface as DescFourierRZToroidalSurface
 from desc.profiles import (
@@ -47,14 +47,17 @@ class DescEquilibriumProtocol(Protocol):
 
     surface: DescFourierRZToroidalSurface
     pressure: Any
-    current: Any
-    iota: Any
+    current: Optional[Any]
+    iota: Optional[Any]
     Psi: float
 
     def solve(self, *args: Any, **kwargs: Any) -> Any:
         pass
 
     def compute(self, *args: Any, **kwargs: Any) -> Any:
+        pass
+
+    def save(self, *args: Any, **kwargs: Any) -> Any:
         pass
 
 
@@ -257,7 +260,7 @@ class DescOptimizable(Optimizable):
         boundary = to_simsopt(boundary_constellaration)
         return boundary
 
-    def profiles_for_eq(self):
+    def profiles_to_desc(self):
         """Convert simsopt profiles to DESC Profile objects.
 
         Returns:
@@ -277,7 +280,7 @@ class DescOptimizable(Optimizable):
         return pressure, current, iota
 
     @classmethod
-    def extract_profiles_from_eq(cls, eq, n_knots=20, degree=3):
+    def profiles_from_desc(cls, eq, n_knots=20, degree=3):
         """
         Convert the profiles of the Equilibrium object to Simsopt profiles.
 
@@ -389,7 +392,7 @@ class DescOptimizable(Optimizable):
         """
 
         boundary_desc = self.surface_to_desc(self.boundary)
-        pressure, current, iota = self.profiles_for_eq()
+        pressure, current, iota = self.profiles_to_desc()
 
         if eq is None:
             # Determine which profile to use at initialization
@@ -408,7 +411,7 @@ class DescOptimizable(Optimizable):
                 **kwargs,
             )
 
-        # check protocal
+        # check protocol
         if not isinstance(eq, DescEquilibriumProtocol):
             raise TypeError("DESC Equilibrium does not match DescEquilibriumProtocol.")
 
@@ -444,7 +447,7 @@ class DescOptimizable(Optimizable):
             return
 
         boundary_desc = self.surface_to_desc(self.boundary)
-        pressure, current, iota = self.profiles_for_eq()
+        pressure, current, iota = self.profiles_to_desc()
 
         self.eq.surface = boundary_desc
         self.eq.pressure = pressure
@@ -480,7 +483,7 @@ class DescOptimizable(Optimizable):
         # get scaled variables
         psi = eq.Psi
         boundary = self.surface_from_desc(eq)
-        pressure_profile, current_profile, iota_profile = self.extract_profiles_from_eq(
+        pressure_profile, current_profile, iota_profile = self.profiles_from_desc(
             eq, n_knots=self.n_knots, degree=self.degree
         )
 
@@ -493,8 +496,7 @@ class DescOptimizable(Optimizable):
         self.eq = eq
 
         scale_pressure = kwargs.get("scale_pressure", False)
-        if not scale_pressure:
-            self.need_to_run_code = True
+        self.need_to_run_code = not scale_pressure
 
         return
 
@@ -589,13 +591,13 @@ class DescOptimizable(Optimizable):
         Returns:
             DescOptimizable: Optimizable object representing the equilibrium.
         """
-        # check protocal
+        # check protocol
         if not isinstance(eq, DescEquilibriumProtocol):
             raise TypeError("DESC Equilibrium does not match DescEquilibriumProtocol.")
 
         boundary = cls.surface_from_desc(eq)
 
-        pressure_profile, current_profile, iota_profile = cls.extract_profiles_from_eq(
+        pressure_profile, current_profile, iota_profile = cls.profiles_from_desc(
             eq, n_knots=n_knots, degree=degree
         )
 
@@ -696,8 +698,8 @@ class DescOptimizable(Optimizable):
 
         Args:
             filename (str): File path.
-            *args: Arguments to VMECIO.write_vmec_input.
-            **kwargs: Keyword arguments VMECIO.to write_vmec_input.
+            *args: Positional arguments passed to Equilibrium.save().
+            **kwargs: Keyword arguments passed to Equilibrium.save().
 
         Returns:
             None
