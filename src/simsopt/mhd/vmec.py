@@ -15,6 +15,8 @@ import numpy as np
 from scipy.io import netcdf_file
 from scipy.integrate import quad
 
+from typing import Protocol, runtime_checkable, Any, Optional, Union
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -112,6 +114,10 @@ def array_to_namelist(arr, aux_s=False):
 
 @runtime_checkable
 class SurfaceRZFourierProtocol(Protocol):
+    """A Protocol for facility the interaction between Vmec solvers (Vmec2000, Vmec++, Vmec-Jax, ...). 
+    This Protocol determines how SurfaceRZFourier object data is passed from Simsopt to Vmec solvers.
+    This protocol should be maintained here and also in the solver.
+    """
     # also maintained on VMEC side
     rbc: dict # (m,n): value
     rbs: dict
@@ -122,27 +128,31 @@ class SurfaceRZFourierProtocol(Protocol):
 
 @runtime_checkable
 class ProfileProtocol(Protocol):
+    """A Protocol for facility the interaction between Vmec solvers (Vmec2000, Vmec++, Vmec-Jax, ...). 
+    This Protocol determines how Simsopt Profile object data is passed from Simsopt to Vmec solvers.
+    This protocol should be maintained here and also in the solver.
+    """
     # also maintained on VMEC side
     name: str
-    x: Array
-    y: Array
+    x: Union[np.ndarray, list]
+    y: Union[np.ndarray, list]
 
 @runtime_checkable
 class VmecProtocol(Protocol):
-    """A Protocol for desc.equilibrium.Equilibrium objects. This Protocol determines
-    the basic set of attributes and methods that a DESC Equilibrium must have in order
+    """A Protocol for Vmec solvers (Vmec2000, Vmec++, Vmec-Jax, ...). This Protocol determines
+    the basic set of attributes and methods that a Vmec solver must have in order
     to be used within Simsopt.
 
     Running,
         ```
-        from desc.equilibrium import Equilibrium
-        eq = Equilibrium(...)
-        isinstance(eq, DescEquilibriumProtocol)
+        import vmecpp import Vmec
+        eq = Vmec(...)
+        isinstance(eq, VmecProtocol)
         ```
-    will check the DESC Equilibrium object has the attributes and methods defined by the DescEquilibriumProtocol.
+    will check the Vmec object has the attributes and methods defined by the VmecProtocol.
     If False, then `eq` does not have the necessary structure to be used within Simsopt.
     This check should be implemented by all methods that rely directly (though not indirectly)
-    on the DESC Equilibrium object.
+    on the Vmec object.
     """
 
     surface: SurfaceRZFourierProtocol
@@ -150,10 +160,10 @@ class VmecProtocol(Protocol):
     current: Optional[ProfileProtocol]
     iota: Optional[ProfileProtocol]
 
-    # TODO: need access to settings (phiedge, ...)
+    # needed access to settings (phiedge, ...)
     vmec_input: Any
 
-    # needed for compute_geometry
+    # needed for compute_geometry etc
     wout: Any
 
     def solve(self, *args: Any, **kwargs: Any) -> Any:
