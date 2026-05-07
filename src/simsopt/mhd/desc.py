@@ -1,3 +1,11 @@
+# coding: utf-8
+# Copyright (c) HiddenSymmetries Development Team.
+# Distributed under the terms of the MIT License
+
+"""
+This module provides a class that handles the DESC equilibrium code.
+"""
+
 import logging
 import os
 import re
@@ -10,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 from simsopt.mhd import ProfileSpline, ProfilePolynomial, Vmec
 from simsopt._core import Optimizable
+
+# TODO: remove this import after merging the surface conversion.
 from constellaration.geometry.surface_utils_desc import (
     to_desc_fourier_rz_toroidal_surface,
     from_desc_fourier_rz_toroidal_surface,
@@ -17,14 +27,22 @@ from constellaration.geometry.surface_utils_desc import (
 from constellaration.geometry.surface_rz_fourier import to_simsopt, from_simsopt
 
 from typing import Protocol, runtime_checkable, Any, Optional
-from desc.equilibrium import Equilibrium as DescEquilibrium
-from desc.geometry import FourierRZToroidalSurface as DescFourierRZToroidalSurface
-from desc.profiles import (
-    SplineProfile as DescSplineProfile,
-    PowerSeriesProfile as DescPowerSeriesProfile,
-)
-from desc.vmec import VMECIO
-from desc.compat import rescale as desc_rescale
+
+try:
+    from desc.equilibrium import Equilibrium as DescEquilibrium
+    from desc.geometry import FourierRZToroidalSurface as DescFourierRZToroidalSurface
+    from desc.profiles import (
+        SplineProfile as DescSplineProfile,
+        PowerSeriesProfile as DescPowerSeriesProfile,
+    )
+    from desc.vmec import VMECIO
+    from desc.compat import rescale as desc_rescale
+    desc_available = True
+except ImportError as e:
+    desc_available = False
+    logger.debug(str(e))
+
+__all__ = ["Desc"]
 
 
 @runtime_checkable
@@ -45,7 +63,7 @@ class DescEquilibriumProtocol(Protocol):
     on the DESC Equilibrium object.
     """
 
-    surface: DescFourierRZToroidalSurface
+    surface: Any
     pressure: Any
     current: Optional[Any]
     iota: Optional[Any]
@@ -61,7 +79,7 @@ class DescEquilibriumProtocol(Protocol):
         pass
 
 
-class DescOptimizable(Optimizable):
+class Desc(Optimizable):
     """An Optimizable object for interfacing with the DESC code to solve Ideal MHD equilibria.
 
     In addition to passing in a Surface object representing the plasma boundary, the edge toroidal
@@ -84,7 +102,7 @@ class DescOptimizable(Optimizable):
         # I(rho) = 0
         current_profile = ProfilePolynomial([0.0])
         psi = 5.0
-        eq = DescOptimizable(boundary,
+        eq = Desc(boundary,
                             psi=psi,
                             pressure_profile=pressure_profile,
                             current_profile=current_profile)
@@ -123,6 +141,9 @@ class DescOptimizable(Optimizable):
         eq=None,
         **kwargs,
     ) -> None:
+        
+        if not desc_available:
+            raise RuntimeError("simsopt requires the desc python package to use Desc.")
 
         if pressure_profile is None:
             raise ValueError("pressure_profile is a required input.")
@@ -256,6 +277,8 @@ class DescOptimizable(Optimizable):
         Returns:
             SurfaceRZFourier: boundary shape as a SurfaceRZFourier.
         """
+        # TODO: this will create a new optimizable object. Instead, overwrite the
+        # TODO: existing dofs
         boundary_constellaration = from_desc_fourier_rz_toroidal_surface(eq.surface)
         boundary = to_simsopt(boundary_constellaration)
         return boundary
@@ -291,6 +314,8 @@ class DescOptimizable(Optimizable):
         Returns:
             tuple: (pressure_profile, current_profile, iota_profile) of Simsopt Profile objects (or None).
         """
+        # TODO: this will create a new optimizable object. Instead, overwrite the
+        # TODO: existing dofs
         pressure_profile = cls._profile_from_desc(
             eq.pressure, n_knots=n_knots, degree=degree
         )
@@ -468,7 +493,7 @@ class DescOptimizable(Optimizable):
         The Optimizable boundary, profiles, and psi will be scaled accordingly.
 
         Example:
-            desc_eq = DescOptimizable(...)
+            desc_eq = Desc(...)
             desc_eq.rescale(L=("a", 1.0), B=("<B>", 1.0), scale_pressure=True)
 
         Args:
@@ -579,7 +604,7 @@ class DescOptimizable(Optimizable):
 
     @classmethod
     def from_eq(cls, eq, n_knots=20, degree=3):
-        """Build a DescOptimizable object from a Desc Equilibrium object.
+        """Build a Desc object from a Desc Equilibrium object.
         The profiles are interpolated to spline profiles. The equilibrium object
         will used for evaluation etc.
 
@@ -589,7 +614,7 @@ class DescOptimizable(Optimizable):
             degree (str): Degree of the spline to use for the profiles.
 
         Returns:
-            DescOptimizable: Optimizable object representing the equilibrium.
+            Desc: Optimizable object representing the equilibrium.
         """
         # check protocol
         if not isinstance(eq, DescEquilibriumProtocol):
@@ -616,11 +641,11 @@ class DescOptimizable(Optimizable):
 
     @classmethod
     def from_input_file(cls, filename, n_knots=20, degree=3, **kwargs):
-        """Build a DescOptimizable object from a Desc or Vmec *input* file.
+        """Build a Desc object from a Desc or Vmec *input* file.
         The profiles are interpolated to spline profiles.
 
         Example:
-            eq = DescOptimizable.from_input_file("input.precise_QA")
+            eq = Desc.from_input_file("input.precise_QA")
 
         Args:
             filename (str): Name of the input file to load.
@@ -629,7 +654,7 @@ class DescOptimizable(Optimizable):
             kwargs: Key-word arguments to pass to the Equilibrium object, such as L or M.
 
         Return:
-            DescOptimizable: Optimizable object representing the equilibrium.
+            Desc: Optimizable object representing the equilibrium.
         """
         # DESC writes a `<filename>_desc` sidecar file when loading a VMEC input.
         # Copy to a temp dir so we don't need write access to the source directory.
@@ -649,12 +674,12 @@ class DescOptimizable(Optimizable):
 
     @classmethod
     def from_file(cls, filename, n_knots=20, degree=3):
-        """Build a DescOptimizable object from a Desc hdf5 or pickle file,
+        """Build a Desc object from a Desc hdf5 or pickle file,
         using the eq.load(filename) method. The profiles are interpolated
         to spline profiles.
 
         Example:
-            eq = DescOptimizable.from_file("saved_equilibrium.hdf5")
+            eq = Desc.from_file("saved_equilibrium.hdf5")
 
         Args:
             filename (str): Name of the file to load.
@@ -662,7 +687,7 @@ class DescOptimizable(Optimizable):
             degree (str): Degree of the spline to use for the profiles.
 
         Return:
-            DescOptimizable: Optimizable object representing the equilibrium.
+            Desc: Optimizable object representing the equilibrium.
         """
         eq = DescEquilibrium.load(filename)
         return cls.from_eq(eq, n_knots=n_knots, degree=degree)
