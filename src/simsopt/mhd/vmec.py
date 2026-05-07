@@ -110,6 +110,55 @@ def array_to_namelist(arr, aux_s=False):
 #                        if ns_index = 0 and numsteps = 0 (see below), vmec will
 #                        control its own run history
 
+@runtime_checkable
+class SurfaceRZFourierProtocol(Protocol):
+    # also maintained on VMEC side
+    rbc: dict # (m,n): value
+    rbs: dict
+    zbc: dict
+    zbs: dict
+    nfp: int
+    stellsym: bool
+
+@runtime_checkable
+class ProfileProtocol(Protocol):
+    # also maintained on VMEC side
+    name: str
+    x: Array
+    y: Array
+
+@runtime_checkable
+class VmecProtocol(Protocol):
+    """A Protocol for desc.equilibrium.Equilibrium objects. This Protocol determines
+    the basic set of attributes and methods that a DESC Equilibrium must have in order
+    to be used within Simsopt.
+
+    Running,
+        ```
+        from desc.equilibrium import Equilibrium
+        eq = Equilibrium(...)
+        isinstance(eq, DescEquilibriumProtocol)
+        ```
+    will check the DESC Equilibrium object has the attributes and methods defined by the DescEquilibriumProtocol.
+    If False, then `eq` does not have the necessary structure to be used within Simsopt.
+    This check should be implemented by all methods that rely directly (though not indirectly)
+    on the DESC Equilibrium object.
+    """
+
+    surface: SurfaceRZFourierProtocol
+    pressure: ProfileProtocol
+    current: Optional[ProfileProtocol]
+    iota: Optional[ProfileProtocol]
+
+    # TODO: need access to settings (phiedge, ...)
+    vmec_input: Any
+
+    # needed for compute_geometry
+    wout: Any
+
+    def solve(self, *args: Any, **kwargs: Any) -> Any:
+        pass
+
 
 class Vmec(Optimizable):
     r"""
