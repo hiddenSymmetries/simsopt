@@ -2,11 +2,11 @@ import unittest
 import tempfile
 import numpy as np
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from simsopt.mhd import ProfilePolynomial, ProfileSpline
 from simsopt.geo import SurfaceRZFourier
-from simsopt.mhd.desc import DescOptimizable, DescEquilibriumProtocol
+from simsopt.mhd.desc import Desc, DescEquilibriumProtocol
 
 
 class TestProfilesToDesc(unittest.TestCase):
@@ -18,7 +18,7 @@ class TestProfilesToDesc(unittest.TestCase):
         prof = ProfilePolynomial([1.0, 0.0, -1.0])
 
         # Convert to DESC
-        prof_desc = DescOptimizable._profile_to_desc(prof)
+        prof_desc = Desc._profile_to_desc(prof)
 
         # Check values at several rho points
         rho_test = np.array([0.0, 0.25, 0.5, 0.75, 1.0])
@@ -39,7 +39,7 @@ class TestProfilesToDesc(unittest.TestCase):
         prof = ProfileSpline(rho_knots, f_values, degree=3)
 
         # Convert to DESC
-        prof_desc = DescOptimizable._profile_to_desc(prof)
+        prof_desc = Desc._profile_to_desc(prof)
 
         # Check values at rho test points
         rho_test = np.linspace(0, 1, 5)
@@ -59,10 +59,10 @@ class TestProfilesFromDesc(unittest.TestCase):
         prof_orig = ProfilePolynomial([1.0, 0.0, -1.0, 0.0, 0.5])
 
         # Convert: simsopt -> DESC
-        prof_desc = DescOptimizable._profile_to_desc(prof_orig)
+        prof_desc = Desc._profile_to_desc(prof_orig)
 
         # Convert back: DESC -> simsopt
-        prof_simsopt = DescOptimizable._profile_from_desc(
+        prof_simsopt = Desc._profile_from_desc(
             prof_desc, n_knots=10, degree=3
         )
 
@@ -85,8 +85,8 @@ class TestProfilesFromDesc(unittest.TestCase):
         prof_orig = ProfileSpline(rho_knots, f_values, degree=3)
 
         # Roundtrip conversion
-        prof_desc = DescOptimizable._profile_to_desc(prof_orig)
-        prof_simsopt = DescOptimizable._profile_from_desc(
+        prof_desc = Desc._profile_to_desc(prof_orig)
+        prof_simsopt = Desc._profile_from_desc(
             prof_desc, n_knots=n_pts, degree=3
         )
 
@@ -109,7 +109,7 @@ class TestBoundaryToDesc(unittest.TestCase):
 
     def test_nfp_preserved(self):
         """Test that NFP is preserved in boundary conversion."""
-        desc_surface = DescOptimizable.surface_to_desc(self.boundary)
+        desc_surface = Desc.surface_to_desc(self.boundary)
 
         self.assertEqual(desc_surface.NFP, self.boundary.nfp)
         self.assertEqual(desc_surface.NFP, 2)  # input.vacuum_template has NFP=2
@@ -117,7 +117,7 @@ class TestBoundaryToDesc(unittest.TestCase):
     def test_major_radius_preserved(self):
         """Test that the (0,0) Fourier mode (major radius) is approximately preserved."""
         boundary_rz = self.boundary.to_RZFourier()
-        desc_surface = DescOptimizable.surface_to_desc(boundary_rz)
+        desc_surface = Desc.surface_to_desc(boundary_rz)
 
         # Get the R(0,0) coefficient, which is the major radius
         R_00, _ = desc_surface.get_coeffs(0, 0)
@@ -130,13 +130,13 @@ class TestBoundaryToDesc(unittest.TestCase):
         from desc.equilibrium import Equilibrium as DescEquilibrium
 
         # Convert surface to DESC format
-        desc_surface = DescOptimizable.surface_to_desc(self.boundary)
+        desc_surface = Desc.surface_to_desc(self.boundary)
 
         # Create a minimal DESC equilibrium with just the surface
         eq = DescEquilibrium(surface=desc_surface)
 
         # Convert back to simsopt surface
-        boundary_from_desc = DescOptimizable.surface_from_desc(eq)
+        boundary_from_desc = Desc.surface_from_desc(eq)
         boundary_roundtrip = boundary_from_desc.copy(
             quadpoints_phi=self.boundary.quadpoints_phi,
             quadpoints_theta=self.boundary.quadpoints_theta,
@@ -157,7 +157,7 @@ class TestBoundaryToDesc(unittest.TestCase):
 
 
 class TestBuildDescEquilibrium(unittest.TestCase):
-    """Test building a DESC equilibrium from DescOptimizable."""
+    """Test building a DESC equilibrium from Desc."""
 
     def setUp(self):
         """Create a simple test equilibrium."""
@@ -170,7 +170,7 @@ class TestBuildDescEquilibrium(unittest.TestCase):
         iota = ProfilePolynomial([0.4, 0.0, 0.1])  # f(rho) = 0.4 + 0.1 * rho^2
 
         self.psi = 1.0
-        self.desc_opt = DescOptimizable(
+        self.desc_opt = Desc(
             boundary=boundary,
             psi=self.psi,
             pressure_profile=pressure,
@@ -190,18 +190,18 @@ class TestBuildDescEquilibrium(unittest.TestCase):
         self.assertEqual(self.desc_opt.eq.surface.NFP, 2)
 
 
-class TestDescOptimizableDOFs(unittest.TestCase):
-    """Test degrees of freedom (DOFs) of DescOptimizable."""
+class TestDescDOFs(unittest.TestCase):
+    """Test degrees of freedom (DOFs) of Desc."""
 
     def setUp(self):
-        """Create a test DescOptimizable."""
+        """Create a test Desc."""
         input_file = "ml_fast_ion/vmec_input_files/input.vacuum_template"
         boundary = SurfaceRZFourier.from_vmec_input(input_file)
         pressure = ProfilePolynomial([1e4, -1e4])
         iota = ProfilePolynomial([0.4, 0.1])
 
         self.psi = 2.5
-        self.desc_opt = DescOptimizable(
+        self.desc_opt = Desc(
             boundary=boundary,
             psi=self.psi,
             pressure_profile=pressure,
@@ -240,7 +240,7 @@ class TestFromFile(unittest.TestCase):
         self.nfp = boundary.nfp
 
         # Create and build equilibrium
-        self.desc_opt_orig = DescOptimizable(
+        self.desc_opt_orig = Desc(
             boundary=boundary,
             psi=self.psi,
             pressure_profile=pressure,
@@ -258,7 +258,7 @@ class TestFromFile(unittest.TestCase):
         self.eq_orig.save(tmp_path)
 
         # Load it back
-        desc_opt_loaded = DescOptimizable.from_file(tmp_path)
+        desc_opt_loaded = Desc.from_file(tmp_path)
 
         # compare boundaries
         boundary_orig = self.desc_opt_orig.boundary
@@ -295,23 +295,22 @@ class TestFromEq(unittest.TestCase):
 
     def setUp(self):
         """Create a test DESC Equilibrium."""
-        from desc.equilibrium import Equilibrium as DescEquilibrium
 
         input_file = "ml_fast_ion/vmec_input_files/input.vacuum_template"
         boundary = SurfaceRZFourier.from_vmec_input(input_file)
 
-        # Create a DescOptimizable to get a DESC Equilibrium
+        # Create a Desc to get a DESC Equilibrium
         pressure = ProfilePolynomial([1e4, -1e4])
         iota = ProfilePolynomial([0.4, 0.1])
 
-        self.desc_opt_orig = DescOptimizable(
+        self.desc_opt_orig = Desc(
             boundary=boundary, psi=1.0, pressure_profile=pressure, iota_profile=iota
         )
         self.eq = self.desc_opt_orig.eq
 
     def test_from_eq_creates_optimizable(self):
-        """Test that from_eq creates a valid DescOptimizable from a DESC Equilibrium."""
-        desc_opt = DescOptimizable.from_eq(self.eq)
+        """Test that from_eq creates a valid Desc from a DESC Equilibrium."""
+        desc_opt = Desc.from_eq(self.eq)
 
         # Check that basic properties are preserved
         self.assertIsNotNone(desc_opt.boundary)
@@ -321,7 +320,7 @@ class TestFromEq(unittest.TestCase):
 
     def test_from_eq_preserves_boundary(self):
         """Test that from_eq preserves boundary properties."""
-        desc_opt = DescOptimizable.from_eq(self.eq)
+        desc_opt = Desc.from_eq(self.eq)
 
         self.assertEqual(desc_opt.boundary.nfp, self.desc_opt_orig.boundary.nfp)
         self.assertEqual(
@@ -330,7 +329,7 @@ class TestFromEq(unittest.TestCase):
 
     def test_from_eq_preserves_profiles(self):
         """Test that from_eq interpolates profiles correctly."""
-        desc_opt = DescOptimizable.from_eq(self.eq)
+        desc_opt = Desc.from_eq(self.eq)
 
         s_test = np.linspace(0, 1, 10)
         pressure_orig = self.desc_opt_orig.pressure_profile(s_test)
@@ -349,7 +348,7 @@ class TestFromInputFile(unittest.TestCase):
         pressure = ProfilePolynomial([1e4, -1e4])
         iota = ProfilePolynomial([0.4, 0.1])
 
-        self.desc_opt_orig = DescOptimizable(
+        self.desc_opt_orig = Desc(
             boundary=boundary, psi=1.0, pressure_profile=pressure, iota_profile=iota
         )
         self.nfp = boundary.nfp
@@ -368,20 +367,20 @@ class TestFromInputFile(unittest.TestCase):
 
     def test_from_input_file_loads_vmec(self):
         """Test that from_input_file can load a VMEC input file."""
-        desc_opt = DescOptimizable.from_input_file(self.input_file_path)
+        desc_opt = Desc.from_input_file(self.input_file_path)
 
         self.assertIsNotNone(desc_opt.boundary)
         self.assertIsNotNone(desc_opt.eq)
 
     def test_from_input_file_preserves_nfp(self):
         """Test that from_input_file preserves NFP."""
-        desc_opt = DescOptimizable.from_input_file(self.input_file_path)
+        desc_opt = Desc.from_input_file(self.input_file_path)
 
         self.assertEqual(desc_opt.boundary.nfp, self.nfp)
 
     def test_from_input_file_creates_optimizable(self):
-        """Test that from_input_file creates a valid DescOptimizable."""
-        desc_opt = DescOptimizable.from_input_file(self.input_file_path)
+        """Test that from_input_file creates a valid Desc."""
+        desc_opt = Desc.from_input_file(self.input_file_path)
 
         # The eq should be a valid DESC Equilibrium
         self.assertIsNotNone(desc_opt.eq)
@@ -391,7 +390,7 @@ class TestFromInputFile(unittest.TestCase):
         """Test that from_input_file respects custom knot parameters."""
         n_knots = 15
         degree = 2
-        desc_opt = DescOptimizable.from_input_file(
+        desc_opt = Desc.from_input_file(
             self.input_file_path, n_knots=n_knots, degree=degree
         )
 
@@ -412,7 +411,7 @@ class TestFromFileMethod(unittest.TestCase):
         self.psi = 1.0
         self.nfp = boundary.nfp
 
-        self.desc_opt_orig = DescOptimizable(
+        self.desc_opt_orig = Desc(
             boundary=boundary,
             psi=self.psi,
             pressure_profile=pressure,
@@ -431,14 +430,14 @@ class TestFromFileMethod(unittest.TestCase):
 
     def test_from_file_loads_hdf5(self):
         """Test that from_file can load an HDF5 file."""
-        desc_opt = DescOptimizable.from_file(self.hdf5_file_path)
+        desc_opt = Desc.from_file(self.hdf5_file_path)
 
         self.assertIsNotNone(desc_opt.boundary)
         self.assertIsNotNone(desc_opt.eq)
 
     def test_from_file_preserves_boundary(self):
         """Test that from_file preserves boundary properties."""
-        desc_opt = DescOptimizable.from_file(self.hdf5_file_path)
+        desc_opt = Desc.from_file(self.hdf5_file_path)
 
         # Check NFP and stellsym are preserved
         self.assertEqual(desc_opt.boundary.nfp, self.desc_opt_orig.boundary.nfp)
@@ -448,7 +447,7 @@ class TestFromFileMethod(unittest.TestCase):
 
     def test_from_file_preserves_psi(self):
         """Test that from_file preserves psi."""
-        desc_opt = DescOptimizable.from_file(self.hdf5_file_path)
+        desc_opt = Desc.from_file(self.hdf5_file_path)
 
         self.assertAlmostEqual(desc_opt.get("psi"), self.psi, places=10)
 
@@ -456,7 +455,7 @@ class TestFromFileMethod(unittest.TestCase):
         """Test that from_file respects custom knot parameters."""
         n_knots = 15
         degree = 2
-        desc_opt = DescOptimizable.from_file(
+        desc_opt = Desc.from_file(
             self.hdf5_file_path, n_knots=n_knots, degree=degree
         )
 
@@ -475,9 +474,9 @@ class TestSurfaceFromDesc(unittest.TestCase):
         boundary_orig = SurfaceRZFourier.from_vmec_input(input_file)
 
         # Convert to DESC and back
-        desc_surface = DescOptimizable.surface_to_desc(boundary_orig)
+        desc_surface = Desc.surface_to_desc(boundary_orig)
         eq = DescEquilibrium(surface=desc_surface)
-        boundary_roundtrip = DescOptimizable.surface_from_desc(eq)
+        boundary_roundtrip = Desc.surface_from_desc(eq)
         boundary_from_desc = boundary_roundtrip.copy(
             quadpoints_phi=boundary_orig.quadpoints_phi,
             quadpoints_theta=boundary_orig.quadpoints_theta,
@@ -508,7 +507,7 @@ class TestToWout(unittest.TestCase):
         pressure = ProfilePolynomial([1e4, -1e4])
         iota = ProfilePolynomial([0.4, 0.1])
 
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=boundary, psi=1.0, pressure_profile=pressure, iota_profile=iota
         )
 
@@ -539,7 +538,7 @@ class TestToVmecInput(unittest.TestCase):
         pressure = ProfilePolynomial([1e4, -1e4])
         iota = ProfilePolynomial([0.4, 0.1])
 
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=boundary, psi=1.0, pressure_profile=pressure, iota_profile=iota
         )
 
@@ -568,7 +567,7 @@ class TestToVmecInput(unittest.TestCase):
         pressure = ProfilePolynomial([1e4, -1e4])
         iota = ProfilePolynomial([0.4, 0.1])
 
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=boundary, psi=1.0, pressure_profile=pressure, iota_profile=iota
         )
 
@@ -622,7 +621,7 @@ class TestToVmec(unittest.TestCase):
         pressure = ProfilePolynomial([1e4, -1e4])
         iota = ProfilePolynomial([0.4, 0.1])
 
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=boundary, psi=1.0, pressure_profile=pressure, iota_profile=iota
         )
 
@@ -640,7 +639,7 @@ class TestToVmec(unittest.TestCase):
         pressure = ProfilePolynomial([1e4, -1e4])
         iota = ProfilePolynomial([0.4, 0.1])
 
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=boundary, psi=1.0, pressure_profile=pressure, iota_profile=iota
         )
 
@@ -659,7 +658,7 @@ class TestToVmec(unittest.TestCase):
         iota = ProfilePolynomial([0.4, 0.1])
         psi = 2.5
 
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=boundary, psi=psi, pressure_profile=pressure, iota_profile=iota
         )
 
@@ -677,7 +676,7 @@ class TestToVmec(unittest.TestCase):
         pressure = ProfilePolynomial([1e4, -1e4])
         iota = ProfilePolynomial([0.4, 0.1])
 
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=boundary, psi=1.0, pressure_profile=pressure, iota_profile=iota
         )
 
@@ -695,7 +694,7 @@ class TestToVmec(unittest.TestCase):
         pressure = ProfilePolynomial([1e4, -1e4])
         iota = ProfilePolynomial([0.4, 0.1])
 
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=boundary, psi=1.0, pressure_profile=pressure, iota_profile=iota
         )
 
@@ -713,7 +712,7 @@ class TestToVmec(unittest.TestCase):
         pressure = ProfilePolynomial([1e4, -1e4])
         iota = ProfilePolynomial([0.4, 0.1])
 
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=boundary,
             psi=1.0,
             pressure_profile=pressure,
@@ -736,7 +735,7 @@ class TestToVmec(unittest.TestCase):
         pressure = ProfilePolynomial([1e4, -1e4])
         current = ProfilePolynomial([1e5, -1e5])
 
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=boundary,
             psi=1.0,
             pressure_profile=pressure,
@@ -759,7 +758,7 @@ class TestToDescProfiles(unittest.TestCase):
         pressure = ProfilePolynomial([1e4, -1e4])
         iota = ProfilePolynomial([0.4, 0.1])
 
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=boundary, psi=1.0, pressure_profile=pressure, iota_profile=iota
         )
 
@@ -784,7 +783,7 @@ class TestToDescProfiles(unittest.TestCase):
         pressure = ProfilePolynomial([1e4, -1e4])
         current = ProfilePolynomial([0.0, 0.0, 1e5])  # symmetric: c2*rho^2
 
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=boundary,
             psi=1.0,
             pressure_profile=pressure,
@@ -810,13 +809,13 @@ class TestRescale(unittest.TestCase):
     """Test the rescale method."""
 
     def setUp(self):
-        """Create a test DescOptimizable for rescaling."""
+        """Create a test Desc for rescaling."""
         input_file = "ml_fast_ion/vmec_input_files/input.vacuum_template"
         boundary = SurfaceRZFourier.from_vmec_input(input_file)
         pressure = ProfilePolynomial([1e4, -1e4])
         iota = ProfilePolynomial([0.4, 0.1])
 
-        self.desc_opt = DescOptimizable(
+        self.desc_opt = Desc(
             boundary=boundary, psi=1.0, pressure_profile=pressure, iota_profile=iota
         )
 
@@ -838,7 +837,7 @@ class TestRescale(unittest.TestCase):
         self.assertNotAlmostEqual(psi_orig, psi_new, places=5)
 
         # Check that boundary is synced: simsopt boundary should match eq surface
-        boundary_from_eq = DescOptimizable.surface_from_desc(self.desc_opt.eq).copy(
+        boundary_from_eq = Desc.surface_from_desc(self.desc_opt.eq).copy(
             quadpoints_phi=self.desc_opt.boundary.quadpoints_phi,
             quadpoints_theta=self.desc_opt.boundary.quadpoints_theta,
         )
@@ -847,7 +846,7 @@ class TestRescale(unittest.TestCase):
         np.testing.assert_allclose(gamma_new, gamma_from_eq, rtol=1e-10)
 
         # Check that pressure profile is synced
-        pressure_from_eq = DescOptimizable._profile_from_desc(
+        pressure_from_eq = Desc._profile_from_desc(
             self.desc_opt.eq.pressure,
             n_knots=self.desc_opt.n_knots,
             degree=self.desc_opt.degree,
@@ -856,7 +855,7 @@ class TestRescale(unittest.TestCase):
         np.testing.assert_allclose(pressure_new, pressure_from_eq, rtol=1e-10)
 
         # Check that iota profile is synced
-        iota_from_eq = DescOptimizable._profile_from_desc(
+        iota_from_eq = Desc._profile_from_desc(
             self.desc_opt.eq.iota,
             n_knots=self.desc_opt.n_knots,
             degree=self.desc_opt.degree,
@@ -866,13 +865,13 @@ class TestRescale(unittest.TestCase):
 
     def test_rescale_with_current_profile(self):
         """Test rescale with a current profile instead of iota profile."""
-        # Create DescOptimizable with current profile
+        # Create Desc with current profile
         input_file = "ml_fast_ion/vmec_input_files/input.vacuum_template"
         boundary = SurfaceRZFourier.from_vmec_input(input_file)
         pressure = ProfilePolynomial([1e4, -1e4])
         current = ProfilePolynomial([0.0, 0.0, 1e5])  # symmetric: c2*rho^2
 
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=boundary,
             psi=1.0,
             pressure_profile=pressure,
@@ -895,7 +894,7 @@ class TestRescale(unittest.TestCase):
         self.assertNotAlmostEqual(psi_orig, psi_new, places=5)
 
         # Check that boundary is synced
-        boundary_from_eq = DescOptimizable.surface_from_desc(desc_opt.eq).copy(
+        boundary_from_eq = Desc.surface_from_desc(desc_opt.eq).copy(
             quadpoints_phi=desc_opt.boundary.quadpoints_phi,
             quadpoints_theta=desc_opt.boundary.quadpoints_theta,
         )
@@ -904,7 +903,7 @@ class TestRescale(unittest.TestCase):
         np.testing.assert_allclose(gamma_new, gamma_from_eq, rtol=1e-10)
 
         # Check that pressure profile is synced
-        pressure_from_eq = DescOptimizable._profile_from_desc(
+        pressure_from_eq = Desc._profile_from_desc(
             desc_opt.eq.pressure,
             n_knots=desc_opt.n_knots,
             degree=desc_opt.degree,
@@ -913,7 +912,7 @@ class TestRescale(unittest.TestCase):
         np.testing.assert_allclose(pressure_new, pressure_from_eq, rtol=1e-10)
 
         # Check that current profile is synced
-        current_from_eq = DescOptimizable._profile_from_desc(
+        current_from_eq = Desc._profile_from_desc(
             desc_opt.eq.current,
             n_knots=desc_opt.n_knots,
             degree=desc_opt.degree,
@@ -923,13 +922,13 @@ class TestRescale(unittest.TestCase):
 
     def test_rescale_vacuum_equilibrium(self):
         """Test rescale with vacuum (zero pressure and current)."""
-        # Create DescOptimizable with vacuum profiles
+        # Create Desc with vacuum profiles
         input_file = "ml_fast_ion/vmec_input_files/input.vacuum_template"
         boundary = SurfaceRZFourier.from_vmec_input(input_file)
         pressure = ProfilePolynomial([0.0, 0.0])  # vacuum: p = 0
         current = ProfilePolynomial([0.0, 0.0])  # vacuum: I = 0
 
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=boundary,
             psi=1.0,
             pressure_profile=pressure,
@@ -952,7 +951,7 @@ class TestRescale(unittest.TestCase):
         self.assertNotAlmostEqual(psi_orig, psi_new, places=5)
 
         # Check that boundary is synced
-        boundary_from_eq = DescOptimizable.surface_from_desc(desc_opt.eq).copy(
+        boundary_from_eq = Desc.surface_from_desc(desc_opt.eq).copy(
             quadpoints_phi=desc_opt.boundary.quadpoints_phi,
             quadpoints_theta=desc_opt.boundary.quadpoints_theta,
         )
@@ -961,7 +960,7 @@ class TestRescale(unittest.TestCase):
         np.testing.assert_allclose(gamma_new, gamma_from_eq, rtol=1e-10)
 
         # Check that pressure profile is synced (should be zero)
-        pressure_from_eq = DescOptimizable._profile_from_desc(
+        pressure_from_eq = Desc._profile_from_desc(
             desc_opt.eq.pressure,
             n_knots=desc_opt.n_knots,
             degree=desc_opt.degree,
@@ -971,7 +970,7 @@ class TestRescale(unittest.TestCase):
         np.testing.assert_allclose(pressure_new, 0.0, atol=1e-12)
 
         # Check that current profile is synced (should be zero)
-        current_from_eq = DescOptimizable._profile_from_desc(
+        current_from_eq = Desc._profile_from_desc(
             desc_opt.eq.current,
             n_knots=desc_opt.n_knots,
             degree=desc_opt.degree,
@@ -982,16 +981,16 @@ class TestRescale(unittest.TestCase):
 
 
 class TestComputeMethod(unittest.TestCase):
-    """Test the compute method of DescOptimizable."""
+    """Test the compute method of Desc."""
 
     def setUp(self):
-        """Create a test DescOptimizable."""
+        """Create a test Desc."""
         input_file = "ml_fast_ion/vmec_input_files/input.vacuum_template"
         boundary = SurfaceRZFourier.from_vmec_input(input_file)
         pressure = ProfilePolynomial([1e4, -1e4])
         current = ProfilePolynomial([0.0])
 
-        self.desc_opt = DescOptimizable(
+        self.desc_opt = Desc(
             boundary=boundary,
             psi=1.0,
             pressure_profile=pressure,
@@ -1037,7 +1036,7 @@ class TestDetermineWhichProfile(unittest.TestCase):
     """Test the _determine_which_profile method."""
 
     def setUp(self):
-        """Create test DescOptimizable objects with different profile configurations."""
+        """Create test Desc objects with different profile configurations."""
         input_file = "ml_fast_ion/vmec_input_files/input.vacuum_template"
         self.boundary = SurfaceRZFourier.from_vmec_input(input_file)
         self.pressure = ProfilePolynomial([1e4, -1e4])
@@ -1046,7 +1045,7 @@ class TestDetermineWhichProfile(unittest.TestCase):
 
     def test_auto_with_current_only(self):
         """Test that 'auto' defaults to current when only current is provided."""
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=self.boundary,
             psi=1.0,
             pressure_profile=self.pressure,
@@ -1058,7 +1057,7 @@ class TestDetermineWhichProfile(unittest.TestCase):
 
     def test_auto_with_iota_only(self):
         """Test that 'auto' uses iota when only iota is provided."""
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=self.boundary,
             psi=1.0,
             pressure_profile=self.pressure,
@@ -1070,7 +1069,7 @@ class TestDetermineWhichProfile(unittest.TestCase):
 
     def test_auto_with_both_profiles(self):
         """Test that 'auto' defaults to current when both profiles are provided."""
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=self.boundary,
             psi=1.0,
             pressure_profile=self.pressure,
@@ -1083,7 +1082,7 @@ class TestDetermineWhichProfile(unittest.TestCase):
 
     def test_explicit_current(self):
         """Test that explicitly setting which_profile to 'current' works."""
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=self.boundary,
             psi=1.0,
             pressure_profile=self.pressure,
@@ -1096,7 +1095,7 @@ class TestDetermineWhichProfile(unittest.TestCase):
 
     def test_explicit_iota(self):
         """Test that explicitly setting which_profile to 'iota' works."""
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=self.boundary,
             psi=1.0,
             pressure_profile=self.pressure,
@@ -1109,7 +1108,7 @@ class TestDetermineWhichProfile(unittest.TestCase):
 
     def test_invalid_which_profile(self):
         """Test that invalid which_profile value raises ValueError."""
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=self.boundary,
             psi=1.0,
             pressure_profile=self.pressure,
@@ -1122,7 +1121,7 @@ class TestDetermineWhichProfile(unittest.TestCase):
 
     def test_which_profile_property_setter(self):
         """Test that the which_profile property can be updated."""
-        desc_opt = DescOptimizable(
+        desc_opt = Desc(
             boundary=self.boundary,
             psi=1.0,
             pressure_profile=self.pressure,

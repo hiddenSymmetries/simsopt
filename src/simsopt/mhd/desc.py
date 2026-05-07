@@ -30,7 +30,6 @@ from typing import Protocol, runtime_checkable, Any, Optional
 
 try:
     from desc.equilibrium import Equilibrium as DescEquilibrium
-    from desc.geometry import FourierRZToroidalSurface as DescFourierRZToroidalSurface
     from desc.profiles import (
         SplineProfile as DescSplineProfile,
         PowerSeriesProfile as DescPowerSeriesProfile,
