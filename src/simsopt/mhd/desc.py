@@ -114,7 +114,7 @@ class Desc(Optimizable):
         pressure_profile (Profile, optional): Pressure profile. Defaults to None.
         iota_profile (Profile, optional):  Rotational transform profile. Defaults to None.
         current_profile (Profile, optional):  Current profile. Defaults to None.
-        which_profile (str): One of ["current", "iota"].
+        which_profile (str): One of ["auto", "current", "iota"].
             Specify which profile to use as the second profile (current or iota) during
             equilibrium solves. Using "auto" will choose whichever profile is not None,
             and will default to using the current profile if both profiles are not None.
