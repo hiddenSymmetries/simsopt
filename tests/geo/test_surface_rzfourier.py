@@ -524,8 +524,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
         np.testing.assert_allclose(full_torus.zs, full_period.zs)
 
     @unittest.skipIf(DescFourierRZToroidalSurface is None, "desc python extension is not installed")
-    def test_surface_from_desc_roundtrip(self):
-        """Test that surface_from_desc correctly converts DESC surface back to simsopt."""
+    def test_to_from_desc_roundtrip(self):
+        """Test that to_desc and from_desc correctly converts DESC surface back to simsopt."""
         import os
         from scipy.spatial.distance import cdist
 
@@ -551,10 +551,14 @@ class SurfaceRZFourierTests(unittest.TestCase):
             # Check geometry is preserved via gamma
             gamma_flat = surface_orig.gamma().reshape((-1, 3))
             gamma_rt_flat = boundary_from_desc.gamma().reshape((-1, 3))
-            distances = cdist(gamma_flat, gamma_rt_flat)
-            gamma_err = np.max(np.min(distances, axis=1))
+            gamma_err = np.max(np.linalg.norm(gamma_flat - gamma_rt_flat, axis=-1))
             self.assertAlmostEqual(gamma_err, 0.0, places=12)
 
+            # check the modes are preserved
+            np.testing.assert_allclose(boundary_from_desc.rc, surface_orig.rc, atol=1e-12)
+            np.testing.assert_allclose(boundary_from_desc.zs, surface_orig.zs, atol=1e-12)
+            np.testing.assert_allclose(boundary_from_desc.rs, surface_orig.rs, atol=1e-12)
+            np.testing.assert_allclose(boundary_from_desc.zc, surface_orig.zc, atol=1e-12)
 
     def test_change_resolution(self):
         """

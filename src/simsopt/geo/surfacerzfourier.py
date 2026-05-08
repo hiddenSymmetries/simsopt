@@ -572,8 +572,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         # ------------------ convert ------------------
 
         is_stellarator_symmetric = surface.sym
-        max_toroidal_mode = np.max(np.concatenate((n_out_r, n_out_z)))
-        max_poloidal_mode = np.max(np.concatenate((m_out_r, m_out_z)))
+        max_toroidal_mode = np.max(np.abs(np.concatenate((n_out_r, n_out_z))))
+        max_poloidal_mode = np.max(np.abs(np.concatenate((m_out_r, m_out_z))))
 
         simsopt_surface = cls(
             nfp=n_field_periods,
