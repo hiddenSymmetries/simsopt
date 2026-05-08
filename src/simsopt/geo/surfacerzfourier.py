@@ -649,13 +649,13 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             poloidal_modes, toroidal_modes, s=zmns, c=zmnc
         )
 
-        surface_parameters = np.vstack((np.zeros_like(m), m, n, r_lmn, z_lmn)).T
+        modes = np.column_stack([m, n]).astype(int)
 
         return DescFourierRZToroidalSurface(
-            R_lmn=surface_parameters[:, 3],
-            Z_lmn=surface_parameters[:, 4],
-            modes_R=surface_parameters[:, 1:3].astype(int),
-            modes_Z=surface_parameters[:, 1:3].astype(int),
+            R_lmn=r_lmn.flatten(),
+            Z_lmn=z_lmn.flatten(),
+            modes_R=modes,
+            modes_Z=modes,
             NFP=n_field_periods,
             sym=is_stellarator_symmetric,
             check_orientation=False,
