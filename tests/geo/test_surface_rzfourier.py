@@ -17,6 +17,11 @@ try:
 except ImportError:
     vmec = None
 
+try:
+    from desc.geometry import FourierRZToroidalSurface as DescFourierRZToroidalSurface
+except ImportError:
+    DescFourierRZToroidalSurface = None
+
 from simsopt.mhd import Vmec
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
@@ -517,6 +522,39 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         np.testing.assert_allclose(full_torus.rc, full_period.rc)
         np.testing.assert_allclose(full_torus.zs, full_period.zs)
+
+    @unittest.skipIf(DescFourierRZToroidalSurface is None, "desc python extension is not installed")
+    def test_surface_from_desc_roundtrip(self):
+        """Test that surface_from_desc correctly converts DESC surface back to simsopt."""
+        import os
+        from scipy.spatial.distance import cdist
+
+        filelist = ["input.rotating_ellipse", 'input.LandremanPaul2021_QH_reactorScale_lowres', "input.ITERModel", "input.li383_low_res"]
+
+        for ff in filelist:
+            # input_file = str(TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres')
+            input_file = os.path.join(TEST_DIR, ff)
+            surface_orig = SurfaceRZFourier.from_vmec_input(input_file)
+
+            # Convert to DESC and back
+            desc_surface = surface_orig.to_desc()
+            boundary_roundtrip = SurfaceRZFourier.from_desc(desc_surface)
+            boundary_from_desc = boundary_roundtrip.copy(
+                quadpoints_phi=surface_orig.quadpoints_phi,
+                quadpoints_theta=surface_orig.quadpoints_theta,
+            )
+
+            # Check NFP and stellsym are preserved
+            self.assertEqual(boundary_from_desc.nfp, surface_orig.nfp)
+            self.assertEqual(boundary_from_desc.stellsym, surface_orig.stellsym)
+
+            # Check geometry is preserved via gamma
+            gamma_flat = surface_orig.gamma().reshape((-1, 3))
+            gamma_rt_flat = boundary_from_desc.gamma().reshape((-1, 3))
+            distances = cdist(gamma_flat, gamma_rt_flat)
+            gamma_err = np.max(np.min(distances, axis=1))
+            self.assertAlmostEqual(gamma_err, 0.0, places=12)
+
 
     def test_change_resolution(self):
         """

@@ -24,6 +24,12 @@ try:
 except ImportError:
     Qsc = None
 
+try:
+    from desc.geometry import FourierRZToroidalSurface as DescFourierRZToroidalSurface
+    from desc import vmec_utils as desc_vmec_utils
+except ImportError:
+    DescFourierRZToroidalSurface = None
+
 logger = logging.getLogger(__name__)
 
 __all__ = ['SurfaceRZFourier', 'SurfaceRZPseudospectral', 'plot_spectral_condensation']
@@ -516,7 +522,209 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         surf.local_full_x = surf.get_dofs()
         return surf
+    
+    @classmethod
+    @SimsoptRequires(DescFourierRZToroidalSurface is not None, "from_desc method requires Desc module")
+    def from_desc(cls, surface: DescFourierRZToroidalSurface):
+        r"""Converts a DESC FourierRZToroidalSurface (parameterized with coefficients of a
+        Double Fourier Series basis [1]) into a SurfaceRZFourier (Parameterized with Fourier
+        coefficients in cylindrical coordinates).
 
+        Specifically, this function takes the **double-Fourier** representation
+        from DESC:
+
+        .. math::
+
+        R( \theta, \phi) \;=\;\sum_k R_k \,\cos\bigl(\,m_k\,\theta
+            \;-\; n_k\,(\mathrm{NFP})\,\phi\bigr),
+        \\
+        Z(\theta, \phi) \;=\;\sum_k Z_k \,\sin\bigl(\,m_k\,\theta
+            \;-\; n_k\,(\mathrm{NFP})\,\phi\bigr),
+
+        where :math:`m_k` and :math:`n_k` are the poloidal/toroidal integers stored in
+        the DESC surface bases, and produces *pure* cylindrical expansions:
+
+        .. math::
+        R(\theta, \phi)
+        \;=\;
+        \sum_{m,n}\Bigl(\,
+            R_{m,n}^{(\cos)}\,\cos(m\,\theta - n\,\phi)
+            \;+\;
+            R_{m,n}^{(\sin)}\,\sin(m\,\theta - n\,\phi)\Bigr),
+        \\
+        Z(\theta, \phi)
+        \;=\;
+        \sum_{m,n}\Bigl(\,
+            Z_{m,n}^{(\cos)}\,\cos(m\,\theta - n\,\phi)
+            \;+\;
+            Z_{m,n}^{(\sin)}\,\sin(m\,\theta - n\,\phi)\Bigr).
+
+        We use the ``ptolemy_identity_rev`` helper to reorganize
+        :math:`\cos(m\,\theta - n\,(\mathrm{NFP})\,\phi) \leftrightarrow \cos(m\,\theta)\,\cos(n\,\phi) \pm \dots`
+        into single-angle “cos/sin” expansions. For a surface with **stellarator symmetry**,
+        the typical result is that :math:`R(\theta,\phi)` only has nonzero “cos” modes,
+        and :math:`Z(\theta,\phi)` has only “sin” modes (but any small asymmetry
+        yields nonzero extra terms).
+
+        Args:
+            surface (FourierRZToroidalSurface): A DESC FourierRZToroidalSurface object.
+
+        Returns:
+            (SurfaceRZFourier): A SurfaceRZFourier object.
+
+        References
+        .. [1] `DESC Double-Fourier Series Documentation
+        <https://desc-docs.readthedocs.io/en/stable/notebooks/basis_grid.html#Double-Fourier-Series>`_
+        """
+        n_field_periods = surface.NFP
+
+        # ------------------ R expansions ------------------
+        # "DESC" style has poloidal modes: R_basis.modes[:, 1] => m
+        # toroidal modes: R_basis.modes[:, 2] => n
+        # but the actual function is cos(mθ - n*(NFP)*φ).
+        poloidal_modes_r = surface.R_basis.modes[:, 1]
+        toroidal_modes_r = surface.R_basis.modes[:, 2]
+
+        # R_lmn are the double-Fourier coefficients in DESC
+        # shape => (num_modes,). ptolemy_identity_rev expects shape (n_surfs, num_modes)
+        # but here we have only "one" surface => put them in a row
+        r_array = np.expand_dims(surface.R_lmn, axis=0)
+
+        # Convert to "cos(mθ - n(NFP)φ), sin(mθ - n(NFP)φ)" expansions
+        m_out_r, n_out_r, sin_r, cos_r = desc_vmec_utils.ptolemy_identity_rev(
+            m_1=poloidal_modes_r, n_1=toroidal_modes_r, x=r_array
+        )
+
+        # cos_R, sin_R have shape => (1, num_modes)
+        rmnc = cos_r[0, :]  # cos expansions => "R_{m,n} cos(mθ - n(NFP)φ)"
+        rmns = sin_r[0, :]  # sin expansions => "R_{m,n} sin(mθ - n(NFP)φ)"
+
+        # ------------------ Z expansions ------------------
+        poloidal_modes_z = surface.Z_basis.modes[:, 1]
+        toroidal_modes_z = surface.Z_basis.modes[:, 2]
+
+        z_array = np.expand_dims(surface.Z_lmn, axis=0)
+        m_out_z, n_out_z, sin_z, cos_z = desc_vmec_utils.ptolemy_identity_rev(
+            m_1=poloidal_modes_z, n_1=toroidal_modes_z, x=z_array
+        )
+
+        zmnc = cos_z[0, :]
+        zmns = sin_z[0, :]
+
+        # ------------------ convert ------------------
+
+        is_stellarator_symmetric = surface.sym
+        max_toroidal_mode = np.max(np.concatenate((n_out_r, n_out_z)))
+        max_poloidal_mode = np.max(np.concatenate((m_out_r, m_out_z)))
+
+        simsopt_surface = cls(
+            nfp=n_field_periods,
+            stellsym=is_stellarator_symmetric,
+            mpol=max_poloidal_mode,
+            ntor=max_toroidal_mode,
+        )
+
+        for m, n, value in zip(m_out_r, n_out_r, rmnc):
+            simsopt_surface.set_rc(m, n, value)
+
+        for m, n, value in zip(m_out_z, n_out_z, zmns):
+            simsopt_surface.set_zs(m, n, value)
+
+        if not is_stellarator_symmetric:
+            for m, n, value in zip(m_out_r, n_out_r, rmns):
+                simsopt_surface.set_rs(m, n, value)
+
+            for m, n, value in zip(m_out_z, n_out_z, zmnc):
+                simsopt_surface.set_zc(m, n, value)
+
+        return simsopt_surface
+    
+    @SimsoptRequires(DescFourierRZToroidalSurface is not None, "to_desc method requires Desc module")
+    def to_desc(self) -> DescFourierRZToroidalSurface:
+        r"""Converts a SurfaceRZFourier into a DESC FourierRZToroidalSurface (parameterized with
+        coefficients of a Double Fourier Series basis [1]).
+
+        Specifically, this function produces the **double-Fourier** representation from DESC:
+
+        .. math::
+
+        R( \theta, \phi) \;=\;\sum_k R_k \,\cos\bigl(\,m_k\,\theta
+            \;-\; n_k\,(\mathrm{NFP})\,\phi\bigr),
+        \\
+        Z(\theta, \phi) \;=\;\sum_k Z_k \,\sin\
+                \bigl(\,m_k\,\theta \;-\; n_k\,(\mathrm{NFP})\,\phi\bigr),
+
+        where :math:`m_k` and :math:`n_k` are the poloidal/toroidal integers stored in
+        the DESC surface bases.
+
+
+        Args:
+            surface (SurfaceRZFourier): A SurfaceRZFourier object.
+
+        Returns
+            A DESC FourierRZToroidalSurface object.
+
+
+        References
+
+        .. [1] `DESC Double-Fourier Series Documentation
+        <https://desc-docs.readthedocs.io/en/stable/notebooks/basis_grid.html#Double-Fourier-Series>`_
+        """
+
+        rmnc = self.rc.ravel()
+        zmns = self.zs.ravel()
+        rmns = self.rs.ravel() if self.rs is not None else np.zeros_like(rmnc)
+        zmnc = self.zc.ravel() if self.zc is not None else np.zeros_like(zmns)
+
+        n_poloidal_modes = np.shape(self.rc)[0]
+        n_toroidal_modes = np.shape(self.rc)[1]
+        max_toroidal_mode = (n_toroidal_modes - 1) // 2
+        poloidal_modes = np.broadcast_to(
+            np.arange(n_poloidal_modes)[:, None],
+            (n_poloidal_modes, n_toroidal_modes),
+        )
+        toroidal_modes = np.broadcast_to(
+            np.arange(-max_toroidal_mode, max_toroidal_mode + 1),
+            (n_poloidal_modes, n_toroidal_modes),
+        )
+        poloidal_modes = poloidal_modes.ravel().astype(int)
+        toroidal_modes = toroidal_modes.ravel().astype(int)
+
+
+        is_stellarator_symmetric = self.stellsym
+        n_field_periods = self.nfp
+
+        if is_stellarator_symmetric:
+            inds = np.where(np.logical_and(poloidal_modes == 0, toroidal_modes < 0))[0]
+            poloidal_modes = np.delete(poloidal_modes, inds)
+            toroidal_modes = np.delete(toroidal_modes, inds)
+            rmnc = np.delete(rmnc, inds)
+            zmns = np.delete(zmns, inds)
+            rmns = np.delete(rmns, inds)
+            zmnc = np.delete(zmnc, inds)
+
+        # R
+        m, n, r_lmn = desc_vmec_utils.ptolemy_identity_fwd(
+            poloidal_modes, toroidal_modes, s=rmns, c=rmnc
+        )
+
+        # Z
+        m, n, z_lmn = desc_vmec_utils.ptolemy_identity_fwd(
+            poloidal_modes, toroidal_modes, s=zmns, c=zmnc
+        )
+
+        surface_parameters = np.vstack((np.zeros_like(m), m, n, r_lmn, z_lmn)).T
+
+        return DescFourierRZToroidalSurface(
+            R_lmn=surface_parameters[:, 3],
+            Z_lmn=surface_parameters[:, 4],
+            modes_R=surface_parameters[:, 1:3].astype(int),
+            modes_Z=surface_parameters[:, 1:3].astype(int),
+            NFP=n_field_periods,
+            sym=is_stellarator_symmetric,
+            check_orientation=False,
+        )
+    
     def copy(self, **kwargs):
         """
         Return a copy of the ``SurfaceRZFourier`` object. 
