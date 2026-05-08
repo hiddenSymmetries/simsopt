@@ -628,14 +628,16 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         is_stellarator_symmetric = self.stellsym
         n_field_periods = self.nfp
 
-        if is_stellarator_symmetric:
-            inds = np.where(np.logical_and(poloidal_modes == 0, toroidal_modes < 0))[0]
-            poloidal_modes = np.delete(poloidal_modes, inds)
-            toroidal_modes = np.delete(toroidal_modes, inds)
-            rmnc = np.delete(rmnc, inds)
-            zmns = np.delete(zmns, inds)
-            rmns = np.delete(rmns, inds)
-            zmnc = np.delete(zmnc, inds)
+        # Remove m=0, n<0 modes: these are always redundant because
+        # cos(0·θ − n·φ) = cos(0·θ − (−n)·φ) and sin(0·θ − n·φ) = −sin(0·θ − (−n)·φ)
+        # Keeping both positive and negative n at m=0 produces a singular system.
+        inds = np.where(np.logical_and(poloidal_modes == 0, toroidal_modes < 0))[0]
+        poloidal_modes = np.delete(poloidal_modes, inds)
+        toroidal_modes = np.delete(toroidal_modes, inds)
+        rmnc = np.delete(rmnc, inds)
+        zmns = np.delete(zmns, inds)
+        rmns = np.delete(rmns, inds)
+        zmnc = np.delete(zmnc, inds)
 
         # R
         m, n, r_lmn = desc_vmec_utils.ptolemy_identity_fwd(

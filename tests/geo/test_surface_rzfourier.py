@@ -527,9 +527,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
     def test_to_from_desc_roundtrip(self):
         """Test that to_desc and from_desc correctly converts DESC surface back to simsopt."""
         import os
-        from scipy.spatial.distance import cdist
 
-        filelist = ["input.rotating_ellipse", 'input.LandremanPaul2021_QH_reactorScale_lowres', "input.ITERModel", "input.li383_low_res"]
+        filelist = ["input.rotating_ellipse", 'input.LandremanPaul2021_QH_reactorScale_lowres', "input.ITERModel", "input.li383_low_res", "input.basic_non_stellsym"]
 
         for ff in filelist:
             # input_file = str(TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres')
