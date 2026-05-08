@@ -559,6 +559,48 @@ class SurfaceRZFourierTests(unittest.TestCase):
             np.testing.assert_allclose(boundary_from_desc.rs, surface_orig.rs, atol=1e-12)
             np.testing.assert_allclose(boundary_from_desc.zc, surface_orig.zc, atol=1e-12)
 
+    @unittest.skipIf(DescFourierRZToroidalSurface is None, "desc python extension is not installed")
+    def test_to_from_desc_ntor0(self):
+        """Roundtrip with ntor=0 (no toroidal modes — mode deletion path is a no-op)."""
+        surface_orig = SurfaceRZFourier(mpol=2, ntor=0, nfp=1, stellsym=True)
+        surface_orig.set_rc(0, 0, 1.0)
+        surface_orig.set_rc(1, 0, 0.1)
+        surface_orig.set_zs(1, 0, 0.1)
+
+        desc_surface = surface_orig.to_desc()
+        boundary_from_desc = SurfaceRZFourier.from_desc(desc_surface).copy(
+            quadpoints_phi=surface_orig.quadpoints_phi,
+            quadpoints_theta=surface_orig.quadpoints_theta,
+        )
+
+        gamma_err = np.max(np.linalg.norm(
+            surface_orig.gamma().reshape((-1, 3)) - boundary_from_desc.gamma().reshape((-1, 3)),
+            axis=-1,
+        ))
+        self.assertAlmostEqual(gamma_err, 0.0, places=12)
+
+    @unittest.skipIf(DescFourierRZToroidalSurface is None, "desc python extension is not installed")
+    def test_from_desc_known_coefficients(self):
+        """from_desc with a hand-built DESC surface whose simsopt output is known."""
+        # DESC sym=True convention: R uses positive m, Z uses negative m.
+        # check_orientation=False prevents DESC from flipping Z_lmn sign.
+        desc_surface = DescFourierRZToroidalSurface(
+            R_lmn=np.array([1.0, 0.1]),
+            Z_lmn=np.array([0.1]),
+            modes_R=np.array([[0, 0], [1, 0]]),
+            modes_Z=np.array([[-1, 0]]),
+            NFP=2,
+            sym=True,
+            check_orientation=False,
+        )
+        s = SurfaceRZFourier.from_desc(desc_surface)
+
+        self.assertEqual(s.nfp, 2)
+        self.assertTrue(s.stellsym)
+        self.assertAlmostEqual(s.get_rc(0, 0), 1.0, places=12)
+        self.assertAlmostEqual(s.get_rc(1, 0), 0.1, places=12)
+        self.assertAlmostEqual(s.get_zs(1, 0), 0.1, places=12)
+
     def test_change_resolution(self):
         """
         Check that we can change mpol and ntor.

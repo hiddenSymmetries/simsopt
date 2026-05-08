@@ -534,49 +534,30 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         Returns:
             (``SurfaceRZFourier``): A ``SurfaceRZFourier`` object.
         """
-        n_field_periods = surface.NFP
-
-        # ------------------ R expansions ------------------
-        # "DESC" style has poloidal modes: R_basis.modes[:, 1] => m
-        # toroidal modes: R_basis.modes[:, 2] => n
-        # but the actual function is cos(mθ - n*(NFP)*φ).
+        # Convert R from DESC double-Fourier to VMEC double-angle form
         poloidal_modes_r = surface.R_basis.modes[:, 1]
         toroidal_modes_r = surface.R_basis.modes[:, 2]
-
-        # R_lmn are the double-Fourier coefficients in DESC
-        # shape => (num_modes,). ptolemy_identity_rev expects shape (n_surfs, num_modes)
-        # but here we have only "one" surface => put them in a row
-        r_array = np.expand_dims(surface.R_lmn, axis=0)
-
-        # Convert to "cos(mθ - n(NFP)φ), sin(mθ - n(NFP)φ)" expansions
         m_out_r, n_out_r, sin_r, cos_r = desc_vmec_utils.ptolemy_identity_rev(
-            m_1=poloidal_modes_r, n_1=toroidal_modes_r, x=r_array
+            m_1=poloidal_modes_r, n_1=toroidal_modes_r, x=surface.R_lmn[np.newaxis, :]
         )
+        rmnc = cos_r[0, :]
+        rmns = sin_r[0, :]
 
-        # cos_R, sin_R have shape => (1, num_modes)
-        rmnc = cos_r[0, :]  # cos expansions => "R_{m,n} cos(mθ - n(NFP)φ)"
-        rmns = sin_r[0, :]  # sin expansions => "R_{m,n} sin(mθ - n(NFP)φ)"
-
-        # ------------------ Z expansions ------------------
+        # Convert Z from DESC double-Fourier to VMEC double-angle form
         poloidal_modes_z = surface.Z_basis.modes[:, 1]
         toroidal_modes_z = surface.Z_basis.modes[:, 2]
-
-        z_array = np.expand_dims(surface.Z_lmn, axis=0)
         m_out_z, n_out_z, sin_z, cos_z = desc_vmec_utils.ptolemy_identity_rev(
-            m_1=poloidal_modes_z, n_1=toroidal_modes_z, x=z_array
+            m_1=poloidal_modes_z, n_1=toroidal_modes_z, x=surface.Z_lmn[np.newaxis, :]
         )
-
         zmnc = cos_z[0, :]
         zmns = sin_z[0, :]
-
-        # ------------------ convert ------------------
 
         is_stellarator_symmetric = surface.sym
         max_toroidal_mode = np.max(np.abs(np.concatenate((n_out_r, n_out_z))))
         max_poloidal_mode = np.max(np.abs(np.concatenate((m_out_r, m_out_z))))
 
         simsopt_surface = cls(
-            nfp=n_field_periods,
+            nfp=surface.NFP,
             stellsym=is_stellarator_symmetric,
             mpol=max_poloidal_mode,
             ntor=max_toroidal_mode,
@@ -624,10 +605,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         poloidal_modes = poloidal_modes.ravel().astype(int)
         toroidal_modes = toroidal_modes.ravel().astype(int)
 
-
-        is_stellarator_symmetric = self.stellsym
-        n_field_periods = self.nfp
-
         # Remove m=0, n<0 modes: these are always redundant because
         # cos(0·θ − n·φ) = cos(0·θ − (−n)·φ) and sin(0·θ − n·φ) = −sin(0·θ − (−n)·φ)
         # Keeping both positive and negative n at m=0 produces a singular system.
@@ -656,8 +633,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             Z_lmn=z_lmn.flatten(),
             modes_R=modes,
             modes_Z=modes,
-            NFP=n_field_periods,
-            sym=is_stellarator_symmetric,
+            NFP=self.nfp,
+            sym=self.stellsym,
             check_orientation=False,
         )
     
