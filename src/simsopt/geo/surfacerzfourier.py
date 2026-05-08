@@ -526,55 +526,13 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     @classmethod
     @SimsoptRequires(DescFourierRZToroidalSurface is not None, "from_desc method requires Desc module")
     def from_desc(cls, surface: DescFourierRZToroidalSurface):
-        r"""Converts a DESC FourierRZToroidalSurface (parameterized with coefficients of a
-        Double Fourier Series basis [1]) into a SurfaceRZFourier (Parameterized with Fourier
-        coefficients in cylindrical coordinates).
-
-        Specifically, this function takes the **double-Fourier** representation
-        from DESC:
-
-        .. math::
-
-        R( \theta, \phi) \;=\;\sum_k R_k \,\cos\bigl(\,m_k\,\theta
-            \;-\; n_k\,(\mathrm{NFP})\,\phi\bigr),
-        \\
-        Z(\theta, \phi) \;=\;\sum_k Z_k \,\sin\bigl(\,m_k\,\theta
-            \;-\; n_k\,(\mathrm{NFP})\,\phi\bigr),
-
-        where :math:`m_k` and :math:`n_k` are the poloidal/toroidal integers stored in
-        the DESC surface bases, and produces *pure* cylindrical expansions:
-
-        .. math::
-        R(\theta, \phi)
-        \;=\;
-        \sum_{m,n}\Bigl(\,
-            R_{m,n}^{(\cos)}\,\cos(m\,\theta - n\,\phi)
-            \;+\;
-            R_{m,n}^{(\sin)}\,\sin(m\,\theta - n\,\phi)\Bigr),
-        \\
-        Z(\theta, \phi)
-        \;=\;
-        \sum_{m,n}\Bigl(\,
-            Z_{m,n}^{(\cos)}\,\cos(m\,\theta - n\,\phi)
-            \;+\;
-            Z_{m,n}^{(\sin)}\,\sin(m\,\theta - n\,\phi)\Bigr).
-
-        We use the ``ptolemy_identity_rev`` helper to reorganize
-        :math:`\cos(m\,\theta - n\,(\mathrm{NFP})\,\phi) \leftrightarrow \cos(m\,\theta)\,\cos(n\,\phi) \pm \dots`
-        into single-angle “cos/sin” expansions. For a surface with **stellarator symmetry**,
-        the typical result is that :math:`R(\theta,\phi)` only has nonzero “cos” modes,
-        and :math:`Z(\theta,\phi)` has only “sin” modes (but any small asymmetry
-        yields nonzero extra terms).
+        r"""Build a ``SurfaceRZFourier`` from a DESC ``FourierRZToroidalSurface``.
 
         Args:
-            surface (FourierRZToroidalSurface): A DESC FourierRZToroidalSurface object.
+            surface (``FourierRZToroidalSurface``): A DESC ``FourierRZToroidalSurface`` object.
 
         Returns:
-            (SurfaceRZFourier): A SurfaceRZFourier object.
-
-        References
-        .. [1] `DESC Double-Fourier Series Documentation
-        <https://desc-docs.readthedocs.io/en/stable/notebooks/basis_grid.html#Double-Fourier-Series>`_
+            (``SurfaceRZFourier``): A ``SurfaceRZFourier`` object.
         """
         n_field_periods = surface.NFP
 
@@ -641,34 +599,10 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     
     @SimsoptRequires(DescFourierRZToroidalSurface is not None, "to_desc method requires Desc module")
     def to_desc(self) -> DescFourierRZToroidalSurface:
-        r"""Converts a SurfaceRZFourier into a DESC FourierRZToroidalSurface (parameterized with
-        coefficients of a Double Fourier Series basis [1]).
+        r"""Convert a ``SurfaceRZFourier`` object into a DESC ``FourierRZToroidalSurface`` object.
 
-        Specifically, this function produces the **double-Fourier** representation from DESC:
-
-        .. math::
-
-        R( \theta, \phi) \;=\;\sum_k R_k \,\cos\bigl(\,m_k\,\theta
-            \;-\; n_k\,(\mathrm{NFP})\,\phi\bigr),
-        \\
-        Z(\theta, \phi) \;=\;\sum_k Z_k \,\sin\
-                \bigl(\,m_k\,\theta \;-\; n_k\,(\mathrm{NFP})\,\phi\bigr),
-
-        where :math:`m_k` and :math:`n_k` are the poloidal/toroidal integers stored in
-        the DESC surface bases.
-
-
-        Args:
-            surface (SurfaceRZFourier): A SurfaceRZFourier object.
-
-        Returns
-            A DESC FourierRZToroidalSurface object.
-
-
-        References
-
-        .. [1] `DESC Double-Fourier Series Documentation
-        <https://desc-docs.readthedocs.io/en/stable/notebooks/basis_grid.html#Double-Fourier-Series>`_
+        Returns:
+            A DESC ``FourierRZToroidalSurface`` object.
         """
 
         rmnc = self.rc.ravel()
