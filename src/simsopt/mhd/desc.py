@@ -543,14 +543,27 @@ class Desc(Optimizable):
         self.eq.solve(*args, **kwargs)
         self.need_to_run_code = False
 
-    def to_vmec(self, **kwargs):
+    def to_vmec(self, vmec_options={}, **kwargs):
         """Convert equilibrium to a Vmec object.
-        There are no gaurantees that Vmec will be able to run the equilibrium.
+        There are no gaurantees that Vmec will be able to evaluate the equilibrium.
 
         Args:
-            kwargs: Keyword arguments to be passed to the Vmec constructor, such as
-                `mpi` or `verbose`, using e.g. `vmec = Vmec(**kwargs)`.
-                See the documentation of Vmec for an up to date list of the keyword arguments.
+            vmec_options (dict, optional): Dictionary of vmec.indata fields to override
+                the defaults. Supported keys and their defaults:
+                - ``mpol`` (int): Poloidal mode number. Defaults to ``max(boundary.mpol, 10)``.
+                - ``ntor`` (int): Toroidal mode number. Defaults to ``max(boundary.ntor, 10)``.
+                - ``ntheta`` (int): Poloidal grid points. Defaults to ``2 * mpol + 6``.
+                - ``nzeta`` (int): Toroidal grid points. Defaults to ``2 * ntor + 4``.
+                - ``delt`` (float): Time step. Defaults to ``0.5``.
+                - ``nstep`` (int): Number of steps per call. Defaults to ``200``.
+                - ``ns_array`` (list): Radial grid sizes. Defaults to ``[16, 32, 64, 101, 0]``.
+                - ``niter_array`` (list): Iteration limits per grid. Defaults to ``[1000, 2000, 3000, 10000, 0]``.
+                - ``ftol_array`` (list): Force tolerances per grid. Defaults to ``[1e-16, 1e-16, 1e-16, 1e-13, 0.0]``.
+                - ``lfreeb`` (bool): Free-boundary flag. Defaults to ``False``.
+                - ``pres_scale`` (float): Pressure scaling factor. Defaults to ``1.0``.
+                Any remaining keys are applied directly to ``vmec.indata``.
+            kwargs: Keyword arguments passed to the Vmec constructor, such as
+                ``mpi`` or ``verbose``. See the Vmec documentation for available options.
 
         Returns:
             Vmec: Vmec object representing the equilibrium.
@@ -565,39 +578,43 @@ class Desc(Optimizable):
         vmec.indata.lasym = not self.boundary.stellsym
         vmec.indata.nfp = self.boundary.nfp
 
-        mpol = boundary_rz.mpol
-        ntor = boundary_rz.ntor
-        vmec.indata.mpol = mpol
-        vmec.indata.ntor = ntor
+        vmec.indata.mpol = vmec_options.pop("mpol", max(boundary_rz.mpol, 10))
+        vmec.indata.ntor = vmec_options.pop("ntor", max(boundary_rz.ntor, 10))
 
         # Vmec default
-        vmec.indata.ntheta = 2 * mpol + 6
-        vmec.indata.nzeta = 2 * ntor + 4
+        vmec.indata.ntheta = vmec_options.pop("ntheta", 2 * vmec.indata.mpol + 6)
+        vmec.indata.nzeta = vmec_options.pop("nzeta", 2 * vmec.indata.ntor + 4)
 
-        vmec.indata.delt = 0.5
-        vmec.indata.nstep = 200
-        vmec.indata.ns_array[:5] = [16, 32, 64, 101, 0]
-        vmec.indata.niter_array[:5] = [1000, 2000, 3000, 10000, 0]
-        vmec.indata.ftol_array[:5] = [1.0e-16, 1.0e-16, 1.0e-16, 1.0e-13, 0.0]
+        vmec.indata.delt = vmec_options.pop('delt', 0.5)
+        vmec.indata.nstep = vmec_options.pop('nstep', 200)
+        ns_array = vmec_options.pop("ns_array", [16, 32, 64, 101, 0])
+        vmec.indata.ns_array[:len(ns_array)] = ns_array 
+        niter_array = vmec_options.pop("niter_array", [1000, 2000, 3000, 10000, 0])
+        vmec.indata.niter_array[:len(niter_array)] = niter_array 
+        ftol_array = vmec_options.pop("ftol_array", [1.0e-16, 1.0e-16, 1.0e-16, 1.0e-13, 0.0])
+        vmec.indata.ftol_array[:len(ftol_array)] = ftol_array
 
-        vmec.indata.lfreeb = False
+        vmec.indata.lfreeb = vmec_options.pop('lfreeb', False)
 
         vmec.pressure_profile = self.pressure_profile
         if isinstance(self.pressure_profile, ProfileSpline):
             vmec.indata.pmass_type = "cubic_spline"
-        vmec.indata.pres_scale = 1.0
+        vmec.indata.pres_scale = vmec_options.pop('pres_scale', 1.0)
 
         use_current = self._determine_which_profile()
         if use_current:
             if isinstance(self.current_profile, ProfileSpline):
                 vmec.indata.pcurr_type = "cubic_spline_i"
             vmec.current_profile = self.current_profile
-            vmec.indata.ncurr = 1
+            vmec.indata.ncurr = 1.0
         else:
             vmec.iota_profile = self.iota_profile
             if isinstance(self.iota_profile, ProfileSpline):
                 vmec.indata.piota_type = "cubic_spline"
             vmec.indata.ncurr = 0
+        
+        for k, v in vmec_options.items():
+            eval(f"vmec.indata.{k} = {v}")
 
         return vmec
 
