@@ -175,10 +175,10 @@ class ProfilePolynomial(Profile):
 
     @classmethod
     @SimsoptRequires(DescPowerSeriesProfile is not None, "from_desc method requires Desc module")
-    def from_desc(self, desc_profile):
+    def from_desc(cls, desc_profile):
         """Initialize an instance of the ProfilePolynomial from a Desc PowerSeriesProfile. Desc profiles
         are functions of ``rho=sqrt(s)``, so if the Desc profile has odd modes, then the new instance may not exactly reproduce
-        the Desc profile, 
+        the Desc profile.
 
         Args:
             desc_profile (PowerSeriesProfile): A Desc PowerSeriesProfile.
@@ -192,10 +192,14 @@ class ProfilePolynomial(Profile):
         if desc_profile.sym:
             coeffs = np.copy(params)
         else:
+            logger.warning(
+                "from_desc: DESC profile has odd-power (sym=False) terms which cannot be "
+                "represented as a polynomial in s. Odd-power terms will be dropped."
+            )
             coeffs = np.copy(params[::2])
-        return ProfilePolynomial(coeffs)
+        return cls(coeffs)
     
-    @SimsoptRequires(DescPowerSeriesProfile is not None, "from_desc method requires Desc module")
+    @SimsoptRequires(DescPowerSeriesProfile is not None, "to_desc method requires Desc module")
     def to_desc(self):
         """Return an equivalent Desc PowerSeriesProfile. Note that Desc profiles are functions
         of ``rho``.
@@ -294,7 +298,7 @@ class ProfileSpline(Profile):
 
     @classmethod
     @SimsoptRequires(DescSplineProfile is not None, "from_desc method requires Desc module")
-    def from_desc(self, desc_profile, degree=3):
+    def from_desc(cls, desc_profile, degree=3):
         """Initialize an instance of the ProfileSpline from a Desc SplineProfile. Desc profiles
         are functions of ``rho=sqrt(s)``, so the Simsopt profile may not interpolate them exactly
         if the profile has components that depend on odd powers of ``rho``.
@@ -309,22 +313,24 @@ class ProfileSpline(Profile):
         if not isinstance(desc_profile, DescSplineProfile):
             raise TypeError(f"Expected a Desc SplineProfile, got {type(desc_profile)}")
         rho_knots = np.array(desc_profile.knots)
-        return ProfileSpline(rho_knots**2, np.array(desc_profile.params), degree=degree)
+        return cls(rho_knots**2, np.array(desc_profile.params), degree=degree)
     
-    @SimsoptRequires(DescSplineProfile is not None, "from_desc method requires Desc module")
+    @SimsoptRequires(DescSplineProfile is not None, "to_desc method requires Desc module")
     def to_desc(self):
         """Return an equivalent Desc SplineProfile. Note that Desc profiles are functions
-        of ``rho``. If ``degree`` is anything other than ``1``, then the Desc profile will use
-        cubic splines.
+        of ``rho``. Only ``degree`` 1 (linear) and 3 (cubic) are supported.
 
         Returns:
             DescSplineProfile: A Desc SplineProfile.
         """
         if self.degree == 1:
             method = "linear"
-        else:
+        elif self.degree == 3:
             method = "cubic2"
-        
+        else:
+            raise ValueError(
+                f"to_desc only supports spline degree 1 (linear) or 3 (cubic), got {self.degree}"
+            )
         rho = np.sqrt(self.s)
         return DescSplineProfile(values=self.local_full_x, knots=rho, method=method)
 
