@@ -8,6 +8,15 @@ try:
 except ImportError:
     matplotlib = None
 
+try:
+    from desc.profiles import (
+        PowerSeriesProfile as DescPowerSeriesProfile,
+        SplineProfile as DescSplineProfile,
+    )
+except ImportError:
+    DescPowerSeriesProfile = None
+    DescSplineProfile = None
+
 from simsopt.mhd import (ProfilePolynomial, ProfileScaled, ProfileSpline,
                          ProfilePressure, ProfileSpec)
 
@@ -208,3 +217,91 @@ class ProfilesTests(unittest.TestCase):
             ProfilePressure(ne, Te, nD)
         with self.assertRaises(ValueError):
             ProfilePressure(ne, Te, nD, TD, nT)
+
+
+@unittest.skipUnless(DescPowerSeriesProfile is not None, "DESC not installed")
+class TestProfilePolynomialDesc(unittest.TestCase):
+    """Tests for ProfilePolynomial <-> DESC PowerSeriesProfile conversion."""
+
+    def test_to_desc_sym(self):
+        """to_desc produces a DESC profile with matching values (sym=True)."""
+        # f(s) = 1 + 0.5*s - 0.3*s^2
+        coeffs = np.array([1.0, 0.5, -0.3])
+        prof = ProfilePolynomial(coeffs)
+        prof_desc = prof.to_desc()
+
+        # DESC uses rho; simsopt uses s = rho^2
+        rho = np.linspace(0, 1, 11)
+        np.testing.assert_allclose(prof(rho**2), prof_desc(rho), rtol=1e-12)
+
+    def test_from_desc_sym(self):
+        """from_desc with sym=True roundtrips coefficients exactly."""
+        params = np.array([1.0, 0.5, -0.3])
+        prof_desc = DescPowerSeriesProfile(params=params, sym=True)
+        prof = ProfilePolynomial.from_desc(prof_desc)
+
+        self.assertIsInstance(prof, ProfilePolynomial)
+        np.testing.assert_array_equal(prof.local_full_x, params)
+
+        rho = np.linspace(0, 1, 11)
+        np.testing.assert_allclose(prof(rho**2), prof_desc(rho), rtol=1e-12)
+
+    def test_from_desc_no_sym(self):
+        """from_desc with sym=False drops odd-power terms."""
+        # f(rho) = 1 + 0.5*rho - 0.3*rho^2 + 0.1*rho^3
+        # Even terms: a0=1, a2=-0.3 -> ProfilePolynomial([1, -0.3])
+        params = np.array([1.0, 0.5, -0.3, 0.1])
+        prof_desc = DescPowerSeriesProfile(params=params, sym=False)
+        prof = ProfilePolynomial.from_desc(prof_desc)
+
+        np.testing.assert_array_equal(prof.local_full_x, params[::2])
+
+    def test_roundtrip(self):
+        """simsopt -> DESC -> simsopt preserves values."""
+        coeffs = np.array([1.0, 0.5, -0.3, 0.0, 0.2])
+        prof_orig = ProfilePolynomial(coeffs)
+        prof_rt = ProfilePolynomial.from_desc(prof_orig.to_desc())
+
+        s = np.linspace(0, 1, 20)
+        np.testing.assert_allclose(prof_orig(s), prof_rt(s), rtol=1e-12)
+
+
+@unittest.skipUnless(DescSplineProfile is not None, "DESC not installed")
+class TestProfileSplineDesc(unittest.TestCase):
+    """Tests for ProfileSpline <-> DESC SplineProfile conversion."""
+
+    def test_to_desc(self):
+        """to_desc maps s-space knots to rho-space and preserves values."""
+        s_knots = np.linspace(0, 1, 6)
+        f_values = 1.0 - s_knots
+        prof = ProfileSpline(s_knots, f_values, degree=3)
+        prof_desc = prof.to_desc()
+
+        rho = np.linspace(0, 1, 11)
+        np.testing.assert_allclose(prof(rho**2), prof_desc(rho), rtol=1e-6)
+
+    def test_from_desc(self):
+        """from_desc maps rho-space knots to s-space and preserves values."""
+        # f(rho) = 1 - 1.5*rho^2 + 0.5*rho^4 uses even rho powers only,
+        # so f(s) = 1 - 1.5*s + 0.5*s^2 is polynomial — exactly representable
+        # by the s-spline. Error only comes from the DESC cubic spline
+        # approximating the degree-4 rho term.
+        rho_knots = np.linspace(0, 1, 20)
+        f_values = 1.0 - 1.5 * rho_knots**2 + 0.5 * rho_knots**4
+        prof_desc = DescSplineProfile(values=f_values, knots=rho_knots, method="cubic2")
+        prof = ProfileSpline.from_desc(prof_desc, degree=3)
+
+        rho = np.linspace(0, 1, 50)
+        np.testing.assert_allclose(prof(rho**2), prof_desc(rho), atol=1e-5)
+
+    def test_roundtrip(self):
+        """simsopt -> DESC -> simsopt preserves values."""
+        # f(s) = 1 - s maps to 1 - rho^2 in rho-space (degree 2),
+        # which a cubic spline represents exactly — making the roundtrip exact.
+        s_knots = np.linspace(0, 1, 6)
+        f_values = 1.3252 - s_knots
+        prof_orig = ProfileSpline(s_knots, f_values, degree=3)
+        prof_rt = ProfileSpline.from_desc(prof_orig.to_desc(), degree=3)
+
+        s = np.linspace(0, 1, 20)
+        np.testing.assert_allclose(prof_orig(s), prof_rt(s), atol=1e-12)

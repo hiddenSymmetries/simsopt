@@ -16,6 +16,16 @@ import numbers
 
 from .._core.optimizable import Optimizable
 from .._core.descriptor import PositiveInteger
+from .._core.dev import SimsoptRequires
+
+try:
+    from desc.profiles import (
+        SplineProfile as DescSplineProfile,
+        PowerSeriesProfile as DescPowerSeriesProfile,
+    )
+except ImportError:
+    DescPowerSeriesProfile = None
+    DescSplineProfile = None
 
 __all__ = ['Profile', 'ProfilePolynomial', 'ProfileScaled', 'ProfileSpline',
            'ProfilePressure', 'ProfileSpec']
@@ -163,6 +173,35 @@ class ProfilePolynomial(Profile):
         """ Return the d/ds derivative of the profile at specified points in s. """
         return poly.polyval(s, poly.polyder(self.local_full_x))
 
+    @classmethod
+    @SimsoptRequires(DescPowerSeriesProfile is not None, "from_desc method requires Desc module")
+    def from_desc(self, desc_profile):
+        """Initialize an instance of the ProfilePolynomial from a Desc PowerSeriesProfile. Desc profiles
+        are functions of ``rho=sqrt(s)``, so if the Desc profile has odd modes, then the new instance may not exactly reproduce
+        the Desc profile, 
+
+        Args:
+            desc_profile (PowerSeriesProfile): A Desc PowerSeriesProfile.
+
+        Returns:
+            ProfilePolynomial: A simsopt ProfilePolynomial.
+        """
+        params = desc_profile.params
+        if desc_profile.sym:
+            coeffs = np.copy(params)
+        else:
+            coeffs = np.copy(params[::2])
+        return ProfilePolynomial(coeffs)
+    
+    @SimsoptRequires(DescPowerSeriesProfile is not None, "from_desc method requires Desc module")
+    def to_desc(self):
+        """Return an equivalent Desc PowerSeriesProfile. Note that Desc profiles are functions
+        of ``rho``.
+
+        Returns:
+            PowerSeriesProfile: A Desc PowerSeriesProfile.
+        """
+        return DescPowerSeriesProfile(params=self.local_full_x, sym=True)
 
 class ProfileScaled(Profile):
     """
@@ -208,6 +247,15 @@ class ProfileSpline(Profile):
 
     degree = PositiveInteger()
 
+    @property
+    def s(self):
+        """1d array of x coordinates (spline knot locations) for the spline."""
+        return self._s
+
+    @s.setter
+    def s(self, value):
+        self._s = value
+
     def __init__(self, s, f, degree=3):
         self.s = s
         self.degree = degree
@@ -241,6 +289,40 @@ class ProfileSpline(Profile):
         if degree is not None:
             new_degree = degree
         return ProfileSpline(new_s, self.f(new_s), degree=new_degree)
+
+    @classmethod
+    @SimsoptRequires(DescSplineProfile is not None, "from_desc method requires Desc module")
+    def from_desc(self, desc_profile, degree=3):
+        """Initialize an instance of the ProfileSpline from a Desc SplineProfile. Desc profiles
+        are functions of ``rho=sqrt(s)``, so the Simsopt profile may not interpolate them exactly
+        if the profile has components that depend on odd powers of ``rho``.
+
+        Args:
+            desc_profile (DescSplineProfile): A Desc SplineProfile.
+            degree: The polynomial degree of the simsopt spline. Must be in ``[1, 2, 3, 4, 5]``.
+
+        Returns:
+            ProfileSpline: A simsopt ProfileSpline.
+        """
+        rho_knots = np.array(desc_profile.knots)
+        return ProfileSpline(rho_knots**2, np.array(desc_profile.params), degree=degree)
+    
+    @SimsoptRequires(DescSplineProfile is not None, "from_desc method requires Desc module")
+    def to_desc(self):
+        """Return an equivalent Desc SplineProfile. Note that Desc profiles are functions
+        of ``rho``. If ``degree`` is anything other than ``1``, then the Desc profile will use
+        cubic splines.
+
+        Returns:
+            DescSplineProfile: A Desc SplineProfile.
+        """
+        if self.degree == 1:
+            method = "linear"
+        else:
+            method = "cubic2"
+        
+        rho = np.sqrt(self.s)
+        return DescSplineProfile(values=self.local_full_x, knots=rho, method=method)
 
 
 class ProfilePressure(Profile):
