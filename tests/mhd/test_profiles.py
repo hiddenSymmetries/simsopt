@@ -265,6 +265,12 @@ class TestProfilePolynomialDesc(unittest.TestCase):
         s = np.linspace(0, 1, 20)
         np.testing.assert_allclose(prof_orig(s), prof_rt(s), rtol=1e-12)
 
+    def test_from_desc_wrong_type(self):
+        """from_desc raises TypeError when given a non-PowerSeriesProfile."""
+        spline_prof = DescSplineProfile(values=np.ones(5), knots=np.linspace(0, 1, 5))
+        with self.assertRaises(TypeError):
+            ProfilePolynomial.from_desc(spline_prof)
+
 
 @unittest.skipUnless(DescSplineProfile is not None, "DESC not installed")
 class TestProfileSplineDesc(unittest.TestCase):
@@ -305,3 +311,9 @@ class TestProfileSplineDesc(unittest.TestCase):
 
         s = np.linspace(0, 1, 20)
         np.testing.assert_allclose(prof_orig(s), prof_rt(s), atol=1e-12)
+
+    def test_from_desc_wrong_type(self):
+        """from_desc raises TypeError when given a non-SplineProfile."""
+        poly_prof = DescPowerSeriesProfile(params=np.array([1.0, -1.0]), sym=True)
+        with self.assertRaises(TypeError):
+            ProfileSpline.from_desc(poly_prof)

@@ -186,6 +186,8 @@ class ProfilePolynomial(Profile):
         Returns:
             ProfilePolynomial: A simsopt ProfilePolynomial.
         """
+        if not isinstance(desc_profile, DescPowerSeriesProfile):
+            raise TypeError(f"Expected a Desc PowerSeriesProfile, got {type(desc_profile)}")
         params = desc_profile.params
         if desc_profile.sym:
             coeffs = np.copy(params)
@@ -304,6 +306,8 @@ class ProfileSpline(Profile):
         Returns:
             ProfileSpline: A simsopt ProfileSpline.
         """
+        if not isinstance(desc_profile, DescSplineProfile):
+            raise TypeError(f"Expected a Desc SplineProfile, got {type(desc_profile)}")
         rho_knots = np.array(desc_profile.knots)
         return ProfileSpline(rho_knots**2, np.array(desc_profile.params), degree=degree)
     
