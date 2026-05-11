@@ -558,7 +558,7 @@ class RedlGeomBoozer(Optimizable):
         self.vmec = vmec
         nfp = vmec.wout.nfp
         psi_edge = -vmec.wout.phi[-1] / (2 * np.pi)
-        logger.info(f'Surfaces from booz_xform: {self.booz.bx.s_b}  '
+        logger.info(f'Surfaces from booz_xform: {self.booz.output.s_b}  '
                     f'Surfaces for RedlGeomBoozer: {surfaces}')
 
         # First, interpolate in s to get the quantities we need on the surfaces we need.
@@ -574,11 +574,11 @@ class RedlGeomBoozer(Optimizable):
         I = interp(surfaces)
 
         if self.vmec.mpi.proc0_groups:
-            interp = interp1d(self.booz.bx.s_b, self.booz.bx.bmnc_b, fill_value="extrapolate")
+            interp = interp1d(self.booz.output.s_b, self.booz.output.bmnc_b, fill_value="extrapolate")
             bmnc_b = interp(surfaces)
-            logger.info(f'Original bmnc_b.shape: {self.booz.bx.bmnc_b.shape}  Interpolated bmnc_b.shape: {bmnc_b.shape}')
+            logger.info(f'Original bmnc_b.shape: {self.booz.output.bmnc_b.shape}  Interpolated bmnc_b.shape: {bmnc_b.shape}')
 
-            interp = interp1d(self.booz.bx.s_b, self.booz.bx.gmnc_b, fill_value="extrapolate")
+            interp = interp1d(self.booz.output.s_b, self.booz.output.gmnc_b, fill_value="extrapolate")
             gmnc_b = interp(surfaces)
 
             # Evaluate modB and sqrtg on a uniform grid in theta,
@@ -586,12 +586,12 @@ class RedlGeomBoozer(Optimizable):
             modB = np.zeros((ntheta, ns))
             sqrtg = np.zeros((ntheta, ns))
             s, theta = np.meshgrid(surfaces, theta1d)
-            for jmn in range(booz.bx.mnboz):
-                if booz.bx.xm_b[jmn] * self.helicity_n * nfp == booz.bx.xn_b[jmn]:
+            for jmn in range(booz.output.mnboz):
+                if booz.output.xm_b[jmn] * self.helicity_n * nfp == booz.output.xn_b[jmn]:
                     # modB += cos(m * theta) * bmnc:
-                    modB += np.cos(booz.bx.xm_b[jmn] * theta) \
+                    modB += np.cos(booz.output.xm_b[jmn] * theta) \
                         * np.kron(np.ones((ntheta, 1)), bmnc_b[jmn, None, :])
-                    sqrtg += np.cos(booz.bx.xm_b[jmn] * theta) \
+                    sqrtg += np.cos(booz.output.xm_b[jmn] * theta) \
                         * np.kron(np.ones((ntheta, 1)), gmnc_b[jmn, None, :])
         else:
             modB = 0

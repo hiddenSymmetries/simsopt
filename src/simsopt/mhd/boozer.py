@@ -8,7 +8,8 @@ Boozer coordinates, and an optimization target for quasisymmetry.
 """
 
 import logging
-from typing import Union, Iterable
+from dataclasses import dataclass
+from typing import Union, Iterable, Protocol, runtime_checkable, Any, Optional
 
 import numpy as np
 
@@ -31,7 +32,116 @@ from .._core.optimizable import Optimizable
 from .._core.types import RealArray
 from .._core.descriptor import Integer
 
-__all__ = ['Boozer', 'Quasisymmetry']
+__all__ = ['Boozer', 'BoozerOutput', 'BoozXFormProtocol', 'Quasisymmetry']
+
+@runtime_checkable
+class BoozXFormProtocol(Protocol):
+    """Structural interface for ``Booz_xform``-like objects.
+
+    Covers only the *input* side: attributes that :meth:`Boozer.run` sets on the
+    object before calling ``run()``, plus the two methods it calls.  Output
+    quantities produced by ``run()`` are captured in :class:`BoozerOutput` and do
+    not belong here.
+
+    Running,
+        ```
+        from booz_xform import Booz_xform
+        bx = Booz_xform()
+        isinstance(bx, BoozXFormProtocol)
+        ```
+    will verify the object has the minimum structure required by ``Boozer``.
+    """
+
+    # --- Input attributes (set by Boozer.run() before calling bx.run()) ---
+    verbose: bool
+    asym: bool
+    nfp: int
+    mpol: int
+    ntor: int
+    mnmax: int
+    xm: Any  # 1-D integer array of poloidal mode numbers
+    xn: Any  # 1-D integer array of toroidal mode numbers
+    mpol_nyq: int
+    ntor_nyq: int
+    mnmax_nyq: int
+    xm_nyq: Any  # 1-D integer array of Nyquist poloidal mode numbers
+    xn_nyq: Any  # 1-D integer array of Nyquist toroidal mode numbers
+    compute_surfs: Any  # half-grid surface indices to transform
+    mboz: int  # number of poloidal Boozer modes requested
+    nboz: int  # number of toroidal Boozer modes requested
+
+    def init_from_vmec(self,
+                       ns: int,
+                       iotas: Any,
+                       rmnc: Any,
+                       rmns: Any,
+                       zmnc: Any,
+                       zmns: Any,
+                       lmnc: Any,
+                       lmns: Any,
+                       bmnc: Any,
+                       bmns: Any,
+                       bsubumnc: Any,
+                       bsubumns: Any,
+                       bsubvmnc: Any,
+                       bsubvmns: Any) -> None:
+        """Load VMEC equilibrium data into the Booz_xform object."""
+        ...
+
+    def run(self) -> None:
+        """Execute the Boozer coordinate transformation on ``compute_surfs``."""
+        ...
+
+
+@dataclass
+class BoozerOutput:
+    """All output quantities produced by a ``Booz_xform`` run.
+
+    Populated by :meth:`Boozer.run` and stored as ``Boozer.output``.
+    Other simsopt classes should read Boozer results from here rather than
+    accessing ``Boozer.bx`` directly.
+
+    Array fields are typed ``Any`` and accept ``np.ndarray``, ``jax.Array``, or
+    any other array-like type.
+    """
+
+    # --- Scalar metadata ---
+    nfp: int
+    asym: bool
+    mboz: int
+    nboz: int
+    ns_in: int
+    ns_b: int
+    mnboz: int
+
+    # --- Surface grids ---
+    s_in: Any
+    s_b: Any
+
+    # --- Physics profiles ---
+    iota: Any
+    Boozer_G: Any     # G on the ns_b output surfaces
+    Boozer_I: Any     # I on the ns_b output surfaces
+    Boozer_G_all: Any # G on all ns_in input surfaces
+    Boozer_I_all: Any # I on all ns_in input surfaces
+
+    # --- Boozer mode numbers ---
+    xm_b: Any
+    xn_b: Any
+
+    # --- Fourier coefficients (stellarator-symmetric) ---
+    bmnc_b: Any
+    rmnc_b: Any
+    zmns_b: Any
+    numns_b: Any
+    gmnc_b: Any
+
+    # --- Fourier coefficients (asymmetric; 0x0 arrays when asym=False) ---
+    bmns_b: Any
+    rmns_b: Any
+    zmnc_b: Any
+    numnc_b: Any
+    gmns_b: Any
 
 
 class Boozer(Optimizable):
@@ -57,6 +167,41 @@ class Boozer(Optimizable):
     mpol = Integer()
     ntor = Integer()
 
+    @property
+    def bx(self) -> BoozXFormProtocol:
+        """The underlying ``Booz_xform`` object used to perform the coordinate transformation.
+
+        This is the raw ``booz_xform.Booz_xform`` instance. For reading transformation
+        results, prefer :attr:`output`, which exposes all output quantities in a
+        structured :class:`BoozerOutput` object after :meth:`run` has been called.
+        """
+        return self._bx
+
+    @bx.setter
+    def bx(self, value: BoozXFormProtocol) -> None:
+        if not isinstance(value, BoozXFormProtocol):
+            raise TypeError(
+                f"bx must implement BoozXFormProtocol, got {type(value)}")
+        self._bx = value
+
+    @property
+    def output(self) -> 'BoozerOutput':
+        """The results of the most recent Boozer coordinate transformation.
+
+        Returns a :class:`BoozerOutput` containing all output quantities (Fourier
+        coefficients, rotational transform, surface grids, etc.) produced by the
+        last call to :meth:`run`. Raises ``RuntimeError`` if :meth:`run` has not
+        yet been called.
+        """
+        if self._output is None:
+            raise RuntimeError(
+                "Boozer.run() has not been called yet. Call run() before accessing output.")
+        return self._output
+
+    @output.setter
+    def output(self, value: Optional['BoozerOutput']) -> None:
+        self._output = value
+
     def __init__(self,
                  equil: Vmec,
                  mpol: int = 32,
@@ -74,6 +219,7 @@ class Boozer(Optimizable):
         self.bx = booz_xform.Booz_xform()
         self.bx.verbose = verbose
         self.s = set()
+        self._output: Optional[BoozerOutput] = None
         self.need_to_run_code = True
         self._calls = 0  # For testing, keep track of how many times we call bx.run()
 
@@ -112,8 +258,7 @@ class Boozer(Optimizable):
 
         for new_s in ss:
             if new_s < 0 or new_s > 1:
-                raise ValueError("Normalized toroidal flux values s must lie"
-                                 "in the interval [0, 1]")
+                raise ValueError("Normalized toroidal flux values s must lie in the interval [0, 1]")
         logger.info("Adding entries to Boozer registry: {}".format(ss))
         self.s = self.s.union(ss)
         self.need_to_run_code = True
@@ -247,6 +392,34 @@ class Boozer(Optimizable):
         self.bx.run()
         self._calls += 1
         logger.info("Returned from calling booz_xform.Booz_xform.run().")
+        self.output = BoozerOutput(
+            nfp=self.bx.nfp,
+            asym=self.bx.asym,
+            mboz=self.bx.mboz,
+            nboz=self.bx.nboz,
+            ns_in=self.bx.ns_in,
+            ns_b=self.bx.ns_b,
+            mnboz=self.bx.mnboz,
+            s_in=self.bx.s_in,
+            s_b=self.bx.s_b,
+            iota=self.bx.iota,
+            Boozer_G=self.bx.Boozer_G,
+            Boozer_I=self.bx.Boozer_I,
+            Boozer_G_all=self.bx.Boozer_G_all,
+            Boozer_I_all=self.bx.Boozer_I_all,
+            xm_b=self.bx.xm_b,
+            xn_b=self.bx.xn_b,
+            bmnc_b=self.bx.bmnc_b,
+            rmnc_b=self.bx.rmnc_b,
+            zmns_b=self.bx.zmns_b,
+            numns_b=self.bx.numns_b,
+            gmnc_b=self.bx.gmnc_b,
+            bmns_b=self.bx.bmns_b,
+            rmns_b=self.bx.rmns_b,
+            zmnc_b=self.bx.zmnc_b,
+            numnc_b=self.bx.numnc_b,
+            gmns_b=self.bx.gmns_b,
+        )
         self.need_to_run_code = False
 
 
@@ -346,9 +519,9 @@ class Quasisymmetry(Optimizable):
         symmetry_error = []
         for s in self.s:
             index = self.boozer.s_to_index[s]
-            bmnc = self.boozer.bx.bmnc_b[:, index]
-            xm = self.boozer.bx.xm_b
-            xn = self.boozer.bx.xn_b / self.boozer.bx.nfp
+            bmnc = self.boozer.output.bmnc_b[:, index]
+            xm = self.boozer.output.xm_b
+            xn = self.boozer.output.xn_b / self.boozer.output.nfp
 
             if self.helicity_m != 0 and self.helicity_m != 1:
                 raise ValueError("m for quasisymmetry should be 0 or 1.")

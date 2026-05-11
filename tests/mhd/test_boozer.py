@@ -21,9 +21,10 @@ except ImportError:
     MPI = None
 
 from simsopt._core.optimizable import Optimizable
+from simsopt.mhd.boozer import BoozerOutput, BoozXFormProtocol
 if MPI is not None:
-    from simsopt.mhd.boozer import Boozer, Quasisymmetry  # , booz_xform_found
-    from simsopt.mhd.vmec import Vmec  # , vmec_found
+    from simsopt.mhd.boozer import Boozer, Quasisymmetry
+    from simsopt.mhd.vmec import Vmec
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
@@ -54,8 +55,6 @@ class MockBoozXform():
         arr2 = arr1 + 1
         arr2[0] = 100
         self.bmnc_b = np.stack((arr1, arr2)).transpose()
-        print('bmnc_b:')
-        print(self.bmnc_b)
         # print('booz_xform_found:', booz_xform_found)
 
 
@@ -67,7 +66,37 @@ class MockBoozer(Optimizable):
     """
 
     def __init__(self, mpol, ntor, nfp):
-        self.bx = MockBoozXform(mpol, ntor, nfp)
+        mock = MockBoozXform(mpol, ntor, nfp)
+        zeros = np.zeros_like(mock.bmnc_b)
+        empty = np.array([[]])
+        self.output = BoozerOutput(
+            nfp=nfp,
+            asym=False,
+            mboz=mpol,
+            nboz=ntor,
+            ns_in=2,
+            ns_b=2,
+            mnboz=len(mock.xm_b),
+            s_in=np.array([0.0, 1.0]),
+            s_b=np.array([0.0, 1.0]),
+            iota=np.zeros(2),
+            Boozer_G=np.zeros(2),
+            Boozer_I=np.zeros(2),
+            Boozer_G_all=np.zeros(2),
+            Boozer_I_all=np.zeros(2),
+            xm_b=mock.xm_b,
+            xn_b=mock.xn_b,
+            bmnc_b=mock.bmnc_b,
+            rmnc_b=zeros,
+            zmns_b=zeros,
+            numns_b=zeros,
+            gmnc_b=zeros,
+            bmns_b=empty,
+            rmns_b=empty,
+            zmnc_b=empty,
+            numnc_b=empty,
+            gmns_b=empty,
+        )
         self.s_to_index = {0: 0, 1: 1}
         self.mpi = None
         super().__init__()
@@ -77,6 +106,143 @@ class MockBoozer(Optimizable):
 
     def run(self):
         pass
+
+
+class MinimalBoozXform:
+    """Minimal object that satisfies BoozXFormProtocol for testing purposes."""
+    verbose = False
+    asym = False
+    nfp = 1
+    mpol = 1
+    ntor = 1
+    mnmax = 1
+    xm = np.array([0])
+    xn = np.array([0])
+    mpol_nyq = 1
+    ntor_nyq = 1
+    mnmax_nyq = 1
+    xm_nyq = np.array([0])
+    xn_nyq = np.array([0])
+    compute_surfs = []
+    mboz = 1
+    nboz = 1
+
+    def init_from_vmec(self, *_): pass
+    def run(self): pass
+
+
+class BoozXFormProtocolTests(unittest.TestCase):
+    def test_minimal_object_satisfies_protocol(self):
+        """An object with all required attributes and methods satisfies the protocol."""
+        self.assertIsInstance(MinimalBoozXform(), BoozXFormProtocol)
+
+    def test_missing_attribute_fails_protocol(self):
+        """An object missing a required attribute does not satisfy the protocol."""
+        attrs = {k: v for k, v in vars(MinimalBoozXform).items() if k != 'nfp'}
+        MissingNfp = type('MissingNfp', (), attrs)
+        self.assertNotIsInstance(MissingNfp(), BoozXFormProtocol)
+
+    def test_missing_method_fails_protocol(self):
+        """An object missing a required method does not satisfy the protocol."""
+        attrs = {k: v for k, v in vars(MinimalBoozXform).items() if k != 'run'}
+        MissingRun = type('MissingRun', (), attrs)
+        self.assertNotIsInstance(MissingRun(), BoozXFormProtocol)
+
+    def test_plain_object_fails_protocol(self):
+        """A plain object() does not satisfy the protocol."""
+        self.assertNotIsInstance(object(), BoozXFormProtocol)
+
+    @unittest.skipIf(booz_xform is None, "booz_xform python package not found")
+    def test_real_booz_xform_satisfies_protocol(self):
+        """A real Booz_xform instance satisfies the protocol."""
+        self.assertIsInstance(booz_xform.Booz_xform(), BoozXFormProtocol)
+
+
+class BoozerOutputTests(unittest.TestCase):
+    def _make_output(self, asym=False):
+        mnboz = 3
+        ns_b = 2
+        shape = (mnboz, ns_b)
+        empty = np.array([[]])
+        return BoozerOutput(
+            nfp=4,
+            asym=asym,
+            mboz=8,
+            nboz=8,
+            ns_in=ns_b,
+            ns_b=ns_b,
+            mnboz=mnboz,
+            s_in=np.array([0.25, 0.75]),
+            s_b=np.array([0.25, 0.75]),
+            iota=np.array([0.4, 0.5]),
+            Boozer_G=np.ones(ns_b),
+            Boozer_I=np.zeros(ns_b),
+            Boozer_G_all=np.ones(ns_b),
+            Boozer_I_all=np.zeros(ns_b),
+            xm_b=np.array([0, 1, 1]),
+            xn_b=np.array([0, 0, 4]),
+            bmnc_b=np.ones(shape),
+            rmnc_b=np.ones(shape),
+            zmns_b=np.ones(shape),
+            numns_b=np.zeros(shape),
+            gmnc_b=np.ones(shape),
+            bmns_b=np.ones(shape) if asym else empty,
+            rmns_b=np.ones(shape) if asym else empty,
+            zmnc_b=np.ones(shape) if asym else empty,
+            numnc_b=np.zeros(shape) if asym else empty,
+            gmns_b=np.ones(shape) if asym else empty,
+        )
+
+    def test_construction_stellsym(self):
+        """BoozerOutput stores all scalar and array fields correctly for a symmetric config."""
+        out = self._make_output(asym=False)
+        self.assertEqual(out.nfp, 4)
+        self.assertFalse(out.asym)
+        self.assertEqual(out.ns_b, 2)
+        self.assertEqual(out.mnboz, 3)
+        np.testing.assert_array_equal(out.xm_b, [0, 1, 1])
+        np.testing.assert_array_equal(out.xn_b, [0, 0, 4])
+        self.assertEqual(out.bmnc_b.shape, (3, 2))
+
+    def test_construction_non_stellsym(self):
+        """BoozerOutput stores asymmetric Fourier coefficient arrays for a non-symmetric config."""
+        out = self._make_output(asym=True)
+        self.assertTrue(out.asym)
+        self.assertEqual(out.bmns_b.shape, (3, 2))
+        self.assertEqual(out.gmns_b.shape, (3, 2))
+
+    def test_asymmetric_fields_empty_when_stellsym(self):
+        """Asymmetric Fourier fields are empty arrays for a stellarator-symmetric config."""
+        out = self._make_output(asym=False)
+        self.assertEqual(out.bmns_b.size, 0)
+        self.assertEqual(out.gmns_b.size, 0)
+
+
+@unittest.skipIf(booz_xform is None, "booz_xform python package not found")
+class BoozerBxPropertyTests(unittest.TestCase):
+    def test_bx_setter_accepts_protocol_compatible_object(self):
+        """Setting bx to an object satisfying BoozXFormProtocol does not raise."""
+        b = Boozer(None)
+        b.bx = MinimalBoozXform()
+
+    def test_bx_setter_rejects_incompatible_object(self):
+        """Setting bx to an object that does not satisfy BoozXFormProtocol raises TypeError."""
+        b = Boozer(None)
+        with self.assertRaises(TypeError):
+            b.bx = object()
+
+    def test_bx_getter_returns_assigned_value(self):
+        """The bx getter returns the exact object that was assigned."""
+        b = Boozer(None)
+        m = MinimalBoozXform()
+        b.bx = m
+        self.assertIs(b.bx, m)
+
+    def test_output_raises_before_run(self):
+        """Accessing output before run() raises RuntimeError."""
+        b = Boozer(None)
+        with self.assertRaises(RuntimeError):
+            _ = b.output
 
 
 @unittest.skipIf(MPI is None, "mpi4py python package is not found")
@@ -169,7 +335,7 @@ class QuasisymmetryTests(unittest.TestCase):
             self.assertEqual(b._calls, 2)
             self.assertEqual(len(residuals1), 0)
             # All the modes except m=0 should contribute to the qs2 residuals:
-            bmnc = b.bx.bmnc_b
+            bmnc = b.output.bmnc_b
             np.testing.assert_allclose(bmnc[1:, 1] / bmnc[0, 1], residuals2)
 
             # Register a QH target on the same pair of surfaces:
@@ -211,7 +377,7 @@ class QuasisymmetryTests(unittest.TestCase):
         Quasisymmetry(b, [0.0, 1.0], 1, 0).J()
         np.testing.assert_allclose(b.bx.compute_surfs, [0, 14])
         self.assertEqual(b.s_to_index, {0.0: 0, 1.0: 1})
-        bmnc = b.bx.bmnc_b
+        bmnc = b.output.bmnc_b
 
         # Compare to a reference boozmn*.nc file created by standalone
         # booz_xform:
