@@ -286,6 +286,18 @@ class TestProfileSplineDesc(unittest.TestCase):
         rho = np.linspace(0, 1, 11)
         np.testing.assert_allclose(prof(rho**2), prof_desc(rho), atol=1e-12, rtol=1e-6)
 
+    def test_to_desc_degree1(self):
+        """to_desc with degree=1 uses linear interpolation and preserves values at knots."""
+        s_knots = np.linspace(0, 1, 6)
+        f_values = 1.0 - s_knots
+        prof = ProfileSpline(s_knots, f_values, degree=1)
+        prof_desc = prof.to_desc()
+
+        # f(s) = 1 - s is linear in s, so f(rho) = 1 - rho^2; a linear spline
+        # in rho matches only at knots, not between them.
+        rho_knots = np.sqrt(s_knots)
+        np.testing.assert_allclose(prof(rho_knots**2), prof_desc(rho_knots), atol=1e-12)
+
     def test_from_desc(self):
         """from_desc maps rho-space knots to s-space and preserves values."""
         # f(rho) = 1 - 1.5*rho^2 + 0.5*rho^4 uses even rho powers only,

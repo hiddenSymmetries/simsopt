@@ -23,7 +23,7 @@ try:
         SplineProfile as DescSplineProfile,
         PowerSeriesProfile as DescPowerSeriesProfile,
     )
-except ImportError:
+except ImportError:  # pragma: no cover
     DescPowerSeriesProfile = None
     DescSplineProfile = None
 
