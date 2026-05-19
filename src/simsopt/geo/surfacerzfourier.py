@@ -27,7 +27,7 @@ except ImportError:
 try:
     from desc.geometry import FourierRZToroidalSurface as DescFourierRZToroidalSurface
     from desc import vmec_utils as desc_vmec_utils
-except ImportError:
+except ImportError:  # pragma: no cover
     DescFourierRZToroidalSurface = None
 
 logger = logging.getLogger(__name__)
