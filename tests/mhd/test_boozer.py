@@ -301,6 +301,11 @@ class QuasisymmetryTests(unittest.TestCase):
         # Register two surfaces, with a copy:
         Quasisymmetry(b1, {0.2, 0.3}, 1, 0)
         self.assertEqual(b1.s, {0.1, 0.2, 0.3, 0.5, 0.75})
+        # Registering s outside [0, 1] should raise ValueError:
+        with self.assertRaises(ValueError):
+            b1.register(-0.1)
+        with self.assertRaises(ValueError):
+            b1.register(1.1)
 
     @unittest.skipIf((booz_xform is None) or (vmec is None),
                      "vmec or booz_xform python package not found")
