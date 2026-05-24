@@ -1076,7 +1076,8 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G):
 
     lm_label = lm[-1]
     lmask = np.zeros(booz_surf.res["mask"].shape)
-    lmask[booz_surf.res["mask"]] = lm[:-1]
+    #lmask[booz_surf.res["mask"]] = lm[:-1]
+    lmask[booz_surf.res["mask"]] = lm[:-1 if surface.stellsym else -3]
     lm_cons = lmask.reshape((-1, 3))
 
     lm_times_dres_dB = np.sum(lm_cons[:, :, None] * dres_dB, axis=1).reshape((-1, 3))

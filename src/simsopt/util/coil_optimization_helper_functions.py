@@ -14,7 +14,6 @@ from scipy.optimize import minimize
 from pathlib import Path
 
 # Necessary imports for the pareto scans 
-import matplotlib.pyplot as plt
 import glob
 import json
 import os
@@ -997,6 +996,7 @@ def make_stage_II_pareto_plots(df: list, df_filtered: list, OUTPUT_DIR: str = ".
     df_filtered (list): List of dictionaries containing filtered optimization results.
     OUTPUT_DIR (str): Directory to save the histogram.
     """
+    import matplotlib.pyplot as plt
     plt.figure(1, figsize=(14.5, 11))
     nrows = 5
     ncols = 5

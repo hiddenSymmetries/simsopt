@@ -279,15 +279,18 @@ class BoozerSurface(Optimizable):
 
         rnl = boozer[0]
         rl = np.sqrt(constraint_weight) * (lab-self.targetlabel)
+        ry = np.sqrt(constraint_weight) * (s.gamma()[0, 0, 1] - 0.)
         rz = np.sqrt(constraint_weight) * (s.gamma()[0, 0, 2] - 0.)
-        r = rnl + 0.5*rl**2 + 0.5*rz**2
+        r = rnl + 0.5*rl**2 + 0.5*ry**2 + 0.5*rz**2
 
         if derivatives == 0:
             return r
 
         dl = np.zeros(dofs.shape)
+        dry = np.zeros(dofs.shape)
         drz = np.zeros(dofs.shape)
         dl[:nsurfdofs] = self.label.dJ(partials=True)(s)
+        dry[:nsurfdofs] = s.dgamma_by_dcoeff()[0, 0, 1, :]
         drz[:nsurfdofs] = s.dgamma_by_dcoeff()[0, 0, 2, :]
 
         Jnl = boozer[1]
@@ -295,8 +298,9 @@ class BoozerSurface(Optimizable):
             Jnl = Jnl[:-1]
 
         drl = np.sqrt(constraint_weight) * dl
+        dry = np.sqrt(constraint_weight) * dry
         drz = np.sqrt(constraint_weight) * drz
-        J = Jnl + rl * drl + rz * drz
+        J = Jnl + rl * drl + ry * dry + rz * drz
 
         if derivatives == 1:
             return r, J
@@ -307,7 +311,7 @@ class BoozerSurface(Optimizable):
 
         d2rl = np.zeros((dofs.shape[0], dofs.shape[0]))
         d2rl[:nsurfdofs, :nsurfdofs] = np.sqrt(constraint_weight)*self.label.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
-        H = Hnl + drl[:, None] @ drl[None, :] + drz[:, None] @ drz[None, :] + rl * d2rl
+        H = Hnl + drl[:, None] @ drl[None, :]  + dry[:, None] @ dry[None, :] + drz[:, None] @ drz[None, :] + rl * d2rl
 
         return r, J, H
 
@@ -879,8 +883,9 @@ class BoozerSurface(Optimizable):
         # that we need to keep, and False for those that we ignore.
         m = s.get_stellsym_mask()
         mask = np.concatenate((m[..., None], m[..., None], m[..., None]), axis=2)
-        if s.stellsym:
-            mask[0, 0, 0] = False
+        #if s.stellsym:
+        #    mask[0, 0, 0] = False
+        mask[0, 0, 0] = False
         mask = mask.flatten()
 
         label = self.label
@@ -894,8 +899,8 @@ class BoozerSurface(Optimizable):
             if s.stellsym:
                 b = np.concatenate((r[mask], [(label.J()-self.targetlabel)]))
             else:
-                b = np.concatenate((r[mask], [(label.J()-self.targetlabel), s.gamma()[0, 0, 2]]))
-            norm = np.linalg.norm(b)
+                b = np.concatenate((r[mask], [(label.J()-self.targetlabel), s.gamma()[0, 0, 1], s.gamma()[0, 0, 2]]))
+            norm = np.linalg.norm(b, ord=np.inf)
             if norm <= tol:
                 break
             if s.stellsym:
@@ -907,6 +912,7 @@ class BoozerSurface(Optimizable):
                 J = np.vstack((
                     J[mask, :],
                     np.concatenate((label.dJ(partials=True)(s), [0., 0.])),
+                    np.concatenate((s.dgamma_by_dcoeff()[0, 0, 1, :], [0., 0.])),
                     np.concatenate((s.dgamma_by_dcoeff()[0, 0, 2, :], [0., 0.]))
                 ))
             dx = np.linalg.solve(J, b)
@@ -927,6 +933,7 @@ class BoozerSurface(Optimizable):
             J = np.vstack((
                 J[mask, :],
                 np.concatenate((label.dJ(partials=True)(s), [0., 0.])),
+                np.concatenate((s.dgamma_by_dcoeff()[0, 0, 1, :], [0., 0.])),
                 np.concatenate((s.dgamma_by_dcoeff()[0, 0, 2, :], [0., 0.]))
             ))
 

@@ -8,9 +8,6 @@ from scipy.optimize import minimize, least_squares, NonlinearConstraint
 import f90nml
 import jax
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
-import matplotlib.colors as mpl_colors
 
 import simsoptpp as sopp
 from .surface import Surface
@@ -1698,6 +1695,10 @@ def plot_spectral_condensation(surf1, surf2, data, show=True):
     fig1, fig2, fig3
         Matplotlib handles for the three figures
     """
+    import matplotlib.pyplot as plt
+    from matplotlib.gridspec import GridSpec
+    import matplotlib.colors as mpl_colors
+
     assert surf1.nfp == surf2.nfp
     assert surf1.mpol == surf2.mpol
     assert surf1.ntor == surf2.ntor
