@@ -922,7 +922,11 @@ class SquaredMeanForce(Optimizable):
     To minimize function calls, pass ``target_coils`` as a single list and instantiate this class **once**.
     Creating one instance per coil (``sum(SquaredMeanForce([c], sources, ...) for c in coils)``)
     builds an :math:`O(N^2)` :class:`Optimizable` dependency graph, making
-    ``JF.x = dofs`` extremely slow as ``N`` grows
+    ``JF.x = dofs`` extremely slow as ``N`` grows.
+    This single-instance form is also only numerically equivalent to the
+    one-instance-per-coil form when every target coil also appears in the source
+    coils, since physically the force on each target includes the field from the
+    other target coils.
 
     Args:
         target_coils (list of Coil or RegularizedCoil, shape (m,)): 
@@ -1240,7 +1244,11 @@ class LpCurveForce(Optimizable):
     To minimize function calls, pass ``target_coils`` as a single list and instantiate this class **once**.
     Creating one instance per coil (``sum(LpCurveForce([c], sources, ...) for c in coils)``)
     builds an :math:`O(N^2)` :class:`Optimizable` dependency graph, making
-    ``JF.x = dofs`` extremely slow as ``N`` grows
+    ``JF.x = dofs`` extremely slow as ``N`` grows.
+    This single-instance form is also only numerically equivalent to the
+    one-instance-per-coil form when every target coil also appears in the source
+    coils, since physically the force on each target includes the field from the
+    other target coils.
 
     Args:
         target_coils (list of RegularizedCoil, shape (m,)): 
@@ -1562,7 +1570,11 @@ class LpCurveTorque(Optimizable):
     To minimize function calls, pass ``target_coils`` as a single list and instantiate this class **once**.
     Creating one instance per coil (``sum(LpCurveTorque([c], sources, ...) for c in coils)``)
     builds an :math:`O(N^2)` :class:`Optimizable` dependency graph, making
-    ``JF.x = dofs`` extremely slow as ``N`` grows
+    ``JF.x = dofs`` extremely slow as ``N`` grows.
+    This single-instance form is also only numerically equivalent to the
+    one-instance-per-coil form when every target coil also appears in the source
+    coils, since physically the torque on each target includes the field from the
+    other target coils.
 
     Args:
         target_coils (list of RegularizedCoil, shape (m,)): List of coils to use for computing LpCurveTorque. 
@@ -1859,7 +1871,11 @@ class SquaredMeanTorque(Optimizable):
     To minimize function calls, pass ``target_coils`` as a single list and instantiate this class **once**.
     Creating one instance per coil (``sum(SquaredMeanTorque([c], sources, ...) for c in coils)``)
     builds an :math:`O(N^2)` :class:`Optimizable` dependency graph, making
-    ``JF.x = dofs`` extremely slow as ``N`` grows
+    ``JF.x = dofs`` extremely slow as ``N`` grows.
+    This single-instance form is also only numerically equivalent to the
+    one-instance-per-coil form when every target coil also appears in the source
+    coils, since physically the torque on each target includes the field from the
+    other target coils.
     
     Args:
         target_coils (list of Coil or RegularizedCoil, shape (m,)): List of coils to use for computing SquaredMeanTorque. 
