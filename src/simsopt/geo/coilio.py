@@ -52,8 +52,9 @@ def get_data_from_makegrid(filename, group_names=None):
     for linenum, line in enumerate(splitlines):
         if len(line) ==4:  #line contains x,y,z current
             single_curve_data.append([float(x) for x in line[:3]])
-        elif len(line) == 6:  # line contains x,y,z current, group_number
-            single_curve_data.append([float(x) for x in line[:3]])
+        elif len(line) == 6:  # closing line of a coil: x,y,z,current,group_number,group_name
+            # The coordinates here repeat the coil's first point to close the
+            # filament; do NOT append them, or the duplicate point corrupts the FFT.
             this_group_name = line[5]
             if group_names is None or this_group_name in group_names:  # we want this group
                 curve_data.append(single_curve_data)
