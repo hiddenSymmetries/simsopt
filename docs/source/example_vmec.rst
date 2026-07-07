@@ -260,6 +260,17 @@ VMEC outputs are saved on the so-called half and full grids. The full grid is li
   double currvmnc(radius, mn_mode_nyq) ;
     currvmnc:long_name = "cosmn covariant v-component of J, full mesh" ;
 
+Some VMEC-family ``wout`` files label ``currumnc`` and ``currvmnc`` as
+covariant components in their NetCDF ``long_name`` attributes. These arrays
+should instead be interpreted as full-grid Fourier coefficients of
+:math:`\sqrt{g} J^u` and :math:`\sqrt{g} J^v` on the Nyquist basis. When
+``Vmec.load_wout()`` reads a ``wout`` file, two-dimensional arrays are
+transposed from NetCDF ``(radius, mode)`` order to SIMSOPT ``(mode, radius)``
+order, so these coefficients are accessed as ``vmec.wout.currumnc[:, js]`` and
+``vmec.wout.currvmnc[:, js]``. Reconstruct them with the usual VMEC phase
+``xm_nyq * theta - xn_nyq * phi``; ``xn_nyq`` already includes the field-period
+factor.
+
 .. _interp:
 
 Interpreting VMEC errors 
@@ -370,4 +381,4 @@ Since the force residual did not get very small in the ``ns=25`` stage, in this 
 
 Sometimes adjusting ``delt`` (in either direction) can also help convergence. 
 
-Often if ``mpol`` and ``ntor`` get too large and in very strongly shaped geometries, it becomes challenging to converge. 
+Often if ``mpol`` and ``ntor`` get too large and in very strongly shaped geometries, it becomes challenging to converge.
