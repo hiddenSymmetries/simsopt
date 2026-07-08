@@ -266,8 +266,9 @@ should instead be interpreted as full-grid Fourier coefficients of
 :math:`\sqrt{g} J^u` and :math:`\sqrt{g} J^v` on the Nyquist basis. When
 ``Vmec.load_wout()`` reads a ``wout`` file, two-dimensional arrays are
 transposed from NetCDF ``(radius, mode)`` order to SIMSOPT ``(mode, radius)``
-order, so these coefficients are accessed as ``vmec.wout.currumnc[:, js]`` and
-``vmec.wout.currvmnc[:, js]``. Reconstruct them with the usual VMEC phase
+order, so at a 0-based radial index ``js`` these coefficients are accessed as
+``vmec.wout.currumnc[:, js]`` and ``vmec.wout.currvmnc[:, js]``. Reconstruct
+them with the usual VMEC phase
 ``xm_nyq * theta - xn_nyq * phi``; ``xn_nyq`` already includes the field-period
 factor.
 
