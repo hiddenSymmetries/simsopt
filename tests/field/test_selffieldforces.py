@@ -563,9 +563,6 @@ class CoilForcesTest(unittest.TestCase):
             )
             np.testing.assert_allclose(force_test[:, 2], 0.0)
 
-            # MODIFICATION: Full B-Field Evaluation Integration Tests
-            # =================================================================
-            # Pass as 1D arrays of size 1 so that your `u[None, None, :]` slicing works perfectly!
             u_scalar = jnp.array([0.5])
             v_scalar = jnp.array([-0.2])
 
