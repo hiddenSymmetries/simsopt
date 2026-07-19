@@ -2070,7 +2070,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
             else:
                 rtz = rtz[:(self.points_per_cs * self.n_cs), :]
             r_ctrl, theta_ctrl, zeta_ctrl = rtz[:,0], rtz[:,1], rtz[:,2]
-            r_paxis, z_paxis = self.axis(zeta_ctrl)
+            r_paxis, z_paxis = self._axis_rz(zeta_ctrl)
 
             dir_x = np.cos(zeta_ctrl)*(-r_ctrl*np.cos(theta_ctrl))
             dir_y = np.sin(zeta_ctrl)*(-r_ctrl*np.cos(theta_ctrl))
@@ -2090,12 +2090,11 @@ class SurfaceBSpline(sopp.Surface, Surface):
         #####################################################################
         # plotting axis
         if _pseudo_axis:
-            
-            x = lambda phi: self.axis(phi)[0] * np.cos(phi)
-            y = lambda phi: self.axis(phi)[0] * np.sin(phi)
+
             for i in range(1, self.nfp+1):
                 phi = np.linspace((i-1)*2*np.pi/self.nfp, i*2*np.pi/self.nfp, 200)
-                ax.plot(x(phi), y(phi), self.axis(phi)[1], **_pseudo_axis_kwargs)
+                r_paxis, z_paxis = self._axis_rz(phi)
+                ax.plot(r_paxis*np.cos(phi), r_paxis*np.sin(phi), z_paxis, **_pseudo_axis_kwargs)
             rax_ctrl=np.append(self.axis.r_ctrl, self.axis.r_ctrl[-2:0:-1])
             rax_ctrl=np.tile(rax_ctrl, self.nfp)
             zax_ctrl=np.append(self.axis.z_ctrl, -self.axis.z_ctrl[-2:0:-1])
