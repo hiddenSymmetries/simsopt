@@ -1,5 +1,7 @@
+import simsoptpp as sopp
 from .._core import Optimizable
 from .._core.optimizable import DOFs
+from .surface import Surface
 from ..geo import SurfaceRZFourier
 # from ..mhd import Vmec
 from ..util.mpi import MpiPartition
@@ -9,8 +11,9 @@ from scipy.interpolate import CubicSpline, Akima1DInterpolator, CloughTocher2DIn
 import matplotlib. pyplot as plt
 from matplotlib.gridspec import GridSpec
 from scipy.interpolate import griddata
-from scipy.optimize import fsolve, bisect
+from scipy.optimize import fsolve, bisect, newton
 from simsopt.util import MpiPartition
+from ..util.spline_helpers import b_p, b_p_deriv, rot_matrix_2d, alan_plot, vol_from_boundary
 
 import matplotlib
 
@@ -191,6 +194,7 @@ class PseudoAxis(Optimizable):
     def __init__(
         self, 
         n_ctrl_pts=2,
+        p=3,
         nfp=2,
         stellsym=True,
         axis_angles_fixed=False
@@ -198,6 +202,7 @@ class PseudoAxis(Optimizable):
         self.n_ctrl_pts=n_ctrl_pts
         self.stellsym=stellsym
         self.nfp=nfp
+        self.p = p
 
         if not stellsym:
             max_angle=2*np.pi/nfp
@@ -236,45 +241,63 @@ class PseudoAxis(Optimizable):
             dofs.fix(f'z_axis_{n_ctrl_pts - 1}')
             dofs.fix(f'zeta_axis_{n_ctrl_pts - 1}')
 
-        super().__init__(dofs=dofs)
+        super().__init__(dofs=dofs, external_dof_setter=PseudoAxis.set_dofs_impl)
 
-    def __call__(
-            self,
-            zeta,
-            method='bspline'
-    ):
-        if method=='bspline':
-            return self.axis_spline_callable(zeta)
+    # def __call__(
+    #         self,
+    #         zeta,
+    #         method='bspline'
+    # ):
+    #     if method=='bspline':
+    #         return self.axis_spline_callable(zeta)
         
-        else:
-            # defining interpolant
-            if self.stellsym:
-                r_ctrl=np.append(self.r_ctrl, self.r_ctrl[-2::-1])
-                z_ctrl=np.append(self.z_ctrl, -self.z_ctrl[-2::-1])
-                zeta_ctrl=np.append(self.zeta_ctrl, (2*np.pi/self.nfp)-self.zeta_ctrl[-2::-1])
+    #     else:
+    #         # defining interpolant
+    #         if self.stellsym:
+    #             r_ctrl=np.append(self.r_ctrl, self.r_ctrl[-2::-1])
+    #             z_ctrl=np.append(self.z_ctrl, -self.z_ctrl[-2::-1])
+    #             zeta_ctrl=np.append(self.zeta_ctrl, (2*np.pi/self.nfp)-self.zeta_ctrl[-2::-1])
 
-            print(f'zeta_ctrl: {zeta_ctrl}')
+    #         print(f'zeta_ctrl: {zeta_ctrl}')
 
-            R = Akima1DInterpolator(
-                x=zeta_ctrl,
-                y=r_ctrl
-            )
-            z = Akima1DInterpolator(
-                x=zeta_ctrl,
-                y=z_ctrl
-            )
+    #         R = Akima1DInterpolator(
+    #             x=zeta_ctrl,
+    #             y=r_ctrl
+    #         )
+    #         z = Akima1DInterpolator(
+    #             x=zeta_ctrl,
+    #             y=z_ctrl
+    #         )
 
-            zeta = zeta % (2*np.pi/self.nfp)
-            return R(zeta), z(zeta)
+    #         zeta = zeta % (2*np.pi/self.nfp)
+    #         return R(zeta), z(zeta)
 
-    def axis_spline_callable(
-            self,
-            x,
-            p=3,
-            n_interp=200,
-            plot=False
-        ):
-        x = x%(2*np.pi/self.nfp)
+    def num_dofs(self):
+        return len(self.full_x)
+
+    def get_dofs(self):
+        return self.full_x
+
+    def _get_control_points_xyz(self):
+
+        if self.stellsym:
+            r_ctrl_1fp=np.append(self.r_ctrl, self.r_ctrl[-2::-1])[:-1]
+            z_ctrl_1fp=np.append(self.z_ctrl, -self.z_ctrl[-2::-1])[:-1]
+            zeta_ctrl_1fp=np.append(self.zeta_ctrl, (2*np.pi/self.nfp)-self.zeta_ctrl[-2::-1])[:-1]
+        
+        r_ctrl = np.tile(r_ctrl_1fp, self.nfp)
+        z_ctrl = np.tile(z_ctrl_1fp, self.nfp)
+        zeta_ctrl = np.concatenate(
+            [zeta_ctrl_1fp + n*2*np.pi/self.nfp for n in range(self.nfp)]
+        )
+        x_ctrl = r_ctrl*np.cos(zeta_ctrl)
+        y_ctrl = r_ctrl*np.sin(zeta_ctrl)
+
+        xyz_list = np.vstack((x_ctrl, y_ctrl, z_ctrl)).T#[:-1]
+        return xyz_list
+
+    def _control_net_and_knots(self):
+        p = self.p
         if self.stellsym:
             r_ctrl_1fp=np.append(self.r_ctrl, self.r_ctrl[-2::-1])[:-1]
             z_ctrl_1fp=np.append(self.z_ctrl, -self.z_ctrl[-2::-1])[:-1]
@@ -291,7 +314,6 @@ class PseudoAxis(Optimizable):
         xyz_list = np.vstack((x_ctrl, y_ctrl, z_ctrl)).T#[:-1]
         centroids_im = np.array(xyz_list)
 
-        # a basis
         n = centroids_im.shape[0] - 1
         centroids_im = np.concatenate([centroids_im, centroids_im[:p, :]], axis = 0)
         n_knots_a = n + 2*p + 2
@@ -303,57 +325,157 @@ class PseudoAxis(Optimizable):
         assert np.isclose(knots_a[p], 0)
         assert np.isclose(knots_a[n + p + 1], 2*np.pi), f'knots_a[n + p + 1]: {knots_a[n + p + 1]}'
 
-        domain = np.linspace(0, 2*np.pi, n_interp, endpoint=False)
+        return centroids_im, knots_a
 
-        a_basis = b_p(knots_a, p, domain)
+    def gamma_impl(self, data, quadpoints):
+        trimmed_ctrl_pts_im, knots_a = self._control_net_and_knots()
+        p = self.p
+        phi = np.asarray(quadpoints) * 2*np.pi
 
-        axis = np.einsum('ix,ti->tx', centroids_im, a_basis)
-        x_axis = axis[:, 0]
-        y_axis = axis[:, 1]
-        z_axis = axis[:, 2]
+        def _xyz_and_derivs(v):
+            # wrap into the valid periodic domain (rather than clip) so scipy's
+            # own, otherwise-unconstrained iterate always gets a well-defined
+            # basis evaluation
+            v_wrapped = v % (2*np.pi)
+            basis_a, dbasis_a = b_p_deriv(knots_a, p, v_wrapped)
+            X = np.einsum('i,ti->t', trimmed_ctrl_pts_im[:, 0], basis_a)
+            Y = np.einsum('i,ti->t', trimmed_ctrl_pts_im[:, 1], basis_a)
+            dX = np.einsum('i,ti->t', trimmed_ctrl_pts_im[:, 0], dbasis_a)
+            dY = np.einsum('i,ti->t', trimmed_ctrl_pts_im[:, 1], dbasis_a)
+            return X, Y, dX, dY
 
-        zeta_axis = np.arctan2(y_axis, x_axis) % (2*np.pi)
+        def func(v):
+            X, Y, *_ = _xyz_and_derivs(v)
+            zeta_cur = np.arctan2(Y, X) % (2*np.pi)
+            return ((zeta_cur - phi + np.pi) % (2*np.pi)) - np.pi
 
-        inds = zeta_axis.argsort()
-        sorted_zeta_axis = zeta_axis[inds]
-        sorted_x_axis = x_axis[inds]
-        sorted_y_axis = y_axis[inds]
-        sorted_z_axis = z_axis[inds]
+        def fprime(v):
+            X, Y, dX, dY = _xyz_and_derivs(v)
+            return (X*dY - Y*dX) / (X**2 + Y**2)
 
-        R_axis = np.sqrt(sorted_x_axis**2 + sorted_y_axis**2)
-        ext_R_axis = np.tile(R_axis, 3)
-        ext_z_axis = np.tile(sorted_z_axis, 3)
-        ext_zeta = np.concatenate([sorted_zeta_axis-2*np.pi, sorted_zeta_axis, sorted_zeta_axis+2*np.pi])
+        v_sol = newton(func, x0=phi.copy(), fprime=fprime, tol=1e-12, maxiter=50)
 
-        R_interpolant = CubicSpline(
-            x = ext_zeta,
-            y = ext_R_axis
-        )(x)
+        v_wrapped = v_sol % (2*np.pi)
+        basis_a = b_p(knots_a, p, v_wrapped)
+        X = np.einsum('i,ti->t', trimmed_ctrl_pts_im[:, 0], basis_a)
+        Y = np.einsum('i,ti->t', trimmed_ctrl_pts_im[:, 1], basis_a)
+        Z = np.einsum('i,ti->t', trimmed_ctrl_pts_im[:, 2], basis_a)
 
-        z_interpolant = CubicSpline(
-            x = ext_zeta, 
-            y = ext_z_axis
-        )(x)
+        data[:, 0] = X
+        data[:, 1] = Y
+        data[:, 2] = Z
 
-        if plot:
-            fig = plt.figure("axis_bspline",figsize=(14,7))
-            ax = fig.add_subplot(projection='3d',azim=0, elev=90)
-            ax.scatter(x_ctrl, y_ctrl, z_ctrl)
-            ax.scatter(x_axis, y_axis, z_axis)
-            ax.scatter(R_interpolant*np.cos(x), R_interpolant*np.sin(x), z_interpolant)
-            ax.set_box_aspect((1, 1, 1))
-            ax.set_ylim(-1, 1)
-            ax.set_xlim(-1, 1)
-            ax.set_zlim(-1, 1)
-            plt.show()  
+    def set_dofs_impl(self, v):
+        '''
+        Set the shape coefficients from a 1D list/array, same layout as
+        get_dofs(): [r_ctrl, z_ctrl, zeta_ctrl], each n_ctrl_pts long.
+        '''
+        # n_ctrl_pts, not num_dofs() -- num_dofs() reads self.full_x, which needs
+        # self._unique_dof_opts, not set up yet the first time this runs (called
+        # synchronously from inside Optimizable.__init__ itself, since dofs= is
+        # supplied together with external_dof_setter=)
+        n_ctrl = self.n_ctrl_pts
+        n = 3 * n_ctrl
+        if len(v) != n:
+            raise ValueError('Input vector should have ' + str(n) +
+                              ' elements but instead has ' + str(len(v)))
 
-        return R_interpolant, z_interpolant
+        index = 0
+        self.r_ctrl = v[index: index + n_ctrl]
+        index += n_ctrl
+
+        self.z_ctrl = v[index: index + n_ctrl]
+        index += n_ctrl
+
+        self.zeta_ctrl = v[index: index + n_ctrl]
+
+    # def axis_spline_callable(
+    #         self,
+    #         x,
+    #         p=3,
+    #         n_interp=200,
+    #         plot=False
+    #     ):
+    #     x = x%(2*np.pi/self.nfp)
+    #     if self.stellsym:
+    #         r_ctrl_1fp=np.append(self.r_ctrl, self.r_ctrl[-2::-1])[:-1]
+    #         z_ctrl_1fp=np.append(self.z_ctrl, -self.z_ctrl[-2::-1])[:-1]
+    #         zeta_ctrl_1fp=np.append(self.zeta_ctrl, (2*np.pi/self.nfp)-self.zeta_ctrl[-2::-1])[:-1]
+        
+    #     r_ctrl = np.tile(r_ctrl_1fp, self.nfp)
+    #     z_ctrl = np.tile(z_ctrl_1fp, self.nfp)
+    #     zeta_ctrl = np.concatenate(
+    #         [zeta_ctrl_1fp + n*2*np.pi/self.nfp for n in range(self.nfp)]
+    #     )
+    #     x_ctrl = r_ctrl*np.cos(zeta_ctrl)
+    #     y_ctrl = r_ctrl*np.sin(zeta_ctrl)
+
+    #     xyz_list = np.vstack((x_ctrl, y_ctrl, z_ctrl)).T#[:-1]
+    #     centroids_im = np.array(xyz_list)
+
+    #     # a basis
+    #     n = centroids_im.shape[0] - 1
+    #     centroids_im = np.concatenate([centroids_im, centroids_im[:p, :]], axis = 0)
+    #     n_knots_a = n + 2*p + 2
+
+    #     interval_a = (2*np.pi) / (n + 1)
+    #     knots_a = -p * interval_a + np.arange(0, n + 2*p + 2) * interval_a
+
+    #     #assert len(knots_a) == n + p + 2
+    #     assert np.isclose(knots_a[p], 0)
+    #     assert np.isclose(knots_a[n + p + 1], 2*np.pi), f'knots_a[n + p + 1]: {knots_a[n + p + 1]}'
+
+    #     domain = np.linspace(0, 2*np.pi, n_interp, endpoint=False)
+
+    #     a_basis = b_p(knots_a, p, domain)
+
+    #     axis = np.einsum('ix,ti->tx', centroids_im, a_basis)
+    #     x_axis = axis[:, 0]
+    #     y_axis = axis[:, 1]
+    #     z_axis = axis[:, 2]
+
+    #     zeta_axis = np.arctan2(y_axis, x_axis) % (2*np.pi)
+
+    #     inds = zeta_axis.argsort()
+    #     sorted_zeta_axis = zeta_axis[inds]
+    #     sorted_x_axis = x_axis[inds]
+    #     sorted_y_axis = y_axis[inds]
+    #     sorted_z_axis = z_axis[inds]
+
+    #     R_axis = np.sqrt(sorted_x_axis**2 + sorted_y_axis**2)
+    #     ext_R_axis = np.tile(R_axis, 3)
+    #     ext_z_axis = np.tile(sorted_z_axis, 3)
+    #     ext_zeta = np.concatenate([sorted_zeta_axis-2*np.pi, sorted_zeta_axis, sorted_zeta_axis+2*np.pi])
+
+    #     R_interpolant = CubicSpline(
+    #         x = ext_zeta,
+    #         y = ext_R_axis
+    #     )(x)
+
+    #     z_interpolant = CubicSpline(
+    #         x = ext_zeta, 
+    #         y = ext_z_axis
+    #     )(x)
+
+    #     if plot:
+    #         fig = plt.figure("axis_bspline",figsize=(14,7))
+    #         ax = fig.add_subplot(projection='3d',azim=0, elev=90)
+    #         ax.scatter(x_ctrl, y_ctrl, z_ctrl)
+    #         ax.scatter(x_axis, y_axis, z_axis)
+    #         ax.scatter(R_interpolant*np.cos(x), R_interpolant*np.sin(x), z_interpolant)
+    #         ax.set_box_aspect((1, 1, 1))
+    #         ax.set_ylim(-1, 1)
+    #         ax.set_xlim(-1, 1)
+    #         ax.set_zlim(-1, 1)
+    #         plt.show()  
+
+    #     return R_interpolant, z_interpolant
 
     def _name_dofs(self):
         name_list = [f'{j}_axis_{i}' for j in ('r', 'z', 'zeta') for i in range(self.n_ctrl_pts)]
         return name_list
        
-class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
+class SurfaceBSpline(sopp.Surface, Surface):
     r"""
     Class for a B-spline surface, as described in Ali et. al (manuscript
     in progress). The main benefits of this representation are
@@ -389,7 +511,9 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         stellsym=True,
         cs_basis='polar',
         nurbs=False,
-        dofs=None
+        dofs=None,
+        quadpoints_phi=None,
+        quadpoints_theta=None,
     ):
         '''
         axis_points: number of points for the axis spline
@@ -473,14 +597,59 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
                 raise NotImplementedError('see dev branch')
             self.cs_list.append(cross_section)
 
-        Optimizable.__init__(self, dofs=dofs, depends_on=[self.axis] + self.cs_list)
+        if quadpoints_theta is None:
+            quadpoints_theta = Surface.get_theta_quadpoints()
+        if quadpoints_phi is None:
+            quadpoints_phi = Surface.get_phi_quadpoints(nfp=nfp)
+        sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
+
+        # dofs actually live on self.axis/self.cs_list (see get_dofs/set_dofs_impl below);
+        # depends_on keeps them real Optimizable ancestors so surf.x/dof_names/bounds/fix
+        # all work across the composite structure, same as before this class was a Surface
+        Surface.__init__(self, dofs=dofs, external_dof_setter=SurfaceBSpline.set_dofs_impl,
+                          depends_on=[self.axis] + self.cs_list)
+
+    def num_dofs(self):
+        return len(self.full_x)
+
+    def get_dofs(self):
+        return self.full_x
+
+    def set_dofs_impl(self, v):
+        # gamma_lin/gamma_impl read self.axis/self.cs_list live (via
+        # _control_net_and_knots), not any state cached here, so there's nothing
+        # to unpack from v -- the real dof values already landed on self.axis/
+        # self.cs_list through the normal Optimizable .x/.full_x setters that
+        # triggered this callback. All that's needed is telling the C++ side its
+        # cached gamma/area/volume/etc are stale.
+        self.invalidate_cache()
+
+    def recompute_bell(self, parent=None):
+        # Surface (unlike Curve) doesn't wire this to invalidate_cache() itself --
+        # harmless for every other Surface subclass since none of them use
+        # depends_on, but we do (self.axis, self.cs_list), and dof changes on a
+        # dependency only reach us via set_recompute_flag -> recompute_bell, not
+        # via set_dofs_impl. Mirrors Curve.recompute_bell.
+        self.invalidate_cache()
 
     def get_cs_zeta_angle(self):
         zeta_list = np.array([self.get(f'cs_zeta{i}') for i in range(self.n_cs)])
         cs_angle_list = np.array([self.get(f'cs_angle{i}') for i in range(self.n_cs)])
         return zeta_list, cs_angle_list
 
-    def get_xyz_full_device(
+    def _axis_rz(self, zeta):
+        '''
+        Evaluate the pseudo-axis's (R, Z) at physical toroidal angle(s)
+        zeta (radians), via PseudoAxis.gamma_impl (quadpoints are fractions
+        in [0, 1), per the Curve/Surface convention).
+        '''
+        data = np.zeros((len(zeta), 3))
+        self.axis.gamma_impl(data, np.asarray(zeta) / (2*np.pi))
+        r_axis = np.sqrt(data[:, 0]**2 + data[:, 1]**2)
+        z_axis = data[:, 2]
+        return r_axis, z_axis
+
+    def _get_control_points_xyz(
             self,
             return_w=False
         ):
@@ -495,7 +664,7 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         cs_zeta_1fp = np.append(cs_zeta, (2*np.pi/self.nfp)-cs_zeta[-2:0:-1])
         cs_zeta_full = np.concatenate([cs_zeta_1fp + n*(2*np.pi/self.nfp) for n in range(self.nfp)])
 
-        r_paxis, z_paxis = self.axis(cs_zeta_full)
+        r_paxis, z_paxis = self._axis_rz(cs_zeta_full)
 
         cs_list_1fp = [cs if (i//self.n_cs) == 0 else cs.flipped() for i, cs in enumerate(self.cs_list + self.cs_list[-2:0:-1])] #!!!!
         cs_list_full = np.tile(cs_list_1fp, self.nfp)
@@ -535,7 +704,7 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         cs_zeta_1fp = np.append(cs_zeta, (2*np.pi/self.nfp)-cs_zeta[-2:0:-1])
         cs_zeta_full = np.concatenate([cs_zeta_1fp + n*(2*np.pi/self.nfp) for n in range(self.nfp)])
 
-        r_paxis, z_paxis = self.axis(cs_zeta_full)
+        r_paxis, z_paxis = self._axis_rz(cs_zeta_full)
         #print(self.axis(cs_zeta_full))
 
         cs_list_1fp = [cs if (i//self.n_cs) == 0 else cs.flipped() for i, cs in enumerate(self.cs_list + self.cs_list[-2:0:-1])] #!!!!
@@ -595,196 +764,70 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
                 cs_pointlist.append(new_point)
             point_list.append(np.array(cs_pointlist))
         return point_list
-   
-    def plot(
-            self,
-            _surf = True,
-            _surf_points = False,
-            _ctrl_points = True,
-            _ctrl_points_full=True,
-            _pseudo_axis = True,
-            _pseudo_axis_ctrl_pts=True,
-            _centroid_axis = True,
-            _rtz_vectors = True,
-            _RZ_vectors = False,
-            ax = None,
-            _surf_kwargs = {'alpha':0.3, 'rcount':64, 'ccount':64},
-            _surf_points_kwargs = {'color':'k', 'marker':'.'},
-            _ctrl_points_kwargs = {'color':'g', 'marker':'.', 'ls':'--'},
-            _pseudo_axis_kwargs = {'color':'g', 'ls':'-'},
-            _pseudo_axis_ctrl_pts_kwargs={'color':'c', 'marker':'*'},
-            _centroid_axis_kwargs = {'color':'r', 'ls':'--'},
-            _rtz_vectors_kwargs = {},
-            _RZ_vectors_kwargs = {},
-        ): 
-        if ax == None:  
-            fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-        xyz_list = self.get_xyz_full_device()
 
-        # Generating surface
-        if _surf or _surf_points:
-            ax.set_aspect('equal')
-            ax.set_ylim(-1, 1)
-            ax.set_xlim(-1, 1)
-            ax.set_zlim(-1, 1)
-
-            nu = _surf_kwargs['rcount']
-            nv = _surf_kwargs['ccount']
-
-            u = np.linspace(0, 2*np.pi, nu, endpoint = True)
-            v = np.linspace(0, 2*np.pi, nv, endpoint = True)
-            v_grid, u_grid = np.meshgrid(v, u)
-
-            x_surf, y_surf, z_surf = self.surf_callable(u_grid.flatten(), v_grid.flatten())
-            x_surf = x_surf.reshape(nu, nv)
-            y_surf = y_surf.reshape(nu, nv)
-            z_surf = z_surf.reshape(nu, nv)
-
-        #####################################################################
-        # plotting surface
-
-        if _surf:
-            ax.plot_surface(x_surf, y_surf, z_surf, **_surf_kwargs)
-        if _surf_points:
-            ax.plot(x_surf, y_surf, z_surf, **_surf_points_kwargs)
-        #####################################################################
-        # plotting control points
-        if _ctrl_points:
-            points = np.array(np.vstack(xyz_list))
-            if _ctrl_points_full:
-                for i in range(0, self.nfp * (2*(self.n_cs-1))):
-                    ax.plot(
-                        np.append(points[i*(self.points_per_cs):(i+1)*(self.points_per_cs), 0], points[i*(self.points_per_cs), 0]),
-                        np.append(points[i*(self.points_per_cs):(i+1)*(self.points_per_cs), 1], points[i*(self.points_per_cs), 1]),
-                        np.append(points[i*(self.points_per_cs):(i+1)*(self.points_per_cs), 2], points[i*(self.points_per_cs), 2]),
-                        **_ctrl_points_kwargs
-                    )
-            else:              
-                for i in range(0, self.n_cs):
-                    ax.plot(
-                        np.append(points[i*(self.points_per_cs):(i+1)*(self.points_per_cs), 0], points[i*(self.points_per_cs), 0]),
-                        np.append(points[i*(self.points_per_cs):(i+1)*(self.points_per_cs), 1], points[i*(self.points_per_cs), 1]),
-                        np.append(points[i*(self.points_per_cs):(i+1)*(self.points_per_cs), 2], points[i*(self.points_per_cs), 2]),
-                        **_ctrl_points_kwargs
-                    )
-
-
-        #####################################################################
-        # plotting vectors from axis to control points
-        if _rtz_vectors:
-            cs_zeta, cs_angles = self.get_cs_zeta_angle()
-            rtz = np.array(self.get_rtz_full_device()).reshape(-1, 3)
-            if _ctrl_points_full:
-                pass
-            else:
-                rtz = rtz[:(self.points_per_cs * self.n_cs), :]
-            r_ctrl, theta_ctrl, zeta_ctrl = rtz[:,0], rtz[:,1], rtz[:,2]
-            r_paxis, z_paxis = self.axis(zeta_ctrl)
-
-            dir_x = np.cos(zeta_ctrl)*(-r_ctrl*np.cos(theta_ctrl))
-            dir_y = np.sin(zeta_ctrl)*(-r_ctrl*np.cos(theta_ctrl))
-            dir_z = r_ctrl*np.sin(theta_ctrl)
-
-            loc_x = r_paxis*np.cos(zeta_ctrl)
-            loc_y = r_paxis*np.sin(zeta_ctrl)
-            loc_z = z_paxis
-
-            ax.quiver(loc_x, loc_y, loc_z, dir_x, dir_y, dir_z, **_rtz_vectors_kwargs)
-
-        if _RZ_vectors:
-            xyz = np.array(self.get_xyz_full_device()).reshape(-1,3)
-            x_ctrl, y_ctrl, z_ctrl = xyz[:,0], xyz[:,1], xyz[:,2]
-            ax.quiver(np.zeros_like(x_ctrl), np.zeros_like(x_ctrl), np.zeros_like(x_ctrl), x_ctrl, y_ctrl, z_ctrl, alpha = 0.25)
-
-        #####################################################################
-        # plotting axis
-        if _pseudo_axis:
-            
-            x = lambda phi: self.axis(phi)[0] * np.cos(phi)
-            y = lambda phi: self.axis(phi)[0] * np.sin(phi)
-            for i in range(1, self.nfp+1):
-                phi = np.linspace((i-1)*2*np.pi/self.nfp, i*2*np.pi/self.nfp, 200)
-                ax.plot(x(phi), y(phi), self.axis(phi)[1], **_pseudo_axis_kwargs)
-            rax_ctrl=np.append(self.axis.r_ctrl, self.axis.r_ctrl[-2:0:-1])
-            rax_ctrl=np.tile(rax_ctrl, self.nfp)
-            zax_ctrl=np.append(self.axis.z_ctrl, -self.axis.z_ctrl[-2:0:-1])
-            zax_ctrl=np.tile(zax_ctrl, self.nfp)
-            zetaax_ctrl_1fp=np.append(self.axis.zeta_ctrl, (2*np.pi/self.nfp)-self.axis.zeta_ctrl[-2:0:-1])
-            zetaax_ctrl = np.copy(zetaax_ctrl_1fp)
-            for i in range(1, self.nfp):
-                zetaax_ctrl = np.append(zetaax_ctrl, zetaax_ctrl_1fp+i*(2*np.pi/self.nfp))
-
-            xax_ctrl = rax_ctrl * np.cos(zetaax_ctrl)
-            yax_ctrl = rax_ctrl * np.sin(zetaax_ctrl)
-            zax_ctrl = zax_ctrl
-
-            xax_ctrl = np.append(xax_ctrl, xax_ctrl[0])
-            yax_ctrl = np.append(yax_ctrl, yax_ctrl[0])
-            zax_ctrl = np.append(zax_ctrl, zax_ctrl[0])
-
-        if _pseudo_axis_ctrl_pts:
-            ax.plot(xax_ctrl, yax_ctrl, zax_ctrl, **_pseudo_axis_ctrl_pts_kwargs)
-        
-        #####################################################################
-        # Centroid axis
-        if _centroid_axis:
-            # x_centroid = np.zeros_like(a_basis[:, i])
-            # x_centroid = np.zeros_like(a_basis[:, i])
-            na = nv
-            a = np.linspace(0, 2*np.pi, na)
-            x_centroid, y_centroid, z_centroid = self.centroid_axis_callable(a)
-
-            ax.plot(x_centroid, y_centroid, z_centroid, **_centroid_axis_kwargs)
-        ax._axis3don = False
-
-    def surf_callable(
-            self, 
-            u, 
-            v,
-        ):
+    def _control_net_and_knots(self):
         '''
-        Evaluate the spline surface at (a set of) u, v pairs within a field period. 
+        Build the (periodic-wrapped) control net, NURBS weights, and knot
+        vectors shared by surf_callable and gamma -- factored out so the two
+        don't duplicate the periodic-wraparound/knot-construction logic.
+
+        Returns:
+            trimmed_ctrl_pts_jim: (n_v+p_v+1, n_u+p_u+1, 3) control net
+            trimmed_weights_ji: (n_v+p_v+1, n_u+p_u+1) NURBS weights
+            knots_u, knots_v: knot vectors for the u (poloidal) and v
+                (toroidal) directions
         '''
-        point_list, w_list = self.get_xyz_full_device(return_w=True)
+        point_list, w_list = self._get_control_points_xyz(return_w=True)
 
         p_u = self.p_u
         p_v = self.p_v
 
-        control_points_jim = np.array(point_list)            
+        control_points_jim = np.array(point_list)
         w_list_jim = np.array(w_list)
-        
+
         n_u = control_points_jim.shape[1] - 1
         n_v = control_points_jim.shape[0] - 1
 
-        # u basis
+        # u basis - closed
         control_points_jim = np.concatenate([control_points_jim, control_points_jim[:, :p_u, :]], axis = 1)
         w_list_jim = np.concatenate([w_list_jim, w_list_jim[:, :p_u]], axis = 1)
-        n_knots_u = n_u + 2*p_u + 2
 
         interval_u = (2*np.pi) / (n_u + 1)
         knots_u = -p_u*interval_u + np.arange(0, n_u+2*p_u+2)*interval_u
 
-        #assert(len(knots_u)==n_knots_u), f"len(knots_u) = {len(knots_u)}"
         assert np.isclose(knots_u[p_u], 0), f"knots_u[p_u] = {knots_u[p_u]}"
         assert np.isclose(knots_u[n_u + p_u + 1], 2 * np.pi), f"knots_u[n_u + p_u + 1] = {knots_u[n_u + p_u + 1]}"
-        u_basis = b_p(knots_u, p_u, u)
 
         # v basis - closed
-        
         control_points_jim = np.concatenate([control_points_jim, control_points_jim[:p_v, :, :]], axis = 0)
         w_list_jim = np.concatenate([w_list_jim, w_list_jim[:p_v, :]], axis = 0)
-        n_knots_v = n_v + 2*p_v + 2
 
         interval_v = (2*np.pi) / (n_v + 1)
         knots_v = -p_v*interval_v + np.arange(0, n_v+2*p_v+2)*interval_v
 
-        #assert(len(knots_v)==n_knots_v), f"len(knots_v) = {len(knots_v)}"
         assert np.isclose(knots_v[p_v],0), f"knots_v[p_v] = {knots_v[p_v]}"
         assert np.isclose(knots_v[n_v + p_v + 1], 2*np.pi), f"knots_v[n_v - p_v + 1] = {knots_v[n_v + p_v + 1]}"
-        v_basis = b_p(knots_v, p_v, v)
 
         trimmed_ctrl_pts_jim = control_points_jim[:n_v+p_v+1, :n_u+p_u+1, :]
         trimmed_weights_ji = w_list_jim[:n_v+p_v+1, :n_u+p_u+1]
+
+        return trimmed_ctrl_pts_jim, trimmed_weights_ji, knots_u, knots_v
+
+    def surf_callable(
+            self,
+            u,
+            v,
+        ):
+        '''
+        Evaluate the spline surface at (a set of) u, v pairs within a field period.
+        '''
+        trimmed_ctrl_pts_jim, trimmed_weights_ji, knots_u, knots_v = self._control_net_and_knots()
+        p_u = self.p_u
+        p_v = self.p_v
+
+        u_basis = b_p(knots_u, p_u, u)
+        v_basis = b_p(knots_v, p_v, v)
+
         tp_basis = np.einsum('xj,xi->xji', v_basis, u_basis)
         w_tp_basis = np.einsum('xji,ji->xji',tp_basis, trimmed_weights_ji)
         summed_w_tp_basis = np.einsum('xji->x',w_tp_basis)
@@ -796,6 +839,103 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         z_surf = surf[:, 2]
 
         return x_surf, y_surf, z_surf
+
+    def gamma_lin(self, data, quadpoints_phi, quadpoints_theta):
+        r'''
+        Evaluate (X, Y, Z) at paired (phi, theta) points -- data[i] =
+        Gamma(phi[i], theta[i]) for each i -- via a scipy.optimize.newton
+        root-find for the NURBS v-parameter (see gamma_eval_benchmark.ipynb,
+        examples/2_Intermediate, for the derivation and a benchmark against
+        oversample+CloughTocher interpolation -- Newton is exact and
+        ~9-30x faster).
+
+        theta is used directly as the NURBS u-parameter with no
+        reparametrization. For each point, the u-basis row collapses the surface
+        to a 1D rational (NURBS) curve X(v) = Nx(v)/D(v), Y(v) = Ny(v)/D(v)
+        in v alone; phi is then hit exactly by solving atan2(Y(v), X(v)) ==
+        phi for v.
+
+        Args:
+            data: (N, 3) array, filled in place with (X, Y, Z).
+            quadpoints_phi, quadpoints_theta: (N,) arrays, fractions in
+                [0, 1) (phi = 2*pi*quadpoints_phi, theta = 2*pi*quadpoints_theta),
+                per the Surface convention.
+        '''
+        trimmed_ctrl_pts_jim, trimmed_weights_ji, knots_u, knots_v = self._control_net_and_knots()
+        p_u = self.p_u
+        p_v = self.p_v
+
+        theta = np.asarray(quadpoints_theta) * 2*np.pi
+        phi = np.asarray(quadpoints_phi) * 2*np.pi
+
+        u_basis_row = b_p(knots_u, p_u, theta)  # (N, n_u_basis)
+
+        # collapse the u-direction: Q_* are the "u-fixed" 1D-curve-in-v coefficients,
+        # one row per query point -- no grid broadcasting, points are already paired
+        wp = trimmed_weights_ji[:, :, None] * trimmed_ctrl_pts_jim  # (n_v_ext, n_u_ext, 3)
+        ww = trimmed_weights_ji  # (n_v_ext, n_u_ext)
+        Q_pos = np.einsum('ki,jim->kjm', u_basis_row, wp)  # (N, n_v_ext, 3)
+        Q_w = np.einsum('ki,ji->kj', u_basis_row, ww)       # (N, n_v_ext)
+
+        def _xyz_and_derivs(v):
+            # wrap into the valid periodic domain (rather than clip) so scipy's
+            # own, otherwise-unconstrained iterate always gets a well-defined
+            # basis evaluation
+            v_wrapped = v % (2*np.pi)
+            basis_v, dbasis_v = b_p_deriv(knots_v, p_v, v_wrapped)
+            Nx = np.einsum('mj,mj->m', basis_v, Q_pos[:, :, 0])
+            Ny = np.einsum('mj,mj->m', basis_v, Q_pos[:, :, 1])
+            D = np.einsum('mj,mj->m', basis_v, Q_w)
+            dNx = np.einsum('mj,mj->m', dbasis_v, Q_pos[:, :, 0])
+            dNy = np.einsum('mj,mj->m', dbasis_v, Q_pos[:, :, 1])
+            dD = np.einsum('mj,mj->m', dbasis_v, Q_w)
+            return Nx, Ny, D, dNx, dNy, dD
+
+        def func(v):
+            Nx, Ny, D, *_ = _xyz_and_derivs(v)
+            X, Y = Nx/D, Ny/D
+            zeta_cur = np.arctan2(Y, X) % (2*np.pi)
+            return ((zeta_cur - phi + np.pi) % (2*np.pi)) - np.pi
+
+        def fprime(v):
+            Nx, Ny, D, dNx, dNy, dD = _xyz_and_derivs(v)
+            X, Y = Nx/D, Ny/D
+            dX = (dNx*D - Nx*dD) / D**2
+            dY = (dNy*D - Ny*dD) / D**2
+            return (X*dY - Y*dX) / (X**2 + Y**2)
+
+        v_sol = newton(func, x0=phi.copy(), fprime=fprime, tol=1e-12, maxiter=50)
+
+        v_wrapped = v_sol % (2*np.pi)
+        basis_v = b_p(knots_v, p_v, v_wrapped)
+        Nx = np.einsum('mj,mj->m', basis_v, Q_pos[:, :, 0])
+        Ny = np.einsum('mj,mj->m', basis_v, Q_pos[:, :, 1])
+        Nz = np.einsum('mj,mj->m', basis_v, Q_pos[:, :, 2])
+        D = np.einsum('mj,mj->m', basis_v, Q_w)
+
+        data[:, 0] = Nx/D
+        data[:, 1] = Ny/D
+        data[:, 2] = Nz/D
+
+    def gamma_impl(self, data, quadpoints_phi, quadpoints_theta):
+        r'''
+        Evaluate (X, Y, Z) on a tensor product grid of phi x theta points.
+        A thin wrapper around gamma_lin -- mesh the requested phi/theta,
+        flatten to paired points, call gamma_lin once, reshape back -- same
+        pattern as SurfaceHenneberg.gamma_impl.
+
+        Args:
+            data: (n_phi, n_theta, 3) array, filled in place, matching the
+                Surface convention (phi axis first).
+            quadpoints_phi, quadpoints_theta: 1D arrays, fractions in [0, 1).
+        '''
+        nphi = len(quadpoints_phi)
+        ntheta = len(quadpoints_theta)
+        phi2d, theta2d = np.meshgrid(quadpoints_phi, quadpoints_theta)
+        data1d = np.zeros((nphi * ntheta, 3))
+        self.gamma_lin(data1d, np.reshape(phi2d, (nphi * ntheta,)), np.reshape(theta2d, (nphi * ntheta,)))
+        for xyz in range(3):
+            data[:, :, xyz] = np.reshape(data1d[:, xyz], (ntheta, nphi)).T
 
     def centroid_axis_callable(
             self,
@@ -1833,183 +1973,144 @@ class SurfaceBSpline(Optimizable):#(sopp.Surface, Surface):#
         self.axis.x = dofs[end_idx:axis_end]
         self.local_x = dofs[axis_end:]
         return None
+   
+    def plot(
+            self,
+            _surf = True,
+            _surf_points = False,
+            _ctrl_points = True,
+            _ctrl_points_full=True,
+            _pseudo_axis = True,
+            _pseudo_axis_ctrl_pts=True,
+            _centroid_axis = True,
+            _rtz_vectors = True,
+            _RZ_vectors = False,
+            ax = None,
+            _surf_kwargs = {'alpha':0.3, 'rcount':64, 'ccount':64},
+            _surf_points_kwargs = {'color':'k', 'marker':'.'},
+            _ctrl_points_kwargs = {'color':'g', 'marker':'.', 'ls':'--'},
+            _pseudo_axis_kwargs = {'color':'g', 'ls':'-'},
+            _pseudo_axis_ctrl_pts_kwargs={'color':'c', 'marker':'*'},
+            _centroid_axis_kwargs = {'color':'r', 'ls':'--'},
+            _rtz_vectors_kwargs = {},
+            _RZ_vectors_kwargs = {},
+        ): 
+        if ax == None:  
+            fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+        xyz_list = self._get_control_points_xyz()
 
-def alan_plot(rbc, rbs, zbc, zbs, ntheta, nzeta, M, N, nfp, ax=None, poincare=True):
-    if ax is None:
-        fig = plt.figure("3D Surface Plot")
-        fig.patch.set_facecolor('white')
-        ax = fig.add_subplot(projection='3d',azim=0, elev=90)
-    xn = np.arange(-N,N+1,1)
-    xm = np.arange(0,M+1,1)
+        # Generating surface
+        if _surf or _surf_points:
+            ax.set_aspect('equal')
+            ax.set_ylim(-1, 1)
+            ax.set_xlim(-1, 1)
+            ax.set_zlim(-1, 1)
 
-    ntheta = 200
-    nzeta = 9
-    theta1D = np.linspace(0,2*np.pi,num=ntheta)
-    zeta1D = np.linspace(0,2*np.pi/nfp,num=nzeta) + 2*np.pi/nfp
-    zeta2D, theta2D = np.meshgrid(zeta1D,theta1D)
+            nu = _surf_kwargs['rcount']
+            nv = _surf_kwargs['ccount']
 
-    if poincare:
-        fig = plt.figure("Poincare Plots",figsize=(14,7))
-        fig.patch.set_facecolor('white')
+            u = np.linspace(0, 2*np.pi, nu, endpoint = True)
+            v = np.linspace(0, 2*np.pi, nv, endpoint = True)
+            v_grid, u_grid = np.meshgrid(v, u)
 
-        R = np.zeros((ntheta,nzeta))
-        Z = np.zeros((ntheta,nzeta))
+            x_surf, y_surf, z_surf = self.surf_callable(u_grid.flatten(), v_grid.flatten())
+            x_surf = x_surf.reshape(nu, nv)
+            y_surf = y_surf.reshape(nu, nv)
+            z_surf = z_surf.reshape(nu, nv)
 
-        for i in range(rbc.shape[0]):
-            for j in range(rbc.shape[1]):
-                if rbc[i,j] !=0 or zbs[i,j] != 0:
-                    angle = xm[j]*theta2D - xn[i]*zeta2D*nfp
-                    R = R + rbc[i,j]*np.cos(angle)#/(np.abs(i) + np.abs(j))
-                    Z = Z + zbs[i,j]*np.sin(angle)#/(np.abs(i) + np.abs(j))
-                if rbs[i,j] !=0 or zbc[i,j]:
-                    angle = xm[j]*theta2D - xn[i]*zeta2D*nfp
-                    R = R + rbs[i,j]*np.sin(angle)
-                    Z = Z + zbc[i,j]*np.cos(angle)
-        numCols = 5
-        numRows = 2
-        plotNum = 1
-        zeta = np.linspace(0,2 * np.pi/nfp,num=nzeta,endpoint=True)
+        #####################################################################
+        # plotting surface
 
-        plt.subplot(numRows,numCols,plotNum)
-        #plt.subplot(1,1,1)
-        plotNum += 1
-        for ind in range(nzeta):
-            plt.subplot(numRows,numCols,ind+1)
-            plt.title(r'$\phi =$' + str(zeta[ind]))
-            plt.gca().set_aspect('equal',adjustable='box')
+        if _surf:
+            ax.plot_surface(x_surf, y_surf, z_surf, **_surf_kwargs)
+        if _surf_points:
+            ax.plot(x_surf, y_surf, z_surf, **_surf_points_kwargs)
+        #####################################################################
+        # plotting control points
+        if _ctrl_points:
+            points = np.array(np.vstack(xyz_list))
+            if _ctrl_points_full:
+                for i in range(0, self.nfp * (2*(self.n_cs-1))):
+                    ax.plot(
+                        np.append(points[i*(self.points_per_cs):(i+1)*(self.points_per_cs), 0], points[i*(self.points_per_cs), 0]),
+                        np.append(points[i*(self.points_per_cs):(i+1)*(self.points_per_cs), 1], points[i*(self.points_per_cs), 1]),
+                        np.append(points[i*(self.points_per_cs):(i+1)*(self.points_per_cs), 2], points[i*(self.points_per_cs), 2]),
+                        **_ctrl_points_kwargs
+                    )
+            else:              
+                for i in range(0, self.n_cs):
+                    ax.plot(
+                        np.append(points[i*(self.points_per_cs):(i+1)*(self.points_per_cs), 0], points[i*(self.points_per_cs), 0]),
+                        np.append(points[i*(self.points_per_cs):(i+1)*(self.points_per_cs), 1], points[i*(self.points_per_cs), 1]),
+                        np.append(points[i*(self.points_per_cs):(i+1)*(self.points_per_cs), 2], points[i*(self.points_per_cs), 2]),
+                        **_ctrl_points_kwargs
+                    )
 
-            plt.plot(R[:,ind], Z[:,ind], '-')
-            plt.plot(R[:,ind], Z[:,ind], '-')
-            plt.plot(R[:,ind], Z[:,ind], '-')
-            plt.plot(R[:,ind], Z[:,ind], '-')
-        plt.gca().set_aspect('equal',adjustable='box')
-        plt.xlabel('R')
-        plt.ylabel('Z')
 
-    theta1D = np.linspace(0,2*np.pi,num=ntheta)
-    zeta1D = np.linspace(0,2*np.pi,num=nzeta) + 2*np.pi/nfp
+        #####################################################################
+        # plotting vectors from axis to control points
+        if _rtz_vectors:
+            cs_zeta, cs_angles = self.get_cs_zeta_angle()
+            rtz = np.array(self.get_rtz_full_device()).reshape(-1, 3)
+            if _ctrl_points_full:
+                pass
+            else:
+                rtz = rtz[:(self.points_per_cs * self.n_cs), :]
+            r_ctrl, theta_ctrl, zeta_ctrl = rtz[:,0], rtz[:,1], rtz[:,2]
+            r_paxis, z_paxis = self.axis(zeta_ctrl)
 
-    zeta2D, theta2D = np.meshgrid(zeta1D,theta1D)
+            dir_x = np.cos(zeta_ctrl)*(-r_ctrl*np.cos(theta_ctrl))
+            dir_y = np.sin(zeta_ctrl)*(-r_ctrl*np.cos(theta_ctrl))
+            dir_z = r_ctrl*np.sin(theta_ctrl)
 
-    ntheta = 200
-    nzeta = 200
-    theta1D = np.linspace(0,2*np.pi,num=ntheta)
-    zeta1D = np.linspace(0,2*np.pi,num=nzeta) + 2*np.pi/nfp
-    zeta2D, theta2D = np.meshgrid(zeta1D,theta1D)
-    R = np.zeros((ntheta,nzeta))
-    Z = np.zeros((ntheta,nzeta))
+            loc_x = r_paxis*np.cos(zeta_ctrl)
+            loc_y = r_paxis*np.sin(zeta_ctrl)
+            loc_z = z_paxis
 
-    for i in range(rbc.shape[0]):
-        for j in range(rbc.shape[1]):
-            if rbc[i,j] !=0 or zbs[i,j] != 0:
-                angle = xm[j]*theta2D - xn[i]*zeta2D*nfp
-                R = R + rbc[i,j]*np.cos(angle)#/(np.abs(i) + np.abs(j))
-                Z = Z + zbs[i,j]*np.sin(angle)#/(np.abs(i) + np.abs(j))
-            if rbs[i,j] !=0 or zbc[i,j]:
-                angle = xm[j]*theta2D - xn[i]*zeta2D*nfp
-                R = R + rbs[i,j]*np.sin(angle)
-                Z = Z + zbc[i,j]*np.cos(angle)
-    X = R * np.cos(zeta2D)
-    Y = R * np.sin(zeta2D)
+            ax.quiver(loc_x, loc_y, loc_z, dir_x, dir_y, dir_z, **_rtz_vectors_kwargs)
 
-    ax.plot_surface(X, Y, Z)
-    ax.set_box_aspect((1, 1, 1))
-    ax.set_ylim(-1, 1)
-    ax.set_xlim(-1, 1)
-    ax.set_zlim(-1, 1)
+        if _RZ_vectors:
+            xyz = np.array(self._get_control_points_xyz()).reshape(-1,3)
+            x_ctrl, y_ctrl, z_ctrl = xyz[:,0], xyz[:,1], xyz[:,2]
+            ax.quiver(np.zeros_like(x_ctrl), np.zeros_like(x_ctrl), np.zeros_like(x_ctrl), x_ctrl, y_ctrl, z_ctrl, alpha = 0.25)
 
-def rot_matrix_2d(theta):
-    return np.array(
-        [
-            [np.cos(theta), -np.sin(theta)],
-            [np.sin(theta), np.cos(theta)],
-        ]
-    )
+        #####################################################################
+        # plotting axis
+        if _pseudo_axis:
+            
+            x = lambda phi: self.axis(phi)[0] * np.cos(phi)
+            y = lambda phi: self.axis(phi)[0] * np.sin(phi)
+            for i in range(1, self.nfp+1):
+                phi = np.linspace((i-1)*2*np.pi/self.nfp, i*2*np.pi/self.nfp, 200)
+                ax.plot(x(phi), y(phi), self.axis(phi)[1], **_pseudo_axis_kwargs)
+            rax_ctrl=np.append(self.axis.r_ctrl, self.axis.r_ctrl[-2:0:-1])
+            rax_ctrl=np.tile(rax_ctrl, self.nfp)
+            zax_ctrl=np.append(self.axis.z_ctrl, -self.axis.z_ctrl[-2:0:-1])
+            zax_ctrl=np.tile(zax_ctrl, self.nfp)
+            zetaax_ctrl_1fp=np.append(self.axis.zeta_ctrl, (2*np.pi/self.nfp)-self.axis.zeta_ctrl[-2:0:-1])
+            zetaax_ctrl = np.copy(zetaax_ctrl_1fp)
+            for i in range(1, self.nfp):
+                zetaax_ctrl = np.append(zetaax_ctrl, zetaax_ctrl_1fp+i*(2*np.pi/self.nfp))
 
-def b_p(t, p, x, i=None):
-    '''
-    Compute the B-spline basis function B_pi. 
+            xax_ctrl = rax_ctrl * np.cos(zetaax_ctrl)
+            yax_ctrl = rax_ctrl * np.sin(zetaax_ctrl)
+            zax_ctrl = zax_ctrl
 
-    ## Inputs:
-    t : knot vector \\
-    p : degree \\
-    x : point at which to evaluate \\
-    i : basis of interest (if None, returns all )
+            xax_ctrl = np.append(xax_ctrl, xax_ctrl[0])
+            yax_ctrl = np.append(yax_ctrl, yax_ctrl[0])
+            zax_ctrl = np.append(zax_ctrl, zax_ctrl[0])
 
-    ## Outputs:
-    If i is None, an array of shape (x, k) is returned, which consists of the kth p-order B-Spline basis function computed on the array x. 
-    If i is an integer, an array of shape (x) is returned, which consists of the ith p-order B-Spline basis function computed on the array x. 
-    '''
-    b = []
+        if _pseudo_axis_ctrl_pts:
+            ax.plot(xax_ctrl, yax_ctrl, zax_ctrl, **_pseudo_axis_ctrl_pts_kwargs)
+        
+        #####################################################################
+        # Centroid axis
+        if _centroid_axis:
+            # x_centroid = np.zeros_like(a_basis[:, i])
+            # x_centroid = np.zeros_like(a_basis[:, i])
+            na = nv
+            a = np.linspace(0, 2*np.pi, na)
+            x_centroid, y_centroid, z_centroid = self.centroid_axis_callable(a)
 
-    for deg in range(0, p+1):
-        l = len(t)
-        if deg == 0:
-            # x = x[(x >= t[0]) & (x <= t[-1])]
-            x1d = x.copy()
-            t1d = t.copy()
-            t = np.outer(np.ones(len(x)), t)
-            x = np.expand_dims(x, 0)
-            b0 = ((x.T >= t[:, :-1]) & (x.T < t[:, 1:]))
-            b0[np.isclose(x1d, t1d[-1]), np.isclose(t1d[1:], t1d[-1])] = 1 # accounting for evaluation at rightmost knot
-            b.append(b0)
-        else: 
-            l_term_n = (x.T - t[:, :-deg-1])
-            l_term_d = (t[:, deg:-1] - t[:, :-deg-1])
-            l_term = b[-1][:, :-1]* np.divide(l_term_n, l_term_d, out=np.zeros_like(l_term_d), where=l_term_d != 0)
-
-            r_term_n = (t[:, deg+1:] - x.T)
-            r_term_d = (t[:, deg+1:] - t[:, 1:-deg])
-            r_term = b[-1][:, 1:]* np.divide(r_term_n, r_term_d, out=np.zeros_like(r_term_d), where=r_term_d != 0)
-
-            b.append(l_term + r_term)
-
-    if i is None:
-        return b[-1]
-    else:
-        return b[-1][:, i]
-
-def vol_from_boundary(surf: SurfaceRZFourier, nu, nv):
-    '''
-    Compute volume enclosed by a boundary given with VMEC Fourier coefficients.
-    Uses a clever trick based on Gauss' identity:
-    ∫∫∫ div(A) dV = ∫∫ A . n dA
-    Choose some A whose divergence is unity, in this case (in cylindrical coordinates)
-    (0, 0, z). Then, 
-    V = ∫∫∫dV = ∫∫ zn_z dA. 
-    
-    :param rbc: RBC coefficients, given in (n,m) format
-    :param zbs: ZBS coefficients, given in (n,m) format
-    :param M: Max poloidal mode number
-    :param N: Max toroidal mode number
-    :param nu: Number of points to take in u for quadrature
-    :param nv: Number of points to take in v for quadrature
-    :param nfp: Number of field periods
-    '''
-    rbc = surf.rc.T
-    zbs = surf.zs.T
-    M = surf.mpol
-    N = surf.ntor
-    nfp = surf.nfp
-
-    u_1d = np.linspace(0, 2*np.pi, nu, endpoint=True)
-    v_1d = np.linspace(0, 2*np.pi, nv, endpoint=True)        
-    v_grid, u_grid = np.meshgrid(v_1d, u_1d)
-    cosnmuz = np.array(
-        [[np.cos(m*u_grid - n*(nfp*v_grid)) for m in range(0, M+1)] for n in range(-N, N+1)],
-    )
-    sinnmuz = np.array(
-        [[np.sin(m*u_grid - n*(nfp*v_grid)) for m in range(0, M+1)] for n in range(-N, N+1)],
-    )
-    m = np.array(
-        [[m for m in range(0, M+1)] for n in range(-N, N+1)]
-    )
-
-    R_uz = np.einsum('nm,nmuz->uz', rbc, cosnmuz)
-    Z_uz = np.einsum('nm,nmuz->uz', zbs, sinnmuz)
-    duR_uz = np.einsum('nm,nmuz->uz', -m*rbc, sinnmuz)
-
-    integrand = Z_uz * R_uz * duR_uz
-    res = (u_1d[1]-u_1d[0])*(v_1d[1]-v_1d[0])*np.sum(integrand)
-
-    return res
+            ax.plot(x_centroid, y_centroid, z_centroid, **_centroid_axis_kwargs)
+        ax._axis3don = False
