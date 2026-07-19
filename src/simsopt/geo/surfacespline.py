@@ -21,22 +21,25 @@ __all__ = ["CrossSectionFixedZeta", "PseudoAxis", "SurfaceBSpline"]
 
 class CrossSectionFixedZeta(Optimizable):
     r"""
-    Class for toroidal control point cross section, using local polar
-    coordinates to describe control points.
+    Toroidal control point cross section, in local polar coordinates.
+    Initializes to a polygon of control points approximating a circle.
 
-    Initializes to a polygon of control points, approximating a
-    circle.
-
-    Args:
-        zeta_index: index of the cross-section as tracked by the
-        parent `PseudoAxisSurface`
-        n_ctrl_pts: number of control points per cross-section
-        (includes endpoints for z-symmetric cross sections)
-        z_sym: whether the cross section is up-down symmetric
-        equispaced: whether to fix the polar angle degrees of
-        freedom of the control vectors
-        default_r: default radius
-        nurbs: whether or not to use nurbs
+    Parameters
+    ----------
+    zeta_index : int
+        Index of the cross section, as tracked by the parent `PseudoAxisSurface`.
+    n_ctrl_pts : int
+        Number of control points per cross section (includes endpoints for
+        z-symmetric cross sections).
+    z_sym : bool
+        Whether the cross section is up-down symmetric.
+    equispaced : bool
+        Whether to fix the polar-angle degrees of freedom of the control
+        vectors.
+    default_r : float
+        Default radius.
+    nurbs : bool
+        Whether to use NURBS.
     """
 
     def __init__(
@@ -111,7 +114,9 @@ class CrossSectionFixedZeta(Optimizable):
                 + [False]
                 + [True] * (n_pts - 1)
                 + [nurbs] * (n_pts - 1)
-                + [False],  # fixing one of the angles, weights in the cross section
+                + [
+                    False
+                ],  # fixing one of the angles, weights in the cross section
                 [0] * (n_pts)
                 + (
                     np.linspace(0, max_angle, n_pts + 1)[:-1]
@@ -127,7 +132,9 @@ class CrossSectionFixedZeta(Optimizable):
             )
             super().__init__(dofs=dofs)
             if z_sym:
-                assert self.get("theta_0") == 0, f"theta_0 = {self.get('theta_0')}"
+                assert self.get("theta_0") == 0, (
+                    f"theta_0 = {self.get('theta_0')}"
+                )
                 dofs.fix("theta_0")
                 if not n_ctrl_pts % 2:
                     assert self.get(f"theta_{n_pts - 1}") == np.pi, (
@@ -195,8 +202,12 @@ class CrossSectionFixedZeta(Optimizable):
             theta_flipped = 2 * np.pi - np.insert(
                 self.theta_ctrl[:0:-1], 0, self.theta_ctrl[0]
             )
-            dofs_flipped = np.concatenate((r_flipped, theta_flipped, ws_flipped))
-            fixed_list = [self.is_fixed(key) for key in self.local_full_dof_names]
+            dofs_flipped = np.concatenate(
+                (r_flipped, theta_flipped, ws_flipped)
+            )
+            fixed_list = [
+                self.is_fixed(key) for key in self.local_full_dof_names
+            ]
             self.unfix_all()
             flipped_cs = CrossSectionFixedZeta(
                 zeta_index=self.zeta_index,
@@ -214,20 +225,25 @@ class CrossSectionFixedZeta(Optimizable):
 
 class PseudoAxis(sopp.Curve, Curve):
     r"""
-    Class for a pseudo-axis around which to build a spline surface.
-    The number of dofs includes BOTH endpoints. Control points are
-    vectors described in cylindrical coordinates.
+    Pseudo-axis around which to build a spline surface. The number of dofs
+    includes BOTH endpoints. Control points are vectors described in
+    cylindrical coordinates.
 
-    Args:
-        n_ctrl_pts: number of control points
-        nfp: number of field periods
-        stellsym: whether axis is stellarator symmetric
-        axis_angles_fixed: whether to freeze dofs for polar
-        angle of control points.
-        quadpoints: int (number of uniformly-spaced default quadpoints) or
-        an explicit array of quadpoints (fractions in [0, 1)), matching
-        CurveXYZFourier's convention -- no static default-quadpoints
-        helper exists for Curve the way Surface has one.
+    Parameters
+    ----------
+    n_ctrl_pts : int
+        Number of control points.
+    nfp : int
+        Number of field periods.
+    stellsym : bool
+        Whether the axis is stellarator symmetric.
+    axis_angles_fixed : bool
+        Whether to freeze the dofs for the polar angle of control points.
+    quadpoints : int or array-like
+        Number of uniformly-spaced default quadpoints, or an explicit array
+        of quadpoints (fractions in [0, 1)), matching CurveXYZFourier's
+        convention -- no static default-quadpoints helper exists for Curve
+        the way Surface has one.
     """
 
     def __init__(
@@ -299,7 +315,9 @@ class PseudoAxis(sopp.Curve, Curve):
             dofs.fix(f"zeta_axis_{n_ctrl_pts - 1}")
 
         sopp.Curve.__init__(self, quadpoints)
-        Curve.__init__(self, dofs=dofs, external_dof_setter=PseudoAxis.set_dofs_impl)
+        Curve.__init__(
+            self, dofs=dofs, external_dof_setter=PseudoAxis.set_dofs_impl
+        )
 
     # def __call__(
     #         self,
@@ -377,7 +395,9 @@ class PseudoAxis(sopp.Curve, Curve):
         centroids_im = np.array(xyz_list)
 
         n = centroids_im.shape[0] - 1
-        centroids_im = np.concatenate([centroids_im, centroids_im[:p, :]], axis=0)
+        centroids_im = np.concatenate(
+            [centroids_im, centroids_im[:p, :]], axis=0
+        )
         # n_knots_a = n + 2 * p + 2
 
         interval_a = (2 * np.pi) / (n + 1)
@@ -417,7 +437,9 @@ class PseudoAxis(sopp.Curve, Curve):
             X, Y, dX, dY = _xyz_and_derivs(v)
             return (X * dY - Y * dX) / (X**2 + Y**2)
 
-        v_sol = newton(func, x0=phi.copy(), fprime=fprime, tol=1e-12, maxiter=50)
+        v_sol = newton(
+            func, x0=phi.copy(), fprime=fprime, tol=1e-12, maxiter=50
+        )
 
         v_wrapped = v_sol % (2 * np.pi)
         basis_a = b_p(knots_a, p, v_wrapped)
@@ -542,28 +564,28 @@ class PseudoAxis(sopp.Curve, Curve):
 
     def _name_dofs(self):
         name_list = [
-            f"{j}_axis_{i}" for j in ("r", "z", "zeta") for i in range(self.n_ctrl_pts)
+            f"{j}_axis_{i}"
+            for j in ("r", "z", "zeta")
+            for i in range(self.n_ctrl_pts)
         ]
         return name_list
 
 
 class SurfaceBSpline(sopp.Surface, Surface):
     r"""
-    Class for a B-spline surface, as described in Ali et. al (manuscript
-    in progress). The main benefits of this representation are
-    threefold:
-    - Easy to box-bound to a space of diverse but feasible
-    stellarator shapes
-    - Local control
-    - Can be constrained to be unique
+    B-spline surface, as described in Ali et al. (manuscript in progress).
+    The main benefits of this representation are threefold: easy to
+    box-bound to a space of diverse but feasible stellarator shapes, local
+    control, and can be constrained to be unique.
 
-    The `PseudoAxisSurface` class is a composite of two other
-    classes: the `PseudoAxis`, which is a B-spline curve intended to
-    be constrained to lie in the interior of the control points, and
-    the control point cross sections (`CrossSectionFixedZeta` or
-    `CrossSectionFixedZetaCartesian`), which define the control
-    points in local cartesian or polar coordinates in planes of
-    constant toroidal angle, respectively.
+    Notes
+    -----
+    `SurfaceBSpline` is a composite of two other classes: `PseudoAxis`, a
+    B-spline curve intended to be constrained to lie in the interior of the
+    control points, and the control point cross sections
+    (`CrossSectionFixedZeta` or `CrossSectionFixedZetaCartesian`), which
+    define the control points in local cartesian or polar coordinates in
+    planes of constant toroidal angle, respectively.
     """
 
     def __init__(
@@ -589,9 +611,14 @@ class SurfaceBSpline(sopp.Surface, Surface):
         quadpoints_theta=None,
     ):
         """
-        axis_points: number of points for the axis spline
-        points_per_cs: number of points per cross section
-        n_cs: number of toroidal cross sections per half field period
+        Parameters
+        ----------
+        axis_points : int
+            Number of points for the axis spline.
+        points_per_cs : int
+            Number of points per cross section.
+        n_cs : int
+            Number of toroidal cross sections per half field period.
         """
         if stellsym:
             max_angle = np.pi / nfp
@@ -714,15 +741,29 @@ class SurfaceBSpline(sopp.Surface, Surface):
         self.invalidate_cache()
 
     def get_cs_zeta_angle(self):
-        zeta_list = np.array([self.get(f"cs_zeta{i}") for i in range(self.n_cs)])
-        cs_angle_list = np.array([self.get(f"cs_angle{i}") for i in range(self.n_cs)])
+        zeta_list = np.array(
+            [self.get(f"cs_zeta{i}") for i in range(self.n_cs)]
+        )
+        cs_angle_list = np.array(
+            [self.get(f"cs_angle{i}") for i in range(self.n_cs)]
+        )
         return zeta_list, cs_angle_list
 
     def _axis_rz(self, zeta):
         """
         Evaluate the pseudo-axis's (R, Z) at physical toroidal angle(s)
-        zeta (radians), via PseudoAxis.gamma_impl (quadpoints are fractions
-        in [0, 1), per the Curve/Surface convention).
+        zeta, via `PseudoAxis.gamma_impl`.
+
+        Parameters
+        ----------
+        zeta : array-like
+            Toroidal angle(s) in radians. Converted internally to quadpoint
+            fractions in [0, 1), per the Curve/Surface convention.
+
+        Returns
+        -------
+        r_axis, z_axis : ndarray
+            Axis (R, Z) at the given zeta.
         """
         data = np.zeros((len(zeta), 3))
         self.axis.gamma_impl(data, np.asarray(zeta) / (2 * np.pi))
@@ -732,14 +773,30 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
     def _get_control_points_xyz(self, return_w=False):
         """
-        Return a list of (X,Y,Z) tuples for control in each cross section points over the entire device domain
+        Return, for each cross section over the entire device domain, the
+        (X, Y, Z) control points.
+
+        Parameters
+        ----------
+        return_w : bool
+            If True, also return the NURBS weights for each control point.
+
+        Returns
+        -------
+        point_list : list of ndarray
+            (X, Y, Z) control points for each cross section.
+        w_list : list of ndarray, optional
+            NURBS weights for each control point. Only returned if
+            `return_w`.
         """
         point_list = []
         w_list = []
 
         cs_zeta, cs_angles = self.get_cs_zeta_angle()
 
-        cs_zeta_1fp = np.append(cs_zeta, (2 * np.pi / self.nfp) - cs_zeta[-2:0:-1])
+        cs_zeta_1fp = np.append(
+            cs_zeta, (2 * np.pi / self.nfp) - cs_zeta[-2:0:-1]
+        )
         cs_zeta_full = np.concatenate(
             [cs_zeta_1fp + n * (2 * np.pi / self.nfp) for n in range(self.nfp)]
         )
@@ -786,12 +843,20 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
     def get_xyz_centroids(self):
         """
-        Return a list of (X,Y,Z) tuples for control in each cross section points over the entire device domain
+        Return the centroid (X, Y, Z) of each cross section over the entire
+        device domain.
+
+        Returns
+        -------
+        point_list : list of ndarray
+            Centroid (X, Y, Z) for each cross section.
         """
         cs_zeta, cs_angles = self.get_cs_zeta_angle()
         point_list = []
         # cross section by cross section
-        cs_zeta_1fp = np.append(cs_zeta, (2 * np.pi / self.nfp) - cs_zeta[-2:0:-1])
+        cs_zeta_1fp = np.append(
+            cs_zeta, (2 * np.pi / self.nfp) - cs_zeta[-2:0:-1]
+        )
         cs_zeta_full = np.concatenate(
             [cs_zeta_1fp + n * (2 * np.pi / self.nfp) for n in range(self.nfp)]
         )
@@ -835,14 +900,21 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
     def get_rtz_full_device(self):
         """
-        Return toroidal coordinate (e.g., (r,t,z) tuples) for each control point over the entire
+        Return (r, theta, zeta) for each control point over the entire
         device domain.
+
+        Returns
+        -------
+        point_list : list of ndarray
+            (r, theta, zeta) for each control point, per cross section.
         """
         point_list = []
 
         cs_zeta, cs_angles = self.get_cs_zeta_angle()
 
-        cs_zeta_1fp = np.append(cs_zeta, (2 * np.pi / self.nfp) - cs_zeta[-2:0:-1])
+        cs_zeta_1fp = np.append(
+            cs_zeta, (2 * np.pi / self.nfp) - cs_zeta[-2:0:-1]
+        )
         cs_zeta_full = np.concatenate(
             [cs_zeta_1fp + n * (2 * np.pi / self.nfp) for n in range(self.nfp)]
         )
@@ -877,14 +949,18 @@ class SurfaceBSpline(sopp.Surface, Surface):
     def _control_net_and_knots(self):
         """
         Build the (periodic-wrapped) control net, NURBS weights, and knot
-        vectors shared by surf_callable and gamma -- factored out so the two
-        don't duplicate the periodic-wraparound/knot-construction logic.
+        vectors shared by `surf_callable` and `gamma_lin` -- factored out so
+        the two don't duplicate the periodic-wraparound/knot-construction
+        logic.
 
-        Returns:
-            trimmed_ctrl_pts_jim: (n_v+p_v+1, n_u+p_u+1, 3) control net
-            trimmed_weights_ji: (n_v+p_v+1, n_u+p_u+1) NURBS weights
-            knots_u, knots_v: knot vectors for the u (poloidal) and v
-                (toroidal) directions
+        Returns
+        -------
+        trimmed_ctrl_pts_jim : ndarray, shape (n_v+p_v+1, n_u+p_u+1, 3)
+            Control net.
+        trimmed_weights_ji : ndarray, shape (n_v+p_v+1, n_u+p_u+1)
+            NURBS weights.
+        knots_u, knots_v : ndarray
+            Knot vectors for the u (poloidal) and v (toroidal) directions.
         """
         point_list, w_list = self._get_control_points_xyz(return_w=True)
 
@@ -904,7 +980,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
         w_list_jim = np.concatenate([w_list_jim, w_list_jim[:, :p_u]], axis=1)
 
         interval_u = (2 * np.pi) / (n_u + 1)
-        knots_u = -p_u * interval_u + np.arange(0, n_u + 2 * p_u + 2) * interval_u
+        knots_u = (
+            -p_u * interval_u + np.arange(0, n_u + 2 * p_u + 2) * interval_u
+        )
 
         assert np.isclose(knots_u[p_u], 0), f"knots_u[p_u] = {knots_u[p_u]}"
         assert np.isclose(knots_u[n_u + p_u + 1], 2 * np.pi), (
@@ -918,14 +996,18 @@ class SurfaceBSpline(sopp.Surface, Surface):
         w_list_jim = np.concatenate([w_list_jim, w_list_jim[:p_v, :]], axis=0)
 
         interval_v = (2 * np.pi) / (n_v + 1)
-        knots_v = -p_v * interval_v + np.arange(0, n_v + 2 * p_v + 2) * interval_v
+        knots_v = (
+            -p_v * interval_v + np.arange(0, n_v + 2 * p_v + 2) * interval_v
+        )
 
         assert np.isclose(knots_v[p_v], 0), f"knots_v[p_v] = {knots_v[p_v]}"
         assert np.isclose(knots_v[n_v + p_v + 1], 2 * np.pi), (
             f"knots_v[n_v - p_v + 1] = {knots_v[n_v + p_v + 1]}"
         )
 
-        trimmed_ctrl_pts_jim = control_points_jim[: n_v + p_v + 1, : n_u + p_u + 1, :]
+        trimmed_ctrl_pts_jim = control_points_jim[
+            : n_v + p_v + 1, : n_u + p_u + 1, :
+        ]
         trimmed_weights_ji = w_list_jim[: n_v + p_v + 1, : n_u + p_u + 1]
 
         return trimmed_ctrl_pts_jim, trimmed_weights_ji, knots_u, knots_v
@@ -936,7 +1018,18 @@ class SurfaceBSpline(sopp.Surface, Surface):
         v,
     ):
         """
-        Evaluate the spline surface at (a set of) u, v pairs within a field period.
+        Evaluate the spline surface at (a set of) u, v pairs within a field
+        period.
+
+        Parameters
+        ----------
+        u, v : array-like
+            Parametric coordinates, in [0, 2*pi).
+
+        Returns
+        -------
+        x_surf, y_surf, z_surf : ndarray
+            Surface (X, Y, Z) at the given (u, v).
         """
         trimmed_ctrl_pts_jim, trimmed_weights_ji, knots_u, knots_v = (
             self._control_net_and_knots()
@@ -950,7 +1043,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
         tp_basis = np.einsum("xj,xi->xji", v_basis, u_basis)
         w_tp_basis = np.einsum("xji,ji->xji", tp_basis, trimmed_weights_ji)
         summed_w_tp_basis = np.einsum("xji->x", w_tp_basis)
-        nurbs_tp_basis = np.einsum("xji,x->xji", w_tp_basis, 1 / summed_w_tp_basis)
+        nurbs_tp_basis = np.einsum(
+            "xji,x->xji", w_tp_basis, 1 / summed_w_tp_basis
+        )
 
         surf = np.einsum("xji,jim->xm", nurbs_tp_basis, trimmed_ctrl_pts_jim)
         x_surf = surf[:, 0]
@@ -962,23 +1057,17 @@ class SurfaceBSpline(sopp.Surface, Surface):
     def gamma_lin(self, data, quadpoints_phi, quadpoints_theta):
         r"""
         Evaluate (X, Y, Z) at paired (phi, theta) points -- data[i] =
-        Gamma(phi[i], theta[i]) for each i -- via a scipy.optimize.newton
-        root-find for the NURBS v-parameter (see gamma_eval_benchmark.ipynb,
-        examples/2_Intermediate, for the derivation and a benchmark against
-        oversample+CloughTocher interpolation -- Newton is exact and
-        ~9-30x faster).
+        Gamma(phi[i], theta[i]) -- via a Newton root-find for the NURBS
+        v-parameter (see gamma_eval_benchmark.ipynb, examples/2_Intermediate,
+        for the derivation and a benchmark against oversample+CloughTocher
+        interpolation).
 
-        theta is used directly as the NURBS u-parameter with no
-        reparametrization. For each point, the u-basis row collapses the surface
-        to a 1D rational (NURBS) curve X(v) = Nx(v)/D(v), Y(v) = Ny(v)/D(v)
-        in v alone; phi is then hit exactly by solving atan2(Y(v), X(v)) ==
-        phi for v.
-
-        Args:
-            data: (N, 3) array, filled in place with (X, Y, Z).
-            quadpoints_phi, quadpoints_theta: (N,) arrays, fractions in
-                [0, 1) (phi = 2*pi*quadpoints_phi, theta = 2*pi*quadpoints_theta),
-                per the Surface convention.
+        Parameters
+        ----------
+        data : ndarray, shape (N, 3)
+            Filled in place with (X, Y, Z).
+        quadpoints_phi, quadpoints_theta : ndarray, shape (N,)
+            Fractions in [0, 1), per the Surface convention.
         """
         trimmed_ctrl_pts_jim, trimmed_weights_ji, knots_u, knots_v = (
             self._control_net_and_knots()
@@ -1027,7 +1116,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
             dY = (dNy * D - Ny * dD) / D**2
             return (X * dY - Y * dX) / (X**2 + Y**2)
 
-        v_sol = newton(func, x0=phi.copy(), fprime=fprime, tol=1e-12, maxiter=50)
+        v_sol = newton(
+            func, x0=phi.copy(), fprime=fprime, tol=1e-12, maxiter=50
+        )
 
         v_wrapped = v_sol % (2 * np.pi)
         basis_v = b_p(knots_v, p_v, v_wrapped)
@@ -1042,15 +1133,17 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
     def gamma_impl(self, data, quadpoints_phi, quadpoints_theta):
         r"""
-        Evaluate (X, Y, Z) on a tensor product grid of phi x theta points.
-        A thin wrapper around gamma_lin -- mesh the requested phi/theta,
-        flatten to paired points, call gamma_lin once, reshape back -- same
-        pattern as SurfaceHenneberg.gamma_impl.
+        Evaluate (X, Y, Z) on a tensor product grid of phi x theta points. A
+        thin wrapper around `gamma_lin` (same pattern as
+        `SurfaceHenneberg.gamma_impl`).
 
-        Args:
-            data: (n_phi, n_theta, 3) array, filled in place, matching the
-                Surface convention (phi axis first).
-            quadpoints_phi, quadpoints_theta: 1D arrays, fractions in [0, 1).
+        Parameters
+        ----------
+        data : ndarray, shape (n_phi, n_theta, 3)
+            Filled in place, matching the Surface convention (phi axis
+            first).
+        quadpoints_phi, quadpoints_theta : ndarray, 1D
+            Fractions in [0, 1).
         """
         nphi = len(quadpoints_phi)
         ntheta = len(quadpoints_theta)
@@ -1075,11 +1168,15 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
         # a basis
         n_a = centroids_im.shape[0] - 1
-        centroids_im = np.concatenate([centroids_im, centroids_im[:p_a, :]], axis=0)
+        centroids_im = np.concatenate(
+            [centroids_im, centroids_im[:p_a, :]], axis=0
+        )
         # n_knots_a = n_a + 2 * p_a + 2
 
         interval_a = (2 * np.pi) / (n_a + 1)
-        knots_a = -p_a * interval_a + np.arange(0, n_a + 2 * p_a + 2) * interval_a
+        knots_a = (
+            -p_a * interval_a + np.arange(0, n_a + 2 * p_a + 2) * interval_a
+        )
 
         assert np.isclose(knots_a[p_a], 0), f"knots_u[p_u] = {knots_a[p_a]}"
         assert np.isclose(knots_a[n_a + p_a + 1], 2 * np.pi), (
@@ -1116,7 +1213,10 @@ class SurfaceBSpline(sopp.Surface, Surface):
         for target in zeta_surf.flatten():
             a_star.append(
                 fsolve(
-                    func=f0, x0=(target - offset) % (2 * np.pi), fprime=f1, args=target
+                    func=f0,
+                    x0=(target - offset) % (2 * np.pi),
+                    fprime=f1,
+                    args=target,
                 )
             )
         a_star = np.array(a_star).flatten() % (2 * np.pi)
@@ -1135,19 +1235,24 @@ class SurfaceBSpline(sopp.Surface, Surface):
         _fsolve=False,
     ):
         """
-        Return R, Z values computed on a (theta_a, zeta) grid, where theta_a is the conventional polar angle
-        about the centroid, and zeta is the toroidal polar angle. First evaluates the R, Z values on a uniform (u,v) grid,
-        then interpolates to obtain R, Z on a (theta_p, zeta) grid, where theta_p is the polar angle about the centroid
-        in a plane of constant zeta. The points are mirrored to make sure that the collocation points themselves are
-        stellarator symmetric. Finally, another interpolation to finally evaluate R, Z on a (theta_a, zeta)
-        grid is performed.
+        Return R, Z on a (theta_a, zeta) grid, where theta_a is the
+        conventional polar angle about the centroid and zeta is the
+        toroidal angle. Evaluates R, Z on a uniform (u, v) grid, interpolates
+        to a (theta_p, zeta) grid (theta_p: polar angle about the centroid
+        in a plane of constant zeta, mirrored for stellarator symmetry),
+        then interpolates again onto the final (theta_a, zeta) grid.
 
-        Args:
-            nu,nv: The shape of the outputted array is (nu, nv)
-            nu_interp,nv_interp: The (u, v) grid is generated with the shape (nu_interp, nv_interp)
-            nu_intermediate, nv_intermediate: The intermediate grid with polar theta_p has the shape (nu_eq, 2*nv_eq + 1).
-            note that nv_intermediate is the number of points in a half-field period
-            plot: Boolean to turn on plotting of the points making up the equal arclength grid
+        Parameters
+        ----------
+        nu, nv : int
+            Shape of the output arrays.
+        nu_interp, nv_interp : int
+            Shape of the intermediate (u, v) grid used for interpolation.
+        plot : bool
+            Whether to plot the points making up the equal-arclength grid.
+        _fsolve : bool
+            Accepted for signature compatibility with related methods; not
+            used in this function body.
         """
 
         # Creating grid to interpolate u and v on
@@ -1156,7 +1261,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
         v = np.linspace(0, 2 * np.pi, nv_interp, endpoint=True)
         v_grid, u_grid = np.meshgrid(v, u)
 
-        x_surf, y_surf, z_surf = self.surf_callable(u_grid.flatten(), v_grid.flatten())
+        x_surf, y_surf, z_surf = self.surf_callable(
+            u_grid.flatten(), v_grid.flatten()
+        )
         print(f"type(nv_interp): {type(nv_interp)}")
         print(f"type(nu_interp): {type(nu_interp)}")
 
@@ -1229,7 +1336,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
             numRows = 2
             plotNum = 1
             nzeta_cs = 9
-            zeta_cs = np.linspace(0, 2 * np.pi / self.nfp, num=nzeta_cs, endpoint=True)
+            zeta_cs = np.linspace(
+                0, 2 * np.pi / self.nfp, num=nzeta_cs, endpoint=True
+            )
             theta_cs_eval = np.linspace(0, 2 * np.pi, 64)
 
             fig = plt.figure("Poincare Plots", figsize=(14, 7))
@@ -1244,7 +1353,10 @@ class SurfaceBSpline(sopp.Surface, Surface):
                     plt.gca().set_aspect("equal", adjustable="box")
                     plt.plot()
                     point = np.vstack(
-                        (theta_cs_eval, zeta_cs[ind] * np.ones_like(theta_cs_eval))
+                        (
+                            theta_cs_eval,
+                            zeta_cs[ind] * np.ones_like(theta_cs_eval),
+                        )
                     ).T
                     R_cs = R_tz_callable(point)
                     z_cs = z_tz_callable(point)
@@ -1260,7 +1372,8 @@ class SurfaceBSpline(sopp.Surface, Surface):
                     point = np.vstack(
                         (
                             theta_cs_eval,
-                            (np.pi - zeta_cs[ind]) * np.ones_like(theta_cs_eval),
+                            (np.pi - zeta_cs[ind])
+                            * np.ones_like(theta_cs_eval),
                         )
                     ).T
                     R_cs = R_tz_callable(point)[::-1]
@@ -1308,30 +1421,27 @@ class SurfaceBSpline(sopp.Surface, Surface):
         _fsolve=False,
     ):
         r"""
-        Return R, Z values computed on a (theta_a, zeta) grid,
-        where theta_a is the poloidal angle demarking unit arc
-        length on the curve, and zeta is the toroidal polar
-        angle. First evaluates the R, Z values on a uniform
-        (u,v) grid, then interpolates to obtain R, Z on a
-        (theta_p, zeta) grid, where theta_p is the polar angle
-        about the centroid in a plane of constant zeta. The
-        points are mirrored to make sure that the collocation
-        points themselves are stellarator symmetric. Finally,
-        another interpolation is performed to evaluate R, Z on
-        a (theta_a, zeta) grid.
+        Return R, Z on a (theta_a, zeta) grid, where theta_a is the poloidal
+        angle demarking unit arc length on the curve and zeta is the
+        toroidal angle. Evaluates R, Z on a uniform (u, v) grid, interpolates
+        to a (theta_p, zeta) grid (theta_p: polar angle about the centroid
+        in a plane of constant zeta, mirrored for stellarator symmetry),
+        then interpolates again onto the final (theta_a, zeta) grid.
 
-        Args:
-            nu,nv: The shape of the outputted array is
-            (nu, nv)
-            nu_interp,nv_interp: The (u, v) grid is generated
-            with the shape (nu_interp, nv_interp)
-            nu_intermediate, nv_intermediate: The intermediate
-            grid with polar theta_p has the shape
-            (nu_eq, 2*nv_eq + 1).
-            Note that nv_intermediate is the number of points
-            in a half-field period
-            plot: Boolean to turn on plotting of the points
-            making up the equal arclength grid
+        Parameters
+        ----------
+        nu, nv : int, optional
+            Shape of the output arrays. Defaults to `2*nfp*16`.
+        nu_interp, nv_interp : int, optional
+            Shape of the intermediate (u, v) grid used for interpolation.
+            Defaults to `2*nfp*16`.
+        plot : bool
+            Whether to plot the points making up the equal-arclength grid.
+        ax : matplotlib 3D axis, optional
+            Axis to plot on, if `plot`.
+        _fsolve : bool
+            Accepted for signature compatibility with related methods; not
+            used in this function body.
         """
         # Creating grid to interpolate u and v on
 
@@ -1344,7 +1454,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
         v = np.linspace(0, 2 * np.pi, nv_interp, endpoint=True)
         v_grid, u_grid = np.meshgrid(v, u)
 
-        x_surf, y_surf, z_surf = self.surf_callable(u_grid.flatten(), v_grid.flatten())
+        x_surf, y_surf, z_surf = self.surf_callable(
+            u_grid.flatten(), v_grid.flatten()
+        )
         x_surf = x_surf.reshape(nu_interp, nv_interp)
         y_surf = y_surf.reshape(nu_interp, nv_interp)
         z_surf = z_surf.reshape(nu_interp, nv_interp)
@@ -1360,7 +1472,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
         u_zeta_points = np.vstack((u_grid.flatten(), zeta_surf.flatten()))
         zeta_eval, theta_eval = np.meshgrid(
-            np.linspace(np.pi / self.nfp, 2 * np.pi / self.nfp, nv_uz, endpoint=True),
+            np.linspace(
+                np.pi / self.nfp, 2 * np.pi / self.nfp, nv_uz, endpoint=True
+            ),
             np.linspace(0, 2 * np.pi, nu_uz, endpoint=True),
         )
         eval_grid = np.vstack((theta_eval.flatten(), zeta_eval.flatten()))
@@ -1389,7 +1503,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
         z_axis = z_axis[indices]
         zeta_axis = zeta_axis[indices]
         # print(f'zeta_axis: {zeta_axis}')
-        axis_zeta_callable = CubicSpline(zeta_axis, np.vstack([R_axis, z_axis]).T)
+        axis_zeta_callable = CubicSpline(
+            zeta_axis, np.vstack([R_axis, z_axis]).T
+        )
 
         zeta_1d_halfgrid = zeta_eval[0, :]
         ulist = []
@@ -1435,7 +1551,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
             nattempts = 0
 
             for k, _ in enumerate(a):
-                u_theta0, r = bisect(f, a=a[k], b=b[k], args=zeta, full_output=True)
+                u_theta0, r = bisect(
+                    f, a=a[k], b=b[k], args=zeta, full_output=True
+                )
 
                 if (r.converged) and check_r_lt_raxis(u_theta0, zeta):
                     ulist.append(u_theta0)
@@ -1447,7 +1565,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
                     nattempts += 1
 
             if nfails == len(a):
-                u_feasible = u_eval[(R_on_uz_grid - R_axis_on_uz_grid)[:, i] > 0]
+                u_feasible = u_eval[
+                    (R_on_uz_grid - R_axis_on_uz_grid)[:, i] > 0
+                ]
                 zs_feasible = zs[(R_on_uz_grid - R_axis_on_uz_grid)[:, i] > 0]
                 ulist.append(u_feasible[np.argmin(zs_feasible)])
 
@@ -1462,7 +1582,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
         # reparametrizing on arclength
 
         # sorting by u, starting from theta=0 point
-        theta0_eval = (theta_eval - np.outer(np.ones(nu_uz), ulist)) % (2 * np.pi)
+        theta0_eval = (theta_eval - np.outer(np.ones(nu_uz), ulist)) % (
+            2 * np.pi
+        )
         sorted_theta0_indices = np.argsort(theta0_eval, axis=0)
 
         R_on_uz_grid = np.take_along_axis(
@@ -1505,7 +1627,10 @@ class SurfaceBSpline(sopp.Surface, Surface):
         )
         zeta_ffeval, theta_ffeval = np.meshgrid(
             np.linspace(
-                np.pi / self.nfp, 2 * np.pi / self.nfp, nv_final + 1, endpoint=True
+                np.pi / self.nfp,
+                2 * np.pi / self.nfp,
+                nv_final + 1,
+                endpoint=True,
             ),
             np.linspace(0, 2 * np.pi, nu_final, endpoint=False),
         )
@@ -1520,8 +1645,12 @@ class SurfaceBSpline(sopp.Surface, Surface):
             values=z_on_uz_grid.flatten(),
         )
 
-        R_on_az_grid = R_az_callable(eval_grid.T).reshape(nu_final, nv_final + 1)
-        z_on_az_grid = z_az_callable(eval_grid.T).reshape(nu_final, nv_final + 1)
+        R_on_az_grid = R_az_callable(eval_grid.T).reshape(
+            nu_final, nv_final + 1
+        )
+        z_on_az_grid = z_az_callable(eval_grid.T).reshape(
+            nu_final, nv_final + 1
+        )
 
         R_flipped = np.roll(R_on_az_grid[::-1, -1:0:-1], 1, axis=0)
         z_flipped = np.roll(-z_on_az_grid[::-1, -1:0:-1], 1, axis=0)
@@ -1540,7 +1669,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
             z_on_az_grid = z_full
 
             ax.scatter(x_on_az_grid, y_on_az_grid, z_on_az_grid, s=1)
-            ax.plot_wireframe(x_on_az_grid, y_on_az_grid, z_on_az_grid, alpha=0.05)
+            ax.plot_wireframe(
+                x_on_az_grid, y_on_az_grid, z_on_az_grid, alpha=0.05
+            )
 
             ax.set_box_aspect((1, 1, 1))
             ax.set_ylim(-1, 1)
@@ -1577,8 +1708,13 @@ class SurfaceBSpline(sopp.Surface, Surface):
         },
     ):
         r"""
-        Performs Fourier transform from spline surface to Fourier
-        coefficients for a VMEC surface.
+        Fourier transform from spline surface to Fourier coefficients for
+        a VMEC surface.
+
+        Returns
+        -------
+        rbc, zbs : ndarray
+            VMEC Fourier coefficients.
         """
         nu = 2 * self.nfp * 16 if nu is None else nu
         nv = 2 * self.nfp * 16 if nv is None else nv
@@ -1620,7 +1756,12 @@ class SurfaceBSpline(sopp.Surface, Surface):
             # toc = time.perf_counter()
             # print(f"Created equispaced grid in {toc - tic:0.4f} seconds")
         else:
-            R_on_tz_grid, z_on_tz_grid, zeta_eval, theta_eval = R, z, zeta, theta
+            R_on_tz_grid, z_on_tz_grid, zeta_eval, theta_eval = (
+                R,
+                z,
+                zeta,
+                theta,
+            )
 
         M, N = self.M, self.N
 
@@ -1740,8 +1881,22 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
     def centroid_axis_fourier_coeffs(self, N=6, nv=300, plot=False):
         """
-        Return Fourier coefficients for the centroid axis to be used as an initial guess
-        in the vmec input
+        Return Fourier coefficients for the centroid axis, to be used as an
+        initial guess in the VMEC input.
+
+        Parameters
+        ----------
+        N : int
+            Number of Fourier modes.
+        nv : int
+            Number of points used to sample the axis before fitting.
+        plot : bool
+            Whether to plot the fit.
+
+        Returns
+        -------
+        r_n, z_n : ndarray, shape (2*N+1,)
+            Fourier coefficients of the centroid axis (R, Z).
         """
         vlist = np.linspace(0, 2 * np.pi / self.nfp, nv, endpoint=False)
         x_ax, y_ax, z_ax = self.centroid_axis_callable(vlist)
@@ -1773,8 +1928,12 @@ class SurfaceBSpline(sopp.Surface, Surface):
             ax.plot(x_zeta, y_zeta, z_zeta)
 
         r_zeta = np.sqrt(x_zeta**2 + y_zeta**2)
-        cosnz = np.array([np.cos(-n * zeta_eval * self.nfp) for n in range(-N, N + 1)])
-        sinnz = np.array([np.sin(-n * zeta_eval * self.nfp) for n in range(-N, N + 1)])
+        cosnz = np.array(
+            [np.cos(-n * zeta_eval * self.nfp) for n in range(-N, N + 1)]
+        )
+        sinnz = np.array(
+            [np.sin(-n * zeta_eval * self.nfp) for n in range(-N, N + 1)]
+        )
         r_n = np.einsum("nz,z->n", cosnz, r_zeta) / nv
         z_n = np.einsum("nz,z->n", sinnz, z_zeta) / nv
 
@@ -1852,7 +2011,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
                 "cutoff": 1e-6,
             }
             options = (
-                spec_cond_options if spec_cond_options is not None else default_options
+                spec_cond_options
+                if spec_cond_options is not None
+                else default_options
             )
             surf = surf.variational_spec_cond(**options)
         elif spec_cond == "direct":
@@ -1862,7 +2023,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
                 "Fourier_continuation": False,
             }
             options = (
-                spec_cond_options if spec_cond_options is not None else default_options
+                spec_cond_options
+                if spec_cond_options is not None
+                else default_options
             )
             surf.condense_spectrum(**options)
 
@@ -1896,7 +2059,21 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
     def write_inequality_constraints(self, maxval=np.inf):
         """
-        Return a tuple containing lb, ub, A, for inequality constraints
+        Build the linear inequality constraints lb <= A @ dofs <= ub.
+
+        Parameters
+        ----------
+        maxval : float
+            Upper bound used for otherwise-unbounded constraints.
+
+        Returns
+        -------
+        A : ndarray
+            Constraint matrix.
+        lb, ub : ndarray
+            Lower and upper bounds.
+        constraint_titles : list of str
+            Human-readable label for each constraint row.
         """
         dofs = self.dof_names
         indices_dict = dict(zip(dofs, range(len(self.dof_names))))
@@ -1936,7 +2113,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
                 ):  # TODO change if indexing ever gets fixed
                     for j in range(cs.n_pts):
                         temp = np.zeros(len(dofs))
-                        temp[indices_dict[f"CrossSectionFixedZeta{i + 1}:r_{j}"]] = 1
+                        temp[
+                            indices_dict[f"CrossSectionFixedZeta{i + 1}:r_{j}"]
+                        ] = 1
                         constraints_list.append(np.copy(temp))
                         constraint_titles.append(
                             f"0 < CrossSectionFixedZeta{i + 1}:r_{j} < 1"
@@ -1946,7 +2125,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
                         if i == 0:
                             temp = np.zeros(len(dofs))
                             temp[
-                                indices_dict[f"CrossSectionFixedZeta{i + 1}:r_{j}"]
+                                indices_dict[
+                                    f"CrossSectionFixedZeta{i + 1}:r_{j}"
+                                ]
                             ] = 1
                             constraints_list.append(np.copy(temp))
                             constraint_titles.append(
@@ -1957,7 +2138,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
                         else:
                             temp = np.zeros(len(dofs))
                             temp[
-                                indices_dict[f"CrossSectionFixedZeta{i + 1}:r_{j}"]
+                                indices_dict[
+                                    f"CrossSectionFixedZeta{i + 1}:r_{j}"
+                                ]
                             ] = -1
                             temp[indices_dict[f"PseudoAxis1:r_axis_{i}"]] = 1
                             constraints_list.append(np.copy(temp))
@@ -1975,7 +2158,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
                         # for j in range(1, cs.n_pts-1):
                         temp = np.zeros(len(dofs))
                         temp[
-                            indices_dict[f"CrossSectionFixedZeta{i + 1}:theta_{1}"]
+                            indices_dict[
+                                f"CrossSectionFixedZeta{i + 1}:theta_{1}"
+                            ]
                         ] = 1
                         constraints_list.append(np.copy(temp))
                         constraint_titles.append(
@@ -1986,7 +2171,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
                         for j in range(1, cs.n_pts - 2):
                             temp = np.zeros(len(dofs))
                             temp[
-                                indices_dict[f"CrossSectionFixedZeta{i + 1}:theta_{j}"]
+                                indices_dict[
+                                    f"CrossSectionFixedZeta{i + 1}:theta_{j}"
+                                ]
                             ] = -1
                             temp[
                                 indices_dict[
@@ -2017,7 +2204,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
                         temp = np.zeros(len(dofs))
                         temp[
-                            indices_dict[f"CrossSectionFixedZeta{i + 1}:theta_{0}"]
+                            indices_dict[
+                                f"CrossSectionFixedZeta{i + 1}:theta_{0}"
+                            ]
                         ] = 1
                         constraint_titles.append(
                             f"0 < CrossSectionFixedZeta{i + 1}:theta_{0} < {max_angle}"
@@ -2028,7 +2217,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
                         for j in range(0, (cs.n_pts // 2) - 1):
                             temp = np.zeros(len(dofs))
                             temp[
-                                indices_dict[f"CrossSectionFixedZeta{i + 1}:theta_{j}"]
+                                indices_dict[
+                                    f"CrossSectionFixedZeta{i + 1}:theta_{j}"
+                                ]
                             ] = -1
                             temp[
                                 indices_dict[
@@ -2072,7 +2263,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
                         for j in range(cs.n_pts // 2, cs.n_pts - 1):
                             temp = np.zeros(len(dofs))
                             temp[
-                                indices_dict[f"CrossSectionFixedZeta{i + 1}:theta_{j}"]
+                                indices_dict[
+                                    f"CrossSectionFixedZeta{i + 1}:theta_{j}"
+                                ]
                             ] = -1
                             temp[
                                 indices_dict[
@@ -2106,7 +2299,16 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
     def write_ub_constraints(self):
         """
-        Writing constraints in the form Ax <= b_ub
+        Build the linear inequality constraints A @ dofs <= b_ub.
+
+        Returns
+        -------
+        A : ndarray
+            Constraint matrix.
+        b_ub : ndarray
+            Upper bounds.
+        constraint_titles : list of str
+            Human-readable label for each constraint row.
         """
         dofs = self.dof_names
         indices_dict = dict(zip(dofs, range(len(self.dof_names))))
@@ -2150,7 +2352,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
                 ):  # TODO change if indexing ever gets fixed
                     for j in range(cs.n_pts):
                         temp = np.zeros(len(dofs))
-                        temp[indices_dict[f"CrossSectionFixedZeta{i + 1}:r_{j}"]] = -1
+                        temp[
+                            indices_dict[f"CrossSectionFixedZeta{i + 1}:r_{j}"]
+                        ] = -1
                         constraints_list.append(np.copy(temp))
                         constraint_titles.append(
                             f"- CrossSectionFixedZeta{i + 1}:r_{j} < 0"
@@ -2165,7 +2369,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
                         # for j in range(1, cs.n_pts-1):
                         temp = np.zeros(len(dofs))
                         temp[
-                            indices_dict[f"CrossSectionFixedZeta{i + 1}:theta_{1}"]
+                            indices_dict[
+                                f"CrossSectionFixedZeta{i + 1}:theta_{1}"
+                            ]
                         ] = -1
                         constraints_list.append(np.copy(temp))
                         constraint_titles.append(
@@ -2175,7 +2381,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
                         for j in range(1, cs.n_pts - 2):
                             temp = np.zeros(len(dofs))
                             temp[
-                                indices_dict[f"CrossSectionFixedZeta{i + 1}:theta_{j}"]
+                                indices_dict[
+                                    f"CrossSectionFixedZeta{i + 1}:theta_{j}"
+                                ]
                             ] = 1
                             temp[
                                 indices_dict[
@@ -2204,7 +2412,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
                         temp = np.zeros(len(dofs))
                         temp[
-                            indices_dict[f"CrossSectionFixedZeta{i + 1}:theta_{0}"]
+                            indices_dict[
+                                f"CrossSectionFixedZeta{i + 1}:theta_{0}"
+                            ]
                         ] = -1
                         constraint_titles.append(
                             f"-CrossSectionFixedZeta{i + 1}:theta_{0} < {min_angle}"
@@ -2214,7 +2424,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
                         for j in range(0, (cs.n_pts // 2) - 1):
                             temp = np.zeros(len(dofs))
                             temp[
-                                indices_dict[f"CrossSectionFixedZeta{i + 1}:theta_{j}"]
+                                indices_dict[
+                                    f"CrossSectionFixedZeta{i + 1}:theta_{j}"
+                                ]
                             ] = 1
                             temp[
                                 indices_dict[
@@ -2255,7 +2467,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
                         for j in range(cs.n_pts // 2, cs.n_pts - 1):
                             temp = np.zeros(len(dofs))
                             temp[
-                                indices_dict[f"CrossSectionFixedZeta{i + 1}:theta_{j}"]
+                                indices_dict[
+                                    f"CrossSectionFixedZeta{i + 1}:theta_{j}"
+                                ]
                             ] = 1
                             temp[
                                 indices_dict[
@@ -2435,7 +2649,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
             loc_y = r_paxis * np.sin(zeta_ctrl)
             loc_z = z_paxis
 
-            ax.quiver(loc_x, loc_y, loc_z, dir_x, dir_y, dir_z, **_rtz_vectors_kwargs)
+            ax.quiver(
+                loc_x, loc_y, loc_z, dir_x, dir_y, dir_z, **_rtz_vectors_kwargs
+            )
 
         if _RZ_vectors:
             xyz = np.array(self._get_control_points_xyz()).reshape(-1, 3)
@@ -2455,7 +2671,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
         if _pseudo_axis:
             for i in range(1, self.nfp + 1):
                 phi = np.linspace(
-                    (i - 1) * 2 * np.pi / self.nfp, i * 2 * np.pi / self.nfp, 200
+                    (i - 1) * 2 * np.pi / self.nfp,
+                    i * 2 * np.pi / self.nfp,
+                    200,
                 )
                 r_paxis, z_paxis = self._axis_rz(phi)
                 ax.plot(
@@ -2487,7 +2705,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
             zax_ctrl = np.append(zax_ctrl, zax_ctrl[0])
 
         if _pseudo_axis_ctrl_pts:
-            ax.plot(xax_ctrl, yax_ctrl, zax_ctrl, **_pseudo_axis_ctrl_pts_kwargs)
+            ax.plot(
+                xax_ctrl, yax_ctrl, zax_ctrl, **_pseudo_axis_ctrl_pts_kwargs
+            )
 
         #####################################################################
         # Centroid axis
