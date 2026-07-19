@@ -2,6 +2,7 @@ import simsoptpp as sopp
 from .._core import Optimizable
 from .._core.optimizable import DOFs
 from .surface import Surface
+from .curve import Curve
 from ..geo import SurfaceRZFourier
 # from ..mhd import Vmec
 from ..util.mpi import MpiPartition
@@ -178,31 +179,41 @@ class CrossSectionFixedZeta(Optimizable):
                 self.fix(key) 
             return flipped_cs
 
-class PseudoAxis(Optimizable):
+class PseudoAxis(sopp.Curve, Curve):
     r"""
     Class for a pseudo-axis around which to build a spline surface.
-    The number of dofs includes BOTH endpoints. Control points are 
-    vectors described in cylindrical coordinates. 
+    The number of dofs includes BOTH endpoints. Control points are
+    vectors described in cylindrical coordinates.
 
     Args:
         n_ctrl_pts: number of control points
         nfp: number of field periods
         stellsym: whether axis is stellarator symmetric
         axis_angles_fixed: whether to freeze dofs for polar
-        angle of control points. 
+        angle of control points.
+        quadpoints: int (number of uniformly-spaced default quadpoints) or
+        an explicit array of quadpoints (fractions in [0, 1)), matching
+        CurveXYZFourier's convention -- no static default-quadpoints
+        helper exists for Curve the way Surface has one.
     """
     def __init__(
-        self, 
+        self,
         n_ctrl_pts=2,
         p=3,
         nfp=2,
         stellsym=True,
-        axis_angles_fixed=False
+        axis_angles_fixed=False,
+        quadpoints=61,
     ):
         self.n_ctrl_pts=n_ctrl_pts
         self.stellsym=stellsym
         self.nfp=nfp
         self.p = p
+
+        if isinstance(quadpoints, int):
+            quadpoints = list(np.linspace(0, 1, quadpoints, endpoint=False))
+        elif isinstance(quadpoints, np.ndarray):
+            quadpoints = list(quadpoints)
 
         if not stellsym:
             max_angle=2*np.pi/nfp
@@ -241,7 +252,8 @@ class PseudoAxis(Optimizable):
             dofs.fix(f'z_axis_{n_ctrl_pts - 1}')
             dofs.fix(f'zeta_axis_{n_ctrl_pts - 1}')
 
-        super().__init__(dofs=dofs, external_dof_setter=PseudoAxis.set_dofs_impl)
+        sopp.Curve.__init__(self, quadpoints)
+        Curve.__init__(self, dofs=dofs, external_dof_setter=PseudoAxis.set_dofs_impl)
 
     # def __call__(
     #         self,
@@ -388,6 +400,7 @@ class PseudoAxis(Optimizable):
         index += n_ctrl
 
         self.zeta_ctrl = v[index: index + n_ctrl]
+        self.invalidate_cache()
 
     # def axis_spline_callable(
     #         self,
