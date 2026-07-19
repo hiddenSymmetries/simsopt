@@ -10,7 +10,7 @@ from ..geo import SurfaceRZFourier
 
 # from ..mhd import Vmec
 from ..util.mpi import MpiPartition
-from ..util.spline_helpers import b_p, b_p_deriv
+from ..util.spline_helpers import b_p, b_p_deriv, chord_length_knots, uniform_knots
 from .curve import Curve
 from .surface import Surface
 
@@ -244,6 +244,12 @@ class PseudoAxis(sopp.Curve, Curve):
         of quadpoints (fractions in [0, 1)), matching CurveXYZFourier's
         convention -- no static default-quadpoints helper exists for Curve
         the way Surface has one.
+    knot_parametrization : 'chord' or 'uniform'
+        Whether the internal NURBS knot vector is spaced by actual
+        chord length between control points ('chord', the default) or
+        assumed evenly spaced regardless of where the control points
+        are ('uniform', the original behavior). See
+        "Chord-length parametrization.md" for the math and references.
     """
 
     def __init__(
@@ -254,11 +260,18 @@ class PseudoAxis(sopp.Curve, Curve):
         stellsym=True,
         axis_angles_fixed=False,
         quadpoints=61,
+        knot_parametrization='chord',
     ):
+        if knot_parametrization not in ('chord', 'uniform'):
+            raise ValueError(
+                "knot_parametrization must be 'chord' or 'uniform', "
+                f"got {knot_parametrization!r}"
+            )
         self.n_ctrl_pts = n_ctrl_pts
         self.stellsym = stellsym
         self.nfp = nfp
         self.p = p
+        self.knot_parametrization = knot_parametrization
 
         if isinstance(quadpoints, int):
             quadpoints = list(np.linspace(0, 1, quadpoints, endpoint=False))
@@ -395,15 +408,16 @@ class PseudoAxis(sopp.Curve, Curve):
         centroids_im = np.array(xyz_list)
 
         n = centroids_im.shape[0] - 1
+        # knots computed before the periodic wraparound copy below (wraparound
+        # is about the control-net layout the basis needs, not the knot spacing)
+        if self.knot_parametrization == 'chord':
+            knots_a = chord_length_knots(centroids_im, p)
+        else:
+            knots_a = uniform_knots(n, p)
         centroids_im = np.concatenate(
             [centroids_im, centroids_im[:p, :]], axis=0
         )
-        # n_knots_a = n + 2 * p + 2
 
-        interval_a = (2 * np.pi) / (n + 1)
-        knots_a = -p * interval_a + np.arange(0, n + 2 * p + 2) * interval_a
-
-        # assert len(knots_a) == n + p + 2
         assert np.isclose(knots_a[p], 0)
         assert np.isclose(knots_a[n + p + 1], 2 * np.pi), (
             f"knots_a[n + p + 1]: {knots_a[n + p + 1]}"
@@ -609,6 +623,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
         dofs=None,
         quadpoints_phi=None,
         quadpoints_theta=None,
+        knot_parametrization='chord',
     ):
         """
         Parameters
@@ -619,12 +634,25 @@ class SurfaceBSpline(sopp.Surface, Surface):
             Number of points per cross section.
         n_cs : int
             Number of toroidal cross sections per half field period.
+        knot_parametrization : 'chord' or 'uniform'
+            Whether the internal NURBS knot vectors (both u and v, and the
+            pseudo-axis's own) are spaced by actual chord length between
+            control points ('chord', the default) or assumed evenly spaced
+            regardless of where the control points are ('uniform', the
+            original behavior). See "Chord-length parametrization.md" for
+            the math and references.
         """
         if stellsym:
             max_angle = np.pi / nfp
         else:
             raise NotImplementedError
             max_angle = 2 * np.pi
+
+        if knot_parametrization not in ('chord', 'uniform'):
+            raise ValueError(
+                "knot_parametrization must be 'chord' or 'uniform', "
+                f"got {knot_parametrization!r}"
+            )
 
         self.axis_points = axis_points
         self.points_per_cs = points_per_cs
@@ -642,6 +670,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
         self.stellsym = stellsym
         self.cs_basis = cs_basis
         self.nurbs = nurbs
+        self.knot_parametrization = knot_parametrization
 
         if dofs is None:
             # create equidistant points in zeta
@@ -654,7 +683,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
             cs_dofs = np.array([None] * n_cs)
 
-            if stellsym & np.all(cs_dofs is not None):
+            if stellsym & np.all(cs_dofs != None):  # noqa: E711 -- elementwise vs. numpy array, "is not" checks object identity instead and breaks this
                 assert len(cs_dofs[0]) == 2 * ((points_per_cs // 2) + 1)
                 assert len(cs_dofs[-1]) == 2 * ((points_per_cs // 2) + 1)
 
@@ -683,6 +712,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
             nfp=nfp,
             stellsym=stellsym,
             axis_angles_fixed=axis_angles_fixed,
+            knot_parametrization=knot_parametrization,
         )
 
         self.cs_list = []
@@ -973,16 +1003,31 @@ class SurfaceBSpline(sopp.Surface, Surface):
         n_u = control_points_jim.shape[1] - 1
         n_v = control_points_jim.shape[0] - 1
 
+        if self.knot_parametrization == 'chord':
+            # u knots: chord-length per row, averaged across rows. Each row
+            # (cross section) can have differently-spaced control points, but
+            # the whole surface has one shared u-knot-vector, so average the
+            # per-row chord-length knots -- standard technique for
+            # tensor-product/lofted NURBS surfaces (averaging preserves
+            # monotonicity and the knots[p]==0/knots[n+p+1]==2pi endpoints,
+            # since every row's knots satisfy those).
+            knots_u = np.mean(
+                [chord_length_knots(control_points_jim[j], p_u) for j in range(n_v + 1)],
+                axis=0,
+            )
+            # v knots: chord-length between row centroids (one representative
+            # point per cross section)
+            row_centroids = control_points_jim.mean(axis=1)
+            knots_v = chord_length_knots(row_centroids, p_v)
+        else:
+            knots_u = uniform_knots(n_u, p_u)
+            knots_v = uniform_knots(n_v, p_v)
+
         # u basis - closed
         control_points_jim = np.concatenate(
             [control_points_jim, control_points_jim[:, :p_u, :]], axis=1
         )
         w_list_jim = np.concatenate([w_list_jim, w_list_jim[:, :p_u]], axis=1)
-
-        interval_u = (2 * np.pi) / (n_u + 1)
-        knots_u = (
-            -p_u * interval_u + np.arange(0, n_u + 2 * p_u + 2) * interval_u
-        )
 
         assert np.isclose(knots_u[p_u], 0), f"knots_u[p_u] = {knots_u[p_u]}"
         assert np.isclose(knots_u[n_u + p_u + 1], 2 * np.pi), (
@@ -994,11 +1039,6 @@ class SurfaceBSpline(sopp.Surface, Surface):
             [control_points_jim, control_points_jim[:p_v, :, :]], axis=0
         )
         w_list_jim = np.concatenate([w_list_jim, w_list_jim[:p_v, :]], axis=0)
-
-        interval_v = (2 * np.pi) / (n_v + 1)
-        knots_v = (
-            -p_v * interval_v + np.arange(0, n_v + 2 * p_v + 2) * interval_v
-        )
 
         assert np.isclose(knots_v[p_v], 0), f"knots_v[p_v] = {knots_v[p_v]}"
         assert np.isclose(knots_v[n_v + p_v + 1], 2 * np.pi), (

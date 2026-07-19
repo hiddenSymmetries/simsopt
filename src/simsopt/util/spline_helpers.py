@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from simsopt.mhd import Vmec
 from simsopt.util.mpi import MpiPartition
 
 mpi = MpiPartition()
@@ -34,7 +33,6 @@ def b_p(t, p, x, i=None):
     b = []
 
     for deg in range(0, p+1):
-        l = len(t)
         if deg == 0:
             # x = x[(x >= t[0]) & (x <= t[-1])]
             x1d = x.copy()
@@ -106,6 +104,55 @@ def b_p_deriv(t, p, x):
         - np.divide(bp_minus1[:, 1:], r_d, out=np.zeros_like(r_d), where=r_d != 0)
     )
     return b[-1], deriv
+
+def uniform_knots(n, p, domain=2*np.pi):
+    '''
+    Periodic, uniformly-spaced knot vector of degree p covering [0, domain)
+    for n+1 control points. Counterpart to chord_length_knots with the same
+    shape/convention (length n+2p+2, knots[p]==0, knots[n+p+1]==domain), for
+    when point spacing shouldn't influence the parametrization.
+    '''
+    interval = domain / (n + 1)
+    return -p * interval + np.arange(0, n + 2*p + 2) * interval
+
+def chord_length_knots(points, p, domain=2*np.pi):
+    '''
+    Periodic, chord-length-parametrized knot vector of degree p for a closed
+    loop of n+1 points (points[0..n], NOT including the periodic wraparound
+    copy), covering [0, domain). Knot spacing follows the actual Euclidean
+    distance between consecutive points (wrapping points[n] back to
+    points[0]) rather than assuming uniform spacing -- the standard
+    chord-length parametrization technique (Piegl & Tiller, "The NURBS
+    Book"), adapted for a periodic/closed curve instead of an open one.
+
+    Same shape/convention as the uniform "interval * arange(...)" knot
+    vectors it replaces, so it's a drop-in swap wherever those were built:
+    length n+2p+2, knots[p]==0, knots[n+p+1]==domain, both required for the
+    periodic wraparound trick used throughout this module (appending the
+    first p control points/weights to close the loop).
+
+    points: (n+1, dim) array of control points, one full period, NOT
+    including the p-fold wraparound copy (that's built separately, same as
+    for the uniform knots).
+    '''
+    n = len(points) - 1
+    closed = np.concatenate([points, points[:1]], axis=0)  # (n+2, dim): +1 closing gap
+    gaps = np.linalg.norm(np.diff(closed, axis=0), axis=1)  # (n+1,)
+    total = np.sum(gaps)
+    if total <= 0:
+        # degenerate (coincident points) -- fall back to uniform rather than divide by zero
+        gaps = np.ones(n + 1)
+        total = n + 1
+
+    # cumulative chord length, normalized to [0, domain]: t_core[0]=0, ..., t_core[n+1]=domain
+    t_core = np.concatenate([[0.0], np.cumsum(gaps)]) * (domain / total)
+
+    # wrap p knots on each side using the actual (non-uniform) wrapped-around
+    # spacing, not a constant interval, so the periodic extension is consistent
+    # with the same chord lengths on either side of the seam
+    left = t_core[-(p + 1):-1] - domain
+    right = t_core[1:p + 1] + domain
+    return np.concatenate([left, t_core, right])
 
 def rot_matrix_2d(theta):
     return np.array(
@@ -199,7 +246,7 @@ def alan_plot(rbc, rbs, zbc, zbs, ntheta, nzeta, M, N, nfp, ax=None, poincare=Tr
     ax.set_xlim(-1, 1)
     ax.set_zlim(-1, 1)
 
-def vol_from_boundary(surf: "SurfaceRZFourier", nu, nv):
+def vol_from_boundary(surf: "SurfaceRZFourier", nu, nv):  # noqa: F821 -- deliberate string forward-ref, not imported to avoid a circular import (simsopt.geo -> this module -> simsopt.geo)
     '''
     Compute volume enclosed by a boundary given with VMEC Fourier coefficients.
     Uses a clever trick based on Gauss' identity:
