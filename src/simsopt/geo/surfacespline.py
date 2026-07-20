@@ -1236,6 +1236,41 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
         return x_centroid, y_centroid, z_centroid
 
+    def centroid_axis_derivative_callable(self, a):
+        r"""
+        d(x,y,z)/da for `centroid_axis_callable`'s curve, needed by
+        `fsolve_axis_from_zetas`'s Newton solve for a given target zeta.
+        Mirrors `centroid_axis_callable` exactly, swapping `b_p` for
+        `b_p_deriv`.
+        """
+        xyz_list = self.get_xyz_centroids()
+        p_a = self.p_v
+
+        centroids_im = np.array(xyz_list)
+
+        n_a = centroids_im.shape[0] - 1
+        centroids_im = np.concatenate(
+            [centroids_im, centroids_im[:p_a, :]], axis=0
+        )
+
+        interval_a = (2 * np.pi) / (n_a + 1)
+        knots_a = (
+            -p_a * interval_a + np.arange(0, n_a + 2 * p_a + 2) * interval_a
+        )
+
+        _, da_basis = b_p_deriv(knots_a, p_a, a)
+
+        dx_da = np.zeros_like(da_basis[:, 0])
+        dy_da = np.zeros_like(da_basis[:, 0])
+        dz_da = np.zeros_like(da_basis[:, 0])
+
+        for i in range(n_a + p_a + 1):
+            dx_da += centroids_im[i, 0] * da_basis[:, i]
+            dy_da += centroids_im[i, 1] * da_basis[:, i]
+            dz_da += centroids_im[i, 2] * da_basis[:, i]
+
+        return dx_da, dy_da, dz_da
+
     def fsolve_axis_from_zetas(self, zeta_surf, offset):
         def f0(a, target):
             a = a % (2 * np.pi)
@@ -1295,28 +1330,45 @@ class SurfaceBSpline(sopp.Surface, Surface):
             used in this function body.
         """
 
-        # Creating grid to interpolate u and v on
+        # Exact evaluation at the target (u, zeta) grid via gamma_lin's
+        # Newton solve, instead of oversampling surf_callable on a (u, v)
+        # mesh and reading off an approximate zeta = atan2(y, x). u is used
+        # directly as theta (see gamma_lin's docstring: simsopt only
+        # requires zeta/phi to be a real physical angle, theta's convention
+        # is otherwise unconstrained), so this hits the target zeta with
+        # zero error. The interpolation onto a *uniform physical* theta
+        # below is still genuine interpolation -- gamma_lin can't shortcut
+        # that part, since it only solves for exact zeta hits, not exact
+        # theta hits (see gamma_eval_benchmark.ipynb / the conversation this
+        # came from for why).
 
         u = np.linspace(0, 2 * np.pi, nu_interp, endpoint=True)
         v = np.linspace(0, 2 * np.pi, nv_interp, endpoint=True)
-        v_grid, u_grid = np.meshgrid(v, u)
+        v_grid = np.tile(v, (nu_interp, 1))
 
-        x_surf, y_surf, z_surf = self.surf_callable(
-            u_grid.flatten(), v_grid.flatten()
-        )
-        print(f"type(nv_interp): {type(nv_interp)}")
-        print(f"type(nu_interp): {type(nu_interp)}")
+        # gamma_impl is the grid-shaped wrapper around gamma_lin (same
+        # reasoning as exact_tz_interp); its (phi, theta) axis order is
+        # (nv_interp, nu_interp) here, transposed to match this function's
+        # (nu_interp, nv_interp) = (u, v) convention used below.
+        data = np.zeros((nv_interp, nu_interp, 3))
+        self.gamma_impl(data, v / (2 * np.pi), u / (2 * np.pi))
+        x_surf = data[:, :, 0].T
+        y_surf = data[:, :, 1].T
+        z_surf = data[:, :, 2].T
 
-        x_surf = x_surf.reshape(nu_interp, nv_interp)
-        y_surf = y_surf.reshape(nu_interp, nv_interp)
-        z_surf = z_surf.reshape(nu_interp, nv_interp)
-
-        zeta_surf = np.arctan2(y_surf, x_surf) % (2 * np.pi)
+        zeta_surf = v_grid  # exact by construction, no need to recover via atan2
         R_surf = np.sqrt(x_surf**2 + y_surf**2)
 
-        x_axis, y_axis, z_axis = self.centroid_axis_callable(
-            np.linspace(0, 2 * np.pi, nv_interp, endpoint=False)
-        )
+        # Axis reference must be evaluated at the SAME physical zeta as
+        # x_surf/y_surf/z_surf's columns (now exact, via gamma_lin's Newton
+        # solve) -- centroid_axis_callable's own raw parameter is *not* the
+        # physical zeta (same "raw parameter != physical angle" issue
+        # gamma_lin fixes for the surface itself), so it must go through
+        # its own Newton solve (fsolve_axis_from_zetas) rather than being
+        # evaluated directly at `v`. Skipping this and evaluating at the
+        # raw parameter directly leaves the axis and surface systematically
+        # misaligned in zeta, corrupting theta_surf below.
+        x_axis, y_axis, z_axis = self.fsolve_axis_from_zetas(v, offset=0.0)
 
         R_axis = np.sqrt(x_axis**2 + y_axis**2)
 
@@ -1450,6 +1502,70 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
         return R_full.T, z_full.T, zeta_full, theta_full
 
+    def exact_tz_interp(self, nu=None, nv=None, plot=False, ax=None):
+        r"""
+        Return R, Z on a (theta, zeta) grid with NO interpolation at all --
+        theta is the spline's own u parameter, used directly with no
+        reparametrization (simsopt only requires zeta/phi to be a real
+        physical toroidal angle; theta's specific convention is otherwise
+        unconstrained -- see gamma_lin's docstring and
+        gamma_eval_benchmark.ipynb, examples/2_Intermediate). zeta is hit
+        exactly via gamma_lin's Newton root-find for v.
+
+        This is the only *_tz_interp method with zero approximation error,
+        at the cost that "theta" here doesn't mean a uniform physical angle
+        or an arclength-normalized one the way uniform_tz_interp's/
+        arclength_tz_interp's theta do. If you need either of those
+        conventions specifically, interpolation is unavoidable -- see those
+        two methods, whose own first evaluation stage now also uses this
+        same exact gamma_lin evaluation, just followed by a genuine
+        theta-reparametrization step this method skips entirely.
+
+        Parameters
+        ----------
+        nu, nv : int, optional
+            Shape of the output arrays. Defaults to `2*nfp*16`.
+        plot : bool
+            Whether to scatter-plot the resulting points.
+        ax : matplotlib 3D axis, optional
+            Axis to plot on, if `plot`.
+        """
+        nu = 2 * self.nfp * 16 if nu is None else nu
+        nv = 2 * self.nfp * 16 if nv is None else nv
+
+        # gamma_impl is the grid-shaped wrapper around gamma_lin -- this
+        # method needs a (zeta, theta) grid for the Fourier transform, so
+        # call it directly instead of hand-rolling the same
+        # meshgrid+flatten+reshape gamma_impl already does. Its (phi,
+        # theta) axis convention (phi first) already matches this method's
+        # (zeta, theta) return convention, so no transpose is needed here.
+        quadpoints_theta = np.linspace(0, 1, nu, endpoint=False)
+        quadpoints_phi = np.linspace(0, 1, nv, endpoint=False)
+
+        data = np.zeros((nv, nu, 3))
+        self.gamma_impl(data, quadpoints_phi, quadpoints_theta)
+        R_zt = np.sqrt(data[:, :, 0] ** 2 + data[:, :, 1] ** 2)
+        z_zt = data[:, :, 2]
+
+        zeta_full, theta_full = np.meshgrid(
+            np.linspace(0, 2 * np.pi, nv, endpoint=False),
+            np.linspace(0, 2 * np.pi, nu, endpoint=False),
+        )
+
+        if plot:
+            x_full = R_zt.T * np.cos(zeta_full)
+            y_full = R_zt.T * np.sin(zeta_full)
+            z_full = z_zt.T
+            if ax is None:
+                fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+            ax.scatter(x_full, y_full, z_full, s=1)
+            ax.set_box_aspect((1, 1, 1))
+            ax.set_ylim(-1, 1)
+            ax.set_xlim(-1, 1)
+            ax.set_zlim(-1, 1)
+
+        return R_zt, z_zt, zeta_full, theta_full
+
     def arclength_tz_interp(
         self,
         nu=None,
@@ -1490,46 +1606,44 @@ class SurfaceBSpline(sopp.Surface, Surface):
         nu_interp = 2 * self.nfp * 16 if nu_interp is None else nu_interp
         nv_interp = 2 * self.nfp * 16 if nv_interp is None else nv_interp
 
-        u = np.linspace(0, 2 * np.pi, nu_interp, endpoint=True)
-        v = np.linspace(0, 2 * np.pi, nv_interp, endpoint=True)
-        v_grid, u_grid = np.meshgrid(v, u)
-
-        x_surf, y_surf, z_surf = self.surf_callable(
-            u_grid.flatten(), v_grid.flatten()
-        )
-        x_surf = x_surf.reshape(nu_interp, nv_interp)
-        y_surf = y_surf.reshape(nu_interp, nv_interp)
-        z_surf = z_surf.reshape(nu_interp, nv_interp)
-
-        zeta_surf = np.arctan2(y_surf, x_surf) % (2 * np.pi)
-        R_surf = np.sqrt(x_surf**2 + y_surf**2)
-
         if nv_interp % (2 * self.nfp) != 0:
             raise ValueError("nv_intermediate must be divisible by 2*nfp. ")
 
         nu_uz = nu_interp
         nv_uz = nv_interp // (2 * self.nfp)
 
-        u_zeta_points = np.vstack((u_grid.flatten(), zeta_surf.flatten()))
         zeta_eval, theta_eval = np.meshgrid(
             np.linspace(
                 np.pi / self.nfp, 2 * np.pi / self.nfp, nv_uz, endpoint=True
             ),
             np.linspace(0, 2 * np.pi, nu_uz, endpoint=True),
         )
-        eval_grid = np.vstack((theta_eval.flatten(), zeta_eval.flatten()))
+
+        # Exact evaluation at the target (u, zeta) grid via gamma_impl (the
+        # grid-shaped wrapper around gamma_lin's Newton solve for v),
+        # instead of oversampling surf_callable on a (u, v) mesh and
+        # CloughTocher-regridding onto this grid. u is used directly as
+        # theta (gamma_lin's convention -- see its docstring).
+        # R_uz_callable/z_uz_callable are still built, now from this exact
+        # data rather than an approximate oversample, because the theta=0
+        # root-find below genuinely needs values at arbitrary u, not just
+        # this grid -- that's real interpolation gamma_lin can't shortcut,
+        # since it only solves for exact zeta hits, not exact theta hits.
+        zeta_1d = zeta_eval[0, :]
+        theta_1d = theta_eval[:, 0]
+        data = np.zeros((nv_uz, nu_uz, 3))
+        self.gamma_impl(data, zeta_1d / (2 * np.pi), theta_1d / (2 * np.pi))
+        R_on_uz_grid = np.sqrt(data[:, :, 0] ** 2 + data[:, :, 1] ** 2).T
+        z_on_uz_grid = data[:, :, 2].T
 
         R_uz_callable = CloughTocher2DInterpolator(
-            points=u_zeta_points.T,
-            values=R_surf.flatten(),
+            points=np.vstack((theta_eval.flatten(), zeta_eval.flatten())).T,
+            values=R_on_uz_grid.flatten(),
         )
         z_uz_callable = CloughTocher2DInterpolator(
-            points=u_zeta_points.T,
-            values=z_surf.flatten(),
+            points=np.vstack((theta_eval.flatten(), zeta_eval.flatten())).T,
+            values=z_on_uz_grid.flatten(),
         )
-
-        R_on_uz_grid = R_uz_callable(eval_grid.T).reshape(nu_uz, nv_uz)
-        z_on_uz_grid = z_uz_callable(eval_grid.T).reshape(nu_uz, nv_uz)
 
         # obtaining centroid axis as a function of zeta
         x_axis, y_axis, z_axis = self.centroid_axis_callable(
@@ -1791,6 +1905,19 @@ class SurfaceBSpline(sopp.Surface, Surface):
                         plot=plot_intermediate,
                         ax=intermediate_ax,
                         _fsolve=_fsolve,
+                    )
+                )
+            elif collocation == "exact":
+                # theta = the spline's own u parameter, no reparametrization
+                # -- zero interpolation error, but not a uniform physical
+                # angle or an arclength-normalized one (see
+                # exact_tz_interp's docstring)
+                R_on_tz_grid, z_on_tz_grid, zeta_eval, theta_eval = (
+                    self.exact_tz_interp(
+                        nu=nu,
+                        nv=nv,
+                        plot=plot_intermediate,
+                        ax=intermediate_ax,
                     )
                 )
             # toc = time.perf_counter()
