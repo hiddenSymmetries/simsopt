@@ -10,7 +10,12 @@ from ..geo import SurfaceRZFourier
 
 # from ..mhd import Vmec
 from ..util.mpi import MpiPartition
-from ..util.spline_helpers import b_p, b_p_deriv, chord_length_knots, uniform_knots
+from ..util.spline_helpers import (
+    b_p,
+    b_p_deriv,
+    chord_length_knots,
+    uniform_knots,
+)
 from .curve import Curve
 from .surface import Surface
 
@@ -260,9 +265,9 @@ class PseudoAxis(sopp.Curve, Curve):
         stellsym=True,
         axis_angles_fixed=False,
         quadpoints=61,
-        knot_parametrization='chord',
+        knot_parametrization="chord",
     ):
-        if knot_parametrization not in ('chord', 'uniform'):
+        if knot_parametrization not in ("chord", "uniform"):
             raise ValueError(
                 "knot_parametrization must be 'chord' or 'uniform', "
                 f"got {knot_parametrization!r}"
@@ -410,12 +415,33 @@ class PseudoAxis(sopp.Curve, Curve):
         n = centroids_im.shape[0] - 1
         # knots computed before the periodic wraparound copy below (wraparound
         # is about the control-net layout the basis needs, not the knot spacing)
-        if self.knot_parametrization == 'chord':
+        if self.knot_parametrization == "chord":
             knots_a = chord_length_knots(centroids_im, p)
         else:
             knots_a = uniform_knots(n, p)
+        # Split wraparound: prepend (p-1)/2 points, append (p+1)/2 points.
+        # Neither pure prepend nor pure append is symmetry-preserving in
+        # general -- only this specific split is, and only for odd p
+        # (always true here, p=3 everywhere). Derivation: for basis
+        # function reflection j <-> (n+p)-j (guaranteed by
+        # chord_length_knots's own t_core symmetry) to correctly pair
+        # control point P_m with its true geometric mirror P_{(n+1-m) mod
+        # (n+1)}, the wraparound offset B (points prepended before P_0)
+        # must satisfy 2B = p-1 exactly -- not just mod (n+1) -- which only
+        # has an integer solution when p is odd. Verified numerically
+        # against many (n, p) combinations; see "Chord-length knots break
+        # stellarator symmetry.md" in the Obsidian vault for the full
+        # derivation and the counterexample that disproved the earlier
+        # pure-prepend attempt.
+        assert p % 2 == 1, "symmetric wraparound split requires odd degree"
+        b_prepend = (p - 1) // 2
         centroids_im = np.concatenate(
-            [centroids_im, centroids_im[:p, :]], axis=0
+            [
+                centroids_im[-b_prepend:, :] if b_prepend > 0 else centroids_im[:0, :],
+                centroids_im,
+                centroids_im[: p - b_prepend, :],
+            ],
+            axis=0,
         )
 
         assert np.isclose(knots_a[p], 0)
@@ -623,7 +649,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
         dofs=None,
         quadpoints_phi=None,
         quadpoints_theta=None,
-        knot_parametrization='chord',
+        knot_parametrization="chord",
     ):
         """
         Parameters
@@ -648,7 +674,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
             raise NotImplementedError
             max_angle = 2 * np.pi
 
-        if knot_parametrization not in ('chord', 'uniform'):
+        if knot_parametrization not in ("chord", "uniform"):
             raise ValueError(
                 "knot_parametrization must be 'chord' or 'uniform', "
                 f"got {knot_parametrization!r}"
@@ -1003,7 +1029,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
         n_u = control_points_jim.shape[1] - 1
         n_v = control_points_jim.shape[0] - 1
 
-        if self.knot_parametrization == 'chord':
+        if self.knot_parametrization == "chord":
             # u knots: chord-length per row, averaged across rows. Each row
             # (cross section) can have differently-spaced control points, but
             # the whole surface has one shared u-knot-vector, so average the
@@ -1012,7 +1038,10 @@ class SurfaceBSpline(sopp.Surface, Surface):
             # monotonicity and the knots[p]==0/knots[n+p+1]==2pi endpoints,
             # since every row's knots satisfy those).
             knots_u = np.mean(
-                [chord_length_knots(control_points_jim[j], p_u) for j in range(n_v + 1)],
+                [
+                    chord_length_knots(control_points_jim[j], p_u)
+                    for j in range(n_v + 1)
+                ],
                 axis=0,
             )
             # v knots: chord-length between row centroids (one representative
@@ -1023,22 +1052,58 @@ class SurfaceBSpline(sopp.Surface, Surface):
             knots_u = uniform_knots(n_u, p_u)
             knots_v = uniform_knots(n_v, p_v)
 
-        # u basis - closed
+        # u basis - closed. Split wraparound: prepend (p_u-1)/2 columns,
+        # append (p_u+1)/2 columns -- neither pure prepend nor pure append
+        # preserves reflection symmetry in general; only this split does,
+        # and only for odd p_u (always true here). See "Chord-length knots
+        # break stellarator symmetry.md" in the Obsidian vault for the
+        # derivation (2*B = p-1 must hold exactly, not just mod (n+1), for
+        # the basis-function reflection j <-> (n+p)-j to correctly pair
+        # each control point with its true geometric mirror).
+        assert p_u % 2 == 1, "symmetric wraparound split requires odd degree"
+        b_u = (p_u - 1) // 2
         control_points_jim = np.concatenate(
-            [control_points_jim, control_points_jim[:, :p_u, :]], axis=1
+            [
+                control_points_jim[:, -b_u:, :] if b_u > 0 else control_points_jim[:, :0, :],
+                control_points_jim,
+                control_points_jim[:, : p_u - b_u, :],
+            ],
+            axis=1,
         )
-        w_list_jim = np.concatenate([w_list_jim, w_list_jim[:, :p_u]], axis=1)
+        w_list_jim = np.concatenate(
+            [
+                w_list_jim[:, -b_u:] if b_u > 0 else w_list_jim[:, :0],
+                w_list_jim,
+                w_list_jim[:, : p_u - b_u],
+            ],
+            axis=1,
+        )
 
         assert np.isclose(knots_u[p_u], 0), f"knots_u[p_u] = {knots_u[p_u]}"
         assert np.isclose(knots_u[n_u + p_u + 1], 2 * np.pi), (
             f"knots_u[n_u + p_u + 1] = {knots_u[n_u + p_u + 1]}"
         )
 
-        # v basis - closed
+        # v basis - closed, same split-wraparound convention as the u basis
+        # above.
+        assert p_v % 2 == 1, "symmetric wraparound split requires odd degree"
+        b_v = (p_v - 1) // 2
         control_points_jim = np.concatenate(
-            [control_points_jim, control_points_jim[:p_v, :, :]], axis=0
+            [
+                control_points_jim[-b_v:, :, :] if b_v > 0 else control_points_jim[:0, :, :],
+                control_points_jim,
+                control_points_jim[: p_v - b_v, :, :],
+            ],
+            axis=0,
         )
-        w_list_jim = np.concatenate([w_list_jim, w_list_jim[:p_v, :]], axis=0)
+        w_list_jim = np.concatenate(
+            [
+                w_list_jim[-b_v:, :] if b_v > 0 else w_list_jim[:0, :],
+                w_list_jim,
+                w_list_jim[: p_v - b_v, :],
+            ],
+            axis=0,
+        )
 
         assert np.isclose(knots_v[p_v], 0), f"knots_v[p_v] = {knots_v[p_v]}"
         assert np.isclose(knots_v[n_v + p_v + 1], 2 * np.pi), (
@@ -1271,7 +1336,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
         return dx_da, dy_da, dz_da
 
-    def fsolve_axis_from_zetas(self, zeta_surf, offset):
+    def fsolve_centroid_axis_from_zetas(self, zeta_surf, offset):
         def f0(a, target):
             a = a % (2 * np.pi)
             x, y, z = self.centroid_axis_callable(a)
@@ -1356,7 +1421,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
         y_surf = data[:, :, 1].T
         z_surf = data[:, :, 2].T
 
-        zeta_surf = v_grid  # exact by construction, no need to recover via atan2
+        zeta_surf = (
+            v_grid  # exact by construction, no need to recover via atan2
+        )
         R_surf = np.sqrt(x_surf**2 + y_surf**2)
 
         # Axis reference must be evaluated at the SAME physical zeta as
@@ -1364,11 +1431,13 @@ class SurfaceBSpline(sopp.Surface, Surface):
         # solve) -- centroid_axis_callable's own raw parameter is *not* the
         # physical zeta (same "raw parameter != physical angle" issue
         # gamma_lin fixes for the surface itself), so it must go through
-        # its own Newton solve (fsolve_axis_from_zetas) rather than being
+        # its own Newton solve (fsolve_centroid_axis_from_zetas) rather than being
         # evaluated directly at `v`. Skipping this and evaluating at the
         # raw parameter directly leaves the axis and surface systematically
         # misaligned in zeta, corrupting theta_surf below.
-        x_axis, y_axis, z_axis = self.fsolve_axis_from_zetas(v, offset=0.0)
+        x_axis, y_axis, z_axis = self.fsolve_centroid_axis_from_zetas(
+            v, offset=0.0
+        )
 
         R_axis = np.sqrt(x_axis**2 + y_axis**2)
 
@@ -1849,7 +1918,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
         plot_intermediate=False,
         intermediate_ax=None,
         _fsolve=False,
-        collocation="arclength",
+        collocation="exact",
         spec_cond=True,
         spec_cond_options={
             "plot": False,
@@ -2018,22 +2087,18 @@ class SurfaceBSpline(sopp.Surface, Surface):
             )
             axes = axes.flatten()
             phi_array = np.linspace(0, np.pi / 2, 5)
-            (
-                R_spline_plot,
-                Z_spline_plot,
-                _,
-                _,
-            ) = self.uniform_tz_interp(
-                nu=200,
-                nv=16,
-                nv_interp=64,
-                nu_interp=64,
-                plot=False,
-            )
             for k, phi in enumerate(phi_array):
+                # Surface.cross_section: the standard simsopt method for an
+                # exact cross section at a given cylindrical angle, using
+                # this class's own (exact, Newton-solve-based) gamma_lin --
+                # no dependence on collocation mode or on any of the
+                # *_tz_interp mirroring/tiling logic.
+                cs_xyz = self.cross_section(phi / (2 * np.pi), thetas=200)
+                R_spline_plot = np.sqrt(cs_xyz[:, 0] ** 2 + cs_xyz[:, 1] ** 2)
+                Z_spline_plot = cs_xyz[:, 2]
                 axes[k].plot(
-                    R_spline_plot[k, :],
-                    Z_spline_plot[k, :],
+                    R_spline_plot,
+                    Z_spline_plot,
                     "k--",
                     lw=1,
                     label="Spline (ground truth)",
