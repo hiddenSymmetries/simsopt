@@ -1,7 +1,9 @@
+import warnings
+
 import matplotlib.pyplot as plt
 import numpy as np
 import simsoptpp as sopp
-from scipy.interpolate import CloughTocher2DInterpolator, CubicSpline, griddata
+from scipy.interpolate import CloughTocher2DInterpolator, griddata
 from scipy.optimize import bisect, fsolve, newton
 
 from .._core import Optimizable
@@ -1228,7 +1230,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
     def centroid_axis_derivative_callable(self, a):
         r"""
         d(x,y,z)/da for `centroid_axis_callable`'s curve, needed by
-        `fsolve_axis_from_zetas`'s Newton solve for a given target zeta.
+        `fsolve_centroid_axis_from_zetas`'s Newton solve for a given target zeta.
         Mirrors `centroid_axis_callable` exactly, swapping `b_p` for
         `b_p_deriv`.
         """
@@ -1629,49 +1631,50 @@ class SurfaceBSpline(sopp.Surface, Surface):
         R_on_uz_grid = np.sqrt(data[:, :, 0] ** 2 + data[:, :, 1] ** 2).T
         z_on_uz_grid = data[:, :, 2].T
 
-        R_uz_callable = CloughTocher2DInterpolator(
-            points=np.vstack((theta_eval.flatten(), zeta_eval.flatten())).T,
-            values=R_on_uz_grid.flatten(),
-        )
-        z_uz_callable = CloughTocher2DInterpolator(
-            points=np.vstack((theta_eval.flatten(), zeta_eval.flatten())).T,
-            values=z_on_uz_grid.flatten(),
-        )
-
-        # obtaining centroid axis as a function of zeta
-        x_axis, y_axis, z_axis = self.centroid_axis_callable(
-            np.linspace(0, 2 * np.pi, nv_uz, endpoint=False)
-        )
-        zeta_axis = np.arctan2(y_axis, x_axis) % (2 * np.pi)
-        indices = np.argsort(zeta_axis)
-        x_axis = x_axis[indices]
-        y_axis = y_axis[indices]
-        R_axis = np.sqrt(x_axis**2 + y_axis**2)
-        z_axis = z_axis[indices]
-        zeta_axis = zeta_axis[indices]
-        # print(f'zeta_axis: {zeta_axis}')
-        axis_zeta_callable = CubicSpline(
-            zeta_axis, np.vstack([R_axis, z_axis]).T
-        )
-
         zeta_1d_halfgrid = zeta_eval[0, :]
         ulist = []
 
-        # finding theta=0 point
+        # finding theta=0 point (the outboard, Z=Z_axis crossing of the
+        # cross section -- the standard VMEC/stellarator convention. Not
+        # the same as u=0: in this class's own (R,theta) convention,
+        # R = r_paxis - r_cs*cos(theta), so u=0 is actually the *inboard*
+        # crossing, not outboard -- using u=0 directly here would silently
+        # break the rbs=zbc=0 stellarator-symmetry assumption ft() makes,
+        # unless u=0 happened to coincide with the true symmetry point,
+        # which isn't guaranteed for a general chord-length-parametrized
+        # cross section.)
 
-        axis_on_uz_grid = axis_zeta_callable(zeta_eval)
-        R_axis_on_uz_grid = axis_on_uz_grid[:, :, 0].reshape(nu_uz, nv_uz)
-        z_axis_on_uz_grid = axis_on_uz_grid[:, :, 1].reshape(nu_uz, nv_uz)
+        # Exact (u, zeta) evaluation via gamma_lin's own Newton solve --
+        # used for both the root-find objective and the outboard check
+        # below, replacing the CloughTocher-interpolated R_uz_callable/
+        # z_uz_callable this block used to build. gamma_lin is already
+        # exact and available, so there's no reason to go through an
+        # interpolated approximation for this.
+        def _exact_Rz(u, zeta):
+            u_arr = np.atleast_1d(u).astype(float)
+            zeta_arr = np.broadcast_to(
+                np.atleast_1d(zeta), u_arr.shape
+            ).astype(float)
+            data = np.zeros((u_arr.size, 3))
+            self.gamma_lin(data, zeta_arr / (2 * np.pi), u_arr / (2 * np.pi))
+            R = np.sqrt(data[:, 0] ** 2 + data[:, 1] ** 2)
+            Z = data[:, 2]
+            return R, Z
 
-        def check_r_lt_raxis(x, zeta):
-            xstar = np.array([x, zeta])
-            _R = R_uz_callable(xstar)
-            _z = z_uz_callable(xstar)
-            R_axis, z_axis = axis_zeta_callable(zeta)
-            if _R > R_axis:
-                return True
-            else:
-                return False
+        # Exact axis (R, Z) at the target zeta values via
+        # fsolve_centroid_axis_from_zetas's Newton solve, replacing the
+        # CubicSpline-interpolated axis_zeta_callable this block used to
+        # build from a coarse sample of centroid_axis_callable.
+        x_axis0, y_axis0, z_axis_1d = self.fsolve_centroid_axis_from_zetas(
+            zeta_1d_halfgrid, offset=0.0
+        )
+        R_axis_1d = np.sqrt(x_axis0**2 + y_axis0**2)
+        R_axis_on_uz_grid = np.tile(R_axis_1d, (nu_uz, 1))
+        z_axis_on_uz_grid = np.tile(z_axis_1d, (nu_uz, 1))
+
+        def _is_outboard(x, zeta_val, r_axis_val):
+            R, _ = _exact_Rz(x, zeta_val)
+            return R[0] > r_axis_val
 
         for i, zeta in enumerate(zeta_1d_halfgrid):
             zs = (z_on_uz_grid - z_axis_on_uz_grid)[:, i]
@@ -1687,11 +1690,12 @@ class SurfaceBSpline(sopp.Surface, Surface):
                 a = u_eval[np.roll(switch_indices, -1)]
                 b = u_eval[np.roll(switch_indices, 0)]
 
-            def f(x, zeta):
-                xstar = np.array([x, zeta])
-                _z = z_uz_callable(xstar)
-                z_axis = z_axis_on_uz_grid[0, i]  # TODO: LOOK HERE
-                return _z - z_axis  # (theta)
+            z_axis_i = z_axis_1d[i]
+            R_axis_i = R_axis_1d[i]
+
+            def f(x, zeta, z_axis_i=z_axis_i):
+                _, Z = _exact_Rz(x, zeta)
+                return Z[0] - z_axis_i
 
             nfails = 0
             nsucc = 0
@@ -1702,7 +1706,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
                     f, a=a[k], b=b[k], args=zeta, full_output=True
                 )
 
-                if (r.converged) and check_r_lt_raxis(u_theta0, zeta):
+                if r.converged and _is_outboard(u_theta0, zeta, R_axis_i):
                     ulist.append(u_theta0)
                     nsucc += 1
                     nattempts += 1
@@ -1712,6 +1716,16 @@ class SurfaceBSpline(sopp.Surface, Surface):
                     nattempts += 1
 
             if nfails == len(a):
+                warnings.warn(
+                    "arclength_tz_interp: exact theta=0 root-find found no "
+                    f"converged outboard crossing at zeta={zeta:.6g} "
+                    f"(column {i}/{len(zeta_1d_halfgrid)}); falling back to "
+                    "the coarse-grid point closest to Z=Z_axis on the "
+                    "outboard side. Results near this zeta may be less "
+                    "accurate than elsewhere -- consider increasing "
+                    "nu_interp/nv_interp if this appears often.",
+                    stacklevel=2,
+                )
                 u_feasible = u_eval[
                     (R_on_uz_grid - R_axis_on_uz_grid)[:, i] > 0
                 ]
@@ -1722,9 +1736,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
         ulist = np.array(ulist).flatten()
         # print(ulist)
 
-        xstar = np.vstack([ulist, zeta_1d_halfgrid]).T
-        R_0 = R_uz_callable(xstar).reshape(1, nv_uz)
-        z_0 = z_uz_callable(xstar).reshape(1, nv_uz)
+        R_0, z_0 = _exact_Rz(ulist, zeta_1d_halfgrid)
+        R_0 = R_0.reshape(1, nv_uz)
+        z_0 = z_0.reshape(1, nv_uz)
 
         # reparametrizing on arclength
 
