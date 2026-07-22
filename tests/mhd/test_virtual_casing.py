@@ -81,12 +81,22 @@ class VirtualCasingTests(unittest.TestCase):
 
         vmec = Vmec(filename)
         nphi_fac = 1 if use_stellsym else 2
+        trgt_nphi = 32
         vc = VirtualCasing.from_vmec(vmec, src_nphi=25 * nphi_fac,
-                                     trgt_nphi=32, trgt_ntheta=32, use_stellsym=use_stellsym)
+                                     trgt_nphi=trgt_nphi, trgt_ntheta=32, use_stellsym=use_stellsym)
 
         nfp = vmec.wout.nfp
+        if use_stellsym:
+            trgt_nphi_extended = trgt_nphi * 2 * nfp
+            trgt_phi_extended = (0.5 + np.arange(2 * nfp * trgt_nphi)) / (2 * nfp * trgt_nphi)
+        else:
+            trgt_nphi_extended = trgt_nphi * nfp
+            trgt_phi_extended = np.arange(nfp * trgt_nphi) / (nfp * trgt_nphi)
+
         theta, phi = np.meshgrid(2 * np.pi * vc.trgt_theta, 2 * np.pi * vc.trgt_phi)
+        theta_extended, phi_extended = np.meshgrid(2 * np.pi * vc.trgt_theta, 2 * np.pi * trgt_phi_extended)
         B_external_normal_bnorm = np.zeros((vc.trgt_nphi, vc.trgt_ntheta))
+        B_external_normal_extended_bnorm = np.zeros((trgt_nphi_extended, vc.trgt_ntheta))
 
         # Read BNORM output file:
         with open(bnorm_filename, 'r') as f:
@@ -100,6 +110,7 @@ class VirtualCasingTests(unittest.TestCase):
             n = int(splitline[1])
             amplitude = float(splitline[2])
             B_external_normal_bnorm += amplitude * np.sin(m * theta + n * nfp * phi)
+            B_external_normal_extended_bnorm += amplitude * np.sin(m * theta_extended + n * nfp * phi_extended)
             # To see that it should be (mu+nv) rather than (mu-nv) in the above line, you can examine
             # BNORM/Sources/bn_fouri.f (where the arrays in the bnorm files are computed)
             # or NESCOIL/Sources/bnfld.f (where bnorm files are read)
@@ -107,6 +118,7 @@ class VirtualCasingTests(unittest.TestCase):
         # The BNORM code divides Bnormal by curpol. Undo this scaling now:
         curpol = (2 * np.pi / nfp) * (1.5 * vmec.wout.bsubvmnc[0, -1] - 0.5 * vmec.wout.bsubvmnc[0, -2])
         B_external_normal_bnorm *= curpol
+        B_external_normal_extended_bnorm *= curpol
 
         difference = B_external_normal_bnorm - vc.B_external_normal
         avg = 0.5 * (B_external_normal_bnorm + vc.B_external_normal)
@@ -116,6 +128,14 @@ class VirtualCasingTests(unittest.TestCase):
         logger.info('Diff between BNORM and virtual_casing: '
                     f'abs={np.max(np.abs(difference))}, rel={np.max(np.abs(rel_difference))}')
         np.testing.assert_allclose(B_external_normal_bnorm, vc.B_external_normal, atol=0.0061)
+
+        difference = B_external_normal_extended_bnorm - vc.B_external_normal_extended
+        avg = 0.5 * (B_external_normal_extended_bnorm + vc.B_external_normal_extended)
+        rms = np.sqrt(np.mean(avg ** 2))
+        rel_difference = difference / rms
+        logger.info('Diff between BNORM and virtual_casing on extended grid: '
+                    f'abs={np.max(np.abs(difference))}, rel={np.max(np.abs(rel_difference))}')
+        np.testing.assert_allclose(B_external_normal_extended_bnorm, vc.B_external_normal_extended, atol=0.0061)
 
         if 0:
             import matplotlib.pyplot as plt
