@@ -437,7 +437,9 @@ class PseudoAxis(sopp.Curve, Curve):
         b_prepend = (p - 1) // 2
         centroids_im = np.concatenate(
             [
-                centroids_im[-b_prepend:, :] if b_prepend > 0 else centroids_im[:0, :],
+                centroids_im[-b_prepend:, :]
+                if b_prepend > 0
+                else centroids_im[:0, :],
                 centroids_im,
                 centroids_im[: p - b_prepend, :],
             ],
@@ -519,88 +521,6 @@ class PseudoAxis(sopp.Curve, Curve):
 
         self.zeta_ctrl = v[index : index + n_ctrl]
         self.invalidate_cache()
-
-    # def axis_spline_callable(
-    #         self,
-    #         x,
-    #         p=3,
-    #         n_interp=200,
-    #         plot=False
-    #     ):
-    #     x = x%(2*np.pi/self.nfp)
-    #     if self.stellsym:
-    #         r_ctrl_1fp=np.append(self.r_ctrl, self.r_ctrl[-2::-1])[:-1]
-    #         z_ctrl_1fp=np.append(self.z_ctrl, -self.z_ctrl[-2::-1])[:-1]
-    #         zeta_ctrl_1fp=np.append(self.zeta_ctrl, (2*np.pi/self.nfp)-self.zeta_ctrl[-2::-1])[:-1]
-
-    #     r_ctrl = np.tile(r_ctrl_1fp, self.nfp)
-    #     z_ctrl = np.tile(z_ctrl_1fp, self.nfp)
-    #     zeta_ctrl = np.concatenate(
-    #         [zeta_ctrl_1fp + n*2*np.pi/self.nfp for n in range(self.nfp)]
-    #     )
-    #     x_ctrl = r_ctrl*np.cos(zeta_ctrl)
-    #     y_ctrl = r_ctrl*np.sin(zeta_ctrl)
-
-    #     xyz_list = np.vstack((x_ctrl, y_ctrl, z_ctrl)).T#[:-1]
-    #     centroids_im = np.array(xyz_list)
-
-    #     # a basis
-    #     n = centroids_im.shape[0] - 1
-    #     centroids_im = np.concatenate([centroids_im, centroids_im[:p, :]], axis = 0)
-    #     n_knots_a = n + 2*p + 2
-
-    #     interval_a = (2*np.pi) / (n + 1)
-    #     knots_a = -p * interval_a + np.arange(0, n + 2*p + 2) * interval_a
-
-    #     #assert len(knots_a) == n + p + 2
-    #     assert np.isclose(knots_a[p], 0)
-    #     assert np.isclose(knots_a[n + p + 1], 2*np.pi), f'knots_a[n + p + 1]: {knots_a[n + p + 1]}'
-
-    #     domain = np.linspace(0, 2*np.pi, n_interp, endpoint=False)
-
-    #     a_basis = b_p(knots_a, p, domain)
-
-    #     axis = np.einsum('ix,ti->tx', centroids_im, a_basis)
-    #     x_axis = axis[:, 0]
-    #     y_axis = axis[:, 1]
-    #     z_axis = axis[:, 2]
-
-    #     zeta_axis = np.arctan2(y_axis, x_axis) % (2*np.pi)
-
-    #     inds = zeta_axis.argsort()
-    #     sorted_zeta_axis = zeta_axis[inds]
-    #     sorted_x_axis = x_axis[inds]
-    #     sorted_y_axis = y_axis[inds]
-    #     sorted_z_axis = z_axis[inds]
-
-    #     R_axis = np.sqrt(sorted_x_axis**2 + sorted_y_axis**2)
-    #     ext_R_axis = np.tile(R_axis, 3)
-    #     ext_z_axis = np.tile(sorted_z_axis, 3)
-    #     ext_zeta = np.concatenate([sorted_zeta_axis-2*np.pi, sorted_zeta_axis, sorted_zeta_axis+2*np.pi])
-
-    #     R_interpolant = CubicSpline(
-    #         x = ext_zeta,
-    #         y = ext_R_axis
-    #     )(x)
-
-    #     z_interpolant = CubicSpline(
-    #         x = ext_zeta,
-    #         y = ext_z_axis
-    #     )(x)
-
-    #     if plot:
-    #         fig = plt.figure("axis_bspline",figsize=(14,7))
-    #         ax = fig.add_subplot(projection='3d',azim=0, elev=90)
-    #         ax.scatter(x_ctrl, y_ctrl, z_ctrl)
-    #         ax.scatter(x_axis, y_axis, z_axis)
-    #         ax.scatter(R_interpolant*np.cos(x), R_interpolant*np.sin(x), z_interpolant)
-    #         ax.set_box_aspect((1, 1, 1))
-    #         ax.set_ylim(-1, 1)
-    #         ax.set_xlim(-1, 1)
-    #         ax.set_zlim(-1, 1)
-    #         plt.show()
-
-    #     return R_interpolant, z_interpolant
 
     def _name_dofs(self):
         name_list = [
@@ -1064,7 +984,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
         b_u = (p_u - 1) // 2
         control_points_jim = np.concatenate(
             [
-                control_points_jim[:, -b_u:, :] if b_u > 0 else control_points_jim[:, :0, :],
+                control_points_jim[:, -b_u:, :]
+                if b_u > 0
+                else control_points_jim[:, :0, :],
                 control_points_jim,
                 control_points_jim[:, : p_u - b_u, :],
             ],
@@ -1090,7 +1012,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
         b_v = (p_v - 1) // 2
         control_points_jim = np.concatenate(
             [
-                control_points_jim[-b_v:, :, :] if b_v > 0 else control_points_jim[:0, :, :],
+                control_points_jim[-b_v:, :, :]
+                if b_v > 0
+                else control_points_jim[:0, :, :],
                 control_points_jim,
                 control_points_jim[: p_v - b_v, :, :],
             ],
