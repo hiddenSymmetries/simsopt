@@ -269,10 +269,12 @@ class VirtualCasing:
         vc.B_external = Bexternal3d
         vc.B_external_normal = Bexternal_normal
 
-        Bexternal_normal_with_last_point = np.hstack((Bexternal_normal, Bexternal_normal[:, [0]]))
-        Bexternal_normal_with_last_point = np.vstack((Bexternal_normal_with_last_point, -np.flip(np.flip(Bexternal_normal_with_last_point, axis=0), axis=1)[0]))
-        flipped_B = -np.flip(np.flip(Bexternal_normal_with_last_point, axis=0), axis=1)
-        vc.B_external_normal_extended = np.concatenate([np.concatenate((Bexternal_normal, flipped_B[:-1, :-1])) for i in range(nfp)])
+        # Rotate by 180 degrees and flip sign, being careful that the theta grid
+        # includes theta=0 but not theta=1. See github issue #641.
+        idx_theta = (-np.arange(trgt_ntheta)) % trgt_ntheta
+        vc.B_external_normal_extended = np.tile(
+            np.concatenate((Bexternal_normal, -Bexternal_normal[::-1][:, idx_theta])), (nfp, 1)
+        )
 
         if filename is not None:
             if filename == 'auto':
