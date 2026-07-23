@@ -112,7 +112,7 @@ if __name__ == "__main__":
         "axis_angles_fixed": True,
         "cs_basis": "polar",
         "nurbs": False,
-        "knot_parametrization": "uniform",
+        "knot_parametrization": "chord",
     }
 
     spline_surf = SurfaceBSpline(
