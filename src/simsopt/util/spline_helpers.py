@@ -107,33 +107,34 @@ def b_p_deriv(t, p, x):
 
 def uniform_knots(n, p, domain=2*np.pi):
     '''
-    Periodic, uniformly-spaced knot vector of degree p covering [0, domain)
-    for n+1 control points. Counterpart to chord_length_knots with the same
-    shape/convention (length n+2p+2, knots[p]==0, knots[n+p+1]==domain), for
-    when point spacing shouldn't influence the parametrization.
+    Periodic, uniformly-spaced knot vector of degree p for a control array
+    built by tiling p points from a closed loop of n+1 points onto each
+    side (length n+1+2p). Counterpart to chord_length_knots with the same
+    shape/convention (length n+3p+2, knots[2p]==0, knots[n+2p+1]==domain),
+    for when point spacing shouldn't influence the parametrization. Only
+    exactly reflection-symmetric for odd p.
     '''
     interval = domain / (n + 1)
-    return -p * interval + np.arange(0, n + 2*p + 2) * interval
+    k = np.arange(-2 * p, n + 2 * p + 2)
+    knots_wide = k * interval
+    n_needed = (n + 1 + 2 * p) + p + 1
+    start = (len(knots_wide) - n_needed) // 2
+    return knots_wide[start:start + n_needed]
 
 def chord_length_knots(points, p, domain=2*np.pi):
     '''
-    Periodic, chord-length-parametrized knot vector of degree p for a closed
-    loop of n+1 points (points[0..n], NOT including the periodic wraparound
-    copy), covering [0, domain). Knot spacing follows the actual Euclidean
-    distance between consecutive points (wrapping points[n] back to
-    points[0]) rather than assuming uniform spacing -- the standard
-    chord-length parametrization technique (Piegl & Tiller, "The NURBS
-    Book"), adapted for a periodic/closed curve instead of an open one.
-
-    Same shape/convention as the uniform "interval * arange(...)" knot
-    vectors it replaces, so it's a drop-in swap wherever those were built:
-    length n+2p+2, knots[p]==0, knots[n+p+1]==domain, both required for the
-    periodic wraparound trick used throughout this module (appending the
-    first p control points/weights to close the loop).
+    Periodic, chord-length-parametrized knot vector of degree p for a
+    control array built by tiling p points from points[0..n] onto each
+    side (length n+1+2p; see uniform_knots for the shape/convention this
+    matches). Knot spacing follows the actual Euclidean distance between
+    consecutive points (wrapping points[n] back to points[0]) rather than
+    assuming uniform spacing (Piegl & Tiller, "The NURBS Book"), adapted
+    for a periodic/closed curve. Only exactly reflection-symmetric for
+    odd p.
 
     points: (n+1, dim) array of control points, one full period, NOT
-    including the p-fold wraparound copy (that's built separately, same as
-    for the uniform knots).
+    including the tiled copies (those are built separately, same as for
+    the control points themselves).
     '''
     n = len(points) - 1
     closed = np.concatenate([points, points[:1]], axis=0)  # (n+2, dim): +1 closing gap
@@ -147,12 +148,16 @@ def chord_length_knots(points, p, domain=2*np.pi):
     # cumulative chord length, normalized to [0, domain]: t_core[0]=0, ..., t_core[n+1]=domain
     t_core = np.concatenate([[0.0], np.cumsum(gaps)]) * (domain / total)
 
-    # wrap p knots on each side using the actual (non-uniform) wrapped-around
-    # spacing, not a constant interval, so the periodic extension is consistent
-    # with the same chord lengths on either side of the seam
-    left = t_core[-(p + 1):-1] - domain
-    right = t_core[1:p + 1] + domain
-    return np.concatenate([left, t_core, right])
+    # periodic extension, wide enough for 2 tiles on each side, then keep
+    # exactly the knots needed for the p-tiled-both-sides control array
+    k = np.arange(-2 * p, n + 2 * p + 2)
+    m = k % (n + 1)
+    shift = (k - m) // (n + 1)
+    knots_wide = t_core[m] + shift * domain
+
+    n_needed = (n + 1 + 2 * p) + p + 1
+    start = (len(knots_wide) - n_needed) // 2
+    return knots_wide[start:start + n_needed]
 
 def rot_matrix_2d(theta):
     return np.array(

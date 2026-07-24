@@ -78,14 +78,14 @@ def plot_basis_functions(surf, n_eval=1000):
         (ax_u, knots_u, p_u, "u"),
         (ax_v, knots_v, p_v, "v"),
     ):
-        x = np.linspace(knots[p], knots[-p - 1], n_eval, endpoint=False)
+        x = np.linspace(0, 2 * np.pi, n_eval, endpoint=False)
         basis = b_p(knots, p, x)
         for i in range(basis.shape[1]):
             ax.plot(x, basis[:, i], lw=1)
         for k in knots:
-            if knots[p] <= k <= knots[-p - 1]:
+            if 0 <= k <= 2 * np.pi:
                 ax.axvline(k, color="k", lw=0.5, alpha=0.3)
-        ax.set_xlim(knots[p], knots[-p - 1])
+        ax.set_xlim(0, 2 * np.pi)
         ax.set_xlabel(label)
         ax.set_ylabel(f"$B_{{i,{p}}}({label})$")
         ax.set_title(

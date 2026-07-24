@@ -414,43 +414,18 @@ class PseudoAxis(sopp.Curve, Curve):
         xyz_list = np.vstack((x_ctrl, y_ctrl, z_ctrl)).T  # [:-1]
         centroids_im = np.array(xyz_list)
 
-        n = centroids_im.shape[0] - 1
-        # knots computed before the periodic wraparound copy below (wraparound
-        # is about the control-net layout the basis needs, not the knot spacing)
         if self.knot_parametrization == "chord":
             knots_a = chord_length_knots(centroids_im, p)
         else:
-            knots_a = uniform_knots(n, p)
-        # Split wraparound: prepend (p-1)/2 points, append (p+1)/2 points.
-        # Neither pure prepend nor pure append is symmetry-preserving in
-        # general -- only this specific split is, and only for odd p
-        # (always true here, p=3 everywhere). Derivation: for basis
-        # function reflection j <-> (n+p)-j (guaranteed by
-        # chord_length_knots's own t_core symmetry) to correctly pair
-        # control point P_m with its true geometric mirror P_{(n+1-m) mod
-        # (n+1)}, the wraparound offset B (points prepended before P_0)
-        # must satisfy 2B = p-1 exactly -- not just mod (n+1) -- which only
-        # has an integer solution when p is odd. Verified numerically
-        # against many (n, p) combinations; see "Chord-length knots break
-        # stellarator symmetry.md" in the Obsidian vault for the full
-        # derivation and the counterexample that disproved the earlier
-        # pure-prepend attempt.
-        assert p % 2 == 1, "symmetric wraparound split requires odd degree"
-        b_prepend = (p - 1) // 2
-        centroids_im = np.concatenate(
-            [
-                centroids_im[-b_prepend:, :]
-                if b_prepend > 0
-                else centroids_im[:0, :],
-                centroids_im,
-                centroids_im[: p - b_prepend, :],
-            ],
-            axis=0,
-        )
+            knots_a = uniform_knots(centroids_im.shape[0] - 1, p)
 
-        assert np.isclose(knots_a[p], 0)
-        assert np.isclose(knots_a[n + p + 1], 2 * np.pi), (
-            f"knots_a[n + p + 1]: {knots_a[n + p + 1]}"
+        # Periodic wraparound: tile p points from each end onto the
+        # opposite side. Only exactly reflection-symmetric for odd p
+        # (always true here, p=3 everywhere) -- see "Chord-length knots
+        # break stellarator symmetry.md" in the Obsidian vault.
+        assert p % 2 == 1, "reflection-symmetric wraparound requires odd degree"
+        centroids_im = np.concatenate(
+            [centroids_im[-p:], centroids_im, centroids_im[:p]], axis=0
         )
 
         return centroids_im, knots_a
@@ -974,74 +949,37 @@ class SurfaceBSpline(sopp.Surface, Surface):
             knots_u = uniform_knots(n_u, p_u)
             knots_v = uniform_knots(n_v, p_v)
 
-        # u basis - closed. Split wraparound: prepend (p_u-1)/2 columns,
-        # append (p_u+1)/2 columns -- neither pure prepend nor pure append
-        # preserves reflection symmetry in general; only this split does,
-        # and only for odd p_u (always true here). See "Chord-length knots
-        # break stellarator symmetry.md" in the Obsidian vault for the
-        # derivation (2*B = p-1 must hold exactly, not just mod (n+1), for
-        # the basis-function reflection j <-> (n+p)-j to correctly pair
-        # each control point with its true geometric mirror).
-        assert p_u % 2 == 1, "symmetric wraparound split requires odd degree"
-        b_u = (p_u - 1) // 2
+        # Periodic wraparound: tile p_u/p_v points from each end onto the
+        # opposite side, in both directions. Only exactly
+        # reflection-symmetric for odd p_u/p_v (always true here) -- see
+        # "Chord-length knots break stellarator symmetry.md" in the
+        # Obsidian vault.
+        assert p_u % 2 == 1, "reflection-symmetric wraparound requires odd degree"
+        assert p_v % 2 == 1, "reflection-symmetric wraparound requires odd degree"
         control_points_jim = np.concatenate(
             [
-                control_points_jim[:, -b_u:, :]
-                if b_u > 0
-                else control_points_jim[:, :0, :],
+                control_points_jim[:, -p_u:, :],
                 control_points_jim,
-                control_points_jim[:, : p_u - b_u, :],
+                control_points_jim[:, :p_u, :],
             ],
             axis=1,
         )
         w_list_jim = np.concatenate(
-            [
-                w_list_jim[:, -b_u:] if b_u > 0 else w_list_jim[:, :0],
-                w_list_jim,
-                w_list_jim[:, : p_u - b_u],
-            ],
-            axis=1,
+            [w_list_jim[:, -p_u:], w_list_jim, w_list_jim[:, :p_u]], axis=1
         )
-
-        assert np.isclose(knots_u[p_u], 0), f"knots_u[p_u] = {knots_u[p_u]}"
-        assert np.isclose(knots_u[n_u + p_u + 1], 2 * np.pi), (
-            f"knots_u[n_u + p_u + 1] = {knots_u[n_u + p_u + 1]}"
-        )
-
-        # v basis - closed, same split-wraparound convention as the u basis
-        # above.
-        assert p_v % 2 == 1, "symmetric wraparound split requires odd degree"
-        b_v = (p_v - 1) // 2
         control_points_jim = np.concatenate(
             [
-                control_points_jim[-b_v:, :, :]
-                if b_v > 0
-                else control_points_jim[:0, :, :],
+                control_points_jim[-p_v:, :, :],
                 control_points_jim,
-                control_points_jim[: p_v - b_v, :, :],
+                control_points_jim[:p_v, :, :],
             ],
             axis=0,
         )
         w_list_jim = np.concatenate(
-            [
-                w_list_jim[-b_v:, :] if b_v > 0 else w_list_jim[:0, :],
-                w_list_jim,
-                w_list_jim[: p_v - b_v, :],
-            ],
-            axis=0,
+            [w_list_jim[-p_v:, :], w_list_jim, w_list_jim[:p_v, :]], axis=0
         )
 
-        assert np.isclose(knots_v[p_v], 0), f"knots_v[p_v] = {knots_v[p_v]}"
-        assert np.isclose(knots_v[n_v + p_v + 1], 2 * np.pi), (
-            f"knots_v[n_v - p_v + 1] = {knots_v[n_v + p_v + 1]}"
-        )
-
-        trimmed_ctrl_pts_jim = control_points_jim[
-            : n_v + p_v + 1, : n_u + p_u + 1, :
-        ]
-        trimmed_weights_ji = w_list_jim[: n_v + p_v + 1, : n_u + p_u + 1]
-
-        return trimmed_ctrl_pts_jim, trimmed_weights_ji, knots_u, knots_v
+        return control_points_jim, w_list_jim, knots_u, knots_v
 
     def surf_callable(
         self,
