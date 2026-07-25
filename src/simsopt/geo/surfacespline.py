@@ -222,9 +222,15 @@ class CrossSectionFixedZeta(Optimizable):
             )
             flipped_cs.unfix_all()
             flipped_cs.x = dofs_flipped
-            for key in fixed_list:
-                flipped_cs.fix(key)
-                self.fix(key)
+            # fixed_list holds bools, not dof names/indices -- fix() takes a
+            # Key (str name or int index), and passing a bool straight
+            # through silently does numpy boolean-mask indexing on the
+            # underlying _free array instead (True fixes every dof at once,
+            # False is a no-op), not "fix the dof at this position".
+            for is_fixed, name in zip(fixed_list, self.local_full_dof_names):
+                if is_fixed:
+                    flipped_cs.fix(name)
+                    self.fix(name)
             return flipped_cs
 
 
@@ -2059,7 +2065,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
                 "Mtol": 1.1,
                 "shapetol": 0.01,
                 "niters": 400,
-                "verbose": True,
+                "verbose": False,
                 "cutoff": 1e-6,
             }
             options = (
