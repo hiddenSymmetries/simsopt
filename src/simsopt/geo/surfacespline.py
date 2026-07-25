@@ -165,7 +165,6 @@ class CrossSectionFixedZeta(Optimizable):
         return namelist
 
     def get_r_ctrl_full(self):
-        # print(f'n_pts: {len(self.r_ctrl)}')
         if self.z_sym:
             if self.n_ctrl_pts % 2 == 1:
                 full = np.concatenate((self.r_ctrl, self.r_ctrl[:0:-1]))
@@ -190,7 +189,6 @@ class CrossSectionFixedZeta(Optimizable):
         return full
 
     def get_w_ctrl_full(self):
-        # print(f'n_pts: {len(self.r_ctrl)}')
         if self.z_sym:
             if self.n_ctrl_pts % 2 == 1:
                 full = np.concatenate((self.w_ctrl, self.w_ctrl[:0:-1]))
@@ -338,35 +336,6 @@ class PseudoAxis(sopp.Curve, Curve):
         Curve.__init__(
             self, dofs=dofs, external_dof_setter=PseudoAxis.set_dofs_impl
         )
-
-    # def __call__(
-    #         self,
-    #         zeta,
-    #         method='bspline'
-    # ):
-    #     if method=='bspline':
-    #         return self.axis_spline_callable(zeta)
-
-    #     else:
-    #         # defining interpolant
-    #         if self.stellsym:
-    #             r_ctrl=np.append(self.r_ctrl, self.r_ctrl[-2::-1])
-    #             z_ctrl=np.append(self.z_ctrl, -self.z_ctrl[-2::-1])
-    #             zeta_ctrl=np.append(self.zeta_ctrl, (2*np.pi/self.nfp)-self.zeta_ctrl[-2::-1])
-
-    #         print(f'zeta_ctrl: {zeta_ctrl}')
-
-    #         R = Akima1DInterpolator(
-    #             x=zeta_ctrl,
-    #             y=r_ctrl
-    #         )
-    #         z = Akima1DInterpolator(
-    #             x=zeta_ctrl,
-    #             y=z_ctrl
-    #         )
-
-    #         zeta = zeta % (2*np.pi/self.nfp)
-    #         return R(zeta), z(zeta)
 
     def num_dofs(self):
         return len(self.full_x)
@@ -1572,15 +1541,12 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
         # Exact (u, zeta) evaluation via gamma_lin's own Newton solve --
         # used for both the root-find objective and the outboard check
-        # below, replacing the CloughTocher-interpolated R_uz_callable/
-        # z_uz_callable this block used to build. gamma_lin is already
-        # exact and available, so there's no reason to go through an
-        # interpolated approximation for this.
+        # below
         def _exact_Rz(u, zeta):
             u_arr = np.atleast_1d(u).astype(float)
-            zeta_arr = np.broadcast_to(
-                np.atleast_1d(zeta), u_arr.shape
-            ).astype(float)
+            zeta_arr = np.broadcast_to(np.atleast_1d(zeta), u_arr.shape).astype(
+                float
+            )
             data = np.zeros((u_arr.size, 3))
             self.gamma_lin(data, zeta_arr / (2 * np.pi), u_arr / (2 * np.pi))
             R = np.sqrt(data[:, 0] ** 2 + data[:, 1] ** 2)
@@ -1588,9 +1554,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
             return R, Z
 
         # Exact axis (R, Z) at the target zeta values via
-        # fsolve_centroid_axis_from_zetas's Newton solve, replacing the
-        # CubicSpline-interpolated axis_zeta_callable this block used to
-        # build from a coarse sample of centroid_axis_callable.
+        # fsolve_centroid_axis_from_zetas's Newton solve
         x_axis0, y_axis0, z_axis_1d = self.fsolve_centroid_axis_from_zetas(
             zeta_1d_halfgrid, offset=0.0
         )
@@ -1908,9 +1872,6 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
         rbc, zbs = rbc_in, zbs_in
 
-        # rbs = np.zeros_like(rbc)
-        # zbc = np.zeros_like(zbs)
-
         if plot_ft:
 
             def boundary_poincare_plot(
@@ -1952,11 +1913,6 @@ class SurfaceBSpline(sopp.Surface, Surface):
             axes = axes.flatten()
             phi_array = np.linspace(0, np.pi / 2, 5)
             for k, phi in enumerate(phi_array):
-                # Surface.cross_section: the standard simsopt method for an
-                # exact cross section at a given cylindrical angle, using
-                # this class's own (exact, Newton-solve-based) gamma_lin --
-                # no dependence on collocation mode or on any of the
-                # *_tz_interp mirroring/tiling logic.
                 cs_xyz = self.cross_section(phi / (2 * np.pi), thetas=200)
                 R_spline_plot = np.sqrt(cs_xyz[:, 0] ** 2 + cs_xyz[:, 1] ** 2)
                 Z_spline_plot = cs_xyz[:, 2]
@@ -2062,7 +2018,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
         nu_interp=None,
         nv_interp=None,
         plot=False,
-        collocation="arclength",
+        collocation="exact",
         spec_cond="variational",
         spec_cond_options=None,
     ):
