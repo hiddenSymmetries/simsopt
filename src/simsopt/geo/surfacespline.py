@@ -111,7 +111,10 @@ class CrossSectionFixedZeta(Optimizable):
                 ).tolist()
                 + [1] * (n_pts),
             )
-            super().__init__(dofs=dofs)
+            super().__init__(
+                dofs=dofs,
+                external_dof_setter=CrossSectionFixedZeta.set_dofs_impl,
+            )
         else:
             dofs = DOFs(
                 cs_dofs,
@@ -137,7 +140,10 @@ class CrossSectionFixedZeta(Optimizable):
                 ).tolist()
                 + [1] * (n_pts),
             )
-            super().__init__(dofs=dofs)
+            super().__init__(
+                dofs=dofs,
+                external_dof_setter=CrossSectionFixedZeta.set_dofs_impl,
+            )
             if z_sym:
                 assert self.get("theta_0") == 0, (
                     f"theta_0 = {self.get('theta_0')}"
@@ -153,6 +159,34 @@ class CrossSectionFixedZeta(Optimizable):
                         dofs.update_bounds(
                             f"theta_{k}", (new_bounds[k - 1], new_bounds[k])
                         )
+
+    def set_dofs_impl(self, v):
+        """
+        Set the shape coefficients from a 1D list/array, same layout as
+        _name_dofs: [r_ctrl, theta_ctrl, w_ctrl], each n_pts long.
+
+        Without this, r_ctrl/theta_ctrl/w_ctrl are just numpy views taken
+        once at construction time (see __init__) -- they go stale silently
+        whenever the underlying DOFs array gets *reassigned* rather than
+        mutated in place, which is exactly what DOFs.full_x's setter does
+        (self._x = new_array). Ordinary self.x = ... (DOFs.free_x's setter,
+        self._x[self._free] = ...) mutates in place and never triggers
+        this, so the bug is invisible unless something sets full_x -- which
+        MPIFiniteDifference does, once, to broadcast fixed dofs across MPI
+        ranks. The result: under real MPI-parallel finite differences,
+        perturbing any cross-section dof was silently a no-op on a
+        persistent SurfaceBSpline (PseudoAxis was never affected -- it
+        already has this same kind of callback wired up).
+        """
+        n_pts = self.n_pts
+        n = 3 * n_pts
+        if len(v) != n:
+            raise ValueError(
+                f"Input vector should have {n} elements but instead has {len(v)}"
+            )
+        self.r_ctrl = v[:n_pts]
+        self.theta_ctrl = v[n_pts:2 * n_pts]
+        self.w_ctrl = v[2 * n_pts:]
 
     def _name_dofs(self, n_pts):
         namelist = []
@@ -338,6 +372,10 @@ class PseudoAxis(sopp.Curve, Curve):
             dofs.fix(f"z_axis_{n_ctrl_pts - 1}")
             dofs.fix(f"zeta_axis_{n_ctrl_pts - 1}")
 
+        # _control_net_and_knots cache -- see that method's docstring.
+        self._centroids_im = None
+        self._knots_a = None
+
         sopp.Curve.__init__(self, quadpoints)
         Curve.__init__(
             self, dofs=dofs, external_dof_setter=PseudoAxis.set_dofs_impl
@@ -370,42 +408,71 @@ class PseudoAxis(sopp.Curve, Curve):
         return xyz_list
 
     def _control_net_and_knots(self):
+        """
+        Build (or return the cached) periodic-wrapped control net and knot
+        vector shared by `gamma_impl`/`fsolve_centroid_axis_from_zetas`-style
+        callers. Both are pure functions of the free dofs (r_ctrl, z_ctrl,
+        zeta_ctrl) -- independent of any evaluation point -- so they're
+        cached here and only rebuilt when the dofs have actually changed
+        (self.new_x), rather than on every call (this used to be rebuilt
+        from scratch on every single gamma/root-find evaluation, dominating
+        runtime -- profiled at ~1200 rebuilds for one to_RZFourier() call).
+
+        The knot vector gets special-cased: 'uniform' knots depend only on
+        the control point count and p (fixed at construction), never on
+        where the dofs actually put the points, so they're computed once,
+        ever, and never invalidated by new_x. 'chord' knots do depend on
+        point positions and are invalidated by new_x same as the net
+        itself.
+        """
         p = self.p
-        if self.stellsym:
-            r_ctrl_1fp = np.append(self.r_ctrl, self.r_ctrl[-2::-1])[:-1]
-            z_ctrl_1fp = np.append(self.z_ctrl, -self.z_ctrl[-2::-1])[:-1]
-            zeta_ctrl_1fp = np.append(
-                self.zeta_ctrl, (2 * np.pi / self.nfp) - self.zeta_ctrl[-2::-1]
-            )[:-1]
-
-        r_ctrl = np.tile(r_ctrl_1fp, self.nfp)
-        z_ctrl = np.tile(z_ctrl_1fp, self.nfp)
-        zeta_ctrl = np.concatenate(
-            [zeta_ctrl_1fp + n * 2 * np.pi / self.nfp for n in range(self.nfp)]
-        )
-        x_ctrl = r_ctrl * np.cos(zeta_ctrl)
-        y_ctrl = r_ctrl * np.sin(zeta_ctrl)
-
-        xyz_list = np.vstack((x_ctrl, y_ctrl, z_ctrl)).T  # [:-1]
-        centroids_im = np.array(xyz_list)
-
+        recompute_net = self.new_x or self._centroids_im is None
         if self.knot_parametrization == "chord":
-            knots_a = chord_length_knots(centroids_im, p)
+            recompute_knots = recompute_net or self._knots_a is None
         else:
-            knots_a = uniform_knots(centroids_im.shape[0] - 1, p)
+            recompute_knots = self._knots_a is None
 
-        # Periodic wraparound: tile p points from each end onto the
-        # opposite side. Reflection symmetry doesn't depend on p's parity
-        # here -- the mirror is already baked into r_ctrl/z_ctrl/zeta_ctrl
-        # above (stellsym reflect-and-tile), not into how u maps to zeta,
-        # so it survives regardless of where the knots fall. See
-        # "Chord-length knots break stellarator symmetry.md" in the
-        # Obsidian vault.
-        centroids_im = np.concatenate(
-            [centroids_im[-p:], centroids_im, centroids_im[:p]], axis=0
-        )
+        if recompute_net:
+            if self.stellsym:
+                r_ctrl_1fp = np.append(self.r_ctrl, self.r_ctrl[-2::-1])[:-1]
+                z_ctrl_1fp = np.append(self.z_ctrl, -self.z_ctrl[-2::-1])[:-1]
+                zeta_ctrl_1fp = np.append(
+                    self.zeta_ctrl, (2 * np.pi / self.nfp) - self.zeta_ctrl[-2::-1]
+                )[:-1]
 
-        return centroids_im, knots_a
+            r_ctrl = np.tile(r_ctrl_1fp, self.nfp)
+            z_ctrl = np.tile(z_ctrl_1fp, self.nfp)
+            zeta_ctrl = np.concatenate(
+                [zeta_ctrl_1fp + n * 2 * np.pi / self.nfp for n in range(self.nfp)]
+            )
+            x_ctrl = r_ctrl * np.cos(zeta_ctrl)
+            y_ctrl = r_ctrl * np.sin(zeta_ctrl)
+
+            centroids_im = np.vstack((x_ctrl, y_ctrl, z_ctrl)).T
+
+            if recompute_knots:
+                if self.knot_parametrization == "chord":
+                    knots_a = chord_length_knots(centroids_im, p)
+                else:
+                    knots_a = uniform_knots(centroids_im.shape[0] - 1, p)
+                self._knots_a = knots_a
+
+            # Periodic wraparound: tile p points from each end onto the
+            # opposite side. Reflection symmetry doesn't depend on p's parity
+            # here -- the mirror is already baked into r_ctrl/z_ctrl/zeta_ctrl
+            # above (stellsym reflect-and-tile), not into how u maps to zeta,
+            # so it survives regardless of where the knots fall. See
+            # "Chord-length knots break stellarator symmetry.md" in the
+            # Obsidian vault.
+            centroids_im = np.concatenate(
+                [centroids_im[-p:], centroids_im, centroids_im[:p]], axis=0
+            )
+            self._centroids_im = centroids_im
+
+        if self.new_x:
+            self.new_x = False
+
+        return self._centroids_im, self._knots_a
 
     def gamma_impl(self, data, quadpoints):
         trimmed_ctrl_pts_im, knots_a = self._control_net_and_knots()
@@ -636,6 +703,12 @@ class SurfaceBSpline(sopp.Surface, Surface):
         if quadpoints_phi is None:
             quadpoints_phi = Surface.get_phi_quadpoints(nfp=nfp)
         sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
+
+        # _control_net_and_knots cache -- see that method's docstring.
+        self._control_points_jim = None
+        self._w_list_jim = None
+        self._knots_u = None
+        self._knots_v = None
 
         # dofs actually live on self.axis/self.cs_list (see get_dofs/set_dofs_impl below);
         # depends_on keeps them real Optimizable ancestors so surf.x/dof_names/bounds/fix
@@ -878,10 +951,22 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
     def _control_net_and_knots(self):
         """
-        Build the (periodic-wrapped) control net, NURBS weights, and knot
-        vectors shared by `surf_callable` and `gamma_lin` -- factored out so
-        the two don't duplicate the periodic-wraparound/knot-construction
-        logic.
+        Build (or return the cached) periodic-wrapped control net, NURBS
+        weights, and knot vectors shared by `surf_callable` and `gamma_lin`.
+
+        All four are pure functions of the free dofs (self.axis, self.cs_list)
+        -- independent of any (u, v) evaluation point -- so they're cached
+        here and only rebuilt when the dofs have actually changed (self.new_x),
+        rather than on every call. This used to rebuild from scratch on every
+        single gamma/root-find evaluation (profiled at ~1200 rebuilds, each
+        re-walking every cross section including CrossSectionFixedZeta.flipped()
+        and re-fitting chord-length knots, for a single to_RZFourier() call).
+
+        The knot vectors get special-cased: 'uniform' knots depend only on
+        the control point counts and p_u/p_v (fixed at construction), never
+        on where the dofs actually put the points, so they're computed once,
+        ever, and never invalidated by new_x. 'chord' knots do depend on
+        point positions and are invalidated by new_x same as the net itself.
 
         Returns
         -------
@@ -892,72 +977,93 @@ class SurfaceBSpline(sopp.Surface, Surface):
         knots_u, knots_v : ndarray
             Knot vectors for the u (poloidal) and v (toroidal) directions.
         """
-        point_list, w_list = self._get_control_points_xyz(return_w=True)
-
         p_u = self.p_u
         p_v = self.p_v
 
-        control_points_jim = np.array(point_list)
-        w_list_jim = np.array(w_list)
-
-        n_u = control_points_jim.shape[1] - 1
-        n_v = control_points_jim.shape[0] - 1
-
+        recompute_net = self.new_x or self._control_points_jim is None
         if self.knot_parametrization == "chord":
-            # u knots: chord-length per row, averaged across rows. Each row
-            # (cross section) can have differently-spaced control points, but
-            # the whole surface has one shared u-knot-vector, so average the
-            # per-row chord-length knots -- standard technique for
-            # tensor-product/lofted NURBS surfaces (averaging preserves
-            # monotonicity and the knots[p]==0/knots[n+p+1]==2pi endpoints,
-            # since every row's knots satisfy those).
-            knots_u = np.mean(
+            recompute_knots = recompute_net or self._knots_u is None
+        else:
+            recompute_knots = self._knots_u is None
+
+        if recompute_net:
+            point_list, w_list = self._get_control_points_xyz(return_w=True)
+
+            control_points_jim = np.array(point_list)
+            w_list_jim = np.array(w_list)
+
+            n_u = control_points_jim.shape[1] - 1
+            n_v = control_points_jim.shape[0] - 1
+
+            if recompute_knots:
+                if self.knot_parametrization == "chord":
+                    # u knots: chord-length per row, averaged across rows. Each
+                    # row (cross section) can have differently-spaced control
+                    # points, but the whole surface has one shared u-knot-vector,
+                    # so average the per-row chord-length knots -- standard
+                    # technique for tensor-product/lofted NURBS surfaces
+                    # (averaging preserves monotonicity and the
+                    # knots[p]==0/knots[n+p+1]==2pi endpoints, since every row's
+                    # knots satisfy those).
+                    knots_u = np.mean(
+                        [
+                            chord_length_knots(control_points_jim[j], p_u)
+                            for j in range(n_v + 1)
+                        ],
+                        axis=0,
+                    )
+                    # v knots: chord-length between row centroids (one
+                    # representative point per cross section)
+                    row_centroids = control_points_jim.mean(axis=1)
+                    knots_v = chord_length_knots(row_centroids, p_v)
+                else:
+                    knots_u = uniform_knots(n_u, p_u)
+                    knots_v = uniform_knots(n_v, p_v)
+                self._knots_u = knots_u
+                self._knots_v = knots_v
+
+            # Periodic wraparound: tile p_u/p_v points from each end onto the
+            # opposite side, in both directions. Reflection symmetry doesn't
+            # depend on p_u/p_v's parity -- the mirror is already baked into
+            # _get_control_points_xyz's reflect-and-tile (cs.flipped(),
+            # cs_angle negation, cs_zeta reflection), not into how u/v map to
+            # theta/zeta, so it survives regardless of where the knots fall.
+            # See "Chord-length knots break stellarator symmetry.md" in the
+            # Obsidian vault.
+            control_points_jim = np.concatenate(
                 [
-                    chord_length_knots(control_points_jim[j], p_u)
-                    for j in range(n_v + 1)
+                    control_points_jim[:, -p_u:, :],
+                    control_points_jim,
+                    control_points_jim[:, :p_u, :],
+                ],
+                axis=1,
+            )
+            w_list_jim = np.concatenate(
+                [w_list_jim[:, -p_u:], w_list_jim, w_list_jim[:, :p_u]], axis=1
+            )
+            control_points_jim = np.concatenate(
+                [
+                    control_points_jim[-p_v:, :, :],
+                    control_points_jim,
+                    control_points_jim[:p_v, :, :],
                 ],
                 axis=0,
             )
-            # v knots: chord-length between row centroids (one representative
-            # point per cross section)
-            row_centroids = control_points_jim.mean(axis=1)
-            knots_v = chord_length_knots(row_centroids, p_v)
-        else:
-            knots_u = uniform_knots(n_u, p_u)
-            knots_v = uniform_knots(n_v, p_v)
+            w_list_jim = np.concatenate(
+                [w_list_jim[-p_v:, :], w_list_jim, w_list_jim[:p_v, :]], axis=0
+            )
+            self._control_points_jim = control_points_jim
+            self._w_list_jim = w_list_jim
 
-        # Periodic wraparound: tile p_u/p_v points from each end onto the
-        # opposite side, in both directions. Reflection symmetry doesn't
-        # depend on p_u/p_v's parity -- the mirror is already baked into
-        # _get_control_points_xyz's reflect-and-tile (cs.flipped(),
-        # cs_angle negation, cs_zeta reflection), not into how u/v map to
-        # theta/zeta, so it survives regardless of where the knots fall.
-        # See "Chord-length knots break stellarator symmetry.md" in the
-        # Obsidian vault.
-        control_points_jim = np.concatenate(
-            [
-                control_points_jim[:, -p_u:, :],
-                control_points_jim,
-                control_points_jim[:, :p_u, :],
-            ],
-            axis=1,
-        )
-        w_list_jim = np.concatenate(
-            [w_list_jim[:, -p_u:], w_list_jim, w_list_jim[:, :p_u]], axis=1
-        )
-        control_points_jim = np.concatenate(
-            [
-                control_points_jim[-p_v:, :, :],
-                control_points_jim,
-                control_points_jim[:p_v, :, :],
-            ],
-            axis=0,
-        )
-        w_list_jim = np.concatenate(
-            [w_list_jim[-p_v:, :], w_list_jim, w_list_jim[:p_v, :]], axis=0
-        )
+        if self.new_x:
+            self.new_x = False
 
-        return control_points_jim, w_list_jim, knots_u, knots_v
+        return (
+            self._control_points_jim,
+            self._w_list_jim,
+            self._knots_u,
+            self._knots_v,
+        )
 
     def surf_callable(
         self,

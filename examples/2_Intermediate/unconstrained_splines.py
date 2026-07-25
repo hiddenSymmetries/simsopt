@@ -32,7 +32,7 @@ spline_kwargs = {
     "nurbs": False,
 }
 
-spline_surf = SurfaceBSpline(**spline_kwargs, default_r=0.2)
+spline_surf = SurfaceBSpline(**spline_kwargs, default_r=0.4)
 
 proc0_print(f"spline_surf.dof_names: {spline_surf.dof_names}")
 
@@ -73,9 +73,9 @@ try:
         prob,
         mpi,
         grad=True,
-        rel_step=1e-3,
-        abs_step=1e-7,  # **options
-        x_scale='jac' 
+        rel_step=1e-8,
+        abs_step=1e-4,  # **options
+        x_scale="jac",
     )
     xopt = prob.x
 
