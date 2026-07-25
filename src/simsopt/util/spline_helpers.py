@@ -111,8 +111,11 @@ def uniform_knots(n, p, domain=2*np.pi):
     built by tiling p points from a closed loop of n+1 points onto each
     side (length n+1+2p). Counterpart to chord_length_knots with the same
     shape/convention (length n+3p+2, knots[2p]==0, knots[n+2p+1]==domain),
-    for when point spacing shouldn't influence the parametrization. Only
-    exactly reflection-symmetric for odd p.
+    for when point spacing shouldn't influence the parametrization. Works
+    for any p -- reflection symmetry of the resulting curve depends on
+    whether the control points themselves carry the mirror (as with
+    stellsym reflect-and-tile), not on p's parity; only a *parameter-space*
+    reflection C(u) <-> C(domain-u) needs odd p.
     '''
     interval = domain / (n + 1)
     k = np.arange(-2 * p, n + 2 * p + 2)
@@ -129,8 +132,8 @@ def chord_length_knots(points, p, domain=2*np.pi):
     matches). Knot spacing follows the actual Euclidean distance between
     consecutive points (wrapping points[n] back to points[0]) rather than
     assuming uniform spacing (Piegl & Tiller, "The NURBS Book"), adapted
-    for a periodic/closed curve. Only exactly reflection-symmetric for
-    odd p.
+    for a periodic/closed curve. Works for any p -- see uniform_knots for
+    the reflection-symmetry note.
 
     points: (n+1, dim) array of control points, one full period, NOT
     including the tiled copies (those are built separately, same as for

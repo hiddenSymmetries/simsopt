@@ -420,10 +420,12 @@ class PseudoAxis(sopp.Curve, Curve):
             knots_a = uniform_knots(centroids_im.shape[0] - 1, p)
 
         # Periodic wraparound: tile p points from each end onto the
-        # opposite side. Only exactly reflection-symmetric for odd p
-        # (always true here, p=3 everywhere) -- see "Chord-length knots
-        # break stellarator symmetry.md" in the Obsidian vault.
-        assert p % 2 == 1, "reflection-symmetric wraparound requires odd degree"
+        # opposite side. Reflection symmetry doesn't depend on p's parity
+        # here -- the mirror is already baked into r_ctrl/z_ctrl/zeta_ctrl
+        # above (stellsym reflect-and-tile), not into how u maps to zeta,
+        # so it survives regardless of where the knots fall. See
+        # "Chord-length knots break stellarator symmetry.md" in the
+        # Obsidian vault.
         centroids_im = np.concatenate(
             [centroids_im[-p:], centroids_im, centroids_im[:p]], axis=0
         )
@@ -950,12 +952,13 @@ class SurfaceBSpline(sopp.Surface, Surface):
             knots_v = uniform_knots(n_v, p_v)
 
         # Periodic wraparound: tile p_u/p_v points from each end onto the
-        # opposite side, in both directions. Only exactly
-        # reflection-symmetric for odd p_u/p_v (always true here) -- see
-        # "Chord-length knots break stellarator symmetry.md" in the
+        # opposite side, in both directions. Reflection symmetry doesn't
+        # depend on p_u/p_v's parity -- the mirror is already baked into
+        # _get_control_points_xyz's reflect-and-tile (cs.flipped(),
+        # cs_angle negation, cs_zeta reflection), not into how u/v map to
+        # theta/zeta, so it survives regardless of where the knots fall.
+        # See "Chord-length knots break stellarator symmetry.md" in the
         # Obsidian vault.
-        assert p_u % 2 == 1, "reflection-symmetric wraparound requires odd degree"
-        assert p_v % 2 == 1, "reflection-symmetric wraparound requires odd degree"
         control_points_jim = np.concatenate(
             [
                 control_points_jim[:, -p_u:, :],
@@ -1135,33 +1138,25 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
         centroids_im = np.array(xyz_list)
 
-        # a basis
-        n_a = centroids_im.shape[0] - 1
+        # Periodic wraparound, matching _control_net_and_knots: tile p_a
+        # points from each end onto the opposite side, with knots widened
+        # to match.
+        if self.knot_parametrization == "chord":
+            knots_a = chord_length_knots(centroids_im, p_a)
+        else:
+            knots_a = uniform_knots(centroids_im.shape[0] - 1, p_a)
         centroids_im = np.concatenate(
-            [centroids_im, centroids_im[:p_a, :]], axis=0
-        )
-        # n_knots_a = n_a + 2 * p_a + 2
-
-        interval_a = (2 * np.pi) / (n_a + 1)
-        knots_a = (
-            -p_a * interval_a + np.arange(0, n_a + 2 * p_a + 2) * interval_a
-        )
-
-        assert np.isclose(knots_a[p_a], 0), f"knots_u[p_u] = {knots_a[p_a]}"
-        assert np.isclose(knots_a[n_a + p_a + 1], 2 * np.pi), (
-            f"knots_u[n_u + p_u + 1] = {knots_a[n_a + p_a + 1]}"
+            [centroids_im[-p_a:], centroids_im, centroids_im[:p_a]], axis=0
         )
 
         a_basis = b_p(knots_a, p_a, a)
 
-        x_centroid = np.zeros_like(a_basis[:, 0])
-        y_centroid = np.zeros_like(a_basis[:, 0])
-        z_centroid = np.zeros_like(a_basis[:, 0])
-
-        for i in range(n_a + p_a + 1):
-            x_centroid += centroids_im[i, 0] * a_basis[:, i]
-            y_centroid += centroids_im[i, 1] * a_basis[:, i]
-            z_centroid += centroids_im[i, 2] * a_basis[:, i]
+        # einsum, not @ -- matmul spuriously raises divide-by-zero/overflow
+        # RuntimeWarnings on some BLAS backends when a_basis contains
+        # subnormal values, even though the result is correct.
+        x_centroid = np.einsum("ij,j->i", a_basis, centroids_im[:, 0])
+        y_centroid = np.einsum("ij,j->i", a_basis, centroids_im[:, 1])
+        z_centroid = np.einsum("ij,j->i", a_basis, centroids_im[:, 2])
 
         return x_centroid, y_centroid, z_centroid
 
@@ -1177,26 +1172,19 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
         centroids_im = np.array(xyz_list)
 
-        n_a = centroids_im.shape[0] - 1
+        if self.knot_parametrization == "chord":
+            knots_a = chord_length_knots(centroids_im, p_a)
+        else:
+            knots_a = uniform_knots(centroids_im.shape[0] - 1, p_a)
         centroids_im = np.concatenate(
-            [centroids_im, centroids_im[:p_a, :]], axis=0
-        )
-
-        interval_a = (2 * np.pi) / (n_a + 1)
-        knots_a = (
-            -p_a * interval_a + np.arange(0, n_a + 2 * p_a + 2) * interval_a
+            [centroids_im[-p_a:], centroids_im, centroids_im[:p_a]], axis=0
         )
 
         _, da_basis = b_p_deriv(knots_a, p_a, a)
 
-        dx_da = np.zeros_like(da_basis[:, 0])
-        dy_da = np.zeros_like(da_basis[:, 0])
-        dz_da = np.zeros_like(da_basis[:, 0])
-
-        for i in range(n_a + p_a + 1):
-            dx_da += centroids_im[i, 0] * da_basis[:, i]
-            dy_da += centroids_im[i, 1] * da_basis[:, i]
-            dz_da += centroids_im[i, 2] * da_basis[:, i]
+        dx_da = np.einsum("ij,j->i", da_basis, centroids_im[:, 0])
+        dy_da = np.einsum("ij,j->i", da_basis, centroids_im[:, 1])
+        dz_da = np.einsum("ij,j->i", da_basis, centroids_im[:, 2])
 
         return dx_da, dy_da, dz_da
 
