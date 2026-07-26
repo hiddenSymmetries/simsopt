@@ -35,7 +35,7 @@ jobs:
       fail-fast: false
       matrix:
         test-type: [unit, integrated]
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         include:
             - python-version: "3.13"
               test-type: unit
@@ -68,9 +68,8 @@ jobs:
         sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libscalapack-mpi-dev libhdf5-dev libhdf5-serial-dev git m4 libfftw3-dev libopenblas-dev libboost-all-dev
     
     - uses: actions/checkout@v4
-      # If we want submodules downloaded, uncomment the next 2 lines:
-      #with:
-      #  submodules: true
+      with:
+        submodules: recursive
 
     # We must run actions/checkout before downloading and building VMEC, since checkout deletes the contents of the directory.
     - name: Download the VMEC2000 standalone repository

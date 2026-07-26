@@ -33,6 +33,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
         
       - name: Login to DockerHub
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || startsWith(github.ref, 'refs/tags/v') }}
         uses: docker/login-action@v3
         with:
           username: medbha
@@ -53,7 +54,7 @@ jobs:
 
       - name: Build  for branches
         uses: docker/build-push-action@v3
-        if: ${{ startsWith(github.ref, 'refs/heads') && github.ref != 'refs/heads/master' }}
+        if: ${{ github.event_name == 'pull_request' || (startsWith(github.ref, 'refs/heads') && github.ref != 'refs/heads/master') }}
         with:
           context: ci
           file: ci/Dockerfile.ubuntu
