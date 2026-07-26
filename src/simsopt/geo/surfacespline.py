@@ -2169,7 +2169,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
                 "plot": False,
                 "ftol": 1e-4,
                 "Mtol": 1.1,
-                "shapetol": 0.01,
+                "shapetol": 1e-3,
                 "niters": 400,
                 "verbose": False,
                 "cutoff": 1e-6,

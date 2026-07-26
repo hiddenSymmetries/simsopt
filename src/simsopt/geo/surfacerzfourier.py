@@ -1784,9 +1784,14 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             # iteration's shapetol check below is then just a direct
             # Fourier evaluation + 1D interpolation (angle_matched_shape_error),
             # not a fresh CloughTocher fit + shapely query pair
-            # (pointwise_minimum_poly_distance) every iteration.
+            # (pointwise_minimum_poly_distance) every iteration. nu=nv=16 is
+            # deliberately coarse -- this runs once per condensation
+            # iteration (up to niters times per to_RZFourier() call), so it
+            # only needs to be accurate enough to trigger early stopping,
+            # not to report final shape quality.
             shape_reference = (
-                build_angle_matched_reference(surf) if shapetol is not None else None
+                build_angle_matched_reference(surf, nu=16, nv=16)
+                if shapetol is not None else None
             )
 
             dtdz = ((2*np.pi)/nzeta) * ((2*np.pi)/ntheta)
