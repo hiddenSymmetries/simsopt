@@ -185,8 +185,8 @@ class CrossSectionFixedZeta(Optimizable):
                 f"Input vector should have {n} elements but instead has {len(v)}"
             )
         self.r_ctrl = v[:n_pts]
-        self.theta_ctrl = v[n_pts:2 * n_pts]
-        self.w_ctrl = v[2 * n_pts:]
+        self.theta_ctrl = v[n_pts : 2 * n_pts]
+        self.w_ctrl = v[2 * n_pts :]
 
     def _name_dofs(self, n_pts):
         namelist = []
@@ -437,13 +437,17 @@ class PseudoAxis(sopp.Curve, Curve):
                 r_ctrl_1fp = np.append(self.r_ctrl, self.r_ctrl[-2::-1])[:-1]
                 z_ctrl_1fp = np.append(self.z_ctrl, -self.z_ctrl[-2::-1])[:-1]
                 zeta_ctrl_1fp = np.append(
-                    self.zeta_ctrl, (2 * np.pi / self.nfp) - self.zeta_ctrl[-2::-1]
+                    self.zeta_ctrl,
+                    (2 * np.pi / self.nfp) - self.zeta_ctrl[-2::-1],
                 )[:-1]
 
             r_ctrl = np.tile(r_ctrl_1fp, self.nfp)
             z_ctrl = np.tile(z_ctrl_1fp, self.nfp)
             zeta_ctrl = np.concatenate(
-                [zeta_ctrl_1fp + n * 2 * np.pi / self.nfp for n in range(self.nfp)]
+                [
+                    zeta_ctrl_1fp + n * 2 * np.pi / self.nfp
+                    for n in range(self.nfp)
+                ]
             )
             x_ctrl = r_ctrl * np.cos(zeta_ctrl)
             y_ctrl = r_ctrl * np.sin(zeta_ctrl)

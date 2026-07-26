@@ -1866,6 +1866,14 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                                         shape_reference,
                                     )
                     shape_error = np.average(shape_error_arr)
+                    if niter == 1 and shape_error >= shapetol:
+                        raise RuntimeError(
+                            f"variational_spec_cond: shape error ({shape_error:.3e}) "
+                            f"already exceeds shapetol ({shapetol:.3e}) after just the "
+                            "first iteration -- shapetol is too tight to allow any "
+                            "useful condensation for this surface/max_alpha, not a "
+                            "legitimate early stop."
+                        )
                     if shape_error >= shapetol:
                         success = True
                         message = f'Shape error {shapetol} reached'
