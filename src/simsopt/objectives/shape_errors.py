@@ -1,9 +1,14 @@
-import numpy as np 
+from dataclasses import dataclass
+
+import numpy as np
 from scipy.interpolate import CloughTocher2DInterpolator
 import matplotlib.pyplot as plt
 import shapely
 
-__all__ = ['any_to_uz_grid', 'jaccard_index']
+__all__ = [
+    'any_to_uz_grid', 'jaccard_index', 'AngleMatchedReference',
+    'build_angle_matched_reference', 'angle_matched_shape_error',
+]
 
 def any_to_uz_grid(
         surf,
@@ -184,6 +189,133 @@ def pointwise_minimum_poly_distance(
     #print(f'j: {j}')
     j=np.array(j)
     return j
+
+def _eval_rz_fourier(surf, nu, v_1d):
+    '''
+    Direct Fourier-series evaluation of R, Z on a (u, v) grid, where u
+    is `surf`'s own poloidal Fourier angle and v is its own toroidal
+    Fourier angle. Unlike `any_to_uz_grid`, this does no interpolation --
+    it's exact (up to floating point) and much cheaper, since a
+    SurfaceRZFourier already *is* a Fourier series.
+
+    :param surf: SurfaceRZFourier
+    :param nu: number of poloidal gridpoints
+    :param v_1d: 1D array of toroidal angles (VMEC zeta) to evaluate at
+    :return: R, Z, each of shape (nu, len(v_1d))
+    '''
+    rbc = surf.rc.T
+    zbs = surf.zs.T
+    M = surf.mpol
+    N = surf.ntor
+    nfp = surf.nfp
+
+    u_1d = np.linspace(0, 2*np.pi, nu, endpoint=False)
+    v_grid, u_grid = np.meshgrid(v_1d, u_1d)
+
+    cosnmuv = np.array(
+        [[np.cos(m*u_grid - n*(nfp*v_grid)) for m in range(0, M+1)] for n in range(-N, N+1)],
+    )
+    sinnmuv = np.array(
+        [[np.sin(m*u_grid - n*(nfp*v_grid)) for m in range(0, M+1)] for n in range(-N, N+1)],
+    )
+
+    R = np.einsum('nm,nmuv->uv', rbc, cosnmuv)
+    Z = np.einsum('nm,nmuv->uv', zbs, sinnmuv)
+    return R, Z
+
+@dataclass
+class AngleMatchedReference:
+    '''
+    Data returned by `build_angle_matched_reference`, consumed by
+    `angle_matched_shape_error`. Not meant to be constructed directly.
+    '''
+    v_1d: np.ndarray
+    R_c: np.ndarray
+    Z_c: np.ndarray
+    phi_geom: np.ndarray
+    R: np.ndarray
+    Z: np.ndarray
+
+def build_angle_matched_reference(surf, nu=64, nv=64):
+    '''
+    Precompute a fast, reparametrization-invariant reference for
+    `angle_matched_shape_error`, from a *fixed* original SurfaceRZFourier
+    `surf`. This is the only expensive step (a dense grid evaluation) --
+    call it once, before a loop that repeatedly perturbs a copy of
+    `surf`'s coefficients (e.g. inside `variational_spec_cond`), not once
+    per iteration.
+
+    Each point on the reference surface is tagged by its geometric
+    poloidal angle -- atan2(Z - Z_c, R - R_c) about that cross-section's
+    own centroid (R_c, Z_c) -- rather than by its Fourier angle u. This
+    is what makes the comparison reparametrization-invariant: two points
+    at the same geometric angle are "the same point" on the shape,
+    regardless of how u happens to be distributed along the curve.
+    `angle_matched_shape_error` reuses this fixed (R_c, Z_c) rather than
+    recomputing it from the perturbed surface, so both surfaces' angles
+    are measured from the same physical reference frame.
+
+    Assumes each toroidal cross-section is star-shaped about its own
+    centroid (true for any reasonable, non-self-intersecting stellarator
+    boundary), so geometric poloidal angle is a valid, single-valued
+    coordinate along the curve -- the same assumption other collocation
+    routines in this codebase make about surfaces being star-shaped
+    about a computed axis.
+
+    :param surf: SurfaceRZFourier, the reference (original) surface
+    :param nu: number of poloidal grid points used to build the reference
+    :param nv: number of toroidal grid points used to build the reference
+    :return: an `AngleMatchedReference` for `angle_matched_shape_error`
+    '''
+    v_1d = np.linspace(0, 2*np.pi, nv, endpoint=False)
+    R, Z = _eval_rz_fourier(surf, nu, v_1d)
+
+    R_c = np.mean(R, axis=0)
+    Z_c = np.mean(Z, axis=0)
+    phi_geom = np.arctan2(Z - Z_c[None, :], R - R_c[None, :])
+
+    return AngleMatchedReference(v_1d=v_1d, R_c=R_c, Z_c=Z_c, phi_geom=phi_geom, R=R, Z=Z)
+
+def angle_matched_shape_error(surf, reference, nu=None):
+    '''
+    Fast, reparametrization-invariant shape error between `surf` and the
+    surface used to build `reference` (see `build_angle_matched_reference`).
+    Meant for use inside an optimization loop that repeatedly perturbs
+    `surf`'s Fourier coefficients: only a direct Fourier evaluation and a
+    1D linear interpolation are done here -- no root-finding, no shapely
+    calls, unlike `pointwise_minimum_poly_distance`.
+
+    :param surf: SurfaceRZFourier to compare against `reference`
+    :param reference: an `AngleMatchedReference` from
+        `build_angle_matched_reference`, built from the original surface
+    :param nu: number of poloidal points at which to evaluate `surf`
+        (defaults to the resolution `reference` was built with)
+    :return: array of shape (nu, len(reference.v_1d)) of Euclidean (R, Z)
+        distances between each evaluated point on `surf` and the point on
+        the reference curve at the same geometric poloidal angle
+    '''
+    if nu is None:
+        nu = reference.R.shape[0]
+
+    R_new, Z_new = _eval_rz_fourier(surf, nu, reference.v_1d)
+    phi_geom_new = np.arctan2(Z_new - reference.Z_c[None, :], R_new - reference.R_c[None, :])
+
+    R_matched = np.empty_like(R_new)
+    Z_matched = np.empty_like(Z_new)
+    for j in range(len(reference.v_1d)):
+        order = np.argsort(reference.phi_geom[:, j])
+        phi_ref = reference.phi_geom[order, j]
+        R_ref = reference.R[order, j]
+        Z_ref = reference.Z[order, j]
+        # pad with one wrapped point on each side so np.interp handles the
+        # +-pi branch cut correctly (np.interp doesn't wrap on its own)
+        phi_pad = np.concatenate([phi_ref[-1:] - 2*np.pi, phi_ref, phi_ref[:1] + 2*np.pi])
+        R_pad = np.concatenate([R_ref[-1:], R_ref, R_ref[:1]])
+        Z_pad = np.concatenate([Z_ref[-1:], Z_ref, Z_ref[:1]])
+        R_matched[:, j] = np.interp(phi_geom_new[:, j], phi_pad, R_pad)
+        Z_matched[:, j] = np.interp(phi_geom_new[:, j], phi_pad, Z_pad)
+
+    return np.hypot(R_new - R_matched, Z_new - Z_matched)
 
 def frechet_distance(
         surf1,

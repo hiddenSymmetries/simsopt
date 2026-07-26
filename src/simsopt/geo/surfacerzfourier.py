@@ -14,7 +14,7 @@ import matplotlib.colors as mpl_colors
 
 import simsoptpp as sopp
 from .surface import Surface
-from ..objectives.polygonal_shape_errors import pointwise_minimum_poly_distance
+from ..objectives.shape_errors import build_angle_matched_reference, angle_matched_shape_error
 from .._core.optimizable import Optimizable
 from .._core.util import nested_lists_to_array
 from .._core.dev import SimsoptRequires
@@ -1681,21 +1681,40 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             shapetol=None,
             niters=5000,
             verbose=False,
-            cutoff=1e-6
+            cutoff=1e-6,
+            max_alpha=1e-4,
         ):
         '''
-        Variational spectral condensation à la Hirshman, Meier 1985. 
+        Variational spectral condensation à la Hirshman, Meier 1985.
+
+        max_alpha : float
+            Hard cap on the per-iteration line-search step size alpha
+            (bounds=(-max_alpha, max_alpha) for scipy's bounded Brent
+            search). Each step updates the Fourier coefficients via
+            rbc/zbs += alpha * drbc/dzbs, a first-order (chain-rule)
+            approximation of what an exact reparametrization by
+            alpha*I(theta,zeta) would do -- exact only as alpha -> 0.
+            Larger alpha steps leave that linearization's validity
+            regime and introduce real, non-reparametrization shape
+            distortion (not just faster spectral-width reduction), so
+            this bounds how far the search is allowed to step even if
+            hwM_pq keeps improving further out.
         '''
         M = self.mpol
         N = self.ntor
         nfp = self.nfp
 
         m_arr = np.arange(0, M+1)
-        n_arr = np.arange(-N, N+1)
         ntheta = 32
         nzeta = 32
-        t_1d = np.linspace(0,2*np.pi,num=ntheta)
-        z_1d = np.linspace(0,2*np.pi,num=nzeta)# + 2*np.pi/nfp
+        # endpoint=False: t=0/z=0 and t=2pi/z=2pi are the same physical
+        # point for a periodic surface. Including both (endpoint=True)
+        # with a uniform quadrature weight double-counts that point --
+        # this is the standard periodic-quadrature grid, exact to machine
+        # precision for band-limited (Fourier) integrands instead of
+        # picking up an O(1/n) bias.
+        t_1d = np.linspace(0,2*np.pi,num=ntheta,endpoint=False)
+        z_1d = np.linspace(0,2*np.pi,num=nzeta,endpoint=False)# + 2*np.pi/nfp
         z_grid, t_grid = np.meshgrid(z_1d,t_1d)
 
         # fourier basis functions
@@ -1761,7 +1780,21 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             rbc = newsurf.rc.T
             zbs = newsurf.zs.T
 
-            dtdz = ((2*np.pi)/(nzeta-1)) * ((2*np.pi)/(ntheta-1))
+            # Built once against the fixed original surface -- each
+            # iteration's shapetol check below is then just a direct
+            # Fourier evaluation + 1D interpolation (angle_matched_shape_error),
+            # not a fresh CloughTocher fit + shapely query pair
+            # (pointwise_minimum_poly_distance) every iteration. nu=nv=16 is
+            # deliberately coarse -- this runs once per condensation
+            # iteration (up to niters times per to_RZFourier() call), so it
+            # only needs to be accurate enough to trigger early stopping,
+            # not to report final shape quality.
+            shape_reference = (
+                build_angle_matched_reference(surf, nu=16, nv=16)
+                if shapetol is not None else None
+            )
+
+            dtdz = ((2*np.pi)/nzeta) * ((2*np.pi)/ntheta)
             I = hw_I_callable(rbc, zbs)
             integral_I2 = np.einsum('tz,tz',I**2,dtdz*np.ones_like(I))
             niter = 0
@@ -1791,7 +1824,19 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                     _zbs += alpha * dzbs
                     return hwM_pq(_rbc, _zbs)
 
-                res = minimize_scalar(f, bracket = (-1e-4, 1e-4), args = (rbc, zbs, drbc, dzbs), method='golden', options={'disp':False})
+                # method='bounded' + bounds= is a genuine hard cap on alpha
+                # (Brent's method restricted to the interval, clipping at the
+                # boundary). method='golden' + bracket= does NOT bound alpha --
+                # bracket is only an initial guess that scipy's bracket()
+                # expands as far as needed while f keeps decreasing, so alpha
+                # could end up far outside (-max_alpha, max_alpha) with no warning.
+                # xatol tightened from scipy's default (1e-5): hwM_pq(alpha)
+                # along the descent direction can have an extremely narrow
+                # (~1e-5-wide) true minimum surrounded by a much worse, nearly
+                # flat plateau -- the default tolerance can miss it entirely,
+                # landing on the plateau and making that step's M worse than
+                # not stepping, which can then compound over iterations.
+                res = minimize_scalar(f, bounds=(-max_alpha, max_alpha), args=(rbc, zbs, drbc, dzbs), method='bounded', options={'disp':False, 'xatol':1e-8})
                 alpha = res.x
 
                 rbc += alpha * drbc
@@ -1816,11 +1861,11 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                     success = True
                     message = 'dM < ftol reached'
                 if shapetol is not None:
-                    shape_error_arr = pointwise_minimum_poly_distance(
-                                        newsurf, 
-                                        surf
+                    shape_error_arr = angle_matched_shape_error(
+                                        newsurf,
+                                        shape_reference,
                                     )
-                    shape_error = (np.average(np.abs(shape_error_arr)))
+                    shape_error = np.average(shape_error_arr)
                     if shape_error >= shapetol:
                         success = True
                         message = f'Shape error {shapetol} reached'

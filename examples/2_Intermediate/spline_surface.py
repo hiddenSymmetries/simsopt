@@ -1,20 +1,22 @@
 #!/usr/bin/env python
 
+import fnmatch
+from typing import Union
+
 import numpy as np
-from simsopt.util.mpi import MpiPartition, proc0_print, log
-from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.geo.surfacespline import SurfaceBSpline
-from simsopt.solve.mpi import least_squares_mpi_solve, bounded_least_squares_mpi_solve
+from scipy.interpolate import interp1d
 from simsopt._core import Optimizable
+from simsopt._core.types import RealArray
+from simsopt.geo.surfacespline import SurfaceBSpline
+from simsopt.mhd import Vmec
+from simsopt.mhd.vmec import Vmec
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.mpi import (
+    least_squares_mpi_solve,
+)
+from simsopt.util.mpi import MpiPartition, proc0_print
 from simsopt.util.spline_helpers import print_dofs_nicely
 
-from simsopt._core.types import RealArray
-from typing import Union
-import numpy as np
-from simsopt.mhd.vmec import Vmec
-from scipy.interpolate import interp1d
-import fnmatch
 
 def alan_QuasisymmetryRatioResidual(vmec: Vmec,
                  surfaces: Union[float, RealArray],
@@ -143,7 +145,6 @@ def iota_target(vmec, target):
     val = vmec.mean_iota()#np.abs(vmec.mean_iota())
     return (val - target)
 import argparse
-import matplotlib.pyplot as plt
 
 mpi = MpiPartition()
 mpi.write()
@@ -194,7 +195,7 @@ class PASOpt(Optimizable):
                 nv=64,
                 nv_interp=128,
                 nu_interp=128,
-                collocation='arclength',
+                collocation='exact',
                 plot=False,
                 spec_cond_options={
                     'plot':False,
@@ -284,8 +285,8 @@ if __name__ == "__main__":
 
     default_args = {
     'axis_points':3,
-    'points_per_cs':4,
-    'n_cs':5,
+    'points_per_cs':6,
+    'n_cs':4,
     'nfp':2,
     'M':9,
     'N':4,
@@ -319,7 +320,7 @@ if __name__ == "__main__":
     myopt = PASOpt(spline_surf, spline_kwargs)
 
     prob = LeastSquaresProblem.from_tuples([
-        (myopt.J_qa, 0, 1)
+        (myopt.J_qa, 0.0, 1.0)
     ])
 
     proc0_print(f'prob.bounds: {prob.bounds}')
@@ -335,12 +336,15 @@ if __name__ == "__main__":
 
     proc0_print(f'optimizer_args: {optimizer_args}')
 
-    if input_args['optimizer']== 0:
-        least_squares_mpi_solve(prob, mpi=mpi, grad=True, **optimizer_args)
-    elif input_args['optimizer'] == 1 or input_args['optimizer'] is None:
-        bounded_least_squares_mpi_solve(prob, mpi=mpi, grad=True, **optimizer_args)
-    else:
-        raise NameError
+    # if input_args['optimizer']== 0:
+    #     least_squares_mpi_solve(prob, mpi=mpi, grad=True, **optimizer_args)
+    # elif input_args['optimizer'] == 1 or input_args['optimizer'] is None:
+    #     bounded_least_squares_mpi_solve(prob, mpi=mpi, grad=True, **optimizer_args)
+    # else:
+    #     raise NameError
+
+    least_squares_mpi_solve(prob, mpi=mpi, grad=True, **optimizer_args)
+
 
     proc0_print(f'final: {repr(myopt.x)}')
 

@@ -1,20 +1,22 @@
 BootStrap: docker
-From: ubuntu:22.04
+From: ubuntu:24.04
 Stage: devel
 
-%post
+%environment
+    . /venv/bin/activate
+
+%post -c /bin/bash
     apt-get update -y && \
-    DEBIAN_FRONTEND=noninteractive  apt-get install -y  build-essential gfortran git m4 wget cmake \
+    DEBIAN_FRONTEND=noninteractive  apt-get install -y  build-essential gfortran git m4 wget cmake ninja-build \
     libfabric-dev libfabric-bin  \
     libhwloc-dev libpmix-dev libevent-dev \
     libopenblas-dev libfftw3-dev libhdf5-dev libhdf5-serial-dev libnetcdf-dev libnetcdff-dev libgl1-mesa-dev \
     python3-dev python3-pip python3-venv libxrender1 libxcursor-dev
 
 
-%post
     # Install openmpi manually
     #-------------------------
-    OMPI_VER=4.1.2
+    OMPI_VER=4.1.8
     OMPI_PRE=openmpi-${OMPI_VER}
     wget https://download.open-mpi.org/release/open-mpi/v4.1/${OMPI_PRE}.tar.bz2 && \
     tar xvjf ${OMPI_PRE}.tar.bz2  && \
@@ -33,26 +35,21 @@ Stage: devel
 
     git clone --depth 1 https://github.com/Reference-ScaLAPACK/scalapack.git && \
     cd scalapack && \
-    CC=mpicc F77=mpif77 FC=mpif90 CXX=mpicxx cmake -DBUILD_SHARED_LIBS=ON -S . -B build && \
-    cd build && \
-    make -j 4 && \
-    cmake --install . && \
-    cd ../..  && \
-    rm -rf scalapack && \
+    CC=mpicc F77=mpif77 FC=mpif90 CXX=mpicxx cmake -DBUILD_SHARED_LIBS=ON -S . -B build -G Ninja && \
+    cmake --build build && cmake --install build && \
+    cd ..  && rm -rf scalapack && \
     /sbin/ldconfig
 
     python3 -m venv /venv/
     . /venv/bin/activate
-    /venv/bin/pip install -U pip
-    /venv/bin/pip install numpy scipy jax jaxlib f90nml jupyter notebook ipython qsc sympy scikit-build ninja "pybind11[global]<3.0" cmake f90wrap h5py
+    /venv/bin/python -m pip install -U pip
+    /venv/bin/python -m pip install numpy scipy jax jaxlib f90nml jupyter notebook ipython qsc sympy ninja cmake f90wrap h5py
     PATH="/usr/local/bin:/venv/bin:${PATH}"
     LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"
 
     git clone --depth 1 https://github.com/mpi4py/mpi4py.git && \
     cd mpi4py && \
-    # /venv/bin/python setup.py build --mpicc=mpicc --mpicxx=mpicxx --mpifort=mpifort --mpif90=mpif90 --mpif77=mpif77 --mpild=mpicc  && \
-    # /venv/bin/python setup.py install  && \
-    /venv/bin/pip install . && \
+    /venv/bin/python -m pip install . && \
     cd .. && \
     rm -rf mpi4py
 
@@ -70,55 +67,44 @@ Stage: devel
     git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git && \
     cd VMEC2000 && \
     cp cmake/machines/ubuntu.json cmake_config_file.json && \
-    /venv/bin/pip install  . && \
+    /venv/bin/python -m pip install  . && \
     cd .. && \
     rm -rf VMEC2000
 
     # /venv/bin/pip install git+https://github.com/zhisong/pyoculus
-    /venv/bin/pip install vtk==9.2.6 pyqt5 matplotlib pyevtk plotly
-    /venv/bin/pip install mayavi==4.8.3 --no-build-isolation
-    /venv/bin/pip install ground==9 bentley_ottmann==8
-    /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
-    /venv/bin/pip install  git+https://github.com/hiddenSymmetries/virtual-casing
-    /venv/bin/pip install  git+https://github.com/rogeriojorge/pyQIC
-    /venv/bin/pip install  git+https://github.com/landreman/pyQSC
+    /venv/bin/python -m pip install vtk==9.4.2 pyqt5 matplotlib pyevtk plotly
+    git clone --depth 1 https://github.com/enthought/mayavi.git && cd mayavi && \
+    /venv/bin/python -m pip install --no-build-isolation . && cd .. && rm -rf mayavi
+    # /venv/bin/pip install mayavi==4.8.3 --no-build-isolation
+    /venv/bin/python -m pip install ground==9 bentley_ottmann==8
+    /venv/bin/python -m pip install  git+https://github.com/hiddenSymmetries/booz_xform
+    /venv/bin/python -m pip install  git+https://github.com/hiddenSymmetries/virtual-casing
+    /venv/bin/python -m pip install  git+https://github.com/rogeriojorge/pyQIC
+    /venv/bin/python -m pip install  git+https://github.com/landreman/pyQSC
 
     CI=True
     git clone --recurse-submodules https://github.com/hiddenSymmetries/simsopt.git simsopt && \
     cd simsopt && \
     git fetch --tags --all && \
-    /venv/bin/pip install  -v . &&  \
+    /venv/bin/python -m pip install  -v . &&  \
     cd ..  &&  \
     rm -rf simsopt
 
-
-BootStrap: docker
-From: ubuntu:22.04
-Stage: final
-
-%post
-    apt update && \
-    DEBIAN_FRONTEND=noninteractive  apt-get install -y m4 vim emacs nano git wget \
-    libhwloc-dev libpmix-dev libevent-dev libfabric-bin libfabric-dev \
-    libfftw3-dev  libopenblas-dev libhdf5-serial-dev libnetcdf-dev libnetcdff-dev libgl1-mesa-dev \
-    python3-dev python3-venv 
-
-%files from devel
-    /venv /venv
-    /usr/local/ /usr/
-
-%post
-    /sbin/ldconfig
+    if [ -n "${APPTAINER_ENVIRONMENT:-}" ]; then
+        echo ". /venv/bin/activate" >> "${APPTAINER_ENVIRONMENT}"
+    fi
 
 %startscript
     . /venv/bin/activate
+
+%runscript
+    /venv/bin/python "$@"
 
 %labels
     maintainer.name "Bharat Medasani"
     maintainer.email "mbkumar@gmail.com"
     developers "Hidden Symmetries Team"
-    version "0.07"
-    description  "Singularity container for simsopt built on Ubuntu 22.04"
+    description  "Singularity container for simsopt built on Ubuntu 24.04"
 
 %help
     This is a simsopt singularity container. 
