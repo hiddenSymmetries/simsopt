@@ -1,4 +1,6 @@
+import os
 import unittest
+import warnings
 from pathlib import Path
 
 from qsc import Qsc
@@ -526,12 +528,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
     @unittest.skipIf(DescFourierRZToroidalSurface is None, "desc python extension is not installed")
     def test_to_from_desc_roundtrip(self):
         """Test that to_desc and from_desc correctly converts DESC surface back to simsopt."""
-        import os
-
         filelist = ["input.rotating_ellipse", 'input.LandremanPaul2021_QH_reactorScale_lowres', "input.ITERModel", "input.li383_low_res", "input.basic_non_stellsym"]
 
         for ff in filelist:
-            # input_file = str(TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres')
             input_file = os.path.join(TEST_DIR, ff)
             surface_orig = SurfaceRZFourier.from_vmec_input(input_file)
 
@@ -548,10 +547,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
             self.assertEqual(boundary_from_desc.stellsym, surface_orig.stellsym)
 
             # Check geometry is preserved via gamma
-            gamma_flat = surface_orig.gamma().reshape((-1, 3))
-            gamma_rt_flat = boundary_from_desc.gamma().reshape((-1, 3))
-            gamma_err = np.max(np.linalg.norm(gamma_flat - gamma_rt_flat, axis=-1))
-            self.assertAlmostEqual(gamma_err, 0.0, places=12)
+            np.testing.assert_allclose(surface_orig.gamma(), boundary_from_desc.gamma(), atol=1e-12)
 
             # check the modes are preserved
             np.testing.assert_allclose(boundary_from_desc.rc, surface_orig.rc, atol=1e-12)
@@ -565,7 +561,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         surface_orig = SurfaceRZFourier(mpol=2, ntor=0, nfp=1, stellsym=True)
         surface_orig.set_rc(0, 0, 1.0)
         surface_orig.set_rc(1, 0, 0.1)
-        surface_orig.set_zs(1, 0, 0.1)
+        surface_orig.set_zs(1, 0, 0.13)
 
         desc_surface = surface_orig.to_desc()
         boundary_from_desc = SurfaceRZFourier.from_desc(desc_surface).copy(
@@ -573,11 +569,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
             quadpoints_theta=surface_orig.quadpoints_theta,
         )
 
-        gamma_err = np.max(np.linalg.norm(
-            surface_orig.gamma().reshape((-1, 3)) - boundary_from_desc.gamma().reshape((-1, 3)),
-            axis=-1,
-        ))
-        self.assertAlmostEqual(gamma_err, 0.0, places=12)
+        np.testing.assert_allclose(surface_orig.gamma(), boundary_from_desc.gamma(), atol=1e-12)
 
     @unittest.skipIf(DescFourierRZToroidalSurface is None, "desc python extension is not installed")
     def test_from_desc_known_coefficients(self):
@@ -586,7 +578,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # check_orientation=False prevents DESC from flipping Z_lmn sign.
         desc_surface = DescFourierRZToroidalSurface(
             R_lmn=np.array([1.0, 0.1]),
-            Z_lmn=np.array([0.1]),
+            Z_lmn=np.array([0.13]),
             modes_R=np.array([[0, 0], [1, 0]]),
             modes_Z=np.array([[-1, 0]]),
             NFP=2,
@@ -599,7 +591,24 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertTrue(s.stellsym)
         self.assertAlmostEqual(s.get_rc(0, 0), 1.0, places=12)
         self.assertAlmostEqual(s.get_rc(1, 0), 0.1, places=12)
-        self.assertAlmostEqual(s.get_zs(1, 0), 0.1, places=12)
+        self.assertAlmostEqual(s.get_zs(1, 0), 0.13, places=12)
+
+    @unittest.skipIf(DescFourierRZToroidalSurface is None, "desc python extension is not installed")
+    def test_to_desc_check_orientation(self):
+        """The check_orientation kwarg only affects mode signs, never the shape."""
+        surface_orig = SurfaceRZFourier(mpol=2, ntor=1, nfp=2, stellsym=True)
+        surface_orig.set_rc(0, 0, 1.0)
+        surface_orig.set_rc(1, 0, 0.1)
+        surface_orig.set_zs(1, 0, 0.13)
+
+        desc_unchecked = surface_orig.to_desc(check_orientation=False)
+        with warnings.catch_warnings():
+            # DESC warns when it flips the sign of theta
+            warnings.simplefilter("ignore")
+            desc_checked = surface_orig.to_desc(check_orientation=True)
+
+        np.testing.assert_allclose(np.abs(desc_checked.R_lmn), np.abs(desc_unchecked.R_lmn), atol=1e-12)
+        np.testing.assert_allclose(np.abs(desc_checked.Z_lmn), np.abs(desc_unchecked.Z_lmn), atol=1e-12)
 
     def test_change_resolution(self):
         """

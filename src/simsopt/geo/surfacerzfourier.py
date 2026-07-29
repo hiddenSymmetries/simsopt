@@ -579,8 +579,14 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         return simsopt_surface
     
     @SimsoptRequires(DescFourierRZToroidalSurface is not None, "to_desc method requires Desc module")
-    def to_desc(self) -> DescFourierRZToroidalSurface:
+    def to_desc(self, check_orientation: bool = False) -> DescFourierRZToroidalSurface:
         r"""Convert a ``SurfaceRZFourier`` object into a DESC ``FourierRZToroidalSurface`` object.
+
+        Args:
+            check_orientation: If ``True``, DESC reverses the sign of :math:`\theta`
+              for surfaces it considers left-handed. The default
+              ``False`` leaves the coefficients unaltered, so that
+              ``from_desc(to_desc(surf))`` is the identity map.
 
         Returns:
             A DESC ``FourierRZToroidalSurface`` object.
@@ -635,7 +641,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             modes_Z=modes,
             NFP=self.nfp,
             sym=self.stellsym,
-            check_orientation=False,
+            check_orientation=check_orientation,
         )
     
     def copy(self, **kwargs):
