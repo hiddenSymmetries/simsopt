@@ -31,9 +31,9 @@ logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.INFO)
 
 variables = [
-    'src_nphi', 'src_ntheta', 'src_phi', 'src_theta', 'trgt_nphi',
+    'src_nphi', 'src_ntheta', 'src_phi', 'src_theta', 'trgt_nphi', 'trgt_nphi_extended',
     'trgt_ntheta', 'trgt_phi', 'trgt_theta', 'gamma', 'unit_normal',
-    'B_total', 'B_external', 'B_external_normal'
+    'B_total', 'B_external', 'B_external_normal', "B_external_normal_extended"
 ]
 
 
@@ -174,14 +174,28 @@ class VirtualCasingTests(unittest.TestCase):
         fields of the objects should all match.
         """
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        with ScratchDir("."):
-            vc1 = VirtualCasing.from_vmec(filename, src_nphi=11, src_ntheta=12, trgt_nphi=13, trgt_ntheta=11, filename='vcasing.nc')
-            vc2 = VirtualCasing.load('vcasing.nc')
-            for variable in variables:
-                variable1 = eval('vc1.' + variable)
-                variable2 = eval('vc2.' + variable)
-                logger.info(f'Variable {variable} in vc1 is {variable1} and in vc2 is {variable2}')
-                np.testing.assert_allclose(variable1, variable2)
+        for use_stellsym in [True, False]:
+            with ScratchDir("."):
+                vc1 = VirtualCasing.from_vmec(
+                    filename,
+                    use_stellsym=use_stellsym,
+                    src_nphi=11,
+                    src_ntheta=12,
+                    trgt_nphi=13,
+                    trgt_ntheta=11,
+                    filename='vcasing.nc',
+                )
+                vc2 = VirtualCasing.load('vcasing.nc')
+                # Also, to be thorough, try another round trip:
+                vc3 = vc2.save('vcasing2.nc')
+                vc4 = VirtualCasing.load('vcasing2.nc')
+                for variable in variables:
+                    variable1 = eval('vc1.' + variable)
+                    variable2 = eval('vc2.' + variable)
+                    variable4 = eval('vc4.' + variable)
+                    logger.info(f'Variable {variable} in vc1 is {variable1} and in vc2 is {variable2}')
+                    np.testing.assert_allclose(variable1, variable2)
+                    np.testing.assert_allclose(variable1, variable4)
 
     @unittest.skipIf(
         (matplotlib is None),

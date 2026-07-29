@@ -328,6 +328,11 @@ class VirtualCasing:
             trgt_nphi.description = 'Number of grid points in the toroidal angle phi for resulting B_external'
             trgt_nphi.units = 'Dimensionless'
 
+            trgt_nphi_extended = f.createVariable('trgt_nphi_extended', 'i', tuple())
+            trgt_nphi_extended.data[()] = self.trgt_nphi_extended
+            trgt_nphi_extended.description = 'Number of grid points in the toroidal angle phi for resulting B_external (extended to full torus)'
+            trgt_nphi_extended.units = 'Dimensionless'
+
             nfp = f.createVariable('nfp', 'i', tuple())
             nfp.data[()] = self.nfp
             nfp.description = 'Periodicity in toroidal direction'
