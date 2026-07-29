@@ -19,7 +19,7 @@ spline_kwargs = {
     "axis_points": 3,
     "points_per_cs": 4,
     "n_cs": 5,
-    "nfp": 2,
+    "nfp": 4,
     "M": 9,
     "N": 4,
     "p_u": 3,
@@ -47,14 +47,14 @@ qs = QuasisymmetryRatioResidual(
     vmec,
     np.arange(0, 1.01, 0.1),  # Radii to target
     helicity_m=1,
-    helicity_n=0,  # -1
+    helicity_n=-1,  # -1
 )  # (M, N) you want in |B|
 # nonlinear constraints
 # tuples_nlc = [(vmec.aspect, -np.inf, 8), (vmec.mean_iota, -1.05, -1.0)]
 
 # define problem
 prob = LeastSquaresProblem.from_tuples(
-    [(qs.residuals, 0, 1), (vmec.aspect, 6, 10), (vmec.mean_iota, 0.42, 10)]
+    [(qs.residuals, 0, 1), (vmec.aspect, 8, 10), (vmec.mean_iota, -1.05, 10)]
     # [(qs.residuals, 0, 1), (vmec.aspect, 8, 10), (vmec.mean_iota, -1.05, 10)]
 )
 

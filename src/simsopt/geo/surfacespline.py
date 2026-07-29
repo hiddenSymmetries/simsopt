@@ -15,7 +15,9 @@ from ..util.mpi import MpiPartition
 from ..util.spline_helpers import (
     b_p,
     b_p_deriv,
+    b_p_deriv2,
     chord_length_knots,
+    double_reflection_rmf,
     uniform_knots,
 )
 from .curve import Curve
@@ -478,12 +480,17 @@ class PseudoAxis(sopp.Curve, Curve):
 
         return self._centroids_im, self._knots_a
 
-    def gamma_impl(self, data, quadpoints):
-        trimmed_ctrl_pts_im, knots_a = self._control_net_and_knots()
+    def _solve_v(self, phi, trimmed_ctrl_pts_im, knots_a):
+        """
+        Newton-solve for the NURBS parameter v(phi) such that the axis's
+        toroidal angle atan2(Y(v), X(v)) matches the target phi (mod 2pi).
+        v enters transcendentally through atan2 of a B-spline curve, so
+        there's no closed form -- gamma_impl and the analytic derivatives
+        in _gamma_and_derivs below all go through this same solve.
+        """
         p = self.p
-        phi = np.asarray(quadpoints) * 2 * np.pi
 
-        def _xyz_and_derivs(v):
+        def _xy_and_derivs(v):
             # wrap into the valid periodic domain (rather than clip) so scipy's
             # own, otherwise-unconstrained iterate always gets a well-defined
             # basis evaluation
@@ -496,27 +503,273 @@ class PseudoAxis(sopp.Curve, Curve):
             return X, Y, dX, dY
 
         def func(v):
-            X, Y, *_ = _xyz_and_derivs(v)
+            X, Y, *_ = _xy_and_derivs(v)
             zeta_cur = np.arctan2(Y, X) % (2 * np.pi)
             return ((zeta_cur - phi + np.pi) % (2 * np.pi)) - np.pi
 
         def fprime(v):
-            X, Y, dX, dY = _xyz_and_derivs(v)
+            X, Y, dX, dY = _xy_and_derivs(v)
             return (X * dY - Y * dX) / (X**2 + Y**2)
 
         v_sol = newton(
             func, x0=phi.copy(), fprime=fprime, tol=1e-12, maxiter=50
         )
+        return v_sol % (2 * np.pi)
 
-        v_wrapped = v_sol % (2 * np.pi)
-        basis_a = b_p(knots_a, p, v_wrapped)
+    def _gamma_and_derivs(self, quadpoints, max_deriv=2):
+        """
+        Shared core for gamma/gammadash/gammadashdash, evaluated at
+        arbitrary quadpoints (t, a fraction in [0,1)) rather than only
+        self.quadpoints -- mirrors gamma_impl's own explicit-quadpoints
+        convention (needed by e.g. _axis_rz's custom zeta grids), since the
+        base Curve interface's gammadash_impl/gammadashdash_impl only ever
+        get called with self.quadpoints.
+
+        Implicit differentiation of the Newton-solved v(t): the axis is a
+        plain B-spline X(v), Y(v), Z(v) in NURBS parameter v, with v(t)
+        implicitly pinned by the toroidal-angle-matching constraint
+        F(v, t) = atan2(Y(v), X(v)) - 2*pi*t = 0 (_solve_v's Newton solve).
+        Differentiating F(v(t), t) = 0 w.r.t. t:
+            dv/dt   = -F_t / F_v = 2*pi / G(v),   G(v) := dF/dv (= fprime)
+            d2v/dt2 = -4*pi^2 * G'(v) / G(v)^3
+        (product/quotient rule; G'(v) needs X'', Y'', i.e. the
+        second-derivative basis from b_p_deriv2). Then, since
+        gamma(t) = Gamma(v(t)), the chain rule gives
+            dGamma/dt   = Gamma'(v) * v'(t)
+            d2Gamma/dt2 = Gamma''(v) * v'(t)^2 + Gamma'(v) * v''(t)
+        Verified against finite differences of gamma_impl.
+
+        Returns (X, Y, Z) and, if max_deriv >= 1, also
+        (dXdt, dYdt, dZdt), and if max_deriv >= 2, also
+        (d2Xdt2, d2Ydt2, d2Zdt2).
+        """
+        trimmed_ctrl_pts_im, knots_a = self._control_net_and_knots()
+        p = self.p
+        phi = np.asarray(quadpoints) * 2 * np.pi
+        v_sol = self._solve_v(phi, trimmed_ctrl_pts_im, knots_a)
+
+        if max_deriv >= 2:
+            basis_a, dbasis_a, d2basis_a = b_p_deriv2(knots_a, p, v_sol)
+        elif max_deriv == 1:
+            basis_a, dbasis_a = b_p_deriv(knots_a, p, v_sol)
+        else:
+            basis_a = b_p(knots_a, p, v_sol)
+
         X = np.einsum("i,ti->t", trimmed_ctrl_pts_im[:, 0], basis_a)
         Y = np.einsum("i,ti->t", trimmed_ctrl_pts_im[:, 1], basis_a)
         Z = np.einsum("i,ti->t", trimmed_ctrl_pts_im[:, 2], basis_a)
+        out = (X, Y, Z)
+        if max_deriv == 0:
+            return out
 
+        dX = np.einsum("i,ti->t", trimmed_ctrl_pts_im[:, 0], dbasis_a)
+        dY = np.einsum("i,ti->t", trimmed_ctrl_pts_im[:, 1], dbasis_a)
+        dZ = np.einsum("i,ti->t", trimmed_ctrl_pts_im[:, 2], dbasis_a)
+
+        # G = F_v = fprime(v_sol) from _solve_v, recomputed here since
+        # _solve_v doesn't hand it back.
+        G = (X * dY - Y * dX) / (X**2 + Y**2)
+        dvdt = 2 * np.pi / G
+        dXdt = dX * dvdt
+        dYdt = dY * dvdt
+        dZdt = dZ * dvdt
+        out = out + (dXdt, dYdt, dZdt)
+        if max_deriv == 1:
+            return out
+
+        d2X = np.einsum("i,ti->t", trimmed_ctrl_pts_im[:, 0], d2basis_a)
+        d2Y = np.einsum("i,ti->t", trimmed_ctrl_pts_im[:, 1], d2basis_a)
+        d2Z = np.einsum("i,ti->t", trimmed_ctrl_pts_im[:, 2], d2basis_a)
+
+        # G'(v): N = X*dY - Y*dX -> N' = X*d2Y - Y*d2X (the dX*dY, dY*dX
+        # cross terms cancel); D = X^2+Y^2 -> D' = 2*(X*dX + Y*dY); G=N/D.
+        N = X * dY - Y * dX
+        D = X**2 + Y**2
+        Np = X * d2Y - Y * d2X
+        Dp = 2 * (X * dX + Y * dY)
+        Gp = (Np * D - N * Dp) / D**2
+
+        d2vdt2 = -4 * np.pi**2 * Gp / G**3
+        d2Xdt2 = d2X * dvdt**2 + dX * d2vdt2
+        d2Ydt2 = d2Y * dvdt**2 + dY * d2vdt2
+        d2Zdt2 = d2Z * dvdt**2 + dZ * d2vdt2
+        out = out + (d2Xdt2, d2Ydt2, d2Zdt2)
+        return out
+
+    def is_toroidally_monotonic(self, n_check=2000):
+        """
+        Check whether the axis's toroidal angle atan2(Y(v), X(v))
+        increases monotonically with the NURBS parameter v -- the
+        assumption gamma_impl's Newton solve (_solve_v) relies on to find
+        a unique point at a given toroidal angle. Large dof perturbations
+        (especially with few control points) can produce an axis whose
+        projection onto the XY-plane briefly winds backward; there,
+        the toroidal-angle-matching problem has multiple solutions or
+        none nearby, and _solve_v either silently converges to the wrong
+        branch or raises scipy's generic "failed to converge" warning --
+        neither of which explains what's actually wrong. Checking this
+        before trusting an axis shape is much cheaper and clearer than
+        debugging a failed Newton solve after the fact.
+
+        Returns True if atan2(Y(v), X(v)) is monotonically increasing
+        over a dense sample of v in [0, 2*pi) -- this is a diagnostic,
+        not part of gamma_impl's own hot path, so it isn't called there.
+        """
+        trimmed_ctrl_pts_im, knots_a = self._control_net_and_knots()
+        p = self.p
+        v = np.linspace(0, 2 * np.pi, n_check, endpoint=False)
+        basis_a, dbasis_a = b_p_deriv(knots_a, p, v)
+        X = np.einsum("i,ti->t", trimmed_ctrl_pts_im[:, 0], basis_a)
+        Y = np.einsum("i,ti->t", trimmed_ctrl_pts_im[:, 1], basis_a)
+        dX = np.einsum("i,ti->t", trimmed_ctrl_pts_im[:, 0], dbasis_a)
+        dY = np.einsum("i,ti->t", trimmed_ctrl_pts_im[:, 1], dbasis_a)
+        # sign of dphi/dv == sign of (X*dY - Y*dX) -- the shared
+        # denominator X^2+Y^2 in the actual fprime is always positive.
+        return bool(np.all(X * dY - Y * dX > 0))
+
+    def gamma_impl(self, data, quadpoints):
+        X, Y, Z = self._gamma_and_derivs(quadpoints, max_deriv=0)
         data[:, 0] = X
         data[:, 1] = Y
         data[:, 2] = Z
+
+    def gammadash_impl(self, data):
+        _, _, _, dXdt, dYdt, dZdt = self._gamma_and_derivs(
+            self.quadpoints, max_deriv=1
+        )
+        data[:, 0] = dXdt
+        data[:, 1] = dYdt
+        data[:, 2] = dZdt
+
+    def gammadashdash_impl(self, data):
+        (_, _, _, _, _, _, d2Xdt2, d2Ydt2, d2Zdt2) = self._gamma_and_derivs(
+            self.quadpoints, max_deriv=2
+        )
+        data[:, 0] = d2Xdt2
+        data[:, 1] = d2Ydt2
+        data[:, 2] = d2Zdt2
+
+    def bishop_frame(self, quadpoints=None, n_prop=2000):
+        r"""
+        Rotation-minimizing (Bishop) frame of the axis, via the discrete
+        double-reflection method (Wang, Juttler, Zheng, Liu, ACM TOG
+        27(1), 2008), forced to close up exactly around the full torus.
+
+        Unlike the Frenet frame, this frame does NOT respect the axis's
+        own stellarator-symmetric reflection within a field period, and
+        no correction can make it -- verified directly (see "Bishop frame
+        stellarator symmetry.md" in the Obsidian vault for the full
+        derivation): the Frenet frame, being built purely from local
+        derivatives at each point, automatically inherits any exact
+        symmetry of the curve, but the Bishop/RMF normal accumulates a
+        path-dependent twist ("holonomy") as it's parallel-transported
+        along the curve, and this holonomy has no reason to vanish or
+        respect a discrete reflection symmetry. The correction that would
+        be needed to force reflection-symmetry is provably impossible (it
+        would have to be an odd function equal to a nonzero constant,
+        which no function can be) -- this is a genuine geometric
+        invariant of the axis shape, not a bug or a fixable choice of
+        initial normal.
+
+        What CAN be forced exactly is the field-period-to-field-period
+        ROTATIONAL periodicity: a linear-in-t twist correction added on
+        top of the raw propagated frame satisfies the periodicity
+        relation exactly (unlike the reflection case), so the corrected
+        frame tiles perfectly across all `nfp` field periods with no
+        seam. Construction: propagate the raw frame over one field
+        period, measure the (constant) rotational holonomy defect
+        between its two ends, subtract a linear-in-t correction sized to
+        cancel it exactly, then tile the corrected one-period frame by
+        the nfp-fold rotation to cover the full axis.
+
+        quadpoints : array-like of t (fraction in [0,1)), or None for
+            self.quadpoints.
+        n_prop : number of points used for the internal double-reflection
+            propagation over one field period -- an accuracy knob,
+            independent of how many points are actually being requested.
+
+        Returns (T, N, B), each (n, 3): T is the unit tangent, N is the
+        rotation-minimizing normal (up to the field-period tiling
+        correction above), B = T x N.
+        """
+        if quadpoints is None:
+            quadpoints = self.quadpoints
+        quadpoints = np.asarray(quadpoints)
+        nfp = self.nfp
+
+        # dense propagation grid over one field period -- avoid the exact
+        # t=0 point, which sits on the periodic wrap seam where the
+        # pre-existing Newton solve in _solve_v has a floating-point-level
+        # quirk (see gammadashdash_impl's validation).
+        t_dense = np.linspace(1e-8, 1.0 / nfp - 1e-8, n_prop)
+        X, Y, Z, dX, dY, dZ = self._gamma_and_derivs(t_dense, max_deriv=1)
+        gamma_dense = np.vstack([X, Y, Z]).T
+        gammadash_dense = np.vstack([dX, dY, dZ]).T
+
+        # seed the propagation with R-hat (the radial direction in the R-Z
+        # plane at the first point's own toroidal angle), projected to be
+        # orthogonal to the tangent there -- rather than a bare hardcoded
+        # axis, which would only coincide with R-hat by the accident of
+        # t_dense[0] sitting at zeta=0.
+        x0, y0 = gamma_dense[0, 0], gamma_dense[0, 1]
+        normal0 = np.array([x0, y0, 0.0])
+        normal0 /= np.linalg.norm(normal0)
+        t0 = gammadash_dense[0]
+        normal0 = normal0 - (normal0 @ t0) * t0 / (t0 @ t0)
+        normal0 /= np.linalg.norm(normal0)
+        _, N_dense, B_dense = double_reflection_rmf(
+            gamma_dense, gammadash_dense, normal0
+        )
+
+        def _Rz(ang):
+            c, s = np.cos(ang), np.sin(ang)
+            return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+
+        Rzp = _Rz(2 * np.pi / nfp)
+
+        # constant rotational holonomy defect over one field period: how
+        # far the propagated N at the far end differs from Rz(2pi/nfp)
+        # applied to N at the near end.
+        N_pred_end = Rzp @ N_dense[0]
+        B_pred_end = Rzp @ B_dense[0]
+        cos_defect = N_dense[-1] @ N_pred_end
+        sin_defect = N_dense[-1] @ B_pred_end
+        rot_defect = np.arctan2(sin_defect, cos_defect)
+
+        # linear-in-t correction: beta(t) = -rot_defect*nfp*t satisfies
+        # beta(t) - beta(t + 1/nfp) = rot_defect exactly, which is exactly
+        # what's needed for the corrected frame to tile without a seam.
+        beta = -rot_defect * nfp * t_dense
+        cB, sB = np.cos(beta), np.sin(beta)
+        N_corr = cB[:, None] * N_dense + sB[:, None] * B_dense
+
+        # evaluate at the actually-requested quadpoints: reduce into one
+        # field period, interpolate the corrected propagated normal there
+        # (T is cheap and exact, so it's recomputed directly rather than
+        # interpolated), then tile by the rigid nfp-fold rotation and
+        # re-orthonormalize against the exact tangent.
+        k = np.floor(quadpoints * nfp).astype(int)
+        t_local = quadpoints - k / nfp
+
+        N_local = np.empty((len(quadpoints), 3))
+        for i in range(3):
+            N_local[:, i] = np.interp(t_local, t_dense, N_corr[:, i])
+
+        N_rot = np.empty_like(N_local)
+        for kk in np.unique(k):
+            mask = k == kk
+            Rk = _Rz(kk * 2 * np.pi / nfp)
+            N_rot[mask] = (Rk @ N_local[mask].T).T
+
+        X, Y, Z, dX, dY, dZ = self._gamma_and_derivs(quadpoints, max_deriv=1)
+        gammadash = np.vstack([dX, dY, dZ]).T
+        T = gammadash / np.linalg.norm(gammadash, axis=1, keepdims=True)
+
+        N = N_rot - np.sum(N_rot * T, axis=1, keepdims=True) * T
+        N /= np.linalg.norm(N, axis=1, keepdims=True)
+        B = np.cross(T, N)
+
+        return T, N, B
 
     def set_dofs_impl(self, v):
         """
@@ -595,6 +848,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
         quadpoints_phi=None,
         quadpoints_theta=None,
         knot_parametrization="chord",
+        use_bishop_frame=False,
     ):
         """
         Parameters
@@ -612,6 +866,15 @@ class SurfaceBSpline(sopp.Surface, Surface):
             regardless of where the control points are ('uniform', the
             original behavior). See "Chord-length parametrization.md" for
             the math and references.
+        use_bishop_frame : bool
+            If False (the default), cross sections are placed in the
+            fixed-zeta poloidal plane (independent of how the axis bends),
+            matching the original behavior. If True, each cross section's
+            local (r, theta) is instead rotated into the axis's own Bishop
+            (rotation-minimizing) frame at that cross section's toroidal
+            angle -- see PseudoAxis.bishop_frame -- letting the axis's own
+            bending/twisting contribute to the boundary shape rather than
+            always sitting flat in the lab-frame R-Z plane.
         """
         if stellsym:
             max_angle = np.pi / nfp
@@ -642,6 +905,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
         self.cs_basis = cs_basis
         self.nurbs = nurbs
         self.knot_parametrization = knot_parametrization
+        self.use_bishop_frame = use_bishop_frame
 
         if dofs is None:
             # create equidistant points in zeta
@@ -778,6 +1042,43 @@ class SurfaceBSpline(sopp.Surface, Surface):
         z_axis = data[:, 2]
         return r_axis, z_axis
 
+    def _axis_local_basis(self, zeta):
+        """
+        Return the axis position and the local 2D basis (e1, e2) that
+        cross-section (r, theta) offsets are placed in at each zeta --
+        either the fixed-zeta poloidal-plane basis (-R_hat, Z_hat, the
+        original behavior), or, if self.use_bishop_frame, the axis's own
+        Bishop (rotation-minimizing) frame (-N, -B).
+
+        The sign flip on both N and B (rather than using them directly)
+        is so a planar/circular axis gives IDENTICAL cross sections
+        either way: there, Bishop's (N, B) reduce to (+R_hat, -Z_hat)
+        (Bishop coincides with Frenet up to the initial-normal choice,
+        and PseudoAxis.bishop_frame seeds N(0) along +R_hat -- see its
+        docstring), so (-N, -B) = (-R_hat, +Z_hat), exactly matching the
+        non-Bishop basis below. Toggling use_bishop_frame therefore
+        doesn't introduce a spurious flip for the simplest axis shape.
+
+        Returns axis_pos, e1, e2 -- each (len(zeta), 3).
+        """
+        zeta = np.asarray(zeta)
+        if self.use_bishop_frame:
+            data = np.zeros((len(zeta), 3))
+            self.axis.gamma_impl(data, zeta / (2 * np.pi))
+            _, N, B = self.axis.bishop_frame(zeta / (2 * np.pi))
+            return data, -N, -B
+        else:
+            r_axis, z_axis = self._axis_rz(zeta)
+            axis_pos = np.stack(
+                [r_axis * np.cos(zeta), r_axis * np.sin(zeta), z_axis],
+                axis=1,
+            )
+            e1 = np.stack(
+                [-np.cos(zeta), -np.sin(zeta), np.zeros_like(zeta)], axis=1
+            )
+            e2 = np.tile(np.array([0.0, 0.0, 1.0]), (len(zeta), 1))
+            return axis_pos, e1, e2
+
     def _get_control_points_xyz(self, return_w=False):
         """
         Return, for each cross section over the entire device domain, the
@@ -808,7 +1109,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
             [cs_zeta_1fp + n * (2 * np.pi / self.nfp) for n in range(self.nfp)]
         )
 
-        r_paxis, z_paxis = self._axis_rz(cs_zeta_full)
+        axis_pos, e1, e2 = self._axis_local_basis(cs_zeta_full)
 
         cs_list_1fp = [
             cs if (i // self.n_cs) == 0 else cs.flipped()
@@ -827,18 +1128,13 @@ class SurfaceBSpline(sopp.Surface, Surface):
             cs_r_ctrl_full = cs.get_r_ctrl_full()
             cs_theta_ctrl_full = cs.get_theta_ctrl_full()
             cs_w_ctrl_full = cs.get_w_ctrl_full()
-            zeta = cs_zeta_full[i]
             cs_pointlist = []
             for j, r_cs in enumerate(cs_r_ctrl_full):
                 theta = cs_theta_ctrl_full[j]
-                point_x = (
-                    r_paxis[i] - r_cs * np.cos(theta + cs_angle_full[i])
-                ) * np.cos(zeta)
-                point_y = (
-                    r_paxis[i] - r_cs * np.cos(theta + cs_angle_full[i])
-                ) * np.sin(zeta)
-                point_z = z_paxis[i] + r_cs * np.sin(theta + cs_angle_full[i])
-                new_point = np.array([point_x, point_y, point_z]).T
+                offset = r_cs * np.cos(theta + cs_angle_full[i]) * e1[i] + (
+                    r_cs * np.sin(theta + cs_angle_full[i]) * e2[i]
+                )
+                new_point = axis_pos[i] + offset
                 cs_pointlist.append(new_point)
             point_list.append(np.array(cs_pointlist))
             w_list.append(cs_w_ctrl_full)
@@ -868,8 +1164,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
             [cs_zeta_1fp + n * (2 * np.pi / self.nfp) for n in range(self.nfp)]
         )
 
-        r_paxis, z_paxis = self._axis_rz(cs_zeta_full)
-        # print(self.axis(cs_zeta_full))
+        axis_pos, e1, e2 = self._axis_local_basis(cs_zeta_full)
 
         cs_list_1fp = [
             cs if (i // self.n_cs) == 0 else cs.flipped()
@@ -885,24 +1180,17 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
         for i, cs in enumerate(cs_list_full):
             # point by point in each cross section
-            zeta = cs_zeta_full[i]
-            point_x = 0
-            point_y = 0
-            point_z = 0
             cs_r_ctrl_full = cs.get_r_ctrl_full()
             cs_theta_ctrl_full = cs.get_theta_ctrl_full()
+            point_sum = np.zeros(3)
             for j, r_cs in enumerate(cs_r_ctrl_full):
                 theta = cs_theta_ctrl_full[j]
-                point_x += (
-                    r_paxis[i] - r_cs * np.cos(theta + cs_angle_full[i])
-                ) * np.cos(zeta)
-                point_y += (
-                    r_paxis[i] - r_cs * np.cos(theta + cs_angle_full[i])
-                ) * np.sin(zeta)
-                point_z += z_paxis[i] + r_cs * np.sin(theta + cs_angle_full[i])
-            new_point = np.array([point_x, point_y, point_z]).T
-            new_point = new_point / len(cs_r_ctrl_full)
-            point_list.append(np.array(new_point))
+                offset = r_cs * np.cos(theta + cs_angle_full[i]) * e1[i] + (
+                    r_cs * np.sin(theta + cs_angle_full[i]) * e2[i]
+                )
+                point_sum += axis_pos[i] + offset
+            new_point = point_sum / len(cs_r_ctrl_full)
+            point_list.append(new_point)
         return point_list
 
     def get_rtz_full_device(self):
@@ -2807,15 +3095,19 @@ class SurfaceBSpline(sopp.Surface, Surface):
             else:
                 rtz = rtz[: (self.points_per_cs * self.n_cs), :]
             r_ctrl, theta_ctrl, zeta_ctrl = rtz[:, 0], rtz[:, 1], rtz[:, 2]
-            r_paxis, z_paxis = self._axis_rz(zeta_ctrl)
+            # matches _get_control_points_xyz's offset formula exactly
+            # (including which local basis -- fixed R-Z plane or the axis's
+            # own Bishop frame, per use_bishop_frame) so these quivers
+            # actually point at the real control points instead of where
+            # the old, hardcoded (-R_hat, Z_hat) basis would have put them.
+            axis_pos, e1, e2 = self._axis_local_basis(zeta_ctrl)
+            offset = (
+                r_ctrl[:, None] * np.cos(theta_ctrl)[:, None] * e1
+                + r_ctrl[:, None] * np.sin(theta_ctrl)[:, None] * e2
+            )
 
-            dir_x = np.cos(zeta_ctrl) * (-r_ctrl * np.cos(theta_ctrl))
-            dir_y = np.sin(zeta_ctrl) * (-r_ctrl * np.cos(theta_ctrl))
-            dir_z = r_ctrl * np.sin(theta_ctrl)
-
-            loc_x = r_paxis * np.cos(zeta_ctrl)
-            loc_y = r_paxis * np.sin(zeta_ctrl)
-            loc_z = z_paxis
+            loc_x, loc_y, loc_z = axis_pos[:, 0], axis_pos[:, 1], axis_pos[:, 2]
+            dir_x, dir_y, dir_z = offset[:, 0], offset[:, 1], offset[:, 2]
 
             ax.quiver(
                 loc_x, loc_y, loc_z, dir_x, dir_y, dir_z, **_rtz_vectors_kwargs

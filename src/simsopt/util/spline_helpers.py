@@ -105,6 +105,65 @@ def b_p_deriv(t, p, x):
     )
     return b[-1], deriv
 
+def b_p_deriv2(t, p, x):
+    '''
+    Compute the B-spline basis function B_pi, its first derivative dB_pi/dx,
+    and its second derivative d2B_pi/dx2, using the same recursive identity
+    as b_p_deriv applied one degree down:
+
+        dB_i,p/dx    = p * (B_i,p-1/(t[i+p]-t[i])   - B_i+1,p-1/(t[i+p+1]-t[i+1]))
+        d2B_i,p/dx2  = p * (dB_i,p-1/dx/(t[i+p]-t[i]) - dB_i+1,p-1/dx/(t[i+p+1]-t[i+1]))
+
+    i.e. the second derivative of the degree-p basis is the *same*
+    knot-difference/index structure as the first derivative, just applied to
+    the first derivative of the degree-(p-1) basis instead of its value.
+    Requires p >= 2 (needs the degree-(p-2) basis); for p < 2 the second
+    derivative is identically zero (piecewise-linear or -constant basis).
+
+    ## Inputs / Outputs: same convention as b_p (i=None, i.e. all basis
+    functions), but returns a (basis, deriv1, deriv2) triple, each of shape
+    (x, k).
+    '''
+    b = []
+    tt = t
+    xx = x
+    for deg in range(0, p+1):
+        if deg == 0:
+            x1d = xx.copy()
+            t1d = tt.copy()
+            tt = np.outer(np.ones(len(xx)), tt)
+            xx = np.expand_dims(xx, 0)
+            b0 = ((xx.T >= tt[:, :-1]) & (xx.T < tt[:, 1:]))
+            b0[np.isclose(x1d, t1d[-1]), np.isclose(t1d[1:], t1d[-1])] = 1
+            b.append(b0)
+        else:
+            l_term_n = (xx.T - tt[:, :-deg-1])
+            l_term_d = (tt[:, deg:-1] - tt[:, :-deg-1])
+            l_term = b[-1][:, :-1] * np.divide(l_term_n, l_term_d, out=np.zeros_like(l_term_d), where=l_term_d != 0)
+
+            r_term_n = (tt[:, deg+1:] - xx.T)
+            r_term_d = (tt[:, deg+1:] - tt[:, 1:-deg])
+            r_term = b[-1][:, 1:] * np.divide(r_term_n, r_term_d, out=np.zeros_like(r_term_d), where=r_term_d != 0)
+
+            b.append(l_term + r_term)
+
+    def _deriv_level(b_lower, d):
+        l_d = tt[:, d:-1] - tt[:, :-d-1]
+        r_d = tt[:, d+1:] - tt[:, 1:-d]
+        return d * (
+            np.divide(b_lower[:, :-1], l_d, out=np.zeros_like(l_d), where=l_d != 0)
+            - np.divide(b_lower[:, 1:], r_d, out=np.zeros_like(r_d), where=r_d != 0)
+        )
+
+    deriv1 = _deriv_level(b[p-1], p)
+    if p >= 2:
+        deriv1_pm1 = _deriv_level(b[p-2], p-1)
+        deriv2 = _deriv_level(deriv1_pm1, p)
+    else:
+        deriv2 = np.zeros_like(deriv1)
+
+    return b[-1], deriv1, deriv2
+
 def uniform_knots(n, p, domain=2*np.pi):
     '''
     Periodic, uniformly-spaced knot vector of degree p for a control array
@@ -161,6 +220,54 @@ def chord_length_knots(points, p, domain=2*np.pi):
     n_needed = (n + 1 + 2 * p) + p + 1
     start = (len(knots_wide) - n_needed) // 2
     return knots_wide[start:start + n_needed]
+
+def double_reflection_rmf(gamma, gammadash, normal0):
+    '''
+    Rotation-minimizing frame along a sequence of points via the discrete
+    double-reflection method (Wang, Juttler, Zheng, Liu, "Computation of
+    Rotation Minimizing Frames," ACM Transactions on Graphics 27(1), 2008).
+    Unlike a Frenet frame, the propagated normal N has no component of
+    d(N)/ds along B -- it only rotates about the curve's own bending, never
+    twisting about the tangent to track curvature-vector direction the way
+    Frenet's N does. Curve-agnostic: takes point/tangent samples directly,
+    no assumption of a closed curve or any particular parametrization.
+
+    gamma : (n, 3) array of points along the curve, in order.
+    gammadash : (n, 3) array of (unnormalized) tangent vectors at those
+        same points -- only the direction matters, so any consistent
+        parameter speed works.
+    normal0 : (3,) initial reference normal, must already be orthogonal to
+        gammadash[0] (not projected here -- silently projecting would hide
+        a caller bug rather than surface it).
+
+    Returns (T, N, B), each (n, 3): T is the normalized tangent, N is the
+    propagated rotation-minimizing normal, B = T x N completes a
+    right-handed orthonormal frame at every point. Does not force closure
+    on a periodic curve -- N[-1] and N[0] will generally differ even if
+    gamma[-1] == gamma[0]; that's a separate concern for the caller.
+    '''
+    n = gamma.shape[0]
+    T = gammadash / np.linalg.norm(gammadash, axis=1, keepdims=True)
+
+    N = np.zeros_like(gamma)
+    N[0] = normal0 / np.linalg.norm(normal0)
+
+    for i in range(n - 1):
+        v1 = gamma[i + 1] - gamma[i]
+        c1 = v1 @ v1
+        r_L = N[i] - (2 / c1) * (v1 @ N[i]) * v1
+        t_L = T[i] - (2 / c1) * (v1 @ T[i]) * v1
+
+        v2 = T[i + 1] - t_L
+        c2 = v2 @ v2
+        if c2 > 1e-14:
+            N[i + 1] = r_L - (2 / c2) * (v2 @ r_L) * v2
+        else:
+            N[i + 1] = r_L
+        N[i + 1] /= np.linalg.norm(N[i + 1])
+
+    B = np.cross(T, N)
+    return T, N, B
 
 def rot_matrix_2d(theta):
     return np.array(
