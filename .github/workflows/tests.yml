@@ -172,7 +172,7 @@ jobs:
     - name: Install simsopt package
       # run: env CMAKE_BUILD_TYPE=Debug pip install -v .[MPI,SPEC]
       # run: pip install -v ".[MPI,SPEC,VIS]"
-      run: pip install -v ".[MPI,VIS]"
+      run: pip install -v ".[MPI,VIS,GVEC]"
 
     - name: Verify that importing simsopt does not automatically initialize MPI
       run: ./tests/verify_MPI_not_initialized.py
@@ -186,6 +186,7 @@ jobs:
         ./run_vmec_examples
         # ./run_spec_examples
         # ./run_spec_vmec_examples
+        ./run_gvec_examples
 
     - name: Install coverage dependencies
       if: contains(matrix.test-type, 'unit')
