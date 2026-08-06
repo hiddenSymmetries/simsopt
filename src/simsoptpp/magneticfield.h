@@ -39,6 +39,7 @@ class MagneticField {
         using Tensor2 = T<double, 2, xt::layout_type::row_major>;
         using Tensor3 = T<double, 3, xt::layout_type::row_major>;
         using Tensor4 = T<double, 4, xt::layout_type::row_major>;
+        using Tensor5 = T<double, 5, xt::layout_type::row_major>;
 
     protected:
         void get_points_cyl_impl(Tensor2& points_cyl) {
@@ -133,6 +134,7 @@ class MagneticField {
         virtual void _B_impl(Tensor2& B) { throw logic_error("_B_impl was not implemented"); }
         virtual void _dB_by_dX_impl(Tensor3& dB_by_dX) { throw logic_error("_dB_by_dX_impl was not implemented"); }
         virtual void _d2B_by_dXdX_impl(Tensor4& d2B_by_dXdX) { throw logic_error("_d2B_by_dXdX_impl was not implemented"); }
+        virtual void _d3B_by_dXdXdX_impl(Tensor5& d3B_by_dXdXdX) { throw logic_error("_d3B_by_dXdXdX_impl was not implemented"); }
         virtual void _A_impl(Tensor2& A) { throw logic_error("_A_impl was not implemented"); }
         virtual void _dA_by_dX_impl(Tensor3& dA_by_dX) { throw logic_error("_dA_by_dX_impl was not implemented"); }
         virtual void _d2A_by_dXdX_impl(Tensor4& d2A_by_dXdX) { throw logic_error("_d2A_by_dXdX_impl was not implemented"); }
@@ -142,6 +144,7 @@ class MagneticField {
         CachedTensor<T, 2> data_B, data_A, data_GradAbsB, data_AbsB, data_Bcyl, data_Acyl, data_GradAbsBcyl;
         CachedTensor<T, 3> data_dB, data_dA;
         CachedTensor<T, 4> data_ddB, data_ddA;
+        CachedTensor<T, 5> data_dddB;
         int npoints;
 
     public:
@@ -154,6 +157,7 @@ class MagneticField {
             data_B.invalidate_cache();
             data_dB.invalidate_cache();
             data_ddB.invalidate_cache();
+            data_dddB.invalidate_cache();
             data_A.invalidate_cache();
             data_dA.invalidate_cache();
             data_ddA.invalidate_cache();
@@ -218,9 +222,13 @@ class MagneticField {
         Tensor4& d2B_by_dXdX_ref() {
             return data_ddB.get_or_create_and_fill({npoints, 3, 3, 3}, [this](Tensor4& d2B_by_dXdX) { return _d2B_by_dXdX_impl(d2B_by_dXdX);});
         }
+        Tensor5& d3B_by_dXdXdX_ref() {
+            return data_dddB.get_or_create_and_fill({npoints, 3, 3, 3, 3}, [this](Tensor5& d3B_by_dXdXdX) { return _d3B_by_dXdXdX_impl(d3B_by_dXdXdX);});
+        }
         Tensor2 B() { return B_ref(); }
         Tensor3 dB_by_dX() { return dB_by_dX_ref(); }
         Tensor4 d2B_by_dXdX() { return d2B_by_dXdX_ref(); }
+        Tensor5 d3B_by_dXdXdX() { return d3B_by_dXdXdX_ref(); }
 
         Tensor2& A_ref() {
             return data_A.get_or_create_and_fill({npoints, 3}, [this](Tensor2& A) { return _A_impl(A);});

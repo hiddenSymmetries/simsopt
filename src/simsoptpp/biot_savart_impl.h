@@ -19,7 +19,7 @@ using namespace std;
 
 template<class T, int derivs>
 void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, AlignedPaddedVec& pointsz,
-            T& gamma, T& dgamma_by_dphi, T& B, T& dB_by_dX, T& d2B_by_dXdX) {
+            T& gamma, T& dgamma_by_dphi, T& B, T& dB_by_dX, T& d2B_by_dXdX, T& d3B_by_dXdXdX) {
     if(gamma.layout() != xt::layout_type::row_major)
           throw std::runtime_error("gamma needs to be in row-major storage order");
     if(dgamma_by_dphi.layout() != xt::layout_type::row_major)
@@ -41,6 +41,14 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
             Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
         };
     }
+    // d3B_dXdXdX_i holds the 27 entries of the third derivative tensor, indexed
+    // as 9*k1 + 3*k2 + k3. Only the entries with k1>=k2>=k3 are accumulated (the
+    // tensor is fully symmetric in its three derivative indices); the remaining
+    // permutations are filled in during the write-out below.
+    auto d3B_dXdXdX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>();
+    MYIF(derivs > 2) {
+        d3B_dXdXdX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>(27, Vec3dSimd());
+    }
     double fak = (1e-7/num_quad_points);
     double* gamma_j_ptr = &(gamma(0, 0));
     double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
@@ -58,6 +66,10 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
             d2B_dXdX_i[0] *= 0.; d2B_dXdX_i[1] *= 0.; d2B_dXdX_i[2] *= 0.;
             d2B_dXdX_i[3] *= 0.; d2B_dXdX_i[4] *= 0.; d2B_dXdX_i[5] *= 0.;
             d2B_dXdX_i[6] *= 0.; d2B_dXdX_i[7] *= 0.; d2B_dXdX_i[8] *= 0.;
+        }
+        MYIF(derivs > 2) {
+            for(int q=0; q<27; q++)
+                d3B_dXdXdX_i[q] *= 0.;
         }
         for (int j = 0; j < num_quad_points; ++j) {
             auto diff = point_i - Vec3dSimd(gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]);
@@ -128,6 +140,38 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
 
                         }
                     }
+                    MYIF(derivs > 2) {
+                        auto norm_diff_9_inv = norm_diff_7_inv*norm_diff_inv*norm_diff_inv;
+                        auto fak7 = norm_diff_7_inv*15.;
+                        auto fak5 = norm_diff_5_inv*(-3.);
+                        auto fak9 = norm_diff_9_inv*(-105.);
+                        // c_k = dgamma_by_dphi x e_k, the derivative of dgamma_by_dphi x diff w.r.t. x_k
+                        Vec3dSimd ck[3] = {
+                            cross(dgamma_by_dphi_j_simd, 0),
+                            cross(dgamma_by_dphi_j_simd, 1),
+                            cross(dgamma_by_dphi_j_simd, 2)
+                        };
+#pragma unroll
+                        for(int k1=0; k1<3; k1++) {
+#pragma unroll
+                            for(int k2=0; k2<=k1; k2++) {
+#pragma unroll
+                                for(int k3=0; k3<=k2; k3++) {
+                                    auto coef_ck1 = fak7*diff[k2]*diff[k3];
+                                    auto coef_ck2 = fak7*diff[k1]*diff[k3];
+                                    auto coef_ck3 = fak7*diff[k1]*diff[k2];
+                                    if(k2==k3) coef_ck1 = coef_ck1 + fak5;
+                                    if(k1==k3) coef_ck2 = coef_ck2 + fak5;
+                                    if(k1==k2) coef_ck3 = coef_ck3 + fak5;
+                                    auto coef_c = fak9*diff[k1]*diff[k2]*diff[k3];
+                                    if(k1==k2) coef_c = coef_c + fak7*diff[k3];
+                                    if(k1==k3) coef_c = coef_c + fak7*diff[k2];
+                                    if(k2==k3) coef_c = coef_c + fak7*diff[k1];
+                                    d3B_dXdXdX_i[9*k1 + 3*k2 + k3] += ck[k1]*coef_ck1 + ck[k2]*coef_ck2 + ck[k3]*coef_ck3 + dgamma_by_dphi_j_cross_diff*coef_c;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -164,6 +208,27 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
                     }
                 }
             }
+            MYIF(derivs > 2) {
+                for(int k1=0; k1<3; k1++) {
+                    for(int k2=0; k2<=k1; k2++) {
+                        for(int k3=0; k3<=k2; k3++) {
+                            double vx = fak*d3B_dXdXdX_i[9*k1 + 3*k2 + k3].x[j];
+                            double vy = fak*d3B_dXdXdX_i[9*k1 + 3*k2 + k3].y[j];
+                            double vz = fak*d3B_dXdXdX_i[9*k1 + 3*k2 + k3].z[j];
+                            // the third derivative is fully symmetric, so scatter the
+                            // value computed for the sorted triple (k1>=k2>=k3) to all
+                            // permutations (duplicate writes for repeated indices are
+                            // harmless as the value is identical).
+                            int perms[6][3] = {{k1,k2,k3},{k1,k3,k2},{k2,k1,k3},{k2,k3,k1},{k3,k1,k2},{k3,k2,k1}};
+                            for(int m=0; m<6; m++) {
+                                d3B_by_dXdXdX(i+j, perms[m][0], perms[m][1], perms[m][2], 0) = vx;
+                                d3B_by_dXdXdX(i+j, perms[m][0], perms[m][1], perms[m][2], 1) = vy;
+                                d3B_by_dXdXdX(i+j, perms[m][0], perms[m][1], perms[m][2], 2) = vz;
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -172,7 +237,7 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
 
 template<class T, int derivs>
 void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, AlignedPaddedVec& pointsz,
-            T& gamma, T& dgamma_by_dphi, T& B, T& dB_by_dX, T& d2B_by_dXdX) {
+            T& gamma, T& dgamma_by_dphi, T& B, T& dB_by_dX, T& d2B_by_dXdX, T& d3B_by_dXdXdX) {
     if(gamma.layout() != xt::layout_type::row_major)
           throw std::runtime_error("gamma needs to be in row-major storage order");
     if(dgamma_by_dphi.layout() != xt::layout_type::row_major)
@@ -193,6 +258,14 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
             Vec3dStd(), Vec3dStd(), Vec3dStd()
         };
     }
+    // d3B_dXdXdX_i holds the 27 entries of the third derivative tensor, indexed
+    // as 9*k1 + 3*k2 + k3. Only the entries with k1>=k2>=k3 are accumulated (the
+    // tensor is fully symmetric in its three derivative indices); the remaining
+    // permutations are filled in during the write-out below.
+    auto d3B_dXdXdX_i = vector<Vec3dStd>();
+    MYIF(derivs > 2) {
+        d3B_dXdXdX_i = vector<Vec3dStd>(27, Vec3dStd());
+    }
     double fak = (1e-7/num_quad_points);
     double* gamma_j_ptr = &(gamma(0, 0));
     double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
@@ -210,6 +283,10 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
             d2B_dXdX_i[0] *= 0.; d2B_dXdX_i[1] *= 0.; d2B_dXdX_i[2] *= 0.;
             d2B_dXdX_i[3] *= 0.; d2B_dXdX_i[4] *= 0.; d2B_dXdX_i[5] *= 0.;
             d2B_dXdX_i[6] *= 0.; d2B_dXdX_i[7] *= 0.; d2B_dXdX_i[8] *= 0.;
+        }
+        MYIF(derivs > 2) {
+            for(int q=0; q<27; q++)
+                d3B_dXdXdX_i[q] *= 0.;
         }
        // #pragma omp simd aligned(pointsx, pointsy, pointsz: 64)
         for (int j = 0; j < num_quad_points; ++j) {
@@ -257,6 +334,38 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
                             d2B_dXdX_i[3*k1 + k2] += term3fak * dgamma_by_dphi_j_cross_diff;
                         }
                     }
+                    MYIF(derivs > 2) {
+                        auto norm_diff_9_inv = norm_diff_7_inv*norm_diff_inv*norm_diff_inv;
+                        auto fak7 = norm_diff_7_inv*15.;
+                        auto fak5 = norm_diff_5_inv*(-3.);
+                        auto fak9 = norm_diff_9_inv*(-105.);
+                        // c_k = dgamma_by_dphi x e_k, the derivative of dgamma_by_dphi x diff w.r.t. x_k
+                        Vec3dStd ck[3] = {
+                            cross(dgamma_by_dphi_j_simd, 0),
+                            cross(dgamma_by_dphi_j_simd, 1),
+                            cross(dgamma_by_dphi_j_simd, 2)
+                        };
+#pragma unroll
+                        for(int k1=0; k1<3; k1++) {
+#pragma unroll
+                            for(int k2=0; k2<=k1; k2++) {
+#pragma unroll
+                                for(int k3=0; k3<=k2; k3++) {
+                                    auto coef_ck1 = fak7*diff[k2]*diff[k3];
+                                    auto coef_ck2 = fak7*diff[k1]*diff[k3];
+                                    auto coef_ck3 = fak7*diff[k1]*diff[k2];
+                                    if(k2==k3) coef_ck1 += fak5;
+                                    if(k1==k3) coef_ck2 += fak5;
+                                    if(k1==k2) coef_ck3 += fak5;
+                                    auto coef_c = fak9*diff[k1]*diff[k2]*diff[k3];
+                                    if(k1==k2) coef_c += fak7*diff[k3];
+                                    if(k1==k3) coef_c += fak7*diff[k2];
+                                    if(k2==k3) coef_c += fak7*diff[k1];
+                                    d3B_dXdXdX_i[9*k1 + 3*k2 + k3] += ck[k1]*coef_ck1 + ck[k2]*coef_ck2 + ck[k3]*coef_ck3 + dgamma_by_dphi_j_cross_diff*coef_c;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -281,6 +390,27 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
                         d2B_by_dXdX(i, k2, k1, 0) = fak*d2B_dXdX_i[3*k1 + k2].x;
                         d2B_by_dXdX(i, k2, k1, 1) = fak*d2B_dXdX_i[3*k1 + k2].y;
                         d2B_by_dXdX(i, k2, k1, 2) = fak*d2B_dXdX_i[3*k1 + k2].z;
+                    }
+                }
+            }
+        }
+        MYIF(derivs > 2) {
+            for(int k1=0; k1<3; k1++) {
+                for(int k2=0; k2<=k1; k2++) {
+                    for(int k3=0; k3<=k2; k3++) {
+                        double vx = fak*d3B_dXdXdX_i[9*k1 + 3*k2 + k3].x;
+                        double vy = fak*d3B_dXdXdX_i[9*k1 + 3*k2 + k3].y;
+                        double vz = fak*d3B_dXdXdX_i[9*k1 + 3*k2 + k3].z;
+                        // the third derivative is fully symmetric, so scatter the
+                        // value computed for the sorted triple (k1>=k2>=k3) to all
+                        // permutations (duplicate writes for repeated indices are
+                        // harmless as the value is identical).
+                        int perms[6][3] = {{k1,k2,k3},{k1,k3,k2},{k2,k1,k3},{k2,k3,k1},{k3,k1,k2},{k3,k2,k1}};
+                        for(int m=0; m<6; m++) {
+                            d3B_by_dXdXdX(i, perms[m][0], perms[m][1], perms[m][2], 0) = vx;
+                            d3B_by_dXdXdX(i, perms[m][0], perms[m][1], perms[m][2], 1) = vy;
+                            d3B_by_dXdXdX(i, perms[m][0], perms[m][1], perms[m][2], 2) = vz;
+                        }
                     }
                 }
             }

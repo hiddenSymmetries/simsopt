@@ -16,16 +16,20 @@ void BiotSavart<T, Array>::compute(int derivatives) {
     this->fill_points(points);
     Array dummyjac = xt::zeros<double>({1, 1, 1});
     Array dummyhess = xt::zeros<double>({1, 1, 1, 1});
+    Array dummythird = xt::zeros<double>({1, 1, 1, 1, 1});
     Tensor3 _dummyjac = xt::zeros<double>({1, 1, 1});
     Tensor4 _dummyhess = xt::zeros<double>({1, 1, 1, 1});
+    Tensor5 _dummythird = xt::zeros<double>({1, 1, 1, 1, 1});
     int ncoils = this->coils.size();
     Tensor2& B = data_B.get_or_create({npoints, 3});
     Tensor3& dB = derivatives >= 1 ? data_dB.get_or_create({npoints, 3, 3}) : _dummyjac;
     Tensor4& ddB = derivatives >= 2 ? data_ddB.get_or_create({npoints, 3, 3, 3}) : _dummyhess;
+    Tensor5& dddB = derivatives >= 3 ? data_dddB.get_or_create({npoints, 3, 3, 3, 3}) : _dummythird;
 
     set_array_to_zero(B);
     set_array_to_zero(dB);
     set_array_to_zero(ddB);
+    set_array_to_zero(dddB);
 
     std::vector<double> currents(ncoils, 0.);
     // Creating new xtensor arrays from an openmp thread doesn't appear
@@ -38,6 +42,8 @@ void BiotSavart<T, Array>::compute(int derivatives) {
             field_cache.get_or_create(fmt::format("dB_{}", i), {npoints, 3, 3});
         if(derivatives > 1)
             field_cache.get_or_create(fmt::format("ddB_{}", i), {npoints, 3, 3, 3});
+        if(derivatives > 2)
+            field_cache.get_or_create(fmt::format("dddB_{}", i), {npoints, 3, 3, 3, 3});
         currents[i] = this->coils[i]->current->get_value();
     }
 
@@ -49,19 +55,25 @@ void BiotSavart<T, Array>::compute(int derivatives) {
         Array& gammadash = this->coils[i]->curve->gammadash();
         double current = currents[i];
         if(derivatives == 0){
-            biot_savart_kernel<Array, 0>(pointsx, pointsy, pointsz, gamma, gammadash, Bi, dummyjac, dummyhess);
+            biot_savart_kernel<Array, 0>(pointsx, pointsy, pointsz, gamma, gammadash, Bi, dummyjac, dummyhess, dummythird);
         } else {
             Array& dBi = field_cache.get_or_create(fmt::format("dB_{}", i), {npoints, 3, 3});
             set_array_to_zero(dBi);
             if(derivatives == 1) {
-                biot_savart_kernel<Array, 1>(pointsx, pointsy, pointsz, gamma, gammadash, Bi, dBi, dummyhess);
+                biot_savart_kernel<Array, 1>(pointsx, pointsy, pointsz, gamma, gammadash, Bi, dBi, dummyhess, dummythird);
             } else {
                 Array& ddBi = field_cache.get_or_create(fmt::format("ddB_{}", i), {npoints, 3, 3, 3});
                 set_array_to_zero(ddBi);
                 if (derivatives == 2) {
-                    biot_savart_kernel<Array, 2>(pointsx, pointsy, pointsz, gamma, gammadash, Bi, dBi, ddBi);
+                    biot_savart_kernel<Array, 2>(pointsx, pointsy, pointsz, gamma, gammadash, Bi, dBi, ddBi, dummythird);
                 } else {
-                    throw logic_error("Only two derivatives of Biot Savart implemented");
+                    Array& dddBi = field_cache.get_or_create(fmt::format("dddB_{}", i), {npoints, 3, 3, 3, 3});
+                    set_array_to_zero(dddBi);
+                    if (derivatives == 3) {
+                        biot_savart_kernel<Array, 3>(pointsx, pointsy, pointsz, gamma, gammadash, Bi, dBi, ddBi, dddBi);
+                    } else {
+                        throw logic_error("Only three derivatives of Biot Savart implemented");
+                    }
                 }
             }
         }
@@ -83,6 +95,13 @@ void BiotSavart<T, Array>::compute(int derivatives) {
             Array& ddBi = field_cache.get_or_create(fmt::format("ddB_{}", i), {npoints, 3, 3, 3});
             double current = this->coils[i]->current->get_value();
             xt::noalias(ddB) = ddB + current * ddBi;
+        }
+    }
+    if(derivatives>=3) {
+        for (int i = 0; i < ncoils; ++i) {
+            Array& dddBi = field_cache.get_or_create(fmt::format("dddB_{}", i), {npoints, 3, 3, 3, 3});
+            double current = this->coils[i]->current->get_value();
+            xt::noalias(dddB) = dddB + current * dddBi;
         }
     }
 }
