@@ -98,6 +98,29 @@ void biot_savart_vjp_graph(Array& points, vector<Array>& gammas, vector<Array>& 
     }
 }
 
+void biot_savart_gradgradB_vjp_graph(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<double>& currents, Array& vgradgrad, vector<Array>& res_gradgrad_gamma, vector<Array>& res_gradgrad_dgamma_by_dphi) {
+    auto pointsx = AlignedPaddedVec(points.shape(0), 0);
+    auto pointsy = AlignedPaddedVec(points.shape(0), 0);
+    auto pointsz = AlignedPaddedVec(points.shape(0), 0);
+    for (int i = 0; i < points.shape(0); ++i) {
+        pointsx[i] = points(i, 0);
+        pointsy[i] = points(i, 1);
+        pointsz[i] = points(i, 2);
+    }
+
+    int num_coils  = gammas.size();
+
+    #pragma omp parallel for
+    for(int i=0; i<num_coils; i++) {
+        biot_savart_gradgradB_vjp_kernel<Array>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i],
+                vgradgrad, res_gradgrad_gamma[i], res_gradgrad_dgamma_by_dphi[i]);
+
+        double fak = (currents[i] * 1e-7/gammas[i].shape(0));
+        res_gradgrad_gamma[i] *= fak;
+        res_gradgrad_dgamma_by_dphi[i] *= fak;
+    }
+}
+
 void biot_savart_vector_potential_vjp_graph(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<double>& currents, Array& v, vector<Array>& res_gamma, vector<Array>& res_dgamma_by_dphi, Array& vgrad, vector<Array>& res_grad_gamma, vector<Array>& res_grad_dgamma_by_dphi) {
     auto pointsx = AlignedPaddedVec(points.shape(0), 0);
     auto pointsy = AlignedPaddedVec(points.shape(0), 0);

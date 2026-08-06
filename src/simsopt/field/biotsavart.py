@@ -91,6 +91,49 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
 
         return res
 
+    def B_and_dB_and_d2B_vjp(self, v, vgrad, vgradgrad):
+        r"""
+        Same as :obj:`simsopt.geo.biotsavart.BiotSavart.B_and_dB_vjp` but additionally returns the vector Jacobian product for :math:`\nabla \nabla B`, i.e. it returns
+
+        .. math::
+
+            \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k, \{ \sum_{i=1}^{n} {\mathbf{v}_\mathrm{grad}}_i \cdot \partial_{\mathbf{c}_k} \nabla \mathbf{B}_i \}_k, \{ \sum_{i=1}^{n} {\mathbf{v}_\mathrm{gradgrad}}_i \cdot \partial_{\mathbf{c}_k} \nabla \nabla \mathbf{B}_i \}_k.
+
+        Here ``vgradgrad`` has the same shape as :obj:`d2B_by_dXdX`, i.e. ``(n, 3, 3, 3)``.
+        """
+
+        coils = self._coils
+        gammas = [coil.curve.gamma() for coil in coils]
+        gammadashs = [coil.curve.gammadash() for coil in coils]
+        currents = [coil.current.get_value() for coil in coils]
+        res_gamma = [np.zeros_like(gamma) for gamma in gammas]
+        res_gammadash = [np.zeros_like(gammadash) for gammadash in gammadashs]
+        res_grad_gamma = [np.zeros_like(gamma) for gamma in gammas]
+        res_grad_gammadash = [np.zeros_like(gammadash) for gammadash in gammadashs]
+        res_gradgrad_gamma = [np.zeros_like(gamma) for gamma in gammas]
+        res_gradgrad_gammadash = [np.zeros_like(gammadash) for gammadash in gammadashs]
+
+        points = self.get_points_cart_ref()
+        sopp.biot_savart_vjp_graph(points, gammas, gammadashs, currents, v,
+                                   res_gamma, res_gammadash, vgrad, res_grad_gamma, res_grad_gammadash)
+        sopp.biot_savart_gradgradB_vjp_graph(points, gammas, gammadashs, currents, vgradgrad,
+                                             res_gradgrad_gamma, res_gradgrad_gammadash)
+
+        dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
+        res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
+        d2B_by_dXdcoilcurrents = self.d2B_by_dXdcoilcurrents()
+        res_grad_current = [np.sum(vgrad * d2B_by_dXdcoilcurrents[i]) for i in range(len(d2B_by_dXdcoilcurrents))]
+        d3B_by_dXdXdcoilcurrents = self.d3B_by_dXdXdcoilcurrents()
+        res_gradgrad_current = [np.sum(vgradgrad * d3B_by_dXdXdcoilcurrents[i]) for i in range(len(d3B_by_dXdXdcoilcurrents))]
+
+        res = (
+            sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))]),
+            sum([coils[i].vjp(res_grad_gamma[i], res_grad_gammadash[i], np.asarray([res_grad_current[i]])) for i in range(len(coils))]),
+            sum([coils[i].vjp(res_gradgrad_gamma[i], res_gradgrad_gammadash[i], np.asarray([res_gradgrad_current[i]])) for i in range(len(coils))])
+        )
+
+        return res
+
     def B_vjp(self, v):
         r"""
         Assume the field was evaluated at points :math:`\mathbf{x}_i, i\in \{1, \ldots, n\}` and denote the value of the field at those points by
