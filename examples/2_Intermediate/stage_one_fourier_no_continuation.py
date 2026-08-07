@@ -59,62 +59,57 @@ proc0_print("Beginning optimization")
 # solver options
 # options = {"disp": True, "ftol": 1e-7, "maxiter": 300}
 # solve the problem
-for step in range(3):
-    max_mode = step + 1
+max_mode = 3
 
-    # # VMEC's mpol & ntor will be 3, 4, 5:
-    # vmec.indata.mpol = 3 + step
-    # vmec.indata.ntor = vmec.indata.mpol
+proc0_print(
+    "Beginning optimization with max_mode =",
+    max_mode,
+    ", vmec mpol=ntor=",
+    vmec.indata.mpol,
+    ". Previous vmec iteration = ",
+    vmec.iter,
+)
 
-    proc0_print(
-        "Beginning optimization with max_mode =",
-        max_mode,
-        ", vmec mpol=ntor=",
-        vmec.indata.mpol,
-        ". Previous vmec iteration = ",
-        vmec.iter,
-    )
+# Define parameter space:
+surf.fix_all()
+surf.fixed_range(
+    mmin=0, mmax=max_mode, nmin=-max_mode, nmax=max_mode, fixed=False
+)
+surf.fix("rc(0,0)")  # Major radius
 
-    # Define parameter space:
-    surf.fix_all()
-    surf.fixed_range(
-        mmin=0, mmax=max_mode, nmin=-max_mode, nmax=max_mode, fixed=False
-    )
-    surf.fix("rc(0,0)")  # Major radius
+# put bound constraints on the variables
+n_dofs = len(surf.x)
+surf.upper_bounds = 10 * np.ones(n_dofs)
+surf.lower_bounds = -5 * np.ones(n_dofs)
+surf.set_upper_bound("rc(1,0)", 1.0)
 
-    # put bound constraints on the variables
-    n_dofs = len(surf.x)
-    surf.upper_bounds = 10 * np.ones(n_dofs)
-    surf.lower_bounds = -5 * np.ones(n_dofs)
-    surf.set_upper_bound("rc(1,0)", 1.0)
+# solver options
+options = {"disp": True, "ftol": 1e-7, "maxiter": 1}
+# solve the problem
+proc0_print(f"ndofs: {len(prob.x)}")
+least_squares_mpi_solve(
+    prob,
+    mpi,
+    grad=True,
+    rel_step=1e-12,
+    abs_step=1e-8,  # **options
+    # x_scale="jac",
+)
+xopt = prob.x
 
-    # solver options
-    options = {"disp": True, "ftol": 1e-7, "maxiter": 1}
-    # solve the problem
-    proc0_print(f"ndofs: {len(prob.x)}")
-    least_squares_mpi_solve(
-        prob,
-        mpi,
-        grad=True,
-        rel_step=1e-12,
-        abs_step=1e-6,  # **options
-        # x_scale="jac",
-    )
-    xopt = prob.x
+# Preserve the output file from the last iteration, so it is not
+# deleted when vmec runs again:
+vmec.files_to_delete = []
 
-    # Preserve the output file from the last iteration, so it is not
-    # deleted when vmec runs again:
-    vmec.files_to_delete = []
-
-    # evaluate the solution
-    surf.x = xopt
-    vmec.run()
-    proc0_print("")
-    proc0_print(f"Completed optimization with max_mode ={max_mode}. ")
-    proc0_print(f"Final vmec iteration = {vmec.iter}")
-    proc0_print("Quasisymmetry:", qs.total())
-    proc0_print("aspect ratio:", vmec.aspect())
-    proc0_print("rotational transform:", vmec.mean_iota())
+# evaluate the solution
+surf.x = xopt
+vmec.run()
+proc0_print("")
+proc0_print(f"Completed optimization with max_mode ={max_mode}. ")
+proc0_print(f"Final vmec iteration = {vmec.iter}")
+proc0_print("Quasisymmetry:", qs.total())
+proc0_print("aspect ratio:", vmec.aspect())
+proc0_print("rotational transform:", vmec.mean_iota())
 
 # Preserve the output file from the last iteration, so it is not
 # deleted when vmec runs again:

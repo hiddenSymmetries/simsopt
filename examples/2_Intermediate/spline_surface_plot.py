@@ -6,6 +6,7 @@ import numpy as np
 from simsopt.geo.surfacespline import SurfaceBSpline
 from simsopt.mhd import Vmec
 from simsopt.util.mpi import MpiPartition
+from simsopt.util.spline_helpers import print_dofs_nicely
 
 matplotlib.use("qtagg")
 mpi = MpiPartition()
@@ -80,16 +81,16 @@ if __name__ == "__main__":
     spline_kwargs = {
         "axis_points": 3,
         "points_per_cs": 4,
-        "n_cs": 5,
+        "n_cs": 3,
         "nfp": 2,
-        "M": 9,
+        "M": 8,
         "N": 4,
         "p_u": 3,
         "p_v": 3,
         "cs_equispaced": False,
         "rays_equispaced": False,
         "cs_global_angle_free": False,
-        "axis_angles_fixed": True,
+        "axis_angles_fixed": False,
         "cs_basis": "polar",
         "nurbs": False,
         "use_bishop_frame": True,
@@ -98,7 +99,7 @@ if __name__ == "__main__":
     dof_list, ub, lb = write_doflist_maxlist_minlist(spline_kwargs)
 
     spline_surf = SurfaceBSpline(
-        default_r=0.1,
+        default_r=0.3,
         **spline_kwargs,
     )
     # spline_surf.axis.fix("r_axis_0")
@@ -145,48 +146,33 @@ if __name__ == "__main__":
     # )
     new_x = np.array(
         [
-            2.6067667611835238e-01,
-            1.5962168200705751e-01,
-            3.7411497658550258e-01,
-            1.8724448830281659e00,
-            2.3338624223294621e-01,
-            3.2150184663648790e-01,
-            3.2613844809481529e-01,
-            1.6971518042958636e-01,
-            2.0453913132576922e00,
-            2.8044484292096707e00,
-            5.4804964747039158e00,
-            1.5772150171952681e-01,
-            4.7733190183376528e-01,
-            2.1530345520305871e-01,
-            3.0345982487946932e-01,
-            1.8319011772301437e00,
-            2.5940338912925736e00,
-            5.4977397097618557e00,
-            5.8669212271613140e-02,
-            5.3993802889822151e-01,
-            1.8226470357968494e-01,
-            4.4381681066087036e-01,
-            1.5769285408231206e00,
-            2.8592352205487059e00,
-            5.1846416249935512e00,
-            4.2254315976128054e-02,
-            5.3830692601160246e-01,
-            1.7633139946554804e-01,
-            1.3129864710963826e00,
-            7.3005778052073900e-01,
-            9.8711154836876303e-01,
-            1.4337994433154826e00,
-            -3.7418614458967198e-01,
-            4.0394075296966536e-01,
-            8.3976605506936797e-01,
-            1.2233671393083456e00,
+            1.2306775093840139e-01,
+            3.4624555060122159e-01,
+            7.8049928835517257e-02,
+            1.5505118933976567e00,
+            1.4641788790891058e-01,
+            2.7820786982997625e-01,
+            3.7846737960574922e-01,
+            2.9339596627430459e-01,
+            9.1988817100297438e-01,
+            3.9091343402339822e00,
+            4.4984178981295955e00,
+            3.5495862708798537e-01,
+            9.2394453980116503e-02,
+            3.4796465522872194e-01,
+            9.6472151937407247e-01,
+            1.4202247155844985e00,
+            8.1956617160011902e-01,
+            7.8186954263776698e-01,
+            4.6903099960654843e-01,
+            8.7585114826962540e-01,
+            5.6487693368321734e-01,
         ]
     )
     print(len(new_x))
     # spline_surf.set_dofs_from_vec(new_x)
     spline_surf.x = new_x
-    # print_dofs_nicely(spline_surf)
+    print_dofs_nicely(spline_surf)
 
     spline_surf.plot()
     plt.show()

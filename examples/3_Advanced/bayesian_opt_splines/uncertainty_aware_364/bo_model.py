@@ -70,15 +70,15 @@ def get_covar_module_with_dim_scaled_prior_maxlengthscale_constrained(
         to have lengthscales larger than 0.025 for numerical stability.
     """
     base_class = RBFKernel if use_rbf_kernel else MaternKernel
-    lengthscale_prior = LogNormalPrior(loc=0.5, scale=0.1*SQRT3)
+    lengthscale_prior = LogNormalPrior(loc=0.01, scale=0.1*SQRT3)
     base_kernel = base_class(
         ard_num_dims=ard_num_dims,
         batch_shape=batch_shape,
         lengthscale_prior=lengthscale_prior,
         lengthscale_constraint=Interval(
-            1e-6, 0.5, transform=None, initial_value=lengthscale_prior.mode
+            1e-6, 1.0, transform=None, initial_value=lengthscale_prior.mode
         ),
-        eps=1e-8,# pyre-ignore[6] GPyTorch type is unnecessarily restrictive.
+        eps=1e-5,# pyre-ignore[6] GPyTorch type is unnecessarily restrictive.
         active_dims=active_dims,
     )
     return base_kernel
@@ -107,6 +107,7 @@ class VanillaBO(GlobalOptimizer):
         # all X_history are stored unscaled - this is NECESSARY for rebounding
         self.X_history = None
         self.y_history = None
+        self.Y_var = None,
         self.device = 'cpu'
         self.dtype = torch.double
         self.dof_list = dof_list
@@ -118,13 +119,14 @@ class VanillaBO(GlobalOptimizer):
         # bounds = torch.tensor(np.vstack([self.lb, self.ub]))
         gp = SingleTaskGP(
             train_X = self.X_history, 
-            train_Y = self.y_history,            #train_Yvar=torch.full_like(scaled_y_history, 1e-6),
+            train_Y = self.y_history,
+            train_Yvar = self.Y_var,
             outcome_transform=Standardize(m=1),
-            # covar_module = get_covar_module_with_dim_scaled_prior_maxlengthscale_constrained(ard_num_dims=len(self.lb), use_rbf_kernel=True)
+            #covar_module = get_covar_module_with_dim_scaled_prior_maxlengthscale_constrained(ard_num_dims=len(self.lb), use_rbf_kernel=True)
         )
         mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
         fit_gpytorch_mll(mll)
-        sampler = SobolQMCNormalSampler(sample_shape=torch.Size([2048]), seed=0)
+        sampler = SobolQMCNormalSampler(sample_shape=torch.Size([1024]), seed=0)
         MC_LogEI = qLogExpectedImprovement(gp, best_f=self.y_history.max(), sampler=sampler, fat=False)
         
         torch.manual_seed(seed=0)  # to keep the restart conditions the same
@@ -132,7 +134,7 @@ class VanillaBO(GlobalOptimizer):
             acq_function=MC_LogEI,
             bounds=torch.tensor([[0.0] * len(self.lb), [1.0] * len(self.lb)]),
             q=batch_size,
-            num_restarts=128,
+            num_restarts=64,
             raw_samples=1024,
             options={},
         )
@@ -147,7 +149,7 @@ class VanillaBO(GlobalOptimizer):
         print(f'Length scales: {gp.covar_module.lengthscale.detach()}')      
         return candidates
     
-    def tell(self, X_new:np.ndarray, y_new:np.ndarray, lb:np.ndarray, ub:np.ndarray):
+    def tell(self, X_new:np.ndarray, y_new:np.ndarray, Y_var_new: np.ndarray, lb:np.ndarray, ub:np.ndarray):
         '''
         Literally just concatenating to history and updating bounds
         '''
@@ -156,6 +158,7 @@ class VanillaBO(GlobalOptimizer):
 
         self.X_history = torch.cat((self.X_history, X_new), dim = 0)
         self.y_history = torch.cat((self.y_history, y_new))
+        self.Y_var = torch.cat((self.Y_var, Y_var_new))
         self.lb = lb
         self.ub = ub
 

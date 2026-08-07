@@ -2464,7 +2464,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
                 "shapetol": 1e-3,
                 "niters": 400,
                 "verbose": False,
-                "cutoff": 1e-6,
+                "cutoff": 1e-8,
             }
             options = (
                 spec_cond_options
@@ -2513,14 +2513,66 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
         return surf
 
-    def write_inequality_constraints(self, maxval=np.inf):
+    def write_inequality_constraints(
+        self,
+        maxval=np.inf,
+        constrain_radii=False,
+        axis_r_max=10.0,
+        cs_r_max=1.0,
+    ):
         """
-        Build the linear inequality constraints lb <= A @ dofs <= ub.
+        Build linear inequality constraints lb <= A @ dofs <= ub, intended
+        as a less restrictive alternative to box-bounding every dof
+        directly -- in particular the angle dofs, where independent box
+        bounds on each theta_k can't express "these must stay in order",
+        so the optimizer is free to walk them past each other and fold
+        the cross section's control polygon over on itself. A linear
+        ordering constraint between consecutive thetas can express that
+        directly.
+
+        All constraints are built over free dofs only. Where one endpoint
+        of a would-be two-dof constraint happens to be fixed, its fixed
+        value is folded into the bound as a constant instead of being
+        given a matrix row (there's no free dof for that entry, but the
+        remaining free endpoint still needs the bound).
 
         Parameters
         ----------
         maxval : float
             Upper bound used for otherwise-unbounded constraints.
+        constrain_radii : bool
+            Every cross-section radius is always constrained to be >= 0
+            and <= cs_r_max (both basic physical/scale sanity checks --
+            unconditional, not gated by this flag; observed during
+            optimization: without an upper bound, the cross-section and
+            axis radii can grow without limit together). If
+            constrain_radii is additionally True, each radius is also
+            upper-bounded (for cross sections after the first) by the
+            pseudo-axis's own r_ctrl at the *matching* index specifically
+            -- a tighter, per-cross-section refinement on top of the
+            unconditional cs_r_max cap. Off by default: that extra,
+            index-matched behavior isn't actually necessary to prevent
+            self-intersection (a properly-ordered cross section can still
+            self-intersect via its radii alone, and unbounded radii don't
+            by themselves cause self-intersection -- a real
+            non-self-intersection constraint is a separate, nonlinear
+            thing, not yet implemented here). This option also inherits a
+            pre-existing limitation: it matches cross-section index i
+            directly against PseudoAxis1:r_axis_{i}, which is only
+            meaningful when axis_points == n_cs.
+        axis_r_max : float
+            Upper bound on each pseudo-axis r_ctrl value -- unconditional,
+            same motivation as cs_r_max below (observed unbounded growth
+            during optimization).
+        cs_r_max : float
+            Upper bound on each cross-section radius -- unconditional,
+            same motivation as axis_r_max above. A fixed constant rather
+            than a bound relative to another dof (e.g. the axis's own
+            r_ctrl) specifically because SLSQP's line search can probe
+            trial points that don't respect every constraint
+            simultaneously -- a dof-relative bound can still be blown
+            through if the reference dof is *also* moving in the same
+            wild trial step.
 
         Returns
         -------
@@ -2532,222 +2584,163 @@ class SurfaceBSpline(sopp.Surface, Surface):
             Human-readable label for each constraint row.
         """
         dofs = self.dof_names
-        indices_dict = dict(zip(dofs, range(len(self.dof_names))))
+        indices_dict = dict(zip(dofs, range(len(dofs))))
 
-        # print(indices_dict)
+        if self.cs_basis != "polar":
+            return np.zeros((0, len(dofs))), np.array([]), np.array([]), []
 
         constraints_list = []
         lb = []
         ub = []
         constraint_titles = []
 
-        if self.cs_basis == "polar":
-            for i in range(1, self.axis_points - 1):
-                temp = np.zeros(len(dofs))
-                temp[indices_dict[f"PseudoAxis1:z_axis_{i}"]] = 1
-                constraints_list.append(np.copy(temp))
-                constraint_titles.append(f"-1 < PseudoAxis1:z_axis_{i} < 1")
-                lb.append(-1)
-                ub.append(1)
+        # Name prefixes ("PseudoAxis1", "CrossSectionFixedZeta1", ...) are
+        # NOT reliably "1" -- simsopt's auto-naming counter is global and
+        # per-class, incrementing across every instance ever constructed
+        # in the process, not per-SurfaceBSpline. Hardcoding the prefix
+        # (as this method used to) works only for the first SurfaceBSpline
+        # built in a given process and KeyErrors for every one after --
+        # use each object's own .name instead.
+        axis_name_prefix = self.axis.name
 
-            for i in range(1, self.axis_points):
+        for i in range(1, self.axis_points - 1):
+            temp = np.zeros(len(dofs))
+            temp[indices_dict[f"{axis_name_prefix}:z_axis_{i}"]] = 1
+            constraints_list.append(temp)
+            constraint_titles.append(f"-1 < {axis_name_prefix}:z_axis_{i} < 1")
+            lb.append(-1)
+            ub.append(1)
+
+        # range(self.axis_points), not range(1, ...): r_axis_0 is free by
+        # default (only z_axis_0/zeta_axis_0 are fixed in PseudoAxis), so
+        # it needs this bound too -- guard on indices_dict for scripts
+        # that do fix it explicitly (e.g. axis.fix("r_axis_0")).
+        for i in range(self.axis_points):
+            name = f"{axis_name_prefix}:r_axis_{i}"
+            if name not in indices_dict:
+                continue
+            temp = np.zeros(len(dofs))
+            temp[indices_dict[name]] = 1
+            constraints_list.append(temp)
+            constraint_titles.append(f"0 < {name} < {axis_r_max}")
+            lb.append(0)
+            ub.append(axis_r_max)
+
+        # r >= 0 is a basic physical necessity (a radius can't be
+        # negative), not a self-intersection-prevention measure, so it's
+        # unconditional -- unlike constrain_radii's upper-bound behavior
+        # below, this isn't optional.
+        for i, cs in enumerate(self.cs_list):
+            for j in range(cs.n_pts):
+                name = f"{cs.name}:r_{j}"
+                if name not in indices_dict:
+                    continue
                 temp = np.zeros(len(dofs))
-                temp[indices_dict[f"PseudoAxis1:r_axis_{i}"]] = 1
-                constraints_list.append(np.copy(temp))
-                constraint_titles.append(f"0 < PseudoAxis1:r_axis_{i} < 2")
+                temp[indices_dict[name]] = 1
+                constraints_list.append(temp)
+                constraint_titles.append(f"0 <= {name}")
                 lb.append(0)
-                ub.append(2)
+                ub.append(maxval)
 
-            # radii in cross section
-            if self.axis_angles_fixed:
-                """
-                Make sure that the radii for a given cross section does not exceed half of the pseudo axis
-                radius at the same zeta
-                """
-                for i, cs in enumerate(
-                    self.cs_list
-                ):  # TODO change if indexing ever gets fixed
-                    for j in range(cs.n_pts):
+        # r_cs <= cs_r_max for every cross-section radius -- unconditional
+        # (same reasoning as r >= 0 above): without some upper bound, the
+        # cross-section and axis radii have been observed to grow without
+        # limit together during optimization. A fixed numeric cap (rather
+        # than tying it to another dof's current value, e.g. the axis's
+        # own r_ctrl) matters here specifically because SLSQP's line
+        # search can probe trial points that don't respect every
+        # constraint simultaneously -- a dof-relative bound can still be
+        # blown through if the dof it's relative to is *also* moving in
+        # the same wild trial step, where a fixed constant can't.
+        for cs in self.cs_list:
+            for j in range(cs.n_pts):
+                name = f"{cs.name}:r_{j}"
+                if name not in indices_dict:
+                    continue
+                temp = np.zeros(len(dofs))
+                temp[indices_dict[name]] = 1
+                constraints_list.append(temp)
+                constraint_titles.append(f"{name} <= {cs_r_max}")
+                lb.append(-maxval)
+                ub.append(cs_r_max)
+
+        if constrain_radii:
+            for i, cs in enumerate(self.cs_list):
+                for j in range(cs.n_pts):
+                    name = f"{cs.name}:r_{j}"
+                    if name not in indices_dict:
+                        continue
+                    axis_r_name = f"{axis_name_prefix}:r_axis_{i}"
+                    if i > 0 and axis_r_name in indices_dict:
                         temp = np.zeros(len(dofs))
-                        temp[
-                            indices_dict[f"CrossSectionFixedZeta{i + 1}:r_{j}"]
-                        ] = 1
-                        constraints_list.append(np.copy(temp))
+                        temp[indices_dict[name]] = -1
+                        temp[indices_dict[axis_r_name]] = 1
+                        constraints_list.append(temp)
                         constraint_titles.append(
-                            f"0 < CrossSectionFixedZeta{i + 1}:r_{j} < 1"
+                            f"0 < {axis_r_name} - {name} < {maxval}"
                         )
                         lb.append(0)
-                        ub.append(1)
-                        if i == 0:
-                            temp = np.zeros(len(dofs))
-                            temp[
-                                indices_dict[
-                                    f"CrossSectionFixedZeta{i + 1}:r_{j}"
-                                ]
-                            ] = 1
-                            constraints_list.append(np.copy(temp))
-                            constraint_titles.append(
-                                f"0 < CrossSectionFixedZeta{i + 1}:r_{j} < 1"
-                            )
-                            lb.append(0)
-                            ub.append(maxval)
-                        else:
-                            temp = np.zeros(len(dofs))
-                            temp[
-                                indices_dict[
-                                    f"CrossSectionFixedZeta{i + 1}:r_{j}"
-                                ]
-                            ] = -1
-                            temp[indices_dict[f"PseudoAxis1:r_axis_{i}"]] = 1
-                            constraints_list.append(np.copy(temp))
-                            constraint_titles.append(
-                                f"0 < PseudoAxis1:r_axis_{i} - CrossSectionFixedZeta{i + 1}:r_{j} < 2"
-                            )
-                            lb.append(0)
-                            ub.append(maxval)
+                        ub.append(maxval)
 
-            # thetas in cross section
-            if self.cs_equispaced == False:
-                for i, cs in enumerate(self.cs_list):
-                    if cs.z_sym:
-                        max_angle = np.pi
-                        # for j in range(1, cs.n_pts-1):
-                        temp = np.zeros(len(dofs))
-                        temp[
-                            indices_dict[
-                                f"CrossSectionFixedZeta{i + 1}:theta_{1}"
-                            ]
-                        ] = 1
-                        constraints_list.append(np.copy(temp))
-                        constraint_titles.append(
-                            f"0 < CrossSectionFixedZeta{i + 1}:theta_{1} < {max_angle}"
-                        )
-                        lb.append(0)
-                        ub.append(max_angle)
-                        for j in range(1, cs.n_pts - 2):
-                            temp = np.zeros(len(dofs))
-                            temp[
-                                indices_dict[
-                                    f"CrossSectionFixedZeta{i + 1}:theta_{j}"
-                                ]
-                            ] = -1
-                            temp[
-                                indices_dict[
-                                    f"CrossSectionFixedZeta{i + 1}:theta_{j + 1}"
-                                ]
-                            ] = 1
-                            constraint_titles.append(
-                                f"0 < CrossSectionFixedZeta{i + 1}:theta_{j + 1} - CrossSectionFixedZeta{i + 1}:theta_{j} < 2pi"
-                            )
-                            constraints_list.append(np.copy(temp))
-                            lb.append(0)
-                            ub.append(2 * np.pi)
-                        temp = np.zeros(len(dofs))
-                        temp[
-                            indices_dict[
-                                f"CrossSectionFixedZeta{i + 1}:theta_{cs.n_pts - 2}"
-                            ]
-                        ] = 1
-                        constraints_list.append(np.copy(temp))
-                        constraint_titles.append(
-                            f"0 < CrossSectionFixedZeta{i + 1}:theta_{cs.n_pts - 2} < {max_angle}"
-                        )
-                        lb.append(0)
-                        ub.append(max_angle)
-                    else:
-                        min_angle = 0
-                        max_angle = np.pi
+        # theta ordering: theta_0 >= 0, theta_k <= theta_{k+1} for each
+        # consecutive pair, theta_{n-1} <= 2*pi -- applies regardless of
+        # cs_equispaced/z_sym, since it's just as important to keep an
+        # equispaced cross section's *free* dofs (theta_0/global angle
+        # aside) from reordering as a non-equispaced one's.
+        for cs in self.cs_list:
+            n_pts = cs.n_pts
+            theta_names = [f"{cs.name}:theta_{k}" for k in range(n_pts)]
 
-                        temp = np.zeros(len(dofs))
-                        temp[
-                            indices_dict[
-                                f"CrossSectionFixedZeta{i + 1}:theta_{0}"
-                            ]
-                        ] = 1
-                        constraint_titles.append(
-                            f"0 < CrossSectionFixedZeta{i + 1}:theta_{0} < {max_angle}"
-                        )
-                        constraints_list.append(np.copy(temp))
-                        lb.append(min_angle)
-                        ub.append(max_angle)
-                        for j in range(0, (cs.n_pts // 2) - 1):
-                            temp = np.zeros(len(dofs))
-                            temp[
-                                indices_dict[
-                                    f"CrossSectionFixedZeta{i + 1}:theta_{j}"
-                                ]
-                            ] = -1
-                            temp[
-                                indices_dict[
-                                    f"CrossSectionFixedZeta{i + 1}:theta_{j + 1}"
-                                ]
-                            ] = 1
-                            constraint_titles.append(
-                                f"0 < CrossSectionFixedZeta{i + 1}:theta_{j + 1} - CrossSectionFixedZeta{i + 1}:theta_{j} < 2"
-                            )
-                            constraints_list.append(np.copy(temp))
-                            lb.append(0)
-                            ub.append(2 * np.pi)
-                        temp = np.zeros(len(dofs))
-                        temp[
-                            indices_dict[
-                                f"CrossSectionFixedZeta{i + 1}:theta_{(cs.n_pts // 2) - 1}"
-                            ]
-                        ] = 1
-                        constraint_titles.append(
-                            f"{min_angle} < CrossSectionFixedZeta{i + 1}:theta_{(cs.n_pts // 2) - 1} < {max_angle}"
-                        )
-                        constraints_list.append(np.copy(temp))
-                        lb.append(min_angle)
-                        ub.append(max_angle)
+            def theta_value(k, cs=cs):
+                return cs.get(f"theta_{k}")
 
-                        min_angle = np.pi
-                        max_angle = 2 * np.pi
-                        temp = np.zeros(len(dofs))
-                        temp[
-                            indices_dict[
-                                f"CrossSectionFixedZeta{i + 1}:theta_{(cs.n_pts // 2)}"
-                            ]
-                        ] = 1
-                        # print(f'CrossSectionFixedZeta{i+1}:theta_{(cs.n_pts // 2)}')
-                        constraint_titles.append(
-                            f"{min_angle} < CrossSectionFixedZeta{i + 1}:theta_{(cs.n_pts // 2)} < {max_angle}"
-                        )
-                        constraints_list.append(np.copy(temp))
-                        lb.append(min_angle)
-                        ub.append(max_angle)
-                        for j in range(cs.n_pts // 2, cs.n_pts - 1):
-                            temp = np.zeros(len(dofs))
-                            temp[
-                                indices_dict[
-                                    f"CrossSectionFixedZeta{i + 1}:theta_{j}"
-                                ]
-                            ] = -1
-                            temp[
-                                indices_dict[
-                                    f"CrossSectionFixedZeta{i + 1}:theta_{j + 1}"
-                                ]
-                            ] = 1
-                            constraint_titles.append(
-                                f"{0} < CrossSectionFixedZeta{i + 1}:theta_{j + 1} - CrossSectionFixedZeta{i + 1}:theta_{j} < {2}"
-                            )
-                            constraints_list.append(np.copy(temp))
-                            lb.append(0)
-                            ub.append(2)
-                        temp = np.zeros(len(dofs))
-                        temp[
-                            indices_dict[
-                                f"CrossSectionFixedZeta{i + 1}:theta_{cs.n_pts - 1}"
-                            ]
-                        ] = 1
-                        constraints_list.append(np.copy(temp))
-                        constraint_titles.append(
-                            f"{min_angle} < CrossSectionFixedZeta{i + 1}:theta_{cs.n_pts - 1} < {max_angle}"
-                        )
-                        lb.append(min_angle)
-                        ub.append(max_angle)
+            if theta_names[0] in indices_dict:
+                temp = np.zeros(len(dofs))
+                temp[indices_dict[theta_names[0]]] = 1
+                constraints_list.append(temp)
+                constraint_titles.append(f"0 <= {theta_names[0]}")
+                lb.append(0)
+                ub.append(maxval)
 
-        A = np.array(constraints_list)
+            for k in range(n_pts - 1):
+                name_k, name_k1 = theta_names[k], theta_names[k + 1]
+                free_k = name_k in indices_dict
+                free_k1 = name_k1 in indices_dict
+                if not free_k and not free_k1:
+                    continue
+                temp = np.zeros(len(dofs))
+                if free_k:
+                    temp[indices_dict[name_k]] = -1
+                if free_k1:
+                    temp[indices_dict[name_k1]] = 1
+                constraints_list.append(temp)
+                constraint_titles.append(f"{name_k} <= {name_k1}")
+                if free_k and free_k1:
+                    lb.append(0)
+                    ub.append(maxval)
+                elif free_k1:
+                    # theta_k fixed at a constant c -> theta_k1 >= c
+                    lb.append(theta_value(k))
+                    ub.append(maxval)
+                else:
+                    # theta_k1 fixed at a constant c -> theta_k <= c, and
+                    # the row is -theta_k, so the bound is -c
+                    lb.append(-theta_value(k + 1))
+                    ub.append(maxval)
+
+            if theta_names[-1] in indices_dict:
+                temp = np.zeros(len(dofs))
+                temp[indices_dict[theta_names[-1]]] = 1
+                constraints_list.append(temp)
+                constraint_titles.append(f"{theta_names[-1]} <= 2*pi")
+                lb.append(-maxval)
+                ub.append(2 * np.pi)
+
+        A = (
+            np.array(constraints_list)
+            if constraints_list
+            else np.zeros((0, len(dofs)))
+        )
         lb = np.array(lb)
         ub = np.array(ub)
 
@@ -2755,6 +2748,13 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
     def write_ub_constraints(self):
         """
+        DEPRECATED: has the same not-fully-verified-correct constraint
+        logic as write_inequality_constraints did before it was reworked
+        (see that method's docstring), but hasn't itself been reworked
+        yet. Use write_inequality_constraints instead -- it's the one
+        that's been checked over. Kept only for reference/until a
+        single-sided-bound variant is actually needed again.
+
         Build the linear inequality constraints A @ dofs <= b_ub.
 
         Returns
@@ -2766,6 +2766,13 @@ class SurfaceBSpline(sopp.Surface, Surface):
         constraint_titles : list of str
             Human-readable label for each constraint row.
         """
+        warnings.warn(
+            "write_ub_constraints is deprecated and has known, unresolved "
+            "correctness issues -- use write_inequality_constraints "
+            "instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         dofs = self.dof_names
         indices_dict = dict(zip(dofs, range(len(self.dof_names))))
 

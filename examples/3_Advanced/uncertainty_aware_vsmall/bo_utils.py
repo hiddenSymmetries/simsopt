@@ -27,11 +27,11 @@ def write_doflist_maxlist_minlist(
     r_axis_indices = [fnmatch.fnmatch(dof, 'PseudoAxis*r_axis*') for dof in template_surf.dof_names]
     z_axis_indices = [fnmatch.fnmatch(dof, 'PseudoAxis*z_axis*') for dof in template_surf.dof_names]
     
-    lb[cs_r_indices] = 0.1
+    lb[cs_r_indices] = 0.01
     ub[cs_r_indices] = 0.8
 
     lb[r_axis_indices] = 0.7
-    ub[r_axis_indices] = 1.3
+    ub[r_axis_indices] = 1.2
 
     lb[z_axis_indices] = -0.5
     ub[z_axis_indices] = 0.5

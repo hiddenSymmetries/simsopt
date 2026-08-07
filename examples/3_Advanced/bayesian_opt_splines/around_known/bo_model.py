@@ -120,11 +120,11 @@ class VanillaBO(GlobalOptimizer):
             train_X = self.X_history, 
             train_Y = self.y_history,            #train_Yvar=torch.full_like(scaled_y_history, 1e-6),
             outcome_transform=Standardize(m=1),
-            # covar_module = get_covar_module_with_dim_scaled_prior_maxlengthscale_constrained(ard_num_dims=len(self.lb), use_rbf_kernel=True)
+            #covar_module = get_covar_module_with_dim_scaled_prior_maxlengthscale_constrained(ard_num_dims=len(self.lb), use_rbf_kernel=True)
         )
         mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
         fit_gpytorch_mll(mll)
-        sampler = SobolQMCNormalSampler(sample_shape=torch.Size([2048]), seed=0)
+        sampler = SobolQMCNormalSampler(sample_shape=torch.Size([512]), seed=0)
         MC_LogEI = qLogExpectedImprovement(gp, best_f=self.y_history.max(), sampler=sampler, fat=False)
         
         torch.manual_seed(seed=0)  # to keep the restart conditions the same
@@ -132,9 +132,10 @@ class VanillaBO(GlobalOptimizer):
             acq_function=MC_LogEI,
             bounds=torch.tensor([[0.0] * len(self.lb), [1.0] * len(self.lb)]),
             q=batch_size,
-            num_restarts=128,
-            raw_samples=1024,
+            num_restarts=64,
+            raw_samples=512,
             options={},
+            timeout_sec=60,
         )
         return gp, candidates
 

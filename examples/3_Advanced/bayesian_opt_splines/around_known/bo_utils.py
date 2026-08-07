@@ -16,31 +16,18 @@ def write_doflist_maxlist_minlist(
         **spline_kwargs
     )
 
-    doflist = template_surf.dof_names
-    # lb = template_surf.lower_bounds
-    # ub = template_surf.upper_bounds
-    
-    lb = np.copy(template_surf.lower_bounds)
-    ub = np.copy(template_surf.upper_bounds)
+    known_optimum = np.array([ 0.3016216 ,  0.20890161,  0.44766483,  0.49065546,  0.31258963,
+        2.72104182,  0.13272592,  0.01054766,  0.55550307,  0.34290225,
+        0.24441989,  0.54088171,  1.42225604,  2.49345601,  3.26726428,
+        3.90173828,  5.75958653,  0.03943073,  0.17513655,  0.61373303,
+        0.17959677,  0.26507675,  0.72124269,  1.57072331,  2.02542396,
+        3.16716533,  4.71228105,  5.49176038,  0.04404639,  0.59041262,
+        0.48036493,  0.16049688,  1.39121464,  1.62414016,  1.68508211,
+        2.00728408, -0.28335058])
 
-    cs_r_indices = [fnmatch.fnmatch(dof, 'CrossSectionFixedZeta*r*') for dof in template_surf.dof_names]
-    r_axis_indices = [fnmatch.fnmatch(dof, 'PseudoAxis*r_axis*') for dof in template_surf.dof_names]
-    z_axis_indices = [fnmatch.fnmatch(dof, 'PseudoAxis*z_axis*') for dof in template_surf.dof_names]
-    
-    lb[cs_r_indices] = 0.1
-    ub[cs_r_indices] = 0.8
-
-    lb[r_axis_indices] = 0.7
-    ub[r_axis_indices] = 1.3
-
-    lb[z_axis_indices] = -0.5
-    ub[z_axis_indices] = 0.5
-
-    lb_dict = dict(zip(doflist, lb))
-    ub_dict = dict(zip(doflist, ub))
-
-    # print(f'lb_dict: {lb_dict}')
-    # print(f'ub_dict: {ub_dict}')
+    ub = np.maximum(known_optimum * 1.01, known_optimum * 0.99)
+    lb = np.minimum(known_optimum * 1.01, known_optimum * 0.99)
+    doflist = None
 
     return doflist, ub, lb
 

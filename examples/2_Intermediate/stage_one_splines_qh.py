@@ -17,7 +17,7 @@ proc0_print("==================================================")
 
 spline_kwargs = {
     "axis_points": 3,
-    "points_per_cs": 4,
+    "points_per_cs": 6,
     "n_cs": 5,
     "nfp": 4,
     "M": 9,

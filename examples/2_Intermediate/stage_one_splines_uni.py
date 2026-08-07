@@ -17,8 +17,8 @@ proc0_print("==================================================")
 
 spline_kwargs = {
     "axis_points": 3,
-    "points_per_cs": 4,
-    "n_cs": 4,
+    "points_per_cs": 5,
+    "n_cs": 5,
     "nfp": 2,
     "M": 8,
     "N": 4,
@@ -31,6 +31,7 @@ spline_kwargs = {
     "cs_basis": "polar",
     "nurbs": False,
     "use_bishop_frame": True,
+    "knot_parametrization": 'uniform'
 }
 
 spline_surf = SurfaceBSpline(**spline_kwargs, default_r=0.2)
@@ -75,7 +76,7 @@ least_squares_mpi_solve(
     mpi,
     grad=True,
     rel_step=1e-12,
-    abs_step=5e-6,  # **options
+    abs_step=1e-5,  # **options
     x_scale="jac",
 )
 xopt = prob.x
