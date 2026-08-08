@@ -24,6 +24,12 @@ try:
 except ImportError:
     Qsc = None
 
+try:
+    from desc.geometry import FourierRZToroidalSurface as DescFourierRZToroidalSurface
+    from desc import vmec_utils as desc_vmec_utils
+except ImportError:  # pragma: no cover
+    DescFourierRZToroidalSurface = None
+
 logger = logging.getLogger(__name__)
 
 __all__ = ['SurfaceRZFourier', 'SurfaceRZPseudospectral', 'plot_spectral_condensation']
@@ -516,7 +522,128 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         surf.local_full_x = surf.get_dofs()
         return surf
+    
+    @classmethod
+    @SimsoptRequires(DescFourierRZToroidalSurface is not None, "from_desc method requires Desc module")
+    def from_desc(cls, surface: DescFourierRZToroidalSurface):
+        r"""Build a ``SurfaceRZFourier`` from a DESC ``FourierRZToroidalSurface``.
 
+        Args:
+            surface (``FourierRZToroidalSurface``): A DESC ``FourierRZToroidalSurface`` object.
+
+        Returns:
+            (``SurfaceRZFourier``): A ``SurfaceRZFourier`` object.
+        """
+        # Convert R from DESC double-Fourier to VMEC double-angle form
+        poloidal_modes_r = surface.R_basis.modes[:, 1]
+        toroidal_modes_r = surface.R_basis.modes[:, 2]
+        m_out_r, n_out_r, sin_r, cos_r = desc_vmec_utils.ptolemy_identity_rev(
+            m_1=poloidal_modes_r, n_1=toroidal_modes_r, x=surface.R_lmn[np.newaxis, :]
+        )
+        rmnc = cos_r[0, :]
+        rmns = sin_r[0, :]
+
+        # Convert Z from DESC double-Fourier to VMEC double-angle form
+        poloidal_modes_z = surface.Z_basis.modes[:, 1]
+        toroidal_modes_z = surface.Z_basis.modes[:, 2]
+        m_out_z, n_out_z, sin_z, cos_z = desc_vmec_utils.ptolemy_identity_rev(
+            m_1=poloidal_modes_z, n_1=toroidal_modes_z, x=surface.Z_lmn[np.newaxis, :]
+        )
+        zmnc = cos_z[0, :]
+        zmns = sin_z[0, :]
+
+        is_stellarator_symmetric = surface.sym
+        max_toroidal_mode = np.max(np.abs(np.concatenate((n_out_r, n_out_z))))
+        max_poloidal_mode = np.max(np.abs(np.concatenate((m_out_r, m_out_z))))
+
+        simsopt_surface = cls(
+            nfp=surface.NFP,
+            stellsym=is_stellarator_symmetric,
+            mpol=max_poloidal_mode,
+            ntor=max_toroidal_mode,
+        )
+
+        for m, n, value in zip(m_out_r, n_out_r, rmnc):
+            simsopt_surface.set_rc(m, n, value)
+
+        for m, n, value in zip(m_out_z, n_out_z, zmns):
+            simsopt_surface.set_zs(m, n, value)
+
+        if not is_stellarator_symmetric:
+            for m, n, value in zip(m_out_r, n_out_r, rmns):
+                simsopt_surface.set_rs(m, n, value)
+
+            for m, n, value in zip(m_out_z, n_out_z, zmnc):
+                simsopt_surface.set_zc(m, n, value)
+
+        return simsopt_surface
+    
+    @SimsoptRequires(DescFourierRZToroidalSurface is not None, "to_desc method requires Desc module")
+    def to_desc(self, check_orientation: bool = False) -> DescFourierRZToroidalSurface:
+        r"""Convert a ``SurfaceRZFourier`` object into a DESC ``FourierRZToroidalSurface`` object.
+
+        Args:
+            check_orientation: If ``True``, DESC reverses the sign of :math:`\theta`
+              for surfaces it considers left-handed. The default
+              ``False`` leaves the coefficients unaltered, so that
+              ``from_desc(to_desc(surf))`` is the identity map.
+
+        Returns:
+            A DESC ``FourierRZToroidalSurface`` object.
+        """
+
+        rmnc = self.rc.ravel()
+        zmns = self.zs.ravel()
+        rmns = self.rs.ravel() if self.rs is not None else np.zeros_like(rmnc)
+        zmnc = self.zc.ravel() if self.zc is not None else np.zeros_like(zmns)
+
+        n_poloidal_modes = np.shape(self.rc)[0]
+        n_toroidal_modes = np.shape(self.rc)[1]
+        max_toroidal_mode = (n_toroidal_modes - 1) // 2
+        poloidal_modes = np.broadcast_to(
+            np.arange(n_poloidal_modes)[:, None],
+            (n_poloidal_modes, n_toroidal_modes),
+        )
+        toroidal_modes = np.broadcast_to(
+            np.arange(-max_toroidal_mode, max_toroidal_mode + 1),
+            (n_poloidal_modes, n_toroidal_modes),
+        )
+        poloidal_modes = poloidal_modes.ravel().astype(int)
+        toroidal_modes = toroidal_modes.ravel().astype(int)
+
+        # Remove m=0, n<0 modes: these are always redundant because
+        # cos(0·θ − n·φ) = cos(0·θ − (−n)·φ) and sin(0·θ − n·φ) = −sin(0·θ − (−n)·φ)
+        # Keeping both positive and negative n at m=0 produces a singular system.
+        inds = np.where(np.logical_and(poloidal_modes == 0, toroidal_modes < 0))[0]
+        poloidal_modes = np.delete(poloidal_modes, inds)
+        toroidal_modes = np.delete(toroidal_modes, inds)
+        rmnc = np.delete(rmnc, inds)
+        zmns = np.delete(zmns, inds)
+        rmns = np.delete(rmns, inds)
+        zmnc = np.delete(zmnc, inds)
+
+        # R
+        m, n, r_lmn = desc_vmec_utils.ptolemy_identity_fwd(
+            poloidal_modes, toroidal_modes, s=rmns, c=rmnc
+        )
+
+        # Z
+        m, n, z_lmn = desc_vmec_utils.ptolemy_identity_fwd(
+            poloidal_modes, toroidal_modes, s=zmns, c=zmnc
+        )
+
+        modes = np.column_stack([m, n]).astype(int)
+
+        return DescFourierRZToroidalSurface(
+            R_lmn=r_lmn.flatten(),
+            Z_lmn=z_lmn.flatten(),
+            modes_R=modes,
+            modes_Z=modes,
+            NFP=self.nfp,
+            sym=self.stellsym,
+            check_orientation=check_orientation,
+        )
+    
     def copy(self, **kwargs):
         """
         Return a copy of the ``SurfaceRZFourier`` object. 
