@@ -21,8 +21,10 @@ except ImportError:
 
 try:
     from desc.geometry import FourierRZToroidalSurface as DescFourierRZToroidalSurface
+    from desc.grid import LinearGrid as DescLinearGrid
 except ImportError:
     DescFourierRZToroidalSurface = None
+    DescLinearGrid = None
 
 from simsopt.mhd import Vmec
 
@@ -32,6 +34,25 @@ stellsym_list = [True, False]
 
 
 class SurfaceRZFourierTests(unittest.TestCase):
+
+    def _assert_simsopt_surface_matches_desc_xyz(self, simsopt_surface, desc_surface, atol=1e-12):
+        """Compare simsopt gamma() xyz coordinates to DESC compute('x')."""
+        # Compare on one field period so DESC's toroidal coordinate wrapping does not
+        # reorder full-torus grids before evaluation.
+        simsopt_eval_surface = simsopt_surface.copy(nphi=12, ntheta=13, range="field period")
+
+        theta = 2 * np.pi * simsopt_eval_surface.quadpoints_theta
+        zeta = 2 * np.pi * simsopt_eval_surface.quadpoints_phi
+        desc_grid = DescLinearGrid(
+            rho=1.0,
+            theta=theta,
+            zeta=zeta,
+            NFP=desc_surface.NFP,
+        )
+        desc_xyz = np.asarray(desc_surface.compute("x", grid=desc_grid, basis="xyz")["x"])
+        # DESC meshgrid_reshape returns (rho, theta, zeta, ...). simsopt gamma is (phi, theta, ...).
+        desc_xyz = np.asarray(desc_grid.meshgrid_reshape(desc_xyz, "rtz"))[0].transpose(1, 0, 2)
+        np.testing.assert_allclose(simsopt_eval_surface.gamma(), desc_xyz, atol=atol)
 
     def test_aspect_ratio(self):
         """
@@ -549,6 +570,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
             # Check geometry is preserved via gamma
             np.testing.assert_allclose(surface_orig.gamma(), boundary_from_desc.gamma(), atol=1e-12)
 
+            # Check xyz coordinates against DESC-computed xyz on a matching grid.
+            self._assert_simsopt_surface_matches_desc_xyz(surface_orig, desc_surface, atol=1e-12)
+            self._assert_simsopt_surface_matches_desc_xyz(boundary_from_desc, desc_surface, atol=1e-12)
+
             # check the modes are preserved
             np.testing.assert_allclose(boundary_from_desc.rc, surface_orig.rc, atol=1e-12)
             np.testing.assert_allclose(boundary_from_desc.zs, surface_orig.zs, atol=1e-12)
@@ -570,6 +595,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
         )
 
         np.testing.assert_allclose(surface_orig.gamma(), boundary_from_desc.gamma(), atol=1e-12)
+        self._assert_simsopt_surface_matches_desc_xyz(surface_orig, desc_surface, atol=1e-12)
+        self._assert_simsopt_surface_matches_desc_xyz(boundary_from_desc, desc_surface, atol=1e-12)
 
     @unittest.skipIf(DescFourierRZToroidalSurface is None, "desc python extension is not installed")
     def test_from_desc_known_coefficients(self):
@@ -592,6 +619,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s.get_rc(0, 0), 1.0, places=12)
         self.assertAlmostEqual(s.get_rc(1, 0), 0.1, places=12)
         self.assertAlmostEqual(s.get_zs(1, 0), 0.13, places=12)
+        self._assert_simsopt_surface_matches_desc_xyz(s, desc_surface, atol=1e-12)
 
     @unittest.skipIf(DescFourierRZToroidalSurface is None, "desc python extension is not installed")
     def test_to_desc_check_orientation(self):
