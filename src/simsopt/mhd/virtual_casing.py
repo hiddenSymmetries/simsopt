@@ -87,7 +87,9 @@ class VirtualCasing:
     - ``B_external_normal``: An array of size ``(trgt_nphi, trgt_ntheta)`` with the contribution
       to the magnetic field due to current outside the surface, taking just the component
       normal to the surface.
-    - r``B_external_normal_extended``: An array of size ``(trgt_nphi * nfp * 2, trgt_ntheta)`` with the contribution
+    - r``B_external_normal_extended``: An array of size ``(trgt_nphi * nfp * 2, trgt_ntheta)`` 
+      (if ``use_stellsym=True``) or ``(trgt_nphi * nfp, trgt_ntheta)`` (if
+      ``use_stellsym=False``) with the contribution
       to the magnetic field due to current outside the surface, taking just the component
       normal to the surface. This is an extension of the B_external_normal array to cover the full torus.
 
@@ -269,10 +271,17 @@ class VirtualCasing:
         vc.B_external = Bexternal3d
         vc.B_external_normal = Bexternal_normal
 
-        Bexternal_normal_with_last_point = np.hstack((Bexternal_normal, Bexternal_normal[:, [0]]))
-        Bexternal_normal_with_last_point = np.vstack((Bexternal_normal_with_last_point, -np.flip(np.flip(Bexternal_normal_with_last_point, axis=0), axis=1)[0]))
-        flipped_B = -np.flip(np.flip(Bexternal_normal_with_last_point, axis=0), axis=1)
-        vc.B_external_normal_extended = np.concatenate([np.concatenate((Bexternal_normal, flipped_B[:-1, :-1])) for i in range(nfp)])
+        if use_stellsym:
+            # Rotate the first half-period by 180 degrees and flip sign, being careful that the theta grid
+            # includes theta=0 but not theta=1. See github issue #641.
+            vc.trgt_nphi_extended = 2 * nfp * trgt_nphi
+            idx_theta = (-np.arange(trgt_ntheta)) % trgt_ntheta
+            vc.B_external_normal_extended = np.tile(
+                np.concatenate((Bexternal_normal, -Bexternal_normal[::-1][:, idx_theta])), (nfp, 1)
+            )
+        else:
+            vc.trgt_nphi_extended = nfp * trgt_nphi
+            vc.B_external_normal_extended = np.tile(Bexternal_normal, (nfp, 1))
 
         if filename is not None:
             if filename == 'auto':
@@ -296,7 +305,7 @@ class VirtualCasing:
             f.createDimension('src_nphi', self.src_nphi)
             f.createDimension('trgt_ntheta', self.trgt_ntheta)
             f.createDimension('trgt_nphi', self.trgt_nphi)
-            f.createDimension('trgt_nphi_extended', self.trgt_nphi * 2 * self.nfp)
+            f.createDimension('trgt_nphi_extended', self.trgt_nphi_extended)
             f.createDimension('xyz', 3)
 
             src_ntheta = f.createVariable('src_ntheta', 'i', tuple())
@@ -318,6 +327,11 @@ class VirtualCasing:
             trgt_nphi.data[()] = self.trgt_nphi
             trgt_nphi.description = 'Number of grid points in the toroidal angle phi for resulting B_external'
             trgt_nphi.units = 'Dimensionless'
+
+            trgt_nphi_extended = f.createVariable('trgt_nphi_extended', 'i', tuple())
+            trgt_nphi_extended.data[()] = self.trgt_nphi_extended
+            trgt_nphi_extended.description = 'Number of grid points in the toroidal angle phi for resulting B_external (extended to full torus)'
+            trgt_nphi_extended.units = 'Dimensionless'
 
             nfp = f.createVariable('nfp', 'i', tuple())
             nfp.data[()] = self.nfp
