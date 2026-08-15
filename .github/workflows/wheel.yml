@@ -29,10 +29,9 @@ jobs:
         uses: pypa/cibuildwheel@v4.2.0
         # To supply options, put them in 'env'
         env:
-          # Builds cp310-cp314 (and the free-threaded cp314t) on every arch of
-          # the matrix. Skip python <= 3.9 and PyPy builds since there are
-          # errors when building the wheel in those cases:
-          CIBW_SKIP: cp38-* cp39-* pp* *-manylinux_i686 *-musllinux*
+          # Every CPython >= 3.10 cibuildwheel knows, free-threaded included.
+          # Skip PyPy (build fails) and 32-bit x86 (no jaxlib/scipy wheels).
+          CIBW_SKIP: cp38-* cp39-* pp* *-manylinux_i686 *-musllinux* *-win32
           # numpy >= 2.3 ships only manylinux_2_28 wheels and its sdist needs
           # GCC >= 10.3, which the default manylinux2014 image lacks.
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
