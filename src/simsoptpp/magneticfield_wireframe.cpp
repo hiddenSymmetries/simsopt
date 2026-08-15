@@ -46,8 +46,8 @@ void WireframeField<T, Array, IntArray>::compute(int derivatives) {
     }
 
     // Store pointers to the nodes array for each half period (in nodes vector)
-    double* halfPrd_ptr[nHalfPrds];
-    double seg_signs[nHalfPrds];
+    std::vector<double*> halfPrd_ptr(nHalfPrds);
+    std::vector<double> seg_signs(nHalfPrds);
     for (int j = 0; j < nHalfPrds; ++j) {
         halfPrd_ptr[j] = &(this->nodes[j](0, 0));
         seg_signs[j] = this->seg_signs[j];

@@ -40,7 +40,13 @@ configure_file(config.h.in config.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 include(CheckCXXCompilerFlag)
-IF(DEFINED ENV{CI})
+IF(MSVC)
+    # Must come first: cl.exe rejects the -O3/-march flags used below. Append so
+    # that the CMake defaults (/DWIN32 /D_WINDOWS /EHsc) survive. /D_USE_MATH_DEFINES
+    # is needed for M_PI, /permissive- for the `and`/`not` alternative operators,
+    # and /bigobj for the large pybind11 translation units.
+    string(APPEND CMAKE_CXX_FLAGS " /O2 /bigobj /permissive- /D_USE_MATH_DEFINES")
+elseif(DEFINED ENV{CI})
     if (APPLE)
     	set(CMAKE_CXX_FLAGS "-O3")
     elseif(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
@@ -121,7 +127,9 @@ else()
             libs/range libs/iterator libs/concept_check libs/detail libs/function_types
             libs/lexical_cast libs/container libs/move libs/smart_ptr libs/multi_array
             libs/functional libs/function libs/type_index libs/container_hash libs/bind
-        CONFIGURE_COMMAND ./bootstrap.sh --prefix=<PREFIX>
+        # ExternalProject runs commands directly, without a shell, so bootstrap.sh
+        # has to be handed to bash explicitly for this to work on Windows too.
+        CONFIGURE_COMMAND bash ./bootstrap.sh --prefix=<PREFIX>
         BUILD_COMMAND ./b2 headers --prefix=${boost_DIR}
         BUILD_IN_SOURCE 1
         INSTALL_COMMAND ""
