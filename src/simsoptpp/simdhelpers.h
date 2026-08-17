@@ -12,16 +12,6 @@ using std::vector;
 #define USE_XSIMD
 #endif
 
-// Always-true value that is dependent on a template parameter. Used to force
-// the condition of an `if constexpr` inside a template to be value-dependent,
-// so that compilers (e.g. Apple clang) don't type-check the discarded branch
-// against the current architecture's SIMD width (which can be < 3 on e.g.
-// NEON, where a literal 3-element aggregate initializer would otherwise be
-// an error even though that branch is never instantiated).
-template <class T>
-inline constexpr bool dependent_true = true;
-
-
 #if defined(USE_XSIMD)
 
 #include "xsimd/xsimd.hpp"
