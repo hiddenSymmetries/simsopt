@@ -124,9 +124,10 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
 
     double* vals_local = got->second.data();
     #if defined(USE_XSIMD)
-    if(xsimd::simd_type<double>::size >= 3){
+    if(xsimd::batch<double>::size >= 3){
         // batches have no per-lane operator[] anymore; build the 3-lane input via a
         // small contiguous buffer + load, and read results back via store + index.
+        
         alignas(xs::default_arch::alignment()) double xyz_arr[simdcount] = {x, y, z};
         simd_t xyz = xs::load_aligned(xyz_arr);
         for (int k = 0; k < degree+1; ++k) {
