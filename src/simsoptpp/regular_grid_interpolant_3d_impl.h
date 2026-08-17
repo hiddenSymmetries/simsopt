@@ -130,11 +130,11 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
         // small contiguous buffer + load, and read results back via store + index.
         
         alignas(xs::default_arch::alignment()) std::array<double, simdcount> xyz_arr {x, y, z};
-        simd_t xyz = xs::load_aligned(xyz_arr);
+        simd_t xyz = xs::load_aligned(xyz_arr.data());
         for (int k = 0; k < degree+1; ++k) {
             simd_t temp = this->rule.basis_fun(k, xyz);
             alignas(xs::default_arch::alignment()) std::array<double, simdcount> temp_arr;
-            temp.store_aligned(temp_arr);
+            temp.store_aligned(temp_arr.data());
             pkxs[k] = temp_arr[0];
             pkys[k] = temp_arr[1];
             pkzs[k] = temp_arr[2];
