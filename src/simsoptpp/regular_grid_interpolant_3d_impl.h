@@ -124,7 +124,7 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
 
     double* vals_local = got->second.data();
     #if defined(USE_XSIMD)
-    if(xsimd::batch<double>::size >= 3){
+    if constexpr (xsimd::batch<double>::size >= 3){
         // batches have no per-lane operator[] anymore; build the 3-lane input via a
         // small contiguous buffer + load, and read results back via store + index.
         
