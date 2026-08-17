@@ -9,9 +9,6 @@
 #define _EPS_ 1e-13
 
 template<class Array>
-const int RegularGridInterpolant3D<Array>::simdcount;
-
-template<class Array>
 void RegularGridInterpolant3D<Array>::interpolate_batch(std::function<Vec(Vec, Vec, Vec)> &f) {
     int BATCH_SIZE = 16384;
     int NUM_BATCHES = dofs_to_keep/BATCH_SIZE + (dofs_to_keep % BATCH_SIZE != 0);
@@ -125,7 +122,7 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
 
     double* vals_local = got->second.data();
     #if defined(USE_XSIMD)
-    if constexpr (xsimd::batch<double>::size >= 3){
+    if constexpr (xsimd::simd_type<double>::size >= 3){
         // batches have no per-lane operator[] anymore; build the 3-lane input via a
         // small contiguous buffer + load, and read results back via store + index.
         
