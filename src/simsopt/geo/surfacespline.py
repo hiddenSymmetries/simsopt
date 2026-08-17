@@ -1592,10 +1592,10 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
     def uniform_tz_interp(
         self,
-        nu=32,
-        nv=32,
-        nu_interp=64,
-        nv_interp=64,
+        nu=None,
+        nv=None,
+        nu_interp=None,
+        nv_interp=None,
         plot=False,
         _fsolve=False,
     ):
@@ -2199,8 +2199,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
             elif collocation == "arclength":
                 R_on_tz_grid, z_on_tz_grid, zeta_eval, theta_eval = (
                     self.arclength_tz_interp(
-                        nu=nu,
-                        nv=nv,
+                        nu=2 * self.M + 1,
+                        nv=2 * self.N * self.nfp + 2,
+                        # nyquist sampling
                         nv_interp=nv_interp,
                         nu_interp=nu_interp,
                         plot=plot_intermediate,
@@ -2461,7 +2462,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
                 "plot": False,
                 "ftol": 1e-4,
                 "Mtol": 1.1,
-                "shapetol": 1e-3,
+                "shapetol": 5e-3,
                 "niters": 400,
                 "verbose": False,
                 "cutoff": 1e-8,
@@ -2484,32 +2485,8 @@ class SurfaceBSpline(sopp.Surface, Surface):
                 else default_options
             )
             surf.condense_spectrum(**options)
-
-        return surf
-
-    def to_RZFourier_inner(
-        self,
-        interp=False,
-    ):
-        M, N = self.M, self.N
-
-        if interp:
-            rbc, zbs = self.to_vmec_interp(fsolve=True)
         else:
-            rbc, zbs = self.to_vmec_interp()
-
-        surf = SurfaceRZFourier(nfp=self.nfp, ntor=N, mpol=M)
-
-        for m in range(0, M + 1):
-            for n in range(-N, N + 1):
-                if m == 0 and n < 0:
-                    continue
-                else:
-                    surf.set_rc(m, n, rbc[n + N, m])
-                    surf.set_zs(m, n, zbs[n + N, m])
-
-        # vmec = vmec_from_surf(surf)
-        # vmec.run()
+            surf = surf
 
         return surf
 

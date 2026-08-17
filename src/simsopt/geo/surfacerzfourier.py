@@ -1747,8 +1747,12 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 p=p,
                 q=q
         ):
-            num = np.einsum('m,nm->nm', m_arr**(p+q), rbc**2 + zbs**2)
-            denom = np.einsum('m,nm->nm', m_arr**(p), rbc**2 + zbs**2)
+            # num = np.einsum('m,nm->nm', m_arr**(p+q), rbc**2 + zbs**2)
+            # denom = np.einsum('m,nm->nm', m_arr**(p), rbc**2 + zbs**2)
+            # return np.sum(num)/np.sum(denom)
+            sp = np.einsum('nm->m', rbc**2 + zbs**2)
+            num = np.einsum('m,m', m_arr**(p+q), sp)
+            denom = np.einsum('m,m', m_arr**(p), sp)
             return np.sum(num)/np.sum(denom)
         
         def hw_I_callable(

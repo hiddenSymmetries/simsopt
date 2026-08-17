@@ -3,13 +3,23 @@
 Fit a SurfaceBSpline (pseudo-axis + NURBS cross-section representation)
 to the boundary of a target VMEC equilibrium (W7-X), using the exact
 (Newton-solved nearest-point) shape-error metric
-(simsopt.objectives.shape_errors.exact_shape_error) as the objective,
-minimized subject to SurfaceBSpline's own linear inequality constraints
-(write_inequality_constraints) rather than box bounds on the individual
-dofs -- box bounds can't express "these angles must stay in order," which
-is what actually keeps a cross section from folding over on itself, so
-the dofs' own upper_bounds/lower_bounds are set to +-inf here and
-constrained_mpi_solve (SLSQP) enforces the linear constraints instead.
+(simsopt.objectives.shape_errors.exact_shape_error) as the objective.
+
+Unlike spline_fit_w7x.py, this drops SurfaceBSpline's own linear
+inequality constraints (write_inequality_constraints, which enforce
+ordering relationships like theta_k <= theta_{k+1} that keep a cross
+section from folding over on itself) entirely -- there is no
+ConstrainedProblem/constrained_mpi_solve here, just a plain
+LeastSquaresProblem solved with least_squares_mpi_solve. Instead, this
+relies on the dofs' own per-dof box bounds (the defaults set by
+CrossSectionFixedZeta/PseudoAxis's own construction, left untouched here
+rather than widened to +-inf as in spline_fit_w7x.py) to keep the
+optimizer in a reasonable region. Box bounds can't express the ordering
+relationships the linear constraints do, so this is a strictly weaker
+guardrail against a folded-over cross section -- the final bounds check
+at the end of this script reports whether the box bounds were actually
+respected (scipy's bounded least_squares should never violate them, but
+it's worth confirming rather than assuming).
 
 No VMEC equilibrium solve is needed for either surface -- the target's
 boundary Fourier coefficients are read directly from its input file, and
@@ -21,10 +31,10 @@ finite-difference Jacobian costs ~ndofs+1 shape-error evaluations --
 each of those does one Newton solve per reference point (see
 exact_shape_error), so runtime scales with n_cross_sections * ntheta_ref
 below; run this with mpirun -n <nprocs> to parallelize those evaluations
-across ranks (constrained_mpi_solve distributes Jacobian columns across
-the MPI pool), e.g. `mpirun -n 8 python spline_fit_w7x.py`. W7-X is a
-strongly-shaped stellarator, so don't expect a tight match at a coarse
-spline resolution -- this demonstrates the fitting pipeline, not a
+across ranks (least_squares_mpi_solve distributes Jacobian columns across
+the MPI pool), e.g. `mpirun -n 8 python spline_fit_w7x_unconstrained.py`.
+W7-X is a strongly-shaped stellarator, so don't expect a tight match at a
+coarse spline resolution -- this demonstrates the fitting pipeline, not a
 high-fidelity reconstruction.
 """
 
@@ -35,12 +45,12 @@ import numpy as np
 from simsopt._core import make_optimizable
 from simsopt.geo import SurfaceBSpline
 from simsopt.mhd import Vmec
-from simsopt.objectives import ConstrainedProblem
+from simsopt.objectives import LeastSquaresProblem
 from simsopt.objectives.shape_errors import (
     build_exact_shape_reference,
     exact_shape_error,
 )
-from simsopt.solve import constrained_mpi_solve
+from simsopt.solve import least_squares_mpi_solve
 from simsopt.util import MpiPartition, proc0_print
 
 TARGET_FILE = (
@@ -51,7 +61,7 @@ TARGET_FILE = (
 mpi = MpiPartition()
 mpi.write()
 
-proc0_print("Running 2_Intermediate/spline_fit_w7x.py")
+proc0_print("Running 2_Intermediate/spline_fit_w7x_unconstrained.py")
 proc0_print("==================================================")
 
 spline_kwargs = {
@@ -70,7 +80,6 @@ spline_kwargs = {
     "cs_basis": "polar",
     "nurbs": False,
     "use_bishop_frame": True,
-    "knot_parametrization":"uniform"
 }
 
 
@@ -125,21 +134,11 @@ def spline_shape_residuals(spline_surf, reference):
     shape, not producing a spectrally-optimal fit for downstream VMEC
     use), which matters since this gets called ~ndofs times per
     finite-difference Jacobian. Used directly for reporting (max/mean
-    shape error); spline_shape_objective below wraps it into the scalar
-    ConstrainedProblem needs.
+    shape error), and wrapped via make_optimizable below to become the
+    LeastSquaresProblem's funcs_in.
     """
     rz_surf = spline_surf.to_RZFourier(spec_cond=None)
     return exact_shape_error(rz_surf, reference).flatten()
-
-
-def spline_shape_objective(spline_surf, reference):
-    """
-    Scalar sum-of-squares of spline_shape_residuals -- ConstrainedProblem
-    (unlike LeastSquaresProblem) takes a single scalar objective, not a
-    residual vector.
-    """
-    r = spline_shape_residuals(spline_surf, reference)
-    return np.sum(r**2)
 
 
 # Target boundary: read directly from the VMEC input file's Fourier
@@ -172,8 +171,8 @@ proc0_print(
     f"nfp={target_surf.nfp}, mpol={target_surf.mpol}, ntor={target_surf.ntor}"
 )
 
-n_cross_sections = 32
-ntheta_ref = 32
+n_cross_sections = 2 * 12 * target_surf.nfp + 2
+ntheta_ref = 2 * 12 + 1
 phi_1d = np.linspace(0, 2 * np.pi, n_cross_sections, endpoint=False)
 reference = build_exact_shape_reference(target_surf, phi_1d, ntheta=ntheta_ref)
 
@@ -192,18 +191,11 @@ spline_surf = SurfaceBSpline(default_r=0.3, **spline_kwargs)
 proc0_print(f"spline_surf.dof_names: {spline_surf.dof_names}")
 proc0_print(f"ndofs: {len(spline_surf.x)}")
 
-# Disable box bounds on the dofs (+-inf instead of the per-dof defaults
-# from CrossSectionFixedZeta/PseudoAxis's own construction) -- the linear
-# inequality constraints below express the ordering relationships that
-# actually matter (e.g. theta_k <= theta_{k+1}) directly, which per-dof
-# box bounds can't, so they replace box bounds here rather than
-# supplementing them.
-n_dofs = len(spline_surf.x)
-spline_surf.upper_bounds = np.inf * np.ones(n_dofs)
-spline_surf.lower_bounds = -np.inf * np.ones(n_dofs)
-
-A_lc, lb_lc, ub_lc, lc_titles = spline_surf.write_inequality_constraints()
-proc0_print(f"n linear constraints: {A_lc.shape[0]}")
+# Unlike spline_fit_w7x.py, the dofs' own per-dof box bounds (set by
+# CrossSectionFixedZeta/PseudoAxis's own construction) are left in place
+# here rather than widened to +-inf -- there are no linear inequality
+# constraints in this script, so these box bounds are the only guardrail
+# keeping the optimizer in a reasonable region.
 
 initial_residuals = spline_shape_residuals(spline_surf, reference)
 proc0_print(f"Initial max shape error: {np.max(initial_residuals):.4e}")
@@ -216,20 +208,16 @@ if mpi.proc0_world:
         target_surf, spline_surf, "Initial spline vs. target cross sections"
     )
 
-shape_obj = make_optimizable(
-    spline_shape_objective, spline_surf, reference
-)
-prob = ConstrainedProblem(shape_obj.J, tuple_lc=(A_lc, lb_lc, ub_lc))
+shape_obj = make_optimizable(spline_shape_residuals, spline_surf, reference)
+prob = LeastSquaresProblem(goals=0, weights=1, funcs_in=[shape_obj.J])
 
 proc0_print("Beginning optimization")
 try:
-    constrained_mpi_solve(
+    least_squares_mpi_solve(
         prob,
         mpi,
         grad=True,
         abs_step=1e-6,
-        opt_method="SLSQP",
-        #options={"maxiter": 100},
     )
 except Exception as e:
     proc0_print(f"Optimization raised: {e}")
@@ -244,11 +232,29 @@ proc0_print("Spline dofs:")
 spline_dofs = repr(np.array(spline_surf.x))
 proc0_print(spline_dofs)
 
+# Box bounds are supposed to be respected exactly by scipy's bounded
+# least_squares, but that relies on prob.bounds having been threaded
+# through correctly -- check explicitly rather than assuming.
+lb, ub = spline_surf.bounds
+x = np.asarray(spline_surf.x)
+below = x < lb
+above = x > ub
+proc0_print("")
+if np.any(below) or np.any(above):
+    proc0_print("Bounds violation detected:")
+    for name, xi, lbi, ubi, is_below, is_above in zip(
+        spline_surf.dof_names, x, lb, ub, below, above
+    ):
+        if is_below or is_above:
+            proc0_print(f"  {name}: x={xi:.6e} not in [{lbi:.6e}, {ubi:.6e}]")
+else:
+    proc0_print("No bounds violations.")
+
 if mpi.proc0_world:
     plot_cross_section_comparison(
         target_surf, spline_surf, "Optimized spline vs. target cross sections"
     )
 
 proc0_print("")
-proc0_print("End of 2_Intermediate/spline_fit_w7x.py")
+proc0_print("End of 2_Intermediate/spline_fit_w7x_unconstrained.py")
 proc0_print("=================================================")

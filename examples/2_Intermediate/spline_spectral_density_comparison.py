@@ -110,7 +110,9 @@ def run():
             surf = build_surface(M)
 
             t0 = time.perf_counter()
-            rz_before = surf.to_RZFourier(collocation=collocation, spec_cond=None)
+            rz_before = surf.to_RZFourier(
+                collocation=collocation, spec_cond=None
+            )
             t_ft = time.perf_counter() - t0
 
             t0 = time.perf_counter()
@@ -131,7 +133,9 @@ def run():
 
 
 def plot_spectral_power(results):
-    fig, axes = plt.subplots(1, len(M_VALUES), figsize=(4.5 * len(M_VALUES), 4.5))
+    fig, axes = plt.subplots(
+        1, len(M_VALUES), figsize=(4.5 * len(M_VALUES), 4.5)
+    )
     colors = {"exact": "C0", "uniform": "C1", "arclength": "C2"}
     for ax, M in zip(axes, M_VALUES):
         for collocation in COLLOCATIONS:
@@ -139,11 +143,21 @@ def plot_spectral_power(results):
             m = np.arange(len(r["before"]))
             color = colors[collocation]
             ax.semilogy(
-                m, r["before"], ":", marker="o", ms=3, color=color,
+                m,
+                r["before"],
+                ":",
+                marker="o",
+                ms=3,
+                color=color,
                 label=f"{collocation}, before condensation",
             )
             ax.semilogy(
-                m, r["after"], "-", marker="o", ms=3, color=color,
+                m,
+                r["after"],
+                "-",
+                marker="o",
+                ms=3,
+                color=color,
                 label=f"{collocation}, after condensation",
             )
         ax.set_title(f"M=N={M}")
@@ -164,11 +178,17 @@ def plot_wall_clock(results):
         t_ft = [results[(M, collocation)]["t_ft"] for M in M_VALUES]
         t_after = [results[(M, collocation)]["t_after"] for M in M_VALUES]
         ax.plot(
-            M_VALUES, t_ft, "o-", color=colors[collocation],
+            M_VALUES,
+            t_ft,
+            "o-",
+            color=colors[collocation],
             label=f"{collocation}, before condensation",
         )
         ax.plot(
-            M_VALUES, t_after, "s--", color=colors[collocation],
+            M_VALUES,
+            t_after,
+            "s--",
+            color=colors[collocation],
             label=f"{collocation}, after condensation",
         )
     ax.set_xlabel("M = N")

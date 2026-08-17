@@ -611,7 +611,7 @@ plt3d = True
 # Saves the images as PDFs
 save = False
 
-file = "/Users/issraali/codes/simsopt/examples/2_Intermediate/wout_default_000_000394.nc"
+file = "/Users/issraali/codes/simsopt/examples/2_Intermediate/wout_default_000_000000.nc"
 #'/home/IPP-HGW/aliiss/projects/git/gloloc/plotting/wout_default_000_000000.nc'
 #'/home/IPP-HGW/aliiss/projects/git/global-optimisation/scripts/wout_quasr_000_000000.nc'
 #'/home/IPP-HGW/aliiss/projects/git/global-optimisation/wout_nfp4_QH_warm_start_000_000000.nc'

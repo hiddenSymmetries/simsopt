@@ -8,12 +8,12 @@ This module provides a class that handles the VMEC equilibrium code.
 
 import logging
 import os.path
-from typing import Optional
 from datetime import datetime
+from typing import Optional
 
 import numpy as np
-from scipy.io import netcdf_file
 from scipy.integrate import quad
+from scipy.io import netcdf_file
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ except ImportError as e:
     logger.debug(str(e))
 
 from .._core.optimizable import Optimizable
-from .._core.util import Struct, ObjectiveFailure
+from .._core.util import ObjectiveFailure, Struct
 from ..geo.surfacerzfourier import SurfaceRZFourier
 
 if MPI is not None:
@@ -977,6 +977,7 @@ class Vmec(Optimizable):
             nzeta=32,
             ftol=1e-7,
             phiedge = 1,
+            delt=9e-1,
             verbose=False,
             niter=3000
         ):
@@ -1004,7 +1005,7 @@ class Vmec(Optimizable):
         # r_n = r_n[N:]
         # z_n = z_n[N:]
 
-        cls.indata.delt = 9e-1
+        cls.indata.delt = delt
         # vmec.indata.niter = 2000
         # vmec.indata.nstep = 1e2
         cls.indata.tcon0 = 2

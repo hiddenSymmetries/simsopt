@@ -44,7 +44,7 @@ qs = QuasisymmetryRatioResidual(
 
 # define problem
 prob = LeastSquaresProblem.from_tuples(
-    [(qs.residuals, 0, 1), (vmec.aspect, 6, 10), (vmec.mean_iota, 0.42, 10)]
+    [(qs.residuals, 0, 1), (vmec.aspect, 6, 1), (vmec.mean_iota, 0.42, 1)]
     # [(qs.residuals, 0, 1), (vmec.aspect, 8, 10), (vmec.mean_iota, -1.05, 10)]
 )
 
@@ -89,7 +89,7 @@ for step in range(3):
     surf.set_upper_bound("rc(1,0)", 1.0)
 
     # solver options
-    options = {"disp": True, "ftol": 1e-7, "maxiter": 1}
+    options = {"disp": True, "ftol": 1e-8, "maxiter": 1}
     # solve the problem
     proc0_print(f"ndofs: {len(prob.x)}")
     least_squares_mpi_solve(
@@ -97,7 +97,7 @@ for step in range(3):
         mpi,
         grad=True,
         rel_step=1e-12,
-        abs_step=1e-6,  # **options
+        abs_step=5e-7,  # **options
         # x_scale="jac",
     )
     xopt = prob.x
@@ -413,3 +413,145 @@ proc0_print("=================================================")
 # rotational transform: 0.4199940495074746
 
 # End of 2_Intermediate/stage_one_fourier.py
+
+# 111
+
+# (simsopt_e) issraali@issra-mac-3 2_Intermediate % mpirun -n 12 python stage_one_fourier.py 
+#      rank_world,   nprocs_world,          group,        ngroups,    rank_groups,  nprocs_groups,   rank_leaders, nprocs_leaders
+#               0,             12,              0,             12,              0,              1,              0,             12
+#               1,             12,              1,             12,              0,              1,              1,             12
+#               2,             12,              2,             12,              0,              1,              2,             12
+#               3,             12,              3,             12,              0,              1,              3,             12
+#               4,             12,              4,             12,              0,              1,              4,             12
+#               5,             12,              5,             12,              0,              1,              5,             12
+#               6,             12,              6,             12,              0,              1,              6,             12
+#               7,             12,              7,             12,              0,              1,              7,             12
+#               8,             12,              8,             12,              0,              1,              8,             12
+#               9,             12,              9,             12,              0,              1,              9,             12
+#              10,             12,             10,             12,              0,              1,             10,             12
+#              11,             12,             11,             12,              0,              1,             11,             12
+#      rank_world,   nprocs_world,          group,        ngroups,    rank_groups,  nprocs_groups,   rank_leaders, nprocs_leaders
+#               0,             12,              0,             12,              0,              1,              0,             12
+#               1,             12,              1,             12,              0,              1,              1,             12
+#               2,             12,              2,             12,              0,              1,              2,             12
+#               3,             12,              3,             12,              0,              1,              3,             12
+#               4,             12,              4,             12,              0,              1,              4,             12
+#               5,             12,              5,             12,              0,              1,              5,             12
+#               6,             12,              6,             12,              0,              1,              6,             12
+#               7,             12,              7,             12,              0,              1,              7,             12
+#               8,             12,              8,             12,              0,              1,              8,             12
+#               9,             12,              9,             12,              0,              1,              9,             12
+#              10,             12,             10,             12,              0,              1,             10,             12
+#              11,             12,             11,             12,              0,              1,             11,             12
+# Running 2_Intermediate/stage_one_fourier.py
+# ==================================================
+# Initial Quasisymmetry: 2.2483418916219907e-25
+# Initial aspect ratio: 10.000000000000128
+# Initial rotational transform: 5.289382185831063e-30
+# Beginning optimization
+# Beginning optimization with max_mode = 1 , vmec mpol=ntor= 12 . Previous vmec iteration =  0
+# ndofs: 8
+#    Iteration     Total nfev        Cost      Cost reduction    Step norm     Optimality   
+#        0              1         8.0882e+00                                    1.98e+03    
+#        1              3         9.1640e-01      7.17e+00       8.06e-02       2.55e+02    
+#        2              5         1.9638e-01      7.20e-01       3.92e-02       6.36e+01    
+#        3              7         1.0125e-01      9.51e-02       1.89e-02       1.55e+01    
+#        4              8         9.7871e-02      3.38e-03       3.40e-02       9.10e+00    
+#        5              9         8.7830e-02      1.00e-02       1.01e-02       4.88e+00    
+#        6             10         8.1673e-02      6.16e-03       1.79e-02       3.75e+00    
+#        7             11         6.4767e-02      1.69e-02       3.58e-02       7.94e+00    
+#        8             12         3.6650e-02      2.81e-02       7.12e-02       3.71e+01    
+#        9             13         1.7540e-02      1.91e-02       1.16e-01       4.72e+01    
+#       10             14         5.6923e-03      1.18e-02       4.20e-02       5.69e+00    
+#       11             15         4.8784e-03      8.14e-04       1.13e-02       5.28e+00    
+#       12             16         4.7685e-03      1.10e-04       9.64e-03       1.76e+00    
+#       13             18         4.7418e-03      2.67e-05       3.28e-03       2.79e-01    
+#       14             20         4.7405e-03      1.22e-06       1.44e-03       1.39e-02    
+#       15             22         4.7404e-03      1.26e-07       2.80e-04       1.99e-03    
+#       16             24         4.7404e-03      5.03e-08       1.72e-04       1.34e-03    
+#       17             26         4.7403e-03      1.99e-08       8.68e-05       1.12e-03    
+#       18             27         4.7403e-03      2.94e-08       1.72e-04       8.16e-04    
+#       19             32         4.7403e-03      1.96e-10       1.31e-06       7.11e-04    
+#       20             33         4.7403e-03      3.78e-10       2.64e-06       6.46e+00    
+#       21             40         4.7403e-03      0.00e+00       0.00e+00       6.46e+00    
+# `xtol` termination condition is satisfied.
+# Function evaluations 40, initial cost 8.0882e+00, final cost 4.7403e-03, first-order optimality 6.46e+00.
+
+# Completed optimization with max_mode =1. 
+# Final vmec iteration = 63
+# Quasisymmetry: 0.009229807352444316
+# aspect ratio: 6.002484052590845
+# rotational transform: 0.40435913772047655
+# Beginning optimization with max_mode = 2 , vmec mpol=ntor= 12 . Previous vmec iteration =  63
+# ndofs: 24
+#    Iteration     Total nfev        Cost      Cost reduction    Step norm     Optimality   
+#        0              1         4.7403e-03                                    8.02e+00    
+# Function evaluation failed for <bound method QuasisymmetryRatioResidual.residuals of <simsopt.mhd.vmec_diagnostics.QuasisymmetryRatioResidual object at 0x16fc3b7c0>>
+#        1              4         3.4301e-03      1.31e-03       7.76e-03       2.51e+00    
+#        2              5         2.0021e-03      1.43e-03       1.32e-02       5.94e+00    
+#        3              6         1.2066e-03      7.95e-04       2.59e-02       1.57e+01    
+#        4              7         2.9012e-04      9.16e-04       3.39e-02       6.19e+00    
+#        5              9         1.5630e-04      1.34e-04       1.35e-02       1.43e+00    
+#        6             11         1.0070e-04      5.56e-05       5.34e-03       8.75e-01    
+#        7             12         8.7722e-05      1.30e-05       9.09e-03       6.05e-01    
+#        8             14         8.1477e-05      6.24e-06       3.64e-03       2.13e-01    
+#        9             15         8.1119e-05      3.59e-07       7.81e-03       3.93e-01    
+#       10             16         7.8047e-05      3.07e-06       1.81e-03       6.49e-02    
+#       11             17         7.7477e-05      5.69e-07       5.33e-03       1.67e-01    
+#       12             18         7.5247e-05      2.23e-06       4.42e-03       1.53e-01    
+#       13             23         7.5048e-05      1.99e-07       4.37e-05       5.38e-03    
+#       14             25         7.5032e-05      1.63e-08       2.24e-05       2.97e-03    
+#       15             27         7.5026e-05      6.55e-09       1.12e-05       2.13e-03    
+#       16             29         7.5023e-05      2.91e-09       5.53e-06       1.49e-03    
+#       17             31         7.5021e-05      1.41e-09       2.74e-06       1.33e-03    
+#       18             32         7.5018e-05      2.75e-09       5.45e-06       1.21e-03    
+#       19             35         7.5018e-05      3.38e-10       6.81e-07       1.20e-03    
+#       20             36         7.5017e-05      6.72e-10       1.36e-06       2.13e+00    
+#       21             39         7.5017e-05      7.79e-11       1.64e-07       2.13e+00    
+#       22             40         7.5017e-05      1.20e-11       3.82e-08       2.13e+00    
+#       23             41         7.5017e-05      2.82e-13       9.29e-09       2.13e+00    
+#       24             42         7.5017e-05      0.00e+00       0.00e+00       2.13e+00    
+# `xtol` termination condition is satisfied.
+# Function evaluations 42, initial cost 4.7403e-03, final cost 7.5017e-05, first-order optimality 2.13e+00.
+
+# Completed optimization with max_mode =2. 
+# Final vmec iteration = 179
+# Quasisymmetry: 0.0001498326655516832
+# aspect ratio: 6.000022220254355
+# rotational transform: 0.4195510807922491
+# Beginning optimization with max_mode = 3 , vmec mpol=ntor= 12 . Previous vmec iteration =  179
+# ndofs: 48
+#    Iteration     Total nfev        Cost      Cost reduction    Step norm     Optimality   
+#        0              1         7.5017e-05                                    2.55e+00    
+#        1              3         2.7345e-05      4.77e-05       6.21e-03       7.80e-01    
+#        2              5         1.6712e-05      1.06e-05       3.09e-03       2.66e-01    
+#        3              6         1.6242e-05      4.70e-07       5.88e-03       1.28e+00    
+#        4              7         9.3269e-06      6.92e-06       1.51e-03       1.46e-01    
+#        5              9         8.1606e-06      1.17e-06       7.84e-04       3.45e-02    
+#        6             12         8.1189e-06      4.17e-08       1.06e-04       4.10e-03    
+#        7             15         8.1085e-06      1.04e-08       1.35e-05       2.22e-03    
+#        8             16         8.1028e-06      5.68e-09       2.56e-05       3.84e-03    
+#        9             17         8.0958e-06      7.05e-09       2.71e-05       3.19e-03    
+#       10             18         8.0829e-06      1.29e-08       2.60e-05       1.65e-03    
+#       11             22         8.0825e-06      3.64e-10       8.03e-07       1.65e-03    
+#       12             24         8.0824e-06      1.81e-10       4.00e-07       1.64e-03    
+#       13             26         8.0823e-06      9.01e-11       2.00e-07       1.64e-03    
+#       14             27         8.0821e-06      1.80e-10       3.99e-07       1.59e-01    
+#       15             31         8.0821e-06      4.75e-13       1.43e-08       1.59e-01    
+#       16             32         8.0821e-06      0.00e+00       0.00e+00       1.59e-01    
+# `xtol` termination condition is satisfied.
+# Function evaluations 32, initial cost 7.5017e-05, final cost 8.0821e-06, first-order optimality 1.59e-01.
+
+# Completed optimization with max_mode =3. 
+# Final vmec iteration = 293
+# Quasisymmetry: 1.6158778188964257e-05
+# aspect ratio: 6.000003838302683
+# rotational transform: 0.4199265903844567
+
+# Final vmec iteration = 294
+# Quasisymmetry: 1.6158778188964257e-05
+# aspect ratio: 6.000003838302683
+# rotational transform: 0.4199265903844567
+
+# End of 2_Intermediate/stage_one_fourier.py
+# =================================================

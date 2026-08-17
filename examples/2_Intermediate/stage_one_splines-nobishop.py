@@ -18,10 +18,10 @@ proc0_print("==================================================")
 
 spline_kwargs = {
     "axis_points": 3,
-    "points_per_cs": 4,
+    "points_per_cs": 6,
     "n_cs": 5,
     "nfp": 2,
-    "M": 5,
+    "M": 8,
     "N": 4,
     "p_u": 3,
     "p_v": 3,
@@ -31,7 +31,7 @@ spline_kwargs = {
     "axis_angles_fixed": False,
     "cs_basis": "polar",
     "nurbs": False,
-    "use_bishop_frame": True,
+    "use_bishop_frame": False,
 }
 
 spline_surf = SurfaceBSpline(**spline_kwargs, default_r=0.2)
