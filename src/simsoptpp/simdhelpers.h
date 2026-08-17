@@ -49,7 +49,7 @@ class aligned_padded_allocator : public xs::aligned_allocator<T, Align> {
         }
 };
 
-using AlignedPaddedVec = std::vector<double, aligned_padded_allocator<double, XSIMD_DEFAULT_ALIGNMENT>>;
+using AlignedPaddedVec = std::vector<double, aligned_padded_allocator<double, xs::default_arch::alignment()>>;
 using simd_t = xs::simd_type<double>;
 
 #else

@@ -1,6 +1,6 @@
 #include "regular_grid_interpolant_3d.h"
-#include <xtensor/xarray.hpp>
-#include "xtensor/xlayout.hpp"
+#include <xtensor/containers/xarray.hpp>
+#include "xtensor/core/xlayout.hpp"
 #define _USE_MATH_DEFINES
 #include <math.h>
 
@@ -125,15 +125,17 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
     double* vals_local = got->second.data();
     #if defined(USE_XSIMD)
     if(xsimd::simd_type<double>::size >= 3){
-        simd_t xyz;
-        xyz[0] = x;
-        xyz[1] = y;
-        xyz[2] = z;
+        // batches have no per-lane operator[] anymore; build the 3-lane input via a
+        // small contiguous buffer + load, and read results back via store + index.
+        alignas(xs::default_arch::alignment()) double xyz_arr[simdcount] = {x, y, z};
+        simd_t xyz = xs::load_aligned(xyz_arr);
         for (int k = 0; k < degree+1; ++k) {
             simd_t temp = this->rule.basis_fun(k, xyz);
-            pkxs[k] = temp[0];
-            pkys[k] = temp[1];
-            pkzs[k] = temp[2];
+            alignas(xs::default_arch::alignment()) double temp_arr[simdcount];
+            temp.store_aligned(temp_arr);
+            pkxs[k] = temp_arr[0];
+            pkys[k] = temp_arr[1];
+            pkzs[k] = temp_arr[2];
         }
     } else {
         for (int k = 0; k < degree+1; ++k) {
@@ -166,8 +168,10 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
             double pix = pkxs[i];
             sumi = xsimd::fma(sumj, simd_t(pix), sumi);
         }
+        alignas(xs::default_arch::alignment()) double sumi_arr[simdcount];
+        sumi.store_aligned(sumi_arr);
         for (int ll = 0; ll < std::min(simdcount, value_size-l); ++ll) {
-            res[l+ll] = sumi[ll];
+            res[l+ll] = sumi_arr[ll];
         }
     }
     #else
