@@ -1,7 +1,8 @@
 #pragma once
-#include <xtensor/xarray.hpp>
-#include <xtensor/xnoalias.hpp>
+#include <xtensor/containers/xarray.hpp>
+#include <xtensor/core/xnoalias.hpp>
 #include <stdexcept>
+#include <cstring>
 
 
 #include "cachedarray.h"

@@ -2,8 +2,8 @@
 #include <Eigen/Dense>
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
-#include "xtensor/xsort.hpp"
-#include "xtensor/xview.hpp"
+#include "xtensor/misc/xsort.hpp"
+#include "xtensor/views/xview.hpp"
 #include <functional>
 #include <vector>
 #include <math.h>

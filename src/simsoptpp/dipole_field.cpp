@@ -40,11 +40,15 @@ Array dipole_field_B(Array& points, Array& m_points, Array& m) {
         
 	// check that i + k isn't bigger than num_points
         int klimit = std::min(simd_size, num_points - i);
+        // batches have no per-lane operator[] anymore; gather into a small
+        // contiguous buffer first, then load it into a batch in one shot.
+        alignas(xs::default_arch::alignment()) double point_i_x[simd_size] = {}, point_i_y[simd_size] = {}, point_i_z[simd_size] = {};
         for(int k = 0; k < klimit; k++){
-            for (int d = 0; d < 3; ++d) {
-                point_i[d][k] = points(i + k, d);
-            }
+            point_i_x[k] = points(i + k, 0);
+            point_i_y[k] = points(i + k, 1);
+            point_i_z[k] = points(i + k, 2);
         }
+        point_i = Vec3dSimd(xs::load_aligned(point_i_x), xs::load_aligned(point_i_y), xs::load_aligned(point_i_z));
         // Loops through all the dipoles
         for (int j = 0; j < num_dipoles; ++j) {
                 Vec3dSimd m_j = Vec3dSimd(m_ptr[3 * j + 0], m_ptr[3 * j + 1], m_ptr[3 * j + 2]);
@@ -59,10 +63,15 @@ Array dipole_field_B(Array& points, Array& m_points, Array& m) {
                 B_i.y += 3.0 * rdotm * r.y * rmag_inv_5 - m_j.y * rmag_inv_3;
                 B_i.z += 3.0 * rdotm * r.z * rmag_inv_5 - m_j.z * rmag_inv_3;
             } 
+            // B is an interleaved (point, component) array, so a batch can't be stored
+            // directly into it; store each component to a small contiguous buffer once,
+            // then index that buffer per lane below.
+            alignas(xs::default_arch::alignment()) double B_i_x[simd_size], B_i_y[simd_size], B_i_z[simd_size];
+            B_i.store_aligned(B_i_x, B_i_y, B_i_z);
             for(int k = 0; k < klimit; k++){
-                B(i + k, 0) = fak * B_i.x[k];
-                B(i + k, 1) = fak * B_i.y[k];
-                B(i + k, 2) = fak * B_i.z[k];
+                B(i + k, 0) = fak * B_i_x[k];
+                B(i + k, 1) = fak * B_i_y[k];
+                B(i + k, 2) = fak * B_i_z[k];
             }
     }
     return B;
@@ -96,11 +105,15 @@ Array dipole_field_A(Array& points, Array& m_points, Array& m) {
 
         // check that i + k isn't bigger than num_points
         int klimit = std::min(simd_size, num_points - i);
+        // batches have no per-lane operator[] anymore; gather into a small
+        // contiguous buffer first, then load it into a batch in one shot.
+        alignas(xs::default_arch::alignment()) double point_i_x[simd_size] = {}, point_i_y[simd_size] = {}, point_i_z[simd_size] = {};
         for(int k = 0; k < klimit; k++){
-            for (int d = 0; d < 3; ++d) {
-                point_i[d][k] = points(i + k, d);
-            }
+            point_i_x[k] = points(i + k, 0);
+            point_i_y[k] = points(i + k, 1);
+            point_i_z[k] = points(i + k, 2);
         }
+        point_i = Vec3dSimd(xs::load_aligned(point_i_x), xs::load_aligned(point_i_y), xs::load_aligned(point_i_z));
         for (int j = 0; j < num_dipoles; ++j) {
             Vec3dSimd m_j = Vec3dSimd(m_ptr[3 * j + 0], m_ptr[3 * j + 1], m_ptr[3 * j + 2]);
             Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j + 0], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
@@ -113,10 +126,15 @@ Array dipole_field_A(Array& points, Array& m_points, Array& m) {
             A_i.y += mcrossr.y * rmag_inv_3;
             A_i.z += mcrossr.z * rmag_inv_3;
         } 
+        // A is an interleaved (point, component) array, so a batch can't be stored
+        // directly into it; store each component to a small contiguous buffer once,
+        // then index that buffer per lane below.
+        alignas(xs::default_arch::alignment()) double A_i_x[simd_size], A_i_y[simd_size], A_i_z[simd_size];
+        A_i.store_aligned(A_i_x, A_i_y, A_i_z);
         for(int k = 0; k < klimit; k++){
-            A(i + k, 0) = fak * A_i.x[k];
-            A(i + k, 1) = fak * A_i.y[k];
-            A(i + k, 2) = fak * A_i.z[k];
+            A(i + k, 0) = fak * A_i_x[k];
+            A(i + k, 1) = fak * A_i_y[k];
+            A(i + k, 2) = fak * A_i_z[k];
         }
     }
     return A;
@@ -153,11 +171,15 @@ Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
         auto dB_i1   = Vec3dSimd();
         auto dB_i2   = Vec3dSimd();
         int klimit = std::min(simd_size, num_points - i);
+        // batches have no per-lane operator[] anymore; gather into a small
+        // contiguous buffer first, then load it into a batch in one shot.
+        alignas(xs::default_arch::alignment()) double point_i_x[simd_size] = {}, point_i_y[simd_size] = {}, point_i_z[simd_size] = {};
         for(int k = 0; k < klimit; k++){
-            for (int d = 0; d < 3; ++d) {
-                point_i[d][k] = points(i + k, d);
-            }
+            point_i_x[k] = points(i + k, 0);
+            point_i_y[k] = points(i + k, 1);
+            point_i_z[k] = points(i + k, 2);
         }
+        point_i = Vec3dSimd(xs::load_aligned(point_i_x), xs::load_aligned(point_i_y), xs::load_aligned(point_i_z));
         for (int j = 0; j < num_dipoles; ++j) {
             Vec3dSimd m_j = Vec3dSimd(m_ptr[3 * j], m_ptr[3 * j + 1], m_ptr[3 * j + 2]);
             Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
@@ -175,13 +197,20 @@ Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
             dB_i2.y += 3.0 * rmag_inv_5 * ((m_j.y * r.z + m_j.z * r.y) - 5.0 * rdotm * r.y * r.z * rmag_inv_2);
             dB_i2.z += 3.0 * rmag_inv_5 * ((2.0 * m_j.z * r.z + rdotm) - 5.0 * rdotm * r.z * r.z * rmag_inv_2);
         } 
+        // dB is an interleaved (point, component, component) array, so a batch can't be
+        // stored directly into it; store each component to a small contiguous buffer
+        // once, then index that buffer per lane below.
+        alignas(xs::default_arch::alignment()) double dB_i1_x[simd_size], dB_i1_y[simd_size], dB_i1_z[simd_size];
+        alignas(xs::default_arch::alignment()) double dB_i2_x[simd_size], dB_i2_y[simd_size], dB_i2_z[simd_size];
+        dB_i1.store_aligned(dB_i1_x, dB_i1_y, dB_i1_z);
+        dB_i2.store_aligned(dB_i2_x, dB_i2_y, dB_i2_z);
         for(int k = 0; k < klimit; k++){
-            dB(i + k, 0, 0) = fak * dB_i1.x[k];
-            dB(i + k, 0, 1) = fak * dB_i1.y[k];
-            dB(i + k, 0, 2) = fak * dB_i1.z[k];
-            dB(i + k, 1, 1) = fak * dB_i2.x[k];
-            dB(i + k, 1, 2) = fak * dB_i2.y[k];
-            dB(i + k, 2, 2) = fak * dB_i2.z[k];
+            dB(i + k, 0, 0) = fak * dB_i1_x[k];
+            dB(i + k, 0, 1) = fak * dB_i1_y[k];
+            dB(i + k, 0, 2) = fak * dB_i1_z[k];
+            dB(i + k, 1, 1) = fak * dB_i2_x[k];
+            dB(i + k, 1, 2) = fak * dB_i2_y[k];
+            dB(i + k, 2, 2) = fak * dB_i2_z[k];
             dB(i + k, 1, 0) = dB(i + k, 0, 1);
             dB(i + k, 2, 0) = dB(i + k, 0, 2);
             dB(i + k, 2, 1) = dB(i + k, 1, 2);
@@ -222,11 +251,15 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
         auto dA_i2   = Vec3dSimd();
         auto dA_i3   = Vec3dSimd();
         int klimit = std::min(simd_size, num_points - i);
+        // batches have no per-lane operator[] anymore; gather into a small
+        // contiguous buffer first, then load it into a batch in one shot.
+        alignas(xs::default_arch::alignment()) double point_i_x[simd_size] = {}, point_i_y[simd_size] = {}, point_i_z[simd_size] = {};
         for(int k = 0; k < klimit; k++){
-            for (int d = 0; d < 3; ++d) {
-                point_i[d][k] = points(i + k, d);
-            }
+            point_i_x[k] = points(i + k, 0);
+            point_i_y[k] = points(i + k, 1);
+            point_i_z[k] = points(i + k, 2);
         }
+        point_i = Vec3dSimd(xs::load_aligned(point_i_x), xs::load_aligned(point_i_y), xs::load_aligned(point_i_z));
         for (int j = 0; j < num_dipoles; ++j) {
             Vec3dSimd m_j = Vec3dSimd(m_ptr[3 * j], m_ptr[3 * j + 1], m_ptr[3 * j + 2]);
             Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
@@ -246,16 +279,25 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
             dA_i3.y += rmag_inv_3 * (m_j.x - 3.0 * mcrossr.z * r.y * rmag_inv_2);
             dA_i3.z += rmag_inv_3 * (- 3.0 * mcrossr.z * r.z * rmag_inv_2);
 	    } 
+        // dA is an interleaved (point, component, component) array, so a batch can't be
+        // stored directly into it; store each component to a small contiguous buffer
+        // once, then index that buffer per lane below.
+        alignas(xs::default_arch::alignment()) double dA_i1_x[simd_size], dA_i1_y[simd_size], dA_i1_z[simd_size];
+        alignas(xs::default_arch::alignment()) double dA_i2_x[simd_size], dA_i2_y[simd_size], dA_i2_z[simd_size];
+        alignas(xs::default_arch::alignment()) double dA_i3_x[simd_size], dA_i3_y[simd_size], dA_i3_z[simd_size];
+        dA_i1.store_aligned(dA_i1_x, dA_i1_y, dA_i1_z);
+        dA_i2.store_aligned(dA_i2_x, dA_i2_y, dA_i2_z);
+        dA_i3.store_aligned(dA_i3_x, dA_i3_y, dA_i3_z);
         for(int k = 0; k < klimit; k++){
-            dA(i + k, 0, 0) = fak * dA_i1.x[k];
-            dA(i + k, 0, 1) = fak * dA_i1.y[k];
-            dA(i + k, 0, 2) = fak * dA_i1.z[k];
-            dA(i + k, 1, 0) = fak * dA_i2.x[k];
-            dA(i + k, 1, 1) = fak * dA_i2.y[k];
-            dA(i + k, 1, 2) = fak * dA_i2.z[k];
-	    dA(i + k, 2, 0) = fak * dA_i3.x[k];
-	    dA(i + k, 2, 1) = fak * dA_i3.y[k]; 
-            dA(i + k, 2, 2) = fak * dA_i3.z[k];
+            dA(i + k, 0, 0) = fak * dA_i1_x[k];
+            dA(i + k, 0, 1) = fak * dA_i1_y[k];
+            dA(i + k, 0, 2) = fak * dA_i1_z[k];
+            dA(i + k, 1, 0) = fak * dA_i2_x[k];
+            dA(i + k, 1, 1) = fak * dA_i2_y[k];
+            dA(i + k, 1, 2) = fak * dA_i2_z[k];
+	    dA(i + k, 2, 0) = fak * dA_i3_x[k];
+	    dA(i + k, 2, 1) = fak * dA_i3_y[k];
+            dA(i + k, 2, 2) = fak * dA_i3_z[k];
 	}
     }
     return dA;
@@ -306,12 +348,20 @@ Array dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp
 
         // check that i + k isn't bigger than num_points
         int klimit = std::min(simd_size, num_points - i);
+        // batches have no per-lane operator[] anymore; gather into small
+        // contiguous buffers first, then load each into a batch in one shot.
+        alignas(xs::default_arch::alignment()) double point_i_x[simd_size] = {}, point_i_y[simd_size] = {}, point_i_z[simd_size] = {};
+        alignas(xs::default_arch::alignment()) double n_i_x[simd_size] = {}, n_i_y[simd_size] = {}, n_i_z[simd_size] = {};
         for(int k = 0; k < klimit; k++){
-            for (int d = 0; d < 3; ++d) {
-                point_i[d][k] = points(i + k, d);
-                n_i[d][k] = unitnormal(i + k, d);
-            }
+            point_i_x[k] = points(i + k, 0);
+            point_i_y[k] = points(i + k, 1);
+            point_i_z[k] = points(i + k, 2);
+            n_i_x[k] = unitnormal(i + k, 0);
+            n_i_y[k] = unitnormal(i + k, 1);
+            n_i_z[k] = unitnormal(i + k, 2);
         }
+        point_i = Vec3dSimd(xs::load_aligned(point_i_x), xs::load_aligned(point_i_y), xs::load_aligned(point_i_z));
+        n_i = Vec3dSimd(xs::load_aligned(n_i_x), xs::load_aligned(n_i_y), xs::load_aligned(n_i_z));
         // Loop through all the dipoles, using all the symmetries
         for (int j = 0; j < num_dipoles; ++j) {
             Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j + 0], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
@@ -347,31 +397,47 @@ Array dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp
                     G_i.x = 3.0 * rdotn * r.x * rmag_inv_5 - n_i.x * rmag_inv_3;
                     G_i.y = 3.0 * rdotn * r.y * rmag_inv_5 - n_i.y * rmag_inv_3;
                     G_i.z = 3.0 * rdotn * r.z * rmag_inv_5 - n_i.z * rmag_inv_3;
+
+                    // G_i and the trig locals below are batches; none of these targets are
+                    // contiguous per-component, so store each to a small buffer once and
+                    // index that buffer per lane in the coordinate_flag branches below.
+                    alignas(xs::default_arch::alignment()) double G_i_x[simd_size], G_i_y[simd_size], G_i_z[simd_size];
+                    G_i.store_aligned(G_i_x, G_i_y, G_i_z);
+                    alignas(xs::default_arch::alignment()) double cphi0_arr[simd_size], sphi0_arr[simd_size];
+                    alignas(xs::default_arch::alignment()) double cphi_new_arr[simd_size], sphi_new_arr[simd_size];
+                    alignas(xs::default_arch::alignment()) double ctheta_new_arr[simd_size], stheta_new_arr[simd_size];
+                    cphi0.store_aligned(cphi0_arr);
+                    sphi0.store_aligned(sphi0_arr);
+                    cphi_new.store_aligned(cphi_new_arr);
+                    sphi_new.store_aligned(sphi_new_arr);
+                    ctheta_new.store_aligned(ctheta_new_arr);
+                    stheta_new.store_aligned(stheta_new_arr);
+
                     for(int k = 0; k < klimit; k++){
                         if (coordinate_flag == cylindrical_str) {
-                            double Ax_temp = (G_i.x[k] * cphi0[k] + G_i.y[k] * sphi0[k]) * pow(-1, stell);
-                            double Ay_temp = (- G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
-                            A(i + k, j, 0) += fak * (Ax_temp * cphi_new[k] + Ay_temp * sphi_new[k]);
-                            A(i + k, j, 1) += fak * ( - Ax_temp * sphi_new[k] + Ay_temp * cphi_new[k]);
-                            A(i + k, j, 2) += fak * G_i.z[k];
+                            double Ax_temp = (G_i_x[k] * cphi0_arr[k] + G_i_y[k] * sphi0_arr[k]) * pow(-1, stell);
+                            double Ay_temp = (- G_i_x[k] * sphi0_arr[k] + G_i_y[k] * cphi0_arr[k]);
+                            A(i + k, j, 0) += fak * (Ax_temp * cphi_new_arr[k] + Ay_temp * sphi_new_arr[k]);
+                            A(i + k, j, 1) += fak * ( - Ax_temp * sphi_new_arr[k] + Ay_temp * cphi_new_arr[k]);
+                            A(i + k, j, 2) += fak * G_i_z[k];
                         }
                         else if (coordinate_flag == toroidal_str) {
 
-                            double Ax_temp = (G_i.x[k] * cphi0[k] + G_i.y[k] * sphi0[k]) * pow(-1, stell);
-                            double Ay_temp = (- G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
-                            double Az_temp = G_i.z[k];
-                            A(i + k, j, 0) += fak * (Ax_temp * cphi_new[k] * ctheta_new[k] + Ay_temp * sphi_new[k] * ctheta_new[k] + Az_temp * stheta_new[k]);
-                            A(i + k, j, 1) += fak * ( - Ax_temp * sphi_new[k] + Ay_temp * cphi_new[k]);
-                            A(i + k, j, 2) += fak * (- Ax_temp * cphi_new[k] * stheta_new[k] - Ay_temp * sphi_new[k] * stheta_new[k] + Az_temp * ctheta_new[k]);
+                            double Ax_temp = (G_i_x[k] * cphi0_arr[k] + G_i_y[k] * sphi0_arr[k]) * pow(-1, stell);
+                            double Ay_temp = (- G_i_x[k] * sphi0_arr[k] + G_i_y[k] * cphi0_arr[k]);
+                            double Az_temp = G_i_z[k];
+                            A(i + k, j, 0) += fak * (Ax_temp * cphi_new_arr[k] * ctheta_new_arr[k] + Ay_temp * sphi_new_arr[k] * ctheta_new_arr[k] + Az_temp * stheta_new_arr[k]);
+                            A(i + k, j, 1) += fak * ( - Ax_temp * sphi_new_arr[k] + Ay_temp * cphi_new_arr[k]);
+                            A(i + k, j, 2) += fak * (- Ax_temp * cphi_new_arr[k] * stheta_new_arr[k] - Ay_temp * sphi_new_arr[k] * stheta_new_arr[k] + Az_temp * ctheta_new_arr[k]);
                         }
                         else {
                             // rotate by -phi0 and then flip x component
                             // This should be the reverse of what is done to the m vector and the dipole grid
                             // because A * m = A * R^T * R * m and R is an orthogonal matrix both
                             // for a reflection and a rotation.
-                            A(i + k, j, 0) += fak * (G_i.x[k] * cphi0[k] + G_i.y[k] * sphi0[k]) * pow(-1, stell);
-                            A(i + k, j, 1) += fak * (- G_i.x[k] * sphi0[k] + G_i.y[k] * cphi0[k]);
-                            A(i + k, j, 2) += fak * G_i.z[k];
+                            A(i + k, j, 0) += fak * (G_i_x[k] * cphi0_arr[k] + G_i_y[k] * sphi0_arr[k]) * pow(-1, stell);
+                            A(i + k, j, 1) += fak * (- G_i_x[k] * sphi0_arr[k] + G_i_y[k] * cphi0_arr[k]);
+                            A(i + k, j, 2) += fak * G_i_z[k];
                         }
                     }
                 }

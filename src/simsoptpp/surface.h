@@ -10,7 +10,7 @@ using std::map;
 #include <stdexcept>
 using std::logic_error;
 
-#include "xtensor/xarray.hpp"
+#include "xtensor/containers/xarray.hpp"
 #include "cachedarray.h"
 #include "curve.h"
 #include <Eigen/Dense>

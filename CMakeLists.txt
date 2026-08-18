@@ -74,7 +74,7 @@ if(DEFINED ENV{CONDA_PREFIX})
 endif()
 
 find_package(OpenMP)
-find_package(Boost 1.76.0)
+find_package(Boost 1.74.0)
 if(Boost_FOUND)
     message(STATUS "Boost version is ${Boost_VERSION_STRING}")
     message(STATUS "Boost include dirs are ${Boost_INCLUDE_DIRS}")
@@ -136,7 +136,7 @@ pybind11_add_module(${PROJECT_NAME}
 
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
-    CXX_STANDARD 17
+    CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON)
 
 target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
@@ -155,7 +155,7 @@ endif()
 add_executable(profiling EXCLUDE_FROM_ALL src/profiling/profiling.cpp src/simsoptpp/biot_savart_c.cpp src/simsoptpp/biot_savart_vjp_c.cpp src/simsoptpp/regular_grid_interpolant_3d_c.cpp)
 set_target_properties(profiling
     PROPERTIES
-    CXX_STANDARD 17
+    CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON)
 target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
 target_link_libraries(profiling PRIVATE fmt::fmt-header-only)
