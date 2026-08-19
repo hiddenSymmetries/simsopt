@@ -123,7 +123,7 @@ else()
             libs/range libs/iterator libs/concept_check libs/detail libs/function_types
             libs/lexical_cast libs/container libs/move libs/smart_ptr libs/multi_array
             libs/functional libs/function libs/type_index libs/container_hash libs/bind
-        CONFIGURE_COMMAND bash ./bootstrap.sh --prefix=<PREFIX>
+        CONFIGURE_COMMAND sh ./bootstrap.sh --prefix=<PREFIX>
         BUILD_COMMAND ./b2 headers --prefix=${boost_DIR}
         BUILD_IN_SOURCE 1
         INSTALL_COMMAND ""
