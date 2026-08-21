@@ -41,6 +41,7 @@ jobs:
           # GCC >= 10.3, which the default manylinux2014 image lacks.
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
+          CIBW_ENVIRONMENT: CI=1
           #   CIBW_DEPENDENCY_VERSIONS: latest
 
       - uses: actions/upload-artifact@v4
