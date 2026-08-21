@@ -2,7 +2,6 @@
 
 #include <tuple>
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
-#include "xtensor/xview.hpp"
 typedef xt::pyarray<double> Array;
 typedef xt::pyarray<int> IntArray;
 
