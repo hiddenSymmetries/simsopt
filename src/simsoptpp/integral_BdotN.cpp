@@ -57,7 +57,6 @@ double integral_BdotN(PyArray& Bcoil, PyArray& Btarget, PyArray& n, std::string 
     }
     double numerator_sum = 0.0;
     double denominator_sum = 0.0;
-    double mod_B_squared;
 
     #pragma omp parallel for reduction(+:numerator_sum, denominator_sum)
     for(int i=0; i<nphi*ntheta; i++){
@@ -77,6 +76,7 @@ double integral_BdotN(PyArray& Bcoil, PyArray& Btarget, PyArray& n, std::string 
         if(Btarget_ptr != NULL)
             BcoildotN -= Btarget_ptr[i];
 
+        double mod_B_squared = 0.0;
         if (definition_int != DEFINITION_QUADRATIC_FLUX)
             mod_B_squared = 
                 Bcoil_ptr[3 * i + 0] * Bcoil_ptr[3 * i + 0] 
