@@ -76,12 +76,10 @@ double integral_BdotN(PyArray& Bcoil, PyArray& Btarget, PyArray& n, std::string 
         if(Btarget_ptr != NULL)
             BcoildotN -= Btarget_ptr[i];
 
-        double mod_B_squared = 0.0;
-        if (definition_int != DEFINITION_QUADRATIC_FLUX)
-            mod_B_squared = 
-                Bcoil_ptr[3 * i + 0] * Bcoil_ptr[3 * i + 0] 
-                + Bcoil_ptr[3 * i + 1] * Bcoil_ptr[3 * i + 1] 
-                + Bcoil_ptr[3 * i + 2] * Bcoil_ptr[3 * i + 2];
+        double mod_B_squared =
+            Bcoil_ptr[3 * i + 0] * Bcoil_ptr[3 * i + 0] 
+            + Bcoil_ptr[3 * i + 1] * Bcoil_ptr[3 * i + 1] 
+            + Bcoil_ptr[3 * i + 2] * Bcoil_ptr[3 * i + 2];
         
         if (definition_int == DEFINITION_QUADRATIC_FLUX) {
             numerator_sum += (BcoildotN * BcoildotN) * normN;
