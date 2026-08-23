@@ -347,6 +347,42 @@ class NormalFieldTests(unittest.TestCase):
         with self.assertRaises(AttributeError):
             normal_field.vnc = 1
 
+    def test_asarray_preserves_inclusive_mpol(self):
+        """Array methods include the declared highest poloidal mode."""
+        mpol, ntor = 3, 2
+        normal_field = NormalField(nfp=1, stellsym=False, mpol=mpol, ntor=ntor)
+        vns = np.zeros((mpol + 1, 2 * ntor + 1))
+        vnc = np.zeros_like(vns)
+        vns[mpol, ntor + 1] = 7.0
+        vnc[mpol, ntor - 2] = -5.0
+
+        normal_field.set_vns_asarray(vns)
+        normal_field.set_vnc_asarray(vnc)
+
+        np.testing.assert_equal(normal_field.get_vns_asarray().shape, vns.shape)
+        np.testing.assert_equal(normal_field.get_vnc_asarray().shape, vnc.shape)
+        np.testing.assert_allclose(normal_field.get_vns_asarray(), vns)
+        np.testing.assert_allclose(normal_field.get_vnc_asarray(), vnc)
+        self.assertEqual(normal_field.get_vns(mpol, 1), 7.0)
+        self.assertEqual(normal_field.get_vnc(mpol, -2), -5.0)
+
+        symmetric = NormalField(stellsym=True, mpol=mpol, ntor=ntor)
+        np.testing.assert_equal(
+            symmetric.get_vnc_asarray().shape, (mpol + 1, 2 * ntor + 1)
+        )
+
+        phi, theta = np.meshgrid(
+            2 * np.pi * normal_field.surface.quadpoints_phi,
+            2 * np.pi * normal_field.surface.quadpoints_theta,
+            indexing="ij",
+        )
+        phase_pos = mpol * theta - phi
+        phase_neg = mpol * theta + 2 * phi
+        expected = -(2 * np.pi) ** 2 * (
+            7.0 * np.sin(phase_pos) - 5.0 * np.cos(phase_neg)
+        ) / np.linalg.norm(normal_field.surface.normal(), axis=-1)
+        np.testing.assert_allclose(normal_field.get_real_space_field(), expected)
+
 
 class CoilNormalFieldTests(unittest.TestCase):
     def test_empty_init(self):
