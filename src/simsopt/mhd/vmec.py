@@ -8,14 +8,13 @@ This module provides a class that handles the VMEC equilibrium code.
 
 import logging
 import os.path
-from typing import Optional
+from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any, Optional, Protocol, runtime_checkable
 
 import numpy as np
 from scipy.io import netcdf_file
 from scipy.integrate import quad
-
-from typing import Protocol, runtime_checkable, Any, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,8 @@ if MPI is not None:
 else:
     MpiPartition = None
 
-__all__ = ["Vmec"]
+__all__ = ["Vmec", "SurfaceRZFourierProtocol", "ProfileProtocol",
+           "VmecSolverProtocol", "VmecBoundary", "VmecProfile"]
 
 
 # Flags used by runvmec():
@@ -114,60 +114,202 @@ def array_to_namelist(arr, aux_s=False):
 
 @runtime_checkable
 class SurfaceRZFourierProtocol(Protocol):
-    """A Protocol for facility the interaction between Vmec solvers (Vmec2000, Vmec++, Vmec-Jax, ...). 
-    This Protocol determines how SurfaceRZFourier object data is passed from Simsopt to Vmec solvers.
-    This protocol should be maintained here and also in the solver.
     """
-    # also maintained on VMEC side
-    rbc: dict # (m,n): value
-    rbs: dict
-    zbc: dict
-    zbs: dict
+    Wire format for the plasma boundary exchanged between simsopt and a
+    VMEC solver.
+
+    Fourier modes are passed as sparse dicts keyed by the *physical* mode
+    numbers ``(m, n)``, so that no index-offset convention is baked into
+    the interface. Different solvers store these coefficients very
+    differently -- VMEC2000 uses a Fortran array indexed
+    ``rbc(n, m)`` with ``n`` offset by 101, while VMEC++ uses a dense
+    array indexed ``rbc[m, n + ntor]`` -- and a dict keyed by ``(m, n)``
+    is the only format with no convention to get wrong. Only nonzero
+    modes need to be present.
+
+    ``mpol`` and ``ntor`` are the Fourier truncation of the *boundary
+    representation*: they determine the size of the simsopt surface's
+    degree-of-freedom vector. They are not the solver's internal
+    resolution, which is a solver setting and therefore not part of this
+    interface.
+
+    For stellarator-symmetric configurations (``stellsym=True``) the
+    ``rbs`` and ``zbc`` dicts are empty.
+    """
     nfp: int
     stellsym: bool
+    mpol: int
+    ntor: int
+    rbc: dict  # {(m, n): value}
+    zbs: dict  # {(m, n): value}
+    rbs: dict  # {(m, n): value}, empty when stellsym
+    zbc: dict  # {(m, n): value}, empty when stellsym
+
 
 @runtime_checkable
 class ProfileProtocol(Protocol):
-    """A Protocol for facility the interaction between Vmec solvers (Vmec2000, Vmec++, Vmec-Jax, ...). 
-    This Protocol determines how Simsopt Profile object data is passed from Simsopt to Vmec solvers.
-    This protocol should be maintained here and also in the solver.
     """
-    # also maintained on VMEC side
-    name: str
-    x: Union[np.ndarray, list]
-    y: Union[np.ndarray, list]
+    Wire format for a radial profile (pressure, current, or iota) passed
+    from simsopt to a VMEC solver.
+
+    The profile is transferred together with its *parametrization*, not
+    merely as sampled values. This matters: VMEC2000 and VMEC++ support
+    the same native profile parametrizations, so passing coefficients
+    rather than samples preserves the ability to optimize in the exact
+    parameter space VMEC itself uses. Sampling a profile down to values
+    would silently decouple the optimizer's degrees of freedom from
+    VMEC's ``am``/``ac``/``ai`` coefficients.
+
+    - ``profile_type="power_series"`` (also ``gauss_trunc``,
+      ``two_power``): ``coeffs`` holds the polynomial coefficients
+      (VMEC's ``am``/``ac``/``ai``) and ``knots`` is ``None``.
+    - ``profile_type`` in ``{"cubic_spline", "akima_spline",
+      "line_segment"}``: ``coeffs`` holds the spline values (VMEC's
+      ``*_aux_f``) at the knot locations ``knots`` (``*_aux_s``).
+
+    For current profiles VMEC also accepts the ``_i`` and ``_ip``
+    suffixes (e.g. ``"cubic_spline_ip"``, which prescribes I'(s) rather
+    than I(s)); such tags are passed through verbatim.
+
+    The ``profile_type`` tag vocabulary is shared by all VMEC
+    implementations, which is why it belongs on the wire even though the
+    tag is *stored* in the solver's own (backend-specific) input object.
+    """
+    profile_type: str
+    coeffs: Any  # polynomial coefficients, or spline values (aux_f)
+    knots: Any   # spline knots (aux_s), or None for power series
+
 
 @runtime_checkable
-class VmecProtocol(Protocol):
-    """A Protocol for Vmec solvers (Vmec2000, Vmec++, Vmec-Jax, ...). This Protocol determines
-    the basic set of attributes and methods that a Vmec solver must have in order
-    to be used within Simsopt.
+class VmecSolverProtocol(Protocol):
+    """
+    Structural interface that a VMEC solver backend must satisfy to be
+    driven by simsopt's :class:`Vmec` optimizable. VMEC2000, VMEC++,
+    VMEC-Jax and similar codes can all implement it.
 
-    Running,
-        ```
-        import vmecpp import Vmec
-        eq = Vmec(...)
-        isinstance(eq, VmecProtocol)
-        ```
-    will check the Vmec object has the attributes and methods defined by the VmecProtocol.
-    If False, then `eq` does not have the necessary structure to be used within Simsopt.
-    This check should be implemented by all methods that rely directly (though not indirectly)
-    on the Vmec object.
+    **Scope: physics, not settings.** VMEC solves for nested flux
+    surfaces given a boundary and a set of profiles. This interface
+    carries exactly that, plus the handful of scalars that are
+    optimization degrees of freedom and the converged output. Solver
+    settings -- radial multigrid (``ns_array``), tolerances
+    (``ftol_array``), iteration counts, ``delt``, ``nstep``, ``tcon0``,
+    ``gamma``, the internal ``mpol``/``ntor``, ``ntheta``/``nzeta``, and
+    free-boundary inputs such as ``mgrid_file`` and ``extcur`` -- are
+    deliberately *not* abstracted. They live on :attr:`indata`, whose
+    type is chosen by the backend.
+
+    That is a feature rather than an omission: because simsopt does not
+    re-declare them, users of a given backend get that backend's own
+    type hints and documentation. For VMEC++, ``vmec.indata`` is a real
+    ``vmecpp.VmecInput`` pydantic model; for VMEC2000 it is the Fortran
+    ``vmec.vmec_input`` namelist struct.
+
+    **Degrees of freedom must be views, not copies.** ``phiedge``,
+    ``curtor`` and ``pres_scale`` must read and write straight through to
+    the backend's input object. User code is entitled to write
+    ``vmec.indata.curtor = 1.0e6`` directly and to see that reflected
+    both in the next :meth:`solve` and in simsopt's degree-of-freedom
+    vector. Keeping a shadow copy on the solver silently discards such
+    writes.
+
+    Implementers do not need to import simsopt: conformance is
+    structural, so a solver package can satisfy this interface without
+    taking on a simsopt dependency::
+
+        from some_vmec_package import Solver
+        isinstance(Solver(...), VmecSolverProtocol)
+
+    Note that runtime protocol checks verify only the *presence* of the
+    listed names, not their types or signatures.
     """
 
-    surface: SurfaceRZFourierProtocol
-    pressure: ProfileProtocol
+    # --- Physics inputs, written by Vmec before each solve ---
+    boundary: SurfaceRZFourierProtocol
+    pressure: Optional[ProfileProtocol]
     current: Optional[ProfileProtocol]
     iota: Optional[ProfileProtocol]
 
-    # needed access to settings (phiedge, ...)
-    vmec_input: Any
+    # --- Scalar degrees of freedom (views onto indata; see above) ---
+    phiedge: float
+    curtor: float
+    pres_scale: float
 
-    # needed for compute_geometry etc
+    # --- Backend-specific settings container; simsopt never interprets it ---
+    indata: Any
+
+    # --- Output ---
     wout: Any
+    output_file: Any  # path to the wout file, or None for in-memory backends
 
-    def solve(self, *args: Any, **kwargs: Any) -> Any:
-        pass
+    def solve(self) -> None:
+        """Run the equilibrium solver and populate :attr:`wout`."""
+        ...
+
+
+@dataclass
+class VmecBoundary:
+    """
+    Concrete :class:`SurfaceRZFourierProtocol` carrier, built by
+    :class:`Vmec` from its boundary surface and handed to the solver.
+
+    ``surface`` is an implementation convenience *outside* the protocol:
+    it carries the originating
+    :class:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier` so that
+    backends which write Fortran input namelists can reuse
+    :meth:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier.get_nml`
+    instead of re-implementing the boundary formatting. Third-party
+    solvers should ignore it; protocol conformance never depends on it.
+    """
+    nfp: int = 1
+    stellsym: bool = True
+    mpol: int = 1
+    ntor: int = 0
+    rbc: dict = field(default_factory=dict)
+    zbs: dict = field(default_factory=dict)
+    rbs: dict = field(default_factory=dict)
+    zbc: dict = field(default_factory=dict)
+    surface: Any = None
+
+
+@dataclass
+class VmecProfile:
+    """
+    Concrete :class:`ProfileProtocol` carrier. See that protocol for the
+    meaning of ``coeffs`` and ``knots`` for each ``profile_type``.
+    """
+    profile_type: str = "power_series"
+    coeffs: Any = None
+    knots: Any = None
+
+
+#: Fields that downstream simsopt code reads from ``Vmec.wout``. Any
+#: backend's output object must expose these, using the conventions of
+#: the VMEC NetCDF ``wout`` file: two-dimensional Fourier arrays indexed
+#: as ``[mode, radial_index]``, and half-grid quantities carrying a dummy
+#: leading entry at index 0. The second block is required only for
+#: non-stellarator-symmetric (``lasym``) configurations.
+REQUIRED_WOUT_FIELDS = (
+    # Scalars and metadata
+    'aspect', 'Aminor_p', 'Rmajor_p', 'betatotal', 'ctor', 'ier_flag',
+    'lasym', 'mnmax', 'mnmax_nyq', 'mpol', 'nfp', 'ns', 'ntor', 'signgs',
+    'volavgB', 'volume_p', 'fsqr', 'fsql', 'fsqz',
+    # Profile type tags
+    'pmass_type', 'pcurr_type', 'piota_type',
+    # Mode numbers
+    'xm', 'xn', 'xm_nyq', 'xn_nyq',
+    # Radial profiles
+    'iotaf', 'iotas', 'pres', 'phi', 'chi', 'vp', 'buco', 'bvco',
+    'jcurv', 'jdotb',
+    # Fourier arrays, stellarator-symmetric
+    'rmnc', 'zmns', 'lmns', 'gmnc', 'bmnc', 'bsupumnc', 'bsupvmnc',
+    'bsubumnc', 'bsubvmnc', 'bsubsmns',
+)
+
+#: Additional ``wout`` fields required only when ``lasym`` is True.
+REQUIRED_WOUT_FIELDS_ASYM = (
+    'rmns', 'zmnc', 'lmnc', 'gmns', 'bmns', 'bsupumns', 'bsupvmns',
+    'bsubumns', 'bsubvmns', 'bsubsmnc',
+)
 
 
 class Vmec(Optimizable):
