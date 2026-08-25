@@ -15,6 +15,8 @@ import numpy as np
 from scipy.io import netcdf_file
 from scipy.integrate import quad
 
+from typing import Protocol, runtime_checkable, Any, Optional, Union
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -109,6 +111,63 @@ def array_to_namelist(arr, aux_s=False):
 #                        the tasks thru cleanup_flag in addition,
 #                        if ns_index = 0 and numsteps = 0 (see below), vmec will
 #                        control its own run history
+
+@runtime_checkable
+class SurfaceRZFourierProtocol(Protocol):
+    """A Protocol for facility the interaction between Vmec solvers (Vmec2000, Vmec++, Vmec-Jax, ...). 
+    This Protocol determines how SurfaceRZFourier object data is passed from Simsopt to Vmec solvers.
+    This protocol should be maintained here and also in the solver.
+    """
+    # also maintained on VMEC side
+    rbc: dict # (m,n): value
+    rbs: dict
+    zbc: dict
+    zbs: dict
+    nfp: int
+    stellsym: bool
+
+@runtime_checkable
+class ProfileProtocol(Protocol):
+    """A Protocol for facility the interaction between Vmec solvers (Vmec2000, Vmec++, Vmec-Jax, ...). 
+    This Protocol determines how Simsopt Profile object data is passed from Simsopt to Vmec solvers.
+    This protocol should be maintained here and also in the solver.
+    """
+    # also maintained on VMEC side
+    name: str
+    x: Union[np.ndarray, list]
+    y: Union[np.ndarray, list]
+
+@runtime_checkable
+class VmecProtocol(Protocol):
+    """A Protocol for Vmec solvers (Vmec2000, Vmec++, Vmec-Jax, ...). This Protocol determines
+    the basic set of attributes and methods that a Vmec solver must have in order
+    to be used within Simsopt.
+
+    Running,
+        ```
+        import vmecpp import Vmec
+        eq = Vmec(...)
+        isinstance(eq, VmecProtocol)
+        ```
+    will check the Vmec object has the attributes and methods defined by the VmecProtocol.
+    If False, then `eq` does not have the necessary structure to be used within Simsopt.
+    This check should be implemented by all methods that rely directly (though not indirectly)
+    on the Vmec object.
+    """
+
+    surface: SurfaceRZFourierProtocol
+    pressure: ProfileProtocol
+    current: Optional[ProfileProtocol]
+    iota: Optional[ProfileProtocol]
+
+    # needed access to settings (phiedge, ...)
+    vmec_input: Any
+
+    # needed for compute_geometry etc
+    wout: Any
+
+    def solve(self, *args: Any, **kwargs: Any) -> Any:
+        pass
 
 
 class Vmec(Optimizable):
