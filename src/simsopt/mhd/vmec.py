@@ -344,7 +344,8 @@ class Vmec(Optimizable):
                  verbose: bool = True,
                  ntheta=50,
                  nphi=50,
-                 range_surface='full torus'):
+                 range_surface='full torus',
+                 solver=None):
 
         if filename is None:
             # Read default input file, which should be in the same
@@ -383,15 +384,20 @@ class Vmec(Optimizable):
         if self.runnable:
             if MPI is None:
                 raise RuntimeError("mpi4py needs to be installed for running VMEC")
-            if vmec is None:
-                raise RuntimeError(
-                    "Running VMEC from simsopt requires VMEC python extension. "
-                    "Install the VMEC python extension from "
-                    "https://github.com/hiddenSymmetries/VMEC2000")
-
-            self._solver = Vmec2000Solver(filename, self.mpi,
-                                          keep_all_files=keep_all_files,
-                                          verbose=verbose)
+            if solver is None:
+                solver = Vmec2000Solver
+            if isinstance(solver, VmecSolverProtocol):
+                self._solver = solver
+            else:
+                self._solver = solver(filename, self.mpi,
+                                      keep_all_files=keep_all_files,
+                                      verbose=verbose)
+            if not isinstance(self._solver, VmecSolverProtocol):
+                raise TypeError(
+                    f"{type(self._solver).__name__} does not satisfy "
+                    "VmecSolverProtocol. It must provide: boundary, pressure, "
+                    "current, iota, phiedge, curtor, pres_scale, indata, wout, "
+                    "output_file, solve.")
 
             # A vmec object has mpol and ntor attributes independent of
             # the boundary. The boundary surface object is initialized
