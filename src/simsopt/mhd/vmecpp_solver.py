@@ -16,6 +16,7 @@ imported by ``simsopt.mhd.vmec``, so ``import simsopt`` stays free of it::
 
 import logging
 import os.path
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -175,9 +176,11 @@ class VmecppSolver:
         #: oversubscribing the machine when simsopt runs one VMEC per
         #: process for finite differencing. Pass ``None`` for all cores.
         self.max_threads = 1
-        #: A :obj:`vmecpp.VmecOutput` to hot restart from. Hot restarting
-        #: makes the result depend on the history of previous
-        #: evaluations, so it must not be used under finite differencing.
+        #: A :obj:`vmecpp.VmecOutput` to hot restart the next solve from.
+        #: Reset to ``None`` by that solve, so it applies once and cannot
+        #: go stale. Hot restarting makes the result depend on the
+        #: history of previous evaluations, so it must not be used under
+        #: finite differencing.
         self.restart_from = None
         #: A :obj:`vmecpp.MagneticFieldResponseTable` for in-memory free
         #: boundary runs, instead of ``indata.mgrid_file``.
@@ -217,6 +220,70 @@ class VmecppSolver:
         """ ``(mpol, ntor)`` of ``indata``, resolving a continuation schedule. """
         return (final_resolution(self.indata.mpol), final_resolution(self.indata.ntor))
 
+    def _resize_indata(self, new_mpol, new_ntor):
+        """
+        Reallocate ``indata``'s boundary and axis arrays for
+        ``(new_mpol, new_ntor)``, keeping the coefficients they already
+        hold. Existing modes are re-centred on the new ``n`` axis, and
+        rows that did not exist before are zeroed.
+        """
+        vi = self.indata  # Shorthand
+        # The round trip below needs indata to be self-consistent, so the
+        # arrays' own resolution is put back for its duration. It differs
+        # from vi.mpol/vi.ntor precisely when the user changed those.
+        array_mpol, array_ntor = vi.rbc.shape[0], (vi.rbc.shape[1] - 1) // 2
+        requested_mpol, requested_ntor = vi.mpol, vi.ntor
+        vi.mpol, vi.ntor = array_mpol, array_ntor
+
+        # Converting to and back is a bit unfortunate, but avoids
+        # having the resize method both in C++ and Python
+        indata_wrapper = vi._to_cpp_vmecindata()
+        indata_wrapper._set_mpol_ntor(new_mpol, new_ntor)
+        self.indata = VmecppIndata.from_vmec_input(
+            vmecpp.VmecInput._from_cpp_vmecindata(indata_wrapper))
+
+        # A continuation schedule survives the resize, since only its
+        # final entry determines the array shapes.
+        for name, requested in (('mpol', requested_mpol), ('ntor', requested_ntor)):
+            if np.ndim(requested) != 0 and \
+                    final_resolution(requested) == getattr(self.indata, name):
+                setattr(self.indata, name, requested)
+
+    def _ensure_indata_resolution(self):
+        """
+        Reallocate ``indata``'s arrays if ``indata.mpol``/``indata.ntor``
+        no longer match their shape, which is what plain assignment to
+        those fields leaves behind.
+        """
+        mpol, ntor = self.resolution
+        if self.indata.rbc.shape != (mpol, 2 * ntor + 1):
+            self._resize_indata(mpol, ntor)
+
+    def set_mpol_ntor(self, new_mpol, new_ntor):
+        """
+        Set ``indata.mpol`` and ``indata.ntor``, reallocating the
+        boundary and axis arrays. Assigning the two fields directly
+        works too; the arrays are then reallocated at the next solve.
+        """
+        self._resize_indata(new_mpol, new_ntor)
+        self.indata.mpol = new_mpol
+        self.indata.ntor = new_ntor
+
+    def _check_lasym_arrays(self):
+        """ Reject ``lasym = True`` on an input with no asymmetric arrays. """
+        vi = self.indata  # Shorthand
+        if not vi.lasym:
+            return
+        missing = [name for name in ('rbs', 'zbc', 'raxis_s', 'zaxis_c')
+                   if getattr(vi, name) is None]
+        if missing:
+            raise ValueError(
+                f"indata.lasym is True but {', '.join(missing)} "
+                f"{'is' if len(missing) == 1 else 'are'} absent, because the input "
+                "file this solver was created from was stellarator-symmetric. A lasym "
+                "run needs an input file with LASYM = T; the asymmetric boundary and "
+                "axis arrays are not synthesised here.")
+
     @property
     def boundary(self):
         """
@@ -239,6 +306,8 @@ class VmecppSolver:
         # simsopt.mhd.vmec never pulls in vmecpp.
         from .vmec import VmecBoundary
 
+        self._check_lasym_arrays()
+        self._ensure_indata_resolution()
         vi = self.indata  # Shorthand
         mpol, ntor = self.resolution
         # mpol is reported unchanged, not mpol - 1 as in
@@ -306,10 +375,14 @@ class VmecppSolver:
         Transfer the boundary shape and the profiles from this object's
         attributes into ``indata``. Performed before running VMEC++.
         """
-        vi = self.indata  # Shorthand
         boundary = self._boundary
         if boundary is None:
             raise RuntimeError("No boundary has been assigned to the solver.")
+        self._check_lasym_arrays()
+        # indata.mpol/ntor may have been raised or lowered by plain
+        # assignment, which does not resize indata's arrays:
+        self._ensure_indata_resolution()
+        vi = self.indata  # Shorthand
         mpol, ntor = self.resolution
         vi.rbc.fill(0.0)
         vi.zbs.fill(0.0)
@@ -348,6 +421,43 @@ class VmecppSolver:
         self.set_profile(self.current, "c")
         self.set_profile(self.iota, "i")
 
+    def get_input(self):
+        """
+        Generate a VMEC++ JSON input file. The result will be returned as
+        a string. To save a file, see the ``write_input()`` function,
+        which can also write a classic INDATA namelist.
+        """
+        self._push_to_indata()  # Transfer the boundary and profiles to indata.
+        return self.indata.model_dump_json()
+
+    def write_input(self, filename):
+        """
+        Write a VMEC++ JSON input file, or a classic INDATA namelist if
+        ``filename`` names an ``input.<extension>`` rather than a
+        ``.json`` file.
+
+        Args:
+            filename: Name of the file to write. Selected MPI processes can pass
+              ``None`` if you wish for these processes to not write a file.
+        """
+        # All procs should call self.get_input() so _push_to_indata()
+        # gets called, even procs that do not directly write the file:
+        indata_json = self.get_input()
+        if filename is None or not (self.mpi is None or self.mpi.proc0_groups):
+            return
+
+        filename = Path(filename)
+        if filename.name.startswith('input.') and filename.suffix != '.json':
+            # vmecpp converts JSON to INDATA from file to file, so the
+            # JSON goes to a temporary file first.
+            with tempfile.TemporaryDirectory() as tmpdir:
+                json_path = Path(tmpdir) / (filename.name + '.json')
+                json_path.write_text(indata_json)
+                with vmecpp.ensure_vmec2000_input(json_path) as indata_path:
+                    filename.write_text(indata_path.read_text())
+        else:
+            filename.write_text(indata_json)
+
     @property
     def group(self):
         """ Index of this process's worker group, or 0 without MPI. """
@@ -382,16 +492,34 @@ class VmecppSolver:
         kwargs = {}
         if self.magnetic_field is not None:
             kwargs["magnetic_field"] = self.magnetic_field
+
+        # A hot restart is consumed once, so that a solver left with a
+        # stale restart_from cannot silently keep restarting from it:
+        restart_from, self.restart_from = self.restart_from, None
+        indata = self.indata
+        if restart_from is not None:
+            # we are going to perform a hot restart, so we are only going to
+            # run the last of the multi-grid steps: adapt indata accordingly
+            indata = indata.model_copy(deep=True)
+            indata.ns_array = indata.ns_array[-1:]
+            indata.ftol_array = indata.ftol_array[-1:]
+            indata.niter_array = indata.niter_array[-1:]
+
         try:
             self.output_quantities = vmecpp.run(
-                self.indata,
+                indata,
                 max_threads=self.max_threads,
                 # Never let vmecpp's default animated progress bar through,
                 # since it would pollute optimizer logs.
                 verbose=1 if self.verbose else 0,
-                restart_from=self.restart_from,
+                restart_from=restart_from,
                 **kwargs)
-        except RuntimeError as e:
+        except (RuntimeError, AttributeError) as e:
+            # vmecpp reports a hot restart state that does not match
+            # indata with an AttributeError; any other AttributeError is
+            # a programming error and must not become ObjectiveFailure.
+            if isinstance(e, AttributeError) and "hot restart" not in str(e):
+                raise
             wout = getattr(e, "wout", None)
             reason = "" if wout is None else f" {wout.reason}."
             raise ObjectiveFailure(f"VMEC++ failed: {e}{reason}") from e
