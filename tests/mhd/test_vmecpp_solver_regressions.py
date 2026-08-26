@@ -13,12 +13,7 @@ import unittest
 import numpy as np
 from simsopt._core.util import ObjectiveFailure
 from simsopt.mhd.vmec import Vmec
-
-try:
-    import vmecpp
-    from simsopt.mhd.vmecpp_solver import VmecppSolver
-except ImportError:  # vmecpp is an optional dependency
-    vmecpp = None
+from simsopt.mhd.vmecpp_solver import VmecppSolver
 
 from . import TEST_DIR
 
@@ -30,7 +25,6 @@ def multigrid(vmec):
     vmec.indata.niter_array = np.array([1000, 3000])
 
 
-@unittest.skipIf(vmecpp is None, "vmecpp is not installed")
 class VmecppSolverRegressionTests(unittest.TestCase):
     def tearDown(self):
         for name in glob.glob("wout_*_000_??????.nc"):
