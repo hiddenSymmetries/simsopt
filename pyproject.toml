@@ -14,7 +14,7 @@ description="Framework for optimizing stellarators"
 readme = "README.md"
 # long_description = file: README.md
 # long_description_content_type = text/markdown
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 authors = [
   {name = "Matt Landreman", email = "mattland@umd.edu"},
   {name = "Bharat Medasani", email = "mbkumar@gmail.com"},
@@ -33,9 +33,10 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
     "Environment :: Console",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10"
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13"
 ]
 keywords = [
     "plasma physics",
@@ -62,7 +63,8 @@ dependencies = [
     "sympy",
     "f90nml",
     "pyevtk",
-    "matplotlib"
+    "matplotlib",
+    "vmecpp>=0.7.3"
 ]
 dynamic = ["version"]
 
@@ -72,7 +74,6 @@ MPI = ["mpi4py>=3.0.3"]
 VIS = ["vtk >= 8.1.2", "PyQt5", "plotly", "networkx"]
 DOCS = ["sphinx", "sphinx-rtd-theme", "sphinxcontrib-napoleon", "sphinx-autodoc-napoleon-typehints", "breathe"]
 ALGS = ["ground==9", "bentley_ottmann==8", "qsc"]
-VMECPP = ["vmecpp"]
 
 [project.urls]
 Homepage = "https://github.com/hiddenSymmetries/simsopt"
