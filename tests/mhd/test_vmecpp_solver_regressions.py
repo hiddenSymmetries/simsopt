@@ -11,10 +11,14 @@ import textwrap
 import unittest
 
 import numpy as np
-import vmecpp
 from simsopt._core.util import ObjectiveFailure
 from simsopt.mhd.vmec import Vmec
-from simsopt.mhd.vmecpp_solver import VmecppSolver
+
+try:
+    import vmecpp
+    from simsopt.mhd.vmecpp_solver import VmecppSolver
+except ImportError:  # vmecpp is an optional dependency
+    vmecpp = None
 
 from . import TEST_DIR
 
