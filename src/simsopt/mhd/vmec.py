@@ -34,18 +34,18 @@ from ..geo.surfacerzfourier import SurfaceRZFourier
 from .profiles import ProfilePolynomial, ProfileSpline
 # Re-imported here so that e.g. ``from simsopt.mhd.vmec import array_to_namelist``
 # keeps working:
-from .vmec_solver import (Vmec2000Solver, load_wout_file, to_namelist_bool,
-                          array_to_namelist, restart_flag, readin_flag,
-                          timestep_flag, output_flag, cleanup_flag,
-                          reset_jacdt_flag)  # noqa: F401
+from .vmec_solver import (Vmec2000Solver, load_wout_file,  # noqa: F401
+                          to_namelist_bool, array_to_namelist,
+                          restart_flag, readin_flag, timestep_flag,
+                          output_flag, cleanup_flag, reset_jacdt_flag)
 
 if MPI is not None:
     from ..util.mpi import MpiPartition
 else:
     MpiPartition = None
 
-__all__ = ["Vmec", "SurfaceRZFourierProtocol", "ProfileProtocol",
-           "VmecSolverProtocol", "VmecBoundary", "VmecProfile"]
+__all__ = ["ProfileProtocol", "SurfaceRZFourierProtocol", "Vmec",
+           "VmecBoundary", "VmecProfile", "VmecSolverProtocol"]
 
 
 @runtime_checkable
