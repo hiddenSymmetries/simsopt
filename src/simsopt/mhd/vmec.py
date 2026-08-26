@@ -460,16 +460,17 @@ class Vmec(Optimizable):
             # since that calls recompute_bell()
             self.need_to_run_code = False
 
-    def _solver_attribute(self, name):
-        """ Return the solver, or raise if this object was created from a wout file. """
+    @property
+    def _require_solver(self):
+        """ The solver, or an error if this object was initialized from a wout file. """
         if self._solver is None:
-            raise AttributeError(f"'Vmec' object has no attribute '{name}', because it "
-                                 "was initialized from a wout file.")
+            raise AttributeError("This Vmec object was initialized from a wout file, "
+                                 "so it has no solver.")
         return self._solver
 
     def _solver_method(self, name):
         """ Return a solver method that is not part of ``VmecSolverProtocol``. """
-        solver = self._solver_attribute(name)
+        solver = self._require_solver
         method = getattr(solver, name, None)
         if method is None:
             raise NotImplementedError(
@@ -522,56 +523,56 @@ class Vmec(Optimizable):
     @property
     def input_file(self):
         """ Name of the VMEC input file this object was initialized from. """
-        return self._solver_attribute("input_file").input_file
+        return self._require_solver.input_file
 
     @input_file.setter
     def input_file(self, input_file):
-        self._solver_attribute("input_file").input_file = input_file
+        self._require_solver.input_file = input_file
 
     @property
     def iter(self):
         """ Number of times VMEC has run. """
-        return self._solver_attribute("iter").iter
+        return self._require_solver.iter
 
     @iter.setter
     def iter(self, iter):
-        self._solver_attribute("iter").iter = iter
+        self._require_solver.iter = iter
 
     @property
     def keep_all_files(self):
         """ If ``False``, all but the first and most recent ``wout`` files are deleted. """
-        return self._solver_attribute("keep_all_files").keep_all_files
+        return self._require_solver.keep_all_files
 
     @keep_all_files.setter
     def keep_all_files(self, keep_all_files):
-        self._solver_attribute("keep_all_files").keep_all_files = keep_all_files
+        self._require_solver.keep_all_files = keep_all_files
 
     @property
     def files_to_delete(self):
         """ Files that will be deleted after the next run of VMEC. """
-        return self._solver_attribute("files_to_delete").files_to_delete
+        return self._require_solver.files_to_delete
 
     @files_to_delete.setter
     def files_to_delete(self, files_to_delete):
-        self._solver_attribute("files_to_delete").files_to_delete = files_to_delete
+        self._require_solver.files_to_delete = files_to_delete
 
     @property
     def free_boundary(self):
         """ Whether VMEC is run in free-boundary mode. """
-        return self._solver_attribute("free_boundary").free_boundary
+        return self._require_solver.free_boundary
 
     @free_boundary.setter
     def free_boundary(self, free_boundary):
-        self._solver_attribute("free_boundary").free_boundary = free_boundary
+        self._require_solver.free_boundary = free_boundary
 
     @property
     def fcomm(self):
         """ Fortran handle for the MPI communicator of the worker group. """
-        return self._solver_attribute("fcomm").fcomm
+        return self._require_solver.fcomm
 
     @fcomm.setter
     def fcomm(self, fcomm):
-        self._solver_attribute("fcomm").fcomm = fcomm
+        self._require_solver.fcomm = fcomm
 
     @property
     def boundary(self):
