@@ -182,7 +182,7 @@ def coil_optimization(s, bs, base_curves, curves, **kwargs):
     if FORCE_WEIGHT > 0:
         reg_base_coils = [RegularizedCoil(c.curve, c.current, regularization_circ(0.03 * R0)) if not isinstance(c, RegularizedCoil) else c for c in base_coils]
         reg_coils = [RegularizedCoil(c.curve, c.current, regularization_circ(0.03 * R0)) if not isinstance(c, RegularizedCoil) else c for c in coils]
-        Jforce = sum([LpCurveForce([reg_base_coils[i]], reg_coils, p=2, threshold=FORCE_THRESHOLD) for i in range(len(reg_base_coils))])
+        Jforce = LpCurveForce(reg_base_coils, reg_coils, p=2, threshold=FORCE_THRESHOLD)
     else:
         Jforce = None
 
@@ -864,10 +864,7 @@ def vacuum_stage_II_optimization(
     reg_param = regularization_circ(0.05)
     base_coils_reg = [RegularizedCoil(c.curve, c.current, reg_param) for c in base_coils]
     
-    lpcurveforce = sum([LpCurveForce(c, coils, p=2, 
-        threshold=FORCE_THRESHOLD, 
-        ) for c in base_coils_reg]
-    ).J()
+    lpcurveforce = LpCurveForce(base_coils_reg, coils, p=2, threshold=FORCE_THRESHOLD).J()
     max_forces = [np.max(np.linalg.norm(c_reg.force(coils), axis=1)) for c_reg in base_coils_reg]
     min_forces = [np.min(np.linalg.norm(c_reg.force(coils), axis=1)) for c_reg in base_coils_reg]
     RMS_forces = [np.sqrt(np.mean(np.square(np.linalg.norm(c_reg.force(coils), axis=1)))) for c_reg in base_coils_reg]
