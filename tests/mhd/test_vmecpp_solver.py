@@ -7,7 +7,6 @@ import tempfile
 import unittest
 
 import numpy as np
-import vmecpp
 from simsopt._core.util import ObjectiveFailure, Struct
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.mhd.vmec import (
@@ -18,12 +17,17 @@ from simsopt.mhd.vmec import (
     VmecSolverProtocol,
 )
 from simsopt.mhd.vmec_solver import load_wout_file
-from simsopt.mhd.vmecpp_solver import (
-    AXIS_ALIASES,
-    COMMON_INDATA_FIELDS,
-    VmecppIndata,
-    VmecppSolver,
-)
+
+try:
+    import vmecpp
+    from simsopt.mhd.vmecpp_solver import (
+        AXIS_ALIASES,
+        COMMON_INDATA_FIELDS,
+        VmecppIndata,
+        VmecppSolver,
+    )
+except ImportError:  # vmecpp is an optional dependency
+    vmecpp = None
 
 from . import TEST_DIR
 
