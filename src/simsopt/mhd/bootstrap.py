@@ -573,7 +573,9 @@ class RedlGeomBoozer(Optimizable):
         interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.buco[1:], fill_value="extrapolate")
         I = interp(surfaces)
 
-        if self.vmec.mpi.proc0_groups:
+        # mpi is None when the equilibrium's backend does not use MPI, e.g. VMEC++:
+        mpi = self.vmec.mpi
+        if mpi is None or mpi.proc0_groups:
             interp = interp1d(self.booz.bx.s_b, self.booz.bx.bmnc_b, fill_value="extrapolate")
             bmnc_b = interp(surfaces)
             logger.info(f'Original bmnc_b.shape: {self.booz.bx.bmnc_b.shape}  Interpolated bmnc_b.shape: {bmnc_b.shape}')
@@ -597,8 +599,9 @@ class RedlGeomBoozer(Optimizable):
             modB = 0
             sqrtg = 0
 
-        modB = self.vmec.mpi.comm_groups.bcast(modB)
-        sqrtg = self.vmec.mpi.comm_groups.bcast(sqrtg)
+        if mpi is not None:
+            modB = mpi.comm_groups.bcast(modB)
+            sqrtg = mpi.comm_groups.bcast(sqrtg)
 
         Bmin, Bmax, epsilon, fsa_B2, fsa_1overB, f_t = compute_trapped_fraction(modB, sqrtg)
 

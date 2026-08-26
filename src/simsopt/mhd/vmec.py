@@ -376,7 +376,10 @@ class Vmec(Optimizable):
             logger.info(f"Initializing a VMEC object from defaults in {filename}")
 
         basename = os.path.basename(filename)
-        if basename[:5] == 'input':
+        # Fortran VMEC input files are called input.<extension>; VMEC++
+        # also accepts a JSON input file, whose name need not start with
+        # "input".
+        if basename[:5] == 'input' or basename.endswith('.json'):
             logger.info(f"Initializing a VMEC object from input file: {filename}")
             self.runnable = True
         elif basename[:4] == 'wout':
