@@ -63,7 +63,8 @@ for seed in seeds:
     field_lines.append(fl)
 
     g0 = fl.curve.gamma()[0]
-    print(f"{seed['label']}: success={res['success']}, iterations={res['iter']}, "
+    print(f"{seed['label']}: stellsym={seed['stellsym']}, nfp={seed['nfp']}, "
+          f"ntor={seed['ntor']}, success={res['success']}, iterations={res['iter']}, "
           f"length={res['length']:.6f} m, "
           f"start (R, Z) = ({np.hypot(g0[0], g0[1]):.5f}, {g0[2]:.5f}) m")
 
