@@ -1,6 +1,7 @@
 """Test simsopt with the VMEC++ backend."""
 
 import glob
+import json
 import os
 import tempfile
 import unittest
@@ -331,11 +332,43 @@ class VmecppSolverTests(unittest.TestCase):
             v.run()
 
     def test_vmec2000_only_methods_raise(self):
+        """ get_max_mn reaches into the fortran arrays, so it is VMEC2000 only. """
         v = self.vmec()
-        for name in ["get_input", "get_max_mn"]:
-            with self.assertRaises(AttributeError) as cm:
-                getattr(v, name)()
-            self.assertIn(name, str(cm.exception))
+        with self.assertRaises(AttributeError) as cm:
+            v.get_max_mn()
+        self.assertIn("get_max_mn", str(cm.exception))
+
+    def test_get_input_returns_vmecpp_json(self):
+        """ get_input() emits VMEC++ JSON, as vmecpp/simsopt_compat did. """
+        v = self.vmec()
+        v.boundary.set_rc(1, 1, 0.0321)
+        indata = json.loads(v.get_input())
+        self.assertEqual(indata["nfp"], v.indata.nfp)
+        self.assertEqual(indata["mpol"], v.indata.mpol)
+        # The boundary was transferred to indata first:
+        rbc = {(mode["m"], mode["n"]): mode["value"] for mode in indata["rbc"]}
+        self.assertAlmostEqual(rbc[(1, 1)], 0.0321)
+        self.assertIsInstance(vmecpp.VmecInput.model_validate(indata),
+                              vmecpp.VmecInput)
+
+    def test_write_input_json_and_namelist(self):
+        """ A '*.json' name gets JSON; an 'input.*' name gets an INDATA namelist. """
+        v = self.vmec()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            json_path = os.path.join(tmpdir, "li383.json")
+            v.write_input(json_path)
+            with open(json_path) as f:
+                self.assertEqual(json.load(f)["nfp"], v.indata.nfp)
+
+            namelist_path = os.path.join(tmpdir, "input.li383")
+            v.write_input(namelist_path)
+            with open(namelist_path) as f:
+                self.assertIn("&INDATA", f.read())
+            # Both files describe the same equilibrium:
+            for path in [json_path, namelist_path]:
+                written = vmecpp.VmecInput.from_file(path)
+                self.assertEqual(written.mpol, v.indata.mpol)
+                np.testing.assert_allclose(written.rbc, v.indata.rbc, atol=1.0e-12)
 
 
 if __name__ == "__main__":
