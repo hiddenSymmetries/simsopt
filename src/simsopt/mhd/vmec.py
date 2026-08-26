@@ -477,16 +477,6 @@ class Vmec(Optimizable):
                                  "so it has no solver.")
         return self._solver
 
-    def _solver_method(self, name):
-        """ Return a solver method that is not part of ``VmecSolverProtocol``. """
-        solver = self._require_solver
-        method = getattr(solver, name, None)
-        if method is None:
-            raise NotImplementedError(
-                f"{type(solver).__name__} does not provide '{name}'. This method is "
-                "specific to the VMEC2000 backend and is not part of VmecSolverProtocol.")
-        return method
-
     @property
     def indata(self):
         """ The input parameters of the solver. """
@@ -790,9 +780,8 @@ class Vmec(Optimizable):
         Generate a VMEC input file. The result will be returned as a
         string. To save a file, see the ``write_input()`` function.
         """
-        get_input = self._solver_method("get_input")
         self.set_indata()  # Transfer the boundary and profiles to the solver.
-        return get_input()
+        return self._require_solver.get_input()
 
     def write_input(self, filename):
         """
@@ -803,11 +792,10 @@ class Vmec(Optimizable):
             filename: Name of the file to write. Selected MPI processes can pass
               ``None`` if you wish for these processes to not write a file.
         """
-        write_input = self._solver_method("write_input")
         # All procs should call self.set_indata(), even procs that do
         # not directly write the file:
         self.set_indata()
-        write_input(filename)
+        self._require_solver.write_input(filename)
 
     def run(self):
         """
@@ -917,7 +905,7 @@ class Vmec(Optimizable):
         Look through the rbc and zbs data in the solver to determine the
         largest m and n for which rbc or zbs is nonzero.
         """
-        return self._solver_method("get_max_mn")()
+        return self._require_solver.get_max_mn()
 
     def __repr__(self):
         """

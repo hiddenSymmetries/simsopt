@@ -331,10 +331,11 @@ class VmecppSolverTests(unittest.TestCase):
             v.run()
 
     def test_vmec2000_only_methods_raise(self):
+        """ get_max_mn reaches into the fortran arrays, so it is VMEC2000 only. """
         v = self.vmec()
-        for name in ["get_max_mn"]:
-            with self.assertRaises(NotImplementedError):
-                getattr(v, name)()
+        with self.assertRaises(AttributeError) as cm:
+            v.get_max_mn()
+        self.assertIn("get_max_mn", str(cm.exception))
 
     def test_get_input_returns_vmecpp_json(self):
         """ get_input() emits VMEC++ JSON, as vmecpp/simsopt_compat did. """

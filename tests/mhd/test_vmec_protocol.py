@@ -201,14 +201,14 @@ class VmecSolverProtocolTests(unittest.TestCase):
         np.testing.assert_allclose(pressure.knots, s)
         np.testing.assert_allclose(pressure.coeffs, v.pressure_profile(s))
 
-    def test_vmec2000_only_methods_raise(self):
-        """ get_input/write_input/get_max_mn are not part of the protocol. """
+    def test_methods_outside_the_protocol_raise(self):
+        """ A backend need not provide get_input/write_input/get_max_mn. """
         v = fake_vmec()
         for name in ["get_input", "get_max_mn"]:
-            with self.assertRaises(NotImplementedError) as cm:
+            with self.assertRaises(AttributeError) as cm:
                 getattr(v, name)()
-            self.assertIn("FakeVmecSolver", str(cm.exception))
-        with self.assertRaises(NotImplementedError):
+            self.assertIn(name, str(cm.exception))
+        with self.assertRaises(AttributeError):
             v.write_input("input.should_not_be_written")
         self.assertFalse(os.path.exists("input.should_not_be_written"))
 
