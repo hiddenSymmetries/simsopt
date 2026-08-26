@@ -1,3 +1,4 @@
+import logging
 import abc
 
 import numpy as np
@@ -23,6 +24,8 @@ from .._core.optimizable import Optimizable
 from .._core.dev import SimsoptRequires
 from .plotting import fix_matplotlib_3d
 from .._core.json import GSONable
+
+logger = logging.getLogger(__name__)
 
 __all__ = ['Surface', 'signed_distance_from_surface', 'SurfaceClassifier', 'SurfaceScaled', 'best_nphi_over_ntheta']
 
@@ -237,7 +240,8 @@ class Surface(Optimizable):
         if engine == "matplotlib":
             # plot in matplotlib.pyplot
             import matplotlib.pyplot as plt
-
+            if ax is not None and ax.name != "3d":
+                logger.warning('A non-3D matplotlib axis was passed as an input. It cannot be used for plotting. Instead, a new axis was created.')
             if ax is None or ax.name != "3d":
                 fig = plt.figure()
                 ax = fig.add_subplot(111, projection="3d")
