@@ -127,8 +127,18 @@ class VmecppSolver:
     Consequently, for input files that do specify boundary coefficients
     at ``m == mpol`` (``input.li383_low_res`` among them) that row reads
     back as zero here while the VMEC2000 backend reports the file
-    values. VMEC ignores those modes, so equilibria agree, but
-    ``vmec.boundary`` itself does not. Tracked in simsopt PR #437.
+    values. At the input file's own resolution VMEC ignores those modes,
+    so equilibria still agree.
+
+    They stop agreeing once ``indata.mpol`` is raised, because VMEC then
+    uses ``m == mpol``: real data on VMEC2000, zero here. For
+    ``input.li383_low_res`` at ``mpol = 5`` the aspect ratio differs by
+    2.6e-3, and this backend reproduces the ``mpol = 4`` answer since the
+    modes it activates are zero. Raising ``indata.mpol`` above the
+    boundary surface's own ``mpol`` is therefore backend dependent, which
+    affects the resolution-increase idiom used by
+    ``examples/2_Intermediate/resolution_increase.py`` and friends.
+    Tracked in simsopt PR #437.
 
     VMEC++ is OpenMP- rather than MPI-parallel, so ``mpi`` is only used
     for output file naming and may be ``None``. Additional VMEC++
