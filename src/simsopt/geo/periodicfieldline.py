@@ -1,12 +1,9 @@
 import numpy as np
 from scipy.linalg import lu
-from scipy.optimize import minimize, least_squares
-import simsoptpp as sopp
+from scipy.optimize import minimize
 
 from simsopt._core import Optimizable
-from simsopt._core.derivative import Derivative, derivative_dec
 from simsopt.geo import CurveLength
-from functools import partial
 
 __all__ = ['PeriodicFieldLine']
 
