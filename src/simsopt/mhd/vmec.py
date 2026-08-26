@@ -456,8 +456,6 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
         self.n_iota = 10
 
         if self.runnable:
-            if MPI is None:
-                raise RuntimeError("mpi4py needs to be installed for running VMEC")
             if solver is None:
                 solver = cast(VmecSolverProtocol[IndataT, WoutT], Vmec2000Solver())
             elif isinstance(solver, type):
@@ -885,8 +883,11 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
         """
         Print the object in an informative way.
         """
-        return f"{self.name} (nfp={self.indata.nfp} mpol={self.indata.mpol}" + \
-               f" ntor={self.indata.ntor})"
+        # Backends that support a Fourier continuation schedule resolve
+        # it in their `resolution`, so indata.mpol may be a sequence.
+        mpol, ntor = getattr(self._solver, "resolution",
+                             (self.indata.mpol, self.indata.ntor))
+        return f"{self.name} (nfp={self.indata.nfp} mpol={mpol} ntor={ntor})"
 
     def external_current(self):
         """
