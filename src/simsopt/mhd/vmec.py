@@ -297,7 +297,15 @@ class Vmec(Optimizable):
     series or number of spline nodes is determined by the attributes
     ``n_pressure``, ``n_current``, and ``n_iota``.  If a cubic spline
     is used, the spline nodes are uniformly spaced from :math:`s=0` to
-    1. Note that the choice of whether a polynomial or spline is used
+    1. As an exception, when the simsopt profile already uses the same
+    parametrization that VMEC is being asked for -- a
+    :obj:`~simsopt.mhd.profiles.ProfilePolynomial` with
+    ``"power_series"``, or a :obj:`~simsopt.mhd.profiles.ProfileSpline`
+    of degree 3 with ``"cubic_spline"`` or degree 1 with
+    ``"line_segment"`` -- its dofs are passed to VMEC unchanged and
+    ``n_pressure``, ``n_current`` and ``n_iota`` are ignored. This keeps
+    the optimizable dofs identical to VMEC's own profile coefficients
+    rather than a refit of them. Note that the choice of whether a polynomial or spline is used
     for the VMEC calculation is independent of the subclass of
     :obj:`~simsopt.mhd.profiles.Profile` used. Also, whether the iota
     or current profile is used is always determined by the

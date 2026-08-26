@@ -242,11 +242,14 @@ class Vmec2000Solver:
     @property
     def boundary(self):
         """
-        The boundary shape presently in the fortran ``indata``, as a
-        :obj:`~simsopt.mhd.vmec.VmecBoundary`. Assigning a boundary
-        stores it; it reaches ``indata`` at the next solve or
-        ``get_input()``.
+        The boundary shape this solver is configured with, as a
+        :obj:`~simsopt.mhd.vmec.VmecBoundary`. Before one has been
+        assigned this is read back from the fortran ``indata``, i.e. from
+        the input file. An assigned boundary reaches ``indata`` at the
+        next solve or ``get_input()``.
         """
+        if self._boundary is not None:
+            return self._boundary
         return self._boundary_from_indata()
 
     @boundary.setter
