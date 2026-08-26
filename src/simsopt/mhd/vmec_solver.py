@@ -146,8 +146,8 @@ class Vmec2000Solver:
     attribute, which is the fortran ``vmec.vmec_input`` module. The
     boundary shape and the profiles are instead taken from the
     ``boundary``, ``pressure``, ``current`` and ``iota`` attributes,
-    which are set by the caller and pushed into ``indata`` by
-    :meth:`set_indata`.
+    which are assigned by the caller and pushed into ``indata`` by
+    :meth:`solve` and :meth:`get_input`.
 
     Since the fortran implementation of VMEC uses global module
     variables, it is not possible to have more than one solver object
@@ -177,8 +177,8 @@ class Vmec2000Solver:
         self.wout = Struct()
         self.output_file = None
 
-        # Physics inputs, set by the caller before each solve:
-        self.boundary = None
+        # Physics inputs, assigned by the caller before each solve:
+        self._boundary = None
         self.pressure = None
         self.current = None
         self.iota = None
@@ -239,11 +239,22 @@ class Vmec2000Solver:
     def pres_scale(self, pres_scale):
         vmec.vmec_input.pres_scale = pres_scale
 
-    def get_boundary(self):
+    @property
+    def boundary(self):
         """
-        Return the boundary shape presently stored in the fortran
-        ``indata``, as a :obj:`~simsopt.mhd.vmec.VmecBoundary`.
+        The boundary shape presently in the fortran ``indata``, as a
+        :obj:`~simsopt.mhd.vmec.VmecBoundary`. Assigning a boundary
+        stores it; it reaches ``indata`` at the next solve or
+        ``get_input()``.
         """
+        return self._boundary_from_indata()
+
+    @boundary.setter
+    def boundary(self, boundary):
+        self._boundary = boundary
+
+    def _boundary_from_indata(self):
+        """ Build a :obj:`~simsopt.mhd.vmec.VmecBoundary` from the fortran ``indata``. """
         # Imported here rather than at module scope because vmec.py
         # imports this module.
         from .vmec import VmecBoundary
@@ -300,14 +311,16 @@ class Vmec2000Solver:
             raise RuntimeError('To use a simsopt Profile class with vmec, vmec profile type must be power_series, '
                                'cubic_spline, akima_spline, or line_segment. For current profiles, _i or _ip can be appended.')
 
-    def set_indata(self):
+    def _push_to_indata(self):
         """
         Transfer the boundary shape and the profiles from this object's
         attributes to VMEC's fortran module data. This is performed
         before writing a Vmec input file or running Vmec.
         """
         vi = vmec.vmec_input  # Shorthand
-        boundary = self.boundary
+        boundary = self._boundary
+        if boundary is None:
+            raise RuntimeError("No boundary has been assigned to the solver.")
         # VMEC does not allow mpol or ntor above 101:
         if vi.mpol > 101:
             raise ValueError("VMEC does not allow mpol > 101")
@@ -350,7 +363,7 @@ class Vmec2000Solver:
         Generate a VMEC input file. The result will be returned as a
         string. To save a file, see the ``write_input()`` function.
         """
-        self.set_indata()  # Transfer the boundary to fortran.
+        self._push_to_indata()  # Transfer the boundary and profiles to fortran.
         vi = vmec.vmec_input  # Shorthand
         nml = '&INDATA\n'
         nml += '! This file created by simsopt on ' + datetime.now().strftime("%B %d %Y, %H:%M:%S") + '\n\n'
@@ -425,7 +438,7 @@ class Vmec2000Solver:
         nml += f'NSTEP = {vi.nstep}\n'
 
         nml += '\n! ---- Boundary shape. Array index order is (n, m) ----\n'
-        surf_str = self.boundary.surface.get_nml().split('\n')
+        surf_str = self._boundary.surface.get_nml().split('\n')
         for j in range(3, len(surf_str)):
             nml += surf_str[j] + '\n'
 
@@ -440,8 +453,8 @@ class Vmec2000Solver:
             filename: Name of the file to write. Selected MPI processes can pass
               ``None`` if you wish for these processes to not write a file.
         """
-        # All procs should call self.get_input() so set_indata() gets
-        # called, even procs that do not directly write the file:
+        # All procs should call self.get_input() so _push_to_indata()
+        # gets called, even procs that do not directly write the file:
         input_namelist = self.get_input()
         if self.mpi.proc0_groups and (filename is not None):
             with open(filename, 'w') as f:
@@ -470,7 +483,7 @@ class Vmec2000Solver:
             os.path.basename(base_filename).replace('input.', 'jxbout_') + '.nc')
 
         file_to_write = input_file if (self.mpi.proc0_world or self.keep_all_files) else None
-        # This next line also calls set_indata():
+        # This next line also calls _push_to_indata():
         self.write_input(file_to_write)
 
         logger.info("Calling VMEC reinit().")

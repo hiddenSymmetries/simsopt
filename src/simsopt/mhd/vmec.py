@@ -102,6 +102,11 @@ class VmecSolverProtocol(Protocol):
     ``ftol_array``, ``delt``, ``mgrid_file``, ...) are reached through
     :attr:`indata`, whose type is chosen by the backend.
 
+    :obj:`Vmec` assigns :attr:`boundary`, :attr:`pressure`,
+    :attr:`current` and :attr:`iota` before each solve; the backend
+    translates them into its own input representation. Reading
+    :attr:`boundary` returns the boundary the backend currently holds.
+
     ``phiedge``, ``curtor`` and ``pres_scale`` must read and write
     straight through to :attr:`indata` rather than being cached, so that
     writing e.g. ``vmec.indata.curtor`` directly still takes effect.
@@ -123,9 +128,18 @@ class VmecSolverProtocol(Protocol):
     indata: Any
     wout: Any
     output_file: Any
+    verbose: bool
 
     def solve(self) -> None:
         """Run the solver and populate :attr:`wout`."""
+        ...
+
+    def load_wout(self) -> int:
+        """Load :attr:`output_file` into :attr:`wout`, returning an error code."""
+        ...
+
+    def update_mpi(self, new_mpi) -> None:
+        """Adopt a new :obj:`~simsopt.util.mpi.MpiPartition`. May be a no-op."""
         ...
 
 
@@ -397,7 +411,7 @@ class Vmec(Optimizable):
                     f"{type(self._solver).__name__} does not satisfy "
                     "VmecSolverProtocol. It must provide: boundary, pressure, "
                     "current, iota, phiedge, curtor, pres_scale, indata, wout, "
-                    "output_file, solve.")
+                    "output_file, verbose, solve, load_wout, update_mpi.")
 
             # A vmec object has mpol and ntor attributes independent of
             # the boundary. The boundary surface object is initialized
@@ -405,7 +419,7 @@ class Vmec(Optimizable):
             # object, but the mpol/ntor values of either the vmec object
             # or the boundary surface object can be changed independently
             # by the user.
-            solver_boundary = self._solver.get_boundary()
+            solver_boundary = self._solver.boundary
             self._boundary = SurfaceRZFourier.from_nphi_ntheta(nfp=solver_boundary.nfp,
                                                                stellsym=solver_boundary.stellsym,
                                                                mpol=solver_boundary.mpol,
@@ -452,6 +466,16 @@ class Vmec(Optimizable):
             raise AttributeError(f"'Vmec' object has no attribute '{name}', because it "
                                  "was initialized from a wout file.")
         return self._solver
+
+    def _solver_method(self, name):
+        """ Return a solver method that is not part of ``VmecSolverProtocol``. """
+        solver = self._solver_attribute(name)
+        method = getattr(solver, name, None)
+        if method is None:
+            raise NotImplementedError(
+                f"{type(solver).__name__} does not provide '{name}'. This method is "
+                "specific to the VMEC2000 backend and is not part of VmecSolverProtocol.")
+        return method
 
     @property
     def indata(self):
@@ -627,17 +651,16 @@ class Vmec(Optimizable):
 
     def set_profile(self, longname, shortname, letter):
         """
-        This function is used to set the pressure, current, and/or iota
-        profiles. The simsopt :obj:`~simsopt.mhd.profiles.Profile` object
-        is converted to VMEC's parametrization and transferred to the
-        solver.
+        Convert the simsopt :obj:`~simsopt.mhd.profiles.Profile` for
+        ``longname`` to VMEC's parametrization and assign it to the
+        solver's ``pressure``, ``current`` or ``iota`` attribute.
 
         Args:
             longname: ``"pressure"``, ``"current"``, or ``"iota"``.
             shortname: ``"mass"``, ``"curr"``, or ``"iota"``, as in VMEC's
               ``pmass_type``, ``pcurr_type``, and ``piota_type``.
             letter: ``"m"``, ``"c"``, or ``"i"``, as in VMEC's ``am``,
-              ``ac``, and ``ai``.
+              ``ac``, and ``ai``. Unused; retained for backwards compatibility.
 
         Returns:
             The :obj:`VmecProfile` handed to the solver, or ``None`` if no
@@ -645,6 +668,7 @@ class Vmec(Optimizable):
         """
         profile = self.__getattribute__(longname + "_profile")
         if profile is None:
+            setattr(self._solver, longname, None)
             return None
 
         n = self.__getattribute__("n_" + longname)
@@ -655,7 +679,6 @@ class Vmec(Optimizable):
 
         vmec_profile = self._to_vmec_profile(profile, n, profile_type)
         setattr(self._solver, longname, vmec_profile)
-        self._solver.set_profile(vmec_profile, letter)
         return vmec_profile
 
     @staticmethod
@@ -703,11 +726,11 @@ class Vmec(Optimizable):
 
     def set_indata(self):
         """
-        Transfer data from simsopt objects to the solver.  Presently,
-        this function sets the boundary shape, the magnetic axis shape,
-        and the input profiles. This data transfer is performed before
-        writing a Vmec input file or running Vmec. The boundary surface
-        object converted to ``SurfaceRZFourier`` is returned.
+        Assign the boundary shape and the input profiles to the solver's
+        ``boundary``, ``pressure``, ``current`` and ``iota`` attributes,
+        along with ``curtor`` and ``pres_scale``. Done before writing a
+        Vmec input file or running Vmec. The boundary surface object
+        converted to ``SurfaceRZFourier`` is returned.
         """
         if not self.runnable:
             raise RuntimeError('Cannot access indata for a Vmec object that was initialized from a wout file.')
@@ -715,7 +738,7 @@ class Vmec(Optimizable):
         boundary_RZFourier = self.boundary.to_RZFourier()
         self._solver.boundary = self._to_vmec_boundary(boundary_RZFourier)
 
-        # Set profiles, if they are not None:
+        # Convert the simsopt Profile objects to the solver's parametrization:
         self.set_profile("pressure", "mass", "m")
         current = self.set_profile("current", "curr", "c")
         self.set_profile("iota", "iota", "i")
@@ -732,7 +755,6 @@ class Vmec(Optimizable):
             else:
                 self._solver.curtor = self.current_profile(1.0)
 
-        self._solver.set_indata()
         return boundary_RZFourier
 
     @staticmethod
@@ -758,8 +780,9 @@ class Vmec(Optimizable):
         Generate a VMEC input file. The result will be returned as a
         string. To save a file, see the ``write_input()`` function.
         """
+        get_input = self._solver_method("get_input")
         self.set_indata()  # Transfer the boundary and profiles to the solver.
-        return self._solver.get_input()
+        return get_input()
 
     def write_input(self, filename):
         """
@@ -770,10 +793,11 @@ class Vmec(Optimizable):
             filename: Name of the file to write. Selected MPI processes can pass
               ``None`` if you wish for these processes to not write a file.
         """
+        write_input = self._solver_method("write_input")
         # All procs should call self.set_indata(), even procs that do
         # not directly write the file:
         self.set_indata()
-        self._solver.write_input(filename)
+        write_input(filename)
 
     def run(self):
         """
@@ -883,7 +907,7 @@ class Vmec(Optimizable):
         Look through the rbc and zbs data in the solver to determine the
         largest m and n for which rbc or zbs is nonzero.
         """
-        return self._solver_attribute("get_max_mn").get_max_mn()
+        return self._solver_method("get_max_mn")()
 
     def __repr__(self):
         """
