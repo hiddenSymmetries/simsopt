@@ -59,7 +59,7 @@ for seed in seeds:
     # 4. Solve for the periodic field line. Because the seed is already an
     #    accurate periodic field line, the (undamped) Newton solve converges
     #    immediately.
-    fl = PeriodicFieldLine(bs, curve)
+    fl = PeriodicFieldLine(BiotSavart(bs.coils), curve)
     res = fl.run_code(CurveLength(fl.curve).J())
     field_lines.append(fl)
 
