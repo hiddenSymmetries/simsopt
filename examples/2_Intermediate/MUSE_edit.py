@@ -60,7 +60,7 @@ if in_github_actions:
 else:
     nphi = 32  # >= 64 for high-resolution runs
     nIter_max = 10001
-    downsample = 2
+    downsample = 1
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
