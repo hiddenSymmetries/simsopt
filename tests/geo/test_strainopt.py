@@ -45,13 +45,13 @@ class CoilStrainTesting(unittest.TestCase):
     def test_torsion(self):
         for centroid in [True, False]:
             for order in [None, 1]:
-                with self.subTest(order=order):
+                with self.subTest(order=order, centroid=centroid):
                     self.subtest_torsion(order, centroid)
 
     def test_binormal_curvature(self):
         for centroid in [True, False]:
             for order in [None, 1]:
-                with self.subTest(order=order):
+                with self.subTest(order=order, centroid=centroid):
                     self.subtest_binormal_curvature(order, centroid)
 
     def subtest_binormal_curvature(self, order, centroid):
