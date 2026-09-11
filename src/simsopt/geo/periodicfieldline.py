@@ -104,6 +104,9 @@ class PeriodicFieldLine(Optimizable):
     ``np.linspace(0, 1/nfp, 2*order+1, endpoint=False)``. A ``ValueError`` is
     raised otherwise.
 
+    A curve with ``stellsym=True`` or ``nfp > 1`` assumes that the field line in
+    ``biotsavart`` shares those symmetries, which the user must ensure.
+
     The recommended way to solve for the field line is the
     :obj:`~simsopt.geo.PeriodicFieldLine.run_code` method, which takes an
     initial guess for the field line length,
@@ -256,8 +259,15 @@ class PeriodicFieldLine(Optimizable):
             J = J[mask]
 
         P, L, U = lu(J)
+        # The Newton step only enforces the equations selected by `mask`; the
+        # others are implied by symmetry, but only when the field shares the
+        # symmetry of the curve. Success is therefore reported on the *full*
+        # residual, so that a field whose symmetry does not match that of the
+        # curve is flagged as a failure instead of being silently accepted.
         res = {
-            "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "length": length, "PLU": (P, L, U),
+            "residual": r, "jacobian": J, "iter": i,
+            "success": np.linalg.norm(r, ord=np.inf) <= tol,
+            "length": length, "PLU": (P, L, U),
             "mask": mask, "vjp":periodicfieldline_dcoils_dcurrents_vjp
         }
         if verbose:

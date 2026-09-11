@@ -6,6 +6,7 @@ import numpy as np
 
 from simsopt.configs import get_data
 from simsopt.field import BiotSavart, Coil
+from simsopt.field.coil import ScaledCurrent
 from simsopt.geo import (
     CurveRZFourier, CurveXYZFourier, CurveXYZFourierSymmetries, CurveLength)
 from simsopt.geo.periodicfieldline import (
@@ -327,6 +328,41 @@ class PeriodicFieldLineTests(unittest.TestCase):
         self.assertEqual(mask.size, 3*(2*order+1) + 1)
         self.assertTrue(np.all(mask))
         self.assertEqual(int(mask.sum()), fl1.curve.num_dofs() + 1)
+
+    def test_success_requires_full_residual(self):
+        """
+        With ``stellsym=True`` the Newton step only enforces a subset of the
+        residual equations, the others being implied by symmetry. Scaling the
+        current of a single coil breaks the symmetry of the field, so that
+        implication no longer holds: the enforced subset still converges to
+        machine precision while the discarded equations do not. ``success`` is
+        reported on the full residual, so this is flagged as a failure instead
+        of silently returning a curve that is not a field line.
+        """
+        base_curves, base_currents, ma, nfp, bs = get_data("STAR_Lite-A_low")
+        coils = bs.coils
+
+        # a new ScaledCurrent for one coil only; modifying the existing Current
+        # in place would propagate to the coils that share it by symmetry
+        perturbed = list(coils)
+        perturbed[0] = Coil(coils[0].curve, ScaledCurrent(coils[0].current, 1.01))
+
+        order = ma.order
+        quadpoints = np.linspace(0, 1/nfp, 2*order+1, endpoint=False)
+        axis = CurveXYZFourierSymmetries(quadpoints, order, nfp, True, ntor=1)
+        ma_seed = CurveRZFourier(quadpoints, ma.order, ma.nfp, ma.stellsym)
+        ma_seed.x = ma.x
+        axis.least_squares_fit(ma_seed.gamma())
+
+        fl = PeriodicFieldLine(BiotSavart(perturbed), axis)
+        res = fl.run_code(CurveLength(axis).J())
+        mask = res["mask"]
+
+        # the enforced subset converges ...
+        self.assertLess(np.linalg.norm(res["residual"][mask], np.inf), 1e-12)
+        # ... but the discarded equations do not, so this is not a field line
+        self.assertGreater(np.linalg.norm(res["residual"], np.inf), 1e-6)
+        self.assertFalse(res["success"])
 
     def test_constructor_validation(self):
         """
