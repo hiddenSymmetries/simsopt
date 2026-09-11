@@ -21,8 +21,8 @@ solver operates on.
 import numpy as np
 
 from simsopt.configs import get_data
-from simsopt.geo import CurveRZFourier, CurveXYZFourierSymmetries, CurveLength, curves_to_vtk
-from simsopt.geo.periodicfieldline import PeriodicFieldLine
+from simsopt.geo import (CurveRZFourier, CurveXYZFourierSymmetries, CurveLength,
+                         PeriodicFieldLine, curves_to_vtk)
 from simsopt.field import BiotSavart
 
 # 1. Load the coils and the magnetic axis of the configuration.

@@ -328,6 +328,40 @@ class PeriodicFieldLineTests(unittest.TestCase):
         self.assertTrue(np.all(mask))
         self.assertEqual(int(mask.sum()), fl1.curve.num_dofs() + 1)
 
+    def test_constructor_validation(self):
+        """
+        The constructor rejects an unsupported curve type and a curve that is
+        not evaluated at exactly 2*order+1 points, with a descriptive message
+        rather than an IndexError from the residual mask.
+        """
+        base_curves, base_currents, ma, nfp, bs = get_data("STAR_Lite-A_low")
+        field = BiotSavart(bs.coils)
+        order = ma.order
+
+        # wrong number of quadrature points
+        wrong = CurveXYZFourierSymmetries(
+            np.linspace(0, 1/nfp, 2*order+2, endpoint=False), order, nfp, True, ntor=1)
+        with self.assertRaises(ValueError) as cm:
+            PeriodicFieldLine(field, wrong)
+        self.assertIn(f"2*order+1 = {2*order+1}", str(cm.exception))
+
+        # unsupported curve type
+        with self.assertRaises(ValueError) as cm:
+            PeriodicFieldLine(field, CurveRZFourier(2*order+1, order, nfp, True))
+        self.assertIn("CurveXYZFourierSymmetries", str(cm.exception))
+
+        # the supported combination is accepted
+        good = CurveXYZFourierSymmetries(
+            np.linspace(0, 1/nfp, 2*order+1, endpoint=False), order, nfp, True, ntor=1)
+        self.assertIsInstance(PeriodicFieldLine(field, good), PeriodicFieldLine)
+
+    def test_exported_from_simsopt_geo(self):
+        """The class is part of the public simsopt.geo namespace."""
+        import simsopt.geo
+
+        self.assertIn("PeriodicFieldLine", simsopt.geo.__all__)
+        self.assertIs(simsopt.geo.PeriodicFieldLine, PeriodicFieldLine)
+
     def test_run_code_caching(self):
         """
         ``run_code`` solves once and caches; touching a coil dof invalidates the

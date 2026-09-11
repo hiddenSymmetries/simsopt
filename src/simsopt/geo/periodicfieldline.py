@@ -2,8 +2,9 @@ import numpy as np
 from scipy.linalg import lu
 from scipy.optimize import minimize
 
-from simsopt._core import Optimizable
-from simsopt.geo import CurveLength
+from .curveobjectives import CurveLength
+from .curvexyzfouriersymmetries import CurveXYZFourierSymmetries
+from .._core.optimizable import Optimizable
 
 __all__ = ['PeriodicFieldLine']
 
@@ -64,14 +65,84 @@ def periodicfieldline_dcoils_dcurrents_vjp(lm, biotsavart, fieldline):
 
 
 class PeriodicFieldLine(Optimizable):
+    r"""
+    The PeriodicFieldLine class computes a periodic field line of a BiotSavart
+    magnetic field, that is, a closed field line that is a fixed point of the
+    field-line return map. The magnetic axis and the X-points of a stellarator
+    are the most common examples.
+
+    The field line is found by driving the residual
+
+        .. math::
+
+            \mathbf r(x) = \frac{\boldsymbol\gamma'(\theta)}{L}
+                           - \frac{\mathbf B(\boldsymbol\gamma(\theta))}
+                                  {|\mathbf B(\boldsymbol\gamma(\theta))|}
+
+    to zero, where :math:`\boldsymbol\gamma` is the curve, :math:`L` is the
+    length of the field line and :math:`\mathbf B` is the magnetic field. The
+    residual vanishes when the tangent of the curve is everywhere parallel to
+    :math:`\mathbf B`, so that the curve is a field line, and when the curve is
+    parametrized proportionally to arclength. The degrees of freedom are the
+    curve coefficients together with :math:`L`.
+
+    Args:
+        biotsavart: the :obj:`~simsopt.field.BiotSavart` magnetic field.
+        curve: a :obj:`~simsopt.geo.CurveXYZFourierSymmetries` holding the
+               initial guess. This is the only supported curve type: the solver
+               reads ``curve.order`` and ``curve.stellsym`` to build the set of
+               residual equations, and it exploits the discrete rotational
+               symmetry of the representation. Use ``ntor > 1`` for a field line
+               that closes only after several toroidal transits.
+        options: an optional dict of solver options, with keys ``verbose``
+                 (default ``False``), ``newton_tol`` (default ``1e-13``) and
+                 ``newton_maxiter`` (default ``40``).
+
+    The curve must be evaluated at exactly ``2 * curve.order + 1`` quadrature
+    points, so that the Newton system is square: an order-8 curve therefore
+    requires 17 points. The points should span a single field period,
+    ``np.linspace(0, 1/nfp, 2*order+1, endpoint=False)``. A ``ValueError`` is
+    raised otherwise.
+
+    The recommended way to solve for the field line is the
+    :obj:`~simsopt.geo.PeriodicFieldLine.run_code` method, which takes an
+    initial guess for the field line length,
+
+        :obj:`~simsopt.geo.PeriodicFieldLine.run_code(length_guess)`.
+
+    It calls
+    :obj:`~simsopt.geo.PeriodicFieldLine.solve_residual_equation_exactly_newton`,
+    a Newton iteration on the residual above. It converges quadratically, but
+    only from an initial curve that is already sufficiently close to the desired
+    periodic field line. Such a guess is usually obtained by tracing a field line
+    and fitting the traced points, parametrized by arclength, with
+    :obj:`~simsopt.geo.CurveXYZFourierSymmetries.least_squares_fit`. The
+    alternative
+    :obj:`~simsopt.geo.PeriodicFieldLine.minimize_boozer_penalty_constraints_LBFGS`
+    minimizes :math:`\frac{1}{2}\|\mathbf r\|^2` with L-BFGS, which is more
+    robust to a poor initial guess but reaches a looser tolerance.
+    """
 
     def __init__(self, biotsavart, curve, options=None):
         super().__init__(depends_on=[biotsavart])
-        
+
+        if not isinstance(curve, CurveXYZFourierSymmetries):
+            raise ValueError(
+                "PeriodicFieldLine only supports a CurveXYZFourierSymmetries, "
+                f"but a {type(curve).__name__} was given.")
+
+        expected = 2 * curve.order + 1
+        if len(curve.quadpoints) != expected:
+            raise ValueError(
+                f"The curve must have exactly 2*order+1 = {expected} quadrature "
+                f"points for the Newton system to be square, but it has "
+                f"{len(curve.quadpoints)} (order={curve.order}). Rebuild it with "
+                f"quadpoints=np.linspace(0, 1/nfp, {expected}, endpoint=False).")
+
         self.biotsavart = biotsavart
         self.curve = curve
         self.need_to_run_code = True
-        
+
         if options is None:
             options={}
 

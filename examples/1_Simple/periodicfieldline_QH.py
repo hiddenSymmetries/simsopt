@@ -29,8 +29,8 @@ import numpy as np
 
 from simsopt._core import load
 from simsopt.field import BiotSavart
-from simsopt.geo import CurveXYZFourierSymmetries, CurveLength, curves_to_vtk
-from simsopt.geo.periodicfieldline import PeriodicFieldLine
+from simsopt.geo import (
+    CurveXYZFourierSymmetries, CurveLength, PeriodicFieldLine, curves_to_vtk)
 
 THIS_DIR = os.path.dirname(__file__)
 INPUTS = os.path.join(THIS_DIR, "inputs")
