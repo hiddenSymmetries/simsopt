@@ -9,6 +9,14 @@ from .._core.optimizable import Optimizable
 __all__ = ['PeriodicFieldLine']
 
 def field_line_residual(curve, length, field):
+    """
+    Compute the field-line residual ``gammadash/length - B/|B|`` at the
+    quadrature points of ``curve``, flattened to three entries per point, along
+    with its Jacobian with respect to the curve dofs and the length, and its
+    derivative with respect to the local field. If the curve is not stellarator
+    symmetric, the equation ``y(theta=0) = 0`` is appended to pin the origin of
+    the parametrization. Returns the tuple ``(res, dres, dres_dB)``.
+    """
     pts = curve.gamma()
     field.set_points(pts.reshape((-1, 3)))
     B = field.B().reshape((-1, 3))
@@ -46,6 +54,10 @@ def field_line_residual(curve, length, field):
     return res, dres, dres_dB
 
 def periodicfieldline_dcoils_dcurrents_vjp(lm, biotsavart, fieldline):
+    """
+    Vector-Jacobian product of the enforced residual equations with the vector
+    ``lm``, with respect to the coil and current dofs. Returns a ``Derivative``.
+    """
     length = fieldline.res['length']
     curve = fieldline.curve
     res, dres, dres_dB = field_line_residual(curve, length, biotsavart)
@@ -123,7 +135,7 @@ class PeriodicFieldLine(Optimizable):
     alternative
     :obj:`~simsopt.geo.PeriodicFieldLine.minimize_boozer_penalty_constraints_LBFGS`
     minimizes :math:`\frac{1}{2}\|\mathbf r\|^2` with L-BFGS, which is more
-    robust to a poor initial guess but reaches a looser tolerance.
+    robust to a poor initial guess.
     """
 
     def __init__(self, biotsavart, curve, options=None):
@@ -161,15 +173,28 @@ class PeriodicFieldLine(Optimizable):
 
         
     def recompute_bell(self, parent=None):
+        """Invalidate the cached solve when the coils or currents change."""
         self.need_to_run_code = True
-    
+
     def run_code(self, length):
+        """
+        Solve for the periodic field line, given an initial guess ``length`` for
+        its length. Returns the result dict, or ``None`` if the cached solve is
+        still valid.
+        """
         if not self.need_to_run_code:
             return
         res = self.solve_residual_equation_exactly_newton(length=length, tol=self.options['newton_tol'], maxiter=self.options['newton_maxiter'], verbose=self.options['verbose'])
         return res
     
     def get_stellsym_mask(self):
+        """
+        Boolean mask selecting the residual equations enforced by the Newton
+        solve. For a stellarator-symmetric curve the residual is redundant, and
+        only ``3*order+2`` equations are kept, matching the number of unknowns
+        (curve dofs plus length) so that the system is square. Otherwise every
+        equation is kept.
+        """
         order = self.curve.order
         stellsym = self.curve.stellsym
         if not stellsym:
@@ -184,6 +209,12 @@ class PeriodicFieldLine(Optimizable):
         return mask
 
     def minimize_boozer_penalty_constraints_LBFGS(self, tol=1e-3, maxiter=1000, length=None, limited_memory=True, verbose=False):
+        """
+        Solve for the periodic field line by minimizing ``0.5*mean(res**2)``
+        with L-BFGS-B, or with BFGS if ``limited_memory`` is False. More robust
+        to a poor initial guess than the Newton solve. ``length`` defaults to
+        the length of the curve.
+        """
         if not self.need_to_run_code:
             return self.res
         curve = self.curve
@@ -226,6 +257,13 @@ class PeriodicFieldLine(Optimizable):
 
 
     def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, length=None, verbose=False):
+        """
+        Solve for the periodic field line with a Newton iteration on the
+        residual equations selected by :obj:`get_stellsym_mask`. ``length``
+        defaults to the length of the curve. Returns the result dict, whose
+        ``success`` entry is evaluated on the full residual rather than on the
+        enforced subset alone.
+        """
         #verbose=True
         if not self.need_to_run_code:
             return self.res
