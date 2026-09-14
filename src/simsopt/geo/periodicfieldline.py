@@ -106,9 +106,18 @@ class PeriodicFieldLine(Optimizable):
             exploits the discrete rotational symmetry of the representation. Use
             ``ntor > 1`` for a field line that closes only after several
             toroidal transits.
-        options (dict, optional) : Solver options, with keys ``verbose``
-            (default ``False``), ``newton_tol`` (default ``1e-13``) and
-            ``newton_maxiter`` (default ``40``).
+        options (dict, optional) : Solver options. A keyword that is not given
+            takes a default value. Possible keywords are:
+
+            - ``solver`` (str): which solver :obj:`run_code` uses, either
+              ``'newton'`` or ``'lbfgs'``. Defaults to ``'newton'``.
+            - ``verbose`` (bool): display convergence information. Defaults to False.
+            - ``newton_tol`` (float): tolerance for the Newton solver. Defaults to 1e-13.
+            - ``newton_maxiter`` (int): maximum number of Newton iterations. Defaults to 40.
+            - ``bfgs_tol`` (float): tolerance for the L-BFGS solver. Defaults to 1e-10.
+            - ``bfgs_maxiter`` (int): maximum number of L-BFGS iterations. Defaults to 1500.
+            - ``limited_memory`` (bool): True for the L-BFGS solver, False for
+              BFGS. Defaults to True.
 
     The curve must be evaluated at exactly ``2 * curve.order + 1`` quadrature
     points, so that the Newton system is square: an order-8 curve therefore
@@ -125,17 +134,18 @@ class PeriodicFieldLine(Optimizable):
 
         :obj:`~simsopt.geo.PeriodicFieldLine.run_code(length_guess)`.
 
-    It calls
+    Which solver it runs is set by the ``solver`` option. With ``'newton'``, the
+    default, it calls
     :obj:`~simsopt.geo.PeriodicFieldLine.solve_residual_equation_exactly_newton`,
     a Newton iteration on the residual above. It converges quadratically, but
     only from an initial curve that is already sufficiently close to the desired
     periodic field line. Such a guess is usually obtained by tracing a field line
     and fitting the traced points, parametrized by arclength, with
-    :obj:`~simsopt.geo.CurveXYZFourierSymmetries.least_squares_fit`. The
-    alternative
-    :obj:`~simsopt.geo.PeriodicFieldLine.minimize_boozer_penalty_constraints_LBFGS`
-    minimizes :math:`\frac{1}{2}\|\mathbf r\|^2` with L-BFGS, which is more
-    robust to a poor initial guess.
+    :obj:`~simsopt.geo.CurveXYZFourierSymmetries.least_squares_fit`. With
+    ``'lbfgs'`` it calls
+    :obj:`~simsopt.geo.PeriodicFieldLine.minimize_boozer_penalty_constraints_LBFGS`,
+    which minimizes :math:`\frac{1}{2}\|\mathbf r\|^2` and is more robust to a
+    poor initial guess.
     """
 
     def __init__(self, biotsavart, curve, options=None):
@@ -162,13 +172,27 @@ class PeriodicFieldLine(Optimizable):
             options={}
 
         # set the default options now
+        if 'solver' not in options:
+            options['solver'] = 'newton'
+        if options['solver'] not in ('newton', 'lbfgs'):
+            raise ValueError(f"Unknown solver {options['solver']!r}; "
+                             "expected either 'newton' or 'lbfgs'.")
         if 'verbose' not in options:
             options['verbose'] = False
-        # default solver options for the BoozerExact and BoozerLS solvers
-        if 'newton_tol' not in options:
-            options['newton_tol'] = 1e-13
-        if 'newton_maxiter' not in options:
-            options['newton_maxiter'] = 40
+
+        # default solver options for the Newton and L-BFGS solvers
+        if options['solver'] == 'newton':
+            if 'newton_tol' not in options:
+                options['newton_tol'] = 1e-13
+            if 'newton_maxiter' not in options:
+                options['newton_maxiter'] = 40
+        elif options['solver'] == 'lbfgs':
+            if 'bfgs_tol' not in options:
+                options['bfgs_tol'] = 1e-10
+            if 'bfgs_maxiter' not in options:
+                options['bfgs_maxiter'] = 1500
+            if 'limited_memory' not in options:
+                options['limited_memory'] = True
         self.options = options
 
         
@@ -178,14 +202,19 @@ class PeriodicFieldLine(Optimizable):
 
     def run_code(self, length):
         """
-        Solve for the periodic field line, given an initial guess ``length`` for
-        its length. Returns the result dict, or ``None`` if the cached solve is
-        still valid.
+        Solve for the periodic field line with the solver selected by the
+        ``solver`` option, given an initial guess ``length`` for its length.
+        Returns the result dict, or ``None`` if the cached solve is still valid.
         """
         if not self.need_to_run_code:
             return
-        res = self.solve_residual_equation_exactly_newton(length=length, tol=self.options['newton_tol'], maxiter=self.options['newton_maxiter'], verbose=self.options['verbose'])
-        return res
+
+        # Newton default solver
+        if self.options['solver'] == 'newton':
+            return self.solve_residual_equation_exactly_newton(length=length, tol=self.options['newton_tol'], maxiter=self.options['newton_maxiter'], verbose=self.options['verbose'])
+
+        # L-BFGS solver
+        return self.minimize_boozer_penalty_constraints_LBFGS(length=length, tol=self.options['bfgs_tol'], maxiter=self.options['bfgs_maxiter'], limited_memory=self.options['limited_memory'], verbose=self.options['verbose'])
     
     def get_stellsym_mask(self):
         """

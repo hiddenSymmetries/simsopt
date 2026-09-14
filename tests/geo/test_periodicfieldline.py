@@ -15,7 +15,7 @@ from simsopt.geo.periodicfieldline import (
 configurations = ["STAR_Lite-A_low", "STAR_Lite-A_medium", "STAR_Lite-A_high"]
 
 
-def get_axis_fieldline(name="STAR_Lite-A_low"):
+def get_axis_fieldline(name="STAR_Lite-A_low", options=None):
     """
     Build a :class:`PeriodicFieldLine` for configuration ``name``, seeded with
     the magnetic axis. Returns the (unsolved) field line, the Biot-Savart field,
@@ -31,7 +31,7 @@ def get_axis_fieldline(name="STAR_Lite-A_low"):
     ma_seed = CurveRZFourier(quadpoints, ma.order, ma.nfp, ma.stellsym)
     ma_seed.x = ma.x
     axis.least_squares_fit(ma_seed.gamma())
-    return PeriodicFieldLine(bs, axis), bs, ma_seed, nfp
+    return PeriodicFieldLine(bs, axis, options=options), bs, ma_seed, nfp
 
 
 def solve_full_torus_axis(bs, order, target):
@@ -363,6 +363,47 @@ class PeriodicFieldLineTests(unittest.TestCase):
         # ... but the discarded equations do not, so this is not a field line
         self.assertGreater(np.linalg.norm(res["residual"], np.inf), 1e-6)
         self.assertFalse(res["success"])
+
+    def test_solver_option(self):
+        """
+        The ``solver`` option selects which solver ``run_code`` runs: the Newton
+        iteration by default, or the L-BFGS penalty formulation. Each fills in
+        only its own defaults, the two return different result dicts, and an
+        unknown value is rejected.
+        """
+        # default is Newton, with the Newton defaults filled in
+        fl, bs, seed, nfp = get_axis_fieldline()
+        self.assertEqual(fl.options["solver"], "newton")
+        self.assertEqual(fl.options["newton_tol"], 1e-13)
+        self.assertEqual(fl.options["newton_maxiter"], 40)
+        self.assertNotIn("bfgs_tol", fl.options)
+
+        res = fl.run_code(CurveLength(fl.curve).J())
+        self.assertTrue(res["success"])
+        self.assertIn("PLU", res)          # the Newton result dict
+        self.assertLess(np.linalg.norm(res["residual"], np.inf), 1e-12)
+
+        # 'lbfgs' runs the penalty formulation, with its own defaults
+        fl2, bs2, _, _ = get_axis_fieldline(options=dict(solver="lbfgs"))
+        self.assertEqual(fl2.options["bfgs_tol"], 1e-10)
+        self.assertEqual(fl2.options["bfgs_maxiter"], 1500)
+        self.assertTrue(fl2.options["limited_memory"])
+        self.assertNotIn("newton_tol", fl2.options)
+
+        res2 = fl2.run_code(CurveLength(fl2.curve).J())
+        self.assertTrue(res2["success"])
+        self.assertIn("fun", res2)         # the L-BFGS result dict
+        self.assertNotIn("PLU", res2)
+        r, _, _ = field_line_residual(fl2.curve, res2["length"], bs2)
+        self.assertLess(np.linalg.norm(r, np.inf), 1e-3)
+
+        # both solvers find the same field line
+        self.assertLess(abs(res["length"] - res2["length"]), 1e-3)
+
+        # an unknown solver is rejected
+        with self.assertRaises(ValueError) as cm:
+            get_axis_fieldline(options=dict(solver="bogus"))
+        self.assertIn("bogus", str(cm.exception))
 
     def test_constructor_validation(self):
         """
