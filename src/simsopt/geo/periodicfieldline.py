@@ -99,8 +99,8 @@ class PeriodicFieldLine(Optimizable):
     curve coefficients together with :math:`L`.
 
     Args:
-        biotsavart (BiotSavart) : The magnetic field.
-        curve (CurveXYZFourierSymmetries) : The initial guess. This is the only
+        biotsavart (simsopt.field.BiotSavart) : The magnetic field.
+        curve (simsopt.geo.CurveXYZFourierSymmetries) : The initial guess. This is the only
             supported curve type: the solver reads ``curve.order`` and
             ``curve.stellsym`` to build the set of residual equations, and it
             exploits the discrete rotational symmetry of the representation. Use
