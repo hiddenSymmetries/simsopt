@@ -1,0 +1,345 @@
+import numpy as np
+from scipy.linalg import lu
+from scipy.optimize import minimize
+
+from .curveobjectives import CurveLength
+from .curvexyzfouriersymmetries import CurveXYZFourierSymmetries
+from .._core.optimizable import Optimizable
+
+__all__ = ['PeriodicFieldLine']
+
+def field_line_residual(curve, length, field):
+    """
+    Compute the field-line residual ``gammadash/length - B/|B|`` at the
+    quadrature points of ``curve``, flattened to three entries per point, along
+    with its Jacobian with respect to the curve dofs and the length, and its
+    derivative with respect to the local field. If the curve is not stellarator
+    symmetric, the equation ``y(t=0) = 0`` is appended to pin the origin of
+    the parametrization. Returns the tuple ``(res, dres, dres_dB)``.
+    """
+    pts = curve.gamma()
+    field.set_points(pts.reshape((-1, 3)))
+    B = field.B().reshape((-1, 3))
+    modB = field.AbsB()
+    res = curve.gammadash()/length - B/modB
+    res = res.flatten()
+    if not curve.stellsym:
+        # set y=0
+        res_y = curve.gamma()[0, 1]
+        dres_y = np.concatenate([curve.dgamma_by_dcoeff()[0, 1, :], [0]])
+
+    dres1_dcoeff = curve.dgammadash_by_dcoeff()/length
+    
+    idx = np.arange(3)
+    diag = np.zeros((pts.shape[0], 3, 3))
+    diag[:, idx, idx] = 1/modB
+    dres2_dB = -B[:, None, :] * B[:, :, None]/modB[:, None]**3 + diag
+
+    dB_by_dX = field.dB_by_dX()
+    dB_dc = np.einsum('ikl,ikm->ilm', dB_by_dX, curve.dgamma_by_dcoeff(), optimize=True)
+    dres2_dcoeff = np.einsum('ikl,ikm->ilm', dres2_dB, dB_dc, optimize=True)
+    dres_dcoeff = dres1_dcoeff - dres2_dcoeff
+
+    ncurve = dres1_dcoeff.shape[-1]
+    dres_dcoeff = dres_dcoeff.reshape((-1, ncurve))
+    
+    dres_del = -curve.gammadash().reshape((-1, 1))/length**2
+    dres = np.concatenate((dres_dcoeff, dres_del), axis=-1)
+    
+    dres_dB = -dres2_dB.reshape((-1, 3))
+    if not curve.stellsym:
+        res = np.concatenate((res, [res_y]))
+        dres = np.concatenate((dres, dres_y[None, :]), axis=0)
+        dres_dB = np.concatenate([dres_dB, np.zeros((1, 3))], axis=0)
+    return res, dres, dres_dB
+
+def periodicfieldline_dcoils_dcurrents_vjp(lm, biotsavart, fieldline):
+    """
+    Vector-Jacobian product of the enforced residual equations with the vector
+    ``lm``, with respect to the coil and current dofs. Returns a ``Derivative``.
+    """
+    length = fieldline.res['length']
+    curve = fieldline.curve
+    res, dres, dres_dB = field_line_residual(curve, length, biotsavart)
+    
+    lmask = np.zeros(fieldline.res["mask"].shape)
+    lmask[fieldline.res["mask"]] = lm
+    if not curve.stellsym:
+        dres_dB = dres_dB[:-1] # the final equation if stellsym==False is just the curve label, which doesn't depend on B
+        lmask = lmask[:-1]
+
+    dres_dB = dres_dB.reshape((-1, 3, 3)) # the final equation if stellsym==False is just the curve label, which doesn't depend on B
+    lm_cons = lmask.reshape((-1, 3))
+
+    lm_times_dres_dB = np.sum(lm_cons[:, :, None] * dres_dB, axis=1).reshape((-1, 3))
+    lm_times_dres_dcoils = biotsavart.B_vjp(lm_times_dres_dB)
+    return lm_times_dres_dcoils
+
+
+class PeriodicFieldLine(Optimizable):
+    r"""
+    The PeriodicFieldLine class computes a periodic field line of a BiotSavart
+    magnetic field, that is, a closed field line that is a fixed point of the
+    field-line return map. The magnetic axis and the X-points of a stellarator
+    are the most common examples.
+
+    The field line is found by driving the residual
+
+        .. math::
+
+            \mathbf r(\boldsymbol\Gamma, L)
+                = \frac{\boldsymbol\Gamma'(t)}{L}
+                  - \frac{\mathbf B(\boldsymbol\Gamma(t))}
+                         {|\mathbf B(\boldsymbol\Gamma(t))|}
+
+    to zero, where :math:`\boldsymbol\Gamma` is the curve, :math:`L` is the
+    length of the field line and :math:`\mathbf B` is the magnetic field. The
+    residual vanishes when the tangent of the curve is everywhere parallel to
+    :math:`\mathbf B`, so that the curve is a field line, and when the curve is
+    parametrized proportionally to arclength. The degrees of freedom are the
+    curve coefficients together with :math:`L`.
+
+    Args:
+        biotsavart (simsopt.field.BiotSavart) : The magnetic field.
+        curve (simsopt.geo.CurveXYZFourierSymmetries) : The initial guess. This is the only
+            supported curve type: the solver reads ``curve.order`` and
+            ``curve.stellsym`` to build the set of residual equations, and it
+            exploits the discrete rotational symmetry of the representation. Use
+            ``ntor > 1`` for a field line that closes only after several
+            toroidal transits.
+        options (dict, optional) : Solver options. A keyword that is not given
+            takes a default value. Possible keywords are:
+
+            - ``solver`` (str): which solver :obj:`run_code` uses, either
+              ``'newton'`` or ``'lbfgs'``. Defaults to ``'newton'``.
+            - ``verbose`` (bool): display convergence information. Defaults to False.
+            - ``newton_tol`` (float): tolerance for the Newton solver. Defaults to 1e-13.
+            - ``newton_maxiter`` (int): maximum number of Newton iterations. Defaults to 40.
+            - ``bfgs_tol`` (float): tolerance for the L-BFGS solver. Defaults to 1e-10.
+            - ``bfgs_maxiter`` (int): maximum number of L-BFGS iterations. Defaults to 1500.
+            - ``limited_memory`` (bool): True for the L-BFGS solver, False for
+              BFGS. Defaults to True.
+
+    The curve must be evaluated at exactly ``2 * curve.order + 1`` quadrature
+    points, so that the Newton system is square: an order-8 curve therefore
+    requires 17 points. The points should span a single field period,
+    ``np.linspace(0, 1/nfp, 2*order+1, endpoint=False)``. A ``ValueError`` is
+    raised otherwise.
+
+    A curve with ``stellsym=True`` or ``nfp > 1`` assumes that the field line in
+    ``biotsavart`` shares those symmetries, which the user must ensure.
+
+    The recommended way to solve for the field line is the
+    :obj:`~simsopt.geo.PeriodicFieldLine.run_code` method, which takes an
+    initial guess for the field line length,
+
+        :obj:`~simsopt.geo.PeriodicFieldLine.run_code(length_guess)`.
+
+    Which solver it runs is set by the ``solver`` option. With ``'newton'``, the
+    default, it calls
+    :obj:`~simsopt.geo.PeriodicFieldLine.solve_residual_equation_exactly_newton`,
+    a Newton iteration on the residual above. It converges quadratically, but
+    only from an initial curve that is already sufficiently close to the desired
+    periodic field line. Such a guess is usually obtained by tracing a field line
+    and fitting the traced points, parametrized by arclength, with
+    :obj:`~simsopt.geo.CurveXYZFourierSymmetries.least_squares_fit`. With
+    ``'lbfgs'`` it calls
+    :obj:`~simsopt.geo.PeriodicFieldLine.minimize_boozer_penalty_constraints_LBFGS`,
+    which minimizes :math:`\frac{1}{2}\|\mathbf r\|^2` and is more robust to a
+    poor initial guess.
+    """
+
+    def __init__(self, biotsavart, curve, options=None):
+        super().__init__(depends_on=[biotsavart])
+
+        if not isinstance(curve, CurveXYZFourierSymmetries):
+            raise ValueError(
+                "PeriodicFieldLine only supports a CurveXYZFourierSymmetries, "
+                f"but a {type(curve).__name__} was given.")
+
+        expected = 2 * curve.order + 1
+        if len(curve.quadpoints) != expected:
+            raise ValueError(
+                f"The curve must have exactly 2*order+1 = {expected} quadrature "
+                f"points for the Newton system to be square, but it has "
+                f"{len(curve.quadpoints)} (order={curve.order}). Rebuild it with "
+                f"quadpoints=np.linspace(0, 1/nfp, {expected}, endpoint=False).")
+
+        self.biotsavart = biotsavart
+        self.curve = curve
+        self.need_to_run_code = True
+
+        if options is None:
+            options={}
+
+        # set the default options now
+        if 'solver' not in options:
+            options['solver'] = 'newton'
+        if options['solver'] not in ('newton', 'lbfgs'):
+            raise ValueError(f"Unknown solver {options['solver']!r}; "
+                             "expected either 'newton' or 'lbfgs'.")
+        if 'verbose' not in options:
+            options['verbose'] = False
+
+        # default solver options for the Newton and L-BFGS solvers
+        if options['solver'] == 'newton':
+            if 'newton_tol' not in options:
+                options['newton_tol'] = 1e-13
+            if 'newton_maxiter' not in options:
+                options['newton_maxiter'] = 40
+        elif options['solver'] == 'lbfgs':
+            if 'bfgs_tol' not in options:
+                options['bfgs_tol'] = 1e-10
+            if 'bfgs_maxiter' not in options:
+                options['bfgs_maxiter'] = 1500
+            if 'limited_memory' not in options:
+                options['limited_memory'] = True
+        self.options = options
+
+        
+    def recompute_bell(self, parent=None):
+        """Invalidate the cached solve when the coils or currents change."""
+        self.need_to_run_code = True
+
+    def run_code(self, length):
+        """
+        Solve for the periodic field line with the solver selected by the
+        ``solver`` option, given an initial guess ``length`` for its length.
+        Returns the result dict, or ``None`` if the cached solve is still valid.
+        """
+        if not self.need_to_run_code:
+            return
+
+        # Newton default solver
+        if self.options['solver'] == 'newton':
+            return self.solve_residual_equation_exactly_newton(length=length, tol=self.options['newton_tol'], maxiter=self.options['newton_maxiter'], verbose=self.options['verbose'])
+
+        # L-BFGS solver
+        return self.minimize_boozer_penalty_constraints_LBFGS(length=length, tol=self.options['bfgs_tol'], maxiter=self.options['bfgs_maxiter'], limited_memory=self.options['limited_memory'], verbose=self.options['verbose'])
+    
+    def get_stellsym_mask(self):
+        """
+        Boolean mask selecting the residual equations enforced by the Newton
+        solve. For a stellarator-symmetric curve the residual is redundant, and
+        only ``3*order+2`` equations are kept, matching the number of unknowns
+        (curve dofs plus length) so that the system is square. Otherwise every
+        equation is kept.
+        """
+        order = self.curve.order
+        stellsym = self.curve.stellsym
+        if not stellsym:
+            mask = np.ones((2*order+1) * 3 + 1, dtype=bool)
+            return mask
+
+        mask = np.ones((2*order+1, 3), dtype=bool)
+        if stellsym:
+            mask[0, 0] = False
+            mask[order+1:, :] = False
+        mask = mask.flatten()
+        return mask
+
+    def minimize_boozer_penalty_constraints_LBFGS(self, tol=1e-3, maxiter=1000, length=None, limited_memory=True, verbose=False):
+        """
+        Solve for the periodic field line by minimizing ``0.5*mean(res**2)``
+        with L-BFGS-B, or with BFGS if ``limited_memory`` is False. More robust
+        to a poor initial guess than the Newton solve. ``length`` defaults to
+        the length of the curve.
+        """
+        if not self.need_to_run_code:
+            return self.res
+        curve = self.curve
+        
+        if length is None:
+            length = CurveLength(curve).J()
+
+        x = np.concatenate((curve.get_dofs(), [length]))
+        def fun(x):
+            curve.x = x[:-1]
+            length = x[-1]
+            r, J, _ = field_line_residual(self.curve, length, self.biotsavart)
+            val = 0.5 * np.mean(r**2)
+            dval = J.T@r/r.size
+            return val, dval
+
+        method = 'L-BFGS-B' if limited_memory else 'BFGS'
+        options = {'maxiter': maxiter, 'gtol': tol}
+        if limited_memory:
+            options['maxcor'] = 200
+            options['ftol'] = tol
+
+        res = minimize(
+            fun, x, jac=True, method=method,
+            options=options)
+
+        resdict = {
+            "fun": res.fun, "gradient": res.jac, "iter": res.nit, "info": res, "success": res.success
+        }
+        self.curve.x = res.x[:-1]
+        length = res.x[-1]
+        resdict['length'] = length
+
+        self.res = resdict
+        self.need_to_run_code = False
+
+        if verbose:
+            print(f"{method} solve - {resdict['success']}  iter={resdict['iter']}, length={resdict['length']:.8f}, ||grad||_inf = {np.linalg.norm(resdict['gradient'], ord=np.inf):.3e}", flush=True)
+        return resdict
+
+
+    def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, length=None, verbose=False):
+        """
+        Solve for the periodic field line with a Newton iteration on the
+        residual equations selected by :obj:`get_stellsym_mask`. ``length``
+        defaults to the length of the curve. Returns the result dict, whose
+        ``success`` entry is evaluated on the full residual rather than on the
+        enforced subset alone.
+        """
+        #verbose=True
+        if not self.need_to_run_code:
+            return self.res
+        
+        curve = self.curve
+        mask = self.get_stellsym_mask()
+
+        if length is None:
+            length = CurveLength(self.curve).J()
+
+        x = np.concatenate((curve.get_dofs(), [length]))
+        i = 0
+
+        r, J, _ = field_line_residual(curve, length, self.biotsavart)
+        b = r[mask]
+        J = J[mask]
+
+        while i < maxiter:
+            norm = np.linalg.norm(b, ord=np.inf)
+            if norm <= tol:
+                break
+            dx = np.linalg.solve(J, b)
+            dx += np.linalg.solve(J, b-J@dx)
+            x -= dx
+            curve.set_dofs(x[:-1])
+            length = x[-1]
+            i += 1
+            r, J, _ = field_line_residual(curve, length, self.biotsavart)
+            b = r[mask]
+            J = J[mask]
+
+        P, L, U = lu(J)
+        # The Newton step only enforces the equations selected by `mask`; the
+        # others are implied by symmetry, but only when the field shares the
+        # symmetry of the curve. Success is therefore reported on the *full*
+        # residual, so that a field whose symmetry does not match that of the
+        # curve is flagged as a failure instead of being silently accepted.
+        res = {
+            "residual": r, "jacobian": J, "iter": i,
+            "success": np.linalg.norm(r, ord=np.inf) <= tol,
+            "length": length, "PLU": (P, L, U),
+            "mask": mask, "vjp":periodicfieldline_dcoils_dcurrents_vjp
+        }
+        if verbose:
+            print(f"NEWTON solve - {res['success']}  iter={res['iter']}, length={res['length']:.8f}, ||residual||_inf = {np.linalg.norm(res['residual'], ord=np.inf):.3e}, cond(J) = {np.linalg.cond(J):.3e}", flush=True)
+
+        self.res = res
+        self.need_to_run_code = False
+        return res

@@ -108,6 +108,14 @@ simsopt.geo.jit module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.periodicfieldline module
+------------------------------------
+
+.. automodule:: simsopt.geo.periodicfieldline
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.permanent\_magnet\_grid module
 ------------------------------------------
 
