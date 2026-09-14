@@ -99,16 +99,16 @@ class PeriodicFieldLine(Optimizable):
     curve coefficients together with :math:`L`.
 
     Args:
-        biotsavart: the :obj:`~simsopt.field.BiotSavart` magnetic field.
-        curve: a :obj:`~simsopt.geo.CurveXYZFourierSymmetries` holding the
-               initial guess. This is the only supported curve type: the solver
-               reads ``curve.order`` and ``curve.stellsym`` to build the set of
-               residual equations, and it exploits the discrete rotational
-               symmetry of the representation. Use ``ntor > 1`` for a field line
-               that closes only after several toroidal transits.
-        options: an optional dict of solver options, with keys ``verbose``
-                 (default ``False``), ``newton_tol`` (default ``1e-13``) and
-                 ``newton_maxiter`` (default ``40``).
+        biotsavart (BiotSavart) : The magnetic field.
+        curve (CurveXYZFourierSymmetries) : The initial guess. This is the only
+            supported curve type: the solver reads ``curve.order`` and
+            ``curve.stellsym`` to build the set of residual equations, and it
+            exploits the discrete rotational symmetry of the representation. Use
+            ``ntor > 1`` for a field line that closes only after several
+            toroidal transits.
+        options (dict, optional) : Solver options, with keys ``verbose``
+            (default ``False``), ``newton_tol`` (default ``1e-13``) and
+            ``newton_maxiter`` (default ``40``).
 
     The curve must be evaluated at exactly ``2 * curve.order + 1`` quadrature
     points, so that the Newton system is square: an order-8 curve therefore
