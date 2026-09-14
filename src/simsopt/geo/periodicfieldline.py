@@ -14,7 +14,7 @@ def field_line_residual(curve, length, field):
     quadrature points of ``curve``, flattened to three entries per point, along
     with its Jacobian with respect to the curve dofs and the length, and its
     derivative with respect to the local field. If the curve is not stellarator
-    symmetric, the equation ``y(theta=0) = 0`` is appended to pin the origin of
+    symmetric, the equation ``y(t=0) = 0`` is appended to pin the origin of
     the parametrization. Returns the tuple ``(res, dres, dres_dB)``.
     """
     pts = curve.gamma()
@@ -87,11 +87,12 @@ class PeriodicFieldLine(Optimizable):
 
         .. math::
 
-            \mathbf r(x) = \frac{\boldsymbol\gamma'(\theta)}{L}
-                           - \frac{\mathbf B(\boldsymbol\gamma(\theta))}
-                                  {|\mathbf B(\boldsymbol\gamma(\theta))|}
+            \mathbf r(\boldsymbol\Gamma, L)
+                = \frac{\boldsymbol\Gamma'(t)}{L}
+                  - \frac{\mathbf B(\boldsymbol\Gamma(t))}
+                         {|\mathbf B(\boldsymbol\Gamma(t))|}
 
-    to zero, where :math:`\boldsymbol\gamma` is the curve, :math:`L` is the
+    to zero, where :math:`\boldsymbol\Gamma` is the curve, :math:`L` is the
     length of the field line and :math:`\mathbf B` is the magnetic field. The
     residual vanishes when the tangent of the curve is everywhere parallel to
     :math:`\mathbf B`, so that the curve is a field line, and when the curve is
