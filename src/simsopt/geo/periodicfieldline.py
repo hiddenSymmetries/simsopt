@@ -311,7 +311,6 @@ class PeriodicFieldLine(Optimizable):
         b = r[mask]
         J = J[mask]
 
-        norm = 1e6
         while i < maxiter:
             norm = np.linalg.norm(b, ord=np.inf)
             if norm <= tol:
