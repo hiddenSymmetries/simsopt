@@ -19,6 +19,10 @@ pip-wheel-metadata/
 .coverage
 .tox
 *fort.9
+
+# uv related
+.venv/
+uv.lock
 	
 # f90wrap related
 src.*/
