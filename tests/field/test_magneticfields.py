@@ -768,9 +768,64 @@ class Testing(unittest.TestCase):
         gradA = np.array(Bfield.dA_by_dX())
         assert np.allclose(gradA, Ndipoles * 1e-7 * np.array([[0.76151796, -0.151597, -0.0176294], [-0.92722, -0.444219, 0.3349286], [0.1657024, 0.5958156, -0.31730]]), atol=1e-4)
 
-        # Save to vtk
+        # Save to vtk (dx, dy, dz needed for 3D voxel output)
         with ScratchDir("."):
-            Bfield._toVTK('test')
+            Bfield._toVTK('test', 0.1, 0.1, 0.1)
+
+    @unittest.skipIf(pyevtk is None, "pyevtk not found")
+    def test_DipoleField_toVTK(self):
+        """Test _toVTK with optional dimensions: point-cloud-only and full voxel output."""
+        Ndipoles = 10
+        m = np.ravel(np.outer(np.ones(Ndipoles), np.array([0.5, 0.5, 0.5])))
+        m_loc = np.outer(np.ones(Ndipoles), np.array([0.1, -0.1, 1]))
+        m_maxima = np.ones(Ndipoles) * np.sqrt(3)
+
+        with ScratchDir("."):
+            Bfield = DipoleField(
+                m_loc, m, stellsym=False, coordinate_flag='cartesian',
+                m_maxima=m_maxima
+            )
+            # Test 0: optional dims - point cloud only, no geometry files
+            Bfield._toVTK('pointcloud_only')
+            self.assertTrue(Path('pointcloud_only.vtu').exists())
+            self.assertFalse(Path('pointcloud_only_geometry.vtu').exists())
+            self.assertFalse(Path('pointcloud_only_geometry_unique.vtu').exists())
+
+            # Test 1: scalar dx, dy, dz
+            Bfield._toVTK('boxes_scalar', 0.05, 0.06, 0.07)
+            for suffix in ['', '_geometry', '_geometry_unique']:
+                self.assertTrue(
+                    Path('boxes_scalar' + suffix + '.vtu').exists(),
+                    msg=f"Expected file boxes_scalar{suffix}.vtu"
+                )
+
+            # Test 2: per-magnet array sizes (full grid)
+            dx_arr = 0.03 + 0.01 * np.arange(Ndipoles, dtype=float)
+            dy_arr = 0.04 + 0.01 * np.arange(Ndipoles, dtype=float)
+            dz_arr = 0.05 + 0.01 * np.arange(Ndipoles, dtype=float)
+            Bfield._toVTK('boxes_array', dx_arr, dy_arr, dz_arr)
+            self.assertTrue(Path('boxes_array_geometry.vtu').exists())
+
+            # Test 3: stellarator symmetric with ndipoles_unique array
+            ndip_unique = 5
+            m_loc_half = np.outer(np.ones(ndip_unique), np.array([0.2, 0.1, 1.0]))
+            m_half = np.ravel(np.outer(np.ones(ndip_unique), np.array([0.5, 0.5, 0.5])))
+            Bfield_sym = DipoleField(
+                m_loc_half, m_half, stellsym=True, nfp=2,
+                coordinate_flag='cartesian', m_maxima=np.ones(ndip_unique)
+            )
+            dx_unique = np.full(ndip_unique, 0.08)
+            dy_unique = np.full(ndip_unique, 0.09)
+            dz_unique = np.full(ndip_unique, 0.10)
+            Bfield_sym._toVTK('boxes_unique', dx_unique, dy_unique, dz_unique)
+            self.assertTrue(Path('boxes_unique_geometry.vtu').exists())
+            self.assertTrue(Path('boxes_unique_geometry_unique.vtu').exists())
+
+            # Test 4: wrong array size raises ValueError
+            wrong_dx = np.array([0.1, 0.2])  # length 2, expect Ndipoles=10
+            with self.assertRaises(ValueError) as ctx:
+                Bfield._toVTK('fail', wrong_dx, 0.1, 0.1)
+            self.assertIn("Size array must be scalar", str(ctx.exception))
 
     def test_DipoleField_multiple_points_multiple_dipoles(self):
         Ndipoles = 101
