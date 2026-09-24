@@ -24,7 +24,6 @@ try:
 except ImportError:
     VmecppSolver = None
 
-from simsopt._core.util import ObjectiveFailure
 from simsopt.mhd.vmec import Vmec
 
 from . import TEST_DIR
@@ -163,17 +162,18 @@ class VmecBackendResultTests(unittest.TestCase):
             second = (v.aspect(), v.iota_axis(), v.volume())
             np.testing.assert_allclose(second, first, rtol=1e-12)
 
-    def test_asymmetric_fixture_fails_on_vmecpp(self):
+    def test_asymmetric_fixture_converges(self):
         """
-        VMEC2000 converges on input.basic_non_stellsym, the only
-        non-stellarator-symmetric equilibrium in the suite; VMEC++ stops
-        in its first iterations, with either boundary parametrization.
+        input.basic_non_stellsym, the only non-stellarator-symmetric
+        equilibrium in the suite, converges on VMEC++ >= 0.7.4 with the
+        same aspect ratio and volume as on VMEC2000.
         """
         with ScratchDir("."):
             path = os.path.join(TEST_DIR, "input.basic_non_stellsym")
-            self.assertTrue(np.isfinite(Vmec(path, verbose=False).aspect()))
-            with self.assertRaises(ObjectiveFailure):
-                Vmec(path, verbose=False, solver=VmecppSolver).aspect()
+            a = Vmec(path, verbose=False)
+            b = Vmec(path, verbose=False, solver=VmecppSolver)
+            np.testing.assert_allclose(b.aspect(), a.aspect(), rtol=1e-12)
+            np.testing.assert_allclose(b.volume(), a.volume(), rtol=1e-12)
 
 
 if __name__ == "__main__":
