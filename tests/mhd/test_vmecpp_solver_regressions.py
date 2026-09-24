@@ -51,6 +51,30 @@ class VmecppSolverRegressionTests(unittest.TestCase):
         np.testing.assert_allclose(v.indata.rbc[4, :], 0.0)
         self.assertTrue(np.isfinite(v.wout.aspect))
 
+    def test_indata_keeps_its_identity_across_a_resize(self):
+        """
+        A reference to indata taken before raising mpol is still the
+        object that is run, as on the VMEC2000 backend.
+        """
+        v = self.vmec()
+        indata = v.indata
+        indata.mpol = 5
+        v.run()
+        self.assertIs(v.indata, indata)
+        indata.ftol_array = np.array([1.0e-9])
+        np.testing.assert_allclose(v.indata.ftol_array, [1.0e-9])
+
+    def test_wout_keeps_its_identity_across_runs(self):
+        """ As on the VMEC2000 backend, a held reference to wout sees later runs. """
+        v = self.vmec()
+        v.run()
+        wout = v.wout
+        aspect = wout.aspect
+        v.boundary.set_rc(0, 0, 1.01 * v.boundary.get_rc(0, 0))
+        v.run()
+        self.assertIs(v.wout, wout)
+        self.assertNotEqual(wout.aspect, aspect)
+
     def test_raising_ntor_recentres_the_n_axis(self):
         v = self.vmec()
         rbc = np.array(v.indata.rbc)
