@@ -38,6 +38,9 @@ Also,
       python extension in this repository is required to run VMEC or
       optimize VMEC configurations, but is not needed for computing
       properties of existing ``wout`` output files.
+    * Optionally `VMEC++ <https://github.com/proximafusion/vmecpp>`_, via
+      ``pip install simsopt[VMECPP]``, selected with
+      ``Vmec(..., solver=VmecppSolver)``.
 - For computing Boozer coordinates:
     * `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_
 - For SPEC support:
