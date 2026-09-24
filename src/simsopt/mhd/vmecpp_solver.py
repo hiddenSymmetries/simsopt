@@ -246,8 +246,9 @@ class VmecppSolver:
         # having the resize method both in C++ and Python
         indata_wrapper = vi._to_cpp_vmecindata()
         indata_wrapper._set_mpol_ntor(new_mpol, new_ntor)
-        self.indata = VmecppIndata.from_vmec_input(
-            vmecpp.VmecInput._from_cpp_vmecindata(indata_wrapper))
+        # Updated in place rather than rebound, so that a reference to
+        # indata the caller already holds stays the one that is run:
+        vars(vi).update(vars(vmecpp.VmecInput._from_cpp_vmecindata(indata_wrapper)))
 
         # A continuation schedule survives the resize, since only its
         # final entry determines the array shapes.
@@ -531,7 +532,7 @@ class VmecppSolver:
             wout = getattr(e, "wout", None)
             reason = "" if wout is None else f" {wout.reason}."
             raise ObjectiveFailure(f"VMEC++ failed: {e}{reason}") from e
-        self.wout = self.output_quantities.wout
+        self._set_wout(self.output_quantities.wout)
 
         logger.info("VMEC++ run complete. Now saving output.")
         # Every process in a worker group runs its own VMEC++, so only
@@ -572,10 +573,21 @@ class VmecppSolver:
         """
         assert self.output_file is not None
         logger.info(f"Attempting to read file {self.output_file}")
-        self.wout = vmecpp.VmecWOut.from_wout_file(self.output_file)
+        self._set_wout(vmecpp.VmecWOut.from_wout_file(self.output_file))
         if self.wout.ier_flag not in (0, SUCCESSFUL_TERM_FLAG):
             raise ObjectiveFailure(f"VMEC++ did not succeed. {self.wout.reason}")
         return 0
+
+    def _set_wout(self, wout):
+        """
+        Store ``wout``. After the first run the existing object is
+        updated in place, as the VMEC2000 backend does, so that a
+        reference to ``Vmec.wout`` held by the caller sees later runs.
+        """
+        if self.wout is None:
+            self.wout = wout.model_copy()
+        else:
+            vars(self.wout).update(vars(wout))
 
     def update_mpi(self, new_mpi):
         """
