@@ -6,9 +6,12 @@ import numpy as np
 from monty.tempfile import ScratchDir
 from scipy.io import netcdf_file
 try:
-    import booz_xform
+    import booz_xform_jax as booz_xform
 except ImportError:
-    booz_xform = None
+    try:
+        import booz_xform
+    except ImportError:
+        booz_xform = None
 
 try:
     import vmec
