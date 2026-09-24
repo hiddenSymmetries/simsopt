@@ -32,7 +32,7 @@ from . import TEST_DIR
 BOUNDARY_FIXTURES = [
     "input.li383_low_res",
     "input.circular_tokamak",
-    "input.LandremanSenguptaPlunk_section5p3",
+    "input.basic_non_stellsym",
     "input.rotating_ellipse",
 ]
 
