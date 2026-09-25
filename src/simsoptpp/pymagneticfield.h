@@ -21,8 +21,11 @@ template <class MagneticFieldBase = PyMagneticField> class PyMagneticFieldTrampo
         virtual void _dB_by_dX_impl(typename MagneticFieldBase::Tensor3& data) override { 
             PYBIND11_OVERLOAD(void, MagneticFieldBase, _dB_by_dX_impl, data);
         }
-        virtual void _d2B_by_dXdX_impl(typename MagneticFieldBase::Tensor4& data) override { 
+        virtual void _d2B_by_dXdX_impl(typename MagneticFieldBase::Tensor4& data) override {
             PYBIND11_OVERLOAD(void, MagneticFieldBase, _d2B_by_dXdX_impl, data);
+        }
+        virtual void _d3B_by_dXdXdX_impl(typename MagneticFieldBase::Tensor5& data) override {
+            PYBIND11_OVERLOAD(void, MagneticFieldBase, _d3B_by_dXdXdX_impl, data);
         }
         virtual void _A_impl(typename MagneticFieldBase::Tensor2& data) override { 
             PYBIND11_OVERLOAD(void, MagneticFieldBase, _A_impl, data);

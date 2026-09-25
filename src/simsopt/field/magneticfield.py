@@ -207,6 +207,9 @@ class MagneticFieldMultiply(MagneticField):
     def _d2B_by_dXdX_impl(self, ddB):
         ddB[:] = self.scalar*self.Bfield.d2B_by_dXdX()
 
+    def _d3B_by_dXdXdX_impl(self, dddB):
+        dddB[:] = self.scalar*self.Bfield.d3B_by_dXdXdX()
+
     def _A_impl(self, A):
         A[:] = self.scalar*self.Bfield.A()
 
@@ -255,6 +258,9 @@ class MagneticFieldSum(MagneticField):
 
     def _d2B_by_dXdX_impl(self, ddB):
         ddB[:] = np.sum([bf.d2B_by_dXdX() for bf in self.Bfields], axis=0)
+
+    def _d3B_by_dXdXdX_impl(self, dddB):
+        dddB[:] = np.sum([bf.d3B_by_dXdXdX() for bf in self.Bfields], axis=0)
 
     def _A_impl(self, A):
         A[:] = np.sum([bf.A() for bf in self.Bfields], axis=0)
