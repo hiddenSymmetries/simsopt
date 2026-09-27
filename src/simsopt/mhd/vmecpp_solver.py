@@ -20,10 +20,11 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
-import pydantic
 import vmecpp
 
 from .._core.util import ObjectiveFailure
+from .vmec_solver import (PROFILE_SIZE_FIELD, PROFILE_TYPE_FIELD, fit_profile,
+                          profile_curtor, profile_type_tag)
 
 logger = logging.getLogger(__name__)
 
@@ -59,12 +60,6 @@ AXIS_ALIASES = {
 
 #: ``indata`` fields that fortran-facing code may assign ``bytes`` to.
 _BYTES_FIELDS = ('mgrid_file', 'pmass_type', 'pcurr_type', 'piota_type')
-
-#: VMEC profile parametrizations simsopt knows how to hand to a solver.
-_PROFILE_FAMILIES = ('power_series', 'cubic_spline', 'akima_spline', 'line_segment')
-
-#: ``indata`` field holding the profile type tag, per profile letter.
-_PROFILE_TYPE_FIELD = {'m': 'pmass_type', 'c': 'pcurr_type', 'i': 'piota_type'}
 
 #: ``ier_flag`` value meaning "converged", i.e. successful_term_flag.
 SUCCESSFUL_TERM_FLAG = 11
@@ -171,6 +166,11 @@ class VmecppSolver:
         self.pressure = None
         self.current = None
         self.iota = None
+        # Number of polynomial coefficients or spline nodes the profiles
+        # are fit with:
+        self.n_pressure = 10
+        self.n_current = 10
+        self.n_iota = 10
 
         self.iter = -1
         self.keep_all_files = keep_all_files
@@ -334,49 +334,41 @@ class VmecppSolver:
 
     def set_profile(self, profile, letter):
         """
-        Write a profile into ``indata``'s arrays for the pressure,
-        current, or iota profile.
+        Fit a profile into ``indata``'s arrays for the pressure, current,
+        or iota profile, in the parametrization ``indata.p*_type`` asks
+        for, using ``n_pressure``, ``n_current`` or ``n_iota``
+        coefficients or spline nodes. For the current, ``curtor`` is set
+        to the total current as well.
 
         Args:
-            profile: A :obj:`~simsopt.mhd.vmec.VmecProfile`, or ``None``
-              to leave ``indata`` unchanged.
+            profile: A callable of the normalized toroidal flux, such as a
+              :obj:`~simsopt.mhd.profiles.Profile`, or ``None`` to leave
+              ``indata`` unchanged.
             letter: ``"m"`` for pressure, ``"c"`` for current, or ``"i"``
               for iota.
         """
         if profile is None:
             return
 
-        profile_type = profile.profile_type
-        coeffs = np.asarray(profile.coeffs, dtype=float)
-        family = profile_type[:12]
+        profile_type = profile_type_tag(getattr(self.indata, PROFILE_TYPE_FIELD[letter]))
+        coeffs, knots = fit_profile(profile, getattr(self, PROFILE_SIZE_FIELD[letter]),
+                                    profile_type)
         # Fresh arrays rather than slice assignment, since VMEC++'s
-        # profile arrays are variable length.
-        if family == 'power_series':
+        # profile arrays are variable length. vmecpp.set_profile() is
+        # deliberately not used: it returns a copy and forces
+        # line_segment, which would both break the identity of the object
+        # Vmec.indata returns and override the parametrization asked for.
+        if knots is None:
             logger.debug(f'Setting vmec a{letter} profile using power series: {coeffs}')
-            setattr(self.indata, 'a' + letter, np.array(coeffs))
-        elif family in ('cubic_spline', 'akima_spline', 'line_segment'):
-            knots = np.asarray(profile.knots, dtype=float)
+            setattr(self.indata, 'a' + letter, np.array(coeffs, dtype=float))
+        else:
             logger.debug(f'Setting vmec a{letter} profile using splines. '
                          f'knots: {knots}  values: {coeffs}')
-            setattr(self.indata, f'a{letter}_aux_s', np.array(knots))
-            setattr(self.indata, f'a{letter}_aux_f', np.array(coeffs))
-        else:
-            raise ValueError(self._profile_type_error(profile_type))
+            setattr(self.indata, f'a{letter}_aux_s', np.array(knots, dtype=float))
+            setattr(self.indata, f'a{letter}_aux_f', np.array(coeffs, dtype=float))
 
-        # vmecpp.set_profile() is deliberately not used: it returns a
-        # copy and forces line_segment, which would both break the
-        # identity of the object Vmec.indata returns and override the
-        # parametrization the user asked for.
-        try:
-            setattr(self.indata, _PROFILE_TYPE_FIELD[letter], profile_type)
-        except pydantic.ValidationError as e:
-            raise ValueError(self._profile_type_error(profile_type)) from e
-
-    @staticmethod
-    def _profile_type_error(profile_type):
-        return (f"The VMEC++ backend cannot use the profile type '{profile_type}'. "
-                f"It must be one of {', '.join(_PROFILE_FAMILIES)}, with '_i' or "
-                "'_ip' optionally appended for current profiles.")
+        if letter == "c":
+            self.curtor = profile_curtor(profile, profile_type)
 
     def _push_to_indata(self):
         """
