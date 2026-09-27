@@ -31,8 +31,6 @@ except ImportError:  # vmecpp is an optional dependency
 
 from . import TEST_DIR
 
-#: Fixtures VMEC++ can load. Stellarator-symmetric and asymmetric,
-#: multi-period and tokamak.
 BOUNDARY_FIXTURES = [
     "input.li383_low_res",
     "input.circular_tokamak",
@@ -61,8 +59,6 @@ class VmecppSolverTests(unittest.TestCase):
         solver = self.solver()
         self.assertIsInstance(solver.indata, vmecpp.VmecInput)
         self.assertIsInstance(solver.indata, VmecppIndata)
-        # Fields, and hence their type hints and docstrings, are
-        # inherited rather than re-declared:
         self.assertEqual(set(VmecppIndata.model_fields), set(vmecpp.VmecInput.model_fields))
         for name, field in vmecpp.VmecInput.model_fields.items():
             self.assertEqual(VmecppIndata.model_fields[name].annotation, field.annotation)
@@ -72,11 +68,7 @@ class VmecppSolverTests(unittest.TestCase):
             VmecppSolver("not_an_input_file", None)
 
     def test_boundary_matches_from_vmec_input(self):
-        """
-        The boundary read back from indata agrees with simsopt's own
-        reader, for m < mpol. VMEC uses m = 0, ..., mpol - 1, and VMEC++
-        drops the higher modes at parse time.
-        """
+        """ The boundary read back from indata matches from_vmec_input for m < mpol. """
         for name in BOUNDARY_FIXTURES:
             with self.subTest(name=name):
                 path = os.path.join(TEST_DIR, name)
@@ -88,8 +80,6 @@ class VmecppSolverTests(unittest.TestCase):
                 self.assertEqual(boundary.stellsym, reference.stellsym)
                 self.assertEqual(boundary.mpol, mpol)
                 self.assertEqual(boundary.ntor, ntor)
-                # from_vmec_input sizes its surface by the modes actually
-                # present in the file, which may be a lower resolution.
                 m_max = min(mpol - 1, reference.mpol)
                 n_max = min(ntor, reference.ntor)
                 for m in range(m_max + 1):
@@ -101,23 +91,14 @@ class VmecppSolverTests(unittest.TestCase):
                             self.assertAlmostEqual(boundary.zbc[(m, n)], reference.get_zc(m, n))
 
     def test_boundary_dof_count_matches_indata_mpol(self):
-        """
-        A Vmec on this backend reports the same mpol, and hence the same
-        number of boundary dofs, as the VMEC2000 backend does.
-        """
+        """ Same mpol, and so the same number of boundary dofs, as on VMEC2000. """
         v = self.vmec()
         self.assertEqual(v.indata.mpol, 4)
         self.assertEqual(v.boundary.mpol, 4)
         self.assertEqual(len(v.boundary.x), 63)
 
     def test_m_equals_mpol_row_reads_back_as_zero(self):
-        """
-        Pinning a known difference from the VMEC2000 backend, not a bug
-        to fix here: input.li383_low_res specifies boundary coefficients
-        at m == mpol, which VmecInput has no slot for, so this backend
-        reports them as zero where VMEC2000 reports the file values. VMEC
-        ignores those modes. Tracked in simsopt PR #437.
-        """
+        """ The file's m == mpol coefficients read back as zero, unlike on VMEC2000. """
         path = os.path.join(TEST_DIR, "input.li383_low_res")
         # from_vmec_input reads the file directly, as VMEC2000 does:
         reference = SurfaceRZFourier.from_vmec_input(path)
@@ -166,12 +147,7 @@ class VmecppSolverTests(unittest.TestCase):
         self.assertEqual(solver.indata.rbc.shape, (mpol, 2 * ntor + 1))
 
     def test_run_preserves_an_assigned_low_resolution_boundary(self):
-        """
-        A boundary assigned at a lower resolution than ``indata`` is
-        neither resized nor replaced by a run, so its dofs and its place
-        in the dependency graph survive. Compare vmecpp/simsopt_compat
-        #429, which had to resize a copy to get this.
-        """
+        """ A run neither resizes nor replaces a lower-resolution boundary. """
         v = self.vmec()
         surface = SurfaceRZFourier(mpol=1, ntor=1, nfp=v.indata.nfp)
         surface.set_rc(0, 0, 1.4)

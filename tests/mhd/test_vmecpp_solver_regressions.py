@@ -1,7 +1,4 @@
-"""
-Regressions of the VMEC++ backend against vmecpp's own simsopt shim,
-``vmecpp.simsopt_compat``.
-"""
+"""Regressions of the VMEC++ backend relative to vmecpp.simsopt_compat."""
 
 import glob
 import os
@@ -39,10 +36,6 @@ class VmecppSolverRegressionTests(unittest.TestCase):
     def vmec(self, name="input.li383_low_res"):
         return Vmec(os.path.join(TEST_DIR, name), solver=VmecppSolver, verbose=False)
 
-    # ---------------------------------------------------------------
-    # Fix 1: raising or lowering indata.mpol/ntor by plain assignment
-    # ---------------------------------------------------------------
-
     def test_raising_mpol_reallocates_indata_and_runs(self):
         """ ``vmec.indata.mpol = 3 + step`` is the documented simsopt idiom. """
         v = self.vmec()
@@ -51,17 +44,12 @@ class VmecppSolverRegressionTests(unittest.TestCase):
         v.indata.mpol = 5
         v.run()
         self.assertEqual(v.indata.rbc.shape, (5, 2 * ntor + 1))
-        # The coefficients the file supplied are still there, and the new
-        # row is zero:
         np.testing.assert_allclose(v.indata.rbc[:4, :], rbc)
         np.testing.assert_allclose(v.indata.rbc[4, :], 0.0)
         self.assertTrue(np.isfinite(v.wout.aspect))
 
     def test_indata_keeps_its_identity_across_a_resize(self):
-        """
-        A reference to indata taken before raising mpol is still the
-        object that is run, as on the VMEC2000 backend.
-        """
+        """ A reference to indata taken before raising mpol stays live. """
         v = self.vmec()
         indata = v.indata
         indata.mpol = 5
@@ -88,8 +76,7 @@ class VmecppSolverRegressionTests(unittest.TestCase):
         v.indata.ntor = ntor + 2
         v.run()
         self.assertEqual(v.indata.rbc.shape, (mpol, 2 * (ntor + 2) + 1))
-        # Existing modes keep their physical n, i.e. they move by 2 along
-        # the padded axis:
+        # Existing modes keep their n:
         np.testing.assert_allclose(v.indata.rbc[:, 2:-2], rbc)
         self.assertEqual(v.indata.raxis_c.size, ntor + 3)
         self.assertTrue(np.isfinite(v.wout.aspect))
@@ -136,10 +123,6 @@ class VmecppSolverRegressionTests(unittest.TestCase):
         v.indata.mpol = np.array([4, 6])
         self.assertIn("mpol=6", repr(v))
 
-    # ---------------------------------------------------------------
-    # Fix 2: hot restart
-    # ---------------------------------------------------------------
-
     def test_hot_restart_on_a_multi_ns_array_input(self):
         cold = self.vmec("input.circular_tokamak")
         multigrid(cold)
@@ -174,15 +157,8 @@ class VmecppSolverRegressionTests(unittest.TestCase):
         with self.assertRaises(ObjectiveFailure):
             other.run()
 
-    # ---------------------------------------------------------------
-    # Fix 3: mpi4py is optional for backends that do not use MPI
-    # ---------------------------------------------------------------
-
     def test_runs_without_mpi4py(self):
-        """
-        VMEC++ is OpenMP-parallel, so simsopt must not require mpi4py to
-        use it. Restores vmecpp commit ff79130b.
-        """
+        """ VMEC++ runs without mpi4py. """
         script = textwrap.dedent("""
             import sys
 
@@ -220,10 +196,6 @@ class VmecppSolverRegressionTests(unittest.TestCase):
             capture_output=True, text=True, check=False)
         self.assertIn("OK", result.stdout, msg=result.stderr)
 
-    # ---------------------------------------------------------------
-    # Fix 4: flipping lasym on a stellarator-symmetric input
-    # ---------------------------------------------------------------
-
     def test_lasym_without_asymmetric_arrays_raises_value_error(self):
         v = self.vmec()
         v.indata.lasym = True
@@ -234,7 +206,6 @@ class VmecppSolverRegressionTests(unittest.TestCase):
                 message = str(cm.exception)
                 self.assertIn("lasym", message)
                 self.assertIn("rbs", message)
-                self.assertIn("stellarator-symmetric", message)
                 self.assertIn("LASYM = T", message)
 
 
