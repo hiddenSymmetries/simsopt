@@ -8,14 +8,14 @@ This module provides a class that handles the VMEC equilibrium code.
 
 import logging
 import os.path
-from typing import Optional
+from dataclasses import dataclass, field
 from datetime import datetime
 
 import numpy as np
 from scipy.io import netcdf_file
 from scipy.integrate import quad
 
-from typing import Protocol, runtime_checkable, Any, Optional, Union
+from typing import Any, NamedTuple, Optional, Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,8 @@ if MPI is not None:
 else:
     MpiPartition = None
 
-__all__ = ["Vmec"]
+__all__ = ["FourierMode", "ProfileProtocol", "SurfaceRZFourierProtocol", "Vmec",
+           "VmecBoundary", "VmecSolverProtocol"]
 
 
 # Flags used by runvmec():
@@ -112,62 +113,161 @@ def array_to_namelist(arr, aux_s=False):
 #                        if ns_index = 0 and numsteps = 0 (see below), vmec will
 #                        control its own run history
 
+class FourierMode(NamedTuple):
+    """
+    Key of a boundary Fourier coefficient: poloidal mode number ``m``
+    and toroidal mode number ``n``, the latter in units of ``nfp``, as
+    in VMEC's ``rbc(n, m)``. Equal to the plain tuple ``(m, n)``.
+    """
+    m: int
+    n: int
+
+
 @runtime_checkable
 class SurfaceRZFourierProtocol(Protocol):
-    """A Protocol for facility the interaction between Vmec solvers (Vmec2000, Vmec++, Vmec-Jax, ...). 
-    This Protocol determines how SurfaceRZFourier object data is passed from Simsopt to Vmec solvers.
-    This protocol should be maintained here and also in the solver.
     """
-    # also maintained on VMEC side
-    rbc: dict # (m,n): value
-    rbs: dict
-    zbc: dict
-    zbs: dict
+    Boundary surface passed from simsopt to a Vmec solver.
+
+    Fourier modes are sparse dicts keyed by :obj:`FourierMode`, i.e.
+    ``FourierMode(m=..., n=...)``, so neither the order of the mode
+    numbers nor any solver's index offsets are left implicit. Only
+    nonzero modes need be present, and ``rbs``/``zbc`` are empty when
+    ``stellsym`` is True.
+
+    ``mpol``/``ntor`` truncate the boundary representation and size the
+    surface's dof vector; they are not the solver's internal resolution,
+    which is a solver setting.
+    """
     nfp: int
     stellsym: bool
+    mpol: int
+    ntor: int
+    rbc: dict  # {FourierMode(m, n): value}
+    zbs: dict
+    rbs: dict
+    zbc: dict
+
 
 @runtime_checkable
 class ProfileProtocol(Protocol):
-    """A Protocol for facility the interaction between Vmec solvers (Vmec2000, Vmec++, Vmec-Jax, ...). 
-    This Protocol determines how Simsopt Profile object data is passed from Simsopt to Vmec solvers.
-    This protocol should be maintained here and also in the solver.
     """
-    # also maintained on VMEC side
-    name: str
-    x: Union[np.ndarray, list]
-    y: Union[np.ndarray, list]
+    Radial profile (pressure, current or iota) passed from simsopt to a
+    Vmec solver: a callable of the normalized toroidal flux ``s``, such
+    as any :obj:`~simsopt.mhd.profiles.Profile`. The solver chooses how
+    to represent it in its own input, e.g. by fitting one of VMEC's
+    power series or spline parametrizations.
+    """
+    def __call__(self, s): ...
+
 
 @runtime_checkable
-class VmecProtocol(Protocol):
-    """A Protocol for Vmec solvers (Vmec2000, Vmec++, Vmec-Jax, ...). This Protocol determines
-    the basic set of attributes and methods that a Vmec solver must have in order
-    to be used within Simsopt.
+class VmecSolverProtocol(Protocol):
+    """
+    Interface a VMEC backend must satisfy to be driven by :obj:`Vmec`.
 
-    Running,
-        ```
-        import vmecpp import Vmec
-        eq = Vmec(...)
-        isinstance(eq, VmecProtocol)
-        ```
-    will check the Vmec object has the attributes and methods defined by the VmecProtocol.
-    If False, then `eq` does not have the necessary structure to be used within Simsopt.
-    This check should be implemented by all methods that rely directly (though not indirectly)
-    on the Vmec object.
+    Covers the physics only: the boundary, the profiles, the three
+    scalar dofs and the converged output. Solver settings (``ns_array``,
+    ``ftol_array``, ``delt``, ``mgrid_file``, ...) are reached through
+    :attr:`indata`, whose type is chosen by the backend.
+
+    :obj:`Vmec` assigns :attr:`boundary`, :attr:`pressure`,
+    :attr:`current` and :attr:`iota` before each solve; the backend
+    translates them into its own input representation. Reading
+    :attr:`boundary` returns the boundary the backend currently holds.
+    A profile left at ``None`` means the one already in :attr:`indata`
+    applies.
+
+    :attr:`current` and :attr:`iota` may both be assigned. Which of the
+    two constrains the equilibrium is a solver setting, not decided by
+    :obj:`Vmec`: for VMEC, ``indata.ncurr`` (0 for iota, 1 for current).
+    Likewise ``indata.pcurr_type`` decides whether :attr:`current` is
+    I(s) or I'(s); a backend that is assigned a current profile sets
+    ``curtor`` to the total current it implies.
+
+    ``phiedge``, ``curtor`` and ``pres_scale`` must read and write
+    straight through to :attr:`indata` rather than being cached, so that
+    writing e.g. ``vmec.indata.curtor`` directly still takes effect.
+
+    Conformance is structural, so implementations need not import
+    simsopt. Note that :func:`isinstance` checks only that the names are
+    present, not their types.
     """
 
-    surface: SurfaceRZFourierProtocol
-    pressure: ProfileProtocol
+    boundary: SurfaceRZFourierProtocol
+    pressure: Optional[ProfileProtocol]
     current: Optional[ProfileProtocol]
     iota: Optional[ProfileProtocol]
 
-    # needed access to settings (phiedge, ...)
-    vmec_input: Any
+    phiedge: float
+    curtor: float
+    pres_scale: float
 
-    # needed for compute_geometry etc
+    indata: Any
     wout: Any
+    output_file: Any
+    verbose: bool
 
-    def solve(self, *args: Any, **kwargs: Any) -> Any:
-        pass
+    def solve(self) -> None:
+        """Run the solver and populate :attr:`wout`."""
+        ...
+
+    def load_wout(self) -> int:
+        """Load :attr:`output_file` into :attr:`wout`, returning an error code."""
+        ...
+
+    def update_mpi(self, new_mpi) -> None:
+        """Adopt a new :obj:`~simsopt.util.mpi.MpiPartition`. May be a no-op."""
+        ...
+
+
+@dataclass
+class VmecBoundary:
+    """
+    Concrete :obj:`SurfaceRZFourierProtocol`, built by :obj:`Vmec` from
+    its boundary surface.
+
+    ``surface`` additionally carries the originating
+    :obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier` so backends
+    that write fortran namelists can reuse its ``get_nml()``. It is not
+    part of the protocol; other solvers should ignore it.
+    """
+    nfp: int = 1
+    stellsym: bool = True
+    mpol: int = 1
+    ntor: int = 0
+    rbc: dict = field(default_factory=dict)
+    zbs: dict = field(default_factory=dict)
+    rbs: dict = field(default_factory=dict)
+    zbc: dict = field(default_factory=dict)
+    surface: Any = None
+
+
+#: Fields downstream simsopt code reads from ``Vmec.wout``. A backend's
+#: output object must provide these using wout file conventions: 2D
+#: fourier arrays indexed ``[mode, radius]``, and half-grid quantities
+#: carrying a dummy entry at index 0.
+REQUIRED_WOUT_FIELDS = (
+    # Scalars and metadata
+    'aspect', 'Aminor_p', 'Rmajor_p', 'betatotal', 'ctor', 'ier_flag',
+    'lasym', 'mnmax', 'mnmax_nyq', 'mpol', 'nfp', 'ns', 'ntor', 'signgs',
+    'volavgB', 'volume_p', 'fsqr', 'fsql', 'fsqz',
+    # Profile type tags
+    'pmass_type', 'pcurr_type', 'piota_type',
+    # Mode numbers
+    'xm', 'xn', 'xm_nyq', 'xn_nyq',
+    # Radial profiles
+    'iotaf', 'iotas', 'pres', 'phi', 'chi', 'vp', 'buco', 'bvco',
+    'jcurv', 'jdotb',
+    # Fourier arrays, stellarator-symmetric
+    'rmnc', 'zmns', 'lmns', 'gmnc', 'bmnc', 'bsupumnc', 'bsupvmnc',
+    'bsubumnc', 'bsubvmnc', 'bsubsmns',
+)
+
+#: Additional ``wout`` fields required only when ``lasym`` is True.
+REQUIRED_WOUT_FIELDS_ASYM = (
+    'rmns', 'zmnc', 'lmnc', 'gmns', 'bmns', 'bsupumns', 'bsupvmns',
+    'bsubumns', 'bsubvmns', 'bsubsmnc',
+)
 
 
 class Vmec(Optimizable):
