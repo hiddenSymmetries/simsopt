@@ -1,14 +1,11 @@
 """
 Compare the VMEC2000 and VMEC++ backends on the same input files.
 
-Known differences are listed explicitly with their cause. Entries that
-record a VMEC++ limitation are asserted to still fail, so that fixing
-the limitation upstream makes the test point at the stale entry.
+Known differences are listed explicitly with their cause.
 """
 
 import glob
 import os
-import subprocess
 import unittest
 
 import numpy as np
@@ -27,19 +24,6 @@ except ImportError:
 from simsopt.mhd.vmec import Vmec
 
 from . import TEST_DIR
-
-#: INDATA files VMEC++ cannot read, with the reason.
-VMECPP_UNREADABLE = {
-    # indata2json's namelist declares bcrit/at/ah but not pt_type/ph_type:
-    "input.LandremanPaul2021_QA_reactorScale_lowres": "ANI/FLOW block",
-    "input.LandremanPaul2021_QH_reactorScale_lowres": "ANI/FLOW block",
-    "input.LandremanSengupta2019_section5.4_B2_A80": "ANI/FLOW block",
-    "input.LandremanSenguptaPlunk_section5p3": "ANI/FLOW block",
-    # VMEC2000 accepts ac_aux_f and ac_aux_s of different lengths:
-    "input.20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs":
-        "aux array length mismatch",
-}
-
 
 #: Tolerance on the relative difference between the backends, per
 #: output, set from the measured differences with some headroom. VMEC++
@@ -74,15 +58,11 @@ class VmecBackendConversionTests(unittest.TestCase):
     def test_input_conversion(self):
         """
         Every INDATA fixture reads into the same Vmec state under both
-        backends, apart from the documented exceptions.
+        backends, apart from the documented differences.
         """
         for path in indata_files():
             name = os.path.basename(path)
             with self.subTest(name=name):
-                if name in VMECPP_UNREADABLE:
-                    with self.assertRaises((RuntimeError, subprocess.CalledProcessError)):
-                        VmecppSolver(path, None, verbose=False)
-                    continue
                 a = Vmec(path, verbose=False)
                 b = Vmec(path, verbose=False, solver=VmecppSolver)
                 ia, ib = a.indata, b.indata
