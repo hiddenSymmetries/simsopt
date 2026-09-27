@@ -9,11 +9,11 @@ import unittest
 import numpy as np
 from simsopt._core.util import ObjectiveFailure, Struct
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.mhd.profiles import ProfilePolynomial
 from simsopt.mhd.vmec import (
     REQUIRED_WOUT_FIELDS,
     REQUIRED_WOUT_FIELDS_ASYM,
     Vmec,
-    VmecProfile,
     VmecSolverProtocol,
 )
 from simsopt.mhd.vmec_solver import load_wout_file
@@ -241,24 +241,30 @@ class VmecppSolverTests(unittest.TestCase):
         self.assertAlmostEqual(v.indata.pres_scale, 1.5)
 
     def test_profiles_pushed_to_indata(self):
+        """ Profiles are fit in the parametrization indata asks for. """
         solver = self.solver()
         solver.boundary = solver.boundary
-        solver.pressure = VmecProfile("power_series", [1.0e5, 0.0, -1.0e5])
-        solver.current = VmecProfile("cubic_spline_i", [1.0e6, 0.0], [0.0, 1.0])
+        solver.indata.pmass_type = "power_series"
+        solver.indata.pcurr_type = "cubic_spline_i"
+        solver.n_current = 5
+        solver.pressure = ProfilePolynomial([1.0e5, 0.0, -1.0e5])
+        solver.current = ProfilePolynomial([1.0e6, -1.0e6])
         solver._push_to_indata()
-        np.testing.assert_allclose(solver.indata.am, [1.0e5, 0.0, -1.0e5])
+        self.assertEqual(len(solver.indata.am), solver.n_pressure)
+        np.testing.assert_allclose(solver.indata.am[:3], [1.0e5, 0.0, -1.0e5], atol=1e-4)
+        np.testing.assert_allclose(solver.indata.ac_aux_s, np.linspace(0, 1, 5))
+        np.testing.assert_allclose(solver.indata.ac_aux_f, 1.0e6 * (1 - np.linspace(0, 1, 5)))
+        # cubic_spline_i means I(s), so curtor is the profile at s=1:
+        self.assertAlmostEqual(solver.curtor, 0.0)
         self.assertEqual(solver.indata.pmass_type, "power_series")
-        np.testing.assert_allclose(solver.indata.ac_aux_s, [0.0, 1.0])
-        np.testing.assert_allclose(solver.indata.ac_aux_f, [1.0e6, 0.0])
         self.assertEqual(solver.indata.pcurr_type, "cubic_spline_i")
 
-    def test_unsupported_profile_type_raises_value_error(self):
+    def test_unsupported_profile_type_raises(self):
         solver = self.solver()
-        with self.assertRaises(ValueError) as cm:
-            solver.set_profile(VmecProfile("sum_atan", [1.0]), "m")
-        self.assertIn("VMEC++", str(cm.exception))
+        solver.indata.pmass_type = "sum_atan"
+        with self.assertRaises(RuntimeError) as cm:
+            solver.set_profile(ProfilePolynomial([1.0]), "m")
         self.assertIn("power_series", str(cm.exception))
-        self.assertIn("cubic_spline", str(cm.exception))
 
     def test_update_mpi_tolerates_none(self):
         solver = self.solver()
