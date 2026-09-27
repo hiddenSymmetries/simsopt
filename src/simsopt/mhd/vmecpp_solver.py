@@ -235,20 +235,11 @@ class VmecppSolver:
         rows that did not exist before are zeroed.
         """
         vi = self.indata  # Shorthand
-        # The round trip below needs indata to be self-consistent, so the
-        # arrays' own resolution is put back for its duration. It differs
-        # from vi.mpol/vi.ntor precisely when the user changed those.
-        array_mpol, array_ntor = vi.rbc.shape[0], (vi.rbc.shape[1] - 1) // 2
         requested_mpol, requested_ntor = vi.mpol, vi.ntor
-        vi.mpol, vi.ntor = array_mpol, array_ntor
-
-        # Converting to and back is a bit unfortunate, but avoids
-        # having the resize method both in C++ and Python
-        indata_wrapper = vi._to_cpp_vmecindata()
-        indata_wrapper._set_mpol_ntor(new_mpol, new_ntor)
-        # Updated in place rather than rebound, so that a reference to
-        # indata the caller already holds stays the one that is run:
-        vars(vi).update(vars(vmecpp.VmecInput._from_cpp_vmecindata(indata_wrapper)))
+        # VmecInput.resize() returns a copy. indata is updated in place
+        # rather than rebound, so that a reference to it the caller
+        # already holds stays the one that is run:
+        vars(vi).update(vars(vi.resize(new_mpol, new_ntor)))
 
         # A continuation schedule survives the resize, since only its
         # final entry determines the array shapes.
