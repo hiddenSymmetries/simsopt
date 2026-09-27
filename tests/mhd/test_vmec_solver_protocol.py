@@ -1,7 +1,4 @@
-"""
-Tests of the protocols that define the interface between
-:obj:`~simsopt.mhd.vmec.Vmec` and a VMEC solver.
-"""
+"""Tests of the Vmec solver protocols."""
 
 import unittest
 
