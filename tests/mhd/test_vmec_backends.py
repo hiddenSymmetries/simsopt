@@ -1,8 +1,4 @@
-"""
-Compare the VMEC2000 and VMEC++ backends on the same input files.
-
-Known differences are listed explicitly with their cause.
-"""
+"""VMEC2000 and VMEC++ on the same input files."""
 
 import glob
 import os
@@ -26,10 +22,7 @@ from simsopt.mhd.vmec import Vmec
 
 from . import TEST_DIR
 
-#: Tolerance on the relative difference between the backends, per
-#: output, set from the measured differences with some headroom. VMEC++
-#: is a reimplementation, so results agree to convergence tolerance,
-#: not to round-off.
+#: Measured differences with some headroom.
 RTOL = {"aspect": 1e-12, "volume": 1e-12, "mean_iota": 1e-5, "iota_axis": 2e-4,
         "iota_edge": 1e-4, "vacuum_well": 2e-4, "external_current": 1e-6}
 
@@ -57,10 +50,7 @@ def tag(value):
                  "both the vmec python extension and vmecpp are needed")
 class VmecBackendConversionTests(unittest.TestCase):
     def test_input_conversion(self):
-        """
-        Every INDATA fixture reads into the same Vmec state under both
-        backends, apart from the documented differences.
-        """
+        """ Every INDATA fixture reads into the same Vmec state on both backends. """
         for path in indata_files():
             name = os.path.basename(path)
             with self.subTest(name=name):
@@ -89,9 +79,7 @@ class VmecBackendConversionTests(unittest.TestCase):
                 self.assertEqual(a.boundary.local_full_dof_names,
                                  b.boundary.local_full_dof_names)
                 if ia.lasym:
-                    # VMEC2000's readin applies its theta shift to the m = 1
-                    # modes of an asymmetric boundary, VMEC++ keeps the file's
-                    # parametrization. The dofs differ, the surface does not.
+                    # VMEC2000's readin theta-shifts the m = 1 modes; the surface is the same:
                     np.testing.assert_allclose(b.boundary.volume(), a.boundary.volume(), rtol=1e-10)
                     np.testing.assert_allclose(b.boundary.area(), a.boundary.area(), rtol=1e-10)
                     continue
@@ -130,12 +118,6 @@ class VmecBackendResultTests(unittest.TestCase):
         return {name: getattr(v, name)() for name in RTOL}
 
     def test_outputs_agree(self):
-        """
-        Measured for input.li383_low_res / LandremanPaul2021_QA_lowres:
-        aspect and volume agree to ~1e-15, iota to 2e-5 / 1.2e-4 at the
-        axis, vacuum_well to 1.7e-5 / 1.0e-4, external_current to
-        8e-7 / 1e-8.
-        """
         rtol = RTOL
         for name in ["input.li383_low_res", "input.LandremanPaul2021_QA_lowres"]:
             with self.subTest(name=name), ScratchDir("."):
@@ -162,11 +144,7 @@ class VmecBackendResultTests(unittest.TestCase):
             np.testing.assert_allclose(second, first, rtol=1e-12)
 
     def test_asymmetric_fixture_converges(self):
-        """
-        input.basic_non_stellsym, the only non-stellarator-symmetric
-        equilibrium in the suite, converges on VMEC++ >= 0.7.4 with the
-        same aspect ratio and volume as on VMEC2000.
-        """
+        """ input.basic_non_stellsym converges, with the same aspect and volume. """
         with ScratchDir("."):
             path = os.path.join(TEST_DIR, "input.basic_non_stellsym")
             a = Vmec(path, verbose=False)
