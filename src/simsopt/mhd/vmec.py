@@ -114,35 +114,19 @@ def array_to_namelist(arr, aux_s=False):
 #                        control its own run history
 
 class FourierMode(NamedTuple):
-    """
-    Key of a boundary Fourier coefficient: poloidal mode number ``m``
-    and toroidal mode number ``n``, the latter in units of ``nfp``, as
-    in VMEC's ``rbc(n, m)``. Equal to the plain tuple ``(m, n)``.
-    """
+    """ Key of a boundary Fourier coefficient. """
     m: int
     n: int
 
 
 @runtime_checkable
 class SurfaceRZFourierProtocol(Protocol):
-    """
-    Boundary surface passed from simsopt to a Vmec solver.
-
-    Fourier modes are sparse dicts keyed by :obj:`FourierMode`, i.e.
-    ``FourierMode(m=..., n=...)``, so neither the order of the mode
-    numbers nor any solver's index offsets are left implicit. Only
-    nonzero modes need be present, and ``rbs``/``zbc`` are empty when
-    ``stellsym`` is True.
-
-    ``mpol``/``ntor`` truncate the boundary representation and size the
-    surface's dof vector; they are not the solver's internal resolution,
-    which is a solver setting.
-    """
+    """ Boundary passed to a Vmec solver, with coefficients keyed by :obj:`FourierMode`. """
     nfp: int
     stellsym: bool
     mpol: int
     ntor: int
-    rbc: dict  # {FourierMode(m, n): value}
+    rbc: dict
     zbs: dict
     rbs: dict
     zbc: dict
@@ -150,47 +134,17 @@ class SurfaceRZFourierProtocol(Protocol):
 
 @runtime_checkable
 class ProfileProtocol(Protocol):
-    """
-    Radial profile (pressure, current or iota) passed from simsopt to a
-    Vmec solver: a callable of the normalized toroidal flux ``s``, such
-    as any :obj:`~simsopt.mhd.profiles.Profile`. The solver chooses how
-    to represent it in its own input, e.g. by fitting one of VMEC's
-    power series or spline parametrizations.
-    """
+    """ Radial profile passed to a Vmec solver: a callable of ``s``. """
     def __call__(self, s): ...
 
 
 @runtime_checkable
 class VmecSolverProtocol(Protocol):
     """
-    Interface a VMEC backend must satisfy to be driven by :obj:`Vmec`.
+    Interface of a VMEC backend driven by :obj:`Vmec`.
 
-    Covers the physics only: the boundary, the profiles, the three
-    scalar dofs and the converged output. Solver settings (``ns_array``,
-    ``ftol_array``, ``delt``, ``mgrid_file``, ...) are reached through
-    :attr:`indata`, whose type is chosen by the backend.
-
-    :obj:`Vmec` assigns :attr:`boundary`, :attr:`pressure`,
-    :attr:`current` and :attr:`iota` before each solve; the backend
-    translates them into its own input representation. Reading
-    :attr:`boundary` returns the boundary the backend currently holds.
-    A profile left at ``None`` means the one already in :attr:`indata`
-    applies.
-
-    :attr:`current` and :attr:`iota` may both be assigned. Which of the
-    two constrains the equilibrium is a solver setting, not decided by
-    :obj:`Vmec`: for VMEC, ``indata.ncurr`` (0 for iota, 1 for current).
-    Likewise ``indata.pcurr_type`` decides whether :attr:`current` is
-    I(s) or I'(s); a backend that is assigned a current profile sets
-    ``curtor`` to the total current it implies.
-
-    ``phiedge``, ``curtor`` and ``pres_scale`` must read and write
-    straight through to :attr:`indata` rather than being cached, so that
-    writing e.g. ``vmec.indata.curtor`` directly still takes effect.
-
-    Conformance is structural, so implementations need not import
-    simsopt. Note that :func:`isinstance` checks only that the names are
-    present, not their types.
+    ``phiedge``, ``curtor`` and ``pres_scale`` are views onto ``indata``.
+    If both ``current`` and ``iota`` are set, ``indata.ncurr`` selects one.
     """
 
     boundary: SurfaceRZFourierProtocol
@@ -207,30 +161,16 @@ class VmecSolverProtocol(Protocol):
     output_file: Any
     verbose: bool
 
-    def solve(self) -> None:
-        """Run the solver and populate :attr:`wout`."""
-        ...
+    def solve(self) -> None: ...
 
-    def load_wout(self) -> int:
-        """Load :attr:`output_file` into :attr:`wout`, returning an error code."""
-        ...
+    def load_wout(self) -> int: ...
 
-    def update_mpi(self, new_mpi) -> None:
-        """Adopt a new :obj:`~simsopt.util.mpi.MpiPartition`. May be a no-op."""
-        ...
+    def update_mpi(self, new_mpi) -> None: ...
 
 
 @dataclass
 class VmecBoundary:
-    """
-    Concrete :obj:`SurfaceRZFourierProtocol`, built by :obj:`Vmec` from
-    its boundary surface.
-
-    ``surface`` additionally carries the originating
-    :obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier` so backends
-    that write fortran namelists can reuse its ``get_nml()``. It is not
-    part of the protocol; other solvers should ignore it.
-    """
+    """ :obj:`SurfaceRZFourierProtocol` built by :obj:`Vmec` from its boundary ``surface``. """
     nfp: int = 1
     stellsym: bool = True
     mpol: int = 1
@@ -242,28 +182,18 @@ class VmecBoundary:
     surface: Any = None
 
 
-#: Fields downstream simsopt code reads from ``Vmec.wout``. A backend's
-#: output object must provide these using wout file conventions: 2D
-#: fourier arrays indexed ``[mode, radius]``, and half-grid quantities
-#: carrying a dummy entry at index 0.
 REQUIRED_WOUT_FIELDS = (
-    # Scalars and metadata
     'aspect', 'Aminor_p', 'Rmajor_p', 'betatotal', 'ctor', 'ier_flag',
     'lasym', 'mnmax', 'mnmax_nyq', 'mpol', 'nfp', 'ns', 'ntor', 'signgs',
     'volavgB', 'volume_p', 'fsqr', 'fsql', 'fsqz',
-    # Profile type tags
     'pmass_type', 'pcurr_type', 'piota_type',
-    # Mode numbers
     'xm', 'xn', 'xm_nyq', 'xn_nyq',
-    # Radial profiles
     'iotaf', 'iotas', 'pres', 'phi', 'chi', 'vp', 'buco', 'bvco',
     'jcurv', 'jdotb',
-    # Fourier arrays, stellarator-symmetric
     'rmnc', 'zmns', 'lmns', 'gmnc', 'bmnc', 'bsupumnc', 'bsupvmnc',
     'bsubumnc', 'bsubvmnc', 'bsubsmns',
 )
 
-#: Additional ``wout`` fields required only when ``lasym`` is True.
 REQUIRED_WOUT_FIELDS_ASYM = (
     'rmns', 'zmnc', 'lmnc', 'gmns', 'bmns', 'bsupumns', 'bsupvmns',
     'bsubumns', 'bsubvmns', 'bsubsmnc',
