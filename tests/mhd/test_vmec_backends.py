@@ -21,6 +21,7 @@ try:
 except ImportError:
     VmecppSolver = None
 
+from simsopt.mhd.profiles import ProfilePolynomial
 from simsopt.mhd.vmec import Vmec
 
 from . import TEST_DIR
@@ -102,6 +103,24 @@ class VmecBackendConversionTests(unittest.TestCase):
                         self.assertEqual(xb, 0.0, dof)
                     else:
                         self.assertEqual(xa, xb, dof)
+
+    def test_profile_fit_agrees(self):
+        """ An attached profile is fit into the same indata arrays by both backends. """
+        path = os.path.join(TEST_DIR, "input.li383_low_res")
+        profile = ProfilePolynomial([2.0e4, 0.0, -2.0e4])
+        for pmass_type, fields in [("power_series", ["am"]),
+                                   ("cubic_spline", ["am_aux_s", "am_aux_f"])]:
+            with self.subTest(pmass_type=pmass_type):
+                arrays = []
+                for solver in [None, VmecppSolver]:
+                    v = Vmec(path, verbose=False, solver=solver)
+                    v.indata.pmass_type = pmass_type
+                    v.pressure_profile = profile
+                    v.n_pressure = 7
+                    v.get_input()
+                    arrays.append([trim(getattr(v.indata, name)) for name in fields])
+                for a, b in zip(*arrays):
+                    np.testing.assert_array_equal(a, b)
 
 
 @unittest.skipIf(vmec_mod is None or VmecppSolver is None,
