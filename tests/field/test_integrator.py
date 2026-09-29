@@ -394,7 +394,7 @@ class TestPeriodicFieldline(unittest.TestCase):
             start_xyz = ma.gamma()[0] + np.array([0.01*ma.x[0], 0.0, 0.0])
             for cls in [SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator]:
                 with self.subTest(config=name, integrator=cls.__name__):
-                    fieldline = cls(bs).periodic_fieldline(start_xyz, order=ma.order, nfp=nfp)
+                    fieldline = cls(bs).periodic_fieldline(start_xyz, order=ma.order, field_nfp=nfp)
                     self.assertIsInstance(fieldline, PeriodicFieldLine)
                     self.assertTrue(fieldline.res['success'])
                     rz = fieldline.curve.to_RZFourier(order=ma.order, quadpoints=ma.quadpoints, nfp=ma.nfp)
@@ -426,7 +426,7 @@ class TestPeriodicFieldline(unittest.TestCase):
         for kind, RZ in fixed_points.items():
             for cls in [SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator]:
                 with self.subTest(point=kind, integrator=cls.__name__):
-                    fieldline = cls(bs).periodic_fieldline(RZ + np.array([1e-3, 0.0]), order=80, nfp=nfp, iota=(3, -7),
+                    fieldline = cls(bs).periodic_fieldline(RZ + np.array([1e-3, 0.0]), order=80, field_nfp=nfp, iota=(3, -7),
                                                            phi0=0.0, input_coordinates='cylindrical')
                     self.assertTrue(fieldline.res['success'])
                     self.assertEqual((fieldline.curve.nfp, abs(fieldline.curve.ntor)), (3, 7))
@@ -434,11 +434,39 @@ class TestPeriodicFieldline(unittest.TestCase):
                     start = fieldline.curve.gamma()[0]
                     np.testing.assert_allclose([np.linalg.norm(start[:2]), start[2]], RZ, atol=1e-5)
 
+    def test_find_periodic_point(self):
+        # the magnetic axis, and the O- and X-point of the iota=3/7 island chain of NCSX
+        _, _, ma, nfp, bs = get_data('ncsx', coil_order=12, points_per_period=4)
+        axis_guess = ma.gamma()[0][[0, 2]]  # the zoo axis is not exact for this coil order
+        cases = {'axis': (None, axis_guess, None),
+                 'O': ((3, -7), np.array([1.52288140, 0.0]), np.array([1.52288140, 0.0])),
+                 'X': ((3, -7), np.array([1.69779218, 0.0]), np.array([1.69779218, 0.0]))}
+        for kind, (iota, guess, expected) in cases.items():
+            found = []
+            for cls in [SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator]:
+                with self.subTest(point=kind, integrator=cls.__name__):
+                    intg = cls(bs, tol=1e-11) if cls is SimsoptFieldlineIntegrator else \
+                        cls(bs, integrator_args={'rtol': 1e-10, 'atol': 1e-12})
+                    RZ = intg.find_periodic_point(guess + np.array([1e-3, 1e-3]), field_nfp=nfp, iota=iota)
+                    found.append(RZ)
+                    if expected is not None:
+                        np.testing.assert_allclose(RZ, expected, atol=1e-7)
+                    # the point is periodic
+                    n_transits = 1 if iota is None else 7
+                    RZ_end = intg.integrate_toroidally(RZ, 2*np.pi*n_transits, phi0=0.0, input_coordinates='cylindrical',
+                                                       output_coordinates='cylindrical')
+                    np.testing.assert_allclose(RZ_end, RZ, atol=1e-7)
+            np.testing.assert_allclose(found[0], found[1], atol=1e-7)
+        # with the period of the island chain, a start near the axis converges
+        # to the axis, which returns to itself after a single field period
+        with self.assertRaises(ObjectiveFailure):
+            ScipyFieldlineIntegrator(bs).find_periodic_point(axis_guess, field_nfp=nfp, iota=(3, -7))
+
     def test_cylindrical_input(self):
         _, _, ma, nfp, bs = get_data('ncsx')
         R_axis = ma.x[0] + np.sum(ma.x[1:ma.order+1])  # R at phi=0
         fieldline = ScipyFieldlineIntegrator(bs).periodic_fieldline(
-            np.array([R_axis + 0.01, 0.0]), order=ma.order, nfp=nfp, phi0=0.0, input_coordinates='cylindrical')
+            np.array([R_axis + 0.01, 0.0]), order=ma.order, field_nfp=nfp, phi0=0.0, input_coordinates='cylindrical')
         self.assertTrue(fieldline.res['success'])
         np.testing.assert_allclose(fieldline.curve.gamma()[0], ma.gamma()[0], atol=1e-3)
 

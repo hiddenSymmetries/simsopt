@@ -353,7 +353,74 @@ class Integrator(Optimizable):
             nfp_line //= gcd(nfp_line, ntor)
         return nfp_line, ntor
 
-    def periodic_fieldline(self, start_point, order, nfp=1, iota=None, stellsym=True, phi0=None,
+    def find_periodic_point(self, start_RZ, field_nfp=1, iota=None, phi0=0.0, tol=1e-10, distinct_rtol=1e-5):
+        r"""
+        Find the point where a periodic field line (the magnetic axis, or an
+        X- or O-point of an island chain) crosses the plane :math:`\phi_0`,
+        by a root find in (R, Z) on the return map over one period of the
+        field line.
+
+        The period of the field line follows from ``field_nfp`` and ``iota``
+        as in :meth:`periodic_fieldline`: it closes after :math:`n_\text{tor}`
+        transits and has its own field periods, so the return map advances
+        :math:`\Delta\phi = 2\pi n_\text{tor}/n_\text{fp,line}`, which is
+        :math:`k` field periods of the magnetic field. If :math:`k>1`, the
+        images of the point after :math:`1, \dots, k-1` field periods are
+        checked to be distinct from it (further apart than ``distinct_rtol``
+        times R), so that a point of lower periodicity (such as the magnetic
+        axis) is not returned.
+
+        This is a plain root find (``scipy.optimize.root``) that needs a good
+        initial guess. For more advanced methods, such as finding fixed points
+        with a residue or classifying them, and computing manifolds, see
+        packages such as `pyoculus <https://github.com/zhisong/pyoculus>`_.
+
+        Args:
+            start_RZ (array): initial guess (R, Z) on the plane ``phi0``.
+            field_nfp (int): number of field periods of the magnetic field.
+            iota (tuple, optional): (n, m) with :math:`\iota = n/m` for a field
+                line of an island chain. None (the default) for the magnetic axis.
+            phi0 (float): toroidal angle of the plane.
+            tol (float): tolerance of the root find.
+            distinct_rtol (float): images closer than ``distinct_rtol*R`` to the
+                point are considered identical. This must exceed the relative
+                accuracy of the integration.
+
+        Returns:
+            array: (R, Z) of the periodic point.
+
+        Raises:
+            ObjectiveFailure: if the root find does not converge, or converges
+                to a point of lower periodicity.
+        """
+        from scipy.optimize import root
+
+        nfp, ntor = self._fieldline_symmetry(field_nfp, iota)
+        n_field_periods = ntor*field_nfp//nfp
+        field_period = 2*np.pi/field_nfp
+
+        def residual(RZ):
+            end_RZ = self.integrate_toroidally(RZ, n_field_periods*field_period, phi0=phi0,
+                                               input_coordinates='cylindrical', output_coordinates='cylindrical')
+            return end_RZ - RZ
+
+        solution = root(residual, np.asarray(start_RZ, dtype=float), tol=tol)
+        if not solution.success or not np.all(np.isfinite(solution.fun)):
+            raise ObjectiveFailure(f"Root find for the periodic point did not converge: {solution.message}")
+        RZ = solution.x
+
+        # the images after fewer field periods must differ from the point
+        image = RZ
+        for period in range(1, n_field_periods):
+            image = self.integrate_toroidally(image, field_period, phi0=phi0 + (period - 1)*field_period,
+                                              input_coordinates='cylindrical', output_coordinates='cylindrical')
+            if np.allclose(image, RZ, rtol=0, atol=distinct_rtol*RZ[0]):
+                raise ObjectiveFailure(f"The periodic point at R={RZ[0]}, Z={RZ[1]} returns to itself after {period} "
+                                       f"field periods instead of {n_field_periods}; it is not a point of the "
+                                       f"requested island chain.")
+        return RZ
+
+    def periodic_fieldline(self, start_point, order, field_nfp=1, iota=None, stellsym=True, phi0=None,
                            input_coordinates='cartesian', points_per_dof=10, options=None):
         r"""
         Find the periodic field line near ``start_point``, as a
@@ -386,7 +453,7 @@ class Integrator(Optimizable):
                 Note that PeriodicFieldLine only enforces the field line equation
                 at its ``2*order+1`` quadrature points, so ``res['success']`` does
                 not guarantee that the order is sufficient.
-            nfp (int): number of field periods of the magnetic field.
+            field_nfp (int): number of field periods of the magnetic field.
             iota (tuple, optional): (n, m) with :math:`\iota = n/m` for a field
                 line of an island chain. None (the default) for the magnetic axis.
                 ``m`` is negative for a field line that winds counter-clockwise
@@ -410,7 +477,7 @@ class Integrator(Optimizable):
         """
         from ..geo import CurveXYZFourierSymmetries, PeriodicFieldLine
 
-        nfp, ntor = self._fieldline_symmetry(nfp, iota)
+        nfp, ntor = self._fieldline_symmetry(field_nfp, iota)
         n_quad = 2*order + 1
         delta_phi = 2*np.pi*ntor/nfp
         xyz = self.integrate_fieldlinepoints(start_point, delta_phi, n_points=points_per_dof*n_quad, phi0=phi0,
