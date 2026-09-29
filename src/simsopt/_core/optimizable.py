@@ -19,6 +19,7 @@ import logging
 import json
 from pathlib import Path
 from fnmatch import fnmatch
+import re
 
 import numpy as np
 from monty.io import zopen
@@ -916,7 +917,24 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         for parent in self.parents:
             ancestors += parent.ancestors
         ancestors += self.parents
-        return sorted(dict.fromkeys(ancestors), key=lambda a: a.name)
+
+        def _natural_key(text):
+            """
+            Return a key to be used in natural sorting of strings containing
+            integers.
+            Args:
+                s:
+                    String, containing integers
+            Returns:
+                Key string
+            """
+            return [int(s) if s.isdigit() else s.lower()
+                    for s in re.split(r'(\d+)', text)]
+
+        return sorted(
+            dict.fromkeys(ancestors),
+            key=lambda a: _natural_key(a.name)
+        )
 
     @property
     def unique_dof_lineage(self):
@@ -1609,6 +1627,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
             with zopen(filename, "rt") as f:
                 contents = f.read()
             return cls.from_str(contents, fmt="json")
+
 
 
 def load(filename, *args, **kwargs):

@@ -928,6 +928,37 @@ class OptimizableTests(unittest.TestCase):
         for name in test_obj2.full_dof_names:
             self.assertTrue(comb_patt.match(name))
 
+        ## Check natural sorting of optimizable dof names
+    
+        # Checking at ancestor level
+        identity_list = [Identity() for i in range(11)]
+        adder_list = [Adder(n=11) for i in range(11)]
+        test_obj3 = OptClassWithParents(val=10, depends_on= (identity_list + adder_list))
+        # scraping all integers from the dof name list of test_obj3 into a list of lists in each name
+        dofs_names_ints = [list(map(int, re.findall(r'\d+', s))) for s in test_obj3.dof_names]
+        # creating list of unique ancestor names (['Adder6', 'Adder7', ..., 'Identity3', ...)
+        unique_ancestor_namelist = []    
+        for dof_name in test_obj3.dof_names:
+            ancestor_name = re.split(':', dof_name)[0]
+            if ancestor_name not in unique_ancestor_namelist:
+                unique_ancestor_namelist.append(ancestor_name)
+        # ensuring that ancestors of a given type (Adder or Identity) are in ascending numerical order respectively
+        adder_number_list = [int(re.search(r'\d+', name).group()) for name in unique_ancestor_namelist if 'Adder' in name]
+        identity_number_list = [int(re.search(r'\d+', name).group()) for name in unique_ancestor_namelist if 'Identity' in name]
+        self.assertTrue(adder_number_list == sorted(adder_number_list))
+        self.assertTrue(identity_number_list == sorted(identity_number_list))
+        
+        # Checking at ancestor.dofs level
+        for unique_ancestor in unique_ancestor_namelist:
+            ancestor_dof_numbers = []
+            # for a specific ancestor, list all dofs (which for these cases, are only of one 
+            # name/kind (i.e., Adder_.x_ or Identity_.x0 or OptClassWithParents.val) and
+            # check that dependent dofs are in ascending numerical order
+            for i, dof_name in enumerate(test_obj3.dof_names):
+                if unique_ancestor in dof_name:
+                    ancestor_dof_numbers.append(dofs_names_ints[i][-1])
+            self.assertTrue(ancestor_dof_numbers == sorted(ancestor_dof_numbers))
+                    
     def test_local_dof_names(self):
         # Test in DOFs class is sufficient
         pass

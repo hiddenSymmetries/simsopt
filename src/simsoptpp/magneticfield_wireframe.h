@@ -1,8 +1,8 @@
 #pragma once 
 
 #include <vector>
-#include "xtensor/xarray.hpp"
-#include "xtensor/xlayout.hpp"
+#include "xtensor/containers/xarray.hpp"
+#include "xtensor/core/xlayout.hpp"
 #include "simdhelpers.h"
 #include "magneticfield.h"
 

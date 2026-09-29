@@ -36,13 +36,22 @@ __all__ = ['Boozer', 'Quasisymmetry']
 
 class Boozer(Optimizable):
     """
-    This class handles the transformation to Boozer coordinates.
-
-    A Boozer instance maintains a set "s", which is a registry of the
-    surfaces on which other objects want Boozer-coordinate data. When
-    the run() method is called, the Boozer transformation is carried
+    Compute Boozer coordinates for a Vmec equilibrium. The ``booz_xform``
+    package is required.
+    
+    A Boozer instance maintains a set ``s``, which is a registry of the
+    surfaces on which to compute Boozer coordinates. When
+    the ``run()`` method is called, the Boozer transformation is carried
     out on all these surfaces. The registry can be cleared at any time
-    by setting the s attribute to {}.
+    by setting the the ``s`` attribute to ``set()``, i.e. ``Boozer(...).s = set()``.
+    The registry can be updated with ``Boozer(...).register(surfaces)``
+
+    Args:
+        equil (:obj:`simsopt.mhd.vmec.Vmec`): Object on which the Boozer transformation
+            will be performed.
+        mpol (int): Number of poloidal Fourier modes. Defaults to 32.
+        ntor (int): Number of toroidal Fourier modes. Defaults to 32.
+        verbose (bool): False to supress print statements.
     """
 
     mpol = Integer()
@@ -53,9 +62,7 @@ class Boozer(Optimizable):
                  mpol: int = 32,
                  ntor: int = 32,
                  verbose: bool = False) -> None:
-        """
-        Constructor
-        """
+        
         if booz_xform is None:
             raise RuntimeError(
                 "To use a Boozer object, the booz_xform package "
@@ -88,12 +95,14 @@ class Boozer(Optimizable):
 
     def register(self, s: Union[float, Iterable[float]]) -> None:
         """
+        Append surface labels to the registry. 
+
         This function is called by objects that depend on this Boozer
         object, to indicate that they will want Boozer data on the
         given set of surfaces.
 
         Args:
-            s: 1 or more surfaces on which Boozer data will be requested.
+            s (float, array-like): Surface labels (normalized toroidal flux) ``s`` on which to compute Boozer transformation data.
         """
         # Force input surface data to be a set:
         try:

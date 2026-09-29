@@ -400,7 +400,8 @@ class NormalField(Optimizable):
 
     def get_vns_asarray(self, mpol=None, ntor=None):
         """
-        Return the vns as a single array
+        Return the vns as a single array. ``mpol`` is the inclusive maximum
+        poloidal mode.
         """
         if mpol is None:
             mpol = self.mpol
@@ -414,11 +415,12 @@ class NormalField(Optimizable):
 
         vns = self.vns
 
-        return vns[0:mpol, self.ntor-ntor:self.ntor+ntor+1]
+        return vns[0:mpol+1, self.ntor-ntor:self.ntor+ntor+1]
 
     def get_vnc_asarray(self, mpol=None, ntor=None):
         """
-        Return the vnc as a single array
+        Return the vnc as a single array. ``mpol`` is the inclusive maximum
+        poloidal mode.
         """
         if mpol is None:
             mpol = self.mpol
@@ -432,9 +434,9 @@ class NormalField(Optimizable):
 
         vnc = self.vnc
         if vnc is None:
-            vnc = np.zeros((mpol, 2*ntor+1))
+            vnc = np.zeros((mpol+1, 2*ntor+1))
 
-        return vnc[0:mpol, self.ntor-ntor:self.ntor+ntor+1]
+        return vnc[0:mpol+1, self.ntor-ntor:self.ntor+ntor+1]
 
     def get_vns_vnc_asarray(self, mpol=None, ntor=None):
         """
@@ -456,7 +458,8 @@ class NormalField(Optimizable):
 
     def set_vns_asarray(self, vns, mpol=None, ntor=None):
         """
-        Set the vns from a single array
+        Set the vns from a single array. ``mpol`` is the inclusive maximum
+        poloidal mode.
         """
         if mpol is None:
             mpol = self.mpol
@@ -468,13 +471,14 @@ class NormalField(Optimizable):
         elif ntor > self.ntor:
             raise ValueError('ntor out of bound')
 
-        self._vns = vns[0:mpol, self.ntor-ntor:self.ntor+ntor+1]
+        self._vns = vns[0:mpol+1, self.ntor-ntor:self.ntor+ntor+1]
         dofs = self.get_dofs()
         self.local_full_x = dofs
 
     def set_vnc_asarray(self, vnc, mpol=None, ntor=None):
         """
-        Set the vnc from a single array
+        Set the vnc from a single array. ``mpol`` is the inclusive maximum
+        poloidal mode.
         """
         if mpol is None:
             mpol = self.mpol
@@ -486,7 +490,7 @@ class NormalField(Optimizable):
         elif ntor > self.ntor:
             raise ValueError('ntor out of bound')
 
-        self._vnc = vnc[0:mpol, self.ntor-ntor:self.ntor+ntor+1]
+        self._vnc = vnc[0:mpol+1, self.ntor-ntor:self.ntor+ntor+1]
         dofs = self.get_dofs()
         self.local_full_x = dofs
 

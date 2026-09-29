@@ -12,9 +12,141 @@ from simsopt.util import (
 )
 from simsopt.field import LpCurveForce
 
-# Test directory setup
-TEST_DIR = Path(__file__).parent / "../test_files"
+# Test directory setup - resolve to absolute path for use when package may be installed
+TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 OUTPUT_DIR = Path(__file__).parent / "test_output"
+
+
+class TestConfigValidation(unittest.TestCase):
+    """Tests for config validation and default path coverage."""
+
+    def test_initial_optimizations_invalid_config(self):
+        """Invalid config raises ValueError."""
+        with self.assertRaises(ValueError) as cm:
+            initial_vacuum_stage_II_optimizations(N=1, config="INVALID")
+        self.assertIn("Invalid configuration", str(cm.exception))
+
+    def test_continuation_invalid_config(self):
+        """Invalid config raises ValueError in continuation."""
+        with self.assertRaises(ValueError) as cm:
+            continuation_vacuum_stage_II_optimizations(N=1, config="INVALID")
+        self.assertIn("Invalid configuration", str(cm.exception))
+
+    def test_vacuum_stage_II_optimization_invalid_config(self):
+        """Invalid config raises ValueError in vacuum_stage_II_optimization."""
+        with self.assertRaises(ValueError) as cm:
+            vacuum_stage_II_optimization(config="INVALID", R1=0.5, ncoils=3)
+        self.assertIn("Invalid configuration", str(cm.exception))
+
+    def test_initial_optimizations_QA_default_paths(self):
+        """QA config with OUTPUT_DIR=None uses default output path."""
+        with ScratchDir("."):
+            initial_vacuum_stage_II_optimizations(
+                N=1,
+                MAXITER=5,
+                ncoils=3,
+                config="QA",
+                OUTPUT_DIR=None,
+                INPUT_FILE=str(TEST_DIR / "input.LandremanPaul2021_QA"),
+            )
+            self.assertTrue(Path("./output/QA/optimizations").exists())
+            results_files = list(Path("./output/QA/optimizations").glob("*/results.json"))
+            self.assertGreater(len(results_files), 0)
+
+    def test_initial_optimizations_QH_default_paths(self):
+        """QH config with OUTPUT_DIR=None uses default output path."""
+        with ScratchDir("."):
+            initial_vacuum_stage_II_optimizations(
+                N=1,
+                MAXITER=5,
+                ncoils=3,
+                config="QH",
+                OUTPUT_DIR=None,
+                INPUT_FILE=str(TEST_DIR / "input.LandremanPaul2021_QH_reactorScale_lowres"),
+            )
+            self.assertTrue(Path("./output/QH/optimizations").exists())
+            results_files = list(Path("./output/QH/optimizations").glob("*/results.json"))
+            self.assertGreater(len(results_files), 0)
+
+    def test_continuation_QA_default_paths(self):
+        """Continuation QA with default INPUT_DIR, OUTPUT_DIR uses default paths."""
+        with ScratchDir("."):
+            initial_vacuum_stage_II_optimizations(
+                N=1,
+                MAXITER=5,
+                ncoils=3,
+                config="QA",
+                OUTPUT_DIR=None,
+                INPUT_FILE=str(TEST_DIR / "input.LandremanPaul2021_QA"),
+            )
+            continuation_vacuum_stage_II_optimizations(
+                N=1,
+                dx=0.1,
+                MAXITER=5,
+                config="QA",
+                INPUT_DIR=None,
+                OUTPUT_DIR=None,
+                INPUT_FILE=str(TEST_DIR / "input.LandremanPaul2021_QA"),
+            )
+            self.assertTrue(Path("./output/QA/optimizations/continuation").exists())
+            results_files = list(
+                Path("./output/QA/optimizations/continuation").glob("*/results.json")
+            )
+            self.assertGreater(len(results_files), 0)
+
+    def test_continuation_QH_default_paths(self):
+        """Continuation QH with default INPUT_DIR, OUTPUT_DIR uses default paths."""
+        with ScratchDir("."):
+            initial_vacuum_stage_II_optimizations(
+                N=1,
+                MAXITER=5,
+                ncoils=3,
+                config="QH",
+                OUTPUT_DIR=None,
+                INPUT_FILE=str(TEST_DIR / "input.LandremanPaul2021_QH_reactorScale_lowres"),
+            )
+            continuation_vacuum_stage_II_optimizations(
+                N=1,
+                dx=0.1,
+                MAXITER=5,
+                config="QH",
+                INPUT_DIR=None,
+                OUTPUT_DIR=None,
+                INPUT_FILE=str(TEST_DIR / "input.LandremanPaul2021_QH_reactorScale_lowres"),
+            )
+            self.assertTrue(Path("./output/QH/optimizations/continuation").exists())
+            results_files = list(
+                Path("./output/QH/optimizations/continuation").glob("*/results.json")
+            )
+            self.assertGreater(len(results_files), 0)
+
+    def test_vacuum_stage_II_optimization_QA_default_paths(self):
+        """vacuum_stage_II_optimization QA with OUTPUT_DIR=None uses default path."""
+        with ScratchDir("."):
+            results = vacuum_stage_II_optimization(
+                config="QA",
+                OUTPUT_DIR=None,
+                INPUT_FILE=str(TEST_DIR / "input.LandremanPaul2021_QA"),
+                R1=0.5,
+                ncoils=3,
+                MAXITER=5,
+            )
+            self.assertTrue(Path("./output/QA/optimizations").exists())
+            self.assertIn("UUID", results)
+
+    def test_vacuum_stage_II_optimization_QH_default_paths(self):
+        """vacuum_stage_II_optimization QH with OUTPUT_DIR=None uses default path."""
+        with ScratchDir("."):
+            results = vacuum_stage_II_optimization(
+                config="QH",
+                OUTPUT_DIR=None,
+                INPUT_FILE=str(TEST_DIR / "input.LandremanPaul2021_QH_reactorScale_lowres"),
+                R1=0.5,
+                ncoils=3,
+                MAXITER=5,
+            )
+            self.assertTrue(Path("./output/QH/optimizations").exists())
+            self.assertIn("UUID", results)
 
 
 class TestInitialOptimizations(unittest.TestCase):

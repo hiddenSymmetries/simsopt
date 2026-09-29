@@ -1,7 +1,7 @@
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
 #include <stdexcept>
-#include "xtensor/xlayout.hpp"
+#include "xtensor/core/xlayout.hpp"
 
 using namespace std;
 // When compiled with C++17, then we use `if constexpr` to check for
@@ -25,15 +25,15 @@ void wireframe_field_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy
     int num_points = pointsx.size();
     constexpr int simd_size = xsimd::simd_type<double>::size;
 
-    auto dB_dX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>();
+    auto dB_dX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, xs::default_arch::alignment()>>();
     MYIF(derivs > 0) {
-        dB_dX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
+        dB_dX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, xs::default_arch::alignment()>>{
             Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
         };
     }
-    auto d2B_dXdX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>();
+    auto d2B_dXdX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, xs::default_arch::alignment()>>();
     MYIF(derivs > 1) {
-        d2B_dXdX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
+        d2B_dXdX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, xs::default_arch::alignment()>>{
             Vec3dSimd(), Vec3dSimd(), Vec3dSimd(),
             Vec3dSimd(), Vec3dSimd(), Vec3dSimd(),
             Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
@@ -111,28 +111,47 @@ void wireframe_field_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy
         // vectors. so we have to ignore those results. Disgarding the unneeded
         // entries is actually faster than falling back to scalar operations
         // (which would require treat i = 8, 9, 10 all individually).
+        // B/dB_by_dX/d2B_by_dXdX are interleaved (point, component) arrays, so a batch can't
+        // be stored directly into them; store each Vec3dSimd component to a small contiguous
+        // buffer once, then index that buffer per lane below.
+        alignas(xs::default_arch::alignment()) double B_i_x[simd_size], B_i_y[simd_size], B_i_z[simd_size];
+        B_i.store_aligned(B_i_x, B_i_y, B_i_z);
+
+        alignas(xs::default_arch::alignment()) double dB_dX_i_x[3][simd_size], dB_dX_i_y[3][simd_size], dB_dX_i_z[3][simd_size];
+        MYIF(derivs > 0) {
+            for(int k=0; k<3; k++)
+                dB_dX_i[k].store_aligned(dB_dX_i_x[k], dB_dX_i_y[k], dB_dX_i_z[k]);
+        }
+
+        alignas(xs::default_arch::alignment()) double d2B_dXdX_i_x[9][simd_size], d2B_dXdX_i_y[9][simd_size], d2B_dXdX_i_z[9][simd_size];
+        MYIF(derivs > 1) {
+            for(int idx=0; idx<9; idx++)
+                d2B_dXdX_i[idx].store_aligned(d2B_dXdX_i_x[idx], d2B_dXdX_i_y[idx], d2B_dXdX_i_z[idx]);
+        }
+
         int jlimit = std::min(simd_size, num_points-i);
         for(int j=0; j<jlimit; j++){
-            B(i+j, 0) = fak * B_i.x[j];
-            B(i+j, 1) = fak * B_i.y[j];
-            B(i+j, 2) = fak * B_i.z[j];
+            B(i+j, 0) = fak * B_i_x[j];
+            B(i+j, 1) = fak * B_i_y[j];
+            B(i+j, 2) = fak * B_i_z[j];
             MYIF(derivs > 0) {
                 for(int k=0; k<3; k++) {
-                    dB_by_dX(i+j, k, 0) = fak*dB_dX_i[k].x[j];
-                    dB_by_dX(i+j, k, 1) = fak*dB_dX_i[k].y[j];
-                    dB_by_dX(i+j, k, 2) = fak*dB_dX_i[k].z[j];
+                    dB_by_dX(i+j, k, 0) = fak*dB_dX_i_x[k][j];
+                    dB_by_dX(i+j, k, 1) = fak*dB_dX_i_y[k][j];
+                    dB_by_dX(i+j, k, 2) = fak*dB_dX_i_z[k][j];
                 }
             }
             MYIF(derivs > 1) {
                 for(int k1=0; k1<3; k1++) {
                     for(int k2=0; k2<=k1; k2++) {
-                        d2B_by_dXdX(i+j, k1, k2, 0) = fak*d2B_dXdX_i[3*k1 + k2].x[j];
-                        d2B_by_dXdX(i+j, k1, k2, 1) = fak*d2B_dXdX_i[3*k1 + k2].y[j];
-                        d2B_by_dXdX(i+j, k1, k2, 2) = fak*d2B_dXdX_i[3*k1 + k2].z[j];
+                        int idx = 3*k1 + k2;
+                        d2B_by_dXdX(i+j, k1, k2, 0) = fak*d2B_dXdX_i_x[idx][j];
+                        d2B_by_dXdX(i+j, k1, k2, 1) = fak*d2B_dXdX_i_y[idx][j];
+                        d2B_by_dXdX(i+j, k1, k2, 2) = fak*d2B_dXdX_i_z[idx][j];
                         if(k2 < k1){
-                            d2B_by_dXdX(i+j, k2, k1, 0) = fak*d2B_dXdX_i[3*k1 + k2].x[j];
-                            d2B_by_dXdX(i+j, k2, k1, 1) = fak*d2B_dXdX_i[3*k1 + k2].y[j];
-                            d2B_by_dXdX(i+j, k2, k1, 2) = fak*d2B_dXdX_i[3*k1 + k2].z[j];
+                            d2B_by_dXdX(i+j, k2, k1, 0) = fak*d2B_dXdX_i_x[idx][j];
+                            d2B_by_dXdX(i+j, k2, k1, 1) = fak*d2B_dXdX_i_y[idx][j];
+                            d2B_by_dXdX(i+j, k2, k1, 2) = fak*d2B_dXdX_i_z[idx][j];
                         }
                     }
                 }

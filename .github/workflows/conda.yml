@@ -43,28 +43,29 @@ jobs:
           python-version: ${{ matrix.python-version }}
           channels: conda-forge
           channel-priority: strict
+          conda-build-version: ">=3.26"
 
       - name: Prepare
-        run: conda install -y conda-build setuptools_scm anaconda-client scikit-build-core
+        run: conda install -y --name base anaconda-client setuptools_scm scikit-build-core
 
       - name: Build and upload
         if: github.event_name == 'release' && github.event.action == 'published'
         run: |
           conda config --set anaconda_upload yes
-          conda build --token ${{ secrets.ANACONDA_TOKEN }} conda.recipe
+          "$CONDA/bin/conda-build" --token ${{ secrets.ANACONDA_TOKEN }} conda.recipe
 
       - name: Build and upload to test
         if: github.event_name == 'push' && github.ref == 'refs/heads/mbk/conda_package'
         run: |
           conda config --set anaconda_upload yes
-          conda build --token ${{ secrets.MBK_ANACONDA_TOKEN }} conda.recipe
+          "$CONDA/bin/conda-build" --token ${{ secrets.MBK_ANACONDA_TOKEN }} conda.recipe
 
       - name: Build 
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         run: |
-          conda build --no-test conda.recipe
+          "$CONDA/bin/conda-build" --no-test conda.recipe
 
       - name: Build on PR
         if: github.event_name == 'pull_request'
         run: |
-          conda build --no-test conda.recipe
+          "$CONDA/bin/conda-build" --no-test conda.recipe

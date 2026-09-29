@@ -1,6 +1,6 @@
 #include "regular_grid_interpolant_3d_impl.h"
-#include "xtensor/xarray.hpp"
-#include "xtensor/xtensor.hpp"
+#include "xtensor/containers/xarray.hpp"
+#include "xtensor/containers/xtensor.hpp"
 typedef xt::xarray<double> Array;
 
 template class RegularGridInterpolant3D<Array>;

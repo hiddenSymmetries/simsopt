@@ -2,7 +2,7 @@
 #include <math.h>
 #include "xtensor-python/pyarray.hpp"
 typedef xt::pyarray<double> Array;
-#include <xtensor/xview.hpp>
+#include <xtensor/views/xview.hpp>
 
 Array compute_kmnc_kmns(Array& rmnc, Array& drmncds, Array& zmns, Array& dzmnsds,
     Array& numns, Array& dnumnsds, Array& bmnc,

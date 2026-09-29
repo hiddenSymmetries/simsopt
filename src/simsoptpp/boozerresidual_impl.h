@@ -1,7 +1,7 @@
 #include "xsimd/xsimd.hpp"
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
-#include "xtensor/xarray.hpp"
+#include "xtensor/containers/xarray.hpp"
 
 #if __cplusplus >= 201703L
 #define MYIF(c) if constexpr(c)
@@ -145,31 +145,38 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
                     auto drtil_ij2m = xsimd::fma(dresij2m , bw_ij , dw_ijm * resij2);
 
                     // sum_k (r_k grad r_k)
-                    auto dresm = xsimd::fma(brtil_ij0, drtil_ij0m, xsimd::fma(brtil_ij1, drtil_ij1m , brtil_ij2 * drtil_ij2m));                    
-                    
+                    auto dresm = xsimd::fma(brtil_ij0, drtil_ij0m, xsimd::fma(brtil_ij1, drtil_ij1m , brtil_ij2 * drtil_ij2m));
+
+                    // these targets are AlignedPaddedVec (padded to a multiple of simd_size), so
+                    // we can store the whole batch directly; no per-lane loop or scratch buffer needed.
+                    drtil_ij0m.store_aligned(&drtilij0[m]);
+                    drtil_ij1m.store_aligned(&drtilij1[m]);
+                    drtil_ij2m.store_aligned(&drtilij2[m]);
+
+                    dB2_ijm.store_aligned(&dB2_ij[m]);
+                    tang_ij0m.store_aligned(&dtang_ij0[m]);
+                    tang_ij1m.store_aligned(&dtang_ij1[m]);
+                    tang_ij2m.store_aligned(&dtang_ij2[m]);
+                    dresij0m.store_aligned(&dresij0[m]);
+                    dresij1m.store_aligned(&dresij1[m]);
+                    dresij2m.store_aligned(&dresij2[m]);
+
+                    dBij0m.store_aligned(&dBij0[m]);
+                    dBij1m.store_aligned(&dBij1[m]);
+                    dBij2m.store_aligned(&dBij2[m]);
+
+                    dw_ijm.store_aligned(&dw_ij[m]);
+
+                    dmodB_ijm.store_aligned(&dmodB_ij[m]);
+
+                    // dres accumulates (+=) into a non-padded, Python-owned xtensor array, so a
+                    // full-width store risks writing past its bounds on the final partial chunk;
+                    // store the batch once, then add scalar-by-scalar over the valid lanes only.
+                    alignas(xs::default_arch::alignment()) double dresm_arr[simd_size];
+                    dresm.store_aligned(dresm_arr);
                     int jjlimit = std::min(simd_size, ndofs-m);
                     for(int jj = 0; jj < jjlimit; jj++){
-                        dres(m+jj) += dresm[jj];
-
-                        drtilij0[m+jj] = drtil_ij0m[jj];
-                        drtilij1[m+jj] = drtil_ij1m[jj];
-                        drtilij2[m+jj] = drtil_ij2m[jj];
-                    
-                        dB2_ij[m+jj] = dB2_ijm[jj];
-                        dtang_ij0[m+jj] = tang_ij0m[jj];
-                        dtang_ij1[m+jj] = tang_ij1m[jj];
-                        dtang_ij2[m+jj] = tang_ij2m[jj];
-                        dresij0[m+jj] = dresij0m[jj];
-                        dresij1[m+jj] = dresij1m[jj];
-                        dresij2[m+jj] = dresij2m[jj];
-
-                        dBij0[m+jj] = dBij0m[jj];
-                        dBij1[m+jj] = dBij1m[jj];
-                        dBij2[m+jj] = dBij2m[jj];
-
-                        dw_ij[m+jj] = dw_ijm[jj];
-
-                        dmodB_ij[m+jj] = dmodB_ijm[jj];
+                        dres(m+jj) += dresm_arr[jj];
                     }
                 }
                 
@@ -211,10 +218,12 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
                             simd_t drtilij1_dn(drtilij1[n]);
                             simd_t drtilij2_dn(drtilij2[n]);
                             simd_t d2res_mn = drtilij0_dm * drtilij0_dn + drtilij1_dm * drtilij1_dn + drtilij2_dm * drtilij2_dn;
-                        
+
+                            alignas(xs::default_arch::alignment()) double d2res_mn_arr[simd_size];
+                            d2res_mn.store_aligned(d2res_mn_arr);
                             int jjlimit = std::min(simd_size, ndofs+2-m);
                             for(int jj = 0; jj < jjlimit; jj++){
-                                d2res(m+jj, n) += d2res_mn[jj];
+                                d2res(m+jj, n) += d2res_mn_arr[jj];
                             }
                         }
                     }
@@ -293,27 +302,31 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
                             
                             auto d2res_mn = rtil_ij0 * d2rtil_0mn + rtil_ij1 * d2rtil_1mn +rtil_ij2 * d2rtil_2mn;
 
+                            alignas(xs::default_arch::alignment()) double d2res_mn_arr[simd_size];
+                            d2res_mn.store_aligned(d2res_mn_arr);
                             int jjlimit = std::min(simd_size, ndofs-m);
                             for(int jj = 0; jj < jjlimit; jj++){
-                                d2res(m+jj, n) += d2res_mn[jj];
+                                d2res(m+jj, n) += d2res_mn_arr[jj];
                             }
                         }
-                        auto d2res_ij0miota = -(dB2_ijm * xtheta(i, j, 0) + B2ij * dxtheta_ds_ij0m); 
+                        auto d2res_ij0miota = -(dB2_ijm * xtheta(i, j, 0) + B2ij * dxtheta_ds_ij0m);
                         auto d2res_ij1miota = -(dB2_ijm * xtheta(i, j, 1) + B2ij * dxtheta_ds_ij1m);
                         auto d2res_ij2miota = -(dB2_ijm * xtheta(i, j, 2) + B2ij * dxtheta_ds_ij2m);
-                        
+
 
                         auto d2rtil_ij0miota = d2res_ij0miota * wij + dres_ij0iota * dw_ijm ;
                         auto d2rtil_ij1miota = d2res_ij1miota * wij + dres_ij1iota * dw_ijm ;
                         auto d2rtil_ij2miota = d2res_ij2miota * wij + dres_ij2iota * dw_ijm ;
-                        auto d2res_miota = rtil_ij0*d2rtil_ij0miota+rtil_ij1*d2rtil_ij1miota+rtil_ij2*d2rtil_ij2miota;   
+                        auto d2res_miota = rtil_ij0*d2rtil_ij0miota+rtil_ij1*d2rtil_ij1miota+rtil_ij2*d2rtil_ij2miota;
 
+                        alignas(xs::default_arch::alignment()) double d2res_miota_arr[simd_size];
+                        d2res_miota.store_aligned(d2res_miota_arr);
                         int jjlimit = std::min(simd_size, ndofs-m);
                         for(int jj = 0; jj < jjlimit; jj++){
-                            d2res(m+jj, ndofs) += d2res_miota[jj];
+                            d2res(m+jj, ndofs) += d2res_miota_arr[jj];
                         }
 
-                        auto d2res_ij0mG = dBij0m; 
+                        auto d2res_ij0mG = dBij0m;
                         auto d2res_ij1mG = dBij1m;
                         auto d2res_ij2mG = dBij2m;
 
@@ -322,8 +335,10 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
                         auto d2rtil_ij2mG = d2res_ij2mG * wij + dres_ij2_dG * dw_ijm;
                         auto d2res_mG = rtil_ij0*d2rtil_ij0mG+rtil_ij1*d2rtil_ij1mG+rtil_ij2*d2rtil_ij2mG;
 
+                        alignas(xs::default_arch::alignment()) double d2res_mG_arr[simd_size];
+                        d2res_mG.store_aligned(d2res_mG_arr);
                         for(int jj = 0; jj < jjlimit; jj++){
-                            d2res(m+jj, ndofs+1) += d2res_mG[jj];
+                            d2res(m+jj, ndofs+1) += d2res_mG_arr[jj];
                         }
 
                     }

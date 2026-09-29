@@ -1,6 +1,7 @@
 #include "wireframe_optimization.h"
 #include <limits> // std
 #include <vector>
+#include "xtensor/views/xview.hpp"
 using std::vector;
 
 /*

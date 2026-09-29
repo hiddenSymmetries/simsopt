@@ -765,9 +765,15 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
                                            +xsimd::fma(xyzij1, d2nor_dcdc_ij1mn , dxyz_dc_ij1n * dnor_dc_ij1m)
                                            +xsimd::fma(xyzij2, d2nor_dcdc_ij2mn , dxyz_dc_ij2n * dnor_dc_ij2m) );
 
+                    // data accumulates (+=) into a non-padded xtensor array, so it still
+                    // needs a clamped per-lane loop; store the batches once, then add
+                    // scalar-by-scalar over the valid lanes only.
+                    alignas(xs::default_arch::alignment()) double data1_arr[simd_size], data2_arr[simd_size];
+                    data1.store_aligned(data1_arr);
+                    data2.store_aligned(data2_arr);
                     int jjlimit = std::min(simd_size, ndofs-n);
                     for(int jj=0; jj<jjlimit; jj++){
-                        data(m, n+jj) += data1[jj]+data2[jj];
+                        data(m, n+jj) += data1_arr[jj]+data2_arr[jj];
                     }
                 }
             }

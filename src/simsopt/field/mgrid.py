@@ -121,9 +121,9 @@ class MGrid():
         if ar is not None:
             self.ar_arr.append(ar)
         if ap is not None:
-            self.az_arr.append(az)
-        if az is not None:
             self.ap_arr.append(ap)
+        if az is not None:
+            self.az_arr.append(az)
 
         # add coil label
         if (name is None):
