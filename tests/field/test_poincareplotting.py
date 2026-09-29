@@ -2,11 +2,8 @@ import unittest
 import numpy as np
 
 from simsopt.field.magneticfieldclasses import ToroidalField
-from simsopt.field.tracing import (
-    PoincarePlotter,
-    SimsoptFieldlineIntegrator,
-    ScipyFieldlineIntegrator,
-)
+from simsopt.field.integrator import SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator
+from simsopt.field.poincareplotter import PoincarePlotter
 from simsopt.configs.zoo import get_data
 from monty.tempfile import ScratchDir
 import os
@@ -24,7 +21,7 @@ class TestPoincarePlotterSimsopt(unittest.TestCase):
         self.Z0s = np.zeros_like(self.R0s)
         # integrators expect shape (nlines, 2) with columns (R,Z)
         self.start_points_RZ = np.column_stack([self.R0s, self.Z0s])
-        self.intg = SimsoptFieldlineIntegrator(self.field, nfp=1, stellsym=True, tmax=200.0, tol=1e-9)
+        self.intg = SimsoptFieldlineIntegrator(self.field, tmax=200.0, tol=1e-9)
         self.pp = PoincarePlotter(self.intg, self.start_points_RZ, phis=4, n_transits=2, add_symmetry_planes=False)
 
     def test_res_properties_and_invariants(self):
@@ -127,8 +124,6 @@ class TestPoincarePlotterScipy(unittest.TestCase):
         self.start_points_RZ = np.column_stack([self.R0s, self.Z0s])
         self.intg = ScipyFieldlineIntegrator(
             self.field,
-            nfp=1,
-            stellsym=True,
             integrator_type='RK45',
             integrator_args={'rtol': 1e-9, 'atol': 1e-11},
         )
@@ -261,8 +256,8 @@ class TestPoincarePlotterRealField(unittest.TestCase):
             [cls.R0 + 0.01, 0.0],
             [cls.R0 + 0.03, 0.0],
         ])
-        cls.intg = SimsoptFieldlineIntegrator(cls.field, nfp=nfp, stellsym=True, tmax=50.0, tol=1e-7)
-        cls.pp = PoincarePlotter(cls.intg, cls.start_points_RZ, phis=cls.n_planes, n_transits=cls.n_transits, add_symmetry_planes=True)
+        cls.intg = SimsoptFieldlineIntegrator(cls.field, tmax=50.0, tol=1e-7)
+        cls.pp = PoincarePlotter(cls.intg, cls.start_points_RZ, phis=cls.n_planes, n_transits=cls.n_transits, add_symmetry_planes=True, nfp=nfp)
 
     def test_basic_hits_exist(self):
         hits = self.pp.res_phi_hits
@@ -299,7 +294,7 @@ class TestPoincarePlotter3DBackends(unittest.TestCase):
         cls.B0 = 0.8
         cls.field = ToroidalField(cls.R0, cls.B0)
         cls.start_points_RZ = np.array([[cls.R0 + 0.02, 0.0]])
-        cls.intg = SimsoptFieldlineIntegrator(cls.field, nfp=1, stellsym=True, tmax=50.0, tol=1e-9)
+        cls.intg = SimsoptFieldlineIntegrator(cls.field, tmax=50.0, tol=1e-9)
         cls.pp = PoincarePlotter(cls.intg, cls.start_points_RZ, phis=3, n_transits=1, add_symmetry_planes=False)
 
     def test_matplotlib_3d(self):
@@ -341,8 +336,8 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
             [cls.R0 + 0.01, 0.0],
             [cls.R0 + 0.02, 0.0],
         ])
-        cls.intg_sopp = SimsoptFieldlineIntegrator(cls.bs, nfp=nfp, stellsym=True, tmax=40.0, tol=1e-7)
-        cls.intg_scipy = ScipyFieldlineIntegrator(cls.bs, nfp=nfp, stellsym=True, integrator_type='RK45')
+        cls.intg_sopp = SimsoptFieldlineIntegrator(cls.bs, tmax=40.0, tol=1e-7)
+        cls.intg_scipy = ScipyFieldlineIntegrator(cls.bs, integrator_type='RK45')
 
     def test_save_and_load_with_dof_change(self):
         """
@@ -350,7 +345,7 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
         """
         with ScratchDir('.'):
             archive = 'poincare_data.npz'
-            pp = PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True)
+            pp = PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True, nfp=self.nfp)
             _ = pp.res_phi_hits  # prime cache and save to disk
             # Check archive created with hashed datasets
             self.assertTrue(os.path.exists(archive))
@@ -360,7 +355,7 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
                 self.assertIn(f'res_tys_{hash_key}', data.files)
 
             # A new instance with same params should already have data
-            pp2 = PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True)
+            pp2 = PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True, nfp=self.nfp)
             # comparing to hidden attributes to avoid recompute.
             self.assertTrue(np.array_equal(pp.res_phi_hits, pp2._res_phi_hits))
             for pp1_data, pp2_data in zip(pp.res_tys, pp2._res_tys):
@@ -385,7 +380,7 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
             self.assertTrue(pp2_tys_from_disk[0][0, 0] == 1e5)
 
             #load with scipy integrator:
-            pp3 = PoincarePlotter(self.intg_scipy, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True)
+            pp3 = PoincarePlotter(self.intg_scipy, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True, nfp=self.nfp)
             pp3.recompute_bell()
             _ = pp3.res_tys
             # trigger new compute
@@ -405,7 +400,7 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
         test that the hashing, saving and loading works as intended. 
         """
         with ScratchDir('.'):
-            pp = PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=2, add_symmetry_planes=True, store_results=False)
+            pp = PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=2, add_symmetry_planes=True, store_results=False, nfp=self.nfp)
             filename = "test"
             pp.particles_to_vtk(filename)
             self.assertTrue(os.path.exists(f"{filename}.vtu"))

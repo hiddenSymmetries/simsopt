@@ -1,21 +1,20 @@
 import unittest
 import numpy as np
 
-from simsopt.field.magneticfieldclasses import ToroidalField
-from simsopt.field.tracing import Integrator, SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator
+from simsopt.field.magneticfieldclasses import ToroidalField, PoloidalField
+from simsopt.field.integrator import Integrator, SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator
+from simsopt.field.tracing import MinRStoppingCriterion
 from simsopt.configs.zoo import get_data, configurations
 from simsopt._core.util import ObjectiveFailure
 
 
 class TestIntegratorBase(unittest.TestCase):
     def setUp(self):
-        # Simple, fast analytic field suitable for determinism in tests
         self.R0 = 1.3
         self.B0 = 0.8
         self.field = ToroidalField(self.R0, self.B0)
 
     def test_coordinate_roundtrip(self):
-        # Use a handful of random points away from pathological locations
         rng = np.random.default_rng(0)
         pts_rphiz = np.column_stack([
             rng.uniform(self.R0 * 0.8, self.R0 * 1.2, size=10),
@@ -24,327 +23,273 @@ class TestIntegratorBase(unittest.TestCase):
         ])
         xyz = Integrator._rphiz_to_xyz(pts_rphiz)
         rphiz_back = Integrator._xyz_to_rphiz(xyz)
-        # Phi has 2*pi periodicity, compare via unit circle embedding
         self.assertTrue(np.allclose(pts_rphiz[:, 0], rphiz_back[:, 0], rtol=1e-12, atol=1e-12))
         self.assertTrue(np.allclose(pts_rphiz[:, 2], rphiz_back[:, 2], rtol=1e-12, atol=1e-12))
         self.assertTrue(np.allclose(np.cos(pts_rphiz[:, 1]), np.cos(rphiz_back[:, 1]), atol=1e-12))
         self.assertTrue(np.allclose(np.sin(pts_rphiz[:, 1]), np.sin(rphiz_back[:, 1]), atol=1e-12))
 
     def test_incorrect_staticmethods(self):
-        # Test incorrect static method calls
         with self.assertRaises(ValueError):
-            Integrator._rphiz_to_xyz(1)  # Invalid input
+            Integrator._rphiz_to_xyz(1)
         with self.assertRaises(ValueError):
-            Integrator._rphiz_to_xyz(np.random.random(4))  # Invalid input
+            Integrator._rphiz_to_xyz(np.random.random(4))
+        with self.assertRaises(ValueError):
+            Integrator._xyz_to_rphiz(1)
+        with self.assertRaises(ValueError):
+            Integrator._xyz_to_rphiz(np.random.random(2))
 
-        with self.assertRaises(ValueError):
-            Integrator._xyz_to_rphiz(1)  # Invalid input
-        with self.assertRaises(ValueError):
-            Integrator._rphiz_to_xyz(np.random.random(2))  # Invalid input
+    def test_base_class_hooks_not_implemented(self):
+        intg = Integrator(self.field)
+        start_xyz = np.array([self.R0, 0.0, 0.0])
+        with self.assertRaises(NotImplementedError):
+            intg.integrate_toroidally(start_xyz, np.pi)
+        with self.assertRaises(NotImplementedError):
+            intg.integrate_fieldlinepoints(start_xyz, np.pi)
+        with self.assertRaises(NotImplementedError):
+            intg.compute_poincare_hits(np.array([[self.R0, 0.0]]), 1, phis=[0.0])
 
-class TestIntegratorsCoordinateHandling(unittest.TestCase):
+
+class TestIntegratorsCommonInterface(unittest.TestCase):
+    """Tests that apply to both backends identically."""
+
     def setUp(self):
         self.R0 = 1.2
         self.B0 = 1.0
         self.field = ToroidalField(self.R0, self.B0)
-        self.simsopt_intg = SimsoptFieldlineIntegrator(self.field, nfp=1)
-        self.scipy_intg = ScipyFieldlineIntegrator(self.field, nfp=1)
+        self.integrators = [SimsoptFieldlineIntegrator(self.field, tmax=100.0, tol=1e-10),
+                            ScipyFieldlineIntegrator(self.field, integrator_args={'rtol': 1e-10, 'atol': 1e-12})]
 
-    def test_invalid_coordinate_inputs(self):
+    def test_invalid_inputs(self):
         start_xyz = np.array([self.R0, 0.0, 0.0])
         start_RZ = np.array([self.R0, 0.0])
-        for intg in [self.simsopt_intg, self.scipy_intg]:
-            with self.assertRaises(ValueError):
-                intg.integrate_toroidally(start_xyz, delta_phi=np.pi/2, input_coordinates='invalid', output_coordinates='cartesian')
-            with self.assertRaises(ValueError):
-                intg.integrate_toroidally(start_xyz, delta_phi=np.pi/2, input_coordinates='cartesian', output_coordinates='invalid')
-            with self.assertRaises(ValueError):
-                intg.integrate_toroidally(start_RZ, phi0=None, delta_phi=np.pi/2, input_coordinates='cylindrical', output_coordinates='cartesian')
-        
-        for intg in [self.simsopt_intg, self.scipy_intg]:
-            with self.assertRaises(ValueError):
-                intg.integrate_fieldlinepoints(start_xyz, input_coordinates='invalid', output_coordinates='cartesian')
-            with self.assertRaises(ValueError):
-                intg.integrate_fieldlinepoints(start_xyz, input_coordinates='cartesian', output_coordinates='invalid')
-            with self.assertRaises(ValueError):
-                intg.integrate_fieldlinepoints(start_RZ, phi0=None, input_coordinates='cylindrical', output_coordinates='cartesian')
-        with self.assertRaises(ValueError): 
-            self.scipy_intg.integrate_3d_fieldlinepoints(start_xyz, l_total=1.0, n_points=10, input_coordinates='invalid', output_coordinates='cartesian')
+        for intg in self.integrators:
+            with self.subTest(integrator=type(intg).__name__):
+                for method in [intg.integrate_toroidally, intg.integrate_fieldlinepoints]:
+                    with self.assertRaises(ValueError):
+                        method(start_xyz, np.pi/2, input_coordinates='invalid')
+                    with self.assertRaises(ValueError):
+                        method(start_xyz, np.pi/2, output_coordinates='invalid')
+                    with self.assertRaises(ValueError):
+                        method(start_RZ, np.pi/2, phi0=None, input_coordinates='cylindrical')
+                    with self.assertRaises(ValueError):
+                        method(start_xyz, np.pi/2, phi0=0.0, input_coordinates='cylindrical')
+                    with self.assertRaises(ValueError):
+                        method(start_RZ, np.pi/2, input_coordinates='cartesian')
+                    with self.assertRaises(ValueError):
+                        method(start_xyz, -np.pi/2)
+                with self.assertRaises(ValueError):
+                    intg.compute_poincare_hits(np.array([1.0, 0.0, 0.0]), 1)
+        scipy_intg = self.integrators[1]
         with self.assertRaises(ValueError):
-            self.scipy_intg.integrate_3d_fieldlinepoints(start_xyz, l_total=1.0, n_points=10, input_coordinates='cartesian', output_coordinates='invalid')
+            scipy_intg.integrate_3d_fieldlinepoints(start_xyz, l_total=1.0, n_points=10, input_coordinates='invalid')
         with self.assertRaises(ValueError):
-            self.scipy_intg.integrate_3d_fieldlinepoints(start_RZ, l_total=1.0, phi0=None, n_points=10, input_coordinates='cylindrical', output_coordinates='cartesian')
+            scipy_intg.integrate_3d_fieldlinepoints(start_xyz, l_total=1.0, n_points=10, output_coordinates='invalid')
+        with self.assertRaises(ValueError):
+            scipy_intg.integrate_3d_fieldlinepoints(start_RZ, l_total=1.0, n_points=10, phi0=None, input_coordinates='cylindrical')
+
+    def test_integrate_toroidally_rotation(self):
+        # in a purely toroidal field, the end point is the start point rotated by delta_phi
+        start_RZ = np.array([self.R0, 0.1])
+        phi0 = np.pi/4
+        for intg in self.integrators:
+            for delta_phi in [0.0, np.pi/2, 3*np.pi]:
+                with self.subTest(integrator=type(intg).__name__, delta_phi=delta_phi):
+                    phi_end = phi0 + delta_phi
+                    expected = np.array([self.R0*np.cos(phi_end), self.R0*np.sin(phi_end), 0.1])
+                    end_xyz = intg.integrate_toroidally(start_RZ, delta_phi, phi0=phi0, input_coordinates='cylindrical')
+                    np.testing.assert_allclose(end_xyz, expected, atol=1e-7)
+                    end_RZ = intg.integrate_toroidally(start_RZ, delta_phi, phi0=phi0, input_coordinates='cylindrical',
+                                                       output_coordinates='cylindrical')
+                    np.testing.assert_allclose(end_RZ, start_RZ, atol=1e-7)
+                    # cartesian input gives the same result
+                    start_xyz = Integrator._rphiz_to_xyz(np.array([start_RZ[0], phi0, start_RZ[1]]))[0]
+                    np.testing.assert_allclose(intg.integrate_toroidally(start_xyz, delta_phi), expected, atol=1e-7)
+
+    def test_integrate_fieldlinepoints(self):
+        start_RZ = np.array([self.R0, 0.0])
+        for intg in self.integrators:
+            with self.subTest(integrator=type(intg).__name__):
+                # equally spaced points, over more than one transit
+                pts = intg.integrate_fieldlinepoints(start_RZ, 3*np.pi, n_points=13, phi0=0.0, endpoint=True,
+                                                     input_coordinates='cylindrical', output_coordinates='cylindrical')
+                self.assertEqual(pts.shape, (13, 3))
+                np.testing.assert_allclose(pts[:, 1], np.linspace(0, 3*np.pi, 13), atol=1e-12)
+                np.testing.assert_allclose(pts[:, 0], self.R0, atol=1e-7)
+                np.testing.assert_allclose(pts[:, 2], 0.0, atol=1e-9)
+                pts = intg.integrate_fieldlinepoints(start_RZ, 2*np.pi, n_points=10, phi0=0.0,
+                                                     input_coordinates='cylindrical', output_coordinates='cylindrical')
+                np.testing.assert_allclose(pts[:, 1], np.linspace(0, 2*np.pi, 10, endpoint=False), atol=1e-12)
+                # adaptive points, phi increasing and bounded by the end angle
+                for endpoint in [True, False]:
+                    pts = intg.integrate_fieldlinepoints(np.array([self.R0, 0.0, 0.0]), 2*np.pi, endpoint=endpoint,
+                                                         output_coordinates='cylindrical')
+                    self.assertTrue(np.all(np.diff(pts[:, 1]) > 0))
+                    self.assertEqual(pts[0, 1], 0.0)
+                    if endpoint:
+                        self.assertAlmostEqual(pts[-1, 1], 2*np.pi)
+                    else:
+                        self.assertLess(pts[-1, 1], 2*np.pi)
+                    xyz = intg.integrate_fieldlinepoints(np.array([self.R0, 0.0, 0.0]), 2*np.pi, endpoint=endpoint)
+                    np.testing.assert_allclose(np.linalg.norm(xyz[:, :2], axis=1), self.R0, atol=1e-7)
+
+    def test_poincare_hits(self):
+        RZ = np.array([[self.R0 + 0.05, 0.0], [self.R0 + 0.10, 0.02]])
+        phis = np.linspace(0, 2*np.pi, 8, endpoint=False)
+        for intg in self.integrators:
+            with self.subTest(integrator=type(intg).__name__):
+                res_tys, res_phi_hits = intg.compute_poincare_hits(RZ, n_transits=3, phis=phis, phi0=0.1)
+                self.assertEqual(len(res_tys), len(RZ))
+                self.assertEqual(len(res_phi_hits), len(RZ))
+                for i, hits in enumerate(res_phi_hits):
+                    self.assertEqual(hits.shape[1], 5)
+                    self.assertEqual(res_tys[i].shape[1], 4)
+                    # terminating row: n_transits completed
+                    self.assertEqual(hits[-1, 1], -1)
+                    planes = hits[:-1]
+                    self.assertEqual(len(planes), len(phis) * 3)
+                    np.testing.assert_allclose(np.linalg.norm(planes[:, 2:4], axis=1), RZ[i, 0], atol=1e-7)
+                    np.testing.assert_allclose(planes[:, 4], RZ[i, 1], atol=1e-9)
+                    # the plane index is consistent with the position of the hit
+                    idx = planes[:, 1].astype(int)
+                    hit_phi = np.arctan2(planes[:, 3], planes[:, 2])
+                    np.testing.assert_allclose(np.cos(hit_phi), np.cos(phis[idx]), atol=1e-7)
+                    np.testing.assert_allclose(np.sin(hit_phi), np.sin(phis[idx]), atol=1e-7)
+                    # the first plane crossed is the first plane after phi0
+                    self.assertEqual(idx[0], 1)
+                    self.assertTrue(np.all((idx[1:] - idx[:-1]) % len(phis) == 1))
+
+    def test_poincare_hits_no_planes(self):
+        RZ = np.array([[self.R0 + 0.05, 0.0]])
+        for intg in self.integrators:
+            with self.subTest(integrator=type(intg).__name__):
+                _, res_phi_hits = intg.compute_poincare_hits(RZ, n_transits=1, phis=[])
+                self.assertEqual(res_phi_hits[0].shape, (1, 5))
+                self.assertEqual(res_phi_hits[0][0, 1], -1)
+
 
 class TestSimsoptFieldlineIntegrator(unittest.TestCase):
-    def setUp(self):
-        self.R0 = 1.2
-        self.B0 = 1.0
-        self.field = ToroidalField(self.R0, self.B0)
-        # Keep tmax modest so tests are quick
-        self.intg = SimsoptFieldlineIntegrator(self.field, nfp=1, stellsym=True, tmax=100.0, tol=1e-9)
+    def test_defaults(self):
+        field = ToroidalField(1.0, 1.0)
+        intg = SimsoptFieldlineIntegrator(field)
+        self.assertEqual(intg.stopping_criteria, [])
+        self.assertEqual(intg.tol, 1e-9)
+        self.assertEqual(intg.tmax, 1e4)
 
-    def test_poincare_hits_basic(self):
-        # Two starting radii on midplane
-        RZ = np.array([[self.R0 + 0.05, 0.0], [self.R0 + 0.10, 0.0]])
-        phis = np.linspace(0.1, 2*np.pi, 8, endpoint=False)
-        res_tys, res_phi_hits = self.intg.compute_poincare_hits(RZ, n_transits=3, phis=phis, phi0=0.0)
-        # For a purely toroidal field: Z stays 0, R stays constant; and we visit planes cyclically
-        for i, hits in enumerate(res_phi_hits):
-            R_const = RZ[i, 0]
-            Z_const = RZ[i, 1]
-            # Consider only actual plane hits; the last row may be a stopping-criterion (idx < 0)
-            mask = hits[:, 1] >= 0
-            r = np.sqrt(hits[mask, 2]**2 + hits[mask, 3]**2)
-            z = hits[mask, 4]
-            # Allow small numerical deviation from exact circle
-            self.assertTrue(np.allclose(r, R_const, rtol=1e-7, atol=1e-7))
-            self.assertTrue(np.allclose(z, Z_const, rtol=1e-9, atol=1e-9))
-            # Plane indices should increase modulo len(phis)
-            idx = hits[mask, 1].astype(int)
-            self.assertEqual(len(idx), len(phis) * 3)
-            self.assertTrue(np.all((idx[1:] - idx[:-1]) % len(phis) == 1))
-        # res_tys should be a list with same length as inputs
-        self.assertEqual(len(res_tys), len(RZ))
-        for ty in res_tys:
-            # Columns: t, x, y, z
-            self.assertEqual(ty.shape[1], 4)
-
-    def test_integrate_in_phi_cart_rotation(self):
-        # Start at phi=0 on midplane, rotate by pi/2
-        start_xyz = np.array([self.R0, 0.0, 0.0])
-        end_xyz = self.intg.integrate_toroidally(start_xyz, delta_phi=np.pi/2, input_coordinates='cartesian', output_coordinates='cartesian')
-        expected = np.array([0.0, self.R0, 0.0])
-        self.assertTrue(np.allclose(end_xyz, expected, atol=5e-6))
-
-        end_RZ = self.intg.integrate_toroidally(start_xyz, delta_phi=np.pi/2, input_coordinates='cartesian', output_coordinates='cylindrical')
-        
-        self.assertEqual(end_RZ.shape[0], 2)
-        self.assertTrue(np.allclose(end_RZ[0], self.R0, atol=5e-6))
-        self.assertTrue(np.allclose(end_RZ[1], 0.0, atol=5e-9))
-        # Reconstruct xyz using start phi + delta
-        phi_start = 0.0
-        phi_end = phi_start + np.pi/2
-        recon_xyz = Integrator._rphiz_to_xyz(np.array([end_RZ[0], phi_end, end_RZ[1]])[None, :])[0]
-        self.assertTrue(np.allclose(recon_xyz, expected, atol=5e-6))
-
-    def test_integrate_in_phi_cyl_rotation(self):
-        # Start at phi=pi/4 on midplane, rotate by pi/2 using cylindrical input
-        start_RZ = np.array([self.R0, 0.0])
-        start_phi = np.pi/4
-        end_xyz = self.intg.integrate_toroidally(start_RZ, delta_phi=np.pi/2, phi0=start_phi, input_coordinates='cylindrical', output_coordinates='cartesian')
-        # Expected at phi=3pi/4
-        phi_end = start_phi + np.pi/2
-        expected = np.array([self.R0*np.cos(phi_end), self.R0*np.sin(phi_end), 0.0])
-        self.assertTrue(np.allclose(end_xyz, expected, atol=5e-6))
-
-        # Also test return_cartesian=False path: should give R,Z only
-        end_RZ = self.intg.integrate_toroidally(start_RZ, delta_phi=np.pi/2, phi0=start_phi, input_coordinates='cylindrical', output_coordinates='cylindrical')
-        self.assertEqual(end_RZ.shape[0], 2)
-        self.assertTrue(np.allclose(end_RZ[0], self.R0, atol=5e-6))
-        self.assertTrue(np.allclose(end_RZ[1], 0.0, atol=5e-9))
-        recon_xyz = Integrator._rphiz_to_xyz(np.array([end_RZ[0], phi_end, end_RZ[1]])[None, :])[0]
-        self.assertTrue(np.allclose(recon_xyz, expected, atol=5e-6))
-
-    def test_integrate_fieldlinepoints_cart_and_cyl(self):
-        # One transit around torus; points should lie on circle R=R0, Z=0
-        start_xyz = np.array([self.R0, 0.0, 0.0])
-        pts_cart = self.intg.integrate_fieldlinepoints(start_xyz, n_transits=1, input_coordinates='cartesian', output_coordinates='cartesian')
-        self.assertEqual(pts_cart.shape[1], 3)
-        r = np.sqrt(pts_cart[:, 0]**2 + pts_cart[:, 1]**2)
-        z = pts_cart[:, 2]
-        self.assertTrue(np.allclose(r, self.R0, rtol=1e-7, atol=1e-7))
-        self.assertTrue(np.allclose(z, 0.0, atol=1e-9))
-
-        # Cylindrical variant should be consistent
-        start_RZ = np.array([self.R0, 0.0])
-        start_phi = 0.0
-        pts_cyl = self.intg.integrate_fieldlinepoints(start_RZ, start_phi, n_transits=1, input_coordinates='cylindrical', output_coordinates='cylindrical')
-        self.assertEqual(pts_cyl.shape[1], 3)
-        self.assertTrue(np.allclose(pts_cyl[:, 0], self.R0, atol=1e-7))
-        self.assertTrue(np.allclose(pts_cyl[:, 2], 0.0, atol=1e-9))
+    def test_stopping_criterion(self):
+        # a field line at R=1.1 is stopped by MinRStoppingCriterion(1.2) immediately
+        field = ToroidalField(1.0, 1.0)
+        intg = SimsoptFieldlineIntegrator(field, stopping_criteria=[MinRStoppingCriterion(1.2)], tmax=100)
+        _, res_phi_hits = intg.compute_poincare_hits(np.array([[1.1, 0.0], [1.3, 0.0]]), 2, phis=[0.0])
+        self.assertEqual(res_phi_hits[0][-1, 1], -2)
+        self.assertEqual(res_phi_hits[1][-1, 1], -1)
 
     def test_integrate_right_direction(self):
-        # W7X has B_phi in the negative phi direction; verify that field is flipped. 
-        name = "w7x"
-        base_curves, base_currents, ma, nfp, bs = get_data(name)
-        # confirm that B_phi is negative:
-        bs.set_points(ma.gamma()[0: 1])
+        # W7X has B_phi in the negative phi direction; verify that field is flipped.
+        base_curves, base_currents, ma, nfp, bs = get_data("w7x")
+        bs.set_points(ma.gamma()[0:1])
         self.assertTrue(bs.B_cyl()[0, 1] < 0, msg="Expected B_phi < 0 for W7X configuration")
-                        
-        gamma = ma.gamma()
-        start_xyz = gamma[0, :]
-        intg = SimsoptFieldlineIntegrator(bs, nfp=nfp, tmax=1e3)
-        axispoints = intg.integrate_fieldlinepoints(start_xyz, n_transits=0.5, input_coordinates='cartesian', output_coordinates='cylindrical')
-        # check that phi is nevertheless strictly increasing:
-        phis = axispoints[:, 1]
-        dphis = np.diff(phis)
-        self.assertTrue(np.all(dphis > 0), msg="Expected strictly increasing phi along integrated fieldline in W7X configuration")
+        start_xyz = ma.gamma()[0, :]
+        intg = SimsoptFieldlineIntegrator(bs, tmax=1e3)
+        axispoints = intg.integrate_fieldlinepoints(start_xyz, np.pi, output_coordinates='cylindrical')
+        self.assertTrue(np.all(np.diff(axispoints[:, 1]) > 0),
+                        msg="Expected strictly increasing phi along integrated fieldline in W7X configuration")
 
+    def test_failure(self):
+        # tmax too short to reach the end angle
+        field = ToroidalField(1.0, 1.0)
+        intg = SimsoptFieldlineIntegrator(field, tmax=1.0)
+        start_RZ = np.array([1.0, 0.0])
+        self.assertTrue(np.all(np.isnan(intg.integrate_toroidally(start_RZ, np.pi, phi0=0, input_coordinates='cylindrical',
+                                                                  output_coordinates='cylindrical'))))
+        with self.assertRaises(ObjectiveFailure):
+            intg.integrate_fieldlinepoints(start_RZ, np.pi, n_points=5, phi0=0, input_coordinates='cylindrical')
+        with self.assertRaises(ObjectiveFailure):
+            intg.integrate_fieldlinepoints(start_RZ, np.pi, phi0=0, endpoint=True, input_coordinates='cylindrical')
 
 
 class TestScipyFieldlineIntegrator(unittest.TestCase):
     def setUp(self):
         self.R0 = 1.1
-        self.B0 = 0.7
-        self.field = ToroidalField(self.R0, self.B0)
-        self.intg = ScipyFieldlineIntegrator(self.field, nfp=1, stellsym=True, 
-                                             integrator_type='RK45', integrator_args={'rtol': 1e-9, 'atol': 1e-11})
-
-    def test_poincare_hits_and_trajectories(self):
-        RZ = np.array([[self.R0 + 0.02, 0.0]])
-        phis = np.linspace(0, 2*np.pi, 6, endpoint=False)
-        hits = self.intg.compute_poincare_hits(RZ, n_transits=2, phis=phis, phi0=0.0)
-        print(hits)
-        self.assertEqual(len(hits), 1)
-        h = hits[0]
-        # Expect one row per plane per transit
-        self.assertEqual(h.shape[0], len(phis) * 2)
-        # Radii constant and Z constant
-        r = np.sqrt(h[:, 2]**2 + h[:, 3]**2)
-        z = h[:, 4]
-        self.assertTrue(np.allclose(r, RZ[0, 0], atol=1e-10))
-        self.assertTrue(np.allclose(z, RZ[0, 1], atol=1e-10))
-        # Plane index sequence
-        idx = h[:, 1].astype(int)
-        self.assertTrue(np.all((idx[1:] - idx[:-1]) % len(phis) == 1))
-
-        # Trajectory sampling in phi (no plane filtering)
-        tys = self.intg.compute_poincare_trajectories(RZ, n_transits=1, phi0=0.0)
-        self.assertEqual(len(tys), 1)
-        ty = tys[0]
-        # Columns: phi, x, y, z (phi is the integrate variable here)
-        self.assertEqual(ty.shape[1], 4)
-        # Z equals initial Z, radius equals initial R
-        r_traj = np.sqrt(ty[:, 1]**2 + ty[:, 2]**2)
-        z_traj = ty[:, 3]
-        self.assertTrue(np.allclose(r_traj, RZ[0, 0], atol=1e-9))
-        self.assertTrue(np.allclose(z_traj, RZ[0, 1], atol=1e-12))
+        self.field = ToroidalField(self.R0, 0.7)
 
     def test_defaults(self):
-        # Defaults should be reasonable and work
+        intg = ScipyFieldlineIntegrator(self.field)
+        self.assertEqual(intg._integrator_args['rtol'], 1e-7)
+        self.assertEqual(intg._integrator_args['atol'], 1e-9)
+        self.assertEqual(intg._integrator_type, 'RK45')
+
+    def test_integrator_args_not_shared(self):
+        args = {'rtol': 1e-5}
+        intg1 = ScipyFieldlineIntegrator(self.field, integrator_args=args)
         intg2 = ScipyFieldlineIntegrator(self.field)
+        self.assertEqual(args, {'rtol': 1e-5})
+        self.assertEqual(intg1._integrator_args['rtol'], 1e-5)
         self.assertEqual(intg2._integrator_args['rtol'], 1e-7)
-        self.assertEqual(intg2._integrator_args['atol'], 1e-9)
-        self.assertEqual(intg2._integrator_type, 'RK45')
-        self.assertEqual(intg2.nfp, 1)
 
-    def test_integrate_in_phi_cyl_rotation(self):
-        # Start at phi=pi/6, rotate by pi/3
-        RZ0 = np.array([self.R0, 0.0])
-        phi_start = np.pi/6
-        delta_phi = np.pi/3
-        # Existing API uses start_phi positional parameter name
-        RZ_end = self.intg.integrate_toroidally(RZ0, phi_start, delta_phi, input_coordinates='cylindrical', output_coordinates='cylindrical')
-        end_xyz = Integrator._rphiz_to_xyz(np.array([RZ_end[0], phi_start + delta_phi, RZ_end[1]]))[-1]
-        expected = np.array([self.R0*np.cos(phi_start + delta_phi), self.R0*np.sin(phi_start + delta_phi), 0.0])
-        self.assertTrue(np.allclose(end_xyz, expected, atol=1e-6))
+    def test_trajectories(self):
+        intg = ScipyFieldlineIntegrator(self.field, trajectory_points_per_transit=20)
+        RZ = np.array([[self.R0 + 0.02, 0.0]])
+        res_tys, res_phi_hits = intg.compute_poincare_hits(RZ, n_transits=2, phis=[0.0], phi0=0.0)
+        self.assertEqual(res_tys[0].shape, (41, 4))
+        np.testing.assert_allclose(res_tys[0][:, 0], np.linspace(0, 4*np.pi, 41))
+        np.testing.assert_allclose(np.linalg.norm(res_tys[0][:, 1:3], axis=1), RZ[0, 0], atol=1e-6)
+        res_tys, res_phi_hits_2 = intg.compute_poincare_hits(RZ, n_transits=2, phis=[0.0], phi0=0.0, return_trajectories=False)
+        self.assertIsNone(res_tys)
+        np.testing.assert_allclose(res_phi_hits[0], res_phi_hits_2[0])
 
-        # Also verify return_cartesian=True branch directly
-        end_xyz_direct = self.intg.integrate_toroidally(RZ0, phi_start, delta_phi, input_coordinates='cylindrical', output_coordinates='cartesian')
-        self.assertTrue(np.allclose(end_xyz_direct, expected, atol=1e-6))
-        # And return_cartesian=False -> R,Z then reconstruct xyz
-        end_RZ = self.intg.integrate_toroidally(RZ0, phi_start, delta_phi, input_coordinates='cylindrical', output_coordinates='cylindrical')
-        # Scipy path should already return (2,), but be defensive:
-        if end_RZ.shape[0] == 3:
-            rphiz = Integrator._xyz_to_rphiz(end_RZ[None, :])[0]
-            end_RZ = np.array([rphiz[0], rphiz[2]])
-        self.assertEqual(end_RZ.shape[0], 2)
-        self.assertTrue(np.allclose(end_RZ[0], self.R0, atol=1e-6))
-        self.assertTrue(np.allclose(end_RZ[1], 0.0, atol=1e-9))
-        recon_xyz = Integrator._rphiz_to_xyz(np.array([end_RZ[0], phi_start + delta_phi, end_RZ[1]])[None, :])[0]
-        self.assertTrue(np.allclose(recon_xyz, expected, atol=1e-6))
-
-    def test_compare_cart_cyl_rotation(self):
-        #compare cylindrical and cartesian integration paths
-        start_RZ = np.array([self.R0, 0.0])
-        start_phi = np.pi/6
-        delta_phi = np.pi/3
-        end_xyz_from_cyl = self.intg.integrate_toroidally(start_RZ, phi0=start_phi, delta_phi=delta_phi, input_coordinates='cylindrical', output_coordinates='cartesian')
-        start_xyz = Integrator._rphiz_to_xyz(np.array([start_RZ[0], start_phi, start_RZ[1]]))[0]
-        end_xyz_from_cart = self.intg.integrate_toroidally(start_xyz, phi0=None, delta_phi=delta_phi, input_coordinates='cartesian', output_coordinates='cartesian')
-        self.assertTrue(np.allclose(end_xyz_from_cyl, end_xyz_from_cart, atol=1e-8))
-
-    def test_integrate_cyl_planes_and_fieldlinepoints(self):
-        # Evaluate at specific phis and via fieldlinepoints helpers
-        RZ0 = np.array([self.R0, 0.0])
-        phis = np.linspace(0, 2*np.pi, 9, endpoint=True)
-        status, rphiz = self.intg.integrate_cyl_planes(RZ0, phis, output_coordinates='cylindrical')
-        self.assertEqual(status, 0)
-        self.assertEqual(rphiz.shape, (len(phis), 3))
-        self.assertTrue(np.allclose(rphiz[:, 0], self.R0, atol=1e-7))
-        self.assertTrue(np.allclose(rphiz[:, 2], 0.0, atol=1e-9))
-
-        # Fieldline points by RZ
-        # Existing API: (start_RZ, start_phi, delta_phi, n_points, ...)
-        pts_xyz = self.intg.integrate_fieldlinepoints(RZ0, 2*np.pi, 50, phi0=0.0, endpoint=True, input_coordinates='cylindrical', output_coordinates='cartesian')
-        self.assertEqual(pts_xyz.shape, (50, 3))
-        r = np.sqrt(pts_xyz[:, 0]**2 + pts_xyz[:, 1]**2)
-        self.assertTrue(np.allclose(r, self.R0, atol=1e-6))
-        self.assertTrue(np.allclose(pts_xyz[:, 2], 0.0, atol=1e-9))
-
-        # Fieldline points by xyz convenience wrapper
-        start_xyz = np.array([self.R0, 0.0, 0.0])
-        pts2 = self.intg.integrate_fieldlinepoints(start_xyz, 2*np.pi, 60, endpoint=True, input_coordinates='cartesian', output_coordinates='cartesian')
-        self.assertEqual(pts2.shape, (60, 3))
-        r2 = np.sqrt(pts2[:, 0]**2 + pts2[:, 1]**2)
-        self.assertTrue(np.allclose(r2, self.R0, atol=1e-6))
-        self.assertTrue(np.allclose(pts2[:, 2], 0.0, atol=1e-9))
-
-
-    def test_integrate_3d_fieldlinepoints_cart(self):
-        # Integrate 3D arc length: quarter circle
+    def test_integrate_3d_fieldlinepoints(self):
+        intg = ScipyFieldlineIntegrator(self.field)
         start_xyz = np.array([self.R0, 0.0, 0.0])
         l_total = self.R0 * (np.pi/2)
-        pts = self.intg.integrate_3d_fieldlinepoints(start_xyz, l_total=l_total, n_points=40, input_coordinates='cartesian', output_coordinates='cartesian')
+        pts = intg.integrate_3d_fieldlinepoints(start_xyz, l_total=l_total, n_points=40)
         self.assertEqual(pts.shape, (40, 3))
-        # End point should be around phi=pi/2
         end_phi = np.arctan2(pts[-1, 1], pts[-1, 0])
-        self.assertTrue(np.isfinite(end_phi))
-        # Allow some tolerance due to adaptive stepping and solver
-        self.assertTrue(abs(((end_phi - (np.pi/2) + np.pi) % (2*np.pi)) - np.pi) < 5e-3)
-        # Radius and Z constant
-        r = np.sqrt(pts[:, 0]**2 + pts[:, 1]**2)
-        self.assertTrue(np.allclose(r, self.R0, atol=1e-6))
-        self.assertTrue(np.allclose(pts[:, 2], 0.0, atol=1e-9))
+        self.assertLess(abs(end_phi - np.pi/2), 5e-3)
+        np.testing.assert_allclose(np.linalg.norm(pts[:, :2], axis=1), self.R0, atol=1e-6)
+        np.testing.assert_allclose(pts[:, 2], 0.0, atol=1e-9)
+        pts_cyl = intg.integrate_3d_fieldlinepoints(start_xyz[[0, 2]], l_total=l_total, phi0=0, n_points=40,
+                                                    input_coordinates='cylindrical', output_coordinates='cylindrical')
+        np.testing.assert_allclose(pts_cyl[:, 0], self.R0, atol=1e-6)
 
-        start_RZ = start_xyz[:2]
-        pts = self.intg.integrate_3d_fieldlinepoints(start_RZ, l_total=l_total, phi0=0, n_points=40, input_coordinates='cylindrical', output_coordinates='cylindrical')
-
-    def test_lost_poincare(self):
-        # integration should fail if toroidal field returns nans. Overload B_cyl to simulate this.
+    def test_lost_fieldline(self):
+        # integration fails if the field returns nans. Overload B_cyl to simulate this.
         R0 = 1.0
-        B0 = 1.0
-        field = ToroidalField(R0, B0)
+        field = ToroidalField(R0, 1.0)
         b_hidden = field.B_cyl
-        global global_counter
-        global_counter = 0
+        counter = {'n': 0}
+
         def failing_field():
-            global global_counter
-            if global_counter < 100:
-                global_counter += 1
+            counter['n'] += 1
+            if counter['n'] <= 100:
                 return b_hidden()
-            else:
-                return np.array([np.nan, np.nan, np.nan])
+            return np.array([[np.nan, np.nan, np.nan]])
         field.B_cyl = failing_field
-        intg = ScipyFieldlineIntegrator(field, nfp=1) #, integrator_args={'max_step':1e3})
+        intg = ScipyFieldlineIntegrator(field)
         RZ = np.array([[R0 + 0.05, 0.0], [R0 + 0.10, 0.0]])
         phis = np.linspace(0, 2*np.pi, 8, endpoint=False)
-        res_phi_hits = intg.compute_poincare_hits(RZ, n_transits=35, phis=phis, phi0=0.0)
-        # the second integration failed and should have -1 as first index, indicating failure
-        self.assertEqual(res_phi_hits[-1][-1, 1], -1)
-        
+        res_tys, res_phi_hits = intg.compute_poincare_hits(RZ, n_transits=35, phis=phis, phi0=0.0)
+        # the second integration failed and is marked with idx=-2
+        self.assertEqual(res_phi_hits[-1][-1, 1], -2)
+        self.assertTrue(res_tys[-1][-1, 0] < 35*2*np.pi)
+
         start_RZ = np.array([R0 + 0.05, 0.0])
-        global_counter = 90
-        endpoint_RZ = intg.integrate_toroidally(start_RZ, 0.0, 2*np.pi, input_coordinates='cylindrical', output_coordinates='cylindrical')
-        #should be nans
-        self.assertTrue(np.isnan(endpoint_RZ).all())
-
-        # test integrate in cyl failure: 
-        global_counter = 90
+        self.assertTrue(np.isnan(intg.integrate_toroidally(start_RZ, 2*np.pi, phi0=0.0, input_coordinates='cylindrical',
+                                                           output_coordinates='cylindrical')).all())
         with self.assertRaises(ObjectiveFailure):
-            _ = intg.integrate_fieldlinepoints(start_RZ, 4*np.pi, n_points=50, phi0=0.0, input_coordinates='cylindrical', output_coordinates='cartesian')
+            intg.integrate_fieldlinepoints(start_RZ, 4*np.pi, n_points=50, phi0=0.0, input_coordinates='cylindrical')
 
-        
+    def test_start_failures(self):
+        # a field line cannot be followed in phi where B_phi vanishes or is too small
+        start_RZ = np.array([1.2, 0.0])
+        for field, status in [(PoloidalField(1.0, 1.0, 1.0), -1),
+                              (ToroidalField(1.0, 1e-5) + PoloidalField(1.0, 1.0, 1.0), 1)]:
+            intg = ScipyFieldlineIntegrator(field)
+            self.assertEqual(intg._solve(start_RZ, [0, 1.0]).status, status)
+            self.assertTrue(np.all(np.isnan(intg.integrate_toroidally(start_RZ, 1.0, phi0=0, input_coordinates='cylindrical'))))
+            res_tys, res_phi_hits = intg.compute_poincare_hits(start_RZ[None, :], 1, phis=[1.0])
+            self.assertEqual(res_phi_hits[0].shape, (1, 5))
+            self.assertEqual(res_phi_hits[0][0, 1], -2)
+            self.assertEqual(res_tys[0].shape, (1, 4))
 
 
 class TestIntegratorAgreement(unittest.TestCase):
@@ -352,60 +297,55 @@ class TestIntegratorAgreement(unittest.TestCase):
         # Compare both integrators on stellarator fields for all named configurations.
         # Start at the first magnetic axis point and integrate in phi to the last axis point.
         # Check: (a) each integrator hits the target axis point, (b) both agree with each other.
-        # This is also a test of the configurations. 
+        # This is also a test of the configurations.
         for name in configurations:
             if name == 'quasr':
-                break   # do not clobber the external database, which also does not provide axes so this test cannot be performed
+                continue  # the external database does not provide axes
             with self.subTest(config=name):
                 base_curves, base_currents, ma, nfp, bs = get_data(name)
                 gamma = ma.gamma()
                 start_xyz = gamma[0, :]
                 target_xyz = gamma[-1, :]
-
-                # Compute phi start/end directly from endpoints
                 phi_start = np.arctan2(start_xyz[1], start_xyz[0])
                 phi_end = np.arctan2(target_xyz[1], target_xyz[0])
-                delta_phi = phi_end - phi_start
+                delta_phi = np.mod(phi_end - phi_start, 2*np.pi)
 
-                # Simsopt integrator: integrate over delta_phi in Cartesian space
-                so = SimsoptFieldlineIntegrator(
-                    bs, nfp=nfp, tmax=5e4, tol=1e-10
-                )
-                end_xyz_so = so.integrate_toroidally(start_xyz, delta_phi=delta_phi, input_coordinates='cartesian', output_coordinates='cartesian')
+                so = SimsoptFieldlineIntegrator(bs, tmax=5e4, tol=1e-10)
+                sc = ScipyFieldlineIntegrator(bs, integrator_args={'rtol': 1e-10, 'atol': 1e-12})
+                end_xyz_so = so.integrate_toroidally(start_xyz, delta_phi)
+                end_xyz_sc = sc.integrate_toroidally(start_xyz, delta_phi)
+                self.assertTrue(np.all(np.isfinite(end_xyz_sc)), msg=f"scipy integrator produced non-finite result for config {name}")
 
-                # Scipy integrator (cylindrical) over phi
-                rphiz0 = Integrator._xyz_to_rphiz(start_xyz)[-1]
-                RZ0 = np.array([rphiz0[0], rphiz0[2]])
-                sc = ScipyFieldlineIntegrator(
-                    bs, nfp=nfp, integrator_type='RK45', integrator_args={'rtol': 1e-10, 'atol': 1e-12}
-                )
-                # Adapt to existing signature: (start_RZ, start_phi, delta_phi)
-                RZ_end = sc.integrate_toroidally(RZ0, phi_start, phi_end - phi_start, input_coordinates='cylindrical', output_coordinates='cylindrical')
-                self.assertTrue(np.all(np.isfinite(RZ_end)), msg=f"scipy integrator produced non-finite result for config {name}")
-                end_xyz_sc = Integrator._rphiz_to_xyz(np.array([RZ_end[0], phi_end, RZ_end[1]]))[-1]
-
-                # Tolerances: strict agreement in meters
-                # (the w7x axis is not really great...)
-                tol_abs = 2e-3 # 2 mm distance tolerance
+                tol_abs = 2e-3  # the w7x axis is not very accurate
                 err_so = np.linalg.norm(end_xyz_so - target_xyz)
                 err_sc = np.linalg.norm(end_xyz_sc - target_xyz)
                 agree = np.linalg.norm(end_xyz_so - end_xyz_sc)
-                self.assertLess(
-                    err_so,
-                    tol_abs,
-                    msg=f"[{name}] simsopt->target dist={err_so:.3e} > tol={tol_abs:.1e}; |scipy-target|={err_sc:.3e}; |so-scipy|={agree:.3e}",
-                )
-                self.assertLess(
-                    err_sc,
-                    tol_abs,
-                    msg=f"[{name}] scipy->target dist={err_sc:.3e} > tol={tol_abs:.1e}; |simsopt-target|={err_so:.3e}; |so-scipy|={agree:.3e}",
-                )
-                self.assertLess(
-                    agree,
-                    tol_abs,
-                    msg=f"[{name}] simsopt vs scipy dist={agree:.3e} > tol={tol_abs:.1e}; |simsopt-target|={err_so:.3e}; |scipy-target|={err_sc:.3e}",
-                )
-    
+                self.assertLess(err_so, tol_abs, msg=f"[{name}] |simsopt-target|={err_so:.3e}")
+                self.assertLess(err_sc, tol_abs, msg=f"[{name}] |scipy-target|={err_sc:.3e}")
+                self.assertLess(agree, tol_abs, msg=f"[{name}] |simsopt-scipy|={agree:.3e}")
+
+    def test_off_axis_agreement(self):
+        # off the axis, consecutive transits differ, so this checks that the
+        # correct crossing is selected when delta_phi exceeds 2*pi.
+        base_curves, base_currents, ma, nfp, bs = get_data('ncsx')
+        start_xyz = ma.gamma()[0, :] + np.array([0.05, 0.0, 0.0])
+        so = SimsoptFieldlineIntegrator(bs, tol=1e-10)
+        sc = ScipyFieldlineIntegrator(bs, integrator_args={'rtol': 1e-10, 'atol': 1e-12})
+        for delta_phi in [np.pi/3, 3*np.pi]:
+            with self.subTest(delta_phi=delta_phi):
+                np.testing.assert_allclose(so.integrate_toroidally(start_xyz, delta_phi),
+                                           sc.integrate_toroidally(start_xyz, delta_phi), atol=1e-7)
+        pts_so = so.integrate_fieldlinepoints(start_xyz, 3*np.pi, n_points=7, endpoint=True)
+        pts_sc = sc.integrate_fieldlinepoints(start_xyz, 3*np.pi, n_points=7, endpoint=True)
+        np.testing.assert_allclose(pts_so, pts_sc, atol=1e-7)
+        RZ = np.array([[np.linalg.norm(start_xyz[:2]), start_xyz[2]]])
+        phis = np.linspace(0, 2*np.pi/nfp, 4, endpoint=False)
+        _, hits_so = so.compute_poincare_hits(RZ, 3, phis=phis, phi0=0.3)
+        _, hits_sc = sc.compute_poincare_hits(RZ, 3, phis=phis, phi0=0.3)
+        # plane crossings agree; the terminating row is where the last step ended, which differs between backends
+        np.testing.assert_allclose(hits_so[0][:-1, 1:], hits_sc[0][:-1, 1:], atol=1e-7)
+        self.assertEqual(hits_so[0][-1, 1], hits_sc[0][-1, 1])
+
 
 if __name__ == '__main__':
     unittest.main()

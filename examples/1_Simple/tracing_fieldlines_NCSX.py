@@ -59,14 +59,14 @@ proc0_print("Mean(|B|) on axis =", np.mean(np.linalg.norm(bs.set_points(ma.gamma
 proc0_print("Mean(Axis radius) =", np.mean(np.linalg.norm(ma.gamma(), axis=1)))
 
 # create an integrator, that performs tasks like integrating field lines.
-integrator_bs = SimsoptFieldlineIntegrator(bs, comm=mpi.comm_world, nfp=nfp, stellsym=True, tmax=tmax_fl, tol=1e-9)
+integrator_bs = SimsoptFieldlineIntegrator(bs, comm=mpi.comm_world, tmax=tmax_fl, tol=1e-9)
 
 # create a Poincare plotter object, which can compute and plot Poincare sections
 axis_RZ = ma.gamma()[0, 0:2]
 poincareline_end_RZ = axis_RZ + [0.14, 0]
 poincare_start_points = np.linspace(axis_RZ, poincareline_end_RZ, nfieldlines)
 
-poincare_bs = PoincarePlotter(integrator_bs, poincare_start_points, phis=4, n_transits=n_transits, add_symmetry_planes=True)
+poincare_bs = PoincarePlotter(integrator_bs, poincare_start_points, phis=4, n_transits=n_transits, add_symmetry_planes=True, nfp=nfp)
 
 # Integration is only performed if a plot is requested. Plot the phi=0 plane:
 fig1, ax = poincare_bs.plot_poincare_single(0)
@@ -139,9 +139,9 @@ B = bs.B()
 proc0_print("|B-Bh| on axis", np.sort(np.abs(B-Bh).flatten()))
 
 # The integrator accepts any MagneticField, also our faster InterpolatedField:
-integrator_bsh = SimsoptFieldlineIntegrator(bsh, comm=mpi.comm_world, nfp=nfp, stellsym=True)
+integrator_bsh = SimsoptFieldlineIntegrator(bsh, comm=mpi.comm_world)
 # create a Poincare plotter object for the interpolated field
-poincare_bsh = PoincarePlotter(integrator_bsh, poincare_start_points, phis=4, n_transits=n_transits, add_symmetry_planes=True)
+poincare_bsh = PoincarePlotter(integrator_bsh, poincare_start_points, phis=4, n_transits=n_transits, add_symmetry_planes=True, nfp=nfp)
 
 # Integration is only performed if a plot is requested. Plot the phi=0 plane:
 fig3, ax = poincare_bsh.plot_poincare_single(0)
