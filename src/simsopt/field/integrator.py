@@ -294,6 +294,72 @@ class Integrator(Optimizable):
             res_tys = None
         return res_tys, res_phi_hits
 
+    def periodic_fieldline(self, start_point, order, nfp=1, ntor=1, stellsym=True, phi0=None,
+                           input_coordinates='cartesian', points_per_dof=10, options=None):
+        r"""
+        Find the periodic field line (for example the magnetic axis) near
+        ``start_point``, as a :class:`~simsopt.geo.PeriodicFieldLine`.
+
+        The field line through ``start_point`` is traced over one field period,
+        :math:`\Delta\phi = 2\pi n_\text{tor}/n_\text{fp}`, and the traced points,
+        parametrized by arclength, are fitted with a
+        :class:`~simsopt.geo.CurveXYZFourierSymmetries`. This initial guess is
+        then refined with :meth:`~simsopt.geo.PeriodicFieldLine.run_code`. The
+        start point needs to be close enough to the periodic field line for
+        this to converge.
+
+        Args:
+            start_point (array): (x, y, z) if ``input_coordinates`` is 'cartesian',
+                (R, Z) if 'cylindrical'.
+            order (int): number of Fourier modes of the curve.
+            nfp (int): number of field periods of the curve.
+            ntor (int): number of toroidal transits after which the field line closes.
+                If :math:`B_\phi<0`, the curve runs along the field towards
+                decreasing :math:`\phi` and has ``curve.ntor = -ntor``.
+            stellsym (bool): whether the curve is stellarator symmetric. This
+                requires the periodic field line to pass through
+                :math:`\phi=0, Z=0`.
+            phi0 (float): toroidal angle of the start point. Required if
+                ``input_coordinates`` is 'cylindrical', ignored otherwise.
+            input_coordinates (str): 'cartesian' or 'cylindrical'.
+            points_per_dof (int): number of traced points per quadrature point
+                of the curve, used for the initial fit.
+            options (dict, optional): options passed to
+                :class:`~simsopt.geo.PeriodicFieldLine`.
+
+        Returns:
+            PeriodicFieldLine: the solved periodic field line. Check
+            ``.res['success']`` for convergence.
+        """
+        from ..geo import CurveXYZFourierSymmetries, PeriodicFieldLine
+
+        n_quad = 2*order + 1
+        delta_phi = 2*np.pi*ntor/nfp
+        xyz = self.integrate_fieldlinepoints(start_point, delta_phi, n_points=points_per_dof*n_quad, phi0=phi0,
+                                             endpoint=True, input_coordinates=input_coordinates)
+        # PeriodicFieldLine requires the curve to run along B. If B_phi < 0, the
+        # traced points are reversed and rotated back by -delta_phi (a symmetry
+        # of the field), so that they start at the start point and run towards
+        # decreasing phi, and the curve winds with -ntor.
+        self.field.set_points(np.ascontiguousarray(xyz[:1]))
+        if self.field.B_cyl()[0, 1] < 0:
+            c, s = np.cos(-delta_phi), np.sin(-delta_phi)
+            xyz = xyz[::-1] @ np.array([[c, s, 0], [-s, c, 0], [0, 0, 1]])
+            ntor = -ntor
+        # parametrize the traced points by arclength over one period, theta in [0, 1/nfp]
+        arclength = np.concatenate(([0], np.cumsum(np.linalg.norm(np.diff(xyz, axis=0), axis=1))))
+        theta = arclength/arclength[-1]/nfp
+        fit = CurveXYZFourierSymmetries(theta, order, nfp, stellsym, ntor=ntor)
+        fit.least_squares_fit(np.ascontiguousarray(xyz))
+
+        curve = CurveXYZFourierSymmetries(np.linspace(0, 1/nfp, n_quad, endpoint=False), order, nfp, stellsym,
+                                          ntor=ntor, x0=fit.x)
+        fieldline = PeriodicFieldLine(self.field, curve, options=options)
+        fieldline.run_code(arclength[-1]*nfp)
+        if not fieldline.res['success']:
+            logger.warning("PeriodicFieldLine did not converge; check .res for details.")
+        return fieldline
+
     def _integrate_toroidally_cyl(self, RZ, phi0, delta_phi):
         """
         Backend hook: return the (R, Z) end point after advancing ``delta_phi``

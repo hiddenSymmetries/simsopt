@@ -1,10 +1,12 @@
 import unittest
 import numpy as np
+from scipy.interpolate import CubicSpline
 
 from simsopt.field.magneticfieldclasses import ToroidalField, PoloidalField
 from simsopt.field.integrator import Integrator, SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator
 from simsopt.field.tracing import MinRStoppingCriterion, MaxRStoppingCriterion, IterationStoppingCriterion
 from simsopt.configs.zoo import get_data, configurations
+from simsopt.geo import CurveRZFourier, CurveXYZFourierSymmetries, PeriodicFieldLine
 from simsopt._core.util import ObjectiveFailure
 
 
@@ -379,6 +381,57 @@ class TestIntegratorAgreement(unittest.TestCase):
         # plane crossings agree; the terminating row is where the last step ended, which differs between backends
         np.testing.assert_allclose(hits_so[0][:-1, 1:], hits_sc[0][:-1, 1:], atol=1e-7)
         self.assertEqual(hits_so[0][-1, 1], hits_sc[0][-1, 1])
+
+
+def curve_to_rzfourier(curve, like):
+    """
+    Represent a closed CurveXYZFourierSymmetries that goes around the torus once
+    as a CurveRZFourier with the same resolution and quadrature points as ``like``.
+    """
+    dense = CurveXYZFourierSymmetries(np.linspace(0, 1, 4000, endpoint=False), curve.order, curve.nfp,
+                                      curve.stellsym, ntor=curve.ntor, x0=curve.x)
+    g = dense.gamma()
+    phi = np.unwrap(np.arctan2(g[:, 1], g[:, 0]))
+    if phi[-1] < phi[0]:  # curve runs towards decreasing phi
+        g, phi = g[::-1], phi[::-1]
+    R = np.linalg.norm(g[:, :2], axis=1)
+    phi = np.append(phi, phi[0] + 2*np.pi)
+    R = np.append(R, R[0])
+    Z = np.append(g[:, 2], g[0, 2])
+    phi_q = 2*np.pi*np.asarray(like.quadpoints)
+    R_q = CubicSpline(phi, R, bc_type='periodic')(phi_q)
+    Z_q = CubicSpline(phi, Z, bc_type='periodic')(phi_q)
+    rz = CurveRZFourier(like.quadpoints, like.order, like.nfp, like.stellsym)
+    rz.least_squares_fit(np.column_stack((R_q*np.cos(phi_q), R_q*np.sin(phi_q), Z_q)))
+    return rz
+
+
+class TestPeriodicFieldline(unittest.TestCase):
+    def test_magnetic_axis_from_offset(self):
+        # start 1% of the major radius outward from the magnetic axis of each
+        # zoo configuration, find the periodic field line, and compare it to the axis.
+        # The zoo axes are accurate to about 5e-4 m (w7x), 1e-4 m (others).
+        for name in configurations:
+            if name == 'quasr':
+                continue  # the external database does not provide axes
+            _, _, ma, nfp, bs = get_data(name)
+            start_xyz = ma.gamma()[0] + np.array([0.01*ma.x[0], 0.0, 0.0])
+            for cls in [SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator]:
+                with self.subTest(config=name, integrator=cls.__name__):
+                    fieldline = cls(bs).periodic_fieldline(start_xyz, order=ma.order, nfp=nfp)
+                    self.assertIsInstance(fieldline, PeriodicFieldLine)
+                    self.assertTrue(fieldline.res['success'])
+                    rz = curve_to_rzfourier(fieldline.curve, ma)
+                    np.testing.assert_allclose(rz.gamma(), ma.gamma(), atol=1e-3)
+                    np.testing.assert_allclose(rz.x, ma.x, atol=1e-3)
+
+    def test_cylindrical_input(self):
+        _, _, ma, nfp, bs = get_data('ncsx')
+        R_axis = ma.x[0] + np.sum(ma.x[1:ma.order+1])  # R at phi=0
+        fieldline = ScipyFieldlineIntegrator(bs).periodic_fieldline(
+            np.array([R_axis + 0.01, 0.0]), order=ma.order, nfp=nfp, phi0=0.0, input_coordinates='cylindrical')
+        self.assertTrue(fieldline.res['success'])
+        np.testing.assert_allclose(fieldline.curve.gamma()[0], ma.gamma()[0], atol=1e-3)
 
 
 if __name__ == '__main__':
