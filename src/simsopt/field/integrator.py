@@ -92,6 +92,10 @@ class Integrator(Optimizable):
     """
 
     def __init__(self, field: MagneticField, comm=None, stopping_criteria=None):
+        """
+        Store the field, communicator and stopping criteria, and register the
+        field as a dependency. See the class docstring for the arguments.
+        """
         self.field = field
         self.comm = comm
         self.stopping_criteria = list(stopping_criteria) if stopping_criteria is not None else []
@@ -132,7 +136,14 @@ class Integrator(Optimizable):
     @staticmethod
     def _check_coordinates(input_coordinates, output_coordinates):
         """
-        Raise a ValueError if the coordinate specifiers are not 'cartesian' or 'cylindrical'.
+        Check that the coordinate specifiers are valid.
+
+        Args:
+            input_coordinates (str): must be 'cartesian' or 'cylindrical'.
+            output_coordinates (str): must be 'cartesian' or 'cylindrical'.
+
+        Raises:
+            ValueError: if either specifier is not valid.
         """
         if input_coordinates not in _COORDINATES:
             raise ValueError("input_coordinates must be either 'cartesian' or 'cylindrical'")
@@ -166,6 +177,16 @@ class Integrator(Optimizable):
 
     @staticmethod
     def _check_delta_phi(delta_phi):
+        """
+        Check that the toroidal angle to integrate over is non-negative, since
+        field lines are always traced in the direction of increasing phi.
+
+        Args:
+            delta_phi (float): toroidal angle to integrate over.
+
+        Raises:
+            ValueError: if ``delta_phi`` is negative.
+        """
         if delta_phi < 0:
             raise ValueError("delta_phi must be non-negative, field lines are always traced in the direction of increasing phi")
 
@@ -421,22 +442,55 @@ class Integrator(Optimizable):
 
     def _integrate_toroidally_cyl(self, RZ, phi0, delta_phi):
         """
-        Backend hook: return the (R, Z) end point after advancing ``delta_phi``
-        from (R, Z) at ``phi0``, or NaNs if integration fails.
+        Backend hook: follow the field line over a toroidal angle ``delta_phi``.
+
+        Args:
+            RZ (array): (R, Z) of the start point.
+            phi0 (float): toroidal angle of the start point.
+            delta_phi (float): toroidal angle to advance, positive.
+
+        Returns:
+            array: (R, Z) of the end point on the plane ``phi0 + delta_phi``, or
+            NaNs if integration fails.
         """
         raise NotImplementedError
 
     def _fieldline_rphiz(self, RZ, phi0, delta_phi, n_points, endpoint):
         """
-        Backend hook: return an (n,3) array of (R, phi, Z) points along the
-        field line, see :meth:`integrate_fieldlinepoints`.
+        Backend hook: compute points along the field line, see
+        :meth:`integrate_fieldlinepoints`.
+
+        Args:
+            RZ (array): (R, Z) of the start point.
+            phi0 (float): toroidal angle of the start point.
+            delta_phi (float): toroidal angle to trace, non-negative.
+            n_points (int or None): number of points equally spaced in phi, or
+                None for the points at which the solver stepped.
+            endpoint (bool): whether the point at ``phi0 + delta_phi`` is included.
+
+        Returns:
+            array: (n,3) array of (R, phi, Z), starting with the start point.
+
+        Raises:
+            ObjectiveFailure: if the integration does not reach the requested angle.
         """
         raise NotImplementedError
 
     def _poincare_single(self, RZ, phi0, phis, n_transits, return_trajectory):
         """
-        Backend hook: trace a single field line and return ``(ty, phi_hits)``
-        in the format of :meth:`compute_poincare_hits`.
+        Backend hook: trace a single field line for Poincaré sections, see
+        :meth:`compute_poincare_hits`.
+
+        Args:
+            RZ (array): (R, Z) of the start point.
+            phi0 (float): toroidal angle of the start point.
+            phis (array): toroidal angles of the planes on which to record crossings.
+            n_transits (float): number of toroidal transits to trace.
+            return_trajectory (bool): whether the trajectory is needed.
+
+        Returns:
+            tuple: (ty, phi_hits), one element of ``res_tys`` (or None) and of
+            ``res_phi_hits`` in the format of :meth:`compute_poincare_hits`.
         """
         raise NotImplementedError
 
@@ -471,6 +525,9 @@ class SimsoptFieldlineIntegrator(Integrator):
     """
 
     def __init__(self, field: MagneticField, comm=None, stopping_criteria=None, tol=1e-9, tmax=1e4):
+        """
+        Store the solver settings. See the class docstring for the arguments.
+        """
         self.tol = tol
         self.tmax = tmax
         super().__init__(field, comm=comm, stopping_criteria=stopping_criteria)
@@ -516,15 +573,33 @@ class SimsoptFieldlineIntegrator(Integrator):
         Continuous toroidal angle along a trajectory starting at ``phi0``.
         The C++ solver takes at most a quarter revolution per step, so
         unwrapping is unambiguous.
+
+        Args:
+            tys (array): (m,4) trajectory with rows ``[t, x, y, z]``.
+            phi0 (float): toroidal angle of the start point.
+
+        Returns:
+            array: (m,) continuous toroidal angle along the trajectory, starting at ``phi0``.
         """
         phi = np.unwrap(np.arctan2(tys[:, 2], tys[:, 1]))
         return phi + (phi0 - phi[0])
 
     def _plane_hits_unwrapped(self, tys, phi_hits, phi0, planes):
         """
-        Return the continuous toroidal angle of every plane crossing in
-        ``phi_hits``, obtained by lifting the plane angle to the branch closest
-        to the trajectory angle at the time of the crossing.
+        Continuous toroidal angle of every plane crossing, obtained by lifting
+        the plane angle to the branch closest to the trajectory angle at the
+        time of the crossing. This distinguishes crossings of the same plane on
+        different transits.
+
+        Args:
+            tys (array): (m,4) trajectory with rows ``[t, x, y, z]``.
+            phi_hits (array): (k,5) crossings with rows ``[t, idx, x, y, z]``.
+            phi0 (float): toroidal angle of the start point.
+            planes (array): toroidal angles of the planes, indexed by ``idx``.
+
+        Returns:
+            tuple: (hits, lifted), the rows of ``phi_hits`` that are plane
+            crossings (``idx>=0``), and their continuous toroidal angles.
         """
         phi_traj = self._unwrapped_phi(tys, phi0)
         mask = phi_hits[:, 1] >= 0
@@ -535,6 +610,11 @@ class SimsoptFieldlineIntegrator(Integrator):
         return hits, lifted
 
     def _integrate_toroidally_cyl(self, RZ, phi0, delta_phi):
+        """
+        Follow the field line over a toroidal angle ``delta_phi`` by recording
+        its crossings of the plane ``phi0 + delta_phi`` and selecting the one
+        on the right transit. See :meth:`Integrator._integrate_toroidally_cyl`.
+        """
         phi_end = phi0 + delta_phi
         # a small margin ensures the step that crosses phi_end is completed
         criteria = [ToroidalTransitStoppingCriterion(delta_phi/(2*np.pi) + 0.01, False)]
@@ -547,6 +627,12 @@ class SimsoptFieldlineIntegrator(Integrator):
         return rphiz[[0, 2]]
 
     def _fieldline_rphiz(self, RZ, phi0, delta_phi, n_points, endpoint):
+        """
+        Compute points along the field line. With ``n_points=None`` these are
+        the solver steps; otherwise each requested angle is a plane on which
+        the crossing is found by the C++ root finder. See
+        :meth:`Integrator._fieldline_rphiz`.
+        """
         phi_end = phi0 + delta_phi
         criteria = [ToroidalTransitStoppingCriterion(delta_phi/(2*np.pi) + 0.01, False)]
         if n_points is None:
@@ -577,6 +663,11 @@ class SimsoptFieldlineIntegrator(Integrator):
         return np.vstack(([RZ[0], phi0, RZ[1]], rphiz))
 
     def _poincare_single(self, RZ, phi0, phis, n_transits, return_trajectory):
+        """
+        Trace a single field line with the transit criterion and the user's
+        stopping criteria. The trajectory is always returned, since the C++
+        routine computes it anyway. See :meth:`Integrator._poincare_single`.
+        """
         # the transit criterion comes first, so that it has idx=-1
         criteria = [ToroidalTransitStoppingCriterion(n_transits, False)] + self.stopping_criteria
         return self._trace(RZ, phi0, phis, criteria)
@@ -597,12 +688,27 @@ class _CriterionEvent:
     terminal = True
 
     def __init__(self, criterion):
+        """
+        Args:
+            criterion (StoppingCriterion): the criterion to wrap. A new wrapper
+                is needed for every integration, since it counts the steps.
+        """
         self.criterion = criterion
         self.iter = 0
         self.phi_start = None
         self.phi_max = None
 
     def __call__(self, phi, rz):
+        """
+        Evaluate the event function.
+
+        Args:
+            phi (float): toroidal angle, the independent variable of the ODE.
+            rz (array): (R, Z).
+
+        Returns:
+            float: -1.0 if the criterion is satisfied, 1.0 otherwise.
+        """
         if self.phi_start is None:
             self.phi_start = self.phi_max = phi
         if phi <= self.phi_start:
@@ -663,6 +769,10 @@ class ScipyFieldlineIntegrator(Integrator):
 
     def __init__(self, field: MagneticField, comm=None, stopping_criteria=None, integrator_type='RK45',
                  integrator_args=None, trajectory_points_per_transit=100):
+        """
+        Store the solver settings, filling in default tolerances. See the
+        class docstring for the arguments.
+        """
         super().__init__(field, comm=comm, stopping_criteria=stopping_criteria)
         self._integrator_type = integrator_type
         self._integrator_args = dict(integrator_args) if integrator_args is not None else {}
@@ -693,6 +803,13 @@ class ScipyFieldlineIntegrator(Integrator):
         r"""
         Event function for ``solve_ivp`` that crosses zero when :math:`|B_\phi|/|B|`
         drops below the threshold, which terminates integration.
+
+        Args:
+            phi (float): toroidal angle, the independent variable.
+            rz (array): (R, Z).
+
+        Returns:
+            float: :math:`|B_\phi|/|B|` minus the threshold.
         """
         R, Z = rz
         self.field.set_points_cyl(np.array([[R, phi, Z]]))
@@ -710,6 +827,18 @@ class ScipyFieldlineIntegrator(Integrator):
         called, since its initial step selection does not terminate on
         non-finite input. A result with only the start point is returned instead,
         with status -1 or 1 respectively.
+
+        Args:
+            RZ (array): (R, Z) of the start point.
+            phi_span (list): [phi_start, phi_end], the integration interval.
+            stopping_criteria (list): StoppingCriterion objects to evaluate as events.
+            **kwargs: additional arguments for ``solve_ivp``, such as ``t_eval``
+                or ``dense_output``.
+
+        Returns:
+            OdeResult: the ``solve_ivp`` result, or a namespace with the same
+            attributes (``t``, ``y``, ``sol``, ``t_events``, ``status``,
+            ``message``, ``success``) if integration could not be started.
         """
         RZ = np.asarray(RZ, dtype=float)
         status = None
@@ -728,8 +857,15 @@ class ScipyFieldlineIntegrator(Integrator):
 
     def _stop_idx(self, sol):
         """
-        The ``idx`` of the terminating row of ``res_phi_hits`` for a solution
-        of :meth:`_solve` with the integrator's stopping criteria.
+        The ``idx`` of the terminating row of ``res_phi_hits``.
+
+        Args:
+            sol (OdeResult): result of :meth:`_solve` with the integrator's stopping criteria.
+
+        Returns:
+            int: -1 if integration completed, ``-2-i`` if ``stopping_criteria[i]``
+            stopped it, and ``-2-len(stopping_criteria)`` if the B_phi event
+            stopped it or the solver failed.
         """
         if sol.status == 0:
             return -1
@@ -740,12 +876,21 @@ class ScipyFieldlineIntegrator(Integrator):
         return -2 - len(self.stopping_criteria)  # B_phi event or solver failure
 
     def _integrate_toroidally_cyl(self, RZ, phi0, delta_phi):
+        """
+        Follow the field line over a toroidal angle ``delta_phi`` with a single
+        ``solve_ivp`` call. See :meth:`Integrator._integrate_toroidally_cyl`.
+        """
         sol = self._solve(RZ, [phi0, phi0 + delta_phi])
         if sol.status != 0:
             return np.array([np.nan, np.nan])
         return sol.y[:, -1]
 
     def _fieldline_rphiz(self, RZ, phi0, delta_phi, n_points, endpoint):
+        """
+        Compute points along the field line. With ``n_points=None`` these are
+        the solver steps; otherwise they are evaluated with ``t_eval``. See
+        :meth:`Integrator._fieldline_rphiz`.
+        """
         phi_end = phi0 + delta_phi
         if n_points is None:
             sol = self._solve(RZ, [phi0, phi_end])
@@ -761,6 +906,13 @@ class ScipyFieldlineIntegrator(Integrator):
         return np.column_stack((rz[0], phis, rz[1]))
 
     def _poincare_single(self, RZ, phi0, phis, n_transits, return_trajectory):
+        """
+        Trace a single field line with one dense-output ``solve_ivp`` call, and
+        evaluate the solution at the plane crossings and, if requested, on a
+        trajectory grid of ``trajectory_points_per_transit`` points per
+        transit. Plane crossings coinciding with the start point are not
+        recorded, as in the Simsopt backend. See :meth:`Integrator._poincare_single`.
+        """
         phi_end = phi0 + 2*np.pi*n_transits
         # angles at which the planes are crossed, excluding the start point
         offsets = np.mod(phis - phi0, 2*np.pi)
