@@ -1,12 +1,11 @@
 import unittest
 import numpy as np
-from scipy.interpolate import CubicSpline
 
 from simsopt.field.magneticfieldclasses import ToroidalField, PoloidalField
 from simsopt.field.integrator import Integrator, SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator
 from simsopt.field.tracing import MinRStoppingCriterion, MaxRStoppingCriterion, IterationStoppingCriterion
 from simsopt.configs.zoo import get_data, configurations
-from simsopt.geo import CurveRZFourier, CurveXYZFourierSymmetries, PeriodicFieldLine
+from simsopt.geo import PeriodicFieldLine
 from simsopt._core.util import ObjectiveFailure
 
 
@@ -383,29 +382,6 @@ class TestIntegratorAgreement(unittest.TestCase):
         self.assertEqual(hits_so[0][-1, 1], hits_sc[0][-1, 1])
 
 
-def curve_to_rzfourier(curve, like):
-    """
-    Represent a closed CurveXYZFourierSymmetries that goes around the torus once
-    as a CurveRZFourier with the same resolution and quadrature points as ``like``.
-    """
-    dense = CurveXYZFourierSymmetries(np.linspace(0, 1, 4000, endpoint=False), curve.order, curve.nfp,
-                                      curve.stellsym, ntor=curve.ntor, x0=curve.x)
-    gamma = dense.gamma()
-    phi = np.unwrap(np.arctan2(gamma[:, 1], gamma[:, 0]))
-    if phi[-1] < phi[0]:  # curve runs towards decreasing phi
-        gamma, phi = gamma[::-1], phi[::-1]
-    R = np.linalg.norm(gamma[:, :2], axis=1)
-    phi = np.append(phi, phi[0] + 2*np.pi)
-    R = np.append(R, R[0])
-    Z = np.append(gamma[:, 2], gamma[0, 2])
-    phi_q = 2*np.pi*np.asarray(like.quadpoints)
-    R_q = CubicSpline(phi, R, bc_type='periodic')(phi_q)
-    Z_q = CubicSpline(phi, Z, bc_type='periodic')(phi_q)
-    rz = CurveRZFourier(like.quadpoints, like.order, like.nfp, like.stellsym)
-    rz.least_squares_fit(np.column_stack((R_q*np.cos(phi_q), R_q*np.sin(phi_q), Z_q)))
-    return rz
-
-
 class TestPeriodicFieldline(unittest.TestCase):
     def test_magnetic_axis_from_offset(self):
         # start 1% of the major radius outward from the magnetic axis of each
@@ -421,7 +397,7 @@ class TestPeriodicFieldline(unittest.TestCase):
                     fieldline = cls(bs).periodic_fieldline(start_xyz, order=ma.order, nfp=nfp)
                     self.assertIsInstance(fieldline, PeriodicFieldLine)
                     self.assertTrue(fieldline.res['success'])
-                    rz = curve_to_rzfourier(fieldline.curve, ma)
+                    rz = fieldline.curve.to_RZFourier(order=ma.order, quadpoints=ma.quadpoints, nfp=ma.nfp)
                     np.testing.assert_allclose(rz.gamma(), ma.gamma(), atol=1e-3)
                     np.testing.assert_allclose(rz.x, ma.x, atol=1e-3)
 
