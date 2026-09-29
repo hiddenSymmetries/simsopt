@@ -4,6 +4,7 @@ import numpy as np
 from simsopt.field.magneticfieldclasses import ToroidalField
 from simsopt.field.integrator import SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator
 from simsopt.field.poincareplotter import PoincarePlotter
+from simsopt.field.tracing import MinRStoppingCriterion
 from simsopt.configs.zoo import get_data
 from monty.tempfile import ScratchDir
 import os
@@ -237,6 +238,12 @@ class TestPoincarePlotterFactory(unittest.TestCase):
         with self.assertRaises(ValueError):
             PoincarePlotter.from_field(field, start_points_RZ, n_transits=2, add_symmetry_planes=False, integrator_type='unknown')
 
+        # stopping criteria are passed to either integrator
+        criterion = MinRStoppingCriterion(0.0)
+        for integrator_type in ['simsopt', 'scipy']:
+            pp3 = PoincarePlotter.from_field(field, start_points_RZ, integrator_type=integrator_type, stopping_criteria=[criterion])
+            self.assertEqual(pp3.integrator.stopping_criteria, [criterion])
+
 
 
 class TestPoincarePlotterRealField(unittest.TestCase):
@@ -303,9 +310,19 @@ class TestPoincarePlotter3DBackends(unittest.TestCase):
             matplotlib.use('Agg')
         except Exception:
             self.skipTest('matplotlib not available')
-        # Should not raise
+        # Should not raise, also when marking lost field lines
         self.pp.plot_fieldline_trajectories_3d(engine='matplotlib', show=False)
         self.pp.plot_poincare_in_3d(engine='matplotlib', show=False)
+        self.pp._lost = [True] + [False]*(len(self.pp.start_points_RZ) - 1)
+        self.pp.plot_fieldline_trajectories_3d(engine='matplotlib', show=False, mark_lost=True)
+        self.pp.plot_poincare_in_3d(engine='matplotlib', show=False, mark_lost=True)
+        self.pp._lost = None
+
+    def test_unknown_engine(self):
+        with self.assertRaises(ValueError):
+            self.pp.plot_fieldline_trajectories_3d(engine='unknown', show=False)
+        with self.assertRaises(ValueError):
+            self.pp.plot_poincare_in_3d(engine='unknown', show=False)
 
     def test_plotly_3d(self):
         try:
@@ -341,66 +358,84 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
 
     def test_save_and_load_with_dof_change(self):
         """
-        test that the hashing, saving and loading works as intended. 
+        test that the cache key, saving and loading work as intended.
         """
         with ScratchDir('.'):
             archive = 'poincare_data.npz'
-            pp = PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True, nfp=self.nfp)
-            _ = pp.res_phi_hits  # prime cache and save to disk
-            # Check archive created with hashed datasets
+            kwargs = dict(phis=4, n_transits=1, add_symmetry_planes=True, cache_file=archive, nfp=self.nfp)
+            pp = PoincarePlotter(self.intg_sopp, self.start_points_RZ, **kwargs)
+            _ = pp.res_phi_hits  # compute and save to disk
             self.assertTrue(os.path.exists(archive))
             with np.load(archive, allow_pickle=True) as data:
-                hash_key = str(pp.poincare_hash)
-                self.assertIn(f'res_phi_{hash_key}', data.files)
-                self.assertIn(f'res_tys_{hash_key}', data.files)
+                self.assertIn(f'res_phi_{pp.cache_key}', data.files)
+                self.assertIn(f'res_tys_{pp.cache_key}', data.files)
 
-            # A new instance with same params should already have data
-            pp2 = PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True, nfp=self.nfp)
-            # comparing to hidden attributes to avoid recompute.
-            self.assertTrue(np.array_equal(pp.res_phi_hits, pp2._res_phi_hits))
-            for pp1_data, pp2_data in zip(pp.res_tys, pp2._res_tys):
-                self.assertTrue(np.array_equal(pp1_data, pp2_data))
+            # A new instance with the same settings loads the data on construction
+            pp2 = PoincarePlotter(self.intg_sopp, self.start_points_RZ, **kwargs)
+            self.assertFalse(pp2.need_to_recompute)
+            for hits1, hits2 in zip(pp.res_phi_hits, pp2._res_phi_hits):
+                np.testing.assert_array_equal(hits1, hits2)
+            for ty1, ty2 in zip(pp.res_tys, pp2._res_tys):
+                np.testing.assert_array_equal(ty1, ty2)
 
-            # change an element of the res_phi_hits and res tys, to make sure this modification is the one that is read:
+            # modify the results, to check that this modification is what is read back
             pp2._res_phi_hits[0][0, 0] = 1e5
             pp2._res_tys[0][0, 0] = 1e5
-            pp2.save_poincare_data()  # overwrite datasets inside archive
+            pp2.save_cache()
 
-            # Change a dof to invalidate cache of both plotters:
+            # Change a dof to invalidate the results of both plotters
             old_val = self.bs.coils[0].current.x.copy()
             self.bs.coils[0].current.x = old_val * 1.02
             self.assertIsNone(pp._res_tys)
             self.assertIsNone(pp2._res_tys)
 
-            # return the dof and see that the modified file is read from disk
+            # restore the dof and check that the modified results are read from disk
             self.bs.coils[0].current.x = old_val
-            pp2_from_disk = pp2.res_phi_hits  # should read from disk
-            pp2_tys_from_disk = pp2.res_tys
-            self.assertTrue(pp2_from_disk[0][0, 0] == 1e5)
-            self.assertTrue(pp2_tys_from_disk[0][0, 0] == 1e5)
+            self.assertEqual(pp2.res_phi_hits[0][0, 0], 1e5)
+            self.assertEqual(pp2.res_tys[0][0, 0], 1e5)
 
-            #load with scipy integrator:
-            pp3 = PoincarePlotter(self.intg_scipy, self.start_points_RZ, phis=4, n_transits=1, add_symmetry_planes=True, store_results=True, nfp=self.nfp)
-            pp3.recompute_bell()
+            # a different integrator has a different key, and computes
+            pp3 = PoincarePlotter(self.intg_scipy, self.start_points_RZ, **kwargs)
+            self.assertNotEqual(pp3.cache_key, pp.cache_key)
+            self.assertTrue(pp3.need_to_recompute)
             _ = pp3.res_tys
-            # trigger new compute
-            self.bs.coils[1].current.x = old_val * 0.9999
-            _ = pp3.res_tys  # should recompute
-            pp3.save_poincare_data(filename='othername_no_suffix')
-            # load it with different pplotter 
-            pp.retrieve_poincare_data(filename='othername_no_suffix')
+            pp3.save_cache(filename='othername_no_suffix')
+            self.assertTrue(os.path.exists('othername_no_suffix.npz'))
+            # results can be loaded into another plotter under an explicit key
+            self.assertTrue(pp.load_cache(filename='othername_no_suffix', key=pp3.cache_key))
+            self.assertFalse(pp.load_cache(filename='othername_no_suffix'))
 
-            
-            #test removing the poincare cache file
-            pp2.remove_poincare_data()
+            pp2.clear_cache()
             self.assertFalse(os.path.exists(archive))
+
+    def test_cache_key(self):
+        pp = PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=1, nfp=self.nfp)
+        key = pp.cache_key
+        self.assertEqual(key, PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=1, nfp=self.nfp).cache_key)
+        self.assertNotEqual(key, PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=1, nfp=self.nfp,
+                                                 phi0=0.1).cache_key)
+        self.assertNotEqual(key, PoincarePlotter(SimsoptFieldlineIntegrator(self.bs, tmax=40.0, tol=1e-9), self.start_points_RZ,
+                                                 phis=4, n_transits=1, nfp=self.nfp).cache_key)
+        self.assertNotEqual(key, PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=2, nfp=self.nfp).cache_key)
+        with self.assertRaises(ValueError):
+            pp.save_cache()  # no cache_file and no filename
+
+    def test_from_poincare_data(self):
+        res_tys, res_phi_hits = self.intg_scipy.compute_poincare_hits(self.start_points_RZ, 1, phis=[0.0])
+        pp = PoincarePlotter.from_poincare_data(self.intg_scipy, self.start_points_RZ, res_phi_hits, res_tys,
+                                                phis=[0.0], n_transits=1, add_symmetry_planes=False)
+        self.assertFalse(pp.need_to_recompute)
+        self.assertEqual(pp.res_phi_hits[0].shape[1], 5)
+        np.testing.assert_array_equal(pp.res_phi_hits[1], res_phi_hits[1])
+        with self.assertRaises(ValueError):
+            PoincarePlotter.from_poincare_data(self.intg_scipy, self.start_points_RZ, res_phi_hits[:1])
 
     def test_save_to_vtk(self):
         """
         test that the hashing, saving and loading works as intended. 
         """
         with ScratchDir('.'):
-            pp = PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=2, add_symmetry_planes=True, store_results=False, nfp=self.nfp)
+            pp = PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=2, add_symmetry_planes=True, nfp=self.nfp)
             filename = "test"
             pp.particles_to_vtk(filename)
             self.assertTrue(os.path.exists(f"{filename}.vtu"))
