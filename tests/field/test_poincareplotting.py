@@ -322,7 +322,7 @@ class TestPoincarePlotter3DBackends(unittest.TestCase):
 
     def test_mayavi_3d(self):
         try:
-            import mayavi  # noqa: F401
+            from mayavi import mlab  # noqa: F401
         except Exception:
             self.skipTest('mayavi not installed')
         # Use show=False for trajectories; poincare skip show

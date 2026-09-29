@@ -996,7 +996,7 @@ class Integrator(Optimizable):
 
 
 class SimsoptFieldlineIntegrator(Integrator):
-    """
+    r"""
     Integration of field lines using the `simsoptpp` routines. 
     Integration is performed in three dimensions, solving the 
     ODE:
@@ -1146,7 +1146,7 @@ class SimsoptFieldlineIntegrator(Integrator):
 
 
 class ScipyFieldlineIntegrator(Integrator):
-    """
+    r"""
     Field line integration using scipy solve_ivp methods. 
     Slight slowdown compared to the simsopt integrator is expected, but
     allows for more flexibility in integration methods and tolerance
@@ -1247,7 +1247,7 @@ class ScipyFieldlineIntegrator(Integrator):
         return res_tys
 
     def integration_fn_cyl(self, t, rz):
-        """
+        r"""
         Integrand for field line tracing in cylindrical coordinates. 
         Returns the right hand side of the ODEs:
         .. math::
@@ -1283,13 +1283,13 @@ class ScipyFieldlineIntegrator(Integrator):
         return _event
 
     def integrate_toroidally(self, start_point, phi0=None, delta_phi=2*np.pi, input_coordinates='cartesian', output_coordinates='cartesian'):
-        """
+        r"""
         Integrate along the field in the phi direction, returning the end location. 
         Integration starts from cylindrical coordinates (R,Z) at angle start_phi. 
         The cylindrical field line ODE is given by: 
         .. math::
-            \\frac{dR}{d\phi} = R \\frac{B_R}{B_\phi}, \\
-            \\frac{dZ}{d\phi} = R \\frac{B_Z}{B_\phi}.
+            \frac{dR}{d\phi} = R \frac{B_R}{B_\phi}, \\
+            \frac{dZ}{d\phi} = R \frac{B_Z}{B_\phi}.
 
         Args:
             start_RZ: starting point in cylindrical coordinates (R,Z)
@@ -1325,7 +1325,7 @@ class ScipyFieldlineIntegrator(Integrator):
     # def d_
     
     def integrate_cyl_planes(self, start_RZ, phis, output_coordinates="cylindrical"):
-        """
+        r"""
         Integrate the field line using scipy odeint method, performing integration 
         of the cylindrical field line ODE given by: 
 
@@ -1407,7 +1407,7 @@ class ScipyFieldlineIntegrator(Integrator):
         return B/np.linalg.norm(B)
 
     def integrate_3d_fieldlinepoints(self, start_xyz, l_total, n_points, phi0=None, input_coordinates='cartesian', output_coordinates='cartesian'):
-        """
+        r"""
         integrate a fieldline in three dimensions for a given distance. 
         This solves the equations 
        
