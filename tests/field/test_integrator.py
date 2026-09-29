@@ -409,12 +409,30 @@ class TestPeriodicFieldline(unittest.TestCase):
                  ((4, (2, 6)), (2, 3)),  # two field lines, each with 2 field periods
                  ((3, (2, 4)), (1, 2)),  # two field lines cannot be a single orbit of 3 periods
                  ((2, (1, 2)), (1, 2)),  # 2 field periods and 2 transits are not coprime
-                 ((6, (1, 4)), (3, 4))]  # 6 periods reduced to 3 to be coprime with 4 transits
+                 ((3, (3, -7)), (3, 7))]  # counter-clockwise winding
         for (nfp, iota), expected in cases:
             with self.subTest(nfp=nfp, iota=iota):
                 self.assertEqual(Integrator._fieldline_symmetry(nfp, iota), expected)
         with self.assertRaises(ValueError):
             Integrator._fieldline_symmetry(2, (1, 0))
+
+    def test_ncsx_island(self):
+        # O- and X-point of the iota=3/7 island chain of NCSX. The field line
+        # closes after 7 toroidal transits and winds counter-clockwise, and has
+        # the 3 field periods of NCSX. Resolving it requires a high order,
+        # roughly ntor times the order needed for the axis.
+        _, _, ma, nfp, bs = get_data('ncsx', coil_order=12, points_per_period=4)
+        fixed_points = {'O': np.array([1.52288140, 0.0]), 'X': np.array([1.69779218, 0.0])}
+        for kind, RZ in fixed_points.items():
+            for cls in [SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator]:
+                with self.subTest(point=kind, integrator=cls.__name__):
+                    fieldline = cls(bs).periodic_fieldline(RZ + np.array([1e-3, 0.0]), order=80, nfp=nfp, iota=(3, -7),
+                                                           phi0=0.0, input_coordinates='cylindrical')
+                    self.assertTrue(fieldline.res['success'])
+                    self.assertEqual((fieldline.curve.nfp, abs(fieldline.curve.ntor)), (3, 7))
+                    # the curve passes through the fixed point on the phi=0 plane
+                    start = fieldline.curve.gamma()[0]
+                    np.testing.assert_allclose([np.linalg.norm(start[:2]), start[2]], RZ, atol=1e-5)
 
     def test_cylindrical_input(self):
         _, _, ma, nfp, bs = get_data('ncsx')

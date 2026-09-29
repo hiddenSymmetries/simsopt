@@ -2,11 +2,10 @@ r"""
 Object-oriented field line integration.
 
 This module wraps simsopt's field line tracing in classes that hold a
-magnetic field together with the settings of the ODE solver, so that
-repeated integrations do not require passing the same arguments over and
-over again, and so that the results can be used as part of the simsopt
-dependency graph (an :class:`Integrator` is an :class:`~simsopt._core.Optimizable`
-that depends on its :class:`~simsopt.field.magneticfield.MagneticField`).
+magnetic field together with the settings of the ODE solver to simplify
+repeated integrations, and so that the Integrator is an 
+:class:`Optimizable`. (i.e. you change a child, like the current in a 
+coil, and results can be invalidated)
 
 Two backends are provided:
 
@@ -314,7 +313,9 @@ class Integrator(Optimizable):
 
         Args:
             nfp (int): number of field periods of the magnetic field.
-            iota (tuple, optional): (n, m) with :math:`\iota = n/m`. None for the magnetic axis.
+            iota (tuple, optional): (n, m) with :math:`\iota = n/m`. None for the
+                magnetic axis. A negative ``m`` denotes a field line that winds
+                counter-clockwise around the axis; this does not change the result.
 
         Returns:
             tuple: (nfp, ntor) of the periodic field line.
@@ -322,10 +323,10 @@ class Integrator(Optimizable):
         if iota is None:
             return nfp, 1
         n, m = iota
-        if m <= 0:
-            raise ValueError(f"iota=(n, m) requires m > 0, got m={m}.")
+        if m == 0:
+            raise ValueError("iota=(n, m) requires m != 0.")
         g = gcd(n, m)
-        ntor = m // g
+        ntor = abs(m) // g
         nfp_line = nfp // g if nfp % g == 0 else 1
         while gcd(nfp_line, ntor) != 1:
             nfp_line //= gcd(nfp_line, ntor)
@@ -358,10 +359,17 @@ class Integrator(Optimizable):
         Args:
             start_point (array): (x, y, z) if ``input_coordinates`` is 'cartesian',
                 (R, Z) if 'cylindrical'.
-            order (int): number of Fourier modes of the curve.
+            order (int): number of Fourier modes of the curve. The field line
+                closes after :math:`n_\text{tor}` transits, so it needs roughly
+                :math:`n_\text{tor}` times the order needed for the magnetic axis.
+                Note that PeriodicFieldLine only enforces the field line equation
+                at its ``2*order+1`` quadrature points, so ``res['success']`` does
+                not guarantee that the order is sufficient.
             nfp (int): number of field periods of the magnetic field.
             iota (tuple, optional): (n, m) with :math:`\iota = n/m` for a field
                 line of an island chain. None (the default) for the magnetic axis.
+                ``m`` is negative for a field line that winds counter-clockwise
+                around the axis.
                 If :math:`B_\phi<0`, the curve runs along the field towards
                 decreasing :math:`\phi`, and ``curve.ntor`` is negative.
             stellsym (bool): whether the curve is stellarator symmetric. This
