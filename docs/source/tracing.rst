@@ -4,6 +4,8 @@ Field line and particle tracing
 The :obj:`simsopt.field.tracing` submodule provides tools for tracing
 field lines, and for following particle motion in magnetic fields.
 These tools could be accessed from the :obj:`simsopt.field` module.
+Object-oriented field line integration, with a C++ (``simsoptpp``) and a
+``scipy`` backend, is provided by :obj:`simsopt.field.integrator`.
 For the latter, full orbits (including gyromotion) or guiding center
 trajectories can be followed in cylindrical coordinates, or guiding
 center motion can be followed in Boozer coordinates.  Examples of
