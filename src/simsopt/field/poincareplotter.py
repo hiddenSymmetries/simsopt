@@ -8,9 +8,9 @@ integrator (which depends on the magnetic field) in the simsopt dependency
 graph, the cached results are discarded when the field changes.
 """
 
+import hashlib
 import logging
-import os
-from math import sqrt
+from math import ceil, sqrt
 from pathlib import Path
 
 import numpy as np
@@ -22,359 +22,439 @@ logger = logging.getLogger(__name__)
 
 __all__ = ['PoincarePlotter']
 
+_ENGINES = ('mayavi', 'plotly', 'matplotlib')
+
 
 class PoincarePlotter(Optimizable):
-    """
-    Class to facilitate the calculation of field lines and 
-    plotting the results in a Poincare plot. 
-    Uses field periodicity to speed up calculation
-    """
-    def __init__(self, integrator: Integrator, start_points_RZ, phis=None, n_transits=100, add_symmetry_planes=True, store_results=False, phi0=None, nfp=1):
-        """
-        Initialize the PoincarePlotter. 
-        This class uses an Integrator to compute field lines, and takes care of plotting them. 
-        If the field is stellarator-symmetric, and symmetry planes are included, then 
-        information from identical planes are all plotted together (resulting in better plots with shorter integration). 
+    r"""
+    Compute and plot Poincaré sections of a magnetic field.
 
-        Args:
-            integrator: the integrator to be used for the calculation
-            start_points_RZ: nx2 array of starting points in cylindrical coordinates (R,Z)
-        Kwargs:
-            phis (None): angles in [0, 2pi] for which we wish to compute Poincare.
-                  *OR* int: number of planes to compute, equally spaced in [0, 2pi/nfp].
-            n_transits (100): number of toroidal transits to compute
-            add_symmetry_planes (True): if true, we add planes that are identical through field periodicity, increasing the efficiency of the calculation. 
-            store_results (False): if true, use a cache on disk to store/retrieve results. 
-                The results are stored in a file named 'poincare_data.npz' in the current directory. 
-                The results are given a hash based on the MagneticField degrees of freedom and poincare attributes, triggering recomputation only if relevant parameters change.
-            phi0 (None): initial angle in the phi plane (default None). if None, the first phi in phis is used.
-            nfp (1): number of field periods of the magnetic field. Used to generate planes
-                that are identical through field periodicity.
+    The plotter traces field lines from ``start_points_RZ`` on the plane
+    :math:`\phi_0` with an :class:`~simsopt.field.integrator.Integrator`, and
+    records where they cross the toroidal planes ``phis``. The computation is
+    only performed when results are requested, and is repeated only when the
+    magnetic field (or the plotter settings) change.
+
+    **Symmetry planes.** In a field with ``nfp`` field periods, the planes
+    :math:`\phi` and :math:`\phi + 2\pi k/n_\text{fp}` show the same cross
+    section. With ``add_symmetry_planes=True``, these equivalent planes are
+    added to ``phis``, and the crossings on all of them are drawn together
+    when the cross section is plotted. This gives ``nfp`` times as many points
+    per cross section for the same integration length.
+
+    **Caching.** If ``cache_file`` is given, results are stored in (and read
+    from) that ``.npz`` file under a key computed from the field degrees of
+    freedom, the plotter settings, and the integrator settings (see
+    :attr:`cache_key`). Results computed earlier, even in another session,
+    are then reused, and a change of any of these leads to a new computation.
+
+    **MPI.** If the integrator has an MPI communicator, the field lines are
+    distributed over the ranks, and only rank 0 plots. The plotting methods
+    must be called on all ranks.
+
+    Args:
+        integrator (Integrator): the integrator used to trace the field lines.
+            Its tolerances and stopping criteria determine the results.
+        start_points_RZ (array): (n,2) array of start points (R, Z) on the plane ``phi0``.
+        phis (int or array, optional): toroidal angles of the planes in
+            :math:`[0, 2\pi)`, or the number of planes equally spaced in
+            :math:`[0, 2\pi/n_\text{fp})`. Defaults to the single plane :math:`\phi=0`.
+        n_transits (float): number of toroidal transits to trace.
+        add_symmetry_planes (bool): whether to add the planes that are
+            equivalent to ``phis`` through the field period symmetry.
+        cache_file (str or Path, optional): ``.npz`` file used as a cache. None
+            (the default) disables the cache.
+        phi0 (float, optional): toroidal angle of the start points. Defaults to
+            the first of ``phis``.
+        nfp (int): number of field periods of the magnetic field.
+    """
+
+    def __init__(self, integrator: Integrator, start_points_RZ, phis=None, n_transits=100, add_symmetry_planes=True,
+                 cache_file=None, phi0=None, nfp=1):
+        """
+        Set up the planes and caches. See the class docstring for the arguments.
         """
         self.nfp = nfp
-        self._start_points_RZ = start_points_RZ
+        self._start_points_RZ = np.atleast_2d(np.asarray(start_points_RZ, dtype=float))
         self.integrator = integrator
         self.n_transits = n_transits
-        if isinstance(phis, int):
+        if isinstance(phis, (int, np.integer)):
             self._phis = self.generate_phis(phis, nfp=self.nfp)
         elif phis is None:
-            self._phis = np.array([0.0,])
+            self._phis = np.array([0.0])
         else:
-            self._phis = np.atleast_1d(phis)
-        
+            self._phis = np.atleast_1d(np.asarray(phis, dtype=float))
         if add_symmetry_planes:
             self._phis = self.generate_symmetry_planes(self._phis, nfp=self.nfp)
 
         self.phi0 = self._phis[0] if phi0 is None else phi0
-        self.is_plotter = self.integrator.comm is None or self.integrator.comm.rank == 0  # only rank 0 does plotting
-        self.need_to_recompute = True
+        self.is_plotter = self.integrator.comm is None or self.integrator.comm.rank == 0  # only rank 0 plots
+        self.cache_file = None if cache_file is None else self._npz_path(cache_file)
+        self._res_tys = None
+        self._res_phi_hits = None
+        self._lost = None
         self._randomcolors = None
-        Optimizable.__init__(self, depends_on=[integrator,])
-        self.store_results = store_results
-        if store_results:
-            # load file form disk if it exists
-            self.retrieve_poincare_data()
+        self.need_to_recompute = True
+        Optimizable.__init__(self, depends_on=[integrator])
+        if self.cache_file is not None:
+            self.load_cache()
 
+    @classmethod
+    def from_field(cls, field, start_points_RZ, phis=None, n_transits=1, add_symmetry_planes=True,
+                   stopping_criteria=None, comm=None, integrator_type='simsopt', nfp=1, **kwargs):
+        """
+        Create a PoincarePlotter directly from a magnetic field, constructing
+        the integrator.
+
+        Args:
+            field (MagneticField): the magnetic field.
+            start_points_RZ (array): (n,2) array of start points (R, Z).
+            phis (int or array, optional): planes, as in the constructor. Defaults to 4 planes per field period.
+            n_transits (float): number of toroidal transits to trace.
+            add_symmetry_planes (bool): whether to add the equivalent planes.
+            stopping_criteria (list, optional): StoppingCriterion objects passed to the integrator.
+            comm (MPI.Comm, optional): MPI communicator passed to the integrator.
+            integrator_type (str): 'simsopt' or 'scipy'.
+            nfp (int): number of field periods of the magnetic field.
+            **kwargs: additional arguments for the integrator constructor.
+
+        Returns:
+            PoincarePlotter: the plotter.
+        """
+        if phis is None:
+            phis = 4
+        integrators = {'simsopt': SimsoptFieldlineIntegrator, 'scipy': ScipyFieldlineIntegrator}
+        if integrator_type not in integrators:
+            raise ValueError(f"Integrator type {integrator_type} not supported, use one of {list(integrators)}.")
+        integrator = integrators[integrator_type](field, comm=comm, stopping_criteria=stopping_criteria, **kwargs)
+        return cls(integrator, start_points_RZ, phis=phis, n_transits=n_transits,
+                   add_symmetry_planes=add_symmetry_planes, nfp=nfp)
+
+    @classmethod
+    def from_poincare_data(cls, integrator, start_points_RZ, res_phi_hits, res_tys=None, **kwargs):
+        """
+        Create a PoincarePlotter from previously computed results, for example
+        the output of :meth:`~simsopt.field.integrator.Integrator.compute_poincare_hits`.
+        The results must correspond to the given start points and planes. They
+        are discarded, and recomputed, when the magnetic field changes.
+
+        Args:
+            integrator (Integrator): the integrator, used if results need to be recomputed.
+            start_points_RZ (array): (n,2) array of the start points of the results.
+            res_phi_hits (list): plane crossings, one array per field line.
+            res_tys (list, optional): trajectories, one array per field line.
+            **kwargs: other arguments of the constructor, such as ``phis`` and
+                ``n_transits``, which must match the results.
+
+        Returns:
+            PoincarePlotter: the plotter.
+        """
+        plotter = cls(integrator, start_points_RZ, **kwargs)
+        if len(res_phi_hits) != len(plotter.start_points_RZ):
+            raise ValueError(f"res_phi_hits has {len(res_phi_hits)} field lines, "
+                             f"but there are {len(plotter.start_points_RZ)} start points.")
+        plotter._res_phi_hits = [np.asarray(hits, dtype=float) for hits in res_phi_hits]
+        plotter._res_tys = None if res_tys is None else [np.asarray(ty, dtype=float) for ty in res_tys]
+        plotter.need_to_recompute = False
+        return plotter
 
     @property
     def randomcolors(self):
         """
-        Generate a list of random colors for plotting.
+        Random but reproducible colors, one per field line.
+
+        Returns:
+            array: (n,3) array of RGB values in [0, 1].
         """
-        #check if already generated:
-        if self._randomcolors is not None:
-            return self._randomcolors
-        else:
-            np.random.seed(0)  # for reproducibility
-            self._randomcolors = np.random.rand(len(self.start_points_RZ), 3)
-            return self._randomcolors
+        if self._randomcolors is None:
+            self._randomcolors = np.random.default_rng(0).random((len(self.start_points_RZ), 3))
+        return self._randomcolors
 
     @staticmethod
     def generate_phis(nplanes, nfp=1):
         """
-        Generate nplanes equally spaced phis in [0, 2pi/nfp].
+        Equally spaced toroidal angles in one field period.
+
         Args:
-            nplanes: number of planes to generate
-            nfp: number of field periods (default: 1)
+            nplanes (int): number of planes.
+            nfp (int): number of field periods.
+
         Returns:
-            phis: list of phis in [0, 2pi/nfp]
+            array: ``nplanes`` angles in :math:`[0, 2\\pi/n_\\text{fp})`.
         """
         return np.linspace(0, 2*np.pi/nfp, nplanes, endpoint=False)
-    
+
     @staticmethod
     def generate_symmetry_planes(phis, nfp=1):
         """
-        Given a list of phis in [0, 2pi/nfp], generate the full list of phis
-        in [0, 2pi] by adding the symmetry planes. 
-        Args: 
-            phis: list of phis in [0, 2pi/nfp]
-            nfp: number of field periods (default: 1)
+        Add the planes that are equivalent to ``phis`` through the field
+        period symmetry, :math:`\\phi + 2\\pi k/n_\\text{fp}` for :math:`k = 0, \\dots, n_\\text{fp}-1`.
+
+        Args:
+            phis (array): toroidal angles in :math:`[0, 2\\pi/n_\\text{fp})`.
+            nfp (int): number of field periods.
+
         Returns:
-            list_of_phis: list of phis in [0, 2pi] including the symmetry planes
+            array: the sorted, unique toroidal angles in :math:`[0, 2\\pi)`.
         """
-        list_of_phis = [phis + per_idx*2*np.pi/nfp for per_idx in range(nfp)]
-        # remove duplicates and sort
-        list_of_phis = np.unique(np.concatenate(list_of_phis))
-        return list_of_phis
-    
+        return np.unique(np.concatenate([np.asarray(phis) + k*2*np.pi/nfp for k in range(nfp)]))
+
     @property
     def phis_for_plotting(self):
         """
-        the phis in the first period, useful for plotting
+        The planes in the first field period, one per distinct cross section.
+
+        Returns:
+            array: toroidal angles in :math:`[0, 2\\pi/n_\\text{fp})`.
         """
-        plot_period = 2*np.pi/self.nfp
-        phis_for_plotting = self.phis[np.where(self.phis < plot_period)]
-        return phis_for_plotting
+        return self.phis[self.phis < 2*np.pi/self.nfp]
 
     @property
     def start_points_RZ(self):
         """
-        start ponts in R,Z for the field line integration
+        The start points (R, Z) of the field lines on the plane ``phi0``.
+        Setting them discards the results.
+
+        Returns:
+            array: (n,2) array of start points.
         """
         return self._start_points_RZ
 
     @start_points_RZ.setter
     def start_points_RZ(self, array):
+        """Set the start points and discard the results."""
+        array = np.atleast_2d(np.asarray(array, dtype=float))
         if array.shape != self._start_points_RZ.shape:
-            self._randomcolors = None  # reset colors 
+            self._randomcolors = None
         self._start_points_RZ = array
         self.recompute_bell()
 
     @property
     def phis(self):
         """
-        all the phi planes used for the calculation
+        The toroidal angles of all planes on which crossings are recorded,
+        including the symmetry planes. Setting them discards the results.
+
+        Returns:
+            array: toroidal angles in :math:`[0, 2\\pi)`.
         """
         return self._phis
-    
+
     @phis.setter
     def phis(self, value):
-        self._phis = value
+        """Set the planes and discard the results."""
+        self._phis = np.atleast_1d(np.asarray(value, dtype=float))
         self.recompute_bell()
-
-
-    @classmethod
-    def from_field(cls, field, start_points_RZ, phis=None, n_transits=1, add_symmetry_planes=True,
-                   stopping_criteria=None, comm=None, integrator_type='simsopt', nfp=1, **kwargs):
-        """
-        Helper to create a PoincarePlotter directly from a MagneticField bypassing 
-        the manual creation of an Integrator. 
-
-        Parameters mirror PoincarePlotter.__init__, while constructing the appropriate integrator.
-        Args:
-            field: the magnetic field to be used for the integration
-            start_points_RZ: nx2 array of starting points in cylindrical coordinates (R,Z)
-            phis: angles in [0, 2pi] for which we wish to compute Poincare.
-                  *OR* int: number of planes to compute, equally spaced in [0, 2pi/nfp].
-            n_transits: number of toroidal transits to compute
-            add_symmetry_planes: if true, we add planes that are identical through field periodicity, increasing the efficiency of the calculation.
-            stopping_criteria: list of StoppingCriterion objects that halt integration. Only used if integrator_type is 'simsopt'
-            comm: MPI communicator for parallelization
-            integrator_type: type of integrator to use ('simsopt' or 'scipy')
-            nfp: number of field periods of the magnetic field
-            **kwargs: additional arguments to pass to the integrator constructor
-        """
-        if stopping_criteria is None:
-            stopping_criteria = []
-        if phis is None:
-            phis = 4  # default to 4 planes if not specified
-        if integrator_type == 'simsopt':
-            integrator = SimsoptFieldlineIntegrator(field, comm=comm, stopping_criteria=stopping_criteria, **kwargs)
-        elif integrator_type == 'scipy':
-            integrator = ScipyFieldlineIntegrator(field, comm=comm, **kwargs)
-        else:
-            raise ValueError(f"Integrator type {integrator_type} not supported.")
-        return cls(integrator, start_points_RZ, phis=phis, n_transits=n_transits, add_symmetry_planes=add_symmetry_planes, nfp=nfp)
-
 
     def recompute_bell(self, parent=None):
         """
-        clear the caches when any object on which this depends changes. 
+        Discard the results when the field, the integrator, or the plotter
+        settings change. Called by the simsopt dependency graph.
+
+        Args:
+            parent (Optimizable, optional): the object that changed.
         """
         self._res_phi_hits = None
         self._res_tys = None
         self._lost = None
         self.need_to_recompute = True
-    
+
     def _compute(self):
         """
         Compute the trajectories and plane crossings with the integrator, and
-        store them to disk if store_results is True.
+        store them in the cache file if there is one.
         """
         self._res_tys, self._res_phi_hits = self.integrator.compute_poincare_hits(
             self.start_points_RZ, self.n_transits, phis=self.phis, phi0=self.phi0)
-        if self.store_results:
-            self.save_poincare_data()
+        self._lost = None
         self.need_to_recompute = False
+        if self.cache_file is not None:
+            self.save_cache()
+
+    def _ensure_results(self):
+        """
+        Make the results available: load them from the cache file if possible,
+        and compute them otherwise. Must be called on all MPI ranks.
+        """
+        if not self.need_to_recompute:
+            return
+        if self.cache_file is not None and self.load_cache():
+            return
+        self._compute()
 
     @property
     def res_tys(self):
         """
-        Compute or retrieve the field line trajectories for the Poincare plot.
-        If calculation is performed and store_results is True, the results are saved to disk.
+        The trajectories of the field lines, computed if necessary.
+
         Returns:
-            res_tys: list of numpy arrays (one for each particle) containing
-                     the trajectory of each field line. Each row of the array contains
-                     `[time, x, y, z]`.
+            list: one (m,4) array per field line with rows ``[t, x, y, z]``,
+            where ``t`` is the integration variable of the integrator.
         """
-        if self.store_results and self._res_tys is None:
-            # read from disk if it already exists
-            self.retrieve_poincare_data()
-        if self._res_tys is None or self.need_to_recompute:
+        self._ensure_results()
+        if self._res_tys is None:  # e.g. loaded or given without trajectories
             self._compute()
         return self._res_tys
-    
+
     @property
     def res_phi_hits(self):
         """
-        Compute or retrieve the Poincare section hits for the Poincare plot.
-        If calculation is performed and store_results is True, the results are saved to disk.
+        The crossings of the field lines with the planes, computed if necessary.
+
         Returns:
-            res_phi_hits: list of numpy arrays (one for each particle) containing
-                          the Poincare section hits of each field line. Each row of the array contains
-                          `[phi, plane_index, x, y, z]`.
+            list: one (k,5) array per field line with rows ``[t, idx, x, y, z]``.
+            If ``idx>=0``, the plane ``phis[int(idx)]`` was crossed. The last
+            row describes why integration stopped, see
+            :meth:`~simsopt.field.integrator.Integrator.compute_poincare_hits`.
         """
-        if self.store_results and self._res_phi_hits is None:
-            # read from disk if it already exists
-            self.retrieve_poincare_data()
-        if self._res_phi_hits is None or self.need_to_recompute:
-            self._compute()
+        self._ensure_results()
         return self._res_phi_hits
-    
+
     @property
-    def poincare_hash(self):
+    def cache_key(self):
         """
-        Generate a hash from the MagneticFields dofs, self.phis, self.start_points_RZ, and self.n_transits. 
-        Returns: 
-            poincare_hash: hash value
+        Key under which the results are stored in the cache file: a SHA-256
+        hash of the magnetic field degrees of freedom, the planes, start
+        points, number of transits and ``phi0``, and the type and settings of
+        the integrator. Unlike Python's ``hash``, it is the same in every
+        session and on every machine.
+
+        Returns:
+            str: hexadecimal hash.
         """
-        hash_list = self.integrator.field.full_x.tolist() + self.phis.tolist() + self.start_points_RZ.flatten().tolist() + [self.n_transits]
-        poincare_hash = hash(tuple(hash_list))
-        return poincare_hash
-    
-    def save_poincare_data(self, filename=None, name=None):
+        integrator = self.integrator
+        settings = [type(integrator).__name__, len(integrator.stopping_criteria)]
+        for attribute in ['tol', 'tmax', '_integrator_type', 'trajectory_points_per_transit']:
+            settings.append((attribute, getattr(integrator, attribute, None)))
+        settings.append(sorted(getattr(integrator, '_integrator_args', {}).items()))
+        digest = hashlib.sha256()
+        for array in [integrator.field.full_x, self.phis, self.start_points_RZ, [self.n_transits, self.phi0]]:
+            digest.update(np.ascontiguousarray(array, dtype=np.float64).tobytes())
+        digest.update(repr(settings).encode())
+        return digest.hexdigest()
+
+    @staticmethod
+    def _npz_path(filename):
         """
-        Save the computed Poincare data (res_phi_hits and res_tys) to disk for later retrieval.
-        The data is by default saved in a file named ``poincare_data.npz``, under a key derived
-        from a has from the MagneticField DoFs, and the PoincarePlotter settings. This ensures that data calculated in different sessions or even on different
-        machines can be loaded. 
+        Path of an ``.npz`` file, adding the suffix if necessary.
+
         Args:
-            filename: optional filename to override the default ``poincare_data.npz``
-            name: optional name to override the default hash-derived key prefix.
+            filename (str or Path): the file name.
+
+        Returns:
+            Path: the path, ending in ``.npz``.
         """
-        if not self.is_plotter:
-            return
-
-        if filename is None:
-            filename = "poincare_data.npz"
         filename = Path(filename)
-        if filename.suffix != ".npz":
-            filename = filename.with_suffix(".npz")
+        return filename if filename.suffix == '.npz' else filename.with_suffix('.npz')
 
-        if name is None:
-            name = self.poincare_hash
-        name = str(name)
+    def _cache_path(self, filename):
+        """
+        The cache file to use: ``filename`` if given, otherwise ``cache_file``.
 
-        data_to_save = {}
+        Args:
+            filename (str or Path, optional): the file name.
+
+        Returns:
+            Path: the path of the cache file.
+        """
+        if filename is None:
+            if self.cache_file is None:
+                raise ValueError("No filename given, and the plotter has no cache_file.")
+            return self.cache_file
+        return self._npz_path(filename)
+
+    def save_cache(self, filename=None, key=None):
+        """
+        Store the current results (``res_phi_hits`` and ``res_tys``) in a cache
+        file, next to results for other keys that are already in it. Only the
+        results are stored, not the plotter itself. Only rank 0 writes.
+
+        Args:
+            filename (str or Path, optional): the ``.npz`` file. Defaults to ``cache_file``.
+            key (str, optional): the key to store the results under. Defaults to :attr:`cache_key`.
+        """
+        filename = self._cache_path(filename)
+        if not self.is_plotter or (self._res_phi_hits is None and self._res_tys is None):
+            return
+        key = self.cache_key if key is None else str(key)
+        data = {}
         if filename.exists():
             with np.load(filename, allow_pickle=True) as existing:
-                data_to_save = {key: existing[key] for key in existing.files}
-
-        updated = False
+                data = {name: existing[name] for name in existing.files}
         if self._res_phi_hits is not None:
-            data_to_save[f"res_phi_{name}"] = np.array(self._res_phi_hits, dtype=object)
-            updated = True
+            data[f"res_phi_{key}"] = np.array(self._res_phi_hits + [None], dtype=object)[:-1]
         if self._res_tys is not None:
-            data_to_save[f"res_tys_{name}"] = np.array(self._res_tys, dtype=object)
-            updated = True
+            data[f"res_tys_{key}"] = np.array(self._res_tys + [None], dtype=object)[:-1]
+        np.savez_compressed(filename, **data)
 
-        if updated:
-            np.savez_compressed(filename, **data_to_save)
-
-    def retrieve_poincare_data(self, name=None, filename=None):
+    def load_cache(self, filename=None, key=None):
         """
-        Check if cached Poincare data is available on disk, and load it
-        into the current object. By default, a file named ``poincare_data.npz`` 
-        is used, but this can be overridden by passing ``filename``.
-        The data is stored in keys derived from a hash of the magnetic field DoFs, 
-        and the PoincarePlotter settings. 
-        This ensures that data calculated in different sessions or even on different
-        machines can be loaded. 
+        Load results from a cache file, if it contains results for the key.
+
         Args:
-            name: optional name to override the hash-derived key prefix.
-            filename: optional filename to override the default ``poincare_data.npz``.
-        """
-        if filename is None:
-            filename = "poincare_data.npz"
-        filename = Path(filename)
-        if filename.suffix != ".npz":
-            filename = filename.with_suffix(".npz")
-        if name is None:
-            name = self.poincare_hash
-        name = str(name)
+            filename (str or Path, optional): the ``.npz`` file. Defaults to ``cache_file``.
+            key (str, optional): the key of the results. Defaults to :attr:`cache_key`.
 
+        Returns:
+            bool: whether plane crossings were loaded.
+        """
+        filename = self._cache_path(filename)
+        key = self.cache_key if key is None else str(key)
         if not filename.exists():
-            logger.debug(f"File {filename} not found. Not loading cached poincare data.")
-            return
-
-        res_phi_key = f"res_phi_{name}"
-        res_tys_key = f"res_tys_{name}"
+            logger.debug(f"Cache file {filename} not found.")
+            return False
         with np.load(filename, allow_pickle=True) as data:
-            if res_phi_key in data.files:
-                loaded_hits = data[res_phi_key]
-                self._res_phi_hits = [np.asarray(arr, dtype=float).copy() for arr in loaded_hits]
-            if res_tys_key in data.files:
-                loaded_tys = data[res_tys_key]
-                self._res_tys = [np.asarray(arr, dtype=float).copy() for arr in loaded_tys]
+            if f"res_phi_{key}" not in data.files:
+                return False
+            self._res_phi_hits = [np.asarray(hits, dtype=float) for hits in data[f"res_phi_{key}"]]
+            if f"res_tys_{key}" in data.files:
+                self._res_tys = [np.asarray(ty, dtype=float) for ty in data[f"res_tys_{key}"]]
+        self._lost = None
+        self.need_to_recompute = False
+        return True
 
-        if self._res_phi_hits is not None or self._res_tys is not None:
-            self.need_to_recompute = False
-        return
-    
-    def particles_to_vtk(self, filename):
+    def clear_cache(self, filename=None):
         """
-        Stores the trajectories in a vtk file
-        for visualization in paraview.
-        Export particle tracing or field lines to a vtk file.
-        """
-        from pyevtk.hl import polyLinesToVTK
-        x = np.concatenate([xyz[:, 1] for xyz in self.res_tys])
-        y = np.concatenate([xyz[:, 2] for xyz in self.res_tys])
-        z = np.concatenate([xyz[:, 3] for xyz in self.res_tys])
-        ppl = np.asarray([xyz.shape[0] for xyz in self.res_tys])
-        data = np.concatenate([i*np.ones((self.res_tys[i].shape[0], )) for i in range(len(self.res_tys))])
-        polyLinesToVTK(filename, x, y, z, pointsPerLine=ppl, pointData={'idx': data})
+        Delete a cache file. Only rank 0 deletes.
 
-    
-    def remove_poincare_data(self, filename=None):
-        """
-        Clear the saved poincare data file.
-        The hash does not take into account the integrator type or tolerances, so if you need higher precision, use this method
-        to clear the file and recompute.
         Args:
-            filename: filename to remove (default: poincare_data.npz)
+            filename (str or Path, optional): the ``.npz`` file. Defaults to ``cache_file``.
         """
         if not self.is_plotter:
             return
-        filename = Path("poincare_data.npz" if filename is None else filename)
+        filename = self._cache_path(filename)
         if filename.exists():
-            os.remove(filename)
-            logger.info(f"Removed poincare data file {filename}.")  
-        return
+            filename.unlink()
+            logger.info(f"Removed cache file {filename}.")
 
-        
+    def particles_to_vtk(self, filename):
+        """
+        Export the field line trajectories to a VTK file, for example for Paraview.
+
+        Args:
+            filename (str): the file name, without extension.
+        """
+        from pyevtk.hl import polyLinesToVTK
+        trajectories = self.res_tys
+        x = np.concatenate([ty[:, 1] for ty in trajectories])
+        y = np.concatenate([ty[:, 2] for ty in trajectories])
+        z = np.concatenate([ty[:, 3] for ty in trajectories])
+        points_per_line = np.asarray([ty.shape[0] for ty in trajectories])
+        line_index = np.concatenate([i*np.ones(ty.shape[0]) for i, ty in enumerate(trajectories)])
+        polyLinesToVTK(filename, x, y, z, pointsPerLine=points_per_line, pointData={'idx': line_index})
+
     @property
-    def lost(self): 
+    def lost(self):
         """
-        Get the points where the integration stopped due to a stopping criterion.
-        This means the last entry of the 'idx' column in the res_phi_hits array is negative.
+        Whether each field line was stopped before completing ``n_transits``,
+        by a stopping criterion or a failure of the integrator.
+
         Returns:
-            lost: list of booleans indicating whether each field line was lost due to a stopping criterion.
+            list: one bool per field line.
         """
-        # list comprehension... look at final element, if element 1 negative, then stopping 
-        # criterion was encounterd. first stopping criterion is transit number, so ignore.
         if self._lost is None:
-            self._lost = [traj[-1, 1] < -1 for traj in self.res_phi_hits]
+            # the terminating row has idx=-1 if the transits were completed
+            self._lost = [hits[-1, 1] < -1 for hits in self.res_phi_hits]
         return self._lost
 
     def plane_hits_cyl(self, plane_idx):
@@ -411,6 +491,20 @@ class PoincarePlotter(Optimizable):
             hits.append(hits_xyz)  # append the xyz points
         return hits  # list of arrays of shape (n_hits, 3)
     
+    @staticmethod
+    def _check_engine(engine):
+        """
+        Check that the 3D plotting engine is supported.
+
+        Args:
+            engine (str): 'mayavi', 'plotly' or 'matplotlib'.
+
+        Raises:
+            ValueError: if the engine is not supported.
+        """
+        if engine not in _ENGINES:
+            raise ValueError(f"Unknown engine {engine!r}, use one of {list(_ENGINES)}.")
+
     @staticmethod
     def fix_axes(ax, xlabel='R', ylabel='Z', title=None):
         """
@@ -545,12 +639,11 @@ class PoincarePlotter(Optimizable):
             fix_ax: if True, fix the axes to be equal and labeled (otherwise, deal with the returned axes object)
             **kwargs: additional keyword arguments to pass to the single plane plotter
         Returns:
-            fig, axs: the figure and axes objects (only on rank 0, otherwise None)
+            fig, axs: the figure and axes objects (only on rank 0, otherwise None, None)
         """
         _ = self.res_phi_hits  #trigger recompute on all ranks if necessary
 
         if self.is_plotter:
-            from math import ceil
             import matplotlib.pyplot as plt
             nrowcol = ceil(sqrt(len(self.phis_for_plotting)))
             fig, axs = plt.subplots(nrowcol, nrowcol, figsize=(8, 5))
@@ -573,21 +666,20 @@ class PoincarePlotter(Optimizable):
 
     def plot_fieldline_trajectories_3d(self, engine='mayavi', mark_lost=False, show=True,  **kwargs): 
         """
-        Plot the full 3D trajectories of the field lines. 
-        Can be very busy if lines are followed for long. 
+        Plot the 3D trajectories of the field lines. This can be very busy
+        if the field lines are followed for many transits. For mayavi, use
+        the ``tube_radius`` keyword to adjust the line thickness and
+        ``opacity`` to make the lines transparent.
+        *NOTE*: if running in parallel, call this function on all ranks.
 
-        Hints: 
-            - for mayavi, use tube_radius kwarg to adjust line thickness, opacity for making them transparent. 
         Args:
-            engine: 'mayavi' or 'plotly' or 'matplotlib'
-            mark_lost: if True, mark the field lines that were lost due to stopping criteria in red
-            show: if True, show the plot immediately
-            **kwargs: additional keyword arguments to pass to the plotting function
-        Returns:
-            None
-
+            engine (str): 'mayavi', 'plotly' or 'matplotlib'.
+            mark_lost (bool): if True, draw the lost field lines (see :attr:`lost`) thicker and in red.
+            show (bool): if True, show the plot immediately.
+            **kwargs: additional keyword arguments for the plotting function of the engine.
         """
-        trajectories = self.res_tys  # trigger recompute if necessary
+        self._check_engine(engine)
+        trajectories = self.res_tys  # triggers the computation on all ranks if necessary
 
         if self.is_plotter:
             # unify color kw handling across engines
@@ -610,7 +702,7 @@ class PoincarePlotter(Optimizable):
                     mlab.plot3d(traj[:, 1], traj[:, 2], traj[:, 3], tube_radius=this_tube_radius, color=this_color, **kwargs)
                 if show:
                     mlab.show()
-            if engine == 'plotly':
+            elif engine == 'plotly':
                 import plotly.graph_objects as go
                 fig = go.Figure()
                 color = base_color
@@ -643,21 +735,25 @@ class PoincarePlotter(Optimizable):
                         this_color = color
                     lost = self.lost[idx] if mark_lost else False
                     this_width = 6 if lost else 2
-                    this_color = 'rgb(255,0,0)' if lost else this_color
+                    this_color = 'r' if lost else this_color
                     ax.plot(traj[:, 1], traj[:, 2], traj[:, 3], color=this_color, linewidth=this_width, **kwargs)
                 if show:
                     plt.show()
 
     def plot_poincare_in_3d(self, engine='mayavi', mark_lost=False, show=True, **kwargs):
         """
-        Plot the Poincare points in 3D. Useful to visualize the poincare planes together with the coils and field lines. 
-        Args: 
-            engine: 'mayavi' or 'plotly' or 'matplotlib'
-            mark_lost: if True, mark the field lines that were lost due to stopping criteria in red
-            show: if True, show the plot immediately
-            **kwargs: additional keyword arguments to pass to the plotting function
+        Plot the plane crossings in 3D, for example together with the coils
+        and the field line trajectories.
+        *NOTE*: if running in parallel, call this function on all ranks.
+
+        Args:
+            engine (str): 'mayavi', 'plotly' or 'matplotlib'.
+            mark_lost (bool): if True, draw the crossings of lost field lines (see :attr:`lost`) larger and in red.
+            show (bool): if True, show the plot immediately.
+            **kwargs: additional keyword arguments for the plotting function of the engine.
         """
-        _ = self.res_phi_hits  # trigger recompute if necessary
+        self._check_engine(engine)
+        _ = self.res_phi_hits  # triggers the computation on all ranks if necessary
 
         if self.is_plotter:
             # unify color kw handling across engines
@@ -686,7 +782,7 @@ class PoincarePlotter(Optimizable):
                         mlab.points3d(hit_group[:, 0], hit_group[:, 1], hit_group[:, 2], scale_factor=this_scale_factor, color=this_color, mode=marker, **kwargs)
                 if show:
                     mlab.show()
-            if engine == 'plotly':
+            elif engine == 'plotly':
                 import plotly.graph_objects as go
                 fig = go.Figure()
                 color = base_color
@@ -723,8 +819,7 @@ class PoincarePlotter(Optimizable):
                             this_color = color
                         lost = self.lost[traj_idx] if mark_lost else False
                         this_size = 80 if lost else 40
-                        this_color = 'rgb(255,0,0)' if lost else this_color
+                        this_color = 'r' if lost else this_color
                         ax.scatter(hit_group[:, 0], hit_group[:, 1], hit_group[:, 2], color=this_color, s=this_size, **kwargs)
                 if show:
-                    plt.show()  
-    # TODO: use res_tys to plot rotational transform
+                    plt.show()
