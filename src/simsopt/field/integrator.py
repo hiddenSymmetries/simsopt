@@ -85,11 +85,16 @@ class Integrator(Optimizable):
         field (MagneticField): the magnetic field to integrate.
         comm (MPI.Comm, optional): MPI communicator over which the field lines in
             :meth:`compute_poincare_hits` are distributed.
+        stopping_criteria (list, optional): StoppingCriterion objects (from
+            :mod:`simsopt.field.tracing`) that stop a field line early. Only used in
+            :meth:`compute_poincare_hits`. If ``stopping_criteria[i]`` stops a field
+            line, the terminating row of its ``res_phi_hits`` has ``idx=-2-i``.
     """
 
-    def __init__(self, field: MagneticField, comm=None):
+    def __init__(self, field: MagneticField, comm=None, stopping_criteria=None):
         self.field = field
         self.comm = comm
+        self.stopping_criteria = list(stopping_criteria) if stopping_criteria is not None else []
         Optimizable.__init__(self, depends_on=[field])
 
     @staticmethod
@@ -266,10 +271,9 @@ class Integrator(Optimizable):
             - ``res_phi_hits``: list of (k,5) arrays, one per field line, with rows
               ``[t, idx, x, y, z]``. If ``idx>=0`` the plane ``phis[int(idx)]``
               was crossed. The last row describes how integration terminated:
-              ``idx=-1`` if ``n_transits`` were completed, ``idx<=-2`` if
-              integration was stopped early (see the backend for details). If
-              the Simsopt backend runs out of time (``tmax``), there is no
-              terminating row.
+              ``idx=-1`` if ``n_transits`` were completed, and ``idx=-2-i`` if
+              ``stopping_criteria[i]`` stopped the field line. Backend-specific
+              reasons to stop are described in the backend classes.
         """
         start_points_RZ = np.atleast_2d(np.asarray(start_points_RZ, dtype=float))
         if start_points_RZ.ndim != 2 or start_points_RZ.shape[1] != 2:
@@ -326,9 +330,9 @@ class SimsoptFieldlineIntegrator(Integrator):
     field line is traced in the direction of increasing :math:`\phi`, and the
     normalization makes :math:`t` approximately the arc length along the field line.
 
-    In :meth:`compute_poincare_hits`, the terminating row of ``res_phi_hits``
-    has ``idx=-1`` if ``n_transits`` were completed, and ``idx=-2-i`` if
-    integration was stopped by ``stopping_criteria[i]``.
+    In :meth:`compute_poincare_hits`, if the integration time ``tmax`` is
+    exhausted before ``n_transits`` are completed, ``res_phi_hits`` has no
+    terminating row.
 
     Args:
         field (MagneticField): the magnetic field to integrate
@@ -344,8 +348,7 @@ class SimsoptFieldlineIntegrator(Integrator):
     def __init__(self, field: MagneticField, comm=None, stopping_criteria=None, tol=1e-9, tmax=1e4):
         self.tol = tol
         self.tmax = tmax
-        self.stopping_criteria = list(stopping_criteria) if stopping_criteria is not None else []
-        super().__init__(field, comm=comm)
+        super().__init__(field, comm=comm, stopping_criteria=stopping_criteria)
 
     def _field_for_tracing(self, start_xyz):
         """
@@ -454,6 +457,41 @@ class SimsoptFieldlineIntegrator(Integrator):
         return self._trace(RZ, phi0, phis, criteria)
 
 
+class _CriterionEvent:
+    """
+    Wrap a StoppingCriterion as a terminal event for ``solve_ivp``: the event
+    function is -1 where the criterion is satisfied and +1 elsewhere.
+
+    ``solve_ivp`` evaluates events at the start point, after every step, and
+    at intermediate points while locating an event. The criterion is not
+    evaluated at the start point (as in the C++ tracing routines), and
+    ``iter`` counts the steps, which are recognized by a new maximum of phi.
+    Points inside the last step are evaluated with the previous ``iter``, so
+    that criteria that depend on ``iter`` change sign across the step.
+    """
+    terminal = True
+
+    def __init__(self, criterion):
+        self.criterion = criterion
+        self.iter = 0
+        self.phi_start = None
+        self.phi_max = None
+
+    def __call__(self, phi, rz):
+        if self.phi_start is None:
+            self.phi_start = self.phi_max = phi
+        if phi <= self.phi_start:
+            return 1.0
+        if phi > self.phi_max:
+            self.phi_max = phi
+            self.iter += 1
+        # points before the end of the last step (evaluated while locating the
+        # event) belong to the previous iteration
+        it = self.iter if phi >= self.phi_max else self.iter - 1
+        R, Z = rz
+        return -1.0 if self.criterion(it, phi, R*np.cos(phi), R*np.sin(phi), Z) else 1.0
+
+
 class ScipyFieldlineIntegrator(Integrator):
     r"""
     Field line integration using :func:`scipy.integrate.solve_ivp`.
@@ -472,8 +510,13 @@ class ScipyFieldlineIntegrator(Integrator):
     This ODE is singular where :math:`B_\phi=0`. Integration is therefore
     stopped when :math:`|B_\phi|/|B|` drops below ``1e-3``, which can happen
     for field lines that approach the coils. In :meth:`compute_poincare_hits`,
-    the terminating row of ``res_phi_hits`` then has ``idx=-2``, as it does
-    when the solver fails. It has ``idx=-1`` if ``n_transits`` were completed.
+    the terminating row of ``res_phi_hits`` then has
+    ``idx=-2-len(stopping_criteria)``, as it does when the solver fails.
+
+    Stopping criteria are evaluated as terminal ``solve_ivp`` events, so the
+    point where a field line is stopped is located by root finding between
+    solver steps. They are called with the step number as ``iter`` and
+    :math:`\phi` as ``t``.
 
     Three dimensional integration, which does not have this limitation, is
     available with :meth:`integrate_3d_fieldlinepoints`.
@@ -481,6 +524,8 @@ class ScipyFieldlineIntegrator(Integrator):
     Args:
         field (MagneticField): the magnetic field to integrate.
         comm (MPI.Comm, optional): MPI communicator to parallelize over.
+        stopping_criteria (list, optional): list of StoppingCriterion objects.
+            Only used in :meth:`compute_poincare_hits`.
         integrator_type (str): the ``method`` passed to ``solve_ivp``, for example 'RK45' or 'DOP853'.
         integrator_args (dict, optional): additional keyword arguments for ``solve_ivp``,
             for example ``{'rtol': 1e-9, 'atol': 1e-11}``. The defaults are
@@ -491,9 +536,9 @@ class ScipyFieldlineIntegrator(Integrator):
 
     _bphi_threshold = 1e-3
 
-    def __init__(self, field: MagneticField, comm=None, integrator_type='RK45', integrator_args=None,
-                 trajectory_points_per_transit=100):
-        super().__init__(field, comm=comm)
+    def __init__(self, field: MagneticField, comm=None, stopping_criteria=None, integrator_type='RK45',
+                 integrator_args=None, trajectory_points_per_transit=100):
+        super().__init__(field, comm=comm, stopping_criteria=stopping_criteria)
         self._integrator_type = integrator_type
         self._integrator_args = dict(integrator_args) if integrator_args is not None else {}
         self._integrator_args.setdefault('rtol', 1e-7)
@@ -530,9 +575,10 @@ class ScipyFieldlineIntegrator(Integrator):
         return np.abs(B[1]) / np.linalg.norm(B) - self._bphi_threshold
     _bphi_event.terminal = True
 
-    def _solve(self, RZ, phi_span, **kwargs):
+    def _solve(self, RZ, phi_span, stopping_criteria=(), **kwargs):
         """
-        Call ``solve_ivp`` on the cylindrical field line ODE.
+        Call ``solve_ivp`` on the cylindrical field line ODE. The B_phi event is
+        the first event, followed by one event per stopping criterion.
 
         If the field line cannot be started (the right hand side is not finite,
         or :math:`B_\\phi` is already below the threshold), ``solve_ivp`` is not
@@ -547,10 +593,26 @@ class ScipyFieldlineIntegrator(Integrator):
         elif self._bphi_event(phi_span[0], RZ) < 0:
             status, message = 1, "B_phi is below the threshold at the start point."
         if status is not None:
-            return SimpleNamespace(t=np.array([phi_span[0]]), y=RZ[:, None], sol=None,
+            t_events = [np.array([phi_span[0]]) if status == 1 else np.array([])]
+            t_events += [np.array([]) for _ in stopping_criteria]
+            return SimpleNamespace(t=np.array([phi_span[0]]), y=RZ[:, None], sol=None, t_events=t_events,
                                    status=status, message=message, success=False)
-        return solve_ivp(self._integration_fn_cyl, phi_span, RZ, events=self._bphi_event,
+        events = [self._bphi_event] + [_CriterionEvent(c) for c in stopping_criteria]
+        return solve_ivp(self._integration_fn_cyl, phi_span, RZ, events=events,
                          method=self._integrator_type, **self._integrator_args, **kwargs)
+
+    def _stop_idx(self, sol):
+        """
+        The ``idx`` of the terminating row of ``res_phi_hits`` for a solution
+        of :meth:`_solve` with the integrator's stopping criteria.
+        """
+        if sol.status == 0:
+            return -1
+        if sol.status == 1:
+            triggered = [len(t) > 0 for t in sol.t_events[1:]]
+            if any(triggered):
+                return -2 - triggered.index(True)
+        return -2 - len(self.stopping_criteria)  # B_phi event or solver failure
 
     def _integrate_toroidally_cyl(self, RZ, phi0, delta_phi):
         sol = self._solve(RZ, [phi0, phi0 + delta_phi])
@@ -586,7 +648,7 @@ class ScipyFieldlineIntegrator(Integrator):
         in_range = hit_phis <= phi_end
         hit_phis, hit_idx = hit_phis[in_range], hit_idx[in_range]
 
-        sol = self._solve(RZ, [phi0, phi_end], dense_output=True)
+        sol = self._solve(RZ, [phi0, phi_end], stopping_criteria=self.stopping_criteria, dense_output=True)
         phi_stop = sol.t[-1]
         rz_stop = sol.y[:, -1]
         interpolate = sol.sol if (sol.sol is not None and len(sol.t) > 1) else None
@@ -595,7 +657,7 @@ class ScipyFieldlineIntegrator(Integrator):
         hit_phis, hit_idx = hit_phis[reached], hit_idx[reached]
         rz_hits = interpolate(hit_phis) if len(hit_phis) > 0 else np.zeros((2, 0))
         xyz_hits = self._rphiz_to_xyz(np.column_stack((rz_hits[0], hit_phis, rz_hits[1])))
-        stop_idx = -1 if sol.status == 0 else -2
+        stop_idx = self._stop_idx(sol)
         stop_xyz = self._rphiz_to_xyz(np.array([rz_stop[0], phi_stop, rz_stop[1]]))
         phi_hits = np.vstack((np.column_stack((hit_phis, hit_idx, xyz_hits)),
                               np.column_stack(([phi_stop], [stop_idx], stop_xyz))))

@@ -3,7 +3,7 @@ import numpy as np
 
 from simsopt.field.magneticfieldclasses import ToroidalField, PoloidalField
 from simsopt.field.integrator import Integrator, SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator
-from simsopt.field.tracing import MinRStoppingCriterion
+from simsopt.field.tracing import MinRStoppingCriterion, MaxRStoppingCriterion, IterationStoppingCriterion
 from simsopt.configs.zoo import get_data, configurations
 from simsopt._core.util import ObjectiveFailure
 
@@ -175,14 +175,6 @@ class TestSimsoptFieldlineIntegrator(unittest.TestCase):
         self.assertEqual(intg.tol, 1e-9)
         self.assertEqual(intg.tmax, 1e4)
 
-    def test_stopping_criterion(self):
-        # a field line at R=1.1 is stopped by MinRStoppingCriterion(1.2) immediately
-        field = ToroidalField(1.0, 1.0)
-        intg = SimsoptFieldlineIntegrator(field, stopping_criteria=[MinRStoppingCriterion(1.2)], tmax=100)
-        _, res_phi_hits = intg.compute_poincare_hits(np.array([[1.1, 0.0], [1.3, 0.0]]), 2, phis=[0.0])
-        self.assertEqual(res_phi_hits[0][-1, 1], -2)
-        self.assertEqual(res_phi_hits[1][-1, 1], -1)
-
     def test_integrate_right_direction(self):
         # W7X has B_phi in the negative phi direction; verify that field is flipped.
         base_curves, base_currents, ma, nfp, bs = get_data("w7x")
@@ -293,6 +285,48 @@ class TestScipyFieldlineIntegrator(unittest.TestCase):
 
 
 class TestIntegratorAgreement(unittest.TestCase):
+    def test_stopping_criteria(self):
+        # a field line at R=1.1 is stopped by MinRStoppingCriterion(1.2) on the first step
+        field = ToroidalField(1.0, 1.0)
+        for cls, kwargs in [(SimsoptFieldlineIntegrator, {'tmax': 100}), (ScipyFieldlineIntegrator, {})]:
+            with self.subTest(integrator=cls.__name__):
+                intg = cls(field, stopping_criteria=[IterationStoppingCriterion(10**6), MinRStoppingCriterion(1.2)], **kwargs)
+                _, res_phi_hits = intg.compute_poincare_hits(np.array([[1.1, 0.0], [1.3, 0.0]]), 2, phis=[0.0])
+                self.assertEqual(res_phi_hits[0][-1, 1], -3)
+                self.assertEqual(res_phi_hits[1][-1, 1], -1)
+                # an iteration limit stops the field line before the transits are completed
+                intg = cls(field, stopping_criteria=[IterationStoppingCriterion(3)], **kwargs)
+                _, res_phi_hits = intg.compute_poincare_hits(np.array([[1.3, 0.0]]), 2, phis=[0.0])
+                self.assertEqual(res_phi_hits[0][-1, 1], -2)
+                # stopping criteria are ignored outside compute_poincare_hits
+                intg = cls(field, stopping_criteria=[MinRStoppingCriterion(1.2)], **kwargs)
+                end_RZ = intg.integrate_toroidally(np.array([1.1, 0.0]), np.pi, phi0=0.0, input_coordinates='cylindrical',
+                                                   output_coordinates='cylindrical')
+                np.testing.assert_allclose(end_RZ, [1.1, 0.0], atol=1e-7)
+
+    def test_stopping_criteria_location(self):
+        # field lines outside the NCSX plasma are stopped where they cross R=Rmax;
+        # the scipy backend locates the crossing by root finding.
+        _, _, ma, nfp, bs = get_data('ncsx')
+        R_axis = np.linalg.norm(ma.gamma()[0, :2])
+        R_max = R_axis + 0.2
+        RZ = np.array([[R_axis + 0.18, 0.0]])
+        so = SimsoptFieldlineIntegrator(bs, stopping_criteria=[MaxRStoppingCriterion(R_max)], tol=1e-10)
+        sc = ScipyFieldlineIntegrator(bs, stopping_criteria=[MaxRStoppingCriterion(R_max)],
+                                      integrator_args={'rtol': 1e-10, 'atol': 1e-12})
+        phis = np.linspace(0, 2*np.pi, 32, endpoint=False)
+        _, hits_so = so.compute_poincare_hits(RZ, 5, phis=phis)
+        _, hits_sc = sc.compute_poincare_hits(RZ, 5, phis=phis)
+        self.assertGreater(len(hits_sc[0]), 1)
+        self.assertEqual(hits_so[0][-1, 1], -2)
+        self.assertEqual(hits_sc[0][-1, 1], -2)
+        R_stop_sc = np.linalg.norm(hits_sc[0][-1, 2:4])
+        R_stop_so = np.linalg.norm(hits_so[0][-1, 2:4])
+        self.assertAlmostEqual(R_stop_sc, R_max, places=6)
+        self.assertGreaterEqual(R_stop_so, R_max)
+        # both record the same plane crossings before stopping
+        np.testing.assert_allclose(hits_so[0][:-1, 1:], hits_sc[0][:-1, 1:], atol=1e-7)
+
     def test_biotsavart_axis_endpoints_match_and_agree(self):
         # Compare both integrators on stellarator fields for all named configurations.
         # Start at the first magnetic axis point and integrate in phi to the last axis point.
