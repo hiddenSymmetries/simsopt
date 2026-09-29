@@ -48,6 +48,7 @@ Conventions:
 """
 
 import logging
+from math import gcd
 from types import SimpleNamespace
 
 import numpy as np
@@ -294,14 +295,60 @@ class Integrator(Optimizable):
             res_tys = None
         return res_tys, res_phi_hits
 
-    def periodic_fieldline(self, start_point, order, nfp=1, ntor=1, stellsym=True, phi0=None,
+    @staticmethod
+    def _fieldline_symmetry(nfp, iota):
+        r"""
+        Field periods and toroidal transits of a periodic field line on a
+        rational surface, for its representation as a
+        :class:`~simsopt.geo.CurveXYZFourierSymmetries`.
+
+        For :math:`\iota = n/m`, with :math:`g = \gcd(n, m)`, the field line closes
+        after :math:`n_\text{tor} = m/g` toroidal transits, and the island chain
+        consists of :math:`g` distinct periodic field lines. If the field period
+        symmetry maps these onto each other cyclically, each field line has
+        :math:`n_\text{fp}/g` field periods. Using fewer field periods than the
+        field line has is always valid, so if :math:`g` does not divide
+        :math:`n_\text{fp}`, or if the field periods and transits are not coprime
+        (as :class:`~simsopt.geo.CurveXYZFourierSymmetries` requires), the number
+        of field periods is reduced until the representation is valid.
+
+        Args:
+            nfp (int): number of field periods of the magnetic field.
+            iota (tuple, optional): (n, m) with :math:`\iota = n/m`. None for the magnetic axis.
+
+        Returns:
+            tuple: (nfp, ntor) of the periodic field line.
+        """
+        if iota is None:
+            return nfp, 1
+        n, m = iota
+        if m <= 0:
+            raise ValueError(f"iota=(n, m) requires m > 0, got m={m}.")
+        g = gcd(n, m)
+        ntor = m // g
+        nfp_line = nfp // g if nfp % g == 0 else 1
+        while gcd(nfp_line, ntor) != 1:
+            nfp_line //= gcd(nfp_line, ntor)
+        return nfp_line, ntor
+
+    def periodic_fieldline(self, start_point, order, nfp=1, iota=None, stellsym=True, phi0=None,
                            input_coordinates='cartesian', points_per_dof=10, options=None):
         r"""
-        Find the periodic field line (for example the magnetic axis) near
-        ``start_point``, as a :class:`~simsopt.geo.PeriodicFieldLine`.
+        Find the periodic field line near ``start_point``, as a
+        :class:`~simsopt.geo.PeriodicFieldLine`. This is the magnetic axis, or,
+        if ``iota`` is given, an X- or O-point of an island chain on the
+        rational surface :math:`\iota = n/m`.
 
-        The field line through ``start_point`` is traced over one field period,
-        :math:`\Delta\phi = 2\pi n_\text{tor}/n_\text{fp}`, and the traced points,
+        The field line closes after :math:`n_\text{tor} = m/\gcd(n, m)` toroidal
+        transits (1 for the axis), and has :math:`n_\text{fp}/\gcd(n, m)` field
+        periods of its own (see :meth:`_fieldline_symmetry`). For example, each
+        of the five field lines of a 5/5 island chain in a five-period field
+        closes after one transit and has no field period symmetry, whereas the
+        single field line of a 3/4 island chain in a three-period field closes
+        after four transits and has three field periods.
+
+        The field line through ``start_point`` is traced over one of its own
+        periods, :math:`\Delta\phi = 2\pi n_\text{tor}/n_\text{fp,line}`, and the traced points,
         parametrized by arclength, are fitted with a
         :class:`~simsopt.geo.CurveXYZFourierSymmetries`. This initial guess is
         then refined with :meth:`~simsopt.geo.PeriodicFieldLine.run_code`. The
@@ -312,10 +359,11 @@ class Integrator(Optimizable):
             start_point (array): (x, y, z) if ``input_coordinates`` is 'cartesian',
                 (R, Z) if 'cylindrical'.
             order (int): number of Fourier modes of the curve.
-            nfp (int): number of field periods of the curve.
-            ntor (int): number of toroidal transits after which the field line closes.
+            nfp (int): number of field periods of the magnetic field.
+            iota (tuple, optional): (n, m) with :math:`\iota = n/m` for a field
+                line of an island chain. None (the default) for the magnetic axis.
                 If :math:`B_\phi<0`, the curve runs along the field towards
-                decreasing :math:`\phi` and has ``curve.ntor = -ntor``.
+                decreasing :math:`\phi`, and ``curve.ntor`` is negative.
             stellsym (bool): whether the curve is stellarator symmetric. This
                 requires the periodic field line to pass through
                 :math:`\phi=0, Z=0`.
@@ -333,6 +381,7 @@ class Integrator(Optimizable):
         """
         from ..geo import CurveXYZFourierSymmetries, PeriodicFieldLine
 
+        nfp, ntor = self._fieldline_symmetry(nfp, iota)
         n_quad = 2*order + 1
         delta_phi = 2*np.pi*ntor/nfp
         xyz = self.integrate_fieldlinepoints(start_point, delta_phi, n_points=points_per_dof*n_quad, phi0=phi0,

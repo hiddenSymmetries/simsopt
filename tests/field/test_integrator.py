@@ -401,6 +401,21 @@ class TestPeriodicFieldline(unittest.TestCase):
                     np.testing.assert_allclose(rz.gamma(), ma.gamma(), atol=1e-3)
                     np.testing.assert_allclose(rz.x, ma.x, atol=1e-3)
 
+    def test_fieldline_symmetry(self):
+        # (nfp, iota) -> (nfp, ntor) of the periodic field line
+        cases = [((3, None), (3, 1)),    # magnetic axis
+                 ((3, (3, 4)), (3, 4)),  # one field line, closes after 4 transits
+                 ((5, (5, 5)), (1, 1)),  # five field lines, each closes after 1 transit
+                 ((4, (2, 6)), (2, 3)),  # two field lines, each with 2 field periods
+                 ((3, (2, 4)), (1, 2)),  # two field lines cannot be a single orbit of 3 periods
+                 ((2, (1, 2)), (1, 2)),  # 2 field periods and 2 transits are not coprime
+                 ((6, (1, 4)), (3, 4))]  # 6 periods reduced to 3 to be coprime with 4 transits
+        for (nfp, iota), expected in cases:
+            with self.subTest(nfp=nfp, iota=iota):
+                self.assertEqual(Integrator._fieldline_symmetry(nfp, iota), expected)
+        with self.assertRaises(ValueError):
+            Integrator._fieldline_symmetry(2, (1, 0))
+
     def test_cylindrical_input(self):
         _, _, ma, nfp, bs = get_data('ncsx')
         R_axis = ma.x[0] + np.sum(ma.x[1:ma.order+1])  # R at phi=0
