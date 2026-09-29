@@ -188,6 +188,29 @@ class Testing(unittest.TestCase):
             # nfp = 2 and ntor = 2 here, so an exception should be raised
             _ = CurveXYZFourierSymmetries(100, order, nfp, True, ntor=ntor, x0=np.ones(3*order+1))
 
+    def test_curvexyzfouriersymmetries_to_RZFourier(self):
+        # fit the NCSX axis with a CurveXYZFourierSymmetries running in either
+        # direction, convert back, and compare with the original axis.
+        _, _, ma, nfp, _ = get_data('ncsx')
+        order = ma.order + 2
+        quadpoints = np.linspace(0, 1/nfp, 2*order+1, endpoint=False)
+        for ntor in [1, -1]:
+            with self.subTest(ntor=ntor):
+                # the axis evaluated at phi = 2*pi*ntor*theta
+                axis_samples = CurveRZFourier(np.mod(ntor*quadpoints, 1), ma.order, ma.nfp, ma.stellsym)
+                axis_samples.x = ma.x
+                curve = CurveXYZFourierSymmetries(quadpoints, order, nfp, True, ntor=ntor)
+                curve.least_squares_fit(axis_samples.gamma())
+                rz = curve.to_RZFourier(order=ma.order, quadpoints=ma.quadpoints)
+                self.assertEqual(rz.nfp, nfp)
+                np.testing.assert_allclose(rz.x, ma.x, atol=1e-8)
+                np.testing.assert_allclose(rz.gamma(), ma.gamma(), atol=1e-8)
+
+        with self.assertRaises(ValueError):
+            CurveXYZFourierSymmetries(100, 1, 1, True, ntor=2).to_RZFourier()
+        with self.assertRaises(ValueError):
+            CurveXYZFourierSymmetries(100, 1, 2, True).to_RZFourier(nfp=3)
+
     def test_curvehelical_is_curvexyzfouriersymmetries(self):
         # this test checks that both helical coil representations can produce the same helical curve on a torus
         order = 1

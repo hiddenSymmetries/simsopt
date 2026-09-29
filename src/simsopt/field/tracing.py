@@ -654,7 +654,7 @@ def compute_poloidal_transits(res_tys, ma=None, flux=True):
     return ntransits
 
 
-def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None):
+def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None, phi0=0):
     r"""
     Compute magnetic field lines by solving
 
@@ -662,19 +662,24 @@ def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_crit
 
         [\dot x, \dot y, \dot z] = B(x, y, z)
 
-    Integration is initialized on the :math:`\phi = 0` plane.
+    Integration is initialized on the :math:`\phi = \phi_0` plane(s).
 
     Args:
-        field: the magnetic field :math:`B`
-        R0: list of radial components of initial points
-        Z0: list of vertical components of initial points
-        tmax: for how long to trace. will do roughly ``|B|*tmax/(2*pi*r0)`` revolutions of the device
-        tol: tolerance for the adaptive ode solver
-        phis: list of angles in [0, 2pi] for which intersection with the plane
-              corresponding to that phi should be computed
-        stopping_criteria: list of stopping criteria, mostly used in
-                           combination with the ``LevelsetStoppingCriterion``
-                           accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
+        field (MagneticField): the magnetic field :math:`B`.
+        R0 (list, array): radial components of the initial points.
+        Z0 (list, array): vertical components of the initial points.
+        tmax (float): longest allowable integration 'time'. Will do roughly
+            ``|B|*tmax/(2*pi*r0)`` revolutions of the device, unless one of the
+            stopping criteria is hit first.
+        tol (float): tolerance for the adaptive ode solver.
+        phis (list, array): angles in [0, 2pi] for which intersection with the plane
+            corresponding to that phi should be computed.
+        stopping_criteria (list): list of stopping criteria, mostly used in
+            combination with the ``LevelsetStoppingCriterion``
+            accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
+        comm (MPI.Comm, optional): MPI communicator to parallelize over.
+        phi0 (float, list, array): toroidal angle of the initial points. A single
+            value is used for all initial points.
 
     Returns: 2 element tuple containing
         - ``res_tys``:
@@ -691,9 +696,12 @@ def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_crit
             was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
     """
     assert len(R0) == len(Z0)
+    phi0 = np.asarray(phi0, dtype=float)
+    assert phi0.ndim == 0 or len(phi0) == len(R0)
     nlines = len(R0)
     xyz_inits = np.zeros((nlines, 3))
-    xyz_inits[:, 0] = np.asarray(R0)
+    xyz_inits[:, 0] = np.cos(phi0) * np.asarray(R0)
+    xyz_inits[:, 1] = np.sin(phi0) * np.asarray(R0)
     xyz_inits[:, 2] = np.asarray(Z0)
     res_tys = []
     res_phi_hits = []

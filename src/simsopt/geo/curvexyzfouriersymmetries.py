@@ -1,6 +1,8 @@
 import jax.numpy as jnp
 import numpy as np
+from scipy.interpolate import CubicSpline
 from .curve import JaxCurve
+from .curverzfourier import CurveRZFourier
 from math import gcd
 
 __all__ = ['CurveXYZFourierSymmetries']
@@ -139,3 +141,65 @@ class CurveXYZFourierSymmetries(JaxCurve):
 
     def set_dofs_impl(self, dofs):
         self.coefficients[:] = dofs[:]
+
+    def to_RZFourier(self, order=None, quadpoints=None, nfp=None, n_samples=None):
+        r"""
+        Represent this curve as a :class:`~simsopt.geo.CurveRZFourier`, which
+        is parametrized by the toroidal angle, :math:`\phi = 2\pi\theta`.
+
+        This is only possible for a curve that goes around the torus once
+        (``ntor=1``, or ``ntor=-1`` for a curve that runs towards decreasing
+        :math:`\phi`) with :math:`\phi` monotonic along the curve, such as a
+        magnetic axis. The curve is sampled over one field period, :math:`R`
+        and :math:`Z` are interpolated as periodic functions of :math:`\phi`,
+        and the result is fitted with :meth:`least_squares_fit`. The
+        :class:`~simsopt.geo.CurveRZFourier` has the same ``stellsym`` as this curve.
+
+        Args:
+            order (int, optional): order of the CurveRZFourier. Defaults to ``self.order``.
+            quadpoints (int or array, optional): quadrature points of the
+                CurveRZFourier. Defaults to ``4*(2*order+1)*nfp`` points on [0, 1).
+            nfp (int, optional): number of field periods of the CurveRZFourier.
+                Defaults to ``self.nfp``. A multiple of ``self.nfp`` can be given
+                if the curve has more symmetry than its representation.
+            n_samples (int, optional): number of points at which this curve is
+                sampled over one field period for the interpolation. Defaults to
+                ``100*(2*self.order+1)``.
+
+        Returns:
+            CurveRZFourier: the curve in cylindrical representation.
+        """
+        if abs(self.ntor) != 1:
+            raise ValueError(f"Only a curve that goes around the torus once can be represented as a CurveRZFourier, "
+                             f"but this curve has ntor={self.ntor}.")
+        if nfp is None:
+            nfp = self.nfp
+        if nfp % self.nfp != 0:
+            raise ValueError(f"nfp={nfp} must be a multiple of the curve's nfp={self.nfp}.")
+        if order is None:
+            order = self.order
+        if quadpoints is None:
+            quadpoints = 4*(2*order + 1)*nfp
+        if n_samples is None:
+            n_samples = 100*(2*self.order + 1)
+        period = 2*np.pi/self.nfp
+
+        samples = CurveXYZFourierSymmetries(np.linspace(0, 1/self.nfp, n_samples, endpoint=False), self.order,
+                                            self.nfp, self.stellsym, ntor=self.ntor, x0=self.x).gamma()
+        phi = np.unwrap(np.arctan2(samples[:, 1], samples[:, 0]))
+        if self.ntor < 0:
+            samples, phi = samples[::-1], phi[::-1]
+        if np.any(np.diff(phi) <= 0):
+            raise ValueError("The toroidal angle is not monotonic along the curve, so it cannot be represented as a CurveRZFourier.")
+        R = np.linalg.norm(samples[:, :2], axis=1)
+        Z = samples[:, 2]
+        # close the period for the periodic spline
+        phi = np.append(phi, phi[0] + period)
+        R_of_phi = CubicSpline(phi, np.append(R, R[0]), bc_type='periodic', extrapolate='periodic')
+        Z_of_phi = CubicSpline(phi, np.append(Z, Z[0]), bc_type='periodic', extrapolate='periodic')
+
+        curve = CurveRZFourier(quadpoints, order, nfp, self.stellsym)
+        phi_quad = 2*np.pi*np.asarray(curve.quadpoints)
+        R_quad = R_of_phi(phi_quad)
+        curve.least_squares_fit(np.column_stack((R_quad*np.cos(phi_quad), R_quad*np.sin(phi_quad), Z_of_phi(phi_quad))))
+        return curve
