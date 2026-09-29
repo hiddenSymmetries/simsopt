@@ -83,7 +83,8 @@ class VmecppSolver:
     :obj:`~simsopt.mhd.vmec.VmecSolverProtocol` for VMEC++.
 
     ``indata`` has no ``m == mpol`` boundary row, so that row of the
-    boundary is dropped. ``mpi`` may be ``None``.
+    boundary is dropped. Every rank runs VMEC++ serially without communicating;
+    ``mpi`` only decides which rank writes files and names them. It may be ``None``.
     """
 
     def __init__(self, filename, mpi, keep_all_files: bool = False, verbose: bool = True):
@@ -357,9 +358,6 @@ class VmecppSolver:
         if self.mpi is None or self.mpi.proc0_groups:
             self.wout.save(Path(self.output_file))
 
-        if self.mpi is not None:
-            self.mpi.comm_groups.barrier()
-
         # Group leaders handle deletion of files:
         if self.mpi is None or self.mpi.proc0_groups:
             # If the worker group is not 0, delete all wout files, unless
@@ -398,8 +396,6 @@ class VmecppSolver:
 
     def update_mpi(self, new_mpi):
         self.mpi = new_mpi
-        if new_mpi is not None:
-            self.iter = new_mpi.comm_world.bcast(self.iter)
 
     def __repr__(self):
         mpol, ntor = self.resolution
