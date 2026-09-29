@@ -390,14 +390,14 @@ def curve_to_rzfourier(curve, like):
     """
     dense = CurveXYZFourierSymmetries(np.linspace(0, 1, 4000, endpoint=False), curve.order, curve.nfp,
                                       curve.stellsym, ntor=curve.ntor, x0=curve.x)
-    g = dense.gamma()
-    phi = np.unwrap(np.arctan2(g[:, 1], g[:, 0]))
+    gamma = dense.gamma()
+    phi = np.unwrap(np.arctan2(gamma[:, 1], gamma[:, 0]))
     if phi[-1] < phi[0]:  # curve runs towards decreasing phi
-        g, phi = g[::-1], phi[::-1]
-    R = np.linalg.norm(g[:, :2], axis=1)
+        gamma, phi = gamma[::-1], phi[::-1]
+    R = np.linalg.norm(gamma[:, :2], axis=1)
     phi = np.append(phi, phi[0] + 2*np.pi)
     R = np.append(R, R[0])
-    Z = np.append(g[:, 2], g[0, 2])
+    Z = np.append(gamma[:, 2], gamma[0, 2])
     phi_q = 2*np.pi*np.asarray(like.quadpoints)
     R_q = CubicSpline(phi, R, bc_type='periodic')(phi_q)
     Z_q = CubicSpline(phi, Z, bc_type='periodic')(phi_q)

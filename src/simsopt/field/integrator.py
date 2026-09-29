@@ -343,8 +343,10 @@ class Integrator(Optimizable):
         # decreasing phi, and the curve winds with -ntor.
         self.field.set_points(np.ascontiguousarray(xyz[:1]))
         if self.field.B_cyl()[0, 1] < 0:
-            c, s = np.cos(-delta_phi), np.sin(-delta_phi)
-            xyz = xyz[::-1] @ np.array([[c, s, 0], [-s, c, 0], [0, 0, 1]])
+            rotation = np.array([[np.cos(delta_phi), -np.sin(delta_phi), 0],
+                                 [np.sin(delta_phi), np.cos(delta_phi), 0],
+                                 [0, 0, 1]])
+            xyz = xyz[::-1] @ rotation  # rotates row vectors by -delta_phi
             ntor = -ntor
         # parametrize the traced points by arclength over one period, theta in [0, 1/nfp]
         arclength = np.concatenate(([0], np.cumsum(np.linalg.norm(np.diff(xyz, axis=0), axis=1))))
