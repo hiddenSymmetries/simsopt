@@ -8,12 +8,14 @@ This module provides a class that handles the VMEC equilibrium code.
 
 import logging
 import os.path
-from typing import Optional
+from dataclasses import dataclass, field
 from datetime import datetime
 
 import numpy as np
 from scipy.io import netcdf_file
 from scipy.integrate import quad
+
+from typing import Any, NamedTuple, Optional, Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +40,8 @@ if MPI is not None:
 else:
     MpiPartition = None
 
-__all__ = ["Vmec"]
+__all__ = ["FourierMode", "ProfileProtocol", "SurfaceRZFourierProtocol", "Vmec",
+           "VmecBoundary", "VmecSolverProtocol"]
 
 
 # Flags used by runvmec():
@@ -109,6 +112,92 @@ def array_to_namelist(arr, aux_s=False):
 #                        the tasks thru cleanup_flag in addition,
 #                        if ns_index = 0 and numsteps = 0 (see below), vmec will
 #                        control its own run history
+
+class FourierMode(NamedTuple):
+    """ Key of a boundary Fourier coefficient. """
+    m: int
+    n: int
+
+
+@runtime_checkable
+class SurfaceRZFourierProtocol(Protocol):
+    """ Boundary passed to a Vmec solver, with coefficients keyed by :obj:`FourierMode`. """
+    nfp: int
+    stellsym: bool
+    mpol: int
+    ntor: int
+    rbc: dict
+    zbs: dict
+    rbs: dict
+    zbc: dict
+
+
+@runtime_checkable
+class ProfileProtocol(Protocol):
+    """ Radial profile passed to a Vmec solver: a callable of ``s``. """
+    def __call__(self, s): ...
+
+
+@runtime_checkable
+class VmecSolverProtocol(Protocol):
+    """
+    Interface of a VMEC backend driven by :obj:`Vmec`.
+
+    ``phiedge``, ``curtor`` and ``pres_scale`` are views onto ``indata``.
+    If both ``current`` and ``iota`` are set, ``indata.ncurr`` selects one.
+    """
+
+    boundary: SurfaceRZFourierProtocol
+    pressure: Optional[ProfileProtocol]
+    current: Optional[ProfileProtocol]
+    iota: Optional[ProfileProtocol]
+
+    phiedge: float
+    curtor: float
+    pres_scale: float
+
+    indata: Any
+    wout: Any
+    output_file: Any
+    verbose: bool
+
+    def solve(self) -> None: ...
+
+    def load_wout(self) -> int: ...
+
+    def update_mpi(self, new_mpi) -> None: ...
+
+
+@dataclass
+class VmecBoundary:
+    """ :obj:`SurfaceRZFourierProtocol` built by :obj:`Vmec` from its boundary ``surface``. """
+    nfp: int = 1
+    stellsym: bool = True
+    mpol: int = 1
+    ntor: int = 0
+    rbc: dict = field(default_factory=dict)
+    zbs: dict = field(default_factory=dict)
+    rbs: dict = field(default_factory=dict)
+    zbc: dict = field(default_factory=dict)
+    surface: Any = None
+
+
+REQUIRED_WOUT_FIELDS = (
+    'aspect', 'Aminor_p', 'Rmajor_p', 'betatotal', 'ctor', 'ier_flag',
+    'lasym', 'mnmax', 'mnmax_nyq', 'mpol', 'nfp', 'ns', 'ntor', 'signgs',
+    'volavgB', 'volume_p', 'fsqr', 'fsql', 'fsqz',
+    'pmass_type', 'pcurr_type', 'piota_type',
+    'xm', 'xn', 'xm_nyq', 'xn_nyq',
+    'iotaf', 'iotas', 'pres', 'phi', 'chi', 'vp', 'buco', 'bvco',
+    'jcurv', 'jdotb',
+    'rmnc', 'zmns', 'lmns', 'gmnc', 'bmnc', 'bsupumnc', 'bsupvmnc',
+    'bsubumnc', 'bsubvmnc', 'bsubsmns',
+)
+
+REQUIRED_WOUT_FIELDS_ASYM = (
+    'rmns', 'zmnc', 'lmnc', 'gmns', 'bmns', 'bsupumns', 'bsupvmns',
+    'bsubumns', 'bsubvmns', 'bsubsmnc',
+)
 
 
 class Vmec(Optimizable):
