@@ -311,7 +311,7 @@ class Vmec(Optimizable):
         else:
             raise ValueError('Invalid filename')
 
-        self._solver = None
+        self._solver: Optional[VmecSolverProtocol] = None
         self._wout = Struct()
         self._output_file = None
         self._verbose = verbose

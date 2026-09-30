@@ -26,7 +26,7 @@ from .vmec_solver import (
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["COMMON_INDATA_FIELDS", "VmecppIndata", "VmecppSolver"]
+__all__ = ["COMMON_INDATA_FIELDS", "VmecppSolver"]
 
 
 #: ``indata`` fields with the same meaning on the VMEC2000 and VMEC++ backends.
@@ -41,41 +41,7 @@ COMMON_INDATA_FIELDS = (
     'raxis_cc', 'raxis_cs', 'zaxis_cc', 'zaxis_cs',
 )
 
-AXIS_ALIASES = {
-    'raxis_cc': 'raxis_c',
-    'raxis_cs': 'raxis_s',
-    'zaxis_cc': 'zaxis_c',
-    'zaxis_cs': 'zaxis_s',
-}
-
-_BYTES_FIELDS = ('mgrid_file', 'pmass_type', 'pcurr_type', 'piota_type')
-
 SUCCESSFUL_TERM_FLAG = 11
-
-
-def final_resolution(value):
-    return int(value) if np.ndim(value) == 0 else int(value[-1])
-
-
-class VmecppIndata(vmecpp.VmecInput):
-    """ :obj:`vmecpp.VmecInput` that also accepts the fortran axis names and ``bytes`` tags. """
-
-    @classmethod
-    def from_vmec_input(cls, vmec_input):
-        return cls.model_construct(
-            _fields_set=set(vmec_input.__pydantic_fields_set__),
-            **dict(vmec_input.__dict__))
-
-    def __getattr__(self, name):
-        if name in AXIS_ALIASES:
-            return getattr(self, AXIS_ALIASES[name])
-        return super().__getattr__(name)
-
-    def __setattr__(self, name, value):
-        name = AXIS_ALIASES.get(name, name)
-        if name in _BYTES_FIELDS and isinstance(value, bytes):
-            value = value.decode().strip()
-        super().__setattr__(name, value)
 
 
 class VmecppSolver:
@@ -95,8 +61,8 @@ class VmecppSolver:
 
         self.mpi = mpi
         self.verbose = verbose
-        self.wout = None
-        self.output_file = None
+        self.wout: vmecpp.VmecWOut | None = None
+        self.output_file: str | None = None
 
         self._boundary = None
         self.pressure = None
@@ -111,7 +77,7 @@ class VmecppSolver:
         self.files_to_delete = []
         self.input_file = filename
 
-        self.indata = VmecppIndata.from_vmec_input(vmecpp.VmecInput.from_file(filename))
+        self.indata = vmecpp.VmecInput.from_file(filename)
         self.free_boundary = bool(self.indata.lfreeb)
 
         #: OpenMP threads; 1 avoids oversubscription under finite differencing.
@@ -150,7 +116,7 @@ class VmecppSolver:
     @property
     def resolution(self):
         """ Final ``(mpol, ntor)`` of ``indata``. """
-        return (final_resolution(self.indata.mpol), final_resolution(self.indata.ntor))
+        return (self.indata.mpol_max, self.indata.ntor_max)
 
     def _resize_indata(self, new_mpol, new_ntor):
         vi = self.indata  # Shorthand
@@ -161,7 +127,7 @@ class VmecppSolver:
         # Keep a continuation schedule:
         for name, requested in (('mpol', requested_mpol), ('ntor', requested_ntor)):
             if np.ndim(requested) != 0 and \
-                    final_resolution(requested) == getattr(self.indata, name):
+                    int(requested[-1]) == getattr(self.indata, name):
                 setattr(self.indata, name, requested)
 
     def _ensure_indata_resolution(self):
@@ -209,6 +175,8 @@ class VmecppSolver:
                 boundary.rbc[(m, n)] = vi.rbc[m, n + ntor]
                 boundary.zbs[(m, n)] = vi.zbs[m, n + ntor]
                 if vi.lasym:
+                    assert vi.rbs is not None
+                    assert vi.zbc is not None
                     boundary.rbs[(m, n)] = vi.rbs[m, n + ntor]
                     boundary.zbc[(m, n)] = vi.zbc[m, n + ntor]
         return boundary
@@ -242,11 +210,13 @@ class VmecppSolver:
         self._ensure_indata_resolution()
         vi = self.indata  # Shorthand
         mpol, ntor = self.resolution
-        vi.rbc.fill(0.0)
-        vi.zbs.fill(0.0)
+        vi.rbc[:, :] = 0.0
+        vi.zbs[:, :] = 0.0
         if vi.lasym:
-            vi.rbs.fill(0.0)
-            vi.zbc.fill(0.0)
+            assert vi.rbs is not None
+            assert vi.zbc is not None
+            vi.rbs[:, :] = 0.0
+            vi.zbc[:, :] = 0.0
 
         # indata has no m == mpol row, so the boundary's is dropped:
         mpol_capped = min(boundary.mpol + 1, mpol)
@@ -256,6 +226,8 @@ class VmecppSolver:
                 vi.rbc[m, n + ntor] = boundary.rbc.get((m, n), 0.0)
                 vi.zbs[m, n + ntor] = boundary.zbs.get((m, n), 0.0)
                 if vi.lasym:
+                    assert vi.rbs is not None
+                    assert vi.zbc is not None
                     vi.rbs[m, n + ntor] = boundary.rbs.get((m, n), 0.0)
                     vi.zbc[m, n + ntor] = boundary.zbc.get((m, n), 0.0)
 
@@ -268,6 +240,8 @@ class VmecppSolver:
         vi.raxis_c.fill(0.0)
         vi.zaxis_s.fill(0.0)
         if vi.lasym:
+            assert vi.raxis_s is not None
+            assert vi.zaxis_c is not None
             vi.raxis_s.fill(0.0)
             vi.zaxis_c.fill(0.0)
 
@@ -351,7 +325,7 @@ class VmecppSolver:
             wout = getattr(e, "wout", None)
             reason = "" if wout is None else f" {wout.reason}."
             raise ObjectiveFailure(f"VMEC++ failed: {e}{reason}") from e
-        self._set_wout(self.output_quantities.wout)
+        self.wout = self.output_quantities.wout
 
         logger.info("VMEC++ run complete. Now saving output.")
         if self.mpi is None or self.mpi.proc0_groups:
@@ -380,17 +354,10 @@ class VmecppSolver:
     def load_wout(self):
         """ Read ``output_file`` into ``wout``. """
         logger.info(f"Attempting to read file {self.output_file}")
-        self._set_wout(vmecpp.VmecWOut.from_wout_file(self.output_file))
+        self.wout = vmecpp.VmecWOut.from_wout_file(self.output_file)
         if self.wout.ier_flag not in (0, SUCCESSFUL_TERM_FLAG):
             raise ObjectiveFailure(f"VMEC++ did not succeed. {self.wout.reason}")
         return 0
-
-    def _set_wout(self, wout):
-        # In place after the first run, so references to wout stay live:
-        if self.wout is None:
-            self.wout = wout.model_copy()
-        else:
-            vars(self.wout).update(vars(wout))
 
     def update_mpi(self, new_mpi):
         self.mpi = new_mpi
