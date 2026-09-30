@@ -299,7 +299,10 @@ class Vmec(Optimizable):
             logger.info(f"Initializing a VMEC object from defaults in {filename}")
 
         basename = os.path.basename(filename)
-        if basename[:5] == 'input':
+        # Fortran VMEC input files are called input.<extension>; VMEC++
+        # also accepts a JSON input file, whose name need not start with
+        # "input".
+        if basename[:5] == 'input' or basename.endswith('.json'):
             logger.info(f"Initializing a VMEC object from input file: {filename}")
             self.runnable = True
         elif basename[:4] == 'wout':
@@ -308,7 +311,7 @@ class Vmec(Optimizable):
         else:
             raise ValueError('Invalid filename')
 
-        self._solver = None
+        self._solver: Optional[VmecSolverProtocol] = None
         self._wout = Struct()
         self._output_file = None
         self._verbose = verbose
@@ -327,8 +330,6 @@ class Vmec(Optimizable):
         self.n_iota = 10
 
         if self.runnable:
-            if MPI is None:
-                raise RuntimeError("mpi4py needs to be installed for running VMEC")
             if solver is None:
                 solver = Vmec2000Solver
             # A class is a factory, even if its class attributes satisfy the protocol:
@@ -740,8 +741,11 @@ class Vmec(Optimizable):
         """
         Print the object in an informative way.
         """
-        return f"{self.name} (nfp={self.indata.nfp} mpol={self.indata.mpol}" + \
-               f" ntor={self.indata.ntor})"
+        # Backends that support a Fourier continuation schedule resolve
+        # it in their `resolution`, so indata.mpol may be a sequence.
+        mpol, ntor = getattr(self._solver, "resolution",
+                             (self.indata.mpol, self.indata.ntor))
+        return f"{self.name} (nfp={self.indata.nfp} mpol={mpol} ntor={ntor})"
 
     def external_current(self):
         """
