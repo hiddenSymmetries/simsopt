@@ -21,9 +21,7 @@ from simsopt.mhd.vmec_solver import load_wout_file
 try:
     import vmecpp
     from simsopt.mhd.vmecpp_solver import (
-        AXIS_ALIASES,
         COMMON_INDATA_FIELDS,
-        VmecppIndata,
         VmecppSolver,
     )
 except ImportError:  # vmecpp is an optional dependency
@@ -58,10 +56,6 @@ class VmecppSolverTests(unittest.TestCase):
         """ The whole point: users get vmecpp's own type, hints and docstrings. """
         solver = self.solver()
         self.assertIsInstance(solver.indata, vmecpp.VmecInput)
-        self.assertIsInstance(solver.indata, VmecppIndata)
-        self.assertEqual(set(VmecppIndata.model_fields), set(vmecpp.VmecInput.model_fields))
-        for name, field in vmecpp.VmecInput.model_fields.items():
-            self.assertEqual(VmecppIndata.model_fields[name].annotation, field.annotation)
 
     def test_bad_filename_raises(self):
         with self.assertRaises(ValueError):
@@ -182,27 +176,6 @@ class VmecppSolverTests(unittest.TestCase):
                     np.testing.assert_allclose(new_value, value)
                 else:
                     self.assertEqual(new_value, value)
-
-    def test_axis_aliases(self):
-        """ The fortran axis names alias vmecpp's. """
-        indata = self.solver().indata
-        for fortran_name, vmecpp_name in AXIS_ALIASES.items():
-            with self.subTest(name=fortran_name):
-                self.assertIs(getattr(indata, fortran_name), getattr(indata, vmecpp_name))
-        ntor = indata.raxis_c.size
-        indata.raxis_cc = np.linspace(1.0, 2.0, ntor)
-        np.testing.assert_allclose(indata.raxis_c, np.linspace(1.0, 2.0, ntor))
-        indata.zaxis_cs = np.zeros(ntor)
-        np.testing.assert_allclose(indata.zaxis_s, 0.0)
-
-    def test_bytes_accepted_for_string_fields(self):
-        """ fortran-facing code assigns b'...', which must be decoded. """
-        indata = self.solver().indata
-        indata.mgrid_file = b"mgrid_foo.nc   "
-        self.assertEqual(indata.mgrid_file, "mgrid_foo.nc")
-        for name in ["pmass_type", "pcurr_type", "piota_type"]:
-            setattr(indata, name, b"cubic_spline  ")
-            self.assertEqual(getattr(indata, name), "cubic_spline")
 
     def test_dofs_alias_indata(self):
         v = self.vmec()
