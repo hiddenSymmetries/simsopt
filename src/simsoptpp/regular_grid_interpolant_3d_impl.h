@@ -91,17 +91,30 @@ void RegularGridInterpolant3D<Array>::evaluate_inplace(double x, double y, doubl
     if(z >= zmax) z -= _EPS_;
     else if (z <= zmin) z += _EPS_;
 
-    int xidx = int(nx*(x-xmin)/(xmax-xmin)); // find idx so that xmesh[xidx] <= x <= xs[xidx+1]
-    int yidx = int(ny*(y-ymin)/(ymax-ymin));
-    int zidx = int(nz*(z-zmin)/(zmax-zmin));
-    if(!out_of_bounds_ok){
-        if(xidx < 0 || xidx >= nx)
-            throw std::runtime_error(fmt::format("xidxs={} not within [0, {}]", xidx, nx-1));
-        if(yidx < 0 || yidx >= ny)
-            throw std::runtime_error(fmt::format("yidxs={} not within [0, {}]", yidx, ny-1));
-        if(zidx < 0 || zidx >= nz)
-            throw std::runtime_error(fmt::format("zidxs={} not within [0, {}]", zidx, nz-1));
+    double xidx_scaled = nx*(x-xmin)/(xmax-xmin); // find idx so that xmesh[xidx] <= x <= xs[xidx+1]
+    double yidx_scaled = ny*(y-ymin)/(ymax-ymin);
+    double zidx_scaled = nz*(z-zmin)/(zmax-zmin);
+    // A point is inside when every scaled index is in [0, n); NaN fails the
+    // comparisons too. Inside, truncation to int is the floor. (std::to_string:
+    // the bundled fmt overlaps a memcpy when it formats a double.)
+    if(!(xidx_scaled >= 0 && xidx_scaled < nx)){
+        if(out_of_bounds_ok)
+            return;
+        throw std::runtime_error("xidxs=" + std::to_string(xidx_scaled) + " not within [0, " + std::to_string(nx) + ")");
     }
+    if(!(yidx_scaled >= 0 && yidx_scaled < ny)){
+        if(out_of_bounds_ok)
+            return;
+        throw std::runtime_error("yidxs=" + std::to_string(yidx_scaled) + " not within [0, " + std::to_string(ny) + ")");
+    }
+    if(!(zidx_scaled >= 0 && zidx_scaled < nz)){
+        if(out_of_bounds_ok)
+            return;
+        throw std::runtime_error("zidxs=" + std::to_string(zidx_scaled) + " not within [0, " + std::to_string(nz) + ")");
+    }
+    int xidx = int(xidx_scaled);
+    int yidx = int(yidx_scaled);
+    int zidx = int(zidx_scaled);
     double xlocal = (x-xmesh[xidx])/hx;
     double ylocal = (y-ymesh[yidx])/hy;
     double zlocal = (z-zmesh[zidx])/hz;
