@@ -755,7 +755,7 @@ class MinToroidalFluxStoppingCriterion(sopp.MinToroidalFluxStoppingCriterion):
 
     .. code-block::
 
-        stopping_criteria=[MinToroidalFluxStopingCriterion(s)]
+        stopping_criteria=[MinToroidalFluxStoppingCriterion(s)]
 
     where ``s`` is the value of the minimum normalized toroidal flux.
     """
@@ -772,7 +772,7 @@ class MaxToroidalFluxStoppingCriterion(sopp.MaxToroidalFluxStoppingCriterion):
 
     .. code-block::
 
-        stopping_criteria=[MaxToroidalFluxStopingCriterion(s)]
+        stopping_criteria=[MaxToroidalFluxStoppingCriterion(s)]
 
     where ``s`` is the value of the maximum normalized toroidal flux.
     """
@@ -811,7 +811,7 @@ class MinRStoppingCriterion(sopp.MinRStoppingCriterion):
 
     .. code-block::
 
-        stopping_criteria=[MinRStopingCriterion(crit_r)]
+        stopping_criteria=[MinRStoppingCriterion(crit_r)]
 
     where ``crit_r`` is the value of the critical coordinate.
     """
@@ -827,7 +827,7 @@ class MinZStoppingCriterion(sopp.MinZStoppingCriterion):
 
     .. code-block::
 
-        stopping_criteria=[MinZStopingCriterion(crit_z)]
+        stopping_criteria=[MinZStoppingCriterion(crit_z)]
 
     where ``crit_z`` is the value of the critical coordinate.
     """
@@ -843,7 +843,7 @@ class MaxRStoppingCriterion(sopp.MaxRStoppingCriterion):
 
     .. code-block::
 
-        stopping_criteria=[MaxRStopingCriterion(crit_r)]
+        stopping_criteria=[MaxRStoppingCriterion(crit_r)]
 
     where ``crit_r`` is the value of the critical coordinate.
     """
@@ -859,7 +859,7 @@ class MaxZStoppingCriterion(sopp.MaxZStoppingCriterion):
 
     .. code-block::
 
-        stopping_criteria=[MaxZStopingCriterion(crit_z)]
+        stopping_criteria=[MaxZStoppingCriterion(crit_z)]
 
     where ``crit_z`` is the value of the critical coordinate.
     """
