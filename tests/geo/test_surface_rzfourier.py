@@ -1044,6 +1044,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertEqual(s6.deduced_range, Surface.RANGE_FIELD_PERIOD)
         s7 = s.copy(nfp=10)
         self.assertEqual(s7.nfp, 10)
+        s7 = s.copy(nfp=10, range='field period')
+        np.testing.assert_allclose(s7.quadpoints_phi, Surface.get_phi_quadpoints(
+            nphi=len(s.quadpoints_phi), range='field period', nfp=10))
         s8 = s.copy(mpol=5, ntor=6)
         self.assertEqual(s8.mpol, 5)
         self.assertEqual(s8.ntor, 6)

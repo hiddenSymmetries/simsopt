@@ -289,6 +289,14 @@ class WireframeFieldTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             field_wf_tor.dBnormal_by_dsegmentcurrents_matrix(None)
 
+        # Segment node indices that do not fit in int32 are rejected
+        segments = test_wf_tor.segments
+        for bad in [segments - segments.max() - 1, segments.astype(np.int64) + 2**32,
+                    segments.astype(float)]:
+            test_wf_tor.segments = bad
+            with self.assertRaises(ValueError):
+                WireframeField(test_wf_tor)
+
 
 if __name__ == "__main__":
     unittest.main()
