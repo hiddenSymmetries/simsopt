@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include "regular_grid_interpolant_3d.h"
 #include <xtensor/containers/xarray.hpp>
@@ -138,12 +139,15 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
     if constexpr (xsimd::simd_type<double>::size >= 3){
         // batches have no per-lane operator[] anymore; build the 3-lane input via a
         // small contiguous buffer + load, and read results back via store + index.
-        
-        alignas(xs::default_arch::alignment()) double xyz_arr[4] {x, y, z, 0.0};
+        // both buffers hold a full batch (simdcount lanes); unused lanes are zero.
+        // The length is at least 3 so that this discarded branch still compiles
+        // when a batch is narrower (clang checks it, e.g. 2 lanes with SSE2).
+        constexpr int nlanes = std::max(simdcount, 3);
+        alignas(xs::default_arch::alignment()) double xyz_arr[nlanes] = {x, y, z};
         simd_t xyz = xs::load_aligned(xyz_arr);
         for (int k = 0; k < degree+1; ++k) {
             simd_t temp = this->rule.basis_fun(k, xyz);
-            alignas(xs::default_arch::alignment()) double temp_arr[4];
+            alignas(xs::default_arch::alignment()) double temp_arr[nlanes];
             temp.store_aligned(temp_arr);
             pkxs[k] = temp_arr[0];
             pkys[k] = temp_arr[1];
