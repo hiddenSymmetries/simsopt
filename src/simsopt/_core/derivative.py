@@ -2,6 +2,9 @@ import numpy as np
 import numbers
 import collections
 
+from .derivative_decorator import derivative_dec  # noqa: F401 (re-exported)
+from .optimizable import Optimizable
+
 __all__ = ['Derivative']
 
 
@@ -15,7 +18,6 @@ class OptimizableDefaultDict(collections.defaultdict):
         super().__init__(None, d)
 
     def __missing__(self, key):
-        from .optimizable import Optimizable  # Import here to avoid circular import
         assert isinstance(key, Optimizable)
         self[key] = value = np.zeros((key.local_full_dof_size, ))
         return value
@@ -180,7 +182,6 @@ class Derivative:
                            If False, return as a numpy array.  The entries of the array correspond only to free
                            DOFs, and fixed ones are removed out.
         """
-        from .optimizable import Optimizable  # Import here to avoid circular import
         assert isinstance(optim, Optimizable)
         derivs = []
 
@@ -205,6 +206,8 @@ class Derivative:
                     for opt in k.dofs.dep_opts():
                         local_derivs += self.data[opt][opt.local_dofs_free_status]
                     derivs.append(local_derivs)
+            if not derivs:
+                return np.zeros(0)
             return np.concatenate(derivs)
 
     # https://stackoverflow.com/questions/11624955/avoiding-python-sum-default-start-arg-behavior
@@ -213,22 +216,3 @@ class Derivative:
         if other == 0:
             return self
         return self.__add__(other)
-
-
-def derivative_dec(func):
-    """
-    This decorator is applied to functions of Optimizable objects that
-    return a derivative, typically named ``dJ()``. This allows
-    ``obj.dJ()`` to provide a shorthand for the full gradient,
-    equivalent to ``obj.dJ(partials=True)(obj)``. If
-    ``partials=True``, the underlying :obj:`Derivative` object will be
-    returned, so partial derivatives can be accessed and combined to
-    assemble gradients.
-    """
-
-    def _derivative_dec(self, *args, partials=False, **kwargs):
-        if partials:
-            return func(self, *args, **kwargs)
-        else:
-            return func(self, *args, **kwargs)(self)
-    return _derivative_dec

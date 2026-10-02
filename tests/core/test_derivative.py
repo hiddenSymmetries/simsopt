@@ -116,6 +116,19 @@ def taylor_test(obj):
 
 class DerivativeTests(unittest.TestCase):
 
+    def test_derivative_dec_keeps_name_and_doc(self):
+        def dJ(self):
+            """The derivative."""
+        decorated = derivative_dec(dJ)
+        self.assertEqual(decorated.__name__, 'dJ')
+        self.assertEqual(decorated.__doc__, 'The derivative.')
+
+    def test_no_free_dofs(self):
+        opt = Opt(n=3)
+        derivative = Derivative({opt: np.ones(3)})
+        opt.fix_all()
+        np.testing.assert_array_equal(derivative(opt), np.zeros(0))
+
     def test_taylor_graph(self):
         # built a reasonably complex graph of two inputs, that both feed into
         # two intermediary results and then are combined into a final result.

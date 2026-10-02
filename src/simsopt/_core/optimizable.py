@@ -28,7 +28,7 @@ from .dev import SimsoptRequires
 from .types import RealArray, StrArray, BoolArray, Key
 from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict, \
     DofLengthMismatchError
-from .derivative import derivative_dec
+from .derivative_decorator import derivative_dec
 from .json import GSONable, SIMSON, GSONDecoder, GSONEncoder
 
 try:
