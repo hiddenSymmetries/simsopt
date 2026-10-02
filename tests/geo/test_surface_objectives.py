@@ -3,6 +3,7 @@ import numpy as np
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux, QfmResidual, parameter_derivatives, Volume, PrincipalCurvature, MajorRadius, Iotas, NonQuasiSymmetricRatio, BoozerResidual
 from simsopt.configs.zoo import get_data
+from simsopt.geo.boozersurface import BoozerSurface
 from .surface_test_helpers import get_surface, get_exact_surface, get_boozer_surface
 
 
@@ -384,6 +385,53 @@ class BoozerResidualTests(unittest.TestCase):
             return br.dJ()
 
         taylor_test1(f, df, coeffs,
+                     epsilons=np.power(2., -np.asarray(range(13, 19))))
+
+    def test_boozerresidual_exact_surface(self):
+        """
+        BoozerResidual on a BoozerExact surface, which has no label penalty
+        weight and an unweighted residual
+        """
+        for stellsym in [True, False]:
+            with self.subTest(stellsym=stellsym):
+                self.subtest_boozerresidual_exact_surface(stellsym)
+
+    def subtest_boozerresidual_exact_surface(self, stellsym):
+        bs, boozer_surface = get_boozer_surface(boozer_type='exact', stellsym=stellsym, converge=False)
+        if not stellsym:
+            # Without stellarator symmetry this surface's residual stalls near
+            # 1e-12, so the default newton_tol of 1e-13 is out of reach.
+            boozer_surface.options['newton_tol'] = 1e-10
+        res = boozer_surface.solve_residual_equation_exactly_newton(
+            tol=boozer_surface.options['newton_tol'], maxiter=40, iota=-0.406)
+        self.assertTrue(res['success'])
+        br = BoozerResidual(boozer_surface, bs)
+        self.assertEqual(br.constraint_weight, 0.)
+        self.assert_taylor_test(bs, br)
+
+    def test_boozerresidual_wrapped_label(self):
+        """
+        BoozerResidual on a BoozerExact surface accepts a composed label such
+        as 2 * Volume(s). The Newton solvers that use the label's Hessian
+        still need a label that provides one.
+        """
+        bs, unwrapped = get_boozer_surface(boozer_type='exact')
+        label = 2 * unwrapped.label
+        boozer_surface = BoozerSurface(bs, unwrapped.surface, label, label.J())
+        boozer_surface.run_code(unwrapped.res['iota'], G=unwrapped.res['G'])
+        self.assertTrue(boozer_surface.res['success'])
+        self.assert_taylor_test(bs, BoozerResidual(boozer_surface, bs))
+
+    def assert_taylor_test(self, bs, br):
+        def f(dofs):
+            bs.x = dofs
+            return br.J()
+
+        def df(dofs):
+            bs.x = dofs
+            return br.dJ()
+
+        taylor_test1(f, df, bs.x,
                      epsilons=np.power(2., -np.asarray(range(13, 19))))
 
 

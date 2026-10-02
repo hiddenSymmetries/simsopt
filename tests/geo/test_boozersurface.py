@@ -1,7 +1,11 @@
+import contextlib
 import unittest
+from types import SimpleNamespace
+from unittest import mock
 
 import numpy as np
 from simsopt.field.coil import coils_via_symmetries
+import simsopt.geo.boozersurface as boozersurface_module
 from simsopt.geo.boozersurface import BoozerSurface
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo import SurfaceXYZTensorFourier, SurfaceRZFourier
@@ -558,6 +562,241 @@ class BoozerSurfaceTests(unittest.TestCase):
             residual_norm, 1e-6,
             err_msg=f"Residual norm {residual_norm:.2e} is not less than 1e-6. Residual: {res['residual']}")
         assert res['success'], f"Optimization did not succeed. Residual norm: {residual_norm:.2e}, Residual: {res['residual']}"
+
+
+    def test_label_gradient_with_fixed_surface(self):
+        """
+        The label constraint uses the gradient with respect to all surface
+        coefficients, including shared surface dofs and fixed coefficients.
+        """
+        for label in ["Volume", "Area", "ToroidalFlux", "AspectRatio"]:
+            for n in [None, 51]:
+                for wrapped in [False, True]:
+                    with self.subTest(label=label, n=n, wrapped=wrapped):
+                        bs, b = get_boozer_surface(
+                            label=label, nphi=n, ntheta=n, boozer_type="ls", converge=False)
+                        if wrapped:
+                            b = BoozerSurface(bs, b.surface, 2 * b.label, 2 * b.targetlabel)
+                        # Keep the label constraint active so an incorrect gradient
+                        # cannot pass merely because the target is already met.
+                        b.targetlabel *= 1.1
+                        s = b.surface
+                        x = np.concatenate((s.get_dofs(), [-0.406, -2.0]))
+                        direction = np.random.default_rng(1).uniform(-0.5, 0.5, x.shape)
+                        fun = b.boozer_penalty_constraints_vectorized
+                        expected = fun(x, derivatives=1, constraint_weight=100., optimize_G=True)
+                        eps = 1e-6
+                        plus = fun(x + eps * direction, derivatives=0, constraint_weight=100., optimize_G=True)
+                        minus = fun(x - eps * direction, derivatives=0, constraint_weight=100., optimize_G=True)
+                        np.testing.assert_allclose(
+                            expected[1] @ direction, (plus - minus) / (2 * eps), rtol=1e-5, atol=1e-7)
+                        for fixed in ["some", "all"]:
+                            with self.subTest(fixed=fixed):
+                                if fixed == "some":
+                                    s.fix(0)
+                                else:
+                                    s.fix_all()
+                                actual = fun(x, derivatives=1, constraint_weight=100., optimize_G=True)
+                                np.testing.assert_array_equal(actual[0], expected[0])
+                                np.testing.assert_array_equal(actual[1], expected[1])
+
+    def test_wrapped_label(self):
+        """
+        A label that wraps another one, here 2 * Volume, gives the same exact
+        solve as the label itself, with free and with fixed surface dofs.
+        """
+        bs, boozer_surface = get_boozer_surface(
+            label="Volume", nphi=51, ntheta=51, boozer_type="exact", converge=False)
+        s = boozer_surface.surface
+        x0 = s.get_dofs()
+        wrapped = BoozerSurface(bs, s, 2 * boozer_surface.label, 2 * boozer_surface.targetlabel)
+        solutions = []
+        for b in [boozer_surface, wrapped]:
+            for fixed in [False, True]:
+                with self.subTest(wrapped=b is wrapped, fixed=fixed):
+                    if fixed:
+                        s.fix_all()
+                    else:
+                        s.unfix_all()
+                    s.set_dofs(x0)
+                    b.need_to_run_code = True
+                    res = b.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=20, iota=-0.406)
+                    self.assertTrue(res['success'])
+                    solutions.append(np.concatenate((s.get_dofs(), [res['iota'], res['G']])))
+        for solution in solutions[1:]:
+            np.testing.assert_allclose(solution, solutions[0], rtol=0, atol=1e-10)
+
+    def test_failed_solves_restore_the_starting_point(self):
+        """
+        A solve that fails and ends with a larger or non-finite residual than it
+        started with returns its starting surface, iota and G, with the residual
+        and derivatives evaluated there. A failed solve that ends with an equal
+        residual keeps its final iterate.
+        """
+        def solve_step(_A, b):
+            return np.ones_like(b)
+
+        def check(boozer_surface, solve, patches, x0, shift, after, G, expected):
+            # x0: starting dofs, iota (and G). shift: the step the mocked solver
+            # takes. expected: the returned values at the starting point.
+            boozer_surface.surface.set_dofs(x0[:boozer_surface.surface.get_dofs().size])
+            boozer_surface.need_to_run_code = True
+            with contextlib.ExitStack() as stack:
+                for target, name, fake in patches:
+                    stack.enter_context(mock.patch.object(target, name, side_effect=fake))
+                res = solve()
+            self.assertFalse(res['success'])
+            x = x0 if after != 1 else x0 + shift
+            ndofs = boozer_surface.surface.get_dofs().size
+            np.testing.assert_array_equal(boozer_surface.surface.get_dofs(), x[:ndofs])
+            self.assertEqual(res['iota'], x[ndofs])
+            self.assertEqual(res.get('G'), None if G is None else x[ndofs + 1])
+            for key, value in expected.items():
+                np.testing.assert_array_equal(res[key], value, err_msg=key)
+
+        for after in [10., np.nan, 1.]:
+            # The residual is 1 at the starting point and `after` anywhere else.
+            for G in [-2.0, None]:
+                _, boozer_surface = get_boozer_surface(boozer_type="ls", converge=False)
+                dofs = boozer_surface.surface.get_dofs()
+                x0 = np.concatenate((dofs, [-0.406] if G is None else [-0.406, G]))
+                n = x0.size
+
+                def value(x):
+                    return 1. if np.array_equal(x, x0) else after
+
+                def penalty(x, derivatives=1, **kwargs):
+                    boozer_surface.surface.set_dofs(x[:dofs.size])
+                    v = value(x)
+                    return (v, v * np.ones(n)) + ((v * np.eye(n),) if derivatives == 2 else ())
+
+                def residual_and_jacobian(x, *args):
+                    boozer_surface.surface.set_dofs(x[:dofs.size])
+                    v = value(x)
+                    return v * np.ones(n), v * np.eye(n)
+
+                def failed_minimize(fun, x, **kwargs):
+                    f, g = fun(x + 1.)
+                    return SimpleNamespace(x=x + 1., fun=f, jac=g, nit=1, success=False)
+
+                def failed_least_squares(fun, x, jac=None, **kwargs):
+                    r, J = fun(x + 1.), jac(x + 1.)
+                    return SimpleNamespace(x=x + 1., fun=r, grad=J.T @ r, jac=J, status=0)
+
+                penalty_patch = (boozer_surface, 'boozer_penalty_constraints_vectorized', penalty)
+                ls_patch = (boozer_surface, '_get_residual_vector_and_jacobian', residual_and_jacobian)
+                solve_patch = (boozersurface_module.np.linalg, 'solve', solve_step)
+                ones, eye = np.ones(n), np.eye(n)
+                cases = {
+                    'LBFGS': (lambda: boozer_surface.minimize_boozer_penalty_constraints_LBFGS(maxiter=1, iota=-0.406, G=G),
+                              [penalty_patch, (boozersurface_module, 'minimize', failed_minimize)], 1.,
+                              {'fun': 1., 'gradient': ones}),
+                    'newton': (lambda: boozer_surface.minimize_boozer_penalty_constraints_newton(maxiter=1, iota=-0.406, G=G),
+                               [penalty_patch, solve_patch], -1.,
+                               {'residual': ones, 'jacobian': ones, 'hessian': eye}),
+                    'ls manual': (lambda: boozer_surface.minimize_boozer_penalty_constraints_ls(maxiter=1, iota=-0.406, G=G, method='manual'),
+                                  [ls_patch, solve_patch], -1.,
+                                  {'residual': ones, 'gradient': ones, 'jacobian': eye}),
+                    'ls': (lambda: boozer_surface.minimize_boozer_penalty_constraints_ls(maxiter=1, iota=-0.406, G=G),
+                           [ls_patch, (boozersurface_module, 'least_squares', failed_least_squares)], 1.,
+                           {'residual': ones, 'gradient': ones, 'jacobian': eye}),
+                }
+                for name, (solve, patches, shift, expected) in cases.items():
+                    with self.subTest(solver=name, after=after, G=G):
+                        check(boozer_surface, solve, patches, x0, shift, after, G, expected)
+
+                _, boozer_surface = get_boozer_surface(boozer_type="exact", converge=False)
+                dofs = boozer_surface.surface.get_dofs()
+                x0 = np.concatenate((dofs, [-0.406] if G is None else [-0.406, G]))
+                xl0 = np.concatenate((x0, [0., 0.]))
+
+                def exact_constraints(xl, derivatives=1, optimize_G=True):
+                    boozer_surface.surface.set_dofs(xl[:dofs.size])
+                    v = 1. if np.array_equal(xl, xl0) else after
+                    return v * np.ones(xl.size), v * np.eye(xl.size)
+
+                with self.subTest(solver='exact constraints newton', after=after, G=G):
+                    check(boozer_surface,
+                          lambda: boozer_surface.minimize_boozer_exact_constraints_newton(maxiter=1, iota=-0.406, G=G),
+                          [(boozer_surface, 'boozer_exact_constraints', exact_constraints), solve_patch],
+                          x0, -1., after, G, {'residual': np.ones(xl0.size), 'jacobian': np.eye(xl0.size)})
+
+            _, boozer_surface = get_boozer_surface(boozer_type="exact", converge=False)
+            dofs = boozer_surface.surface.get_dofs()
+            x0 = np.concatenate((dofs, [-0.406, -2.0]))
+            nresidual = boozer_surface.surface.gamma().size
+
+            def residual(surface, iota, G, *args, derivatives=1):
+                x = np.concatenate((surface.get_dofs(), [iota, G]))
+                v = 1. if np.array_equal(x, x0) else after
+                return v * np.ones(nresidual), v * np.ones((nresidual, x.size))
+
+            # The label residual is zero everywhere, so that the norm is set by the
+            # residual alone. Each Newton step, with iterative refinement, is -2.
+            label = boozer_surface.label
+            with self.subTest(solver='residual equation newton', after=after):
+                check(boozer_surface,
+                      lambda: boozer_surface.solve_residual_equation_exactly_newton(maxiter=1, iota=-0.406, G=-2.0),
+                      [(boozersurface_module, 'boozer_surface_residual', residual), solve_patch,
+                       (label, 'J', lambda: boozer_surface.targetlabel)],
+                      x0, -2., after, -2.0, {'residual': np.ones(nresidual)})
+
+    def test_residual_equation_newton_success_is_that_of_the_final_iterate(self):
+        """
+        A solve that converges on its last allowed iteration succeeds.
+        """
+        _, boozer_surface = get_boozer_surface(boozer_type="exact", converge=False)
+        s = boozer_surface.surface
+        x0 = s.get_dofs()
+        res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=20, iota=-0.406)
+        self.assertTrue(res['success'])
+        x, iterations = s.get_dofs(), res['iter']
+        s.set_dofs(x0)
+        boozer_surface.need_to_run_code = True
+        res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=iterations, iota=-0.406)
+        self.assertTrue(res['success'])
+        np.testing.assert_array_equal(s.get_dofs(), x)
+
+    def test_penalty_newton_divergence_factor(self):
+        """
+        The penalty Newton solve stops once the gradient norm exceeds
+        divergence_factor times its starting value, and not before.
+        """
+        _, boozer_surface = get_boozer_surface(boozer_type="ls", converge=False)
+        dofs = boozer_surface.surface.get_dofs()
+
+        def exploding(x, derivatives=2, **kwargs):
+            # Each Newton step multiplies x, and so the gradient norm, by -19.
+            return 0.5 * x @ x, x, 0.05 * np.eye(x.size)
+
+        for divergence_factor, iterations in [(1e3, 3), (None, 40), (0, 40)]:
+            with self.subTest(divergence_factor=divergence_factor):
+                boozer_surface.surface.set_dofs(dofs)
+                boozer_surface.need_to_run_code = True
+                with mock.patch.object(boozer_surface, 'boozer_penalty_constraints_vectorized', side_effect=exploding):
+                    res = boozer_surface.minimize_boozer_penalty_constraints_newton(
+                        tol=1e-14, maxiter=40, iota=-0.406, G=-2.0, divergence_factor=divergence_factor)
+                self.assertEqual(res['iter'], iterations)
+                self.assertFalse(res['success'])
+                np.testing.assert_array_equal(boozer_surface.surface.get_dofs(), dofs)
+                self.assertEqual(res['iota'], -0.406)
+                self.assertEqual(res['G'], -2.0)
+
+        def nonmonotone(x, derivatives=2, **kwargs):
+            # The gradient norm drops to 1e-3 and then rises to 1 before
+            # converging, within a factor 1e3 of its starting value.
+            g = np.zeros_like(x)
+            g[0] = -1. if x[0] < 0.5 else -0.001 if x[0] < 1.0005 else -(2. - x[0]) if x[0] < 1.5 else 0.
+            return 0.5 * g[0]**2, g, np.eye(x.size)
+
+        dofs0 = dofs.copy()
+        dofs0[0] = 0.
+        boozer_surface.surface.set_dofs(dofs0)
+        boozer_surface.need_to_run_code = True
+        with mock.patch.object(boozer_surface, 'boozer_penalty_constraints_vectorized', side_effect=nonmonotone):
+            res = boozer_surface.minimize_boozer_penalty_constraints_newton(maxiter=10, iota=-0.406, G=-2.0)
+        self.assertTrue(res['success'])
+        self.assertEqual(res['iter'], 3)
 
 
     def test_boozer_surface_quadpoints(self):
