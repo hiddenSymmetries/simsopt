@@ -351,10 +351,9 @@ class CurveSurfaceDistance(Optimizable):
         self.minimum_distance = minimum_distance
 
         self.J_jax = jit(lambda gammac, lc, gammas, ns: cs_distance_pure(gammac, lc, gammas, ns, minimum_distance))
-        self.dJ_dgamma = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=0)(gammac, lc, gammas, ns))
-        self.dJ_dlc = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=1)(gammac, lc, gammas, ns))
+        self.dJ_dargs = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=(0, 1, 2, 3))(gammac, lc, gammas, ns))
         self.candidates = None
-        super().__init__(depends_on=curves)  # Bharat's comment: Shouldn't we add surface here
+        super().__init__(depends_on=[*curves, surface])
 
     def recompute_bell(self, parent=None):
         self.candidates = None
@@ -396,22 +395,28 @@ class CurveSurfaceDistance(Optimizable):
     @derivative_dec
     def dJ(self):
         """
-        This returns the derivative of the quantity with respect to the curve dofs.
+        This returns the derivative of the quantity with respect to the curve and surface dofs.
         """
         self.compute_candidates()
         dgamma_by_dcoeff_vjp_vecs = [np.zeros_like(c.gamma()) for c in self.curves]
         dgammadash_by_dcoeff_vjp_vecs = [np.zeros_like(c.gammadash()) for c in self.curves]
         gammas = self.surface.gamma().reshape((-1, 3))
-
-        gammas = self.surface.gamma().reshape((-1, 3))
         ns = self.surface.normal().reshape((-1, 3))
+        dgammas_vjp = np.zeros_like(gammas)
+        dns_vjp = np.zeros_like(ns)
         for i, _ in self.candidates:
             gammac = self.curves[i].gamma()
             lc = self.curves[i].gammadash()
-            dgamma_by_dcoeff_vjp_vecs[i] += self.dJ_dgamma(gammac, lc, gammas, ns)
-            dgammadash_by_dcoeff_vjp_vecs[i] += self.dJ_dlc(gammac, lc, gammas, ns)
+            dJ_dgammac, dJ_dlc, dJ_dgammas, dJ_dns = self.dJ_dargs(gammac, lc, gammas, ns)
+            dgamma_by_dcoeff_vjp_vecs[i] += dJ_dgammac
+            dgammadash_by_dcoeff_vjp_vecs[i] += dJ_dlc
+            dgammas_vjp += dJ_dgammas
+            dns_vjp += dJ_dns
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
-        return sum(res)
+        shape = self.surface.gamma().shape
+        dsurface = self.surface.dgamma_by_dcoeff_vjp(dgammas_vjp.reshape(shape)) \
+            + self.surface.dnormal_by_dcoeff_vjp(dns_vjp.reshape(shape))
+        return sum(res) + Derivative({self.surface: dsurface})
 
     return_fn_map = {'J': J, 'dJ': dJ}
 

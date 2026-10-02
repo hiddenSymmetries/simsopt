@@ -85,6 +85,9 @@ os.makedirs(OUT_DIR, exist_ok=True)
 nphi = 32
 ntheta = 32
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+# The boundary is the target of this problem, not a variable. CurveSurfaceDistance
+# depends on the surface, so its DOFs would otherwise be optimized as well.
+s.fix_all()
 
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)

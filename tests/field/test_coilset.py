@@ -192,6 +192,33 @@ class TestCoilSet(unittest.TestCase):
 #### Inherit from TestCoilSet (all tests run exept those overloaded)
 
 
+class TestCoilSetSurfaceTarget(unittest.TestCase):
+    def setUp(self):
+        self.coilset = CoilSet()
+
+    def test_flux_and_cs_distance_penalty_taylor(self):
+        # The surface is the target of the penalties, not a variable: the
+        # combined penalty depends on the coil dofs only, with a consistent gradient.
+        penalty = self.coilset.flux_penalty() + self.coilset.cs_distance_penalty(1.0)
+        self.assertGreater(self.coilset.surface.dof_size, 0)
+        self.assertEqual(penalty.dof_size, self.coilset.dof_size)
+        x = penalty.x
+        h = np.random.default_rng(0).uniform(-1, 1, size=x.shape)
+        deriv = penalty.dJ() @ h
+        err = np.inf
+        for i in range(8, 18, 2):
+            eps = 0.5**i
+            # float() evaluates J before the next change of the coil dofs
+            penalty.x = x + eps * h
+            Jp = float(penalty.J())
+            penalty.x = x - eps * h
+            Jm = float(penalty.J())
+            err_new = abs((Jp - Jm) / (2 * eps) - deriv)
+            self.assertLess(err_new, 0.1 * err)
+            err = err_new
+        penalty.x = x
+
+
 class TestReducedCoilSet(TestCoilSet):
     def setUp(self):
         # Create a ReducedCoilSet object using collocation points
