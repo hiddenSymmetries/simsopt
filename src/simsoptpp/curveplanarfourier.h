@@ -33,7 +33,6 @@ class CurvePlanarFourier : public Curve<Array> {
         const int order;
         using Curve<Array>::quadpoints;
         using Curve<Array>::numquadpoints;
-        using Curve<Array>::check_the_persistent_cache;
 
         Array rc;
         Array rs;
@@ -89,19 +88,6 @@ class CurvePlanarFourier : public Curve<Array> {
             for (int i = 0; i < 3; ++i)
                 res[counter++] = center[i];
             return res;
-        }
-
-        Array& dgamma_by_dcoeff() override {
-            return check_the_persistent_cache("dgamma_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgamma_by_dcoeff_impl(A);});
-        }
-        Array& dgammadash_by_dcoeff() override {
-            return check_the_persistent_cache("dgammadash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadash_by_dcoeff_impl(A);});
-        }
-        Array& dgammadashdash_by_dcoeff() override {
-            return check_the_persistent_cache("dgammadashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadashdash_by_dcoeff_impl(A);});
-        }
-        Array& dgammadashdashdash_by_dcoeff() override {
-            return check_the_persistent_cache("dgammadashdashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadashdashdash_by_dcoeff_impl(A);});
         }
 
         void gamma_impl(Array& data, Array& quadpoints) override;
