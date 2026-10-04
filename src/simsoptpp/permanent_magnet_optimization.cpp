@@ -4,7 +4,11 @@
 #include "vec3dsimd.h"
 #include "xtensor/misc/xsort.hpp"
 #include "xtensor/views/xview.hpp"
+#include <cstdint>
 #include <functional>
+#include <limits>
+#include <stdexcept>
+#include <string>
 #include <vector>
 #include <math.h>
 
@@ -711,6 +715,23 @@ std::tuple<Array, Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, Ar
     return std::make_tuple(objective_history, Bn_history, m_history, x);
 }
 
+// History records GPMO_ArbVec_backtracking can need: the initial one, one per
+// verbose print (every K / nhistory iterations and the last; needs
+// 1 <= nhistory <= K), one at a magnet-limit stop, and the stop test's read
+// one past the last verbose record. At least nhistory + 2.
+static int GPMO_ArbVec_history_capacity(int K, int nhistory, bool verbose)
+{
+    std::int64_t capacity = std::int64_t(nhistory) + 2;
+    if (verbose && K > 0) {
+        std::int64_t print_interval = K / nhistory;
+        capacity = std::max(capacity, (K + print_interval - 2) / print_interval + 3);
+    }
+    if (capacity > std::numeric_limits<int>::max())
+        throw std::length_error("GPMO history of " + std::to_string(capacity)
+            + " records does not fit in an int");
+    return int(capacity);
+}
+
 // Variant of the GPMO algorithm for solving the permanent magnet optimization 
 // problem in which the user has the option to specify arbitrary allowable 
 // polarization vectors for each dipole. 
@@ -744,10 +765,12 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
     vector<int> x_vec(N);
     vector<int> x_sign(N);
 
-    // record the history of the algorithm iterations
-    Array m_history = xt::zeros<double>({N, 3, nhistory + 2});
-    Array objective_history = xt::zeros<double>({nhistory + 2});
-    Array Bn_history = xt::zeros<double>({nhistory + 2});
+    // record the history of the algorithm iterations; trimmed to
+    // nhistory + 2 records on return when the run fits in that
+    int history_capacity = GPMO_ArbVec_history_capacity(K, nhistory, verbose);
+    Array m_history = xt::zeros<double>({N, 3, history_capacity});
+    Array objective_history = xt::zeros<double>({history_capacity});
+    Array Bn_history = xt::zeros<double>({history_capacity});
 
     // print out the names of the error columns
     if (verbose)
@@ -780,7 +803,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
     Array Connect = connectivity_matrix(dipole_grid_xyz, Nadjacent);
 
     int num_nonzero = 0;
-    Array num_nonzeros = xt::zeros<int>({nhistory + 2});
+    Array num_nonzeros = xt::zeros<int>({history_capacity});
 
     // Initialize the solution according to user input
     initialize_GPMO_ArbVec(x_init, pol_vectors, x, x_vec, x_sign, 
@@ -886,6 +909,13 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
                     for (int l = 0; l < 3; ++l) {
                         cos_angle += x(j, l) * x(cj, l);
                     }
+                    // At exactly pi only an exact negation is antiparallel;
+                    // the rounded dot above is build-dependent there.
+                    if (thresh_angle == M_PI) {
+                        bool antiparallel = (x(j, 0) == -x(cj, 0)) && (x(j, 1) == -x(cj, 1))
+                            && (x(j, 2) == -x(cj, 2));
+                        cos_angle = antiparallel ? -1.0 : 1.0;
+                    }
                     if (cos_angle < min_cos_angle) {
                         min_cos_angle = cos_angle;
                         cj_min = cj;
@@ -949,6 +979,8 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
             
             // if stuck at some number of dipoles, break out of the loop
             num_nonzeros(print_iter-1) = num_nonzero;
+            // num_nonzeros(print_iter) is not written yet (zero), so this
+            // stops only a run with no magnets placed
             if (print_iter > 10 
                 && num_nonzeros(print_iter) == num_nonzeros(print_iter - 1) 
                 && num_nonzeros(print_iter) == num_nonzeros(print_iter - 2)) {
@@ -982,6 +1014,13 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
 
     }
 
+    int history_length = std::max(nhistory + 2, print_iter);
+    if (history_length < history_capacity) {
+        objective_history = xt::view(objective_history, xt::range(0, history_length));
+        Bn_history = xt::view(Bn_history, xt::range(0, history_length));
+        m_history = xt::view(m_history, xt::all(), xt::all(), xt::range(0, history_length));
+        num_nonzeros = xt::view(num_nonzeros, xt::range(0, history_length));
+    }
     return std::make_tuple(objective_history, Bn_history, m_history, 
                            num_nonzeros, x);
 }

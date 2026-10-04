@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <iostream>
 #include <limits>
 #include <cmath>
@@ -39,7 +40,8 @@ class aligned_padded_allocator : public xs::aligned_allocator<T, Align> {
         inline aligned_padded_allocator(const aligned_padded_allocator<U, Align>&) noexcept { } 
 
         T* allocate(size_t n, const void* hint = 0) {
-            int simdcount = Align/sizeof(T);
+            // whole batches, which can be wider than the alignment (e.g. SVE)
+            int simdcount = std::max(Align/sizeof(T), xs::simd_traits<T>::size);
             int nn = (n + simdcount) - (n % simdcount); // round to next highest multiple of simdcount
             T* res = reinterpret_cast<T*>(xsimd::detail::xaligned_malloc(sizeof(T) * nn, Align));
             if (res == nullptr)

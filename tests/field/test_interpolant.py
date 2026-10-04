@@ -100,6 +100,53 @@ class Testing(unittest.TestCase):
         with assert_raises(RuntimeError):
             interpolant.evaluate_batch(xyz, fhxyz)
 
+    def test_out_of_bounds_in_one_coordinate(self):
+        """
+        A point outside the domain in a single coordinate (beyond the 1e-13
+        face tolerance, or NaN, infinite or huge) is out of bounds: it must not
+        wrap into a neighbouring cell or round into the first one. With
+        out_of_bounds_ok=True the output is left untouched; with
+        out_of_bounds_ok=False a runtime error is raised.
+        """
+        np.random.seed(0)
+        ranges = [(1.0, 4.0, 20), (1.1, 3.9, 10), (1.2, 3.8, 15)]
+        dim = 3
+        degree = 2
+        fun = get_random_polynomial(dim, degree)
+        rule = sopp.UniformInterpolationRule(degree)
+        interpolant_ok = sopp.RegularGridInterpolant3D(rule, *ranges, dim, True)
+        interpolant_ok.interpolate_batch(fun)
+        interpolant_strict = sopp.RegularGridInterpolant3D(rule, *ranges, dim, False)
+        interpolant_strict.interpolate_batch(fun)
+
+        center = np.array([0.5 * (lo + hi) for lo, hi, _ in ranges])
+        for axis, (lo, hi, n) in enumerate(ranges):
+            cell = (hi - lo) / n
+            for value in (lo - 0.5 * cell, lo - 1.5 * cell, hi + 0.5 * cell,
+                          np.nan, np.inf, -np.inf, 1e300, -1e300):
+                with self.subTest(axis=axis, value=value):
+                    xyz = center.copy()
+                    xyz[axis] = value
+                    xyz = xyz[None, :].copy()
+                    fhxyz = np.ones((1, dim))
+                    interpolant_ok.evaluate_batch(xyz, fhxyz)
+                    np.testing.assert_array_equal(fhxyz, 1.)
+                    with assert_raises(RuntimeError):
+                        interpolant_strict.evaluate_batch(xyz, fhxyz)
+
+        # Points within the face tolerance are inside.
+        for axis, (lo, hi, n) in enumerate(ranges):
+            for value in (lo - 1e-14, hi + 1e-14):
+                with self.subTest(axis=axis, value=value):
+                    xyz = center.copy()
+                    xyz[axis] = value
+                    xyz = xyz[None, :].copy()
+                    expected = fun(xyz[:, 0], xyz[:, 1], xyz[:, 2], flatten=False)
+                    for interpolant in (interpolant_ok, interpolant_strict):
+                        fhxyz = np.zeros((1, dim))
+                        interpolant.evaluate_batch(xyz, fhxyz)
+                        np.testing.assert_allclose(fhxyz, expected, rtol=1e-10, atol=1e-10)
+
     def test_skip(self):
         """
         Check that the interpolant correctly identifies which regions in the
