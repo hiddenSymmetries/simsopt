@@ -95,9 +95,15 @@ class Vmec2000SolverTests(unittest.TestCase):
 
     def test_push_without_boundary_raises(self):
         v = Vmec(str(TEST_DIR / "input.li383_low_res"), verbose=False)
-        solver = Vmec2000Solver(str(TEST_DIR / "input.li383_low_res"), v.mpi, verbose=False)
+        solver = Vmec2000Solver()
+        solver.initialize(str(TEST_DIR / "input.li383_low_res"), v.mpi, verbose=False)
         with self.assertRaises(RuntimeError):
             solver.get_input()
+
+    def test_second_initialize_raises(self):
+        v = Vmec(str(TEST_DIR / "input.li383_low_res"), verbose=False)
+        with self.assertRaisesRegex(RuntimeError, "already initialized"):
+            Vmec(str(TEST_DIR / "input.li383_low_res"), verbose=False, solver=v.solver)
 
     def test_update_mpi(self):
         from simsopt.util.mpi import MpiPartition

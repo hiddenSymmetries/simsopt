@@ -9,7 +9,7 @@ This module provides a class that handles the VMEC equilibrium code.
 import logging
 import os.path
 from dataclasses import dataclass, field
-from typing import Any, Generic, NamedTuple, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Any, Generic, NamedTuple, Optional, Protocol, TypeVar, cast, runtime_checkable
 
 import numpy as np
 
@@ -19,12 +19,6 @@ try:
     from mpi4py import MPI
 except ImportError as e:
     MPI = None
-    logger.debug(str(e))
-
-try:
-    import vmec
-except ImportError as e:
-    vmec = None
     logger.debug(str(e))
 
 from .._core.optimizable import Optimizable
@@ -321,12 +315,12 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
           each MPI process will run VMEC independently.
         keep_all_files: If ``False``, all ``wout`` output files will be deleted
           except for the first and most recent ones from worker group 0. If
-          ``True``, all ``wout`` files will be kept. Only for the default solver.
-        verbose: Whether to print to stdout when running vmec. Only for the
-          default solver.
-        solver: A :obj:`VmecSolverProtocol` instance to run instead of the
-          default :obj:`~simsopt.mhd.vmec_solver.Vmec2000Solver`. It is given
-          this object's ``mpi``.
+          ``True``, all ``wout`` files will be kept.
+        verbose: Whether to print to stdout when running vmec.
+        solver: A new :obj:`VmecSolverProtocol` instance, constructed with
+          backend options only, to run instead of the default
+          :obj:`~simsopt.mhd.vmec_solver.Vmec2000Solver`. It is initialized
+          with ``filename``, ``mpi``, ``keep_all_files`` and ``verbose``.
 
     Attributes:
         iter: Number of times VMEC has run.
@@ -343,8 +337,8 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
     def __init__(self,
                  filename: Optional[str] = None,
                  mpi: Optional[MpiPartition] = None,
-                 keep_all_files: Optional[bool] = None,
-                 verbose: Optional[bool] = None,
+                 keep_all_files: bool = False,
+                 verbose: bool = True,
                  ntheta=50,
                  nphi=50,
                  range_surface='full torus',
@@ -369,11 +363,11 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
         self._solver: Optional[VmecSolverProtocol[IndataT, WoutT]] = None
         self._wout = Struct()
         self._output_file = None
-        self._verbose = True if verbose is None else verbose
+        self._verbose = verbose
 
         # Get MPI communicator:
         if (mpi is None and MPI is not None):
-            self.mpi = MpiPartition(ngroups=1)
+            self.mpi = MpiPartition(ngroups=1)  # type: ignore[misc]
         else:
             self.mpi = mpi
 
@@ -388,17 +382,14 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
             if MPI is None:
                 raise RuntimeError("mpi4py needs to be installed for running VMEC")
             if solver is None:
-                solver = Vmec2000Solver(filename, self.mpi,
-                                        keep_all_files=bool(keep_all_files),
-                                        verbose=self._verbose)
+                solver = cast(VmecSolverProtocol[IndataT, WoutT], Vmec2000Solver())
             elif isinstance(solver, type):
-                raise TypeError(f"Pass an instance, e.g. solver={solver.__name__}(filename, mpi)")
-            elif not isinstance(solver, VmecSolverProtocol):
+                raise TypeError(f"Pass an instance, e.g. solver={solver.__name__}()")
+            if not hasattr(solver, "initialize"):
                 raise TypeError(f"{type(solver).__name__} does not satisfy VmecSolverProtocol")
-            elif keep_all_files is not None or verbose is not None:
-                raise ValueError("Set keep_all_files and verbose on the solver, not on Vmec")
-            else:
-                solver.update_mpi(self.mpi)
+            solver.initialize(filename, self.mpi, keep_all_files=keep_all_files, verbose=verbose)
+            if not isinstance(solver, VmecSolverProtocol):
+                raise TypeError(f"{type(solver).__name__} does not satisfy VmecSolverProtocol")
             self._solver = solver
 
             # A vmec object has mpol and ntor attributes independent of
@@ -407,7 +398,7 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
             # object, but the mpol/ntor values of either the vmec object
             # or the boundary surface object can be changed independently
             # by the user.
-            solver_boundary = self._solver.boundary
+            solver_boundary = self._require_solver.boundary
             self._boundary = SurfaceRZFourier.from_nphi_ntheta(nfp=solver_boundary.nfp,
                                                                stellsym=solver_boundary.stellsym,
                                                                mpol=solver_boundary.mpol,
@@ -449,21 +440,26 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
             self.need_to_run_code = False
 
     @property
-    def _require_solver(self):
+    def solver(self) -> VmecSolverProtocol[IndataT, WoutT]:
+        """ The VMEC backend, for its own settings. """
+        return self._require_solver
+
+    @property
+    def _require_solver(self) -> VmecSolverProtocol[IndataT, WoutT]:
         if self._solver is None:
             raise AttributeError("This Vmec object was initialized from a wout file, "
                                  "so it has no solver.")
         return self._solver
 
     @property
-    def indata(self) -> IndataT:
+    def indata(self) -> Any:
         if self._solver is None:
             raise AttributeError('Cannot access indata for a Vmec object that was initialized from a wout file.')
         return self._solver.indata
 
     @property
-    def wout(self) -> WoutT:
-        return self._wout if self._solver is None else self._solver.wout  # type: ignore[return-value]
+    def wout(self) -> Any:
+        return self._wout if self._solver is None else self._solver.wout
 
     @wout.setter
     def wout(self, wout):
@@ -495,59 +491,35 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
 
     @property
     def input_file(self):
-        return self._require_solver.input_file
+        return cast(Any, self._require_solver).input_file
 
     @input_file.setter
     def input_file(self, input_file):
-        self._require_solver.input_file = input_file
+        cast(Any, self._require_solver).input_file = input_file
 
     @property
     def iter(self):
-        return self._require_solver.iter
+        return cast(Any, self._require_solver).iter
 
     @iter.setter
     def iter(self, iter):
-        self._require_solver.iter = iter
+        cast(Any, self._require_solver).iter = iter
 
     @property
     def keep_all_files(self):
-        return self._require_solver.keep_all_files
+        return cast(Any, self._require_solver).keep_all_files
 
     @keep_all_files.setter
     def keep_all_files(self, keep_all_files):
-        self._require_solver.keep_all_files = keep_all_files
+        cast(Any, self._require_solver).keep_all_files = keep_all_files
 
     @property
     def files_to_delete(self):
-        return self._require_solver.files_to_delete
+        return cast(Any, self._require_solver).files_to_delete
 
     @files_to_delete.setter
     def files_to_delete(self, files_to_delete):
-        self._require_solver.files_to_delete = files_to_delete
-
-    @property
-    def free_boundary(self):
-        return self._require_solver.free_boundary
-
-    @free_boundary.setter
-    def free_boundary(self, free_boundary):
-        self._require_solver.free_boundary = free_boundary
-
-    @property
-    def ictrl(self):
-        return self._require_solver.ictrl
-
-    @ictrl.setter
-    def ictrl(self, ictrl):
-        self._require_solver.ictrl = ictrl
-
-    @property
-    def fcomm(self):
-        return self._require_solver.fcomm
-
-    @fcomm.setter
-    def fcomm(self, fcomm):
-        self._require_solver.fcomm = fcomm
+        cast(Any, self._require_solver).files_to_delete = files_to_delete
 
     @property
     def boundary(self):
@@ -612,15 +584,15 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
             # Use default values from vmec_input
             return np.array([1.0, 0.0, 1.0])
         else:
-            return np.array([self._solver.phiedge, self._solver.curtor,
-                             self._solver.pres_scale])
+            return np.array([self._require_solver.phiedge, self._require_solver.curtor,
+                             self._require_solver.pres_scale])
 
     def set_dofs(self, x):
         if self.runnable:
             self.need_to_run_code = True
-            self._solver.phiedge = x[0]
-            self._solver.curtor = x[1]
-            self._solver.pres_scale = x[2]
+            self._require_solver.phiedge = x[0]
+            self._require_solver.curtor = x[1]
+            self._require_solver.pres_scale = x[2]
 
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
@@ -645,13 +617,13 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
             raise RuntimeError('Cannot access indata for a Vmec object that was initialized from a wout file.')
         # Convert boundary to RZFourier if needed:
         boundary_RZFourier = self.boundary.to_RZFourier()
-        self._solver.boundary = self._to_vmec_boundary(boundary_RZFourier)
+        self._require_solver.boundary = self._to_vmec_boundary(boundary_RZFourier)
 
         self.set_profile("pressure", "mass", "m")
         self.set_profile("current", "curr", "c")
         self.set_profile("iota", "iota", "i")
         if self.pressure_profile is not None:
-            self._solver.pres_scale = 1.0
+            self._require_solver.pres_scale = 1.0
 
         return boundary_RZFourier
 
@@ -675,7 +647,7 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
         string. To save a file, see the ``write_input()`` function.
         """
         self.set_indata()
-        return self._require_solver.get_input()
+        return cast(Any, self._require_solver).get_input()
 
     def write_input(self, filename):
         """
@@ -689,7 +661,7 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
         # All procs should call self.set_indata(), even procs that do
         # not directly write the file:
         self.set_indata()
-        self._require_solver.write_input(filename)
+        cast(Any, self._require_solver).write_input(filename)
 
     def run(self):
         """
@@ -704,7 +676,7 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
 
         self.set_indata()
 
-        self._solver.solve()
+        self._require_solver.solve()
         self._set_grids()
 
         self.need_to_run_code = False
@@ -726,6 +698,16 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
             ierr = self._solver.load_wout()
         self._set_grids()
         return ierr
+
+    def save_wout(self, filename):
+        """
+        Run VMEC if needed, then save the result as a ``wout`` file.
+
+        Args:
+            filename: Name of the ``wout`` file to write.
+        """
+        self.run()
+        self._require_solver.save_wout(filename)
 
     def update_mpi(self, new_mpi):
         """
@@ -794,7 +776,7 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
         Look through the rbc and zbs data in the solver to determine the
         largest m and n for which rbc or zbs is nonzero.
         """
-        return self._require_solver.get_max_mn()
+        return cast(Any, self._require_solver).get_max_mn()
 
     def __repr__(self):
         """
