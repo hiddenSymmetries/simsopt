@@ -55,7 +55,7 @@ class VmecBackendConversionTests(unittest.TestCase):
             name = os.path.basename(path)
             with self.subTest(name=name):
                 a = Vmec(path, verbose=False)
-                b = Vmec(path, solver=VmecppSolver(path, None, verbose=False))
+                b = Vmec(path, verbose=False, solver=VmecppSolver())
                 ia, ib = a.indata, b.indata
 
                 for field in ["nfp", "lasym", "ncurr", "lfreeb"]:
@@ -101,7 +101,7 @@ class VmecBackendConversionTests(unittest.TestCase):
             with self.subTest(pmass_type=pmass_type):
                 arrays = []
                 for v in [Vmec(path, verbose=False),
-                          Vmec(path, solver=VmecppSolver(path, None, verbose=False))]:
+                          Vmec(path, verbose=False, solver=VmecppSolver())]:
                     v.indata.pmass_type = pmass_type
                     v.pressure_profile = profile
                     v.n_pressure = 7
@@ -123,7 +123,7 @@ class VmecBackendResultTests(unittest.TestCase):
             with self.subTest(name=name), ScratchDir("."):
                 path = os.path.join(TEST_DIR, name)
                 a = self.outputs(Vmec(path, verbose=False))
-                v = Vmec(path, solver=VmecppSolver(path, None, verbose=False))
+                v = Vmec(path, verbose=False, solver=VmecppSolver())
                 b = self.outputs(v)
                 self.assertEqual(np.shape(v.wout.rmnc), (v.wout.mnmax, v.wout.ns))
                 self.assertEqual(np.shape(v.wout.bmnc), (v.wout.mnmax_nyq, v.wout.ns))
@@ -134,7 +134,7 @@ class VmecBackendResultTests(unittest.TestCase):
         """ Boundary A, then B, then A again gives the same answer for A. """
         with ScratchDir("."):
             path = os.path.join(TEST_DIR, "input.li383_low_res")
-            v = Vmec(path, solver=VmecppSolver(path, None, verbose=False))
+            v = Vmec(path, verbose=False, solver=VmecppSolver())
             x0 = v.boundary.x.copy()
             first = (v.aspect(), v.iota_axis(), v.volume())
             v.boundary.x = x0 * (1 + 1.0e-3 * np.cos(np.arange(len(x0))))
@@ -148,7 +148,7 @@ class VmecBackendResultTests(unittest.TestCase):
         with ScratchDir("."):
             path = os.path.join(TEST_DIR, "input.basic_non_stellsym")
             a = Vmec(path, verbose=False)
-            b = Vmec(path, solver=VmecppSolver(path, None, verbose=False))
+            b = Vmec(path, verbose=False, solver=VmecppSolver())
             np.testing.assert_allclose(b.aspect(), a.aspect(), rtol=1e-12)
             np.testing.assert_allclose(b.volume(), a.volume(), rtol=1e-12)
 
