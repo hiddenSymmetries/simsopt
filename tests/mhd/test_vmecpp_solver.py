@@ -8,6 +8,7 @@ import unittest
 import numpy as np
 from monty.tempfile import ScratchDir
 from simsopt._core.util import ObjectiveFailure, Struct
+from simsopt.field.mgrid import MGrid
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.mhd.profiles import ProfilePolynomial
 from simsopt.mhd.vmec import (
@@ -260,6 +261,32 @@ class VmecppSolverTests(unittest.TestCase):
                     v.run()
                 expected = [f"wout_circular_tokamak_000_{i:06d}.nc" for i in kept]
                 self.assertEqual(sorted(os.listdir(".")), expected)
+
+    def test_mgrid_matches_mgrid_file(self):
+        """ An MGrid in memory gives the same free-boundary equilibrium as its mgrid file. """
+        nphi, nz, nr = 36, 41, 41
+        parameters = vmecpp.MakegridParameters(
+            normalize_by_currents=False, assume_stellarator_symmetry=True,
+            number_of_field_periods=5, r_grid_minimum=0.45, r_grid_maximum=1.05,
+            number_of_r_grid_points=nr, z_grid_minimum=-0.3, z_grid_maximum=0.3,
+            number_of_z_grid_points=nz, number_of_phi_grid_points=nphi)
+        table = vmecpp.MagneticFieldResponseTable.from_coils_file(
+            os.path.join(TEST_DIR, "coils.cth_like"), parameters)
+        mgrid = MGrid(nr=nr, nz=nz, nphi=nphi, nfp=5, rmin=0.45, rmax=1.05, zmin=-0.3, zmax=0.3)
+        for b_r, b_p, b_z in zip(table.b_r, table.b_p, table.b_z):
+            mgrid.add_field_cylindrical(*(b.reshape(nphi, nz, nr) for b in (b_r, b_p, b_z)))
+        # The name in input.cth_like_free_bdy:
+        mgrid.write("mgrid_cth_like.nc")
+
+        path = os.path.join(TEST_DIR, "input.cth_like_free_bdy")
+        from_file = Vmec(path, verbose=False, solver=VmecppSolver())
+        in_memory = Vmec(path, verbose=False,
+                         solver=VmecppSolver(magnetic_field=MGrid.from_file("mgrid_cth_like.nc")))
+        from_file.run()
+        in_memory.run()
+        for name in ["rmnc", "zmns", "bmnc", "iotaf"]:
+            np.testing.assert_array_equal(getattr(in_memory.wout, name),
+                                          getattr(from_file.wout, name), err_msg=name)
 
     def test_run_circular_tokamak(self):
         v = self.vmec("input.circular_tokamak")
