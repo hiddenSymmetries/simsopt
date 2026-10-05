@@ -194,7 +194,7 @@ class Vmec2000Solver:
             raise RuntimeError(f"This solver was already initialized from {self.input_file}; "
                                "give each Vmec a new solver")
         if filename.endswith('.json'):
-            raise ValueError(f"{filename}: JSON input files require solver=VmecppSolver")
+            raise ValueError(f"{filename}: JSON input files require a VmecppSolver")
 
         self.mpi = mpi
         self.verbose = verbose

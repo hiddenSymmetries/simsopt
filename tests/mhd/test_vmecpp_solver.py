@@ -57,7 +57,8 @@ class VmecppSolverTests(unittest.TestCase):
         return VmecppSolver(os.path.join(TEST_DIR, name), None, verbose=False)
 
     def vmec(self, name="input.li383_low_res"):
-        return Vmec(os.path.join(TEST_DIR, name), solver=VmecppSolver, verbose=False)
+        path = os.path.join(TEST_DIR, name)
+        return Vmec(path, solver=VmecppSolver(path, None, verbose=False))
 
     def test_conforms_to_protocol(self):
         self.assertIsInstance(self.solver(), VmecSolverProtocol)
@@ -278,7 +279,7 @@ class VmecppSolverTests(unittest.TestCase):
                 f.write(source.model_dump_json())
             solver = VmecppSolver(path, None, verbose=False)
             self.assertEqual(solver.indata.nfp, source.nfp)
-            v = Vmec(path, solver=solver, verbose=False)
+            v = Vmec(path, solver=solver)
             self.assertTrue(np.isfinite(v.aspect()))
             self.assertEqual(os.path.basename(v.output_file),
                              "wout_circtok_000_000000.nc")
