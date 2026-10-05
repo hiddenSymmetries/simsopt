@@ -282,7 +282,10 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
     (:obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier`) before
     each run of VMEC. You can replace ``boundary`` with a new surface
     object, of any type that implements the conversion function
-    ``to_RZFourier()``.
+    ``to_RZFourier()``. Only boundary modes with ``m < indata.mpol``
+    reach VMEC; higher ``m`` modes, such as the ``m == mpol`` row of a
+    boundary initialized from the input file, are ignored although they
+    remain dofs. VMEC2000 has always behaved this way.
 
     VMEC is run either when the :meth:`run()` function is called, or when
     any of the output functions like :meth:`aspect()` or :meth:`iota_axis()`
