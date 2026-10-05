@@ -17,6 +17,7 @@ import numpy as np
 import vmecpp
 
 from .._core.util import ObjectiveFailure
+from ..field.mgrid import MGrid
 from .vmec_solver import (
     PROFILE_SIZE_FIELD,
     PROFILE_TYPE_FIELD,
@@ -36,6 +37,31 @@ __all__ = ["VmecppSolver"]
 SUCCESSFUL_TERM_FLAG = 11
 
 
+def mgrid_response_table(mgrid: MGrid) -> vmecpp.MagneticFieldResponseTable:
+    """ The fields of ``mgrid``, per coil group, as VMEC++ reads them from an mgrid file. """
+    parameters = vmecpp.MakegridParameters(
+        # Both only affect how vmecpp computes a table, and the wout's mgrid_mode:
+        normalize_by_currents=False,
+        assume_stellarator_symmetry=False,
+        number_of_field_periods=int(mgrid.nfp),
+        r_grid_minimum=float(mgrid.rmin),
+        r_grid_maximum=float(mgrid.rmax),
+        number_of_r_grid_points=int(mgrid.nr),
+        z_grid_minimum=float(mgrid.zmin),
+        z_grid_maximum=float(mgrid.zmax),
+        number_of_z_grid_points=int(mgrid.nz),
+        number_of_phi_grid_points=int(mgrid.nphi))
+
+    def flatten(fields):
+        # (nphi, nz, nr) per coil group, flattened in the order of the mgrid file:
+        return np.array([np.ravel(field) for field in fields], dtype=float)
+
+    return vmecpp.MagneticFieldResponseTable(parameters=parameters,
+                                             b_r=flatten(mgrid.br_arr),
+                                             b_p=flatten(mgrid.bp_arr),
+                                             b_z=flatten(mgrid.bz_arr))
+
+
 class VmecppSolver:
     """
     :obj:`~simsopt.mhd.vmec.VmecSolverProtocol` for VMEC++.
@@ -50,10 +76,14 @@ class VmecppSolver:
     #: Output of the most recent run, ``None`` before the first one.
     wout: vmecpp.VmecWOut
 
-    def __init__(self, max_threads: int = 1, magnetic_field=None):
+    def __init__(self, max_threads: int = 1,
+                 magnetic_field: "MGrid | vmecpp.MagneticFieldResponseTable | None" = None):
         #: OpenMP threads; 1 avoids oversubscription under finite differencing.
         self.max_threads = max_threads
+        if isinstance(magnetic_field, MGrid):
+            magnetic_field = mgrid_response_table(magnetic_field)
         #: :obj:`vmecpp.MagneticFieldResponseTable` for free boundary, instead of ``mgrid_file``.
+        #: An :obj:`~simsopt.field.mgrid.MGrid` is converted once, here.
         self.magnetic_field = magnetic_field
         #: :obj:`vmecpp.VmecOutput` to hot restart the next solve from, once.
         self.restart_from = None
