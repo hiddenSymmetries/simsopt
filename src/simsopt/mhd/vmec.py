@@ -383,7 +383,9 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
     Args:
         filename: Name of a VMEC ``input.<extension>`` file or ``wout_<extension>.nc``
           output file to use for loading the
-          initial parameters. If ``None``, default parameters will be used.
+          initial parameters. With ``solver=VmecppSolver``, a VMEC++
+          ``<name>.json`` input file is also accepted. If ``None``, default
+          parameters will be used.
         mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which
           the worker groups will be used for VMEC calculations. If ``None``,
           each MPI process will run VMEC independently.
