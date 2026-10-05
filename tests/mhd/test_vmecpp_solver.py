@@ -1,12 +1,12 @@
 """Test simsopt with the VMEC++ backend."""
 
-import glob
 import json
 import os
 import tempfile
 import unittest
 
 import numpy as np
+from monty.tempfile import ScratchDir
 from simsopt._core.util import ObjectiveFailure, Struct
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.mhd.profiles import ProfilePolynomial
@@ -20,14 +20,23 @@ from simsopt.mhd.vmec_solver import load_wout_file
 
 try:
     import vmecpp
-    from simsopt.mhd.vmecpp_solver import (
-        COMMON_INDATA_FIELDS,
-        VmecppSolver,
-    )
+    from simsopt.mhd.vmecpp_solver import VmecppSolver
 except ImportError:  # vmecpp is an optional dependency
     vmecpp = None
 
 from . import TEST_DIR
+
+#: ``indata`` fields with the same meaning on the VMEC2000 and VMEC++ backends.
+COMMON_INDATA_FIELDS = (
+    'ns_array', 'ftol_array', 'niter_array', 'delt', 'nstep', 'tcon0',
+    'gamma', 'mpol', 'ntor', 'ntheta', 'nzeta',
+    'phiedge', 'curtor', 'pres_scale', 'ncurr', 'nfp', 'lasym',
+    'lfreeb', 'mgrid_file', 'extcur',
+    'am', 'ac', 'ai',
+    'am_aux_s', 'am_aux_f', 'ac_aux_s', 'ac_aux_f', 'ai_aux_s', 'ai_aux_f',
+    'pmass_type', 'pcurr_type', 'piota_type',
+    'raxis_cc', 'raxis_cs', 'zaxis_cc', 'zaxis_cs',
+)
 
 BOUNDARY_FIXTURES = [
     "input.li383_low_res",
@@ -39,9 +48,10 @@ BOUNDARY_FIXTURES = [
 
 @unittest.skipIf(vmecpp is None, "vmecpp is not installed")
 class VmecppSolverTests(unittest.TestCase):
-    def tearDown(self):
-        for name in glob.glob("wout_*_000_??????.nc"):
-            os.remove(name)
+    def setUp(self):
+        scratch = ScratchDir(".")
+        scratch.__enter__()
+        self.addCleanup(scratch.__exit__, None, None, None)
 
     def solver(self, name="input.li383_low_res"):
         return VmecppSolver(os.path.join(TEST_DIR, name), None, verbose=False)
