@@ -235,7 +235,8 @@ class MGrid():
             rmax = f.variables['rmax'].getValue()
             zmin = f.variables['zmin'].getValue()
             zmax = f.variables['zmax'].getValue()
-            kwargs = {"nr": nr, "nphi": nphi, "nz": nz,
+            nfp = f.variables['nfp'].getValue()
+            kwargs = {"nr": nr, "nphi": nphi, "nz": nz, "nfp": nfp,
                       "rmin": rmin, "rmax": rmax, "zmin": zmin, "zmax": zmax}
 
             mgrid = cls(**kwargs)
