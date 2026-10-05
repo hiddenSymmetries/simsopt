@@ -329,15 +329,11 @@ class VmecppSolver:
         self.wout = self.output_quantities.wout
 
         logger.info("VMEC++ run complete. Now saving output.")
+        # Group leaders handle files. Unless keep_all_files is True, only
+        # worker group 0 saves the wout file:
         if self.mpi is None or self.mpi.proc0_groups:
-            self.wout.save(Path(self.output_file))
-
-        # Group leaders handle deletion of files:
-        if self.mpi is None or self.mpi.proc0_groups:
-            # If the worker group is not 0, delete all wout files, unless
-            # keep_all_files is True:
-            if (not self.keep_all_files) and (self.group > 0):
-                os.remove(self.output_file)
+            if self.keep_all_files or self.group == 0:
+                self.wout.save(Path(self.output_file))
 
             # Delete the previous output file, if desired:
             for filename in self.files_to_delete:
