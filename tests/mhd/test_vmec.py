@@ -189,7 +189,7 @@ class VmecTests(unittest.TestCase):
             self.assertEqual(v.indata.curtor, 0.0)
             self.assertEqual(v.indata.gamma, 0.0)
             self.assertEqual(v.indata.ncurr, 1)
-            self.assertFalse(v.solver.free_boundary)
+            self.assertFalse(v.free_boundary)
             self.assertTrue(v.need_to_run_code)
 
     def test_init_from_file(self):
@@ -216,7 +216,7 @@ class VmecTests(unittest.TestCase):
             self.assertAlmostEqual(v.boundary.get_zs(1, 1), 1.6516E-01)
 
             self.assertEqual(v.indata.ncurr, 1)
-            self.assertFalse(v.solver.free_boundary)
+            self.assertFalse(v.free_boundary)
             self.assertTrue(v.need_to_run_code)
 
     def test_surface_4_ways(self):

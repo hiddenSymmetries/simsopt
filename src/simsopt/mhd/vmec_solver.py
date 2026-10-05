@@ -235,7 +235,6 @@ class Vmec2000Solver:
         if ierr != 0:
             raise RuntimeError(f"Failed to initialize VMEC from input file {filename}. Error code: {ierr}.")
 
-        self.free_boundary = bool(vi.lfreeb)
         self.input_file = filename
 
     @property
