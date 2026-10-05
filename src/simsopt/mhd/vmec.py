@@ -44,6 +44,10 @@ else:
 __all__ = ["FourierMode", "ProfileProtocol", "SurfaceRZFourierProtocol", "Vmec",
            "VmecBoundary", "VmecSolverProtocol"]
 
+#: Types of a solver's ``indata`` and ``wout``, which :obj:`Vmec` passes through.
+IndataT = TypeVar("IndataT")
+WoutT = TypeVar("WoutT")
+
 
 class FourierMode(NamedTuple):
     """ Key of a boundary Fourier coefficient. """
@@ -182,7 +186,7 @@ REQUIRED_WOUT_FIELDS_ASYM = (
 )
 
 
-class Vmec(Optimizable):
+class Vmec(Optimizable, Generic[IndataT, WoutT]):
     r"""
     This class represents the VMEC equilibrium code.
 
@@ -344,7 +348,7 @@ class Vmec(Optimizable):
                  ntheta=50,
                  nphi=50,
                  range_surface='full torus',
-                 solver=None):
+                 solver: Optional[VmecSolverProtocol[IndataT, WoutT]] = None):
 
         if filename is None:
             # Read default input file, which should be in the same
@@ -362,7 +366,7 @@ class Vmec(Optimizable):
         else:
             raise ValueError('Invalid filename')
 
-        self._solver = None
+        self._solver: Optional[VmecSolverProtocol[IndataT, WoutT]] = None
         self._wout = Struct()
         self._output_file = None
         self._verbose = True if verbose is None else verbose
@@ -452,14 +456,14 @@ class Vmec(Optimizable):
         return self._solver
 
     @property
-    def indata(self):
+    def indata(self) -> IndataT:
         if self._solver is None:
             raise AttributeError('Cannot access indata for a Vmec object that was initialized from a wout file.')
         return self._solver.indata
 
     @property
-    def wout(self):
-        return self._wout if self._solver is None else self._solver.wout
+    def wout(self) -> WoutT:
+        return self._wout if self._solver is None else self._solver.wout  # type: ignore[return-value]
 
     @wout.setter
     def wout(self, wout):
