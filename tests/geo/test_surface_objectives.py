@@ -394,20 +394,17 @@ class BoozerResidualTests(unittest.TestCase):
         """
         for stellsym in [True, False]:
             with self.subTest(stellsym=stellsym):
-                self.subtest_boozerresidual_exact_surface(stellsym)
-
-    def subtest_boozerresidual_exact_surface(self, stellsym):
-        bs, boozer_surface = get_boozer_surface(boozer_type='exact', stellsym=stellsym, converge=False)
-        if not stellsym:
-            # Without stellarator symmetry this surface's residual stalls near
-            # 1e-12, so the default newton_tol of 1e-13 is out of reach.
-            boozer_surface.options['newton_tol'] = 1e-10
-        res = boozer_surface.solve_residual_equation_exactly_newton(
-            tol=boozer_surface.options['newton_tol'], maxiter=40, iota=-0.406)
-        self.assertTrue(res['success'])
-        br = BoozerResidual(boozer_surface, bs)
-        self.assertEqual(br.constraint_weight, 0.)
-        self.assert_taylor_test(bs, br)
+                bs, boozer_surface = get_boozer_surface(boozer_type='exact', stellsym=stellsym, converge=False)
+                if not stellsym:
+                    # Without stellarator symmetry this surface's residual stalls near
+                    # 1e-12, so the default newton_tol of 1e-13 is out of reach.
+                    boozer_surface.options['newton_tol'] = 1e-10
+                res = boozer_surface.solve_residual_equation_exactly_newton(
+                    tol=boozer_surface.options['newton_tol'], maxiter=40, iota=-0.406)
+                self.assertTrue(res['success'])
+                br = BoozerResidual(boozer_surface, bs)
+                self.assertEqual(br.constraint_weight, 0.)
+                self.assert_taylor_test(bs, br)
 
     def test_boozerresidual_wrapped_label(self):
         """

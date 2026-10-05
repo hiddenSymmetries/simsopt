@@ -20,6 +20,16 @@ import simsoptpp as sopp
 parameters['jit'] = False
 
 
+def get_ncsx_curves_and_surface():
+    """NCSX coils and a surface that comes within 1 of each of them."""
+    base_curves, _, _, _, bs = get_data("ncsx", coil_order=10)
+    surface = SurfaceRZFourier.from_nphi_ntheta(nfp=3, nphi=32, ntheta=32, ntor=0)
+    surface.set('rc(0,0)', 1.6)
+    surface.set('rc(1,0)', 0.2)
+    surface.set('zs(1,0)', 0.2)
+    return base_curves, [c.curve for c in bs.coils], surface
+
+
 class Testing(unittest.TestCase):
 
     curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurvePlanarFourier", "JaxCurvePlanarFourier", "CurveHelical"]
@@ -332,15 +342,25 @@ class Testing(unittest.TestCase):
                                         np.unique(np.round(distssym, 8))), 
                                         "Distances before annd after symmetrization should be equal")
 
+    def assert_taylor_test(self, J, owner, h, deriv, exponents):
+        """Central differences of J along h, varying the dofs of owner, converge to deriv."""
+        self.assertGreater(np.abs(deriv), 1e-10, "Derivative should be greater than 1e-10")
+        x = owner.x
+        err = 1e6
+        for i in exponents:
+            eps = 0.5**i
+            # float() evaluates J before the next change of the dofs
+            owner.x = x + eps * h
+            Jp = float(J.J())
+            owner.x = x - eps * h
+            Jm = float(J.J())
+            err_new = np.abs((Jp-Jm)/(2*eps) - deriv)
+            self.assertLess(err_new, 0.3 * err, f"New error should be less than 0.3 * old error: {err_new} < {0.3 * err}")
+            err = err_new
+
     def test_curve_surface_distance(self):
         np.random.seed(0)
-        base_curves, base_currents, ma, nfp, bs = get_data("ncsx", coil_order=10)
-        curves = [c.curve for c in bs.coils]
-        ntor = 0
-        surface = SurfaceRZFourier.from_nphi_ntheta(nfp=3, nphi=32, ntheta=32, ntor=ntor)
-        surface.set(f'rc(0,{ntor})', 1.6)
-        surface.set(f'rc(1,{ntor})', 0.2)
-        surface.set(f'zs(1,{ntor})', 0.2)
+        _, curves, surface = get_ncsx_curves_and_surface()
 
         last_num_candidates = 0
         for t in np.linspace(0.01, 1.0, num=10):
@@ -359,22 +379,8 @@ class Testing(unittest.TestCase):
 
         # Taylor test over the curve dofs; the surface dofs are tested below.
         surface.fix_all()
-        curve_dofs = J.x
-        h = 1e-1 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
-        dJ = J.dJ()
-        deriv = np.sum(dJ * h)
-        self.assertGreater(np.abs(deriv), 1e-10, "Derivative should be greater than 1e-10")
-        err = 1e6
-        for i in range(5, 12):
-            eps = 0.5**i
-            J.x = curve_dofs + eps * h
-            Jp = J.J()
-            J.x = curve_dofs - eps * h
-            Jm = J.J()
-            deriv_est = (Jp-Jm)/(2*eps)
-            err_new = np.linalg.norm(deriv_est-deriv)
-            self.assertLess(err_new, 0.3 * err, f"New error should be less than 0.3 * old error: {err_new} < {0.3 * err}")
-            err = err_new
+        h = 1e-1 * np.random.rand(J.dof_size)
+        self.assert_taylor_test(J, J, h, np.sum(J.dJ() * h), range(5, 12))
 
     def test_curve_surface_distance_surface_derivative(self):
         """
@@ -382,12 +388,7 @@ class Testing(unittest.TestCase):
         resets the candidates, and the derivative includes the surface dofs.
         """
         np.random.seed(0)
-        base_curves, base_currents, ma, nfp, bs = get_data("ncsx", coil_order=10)
-        curves = [c.curve for c in bs.coils]
-        surface = SurfaceRZFourier.from_nphi_ntheta(nfp=3, nphi=32, ntheta=32, ntor=0)
-        surface.set('rc(0,0)', 1.6)
-        surface.set('rc(1,0)', 0.2)
-        surface.set('zs(1,0)', 0.2)
+        base_curves, curves, surface = get_ncsx_curves_and_surface()
         J = CurveSurfaceDistance(curves, surface, 1.0)
         self.assertIn(surface, J.parents)
         self.assertEqual(J.dof_size, sum(c.dof_size for c in base_curves) + surface.dof_size)
@@ -398,22 +399,9 @@ class Testing(unittest.TestCase):
         self.assertIsNone(J.candidates, "A surface change should reset the candidates")
 
         h = 1e-2 * np.random.rand(len(surface_dofs))
-        deriv = np.sum(J.dJ(partials=True)(surface) * h)
-        self.assertGreater(np.abs(deriv), 1e-10, "Derivative should be greater than 1e-10")
-        err = 1e6
         # The penalty is only once continuously differentiable, so the error
         # stops decreasing smoothly at small steps; stay at larger steps.
-        for i in range(1, 8):
-            eps = 0.5**i
-            # float() evaluates J before the next change of the surface dofs
-            surface.x = surface_dofs + eps * h
-            Jp = float(J.J())
-            surface.x = surface_dofs - eps * h
-            Jm = float(J.J())
-            deriv_est = (Jp-Jm)/(2*eps)
-            err_new = np.abs(deriv_est-deriv)
-            self.assertLess(err_new, 0.3 * err, f"New error should be less than 0.3 * old error: {err_new} < {0.3 * err}")
-            err = err_new
+        self.assert_taylor_test(J, surface, h, np.sum(J.dJ(partials=True)(surface) * h), range(1, 8))
 
     def test_linking_number(self):
         for downsample in [1, 2, 5]:

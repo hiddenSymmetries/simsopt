@@ -21,6 +21,7 @@ import os
 import pathlib
 import unittest
 from enum import Enum
+from unittest import mock
 
 import numpy as np
 try:
@@ -652,12 +653,10 @@ class JsonTest(unittest.TestCase):
         self.assertEqual(type(obj), dict)
 
     def test_redirect_to_another_module(self):
-        GSONable.REDIRECT["old_module"] = {"old_class": {"@class": "GoodGSONClass", "@module": "core.test_json"}}
-        try:
-            d = {"@class": "old_class", "@module": "old_module", "a": 1, "b": 1, "c": 1}
+        redirect = {"old_module": {"old_class": {"@class": "GoodGSONClass", "@module": "core.test_json"}}}
+        d = {"@class": "old_class", "@module": "old_module", "a": 1, "b": 1, "c": 1}
+        with mock.patch.dict(GSONable.REDIRECT, redirect):
             obj = json.loads(json.dumps(d), cls=GSONDecoder)
-        finally:
-            del GSONable.REDIRECT["old_module"]
         self.assertEqual(type(obj), GoodGSONClass)
 
     def test_redirect_settings_file(self):

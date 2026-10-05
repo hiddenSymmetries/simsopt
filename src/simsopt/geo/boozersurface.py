@@ -10,13 +10,9 @@ from functools import partial
 __all__ = ['BoozerSurface']
 
 
-def _keep_iterate(success, norm, initial_norm):
-    """
-    A solve keeps its final iterate unless it failed without reducing the
-    residual norm; otherwise the solver restores its starting point, so that a
-    diverged iterate is not used as the next warm start.
-    """
-    return bool(success) or bool(np.isfinite(norm) and norm <= initial_norm)
+def _keep_iterate(norm, initial_norm):
+    """Whether a solve keeps its final iterate rather than restoring its starting point."""
+    return np.isfinite(norm) and norm <= initial_norm
 
 
 class BoozerSurface(Optimizable):
@@ -466,7 +462,7 @@ class BoozerSurface(Optimizable):
         xsol, fsol, gsol = res.x, res.fun, res.jac
         if not res.success:
             f0, g0 = fun(x)
-            if not _keep_iterate(res.success, fsol, f0):
+            if not _keep_iterate(fsol, f0):
                 xsol, fsol, gsol = x, f0, g0
 
         resdict = {
@@ -480,6 +476,8 @@ class BoozerSurface(Optimizable):
             iota = xsol[-2]
             G = xsol[-1]
             resdict['G'] = G
+        # The solver's last evaluation need not be at xsol.
+        self.biotsavart.set_points(s.gamma().reshape((-1, 3)))
         resdict['s'] = s
         resdict['iota'] = iota
 
@@ -506,7 +504,7 @@ class BoozerSurface(Optimizable):
             weight_inv_modB (bool, Optional): If True, weight the residual by modB so that it does not scale with coil currents. Defaults to True.
             verbose (bool, Optional): If True, print the optimization progress. Defaults to False.
             divergence_factor (float, Optional): Stop, unsuccessfully, once the gradient norm exceeds this multiple
-                of its value at the starting point. ``None`` or ``0`` disables the check. Defaults to 1e3.
+                of its value at the starting point. ``None`` disables the check. Defaults to 1e3.
         
         Returns:
             dict: A dictionary containing the results of the optimization. The dictionary contains the following keys in addition
@@ -531,23 +529,23 @@ class BoozerSurface(Optimizable):
             x = np.concatenate((s.get_dofs(), [iota]))
         else:
             x = np.concatenate((s.get_dofs(), [iota, G]))
-        x0 = x
         i = 0
 
+        x0 = x
         val, dval, d2val = self.boozer_penalty_constraints_vectorized(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
 
         norm = initial_norm = np.linalg.norm(dval)
-        while i < maxiter and norm > tol and (not divergence_factor or norm <= divergence_factor * initial_norm):
-            d2val += stab*np.identity(d2val.shape[0])
-            dx = np.linalg.solve(d2val, dval)
+        while i < maxiter and norm > tol and (divergence_factor is None or norm <= divergence_factor * initial_norm):
+            H = d2val + stab*np.identity(d2val.shape[0])
+            dx = np.linalg.solve(H, dval)
             if norm < 1e-9:
-                dx += np.linalg.solve(d2val, dval - d2val@dx)
+                dx += np.linalg.solve(H, dval - H@dx)
             x = x - dx
             val, dval, d2val = self.boozer_penalty_constraints_vectorized(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
             norm = np.linalg.norm(dval)
             i = i+1
 
-        if not _keep_iterate(norm <= tol, norm, initial_norm):
+        if not _keep_iterate(norm, initial_norm):
             x = x0
             val, dval, d2val = self.boozer_penalty_constraints_vectorized(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
 
@@ -636,7 +634,7 @@ class BoozerSurface(Optimizable):
                 norm = np.linalg.norm(b)
                 lam *= 1/3
                 i += 1
-            if not _keep_iterate(norm <= tol, norm, initial_norm):
+            if not _keep_iterate(norm, initial_norm):
                 x = x0
                 r, J = self._get_residual_vector_and_jacobian(
                     x, constraint_weight, G is not None, weight_inv_modB)
@@ -670,7 +668,7 @@ class BoozerSurface(Optimizable):
         if res.status <= 0:
             r0, J0 = self._get_residual_vector_and_jacobian(
                 x, constraint_weight, G is not None, weight_inv_modB)
-            if not _keep_iterate(res.status > 0, np.linalg.norm(rsol), np.linalg.norm(r0)):
+            if not _keep_iterate(np.linalg.norm(rsol), np.linalg.norm(r0)):
                 xsol, rsol, gsol, Jsol = x, r0, J0.T@r0, J0
         resdict = {
             "info": res, "residual": rsol, "gradient": gsol, "jacobian": Jsol, "success": res.status > 0,
@@ -684,6 +682,8 @@ class BoozerSurface(Optimizable):
             iota = xsol[-2]
             G = xsol[-1]
             resdict['G'] = G
+        # The solver's last evaluation need not be at xsol.
+        self.biotsavart.set_points(s.gamma().reshape((-1, 3)))
         resdict['s'] = s
         resdict['iota'] = iota
 
@@ -794,7 +794,7 @@ class BoozerSurface(Optimizable):
             norm = np.linalg.norm(val)
             i = i + 1
 
-        if not _keep_iterate(norm <= tol, norm, initial_norm):
+        if not _keep_iterate(norm, initial_norm):
             xl = xl0
             val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None)
 
@@ -971,11 +971,9 @@ class BoozerSurface(Optimizable):
             i += 1
             r, J = boozer_surface_residual(s, iota, G, self.biotsavart, derivatives=1)
 
-        if not _keep_iterate(norm <= tol, norm, initial_norm):
-            x = x0
-            s.set_dofs(x[:-2])
-            iota = x[-2]
-            G = x[-1]
+        if not _keep_iterate(norm, initial_norm):
+            s.set_dofs(x0[:-2])
+            iota, G = x0[-2:]
             r, J = boozer_surface_residual(s, iota, G, self.biotsavart, derivatives=1)
 
         if s.stellsym:

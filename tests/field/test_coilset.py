@@ -193,15 +193,13 @@ class TestCoilSet(unittest.TestCase):
 
 
 class TestCoilSetSurfaceTarget(unittest.TestCase):
-    def setUp(self):
-        self.coilset = CoilSet()
-
     def test_flux_and_cs_distance_penalty_taylor(self):
         # The surface is the target of the penalties, not a variable: the
         # combined penalty depends on the coil dofs only, with a consistent gradient.
-        penalty = self.coilset.flux_penalty() + self.coilset.cs_distance_penalty(1.0)
-        self.assertGreater(self.coilset.surface.dof_size, 0)
-        self.assertEqual(penalty.dof_size, self.coilset.dof_size)
+        coilset = CoilSet()
+        penalty = coilset.flux_penalty() + coilset.cs_distance_penalty(1.0)
+        self.assertGreater(coilset.surface.dof_size, 0)
+        self.assertEqual(penalty.dof_size, coilset.dof_size)
         x = penalty.x
         h = np.random.default_rng(0).uniform(-1, 1, size=x.shape)
         deriv = penalty.dJ() @ h
