@@ -550,6 +550,10 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
         return self._solver.indata
 
     @property
+    def free_boundary(self) -> bool:
+        return bool(self.indata.lfreeb)
+
+    @property
     def wout(self) -> Any:
         return self._wout if self._solver is None else self._solver.wout
 
