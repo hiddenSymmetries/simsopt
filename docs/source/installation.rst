@@ -40,7 +40,7 @@ Also,
       properties of existing ``wout`` output files.
     * Optionally `VMEC++ <https://github.com/proximafusion/vmecpp>`_, via
       ``pip install simsopt[VMECPP]``, selected with
-      ``Vmec(..., solver=VmecppSolver)``.
+      ``Vmec(filename, solver=VmecppSolver(filename, mpi))``.
 - For computing Boozer coordinates:
     * `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_
 - For SPEC support:
