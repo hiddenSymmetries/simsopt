@@ -41,9 +41,20 @@ class FakeIndata:
 class FakeVmecSolver:
     """ ``solve()`` loads a stored wout file and counts the calls. """
 
-    def __init__(self, filename, mpi, keep_all_files=False, verbose=True):
+    def __init__(self):
+        self.input_file = None
+        self.n_initialize = 0
+
+    def save_wout(self, filename):
+        pass
+
+    def initialize(self, filename, mpi, keep_all_files=False, verbose=True):
+        self.n_initialize += 1
         self.input_file = filename
         self.verbose = verbose
+        self.keep_all_files = keep_all_files
+        self.iter = -1
+        self.files_to_delete = []
         self.indata = FakeIndata()
         self.wout = Struct()
         self.output_file = os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc")
@@ -97,12 +108,13 @@ class FakeVmecSolver:
 def fake_vmec():
     """ A ``Vmec`` driven by a fresh :obj:`FakeVmecSolver`. """
     filename = os.path.join(TEST_DIR, "input.li383_low_res")
-    return Vmec(filename, solver=FakeVmecSolver(filename, None))
+    return Vmec(filename, solver=FakeVmecSolver())
 
 
 class VmecSolverProtocolTests(unittest.TestCase):
     def test_fake_solver_conforms(self):
-        solver = FakeVmecSolver("input.dummy", None)
+        solver = FakeVmecSolver()
+        solver.initialize("input.dummy", None)
         self.assertIsInstance(solver, VmecSolverProtocol)
 
     def test_non_conforming_solver_raises(self):
@@ -112,21 +124,20 @@ class VmecSolverProtocolTests(unittest.TestCase):
 
     def test_solver_instance_is_used(self):
         filename = os.path.join(TEST_DIR, "input.li383_low_res")
-        solver = FakeVmecSolver(filename, None)
-        self.assertIs(Vmec(filename, solver=solver)._solver, solver)
+        solver = FakeVmecSolver()
+        v = Vmec(filename, solver=solver)
+        self.assertIs(v._solver, solver)
+        self.assertIs(v.solver, solver)
 
-    def test_solver_instance_gets_mpi(self):
+    def test_solver_is_initialized_with_vmec_arguments(self):
         filename = os.path.join(TEST_DIR, "input.li383_low_res")
-        solver = FakeVmecSolver(filename, None)
-        Vmec(filename, mpi="a partition", solver=solver)
+        solver = FakeVmecSolver()
+        Vmec(filename, mpi="a partition", keep_all_files=True, verbose=False, solver=solver)
+        self.assertEqual(solver.n_initialize, 1)
+        self.assertEqual(solver.input_file, filename)
         self.assertEqual(solver.mpi, "a partition")
-
-    def test_settings_with_solver_instance_raise(self):
-        """ keep_all_files and verbose are set on the solver itself. """
-        filename = os.path.join(TEST_DIR, "input.li383_low_res")
-        for kwargs in [dict(keep_all_files=True), dict(verbose=False)]:
-            with self.subTest(**kwargs), self.assertRaises(ValueError):
-                Vmec(filename, solver=FakeVmecSolver(filename, None), **kwargs)
+        self.assertTrue(solver.keep_all_files)
+        self.assertFalse(solver.verbose)
 
     def test_boundary_read_back_at_init(self):
         v = fake_vmec()
@@ -217,7 +228,7 @@ class VmecSolverProtocolTests(unittest.TestCase):
         self.assertFalse(os.path.exists("input.should_not_be_written"))
 
     def test_solver_class_raises(self):
-        """ A class must be instantiated by the user, even if its class attributes satisfy the protocol. """
+        """ Backend options go to the constructor, so the user instantiates the solver. """
         with self.assertRaises(TypeError) as cm:
             Vmec(os.path.join(TEST_DIR, "input.li383_low_res"), solver=FakeVmecSolver)
         self.assertIn("instance", str(cm.exception))
@@ -230,8 +241,8 @@ class VmecSolverProtocolTests(unittest.TestCase):
     def test_attributes_forwarded_to_solver(self):
         v = fake_vmec()
         for name, value in [("input_file", "input.other"), ("iter", 7), ("keep_all_files", True),
-                            ("files_to_delete", ["a"]), ("free_boundary", True), ("ictrl", [1]),
-                            ("fcomm", 3), ("output_file", "wout_other.nc"), ("wout", Struct())]:
+                            ("files_to_delete", ["a"]), ("output_file", "wout_other.nc"),
+                            ("wout", Struct())]:
             with self.subTest(name=name):
                 setattr(v, name, value)
                 self.assertIs(getattr(v._solver, name), value)

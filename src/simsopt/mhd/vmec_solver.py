@@ -6,6 +6,7 @@
 
 import logging
 import os.path
+import shutil
 from datetime import datetime
 
 import numpy as np
@@ -177,7 +178,7 @@ class Vmec2000Solver:
     share their parameters.
     """
 
-    def __init__(self, filename, mpi, keep_all_files: bool = False, verbose: bool = True):
+    def __init__(self):
         if MPI is None:
             raise RuntimeError("mpi4py needs to be installed for running VMEC")
         if vmec is None:
@@ -185,6 +186,13 @@ class Vmec2000Solver:
                 "Running VMEC from simsopt requires VMEC python extension. "
                 "Install the VMEC python extension from "
                 "https://github.com/hiddenSymmetries/VMEC2000")
+        self.input_file = None
+
+    def initialize(self, filename, mpi, keep_all_files: bool = False, verbose: bool = True):
+        """ Read ``filename``. Called once, by :obj:`~simsopt.mhd.vmec.Vmec`. """
+        if self.input_file is not None:
+            raise RuntimeError(f"This solver was already initialized from {self.input_file}; "
+                               "give each Vmec a new solver")
 
         self.mpi = mpi
         self.verbose = verbose
@@ -206,7 +214,6 @@ class Vmec2000Solver:
         self.iter = -1
         self.keep_all_files = keep_all_files
         self.files_to_delete = []
-        self.input_file = filename
 
         self.indata = vmec.vmec_input  # Shorthand
         vi = vmec.vmec_input  # Shorthand
@@ -227,6 +234,7 @@ class Vmec2000Solver:
             raise RuntimeError(f"Failed to initialize VMEC from input file {filename}. Error code: {ierr}.")
 
         self.free_boundary = bool(vi.lfreeb)
+        self.input_file = filename
 
     @property
     def phiedge(self):
@@ -589,6 +597,10 @@ class Vmec2000Solver:
         data in the ``wout`` attribute of this object.
         """
         return load_wout_file(self.output_file, self.wout)
+
+    def save_wout(self, filename):
+        """ Copy the latest ``output_file`` to ``filename``. """
+        shutil.copyfile(self.output_file, filename)
 
     def update_mpi(self, new_mpi):
         """
