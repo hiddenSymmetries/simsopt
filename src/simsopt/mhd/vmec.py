@@ -317,8 +317,12 @@ class Vmec(Optimizable):
           each MPI process will run VMEC independently.
         keep_all_files: If ``False``, all ``wout`` output files will be deleted
           except for the first and most recent ones from worker group 0. If
-          ``True``, all ``wout`` files will be kept.
-        verbose: Whether to print to stdout when running vmec.
+          ``True``, all ``wout`` files will be kept. Only for the default solver.
+        verbose: Whether to print to stdout when running vmec. Only for the
+          default solver.
+        solver: A :obj:`VmecSolverProtocol` instance to run instead of the
+          default :obj:`~simsopt.mhd.vmec_solver.Vmec2000Solver`. It is given
+          this object's ``mpi``.
 
     Attributes:
         iter: Number of times VMEC has run.
@@ -335,8 +339,8 @@ class Vmec(Optimizable):
     def __init__(self,
                  filename: Optional[str] = None,
                  mpi: Optional[MpiPartition] = None,
-                 keep_all_files: bool = False,
-                 verbose: bool = True,
+                 keep_all_files: Optional[bool] = None,
+                 verbose: Optional[bool] = None,
                  ntheta=50,
                  nphi=50,
                  range_surface='full torus',
@@ -361,7 +365,7 @@ class Vmec(Optimizable):
         self._solver = None
         self._wout = Struct()
         self._output_file = None
-        self._verbose = verbose
+        self._verbose = True if verbose is None else verbose
 
         # Get MPI communicator:
         if (mpi is None and MPI is not None):
@@ -380,16 +384,18 @@ class Vmec(Optimizable):
             if MPI is None:
                 raise RuntimeError("mpi4py needs to be installed for running VMEC")
             if solver is None:
-                solver = Vmec2000Solver
-            # A class is a factory, even if its class attributes satisfy the protocol:
-            if isinstance(solver, VmecSolverProtocol) and not isinstance(solver, type):
-                self._solver = solver
+                solver = Vmec2000Solver(filename, self.mpi,
+                                        keep_all_files=bool(keep_all_files),
+                                        verbose=self._verbose)
+            elif isinstance(solver, type):
+                raise TypeError(f"Pass an instance, e.g. solver={solver.__name__}(filename, mpi)")
+            elif not isinstance(solver, VmecSolverProtocol):
+                raise TypeError(f"{type(solver).__name__} does not satisfy VmecSolverProtocol")
+            elif keep_all_files is not None or verbose is not None:
+                raise ValueError("Set keep_all_files and verbose on the solver, not on Vmec")
             else:
-                self._solver = solver(filename, self.mpi,
-                                      keep_all_files=keep_all_files,
-                                      verbose=verbose)
-            if not isinstance(self._solver, VmecSolverProtocol):
-                raise TypeError(f"{type(self._solver).__name__} does not satisfy VmecSolverProtocol")
+                solver.update_mpi(self.mpi)
+            self._solver = solver
 
             # A vmec object has mpol and ntor attributes independent of
             # the boundary. The boundary surface object is initialized
