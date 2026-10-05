@@ -175,11 +175,7 @@ jobs:
     - name: Install simsopt package
       # run: env CMAKE_BUILD_TYPE=Debug pip install -v .[MPI,SPEC]
       # run: pip install -v ".[MPI,SPEC,VIS]"
-      run: pip install -v ".[MPI,VIS]"
-
-    # Replace with the VMECPP extra once vmecpp 0.7.7 is released.
-    - name: Install vmecpp
-      run: pip install -v "vmecpp @ git+https://github.com/proximafusion/vmecpp@7a4487508853ac5a470efd8368acc14d734a1b09"
+      run: pip install -v ".[MPI,VIS,VMECPP]"
 
     - name: Verify that importing simsopt does not automatically initialize MPI
       run: ./tests/verify_MPI_not_initialized.py
