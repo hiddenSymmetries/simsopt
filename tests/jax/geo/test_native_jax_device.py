@@ -99,16 +99,92 @@ assert np.all(np.isfinite(jax.device_get(value)))
     subprocess.run([sys.executable, "-c", code], env=environment, check=True)
 
 
-@pytest.mark.parametrize("device", ["cpu", "gpu"])
-def test_native_stage_two_with_explicit_platforms_in_fresh_process(tmp_path, device):
+_GPU_DETERMINISM_FLAG = "--xla_gpu_exclude_nondeterministic_ops=true"
+
+
+def _with_gpu_determinism(environment):
+    environment["XLA_FLAGS"] = " ".join(
+        flag for flag in (environment.get("XLA_FLAGS"), _GPU_DETERMINISM_FLAG) if flag
+    )
+    return environment
+
+
+@pytest.mark.parametrize("platforms_after_import", [None, "cuda,cpu"])
+def test_set_backend_default_platform_after_native_import_in_fresh_process(
+    platforms_after_import,
+):
+    """``set_backend`` makes its platform the default after ``simsopt.geo`` set ``cpu``.
+
+    Without JAX platform variables, ``simsopt.geo`` sets the legacy
+    ``jax_platform_name="cpu"``, which JAX consults before ``jax_platforms``.
+    The child stubs JAX's backend table (a CUDA backend, plus CPU when listed)
+    so the CPU-only CI host resolves the default backend exactly as a CUDA host
+    would: before the fix it was ``Unknown backend cpu`` or, with ``cuda,cpu``,
+    CPU while CUDA was requested.
+    """
+    environment = _with_gpu_determinism(_fresh_environment())
+    code = '''
+import os
+import sys
+
+import jax
+from jax._src import xla_bridge
+from simsopt import geo  # noqa: F401
+from simsopt_jax.backend import set_backend
+
+assert jax.config.values["jax_platform_name"] == "cpu"
+platforms_after_import = sys.argv[1]
+if platforms_after_import:
+    os.environ["JAX_PLATFORMS"] = platforms_after_import
+
+
+class _Backend:
+    def __init__(self, platform):
+        self.platform = platform
+
+
+cuda = _Backend("gpu")
+backends = {"cuda": cuda}
+if platforms_after_import:
+    backends["cpu"] = _Backend("cpu")
+xla_bridge.backends = lambda: backends
+xla_bridge._default_backend = cuda
+
+set_backend("jax", device="gpu", intent="parity")
+assert jax.config.jax_platforms == (platforms_after_import or "cuda")
+assert jax.config.values["jax_platform_name"] == ""
+assert jax.default_backend() == "gpu"
+'''
+    subprocess.run(
+        [sys.executable, "-c", code, platforms_after_import or ""],
+        env=environment,
+        check=True,
+    )
+
+
+@pytest.mark.parametrize(
+    ("device", "jax_platforms"),
+    [("cpu", "cpu"), ("gpu", "cuda,cpu"), ("gpu", None)],
+    ids=["cpu", "gpu-cuda-cpu-platforms", "gpu-no-platform-env"],
+)
+def test_native_stage_two_with_explicit_platforms_in_fresh_process(
+    tmp_path, device, jax_platforms
+):
+    """Native stage II after ``set_backend``; ``gpu-no-platform-env`` exports no
+    JAX platform variable, so ``simsopt.geo`` sets ``cpu`` before ``set_backend``
+    and native length kernels run on CUDA alone."""
     if device == "gpu" and not any(d.platform == "gpu" for d in jax.devices()):
         pytest.skip("CUDA JAX device required")
-    environment = _fresh_environment()
-    environment.update(
-        JAX_PLATFORMS="cuda,cpu" if device == "gpu" else "cpu",
-        SIMSOPT_JAX_COMPILATION_CACHE_DIR=str(tmp_path / "compilation-cache"),
+    environment = _with_gpu_determinism(_fresh_environment())
+    environment["SIMSOPT_JAX_COMPILATION_CACHE_DIR"] = str(
+        tmp_path / "compilation-cache"
     )
+    if jax_platforms is not None:
+        environment["JAX_PLATFORMS"] = jax_platforms
+    native_platform = "gpu" if jax_platforms is None else "cpu"
     code = '''
+import sys
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -119,14 +195,15 @@ from simsopt.objectives import SquaredFlux
 from simsopt_jax.backend import get_runtime_jax_device, set_backend
 from simsopt_jax_adapters.field import BiotSavartJAX
 
-device = "gpu" if jax.config.jax_platforms == "cuda,cpu" else "cpu"
-assert jax.config.values["jax_platform_name"] == ""
+device, native_platform, platform_env = sys.argv[1:]
+assert jax.config.values["jax_platform_name"] == ("" if platform_env else "cpu")
 set_backend("jax", device=device, intent="parity")
+assert jax.config.values["jax_platform_name"] == ""
 assert jax.default_backend() == device
 assert jnp.ones(2).device.platform == device
 runtime_device = get_runtime_jax_device()
 assert runtime_device.platform == device
-assert native_jax_device().platform == "cpu"
+assert native_jax_device().platform == native_platform
 
 curve = create_equally_spaced_curves(1, 1, False, R0=1.0, R1=0.5, order=2, numquadpoints=32)[0]
 length = CurveLength(curve)
@@ -153,4 +230,8 @@ np.testing.assert_allclose(adapter_flux.dJ(), native_flux.dJ(), rtol=1e-12, atol
 assert jax.default_backend() == device
 assert jnp.ones(2).device.platform == device
 '''
-    subprocess.run([sys.executable, "-c", code], env=environment, check=True)
+    subprocess.run(
+        [sys.executable, "-c", code, device, native_platform, jax_platforms or ""],
+        env=environment,
+        check=True,
+    )

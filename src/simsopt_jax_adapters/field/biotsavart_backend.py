@@ -45,7 +45,7 @@ from simsopt_jax.core.biotsavart import (
     biot_savart_dB_by_dX,
 )
 from simsopt_jax.core.field import (
-    biot_savart_B_vjp_maybe_collective,
+    group_biot_savart_B_vjp,
     grouped_biot_savart_A_from_inputs,
     grouped_biot_savart_A_from_spec,
     grouped_biot_savart_B_and_dB_from_spec,
@@ -163,11 +163,8 @@ def _per_coil_unit_field_with_batch_size(points, coil_set_spec, kernel, *, batch
     ``∂F/∂I_k`` for the matching spatial-derivative kernel.
 
     The output is a list of ``ncoils`` separate JAX arrays — one per
-    coil — so coil-axis collective reduction does not apply. The
-    ``SIMSOPT_JAX_SHARDING=coil_groups`` collective path (used by
-    ``grouped_biot_savart_*_from_spec``) is bypassed here by design,
-    relying instead on the JAX kernel cache for compile-time reuse
-    within a quadrature group.
+    coil. The JAX kernel cache provides compile-time reuse within a
+    quadrature group.
     """
     compute_points = _as_compute_array(points)
     ncoils = sum(len(group.coil_indices) for group in coil_set_spec.groups)
@@ -1289,7 +1286,7 @@ class BiotSavartJAX(Optimizable):
         v_jax = _as_jax_float64(v)
         coil_set_spec = self._coil_set_spec_from_explicit_state()
         d_coil_arrays = tuple(
-            biot_savart_B_vjp_maybe_collective(
+            group_biot_savart_B_vjp(
                 points,
                 v_jax,
                 group.gammas,

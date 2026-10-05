@@ -22,7 +22,6 @@ from simsopt_jax.runtime.host_boundary import host_value
 
 from ._math_utils import (
     as_jax_float64 as _as_float64_array,
-    as_runtime_float64 as _as_runtime_float64,
     runtime_device_put,
 )
 
@@ -678,13 +677,13 @@ def apply_coil_symmetry(
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Apply rotation/scale transform to curve geometry and current."""
     if symmetry.has_rotation:
-        rotmat = _as_runtime_float64(symmetry.rotmat, reference=gamma)
+        rotmat = _as_float64_array(symmetry.rotmat)
         gamma = gamma @ rotmat
         gammadash = gammadash @ rotmat
     return (
         gamma,
         gammadash,
-        current * _as_runtime_float64(symmetry.scale, reference=current),
+        current * _as_float64_array(symmetry.scale),
     )
 
 

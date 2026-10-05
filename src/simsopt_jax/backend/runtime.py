@@ -9,14 +9,15 @@ GPU parity requires a CUDA-enabled JAX installation and
 ``--xla_gpu_exclude_nondeterministic_ops=true`` in ``XLA_FLAGS`` before JAX
 backend initialization. Preserve other launch flags when adding it::
 
-    export JAX_PLATFORMS=cuda,cpu
     export XLA_FLAGS="${XLA_FLAGS:+${XLA_FLAGS} }--xla_gpu_exclude_nondeterministic_ops=true"
 
 Then call ``set_backend("jax", device="gpu", intent="parity")`` before
-constructing the adapter or touching JAX devices. The stage-II example accepts
-``--device gpu`` with this launch environment.
-The explicit platforms preserve CUDA as the default when native geometry is
-imported and provide a CPU device for native length kernels.
+constructing the adapter or touching JAX devices. It makes CUDA the default JAX
+backend, also when native geometry (``simsopt.geo``) was imported first. The
+stage-II example accepts ``--device gpu`` with this launch environment.
+Exporting ``JAX_PLATFORMS=cuda,cpu`` as well keeps a CPU device next to CUDA,
+so the native C++ curve length kernels run on the host; with CUDA alone they
+run on the GPU through the same explicit transfers.
 
 Retained settings:
 
@@ -27,24 +28,22 @@ Retained settings:
   owner's ``allow_host_transfers`` context when evaluating in that debug mode.
 * Runtime, compute and host precision is float64 for every supported mode.
 * ``SIMSOPT_JAX_COIL_CHUNK_SIZE``, ``SIMSOPT_JAX_QUADRATURE_BLOCK_SIZE`` and
-  ``SIMSOPT_JAX_POINT_CHUNK_SIZE`` select field tiling. A disallow transfer guard
-  selects dense audit kernels (zero chunk sizes). GPU memory autotuning is
-  controlled by ``SIMSOPT_JAX_CHUNK_AUTOTUNE`` and measured or supplied memory.
+  ``SIMSOPT_JAX_POINT_CHUNK_SIZE`` override the mode's field tiling. A disallow
+  transfer guard selects dense audit kernels (zero chunk sizes).
 * ``SIMSOPT_JAX_COMPILATION_CACHE_DIR`` enables persistent compilation caching;
   backend reconfiguration clears registered in-process kernel and placement caches.
 * GPU allocation controls are ``SIMSOPT_JAX_GPU_PREALLOCATE``,
   ``SIMSOPT_JAX_GPU_MEM_FRACTION``, ``SIMSOPT_JAX_GPU_ALLOCATOR`` and
   ``SIMSOPT_TF_GPU_ALLOCATOR``. Set these before initializing a GPU backend.
-* ``SIMSOPT_JAX_SHARDING`` and axis/minimum-size settings govern field-point and
-  coil-group placement. CPU validation does not certify GPU collectives.
+* Field evaluation runs on the single runtime device (the first local device
+  of the selected platform); it does not distribute work across devices.
 
-Policy resolution and topology builders live in ``_runtime_policy`` and
+Policy resolution and field-tiling builders live in ``_runtime_policy`` and
 ``_runtime_tuning``; this module owns process lifecycle and configuration.
 """
 
 from __future__ import annotations
 
-import logging
 import os
 import shlex
 import sys
@@ -91,48 +90,33 @@ from simsopt_jax.backend._runtime_policy import (
     resolve_jax_execution_profile,
 )
 from simsopt_jax.backend._runtime_tuning import (
-    ChunkTuning,
     FieldKernelTuning,
-    ShardingTuning,
-    _build_chunk_tuning,
-    _build_sharding_tuning,
-    _detect_local_jax_device_count as _detect_local_jax_device_count,
-    _parse_visible_cuda_device_index as _parse_visible_cuda_device_index,
-    _detect_imported_jax_cuda_device_index as _detect_imported_jax_cuda_device_index,
-    _detect_active_jax_cuda_device_selector,
-    _query_gpu_metric_mb_from_nvidia_smi,
+    _build_field_kernel_tuning,
 )
 
-_LOGGER = logging.getLogger(__name__)
 
 __all__ = [
     "VALID_BACKEND_MODES",
     "BackendConfig",
     "BackendMode",
     "BackendPolicy",
-    "ChunkTuning",
     "ExecutionIntent",
     "FieldKernelTuning",
     "JaxDevice",
     "JaxExecutionProfile",
     "PrecisionSelection",
-    "ShardingTuning",
     "apply_cuda_xla_flag_pins",
     "apply_jax_runtime_config",
     "get_backend_config",
     "get_backend_mode",
     "get_backend_policy",
-    "get_chunk_tuning",
     "get_compute_dtype",
     "get_field_kernel_tuning",
     "get_runtime_jax_device",
-    "get_sharding_tuning",
     "invalidate_backend_cache",
-    "query_active_gpu_memory_mb",
     "register_backend_cache_clear",
     "resolve_jax_execution_profile",
     "set_backend",
-    "with_cpu_device_for_construction",
 ]
 
 _GPU_DETERMINISM_XLA_FLAGS = ("--xla_gpu_exclude_nondeterministic_ops",)
@@ -335,55 +319,18 @@ def get_compute_dtype(mode: str | None = None) -> str:
 
 
 _cached_field_kernel_tuning: FieldKernelTuning | None = None
-_cached_chunk_tuning: ChunkTuning | None = None
-_cached_sharding_tuning: ShardingTuning | None = None
-
-
-def get_chunk_tuning(mode: str | None = None) -> ChunkTuning:
-    """Return the resolved chunk sizes and autotuning metadata."""
-    global _cached_chunk_tuning
-    with _backend_runtime_lock:
-        if mode is None and _cached_chunk_tuning is not None:
-            return _cached_chunk_tuning
-        resolved_mode = _resolve_mode(mode)
-        tuning = _build_chunk_tuning(
-            resolved_mode,
-            get_backend_policy(resolved_mode),
-        )
-        if mode is None:
-            _cached_chunk_tuning = tuning
-        return tuning
-
-
-def get_sharding_tuning(mode: str | None = None) -> ShardingTuning:
-    """Return the resolved sharding strategy and mesh activation metadata."""
-    global _cached_sharding_tuning
-    with _backend_runtime_lock:
-        if mode is None and _cached_sharding_tuning is not None:
-            return _cached_sharding_tuning
-        resolved_mode = _resolve_mode(mode)
-        tuning = _build_sharding_tuning(
-            resolved_mode,
-            get_backend_policy(resolved_mode),
-        )
-        if mode is None:
-            _cached_sharding_tuning = tuning
-        return tuning
 
 
 def get_field_kernel_tuning(mode: str | None = None) -> FieldKernelTuning:
-    """Return the low-level field-kernel tuning contract for the resolved mode."""
+    """Return the field-kernel chunk sizes for the resolved mode."""
     global _cached_field_kernel_tuning
     with _backend_runtime_lock:
         if mode is None and _cached_field_kernel_tuning is not None:
             return _cached_field_kernel_tuning
-        chunk_tuning = get_chunk_tuning(mode)
-        tuning = FieldKernelTuning(
-            mode=chunk_tuning.mode,
-            chunk_policy=chunk_tuning.chunk_policy,
-            coil_chunk_size=chunk_tuning.coil_chunk_size,
-            quadrature_block_size=chunk_tuning.quadrature_block_size,
-            point_chunk_size=chunk_tuning.point_chunk_size,
+        resolved_mode = _resolve_mode(mode)
+        tuning = _build_field_kernel_tuning(
+            resolved_mode,
+            get_backend_policy(resolved_mode),
         )
         if mode is None:
             _cached_field_kernel_tuning = tuning
@@ -419,15 +366,6 @@ def get_runtime_jax_device(mode: str | None = None):
     return jax.local_devices(backend=backend_name)[0]
 
 
-def query_active_gpu_memory_mb(mode: str | None = None) -> float | None:
-    """Return coarse memory usage for the active CUDA device when available."""
-    policy = get_backend_policy(mode)
-    device_selector = _detect_active_jax_cuda_device_selector()
-    if policy.jax_platform != "cuda" and device_selector is None:
-        return None
-    return _query_gpu_metric_mb_from_nvidia_smi("memory.used", device_selector)
-
-
 def _backend_cache_clear_callback_key(
     callback: Callable[[], None],
 ) -> _BackendCacheClearCallbackKey:
@@ -450,14 +388,12 @@ def _run_backend_cache_clear_callbacks() -> None:
 
 
 def _reset_backend_runtime_caches() -> None:
-    global _cached_backend_policy, _cached_chunk_tuning, _cached_field_kernel_tuning
-    global _cached_sharding_tuning, _compilation_cache_applied_dir
+    global _cached_backend_policy, _cached_field_kernel_tuning
+    global _compilation_cache_applied_dir
     with _backend_runtime_lock:
         _cached_backend_policy = None
         _compilation_cache_applied_dir = None
-        _cached_chunk_tuning = None
         _cached_field_kernel_tuning = None
-        _cached_sharding_tuning = None
         _run_backend_cache_clear_callbacks()
 
 
@@ -709,6 +645,12 @@ def apply_jax_runtime_config() -> None:
         "jax_platforms",
         _runtime_jax_platforms_value(config.jax_platform),
     )
+    # JAX resolves the default backend from the deprecated ``jax_platform_name``
+    # before ``jax_platforms``. ``simsopt.geo`` sets it to ``"cpu"`` when no JAX
+    # platform environment variable is set, which would keep the selected
+    # platform from becoming the default (or fail when CPU is not listed).
+    # Clearing it makes the selected platform, listed first, the default.
+    jax.config.update("jax_platform_name", "")
     jax.config.update("jax_enable_x64", policy.requires_x64)
     jax.config.update("jax_default_matmul_precision", policy.matmul_precision)
     jax.config.update("jax_debug_nans", config.debug_nans)
@@ -717,30 +659,6 @@ def apply_jax_runtime_config() -> None:
         jax.config.update("jax_transfer_guard", config.transfer_guard)
     _apply_compilation_cache_config(jax, config)
     _validate_initialized_jax_runtime(jax, config)
-
-
-class _CpuDeviceConstructionContext:
-    def __init__(self):
-        self._context = None
-
-    def __enter__(self):
-        cpu_devices = jax.devices("cpu")
-        if not cpu_devices:
-            raise RuntimeError("JAX did not report an addressable CPU device.")
-        cpu_device = cpu_devices[0]
-        self._context = jax.default_device(cpu_device)
-        self._context.__enter__()
-        return cpu_device
-
-    def __exit__(self, exc_type, exc, traceback):
-        if self._context is None:
-            return False
-        return self._context.__exit__(exc_type, exc, traceback)
-
-
-def with_cpu_device_for_construction():
-    """Return a context manager that defaults fresh JAX arrays to CPU."""
-    return _CpuDeviceConstructionContext()
 
 
 def set_backend(

@@ -7,16 +7,14 @@ import numpy as np
 import jax.numpy as jnp
 
 from ._device_scalars import two_pi as _two_pi
-from ._math_utils import as_runtime_float64 as _as_runtime_float64
+from ._math_utils import as_jax_float64 as _as_jax_float64
 
 
 def jaxXYZFourierSymmetriescurve_pure(dofs, quadpoints, order, nfp, stellsym, ntor):
     two_pi = _two_pi(quadpoints)
-    nfp_scalar = _as_runtime_float64(float(nfp), reference=quadpoints)
-    ntor_scalar = _as_runtime_float64(float(ntor), reference=quadpoints)
-    modes = _as_runtime_float64(
-        np.arange(order + 1, dtype=np.float64), reference=quadpoints
-    )
+    nfp_scalar = _as_jax_float64(float(nfp))
+    ntor_scalar = _as_jax_float64(float(ntor))
+    modes = _as_jax_float64(np.arange(order + 1, dtype=np.float64))
 
     theta = jnp.expand_dims(quadpoints, axis=1)
     m_row = jnp.expand_dims(modes, axis=0)

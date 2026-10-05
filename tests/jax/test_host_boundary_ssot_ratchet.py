@@ -334,7 +334,7 @@ def test_placement_owners_place_host_values_under_the_strict_guard() -> None:
     np.testing.assert_array_equal(jax.device_get(placed_tree["float"]), tree["float"])
     assert jax.device_get(placed_tree["integer"][0]).item() == 3
     assert placed_array.dtype == jnp.float64
-    assert placed_array.sharding == reference.sharding
+    assert placed_array.devices() == reference.devices()
     np.testing.assert_array_equal(jax.device_get(placed_array), [5.0, 6.0])
 
 

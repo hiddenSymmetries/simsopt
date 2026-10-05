@@ -3,14 +3,14 @@
 Install with ``pip install '.[jax]'``. Run with ``CI=true`` for two iterations.
 For GPU, use a CUDA-enabled JAX installation and launch from the repository root::
 
-    JAX_PLATFORMS=cuda,cpu \
     XLA_FLAGS="${XLA_FLAGS:+${XLA_FLAGS} }--xla_gpu_exclude_nondeterministic_ops=true" \
         python examples/2_Intermediate/stage_two_biotsavart_jax.py --device gpu
 
 This preserves existing XLA flags and enables deterministic operations before
-JAX backend initialization. The CUDA backend is the default; C++ curve length
-mean and norm VJP kernels use the available CPU device through explicit transfers.
-``--device cpu`` is the default.
+JAX backend initialization; ``set_backend`` below makes CUDA the default
+backend. C++ curve length mean and norm VJP kernels use explicit transfers: to
+the CPU device when ``JAX_PLATFORMS=cuda,cpu`` is also exported, otherwise to
+the GPU. ``--device cpu`` is the default.
 This adapter supports Python objectives and derivatives. It is not a
 simsoptpp.MagneticField: tracing,
 InterpolatedField and native field arithmetic require native BiotSavart.

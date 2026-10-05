@@ -48,17 +48,10 @@ _BACKEND_RUNTIME_ENV_VARS = (
     "SIMSOPT_JAX_COIL_CHUNK_SIZE",
     "SIMSOPT_JAX_QUADRATURE_BLOCK_SIZE",
     "SIMSOPT_JAX_POINT_CHUNK_SIZE",
-    "SIMSOPT_JAX_CHUNK_AUTOTUNE",
-    "SIMSOPT_JAX_GPU_MEMORY_TOTAL_MB",
     "SIMSOPT_JAX_GPU_PREALLOCATE",
     "SIMSOPT_JAX_GPU_MEM_FRACTION",
     "SIMSOPT_JAX_GPU_ALLOCATOR",
     "SIMSOPT_TF_GPU_ALLOCATOR",
-    "SIMSOPT_JAX_SHARDING",
-    "SIMSOPT_JAX_SHARDING_AXIS",
-    "SIMSOPT_JAX_COIL_SHARDING_AXIS",
-    "SIMSOPT_JAX_MIN_POINTS_TO_SHARD",
-    "SIMSOPT_JAX_MIN_COILS_TO_SHARD",
     "SIMSOPT_BACKEND",
     "SIMSOPT_JAX_PLATFORM",
     "JAX_PLATFORMS",
@@ -76,6 +69,7 @@ _JAX_RUNTIME_CONFIG_DEFAULTS = {
     "jax_disable_jit": False,
     "jax_transfer_guard": None,
     "jax_platforms": None,
+    "jax_platform_name": "",
     "jax_compilation_cache_dir": None,
 }
 _PARITY_SEED_BASE = 1729
@@ -117,7 +111,7 @@ def _snapshot_loaded_jax_runtime_config() -> dict[str, object]:
     if jax_module is None:
         return dict(_JAX_RUNTIME_CONFIG_DEFAULTS)
     return {
-        name: getattr(jax_module.config, name) for name in _JAX_RUNTIME_CONFIG_DEFAULTS
+        name: jax_module.config.values[name] for name in _JAX_RUNTIME_CONFIG_DEFAULTS
     }
 
 

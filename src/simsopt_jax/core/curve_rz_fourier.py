@@ -9,11 +9,11 @@ import jax
 import jax.numpy as jnp
 
 from ._device_scalars import two_pi as _two_pi
-from ._math_utils import as_runtime_float64 as _as_runtime_float64_ref
+from ._math_utils import as_jax_float64 as _as_jax_float64
 
 
 def curverzfourier_pure(dofs, quadpoints, order, nfp, stellsym):
-    quadpoints = _as_runtime_float64_ref(quadpoints, reference=dofs)
+    quadpoints = _as_jax_float64(quadpoints)
     phi = _two_pi(quadpoints) * quadpoints
     cosphi = jnp.cos(phi)
     sinphi = jnp.sin(phi)
@@ -27,18 +27,12 @@ def curverzfourier_pure(dofs, quadpoints, order, nfp, stellsym):
         zc = jax.lax.slice_in_dim(dofs, 2 * order + 1, 3 * order + 2, axis=0)
         zs = jax.lax.slice_in_dim(dofs, 3 * order + 2, dofs.shape[0], axis=0)
 
-    cos_modes = _as_runtime_float64_ref(
-        np.arange(order + 1, dtype=np.float64),
-        reference=phi,
-    )
-    nfp_scale = _as_runtime_float64_ref(float(nfp), reference=phi)
+    cos_modes = _as_jax_float64(np.arange(order + 1, dtype=np.float64))
+    nfp_scale = _as_jax_float64(float(nfp))
     cos_phase = phi[:, None] * (nfp_scale * cos_modes)[None, :]
     radius = jnp.sum(rc[None, :] * jnp.cos(cos_phase), axis=1)
 
-    sin_modes = _as_runtime_float64_ref(
-        np.arange(1, order + 1, dtype=np.float64),
-        reference=phi,
-    )
+    sin_modes = _as_jax_float64(np.arange(1, order + 1, dtype=np.float64))
     if order > 0:
         sin_phase = phi[:, None] * (nfp_scale * sin_modes)[None, :]
         z = jnp.sum(zs[None, :] * jnp.sin(sin_phase), axis=1)

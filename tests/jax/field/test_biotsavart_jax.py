@@ -36,7 +36,6 @@ from simsopt_jax_adapters.field.biotsavart_backend import (
 )
 
 
-from simsopt_jax.backend import invalidate_backend_cache
 
 
 from simsopt_jax.core.specs import CoilGroupSpec, GroupedCoilSetSpec
@@ -383,32 +382,6 @@ class TestBiotSavartJaxCppCoilCurrentParity:
             rtol=_DIRECT_KERNEL_TOLS["rtol"],
             atol=_DIRECT_KERNEL_TOLS["atol"],
         )
-
-    def test_per_coil_unit_field_contract_under_coil_group_sharding(self, monkeypatch):
-        """Per-coil current derivatives stay list-shaped under sharding envs."""
-
-        bs, points_np, _, _, _ = _ncsx_biotsavart_parity_fixture()
-        bs.B()
-        cpu_list = bs.dB_by_dcoilcurrents()
-
-        monkeypatch.setenv("SIMSOPT_JAX_SHARDING", "coil_groups")
-        invalidate_backend_cache()
-        try:
-            bs_jax = BiotSavartJAX(list(bs._coils))
-            bs_jax.set_points(points_np)
-            jax_list = bs_jax.dB_by_dcoilcurrents()
-        finally:
-            invalidate_backend_cache()
-
-        assert isinstance(jax_list, list)
-        assert len(jax_list) == len(cpu_list)
-        for j_entry, c_entry in zip(jax_list, cpu_list):
-            np.testing.assert_allclose(
-                np.asarray(j_entry),
-                np.asarray(c_entry),
-                rtol=_DIRECT_KERNEL_TOLS["rtol"],
-                atol=_DIRECT_KERNEL_TOLS["atol"],
-            )
 
     def test_per_coil_unit_field_vectorizes_within_quadrature_group(self):
 

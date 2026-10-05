@@ -23,7 +23,6 @@ from .curve_xyz_fourier_symmetries import jaxXYZFourierSymmetriescurve_pure
 from ._math_utils import (
     as_compute_array as _as_compute_array,
     as_runtime_array as _as_runtime_array,
-    as_runtime_float64 as _as_runtime_float64,
 )
 from .framedcurve import (
     rotated_centroid_frame,
@@ -78,7 +77,7 @@ def _zeros_like_runtime(array: jax.Array) -> jax.Array:
 
 def _as_explicit_runtime_array(value, *, reference=None) -> jax.Array:
     if reference is not None:
-        return _as_runtime_float64(value, reference=reference)
+        return _as_runtime_array(value)
     if isinstance(value, jax.Array) or hasattr(value, "aval"):
         return _as_runtime_array(value)
     if isinstance(value, (list, tuple)):
@@ -93,7 +92,7 @@ def _as_explicit_runtime_array(value, *, reference=None) -> jax.Array:
 
 def _as_explicit_compute_array(value, *, reference=None) -> jax.Array:
     if reference is not None:
-        return _as_compute_array(value, reference=reference)
+        return _as_compute_array(value)
     if isinstance(value, jax.Array) or hasattr(value, "aval"):
         return _as_compute_array(value)
     if isinstance(value, (list, tuple)):
@@ -538,8 +537,8 @@ def curve_spec_with_dofs(
     use_compute_dtype: bool = False,
 ):
     if use_compute_dtype:
-        return replace(spec, dofs=_as_compute_array(dofs, reference=spec.dofs))
-    return replace(spec, dofs=_as_runtime_float64(dofs, reference=spec.dofs))
+        return replace(spec, dofs=_as_compute_array(dofs))
+    return replace(spec, dofs=_as_runtime_array(dofs))
 
 
 def curve_gamma_and_dash_from_spec(spec: CurveSpec):
@@ -623,8 +622,8 @@ def _curve_geometry_term_vjp_from_dofs(
     *,
     term_index: int,
 ):
-    curve_dofs = _as_runtime_float64(dofs, reference=spec.dofs)
-    cotangent_jax = _as_runtime_float64(cotangent, reference=curve_dofs)
+    curve_dofs = _as_runtime_array(dofs)
+    cotangent_jax = _as_runtime_array(cotangent)
 
     def output(curve_x):
         return _curve_geometry_term_from_dofs(spec, curve_x, term_index)
@@ -672,9 +671,9 @@ def curve_gammadashdashdash_vjp_from_dofs(spec: CurveSpec, dofs, cotangent):
 
 def curve_pullback_from_dofs(spec: CurveSpec, dofs, dg, dgd):
     """Return the coefficient cotangent of ``(gamma, gammadash)`` for one curve spec."""
-    curve_dofs = _as_runtime_float64(dofs, reference=spec.dofs)
-    dg_jax = _as_runtime_float64(dg, reference=curve_dofs)
-    dgd_jax = _as_runtime_float64(dgd, reference=curve_dofs)
+    curve_dofs = _as_runtime_array(dofs)
+    dg_jax = _as_runtime_array(dg)
+    dgd_jax = _as_runtime_array(dgd)
 
     def outputs(curve_x):
         return curve_gamma_and_dash_from_dofs(spec, curve_x)

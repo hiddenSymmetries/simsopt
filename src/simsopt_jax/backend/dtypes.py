@@ -3,9 +3,10 @@
 Ownership split:
 
 * This module — **device placement and dtype policy**: ``runtime_device_put``
-  (runtime float policy), ``explicit_device_array`` (exact requested dtype),
-  ``as_runtime_array`` / ``as_compute_array`` (policy + optional reference
-  sharding). Do not reimplement ``device_put`` with ad-hoc float coercion.
+  (runtime float policy), ``explicit_device_array`` (exact requested dtype,
+  optionally on a reference array's device), ``as_runtime_array`` /
+  ``as_compute_array`` (runtime / compute dtype policy). Do not reimplement
+  ``device_put`` with ad-hoc float coercion.
 * ``simsopt_jax.runtime.host_boundary`` — **host materialization** (D2H):
   ``host_array`` / ``host_tree`` and ready variants.
 """
@@ -19,9 +20,6 @@ import jax
 from jax import core as jax_core
 import jax.numpy as jnp
 import numpy as np
-from jax.sharding import NamedSharding
-from jax.sharding import PartitionSpec as P
-from jax.sharding import Sharding
 
 from simsopt_jax.backend.runtime import (
     get_backend_policy,
@@ -35,7 +33,6 @@ __all__ = [
     "as_jax_float64",
     "as_jax_int32",
     "as_runtime_array",
-    "as_runtime_float64",
     "commit_in_place",
     "compute_jnp_dtype",
     "explicit_device_array",
@@ -74,51 +71,33 @@ def _is_jax_tracer(value) -> bool:
     return isinstance(value, jax_core.Tracer)
 
 
-def _contains_traced_jax_leaves(value) -> bool:
-    return any(_is_jax_tracer(leaf) for leaf in jax.tree.leaves(value))
-
-
 def _has_jax_array_value(value) -> bool:
     if isinstance(value, jax.Array) or hasattr(value, "aval"):
         return True
     return isinstance(value, (list, tuple)) and _contains_jax_leaves(value)
 
 
-def _contains_concrete_jax_leaves(value) -> bool:
-    return any(
-        isinstance(leaf, jax.Array) and not _is_jax_tracer(leaf)
-        for leaf in jax.tree.leaves(value)
-    )
-
-
-def _has_only_traced_jax_leaves(value) -> bool:
-    return _has_jax_array_value(value) and not _contains_concrete_jax_leaves(value)
-
-
-def _reference_placement(reference, *, ndim: int | None = None):
-    # A tracer is a ``jax.Array`` but carries no concrete sharding; probing
-    # ``tracer.sharding`` raises ``AttributeError`` whose message eagerly walks
-    # the entire jaxpr (jax's ``_origin_msg``/``find_progenitors``) only to be
-    # discarded by ``getattr(..., None)``. Paid once per ``as_runtime_array``
-    # call across an O(jaxpr) trace, that is an O(jaxpr^2) construction cost that
-    # scales with resolution. Skip tracers: their reference sharding is always
-    # ``None`` and ``as_runtime_array`` bypasses reference placement for traced
-    # values regardless (see ``_has_only_traced_jax_leaves`` guard there).
+def _reference_placement(reference):
+    # A tracer is a ``jax.Array`` but carries no concrete placement; probing its
+    # placement raises ``AttributeError`` whose message eagerly walks the entire
+    # jaxpr (jax's ``_origin_msg``/``find_progenitors``). Paid once per
+    # placement across an O(jaxpr) trace, that is an O(jaxpr^2) construction
+    # cost that scales with resolution, so tracers are skipped.
     if _is_jax_tracer(reference):
         return None
     if isinstance(reference, jax.Array):
-        return _committed_placement(reference, ndim=ndim)
+        return _committed_placement(reference)
     if isinstance(reference, (list, tuple)):
         for leaf in jax.tree.leaves(reference):
             if isinstance(leaf, jax.Array) and not _is_jax_tracer(leaf):
-                placement = _committed_placement(leaf, ndim=ndim)
+                placement = _committed_placement(leaf)
                 if placement is not None:
                     return placement
     return None
 
 
-def _committed_placement(array: jax.Array, *, ndim: int | None):
-    """The placement a concrete array claims, or ``None`` if it claims none.
+def _committed_placement(array: jax.Array):
+    """The device a concrete array is committed to, or ``None`` if it claims none.
 
     An uncommitted array (placed by nobody, JAX's default device) makes no
     claim, so a value placed with it stays unplaced too
@@ -126,61 +105,26 @@ def _committed_placement(array: jax.Array, *, ndim: int | None):
     """
     if not array.committed:
         return None
-    sharding = array.sharding
-    if isinstance(sharding, NamedSharding):
-        return _compatible_reference_sharding(sharding, ndim=ndim)
-    return _single_device_placement(sharding)
+    return _array_device(array)
 
 
-def _single_device_placement(sharding):
-    """Reduce a single-device reference sharding to the bare device it names.
+def _array_device(array: jax.Array):
+    """The bare device a concrete single-device array lives on.
 
-    Both forms place identically when ``device_put`` runs eagerly: the result is
-    committed to the same device with the same sharding. They differ when the
-    put is staged into a ``jit`` trace, which happens whenever a host literal is
-    placed next to a *concrete* reference captured by a traced function. A
-    concrete ``Sharding`` carries ``memory_kind='device'``, so jax
-    both wraps the staged constant in a single-device sharding op and folds that
-    sharding into the computation's device assignment
-    (``dispatch.get_intermediate_shardings`` and ``_tpu_gpu_device_put_lowering``
-    key on ``isinstance(device, Sharding) and device.memory_kind is not None``).
-    That pins the whole jaxpr to one device and is rejected outright when an
-    argument is replicated or point-axis sharded across several. A bare device
-    is ignored by both, leaving the constant's placement to XLA.
+    A bare device and the array's own placement object put identically when
+    ``device_put`` runs eagerly: the result is committed to the same device.
+    They differ when the put is staged into a ``jit`` trace, which happens
+    whenever a host literal is placed next to a *concrete* reference captured
+    by a traced function. The placement object carries
+    ``memory_kind='device'``, so jax both wraps the staged constant in a
+    single-device placement op and folds it into the computation's device
+    assignment (jax's dispatch and ``_tpu_gpu_device_put_lowering`` key on
+    ``memory_kind is not None``).
+    That pins the whole jaxpr to one device. A bare device is ignored by both,
+    leaving the constant's placement to XLA.
     """
-    if not isinstance(sharding, Sharding) or len(sharding.device_set) != 1:
-        return sharding
-    (device,) = sharding.device_set
+    (device,) = array.devices()
     return device
-
-
-def _reference_sharding(reference, *, ndim: int | None = None):
-    placement = _reference_placement(reference, ndim=ndim)
-    if placement is None or isinstance(placement, NamedSharding):
-        return placement
-    return _compatible_reference_sharding(placement, ndim=ndim)
-
-
-def _compatible_reference_sharding(sharding, *, ndim: int | None):
-    if not isinstance(sharding, NamedSharding):
-        return None
-    if ndim is None or len(sharding.spec) <= ndim:
-        return sharding
-    return NamedSharding(sharding.mesh, P())
-
-
-def _value_ndim(value) -> int | None:
-    if isinstance(value, (list, tuple)) and _contains_jax_leaves(value):
-        return None
-    if _contains_traced_jax_leaves(value):
-        return None
-    if isinstance(value, jax.Array):
-        return int(value.ndim)
-    if hasattr(value, "aval"):
-        return None
-    if isinstance(value, (np.ndarray, np.generic, list, tuple)) or np.isscalar(value):
-        return int(np.ndim(value))
-    return None
 
 
 def _array_like_dtype(value) -> np.dtype | None:
@@ -302,8 +246,7 @@ def _unplaced_device_put(value):
     (or an uncommitted array already there) stays uncommitted, as JAX leaves
     it, and joins the committed data it meets: committing it would claim a
     placement no caller made and refuse every computation with data committed
-    elsewhere (an array built under
-    ``with_cpu_device_for_construction``, an active mesh on other devices).
+    elsewhere (for example an array built under a CPU ``jax.default_device`` scope).
     An uncommitted array elsewhere is moved home, a committed array onto the
     runtime device, and everything is committed when the runtime device is
     one JAX would not choose (a jax-cpu policy in a CUDA process).
@@ -426,56 +369,36 @@ def as_jax_int32(value) -> jax.Array:
     return as_jax_array(value, dtype=jnp.int32)
 
 
-def as_runtime_array(value, *, dtype=None, reference=None):
-    resolved_dtype = _resolve_jnp_dtype(dtype, source="dtype")
-    reference_sharding = _reference_sharding(reference, ndim=_value_ndim(value))
-    if reference_sharding is not None and not _has_only_traced_jax_leaves(value):
-        return runtime_device_put(
-            value, dtype=resolved_dtype, target=reference_sharding
-        )
-    return as_jax_array(value, dtype=resolved_dtype)
+def as_runtime_array(value, *, dtype=None):
+    """Convert to a JAX array in the runtime dtype (policy placement for host values)."""
+    return as_jax_array(value, dtype=_resolve_jnp_dtype(dtype, source="dtype"))
 
 
-def as_compute_array(value, *, dtype=None, reference=None) -> jax.Array:
-    """Place proposal data using compute dtype and optional reference sharding."""
+def as_compute_array(value, *, dtype=None) -> jax.Array:
+    """Convert to a JAX array in the compute dtype (policy placement for host values)."""
     resolved_dtype = (
         compute_jnp_dtype()
         if dtype is None
         else _resolve_jnp_dtype(dtype, source="dtype")
     )
-    if _has_only_traced_jax_leaves(value):
-        return jnp.asarray(value, dtype=resolved_dtype)
-    reference_sharding = _reference_sharding(reference, ndim=_value_ndim(value))
-    if reference_sharding is not None:
-        return _compute_device_put(
-            value,
-            dtype=resolved_dtype,
-            target=reference_sharding,
-        )
     if _has_jax_array_value(value):
         return jnp.asarray(value, dtype=resolved_dtype)
     return _compute_device_put(value, dtype=resolved_dtype)
 
 
-def as_runtime_float64(value, *, reference):
-    return as_runtime_array(value, reference=reference)
-
-
 def commit_in_place(array: jax.Array) -> jax.Array:
-    """Commit a concrete array to the device or mesh it already lives on.
+    """Commit a concrete array to the device it already lives on.
 
     For a loop that feeds a jitted step its own outputs: ``jit`` keys
     committed and uncommitted arguments separately, and a step's outputs are
     committed whenever an input is, so the first input is committed up front
     to compile the executable every later call reuses.
     """
-    sharding = array.sharding
-    placement = (
-        sharding
-        if isinstance(sharding, NamedSharding)
-        else _single_device_placement(sharding)
+    return _device_put_preserving_dtype(
+        array,
+        dtype=array.dtype,
+        target=_array_device(array),
     )
-    return _device_put_preserving_dtype(array, dtype=array.dtype, target=placement)
 
 
 def explicit_device_array(
@@ -491,10 +414,9 @@ def explicit_device_array(
         raise TypeError(
             "explicit_device_array accepts reference or explicit target/device, not both."
         )
-    reference_placement = _reference_placement(reference, ndim=_value_ndim(value))
     return _device_put_preserving_dtype(
         value,
         dtype=dtype,
-        target=reference_placement if reference is not None else target,
+        target=_reference_placement(reference) if reference is not None else target,
         device=device,
     )

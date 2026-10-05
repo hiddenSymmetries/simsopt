@@ -8,13 +8,13 @@ import jax
 import jax.numpy as jnp
 
 from ._device_scalars import two_pi as _two_pi
-from ._math_utils import as_runtime_float64 as _as_runtime_float64_ref
+from ._math_utils import as_jax_float64 as _as_jax_float64
 
 
 def _normalized_quaternion(quaternion):
     norm_sq = jnp.sum(quaternion * quaternion)
-    zero = _as_runtime_float64_ref(0.0, reference=norm_sq)
-    one = _as_runtime_float64_ref(1.0, reference=norm_sq)
+    zero = _as_jax_float64(0.0)
+    one = _as_jax_float64(1.0)
     safe_norm_sq = jnp.where(norm_sq > zero, norm_sq, one)
     normalized = quaternion / jnp.sqrt(safe_norm_sq)
     zero_quaternion = quaternion - quaternion
@@ -23,8 +23,8 @@ def _normalized_quaternion(quaternion):
 
 def _quaternion_rotation_matrix(quaternion):
     q0, q1, q2, q3 = quaternion
-    one = _as_runtime_float64_ref(1.0, reference=quaternion)
-    two = _as_runtime_float64_ref(2.0, reference=quaternion)
+    one = _as_jax_float64(1.0)
+    two = _as_jax_float64(2.0)
     return jnp.stack(
         (
             jnp.stack(
@@ -63,21 +63,18 @@ def curveplanarfourier_pure(dofs, quadpoints, order):
     )
     center = jax.lax.slice_in_dim(dofs, rs_end + 4, dofs.shape[0], axis=0)
 
-    quadpoints = _as_runtime_float64_ref(quadpoints, reference=dofs)
+    quadpoints = _as_jax_float64(quadpoints)
     phi = _two_pi(quadpoints) * quadpoints
     cosphi = jnp.cos(phi)
     sinphi = jnp.sin(phi)
-    zero = _as_runtime_float64_ref(0.0, reference=phi)
+    zero = _as_jax_float64(0.0)
 
     radius = jnp.broadcast_to(
         jnp.sum(jax.lax.slice_in_dim(rc, 0, 1, axis=0)), phi.shape
     )
     if order > 0:
         rc_tail = jax.lax.slice_in_dim(rc, 1, rc.shape[0], axis=0)
-        modes = _as_runtime_float64_ref(
-            np.arange(1, order + 1, dtype=np.float64),
-            reference=phi,
-        )
+        modes = _as_jax_float64(np.arange(1, order + 1, dtype=np.float64))
         phase = phi[:, None] * modes[None, :]
         radius = radius + jnp.sum(
             rc_tail[None, :] * jnp.cos(phase) + rs[None, :] * jnp.sin(phase),

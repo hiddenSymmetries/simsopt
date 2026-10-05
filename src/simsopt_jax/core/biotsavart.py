@@ -40,7 +40,6 @@ __all__ = [
     "biot_savart_dB_by_dX",
     "biot_savart_d2B_by_dXdX",
     "biot_savart_B_and_dB",
-    "biot_savart_B_and_dB_with_point_axis",
     "biot_savart_A",
     "biot_savart_dA_by_dX",
     "biot_savart_d2A_by_dXdX",
@@ -537,15 +536,14 @@ def _make_kernel(
     coil_cs,
     quad_bs,
     point_cs,
-    point_vma_axis_name,
 ):
     """Build and JIT-compile a Biot-Savart kernel for the given tuning config.
 
     All tiling parameters are captured in closures — callers never thread them.
     ``lru_cache`` ensures the same config returns the same compiled function.
 
-    Cache keyed on ``(integrand_key, diff_mode, coil_cs, quad_bs, point_cs,
-    point_vma_axis_name)``.  JAX owns per-backend executable caching below the
+    Cache keyed on ``(integrand_key, diff_mode, coil_cs, quad_bs, point_cs)``.
+    JAX owns per-backend executable caching below the
     Python closure, so backend identity is not part of this LRU key.
     """
     integrand = _INTEGRANDS[integrand_key]
@@ -624,8 +622,6 @@ def _make_kernel(
             f = lambda xx: one_point(xx, gammas, gammadashs, currents)
             primals, tangents_fn = jax.linearize(f, x)
             basis = _eye(3, dtype=jnp.float64)
-            if point_vma_axis_name is not None:
-                basis = lax.pcast(basis, point_vma_axis_name, to="varying")
             return primals, jax.vmap(tangents_fn, in_axes=(0,))(basis)
         per_point = value_and_jacobian_point
 
@@ -648,17 +644,10 @@ def _make_kernel(
     return jax.jit(kernel)
 
 
-def _get_kernel(integrand_key, diff_mode, *, point_vma_axis_name=None):
+def _get_kernel(integrand_key, diff_mode):
     """Read tuning config and return the cached JIT-compiled kernel."""
     coil_cs, quad_bs, point_cs = _read_tuning_config()
-    return _make_kernel(
-        integrand_key,
-        diff_mode,
-        coil_cs,
-        quad_bs,
-        point_cs,
-        point_vma_axis_name,
-    )
+    return _make_kernel(integrand_key, diff_mode, coil_cs, quad_bs, point_cs)
 
 
 @lru_cache(maxsize=64)
@@ -676,7 +665,6 @@ def _make_B_vjp_kernel(coil_cs, quad_bs, point_cs):
         coil_cs,
         quad_bs,
         point_cs,
-        None,
     )
 
     def kernel(points, v, gammas, gammadashs, currents):
@@ -724,16 +712,10 @@ def _apply_forward_kernel(
     gammas,
     gammadashs,
     currents,
-    *,
-    point_vma_axis_name=None,
 ):
     """Apply one cached field kernel under the canonical forward trace scope."""
 
-    return _get_kernel(
-        integrand_key,
-        diff_mode,
-        point_vma_axis_name=point_vma_axis_name,
-    )(points, gammas, gammadashs, currents)
+    return _get_kernel(integrand_key, diff_mode)(points, gammas, gammadashs, currents)
 
 
 def biot_savart_B(points, gammas, gammadashs, currents):
@@ -806,35 +788,6 @@ def biot_savart_B_and_dB(points, gammas, gammadashs, currents):
         gammas,
         gammadashs,
         currents,
-    )
-
-
-def biot_savart_B_and_dB_with_point_axis(
-    points,
-    gammas,
-    gammadashs,
-    currents,
-    point_axis_name: str,
-):
-    """``biot_savart_B_and_dB`` with a named vmap axis over points.
-
-    Returns
-    -------
-    B : jax.Array
-        Shape ``(n_points, 3)``.
-    dB : jax.Array
-        Shape ``(n_points, 3, 3)``. Axis convention:
-        ``dB[p, j, l] = ∂_j B_l(x_p)``. Axis 1 is the spatial derivative
-        direction; axis 2 is the B-field component.
-    """
-    return _apply_forward_kernel(
-        _Integrand.B,
-        _DiffMode.VALUE_AND_JACOBIAN,
-        points,
-        gammas,
-        gammadashs,
-        currents,
-        point_vma_axis_name=point_axis_name,
     )
 
 

@@ -14,80 +14,57 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from jax.sharding import Mesh, NamedSharding, PartitionSpec as P
 from simsopt_jax.backend import dtypes
 from simsopt_jax.backend.runtime import invalidate_backend_cache, set_backend
 from simsopt_jax.core import _device_scalars
 from simsopt_jax.core._device_scalars import staged_like
 
 
-def test_reference_sharding_short_circuits_on_tracer():
-    """On a tracer the sharding-compat path is never reached (the O(jaxpr) walk)."""
+def test_reference_placement_short_circuits_on_tracer():
+    """A tracer reference is never probed for its placement (the O(jaxpr) walk)."""
     captured: dict[str, object] = {}
 
     @jax.jit
     def f(x):
-        with mock.patch.object(dtypes, "_compatible_reference_sharding") as compat:
-            captured["result"] = dtypes._reference_sharding(x, ndim=1)
-            captured["compat_calls"] = compat.call_count
+        with mock.patch.object(dtypes, "_committed_placement") as committed:
+            captured["result"] = dtypes._reference_placement(x)
+            captured["probe_calls"] = committed.call_count
         return x
 
     f(jnp.zeros(3))
 
-    # Old behavior: probed tracer.sharding (-> None after the jaxpr walk) then
-    # called _compatible_reference_sharding(None, ...). The guard returns None
-    # first, so the compat path is never invoked for a tracer.
     assert captured["result"] is None
-    assert captured["compat_calls"] == 0
+    assert captured["probe_calls"] == 0
 
 
-def test_reference_sharding_still_probes_concrete_array():
-    """A concrete (non-traced) committed array is unaffected: it is still probed."""
-    arr = jax.device_put(np.zeros(3), jax.local_devices()[0])
+def test_reference_placement_is_the_bare_device_of_a_committed_array():
+    """A committed concrete reference is probed and reduced to its device."""
+    device = jax.local_devices()[0]
+    arr = jax.device_put(np.zeros(3), device)
     with mock.patch.object(
         dtypes,
-        "_compatible_reference_sharding",
-        wraps=dtypes._compatible_reference_sharding,
-    ) as compat:
-        result = dtypes._reference_sharding(arr, ndim=1)
+        "_committed_placement",
+        wraps=dtypes._committed_placement,
+    ) as committed:
+        result = dtypes._reference_placement(arr)
 
-    # The concrete array goes through the probe; a single-device sharding is not
-    # a NamedSharding, so the compatible result is None -- but the path runs.
-    assert compat.call_count == 1
-    assert result is None
+    assert committed.call_count == 1
+    assert result is device
+    assert dtypes._reference_placement(jnp.zeros(3)) is None
 
 
 def test_runtime_device_put_tree_can_preserve_arrays_and_place_host_leaves():
-    mesh = Mesh(np.asarray(jax.devices()[:1], dtype=object), ("device",))
-    sharding = NamedSharding(mesh, P("device"))
-    array = jax.device_put(np.ones(3, dtype=np.float64), sharding)
+    array = jax.device_put(np.ones(3, dtype=np.float64), jax.local_devices()[0])
     value = {"device": array, "host": (np.asarray(2.0, dtype=np.float32), None)}
 
     placed = dtypes.runtime_device_put_tree(value, preserve_placement=True)
 
     assert placed["device"] is array
-    assert placed["device"].sharding == sharding
     assert isinstance(placed["host"], tuple)
     assert isinstance(placed["host"][0], jax.Array)
     assert placed["host"][0].dtype == np.float32
     assert placed["host"][1] is None
     np.testing.assert_array_equal(placed["host"][0], 2.0)
-
-
-def test_staged_scalar_uses_replicated_named_sharding() -> None:
-    mesh = Mesh(np.asarray(jax.devices()[:1], dtype=object), ("device",))
-    vector_sharding = NamedSharding(mesh, P("device"))
-    reference = jax.device_put(
-        np.ones(3, dtype=np.float64),
-        vector_sharding,
-    )
-
-    with jax.transfer_guard("disallow"):
-        scalar = staged_like(reference, 1.0)
-
-    assert scalar.ndim == 0
-    assert isinstance(scalar.sharding, NamedSharding)
-    assert scalar.sharding.spec == P()
 
 
 def test_staged_like_tracer_does_not_embed_a_runtime_device_put(monkeypatch):
@@ -171,27 +148,21 @@ def test_staged_like_places_a_device_array_held_elsewhere_with_the_reference():
     assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
-def test_reference_sharding_handles_tracer_leaf_in_sequence():
-    """The list/tuple branch returns None for a tracer leaf and does not crash.
-
-    This is a correctness smoke for the leaf-skip edit, not the regression guard
-    (the old list branch also fell through to None for a tracer leaf via
-    ``getattr(leaf, "sharding", None)`` -> None); the O(jaxpr) cost the fix
-    removes is pinned for the scalar case by the first test.
-    """
+def test_reference_placement_handles_tracer_leaf_in_sequence():
+    """The list/tuple branch skips a tracer leaf and returns None."""
     captured: dict[str, object] = {}
 
     @jax.jit
     def f(x):
-        with mock.patch.object(dtypes, "_compatible_reference_sharding") as compat:
-            captured["result"] = dtypes._reference_sharding([x], ndim=1)
-            captured["compat_calls"] = compat.call_count
+        with mock.patch.object(dtypes, "_committed_placement") as committed:
+            captured["result"] = dtypes._reference_placement([x])
+            captured["probe_calls"] = committed.call_count
         return x
 
     f(jnp.zeros(3))
 
     assert captured["result"] is None
-    assert captured["compat_calls"] == 0
+    assert captured["probe_calls"] == 0
 
 
 def test_runtime_device_put_uses_runtime_device_when_no_target(monkeypatch):
@@ -214,7 +185,7 @@ def test_runtime_device_put_uses_runtime_device_when_no_target(monkeypatch):
 
 
 def test_runtime_device_put_preserves_explicit_target(monkeypatch):
-    """Explicit target/sharding placement still takes precedence."""
+    """Explicit target placement still takes precedence."""
     explicit_target = object()
     placements: list[object | None] = []
 
@@ -270,12 +241,12 @@ def test_explicit_device_array_preserves_single_device_reference(monkeypatch):
 
     The reference's device is used verbatim; the runtime device is never
     consulted. The placement is the bare device rather than the reference's
-    concrete ``SingleDeviceSharding``: the two are identical for an eager put,
-    but the sharding form pins a put staged inside ``jit`` to one device (see
-    ``dtypes._single_device_placement``).
+    placement object: the two are identical for an eager put, but the object
+    pins a put staged inside ``jit`` to one device (see
+    ``dtypes._array_device``).
     """
     reference = jax.device_put(np.zeros(3), jax.local_devices()[0])
-    (reference_device,) = reference.sharding.device_set
+    (reference_device,) = reference.devices()
     placements: list[object | None] = []
 
     def _device_put(array, placement=None):
@@ -305,16 +276,14 @@ def test_unplaced_values_stay_uncommitted_like_jax_leaves_them(monkeypatch):
     Committing it (the old rule) claimed a placement no caller made, so it
     refused every computation with data committed elsewhere. A value placed
     with an uncommitted reference is unplaced too; a committed reference's
-    placement is still used.
+    device is still used.
     """
     default_device = jax.local_devices()[0]
     monkeypatch.setattr(dtypes, "get_runtime_jax_device", lambda: default_device)
 
     unplaced = dtypes.runtime_device_put(np.ones(3))
     unplaced_tree = dtypes.runtime_device_put_tree({"a": np.ones(3)})["a"]
-    with_uncommitted_reference = dtypes.as_runtime_float64(
-        np.ones(3), reference=jnp.zeros(3)
-    )
+    as_runtime = dtypes.as_runtime_array(np.ones(3))
     with_uncommitted_explicit_reference = dtypes.explicit_device_array(
         np.ones(3), dtype=jnp.float64, reference=jnp.zeros(3)
     )
@@ -327,7 +296,7 @@ def test_unplaced_values_stay_uncommitted_like_jax_leaves_them(monkeypatch):
     for array in (
         unplaced,
         unplaced_tree,
-        with_uncommitted_reference,
+        as_runtime,
         with_uncommitted_explicit_reference,
     ):
         assert not cast(jax.Array, array).committed
@@ -348,11 +317,9 @@ first, second = jax.devices("cpu")[:2]
 assert dtypes.get_runtime_jax_device() == first
 elsewhere = jax.device_put(np.arange(3.0), second)
 unplaced = dtypes.runtime_device_put(np.ones(3))
-with_uncommitted_reference = dtypes.as_runtime_float64(
-    np.ones(3), reference=jnp.zeros(3)
-)
+as_runtime = dtypes.as_runtime_array(np.ones(3))
 assert (unplaced + elsewhere).devices() == {second}
-assert (with_uncommitted_reference * elsewhere).devices() == {second}
+assert (as_runtime * elsewhere).devices() == {second}
 with jax.default_device(second):
     scoped = dtypes.runtime_device_put(np.ones(3))
 assert scoped.devices() == {second}, scoped.devices()
@@ -385,9 +352,9 @@ for placed in (
 def test_unplaced_values_join_data_committed_to_another_device():
     """A constant nobody placed joins data committed to another device.
 
-    The committed-to-the-runtime-device rule refused this combination: a
-    An array built under ``with_cpu_device_for_construction`` (or on
-    an active mesh) met constants committed to the runtime device. A
+    The committed-to-the-runtime-device rule refused this combination: an
+    array built under a CPU ``jax.default_device`` scope met constants
+    committed to the runtime device. A
     ``jax.default_device`` scope is honoured as well; an array committed
     elsewhere, or left uncommitted elsewhere by an exited scope, is moved
     onto the runtime device; and a runtime device JAX would not choose is
@@ -419,17 +386,13 @@ import numpy as np
 
 jax.config.update("jax_enable_x64", True)
 from simsopt_jax.backend import dtypes
-from simsopt_jax.backend.runtime import (
-    invalidate_backend_cache,
-    set_backend,
-    with_cpu_device_for_construction,
-)
+from simsopt_jax.backend.runtime import invalidate_backend_cache, set_backend
 from simsopt_jax.backend.dtypes import runtime_device_put_tree as _place_runtime_tree
 
 gpu = jax.devices("gpu")[0]
 cpu = jax.devices("cpu")[0]
 assert dtypes.get_runtime_jax_device() == gpu
-with with_cpu_device_for_construction():
+with jax.default_device(cpu):
     left_behind = jnp.arange(3.0)
     scoped = dtypes.runtime_device_put(np.ones(3))
 assert not left_behind.committed and left_behind.devices() == {cpu}
@@ -455,7 +418,7 @@ for placed in (
 def test_unplaced_values_follow_the_runtime_policy_in_a_cuda_process():
     """Real two-backend placement: a GPU policy and a jax-cpu policy in one CUDA process.
 
-    An uncommitted CPU array left by ``with_cpu_device_for_construction``
+    An uncommitted CPU array left by a CPU ``jax.default_device`` scope
     goes to the GPU runtime device after the scope (also through the runtime
     adapter's ``_place_runtime_tree``); under a jax-cpu policy, which JAX
     would not choose in a CUDA process, host values are committed to the CPU.
@@ -476,18 +439,13 @@ def test_unplaced_values_follow_the_runtime_policy_in_a_cuda_process():
 
 
 def test_commit_in_place_commits_where_the_array_lives():
-    """An uncommitted array is committed on its own device; a mesh placement is kept."""
+    """An uncommitted array is committed on its own device with its own dtype."""
     uncommitted = jnp.arange(3.0)
-    mesh_sharding = NamedSharding(
-        Mesh(np.asarray(jax.devices()[:1], dtype=object), ("device",)), P("device")
-    )
-    on_mesh = jax.device_put(np.arange(3.0), mesh_sharding)
 
     committed = dtypes.commit_in_place(uncommitted)
-    kept = dtypes.commit_in_place(on_mesh)
 
+    assert not uncommitted.committed
     assert committed.committed
     assert committed.devices() == uncommitted.devices()
     assert committed.dtype == uncommitted.dtype
-    assert kept.sharding == mesh_sharding
     np.testing.assert_array_equal(np.asarray(committed), np.arange(3.0))

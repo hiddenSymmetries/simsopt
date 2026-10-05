@@ -61,7 +61,6 @@ def test_d2B_kernel_tiled_over_points_matches_untiled(monkeypatch):
         0,
         0,
         0,
-        None,
     )(points, gammas, gammadashs, currents)
     # A tuned size of 64 becomes an 8-point Hessian tile: five tiles of 8 plus a
     # 5-point tail, so both loop bodies and the tail are exercised.
@@ -71,7 +70,6 @@ def test_d2B_kernel_tiled_over_points_matches_untiled(monkeypatch):
         0,
         0,
         64,
-        None,
     )(points, gammas, gammadashs, currents)
     assert tiled.shape == (37, 3, 3, 3)
     np.testing.assert_allclose(
@@ -83,7 +81,6 @@ def test_d2B_kernel_tiled_over_points_matches_untiled(monkeypatch):
         0,
         0,
         64,
-        None,
     )(points, gammas, gammadashs, currents)
     # The non-Hessian kernels keep the tuned size: 37 points fit one 64-point
     # tile, so their result must equal the untiled evaluation exactly.
@@ -93,7 +90,6 @@ def test_d2B_kernel_tiled_over_points_matches_untiled(monkeypatch):
         0,
         0,
         0,
-        None,
     )(points, gammas, gammadashs, currents)
     for tiled_leaf, untiled_leaf in zip(b_and_db_tiled, b_and_db_untiled, strict=True):
         np.testing.assert_array_equal(np.asarray(tiled_leaf), np.asarray(untiled_leaf))
