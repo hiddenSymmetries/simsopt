@@ -34,7 +34,8 @@ class VmecppSolverRegressionTests(unittest.TestCase):
             os.remove(name)
 
     def vmec(self, name="input.li383_low_res"):
-        return Vmec(os.path.join(TEST_DIR, name), solver=VmecppSolver, verbose=False)
+        path = os.path.join(TEST_DIR, name)
+        return Vmec(path, solver=VmecppSolver(path, None, verbose=False))
 
     def test_raising_mpol_reallocates_indata_and_runs(self):
         """ ``vmec.indata.mpol = 3 + step`` is the documented simsopt idiom. """
@@ -162,7 +163,7 @@ class VmecppSolverRegressionTests(unittest.TestCase):
             assert vmec_module.MPI is None
             from simsopt.mhd.vmecpp_solver import VmecppSolver
 
-            v = vmec_module.Vmec(sys.argv[1], solver=VmecppSolver, verbose=False)
+            v = vmec_module.Vmec(sys.argv[1], solver=VmecppSolver(sys.argv[1], None, verbose=False))
             assert v.mpi is None
             assert v._solver.mpi is None
             assert v._solver.group == 0

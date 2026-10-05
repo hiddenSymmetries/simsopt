@@ -4,7 +4,7 @@
 """
 The VMEC++ backend::
 
-    v = Vmec("input.li383_low_res", solver=VmecppSolver)
+    v = Vmec("input.li383_low_res", solver=VmecppSolver("input.li383_low_res", mpi))
 """
 
 import logging
