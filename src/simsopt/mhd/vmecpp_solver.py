@@ -11,6 +11,7 @@ import logging
 import os.path
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 import vmecpp
@@ -23,6 +24,9 @@ from .vmec_solver import (
     profile_curtor,
     profile_type_tag,
 )
+
+if TYPE_CHECKING:
+    from .vmec import ProfileProtocol, SurfaceRZFourierProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +45,11 @@ class VmecppSolver:
     ``mpi`` only decides which rank writes files and names them. It may be ``None``.
     """
 
+    #: Input parameters, read from the input file.
+    indata: vmecpp.VmecInput
+    #: Output of the most recent run, ``None`` before the first one.
+    wout: vmecpp.VmecWOut
+
     def __init__(self, filename, mpi, keep_all_files: bool = False, verbose: bool = True):
         basename = os.path.basename(filename)
         if not (basename.startswith('input') or basename.endswith('.json')):
@@ -49,13 +58,13 @@ class VmecppSolver:
 
         self.mpi = mpi
         self.verbose = verbose
-        self.wout: vmecpp.VmecWOut | None = None
+        self.wout = None  # type: ignore[assignment]
         self.output_file: str | None = None
 
-        self._boundary = None
-        self.pressure = None
-        self.current = None
-        self.iota = None
+        self._boundary: Optional[SurfaceRZFourierProtocol] = None
+        self.pressure: Optional[ProfileProtocol] = None
+        self.current: Optional[ProfileProtocol] = None
+        self.iota: Optional[ProfileProtocol] = None
         self.n_pressure = 10
         self.n_current = 10
         self.n_iota = 10
@@ -78,27 +87,27 @@ class VmecppSolver:
         self.output_quantities = None
 
     @property
-    def phiedge(self):
+    def phiedge(self) -> float:
         return self.indata.phiedge
 
     @phiedge.setter
-    def phiedge(self, phiedge):
+    def phiedge(self, phiedge: float):
         self.indata.phiedge = phiedge
 
     @property
-    def curtor(self):
+    def curtor(self) -> float:
         return self.indata.curtor
 
     @curtor.setter
-    def curtor(self, curtor):
+    def curtor(self, curtor: float):
         self.indata.curtor = curtor
 
     @property
-    def pres_scale(self):
+    def pres_scale(self) -> float:
         return self.indata.pres_scale
 
     @pres_scale.setter
-    def pres_scale(self, pres_scale):
+    def pres_scale(self, pres_scale: float):
         self.indata.pres_scale = pres_scale
 
     @property
@@ -139,14 +148,14 @@ class VmecppSolver:
                              "a lasym run needs an input file with LASYM = T")
 
     @property
-    def boundary(self):
+    def boundary(self) -> "SurfaceRZFourierProtocol":
         """ Read back from ``indata`` until one is assigned. """
         if self._boundary is not None:
             return self._boundary
         return self._boundary_from_indata()
 
     @boundary.setter
-    def boundary(self, boundary):
+    def boundary(self, boundary: "SurfaceRZFourierProtocol"):
         self._boundary = boundary
 
     def _boundary_from_indata(self):
