@@ -136,7 +136,7 @@ class VmecppSolverRegressionTests(unittest.TestCase):
         self.assertIsNone(v._solver.restart_from)
 
     def test_incompatible_hot_restart_raises_objective_failure(self):
-        """ vmecpp signals this with an AttributeError, which must be mapped. """
+        """ vmecpp signals this with a ValueError, which must be mapped. """
         v = self.vmec("input.circular_tokamak")
         multigrid(v)
         v.run()
