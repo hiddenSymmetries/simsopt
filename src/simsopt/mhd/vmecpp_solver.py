@@ -89,7 +89,6 @@ class VmecppSolver:
         self.files_to_delete = []
 
         self.indata = vmecpp.VmecInput.from_file(filename)
-        self.free_boundary = bool(self.indata.lfreeb)
         self.input_file = filename
 
     @property
