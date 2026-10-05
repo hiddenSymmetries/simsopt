@@ -56,7 +56,7 @@ class FakeVmecSolver:
         self.iota = None
 
         self.n_solve = 0
-        self.n_update_mpi = 0
+        self.mpi = mpi
 
     # phiedge, curtor and pres_scale must be views onto indata:
     @property
@@ -91,12 +91,13 @@ class FakeVmecSolver:
         return load_wout_file(self.output_file, self.wout)
 
     def update_mpi(self, new_mpi):
-        self.n_update_mpi += 1
+        self.mpi = new_mpi
 
 
 def fake_vmec():
     """ A ``Vmec`` driven by a fresh :obj:`FakeVmecSolver`. """
-    return Vmec(os.path.join(TEST_DIR, "input.li383_low_res"), solver=FakeVmecSolver)
+    filename = os.path.join(TEST_DIR, "input.li383_low_res")
+    return Vmec(filename, solver=FakeVmecSolver(filename, None))
 
 
 class VmecSolverProtocolTests(unittest.TestCase):
@@ -106,13 +107,26 @@ class VmecSolverProtocolTests(unittest.TestCase):
 
     def test_non_conforming_solver_raises(self):
         with self.assertRaises(TypeError) as cm:
-            Vmec(os.path.join(TEST_DIR, "input.li383_low_res"), solver=lambda *args, **kwargs: object())
+            Vmec(os.path.join(TEST_DIR, "input.li383_low_res"), solver=object())
         self.assertIn("VmecSolverProtocol", str(cm.exception))
 
     def test_solver_instance_is_used(self):
         filename = os.path.join(TEST_DIR, "input.li383_low_res")
         solver = FakeVmecSolver(filename, None)
         self.assertIs(Vmec(filename, solver=solver)._solver, solver)
+
+    def test_solver_instance_gets_mpi(self):
+        filename = os.path.join(TEST_DIR, "input.li383_low_res")
+        solver = FakeVmecSolver(filename, None)
+        Vmec(filename, mpi="a partition", solver=solver)
+        self.assertEqual(solver.mpi, "a partition")
+
+    def test_settings_with_solver_instance_raise(self):
+        """ keep_all_files and verbose are set on the solver itself. """
+        filename = os.path.join(TEST_DIR, "input.li383_low_res")
+        for kwargs in [dict(keep_all_files=True), dict(verbose=False)]:
+            with self.subTest(**kwargs), self.assertRaises(ValueError):
+                Vmec(filename, solver=FakeVmecSolver(filename, None), **kwargs)
 
     def test_boundary_read_back_at_init(self):
         v = fake_vmec()
@@ -202,20 +216,11 @@ class VmecSolverProtocolTests(unittest.TestCase):
             v.write_input("input.should_not_be_written")
         self.assertFalse(os.path.exists("input.should_not_be_written"))
 
-    def test_solver_class_is_instantiated(self):
-        """ A class is called even if its class attributes satisfy the protocol. """
-        class ClassLevelSolver(FakeVmecSolver):
-            pressure = None
-            current = None
-            iota = None
-            indata = None
-            wout = None
-            output_file = None
-            verbose = False
-            boundary = None
-        self.assertIsInstance(ClassLevelSolver, VmecSolverProtocol)
-        v = Vmec(os.path.join(TEST_DIR, "input.li383_low_res"), solver=ClassLevelSolver)
-        self.assertIsInstance(v._solver, ClassLevelSolver)
+    def test_solver_class_raises(self):
+        """ A class must be instantiated by the user, even if its class attributes satisfy the protocol. """
+        with self.assertRaises(TypeError) as cm:
+            Vmec(os.path.join(TEST_DIR, "input.li383_low_res"), solver=FakeVmecSolver)
+        self.assertIn("instance", str(cm.exception))
 
     def test_indata_of_wout_initialized_object(self):
         """ As before the split, a wout-initialized Vmec has no indata attribute. """
@@ -251,7 +256,7 @@ class VmecSolverProtocolTests(unittest.TestCase):
     def test_update_mpi_forwarded(self):
         v = fake_vmec()
         v.update_mpi("a new partition")
-        self.assertEqual(v._solver.n_update_mpi, 1)
+        self.assertEqual(v._solver.mpi, "a new partition")
         self.assertEqual(v.mpi, "a new partition")
 
     def test_verbose_forwarded(self):
