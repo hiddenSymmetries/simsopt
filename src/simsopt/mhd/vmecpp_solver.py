@@ -26,20 +26,8 @@ from .vmec_solver import (
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["COMMON_INDATA_FIELDS", "VmecppSolver"]
+__all__ = ["VmecppSolver"]
 
-
-#: ``indata`` fields with the same meaning on the VMEC2000 and VMEC++ backends.
-COMMON_INDATA_FIELDS = (
-    'ns_array', 'ftol_array', 'niter_array', 'delt', 'nstep', 'tcon0',
-    'gamma', 'mpol', 'ntor', 'ntheta', 'nzeta',
-    'phiedge', 'curtor', 'pres_scale', 'ncurr', 'nfp', 'lasym',
-    'lfreeb', 'mgrid_file', 'extcur',
-    'am', 'ac', 'ai',
-    'am_aux_s', 'am_aux_f', 'ac_aux_s', 'ac_aux_f', 'ai_aux_s', 'ai_aux_f',
-    'pmass_type', 'pcurr_type', 'piota_type',
-    'raxis_cc', 'raxis_cs', 'zaxis_cc', 'zaxis_cs',
-)
 
 SUCCESSFUL_TERM_FLAG = 11
 
