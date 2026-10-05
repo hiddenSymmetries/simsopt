@@ -307,9 +307,9 @@ class VmecppSolver:
                 verbose=1 if self.verbose else 0,
                 restart_from=restart_from,
                 **kwargs)
-        except (RuntimeError, AttributeError) as e:
-            # vmecpp reports a mismatched hot restart as AttributeError:
-            if isinstance(e, AttributeError) and "hot restart" not in str(e):
+        except (RuntimeError, ValueError) as e:
+            # vmecpp rejects a mismatched hot restart with a ValueError:
+            if isinstance(e, ValueError) and restart_from is None:
                 raise
             wout = getattr(e, "wout", None)
             reason = "" if wout is None else f" {wout.reason}."
