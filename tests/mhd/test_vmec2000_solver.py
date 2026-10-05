@@ -100,6 +100,11 @@ class Vmec2000SolverTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             solver.get_input()
 
+    def test_json_input_raises(self):
+        """ VMEC2000 cannot read a VMEC++ JSON input file. """
+        with self.assertRaisesRegex(ValueError, "VmecppSolver"):
+            Vmec2000Solver().initialize("input.li383_low_res.json", None)
+
     def test_second_initialize_raises(self):
         v = Vmec(str(TEST_DIR / "input.li383_low_res"), verbose=False)
         with self.assertRaisesRegex(RuntimeError, "already initialized"):
