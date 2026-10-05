@@ -35,7 +35,7 @@ class VmecppSolverRegressionTests(unittest.TestCase):
 
     def vmec(self, name="input.li383_low_res"):
         path = os.path.join(TEST_DIR, name)
-        return Vmec(path, solver=VmecppSolver(path, None, verbose=False))
+        return Vmec(path, verbose=False, solver=VmecppSolver())
 
     def test_raising_mpol_reallocates_indata_and_runs(self):
         """ ``vmec.indata.mpol = 3 + step`` is the documented simsopt idiom. """
@@ -102,8 +102,8 @@ class VmecppSolverRegressionTests(unittest.TestCase):
 
     def test_boundary_readable_after_raising_mpol(self):
         """ Reading the boundary back must not index past the old arrays. """
-        solver = VmecppSolver(os.path.join(TEST_DIR, "input.li383_low_res"), None,
-                              verbose=False)
+        solver = VmecppSolver()
+        solver.initialize(os.path.join(TEST_DIR, "input.li383_low_res"), None, verbose=False)
         solver.indata.mpol = 6
         self.assertEqual(solver.boundary.mpol, 6)
 
@@ -163,7 +163,7 @@ class VmecppSolverRegressionTests(unittest.TestCase):
             assert vmec_module.MPI is None
             from simsopt.mhd.vmecpp_solver import VmecppSolver
 
-            v = vmec_module.Vmec(sys.argv[1], solver=VmecppSolver(sys.argv[1], None, verbose=False))
+            v = vmec_module.Vmec(sys.argv[1], verbose=False, solver=VmecppSolver())
             assert v.mpi is None
             assert v._solver.mpi is None
             assert v._solver.group == 0

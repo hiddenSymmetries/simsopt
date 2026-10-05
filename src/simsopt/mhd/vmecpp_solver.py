@@ -4,7 +4,7 @@
 """
 The VMEC++ backend::
 
-    v = Vmec("input.li383_low_res", solver=VmecppSolver("input.li383_low_res", mpi))
+    v = Vmec("input.li383_low_res", solver=VmecppSolver(max_threads=4))
 """
 
 import logging
@@ -50,7 +50,22 @@ class VmecppSolver:
     #: Output of the most recent run, ``None`` before the first one.
     wout: vmecpp.VmecWOut
 
-    def __init__(self, filename, mpi, keep_all_files: bool = False, verbose: bool = True):
+    def __init__(self, max_threads: int = 1, magnetic_field=None):
+        #: OpenMP threads; 1 avoids oversubscription under finite differencing.
+        self.max_threads = max_threads
+        #: :obj:`vmecpp.MagneticFieldResponseTable` for free boundary, instead of ``mgrid_file``.
+        self.magnetic_field = magnetic_field
+        #: :obj:`vmecpp.VmecOutput` to hot restart the next solve from, once.
+        self.restart_from = None
+        #: :obj:`vmecpp.VmecOutput` of the most recent solve.
+        self.output_quantities = None
+        self.input_file: str | None = None
+
+    def initialize(self, filename, mpi, keep_all_files: bool = False, verbose: bool = True):
+        """ Read ``filename``. Called once, by :obj:`~simsopt.mhd.vmec.Vmec`. """
+        if self.input_file is not None:
+            raise RuntimeError(f"This solver was already initialized from {self.input_file}; "
+                               "give each Vmec a new solver")
         basename = os.path.basename(filename)
         if not (basename.startswith('input') or basename.endswith('.json')):
             raise ValueError(f"Invalid filename {filename}: VmecppSolver needs an "
@@ -72,19 +87,10 @@ class VmecppSolver:
         self.iter = -1
         self.keep_all_files = keep_all_files
         self.files_to_delete = []
-        self.input_file = filename
 
         self.indata = vmecpp.VmecInput.from_file(filename)
         self.free_boundary = bool(self.indata.lfreeb)
-
-        #: OpenMP threads; 1 avoids oversubscription under finite differencing.
-        self.max_threads = 1
-        #: :obj:`vmecpp.VmecOutput` to hot restart the next solve from, once.
-        self.restart_from = None
-        #: :obj:`vmecpp.MagneticFieldResponseTable` for free boundary, instead of ``mgrid_file``.
-        self.magnetic_field = None
-        #: :obj:`vmecpp.VmecOutput` of the most recent solve.
-        self.output_quantities = None
+        self.input_file = filename
 
     @property
     def phiedge(self) -> float:

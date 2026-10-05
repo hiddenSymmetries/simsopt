@@ -54,11 +54,13 @@ class VmecppSolverTests(unittest.TestCase):
         self.addCleanup(scratch.__exit__, None, None, None)
 
     def solver(self, name="input.li383_low_res"):
-        return VmecppSolver(os.path.join(TEST_DIR, name), None, verbose=False)
+        solver = VmecppSolver()
+        solver.initialize(os.path.join(TEST_DIR, name), None, verbose=False)
+        return solver
 
     def vmec(self, name="input.li383_low_res"):
         path = os.path.join(TEST_DIR, name)
-        return Vmec(path, solver=VmecppSolver(path, None, verbose=False))
+        return Vmec(path, verbose=False, solver=VmecppSolver())
 
     def test_conforms_to_protocol(self):
         self.assertIsInstance(self.solver(), VmecSolverProtocol)
@@ -70,7 +72,7 @@ class VmecppSolverTests(unittest.TestCase):
 
     def test_bad_filename_raises(self):
         with self.assertRaises(ValueError):
-            VmecppSolver("not_an_input_file", None)
+            VmecppSolver().initialize("not_an_input_file", None)
 
     def test_boundary_matches_from_vmec_input(self):
         """ The boundary read back from indata matches from_vmec_input for m < mpol. """
@@ -241,6 +243,24 @@ class VmecppSolverTests(unittest.TestCase):
         # Vmec.volume() reads wout.volume, which vmecpp aliases from volume_p:
         self.assertIn("volume", fields)
 
+    def test_second_initialize_raises(self):
+        v = self.vmec()
+        with self.assertRaisesRegex(RuntimeError, "already initialized"):
+            Vmec(os.path.join(TEST_DIR, "input.li383_low_res"), solver=v.solver)
+
+    def test_keep_all_files(self):
+        """ As on VMEC2000, only the first and latest wout are kept, unless keep_all_files. """
+        path = os.path.join(TEST_DIR, "input.circular_tokamak")
+        for keep_all_files, kept in [(False, [0, 2]), (True, [0, 1, 2])]:
+            with self.subTest(keep_all_files=keep_all_files), ScratchDir("."):
+                v = Vmec(path, keep_all_files=keep_all_files, verbose=False,
+                         solver=VmecppSolver())
+                for _ in range(3):
+                    v.need_to_run_code = True
+                    v.run()
+                expected = [f"wout_circular_tokamak_000_{i:06d}.nc" for i in kept]
+                self.assertEqual(sorted(os.listdir(".")), expected)
+
     def test_run_circular_tokamak(self):
         v = self.vmec("input.circular_tokamak")
         v._solver.max_threads = 1
@@ -277,9 +297,8 @@ class VmecppSolverTests(unittest.TestCase):
                 os.path.join(TEST_DIR, "input.circular_tokamak"))
             with open(path, "w") as f:
                 f.write(source.model_dump_json())
-            solver = VmecppSolver(path, None, verbose=False)
-            self.assertEqual(solver.indata.nfp, source.nfp)
-            v = Vmec(path, solver=solver)
+            v = Vmec(path, verbose=False, solver=VmecppSolver())
+            self.assertEqual(v.indata.nfp, source.nfp)
             self.assertTrue(np.isfinite(v.aspect()))
             self.assertEqual(os.path.basename(v.output_file),
                              "wout_circtok_000_000000.nc")
