@@ -11,7 +11,6 @@ You can run this example with one or multiple MPI processes.
 from pathlib import Path
 
 import numpy as np
-import simsopt.mhd.vmecpp_solver
 from simsopt.configs import get_data
 from simsopt.mhd import Vmec
 from simsopt.util import MpiPartition
@@ -40,7 +39,7 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 input_file = str(TEST_DIR / "input.W7-X_standard_configuration")
 
 mpi = MpiPartition(1)
-vmec = Vmec(input_file, mpi=mpi, solver=simsopt.mhd.vmecpp_solver.VmecppSolver())
+vmec = Vmec(input_file, mpi=mpi)
 
 # That input file was for fixed-boundary. We need to change some of
 # the vmec input parameters for a free-boundary calculation:

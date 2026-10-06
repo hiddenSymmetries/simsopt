@@ -166,8 +166,9 @@ class VmecTestsWithoutMPIorvmec(unittest.TestCase):
         input file without vmec or MPI
         """
         from simsopt.mhd.vmec import Vmec
+        from simsopt.mhd.vmec_solver import Vmec2000Solver
         with self.assertRaises(RuntimeError):
-            Vmec()
+            Vmec(solver=Vmec2000Solver())
 
 
 @unittest.skipIf((MPI is None) or (vmec_mod is None), "Valid Python interface to VMEC not found")
