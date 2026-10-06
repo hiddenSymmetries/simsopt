@@ -462,7 +462,8 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
 
         if self.runnable:
             if solver is None:
-                solver = cast(VmecSolverProtocol[IndataT, WoutT], Vmec2000Solver())
+                from .vmecpp_solver import VmecppSolver
+                solver = cast(VmecSolverProtocol[IndataT, WoutT], VmecppSolver())
             elif isinstance(solver, type):
                 raise TypeError(f"Pass an instance, e.g. solver={solver.__name__}()")
             if not hasattr(solver, "initialize"):
