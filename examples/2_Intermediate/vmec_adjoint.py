@@ -67,9 +67,8 @@ for max_mode in range(3, maxres):
     print(f"max_mode={max_mode:d}  res={res['fun']:.3f}, "
           f"jac={np.linalg.norm(res['jac']):.3f}")
 
-    # Preserve the output file from the last iteration, so it is not
-    # deleted when vmec runs again:
-    vmec.files_to_delete = []
+    # Save the wout file of this stage:
+    vmec.save_wout(f"wout_max_mode{max_mode}.nc")
 
 vmec.run()
 iotas_final = vmec.wout.iotas
