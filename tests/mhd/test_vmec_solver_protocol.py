@@ -1,5 +1,6 @@
 """Tests of the Vmec solver protocols."""
 
+import os
 import unittest
 
 from simsopt.mhd.profiles import ProfilePolynomial, ProfileSpline
@@ -33,11 +34,17 @@ class MinimalSolver:
         self.output_file = None
         self.verbose = False
 
+    def initialize(self, filename, mpi, keep_all_files=False, verbose=True):
+        pass
+
     def solve(self):
         pass
 
     def load_wout(self):
         return 0
+
+    def save_wout(self, filename):
+        pass
 
     def update_mpi(self, new_mpi):
         pass
@@ -46,6 +53,26 @@ class MinimalSolver:
 class VmecSolverProtocolTests(unittest.TestCase):
     def test_minimal_solver_conforms(self):
         self.assertIsInstance(MinimalSolver(), VmecSolverProtocol)
+
+    def _assert_initialized_solver_conforms(self, solver):
+        # Boundary and scalars are views onto indata, so exist only after initialize():
+        solver.initialize(os.path.join(TEST_DIR, "input.li383_low_res"), None, verbose=False)
+        self.assertIsInstance(solver, VmecSolverProtocol)
+
+    def test_vmec2000_solver_conforms(self):
+        try:
+            from simsopt.mhd.vmec_solver import Vmec2000Solver
+            import vmec  # noqa: F401
+        except ImportError:
+            self.skipTest("VMEC2000 is not installed")
+        self._assert_initialized_solver_conforms(Vmec2000Solver())
+
+    def test_vmecpp_solver_conforms(self):
+        try:
+            from simsopt.mhd.vmecpp_solver import VmecppSolver
+        except ImportError:
+            self.skipTest("vmecpp is not installed")
+        self._assert_initialized_solver_conforms(VmecppSolver())
 
     def test_missing_member_does_not_conform(self):
         solver = MinimalSolver()
