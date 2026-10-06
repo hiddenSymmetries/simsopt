@@ -151,16 +151,7 @@ class VmecppSolver:
         return (self.indata.mpol_max, self.indata.ntor_max)
 
     def _resize_indata(self, new_mpol, new_ntor):
-        vi = self.indata  # Shorthand
-        requested_mpol, requested_ntor = vi.mpol, vi.ntor
-        # In place, so references to indata stay live:
-        vars(vi).update(vars(vi.resize(new_mpol, new_ntor)))
-
-        # Keep a continuation schedule:
-        for name, requested in (('mpol', requested_mpol), ('ntor', requested_ntor)):
-            if np.ndim(requested) != 0 and \
-                    int(np.asarray(requested)[-1]) == getattr(self.indata, name):
-                setattr(self.indata, name, requested)
+        self.indata.resize(new_mpol, new_ntor)
 
     def _ensure_indata_resolution(self):
         mpol, ntor = self.resolution
