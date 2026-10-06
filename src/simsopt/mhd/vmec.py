@@ -397,8 +397,8 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
           ``True``, all ``wout`` files will be kept.
         verbose: Whether to print to stdout when running vmec.
         solver: A new :obj:`VmecSolverProtocol` instance, e.g.
-          ``VmecppSolver(max_threads=4)``, to run instead of the default
-          :obj:`~simsopt.mhd.vmec_solver.Vmec2000Solver`. It is initialized
+          ``Vmec2000Solver()``, to run instead of the default
+          :obj:`~simsopt.mhd.vmecpp_solver.VmecppSolver`. It is initialized
           with ``filename``, ``mpi``, ``keep_all_files`` and ``verbose``.
 
     Attributes:
