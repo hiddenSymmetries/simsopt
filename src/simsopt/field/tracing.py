@@ -357,10 +357,10 @@ def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
     """
     m = mass
     speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
-    np.random.seed(seed)
-    us = np.random.uniform(low=umin, high=umax, size=(nparticles, ))
+    rng = np.random.RandomState(seed)
+    us = rng.uniform(low=umin, high=umax, size=(nparticles, ))
     speed_par = us*speed_total
-    xyz, _ = draw_uniform_on_curve(curve, nparticles, safetyfactor=10)
+    xyz, _ = draw_uniform_on_curve(curve, nparticles, safetyfactor=10, randomgen=rng)
     return trace_particles(
         field, xyz, speed_par, tmax=tmax, mass=mass, charge=charge,
         Ekin=Ekin, tol=tol, comm=comm, phis=phis,
@@ -413,10 +413,10 @@ def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
     """
     m = mass
     speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
-    np.random.seed(seed)
-    us = np.random.uniform(low=umin, high=umax, size=(nparticles, ))
+    rng = np.random.RandomState(seed)
+    us = rng.uniform(low=umin, high=umax, size=(nparticles, ))
     speed_par = us*speed_total
-    xyz, _ = draw_uniform_on_surface(surface, nparticles, safetyfactor=10)
+    xyz, _ = draw_uniform_on_surface(surface, nparticles, safetyfactor=10, randomgen=rng)
     return trace_particles(
         field, xyz, speed_par, tmax=tmax, mass=mass, charge=charge,
         Ekin=Ekin, tol=tol, comm=comm, phis=phis,
@@ -755,7 +755,7 @@ class MinToroidalFluxStoppingCriterion(sopp.MinToroidalFluxStoppingCriterion):
 
     .. code-block::
 
-        stopping_criteria=[MinToroidalFluxStopingCriterion(s)]
+        stopping_criteria=[MinToroidalFluxStoppingCriterion(s)]
 
     where ``s`` is the value of the minimum normalized toroidal flux.
     """
@@ -772,7 +772,7 @@ class MaxToroidalFluxStoppingCriterion(sopp.MaxToroidalFluxStoppingCriterion):
 
     .. code-block::
 
-        stopping_criteria=[MaxToroidalFluxStopingCriterion(s)]
+        stopping_criteria=[MaxToroidalFluxStoppingCriterion(s)]
 
     where ``s`` is the value of the maximum normalized toroidal flux.
     """
@@ -811,7 +811,7 @@ class MinRStoppingCriterion(sopp.MinRStoppingCriterion):
 
     .. code-block::
 
-        stopping_criteria=[MinRStopingCriterion(crit_r)]
+        stopping_criteria=[MinRStoppingCriterion(crit_r)]
 
     where ``crit_r`` is the value of the critical coordinate.
     """
@@ -827,7 +827,7 @@ class MinZStoppingCriterion(sopp.MinZStoppingCriterion):
 
     .. code-block::
 
-        stopping_criteria=[MinZStopingCriterion(crit_z)]
+        stopping_criteria=[MinZStoppingCriterion(crit_z)]
 
     where ``crit_z`` is the value of the critical coordinate.
     """
@@ -843,7 +843,7 @@ class MaxRStoppingCriterion(sopp.MaxRStoppingCriterion):
 
     .. code-block::
 
-        stopping_criteria=[MaxRStopingCriterion(crit_r)]
+        stopping_criteria=[MaxRStoppingCriterion(crit_r)]
 
     where ``crit_r`` is the value of the critical coordinate.
     """
@@ -859,7 +859,7 @@ class MaxZStoppingCriterion(sopp.MaxZStoppingCriterion):
 
     .. code-block::
 
-        stopping_criteria=[MaxZStopingCriterion(crit_z)]
+        stopping_criteria=[MaxZStoppingCriterion(crit_z)]
 
     where ``crit_z`` is the value of the critical coordinate.
     """

@@ -13,6 +13,7 @@ from simsopt.field.tracing import trace_particles_starting_on_curve, SurfaceClas
     MinToroidalFluxStoppingCriterion, MaxToroidalFluxStoppingCriterion, ToroidalTransitStoppingCriterion, \
     compute_poloidal_transits, compute_toroidal_transits, trace_particles, compute_resonances
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.field.sampling import draw_uniform_on_curve, draw_uniform_on_surface
 from simsopt.field.boozermagneticfield import BoozerAnalytic
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule, ToroidalField, PoloidalField
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
@@ -85,6 +86,31 @@ class ParticleTracingTesting(unittest.TestCase):
         self.ma = ma
         if pyevtk is not None:
             bsh.to_vtk('/tmp/bfield')
+
+    def test_seed_leaves_global_rng_alone(self):
+        """
+        The seed of trace_particles_starting_on_curve/surface gives the same
+        starting points as before, without reseeding the global NumPy generator.
+        """
+        nparticles = 2
+        kwargs = {'tmax': 1e-7, 'seed': 1, 'mass': PROTON_MASS, 'charge': ELEMENTARY_CHARGE,
+                  'Ekin': 1000*ONE_EV, 'umin': 0.25, 'umax': 0.75, 'phis': [], 'mode': 'gc_vac'}
+        surface = SurfaceRZFourier(nfp=3)
+        surface.set('rc(0,0)', 1.5)
+        surface.set('rc(1,0)', 0.1)
+        surface.set('zs(1,0)', 0.1)
+        for start, draw, trace in [(self.ma, draw_uniform_on_curve, trace_particles_starting_on_curve),
+                                   (surface, draw_uniform_on_surface, trace_particles_starting_on_surface)]:
+            with self.subTest(trace=trace.__name__):
+                np.random.seed(1)
+                np.random.uniform(low=0.25, high=0.75, size=(nparticles, ))
+                xyz, _ = draw(start, nparticles)
+                np.random.seed(0)
+                expected = np.random.rand()
+                np.random.seed(0)
+                gc_tys, _ = trace(start, self.bsh, nparticles, **kwargs)
+                self.assertEqual(np.random.rand(), expected)
+                np.testing.assert_array_equal(np.array([ty[0, 1:4] for ty in gc_tys]), xyz)
 
     def test_guidingcenter_vs_fullorbit(self):
         bsh = self.bsh

@@ -686,7 +686,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         if quadpoints_theta is None and quadpoints_phi is None:
             if ntheta is not otherntheta or nphi is not othernphi or grid_range is not None:
                 kwargs["quadpoints_phi"], kwargs["quadpoints_theta"] = Surface.get_quadpoints(
-                    ntheta=ntheta, nphi=nphi, nfp=self.nfp, range=grid_range)
+                    ntheta=ntheta, nphi=nphi, nfp=nfp, range=grid_range)
             else:
                 kwargs["quadpoints_phi"] = self.quadpoints_phi
                 kwargs["quadpoints_theta"] = self.quadpoints_theta

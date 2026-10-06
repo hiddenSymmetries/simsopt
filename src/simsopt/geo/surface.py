@@ -413,7 +413,7 @@ class Surface(Optimizable):
             phib = varphi2phi(varphib, phi0)
             
             if not np.all((phia <= phib) & (phib <= phic)):
-                raise Exception("An error occured during calculation of the cross section.  \
+                raise Exception("An error occurred during calculation of the cross section.  \
                         This happens when a surface 'goes back' on itself. \
                         The cylindrical angle is assumed to be monotonically increasing \
                         with varphi, which is not the case for this surface.")

@@ -43,7 +43,7 @@ class Boozer(Optimizable):
     surfaces on which to compute Boozer coordinates. When
     the ``run()`` method is called, the Boozer transformation is carried
     out on all these surfaces. The registry can be cleared at any time
-    by setting the the ``s`` attribute to ``set()``, i.e. ``Boozer(...).s = set()``.
+    by setting the ``s`` attribute to ``set()``, i.e. ``Boozer(...).s = set()``.
     The registry can be updated with ``Boozer(...).register(surfaces)``
 
     Args:
@@ -51,7 +51,7 @@ class Boozer(Optimizable):
             will be performed.
         mpol (int): Number of poloidal Fourier modes. Defaults to 32.
         ntor (int): Number of toroidal Fourier modes. Defaults to 32.
-        verbose (bool): False to supress print statements.
+        verbose (bool): False to suppress print statements.
     """
 
     mpol = Integer()
