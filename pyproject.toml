@@ -66,7 +66,8 @@ dependencies = [
     "sympy",
     "f90nml",
     "pyevtk",
-    "matplotlib"
+    "matplotlib",
+    "vmecpp>=1.0.0"
 ]
 dynamic = ["version"]
 
@@ -76,7 +77,6 @@ MPI = ["mpi4py>=3.0.3"]
 VIS = ["vtk >= 8.1.2", "PyQt5", "plotly", "networkx"]
 DOCS = ["sphinx", "sphinx-rtd-theme", "sphinxcontrib-napoleon", "sphinx-autodoc-napoleon-typehints", "breathe"]
 ALGS = ["ground==9", "bentley_ottmann==8", "qsc"]
-VMECPP = ["vmecpp>=1.0.0; python_version >= '3.10'"]
 
 [project.urls]
 Homepage = "https://github.com/hiddenSymmetries/simsopt"
