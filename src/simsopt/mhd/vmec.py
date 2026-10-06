@@ -15,7 +15,7 @@ import numpy as np
 from scipy.io import netcdf_file
 from scipy.integrate import quad
 
-from typing import Any, Generic, NamedTuple, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Any, NamedTuple, Optional, Protocol, TypeVar, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
