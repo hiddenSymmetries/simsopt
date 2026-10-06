@@ -218,7 +218,6 @@ class Vmec2000Solver:
         self.files_to_delete = []
 
         self.indata = vmec.vmec_input  # Shorthand
-        vi = vmec.vmec_input  # Shorthand
 
         self.ictrl[0] = restart_flag + readin_flag
         self.ictrl[1] = 0  # ierr
