@@ -41,12 +41,14 @@ jobs:
         run: |
           python -m pip install pytest
           python -m pytest -q tests/jax
-      - name: Verify package import and native stage-II example
+      - name: Verify package import and stage-II examples
         run: |
           python -c "import simsopt_jax_adapters.field"
           python examples/2_Intermediate/stage_two_biotsavart_jax.py
+          python examples/2_Intermediate/stage_two_optimization_jax.py
       - name: Check shipped Python code
         run: |
           ruff check src/simsopt_jax src/simsopt_jax_adapters tests/jax \
-            examples/2_Intermediate/stage_two_biotsavart_jax.py
+            examples/2_Intermediate/stage_two_biotsavart_jax.py \
+            examples/2_Intermediate/stage_two_optimization_jax.py
           pyright --pythonpath "$(command -v python)"
