@@ -15,7 +15,7 @@ import numpy as np
 from scipy.io import netcdf_file
 from scipy.integrate import quad
 
-from typing import Any, NamedTuple, Optional, Protocol, runtime_checkable
+from typing import Any, Generic, NamedTuple, Optional, Protocol, TypeVar, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +113,11 @@ def array_to_namelist(arr, aux_s=False):
 #                        if ns_index = 0 and numsteps = 0 (see below), vmec will
 #                        control its own run history
 
+#: Types of a solver's ``indata`` and ``wout``, which :obj:`Vmec` passes through.
+IndataT = TypeVar("IndataT")
+WoutT = TypeVar("WoutT")
+
+
 class FourierMode(NamedTuple):
     """ Key of a boundary Fourier coefficient. """
     m: int
@@ -139,31 +144,81 @@ class ProfileProtocol(Protocol):
 
 
 @runtime_checkable
-class VmecSolverProtocol(Protocol):
+class VmecSolverProtocol(Protocol[IndataT, WoutT]):
     """
     Interface of a VMEC backend driven by :obj:`Vmec`.
+
+    The constructor takes backend options only; :obj:`Vmec` then calls
+    ``initialize()`` once, with its input file and settings.
+
+    A new backend needs no change in simsopt: this protocol is structural,
+    so any class with these members works, whether or not it inherits from
+    anything here. Implement it in your own package and pass an instance::
+
+        class MyVmec:
+            def __init__(self, **backend_options): ...
+            def initialize(self, filename, mpi, keep_all_files=False, verbose=True): ...
+            # ... plus the properties and methods below
+
+        vmec = Vmec("input.my_config", solver=MyVmec())
+
+    ``initialize()`` must set up ``indata``, ``boundary`` and the other
+    members. ``get_input()``, ``write_input()`` and ``get_max_mn()`` are
+    optional; :obj:`Vmec` forwards them if the backend has them.
 
     ``phiedge``, ``curtor`` and ``pres_scale`` are views onto ``indata``.
     If both ``current`` and ``iota`` are set, ``indata.ncurr`` selects one.
     """
 
-    boundary: SurfaceRZFourierProtocol
-    pressure: Optional[ProfileProtocol]
-    current: Optional[ProfileProtocol]
-    iota: Optional[ProfileProtocol]
+    # Properties, so implementations may define them as properties too:
+    @property
+    def pressure(self) -> Optional[ProfileProtocol]: ...
+    @pressure.setter
+    def pressure(self, profile: Optional[ProfileProtocol], /) -> None: ...
 
-    phiedge: float
-    curtor: float
-    pres_scale: float
+    @property
+    def current(self) -> Optional[ProfileProtocol]: ...
+    @current.setter
+    def current(self, profile: Optional[ProfileProtocol], /) -> None: ...
 
-    indata: Any
-    wout: Any
+    @property
+    def iota(self) -> Optional[ProfileProtocol]: ...
+    @iota.setter
+    def iota(self, profile: Optional[ProfileProtocol], /) -> None: ...
+
+    @property
+    def boundary(self) -> SurfaceRZFourierProtocol: ...
+    @boundary.setter
+    def boundary(self, boundary: SurfaceRZFourierProtocol, /) -> None: ...
+
+    @property
+    def phiedge(self) -> float: ...
+    @phiedge.setter
+    def phiedge(self, phiedge: float, /) -> None: ...
+
+    @property
+    def curtor(self) -> float: ...
+    @curtor.setter
+    def curtor(self, curtor: float, /) -> None: ...
+
+    @property
+    def pres_scale(self) -> float: ...
+    @pres_scale.setter
+    def pres_scale(self, pres_scale: float, /) -> None: ...
+
+    indata: IndataT
+    wout: WoutT
     output_file: Any
     verbose: bool
+
+    def initialize(self, filename: str, mpi, keep_all_files: bool = False,
+                   verbose: bool = True) -> None: ...
 
     def solve(self) -> None: ...
 
     def load_wout(self) -> int: ...
+
+    def save_wout(self, filename: str) -> None: ...
 
     def update_mpi(self, new_mpi) -> None: ...
 
