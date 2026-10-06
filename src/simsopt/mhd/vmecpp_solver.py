@@ -163,16 +163,6 @@ class VmecppSolver:
         self.indata.mpol = new_mpol
         self.indata.ntor = new_ntor
 
-    def _check_lasym_arrays(self):
-        vi = self.indata  # Shorthand
-        if not vi.lasym:
-            return
-        missing = [name for name in ('rbs', 'zbc', 'raxis_s', 'zaxis_c')
-                   if getattr(vi, name) is None]
-        if missing:
-            raise ValueError(f"indata.lasym is True but {', '.join(missing)} missing; "
-                             "a lasym run needs an input file with LASYM = T")
-
     @property
     def boundary(self) -> "SurfaceRZFourierProtocol":
         """ Read back from ``indata`` until one is assigned. """
@@ -187,7 +177,6 @@ class VmecppSolver:
     def _boundary_from_indata(self):
         from .vmec import VmecBoundary
 
-        self._check_lasym_arrays()
         self._ensure_indata_resolution()
         vi = self.indata  # Shorthand
         mpol, ntor = self.resolution
@@ -229,7 +218,6 @@ class VmecppSolver:
         boundary = self._boundary
         if boundary is None:
             raise RuntimeError("No boundary has been assigned to the solver.")
-        self._check_lasym_arrays()
         self._ensure_indata_resolution()
         vi = self.indata  # Shorthand
         mpol, ntor = self.resolution
@@ -352,24 +340,9 @@ class VmecppSolver:
         self.wout = self.output_quantities.wout
 
         logger.info("VMEC++ run complete. Now saving output.")
-        # Group leaders handle files. Unless keep_all_files is True, only
-        # worker group 0 saves the wout file:
-        if self.mpi is None or self.mpi.proc0_groups:
-            if self.keep_all_files or self.group == 0:
-                self.wout.save(Path(self.output_file))
-
-            # Delete the previous output file, if desired:
-            for filename in self.files_to_delete:
-                try:
-                    os.remove(filename)
-                except FileNotFoundError:
-                    logger.debug(f"Tried to delete the file {filename} but it was not found")
-
-            self.files_to_delete = []
-
-            # Record the latest output file to delete if we run again:
-            if (self.group == 0) and (self.iter > 0) and (not self.keep_all_files):
-                self.files_to_delete += [self.output_file]
+        # Only the group leaders write, and only if keep_all_files is True:
+        if self.keep_all_files and (self.mpi is None or self.mpi.proc0_groups):
+            self.wout.save(Path(self.output_file))
 
     def load_wout(self):
         """ Read ``output_file`` into ``wout``. """
@@ -379,6 +352,10 @@ class VmecppSolver:
         if self.wout.ier_flag not in (0, SUCCESSFUL_TERM_FLAG):
             raise ObjectiveFailure(f"VMEC++ did not succeed. {self.wout.reason}")
         return 0
+
+    def save_wout(self, filename):
+        """ Write ``wout`` to ``filename``. """
+        self.wout.save(Path(filename))
 
     def update_mpi(self, new_mpi):
         self.mpi = new_mpi

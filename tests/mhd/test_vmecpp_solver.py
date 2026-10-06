@@ -7,9 +7,11 @@ import unittest
 
 import numpy as np
 from monty.tempfile import ScratchDir
+from scipy.io import netcdf_file
 from simsopt._core.util import ObjectiveFailure, Struct
 from simsopt.field.mgrid import MGrid
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.mhd.boozer import Boozer
 from simsopt.mhd.profiles import ProfilePolynomial
 from simsopt.mhd.vmec import (
     REQUIRED_WOUT_FIELDS,
@@ -24,6 +26,11 @@ try:
     from simsopt.mhd.vmecpp_solver import VmecppSolver
 except ImportError:  # vmecpp is an optional dependency
     vmecpp = None
+
+try:
+    import booz_xform
+except ImportError:
+    booz_xform = None
 
 from . import TEST_DIR
 
@@ -59,9 +66,9 @@ class VmecppSolverTests(unittest.TestCase):
         solver.initialize(os.path.join(TEST_DIR, name), None, verbose=False)
         return solver
 
-    def vmec(self, name="input.li383_low_res"):
+    def vmec(self, name="input.li383_low_res", **kwargs):
         path = os.path.join(TEST_DIR, name)
-        return Vmec(path, verbose=False, solver=VmecppSolver())
+        return Vmec(path, verbose=False, solver=VmecppSolver(), **kwargs)
 
     def test_conforms_to_protocol(self):
         self.assertIsInstance(self.solver(), VmecSolverProtocol)
@@ -250,9 +257,9 @@ class VmecppSolverTests(unittest.TestCase):
             Vmec(os.path.join(TEST_DIR, "input.li383_low_res"), solver=v.solver)
 
     def test_keep_all_files(self):
-        """ As on VMEC2000, only the first and latest wout are kept, unless keep_all_files. """
+        """ A wout file is written per run only if keep_all_files. """
         path = os.path.join(TEST_DIR, "input.circular_tokamak")
-        for keep_all_files, kept in [(False, [0, 2]), (True, [0, 1, 2])]:
+        for keep_all_files, kept in [(False, []), (True, [0, 1, 2])]:
             with self.subTest(keep_all_files=keep_all_files), ScratchDir("."):
                 v = Vmec(path, keep_all_files=keep_all_files, verbose=False,
                          solver=VmecppSolver())
@@ -296,8 +303,8 @@ class VmecppSolverTests(unittest.TestCase):
             self.assertTrue(np.isfinite(value))
         self.assertEqual(v.wout.ier_flag, 0)
         self.assertEqual(v.wout.rmnc.shape[1], v.wout.ns)
-        # The wout file was saved, even though keep_all_files is False:
-        self.assertTrue(os.path.isfile(v.output_file))
+        # No wout file is written, since keep_all_files is False:
+        self.assertFalse(os.path.isfile(v.output_file))
 
         # A second call is served from the cache:
         self.assertFalse(v.need_to_run_code)
@@ -309,12 +316,36 @@ class VmecppSolverTests(unittest.TestCase):
         self.assertEqual(v.iter, 1)
 
     def test_load_wout_round_trip(self):
-        v = self.vmec("input.circular_tokamak")
+        v = self.vmec("input.circular_tokamak", keep_all_files=True)
         v.run()
         aspect = v.wout.aspect
         v.load_wout()
         self.assertAlmostEqual(v.wout.aspect, aspect)
         np.testing.assert_allclose(np.linspace(0, 1, v.wout.ns), v.s_full_grid)
+
+    def test_save_wout(self):
+        """ save_wout runs VMEC if needed, and the file reads back. """
+        v = self.vmec("input.circular_tokamak")
+        with ScratchDir("."):
+            v.save_wout("wout_saved.nc")
+            wout = Struct()
+            load_wout_file("wout_saved.nc", wout)
+        self.assertAlmostEqual(wout.aspect, v.wout.aspect)
+
+    @unittest.skipIf(booz_xform is None, "booz_xform is not installed")
+    def test_boozer(self):
+        """ Boozer reads the in-memory VmecWOut, and matches the VMEC2000 reference. """
+        with ScratchDir("."):
+            v = self.vmec("input.li383_low_res")
+            b = Boozer(v, mpol=32, ntor=16)
+            b.register([0.0, 1.0])
+            b.run()
+        np.testing.assert_allclose(b.bx.compute_surfs, [0, 14])
+        f = netcdf_file(os.path.join(TEST_DIR, "boozmn_li383_low_res.nc"), mmap=False)
+        bmnc_ref = f.variables["bmnc_b"][()].transpose()
+        f.close()
+        np.testing.assert_allclose(b.bx.bmnc_b[:, 0], bmnc_ref[:, 0], atol=1e-4)
+        np.testing.assert_allclose(b.bx.bmnc_b[:, 1], bmnc_ref[:, -1], atol=1e-4)
 
     def test_json_input_file(self):
         """ VMEC++ JSON input files work too, and are named wout_<name>.nc. """
@@ -332,7 +363,7 @@ class VmecppSolverTests(unittest.TestCase):
 
     def test_saved_wout_is_readable_as_a_fortran_wout(self):
         """ The file VMEC++ writes is what virtual_casing and Boozer expect. """
-        v = self.vmec("input.circular_tokamak")
+        v = self.vmec("input.circular_tokamak", keep_all_files=True)
         v.run()
         wout = Struct()
         load_wout_file(v.output_file, wout)
