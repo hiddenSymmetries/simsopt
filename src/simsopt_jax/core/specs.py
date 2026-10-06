@@ -68,6 +68,8 @@ __all__ = [
     "make_optimizable_dof_map_spec",
     "make_zero_rotation_spec",
     "host_resident_spec",
+    "FixedSurfaceFluxSpec",
+    "make_fixed_surface_flux_spec",
 ]
 
 
@@ -707,3 +709,42 @@ def make_grouped_coil_set_spec(groups: Iterable[CoilGroupSpec | tuple[jax.Array,
             )
         )
     return GroupedCoilSetSpec(groups=tuple(group_specs))
+
+
+@pytree_dataclass(
+    data=("points", "normal", "target"),
+    meta=("definition", "nphi", "ntheta"),
+)
+class FixedSurfaceFluxSpec:
+    """Immutable Stage-II flux contract on a fixed surface.
+
+    ``points`` is the ``(nphi * ntheta, 3)`` evaluation cloud, ``normal`` the
+    unnormalized ``(nphi, ntheta, 3)`` surface normal and ``target`` the
+    ``(nphi, ntheta)`` target normal field. ``definition`` selects the
+    ``integral_BdotN`` variant.
+    """
+
+    points: jax.Array
+    normal: jax.Array
+    target: jax.Array
+    definition: str
+    nphi: int
+    ntheta: int
+
+
+def make_fixed_surface_flux_spec(
+    *,
+    points: object,
+    normal: object,
+    target: object,
+    definition: str,
+) -> FixedSurfaceFluxSpec:
+    normal_jax = _as_float64_array(normal)
+    return FixedSurfaceFluxSpec(
+        points=_as_float64_array(points),
+        normal=normal_jax,
+        target=_as_float64_array(target),
+        definition=definition,
+        nphi=int(normal_jax.shape[0]),
+        ntheta=int(normal_jax.shape[1]),
+    )
