@@ -84,9 +84,10 @@ for step in range(3):
     constrained_mpi_solve(prob, mpi, grad=True, rel_step=1e-5, abs_step=1e-7, options=options)
     xopt = prob.x
 
-    # Preserve the output file from the last iteration, so it is not
-    # deleted when vmec runs again:
-    vmec.files_to_delete = []
+    # The MPI group leader saves the wout file of this stage
+    vmec.run()
+    if mpi.proc0_world:
+        vmec.save_wout(f"wout_max_mode{max_mode}.nc")
 
     # evaluate the solution
     surf.x = xopt
