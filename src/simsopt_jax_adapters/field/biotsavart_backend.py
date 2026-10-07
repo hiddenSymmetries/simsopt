@@ -10,7 +10,7 @@ from functools import partial
 from typing import Callable, NoReturn, cast
 
 import jax
-from simsopt_jax.backend import get_field_kernel_tuning
+from simsopt_jax.backend import get_field_kernel_tuning, register_backend_cache_clear
 import jax.numpy as jnp
 import numpy as np
 
@@ -19,7 +19,6 @@ from simsopt._core.json import GSONDecoder
 from simsopt.field.coil import Current, CurrentSum, ScaledCurrent
 from simsopt.field.magneticfield import MagneticField
 from simsopt.geo.curveperturbed import CurvePerturbed
-from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt_jax.runtime.host_boundary import host_array
 from simsopt._core.optimizable import Optimizable
 from simsopt_jax.pytree import pytree_dataclass
@@ -35,7 +34,6 @@ from simsopt_jax.core import (
     make_coil_set_dof_extraction_spec,
     make_optimizable_dof_map_spec,
 )
-from simsopt_jax.core.curve_xyz_fourier import jaxfouriercurve_geometry_pure
 from simsopt_jax.core.biotsavart import (
     biot_savart_A,
     biot_savart_B,
@@ -45,6 +43,7 @@ from simsopt_jax.core.biotsavart import (
     biot_savart_dB_by_dX,
 )
 from simsopt_jax.core.field import (
+    coil_set_spec_from_dof_extraction_spec,
     group_biot_savart_B_vjp,
     grouped_biot_savart_A_from_inputs,
     grouped_biot_savart_A_from_spec,
@@ -57,7 +56,6 @@ from simsopt_jax.core.field import (
     grouped_biot_savart_dB_by_dX_from_inputs,
     grouped_biot_savart_dB_by_dX_from_spec,
     grouped_coil_set_spec_from_coil_specs,
-    grouped_coil_set_spec_from_lists,
     grouped_field_inputs_from_spec,
 )
 from simsopt_jax.core._math_utils import (
@@ -66,6 +64,8 @@ from simsopt_jax.core._math_utils import (
 )
 from simsopt_jax.core._device_scalars import two_pi as _two_pi
 from simsopt_jax.core.specs import (
+    CoilSetDofExtractionSpec,
+    GroupedCoilSetSpec,
     make_field_eval_spec,
 )
 from simsopt_jax_adapters.field._coil_graph import (
@@ -79,9 +79,52 @@ from simsopt_jax_adapters.geo.curve_specs import (
 )
 
 _new_coil_dof_state_token = make_state_token_factory()
+_new_backend_epoch = make_state_token_factory()
+_backend_epoch = _new_backend_epoch()
+
+
+def _advance_backend_epoch() -> None:
+    """Retire every adapter's device coil state when the backend is reconfigured."""
+    global _backend_epoch
+    _backend_epoch = _new_backend_epoch()
+
+
+register_backend_cache_clear(_advance_backend_epoch)
+
+
 def _place_array_tree_on_device(tree, device):
     """Place dynamic array leaves on one device while preserving static metadata."""
     return runtime_device_put_tree(tree, device=device)
+
+
+@dataclass(frozen=True)
+class _DeviceCoilContract:
+    """The adapter's immutable extraction contracts, placed on one device."""
+
+    extraction: CoilSetDofExtractionSpec
+    owner_extraction: CoilSetDofExtractionSpec
+    owner_projection: CoilSetDofExtractionSpec
+
+
+@dataclass(frozen=True, eq=False)
+class _CoilEvaluationState:
+    """Device inputs of every field evaluation at one coil-DOF state.
+
+    ``coil_dofs`` is the free-DOF vector and ``coil_set_spec`` the grouped
+    coil geometry and currents built from it. Compared by identity: a new
+    state is built after each recompute notification, extraction-contract
+    rebuild or backend reconfiguration (``backend_epoch``).
+    """
+
+    backend_epoch: int
+    coil_dofs: jax.Array
+    coil_set_spec: GroupedCoilSetSpec
+
+
+@jax.jit
+def _jitted_coil_set_spec_from_extraction_spec(coil_dof_extraction_spec, coil_dofs):
+    """Owner free-DOF vector -> grouped coil geometry and currents, as one program."""
+    return coil_set_spec_from_dof_extraction_spec(coil_dof_extraction_spec, coil_dofs)
 
 
 __all__ = [
@@ -259,10 +302,6 @@ def _require_native_curve_geometry(curve):
 
 def _curve_dof_mode(curve):
     return adapter_curve_dof_mode(curve)
-
-
-def _curve_quadpoints_jax(curve):
-    return _as_jax_float64(curve.quadpoints)
 
 
 def _slice_1d(array: jax.Array, start: int, end: int) -> jax.Array:
@@ -569,6 +608,9 @@ class BiotSavartJAX(Optimizable):
 
     Coil extraction and kernels use immutable arrays. This Optimizable wrapper
     owns mutable point/cache state and is confined to one evaluation thread.
+    As in the native BiotSavart, coil geometry and field values are computed
+    once per coil-DOF state and point set and reused until simsopt's recompute
+    notification (any DOF setter or resample) or set_points invalidates them.
 
     Args:
         coils: native simsopt.field.Coil objects.
@@ -588,48 +630,49 @@ class BiotSavartJAX(Optimizable):
             kernel,
         )
 
+    def _field_output(self, grouped_field):
+        """``grouped_field(points, coil_set_spec)`` at the live coil state and points.
+
+        Evaluated once per coil state and point set; JAX arrays are immutable,
+        so the cached value is returned as is.
+        """
+        state = self._coil_evaluation_state()
+        if self._field_outputs_key != (state, self._points_version):
+            self._field_outputs = {}
+            self._field_outputs_key = (state, self._points_version)
+        value = self._field_outputs.get(grouped_field)
+        if value is None:
+            value = grouped_field(self._points_jax, state.coil_set_spec)
+            self._field_outputs[grouped_field] = value
+        return value
+
     def B(self):
         """Magnetic field B at the evaluation points."""
-        return grouped_biot_savart_B_from_spec(self._points_jax, self.coil_set_spec())
+        return self._field_output(grouped_biot_savart_B_from_spec)
 
     def A(self):
         """Vector potential A at the evaluation points."""
-        return grouped_biot_savart_A_from_spec(self._points_jax, self.coil_set_spec())
+        return self._field_output(grouped_biot_savart_A_from_spec)
 
     def dA_by_dX(self):
         """Spatial Jacobian dA/dX at the evaluation points."""
-        return grouped_biot_savart_dA_by_dX_from_spec(
-            self._points_jax,
-            self.coil_set_spec(),
-        )
+        return self._field_output(grouped_biot_savart_dA_by_dX_from_spec)
 
     def d2A_by_dXdX(self):
         """Spatial Hessian d2A/dXdX at the evaluation points."""
-        return grouped_biot_savart_d2A_by_dXdX_from_spec(
-            self._points_jax,
-            self.coil_set_spec(),
-        )
+        return self._field_output(grouped_biot_savart_d2A_by_dXdX_from_spec)
 
     def dB_by_dX(self):
         """Spatial Jacobian dB/dX at the evaluation points."""
-        return grouped_biot_savart_dB_by_dX_from_spec(
-            self._points_jax,
-            self.coil_set_spec(),
-        )
+        return self._field_output(grouped_biot_savart_dB_by_dX_from_spec)
 
     def d2B_by_dXdX(self):
         """Spatial Hessian d2B/dXdX at the evaluation points."""
-        return grouped_biot_savart_d2B_by_dXdX_from_spec(
-            self._points_jax,
-            self.coil_set_spec(),
-        )
+        return self._field_output(grouped_biot_savart_d2B_by_dXdX_from_spec)
 
     def B_and_dB(self):
         """Combined B and dB/dX."""
-        return grouped_biot_savart_B_and_dB_from_spec(
-            self._points_jax,
-            self.coil_set_spec(),
-        )
+        return self._field_output(grouped_biot_savart_B_and_dB_from_spec)
 
     def AbsB(self):
         """Magnetic-field magnitude at the evaluation points."""
@@ -730,18 +773,13 @@ class BiotSavartJAX(Optimizable):
         self._free_dof_layout_ready = False
         self._suppress_dependency_coil_dof_state = False
         self._local_free_positions_by_opt = {}
+        self._device_contracts = {}
+        self._coil_state = None
+        self._field_outputs = {}
+        self._field_outputs_key = None
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=self._coils)
-
-        # Uniform CurveXYZFourier fast-path metadata (populated by _introspect_coils)
-        self._uses_uniform_curve_xyz_fourier_fastpath = False
-        self._unique_base_curves = []
-        self._unique_base_currents = []
-        self._coil_descs = []  # list of (curve_idx, current_idx, rotmat_jax, scale)
-        self._curve_order = 0
-        self._curve_quadpoints_jax = None
-        self._introspect_coils()
         self._free_dof_layout_ready = True
-        self._coil_dof_extraction_spec = self._build_coil_dof_extraction_spec()
+        self._rebuild_coil_dof_extraction_spec()
         self._captured_coil_state_fingerprint = (
             self._current_captured_coil_state_fingerprint()
         )
@@ -751,7 +789,7 @@ class BiotSavartJAX(Optimizable):
         self._local_free_positions_by_opt.clear()
         if self._free_dof_layout_ready:
             self._dof_layout_version += 1
-            self._coil_dof_extraction_spec = self._build_coil_dof_extraction_spec()
+            self._rebuild_coil_dof_extraction_spec()
             self._captured_coil_state_fingerprint = (
                 self._current_captured_coil_state_fingerprint()
             )
@@ -784,8 +822,60 @@ class BiotSavartJAX(Optimizable):
         if (fingerprint == self._captured_coil_state_fingerprint
                 and not self._perturbation_samples_changed()):
             return
-        self._coil_dof_extraction_spec = self._build_coil_dof_extraction_spec()
+        self._rebuild_coil_dof_extraction_spec()
         self._captured_coil_state_fingerprint = fingerprint
+
+    def _rebuild_coil_dof_extraction_spec(self) -> None:
+        """Rebuild the extraction contracts; retire what was placed or built from the old ones."""
+        self._coil_dof_extraction_spec = self._build_coil_dof_extraction_spec()
+        self._device_contracts = {}
+        self._drop_coil_state()
+
+    def _drop_coil_state(self) -> None:
+        self._coil_state = None
+        self._field_outputs = {}
+        self._field_outputs_key = None
+
+    def recompute_bell(self, parent=None):
+        """Drop the cached coil state and field values on simsopt's recompute notification."""
+        self._drop_coil_state()
+
+    def _device_contract(self, device) -> _DeviceCoilContract:
+        """The extraction contracts placed on ``device``, placed once per contract build."""
+        contract = self._device_contracts.get(device)
+        if contract is None:
+            contract = _DeviceCoilContract(*_place_array_tree_on_device(
+                (
+                    self._coil_dof_extraction_spec,
+                    self._owner_partial_extraction_spec,
+                    self._owner_partial_projection_spec,
+                ),
+                device,
+            ))
+            self._device_contracts[device] = contract
+        return contract
+
+    def _coil_evaluation_state(self) -> _CoilEvaluationState:
+        """Device coil DOFs and grouped coil geometry at the live coil-DOF state.
+
+        Built by one compiled program at the first evaluation after a recompute
+        notification, contract rebuild or backend reconfiguration; every field
+        value, pullback and per-coil derivative at that state reuses it.
+        """
+        self.coil_dof_extraction_spec()
+        state = self._coil_state
+        if state is None or state.backend_epoch != _backend_epoch:
+            coil_dofs = self._normalize_explicit_coil_dofs(self.x)
+            state = _CoilEvaluationState(
+                backend_epoch=_backend_epoch,
+                coil_dofs=coil_dofs,
+                coil_set_spec=_jitted_coil_set_spec_from_extraction_spec(
+                    self._device_contract(coil_dofs.device).extraction,
+                    coil_dofs,
+                ),
+            )
+            self._coil_state = state
+        return state
 
     def _advance_coil_dof_state(self) -> None:
         self._coil_dofs_generation += 1
@@ -847,64 +937,6 @@ class BiotSavartJAX(Optimizable):
             cached = np.flatnonzero(opt.local_dofs_free_status)
             self._local_free_positions_by_opt[opt] = cached
         return cached
-
-    def _introspect_coils(self):
-        """Walk coil tree to identify unique base curves/currents.
-
-        Enables the JAX-native path when all curves are
-        ``CurveXYZFourier`` (possibly wrapped in ``RotatedCurve``)
-        with uniform Fourier order and quadrature point count.
-        """
-        base_curve_ids = {}  # id(obj) → index
-        base_current_ids = {}
-        base_curves = []
-        base_currents = []
-        descs = []
-
-        for coil in self._coils:
-            curve, rotmat, current, scale = _unwrap_coil_curve_and_current(coil)
-
-            if not isinstance(curve, CurveXYZFourier):
-                return
-
-            cid = id(curve)
-            if cid not in base_curve_ids:
-                base_curve_ids[cid] = len(base_curves)
-                base_curves.append(curve)
-
-            # Must resolve to a single-DOF Current (not CurrentSum etc.)
-            if not isinstance(current, Current):
-                return
-
-            kid = id(current)
-            if kid not in base_current_ids:
-                base_current_ids[kid] = len(base_currents)
-                base_currents.append(current)
-
-            descs.append(
-                (
-                    base_curve_ids[cid],
-                    base_current_ids[kid],
-                    _as_jax_float64(rotmat) if rotmat is not None else None,
-                    scale,
-                )
-            )
-
-        # All curves must share the same Fourier order and quadrature grid
-        orders = {c.order for c in base_curves}
-        if len(orders) != 1:
-            return
-        ref_qp = np.asarray(base_curves[0].quadpoints)
-        for c in base_curves[1:]:
-            if not np.array_equal(ref_qp, np.asarray(c.quadpoints)):
-                return
-
-        self._uses_uniform_curve_xyz_fourier_fastpath = True
-        self._unique_base_curves = base_curves
-        self._unique_base_currents = base_currents
-        self._coil_descs = descs
-        self._curve_order = orders.pop()
-        self._curve_quadpoints_jax = _curve_quadpoints_jax(base_curves[0])
 
     def _build_coil_dof_extraction_spec(self):
         curve_source_ids = {}
@@ -1016,7 +1048,6 @@ class BiotSavartJAX(Optimizable):
         self._owner_partial_projection_spec = make_coil_set_dof_extraction_spec(projection_coils)
         self._owner_partial_slices = tuple(owner_slices.items())
         self._owner_partial_width = width
-        self._device_projection_contracts = {}
 
     def coil_dof_extraction_spec(self):
         """Return the cached immutable owner-DOF reconstruction contract."""
@@ -1135,69 +1166,6 @@ class BiotSavartJAX(Optimizable):
             self.coil_specs_from_dofs(coil_dofs),
         )
 
-    def _scalar_current_value_from_dofs(self, current, coil_dofs, lane_label):
-        current_full_x = self._local_full_dofs_from_free_vector(current, coil_dofs)
-        if current_full_x.shape[0] != 1:
-            raise RuntimeError(
-                "grouped_coil_arrays_from_dofs() only supports scalar Current "
-                f"degrees of freedom on the {lane_label}."
-            )
-        return current_full_x[0]
-
-    def _coil_arrays_in_order_from_dofs(self, coil_dofs):
-        """Build per-coil ``(gamma, gammadash, current)`` arrays from DOFs.
-
-        This is the pure-array counterpart to reading geometry from the live
-        ``Optimizable`` graph: it reconstructs coil data from the explicit
-        flat ``coil_dofs`` vector without assigning ``self.x``.
-
-        Used only for uniform ``CurveXYZFourier`` coils; other curve families
-        reconstruct their immutable coil specs in ``_coil_set_spec_from_explicit_state``.
-        """
-        coil_dofs = self._normalize_explicit_coil_dofs(coil_dofs)
-
-        quadpoints = self._curve_quadpoints_jax
-
-        curve_dofs = []
-        for curve in self._unique_base_curves:
-            curve_dofs.append(self._local_full_dofs_from_free_vector(curve, coil_dofs))
-
-        current_values = []
-        for current in self._unique_base_currents:
-            current_values.append(
-                self._scalar_current_value_from_dofs(
-                    current,
-                    coil_dofs,
-                    "JAX-native lane",
-                )
-            )
-
-        base_gammas = []
-        base_gammadashs = []
-        for curve_x in curve_dofs:
-            gamma, gammadash, _, _ = jaxfouriercurve_geometry_pure(
-                curve_x,
-                quadpoints,
-                self._curve_order,
-            )
-            base_gammas.append(gamma)
-            base_gammadashs.append(gammadash)
-
-        coil_gammas = []
-        coil_gammadashs = []
-        coil_currents = []
-        for curve_idx, current_idx, rotmat, scale in self._coil_descs:
-            gamma = base_gammas[curve_idx]
-            gammadash = base_gammadashs[curve_idx]
-            if rotmat is not None:
-                gamma = gamma @ rotmat
-                gammadash = gammadash @ rotmat
-            coil_gammas.append(gamma)
-            coil_gammadashs.append(gammadash)
-            coil_currents.append(_as_jax_float64(scale) * current_values[current_idx])
-
-        return coil_gammas, coil_gammadashs, coil_currents
-
     def grouped_coil_arrays_from_dofs(self, coil_dofs):
         """Build grouped coil arrays from an explicit flat DOF vector."""
         return list(
@@ -1250,21 +1218,13 @@ class BiotSavartJAX(Optimizable):
         return make_field_eval_spec(self._points_jax)
 
 
-    def _coil_set_spec_from_explicit_state(self):
-        if self._uses_uniform_curve_xyz_fourier_fastpath:
-            return grouped_coil_set_spec_from_lists(
-                *self._coil_arrays_in_order_from_dofs(_as_jax_float64(self.x))
-            )
-        return self.coil_set_spec_from_dofs(_as_jax_float64(self.x))
-
-
     def coil_set_spec(self):
-        """Build the grouped coil spec for the current coil graph.
+        """Return the grouped coil spec for the current coil graph.
 
-        The path stays in immutable-spec space: reconstruct from the live
-        free-DOF vector with the cached explicit grouped-spec contract.
+        Reconstructed from the live free-DOF vector with the cached explicit
+        extraction contract, once per coil-DOF state.
         """
-        return self._coil_set_spec_from_explicit_state()
+        return self._coil_evaluation_state().coil_set_spec
 
     def coil_specs(self):
         """Build immutable per-coil specs from the live coil graph."""
@@ -1284,7 +1244,7 @@ class BiotSavartJAX(Optimizable):
         """
         points = self._points_jax
         v_jax = _as_jax_float64(v)
-        coil_set_spec = self._coil_set_spec_from_explicit_state()
+        coil_set_spec = self.coil_set_spec()
         d_coil_arrays = tuple(
             group_biot_savart_B_vjp(
                 points,
@@ -1330,7 +1290,7 @@ class BiotSavartJAX(Optimizable):
         grouped_forward,
         cotangent,
     ):
-        coil_set_spec = self._coil_set_spec_from_explicit_state()
+        coil_set_spec = self.coil_set_spec()
         coil_arrays = coil_set_spec.field_inputs()
         if not coil_arrays:
             return BiotSavartFieldPullback((), ())
@@ -1460,12 +1420,9 @@ class BiotSavartJAX(Optimizable):
             coil_dofs = self.x.copy()
         coil_dofs = self._normalize_explicit_coil_dofs(coil_dofs)
         if _coil_cotangent_arrays_are_jax_compatible(d_coil_arrays):
-            extraction_spec = _place_array_tree_on_device(
-                self.coil_dof_extraction_spec(),
-                coil_dofs.device,
-            )
+            self.coil_dof_extraction_spec()
             return _jitted_coil_cotangents_to_dofs_gradient(
-                extraction_spec,
+                self._device_contract(coil_dofs.device).extraction,
                 d_coil_arrays,
                 _canonical_coil_indices(coil_indices),
                 coil_dofs,
@@ -1501,17 +1458,11 @@ class BiotSavartJAX(Optimizable):
         """
         self.coil_dof_extraction_spec()
         coil_dofs = self._normalize_explicit_coil_dofs(self.x)
-        device = coil_dofs.device
-        contract = self._device_projection_contracts.get(device)
-        if contract is None:
-            contract = _place_array_tree_on_device(
-                (self._owner_partial_extraction_spec, self._owner_partial_projection_spec), device,
-            )
-            self._device_projection_contracts[device] = contract
+        contract = self._device_contract(coil_dofs.device)
         partials = host_array(
             _jitted_coil_cotangents_to_owner_partials(
-                *contract, d_coil_arrays, _canonical_coil_indices(coil_indices),
-                coil_dofs, self._owner_partial_width,
+                contract.owner_extraction, contract.owner_projection, d_coil_arrays,
+                _canonical_coil_indices(coil_indices), coil_dofs, self._owner_partial_width,
             ),
             dtype=np.float64,
         )

@@ -543,34 +543,34 @@ class TestBiotSavartJAXCoilStateToken:
             )
 
 
-    def test_coil_set_spec_uses_uniform_curve_xyz_fourier_fastpath(self, monkeypatch):
+    def test_live_coil_set_spec_matches_explicit_dofs_and_native_coils(self):
+        """The cached live spec is the explicit-DOF reconstruction of the native coils."""
+        coils = self._make_two_basic_coils()
+        bs_jax = BiotSavartJAX(coils)
 
-        bs_jax = BiotSavartJAX(self._make_two_basic_coils())
-        assert bs_jax._uses_uniform_curve_xyz_fourier_fastpath
-
-        fast_gammas, fast_gammadashs, fast_currents = (
-            bs_jax._coil_arrays_in_order_from_dofs(bs_jax.x)
+        live = self._coil_arrays_in_original_order(bs_jax.coil_set_spec())
+        explicit = self._coil_arrays_in_original_order(
+            bs_jax.coil_set_spec_from_dofs(bs_jax.x)
+        )
+        native = (
+            [coil.curve.gamma() for coil in coils],
+            [coil.curve.gammadash() for coil in coils],
+            [coil.current.get_value() for coil in coils],
         )
 
-        def raise_if_immutable_lane_used(_coil_dofs):
-            raise AssertionError("immutable-spec lane used")
-
-        monkeypatch.setattr(
-            bs_jax,
-            "_coil_set_spec_from_dofs_immutable_specs",
-            raise_if_immutable_lane_used,
-        )
-
-        spec_gammas, spec_gammadashs, spec_currents = (
-            self._coil_arrays_in_original_order(bs_jax.coil_set_spec())
-        )
-
-        for actual, expected in zip(spec_gammas, fast_gammas, strict=True):
-            np.testing.assert_allclose(cast(jax.Array, actual), expected)
-        for actual, expected in zip(spec_gammadashs, fast_gammadashs, strict=True):
-            np.testing.assert_allclose(cast(jax.Array, actual), expected)
-        for actual, expected in zip(spec_currents, fast_currents, strict=True):
-            np.testing.assert_allclose(cast(jax.Array, actual), expected)
+        for live_entries, explicit_entries, native_entries in zip(
+            live, explicit, native, strict=True
+        ):
+            for actual, from_dofs, expected in zip(
+                live_entries, explicit_entries, native_entries, strict=True
+            ):
+                np.testing.assert_allclose(
+                    cast(jax.Array, actual), cast(jax.Array, from_dofs),
+                    rtol=1e-14, atol=1e-15,
+                )
+                np.testing.assert_allclose(
+                    cast(jax.Array, actual), expected, rtol=1e-13, atol=1e-14,
+                )
 
     def test_biotsavart_jax_advances_coil_dof_state_token_on_x_update(self):
 
