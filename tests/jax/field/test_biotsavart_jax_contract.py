@@ -6,10 +6,12 @@ import os
 import subprocess
 import sys
 
+import jax
 import pytest
 
 from simsopt.field import BiotSavart
 from simsopt.field.magneticfield import MagneticFieldMultiply, MagneticFieldSum
+from simsopt_jax.backend import set_backend
 from simsopt_jax_adapters.field import BiotSavartJAX
 
 
@@ -77,6 +79,22 @@ with allow_host_transfers():
         SIMSOPT_JAX_POINT_CHUNK_SIZE="1",
     )
     subprocess.run([sys.executable, "-c", code], env=environment, check=True)
+
+
+@pytest.mark.parametrize("device", ["cpu", "gpu"])
+@pytest.mark.parametrize("intent", ["fast", "parity"])
+def test_default_backend_allows_implicit_transfers(monkeypatch, device, intent):
+    """Native objectives read adapter arrays every call; auditing them is opt-in."""
+    monkeypatch.delenv("SIMSOPT_JAX_TRANSFER_GUARD", raising=False)
+    monkeypatch.delenv("SIMSOPT_DEBUG", raising=False)
+    config = set_backend("jax", device=device, intent=intent, configure_runtime=device == "cpu")
+    assert config.transfer_guard == "allow"
+    if device == "cpu":
+        assert jax.config.values["jax_transfer_guard"] == "allow"
+    monkeypatch.setenv("SIMSOPT_JAX_TRANSFER_GUARD", "log")
+    assert set_backend(
+        "jax", device=device, intent=intent, configure_runtime=False
+    ).transfer_guard == "log"
 
 
 def test_gpu_allocation_settings_can_be_applied_after_import_in_fresh_process():

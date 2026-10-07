@@ -23,6 +23,8 @@ Retained settings:
 
 * ``SIMSOPT_JAX_DEBUG_NANS``, ``SIMSOPT_JAX_DISABLE_JIT`` and
   ``SIMSOPT_JAX_TRANSFER_GUARD`` control JAX diagnostics and transfers.
+  Implicit transfers are allowed by default; set the guard to ``log`` or
+  ``disallow`` to audit them.
   ``SIMSOPT_DEBUG`` enables all diagnostics, disables JIT and disallows transfers.
   Eager JAX indexing can stage scalar indices; explicitly use the boundary
   owner's ``allow_host_transfers`` context when evaluating in that debug mode.

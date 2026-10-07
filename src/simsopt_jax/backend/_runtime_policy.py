@@ -156,12 +156,16 @@ _MODE_POLICY_DEFAULTS = {
     },
 }
 
+# Native Python objectives (SquaredFlux, CurveLength) read the adapter's JAX
+# arrays through NumPy and pybind11 on every evaluation, so "log" would print
+# several implicit-transfer warnings per objective call. Auditing is opt-in:
+# SIMSOPT_JAX_TRANSFER_GUARD=log|disallow, or SIMSOPT_DEBUG for "disallow".
 _DEFAULT_TRANSFER_GUARD_BY_MODE = {
     "native_cpu": None,
-    "jax_cpu_fast": "log",
-    "jax_cpu_parity": "log",
-    "jax_gpu_parity": "log",
-    "jax_gpu_fast": "log",
+    "jax_cpu_fast": "allow",
+    "jax_cpu_parity": "allow",
+    "jax_gpu_parity": "allow",
+    "jax_gpu_fast": "allow",
 }
 
 
