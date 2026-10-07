@@ -56,7 +56,6 @@ from simsopt_jax.core.field import (
     grouped_biot_savart_dA_by_dX_from_spec,
     grouped_biot_savart_dB_by_dX_from_inputs,
     grouped_biot_savart_dB_by_dX_from_spec,
-    grouped_coil_set_spec_from_coil_specs,
     grouped_field_inputs_from_spec,
 )
 from simsopt_jax.core._math_utils import (
@@ -79,7 +78,6 @@ from simsopt_jax_adapters.geo.curve_specs import (
     supports_adapter_curve_spec,
 )
 
-_new_coil_dof_state_token = make_state_token_factory()
 _new_backend_epoch = make_state_token_factory()
 _backend_epoch = _new_backend_epoch()
 
@@ -251,6 +249,20 @@ def _per_coil_unit_field(points, coil_set_spec, kernel):
     )
 
 
+def _per_coil_unit_current_outputs(points, coil_set_spec, *, kernel):
+    """Immutable per-coil outputs for the adapter's state-and-point cache."""
+    return tuple(_per_coil_unit_field(points, coil_set_spec, kernel))
+
+
+_PER_COIL_UNIT_CURRENT_OUTPUTS = {
+    kernel: partial(_per_coil_unit_current_outputs, kernel=kernel)
+    for kernel in (
+        biot_savart_B, biot_savart_dB_by_dX, biot_savart_d2B_by_dXdX,
+        biot_savart_A, biot_savart_dA_by_dX, biot_savart_d2A_by_dXdX,
+    )
+}
+
+
 @pytree_dataclass(data=("d_coil_arrays",), meta=("coil_indices",))
 @dataclass(frozen=True)
 class BiotSavartFieldPullback:
@@ -274,14 +286,14 @@ def _set_biot_savart_points(field, points):
         points = np.array(points, copy=True, order="C")
     field._points_jax = _as_jax_float64(points)
     field._points_cyl_jax = None
-    field._points_version += 1
+    field._invalidate_point_outputs()
     return field
 
 
 def _set_biot_savart_points_cyl(field, points_cyl):
     field._points_cyl_jax = _canonical_set_points_cyl(_as_jax_float64(points_cyl))
     field._points_jax = _cyl_points_to_cart(field._points_cyl_jax)
-    field._points_version += 1
+    field._invalidate_point_outputs()
     return field
 
 
@@ -624,15 +636,18 @@ class BiotSavartJAX(Optimizable):
         """Clear mutable point buffers without changing source geometry."""
         self._points_jax = None
         self._points_cyl_jax = None
+        self._invalidate_point_outputs()
+
+    def _invalidate_point_outputs(self) -> None:
+        """Release outputs of the previous point set as soon as it is replaced."""
         self._points_version += 1
+        self._field_outputs = {}
+        self._field_outputs_key = None
 
     def _per_coil_unit_current_derivative(self, kernel):
         """Evaluate a unit-current derivative kernel for this field state."""
-        return _per_coil_unit_field(
-            self._points_jax,
-            self.coil_set_spec(),
-            kernel,
-        )
+        # Preserve the public list's mutation isolation; cached arrays are immutable.
+        return list(self._field_output(_PER_COIL_UNIT_CURRENT_OUTPUTS[kernel]))
 
     def _field_output(self, grouped_field):
         """``grouped_field(points, coil_set_spec)`` at the live coil state and points.
@@ -786,8 +801,6 @@ class BiotSavartJAX(Optimizable):
         self._points_cyl_jax = None
         self._points_version = 0
         self._dof_layout_version = 0
-        self._coil_dofs_generation = 0
-        self._coil_dof_state_token = _new_coil_dof_state_token()
         self._free_dof_layout_ready = False
         self._suppress_dependency_coil_dof_state = False
         self._fixed_dofs_maybe_changed = False
@@ -899,17 +912,12 @@ class BiotSavartJAX(Optimizable):
             self._coil_state = state
         return state
 
-    def _advance_coil_dof_state(self) -> None:
-        self._coil_dofs_generation += 1
-        self._coil_dof_state_token = _new_coil_dof_state_token()
-
     def set_recompute_flag(self, parent=None):
         if (
             parent is not None
             and self._free_dof_layout_ready
             and not self._suppress_dependency_coil_dof_state
         ):
-            self._advance_coil_dof_state()
             # Every ancestor notifies separately; compare fixed DOFs once, on the next read.
             self._fixed_dofs_maybe_changed = True
         super().set_recompute_flag(parent=parent)
@@ -926,7 +934,6 @@ class BiotSavartJAX(Optimizable):
             optimizable_setter(self, coil_dofs)
         finally:
             self._suppress_dependency_coil_dof_state = False
-        self._advance_coil_dof_state()
         if rebuild_extraction_spec:
             self._refresh_captured_coil_state()
 
@@ -1078,7 +1085,6 @@ class BiotSavartJAX(Optimizable):
         previous_spec = self._coil_dof_extraction_spec
         self._refresh_captured_coil_state(check_fixed=self._fixed_dofs_maybe_changed)
         if self._coil_dof_extraction_spec is not previous_spec:
-            self._advance_coil_dof_state()
             self.set_recompute_flag()
         return self._coil_dof_extraction_spec
 
@@ -1183,12 +1189,6 @@ class BiotSavartJAX(Optimizable):
             coil_dofs,
         )
 
-    def _coil_set_spec_from_dofs_immutable_specs(self, coil_dofs):
-        coil_dofs = self._normalize_explicit_coil_dofs(coil_dofs)
-        return grouped_coil_set_spec_from_coil_specs(
-            self.coil_specs_from_dofs(coil_dofs),
-        )
-
     def grouped_coil_arrays_from_dofs(self, coil_dofs):
         """Build grouped coil arrays from an explicit flat DOF vector."""
         return list(
@@ -1197,7 +1197,10 @@ class BiotSavartJAX(Optimizable):
 
     def coil_set_spec_from_dofs(self, coil_dofs):
         """Build an immutable grouped coil spec from an explicit flat DOF vector."""
-        return self._coil_set_spec_from_dofs_immutable_specs(coil_dofs)
+        coil_dofs = self._normalize_explicit_coil_dofs(coil_dofs)
+        return coil_set_spec_from_dof_extraction_spec(
+            self.coil_dof_extraction_spec(), coil_dofs,
+        )
 
     @property
     def coils(self):

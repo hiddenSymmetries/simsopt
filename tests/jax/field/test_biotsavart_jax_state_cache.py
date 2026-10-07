@@ -10,7 +10,9 @@ from jax_test_support import fixture_jax_runtime_guard  # noqa: F401
 
 import copy
 from typing import cast
+import weakref
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -97,6 +99,81 @@ def test_evaluations_at_one_dof_state_build_coil_state_once(monkeypatch):
     field.x = field.x + 1e-3
     _assert_field_matches_native(field, native)
     assert len(builds) == 2
+
+
+@pytest.mark.parametrize(
+    "method_name,kernel",
+    [
+        ("dB_by_dcoilcurrents", backend.biot_savart_B),
+        ("d2B_by_dXdcoilcurrents", backend.biot_savart_dB_by_dX),
+        ("d3B_by_dXdXdcoilcurrents", backend.biot_savart_d2B_by_dXdX),
+        ("dA_by_dcoilcurrents", backend.biot_savart_A),
+        ("d2A_by_dXdcoilcurrents", backend.biot_savart_dA_by_dX),
+        ("d3A_by_dXdXdcoilcurrents", backend.biot_savart_d2A_by_dXdX),
+    ],
+)
+def test_per_current_outputs_reuse_arrays_and_follow_every_state_change(method_name, kernel):
+    curves = _base_curves()
+    currents = [Current(1e5), Current(-3e4)]
+    field, _native = _fields([Coil(curve, current) for curve, current in zip(curves, currents)])
+    evaluate = getattr(field, method_name)
+    previous = evaluate()
+    repeated = evaluate()
+    assert repeated is not previous
+    assert all(a is b for a, b in zip(previous, repeated, strict=True))
+    repeated.clear()
+    assert len(evaluate()) == len(field.coils), "caller list edits changed cached outputs"
+
+    for mutation in ("free", "full", "parent", "current", "layout", "fixed", "points", "backend"):
+        if mutation == "free":
+            field.x = field.x * 1.01
+        elif mutation == "full":
+            field.full_x = field.full_x * .99
+        elif mutation == "parent":
+            curves[1].x = curves[1].x + 2e-3
+        elif mutation == "current":
+            currents[0].x = np.array([2.5e5])
+        elif mutation == "layout":
+            curves[0].fix(0)
+        elif mutation == "fixed":
+            curves[0].set(0, curves[0].get(0) + 5e-3)
+        elif mutation == "points":
+            field.set_points(_OTHER_POINTS)
+        else:
+            invalidate_backend_cache()
+        actual = evaluate()
+        expected = backend._per_coil_unit_field(field.get_points_cart_ref(), field.coil_set_spec(), kernel)
+        assert all(a is not b for a, b in zip(actual, previous, strict=True)), mutation
+        for a, b in zip(actual, expected, strict=True):
+            np.testing.assert_array_equal(np.asarray(a), np.asarray(b), err_msg=mutation)
+        assert all(a is b for a, b in zip(actual, evaluate(), strict=True)), mutation
+        previous = actual
+
+
+@pytest.mark.parametrize("setter", ["cart", "jax", "cyl", "spec", "clear"])
+def test_point_changes_release_cached_outputs_and_preserve_coil_geometry(setter):
+    field, _native = _fields([Coil(curve, Current(1e5)) for curve in _base_curves()])
+    spec = field.coil_set_spec()
+    field.B()
+    field.dB_by_dX()
+    field.B_and_dB()
+    field.dB_by_dcoilcurrents()
+    references = [weakref.ref(array) for array in jax.tree_util.tree_leaves(
+        tuple(field._field_outputs.values()))]
+
+    if setter == "cart":
+        field.set_points(_OTHER_POINTS)
+    elif setter == "jax":
+        field.set_points(jnp.asarray(_OTHER_POINTS))
+    elif setter == "cyl":
+        field.set_points_cyl(np.array([[1.0, 0.3, 0.1], [0.9, -0.2, -0.1]]))
+    elif setter == "spec":
+        field.set_points_from_spec(backend.make_field_eval_spec(jnp.asarray(_OTHER_POINTS)))
+    else:
+        field.clear_points()
+
+    assert all(reference() is None for reference in references), "obsolete outputs remain retained"
+    assert field.coil_set_spec() is spec
 
 
 def test_field_and_parent_dof_changes_refresh_the_field():

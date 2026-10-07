@@ -572,37 +572,6 @@ class TestBiotSavartJAXCoilStateToken:
                     cast(jax.Array, actual), expected, rtol=1e-13, atol=1e-14,
                 )
 
-    def test_biotsavart_jax_advances_coil_dof_state_token_on_x_update(self):
-
-        coils = self._make_two_basic_coils()
-        bs_jax = BiotSavartJAX(list(coils))
-        initial_token = bs_jax._coil_dof_state_token
-
-        bs_jax.x = np.asarray(bs_jax.x, dtype=np.float64)
-
-        assert bs_jax._coil_dof_state_token != initial_token
-        assert bs_jax._coil_dofs_generation == 1
-
-        next_token = bs_jax._coil_dof_state_token
-        bs_jax.full_x = np.asarray(bs_jax.full_x, dtype=np.float64)
-
-        assert bs_jax._coil_dof_state_token != next_token
-        assert bs_jax._coil_dofs_generation == 2
-
-    def test_biotsavart_jax_advances_coil_dof_state_token_on_parent_update(self):
-
-        coils = self._make_two_basic_coils()
-        bs_jax = BiotSavartJAX(list(coils))
-        initial_token = bs_jax._coil_dof_state_token
-        curve_dofs = np.asarray(coils[0].curve.x, dtype=np.float64)
-        curve_dofs[0] += 1.0e-4
-
-        coils[0].curve.x = curve_dofs
-
-        assert bs_jax._coil_dof_state_token != initial_token
-        assert bs_jax._coil_dofs_generation == 1
-
-
     def test_biotsavart_extraction_spec_changes_only_for_captured_dof_contract(self):
 
         coils = self._make_two_basic_coils()
