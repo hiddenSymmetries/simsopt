@@ -3,6 +3,9 @@
 from jax_test_support import fixture_jax_runtime_guard  # noqa: F401
 
 from collections.abc import Callable
+import os
+import subprocess
+import sys
 from typing import cast
 
 import jax
@@ -35,6 +38,100 @@ from simsopt_jax_adapters.geo import (
 _CC_THRESHOLD = 0.6
 _CS_THRESHOLD = 0.4
 _CURVATURE_THRESHOLD = 1.0
+
+_DISTANCE_CHILD_SETUP = """
+import sys
+import jax
+from jax._src import xla_bridge
+import numpy as np
+from simsopt.geo import (
+    CurveCurveDistance, CurveSurfaceDistance, SurfaceRZFourier,
+    create_equally_spaced_curves,
+)
+from simsopt_jax.backend import set_backend
+from simsopt_jax_adapters.geo import CurveCurveDistanceJAX, CurveSurfaceDistanceJAX
+
+assert not xla_bridge.backends_are_initialized()
+curves = create_equally_spaced_curves(
+    2, 1, stellsym=True, R0=1.0, R1=0.5, order=2, numquadpoints=12,
+)
+surface = SurfaceRZFourier.from_nphi_ntheta(nphi=4, ntheta=5)
+surface.set_rc(0, 0, 1.0)
+surface.set_rc(1, 0, 0.3)
+surface.set_zs(1, 0, 0.3)
+if sys.argv[1] == "curve_curve":
+    adapter = CurveCurveDistanceJAX(curves, 0.6)
+    native = CurveCurveDistance(curves, 0.6)
+else:
+    adapter = CurveSurfaceDistanceJAX(curves, surface, 0.4)
+    native = CurveSurfaceDistance(curves, surface, 0.4)
+"""
+
+
+def _distance_child_environment():
+    environment = {
+        name: value for name, value in os.environ.items()
+        if not name.startswith(("JAX_", "SIMSOPT_"))
+    }
+    environment.update(
+        JAX_PLATFORMS="cpu", JAX_ENABLE_COMPILATION_CACHE="false",
+        OMP_NUM_THREADS="8", OPENBLAS_NUM_THREADS="8", MKL_NUM_THREADS="8",
+    )
+    return environment
+
+
+@pytest.mark.parametrize("kind", ["curve_curve", "curve_surface"])
+def test_shortest_distance_before_backend_configuration_keeps_jax_uninitialized(kind):
+    code = _DISTANCE_CHILD_SETUP + """
+assert not xla_bridge.backends_are_initialized()
+for _ in range(2):
+    np.testing.assert_allclose(adapter.shortest_distance(), native.shortest_distance(), rtol=1e-14)
+assert not xla_bridge.backends_are_initialized(), "host shortest_distance initialized JAX"
+set_backend("jax", device="cpu", intent="parity")
+np.testing.assert_allclose(adapter.J(), native.J(), rtol=1e-12, atol=1e-14)
+np.testing.assert_allclose(adapter.dJ(), native.dJ(), rtol=1e-11, atol=1e-13)
+"""
+    completed = subprocess.run(
+        (sys.executable, "-c", code, kind), env=_distance_child_environment(),
+        capture_output=True, text=True, timeout=300,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+@pytest.mark.parametrize("kind", ["curve_curve", "curve_surface"])
+def test_distance_operand_cache_follows_default_device_scopes(kind):
+    code = _DISTANCE_CHILD_SETUP + """
+set_backend("jax", device="cpu", intent="parity")
+first, second = jax.devices("cpu")[:2]
+searches = []
+search = adapter._candidates
+
+def counted_search(samples):
+    searches.append(None)
+    return search(samples)
+
+adapter._candidates = counted_search
+for device in (first, second, first):
+    with jax.default_device(device):
+        _, operands = adapter._operands()
+        _, reused = adapter._operands()
+        assert reused is operands, "same-scope operands should be reused"
+        assert all(array.devices() == {device} for array in jax.tree.leaves(operands)), device
+        with jax.transfer_guard("disallow"):
+            value, gradient = adapter.J(), adapter.dJ()
+            shortest = adapter.shortest_distance()
+    np.testing.assert_allclose(value, native.J(), rtol=1e-12, atol=1e-14)
+    np.testing.assert_allclose(gradient, native.dJ(), rtol=1e-11, atol=1e-13)
+    np.testing.assert_allclose(shortest, native.shortest_distance(), rtol=1e-14)
+assert len(searches) == 1, "placement changes must reuse host candidates"
+"""
+    environment = _distance_child_environment()
+    environment["XLA_FLAGS"] = "--xla_force_host_platform_device_count=2"
+    completed = subprocess.run(
+        (sys.executable, "-c", code, kind), env=environment,
+        capture_output=True, text=True, timeout=300,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
 def _surface() -> SurfaceRZFourier:
@@ -278,7 +375,7 @@ def test_curve_curve_snapshot_follows_geometry_parameters_and_placement(monkeypa
     else:
         set_backend("jax", device="cpu", intent="fast")
     value, gradient, shortest = adapter.J(), adapter.dJ(), adapter.shortest_distance()
-    assert len(searches) == 1
+    assert len(searches) == (0 if change == "backend" else 1)
     fresh = CurveCurveDistanceJAX(
         curves, adapter.minimum_distance, adapter.num_basecurves, adapter.downsample,
     )
@@ -317,7 +414,7 @@ def test_curve_surface_snapshot_follows_surface_and_operand_changes(monkeypatch,
     else:
         adapter.minimum_distance = 0.3
     value, gradient, shortest = adapter.J(), adapter.dJ(), adapter.shortest_distance()
-    assert len(searches) == 1
+    assert len(searches) == (0 if change in ("normal_only", "tangent_only") else 1)
     fresh = CurveSurfaceDistanceJAX(curves, adapter.surface, adapter.minimum_distance)
     np.testing.assert_array_equal(value, fresh.J())
     # A stale cache would be off by O(1); GPU reductions are not bitwise run to run, so the

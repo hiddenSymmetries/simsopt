@@ -150,16 +150,26 @@ def _array_snapshot_key(values) -> tuple[tuple[int, ...], str, bytes]:
     return array.shape, array.dtype.str, array.tobytes()
 
 
-def _distance_snapshot_key(curves, minimum_distance) -> tuple[object, ...]:
-    """Exact geometry and placement identity, including grids and fixed curve DOFs."""
+def _distance_candidate_key(curves, minimum_distance) -> tuple[object, ...]:
+    """Exact native candidate inputs, without resolving a backend or placing arrays."""
     return (
-        get_backend_policy(), get_runtime_jax_device(),
         _array_snapshot_key(minimum_distance),
         tuple(
-            (_array_snapshot_key(curve.gamma()), _array_snapshot_key(curve.gammadash()),
-             _array_snapshot_key(curve.quadpoints))
+            (_array_snapshot_key(curve.gamma()), _array_snapshot_key(curve.quadpoints))
             for curve in curves
         ),
+    )
+
+
+def _distance_operand_key(curves, candidate_key: tuple[object, ...]) -> tuple[object, ...]:
+    """Invalidate placed operands when geometry, policy or default-device scope changes.
+
+    Backend dtypes remains the placement owner; recording the scope prevents
+    cross-scope reuse without duplicating its device-selection rules.
+    """
+    return candidate_key + (
+        get_backend_policy(), get_runtime_jax_device(), jax.config.values["jax_default_device"],
+        tuple(_array_snapshot_key(curve.gammadash()) for curve in curves),
     )
 
 
@@ -277,22 +287,28 @@ class _CurvePairPlan:
 
 
 @dataclass(frozen=True)
+class _DistanceCandidates:
+    """Host-only native candidate data, independent of JAX operand placement."""
+
+    key: tuple[object, ...]
+    candidates: tuple[tuple[int, int], ...]
+
+
+@dataclass(frozen=True)
 class _CurveCurveSnapshot:
-    """One exact-state native candidate selection and its placed penalty operands."""
+    """One exact-state set of placed curve-curve penalty operands."""
 
     key: tuple[object, ...]
     plan: _CurvePairPlan
-    candidates: tuple[tuple[int, int], ...]
     operands: tuple[tuple[jax.Array, ...], tuple[jax.Array, ...], jax.Array, tuple[jax.Array, ...]]
 
 
 @dataclass(frozen=True)
 class _CurveSurfaceSnapshot:
-    """One exact-state selection including the independently mutable surface geometry."""
+    """One exact-state set of placed operands including the surface geometry."""
 
     key: tuple[object, ...]
     class_members: tuple[tuple[int, ...], ...]
-    candidates: tuple[tuple[int, int], ...]
     operands: tuple[
         tuple[jax.Array, ...], tuple[jax.Array, ...], tuple[jax.Array, ...],
         jax.Array, jax.Array, jax.Array,
@@ -403,6 +419,7 @@ class CurveCurveDistanceJAX(Optimizable):
         self.minimum_distance = minimum_distance
         self.num_basecurves = num_basecurves or len(curves)
         self.downsample = downsample
+        self._candidate_cache: _DistanceCandidates | None = None
         self._distance_snapshot: _CurveCurveSnapshot | None = None
         super().__init__(depends_on=curves)
 
@@ -415,10 +432,21 @@ class CurveCurveDistanceJAX(Optimizable):
             samples, self.minimum_distance, self.num_basecurves
         )
 
-    def _snapshot(self) -> _CurveCurveSnapshot:
-        key = _distance_snapshot_key(self.curves, self.minimum_distance) + (
+    def _candidate_snapshot(self) -> _DistanceCandidates:
+        key = _distance_candidate_key(self.curves, self.minimum_distance) + (
             self.num_basecurves, self.downsample,
         )
+        cached = self._candidate_cache
+        if cached is not None and cached.key == key:
+            return cached
+        candidates = tuple(tuple(pair) for pair in self._candidates(self._samples()))
+        snapshot = _DistanceCandidates(key, candidates)
+        self._candidate_cache = snapshot
+        return snapshot
+
+    def _snapshot(self) -> _CurveCurveSnapshot:
+        candidate_snapshot = self._candidate_snapshot()
+        key = _distance_operand_key(self.curves, candidate_snapshot.key)
         cached = self._distance_snapshot
         if cached is not None and cached.key == key:
             return cached
@@ -426,8 +454,7 @@ class CurveCurveDistanceJAX(Optimizable):
         plan = _curve_pair_plan(
             tuple(int(sample.shape[0]) for sample in samples), self.num_basecurves
         )
-        candidates = tuple(tuple(pair) for pair in self._candidates(samples))
-        selected = set(candidates)
+        selected = set(candidate_snapshot.candidates)
         class_gammas, class_gammadashes = _class_stacked_geometry(
             self.curves, plan.class_members, self.downsample
         )
@@ -435,7 +462,7 @@ class CurveCurveDistanceJAX(Optimizable):
             _flags([pair in selected for pair in batch.pairs]) for batch in plan.batches
         )
         snapshot = _CurveCurveSnapshot(
-            key, plan, candidates,
+            key, plan,
             (class_gammas, class_gammadashes, _as_jax_float64(self.minimum_distance), batch_candidates),
         )
         self._distance_snapshot = snapshot
@@ -449,7 +476,7 @@ class CurveCurveDistanceJAX(Optimizable):
         """The native result: the minimum over the native candidate pairs and the
         threshold, or over all pairs ``j < i`` when there is no candidate."""
         samples = self._samples()
-        candidates = self._snapshot().candidates
+        candidates = self._candidate_snapshot().candidates
         pairs = candidates or _curve_pairs(len(samples), len(samples))
         distances = [np.min(cdist(samples[i], samples[j])) for i, j in pairs]
         return min([self.minimum_distance] + distances) if candidates else min(distances)
@@ -514,6 +541,7 @@ class CurveSurfaceDistanceJAX(Optimizable):
         self.curves = curves
         self.surface = surface
         self.minimum_distance = minimum_distance
+        self._candidate_cache: _DistanceCandidates | None = None
         self._distance_snapshot: _CurveSurfaceSnapshot | None = None
         super().__init__(depends_on=curves)
 
@@ -523,12 +551,25 @@ class CurveSurfaceDistanceJAX(Optimizable):
             [curve.gamma() for curve in self.curves], [surface_points], self.minimum_distance
         )
 
-    def _snapshot(self) -> _CurveSurfaceSnapshot:
-        key = _distance_snapshot_key(self.curves, self.minimum_distance) + (
+    def _candidate_snapshot(self) -> _DistanceCandidates:
+        key = _distance_candidate_key(self.curves, self.minimum_distance) + (
             _array_snapshot_key(self.surface.gamma()),
-            _array_snapshot_key(self.surface.normal()),
             _array_snapshot_key(self.surface.quadpoints_phi),
             _array_snapshot_key(self.surface.quadpoints_theta),
+        )
+        cached = self._candidate_cache
+        if cached is not None and cached.key == key:
+            return cached
+        surface_points = self.surface.gamma().reshape((-1, 3))
+        candidates = tuple(tuple(pair) for pair in self._candidates(surface_points))
+        snapshot = _DistanceCandidates(key, candidates)
+        self._candidate_cache = snapshot
+        return snapshot
+
+    def _snapshot(self) -> _CurveSurfaceSnapshot:
+        candidate_snapshot = self._candidate_snapshot()
+        key = _distance_operand_key(self.curves, candidate_snapshot.key) + (
+            _array_snapshot_key(self.surface.normal()),
         )
         cached = self._distance_snapshot
         if cached is not None and cached.key == key:
@@ -537,8 +578,7 @@ class CurveSurfaceDistanceJAX(Optimizable):
         class_members = _quadrature_classes(
             tuple(int(curve.gamma().shape[0]) for curve in self.curves)
         )
-        candidates = tuple(tuple(pair) for pair in self._candidates(surface_points))
-        selected = {i for i, _ in candidates}
+        selected = {i for i, _ in candidate_snapshot.candidates}
         class_gammas, class_gammadashes = _class_stacked_geometry(
             self.curves, class_members, 1
         )
@@ -550,7 +590,7 @@ class CurveSurfaceDistanceJAX(Optimizable):
             _as_jax_float64(self.surface.normal().reshape((-1, 3))),
             _as_jax_float64(self.minimum_distance),
         )
-        snapshot = _CurveSurfaceSnapshot(key, class_members, candidates, operands)
+        snapshot = _CurveSurfaceSnapshot(key, class_members, operands)
         self._distance_snapshot = snapshot
         return snapshot
 
@@ -562,7 +602,7 @@ class CurveSurfaceDistanceJAX(Optimizable):
         """The native result: the minimum over the native candidate curves and the
         threshold, or over all curves when there is no candidate."""
         surface_points = self.surface.gamma().reshape((-1, 3))
-        candidates = self._snapshot().candidates
+        candidates = self._candidate_snapshot().candidates
         indices = [i for i, _ in candidates] or range(len(self.curves))
         distances = [np.min(cdist(self.curves[i].gamma(), surface_points)) for i in indices]
         return min([self.minimum_distance] + distances) if candidates else min(distances)
