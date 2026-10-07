@@ -198,3 +198,25 @@ def test_backend_reconfiguration_rebuilds_the_coil_state(monkeypatch):
     invalidate_backend_cache()
     _assert_field_matches_native(field, native)
     assert len(builds) == 2
+
+
+def test_owner_updates_fingerprint_fixed_dofs_once(monkeypatch):
+    """Each owner update notifies the field; fixed DOFs are compared once, at the next read."""
+    curves = _base_curves(3)
+    field, native = _fields([Coil(curve, Current(1e5)) for curve in curves])
+    curves[0].fix(0)
+    _assert_field_matches_native(field, native)
+    reads = []
+    fingerprint = field._current_captured_coil_state_fingerprint
+
+    def counted_fingerprint():
+        reads.append(1)
+        return fingerprint()
+
+    monkeypatch.setattr(field, "_current_captured_coil_state_fingerprint", counted_fingerprint)
+    for curve in curves:
+        curve.x = np.asarray(curve.x) + 1e-3
+    field.B()
+    field.B_vjp(_COTANGENT)(field)
+    assert len(reads) == 1, f"{len(reads)} fixed-DOF fingerprints for one evaluation"
+    _assert_field_matches_native(field, native)

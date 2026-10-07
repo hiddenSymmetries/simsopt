@@ -772,6 +772,7 @@ class BiotSavartJAX(Optimizable):
         self._coil_dof_state_token = _new_coil_dof_state_token()
         self._free_dof_layout_ready = False
         self._suppress_dependency_coil_dof_state = False
+        self._fixed_dofs_maybe_changed = False
         self._local_free_positions_by_opt = {}
         self._device_contracts = {}
         self._coil_state = None
@@ -793,9 +794,10 @@ class BiotSavartJAX(Optimizable):
             self._captured_coil_state_fingerprint = (
                 self._current_captured_coil_state_fingerprint()
             )
+            self._fixed_dofs_maybe_changed = False
 
     def _current_captured_coil_state_fingerprint(self) -> tuple[bytes, ...]:
-        """Fingerprint fixed coordinates on DOF notifications, never on reads."""
+        """Fixed coordinates, fingerprinted once at the first read after a DOF notification."""
         return tuple(
             np.ascontiguousarray(
                 np.asarray(opt.local_full_x, dtype=np.float64)[
@@ -819,6 +821,8 @@ class BiotSavartJAX(Optimizable):
             self._current_captured_coil_state_fingerprint()
             if check_fixed else self._captured_coil_state_fingerprint
         )
+        if check_fixed:
+            self._fixed_dofs_maybe_changed = False
         if (fingerprint == self._captured_coil_state_fingerprint
                 and not self._perturbation_samples_changed()):
             return
@@ -888,7 +892,8 @@ class BiotSavartJAX(Optimizable):
             and not self._suppress_dependency_coil_dof_state
         ):
             self._advance_coil_dof_state()
-            self._refresh_captured_coil_state()
+            # Every ancestor notifies separately; compare fixed DOFs once, on the next read.
+            self._fixed_dofs_maybe_changed = True
         super().set_recompute_flag(parent=parent)
 
     def _set_global_coil_dofs(
@@ -1053,7 +1058,7 @@ class BiotSavartJAX(Optimizable):
         """Return the cached immutable owner-DOF reconstruction contract."""
         # Direct sample replacement can bypass the native curve notification.
         previous_spec = self._coil_dof_extraction_spec
-        self._refresh_captured_coil_state(check_fixed=False)
+        self._refresh_captured_coil_state(check_fixed=self._fixed_dofs_maybe_changed)
         if self._coil_dof_extraction_spec is not previous_spec:
             self._advance_coil_dof_state()
             self.set_recompute_flag()
