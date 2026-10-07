@@ -16,15 +16,16 @@ and unsupported inputs.
 """
 
 from jax_test_support import (
+    assert_matches_native,
     fixture_jax_runtime_guard,  # noqa: F401
     fixture_parity_lane,  # noqa: F401
     host_array,
+    jax_compilations,
     parity_default_device,
     parity_rng,
+    place_float64,
 )
 
-from collections.abc import Iterator
-from contextlib import contextmanager
 from dataclasses import dataclass, replace
 
 import jax
@@ -141,20 +142,6 @@ def _decision(surface: _NativeSurface, optimize_G: bool, multipliers=()) -> np.n
     return np.concatenate((surface.get_dofs(), [_IOTA], [_G] if optimize_G else [], multipliers))
 
 
-def _place(values: np.ndarray, problem: BoozerProblem) -> jax.Array:
-    return explicit_device_array(values, dtype=np.float64, reference=problem.target_label)
-
-
-def _assert_native(actual, expected, name: str, rtol: float = _RTOL) -> None:
-    actual = host_array(actual, dtype=np.float64)
-    expected = np.asarray(expected, dtype=np.float64)
-    assert actual.shape == expected.shape, f"{name}: shape {actual.shape} != native {expected.shape}"
-    scale = np.max(np.abs(expected))
-    np.testing.assert_allclose(
-        actual, expected, rtol=0.0, atol=rtol * scale, err_msg=f"{name} differs from native"
-    )
-
-
 def _outputs(result) -> tuple:
     """A native or JAX result as a tuple: values come bare, derivatives as tuples."""
     return result if isinstance(result, tuple) else (result,)
@@ -164,23 +151,7 @@ def _assert_all_native(actual, expected, name: str) -> None:
     actual, expected = _outputs(actual), _outputs(expected)
     assert len(actual) == len(expected), name
     for order, (a, e) in enumerate(zip(actual, expected)):
-        _assert_native(a, e, f"{name}[{order}]")
-
-
-@contextmanager
-def _compilations() -> Iterator[list[str]]:
-    """Names of the JAX trace, lowering and compile events inside the block."""
-    events: list[str] = []
-
-    def record(event: str, duration_secs: float, **kwargs: str | int) -> None:
-        if event.startswith("/jax/core/compile/"):
-            events.append(event)
-
-    jax.monitoring.register_event_duration_secs_listener(record)
-    try:
-        yield events
-    finally:
-        jax.monitoring.unregister_event_duration_listener(record)
+        assert_matches_native(a, e, f"{name}[{order}]")
 
 
 # --- the analytic kernels against simsoptpp -----------------------------------------
@@ -253,7 +224,7 @@ def test_surface_residual_matches_native(name):
     case = _RESIDUAL_CASES[name]
     setup = _setup(case.surface, case.stellsym, case.label, case.clamped)
     problem = boozer_problem(setup.field, setup.surface, setup.label, setup.target, 1.0)
-    x = _place(_decision(setup.surface, case.optimize_G), problem)
+    x = place_float64(_decision(setup.surface, case.optimize_G), problem.target_label)
     for derivatives in (0, 1, 2):
         expected = boozer_surface_residual(
             setup.surface, _IOTA, _G if case.optimize_G else None, setup.bs,
@@ -293,14 +264,14 @@ def test_penalty_constraints_match_native(name):
                 optimize_G=case.optimize_G, weight_inv_modB=case.weight_inv_modB,
             )
             results[weight, derivatives] = boozer_penalty_constraints(
-                problem, _place(x, problem), derivatives=derivatives,
+                problem, place_float64(x, problem.target_label), derivatives=derivatives,
                 optimize_G=case.optimize_G, weight_inv_modB=case.weight_inv_modB,
             )
             _assert_all_native(results[weight, derivatives], expected[weight, derivatives], name)
     pairs = zip(_outputs(results[700.0, 2]), _outputs(results[0.7, 2]),
                 _outputs(expected[700.0, 2]), _outputs(expected[0.7, 2]))
     for order, (heavy, light, native_heavy, native_light) in enumerate(pairs):
-        _assert_native(
+        assert_matches_native(
             host_array(heavy) - host_array(light), native_heavy - native_light,
             f"{name} label and z(0, 0) penalties[{order}]",
         )
@@ -329,17 +300,18 @@ def test_exact_constraints_match_native(name):
         res, dres = map(np.asarray, _outputs(
             native_boozer.boozer_exact_constraints(xl.copy(), derivatives=1, optimize_G=case.optimize_G)
         ))
-        _assert_native(
-            boozer_exact_constraints(problem, _place(xl, problem), optimize_G=case.optimize_G), res, f"{name} res"
+        placed_xl = place_float64(xl, problem.target_label)
+        assert_matches_native(
+            boozer_exact_constraints(problem, placed_xl, optimize_G=case.optimize_G), res, f"{name} res"
         )
-        result = boozer_exact_constraints(problem, _place(xl, problem), derivatives=1, optimize_G=case.optimize_G)
+        result = boozer_exact_constraints(problem, placed_xl, derivatives=1, optimize_G=case.optimize_G)
         _assert_all_native(result, (res, dres), name)
-        _assert_native(result[0][-2:], res[-2:], f"{name} constraints")
-        _assert_native(result[1][:-2, -2:], dres[:-2, -2:], f"{name} constraint gradients")
+        assert_matches_native(result[0][-2:], res[-2:], f"{name} constraints")
+        assert_matches_native(result[1][:-2, -2:], dres[:-2, -2:], f"{name} constraint gradients")
         pairs[multipliers] = (host_array(result[0]), host_array(result[1]), res, dres)
     zero, nonzero = pairs[(0.0, 0.0)], pairs[(0.37, -0.23)]
-    _assert_native(nonzero[0] - zero[0], nonzero[2] - zero[2], f"{name} multiplier terms of res")
-    _assert_native(nonzero[1] - zero[1], nonzero[3] - zero[3], f"{name} multiplier terms of dres")
+    assert_matches_native(nonzero[0] - zero[0], nonzero[2] - zero[2], f"{name} multiplier terms of res")
+    assert_matches_native(nonzero[1] - zero[1], nonzero[3] - zero[3], f"{name} multiplier terms of dres")
 
 
 @pytest.mark.parametrize("stellsym", [True, False], ids=["stellsym", "nonsym"])
@@ -354,13 +326,13 @@ def test_exact_residual_matches_native(stellsym, label):
     b = np.concatenate((native["residual"][native["mask"]], tail))
     problem = boozer_problem(setup.field, setup.surface, setup.label, setup.target)
     rows = boozer_exact_residual_rows(setup.surface)
-    x = _place(_decision(setup.surface, True), problem)
-    _assert_native(boozer_exact_residual(problem, x, rows), b, "BoozerExact residual")
+    x = place_float64(_decision(setup.surface, True), problem.target_label)
+    assert_matches_native(boozer_exact_residual(problem, x, rows), b, "BoozerExact residual")
     result = boozer_exact_residual(problem, x, rows, derivatives=1)
     _assert_all_native(result, (b, native["jacobian"]), "BoozerExact system")
     ntail = len(tail)
-    _assert_native(result[0][-ntail:], b[-ntail:], "BoozerExact constraints")
-    _assert_native(result[1][-ntail:], native["jacobian"][-ntail:], "BoozerExact constraint rows")
+    assert_matches_native(result[0][-ntail:], b[-ntail:], "BoozerExact constraints")
+    assert_matches_native(result[1][-ntail:], native["jacobian"][-ntail:], "BoozerExact constraint rows")
 
 
 def test_unmasked_formulations_take_any_grid_and_the_mask_fails_as_natively():
@@ -380,14 +352,14 @@ def test_unmasked_formulations_take_any_grid_and_the_mask_fails_as_natively():
     exact = boozer_problem(setup.field, surface, label, setup.target)
     xl = _decision(surface, True, (0.3, -0.1))
     _assert_all_native(
-        boozer_exact_constraints(exact, _place(xl, exact), derivatives=1),
+        boozer_exact_constraints(exact, place_float64(xl, exact.target_label), derivatives=1),
         native_boozer.boozer_exact_constraints(xl.copy(), derivatives=1),
         "exact constraints",
     )
     penalty = boozer_problem(setup.field, surface, label, setup.target, 2.0)
     x = _decision(surface, False)
     _assert_all_native(
-        boozer_penalty_constraints(penalty, _place(x, penalty), derivatives=2),
+        boozer_penalty_constraints(penalty, place_float64(x, penalty.target_label), derivatives=2),
         native_boozer.boozer_penalty_constraints_vectorized(x.copy(), derivatives=2, constraint_weight=2.0),
         "penalty",
     )
@@ -409,11 +381,15 @@ def test_no_coils_give_native_G_and_residuals():
         expected = boozer_surface_residual(
             setup.surface, _IOTA, _G if optimize_G else None, setup.bs, derivatives=2
         )
-        result = jax_boozer_surface_residual(problem, _place(x, problem), derivatives=2, optimize_G=optimize_G)
+        result = jax_boozer_surface_residual(
+            problem, place_float64(x, problem.target_label), derivatives=2, optimize_G=optimize_G
+        )
         _assert_all_native(result, expected, "residual without coils")
     x = _decision(setup.surface, False)
     _assert_all_native(
-        boozer_penalty_constraints(problem, _place(x, problem), derivatives=2, weight_inv_modB=False),
+        boozer_penalty_constraints(
+            problem, place_float64(x, problem.target_label), derivatives=2, weight_inv_modB=False
+        ),
         _native_boozer(setup, 3.0).boozer_penalty_constraints_vectorized(
             x.copy(), derivatives=2, constraint_weight=3.0, weight_inv_modB=False
         ),
@@ -439,8 +415,10 @@ def _singular_section_surface() -> SurfaceXYZFourier:
 def test_aspect_ratio_label_matches_native_and_stays_finite_where_native_raises():
     setup = _setup("xyz", True, "aspect_ratio")
     problem = boozer_problem(setup.field, setup.surface, setup.label, setup.target)
-    res = boozer_exact_constraints(problem, _place(_decision(setup.surface, True, (0.0, 0.0)), problem))
-    _assert_native(res[-2], setup.label.J() - setup.target, "AspectRatio label")
+    res = boozer_exact_constraints(
+        problem, place_float64(_decision(setup.surface, True, (0.0, 0.0)), problem.target_label)
+    )
+    assert_matches_native(res[-2], setup.label.J() - setup.target, "AspectRatio label")
 
     surface = _singular_section_surface()
     label = AspectRatio(surface)
@@ -452,7 +430,7 @@ def test_aspect_ratio_label_matches_native_and_stays_finite_where_native_raises(
         _native_boozer(replace(setup, surface=surface, label=label, target=5.0), 1.0).boozer_penalty_constraints_vectorized(
             x.copy(), derivatives=2
         )
-    for output in boozer_penalty_constraints(problem, _place(x, problem), derivatives=2):
+    for output in boozer_penalty_constraints(problem, place_float64(x, problem.target_label), derivatives=2):
         assert np.all(np.isfinite(host_array(output))), "AspectRatio penalty is not finite"
 
 
@@ -474,16 +452,16 @@ def test_hessians_match_central_differences_of_native_derivatives():
         return _outputs(boozer_surface_residual(setup.surface, at[-2], at[-1], setup.bs, derivatives=1))[1]
 
     hessian = host_array(
-        boozer_penalty_constraints(problem, _place(x, problem), derivatives=2, optimize_G=True)[2]
+        boozer_penalty_constraints(problem, place_float64(x, problem.target_label), derivatives=2, optimize_G=True)[2]
     )
     differences = (native_gradient(x + step * direction) - native_gradient(x - step * direction)) / (2 * step)
-    _assert_native(hessian @ direction, differences, "penalty Hessian", rtol=1e-7)
+    assert_matches_native(hessian @ direction, differences, "penalty Hessian", rtol=1e-7)
 
     residual_hessians = host_array(
-        jax_boozer_surface_residual(problem, _place(x, problem), derivatives=2, optimize_G=True)[2]
+        jax_boozer_surface_residual(problem, place_float64(x, problem.target_label), derivatives=2, optimize_G=True)[2]
     )
     differences = (native_jacobian(x + step * direction) - native_jacobian(x - step * direction)) / (2 * step)
-    _assert_native(residual_hessians @ direction, differences, "residual Hessians", rtol=1e-7)
+    assert_matches_native(residual_hessians @ direction, differences, "residual Hessians", rtol=1e-7)
 
 
 # --- the problem boundary --------------------------------------------------------
@@ -503,18 +481,18 @@ def test_fixed_surface_dofs_leave_the_derivatives_unchanged():
     setup.surface.fix(names[0])
     setup.surface.fix(names[4])
     problem = boozer_problem(setup.field, setup.surface, setup.label, setup.target, 2.0)
-    result = boozer_penalty_constraints(problem, _place(x, problem), derivatives=2)
+    result = boozer_penalty_constraints(problem, place_float64(x, problem.target_label), derivatives=2)
     _assert_all_native(result, expected, "penalty with fixed DOFs")
     native_residual = boozer_surface_residual(setup.surface, _IOTA, None, setup.bs, derivatives=1)
     _assert_all_native(
-        jax_boozer_surface_residual(problem, _place(x, problem), derivatives=1, optimize_G=False),
+        jax_boozer_surface_residual(problem, place_float64(x, problem.target_label), derivatives=1, optimize_G=False),
         native_residual,
         "residual with fixed DOFs",
     )
 
 
 def _evaluate_every_formulation(problem: BoozerProblem, x: np.ndarray, xl: np.ndarray):
-    placed_x, placed_xl = _place(x, problem), _place(xl, problem)
+    placed_x, placed_xl = place_float64(x, problem.target_label), place_float64(xl, problem.target_label)
     return jax.block_until_ready(
         {
             "residual": jax_boozer_surface_residual(problem, placed_x, derivatives=2, optimize_G=True),
@@ -561,7 +539,7 @@ def test_new_values_reuse_the_compiled_programs():
     x = _decision(setup.surface, True) * (1 + 1e-3 * parity_rng(4).standard_normal(x.size))
     xl = np.concatenate((x, [-0.4, 0.3]))
     second = boozer_problem(setup.field, setup.surface, setup.label, setup.target, 40.0)
-    with _compilations() as compilations:
+    with jax_compilations() as compilations:
         second_results = _evaluate_every_formulation(second, x, xl)
     assert compilations == [], "new values retraced or recompiled a formulation"
     _assert_every_formulation_native(second_results, setup, 40.0, x, xl)
@@ -575,7 +553,7 @@ def test_formulations_make_no_implicit_transfers(stellsym, parity_lane):
     for weight in (None, 4.0):
         with parity_default_device(parity_lane), disallow_host_transfers():
             problem = boozer_problem(setup.field, setup.surface, setup.label, setup.target, weight)
-            placed_x, placed_xl = _place(x, problem), _place(xl, problem)
+            placed_x, placed_xl = place_float64(x, problem.target_label), place_float64(xl, problem.target_label)
             results = jax.block_until_ready(
                 [
                     jax_boozer_surface_residual(problem, placed_x, derivatives=2, optimize_G=True),
@@ -615,7 +593,9 @@ def test_zero_field_gives_the_native_values(weight_inv_modB):
     expected = _native_boozer(setup, 1.0).boozer_penalty_constraints_vectorized(
         x.copy(), derivatives=2, weight_inv_modB=weight_inv_modB
     )
-    result = boozer_penalty_constraints(problem, _place(x, problem), derivatives=2, weight_inv_modB=weight_inv_modB)
+    result = boozer_penalty_constraints(
+        problem, place_float64(x, problem.target_label), derivatives=2, weight_inv_modB=weight_inv_modB
+    )
     for order, (actual, native) in enumerate(zip(result, expected)):
         actual, native = host_array(actual), np.asarray(native)
         np.testing.assert_array_equal(np.isnan(actual), np.isnan(native), err_msg=f"NaN pattern [{order}]")
@@ -640,7 +620,7 @@ def test_problem_boundary_refuses_unsupported_inputs():
 
     exact = boozer_problem(setup.field, setup.surface, setup.label, setup.target)
     assert exact.constraint_weight is None
-    x = _place(_decision(setup.surface, False), exact)
+    x = place_float64(_decision(setup.surface, False), exact.target_label)
     with pytest.raises(ValueError, match="constraint_weight"):
         boozer_penalty_constraints(exact, x)
     # As native solve_residual_equation_exactly_newton, only tensor surfaces have the exact system.
@@ -648,6 +628,6 @@ def test_problem_boundary_refuses_unsupported_inputs():
         boozer_exact_residual_rows(setup.surface)
     tensor_rows = boozer_exact_residual_rows(_setup("tensor", True, "volume").surface)
     with pytest.raises(RuntimeError, match="SurfaceXYZTensorFourier"):
-        boozer_exact_residual(exact, _place(_decision(setup.surface, True), exact), tensor_rows)
+        boozer_exact_residual(exact, place_float64(_decision(setup.surface, True), exact.target_label), tensor_rows)
     with pytest.raises(ValueError, match="decision vector"):
         boozer_penalty_constraints(replace(exact, constraint_weight=exact.target_label), x, optimize_G=True)

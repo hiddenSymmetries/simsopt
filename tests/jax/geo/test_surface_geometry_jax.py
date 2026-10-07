@@ -16,12 +16,13 @@ from jax_test_support import (
     fixture_jax_runtime_guard,  # noqa: F401
     fixture_parity_lane,  # noqa: F401
     host_array,
+    jax_compilations,
     parity_default_device,
     parity_rng,
+    place_float64,
 )
 
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 from typing import cast
@@ -38,7 +39,6 @@ from simsopt.geo.surfaceobjectives import Area, Volume
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-from simsopt_jax.backend.dtypes import explicit_device_array
 from simsopt_jax.core import surface_geometry
 from simsopt_jax.core.specs import SurfaceSpec
 from simsopt_jax.core.surface_fourier_series import surface_get_dofs, surface_spec_with_dofs
@@ -225,31 +225,11 @@ def _cotangent(surface: _NativeSurface, seed: int) -> np.ndarray:
     return parity_rng(seed).standard_normal(surface.gamma().shape)
 
 
-def _place(values: np.ndarray, spec: SurfaceSpec) -> jax.Array:
-    return explicit_device_array(values, dtype=np.float64, reference=spec.quadpoints_phi)
-
-
 def _free_gradient(
     owner: _NativeSurface, all_dofs_gradient: np.ndarray, objective: Optimizable
 ) -> np.ndarray:
     """A gradient with respect to all DOFs of ``owner``, projected onto ``objective``'s free DOFs."""
     return cast(np.ndarray, Derivative(OptimizableDefaultDict({owner: all_dofs_gradient}))(objective))
-
-
-@contextmanager
-def _compilations() -> Iterator[list[str]]:
-    """Names of the JAX trace, lowering and compile events inside the block."""
-    events: list[str] = []
-
-    def record(event: str, duration_secs: float, **kwargs: str | int) -> None:
-        if event.startswith("/jax/core/compile/"):
-            events.append(event)
-
-    jax.monitoring.register_event_duration_secs_listener(record)
-    try:
-        yield events
-    finally:
-        jax.monitoring.unregister_event_duration_listener(record)
 
 
 def _evaluate_every_kernel(spec: SurfaceSpec, cotangent: jax.Array) -> dict[str, jax.Array]:
@@ -277,7 +257,7 @@ def test_every_kernel_matches_native(case, parity_lane):
     cotangent = _cotangent(surface, seed=1)
     with parity_default_device(parity_lane):
         spec = surface_spec_from_surface(surface)
-        results = _evaluate_every_kernel(spec, _place(cotangent, spec))
+        results = _evaluate_every_kernel(spec, place_float64(cotangent, spec.quadpoints_phi))
     _assert_every_kernel_native(results, surface, cotangent)
 
 
@@ -375,7 +355,7 @@ def test_free_dof_gradients_match_native_objectives_with_fixed_and_shared_dofs(c
 
     # The VJP of a least-squares fit of gamma, projected like a native objective's.
     cotangent = _cotangent(surface, seed=3)
-    jax_vjp = host_array(_coefficient_vjp("gamma", spec, _place(cotangent, spec)))
+    jax_vjp = host_array(_coefficient_vjp("gamma", spec, place_float64(cotangent, spec.quadpoints_phi)))
     np.testing.assert_allclose(
         _free_gradient(surface, jax_vjp, surface),
         _free_gradient(surface, surface.dgamma_by_dcoeff_vjp(cotangent), surface),
@@ -394,13 +374,13 @@ def test_new_dofs_reuse_the_programs_without_implicit_transfers(case, parity_lan
     cotangent = _cotangent(surface, seed=4)
     with parity_default_device(parity_lane), disallow_host_transfers():
         first_spec = surface_spec_from_surface(surface)
-        placed_cotangent = _place(cotangent, first_spec)
+        placed_cotangent = place_float64(cotangent, first_spec.quadpoints_phi)
         first_results = _evaluate_every_kernel(first_spec, placed_cotangent)
     _assert_every_kernel_native(first_results, surface, cotangent)
     first_gamma = _native(surface, "gamma")
 
     surface.x = _jitter(np.asarray(surface.x), seed=5)
-    with parity_default_device(parity_lane), disallow_host_transfers(), _compilations() as compilations:
+    with parity_default_device(parity_lane), disallow_host_transfers(), jax_compilations() as compilations:
         second_spec = surface_spec_from_surface(surface)
         second_results = _evaluate_every_kernel(second_spec, placed_cotangent)
     assert compilations == [], "new DOF values retraced or recompiled a program"
@@ -421,7 +401,7 @@ def test_spec_dofs_follow_the_native_get_and_set_dofs(case):
     np.testing.assert_array_equal(host_array(surface_get_dofs(spec)), surface.get_dofs())
 
     new_dofs = _jitter(surface.get_dofs(), seed=8)
-    moved = surface_spec_with_dofs(spec, _place(new_dofs, spec))
+    moved = surface_spec_with_dofs(spec, place_float64(new_dofs, spec.quadpoints_phi))
     surface.set_dofs(new_dofs)
     # Every coefficient array and quadrature grid equals the native one after set_dofs.
     for moved_leaf, native_leaf in zip(
@@ -457,11 +437,11 @@ def test_coefficient_entries_outside_the_dofs_enter_the_geometry_as_natively(cas
         assert not np.allclose(_native(surface, "gamma"), unmodified_gamma)
     cotangent = _cotangent(surface, seed=9)
     spec = surface_spec_from_surface(surface)
-    placed_cotangent = _place(cotangent, spec)
+    placed_cotangent = place_float64(cotangent, spec.quadpoints_phi)
     _assert_every_kernel_native(_evaluate_every_kernel(spec, placed_cotangent), surface, cotangent)
 
     new_dofs = _jitter(surface.get_dofs(), seed=10)
-    moved = surface_spec_with_dofs(spec, _place(new_dofs, spec))
+    moved = surface_spec_with_dofs(spec, place_float64(new_dofs, spec.quadpoints_phi))
     surface.set_dofs(new_dofs)
     _assert_every_kernel_native(_evaluate_every_kernel(moved, placed_cotangent), surface, cotangent)
 

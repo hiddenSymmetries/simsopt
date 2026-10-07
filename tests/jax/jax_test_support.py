@@ -10,6 +10,7 @@ a test that requests ``parity_lane`` does not shadow the import.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 import os
 import sys
@@ -19,6 +20,7 @@ import jax
 import numpy as np
 import pytest
 
+from simsopt_jax.backend.dtypes import explicit_device_array
 from simsopt_jax.backend.runtime import apply_cuda_xla_flag_pins
 
 # XLA reads ``XLA_FLAGS`` when it initializes a backend, and a JAX test module
@@ -208,3 +210,39 @@ def host_array(value, *, dtype=None):
 )
 def fixture_parity_lane(request):
     return request.param
+
+
+def place_float64(values, reference: jax.Array) -> jax.Array:
+    """``values`` as a float64 array placed like ``reference``."""
+    return explicit_device_array(values, dtype=np.float64, reference=reference)
+
+
+def assert_matches_native(
+    actual, expected, name: str, rtol: float = 1e-12, scale: float | None = None
+) -> None:
+    """``actual`` has native's shape and agrees with native's ``expected`` to
+    ``rtol`` times ``scale``, by default the largest native entry (a float64
+    round-off bound where JAX and native sum in different orders)."""
+    actual = host_array(actual, dtype=np.float64)
+    expected = np.asarray(expected, dtype=np.float64)
+    assert actual.shape == expected.shape, f"{name}: shape {actual.shape} != native {expected.shape}"
+    reference = np.max(np.abs(expected), initial=0.0) if scale is None else scale
+    np.testing.assert_allclose(
+        actual, expected, rtol=0.0, atol=rtol * reference, err_msg=f"{name} differs from native"
+    )
+
+
+@contextmanager
+def jax_compilations() -> Iterator[list[str]]:
+    """Names of the JAX trace, lowering and compile events inside the block."""
+    events: list[str] = []
+
+    def record(event: str, duration_secs: float, **kwargs: str | int) -> None:
+        if event.startswith("/jax/core/compile/"):
+            events.append(event)
+
+    jax.monitoring.register_event_duration_secs_listener(record)
+    try:
+        yield events
+    finally:
+        jax.monitoring.unregister_event_duration_listener(record)
