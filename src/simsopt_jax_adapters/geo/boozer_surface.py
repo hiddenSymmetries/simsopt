@@ -4,7 +4,8 @@
 :class:`~simsopt_jax_adapters.field.BiotSavartJAX` field, and has native's
 ``run_code``, solvers, defaults and result dictionaries, so native objectives
 such as ``Iotas``, ``MajorRadius``, ``NonQuasiSymmetricRatio`` and
-``BoozerResidual`` use it unchanged::
+``BoozerResidual`` use it unchanged (with a ``ToroidalFlux`` label, use
+:class:`BoozerResidualJAX` for ``BoozerResidual``)::
 
     import numpy as np
     from simsopt.configs import get_data
@@ -46,8 +47,12 @@ native bug: with a ``ToroidalFlux`` label, native's BoozerLS coil gradients
 are not the derivatives of the solved surface; with ``Volume``, ``Area`` or
 ``AspectRatio`` labels it agrees with native when ``G`` is optimized or the
 currents are fixed, while with free currents and ``G=None`` it also carries
-``dG/dI``, which native drops); the field's evaluation points are
-left as they were; ``options`` is copied, not filled in.
+``dG/dI``, which native drops); :class:`BoozerResidualJAX` replaces native
+``BoozerResidual``, whose explicit coil derivative misses the same terms
+(a deliberate correction of a native bug). Native ``BoozerResidual`` stays
+correct on ``BoozerSurfaceJAX`` for coil-independent ``Volume``, ``Area`` and
+``AspectRatio`` labels with ``G`` optimized or the currents fixed; the field's evaluation
+points are left as they were; ``options`` is copied, not filled in.
 ``minimize_boozer_exact_constraints_newton`` is not provided. The penalty
 Newton evaluates ``d2B/dXdX``: on large grids call
 ``simsopt_jax.backend.set_backend("jax", device=...)`` first for its point
@@ -63,6 +68,7 @@ is not re-exported from :mod:`simsopt_jax_adapters.geo`.
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from functools import partial
 from types import MappingProxyType
 from typing import cast
@@ -72,11 +78,12 @@ import numpy as np
 from scipy.linalg import lu
 from scipy.optimize import OptimizeResult, least_squares, minimize
 
-from simsopt._core.derivative import Derivative
+from simsopt._core.derivative import Derivative, derivative_dec
 from simsopt._core.optimizable import Optimizable
 from simsopt.geo.surfaceobjectives import Area, AspectRatio, ToroidalFlux, Volume
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
+from simsopt.objectives.utilities import forward_backward
 from simsopt_jax.backend.dtypes import explicit_device_array
 from simsopt_jax.core.boozer_problem import (
     BoozerProblem,
@@ -89,13 +96,15 @@ from simsopt_jax.core.boozer_solvers import (
     boozer_penalty_coil_vjp,
     boozer_penalty_gauss_newton,
     boozer_penalty_newton,
+    boozer_residual_objective,
 )
 from simsopt_jax.runtime.host_boundary import host_tree
 from simsopt_jax_adapters.field.biotsavart_backend import BiotSavartJAX
 
 from .boozer_problem import boozer_exact_residual_mask, boozer_exact_residual_rows, boozer_problem
+from .surface_specs import surface_spec_from_surface
 
-__all__ = ["BoozerSurfaceJAX"]
+__all__ = ["BoozerResidualJAX", "BoozerSurfaceJAX"]
 
 _DEFAULT_OPTIONS = MappingProxyType(
     {
@@ -475,6 +484,95 @@ def _coil_derivative(booz_surf: BoozerSurfaceJAX, cotangents) -> Derivative:
     return booz_surf.biotsavart.coil_cotangents_to_derivative(
         cotangents.field_inputs(), cotangents.coil_index_lists()
     )
+
+
+class BoozerResidualJAX(Optimizable):
+    """Native ``BoozerResidual(boozer_surface, bs)`` on a BoozerLS
+    :class:`BoozerSurfaceJAX`, with ``bs`` a ``BiotSavartJAX`` of the surface's
+    coils: ``J = 0.5 |r|^2 / len(r) + 0.5 w (label - target)^2`` on a private
+    ``SurfaceXYZTensorFourier`` copy of the solved surface (its quadrature,
+    ``w`` the surface's ``constraint_weight`` at construction), re-solving
+    first when the surface needs it, as natively.
+
+    ``dJ`` is the derivative of ``J`` through the solve: every explicit coil
+    dependence of ``J`` minus the adjoint term of ``res['vjp']``. Native
+    ``BoozerResidual`` takes the explicit part through the field only, so it
+    is not the derivative with a ``ToroidalFlux`` label, nor with free
+    currents when ``G`` is not optimized (a native bug); for ``Volume``,
+    ``Area`` and ``AspectRatio`` labels with ``G`` optimized or the currents
+    fixed, native ``BoozerResidual`` works on a ``BoozerSurfaceJAX`` and agrees
+    with this class. Evaluating the objective does not set the field's
+    evaluation points, but a ``ToroidalFlux`` label sharing the field resets
+    them through its own callbacks when the surface is re-solved.
+    Shallow copies register with the same solved surface and field, with an
+    independent private surface and empty objective caches.
+    """
+
+    def __init__(self, boozer_surface: BoozerSurfaceJAX, bs: BiotSavartJAX):
+        Optimizable.__init__(self, depends_on=[boozer_surface])
+        in_surface = boozer_surface.surface
+        self.boozer_surface = boozer_surface
+        surface = SurfaceXYZTensorFourier(
+            mpol=in_surface.mpol,
+            ntor=in_surface.ntor,
+            stellsym=in_surface.stellsym,
+            nfp=in_surface.nfp,
+            quadpoints_phi=in_surface.quadpoints_phi,
+            quadpoints_theta=in_surface.quadpoints_theta,
+        )
+        surface.set_dofs(in_surface.get_dofs())
+        self.constraint_weight = boozer_surface.constraint_weight
+        self.in_surface = in_surface
+        self.surface = surface
+        self.biotsavart = bs
+        self.recompute_bell()
+
+    def __copy__(self):
+        copied = type(self)(self.boozer_surface, self.biotsavart)
+        copied.constraint_weight = self.constraint_weight
+        return copied
+
+    def J(self):
+        if self._J is None:
+            self.compute()
+        return self._J
+
+    @derivative_dec
+    def dJ(self):
+        if self._dJ is None:
+            self.compute()
+        return self._dJ
+
+    def recompute_bell(self, parent=None):
+        self._J = None
+        self._dJ = None
+
+    def compute(self):
+        booz_surf = self.boozer_surface
+        if booz_surf.need_to_run_code:
+            res = booz_surf.res
+            booz_surf.run_code(res["iota"], G=res["G"])
+        self.surface.set_dofs(self.in_surface.get_dofs())
+
+        res = booz_surf.res
+        iota, G, weight_inv_modB = res["iota"], res["G"], res["weight_inv_modB"]
+        # The residual on the private copy, the label on its own surface (native's split).
+        problem = replace(
+            boozer_problem(self.biotsavart, self.in_surface, booz_surf.label, booz_surf.targetlabel, self.constraint_weight),
+            surface=surface_spec_from_surface(self.surface),
+        )
+        x = np.concatenate((self.surface.get_dofs(), [iota] if G is None else [iota, G]))
+        value, dJ_dx, dJ_dcoils = boozer_residual_objective(
+            problem, _place(x, problem), optimize_G=G is not None, weight_inv_modB=weight_inv_modB
+        )
+        self._J = host_tree(value)[()]
+
+        P, L, U = res["PLU"]
+        adj = forward_backward(P, L, U, host_tree(dJ_dx))
+        explicit = self.biotsavart.coil_cotangents_to_derivative(
+            dJ_dcoils.field_inputs(), dJ_dcoils.coil_index_lists()
+        )
+        self._dJ = explicit - res["vjp"](adj, booz_surf, iota, G)
 
 
 def _exact_coil_vjp(lm, booz_surf: BoozerSurfaceJAX, iota, G) -> Derivative:

@@ -28,6 +28,9 @@ The coil adjoints are ``res['vjp']`` as cotangents of ``problem.coils``:
 native's ``boozer_surface_dlsqgrad_dcoils_vjp`` drops the coil dependence of
 the label (a ``ToroidalFlux`` label's vector potential) and of ``G`` from
 the currents, and so is not the derivative of the solved surface there.
+:func:`boozer_residual_objective` is native ``BoozerResidual``'s value with
+its explicit coil derivative and its derivative in ``x`` (the adjoint's
+right-hand side), again with every coil dependence.
 """
 
 from __future__ import annotations
@@ -61,6 +64,7 @@ __all__ = [
     "boozer_penalty_coil_vjp",
     "boozer_penalty_gauss_newton",
     "boozer_penalty_newton",
+    "boozer_residual_objective",
 ]
 
 # Native refines the penalty Newton step with a second solve below this gradient norm.
@@ -334,3 +338,31 @@ def boozer_penalty_coil_vjp(
         return jax.jvp(partial(penalty, coils), (x,), (cotangent,))[1]
 
     return jax.grad(directional_derivative)(problem.coils)
+
+
+@partial(jax.jit, static_argnames=("optimize_G", "weight_inv_modB"))
+def boozer_residual_objective(
+    problem: BoozerProblem,
+    x: jax.Array,
+    *,
+    optimize_G: bool,
+    weight_inv_modB: bool,
+) -> tuple[jax.Array, jax.Array, GroupedCoilSetSpec]:
+    """Native ``BoozerResidual``'s ``J = 0.5 |rtil|^2``, ``rtil = [r / sqrt(len r),
+    sqrt(w) (label - target)]`` (the residuals of :func:`boozer_penalty_residual`
+    without ``z(0, 0)``), with ``dJ/dx`` and ``dJ/dcoils`` at fixed ``x``.
+
+    ``dJ/dcoils`` has every explicit coil dependence: the field in ``r``, a
+    ``ToroidalFlux`` label and, when it is not a variable, ``G`` from the
+    currents. Native's ``BoozerResidual`` keeps only the field's.
+    """
+
+    def objective(coils, point):
+        (residual,) = boozer_penalty_residual(
+            replace(problem, coils=coils), point, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB
+        )
+        rtil = residual[:-1]
+        return 0.5 * jnp.sum(rtil * rtil)
+
+    value, (dcoils, dx) = jax.value_and_grad(objective, argnums=(0, 1))(problem.coils, x)
+    return value, dx, dcoils

@@ -10,7 +10,10 @@ labels on their own grids: iteration counts, success flags, the surface,
 ``maxiter``, diverging Newton walks, singular systems and the
 ``need_to_run_code`` cache behave as natively. Native ``Iotas``,
 ``MajorRadius``, ``NonQuasiSymmetricRatio`` and ``BoozerResidual`` on a
-``BoozerSurfaceJAX`` give native values and coil gradients. Then: settings
+``BoozerSurfaceJAX`` give native values and coil gradients for coil-independent
+labels with optimized ``G``. ``BoozerResidualJAX`` also differentiates the
+explicit ToroidalFlux and current-derived ``G`` terms that native misses,
+checked through re-solves. Then: settings
 read at every solve, no recompilation for new values, no implicit transfers,
 the documented differences (fixed DOFs, the BoozerExact adjoint without
 stellarator symmetry) and unsupported inputs.
@@ -36,6 +39,7 @@ from jax_test_support import (
 )
 
 from dataclasses import dataclass, replace
+import copy
 import inspect
 
 import jax
@@ -48,6 +52,7 @@ from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.boozersurface import BoozerSurface
 from simsopt.geo.surfaceobjectives import (
     Area,
+    AspectRatio,
     BoozerResidual,
     Iotas,
     MajorRadius,
@@ -67,7 +72,7 @@ from simsopt_jax.runtime.host_boundary import disallow_host_transfers
 from simsopt_jax_adapters.field import BiotSavartJAX
 from simsopt_jax_adapters.geo.boozer_problem import boozer_problem
 from simsopt_jax_adapters.geo import boozer_surface as jax_boozer_surface
-from simsopt_jax_adapters.geo.boozer_surface import BoozerSurfaceJAX
+from simsopt_jax_adapters.geo.boozer_surface import BoozerResidualJAX, BoozerSurfaceJAX
 
 _IOTA = -0.406
 _RTOL = 1e-12
@@ -125,6 +130,7 @@ def _problem(
     labels = {
         "Volume": lambda: Volume(surface, nphi=label_nphi, ntheta=label_ntheta),
         "Area": lambda: Area(surface, nphi=label_nphi, ntheta=label_ntheta),
+        "AspectRatio": lambda: AspectRatio(surface, nphi=label_nphi, ntheta=label_ntheta),
         "ToroidalFlux": lambda: ToroidalFlux(surface, BiotSavart(bs.coils), nphi=label_nphi, ntheta=label_ntheta),
     }
     label_object = labels[label]()
@@ -545,7 +551,11 @@ _OBJECTIVE_CASES = {
 @pytest.mark.parametrize("name", _OBJECTIVE_CASES)
 def test_native_objectives_use_the_jax_surface(name):
     """Native objectives on solved surfaces: values and coil gradients (through
-    ``res['PLU']`` and ``res['vjp']``) as with native ``BoozerSurface``."""
+    ``res['PLU']`` and ``res['vjp']``) as with native ``BoozerSurface``. With
+    a Volume label and ``G`` optimized or the currents fixed,
+    ``BoozerResidualJAX`` is native ``BoozerResidual`` too, also after a coil
+    change that makes both re-solve; on BoozerExact both raise ``KeyError``
+    (exact results have no ``weight_inv_modB``)."""
     boozer_type, label, optimize_G, weight_inv_modB = _OBJECTIVE_CASES[name]
     native, jax_problem = _pair(
         boozer_type, label, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB,
@@ -564,6 +574,101 @@ def test_native_objectives_use_the_jax_surface(name):
         native_objective, jax_objective = make(native), make(jax_problem)
         assert_matches_native(jax_objective.J(), native_objective.J(), f"{name} {objective_name}")
         assert_matches_native(jax_objective.dJ(), native_objective.dJ(), f"{name} {objective_name} coil gradient")
+    native_residual = BoozerResidual(native.boozer, BiotSavart(native.coils))
+    jax_residual = BoozerResidualJAX(jax_problem.boozer, jax_problem.boozer.biotsavart)
+    if boozer_type == "exact":
+        for objective in (native_residual, jax_residual):
+            with pytest.raises(KeyError, match="weight_inv_modB"):
+                objective.J()
+        return
+    for change in ("solved", "after a coil change"):
+        value = jax_residual.J()
+        assert isinstance(value, np.float64), f"{name}: J is {type(value)}, native's is np.float64"
+        assert_matches_native(value, native_residual.J(), f"{name} BoozerResidualJAX {change}")
+        assert_matches_native(jax_residual.dJ(), native_residual.dJ(), f"{name} BoozerResidualJAX gradient {change}")
+        for problem in (native, jax_problem):
+            problem.currents[0].local_full_x = 1.0001 * problem.currents[0].local_full_x
+        assert jax_problem.boozer.need_to_run_code and jax_residual._J is None, "a coil change left a stale value"
+
+
+@pytest.mark.parametrize("label", ["Area", "AspectRatio"])
+def test_boozer_residual_jax_matches_native_for_labels_without_coil_dependence(label):
+    """On Area and AspectRatio labels (``G`` optimized) native
+    ``BoozerResidual`` is the derivative of its value, and
+    ``BoozerResidualJAX`` agrees with it. Both are compared at a shared state:
+    a native BFGS iterate given to both surfaces, stored with its Hessian by a
+    penalty Newton call with ``maxiter=0`` (on this fixture these labels'
+    ``run_code`` walks follow round-off to different solutions, and the
+    penalty Newton from the BFGS iterate does not converge). Comparing on
+    the same solved surface isolates the objective's derivative from the
+    ill-conditioned Hessian's amplification of different solver round-off."""
+    native, jax_problem = _pair("ls", label)
+    iota, G = _same_start(native, jax_problem, 200)
+    for problem in (native, jax_problem):
+        problem.boozer.minimize_boozer_penalty_constraints_newton(
+            tol=1e-11, maxiter=0, constraint_weight=_WEIGHT, iota=iota, G=G, weight_inv_modB=False
+        )
+    jax_residual = BoozerResidualJAX(jax_problem.boozer, jax_problem.boozer.biotsavart)
+    # Native BoozerResidual on the same JAX surface (same res, PLU and vjp): the objective alone.
+    on_jax_surface = BoozerResidual(jax_problem.boozer, BiotSavart(jax_problem.coils))
+    assert_matches_native(jax_residual.J(), on_jax_surface.J(), f"{label} BoozerResidualJAX")
+    assert_matches_native(jax_residual.dJ(), on_jax_surface.dJ(), f"{label} BoozerResidualJAX gradient")
+
+
+def test_boozer_residual_owns_its_surface_and_reads_changed_values_with_a_copied_field():
+    """The residual copy uses solved quadrature; a label sharing the solved
+    DOFs uses its own grid. A copied field follows later coil changes, and
+    recomputing replaces private-copy edits and reads new target/weight values
+    without recompilation."""
+    problem = _problem(True, "ls", label_grid=(31, 31))
+    boozer = problem.boozer
+    boozer.minimize_boozer_penalty_constraints_newton(
+        maxiter=0, constraint_weight=_WEIGHT, iota=_IOTA, G=problem.G0, weight_inv_modB=False
+    )
+    field = copy.copy(boozer.biotsavart)
+    residual = BoozerResidualJAX(boozer, field)
+    native = BoozerResidual(boozer, BiotSavart(problem.coils))
+    assert residual.surface.dofs is not boozer.surface.dofs
+    assert boozer.label.surface.dofs is boozer.surface.dofs
+    assert boozer.label.surface.quadpoints_phi.size == 31
+    np.testing.assert_array_equal(residual.surface.quadpoints_phi, boozer.surface.quadpoints_phi)
+    np.testing.assert_array_equal(residual.surface.quadpoints_theta, boozer.surface.quadpoints_theta)
+    solved_dofs = boozer.surface.get_dofs().copy()
+    first = residual.J()
+    assert_matches_native(first, native.J(), "private surface and label grids")
+    assert_matches_native(residual.dJ(), native.dJ(), "copied field gradient")
+    copied = copy.copy(residual)
+    assert copied.surface.dofs is not residual.surface.dofs
+    assert copied._J is None and copied._dJ is None
+    assert copied.constraint_weight == residual.constraint_weight
+    assert_matches_native(copied.J(), native.J(), "copied objective")
+    assert_matches_native(copied.dJ(), native.dJ(), "copied objective gradient")
+    residual.surface.set_dofs(1.1 * solved_dofs)
+    np.testing.assert_array_equal(boozer.surface.get_dofs(), solved_dofs)
+    residual.constraint_weight = 2.0 * _WEIGHT
+    native.constraint_weight = residual.constraint_weight
+    boozer.targetlabel *= 1.01
+    residual.recompute_bell()
+    native.recompute_bell()
+    with jax_compilations() as compilations:
+        changed = residual.J()
+        gradient = residual.dJ()
+    assert compilations == [], "new residual target or weight recompiled the objective"
+    assert changed != first
+    np.testing.assert_array_equal(residual.surface.get_dofs(), solved_dofs)
+    assert_matches_native(changed, native.J(), "changed target and weight")
+    assert_matches_native(gradient, native.dJ(), "changed target and weight gradient")
+    problem.currents[0].local_full_x *= 1.001
+    assert boozer.need_to_run_code and residual._J is None and residual._dJ is None
+    assert copied._J is None and copied._dJ is None, "a copied objective kept stale coil caches"
+    boozer.minimize_boozer_penalty_constraints_newton(
+        maxiter=0, constraint_weight=_WEIGHT, iota=_IOTA, G=problem.G0, weight_inv_modB=False
+    )
+    assert_matches_native(residual.J(), native.J(), "copied field after a coil change")
+    assert_matches_native(residual.dJ(), native.dJ(), "copied field gradient after a coil change")
+    fresh = BoozerResidualJAX(boozer, boozer.biotsavart)
+    assert_matches_native(copied.J(), fresh.J(), "copied objective after a coil change")
+    assert_matches_native(copied.dJ(), fresh.dJ(), "copied objective gradient after a coil change")
 
 
 def test_ls_adjoint_with_a_toroidal_flux_label_is_the_derivative_of_the_solve():
@@ -572,14 +677,19 @@ def test_ls_adjoint_with_a_toroidal_flux_label_is_the_derivative_of_the_solve():
     ``BoozerSurfaceJAX`` are the central differences of their values through
     native re-solves (``run_code`` from the solution); native's own adjoint
     (``boozer_surface_dlsqgrad_dcoils_vjp``) drops the label term and is not.
-    ``BoozerResidual`` is left out: native's partial derivative of its value
-    (through ``B`` only) drops its own ToroidalFlux label term, so neither
-    adjoint gives its difference (both are 1.8e-3 off on this problem)."""
+    ``BoozerResidual``'s value also depends on the coils through the label:
+    ``BoozerResidualJAX`` differentiates it; native ``BoozerResidual`` takes
+    its explicit derivative through ``B`` only and is not the derivative."""
     native, jax_problem = _pair("ls", "ToroidalFlux", label_grid=(31, 31))
     objectives = {
         "Iotas": lambda problem: Iotas(problem.boozer),
         "MajorRadius": lambda problem: MajorRadius(problem.boozer),
         "NonQuasiSymmetricRatio": lambda problem: NonQuasiSymmetricRatio(problem.boozer, BiotSavart(problem.coils)),
+        "BoozerResidual": lambda problem: BoozerResidual(problem.boozer, BiotSavart(problem.coils)),
+    }
+    jax_objectives = {
+        **objectives,
+        "BoozerResidual": lambda problem: BoozerResidualJAX(problem.boozer, problem.boozer.biotsavart),
     }
     for problem in (native, jax_problem):
         problem.boozer.run_code(_IOTA, G=problem.G0)
@@ -596,14 +706,72 @@ def test_ls_adjoint_with_a_toroidal_flux_label_is_the_derivative_of_the_solve():
 
     plus, minus = values(1.0), values(-1.0)
     native_handle.x = x0
-    for name, make in objectives.items():
+    for name, make in jax_objectives.items():
         central = (plus[name] - minus[name]) / (2 * step)
-        adjoint = make(jax_problem).dJ(partials=True)(jax_handle) @ direction
+        with disallow_host_transfers():
+            partials = make(jax_problem).dJ(partials=True)
+        adjoint = partials(jax_handle) @ direction
         native_adjoint = native_objectives[name].dJ(partials=True)(native_handle) @ direction
-        # Truncation and the re-solves' tolerances bound the agreement (measured 2e-9 to 5e-9 relative);
-        # native's adjoint is off by 2.5e-3 to 3e-2.
+        # Truncation and the re-solves' tolerances bound the agreement (measured 2e-9 to 2e-8 relative);
+        # native's gradients are off by 1.8e-3 to 3e-2.
         assert abs(adjoint - central) <= 1e-7 * abs(central), f"{name}: adjoint {adjoint} != difference {central}"
         assert abs(native_adjoint - central) > 1e-4 * abs(central), f"{name}: native's adjoint matches the difference"
+
+
+def test_gradients_with_G_from_free_currents_are_the_derivatives_of_the_solve():
+    """Solved directly with ``G=None`` and free currents (``run_code`` refuses
+    this; the solvers do not), ``G`` follows the currents. The coil gradients
+    of ``Iotas`` and ``BoozerResidualJAX`` on a ``BoozerSurfaceJAX`` are the
+    central differences of the native objectives' values through native
+    re-solves (penalty Newton from the solution); native's own drop
+    ``dG/dI``."""
+    native, jax_problem = _pair("ls")
+    solve = dict(tol=1e-11, maxiter=40, constraint_weight=_WEIGHT, G=None, weight_inv_modB=False)
+    start = native.boozer.minimize_boozer_penalty_constraints_LBFGS(
+        tol=1e-10, maxiter=1500, constraint_weight=_WEIGHT, iota=_IOTA, G=None, limited_memory=False,
+        weight_inv_modB=False,
+    )
+    jax_problem.boozer.surface.set_dofs(native.boozer.surface.get_dofs())
+    for problem in (native, jax_problem):
+        problem.boozer.need_to_run_code = True
+        res = problem.boozer.minimize_boozer_penalty_constraints_newton(iota=start["iota"], **solve)
+        assert res["success"], "the penalty Newton with G from the currents did not converge"
+    solution, iota = native.boozer.surface.get_dofs(), native.boozer.res["iota"]
+    native_objectives = {
+        "Iotas": Iotas(native.boozer),
+        "BoozerResidual": BoozerResidual(native.boozer, BiotSavart(native.coils)),
+    }
+    jax_objectives = {
+        "Iotas": Iotas(jax_problem.boozer),
+        "BoozerResidual": BoozerResidualJAX(jax_problem.boozer, jax_problem.boozer.biotsavart),
+    }
+    native_handle, jax_handle = native_objectives["Iotas"], jax_objectives["Iotas"]
+    x0 = np.asarray(native_handle.x, dtype=np.float64)
+    direction = parity_rng(13).standard_normal(x0.size) * np.maximum(np.abs(x0), 1.0)
+    assert x0.size > 0 and any(not current.dofs.all_fixed() for current in native.currents)
+    # Central-difference truncation is 9e-6 relative at 1e-5 and 9e-8 at 1e-6 (Iotas), so the step is 1e-7.
+    step = 1e-7
+
+    def values(sign: float) -> dict[str, float]:
+        native_handle.x = x0 + sign * step * direction
+        native.boozer.surface.set_dofs(solution)
+        native.boozer.minimize_boozer_penalty_constraints_newton(iota=iota, **solve)
+        return {name: objective.J() for name, objective in native_objectives.items()}
+
+    plus, minus = values(1.0), values(-1.0)
+    native_handle.x = x0
+    native.boozer.surface.set_dofs(solution)
+    native.boozer.minimize_boozer_penalty_constraints_newton(iota=iota, **solve)
+    for name, objective in jax_objectives.items():
+        central = (plus[name] - minus[name]) / (2 * step)
+        with disallow_host_transfers():
+            partials = objective.dJ(partials=True)
+        adjoint = partials(jax_handle) @ direction
+        native_adjoint = native_objectives[name].dJ(partials=True)(native_handle) @ direction
+        # Truncation and the re-solves' tolerances bound the agreement (measured 6e-9 and 9e-11 relative);
+        # native's gradients are off by 2.3e-4 and 7.1e-4.
+        assert abs(adjoint - central) <= 1e-7 * abs(central), f"{name}: adjoint {adjoint} != difference {central}"
+        assert abs(native_adjoint - central) > 1e-4 * abs(central), f"{name}: native's gradient matches the difference"
 
 
 def test_exact_adjoint_without_stellsym_where_native_raises():
@@ -682,6 +850,7 @@ def test_new_values_reuse_the_compiled_programs():
 
     def solve_all(exact_problem: _Problem, ls_problem: _Problem, settings: dict):
         exact, ls = exact_problem.boozer, ls_problem.boozer
+        ls.constraint_weight = settings["weight"]
         res = exact.solve_residual_equation_exactly_newton(
             tol=settings["tol"], maxiter=settings["maxiter"], iota=settings["iota"], G=exact_problem.G0
         )
@@ -702,6 +871,7 @@ def test_new_values_reuse_the_compiled_programs():
             G=start["G"], stab=settings["stab"], weight_inv_modB=False,
         )
         Iotas(ls).dJ()
+        BoozerResidualJAX(ls, ls.biotsavart).dJ()
         for boozer in (exact, ls):
             boozer.recompute_bell()
         return res
@@ -729,6 +899,7 @@ def test_solves_make_no_implicit_transfers(boozer_type, parity_lane):
             jax_res = jax_problem.boozer.run_code(_IOTA, G=jax_problem.G0)
             jax_dJ = Iotas(jax_problem.boozer).dJ()
             if boozer_type == "ls":
+                jax_residual_dJ = BoozerResidualJAX(jax_problem.boozer, jax_problem.boozer.biotsavart).dJ()
                 jax_problem.boozer.recompute_bell()
                 jax_problem.boozer.minimize_boozer_penalty_constraints_ls(
                     tol=1e-8, maxiter=2, constraint_weight=_WEIGHT, iota=jax_res["iota"], G=jax_res["G"],
@@ -739,6 +910,9 @@ def test_solves_make_no_implicit_transfers(boozer_type, parity_lane):
     native_res = native.boozer.run_code(_IOTA, G=native.G0)
     assert_matches_native(jax_res["iota"], native_res["iota"], f"{boozer_type} iota on {parity_lane}", 1e-10)
     assert_matches_native(jax_dJ, Iotas(native.boozer).dJ(), f"{boozer_type} Iotas gradient on {parity_lane}", 1e-9)
+    if boozer_type == "ls":
+        native_residual_dJ = BoozerResidual(native.boozer, BiotSavart(native.coils)).dJ()
+        assert_matches_native(jax_residual_dJ, native_residual_dJ, f"BoozerResidualJAX gradient on {parity_lane}", 1e-9)
 
 
 def test_boundary_refuses_unsupported_inputs():
