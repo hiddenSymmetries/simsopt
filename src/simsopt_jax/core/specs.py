@@ -68,6 +68,11 @@ __all__ = [
     "make_optimizable_dof_map_spec",
     "make_zero_rotation_spec",
     "host_resident_spec",
+    "SurfaceRZFourierSpec",
+    "SurfaceSpec",
+    "SurfaceSpecT",
+    "SurfaceXYZFourierSpec",
+    "SurfaceXYZTensorFourierSpec",
 ]
 
 
@@ -707,3 +712,73 @@ def make_grouped_coil_set_spec(groups: Iterable[CoilGroupSpec | tuple[jax.Array,
             )
         )
     return GroupedCoilSetSpec(groups=tuple(group_specs))
+
+
+# Surface specs: immutable states of the native Fourier surfaces. Data: the
+# native coefficient arrays, named and shaped as the native attributes, every
+# entry included, and the quadrature points in units of a full turn. Static
+# metadata: nfp, stellsym and, for the tensor surface, clamped_dims.
+@pytree_dataclass(
+    data=("rc", "rs", "zc", "zs", "quadpoints_phi", "quadpoints_theta"),
+    meta=("nfp", "stellsym"),
+)
+class SurfaceRZFourierSpec:
+    """Immutable state of a native ``SurfaceRZFourier``."""
+
+    rc: jax.Array
+    rs: jax.Array
+    zc: jax.Array
+    zs: jax.Array
+    quadpoints_phi: jax.Array
+    quadpoints_theta: jax.Array
+    nfp: int
+    stellsym: bool
+
+
+@pytree_dataclass(
+    data=("xc", "xs", "yc", "ys", "zc", "zs", "quadpoints_phi", "quadpoints_theta"),
+    meta=("nfp", "stellsym"),
+)
+class SurfaceXYZFourierSpec:
+    """Immutable state of a native ``SurfaceXYZFourier``."""
+
+    xc: jax.Array
+    xs: jax.Array
+    yc: jax.Array
+    ys: jax.Array
+    zc: jax.Array
+    zs: jax.Array
+    quadpoints_phi: jax.Array
+    quadpoints_theta: jax.Array
+    nfp: int
+    stellsym: bool
+
+
+@pytree_dataclass(
+    data=("xcs", "ycs", "zcs", "quadpoints_phi", "quadpoints_theta"),
+    meta=("nfp", "stellsym", "clamped_dims"),
+)
+class SurfaceXYZTensorFourierSpec:
+    """Immutable state of a native ``SurfaceXYZTensorFourier``."""
+
+    xcs: jax.Array
+    ycs: jax.Array
+    zcs: jax.Array
+    quadpoints_phi: jax.Array
+    quadpoints_theta: jax.Array
+    nfp: int
+    stellsym: bool
+    clamped_dims: tuple[bool, bool, bool]
+
+
+SurfaceSpec = Union[
+    SurfaceRZFourierSpec,
+    SurfaceXYZFourierSpec,
+    SurfaceXYZTensorFourierSpec,
+]
+SurfaceSpecT = TypeVar(
+    "SurfaceSpecT",
+    SurfaceRZFourierSpec,
+    SurfaceXYZFourierSpec,
+    SurfaceXYZTensorFourierSpec,
+)
