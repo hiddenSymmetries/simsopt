@@ -9,7 +9,16 @@ This module provides a class that handles the VMEC equilibrium code.
 import logging
 import os.path
 from dataclasses import dataclass, field
-from typing import Any, Generic, NamedTuple, Optional, Protocol, TypeVar, cast, runtime_checkable
+from typing import (
+    Any,
+    Generic,
+    NamedTuple,
+    Optional,
+    Protocol,
+    TypeVar,
+    cast,
+    runtime_checkable,
+)
 
 import numpy as np
 
@@ -22,21 +31,36 @@ except ImportError as e:
     logger.debug(str(e))
 
 from .._core.optimizable import Optimizable
-from .._core.util import Struct, ObjectiveFailure  # noqa: F401
+from .._core.util import ObjectiveFailure, Struct  # noqa: F401
 from ..geo.surfacerzfourier import SurfaceRZFourier
+
 # Re-exported for backwards compatibility:
-from .vmec_solver import (Vmec2000Solver, load_wout_file,  # noqa: F401
-                          to_namelist_bool, array_to_namelist,
-                          restart_flag, readin_flag, timestep_flag,
-                          output_flag, cleanup_flag, reset_jacdt_flag)
+from .vmec_solver import (  # noqa: F401
+    Vmec2000Solver,
+    array_to_namelist,
+    cleanup_flag,
+    load_wout_file,
+    output_flag,
+    readin_flag,
+    reset_jacdt_flag,
+    restart_flag,
+    timestep_flag,
+    to_namelist_bool,
+)
 
 if MPI is not None:
     from ..util.mpi import MpiPartition
 else:
     MpiPartition = None
 
-__all__ = ["FourierMode", "ProfileProtocol", "SurfaceRZFourierProtocol", "Vmec",
-           "VmecBoundary", "VmecSolverProtocol"]
+__all__ = [
+    "FourierMode",
+    "ProfileProtocol",
+    "SurfaceRZFourierProtocol",
+    "Vmec",
+    "VmecBoundary",
+    "VmecSolverProtocol",
+]
 
 #: Types of a solver's ``indata`` and ``wout``, which :obj:`Vmec` passes through.
 IndataT = TypeVar("IndataT")
@@ -44,14 +68,16 @@ WoutT = TypeVar("WoutT")
 
 
 class FourierMode(NamedTuple):
-    """ Key of a boundary Fourier coefficient. """
+    """Key of a boundary Fourier coefficient."""
+
     m: int
     n: int
 
 
 @runtime_checkable
 class SurfaceRZFourierProtocol(Protocol):
-    """ Boundary passed to a Vmec solver, with coefficients keyed by :obj:`FourierMode`. """
+    """Boundary passed to a Vmec solver, with coefficients keyed by :obj:`FourierMode`."""
+
     nfp: int
     stellsym: bool
     mpol: int
@@ -64,7 +90,8 @@ class SurfaceRZFourierProtocol(Protocol):
 
 @runtime_checkable
 class ProfileProtocol(Protocol):
-    """ Radial profile passed to a Vmec solver: a callable of ``s``. """
+    """Radial profile passed to a Vmec solver: a callable of ``s``."""
+
     def __call__(self, s): ...
 
 
@@ -136,8 +163,9 @@ class VmecSolverProtocol(Protocol[IndataT, WoutT]):
     output_file: Any
     verbose: bool
 
-    def initialize(self, filename: str, mpi, keep_all_files: bool = False,
-                   verbose: bool = True) -> None: ...
+    def initialize(
+        self, filename: str, mpi, keep_all_files: bool = False, verbose: bool = True
+    ) -> None: ...
 
     def solve(self) -> None: ...
 
@@ -150,7 +178,8 @@ class VmecSolverProtocol(Protocol[IndataT, WoutT]):
 
 @dataclass
 class VmecBoundary:
-    """ :obj:`SurfaceRZFourierProtocol` built by :obj:`Vmec` from its boundary ``surface``. """
+    """:obj:`SurfaceRZFourierProtocol` built by :obj:`Vmec` from its boundary ``surface``."""
+
     nfp: int = 1
     stellsym: bool = True
     mpol: int = 1
@@ -163,20 +192,65 @@ class VmecBoundary:
 
 
 REQUIRED_WOUT_FIELDS = (
-    'aspect', 'Aminor_p', 'Rmajor_p', 'betatotal', 'ctor', 'ier_flag',
-    'lasym', 'mnmax', 'mnmax_nyq', 'mpol', 'nfp', 'ns', 'ntor', 'signgs',
-    'volavgB', 'volume_p', 'fsqr', 'fsql', 'fsqz',
-    'pmass_type', 'pcurr_type', 'piota_type',
-    'xm', 'xn', 'xm_nyq', 'xn_nyq',
-    'iotaf', 'iotas', 'pres', 'phi', 'chi', 'vp', 'buco', 'bvco',
-    'jcurv', 'jdotb',
-    'rmnc', 'zmns', 'lmns', 'gmnc', 'bmnc', 'bsupumnc', 'bsupvmnc',
-    'bsubumnc', 'bsubvmnc', 'bsubsmns',
+    "aspect",
+    "Aminor_p",
+    "Rmajor_p",
+    "betatotal",
+    "ctor",
+    "ier_flag",
+    "lasym",
+    "mnmax",
+    "mnmax_nyq",
+    "mpol",
+    "nfp",
+    "ns",
+    "ntor",
+    "signgs",
+    "volavgB",
+    "volume_p",
+    "fsqr",
+    "fsql",
+    "fsqz",
+    "pmass_type",
+    "pcurr_type",
+    "piota_type",
+    "xm",
+    "xn",
+    "xm_nyq",
+    "xn_nyq",
+    "iotaf",
+    "iotas",
+    "pres",
+    "phi",
+    "chi",
+    "vp",
+    "buco",
+    "bvco",
+    "jcurv",
+    "jdotb",
+    "rmnc",
+    "zmns",
+    "lmns",
+    "gmnc",
+    "bmnc",
+    "bsupumnc",
+    "bsupvmnc",
+    "bsubumnc",
+    "bsubvmnc",
+    "bsubsmns",
 )
 
 REQUIRED_WOUT_FIELDS_ASYM = (
-    'rmns', 'zmnc', 'lmnc', 'gmns', 'bmns', 'bsupumns', 'bsupvmns',
-    'bsubumns', 'bsubvmns', 'bsubsmnc',
+    "rmns",
+    "zmnc",
+    "lmnc",
+    "gmns",
+    "bmns",
+    "bsupumns",
+    "bsupvmns",
+    "bsubumns",
+    "bsubvmns",
+    "bsubsmnc",
 )
 
 
@@ -366,7 +440,7 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
         self._verbose = verbose
 
         # Get MPI communicator:
-        if (mpi is None and MPI is not None):
+        if mpi is None and MPI is not None:
             self.mpi = MpiPartition(ngroups=1)  # type: ignore[misc]
         else:
             self.mpi = mpi
@@ -399,13 +473,15 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
             # or the boundary surface object can be changed independently
             # by the user.
             solver_boundary = self._require_solver.boundary
-            self._boundary = SurfaceRZFourier.from_nphi_ntheta(nfp=solver_boundary.nfp,
-                                                               stellsym=solver_boundary.stellsym,
-                                                               mpol=solver_boundary.mpol,
-                                                               ntor=solver_boundary.ntor,
-                                                               ntheta=ntheta,
-                                                               nphi=nphi,
-                                                               range=range_surface)
+            self._boundary = SurfaceRZFourier.from_nphi_ntheta(
+                nfp=solver_boundary.nfp,
+                stellsym=solver_boundary.stellsym,
+                mpol=solver_boundary.mpol,
+                ntor=solver_boundary.ntor,
+                ntheta=ntheta,
+                nphi=nphi,
+                range=range_surface,
+            )
 
             # Transfer boundary shape data from the solver to the ParameterArray:
             ntor = solver_boundary.ntor
@@ -422,17 +498,23 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
             self.need_to_run_code = True
         else:
             # Initialized from a wout file, so not runnable.
-            self._boundary = SurfaceRZFourier.from_wout(filename, nphi=nphi, ntheta=ntheta, range=range_surface)
+            self._boundary = SurfaceRZFourier.from_wout(
+                filename, nphi=nphi, ntheta=ntheta, range=range_surface
+            )
             self.output_file = filename
             self.load_wout()
 
         # Handle a few variables that are not Parameters:
         x0 = self.get_dofs()
         fixed = np.full(len(x0), True)
-        names = ['phiedge', 'curtor', 'pres_scale']
-        super().__init__(x0=x0, fixed=fixed, names=names,
-                         depends_on=[self._boundary],
-                         external_dof_setter=Vmec.set_dofs)
+        names = ["phiedge", "curtor", "pres_scale"]
+        super().__init__(
+            x0=x0,
+            fixed=fixed,
+            names=names,
+            depends_on=[self._boundary],
+            external_dof_setter=Vmec.set_dofs,
+        )
 
         if not self.runnable:
             # This next line must come after Optimizable.__init__
@@ -441,20 +523,24 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
 
     @property
     def solver(self) -> VmecSolverProtocol[IndataT, WoutT]:
-        """ The VMEC backend, for its own settings. """
+        """The VMEC backend, for its own settings."""
         return self._require_solver
 
     @property
     def _require_solver(self) -> VmecSolverProtocol[IndataT, WoutT]:
         if self._solver is None:
-            raise AttributeError("This Vmec object was initialized from a wout file, "
-                                 "so it has no solver.")
+            raise AttributeError(
+                "This Vmec object was initialized from a wout file, "
+                "so it has no solver."
+            )
         return self._solver
 
     @property
     def indata(self) -> Any:
         if self._solver is None:
-            raise AttributeError('Cannot access indata for a Vmec object that was initialized from a wout file.')
+            raise AttributeError(
+                "Cannot access indata for a Vmec object that was initialized from a wout file."
+            )
         return self._solver.indata
 
     @property
@@ -528,7 +614,7 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
     @boundary.setter
     def boundary(self, boundary):
         if boundary is not self._boundary:
-            logging.debug('Replacing surface in boundary setter')
+            logging.debug("Replacing surface in boundary setter")
             self.remove_parent(self._boundary)
             self._boundary = boundary
             self.append_parent(boundary)
@@ -541,7 +627,7 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
     @pressure_profile.setter
     def pressure_profile(self, pressure_profile):
         if pressure_profile is not self._pressure_profile:
-            logging.debug('Replacing pressure_profile in setter')
+            logging.debug("Replacing pressure_profile in setter")
             if self._pressure_profile is not None:
                 self.remove_parent(self._pressure_profile)
             self._pressure_profile = pressure_profile
@@ -556,7 +642,7 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
     @current_profile.setter
     def current_profile(self, current_profile):
         if current_profile is not self._current_profile:
-            logging.debug('Replacing current_profile in setter')
+            logging.debug("Replacing current_profile in setter")
             if self._current_profile is not None:
                 self.remove_parent(self._current_profile)
             self._current_profile = current_profile
@@ -571,7 +657,7 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
     @iota_profile.setter
     def iota_profile(self, iota_profile):
         if iota_profile is not self._iota_profile:
-            logging.debug('Replacing iota_profile in setter')
+            logging.debug("Replacing iota_profile in setter")
             if self._iota_profile is not None:
                 self.remove_parent(self._iota_profile)
             self._iota_profile = iota_profile
@@ -584,8 +670,13 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
             # Use default values from vmec_input
             return np.array([1.0, 0.0, 1.0])
         else:
-            return np.array([self._require_solver.phiedge, self._require_solver.curtor,
-                             self._require_solver.pres_scale])
+            return np.array(
+                [
+                    self._require_solver.phiedge,
+                    self._require_solver.curtor,
+                    self._require_solver.pres_scale,
+                ]
+            )
 
     def set_dofs(self, x):
         if self.runnable:
@@ -614,7 +705,9 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
         as a ``SurfaceRZFourier``.
         """
         if not self.runnable:
-            raise RuntimeError('Cannot access indata for a Vmec object that was initialized from a wout file.')
+            raise RuntimeError(
+                "Cannot access indata for a Vmec object that was initialized from a wout file."
+            )
         # Convert boundary to RZFourier if needed:
         boundary_RZFourier = self.boundary.to_RZFourier()
         self._require_solver.boundary = self._to_vmec_boundary(boundary_RZFourier)
@@ -629,9 +722,13 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
 
     @staticmethod
     def _to_vmec_boundary(surface):
-        boundary = VmecBoundary(nfp=surface.nfp, stellsym=surface.stellsym,
-                                mpol=surface.mpol, ntor=surface.ntor,
-                                surface=surface)
+        boundary = VmecBoundary(
+            nfp=surface.nfp,
+            stellsym=surface.stellsym,
+            mpol=surface.mpol,
+            ntor=surface.ntor,
+            surface=surface,
+        )
         for m in range(surface.mpol + 1):
             for n in range(-surface.ntor, surface.ntor + 1):
                 boundary.rbc[FourierMode(m, n)] = surface.get_rc(m, n)
@@ -672,7 +769,9 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
             return
 
         if not self.runnable:
-            raise RuntimeError('Cannot run a Vmec object that was initialized from a wout file.')
+            raise RuntimeError(
+                "Cannot run a Vmec object that was initialized from a wout file."
+            )
 
         self.set_indata()
 
@@ -682,7 +781,7 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
         self.need_to_run_code = False
 
     def _set_grids(self):
-        """ Radial grids from ``wout.ns``; ``s_half_grid`` has no leading 0. """
+        """Radial grids from ``wout.ns``; ``s_half_grid`` has no leading 0."""
         self.s_full_grid = np.linspace(0, 1, self.wout.ns)
         self.ds = self.s_full_grid[1] - self.s_full_grid[0]
         self.s_half_grid = self.s_full_grid[1:] - 0.5 * self.ds
@@ -766,8 +865,9 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
         self.run()
 
         # Fit a linear polynomial:
-        poly = np.polynomial.Polynomial.fit(self.s_half_grid,
-                                            self.wout.iotas[1:], deg=1)
+        poly = np.polynomial.Polynomial.fit(
+            self.s_half_grid, self.wout.iotas[1:], deg=1
+        )
         # Return the slope:
         return poly.deriv()(0)
 
@@ -842,6 +942,12 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
         well = (dVds_s0 - dVds_s1) / dVds_s0
         return well
 
-    return_fn_map = {'aspect': aspect, 'volume': volume, 'iota_axis': iota_axis,
-                     'iota_edge': iota_edge, 'mean_iota': mean_iota,
-                     'mean_shear': mean_shear, 'vacuum_well': vacuum_well}
+    return_fn_map = {
+        "aspect": aspect,
+        "volume": volume,
+        "iota_axis": iota_axis,
+        "iota_edge": iota_edge,
+        "mean_iota": mean_iota,
+        "mean_shear": mean_shear,
+        "vacuum_well": vacuum_well,
+    }
