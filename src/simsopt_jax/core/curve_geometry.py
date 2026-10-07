@@ -50,6 +50,7 @@ from .specs import (
 )
 
 __all__ = [
+    "curve_filament_frame_from_dofs",
     "curve_gamma_and_dash_from_dofs",
     "curve_gamma_and_dash_from_spec",
     "curve_gamma_vjp_from_dofs",
@@ -480,7 +481,14 @@ def _curve_filament_geometry_from_dofs(spec: CurveFilamentSpec, dofs):
     return gamma, gammadash, gammadashdash
 
 
-def _curve_filament_gamma_and_dash_from_dofs(spec: CurveFilamentSpec, dofs):
+def curve_filament_frame_from_dofs(spec: CurveFilamentSpec, dofs) -> tuple[jax.Array, ...]:
+    """Return the underlying curve and rotated frame of a finite-build filament.
+
+    The result is ``(gamma, gammadash, gammadashdash, normal, binormal,
+    normal_dash, binormal_dash)`` of the filament's base curve; the filament
+    is ``gamma + dn * normal + db * binormal`` and its tangent
+    ``gammadash + dn * normal_dash + db * binormal_dash``.
+    """
     base_dofs = _mapped_input_dofs(spec.base_curve_map, dofs)
     alpha, alphadash = _rotation_alpha_and_dash_from_dofs(
         spec.rotation,
@@ -522,6 +530,13 @@ def _curve_filament_gamma_and_dash_from_dofs(spec: CurveFilamentSpec, dofs):
             alpha,
             alphadash,
         )
+    return gamma, gammadash, gammadashdash, normal, binormal, normal_dash, binormal_dash
+
+
+def _curve_filament_gamma_and_dash_from_dofs(spec: CurveFilamentSpec, dofs):
+    gamma, gammadash, _gammadashdash, normal, binormal, normal_dash, binormal_dash = (
+        curve_filament_frame_from_dofs(spec, dofs)
+    )
     dn = _runtime_scalar(spec.dn, reference=normal)
     db = _runtime_scalar(spec.db, reference=binormal)
     return (
