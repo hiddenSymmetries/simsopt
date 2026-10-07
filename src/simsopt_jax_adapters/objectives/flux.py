@@ -77,12 +77,14 @@ class SquaredFluxJAX(Optimizable):
         self.target = (
             np.zeros(normal.shape[:2]) if target is None else np.ascontiguousarray(target)
         )
-        self._surface_geometry = make_fixed_surface_flux_spec(
+        surface_geometry = make_fixed_surface_flux_spec(
             points=points,
             normal=normal,
             target=self.target,
             definition=definition,
         )
+        self._surface_points = surface_geometry.points
+        self._surface_normal = surface_geometry.normal
         self._surface_dofs_fingerprint = _surface_dofs_fingerprint(surface)
         field.set_points(points)
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[field])
@@ -99,8 +101,8 @@ class SquaredFluxJAX(Optimizable):
         ``target`` and ``definition``."""
         self._raise_if_surface_changed()
         return make_fixed_surface_flux_spec(
-            points=self._surface_geometry.points,
-            normal=self._surface_geometry.normal,
+            points=self._surface_points,
+            normal=self._surface_normal,
             target=self.target,
             definition=self.definition,
         )

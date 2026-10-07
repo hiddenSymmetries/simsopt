@@ -22,6 +22,7 @@ from simsopt.geo import (
     SurfaceRZFourier,
     create_equally_spaced_curves,
 )
+from simsopt_jax.backend import set_backend
 from simsopt_jax_adapters.geo import (
     CurveCurveDistanceJAX,
     CurveLengthJAX,
@@ -113,12 +114,17 @@ def _partials(objective: Optimizable) -> Derivative:
     return cast(Callable[..., Derivative], objective.dJ)(partials=True)
 
 
-def _assert_matches_native(name: str, native: Optimizable, adapter: Optimizable) -> None:
+def _assert_matches_native_including_nans(
+    name: str, native: Optimizable, adapter: Optimizable, *, active: bool = False,
+) -> None:
+    """Value, free gradient and partials equal to native, non-finite entries included."""
     native_value = float(native.J())
-    assert native_value > 0.0, f"{name} must be active at the test state"
+    if active:
+        assert native_value > 0.0, f"{name} must be active at the test state"
     np.testing.assert_allclose(adapter.J(), native_value, rtol=1e-12, atol=1e-14, err_msg=name)
     native_gradient = native.dJ()
-    assert np.all(np.isfinite(native_gradient)), name
+    if active:
+        assert np.all(np.isfinite(native_gradient)), name
     np.testing.assert_allclose(
         adapter.dJ(), native_gradient, rtol=1e-11, atol=1e-13, err_msg=f"{name} free gradient"
     )
@@ -136,7 +142,7 @@ def _assert_matches_native(name: str, native: Optimizable, adapter: Optimizable)
 def test_penalties_match_native_values_gradients_and_partials(shared_curve):
     for name, native, adapter in _all_objectives(shared_curve=shared_curve):
         assert adapter.dof_names == native.dof_names, name
-        _assert_matches_native(name, native, adapter)
+        _assert_matches_native_including_nans(name, native, adapter, active=True)
 
 
 def test_penalty_gradients_match_central_differences():
@@ -158,7 +164,7 @@ def test_penalty_gradients_match_central_differences():
 def test_penalties_follow_dof_changes_like_native():
     for name, native, adapter in _all_objectives():
         adapter.x = np.asarray(adapter.x) + 0.01
-        _assert_matches_native(name, native, adapter)
+        _assert_matches_native_including_nans(name, native, adapter, active=True)
 
 
 def test_curve_surface_distance_depends_on_curves_only():
@@ -217,13 +223,107 @@ def test_curve_curve_distance_follows_num_basecurves():
     base, curves = _curves()
     native = CurveCurveDistance(curves, _CC_THRESHOLD, num_basecurves=1)
     adapter = CurveCurveDistanceJAX(curves, _CC_THRESHOLD, num_basecurves=1)
-    _assert_matches_native("num_basecurves=1", native, adapter)
+    _assert_matches_native_including_nans("num_basecurves=1", native, adapter, active=True)
     value = adapter.J()
     native.num_basecurves = adapter.num_basecurves = len(base)
     # Native refreshes its candidate pairs only after a DOF change.
     native.recompute_bell()
-    _assert_matches_native("num_basecurves=3", native, adapter)
+    _assert_matches_native_including_nans("num_basecurves=3", native, adapter, active=True)
     assert adapter.J() > value
+
+
+@pytest.mark.parametrize("objective_index", [0, 1, 2], ids=["curve_curve", "downsampled", "curve_surface"])
+def test_distance_evaluations_share_one_native_candidate_search(monkeypatch, objective_index):
+    base, curves = _curves()
+    name, native, adapter = _distance_objectives(curves, _surface(), len(base))[objective_index]
+    searches = []
+    search = adapter._candidates
+
+    def counted_search(samples):
+        searches.append(None)
+        return search(samples)
+
+    monkeypatch.setattr(adapter, "_candidates", counted_search)
+    for _ in range(2):
+        _assert_matches_native_including_nans(name, native, adapter, active=True)
+        np.testing.assert_allclose(adapter.shortest_distance(), native.shortest_distance(), rtol=1e-14)
+    assert len(searches) == 1
+
+
+@pytest.mark.parametrize("change", ["free_dofs", "fixed_dofs", "threshold", "downsample", "base_count", "grid", "backend"])
+def test_curve_curve_snapshot_follows_geometry_parameters_and_placement(monkeypatch, change):
+    base, curves = _curves()
+    adapter = CurveCurveDistanceJAX(curves, _CC_THRESHOLD, num_basecurves=len(base))
+    adapter.J()
+    searches = []
+    search = adapter._candidates
+
+    def counted_search(samples):
+        searches.append(None)
+        return search(samples)
+
+    monkeypatch.setattr(adapter, "_candidates", counted_search)
+    if change == "free_dofs":
+        base[0].x = np.asarray(base[0].x) + 0.01
+    elif change == "fixed_dofs":
+        base[0].set("xc(0)", base[0].get("xc(0)") + 0.01)
+    elif change == "threshold":
+        adapter.minimum_distance = 0.5
+    elif change == "downsample":
+        adapter.downsample = 3
+    elif change == "base_count":
+        adapter.num_basecurves = 1
+    elif change == "grid":
+        curves[0] = CurveXYZFourier(np.linspace(0, 1, 30, endpoint=False) + 0.013, 3, dofs=base[0].dofs)
+    else:
+        set_backend("jax", device="cpu", intent="fast")
+    value, gradient, shortest = adapter.J(), adapter.dJ(), adapter.shortest_distance()
+    assert len(searches) == 1
+    fresh = CurveCurveDistanceJAX(
+        curves, adapter.minimum_distance, adapter.num_basecurves, adapter.downsample,
+    )
+    np.testing.assert_array_equal(value, fresh.J())
+    # A stale cache would be off by O(1); GPU reductions are not bitwise run to run, so the
+    # gradient is compared at a few ulp.
+    np.testing.assert_allclose(gradient, fresh.dJ(), rtol=1e-13, atol=0)
+    np.testing.assert_array_equal(shortest, fresh.shortest_distance())
+
+
+@pytest.mark.parametrize("change", ["surface_dofs", "surface_grid", "normal_only", "tangent_only", "threshold"])
+def test_curve_surface_snapshot_follows_surface_and_operand_changes(monkeypatch, change):
+    _, curves = _curves()
+    surface = _surface()
+    adapter = CurveSurfaceDistanceJAX(curves, surface, _CS_THRESHOLD)
+    adapter.J()
+    searches = []
+    search = adapter._candidates
+
+    def counted_search(samples):
+        searches.append(None)
+        return search(samples)
+
+    monkeypatch.setattr(adapter, "_candidates", counted_search)
+    if change == "surface_dofs":
+        surface.set_rc(1, 0, 0.35)
+    elif change == "surface_grid":
+        adapter.surface = SurfaceRZFourier.from_nphi_ntheta(nphi=9, ntheta=10, nfp=2, range="half period")
+        adapter.surface.local_full_x = surface.local_full_x
+    elif change == "normal_only":
+        normal = surface.normal().copy() * 1.01
+        monkeypatch.setattr(surface, "normal", lambda: normal)
+    elif change == "tangent_only":
+        tangent = curves[0].gammadash().copy() * 1.01
+        monkeypatch.setattr(curves[0], "gammadash", lambda: tangent)
+    else:
+        adapter.minimum_distance = 0.3
+    value, gradient, shortest = adapter.J(), adapter.dJ(), adapter.shortest_distance()
+    assert len(searches) == 1
+    fresh = CurveSurfaceDistanceJAX(curves, adapter.surface, adapter.minimum_distance)
+    np.testing.assert_array_equal(value, fresh.J())
+    # A stale cache would be off by O(1); GPU reductions are not bitwise run to run, so the
+    # gradient is compared at a few ulp.
+    np.testing.assert_allclose(gradient, fresh.dJ(), rtol=1e-13, atol=0)
+    np.testing.assert_array_equal(shortest, fresh.shortest_distance())
 
 
 def test_inactive_distance_terms_have_finite_zero_gradients():
@@ -236,22 +336,9 @@ def test_inactive_distance_terms_have_finite_zero_gradients():
     curves = [*curves, point]
     surface = _surface()
     for name, native, adapter in _distance_objectives(curves, surface, len(base)):
-        _assert_matches_native(name, native, adapter)
+        _assert_matches_native_including_nans(name, native, adapter, active=True)
         point_gradient = cast(np.ndarray, _partials(adapter)(point))
         assert np.all(np.isfinite(point_gradient)) and not np.any(point_gradient), name
-
-
-def _assert_matches_native_including_nans(name: str, native: Optimizable, adapter: Optimizable) -> None:
-    """Value, free gradient and partials equal to native, non-finite entries included."""
-    np.testing.assert_allclose(adapter.J(), float(native.J()), rtol=1e-12, atol=1e-14, err_msg=name)
-    np.testing.assert_allclose(adapter.dJ(), native.dJ(), rtol=1e-11, atol=1e-13, err_msg=name)
-    native_partials, adapter_partials = _partials(native), _partials(adapter)
-    assert set(adapter_partials.data) == set(native_partials.data), name
-    for owner, expected in native_partials.data.items():
-        np.testing.assert_allclose(
-            adapter_partials.data[owner], expected, rtol=1e-11, atol=1e-13,
-            err_msg=f"{name} partials of {owner.name}",
-        )
 
 
 def test_distance_terms_skip_exactly_the_native_non_candidates():
@@ -341,4 +428,4 @@ def test_penalties_make_no_implicit_transfers():
             adapter.J()
             adapter.dJ()
     for name, native, adapter in objectives:
-        _assert_matches_native(name, native, adapter)
+        _assert_matches_native_including_nans(name, native, adapter, active=True)

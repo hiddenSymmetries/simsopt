@@ -8,9 +8,9 @@ dependencies, ``Derivative`` (fixed and free partials of the curve DOFs) and
 the geometry moves to the active JAX device and the gradients back through
 explicit transfers, and the penalty with its gradient runs as one jitted JAX
 program. Curvature is computed from ``gammadash`` and ``gammadashdash`` in that
-program rather than by the curve. Distance penalties evaluate every point pair
-instead of the native C++ candidate culling, which only skips pairs whose
-penalty is zero. For C++ curves (and their rotated copies) these paths make no
+program rather than by the curve. Distance penalties use the native C++
+candidate search, then evaluate every point pair within each selected pair.
+For C++ curves (and their rotated copies) these paths make no
 implicit transfer; JAX-backed native curves (``JaxCurve`` subclasses) still
 compute their own geometry and VJPs with implicit transfers.
 """
@@ -27,6 +27,7 @@ from scipy.spatial.distance import cdist
 import simsoptpp as sopp
 from simsopt._core.derivative import derivative_dec
 from simsopt._core.optimizable import Optimizable
+from simsopt_jax.backend.runtime import get_backend_policy, get_runtime_jax_device
 from simsopt_jax.core._math_utils import as_jax_array as _as_jax_array
 from simsopt_jax.core._math_utils import as_jax_float64 as _as_jax_float64
 from simsopt_jax.core.curve_kernels import (
@@ -144,6 +145,24 @@ def _class_stacked_geometry(curves, class_members, downsample):
     )
 
 
+def _array_snapshot_key(values) -> tuple[tuple[int, ...], str, bytes]:
+    array = host_array(values)
+    return array.shape, array.dtype.str, array.tobytes()
+
+
+def _distance_snapshot_key(curves, minimum_distance) -> tuple[object, ...]:
+    """Exact geometry and placement identity, including grids and fixed curve DOFs."""
+    return (
+        get_backend_policy(), get_runtime_jax_device(),
+        _array_snapshot_key(minimum_distance),
+        tuple(
+            (_array_snapshot_key(curve.gamma()), _array_snapshot_key(curve.gammadash()),
+             _array_snapshot_key(curve.quadpoints))
+            for curve in curves
+        ),
+    )
+
+
 def _class_geometry_derivative(curves, class_members, class_dgammas, class_dgammadashes, downsample):
     """Scatter per-class geometry cotangents back to the curves' coefficient derivatives."""
     class_dgammas, class_dgammadashes = host_tree(
@@ -257,6 +276,29 @@ class _CurvePairPlan:
     batches: tuple[_CurvePairBatch, ...]
 
 
+@dataclass(frozen=True)
+class _CurveCurveSnapshot:
+    """One exact-state native candidate selection and its placed penalty operands."""
+
+    key: tuple[object, ...]
+    plan: _CurvePairPlan
+    candidates: tuple[tuple[int, int], ...]
+    operands: tuple[tuple[jax.Array, ...], tuple[jax.Array, ...], jax.Array, tuple[jax.Array, ...]]
+
+
+@dataclass(frozen=True)
+class _CurveSurfaceSnapshot:
+    """One exact-state selection including the independently mutable surface geometry."""
+
+    key: tuple[object, ...]
+    class_members: tuple[tuple[int, ...], ...]
+    candidates: tuple[tuple[int, int], ...]
+    operands: tuple[
+        tuple[jax.Array, ...], tuple[jax.Array, ...], tuple[jax.Array, ...],
+        jax.Array, jax.Array, jax.Array,
+    ]
+
+
 def _curve_pairs(num_curves: int, num_basecurves: int):
     """The native ``CurveCurveDistance`` pairs ``(i, j)``, ``j < min(i, num_basecurves)``."""
     return tuple(
@@ -361,6 +403,7 @@ class CurveCurveDistanceJAX(Optimizable):
         self.minimum_distance = minimum_distance
         self.num_basecurves = num_basecurves or len(curves)
         self.downsample = downsample
+        self._distance_snapshot: _CurveCurveSnapshot | None = None
         super().__init__(depends_on=curves)
 
     def _samples(self):
@@ -372,30 +415,41 @@ class CurveCurveDistanceJAX(Optimizable):
             samples, self.minimum_distance, self.num_basecurves
         )
 
-    def _operands(self):
+    def _snapshot(self) -> _CurveCurveSnapshot:
+        key = _distance_snapshot_key(self.curves, self.minimum_distance) + (
+            self.num_basecurves, self.downsample,
+        )
+        cached = self._distance_snapshot
+        if cached is not None and cached.key == key:
+            return cached
         samples = self._samples()
         plan = _curve_pair_plan(
             tuple(int(sample.shape[0]) for sample in samples), self.num_basecurves
         )
-        selected = {tuple(pair) for pair in self._candidates(samples)}
+        candidates = tuple(tuple(pair) for pair in self._candidates(samples))
+        selected = set(candidates)
         class_gammas, class_gammadashes = _class_stacked_geometry(
             self.curves, plan.class_members, self.downsample
         )
         batch_candidates = tuple(
             _flags([pair in selected for pair in batch.pairs]) for batch in plan.batches
         )
-        return plan, (
-            class_gammas,
-            class_gammadashes,
-            _as_jax_float64(self.minimum_distance),
-            batch_candidates,
+        snapshot = _CurveCurveSnapshot(
+            key, plan, candidates,
+            (class_gammas, class_gammadashes, _as_jax_float64(self.minimum_distance), batch_candidates),
         )
+        self._distance_snapshot = snapshot
+        return snapshot
+
+    def _operands(self):
+        snapshot = self._snapshot()
+        return snapshot.plan, snapshot.operands
 
     def shortest_distance(self):
         """The native result: the minimum over the native candidate pairs and the
         threshold, or over all pairs ``j < i`` when there is no candidate."""
         samples = self._samples()
-        candidates = self._candidates(samples)
+        candidates = self._snapshot().candidates
         pairs = candidates or _curve_pairs(len(samples), len(samples))
         distances = [np.min(cdist(samples[i], samples[j])) for i, j in pairs]
         return min([self.minimum_distance] + distances) if candidates else min(distances)
@@ -460,6 +514,7 @@ class CurveSurfaceDistanceJAX(Optimizable):
         self.curves = curves
         self.surface = surface
         self.minimum_distance = minimum_distance
+        self._distance_snapshot: _CurveSurfaceSnapshot | None = None
         super().__init__(depends_on=curves)
 
     def _candidates(self, surface_points):
@@ -468,16 +523,26 @@ class CurveSurfaceDistanceJAX(Optimizable):
             [curve.gamma() for curve in self.curves], [surface_points], self.minimum_distance
         )
 
-    def _operands(self):
+    def _snapshot(self) -> _CurveSurfaceSnapshot:
+        key = _distance_snapshot_key(self.curves, self.minimum_distance) + (
+            _array_snapshot_key(self.surface.gamma()),
+            _array_snapshot_key(self.surface.normal()),
+            _array_snapshot_key(self.surface.quadpoints_phi),
+            _array_snapshot_key(self.surface.quadpoints_theta),
+        )
+        cached = self._distance_snapshot
+        if cached is not None and cached.key == key:
+            return cached
         surface_points = self.surface.gamma().reshape((-1, 3))
         class_members = _quadrature_classes(
             tuple(int(curve.gamma().shape[0]) for curve in self.curves)
         )
-        selected = {i for i, _ in self._candidates(surface_points)}
+        candidates = tuple(tuple(pair) for pair in self._candidates(surface_points))
+        selected = {i for i, _ in candidates}
         class_gammas, class_gammadashes = _class_stacked_geometry(
             self.curves, class_members, 1
         )
-        return class_members, (
+        operands = (
             class_gammas,
             class_gammadashes,
             tuple(_flags([index in selected for index in members]) for members in class_members),
@@ -485,12 +550,19 @@ class CurveSurfaceDistanceJAX(Optimizable):
             _as_jax_float64(self.surface.normal().reshape((-1, 3))),
             _as_jax_float64(self.minimum_distance),
         )
+        snapshot = _CurveSurfaceSnapshot(key, class_members, candidates, operands)
+        self._distance_snapshot = snapshot
+        return snapshot
+
+    def _operands(self):
+        snapshot = self._snapshot()
+        return snapshot.class_members, snapshot.operands
 
     def shortest_distance(self):
         """The native result: the minimum over the native candidate curves and the
         threshold, or over all curves when there is no candidate."""
         surface_points = self.surface.gamma().reshape((-1, 3))
-        candidates = self._candidates(surface_points)
+        candidates = self._snapshot().candidates
         indices = [i for i, _ in candidates] or range(len(self.curves))
         distances = [np.min(cdist(self.curves[i].gamma(), surface_points)) for i in indices]
         return min([self.minimum_distance] + distances) if candidates else min(distances)

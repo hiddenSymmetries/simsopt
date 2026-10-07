@@ -202,8 +202,10 @@ def prepare_stage_two_config(
     )
 
 
-def _zero(reference: jax.Array) -> jax.Array:
-    return jnp.sum(reference[:0])
+def _target_excess(value: jax.Array, target: float | jax.Array, mode: str) -> jax.Array:
+    """The signed excess, clipped at zero for the native ``max`` target mode."""
+    excess = value - target
+    return jnp.maximum(excess, 0.0) if mode == "max" else excess
 
 
 def _length_penalty(
@@ -212,9 +214,7 @@ def _length_penalty(
     """``length_weight * L``, or ``length_weight * QuadraticPenalty(L, target, mode)``."""
     if config.length_target is None:
         return length_weight * total_length
-    excess = total_length - config.length_target
-    if config.length_target_mode == "max":
-        excess = jnp.maximum(excess, 0.0)
+    excess = _target_excess(total_length, config.length_target, config.length_target_mode)
     return 0.5 * length_weight * excess * excess
 
 
@@ -238,7 +238,7 @@ def _curve_curve_penalty(
         )
 
     against_curves = jax.vmap(pair, in_axes=(None, None, 0, 0))
-    total = _zero(gamma)
+    total = placement_zero(gamma)
     num_curves = int(gamma.shape[0])
     for index in range(1, min(num_base_curves, num_curves)):
         total = total + jnp.sum(
@@ -275,7 +275,7 @@ def stage_two_geometric_penalty(
     base_gammadash = gammadash[: config.num_base_curves]
     base_gammadashdash = gammadashdash[: config.num_base_curves]
     base_speed = jnp.linalg.norm(base_gammadash, axis=2)
-    result = _zero(gamma)
+    result = placement_zero(gamma)
 
     if config.length_weight is not None:
         lengths = jax.vmap(curve_length_from_incremental_arclength_pure)(base_speed)
@@ -299,9 +299,11 @@ def stage_two_geometric_penalty(
             mean_squared_curvature = jax.vmap(mean_squared_curvature_pure)(
                 base_kappa, base_gammadash
             )
-            excess = mean_squared_curvature - config.mean_squared_curvature_threshold
-            if config.mean_squared_curvature_target_mode == "max":
-                excess = jnp.maximum(excess, 0.0)
+            excess = _target_excess(
+                mean_squared_curvature,
+                config.mean_squared_curvature_threshold,
+                config.mean_squared_curvature_target_mode,
+            )
             result = result + (
                 0.5 * config.mean_squared_curvature_weight * jnp.sum(excess * excess)
             )

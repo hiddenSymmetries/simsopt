@@ -80,8 +80,10 @@ def _objectives(definition, target_kind="none", *, shared_dofs=False):
 
 
 @pytest.mark.parametrize("definition", _DEFINITIONS)
-@pytest.mark.parametrize("target_kind", ["none", "array"])
-@pytest.mark.parametrize("empty", [False, True], ids=["target", "empty_target"])
+@pytest.mark.parametrize(
+    "target_kind, empty", [("none", False), ("array", False), ("none", True)],
+    ids=["zero_target", "array_target", "empty_target"],
+)
 def test_integral_bdotn_matches_cpp(definition, target_kind, empty):
     rng = np.random.default_rng(5)
     B = rng.standard_normal((6, 7, 3))
