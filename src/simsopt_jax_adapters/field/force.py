@@ -18,6 +18,8 @@ torque objectives' coil lists are attributes read at every evaluation.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import jax
 import numpy as np
 from simsopt._core.derivative import Derivative, derivative_dec
@@ -115,6 +117,8 @@ class _CoilSetObjective(Optimizable):
     native, is the two source lists at construction.
     """
 
+    _operands: Callable[[], tuple]
+
     def __init__(self, target_coils, source_coils_coarse, source_coils_fine, downsample):
         self.target_coils, self.source_coils_coarse, self.source_coils_fine = (
             _target_and_source_coils(target_coils, source_coils_coarse, source_coils_fine, downsample)
@@ -128,6 +132,9 @@ class _CoilSetObjective(Optimizable):
 
     def _source_groups(self) -> tuple[coil_forces.CoilGroup, ...]:
         return tuple(_coil_group(coils) for coils in self._source_lists())
+
+    def _value(self, kernel):
+        return _host_float(kernel(*self._operands(), downsample=self.downsample))
 
     def _source_derivative(self, dsources) -> Derivative:
         total = Derivative()
@@ -187,9 +194,6 @@ class _LpObjective(_CoilSetObjective):
             _as_jax_float64(self._p),
             _as_jax_float64(self._threshold),
         )
-
-    def _value(self, kernel):
-        return _host_float(kernel(*self._operands(), downsample=self.downsample))
 
     def _derivative(self, gradient) -> Derivative:
         (dgammas, dgammadashs, dcurrents), dgammadashdashs, dsources = host_tree(
@@ -252,9 +256,6 @@ class _SquaredMeanObjective(_CoilSetObjective):
 
     def _operands(self):
         return _coil_group(self.target_coils), self._source_groups()
-
-    def _value(self, kernel):
-        return _host_float(kernel(*self._operands(), downsample=self.downsample))
 
     def _derivative(self, gradient) -> Derivative:
         dtargets, dsources = host_tree(
@@ -348,8 +349,7 @@ class NetFluxesJAX(Optimizable):
     """
 
     def __init__(self, target_coil, source_coils, downsample=1):
-        if not isinstance(source_coils, list):
-            source_coils = [source_coils]
+        source_coils = _as_coil_list(source_coils)
         self.target_coil = target_coil
         self.source_coils = [c for c in source_coils if c not in [target_coil]]
         if len(self.source_coils) == 0:

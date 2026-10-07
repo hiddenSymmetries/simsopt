@@ -26,6 +26,7 @@ from simsopt_jax.core import coil_forces
 from simsopt_jax.core._device_scalars import placement_zero
 from simsopt_jax.core.biotsavart import biot_savart_B
 from simsopt_jax.core.curve_geometry import (
+    _filament_offset,
     curve_filament_frame_from_dofs,
     curve_geometry_from_dofs,
 )
@@ -635,8 +636,8 @@ def stage_two_geometry(
             if id(curve) not in filament_geometry:
                 gamma, gammadash, _gammadashdash, normal, binormal, normal_dash, binormal_dash = geometry
                 filament_geometry[id(curve)] = (
-                    gamma + curve.dn * normal + curve.db * binormal,
-                    gammadash + curve.dn * normal_dash + curve.db * binormal_dash,
+                    _filament_offset(gamma, normal, binormal, curve.dn, curve.db),
+                    _filament_offset(gammadash, normal_dash, binormal_dash, curve.dn, curve.db),
                 )
             gamma, gammadash = filament_geometry[id(curve)]
         else:

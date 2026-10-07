@@ -136,7 +136,7 @@ def _centroid(gamma, gammadash):
 def _thresholded_lp(densities, gammadash_norms, p, threshold):
     """``(1/p) sum_i (1/n) sum_k max(density - threshold, 0)^p |gammadash|``."""
     npoints = densities.shape[1]
-    return jnp.sum(jnp.sum(jnp.maximum(densities - threshold, 0) ** p * gammadash_norms)) / npoints * (1.0 / p)
+    return jnp.sum(jnp.maximum(densities - threshold, 0) ** p * gammadash_norms) / npoints * (1.0 / p)
 
 
 def lp_force(
