@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import jax
 import jax.numpy as jnp
 
 from ._device_scalars import device_one, two_pi
@@ -80,24 +79,13 @@ def _fourier_basis_terms(quadpoints, order):
     return basis, dash_basis, dashdash_basis, dashdashdash_basis
 
 
-def _quadpoint_major(component_major):
-    """``(3, nquad)`` -> ``(nquad, 3)`` without changing how the product was summed.
-
-    Under ``jit`` XLA folds this transpose into the producing dot's output
-    layout, and on CPU the transposed-output dot sums in another order (about
-    one ulp from the eager result and native ``CurveXYZFourier``). The barrier
-    keeps the eager, row-major product, so compiled and eager geometry agree
-    bit for bit.
-    """
-    return jnp.moveaxis(jax.lax.optimization_barrier(component_major), 0, -1)
-
-
 def jaxfouriercurve_pure(dofs, quadpoints, order):
     """Return XYZ-Fourier curve positions."""
     dofs = _as_jax_float64(dofs)
     coeffs = jnp.reshape(dofs, (3, dofs.shape[0] // 3))
     basis, _, _, _ = _fourier_basis_terms(quadpoints, order)
-    return _quadpoint_major(coeffs @ basis)
+    gamma = coeffs @ basis
+    return jnp.moveaxis(gamma, 0, -1)
 
 
 def jaxfouriercurve_geometry_pure(dofs, quadpoints, order):
@@ -108,7 +96,11 @@ def jaxfouriercurve_geometry_pure(dofs, quadpoints, order):
         quadpoints,
         order,
     )
+    gamma = coeffs @ basis
+    gammadash = coeffs @ dash_basis
+    gammadashdash = coeffs @ dashdash_basis
+    gammadashdashdash = coeffs @ dashdashdash_basis
     return tuple(
-        _quadpoint_major(coeffs @ component_basis)
-        for component_basis in (basis, dash_basis, dashdash_basis, dashdashdash_basis)
+        jnp.moveaxis(component, 0, -1)
+        for component in (gamma, gammadash, gammadashdash, gammadashdashdash)
     )
