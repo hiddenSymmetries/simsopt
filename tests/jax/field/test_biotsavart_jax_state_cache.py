@@ -8,9 +8,12 @@ backend change must retire that state; native BiotSavart is the oracle.
 
 from jax_test_support import fixture_jax_runtime_guard  # noqa: F401
 
+import copy
 from typing import cast
 
+import jax.numpy as jnp
 import numpy as np
+import pytest
 
 from simsopt._core.derivative import Derivative
 from simsopt.field import BiotSavart, Coil, Current, coils_via_symmetries
@@ -220,3 +223,65 @@ def test_owner_updates_fingerprint_fixed_dofs_once(monkeypatch):
     field.B_vjp(_COTANGENT)(field)
     assert len(reads) == 1, f"{len(reads)} fixed-DOF fingerprints for one evaluation"
     _assert_field_matches_native(field, native)
+
+
+def _aligned_copy(points):
+    """A C-contiguous, 64-byte-aligned copy, which CPU JAX placement aliases instead of copying."""
+    raw = np.empty(points.size + 8)
+    offset = (-raw.ctypes.data % 64) // raw.itemsize
+    aligned = raw[offset:offset + points.size].reshape(points.shape)
+    aligned[...] = points
+    return aligned
+
+
+def test_set_points_owns_a_jax_point_set_that_aliases_a_numpy_buffer():
+    """Editing the caller's buffer after set_points moves neither the points nor B."""
+    curves = _base_curves()
+    field, native = _fields([Coil(curve, Current(1e5)) for curve in curves])
+    buffer = _aligned_copy(_POINTS)
+    points = jnp.asarray(buffer)
+    if next(iter(points.devices())).platform == "cpu":
+        assert np.shares_memory(np.asarray(points), buffer), "precondition: CPU placement aliases"
+    field.set_points(points)
+    field.B()
+
+    buffer += 0.3
+
+    np.testing.assert_array_equal(field.get_points_cart(), _POINTS)
+    _assert_field_matches_native(field, native)
+
+
+@pytest.mark.parametrize("make_copy", ["copy", "deepcopy_shared_coils"])
+def test_copies_follow_later_dof_changes(make_copy):
+    """A copy is a registered field over the coils: later DOF and layout changes reach it."""
+    curves = _base_curves()
+    currents = [Current(1e5), Current(-3e4)]
+    coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
+    field, native = _fields(coils)
+    field.B()
+    field.B_vjp(_COTANGENT)(field)
+    copied = (
+        copy.copy(field) if make_copy == "copy"
+        else copy.deepcopy(field, memo={id(field.coils): field.coils})
+    )
+    assert copied is not field
+    assert all(mine is theirs for mine, theirs in zip(copied.coils, field.coils, strict=True))
+    np.testing.assert_array_equal(copied.get_points_cart(), _POINTS)
+
+    currents[0].x = np.array([2e5])
+    curves[1].x = np.asarray(curves[1].x) + 2e-3
+    _assert_field_matches_native(copied, native)
+    _assert_field_matches_native(field, native)
+
+    curves[0].fix(0)
+    curves[0].set(0, curves[0].get(0) + 5e-3)
+    assert copied.dof_size == field.dof_size
+    _assert_field_matches_native(copied, native)
+
+
+def test_deepcopy_needs_deep_copyable_coils():
+    """simsopt coils are not deep-copyable, so neither is a field over them (as natively)."""
+    curves = _base_curves()
+    field, _native = _fields([Coil(curve, Current(1e5)) for curve in curves])
+    with pytest.raises(TypeError):
+        copy.deepcopy(field)

@@ -5,6 +5,7 @@ specs consumed by pure JAX geometry and Biot-Savart kernels. It does not
 implement the simsoptpp.MagneticField interface.
 """
 
+import copy
 from dataclasses import dataclass, replace
 from functools import partial
 from typing import Callable, NoReturn, cast
@@ -265,8 +266,11 @@ class BiotSavartFieldPullback:
 
 
 def _set_biot_savart_points(field, points):
-    # Host inputs are mutable; device placement can alias their storage on CPU.
-    if not isinstance(points, jax.Array):
+    # Field values are cached per point set, so the field owns its points: host
+    # inputs are mutable, and a CPU JAX array can alias a caller's NumPy buffer.
+    if isinstance(points, jax.Array):
+        points = jnp.array(points, copy=True)
+    else:
         points = np.array(points, copy=True, order="C")
     field._points_jax = _as_jax_float64(points)
     field._points_cyl_jax = None
@@ -751,6 +755,20 @@ class BiotSavartJAX(Optimizable):
             None if self._points_jax is None else self.get_points_cart()
         )
         return serialized
+
+    def __copy__(self):
+        """A new field over the same coils and points, registered for their notifications."""
+        return self._with_coils(self._coils)
+
+    def __deepcopy__(self, memo):
+        """A new field over deep copies of the coils (which simsopt coils do not support)."""
+        return self._with_coils(copy.deepcopy(self._coils, memo))
+
+    def _with_coils(self, coils):
+        field = type(self)(coils)
+        field._points_jax = self._points_jax
+        field._points_cyl_jax = self._points_cyl_jax
+        return field
 
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
