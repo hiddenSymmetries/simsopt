@@ -44,7 +44,7 @@ from simsopt.geo.surfaceobjectives import Area, AspectRatio, ToroidalFlux, Volum
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-from simsopt_jax.core._math_utils import as_jax_int32
+from simsopt_jax.backend.dtypes import explicit_device_array
 from simsopt_jax.core.boozer_problem import (
     BoozerLabelSpec,
     BoozerProblem,
@@ -55,7 +55,7 @@ from simsopt_jax_adapters.field.biotsavart_backend import BiotSavartJAX
 
 from .surface_specs import surface_spec_from_surface
 
-__all__ = ["boozer_exact_residual_rows", "boozer_problem"]
+__all__ = ["boozer_exact_residual_mask", "boozer_exact_residual_rows", "boozer_problem"]
 
 _LABEL_KINDS: dict[type, LabelKind] = {
     Volume: "volume",
@@ -97,11 +97,13 @@ def boozer_problem(
         label_coils, coils = list(label.biotsavart.coils), list(field.coils)
         if len(label_coils) != len(coils) or any(a is not b for a, b in zip(label_coils, coils)):
             raise ValueError("the ToroidalFlux label must use the field's coils.")
+    surface_spec = surface_spec_from_surface(surface)
+    label_surface_spec = surface_spec if label_surface is surface else surface_spec_from_surface(label_surface)
     return make_boozer_problem(
-        surface=surface_spec_from_surface(surface),
+        surface=surface_spec,
         coils=field.coil_set_spec(),
         label=BoozerLabelSpec(
-            surface=surface_spec_from_surface(label_surface),
+            surface=label_surface_spec,
             kind=kind,
             phi_index=label.idx if kind == "toroidal_flux" else 0,
         ),
@@ -110,12 +112,12 @@ def boozer_problem(
     )
 
 
-def boozer_exact_residual_rows(surface: SurfaceXYZTensorFourier) -> jax.Array:
-    """The residual rows of native ``solve_residual_equation_exactly_newton``,
-    for :func:`~simsopt_jax.core.boozer_problem.boozer_exact_residual`: native
-    ``get_stellsym_mask()`` per component, without the x residual at ``(0, 0)``
-    under stellarator symmetry. Raises where native does: for other surface
-    classes, and for stellarator-symmetric grids ``get_stellsym_mask()`` rejects.
+def boozer_exact_residual_mask(surface: SurfaceXYZTensorFourier) -> np.ndarray:
+    """The flat boolean ``mask`` of native ``solve_residual_equation_exactly_newton``
+    over the residuals: native ``get_stellsym_mask()`` per component, without
+    the x residual at ``(0, 0)`` under stellarator symmetry. Raises where native
+    does: for other surface classes, and for stellarator-symmetric grids
+    ``get_stellsym_mask()`` rejects.
     """
     if not isinstance(surface, SurfaceXYZTensorFourier):
         raise RuntimeError(
@@ -124,4 +126,15 @@ def boozer_exact_residual_rows(surface: SurfaceXYZTensorFourier) -> jax.Array:
     mask = np.repeat(surface.get_stellsym_mask()[..., None], 3, axis=2)
     if surface.stellsym:
         mask[0, 0, 0] = False
-    return as_jax_int32(np.flatnonzero(mask))
+    return mask.flatten()
+
+
+def boozer_exact_residual_rows(
+    surface: SurfaceXYZTensorFourier, reference: jax.Array | None = None
+) -> jax.Array:
+    """The indices of :func:`boozer_exact_residual_mask` as an int32 device
+    array, the rows :func:`~simsopt_jax.core.boozer_problem.boozer_exact_residual`
+    takes, placed like ``reference`` (such as a problem's ``target_label``)
+    or, without one, where the runtime places new arrays."""
+    rows = np.flatnonzero(boozer_exact_residual_mask(surface))
+    return explicit_device_array(rows, dtype=np.int32, reference=reference)
