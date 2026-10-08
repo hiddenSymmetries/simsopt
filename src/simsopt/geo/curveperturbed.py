@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import numpy as np
+from scipy.linalg import ldl
 from sympy import Symbol, lambdify, exp
 
 from .._core.json import GSONable
@@ -74,7 +75,6 @@ class GaussianSampler(GSONable):
         # So we use a LDLT decomposition instead. See als https://github.com/hiddenSymmetries/simsopt/issues/349
         # from scipy.linalg import sqrtm, ldl
         # self.L = np.real(sqrtm(cov_mat))
-        from scipy.linalg import ldl
         lu, d, _ = ldl(cov_mat)
         self.L = lu @ np.sqrt(np.maximum(d, 0))
 
@@ -177,7 +177,7 @@ class CurvePerturbed(sopp.Curve, Curve):
 
     def resample(self):
         self.sample.resample()
-        self.recompute_bell()
+        self.set_recompute_flag()
 
     def recompute_bell(self, parent=None):
         self.invalidate_cache()
