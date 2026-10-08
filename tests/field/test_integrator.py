@@ -11,6 +11,10 @@ lines (magnetic axes and island X- and O-points).
 """
 import unittest
 import numpy as np
+try:
+    from mpi4py import MPI
+except ImportError:
+    MPI = None
 
 from simsopt.field.magneticfieldclasses import ToroidalField, PoloidalField
 from simsopt.field.integrator import Integrator, SimsoptFieldlineIntegrator, ScipyFieldlineIntegrator
@@ -229,6 +233,27 @@ class TestIntegratorsCommonInterface(unittest.TestCase):
                 _, res_phi_hits = intg.compute_poincare_hits(RZ, n_transits=1, phis=[])
                 self.assertEqual(res_phi_hits[0].shape, (1, 5))
                 self.assertEqual(res_phi_hits[0][0, 1], -1)
+
+
+    @unittest.skipIf(MPI is None, "mpi4py not found")
+    def test_poincare_hits_mpi(self):
+        """
+        With a communicator, the field lines are distributed over the ranks and
+        the results gathered on all of them. The gathered results are those of
+        the serial computation, in the order of the start points.
+        """
+        RZ = np.array([[self.R0 + 0.05, 0.0], [self.R0 + 0.10, 0.02], [self.R0 + 0.15, -0.02]])
+        phis = np.linspace(0, 2*np.pi, 4, endpoint=False)
+        for intg in self.integrators:
+            with self.subTest(integrator=type(intg).__name__):
+                serial = intg.compute_poincare_hits(RZ, n_transits=2, phis=phis)
+                intg.comm = MPI.COMM_WORLD
+                parallel = intg.compute_poincare_hits(RZ, n_transits=2, phis=phis)
+                intg.comm = None
+                for serial_results, parallel_results in zip(serial, parallel):
+                    self.assertEqual(len(parallel_results), len(RZ))
+                    for serial_array, parallel_array in zip(serial_results, parallel_results):
+                        np.testing.assert_allclose(parallel_array, serial_array)
 
 
 class TestSimsoptFieldlineIntegrator(unittest.TestCase):
@@ -636,6 +661,29 @@ class TestPeriodicFieldline(unittest.TestCase):
         # to the axis, which returns to itself after a single field period
         with self.assertRaises(ObjectiveFailure):
             ScipyFieldlineIntegrator(bs).find_periodic_point(axis_guess, field_nfp=nfp, iota=(3, -7))
+
+    def test_find_periodic_point_failure(self):
+        """
+        In a purely poloidal field, field lines do not advance in phi, so there
+        is no return map to a phi plane: every integration fails and returns
+        NaN, and the root find raises ObjectiveFailure.
+        """
+        intg = ScipyFieldlineIntegrator(PoloidalField(1.0, 1.0, 1.0))
+        with self.assertRaises(ObjectiveFailure):
+            intg.find_periodic_point(np.array([1.2, 0.0]))
+
+    def test_periodic_fieldline_not_converged(self):
+        """
+        A single Newton step from a fit 1 cm away from the NCSX axis does not
+        reach the solver tolerance. The unconverged PeriodicFieldLine is still
+        returned, and a warning is logged.
+        """
+        _, _, ma, nfp, bs = get_data('ncsx')
+        start_xyz = ma.gamma()[0] + np.array([0.01, 0.0, 0.0])
+        with self.assertLogs('simsopt.field.integrator', level='WARNING'):
+            fieldline = ScipyFieldlineIntegrator(bs).periodic_fieldline(
+                start_xyz, order=ma.order, field_nfp=nfp, options={'newton_maxiter': 1})
+        self.assertFalse(fieldline.res['success'])
 
     def test_cylindrical_input(self):
         """
