@@ -1,0 +1,6 @@
+{
+  "include": ["src/simsopt_jax", "src/simsopt_jax_adapters", "tests/jax", "examples/2_Intermediate/stage_two_biotsavart_jax.py"],
+  "extraPaths": ["src"],
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic"
+}
