@@ -1,4 +1,6 @@
+import sys
 import unittest
+from unittest import mock
 import numpy as np
 
 from simsopt.field.magneticfieldclasses import ToroidalField
@@ -340,6 +342,118 @@ class TestPoincarePlotter3DBackends(unittest.TestCase):
         # Use show=False for trajectories; poincare skip show
         self.pp.plot_fieldline_trajectories_3d(engine='mayavi', show=False)
         self.pp.plot_poincare_in_3d(engine='mayavi', show=False)
+
+
+    def test_color_and_show(self):
+        """
+        A user-supplied color replaces the random colors, and show=True shows
+        the figure, for the matplotlib and plotly engines.
+        """
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+        except Exception:
+            self.skipTest('matplotlib not available')
+        with mock.patch('matplotlib.pyplot.show') as show:
+            self.pp.plot_fieldline_trajectories_3d(engine='matplotlib', color='blue', show=True)
+            self.pp.plot_poincare_in_3d(engine='matplotlib', color='blue', show=True)
+            self.assertEqual(show.call_count, 2)
+        try:
+            import plotly.graph_objects as go
+        except Exception:
+            self.skipTest('plotly not installed')
+        with mock.patch.object(go.Figure, 'show') as show:
+            self.pp.plot_fieldline_trajectories_3d(engine='plotly', color='blue', show=True)
+            self.pp.plot_poincare_in_3d(engine='plotly', color='blue', show=True)
+            self.assertEqual(show.call_count, 2)
+
+    def test_mayavi_3d_mocked(self):
+        """
+        The mayavi engine, with mayavi replaced by a mock so that the test
+        runs without it: one tube per field line and one set of points per
+        field line and plane, in random or given colors, with lost field
+        lines marked in red.
+        """
+        mayavi = mock.MagicMock()
+        with mock.patch.dict(sys.modules, {'mayavi': mayavi, 'mayavi.mlab': mayavi.mlab}):
+            mlab = mayavi.mlab
+            self.pp.plot_fieldline_trajectories_3d(engine='mayavi', show=True)
+            self.assertEqual(mlab.plot3d.call_count, len(self.start_points_RZ))
+            self.pp.plot_poincare_in_3d(engine='mayavi', show=True)
+            self.assertEqual(mlab.points3d.call_count, len(self.start_points_RZ)*len(self.pp.phis))
+            self.assertEqual(mlab.show.call_count, 2)
+            self.pp._lost = [True]
+            self.pp.plot_fieldline_trajectories_3d(engine='mayavi', color=(0, 0, 1), mark_lost=True, show=False)
+            self.pp.plot_poincare_in_3d(engine='mayavi', color=(0, 0, 1), mark_lost=True, show=False)
+            self.pp._lost = None
+            self.assertEqual(mlab.plot3d.call_args.kwargs['color'], (1, 0, 0))
+            self.assertEqual(mlab.points3d.call_args.kwargs['color'], (1, 0, 0))
+            self.assertEqual(mlab.show.call_count, 2)
+
+
+class TestPoincarePlotterRanks(unittest.TestCase):
+    """
+    Behaviour that does not depend on the field: MPI ranks other than 0,
+    invalid plane indices, and results provided without trajectories.
+    """
+
+    def setUp(self):
+        self.field = ToroidalField(1.2, 0.8)
+        self.start_points_RZ = np.array([[1.25, 0.0]])
+        self.intg = SimsoptFieldlineIntegrator(self.field, tmax=50.0, tol=1e-9)
+
+    def test_non_plotting_rank(self):
+        """
+        Only rank 0 plots and writes cache files. On other ranks the plot
+        methods return (None, None), and saving or clearing the cache does
+        nothing.
+        """
+        with ScratchDir('.'):
+            pp = PoincarePlotter(self.intg, self.start_points_RZ, phis=2, n_transits=1,
+                                 add_symmetry_planes=False, cache_file='cache.npz')
+            _ = pp.res_phi_hits
+            self.assertTrue(os.path.exists('cache.npz'))
+            pp.is_plotter = False
+            self.assertEqual(pp.plot_poincare_plane_idx(0), (None, None))
+            self.assertEqual(pp.plot_poincare_single(pp.phis[0]), (None, None))
+            self.assertEqual(pp.plot_poincare_all(), (None, None))
+            pp.save_cache(filename='other.npz')
+            self.assertFalse(os.path.exists('other.npz'))
+            pp.clear_cache()
+            self.assertTrue(os.path.exists('cache.npz'))
+
+    def test_plane_index_out_of_range(self):
+        """Asking for the hits on a plane that does not exist raises."""
+        pp = PoincarePlotter(self.intg, self.start_points_RZ, phis=2, n_transits=1, add_symmetry_planes=False)
+        with self.assertRaises(ValueError):
+            pp.plane_hits_cart(2)
+
+    def test_trajectories_computed_when_missing(self):
+        """
+        A plotter made from plane hits only computes the trajectories when
+        they are asked for.
+        """
+        _, res_phi_hits = self.intg.compute_poincare_hits(self.start_points_RZ, 1, phis=[0.0])
+        pp = PoincarePlotter.from_poincare_data(self.intg, self.start_points_RZ, res_phi_hits,
+                                                phis=[0.0], n_transits=1, add_symmetry_planes=False)
+        self.assertIsNone(pp._res_tys)
+        res_tys = pp.res_tys
+        self.assertEqual(len(res_tys), 1)
+        np.testing.assert_allclose(np.linalg.norm(res_tys[0][:, 1:3], axis=1), 1.25)
+
+    def test_fix_axes_title(self):
+        """fix_axes labels the axes and sets the title when one is given."""
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+        except Exception:
+            self.skipTest('matplotlib not available')
+        fig, ax = plt.subplots()
+        PoincarePlotter.fix_axes(ax, title='phi = 0')
+        self.assertEqual(ax.get_title(), 'phi = 0')
+        self.assertEqual(ax.get_xlabel(), 'R')
+        plt.close(fig)
 
 
 class TestPoincarePlotterSaveLoad(unittest.TestCase):
