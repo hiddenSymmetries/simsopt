@@ -57,6 +57,27 @@ class FieldlineTesting(unittest.TestCase):
         if pyevtk is not None:
             particles_to_vtk(res_tys, '/tmp/fieldlines')
 
+    def test_compute_fieldlines_phi0(self):
+        """
+        Field lines of a purely toroidal field are circles, so a field line
+        started at toroidal angle phi0 stays at its R and Z, and starts at
+        (R cos(phi0), R sin(phi0), Z). phi0 can be a single angle for all
+        field lines, or one angle per field line.
+        """
+        Bfield = ToroidalField(1.3, 0.8)
+        R0 = [1.1, 1.2, 1.4]
+        Z0 = [0.0, 0.05, -0.05]
+        for phi0 in [0.7, [0.3, 1.0, 2.5]]:
+            res_tys, _ = compute_fieldlines(Bfield, R0, Z0, tmax=10, phi0=phi0)
+            phi0_array = np.broadcast_to(phi0, (len(R0),))
+            for i in range(len(R0)):
+                np.testing.assert_allclose(res_tys[i][0, 1:4], [R0[i]*np.cos(phi0_array[i]),
+                                                               R0[i]*np.sin(phi0_array[i]), Z0[i]])
+                np.testing.assert_allclose(np.linalg.norm(res_tys[i][:, 1:3], axis=1), R0[i])
+                np.testing.assert_allclose(res_tys[i][:, 3], Z0[i], atol=1e-12)
+        with self.assertRaises(AssertionError):
+            compute_fieldlines(Bfield, R0, Z0, tmax=10, phi0=[0.1, 0.2])
+
     def test_poincare_tokamak(self):
         # Test a simple circular tokamak geometry that
         # consists of a superposition of a purely toroidal

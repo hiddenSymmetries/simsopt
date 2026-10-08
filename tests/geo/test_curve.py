@@ -213,8 +213,20 @@ class Testing(unittest.TestCase):
                 np.testing.assert_allclose(rz.x, ma.x, atol=1e-8)
                 np.testing.assert_allclose(rz.gamma(), ma.gamma(), atol=1e-8)
 
+        # by default, the CurveRZFourier has the order of the curve
+        rz = curve.to_RZFourier()
+        self.assertEqual(rz.order, curve.order)
+        self.assertEqual(len(rz.quadpoints), 4*(2*curve.order + 1)*nfp)
+
         with self.assertRaises(ValueError):
             CurveXYZFourierSymmetries(100, 1, 1, True, ntor=2).to_RZFourier()
+        # a curve that loops back in phi: the local rotation ys(1) changes phi
+        # faster than the curve advances around the torus
+        looping = CurveXYZFourierSymmetries(100, 1, 3, True)
+        looping.set('xc(0)', 1.0)
+        looping.set('ys(1)', -0.5)
+        with self.assertRaises(ValueError):
+            looping.to_RZFourier()
         with self.assertRaises(ValueError):
             CurveXYZFourierSymmetries(100, 1, 2, True).to_RZFourier(nfp=3)
 
