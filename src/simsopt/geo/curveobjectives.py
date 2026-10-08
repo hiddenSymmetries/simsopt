@@ -1,10 +1,10 @@
 from deprecated import deprecated
 
 import numpy as np
-from jax import grad
+from jax import device_get, device_put, grad
 import jax.numpy as jnp
 
-from .jit import jit
+from .jit import jit, native_jax_device
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec, Derivative
 import simsoptpp as sopp
@@ -40,23 +40,33 @@ class CurveLength(Optimizable):
 
     def __init__(self, curve):
         self.curve = curve
-        self.dJ_dl = jit(lambda l: grad(curve_length_pure)(l))
         super().__init__(depends_on=[curve])
 
     def J(self):
         """
-        This returns the value of the quantity.
+        This returns the value of the quantity: upstream's ``jnp.mean`` of the
+        incremental arclengths, evaluated through explicit transfers on the
+        device :func:`simsopt.geo.jit.native_jax_device` names.
         """
-        return curve_length_pure(self.curve.incremental_arclength())
+        return np.float64(
+            device_get(
+                curve_length_pure(
+                    device_put(self.curve.incremental_arclength(), native_jax_device())
+                )
+            )
+        )
 
     @derivative_dec
     def dJ(self):
-        """
-        This returns the derivative of the quantity with respect to the curve dofs.
-        """
-
+        """Return the derivative with respect to the curve DOFs."""
+        incremental_arclength = self.curve.incremental_arclength()
+        incremental_arclength_gradient = np.full_like(
+            incremental_arclength,
+            1.0 / incremental_arclength.size,
+        )
         return self.curve.dincremental_arclength_by_dcoeff_vjp(
-            self.dJ_dl(self.curve.incremental_arclength()))
+            incremental_arclength_gradient
+        )
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
