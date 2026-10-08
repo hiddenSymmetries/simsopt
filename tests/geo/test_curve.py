@@ -189,8 +189,15 @@ class Testing(unittest.TestCase):
             _ = CurveXYZFourierSymmetries(100, order, nfp, True, ntor=ntor, x0=np.ones(3*order+1))
 
     def test_curvexyzfouriersymmetries_to_RZFourier(self):
-        # fit the NCSX axis with a CurveXYZFourierSymmetries running in either
-        # direction, convert back, and compare with the original axis.
+        """
+        A CurveRZFourier is parametrized by the toroidal angle, a
+        CurveXYZFourierSymmetries by a general parameter. Fitting the NCSX axis
+        with a CurveXYZFourierSymmetries running in either direction (ntor=1 and
+        -1) and converting it back with to_RZFourier recovers the axis
+        coefficients. A curve that goes around the torus twice is not a
+        function of phi and cannot be converted, and the CurveRZFourier must
+        have a multiple of the curve's field periods.
+        """
         _, _, ma, nfp, _ = get_data('ncsx')
         order = ma.order + 2
         quadpoints = np.linspace(0, 1/nfp, 2*order+1, endpoint=False)
