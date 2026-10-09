@@ -117,6 +117,7 @@ def taylor_test(obj):
 class DerivativeTests(unittest.TestCase):
 
     def test_derivative_dec_keeps_name_and_doc(self):
+        """The decorator preserves the wrapped method's name and docstring."""
         def dJ(self):
             """The derivative."""
         decorated = derivative_dec(dJ)
@@ -124,6 +125,7 @@ class DerivativeTests(unittest.TestCase):
         self.assertEqual(decorated.__doc__, 'The derivative.')
 
     def test_no_free_dofs(self):
+        """After all DOFs are fixed, the derivative is an empty array."""
         opt = Opt(n=3)
         derivative = Derivative({opt: np.ones(3)})
         opt.fix_all()

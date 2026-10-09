@@ -194,6 +194,7 @@ class TestCoilSet(unittest.TestCase):
 
 class TestCoilSetSurfaceTarget(unittest.TestCase):
     def test_flux_and_cs_distance_penalty_taylor(self):
+        """The penalty exposes coil DOFs and its directional derivative error decreases."""
         # The surface is the target of the penalties, not a variable: the
         # combined penalty depends on the coil dofs only, with a consistent gradient.
         coilset = CoilSet()

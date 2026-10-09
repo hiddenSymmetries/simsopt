@@ -653,6 +653,7 @@ class JsonTest(unittest.TestCase):
         self.assertEqual(type(obj), dict)
 
     def test_redirect_to_another_module(self):
+        """The decoder redirects a legacy module/class pair to its mapped class."""
         redirect = {"old_module": {"old_class": {"@class": "GoodGSONClass", "@module": "core.test_json"}}}
         d = {"@class": "old_class", "@module": "old_module", "a": 1, "b": 1, "c": 1}
         with mock.patch.dict(GSONable.REDIRECT, redirect):
