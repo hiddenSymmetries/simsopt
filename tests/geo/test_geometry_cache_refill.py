@@ -60,9 +60,11 @@ class GeometryCacheRefillTests(unittest.TestCase):
                     f"{name}() did not change with the dofs; the test is vacuous")
 
     def test_curve_arrays_survive_a_dof_change(self):
+        """Held arrays stay unchanged, and refreshed curve values match the new DOFs."""
         self._check(_curve, CURVE_QUANTITIES)
 
     def test_surface_arrays_survive_a_dof_change(self):
+        """Held arrays stay unchanged, and refreshed surface values match the new DOFs."""
         self._check(_surface, SURFACE_QUANTITIES)
 
 

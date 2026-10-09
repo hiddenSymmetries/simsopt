@@ -28,6 +28,7 @@ def _curve_at(dofs):
 class CurvePlanarFourierJacobianCacheTests(unittest.TestCase):
 
     def test_jacobian_does_not_depend_on_the_dof_history(self):
+        """Cached Jacobians at new DOFs equal those from a fresh curve at those DOFs."""
         for name in JACOBIANS:
             with self.subTest(jacobian=name):
                 moved = _curve_at(FIRST_DOFS)

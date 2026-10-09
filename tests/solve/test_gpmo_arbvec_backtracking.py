@@ -61,6 +61,7 @@ def _run_verbose(K, nhistory, max_nMagnets, ndipoles=40):
 class GPMOArbVecBacktrackingTests(unittest.TestCase):
 
     def test_exactly_antiparallel_pair_is_removed_at_pi(self):
+        """At pi, backtracking clears an exactly antiparallel pair and retains the third magnet."""
         # premise: the rounded dot product does not reach cos(pi) = -1
         self.assertGreater(np.dot(UNIT_VECTOR, -UNIT_VECTOR), -1.0)
         x = _run(_two_placed_magnets_and_a_third(-UNIT_VECTOR))
@@ -69,6 +70,7 @@ class GPMOArbVecBacktrackingTests(unittest.TestCase):
         self.assertTrue(np.any(x[2] != 0.0), "the third magnet should stay placed")
 
     def test_nearly_antiparallel_pair_is_kept_at_pi(self):
+        """At pi, a nearly antiparallel pair is retained unchanged."""
         second = -UNIT_VECTOR.copy()
         second[0] = np.nextafter(second[0], 0.0)
         x = _run(_two_placed_magnets_and_a_third(second))
@@ -76,11 +78,13 @@ class GPMOArbVecBacktrackingTests(unittest.TestCase):
         np.testing.assert_array_equal(x[1], second)
 
     def test_general_threshold_still_removes_wide_angles(self):
+        """A 0.75*pi threshold removes the tested exactly antiparallel pair."""
         # below pi the cosine test is unchanged
         x = _run(_two_placed_magnets_and_a_third(-UNIT_VECTOR), thresh_angle=0.75 * np.pi)
         np.testing.assert_array_equal(x[:2], 0.0)
 
     def test_history_holds_every_record_when_printing_every_iteration(self):
+        """Verbose histories record every iteration and add a record at the magnet limit."""
         # K // nhistory = 1 prints every iteration: 1 + 23 records, plus 1 when
         # the magnet limit stops the run; nhistory + 2 = 14 used to be allocated.
         K, nhistory = 23, 12
@@ -98,6 +102,7 @@ class GPMOArbVecBacktrackingTests(unittest.TestCase):
                 np.testing.assert_array_equal(num_nonzeros[:24], np.arange(24))
 
     def test_history_has_nhistory_plus_2_records_for_a_full_run(self):
+        """A full verbose run stores nhistory + 2 records and ends with the returned magnets."""
         # K = 40, nhistory = 10 prints at k = 0, 4, ..., 36 and 39: 12 records.
         nhistory = 10
         objective_history, Bn_history, m_history, num_nonzeros, x = _run_verbose(
@@ -109,6 +114,7 @@ class GPMOArbVecBacktrackingTests(unittest.TestCase):
         np.testing.assert_array_equal(m_history[:, :, -1], x)
 
     def test_history_has_nhistory_plus_2_records_for_an_early_stop(self):
+        """An early stop leaves nhistory + 2 slots and stores the returned state at index 2."""
         # stopped by the magnet limit after 5 iterations: 3 records
         nhistory = 100
         objective_history, Bn_history, m_history, num_nonzeros, x = _run_verbose(1000, nhistory, 5)
@@ -119,6 +125,7 @@ class GPMOArbVecBacktrackingTests(unittest.TestCase):
         np.testing.assert_array_equal(m_history[:, :, 2], x)
 
     def test_history_beyond_int_is_rejected_before_allocating(self):
+        """History capacities of at least 2**31 records raise ValueError in both modes."""
         # each needs at least 2**31 records
         problem = _problem(np.ones((2, 1, 3)) / np.sqrt(3), np.zeros((2, 3)))
         for K, nhistory, verbose in ((INT_MAX - 1, 2**30, True), (INT_MAX, INT_MAX, True),
