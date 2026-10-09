@@ -44,6 +44,14 @@ simsopt.field.force module
    :undoc-members:
    :show-inheritance:
 
+simsopt.field.integrator module
+-------------------------------
+
+.. automodule:: simsopt.field.integrator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.field.magnetic\_axis\_helpers module
 --------------------------------------------
 
@@ -80,6 +88,14 @@ simsopt.field.normal\_field module
 ----------------------------------
 
 .. automodule:: simsopt.field.normal_field
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.field.poincareplotter module
+------------------------------------
+
+.. automodule:: simsopt.field.poincareplotter
    :members:
    :undoc-members:
    :show-inheritance:
