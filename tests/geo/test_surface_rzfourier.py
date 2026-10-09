@@ -1127,6 +1127,49 @@ class SurfaceRZFourierTests(unittest.TestCase):
         np.testing.assert_array_equal(copied.quadpoints_phi, [])
         np.testing.assert_array_equal(s.quadpoints_phi, [])
 
+    def test_copy_nfp_preserves_nearcanonical_phi(self):
+        """One-ULP custom nodes retain exact coordinates, including theta-only copies."""
+        for grid_range in (Surface.RANGE_FIELD_PERIOD, Surface.RANGE_HALF_PERIOD):
+            for nphi in (4, 17):
+                canonical = np.asarray(Surface.get_phi_quadpoints(nphi=nphi, nfp=3, range=grid_range))
+                for direction in (np.inf, -np.inf):
+                    phi = canonical.copy()
+                    phi[-1] = np.nextafter(phi[-1], direction)
+                    for options in ({}, {"quadpoints_theta": [0.1, 0.4, 0.7]}):
+                        with self.subTest(range=grid_range, nphi=nphi, direction=direction, options=options):
+                            s = SurfaceRZFourier(nfp=3, quadpoints_phi=phi)
+                            np.testing.assert_array_equal(s.quadpoints_phi, phi)
+                            self.assertFalse(np.array_equal(s.quadpoints_phi, canonical))
+                            original_dofs = s.get_dofs().copy()
+                            copied = s.copy(nfp=5, **options)
+                            np.testing.assert_array_equal(copied.quadpoints_phi, phi)
+                            np.testing.assert_array_equal(copied.get_dofs(), original_dofs)
+                            np.testing.assert_array_equal(s.quadpoints_phi, phi)
+                            copied.set_rc(0, 0, 2.0)
+                            np.testing.assert_array_equal(s.get_dofs(), original_dofs)
+
+    def test_copy_nfp_chain_preserves_canonical_phi(self):
+        """Canonical copies remain exact factory grids throughout an nfp chain."""
+        for grid_range in (Surface.RANGE_FIELD_PERIOD, Surface.RANGE_HALF_PERIOD):
+            with self.subTest(range=grid_range):
+                s = SurfaceRZFourier.from_nphi_ntheta(nphi=17, ntheta=19, nfp=3, range=grid_range)
+                original_phi = s.quadpoints_phi.copy()
+                copied5 = s.copy(nfp=5)
+                np.testing.assert_array_equal(copied5.quadpoints_phi, Surface.get_phi_quadpoints(
+                    nphi=17, nfp=5, range=grid_range))
+                copied7 = copied5.copy(nfp=7)
+                np.testing.assert_array_equal(copied7.quadpoints_phi, Surface.get_phi_quadpoints(
+                    nphi=17, nfp=7, range=grid_range))
+                np.testing.assert_array_equal(copied5.quadpoints_phi, Surface.get_phi_quadpoints(
+                    nphi=17, nfp=5, range=grid_range))
+                np.testing.assert_array_equal(copied7.quadpoints_theta, s.quadpoints_theta)
+                np.testing.assert_array_equal(copied7.get_dofs(), s.get_dofs())
+                np.testing.assert_array_equal(s.quadpoints_phi, original_phi)
+        s = SurfaceRZFourier.from_nphi_ntheta(nphi=17, ntheta=19, nfp=1, range=Surface.RANGE_FIELD_PERIOD)
+        np.testing.assert_array_equal(s.copy(nfp=5).quadpoints_phi, s.quadpoints_phi)
+        np.testing.assert_array_equal(s.copy(nfp=5, range=Surface.RANGE_FIELD_PERIOD).quadpoints_phi,
+                                      Surface.get_phi_quadpoints(nphi=17, nfp=5, range=Surface.RANGE_FIELD_PERIOD))
+
     def test_fixed_range(self):
         """
         Test that DOFs are fixed correctly by invoking fixed_range().

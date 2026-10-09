@@ -662,7 +662,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
          quadpoints_phi (NdArray[float]): phi grid points
          range (str): range of the gridpoints either 'full torus', 'field period' or 'half period'. Ignored if quadponts are provided.
 
-        Only canonical field/half-period phi grids are inferred when nfp changes.
+        Only exact canonical field/half-period phi grids are inferred when nfp changes.
         Full-torus, arbitrary, empty and singleton grids retain their coordinates;
         explicit destination grids, ranges and grid sizes take precedence.
 
@@ -714,10 +714,11 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         if (quadpoints_phi is None and kwargs["quadpoints_phi"] is default_quadpoints_phi
                 and nfp != self.nfp and othernphi > 1):
             for source_range in (Surface.RANGE_FULL_TORUS, Surface.RANGE_FIELD_PERIOD, Surface.RANGE_HALF_PERIOD):
-                if np.allclose(default_quadpoints_phi, Surface.get_phi_quadpoints(
-                        nphi=othernphi, range=source_range, nfp=self.nfp), rtol=0, atol=1e-14):
+                if np.array_equal(default_quadpoints_phi, Surface.get_phi_quadpoints(
+                        nphi=othernphi, range=source_range, nfp=self.nfp)):
                     if source_range != Surface.RANGE_FULL_TORUS:
-                        kwargs["quadpoints_phi"] = default_quadpoints_phi * self.nfp / nfp
+                        kwargs["quadpoints_phi"] = Surface.get_phi_quadpoints(
+                            nphi=othernphi, range=source_range, nfp=nfp)
                     break
         # create new surface in old resolution
         surf = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
