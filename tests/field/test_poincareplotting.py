@@ -1,3 +1,14 @@
+"""
+Tests for :mod:`simsopt.field.poincareplotter`.
+
+Most tests use :class:`~simsopt.field.magneticfieldclasses.ToroidalField`,
+whose field B = B0*R0/R points in the toroidal direction. Its field lines are
+circles of constant R and Z, so a field line crosses every toroidal plane once
+per transit, always at its start point (R, Z), and is never lost. The plotter
+results are then known exactly. Tests on the NCSX coils check the behaviour
+that needs a real field: invalidation of the results when the coils change,
+and the cache file.
+"""
 import sys
 import unittest
 from unittest import mock
@@ -13,9 +24,16 @@ import os
 
 
 class TestPoincarePlotterSimsopt(unittest.TestCase):
+    """
+    A plotter on the backend that wraps the C++ tracing routines, for two
+    field lines of the toroidal field, traced for 2 transits through 4 planes.
+    """
+
     def setUp(self):
-        """ set up a simple toroidal field and a plotter
-        with two fieldlines"""
+        """
+        Field lines at R0+2 cm and R0+5 cm on the midplane, crossing the planes
+        phi = 0, pi/2, pi and 3*pi/2.
+        """
         self.R0 = 1.25
         self.B0 = 0.9
         self.field = ToroidalField(self.R0, self.B0)
@@ -29,8 +47,9 @@ class TestPoincarePlotterSimsopt(unittest.TestCase):
 
     def test_res_properties_and_invariants(self):
         """
-        test that the results are of the correct shape
-        for the test parameters
+        There is one array of trajectories and one array of plane crossings per
+        field line. Every crossing of a field line of the toroidal field lies at
+        its start R and Z.
         """
         tys = self.pp.res_tys
         hits = self.pp.res_phi_hits
@@ -45,8 +64,9 @@ class TestPoincarePlotterSimsopt(unittest.TestCase):
 
     def test_plane_hits_methods(self):
         """
-        test that the plane hits are correctly 
-        deduced from the results
+        The crossings with a single plane are extracted per field line, in
+        Cartesian (x, y, z) and cylindrical (R, Z) coordinates. Every field line
+        crosses the plane phi=0.
         """
         # plane 0 exists since phis=4
         hits_cart = self.pp.plane_hits_cart(0)
@@ -60,6 +80,11 @@ class TestPoincarePlotterSimsopt(unittest.TestCase):
 
     def test_plotting_methods_matplotlib(self):
         # All plotting should be non-interactive and not raise
+        """
+        The cross sections can be plotted by plane index, by angle (which must be
+        one of the computed planes when recomputation is prevented), and all
+        together in a grid.
+        """
         try:
             import matplotlib  # noqa: F401
         except ImportError:
@@ -85,7 +110,8 @@ class TestPoincarePlotterSimsopt(unittest.TestCase):
 
     def test_setters(self):
         """
-        test that the setters for start points and phis work
+        The results belong to a set of start points and planes. Changing either
+        discards the results and marks them for recomputation.
         """
         self.pp.need_to_recompute = False  # reset flag
         # change start points
@@ -107,7 +133,8 @@ class TestPoincarePlotterSimsopt(unittest.TestCase):
 
     def test_randomcolors_and_lost(self):
         """
-        test some methbods used in the plotting
+        There is one RGB color per field line. No field line of the toroidal
+        field leaves the domain, so none is lost.
         """
         colors = self.pp.randomcolors
         self.assertEqual(colors.shape[0], self.start_points_RZ.shape[0])
@@ -117,8 +144,16 @@ class TestPoincarePlotterSimsopt(unittest.TestCase):
 
 
 class TestPoincarePlotterScipy(unittest.TestCase):
+    """
+    A plotter on the scipy backend, for three field lines of the toroidal
+    field on the single default plane phi=0.
+    """
+
     def setUp(self):
-        """set up a simple toroidal field and a plotter with three field lines using scipy integrator"""
+        """
+        Field lines 1, 3 and 5 cm outward from R0 on the midplane, traced with
+        tight tolerances.
+        """
         self.R0 = 1.1
         self.B0 = 0.7
         self.field = ToroidalField(self.R0, self.B0)
@@ -133,6 +168,11 @@ class TestPoincarePlotterScipy(unittest.TestCase):
         self.pp = PoincarePlotter(self.intg, self.start_points_RZ, phis=None, n_transits=2, add_symmetry_planes=False)
 
     def test_res_properties_and_plane_hits(self):
+        """
+        The scipy backend gives the same structure of results as the C++ one:
+        one array of trajectories and of crossings per field line, from which
+        the crossings with a single plane are extracted.
+        """
         tys = self.pp.res_tys
         hits = self.pp.res_phi_hits
         self.assertEqual(len(tys), self.start_points_RZ.shape[0])
@@ -145,6 +185,10 @@ class TestPoincarePlotterScipy(unittest.TestCase):
             self.assertEqual(len(hits_cyl), self.start_points_RZ.shape[0])
 
     def test_plotting_methods_matplotlib(self):
+        """
+        The cross section is plotted by index, by angle, and in a grid, from the
+        results of the scipy backend.
+        """
         try:
             import matplotlib  # noqa: F401
         except ImportError:
@@ -170,8 +214,9 @@ class TestPoincarePlotterScipy(unittest.TestCase):
 
     def test_raise_error(self):
         """
-        test that an error is raised when trying to plot a plane
-        that does not exist
+        There is only the plane phi=0: plane index 10 does not exist, and the
+        plane phi=0.123 has not been computed and may not be added when
+        recomputation is prevented.
         """
         with self.assertRaises(ValueError):
             self.pp.plot_poincare_plane_idx(10)  # out of bounds
@@ -180,7 +225,11 @@ class TestPoincarePlotterScipy(unittest.TestCase):
 
     def test_simple_plots(self):
         """
-        test that the simple plotting functions run without error
+        Plot options. A field line is marked lost by setting its terminating row
+        to idx=-2, as a stopping criterion would, and mark_lost draws it in red.
+        Asking for the new plane phi=0.123 adds it to the planes and recomputes
+        the crossings, and the cross section of a surface (the default circular
+        torus of SurfaceRZFourier) is drawn on top.
         """
         try:
             import matplotlib  # noqa: F401
@@ -217,9 +266,15 @@ class TestPoincarePlotterScipy(unittest.TestCase):
 
 
 class TestPoincarePlotterFactory(unittest.TestCase):
+    """
+    Constructing the integrator from the field with :meth:`PoincarePlotter.from_field`.
+    """
+
     def test_from_field_factory(self):
         """
-        test that the classmethod to skip integrator creation works
+        from_field constructs the integrator from the field. The default is 4
+        planes per field period, an array of planes is used as given, an unknown
+        integrator type raises, and stopping criteria reach either backend.
         """
         R0 = 1.15
         B0 = 0.85
@@ -303,9 +358,18 @@ class TestPoincarePlotterStellsym(unittest.TestCase):
 
 
 class TestPoincarePlotterRealField(unittest.TestCase):
+    """
+    A plotter for the NCSX coils. The plotter depends on the BiotSavart field
+    through the integrator, so a change of the coils discards its results.
+    """
+
     @classmethod
     def setUpClass(cls):
-        """ same but with NCSX coils, also testing cache invalidation on coil current change """
+        """
+        Two field lines 1 and 3 cm outward from the NCSX magnetic axis, traced
+        for 1 transit through 3 planes per field period, plus the equivalent
+        planes in the other two field periods.
+        """
         # Load a realistic configuration (NCSX)
         base_curves, base_currents, ma, nfp, bs = get_data('ncsx', coil_order=5, magnetic_axis_order=6, points_per_period=4)
         cls.bs = bs
@@ -323,6 +387,10 @@ class TestPoincarePlotterRealField(unittest.TestCase):
         cls.pp = PoincarePlotter(cls.intg, cls.start_points_RZ, phis=cls.n_planes, n_transits=cls.n_transits, add_symmetry_planes=True, nfp=nfp)
 
     def test_basic_hits_exist(self):
+        """
+        Both field lines cross the planes, with crossings in rows
+        [t, idx, x, y, z].
+        """
         hits = self.pp.res_phi_hits
         self.assertEqual(len(hits), self.start_points_RZ.shape[0])
         for arr in hits:
@@ -331,6 +399,11 @@ class TestPoincarePlotterRealField(unittest.TestCase):
 
     def test_cache_invalidation_on_current_change(self):
         # Prime cache
+        """
+        Increasing the current of one coil by 1% changes the field, and through
+        the dependency graph discards the results of the plotter. Asking for the
+        crossings again recomputes them, and they have moved.
+        """
         hits_before = [h.copy() for h in self.pp.res_phi_hits]
         # Modify a coil current DOF: set first current to zero
         old_val = self.bs.coils[0].current.x.copy()
@@ -351,8 +424,16 @@ class TestPoincarePlotterRealField(unittest.TestCase):
 
 
 class TestPoincarePlotter3DBackends(unittest.TestCase):
+    """
+    3D plots of the trajectories and plane crossings, for one field line of
+    the toroidal field through 3 planes, with each plotting engine.
+    """
+
     @classmethod
     def setUpClass(cls):
+        """
+        One field line 2 cm outward from R0, traced for 1 transit.
+        """
         cls.R0 = 1.2
         cls.B0 = 0.8
         cls.field = ToroidalField(cls.R0, cls.B0)
@@ -361,6 +442,10 @@ class TestPoincarePlotter3DBackends(unittest.TestCase):
         cls.pp = PoincarePlotter(cls.intg, cls.start_points_RZ, phis=3, n_transits=1, add_symmetry_planes=False)
 
     def test_matplotlib_3d(self):
+        """
+        The matplotlib engine draws the trajectories and the crossings, also with
+        the field line marked as lost.
+        """
         try:
             import matplotlib  # noqa: F401
             matplotlib.use('Agg')
@@ -375,12 +460,19 @@ class TestPoincarePlotter3DBackends(unittest.TestCase):
         self.pp._lost = None
 
     def test_unknown_engine(self):
+        """
+        An engine other than mayavi, plotly or matplotlib raises a ValueError
+        instead of silently drawing nothing.
+        """
         with self.assertRaises(ValueError):
             self.pp.plot_fieldline_trajectories_3d(engine='unknown', show=False)
         with self.assertRaises(ValueError):
             self.pp.plot_poincare_in_3d(engine='unknown', show=False)
 
     def test_plotly_3d(self):
+        """
+        The plotly engine draws the trajectories and the crossings.
+        """
         try:
             import plotly  # noqa: F401
         except Exception:
@@ -389,6 +481,10 @@ class TestPoincarePlotter3DBackends(unittest.TestCase):
         self.pp.plot_poincare_in_3d(engine='plotly', show=False)
 
     def test_mayavi_3d(self):
+        """
+        The mayavi engine draws the trajectories and the crossings, where mayavi
+        is installed.
+        """
         try:
             from mayavi import mlab  # noqa: F401
         except Exception:
@@ -452,6 +548,9 @@ class TestPoincarePlotterRanks(unittest.TestCase):
     """
 
     def setUp(self):
+        """
+        One field line of the toroidal field, 5 cm outward from R0.
+        """
         self.field = ToroidalField(1.2, 0.8)
         self.start_points_RZ = np.array([[1.25, 0.0]])
         self.intg = SimsoptFieldlineIntegrator(self.field, tmax=50.0, tol=1e-9)
@@ -511,8 +610,18 @@ class TestPoincarePlotterRanks(unittest.TestCase):
 
 
 class TestPoincarePlotterSaveLoad(unittest.TestCase):
+    """
+    The cache file and its key, for a low-resolution NCSX coil set. Results
+    are stored under a key that depends on the coil degrees of freedom, so
+    they are reused only for the same field.
+    """
+
     @classmethod
     def setUpClass(cls):
+        """
+        Two field lines 1 and 2 cm outward from the NCSX magnetic axis, and an
+        integrator of each backend.
+        """
         base_curves, base_currents, ma, nfp, bs = get_data('ncsx', coil_order=4, magnetic_axis_order=4, points_per_period=3)
         cls.bs = bs
         cls.nfp = nfp
@@ -526,7 +635,13 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
 
     def test_save_and_load_with_dof_change(self):
         """
-        test that the cache key, saving and loading work as intended.
+        Results are written to the cache file when they are computed, and a new
+        plotter with the same settings loads them instead of computing. A change
+        of a coil current discards the results of both plotters. Restoring the
+        current restores the key, so the (deliberately modified) stored results
+        are read back rather than recomputed. Another integrator has another key
+        and computes; its results can be loaded into a plotter under an explicit
+        key. clear_cache deletes the file.
         """
         with ScratchDir('.'):
             archive = 'poincare_data.npz'
@@ -577,6 +692,11 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
             self.assertFalse(os.path.exists(archive))
 
     def test_cache_key(self):
+        """
+        The key is the same for the same settings, and changes with the start
+        angle phi0, the integrator tolerance and the number of transits, which
+        all change the results. Saving without a cache file or file name raises.
+        """
         pp = PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=1, nfp=self.nfp)
         key = pp.cache_key
         self.assertEqual(key, PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=1, nfp=self.nfp).cache_key)
@@ -589,6 +709,11 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
             pp.save_cache()  # no cache_file and no filename
 
     def test_from_poincare_data(self):
+        """
+        A plotter wraps results computed directly with compute_poincare_hits,
+        without computing them again. Results for fewer field lines than start
+        points raise.
+        """
         res_tys, res_phi_hits = self.intg_scipy.compute_poincare_hits(self.start_points_RZ, 1, phis=[0.0])
         pp = PoincarePlotter.from_poincare_data(self.intg_scipy, self.start_points_RZ, res_phi_hits, res_tys,
                                                 phis=[0.0], n_transits=1, add_symmetry_planes=False)
@@ -600,7 +725,8 @@ class TestPoincarePlotterSaveLoad(unittest.TestCase):
 
     def test_save_to_vtk(self):
         """
-        test that the hashing, saving and loading works as intended. 
+        The trajectories are written to a VTK file of polylines, one per field
+        line, for viewing in ParaView.
         """
         with ScratchDir('.'):
             pp = PoincarePlotter(self.intg_sopp, self.start_points_RZ, phis=4, n_transits=2, add_symmetry_planes=True, nfp=self.nfp)
