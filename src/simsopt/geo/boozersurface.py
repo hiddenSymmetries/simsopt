@@ -821,7 +821,7 @@ class BoozerSurface(Optimizable):
         self.need_to_run_code = False
         return res
 
-    def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, iota=0., G=None, verbose=False):
+    def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter: float = 10, iota=0., G=None, verbose=False):
         """
         The function implements the BoozerExact approach by solving residual equation exactly using Newtons 
         method.  
@@ -892,7 +892,8 @@ class BoozerSurface(Optimizable):
 
         Args:
             tol (float, Optional): The tolerance for the optimization. Defaults to 1e-10.
-            maxiter (int, Optional): The maximum number of iterations for the optimization. Defaults to 10.
+            maxiter (int or float, Optional): Iteration limit. Non-positive values skip Newton steps;
+                positive fractional values allow steps while the iteration count is below the limit. Defaults to 10.
             iota (float, Optional): The initial guess for the value of the rotational transform on the surface. Defaults to 0.
             G (float, Optional): The initial guess for the value of G on the surface. Defaults to None.
             verbose (bool, Optional): If True, print the optimization progress. Defaults to False.
@@ -941,7 +942,8 @@ class BoozerSurface(Optimizable):
         x0 = x.copy()
         i = 0
         r, J = boozer_surface_residual(s, iota, G, self.biotsavart, derivatives=1)
-        while True:
+        norm = initial_norm = 1e6
+        while i < maxiter:
             if s.stellsym:
                 b = np.concatenate((r[mask], [(label.J()-self.targetlabel)]))
             else:
@@ -949,7 +951,7 @@ class BoozerSurface(Optimizable):
             norm = np.linalg.norm(b)
             if i == 0:
                 initial_norm = norm
-            if norm <= tol or i == maxiter:
+            if norm <= tol:
                 break
             if s.stellsym:
                 J = np.vstack((
@@ -970,6 +972,13 @@ class BoozerSurface(Optimizable):
             G = x[-1]
             i += 1
             r, J = boozer_surface_residual(s, iota, G, self.biotsavart, derivatives=1)
+
+        if i > 0:
+            if s.stellsym:
+                b = np.concatenate((r[mask], [(label.J()-self.targetlabel)]))
+            else:
+                b = np.concatenate((r[mask], [(label.J()-self.targetlabel), s.gamma()[0, 0, 2]]))
+            norm = np.linalg.norm(b)
 
         if not _keep_iterate(norm, initial_norm):
             s.set_dofs(x0[:-2])

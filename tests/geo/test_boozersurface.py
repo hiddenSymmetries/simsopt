@@ -3,11 +3,13 @@ import itertools
 import unittest
 from functools import partial
 from types import SimpleNamespace
+from typing import cast, Tuple
 from unittest import mock
 
 import numpy as np
+from numpy.typing import NDArray
 from simsopt.field.coil import coils_via_symmetries
-from simsopt.geo.boozersurface import BoozerSurface
+from simsopt.geo.boozersurface import BoozerSurface, boozer_surface_residual
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo import SurfaceXYZTensorFourier, SurfaceRZFourier
 from simsopt.geo.surfaceobjectives import ToroidalFlux, Area
@@ -764,6 +766,57 @@ class BoozerSurfaceTests(unittest.TestCase):
         res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=iterations, iota=-0.406)
         self.assertTrue(res['success'])
         np.testing.assert_array_equal(s.get_dofs(), x)
+
+    def test_residual_equation_newton_nonpositive_maxiter(self):
+        """Non-positive limits skip Newton steps and retain upstream's success sentinel."""
+        _, boozer_surface = get_boozer_surface(boozer_type="exact", converge=False)
+        s = boozer_surface.surface
+        dofs = s.get_dofs().copy()
+        initial_residual, jacobian = cast(
+            Tuple[NDArray[np.float64], NDArray[np.float64]],
+            boozer_surface_residual(s, -0.406, -2.0, boozer_surface.biotsavart, derivatives=1))
+        for maxiter in (0, -1):
+            with self.subTest(maxiter=maxiter):
+                boozer_surface.need_to_run_code = True
+                # A converged initial residual must still use upstream's 1e6
+                # sentinel when no iterations are requested.
+                residual = np.zeros_like(initial_residual)
+                with mock.patch('simsopt.geo.boozersurface.boozer_surface_residual',
+                                return_value=(residual, jacobian)), \
+                        mock.patch.object(boozer_surface.label, 'J', return_value=boozer_surface.targetlabel), \
+                        mock.patch('numpy.linalg.solve', side_effect=AssertionError("No Newton step allowed")):
+                    res = boozer_surface.solve_residual_equation_exactly_newton(
+                        tol=1e-10, maxiter=maxiter, iota=-0.406, G=-2.0)
+                self.assertEqual(res['iter'], 0)
+                self.assertFalse(res['success'])
+                self.assertEqual(res['iota'], -0.406)
+                self.assertEqual(res['G'], -2.0)
+                np.testing.assert_array_equal(s.get_dofs(), dofs)
+                np.testing.assert_array_equal(res['residual'], residual)
+
+    def test_residual_equation_newton_fractional_maxiter(self):
+        """A fractional limit bounds steps even when the residual cannot converge."""
+        _, boozer_surface = get_boozer_surface(boozer_type="exact", converge=False)
+        s = boozer_surface.surface
+        dofs = s.get_dofs().copy()
+        initial_residual, jacobian = cast(
+            Tuple[NDArray[np.float64], NDArray[np.float64]],
+            boozer_surface_residual(s, -0.406, -2.0, boozer_surface.biotsavart, derivatives=1))
+        for maxiter, iterations in ((0.5, 1), (1.5, 2)):
+            with self.subTest(maxiter=maxiter):
+                boozer_surface.need_to_run_code = True
+                residual = np.ones_like(initial_residual)
+                # Exhaustion makes an unbounded loop fail promptly rather than
+                # hanging the test runner; refinement uses two solves per step.
+                steps = [np.zeros(dofs.size + 2) for _ in range(2 * iterations)]
+                with mock.patch('simsopt.geo.boozersurface.boozer_surface_residual',
+                                return_value=(residual, jacobian)), \
+                        mock.patch('numpy.linalg.solve', side_effect=steps):
+                    res = boozer_surface.solve_residual_equation_exactly_newton(
+                        tol=1e-10, maxiter=maxiter, iota=-0.406, G=-2.0)
+                self.assertEqual(res['iter'], iterations)
+                self.assertFalse(res['success'])
+                np.testing.assert_array_equal(s.get_dofs(), dofs)
 
     def test_penalty_newton_divergence_factor(self):
         """
