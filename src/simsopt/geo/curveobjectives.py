@@ -407,8 +407,9 @@ class CurveSurfaceDistance(Optimizable):
         gamma = self.surface.gamma()
         gammas = gamma.reshape((-1, 3))
         ns = self.surface.normal().reshape((-1, 3))
-        dgammas_vjp = np.zeros_like(gammas)
-        dns_vjp = np.zeros_like(ns)
+        if with_surface:
+            dgammas_vjp = np.zeros_like(gammas)
+            dns_vjp = np.zeros_like(ns)
         for i, _ in self.candidates:
             gammac = self.curves[i].gamma()
             lc = self.curves[i].gammadash()
