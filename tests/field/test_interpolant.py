@@ -131,7 +131,7 @@ class Testing(unittest.TestCase):
                     fhxyz = np.ones((1, dim))
                     interpolant_ok.evaluate_batch(xyz, fhxyz)
                     np.testing.assert_array_equal(fhxyz, 1.)
-                    with assert_raises(RuntimeError):
+                    with self.assertRaisesRegex(RuntimeError, rf"{'xyz'[axis]}idxs=.* not within \[0, {n}\)"):
                         interpolant_strict.evaluate_batch(xyz, fhxyz)
 
         # Points within the face tolerance are inside.
