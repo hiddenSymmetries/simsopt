@@ -42,6 +42,15 @@ class PoincarePlotter(Optimizable):
     when the cross section is plotted. This gives ``nfp`` times as many points
     per cross section for the same integration length.
 
+    **Stellarator symmetry.** A stellarator-symmetric field is invariant under
+    :math:`(R, \phi, Z) \to (R, -\phi, -Z)`, so the cross section at
+    :math:`\phi` is the up-down mirror image of the one at
+    :math:`2\pi k/n_\text{fp} - \phi`. With ``stellsym=True``, these mirror
+    planes are also added to ``phis``, and their crossings are drawn with
+    :math:`Z` flipped. The planes :math:`\phi = 0` and :math:`\phi = \pi/n_\text{fp}`
+    are their own mirror images, so their cross sections become up-down
+    symmetric.
+
     **Caching.** If ``cache_file`` is given, results are stored in (and read
     from) that ``.npz`` file under a key computed from the field degrees of
     freedom, the plotter settings, and the integrator settings (see
@@ -67,14 +76,17 @@ class PoincarePlotter(Optimizable):
         phi0 (float, optional): toroidal angle of the start points. Defaults to
             the first of ``phis``.
         nfp (int): number of field periods of the magnetic field.
+        stellsym (bool): whether the magnetic field is stellarator symmetric.
+            If True, the mirror planes are used as symmetry planes as well.
     """
 
     def __init__(self, integrator: Integrator, start_points_RZ, phis=None, n_transits=100, add_symmetry_planes=True,
-                 cache_file=None, phi0=None, nfp=1):
+                 cache_file=None, phi0=None, nfp=1, stellsym=False):
         """
         Set up the planes and caches. See the class docstring for the arguments.
         """
         self.nfp = nfp
+        self.stellsym = stellsym
         self._start_points_RZ = np.atleast_2d(np.asarray(start_points_RZ, dtype=float))
         self.integrator = integrator
         self.n_transits = n_transits
@@ -85,7 +97,7 @@ class PoincarePlotter(Optimizable):
         else:
             self._phis = np.atleast_1d(np.asarray(phis, dtype=float))
         if add_symmetry_planes:
-            self._phis = self.generate_symmetry_planes(self._phis, nfp=self.nfp)
+            self._phis = self.generate_symmetry_planes(self._phis, nfp=self.nfp, stellsym=self.stellsym)
 
         self.phi0 = self._phis[0] if phi0 is None else phi0
         self.is_plotter = self.integrator.comm is None or self.integrator.comm.rank == 0  # only rank 0 plots
@@ -101,7 +113,7 @@ class PoincarePlotter(Optimizable):
 
     @classmethod
     def from_field(cls, field, start_points_RZ, phis=None, n_transits=1, add_symmetry_planes=True,
-                   stopping_criteria=None, comm=None, integrator_type='simsopt', nfp=1, **kwargs):
+                   stopping_criteria=None, comm=None, integrator_type='simsopt', nfp=1, stellsym=False, **kwargs):
         """
         Create a PoincarePlotter directly from a magnetic field, constructing
         the integrator.
@@ -116,6 +128,7 @@ class PoincarePlotter(Optimizable):
             comm (MPI.Comm, optional): MPI communicator passed to the integrator.
             integrator_type (str): 'simsopt' or 'scipy'.
             nfp (int): number of field periods of the magnetic field.
+            stellsym (bool): whether the magnetic field is stellarator symmetric.
             **kwargs: additional arguments for the integrator constructor.
 
         Returns:
@@ -128,7 +141,7 @@ class PoincarePlotter(Optimizable):
             raise ValueError(f"Integrator type {integrator_type} not supported, use one of {list(integrators)}.")
         integrator = integrators[integrator_type](field, comm=comm, stopping_criteria=stopping_criteria, **kwargs)
         return cls(integrator, start_points_RZ, phis=phis, n_transits=n_transits,
-                   add_symmetry_planes=add_symmetry_planes, nfp=nfp)
+                   add_symmetry_planes=add_symmetry_planes, nfp=nfp, stellsym=stellsym)
 
     @classmethod
     def from_poincare_data(cls, integrator, start_points_RZ, res_phi_hits, res_tys=None, **kwargs):
@@ -185,19 +198,42 @@ class PoincarePlotter(Optimizable):
         return np.linspace(0, 2*np.pi/nfp, nplanes, endpoint=False)
 
     @staticmethod
-    def generate_symmetry_planes(phis, nfp=1):
+    def generate_symmetry_planes(phis, nfp=1, stellsym=False):
         """
         Add the planes that are equivalent to ``phis`` through the field
-        period symmetry, :math:`\\phi + 2\\pi k/n_\\text{fp}` for :math:`k = 0, \\dots, n_\\text{fp}-1`.
+        period symmetry, :math:`\\phi + 2\\pi k/n_\\text{fp}` for :math:`k = 0, \\dots, n_\\text{fp}-1`,
+        and with ``stellsym`` also the mirror planes :math:`2\\pi k/n_\\text{fp} - \\phi`.
 
         Args:
             phis (array): toroidal angles in :math:`[0, 2\\pi/n_\\text{fp})`.
             nfp (int): number of field periods.
+            stellsym (bool): whether to add the mirror planes of stellarator symmetry.
 
         Returns:
             array: the sorted, unique toroidal angles in :math:`[0, 2\\pi)`.
         """
-        return np.unique(np.concatenate([np.asarray(phis) + k*2*np.pi/nfp for k in range(nfp)]))
+        phis = np.asarray(phis, dtype=float)
+        if stellsym:
+            phis = np.concatenate([phis, np.mod(-phis, 2*np.pi/nfp)])
+        planes = np.mod(np.concatenate([phis + k*2*np.pi/nfp for k in range(nfp)]), 2*np.pi)
+        # merge angles that differ only by round-off, also across 2*pi (an angle just below 2*pi is 0)
+        planes[np.isclose(planes, 2*np.pi)] = 0.0
+        planes = np.sort(planes)
+        return planes[np.concatenate([[True], ~np.isclose(np.diff(planes), 0)])]
+
+    def _same_section(self, angles):
+        """
+        Whether each of ``angles`` differs from 0 by a whole number of field periods.
+
+        Args:
+            angles (array): toroidal angles.
+
+        Returns:
+            array: boolean array.
+        """
+        period = 2*np.pi/self.nfp
+        remainder = np.mod(angles, period)
+        return np.isclose(remainder, 0) | np.isclose(remainder, period)
 
     @property
     def phis_for_plotting(self):
@@ -521,7 +557,7 @@ class PoincarePlotter(Optimizable):
         if title is not None:
             ax.set_title(title)
 
-    def plot_poincare_plane_idx(self, plane_idx, mark_lost=False, ax=None, **kwargs):
+    def plot_poincare_plane_idx(self, plane_idx, mark_lost=False, ax=None, flip_z=False, **kwargs):
         """
         plot a single cross-section of the field by referencing the index in the PoincarePlotter's phis. 
         *NOTE*: if running parallel, call this function on all ranks.
@@ -529,6 +565,8 @@ class PoincarePlotter(Optimizable):
             plane_idx: index of the plane to plot
             mark_lost: if True, mark the field lines that were lost due to stopping criteria in red
             ax: matplotlib axis to plot on (if None, create a new figure and axis)
+            flip_z: if True, plot the crossings mirrored in Z, (R, Z) -> (R, -Z).
+                Used to draw a mirror plane of stellarator symmetry.
             **kwargs: additional keyword arguments to pass to the scatter plotter
         Returns:
             fig, ax: the figure and axis objects (only on rank 0, otherwise None, None)
@@ -565,7 +603,11 @@ class PoincarePlotter(Optimizable):
                         this_color = 'r'
                         this_marker = 'x'
                         this_s = s*3
-                ax.scatter(trajpoints[:, 0], trajpoints[:, 1], marker=this_marker, s=this_s, color=this_color, linewidths=0, **kwargs)
+                R, Z = trajpoints[:, 0], trajpoints[:, 1]
+                if flip_z:
+                    # stellarator symmetry: the mirror plane at -phi shows this cross section upside down
+                    Z = -Z
+                ax.scatter(R, Z, marker=this_marker, s=this_s, color=this_color, linewidths=0, **kwargs)
             return fig, ax
         else: 
             return None, None  # other ranks do not plot anything
@@ -583,11 +625,13 @@ class PoincarePlotter(Optimizable):
             mark_lost: if True, mark the field lines that were lost due to stopping criteria in red
             fix_axes: if True, fix the axes to be equal and labeled (otherwise, deal with the returned axes object)
             surf: if given, a simsopt surface to plot the cross-section of (in black)
-            include_symmetry_planes: if True, include all planes that are identical through field periodicity in this plot
+            include_symmetry_planes: if True, include all planes that are identical through field periodicity in this plot,
+                and if ``stellsym``, also the mirror planes, flipped in Z
             **kwargs: additional keyword arguments to pass to the single plane plotter
         Returns:
             fig, ax: the figure and axis objects (only on rank 0, otherwise None, None)
         """
+        mirror_indices = []  # planes whose crossings are drawn flipped in Z
         if phi not in self.phis:
             if not prevent_recompute:
                 self.phis = np.append(self.phis, phi)
@@ -596,7 +640,11 @@ class PoincarePlotter(Optimizable):
                 raise ValueError(f"The requested plane at phi={phi} has not been computed.")
         else:
             if include_symmetry_planes:
-                phi_indices = np.where(np.isclose((self.phis - phi) % (2*np.pi/self.nfp), 0))[0]
+                phi_indices = np.where(self._same_section(self.phis - phi))[0]
+                if self.stellsym:
+                    # stellarator symmetry, (R, phi, Z) -> (R, -phi, -Z): the planes at
+                    # 2*pi*k/nfp - phi show this cross section flipped in Z
+                    mirror_indices = np.where(self._same_section(self.phis + phi))[0]
             else: 
                 phi_indices = np.where(np.isclose(self.phis, phi))[0]
         
@@ -612,6 +660,8 @@ class PoincarePlotter(Optimizable):
 
             for phi_index in phi_indices:
                 self.plot_poincare_plane_idx(phi_index, ax=ax, mark_lost=mark_lost, **kwargs)
+            for phi_index in mirror_indices:
+                self.plot_poincare_plane_idx(phi_index, ax=ax, mark_lost=mark_lost, flip_z=True, **kwargs)
 
             if surf is not None:
                 # divide by 2pi cause simsopt surf phi is in [0,1]

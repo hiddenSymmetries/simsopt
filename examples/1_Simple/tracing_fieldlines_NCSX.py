@@ -66,7 +66,8 @@ axis_RZ = ma.gamma()[0, 0:2]
 poincareline_end_RZ = axis_RZ + [0.14, 0]
 poincare_start_points = np.linspace(axis_RZ, poincareline_end_RZ, nfieldlines)
 
-poincare_bs = PoincarePlotter(integrator_bs, poincare_start_points, phis=4, n_transits=n_transits, add_symmetry_planes=True, nfp=nfp)
+poincare_bs = PoincarePlotter(integrator_bs, poincare_start_points, phis=4, n_transits=n_transits, add_symmetry_planes=True, nfp=nfp,
+                              stellsym=True)
 
 # Integration is only performed if a plot is requested. Plot the phi=0 plane:
 fig1, ax = poincare_bs.plot_poincare_single(0)
@@ -141,7 +142,8 @@ proc0_print("|B-Bh| on axis", np.sort(np.abs(B-Bh).flatten()))
 # The integrator accepts any MagneticField, also our faster InterpolatedField:
 integrator_bsh = SimsoptFieldlineIntegrator(bsh, comm=mpi.comm_world)
 # create a Poincare plotter object for the interpolated field
-poincare_bsh = PoincarePlotter(integrator_bsh, poincare_start_points, phis=4, n_transits=n_transits, add_symmetry_planes=True, nfp=nfp)
+poincare_bsh = PoincarePlotter(integrator_bsh, poincare_start_points, phis=4, n_transits=n_transits, add_symmetry_planes=True, nfp=nfp,
+                              stellsym=True)
 
 # Integration is only performed if a plot is requested. Plot the phi=0 plane:
 fig3, ax = poincare_bsh.plot_poincare_single(0)

@@ -248,6 +248,60 @@ class TestPoincarePlotterFactory(unittest.TestCase):
 
 
 
+class TestPoincarePlotterStellsym(unittest.TestCase):
+    """
+    Stellarator symmetry, (R, phi, Z) -> (R, -phi, -Z): the cross section at
+    phi is the mirror image in Z of the one at 2*pi*k/nfp - phi.
+    """
+
+    def test_mirror_planes(self):
+        """
+        With stellsym, the mirror planes 2*pi*k/nfp - phi are added to the
+        field period planes phi + 2*pi*k/nfp. Planes that coincide up to
+        round-off, also across 2*pi, are merged: the planes 0 and pi/nfp are
+        their own mirror image and are not duplicated.
+        """
+        nfp = 3
+        planes = PoincarePlotter.generate_symmetry_planes([0.1], nfp=nfp, stellsym=True)
+        expected = np.sort(np.concatenate([0.1 + 2*np.pi*np.arange(nfp)/nfp, 2*np.pi*np.arange(1, nfp + 1)/nfp - 0.1]))
+        np.testing.assert_allclose(planes, expected)
+        planes = PoincarePlotter.generate_symmetry_planes([0.0, np.pi/nfp], nfp=nfp, stellsym=True)
+        np.testing.assert_allclose(planes, np.pi*np.arange(2*nfp)/nfp)
+        # a plane that already is the mirror of another one, up to round-off, is not duplicated
+        planes = PoincarePlotter.generate_symmetry_planes([0.1, 2*np.pi/nfp - 0.1 + 1e-13], nfp=nfp, stellsym=True)
+        self.assertEqual(len(planes), 2*nfp)
+        # nor is an angle just below 2*pi, which is the plane 0
+        for stellsym in [False, True]:
+            planes = PoincarePlotter.generate_symmetry_planes([np.nextafter(2*np.pi/nfp, 0)], nfp=nfp, stellsym=stellsym)
+            np.testing.assert_allclose(planes, 2*np.pi*np.arange(nfp)/nfp, atol=1e-12)
+
+    def test_flip_z(self):
+        """
+        A field line of a purely toroidal field at Z = 0.05 crosses every plane
+        at Z = 0.05. With stellsym, the plot of a cross section also shows the
+        crossings of its mirror planes, at Z = -0.05. The planes 0 and pi/nfp
+        are their own mirror image, so they are drawn twice, once flipped.
+        """
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+        except Exception:
+            self.skipTest('matplotlib not available')
+        intg = SimsoptFieldlineIntegrator(ToroidalField(1.2, 0.8), tmax=50.0, tol=1e-9)
+        nfp = 2
+        for stellsym in [False, True]:
+            pp = PoincarePlotter(intg, [[1.25, 0.05]], phis=[0.0, 0.4], n_transits=1, nfp=nfp, stellsym=stellsym)
+            for phi in [0.0, 0.4]:
+                with self.subTest(stellsym=stellsym, phi=phi):
+                    fig, ax = pp.plot_poincare_single(phi, prevent_recompute=True)
+                    Z = np.concatenate([collection.get_offsets()[:, 1] for collection in ax.collections])
+                    # one crossing per field period plane, and as many from the mirror planes
+                    self.assertEqual(np.sum(np.isclose(Z, 0.05)), nfp)
+                    self.assertEqual(np.sum(np.isclose(Z, -0.05)), nfp if stellsym else 0)
+                    plt.close(fig)
+
+
 class TestPoincarePlotterRealField(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
