@@ -1064,6 +1064,30 @@ class SurfaceRZFourierTests(unittest.TestCase):
         np.testing.assert_allclose(
             s10.x, s9.x, err_msg='Copying surface is broken for stellarator symmetric surfaces!')
         
+    def test_copy_nfp_preserves_toroidal_range(self):
+        """Changing only nfp rescales partial-period nodes and preserves full-torus nodes."""
+        for grid_range in (Surface.RANGE_FULL_TORUS, Surface.RANGE_FIELD_PERIOD, Surface.RANGE_HALF_PERIOD):
+            with self.subTest(range=grid_range):
+                s = SurfaceRZFourier.from_nphi_ntheta(
+                    nphi=17, ntheta=19, nfp=3, range=grid_range)
+                original_phi = s.quadpoints_phi.copy()
+                copied = s.copy(nfp=5)
+                expected_phi = Surface.get_phi_quadpoints(nphi=17, nfp=5, range=grid_range)
+                np.testing.assert_allclose(copied.quadpoints_phi, expected_phi, rtol=0, atol=1e-16)
+                np.testing.assert_array_equal(copied.quadpoints_theta, s.quadpoints_theta)
+                np.testing.assert_array_equal(copied.get_dofs(), s.get_dofs())
+                np.testing.assert_array_equal(s.quadpoints_phi, original_phi)
+                self.assertEqual(copied.nfp, 5)
+                self.assertEqual(copied.deduced_range, grid_range)
+
+                theta = np.asarray([0.1, 0.4, 0.7])
+                copied = s.copy(nfp=5, quadpoints_theta=theta)
+                np.testing.assert_allclose(copied.quadpoints_phi, expected_phi, rtol=0, atol=1e-16)
+                np.testing.assert_array_equal(copied.quadpoints_theta, theta)
+
+                copied = s.copy(nfp=5, quadpoints_phi=original_phi)
+                np.testing.assert_array_equal(copied.quadpoints_phi, original_phi)
+
     def test_fixed_range(self):
         """
         Test that DOFs are fixed correctly by invoking fixed_range().

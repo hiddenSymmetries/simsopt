@@ -656,7 +656,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
          nphi (int): number of quadrature points in the phi direction
          mpol (int): number of poloidal Fourier modes for the surface
          ntor (int): number of toroidal Fourier modes for the surface
-         nfp (int): number of field periods
+         nfp (int): number of field periods; rescales partial-period phi grids when no new phi grid is requested
          stellsym (bool): whether the surface is stellarator-symmetric
          quadpoints_theta (NdArray[float]): theta grid points
          quadpoints_phi (NdArray[float]): phi grid points
@@ -680,6 +680,10 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         quadpoints_phi = kwargs.pop("quadpoints_phi", None)
         grid_range = kwargs.pop("range", None)
 
+        default_quadpoints_phi = self.quadpoints_phi
+        if nfp != self.nfp and self.deduced_range != Surface.RANGE_FULL_TORUS:
+            default_quadpoints_phi = default_quadpoints_phi * self.nfp / nfp
+
         # recalculate the quadpoints if necessary (grid_range is not stored in the
         # surface object, so assume that if it is given, the gridpoints should be
         # recalculated to the specified size)
@@ -688,7 +692,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 kwargs["quadpoints_phi"], kwargs["quadpoints_theta"] = Surface.get_quadpoints(
                     ntheta=ntheta, nphi=nphi, nfp=nfp, range=grid_range)
             else:
-                kwargs["quadpoints_phi"] = self.quadpoints_phi
+                kwargs["quadpoints_phi"] = default_quadpoints_phi
                 kwargs["quadpoints_theta"] = self.quadpoints_theta
         else:
             if quadpoints_theta is None:
@@ -702,7 +706,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 if nphi is not othernphi or grid_range is not None:
                     kwargs["quadpoints_phi"] = Surface.get_phi_quadpoints(nphi, range=grid_range, nfp=nfp)
                 else:
-                    kwargs["quadpoints_phi"] = self.quadpoints_phi
+                    kwargs["quadpoints_phi"] = default_quadpoints_phi
             else:
                 kwargs["quadpoints_phi"] = quadpoints_phi
         # create new surface in old resolution
