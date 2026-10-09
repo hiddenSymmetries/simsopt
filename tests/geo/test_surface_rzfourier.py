@@ -1088,6 +1088,45 @@ class SurfaceRZFourierTests(unittest.TestCase):
                 copied = s.copy(nfp=5, quadpoints_phi=original_phi)
                 np.testing.assert_array_equal(copied.quadpoints_phi, original_phi)
 
+    def test_copy_nfp_preserves_custom_phi(self):
+        """Unknown toroidal grid intent must not change retained sample coordinates."""
+        for phi in ([0.125, 0.375, 0.625, 0.875], [0.0, 0.2, 0.4, 0.7],
+                    [0.0, 0.02, 0.09, 0.15], [0.0], [0.125]):
+            with self.subTest(phi=phi):
+                s = SurfaceRZFourier(nfp=3, quadpoints_phi=phi)
+                original_phi = s.quadpoints_phi.copy()
+                original_dofs = s.get_dofs().copy()
+                for options in ({}, {"quadpoints_theta": [0.1, 0.4, 0.7]}):
+                    copied = s.copy(nfp=5, **options)
+                    np.testing.assert_array_equal(copied.quadpoints_phi, original_phi)
+                    np.testing.assert_array_equal(copied.get_dofs(), original_dofs)
+                    np.testing.assert_array_equal(s.quadpoints_phi, original_phi)
+                    copied.set_rc(0, 0, 2.0)
+                    np.testing.assert_array_equal(s.get_dofs(), original_dofs)
+                np.testing.assert_array_equal(s.copy(nfp=5).quadpoints_theta, s.quadpoints_theta)
+
+    def test_copy_nfp_empty_phi_destination_precedence(self):
+        """Constructible empty grids are retained or replaced by the requested destination."""
+        s = SurfaceRZFourier(nfp=3, quadpoints_phi=[])
+        for options in ({}, {"quadpoints_theta": [0.1, 0.4, 0.7]}):
+            with self.subTest(options=options):
+                copied = s.copy(nfp=5, **options)
+                np.testing.assert_array_equal(copied.quadpoints_phi, [])
+                np.testing.assert_array_equal(copied.get_dofs(), s.get_dofs())
+        phi = [0.0, 0.25, 0.5, 0.75]
+        copied = s.copy(nfp=5, quadpoints_phi=phi, nphi=9, range=Surface.RANGE_HALF_PERIOD)
+        np.testing.assert_array_equal(copied.quadpoints_phi, phi)
+        for options in ({"nphi": 7}, {"nphi": 7, "range": Surface.RANGE_FIELD_PERIOD},
+                        {"nphi": 7, "range": Surface.RANGE_HALF_PERIOD,
+                         "quadpoints_theta": [0.1, 0.4, 0.7]}):
+            with self.subTest(options=options):
+                copied = s.copy(nfp=5, **options)
+                np.testing.assert_array_equal(copied.quadpoints_phi, Surface.get_phi_quadpoints(
+                    nphi=7, nfp=5, range=options.get("range")))
+        copied = s.copy(nfp=5, range=Surface.RANGE_FIELD_PERIOD)
+        np.testing.assert_array_equal(copied.quadpoints_phi, [])
+        np.testing.assert_array_equal(s.quadpoints_phi, [])
+
     def test_fixed_range(self):
         """
         Test that DOFs are fixed correctly by invoking fixed_range().

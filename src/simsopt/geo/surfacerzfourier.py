@@ -656,11 +656,15 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
          nphi (int): number of quadrature points in the phi direction
          mpol (int): number of poloidal Fourier modes for the surface
          ntor (int): number of toroidal Fourier modes for the surface
-         nfp (int): number of field periods; rescales partial-period phi grids when no new phi grid is requested
+         nfp (int): number of field periods; rescales retained canonical partial-period phi grids
          stellsym (bool): whether the surface is stellarator-symmetric
          quadpoints_theta (NdArray[float]): theta grid points
          quadpoints_phi (NdArray[float]): phi grid points
          range (str): range of the gridpoints either 'full torus', 'field period' or 'half period'. Ignored if quadponts are provided.
+
+        Only canonical field/half-period phi grids are inferred when nfp changes.
+        Full-torus, arbitrary, empty and singleton grids retain their coordinates;
+        explicit destination grids, ranges and grid sizes take precedence.
 
         Returns:
             surf: A new SurfaceRZFourier object, with properties specified by kwargs changed.
@@ -681,8 +685,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         grid_range = kwargs.pop("range", None)
 
         default_quadpoints_phi = self.quadpoints_phi
-        if nfp != self.nfp and self.deduced_range != Surface.RANGE_FULL_TORUS:
-            default_quadpoints_phi = default_quadpoints_phi * self.nfp / nfp
 
         # recalculate the quadpoints if necessary (grid_range is not stored in the
         # surface object, so assume that if it is given, the gridpoints should be
@@ -709,6 +711,14 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                     kwargs["quadpoints_phi"] = default_quadpoints_phi
             else:
                 kwargs["quadpoints_phi"] = quadpoints_phi
+        if (quadpoints_phi is None and kwargs["quadpoints_phi"] is default_quadpoints_phi
+                and nfp != self.nfp and othernphi > 1):
+            for source_range in (Surface.RANGE_FULL_TORUS, Surface.RANGE_FIELD_PERIOD, Surface.RANGE_HALF_PERIOD):
+                if np.allclose(default_quadpoints_phi, Surface.get_phi_quadpoints(
+                        nphi=othernphi, range=source_range, nfp=self.nfp), rtol=0, atol=1e-14):
+                    if source_range != Surface.RANGE_FULL_TORUS:
+                        kwargs["quadpoints_phi"] = default_quadpoints_phi * self.nfp / nfp
+                    break
         # create new surface in old resolution
         surf = SurfaceRZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
                                 **kwargs)
