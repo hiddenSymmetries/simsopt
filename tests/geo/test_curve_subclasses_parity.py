@@ -29,9 +29,9 @@ tolerance several orders of magnitude above the observed noise floor
 
 from __future__ import annotations
 
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JaxTestCase, optional_jax_imports
 
-try:
+with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax  # noqa: F401
     from simsopt_jax.core.curve_helical import curve_helical_pure
@@ -44,9 +44,6 @@ try:
         make_curve_rzfourier_spec,
     )
     from simsopt_jax_adapters.geo.curve_specs import curve_spec_from_adapter_curve
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 
 from unittest_jax_support import host_array, parity_default_device, parity_rng
 

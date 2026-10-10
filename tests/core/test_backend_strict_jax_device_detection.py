@@ -9,9 +9,9 @@
 
 from __future__ import annotations
 
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JaxTestCase, optional_jax_imports
 
-try:
+with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax  # noqa: F401
     import simsopt_jax.backend.runtime as runtime_module
@@ -23,9 +23,6 @@ try:
         get_field_kernel_tuning,
         get_runtime_jax_device,
     )
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 from unittest import mock
 import os
 

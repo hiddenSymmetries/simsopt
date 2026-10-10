@@ -1,14 +1,11 @@
 """Native regression oracles for the JaxBiotSavart correctness review."""
 
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JaxTestCase, optional_jax_imports
 
-try:
+with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax  # noqa: F401
     from simsopt_jax_adapters.field.biotsavart_backend import JaxBiotSavart
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 from tempfile import TemporaryDirectory
 from pathlib import Path
 

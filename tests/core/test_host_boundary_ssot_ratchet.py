@@ -17,9 +17,9 @@ name, never by line, so edits inside an owner do not disturb the census.
 
 from __future__ import annotations
 
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JaxTestCase, optional_jax_imports
 
-try:
+with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax  # noqa: F401
     import jax.numpy as jnp
@@ -35,9 +35,6 @@ try:
         host_tree,
         host_tree_after_ready,
     )
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 from tempfile import TemporaryDirectory
 
 
