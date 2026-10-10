@@ -208,23 +208,20 @@ class JaxLpCurveForce(_LpObjective):
     r"""JAX version of :class:`~simsopt.field.force.LpCurveForce`: :math:`L^p` penalty on coil force per unit length.
 
     .. math::
+
         J = \frac{1}{p}\sum_i \frac{1}{N}\sum_{k}
             \max\left(\left|\frac{d\vec{F}_i}{d\ell}(t_k)\right| - F_0, 0\right)^p |\gamma_i'(t_k)|
           \approx \frac{1}{p}\sum_i \int \max\left(\left|\frac{d\vec{F}_i}{d\ell}\right| - F_0, 0\right)^p d\ell_i,
 
-    where :math:`d` = ``downsample``, the sum over :math:`k` runs over the :math:`N = n/d` points
-    :math:`t_k` taken with stride :math:`d` from the :math:`n` target quadrature points, and :math:`\gamma_i'` is
-    the derivative with respect to the curve parameter. On the default uniform grid over the full period
-    :math:`[0, 1)`, :math:`t_k = kd/n` and the quadrature approximates the arclength integral on the right. The force per unit length
+    where :math:`d` = ``downsample``, :math:`N = n/d`, and :math:`t_k` are taken with index stride :math:`d`
+    from the :math:`n` target quadrature points. :math:`\gamma_i'` is the curve parameter derivative. On the
+    default uniform grid over the full period :math:`[0, 1)`, :math:`t_k = kd/n` and the quadrature
+    approximates the arclength integral on the right.
 
-    .. math::
-        \frac{d\vec{F}_i}{d\ell} = I_i\, \hat{t}_i \times (\vec{B}_{i,\text{self}} + \vec{B}_{i,\text{mutual}})
-
-    is computed in N/m and converted to MN/m before thresholding, with :math:`\hat{t}_i = \gamma_i'/|\gamma_i'|`,
-    the regularized self field of coil :math:`i`'s finite cross section, and the field of the other target coils
-    and all source coils (also sampled with stride :math:`d`). Target coils are removed from the source lists.
-
-    :math:`F_0` is ``threshold``. The units of :math:`J` are :math:`(\mathrm{MN/m})^p\,\mathrm{m}`.
+    The force per unit length :math:`d\vec{F}_i/d\ell = I_i\,\hat{t}_i \times \vec{B}`, where :math:`\vec{B}` is
+    the regularized self field of coil :math:`i` plus the field of the other target coils and the source coils,
+    is computed in N/m and converted to MN/m before thresholding. :math:`F_0` is ``threshold``;
+    :math:`J` is in :math:`(\mathrm{MN/m})^p\,\mathrm{m}`.
 
     Args:
         target_coils (Coil or list of Coil): RegularizedCoil objects on which the force is computed. Coils that
@@ -270,6 +267,7 @@ class JaxLpCurveTorque(_LpObjective):
     r"""JAX version of :class:`~simsopt.field.force.LpCurveTorque`: :math:`L^p` penalty on coil torque per unit length.
 
     .. math::
+
         J = \frac{1}{p}\sum_i \frac{1}{N}\sum_{k}
             \max\left(\left|\frac{d\vec{T}_i}{d\ell}(t_k)\right| - T_0, 0\right)^p |\gamma_i'(t_k)|
           \approx \frac{1}{p}\sum_i \int \max\left(\left|\frac{d\vec{T}_i}{d\ell}\right| - T_0, 0\right)^p d\ell_i,
@@ -277,22 +275,18 @@ class JaxLpCurveTorque(_LpObjective):
     with the torque per unit length about the arclength centroid :math:`\vec{c}_i` of coil :math:`i`,
 
     .. math::
+
         \frac{d\vec{T}_i}{d\ell} = (\gamma_i - \vec{c}_i) \times \frac{d\vec{F}_i}{d\ell}, \qquad
         \vec{c}_i = \frac{\sum_k \gamma_i(t_k)\, |\gamma_i'(t_k)|}{\sum_k |\gamma_i'(t_k)|},
 
-    where :math:`d` = ``downsample``, the sum over :math:`k` runs over the :math:`N = n/d` points
-    :math:`t_k` taken with stride :math:`d` from the :math:`n` target quadrature points, and :math:`\gamma_i'` is
-    the derivative with respect to the curve parameter. On the default uniform grid over the full period
-    :math:`[0, 1)`, :math:`t_k = kd/n` and the quadrature approximates the arclength integral on the right. The force per unit length
+    where :math:`d` = ``downsample``, :math:`N = n/d`, and :math:`t_k` are taken with index stride :math:`d`
+    from the :math:`n` target quadrature points. :math:`\gamma_i'` is the curve parameter derivative. On the
+    default uniform grid over the full period :math:`[0, 1)`, :math:`t_k = kd/n` and the quadrature
+    approximates the arclength integral on the right.
 
-    .. math::
-        \frac{d\vec{F}_i}{d\ell} = I_i\, \hat{t}_i \times (\vec{B}_{i,\text{self}} + \vec{B}_{i,\text{mutual}})
-
-    is computed in N/m and converted to MN/m before thresholding, with :math:`\hat{t}_i = \gamma_i'/|\gamma_i'|`,
-    the regularized self field of coil :math:`i`'s finite cross section, and the field of the other target coils
-    and all source coils (also sampled with stride :math:`d`). Target coils are removed from the source lists.
-
-    :math:`T_0` is ``threshold``, the torque per unit length is in MN, and :math:`J` is in :math:`\mathrm{MN}^p\,\mathrm{m}`.
+    The force density is as in :class:`JaxLpCurveForce`. Torque per unit length is computed in N and
+    converted to MN before thresholding. :math:`T_0` is ``threshold``;
+    :math:`J` is in :math:`\mathrm{MN}^p\,\mathrm{m}`.
 
     Args:
         target_coils (Coil or list of Coil): RegularizedCoil objects on which the torque is computed. Coils that
@@ -506,14 +500,17 @@ class JaxNetFluxes(Optimizable):
     r"""JAX version of :class:`~simsopt.field.force.NetFluxes`: flux of the source coils through a coil.
 
     .. math::
+
         \Psi = \frac{1}{N}\sum_{k=0}^{N-1} \vec{A}(\gamma(t_k)) \cdot \gamma'(t_k)
             \approx \oint \vec{A} \cdot d\vec{\ell},
-        \qquad t_k = \frac{kd}{n}, \quad N = \frac{n}{d},
+        \qquad N = \frac{n}{d},
 
     where :math:`\gamma` is the target curve with :math:`n` quadrature points, :math:`\gamma'` its derivative
     with respect to the unit-period curve parameter, :math:`d` = ``downsample``, and :math:`\vec{A}` is the
     Biot-Savart vector potential of the source coils at their full quadrature. Both the value and the gradient
-    use only these :math:`N` strided target points. :math:`\Psi` is in Wb.
+    use only the :math:`N` points :math:`t_k` taken with index stride :math:`d` from the target quadrature
+    points. On the default uniform grid over the full period :math:`[0, 1)`, :math:`t_k = kd/n` and the
+    quadrature approximates the line integral on the right. :math:`\Psi` is in Wb.
 
     The sources are the ``source_coils`` given at construction; reassigning or editing that list afterwards
     changes neither the value nor the gradient.
