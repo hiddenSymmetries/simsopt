@@ -40,8 +40,6 @@ try:
     from simsopt.field.biotsavart import BiotSavart
     from simsopt.geo.boozersurface import BoozerSurface
     from simsopt.geo.surfaceobjectives import (
-        Area,
-        AspectRatio,
         BoozerResidual,
         Iotas,
         MajorRadius,
@@ -65,6 +63,7 @@ try:
         JaxBoozerResidual,
         JaxBoozerSurface,
     )
+    from .surface_test_helpers import get_boozer_surface
 except ImportError:
     if JAX_IMPORT_ERROR is None:
         raise
@@ -126,34 +125,23 @@ def _problem(
     ``options``, the options turn ``verbose`` off and set ``weight_inv_modB``
     and ``newton_tol`` (if given); ``options`` itself goes to
     ``JaxBoozerSurface`` and a copy to native, which fills it in place."""
-    _, base_currents, axis, nfp, bs = get_data("ncsx")
-    G0 = _G0(nfp, base_currents) if optimize_G else None
-    if not optimize_G:
-        for coil in bs.coils:
-            coil.current.fix_all()
-    mpol = ntor = 6 if boozer_type == "exact" else 3
-    nphi, ntheta = (2 * ntor + 1, 2 * mpol + 1) if boozer_type == "exact" else (20, 20)
-    surface = SurfaceXYZTensorFourier(
-        mpol=mpol,
-        ntor=ntor,
-        stellsym=stellsym,
-        nfp=nfp,
-        quadpoints_phi=np.linspace(0, 1 / nfp, nphi, endpoint=False),
-        quadpoints_theta=np.linspace(0, 1, ntheta, endpoint=False),
-    )
-    surface.fit_to_curve(axis, 0.1, flip_theta=True)
     label_nphi, label_ntheta = label_grid or (None, None)
-    labels = {
-        "Volume": lambda: Volume(surface, nphi=label_nphi, ntheta=label_ntheta),
-        "Area": lambda: Area(surface, nphi=label_nphi, ntheta=label_ntheta),
-        "AspectRatio": lambda: AspectRatio(
-            surface, nphi=label_nphi, ntheta=label_ntheta
-        ),
-        "ToroidalFlux": lambda: ToroidalFlux(
-            surface, BiotSavart(bs.coils), nphi=label_nphi, ntheta=label_ntheta
-        ),
-    }
-    label_object = labels[label]()
+    bs, native = get_boozer_surface(
+        label=label,
+        nphi=label_nphi,
+        ntheta=label_ntheta,
+        boozer_type=boozer_type,
+        optimize_G=optimize_G,
+        converge=False,
+        stellsym=stellsym,
+        weight_inv_modB=weight_inv_modB if boozer_type == "ls" else False,
+    )
+    surface, label_object = native.surface, native.label
+    # The first half-period contains the NCSX base currents, in their original order.
+    base_currents = [
+        coil.current for coil in bs.coils[:len(bs.coils) // (2 * surface.nfp)]
+    ]
+    G0 = _G0(surface.nfp, base_currents) if optimize_G else None
     if options is None:
         options = (
             {"verbose": False}
@@ -163,6 +151,7 @@ def _problem(
         if newton_tol is not None:
             options["newton_tol"] = newton_tol
     constraint_weight = None if boozer_type == "exact" else _WEIGHT
+    # These parity tests keep the initial label, including AspectRatio (the helper uses 0.9 * J()).
     boozer = (
         JaxBoozerSurface(
             JaxBiotSavart(bs.coils),
@@ -337,6 +326,31 @@ _OBJECTIVE_CASES = {
 
 
 # --- settings, compilation, transfers and the boundary --------------------------
+
+
+def _toroidal_flux_adjoint_problem():
+    """Solve the shared ToroidalFlux problem and build its adjoint objectives."""
+    native, jax_problem = _pair("ls", "ToroidalFlux", label_grid=(31, 31))
+    objectives = {
+        "Iotas": lambda problem: Iotas(problem.boozer),
+        "MajorRadius": lambda problem: MajorRadius(problem.boozer),
+        "NonQuasiSymmetricRatio": lambda problem: NonQuasiSymmetricRatio(
+            problem.boozer, BiotSavart(problem.coils)
+        ),
+        "BoozerResidual": lambda problem: BoozerResidual(
+            problem.boozer, BiotSavart(problem.coils)
+        ),
+    }
+    jax_objectives = {
+        **objectives,
+        "BoozerResidual": lambda problem: JaxBoozerResidual(
+            problem.boozer, problem.boozer.biotsavart
+        ),
+    }
+    for problem in (native, jax_problem):
+        problem.boozer.run_code(_IOTA, G=problem.G0)
+    native_objectives = {name: make(native) for name, make in objectives.items()}
+    return native, jax_problem, native_objectives, jax_objectives
 
 
 class TestBoozerSurfaceJax(JaxTestCase):
@@ -1155,26 +1169,9 @@ class TestBoozerSurfaceJax(JaxTestCase):
         ``BoozerResidual``'s value also depends on the coils through the label:
         ``JaxBoozerResidual`` differentiates it; native ``BoozerResidual`` takes
         its explicit derivative through ``B`` only and is not the derivative."""
-        native, jax_problem = _pair("ls", "ToroidalFlux", label_grid=(31, 31))
-        objectives = {
-            "Iotas": lambda problem: Iotas(problem.boozer),
-            "MajorRadius": lambda problem: MajorRadius(problem.boozer),
-            "NonQuasiSymmetricRatio": lambda problem: NonQuasiSymmetricRatio(
-                problem.boozer, BiotSavart(problem.coils)
-            ),
-            "BoozerResidual": lambda problem: BoozerResidual(
-                problem.boozer, BiotSavart(problem.coils)
-            ),
-        }
-        jax_objectives = {
-            **objectives,
-            "BoozerResidual": lambda problem: JaxBoozerResidual(
-                problem.boozer, problem.boozer.biotsavart
-            ),
-        }
-        for problem in (native, jax_problem):
-            problem.boozer.run_code(_IOTA, G=problem.G0)
-        native_objectives = {name: make(native) for name, make in objectives.items()}
+        native, jax_problem, native_objectives, jax_objectives = (
+            _toroidal_flux_adjoint_problem()
+        )
         jax_handle, native_handle = Iotas(jax_problem.boozer), Iotas(native.boozer)
         # Every free coil DOF moves, by a fraction of its own size.
         x0 = np.asarray(native_handle.x, dtype=np.float64)
@@ -1210,13 +1207,8 @@ class TestBoozerSurfaceJax(JaxTestCase):
                 f"{name}: native's adjoint matches the difference",
             )
 
-    def test_gradients_with_G_from_free_currents_are_the_derivatives_of_the_solve(self):
-        """Solved directly with ``G=None`` and free currents (``run_code`` refuses
-        this; the solvers do not), ``G`` follows the currents. The coil gradients
-        of ``Iotas`` and ``JaxBoozerResidual`` on a ``JaxBoozerSurface`` are the
-        central differences of the native objectives' values through native
-        re-solves (penalty Newton from the solution); native's own drop
-        ``dG/dI``."""
+    def _free_current_adjoint_problem(self):
+        """Solve the shared penalty problem with G derived from free currents."""
         native, jax_problem = _pair("ls")
         solve = dict(
             tol=1e-11,
@@ -1244,6 +1236,16 @@ class TestBoozerSurfaceJax(JaxTestCase):
                 res["success"],
                 "the penalty Newton with G from the currents did not converge",
             )
+        return native, jax_problem, solve
+
+    def test_gradients_with_G_from_free_currents_are_the_derivatives_of_the_solve(self):
+        """Solved directly with ``G=None`` and free currents (``run_code`` refuses
+        this; the solvers do not), ``G`` follows the currents. The coil gradients
+        of ``Iotas`` and ``JaxBoozerResidual`` on a ``JaxBoozerSurface`` are the
+        central differences of the native objectives' values through native
+        re-solves (penalty Newton from the solution); native's own drop
+        ``dG/dI``."""
+        native, jax_problem, solve = self._free_current_adjoint_problem()
         solution, iota = native.boozer.surface.get_dofs(), native.boozer.res["iota"]
         native_objectives = {
             "Iotas": Iotas(native.boozer),
@@ -1602,26 +1604,9 @@ class TestBoozerSurfaceJax(JaxTestCase):
         self,
     ):
         """Solved coil adjoints converge with the native centered Taylor stencil."""
-        native, jax_problem = _pair("ls", "ToroidalFlux", label_grid=(31, 31))
-        objectives = {
-            "Iotas": lambda problem: Iotas(problem.boozer),
-            "MajorRadius": lambda problem: MajorRadius(problem.boozer),
-            "NonQuasiSymmetricRatio": lambda problem: NonQuasiSymmetricRatio(
-                problem.boozer, BiotSavart(problem.coils)
-            ),
-            "BoozerResidual": lambda problem: BoozerResidual(
-                problem.boozer, BiotSavart(problem.coils)
-            ),
-        }
-        jax_objectives = {
-            **objectives,
-            "BoozerResidual": lambda problem: JaxBoozerResidual(
-                problem.boozer, problem.boozer.biotsavart
-            ),
-        }
-        for problem in (native, jax_problem):
-            problem.boozer.run_code(_IOTA, G=problem.G0)
-        native_objectives = {name: make(native) for name, make in objectives.items()}
+        native, jax_problem, native_objectives, jax_objectives = (
+            _toroidal_flux_adjoint_problem()
+        )
         jax_handle, native_handle = Iotas(jax_problem.boozer), Iotas(native.boozer)
         # Every free coil DOF moves, by a fraction of its own size.
         x0 = np.asarray(native_handle.x, dtype=np.float64)
@@ -1682,33 +1667,7 @@ class TestBoozerSurfaceJax(JaxTestCase):
         self,
     ):
         """Solved coil adjoints converge with the native centered Taylor stencil."""
-        native, jax_problem = _pair("ls")
-        solve = dict(
-            tol=1e-11,
-            maxiter=40,
-            constraint_weight=_WEIGHT,
-            G=None,
-            weight_inv_modB=False,
-        )
-        start = native.boozer.minimize_boozer_penalty_constraints_LBFGS(
-            tol=1e-10,
-            maxiter=1500,
-            constraint_weight=_WEIGHT,
-            iota=_IOTA,
-            G=None,
-            limited_memory=False,
-            weight_inv_modB=False,
-        )
-        jax_problem.boozer.surface.set_dofs(native.boozer.surface.get_dofs())
-        for problem in (native, jax_problem):
-            problem.boozer.need_to_run_code = True
-            res = problem.boozer.minimize_boozer_penalty_constraints_newton(
-                iota=start["iota"], **solve
-            )
-            self.assertTrue(
-                res["success"],
-                "the penalty Newton with G from the currents did not converge",
-            )
+        native, jax_problem, solve = self._free_current_adjoint_problem()
         solution, iota = native.boozer.surface.get_dofs(), native.boozer.res["iota"]
         native_objectives = {
             "Iotas": Iotas(native.boozer),
