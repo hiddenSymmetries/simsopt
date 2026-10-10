@@ -6,17 +6,14 @@ its recompute mechanism (DOF setters, fix/unfix, resample) and every point or
 backend change must retire that state; native BiotSavart is the oracle.
 """
 
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JaxTestCase, optional_jax_imports
 
-try:
+with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax  # noqa: F401
     import jax.numpy as jnp
     from simsopt_jax.backend import invalidate_backend_cache
     from simsopt_jax_adapters.field import biotsavart_backend as backend
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 from unittest import mock
 
 

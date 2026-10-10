@@ -19,11 +19,19 @@ try:
 except ImportError as error:
     JAX_IMPORT_ERROR = str(error)
 
-try:
+
+@contextmanager
+def optional_jax_imports() -> Iterator[None]:
+    """Suppress import errors only when the optional JAX runtime is unavailable."""
+    try:
+        yield
+    except ImportError:
+        if JAX_IMPORT_ERROR is None:
+            raise
+
+
+with optional_jax_imports():
     from simsopt_jax.backend.runtime import apply_cuda_xla_flag_pins
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 
 
 @skipIf(JAX_IMPORT_ERROR is not None, JAX_IMPORT_ERROR or "")
