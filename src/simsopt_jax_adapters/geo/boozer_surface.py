@@ -174,14 +174,9 @@ class JaxBoozerSurface(Optimizable):
     with :math:`w = 1`, :math:`\mathbf r_M` the residual entries of native's stellarator-symmetry
     mask, and the :math:`z` equation only without stellarator symmetry.
 
-    Stopping and failure follow native. BoozerExact Newton stops when the Euclidean norm of the
-    augmented system vector :math:`(\mathbf r_M, l - l_0[, z])` is at most ``newton_tol`` (default
-    ``1e-13``) or after ``newton_maxiter`` steps (default 40). BoozerLS runs SciPy BFGS
-    (``bfgs_tol`` 1e-10 as ``gtol``, at most ``bfgs_maxiter`` 1500 iterations; L-BFGS-B if
-    ``limited_memory``), then Newton until the Euclidean norm of :math:`\nabla J` is at most
-    ``newton_tol`` (default ``1e-11``) or after ``newton_maxiter`` steps (default 40). Exhausting a
-    cap returns ``res["success"] = False``; a singular Newton step raises
-    :class:`numpy.linalg.LinAlgError`, leaving the surface at the last iterate.
+    Stopping rules follow native and are described on the solver methods below.
+    A singular Newton step raises :class:`numpy.linalg.LinAlgError`, leaving the
+    surface at the last iterate.
 
     References:
         [1] A. Giuliani, F. Wechsung, G. Stadler, A. Cerfon, M. Landreman, "Direct computation of
@@ -204,7 +199,8 @@ class JaxBoozerSurface(Optimizable):
             label and z constraints; None for an exact problem. Truthy selects BoozerLS;
             otherwise run_code uses BoozerExact. Default None.
         options (dict | None): Native solver options overriding the defaults for the
-            selected formulation (``verbose`` True, the tolerances and caps above,
+            selected formulation (``verbose`` True, ``newton_tol`` 1e-13 for BoozerExact
+            or 1e-11 for BoozerLS, ``newton_maxiter`` 40, ``bfgs_tol`` 1e-10, ``bfgs_maxiter`` 1500,
             ``limited_memory`` False, ``weight_inv_modB`` True); default None uses the defaults.
 
     The label must be one of the four classes above; with ``G=None`` in :meth:`run_code` the coil
@@ -413,6 +409,8 @@ class JaxBoozerSurface(Optimizable):
 
         Args:
             tol (float): Euclidean penalty-gradient norm threshold; default 1e-12.
+                Success is True when the final iterate's norm is at most tol,
+                including when the last permitted step reaches maxiter.
             maxiter (int | float): Newton step cap; default 10. Positive fractional caps admit
                 steps while the integer iteration count is below the cap.
             constraint_weight (float): Native penalty coefficient for the squared label and
@@ -577,10 +575,9 @@ class JaxBoozerSurface(Optimizable):
             tol (float): Threshold for the Euclidean norm of the full Newton system
                 vector: Boozer residual entries selected by the native exact mask,
                 followed by ``label - targetlabel`` and, without stellarator symmetry,
-                ``z(0, 0)``. If a positive ``maxiter`` cap is reached after a Newton
-                step, success uses the norm checked before the last step. With
-                ``maxiter=0``, the returned stopping norm is the initial ``1e6`` sentinel.
-                Default 1e-10; the norm combines residual and constraint units.
+                ``z(0, 0)``. Default 1e-10; the norm combines residual and constraint
+                units. The stopping norm and success follow
+                :func:`simsopt_jax.core.boozer_solvers.boozer_exact_newton`.
             maxiter (int | float): Newton step cap; default 10. Positive fractional caps admit
                 steps while the integer iteration count is below the cap.
             iota (float): Initial dimensionless rotational transform; default 0.0.

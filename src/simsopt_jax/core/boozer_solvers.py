@@ -89,10 +89,8 @@ class BoozerExactNewtonResult:
         norm (jax.Array): Scalar shape () Euclidean norm of the unweighted, unscaled
             Boozer residual rows selected by residual_rows, followed by label minus
             targetlabel and, without stellarator symmetry, z(0, 0). These terms
-            have mixed physical units. At a reached step cap, this is the norm
-            before the last step; a nonpositive maxiter returns the initial 1e6
-            sentinel. Initial convergence with a positive cap returns the computed
-            initial system norm.
+            have mixed physical units. See :func:`boozer_exact_newton` for the
+            stopping norm at an iteration cap or initial convergence.
         singular (jax.Array): Scalar shape () bool indicating an exactly singular finite
             step matrix; x retains the iterate that encountered it.
     """
