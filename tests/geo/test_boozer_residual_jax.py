@@ -17,9 +17,9 @@ and unsupported inputs.
 
 from __future__ import annotations
 
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase, optional_jax_imports
 
-try:
+with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax
     import simsoptpp as sopp
@@ -54,9 +54,6 @@ try:
         boozer_exact_residual_rows,
         boozer_problem,
     )
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 
 from unittest_jax_support import (
     assert_matches_native,
