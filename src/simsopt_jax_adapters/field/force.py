@@ -213,18 +213,18 @@ class JaxLpCurveForce(_LpObjective):
           \approx \frac{1}{p}\sum_i \int \max\left(\left|\frac{d\vec{F}_i}{d\ell}\right| - F_0, 0\right)^p d\ell_i,
 
     where :math:`d` = ``downsample``, the sum over :math:`k` runs over the :math:`N = n/d` points
-    :math:`t_k = kd/n` of the :math:`n` target quadrature points, and :math:`\gamma_i'` is the derivative
-    with respect to the unit-period curve parameter, so the quadrature approximates the arclength integral
-    on the right. The force per unit length
+    :math:`t_k` taken with stride :math:`d` from the :math:`n` target quadrature points, and :math:`\gamma_i'` is
+    the derivative with respect to the curve parameter. On the default uniform grid over the full period
+    :math:`[0, 1)`, :math:`t_k = kd/n` and the quadrature approximates the arclength integral on the right. The force per unit length
 
     .. math::
         \frac{d\vec{F}_i}{d\ell} = I_i\, \hat{t}_i \times (\vec{B}_{i,\text{self}} + \vec{B}_{i,\text{mutual}})
 
-    is in MN/m, with :math:`\hat{t}_i = \gamma_i'/|\gamma_i'|`, the regularized self field of coil :math:`i`'s
-    finite cross section, and the field of the other target coils and all source coils (also sampled with
-    stride :math:`d`). Overlap between the target and source lists is removed, so no field is counted twice.
+    is computed in N/m and converted to MN/m before thresholding, with :math:`\hat{t}_i = \gamma_i'/|\gamma_i'|`,
+    the regularized self field of coil :math:`i`'s finite cross section, and the field of the other target coils
+    and all source coils (also sampled with stride :math:`d`). Target coils are removed from the source lists.
 
-    :math:`F_0` is ``threshold``. The units of :math:`J` are (MN/m)^p m.
+    :math:`F_0` is ``threshold``. The units of :math:`J` are :math:`(\mathrm{MN/m})^p\,\mathrm{m}`.
 
     Args:
         target_coils (Coil or list of Coil): RegularizedCoil objects on which the force is computed. Coils that
@@ -245,7 +245,7 @@ class JaxLpCurveForce(_LpObjective):
         super().__init__(target_coils, source_coils_coarse, source_coils_fine, p, threshold, downsample)
 
     def J(self):
-        """Evaluate the native formula using explicitly placed coil operands.
+        """Return the objective value given by the formula in the class docstring.
 
         Returns:
             float: objective value with units given by the class contract.
@@ -281,18 +281,18 @@ class JaxLpCurveTorque(_LpObjective):
         \vec{c}_i = \frac{\sum_k \gamma_i(t_k)\, |\gamma_i'(t_k)|}{\sum_k |\gamma_i'(t_k)|},
 
     where :math:`d` = ``downsample``, the sum over :math:`k` runs over the :math:`N = n/d` points
-    :math:`t_k = kd/n` of the :math:`n` target quadrature points, and :math:`\gamma_i'` is the derivative
-    with respect to the unit-period curve parameter, so the quadrature approximates the arclength integral
-    on the right. The force per unit length
+    :math:`t_k` taken with stride :math:`d` from the :math:`n` target quadrature points, and :math:`\gamma_i'` is
+    the derivative with respect to the curve parameter. On the default uniform grid over the full period
+    :math:`[0, 1)`, :math:`t_k = kd/n` and the quadrature approximates the arclength integral on the right. The force per unit length
 
     .. math::
         \frac{d\vec{F}_i}{d\ell} = I_i\, \hat{t}_i \times (\vec{B}_{i,\text{self}} + \vec{B}_{i,\text{mutual}})
 
-    is in MN/m, with :math:`\hat{t}_i = \gamma_i'/|\gamma_i'|`, the regularized self field of coil :math:`i`'s
-    finite cross section, and the field of the other target coils and all source coils (also sampled with
-    stride :math:`d`). Overlap between the target and source lists is removed, so no field is counted twice.
+    is computed in N/m and converted to MN/m before thresholding, with :math:`\hat{t}_i = \gamma_i'/|\gamma_i'|`,
+    the regularized self field of coil :math:`i`'s finite cross section, and the field of the other target coils
+    and all source coils (also sampled with stride :math:`d`). Target coils are removed from the source lists.
 
-    :math:`T_0` is ``threshold``, the torque per unit length is in MN, and :math:`J` is in MN^p m.
+    :math:`T_0` is ``threshold``, the torque per unit length is in MN, and :math:`J` is in :math:`\mathrm{MN}^p\,\mathrm{m}`.
 
     Args:
         target_coils (Coil or list of Coil): RegularizedCoil objects on which the torque is computed. Coils that
@@ -313,7 +313,7 @@ class JaxLpCurveTorque(_LpObjective):
         super().__init__(target_coils, source_coils_coarse, source_coils_fine, p, threshold, downsample)
 
     def J(self):
-        """Evaluate the native formula using explicitly placed coil operands.
+        """Return the objective value given by the formula in the class docstring.
 
         Returns:
             float: objective value with units given by the class contract.
@@ -355,11 +355,13 @@ class JaxSquaredMeanForce(_SquaredMeanObjective):
           \approx \sum_i \left|\int \frac{d\vec{F}_i}{d\ell}\, d\ell_i\right|^2,
 
     where :math:`d` = ``downsample``, the sum over :math:`k` runs over the :math:`N = n/d` points
-    :math:`t_k = kd/n` of the :math:`n` target quadrature points, and :math:`\gamma_i'` is the derivative
-    with respect to the unit-period curve parameter. The force per unit length
-    :math:`d\vec{F}_i/d\ell = I_i\, \hat{t}_i \times \vec{B}_{i,\text{mutual}}`, in MN/m, uses only the field of
+    :math:`t_k` taken with stride :math:`d` from the :math:`n` target quadrature points, and :math:`\gamma_i'` is
+    the derivative with respect to the curve parameter. On the default uniform grid over the full period
+    :math:`[0, 1)`, :math:`t_k = kd/n` and the quadrature approximates the integral on the right. The force per
+    unit length
+    :math:`d\vec{F}_i/d\ell = I_i\, \hat{t}_i \times \vec{B}_{i,\text{mutual}}`, in N/m, uses only the field of
     the other target coils and all source coils (also sampled with stride :math:`d`); there is no self force.
-    :math:`J` is in MN^2.
+    :math:`J` is converted from N^2 to MN^2.
 
     Args:
         target_coils (Coil or list of Coil): coils on which the net force is computed. Coils
@@ -375,7 +377,7 @@ class JaxSquaredMeanForce(_SquaredMeanObjective):
         super().__init__(target_coils, source_coils_coarse, source_coils_fine, downsample)
 
     def J(self):
-        """Evaluate the native formula using explicitly placed coil operands.
+        """Return the objective value given by the formula in the class docstring.
 
         Returns:
             float: objective value with units given by the class contract.
@@ -406,11 +408,13 @@ class JaxSquaredMeanTorque(_SquaredMeanObjective):
 
     with :math:`\vec{c}_i = \sum_k \gamma_i(t_k) |\gamma_i'(t_k)| / \sum_k |\gamma_i'(t_k)|` the arclength
     centroid of coil :math:`i`, where :math:`d` = ``downsample``, the sum over :math:`k` runs over the :math:`N = n/d` points
-    :math:`t_k = kd/n` of the :math:`n` target quadrature points, and :math:`\gamma_i'` is the derivative
-    with respect to the unit-period curve parameter. The force per unit length
-    :math:`d\vec{F}_i/d\ell = I_i\, \hat{t}_i \times \vec{B}_{i,\text{mutual}}`, in MN/m, uses only the field of
+    :math:`t_k` taken with stride :math:`d` from the :math:`n` target quadrature points, and :math:`\gamma_i'` is
+    the derivative with respect to the curve parameter. On the default uniform grid over the full period
+    :math:`[0, 1)`, :math:`t_k = kd/n` and the quadrature approximates the integral on the right. The force per
+    unit length
+    :math:`d\vec{F}_i/d\ell = I_i\, \hat{t}_i \times \vec{B}_{i,\text{mutual}}`, in N/m, uses only the field of
     the other target coils and all source coils (also sampled with stride :math:`d`); there is no self force.
-    :math:`J` is in (MN m)^2.
+    :math:`J` is converted from (N m)^2 to (MN m)^2.
 
     Args:
         target_coils (Coil or list of Coil): coils on which the net torque is computed. Coils
@@ -426,7 +430,7 @@ class JaxSquaredMeanTorque(_SquaredMeanObjective):
         super().__init__(target_coils, source_coils_coarse, source_coils_fine, downsample)
 
     def J(self):
-        """Evaluate the native formula using explicitly placed coil operands.
+        """Return the objective value given by the formula in the class docstring.
 
         Returns:
             float: objective value with units given by the class contract.
@@ -455,7 +459,7 @@ class JaxB2Energy(Optimizable):
 
     where :math:`I_i` is the current in coil :math:`i` and :math:`L_{ij}` is the inductance matrix, computed on
     every ``downsample``-th quadrature point, with the regularized self-inductance of each coil's finite cross
-    section on the diagonal. :math:`J` is in MJ.
+    section on the diagonal. :math:`J` is in MJ (joules times :math:`10^{-6}`).
 
     Args:
         target_coils (list of RegularizedCoil, shape (m,)): coils contributing to the energy, with a common
@@ -476,7 +480,7 @@ class JaxB2Energy(Optimizable):
         return (*_coil_group(self.target_coils), _as_jax_float64(self._regularizations))
 
     def J(self):
-        """Evaluate the native formula using explicitly placed coil operands.
+        """Return the objective value given by the formula in the class docstring.
 
         Returns:
             float: objective value with units given by the class contract.
@@ -543,7 +547,7 @@ class JaxNetFluxes(Optimizable):
         )
 
     def J(self):
-        """Evaluate the native formula using explicitly placed coil operands.
+        """Return the objective value given by the formula in the class docstring.
 
         Returns:
             float: objective value with units given by the class contract.
