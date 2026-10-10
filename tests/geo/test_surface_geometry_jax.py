@@ -14,9 +14,9 @@ surfaces.
 
 from __future__ import annotations
 
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase, optional_jax_imports
 
-try:
+with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax
     from simsopt._core.derivative import Derivative, OptimizableDefaultDict
@@ -39,9 +39,6 @@ try:
     )
     from simsopt_jax.runtime.host_boundary import disallow_host_transfers
     from simsopt_jax_adapters.geo import surface_spec_from_surface
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 
 from unittest_jax_support import (
     host_array,
