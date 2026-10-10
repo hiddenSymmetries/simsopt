@@ -31,9 +31,9 @@ __all__ = ['QuasisymmetryRatioResidual', 'IotaTargetMetric', 'IotaWeighted',
 
 class QuasisymmetryRatioResidual(Optimizable):
     r"""
-    This class provides a measure of the deviation from quasisymmetry,
-    one that can be computed without Boozer coordinates.  This metric
-    is based on the fact that for quasisymmetry, the ratio
+    This class provides a measure of the deviation from quasisymmetry, one that can be computed without Boozer coordinates.
+    Both stellarator-symmetric and non-stellarator-symmetric VMEC equilibria are supported.
+    This metric is based on the fact that for quasisymmetry, the ratio
 
     .. math::
         (\vec{B}\times\nabla B \cdot\nabla\psi) / (\vec{B} \cdot\nabla B)
@@ -155,8 +155,6 @@ class QuasisymmetryRatioResidual(Optimizable):
         """
         vmec = self.vmec
         vmec.run()
-        if vmec.wout.lasym:
-            raise RuntimeError('Quasisymmetry class cannot yet handle non-stellarator-symmetric configs')
 
         logger.debug('Evaluating quasisymmetry residuals')
         ns = len(self.surfaces)
@@ -194,6 +192,26 @@ class QuasisymmetryRatioResidual(Optimizable):
         interp = interp1d(vmec.s_half_grid, vmec.wout.bsupvmnc[:, 1:], fill_value="extrapolate")
         bsupvmnc = interp(self.surfaces)
 
+        # Interpolate sine coefficients for non-stellarator-symmetric equilibria.
+        if vmec.wout.lasym:
+            interp = interp1d(vmec.s_half_grid, vmec.wout.gmns[:, 1:], fill_value="extrapolate")
+            gmns = interp(self.surfaces)
+           
+            interp = interp1d(vmec.s_half_grid, vmec.wout.bmns[:, 1:], fill_value="extrapolate")
+            bmns = interp(self.surfaces)
+           
+            interp = interp1d(vmec.s_half_grid, vmec.wout.bsubumns[:, 1:], fill_value="extrapolate")
+            bsubumns = interp(self.surfaces)
+           
+            interp = interp1d(vmec.s_half_grid, vmec.wout.bsubvmns[:, 1:], fill_value="extrapolate")
+            bsubvmns = interp(self.surfaces)
+           
+            interp = interp1d(vmec.s_half_grid, vmec.wout.bsupumns[:, 1:], fill_value="extrapolate")
+            bsupumns = interp(self.surfaces)
+           
+            interp = interp1d(vmec.s_half_grid, vmec.wout.bsupvmns[:, 1:], fill_value="extrapolate")
+            bsupvmns = interp(self.surfaces)
+
         theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
         phi1d = np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False)
         phi2d, theta2d = np.meshgrid(phi1d, theta1d)
@@ -224,6 +242,16 @@ class QuasisymmetryRatioResidual(Optimizable):
             bsubv += np.kron(bsubvmnc[jmn, :].reshape((ns, 1, 1)), cosangle)
             bsupu += np.kron(bsupumnc[jmn, :].reshape((ns, 1, 1)), cosangle)
             bsupv += np.kron(bsupvmnc[jmn, :].reshape((ns, 1, 1)), cosangle)
+            # Include sine contributions for non-stellarator-symmetric equilibria.
+            if vmec.wout.lasym:
+                modB += np.kron(bmns[jmn, :].reshape((ns, 1, 1)), sinangle)
+                d_B_d_theta += np.kron(bmns[jmn, :].reshape((ns, 1, 1)), m * cosangle)
+                d_B_d_phi += np.kron(bmns[jmn, :].reshape((ns, 1, 1)), -n * cosangle)
+                sqrtg += np.kron(gmns[jmn, :].reshape((ns, 1, 1)), sinangle)
+                bsubu += np.kron(bsubumns[jmn, :].reshape((ns, 1, 1)), sinangle)
+                bsubv += np.kron(bsubvmns[jmn, :].reshape((ns, 1, 1)), sinangle)
+                bsupu += np.kron(bsupumns[jmn, :].reshape((ns, 1, 1)), sinangle)
+                bsupv += np.kron(bsupvmns[jmn, :].reshape((ns, 1, 1)), sinangle)
 
         B_dot_grad_B = bsupu * d_B_d_theta + bsupv * d_B_d_phi
         B_cross_grad_B_dot_grad_psi = d_psi_d_s * (bsubu * d_B_d_phi - bsubv * d_B_d_theta) / sqrtg
