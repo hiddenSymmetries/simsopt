@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import cast
 
 import numpy as np
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JaxTestCase, optional_jax_imports
 
 from simsopt._core.derivative import Derivative
 from simsopt._core.optimizable import Optimizable
@@ -14,11 +14,8 @@ from simsopt.field import Coil, Current
 from simsopt.field.force import NetFluxes
 from simsopt.geo import CurveXYZFourier
 
-try:
+with optional_jax_imports():
     from simsopt_jax_adapters.field import JaxNetFluxes
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 
 
 def _objectives(stride: int, shared: bool):

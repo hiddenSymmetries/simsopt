@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase, optional_jax_imports
 
-try:
+with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax
     import jax.numpy as jnp
@@ -56,9 +56,6 @@ try:
         JaxMeanSquaredCurvature,
     )
     from simsopt_jax_adapters.objectives import JaxSquaredFlux
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 
 
 from collections.abc import Callable
