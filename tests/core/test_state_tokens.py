@@ -1,12 +1,9 @@
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JaxTestCase, optional_jax_imports
 
-try:
+with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax  # noqa: F401
     from simsopt_jax.core.state_tokens import make_state_token_factory
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 
 
 class TestStateTokens(JaxTestCase):
