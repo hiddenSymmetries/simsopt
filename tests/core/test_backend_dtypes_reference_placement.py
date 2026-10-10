@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JaxTestCase, optional_jax_imports
 
-try:
+with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax  # noqa: F401
     import jax.numpy as jnp
@@ -12,9 +12,6 @@ try:
     from simsopt_jax.backend.runtime import invalidate_backend_cache, set_backend
     from simsopt_jax.core import _device_scalars
     from simsopt_jax.core._device_scalars import staged_like
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 
 
 import os

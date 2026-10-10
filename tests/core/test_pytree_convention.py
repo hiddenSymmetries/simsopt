@@ -1,8 +1,8 @@
 """Keep JAX registration and immutable record conventions centralized."""
 
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JaxTestCase, optional_jax_imports
 
-try:
+with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax  # noqa: F401
     import jax.numpy as jnp
@@ -12,9 +12,6 @@ try:
         pytree_node,
         registered_pytree_classes,
     )
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 
 
 import ast

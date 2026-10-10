@@ -23,6 +23,7 @@ try:
         create_equally_spaced_curves,
     )
     from simsopt_jax.backend import set_backend
+    from simsopt_jax.core import curve_kernels
     from simsopt_jax.core.curve_kernels import (
         curve_curve_distance_penalty_pure,
         curve_length_from_incremental_arclength_pure,
@@ -266,7 +267,6 @@ class TestCurveObjectivesJax(JaxTestCase):
     def test_pure_kernels_snapshot_numpy_before_pending_evaluation(self):
         """Caller mutation cannot change queued length, curvature or candidate results."""
         cases = (
-            (curve_length_from_incremental_arclength_pure, ((65536,),)),
             (kappa_pure, ((65536, 3), (65536, 3))),
             (curvature_p_norm_from_kappa_pure, ((65536,), (65536, 3), (), ())),
             (mean_squared_curvature_pure, ((65536,), (65536, 3))),
@@ -289,16 +289,37 @@ class TestCurveObjectivesJax(JaxTestCase):
         inputs: list[np.ndarray | jax.Array] = [jnp.asarray(value) for value in host_inputs]
         inputs[operand_index] = host_inputs[operand_index]
         gate = make_execution_gate()
-        gate_index = 1 if operand_index == 0 and len(inputs) > 1 else 0
+        gate_index = 1 if operand_index == 0 else 0
         gate(jnp.asarray(host_inputs[gate_index])).block_until_ready()
         pending = gate(jnp.asarray(host_inputs[gate_index]))
-        if len(inputs) > 1:
-            inputs[gate_index] = pending
+        inputs[gate_index] = pending
         result = kernel(*inputs)
         self.assertFalse(result.is_ready(), "pure kernel finished before caller mutation")
         host_inputs[operand_index][...] = 0.0 if kernel is distance_candidate_pure else -7.0
         np.testing.assert_array_equal(result.block_until_ready(), expected)
         pending.block_until_ready()
+
+    def test_length_kernel_snapshots_numpy_before_pending_evaluation(self):
+        """Caller mutation cannot change a queued length.
+
+        The length kernel has one operand, so no queued input can hold its evaluation; the
+        test wraps its compiled formula so that it also waits for the execution gate."""
+        compiled = curve_kernels._curve_length_from_incremental_arclength_pure
+        held = jax.jit(lambda speed, ready: jnp.where(ready[0] > 0, compiled(speed), jnp.nan))
+        for misaligned in (False, True):
+            with self.subTest(misaligned=misaligned), self.case():
+                speed = _host_array((65536,), misaligned=misaligned)
+                gate = make_execution_gate()
+                ready = gate(jnp.ones(1)).block_until_ready()
+                expected = np.asarray(held(jnp.asarray(speed.copy()), ready)).copy()
+                pending = gate(ready)
+                with mock.patch.object(
+                    curve_kernels, "_curve_length_from_incremental_arclength_pure", lambda value: held(value, pending)
+                ):
+                    result = curve_length_from_incremental_arclength_pure(speed)
+                self.assertFalse(result.is_ready(), "length finished before caller mutation")
+                speed[...] = -7.0
+                np.testing.assert_array_equal(result.block_until_ready(), expected)
 
     def test_pure_kernels_support_nested_jit_and_grad(self):
         """Host boundaries preserve traced device values and differentiable formulas."""

@@ -6,16 +6,13 @@ guards. Computing zero from reference values could overflow for finite inputs.
 
 from __future__ import annotations
 
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase, optional_jax_imports
 
-try:
+with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax  # noqa: F401
     import jax.numpy as jnp
     from simsopt_jax.core._device_scalars import placement_zero
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 
 
 import numpy as np

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase, optional_jax_imports
 
-try:
+with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax  # noqa: F401
     import jax.numpy as jnp
@@ -15,9 +15,6 @@ try:
         biot_savart_dB_by_dX,
     )
     from simsopt_jax.core.curve_xyz_fourier import _constant_row
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 
 
 import numpy as np
