@@ -6,9 +6,9 @@ call patterns without changing the immutable spec constructors.
 
 from __future__ import annotations
 
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JaxTestCase, optional_jax_imports
 
-try:
+with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax  # noqa: F401
     from simsopt_jax.core.field import coil_set_spec_from_dof_extraction_spec
@@ -20,9 +20,6 @@ try:
         make_curve_xyzfourier_spec,
         make_optimizable_dof_map_spec,
     )
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 
 
 import numpy as np

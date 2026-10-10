@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JaxTestCase, optional_jax_imports
 
-try:
+with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax  # noqa: F401
     import jax.numpy as jnp
@@ -14,9 +14,6 @@ try:
         _dof_map_cotangent_to_owner_gradient,
         _owner_segments_from_free_positions,
     )
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 
 
 import numpy as np

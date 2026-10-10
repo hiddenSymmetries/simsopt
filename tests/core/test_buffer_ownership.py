@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase
+from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase, optional_jax_imports
 
-try:
+with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax  # noqa: F401
     import jax.numpy as jnp
@@ -23,9 +23,6 @@ try:
     from simsopt_jax_adapters.field import JaxBiotSavart
     from simsopt_jax_adapters.field import biotsavart_backend as adapter
     from simsopt_jax_adapters.geo.curve_specs import curve_spec_from_adapter_curve
-except ImportError:
-    if JAX_IMPORT_ERROR is None:
-        raise
 from unittest import mock
 
 

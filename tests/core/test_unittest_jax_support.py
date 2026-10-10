@@ -24,6 +24,13 @@ jax.__version__ = "0.9.0"
 jaxlib.__version__ = "0.9.0"
 unittest.main(module=None)
 """
+_MISSING_JAX_RUNNER = """
+import sys
+import unittest
+
+sys.modules["jax"] = None
+unittest.main(module=None)
+"""
 _MODULE = "core.test_state_tokens"
 _CLASS = f"{_MODULE}.TestStateTokens"
 _METHOD = f"{_CLASS}.test_state_token_factories_are_independent_monotonic_sequences"
@@ -31,8 +38,8 @@ _METHOD = f"{_CLASS}.test_state_token_factories_are_independent_monotonic_sequen
 
 @skipIf(jax is None, "JAX is unavailable for the old-runtime simulation")
 class TestUnittestJaxSupport(TestCase):
-    def test_unsupported_jax_skips_for_every_loader(self):
-        """Old JAX produces successful skips for discovery and named loader targets."""
+    def test_unavailable_jax_skips_for_every_loader(self):
+        """Old or missing JAX skips for discovery and named loader targets."""
         selectors = (
             ("discover", "-t", ".", "-s", "core", "-p", "test_state_tokens.py"),
             (_MODULE,),
@@ -44,10 +51,18 @@ class TestUnittestJaxSupport(TestCase):
         environment["PYTHONPATH"] = os.pathsep.join(
             (str(_TESTS_ROOT), environment.get("PYTHONPATH", ""))
         )
-        for selector in selectors:
-            with self.subTest(selector=selector):
+        cases = (
+            (runner, reason, selector)
+            for runner, reason in (
+                (_UNSUPPORTED_JAX_RUNNER, "simsopt_jax requires"),
+                (_MISSING_JAX_RUNNER, "import of jax halted"),
+            )
+            for selector in selectors
+        )
+        for runner, reason, selector in cases:
+            with self.subTest(reason=reason, selector=selector):
                 completed = subprocess.run(
-                    (sys.executable, "-c", _UNSUPPORTED_JAX_RUNNER, *selector, "-v"),
+                    (sys.executable, "-c", runner, *selector, "-v"),
                     cwd=_TESTS_ROOT,
                     env=environment,
                     capture_output=True,
@@ -57,7 +72,7 @@ class TestUnittestJaxSupport(TestCase):
                 self.assertEqual(completed.returncode, 0, completed.stderr)
                 self.assertIn("Ran 1 test", completed.stderr)
                 self.assertIn("OK (skipped=1)", completed.stderr)
-                self.assertIn("simsopt_jax requires", completed.stderr)
+                self.assertIn(reason, completed.stderr)
 
     @skipIf(JAX_IMPORT_ERROR is not None, JAX_IMPORT_ERROR or "")
     def test_supported_jax_does_not_hide_test_import_errors(self):
