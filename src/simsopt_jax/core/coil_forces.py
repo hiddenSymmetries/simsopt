@@ -52,10 +52,20 @@ _DISTANCE_OFFSET = 1e-10
 
 
 def regularized_self_field(gamma, gammadash, gammadashdash, quadpoints, current, regularization):
-    """Return the regularized self field ``(n, 3)`` of one coil (Landreman and Hurwitz).
+    """Return the regularized self field ``(n, 3)`` of one coil.
 
     ``quadpoints`` is the curve parameter in ``[0, 1)`` and ``regularization``
     the cross-section term of ``regularization_circ``/``regularization_rect``.
+    The method is the one of ``simsopt.field.selffield``, from:
+
+    Hurwitz, Siena, Matt Landreman, and Thomas M. Antonsen.
+    "Efficient calculation of the self magnetic field, self-force, and self-inductance for
+    electromagnetic coils." IEEE Transactions on Magnetics (2024).
+
+    Landreman, Matt, Siena Hurwitz, and Thomas M. Antonsen.
+    "Efficient calculation of self magnetic field, self-force, and self-inductance for
+    electromagnetic coils with rectangular cross-section."
+    Nuclear Fusion 65.3 (2025): 036008.
 
     Args:
         gamma: Array of shape (n, 3), coil positions in m.
