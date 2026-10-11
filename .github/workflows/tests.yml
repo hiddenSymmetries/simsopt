@@ -111,6 +111,9 @@ jobs:
     - name: Install virtual_casing
       run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
 
+    - name: Install desc-opt
+      run: pip install desc-opt
+
     # 2025-11-28: Temporarily disabling SPEC due to github issue #561
     # # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
     # # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions

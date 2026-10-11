@@ -1,5 +1,5 @@
-#include "xtensor/xarray.hpp"
-#include "xtensor/xmath.hpp"
+#include "xtensor/containers/xarray.hpp"
+#include "xtensor/core/xmath.hpp"
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 
 typedef xt::pyarray<double> Array;

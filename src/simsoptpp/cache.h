@@ -2,7 +2,7 @@
 
 #include <string>
 #include <vector>
-#include <xtensor/xarray.hpp>
+#include <xtensor/containers/xarray.hpp>
 //#include <fmt/core.h>
 //#include <fmt/format.h>
 //#include <fmt/ranges.h>
