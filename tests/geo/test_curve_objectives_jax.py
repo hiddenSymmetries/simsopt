@@ -59,33 +59,7 @@ _CURVATURE_THRESHOLD = 1.0
 
 
 
-_DISTANCE_CHILD_SETUP = """
-import sys
-import jax
-from jax._src import xla_bridge
-import numpy as np
-from simsopt.geo import (
-    CurveCurveDistance, CurveSurfaceDistance, SurfaceRZFourier,
-    create_equally_spaced_curves,
-)
-from simsopt_jax.backend import set_backend
-from simsopt_jax_adapters.geo import JaxCurveCurveDistance, JaxCurveSurfaceDistance
-
-assert not xla_bridge.backends_are_initialized()
-curves = create_equally_spaced_curves(
-    2, 1, stellsym=True, R0=1.0, R1=0.5, order=2, numquadpoints=12,
-)
-surface = SurfaceRZFourier.from_nphi_ntheta(nphi=4, ntheta=5)
-surface.set_rc(0, 0, 1.0)
-surface.set_rc(1, 0, 0.3)
-surface.set_zs(1, 0, 0.3)
-if sys.argv[1] == "curve_curve":
-    adapter = JaxCurveCurveDistance(curves, 0.6)
-    native = CurveCurveDistance(curves, 0.6)
-else:
-    adapter = JaxCurveSurfaceDistance(curves, surface, 0.4)
-    native = CurveSurfaceDistance(curves, surface, 0.4)
-"""
+_DISTANCE_CHILD_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fresh_process", "distance_adapters.py")
 
 
 def _distance_child_environment():
@@ -377,17 +351,8 @@ class TestCurveObjectivesJax(JaxTestCase):
 
     def _case_shortest_distance_before_backend_configuration_keeps_jax_uninitialized(self, kind, patches):
         """Run one row with case-local objects released before runtime cleanup."""
-        code = _DISTANCE_CHILD_SETUP + """
-assert not xla_bridge.backends_are_initialized()
-for _ in range(2):
-    np.testing.assert_allclose(adapter.shortest_distance(), native.shortest_distance(), rtol=1e-14)
-assert not xla_bridge.backends_are_initialized(), "host shortest_distance initialized JAX"
-set_backend("jax", device="cpu", intent="parity")
-np.testing.assert_allclose(adapter.J(), native.J(), rtol=1e-12, atol=1e-14)
-np.testing.assert_allclose(adapter.dJ(), native.dJ(), rtol=1e-11, atol=1e-13)
-"""
         completed = subprocess.run(
-            (sys.executable, "-c", code, kind), env=_distance_child_environment(),
+            (sys.executable, _DISTANCE_CHILD_SCRIPT, "uninitialized", kind), env=_distance_child_environment(),
             capture_output=True, text=True, timeout=300,
         )
         self.assertTrue(completed.returncode == 0, completed.stdout + completed.stderr)
@@ -400,35 +365,10 @@ np.testing.assert_allclose(adapter.dJ(), native.dJ(), rtol=1e-11, atol=1e-13)
 
     def _case_distance_operand_cache_follows_default_device_scopes(self, kind, patches):
         """Run one row with case-local objects released before runtime cleanup."""
-        code = _DISTANCE_CHILD_SETUP + """
-set_backend("jax", device="cpu", intent="parity")
-first, second = jax.devices("cpu")[:2]
-searches = []
-search = adapter._candidates
-
-def counted_search(samples):
-    searches.append(None)
-    return search(samples)
-
-adapter._candidates = counted_search
-for device in (first, second, first):
-    with jax.default_device(device):
-        _, operands = adapter._operands()
-        _, reused = adapter._operands()
-        assert reused is operands, "same-scope operands should be reused"
-        assert all(array.devices() == {device} for array in jax.tree.leaves(operands)), device
-        with jax.transfer_guard("disallow"):
-            value, gradient = adapter.J(), adapter.dJ()
-            shortest = adapter.shortest_distance()
-    np.testing.assert_allclose(value, native.J(), rtol=1e-12, atol=1e-14)
-    np.testing.assert_allclose(gradient, native.dJ(), rtol=1e-11, atol=1e-13)
-    np.testing.assert_allclose(shortest, native.shortest_distance(), rtol=1e-14)
-assert len(searches) == 1, "placement changes must reuse host candidates"
-"""
         environment = _distance_child_environment()
         environment["XLA_FLAGS"] = "--xla_force_host_platform_device_count=2"
         completed = subprocess.run(
-            (sys.executable, "-c", code, kind), env=environment,
+            (sys.executable, _DISTANCE_CHILD_SCRIPT, "device_scopes", kind), env=environment,
             capture_output=True, text=True, timeout=300,
         )
         self.assertTrue(completed.returncode == 0, completed.stdout + completed.stderr)
