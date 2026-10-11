@@ -15,7 +15,7 @@ import unittest
 import numpy as np
 
 _CHILD_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             "fresh_process_boozer_fourier_transform.py")
+                             "fresh_process", "boozer_fourier_transform.py")
 
 NUM_POINTS = 200_000
 RELATIVE_TOLERANCE = 1e-10
