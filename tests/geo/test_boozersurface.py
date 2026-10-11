@@ -623,6 +623,36 @@ class BoozerSurfaceTests(unittest.TestCase):
         self.assertTrue(res['success'])
         np.testing.assert_allclose(np.concatenate((s.get_dofs(), [res['iota'], res['G']])), solution, rtol=0, atol=1e-10)
 
+    def test_dlabel_dsurface_taylor(self):
+        """
+        dlabel_dsurface passes a central-difference Taylor test in all surface
+        dofs, fixed or free, for labels on the surface or on a finer grid that
+        shares its dofs.
+        """
+        rng = np.random.default_rng(3)
+        for label, n, fixed in itertools.product(["Volume", "Area", "ToroidalFlux", "AspectRatio"], [None, 51], [False, True]):
+            with self.subTest(label=label, n=n, fixed=fixed):
+                _, boozer_surface = get_boozer_surface(
+                    label=label, nphi=n, ntheta=n, boozer_type="ls", converge=False)
+                s = boozer_surface.surface
+                if fixed:
+                    for i in [0, 3, 5]:
+                        s.fix(i)
+                x0 = np.array(s.local_full_x)
+                direction = rng.uniform(-1, 1, x0.shape)
+                directional_derivative = boozer_surface.dlabel_dsurface() @ direction
+                err_old = np.inf
+                for k in range(7):
+                    eps = 1e-3 * 0.5**k
+                    s.local_full_x = x0 + eps * direction
+                    plus = boozer_surface.label.J()
+                    s.local_full_x = x0 - eps * direction
+                    minus = boozer_surface.label.J()
+                    err = abs((plus - minus) / (2 * eps) - directional_derivative)
+                    self.assertLess(err, 0.3 * err_old, msg=f"eps={eps}")
+                    err_old = err
+                s.local_full_x = x0
+
     def test_failed_solves_restore_the_starting_point(self):
         """
         A solve that fails and ends with a larger or non-finite residual than it
