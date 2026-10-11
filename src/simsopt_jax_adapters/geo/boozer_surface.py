@@ -185,7 +185,7 @@ class JaxBoozerSurface(Optimizable):
 
         [2] A. Giuliani, F. Wechsung, A. Cerfon, M. Landreman, G. Stadler, "Direct stellarator coil
         optimization for nested magnetic surfaces with precise quasi-symmetry", Phys. Plasmas
-        30(4) (2023).
+        30(4), 042511 (2023), doi:10.1063/5.0129716.
 
     Args:
         biotsavart (JaxBiotSavart): Field whose coil DOFs are this solver's parents.
