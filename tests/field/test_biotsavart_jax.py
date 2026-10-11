@@ -356,6 +356,28 @@ class TestBiotSavartJaxCppParity(JaxTestCase):
             atol=_DERIVATIVE_HEAVY_TOLS["second_derivative_atol"],
         )
 
+    def test_GradAbsB_taylor_ncsx(self):
+        """GradAbsB matches central differences of AbsB with second-order convergence
+        under shrinking point steps."""
+
+        bs, points_np, _, _, _ = _ncsx_biotsavart_parity_fixture()
+        bs_jax = JaxBiotSavart(list(bs._coils))
+        bs_jax.set_points(points_np)
+        grad = np.asarray(bs_jax.GradAbsB())
+        for direction in np.eye(3):
+            with self.subTest(direction=direction):
+                deriv = grad @ direction
+                err = 1e6
+                for i in range(5):
+                    eps = 1e-3 * 0.5**i
+                    bs_jax.set_points(points_np + eps * direction)
+                    plus = np.asarray(bs_jax.AbsB())[:, 0]
+                    bs_jax.set_points(points_np - eps * direction)
+                    minus = np.asarray(bs_jax.AbsB())[:, 0]
+                    new_err = np.linalg.norm((plus - minus) / (2 * eps) - deriv)
+                    self.assertLess(new_err, 0.3 * err)
+                    err = new_err
+
 
 class TestBiotSavartJaxCppCoilCurrentParity(JaxTestCase):
     """Per-coil field and spatial derivative parity against native Biot-Savart."""
