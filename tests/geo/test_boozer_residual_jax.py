@@ -570,6 +570,57 @@ class TestBoozerResidualJax(JaxTestCase):
             "BoozerExact constraint rows",
         )
 
+    def test_exact_residual_jacobian_taylor(self):
+        """The BoozerExact Jacobian, and its label and ``z(0, 0)`` rows on their own,
+        match forward differences of the system at shrinking steps."""
+        for label in ["volume", "toroidal_flux"]:
+            for stellsym in [True, False]:
+                with self.subTest(label=label, stellsym=stellsym), self.case():
+                    self._case_exact_residual_jacobian_taylor(label, stellsym)
+
+    def _case_exact_residual_jacobian_taylor(self, label, stellsym):
+        """Run one row with case-local objects released before runtime cleanup."""
+        setup = _setup("tensor", stellsym, label)
+        problem = boozer_problem(setup.field, setup.surface, setup.label, setup.target)
+        rows = boozer_exact_residual_rows(setup.surface)
+        x = _decision(setup.surface, True)
+        direction = parity_rng(1).uniform(size=x.size) - 0.5
+
+        def system(at):
+            return host_array(
+                boozer_exact_residual(problem, place_float64(at, problem.targetlabel), rows)
+            )
+
+        base, jacobian = (
+            host_array(output)
+            for output in boozer_exact_residual(
+                problem, place_float64(x, problem.targetlabel), rows, derivatives=1
+            )
+        )
+        analytic = jacobian @ direction
+        # The Boozer rows dominate the norm of the whole system, so the label row
+        # gets its own convergence check.
+        label_row = rows.size
+        previous_error = previous_label_error = 1e9
+        for step in np.power(2.0, -np.arange(7, 20)):
+            difference = (system(x + step * direction) - base) / step
+            error = np.linalg.norm(difference - analytic)
+            label_error = abs(difference[label_row] - analytic[label_row])
+            self.assertLess(error, 0.55 * previous_error)
+            self.assertLess(label_error, 0.55 * previous_label_error)
+            previous_error, previous_label_error = error, label_error
+        if not stellsym:
+            # z(0, 0) is linear in the surface DOFs, so a forward difference equals
+            # the Jacobian row up to the round-off of subtracting two z values.
+            step = 2.0**-10
+            shifted = system(x + step * direction)[-1]
+            np.testing.assert_allclose(
+                (shifted - base[-1]) / step,
+                analytic[-1],
+                rtol=0,
+                atol=8 * np.finfo(float).eps * (abs(shifted) + abs(base[-1])) / step,
+            )
+
     def test_unmasked_formulations_take_any_grid_and_the_mask_fails_as_natively(self):
         """On a stellarator-symmetric tensor grid that ``get_stellsym_mask()``
         rejects, native's penalty and exact constraints work and so do the JAX
