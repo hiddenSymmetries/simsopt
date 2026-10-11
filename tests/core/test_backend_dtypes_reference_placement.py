@@ -17,6 +17,7 @@ with optional_jax_imports():
 import os
 import subprocess
 import sys
+from pathlib import Path
 from typing import cast
 from unittest import mock
 
@@ -24,108 +25,22 @@ import numpy as np
 
 
 # Two host devices exist only if XLA is told so before it initializes, so the
-# check runs in a child process.
-_STAGED_DEVICE_ARRAY_CHILD = """
-import jax
-import numpy as np
-
-jax.config.update("jax_enable_x64", True)
-from simsopt_jax.core._device_scalars import staged_like
-
-first, second = jax.devices("cpu")[:2]
-reference = jax.device_put(np.zeros(2), first)
-tolerance = jax.device_put(np.asarray(1.0e-12), second)
-budget = jax.device_put(np.asarray(40, dtype=np.int32), second)
-with jax.transfer_guard("disallow"):
-    staged_tolerance = staged_like(reference, tolerance)
-    staged_budget = staged_like(reference, budget, dtype=np.int32)
-    total = reference + staged_tolerance
-assert staged_tolerance.devices() == {first}, staged_tolerance.devices()
-assert staged_budget.devices() == {first}, staged_budget.devices()
-assert staged_budget.dtype == np.int32
-assert float(staged_tolerance) == 1.0e-12 and int(staged_budget) == 40
-assert total.devices() == {first}
-"""
+# multi-device checks run in a child process.
+_PLACEMENT_CHILD = (
+    Path(__file__).resolve().with_name("fresh_process") / "backend_dtypes_placement.py"
+)
 
 
-_UNPLACED_JOINS_COMMITTED_CHILD = """
-import jax
-import jax.numpy as jnp
-import numpy as np
-
-jax.config.update("jax_enable_x64", True)
-from simsopt_jax.backend import dtypes
-
-first, second = jax.devices("cpu")[:2]
-assert dtypes.get_runtime_jax_device() == first
-elsewhere = jax.device_put(np.arange(3.0), second)
-unplaced = dtypes.runtime_device_put(np.ones(3))
-as_runtime = dtypes.as_runtime_array(np.ones(3))
-assert (unplaced + elsewhere).devices() == {second}
-assert (as_runtime * elsewhere).devices() == {second}
-with jax.default_device(second):
-    scoped = dtypes.runtime_device_put(np.ones(3))
-assert scoped.devices() == {second}, scoped.devices()
-moved = dtypes.runtime_device_put(elsewhere)
-assert moved.committed and moved.devices() == {first}, moved.devices()
-
-# An uncommitted array left on another device by an exited default_device
-# scope is not where the runtime puts values: it is moved there.
-with jax.default_device(second):
-    left_behind = jnp.arange(3.0)
-assert not left_behind.committed and left_behind.devices() == {second}
-for placed in (
-    dtypes.runtime_device_put(left_behind),
-    dtypes.runtime_device_put_tree({"leaf": left_behind})["leaf"],
-):
-    assert placed.devices() == {first}, placed.devices()
-# One already there stays uncommitted, like a host value.
-assert not dtypes.runtime_device_put_tree({"leaf": jnp.zeros(3)})["leaf"].committed
-
-# A runtime device JAX would not choose is committed, host values included.
-dtypes.get_runtime_jax_device = lambda: second
-for placed in (
-    dtypes.runtime_device_put(np.ones(3)),
-    dtypes.runtime_device_put_tree({"leaf": np.ones(3)})["leaf"],
-):
-    assert placed.committed and placed.devices() == {second}, placed.devices()
-"""
-
-
-_CUDA_TWO_BACKEND_CHILD = """
-import jax
-import jax.numpy as jnp
-import numpy as np
-
-jax.config.update("jax_enable_x64", True)
-from simsopt_jax.backend import dtypes
-from simsopt_jax.backend.runtime import invalidate_backend_cache, set_backend
-from simsopt_jax.backend.dtypes import runtime_device_put_tree as _place_runtime_tree
-
-gpu = jax.devices("gpu")[0]
-cpu = jax.devices("cpu")[0]
-assert dtypes.get_runtime_jax_device() == gpu
-with jax.default_device(cpu):
-    left_behind = jnp.arange(3.0)
-    scoped = dtypes.runtime_device_put(np.ones(3))
-assert not left_behind.committed and left_behind.devices() == {cpu}
-assert not scoped.committed and scoped.devices() == {cpu}
-for placed in (
-    dtypes.runtime_device_put(left_behind),
-    dtypes.runtime_device_put_tree({"leaf": left_behind})["leaf"],
-    _place_runtime_tree({"leaf": left_behind})["leaf"],
-):
-    assert placed.devices() == {gpu}, placed.devices()
-
-invalidate_backend_cache()
-set_backend("jax_cpu_parity", configure_runtime=False)
-assert dtypes.get_runtime_jax_device() == cpu
-for placed in (
-    dtypes.runtime_device_put(np.ones(3)),
-    dtypes.runtime_device_put_tree({"leaf": np.ones(3)})["leaf"],
-):
-    assert placed.committed and placed.devices() == {cpu}, placed.devices()
-"""
+def _run_placement_child(scenario, environment):
+    """Run one ``fresh_process/backend_dtypes_placement.py`` scenario."""
+    return subprocess.run(
+        (sys.executable, str(_PLACEMENT_CHILD), scenario),
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
 
 
 class TestBackendDtypesReferencePlacement(JaxTestCase):
@@ -235,14 +150,7 @@ class TestBackendDtypesReferencePlacement(JaxTestCase):
                 "XLA_FLAGS": "--xla_force_host_platform_device_count=2",
             }
         )
-        completed = subprocess.run(
-            (sys.executable, "-c", _STAGED_DEVICE_ARRAY_CHILD),
-            env=environment,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
+        completed = _run_placement_child("staged_device_array", environment)
         self.assertTrue(completed.returncode == 0, completed.stdout + completed.stderr)
 
     def test_reference_placement_handles_tracer_leaf_in_sequence(self):
@@ -453,36 +361,22 @@ class TestBackendDtypesReferencePlacement(JaxTestCase):
                 "XLA_FLAGS": "--xla_force_host_platform_device_count=2",
             }
         )
-        completed = subprocess.run(
-            (sys.executable, "-c", _UNPLACED_JOINS_COMMITTED_CHILD),
-            env=environment,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
+        completed = _run_placement_child("unplaced_joins_committed", environment)
         self.assertTrue(completed.returncode == 0, completed.stdout + completed.stderr)
 
     def test_unplaced_values_follow_the_runtime_policy_in_a_cuda_process(self):
         """Real two-backend placement: a GPU policy and a jax-cpu policy in one CUDA process.
 
         An uncommitted CPU array left by a CPU ``jax.default_device`` scope
-        goes to the GPU runtime device after the scope (also through the runtime
-        adapter's ``_place_runtime_tree``); under a jax-cpu policy, which JAX
-        would not choose in a CUDA process, host values are committed to the CPU.
+        goes to the GPU runtime device after the scope; under a jax-cpu policy,
+        which JAX would not choose in a CUDA process, host values are committed
+        to the CPU.
         """
         if not any(device.platform == "gpu" for device in jax.devices()):
             self.skipTest("CUDA device required for the two-backend placement check")
         environment = dict(os.environ)
         environment.update({"JAX_PLATFORMS": "cuda,cpu", "JAX_ENABLE_X64": "1"})
-        completed = subprocess.run(
-            (sys.executable, "-c", _CUDA_TWO_BACKEND_CHILD),
-            env=environment,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
+        completed = _run_placement_child("cuda_two_backend", environment)
         self.assertTrue(completed.returncode == 0, completed.stdout + completed.stderr)
 
     def test_commit_in_place_commits_where_the_array_lives(self):

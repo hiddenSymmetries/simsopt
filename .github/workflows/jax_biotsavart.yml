@@ -46,6 +46,7 @@ jobs:
         run: |
           ruff check src/simsopt_jax src/simsopt_jax_adapters tests/unittest_jax_support.py \
             tests/core/test_backend_dtypes_reference_placement.py \
+            tests/core/fresh_process \
             tests/core/test_backend_strict_jax_device_detection.py \
             tests/core/test_backend_xla_compile_preset.py \
             tests/core/test_backend_xla_gpu_fusion_autotuner.py \
@@ -60,11 +61,13 @@ jobs:
             tests/field/test_biotsavart_jax.py \
             tests/field/test_biotsavart_jax_cache_correctness.py \
             tests/field/test_biotsavart_jax_contract.py \
+            tests/field/fresh_process \
             tests/field/test_biotsavart_jax_correctness.py \
             tests/field/test_biotsavart_jax_state_cache.py \
             tests/field/test_coil_dof_extraction_segments.py \
             tests/geo/test_curvexyzfouriersymmetries_spec_jax.py \
             tests/geo/test_native_jax_device.py \
+            tests/geo/fresh_process \
             tests/geo/test_orientedcurve_jax_spec.py \
             tests/geo/test_curve_subclasses_parity.py \
             tests/core/test_runtime_host_boundary.py \
