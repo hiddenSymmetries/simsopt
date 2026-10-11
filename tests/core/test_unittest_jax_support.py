@@ -15,22 +15,7 @@ except ImportError:
 
 
 _TESTS_ROOT = Path(__file__).resolve().parents[1]
-_UNSUPPORTED_JAX_RUNNER = """
-import jax
-import jaxlib
-import unittest
-
-jax.__version__ = "0.9.0"
-jaxlib.__version__ = "0.9.0"
-unittest.main(module=None)
-"""
-_MISSING_JAX_RUNNER = """
-import sys
-import unittest
-
-sys.modules["jax"] = None
-unittest.main(module=None)
-"""
+_FRESH_PROCESS = Path(__file__).resolve().with_name("fresh_process")
 _MODULE = "core.test_state_tokens"
 _CLASS = f"{_MODULE}.TestStateTokens"
 _METHOD = f"{_CLASS}.test_state_token_factories_are_independent_monotonic_sequences"
@@ -54,15 +39,15 @@ class TestUnittestJaxSupport(TestCase):
         cases = (
             (runner, reason, selector)
             for runner, reason in (
-                (_UNSUPPORTED_JAX_RUNNER, "simsopt_jax requires"),
-                (_MISSING_JAX_RUNNER, "import of jax halted"),
+                ("unittest_with_unsupported_jax.py", "simsopt_jax requires"),
+                ("unittest_without_jax.py", "import of jax halted"),
             )
             for selector in selectors
         )
         for runner, reason, selector in cases:
             with self.subTest(reason=reason, selector=selector):
                 completed = subprocess.run(
-                    (sys.executable, "-c", runner, *selector, "-v"),
+                    (sys.executable, str(_FRESH_PROCESS / runner), *selector, "-v"),
                     cwd=_TESTS_ROOT,
                     env=environment,
                     capture_output=True,
@@ -78,33 +63,17 @@ class TestUnittestJaxSupport(TestCase):
     def test_supported_jax_does_not_hide_test_import_errors(self):
         """A broken test import still fails when the optional runtime is supported."""
         broken_imports = (
-            (
-                "make_state_token_factory",
-                """
-import simsopt_jax.core.state_tokens as state_tokens
-
-del state_tokens.make_state_token_factory
-import core.test_state_tokens
-""",
-            ),
-            (
-                "apply_cuda_xla_flag_pins",
-                """
-import simsopt_jax.backend.runtime as runtime
-
-del runtime.apply_cuda_xla_flag_pins
-import unittest_jax_support
-""",
-            ),
+            ("make_state_token_factory", "import_without_state_token_factory.py"),
+            ("apply_cuda_xla_flag_pins", "import_without_cuda_xla_flag_pins.py"),
         )
         environment = dict(os.environ)
         environment["PYTHONPATH"] = os.pathsep.join(
             (str(_TESTS_ROOT), environment.get("PYTHONPATH", ""))
         )
-        for symbol, code in broken_imports:
+        for symbol, script in broken_imports:
             with self.subTest(symbol=symbol):
                 completed = subprocess.run(
-                    (sys.executable, "-c", code),
+                    (sys.executable, str(_FRESH_PROCESS / script)),
                     cwd=_TESTS_ROOT,
                     env=environment,
                     capture_output=True,
