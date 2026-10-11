@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import simsoptpp as sopp
-from scipy.interpolate import griddata
 from scipy.optimize import newton
 
 from .._core import Optimizable
@@ -44,6 +43,8 @@ class CrossSectionFixedZeta(Optimizable):
         Initial radius.
     nurbs : bool
         Whether the weights are free dofs.
+    dofs : DOFs, optional
+        Saved dofs (values, fixed status and bounds) to use instead of the defaults, e.g. when loading.
     """
 
     def __init__(
@@ -54,11 +55,18 @@ class CrossSectionFixedZeta(Optimizable):
         equispaced=False,
         default_r=0.3,
         nurbs=False,
+        dofs=None,
     ):
         self.zeta_index = zeta_index
         self.n_ctrl_pts = n_ctrl_pts
         self.z_sym = z_sym
+        self.equispaced = equispaced
+        self.default_r = default_r
         self.nurbs = nurbs
+        if dofs is not None:
+            self.n_pts = (n_ctrl_pts // 2) + 1 if z_sym else n_ctrl_pts
+            super().__init__(dofs=dofs, external_dof_setter=CrossSectionFixedZeta.set_dofs_impl)
+            return
         if z_sym:
             n_pts = (n_ctrl_pts // 2) + 1
             max_angle = np.pi
@@ -94,7 +102,8 @@ class CrossSectionFixedZeta(Optimizable):
             dofs = DOFs(
                 cs_dofs,
                 names,
-                [True] * (n_pts) + [False] * (n_pts) + [nurbs] * (n_pts),
+                # last weight fixed: scaling all weights leaves the curve unchanged
+                [True] * (n_pts) + [False] * (n_pts) + [nurbs] * (n_pts - 1) + [False],
                 [0] * (n_pts)
                 + (
                     np.linspace(0, max_angle, n_pts + 1)[:-1]
@@ -321,6 +330,8 @@ class InteriorAxis(sopp.Curve, Curve):
         Whether to fix the toroidal-angle dofs of the control points.
     quadpoints : int or array-like
         Number of uniform quadpoints, or explicit quadpoints in [0, 1).
+    dofs : DOFs, optional
+        Saved dofs (values, fixed status and bounds) to use instead of the defaults, e.g. when loading.
     """
 
     def __init__(
@@ -331,8 +342,10 @@ class InteriorAxis(sopp.Curve, Curve):
         stellsym=True,
         axis_angles_fixed=False,
         quadpoints=61,
+        dofs=None,
     ):
         self.n_ctrl_pts = n_ctrl_pts
+        self.axis_angles_fixed = axis_angles_fixed
         self.stellsym = stellsym
         self.nfp = nfp
         self.p = p
@@ -357,39 +370,40 @@ class InteriorAxis(sopp.Curve, Curve):
         self.z_ctrl = axisdofs[n_ctrl_pts : 2 * n_ctrl_pts]
         self.zeta_ctrl = axisdofs[2 * n_ctrl_pts :]
 
-        # naming dofs
-        names = self._name_dofs()
-        dofs = DOFs(
-            axisdofs,
-            names,
-            [True] * len(r_ctrl)
-            + [True] * len(z_ctrl)
-            + [not axis_angles_fixed] * len(zeta_ctrl),
-            [0.3] * len(r_ctrl)
-            + [-1] * len(z_ctrl)
-            + (
-                np.linspace(0, max_angle, len(zeta_ctrl))
-                - (0.5 * max_angle) / (len(zeta_ctrl) - 1)
-            ).tolist(),
-            [2.5] * len(r_ctrl)
-            + [1] * len(z_ctrl)
-            + (
-                np.linspace(0, max_angle, len(zeta_ctrl))
-                + (0.5 * max_angle) / (len(zeta_ctrl) - 1)
-            ).tolist(),
-        )
+        if dofs is None:
+            # naming dofs
+            names = self._name_dofs()
+            dofs = DOFs(
+                axisdofs,
+                names,
+                [True] * len(r_ctrl)
+                + [True] * len(z_ctrl)
+                + [not axis_angles_fixed] * len(zeta_ctrl),
+                [0.3] * len(r_ctrl)
+                + [-1] * len(z_ctrl)
+                + (
+                    np.linspace(0, max_angle, len(zeta_ctrl))
+                    - (0.5 * max_angle) / (len(zeta_ctrl) - 1)
+                ).tolist(),
+                [2.5] * len(r_ctrl)
+                + [1] * len(z_ctrl)
+                + (
+                    np.linspace(0, max_angle, len(zeta_ctrl))
+                    + (0.5 * max_angle) / (len(zeta_ctrl) - 1)
+                ).tolist(),
+            )
 
-        dofs.set("r_axis_0", 1)
-        dofs.set("z_axis_0", 0)
-        dofs.set("zeta_axis_0", 0)
-        # dofs.fix('r_axis_0')
-        dofs.fix("z_axis_0")
-        dofs.fix("zeta_axis_0")
-        if stellsym:
-            dofs.set(f"z_axis_{n_ctrl_pts - 1}", 0)
-            dofs.set(f"zeta_axis_{n_ctrl_pts - 1}", np.pi / self.nfp)
-            dofs.fix(f"z_axis_{n_ctrl_pts - 1}")
-            dofs.fix(f"zeta_axis_{n_ctrl_pts - 1}")
+            dofs.set("r_axis_0", 1)
+            dofs.set("z_axis_0", 0)
+            dofs.set("zeta_axis_0", 0)
+            # dofs.fix('r_axis_0')
+            dofs.fix("z_axis_0")
+            dofs.fix("zeta_axis_0")
+            if stellsym:
+                dofs.set(f"z_axis_{n_ctrl_pts - 1}", 0)
+                dofs.set(f"zeta_axis_{n_ctrl_pts - 1}", np.pi / self.nfp)
+                dofs.fix(f"z_axis_{n_ctrl_pts - 1}")
+                dofs.fix(f"zeta_axis_{n_ctrl_pts - 1}")
 
         # _control_net_and_knots cache
         self._centroids_im = None
@@ -863,6 +877,8 @@ class SurfaceBSpline(sopp.Surface, Surface):
         quadpoints_phi=None,
         quadpoints_theta=None,
         use_bishop_frame=False,
+        axis=None,
+        cs_list=None,
     ):
         """
         Parameters
@@ -901,6 +917,10 @@ class SurfaceBSpline(sopp.Surface, Surface):
             Surface quadpoints; simsopt defaults if None.
         use_bishop_frame : bool
             If True, place cross sections in the axis's Bishop frame instead of the fixed-zeta R-Z plane.
+        axis : InteriorAxis, optional
+            Existing interior axis to use, e.g. when loading; built from the defaults if None.
+        cs_list : list of CrossSectionFixedZeta, optional
+            Existing cross sections to use, e.g. when loading; built from the defaults if None.
         """
         if stellsym:
             max_angle = np.pi / nfp
@@ -959,28 +979,37 @@ class SurfaceBSpline(sopp.Surface, Surface):
         dofs.fix("cs_angle0")
         dofs.fix("cs_zeta0")
 
-        self.axis = InteriorAxis(
-            n_ctrl_pts=axis_points,
-            nfp=nfp,
-            stellsym=stellsym,
-            axis_angles_fixed=axis_angles_fixed,
-        )
+        if axis is None:
+            axis = InteriorAxis(
+                n_ctrl_pts=axis_points,
+                nfp=nfp,
+                stellsym=stellsym,
+                axis_angles_fixed=axis_angles_fixed,
+            )
+        elif (axis.n_ctrl_pts, axis.nfp, axis.stellsym) != (axis_points, nfp, stellsym):
+            raise ValueError("axis does not match axis_points, nfp and stellsym")
+        self.axis = axis
 
-        self.cs_list = []
-
-        for i in range(n_cs):
-            if cs_basis == "polar":
-                cross_section = CrossSectionFixedZeta(
-                    zeta_index=i,
-                    n_ctrl_pts=points_per_cs,
-                    equispaced=poloidal_equispaced,
-                    default_r=default_r,
-                    z_sym=(i == 0),
-                    nurbs=nurbs,
-                )
-            elif cs_basis == "cartesian":
-                raise NotImplementedError("see dev branch")
-            self.cs_list.append(cross_section)
+        if cs_list is None:
+            cs_list = []
+            for i in range(n_cs):
+                if cs_basis == "polar":
+                    cross_section = CrossSectionFixedZeta(
+                        zeta_index=i,
+                        n_ctrl_pts=points_per_cs,
+                        equispaced=poloidal_equispaced,
+                        default_r=default_r,
+                        z_sym=(i == 0),
+                        nurbs=nurbs,
+                    )
+                elif cs_basis == "cartesian":
+                    raise NotImplementedError("see dev branch")
+                cs_list.append(cross_section)
+        elif len(cs_list) != n_cs or any(
+            cs.n_ctrl_pts != points_per_cs or cs.z_sym != (i == 0) for i, cs in enumerate(cs_list)
+        ):
+            raise ValueError("cs_list does not match n_cs and points_per_cs, with only the first cross section z_sym")
+        self.cs_list = list(cs_list)
 
         if quadpoints_theta is None:
             quadpoints_theta = Surface.get_theta_quadpoints()
@@ -1180,98 +1209,6 @@ class SurfaceBSpline(sopp.Surface, Surface):
         else:
             return point_list
 
-    def get_xyz_centroids(self):
-        """
-        Return the centroid of each cross section's control points over the full device.
-
-        Returns
-        -------
-        list of ndarray
-            One (3,) Cartesian centroid per cross section.
-        """
-        cs_zeta, cs_angles = self.get_cs_zeta_angle()
-        point_list = []
-        cs_zeta_1fp = np.append(
-            cs_zeta, (2 * np.pi / self.nfp) - cs_zeta[:0:-1]
-        )
-        cs_zeta_full = np.concatenate(
-            [cs_zeta_1fp + n * (2 * np.pi / self.nfp) for n in range(self.nfp)]
-        )
-
-        axis_pos, e1, e2 = self._axis_local_basis(cs_zeta_full)
-
-        cs_list_1fp = [
-            cs if (i // self.n_cs) == 0 else cs.flipped()
-            for i, cs in enumerate(self.cs_list + self.cs_list[:0:-1])
-        ]
-        cs_list_full = np.tile(cs_list_1fp, self.nfp)
-
-        cs_angle_1fp = [
-            angle if (i // self.n_cs) == 0 else -angle
-            for i, angle in enumerate(np.append(cs_angles, cs_angles[:0:-1]))
-        ]
-        cs_angle_full = np.tile(cs_angle_1fp, self.nfp)
-
-        for i, cs in enumerate(cs_list_full):
-            cs_r_ctrl_full = cs.get_r_ctrl_full()
-            cs_theta_ctrl_full = cs.get_theta_ctrl_full()
-            point_sum = np.zeros(3)
-            for j, r_cs in enumerate(cs_r_ctrl_full):
-                theta = cs_theta_ctrl_full[j]
-                offset = r_cs * np.cos(theta + cs_angle_full[i]) * e1[i] + (
-                    r_cs * np.sin(theta + cs_angle_full[i]) * e2[i]
-                )
-                point_sum += axis_pos[i] + offset
-            new_point = point_sum / len(cs_r_ctrl_full)
-            point_list.append(new_point)
-        return point_list
-
-    def get_rtz_full_device(self):
-        """
-        Return the local (r, theta, zeta) of every control point over the full device.
-
-        Returns
-        -------
-        list of ndarray
-            One (points_per_cs, 3) array per cross section.
-        """
-        point_list = []
-
-        cs_zeta, cs_angles = self.get_cs_zeta_angle()
-
-        cs_zeta_1fp = np.append(
-            cs_zeta, (2 * np.pi / self.nfp) - cs_zeta[:0:-1]
-        )
-        cs_zeta_full = np.concatenate(
-            [cs_zeta_1fp + n * (2 * np.pi / self.nfp) for n in range(self.nfp)]
-        )
-
-        cs_list_1fp = [
-            cs if (i // self.n_cs) == 0 else cs.flipped()
-            for i, cs in enumerate(self.cs_list + self.cs_list[:0:-1])
-        ]
-        cs_list_full = np.tile(cs_list_1fp, self.nfp)
-
-        cs_angle_1fp = [
-            angle if (i // self.n_cs) == 0 else -angle
-            for i, angle in enumerate(np.append(cs_angles, cs_angles[:0:-1]))
-        ]
-        cs_angle_full = np.tile(cs_angle_1fp, self.nfp)
-
-        for i, cs in enumerate(cs_list_full):
-            zeta = cs_zeta_full[i]
-            cs_pointlist = []
-            cs_r_ctrl_full = cs.get_r_ctrl_full()
-            cs_theta_ctrl_full = cs.get_theta_ctrl_full()
-            for j, r_cs in enumerate(cs_r_ctrl_full):
-                point_r = r_cs
-                point_theta = cs_theta_ctrl_full[j] + cs_angle_full[i]
-                point_zeta = zeta
-                new_point = np.array([point_r, point_theta, point_zeta]).T
-                cs_pointlist.append(new_point)
-            point_list.append(np.array(cs_pointlist))
-        return point_list
-
     def _control_net_and_knots(self):
         """
         Return the cached periodic control net, weights and knot vectors; the net is rebuilt when dofs change.
@@ -1342,49 +1279,6 @@ class SurfaceBSpline(sopp.Surface, Surface):
             self._knots_v,
         )
 
-    def surf_callable(
-        self,
-        u,
-        v,
-    ):
-        """
-        Evaluate surface (X, Y, Z) at paired spline parameters u, v.
-
-        Parameters
-        ----------
-        u : ndarray, shape (N,)
-            Poloidal spline parameter in [0, 2*pi).
-        v : ndarray, shape (N,)
-            Toroidal spline parameter in [0, 2*pi).
-
-        Returns
-        -------
-        x_surf, y_surf, z_surf : ndarray, shape (N,)
-            Cartesian coordinates of the surface points.
-        """
-        trimmed_ctrl_pts_jim, trimmed_weights_ji, knots_u, knots_v = (
-            self._control_net_and_knots()
-        )
-        p_u = self.p_u
-        p_v = self.p_v
-
-        u_basis = b_p(knots_u, p_u, u)
-        v_basis = b_p(knots_v, p_v, v)
-
-        tp_basis = np.einsum("xj,xi->xji", v_basis, u_basis)
-        w_tp_basis = np.einsum("xji,ji->xji", tp_basis, trimmed_weights_ji)
-        summed_w_tp_basis = np.einsum("xji->x", w_tp_basis)
-        nurbs_tp_basis = np.einsum(
-            "xji,x->xji", w_tp_basis, 1 / summed_w_tp_basis
-        )
-
-        surf = np.einsum("xji,jim->xm", nurbs_tp_basis, trimmed_ctrl_pts_jim)
-        x_surf = surf[:, 0]
-        y_surf = surf[:, 1]
-        z_surf = surf[:, 2]
-
-        return x_surf, y_surf, z_surf
-
     def gamma_lin(self, data, quadpoints_phi, quadpoints_theta):
         r"""
         Fill data[i] with (X, Y, Z) at paired (phi[i], theta[i]), Newton-solving for v so the toroidal angle is phi.
@@ -1404,8 +1298,11 @@ class SurfaceBSpline(sopp.Surface, Surface):
         p_u = self.p_u
         p_v = self.p_v
 
-        # u = -2*pi*theta so the normal points outward, as for other simsopt surfaces
-        theta = (-np.asarray(quadpoints_theta) * 2 * np.pi) % (2 * np.pi)
+        # u = u0 + pi - 2*pi*theta, as for other simsopt surfaces: theta = 0 on the outboard
+        # midplane and the normal pointing outward. u0 is the Greville abscissa of the inboard
+        # theta_0 control point (nonzero for even p_u); u0 + pi is the outboard symmetry point.
+        u0 = knots_u[p_u + 1 : 2 * p_u + 1].mean()
+        theta = (u0 + np.pi - np.asarray(quadpoints_theta) * 2 * np.pi) % (2 * np.pi)
         phi = np.asarray(quadpoints_phi) * 2 * np.pi
 
         u_basis_row = b_p(knots_u, p_u, theta)  # (N, n_u_basis)
@@ -1507,8 +1404,11 @@ class SurfaceBSpline(sopp.Surface, Surface):
         p_u = self.p_u
         p_v = self.p_v
 
-        # u = -2*pi*theta so the normal points outward, as for other simsopt surfaces
-        theta = (-np.asarray(quadpoints_theta) * 2 * np.pi) % (2 * np.pi)
+        # u = u0 + pi - 2*pi*theta, as for other simsopt surfaces: theta = 0 on the outboard
+        # midplane and the normal pointing outward. u0 is the Greville abscissa of the inboard
+        # theta_0 control point (nonzero for even p_u); u0 + pi is the outboard symmetry point.
+        u0 = knots_u[p_u + 1 : 2 * p_u + 1].mean()
+        theta = (u0 + np.pi - np.asarray(quadpoints_theta) * 2 * np.pi) % (2 * np.pi)
         phi = np.asarray(quadpoints_phi) * 2 * np.pi
 
         wp = trimmed_weights_ji[:, :, None] * trimmed_ctrl_pts_jim
@@ -1785,43 +1685,6 @@ class SurfaceBSpline(sopp.Surface, Surface):
         )
         data[:, :, :] = reshape3(g22)
 
-    def centroid_axis_callable(
-        self,
-        a,
-    ):
-        """
-        Evaluate the periodic B-spline through the cross-section centroids.
-
-        Parameters
-        ----------
-        a : ndarray, shape (N,)
-            Centroid-axis spline parameter in [0, 2*pi).
-
-        Returns
-        -------
-        x_centroid, y_centroid, z_centroid : ndarray, shape (N,)
-            Cartesian coordinates of the centroid axis.
-        """
-        xyz_list = self.get_xyz_centroids()
-        p_a = self.p_v
-
-        centroids_im = np.array(xyz_list)
-
-        # Periodic wraparound: tile p_a points from each end onto the other.
-        knots_a = uniform_knots(centroids_im.shape[0] - 1, p_a)
-        centroids_im = np.concatenate(
-            [centroids_im[-p_a:], centroids_im, centroids_im[:p_a]], axis=0
-        )
-
-        a_basis = b_p(knots_a, p_a, a)
-
-        # einsum, not @: matmul raises spurious RuntimeWarnings on subnormal basis values.
-        x_centroid = np.einsum("ij,j->i", a_basis, centroids_im[:, 0])
-        y_centroid = np.einsum("ij,j->i", a_basis, centroids_im[:, 1])
-        z_centroid = np.einsum("ij,j->i", a_basis, centroids_im[:, 2])
-
-        return x_centroid, y_centroid, z_centroid
-
     def exact_tz_interp(self, nu=None, nv=None, plot=False, ax=None):
         r"""
         Return R, Z on a (theta, zeta) grid with no interpolation, using the spline u parameter as theta.
@@ -2058,77 +1921,6 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
         return axes
 
-    def centroid_axis_fourier_coeffs(self, N=6, nv=300, plot=False):
-        """
-        Fourier coefficients of the centroid axis, e.g. as a VMEC initial guess.
-
-        Parameters
-        ----------
-        N : int
-            Number of Fourier modes.
-        nv : int
-            Number of axis samples used for the fit.
-        plot : bool
-            Whether to plot the fit.
-
-        Returns
-        -------
-        r_n, z_n : ndarray, shape (2*N+1,)
-            Fourier coefficients of the centroid axis (R, Z).
-        """
-        vlist = np.linspace(0, 2 * np.pi / self.nfp, nv, endpoint=False)
-        x_ax, y_ax, z_ax = self.centroid_axis_callable(vlist)
-        zeta = np.arctan2(y_ax, x_ax) % (2 * np.pi / self.nfp)
-        zeta = np.concatenate((zeta - 2 * np.pi, zeta, zeta + 2 * np.pi))
-        zeta_eval = np.linspace(0, 2 * np.pi / self.nfp, nv)
-        x_zeta = griddata(
-            points=zeta,
-            values=np.tile(x_ax, 3),
-            xi=zeta_eval,
-            method="cubic",
-        )
-        y_zeta = griddata(
-            points=zeta,
-            values=np.tile(y_ax, 3),
-            xi=zeta_eval,
-            method="cubic",
-        )
-        z_zeta = griddata(
-            points=zeta,
-            values=np.tile(z_ax, 3),
-            xi=zeta_eval,
-            method="cubic",
-        )
-        if plot:
-            fig = plt.figure("Axis plot")
-            fig.patch.set_facecolor("white")
-            ax = fig.add_subplot(projection="3d", azim=0, elev=90)
-            ax.plot(x_zeta, y_zeta, z_zeta)
-
-        r_zeta = np.sqrt(x_zeta**2 + y_zeta**2)
-        cosnz = np.array(
-            [np.cos(-n * zeta_eval * self.nfp) for n in range(-N, N + 1)]
-        )
-        sinnz = np.array(
-            [np.sin(-n * zeta_eval * self.nfp) for n in range(-N, N + 1)]
-        )
-        r_n = np.einsum("nz,z->n", cosnz, r_zeta) / nv
-        z_n = np.einsum("nz,z->n", sinnz, z_zeta) / nv
-
-        if plot:
-            zeta_plot = np.linspace(0, 2 * np.pi / self.nfp, 200)
-            r = np.zeros_like(zeta_plot)
-            z = np.zeros_like(zeta_plot)
-            for i, n in enumerate(range(-N, N + 1)):
-                r += r_n[i] * np.cos(-n * zeta_plot * self.nfp)
-                z += z_n[i] * np.sin(-n * zeta_plot * self.nfp)
-            x = r * np.cos(zeta_plot)
-            y = r * np.sin(zeta_plot)
-            ax.plot(x, y, z, "r--")
-            plt.show()
-
-        return r_n, z_n
-
     def to_RZFourier(
         self,
         R=None,
@@ -2155,12 +1947,11 @@ class SurfaceBSpline(sopp.Surface, Surface):
         spec_cond : str
             "variational", "direct", or anything else to skip condensation.
         spec_cond_options : dict, optional
-            Keyword arguments for the chosen condensation method.
+            Keyword arguments for the chosen condensation method, overriding its defaults.
 
         Returns
         -------
         SurfaceRZFourier
-            If condensation raises RuntimeError, the raw fit is plotted before re-raising.
         """
         M, N = self.M, self.N
 
@@ -2194,32 +1985,14 @@ class SurfaceBSpline(sopp.Surface, Surface):
                 "verbose": False,
                 "cutoff": 1e-8,
             }
-            options = (
-                spec_cond_options
-                if spec_cond_options is not None
-                else default_options
-            )
-            try:
-                surf = surf.variational_spec_cond(**options)
-            except RuntimeError:
-                # Usually a shapetol tuning issue; show the raw fit to help diagnose.
-                self.plot_ft_vs_ground_truth(rbc, zbs)
-                plt.show()
-                raise
+            surf = surf.variational_spec_cond(**{**default_options, **(spec_cond_options or {})})
         elif spec_cond == "direct":
             default_options = {
                 "verbose": False,
                 "method": "trf",
                 "Fourier_continuation": False,
             }
-            options = (
-                spec_cond_options
-                if spec_cond_options is not None
-                else default_options
-            )
-            surf.condense_spectrum(**options)
-        else:
-            surf = surf
+            surf, _ = surf.condense_spectrum(**{**default_options, **(spec_cond_options or {})})
 
         return surf
 
@@ -2284,6 +2057,8 @@ class SurfaceBSpline(sopp.Surface, Surface):
         axis_name_prefix = self.axis.name
 
         for i in range(1, self.axis_points - 1):
+            if f"{axis_name_prefix}:z_axis_{i}" not in indices_dict:
+                continue  # fixed: a constant, not a constraint on the free dofs
             temp = np.zeros(len(dofs))
             temp[indices_dict[f"{axis_name_prefix}:z_axis_{i}"]] = 1
             constraints_list.append(temp)
@@ -2316,6 +2091,14 @@ class SurfaceBSpline(sopp.Surface, Surface):
             )
         for i in range(1, self.axis_points):
             if axis_r_name(i) not in indices_dict:
+                if r0_free:
+                    # r_axis_i fixed at a constant c -> r_axis_0 >= c
+                    add_row(
+                        {axis_r_name(0): 1},
+                        self.axis.get(f"r_axis_{i}"),
+                        maxval,
+                        f"{axis_r_name(i)} <= {axis_r_name(0)}",
+                    )
                 continue
             if r0_free:
                 add_row(

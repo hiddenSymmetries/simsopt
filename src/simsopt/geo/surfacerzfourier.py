@@ -1999,6 +1999,11 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                             "legitimate early stop."
                         )
                     if shape_error >= shapetol:
+                        # undo the step that crossed shapetol, so the result stays within it
+                        rbc -= alpha * drbc
+                        zbs -= alpha * dzbs
+                        newsurf.rc = rbc.T
+                        newsurf.zs = zbs.T
                         success = True
                         message = f'Shape error {shapetol} reached'
 
@@ -2013,6 +2018,10 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         rbc_f *= (np.abs(rbc_f) > cutoff)
         zbs_f *= (np.abs(zbs_f) > cutoff)
+        # write the condensed coefficients back and sync the dofs, which still hold the input surface
+        surf_to_return.rc = rbc_f.T
+        surf_to_return.zs = zbs_f.T
+        surf_to_return.local_full_x = surf_to_return.get_dofs()
 
         if plot:
             def boundary_poincare_plot(
@@ -2061,9 +2070,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             ax1.plot(R_cond, Z_cond, color='b', label='condensed')
             ax1.legend()
             ax1.set_aspect('equal')
-
-        surf_to_return = self.copy()
-        surf_to_return.rc, surf_to_return.zs = rbc_f.T, zbs_f.T 
 
         return surf_to_return
 

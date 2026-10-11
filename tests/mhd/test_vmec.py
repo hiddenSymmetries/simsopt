@@ -17,7 +17,7 @@ except ImportError:
 
 from simsopt._core.optimizable import make_optimizable
 from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.geo import SurfaceRZFourier, create_equally_spaced_curves
+from simsopt.geo import SurfaceBSpline, SurfaceRZFourier, create_equally_spaced_curves
 from simsopt.field import Current, BiotSavart, coils_via_symmetries
 from simsopt.mhd.profiles import ProfilePolynomial, ProfileSpline, ProfileScaled, ProfilePressure
 from simsopt.solve.serial import least_squares_serial_solve
@@ -168,6 +168,61 @@ class VmecTestsWithoutMPIorvmec(unittest.TestCase):
         from simsopt.mhd.vmec import Vmec
         with self.assertRaises(RuntimeError):
             Vmec()
+
+
+@unittest.skipIf((MPI is None) or (vmec_mod is None), "Valid Python interface to VMEC not found")
+class VmecFromSurfTests(unittest.TestCase):
+
+    @staticmethod
+    def circular_torus(R0=1.0, a=0.25, nfp=3):
+        surf = SurfaceRZFourier(nfp=nfp, mpol=1, ntor=0)
+        surf.set_rc(0, 0, R0)
+        surf.set_rc(1, 0, a)
+        surf.set_zs(1, 0, a)
+        return surf
+
+    def test_sets_indata_and_boundary(self):
+        surf = self.circular_torus()
+
+        class SubVmec(Vmec):
+            pass
+
+        vmec = SubVmec.vmec_from_surf(surf=surf, M=4, N=3, ns=9, ntheta=20, nzeta=18,
+                                      ftol=1e-9, phiedge=0.5, delt=0.7, niter=1234)
+        self.assertIsInstance(vmec, SubVmec)
+        self.assertIs(vmec.boundary, surf)
+        i = vmec.indata
+        self.assertEqual((i.nfp, i.mpol, i.ntor, i.ntheta, i.nzeta), (3, 4, 3, 20, 18))
+        self.assertEqual((i.ns_array[0], i.niter_array[0]), (9, 1234))
+        self.assertAlmostEqual(i.ftol_array[0], 1e-9)
+        self.assertAlmostEqual(i.phiedge, 0.5)
+        self.assertAlmostEqual(i.delt, 0.7)
+        # fixed boundary, stellarator symmetric, no pressure or current
+        self.assertEqual((i.lfreeb, i.lasym, i.curtor), (0, 0, 0))
+        np.testing.assert_array_equal(i.am, 0)
+
+    def test_invalid_arguments(self):
+        with self.assertRaises(ValueError):
+            Vmec.vmec_from_surf(nfp=2, surf=self.circular_torus(nfp=3))
+        with self.assertRaises(ValueError):
+            Vmec.vmec_from_surf(nfp=3)
+
+    def test_circular_torus(self):
+        """An axisymmetric vacuum circular torus: aspect ratio R0/a and zero rotational transform."""
+        with ScratchDir("."):
+            vmec = Vmec.vmec_from_surf(surf=self.circular_torus(R0=1.0, a=0.25), M=4, N=0, ftol=1e-12)
+            vmec.run()
+            self.assertAlmostEqual(vmec.aspect(), 4.0, places=6)
+            self.assertAlmostEqual(vmec.mean_iota(), 0.0, places=8)
+
+    def test_spline_boundary(self):
+        """A SurfaceBSpline boundary goes through to_RZFourier; VMEC's aspect ratio matches it."""
+        surf = SurfaceBSpline(p_u=3, p_v=3, M=6, N=6)
+        surf.x = surf.x + 0.02 * np.random.default_rng(0).normal(size=len(surf.x))
+        with ScratchDir("."):
+            vmec = Vmec.vmec_from_surf(surf=surf, M=6, N=6, ftol=1e-8)
+            vmec.run()
+            np.testing.assert_allclose(vmec.aspect(), surf.to_RZFourier().aspect_ratio(), rtol=1e-6)
 
 
 @unittest.skipIf((MPI is None) or (vmec_mod is None), "Valid Python interface to VMEC not found")

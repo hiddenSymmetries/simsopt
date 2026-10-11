@@ -8,12 +8,12 @@ This module provides a class that handles the VMEC equilibrium code.
 
 import logging
 import os.path
-from datetime import datetime
 from typing import Optional
+from datetime import datetime
 
 import numpy as np
-from scipy.integrate import quad
 from scipy.io import netcdf_file
+from scipy.integrate import quad
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ except ImportError as e:
     logger.debug(str(e))
 
 from .._core.optimizable import Optimizable
-from .._core.util import ObjectiveFailure, Struct
+from .._core.util import Struct, ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
 
 if MPI is not None:
@@ -967,77 +967,82 @@ class Vmec(Optimizable):
     @classmethod
     def vmec_from_surf(
             cls,
-            nfp,
+            nfp=None,
             mpi: Optional[MpiPartition] = None,
             surf=None,
-            M = 12,
-            N = 12,
+            M=12,
+            N=12,
             ns=13,
             ntheta=32,
             nzeta=32,
             ftol=1e-7,
-            phiedge = 1,
+            phiedge=1,
             delt=9e-1,
             verbose=False,
             niter=3000
         ):
-        '''
-        Very easily generate a VMEC object with any desired
-        indata from any optimizable object with a
-        `to_RZFourier` method. 
-        
+        """
+        Create a fixed-boundary, vacuum (zero pressure and current) VMEC object for a given boundary.
+
         Args:
-            filename: Name of a VMEC ``input.<extension>`` file or ``wout_<extension>.nc``
-            output file to use for loading the
-            initial parameters. If ``None``, default parameters will be used.
+            nfp: Number of field periods; defaults to ``surf.nfp``, and must match it if given.
             mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which
-            the worker groups will be used for VMEC calculations. If ``None``,
-            each MPI process will run VMEC independently.
-            keep_all_files: If ``False``, all ``wout`` output files will be deleted
-            except for the first and most recent ones from worker group 0. If
-            ``True``, all ``wout`` files will be kept.
-            verbose: Whether to print to stdout when running vmec.
-        '''
+              the worker groups will be used for VMEC calculations. If ``None``,
+              each MPI process will run VMEC independently.
+            surf: Boundary surface; any surface with a ``to_RZFourier`` method,
+              e.g. a :obj:`~simsopt.geo.SurfaceRZFourier` or :obj:`~simsopt.geo.SurfaceBSpline`.
+            M, N: VMEC poloidal and toroidal resolution (``mpol``, ``ntor``).
+            ns: Number of radial surfaces.
+            ntheta, nzeta: Real-space poloidal and toroidal grid sizes.
+            ftol: Force residual tolerance.
+            phiedge: Toroidal flux enclosed by the boundary.
+            delt: Time step.
+            verbose: Whether to print to stdout when running VMEC.
+            niter: Maximum number of iterations.
+
+        Returns:
+            A :obj:`Vmec` object with ``surf`` as its boundary.
+        """
+        if surf is None:
+            raise ValueError("vmec_from_surf needs a boundary surface surf")
+        if nfp is None:
+            nfp = surf.nfp
+        elif nfp != surf.nfp:
+            raise ValueError(f"nfp = {nfp} does not match surf.nfp = {surf.nfp}")
+
+        vmec = cls(mpi=mpi, verbose=verbose)
         # runtime params
-        cls = Vmec(mpi = mpi, verbose=verbose)
-        # N=6
-        # r_n, z_n = surf.centroid_axis_fourier_coeffs(N=6)
-        # r_n = r_n[N:]
-        # z_n = z_n[N:]
-
-        cls.indata.delt = delt
-        # vmec.indata.niter = 2000
-        # vmec.indata.nstep = 1e2
-        cls.indata.tcon0 = 2
-        cls.indata.ns_array = np.append(np.array([ns]), np.zeros(99,))
-        cls.indata.niter_array = np.append(np.array([niter]), -1*np.ones(99,))
-        cls.indata.ftol_array = np.append(np.array([ftol]), np.zeros(99,))
-        cls.indata.precon_type = 'none'
-        cls.indata.prec2d_threshold = 1e-19
+        vmec.indata.delt = delt
+        vmec.indata.tcon0 = 2
+        vmec.indata.ns_array = np.append(np.array([ns]), np.zeros(99,))
+        vmec.indata.niter_array = np.append(np.array([niter]), -1*np.ones(99,))
+        vmec.indata.ftol_array = np.append(np.array([ftol]), np.zeros(99,))
+        vmec.indata.precon_type = 'none'
+        vmec.indata.prec2d_threshold = 1e-19
         # grid params
-        cls.indata.lasym = 0
-        cls.indata.nfp = nfp
-        cls.indata.mpol = M
-        cls.indata.ntor = N
-        cls.indata.ntheta = ntheta
-        cls.indata.nzeta = nzeta
-        cls.indata.phiedge = phiedge
+        vmec.indata.lasym = 0
+        vmec.indata.nfp = nfp
+        vmec.indata.mpol = M
+        vmec.indata.ntor = N
+        vmec.indata.ntheta = ntheta
+        vmec.indata.nzeta = nzeta
+        vmec.indata.phiedge = phiedge
         # free bdry params
-        cls.indata.lfreeb = 0
-        cls.indata.nvacskip = 6
+        vmec.indata.lfreeb = 0
+        vmec.indata.nvacskip = 6
         # pressure params
-        cls.indata.gamma = 0
-        cls.indata.bloat = 1
-        cls.indata.spres_ped = 1
-        cls.indata.pres_scale = 1
-        cls.indata.pmass_type = 'power_series'
-        cls.indata.am = 0
+        vmec.indata.gamma = 0
+        vmec.indata.bloat = 1
+        vmec.indata.spres_ped = 1
+        vmec.indata.pres_scale = 1
+        vmec.indata.pmass_type = 'power_series'
+        vmec.indata.am = 0
         # current/iota params
-        cls.indata.curtor = 0
-        cls.indata.ncurr = 1
-        cls.indata.piota_type = 'power_series'
-        cls.indata.pcurr_type = 'power_series'
+        vmec.indata.curtor = 0
+        vmec.indata.ncurr = 1
+        vmec.indata.piota_type = 'power_series'
+        vmec.indata.pcurr_type = 'power_series'
 
-        cls.boundary = surf
-        cls.set_indata()
-        return cls
+        vmec.boundary = surf
+        vmec.set_indata()
+        return vmec
