@@ -53,7 +53,8 @@ def b_p(t, p, x, i=None):
             t = np.outer(np.ones(len(x)), t)
             x = np.expand_dims(x, 0)
             b0 = ((x.T >= t[:, :-1]) & (x.T < t[:, 1:]))
-            b0[np.isclose(x1d, t1d[-1]), np.isclose(t1d[1:], t1d[-1])] = 1 # include the rightmost knot
+            # include the rightmost knot in the last non-empty span
+            b0[np.isclose(x1d, t1d[-1]), np.flatnonzero(t1d[:-1] < t1d[-1])[-1]] = 1
             b.append(b0)
         else:
             l_term_n = (x.T - t[:, :-deg-1])
@@ -101,7 +102,8 @@ def b_p_deriv(t, p, x):
             tt = np.outer(np.ones(len(xx)), tt)
             xx = np.expand_dims(xx, 0)
             b0 = ((xx.T >= tt[:, :-1]) & (xx.T < tt[:, 1:]))
-            b0[np.isclose(x1d, t1d[-1]), np.isclose(t1d[1:], t1d[-1])] = 1
+            # include the rightmost knot in the last non-empty span
+            b0[np.isclose(x1d, t1d[-1]), np.flatnonzero(t1d[:-1] < t1d[-1])[-1]] = 1
             b.append(b0)
         else:
             l_term_n = (xx.T - tt[:, :-deg-1])
@@ -155,7 +157,8 @@ def b_p_deriv2(t, p, x):
             tt = np.outer(np.ones(len(xx)), tt)
             xx = np.expand_dims(xx, 0)
             b0 = ((xx.T >= tt[:, :-1]) & (xx.T < tt[:, 1:]))
-            b0[np.isclose(x1d, t1d[-1]), np.isclose(t1d[1:], t1d[-1])] = 1
+            # include the rightmost knot in the last non-empty span
+            b0[np.isclose(x1d, t1d[-1]), np.flatnonzero(t1d[:-1] < t1d[-1])[-1]] = 1
             b.append(b0)
         else:
             l_term_n = (xx.T - tt[:, :-deg-1])
@@ -201,7 +204,7 @@ def uniform_knots(n, p, domain=2*np.pi):
     Returns
     -------
     ndarray
-        Knots of length n+3p+2, with knots[2p] = 0 and knots[n+2p+1] = domain.
+        Knots of length n+3p+2, spaced by domain/(n+1), that include 0 and domain.
     '''
     interval = domain / (n + 1)
     k = np.arange(-2 * p, n + 2 * p + 2)
