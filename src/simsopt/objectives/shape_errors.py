@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 import numpy as np
 from scipy.interpolate import CloughTocher2DInterpolator
-from scipy.optimize import minimize_scalar, newton
 import matplotlib.pyplot as plt
 import shapely
 
@@ -378,73 +377,12 @@ def _closest_theta_newton(
     A coarse grid search over `ntheta_search` equispaced theta values
     supplies the starting guess (surf's cross section is a closed curve,
     so the objective can have multiple local minima; the grid search
-    finds the right basin), then `scipy.optimize.newton` (vectorized
-    across every target point at once, since `theta0` is an array) solves
-    the stationarity condition d/dtheta[(R-R0)^2 + (Z-Z0)^2] = 0 --
-    supplying `surf`'s own analytic first and second theta-derivatives
-    (from `_fourier_eval_with_theta_derivs`) as `func`/`fprime`, rather
-    than letting scipy fall back to a derivative-free secant method.
-
-    :param surf: SurfaceRZFourier
-    :param phi: scalar toroidal angle (radians)
-    :param R0, Z0: 1D arrays of target point coordinates, same shape
-    :param ntheta_search: number of points in the coarse grid search
-    :param newton_iters: max Newton iterations (scipy.optimize.newton's
-        `maxiter`)
-    :param tol: scipy.optimize.newton's `tol`, in radians
-    :return: (distance, theta), each a 1D array shaped like R0
-    '''
-    R0 = np.asarray(R0, dtype=float)
-    Z0 = np.asarray(Z0, dtype=float)
-
-    theta_grid = np.linspace(0, 2 * np.pi, ntheta_search, endpoint=False)
-    R_grid, Z_grid, *_ = _fourier_eval_with_theta_derivs(
-        surf, theta_grid, phi
-    )
-    dist2 = (
-        (R_grid[None, :] - R0[:, None]) ** 2
-        + (Z_grid[None, :] - Z0[:, None]) ** 2
-    )
-    theta0 = theta_grid[np.argmin(dist2, axis=1)]
-
-    def grad(theta, R0, Z0):
-        R, Z, dR, dZ, _, _ = _fourier_eval_with_theta_derivs(surf, theta, phi)
-        return (R - R0) * dR + (Z - Z0) * dZ
-
-    def hess(theta, R0, Z0):
-        R, Z, dR, dZ, d2R, d2Z = _fourier_eval_with_theta_derivs(
-            surf, theta, phi
-        )
-        return dR ** 2 + (R - R0) * d2R + dZ ** 2 + (Z - Z0) * d2Z
-
-    theta = newton(
-        grad, theta0, fprime=hess, args=(R0, Z0),
-        tol=tol, maxiter=newton_iters,
-    )
-
-    R, Z, *_ = _fourier_eval_with_theta_derivs(surf, theta, phi)
-    return np.hypot(R - R0, Z - Z0), theta
-
-def _closest_theta_newton_manual(
-        surf,
-        phi,
-        R0,
-        Z0,
-        ntheta_search=200,
-        newton_iters=20,
-        tol=1e-13,
-    ):
-    '''
-    Same problem and math as `_closest_theta_newton`, but with the Newton
-    iteration hand-rolled (a plain Python for-loop computing the step
-    grad/hess directly) instead of delegated to `scipy.optimize.newton`.
-    This is `_closest_theta_newton`'s original implementation, kept only
-    as a profiling baseline -- see
-    examples/2_Intermediate/compare_closest_theta_methods.py -- since
-    `scipy.optimize.newton` calls `func` and `fprime` as two separate
-    evaluations per iteration where this loop shares one evaluation of
-    R, Z, dR, dZ, d2R, d2Z between them, so the two aren't quite doing
-    identical work despite converging to the same answer.
+    finds the right basin), then a hand-rolled Newton iteration (a plain
+    Python for-loop computing the step from grad/hess, sharing one
+    evaluation of R, Z, dR, dZ, d2R, d2Z between them) solves the
+    stationarity condition d/dtheta[(R-R0)^2 + (Z-Z0)^2] = 0, using
+    `surf`'s own analytic first and second theta-derivatives (from
+    `_fourier_eval_with_theta_derivs`).
 
     :param surf: SurfaceRZFourier
     :param phi: scalar toroidal angle (radians)
@@ -479,69 +417,6 @@ def _closest_theta_newton_manual(
         theta = theta - step
         if np.max(np.abs(step)) < tol:
             break
-
-    R, Z, *_ = _fourier_eval_with_theta_derivs(surf, theta, phi)
-    return np.hypot(R - R0, Z - Z0), theta
-
-def _closest_theta_scipy(
-        surf,
-        phi,
-        R0,
-        Z0,
-        ntheta_search=200,
-    ):
-    '''
-    Same closest-point-in-theta problem as `_closest_theta_newton` -- for
-    each target point (R0[i], Z0[i]), find the poloidal angle theta on
-    `surf`'s cross section at fixed `phi` minimizing squared (R, Z)
-    distance -- but solved with `scipy.optimize.minimize_scalar` (bounded
-    Brent search, confined to +-one coarse-grid cell around the same
-    grid-search starting guess `_closest_theta_newton` uses) instead of a
-    hand-rolled Newton iteration on the analytic derivatives.
-
-    Provided only for comparison against `_closest_theta_newton` (see
-    examples/2_Intermediate/compare_closest_theta_methods.py) -- scipy's
-    minimize_scalar has no array/vectorized mode, so this loops over
-    every target point in pure Python and is much slower.
-
-    :param surf: SurfaceRZFourier
-    :param phi: scalar toroidal angle (radians)
-    :param R0, Z0: 1D arrays of target point coordinates, same shape
-    :param ntheta_search: number of points in the coarse grid search --
-        also sets the width of the bracket (+- one grid cell) that each
-        point's minimize_scalar search is confined to
-    :return: (distance, theta), each a 1D array shaped like R0
-    '''
-    R0 = np.asarray(R0, dtype=float)
-    Z0 = np.asarray(Z0, dtype=float)
-
-    theta_grid = np.linspace(0, 2 * np.pi, ntheta_search, endpoint=False)
-    dtheta = theta_grid[1] - theta_grid[0]
-    R_grid, Z_grid, *_ = _fourier_eval_with_theta_derivs(
-        surf, theta_grid, phi
-    )
-    dist2 = (
-        (R_grid[None, :] - R0[:, None]) ** 2
-        + (Z_grid[None, :] - Z0[:, None]) ** 2
-    )
-    theta0 = theta_grid[np.argmin(dist2, axis=1)]
-
-    theta = np.empty_like(theta0)
-    for i in range(R0.size):
-        R0i, Z0i = R0[i], Z0[i]
-
-        def objective(t, R0i=R0i, Z0i=Z0i):
-            R, Z, *_ = _fourier_eval_with_theta_derivs(
-                surf, np.array([t]), phi
-            )
-            return (R[0] - R0i) ** 2 + (Z[0] - Z0i) ** 2
-
-        result = minimize_scalar(
-            objective,
-            bounds=(theta0[i] - dtheta, theta0[i] + dtheta),
-            method="bounded",
-        )
-        theta[i] = result.x
 
     R, Z, *_ = _fourier_eval_with_theta_derivs(surf, theta, phi)
     return np.hypot(R - R0, Z - Z0), theta
@@ -590,7 +465,6 @@ def exact_shape_error(
         ntheta_search=200,
         newton_iters=20,
         tol=1e-13,
-        method="newton",
     ):
     '''
     Exact point-to-curve shape error between a SurfaceRZFourier `surf`
@@ -613,47 +487,19 @@ def exact_shape_error(
     :param reference: `ExactShapeReference` from
         `build_exact_shape_reference`, built from the ground-truth surface
     :param ntheta_search: number of theta points used for the coarse
-        grid-search starting guess (see `_closest_theta_newton` /
-        `_closest_theta_scipy`) -- must be dense enough that `surf` has no
-        poloidal features finer than 2*pi/ntheta_search
-    :param newton_iters: max Newton iterations per point (method="newton"
-        only)
-    :param tol: Newton convergence tolerance in radians (method="newton"
-        only)
-    :param method: "newton" (default) uses `_closest_theta_newton` --
-        `scipy.optimize.newton` supplied with `surf`'s own analytic theta
-        derivatives as func/fprime, vectorized across every reference
-        point at once. "newton_manual" uses `_closest_theta_newton_manual`
-        -- the same math, hand-rolled as a plain Python for-loop instead
-        of delegated to scipy (a profiling baseline, see
-        examples/2_Intermediate/compare_closest_theta_methods.py).
-        "scipy" uses `_closest_theta_scipy` -- `scipy.optimize.minimize_scalar`,
-        called once per point in a Python loop (derivative-free, much
-        slower; also for comparison).
+        grid-search starting guess (see `_closest_theta_newton`) -- must
+        be dense enough that `surf` has no poloidal features finer than
+        2*pi/ntheta_search
+    :param newton_iters: max Newton iterations per point
+    :param tol: Newton convergence tolerance in radians
     :return: array of shape `reference.R_ref.shape` (n_phi, ntheta) of
         nearest-point (R, Z) distances
     '''
-    if method == "newton":
-        closest_theta = lambda *a, **kw: _closest_theta_newton(
-            *a, newton_iters=newton_iters, tol=tol, **kw
-        )
-    elif method == "newton_manual":
-        closest_theta = lambda *a, **kw: _closest_theta_newton_manual(
-            *a, newton_iters=newton_iters, tol=tol, **kw
-        )
-    elif method == "scipy":
-        closest_theta = _closest_theta_scipy
-    else:
-        raise ValueError(
-            "method must be 'newton', 'newton_manual', or 'scipy', "
-            f"got {method!r}"
-        )
-
     errors = np.empty_like(reference.R_ref)
     for i, phi in enumerate(reference.phi_1d):
-        d, _ = closest_theta(
+        d, _ = _closest_theta_newton(
             surf, phi, reference.R_ref[i], reference.Z_ref[i],
-            ntheta_search=ntheta_search,
+            ntheta_search=ntheta_search, newton_iters=newton_iters, tol=tol,
         )
         errors[i] = d
     return errors
