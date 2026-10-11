@@ -59,7 +59,7 @@ _CURVATURE_THRESHOLD = 1.0
 
 
 
-_DISTANCE_CHILD_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fresh_process_distance_adapters.py")
+_DISTANCE_CHILD_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fresh_process", "distance_adapters.py")
 
 
 def _distance_child_environment():
