@@ -249,7 +249,7 @@ def _circle(center, radius, numquadpoints=20):
 
 # Minimum distances at which the squared distance of the two points rounds to the
 # squared threshold: with and without fused multiply-adds the candidate test
-# differs in the last bit (both directions; reviewer reproductions).
+# differs in the last bit (both directions).
 _TIE_CASES = (
     ((0.2, 0.5, 0.3), 0.6164414002968976),
     ((0.1, 0.4, 0.1), 0.42426406871192857),
