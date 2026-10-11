@@ -285,7 +285,7 @@ class TestForceJax(JaxTestCase):
 
     def test_coil_lists_follow_native_after_reassignment(self):
         """NetFluxes keeps the sources of construction (native's BiotSavart); force
-            objectives read their target and source lists at every evaluation."""
+        objectives read their target and source lists at every evaluation."""
         targets, coils = _coils()
         for native, adapter in (
             (NetFluxes(coils[1], coils[:6]), JaxNetFluxes(coils[1], coils[:6])),
@@ -308,8 +308,8 @@ class TestForceJax(JaxTestCase):
 
     def test_self_exclusion_keeps_the_singular_self_terms_out_of_the_gradient(self):
         """Two samples of one target lie 1e-10 apart per component, so the native distance
-            offset cancels their difference exactly; native evaluates the target's own field in
-            an untaken branch, and its gradient stays finite."""
+        offset cancels their difference exactly; native evaluates the target's own field in
+        an untaken branch, and its gradient stays finite."""
         angles = np.linspace(0.0, 2.0 * np.pi, 12, endpoint=False)
         ring = np.stack((np.cos(angles), np.sin(angles), 0.2 * np.sin(2 * angles)), axis=1)
         ring_dash = 2 * np.pi * np.stack((-np.sin(angles), np.cos(angles), 0.4 * np.cos(2 * angles)), axis=1)

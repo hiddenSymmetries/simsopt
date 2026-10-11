@@ -375,7 +375,7 @@ class TestStageTwoCoilTerms(JaxTestCase):
 
     def test_coil_geometry_keeps_the_pr4_contract_and_geometry_adds_centerlines(self):
         """``stage_two_coil_geometry`` returns ``(gamma, gammadash, gammadashdash, currents)``
-            of every coil; ``stage_two_geometry`` adds the pack centerlines of finite build."""
+        of every coil; ``stage_two_geometry`` adds the pack centerlines of finite build."""
         surface = _surface()
         coils = _force_coils(surface)
         field = JaxBiotSavart(coils)
@@ -533,9 +533,9 @@ class TestStageTwoCoilTerms(JaxTestCase):
     def test_short_force_and_finite_build_runs_follow_the_native_trajectories(self):
         """L-BFGS-B on the fused objectives retraces the native runs of the same problems.
 
-            The runs start from the unperturbed coils with weights of the native
-            examples; round-off differences stay at about 1e-12 over 15 iterations.
-            """
+        The runs start from the unperturbed coils with weights of the native
+        examples; round-off differences stay at about 1e-12 over 15 iterations.
+        """
         force_config = StageTwoObjectiveConfig(
             num_basecurves=_NCOILS,
             length_weight=1e-3,
