@@ -18,7 +18,7 @@ from .curve import Curve
 from .plotting import fix_matplotlib_3d
 from .surface import Surface
 
-__all__ = ["CrossSectionFixedZeta", "PseudoAxis", "SurfaceBSpline"]
+__all__ = ["CrossSectionFixedZeta", "InteriorAxis", "SurfaceBSpline"]
 
 PINK = "#ff8fb8"
 SEAFOAM = "#5fcfa8"
@@ -303,9 +303,9 @@ class CrossSectionFixedZeta(Optimizable):
             return flipped_cs
 
 
-class PseudoAxis(sopp.Curve, Curve):
+class InteriorAxis(sopp.Curve, Curve):
     r"""
-    B-spline pseudo-axis with control points in cylindrical coordinates (dofs include both endpoints).
+    B-spline interior axis with control points in cylindrical coordinates (dofs include both endpoints).
 
     Parameters
     ----------
@@ -397,7 +397,7 @@ class PseudoAxis(sopp.Curve, Curve):
 
         sopp.Curve.__init__(self, quadpoints)
         Curve.__init__(
-            self, dofs=dofs, external_dof_setter=PseudoAxis.set_dofs_impl
+            self, dofs=dofs, external_dof_setter=InteriorAxis.set_dofs_impl
         )
 
     def num_dofs(self):
@@ -834,7 +834,7 @@ class PseudoAxis(sopp.Curve, Curve):
 
 class SurfaceBSpline(sopp.Surface, Surface):
     r"""
-    B-spline surface built from a `PseudoAxis` and polar control-point cross sections.
+    B-spline surface built from an `InteriorAxis` and polar control-point cross sections.
 
     Notes
     -----
@@ -959,7 +959,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
         dofs.fix("cs_angle0")
         dofs.fix("cs_zeta0")
 
-        self.axis = PseudoAxis(
+        self.axis = InteriorAxis(
             n_ctrl_pts=axis_points,
             nfp=nfp,
             stellsym=stellsym,
@@ -2280,7 +2280,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
         ub = []
         constraint_titles = []
 
-        # Use .name, not a hardcoded "PseudoAxis1": simsopt's name counter is process-global.
+        # Use .name, not a hardcoded "InteriorAxis1": simsopt's name counter is process-global.
         axis_name_prefix = self.axis.name
 
         for i in range(1, self.axis_points - 1):
@@ -2450,7 +2450,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
         **kwargs,
     ):
         """
-        Plot the surface, with the pseudo-axis and control net for matplotlib and plotly.
+        Plot the surface, with the interior axis and control net for matplotlib and plotly.
 
         Parameters
         ----------
@@ -2465,7 +2465,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
         axis_equal : bool
             Give the x, y and z axes equal scale (matplotlib only; plotly always does).
         plot_axis : bool
-            Plot the pseudo-axis.
+            Plot the interior axis.
         plot_control_net : bool
             Plot the control points and net, faded outside one half field period.
         **kwargs
