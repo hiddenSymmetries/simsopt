@@ -125,7 +125,6 @@ class CrossSectionFixedZeta(Optimizable):
             dofs = DOFs(
                 cs_dofs,
                 names,
-                # [True]*(n_pts) + [True]*(n_pts) + [nurbs]*(n_pts-1) + [False], # fixing one of the angles, weights in the cross section
                 [True] * (n_pts)
                 + [False]
                 + [True] * (n_pts - 1)
@@ -344,6 +343,8 @@ class InteriorAxis(sopp.Curve, Curve):
         quadpoints=61,
         dofs=None,
     ):
+        if not stellsym:
+            raise NotImplementedError("InteriorAxis only supports stellsym=True")
         self.n_ctrl_pts = n_ctrl_pts
         self.axis_angles_fixed = axis_angles_fixed
         self.stellsym = stellsym
@@ -355,10 +356,7 @@ class InteriorAxis(sopp.Curve, Curve):
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
 
-        if not stellsym:
-            max_angle = 2 * np.pi / nfp
-        else:
-            max_angle = np.pi / nfp
+        max_angle = np.pi / nfp
 
         # default behaviour: circular axis
         r_ctrl = np.ones(n_ctrl_pts)
@@ -396,7 +394,6 @@ class InteriorAxis(sopp.Curve, Curve):
             dofs.set("r_axis_0", 1)
             dofs.set("z_axis_0", 0)
             dofs.set("zeta_axis_0", 0)
-            # dofs.fix('r_axis_0')
             dofs.fix("z_axis_0")
             dofs.fix("zeta_axis_0")
             if stellsym:
@@ -871,7 +868,6 @@ class SurfaceBSpline(sopp.Surface, Surface):
         p_v=2,
         default_r=0.5,
         stellsym=True,
-        cs_basis="polar",
         nurbs=False,
         dofs=None,
         quadpoints_phi=None,
@@ -907,8 +903,6 @@ class SurfaceBSpline(sopp.Surface, Surface):
             Initial cross-section radius.
         stellsym : bool
             Stellarator symmetry; only True is implemented.
-        cs_basis : str
-            Cross-section coordinates; only "polar" is implemented.
         nurbs : bool
             Whether the control-point weights are free dofs.
         dofs : DOFs, optional
@@ -922,11 +916,9 @@ class SurfaceBSpline(sopp.Surface, Surface):
         cs_list : list of CrossSectionFixedZeta, optional
             Existing cross sections to use, e.g. when loading; built from the defaults if None.
         """
-        if stellsym:
-            max_angle = np.pi / nfp
-        else:
-            raise NotImplementedError
-            max_angle = 2 * np.pi
+        if not stellsym:
+            raise NotImplementedError("SurfaceBSpline only supports stellsym=True")
+        max_angle = np.pi / nfp
 
         self.axis_points = axis_points
         self.points_per_cs = points_per_cs
@@ -942,7 +934,6 @@ class SurfaceBSpline(sopp.Surface, Surface):
         self.p_v = p_v
         self.default_r = default_r
         self.stellsym = stellsym
-        self.cs_basis = cs_basis
         self.nurbs = nurbs
         self.use_bishop_frame = use_bishop_frame
 
@@ -952,10 +943,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
             cs_zeta = h_zeta * np.arange(n_cs)
             cs_angles = np.zeros(n_cs)
 
-            self.cs_zeta = cs_zeta
-            self.cs_angles = cs_angles
-
-            dofs = np.append(self.cs_zeta, self.cs_angles)
+            dofs = np.append(cs_zeta, cs_angles)
 
             names = [f"cs_zeta{i}" for i in range(n_cs)] + [
                 f"cs_angle{i}" for i in range(n_cs)
@@ -993,8 +981,8 @@ class SurfaceBSpline(sopp.Surface, Surface):
         if cs_list is None:
             cs_list = []
             for i in range(n_cs):
-                if cs_basis == "polar":
-                    cross_section = CrossSectionFixedZeta(
+                cs_list.append(
+                    CrossSectionFixedZeta(
                         zeta_index=i,
                         n_ctrl_pts=points_per_cs,
                         equispaced=poloidal_equispaced,
@@ -1002,9 +990,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
                         z_sym=(i == 0),
                         nurbs=nurbs,
                     )
-                elif cs_basis == "cartesian":
-                    raise NotImplementedError("see dev branch")
-                cs_list.append(cross_section)
+                )
         elif len(cs_list) != n_cs or any(
             cs.n_ctrl_pts != points_per_cs or cs.z_sym != (i == 0) for i, cs in enumerate(cs_list)
         ):
@@ -1738,10 +1724,6 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
     def ft(
         self,
-        R=None,
-        z=None,
-        zeta=None,
-        theta=None,
         nu=None,
         nv=None,
         plot_ft=False,
@@ -1754,8 +1736,6 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
         Parameters
         ----------
-        R, z, zeta, theta : ndarray, optional
-            Precomputed collocation grid; computed with `exact_tz_interp` if any is None.
         nu, nv : int, optional
             Collocation grid shape, also used to normalize the transform. Defaults to `2*nfp*16`.
         plot_ft : bool
@@ -1776,28 +1756,13 @@ class SurfaceBSpline(sopp.Surface, Surface):
         nv = 2 * self.nfp * 16 if nv is None else nv
         assert nv % 2 == 0, "nv must be even"
 
-        if (
-            np.any(R is None)
-            or np.any(z is None)
-            or np.any(zeta is None)
-            or np.any(theta is None)
-        ):
-            # theta = spline u: no interpolation error, but not a physical angle.
-            R_on_tz_grid, z_on_tz_grid, zeta_eval, theta_eval = (
-                self.exact_tz_interp(
-                    nu=nu,
-                    nv=nv,
-                    plot=plot_intermediate,
-                    ax=intermediate_ax,
-                )
-            )
-        else:
-            R_on_tz_grid, z_on_tz_grid, zeta_eval, theta_eval = (
-                R,
-                z,
-                zeta,
-                theta,
-            )
+        # theta = spline u: no interpolation error, but not a physical angle.
+        R_on_tz_grid, z_on_tz_grid, zeta_eval, theta_eval = self.exact_tz_interp(
+            nu=nu,
+            nv=nv,
+            plot=plot_intermediate,
+            ax=intermediate_ax,
+        )
 
         M, N = self.M, self.N
 
@@ -1923,10 +1888,6 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
     def to_RZFourier(
         self,
-        R=None,
-        z=None,
-        zeta=None,
-        theta=None,
         nu=None,
         nv=None,
         plot=False,
@@ -1938,8 +1899,6 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
         Parameters
         ----------
-        R, z, zeta, theta : ndarray, optional
-            Precomputed collocation grid passed to `ft`.
         nu, nv : int, optional
             Grid sizes passed to `ft`.
         plot : bool
@@ -1955,15 +1914,7 @@ class SurfaceBSpline(sopp.Surface, Surface):
         """
         M, N = self.M, self.N
 
-        rbc, zbs = self.ft(
-            R,
-            z,
-            zeta,
-            theta,
-            nu,
-            nv,
-            plot_ft=plot,
-        )
+        rbc, zbs = self.ft(nu, nv, plot_ft=plot)
 
         surf = SurfaceRZFourier(nfp=self.nfp, ntor=N, mpol=M)
 
@@ -2044,9 +1995,6 @@ class SurfaceBSpline(sopp.Surface, Surface):
 
         dofs = self.dof_names
         indices_dict = dict(zip(dofs, range(len(dofs))))
-
-        if self.cs_basis != "polar":
-            return np.zeros((0, len(dofs))), np.array([]), np.array([]), []
 
         constraints_list = []
         lb = []

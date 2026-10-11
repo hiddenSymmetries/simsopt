@@ -22,6 +22,16 @@ try:
 except ImportError:
     plotly = None
 
+try:
+    from mpi4py import MPI
+except ImportError:
+    MPI = None
+
+try:
+    import vmec
+except ImportError:
+    vmec = None
+
 
 def perturbed_surface(seed=0, scale=0.02, **kwargs):
     """A SurfaceBSpline with every free dof randomly perturbed, so no shape is accidentally symmetric."""
@@ -114,6 +124,15 @@ class SymmetryTests(unittest.TestCase):
                 s = perturbed_surface(**kw)
                 self.assertGreater(s.volume(), 0)
                 self.assertTrue(np.all(s.surface_curvatures()[..., 3] < 0))
+
+
+class UnsupportedOptionTests(unittest.TestCase):
+
+    def test_non_stellarator_symmetric_raises(self):
+        with self.assertRaises(NotImplementedError):
+            SurfaceBSpline(stellsym=False)
+        with self.assertRaises(NotImplementedError):
+            InteriorAxis(stellsym=False)
 
 
 class ResolutionLimitTests(unittest.TestCase):
@@ -529,6 +548,39 @@ class ConversionTests(unittest.TestCase):
                 kwargs = m.call_args.kwargs
                 self.assertTrue(kwargs["verbose"])
                 self.assertIn(default_key, kwargs)
+
+
+@unittest.skipIf((MPI is None) or (vmec is None), "Valid Python interface to VMEC not found")
+class OptimizationTests(unittest.TestCase):
+
+    def test_stage_one_optimization(self):
+        """A few steps of the stage_one_splines.py problem: QA quasisymmetry, aspect ratio and iota."""
+        from monty.tempfile import ScratchDir
+        from simsopt.mhd import QuasisymmetryRatioResidual, Vmec
+        from simsopt.objectives import LeastSquaresProblem
+        from simsopt.solve import least_squares_mpi_solve
+        from simsopt.util import MpiPartition
+
+        mpi = MpiPartition()
+        s = SurfaceBSpline(axis_points=3, points_per_cs=4, n_cs=3, nfp=2, M=4, N=4, p_u=3, p_v=3,
+                           cs_global_angle_free=True, axis_angles_fixed=True, use_bishop_frame=True,
+                           default_r=0.2)
+        s.axis.fix("r_axis_0")
+        with ScratchDir("."):
+            vmec = Vmec.vmec_from_surf(surf=s, mpi=mpi, ns=9, M=4, N=4, ftol=1e-8)
+            qs = QuasisymmetryRatioResidual(vmec, np.arange(0, 1.01, 0.25), helicity_m=1, helicity_n=0)
+            prob = LeastSquaresProblem.from_tuples(
+                [(qs.residuals, 0, 1), (vmec.aspect, 6, 1), (vmec.mean_iota, 0.42, 1)]
+            )
+            f0, aspect0 = prob.objective(), vmec.aspect()
+            least_squares_mpi_solve(prob, mpi, grad=True, rel_step=1e-9, abs_step=5e-6, max_nfev=3)
+            f1, aspect1 = prob.objective(), vmec.aspect()
+
+            self.assertLess(f1, 0.5 * f0)
+            self.assertLess(abs(aspect1 - 6), abs(aspect0 - 6))
+            self.assertTrue(np.all(s.x >= s.lower_bounds) and np.all(s.x <= s.upper_bounds))
+            # VMEC's boundary is the optimized spline
+            np.testing.assert_allclose(aspect1, s.to_RZFourier().aspect_ratio(), rtol=1e-6)
 
 
 class SerializationTests(unittest.TestCase):

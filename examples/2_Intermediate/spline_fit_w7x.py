@@ -48,7 +48,6 @@ spline_kwargs = {
     "poloidal_equispaced": False,
     "cs_global_angle_free": False,
     "axis_angles_fixed": True,
-    "cs_basis": "polar",
     "nurbs": False,
     "use_bishop_frame": True,
 }

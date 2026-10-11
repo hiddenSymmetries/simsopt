@@ -47,7 +47,6 @@ def b_p(t, p, x, i=None):
 
     for deg in range(0, p+1):
         if deg == 0:
-            # x = x[(x >= t[0]) & (x <= t[-1])]
             x1d = x.copy()
             t1d = t.copy()
             t = np.outer(np.ones(len(x)), t)

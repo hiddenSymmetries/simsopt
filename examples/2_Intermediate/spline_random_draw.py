@@ -120,7 +120,6 @@ spline_kwargs = {
     "poloidal_equispaced": False,
     "cs_global_angle_free": not args.fixed_cs_angles,
     "axis_angles_fixed": False,
-    "cs_basis": "polar",
     "nurbs": False,
     "use_bishop_frame": True,
 }
