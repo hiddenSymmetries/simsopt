@@ -793,3 +793,33 @@ class TestSurfaceGeometryJax(JaxTestCase):
                 )
                 self.assertLess(error, 0.55 * previous_error, second)
                 previous_error = error
+
+    def test_first_derivatives_taylor(self):
+        """First angle derivatives converge from native positions on shifted grids."""
+        for case in _CASES:
+            with self.subTest(case=case), self.case():
+                self._case_first_derivatives_taylor(case)
+
+    def _case_first_derivatives_taylor(self, case):
+        surface = _surface(case)
+        spec = surface_spec_from_surface(surface)
+        phi = np.asarray(surface.quadpoints_phi)
+        theta = np.asarray(surface.quadpoints_theta)
+        for first, value_name, axis in (
+            ("gammadash1", "gamma", 0),
+            ("gammadash2", "gamma", 1),
+        ):
+            analytic = host_array(_evaluate(first, spec))
+            value = _native(surface, value_name)
+            previous_error = 1e6
+            for step in np.power(2.0, -np.arange(10, 15)):
+                shifted = _surface(
+                    case,
+                    quadpoints_phi=phi + (step if axis == 0 else 0),
+                    quadpoints_theta=theta + (step if axis == 1 else 0),
+                )
+                error = np.linalg.norm(
+                    (_native(shifted, value_name) - value) / step - analytic
+                )
+                self.assertLess(error, 0.55 * previous_error, first)
+                previous_error = error
