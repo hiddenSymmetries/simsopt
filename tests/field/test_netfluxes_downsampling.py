@@ -63,6 +63,35 @@ class NetFluxesDownsamplingTests(unittest.TestCase):
                         err_msg="NetFluxes.dJ must differentiate J on its sampled target grid",
                     )
 
+    def test_downsampled_gradient_taylor(self):
+        """Check that dJ passes a second-order central-difference Taylor test for each downsample."""
+        rng = np.random.default_rng(31)
+        curves = create_equally_spaced_curves(2, 1, False, order=3, numquadpoints=12)
+        for curve in curves:
+            curve.x = curve.x + 0.04 * rng.standard_normal(curve.x.shape)
+        target = Coil(curves[0], Current(2.1e4))
+        source = Coil(CurveXYZFourier(24, 3, dofs=curves[1].dofs), Current(1.7e4))
+        for downsample in [1, 2, 3]:
+            with self.subTest(downsample=downsample):
+                objective = NetFluxes(target, [source], downsample=downsample)
+                x0 = np.array(objective.x)
+                direction = rng.uniform(-1, 1, x0.shape)
+                for current in [target.current, source.current]:
+                    start, stop = objective.dof_indices[current]
+                    direction[start:stop] *= 1e4
+                directional_derivative = objective.dJ() @ direction
+                err_old = np.inf
+                for k in range(10):
+                    eps = 1e-2 * 0.5**k
+                    objective.x = x0 + eps * direction
+                    plus = float(objective.J())
+                    objective.x = x0 - eps * direction
+                    minus = float(objective.J())
+                    err = abs((plus - minus) / (2 * eps) - directional_derivative)
+                    self.assertLess(err, 0.3 * err_old, msg=f"eps={eps}")
+                    err_old = err
+                objective.x = x0
+
     def test_downsampled_flux_matches_explicit_target_grid(self):
         """Check free and fixed derivatives against an explicitly sampled target."""
         rng = np.random.default_rng(23)
