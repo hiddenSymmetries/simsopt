@@ -1340,6 +1340,49 @@ class TestBoozerSurfaceJax(JaxTestCase):
             _RTOL_NONSYM,
         )
 
+    def test_exact_adjoint_is_the_derivative_of_the_solve_taylor(self):
+        """BoozerExact coil gradients are second-order limits of central differences through re-solves."""
+        # A ToroidalFlux label puts coil dependence in the label row of the system too.
+        problem = _problem(
+            True, "exact", "ToroidalFlux", label_grid=(31, 31), newton_tol=1e-12
+        )
+        boozer = problem.boozer
+        self.assertTrue(boozer.run_code(_IOTA, G=problem.G0)["success"])
+        objectives = {"Iotas": Iotas(boozer), "MajorRadius": MajorRadius(boozer)}
+        handle = objectives["Iotas"]
+        # Every free coil DOF moves, by a fraction of its own size.
+        x0 = np.asarray(handle.x, dtype=np.float64)
+        direction = parity_rng(17).standard_normal(x0.size) * np.maximum(
+            np.abs(x0), 1.0
+        )
+        gradients = {
+            name: objective.dJ(partials=True)(handle) @ direction
+            for name, objective in objectives.items()
+        }
+        solution = boozer.surface.get_dofs().copy()
+        solved_iota, solved_G = boozer.res["iota"], boozer.res["G"]
+
+        def values(x: np.ndarray) -> dict[str, float]:
+            """The objectives after a Newton re-solve from the solution at coils ``x``."""
+            boozer.surface.set_dofs(solution)
+            boozer.res["iota"], boozer.res["G"] = solved_iota, solved_G
+            handle.x = x
+            evaluated = {name: objective.J() for name, objective in objectives.items()}
+            self.assertTrue(boozer.res["success"], "the re-solve did not converge")
+            return evaluated
+
+        previous_errors = {name: np.inf for name in objectives}
+        for eps in 1e-2 * 0.5 ** np.arange(8):
+            plus, minus = values(x0 + eps * direction), values(x0 - eps * direction)
+            for name, gradient in gradients.items():
+                error = abs((plus[name] - minus[name]) / (2 * eps) - gradient)
+                # Central differences: the error falls by 4 per halving (measured 0.248 to 0.250).
+                self.assertLess(error, 0.3 * previous_errors[name], f"{name} at {eps}")
+                previous_errors[name] = error
+        for name, gradient in gradients.items():
+            # Measured 2.6e-5 (Iotas) and 2.9e-6 (MajorRadius) relative at the last step.
+            self.assertLess(previous_errors[name], 1e-4 * abs(gradient), name)
+
     def test_fixed_surface_dofs_are_solved_for_as_with_every_dof_free(self):
         """Native ``BoozerSurface`` at 9e027eac3 cannot solve with fixed surface
         DOFs (its label gradient has the free DOFs only and does not fit; PR #669's
@@ -1404,6 +1447,32 @@ class TestBoozerSurfaceJax(JaxTestCase):
             == {"verbose": False, "weight_inv_modB": False, "newton_tol": 1e-10},
             'options == {"verbose": False, "weight_inv_modB": False, "newton_tol": 1e-10}',
         )
+
+    def test_solves_preserve_the_field_point_buffer(self):
+        """Solves, re-solves and coil adjoints keep the field's point buffer (native moves it to the surface)."""
+        exact = _problem(True, "exact", newton_tol=1e-10)
+        ls = _problem(True, "ls")
+        ls.boozer.options.update(bfgs_maxiter=6, newton_maxiter=1)
+        objectives = (
+            (exact, Iotas(exact.boozer)),
+            (ls, JaxBoozerResidual(ls.boozer, ls.boozer.biotsavart)),
+        )
+        for problem, objective in objectives:
+            field = problem.boozer.biotsavart
+            points = parity_rng(5).uniform(-0.5, 0.5, (7, 3)) + [1.0, 0.0, 0.0]
+            field.set_points(points)
+            buffer, B = field.get_points_cart_ref(), np.asarray(field.B())
+            problem.boozer.run_code(_IOTA, G=problem.G0)
+            objective.dJ()
+            # The coil change marks the surface for a re-solve, which the objective runs.
+            current = problem.currents[0].local_full_x
+            problem.currents[0].local_full_x = 1.002 * current
+            objective.dJ()
+            name = problem.boozer.boozer_type
+            self.assertIs(field.get_points_cart_ref(), buffer, f"{name}: point buffer")
+            np.testing.assert_array_equal(field.get_points_cart(), points, name)
+            problem.currents[0].local_full_x = current
+            np.testing.assert_array_equal(np.asarray(field.B()), B, name)
 
     def test_new_values_reuse_the_compiled_programs(self):
         """New coils, targets, weights, starting points, tolerances, caps and
