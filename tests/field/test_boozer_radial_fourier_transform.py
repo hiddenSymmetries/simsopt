@@ -14,17 +14,8 @@ import unittest
 
 import numpy as np
 
-_CHILD_PROGRAM = """
-import sys
-import numpy as np
-import simsoptpp as sopp
-
-data = np.load(sys.argv[1])
-args = [np.ascontiguousarray(data[name]) for name in ("K", "xm", "xn", "thetas", "zetas")]
-np.savez(sys.argv[2],
-         even=np.asarray(sopp.fourier_transform_even(*args)),
-         odd=np.asarray(sopp.fourier_transform_odd(*args)))
-"""
+_CHILD_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "fresh_process_boozer_fourier_transform.py")
 
 NUM_POINTS = 200_000
 RELATIVE_TOLERANCE = 1e-10
@@ -56,7 +47,7 @@ class BoozerRadialFourierTransformTests(unittest.TestCase):
         output = os.path.join(workdir, f"out_{num_threads}.npz")
         env = dict(os.environ, OMP_NUM_THREADS=str(num_threads))
         completed = subprocess.run(
-            [sys.executable, "-c", _CHILD_PROGRAM, inputs, output],
+            [sys.executable, _CHILD_SCRIPT, inputs, output],
             env=env, capture_output=True, text=True, timeout=600)
         self.assertEqual(completed.returncode, 0, completed.stderr)
         with np.load(output) as loaded:
