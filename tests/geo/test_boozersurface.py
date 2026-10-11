@@ -658,11 +658,14 @@ class BoozerSurfaceTests(unittest.TestCase):
         A solve that fails and ends with a larger or non-finite residual than it
         started with returns its starting surface, iota and G, with the residual
         and derivatives evaluated there. A failed solve that ends with an equal
-        residual keeps its final iterate.
+        or strictly smaller finite residual keeps its final iterate, with the
+        residual and derivatives evaluated there. Either way the raw SciPy
+        result in 'info' describes the solve itself, i.e. its final iterate.
         """
-        def check(boozer_surface, solve, patches, x0, shift, after, G, expected):
+        def check(boozer_surface, solve, patches, x0, shift, after, G, expected, info=None):
             # x0: starting dofs, iota (and G). shift: the step the mocked solver
-            # takes. expected: the returned values at the starting point.
+            # takes. expected(v): the returned values at the retained point,
+            # where the residual scale is v. info(after): the raw SciPy result.
             ndofs = boozer_surface.surface.get_dofs().size
             boozer_surface.surface.set_dofs(x0[:ndofs])
             boozer_surface.need_to_run_code = True
@@ -671,12 +674,16 @@ class BoozerSurfaceTests(unittest.TestCase):
                     stack.enter_context(patch)
                 res = solve()
             self.assertFalse(res['success'])
-            x = x0 if after != 1 else x0 + shift
+            kept = after <= 1.
+            x = x0 + shift if kept else x0
             np.testing.assert_array_equal(boozer_surface.surface.get_dofs(), x[:ndofs])
             self.assertEqual(res['iota'], x[ndofs])
             self.assertEqual(res.get('G'), None if G is None else x[ndofs + 1])
-            for key, value in expected.items():
+            for key, value in expected(after if kept else 1.).items():
                 np.testing.assert_array_equal(res[key], value, err_msg=key)
+            if info is not None:
+                for key, value in info(after).items():
+                    np.testing.assert_array_equal(getattr(res['info'], key), value, err_msg=f"info.{key}")
 
         solve_patch = mock.patch('numpy.linalg.solve', side_effect=lambda _A, b: np.ones_like(b))
         _, ls = get_boozer_surface(boozer_type="ls", converge=False)
@@ -684,7 +691,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         ls_dofs = ls.surface.get_dofs()
         exact_dofs = exact.surface.get_dofs()
 
-        for after in [10., np.nan, 1.]:
+        for after in [10., np.nan, 1., 0.5]:
             # The residual is 1 at the starting point and `after` anywhere else.
             for G in [-2.0, None]:
                 x0 = np.concatenate((ls_dofs, [-0.406] if G is None else [-0.406, G]))
@@ -717,20 +724,25 @@ class BoozerSurfaceTests(unittest.TestCase):
                 cases = {
                     'LBFGS': (lambda: ls.minimize_boozer_penalty_constraints_LBFGS(maxiter=1, iota=-0.406, G=G),
                               [penalty_patch, mock.patch('simsopt.geo.boozersurface.minimize', side_effect=failed_minimize)], 1.,
-                              {'fun': 1., 'gradient': ones}),
+                              lambda v: {'fun': v, 'gradient': v * ones}),
                     'newton': (lambda: ls.minimize_boozer_penalty_constraints_newton(maxiter=1, iota=-0.406, G=G),
                                [penalty_patch, solve_patch], -1.,
-                               {'residual': ones, 'jacobian': ones, 'hessian': eye}),
+                               lambda v: {'residual': v * ones, 'jacobian': v * ones, 'hessian': v * eye}),
                     'ls manual': (lambda: ls.minimize_boozer_penalty_constraints_ls(maxiter=1, iota=-0.406, G=G, method='manual'),
                                   [ls_patch, solve_patch], -1.,
-                                  {'residual': ones, 'gradient': ones, 'jacobian': eye}),
+                                  lambda v: {'residual': v * ones, 'gradient': v**2 * ones, 'jacobian': v**2 * eye}),
                     'ls': (lambda: ls.minimize_boozer_penalty_constraints_ls(maxiter=1, iota=-0.406, G=G),
                            [ls_patch, mock.patch('simsopt.geo.boozersurface.least_squares', side_effect=failed_least_squares)], 1.,
-                           {'residual': ones, 'gradient': ones, 'jacobian': eye}),
+                           lambda v: {'residual': v * ones, 'gradient': v**2 * ones, 'jacobian': v * eye}),
+                }
+                # The mocked SciPy solvers end at x0 + 1, where the residual is `after`.
+                infos = {
+                    'LBFGS': lambda after: {'x': x0 + 1., 'fun': after, 'jac': after * ones},
+                    'ls': lambda after: {'x': x0 + 1., 'fun': after * ones, 'jac': after * eye},
                 }
                 for name, (solve, patches, shift, expected) in cases.items():
                     with self.subTest(solver=name, after=after, G=G):
-                        check(ls, solve, patches, x0, shift, after, G, expected)
+                        check(ls, solve, patches, x0, shift, after, G, expected, infos.get(name))
 
                 x0 = np.concatenate((exact_dofs, [-0.406] if G is None else [-0.406, G]))
                 xl0 = np.concatenate((x0, [0., 0.]))
@@ -744,7 +756,7 @@ class BoozerSurfaceTests(unittest.TestCase):
                     check(exact,
                           lambda: exact.minimize_boozer_exact_constraints_newton(maxiter=1, iota=-0.406, G=G),
                           [mock.patch.object(exact, 'boozer_exact_constraints', side_effect=exact_constraints), solve_patch],
-                          x0, -1., after, G, {'residual': np.ones(xl0.size), 'jacobian': np.eye(xl0.size)})
+                          x0, -1., after, G, lambda v: {'residual': v * np.ones(xl0.size), 'jacobian': v * np.eye(xl0.size)})
 
             x0 = np.concatenate((exact_dofs, [-0.406, -2.0]))
             nresidual = exact.surface.gamma().size
@@ -761,7 +773,7 @@ class BoozerSurfaceTests(unittest.TestCase):
                       lambda: exact.solve_residual_equation_exactly_newton(maxiter=1, iota=-0.406, G=-2.0),
                       [mock.patch('simsopt.geo.boozersurface.boozer_surface_residual', side_effect=residual), solve_patch,
                        mock.patch.object(exact.label, 'J', side_effect=lambda: exact.targetlabel)],
-                      x0, -2., after, -2.0, {'residual': np.ones(nresidual)})
+                      x0, -2., after, -2.0, lambda v: {'residual': v * np.ones(nresidual)})
 
     def test_failed_scipy_solves_leave_the_field_on_the_returned_surface(self):
         """
