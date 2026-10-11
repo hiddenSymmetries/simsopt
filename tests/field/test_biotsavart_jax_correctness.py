@@ -5,7 +5,9 @@ from unittest_jax_support import JaxTestCase, optional_jax_imports
 with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax  # noqa: F401
+    from simsopt_jax.core import curve_gamma_and_gammadash_from_spec
     from simsopt_jax_adapters.field.biotsavart_backend import JaxBiotSavart
+    from simsopt_jax_adapters.geo.curve_specs import curve_spec_from_adapter_curve
 from tempfile import TemporaryDirectory
 from pathlib import Path
 
@@ -17,7 +19,7 @@ from simsopt import load
 from simsopt._core.derivative import Derivative
 from simsopt._core.optimizable import Optimizable
 from simsopt.field import BiotSavart, Coil, Current, coils_via_symmetries
-from simsopt.geo import create_equally_spaced_curves
+from simsopt.geo import CurveXYZFourier, create_equally_spaced_curves
 from simsopt.geo.curveperturbed import (
     CurvePerturbed,
     GaussianSampler,
@@ -25,11 +27,22 @@ from simsopt.geo.curveperturbed import (
 )
 from simsopt.geo.curvexyzfouriersymmetries import CurveXYZFourierSymmetries
 from simsopt.geo.finitebuild import CurveFilament
-from simsopt.geo.framedcurve import FrameRotation, FramedCurveFrenet
+from simsopt.geo.framedcurve import (
+    FrameRotation,
+    FramedCurveCentroid,
+    FramedCurveFrenet,
+)
 
 
 _POINTS = np.array([[0.8, 0.1, 0.2], [1.1, -0.2, -0.1]])
 _FIELDS = ("B", "A", "dB_by_dX", "dA_by_dX")
+_COMPOSED_WRAPPERS = (
+    "shared_filament",
+    "centroid_filament",
+    "nested_perturbed",
+    "perturbed_filament",
+    "perturbed_shared_filament",
+)
 
 
 def _curves():
@@ -86,7 +99,8 @@ def _composed_native_field(wrapper, fixed):
     if wrapper == "nested_perturbed":
         wrapped = CurvePerturbed(CurvePerturbed(curve, sample), sample)
     else:
-        wrapped = CurveFilament(FramedCurveFrenet(curve, rotation), 0.01, 0.02)
+        frame = FramedCurveCentroid if "centroid" in wrapper else FramedCurveFrenet
+        wrapped = CurveFilament(frame(curve, rotation), 0.01, 0.02)
         if wrapper.startswith("perturbed"):
             wrapped = CurvePerturbed(wrapped, sample)
     coils = [Coil(wrapped, current)]
@@ -94,7 +108,54 @@ def _composed_native_field(wrapper, fixed):
     return native, curve, rotation
 
 
+def _filament(frame, quadpoints):
+    """Build a non-circular rotated filament on ``frame`` sampled at ``quadpoints``."""
+    reference = create_equally_spaced_curves(
+        1, 1, stellsym=False, R0=1.0, R1=0.25, order=2, numquadpoints=24
+    )[0]
+    curve = CurveXYZFourier(quadpoints, 2)
+    curve.x = reference.x + np.random.default_rng(20261011).normal(
+        0.0, 0.03, reference.x.size
+    )
+    rotation = FrameRotation(quadpoints, 1)
+    rotation.x = np.array([0.2, -0.1, 0.05])
+    return CurveFilament(frame(curve, rotation), 0.05, 0.08)
+
+
+def _jax_filament_geometry(frame, quadpoints):
+    """Evaluate JAX filament ``gamma`` and ``gammadash`` at ``quadpoints``."""
+    spec = curve_spec_from_adapter_curve(_filament(frame, quadpoints))
+    gamma, gammadash = curve_gamma_and_gammadash_from_spec(spec)
+    return np.asarray(gamma), np.asarray(gammadash)
+
+
 class TestBiotsavartJaxCorrectness(JaxTestCase):
+    def test_filament_gammadash_is_quadpoint_derivative(self):
+        """JAX filament gammadash, built from the frame derivative kernels, is the
+        quadpoint derivative of gamma and matches native for both frames."""
+        for frame in [FramedCurveFrenet, FramedCurveCentroid]:
+            with self.subTest(frame=frame.__name__), self.case():
+                self._case_filament_gammadash_is_quadpoint_derivative(frame)
+
+    def _case_filament_gammadash_is_quadpoint_derivative(self, frame):
+        """Run one row with case-local objects released before runtime cleanup."""
+        quadpoints = np.linspace(0.0, 1.0, 24, endpoint=False)
+        gamma, gammadash = _jax_filament_geometry(frame, quadpoints)
+        error = 1e6
+        for exponent in range(5):
+            step = 1e-2 * 0.5**exponent
+            plus, _ = _jax_filament_geometry(frame, quadpoints + step)
+            minus, _ = _jax_filament_geometry(frame, quadpoints - step)
+            next_error = np.linalg.norm((plus - minus) / (2 * step) - gammadash)
+            print(f"R10 {frame.__name__} step={step:.3e}: error={next_error:.3e}")
+            self.assertLess(next_error, 0.3 * error)
+            error = next_error
+        native = _filament(frame, quadpoints)
+        np.testing.assert_allclose(gamma, native.gamma(), rtol=1e-12, atol=1e-14)
+        np.testing.assert_allclose(
+            gammadash, native.gammadash(), rtol=1e-12, atol=1e-14
+        )
+
     def test_affine_current_vjps_match_native_and_finite_difference(self):
         """Affine-current fields, owner partials and flat gradients agree with native and
         finite-difference references."""
@@ -343,14 +404,9 @@ class TestBiotsavartJaxCorrectness(JaxTestCase):
     def test_composed_curves_match_native_fields_owner_vjps_and_finite_difference(self):
         """Nested perturbed and filament curves match native fields, owner partials and
         directional finite differences."""
-        for wrapper in [
-            "shared_filament",
-            "nested_perturbed",
-            "perturbed_filament",
-            "perturbed_shared_filament",
-        ]:
+        for wrapper in _COMPOSED_WRAPPERS:
             for fixed in [False, True]:
-                for quantity in ["B", "dB_by_dX"]:
+                for quantity in _FIELDS:
                     with self.subTest(
                         wrapper=wrapper, fixed=fixed, quantity=quantity
                     ), self.case():
@@ -400,16 +456,36 @@ class TestBiotsavartJaxCorrectness(JaxTestCase):
                 rtol=1e-11,
                 atol=1e-13,
             )
-        pullback = (
-            adapter.B_pullback_native(cotangent)
-            if quantity == "B"
-            else adapter.dB_by_dX_pullback_native(cotangent)
-        )
+        pullback = getattr(adapter, quantity + "_pullback_native")(cotangent)
         flat = adapter.coil_cotangents_to_dofs_gradient(
             pullback.d_coil_arrays,
             pullback.coil_indices,
         )
         np.testing.assert_allclose(flat, expected_gradient, rtol=1e-11, atol=1e-13)
+        if quantity == "A":
+            # The value half of the combined VJP must ignore the gradient cotangent.
+            vgrad = _cotangent("dA_by_dX")
+            combined_native = cast(
+                Derivative,
+                native.A_and_dA_vjp(cotangent, vgrad)[0](native, as_derivative=True),
+            )
+            combined_adapter = cast(
+                Derivative,
+                adapter.A_and_dA_vjp(cotangent, vgrad)[0](adapter, as_derivative=True),
+            )
+            for owner in expected_partials.data:
+                np.testing.assert_allclose(
+                    combined_adapter.data[owner],
+                    combined_native.data[owner],
+                    rtol=1e-11,
+                    atol=1e-13,
+                )
+                np.testing.assert_allclose(
+                    combined_adapter.data[owner],
+                    actual_partials.data[owner],
+                    rtol=1e-11,
+                    atol=1e-13,
+                )
 
         dofs = native.x.copy()
         direction = np.linspace(-0.3, 0.4, dofs.size)
@@ -438,14 +514,9 @@ class TestBiotsavartJaxCorrectness(JaxTestCase):
 
     def test_composed_curve_vjps_taylor(self):
         """Composed-curve VJPs converge under the native forward Taylor stencil."""
-        for wrapper in [
-            "shared_filament",
-            "nested_perturbed",
-            "perturbed_filament",
-            "perturbed_shared_filament",
-        ]:
+        for wrapper in _COMPOSED_WRAPPERS:
             for fixed in [False, True]:
-                for quantity in ["B", "dB_by_dX"]:
+                for quantity in _FIELDS:
                     with self.subTest(
                         wrapper=wrapper, fixed=fixed, quantity=quantity
                     ), self.case() as patches:

@@ -630,8 +630,8 @@ assert len(searches) == 1, "placement changes must reuse host candidates"
     def test_inactive_distance_terms_have_finite_zero_gradients(self):
         """A far curve with zero tangents adds J = 0 and a zero, finite gradient.
 
-            The native objectives skip such curves; the dense JAX kernels evaluate them.
-            """
+        The native objectives skip such curves; the dense JAX kernels evaluate them.
+        """
         base, curves = _curves()
         point = _circle((50.0, 0.0, 0.0), 0.0)
         curves = [*curves, point]
@@ -644,10 +644,10 @@ assert len(searches) == 1, "placement changes must reuse host candidates"
     def test_distance_terms_skip_exactly_the_native_non_candidates(self):
         """Pairs with no two points closer than the minimum distance are not evaluated.
 
-            Identical circles and a constant curve on a surface sample have coincident
-            points (a zero distance) and the constant curve a zero tangent; with a zero
-            minimum distance they are no candidate pair, so value and gradient are 0.
-            """
+        Identical circles and a constant curve on a surface sample have coincident
+        points (a zero distance) and the constant curve a zero tangent; with a zero
+        minimum distance they are no candidate pair, so value and gradient are 0.
+        """
         surface = _surface()
         circle = _circle((1.0, 0.0, 0.0), 1.0)
         twin = _circle((1.0, 0.0, 0.0), 1.0)
@@ -664,7 +664,7 @@ assert len(searches) == 1, "placement changes must reuse host candidates"
 
     def test_distance_terms_evaluate_every_point_of_a_native_candidate(self):
         """Within a candidate pair every point is evaluated, as native: a zero tangent
-            far from the other curve still gives native's non-finite gradient."""
+        far from the other curve still gives native's non-finite gradient."""
         surface = _surface()
         sample = surface.gamma()[0, 0]
         # Near the sample at t = 1/2 (15 points: t = 7/15), zero tangent at t = 0, far away.
@@ -685,7 +685,7 @@ assert len(searches) == 1, "placement changes must reuse host candidates"
 
     def test_distance_candidates_at_the_threshold_are_the_native_ones(self):
         """At a tie the candidate decision is ``simsoptpp``'s own, so the evaluated set,
-            and with it the finite-zero or NaN gradient of these constant curves, is native's."""
+        and with it the finite-zero or NaN gradient of these constant curves, is native's."""
         for case_id_0, (position, minimum_distance) in zip(["tie_a", "tie_b"], _TIE_CASES, strict=True):
             with self.subTest(case_id_0=case_id_0, position=position, minimum_distance=minimum_distance), self.case() as patches:
                 self._case_distance_candidates_at_the_threshold_are_the_native_ones(position, minimum_distance, patches)

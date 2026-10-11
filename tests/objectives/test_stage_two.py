@@ -30,6 +30,7 @@ with optional_jax_imports():
     )
     from simsopt_jax_adapters.field import JaxBiotSavart
     from simsopt_jax_adapters.objectives import JaxSquaredFlux
+    from geo.test_curve_objectives_jax import _TIE_CASES
 
 
 from dataclasses import replace
@@ -304,6 +305,66 @@ class TestStageTwo(JaxTestCase):
         self.assertTrue(np.all(np.isfinite(dgamma)) and np.all(np.isfinite(dgammadash)), 'np.all(np.isfinite(dgamma)) and np.all(np.isfinite(dgammadash))')
         self.assertTrue(not np.any(dgamma[2]) and not np.any(dgammadash[2]), 'not np.any(dgamma[2]) and not np.any(dgammadash[2])')
         self.assertTrue(np.any(dgammadash[0]), 'np.any(dgammadash[0])')
+
+    def test_fused_distance_candidates_at_the_threshold(self):
+        """Off a tie the fused candidate choice is native's; at a tie it is one of the two."""
+        for case_id_0, (position, minimum_distance) in zip(["tie_a", "tie_b"], _TIE_CASES, strict=True):
+            for term in ("curve_curve", "curve_surface"):
+                with self.subTest(case_id_0=case_id_0, term=term), self.case():
+                    self._case_fused_distance_candidates_at_the_threshold(position, minimum_distance, term)
+
+    def _case_fused_distance_candidates_at_the_threshold(self, position, minimum_distance, term):
+        """Compare fused and native outcomes for constant curves at and near one tie.
+
+        The curves have zero tangents, so a candidate pair has a non-finite gradient (native
+        and fused alike) and a non-candidate pair a finite zero gradient; the value is zero
+        either way. A relative margin of 1e-9 moves the squared distance about 1e7 ulp off
+        the squared threshold, where rounding cannot change the decision."""
+        origin_curve = CurveXYZFourier(8, 1)
+        point_curve = CurveXYZFourier(8, 1)
+        for name, value in zip(("xc(0)", "yc(0)", "zc(0)"), position, strict=True):
+            point_curve.set(name, value)
+        surface = SurfaceRZFourier.from_nphi_ntheta(nphi=4, ntheta=4)
+        surface.local_full_x = np.zeros_like(surface.local_full_x)
+        curves = [origin_curve, point_curve] if term == "curve_curve" else [point_curve]
+        gamma = jnp.asarray(np.stack([curve.gamma() for curve in curves]))
+        gammadash = jnp.asarray(np.stack([curve.gammadash() for curve in curves]))
+        surface_gamma = jnp.asarray(surface.gamma().reshape((-1, 3)))
+        surface_normal = jnp.asarray(surface.normal().reshape((-1, 3)))
+        outcomes = {}
+        for side, scale in (("below", 1.0 - 1e-9), ("tie", 1.0), ("above", 1.0 + 1e-9)):
+            threshold = minimum_distance * scale
+            if term == "curve_curve":
+                native = CurveCurveDistance(curves, threshold)
+                config = StageTwoObjectiveConfig(
+                    num_basecurves=2, curve_curve_minimum_distance=threshold, curve_curve_weight=1.0
+                )
+            else:
+                native = CurveSurfaceDistance(curves, surface, threshold)
+                config = StageTwoObjectiveConfig(
+                    num_basecurves=1, curve_surface_minimum_distance=threshold, curve_surface_weight=1.0
+                )
+
+            def penalty(current_gamma, current_gammadash, config=config):
+                return stage_two_geometric_penalty(
+                    current_gamma, current_gammadash, jnp.zeros_like(current_gammadash),
+                    surface_gamma, surface_normal, config,
+                )
+
+            value, gradient = jax.jit(jax.value_and_grad(penalty, argnums=(0, 1)))(gamma, gammadash)
+            self.assertEqual(float(value), 0.0, side)
+            gradient = np.concatenate([np.asarray(part).ravel() for part in gradient])
+            outcomes[side] = (bool(np.all(np.isfinite(native.dJ()))), gradient)
+        for side, native_finite in (("below", True), ("above", False)):
+            finite, gradient = outcomes[side]
+            self.assertEqual(finite, native_finite, f"native {side} the threshold")
+            self.assertEqual(bool(np.all(np.isfinite(gradient))), native_finite, f"fused {side} the threshold")
+        self.assertFalse(np.any(outcomes["below"][1]), "fused non-candidate gradient")
+        tie = outcomes["tie"][1]
+        self.assertTrue(
+            any(np.array_equal(tie, outcomes[side][1], equal_nan=True) for side in ("below", "above")),
+            f"fused gradient at the tie is neither off-tie outcome: {tie}",
+        )
 
     def test_fused_program_compiles_and_runs_under_the_strict_transfer_guard(self):
         """The fused value and gradient compile and run with explicit transfers only."""
