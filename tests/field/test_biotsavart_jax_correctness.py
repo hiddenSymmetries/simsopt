@@ -30,6 +30,12 @@ from simsopt.geo.framedcurve import FrameRotation, FramedCurveFrenet
 
 _POINTS = np.array([[0.8, 0.1, 0.2], [1.1, -0.2, -0.1]])
 _FIELDS = ("B", "A", "dB_by_dX", "dA_by_dX")
+_COMPOSED_WRAPPERS = (
+    "shared_filament",
+    "nested_perturbed",
+    "perturbed_filament",
+    "perturbed_shared_filament",
+)
 
 
 def _curves():
@@ -343,14 +349,9 @@ class TestBiotsavartJaxCorrectness(JaxTestCase):
     def test_composed_curves_match_native_fields_owner_vjps_and_finite_difference(self):
         """Nested perturbed and filament curves match native fields, owner partials and
         directional finite differences."""
-        for wrapper in [
-            "shared_filament",
-            "nested_perturbed",
-            "perturbed_filament",
-            "perturbed_shared_filament",
-        ]:
+        for wrapper in _COMPOSED_WRAPPERS:
             for fixed in [False, True]:
-                for quantity in ["B", "dB_by_dX"]:
+                for quantity in _FIELDS:
                     with self.subTest(
                         wrapper=wrapper, fixed=fixed, quantity=quantity
                     ), self.case():
@@ -400,16 +401,36 @@ class TestBiotsavartJaxCorrectness(JaxTestCase):
                 rtol=1e-11,
                 atol=1e-13,
             )
-        pullback = (
-            adapter.B_pullback_native(cotangent)
-            if quantity == "B"
-            else adapter.dB_by_dX_pullback_native(cotangent)
-        )
+        pullback = getattr(adapter, quantity + "_pullback_native")(cotangent)
         flat = adapter.coil_cotangents_to_dofs_gradient(
             pullback.d_coil_arrays,
             pullback.coil_indices,
         )
         np.testing.assert_allclose(flat, expected_gradient, rtol=1e-11, atol=1e-13)
+        if quantity == "A":
+            # The value half of the combined VJP must ignore the gradient cotangent.
+            vgrad = _cotangent("dA_by_dX")
+            combined_native = cast(
+                Derivative,
+                native.A_and_dA_vjp(cotangent, vgrad)[0](native, as_derivative=True),
+            )
+            combined_adapter = cast(
+                Derivative,
+                adapter.A_and_dA_vjp(cotangent, vgrad)[0](adapter, as_derivative=True),
+            )
+            for owner in expected_partials.data:
+                np.testing.assert_allclose(
+                    combined_adapter.data[owner],
+                    combined_native.data[owner],
+                    rtol=1e-11,
+                    atol=1e-13,
+                )
+                np.testing.assert_allclose(
+                    combined_adapter.data[owner],
+                    actual_partials.data[owner],
+                    rtol=1e-11,
+                    atol=1e-13,
+                )
 
         dofs = native.x.copy()
         direction = np.linspace(-0.3, 0.4, dofs.size)
@@ -438,14 +459,9 @@ class TestBiotsavartJaxCorrectness(JaxTestCase):
 
     def test_composed_curve_vjps_taylor(self):
         """Composed-curve VJPs converge under the native forward Taylor stencil."""
-        for wrapper in [
-            "shared_filament",
-            "nested_perturbed",
-            "perturbed_filament",
-            "perturbed_shared_filament",
-        ]:
+        for wrapper in _COMPOSED_WRAPPERS:
             for fixed in [False, True]:
-                for quantity in ["B", "dB_by_dX"]:
+                for quantity in _FIELDS:
                     with self.subTest(
                         wrapper=wrapper, fixed=fixed, quantity=quantity
                     ), self.case() as patches:
