@@ -482,3 +482,25 @@ class TestForceJax(JaxTestCase):
             np.testing.assert_array_less(error, 0.31 * previous_error)
             previous_error = error
         adapter.x = x0
+
+    def test_net_fluxes_gradient_taylor(self):
+        """NetFluxes centered differences converge to dJ at second order, with and without downsampling."""
+        _, coils = _coils()
+        target, sources = coils[1], coils[:4 * _NCOILS]
+        for downsample in (1, 4):
+            with self.subTest(downsample=downsample):
+                adapter = JaxNetFluxes(target, sources, downsample=downsample)
+                x0 = np.array(adapter.x, dtype=float)
+                direction = np.random.default_rng(23).standard_normal(x0.shape) * np.maximum(np.abs(x0), 1.0)
+                derivative = adapter.dJ() @ direction
+                self.assertGreater(abs(derivative), 0.0)
+                previous_error = 100
+                for exponent in range(10, 18):
+                    step = 0.5 ** exponent
+                    adapter.x = x0 + step * direction
+                    plus = adapter.J()
+                    adapter.x = x0 - step * direction
+                    error = abs((plus - adapter.J()) / (2 * step) - derivative) / abs(derivative)
+                    np.testing.assert_array_less(error, 0.31 * previous_error)
+                    previous_error = error
+                adapter.x = x0
