@@ -60,12 +60,13 @@ def regularized_self_field(gamma, gammadash, gammadashdash, quadpoints, current,
 
     Hurwitz, Siena, Matt Landreman, and Thomas M. Antonsen.
     "Efficient calculation of the self magnetic field, self-force, and self-inductance for
-    electromagnetic coils." IEEE Transactions on Magnetics (2024).
+    electromagnetic coils." IEEE Transactions on Magnetics 60 (2024).
+    https://doi.org/10.1109/TMAG.2024.3455946
 
     Landreman, Matt, Siena Hurwitz, and Thomas M. Antonsen.
     "Efficient calculation of self magnetic field, self-force, and self-inductance for
     electromagnetic coils with rectangular cross-section."
-    Nuclear Fusion 65.3 (2025): 036008.
+    Nuclear Fusion 65.3 (2025): 036008. https://doi.org/10.1088/1741-4326/adb04e
 
     Args:
         gamma: Array of shape (n, 3), coil positions in m.
