@@ -55,8 +55,8 @@ _DERIVATIVE_HEAVY_TOLS = {
     "scalar_value_atol": 1e-12,
     "first_derivative_rtol": 1e-08,
     "first_derivative_atol": 1e-10,
-    "second_derivative_rtol": 1e-06,
-    "second_derivative_atol": 1e-08,
+    "second_derivative_rtol": 1e-10,
+    "second_derivative_atol": 1e-12,
     "requires_same_input": True,
     "requires_direct_cpp_oracle": True,
     "fd_validation_secondary": True,
@@ -355,6 +355,28 @@ class TestBiotSavartJaxCppParity(JaxTestCase):
             rtol=_DERIVATIVE_HEAVY_TOLS["second_derivative_rtol"],
             atol=_DERIVATIVE_HEAVY_TOLS["second_derivative_atol"],
         )
+
+    def test_GradAbsB_taylor_ncsx(self):
+        """GradAbsB matches central differences of AbsB with second-order convergence
+        under shrinking point steps."""
+
+        bs, points_np, _, _, _ = _ncsx_biotsavart_parity_fixture()
+        bs_jax = JaxBiotSavart(list(bs._coils))
+        bs_jax.set_points(points_np)
+        grad = np.asarray(bs_jax.GradAbsB())
+        for direction in np.eye(3):
+            with self.subTest(direction=direction):
+                deriv = grad @ direction
+                err = 1e6
+                for i in range(5):
+                    eps = 1e-3 * 0.5**i
+                    bs_jax.set_points(points_np + eps * direction)
+                    plus = np.asarray(bs_jax.AbsB())[:, 0]
+                    bs_jax.set_points(points_np - eps * direction)
+                    minus = np.asarray(bs_jax.AbsB())[:, 0]
+                    new_err = np.linalg.norm((plus - minus) / (2 * eps) - deriv)
+                    self.assertLess(new_err, 0.3 * err)
+                    err = new_err
 
 
 class TestBiotSavartJaxCppCoilCurrentParity(JaxTestCase):
