@@ -72,7 +72,7 @@ def curve_spec_from_adapter_curve(curve, *, separate_owners: bool = False) -> Cu
             VJP projection instead of shared-DOF slots.
 
     Returns:
-        CurveSpec object: Immutable geometry payload with runtime-precision
+        CurveSpec object: Immutable geometry payload with float64
             sampled/coefficient arrays.
     """
     if isinstance(curve, CurveXYZFourierSymmetries):

@@ -50,9 +50,9 @@ def unplaced_joins_committed() -> None:
     assert dtypes.get_runtime_jax_device() == first
     elsewhere = jax.device_put(np.arange(3.0), second)
     unplaced = dtypes.runtime_device_put(np.ones(3))
-    as_runtime = dtypes.as_runtime_array(np.ones(3))
+    as_float64 = dtypes.as_jax_float64(np.ones(3))
     assert (unplaced + elsewhere).devices() == {second}
-    assert (as_runtime * elsewhere).devices() == {second}
+    assert (as_float64 * elsewhere).devices() == {second}
     with jax.default_device(second):
         scoped = dtypes.runtime_device_put(np.ones(3))
     assert scoped.devices() == {second}, scoped.devices()

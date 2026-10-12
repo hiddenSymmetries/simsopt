@@ -7,24 +7,18 @@ import jax.numpy as jnp
 import numpy as np
 from simsopt_jax.backend.dtypes import (
     _shape_tuple,
-    as_compute_array,
     as_jax_array,
     as_jax_float64,
     as_jax_int32,
-    as_runtime_array,
     explicit_device_array as _explicit_device_array,
     runtime_device_put,
-    runtime_jnp_dtype,
-    runtime_np_dtype,
 )
 
 __all__ = [
     "_explicit_device_array",
-    "as_compute_array",
     "as_jax_array",
     "as_jax_float64",
     "as_jax_int32",
-    "as_runtime_array",
     "axis0_entries",
     "explicit_inv",
     "explicit_rsqrt",
@@ -32,8 +26,6 @@ __all__ = [
     "iter_axis0_entries",
     "pad_axis",
     "runtime_device_put",
-    "runtime_jnp_dtype",
-    "runtime_np_dtype",
     "scalar_like",
     "zero_padding_like",
     "zeros",
@@ -59,7 +51,7 @@ def iter_axis0_entries(array):
 
 
 def axis0_entries(array: object) -> tuple[jax.Array, ...]:
-    """Return axis-zero entries after runtime-precision conversion.
+    """Return axis-zero entries after float64 conversion.
 
     Args:
         array (array-like): Input of shape (N, ...); axis0_entries also accepts a
@@ -86,7 +78,7 @@ def scalar_like(reference, value) -> jax.Array:
 
     Returns:
         jax.Array: Converted value with its original shape; host floats still
-            follow runtime placement/dtype policy.
+            take runtime placement and become float64.
     """
     return as_jax_array(value, dtype=reference.dtype)
 

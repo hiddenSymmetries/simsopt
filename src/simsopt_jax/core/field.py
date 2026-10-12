@@ -10,9 +10,6 @@ import jax.numpy as jnp
 import numpy as np
 
 from ._math_utils import (
-    as_compute_array as _as_compute_array,
-)
-from ._math_utils import (
     as_jax_float64 as _as_jax_float64,
 )
 from ._math_utils import (
@@ -94,10 +91,10 @@ def _tree_add(left, right):
 def _compute_group_inputs(points, gammas, gammadashs, currents):
     """Cast one coil group and the points to float64."""
     return (
-        _as_compute_array(points),
-        _as_compute_array(gammas),
-        _as_compute_array(gammadashs),
-        _as_compute_array(currents),
+        _as_jax_float64(points),
+        _as_jax_float64(gammas),
+        _as_jax_float64(gammadashs),
+        _as_jax_float64(currents),
     )
 
 
@@ -142,7 +139,7 @@ def group_biot_savart_B_vjp(points, v, gammas, gammadashs, currents):
         gammadashs,
         currents,
     )
-    compute_v = _as_compute_array(v)
+    compute_v = _as_jax_float64(v)
     return biot_savart_B_vjp(compute_points, compute_v, gammas, gammadashs, currents)
 
 
@@ -162,7 +159,7 @@ def grouped_coil_set_spec_from_lists(
             shape ().
 
     Returns:
-        GroupedCoilSetSpec object: Runtime-precision batches grouped by
+        GroupedCoilSetSpec object: Float64 batches grouped by
             quadrature count with original coil indices.
     """
     return make_grouped_coil_set_spec(
@@ -170,7 +167,6 @@ def grouped_coil_set_spec_from_lists(
             gammas_list,
             gammadashs_list,
             currents_list,
-            use_compute_dtype=False,
         )
     )
 
@@ -214,8 +210,6 @@ def grouped_coil_set_spec_from_coil_specs(
 def _coil_current_value_from_dofs(
     extraction_spec: CoilDofExtractionSpec,
     owner_dofs: object,
-    *,
-    use_compute_dtype: bool = False,
 ) -> CurrentValueSpec:
     if extraction_spec.current_term_maps:
         current_terms = []
@@ -227,7 +221,6 @@ def _coil_current_value_from_dofs(
             term_dofs = optimizable_input_dofs_from_map_spec(
                 term_map,
                 owner_dofs,
-                use_compute_dtype=use_compute_dtype,
             )
             if term_dofs.shape[0] != 1:
                 raise RuntimeError(
@@ -241,7 +234,6 @@ def _coil_current_value_from_dofs(
     current_dofs = optimizable_input_dofs_from_map_spec(
         extraction_spec.current_map,
         owner_dofs,
-        use_compute_dtype=use_compute_dtype,
     )
     if current_dofs.shape[0] != 1:
         raise RuntimeError(
@@ -254,15 +246,12 @@ def _coil_current_value_from_dofs(
 def _coil_curve_spec_from_dofs(
     extraction_spec: CoilDofExtractionSpec,
     owner_dofs: object,
-    *,
-    use_compute_dtype: bool = False,
 ) -> CurveSpec:
     return curve_spec_with_dofs(
         extraction_spec.curve,
         optimizable_input_dofs_from_map_spec(
             extraction_spec.curve_map,
             owner_dofs,
-            use_compute_dtype=use_compute_dtype,
         ),
     )
 
@@ -270,8 +259,6 @@ def _coil_curve_spec_from_dofs(
 def coil_specs_from_dof_extraction_spec(
     extraction_spec: CoilSetDofExtractionSpec,
     owner_dofs: object,
-    *,
-    use_compute_dtype: bool = False,
 ) -> tuple[CoilSpec, ...]:
     """Reconstruct immutable coil inputs from an explicit owner DOF vector.
 
@@ -280,17 +267,12 @@ def coil_specs_from_dof_extraction_spec(
             reconstruction contracts.
         owner_dofs (array-like): Flat owner DOF vector, shape (D,), matching the
             extraction map; units depend on the owning geometry or current.
-        use_compute_dtype (bool): Select compute rather than runtime precision when
-            converting DOFs; defaults to False.
 
     Returns:
         tuple[CoilSpec, ...]: Per-coil immutable payloads in public coil
             order, sharing reconstructed curves when their source keys match.
     """
-    if use_compute_dtype:
-        owner_dofs = _as_compute_array(owner_dofs)
-    else:
-        owner_dofs = _as_jax_float64(owner_dofs)
+    owner_dofs = _as_jax_float64(owner_dofs)
     curves_by_source: dict[int, CurveSpec] = {}
     coil_specs = []
     for coil_spec in extraction_spec.coils:
@@ -299,7 +281,6 @@ def coil_specs_from_dof_extraction_spec(
             curve = _coil_curve_spec_from_dofs(
                 coil_spec,
                 owner_dofs,
-                use_compute_dtype=use_compute_dtype,
             )
             if source_index is not None:
                 curves_by_source[source_index] = curve
@@ -311,7 +292,6 @@ def coil_specs_from_dof_extraction_spec(
                 current=_coil_current_value_from_dofs(
                     coil_spec,
                     owner_dofs,
-                    use_compute_dtype=use_compute_dtype,
                 ),
                 symmetry=coil_spec.symmetry,
             )
@@ -322,8 +302,6 @@ def coil_specs_from_dof_extraction_spec(
 def coil_set_spec_from_dof_extraction_spec(
     extraction_spec: CoilSetDofExtractionSpec,
     owner_dofs: object,
-    *,
-    use_compute_dtype: bool = False,
 ) -> GroupedCoilSetSpec:
     """Reconstruct immutable coil inputs from an explicit owner DOF vector.
 
@@ -332,8 +310,6 @@ def coil_set_spec_from_dof_extraction_spec(
             reconstruction contracts.
         owner_dofs (array-like): Flat owner DOF vector, shape (D,), matching the
             extraction map; units depend on the owning geometry or current.
-        use_compute_dtype (bool): Select compute rather than runtime precision when
-            converting DOFs; defaults to False.
 
     Returns:
         GroupedCoilSetSpec object: Reconstructed geometry and currents grouped
@@ -343,7 +319,6 @@ def coil_set_spec_from_dof_extraction_spec(
         coil_specs_from_dof_extraction_spec(
             extraction_spec,
             owner_dofs,
-            use_compute_dtype=use_compute_dtype,
         )
     )
 

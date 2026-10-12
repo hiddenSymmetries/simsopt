@@ -315,7 +315,7 @@ class TestBackendDtypesReferencePlacement(JaxTestCase):
 
         unplaced = dtypes.runtime_device_put(np.ones(3))
         unplaced_tree = dtypes.runtime_device_put_tree({"a": np.ones(3)})["a"]
-        as_runtime = dtypes.as_runtime_array(np.ones(3))
+        as_float64 = dtypes.as_jax_float64(np.ones(3))
         with_uncommitted_explicit_reference = dtypes.explicit_device_array(
             np.ones(3), dtype=jnp.float64, reference=jnp.zeros(3)
         )
@@ -328,7 +328,7 @@ class TestBackendDtypesReferencePlacement(JaxTestCase):
         for array in (
             unplaced,
             unplaced_tree,
-            as_runtime,
+            as_float64,
             with_uncommitted_explicit_reference,
         ):
             self.assertTrue(

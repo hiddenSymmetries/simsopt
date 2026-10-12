@@ -28,7 +28,8 @@ Retained settings:
   ``SIMSOPT_DEBUG`` enables all diagnostics, disables JIT and disallows transfers.
   Eager JAX indexing can stage scalar indices; explicitly use the boundary
   owner's ``allow_host_transfers`` context when evaluating in that debug mode.
-* Runtime, compute and host precision is float64 for every supported mode.
+* Every supported mode runs JAX in float64 (``jax_enable_x64``) with matrix
+  products at the highest precision.
 * ``SIMSOPT_JAX_COIL_CHUNK_SIZE``, ``SIMSOPT_JAX_QUADRATURE_BLOCK_SIZE`` and
   ``SIMSOPT_JAX_POINT_CHUNK_SIZE`` override the mode's field tiling. A disallow
   transfer guard selects dense audit kernels (zero chunk sizes).
@@ -110,7 +111,6 @@ __all__ = [
     "get_backend_config",
     "get_backend_mode",
     "get_backend_policy",
-    "get_compute_dtype",
     "get_field_kernel_tuning",
     "get_runtime_jax_device",
     "invalidate_backend_cache",
@@ -328,19 +328,6 @@ def get_backend_mode() -> str:
         str: Canonical mode of the active configuration.
     """
     return get_backend_config().mode
-
-
-def get_compute_dtype(mode: str | None = None) -> str:
-    """Return the compute dtype name for a backend mode.
-
-    Args:
-        mode (str or None): Canonical backend mode; None selects the active
-            configuration.
-
-    Returns:
-        str: Kernel floating dtype name, float64 for every supported mode.
-    """
-    return get_backend_policy(mode).compute_dtype
 
 
 _cached_field_kernel_tuning: FieldKernelTuning | None = None
@@ -707,7 +694,7 @@ def apply_jax_runtime_config() -> None:
     # platform from becoming the default (or fail when CPU is not listed).
     # Clearing it makes the selected platform, listed first, the default.
     jax.config.update("jax_platform_name", "")
-    jax.config.update("jax_enable_x64", policy.requires_x64)
+    jax.config.update("jax_enable_x64", True)
     jax.config.update("jax_default_matmul_precision", "highest")
     jax.config.update("jax_debug_nans", config.debug_nans)
     jax.config.update("jax_disable_jit", config.disable_jit)

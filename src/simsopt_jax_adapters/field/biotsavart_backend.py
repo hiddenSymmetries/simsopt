@@ -59,7 +59,6 @@ from simsopt_jax.core.field import (
     grouped_field_inputs_from_spec,
 )
 from simsopt_jax.core._math_utils import (
-    as_compute_array as _as_compute_array,
     as_jax_float64 as _as_jax_float64,
 )
 from simsopt_jax.core._device_scalars import two_pi as _two_pi
@@ -208,13 +207,13 @@ def _per_coil_unit_field_with_batch_size(points, coil_set_spec, kernel, *, batch
     coil. The JAX kernel cache provides compile-time reuse within a
     quadrature group.
     """
-    compute_points = _as_compute_array(points)
+    compute_points = _as_jax_float64(points)
     ncoils = sum(len(group.coil_indices) for group in coil_set_spec.groups)
     result_by_index: dict[int, jax.Array] = {}
     for group in coil_set_spec.groups:
-        compute_gammas = _as_compute_array(group.gammas)
-        compute_gammadashs = _as_compute_array(group.gammadashs)
-        unit_current = _as_compute_array(jnp.ones((1,), dtype=group.currents.dtype))
+        compute_gammas = _as_jax_float64(group.gammas)
+        compute_gammadashs = _as_jax_float64(group.gammadashs)
+        unit_current = _as_jax_float64(jnp.ones((1,), dtype=group.currents.dtype))
 
         def evaluate_single(coil_geometry):
             gamma, gammadash = coil_geometry
@@ -1526,7 +1525,7 @@ class JaxBiotSavart(Optimizable):
         """Build the immutable field-evaluation spec for the current points.
 
         Returns:
-            FieldEvalSpec object: Runtime-precision Cartesian point payload of
+            FieldEvalSpec object: Float64 Cartesian point payload of
                 shape (P, 3), in meters.
         """
         return make_field_eval_spec(self._points_jax)

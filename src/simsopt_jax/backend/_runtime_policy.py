@@ -23,7 +23,6 @@ ExecutionIntent = Literal["fast", "parity"]
 
 _VALID_BACKENDS = ("cpu", "jax")
 _VALID_PLATFORMS = ("cpu", "cuda")
-_VALID_POLICY_DTYPES = ("float64",)
 _TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
 
 _BACKEND_ENV = "SIMSOPT_BACKEND"
@@ -107,41 +106,26 @@ _GPU_MEMORY_MODE_DEFAULTS = {
 _MODE_POLICY_DEFAULTS = {
     "native_cpu": {
         "parity_mode": False,
-        "requires_x64": True,
-        "runtime_dtype": "float64",
-        "host_dtype": "float64",
         "chunk_policy": "host_reference",
         **_NO_GPU_MEMORY_DEFAULTS,
     },
     "jax_cpu_fast": {
         "parity_mode": False,
-        "requires_x64": True,
-        "runtime_dtype": "float64",
-        "host_dtype": "float64",
         "chunk_policy": "performance_tuned",
         **_NO_GPU_MEMORY_DEFAULTS,
     },
     "jax_cpu_parity": {
         "parity_mode": True,
-        "requires_x64": True,
-        "runtime_dtype": "float64",
-        "host_dtype": "float64",
         "chunk_policy": "stable_default",
         **_NO_GPU_MEMORY_DEFAULTS,
     },
     "jax_gpu_parity": {
         "parity_mode": True,
-        "requires_x64": True,
-        "runtime_dtype": "float64",
-        "host_dtype": "float64",
         "chunk_policy": "stable_default",
         **_GPU_MEMORY_MODE_DEFAULTS,
     },
     "jax_gpu_fast": {
         "parity_mode": False,
-        "requires_x64": True,
-        "runtime_dtype": "float64",
-        "host_dtype": "float64",
         "chunk_policy": "performance_tuned",
         **_GPU_MEMORY_MODE_DEFAULTS,
     },
@@ -209,10 +193,6 @@ class BackendPolicy:
         backend (str): Implementation selector, cpu for native evaluation or jax.
         jax_platform (str): JAX platform selector, cpu or cuda.
         parity_mode (bool): Use arithmetic intended to match the native reference.
-        requires_x64 (bool): Required value of JAX double-precision support.
-        runtime_dtype (str): Dtype name for runtime floating values, float64.
-        host_dtype (str): Dtype name for host floating values, float64.
-        compute_dtype (str): Dtype name for kernel floating arithmetic, float64.
         chunk_policy (str): Field tiling policy name, host_reference, stable_default or
             performance_tuned.
         transfer_guard (str or None): JAX implicit-transfer policy; None leaves the
@@ -223,10 +203,6 @@ class BackendPolicy:
     backend: str
     jax_platform: str
     parity_mode: bool
-    requires_x64: bool
-    runtime_dtype: str
-    host_dtype: str
-    compute_dtype: str
     chunk_policy: str
     transfer_guard: str | None
 
@@ -598,16 +574,6 @@ def _get_mode_policy_defaults(mode: str) -> dict[str, object]:
     return _MODE_POLICY_DEFAULTS[_validate_mode(mode)]
 
 
-def _validate_policy_dtype(value: object, *, mode: str, field: str) -> str:
-    dtype_name = str(value)
-    if dtype_name not in _VALID_POLICY_DTYPES:
-        raise ValueError(
-            f"Backend mode {mode!r} has unsupported {field}={dtype_name!r}. "
-            f"Accepted: {_VALID_POLICY_DTYPES}."
-        )
-    return dtype_name
-
-
 def _optional_float_policy_default(value: object) -> float | None:
     if value is None:
         return None
@@ -621,18 +587,6 @@ def _policy_from_config(config: BackendConfig) -> BackendPolicy:
         backend=config.backend,
         jax_platform=config.jax_platform,
         parity_mode=bool(defaults["parity_mode"]),
-        requires_x64=bool(defaults["requires_x64"]),
-        runtime_dtype=_validate_policy_dtype(
-            defaults["runtime_dtype"],
-            mode=config.mode,
-            field="runtime_dtype",
-        ),
-        host_dtype=_validate_policy_dtype(
-            defaults["host_dtype"],
-            mode=config.mode,
-            field="host_dtype",
-        ),
-        compute_dtype="float64",
         chunk_policy=str(defaults["chunk_policy"]),
         transfer_guard=config.transfer_guard,
     )

@@ -24,7 +24,6 @@ from simsopt_jax.runtime.host_boundary import snapshot_host_tree
 
 from ._device_scalars import device_one as _device_one
 from ._math_utils import (
-    as_compute_array as _as_compute_array,
     as_jax_float64 as _as_jax_float64,
     axis0_entries as _axis0_entries,
     explicit_inv as _explicit_inv,
@@ -966,8 +965,6 @@ def group_coil_data(
     gammas_list,
     gammadashs_list,
     currents_list,
-    *,
-    use_compute_dtype: bool = True,
 ):
     """Batch coils by quadrature count while preserving original index mappings.
 
@@ -978,8 +975,6 @@ def group_coil_data(
             shape (Q_i, 3), in meters.
         currents_list (Sequence[scalar]): Matching coil currents in amperes, each scalar
             shape ().
-        use_compute_dtype (bool): Convert groups to compute precision when True
-            (default), runtime precision otherwise.
 
     Returns:
         list[tuple]: One (gammas, gammadashs, currents, indices) tuple per
@@ -993,14 +988,13 @@ def group_coil_data(
     for i, gamma in enumerate(gamma_entries):
         indices_by_nquad.setdefault(gamma.shape[0], []).append(i)
 
-    array_for_group = _as_compute_array if use_compute_dtype else _as_jax_float64
     groups = []
     for indices in sorted(indices_by_nquad.values(), key=lambda group: group[0]):
         groups.append(
             (
-                jnp.stack([array_for_group(gamma_entries[i]) for i in indices]),
-                jnp.stack([array_for_group(gammadash_entries[i]) for i in indices]),
-                jnp.stack([array_for_group(current_entries[i]) for i in indices]),
+                jnp.stack([_as_jax_float64(gamma_entries[i]) for i in indices]),
+                jnp.stack([_as_jax_float64(gammadash_entries[i]) for i in indices]),
+                jnp.stack([_as_jax_float64(current_entries[i]) for i in indices]),
                 indices,
             )
         )
