@@ -240,8 +240,8 @@ class TestBackendDtypesReferencePlacement(JaxTestCase):
         self.assertTrue(placement is None, "placement is None")
         self.assertTrue(placements == [None], "placements == [None]")
 
-    def test_explicit_device_array_preserves_requested_float_dtype(self):
-        """Explicit FP32 placement must not be rewritten by runtime FP64 policy."""
+    def test_explicit_device_array_rejects_reduced_precision_floats(self):
+        """An exact-dtype placement accepts float64 as its only floating dtype."""
         patches = self.patches
         runtime_device = jax.devices()[0]
         patches.enter_context(
@@ -250,9 +250,14 @@ class TestBackendDtypesReferencePlacement(JaxTestCase):
         invalidate_backend_cache()
         set_backend("jax_cpu_parity", configure_runtime=False)
 
-        array = dtypes.explicit_device_array([1.0, 2.0], dtype=jnp.float32)
-
-        self.assertTrue(array.dtype == jnp.float32, "array.dtype == jnp.float32")
+        for dtype in (np.float16, np.float32):
+            with self.subTest(dtype=dtype):
+                with self.assertRaisesRegex(
+                    TypeError, r"Floating dtype must be one of \('float64',\)"
+                ):
+                    dtypes.explicit_device_array([1.0, 2.0], dtype=dtype)
+        array = dtypes.explicit_device_array([1.0, 2.0], dtype=jnp.float64)
+        self.assertEqual(array.dtype, jnp.float64)
 
     def test_explicit_device_array_preserves_single_device_reference(self):
         """Concrete single-device placement must not fall back to the runtime device.
@@ -284,7 +289,7 @@ class TestBackendDtypesReferencePlacement(JaxTestCase):
 
         array, placement = dtypes.explicit_device_array(
             [1.0, 2.0],
-            dtype=jnp.float32,
+            dtype=jnp.float64,
             reference=reference,
         )
 
