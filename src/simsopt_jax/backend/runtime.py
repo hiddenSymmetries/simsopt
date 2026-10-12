@@ -708,7 +708,7 @@ def apply_jax_runtime_config() -> None:
     # Clearing it makes the selected platform, listed first, the default.
     jax.config.update("jax_platform_name", "")
     jax.config.update("jax_enable_x64", policy.requires_x64)
-    jax.config.update("jax_default_matmul_precision", policy.matmul_precision)
+    jax.config.update("jax_default_matmul_precision", "highest")
     jax.config.update("jax_debug_nans", config.debug_nans)
     jax.config.update("jax_disable_jit", config.disable_jit)
     if config.transfer_guard is not None:

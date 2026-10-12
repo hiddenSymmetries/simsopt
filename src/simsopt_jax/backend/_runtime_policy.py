@@ -111,7 +111,6 @@ _MODE_POLICY_DEFAULTS = {
         "runtime_dtype": "float64",
         "host_dtype": "float64",
         "chunk_policy": "host_reference",
-        "matmul_precision": "highest",
         **_NO_GPU_MEMORY_DEFAULTS,
     },
     "jax_cpu_fast": {
@@ -120,7 +119,6 @@ _MODE_POLICY_DEFAULTS = {
         "runtime_dtype": "float64",
         "host_dtype": "float64",
         "chunk_policy": "performance_tuned",
-        "matmul_precision": "default",
         **_NO_GPU_MEMORY_DEFAULTS,
     },
     "jax_cpu_parity": {
@@ -129,7 +127,6 @@ _MODE_POLICY_DEFAULTS = {
         "runtime_dtype": "float64",
         "host_dtype": "float64",
         "chunk_policy": "stable_default",
-        "matmul_precision": "highest",
         **_NO_GPU_MEMORY_DEFAULTS,
     },
     "jax_gpu_parity": {
@@ -138,7 +135,6 @@ _MODE_POLICY_DEFAULTS = {
         "runtime_dtype": "float64",
         "host_dtype": "float64",
         "chunk_policy": "stable_default",
-        "matmul_precision": "highest",
         **_GPU_MEMORY_MODE_DEFAULTS,
     },
     "jax_gpu_fast": {
@@ -147,7 +143,6 @@ _MODE_POLICY_DEFAULTS = {
         "runtime_dtype": "float64",
         "host_dtype": "float64",
         "chunk_policy": "performance_tuned",
-        "matmul_precision": "default",
         **_GPU_MEMORY_MODE_DEFAULTS,
     },
 }
@@ -220,7 +215,6 @@ class BackendPolicy:
         compute_dtype (str): Dtype name for kernel floating arithmetic, float64.
         chunk_policy (str): Field tiling policy name, host_reference, stable_default or
             performance_tuned.
-        matmul_precision (str): JAX default matmul precision setting.
         transfer_guard (str or None): JAX implicit-transfer policy; None leaves the
             existing guard unchanged when applying the config.
     """
@@ -234,7 +228,6 @@ class BackendPolicy:
     host_dtype: str
     compute_dtype: str
     chunk_policy: str
-    matmul_precision: str
     transfer_guard: str | None
 
 
@@ -641,7 +634,6 @@ def _policy_from_config(config: BackendConfig) -> BackendPolicy:
         ),
         compute_dtype="float64",
         chunk_policy=str(defaults["chunk_policy"]),
-        matmul_precision=str(defaults["matmul_precision"]),
         transfer_guard=config.transfer_guard,
     )
 
