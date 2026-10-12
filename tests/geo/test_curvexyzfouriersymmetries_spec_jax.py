@@ -21,7 +21,6 @@ with optional_jax_imports():
         curve_spec_from_curve,
         make_curve_xyzfouriersymmetries_spec,
     )
-    from simsopt_jax.backend import invalidate_backend_cache
     from simsopt_jax.core.curve_geometry import (
         _slice_1d_static,
         _update_1d_static,
@@ -30,8 +29,6 @@ with optional_jax_imports():
         curve_pullback_from_dofs,
     )
     from simsopt_jax.core.specs import curve_spec_kind
-from unittest import mock
-import os
 
 
 import numpy as np
@@ -582,42 +579,6 @@ class TestCurvexyzfouriersymmetriesSpecJax(JaxTestCase):
             rtol=0.0,
             atol=0.0,
         )
-
-    def test_static_slice_and_update_preserve_input_dtype_under_fp64_runtime(self):
-        """Regression: every staged operand must follow the operand dtype.
-
-        A runtime-dtype (fp64) scalar inside ``_update_1d_static`` promoted the
-        whole masked update — and via ``_mapped_full_dofs`` the mapped coil dofs
-        and the downstream Biot-Savart chain — to fp64 for fp32 operands.
-        """
-        patches = self.patches
-        patches.enter_context(
-            mock.patch.dict(os.environ, {"SIMSOPT_BACKEND_MODE": "jax_cpu_fast"})
-        )
-        invalidate_backend_cache()
-        try:
-            array_host = np.linspace(-2.0, 3.0, num=6, dtype=np.float32)
-            replacement_host = np.array([10.0, 20.0, 30.0], dtype=np.float32)
-            array = jax.device_put(jnp.asarray(array_host))
-            replacement = jax.device_put(jnp.asarray(replacement_host))
-
-            segment = _slice_1d_static(array, 2, 5)
-            updated = _update_1d_static(array, 1, replacement)
-
-            self.assertTrue(
-                segment.dtype == jnp.float32, "segment.dtype == jnp.float32"
-            )
-            self.assertTrue(
-                updated.dtype == jnp.float32, "updated.dtype == jnp.float32"
-            )
-            np.testing.assert_allclose(
-                np.asarray(updated),
-                np.concatenate([array_host[:1], replacement_host, array_host[4:]]),
-                rtol=0.0,
-                atol=0.0,
-            )
-        finally:
-            invalidate_backend_cache()
 
     def test_coprime_invariant_unchanged(self):
         """The host-class constructor still enforces ``gcd(ntor, nfp) == 1``."""

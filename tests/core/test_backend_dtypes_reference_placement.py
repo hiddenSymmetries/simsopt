@@ -82,7 +82,7 @@ class TestBackendDtypesReferencePlacement(JaxTestCase):
         """Preserving placement retains JAX leaf identity and places host leaves without
         changing structure or dtype."""
         array = jax.device_put(np.ones(3, dtype=np.float64), jax.local_devices()[0])
-        value = {"device": array, "host": (np.asarray(2.0, dtype=np.float32), None)}
+        value = {"device": array, "host": (np.asarray(2, dtype=np.int32), None)}
 
         placed = dtypes.runtime_device_put_tree(value, preserve_placement=True)
 
@@ -95,11 +95,11 @@ class TestBackendDtypesReferencePlacement(JaxTestCase):
             'isinstance(placed["host"][0], jax.Array)',
         )
         self.assertTrue(
-            placed["host"][0].dtype == np.float32,
-            'placed["host"][0].dtype == np.float32',
+            placed["host"][0].dtype == np.int32,
+            'placed["host"][0].dtype == np.int32',
         )
         self.assertTrue(placed["host"][1] is None, 'placed["host"][1] is None')
-        np.testing.assert_array_equal(placed["host"][0], 2.0)
+        np.testing.assert_array_equal(placed["host"][0], 2)
 
     def test_staged_like_tracer_does_not_embed_a_runtime_device_put(self):
         """Scalar staging under JIT computes the expected sum without explicit device
@@ -240,8 +240,8 @@ class TestBackendDtypesReferencePlacement(JaxTestCase):
         self.assertTrue(placement is None, "placement is None")
         self.assertTrue(placements == [None], "placements == [None]")
 
-    def test_explicit_device_array_preserves_requested_float_dtype(self):
-        """Explicit FP32 placement must not be rewritten by runtime FP64 policy."""
+    def test_explicit_device_array_rejects_reduced_precision_floats(self):
+        """An exact-dtype placement accepts float64 as its only floating dtype."""
         patches = self.patches
         runtime_device = jax.devices()[0]
         patches.enter_context(
@@ -250,9 +250,14 @@ class TestBackendDtypesReferencePlacement(JaxTestCase):
         invalidate_backend_cache()
         set_backend("jax_cpu_parity", configure_runtime=False)
 
-        array = dtypes.explicit_device_array([1.0, 2.0], dtype=jnp.float32)
-
-        self.assertTrue(array.dtype == jnp.float32, "array.dtype == jnp.float32")
+        for dtype in (np.float16, np.float32):
+            with self.subTest(dtype=dtype):
+                with self.assertRaisesRegex(
+                    TypeError, r"Floating dtype must be one of \('float64',\)"
+                ):
+                    dtypes.explicit_device_array([1.0, 2.0], dtype=dtype)
+        array = dtypes.explicit_device_array([1.0, 2.0], dtype=jnp.float64)
+        self.assertEqual(array.dtype, jnp.float64)
 
     def test_explicit_device_array_preserves_single_device_reference(self):
         """Concrete single-device placement must not fall back to the runtime device.
@@ -284,7 +289,7 @@ class TestBackendDtypesReferencePlacement(JaxTestCase):
 
         array, placement = dtypes.explicit_device_array(
             [1.0, 2.0],
-            dtype=jnp.float32,
+            dtype=jnp.float64,
             reference=reference,
         )
 
@@ -310,7 +315,7 @@ class TestBackendDtypesReferencePlacement(JaxTestCase):
 
         unplaced = dtypes.runtime_device_put(np.ones(3))
         unplaced_tree = dtypes.runtime_device_put_tree({"a": np.ones(3)})["a"]
-        as_runtime = dtypes.as_runtime_array(np.ones(3))
+        as_float64 = dtypes.as_jax_float64(np.ones(3))
         with_uncommitted_explicit_reference = dtypes.explicit_device_array(
             np.ones(3), dtype=jnp.float64, reference=jnp.zeros(3)
         )
@@ -323,7 +328,7 @@ class TestBackendDtypesReferencePlacement(JaxTestCase):
         for array in (
             unplaced,
             unplaced_tree,
-            as_runtime,
+            as_float64,
             with_uncommitted_explicit_reference,
         ):
             self.assertTrue(
