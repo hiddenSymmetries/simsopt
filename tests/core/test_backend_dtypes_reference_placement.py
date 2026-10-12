@@ -82,7 +82,7 @@ class TestBackendDtypesReferencePlacement(JaxTestCase):
         """Preserving placement retains JAX leaf identity and places host leaves without
         changing structure or dtype."""
         array = jax.device_put(np.ones(3, dtype=np.float64), jax.local_devices()[0])
-        value = {"device": array, "host": (np.asarray(2.0, dtype=np.float32), None)}
+        value = {"device": array, "host": (np.asarray(2, dtype=np.int32), None)}
 
         placed = dtypes.runtime_device_put_tree(value, preserve_placement=True)
 
@@ -95,11 +95,11 @@ class TestBackendDtypesReferencePlacement(JaxTestCase):
             'isinstance(placed["host"][0], jax.Array)',
         )
         self.assertTrue(
-            placed["host"][0].dtype == np.float32,
-            'placed["host"][0].dtype == np.float32',
+            placed["host"][0].dtype == np.int32,
+            'placed["host"][0].dtype == np.int32',
         )
         self.assertTrue(placed["host"][1] is None, 'placed["host"][1] is None')
-        np.testing.assert_array_equal(placed["host"][0], 2.0)
+        np.testing.assert_array_equal(placed["host"][0], 2)
 
     def test_staged_like_tracer_does_not_embed_a_runtime_device_put(self):
         """Scalar staging under JIT computes the expected sum without explicit device

@@ -160,13 +160,18 @@ _SPEC_FACTORIES = [
 ]
 
 
+_GATE_SIZE = 2896
+
+
 def make_execution_gate():
     """Queue enough CPU work for the warmed consumer to remain pending."""
-    matrix = jnp.ones((4096, 4096), dtype=jnp.float32)
+    matrix = jnp.ones((_GATE_SIZE, _GATE_SIZE), dtype=jnp.float64)
 
     @jax.jit
     def gate(value, matrix):
-        product = jax.lax.fori_loop(0, 4, lambda _, x: (x @ matrix) / 4096, matrix)
+        product = jax.lax.fori_loop(
+            0, 4, lambda _, x: (x @ matrix) / _GATE_SIZE, matrix
+        )
         return jnp.where(product[0, 0] > 0, value, -value)
 
     return lambda value: gate(value, matrix)
