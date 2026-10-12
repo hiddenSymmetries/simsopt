@@ -92,13 +92,12 @@ def _tree_add(left, right):
 
 
 def _compute_group_inputs(points, gammas, gammadashs, currents):
-    """Cast one coil group and the points to the points' floating dtype."""
-    field_dtype = jnp.asarray(points).dtype
+    """Cast one coil group and the points to float64."""
     return (
-        _as_compute_array(points, dtype=field_dtype),
-        _as_compute_array(gammas, dtype=field_dtype),
-        _as_compute_array(gammadashs, dtype=field_dtype),
-        _as_compute_array(currents, dtype=field_dtype),
+        _as_compute_array(points),
+        _as_compute_array(gammas),
+        _as_compute_array(gammadashs),
+        _as_compute_array(currents),
     )
 
 
@@ -120,7 +119,7 @@ def _accumulate_grouped_field(points: object, coil_spec: GroupedCoilSetSpec, ker
 
 
 def group_biot_savart_B_vjp(points, v, gammas, gammadashs, currents):
-    """Return the ``B`` pullback for one coil group in the points' dtype.
+    """Return the ``B`` pullback for one coil group in float64.
 
     Args:
         points (array-like): Cartesian evaluation points, shape (P, 3), in meters.
@@ -143,7 +142,7 @@ def group_biot_savart_B_vjp(points, v, gammas, gammadashs, currents):
         gammadashs,
         currents,
     )
-    compute_v = _as_compute_array(v, dtype=compute_points.dtype)
+    compute_v = _as_compute_array(v)
     return biot_savart_B_vjp(compute_points, compute_v, gammas, gammadashs, currents)
 
 
