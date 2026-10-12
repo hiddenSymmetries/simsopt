@@ -28,7 +28,8 @@ Retained settings:
   ``SIMSOPT_DEBUG`` enables all diagnostics, disables JIT and disallows transfers.
   Eager JAX indexing can stage scalar indices; explicitly use the boundary
   owner's ``allow_host_transfers`` context when evaluating in that debug mode.
-* Runtime, compute and host precision is float64 for every supported mode.
+* Every supported mode runs JAX in float64 (``jax_enable_x64``) with matrix
+  products at the highest precision.
 * ``SIMSOPT_JAX_COIL_CHUNK_SIZE``, ``SIMSOPT_JAX_QUADRATURE_BLOCK_SIZE`` and
   ``SIMSOPT_JAX_POINT_CHUNK_SIZE`` override the mode's field tiling. A disallow
   transfer guard selects dense audit kernels (zero chunk sizes).
@@ -76,7 +77,6 @@ from simsopt_jax.backend._runtime_policy import (
     ExecutionIntent,
     JaxDevice,
     JaxExecutionProfile,
-    PrecisionSelection,
     _config_from_mode,
     _env_bool,
     _mode_from_legacy_env,
@@ -106,13 +106,11 @@ __all__ = [
     "FieldKernelTuning",
     "JaxDevice",
     "JaxExecutionProfile",
-    "PrecisionSelection",
     "apply_cuda_xla_flag_pins",
     "apply_jax_runtime_config",
     "get_backend_config",
     "get_backend_mode",
     "get_backend_policy",
-    "get_compute_dtype",
     "get_field_kernel_tuning",
     "get_runtime_jax_device",
     "invalidate_backend_cache",
@@ -330,19 +328,6 @@ def get_backend_mode() -> str:
         str: Canonical mode of the active configuration.
     """
     return get_backend_config().mode
-
-
-def get_compute_dtype(mode: str | None = None) -> str:
-    """Return the compute dtype name for a backend mode.
-
-    Args:
-        mode (str or None): Canonical backend mode; None selects the active
-            configuration.
-
-    Returns:
-        str: Kernel floating dtype name, float64 for every supported mode.
-    """
-    return get_backend_policy(mode).compute_dtype
 
 
 _cached_field_kernel_tuning: FieldKernelTuning | None = None
@@ -709,8 +694,8 @@ def apply_jax_runtime_config() -> None:
     # platform from becoming the default (or fail when CPU is not listed).
     # Clearing it makes the selected platform, listed first, the default.
     jax.config.update("jax_platform_name", "")
-    jax.config.update("jax_enable_x64", policy.requires_x64)
-    jax.config.update("jax_default_matmul_precision", policy.matmul_precision)
+    jax.config.update("jax_enable_x64", True)
+    jax.config.update("jax_default_matmul_precision", "highest")
     jax.config.update("jax_debug_nans", config.debug_nans)
     jax.config.update("jax_disable_jit", config.disable_jit)
     if config.transfer_guard is not None:
@@ -724,7 +709,6 @@ def set_backend(
     *,
     device: JaxDevice | None = None,
     intent: ExecutionIntent | None = None,
-    precision: PrecisionSelection | None = None,
     strict: bool = False,
     debug_nans: bool | None = None,
     disable_jit: bool | None = None,
@@ -750,8 +734,6 @@ def set_backend(
             canonical mode.
         intent (str or None): fast or parity when mode is jax; None selects fast. Omit
             with a canonical mode.
-        precision (str or None): mode_default or fp64; None resolves SIMSOPT_PRECISION,
-            then mode_default. All supported modes use double precision.
         strict (bool): Reject an initialized JAX backend mismatch instead of warning.
         debug_nans (bool or None): Enable JAX NaN debugging; None resolves the
             environment, then the mode default. SIMSOPT_DEBUG forces True.
@@ -794,7 +776,6 @@ def set_backend(
     config = _config_from_mode(
         resolved_mode,
         strict=bool(strict),
-        precision=precision,
         debug_nans=debug_nans,
         disable_jit=disable_jit,
         transfer_guard=transfer_guard,

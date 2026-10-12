@@ -1,10 +1,12 @@
-"""Native precision/platform settings and C++ curve length host ownership."""
+"""Backend mode validation, native x64/platform settings and C++ curve length host
+ownership."""
 
 from unittest_jax_support import JaxTestCase, optional_jax_imports
 
 with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax  # noqa: F401
+    from simsopt_jax.backend import get_backend_config, set_backend
 from tempfile import TemporaryDirectory
 from pathlib import Path
 
@@ -48,20 +50,25 @@ from simsopt.geo import CurveLength, create_equally_spaced_curves
 
 
 class TestNativeJaxDevice(JaxTestCase):
-    def test_removed_float32_mode_is_rejected_in_fresh_process(self):
-        """Removed float32 backend modes are rejected through both explicit and
-        environment selection."""
+    def test_unknown_backend_mode_is_rejected(self):
+        """An unknown backend mode is rejected through both explicit and environment
+        selection, naming the accepted modes."""
         for selector in ["set_backend", "environment"]:
             with self.subTest(selector=selector), self.case():
-                self._case_removed_float32_mode_is_rejected_in_fresh_process(selector)
+                self._case_unknown_backend_mode_is_rejected(selector)
 
-    def _case_removed_float32_mode_is_rejected_in_fresh_process(self, selector):
+    def _case_unknown_backend_mode_is_rejected(self, selector):
         """Run one row with case-local objects released before runtime cleanup."""
-        environment = _fresh_environment()
-        environment["JAX_PLATFORMS"] = "cpu"
-        if selector == "environment":
-            environment["SIMSOPT_BACKEND_MODE"] = "jax_cpu_float32_smoke"
-        _run_fresh_process("removed_float32_mode.py", selector, environment=environment)
+        with self.assertRaisesRegex(
+            ValueError,
+            r"Backend mode 'jax_cpu_unknown' is not valid\. Accepted: \('native_cpu',",
+        ):
+            if selector == "set_backend":
+                # The mode is deliberately outside the accepted ``BackendMode`` values.
+                set_backend("jax_cpu_unknown")  # pyright: ignore[reportArgumentType]
+            else:
+                os.environ["SIMSOPT_BACKEND_MODE"] = "jax_cpu_unknown"
+                get_backend_config()
 
     def test_native_import_preserves_platform_selection_in_fresh_process(self):
         """Importing native geometry respects explicit CPU platform selection and enables

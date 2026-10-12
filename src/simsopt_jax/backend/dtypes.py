@@ -3,9 +3,9 @@
 Ownership split:
 
 * This module — **device placement and dtype policy**: ``runtime_device_put``
-  (runtime float policy), ``explicit_device_array`` (exact requested dtype,
-  optionally on a reference array's device), ``as_runtime_array`` /
-  ``as_compute_array`` (runtime / compute dtype policy). Do not reimplement
+  (floating values become float64), ``explicit_device_array`` (exact requested
+  dtype, optionally on a reference array's device; float64 is the only floating
+  dtype), ``as_jax_float64`` (float64 conversion). Do not reimplement
   ``device_put`` with ad-hoc float coercion.
 * ``simsopt_jax.runtime.host_boundary`` — **host ownership and materialization**:
   ``snapshot_host_tree`` before placement; ``host_array`` / ``host_tree`` (D2H).
@@ -21,38 +21,22 @@ from jax import core as jax_core
 import jax.numpy as jnp
 import numpy as np
 
-from simsopt_jax.backend.runtime import (
-    get_backend_policy,
-    get_compute_dtype,
-    get_runtime_jax_device,
-)
+from simsopt_jax.backend.runtime import get_runtime_jax_device
 from simsopt_jax.runtime.host_boundary import snapshot_host_tree
 
 __all__ = [
-    "as_compute_array",
     "as_jax_array",
     "as_jax_float64",
     "as_jax_int32",
-    "as_runtime_array",
     "commit_in_place",
-    "compute_jnp_dtype",
     "explicit_device_array",
     "runtime_device_put",
     "runtime_device_put_tree",
-    "runtime_jnp_dtype",
-    "runtime_np_dtype",
 ]
 
 _TreeT = TypeVar("_TreeT")
 
-_DTYPE_BY_NAME = {
-    "float64": jnp.float64,
-    "float32": jnp.float32,
-}
-_HOST_DTYPE_BY_NAME = {
-    "float64": np.dtype(np.float64),
-    "float32": np.dtype(np.float32),
-}
+_FLOAT64 = np.dtype(np.float64)
 
 
 def _shape_tuple(shape: int | Sequence[int]) -> tuple[int, ...]:
@@ -143,76 +127,6 @@ def _array_like_dtype(value) -> np.dtype | None:
     return None
 
 
-def _dtype_name(dtype, *, source: str) -> str:
-    if isinstance(dtype, str):
-        name = dtype
-    else:
-        name = np.dtype(dtype).name
-    if name not in _DTYPE_BY_NAME:
-        accepted = tuple(_DTYPE_BY_NAME)
-        raise TypeError(f"{source} must be one of {accepted}; got {name!r}.")
-    return name
-
-
-def _jnp_dtype_from_name(name: str, *, source: str):
-    if name not in _DTYPE_BY_NAME:
-        accepted = tuple(_DTYPE_BY_NAME)
-        raise TypeError(f"{source} must be one of {accepted}; got {name!r}.")
-    return _DTYPE_BY_NAME[name]
-
-
-def _np_dtype_from_name(name: str, *, source: str) -> np.dtype:
-    if name not in _HOST_DTYPE_BY_NAME:
-        accepted = tuple(_HOST_DTYPE_BY_NAME)
-        raise TypeError(f"{source} must be one of {accepted}; got {name!r}.")
-    return _HOST_DTYPE_BY_NAME[name]
-
-
-def runtime_jnp_dtype():
-    """Return the policy dtype for runtime floating arrays.
-
-    Returns:
-        type: JAX floating scalar type selected by runtime policy, currently
-            jnp.float64.
-    """
-    dtype_name = get_backend_policy().runtime_dtype
-    return _jnp_dtype_from_name(dtype_name, source="BackendPolicy.runtime_dtype")
-
-
-def compute_jnp_dtype():
-    """Return the policy dtype for kernel arithmetic.
-
-    Returns:
-        type: JAX floating scalar type selected by compute policy, currently
-            jnp.float64.
-    """
-    dtype_name = get_compute_dtype()
-    return _jnp_dtype_from_name(dtype_name, source="BackendPolicy.compute_dtype")
-
-
-def runtime_np_dtype() -> np.dtype:
-    """Return the NumPy dtype matching runtime policy.
-
-    Returns:
-        numpy.dtype: Host representation of the runtime floating dtype,
-            currently float64.
-    """
-    dtype_name = get_backend_policy().runtime_dtype
-    return _np_dtype_from_name(dtype_name, source="BackendPolicy.runtime_dtype")
-
-
-def _resolve_jnp_dtype(dtype, *, source: str):
-    if dtype is None:
-        return runtime_jnp_dtype()
-    return _jnp_dtype_from_name(_dtype_name(dtype, source=source), source=source)
-
-
-def _resolve_np_dtype(dtype, *, source: str) -> np.dtype:
-    if dtype is None:
-        return runtime_np_dtype()
-    return _np_dtype_from_name(_dtype_name(dtype, source=source), source=source)
-
-
 def _device_put_target(target, device):
     if target is not None and device is not None:
         raise TypeError("runtime_device_put accepts either target or device, not both.")
@@ -225,15 +139,16 @@ def _runtime_device_put_dtype(
     *,
     preserve_float_dtype: bool,
 ) -> np.dtype | None:
-    if dtype is not None:
-        dtype = np.dtype(dtype)
-        if dtype.kind == "f" and not preserve_float_dtype:
-            return runtime_np_dtype()
-        return dtype
-    value_dtype = _array_like_dtype(value)
-    if value_dtype is not None and value_dtype.kind == "f" and not preserve_float_dtype:
-        return runtime_np_dtype()
-    return None
+    """Placement dtype: floats become float64; an exact request must already be float64."""
+    requested = None if dtype is None else np.dtype(dtype)
+    resolved = _array_like_dtype(value) if requested is None else requested
+    if resolved is None or resolved.kind != "f":
+        return requested
+    if preserve_float_dtype and resolved != _FLOAT64:
+        raise TypeError(
+            f"Floating dtype must be one of {(_FLOAT64.name,)}; got {resolved.name!r}."
+        )
+    return _FLOAT64
 
 
 def _uncommitted_default_device():
@@ -319,13 +234,13 @@ def runtime_device_put(value, *, dtype=None, target=None, device=None) -> jax.Ar
         value (array-like): Host or JAX value of any shape; NumPy inputs are snapshotted
             before device consumption.
         dtype (dtype-like or None): Optional requested dtype; None infers it. Floating
-            types are coerced to runtime precision by runtime placement.
+            types are converted to float64.
         target (jax.Device, jax.sharding.Sharding or None): Explicit placement; omit to
             use runtime/default-device policy. Mutually exclusive with device.
         device (jax.Device or None): Explicit device, mutually exclusive with target.
 
     Returns:
-        jax.Array: Same shape as value, with runtime floating precision and
+        jax.Array: Same shape as value, floating values in float64, at the
             resolved placement.
     """
     return _device_put(
@@ -381,7 +296,7 @@ def _device_put_preserving_dtype(
     target=None,
     device=None,
 ) -> jax.Array:
-    """Place an explicitly typed value without applying runtime float policy."""
+    """Place a value in its exact dtype; a floating dtype must be float64."""
     return _device_put(
         value,
         dtype=dtype,
@@ -391,24 +306,14 @@ def _device_put_preserving_dtype(
     )
 
 
-def _compute_device_put(value, *, dtype, target=None, device=None) -> jax.Array:
-    resolved_dtype = _resolve_np_dtype(dtype, source="dtype")
-    return _device_put_preserving_dtype(
-        value,
-        dtype=resolved_dtype,
-        target=target,
-        device=device,
-    )
-
-
 def as_jax_array(value, *, dtype) -> jax.Array:
     """Convert host or JAX values using the shared dtype and placement boundary.
 
     Args:
         value (array-like): Host or JAX value of any shape; NumPy inputs are snapshotted
             before device consumption.
-        dtype (dtype-like): Conversion dtype for JAX values; host floating values use
-            runtime float policy.
+        dtype (dtype-like): Conversion dtype for JAX values; host floating values
+            become float64.
 
     Returns:
         jax.Array: Converted value with the same shape. Existing JAX placement
@@ -422,17 +327,17 @@ def as_jax_array(value, *, dtype) -> jax.Array:
 
 
 def as_jax_float64(value) -> jax.Array:
-    """Convert to runtime floating precision through the shared boundary.
+    """Convert host or JAX values to float64 through the shared boundary.
 
     Args:
         value (array-like): Host or JAX value of any shape; NumPy inputs are snapshotted
             before device consumption.
 
     Returns:
-        jax.Array: Same shape as value in runtime floating precision,
-            currently float64.
+        jax.Array: Same shape as value in float64; JAX values retain their
+            placement and host values take runtime placement.
     """
-    return as_runtime_array(value)
+    return as_jax_array(value, dtype=jnp.float64)
 
 
 def as_jax_int32(value) -> jax.Array:
@@ -446,45 +351,6 @@ def as_jax_int32(value) -> jax.Array:
         jax.Array: Same shape as value with int32 entries.
     """
     return as_jax_array(value, dtype=jnp.int32)
-
-
-def as_runtime_array(value, *, dtype=None):
-    """Convert to a JAX array in the runtime dtype (policy placement for host values).
-
-    Args:
-        value (array-like): Host or JAX value of any shape; NumPy inputs are snapshotted
-            before device consumption.
-        dtype (dtype-like or None): float32 or float64 for JAX values; None selects
-            runtime precision. Host floating values use runtime policy.
-
-    Returns:
-        jax.Array: Same shape as value, using requested or policy precision;
-            JAX values retain their placement.
-    """
-    return as_jax_array(value, dtype=_resolve_jnp_dtype(dtype, source="dtype"))
-
-
-def as_compute_array(value, *, dtype=None) -> jax.Array:
-    """Convert to a JAX array in the compute dtype (policy placement for host values).
-
-    Args:
-        value (array-like): Host or JAX value of any shape; NumPy inputs are snapshotted
-            before device consumption.
-        dtype (dtype-like or None): float32 or float64 conversion precision; None
-            selects compute policy.
-
-    Returns:
-        jax.Array: Same shape as value, using requested or policy precision;
-            JAX values retain their placement.
-    """
-    resolved_dtype = (
-        compute_jnp_dtype()
-        if dtype is None
-        else _resolve_jnp_dtype(dtype, source="dtype")
-    )
-    if _has_jax_array_value(value):
-        return jnp.asarray(snapshot_host_tree(value), dtype=resolved_dtype)
-    return _compute_device_put(value, dtype=resolved_dtype)
 
 
 def commit_in_place(array: jax.Array) -> jax.Array:
@@ -522,7 +388,7 @@ def explicit_device_array(
     Args:
         value (array-like): Host or JAX value of any shape; NumPy inputs are snapshotted
             before device consumption.
-        dtype (dtype-like): Exact requested dtype, without runtime floating coercion.
+        dtype (dtype-like): Exact requested dtype; a floating dtype must be float64.
         reference (jax.Array, sequence or None): Reference arrays of any shape; use the
             first committed concrete placement, ignoring tracers and uncommitted leaves.
             Mutually exclusive with target/device.

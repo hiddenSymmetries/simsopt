@@ -1,4 +1,4 @@
-"""Device, precision, chunking and memory configuration for JAX field evaluation."""
+"""Device, chunking and memory configuration for JAX field evaluation."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from typing import Callable, Literal, TypeVar, cast
 _ExplicitT = TypeVar("_ExplicitT")
 _ResolvedT = TypeVar("_ResolvedT")
 
-PrecisionSelection = Literal["mode_default", "fp64"]
 BackendMode = Literal[
     "native_cpu",
     "jax_cpu_fast",
@@ -24,14 +23,11 @@ ExecutionIntent = Literal["fast", "parity"]
 
 _VALID_BACKENDS = ("cpu", "jax")
 _VALID_PLATFORMS = ("cpu", "cuda")
-_VALID_POLICY_DTYPES = ("float64",)
-_VALID_PRECISION_SELECTIONS = ("mode_default", "fp64")
 _TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
 
 _BACKEND_ENV = "SIMSOPT_BACKEND"
 _PLATFORM_ENV = "SIMSOPT_JAX_PLATFORM"
 _MODE_ENV = "SIMSOPT_BACKEND_MODE"
-_PRECISION_ENV = "SIMSOPT_PRECISION"
 _STRICT_ENV = "SIMSOPT_BACKEND_STRICT"
 _DEBUG_ENV = "SIMSOPT_DEBUG"
 _DEBUG_NANS_ENV = "SIMSOPT_JAX_DEBUG_NANS"
@@ -58,7 +54,6 @@ _VALID_GPU_ALLOCATORS = ("platform", "vmm")
 _VALID_TF_GPU_ALLOCATORS = ("cuda_malloc_async",)
 _SYNCED_RUNTIME_ENV_VALUES = (
     (_MODE_ENV, "mode"),
-    (_PRECISION_ENV, "precision"),
     (_STRICT_ENV, "strict"),
     (_DEBUG_NANS_ENV, "debug_nans"),
     (_DISABLE_JIT_ENV, "disable_jit"),
@@ -111,47 +106,27 @@ _GPU_MEMORY_MODE_DEFAULTS = {
 _MODE_POLICY_DEFAULTS = {
     "native_cpu": {
         "parity_mode": False,
-        "requires_x64": True,
-        "runtime_dtype": "float64",
-        "host_dtype": "float64",
         "chunk_policy": "host_reference",
-        "matmul_precision": "highest",
         **_NO_GPU_MEMORY_DEFAULTS,
     },
     "jax_cpu_fast": {
         "parity_mode": False,
-        "requires_x64": True,
-        "runtime_dtype": "float64",
-        "host_dtype": "float64",
         "chunk_policy": "performance_tuned",
-        "matmul_precision": "default",
         **_NO_GPU_MEMORY_DEFAULTS,
     },
     "jax_cpu_parity": {
         "parity_mode": True,
-        "requires_x64": True,
-        "runtime_dtype": "float64",
-        "host_dtype": "float64",
         "chunk_policy": "stable_default",
-        "matmul_precision": "highest",
         **_NO_GPU_MEMORY_DEFAULTS,
     },
     "jax_gpu_parity": {
         "parity_mode": True,
-        "requires_x64": True,
-        "runtime_dtype": "float64",
-        "host_dtype": "float64",
         "chunk_policy": "stable_default",
-        "matmul_precision": "highest",
         **_GPU_MEMORY_MODE_DEFAULTS,
     },
     "jax_gpu_fast": {
         "parity_mode": False,
-        "requires_x64": True,
-        "runtime_dtype": "float64",
-        "host_dtype": "float64",
         "chunk_policy": "performance_tuned",
-        "matmul_precision": "default",
         **_GPU_MEMORY_MODE_DEFAULTS,
     },
 }
@@ -178,7 +153,6 @@ class BackendConfig:
             jax_gpu_fast or jax_gpu_parity.
         backend (str): Implementation selector, cpu for native evaluation or jax.
         jax_platform (str): JAX platform selector, cpu or cuda.
-        precision (str): mode_default or fp64; all supported modes use double precision.
         strict (bool): Reject an initialized JAX backend mismatch instead of warning.
         debug_nans (bool): Enable JAX NaN debugging.
         disable_jit (bool): Disable JAX compilation for debugging.
@@ -198,7 +172,6 @@ class BackendConfig:
     mode: BackendMode
     backend: str
     jax_platform: str
-    precision: PrecisionSelection = "mode_default"
     strict: bool = False
     debug_nans: bool = False
     disable_jit: bool = False
@@ -220,13 +193,8 @@ class BackendPolicy:
         backend (str): Implementation selector, cpu for native evaluation or jax.
         jax_platform (str): JAX platform selector, cpu or cuda.
         parity_mode (bool): Use arithmetic intended to match the native reference.
-        requires_x64 (bool): Required value of JAX double-precision support.
-        runtime_dtype (str): Dtype name for runtime floating values, float64.
-        host_dtype (str): Dtype name for host floating values, float64.
-        compute_dtype (str): Dtype name for kernel floating arithmetic, float64.
         chunk_policy (str): Field tiling policy name, host_reference, stable_default or
             performance_tuned.
-        matmul_precision (str): JAX default matmul precision setting.
         transfer_guard (str or None): JAX implicit-transfer policy; None leaves the
             existing guard unchanged when applying the config.
     """
@@ -235,12 +203,7 @@ class BackendPolicy:
     backend: str
     jax_platform: str
     parity_mode: bool
-    requires_x64: bool
-    runtime_dtype: str
-    host_dtype: str
-    compute_dtype: str
     chunk_policy: str
-    matmul_precision: str
     transfer_guard: str | None
 
 
@@ -365,18 +328,6 @@ def resolve_jax_execution_profile(
     )
 
 
-def _validate_precision_selection(
-    value: object,
-    *,
-    source: str,
-) -> PrecisionSelection:
-    if value not in _VALID_PRECISION_SELECTIONS:
-        raise ValueError(
-            f"{source}={value!r} is not valid. Accepted: {_VALID_PRECISION_SELECTIONS}"
-        )
-    return cast(PrecisionSelection, value)
-
-
 def _validate_transfer_guard(value: str | None, *, source: str) -> str | None:
     if value in (None, ""):
         return None
@@ -495,7 +446,6 @@ def _config_from_mode(
     mode: str,
     *,
     strict: bool,
-    precision: PrecisionSelection | None = None,
     debug_nans: bool | None = None,
     disable_jit: bool | None = None,
     transfer_guard: str | None = None,
@@ -509,19 +459,6 @@ def _config_from_mode(
     backend, jax_platform = _MODE_TO_RUNTIME[mode]
     debug_overlay = _debug_overlay_enabled()
     defaults = _get_mode_policy_defaults(mode)
-    resolved_precision: PrecisionSelection = _resolve_kwarg(
-        precision,
-        parse_explicit=lambda value: _validate_precision_selection(
-            value,
-            source="precision",
-        ),
-        env_names=(_PRECISION_ENV,),
-        parse_env=lambda value, source: _validate_precision_selection(
-            value,
-            source=source,
-        ),
-        read_default=lambda: "mode_default",
-    )
     if debug_overlay:
         resolved_debug_nans = True
         resolved_disable_jit = True
@@ -621,7 +558,6 @@ def _config_from_mode(
         mode=mode,
         backend=backend,
         jax_platform=jax_platform,
-        precision=resolved_precision,
         strict=bool(strict) or debug_overlay,
         debug_nans=resolved_debug_nans,
         disable_jit=resolved_disable_jit,
@@ -638,16 +574,6 @@ def _get_mode_policy_defaults(mode: str) -> dict[str, object]:
     return _MODE_POLICY_DEFAULTS[_validate_mode(mode)]
 
 
-def _validate_policy_dtype(value: object, *, mode: str, field: str) -> str:
-    dtype_name = str(value)
-    if dtype_name not in _VALID_POLICY_DTYPES:
-        raise ValueError(
-            f"Backend mode {mode!r} has unsupported {field}={dtype_name!r}. "
-            f"Accepted: {_VALID_POLICY_DTYPES}."
-        )
-    return dtype_name
-
-
 def _optional_float_policy_default(value: object) -> float | None:
     if value is None:
         return None
@@ -661,20 +587,7 @@ def _policy_from_config(config: BackendConfig) -> BackendPolicy:
         backend=config.backend,
         jax_platform=config.jax_platform,
         parity_mode=bool(defaults["parity_mode"]),
-        requires_x64=bool(defaults["requires_x64"]),
-        runtime_dtype=_validate_policy_dtype(
-            defaults["runtime_dtype"],
-            mode=config.mode,
-            field="runtime_dtype",
-        ),
-        host_dtype=_validate_policy_dtype(
-            defaults["host_dtype"],
-            mode=config.mode,
-            field="host_dtype",
-        ),
-        compute_dtype="float64",
         chunk_policy=str(defaults["chunk_policy"]),
-        matmul_precision=str(defaults["matmul_precision"]),
         transfer_guard=config.transfer_guard,
     )
 
