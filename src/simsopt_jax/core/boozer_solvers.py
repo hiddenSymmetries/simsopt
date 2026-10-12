@@ -77,7 +77,23 @@ _EXACT_INITIAL_NORM = 1e6
 class BoozerExactNewtonResult:
     """``x = [surface DOFs, iota, G]``; ``residual`` the unweighted residual at
     every point and ``jacobian`` the BoozerExact system's Jacobian, both at
-    ``x``; ``iterations`` native's ``iter``."""
+    ``x``; ``iterations`` native's ``iter``.
+
+    Args:
+        x (jax.Array): Final shape (nsurface + 2,) vector [all surface DOFs in
+            meters, dimensionless iota, G in tesla meters]; G is always present.
+        residual (jax.Array): All unweighted Boozer residuals, shape (3 * npoints,), at
+            x.
+        jacobian (jax.Array): Masked exact-system Jacobian, shape (nb, nx), at x.
+        iterations (jax.Array): Scalar shape () int32 completed step count.
+        norm (jax.Array): Scalar shape () Euclidean norm of the unweighted, unscaled
+            Boozer residual rows selected by residual_rows, followed by label minus
+            targetlabel and, without stellarator symmetry, z(0, 0). These terms
+            have mixed physical units. See :func:`boozer_exact_newton` for the
+            stopping norm at an iteration cap or initial convergence.
+        singular (jax.Array): Scalar shape () bool indicating an exactly singular finite
+            step matrix; x retains the iterate that encountered it.
+    """
 
     x: jax.Array
     residual: jax.Array
@@ -89,7 +105,20 @@ class BoozerExactNewtonResult:
 
 @pytree_dataclass(data=("x", "gradient", "hessian", "iterations", "norm", "singular"))
 class BoozerPenaltyNewtonResult:
-    """The penalty's gradient and (unshifted) Hessian at the final ``x``."""
+    """The penalty's gradient and (unshifted) Hessian at the final ``x``.
+
+    Args:
+        x (jax.Array): Final shape (nx,) vector [all surface DOFs in meters,
+            dimensionless iota, optional G in tesla meters]; G is present only when
+            optimize_G is true, with nx = nsurface + 1 + int(optimize_G).
+        gradient (jax.Array): Penalty gradient, shape (nx,), at x.
+        hessian (jax.Array): Unshifted penalty Hessian, shape (nx, nx), at x.
+        iterations (jax.Array): Scalar shape () int32 completed step count.
+        norm (jax.Array): Scalar shape () Final gradient Euclidean norm; units follow
+            the residual or gradient.
+        singular (jax.Array): Scalar shape () bool indicating an exactly singular finite
+            step matrix; x retains the iterate that encountered it.
+    """
 
     x: jax.Array
     gradient: jax.Array
@@ -103,7 +132,22 @@ class BoozerPenaltyNewtonResult:
     data=("x", "residual", "gradient", "normal_matrix", "iterations", "norm", "singular")
 )
 class BoozerGaussNewtonResult:
-    """At the final ``x``: the residuals ``r``, ``J^T r`` and ``J^T J``."""
+    """At the final ``x``: the residuals ``r``, ``J^T r`` and ``J^T J``.
+
+    Args:
+        x (jax.Array): Final shape (nx,) vector [all surface DOFs in meters,
+            dimensionless iota, optional G in tesla meters]; G is present only when
+            optimize_G is true, with nx = nsurface + 1 + int(optimize_G).
+        residual (jax.Array): Normalized penalty residuals, shape (3 * npoints + 2,), at
+            x.
+        gradient (jax.Array): J transpose r, shape (nx,), at x.
+        normal_matrix (jax.Array): J transpose J, shape (nx, nx), at x.
+        iterations (jax.Array): Scalar shape () int32 completed step count.
+        norm (jax.Array): Scalar shape () Final gradient Euclidean norm; units follow
+            the residual or gradient.
+        singular (jax.Array): Scalar shape () bool indicating an exactly singular finite
+            step matrix; x retains the iterate that encountered it.
+    """
 
     x: jax.Array
     residual: jax.Array
@@ -154,8 +198,28 @@ def boozer_exact_newton(
     starts from native's ``G`` of the coil currents), on the BoozerExact rows
     of :func:`simsopt_jax_adapters.geo.boozer_problem.boozer_exact_residual_rows`.
 
-    As natively, ``norm`` at ``maxiter`` is the one checked before the last
-    step (``1e6`` if none was taken), so such a solve never succeeds.
+    As natively, ``norm`` at a reached step cap is the one checked before
+    the last step. A nonpositive ``maxiter`` returns the initial ``1e6``
+    sentinel; initial convergence with a positive cap returns the computed
+    initial system norm. The adapter defines success by comparing this
+    returned norm with ``tol``.
+
+    Args:
+        problem (BoozerProblem): Surface, coil and label snapshot with native units and
+            DOF ordering.
+        x (jax.Array): Shape (nsurface + 2,) initial [surface DOFs, iota, G], or
+            (nsurface + 1,) without G when G_from_currents is true.
+        residual_rows (jax.Array): Shape (nrows,) integer indices of the flattened
+            Boozer residual, in native mask order.
+        tol (jax.Array): Scalar shape () stopping tolerance in the norm's units.
+        maxiter (jax.Array): Scalar shape () float64 iteration cap, which may be
+            infinite.
+        G_from_currents (bool): Append initial G computed from the coil currents, then
+            optimize it.
+
+    Returns:
+        BoozerExactNewtonResult: Result object with the final iterate, residual/Jacobian, stopping norm and
+            singular-step flag; input problem is unchanged.
     """
     if G_from_currents:
         x = jnp.concatenate((x, _G_from_coil_currents(problem.coils)[None]))
@@ -207,7 +271,27 @@ def boozer_penalty_newton(
     weight_inv_modB: bool,
 ) -> BoozerPenaltyNewtonResult:
     """Native ``minimize_boozer_penalty_constraints_newton`` from ``x``, with
-    the problem's ``constraint_weight``; ``norm`` is the final gradient norm."""
+    the problem's ``constraint_weight``; ``norm`` is the final gradient norm.
+
+    Args:
+        problem (BoozerProblem): Surface, coil and label snapshot with native units and
+            DOF ordering.
+        x (jax.Array): Shape (nx,) vector [all surface DOFs in meters, dimensionless
+            iota, optional G in tesla meters]; nx = nsurface + 1 + int(optimize_G).
+        tol (jax.Array): Scalar shape () stopping tolerance in the norm's units.
+        maxiter (jax.Array): Scalar shape () float64 iteration cap, which may be
+            infinite.
+        stab (jax.Array): Scalar shape () diagonal Hessian shift in native units,
+            applied only to the step solve.
+        optimize_G (bool): Include G as the last decision variable; otherwise use mu0
+            times the sum of absolute coil currents.
+        weight_inv_modB (bool): Divide each point's Boozer residual by the field
+            magnitude in teslas.
+
+    Returns:
+        BoozerPenaltyNewtonResult: Result object with the final iterate and unshifted derivatives, gradient
+            norm and singular-step flag; input problem is unchanged.
+    """
 
     def derivatives(x):
         _, gradient, hessian = boozer_penalty_constraints(
@@ -227,7 +311,12 @@ def boozer_penalty_newton(
         shifted = hessian + jnp.where(diagonal, stab, stab * 0)
         factors, singular = _lu(shifted)
         dx = lu_solve(factors, gradient)
-        dx = jnp.where(norm < _REFINE_BELOW, dx + lu_solve(factors, gradient - shifted @ dx), dx)
+        dx = lax.cond(
+            norm < _REFINE_BELOW,
+            lambda dx: dx + lu_solve(factors, gradient - shifted @ dx),
+            lambda dx: dx,
+            dx,
+        )
         x, iterations = _advance(x, dx, iterations, singular)
         gradient, hessian = derivatives(x)
         return x, gradient, hessian, iterations, jnp.linalg.norm(gradient), singular
@@ -256,7 +345,25 @@ def boozer_penalty_gauss_newton(
 ) -> BoozerGaussNewtonResult:
     """Native ``minimize_boozer_penalty_constraints_ls(method='manual')`` from
     ``x``: steps ``(J^T J + lam diag(J^T J))^{-1} J^T r`` with ``lam = 1, 1/3,
-    1/9, ...``; ``norm`` is the final ``|J^T r|``."""
+    1/9, ...``; ``norm`` is the final ``|J^T r|``.
+
+    Args:
+        problem (BoozerProblem): Surface, coil and label snapshot with native units and
+            DOF ordering.
+        x (jax.Array): Shape (nx,) vector [all surface DOFs in meters, dimensionless
+            iota, optional G in tesla meters]; nx = nsurface + 1 + int(optimize_G).
+        tol (jax.Array): Scalar shape () stopping tolerance in the norm's units.
+        maxiter (jax.Array): Scalar shape () float64 iteration cap, which may be
+            infinite.
+        optimize_G (bool): Include G as the last decision variable; otherwise use mu0
+            times the sum of absolute coil currents.
+        weight_inv_modB (bool): Divide each point's Boozer residual by the field
+            magnitude in teslas.
+
+    Returns:
+        BoozerGaussNewtonResult: Result object with the final iterate, residual and normal equations, gradient
+            norm and singular-step flag; input problem is unchanged.
+    """
 
     def normal_equations(x):
         residual, jacobian = boozer_penalty_residual(
@@ -300,7 +407,21 @@ def boozer_exact_residual_coil_vjp(
     """``cotangent^T db/dcoils`` for the BoozerExact system ``b`` of
     :func:`boozer_exact_residual` at ``x = [surface DOFs, iota, G]``, ``G``
     held: native ``boozer_surface_dexactresidual_dcoils_dcurrents_vjp`` with
-    ``lm = cotangent``, label row included."""
+    ``lm = cotangent``, label row included.
+
+    Args:
+        problem (BoozerProblem): Surface, coil and label snapshot with native units and
+            DOF ordering.
+        x (jax.Array): Shape (nsurface + 2,) [surface DOFs, iota, G] held fixed.
+        residual_rows (jax.Array): Shape (nrows,) integer indices of the flattened
+            Boozer residual, in native mask order.
+        cotangent (jax.Array): Shape (nb,) multiplier of the exact-system equations,
+            including constraint rows.
+
+    Returns:
+        GroupedCoilSetSpec: Cotangent object for coil geometry/currents with the same leaf shapes
+            and metadata as problem.coils, including the label's coil dependence.
+    """
 
     def system(coils):
         return boozer_exact_residual(replace(problem, coils=coils), x, residual_rows)
@@ -327,6 +448,22 @@ def boozer_penalty_coil_vjp(
     currents. Native ``boozer_surface_dlsqgrad_dcoils_vjp`` keeps only the
     first, so it agrees with this one for ``Volume``, ``Area`` and
     ``AspectRatio`` labels with ``G`` optimized or the currents fixed.
+
+    Args:
+        problem (BoozerProblem): Surface, coil and label snapshot with native units and
+            DOF ordering.
+        x (jax.Array): Shape (nx,) vector [all surface DOFs in meters, dimensionless
+            iota, optional G in tesla meters]; nx = nsurface + 1 + int(optimize_G).
+        cotangent (jax.Array): Shape (nx,) multiplier of the penalty gradient.
+        optimize_G (bool): Include G as the last decision variable; otherwise use mu0
+            times the sum of absolute coil currents.
+        weight_inv_modB (bool): Divide each point's Boozer residual by the field
+            magnitude in teslas.
+
+    Returns:
+        GroupedCoilSetSpec: Cotangent object of the directional penalty derivative, with
+            the same leaf shapes and metadata as problem.coils; includes label and
+            current-derived G dependence.
     """
 
     def penalty(coils, point):
@@ -355,6 +492,22 @@ def boozer_residual_objective(
     ``dJ/dcoils`` has every explicit coil dependence: the field in ``r``, a
     ``ToroidalFlux`` label and, when it is not a variable, ``G`` from the
     currents. Native's ``BoozerResidual`` keeps only the field's.
+
+    Args:
+        problem (BoozerProblem): Surface, coil and label snapshot with native units and
+            DOF ordering.
+        x (jax.Array): Shape (nx,) vector [all surface DOFs in meters, dimensionless
+            iota, optional G in tesla meters]; nx = nsurface + 1 + int(optimize_G).
+        optimize_G (bool): Include G as the last decision variable; otherwise use mu0
+            times the sum of absolute coil currents.
+        weight_inv_modB (bool): Divide each point's Boozer residual by the field
+            magnitude in teslas.
+
+    Returns:
+        tuple[jax.Array, jax.Array, GroupedCoilSetSpec]: Objective scalar shape (),
+            partial gradient in x of shape (nx,), and coil cotangents with matching leaf
+            shapes. Uses the normalized Boozer and label residuals, omitting the z
+            penalty; units follow the native penalty.
     """
 
     def objective(coils, point):

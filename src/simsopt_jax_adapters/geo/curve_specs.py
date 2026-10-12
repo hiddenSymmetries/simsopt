@@ -40,6 +40,15 @@ __all__ = [
 
 
 def supports_adapter_curve_spec(curve: object) -> bool:
+    """Check whether a curve can supply an immutable adapter geometry spec.
+
+    Args:
+        curve (object): Curve to inspect for supported native type or a callable to_spec
+            method.
+
+    Returns:
+        bool: Whether the adapter recognizes a supported curve representation.
+    """
     return isinstance(
         curve,
         (
@@ -55,7 +64,17 @@ def supports_adapter_curve_spec(curve: object) -> bool:
 
 
 def curve_spec_from_adapter_curve(curve, *, separate_owners: bool = False) -> CurveSpec:
-    """Capture geometry with shared DOFs or independent actual-owner VJP slots."""
+    """Capture geometry with shared DOFs or independent actual-owner VJP slots.
+
+    Args:
+        curve (object): Supported native curve or custom object exposing to_spec().
+        separate_owners (bool): Give wrapped geometry independent actual-owner slots for
+            VJP projection instead of shared-DOF slots.
+
+    Returns:
+        CurveSpec object: Immutable geometry payload with float64
+            sampled/coefficient arrays.
+    """
     if isinstance(curve, CurveXYZFourierSymmetries):
         return make_curve_xyzfouriersymmetries_spec(
             dofs=curve.get_dofs(),

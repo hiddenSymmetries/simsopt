@@ -26,30 +26,28 @@ def _vector_entry(vector, index: int):
 
 
 def shift_pure(v, xyz):
-    """Apply translation in cartesian coordinates.
+    """Translate Cartesian row-vector positions.
 
     Args:
-     - v: array to translate. Should have size Nx3.
-     - xyz: translation vector. Should have size 3.
+        v (jax.Array): Cartesian points, shape (Q, 3), in meters.
+        xyz (jax.Array): Translation, shape (3,), in meters.
 
     Returns:
-     - v+xyz: translated array, size Nx3
+        jax.Array: Translated positions, shape (Q, 3), in meters.
     """
     return v + jnp.expand_dims(xyz, axis=0)
 
 
 def rotate_pure(v, ypr):
-    """Apply rotation around x, y, and z axis.
+    """Apply yaw, pitch and roll using the native row-vector convention.
 
     Args:
-     - v: set of points to rotate. Should have size Nx3.
-     - ypr: rotation angles.
-            ypr[0] describes the rotation around the z-axis.
-            ypr[1] describes the rotation around the y-axis.
-            ypr[2] describes the rotation around the x-axis.
+        v (jax.Array): Cartesian row-vector positions, shape (Q, 3), in meters.
+        ypr (jax.Array): Yaw, pitch, roll angles about z, y, x, shape (3,), in radians.
 
     Returns:
-    - v: Rotated set of points
+        jax.Array: Rotated positions, shape (Q, 3), in meters; row vectors are
+            multiplied as v @ Myaw @ Mpitch @ Mroll.
     """
     yaw = _vector_entry(ypr, 0)
     pitch = _vector_entry(ypr, 1)
@@ -83,15 +81,19 @@ def rotate_pure(v, ypr):
 
 
 def centercurve_pure(dofs, quadpoints, order):
-    """Construct curve centered at the origin.
+    """Evaluate an oriented Fourier curve from translation, angles and harmonics.
 
     Args:
-     - dofs: Set of degrees of freedom
-     - quadpoints: Quadrature points. Array of size N, with float values between 0 and 1.
-     - order: Maximum Fourier mode number.
+        dofs (array-like): Shape (6 + 6 * order,); translation xyz in meters,
+            yaw/pitch/roll in radians, then x/y/z sine/cosine blocks in meters with no
+            constant modes.
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
 
     Returns:
-     - gamma: Curve that has been translated and rotated to the desired position.
+        jax.Array: Fourier positions after rotation and translation, shape (Q,
+            3), in meters.
     """
     xyz = _slice_vector(dofs, 0, 3)
     ypr = _slice_vector(dofs, 3, 6)

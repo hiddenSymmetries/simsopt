@@ -80,7 +80,18 @@ def _fourier_basis_terms(quadpoints, order):
 
 
 def jaxfouriercurve_pure(dofs, quadpoints, order):
-    """Return XYZ-Fourier curve positions."""
+    """Return XYZ-Fourier curve positions.
+
+    Args:
+        dofs (array-like): Shape (3 * (2 * order + 1),), in meters; x, y, z blocks each
+            use constant, sin(1), cos(1), ..., sin(order), cos(order).
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+
+    Returns:
+        jax.Array: Cartesian curve positions, shape (Q, 3), in meters.
+    """
     dofs = _as_jax_float64(dofs)
     coeffs = jnp.reshape(dofs, (3, dofs.shape[0] // 3))
     basis, _, _, _ = _fourier_basis_terms(quadpoints, order)
@@ -89,7 +100,19 @@ def jaxfouriercurve_pure(dofs, quadpoints, order):
 
 
 def jaxfouriercurve_geometry_pure(dofs, quadpoints, order):
-    """Return XYZ-Fourier geometry and its first three quadpoint derivatives."""
+    """Return XYZ-Fourier geometry and its first three quadpoint derivatives.
+
+    Args:
+        dofs (array-like): Shape (3 * (2 * order + 1),), in meters; x, y, z blocks each
+            use constant, sin(1), cos(1), ..., sin(order), cos(order).
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+
+    Returns:
+        tuple[jax.Array, ...]: Position and first three derivatives with
+            respect to the normalized parameter, each shape (Q, 3), in meters.
+    """
     dofs = _as_jax_float64(dofs)
     coeffs = jnp.reshape(dofs, (3, dofs.shape[0] // 3))
     basis, dash_basis, dashdash_basis, dashdashdash_basis = _fourier_basis_terms(

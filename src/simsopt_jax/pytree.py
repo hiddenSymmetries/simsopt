@@ -15,7 +15,12 @@ _REGISTERED_CLASSES: list[type[object]] = []
 
 
 def registered_pytree_classes() -> tuple[type[object], ...]:
-    """Return an immutable snapshot of classes registered through this helper."""
+    """Return an immutable snapshot of classes registered through this helper.
+
+    Returns:
+        tuple[type]: Immutable registration-order snapshot of classes
+            registered through this module.
+    """
     return tuple(_REGISTERED_CLASSES)
 
 
@@ -33,6 +38,14 @@ def pytree_node(cls: type[_T]) -> type[_T]:
 
     Use this when constructor or reconstruction guarantees cannot be expressed
     by a dataclass data/meta partition. Class options and methods are preserved.
+
+    Args:
+        cls (type): Class implementing tree_flatten and tree_unflatten; an existing
+            dataclass must already be frozen.
+
+    Returns:
+        type object: The frozen dataclass registered as a custom JAX pytree
+            node.
     """
     cls = _frozen_dataclass(cls)
     jax.tree_util.register_pytree_node_class(cls)
@@ -48,6 +61,15 @@ def pytree_dataclass(
 
     Existing frozen dataclasses retain their options. Leaves follow ``data``
     order; ``meta`` fields form static JAX metadata.
+
+    Args:
+        data (tuple[str, ...]): Ordered names of dynamic data fields.
+        meta (tuple[str, ...]): Names of static, hashable metadata fields; together with
+            data, a complete disjoint partition of constructor fields.
+
+    Returns:
+        Callable[[type], type]: Decorator that freezes and registers the class
+            while preserving existing frozen-dataclass options.
     """
 
     def decorate(cls: type[_T]) -> type[_T]:
