@@ -77,22 +77,28 @@ __all__ = [
 LabelKind = Literal["volume", "area", "aspect_ratio", "toroidal_flux"]
 
 
-@pytree_dataclass(data=("surface",), meta=("kind", "phi_index"))
+@pytree_dataclass(data=("surface",), meta=("kind", "idx"))
 class BoozerLabelSpec:
     """A native label (``Volume``, ``Area``, ``AspectRatio``, ``ToroidalFlux``).
 
     ``surface`` is the spec of the label's own surface, whose quadrature grid
     may differ from the Boozer surface's but whose DOFs are the Boozer
-    surface's. ``phi_index`` is ``ToroidalFlux.idx`` (``0`` otherwise).
+    surface's. ``idx`` is ``ToroidalFlux.idx`` (``0`` otherwise).
     ``aspect_ratio`` evaluates the mean cross-sectional area in the closed form
     native uses for its derivatives, so it agrees with native wherever native's
     value (``det``/``inv`` of the cylindrical map) is defined and stays finite
     where that map is singular and native raises ``LinAlgError``.
+
+    Args:
+        surface (SurfaceSpec): Immutable surface coefficients and quadrature grid; all
+            native DOFs are included.
+        kind (str): One of volume, area, aspect_ratio, or toroidal_flux.
+        idx (int): ToroidalFlux quadrature row index; zero for the other labels.
     """
 
     surface: SurfaceSpec
     kind: LabelKind
-    phi_index: int
+    idx: int
 
 
 @pytree_dataclass(
@@ -100,7 +106,7 @@ class BoozerLabelSpec:
         "surface",
         "coils",
         "label",
-        "target_label",
+        "targetlabel",
         "constraint_weight",
     )
 )
@@ -109,16 +115,28 @@ class BoozerProblem:
 
     ``surface`` and ``coils`` are the Boozer surface's spec (its DOF values are
     replaced by those of ``x``) and the field's grouped coils, which also give
-    a ``ToroidalFlux`` label its field. ``target_label`` is a float64 scalar.
+    a ``ToroidalFlux`` label its field. ``targetlabel`` is a float64 scalar.
     ``constraint_weight`` is the float64 penalty weight, which only the
     penalty formulation reads (``None`` if the problem has none, as a native
     BoozerExact ``BoozerSurface``).
+
+    Args:
+        surface (SurfaceSpec): Immutable surface coefficients and quadrature grid; all
+            native DOFs are included.
+        coils (GroupedCoilSetSpec): Grouped coil geometry in meters and currents in
+            amperes.
+        label (BoozerLabelSpec): Label surface sharing the Boozer surface's DOFs, with
+            its own quadrature.
+        targetlabel (jax.Array): Scalar shape () target in the label's units (m^3, m^2,
+            Wb, or dimensionless).
+        constraint_weight (jax.Array | None): Scalar shape () native penalty
+            coefficient, or None for an exact problem.
     """
 
     surface: SurfaceSpec
     coils: GroupedCoilSetSpec
     label: BoozerLabelSpec
-    target_label: jax.Array
+    targetlabel: jax.Array
     constraint_weight: jax.Array | None
 
 
@@ -127,15 +145,31 @@ def make_boozer_problem(
     surface: SurfaceSpec,
     coils: GroupedCoilSetSpec,
     label: BoozerLabelSpec,
-    target_label: float,
+    targetlabel: float,
     constraint_weight: float | None,
 ) -> BoozerProblem:
-    """A :class:`BoozerProblem` with its numbers placed as device operands."""
+    """A :class:`BoozerProblem` with its numbers placed as device operands.
+
+    Args:
+        surface (SurfaceSpec): Immutable surface coefficients and quadrature grid; all
+            native DOFs are included.
+        coils (GroupedCoilSetSpec): Grouped coil geometry in meters and currents in
+            amperes.
+        label (BoozerLabelSpec): Label convention and quadrature snapshot.
+        targetlabel (float): Target label in cubic meters (volume), square meters
+            (area), webers (toroidal flux), or dimensionless (aspect ratio).
+        constraint_weight (float | None): Native penalty coefficient for the squared
+            label and z constraints; None for an exact problem.
+
+    Returns:
+        BoozerProblem: Immutable snapshot object with target and optional penalty weight placed
+            as float64 device scalars.
+    """
     return BoozerProblem(
         surface=surface,
         coils=coils,
         label=label,
-        target_label=as_jax_float64(np.float64(target_label)),
+        targetlabel=as_jax_float64(np.float64(targetlabel)),
         constraint_weight=(
             None if constraint_weight is None else as_jax_float64(np.float64(constraint_weight))
         ),
@@ -226,10 +260,10 @@ def _label_value(label: BoozerLabelSpec, coils: GroupedCoilSetSpec, surface_dofs
         return surface_area(spec)
     if label.kind == "aspect_ratio":
         return _aspect_ratio(spec)
-    # ToroidalFlux: the line integral of A along gamma(phi_index, :).
+    # ToroidalFlux: the line integral of A along gamma(idx, :).
     gamma = surface_gamma(spec)
-    potential = grouped_biot_savart_A_from_spec(gamma[label.phi_index], coils)
-    return jnp.sum(potential * surface_gammadash2(spec)[label.phi_index]) / gamma.shape[1]
+    potential = grouped_biot_savart_A_from_spec(gamma[label.idx], coils)
+    return jnp.sum(potential * surface_gammadash2(spec)[label.idx]) / gamma.shape[1]
 
 
 def _label_derivatives(
@@ -246,12 +280,11 @@ def _label_derivatives(
 
 
 def _pad(vector: jax.Array, size: int) -> jax.Array:
-    return jnp.zeros(size, vector.dtype).at[: vector.shape[0]].set(vector)
+    return jnp.pad(vector, (0, size - vector.shape[0]))
 
 
 def _pad_square(matrix: jax.Array, size: int) -> jax.Array:
-    n = matrix.shape[0]
-    return jnp.zeros((size, size), matrix.dtype).at[:n, :n].set(matrix)
+    return jnp.pad(matrix, ((0, size - matrix.shape[0]), (0, size - matrix.shape[1])))
 
 
 _STATIC_OPTIONS = ("derivatives", "optimize_G", "weight_inv_modB")
@@ -269,6 +302,24 @@ def boozer_surface_residual(
     """Native ``boozer_surface_residual``: ``(r,)``, ``(r, J)`` or ``(r, J, H)``.
 
     ``H`` holds every residual's second derivative, ``(nresiduals, nx, nx)``.
+
+    Args:
+        problem (BoozerProblem): Surface, coil and label snapshot with native units and
+            DOF ordering.
+        x (jax.Array): Shape (nx,) vector [all surface DOFs in meters, dimensionless
+            iota, optional G in tesla meters]; nx = nsurface + 1 + int(optimize_G).
+        derivatives (int): Derivative order, 0 for values, 1 to add first derivatives,
+            or 2 to add second derivatives.
+        optimize_G (bool): Include G as the last decision variable; otherwise use mu0
+            times the sum of absolute coil currents.
+        weight_inv_modB (bool): Divide each point's Boozer residual by the field
+            magnitude in teslas.
+
+    Returns:
+        tuple[jax.Array, ...]: Residual shape (3 * npoints,), optionally Jacobian (3 *
+            npoints, nx) and residual Hessians (3 * npoints, nx, nx). Residual units are
+            tesla squared meters, or tesla meters when weighted; derivative units follow
+            x.
     """
     surface_dofs, iota, G, _ = _split(problem, x, optimize_G=optimize_G, multipliers=0)
     points, _ = _boozer_points(problem, surface_dofs, derivatives)
@@ -293,7 +344,26 @@ def boozer_penalty_constraints(
 ) -> jax.Array | tuple[jax.Array, ...]:
     """Native ``boozer_penalty_constraints_vectorized`` with
     ``constraint_weight = problem.constraint_weight``: the value, ``(value,
-    gradient)`` or ``(value, gradient, hessian)``."""
+    gradient)`` or ``(value, gradient, hessian)``.
+
+    Args:
+        problem (BoozerProblem): Surface, coil and label snapshot with native units and
+            DOF ordering.
+        x (jax.Array): Shape (nx,) vector [all surface DOFs in meters, dimensionless
+            iota, optional G in tesla meters]; nx = nsurface + 1 + int(optimize_G).
+        derivatives (int): Derivative order, 0 for values, 1 to add first derivatives,
+            or 2 to add second derivatives.
+        optimize_G (bool): Include G as the last decision variable; otherwise use mu0
+            times the sum of absolute coil currents.
+        weight_inv_modB (bool): Divide each point's Boozer residual by the field
+            magnitude in teslas.
+
+    Returns:
+        jax.Array | tuple[jax.Array, ...]: Scalar shape () least-squares objective plus
+            weighted constraints, or (value, gradient) or (value, gradient, Hessian),
+            with shapes (), (nx,), (nx, nx). The Boozer term is divided by 3 * npoints;
+            units follow the residual and native constraint coefficient.
+    """
     if problem.constraint_weight is None:
         raise ValueError("the penalty formulation needs the problem's constraint_weight.")
     surface_dofs, iota, G, _ = _split(problem, x, optimize_G=optimize_G, multipliers=0)
@@ -310,7 +380,7 @@ def boozer_penalty_constraints(
     boozer = tuple(term / nresiduals for term in boozer)
     label = _label_derivatives(problem, surface_dofs, derivatives)
     sqrt_weight = jnp.sqrt(problem.constraint_weight)
-    label_residual = sqrt_weight * (label[0] - problem.target_label)
+    label_residual = sqrt_weight * (label[0] - problem.targetlabel)
     z_residual = sqrt_weight * z[0]
     value = boozer[0] + 0.5 * label_residual**2 + 0.5 * z_residual**2
     if derivatives == 0:
@@ -342,6 +412,21 @@ def boozer_exact_constraints(
 
     ``xl`` is ``x`` followed by the multipliers of the label constraint and of
     ``z(0, 0) = 0``; the residual is not weighted.
+
+    Args:
+        problem (BoozerProblem): Surface, coil and label snapshot with native units and
+            DOF ordering.
+        xl (jax.Array): Shape (nx + 2,) decision vector followed by the label and z
+            Lagrange multipliers; x uses the full native surface DOFs, iota, and
+            optional G.
+        derivatives (int): 0 for the Lagrangian conditions or 1 to add their Jacobian.
+        optimize_G (bool): Include G as the last decision variable; otherwise use mu0
+            times the sum of absolute coil currents.
+
+    Returns:
+        jax.Array | tuple[jax.Array, jax.Array]: Lagrangian stationarity and label/z
+            constraints, shape (nx + 2,), optionally with Jacobian (nx + 2, nx + 2);
+            rows have their native stationarity and constraint units.
     """
     surface_dofs, iota, G, multipliers = _split(
         problem, xl, optimize_G=optimize_G, multipliers=2
@@ -359,7 +444,7 @@ def boozer_exact_constraints(
     nx = xl.shape[0] - 2
     dlabel, dz = _pad(label[1], nx), _pad(z[1], nx)
     stationarity = boozer[1] - multipliers[0] * dlabel - multipliers[1] * dz
-    res = jnp.concatenate((stationarity, jnp.stack((label[0] - problem.target_label, z[0]))))
+    res = jnp.concatenate((stationarity, jnp.stack((label[0] - problem.targetlabel, z[0]))))
     if derivatives == 0:
         return res
     hessian = boozer[2] - multipliers[0] * _pad_square(label[2], nx)
@@ -381,6 +466,21 @@ def boozer_exact_residual(
     from :func:`simsopt_jax_adapters.geo.boozer_problem.boozer_exact_residual_rows`
     of the problem's surface), then ``label - target`` and, without stellarator
     symmetry, ``z(0, 0)``. As natively, only ``SurfaceXYZTensorFourier`` has it.
+
+    Args:
+        problem (BoozerProblem): Surface, coil and label snapshot with native units and
+            DOF ordering.
+        x (jax.Array): Shape (nx,) vector [all surface DOFs in meters, dimensionless
+            iota, G in tesla meters], nx = nsurface + 2.
+        residual_rows (jax.Array): Shape (nrows,) integer indices of the flattened
+            Boozer residual, in native mask order.
+        derivatives (int): 0 for the system or 1 to add its Jacobian.
+
+    Returns:
+        jax.Array | tuple[jax.Array, jax.Array]: Unweighted selected residuals and label
+            constraint, plus z without stellarator symmetry, shape (nb,), optionally
+            Jacobian (nb, nx). Boozer rows have tesla squared meter units; constraint
+            rows use label units and meters.
     """
     if not isinstance(problem.surface, SurfaceXYZTensorFourierSpec):
         raise RuntimeError(
@@ -394,7 +494,7 @@ def boozer_exact_residual(
     label = _label_derivatives(problem, surface_dofs, derivatives)
     axis = not problem.surface.stellsym
     b = jnp.concatenate(
-        (boozer[0][residual_rows], jnp.stack((label[0] - problem.target_label, z[0]))[: 1 + axis])
+        (boozer[0][residual_rows], jnp.stack((label[0] - problem.targetlabel, z[0]))[: 1 + axis])
     )
     if derivatives == 0:
         return b

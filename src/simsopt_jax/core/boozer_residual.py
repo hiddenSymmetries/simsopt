@@ -1,5 +1,11 @@
 """Boozer residual of native ``boozer_surface_residual`` and its derivatives.
 
+The unweighted equation is Eq. (5a) of Giuliani et al., "Direct computation
+of magnetic surfaces in Boozer coordinates and coil optimization for
+quasi-symmetry" (2022), https://doi.org/10.1017/S0022377822000563.
+As in that paper, the surface coordinates are normalized turns in [0, 1).
+The optional inverse-field weighting below is the native simsopt convention.
+
 At each surface quadrature point the residual is
 
 .. math::
@@ -63,6 +69,26 @@ class BoozerPoints:
     are ``(npoints, 3, nsurface)``. Values need only the first three; first
     derivatives add ``dB_by_dX`` and the coefficient derivatives, second
     derivatives ``d2B_by_dXdX``. Unneeded fields may be ``None``.
+
+    Args:
+        B (jax.Array): Magnetic field in teslas, shape (npoints, 3).
+        xphi (jax.Array): Surface toroidal tangent in meters per turn, shape (npoints,
+            3).
+        xtheta (jax.Array): Surface poloidal tangent in meters per turn, shape (npoints,
+            3).
+        dB_by_dX (jax.Array | None): Field gradient in teslas per meter, shape (npoints,
+            3, 3), spatial direction before field component; needed for first
+            derivatives.
+        d2B_by_dXdX (jax.Array | None): Field curvature in teslas per meter squared,
+            shape (npoints, 3, 3, 3), two spatial directions before field component;
+            needed for second derivatives.
+        dgamma_by_dcoeff (jax.Array | None): Position derivative with respect to all
+            nsurface native coefficients, shape (npoints, 3, nsurface); needed for first
+            derivatives.
+        dgammadash1_by_dcoeff (jax.Array | None): Toroidal tangent coefficient
+            derivative, shape (npoints, 3, nsurface); needed for first derivatives.
+        dgammadash2_by_dcoeff (jax.Array | None): Poloidal tangent coefficient
+            derivative, shape (npoints, 3, nsurface); needed for first derivatives.
     """
 
     B: jax.Array
@@ -163,6 +189,25 @@ def boozer_residual(
     ``r`` is ``(3 npoints,)``, ``J = dr/dx`` ``(3 npoints, nx)`` and ``H`` the
     second derivative of every residual, ``(3 npoints, nx, nx)``; ``nx`` counts
     ``G`` only if ``optimize_G``.
+
+    Args:
+        G (float | jax.Array): Scalar shape () covariant Boozer field constant in tesla
+            meters.
+        iota (float | jax.Array): Scalar shape () dimensionless rotational transform.
+        points (BoozerPoints): Flattened field/tangents and the derivatives needed for
+            the requested order.
+        derivatives (int): Derivative order, 0 for values, 1 to add first derivatives,
+            or 2 to add second derivatives.
+        optimize_G (bool): Include the G column in derivative outputs; the supplied G
+            value is always used.
+        weight_inv_modB (bool): Divide each point's Boozer residual by the field
+            magnitude in teslas.
+
+    Returns:
+        tuple[jax.Array, ...]: Residual shape (3 * npoints,), optionally Jacobian (3 *
+            npoints, nx) and Hessians (3 * npoints, nx, nx), in [surface DOFs, iota,
+            optional G] order. Unweighted residual units are tesla squared meters;
+            weighted units are tesla meters.
     """
     local = _local_derivatives(_local_values(G, iota, points), weight_inv_modB, derivatives)
     residual = local[0]
@@ -191,6 +236,25 @@ def boozer_least_squares(
     and Hessian in ``x``: native ``boozer_residual``, ``boozer_residual_ds`` or
     ``boozer_residual_ds2`` as a tuple (with the ``G`` entries only if
     ``optimize_G``), not divided by the number of residuals.
+
+    Args:
+        G (float | jax.Array): Scalar shape () covariant Boozer field constant in tesla
+            meters.
+        iota (float | jax.Array): Scalar shape () dimensionless rotational transform.
+        points (BoozerPoints): Flattened field/tangents and the derivatives needed for
+            the requested order.
+        derivatives (int): Derivative order, 0 for values, 1 to add first derivatives,
+            or 2 to add second derivatives.
+        optimize_G (bool): Include the G column in derivative outputs; the supplied G
+            value is always used.
+        weight_inv_modB (bool): Divide each point's Boozer residual by the field
+            magnitude in teslas.
+
+    Returns:
+        tuple[jax.Array, ...]: Half the squared residual norm as scalar shape (),
+            optionally gradient (nx,) and Hessian (nx, nx), in [surface DOFs, iota,
+            optional G] order. No normalization by the number of residuals is applied;
+            units are squared residual units.
     """
     local = _local_derivatives(_local_values(G, iota, points), weight_inv_modB, derivatives)
     residual = local[0]

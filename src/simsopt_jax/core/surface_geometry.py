@@ -109,53 +109,151 @@ def _norm(vectors: jax.Array) -> jax.Array:
 
 @jax.jit
 def surface_gamma(spec: SurfaceSpec) -> jax.Array:
+    """Evaluate gamma on the surface quadrature grid.
+
+    Args:
+        spec (SurfaceSpec): Immutable Fourier coefficients in meters and quadrature
+            points in turns.
+
+    Returns:
+        jax.Array: Cartesian positions in meters, shape (nphi, ntheta, 3).
+    """
     return _position_derivative(spec, 0, 0)
 
 
 @jax.jit
 def surface_gammadash1(spec: SurfaceSpec) -> jax.Array:
+    """Evaluate gammadash1 on the surface quadrature grid.
+
+    Args:
+        spec (SurfaceSpec): Immutable Fourier coefficients in meters and quadrature
+            points in turns.
+
+    Returns:
+        jax.Array: Position derivative with respect to toroidal turns, in meters per
+            turn, shape (nphi, ntheta, 3).
+    """
     return _position_derivative(spec, 1, 0)
 
 
 @jax.jit
 def surface_gammadash2(spec: SurfaceSpec) -> jax.Array:
+    """Evaluate gammadash2 on the surface quadrature grid.
+
+    Args:
+        spec (SurfaceSpec): Immutable Fourier coefficients in meters and quadrature
+            points in turns.
+
+    Returns:
+        jax.Array: Position derivative with respect to poloidal turns, in meters per
+            turn, shape (nphi, ntheta, 3).
+    """
     return _position_derivative(spec, 0, 1)
 
 
 @jax.jit
 def surface_gammadash1dash1(spec: SurfaceSpec) -> jax.Array:
+    """Evaluate gammadash1dash1 on the surface quadrature grid.
+
+    Args:
+        spec (SurfaceSpec): Immutable Fourier coefficients in meters and quadrature
+            points in turns.
+
+    Returns:
+        jax.Array: Second position derivative with respect to toroidal turns, in meters
+            per turn squared, shape (nphi, ntheta, 3).
+    """
     return _position_derivative(spec, 2, 0)
 
 
 @jax.jit
 def surface_gammadash1dash2(spec: SurfaceSpec) -> jax.Array:
+    """Evaluate gammadash1dash2 on the surface quadrature grid.
+
+    Args:
+        spec (SurfaceSpec): Immutable Fourier coefficients in meters and quadrature
+            points in turns.
+
+    Returns:
+        jax.Array: Mixed position derivative with respect to toroidal and poloidal
+            turns, in meters per turn squared, shape (nphi, ntheta, 3).
+    """
     return _position_derivative(spec, 1, 1)
 
 
 @jax.jit
 def surface_gammadash2dash2(spec: SurfaceSpec) -> jax.Array:
+    """Evaluate gammadash2dash2 on the surface quadrature grid.
+
+    Args:
+        spec (SurfaceSpec): Immutable Fourier coefficients in meters and quadrature
+            points in turns.
+
+    Returns:
+        jax.Array: Second position derivative with respect to poloidal turns, in meters
+            per turn squared, shape (nphi, ntheta, 3).
+    """
     return _position_derivative(spec, 0, 2)
 
 
 @jax.jit
 def surface_normal(spec: SurfaceSpec) -> jax.Array:
+    """Evaluate normal on the surface quadrature grid.
+
+    Args:
+        spec (SurfaceSpec): Immutable Fourier coefficients in meters and quadrature
+            points in turns.
+
+    Returns:
+        jax.Array: Oriented cross product of the toroidal and poloidal tangents, in
+            square meters per turn squared, shape (nphi, ntheta, 3).
+    """
     return jnp.cross(surface_gammadash1(spec), surface_gammadash2(spec))
 
 
 @jax.jit
 def surface_unitnormal(spec: SurfaceSpec) -> jax.Array:
+    """Evaluate unitnormal on the surface quadrature grid.
+
+    Args:
+        spec (SurfaceSpec): Immutable Fourier coefficients in meters and quadrature
+            points in turns.
+
+    Returns:
+        jax.Array: Dimensionless unit normal; zero normals produce nonfinite entries,
+            shape (nphi, ntheta, 3).
+    """
     normal = surface_normal(spec)
     return normal / _norm(normal)[..., None]
 
 
 @jax.jit
 def surface_area(spec: SurfaceSpec) -> jax.Array:
+    """Evaluate area on the surface quadrature grid.
+
+    Args:
+        spec (SurfaceSpec): Immutable Fourier coefficients in meters and quadrature
+            points in turns.
+
+    Returns:
+        jax.Array: Quadrature mean of the normal magnitude, in square meters, shape ().
+    """
     norms = _norm(surface_normal(spec))
     return jnp.sum(norms) / norms.size
 
 
 @jax.jit
 def surface_volume(spec: SurfaceSpec) -> jax.Array:
+    """Evaluate volume on the surface quadrature grid.
+
+    Args:
+        spec (SurfaceSpec): Immutable Fourier coefficients in meters and quadrature
+            points in turns.
+
+    Returns:
+        jax.Array: Signed quadrature mean of gamma dot normal divided by three, in cubic
+            meters, shape ().
+    """
     gamma = surface_gamma(spec)
     normal = surface_normal(spec)
     gamma_dot_normal = (
@@ -170,5 +268,17 @@ def surface_quantity_of_dofs(
     quantity: Callable[[SurfaceSpec], jax.Array], spec: SurfaceSpec
 ) -> Callable[[jax.Array], jax.Array]:
     """``quantity`` (e.g. :func:`surface_gamma`) as a function of the native
-    DOF vector, the rest of ``spec`` held fixed, for JAX transforms."""
+    DOF vector, the rest of ``spec`` held fixed, for JAX transforms.
+
+    Args:
+        quantity (Callable[[SurfaceSpec], jax.Array]): Geometry kernel with its own
+            output shape and units.
+        spec (SurfaceSpec): Immutable Fourier coefficients in meters and quadrature
+            points in turns.
+
+    Returns:
+        Callable[[jax.Array], jax.Array]: Function of the full shape (ndofs,)
+            coefficient vector, with the kernel's output shape and units; the remaining
+            spec state is fixed.
+    """
     return lambda dofs: quantity(surface_spec_with_dofs(spec, dofs))

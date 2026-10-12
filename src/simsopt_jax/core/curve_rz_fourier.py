@@ -13,6 +13,21 @@ from ._math_utils import as_jax_float64 as _as_jax_float64
 
 
 def curverzfourier_pure(dofs, quadpoints, order, nfp, stellsym):
+    """Evaluate the CurveRZFourier Fourier geometry.
+
+    Args:
+        dofs (array-like): In meters; shape (2 * order + 1,) for symmetry with [rc, zs],
+            otherwise (4 * order + 2,) with [rc, rs, zc, zs]. Cosine blocks include mode
+            zero.
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+        nfp (int): Number of field periods; positive and static during tracing.
+        stellsym (bool): Use stellarator-symmetric Fourier coefficient restrictions.
+
+    Returns:
+        jax.Array: Cartesian curve positions, shape (Q, 3), in meters.
+    """
     quadpoints = _as_jax_float64(quadpoints)
     phi = _two_pi(quadpoints) * quadpoints
     cosphi = jnp.cos(phi)

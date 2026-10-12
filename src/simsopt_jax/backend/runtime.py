@@ -1,7 +1,7 @@
 """Explicit process configuration for JAX field evaluation.
 
 Call ``set_backend("jax", device="cpu" or "gpu", intent="parity" or "fast")``
-before constructing ``BiotSavartJAX``. It resolves environment overrides and
+before constructing ``JaxBiotSavart``. It resolves environment overrides and
 applies them to JAX. Importing the adapter does not initialize this policy.
 The equivalent canonical float64 modes remain available.
 
@@ -28,7 +28,8 @@ Retained settings:
   ``SIMSOPT_DEBUG`` enables all diagnostics, disables JIT and disallows transfers.
   Eager JAX indexing can stage scalar indices; explicitly use the boundary
   owner's ``allow_host_transfers`` context when evaluating in that debug mode.
-* Runtime, compute and host precision is float64 for every supported mode.
+* Every supported mode runs JAX in float64 (``jax_enable_x64``) with matrix
+  products at the highest precision.
 * ``SIMSOPT_JAX_COIL_CHUNK_SIZE``, ``SIMSOPT_JAX_QUADRATURE_BLOCK_SIZE`` and
   ``SIMSOPT_JAX_POINT_CHUNK_SIZE`` override the mode's field tiling. A disallow
   transfer guard selects dense audit kernels (zero chunk sizes).
@@ -76,7 +77,6 @@ from simsopt_jax.backend._runtime_policy import (
     ExecutionIntent,
     JaxDevice,
     JaxExecutionProfile,
-    PrecisionSelection,
     _config_from_mode,
     _env_bool,
     _mode_from_legacy_env,
@@ -106,13 +106,11 @@ __all__ = [
     "FieldKernelTuning",
     "JaxDevice",
     "JaxExecutionProfile",
-    "PrecisionSelection",
     "apply_cuda_xla_flag_pins",
     "apply_jax_runtime_config",
     "get_backend_config",
     "get_backend_mode",
     "get_backend_policy",
-    "get_compute_dtype",
     "get_field_kernel_tuning",
     "get_runtime_jax_device",
     "invalidate_backend_cache",
@@ -258,7 +256,16 @@ _cached_backend_policy: BackendPolicy | None = None
 
 
 def get_backend_policy(mode: str | None = None) -> BackendPolicy:
-    """Return the numerical-policy contract for a backend mode."""
+    """Return the numerical-policy contract for a backend mode.
+
+    Args:
+        mode (str or None): Canonical backend mode; None selects the active
+            configuration.
+
+    Returns:
+        BackendPolicy object: Resolved immutable numerical and execution
+            policy.
+    """
     global _cached_backend_policy
     with _backend_runtime_lock:
         if mode is None:
@@ -285,6 +292,10 @@ def get_backend_config() -> BackendConfig:
 
     The result is cached after first resolution. Call
     ``invalidate_backend_cache()`` or ``set_backend()`` to clear.
+
+    Returns:
+        BackendConfig object: Cached configuration resolved from the process
+            environment or set_backend.
     """
     global _cached_backend_config
     with _backend_runtime_lock:
@@ -311,20 +322,28 @@ def get_backend_config() -> BackendConfig:
 
 
 def get_backend_mode() -> str:
-    """Return the resolved backend mode."""
+    """Return the resolved backend mode.
+
+    Returns:
+        str: Canonical mode of the active configuration.
+    """
     return get_backend_config().mode
-
-
-def get_compute_dtype(mode: str | None = None) -> str:
-    """Return the compute dtype name for a backend mode."""
-    return get_backend_policy(mode).compute_dtype
 
 
 _cached_field_kernel_tuning: FieldKernelTuning | None = None
 
 
 def get_field_kernel_tuning(mode: str | None = None) -> FieldKernelTuning:
-    """Return the field-kernel chunk sizes for the resolved mode."""
+    """Return the field-kernel chunk sizes for the resolved mode.
+
+    Args:
+        mode (str or None): Canonical backend mode; None selects the active
+            configuration.
+
+    Returns:
+        FieldKernelTuning object: Resolved tile sizes after environment and
+            transfer-guard overrides.
+    """
     global _cached_field_kernel_tuning
     with _backend_runtime_lock:
         if mode is None and _cached_field_kernel_tuning is not None:
@@ -349,6 +368,14 @@ def get_runtime_jax_device(mode: str | None = None):
     Before JAX has its configuration (not imported yet, or its first import
     still running in another thread) the variable is still what it will
     read, so a native process that never touched JAX does not import it here.
+
+    Args:
+        mode (str or None): Canonical backend mode; None selects the active
+            configuration.
+
+    Returns:
+        jax.Device or None: First local device of the resolved platform, or
+            None if native policy has no configured JAX platform.
     """
     policy = get_backend_policy(mode)
     if policy.backend == "jax":
@@ -375,7 +402,12 @@ def _backend_cache_clear_callback_key(
 
 
 def register_backend_cache_clear(callback: Callable[[], None]) -> None:
-    """Register a callback that should run whenever backend caches are cleared."""
+    """Register a callback that should run whenever backend caches are cleared.
+
+    Args:
+        callback (Callable[[], None]): Cache-clearing function, keyed by module and
+            qualified name; registration replaces a callback with the same key.
+    """
     with _backend_runtime_lock:
         _backend_cache_clear_callbacks[_backend_cache_clear_callback_key(callback)] = (
             callback
@@ -402,10 +434,12 @@ def _reset_backend_runtime_caches() -> None:
 def invalidate_backend_cache() -> None:
     """Clear the cached backend configuration and derived caches.
 
-    Call this after mutating ``SIMSOPT_*`` environment variables directly
-    (outside of ``set_backend()``) so the next ``get_backend_config()`` call
-    re-reads the environment.  Test fixtures should call this when they
-    manipulate env vars via ``monkeypatch`` or context managers.
+    Derived caches include those cleared by callbacks registered with
+    ``register_backend_cache_clear()``. Call this after mutating ``SIMSOPT_*``
+    environment variables directly (outside of ``set_backend()``) so the next
+    ``get_backend_config()`` call re-reads the environment.  Test fixtures
+    should call this when they manipulate env vars via ``monkeypatch`` or
+    context managers.
     """
     global _cached_backend_config
     with _backend_runtime_lock:
@@ -568,6 +602,10 @@ def apply_cuda_xla_flag_pins() -> str:
     Inert on the CPU backend, so a host that probes devices before it installs
     a backend config (a test session, a notebook) can call this at import time;
     the config-install sites call it through :func:`_apply_cuda_autotuner_env`.
+
+    Returns:
+        str: Updated XLA_FLAGS, preserving explicitly supplied autotuner
+            settings.
     """
     pinned = _xla_flags_with_gpu_autotune_level_pinned(
         _xla_flags_with_gpu_fusion_autotuner_disabled(os.environ.get(_XLA_FLAGS_ENV))
@@ -633,7 +671,10 @@ def _apply_compilation_cache_config(jax, config: BackendConfig) -> None:
 
 
 def apply_jax_runtime_config() -> None:
-    """Apply the resolved JAX runtime settings to the active process."""
+    """Apply the resolved JAX runtime settings to the active process.
+
+    Does nothing when the resolved backend is native.
+    """
     config = get_backend_config()
     if config.backend != "jax":
         return
@@ -653,8 +694,8 @@ def apply_jax_runtime_config() -> None:
     # platform from becoming the default (or fail when CPU is not listed).
     # Clearing it makes the selected platform, listed first, the default.
     jax.config.update("jax_platform_name", "")
-    jax.config.update("jax_enable_x64", policy.requires_x64)
-    jax.config.update("jax_default_matmul_precision", policy.matmul_precision)
+    jax.config.update("jax_enable_x64", True)
+    jax.config.update("jax_default_matmul_precision", "highest")
     jax.config.update("jax_debug_nans", config.debug_nans)
     jax.config.update("jax_disable_jit", config.disable_jit)
     if config.transfer_guard is not None:
@@ -668,7 +709,6 @@ def set_backend(
     *,
     device: JaxDevice | None = None,
     intent: ExecutionIntent | None = None,
-    precision: PrecisionSelection | None = None,
     strict: bool = False,
     debug_nans: bool | None = None,
     disable_jit: bool | None = None,
@@ -687,6 +727,37 @@ def set_backend(
     pre-backend-initialization JAX/XLA allocator env vars explicitly; env overrides still sit
     between mode defaults and these arguments. Also updates the config cache so
     subsequent ``get_backend_config()`` calls are free.
+
+    Args:
+        mode (str): A canonical backend mode, or jax with an explicit device selector.
+        device (str or None): Required cpu or gpu selector when mode is jax; omit with a
+            canonical mode.
+        intent (str or None): fast or parity when mode is jax; None selects fast. Omit
+            with a canonical mode.
+        strict (bool): Reject an initialized JAX backend mismatch instead of warning.
+        debug_nans (bool or None): Enable JAX NaN debugging; None resolves the
+            environment, then the mode default. SIMSOPT_DEBUG forces True.
+        disable_jit (bool or None): Disable JAX compilation; None resolves the
+            environment, then the mode default. SIMSOPT_DEBUG forces True.
+        transfer_guard (str or None): allow, log or disallow implicit transfers; None
+            resolves the environment, then the mode default. SIMSOPT_DEBUG forces
+            disallow.
+        compilation_cache_dir (str or None): Persistent compilation-cache directory;
+            None resolves the environment, then the mode default.
+        xla_gpu_preallocate (bool or None): GPU allocator preallocation; None resolves
+            the environment, then the mode default.
+        xla_gpu_mem_fraction (float or None): GPU memory fraction in (0, 1]; None
+            resolves the environment, then the mode default.
+        xla_gpu_allocator (str or None): platform or vmm GPU allocator; None resolves
+            the environment, then the mode default.
+        tf_gpu_allocator (str or None): cuda_malloc_async allocator selector; None
+            resolves the environment, then the mode default.
+        configure_runtime (bool): Apply JAX settings immediately; False installs and
+            synchronizes the configuration without applying the full runtime settings.
+
+    Returns:
+        BackendConfig object: Installed immutable configuration after
+            resolving overrides.
     """
     global _cached_backend_config
     if mode == "jax":
@@ -705,7 +776,6 @@ def set_backend(
     config = _config_from_mode(
         resolved_mode,
         strict=bool(strict),
-        precision=precision,
         debug_nans=debug_nans,
         disable_jit=disable_jit,
         transfer_guard=transfer_guard,
