@@ -1,4 +1,4 @@
-"""Device, precision, chunking and memory configuration for JAX field evaluation."""
+"""Device, chunking and memory configuration for JAX field evaluation."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from typing import Callable, Literal, TypeVar, cast
 _ExplicitT = TypeVar("_ExplicitT")
 _ResolvedT = TypeVar("_ResolvedT")
 
-PrecisionSelection = Literal["mode_default", "fp64"]
 BackendMode = Literal[
     "native_cpu",
     "jax_cpu_fast",
@@ -25,13 +24,11 @@ ExecutionIntent = Literal["fast", "parity"]
 _VALID_BACKENDS = ("cpu", "jax")
 _VALID_PLATFORMS = ("cpu", "cuda")
 _VALID_POLICY_DTYPES = ("float64",)
-_VALID_PRECISION_SELECTIONS = ("mode_default", "fp64")
 _TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
 
 _BACKEND_ENV = "SIMSOPT_BACKEND"
 _PLATFORM_ENV = "SIMSOPT_JAX_PLATFORM"
 _MODE_ENV = "SIMSOPT_BACKEND_MODE"
-_PRECISION_ENV = "SIMSOPT_PRECISION"
 _STRICT_ENV = "SIMSOPT_BACKEND_STRICT"
 _DEBUG_ENV = "SIMSOPT_DEBUG"
 _DEBUG_NANS_ENV = "SIMSOPT_JAX_DEBUG_NANS"
@@ -58,7 +55,6 @@ _VALID_GPU_ALLOCATORS = ("platform", "vmm")
 _VALID_TF_GPU_ALLOCATORS = ("cuda_malloc_async",)
 _SYNCED_RUNTIME_ENV_VALUES = (
     (_MODE_ENV, "mode"),
-    (_PRECISION_ENV, "precision"),
     (_STRICT_ENV, "strict"),
     (_DEBUG_NANS_ENV, "debug_nans"),
     (_DISABLE_JIT_ENV, "disable_jit"),
@@ -178,7 +174,6 @@ class BackendConfig:
             jax_gpu_fast or jax_gpu_parity.
         backend (str): Implementation selector, cpu for native evaluation or jax.
         jax_platform (str): JAX platform selector, cpu or cuda.
-        precision (str): mode_default or fp64; all supported modes use double precision.
         strict (bool): Reject an initialized JAX backend mismatch instead of warning.
         debug_nans (bool): Enable JAX NaN debugging.
         disable_jit (bool): Disable JAX compilation for debugging.
@@ -198,7 +193,6 @@ class BackendConfig:
     mode: BackendMode
     backend: str
     jax_platform: str
-    precision: PrecisionSelection = "mode_default"
     strict: bool = False
     debug_nans: bool = False
     disable_jit: bool = False
@@ -365,18 +359,6 @@ def resolve_jax_execution_profile(
     )
 
 
-def _validate_precision_selection(
-    value: object,
-    *,
-    source: str,
-) -> PrecisionSelection:
-    if value not in _VALID_PRECISION_SELECTIONS:
-        raise ValueError(
-            f"{source}={value!r} is not valid. Accepted: {_VALID_PRECISION_SELECTIONS}"
-        )
-    return cast(PrecisionSelection, value)
-
-
 def _validate_transfer_guard(value: str | None, *, source: str) -> str | None:
     if value in (None, ""):
         return None
@@ -495,7 +477,6 @@ def _config_from_mode(
     mode: str,
     *,
     strict: bool,
-    precision: PrecisionSelection | None = None,
     debug_nans: bool | None = None,
     disable_jit: bool | None = None,
     transfer_guard: str | None = None,
@@ -509,19 +490,6 @@ def _config_from_mode(
     backend, jax_platform = _MODE_TO_RUNTIME[mode]
     debug_overlay = _debug_overlay_enabled()
     defaults = _get_mode_policy_defaults(mode)
-    resolved_precision: PrecisionSelection = _resolve_kwarg(
-        precision,
-        parse_explicit=lambda value: _validate_precision_selection(
-            value,
-            source="precision",
-        ),
-        env_names=(_PRECISION_ENV,),
-        parse_env=lambda value, source: _validate_precision_selection(
-            value,
-            source=source,
-        ),
-        read_default=lambda: "mode_default",
-    )
     if debug_overlay:
         resolved_debug_nans = True
         resolved_disable_jit = True
@@ -621,7 +589,6 @@ def _config_from_mode(
         mode=mode,
         backend=backend,
         jax_platform=jax_platform,
-        precision=resolved_precision,
         strict=bool(strict) or debug_overlay,
         debug_nans=resolved_debug_nans,
         disable_jit=resolved_disable_jit,

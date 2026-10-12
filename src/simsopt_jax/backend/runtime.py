@@ -76,7 +76,6 @@ from simsopt_jax.backend._runtime_policy import (
     ExecutionIntent,
     JaxDevice,
     JaxExecutionProfile,
-    PrecisionSelection,
     _config_from_mode,
     _env_bool,
     _mode_from_legacy_env,
@@ -106,7 +105,6 @@ __all__ = [
     "FieldKernelTuning",
     "JaxDevice",
     "JaxExecutionProfile",
-    "PrecisionSelection",
     "apply_cuda_xla_flag_pins",
     "apply_jax_runtime_config",
     "get_backend_config",
@@ -724,7 +722,6 @@ def set_backend(
     *,
     device: JaxDevice | None = None,
     intent: ExecutionIntent | None = None,
-    precision: PrecisionSelection | None = None,
     strict: bool = False,
     debug_nans: bool | None = None,
     disable_jit: bool | None = None,
@@ -750,8 +747,6 @@ def set_backend(
             canonical mode.
         intent (str or None): fast or parity when mode is jax; None selects fast. Omit
             with a canonical mode.
-        precision (str or None): mode_default or fp64; None resolves SIMSOPT_PRECISION,
-            then mode_default. All supported modes use double precision.
         strict (bool): Reject an initialized JAX backend mismatch instead of warning.
         debug_nans (bool or None): Enable JAX NaN debugging; None resolves the
             environment, then the mode default. SIMSOPT_DEBUG forces True.
@@ -794,7 +789,6 @@ def set_backend(
     config = _config_from_mode(
         resolved_mode,
         strict=bool(strict),
-        precision=precision,
         debug_nans=debug_nans,
         disable_jit=disable_jit,
         transfer_guard=transfer_guard,
