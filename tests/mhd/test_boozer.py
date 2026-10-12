@@ -116,6 +116,37 @@ class QuasisymmetryTests(unittest.TestCase):
         q = Quasisymmetry(b, s, 1, -1, "B00", "even")
         np.testing.assert_allclose(q.J(), [2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18])
 
+    def test_quasisymmetry_sine_coefficients(self):
+        """
+        Verify that cosine and sine residuals are returned for QA, QP, and QH.
+        """
+        b = MockBoozer(1, 1, 4)
+        b.bx.asym = True
+        b.bx.bmns_b = np.zeros_like(b.bx.bmnc_b)
+        b.bx.bmns_b[:, 0] = [0, 1, 3, 5, 7]
+
+        # xm:   [ 0,  0,  1,  1,  1]
+        # xn:   [ 0,  4, -4,  0,  4]
+        # bmnc: [10, 20, 30, 40, 50]
+        # bmns: [ 0,  1,  3,  5,  7]
+
+        # QA
+        s = 0
+        q = Quasisymmetry(b, s, 1, 0, "B00", "even")
+        np.testing.assert_allclose(q.J(), [2, 3, 5, .1, .3, .7])
+
+        # QP
+        q = Quasisymmetry(b, s, 0, 1, "B00", "even")
+        np.testing.assert_allclose(q.J(), [3, 4, 5, .3, .5, .7])
+
+        # QH
+        q = Quasisymmetry(b, s, 1, 1, "B00", "even")
+        np.testing.assert_allclose(q.J(), [2, 4, 5, .1, .5, .7])
+
+        # QH, opposite "chirality"
+        q = Quasisymmetry(b, s, 1, -1, "B00", "even")
+        np.testing.assert_allclose(q.J(), [2, 3, 4, .1, .3, .5])
+
     @unittest.skipIf(booz_xform is None, "booz_xform python package not found")
     def test_boozer_register(self):
         b1 = Boozer(None)
@@ -240,15 +271,47 @@ class QuasisymmetryTests(unittest.TestCase):
             b = Boozer(v, mpol=32, ntor=16)
             # code coverage for the case where we register a float and not something iterable.
             b.register(0.5)
-            J = Quasisymmetry(b, s=0.5, helicity_m=1, helicity_n=0,
-                              normalization="symmetric", weight="stellopt").J()
+            J = Quasisymmetry(
+                b, s=0.5, helicity_m=1, helicity_n=0,
+                normalization="symmetric", weight="stellopt"
+            ).J()
+
+            index = b.s_to_index[0.5]
+            bmnc = b.bx.bmnc_b[:, index]
+            bmns = b.bx.bmns_b[:, index]
+            xm = b.bx.xm_b
+            xn = b.bx.xn_b
+
+            symmetric = (xn == 0)
+            nonsymmetric = ~symmetric
+            zero_mode = (xm == 0) & (xn == 0)
+
+            bnorm = np.sqrt(
+                np.sum(bmnc[symmetric]**2)
+                + np.sum(bmns[symmetric & ~zero_mode]**2)
+            )
+            coefficients = np.concatenate(
+                (bmnc[nonsymmetric], bmns[nonsymmetric])
+            )
+            expected = coefficients / bnorm / b.s_used[0.5]**2
 
             np.testing.assert_allclose(
-                J[0], -3.2704931879062826, err_msg='Weight "stellopt" for normalization "symmetric" does not match precalculated value for a non-stellarator symmetric configuration.')
-            J = Quasisymmetry(b, s=0.5, helicity_m=1, helicity_n=0,
-                              normalization="B00", weight="stellopt_ornl").J()
+                J, expected,
+                err_msg='Weight "stellopt" with normalization "symmetric" '
+                        'does not match the full Boozer spectrum.'
+            )
+
+            J = Quasisymmetry(
+                b, s=0.5, helicity_m=1, helicity_n=0,
+                normalization="B00", weight="stellopt_ornl"
+            ).J()
+            expected = np.sqrt(np.sum(coefficients**2)) / bmnc[0]
+
             np.testing.assert_allclose(
-                J[0], 0.8089189591823078, err_msg='Weight "stellopt_ornl" does not match precalculated value.')
+                J, [expected],
+                err_msg='Weight "stellopt_ornl" does not match the full '
+                        'Boozer spectrum.'
+            )
             surfs = b.bx.compute_surfs
             self.assertEqual(surfs[0], 49, msg='Surface index is not the expected value. Wrong surface is being used in the calculation.')
 
