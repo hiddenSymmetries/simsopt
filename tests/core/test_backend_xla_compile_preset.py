@@ -15,6 +15,7 @@ with optional_jax_imports():
         _config_from_mode,
         _policy_from_config,
         _xla_flags_with_cpu_compile_preset,
+        set_backend,
     )
 from unittest import mock
 
@@ -158,4 +159,19 @@ class TestBackendXlaCompilePreset(JaxTestCase):
         self.assertTrue(
             os.environ[_XLA_FLAGS_ENV] == _CPU_OPT_PRESET_FAST_COMPILE,
             "os.environ[_XLA_FLAGS_ENV] == _CPU_OPT_PRESET_FAST_COMPILE",
+        )
+
+    def test_fast_cpu_runtime_uses_highest_matmul_precision(self):
+        """The fast CPU lane computes matrix products at the highest precision."""
+        patches = self.patches
+        patches.callback(
+            jax.config.update,
+            "jax_default_matmul_precision",
+            jax.config.values["jax_default_matmul_precision"],
+        )
+        set_backend("jax", device="cpu", intent="fast")
+        self.assertEqual(
+            jax.config.values["jax_default_matmul_precision"],
+            "highest",
+            "every backend mode must run matrix products at the highest precision",
         )

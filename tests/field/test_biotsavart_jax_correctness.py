@@ -5,7 +5,13 @@ from unittest_jax_support import JaxTestCase, optional_jax_imports
 with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax  # noqa: F401
+    import jax.numpy as jnp
     from simsopt_jax.core import curve_gamma_and_gammadash_from_spec
+    from simsopt_jax.core.field import (
+        group_biot_savart_B_vjp,
+        grouped_biot_savart_B_from_spec,
+        grouped_coil_set_spec_from_inputs,
+    )
     from simsopt_jax_adapters.field.biotsavart_backend import JaxBiotSavart
     from simsopt_jax_adapters.geo.curve_specs import curve_spec_from_adapter_curve
 from tempfile import TemporaryDirectory
@@ -583,4 +589,43 @@ class TestBiotsavartJaxCorrectness(JaxTestCase):
                 (plus - minus) / (2 * step),
                 rtol=1e-9,
                 atol=1e-14,
+            )
+
+    def test_grouped_field_evaluates_single_precision_points_in_float64(self):
+        """Grouped B and its pullback evaluate float32 points and cotangents in float64."""
+        coils = [Coil(curve, Current(1e5)) for curve in _curves()]
+        group = (
+            jnp.asarray(np.stack([coil.curve.gamma() for coil in coils])),
+            jnp.asarray(np.stack([coil.curve.gammadash() for coil in coils])),
+            jnp.asarray([coil.current.get_value() for coil in coils]),
+        )
+        points = _POINTS.astype(np.float32)
+        cotangent = _cotangent("B").astype(np.float32)
+        native = BiotSavart(coils).set_points(points.astype(np.float64))
+
+        field = cast(
+            jax.Array,
+            grouped_biot_savart_B_from_spec(
+                points, grouped_coil_set_spec_from_inputs([group])
+            ),
+        )
+
+        self.assertEqual(field.dtype, np.float64, "B must be evaluated in float64")
+        np.testing.assert_allclose(
+            np.asarray(field),
+            native.B(),
+            rtol=1e-12,
+            atol=1e-14,
+            err_msg="float32 points must not lower the coil geometry to float32",
+        )
+        pullbacks = group_biot_savart_B_vjp(points, cotangent, *group)
+        double_pullbacks = group_biot_savart_B_vjp(
+            points.astype(np.float64), cotangent.astype(np.float64), *group
+        )
+        for pullback, double_pullback in zip(pullbacks, double_pullbacks, strict=True):
+            self.assertEqual(
+                pullback.dtype, np.float64, "pullbacks must be evaluated in float64"
+            )
+            np.testing.assert_array_equal(
+                np.asarray(pullback), np.asarray(double_pullback)
             )
