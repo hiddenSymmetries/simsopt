@@ -653,7 +653,7 @@ def make_coil_group_spec(
 
     Returns:
         CoilGroupSpec object: Frozen pytree payload; newly converted array
-            leaves retain their argument shape, use runtime floating precision and
+            leaves retain their argument shape, use float64 and
             snapshot host NumPy inputs.
     """
     return CoilGroupSpec(
@@ -681,8 +681,8 @@ def make_curve_xyzfourier_spec(
 
     Returns:
         CurveXYZFourierSpec object: Frozen pytree payload; newly converted
-            array leaves retain their argument shape, use runtime floating
-            precision and snapshot host NumPy inputs.
+            array leaves retain their argument shape, use float64
+            and snapshot host NumPy inputs.
     """
     return CurveXYZFourierSpec(
         dofs=_as_float64_array(dofs),
@@ -741,8 +741,8 @@ def make_curve_rzfourier_spec(
 
     Returns:
         CurveRZFourierSpec object: Frozen pytree payload; newly converted
-            array leaves retain their argument shape, use runtime floating
-            precision and snapshot host NumPy inputs.
+            array leaves retain their argument shape, use float64
+            and snapshot host NumPy inputs.
     """
     return CurveRZFourierSpec(
         dofs=_as_float64_array(dofs),
@@ -815,8 +815,8 @@ def make_curve_planarfourier_spec(
 
     Returns:
         CurvePlanarFourierSpec object: Frozen pytree payload; newly converted
-            array leaves retain their argument shape, use runtime floating
-            precision and snapshot host NumPy inputs.
+            array leaves retain their argument shape, use float64
+            and snapshot host NumPy inputs.
     """
     return CurvePlanarFourierSpec(
         dofs=_as_float64_array(dofs),
@@ -850,7 +850,7 @@ def make_curve_helical_spec(
 
     Returns:
         CurveHelicalSpec object: Frozen pytree payload; newly converted array
-            leaves retain their argument shape, use runtime floating precision and
+            leaves retain their argument shape, use float64 and
             snapshot host NumPy inputs.
     """
     return CurveHelicalSpec(
@@ -887,8 +887,8 @@ def make_optimizable_dof_map_spec(
 
     Returns:
         OptimizableDofMapSpec object: Frozen pytree payload; newly converted
-            array leaves retain their argument shape, use runtime floating
-            precision and snapshot host NumPy inputs.
+            array leaves retain their argument shape, use float64
+            and snapshot host NumPy inputs.
     """
     return OptimizableDofMapSpec(
         template_full_dofs=_as_float64_array(template_full_dofs),
@@ -926,7 +926,7 @@ def make_frame_rotation_spec(
 
     Returns:
         FrameRotationSpec object: Frozen pytree payload; newly converted array
-            leaves retain their argument shape, use runtime floating precision and
+            leaves retain their argument shape, use float64 and
             snapshot host NumPy inputs.
     """
     return FrameRotationSpec(
@@ -946,7 +946,7 @@ def make_zero_rotation_spec(*, quadpoints: object) -> ZeroRotationSpec:
 
     Returns:
         ZeroRotationSpec object: Frozen pytree payload; newly converted array
-            leaves retain their argument shape, use runtime floating precision and
+            leaves retain their argument shape, use float64 and
             snapshot host NumPy inputs.
     """
     return ZeroRotationSpec(quadpoints=_as_float64_array(quadpoints))
@@ -985,8 +985,8 @@ def make_curve_perturbed_spec(
 
     Returns:
         CurvePerturbedSpec object: Frozen pytree payload; newly converted
-            array leaves retain their argument shape, use runtime floating
-            precision and snapshot host NumPy inputs.
+            array leaves retain their argument shape, use float64
+            and snapshot host NumPy inputs.
     """
     return CurvePerturbedSpec(
         dofs=_as_float64_array(dofs),
@@ -1032,7 +1032,7 @@ def make_curve_filament_spec(
 
     Returns:
         CurveFilamentSpec object: Frozen pytree payload; newly converted array
-            leaves retain their argument shape, use runtime floating precision and
+            leaves retain their argument shape, use float64 and
             snapshot host NumPy inputs.
     """
     return CurveFilamentSpec(
@@ -1069,7 +1069,7 @@ def make_coil_symmetry_spec(
 
     Returns:
         CoilSymmetrySpec object: Frozen pytree payload; newly converted array
-            leaves retain their argument shape, use runtime floating precision and
+            leaves retain their argument shape, use float64 and
             snapshot host NumPy inputs.
     """
     rotmat_jax, has_rotation = _normalize_rotmat(rotmat)
@@ -1112,8 +1112,8 @@ def make_coil_dof_extraction_spec(
 
     Returns:
         CoilDofExtractionSpec object: Frozen pytree payload; newly converted
-            array leaves retain their argument shape, use runtime floating
-            precision and snapshot host NumPy inputs.
+            array leaves retain their argument shape, use float64
+            and snapshot host NumPy inputs.
     """
     if len(current_term_maps) != len(current_term_scales):
         raise ValueError("current term maps and scales must have equal length")
@@ -1186,7 +1186,7 @@ def make_field_eval_spec(points: object) -> FieldEvalSpec:
 
     Returns:
         FieldEvalSpec object: Frozen pytree payload; newly converted array
-            leaves retain their argument shape, use runtime floating precision and
+            leaves retain their argument shape, use float64 and
             snapshot host NumPy inputs.
     """
     return FieldEvalSpec(points=_as_float64_array(points))
@@ -1202,8 +1202,8 @@ def make_grouped_coil_set_spec(groups: Iterable[CoilGroupSpec | tuple[jax.Array,
 
     Returns:
         GroupedCoilSetSpec object: Frozen pytree payload; newly converted
-            array leaves retain their argument shape, use runtime floating
-            precision and snapshot host NumPy inputs.
+            array leaves retain their argument shape, use float64
+            and snapshot host NumPy inputs.
     """
     group_specs = []
     for group in groups:

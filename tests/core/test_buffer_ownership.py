@@ -10,8 +10,8 @@ with optional_jax_imports():
     import jax.numpy as jnp
     from simsopt_jax.backend import set_backend
     from simsopt_jax.backend.dtypes import (
-        as_compute_array,
         as_jax_array,
+        as_jax_float64,
         explicit_device_array,
         runtime_device_put,
         runtime_device_put_tree,
@@ -160,13 +160,18 @@ _SPEC_FACTORIES = [
 ]
 
 
+_GATE_SIZE = 2896
+
+
 def make_execution_gate():
     """Queue enough CPU work for the warmed consumer to remain pending."""
-    matrix = jnp.ones((4096, 4096), dtype=jnp.float32)
+    matrix = jnp.ones((_GATE_SIZE, _GATE_SIZE), dtype=jnp.float64)
 
     @jax.jit
     def gate(value, matrix):
-        product = jax.lax.fori_loop(0, 4, lambda _, x: (x @ matrix) / 4096, matrix)
+        product = jax.lax.fori_loop(
+            0, 4, lambda _, x: (x @ matrix) / _GATE_SIZE, matrix
+        )
         return jnp.where(product[0, 0] > 0, value, -value)
 
     return lambda value: gate(value, matrix)
@@ -210,7 +215,7 @@ class TestBufferOwnership(JaxTestCase):
             lambda x: runtime_device_put_tree(x, preserve_placement=True),
             lambda x: explicit_device_array(x, dtype=np.float64),
             lambda x: as_jax_array(x, dtype=np.float64),
-            as_compute_array,
+            as_jax_float64,
         ]:
             for misaligned in [False, True]:
                 with self.subTest(place=place, misaligned=misaligned), self.case():
@@ -247,7 +252,7 @@ class TestBufferOwnership(JaxTestCase):
         execution reads them."""
         for convert in [
             lambda x: as_jax_array(x, dtype=np.float64),
-            as_compute_array,
+            as_jax_float64,
             runtime_device_put,
         ]:
             with self.subTest(convert=convert), self.case():
@@ -490,20 +495,12 @@ class TestBufferOwnership(JaxTestCase):
         _assert_tree_equal(result, expected)
 
     def test_group_coil_data_owns_numpy_inputs(self):
-        """Grouping stacked or per-coil data owns NumPy snapshots in runtime and compute
-        precision."""
-        for use_compute_dtype in [False, True]:
-            for stacked in [False, True]:
-                with self.subTest(
-                    use_compute_dtype=use_compute_dtype, stacked=stacked
-                ), self.case() as patches:
-                    self._case_group_coil_data_owns_numpy_inputs(
-                        use_compute_dtype, stacked, patches
-                    )
+        """Grouping stacked or per-coil data owns NumPy snapshots."""
+        for stacked in [False, True]:
+            with self.subTest(stacked=stacked), self.case() as patches:
+                self._case_group_coil_data_owns_numpy_inputs(stacked, patches)
 
-    def _case_group_coil_data_owns_numpy_inputs(
-        self, use_compute_dtype, stacked, patches
-    ):
+    def _case_group_coil_data_owns_numpy_inputs(self, stacked, patches):
         """Run one row with case-local objects released before runtime cleanup."""
         execution_gate = make_execution_gate()
         _, gamma, dash, current = _kernel_inputs()
@@ -515,12 +512,11 @@ class TestBufferOwnership(JaxTestCase):
         expected = jax.tree.map(
             lambda x: np.array(x, copy=True),
             jax.block_until_ready(
-                kernels.group_coil_data(*inputs, use_compute_dtype=use_compute_dtype)
+                kernels.group_coil_data(*inputs)
             ),
         )
         gate = execution_gate
-        name = "_as_compute_array" if use_compute_dtype else "_as_jax_float64"
-        convert = getattr(kernels, name)
+        convert = kernels._as_jax_float64
         if stacked:
             axis0 = kernels._axis0_entries
             for entry in (gamma, current):
@@ -536,9 +532,11 @@ class TestBufferOwnership(JaxTestCase):
             for entry in (gamma[0], current[0:1].reshape(())):
                 gate(convert(entry)).block_until_ready()
             patches.enter_context(
-                mock.patch.object(kernels, name, lambda x: gate(convert(x)))
+                mock.patch.object(
+                    kernels, "_as_jax_float64", lambda x: gate(convert(x))
+                )
             )
-        result = kernels.group_coil_data(*inputs, use_compute_dtype=use_compute_dtype)
+        result = kernels.group_coil_data(*inputs)
         _assert_pending(tuple(group[:3] for group in result))
         for source in (gamma, dash, current):
             source[:] = -7.0

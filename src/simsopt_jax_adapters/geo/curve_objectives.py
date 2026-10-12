@@ -437,7 +437,7 @@ def _curve_pair_penalty_total(class_gammas, class_gammadashes, minimum_distance,
     batched_kernel = jax.vmap(
         curve_curve_distance_penalty_pure, in_axes=(0, 0, 0, 0, None, 0)
     )
-    total = jnp.zeros((), dtype=minimum_distance.dtype)
+    total = jnp.zeros((), dtype=jnp.float64)
     for batch, candidates in zip(plan.batches, batch_candidates, strict=True):
         first_rows = np.asarray(batch.first_rows)
         second_rows = np.asarray(batch.second_rows)
@@ -605,7 +605,7 @@ def _curve_surface_penalty_total(
     batched_kernel = jax.vmap(
         curve_surface_distance_penalty_pure, in_axes=(0, 0, None, None, None, 0)
     )
-    total = jnp.zeros((), dtype=minimum_distance.dtype)
+    total = jnp.zeros((), dtype=jnp.float64)
     for gammas, gammadashes, candidates in zip(
         class_gammas, class_gammadashes, class_candidates, strict=True
     ):

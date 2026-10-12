@@ -20,10 +20,7 @@ from .curve_xyz_fourier import (
     jaxfouriercurve_pure,
 )
 from .curve_xyz_fourier_symmetries import jaxXYZFourierSymmetriescurve_pure
-from ._math_utils import (
-    as_compute_array as _as_compute_array,
-    as_runtime_array as _as_runtime_array,
-)
+from ._math_utils import as_jax_float64 as _as_jax_float64
 from .framedcurve import (
     rotated_centroid_frame,
     rotated_centroid_frame_dash,
@@ -76,16 +73,14 @@ def _zeros_like_runtime(array: jax.Array) -> jax.Array:
     return jnp.broadcast_to(_runtime_scalar(0.0, reference=array), array.shape)
 
 
-def _as_explicit_array(value, *, reference=None, use_compute_dtype: bool = False) -> jax.Array:
-    """Admit spec-backed values, then apply the selected shared dtype policy."""
+def _as_explicit_array(value, *, reference=None) -> jax.Array:
+    """Admit spec-backed values, then convert them to float64."""
     if reference is None and not _has_jax_array_value(value):
-        helper_kind = "compute" if use_compute_dtype else "pure"
         raise TypeError(
-            f"curve_geometry {helper_kind} helpers require JAX/spec-backed arrays; "
+            "curve_geometry pure helpers require JAX/spec-backed arrays; "
             "materialize an immutable spec or explicit device array first."
         )
-    convert = _as_compute_array if use_compute_dtype else _as_runtime_array
-    return convert(value)
+    return _as_jax_float64(value)
 
 
 def _slice_1d_static(array: jax.Array, start: int, end: int) -> jax.Array:
@@ -154,8 +149,6 @@ def curve_spec_from_curve(curve) -> CurveSpec:
 def _curve_gamma_kernel(
     spec: CurveSpec,
     dofs=None,
-    *,
-    use_compute_dtype: bool = False,
 ):
     curve_dofs = (
         spec.dofs
@@ -163,7 +156,6 @@ def _curve_gamma_kernel(
         else _as_explicit_array(
             dofs,
             reference=spec.dofs,
-            use_compute_dtype=use_compute_dtype,
         )
     )
     spec_kind = curve_spec_kind(spec)
@@ -268,18 +260,14 @@ def _direct_curve_geometry_terms(spec: CurveSpec, dofs, *, order):
 def _mapped_full_dofs(
     map_spec: OptimizableDofMapSpec,
     owner_dofs,
-    *,
-    use_compute_dtype: bool = False,
 ):
     mapped = _as_explicit_array(
         map_spec.template_full_dofs,
         reference=owner_dofs,
-        use_compute_dtype=use_compute_dtype,
     )
     owner_dofs = _as_explicit_array(
         owner_dofs,
         reference=owner_dofs,
-        use_compute_dtype=use_compute_dtype,
     )
     for owner_start, owner_end, target_start, target_end in map_spec.owner_segments:
         del target_end
@@ -294,13 +282,10 @@ def _mapped_full_dofs(
 def _mapped_input_dofs(
     map_spec: OptimizableDofMapSpec,
     owner_dofs,
-    *,
-    use_compute_dtype: bool = False,
 ):
     mapped_full = _mapped_full_dofs(
         map_spec,
         owner_dofs,
-        use_compute_dtype=use_compute_dtype,
     )
     if map_spec.input_mode == "full":
         return mapped_full
@@ -310,8 +295,6 @@ def _mapped_input_dofs(
 def optimizable_input_dofs_from_map_spec(
     map_spec: OptimizableDofMapSpec,
     owner_dofs,
-    *,
-    use_compute_dtype: bool = False,
 ):
     """Reconstruct one optimizable input vector from its owner DOFs.
 
@@ -320,8 +303,6 @@ def optimizable_input_dofs_from_map_spec(
             owner-to-target copy ranges.
         owner_dofs (array-like): Flat owner DOF vector, shape (D,), matching the
             extraction map; units depend on the owning geometry or current.
-        use_compute_dtype (bool): Select compute rather than runtime precision when
-            converting DOFs; defaults to False.
 
     Returns:
         jax.Array: Mapped full vector of shape (D_full,) for full mode,
@@ -331,7 +312,6 @@ def optimizable_input_dofs_from_map_spec(
     return _mapped_input_dofs(
         map_spec,
         owner_dofs,
-        use_compute_dtype=use_compute_dtype,
     )
 
 
@@ -360,15 +340,12 @@ def _rotation_alpha_and_dash_from_dofs(
 def _curve_geometry_with_third_derivative_from_dofs(
     spec: CurveSpec,
     dofs,
-    *,
-    use_compute_dtype: bool = False,
 ) -> tuple[jax.Array, ...]:
     """Return (gamma, gammadash, gammadashdash, gammadashdashdash) in one pass."""
     if isinstance(spec, CurvePerturbedSpec):
         base_geometry = _curve_geometry_with_third_derivative_from_dofs(
             spec.base_curve,
             _curve_perturbed_base_dofs(spec, dofs),
-            use_compute_dtype=use_compute_dtype,
         )
         return _add_curve_perturbation(spec, *base_geometry)
     quadpoints, tangents = _curve_quadpoints(spec, reference=dofs)
@@ -378,7 +355,6 @@ def _curve_geometry_with_third_derivative_from_dofs(
     gamma_kernel = _curve_gamma_kernel(
         spec,
         dofs,
-        use_compute_dtype=use_compute_dtype,
     )
     return _curve_geometry_terms_from_kernel(
         gamma_kernel,
@@ -565,8 +541,6 @@ def _curve_filament_gamma_and_dash_from_dofs(spec: CurveFilamentSpec, dofs):
 def curve_spec_with_dofs(
     spec: CurveSpec,
     dofs,
-    *,
-    use_compute_dtype: bool = False,
 ):
     """Replace a curve spec coefficient vector without mutating the original.
 
@@ -575,16 +549,12 @@ def curve_spec_with_dofs(
             parameters.
         dofs (array-like): Flat curve DOFs, shape (D,), in the coefficient ordering
             required by the spec.
-        use_compute_dtype (bool): Select compute rather than runtime precision when
-            converting DOFs; defaults to False.
 
     Returns:
         CurveSpec object: New frozen payload with converted replacement DOFs;
             other fields retain their original values.
     """
-    if use_compute_dtype:
-        return replace(spec, dofs=_as_compute_array(dofs))
-    return replace(spec, dofs=_as_runtime_array(dofs))
+    return replace(spec, dofs=_as_jax_float64(dofs))
 
 
 def curve_gamma_and_gammadash_from_spec(spec: CurveSpec):
@@ -604,8 +574,6 @@ def curve_gamma_and_gammadash_from_spec(spec: CurveSpec):
 def curve_gamma_and_gammadash_from_dofs(
     spec: CurveSpec,
     dofs,
-    *,
-    use_compute_dtype: bool = False,
 ) -> tuple[jax.Array, ...]:
     """Return (gamma, gammadash) from a single kernel build and JVP call.
 
@@ -614,8 +582,6 @@ def curve_gamma_and_gammadash_from_dofs(
             parameters.
         dofs (array-like): Flat curve DOFs, shape (D,), in the coefficient ordering
             required by the spec.
-        use_compute_dtype (bool): Select compute rather than runtime precision when
-            converting DOFs; defaults to False.
 
     Returns:
         tuple[jax.Array, ...]: Position and its first 1 normalized-parameter
@@ -635,7 +601,6 @@ def curve_gamma_and_gammadash_from_dofs(
     gamma_kernel = _curve_gamma_kernel(
         spec,
         dofs,
-        use_compute_dtype=use_compute_dtype,
     )
     return _curve_geometry_terms_from_kernel(
         gamma_kernel,
@@ -648,8 +613,6 @@ def curve_gamma_and_gammadash_from_dofs(
 def curve_geometry_from_dofs(
     spec: CurveSpec,
     dofs,
-    *,
-    use_compute_dtype: bool = False,
 ) -> tuple[jax.Array, ...]:
     """Return (gamma, gammadash, gammadashdash) from a single kernel build.
 
@@ -658,8 +621,6 @@ def curve_geometry_from_dofs(
             parameters.
         dofs (array-like): Flat curve DOFs, shape (D,), in the coefficient ordering
             required by the spec.
-        use_compute_dtype (bool): Select compute rather than runtime precision when
-            converting DOFs; defaults to False.
 
     Returns:
         tuple[jax.Array, ...]: Position and its first 2 normalized-parameter
@@ -679,7 +640,6 @@ def curve_geometry_from_dofs(
     gamma_kernel = _curve_gamma_kernel(
         spec,
         dofs,
-        use_compute_dtype=use_compute_dtype,
     )
     return _curve_geometry_terms_from_kernel(
         gamma_kernel,
@@ -704,8 +664,8 @@ def _curve_geometry_term_vjp_from_dofs(
     *,
     term_index: int,
 ):
-    curve_dofs = _as_runtime_array(dofs)
-    cotangent_jax = _as_runtime_array(cotangent)
+    curve_dofs = _as_jax_float64(dofs)
+    cotangent_jax = _as_jax_float64(cotangent)
 
     def output(curve_x):
         return _curve_geometry_term_from_dofs(spec, curve_x, term_index)
@@ -822,9 +782,9 @@ def curve_pullback_from_dofs(spec: CurveSpec, dofs, dg, dgd):
         jax.Array: Cotangent of sum(dg*gamma + dgd*gammadash), shape (D,), in
             input DOF order; units depend on the contracted objective.
     """
-    curve_dofs = _as_runtime_array(dofs)
-    dg_jax = _as_runtime_array(dg)
-    dgd_jax = _as_runtime_array(dgd)
+    curve_dofs = _as_jax_float64(dofs)
+    dg_jax = _as_jax_float64(dg)
+    dgd_jax = _as_jax_float64(dgd)
 
     def outputs(curve_x):
         return curve_gamma_and_gammadash_from_dofs(spec, curve_x)

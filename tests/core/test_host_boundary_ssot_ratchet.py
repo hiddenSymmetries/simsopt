@@ -358,7 +358,7 @@ class TestHostBoundarySsotRatchet(JaxTestCase):
         """Explicit placement owners accept host inputs and preserve reference placement
         under a strict guard."""
         tree = {
-            "float": np.asarray([1.0, 2.0], dtype=np.float32),
+            "float": np.asarray([1.0, 2.0], dtype=np.float64),
             "integer": (np.asarray(3, dtype=np.int16),),
         }
         reference = jax.device_put(np.zeros(2, dtype=np.float64))
@@ -398,11 +398,11 @@ class TestHostBoundarySsotRatchet(JaxTestCase):
         }
 
         with disallow_host_transfers():
-            array = host_array(value["vector"], dtype=np.float32)
+            array = host_array(value["vector"], dtype=np.int64)
             tree = host_tree_after_ready(value)
             converted_trees = (
-                host_tree(value, dtype=np.float32),
-                host_tree_after_ready(value, dtype=np.float32),
+                host_tree(value, dtype=np.int64),
+                host_tree_after_ready(value, dtype=np.int64),
             )
 
         for converted in converted_trees:
@@ -414,7 +414,7 @@ class TestHostBoundarySsotRatchet(JaxTestCase):
             ):
                 expected = value[name] if name == "vector" else value[name][0]
                 self.assertEqual(observed.shape, expected.shape)
-                self.assertEqual(observed.dtype, np.dtype(np.float32))
+                self.assertEqual(observed.dtype, np.dtype(np.int64))
                 self.assertTrue(observed.flags.writeable)
                 np.testing.assert_array_equal(observed, jax.device_get(expected))
             converted["vector"][0] = -1.0
@@ -427,7 +427,7 @@ class TestHostBoundarySsotRatchet(JaxTestCase):
         )
 
         self.assertTrue(isinstance(array, np.ndarray), "isinstance(array, np.ndarray)")
-        self.assertTrue(array.dtype == np.float32, "array.dtype == np.float32")
+        self.assertTrue(array.dtype == np.int64, "array.dtype == np.int64")
         self.assertTrue(array.flags.writeable, "array.flags.writeable")
         np.testing.assert_array_equal(array, [1.0, 2.0])
         self.assertTrue(
@@ -443,7 +443,7 @@ class TestHostBoundarySsotRatchet(JaxTestCase):
         """Tree placement preserves container structure and exact floating and integer
         leaf dtypes."""
         value = {
-            "float": np.asarray([1.0, 2.0], dtype=np.float32),
+            "float": np.asarray([1.0, 2.0], dtype=np.float64),
             "integer": (np.asarray(3, dtype=np.int16),),
         }
 
@@ -451,7 +451,7 @@ class TestHostBoundarySsotRatchet(JaxTestCase):
 
         self.assertTrue(placed.keys() == value.keys(), "placed.keys() == value.keys()")
         self.assertTrue(
-            placed["float"].dtype == jnp.float32, 'placed["float"].dtype == jnp.float32'
+            placed["float"].dtype == jnp.float64, 'placed["float"].dtype == jnp.float64'
         )
         self.assertTrue(
             placed["integer"][0].dtype == jnp.int16,
