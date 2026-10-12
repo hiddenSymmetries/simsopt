@@ -92,6 +92,63 @@ class QuasisymmetryRatioResidualWoutTests(unittest.TestCase):
         np.testing.assert_allclose(r.B_cross_grad_B_dot_grad_psi,
                                    r.d_psi_d_s * (r.bsubu * r.d_B_d_phi - r.bsubv * r.d_B_d_theta) / r.sqrtg)
 
+    def test_non_stellsym_angle_shift(self):
+        """
+        Verify that shifting the poloidal angle origin introduces sine
+        coefficients without changing the total quasisymmetry error.
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc'))
+        surfaces = [0.3, 0.7]
+        ntheta = 63
+        nphi = 64
+
+        qs = QuasisymmetryRatioResidual(
+            vmec, surfaces, helicity_m=1, helicity_n=1,
+            ntheta=ntheta, nphi=nphi
+        )
+        reference = qs.compute()
+
+        # Shift the poloidal angle origin by five grid points.
+        shift = 5
+        angle = vmec.wout.xm_nyq[:, None] * (2 * np.pi * shift / ntheta)
+
+        coefficients = [
+            ('bmnc', 'bmns'),
+            ('gmnc', 'gmns'),
+            ('bsubumnc', 'bsubumns'),
+            ('bsubvmnc', 'bsubvmns'),
+            ('bsupumnc', 'bsupumns'),
+            ('bsupvmnc', 'bsupvmns'),
+        ]
+
+        for cosine_name, sine_name in coefficients:
+            cosine = getattr(vmec.wout, cosine_name).copy()
+            setattr(vmec.wout, cosine_name, cosine * np.cos(angle))
+            setattr(vmec.wout, sine_name, cosine * np.sin(angle))
+
+        vmec.wout.lasym = True
+        shifted = qs.compute()
+
+        # Reconstructed quantities should shift along the theta grid.
+        fields = [
+            'modB', 'd_B_d_theta', 'd_B_d_phi', 'sqrtg',
+            'bsubu', 'bsubv', 'bsupu', 'bsupv', 'residuals3d',
+        ]
+        for field in fields:
+            expected = np.roll(getattr(reference, field), shift, axis=1)
+            np.testing.assert_allclose(
+                getattr(shifted, field), expected,
+                rtol=1e-10, atol=1e-10,
+                err_msg=f'{field} does not match the shifted reference.'
+            )
+
+        np.testing.assert_allclose(
+            shifted.profile, reference.profile, rtol=1e-10, atol=1e-10
+        )
+        np.testing.assert_allclose(
+            shifted.total, reference.total, rtol=1e-10, atol=1e-10
+        )
+
 
 @unittest.skipIf(vmec is None, "vmec python package is not found")
 class QuasisymmetryRatioResidualTests(unittest.TestCase):
