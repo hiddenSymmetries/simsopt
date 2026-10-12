@@ -1,5 +1,5 @@
 """Legacy field-object adapters for ``simsopt_jax``."""
 
-from .biotsavart_backend import BiotSavartJAX
+from .biotsavart_backend import JaxBiotSavart
 
-__all__ = ("BiotSavartJAX",)
+__all__ = ("JaxBiotSavart",)

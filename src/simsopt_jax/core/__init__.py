@@ -20,8 +20,8 @@ from .specs import (
 
 
 from .curve_geometry import (
-    curve_gamma_and_dash_from_dofs,
-    curve_gamma_and_dash_from_spec,
+    curve_gamma_and_gammadash_from_dofs,
+    curve_gamma_and_gammadash_from_spec,
     curve_gamma_vjp_from_dofs,
     curve_geometry_from_dofs,
     curve_gammadash_vjp_from_dofs,
@@ -44,8 +44,8 @@ __all__ = [
     "OrientedCurveXYZFourierSpec",
     "make_oriented_curve_xyzfourier_spec",
     "CurveXYZFourierSymmetriesSpec",
-    "curve_gamma_and_dash_from_dofs",
-    "curve_gamma_and_dash_from_spec",
+    "curve_gamma_and_gammadash_from_dofs",
+    "curve_gamma_and_gammadash_from_spec",
     "curve_gamma_vjp_from_dofs",
     "curve_geometry_from_dofs",
     "curve_gammadash_vjp_from_dofs",

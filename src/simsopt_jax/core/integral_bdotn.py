@@ -20,6 +20,8 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 
+from simsopt_jax.runtime.host_boundary import snapshot_host_tree
+
 from .specs import FixedSurfaceFluxSpec
 
 __all__ = [
@@ -48,20 +50,29 @@ def _validate_shapes(Bcoil, target, normal):
         )
 
 
-@partial(jax.jit, static_argnames=("definition",))
 def integral_BdotN(Bcoil, target, normal, definition="quadratic flux"):
-    """Compute the integral B·n objective.
+    """Compute the flux objective using the module-level integral formulas.
+
+    Caller NumPy arrays are snapshotted before asynchronous execution.
+    Zero normals and, for normalized/local definitions, zero field retain the
+    native IEEE NaN/inf behavior.
 
     Args:
-        Bcoil:  (nphi, ntheta, 3) coil magnetic field on the surface.
-        target: (nphi, ntheta)    target normal field, or an empty array for none.
-        normal: (nphi, ntheta, 3) unnormalized surface normal.
-        definition: one of ``"quadratic flux"``, ``"normalized"``,
-                    ``"local"``; a compile-time constant.
+        Bcoil: Array of shape (nphi, ntheta, 3), magnetic field in T.
+        target: Array of shape (nphi, ntheta), target normal field in T, or an empty array.
+        normal: Array of shape (nphi, ntheta, 3), unnormalized normals in m^2.
+        definition: str, compile-time choice: "quadratic flux", "normalized", or "local".
 
     Returns:
-        J: scalar objective value.
+        Array: scalar objective in T^2 m^2 (quadratic flux), dimensionless (normalized), or m^2 (local).
     """
+    inputs = snapshot_host_tree((Bcoil, target, normal))
+    return _integral_BdotN(*inputs, definition)
+
+
+@partial(jax.jit, static_argnames=("definition",))
+def _integral_BdotN(Bcoil, target, normal, definition):
+    """Compiled flux formula; the public boundary owns caller NumPy buffers."""
     _validate_shapes(Bcoil, target, normal)
     if definition not in FLUX_DEFINITIONS:
         raise ValueError(f"Unknown definition: {definition!r}")
@@ -79,7 +90,15 @@ def integral_BdotN(Bcoil, target, normal, definition="quadratic flux"):
 
 
 def fixed_surface_flux_integral_from_B(B, flux_spec: FixedSurfaceFluxSpec):
-    """Evaluate ``integral_BdotN`` for ``B`` at ``flux_spec.points`` (shape ``(n, 3)``)."""
+    """Evaluate the flux integral on the grid captured by a fixed-surface spec.
+
+    Args:
+        B: Array of shape (nphi*ntheta, 3), magnetic field in T in spec point order.
+        flux_spec: FixedSurfaceFluxSpec object, surface geometry, target and integral definition.
+
+    Returns:
+        Array: scalar objective with units determined by integral_BdotN.
+    """
     return integral_BdotN(
         B.reshape((flux_spec.nphi, flux_spec.ntheta, 3)),
         flux_spec.target,

@@ -1,6 +1,6 @@
 """Fused pure-JAX objective for filamentary Stage-II coil optimization.
 
-One program maps the free coil DOFs of a :class:`BiotSavartJAX` field to coil
+One program maps the free coil DOFs of a :class:`JaxBiotSavart` field to coil
 geometry once, then evaluates the squared flux on a fixed surface plus the
 coil-geometry penalties of the native Stage-II examples: total base-curve
 length, curve-curve and curve-surface distance, Lp curvature and mean squared
@@ -58,27 +58,43 @@ _CURVATURE_P = 2.0
 
 
 class CoilDofExtractionProvider(Protocol):
-    """Structural contract needed to compose a Stage-II objective."""
+    """Structural contract for capturing coil layout and fixed DOFs.
+    """
 
-    def coil_dof_extraction_spec(self) -> CoilSetDofExtractionSpec: ...
+    def coil_dof_extraction_spec(self) -> CoilSetDofExtractionSpec:
+        """Capture the field free-DOF layout and fixed values.
+
+        Returns:
+            CoilSetDofExtractionSpec object: immutable extraction payload.
+        """
+        ...
 
 
 @dataclass(frozen=True, slots=True)
 class StageTwoObjectiveConfig:
-    """Immutable weights and thresholds of the Stage-II penalties.
+    """Immutable settings of the native Stage-II geometric penalties.
 
-    The penalties mirror the native objectives: ``length_weight`` times the
-    total length of the first ``num_base_curves`` coils (or
-    ``QuadraticPenalty(total length, length_target, length_target_mode)``),
-    ``CurveCurveDistance`` over all coils with ``num_basecurves``,
-    ``CurveSurfaceDistance`` over all coils, ``LpCurveCurvature(p=2)`` and
-    ``QuadraticPenalty(MeanSquaredCurvature, threshold, mode)`` per base curve.
-    A term is part of the objective when its weight is not ``None``. Weights,
-    zero included, are traced operands: changing them never recompiles, while
-    adding or removing a term (or ``length_target``) changes the program.
+    None omits a term; zero retains it. Numerical weights are traced operands,
+    so changing a weight reuses compilation. Term presence and target modes
+    are static. Weight units set the units of the resulting weighted sum.
+
+    Args:
+        num_basecurves: int, positive count of leading base curves; other coils participate in distances.
+        length_weight: float or None, multiplier of total base length; None omits the term.
+        length_target: float or None, target total length in m; None selects a linear length term.
+        length_target_mode: str, "max" clips excess below zero; "identity" keeps signed excess.
+        curve_curve_minimum_distance: float, curve separation threshold in m.
+        curve_curve_weight: float or None, multiplier of the curve-pair penalty in m^4.
+        curve_surface_minimum_distance: float, curve-surface separation threshold in m.
+        curve_surface_weight: float or None, multiplier of the curve-surface penalty in m^5.
+        curvature_threshold: float, Lp curvature threshold in 1/m, with exponent fixed at 2.
+        curvature_weight: float or None, multiplier of the curvature integral in 1/m.
+        mean_squared_curvature_threshold: float, target arclength-averaged squared curvature in 1/m^2.
+        mean_squared_curvature_target_mode: str, "max" clips excess below zero; "identity" keeps it signed.
+        mean_squared_curvature_weight: float or None, multiplier of half the squared excess in 1/m^4.
     """
 
-    num_base_curves: int
+    num_basecurves: int
     length_weight: float | None = None
     length_target: float | None = None
     length_target_mode: Literal["max", "identity"] = "max"
@@ -119,7 +135,7 @@ _STAGE_TWO_NUMERIC_FIELDS = (
 @pytree_dataclass(
     data=_STAGE_TWO_NUMERIC_FIELDS,
     meta=(
-        "num_base_curves",
+        "num_basecurves",
         "length_target_mode",
         "mean_squared_curvature_target_mode",
     ),
@@ -139,13 +155,23 @@ def prepare_stage_two_config(
     surface_gamma: jax.Array | None = None,
     surface_normal: jax.Array | None = None,
 ) -> _PreparedStageTwoConfig:
-    """Validate ``config`` and place its numbers as device operands before tracing."""
+    """Validate settings and place numerical values before tracing.
+
+    Args:
+        config: StageTwoObjectiveConfig object, finite weights and thresholds.
+        extraction: CoilSetDofExtractionSpec or None, optional coil-count/grid validation.
+        surface_gamma: Array of shape (npoints, 3) or None, optional surface positions in m.
+        surface_normal: Array of shape (npoints, 3) or None, optional normals in m^2.
+
+    Returns:
+        _PreparedStageTwoConfig object: validated config with float64 scalar device operands.
+    """
     if (
-        not isinstance(config.num_base_curves, Integral)
-        or isinstance(config.num_base_curves, bool)
-        or config.num_base_curves <= 0
+        not isinstance(config.num_basecurves, Integral)
+        or isinstance(config.num_basecurves, bool)
+        or config.num_basecurves <= 0
     ):
-        raise ValueError("num_base_curves must be a positive integer.")
+        raise ValueError("num_basecurves must be a positive integer.")
     for name in ("length_target_mode", "mean_squared_curvature_target_mode"):
         if getattr(config, name) not in ("max", "identity"):
             raise ValueError(f"{name} must be 'max' or 'identity'.")
@@ -162,8 +188,8 @@ def prepare_stage_two_config(
         if value is None or not isfinite(value):
             raise ValueError(f"{name} must be finite.")
     if extraction is not None:
-        if config.num_base_curves > len(extraction.coils):
-            raise ValueError("num_base_curves exceeds the available coils.")
+        if config.num_basecurves > len(extraction.coils):
+            raise ValueError("num_basecurves exceeds the available coils.")
         shapes = {coil.curve.quadpoints.shape for coil in extraction.coils}
         if len(shapes) != 1 or not next(iter(shapes))[0]:
             raise ValueError("Stage-II coils require matching nonempty quadrature grids.")
@@ -185,7 +211,7 @@ def prepare_stage_two_config(
 
     return runtime_device_put_tree(
         _PreparedStageTwoConfig(
-            num_base_curves=int(config.num_base_curves),
+            num_basecurves=int(config.num_basecurves),
             length_weight=optional("length_weight"),
             length_target=optional("length_target"),
             length_target_mode=config.length_target_mode,
@@ -221,10 +247,10 @@ def _length_penalty(
 def _curve_curve_penalty(
     gamma: jax.Array,
     gammadash: jax.Array,
-    num_base_curves: int,
+    num_basecurves: int,
     minimum_distance: float | jax.Array,
 ) -> jax.Array:
-    """Sum the CurveCurveDistance terms of the pairs ``(i, j)``, ``j < min(i, num_base_curves)``.
+    """Sum the CurveCurveDistance terms of the pairs ``(i, j)``, ``j < min(i, num_basecurves)``.
 
     Pairs are formed from contiguous slices rather than gathered: a gather's
     gradient is a scatter-add, which deterministic GPU execution serializes.
@@ -240,17 +266,17 @@ def _curve_curve_penalty(
     against_curves = jax.vmap(pair, in_axes=(None, None, 0, 0))
     total = placement_zero(gamma)
     num_curves = int(gamma.shape[0])
-    for index in range(1, min(num_base_curves, num_curves)):
+    for index in range(1, min(num_basecurves, num_curves)):
         total = total + jnp.sum(
             against_curves(gamma[index], gammadash[index], gamma[:index], gammadash[:index])
         )
-    if num_curves > num_base_curves:
+    if num_curves > num_basecurves:
         total = total + jnp.sum(
             jax.vmap(against_curves, in_axes=(0, 0, None, None))(
-                gamma[num_base_curves:],
-                gammadash[num_base_curves:],
-                gamma[:num_base_curves],
-                gammadash[:num_base_curves],
+                gamma[num_basecurves:],
+                gammadash[num_basecurves:],
+                gamma[:num_basecurves],
+                gammadash[:num_basecurves],
             )
         )
     return total
@@ -264,16 +290,23 @@ def stage_two_geometric_penalty(
     surface_normal: jax.Array,
     config: StageTwoObjectiveConfig,
 ) -> jax.Array:
-    """Evaluate the weighted coil-geometry penalties for stacked coil geometry.
+    """Sum weighted geometric penalties over ordered coils, base curves first.
 
-    ``gamma``, ``gammadash`` and ``gammadashdash`` have shape
-    ``(ncoils, nquadpoints, 3)`` with the base curves first;
-    ``surface_gamma`` and ``surface_normal`` have shape ``(npoints, 3)``.
+    Args:
+        gamma: Array of shape (ncoils, nquadpoints, 3), positions in m.
+        gammadash: Array of shape (ncoils, nquadpoints, 3), first unit-period parameter derivatives in m.
+        gammadashdash: Array of shape (ncoils, nquadpoints, 3), second parameter derivatives in m.
+        surface_gamma: Array of shape (npoints, 3), distance surface positions in m.
+        surface_normal: Array of shape (npoints, 3), unnormalized distance surface normals in m^2.
+        config: StageTwoObjectiveConfig object, weights, thresholds and base-curve count.
+
+    Returns:
+        Array: scalar weighted sum; units depend on the chosen weights.
     """
     if not isinstance(config, _PreparedStageTwoConfig):
         config = prepare_stage_two_config(config)
-    base_gammadash = gammadash[: config.num_base_curves]
-    base_gammadashdash = gammadashdash[: config.num_base_curves]
+    base_gammadash = gammadash[: config.num_basecurves]
+    base_gammadashdash = gammadashdash[: config.num_basecurves]
     base_speed = jnp.linalg.norm(base_gammadash, axis=2)
     result = placement_zero(gamma)
 
@@ -312,7 +345,7 @@ def stage_two_geometric_penalty(
         result = result + config.curve_curve_weight * _curve_curve_penalty(
             gamma,
             gammadash,
-            config.num_base_curves,
+            config.num_basecurves,
             config.curve_curve_minimum_distance,
         )
 
@@ -340,9 +373,14 @@ def stage_two_coil_geometry(
     extraction: CoilSetDofExtractionSpec,
     parameters: jax.Array,
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
-    """Return stacked ``(gamma, gammadash, gammadashdash, currents)`` of every coil.
+    """Reconstruct geometry in extraction order, including symmetry copies.
 
-    ``parameters`` is the field's free DOF vector; coils keep extraction order.
+    Args:
+        extraction: CoilSetDofExtractionSpec object, ordered coil layout and fixed DOF snapshots.
+        parameters: Array of shape (ndofs,), field free DOFs in extraction order, with native geometry/current units.
+
+    Returns:
+        tuple: (gamma, gammadash, gammadashdash, currents), three arrays of shape (ncoils, nquadpoints, 3) in m and one array of shape (ncoils,) in A.
     """
     coil_specs = coil_specs_from_dof_extraction_spec(extraction, parameters)
     # Places every current's tangent on the parameters' device (a fixed
@@ -386,9 +424,14 @@ def stage_two_coil_geometry(
 class StageTwoProblem:
     """Device operands of the fused Stage-II objective.
 
-    Pass it to jitted programs as an argument, never through a closure: a
-    rebuilt problem with new weights (any values, zero included) then reuses
-    the compiled program.
+    Pass as a jitted argument so rebuilt weights reuse compilation.
+
+    Args:
+        extraction: CoilSetDofExtractionSpec object, ordered coil layout and fixed DOF snapshots.
+        flux_spec: FixedSurfaceFluxSpec object, fixed flux surface operands.
+        surface_gamma: Array of shape (npoints, 3), distance surface positions in m.
+        surface_normal: Array of shape (npoints, 3), unnormalized distance surface normals in m^2.
+        config: _PreparedStageTwoConfig object, validated weights as device operands.
     """
 
     extraction: CoilSetDofExtractionSpec
@@ -406,11 +449,20 @@ def make_stage_two_problem(
     surface_gamma: jax.Array | None = None,
     surface_normal: jax.Array | None = None,
 ) -> StageTwoProblem:
-    """Capture ``field``'s coil DOF layout and fixed values for the fused objective.
+    """Capture coil layout and fixed values for a fused objective.
 
-    The curve-surface distance uses the flux surface unless ``surface_gamma`` and
-    ``surface_normal`` (both ``(n, 3)``) name another one. Rebuild the problem
-    after fixing or unfixing coil DOFs or changing fixed values.
+    Rebuild after fixing/unfixing DOFs or changing fixed values. The flux
+    surface supplies the distance geometry unless both overrides are provided.
+
+    Args:
+        field: CoilDofExtractionProvider object, field whose free DOFs parameterize the objective.
+        flux_spec: FixedSurfaceFluxSpec object, fixed flux surface operands.
+        config: StageTwoObjectiveConfig object, geometric penalty settings.
+        surface_gamma: Array of shape (npoints, 3) or None, distance positions in m.
+        surface_normal: Array of shape (npoints, 3) or None, distance normals in m^2.
+
+    Returns:
+        StageTwoProblem object: captured device operands.
     """
     if (surface_gamma is None) != (surface_normal is None):
         raise ValueError("Pass both surface_gamma and surface_normal, or neither.")
@@ -431,10 +483,14 @@ def fused_stage_two_values(
     problem: StageTwoProblem,
     parameters: jax.Array,
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
-    """Evaluate the objective and diagnostics from one coil geometry pass.
+    """Evaluate flux and geometry once, returning objective diagnostics.
 
-    Returns ``(objective, squared_flux, geometric_penalty, max |B·n̂|,
-    total base-curve length)`` for the free DOF vector ``parameters``.
+    Args:
+        problem: StageTwoProblem object, captured device operands.
+        parameters: Array of shape (ndofs,), field free DOFs in extraction order, with native geometry/current units.
+
+    Returns:
+        tuple of scalar arrays: (objective, squared_flux, geometric_penalty, maximum absolute normal field in T, total base length in m). Flux units follow integral_BdotN; weighted sum units follow config.
     """
     gamma, gammadash, gammadashdash, currents = stage_two_coil_geometry(
         problem.extraction,
@@ -457,7 +513,7 @@ def fused_stage_two_values(
         problem.config,
     )
     base_speed = jnp.linalg.norm(
-        gammadash[: problem.config.num_base_curves],
+        gammadash[: problem.config.num_basecurves],
         axis=2,
     )
     total_curve_length = jnp.sum(jnp.mean(base_speed, axis=1))
@@ -480,16 +536,18 @@ def fused_stage_two_values(
 
 
 def fused_stage_two_objective(problem: StageTwoProblem, parameters: jax.Array) -> jax.Array:
-    """Return the fused Stage-II objective for the free DOF vector ``parameters``.
+    """Evaluate squared flux plus weighted geometric penalties.
 
-    The distance terms decide which curve pairs (and curves near the surface)
-    to evaluate from the device geometry, which is not bit-identical to the
-    native geometry. A pair whose closest distance rounds to the other side of
-    the threshold can therefore be evaluated here and skipped by native, or the
-    reverse. Its penalty is then negligibly small either way, but degenerate
-    geometry inside such a pair (a zero tangent or coincident points) can give
-    a NaN gradient on one side and a finite zero on the other. The drop-in
-    ``CurveCurveDistanceJAX`` and ``CurveSurfaceDistanceJAX`` use native's own
-    candidate search and match it exactly.
+    Device candidate-search rounding may differ from native exactly at a
+    distance threshold. Degenerate geometry in such a pair can therefore
+    have a NaN gradient on only one side. Drop-in distance adapters instead
+    use the native candidate search.
+
+    Args:
+        problem: StageTwoProblem object, captured device operands.
+        parameters: Array of shape (ndofs,), field free DOFs in extraction order, with native geometry/current units.
+
+    Returns:
+        Array: scalar objective; flux definition and penalty weights determine units.
     """
     return fused_stage_two_values(problem, parameters)[0]

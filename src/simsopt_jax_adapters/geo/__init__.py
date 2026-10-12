@@ -1,17 +1,17 @@
 """Legacy geometry-object adapters for ``simsopt_jax``."""
 
 from .curve_objectives import (
-    CurveCurveDistanceJAX,
-    CurveLengthJAX,
-    CurveSurfaceDistanceJAX,
-    LpCurveCurvatureJAX,
-    MeanSquaredCurvatureJAX,
+    JaxCurveCurveDistance,
+    JaxCurveLength,
+    JaxCurveSurfaceDistance,
+    JaxLpCurveCurvature,
+    JaxMeanSquaredCurvature,
 )
 
 __all__ = (
-    "CurveCurveDistanceJAX",
-    "CurveLengthJAX",
-    "CurveSurfaceDistanceJAX",
-    "LpCurveCurvatureJAX",
-    "MeanSquaredCurvatureJAX",
+    "JaxCurveCurveDistance",
+    "JaxCurveLength",
+    "JaxCurveSurfaceDistance",
+    "JaxLpCurveCurvature",
+    "JaxMeanSquaredCurvature",
 )

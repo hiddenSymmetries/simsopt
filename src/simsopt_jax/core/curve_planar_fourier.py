@@ -53,6 +53,19 @@ def _quaternion_rotation_matrix(quaternion):
 
 
 def curveplanarfourier_pure(dofs, quadpoints, order):
+    """Evaluate the CurvePlanarFourier Fourier geometry.
+
+    Args:
+        dofs (array-like): Shape (2 * order + 8,); radial cosine and sine coefficients
+            in meters, four dimensionless quaternion components (scalar first), then xyz
+            center in meters.
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+
+    Returns:
+        jax.Array: Cartesian curve positions, shape (Q, 3), in meters.
+    """
     rc_end = order + 1
     rs_end = rc_end + order
 
