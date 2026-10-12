@@ -7,8 +7,6 @@ from .config import parameters
 
 if "JAX_PLATFORMS" not in os.environ and "JAX_PLATFORM_NAME" not in os.environ:
     jax.config.update("jax_platform_name", "cpu")
-if "JAX_ENABLE_X64" not in os.environ:
-    jax.config.update("jax_enable_x64", True)
 
 
 def native_jax_device():
@@ -21,6 +19,10 @@ def native_jax_device():
     transfer implicitly in their coefficient VJP; this guarantee does not
     extend to those paths. With CUDA alone (``JAX_PLATFORMS=cuda``), the length
     kernels use the default device through the same explicit transfers.
+
+    Returns:
+        jax.Device object: First CPU device when CPU is enabled, otherwise the
+            first default device.
     """
     platforms = jax.config.jax_platforms
     if platforms and "cpu" not in platforms.split(","):

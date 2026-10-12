@@ -28,7 +28,18 @@ def _pairwise_reduce_axis0(array):
 
 
 def pairwise_sum_axis(array, *, axis: int):
-    """Reduce ``array`` along ``axis`` using a fixed binary addition tree."""
+    """Reduce ``array`` along ``axis`` using a fixed binary addition tree.
+
+    Args:
+        array (jax.Array): Input of any nonscalar shape; finite values are assumed for
+            zero padding.
+        axis (int): Reduction axis; negative values count from the end.
+
+    Returns:
+        jax.Array: Sum of shape equal to the input shape with axis removed,
+            retaining the input dtype for nonempty reductions; empty axes use
+            jnp.sum dtype rules.
+    """
     axis_index = axis if axis >= 0 else array.ndim + axis
     axis_size = array.shape[axis_index]
     if axis_size == 0:

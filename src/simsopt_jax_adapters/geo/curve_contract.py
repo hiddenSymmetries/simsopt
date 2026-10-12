@@ -12,7 +12,15 @@ from simsopt_jax.core.specs import make_optimizable_dof_map_spec
 
 
 def adapter_curve_dof_mode(curve: object) -> str:
-    """Choose the DOF vector consumed by an adapter curve's immutable spec."""
+    """Choose the DOF vector consumed by an adapter curve's immutable spec.
+
+    Args:
+        curve (object): Native or custom curve supplying an immutable geometry contract.
+
+    Returns:
+        str: full for perturbed/filament wrappers; otherwise the curve
+            override or local by default.
+    """
     if isinstance(curve, (CurvePerturbed, CurveFilament)):
         return "full"
     return getattr(curve, "_jax_curve_dof_mode", "local")

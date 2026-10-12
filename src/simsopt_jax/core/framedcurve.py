@@ -71,6 +71,16 @@ def centroid_frame(
     * ``b = t x n``
 
     Equivalent to ``rotated_centroid_frame(gamma, gammadash, alpha=0)``.
+
+    Args:
+        gamma (jax.Array): Cartesian curve positions, shape (Q, 3), in meters.
+        gammadash (jax.Array): First derivative with respect to the normalized curve
+            parameter, shape (Q, 3), in meters.
+
+    Returns:
+        tuple[jax.Array, jax.Array, jax.Array]: Dimensionless unit tangent,
+            normal and binormal, each shape (Q, 3); nondegenerate tangent/frame
+            norms are required.
     """
     gamma_jax = _as_jax_float64(gamma)
     gammadash_jax = _as_jax_float64(gammadash)
@@ -96,6 +106,19 @@ def rotated_centroid_frame(
     Matches ``simsopt.geo.framedcurve.rotated_centroid_frame`` arithmetic
     line-for-line; suitable for direct-parity validation at the
     ``direct_kernel`` ladder lane.
+
+    Rotation uses n_rot = cos(alpha)*n - sin(alpha)*b and b_rot = sin(alpha)*n + cos(alpha)*b.
+
+    Args:
+        gamma (jax.Array): Cartesian curve positions, shape (Q, 3), in meters.
+        gammadash (jax.Array): First derivative with respect to the normalized curve
+            parameter, shape (Q, 3), in meters.
+        alpha (jax.Array): Normal/binormal rotation angles, shape (Q,), in radians.
+
+    Returns:
+        tuple[jax.Array, jax.Array, jax.Array]: Dimensionless unit tangent,
+            normal and binormal, each shape (Q, 3); nondegenerate tangent/frame
+            norms are required.
     """
     t, n, b = centroid_frame(gamma, gammadash)
     alpha_jax = _as_jax_float64(alpha)
@@ -123,6 +146,18 @@ def frenet_frame(
     depends only on ``gammadash`` and ``gammadashdash``.
 
     Equivalent to ``rotated_frenet_frame(gamma, gammadash, gammadashdash, alpha=0)``.
+
+    Args:
+        gamma (jax.Array): Cartesian curve positions, shape (Q, 3), in meters. Accepted
+            for API symmetry; the Frenet construction does not use positions.
+        gammadash (jax.Array): First derivative with respect to the normalized curve
+            parameter, shape (Q, 3), in meters.
+        gammadashdash (jax.Array): Second parameter derivative, shape (Q, 3), in meters.
+
+    Returns:
+        tuple[jax.Array, jax.Array, jax.Array]: Dimensionless unit tangent,
+            normal and binormal, each shape (Q, 3); nondegenerate tangent/frame
+            norms are required.
     """
     del gamma  # Retained for API symmetry; Frenet frame is curvature-only.
     gammadash_jax = _as_jax_float64(gammadash)
@@ -151,6 +186,21 @@ def rotated_frenet_frame(
     Matches ``simsopt.geo.framedcurve.rotated_frenet_frame`` arithmetic
     line-for-line; suitable for direct-parity validation at the
     ``direct_kernel`` ladder lane.
+
+    Rotation uses n_rot = cos(alpha)*n - sin(alpha)*b and b_rot = sin(alpha)*n + cos(alpha)*b.
+
+    Args:
+        gamma (jax.Array): Cartesian curve positions, shape (Q, 3), in meters. Accepted
+            for API symmetry; the Frenet construction does not use positions.
+        gammadash (jax.Array): First derivative with respect to the normalized curve
+            parameter, shape (Q, 3), in meters.
+        gammadashdash (jax.Array): Second parameter derivative, shape (Q, 3), in meters.
+        alpha (jax.Array): Normal/binormal rotation angles, shape (Q,), in radians.
+
+    Returns:
+        tuple[jax.Array, jax.Array, jax.Array]: Dimensionless unit tangent,
+            normal and binormal, each shape (Q, 3); nondegenerate tangent/frame
+            norms are required.
     """
     t, n, b = frenet_frame(gamma, gammadash, gammadashdash)
     alpha_jax = _as_jax_float64(alpha)
@@ -172,6 +222,22 @@ def rotated_centroid_frame_dash(
     It is built as the JVP of ``rotated_centroid_frame`` against the
     tangent stack ``(gammadash, gammadashdash, alphadash)`` so it matches
     the upstream lambda definition line-for-line.
+
+    Rotation uses n_rot = cos(alpha)*n - sin(alpha)*b and b_rot = sin(alpha)*n + cos(alpha)*b.
+
+    Args:
+        gamma (jax.Array): Cartesian curve positions, shape (Q, 3), in meters.
+        gammadash (jax.Array): First derivative with respect to the normalized curve
+            parameter, shape (Q, 3), in meters.
+        gammadashdash (jax.Array): Second parameter derivative, shape (Q, 3), in meters.
+        alpha (jax.Array): Normal/binormal rotation angles, shape (Q,), in radians.
+        alphadash (jax.Array): Angle derivative with respect to the normalized
+            parameter, shape (Q,), in radians.
+
+    Returns:
+        tuple[jax.Array, jax.Array, jax.Array]: Parameter derivatives of
+            tangent, normal and binormal, each shape (Q, 3), dimensionless per
+            unit normalized parameter.
     """
 
     def _frame(gamma_in, gammadash_in, alpha_in):
@@ -204,6 +270,25 @@ def rotated_frenet_frame_dash(
 
     Built as the JVP of ``rotated_frenet_frame`` against the tangent
     stack ``(gammadash, gammadashdash, gammadashdashdash, alphadash)``.
+
+    Rotation uses n_rot = cos(alpha)*n - sin(alpha)*b and b_rot = sin(alpha)*n + cos(alpha)*b.
+
+    Args:
+        gamma (jax.Array): Cartesian curve positions, shape (Q, 3), in meters. Accepted
+            for API symmetry; the Frenet construction does not use positions.
+        gammadash (jax.Array): First derivative with respect to the normalized curve
+            parameter, shape (Q, 3), in meters.
+        gammadashdash (jax.Array): Second parameter derivative, shape (Q, 3), in meters.
+        gammadashdashdash (jax.Array): Third parameter derivative, shape (Q, 3), in
+            meters.
+        alpha (jax.Array): Normal/binormal rotation angles, shape (Q,), in radians.
+        alphadash (jax.Array): Angle derivative with respect to the normalized
+            parameter, shape (Q,), in radians.
+
+    Returns:
+        tuple[jax.Array, jax.Array, jax.Array]: Parameter derivatives of
+            tangent, normal and binormal, each shape (Q, 3), dimensionless per
+            unit normalized parameter.
     """
 
     def _frame(gamma_in, gammadash_in, gammadashdash_in, alpha_in):

@@ -12,7 +12,22 @@ from ._math_utils import as_jax_float64 as _as_jax_float64
 
 
 def curve_helical_pure(dofs, quadpoints, order, m, ell, R0, r):
-    """Pure function for the position vector used by CurveHelical."""
+    """Pure function for the position vector used by CurveHelical.
+
+    Args:
+        dofs (array-like): Shape (2 * order + 1,), angular coefficients in radians; A
+            cosine modes including zero, then B sine modes starting at one.
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+        m (int): Helical poloidal winding count.
+        ell (int): Nonzero helical toroidal winding count.
+        R0 (float): Major radius in meters.
+        r (float): Minor radius in meters.
+
+    Returns:
+        jax.Array: Cartesian curve positions, shape (Q, 3), in meters.
+    """
     dofs = _as_jax_float64(dofs)
     quadpoints = _as_jax_float64(quadpoints)
     A = jax.lax.slice_in_dim(dofs, 0, order + 1, axis=0)
