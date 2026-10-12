@@ -7,13 +7,16 @@ penalties keep the native evaluation boundary: native evaluates the dense
 formula only for candidate pairs (``simsoptpp``'s candidate search: some point
 pair closer than the minimum distance) and skips every other pair. The caller
 passes that decision: the drop-in objectives take it from ``simsoptpp`` itself,
-the fused objective from :func:`distance_candidate_pure`.
+the fused objective from :func:`distance_candidate_pure`. Caller NumPy arrays
+are snapshotted at each public boundary; device arrays and tracers pass through.
 """
 
 from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+
+from simsopt_jax.runtime.host_boundary import snapshot_host_tree
 
 from ._device_scalars import staged_like
 
@@ -29,14 +32,24 @@ __all__ = [
 
 
 def distance_candidate_pure(points1, points2, minimum_distance):
-    """Whether two points of ``points1`` and ``points2`` are closer than ``d_min``.
+    """Test whether any sampled point pair is strictly closer than the threshold.
 
-    The final test of ``simsoptpp``'s candidate search, in its expression:
-    ``dx*dx + dy*dy + dz*dz < d_min*d_min`` with ``d = points1_i - points2_j``.
-    Where its compiler, or XLA, contracts these products into fused
-    multiply-adds, the last bit of the squared distance, and so a pair at
-    exactly the threshold, can be classified differently from the native build.
+    The squared-distance comparison mirrors the native candidate search; fused
+    multiply-add rounding can change classification exactly at the threshold.
+
+    Args:
+        points1: Array of shape (n, 3), positions in m.
+        points2: Array of shape (k, 3), positions in m.
+        minimum_distance: float scalar, distance threshold in m.
+
+    Returns:
+        Array: bool scalar candidate decision.
     """
+    points1, points2, minimum_distance = snapshot_host_tree(
+        (points1, points2, minimum_distance)
+    )
+    points1 = jnp.asarray(points1, dtype=jnp.float64)
+    points2 = jnp.asarray(points2, dtype=jnp.float64)
     delta = points1[:, None, :] - points2[None, :, :]
     squared_distances = (
         delta[..., 0] * delta[..., 0] + delta[..., 1] * delta[..., 1] + delta[..., 2] * delta[..., 2]
@@ -68,36 +81,97 @@ def _candidate_pair_penalty(points1, weights1, points2, weights2, minimum_distan
     return jnp.where(candidate, penalty, zero)
 
 
-@jax.jit
 def curve_length_from_incremental_arclength_pure(incremental_arclength):
-    """Return the curve length, the mean of the incremental arclengths."""
+    """Compute length by averaging the speed over a unit-period quadrature grid.
+
+    Args:
+        incremental_arclength: Array of shape (n,), speed in m per unit parameter.
+
+    Returns:
+        Array: scalar curve length in m.
+    """
+    inputs = snapshot_host_tree((incremental_arclength,))
+    return _curve_length_from_incremental_arclength_pure(*inputs)
+
+
+@jax.jit
+def _curve_length_from_incremental_arclength_pure(incremental_arclength):
+    """Compiled formula; the public boundary owns caller NumPy buffers."""
     return jnp.mean(incremental_arclength)
 
 
-@jax.jit
 def kappa_pure(d1gamma, d2gamma):
-    """Return pointwise curvature for first and second curve derivatives."""
+    """Compute curvature as |gamma prime cross gamma double prime| / |gamma prime|^3.
+
+    Args:
+        d1gamma: Array of shape (n, 3), derivative in m with respect to the unit-period parameter.
+        d2gamma: Array of shape (n, 3), second parameter derivative in m.
+
+    Returns:
+        Array of shape (n,): curvature in 1/m.
+    """
+    inputs = snapshot_host_tree((d1gamma, d2gamma))
+    return _kappa_pure(*inputs)
+
+
+@jax.jit
+def _kappa_pure(d1gamma, d2gamma):
+    """Compiled formula; the public boundary owns caller NumPy buffers."""
     return (
         jnp.linalg.norm(jnp.cross(d1gamma, d2gamma), axis=1)
         / jnp.linalg.norm(d1gamma, axis=1) ** 3
     )
 
 
-@jax.jit
 def curvature_p_norm_from_kappa_pure(kappa, gammadash, p, desired_kappa):
-    """Return ``(1/p) mean(max(kappa - desired_kappa, 0)^p |gammadash|)`` (LpCurveCurvature)."""
-    p_jax = jnp.asarray(p, dtype=kappa.dtype)
-    desired_kappa_jax = jnp.asarray(desired_kappa, dtype=kappa.dtype)
-    zero = jnp.asarray(0.0, dtype=kappa.dtype)
-    one = jnp.asarray(1.0, dtype=kappa.dtype)
+    """Compute (1/p) mean(max(kappa - desired_kappa, 0)^p |gammadash|).
+
+    This is the native integral penalty without a p-th root.
+
+    Args:
+        kappa: Array of shape (n,), curvature in 1/m.
+        gammadash: Array of shape (n, 3), derivative in m with respect to the unit-period parameter.
+        p: float scalar, dimensionless exponent.
+        desired_kappa: float scalar, curvature threshold in 1/m.
+
+    Returns:
+        Array: scalar penalty in m^(1-p).
+    """
+    inputs = snapshot_host_tree((kappa, gammadash, p, desired_kappa))
+    return _curvature_p_norm_from_kappa_pure(*inputs)
+
+
+@jax.jit
+def _curvature_p_norm_from_kappa_pure(kappa, gammadash, p, desired_kappa):
+    """Compiled formula; the public boundary owns caller NumPy buffers."""
+    kappa = jnp.asarray(kappa, dtype=jnp.float64)
+    gammadash = jnp.asarray(gammadash, dtype=jnp.float64)
+    p_jax = jnp.asarray(p, dtype=jnp.float64)
+    desired_kappa_jax = jnp.asarray(desired_kappa, dtype=jnp.float64)
+    zero = jnp.asarray(0.0, dtype=jnp.float64)
+    one = jnp.asarray(1.0, dtype=jnp.float64)
     arc_length = jnp.linalg.norm(gammadash, axis=1)
     excess = jnp.maximum(kappa - desired_kappa_jax, zero)
     return (one / p_jax) * jnp.mean((excess**p_jax) * arc_length)
 
 
-@jax.jit
 def mean_squared_curvature_pure(kappa, gammadash):
-    """Return ``mean(kappa^2 |gammadash|) / mean(|gammadash|)`` (MeanSquaredCurvature)."""
+    """Compute mean(kappa^2 |gammadash|) / mean(|gammadash|).
+
+    Args:
+        kappa: Array of shape (n,), curvature in 1/m.
+        gammadash: Array of shape (n, 3), derivative in m with respect to the unit-period parameter.
+
+    Returns:
+        Array: scalar arclength-averaged squared curvature in 1/m^2.
+    """
+    inputs = snapshot_host_tree((kappa, gammadash))
+    return _mean_squared_curvature_pure(*inputs)
+
+
+@jax.jit
+def _mean_squared_curvature_pure(kappa, gammadash):
+    """Compiled formula; the public boundary owns caller NumPy buffers."""
     arc_length = jnp.linalg.norm(gammadash, axis=1)
     return jnp.mean(kappa**2 * arc_length) / jnp.mean(arc_length)
 
@@ -110,16 +184,30 @@ def curve_curve_distance_penalty_pure(
     minimum_distance,
     candidate,
 ):
-    """Return one curve pair's CurveCurveDistance term.
+    """Evaluate one native curve-pair distance penalty.
 
-    ``sum(|gammadash1_i| |gammadash2_j| max(d_min - |gamma1_i - gamma2_j|, 0)^2)``
-    divided by the number of point pairs, for a candidate pair (``candidate``
-    true); else 0.
+    The term is mean(|gammadash1_i| |gammadash2_j|
+    max(minimum_distance - |gamma1_i - gamma2_j|, 0)^2) over all point pairs
+    of a candidate pair; otherwise it is zero.
+
+    Args:
+        gamma1: Array of shape (n, 3), positions in m.
+        gammadash1: Array of shape (n, 3), derivative in m with respect to the unit-period parameter.
+        gamma2: Array of shape (k, 3), second curve positions in m.
+        gammadash2: Array of shape (k, 3), second curve parameter derivative in m.
+        minimum_distance: float scalar, distance threshold in m.
+        candidate: bool scalar, native candidate-search decision; false gives zero value and gradient.
+
+    Returns:
+        Array: scalar penalty in m^4.
     """
-    gamma1 = jnp.asarray(gamma1)
-    gammadash1 = jnp.asarray(gammadash1)
-    gamma2 = jnp.asarray(gamma2, dtype=gamma1.dtype)
-    gammadash2 = jnp.asarray(gammadash2, dtype=gamma1.dtype)
+    gamma1, gammadash1, gamma2, gammadash2, minimum_distance, candidate = snapshot_host_tree(
+        (gamma1, gammadash1, gamma2, gammadash2, minimum_distance, candidate)
+    )
+    gamma1 = jnp.asarray(gamma1, dtype=jnp.float64)
+    gammadash1 = jnp.asarray(gammadash1, dtype=jnp.float64)
+    gamma2 = jnp.asarray(gamma2, dtype=jnp.float64)
+    gammadash2 = jnp.asarray(gammadash2, dtype=jnp.float64)
     normalization = staged_like(gamma1, int(gamma1.shape[0]) * int(gamma2.shape[0]))
     return _candidate_pair_penalty(
         gamma1, gammadash1, gamma2, gammadash2, minimum_distance, candidate,
@@ -135,16 +223,30 @@ def curve_surface_distance_penalty_pure(
     minimum_distance,
     candidate,
 ):
-    """Return one curve's CurveSurfaceDistance term.
+    """Evaluate one native curve-surface distance penalty.
 
-    ``mean(|gammadash_i| |n_j| max(d_min - |gamma_i - x_j|, 0)^2)`` over curve
-    points ``i`` and surface points ``x_j`` with (unnormalized) normals ``n_j``,
-    for a candidate curve (``candidate`` true); else 0.
+    The term is mean(|curve_gammadash_i| |surface_normal_j|
+    max(minimum_distance - |curve_gamma_i - surface_gamma_j|, 0)^2)
+    over all point pairs of a candidate curve; otherwise it is zero.
+
+    Args:
+        curve_gamma: Array of shape (n, 3), positions in m.
+        curve_gammadash: Array of shape (n, 3), derivative in m with respect to the unit-period parameter.
+        surface_gamma: Array of shape (k, 3), flattened surface positions in m.
+        surface_normal: Array of shape (k, 3), unnormalized surface normals in m^2.
+        minimum_distance: float scalar, distance threshold in m.
+        candidate: bool scalar, native candidate-search decision; false gives zero value and gradient.
+
+    Returns:
+        Array: scalar penalty in m^5.
     """
-    curve_gamma = jnp.asarray(curve_gamma)
-    curve_gammadash = jnp.asarray(curve_gammadash)
-    surface_gamma = jnp.asarray(surface_gamma, dtype=curve_gamma.dtype)
-    surface_normal = jnp.asarray(surface_normal, dtype=curve_gamma.dtype)
+    curve_gamma, curve_gammadash, surface_gamma, surface_normal, minimum_distance, candidate = snapshot_host_tree(
+        (curve_gamma, curve_gammadash, surface_gamma, surface_normal, minimum_distance, candidate)
+    )
+    curve_gamma = jnp.asarray(curve_gamma, dtype=jnp.float64)
+    curve_gammadash = jnp.asarray(curve_gammadash, dtype=jnp.float64)
+    surface_gamma = jnp.asarray(surface_gamma, dtype=jnp.float64)
+    surface_normal = jnp.asarray(surface_normal, dtype=jnp.float64)
     return _candidate_pair_penalty(
         curve_gamma, curve_gammadash, surface_gamma, surface_normal, minimum_distance, candidate,
         jnp.mean,

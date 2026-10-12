@@ -1,5 +1,5 @@
 """Native objective adapters for ``simsopt_jax``."""
 
-from .flux import SquaredFluxJAX
+from .flux import JaxSquaredFlux
 
-__all__ = ("SquaredFluxJAX",)
+__all__ = ("JaxSquaredFlux",)

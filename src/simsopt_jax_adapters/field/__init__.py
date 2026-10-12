@@ -1,21 +1,21 @@
 """Legacy field-object adapters for ``simsopt_jax``."""
 
-from .biotsavart_backend import BiotSavartJAX
+from .biotsavart_backend import JaxBiotSavart
 from .force import (
-    B2EnergyJAX,
-    LpCurveForceJAX,
-    LpCurveTorqueJAX,
-    NetFluxesJAX,
-    SquaredMeanForceJAX,
-    SquaredMeanTorqueJAX,
+    JaxB2Energy,
+    JaxLpCurveForce,
+    JaxLpCurveTorque,
+    JaxNetFluxes,
+    JaxSquaredMeanForce,
+    JaxSquaredMeanTorque,
 )
 
 __all__ = (
-    "B2EnergyJAX",
-    "BiotSavartJAX",
-    "LpCurveForceJAX",
-    "LpCurveTorqueJAX",
-    "NetFluxesJAX",
-    "SquaredMeanForceJAX",
-    "SquaredMeanTorqueJAX",
+    "JaxB2Energy",
+    "JaxBiotSavart",
+    "JaxLpCurveForce",
+    "JaxLpCurveTorque",
+    "JaxNetFluxes",
+    "JaxSquaredMeanForce",
+    "JaxSquaredMeanTorque",
 )

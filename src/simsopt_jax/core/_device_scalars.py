@@ -38,6 +38,14 @@ def device_one(reference: jax.Array) -> jax.Array:
     cotangent.  When ``c`` dwarfs that cotangent -- ``mu0/4pi`` scaling a field
     whose currents are its reference -- the sum ``(g + c) - c`` keeps only
     ``u |c|`` of ``g``'s accuracy.
+
+    Args:
+        reference (jax.Array): Reference array of any shape whose dtype and execution
+            placement are used.
+
+    Returns:
+        jax.Array: Dimensionless scalar 1, shape (), with zero cotangent;
+            finite reference values are assumed.
     """
     return jax.lax.stop_gradient(jnp.exp(jnp.sum(reference - reference)))
 
@@ -70,6 +78,14 @@ def placement_zero(reference: jax.Array) -> jax.Array:
     select of the zero over the input tangent's sum: it depends on the input
     tangent (so it stays on device), its value is exactly 0.0 for any tangent,
     NaN and infinities included, and its transpose sends exactly 0.0 back.
+
+    Args:
+        reference (jax.Array): Reference array of any shape whose dtype and execution
+            placement are used.
+
+    Returns:
+        jax.Array: Exact scalar +0, shape (), with the reference dtype and
+            placement, including exact placed zero tangents/cotangents.
     """
     return _placed_zero(reference)
 
@@ -85,6 +101,16 @@ def _placement_zero_jvp(primals, tangents):
 
 
 def two_pi(reference: jax.Array) -> jax.Array:
+    """Return 2*pi with the reference dtype and placement.
+
+    Args:
+        reference (jax.Array): Reference array of any shape whose dtype and execution
+            placement are used.
+
+    Returns:
+        jax.Array: Dimensionless scalar 2*pi, shape (), with the reference
+            dtype and placement.
+    """
     pi = jnp.arccos(-device_one(reference))
     return pi + pi
 
@@ -95,6 +121,18 @@ def staged_like(reference: jax.Array, host_value, *, dtype=None) -> jax.Array:
     A host value is placed with the reference; so is a concrete device array
     held elsewhere (an explicit transfer), so the result always joins the
     reference in one program. Under a trace the value is converted in place.
+
+    Args:
+        reference (jax.Array): Reference array of any shape whose dtype and execution
+            placement are used.
+        host_value (array-like): Value to stage, of any shape; may also be a concrete
+            JAX array or tracer.
+        dtype (dtype-like or None): Requested dtype; None uses reference.dtype.
+
+    Returns:
+        jax.Array: Staged value with the input value shape and resolved dtype.
+            Concrete placement follows the reference; under tracing placement
+            belongs to the compiled program.
     """
     reference = jnp.asarray(reference)
     resolved_dtype = reference.dtype if dtype is None else np.dtype(dtype)
