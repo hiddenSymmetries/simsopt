@@ -282,7 +282,10 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
     (:obj:`~simsopt.geo.surfacerzfourier.SurfaceRZFourier`) before
     each run of VMEC. You can replace ``boundary`` with a new surface
     object, of any type that implements the conversion function
-    ``to_RZFourier()``.
+    ``to_RZFourier()``. Only boundary modes with ``m < indata.mpol``
+    reach VMEC; higher ``m`` modes, such as the ``m == mpol`` row of a
+    boundary initialized from the input file, are ignored although they
+    remain dofs. VMEC2000 has always behaved this way.
 
     VMEC is run either when the :meth:`run()` function is called, or when
     any of the output functions like :meth:`aspect()` or :meth:`iota_axis()`
@@ -383,7 +386,9 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
     Args:
         filename: Name of a VMEC ``input.<extension>`` file or ``wout_<extension>.nc``
           output file to use for loading the
-          initial parameters. If ``None``, default parameters will be used.
+          initial parameters. With a ``VmecppSolver``, a VMEC++
+          ``<name>.json`` input file is also accepted. If ``None``, default
+          parameters will be used.
         mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which
           the worker groups will be used for VMEC calculations. If ``None``,
           each MPI process will run VMEC independently.
@@ -391,9 +396,9 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
           except for the first and most recent ones from worker group 0. If
           ``True``, all ``wout`` files will be kept.
         verbose: Whether to print to stdout when running vmec.
-        solver: A new :obj:`VmecSolverProtocol` instance, constructed with
-          backend options only, to run instead of the default
-          :obj:`~simsopt.mhd.vmec_solver.Vmec2000Solver`. It is initialized
+        solver: A new :obj:`VmecSolverProtocol` instance, e.g.
+          ``Vmec2000Solver()``, to run instead of the default
+          :obj:`~simsopt.mhd.vmecpp_solver.VmecppSolver`. It is initialized
           with ``filename``, ``mpi``, ``keep_all_files`` and ``verbose``.
 
     Attributes:
@@ -425,7 +430,10 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
             logger.info(f"Initializing a VMEC object from defaults in {filename}")
 
         basename = os.path.basename(filename)
-        if basename[:5] == 'input':
+        # Fortran VMEC input files are called input.<extension>; VMEC++
+        # also accepts a JSON input file, whose name need not start with
+        # "input".
+        if basename[:5] == 'input' or basename.endswith('.json'):
             logger.info(f"Initializing a VMEC object from input file: {filename}")
             self.runnable = True
         elif basename[:4] == 'wout':
@@ -453,8 +461,6 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
         self.n_iota = 10
 
         if self.runnable:
-            if MPI is None:
-                raise RuntimeError("mpi4py needs to be installed for running VMEC")
             if solver is None:
                 solver = cast(VmecSolverProtocol[IndataT, WoutT], Vmec2000Solver())
             elif isinstance(solver, type):
@@ -542,6 +548,10 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
                 "Cannot access indata for a Vmec object that was initialized from a wout file."
             )
         return self._solver.indata
+
+    @property
+    def free_boundary(self) -> bool:
+        return bool(self.indata.lfreeb)
 
     @property
     def wout(self) -> Any:
@@ -882,8 +892,11 @@ class Vmec(Optimizable, Generic[IndataT, WoutT]):
         """
         Print the object in an informative way.
         """
-        return f"{self.name} (nfp={self.indata.nfp} mpol={self.indata.mpol}" + \
-               f" ntor={self.indata.ntor})"
+        # Backends that support a Fourier continuation schedule resolve
+        # it in their `resolution`, so indata.mpol may be a sequence.
+        mpol, ntor = getattr(self._solver, "resolution",
+                             (self.indata.mpol, self.indata.ntor))
+        return f"{self.name} (nfp={self.indata.nfp} mpol={mpol} ntor={ntor})"
 
     def external_current(self):
         """
