@@ -90,13 +90,28 @@ def host_resident_spec(spec: _SpecT) -> _SpecT:
     must NOT be host-resident -- that placement is the argument's own implicit
     host-to-device transfer. The read-back goes through the host-boundary
     owner so it is audited like every other device-to-host crossing.
+
+    Args:
+        spec (pytree): Immutable spec whose array leaves have arbitrary shape.
+
+    Returns:
+        pytree object: Same spec structure with array leaves materialized on
+            the host, preserving each leaf shape and dtype.
     """
     return host_value(spec)
 
 
 @pytree_dataclass(data=("dofs", "quadpoints"), meta=("order",))
 class CurveXYZFourierSpec:
-    """Immutable payload for pure JAX CurveXYZFourier geometry."""
+    """Immutable payload for pure JAX CurveXYZFourier geometry.
+
+    Args:
+        dofs (jax.Array): Shape (3 * (2 * order + 1),), in meters; x, y, z blocks each
+            use constant, sin(1), cos(1), ..., sin(order), cos(order).
+        quadpoints (jax.Array): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+    """
 
     dofs: jax.Array
     quadpoints: jax.Array
@@ -105,7 +120,16 @@ class CurveXYZFourierSpec:
 
 @pytree_dataclass(data=("dofs", "quadpoints"), meta=("order",))
 class OrientedCurveXYZFourierSpec:
-    """Immutable payload for pure JAX OrientedCurveXYZFourier geometry."""
+    """Immutable payload for pure JAX OrientedCurveXYZFourier geometry.
+
+    Args:
+        dofs (jax.Array): Shape (6 + 6 * order,); translation xyz in meters,
+            yaw/pitch/roll in radians, then x/y/z sine/cosine blocks in meters with no
+            constant modes.
+        quadpoints (jax.Array): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+    """
 
     dofs: jax.Array
     quadpoints: jax.Array
@@ -117,7 +141,18 @@ class OrientedCurveXYZFourierSpec:
     meta=("order", "nfp", "stellsym"),
 )
 class CurveRZFourierSpec:
-    """Immutable payload for pure JAX CurveRZFourier geometry."""
+    """Immutable payload for pure JAX CurveRZFourier geometry.
+
+    Args:
+        dofs (jax.Array): In meters; shape (2 * order + 1,) for symmetry with [rc, zs],
+            otherwise (4 * order + 2,) with [rc, rs, zc, zs]. Cosine blocks include mode
+            zero.
+        quadpoints (jax.Array): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+        nfp (int): Number of field periods; positive and static during tracing.
+        stellsym (bool): Use stellarator-symmetric Fourier coefficient restrictions.
+    """
 
     dofs: jax.Array
     quadpoints: jax.Array
@@ -128,7 +163,16 @@ class CurveRZFourierSpec:
 
 @pytree_dataclass(data=("dofs", "quadpoints"), meta=("order",))
 class CurvePlanarFourierSpec:
-    """Immutable payload for pure JAX CurvePlanarFourier geometry."""
+    """Immutable payload for pure JAX CurvePlanarFourier geometry.
+
+    Args:
+        dofs (jax.Array): Shape (2 * order + 8,); radial cosine and sine coefficients in
+            meters, four dimensionless quaternion components (scalar first), then xyz
+            center in meters.
+        quadpoints (jax.Array): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+    """
 
     dofs: jax.Array
     quadpoints: jax.Array
@@ -140,7 +184,19 @@ class CurvePlanarFourierSpec:
     meta=("order", "m", "ell", "R0", "r"),
 )
 class CurveHelicalSpec:
-    """Immutable payload for pure JAX CurveHelical geometry."""
+    """Immutable payload for pure JAX CurveHelical geometry.
+
+    Args:
+        dofs (jax.Array): Shape (2 * order + 1,), angular coefficients in radians; A
+            cosine modes including zero, then B sine modes starting at one.
+        quadpoints (jax.Array): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+        m (int): Helical poloidal winding count.
+        ell (int): Nonzero helical toroidal winding count.
+        R0 (float): Major radius in meters.
+        r (float): Minor radius in meters.
+    """
 
     dofs: jax.Array
     quadpoints: jax.Array
@@ -162,6 +218,17 @@ class CurveXYZFourierSymmetriesSpec:
     constructor parameters needed by ``jaxXYZFourierSymmetriescurve_pure``.
     ``nfp`` and ``ntor`` must be coprime (enforced at host-side construction;
     the spec is the frozen runtime payload).
+
+    Args:
+        dofs (jax.Array): In meters; shape (3 * order + 1,) with [xc, ys, zs] under
+            symmetry, otherwise (6 * order + 3,) with [xc, xs, yc, ys, zc, zs]. Cosine
+            blocks include mode zero.
+        quadpoints (jax.Array): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+        nfp (int): Number of field periods; positive and static during tracing.
+        stellsym (bool): Use stellarator-symmetric Fourier coefficient restrictions.
+        ntor (int): Toroidal winding count, coprime to nfp.
     """
 
     dofs: jax.Array
@@ -177,7 +244,19 @@ class CurveXYZFourierSymmetriesSpec:
     meta=("owner_segments", "input_mode", "input_start", "input_end"),
 )
 class OptimizableDofMapSpec:
-    """Immutable mapping from an owner's full DOF vector into one nested Optimizable."""
+    """Immutable map from owner DOFs to a full local template or its requested slice.
+
+    Args:
+        template_full_dofs (jax.Array): Baseline full local DOFs, shape (D_full,),
+            including fixed entries.
+        owner_segments (tuple[tuple[int, int, int, int], ...]): Half-open (owner_start,
+            owner_end, target_start, target_end) copy ranges from owner DOFs into the
+            full template.
+        input_mode (str): full selects all reconstructed DOFs; any other value selects
+            the local slice input_start:input_end.
+        input_start (int): Inclusive start index of the requested local slice.
+        input_end (int): Exclusive end of that slice.
+    """
 
     template_full_dofs: jax.Array
     owner_segments: tuple[tuple[int, int, int, int], ...]
@@ -191,7 +270,16 @@ class OptimizableDofMapSpec:
     meta=("order", "scale"),
 )
 class FrameRotationSpec:
-    """Immutable payload for pure JAX FrameRotation evaluation."""
+    """Immutable payload for pure JAX FrameRotation evaluation.
+
+    Args:
+        dofs (jax.Array): Shape (2 * order + 1,), coefficients ordered constant, sin(1),
+            cos(1), ...; scale converts their values into radians.
+        quadpoints (jax.Array): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+        scale (float): Dimensionless multiplier applied to the Fourier rotation angle.
+    """
 
     dofs: jax.Array
     quadpoints: jax.Array
@@ -201,14 +289,24 @@ class FrameRotationSpec:
 
 @pytree_dataclass(data=("quadpoints",), meta=())
 class ZeroRotationSpec:
-    """Immutable zero-rotation payload."""
+    """Immutable zero-rotation payload.
+
+    Args:
+        quadpoints (jax.Array): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+    """
 
     quadpoints: jax.Array
 
 
 @pytree_dataclass(data=("value",), meta=())
 class CurrentValueSpec:
-    """Immutable scalar-current payload."""
+    """Immutable scalar-current payload.
+
+    Args:
+        value (jax.Array): Current value in amperes, shape (1,), as consumed by coil
+            reconstruction.
+    """
 
     value: jax.Array
 
@@ -218,7 +316,14 @@ class CurrentValueSpec:
     meta=("scale", "has_rotation"),
 )
 class CoilSymmetrySpec:
-    """Immutable rotation/scale payload for symmetric coil replicas."""
+    """Immutable rotation/scale payload for symmetric coil replicas.
+
+    Args:
+        rotmat (jax.Array): Shape (3, 3) row-vector spatial rotation/reflection matrix.
+        scale (float): Dimensionless multiplier applied to the replica current,
+            including sign reversal for reflection.
+        has_rotation (bool): Whether to apply rotmat to curve positions and tangents.
+    """
 
     rotmat: jax.Array
     scale: float
@@ -227,7 +332,14 @@ class CoilSymmetrySpec:
 
 @pytree_dataclass(data=("curve", "current", "symmetry"), meta=())
 class CoilSpec:
-    """Immutable coil payload: curve identity, current, and spatial placement."""
+    """Immutable coil payload: curve identity, current, and spatial placement.
+
+    Args:
+        curve (CurveSpec): Immutable curve geometry, quadrature nodes and static
+            parameters.
+        current (CurrentValueSpec): Scalar coil-current payload in amperes.
+        symmetry (CoilSymmetrySpec): Spatial transform and current scaling.
+    """
 
     curve: CurveSpec
     current: CurrentValueSpec
@@ -254,6 +366,20 @@ class CoilDofExtractionSpec:
     this payload as an *argument* wants it device-resident, which is how the
     maker returns it; a program that *captures* it in a closure must first
     call ``host_resident_spec`` on it -- see that function for why.
+
+    Args:
+        curve (CurveSpec): Immutable curve geometry, quadrature nodes and static
+            parameters.
+        curve_map (OptimizableDofMapSpec): Map from owner DOFs into curve coefficients.
+        current_map (OptimizableDofMapSpec): Map from owner DOFs into the current value;
+            used when no term maps are supplied.
+        symmetry (CoilSymmetrySpec): Spatial transform and current scaling.
+        current_term_maps (tuple[OptimizableDofMapSpec, ...]): Independent current-term
+            maps; empty uses current_map.
+        current_term_scales (tuple[float, ...]): Dimensionless weights paired with
+            current_term_maps for a linear current expression.
+        curve_source_index (int or None): Shared-curve reconstruction key; None
+            reconstructs this coil independently.
     """
 
     curve: CurveSpec
@@ -267,14 +393,23 @@ class CoilDofExtractionSpec:
 
 @pytree_dataclass(data=("coils",), meta=())
 class CoilSetDofExtractionSpec:
-    """Immutable owner-DOF -> grouped-coil reconstruction payload."""
+    """Immutable owner-DOF -> grouped-coil reconstruction payload.
+
+    Args:
+        coils (tuple[CoilDofExtractionSpec, ...]): Per-coil reconstruction contracts in
+            public coil order.
+    """
 
     coils: tuple[CoilDofExtractionSpec, ...]
 
 
 @pytree_dataclass(data=("points",), meta=())
 class FieldEvalSpec:
-    """Immutable field-evaluation point cloud."""
+    """Immutable field-evaluation point cloud.
+
+    Args:
+        points (jax.Array): Cartesian evaluation points, shape (P, 3), in meters.
+    """
 
     points: jax.Array
 
@@ -284,7 +419,16 @@ class FieldEvalSpec:
     meta=("coil_indices",),
 )
 class CoilGroupSpec:
-    """One rectangular coil batch with a shared quadrature count."""
+    """One rectangular coil batch with a shared quadrature count.
+
+    Args:
+        gammas (jax.Array): Coil positions, shape (C, Q, 3), in meters.
+        gammadashs (jax.Array): Coil derivatives with respect to the normalized
+            parameter, shape (C, Q, 3), in meters.
+        currents (jax.Array): Coil currents, shape (C,), in amperes.
+        coil_indices (tuple[int, ...]): Original coil indices, one per batch row, shape
+            (C,) when represented as an index array.
+    """
 
     gammas: jax.Array
     gammadashs: jax.Array
@@ -292,27 +436,63 @@ class CoilGroupSpec:
     coil_indices: tuple[int, ...]
 
     def field_inputs(self) -> tuple[jax.Array, jax.Array, jax.Array]:
+        """Return the grouped geometry and current kernel inputs.
+
+        Returns:
+            tuple[jax.Array, jax.Array, jax.Array]: Geometry, tangents and
+                currents, shapes (C, Q, 3), (C, Q, 3), (C,), retaining the stored
+                arrays.
+        """
         return self.gammas, self.gammadashs, self.currents
 
     def as_grouped_data(self) -> tuple[jax.Array, jax.Array, jax.Array, list[int]]:
+        """Return kernel inputs together with original coil indices.
+
+        Returns:
+            tuple: Stored arrays of shapes (C, Q, 3), (C, Q, 3), (C,), followed by
+                a new list[int] of original coil indices.
+        """
         return self.gammas, self.gammadashs, self.currents, list(self.coil_indices)
 
 
 @pytree_dataclass(data=("groups",), meta=())
 class GroupedCoilSetSpec:
-    """Immutable grouped coil geometry/current payload."""
+    """Immutable grouped coil geometry/current payload.
+
+    Args:
+        groups (tuple[CoilGroupSpec, ...]): Rectangular batches, each with a shared
+            quadrature count.
+    """
 
     groups: tuple[CoilGroupSpec, ...]
 
     def field_inputs(self) -> tuple[tuple[jax.Array, jax.Array, jax.Array], ...]:
+        """Return kernel input triples in group order.
+
+        Returns:
+            tuple[tuple]: One (gammas, gammadashs, currents) tuple per group with
+                shapes (C, Q, 3), (C, Q, 3), (C,); group sizes may vary.
+        """
         return tuple(group.field_inputs() for group in self.groups)
 
     def coil_index_lists(self) -> tuple[tuple[int, ...], ...]:
+        """Return the original coil ordering for each quadrature group.
+
+        Returns:
+            tuple[tuple[int, ...], ...]: Original coil indices for each group in
+                matching row order.
+        """
         return tuple(group.coil_indices for group in self.groups)
 
     def as_grouped_data(
         self,
     ) -> tuple[tuple[jax.Array, jax.Array, jax.Array, list[int]], ...]:
+        """Return grouped kernel inputs and original coil indices.
+
+        Returns:
+            tuple[tuple]: Array triples of shapes (C, Q, 3), (C, Q, 3), (C,) and
+                new index lists, one tuple per group.
+        """
         return tuple(group.as_grouped_data() for group in self.groups)
 
 
@@ -333,7 +513,26 @@ RotationSpec = Union[FrameRotationSpec, ZeroRotationSpec]
     meta=(),
 )
 class CurvePerturbedSpec:
-    """Immutable wrapper payload for a perturbed base curve."""
+    """Immutable wrapper payload for a perturbed base curve.
+
+    Args:
+        dofs (jax.Array): Wrapper DOFs, shape (D,), including dependencies in the layout
+            described by base_curve_map.
+        quadpoints (jax.Array): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        base_curve (CurveSpec): Immutable geometry of the unperturbed or centerline
+            curve.
+        base_curve_map (OptimizableDofMapSpec): Map from wrapper DOFs to base-curve
+            inputs.
+        sample_gamma (jax.Array): Additive sampled position perturbation, shape (Q, 3),
+            in meters.
+        sample_gammadash (jax.Array): Additive first parameter-derivative perturbation,
+            shape (Q, 3), in meters.
+        sample_gammadashdash (jax.Array): Additive second parameter-derivative
+            perturbation, shape (Q, 3), in meters.
+        sample_gammadashdashdash (jax.Array): Additive third parameter-derivative
+            perturbation, shape (Q, 3), in meters.
+    """
 
     dofs: jax.Array
     quadpoints: jax.Array
@@ -357,7 +556,24 @@ class CurvePerturbedSpec:
     meta=("frame_kind", "dn", "db"),
 )
 class CurveFilamentSpec:
-    """Immutable wrapper payload for a finite-build filament curve."""
+    """Immutable wrapper payload for a finite-build filament curve.
+
+    Args:
+        dofs (jax.Array): Wrapper DOFs, shape (D,), including curve and rotation
+            dependencies in their mapped layouts.
+        quadpoints (jax.Array): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        base_curve (CurveSpec): Immutable geometry of the unperturbed or centerline
+            curve.
+        base_curve_map (OptimizableDofMapSpec): Map from wrapper DOFs to base-curve
+            inputs.
+        rotation (RotationSpec): Zero or Fourier rotation of the normal/binormal frame.
+        rotation_map (OptimizableDofMapSpec): Map from wrapper DOFs to rotation
+            coefficients.
+        frame_kind (str): centroid or frenet frame for the filament offset.
+        dn (float): Normal-frame filament offset in meters.
+        db (float): Binormal-frame filament offset in meters.
+    """
 
     dofs: jax.Array
     quadpoints: jax.Array
@@ -394,7 +610,15 @@ CurveSpecKind = Literal[
 
 
 def curve_spec_kind(spec: CurveSpec) -> CurveSpecKind:
-    """Return the closed discriminant for a curve spec variant."""
+    """Return the closed discriminant for a curve spec variant.
+
+    Args:
+        spec (CurveSpec): Immutable curve geometry, quadrature nodes and static
+            parameters.
+
+    Returns:
+        str: Closed discriminant identifying the supported curve-spec variant.
+    """
     if isinstance(spec, CurveXYZFourierSpec):
         return "xyz_fourier"
     if isinstance(spec, OrientedCurveXYZFourierSpec):
@@ -420,6 +644,21 @@ def make_coil_group_spec(
     currents: object,
     coil_indices: Iterable[int],
 ) -> CoilGroupSpec:
+    """Build an immutable CoilGroupSpec payload for JAX kernels.
+
+    Args:
+        gammas (array-like): Coil positions, shape (C, Q, 3), in meters.
+        gammadashs (array-like): Coil derivatives with respect to the normalized
+            parameter, shape (C, Q, 3), in meters.
+        currents (array-like): Coil currents, shape (C,), in amperes.
+        coil_indices (Iterable[int]): Original coil indices, one per batch row, shape
+            (C,) when represented as an index array.
+
+    Returns:
+        CoilGroupSpec object: Frozen pytree payload; newly converted array
+            leaves retain their argument shape, use float64 and
+            snapshot host NumPy inputs.
+    """
     return CoilGroupSpec(
         gammas=_as_float64_array(gammas),
         gammadashs=_as_float64_array(gammadashs),
@@ -434,6 +673,20 @@ def make_curve_xyzfourier_spec(
     quadpoints: object,
     order: int,
 ) -> CurveXYZFourierSpec:
+    """Build an immutable CurveXYZFourierSpec payload for JAX kernels.
+
+    Args:
+        dofs (array-like): Shape (3 * (2 * order + 1),), in meters; x, y, z blocks each
+            use constant, sin(1), cos(1), ..., sin(order), cos(order).
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+
+    Returns:
+        CurveXYZFourierSpec object: Frozen pytree payload; newly converted
+            array leaves retain their argument shape, use float64
+            and snapshot host NumPy inputs.
+    """
     return CurveXYZFourierSpec(
         dofs=_as_float64_array(dofs),
         quadpoints=_as_float64_array(quadpoints),
@@ -447,6 +700,21 @@ def make_oriented_curve_xyzfourier_spec(
     quadpoints: object,
     order: int,
 ) -> OrientedCurveXYZFourierSpec:
+    """Build an immutable OrientedCurveXYZFourierSpec payload for JAX kernels.
+
+    Args:
+        dofs (array-like): Shape (6 + 6 * order,); translation xyz in meters,
+            yaw/pitch/roll in radians, then x/y/z sine/cosine blocks in meters with no
+            constant modes.
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+
+    Returns:
+        OrientedCurveXYZFourierSpec object: Frozen pytree payload; newly
+            converted array leaves retain their argument shape, use runtime
+            floating precision and snapshot host NumPy inputs.
+    """
     return OrientedCurveXYZFourierSpec(
         dofs=_as_float64_array(dofs),
         quadpoints=_as_float64_array(quadpoints),
@@ -462,6 +730,23 @@ def make_curve_rzfourier_spec(
     nfp: int,
     stellsym: bool,
 ) -> CurveRZFourierSpec:
+    """Build an immutable CurveRZFourierSpec payload for JAX kernels.
+
+    Args:
+        dofs (array-like): In meters; shape (2 * order + 1,) for symmetry with [rc, zs],
+            otherwise (4 * order + 2,) with [rc, rs, zc, zs]. Cosine blocks include mode
+            zero.
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+        nfp (int): Number of field periods; positive and static during tracing.
+        stellsym (bool): Use stellarator-symmetric Fourier coefficient restrictions.
+
+    Returns:
+        CurveRZFourierSpec object: Frozen pytree payload; newly converted
+            array leaves retain their argument shape, use float64
+            and snapshot host NumPy inputs.
+    """
     return CurveRZFourierSpec(
         dofs=_as_float64_array(dofs),
         quadpoints=_as_float64_array(quadpoints),
@@ -480,6 +765,24 @@ def make_curve_xyzfouriersymmetries_spec(
     stellsym: bool,
     ntor: int,
 ) -> CurveXYZFourierSymmetriesSpec:
+    """Build an immutable CurveXYZFourierSymmetriesSpec payload for JAX kernels.
+
+    Args:
+        dofs (array-like): In meters; shape (3 * order + 1,) with [xc, ys, zs] under
+            symmetry, otherwise (6 * order + 3,) with [xc, xs, yc, ys, zc, zs]. Cosine
+            blocks include mode zero.
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+        nfp (int): Number of field periods; positive and static during tracing.
+        stellsym (bool): Use stellarator-symmetric Fourier coefficient restrictions.
+        ntor (int): Toroidal winding count, coprime to nfp.
+
+    Returns:
+        CurveXYZFourierSymmetriesSpec object: Frozen pytree payload; newly
+            converted array leaves retain their argument shape, use runtime
+            floating precision and snapshot host NumPy inputs.
+    """
     nfp_int = int(nfp)
     ntor_int = int(ntor)
     if gcd(ntor_int, nfp_int) != 1:
@@ -503,6 +806,21 @@ def make_curve_planarfourier_spec(
     quadpoints: object,
     order: int,
 ) -> CurvePlanarFourierSpec:
+    """Build an immutable CurvePlanarFourierSpec payload for JAX kernels.
+
+    Args:
+        dofs (array-like): Shape (2 * order + 8,); radial cosine and sine coefficients
+            in meters, four dimensionless quaternion components (scalar first), then xyz
+            center in meters.
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+
+    Returns:
+        CurvePlanarFourierSpec object: Frozen pytree payload; newly converted
+            array leaves retain their argument shape, use float64
+            and snapshot host NumPy inputs.
+    """
     return CurvePlanarFourierSpec(
         dofs=_as_float64_array(dofs),
         quadpoints=_as_float64_array(quadpoints),
@@ -520,6 +838,24 @@ def make_curve_helical_spec(
     R0: float,
     r: float,
 ) -> CurveHelicalSpec:
+    """Build an immutable CurveHelicalSpec payload for JAX kernels.
+
+    Args:
+        dofs (array-like): Shape (2 * order + 1,), angular coefficients in radians; A
+            cosine modes including zero, then B sine modes starting at one.
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+        m (int): Helical poloidal winding count.
+        ell (int): Nonzero helical toroidal winding count.
+        R0 (float): Major radius in meters.
+        r (float): Minor radius in meters.
+
+    Returns:
+        CurveHelicalSpec object: Frozen pytree payload; newly converted array
+            leaves retain their argument shape, use float64 and
+            snapshot host NumPy inputs.
+    """
     return CurveHelicalSpec(
         dofs=_as_float64_array(dofs),
         quadpoints=_as_float64_array(quadpoints),
@@ -539,6 +875,24 @@ def make_optimizable_dof_map_spec(
     input_start: int,
     input_end: int,
 ) -> OptimizableDofMapSpec:
+    """Build an immutable OptimizableDofMapSpec payload for JAX kernels.
+
+    Args:
+        template_full_dofs (array-like): Baseline full local DOFs, shape (D_full,),
+            including fixed entries.
+        owner_segments (Iterable[tuple[int, int, int, int]]): Half-open (owner_start,
+            owner_end, target_start, target_end) copy ranges from owner DOFs into the
+            full template.
+        input_mode (str): full selects all reconstructed DOFs; any other value selects
+            the local slice input_start:input_end.
+        input_start (int): Inclusive start index of the requested local slice.
+        input_end (int): Exclusive end of that slice.
+
+    Returns:
+        OptimizableDofMapSpec object: Frozen pytree payload; newly converted
+            array leaves retain their argument shape, use float64
+            and snapshot host NumPy inputs.
+    """
     return OptimizableDofMapSpec(
         template_full_dofs=_as_float64_array(template_full_dofs),
         owner_segments=tuple(
@@ -563,6 +917,21 @@ def make_frame_rotation_spec(
     order: int,
     scale: float,
 ) -> FrameRotationSpec:
+    """Build an immutable FrameRotationSpec payload for JAX kernels.
+
+    Args:
+        dofs (array-like): Shape (2 * order + 1,), coefficients ordered constant,
+            sin(1), cos(1), ...; scale converts their values into radians.
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+        scale (float): Dimensionless multiplier applied to the Fourier rotation angle.
+
+    Returns:
+        FrameRotationSpec object: Frozen pytree payload; newly converted array
+            leaves retain their argument shape, use float64 and
+            snapshot host NumPy inputs.
+    """
     return FrameRotationSpec(
         dofs=_as_float64_array(dofs),
         quadpoints=_as_float64_array(quadpoints),
@@ -572,6 +941,17 @@ def make_frame_rotation_spec(
 
 
 def make_zero_rotation_spec(*, quadpoints: object) -> ZeroRotationSpec:
+    """Build an immutable ZeroRotationSpec payload for JAX kernels.
+
+    Args:
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+
+    Returns:
+        ZeroRotationSpec object: Frozen pytree payload; newly converted array
+            leaves retain their argument shape, use float64 and
+            snapshot host NumPy inputs.
+    """
     return ZeroRotationSpec(quadpoints=_as_float64_array(quadpoints))
 
 
@@ -586,6 +966,31 @@ def make_curve_perturbed_spec(
     sample_gammadashdash: object,
     sample_gammadashdashdash: object,
 ) -> CurvePerturbedSpec:
+    """Build an immutable CurvePerturbedSpec payload for JAX kernels.
+
+    Args:
+        dofs (array-like): Wrapper DOFs, shape (D,), including dependencies in the
+            layout described by base_curve_map.
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        base_curve (CurveSpec): Immutable geometry of the unperturbed or centerline
+            curve.
+        base_curve_map (OptimizableDofMapSpec): Map from wrapper DOFs to base-curve
+            inputs.
+        sample_gamma (array-like): Additive sampled position perturbation, shape (Q, 3),
+            in meters.
+        sample_gammadash (array-like): Additive first parameter-derivative perturbation,
+            shape (Q, 3), in meters.
+        sample_gammadashdash (array-like): Additive second parameter-derivative
+            perturbation, shape (Q, 3), in meters.
+        sample_gammadashdashdash (array-like): Additive third parameter-derivative
+            perturbation, shape (Q, 3), in meters.
+
+    Returns:
+        CurvePerturbedSpec object: Frozen pytree payload; newly converted
+            array leaves retain their argument shape, use float64
+            and snapshot host NumPy inputs.
+    """
     return CurvePerturbedSpec(
         dofs=_as_float64_array(dofs),
         quadpoints=_as_float64_array(quadpoints),
@@ -610,6 +1015,29 @@ def make_curve_filament_spec(
     dn: float,
     db: float,
 ) -> CurveFilamentSpec:
+    """Build an immutable CurveFilamentSpec payload for JAX kernels.
+
+    Args:
+        dofs (array-like): Wrapper DOFs, shape (D,), including curve and rotation
+            dependencies in their mapped layouts.
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        base_curve (CurveSpec): Immutable geometry of the unperturbed or centerline
+            curve.
+        base_curve_map (OptimizableDofMapSpec): Map from wrapper DOFs to base-curve
+            inputs.
+        rotation (RotationSpec): Zero or Fourier rotation of the normal/binormal frame.
+        rotation_map (OptimizableDofMapSpec): Map from wrapper DOFs to rotation
+            coefficients.
+        frame_kind (str): centroid or frenet frame for the filament offset.
+        dn (float): Normal-frame filament offset in meters.
+        db (float): Binormal-frame filament offset in meters.
+
+    Returns:
+        CurveFilamentSpec object: Frozen pytree payload; newly converted array
+            leaves retain their argument shape, use float64 and
+            snapshot host NumPy inputs.
+    """
     return CurveFilamentSpec(
         dofs=_as_float64_array(dofs),
         quadpoints=_as_float64_array(quadpoints),
@@ -634,6 +1062,19 @@ def make_coil_symmetry_spec(
     rotmat: object | None = None,
     scale: float = 1.0,
 ) -> CoilSymmetrySpec:
+    """Build an immutable CoilSymmetrySpec payload for JAX kernels.
+
+    Args:
+        rotmat (array-like or None): Shape (3, 3) row-vector spatial rotation/reflection
+            matrix; None requests identity.
+        scale (float): Dimensionless multiplier applied to the replica current,
+            including sign reversal for reflection.
+
+    Returns:
+        CoilSymmetrySpec object: Frozen pytree payload; newly converted array
+            leaves retain their argument shape, use float64 and
+            snapshot host NumPy inputs.
+    """
     rotmat_jax, has_rotation = _normalize_rotmat(rotmat)
     return CoilSymmetrySpec(
         rotmat=rotmat_jax,
@@ -653,6 +1094,30 @@ def make_coil_dof_extraction_spec(
     rotmat: object | None = None,
     scale: float = 1.0,
 ) -> CoilDofExtractionSpec:
+    """Build an immutable CoilDofExtractionSpec payload for JAX kernels.
+
+    Args:
+        curve (CurveSpec): Immutable curve geometry, quadrature nodes and static
+            parameters.
+        curve_map (OptimizableDofMapSpec): Map from owner DOFs into curve coefficients.
+        current_map (OptimizableDofMapSpec): Map from owner DOFs into the current value;
+            used when no term maps are supplied.
+        current_term_maps (tuple[OptimizableDofMapSpec, ...]): Independent current-term
+            maps; empty uses current_map.
+        current_term_scales (tuple[float, ...]): Dimensionless weights paired with
+            current_term_maps for a linear current expression.
+        curve_source_index (int or None): Shared-curve reconstruction key; None
+            reconstructs this coil independently.
+        rotmat (array-like or None): Shape (3, 3) row-vector spatial rotation/reflection
+            matrix; None requests identity.
+        scale (float): Dimensionless multiplier applied to the replica current,
+            including sign reversal for reflection.
+
+    Returns:
+        CoilDofExtractionSpec object: Frozen pytree payload; newly converted
+            array leaves retain their argument shape, use float64
+            and snapshot host NumPy inputs.
+    """
     if len(current_term_maps) != len(current_term_scales):
         raise ValueError("current term maps and scales must have equal length")
     return CoilDofExtractionSpec(
@@ -671,6 +1136,17 @@ def make_coil_dof_extraction_spec(
 def make_coil_set_dof_extraction_spec(
     coils: Iterable[CoilDofExtractionSpec],
 ) -> CoilSetDofExtractionSpec:
+    """Build an immutable CoilSetDofExtractionSpec payload for JAX kernels.
+
+    Args:
+        coils (Iterable[CoilDofExtractionSpec]): Per-coil extraction contracts in public
+            coil order.
+
+    Returns:
+        CoilSetDofExtractionSpec object: Frozen pytree payload; newly
+            converted array leaves retain their argument shape, use runtime
+            floating precision and snapshot host NumPy inputs.
+    """
     return CoilSetDofExtractionSpec(coils=tuple(coils))
 
 
@@ -680,7 +1156,20 @@ def apply_coil_symmetry(
     current: jax.Array,
     symmetry: CoilSymmetrySpec,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
-    """Apply rotation/scale transform to curve geometry and current."""
+    """Apply rotation/scale transform to curve geometry and current.
+
+    Args:
+        gamma (jax.Array): Cartesian curve positions, shape (Q, 3), in meters.
+        gammadash (jax.Array): First derivative with respect to the normalized curve
+            parameter, shape (Q, 3), in meters.
+        current (jax.Array): Scalar current, shape (), in amperes.
+        symmetry (CoilSymmetrySpec): Spatial transform and current scaling.
+
+    Returns:
+        tuple[jax.Array, jax.Array, jax.Array]: Positions and tangents of
+            shape (Q, 3), transformed as row vectors by rotmat when enabled, and
+            scalar current multiplied by symmetry.scale.
+    """
     if symmetry.has_rotation:
         rotmat = _as_float64_array(symmetry.rotmat)
         gamma = gamma @ rotmat
@@ -693,10 +1182,32 @@ def apply_coil_symmetry(
 
 
 def make_field_eval_spec(points: object) -> FieldEvalSpec:
+    """Build an immutable FieldEvalSpec payload for JAX kernels.
+
+    Args:
+        points (array-like): Cartesian evaluation points, shape (P, 3), in meters.
+
+    Returns:
+        FieldEvalSpec object: Frozen pytree payload; newly converted array
+            leaves retain their argument shape, use float64 and
+            snapshot host NumPy inputs.
+    """
     return FieldEvalSpec(points=_as_float64_array(points))
 
 
 def make_grouped_coil_set_spec(groups: Iterable[CoilGroupSpec | tuple[jax.Array, jax.Array, jax.Array, tuple[int, ...]]]) -> GroupedCoilSetSpec:
+    """Build an immutable GroupedCoilSetSpec payload for JAX kernels.
+
+    Args:
+        groups (Iterable[CoilGroupSpec or tuple]): Groups of geometry/current arrays
+            with shapes (C, Q, 3), (C, Q, 3), (C,) and original coil-index tuples;
+            quadrature count may vary between groups.
+
+    Returns:
+        GroupedCoilSetSpec object: Frozen pytree payload; newly converted
+            array leaves retain their argument shape, use float64
+            and snapshot host NumPy inputs.
+    """
     group_specs = []
     for group in groups:
         if isinstance(group, CoilGroupSpec):
@@ -723,7 +1234,23 @@ def make_grouped_coil_set_spec(groups: Iterable[CoilGroupSpec | tuple[jax.Array,
     meta=("nfp", "stellsym"),
 )
 class SurfaceRZFourierSpec:
-    """Immutable state of a native ``SurfaceRZFourier``."""
+    """Immutable state of a native ``SurfaceRZFourier``.
+
+    Args:
+        rc (jax.Array): Native rc coefficients in meters, shape (mpol + 1, 2 * ntor +
+            1).
+        rs (jax.Array): Native rs coefficients in meters, shape (mpol + 1, 2 * ntor +
+            1).
+        zc (jax.Array): Native zc coefficients in meters, shape (mpol + 1, 2 * ntor +
+            1).
+        zs (jax.Array): Native zs coefficients in meters, shape (mpol + 1, 2 * ntor +
+            1).
+        quadpoints_phi (jax.Array): Shape (nphi,) toroidal quadrature points in turns.
+        quadpoints_theta (jax.Array): Shape (ntheta,) poloidal quadrature points in
+            turns.
+        nfp (int): Number of field periods.
+        stellsym (bool): Whether stellarator symmetry restricts the native DOFs.
+    """
 
     rc: jax.Array
     rs: jax.Array
@@ -740,7 +1267,27 @@ class SurfaceRZFourierSpec:
     meta=("nfp", "stellsym"),
 )
 class SurfaceXYZFourierSpec:
-    """Immutable state of a native ``SurfaceXYZFourier``."""
+    """Immutable state of a native ``SurfaceXYZFourier``.
+
+    Args:
+        xc (jax.Array): Native xc coefficients in meters, shape (mpol + 1, 2 * ntor +
+            1).
+        xs (jax.Array): Native xs coefficients in meters, shape (mpol + 1, 2 * ntor +
+            1).
+        yc (jax.Array): Native yc coefficients in meters, shape (mpol + 1, 2 * ntor +
+            1).
+        ys (jax.Array): Native ys coefficients in meters, shape (mpol + 1, 2 * ntor +
+            1).
+        zc (jax.Array): Native zc coefficients in meters, shape (mpol + 1, 2 * ntor +
+            1).
+        zs (jax.Array): Native zs coefficients in meters, shape (mpol + 1, 2 * ntor +
+            1).
+        quadpoints_phi (jax.Array): Shape (nphi,) toroidal quadrature points in turns.
+        quadpoints_theta (jax.Array): Shape (ntheta,) poloidal quadrature points in
+            turns.
+        nfp (int): Number of field periods.
+        stellsym (bool): Whether stellarator symmetry restricts the native DOFs.
+    """
 
     xc: jax.Array
     xs: jax.Array
@@ -759,7 +1306,23 @@ class SurfaceXYZFourierSpec:
     meta=("nfp", "stellsym", "clamped_dims"),
 )
 class SurfaceXYZTensorFourierSpec:
-    """Immutable state of a native ``SurfaceXYZTensorFourier``."""
+    """Immutable state of a native ``SurfaceXYZTensorFourier``.
+
+    Args:
+        xcs (jax.Array): Native xcs coefficients in meters, shape (2 * mpol + 1, 2 *
+            ntor + 1).
+        ycs (jax.Array): Native ycs coefficients in meters, shape (2 * mpol + 1, 2 *
+            ntor + 1).
+        zcs (jax.Array): Native zcs coefficients in meters, shape (2 * mpol + 1, 2 *
+            ntor + 1).
+        quadpoints_phi (jax.Array): Shape (nphi,) toroidal quadrature points in turns.
+        quadpoints_theta (jax.Array): Shape (ntheta,) poloidal quadrature points in
+            turns.
+        nfp (int): Number of field periods.
+        stellsym (bool): Whether stellarator symmetry restricts the native DOFs.
+        clamped_dims (tuple[bool, bool, bool]): Clamp the rotating-frame x, y and z
+            components, respectively.
+    """
 
     xcs: jax.Array
     ycs: jax.Array

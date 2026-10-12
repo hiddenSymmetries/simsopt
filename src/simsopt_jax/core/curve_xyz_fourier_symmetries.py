@@ -11,6 +11,22 @@ from ._math_utils import as_jax_float64 as _as_jax_float64
 
 
 def jaxXYZFourierSymmetriescurve_pure(dofs, quadpoints, order, nfp, stellsym, ntor):
+    """Evaluate the CurveXYZFourierSymmetries Fourier geometry.
+
+    Args:
+        dofs (array-like): In meters; shape (3 * order + 1,) with [xc, ys, zs] under
+            symmetry, otherwise (6 * order + 3,) with [xc, xs, yc, ys, zc, zs]. Cosine
+            blocks include mode zero.
+        quadpoints (array-like): Normalized, dimensionless curve parameters, shape (Q,),
+            conventionally in [0, 1).
+        order (int): Maximum Fourier mode, nonnegative and static during tracing.
+        nfp (int): Number of field periods; positive and static during tracing.
+        stellsym (bool): Use stellarator-symmetric Fourier coefficient restrictions.
+        ntor (int): Toroidal winding count, coprime to nfp.
+
+    Returns:
+        jax.Array: Cartesian curve positions, shape (Q, 3), in meters.
+    """
     two_pi = _two_pi(quadpoints)
     nfp_scalar = _as_jax_float64(float(nfp))
     ntor_scalar = _as_jax_float64(float(ntor))

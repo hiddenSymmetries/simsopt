@@ -262,7 +262,16 @@ def _dof_layout(spec: SurfaceSpec) -> tuple[tuple[str, np.ndarray], ...]:
 
 @jax.jit
 def surface_get_dofs(spec: SurfaceSpec) -> jax.Array:
-    """The native ``get_dofs()`` vector, fixed DOFs included."""
+    """The native ``get_dofs()`` vector, fixed DOFs included.
+
+    Args:
+        spec (SurfaceSpec): Immutable Fourier coefficients in meters and quadrature
+            points in turns.
+
+    Returns:
+        jax.Array: Shape (ndofs,) native coefficient vector in meters, including fixed
+            DOFs.
+    """
     return jnp.concatenate(
         [getattr(spec, name).reshape(-1)[indices] for name, indices in _dof_layout(spec)]
     )
@@ -273,6 +282,15 @@ def surface_spec_with_dofs(spec: SurfaceSpecT, dofs: jax.Array) -> SurfaceSpecT:
     """``spec`` with its DOFs replaced by ``dofs``, as native ``set_dofs``.
 
     Coefficient entries that are not DOFs keep their values.
+
+    Args:
+        spec (SurfaceSpecT): Original immutable surface state.
+        dofs (jax.Array): Shape (ndofs,) full native coefficient vector in meters,
+            including fixed DOFs.
+
+    Returns:
+        SurfaceSpecT: New surface-spec object of the same class, with non-DOF coefficients and
+            quadrature unchanged.
     """
     layout = _dof_layout(spec)
     blocks = jnp.split(dofs, np.cumsum([indices.size for _, indices in layout])[:-1].tolist())

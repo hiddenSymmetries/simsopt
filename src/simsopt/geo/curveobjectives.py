@@ -40,6 +40,7 @@ class CurveLength(Optimizable):
 
     def __init__(self, curve):
         self.curve = curve
+        self.dJ_dl = jit(lambda l: grad(curve_length_pure)(l))
         super().__init__(depends_on=[curve])
 
     def J(self):
