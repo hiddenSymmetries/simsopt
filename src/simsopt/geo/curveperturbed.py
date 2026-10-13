@@ -177,7 +177,7 @@ class CurvePerturbed(sopp.Curve, Curve):
 
     def resample(self):
         self.sample.resample()
-        self.recompute_bell()
+        self.set_recompute_flag()
 
     def recompute_bell(self, parent=None):
         self.invalidate_cache()
