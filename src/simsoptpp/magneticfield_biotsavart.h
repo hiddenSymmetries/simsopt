@@ -15,6 +15,7 @@ class BiotSavart : public MagneticField<T> {
         using typename MagneticField<T>::Tensor2;
         using typename MagneticField<T>::Tensor3;
         using typename MagneticField<T>::Tensor4;
+        using typename MagneticField<T>::Tensor5;
         const vector<shared_ptr<Coil<Array>>> coils;
 
     private:
@@ -82,7 +83,11 @@ class BiotSavart : public MagneticField<T> {
         void _d2B_by_dXdX_impl(Tensor4& d2B_by_dXdX) override {
             this->compute(2);
         }
-        
+
+        void _d3B_by_dXdXdX_impl(Tensor5& d3B_by_dXdXdX) override {
+            this->compute(3);
+        }
+
         void _A_impl(Tensor2& A) override {
             this->compute_A(0);
         }
@@ -102,6 +107,7 @@ class BiotSavart : public MagneticField<T> {
         using MagneticField<T>::data_B;
         using MagneticField<T>::data_dB;
         using MagneticField<T>::data_ddB;
+        using MagneticField<T>::data_dddB;
         using MagneticField<T>::data_A;
         using MagneticField<T>::data_dA;
         using MagneticField<T>::data_ddA;

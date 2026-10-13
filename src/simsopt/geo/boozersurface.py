@@ -879,8 +879,9 @@ class BoozerSurface(Optimizable):
         # that we need to keep, and False for those that we ignore.
         m = s.get_stellsym_mask()
         mask = np.concatenate((m[..., None], m[..., None], m[..., None]), axis=2)
-        if s.stellsym:
-            mask[0, 0, 0] = False
+        #if s.stellsym:
+        #    mask[0, 0, 0] = False
+        mask[0, 0, 0] = False
         mask = mask.flatten()
 
         label = self.label
@@ -894,8 +895,8 @@ class BoozerSurface(Optimizable):
             if s.stellsym:
                 b = np.concatenate((r[mask], [(label.J()-self.targetlabel)]))
             else:
-                b = np.concatenate((r[mask], [(label.J()-self.targetlabel), s.gamma()[0, 0, 2]]))
-            norm = np.linalg.norm(b)
+                b = np.concatenate((r[mask], [(label.J()-self.targetlabel), s.gamma()[0, 0, 1], s.gamma()[0, 0, 2]]))
+            norm = np.linalg.norm(b, ord=np.inf)
             if norm <= tol:
                 break
             if s.stellsym:
@@ -907,6 +908,7 @@ class BoozerSurface(Optimizable):
                 J = np.vstack((
                     J[mask, :],
                     np.concatenate((label.dJ(partials=True)(s), [0., 0.])),
+                    np.concatenate((s.dgamma_by_dcoeff()[0, 0, 1, :], [0., 0.])),
                     np.concatenate((s.dgamma_by_dcoeff()[0, 0, 2, :], [0., 0.]))
                 ))
             dx = np.linalg.solve(J, b)
@@ -927,6 +929,7 @@ class BoozerSurface(Optimizable):
             J = np.vstack((
                 J[mask, :],
                 np.concatenate((label.dJ(partials=True)(s), [0., 0.])),
+                np.concatenate((s.dgamma_by_dcoeff()[0, 0, 1, :], [0., 0.])),
                 np.concatenate((s.dgamma_by_dcoeff()[0, 0, 2, :], [0., 0.]))
             ))
 
@@ -937,7 +940,7 @@ class BoozerSurface(Optimizable):
         }
 
         if verbose:
-            print(f"NEWTON solve - {res['success']}  iter={res['iter']}, iota={res['iota']:.16f}, ||residual||_inf = {np.linalg.norm(res['residual'], ord=np.inf):.3e}", flush=True)
+            print(f"NEWTON solve - {res['success']}  iter={res['iter']}, iota={res['iota']:.16f}, ||residual||_inf = {np.linalg.norm(res['residual'], ord=np.inf):.3e}, cond(J) = {np.linalg.cond(J):.3e}", flush=True)
 
         self.res = res
         self.need_to_run_code = False
