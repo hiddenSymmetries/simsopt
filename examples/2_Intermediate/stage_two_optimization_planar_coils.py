@@ -93,6 +93,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 nphi = 32
 ntheta = 32
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+s.fix_all()  # the boundary is the target, not a variable
 
 # Create the initial coils:
 base_curves = create_equally_spaced_planar_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)

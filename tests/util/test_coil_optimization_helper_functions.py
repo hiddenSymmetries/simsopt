@@ -719,6 +719,9 @@ class TestCoilOptimization(unittest.TestCase):
             )
             nfp = s.nfp
             R0 = s.get_rc(0, 0)
+            s.fix('rc(0,0)')
+            free_status = s.dofs_free_status
+            surface_dofs = s.x
             
             # Create initial coils
             ncoils = 3
@@ -826,7 +829,11 @@ class TestCoilOptimization(unittest.TestCase):
                 s, bs, base_curves, curves,
                 MAXITER=5,
             )
-            
+
+            # The surface is fixed during the optimizations only
+            np.testing.assert_array_equal(s.dofs_free_status, free_status)
+            np.testing.assert_array_equal(s.x, surface_dofs)
+
             # Verify that points are set correctly
             points = s.gamma().reshape((-1, 3))
             np.testing.assert_allclose(bs_optimized.get_points_cart_ref(), points, atol=1e-8)

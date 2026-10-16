@@ -281,7 +281,10 @@ class CoilSet(Optimizable):
             DISTANCE_THRESHOLD: The threshold distance below which the penalty is applied
         """
         curves = [coil.curve for coil in self.coils]
-        return CurveSurfaceDistance(curves, self.surface, DISTANCE_THRESHOLD)
+        target = CurveSurfaceDistance(curves, self.surface, DISTANCE_THRESHOLD)
+        # the surface is the target of the coil optimization, not a variable
+        target.remove_parent(self.surface)
+        return target
 
     def lp_curvature_penalty(self, CURVATURE_THRESHOLD, p=2):
         """

@@ -156,9 +156,10 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
             reg_l2:
                 Regularization value for any convex regularizers in the
                 optimization problem, such as the often-used L2 norm.
-            max_iter_MwPGP:
+            max_iter:
                 Maximum iterations to perform during a run of the convex
-                part of the relax-and-split algorithm (MwPGP).
+                part of the relax-and-split algorithm (MwPGP). At least 5
+                when ``verbose`` is set.
             max_iter_RS:
                 Maximum iterations to perform of the overall relax-and-split
                 algorithm. Therefore, also the number of times that MwPGP is
@@ -181,6 +182,12 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
             sub-problem is solved.
 
     """
+    # With verbose, MwPGP prints every int(max_iter / 5) iterations, which is
+    # an integer modulo by zero in C++ (a crash) when max_iter < 5.
+    max_iter = kwargs.get('max_iter')
+    if kwargs.get('verbose', False) and max_iter is not None and max_iter < 5:
+        raise ValueError(f'relax_and_split with verbose=True requires max_iter >= 5, got {max_iter}')
+
     # change to row-major order for the C++ code
     # A_obj = np.ascontiguousarray(pm_opt.A_obj)
     ATb = np.ascontiguousarray(np.reshape(pm_opt.ATb, (pm_opt.ndipoles, 3)))

@@ -400,7 +400,7 @@ def get_data(name, **kwargs):
         base_curves, base_currents, nfp, coils = download_ID_from_QUASR_database(QUASR_ID, return_style="simsopt-style", use_cache=use_cache, verbose=verbose)
         bs = BiotSavart(coils)
 
-        ma = None  # quasr configurations do not provide an axis object. finding can be attempted when cbs/fieldline_integrator branch is readu
+        ma = None  # quasr configurations do not provide an axis object. finding can be attempted when cbs/fieldline_integrator branch is ready
         return base_curves, base_currents, ma, nfp, bs
 
     elif cfg.startswith("star_lite-a"):

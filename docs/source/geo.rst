@@ -61,7 +61,7 @@ A number of objective functions are available in
 - :obj:`~simsopt.geo.LpCurveCurvature`: computes a penalty based on the :math:`L_p` norm of the curvature on a curve.
 - :obj:`~simsopt.geo.LpCurveTorsion`: computes a penalty based on the :math:`L_p` norm of the torsion on a curve.
 - :obj:`~simsopt.geo.CurveCurveDistance`: computes a penalty term on the minimum distance between a set of curves.
-- :obj:`~simsopt.geo.CurveSurfaceDistance`: computes a penalty term on the minimum distance between a set of curves and a surface.
+- :obj:`~simsopt.geo.CurveSurfaceDistance`: computes a penalty term on the minimum distance between a set of curves and a surface, with derivatives for both curve and surface DOFs.
 
 The value of the quantity and its derivative with respect to the curve
 dofs can be obtained by calling e.g., ``CurveLength.J()`` and

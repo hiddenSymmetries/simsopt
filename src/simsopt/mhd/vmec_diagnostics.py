@@ -1838,8 +1838,8 @@ def vmec_fieldlines(vs,
         - ``nalpha``: Number of field line labels.
         - ``nl``: Number of grid points along each field line.
         - ``alpha``: 1D array of field line labels used to construct the field lines.
-        - ``theta1d``: 1D array of :math:`\theta_{pest}` grid points (only if ``theta1d`` is provided).
-        - ``phi1d``: 1D array of :math:`\phi` grid points (only if ``phi1d`` is provided).
+        - ``theta1d``: 1D array of :math:`\theta_{pest}` grid points (``None`` when not provided).
+        - ``phi1d``: 1D array of :math:`\phi` grid points (``None`` when not provided).
     """
     # If given a Vmec object, convert it to vmec_splines:
     if isinstance(vs, Vmec):
