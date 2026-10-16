@@ -12,6 +12,11 @@ from simsopt.mhd import Spec
 from simsopt.geo import SurfaceRZFourier
 
 try:
+    import spec as spec_mod
+except ImportError:
+    spec_mod = None
+
+try:
     import py_spec
 except ImportError:
     py_spec = None
@@ -219,7 +224,7 @@ class NormalFieldTests(unittest.TestCase):
                 else:
                     self.assertTrue(normal_field.is_free(ii))
 
-    @unittest.skipIf(py_spec is None, "py_spec not found")
+    @unittest.skipIf(spec_mod is None, "SPEC python module not found")
     def test_from_spec_object(self):
         """
         test classmethod to instantiate from an existing SPEC object
@@ -239,7 +244,7 @@ class NormalFieldTests(unittest.TestCase):
             np.allclose(normal_field.local_full_x, normal_field_2.local_full_x)
         )
 
-    @unittest.skipIf(py_spec is None, "py_spec not found")
+    @unittest.skipIf(spec_mod is None, "SPEC python module not found")
     def test_fail_for_fixedb(self):
         """
         test if instantiation fails if spec is not freeboundary
@@ -389,7 +394,7 @@ class CoilNormalFieldTests(unittest.TestCase):
         coil_normal_field = CoilNormalField()
         self.assertIsNotNone(coil_normal_field)
 
-    @unittest.skipIf(py_spec is None, "py_spec not found")
+    @unittest.skipIf(spec_mod is None, "SPEC python module not found")
     def test_spec_coil_correspondence_on_converged_output(self):
         # Init from SPEC input file
         with ScratchDir("."):
@@ -434,7 +439,7 @@ class CoilNormalFieldTests(unittest.TestCase):
         with self.assertRaises(AttributeError):
             coil_normal_field.set_vns_vnc_asarray(coil_normal_field.vns, coil_normal_field.vnc)
 
-    @unittest.skipIf(py_spec is None, "py_spec not found")
+    @unittest.skipIf(spec_mod is None, "SPEC python module not found")
     def test_reduce_coilset(self):
         """
         test if the coilset can be reduced, and
