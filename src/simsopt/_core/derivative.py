@@ -205,6 +205,8 @@ class Derivative:
                     for opt in k.dofs.dep_opts():
                         local_derivs += self.data[opt][opt.local_dofs_free_status]
                     derivs.append(local_derivs)
+            if not derivs:
+                return np.zeros(0)
             return np.concatenate(derivs)
 
     # https://stackoverflow.com/questions/11624955/avoiding-python-sum-default-start-arg-behavior
