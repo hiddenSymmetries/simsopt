@@ -203,11 +203,13 @@ class ToroidalFlux(Optimizable):
         self.range = range
         self.nphi = nphi
         self.ntheta = ntheta
+        self.need_to_invalidate = True
+        self.correct_shape = self.surface.gamma()[self.idx].shape
 
         super().__init__(depends_on=[self.surface, biotsavart])
 
     def recompute_bell(self, parent=None):
-        self.invalidate_cache()
+        self.need_to_invalidate = True
 
     def invalidate_cache(self):
         x = self.surface.gamma()[self.idx]
@@ -218,6 +220,8 @@ class ToroidalFlux(Optimizable):
         Compute the toroidal flux on the surface where
         :math:`\varphi = \texttt{quadpoints_varphi}[\texttt{idx}]`.
         """
+        if self.need_to_invalidate or (self.biotsavart.get_points_cart_ref().shape !=self.correct_shape):
+            self.invalidate_cache()
         xtheta = self.surface.gammadash2()[self.idx]
         ntheta = self.surface.gamma().shape[1]
         A = self.biotsavart.A()
@@ -226,6 +230,8 @@ class ToroidalFlux(Optimizable):
 
     @derivative_dec
     def dJ(self):
+        if self.need_to_invalidate or (self.biotsavart.get_points_cart_ref().shape !=self.correct_shape):
+            self.invalidate_cache()
         d_s = Derivative({self.surface: self.dJ_by_dsurfacecoefficients()})
         d_c = self.dJ_by_dcoils()
         return d_s + d_c
@@ -234,6 +240,8 @@ class ToroidalFlux(Optimizable):
         """
         Calculate the partial derivatives with respect to the surface coefficients.
         """
+        if self.need_to_invalidate or (self.biotsavart.get_points_cart_ref().shape !=self.correct_shape):
+            self.invalidate_cache()
         ntheta = self.surface.gamma().shape[1]
         dA_by_dX = self.biotsavart.dA_by_dX()
         A = self.biotsavart.A()
@@ -252,6 +260,8 @@ class ToroidalFlux(Optimizable):
         """
         Calculate the second partial derivatives with respect to the surface coefficients.
         """
+        if self.need_to_invalidate or (self.biotsavart.get_points_cart_ref().shape !=self.correct_shape):
+            self.invalidate_cache()
         ntheta = self.surface.gamma().shape[1]
         dx_dc = self.surface.dgamma_by_dcoeff()[self.idx]
         d2A_by_dXdX = self.biotsavart.d2A_by_dXdX().reshape((ntheta, 3, 3, 3))
@@ -273,6 +283,8 @@ class ToroidalFlux(Optimizable):
         """
         Calculate the partial derivatives with respect to the coil coefficients.
         """
+        if self.need_to_invalidate or (self.biotsavart.get_points_cart_ref().shape !=self.correct_shape):
+            self.invalidate_cache()
         xtheta = self.surface.gammadash2()[self.idx]
         ntheta = self.surface.gamma().shape[1]
         dJ_by_dA = xtheta/ntheta
@@ -567,10 +579,12 @@ class QfmResidual(Optimizable):
         self.surface = surface
         self.biotsavart = biotsavart
         self.biotsavart.append_parent(self.surface)
+        self.need_to_invalidate = True
+        self.correct_shape = self.surface.gamma().reshape(-1,3).shape
         super().__init__(depends_on=[surface, biotsavart])
 
     def recompute_bell(self, parent=None):
-        self.invalidate_cache()
+        self.need_to_invalidate=True
 
     def invalidate_cache(self):
         x = self.surface.gamma()
@@ -578,6 +592,11 @@ class QfmResidual(Optimizable):
         self.biotsavart.set_points(xsemiflat)
 
     def J(self):
+        """
+        Calculate the residual that optimizes QFM surfaces
+        """
+        if self.need_to_invalidate or (self.biotsavart.get_points_cart_ref().shape !=self.correct_shape):
+            self.invalidate_cache()
         N = self.surface.normal()
         norm_N = np.linalg.norm(N, axis=2)
         n = N/norm_N[:, :, None]
@@ -593,6 +612,8 @@ class QfmResidual(Optimizable):
         """
         Calculate the derivatives with respect to the surface coefficients
         """
+        if self.need_to_invalidate or (self.biotsavart.get_points_cart_ref().shape !=self.correct_shape):
+            self.invalidate_cache()
 
         # we write the objective as J = J1/J2, then we compute the partial derivatives
         # dJ1_by_dgamma, dJ1_by_dN, dJ2_by_dgamma, dJ2_by_dN and then use the vjp functions
