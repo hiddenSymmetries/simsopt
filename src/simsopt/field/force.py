@@ -919,6 +919,15 @@ class SquaredMeanForce(Optimizable):
     allows one to optimize e.g. the force on target_coils from a set of dipole coils 
     (with barely any quadrature points) and a set of TF coils (with many quadrature points).
 
+    To minimize function calls, pass ``target_coils`` as a single list and instantiate this class **once**.
+    Creating one instance per coil (``sum(SquaredMeanForce([c], sources, ...) for c in coils)``)
+    builds an :math:`O(N^2)` :class:`Optimizable` dependency graph, making
+    ``JF.x = dofs`` extremely slow as ``N`` grows.
+    This single-instance form is also only numerically equivalent to the
+    one-instance-per-coil form when every target coil also appears in the source
+    coils, since physically the force on each target includes the field from the
+    other target coils.
+
     Args:
         target_coils (list of Coil or RegularizedCoil, shape (m,)): 
             List of coils to use for computing SquaredMeanForce. 
@@ -1231,6 +1240,15 @@ class LpCurveForce(Optimizable):
     all coils must have the same number of quadrature points. The source_coils_coarse and source_coils_fine lists
     allows one to optimize e.g. the torque on target_coils from a set of dipole coils 
     (with barely any quadrature points) and a set of TF coils (with many quadrature points).
+    
+    To minimize function calls, pass ``target_coils`` as a single list and instantiate this class **once**.
+    Creating one instance per coil (``sum(LpCurveForce([c], sources, ...) for c in coils)``)
+    builds an :math:`O(N^2)` :class:`Optimizable` dependency graph, making
+    ``JF.x = dofs`` extremely slow as ``N`` grows.
+    This single-instance form is also only numerically equivalent to the
+    one-instance-per-coil form when every target coil also appears in the source
+    coils, since physically the force on each target includes the field from the
+    other target coils.
 
     Args:
         target_coils (list of RegularizedCoil, shape (m,)): 
@@ -1548,6 +1566,15 @@ class LpCurveTorque(Optimizable):
     all coils must have the same number of quadrature points. The source_coils_coarse and source_coils_fine lists
     allows one to optimize e.g. the torque on target_coils from a set of dipole coils 
     (with barely any quadrature points) and a set of TF coils (with many quadrature points).
+    
+    To minimize function calls, pass ``target_coils`` as a single list and instantiate this class **once**.
+    Creating one instance per coil (``sum(LpCurveTorque([c], sources, ...) for c in coils)``)
+    builds an :math:`O(N^2)` :class:`Optimizable` dependency graph, making
+    ``JF.x = dofs`` extremely slow as ``N`` grows.
+    This single-instance form is also only numerically equivalent to the
+    one-instance-per-coil form when every target coil also appears in the source
+    coils, since physically the torque on each target includes the field from the
+    other target coils.
 
     Args:
         target_coils (list of RegularizedCoil, shape (m,)): List of coils to use for computing LpCurveTorque. 
@@ -1841,6 +1868,15 @@ class SquaredMeanTorque(Optimizable):
     allows one to optimize e.g. the torque on target_coils from a set of dipole coils 
     (with barely any quadrature points) and a set of TF coils (with many quadrature points).
 
+    To minimize function calls, pass ``target_coils`` as a single list and instantiate this class **once**.
+    Creating one instance per coil (``sum(SquaredMeanTorque([c], sources, ...) for c in coils)``)
+    builds an :math:`O(N^2)` :class:`Optimizable` dependency graph, making
+    ``JF.x = dofs`` extremely slow as ``N`` grows.
+    This single-instance form is also only numerically equivalent to the
+    one-instance-per-coil form when every target coil also appears in the source
+    coils, since physically the torque on each target includes the field from the
+    other target coils.
+    
     Args:
         target_coils (list of Coil or RegularizedCoil, shape (m,)): List of coils to use for computing SquaredMeanTorque. 
         source_coils_coarse (list of Coil or RegularizedCoil, shape (m',)): 
