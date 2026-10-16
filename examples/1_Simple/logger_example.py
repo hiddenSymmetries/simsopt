@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 
 import logging
-from simsopt.util.log import initialize_logging
+from simsopt.util.logger import initialize_logging
 
 """
 Example file for transparently logging both MPI and serial jobs
 """
 
 # Serial logging
-initialize_logging(filename='serial.log')
+initialize_logging(filename='examples/serial.log')
 print("Running 1_Simple/logger_example.py")
 print("==================================")
 for i in range(2):

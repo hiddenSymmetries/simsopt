@@ -4,7 +4,7 @@
 This example demonstrates how to use SIMSOPT to compute Poincare plots.
 
 This script uses the NCSX coil shapes available in
-``simsopt.util.zoo.get_data("ncsx")``. For an example in which coils
+``simsopt.configs.zoo.get_data("ncsx")``. For an example in which coils
 optimized from a simsopt stage-2 optimization are used, see the
 example tracing_fieldlines_QA.py.
 
