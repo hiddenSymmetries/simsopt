@@ -402,6 +402,20 @@ class ParticleTracingTesting(unittest.TestCase):
 
 
 class BoozerGuidingCenterTracingTesting(unittest.TestCase):
+    def test_default_alpha_particle_mass_and_speed(self):
+        from unittest.mock import patch
+
+        import simsopt.field.tracing as tracing
+
+        path = [[0, 0.5, 0, 0, 0], [1e-4, 0.5, 0, 0, 0]]
+        with patch.object(
+                tracing.sopp, "particle_guiding_center_boozer_tracing",
+                return_value=(path, [])) as solver:
+            trace_particles_boozer(None, np.array([[0.5, 0, 0]]), [0.0])
+        args = solver.call_args.args
+        self.assertEqual(args[2], 6.6446573450e-27)
+        self.assertAlmostEqual(args[4], 13028824.42052182, delta=1e-6)
+
 
     def test_energy_momentum_conservation_boozer(self):
         """
