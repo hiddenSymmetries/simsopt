@@ -1,23 +1,28 @@
+import warnings
 import numpy as np
 from simsopt.geo import CurveRZFourier
 from scipy.integrate import solve_ivp
 
-__all__ = ['compute_on_axis_iota']
+__all__ = ['compute_on_axis_iota', 'compute_on_axis_tangent_map']
 
 
-def compute_on_axis_iota(axis, magnetic_field):
+def compute_on_axis_tangent_map(axis, magnetic_field):
     """
-    Computes the rotational transform on the magnetic axis of a device using a method based on
-    equation (13) of Greene, Journal of Mathematical Physics 20, 1183 (1979); doi: 10.1063/1.524170.
-    This method was shared by Stuart Hudson and Matt Landreman.  NOTE: this function does not check that the provided
-    axis is actually a magnetic axis of the input magnetic_field.
+    Computes the tangent map of the field-line map over one field period, linearized about the magnetic axis, by
+    integrating the variational equation along the axis (equation (13) of Greene, Journal of Mathematical Physics 20,
+    1183 (1979); doi: 10.1063/1.524170). Its trace says what kind of closed field line the axis is: elliptic for
+    ``|trace| < 2`` (field lines nearby turn around it, and the axis has a rotational transform), hyperbolic for
+    ``trace > 2``, and reflection-hyperbolic for ``trace < -2`` (field lines nearby land on the opposite side of the axis
+    every period and move away from it; the nearby field lines lie on Klein bottles; Smiet, Phys. Plasmas 32,
+    102503 (2025)). NOTE: this function does not check that the provided axis is actually a magnetic axis of the
+    input magnetic_field.
 
     Args:
         axis: a CurveRZFourier corresponding to the magnetic axis of the magnetic field.
         magnetic_field: the magnetic field in which the axis lies.
 
     Returns:
-        iota: the rotational transform on the given axis.
+        M: the 2x2 tangent map over one field period (its transpose, which has the same trace and eigenvalues).
     """
     assert type(axis) is CurveRZFourier
 
@@ -85,7 +90,35 @@ def compute_on_axis_iota(axis, magnetic_field):
 
     y0 = np.array([1, 0, 0, 1])
     results = solve_ivp(tangent_map, t_span, y0, t_eval=t_eval, rtol=1e-12, atol=1e-12, method='RK45')
-    M = results.y[:, -1].reshape((2, 2))
+    return results.y[:, -1].reshape((2, 2))
+
+
+def compute_on_axis_iota(axis, magnetic_field):
+    """
+    Computes the rotational transform on the magnetic axis of a device using a method based on
+    equation (13) of Greene, Journal of Mathematical Physics 20, 1183 (1979); doi: 10.1063/1.524170.
+    This method was shared by Stuart Hudson and Matt Landreman.  NOTE: this function does not check that the provided
+    axis is actually a magnetic axis of the input magnetic_field.
+
+    The rotational transform is defined only on an elliptic axis (``|trace| < 2`` for the tangent map over one field
+    period, see :func:`compute_on_axis_tangent_map`). On a reflection-hyperbolic axis (trace below -2) this function
+    returns ``nfp/2``, and on a hyperbolic axis (trace above 2) it returns 0; in both cases it warns, since the value
+    returned is then not a measurement.
+
+    Args:
+        axis: a CurveRZFourier corresponding to the magnetic axis of the magnetic field.
+        magnetic_field: the magnetic field in which the axis lies.
+
+    Returns:
+        iota: the rotational transform on the given axis.
+    """
+    M = compute_on_axis_tangent_map(axis, magnetic_field)
+    trace = np.trace(M)
+    if abs(trace) >= 2:
+        kind = 'reflection-hyperbolic' if trace < 0 else 'hyperbolic'
+        warnings.warn(f"compute_on_axis_iota: the axis is {kind} (trace of its one-period tangent map {trace:.8f}, "
+                      f"{'below -2' if trace < 0 else 'above 2'}): it has no rotational transform, and the value returned "
+                      f"({axis.nfp / 2 if trace < 0 else 0}) is not a measurement.", RuntimeWarning, stacklevel=2)
     evals, evecs = np.linalg.eig(M)
     iota = np.arctan2(np.imag(evals[0]), np.real(evals[0])) * axis.nfp/(2*np.pi)
     return iota
