@@ -1,51 +1,37 @@
 #!/usr/bin/env python
 """
-This example illustrates the use of the VirtualCasingField class,
-which is a wrapper around the VirtualCasing class that provides a
-more convenient interface for computing the magnetic field from the plasma currents.
-The existing VirtualCasing class only computes the magnetic field
-on the plasma boundary surface, but the VirtualCasingField class
-can compute the magnetic field at arbitrary points in space.
+Field of the plasma currents outside the plasma, by virtual casing.
 
-This example requires that the python ``virtual_casing`` module is installed.
+VmecVirtualCasingField evaluates the field of the plasma currents of a VMEC equilibrium at
+arbitrary points outside its boundary (simsopt.mhd.VirtualCasing gives it only on the boundary).
+Here it is evaluated 10 cm outside the boundary of the Landreman-Buller-Drevlak quasi-helical
+equilibrium at 5% beta. Adding a coil field, e.g. a BiotSavart object, gives the total field
+outside the plasma.
+
+This example requires the python ``virtual_casing`` package.
 """
-from simsopt.field import VmecVirtualCasingField
-from simsopt.mhd import Vmec
 from pathlib import Path
-import matplotlib.pyplot as plt
+
 import numpy as np
 
-# Resolution on the plasma boundary surface:
-# nphi is the number of grid points in 1/2 a field period.
-nphi = 50
-ntheta = 50
+from simsopt.field import VmecVirtualCasingField
+from simsopt.mhd import Vmec
 
-
-# File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
-filename = 'wout_W7-X_without_coil_ripple_beta0p05_d23p4_tm_reference.nc'
-vmec_file = TEST_DIR / filename
+filename = TEST_DIR / "wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc"
 
-vmec = Vmec(vmec_file)
+# Source grid points per half field period. Within about a grid cell of the boundary the
+# accuracy depends on this resolution.
+nphi = 64
+vc = VmecVirtualCasingField(Vmec(filename), src_nphi=nphi, src_ntheta=nphi, digits=6)
 
-vc = VmecVirtualCasingField(vmec, src_nphi=nphi, src_ntheta=ntheta,  trgt_nphi=nphi//2, trgt_ntheta=ntheta//2, digits=5, max_upsampling=2000)
-# Get offset surface to evaluate magnetic field on
-surf = vc.surf.copy(nphi=nphi, ntheta=ntheta, range='half period')
-surf.extend_via_normal(0.2)
+# Points 10 cm outside the plasma boundary:
+n = 32
+surf = vc.surf.copy(nphi=n, ntheta=n, range="half period")
+surf.extend_via_normal(0.1)
+vc.set_points(surf.gamma().reshape((-1, 3)))
+modB = np.linalg.norm(vc.B(), axis=-1).reshape((n, n))
+print(f"|B| of the plasma currents 10 cm outside the boundary: {modB.min():.4f} to {modB.max():.4f} T")
 
-vc.set_points(surf.gamma().reshape((-1, 3)), )
-B = vc.B() 
-
-modB = np.linalg.norm(B, axis=-1)
-modB = modB.reshape((nphi, ntheta))
-
-plt.ion()
-plt.figure()
-plt.contourf(surf.quadpoints_phi, surf.quadpoints_theta, modB.T, cmap='RdBu')
-plt.xlabel('phi')
-plt.ylabel('theta')
-plt.colorbar()
-plt.title("Virtual Casing Magnetic Field Magnitude")
-plt.show()
-
-vc.Bnormal_due_ext
+# On the boundary itself the field of the external currents, which a coil set has to supply:
+print(f"max |B_external . n| on the boundary: {np.abs(vc.Bnormal_due_ext).max():.4f} T")

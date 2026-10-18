@@ -13,6 +13,7 @@ from .selffield import *
 from .magnetic_axis_helpers import *
 from .force import *
 from .virtualcasingmagneticfield import *
+from .vmecfield import *
 
 __all__ = (
     biotsavart.__all__
@@ -30,4 +31,5 @@ __all__ = (
     + magnetic_axis_helpers.__all__
     + force.__all__
     + virtualcasingmagneticfield.__all__
+    + vmecfield.__all__
 )

@@ -163,7 +163,7 @@ class VirtualCasing:
               files, analogous to the Vmec output file ``"wout_<extension>.nc"``.
         """
         import virtual_casing as vc_module
-        
+
         if not isinstance(vmec, Vmec):
             vmec = Vmec(vmec)
 
