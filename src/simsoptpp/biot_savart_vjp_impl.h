@@ -1,7 +1,7 @@
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
 #include <stdexcept>
-#include "xtensor/xlayout.hpp"
+#include "xtensor/core/xlayout.hpp"
 
 // When compiled with C++17, then we use `if constexpr` to check for
 // derivatives that need to be computed.  These are actually evaluated at
@@ -44,19 +44,33 @@ void biot_savart_vjp_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy
     for(int i = 0; i < num_points-num_points%simd_size; i += simd_size) {
         Vec3dSimd point_i = Vec3dSimd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto v_i   = Vec3dSimd();
-        auto vgrad_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
+        auto vgrad_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, xs::default_arch::alignment()>>{
                 Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
             };
+        // v/vgrad are interleaved (point, component[, component]) arrays and batches
+        // have no per-lane write via operator[] anymore; gather the lanes into small
+        // contiguous buffers first, then load each buffer into a batch in one shot.
+        alignas(xs::default_arch::alignment()) double v_x[simd_size], v_y[simd_size], v_z[simd_size];
+        alignas(xs::default_arch::alignment()) double vgrad_x[3][simd_size], vgrad_y[3][simd_size], vgrad_z[3][simd_size];
 #pragma unroll
         for(int k=0; k<simd_size; k++){
-            for (int d = 0; d < 3; ++d) {
-                v_i[d][k] = v(i+k, d);
-                MYIF(derivs>0) {
+            v_x[k] = v(i+k, 0);
+            v_y[k] = v(i+k, 1);
+            v_z[k] = v(i+k, 2);
+            MYIF(derivs>0) {
 #pragma unroll
-                    for (int dd = 0; dd < 3; ++dd) {
-                        vgrad_i[dd][d][k] = vgrad(i+k, dd, d);
-                    }
+                for (int dd = 0; dd < 3; ++dd) {
+                    vgrad_x[dd][k] = vgrad(i+k, dd, 0);
+                    vgrad_y[dd][k] = vgrad(i+k, dd, 1);
+                    vgrad_z[dd][k] = vgrad(i+k, dd, 2);
                 }
+            }
+        }
+        v_i = Vec3dSimd(xs::load_aligned(v_x), xs::load_aligned(v_y), xs::load_aligned(v_z));
+        MYIF(derivs>0) {
+#pragma unroll
+            for (int dd = 0; dd < 3; ++dd) {
+                vgrad_i[dd] = Vec3dSimd(xs::load_aligned(vgrad_x[dd]), xs::load_aligned(vgrad_y[dd]), xs::load_aligned(vgrad_z[dd]));
             }
         }
 
@@ -71,16 +85,16 @@ void biot_savart_vjp_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy
             auto norm_diff_5_inv_times_3 = 3.*norm_diff_5_inv;
 
             auto res_dgamma_by_dphi_add = cross(diff, v_i) * norm_diff_3_inv;
-            res_dgamma_by_dphi_ptr[3*j+0] += xsimd::hadd(res_dgamma_by_dphi_add.x);
-            res_dgamma_by_dphi_ptr[3*j+1] += xsimd::hadd(res_dgamma_by_dphi_add.y);
-            res_dgamma_by_dphi_ptr[3*j+2] += xsimd::hadd(res_dgamma_by_dphi_add.z);
+            res_dgamma_by_dphi_ptr[3*j+0] += xsimd::reduce_add(res_dgamma_by_dphi_add.x);
+            res_dgamma_by_dphi_ptr[3*j+1] += xsimd::reduce_add(res_dgamma_by_dphi_add.y);
+            res_dgamma_by_dphi_ptr[3*j+2] += xsimd::reduce_add(res_dgamma_by_dphi_add.z);
 
             auto cross_dgamma_j_by_dphi_diff = cross(dgamma_j_by_dphi, diff);
             auto res_gamma_add = cross(dgamma_j_by_dphi, v_i) * norm_diff_3_inv;
             res_gamma_add += diff * inner(cross_dgamma_j_by_dphi_diff, v_i) * (norm_diff_5_inv_times_3);
-            res_gamma_ptr[3*j+0] += xsimd::hadd(res_gamma_add.x);
-            res_gamma_ptr[3*j+1] += xsimd::hadd(res_gamma_add.y);
-            res_gamma_ptr[3*j+2] += xsimd::hadd(res_gamma_add.z);
+            res_gamma_ptr[3*j+0] += xsimd::reduce_add(res_gamma_add.x);
+            res_gamma_ptr[3*j+1] += xsimd::reduce_add(res_gamma_add.y);
+            res_gamma_ptr[3*j+2] += xsimd::reduce_add(res_gamma_add.z);
 
             MYIF(derivs>0) {
                 auto norm_diff_7_inv = norm_diff_5_inv*norm_diff_2_inv;
@@ -101,12 +115,12 @@ void biot_savart_vjp_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy
                     res_grad_gamma_add += cross(vgrad_i[k], dgamma_j_by_dphi) * (norm_diff_5_inv_times_3 * diff[k]);
                     res_grad_gamma_add -= diff * (15. * diff[k] * inner(cross_dgamma_j_by_dphi_diff, vgrad_i[k]) * norm_diff_7_inv);
                 }
-                res_grad_dgamma_by_dphi_ptr[3*j+0] += xsimd::hadd(res_grad_dgamma_by_dphi_add.x);
-                res_grad_dgamma_by_dphi_ptr[3*j+1] += xsimd::hadd(res_grad_dgamma_by_dphi_add.y);
-                res_grad_dgamma_by_dphi_ptr[3*j+2] += xsimd::hadd(res_grad_dgamma_by_dphi_add.z);
-                res_grad_gamma_ptr[3*j+0] += xsimd::hadd(res_grad_gamma_add.x);
-                res_grad_gamma_ptr[3*j+1] += xsimd::hadd(res_grad_gamma_add.y);
-                res_grad_gamma_ptr[3*j+2] += xsimd::hadd(res_grad_gamma_add.z);
+                res_grad_dgamma_by_dphi_ptr[3*j+0] += xsimd::reduce_add(res_grad_dgamma_by_dphi_add.x);
+                res_grad_dgamma_by_dphi_ptr[3*j+1] += xsimd::reduce_add(res_grad_dgamma_by_dphi_add.y);
+                res_grad_dgamma_by_dphi_ptr[3*j+2] += xsimd::reduce_add(res_grad_dgamma_by_dphi_add.z);
+                res_grad_gamma_ptr[3*j+0] += xsimd::reduce_add(res_grad_gamma_add.x);
+                res_grad_gamma_ptr[3*j+1] += xsimd::reduce_add(res_grad_gamma_add.y);
+                res_grad_gamma_ptr[3*j+2] += xsimd::reduce_add(res_grad_gamma_add.z);
             }
         }
     }
@@ -303,22 +317,35 @@ void biot_savart_vector_potential_vjp_kernel(
     for(int i = 0; i < num_points-num_points%simd_size; i += simd_size) {
         Vec3dSimd point_i = Vec3dSimd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto v_i   = Vec3dSimd();
-        auto vgrad_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
+        auto vgrad_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, xs::default_arch::alignment()>>{
                 Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
             };
+        // v/vgrad are interleaved (point, component[, component]) arrays and batches
+        // have no per-lane write via operator[] anymore; gather the lanes into small
+        // contiguous buffers first, then load each buffer into a batch in one shot.
+        alignas(xs::default_arch::alignment()) double v_x[simd_size], v_y[simd_size], v_z[simd_size];
+        alignas(xs::default_arch::alignment()) double vgrad_x[3][simd_size], vgrad_y[3][simd_size], vgrad_z[3][simd_size];
 #pragma unroll
         for(int k=0; k<simd_size; k++){
-            for (int d = 0; d < 3; ++d) {
-                v_i[d][k] = v(i+k, d);
-                MYIF(derivs>0) {
+            v_x[k] = v(i+k, 0);
+            v_y[k] = v(i+k, 1);
+            v_z[k] = v(i+k, 2);
+            MYIF(derivs>0) {
 #pragma unroll
-                    for (int dd = 0; dd < 3; ++dd) {
-                        vgrad_i[dd][d][k] = vgrad(i+k, dd, d);
-                    }
+                for (int dd = 0; dd < 3; ++dd) {
+                    vgrad_x[dd][k] = vgrad(i+k, dd, 0);
+                    vgrad_y[dd][k] = vgrad(i+k, dd, 1);
+                    vgrad_z[dd][k] = vgrad(i+k, dd, 2);
                 }
             }
         }
-        
+        v_i = Vec3dSimd(xs::load_aligned(v_x), xs::load_aligned(v_y), xs::load_aligned(v_z));
+        MYIF(derivs>0) {
+#pragma unroll
+            for (int dd = 0; dd < 3; ++dd) {
+                vgrad_i[dd] = Vec3dSimd(xs::load_aligned(vgrad_x[dd]), xs::load_aligned(vgrad_y[dd]), xs::load_aligned(vgrad_z[dd]));
+            }
+        }
 
         for (int j = 0; j < num_quad_points; ++j) {
             auto dgamma_j_by_dphi = Vec3d{ dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2] };
@@ -328,15 +355,15 @@ void biot_savart_vector_potential_vjp_kernel(
             auto norm_diff_inv_3 = norm_diff_inv * norm_diff_inv * norm_diff_inv;
 
             auto res_dgamma_by_dphi_add = v_i * norm_diff_inv;
-            res_dgamma_by_dphi_ptr[3*j+0] += xsimd::hadd(res_dgamma_by_dphi_add.x);
-            res_dgamma_by_dphi_ptr[3*j+1] += xsimd::hadd(res_dgamma_by_dphi_add.y);
-            res_dgamma_by_dphi_ptr[3*j+2] += xsimd::hadd(res_dgamma_by_dphi_add.z);
+            res_dgamma_by_dphi_ptr[3*j+0] += xsimd::reduce_add(res_dgamma_by_dphi_add.x);
+            res_dgamma_by_dphi_ptr[3*j+1] += xsimd::reduce_add(res_dgamma_by_dphi_add.y);
+            res_dgamma_by_dphi_ptr[3*j+2] += xsimd::reduce_add(res_dgamma_by_dphi_add.z);
 
             auto vi_dot_dgamma_dphi_j = inner(v_i, dgamma_j_by_dphi); 
             auto res_gamma_add = diff * (vi_dot_dgamma_dphi_j * norm_diff_inv_3);
-            res_gamma_ptr[3*j+0] += xsimd::hadd(res_gamma_add.x);
-            res_gamma_ptr[3*j+1] += xsimd::hadd(res_gamma_add.y);
-            res_gamma_ptr[3*j+2] += xsimd::hadd(res_gamma_add.z);
+            res_gamma_ptr[3*j+0] += xsimd::reduce_add(res_gamma_add.x);
+            res_gamma_ptr[3*j+1] += xsimd::reduce_add(res_gamma_add.y);
+            res_gamma_ptr[3*j+2] += xsimd::reduce_add(res_gamma_add.z);
 
             MYIF(derivs>0) {
                 auto norm_diff_inv_5 = norm_diff_inv_3 * norm_diff_inv * norm_diff_inv;
@@ -351,12 +378,12 @@ void biot_savart_vector_potential_vjp_kernel(
                 res_grad_gamma_add.x += inner(vgrad_i[0], dgamma_j_by_dphi) * norm_diff_inv_3;
                 res_grad_gamma_add.y += inner(vgrad_i[1], dgamma_j_by_dphi) * norm_diff_inv_3;
                 res_grad_gamma_add.z += inner(vgrad_i[2], dgamma_j_by_dphi) * norm_diff_inv_3;
-                res_grad_dgamma_by_dphi_ptr[3*j+0] += xsimd::hadd(res_grad_dgamma_by_dphi_add.x);
-                res_grad_dgamma_by_dphi_ptr[3*j+1] += xsimd::hadd(res_grad_dgamma_by_dphi_add.y);
-                res_grad_dgamma_by_dphi_ptr[3*j+2] += xsimd::hadd(res_grad_dgamma_by_dphi_add.z);
-                res_grad_gamma_ptr[3*j+0] += xsimd::hadd(res_grad_gamma_add.x);
-                res_grad_gamma_ptr[3*j+1] += xsimd::hadd(res_grad_gamma_add.y);
-                res_grad_gamma_ptr[3*j+2] += xsimd::hadd(res_grad_gamma_add.z);
+                res_grad_dgamma_by_dphi_ptr[3*j+0] += xsimd::reduce_add(res_grad_dgamma_by_dphi_add.x);
+                res_grad_dgamma_by_dphi_ptr[3*j+1] += xsimd::reduce_add(res_grad_dgamma_by_dphi_add.y);
+                res_grad_dgamma_by_dphi_ptr[3*j+2] += xsimd::reduce_add(res_grad_dgamma_by_dphi_add.z);
+                res_grad_gamma_ptr[3*j+0] += xsimd::reduce_add(res_grad_gamma_add.x);
+                res_grad_gamma_ptr[3*j+1] += xsimd::reduce_add(res_grad_gamma_add.y);
+                res_grad_gamma_ptr[3*j+2] += xsimd::reduce_add(res_grad_gamma_add.z);
             }
         }
     }

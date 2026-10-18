@@ -188,6 +188,48 @@ class Testing(unittest.TestCase):
             # nfp = 2 and ntor = 2 here, so an exception should be raised
             _ = CurveXYZFourierSymmetries(100, order, nfp, True, ntor=ntor, x0=np.ones(3*order+1))
 
+    def test_curvexyzfouriersymmetries_to_RZFourier(self):
+        """
+        A CurveRZFourier is parametrized by the toroidal angle, a
+        CurveXYZFourierSymmetries by a general parameter. Fitting the NCSX axis
+        with a CurveXYZFourierSymmetries running in either direction (ntor=1 and
+        -1) and converting it back with to_RZFourier recovers the axis
+        coefficients. A curve that goes around the torus twice is not a
+        function of phi and cannot be converted, and the CurveRZFourier must
+        have a multiple of the curve's field periods.
+        """
+        _, _, ma, nfp, _ = get_data('ncsx')
+        order = ma.order + 2
+        quadpoints = np.linspace(0, 1/nfp, 2*order+1, endpoint=False)
+        for ntor in [1, -1]:
+            with self.subTest(ntor=ntor):
+                # the axis evaluated at phi = 2*pi*ntor*theta
+                axis_samples = CurveRZFourier(np.mod(ntor*quadpoints, 1), ma.order, ma.nfp, ma.stellsym)
+                axis_samples.x = ma.x
+                curve = CurveXYZFourierSymmetries(quadpoints, order, nfp, True, ntor=ntor)
+                curve.least_squares_fit(axis_samples.gamma())
+                rz = curve.to_RZFourier(order=ma.order, quadpoints=ma.quadpoints)
+                self.assertEqual(rz.nfp, nfp)
+                np.testing.assert_allclose(rz.x, ma.x, atol=1e-8)
+                np.testing.assert_allclose(rz.gamma(), ma.gamma(), atol=1e-8)
+
+        # by default, the CurveRZFourier has the order of the curve
+        rz = curve.to_RZFourier()
+        self.assertEqual(rz.order, curve.order)
+        self.assertEqual(len(rz.quadpoints), 4*(2*curve.order + 1)*nfp)
+
+        with self.assertRaises(ValueError):
+            CurveXYZFourierSymmetries(100, 1, 1, True, ntor=2).to_RZFourier()
+        # a curve that loops back in phi: the local rotation ys(1) changes phi
+        # faster than the curve advances around the torus
+        looping = CurveXYZFourierSymmetries(100, 1, 3, True)
+        looping.set('xc(0)', 1.0)
+        looping.set('ys(1)', -0.5)
+        with self.assertRaises(ValueError):
+            looping.to_RZFourier()
+        with self.assertRaises(ValueError):
+            CurveXYZFourierSymmetries(100, 1, 2, True).to_RZFourier(nfp=3)
+
     def test_curvehelical_is_curvexyzfouriersymmetries(self):
         # this test checks that both helical coil representations can produce the same helical curve on a torus
         order = 1

@@ -7,9 +7,11 @@ from .magneticfieldclasses import *
 from .mgrid import *
 from .normal_field import *
 from .tracing import *
+from .integrator import *
 from .wireframefield import *
 from .selffield import *
 from .magnetic_axis_helpers import *
+from .force import *
 from .virtualcasingmagneticfield import *
 
 __all__ = (
@@ -22,8 +24,10 @@ __all__ = (
     + mgrid.__all__
     + normal_field.__all__
     + tracing.__all__
+    + integrator.__all__
     + wireframefield.__all__
     + selffield.__all__
     + magnetic_axis_helpers.__all__
+    + force.__all__
     + virtualcasingmagneticfield.__all__
 )

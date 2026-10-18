@@ -1,4 +1,6 @@
+import os
 import unittest
+import warnings
 from pathlib import Path
 
 from qsc import Qsc
@@ -17,6 +19,13 @@ try:
 except ImportError:
     vmec = None
 
+try:
+    from desc.geometry import FourierRZToroidalSurface as DescFourierRZToroidalSurface
+    from desc.grid import LinearGrid as DescLinearGrid
+except ImportError:
+    DescFourierRZToroidalSurface = None
+    DescLinearGrid = None
+
 from simsopt.mhd import Vmec
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
@@ -25,6 +34,25 @@ stellsym_list = [True, False]
 
 
 class SurfaceRZFourierTests(unittest.TestCase):
+
+    def _assert_simsopt_surface_matches_desc_xyz(self, simsopt_surface, desc_surface, atol=1e-12):
+        """Compare simsopt gamma() xyz coordinates to DESC compute('x')."""
+        # Compare on one field period so DESC's toroidal coordinate wrapping does not
+        # reorder full-torus grids before evaluation.
+        simsopt_eval_surface = simsopt_surface.copy(nphi=12, ntheta=13, range="field period")
+
+        theta = 2 * np.pi * simsopt_eval_surface.quadpoints_theta
+        zeta = 2 * np.pi * simsopt_eval_surface.quadpoints_phi
+        desc_grid = DescLinearGrid(
+            rho=1.0,
+            theta=theta,
+            zeta=zeta,
+            NFP=desc_surface.NFP,
+        )
+        desc_xyz = np.asarray(desc_surface.compute("x", grid=desc_grid, basis="xyz")["x"])
+        # DESC meshgrid_reshape returns (rho, theta, zeta, ...). simsopt gamma is (phi, theta, ...).
+        desc_xyz = np.asarray(desc_grid.meshgrid_reshape(desc_xyz, "rtz"))[0].transpose(1, 0, 2)
+        np.testing.assert_allclose(simsopt_eval_surface.gamma(), desc_xyz, atol=atol)
 
     def test_aspect_ratio(self):
         """
@@ -517,6 +545,98 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         np.testing.assert_allclose(full_torus.rc, full_period.rc)
         np.testing.assert_allclose(full_torus.zs, full_period.zs)
+
+    @unittest.skipIf(DescFourierRZToroidalSurface is None, "desc python extension is not installed")
+    def test_to_from_desc_roundtrip(self):
+        """Test that to_desc and from_desc correctly converts DESC surface back to simsopt."""
+        filelist = ["input.rotating_ellipse", 'input.LandremanPaul2021_QH_reactorScale_lowres', "input.ITERModel", "input.li383_low_res", "input.basic_non_stellsym"]
+
+        for ff in filelist:
+            input_file = os.path.join(TEST_DIR, ff)
+            surface_orig = SurfaceRZFourier.from_vmec_input(input_file)
+
+            # Convert to DESC and back
+            desc_surface = surface_orig.to_desc()
+            boundary_roundtrip = SurfaceRZFourier.from_desc(desc_surface)
+            boundary_from_desc = boundary_roundtrip.copy(
+                quadpoints_phi=surface_orig.quadpoints_phi,
+                quadpoints_theta=surface_orig.quadpoints_theta,
+            )
+
+            # Check NFP and stellsym are preserved
+            self.assertEqual(boundary_from_desc.nfp, surface_orig.nfp)
+            self.assertEqual(boundary_from_desc.stellsym, surface_orig.stellsym)
+
+            # Check geometry is preserved via gamma
+            np.testing.assert_allclose(surface_orig.gamma(), boundary_from_desc.gamma(), atol=1e-12)
+
+            # Check xyz coordinates against DESC-computed xyz on a matching grid.
+            self._assert_simsopt_surface_matches_desc_xyz(surface_orig, desc_surface, atol=1e-12)
+            self._assert_simsopt_surface_matches_desc_xyz(boundary_from_desc, desc_surface, atol=1e-12)
+
+            # check the modes are preserved
+            np.testing.assert_allclose(boundary_from_desc.rc, surface_orig.rc, atol=1e-12)
+            np.testing.assert_allclose(boundary_from_desc.zs, surface_orig.zs, atol=1e-12)
+            np.testing.assert_allclose(boundary_from_desc.rs, surface_orig.rs, atol=1e-12)
+            np.testing.assert_allclose(boundary_from_desc.zc, surface_orig.zc, atol=1e-12)
+
+    @unittest.skipIf(DescFourierRZToroidalSurface is None, "desc python extension is not installed")
+    def test_to_from_desc_ntor0(self):
+        """Roundtrip with ntor=0 (no toroidal modes — mode deletion path is a no-op)."""
+        surface_orig = SurfaceRZFourier(mpol=2, ntor=0, nfp=1, stellsym=True)
+        surface_orig.set_rc(0, 0, 1.0)
+        surface_orig.set_rc(1, 0, 0.1)
+        surface_orig.set_zs(1, 0, 0.13)
+
+        desc_surface = surface_orig.to_desc()
+        boundary_from_desc = SurfaceRZFourier.from_desc(desc_surface).copy(
+            quadpoints_phi=surface_orig.quadpoints_phi,
+            quadpoints_theta=surface_orig.quadpoints_theta,
+        )
+
+        np.testing.assert_allclose(surface_orig.gamma(), boundary_from_desc.gamma(), atol=1e-12)
+        self._assert_simsopt_surface_matches_desc_xyz(surface_orig, desc_surface, atol=1e-12)
+        self._assert_simsopt_surface_matches_desc_xyz(boundary_from_desc, desc_surface, atol=1e-12)
+
+    @unittest.skipIf(DescFourierRZToroidalSurface is None, "desc python extension is not installed")
+    def test_from_desc_known_coefficients(self):
+        """from_desc with a hand-built DESC surface whose simsopt output is known."""
+        # DESC sym=True convention: R uses positive m, Z uses negative m.
+        # check_orientation=False prevents DESC from flipping Z_lmn sign.
+        desc_surface = DescFourierRZToroidalSurface(
+            R_lmn=np.array([1.0, 0.1]),
+            Z_lmn=np.array([0.13]),
+            modes_R=np.array([[0, 0], [1, 0]]),
+            modes_Z=np.array([[-1, 0]]),
+            NFP=2,
+            sym=True,
+            check_orientation=False,
+        )
+        s = SurfaceRZFourier.from_desc(desc_surface)
+
+        self.assertEqual(s.nfp, 2)
+        self.assertTrue(s.stellsym)
+        self.assertAlmostEqual(s.get_rc(0, 0), 1.0, places=12)
+        self.assertAlmostEqual(s.get_rc(1, 0), 0.1, places=12)
+        self.assertAlmostEqual(s.get_zs(1, 0), 0.13, places=12)
+        self._assert_simsopt_surface_matches_desc_xyz(s, desc_surface, atol=1e-12)
+
+    @unittest.skipIf(DescFourierRZToroidalSurface is None, "desc python extension is not installed")
+    def test_to_desc_check_orientation(self):
+        """The check_orientation kwarg only affects mode signs, never the shape."""
+        surface_orig = SurfaceRZFourier(mpol=2, ntor=1, nfp=2, stellsym=True)
+        surface_orig.set_rc(0, 0, 1.0)
+        surface_orig.set_rc(1, 0, 0.1)
+        surface_orig.set_zs(1, 0, 0.13)
+
+        desc_unchecked = surface_orig.to_desc(check_orientation=False)
+        with warnings.catch_warnings():
+            # DESC warns when it flips the sign of theta
+            warnings.simplefilter("ignore")
+            desc_checked = surface_orig.to_desc(check_orientation=True)
+
+        np.testing.assert_allclose(np.abs(desc_checked.R_lmn), np.abs(desc_unchecked.R_lmn), atol=1e-12)
+        np.testing.assert_allclose(np.abs(desc_checked.Z_lmn), np.abs(desc_unchecked.Z_lmn), atol=1e-12)
 
     def test_change_resolution(self):
         """

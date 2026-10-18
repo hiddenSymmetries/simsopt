@@ -5,7 +5,7 @@ FROM --platform=linux/amd64 ubuntu:22.04 as intermediate
 RUN apt update && \
     DEBIAN_FRONTEND=noninteractive  apt-get install -y  build-essential gfortran git m4 wget \
     libopenblas-dev libfftw3-dev libhdf5-dev libhdf5-serial-dev libnetcdf-dev libnetcdff-dev libgl1-mesa-dev \
-    python3-dev python3-pip python3-venv libxrender1
+    python3-dev python3-pip python3-venv libxrender1 libxcursor-dev
 
 # Install mpich manually
 WORKDIR /src
@@ -26,13 +26,15 @@ RUN \
 RUN /sbin/ldconfig
 
 RUN python3 -m pip install wheel
+RUN python3 -m pip install --upgrade pip
 RUN python3 -m venv /venv/
 
 RUN /venv/bin/pip install -U pip
 # 2024-11-12 MJL: mpi4py < 4.0 in the next line is due to
 # https://github.com/hiddenSymmetries/simsopt/issues/455
 # Once NERSC gets Shifter working with mpi4py >= 4 we can remove this inequality
-RUN /venv/bin/python -m pip install numpy scipy jax jaxlib f90nml "mpi4py<4.0" jupyter notebook ipython qsc sympy scikit-build ninja "pybind11[global]<3.0" cmake f90wrap h5py
+# 2026-02-09 BKM: NERSC docs show mpi4py > 4. Removing the version constraint.
+RUN /venv/bin/python -m pip install numpy scipy jax jaxlib f90nml jupyter notebook ipython qsc sympy scikit-build ninja "pybind11[global]<3.0" cmake f90wrap h5py && CC=mpicc /venv/bin/pip install --no-cache-dir --no-binary=mpi4py mpi4py
 ENV PATH="/venv/bin:${PATH}"
 
 RUN \
@@ -60,8 +62,8 @@ RUN git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git /src/VM
 
 RUN /venv/bin/pip install git+https://github.com/zhisong/pyoculus
 RUN /venv/bin/pip install vtk==9.2.6 pyqt5 matplotlib pyevtk plotly
-RUN /venv/bin/pip install mayavi
-RUN /venv/bin/pip install ground bentley_ottmann
+RUN /venv/bin/pip install mayavi==4.8.3 --no-build-isolation
+RUN /venv/bin/pip install ground==9 bentley_ottmann==8
 RUN /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
 RUN /venv/bin/pip install  git+https://github.com/hiddenSymmetries/virtual-casing
 RUN /venv/bin/pip install  git+https://github.com/rogeriojorge/pyQIC

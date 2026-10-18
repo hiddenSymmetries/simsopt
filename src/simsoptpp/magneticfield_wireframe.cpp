@@ -2,7 +2,7 @@
 #include "wireframe_field_impl.h"
 #include <fmt/core.h>
 #include <fmt/format.h>
-#include <xtensor/xarray.hpp>
+#include <xtensor/containers/xarray.hpp>
 
 template<class Array>
 void set_array_to_zero(Array& data){

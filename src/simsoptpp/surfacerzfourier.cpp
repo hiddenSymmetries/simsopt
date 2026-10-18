@@ -29,12 +29,15 @@ void SurfaceRZFourier<Array>::gamma_impl(Array& data, Array& quadpoints_phi, Arr
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for(int k2 = 0; k2 < numquadpoints_theta; k2 += simd_size) {
-            simd_t theta;
+            // batches have no per-lane operator[] anymore; gather into a small
+            // contiguous buffer first, then load it into a batch in one shot.
+            alignas(xs::default_arch::alignment()) double theta_arr[simd_size] = {};
             for (int l = 0; l < simd_size; ++l) {
                 if(k2 + l >= numquadpoints_theta)
                     break;
-                theta[l] = 2*M_PI * quadpoints_theta[k2+l];
+                theta_arr[l] = 2*M_PI * quadpoints_theta[k2+l];
             }
+            simd_t theta = xs::load_aligned(theta_arr);
             simd_t r(0.);
             simd_t z(0.);
             double sin_nfpphi = sin(-nfp*phi);
@@ -46,7 +49,7 @@ void SurfaceRZFourier<Array>::gamma_impl(Array& data, Array& quadpoints_phi, Arr
                     // recompute the angle from scratch every so often, to
                     // avoid accumulating floating point error
                     if(i % ANGLE_RECOMPUTE == 0)
-                        xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
+                        { auto sincos_result = xsimd::sincos(m*theta-n*nfp*phi); sinterm = sincos_result.first; costerm = sincos_result.second; }
                     r += rc(m, i) * costerm;
                     if(!stellsym) {
                         r += rs(m, i) * sinterm;
@@ -63,12 +66,16 @@ void SurfaceRZFourier<Array>::gamma_impl(Array& data, Array& quadpoints_phi, Arr
             }
             auto x = r * cos(phi);
             auto y = r * sin(phi);
+            alignas(xs::default_arch::alignment()) double x_arr[simd_size], y_arr[simd_size], z_arr[simd_size];
+            x.store_aligned(x_arr);
+            y.store_aligned(y_arr);
+            z.store_aligned(z_arr);
             for (int l = 0; l < simd_size; ++l) {
                 if(k2 + l >= numquadpoints_theta)
                     break;
-                data(k1, k2+l, 0) = x[l];
-                data(k1, k2+l, 1) = y[l];
-                data(k1, k2+l, 2) = z[l];
+                data(k1, k2+l, 0) = x_arr[l];
+                data(k1, k2+l, 1) = y_arr[l];
+                data(k1, k2+l, 2) = z_arr[l];
             }
         }
     }
@@ -161,12 +168,15 @@ void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for(int k2 = 0; k2 < numquadpoints_theta; k2 += simd_size) {
-            simd_t theta;
+            // batches have no per-lane operator[] anymore; gather into a small
+            // contiguous buffer first, then load it into a batch in one shot.
+            alignas(xs::default_arch::alignment()) double theta_arr[simd_size] = {};
             for (int l = 0; l < simd_size; ++l) {
                 if(k2 + l >= numquadpoints_theta)
                     break;
-                theta[l] = 2*M_PI * quadpoints_theta[k2+l];
+                theta_arr[l] = 2*M_PI * quadpoints_theta[k2+l];
             }
+            simd_t theta = xs::load_aligned(theta_arr);
             simd_t r(0.);
             simd_t rd(0.);
             simd_t zd(0.);
@@ -179,7 +189,7 @@ void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
                      // recompute the angle from scratch every so often, to
                      // avoid accumulating floating point error
                     if(i % ANGLE_RECOMPUTE == 0)
-                        xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
+                        { auto sincos_result = xsimd::sincos(m*theta-n*nfp*phi); sinterm = sincos_result.first; costerm = sincos_result.second; }
                     r  += rc(m, i) * costerm;
                     rd += rc(m, i) * (n*nfp) * sinterm;
                     if(!stellsym) {
@@ -199,12 +209,16 @@ void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
             auto xd = 2*M_PI*(rd * cos(phi) - r * sin(phi));
             auto yd = 2*M_PI*(rd * sin(phi) + r * cos(phi));
             zd *= 2*M_PI;
+            alignas(xs::default_arch::alignment()) double xd_arr[simd_size], yd_arr[simd_size], zd_arr[simd_size];
+            xd.store_aligned(xd_arr);
+            yd.store_aligned(yd_arr);
+            zd.store_aligned(zd_arr);
             for (int l = 0; l < simd_size; ++l) {
                 if(k2 + l >= numquadpoints_theta)
                     break;
-                data(k1, k2+l, 0) = xd[l];
-                data(k1, k2+l, 1) = yd[l];
-                data(k1, k2+l, 2) = zd[l];
+                data(k1, k2+l, 0) = xd_arr[l];
+                data(k1, k2+l, 1) = yd_arr[l];
+                data(k1, k2+l, 2) = zd_arr[l];
             }
         }
     }
@@ -365,12 +379,15 @@ void SurfaceRZFourier<Array>::gammadash2_impl(Array& data) {
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
         double phi  = 2*M_PI*quadpoints_phi[k1];
         for(int k2 = 0; k2 < numquadpoints_theta; k2 += simd_size) {
-            simd_t theta;
+            // batches have no per-lane operator[] anymore; gather into a small
+            // contiguous buffer first, then load it into a batch in one shot.
+            alignas(xs::default_arch::alignment()) double theta_arr[simd_size] = {};
             for (int l = 0; l < simd_size; ++l) {
                 if(k2 + l >= numquadpoints_theta)
                     break;
-                theta[l] = 2*M_PI * quadpoints_theta[k2+l];
+                theta_arr[l] = 2*M_PI * quadpoints_theta[k2+l];
             }
+            simd_t theta = xs::load_aligned(theta_arr);
             simd_t rd(0.);
             simd_t zd(0.);
             double sin_nfpphi = sin(-nfp*phi);
@@ -382,7 +399,7 @@ void SurfaceRZFourier<Array>::gammadash2_impl(Array& data) {
                      // recompute the angle from scratch every so often, to
                      // avoid accumulating floating point error
                     if(i % ANGLE_RECOMPUTE == 0)
-                        xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
+                        { auto sincos_result = xsimd::sincos(m*theta-n*nfp*phi); sinterm = sincos_result.first; costerm = sincos_result.second; }
                     rd += rc(m, i) * (-m) * sinterm;
                     if(!stellsym) {
                         rd += rs(m, i) * m * costerm;
@@ -400,12 +417,16 @@ void SurfaceRZFourier<Array>::gammadash2_impl(Array& data) {
             auto xd = 2*M_PI*rd*cos(phi);
             auto yd = 2*M_PI*rd*sin(phi);
             zd *= 2*M_PI;
+            alignas(xs::default_arch::alignment()) double xd_arr[simd_size], yd_arr[simd_size], zd_arr[simd_size];
+            xd.store_aligned(xd_arr);
+            yd.store_aligned(yd_arr);
+            zd.store_aligned(zd_arr);
             for (int l = 0; l < simd_size; ++l) {
                 if(k2 + l >= numquadpoints_theta)
                     break;
-                data(k1, k2+l, 0) = xd[l];
-                data(k1, k2+l, 1) = yd[l];
-                data(k1, k2+l, 2) = zd[l];
+                data(k1, k2+l, 0) = xd_arr[l];
+                data(k1, k2+l, 1) = yd_arr[l];
+                data(k1, k2+l, 2) = zd_arr[l];
             }
         }
     }
@@ -480,18 +501,22 @@ Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
             double cosphi = cos(phi);
 
             for(int i = 0; i < numquadpoints_theta; i += simd_size) {
-                simd_t theta(0.);
-                simd_t v0(0.);
-                simd_t v1(0.);
-                simd_t v2(0.);
+                // batches have no per-lane operator[] anymore; gather into small
+                // contiguous buffers first, then load each into a batch in one shot.
+                alignas(xs::default_arch::alignment()) double theta_arr[simd_size] = {};
+                alignas(xs::default_arch::alignment()) double v0_arr[simd_size] = {}, v1_arr[simd_size] = {}, v2_arr[simd_size] = {};
                 for (int l = 0; l < simd_size; ++l) {
                     if(i + l >= numquadpoints_theta)
                         break;
-                    v0[l] = v(k1, i+l, 0);
-                    v1[l] = v(k1, i+l, 1);
-                    v2[l] = v(k1, i+l, 2);
-                    theta[l] = 2*M_PI * quadpoints_theta[i+l];
+                    v0_arr[l] = v(k1, i+l, 0);
+                    v1_arr[l] = v(k1, i+l, 1);
+                    v2_arr[l] = v(k1, i+l, 2);
+                    theta_arr[l] = 2*M_PI * quadpoints_theta[i+l];
                 }
+                simd_t theta = xs::load_aligned(theta_arr);
+                simd_t v0 = xs::load_aligned(v0_arr);
+                simd_t v1 = xs::load_aligned(v1_arr);
+                simd_t v2 = xs::load_aligned(v2_arr);
                 int counter = 0;
                 int shift0 = -ntor;
                 int shift1 = !stellsym ? shift0 + (mpol+1) * (2*ntor+1) - ntor - 1 : shift0;
@@ -506,20 +531,20 @@ Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
                          // recompute the angle from scratch every so often, to
                          // avoid accumulating floating point error
                         if(i % ANGLE_RECOMPUTE == 0)
-                            xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
+                            { auto sincos_result = xsimd::sincos(m*theta-n*nfp*phi); sinterm = sincos_result.first; costerm = sincos_result.second; }
                         if(!(m==0 && n<0)){
-                            resptr_private[counter+shift0] += cosphi * xsimd::hadd(costerm * v0);
-                            resptr_private[counter+shift0] += sinphi * xsimd::hadd(costerm * v1);
+                            resptr_private[counter+shift0] += cosphi * xsimd::reduce_add(costerm * v0);
+                            resptr_private[counter+shift0] += sinphi * xsimd::reduce_add(costerm * v1);
                         }
                         if(!(stellsym) && !(m==0 && n<=0)){
-                            resptr_private[counter+shift1] += cosphi * xsimd::hadd(sinterm * v0);
-                            resptr_private[counter+shift1] += sinphi * xsimd::hadd(sinterm * v1);
+                            resptr_private[counter+shift1] += cosphi * xsimd::reduce_add(sinterm * v0);
+                            resptr_private[counter+shift1] += sinphi * xsimd::reduce_add(sinterm * v1);
                         }
                         if(!(stellsym) && !(m==0 && n<0)){
-                            resptr_private[counter+shift2] += xsimd::hadd(costerm * v2);
+                            resptr_private[counter+shift2] += xsimd::reduce_add(costerm * v2);
                         }
                         if(!(m==0 && n<=0)){
-                            resptr_private[counter+shift3] += xsimd::hadd(sinterm * v2);
+                            resptr_private[counter+shift3] += xsimd::reduce_add(sinterm * v2);
                         }
                         counter++;
                         if(i % ANGLE_RECOMPUTE != ANGLE_RECOMPUTE - 1){
@@ -688,18 +713,22 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
             double cosphi = cos(phi);
 
             for(int i = 0; i < numquadpoints_theta; i += simd_size) {
-                simd_t theta(0.);
-                simd_t v0(0.);
-                simd_t v1(0.);
-                simd_t v2(0.);
+                // batches have no per-lane operator[] anymore; gather into small
+                // contiguous buffers first, then load each into a batch in one shot.
+                alignas(xs::default_arch::alignment()) double theta_arr[simd_size] = {};
+                alignas(xs::default_arch::alignment()) double v0_arr[simd_size] = {}, v1_arr[simd_size] = {}, v2_arr[simd_size] = {};
                 for (int l = 0; l < simd_size; ++l) {
                     if(i + l >= numquadpoints_theta)
                         break;
-                    v0[l] = v(k1, i+l, 0);
-                    v1[l] = v(k1, i+l, 1);
-                    v2[l] = v(k1, i+l, 2);
-                    theta[l] = 2*M_PI * quadpoints_theta[i+l];
+                    v0_arr[l] = v(k1, i+l, 0);
+                    v1_arr[l] = v(k1, i+l, 1);
+                    v2_arr[l] = v(k1, i+l, 2);
+                    theta_arr[l] = 2*M_PI * quadpoints_theta[i+l];
                 }
+                simd_t theta = xs::load_aligned(theta_arr);
+                simd_t v0 = xs::load_aligned(v0_arr);
+                simd_t v1 = xs::load_aligned(v1_arr);
+                simd_t v2 = xs::load_aligned(v2_arr);
                 int counter = 0;
                 int shift0 = -ntor;
                 int shift1 = !stellsym ? shift0 + (mpol+1) * (2*ntor+1) - ntor - 1 : shift0;
@@ -715,20 +744,20 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
                         // recompute the angle from scratch every so often, to
                         // avoid accumulating floating point error
                         if(i % ANGLE_RECOMPUTE == 0)
-                            xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
+                            { auto sincos_result = xsimd::sincos(m*theta-n*nfp*phi); sinterm = sincos_result.first; costerm = sincos_result.second; }
                         if(!(m==0 && n<0)){
-                            resptr_private[counter+shift0] += xsimd::hadd((sinterm * ((n*nfp) * cosphi) - costerm * sinphi) * v0);
-                            resptr_private[counter+shift0] += xsimd::hadd((sinterm * ((n*nfp) * sinphi) + costerm * cosphi) * v1);
+                            resptr_private[counter+shift0] += xsimd::reduce_add((sinterm * ((n*nfp) * cosphi) - costerm * sinphi) * v0);
+                            resptr_private[counter+shift0] += xsimd::reduce_add((sinterm * ((n*nfp) * sinphi) + costerm * cosphi) * v1);
                         }
                         if(!(stellsym) && !(m==0 && n<=0)){
-                            resptr_private[counter+shift1] += xsimd::hadd((costerm * ((-n*nfp)*cosphi) - sinterm * sinphi) * v0);
-                            resptr_private[counter+shift1] += xsimd::hadd((costerm * ((-n*nfp)*sinphi) + sinterm * cosphi) * v1);
+                            resptr_private[counter+shift1] += xsimd::reduce_add((costerm * ((-n*nfp)*cosphi) - sinterm * sinphi) * v0);
+                            resptr_private[counter+shift1] += xsimd::reduce_add((costerm * ((-n*nfp)*sinphi) + sinterm * cosphi) * v1);
                         }
                         if(!(stellsym) && !(m==0 && n<0)){
-                            resptr_private[counter+shift2] += xsimd::hadd((n*nfp)*sinterm * v2);
+                            resptr_private[counter+shift2] += xsimd::reduce_add((n*nfp)*sinterm * v2);
                         }
                         if(!(m==0 && n<=0)){
-                            resptr_private[counter+shift3] += xsimd::hadd((-n*nfp)*costerm * v2);
+                            resptr_private[counter+shift3] += xsimd::reduce_add((-n*nfp)*costerm * v2);
                         }
                         counter++;
                         if(i % ANGLE_RECOMPUTE != ANGLE_RECOMPUTE - 1){
@@ -1012,18 +1041,22 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
             double cosphi = cos(phi);
 
             for(int i = 0; i < numquadpoints_theta; i += simd_size) {
-                simd_t theta(0.);
-                simd_t v0(0.);
-                simd_t v1(0.);
-                simd_t v2(0.);
+                // batches have no per-lane operator[] anymore; gather into small
+                // contiguous buffers first, then load each into a batch in one shot.
+                alignas(xs::default_arch::alignment()) double theta_arr[simd_size] = {};
+                alignas(xs::default_arch::alignment()) double v0_arr[simd_size] = {}, v1_arr[simd_size] = {}, v2_arr[simd_size] = {};
                 for (int l = 0; l < simd_size; ++l) {
                     if(i + l >= numquadpoints_theta)
                         break;
-                    v0[l] = v(k1, i+l, 0);
-                    v1[l] = v(k1, i+l, 1);
-                    v2[l] = v(k1, i+l, 2);
-                    theta[l] = 2*M_PI * quadpoints_theta[i+l];
+                    v0_arr[l] = v(k1, i+l, 0);
+                    v1_arr[l] = v(k1, i+l, 1);
+                    v2_arr[l] = v(k1, i+l, 2);
+                    theta_arr[l] = 2*M_PI * quadpoints_theta[i+l];
                 }
+                simd_t theta = xs::load_aligned(theta_arr);
+                simd_t v0 = xs::load_aligned(v0_arr);
+                simd_t v1 = xs::load_aligned(v1_arr);
+                simd_t v2 = xs::load_aligned(v2_arr);
                 int counter = 0;
                 int shift0 = -ntor;
                 int shift1 = !stellsym ? shift0 + (mpol+1) * (2*ntor+1) - ntor - 1 : shift0;
@@ -1039,20 +1072,20 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
                         // recompute the angle from scratch every so often, to
                         // avoid accumulating floating point error
                         if(i % ANGLE_RECOMPUTE == 0)
-                            xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
+                            { auto sincos_result = xsimd::sincos(m*theta-n*nfp*phi); sinterm = sincos_result.first; costerm = sincos_result.second; }
                         if(!(m==0 && n<0)){
-                            resptr_private[counter+shift0] -= (cosphi * m) * xsimd::hadd(sinterm * v0);
-                            resptr_private[counter+shift0] -= (sinphi * m) * xsimd::hadd(sinterm * v1);
+                            resptr_private[counter+shift0] -= (cosphi * m) * xsimd::reduce_add(sinterm * v0);
+                            resptr_private[counter+shift0] -= (sinphi * m) * xsimd::reduce_add(sinterm * v1);
                         }
                         if(!(stellsym) && !(m==0 && n<=0)){
-                            resptr_private[counter+shift1] += (cosphi * m) * xsimd::hadd(costerm * v0);
-                            resptr_private[counter+shift1] += (sinphi * m) * xsimd::hadd(costerm * v1);
+                            resptr_private[counter+shift1] += (cosphi * m) * xsimd::reduce_add(costerm * v0);
+                            resptr_private[counter+shift1] += (sinphi * m) * xsimd::reduce_add(costerm * v1);
                         }
                         if(!(stellsym) && !(m==0 && n<0)){
-                            resptr_private[counter+shift2] -= m * xsimd::hadd(sinterm * v2);
+                            resptr_private[counter+shift2] -= m * xsimd::reduce_add(sinterm * v2);
                         }
                         if(!(m==0 && n<=0)){
-                            resptr_private[counter+shift3] += m * xsimd::hadd(costerm * v2);
+                            resptr_private[counter+shift3] += m * xsimd::reduce_add(costerm * v2);
                         }
                         counter++;
                         if(i % ANGLE_RECOMPUTE != ANGLE_RECOMPUTE - 1){
